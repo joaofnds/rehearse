@@ -826,4 +826,17 @@ describe("the state grades a session attempt record carries", () => {
 		});
 		expect(graded).not.toHaveProperty("stateResults");
 	});
+
+	it("refuses a record carrying both graded results and the reason it could not grade", () => {
+		const graded = built({
+			stateResults: [{ name: "tree-clean", status: "PASS", detail: "clean" }],
+		});
+
+		const both = {
+			...graded,
+			stateGradingError: "scorer sh score.sh exited 4: broken",
+		};
+
+		expect(sessionAttemptRecordSchema.safeParse(both).success).toBe(false);
+	});
 });

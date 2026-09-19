@@ -96,6 +96,8 @@ interface RecordedOutcome {
 	readonly outcome: "SUCCESSFUL" | "UNSUCCESSFUL" | "NO_REPLY";
 	readonly reply?: string | undefined;
 	readonly checks: readonly { readonly status: "PASS" | "FAIL" }[];
+	readonly stateResults?: readonly unknown[] | undefined;
+	readonly stateGradingError?: string | undefined;
 }
 
 interface RecordProblem {
@@ -111,11 +113,34 @@ interface RecordProblem {
  * only when every one of them passes.
  */
 function problemsWith(record: RecordedOutcome): readonly RecordProblem[] {
+	const state = stateGradeProblems(record);
 	if (record.outcome === "NO_REPLY") {
-		return noReplyProblems(record);
+		return [...state, ...noReplyProblems(record)];
 	}
 
-	return checkedProblems(record);
+	return [...state, ...checkedProblems(record)];
+}
+
+/**
+ * A scorer either graded or it did not, so a record claiming both describes
+ * something that cannot have happened, and a reader deciding whether an edit
+ * helped would not know which half to believe.
+ */
+function stateGradeProblems(record: RecordedOutcome): readonly RecordProblem[] {
+	if (
+		record.stateResults === undefined ||
+		record.stateGradingError === undefined
+	) {
+		return [];
+	}
+
+	return [
+		{
+			message:
+				"A state grade records either its results or the reason it could not grade",
+			path: "stateGradingError",
+		},
+	];
 }
 
 function noReplyProblems(record: RecordedOutcome): readonly RecordProblem[] {
