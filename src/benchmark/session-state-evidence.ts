@@ -1,5 +1,6 @@
 import { cp, mkdir, rename } from "node:fs/promises";
 import { join } from "node:path";
+import { runCommand } from "./command";
 import { STORED_GIT_DIRECTORY } from "./git-directory-name";
 
 export const STATE_EVIDENCE_DIRECTORY = "state";
@@ -10,6 +11,12 @@ export const STATE_EVIDENCE_DIRECTORY = "state";
  * second copy of the corpus in every attempt's evidence.
  */
 const CORPUS_OVERLAY_DIRECTORY = ".claude";
+
+/**
+ * `core.hooksPath` must name a directory that holds no hook, and it is created
+ * inside the restore so it is removed with it.
+ */
+const NO_HOOKS_DIRECTORY = ".rehearse-no-hooks";
 
 /**
  * A recursive filesystem copy is what carries the state a grade reads: dirty
@@ -59,6 +66,7 @@ export async function restoreStateEvidence(
 	destination: string,
 ): Promise<string> {
 	await cp(evidenceDirectory, destination, { recursive: true });
+	await mkdir(join(destination, NO_HOOKS_DIRECTORY), { recursive: true });
 
 	const storedGit = join(destination, STORED_GIT_DIRECTORY);
 	if (!(await Bun.file(join(storedGit, "HEAD")).exists())) {
@@ -71,4 +79,40 @@ export async function restoreStateEvidence(
 	await mkdir(join(gitDirectory, "refs", "tags"), { recursive: true });
 
 	return destination;
+}
+
+/**
+ * A session under test can write `.git/hooks/post-index-change`, and a grade
+ * that runs `git status` against the restored copy fires it: measured on git
+ * 2.55.0, the hook executed on this machine. Deleting `hooks/` at retention
+ * time does not close it, also measured, because the session can reach the
+ * same execution through `core.fsmonitor` in the repository's own config.
+ *
+ * The guard is environmental rather than a rewrite of the stored bytes,
+ * because a scorer is an arbitrary command whose own `git` calls inherit no
+ * per-invocation `-c` flags. `GIT_CONFIG_COUNT` and its keys are read by
+ * every git process in the environment, so pointing `core.hooksPath` at an
+ * empty directory and clearing `core.fsmonitor` suppresses both vectors for
+ * the harness's git calls and the scorer's alike, with history still readable.
+ */
+/**
+ * Every command that touches restored evidence goes through here, so the
+ * guard above cannot be left off one call site. A scorer is an arbitrary
+ * command, and this is the boundary where its environment is set.
+ */
+export function runAgainstStateEvidence(
+	command: readonly string[],
+	restoreDirectory: string,
+	options: { readonly timeoutMs?: number | undefined } = {},
+): Promise<string> {
+	return runCommand(command, restoreDirectory, {
+		env: {
+			GIT_CONFIG_COUNT: "2",
+			GIT_CONFIG_KEY_0: "core.hooksPath",
+			GIT_CONFIG_VALUE_0: join(restoreDirectory, NO_HOOKS_DIRECTORY),
+			GIT_CONFIG_KEY_1: "core.fsmonitor",
+			GIT_CONFIG_VALUE_1: "",
+		},
+		timeoutMs: options.timeoutMs,
+	});
 }

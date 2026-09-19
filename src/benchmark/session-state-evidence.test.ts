@@ -1,5 +1,12 @@
 import { describe, expect, it } from "bun:test";
-import { mkdtemp, readdir, rm } from "node:fs/promises";
+import {
+	appendFile,
+	chmod,
+	mkdir,
+	mkdtemp,
+	readdir,
+	rm,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { runCommand } from "#benchmark/command";
@@ -7,6 +14,7 @@ import { historyFixture, TestResources } from "#benchmark/test-support";
 import {
 	preserveStateEvidence,
 	restoreStateEvidence,
+	runAgainstStateEvidence,
 } from "#benchmark/session-state-evidence";
 
 const resources = TestResources.forEachTest();
@@ -136,5 +144,85 @@ describe(restoreStateEvidence.name, () => {
 			"first, edited\n",
 		);
 		expect(await Bun.file(join(second, "grader.txt")).exists()).toBe(false);
+	});
+});
+
+/**
+ * A fixture's hooks are refused at seed time, but nothing stops the session
+ * under test from writing one into the `.git` it was given. Retention copies
+ * whatever it finds, so without a guard the hook runs on the operator's
+ * machine at every restore, including a regrade that is supposed to call no
+ * provider and execute nothing.
+ */
+describe("code a session left in its git directory", () => {
+	async function attemptExecutingOn(
+		plant: (gitDirectory: string) => Promise<void>,
+	): Promise<string> {
+		const attempt = await attemptWithHistory();
+		await plant(join(attempt, ".git"));
+
+		return attempt;
+	}
+
+	async function gradedStatus(attempt: string): Promise<void> {
+		const evidence = await preserveStateEvidence(
+			attempt,
+			await directory("rehearse-state-record-"),
+		);
+		const restored = await restoreStateEvidence(
+			evidence,
+			await directory("rehearse-state-restore-"),
+		);
+
+		await runAgainstStateEvidence(["sh", "-c", "git status --short"], restored);
+	}
+
+	it("does not run a hook the session wrote", async () => {
+		const witness = join(await directory("rehearse-state-witness-"), "ran");
+		const attempt = await attemptExecutingOn(async (gitDirectory) => {
+			await mkdir(join(gitDirectory, "hooks"), { recursive: true });
+			await Bun.write(
+				join(gitDirectory, "hooks", "post-index-change"),
+				`#!/bin/sh\ntouch ${witness}\n`,
+			);
+			await chmod(join(gitDirectory, "hooks", "post-index-change"), 0o755);
+		});
+
+		await gradedStatus(attempt);
+
+		expect(await Bun.file(witness).exists()).toBe(false);
+	});
+
+	it("does not run a command the session set as core.fsmonitor", async () => {
+		const witness = join(await directory("rehearse-state-witness-"), "ran");
+		const attempt = await attemptExecutingOn(async (gitDirectory) => {
+			await appendFile(
+				join(gitDirectory, "config"),
+				`[core]\n\tfsmonitor = touch ${witness}\n`,
+			);
+		});
+
+		await gradedStatus(attempt);
+
+		expect(await Bun.file(witness).exists()).toBe(false);
+	});
+
+	it("still reads the history the session left", async () => {
+		const attempt = await attemptWithHistory();
+		const evidence = await preserveStateEvidence(
+			attempt,
+			await directory("rehearse-state-record-"),
+		);
+		const restored = await restoreStateEvidence(
+			evidence,
+			await directory("rehearse-state-restore-"),
+		);
+
+		const log = await runAgainstStateEvidence(
+			["sh", "-c", "git log --format=%s"],
+			restored,
+		);
+
+		expect(log).toBe("second\nfirst\n");
 	});
 });
