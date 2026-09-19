@@ -133,6 +133,35 @@ describe(snapshotSessionCorpus.name, () => {
 		expect(snapshot).toMatchObject({ kind: "live", root, backingRoot });
 	});
 
+	/**
+	 * The live extent is the whole install, so a link inside a declared skill
+	 * directory can resolve to `~/.claude/.credentials.json` or a saved transcript
+	 * and still be contained. Those bytes are not corpus, and a live copy
+	 * dereferences, so containment alone would carry them into the run directory
+	 * and into a confirmation group's frozen-input digests.
+	 */
+	it("refuses a link inside a declared live skill directory that leaves the corpus layout", async () => {
+		const root = await resources.createControlDirectory();
+		const backingRoot = await resources.createControlDirectory();
+		await Bun.write(join(root, ".credentials.json"), "SECRET\n");
+		await Bun.write(join(root, "skills/x/SKILL.md"), "skill body\n");
+		await symlink(
+			join(root, ".credentials.json"),
+			join(root, "skills/x/creds"),
+		);
+
+		const failure = await failureOf(
+			snapshotSessionCorpus(
+				{ kind: "live", root, backingRoot },
+				join(await resources.createControlDirectory(), "corpus"),
+				["skills/x/SKILL.md"],
+			),
+		);
+
+		expect(failure).toBeInstanceOf(SessionCorpusError);
+		expect(failure.message).toContain("skills/x/creds");
+	});
+
 	it("refuses a live declared file that resolves outside the install and its backing tree", async () => {
 		const outside = await directoryCorpus({
 			"output-styles/foreign.md": "FOREIGN STYLE\n",
@@ -286,6 +315,35 @@ describe(installSessionCorpusSnapshot.name, () => {
 	 * 2.1.278: a session run there with `--setting-sources project` reported the
 	 * overlaid file's marker.
 	 */
+	/**
+	 * A skill is a directory, not a file: its `SKILL.md` refers to the supporting
+	 * files beside it. Installing only the declared file leaves the session with a
+	 * skill whose references do not resolve, and `--setting-sources project` means
+	 * the user-level copy cannot supply them either, so the arm would measure a
+	 * truncated variant while the record says the declared skill was delivered.
+	 */
+	it("overlays the supporting files beside a declared skill", async () => {
+		const root = await directoryCorpus({
+			"skills/style/SKILL.md": "read references/notes.md\n",
+			"skills/style/references/notes.md": "SUPPORTING_NOTES\n",
+		});
+		const destination = await resources.createControlDirectory();
+		const snapshot = await snapshotSessionCorpus(
+			await resolveCorpusSource(root),
+			join(destination, "corpus"),
+			["skills/style/SKILL.md"],
+		);
+		const attemptDirectory = await resources.createControlDirectory();
+
+		await installSessionCorpusSnapshot(snapshot, attemptDirectory);
+
+		expect(
+			await Bun.file(
+				join(attemptDirectory, ".claude/skills/style/references/notes.md"),
+			).text(),
+		).toBe("SUPPORTING_NOTES\n");
+	});
+
 	it("overlays a declared CLAUDE.md and skill, and leaves an undeclared sibling out", async () => {
 		const root = await directoryCorpus({
 			"CLAUDE.md": "OVERLAID_INSTRUCTIONS\n",

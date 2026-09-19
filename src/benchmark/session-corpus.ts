@@ -1,7 +1,7 @@
 import { cp, mkdir, readdir, realpath, stat } from "node:fs/promises";
-import { basename, dirname, extname, join } from "node:path";
+import { basename, dirname, extname, join, relative } from "node:path";
 import type { DirectoryCorpusRoot, LiveCorpusRoot } from "./corpus-file";
-import { CORPUS_INSTRUCTIONS_PATH, resolvesOutsideCorpus } from "./corpus-file";
+import { isCorpusLayoutPath, resolvesOutsideCorpus } from "./corpus-file";
 import type { CorpusLayoutEntry, ResolvedCorpusSource } from "./corpus-source";
 import { corpusLayoutEntries } from "./corpus-source";
 import type { CorpusSnapshotOrigin } from "./session-record";
@@ -63,7 +63,7 @@ export function snapshotSessionCorpus(
 ): Promise<SessionCorpusSnapshot> {
 	if (
 		source.kind === "live" &&
-		!declaredPaths.some((layoutPath) => isOverlaid(layoutPath))
+		!declaredPaths.some((layoutPath) => isCorpusLayoutPath(layoutPath))
 	) {
 		return Promise.resolve({
 			kind: "live",
@@ -147,8 +147,43 @@ async function refuseNestedSymlinks(
 
 		if (sourceStats.isDirectory()) {
 			await refuseNestedSymlinks(source, child, visitedDirectories);
+			continue;
+		}
+
+		await refuseOutsideLayout(source, child);
+	}
+}
+
+/**
+ * A live corpus root is the operator's whole install, so containment within it
+ * is not enough for a nested entry: `~/.claude` also holds credentials, saved
+ * transcripts and settings, and a live copy dereferences. An entry reached
+ * through a link must land in corpus layout, which is the only part of that
+ * install a case declares. A directory source resolves against its own root and
+ * a snapshot copies its links unresolved, so this only binds the live branch.
+ */
+async function refuseOutsideLayout(
+	source: ResolvedCorpusSource,
+	entry: CorpusLayoutEntry,
+): Promise<void> {
+	if (source.kind !== "live") {
+		return;
+	}
+
+	const resolved = await realpath(entry.sourcePath);
+	for (const root of [source.root, source.backingRoot]) {
+		const resolvedRoot = await realpath(root).catch(() => undefined);
+		if (resolvedRoot === undefined) {
+			continue;
+		}
+
+		const layoutPath = relative(resolvedRoot, resolved);
+		if (!layoutPath.startsWith("..") && isCorpusLayoutPath(layoutPath)) {
+			return;
 		}
 	}
+
+	throw symlinkedCorpusEntry(source, entry.layoutPath);
 }
 
 /**
@@ -219,31 +254,46 @@ export async function installSessionCorpusSnapshot(
 		return;
 	}
 
-	for (const layoutPath of snapshot.declaredPaths.filter(isOverlaid)) {
+	for (const layoutPath of overlaidRoots(snapshot.declaredPaths)) {
 		const target = join(attemptDirectory, ".claude", layoutPath);
 		await mkdir(dirname(target), { recursive: true });
-		await cp(join(snapshot.root, layoutPath), target);
+		await cp(join(snapshot.root, layoutPath), target, { recursive: true });
 	}
 }
 
-const OVERLAID_KINDS: readonly string[] = [
-	"output-styles/",
-	"agents/",
-	"rulebook/",
-	"skills/",
-];
+const SKILLS_KIND = "skills/";
 
 /**
- * A declared skill only reaches the session because `sessionCaseArgs` passes
- * `--setting-sources project`: without that flag a same-named user-level skill
- * wins and the overlaid bytes are hashed into lineage but never read. Measured
- * on claude 2.1.278 with both copies installed.
+ * What the attempt installs for each declared path. A skill is a directory whose
+ * `SKILL.md` refers to the files beside it, so installing the declared file
+ * alone delivers a skill whose references do not resolve, and under
+ * `--setting-sources project` the user-level copy cannot supply them either.
+ * `copyDeclared` already snapshots the whole directory, so the bytes are there.
+ * Every other kind is a single file and is installed as itself.
+ *
+ * Every path a case may declare is overlaid, because `isCorpusLayoutPath` is
+ * also what `resolveCorpusFile` requires: a declared path outside corpus layout
+ * is refused before a snapshot exists. A declared skill only reaches the session
+ * because `sessionCaseArgs` passes `--setting-sources project`; without that
+ * flag a same-named user-level skill wins and the overlaid bytes are hashed into
+ * lineage but never read. Measured on claude 2.1.278 with both copies installed.
  */
-function isOverlaid(layoutPath: string): boolean {
-	return (
-		layoutPath === CORPUS_INSTRUCTIONS_PATH ||
-		OVERLAID_KINDS.some((kind) => layoutPath.startsWith(kind))
-	);
+function overlaidRoots(declaredPaths: readonly string[]): readonly string[] {
+	const roots = declaredPaths
+		.filter((layoutPath) => isCorpusLayoutPath(layoutPath))
+		.map((layoutPath) => overlaidRoot(layoutPath));
+
+	return [...new Set(roots)];
+}
+
+function overlaidRoot(layoutPath: string): string {
+	if (!layoutPath.startsWith(SKILLS_KIND)) {
+		return layoutPath;
+	}
+
+	const [name] = layoutPath.slice(SKILLS_KIND.length).split("/");
+
+	return name === undefined ? layoutPath : `${SKILLS_KIND}${name}`;
 }
 
 /**
