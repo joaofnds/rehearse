@@ -487,13 +487,18 @@ describe(runSessionDebugAttempt.name, () => {
 		await mkdir(join(fixture, "dot-git"), { recursive: true });
 		await writeFile(join(fixture, "dot-git", "HEAD"), "ref: refs/heads/main\n");
 
+		const calls: string[] = [];
+
 		const failure = await failureOf(
 			runSessionDebugAttempt({
 				sessionCase: sessionCase({ fixturePath: fixture }),
 				config,
 				runsDirectory: runs,
-				runClaude: () =>
-					Promise.reject(new Error("a provider call must not happen")),
+				runClaude: (_command, cwd) => {
+					calls.push(cwd);
+
+					return Promise.resolve("");
+				},
 				projectsDirectory: projects,
 			}),
 		);
@@ -501,6 +506,7 @@ describe(runSessionDebugAttempt.name, () => {
 		expect(failure).toBeInstanceOf(RefusedPreconditionError);
 		expect(exitCodeFor(failure)).toBe(EXIT_CODES.refusedPrecondition);
 		expect(failure.message).toContain(fixture);
+		expect(calls).toEqual([]);
 	});
 
 	it("refuses a transcript prefix whose bytes do not match the declared digest, before any provider call", async () => {
