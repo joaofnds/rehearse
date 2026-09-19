@@ -228,9 +228,14 @@ lineage: the fixture digest walks the fixture subdirectory, not the case
 directory, so a scorer file beside `case.json` would be covered by no digest and
 an edited scorer could be graded as the original definition. A scorer too large
 for a command line lives inside the fixture, where the fixture digest covers it,
-and the fixture's `.gitignore` should name it: a scorer sitting in the tree it
-grades is otherwise an untracked entry that fails every cleanliness grade. See
-`cases/state-probe` for a worked example.
+and the fixture's `dot-git/info/exclude` should name it: a scorer sitting in the
+tree it grades is otherwise an untracked entry that fails every cleanliness
+grade. Use that file rather than a `.gitignore`, which would also hide the
+scorer from the repository that ships the case, so a clone would receive a case
+declaring a scorer with no scorer beside it. Before the command runs, the case's
+own copy of every path it names is laid back over the restore, so a session that
+rewrites the scorer is still graded by the case's bytes. See `cases/state-probe`
+for a worked example.
 
 State grades are recorded separately from `checks`, so a session that returns no
 reply still receives them while its outcome stays `NO_REPLY` and its `checks`
@@ -261,6 +266,8 @@ Retention is per attempt and has no pruning policy, so a confirmation run of
 five reps holds about five copies of the fixture per group. A group that grows
 too large is answered by reducing the fixture, which is the input under the case
 author's control.
+
+#### Transcript diagnostics
 
 Each new session attempt record carries `transcriptDiagnostics`, derived from
 the retained transcript records at and after the case's cut. The projection
@@ -637,7 +644,9 @@ run-event store supports live UI updates and is derived state.
 `show`. Empty history is valid on a fresh clone. A malformed record is reported
 without hiding readable neighbors. Stopped runs are visible through the same
 commands as completed runs. `list attempts` validates attempt diagnostics, and
-`show attempt:session:<case>/<uuid> --json` exposes the recorded projection.
+`show attempt:session:<case>/<uuid> --json` exposes the recorded projection. An
+attempt that preserved state evidence writes it to `state/` beside that
+`attempt.json`, with the session's `.git` stored as `dot-git`.
 
 Confirmation groups retain frozen inputs, rep records, and `report.json` beside
 `group.json`. Reps run concurrently in separate directories. Reports include

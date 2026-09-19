@@ -70,9 +70,10 @@ mise exec -- bun run rehearse show attempt:session:smoke/<uuid>
 ```
 
 Use the complete ID printed by `list attempts`. The record includes the prompt,
-reply, declared corpus digests, transcript evidence, check results, and provider
-metrics. `NO_REPLY` means the session ended without a final reply and the checks
-were not evaluated. Read the outcome even when the command exits 0; a recorded
+reply, declared corpus digests, transcript evidence, check results, provider
+metrics, and the grades of a declared state scorer. `NO_REPLY` means the session
+ended without a final reply, so the reply and transcript checks were not
+evaluated; a declared state scorer still grades the tree the session left. Read the outcome even when the command exits 0; a recorded
 failing grade or check can be a successfully completed experiment.
 
 ## Repeat with frozen inputs

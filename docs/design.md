@@ -59,8 +59,11 @@ agent CLI behavior but use different paths, so path-dependent state can differ
 from the original checkout. They are not sandboxes for arbitrary host actions.
 
 Session cases use temporary directories seeded with optional fixture files and
-conversation prefixes. Their current checks consume replies and tool calls.
-They do not yet grade or preserve the final filesystem as a reusable result.
+conversation prefixes. Their checks consume replies and tool calls, and a case
+may also declare a scorer over the files and git state the session leaves. That
+tree is copied into the run's record directory before cleanup, and each grade
+runs against its own restored copy, so the evidence outlives the attempt and a
+later pass reads the bytes this one did.
 Session confirmation freezes supported inputs once and retains each repetition,
 including unsuccessful and execution-failed attempts.
 

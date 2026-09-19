@@ -65,8 +65,9 @@ See [current state](docs/status.md) for implementation coverage and
   whose presence and bytes are frozen at baseline and compared after delivery.
 - **Check kind** — one deterministic assertion a session case may declare, the
   discriminator of a check: `word-band` and `forbidden-text` read the reply,
-  `tool-calls` and `files-read` read the transcript, and a **state check**
-  reads the files and git state the session left. A kind states what it
+  `tool-calls` and `files-read` read the transcript. A **state check** grades
+  the files and git state the session left; it is declared beside the check
+  list rather than inside it, and carries no kind of its own. A kind states what it
   needs and what it reports; the case supplies the values it compares against,
   so no literal a case could differ on lives in the check.
 - **Check list** — the ordered deterministic checks a session case declares as
@@ -412,20 +413,7 @@ See [current state](docs/status.md) for implementation coverage and
   `-private-tmp-x`.
 - **Sealed session** — a Claude session with safe mode and no tools, used for
   judges.
-- **State check** — the grading definition a session case declares for the
-  files and git state its session leaves: a command to run and the outcome
-  names it must report. It is declared inline in `case.json`, which is what
-  folds it into the attempt's lineage, and it runs against a restored copy of
-  the attempt state evidence rather than against a live tree. It reports one
-  **check result** per declared outcome, keyed by name where a reply check's
-  result is keyed by kind, and it is recorded in its own field rather than in
-  the check list, whose members are all evaluated against the reply and the
-  transcript.
-- **State grading error** — the record a session attempt carries when its
-  declared state check could not produce grades: the scorer would not run,
-  exited non-zero, printed output the result schema rejects, or omitted a
-  declared outcome. It is a distinct fact from a failed grade, because none of
-  those says anything about the session's work.
+
 - **Session case** — a benchmark case whose unit of work is one Claude session.
   It declares a prompt, tools, corpus files, checks, and optional fixture,
   transcript prefix, settings, agents, project files, and state check. It runs once for
@@ -470,6 +458,22 @@ See [current state](docs/status.md) for implementation coverage and
 - **Stale checkpoint** — a checkpoint whose recorded inputs (corpus files,
   stage settings, model, effort, or an upstream checkpoint) no longer match
   the current state; still replayable for exploration, refused in comparisons.
+- **State check** — the grading definition a session case declares for the
+  files and git state its session leaves: a command to run and the outcome
+  names it must report. It is declared inline in `case.json`, which is what
+  folds it into the attempt's lineage, and it runs against a restored copy of
+  the attempt state evidence rather than against a live tree. It reports one
+  result per declared outcome, keyed by the name the case declared where a
+  reply check's result is keyed by kind, and those results are recorded in
+  their own field rather than in the check list, whose members are all
+  evaluated against the reply and the transcript. Before the command runs, the
+  case's own copy of every path it names is laid back over the restore, so a
+  session that rewrote the scorer is still graded by the case's bytes.
+- **State grading error** — the record a session attempt carries when its
+  declared state check could not produce grades: the scorer would not run,
+  exited non-zero, printed output the result schema rejects, or omitted a
+  declared outcome. It is a distinct fact from a failed grade, because none of
+  those says anything about the session's work.
 - **Staleness cause** — one named statement of why a recorded result no longer
   describes the current state. A cause names the thing that moved, an upstream
   stage, the model, the effort, the stage settings file, or one corpus file

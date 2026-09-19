@@ -63,9 +63,10 @@ verdict.
   need an output style; doctrine examples need installed corpus files. `manifest-probe` carries
   its prefix in the repository, so a clone has its bytes, and still needs the
   corpus files it declares.
-- **Session output grading is narrow.** Checks currently read the reply and tool
-  transcript. Post-session filesystem/Git preservation and command scorers are
-  planned. A doctrine example's tool-call check is not
+- **Session output grading reads only what one run left.** Reply and transcript
+  checks are joined by a case-declared scorer over the preserved post-session
+  tree, but regrading that saved evidence without another model run is not
+  available yet. A doctrine example's tool-call check is not
   evidence that its implementation is correct.
 - **Context visibility is incomplete.** Session manifests still retain names
   rather than a timeline. The saved-attempt browser derives recorded Read and
@@ -124,9 +125,8 @@ goals, with context visibility added to help explain resource use:
 
 1. Add reproducible public pipeline case inputs.
 2. Deliver isolated session skill variants and generated fixtures so realistic
-   skill outcomes can be graded. Post-session state is preserved and graded by a
-   case-declared scorer; regrading saved evidence without another model run is
-   the remaining half.
+   skill outcomes can be graded, and regrade preserved evidence without paying
+   for another model run.
 3. Make context use inspectable alongside outcomes. Build on saved-session
    event and source inspection by validating per-request collection, then extend
    to pipeline steps and reviewer trees. Use a review-efficiency comparison to
