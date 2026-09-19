@@ -10,6 +10,7 @@ import {
 import { claudeCallMetricsSchema } from "./contracts";
 import type { ResolvedCorpusFile } from "./corpus-file";
 import { checkResultSchema } from "./session-check";
+import { stateResultSchema } from "./session-state-check";
 import { sessionSettingsDigest } from "./session-lineage";
 import type { SessionAttempt } from "./session-attempt";
 import { transcriptDiagnosticsSchema } from "./transcript";
@@ -203,6 +204,18 @@ const sessionAttemptRecordFields = {
 	elapsedMs: z.number().nonnegative(),
 };
 
+/**
+ * A state grade is either the results the scorer reported or the reason it
+ * could not grade, never both: a broken scorer says nothing about the session
+ * and must not read as a corpus that got worse. Only v3 carries them, because
+ * a record written before this field existed graded no state, which is a
+ * different fact from a scorer that reported nothing.
+ */
+const stateGradeFields = {
+	stateResults: z.array(stateResultSchema).optional(),
+	stateGradingError: z.string().min(1).optional(),
+};
+
 export const legacyUntaggedSessionAttemptRecordSchema = z
 	.object({
 		schemaVersion: z.literal(1),
@@ -256,6 +269,7 @@ export const sessionAttemptRecordV3Schema = z
 	.object({
 		schemaVersion: z.literal(3),
 		...sessionAttemptRecordFields,
+		...stateGradeFields,
 		contextManifest: contextManifestSchema.optional(),
 		divergences: z.array(manifestDivergenceSchema).optional(),
 	})
@@ -330,6 +344,8 @@ interface MutableSessionAttemptRecord {
 	metrics?: SessionAttempt["metrics"];
 	outcome: SessionAttempt["outcome"];
 	checks: SessionAttempt["checks"];
+	stateResults?: SessionAttempt["stateResults"];
+	stateGradingError?: string;
 	elapsedMs: number;
 }
 
@@ -369,6 +385,12 @@ export function buildSessionAttemptRecord(
 	}
 	if (attempt.metrics !== undefined) {
 		record.metrics = { ...attempt.metrics };
+	}
+	if (attempt.stateResults !== undefined) {
+		record.stateResults = attempt.stateResults.map((result) => ({ ...result }));
+	}
+	if (attempt.stateGradingError !== undefined) {
+		record.stateGradingError = attempt.stateGradingError;
 	}
 	if (attempt.contextEvidence !== undefined) {
 		record.contextEvidence = contextEvidenceSchema.parse(

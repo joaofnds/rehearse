@@ -40,6 +40,8 @@ import { SessionInvocationError } from "./session-invocation-error";
 import { normalizeContextEvidence } from "./context-evidence";
 import { STORED_GIT_DIRECTORY } from "./git-directory-name";
 import { preserveStateEvidence } from "./session-state-evidence";
+import type { StateResult } from "./session-state-check";
+import { gradeStateEvidence } from "./session-state-check";
 import type {
 	ContextEvidence,
 	ContextEvidenceSource,
@@ -83,6 +85,8 @@ export interface SessionAttempt {
 	readonly transcriptDiagnostics: Immutable<TranscriptDiagnostics>;
 	readonly contextEvidence?: ContextEvidence | undefined;
 	readonly stateEvidenceDirectory?: string | undefined;
+	readonly stateResults?: readonly StateResult[] | undefined;
+	readonly stateGradingError?: string | undefined;
 }
 
 /**
@@ -635,6 +639,43 @@ function preserveContextEvidence(
 	return { ...attempt, contextEvidence };
 }
 
+interface StateGrade {
+	readonly stateResults?: readonly StateResult[] | undefined;
+	readonly stateGradingError?: string | undefined;
+}
+
+/**
+ * The grade runs against a restore rather than the attempt directory, so it
+ * reads the same bytes a later regrade will and a scorer that writes cannot
+ * change what the record says the session left. A case declaring no scorer
+ * grades no state, which is a different fact from a scorer that failed.
+ */
+async function gradeAttemptState(
+	sessionCase: SessionCase,
+	evidenceDirectory: string,
+): Promise<StateGrade> {
+	const { stateCheck } = sessionCase;
+	if (stateCheck === undefined) {
+		return {};
+	}
+
+	const restoreDirectory = await mkdtemp(join(tmpdir(), "rehearse-grade-"));
+	try {
+		const graded = await gradeStateEvidence({
+			evidenceDirectory,
+			restoreDirectory,
+			command: stateCheck.command,
+			outcomes: stateCheck.outcomes,
+		});
+
+		return graded.kind === "results"
+			? { stateResults: graded.results }
+			: { stateGradingError: graded.detail };
+	} finally {
+		await rm(restoreDirectory, { force: true, recursive: true });
+	}
+}
+
 async function recordAttempt(
 	request: SessionAttemptRequest,
 	attemptDirectory: string,
@@ -665,6 +706,10 @@ async function recordAttempt(
 		attemptDirectory,
 		request.recordDirectory,
 	);
+	const stateGrade = await gradeAttemptState(
+		request.sessionCase,
+		stateEvidenceDirectory,
+	);
 
 	const reply = envelope.result;
 	if (reply === undefined) {
@@ -679,6 +724,7 @@ async function recordAttempt(
 				contextManifest: undefined,
 				transcriptDiagnostics: diagnostics,
 				stateEvidenceDirectory,
+				...stateGrade,
 			},
 			attempt.contextEvidence,
 		);
@@ -706,6 +752,7 @@ async function recordAttempt(
 			),
 			transcriptDiagnostics: diagnostics,
 			stateEvidenceDirectory,
+			...stateGrade,
 		},
 		attempt.contextEvidence,
 	);

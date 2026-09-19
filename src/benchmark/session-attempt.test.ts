@@ -1919,4 +1919,88 @@ describe("the state evidence a session attempt preserves", () => {
 			).text(),
 		).toBe("written\n");
 	});
+
+	it("records a named result per declared outcome while the outcome stays no reply", async () => {
+		const projects = await projectsRoot();
+
+		const attempt = await runSessionAttempt(
+			request({
+				sessionCase: sessionCase({
+					stateCheck: {
+						command: [
+							"sh",
+							"-c",
+							'printf \'{"results":[{"name":"wrote-state","status":"%s","detail":"%s"}]}\' "$(test -f state.txt && echo PASS || echo FAIL)" "state.txt present"',
+						],
+						outcomes: ["wrote-state"],
+					},
+				}),
+				projectsDirectory: projects,
+				recordDirectory: await recordDirectory(),
+				runClaude: writingClaude(projects, { "state.txt": "written\n" }),
+			}),
+		);
+
+		expect(attempt.outcome).toBe("NO_REPLY");
+		expect(attempt.checks).toEqual([]);
+		expect(attempt.stateResults).toEqual([
+			{ name: "wrote-state", status: "PASS", detail: "state.txt present" },
+		]);
+	});
+
+	it("reports a scorer that cannot grade as a grading error, not a failed grade", async () => {
+		const projects = await projectsRoot();
+
+		const attempt = await runSessionAttempt(
+			request({
+				sessionCase: sessionCase({
+					stateCheck: {
+						command: ["sh", "-c", "echo scorer is broken >&2; exit 4"],
+						outcomes: ["wrote-state"],
+					},
+				}),
+				projectsDirectory: projects,
+				recordDirectory: await recordDirectory(),
+				runClaude: writingClaude(projects, { "state.txt": "written\n" }),
+			}),
+		);
+
+		expect(attempt.stateResults).toBeUndefined();
+		expect(attempt.stateGradingError).toContain("4");
+	});
+
+	it("preserves no state evidence when the provider call failed", async () => {
+		const projects = await projectsRoot();
+		const records = await recordDirectory();
+
+		const failure = await failureOf(
+			runSessionAttempt(
+				request({
+					projectsDirectory: projects,
+					recordDirectory: records,
+					runClaude: () =>
+						Promise.reject(
+							new CommandError(["claude"], 1, "", "provider refused"),
+						),
+				}),
+			),
+		);
+
+		expect(failure).toBeInstanceOf(SessionInvocationError);
+		expect(
+			await Bun.file(
+				join(records, STATE_EVIDENCE_DIRECTORY, "state.txt"),
+			).exists(),
+		).toBe(false);
+		if (!(failure instanceof SessionInvocationError)) {
+			throw failure;
+		}
+
+		expect(failure.attempt).toMatchObject({
+			outcome: "EXECUTION_FAILED",
+			checks: [],
+		});
+		expect(failure.attempt.stateEvidenceDirectory).toBeUndefined();
+		expect(failure.attempt.stateResults).toBeUndefined();
+	});
 });

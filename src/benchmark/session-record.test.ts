@@ -774,3 +774,56 @@ describe("sessionAttemptRecordSchema", () => {
 		).toThrow(/expected object, received string/u);
 	});
 });
+
+describe("the state grades a session attempt record carries", () => {
+	function noReplyAttempt(
+		grade: Immutable<Partial<SessionAttempt>>,
+	): SessionAttempt {
+		return {
+			...smokeAttempt(),
+			reply: undefined,
+			outcome: "NO_REPLY",
+			checks: [],
+			contextManifest: undefined,
+			...grade,
+		};
+	}
+
+	function built(
+		grade: Immutable<Partial<SessionAttempt>>,
+	): SessionAttemptRecord {
+		return buildSessionAttemptRecord({
+			sessionCase: smokeCase(),
+			settings: { model: "haiku", effort: "low", budgetUsd: 0.2 },
+			lineage: "b".repeat(64),
+			corpusFiles: [],
+			corpusOrigin: { kind: "live" },
+			attempt: noReplyAttempt(grade),
+			elapsedMs: 123,
+		});
+	}
+
+	it("records the named results beside an empty checks array for a no-reply attempt", () => {
+		const graded = built({
+			stateResults: [{ name: "tree-clean", status: "PASS", detail: "clean" }],
+		});
+
+		expect(graded).toMatchObject({
+			outcome: "NO_REPLY",
+			checks: [],
+			stateResults: [{ name: "tree-clean", status: "PASS", detail: "clean" }],
+		});
+		expect(parseSessionAttemptRecord(JSON.stringify(graded))).toEqual(graded);
+	});
+
+	it("records a grading error rather than a state result when the scorer could not grade", () => {
+		const graded = built({
+			stateGradingError: "scorer sh score.sh exited 4: broken",
+		});
+
+		expect(graded).toMatchObject({
+			stateGradingError: "scorer sh score.sh exited 4: broken",
+		});
+		expect(graded).not.toHaveProperty("stateResults");
+	});
+});

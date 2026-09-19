@@ -24,28 +24,36 @@ import { jsonArraySchema, jsonObjectSchema } from "./json-value";
  * session leaves. It is hashed here because nothing else covers it: the
  * fixture hash walks `fixturePath`, which is the fixture subdirectory and not
  * the case directory, so a scorer declared anywhere but inside the fixture
- * would be graded as the original definition after an edit.
+ * would be graded as the original definition after an edit. The key is left
+ * out entirely when a case declares no scorer, so every case recorded before
+ * state grading existed keeps the lineage it already has and stays comparable
+ * with its own history.
  */
 export async function sessionUpstreamDigest(
 	sessionCase: SessionCase,
 ): Promise<string> {
 	const { declaration, fixturePath } = sessionCase;
 
+	const hashed = {
+		transcript: declaration.transcript?.sha256 ?? null,
+		fixture:
+			fixturePath === undefined
+				? null
+				: await hashDirectory(fixturePath, "", { rootMayBeALink: false }),
+		prompt: sessionCase.prompt,
+		tools: sessionCase.tools,
+		settings: canonicalSettings(sessionCase) ?? null,
+		agents: sessionCase.agents ?? null,
+		projectFiles: sessionCase.projectFiles,
+	};
+
 	return createHash("sha256")
 		.update(
-			JSON.stringify({
-				transcript: declaration.transcript?.sha256 ?? null,
-				fixture:
-					fixturePath === undefined
-						? null
-						: await hashDirectory(fixturePath, "", { rootMayBeALink: false }),
-				prompt: sessionCase.prompt,
-				tools: sessionCase.tools,
-				settings: canonicalSettings(sessionCase) ?? null,
-				agents: sessionCase.agents ?? null,
-				projectFiles: sessionCase.projectFiles,
-				stateCheck: sessionCase.stateCheck ?? null,
-			}),
+			JSON.stringify(
+				sessionCase.stateCheck === undefined
+					? hashed
+					: { ...hashed, stateCheck: sessionCase.stateCheck },
+			),
 		)
 		.digest("hex");
 }
