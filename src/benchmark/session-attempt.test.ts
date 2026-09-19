@@ -776,6 +776,32 @@ describe(runSessionAttempt.name, () => {
 	});
 
 	/**
+	 * `dot-git` is a name a case gives its history at the root of its fixture.
+	 * A directory of that name further down is an ordinary directory the case
+	 * happens to carry, and treating it as history renames a root that is not
+	 * there.
+	 */
+	it("leaves a dot-git directory below the fixture root as an ordinary directory", async () => {
+		const fixture = await mkdtemp(join(tmpdir(), "rehearse-fixture-"));
+		resources.track(fixture);
+		await mkdir(join(fixture, "sub", "dot-git"), { recursive: true });
+		await writeFile(join(fixture, "sub", "dot-git", "HEAD"), "not history\n");
+		const projects = await projectsRoot();
+		const claude = new FakeClaude(projects, "OK");
+
+		await runSessionAttempt(
+			request({
+				sessionCase: sessionCase({ fixturePath: fixture }),
+				projectsDirectory: projects,
+				recordDirectory: await recordDirectory(),
+				runClaude: claude.run,
+			}),
+		);
+
+		expect(claude.runs[0]?.seenFiles).toContain(join("sub", "dot-git", "HEAD"));
+	});
+
+	/**
 	 * A packed fixture carries its branch in `packed-refs` and no file under
 	 * `refs/heads/`, so a commit drops the directory entirely. Git then declines
 	 * to read the seeded directory as a repository and searches upward, and the

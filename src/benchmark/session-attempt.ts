@@ -314,12 +314,20 @@ async function seedFixture(
 
 	await cp(fixturePath, attemptDirectory, { recursive: true });
 
-	if (entries.some((entry) => entry.name === FIXTURE_HISTORY_DIRECTORY)) {
+	const carriesHistory = entries.some(
+		(entry) =>
+			relative(fixturePath, join(entry.parentPath, entry.name)) ===
+			FIXTURE_HISTORY_DIRECTORY,
+	);
+	if (carriesHistory) {
 		await openFixtureHistory(fixturePath, attemptDirectory);
 	}
 }
 
 /**
+ * Only a `dot-git` at the fixture's root is its history. One further down is
+ * an ordinary directory the case carries.
+ *
  * Renaming the directory back is not enough: the commit dropped the empty
  * `refs/heads` and `refs/tags`, and without them git walks out of the attempt
  * directory and answers from whatever repository encloses it.
