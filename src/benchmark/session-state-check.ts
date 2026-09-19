@@ -127,7 +127,15 @@ export interface StateGradingRequest {
 	readonly scorerSource: string | undefined;
 	readonly command: readonly string[];
 	readonly outcomes: readonly string[];
+	readonly timeoutMs?: number | undefined;
 }
+
+/**
+ * A scorer is a command the case author wrote, and a grade that never returns
+ * stalls the run it belongs to, so the deadline is explicit rather than left
+ * to the shared command default.
+ */
+export const STATE_SCORER_TIMEOUT_MS = 60_000;
 
 /**
  * Only the paths the command itself names are laid back, never the whole
@@ -160,9 +168,11 @@ async function layBackScorerFiles(
  * next pass reads the same bytes this one did.
  *
  * A scorer that cannot run is a grading error, not a failed grade: a missing
- * executable, a non-zero exit, and a timeout each say nothing about the
- * session's work, and recording them as FAIL would let a broken scorer read as
- * a corpus that got worse.
+ * executable, a non-zero exit, and a deadline the scorer outlived each say
+ * nothing about the session's work, and recording them as FAIL would let a
+ * broken scorer read as a corpus that got worse. A timeout is named as one,
+ * because the kill surfaces as an ordinary non-zero exit with empty stderr and
+ * an operator reading "exited 137" learns nothing about why.
  *
  * The case's own files are laid back over the restore before the command runs.
  * A scorer declared as a path lives in the fixture, so seeding hands the
@@ -182,11 +192,22 @@ export async function gradeStateEvidence(
 		await layBackScorerFiles(request.scorerSource, request.command, restored);
 	}
 
+	const timeoutMs = request.timeoutMs ?? STATE_SCORER_TIMEOUT_MS;
+	const startedAt = Date.now();
 	let stdout: string;
 	try {
-		stdout = await runAgainstStateEvidence(request.command, restored);
+		stdout = await runAgainstStateEvidence(request.command, restored, {
+			timeoutMs,
+		});
 	} catch (error) {
 		if (error instanceof CommandError) {
+			if (Date.now() - startedAt >= timeoutMs) {
+				return {
+					kind: "error",
+					detail: `scorer ${request.command.join(" ")} timed out after ${timeoutMs}ms`,
+				};
+			}
+
 			return {
 				kind: "error",
 				detail: `scorer ${request.command.join(" ")} exited ${error.exitCode}: ${error.stderr.trim()}`,

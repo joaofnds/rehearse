@@ -94,6 +94,24 @@ describe(gradeStateEvidence.name, () => {
 		});
 	});
 
+	it("names a scorer that outlived its deadline as timed out", async () => {
+		const graded = await gradeStateEvidence({
+			evidenceDirectory: await evidenceDirectory(),
+			restoreDirectory: await mkdtemp(
+				join(tmpdir(), "rehearse-state-graderoot-"),
+			),
+			scorerSource: undefined,
+			command: ["sh", "-c", "sleep 5"],
+			outcomes,
+			timeoutMs: 200,
+		});
+
+		expect(graded).toMatchObject({ kind: "error" });
+		expect(graded.kind === "error" ? graded.detail : "").toContain(
+			"timed out after 200ms",
+		);
+	});
+
 	it("reads a scorer that exits non-zero as a grading error", async () => {
 		const graded = await gradeStateEvidence({
 			evidenceDirectory: await evidenceDirectory(),
