@@ -246,8 +246,9 @@ See [current state](docs/status.md) for implementation coverage and
   arm starts from the same commits. It is stored as a `dot-git` directory,
   because git refuses to commit a nested `.git`, and the seeding renames it and
   recreates the empty `refs/heads` and `refs/tags` that the commit dropped.
-  Without those, git resolves the attempt directory to the enclosing repository
-  and the session reads a history that is not the case's.
+  Without those, git declines to read the seeded directory as a repository and
+  searches upward, so the session reads whatever history encloses the attempt
+  directory, or none.
 - **Fork** — copying a transcript prefix into the attempt directory's project
   slug under a fresh uuid, with every occurrence of the source session id
   rewritten, so a session can be resumed from it without its original working
