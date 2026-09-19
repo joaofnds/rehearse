@@ -12,7 +12,14 @@
 	},
 	"corpusFiles": ["output-styles/brief.md"],
 	"projectFiles": ["TALLY.md", "counter.sh"],
-	"checks": [{ "kind": "word-band", "max": 8 }],
+	"checks": [
+		{ "kind": "word-band", "max": 8 },
+		{ "kind": "tool-calls", "min": 2, "names": ["Bash", "Edit", "Read"] },
+		{
+			"kind": "forbidden-text",
+			"strings": ["unchanged", "permission", "approve"]
+		}
+	],
 	"model": "sonnet",
 	"sessionBudgetUsd": 1.5
 }

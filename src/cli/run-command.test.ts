@@ -1032,13 +1032,17 @@ describe("runRunCommand for a session case", () => {
 	 * A skill and a global instruction file were refused here while the session
 	 * path could not isolate them from the operator's install. The corpus
 	 * snapshot now freezes both and the attempt overlays them, so a confirmation
-	 * declaring either reaches the model probe and its reps like any other.
+	 * declaring either reaches the model probe and its reps like any other. The
+	 * corpus is a control directory rather than the operator's install, so the
+	 * result does not depend on what this machine has installed.
 	 */
 	it.each(["CLAUDE.md", "skills/build/SKILL.md"])(
 		"admits global corpus input %s to a confirmation group",
 		async (corpusFile) => {
 			const { output } = recordOutput();
 			const calls: string[] = [];
+			const corpusRoot = await testResources.createControlDirectory();
+			await Bun.write(join(corpusRoot, corpusFile), "declared corpus\n");
 			const globalCase: SessionCase = {
 				...smokeCase,
 				declaration: {
@@ -1055,6 +1059,8 @@ describe("runRunCommand for a session case", () => {
 							"--case",
 							"smoke",
 							...sessionArgs,
+							"--corpus",
+							corpusRoot,
 							"--confirm",
 							"--reps",
 							"2",

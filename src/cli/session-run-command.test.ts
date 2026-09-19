@@ -8,7 +8,7 @@ import {
 	writeFile,
 } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import type { SessionCase } from "#benchmark/case";
 import type { Immutable } from "#benchmark/contracts";
 import type { SessionRunConfig } from "#benchmark/config";
@@ -806,8 +806,8 @@ describe("running a session case against a corpus source", () => {
 	it("records the live install's bytes, resolved to the frozen copy, when no source is named", async () => {
 		const outcome = await attemptWith(undefined);
 
-		expect(outcome.record.corpusFiles[0]?.resolvedPath).not.toBe(
-			join(homedir(), ".claude/output-styles/brief.md"),
+		expect(outcome.record.corpusFiles[0]?.resolvedPath).toBe(
+			join(dirname(outcome.recordFile), "corpus/output-styles/brief.md"),
 		);
 		expect(outcome.record.corpusFiles[0]?.sha256).toBe(
 			new Bun.CryptoHasher("sha256")
