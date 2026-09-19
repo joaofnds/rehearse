@@ -1969,19 +1969,46 @@ describe("the state evidence a session attempt preserves", () => {
 		expect(attempt.stateGradingError).toContain("4");
 	});
 
-	it("preserves no state evidence when the provider call failed", async () => {
+	/**
+	 * The provider wrote files and then reported the call as failed, which is
+	 * the case that reaches recordAttempt with a tree on disk. Grading it would
+	 * report a state the run never legitimately produced.
+	 */
+	it("preserves no state evidence when the provider reported the call as failed", async () => {
 		const projects = await projectsRoot();
 		const records = await recordDirectory();
 
 		const failure = await failureOf(
 			runSessionAttempt(
 				request({
+					sessionCase: sessionCase({
+						stateCheck: {
+							command: ["sh", "-c", "echo should not run"],
+							outcomes: ["wrote-state"],
+						},
+					}),
 					projectsDirectory: projects,
 					recordDirectory: records,
-					runClaude: () =>
-						Promise.reject(
-							new CommandError(["claude"], 1, "", "provider refused"),
-						),
+					runClaude: async (command, cwd) => {
+						await Bun.write(join(cwd, "state.txt"), "written\n");
+						const sessionId = namedSession(command);
+						const slug = join(projects, projectSlug(await realpath(cwd)));
+						await mkdir(slug, { recursive: true });
+						await writeFile(
+							join(slug, `${sessionId}.jsonl`),
+							`${transcriptLine(sessionId, "OK")}\n`,
+						);
+
+						return JSON.stringify({
+							type: "result",
+							subtype: "error_during_execution",
+							session_id: sessionId,
+							is_error: true,
+							result: "the provider refused",
+							total_cost_usd: 0.0012,
+							num_turns: 2,
+						});
+					},
 				}),
 			),
 		);
