@@ -11,6 +11,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
+import { casesRoot, readCaseDeclaration } from "#benchmark/case";
 import type { SessionCase } from "#benchmark/case";
 import { CommandError, runCommand } from "#benchmark/command";
 import type { Immutable } from "#benchmark/contracts";
@@ -743,6 +744,35 @@ describe(runSessionAttempt.name, () => {
 		expect(first.runs[0]?.shellOutputs).toEqual([
 			`${fixture.commits[1]}\n${fixture.commits[0]}\n`,
 		]);
+	});
+
+	/**
+	 * Without an identity in the fixture's own config, git falls back to the
+	 * operator's global one, so the commits an arm produces would carry
+	 * whoever ran it. Two operators would then read two different trees from
+	 * the same case.
+	 */
+	it("commits under the identity the fixture's config declares", async () => {
+		const fixture = await historyFixture(["first"]);
+		resources.track(fixture.path);
+		const projects = await projectsRoot();
+		const claude = new FakeClaude(projects, "OK", [
+			["git", "commit", "--allow-empty", "-m", "session work"],
+			["git", "log", "-1", "--format=%an <%ae>"],
+		]);
+
+		await runSessionAttempt(
+			request({
+				sessionCase: sessionCase({ fixturePath: fixture.path }),
+				projectsDirectory: projects,
+				recordDirectory: await recordDirectory(),
+				runClaude: claude.run,
+			}),
+		);
+
+		expect(claude.runs[0]?.shellOutputs[1]).toBe(
+			"Fixture Author <fixture@example.com>\n",
+		);
 	});
 
 	/**
@@ -1702,5 +1732,43 @@ describe(runSessionAttempt.name, () => {
 		expect(await readdir(projects)).not.toContain(
 			projectSlug(attempt.attemptDirectory),
 		);
+	});
+});
+
+/**
+ * Every other test here builds its fixture, so none of them would notice a
+ * committed case whose `dot-git` stopped working: a case reaches a run as
+ * bytes git checked out, and only a case in the repository proves those bytes
+ * survive the round trip.
+ */
+describe("over the history-probe case", () => {
+	it("seeds the committed history a session reads, under the fixture's identity", async () => {
+		const declaration = await readCaseDeclaration("history-probe");
+		if (declaration.kind !== "session" || declaration.fixture === undefined) {
+			throw new Error(
+				"history-probe is expected to be a session case with a fixture",
+			);
+		}
+
+		const projects = await projectsRoot();
+		const claude = new FakeClaude(projects, "OK", [
+			["git", "log", "--format=%H %an <%ae> %s"],
+			["git", "status", "--short"],
+		]);
+		await runSessionAttempt(
+			request({
+				sessionCase: sessionCase({
+					fixturePath: join(casesRoot(), "history-probe", declaration.fixture),
+				}),
+				projectsDirectory: projects,
+				recordDirectory: await recordDirectory(),
+				runClaude: claude.run,
+			}),
+		);
+
+		expect(claude.runs[0]?.shellOutputs).toEqual([
+			"a824bc8e7a7c06e9dbd5ee729c31dc52feac332a Rehearse Fixture <fixture@rehearse.invalid> fix(ledger): post the supplier refund that was missed\n4bc2c5ac67723d47bc33df3d92455ec32440b255 Rehearse Fixture <fixture@rehearse.invalid> feat(ledger): record the opening balance\n",
+			"",
+		]);
 	});
 });

@@ -1,0 +1,25 @@
+{
+	"id": "history-probe",
+	"kind": "session",
+	"title": "A session that reads the committed history its fixture carries",
+	"fixture": "fixture",
+	"prompt": "Run git log in the working directory. Reply with the subject line of the most recent commit and nothing else.",
+	"tools": ["Bash"],
+	"settings": {
+		"permissions": {
+			"allow": ["Bash(git log:*)"]
+		}
+	},
+	"corpusFiles": ["output-styles/brief.md"],
+	"projectFiles": ["LEDGER.md"],
+	"checks": [
+		{ "kind": "word-band", "max": 15 },
+		{ "kind": "tool-calls", "min": 1, "names": ["Bash"] },
+		{
+			"kind": "forbidden-text",
+			"strings": ["opening balance", "not a git repository"]
+		}
+	],
+	"model": "sonnet",
+	"sessionBudgetUsd": 1.5
+}

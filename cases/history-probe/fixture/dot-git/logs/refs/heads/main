@@ -1,0 +1,2 @@
+0000000000000000000000000000000000000000 4bc2c5ac67723d47bc33df3d92455ec32440b255 Rehearse Fixture <fixture@rehearse.invalid> 1767603600 +0000	commit (initial): feat(ledger): record the opening balance
+4bc2c5ac67723d47bc33df3d92455ec32440b255 a824bc8e7a7c06e9dbd5ee729c31dc52feac332a Rehearse Fixture <fixture@rehearse.invalid> 1767699000 +0000	commit: fix(ledger): post the supplier refund that was missed

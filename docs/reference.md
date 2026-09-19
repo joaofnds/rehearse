@@ -153,6 +153,20 @@ no subdirectory. Neither a fixture tree nor
 a transcript prefix may be a symlink, which is refused before any provider
 call.
 
+A fixture tree may carry committed git history. Store it as a `dot-git`
+directory inside the fixture: git refuses to commit a nested `.git`, staging it
+as a gitlink that reaches no clone, while a directory under any other name
+commits as ordinary files and restores byte-exact with the same commit SHAs.
+Seeding renames it to `.git` and recreates the empty `refs/heads` and
+`refs/tags` a commit drops. Pin `user.name` and `user.email` in the fixture's
+own `dot-git/config`, or commits the session makes carry whoever ran the arm.
+
+Before the provider is called, the seeded history must satisfy three commands:
+`git rev-parse --show-toplevel` resolving to the attempt directory, `git log`,
+and `git status`. A fixture failing any of them is refused by name with the
+failing command's stderr, and the CLI exits 3. See `cases/history-probe` for a
+worked example.
+
 | Check            | Behavior                                                    |
 | ---------------- | ----------------------------------------------------------- |
 | `word-band`      | Count reply words against optional `min` and `max`          |

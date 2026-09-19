@@ -64,8 +64,8 @@ verdict.
   its prefix in the repository, so a clone has its bytes, and still needs the
   corpus files it declares.
 - **Session output grading is narrow.** Checks currently read the reply and tool
-  transcript. Generated fixture setup, post-session filesystem/Git preservation,
-  and command scorers are planned. A doctrine example's tool-call check is not
+  transcript. Post-session filesystem/Git preservation and command scorers are
+  planned. A doctrine example's tool-call check is not
   evidence that its implementation is correct.
 - **Context visibility is incomplete.** Session manifests still retain names
   rather than a timeline. The saved-attempt browser derives recorded Read and
