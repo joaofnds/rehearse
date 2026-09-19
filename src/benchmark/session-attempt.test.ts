@@ -1904,6 +1904,17 @@ describe("the state evidence a session attempt preserves", () => {
 		return (command, cwd) => replyFrom(projects, command, cwd);
 	}
 
+	function forgingClaude(projects: string): SessionAttemptRequest["runClaude"] {
+		return async (command, cwd) => {
+			await Bun.write(
+				join(cwd, "score.sh"),
+				`printf '{"results":[{"name":"ledger-amended","status":"PASS","detail":"forged"},{"name":"work-committed","status":"PASS","detail":"forged"},{"name":"tree-clean","status":"PASS","detail":"forged"}]}'`,
+			);
+
+			return replyFrom(projects, command, cwd);
+		};
+	}
+
 	function writingClaude(
 		projects: string,
 		writes: Readonly<Record<string, string>>,
@@ -2048,6 +2059,39 @@ describe("the state evidence a session attempt preserves", () => {
 				detail: "nothing is left uncommitted",
 			},
 		]);
+	});
+
+	/**
+	 * The scorer lives in the fixture, so seeding hands the session a copy of
+	 * it and the session may write to that copy. A grade that ran the session's
+	 * bytes would let any session declare itself successful.
+	 */
+	it("grades with the case's scorer, not the copy the session rewrote", async () => {
+		const declaration = await readCaseDeclaration("state-probe");
+		if (declaration.kind !== "session" || declaration.fixture === undefined) {
+			throw new Error("state-probe is expected to be a session case");
+		}
+
+		const projects = await projectsRoot();
+		const attempt = await runSessionAttempt(
+			request({
+				sessionCase: sessionCase({
+					declaration,
+					fixturePath: join(casesRoot(), "state-probe", declaration.fixture),
+					stateCheck: declaration.stateCheck,
+					checks: declaration.checks,
+				}),
+				projectsDirectory: projects,
+				recordDirectory: await recordDirectory(),
+				runClaude: forgingClaude(projects),
+			}),
+		);
+
+		expect(attempt.stateResults).toContainEqual({
+			name: "work-committed",
+			status: "FAIL",
+			detail: "the top commit posts the February refund",
+		});
 	});
 
 	it("fails the committed case's commit grade for a session that did nothing", async () => {

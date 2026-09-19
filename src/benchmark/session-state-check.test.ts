@@ -73,6 +73,7 @@ describe(gradeStateEvidence.name, () => {
 			restoreDirectory: await mkdtemp(
 				join(tmpdir(), "rehearse-state-graderoot-"),
 			),
+			scorerSource: undefined,
 			command: [
 				"sh",
 				"-c",
@@ -99,6 +100,7 @@ describe(gradeStateEvidence.name, () => {
 			restoreDirectory: await mkdtemp(
 				join(tmpdir(), "rehearse-state-graderoot-"),
 			),
+			scorerSource: undefined,
 			command: ["sh", "-c", "echo broken >&2; exit 3"],
 			outcomes,
 		});

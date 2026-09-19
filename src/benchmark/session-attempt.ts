@@ -664,6 +664,7 @@ async function gradeAttemptState(
 		const graded = await gradeStateEvidence({
 			evidenceDirectory,
 			restoreDirectory,
+			scorerSource: sessionCase.fixturePath,
 			command: stateCheck.command,
 			outcomes: stateCheck.outcomes,
 		});

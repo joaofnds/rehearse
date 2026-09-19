@@ -1,3 +1,5 @@
+import { cp } from "node:fs/promises";
+import { join } from "node:path";
 import { z } from "zod";
 import { CommandError } from "./command";
 import {
@@ -122,8 +124,34 @@ export function parseStateScorerOutput(
 export interface StateGradingRequest {
 	readonly evidenceDirectory: string;
 	readonly restoreDirectory: string;
+	readonly scorerSource: string | undefined;
 	readonly command: readonly string[];
 	readonly outcomes: readonly string[];
+}
+
+/**
+ * Only the paths the command itself names are laid back, never the whole
+ * fixture: restoring every file would overwrite the very work the grade is
+ * meant to read. A word that resolves to a file under the case's fixture is
+ * one of the scorer's own bytes; everything else in the command line is an
+ * argument the session cannot reach.
+ */
+async function layBackScorerFiles(
+	scorerSource: string,
+	command: readonly string[],
+	restored: string,
+): Promise<void> {
+	for (const word of command) {
+		const source = join(scorerSource, word);
+		if (!source.startsWith(`${scorerSource}/`)) {
+			continue;
+		}
+		if (!(await Bun.file(source).exists())) {
+			continue;
+		}
+
+		await cp(source, join(restored, word), { force: true });
+	}
 }
 
 /**
@@ -135,6 +163,13 @@ export interface StateGradingRequest {
  * executable, a non-zero exit, and a timeout each say nothing about the
  * session's work, and recording them as FAIL would let a broken scorer read as
  * a corpus that got worse.
+ *
+ * The case's own files are laid back over the restore before the command runs.
+ * A scorer declared as a path lives in the fixture, so seeding hands the
+ * session a copy and the session may write to it; without this the grade would
+ * execute whatever the session left at that path, and any session could report
+ * itself successful. The grading definition is the case's bytes, which is what
+ * the lineage digest covers.
  */
 export async function gradeStateEvidence(
 	request: Readonly<StateGradingRequest>,
@@ -143,6 +178,9 @@ export async function gradeStateEvidence(
 		request.evidenceDirectory,
 		request.restoreDirectory,
 	);
+	if (request.scorerSource !== undefined) {
+		await layBackScorerFiles(request.scorerSource, request.command, restored);
+	}
 
 	let stdout: string;
 	try {
