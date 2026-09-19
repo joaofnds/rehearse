@@ -12,6 +12,7 @@ import {
 	requireSessionCase,
 	transcriptPrefixPath,
 } from "#benchmark/case";
+import type { CaseDeclaration } from "#benchmark/case";
 import { CONTROL_DIR, DEFAULT_CASE_ID } from "#benchmark/config";
 import type { Immutable } from "#benchmark/contracts";
 import type { JsonObject } from "#benchmark/json-value";
@@ -384,6 +385,53 @@ describe("loadCase for a session case", () => {
 				{ kind: "tool-calls", max: 0 },
 			],
 		});
+	});
+
+	it("carries the state check a session case declares", () => {
+		const declaration = parseCaseDeclaration(
+			"smoke",
+			sessionDeclaration({
+				stateCheck: {
+					command: ["sh", "score.sh"],
+					outcomes: ["tree-clean", "cards-archived"],
+				},
+			}),
+		);
+		if (declaration.kind !== "session") {
+			throw new Error("expected a session declaration");
+		}
+
+		expect(declaration.stateCheck).toEqual({
+			command: ["sh", "score.sh"],
+			outcomes: ["tree-clean", "cards-archived"],
+		});
+	});
+
+	it("refuses a state check declaring no outcome to report", () => {
+		const failure = (): CaseDeclaration =>
+			parseCaseDeclaration(
+				"smoke",
+				sessionDeclaration({
+					stateCheck: { command: ["sh", "score.sh"], outcomes: [] },
+				}),
+			);
+
+		expect(failure).toThrow(CaseDeclarationError);
+	});
+
+	it("refuses a state check declaring the same outcome twice", () => {
+		const failure = (): CaseDeclaration =>
+			parseCaseDeclaration(
+				"smoke",
+				sessionDeclaration({
+					stateCheck: {
+						command: ["sh", "score.sh"],
+						outcomes: ["tree-clean", "tree-clean"],
+					},
+				}),
+			);
+
+		expect(failure).toThrow(CaseDeclarationError);
 	});
 
 	it("defaults projectFiles to an empty list when a session declaration omits it", () => {

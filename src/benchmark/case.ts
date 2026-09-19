@@ -9,6 +9,8 @@ import type { PipelineDefinition } from "./pipeline";
 import { loadPipeline } from "./pipeline";
 import type { Check } from "./session-check";
 import { checkSchema } from "./session-check";
+import type { StateCheck } from "./session-state-check";
+import { stateCheckSchema } from "./session-state-check";
 import { loadStageRubric } from "./stage-grading";
 import { DEFAULT_STAGE_SETTINGS_FILE } from "./stage-settings";
 
@@ -92,6 +94,7 @@ export const caseDeclarationSchema = z.discriminatedUnion("kind", [
 			corpusFiles: z.array(z.string().min(1)),
 			projectFiles: z.array(z.string().min(1)).default([]),
 			checks: z.array(checkSchema).min(1),
+			stateCheck: stateCheckSchema.optional(),
 			model: declaredModelSchema,
 			sessionBudgetUsd: declaredSessionBudgetUsdSchema,
 		})
@@ -302,6 +305,7 @@ export interface SessionCase {
 	readonly corpusFiles: readonly string[];
 	readonly projectFiles: readonly string[];
 	readonly checks: Immutable<readonly Check[]>;
+	readonly stateCheck?: Immutable<StateCheck> | undefined;
 }
 
 export type LoadedCase = BenchmarkCase | SessionCase;
@@ -461,6 +465,7 @@ function loadSessionCase(declaration: SessionCaseDeclaration): SessionCase {
 		corpusFiles: declaration.corpusFiles,
 		projectFiles: declaration.projectFiles,
 		checks: declaration.checks,
+		stateCheck: declaration.stateCheck,
 	};
 }
 

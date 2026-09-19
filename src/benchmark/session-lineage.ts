@@ -19,6 +19,12 @@ import { jsonArraySchema, jsonObjectSchema } from "./json-value";
  * against, a fact the fixture's byte hash alone does not carry: two cases
  * sharing one fixture tree but declaring a different project file are
  * checked against a different contract and must not share a lineage.
+ *
+ * `stateCheck` is the grading definition for the files and git state a
+ * session leaves. It is hashed here because nothing else covers it: the
+ * fixture hash walks `fixturePath`, which is the fixture subdirectory and not
+ * the case directory, so a scorer declared anywhere but inside the fixture
+ * would be graded as the original definition after an edit.
  */
 export async function sessionUpstreamDigest(
 	sessionCase: SessionCase,
@@ -38,6 +44,7 @@ export async function sessionUpstreamDigest(
 				settings: canonicalSettings(sessionCase) ?? null,
 				agents: sessionCase.agents ?? null,
 				projectFiles: sessionCase.projectFiles,
+				stateCheck: sessionCase.stateCheck ?? null,
 			}),
 		)
 		.digest("hex");

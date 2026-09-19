@@ -17,7 +17,10 @@ const settings: SessionSettings = {
 	budgetUsd: 0.2,
 };
 
-function sessionCase(fixturePath?: string): SessionCase {
+function sessionCase(
+	fixturePath?: string,
+	stateCheck?: SessionCase["stateCheck"],
+): SessionCase {
 	return {
 		kind: "session",
 		declaration: {
@@ -29,6 +32,7 @@ function sessionCase(fixturePath?: string): SessionCase {
 			corpusFiles: ["output-styles/brief.md"],
 			projectFiles: [],
 			checks: [{ kind: "word-band", max: 1 }],
+			stateCheck,
 		},
 		fixturePath,
 		transcriptPath: undefined,
@@ -39,6 +43,7 @@ function sessionCase(fixturePath?: string): SessionCase {
 		corpusFiles: ["output-styles/brief.md"],
 		projectFiles: [],
 		checks: [{ kind: "word-band", max: 1 }],
+		stateCheck,
 	};
 }
 
@@ -297,5 +302,69 @@ describe(sessionLineage.name, () => {
 		]);
 
 		expect(after).not.toBe(before);
+	});
+});
+
+describe("the lineage a declared state check produces", () => {
+	it("differs from the lineage of the same case declaring no state check", async () => {
+		const [without, with_] = await Promise.all([
+			sessionLineage(sessionCase(), corpus("a".repeat(64)), settings),
+			sessionLineage(
+				sessionCase(undefined, {
+					command: ["sh", "score.sh"],
+					outcomes: ["tree-clean"],
+				}),
+				corpus("a".repeat(64)),
+				settings,
+			),
+		]);
+
+		expect(with_).not.toBe(without);
+	});
+
+	it("differs between two cases whose scorer commands differ", async () => {
+		const [first, second] = await Promise.all([
+			sessionLineage(
+				sessionCase(undefined, {
+					command: ["sh", "score.sh"],
+					outcomes: ["tree-clean"],
+				}),
+				corpus("a".repeat(64)),
+				settings,
+			),
+			sessionLineage(
+				sessionCase(undefined, {
+					command: ["sh", "edited-score.sh"],
+					outcomes: ["tree-clean"],
+				}),
+				corpus("a".repeat(64)),
+				settings,
+			),
+		]);
+
+		expect(second).not.toBe(first);
+	});
+
+	it("differs between two cases whose declared outcomes differ", async () => {
+		const [first, second] = await Promise.all([
+			sessionLineage(
+				sessionCase(undefined, {
+					command: ["sh", "score.sh"],
+					outcomes: ["tree-clean"],
+				}),
+				corpus("a".repeat(64)),
+				settings,
+			),
+			sessionLineage(
+				sessionCase(undefined, {
+					command: ["sh", "score.sh"],
+					outcomes: ["tree-clean", "cards-archived"],
+				}),
+				corpus("a".repeat(64)),
+				settings,
+			),
+		]);
+
+		expect(second).not.toBe(first);
 	});
 });

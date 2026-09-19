@@ -23,6 +23,32 @@ export const stateResultSchema = z
 
 export type StateResult = z.infer<typeof stateResultSchema>;
 
+/**
+ * The scorer is declared inline rather than as a file beside `case.json`
+ * because `sessionUpstreamDigest` walks the fixture subdirectory and not the
+ * case directory: a scorer file there would be covered by no digest, so a
+ * session that edited it could be graded as the original definition. Declared
+ * here, the command and its outcomes fold into the lineage digest with the
+ * prompt and tools, and a confirmation run freezes `case.json` bodily.
+ *
+ * A scorer complex enough to need its own file is a command that invokes one
+ * inside the fixture, which the fixture digest already covers.
+ */
+export const stateCheckSchema = z
+	.object({
+		command: z.array(z.string().min(1)).min(1),
+		outcomes: z
+			.array(z.string().min(1))
+			.min(1)
+			.refine(
+				(names) => new Set(names).size === names.length,
+				"declares the same outcome more than once",
+			),
+	})
+	.strict();
+
+export type StateCheck = z.infer<typeof stateCheckSchema>;
+
 const stateScorerOutputSchema = z
 	.object({ results: z.array(stateResultSchema) })
 	.strict();
