@@ -15,7 +15,7 @@ import { join, relative } from "node:path";
 import type { SessionCase, TranscriptPrefix } from "./case";
 import { readClaudeCallMetrics } from "./claude";
 import type { SessionSettings } from "./claude";
-import { CommandError } from "./command";
+import { CommandError, runCommand } from "./command";
 import type { ClaudeCallMetrics, Immutable } from "./contracts";
 import { claudeEnvelopeSchema } from "./contracts";
 import { fileLines, terminatedFileLines } from "./file-lines";
@@ -179,8 +179,6 @@ export function sessionCaseArgs(
  * either refusal: report it and pay for nothing. One type keeps that response
  * in one place rather than growing a class per input the harness can refuse.
  */
-const FIXTURE_HISTORY_DIRECTORY = "dot-git";
-
 export class SessionInputError extends Error {
 	public override name = "SessionInputError";
 }
@@ -286,6 +284,8 @@ async function prepareSession(
 	return { sessionId, resumed: true };
 }
 
+const FIXTURE_HISTORY_DIRECTORY = "dot-git";
+
 /**
  * A recursive copy preserves symlinks, so a fixture holding one would give the
  * session a live path out of the attempt directory the harness promised it
@@ -315,7 +315,7 @@ async function seedFixture(
 	await cp(fixturePath, attemptDirectory, { recursive: true });
 
 	if (entries.some((entry) => entry.name === FIXTURE_HISTORY_DIRECTORY)) {
-		await openFixtureHistory(attemptDirectory);
+		await openFixtureHistory(fixturePath, attemptDirectory);
 	}
 }
 
@@ -324,12 +324,74 @@ async function seedFixture(
  * `refs/heads` and `refs/tags`, and without them git walks out of the attempt
  * directory and answers from whatever repository encloses it.
  */
-async function openFixtureHistory(attemptDirectory: string): Promise<void> {
+async function openFixtureHistory(
+	fixturePath: string,
+	attemptDirectory: string,
+): Promise<void> {
 	const gitDirectory = join(attemptDirectory, ".git");
 
 	await rename(join(attemptDirectory, FIXTURE_HISTORY_DIRECTORY), gitDirectory);
 	await mkdir(join(gitDirectory, "refs", "heads"), { recursive: true });
 	await mkdir(join(gitDirectory, "refs", "tags"), { recursive: true });
+
+	await checkFixtureHistory(fixturePath, attemptDirectory);
+}
+
+/**
+ * These are the commands a session's own first look at its history runs, and
+ * each catches a broken shape the other two admit: a directory git will not
+ * read as a repository, a history whose objects do not reach back, an index
+ * that cannot be parsed. A fixture that fails any of them would spend a
+ * provider call on a tree the case does not describe.
+ *
+ * `--show-toplevel` resolves symlinks, so the comparison is against the
+ * already-resolved attempt directory: on macOS `/tmp` is a symlink to
+ * `/private/tmp`, and comparing an unresolved path would reject every good
+ * fixture.
+ */
+async function checkFixtureHistory(
+	fixturePath: string,
+	attemptDirectory: string,
+): Promise<void> {
+	const toplevel = await fixtureHistoryOutput(fixturePath, attemptDirectory, [
+		"git",
+		"rev-parse",
+		"--show-toplevel",
+	]);
+	if (toplevel.trim() !== attemptDirectory) {
+		throw new SessionInputError(
+			`Fixture ${fixturePath} seeds a git directory that resolves to ${toplevel.trim()} rather than the attempt directory`,
+		);
+	}
+
+	await fixtureHistoryOutput(fixturePath, attemptDirectory, [
+		"git",
+		"log",
+		"--format=%H",
+	]);
+	await fixtureHistoryOutput(fixturePath, attemptDirectory, [
+		"git",
+		"status",
+		"--short",
+	]);
+}
+
+async function fixtureHistoryOutput(
+	fixturePath: string,
+	attemptDirectory: string,
+	command: readonly string[],
+): Promise<string> {
+	try {
+		return await runCommand(command, attemptDirectory);
+	} catch (error) {
+		if (error instanceof CommandError) {
+			throw new SessionInputError(
+				`Fixture ${fixturePath} seeds a git directory that ${command.join(" ")} rejects: ${error.stderr.trim()}`,
+			);
+		}
+
+		throw error;
+	}
 }
 
 interface CorpusOverlay {

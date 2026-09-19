@@ -12,6 +12,7 @@ import { dirname, join } from "node:path";
 import type { SessionCase } from "#benchmark/case";
 import type { Immutable } from "#benchmark/contracts";
 import type { SessionRunConfig } from "#benchmark/config";
+import { EXIT_CODES, exitCodeFor } from "#benchmark/exit-codes";
 import { syntheticRateProvenance } from "#benchmark/rate-catalog-test-support";
 import { parseSessionAttemptRecord } from "#benchmark/session-record";
 import { projectSlug } from "#benchmark/session-capture";
@@ -477,6 +478,29 @@ describe(runSessionDebugAttempt.name, () => {
 
 		expect(failure).toBeInstanceOf(RefusedPreconditionError);
 		expect(failure.message).toContain("escape.md");
+	});
+
+	it("refuses a fixture whose seeded history git cannot read, exiting 3 before any provider call", async () => {
+		const runs = await temporary("rehearse-runs-");
+		const projects = await temporary("rehearse-projects-");
+		const fixture = await temporary("rehearse-fixture-");
+		await mkdir(join(fixture, "dot-git"), { recursive: true });
+		await writeFile(join(fixture, "dot-git", "HEAD"), "ref: refs/heads/main\n");
+
+		const failure = await failureOf(
+			runSessionDebugAttempt({
+				sessionCase: sessionCase({ fixturePath: fixture }),
+				config,
+				runsDirectory: runs,
+				runClaude: () =>
+					Promise.reject(new Error("a provider call must not happen")),
+				projectsDirectory: projects,
+			}),
+		);
+
+		expect(failure).toBeInstanceOf(RefusedPreconditionError);
+		expect(exitCodeFor(failure)).toBe(EXIT_CODES.refusedPrecondition);
+		expect(failure.message).toContain(fixture);
 	});
 
 	it("refuses a transcript prefix whose bytes do not match the declared digest, before any provider call", async () => {

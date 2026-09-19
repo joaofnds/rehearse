@@ -4,6 +4,7 @@ import {
 	mkdtemp,
 	readdir,
 	realpath,
+	appendFile,
 	rename,
 	rm,
 	rmdir,
@@ -798,6 +799,69 @@ describe(runSessionAttempt.name, () => {
 		expect(claude.runs[0]?.shellOutputs).toEqual([
 			`${fixture.commits[1]}\n${fixture.commits[0]}\n`,
 		]);
+	});
+
+	/**
+	 * Each breakage here is caught by exactly one of the three probes, which
+	 * is why all three run: a config pointing the work tree outside the
+	 * attempt directory only by `--show-toplevel`, a history missing an
+	 * ancestor object only by `log`, a corrupt index only by `status`. All
+	 * three survive a commit and a checkout, so a case can carry any of them.
+	 */
+	describe("a fixture whose seeded history is unusable", () => {
+		const breakages = [
+			{
+				name: "points its work tree outside the attempt directory",
+				corrupt: async (history: string) => {
+					await appendFile(
+						join(history, "config"),
+						`[core]\n\tworktree = ${tmpdir()}\n`,
+					);
+				},
+				stderr: "resolves to",
+			},
+			{
+				name: "is missing an ancestor object",
+				corrupt: async (history: string, commits: readonly string[]) => {
+					const ancestor = commits[0] ?? "";
+					await rm(
+						join(history, "objects", ancestor.slice(0, 2), ancestor.slice(2)),
+					);
+				},
+				stderr: "Could not read",
+			},
+			{
+				name: "holds a corrupt index",
+				corrupt: async (history: string) => {
+					await writeFile(join(history, "index"), "not an index");
+				},
+				stderr: "index file smaller than expected",
+			},
+		] as const;
+
+		for (const breakage of breakages) {
+			it(`is refused by name before any provider call when it ${breakage.name}`, async () => {
+				const fixture = await gitFixture();
+				await breakage.corrupt(join(fixture.path, "dot-git"), fixture.commits);
+				const projects = await projectsRoot();
+
+				const failure = await failureOf(
+					runSessionAttempt(
+						request({
+							sessionCase: sessionCase({ fixturePath: fixture.path }),
+							projectsDirectory: projects,
+							recordDirectory: await recordDirectory(),
+							runClaude: () =>
+								Promise.reject(new Error("a provider call must not happen")),
+						}),
+					),
+				);
+
+				expect(failure).toBeInstanceOf(SessionInputError);
+				expect(failure.message).toContain(fixture.path);
+				expect(failure.message).toContain(breakage.stderr);
+			});
+		}
 	});
 
 	/**
