@@ -873,6 +873,7 @@ describe(runSessionAttempt.name, () => {
 				resources.track(fixture.path);
 				await breakage.corrupt(join(fixture.path, "dot-git"), fixture.commits);
 				const projects = await projectsRoot();
+				const claude = new FakeClaude(projects, "OK");
 
 				const failure = await failureOf(
 					runSessionAttempt(
@@ -880,8 +881,7 @@ describe(runSessionAttempt.name, () => {
 							sessionCase: sessionCase({ fixturePath: fixture.path }),
 							projectsDirectory: projects,
 							recordDirectory: await recordDirectory(),
-							runClaude: () =>
-								Promise.reject(new Error("a provider call must not happen")),
+							runClaude: claude.run,
 						}),
 					),
 				);
@@ -889,6 +889,7 @@ describe(runSessionAttempt.name, () => {
 				expect(failure).toBeInstanceOf(SessionInputError);
 				expect(failure.message).toContain(fixture.path);
 				expect(failure.message).toContain(breakage.stderr);
+				expect(claude.runs).toEqual([]);
 			});
 		}
 	});
