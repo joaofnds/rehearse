@@ -3,8 +3,6 @@
 	filemode = true
 	bare = false
 	logallrefupdates = true
-	ignorecase = true
-	precomposeunicode = true
 [user]
 	name = Rehearse Fixture
 	email = fixture@rehearse.invalid
