@@ -4,14 +4,16 @@ import {
 	mkdtemp,
 	readdir,
 	realpath,
+	rename,
 	rm,
+	rmdir,
 	symlink,
 	writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import type { SessionCase } from "#benchmark/case";
-import { CommandError } from "#benchmark/command";
+import { CommandError, runCommand } from "#benchmark/command";
 import type { Immutable } from "#benchmark/contracts";
 import { contextEvidenceSourceSchema } from "#benchmark/context-evidence";
 import type { ContextEvidenceSource } from "#benchmark/context-evidence";
@@ -163,6 +165,7 @@ interface FakeRun {
 	readonly command: readonly string[];
 	readonly cwd: string;
 	readonly seenFiles: readonly string[];
+	readonly shellOutputs: readonly string[];
 }
 
 function namedSession(command: readonly string[]): string {
@@ -177,7 +180,8 @@ function namedSession(command: readonly string[]): string {
  * The provider writes the session file under the id the command line named it,
  * and the harness reads it back from the slug directory, so the fake does the
  * same. Nothing here depends on where that name sorts among the directory's
- * other entries.
+ * other entries. A case can also hand it commands to run where the harness
+ * dropped it, standing in for a session that inspects the tree it was given.
  */
 class FakeClaude {
 	private readonly calls: FakeRun[] = [];
@@ -185,6 +189,7 @@ class FakeClaude {
 	public constructor(
 		private readonly projects: string,
 		private readonly reply: string,
+		private readonly shellCommands: readonly (readonly string[])[] = [],
 	) {}
 
 	public get runs(): readonly FakeRun[] {
@@ -199,6 +204,7 @@ class FakeClaude {
 			command: [...command],
 			cwd,
 			seenFiles: await readdir(cwd, { recursive: true }),
+			shellOutputs: await this.shell(cwd),
 		});
 		const sessionId = namedSession(command);
 		const slug = join(this.projects, projectSlug(await realpath(cwd)));
@@ -210,6 +216,70 @@ class FakeClaude {
 
 		return envelope(this.reply);
 	};
+
+	private async shell(cwd: string): Promise<readonly string[]> {
+		const outputs: string[] = [];
+		for (const each of this.shellCommands) {
+			outputs.push(await runCommand(each, cwd));
+		}
+
+		return outputs;
+	}
+}
+
+interface GitFixture {
+	readonly path: string;
+	readonly commits: readonly [string, string];
+}
+
+async function gitFixture(
+	options: { readonly packed?: boolean } = {},
+): Promise<GitFixture> {
+	const build = await mkdtemp(join(tmpdir(), "rehearse-fixture-build-"));
+	resources.track(build);
+	await runCommand(["git", "init", "--initial-branch=main"], build);
+	await runCommand(["git", "config", "user.name", "Fixture Author"], build);
+	await runCommand(
+		["git", "config", "user.email", "fixture@example.com"],
+		build,
+	);
+
+	const commits: string[] = [];
+	for (const subject of ["first", "second"]) {
+		await writeFile(join(build, `${subject}.md`), `${subject}\n`);
+		await runCommand(["git", "add", "."], build);
+		await runCommand(["git", "commit", "-m", subject], build);
+		const head = await runCommand(["git", "rev-parse", "HEAD"], build);
+		commits.push(head.trim());
+	}
+	if (options.packed === true) {
+		await runCommand(["git", "pack-refs", "--all"], build);
+	}
+
+	await rename(join(build, ".git"), join(build, "dot-git"));
+	await dropEmptyDirectories(join(build, "dot-git"));
+
+	return { path: build, commits: [commits[0] ?? "", commits[1] ?? ""] };
+}
+
+/**
+ * A case's fixture reaches a run as bytes git checked out, and git stores no
+ * empty directory, so a fixture built in place only matches a committed one
+ * once the directories a commit would have dropped are gone.
+ */
+async function dropEmptyDirectories(root: string): Promise<void> {
+	const entries = await readdir(root, { withFileTypes: true });
+
+	for (const entry of entries) {
+		if (entry.isDirectory()) {
+			await dropEmptyDirectories(join(root, entry.name));
+		}
+	}
+
+	const remaining = await readdir(root);
+	if (remaining.length === 0) {
+		await rmdir(root);
+	}
 }
 
 async function projectsRoot(): Promise<string> {
@@ -678,6 +748,56 @@ describe(runSessionAttempt.name, () => {
 
 		const [only] = claude.runs;
 		expect(only?.seenFiles).toContain(join("docs", "note.md"));
+	});
+
+	it("seeds a fixture's dot-git as a working git directory the session can read", async () => {
+		const fixture = await gitFixture();
+		const projects = await projectsRoot();
+		const claude = new FakeClaude(projects, "OK", [
+			["git", "log", "--format=%H %s"],
+			["git", "status", "--short"],
+		]);
+
+		await runSessionAttempt(
+			request({
+				sessionCase: sessionCase({ fixturePath: fixture.path }),
+				projectsDirectory: projects,
+				recordDirectory: await recordDirectory(),
+				runClaude: claude.run,
+			}),
+		);
+
+		expect(claude.runs[0]?.shellOutputs).toEqual([
+			`${fixture.commits[1]} second\n${fixture.commits[0]} first\n`,
+			"",
+		]);
+	});
+
+	/**
+	 * A packed fixture carries its branch in `packed-refs` and no file under
+	 * `refs/heads/`, so a commit drops the directory entirely. Git then declines
+	 * to read the seeded directory as a repository and searches upward, and the
+	 * session gets whatever history encloses the attempt directory.
+	 */
+	it("reports a packed fixture's own commits rather than an enclosing repository's", async () => {
+		const fixture = await gitFixture({ packed: true });
+		const projects = await projectsRoot();
+		const claude = new FakeClaude(projects, "OK", [
+			["git", "log", "--format=%H"],
+		]);
+
+		await runSessionAttempt(
+			request({
+				sessionCase: sessionCase({ fixturePath: fixture.path }),
+				projectsDirectory: projects,
+				recordDirectory: await recordDirectory(),
+				runClaude: claude.run,
+			}),
+		);
+
+		expect(claude.runs[0]?.shellOutputs).toEqual([
+			`${fixture.commits[1]}\n${fixture.commits[0]}\n`,
+		]);
 	});
 
 	/**

@@ -6,6 +6,7 @@ import {
 	mkdtemp,
 	readdir,
 	realpath,
+	rename,
 	rm,
 	rmdir,
 } from "node:fs/promises";
@@ -178,6 +179,8 @@ export function sessionCaseArgs(
  * either refusal: report it and pay for nothing. One type keeps that response
  * in one place rather than growing a class per input the harness can refuse.
  */
+const FIXTURE_HISTORY_DIRECTORY = "dot-git";
+
 export class SessionInputError extends Error {
 	public override name = "SessionInputError";
 }
@@ -288,15 +291,20 @@ async function prepareSession(
  * session a live path out of the attempt directory the harness promised it
  * owns. The tree is data a case declares, so the refusal comes before the copy
  * and before any provider call, and it names the entry.
+ *
+ * Git refuses to commit a nested `.git`, so a case that carries history stores
+ * it under `dot-git` and the copy opens it.
  */
 async function seedFixture(
 	fixturePath: string,
 	attemptDirectory: string,
 ): Promise<void> {
-	for (const entry of await readdir(fixturePath, {
+	const entries = await readdir(fixturePath, {
 		recursive: true,
 		withFileTypes: true,
-	})) {
+	});
+
+	for (const entry of entries) {
 		if (entry.isSymbolicLink()) {
 			throw new SessionInputError(
 				`Fixture entry ${relative(fixturePath, join(entry.parentPath, entry.name))} is a symlink, which would lead out of the attempt directory`,
@@ -305,6 +313,23 @@ async function seedFixture(
 	}
 
 	await cp(fixturePath, attemptDirectory, { recursive: true });
+
+	if (entries.some((entry) => entry.name === FIXTURE_HISTORY_DIRECTORY)) {
+		await openFixtureHistory(attemptDirectory);
+	}
+}
+
+/**
+ * Renaming the directory back is not enough: the commit dropped the empty
+ * `refs/heads` and `refs/tags`, and without them git walks out of the attempt
+ * directory and answers from whatever repository encloses it.
+ */
+async function openFixtureHistory(attemptDirectory: string): Promise<void> {
+	const gitDirectory = join(attemptDirectory, ".git");
+
+	await rename(join(attemptDirectory, FIXTURE_HISTORY_DIRECTORY), gitDirectory);
+	await mkdir(join(gitDirectory, "refs", "heads"), { recursive: true });
+	await mkdir(join(gitDirectory, "refs", "tags"), { recursive: true });
 }
 
 interface CorpusOverlay {
