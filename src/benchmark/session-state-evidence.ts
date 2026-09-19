@@ -1,4 +1,4 @@
-import { cp, mkdir, rename } from "node:fs/promises";
+import { cp, lstat, mkdir, rename } from "node:fs/promises";
 import { join } from "node:path";
 import { runCommand } from "./command";
 import { STORED_GIT_DIRECTORY } from "./git-directory-name";
@@ -30,6 +30,15 @@ const NO_HOOKS_DIRECTORY = ".rehearse-no-hooks";
  * repository. The copy is never committed, because a commit round trip drops
  * the empty `refs/tags` a fresh repository carries and a later restore would
  * then walk out to whatever repository encloses it.
+ *
+ * A symlink the session left is dropped rather than copied. A recursive copy
+ * preserves one, and the saved evidence outlives the attempt directory, so a
+ * link the session planted would resolve against the operator's own files from
+ * the record and from every restore made out of it: a scorer reading it reports
+ * their contents as a grade. `seedFixture` refuses a symlink on the way in for
+ * the same reason. Retention drops rather than refuses, because a session under
+ * test is not a case author who can be asked to fix its tree, and one link must
+ * not discard the evidence for everything else the session did.
  */
 export async function preserveStateEvidence(
 	attemptDirectory: string,
@@ -39,8 +48,15 @@ export async function preserveStateEvidence(
 
 	await cp(attemptDirectory, destination, {
 		recursive: true,
-		filter: (source) =>
-			source !== join(attemptDirectory, CORPUS_OVERLAY_DIRECTORY),
+		filter: async (source) => {
+			if (source === join(attemptDirectory, CORPUS_OVERLAY_DIRECTORY)) {
+				return false;
+			}
+
+			const entry = await lstat(source);
+
+			return !entry.isSymbolicLink();
+		},
 	});
 
 	const gitDirectory = join(destination, ".git");
@@ -94,11 +110,9 @@ export async function restoreStateEvidence(
  * every git process in the environment, so pointing `core.hooksPath` at an
  * empty directory and clearing `core.fsmonitor` suppresses both vectors for
  * the harness's git calls and the scorer's alike, with history still readable.
- */
-/**
- * Every command that touches restored evidence goes through here, so the
- * guard above cannot be left off one call site. A scorer is an arbitrary
- * command, and this is the boundary where its environment is set.
+ *
+ * Every command that touches restored evidence goes through here, so the guard
+ * cannot be left off one call site.
  */
 export function runAgainstStateEvidence(
 	command: readonly string[],

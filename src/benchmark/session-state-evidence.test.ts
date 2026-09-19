@@ -6,6 +6,7 @@ import {
 	mkdtemp,
 	readdir,
 	rm,
+	symlink,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
@@ -144,6 +145,69 @@ describe(restoreStateEvidence.name, () => {
 			"first, edited\n",
 		);
 		expect(await Bun.file(join(second, "grader.txt")).exists()).toBe(false);
+	});
+});
+
+/**
+ * A recursive copy preserves a symlink, so a link the session planted would
+ * reach the operator's files from inside the saved evidence and from every
+ * restore made out of it. Seeding refuses one on the way in for the same
+ * reason; retention drops it instead, because a session under test is not a
+ * case author who can be asked to fix its tree, and one link must not discard
+ * the evidence for everything else the session did.
+ */
+describe("a link the session left pointing out of its attempt directory", () => {
+	async function preservedAttemptWithLinks(): Promise<string> {
+		const outside = await directory("rehearse-state-outside-");
+		await Bun.write(
+			join(outside, "operator-secret.txt"),
+			"not the session's\n",
+		);
+
+		const attempt = await directory("rehearse-state-attempt-");
+		await Bun.write(join(attempt, "own-work.txt"), "the session's own\n");
+		await symlink(
+			join(outside, "operator-secret.txt"),
+			join(attempt, "stolen.txt"),
+		);
+		await symlink(outside, join(attempt, "escape"));
+
+		return preserveStateEvidence(
+			attempt,
+			await directory("rehearse-state-record-"),
+		);
+	}
+
+	it("keeps no link into the preserved evidence", async () => {
+		const evidence = await preservedAttemptWithLinks();
+
+		expect(await Bun.file(join(evidence, "stolen.txt")).exists()).toBe(false);
+		expect(
+			await Bun.file(join(evidence, "escape", "operator-secret.txt")).exists(),
+		).toBe(false);
+	});
+
+	it("keeps the files the session actually wrote", async () => {
+		const evidence = await preservedAttemptWithLinks();
+
+		expect(await Bun.file(join(evidence, "own-work.txt")).text()).toBe(
+			"the session's own\n",
+		);
+	});
+
+	it("gives a scorer no path to what the link pointed at", async () => {
+		const evidence = await preservedAttemptWithLinks();
+		const restored = await restoreStateEvidence(
+			evidence,
+			await directory("rehearse-state-restore-"),
+		);
+
+		const seen = await runAgainstStateEvidence(
+			["sh", "-c", "cat stolen.txt 2>&1 || true"],
+			restored,
+		);
+
+		expect(seen).not.toContain("not the session's");
 	});
 });
 
