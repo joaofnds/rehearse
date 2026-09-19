@@ -830,6 +830,44 @@ describe(runSessionAttempt.name, () => {
 	});
 
 	/**
+	 * `git status`, which the seeding runs before any provider call, fires the
+	 * `post-index-change` hook. A fixture is case data, and a hook in it is
+	 * code the harness would execute on the operator's machine outside the
+	 * case's declared tools and permissions. No case needs one, so a tree
+	 * carrying one is refused rather than sandboxed.
+	 */
+	it("refuses a fixture whose history carries git hooks, before running any git command", async () => {
+		const fixture = await historyFixture(["first"]);
+		resources.track(fixture.path);
+		const marker = join(fixture.path, "hook-ran");
+		const hooks = join(fixture.path, "dot-git", "hooks");
+		await mkdir(hooks, { recursive: true });
+		await writeFile(
+			join(hooks, "post-index-change"),
+			`#!/bin/sh\ntouch ${marker}\n`,
+			{ mode: 0o755 },
+		);
+		const projects = await projectsRoot();
+		const claude = new FakeClaude(projects, "OK");
+
+		const failure = await failureOf(
+			runSessionAttempt(
+				request({
+					sessionCase: sessionCase({ fixturePath: fixture.path }),
+					projectsDirectory: projects,
+					recordDirectory: await recordDirectory(),
+					runClaude: claude.run,
+				}),
+			),
+		);
+
+		expect(failure).toBeInstanceOf(SessionInputError);
+		expect(failure.message).toContain("hooks");
+		expect(claude.runs).toEqual([]);
+		expect(await Bun.file(marker).exists()).toBe(false);
+	});
+
+	/**
 	 * Each breakage here is caught by exactly one of the three probes, which
 	 * is why all three run: a config pointing the work tree outside the
 	 * attempt directory only by `--show-toplevel`, a history missing an

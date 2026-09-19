@@ -285,6 +285,7 @@ async function prepareSession(
 }
 
 export const FIXTURE_HISTORY_DIRECTORY = "dot-git";
+const FIXTURE_HOOKS_DIRECTORY = join(FIXTURE_HISTORY_DIRECTORY, "hooks");
 
 /**
  * A recursive copy preserves symlinks, so a fixture holding one would give the
@@ -293,7 +294,11 @@ export const FIXTURE_HISTORY_DIRECTORY = "dot-git";
  * and before any provider call, and it names the entry.
  *
  * Git refuses to commit a nested `.git`, so a case that carries history stores
- * it under `dot-git` and the copy opens it.
+ * it under `dot-git` and the copy opens it. Hooks inside it are refused the
+ * same way and for the same reason: `git status`, which this runs before any
+ * provider call, fires `post-index-change`, so a hook a case carries is code
+ * the harness executes here, outside the tools and permissions the case
+ * declares. No case needs one.
  */
 async function seedFixture(
 	fixturePath: string,
@@ -305,9 +310,16 @@ async function seedFixture(
 	});
 
 	for (const entry of entries) {
+		const entryPath = relative(fixturePath, join(entry.parentPath, entry.name));
 		if (entry.isSymbolicLink()) {
 			throw new SessionInputError(
-				`Fixture entry ${relative(fixturePath, join(entry.parentPath, entry.name))} is a symlink, which would lead out of the attempt directory`,
+				`Fixture entry ${entryPath} is a symlink, which would lead out of the attempt directory`,
+			);
+		}
+
+		if (entryPath === FIXTURE_HOOKS_DIRECTORY) {
+			throw new SessionInputError(
+				`Fixture entry ${entryPath} holds git hooks, which the harness would run on this machine outside the case's declared tools`,
 			);
 		}
 	}

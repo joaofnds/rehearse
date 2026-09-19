@@ -131,7 +131,8 @@ export interface HistoryFixture {
  * reaches a run as bytes git checked out. Building one in place is not the
  * same thing until the empty directories a commit drops are gone, so the
  * builder drops them: a fixture that kept them would hide the packed-refs
- * failure the seeding exists to prevent.
+ * failure the seeding exists to prevent. The sample hooks `git init` writes go
+ * too, because the seeding refuses a fixture carrying hooks at all.
  */
 export async function historyFixture(
 	subjects: readonly string[],
@@ -157,6 +158,10 @@ export async function historyFixture(
 	}
 
 	await rename(join(path, ".git"), join(path, FIXTURE_HISTORY_DIRECTORY));
+	await rm(join(path, FIXTURE_HISTORY_DIRECTORY, "hooks"), {
+		force: true,
+		recursive: true,
+	});
 	await dropEmptyDirectories(join(path, FIXTURE_HISTORY_DIRECTORY));
 
 	return { path, commits };
