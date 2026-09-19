@@ -29,6 +29,7 @@ import {
 	SessionInputError,
 } from "#benchmark/session-attempt";
 import { SessionInvocationError } from "#benchmark/session-invocation-error";
+import { STATE_EVIDENCE_DIRECTORY } from "#benchmark/session-state-evidence";
 
 const resources = TestResources.forEachTest();
 
@@ -1864,5 +1865,58 @@ describe("over the history-probe case", () => {
 			"a824bc8e7a7c06e9dbd5ee729c31dc52feac332a Rehearse Fixture <fixture@rehearse.invalid> fix(ledger): post the supplier refund that was missed\n4bc2c5ac67723d47bc33df3d92455ec32440b255 Rehearse Fixture <fixture@rehearse.invalid> feat(ledger): record the opening balance\n",
 			"",
 		]);
+	});
+});
+
+describe("the state evidence a session attempt preserves", () => {
+	function writingClaude(
+		projects: string,
+		writes: Readonly<Record<string, string>>,
+	): SessionAttemptRequest["runClaude"] {
+		return async (command, cwd) => {
+			for (const [path, contents] of Object.entries(writes)) {
+				await Bun.write(join(cwd, path), contents);
+			}
+			const sessionId = namedSession(command);
+			const slug = join(projects, projectSlug(await realpath(cwd)));
+			await mkdir(slug, { recursive: true });
+			await writeFile(
+				join(slug, `${sessionId}.jsonl`),
+				`${transcriptLine(sessionId, "OK")}\n`,
+			);
+
+			return JSON.stringify({
+				type: "result",
+				subtype: "error_max_turns",
+				session_id: sessionId,
+				is_error: false,
+				total_cost_usd: 0.0012,
+				num_turns: 30,
+			});
+		};
+	}
+
+	it("holds the files a session wrote before it ended without a reply", async () => {
+		const projects = await projectsRoot();
+		const records = await recordDirectory();
+
+		const attempt = await runSessionAttempt(
+			request({
+				projectsDirectory: projects,
+				recordDirectory: records,
+				runClaude: writingClaude(projects, { "state.txt": "written\n" }),
+			}),
+		);
+
+		expect(attempt.outcome).toBe("NO_REPLY");
+		expect(attempt.checks).toEqual([]);
+		expect(attempt.stateEvidenceDirectory).toBe(
+			join(records, STATE_EVIDENCE_DIRECTORY),
+		);
+		expect(
+			await Bun.file(
+				join(records, STATE_EVIDENCE_DIRECTORY, "state.txt"),
+			).text(),
+		).toBe("written\n");
 	});
 });

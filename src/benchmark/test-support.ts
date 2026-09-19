@@ -3,7 +3,7 @@ import { mkdtemp, readdir, rename, rm, rmdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runCommand } from "./command";
-import { FIXTURE_HISTORY_DIRECTORY } from "./session-attempt";
+import { STORED_GIT_DIRECTORY } from "./git-directory-name";
 import type { LocalCheckResult } from "./contracts";
 import type { TargetDefinition } from "./pipeline";
 import { removeWorktree } from "./target";
@@ -157,12 +157,12 @@ export async function historyFixture(
 		await runCommand(["git", "pack-refs", "--all"], path);
 	}
 
-	await rename(join(path, ".git"), join(path, FIXTURE_HISTORY_DIRECTORY));
-	await rm(join(path, FIXTURE_HISTORY_DIRECTORY, "hooks"), {
+	await rename(join(path, ".git"), join(path, STORED_GIT_DIRECTORY));
+	await rm(join(path, STORED_GIT_DIRECTORY, "hooks"), {
 		force: true,
 		recursive: true,
 	});
-	await dropEmptyDirectories(join(path, FIXTURE_HISTORY_DIRECTORY));
+	await dropEmptyDirectories(join(path, STORED_GIT_DIRECTORY));
 
 	return { path, commits };
 }

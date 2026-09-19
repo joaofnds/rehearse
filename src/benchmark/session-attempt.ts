@@ -38,6 +38,8 @@ import {
 } from "./transcript";
 import { SessionInvocationError } from "./session-invocation-error";
 import { normalizeContextEvidence } from "./context-evidence";
+import { STORED_GIT_DIRECTORY } from "./git-directory-name";
+import { preserveStateEvidence } from "./session-state-evidence";
 import type {
 	ContextEvidence,
 	ContextEvidenceSource,
@@ -80,6 +82,7 @@ export interface SessionAttempt {
 	readonly contextManifest: ContextManifest | undefined;
 	readonly transcriptDiagnostics: Immutable<TranscriptDiagnostics>;
 	readonly contextEvidence?: ContextEvidence | undefined;
+	readonly stateEvidenceDirectory?: string | undefined;
 }
 
 /**
@@ -284,8 +287,7 @@ async function prepareSession(
 	return { sessionId, resumed: true };
 }
 
-export const FIXTURE_HISTORY_DIRECTORY = "dot-git";
-const FIXTURE_HOOKS_DIRECTORY = join(FIXTURE_HISTORY_DIRECTORY, "hooks");
+const FIXTURE_HOOKS_DIRECTORY = join(STORED_GIT_DIRECTORY, "hooks");
 
 /**
  * A recursive copy preserves symlinks, so a fixture holding one would give the
@@ -324,7 +326,7 @@ async function seedFixture(
 			);
 		}
 
-		if (entryPath === FIXTURE_HISTORY_DIRECTORY) {
+		if (entryPath === STORED_GIT_DIRECTORY) {
 			if (!entry.isDirectory()) {
 				throw new SessionInputError(
 					`Fixture entry ${entryPath} is not a directory; a case's history is the bytes it carries, not a pointer to a git directory elsewhere on this machine`,
@@ -356,7 +358,7 @@ async function openFixtureHistory(
 ): Promise<void> {
 	const gitDirectory = join(attemptDirectory, ".git");
 
-	await rename(join(attemptDirectory, FIXTURE_HISTORY_DIRECTORY), gitDirectory);
+	await rename(join(attemptDirectory, STORED_GIT_DIRECTORY), gitDirectory);
 	await mkdir(join(gitDirectory, "refs", "heads"), { recursive: true });
 	await mkdir(join(gitDirectory, "refs", "tags"), { recursive: true });
 
@@ -659,6 +661,11 @@ async function recordAttempt(
 			attempt.contextEvidence,
 		);
 	}
+	const stateEvidenceDirectory = await preserveStateEvidence(
+		attemptDirectory,
+		request.recordDirectory,
+	);
+
 	const reply = envelope.result;
 	if (reply === undefined) {
 		return preserveContextEvidence(
@@ -671,6 +678,7 @@ async function recordAttempt(
 				checks: [],
 				contextManifest: undefined,
 				transcriptDiagnostics: diagnostics,
+				stateEvidenceDirectory,
 			},
 			attempt.contextEvidence,
 		);
@@ -697,6 +705,7 @@ async function recordAttempt(
 				request.sessionCase.projectFiles,
 			),
 			transcriptDiagnostics: diagnostics,
+			stateEvidenceDirectory,
 		},
 		attempt.contextEvidence,
 	);
