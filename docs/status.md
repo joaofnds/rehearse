@@ -1,6 +1,6 @@
 # Current state and priorities
 
-Reviewed against the code and project board on **2026-09-19**. This is the public
+Reviewed against the code and project board on **2026-09-20**. This is the public
 feature inventory, not a release guarantee. The [vision](vision.md) describes the
 longer-term goal; the [runbook](runbook.md) describes the supported first steps.
 
@@ -15,7 +15,7 @@ still requires environment-specific setup.
 | Capability                     | Current boundary                                                                                                                                                                                            | Source                                                                                                                                                                                                                                                                           |
 | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Data-declared cases            | Session and pipeline kinds; bundled inputs have differing portability                                                                                                                                       | [Case loader](../src/benchmark/case.ts)                                                                                                                                                                                                                                          |
-| Session attempts               | Fixture/prefix support and deterministic reply/transcript checks                                                                                                                                            | [Session execution](../src/benchmark/session-attempt.ts)                                                                                                                                                                                                                         |
+| Session attempts               | Fixture/prefix support, deterministic reply/transcript checks, and command-scored grades over the preserved post-session tree                                                                               | [Session execution](../src/benchmark/session-attempt.ts)                                                                                                                                                                                                                         |
 | Session confirmation           | Repeated frozen inputs, retained failures, per-attempt checks, projected ceiling including model preflight                                                                                                  | [Session confirmation](../src/benchmark/session-confirmation.ts)                                                                                                                                                                                                                 |
 | Pipeline execution             | Configured stages, portable private-board setup, dynamic PO, Judges, baseline checks, calibration, restoration                                                                                              | [Run orchestration](../src/benchmark/run.ts)                                                                                                                                                                                                                                     |
 | Checkpoint replay              | One stage in a host worktree, including explicit corpus variants                                                                                                                                            | [Replay command](../src/cli/replay-command.ts)                                                                                                                                                                                                                                   |
@@ -123,8 +123,10 @@ well enough to decide whether an edit helped. The remaining work follows those
 goals, with context visibility added to help explain resource use:
 
 1. Add reproducible public pipeline case inputs.
-2. Deliver isolated session skill variants, generated fixtures, and preserved
-   post-session state so realistic skill outcomes can be graded.
+2. Deliver isolated session skill variants and generated fixtures so realistic
+   skill outcomes can be graded. Post-session state is preserved and graded by a
+   case-declared scorer; regrading saved evidence without another model run is
+   the remaining half.
 3. Make context use inspectable alongside outcomes. Build on saved-session
    event and source inspection by validating per-request collection, then extend
    to pipeline steps and reviewer trees. Use a review-efficiency comparison to

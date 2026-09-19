@@ -36,6 +36,15 @@ See [current state](docs/status.md) for implementation coverage and
   owns for one session attempt, seeded from the case's fixture tree when it
   declares one. A session attempt never runs in a live repository, and the
   directory's real path is what names the attempt's project slug.
+- **Attempt state evidence** — the copy of the attempt directory preserved
+  beside the transcript before cleanup removes it, holding the files and git
+  state the session left: dirty tracked files, untracked files, ignored files,
+  and the commit history, with `.git` stored as `dot-git` because git refuses
+  to commit a nested repository. The corpus overlay is excluded, being an
+  input the record already digests per file. It is what a state check reads,
+  and each grade reads its own restored copy, so a grader that writes changes
+  neither the evidence nor a later pass's input. An attempt whose provider
+  call failed preserves none.
 - **Attribution (comparison)** — the claim permitted by corpus differences
   between two named comparison arms after their recorded executed-corpus
   entries are normalized and deduplicated by corpus layout path. No differing
@@ -56,7 +65,8 @@ See [current state](docs/status.md) for implementation coverage and
   whose presence and bytes are frozen at baseline and compared after delivery.
 - **Check kind** — one deterministic assertion a session case may declare, the
   discriminator of a check: `word-band` and `forbidden-text` read the reply,
-  `tool-calls` and `files-read` read the transcript. A kind states what it
+  `tool-calls` and `files-read` read the transcript, and a **state check**
+  reads the files and git state the session left. A kind states what it
   needs and what it reports; the case supplies the values it compares against,
   so no literal a case could differ on lives in the check.
 - **Check list** — the ordered deterministic checks a session case declares as
@@ -402,9 +412,23 @@ See [current state](docs/status.md) for implementation coverage and
   `-private-tmp-x`.
 - **Sealed session** — a Claude session with safe mode and no tools, used for
   judges.
+- **State check** — the grading definition a session case declares for the
+  files and git state its session leaves: a command to run and the outcome
+  names it must report. It is declared inline in `case.json`, which is what
+  folds it into the attempt's lineage, and it runs against a restored copy of
+  the attempt state evidence rather than against a live tree. It reports one
+  **check result** per declared outcome, keyed by name where a reply check's
+  result is keyed by kind, and it is recorded in its own field rather than in
+  the check list, whose members are all evaluated against the reply and the
+  transcript.
+- **State grading error** — the record a session attempt carries when its
+  declared state check could not produce grades: the scorer would not run,
+  exited non-zero, printed output the result schema rejects, or omitted a
+  declared outcome. It is a distinct fact from a failed grade, because none of
+  those says anything about the session's work.
 - **Session case** — a benchmark case whose unit of work is one Claude session.
   It declares a prompt, tools, corpus files, checks, and optional fixture,
-  transcript prefix, settings, agents, and project files. It runs once for
+  transcript prefix, settings, agents, project files, and state check. It runs once for
   debugging or as isolated confirmation reps. Current confirmation refuses
   declared global instructions and skills.
 - **Session naming** — the uuid an attempt gives its own session before the

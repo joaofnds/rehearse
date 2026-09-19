@@ -7,7 +7,12 @@
 	"tools": ["Bash", "Read", "Edit"],
 	"settings": {
 		"permissions": {
-			"allow": ["Bash(git add:*)", "Bash(git commit:*)", "Bash(git log:*)", "Bash(git status:*)"]
+			"allow": [
+				"Bash(git add:*)",
+				"Bash(git commit:*)",
+				"Bash(git log:*)",
+				"Bash(git status:*)"
+			]
 		}
 	},
 	"corpusFiles": ["output-styles/brief.md"],

@@ -145,8 +145,9 @@ the recorded identity or expose the recording machine's path.
 
 A session case declares a prompt, allowed tools, declared corpus files, and at
 least one deterministic check. Optional inputs are a fixture tree, transcript
-prefix, inline settings/agent definitions, and `projectFiles` for context
-manifest reconciliation. Declared settings carry a `permissions.allow` block
+prefix, inline settings/agent definitions, `projectFiles` for context
+manifest reconciliation, and a `stateCheck` grading the files and git state the
+session leaves. Declared settings carry a `permissions.allow` block
 where the case needs to edit files or run a command. A declared
 `transcript.file` is a `.jsonl` file name directly in the case directory, with
 no subdirectory. Neither a fixture tree nor
@@ -184,9 +185,82 @@ is refused by name with the failing command's stderr, and the CLI exits 3. A
 
 Checks measure only what the declaration asks. A passing tool-call ceiling does
 not establish implementation correctness. A session that returns no reply at a
-turn or budget limit records `NO_REPLY` without evaluating checks. Confirmation
-counts that rep as unsuccessful; it also records execution failures and missing
-metrics explicitly.
+turn or budget limit records `NO_REPLY` without evaluating checks, since those
+four kinds read a reply that does not exist. Confirmation counts that rep as
+unsuccessful; it also records execution failures and missing metrics
+explicitly.
+
+#### State checks
+
+A `stateCheck` grades what the session left on disk rather than what it said.
+It declares a `command` and the `outcomes` it must report:
+
+```json
+"stateCheck": {
+  "command": ["sh", "score.sh"],
+  "outcomes": ["ledger-amended", "work-committed", "tree-clean"]
+}
+```
+
+The command runs with the restored evidence as its working directory and writes
+one JSON object to stdout:
+
+```json
+{
+	"results": [
+		{
+			"name": "tree-clean",
+			"status": "PASS",
+			"detail": "nothing left uncommitted"
+		}
+	]
+}
+```
+
+`name` matches a declared outcome, `status` is `PASS` or `FAIL`, and `detail` is
+a non-empty string. Results pair by name, not position. Four things are grading
+errors rather than grades, recorded as `stateGradingError` with no
+`stateResults`: a command that will not run, a non-zero exit, stdout the schema
+rejects, and a declared outcome the scorer did not report.
+
+The declaration is inline because that is what folds it into the attempt's
+lineage: the fixture digest walks the fixture subdirectory, not the case
+directory, so a scorer file beside `case.json` would be covered by no digest and
+an edited scorer could be graded as the original definition. A scorer too large
+for a command line lives inside the fixture, where the fixture digest covers it,
+and the fixture's `.gitignore` should name it: a scorer sitting in the tree it
+grades is otherwise an untracked entry that fails every cleanliness grade. See
+`cases/state-probe` for a worked example.
+
+State grades are recorded separately from `checks`, so a session that returns no
+reply still receives them while its outcome stays `NO_REPLY` and its `checks`
+array stays empty. An attempt whose provider call failed preserves no evidence
+and records no state grade, which is a different fact from grading an empty
+tree.
+
+#### Attempt state evidence
+
+Before cleanup removes the attempt directory, the harness copies it beside the
+transcript under the record directory, with `.git` stored as `dot-git`. The copy
+carries the dirty tracked files, untracked files, ignored files, and commit
+history the session left; the corpus overlay is excluded, being an input the
+record already digests per file. Nothing is committed, because a commit round
+trip drops the empty `refs/tags` a repository carries and a later restore would
+then resolve to whatever repository encloses it.
+
+Each grade runs in its own restored copy, so a scorer that writes, deletes, or
+commits changes neither the saved evidence nor a later pass's input. Every
+command touching a restore runs with `core.hooksPath` pointed at an empty
+directory and `core.fsmonitor` cleared through `GIT_CONFIG_*`. A session under
+test can write `.git/hooks/post-index-change`, which a plain `git status` fires,
+and can reach the same execution through `core.fsmonitor` in its own config;
+both were measured executing on git 2.55.0 before that guard and suppressed
+after, with history still readable. Deleting `hooks/` alone does not close it.
+
+Retention is per attempt and has no pruning policy, so a confirmation run of
+five reps holds about five copies of the fixture per group. A group that grows
+too large is answered by reducing the fixture, which is the input under the case
+author's control.
 
 Each new session attempt record carries `transcriptDiagnostics`, derived from
 the retained transcript records at and after the case's cut. The projection
