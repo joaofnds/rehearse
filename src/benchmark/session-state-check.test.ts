@@ -94,6 +94,23 @@ describe(gradeStateEvidence.name, () => {
 		});
 	});
 
+	it("reads a scorer that cannot be run at all as a grading error", async () => {
+		const graded = await gradeStateEvidence({
+			evidenceDirectory: await evidenceDirectory(),
+			restoreDirectory: await mkdtemp(
+				join(tmpdir(), "rehearse-state-graderoot-"),
+			),
+			scorerSource: undefined,
+			command: ["/nonexistent/scorer-binary"],
+			outcomes,
+		});
+
+		expect(graded).toMatchObject({ kind: "error" });
+		expect(graded.kind === "error" ? graded.detail : "").toContain(
+			"/nonexistent/scorer-binary",
+		);
+	});
+
 	it("names a scorer that outlived its deadline as timed out", async () => {
 		const graded = await gradeStateEvidence({
 			evidenceDirectory: await evidenceDirectory(),

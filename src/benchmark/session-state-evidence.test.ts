@@ -106,6 +106,27 @@ describe(restoreStateEvidence.name, () => {
 		).toBe(true);
 	});
 
+	it("leaves the corpus overlay out, which the record already digests per file", async () => {
+		const attempt = await directory("rehearse-state-attempt-");
+		await Bun.write(join(attempt, "own-work.txt"), "the session's own\n");
+		await Bun.write(
+			join(attempt, ".claude", "skills", "a", "SKILL.md"),
+			"corpus\n",
+		);
+
+		const evidence = await preserveStateEvidence(
+			attempt,
+			await directory("rehearse-state-record-"),
+		);
+
+		expect(await Bun.file(join(evidence, "own-work.txt")).exists()).toBe(true);
+		expect(
+			await Bun.file(
+				join(evidence, ".claude", "skills", "a", "SKILL.md"),
+			).exists(),
+		).toBe(false);
+	});
+
 	it("leaves the evidence and the next restore untouched by what a grader wrote", async () => {
 		const attempt = await attemptWithHistory();
 		const evidence = await preserveStateEvidence(
