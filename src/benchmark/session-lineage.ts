@@ -35,7 +35,7 @@ export async function sessionUpstreamDigest(
 						: await hashDirectory(fixturePath, "", { rootMayBeALink: false }),
 				prompt: sessionCase.prompt,
 				tools: sessionCase.tools,
-				settings: sessionCase.settings ?? null,
+				settings: canonicalSettings(sessionCase) ?? null,
 				agents: sessionCase.agents ?? null,
 				projectFiles: sessionCase.projectFiles,
 			}),
@@ -82,13 +82,24 @@ function orderedForHashing(value: JsonValue): JsonValue {
 export function sessionSettingsDigest(
 	sessionCase: SessionCase,
 ): string | undefined {
-	if (sessionCase.settings === undefined) {
-		return undefined;
-	}
+	const settings = canonicalSettings(sessionCase);
 
-	return createHash("sha256")
-		.update(JSON.stringify(orderedForHashing(sessionCase.settings)))
-		.digest("hex");
+	return settings === undefined
+		? undefined
+		: createHash("sha256").update(JSON.stringify(settings)).digest("hex");
+}
+
+/**
+ * The one reading of "the settings this case declared", so the lineage key and
+ * the recorded digest cannot disagree about whether two arms are the same. They
+ * did: lineage hashed the declaration order and the digest hashed the canonical
+ * order, so two arms differing only in key order were refused as incomparable
+ * while the digest naming the differing input reported them identical.
+ */
+function canonicalSettings(sessionCase: SessionCase): JsonValue | undefined {
+	return sessionCase.settings === undefined
+		? undefined
+		: orderedForHashing(sessionCase.settings);
 }
 
 export async function sessionLineage(

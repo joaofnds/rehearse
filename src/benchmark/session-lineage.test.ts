@@ -57,6 +57,30 @@ async function digestOf(path: string): Promise<string> {
 }
 
 describe(sessionLineage.name, () => {
+	/**
+	 * A settings block written in another key order is the same settings, so two
+	 * arms that differ only that way must stay comparable. The recorded
+	 * `settingsDigest` already reads them as one; a lineage that disagreed would
+	 * refuse the comparison while every named input read equal.
+	 */
+	it("is unchanged when declared settings differ only in key order", async () => {
+		const declared = sessionCase();
+		const [before, after] = await Promise.all([
+			sessionLineage(
+				{ ...declared, settings: { alpha: 1, beta: 2 } },
+				corpus(ORIGINAL),
+				settings,
+			),
+			sessionLineage(
+				{ ...declared, settings: { beta: 2, alpha: 1 } },
+				corpus(ORIGINAL),
+				settings,
+			),
+		]);
+
+		expect(after).toBe(before);
+	});
+
 	it("changes when a declared corpus file's bytes change", async () => {
 		const [before, after] = await Promise.all([
 			sessionLineage(sessionCase(), corpus(ORIGINAL), settings),

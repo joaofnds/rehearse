@@ -637,9 +637,18 @@ describe("sessionAttemptRecordSchema", () => {
 			permissions: { allow: ["Edit"] },
 			outputStyle: "brief",
 		});
+		const nestedReordered = digestOf({
+			outputStyle: "brief",
+			permissions: { deny: [], allow: ["Edit"] },
+		});
+		const nestedDeclarationOrder = digestOf({
+			outputStyle: "brief",
+			permissions: { allow: ["Edit"], deny: [] },
+		});
 
 		expect(permitted).not.toBe(denied);
 		expect(permitted).toBe(reordered);
+		expect(nestedReordered).toBe(nestedDeclarationOrder);
 	});
 
 	it("retains the provider's per-model usage block on a built record", () => {
