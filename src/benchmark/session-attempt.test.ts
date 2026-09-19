@@ -1891,7 +1891,7 @@ describe("the state evidence a session attempt preserves", () => {
 				[
 					"sh",
 					"-c",
-					String.raw`printf '2026-02-01 | refund | -18.40\n' >> LEDGER.md && git add LEDGER.md && git commit -m 'fix(ledger): post the February refund'`,
+					String.raw`printf '2026-02-01 | February refund | -18.40\n' >> LEDGER.md && git add LEDGER.md && git commit -m 'fix(ledger): post the February refund'`,
 				],
 				cwd,
 			);
@@ -2035,7 +2035,7 @@ describe("the state evidence a session attempt preserves", () => {
 			{
 				name: "ledger-amended",
 				status: "PASS",
-				detail: "LEDGER.md carries a refund line",
+				detail: "LEDGER.md carries the February refund",
 			},
 			{
 				name: "work-committed",
