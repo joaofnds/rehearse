@@ -175,17 +175,32 @@ describe(sessionLineage.name, () => {
 		expect(after).toBe(before);
 	});
 
-	it("changes when the fixture's committed history gains a commit", async () => {
-		const shorter = await historyFixture(["first"]);
-		const longer = await historyFixture(["first", "second"]);
-		testResources.track(shorter.path);
-		testResources.track(longer.path);
+	/**
+	 * Every route to a second commit also changes a file outside `dot-git`, so
+	 * comparing whole-fixture digests before and after one cannot say the
+	 * history was the cause. Changing a history byte and nothing else can:
+	 * this asserts the digest reads the commits, which is what makes two arms
+	 * starting from different history incomparable.
+	 */
+	it("changes when only the fixture's committed history changes", async () => {
+		const fixture = await historyFixture(["first"]);
+		testResources.track(fixture.path);
+		const before = await sessionLineage(
+			sessionCase(fixture.path),
+			corpus(ORIGINAL),
+			settings,
+		);
 
-		const [before, after] = await Promise.all([
-			sessionLineage(sessionCase(shorter.path), corpus(ORIGINAL), settings),
-			sessionLineage(sessionCase(longer.path), corpus(ORIGINAL), settings),
-		]);
+		await writeFile(
+			join(fixture.path, "dot-git", "refs", "heads", "main"),
+			`${"0".repeat(40)}\n`,
+		);
 
+		const after = await sessionLineage(
+			sessionCase(fixture.path),
+			corpus(ORIGINAL),
+			settings,
+		);
 		expect(after).not.toBe(before);
 	});
 

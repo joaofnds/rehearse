@@ -830,6 +830,35 @@ describe(runSessionAttempt.name, () => {
 	});
 
 	/**
+	 * A `dot-git` that is a file is git's worktree pointer shape, whose
+	 * `gitdir:` line names a git directory elsewhere on the machine. The
+	 * harness owns the attempt directory, so a fixture cannot bring history
+	 * that lives outside it.
+	 */
+	it("refuses a fixture whose dot-git is a file rather than a directory", async () => {
+		const fixture = await mkdtemp(join(tmpdir(), "rehearse-fixture-"));
+		resources.track(fixture);
+		await writeFile(join(fixture, "dot-git"), `gitdir: ${tmpdir()}\n`);
+		const projects = await projectsRoot();
+		const claude = new FakeClaude(projects, "OK");
+
+		const failure = await failureOf(
+			runSessionAttempt(
+				request({
+					sessionCase: sessionCase({ fixturePath: fixture }),
+					projectsDirectory: projects,
+					recordDirectory: await recordDirectory(),
+					runClaude: claude.run,
+				}),
+			),
+		);
+
+		expect(failure).toBeInstanceOf(SessionInputError);
+		expect(failure.message).toContain("dot-git");
+		expect(claude.runs).toEqual([]);
+	});
+
+	/**
 	 * `git status`, which the seeding runs before any provider call, fires the
 	 * `post-index-change` hook. A fixture is case data, and a hook in it is
 	 * code the harness would execute on the operator's machine outside the

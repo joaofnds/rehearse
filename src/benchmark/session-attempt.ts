@@ -309,6 +309,7 @@ async function seedFixture(
 		withFileTypes: true,
 	});
 
+	let carriesHistory = false;
 	for (const entry of entries) {
 		const entryPath = relative(fixturePath, join(entry.parentPath, entry.name));
 		if (entry.isSymbolicLink()) {
@@ -322,15 +323,20 @@ async function seedFixture(
 				`Fixture entry ${entryPath} holds git hooks, which the harness would run on this machine outside the case's declared tools`,
 			);
 		}
+
+		if (entryPath === FIXTURE_HISTORY_DIRECTORY) {
+			if (!entry.isDirectory()) {
+				throw new SessionInputError(
+					`Fixture entry ${entryPath} is not a directory; a case's history is the bytes it carries, not a pointer to a git directory elsewhere on this machine`,
+				);
+			}
+
+			carriesHistory = true;
+		}
 	}
 
 	await cp(fixturePath, attemptDirectory, { recursive: true });
 
-	const carriesHistory = entries.some(
-		(entry) =>
-			relative(fixturePath, join(entry.parentPath, entry.name)) ===
-			FIXTURE_HISTORY_DIRECTORY,
-	);
 	if (carriesHistory) {
 		await openFixtureHistory(fixturePath, attemptDirectory);
 	}
