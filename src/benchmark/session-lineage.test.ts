@@ -1,12 +1,13 @@
 import { describe, expect, it } from "bun:test";
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import type { SessionCase } from "#benchmark/case";
 import type { SessionSettings } from "#benchmark/claude";
 import type { ResolvedCorpusFile } from "#benchmark/corpus-file";
+import { hashDirectory } from "#benchmark/checkpoint";
 import { sessionLineage } from "#benchmark/session-lineage";
-import { TestResources } from "#benchmark/test-support";
+import { historyFixture, TestResources } from "#benchmark/test-support";
 
 const testResources = TestResources.forEachTest();
 
@@ -160,6 +161,63 @@ describe(sessionLineage.name, () => {
 		);
 
 		expect(after).not.toBe(before);
+	});
+
+	it("is unchanged across two readings of one fixture's committed history", async () => {
+		const fixture = await historyFixture(["first", "second"]);
+		testResources.track(fixture.path);
+
+		const [before, after] = await Promise.all([
+			sessionLineage(sessionCase(fixture.path), corpus(ORIGINAL), settings),
+			sessionLineage(sessionCase(fixture.path), corpus(ORIGINAL), settings),
+		]);
+
+		expect(after).toBe(before);
+	});
+
+	it("changes when the fixture's committed history gains a commit", async () => {
+		const shorter = await historyFixture(["first"]);
+		const longer = await historyFixture(["first", "second"]);
+		testResources.track(shorter.path);
+		testResources.track(longer.path);
+
+		const [before, after] = await Promise.all([
+			sessionLineage(sessionCase(shorter.path), corpus(ORIGINAL), settings),
+			sessionLineage(sessionCase(longer.path), corpus(ORIGINAL), settings),
+		]);
+
+		expect(after).not.toBe(before);
+	});
+
+	it("hashes every file the fixture's committed history holds", async () => {
+		const fixture = await historyFixture(["first"]);
+		testResources.track(fixture.path);
+
+		const hashed = await hashDirectory(fixture.path, "", {
+			rootMayBeALink: false,
+		});
+
+		const history = hashed
+			.map((file) => file.path)
+			.filter((path) => path.startsWith("dot-git/"));
+		expect(history.length).toBeGreaterThan(0);
+		const onDisk = await readdir(join(fixture.path, "dot-git"), {
+			recursive: true,
+			withFileTypes: true,
+		});
+		expect(new Set(history)).toEqual(
+			new Set(
+				onDisk
+					.filter((entry) => entry.isFile())
+					.map((entry) =>
+						join(
+							"dot-git",
+							relative(join(fixture.path, "dot-git"), entry.parentPath),
+							entry.name,
+						),
+					),
+			),
+		);
 	});
 
 	it("changes when the prompt changes", async () => {

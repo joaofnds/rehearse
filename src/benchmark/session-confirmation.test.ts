@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import type { SessionCase } from "./case";
 import {
 	parseConfirmationGroupRecord,
@@ -16,6 +16,7 @@ import { parseGroupReportSummaryRecord } from "./record-summary";
 import { failureOf } from "#cli/cli-test-support";
 import { runList } from "#cli/list-command";
 import { runShow } from "#cli/show-command";
+import { historyFixture } from "./test-support";
 
 const metrics = {
 	costUsd: 0.02,
@@ -30,6 +31,20 @@ const unavailableTranscriptDiagnostics = {
 	state: "unavailable",
 	prefixLinesExcluded: 0,
 } as const;
+
+async function historyFilePaths(
+	fixturePath: string,
+): Promise<readonly string[]> {
+	const history = join(fixturePath, "dot-git");
+	const entries = await readdir(history, {
+		recursive: true,
+		withFileTypes: true,
+	});
+
+	return entries
+		.filter((entry) => entry.isFile())
+		.map((entry) => join(relative(history, entry.parentPath), entry.name));
+}
 
 function requiredPath(path: string | undefined): string {
 	if (path === undefined) {
@@ -579,6 +594,68 @@ describe(runSessionConfirmation.name, () => {
 			status: "MISSING",
 			missing: ["preflight call metrics", "1 rep call metrics"],
 		});
+	});
+
+	it("freezes every file of a fixture's committed history as a named input", async () => {
+		const root = await mkdtemp(join(tmpdir(), "rehearse-session-history-"));
+		temporaryDirectories.push(root);
+		const corpusRoot = join(root, "corpus");
+		await mkdir(join(corpusRoot, "output-styles"), { recursive: true });
+		const fixture = await historyFixture(["first"]);
+		temporaryDirectories.push(fixture.path);
+		const sessionCase: SessionCase = {
+			...simpleSessionCase("history"),
+			fixturePath: fixture.path,
+		};
+
+		const outcome = await runSessionConfirmation(
+			{
+				executeAttempt: async (plan) => {
+					const transcriptFile = join(plan.recordDirectory, "transcript.jsonl");
+					await Bun.write(transcriptFile, "transcript\n");
+
+					return {
+						attemptDirectory: join(plan.recordDirectory, "execution"),
+						reply: "OK",
+						transcriptFile,
+						metrics,
+						outcome: "SUCCESSFUL",
+						checks: [{ kind: "word-band", status: "PASS", detail: "1 word" }],
+						contextManifest: undefined,
+						transcriptDiagnostics: unavailableTranscriptDiagnostics,
+					};
+				},
+			},
+			{
+				runsDirectory: join(root, "runs"),
+				groupId: "history-group",
+				reps: 2,
+				projectedCost: {
+					reps: 2,
+					perRepMaximumUsd: 0.2,
+					preflightMaximumUsd: 0.1,
+					totalMaximumUsd: 0.5,
+				},
+				approvalMethod: "yes",
+				sessionCase,
+				corpus: corpusRoot,
+				model: "sonnet",
+				sessionBudgetUsd: 0.2,
+				preflight: { status: "COMPLETE", call: { metrics } },
+			},
+		);
+
+		const group = parseConfirmationGroupRecord(
+			await Bun.file(outcome.groupRecordFile).text(),
+		);
+		const frozen = group.inputs.files
+			.filter((file) => file.kind === "fixture")
+			.map((file) => file.path);
+		const history = frozen.filter((path) => path.includes("dot-git/"));
+		expect(history.length).toBeGreaterThan(0);
+		expect(new Set(history.map((path) => path.split("dot-git/")[1]))).toEqual(
+			new Set(await historyFilePaths(fixture.path)),
+		);
 	});
 
 	it("waits for peers but aborts group persistence after an untyped rep failure", async () => {

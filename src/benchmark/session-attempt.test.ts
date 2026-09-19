@@ -5,9 +5,7 @@ import {
 	readdir,
 	realpath,
 	appendFile,
-	rename,
 	rm,
-	rmdir,
 	symlink,
 	writeFile,
 } from "node:fs/promises";
@@ -21,7 +19,7 @@ import type { ContextEvidenceSource } from "#benchmark/context-evidence";
 import { projectSlug } from "#benchmark/session-capture";
 import { failureOf } from "#cli/cli-test-support";
 import type { SessionCorpusSnapshot } from "#benchmark/session-corpus";
-import { TestResources } from "#benchmark/test-support";
+import { historyFixture, TestResources } from "#benchmark/test-support";
 import type { SessionAttemptRequest } from "#benchmark/session-attempt";
 import {
 	forkTranscript,
@@ -225,61 +223,6 @@ class FakeClaude {
 		}
 
 		return outputs;
-	}
-}
-
-interface GitFixture {
-	readonly path: string;
-	readonly commits: readonly [string, string];
-}
-
-async function gitFixture(
-	options: { readonly packed?: boolean } = {},
-): Promise<GitFixture> {
-	const build = await mkdtemp(join(tmpdir(), "rehearse-fixture-build-"));
-	resources.track(build);
-	await runCommand(["git", "init", "--initial-branch=main"], build);
-	await runCommand(["git", "config", "user.name", "Fixture Author"], build);
-	await runCommand(
-		["git", "config", "user.email", "fixture@example.com"],
-		build,
-	);
-
-	const commits: string[] = [];
-	for (const subject of ["first", "second"]) {
-		await writeFile(join(build, `${subject}.md`), `${subject}\n`);
-		await runCommand(["git", "add", "."], build);
-		await runCommand(["git", "commit", "-m", subject], build);
-		const head = await runCommand(["git", "rev-parse", "HEAD"], build);
-		commits.push(head.trim());
-	}
-	if (options.packed === true) {
-		await runCommand(["git", "pack-refs", "--all"], build);
-	}
-
-	await rename(join(build, ".git"), join(build, "dot-git"));
-	await dropEmptyDirectories(join(build, "dot-git"));
-
-	return { path: build, commits: [commits[0] ?? "", commits[1] ?? ""] };
-}
-
-/**
- * A case's fixture reaches a run as bytes git checked out, and git stores no
- * empty directory, so a fixture built in place only matches a committed one
- * once the directories a commit would have dropped are gone.
- */
-async function dropEmptyDirectories(root: string): Promise<void> {
-	const entries = await readdir(root, { withFileTypes: true });
-
-	for (const entry of entries) {
-		if (entry.isDirectory()) {
-			await dropEmptyDirectories(join(root, entry.name));
-		}
-	}
-
-	const remaining = await readdir(root);
-	if (remaining.length === 0) {
-		await rmdir(root);
 	}
 }
 
@@ -752,7 +695,8 @@ describe(runSessionAttempt.name, () => {
 	});
 
 	it("seeds a fixture's dot-git as a working git directory the session can read", async () => {
-		const fixture = await gitFixture();
+		const fixture = await historyFixture(["first", "second"]);
+		resources.track(fixture.path);
 		const projects = await projectsRoot();
 		const claude = new FakeClaude(projects, "OK", [
 			["git", "log", "--format=%H %s"],
@@ -774,6 +718,33 @@ describe(runSessionAttempt.name, () => {
 		]);
 	});
 
+	it("reports the same history to every attempt seeded from one fixture", async () => {
+		const fixture = await historyFixture(["first", "second"]);
+		resources.track(fixture.path);
+		const log = [["git", "log", "--format=%H"]];
+		const projects = await projectsRoot();
+		const first = new FakeClaude(projects, "OK", log);
+		const second = new FakeClaude(projects, "OK", log);
+
+		for (const claude of [first, second]) {
+			await runSessionAttempt(
+				request({
+					sessionCase: sessionCase({ fixturePath: fixture.path }),
+					projectsDirectory: projects,
+					recordDirectory: await recordDirectory(),
+					runClaude: claude.run,
+				}),
+			);
+		}
+
+		expect(second.runs[0]?.shellOutputs).toEqual(
+			first.runs[0]?.shellOutputs ?? [],
+		);
+		expect(first.runs[0]?.shellOutputs).toEqual([
+			`${fixture.commits[1]}\n${fixture.commits[0]}\n`,
+		]);
+	});
+
 	/**
 	 * A packed fixture carries its branch in `packed-refs` and no file under
 	 * `refs/heads/`, so a commit drops the directory entirely. Git then declines
@@ -781,7 +752,8 @@ describe(runSessionAttempt.name, () => {
 	 * session gets whatever history encloses the attempt directory.
 	 */
 	it("reports a packed fixture's own commits rather than an enclosing repository's", async () => {
-		const fixture = await gitFixture({ packed: true });
+		const fixture = await historyFixture(["first", "second"], { packed: true });
+		resources.track(fixture.path);
 		const projects = await projectsRoot();
 		const claude = new FakeClaude(projects, "OK", [
 			["git", "log", "--format=%H"],
@@ -841,7 +813,8 @@ describe(runSessionAttempt.name, () => {
 
 		for (const breakage of breakages) {
 			it(`is refused by name before any provider call when it ${breakage.name}`, async () => {
-				const fixture = await gitFixture();
+				const fixture = await historyFixture(["first", "second"]);
+				resources.track(fixture.path);
 				await breakage.corrupt(join(fixture.path, "dot-git"), fixture.commits);
 				const projects = await projectsRoot();
 

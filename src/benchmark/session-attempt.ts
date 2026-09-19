@@ -284,7 +284,7 @@ async function prepareSession(
 	return { sessionId, resumed: true };
 }
 
-const FIXTURE_HISTORY_DIRECTORY = "dot-git";
+export const FIXTURE_HISTORY_DIRECTORY = "dot-git";
 
 /**
  * A recursive copy preserves symlinks, so a fixture holding one would give the

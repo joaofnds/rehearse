@@ -1,8 +1,9 @@
 import { afterEach } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readdir, rename, rm, rmdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runCommand } from "./command";
+import { FIXTURE_HISTORY_DIRECTORY } from "./session-attempt";
 import type { LocalCheckResult } from "./contracts";
 import type { TargetDefinition } from "./pipeline";
 import { removeWorktree } from "./target";
@@ -118,6 +119,62 @@ export async function commitAll(
 ): Promise<void> {
 	await runCommand(["git", "add", "."], directory);
 	await runCommand(["git", "commit", "-m", message], directory);
+}
+
+export interface HistoryFixture {
+	readonly path: string;
+	readonly commits: readonly string[];
+}
+
+/**
+ * A session case stores its committed history as a `dot-git` directory, and it
+ * reaches a run as bytes git checked out. Building one in place is not the
+ * same thing until the empty directories a commit drops are gone, so the
+ * builder drops them: a fixture that kept them would hide the packed-refs
+ * failure the seeding exists to prevent.
+ */
+export async function historyFixture(
+	subjects: readonly string[],
+	options: { readonly packed?: boolean } = {},
+): Promise<HistoryFixture> {
+	const path = await mkdtemp(join(tmpdir(), "rehearse-history-fixture-"));
+	await runCommand(["git", "init", "--initial-branch=main"], path);
+	await runCommand(["git", "config", "user.name", "Fixture Author"], path);
+	await runCommand(
+		["git", "config", "user.email", "fixture@example.com"],
+		path,
+	);
+
+	const commits: string[] = [];
+	for (const subject of subjects) {
+		await Bun.write(join(path, `${subject}.md`), `${subject}\n`);
+		await commitAll(path, subject);
+		const head = await runCommand(["git", "rev-parse", "HEAD"], path);
+		commits.push(head.trim());
+	}
+	if (options.packed === true) {
+		await runCommand(["git", "pack-refs", "--all"], path);
+	}
+
+	await rename(join(path, ".git"), join(path, FIXTURE_HISTORY_DIRECTORY));
+	await dropEmptyDirectories(join(path, FIXTURE_HISTORY_DIRECTORY));
+
+	return { path, commits };
+}
+
+async function dropEmptyDirectories(root: string): Promise<void> {
+	const entries = await readdir(root, { withFileTypes: true });
+
+	for (const entry of entries) {
+		if (entry.isDirectory()) {
+			await dropEmptyDirectories(join(root, entry.name));
+		}
+	}
+
+	const remaining = await readdir(root);
+	if (remaining.length === 0) {
+		await rmdir(root);
+	}
 }
 
 export function harnessResult(
