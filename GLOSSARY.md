@@ -241,6 +241,13 @@ See [current state](docs/status.md) for implementation coverage and
   he accepted comes later in the same session. A cut is the fired reply's own
   index, so the prefix keeps everything that produced it and drops the reply
   itself, and the attempt writes its own reply in that place.
+- **Fixture history** — the committed git history a session case's fixture
+  carries, seeded into the attempt directory alongside the fixture tree so every
+  arm starts from the same commits. It is stored as a `dot-git` directory,
+  because git refuses to commit a nested `.git`, and the seeding renames it and
+  recreates the empty `refs/heads` and `refs/tags` that the commit dropped.
+  Without those, git resolves the attempt directory to the enclosing repository
+  and the session reads a history that is not the case's.
 - **Fork** — copying a transcript prefix into the attempt directory's project
   slug under a fresh uuid, with every occurrence of the source session id
   rewritten, so a session can be resumed from it without its original working
