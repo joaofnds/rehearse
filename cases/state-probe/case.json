@@ -1,0 +1,22 @@
+{
+	"id": "state-probe",
+	"kind": "session",
+	"title": "A session whose committed work is graded from the tree it left",
+	"fixture": "fixture",
+	"prompt": "Append a line reading '2026-02-01 | refund | -18.40' to LEDGER.md, then commit that change with the subject 'fix(ledger): post the February refund'. Reply with the word done and nothing else.",
+	"tools": ["Bash", "Read", "Edit"],
+	"settings": {
+		"permissions": {
+			"allow": ["Bash(git add:*)", "Bash(git commit:*)", "Bash(git log:*)", "Bash(git status:*)"]
+		}
+	},
+	"corpusFiles": ["output-styles/brief.md"],
+	"projectFiles": ["LEDGER.md"],
+	"checks": [{ "kind": "word-band", "max": 5 }],
+	"stateCheck": {
+		"command": ["sh", "score.sh"],
+		"outcomes": ["ledger-amended", "work-committed", "tree-clean"]
+	},
+	"model": "sonnet",
+	"sessionBudgetUsd": 1.5
+}

@@ -1869,6 +1869,41 @@ describe("over the history-probe case", () => {
 });
 
 describe("the state evidence a session attempt preserves", () => {
+	async function replyFrom(
+		projects: string,
+		command: readonly string[],
+		cwd: string,
+	): Promise<string> {
+		const sessionId = namedSession(command);
+		const slug = join(projects, projectSlug(await realpath(cwd)));
+		await mkdir(slug, { recursive: true });
+		await writeFile(
+			join(slug, `${sessionId}.jsonl`),
+			`${transcriptLine(sessionId, "done")}\n`,
+		);
+
+		return envelope("done");
+	}
+
+	function workingClaude(projects: string): SessionAttemptRequest["runClaude"] {
+		return async (command, cwd) => {
+			await runCommand(
+				[
+					"sh",
+					"-c",
+					String.raw`printf '2026-02-01 | refund | -18.40\n' >> LEDGER.md && git add LEDGER.md && git commit -m 'fix(ledger): post the February refund'`,
+				],
+				cwd,
+			);
+
+			return replyFrom(projects, command, cwd);
+		};
+	}
+
+	function idleClaude(projects: string): SessionAttemptRequest["runClaude"] {
+		return (command, cwd) => replyFrom(projects, command, cwd);
+	}
+
 	function writingClaude(
 		projects: string,
 		writes: Readonly<Record<string, string>>,
@@ -1967,6 +2002,81 @@ describe("the state evidence a session attempt preserves", () => {
 
 		expect(attempt.stateResults).toBeUndefined();
 		expect(attempt.stateGradingError).toContain("4");
+	});
+
+	/**
+	 * The committed case, driven end to end: a session that does the work the
+	 * prompt asks for, graded by the scorer the case declares against the tree
+	 * it left. This is the whole path, seeding through retention to the grade,
+	 * over bytes a clone also has.
+	 */
+	it("grades the state-probe case's committed scorer over the work a session did", async () => {
+		const declaration = await readCaseDeclaration("state-probe");
+		if (declaration.kind !== "session" || declaration.fixture === undefined) {
+			throw new Error("state-probe is expected to be a session case");
+		}
+
+		const projects = await projectsRoot();
+		const attempt = await runSessionAttempt(
+			request({
+				sessionCase: sessionCase({
+					declaration,
+					fixturePath: join(casesRoot(), "state-probe", declaration.fixture),
+					stateCheck: declaration.stateCheck,
+					checks: declaration.checks,
+				}),
+				projectsDirectory: projects,
+				recordDirectory: await recordDirectory(),
+				runClaude: workingClaude(projects),
+			}),
+		);
+
+		expect(attempt.stateResults).toEqual([
+			{
+				name: "ledger-amended",
+				status: "PASS",
+				detail: "LEDGER.md carries a refund line",
+			},
+			{
+				name: "work-committed",
+				status: "PASS",
+				detail: "the top commit posts the February refund",
+			},
+			{
+				name: "tree-clean",
+				status: "PASS",
+				detail: "nothing is left uncommitted",
+			},
+		]);
+	});
+
+	it("fails the committed case's commit grade for a session that did nothing", async () => {
+		const declaration = await readCaseDeclaration("state-probe");
+		if (declaration.kind !== "session" || declaration.fixture === undefined) {
+			throw new Error("state-probe is expected to be a session case");
+		}
+
+		const projects = await projectsRoot();
+		const attempt = await runSessionAttempt(
+			request({
+				sessionCase: sessionCase({
+					declaration,
+					fixturePath: join(casesRoot(), "state-probe", declaration.fixture),
+					stateCheck: declaration.stateCheck,
+					checks: declaration.checks,
+				}),
+				projectsDirectory: projects,
+				recordDirectory: await recordDirectory(),
+				runClaude: idleClaude(projects),
+			}),
+		);
+
+		expect(attempt.outcome).toBe("SUCCESSFUL");
+		expect(attempt.stateResults).toContainEqual({
+			name: "work-committed",
+			status: "FAIL",
+			detail: "the top commit posts the February refund",
+		});
 	});
 
 	/**
