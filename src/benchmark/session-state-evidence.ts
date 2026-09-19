@@ -1,4 +1,4 @@
-import { cp, rename } from "node:fs/promises";
+import { cp, mkdir, rename } from "node:fs/promises";
 import { join } from "node:path";
 import { STORED_GIT_DIRECTORY } from "./git-directory-name";
 
@@ -40,6 +40,35 @@ export async function preserveStateEvidence(
 	if (await Bun.file(join(gitDirectory, "HEAD")).exists()) {
 		await rename(gitDirectory, join(destination, STORED_GIT_DIRECTORY));
 	}
+
+	return destination;
+}
+
+/**
+ * Each grade reads its own copy, which is what keeps one grader's writes out
+ * of the evidence and out of the next grade's input: isolation is a property
+ * of restoring rather than of any lock or permission on the saved bytes.
+ *
+ * The empty `refs/heads` and `refs/tags` are recreated for the reason seeding
+ * recreates them. The copy preserved them, but a `dot-git` that reached the
+ * record through a commit did not, and without them git resolves the
+ * repository to whatever encloses the restore directory.
+ */
+export async function restoreStateEvidence(
+	evidenceDirectory: string,
+	destination: string,
+): Promise<string> {
+	await cp(evidenceDirectory, destination, { recursive: true });
+
+	const storedGit = join(destination, STORED_GIT_DIRECTORY);
+	if (!(await Bun.file(join(storedGit, "HEAD")).exists())) {
+		return destination;
+	}
+
+	const gitDirectory = join(destination, ".git");
+	await rename(storedGit, gitDirectory);
+	await mkdir(join(gitDirectory, "refs", "heads"), { recursive: true });
+	await mkdir(join(gitDirectory, "refs", "tags"), { recursive: true });
 
 	return destination;
 }
