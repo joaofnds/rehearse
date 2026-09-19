@@ -154,18 +154,26 @@ a transcript prefix may be a symlink, which is refused before any provider
 call.
 
 A fixture tree may carry committed git history. Store it as a `dot-git`
-directory inside the fixture: git refuses to commit a nested `.git`, staging it
-as a gitlink that reaches no clone, while a directory under any other name
-commits as ordinary files and restores byte-exact with the same commit SHAs.
-Seeding renames it to `.git` and recreates the empty `refs/heads` and
-`refs/tags` a commit drops. Pin `user.name` and `user.email` in the fixture's
-own `dot-git/config`, or commits the session makes carry whoever ran the arm.
+directory at the fixture's root, which is the only place seeding looks: a
+`dot-git` further down stays an ordinary directory. Git refuses to commit a
+nested `.git`, staging it as a gitlink that reaches no clone, while a directory
+under any other name commits as ordinary files and, as measured on git 2.55.0,
+restores byte-exact with the same commit SHAs. Seeding renames it to `.git` and
+recreates the empty `refs/heads` and `refs/tags` a commit drops.
+
+Three constraints on the bytes it carries. Pin `user.name` and `user.email` in
+its `config`, or commits the session makes carry whoever ran the arm. Leave
+`core.worktree` out, since a work tree resolving outside the attempt directory
+is refused. Ship no `hooks/` directory: `git status` fires `post-index-change`,
+so a hook would run on the operator's machine outside the tools the case
+declares, and a fixture carrying one is refused.
 
 Before the provider is called, the seeded history must satisfy three commands:
-`git rev-parse --show-toplevel` resolving to the attempt directory, `git log`,
-and `git status`. A fixture failing any of them is refused by name with the
-failing command's stderr, and the CLI exits 3. See `cases/history-probe` for a
-worked example.
+`git rev-parse --show-toplevel` resolving to the attempt directory,
+`git log --format=%H`, and `git status --short`. A fixture failing any of them
+is refused by name with the failing command's stderr, and the CLI exits 3. A
+`dot-git` that is a file rather than a directory is refused too. See
+`cases/history-probe` for a worked example.
 
 | Check            | Behavior                                                    |
 | ---------------- | ----------------------------------------------------------- |

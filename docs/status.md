@@ -59,8 +59,8 @@ verdict.
 - **Pipeline `run --corpus` is refused.** Replay supports explicit corpus
   directories, but the forward pipeline command does not yet use that path.
 - **Several cases depend on private inputs.** `brief-reply-*` need transcript
-  prefixes that are ignored rather than published; `smoke` needs an output
-  style; doctrine examples need installed corpus files. `manifest-probe` carries
+  prefixes that are ignored rather than published; `smoke` and `history-probe`
+  need an output style; doctrine examples need installed corpus files. `manifest-probe` carries
   its prefix in the repository, so a clone has its bytes, and still needs the
   corpus files it declares.
 - **Session output grading is narrow.** Checks currently read the reply and tool

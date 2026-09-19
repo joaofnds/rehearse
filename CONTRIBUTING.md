@@ -67,10 +67,12 @@ experimental inputs. Change them only when changing the case, since their bytes
 affect what the experiment measures.
 
 A fixture's `dot-git` directory becomes a working `.git` in the attempt
-directory, so its bytes are executable configuration rather than inert data.
-A diff touching `cases/*/fixture/dot-git/` says in its message which hooks and
-which config entries it changes, because a reviewer reading the diff sees
-object files and cannot tell.
+directory, so its bytes are configuration git acts on rather than inert data.
+Seeding refuses the shapes that execute code or reach outside the attempt
+directory, a `hooks/` directory among them, but `config` still carries entries
+that change what a session sees. A diff touching `cases/*/fixture/dot-git/`
+says in its message which config entries it changes, because a reviewer reading
+the diff sees object files and cannot tell.
 
 Use Conventional Commits with a lowercase imperative subject, such as
 `docs: explain session confirmation limits`. Use commit bodies to explain why
