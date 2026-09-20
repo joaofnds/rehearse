@@ -43,6 +43,18 @@ const metrics = {
 	turns: 1,
 };
 
+/**
+ * What one rep spends. case-four varies it by ordinal so a contrast over its
+ * reps has an observable spread; every other case spends the same on each rep.
+ */
+function attemptMetrics(caseId: string, ordinal: number): typeof metrics {
+	if (caseId !== "case-four") {
+		return metrics;
+	}
+
+	return { ...metrics, costUsd: metrics.costUsd * ordinal };
+}
+
 const unavailableTranscriptDiagnostics = {
 	state: "unavailable",
 	prefixLinesExcluded: 0,
@@ -205,7 +217,7 @@ async function writeGroup(
 					attemptDirectory: join(plan.recordDirectory, "execution"),
 					transcriptFile,
 					reply: pass ? "OK" : "too many words",
-					metrics,
+					metrics: attemptMetrics(caseId, plan.ordinal),
 					outcome: pass ? "SUCCESSFUL" : "UNSUCCESSFUL",
 					checks: attemptChecks(caseId, pass, plan.ordinal),
 					contextManifest: undefined,
@@ -1063,6 +1075,31 @@ Sampling unit: rep. Arms are independent samples; this estimate covers case case
 		expect(Object.keys(served.attribution)).toEqual(["case-one"]);
 		expect(Object.keys(served.qualityReadings)).toEqual(["case-one"]);
 		expect(Object.keys(served.attemptHistories)).toEqual(["case-one"]);
+	});
+
+	it("estimates the cost standard error when an arm's reps differ in spend", async () => {
+		const runsDirectory = join(root, "runs");
+		const manifestPath = await writeManifest(root, runsDirectory, undefined, [
+			"case-four",
+		]);
+
+		await writeComparisonReport({ manifestPath, runsDirectory });
+
+		const digestValue = digest(await Bun.file(manifestPath).text());
+		const shown: string[] = [];
+		await runShow(
+			{ id: `comparison:${digestValue}`, json: false, runsDirectory },
+			{
+				stdout: (text) => {
+					shown.push(text);
+				},
+				stderr: () => undefined,
+			},
+		);
+
+		expect(shown.join("")).toContain(
+			"| candidate − baseline | +0.000 | 0.014 |",
+		);
 	});
 
 	it("distinguishes partial scores and names each failing check", async () => {
