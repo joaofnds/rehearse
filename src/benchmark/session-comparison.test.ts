@@ -11,6 +11,7 @@ import {
 } from "./confirmation-record";
 import type { SessionConfirmationGroupRecord } from "./confirmation-record";
 import { parseComparisonReport } from "./comparison-record";
+import type { MultiCaseComparisonReport } from "./comparison-record";
 import { writeComparisonReport } from "./comparison-command";
 import type { Immutable } from "./contracts";
 import { runSessionConfirmation } from "./session-confirmation";
@@ -60,10 +61,47 @@ type AttemptVariantSelector = (
 	ordinal: number,
 ) => AttemptVariant | undefined;
 
+/**
+ * The check results one attempt records. case-three declares two checks so a
+ * rep can fail some but not all of them; every other case declares one.
+ */
+function attemptChecks(
+	caseId: string,
+	pass: boolean,
+	ordinal: number,
+): SessionAttempt["checks"] {
+	const wordBand = {
+		kind: "word-band" as const,
+		status: pass ? ("PASS" as const) : ("FAIL" as const),
+		detail: pass ? "1 word" : "3 words",
+	};
+	if (caseId !== "case-three") {
+		return [wordBand];
+	}
+
+	const toolCallsPassed = pass || ordinal === 1;
+
+	return [
+		wordBand,
+		{
+			kind: "tool-calls",
+			status: toolCallsPassed ? "PASS" : "FAIL",
+			detail: toolCallsPassed ? "0 tool calls" : "3 tool calls",
+		},
+	];
+}
+
 function sessionCase(caseId: string, role: Role): SessionCase {
 	const corpusFiles = role === "control" ? [] : ["output-styles/brief.md"];
 	const prompt = caseId === "case-one" ? "Reply OK." : "Reply OK twice.";
 	const max = caseId === "case-one" ? 1 : 2;
+	const checks =
+		caseId === "case-three"
+			? [
+					{ kind: "word-band" as const, max },
+					{ kind: "tool-calls" as const, max: 0 },
+				]
+			: [{ kind: "word-band" as const, max }];
 	const declaration = {
 		id: caseId,
 		kind: "session" as const,
@@ -72,7 +110,7 @@ function sessionCase(caseId: string, role: Role): SessionCase {
 		tools: [],
 		corpusFiles,
 		projectFiles: [],
-		checks: [{ kind: "word-band" as const, max }],
+		checks,
 		model: "sonnet" as const,
 		sessionBudgetUsd: 0.2,
 	};
@@ -145,13 +183,7 @@ async function writeGroup(
 					reply: pass ? "OK" : "too many words",
 					metrics,
 					outcome: pass ? "SUCCESSFUL" : "UNSUCCESSFUL",
-					checks: [
-						{
-							kind: "word-band",
-							status: pass ? "PASS" : "FAIL",
-							detail: pass ? "1 word" : "3 words",
-						},
-					],
+					checks: attemptChecks(caseId, pass, plan.ordinal),
 					contextManifest: undefined,
 					transcriptDiagnostics: unavailableTranscriptDiagnostics,
 				};
@@ -414,6 +446,28 @@ async function updateAttemptChecks(
 			)}\n`,
 		);
 	}
+}
+
+type MultiCaseArmSource =
+	MultiCaseComparisonReport["cases"][number]["arms"]["baseline"]["source"];
+type MultiCaseRepProvenance = Omit<
+	MultiCaseArmSource["reps"][number],
+	"checks" | "stateResults"
+>;
+interface ArmSourceProvenance {
+	readonly group: MultiCaseArmSource["group"];
+	readonly reps: readonly MultiCaseRepProvenance[];
+}
+
+/**
+ * An arm's source without the per-check tally, which these expectations
+ * describe by path and digest rather than by grade.
+ */
+function sourceProvenance(source: MultiCaseArmSource): ArmSourceProvenance {
+	return {
+		...source,
+		reps: source.reps.map(({ checks: _checks, ...rep }) => rep),
+	};
 }
 
 type SharedSessionCaseField =
@@ -823,9 +877,9 @@ describe("session comparison", () => {
 			report.cases.map(({ caseId, arms }) => ({
 				caseId,
 				arms: {
-					baseline: arms.baseline.source,
-					candidate: arms.candidate.source,
-					control: arms.control.source,
+					baseline: sourceProvenance(arms.baseline.source),
+					candidate: sourceProvenance(arms.candidate.source),
+					control: sourceProvenance(arms.control.source),
 				},
 			})),
 		).toEqual(expectedSources);
@@ -959,6 +1013,34 @@ describe("session comparison", () => {
 		expect(Object.keys(served.attribution)).toEqual(["case-one"]);
 		expect(Object.keys(served.qualityReadings)).toEqual(["case-one"]);
 		expect(Object.keys(served.attemptHistories)).toEqual(["case-one"]);
+	});
+
+	it("distinguishes partial scores and names each failing check", async () => {
+		const runsDirectory = join(root, "runs");
+		const manifestPath = await writeManifest(root, runsDirectory, undefined, [
+			"case-three",
+		]);
+		const reportFile = await writeComparisonReport({
+			manifestPath,
+			runsDirectory,
+		});
+		const report = parseComparisonReport(await Bun.file(reportFile).text());
+		if (report.schemaVersion !== 4 || !("samplingUnit" in report)) {
+			throw new Error("expected a single-case version-4 session report");
+		}
+		const reps = report.cases[0]?.arms.baseline.source.reps ?? [];
+
+		expect(reps.map((rep) => rep.checks)).toEqual([
+			{ passed: 2, declared: 2, failing: [] },
+			{
+				passed: 0,
+				declared: 2,
+				failing: [
+					{ index: 0, kind: "word-band", detail: "3 words" },
+					{ index: 1, kind: "tool-calls", detail: "3 tool calls" },
+				],
+			},
+		]);
 	});
 
 	it("retains no replies, execution failures, and missing metrics", async () => {

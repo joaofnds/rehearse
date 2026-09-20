@@ -33,6 +33,27 @@ import type {
 } from "./comparison-resources";
 import { buildComparisonResources } from "./comparison-resources";
 import type { Immutable } from "./contracts";
+import type { SessionAttemptRecord } from "./session-record";
+import type { StateResult } from "./session-state-check";
+
+interface RepCheckScore {
+	readonly passed: number;
+	readonly declared: number;
+	readonly failing: readonly {
+		readonly index: number;
+		readonly kind: string;
+		readonly detail: string;
+	}[];
+}
+
+interface RepStateScore {
+	readonly passed: number;
+	readonly declared: number;
+	readonly failing: readonly {
+		readonly name: string;
+		readonly detail: string;
+	}[];
+}
 
 type ComparisonQualityContrastEstimates = readonly QualityContrastEstimate[];
 type SingleCaseQualityContrastEstimates =
@@ -90,6 +111,8 @@ interface BuiltReportArm {
 			readonly attempt?:
 				| { readonly path: string; readonly sha256: string }
 				| undefined;
+			readonly checks?: RepCheckScore | undefined;
+			readonly stateResults?: RepStateScore | undefined;
 		}[];
 	};
 	readonly executedCorpus: readonly {
@@ -98,6 +121,58 @@ interface BuiltReportArm {
 	}[];
 	readonly quality: readonly ReliabilitySummary[];
 	readonly resources: ArmResources;
+}
+
+/**
+ * The per-check tally beside the rep's pass or fail grade. A grade of F says
+ * nothing about whether one check failed or all of them, and a check result
+ * carries no name, so a failing check is identified by its position in the
+ * case's declaration list together with its kind.
+ */
+function repCheckScore(
+	attempt: Immutable<SessionAttemptRecord>,
+): RepCheckScore {
+	const failing = attempt.checks.flatMap((check, index) =>
+		check.status === "FAIL"
+			? [{ index, kind: check.kind, detail: check.detail }]
+			: [],
+	);
+
+	return {
+		passed: attempt.checks.length - failing.length,
+		declared: attempt.checks.length,
+		failing,
+	};
+}
+
+interface RepStateScoreField {
+	readonly stateResults?: RepStateScore | undefined;
+}
+
+function repStateScoreField(
+	attempt: Immutable<SessionAttemptRecord>,
+): RepStateScoreField {
+	if (!("stateResults" in attempt) || attempt.stateResults === undefined) {
+		return {};
+	}
+
+	return { stateResults: repStateScore(attempt.stateResults) };
+}
+
+function repStateScore(
+	results: readonly Immutable<StateResult>[],
+): RepStateScore {
+	const failing = results.flatMap((result) =>
+		result.status === "FAIL"
+			? [{ name: result.name, detail: result.detail }]
+			: [],
+	);
+
+	return {
+		passed: results.length - failing.length,
+		declared: results.length,
+		failing,
+	};
 }
 
 function buildReportArm(
@@ -128,6 +203,8 @@ function buildReportArm(
 				path: rep.attempt.path,
 				sha256: rep.attempt.sha256,
 			},
+			checks: repCheckScore(rep.attempt.record),
+			...repStateScoreField(rep.attempt.record),
 		};
 	});
 

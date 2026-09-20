@@ -174,11 +174,43 @@ const repOutcomeSchema = z.union([
 	judgedRepOutcomeSchema,
 	unjudgedRepOutcomeSchema,
 ]);
+const repCheckScoreSchema = z
+	.object({
+		passed: z.number().int().nonnegative(),
+		declared: z.number().int().nonnegative(),
+		failing: z.array(
+			z
+				.object({
+					index: z.number().int().nonnegative(),
+					kind: z.string().min(1),
+					detail: z.string().min(1),
+				})
+				.strict(),
+		),
+	})
+	.strict();
+const repStateScoreSchema = z
+	.object({
+		passed: z.number().int().nonnegative(),
+		declared: z.number().int().nonnegative(),
+		failing: z.array(
+			z.object({ name: z.string().min(1), detail: z.string().min(1) }).strict(),
+		),
+	})
+	.strict();
 const currentSourceRepSchema = sourceRepSchema
-	.extend({ outcomes: z.array(repOutcomeSchema).min(1) })
+	.extend({
+		outcomes: z.array(repOutcomeSchema).min(1),
+		checks: repCheckScoreSchema.optional(),
+		stateResults: repStateScoreSchema.optional(),
+	})
 	.strict();
 const currentSessionSourceRepSchema = sessionSourceRepSchema
-	.extend({ outcomes: z.array(repOutcomeSchema).min(1) })
+	.extend({
+		outcomes: z.array(repOutcomeSchema).min(1),
+		checks: repCheckScoreSchema.optional(),
+		stateResults: repStateScoreSchema.optional(),
+	})
 	.strict();
 const reliabilitySummarySchema = z
 	.object({
