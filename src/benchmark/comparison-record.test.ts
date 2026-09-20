@@ -94,8 +94,17 @@ describe(parseComparisonManifest.name, () => {
 		);
 	});
 
-	it("names a manifest with fewer than two cases", () => {
+	it("accepts a manifest naming a single case", () => {
 		const value = manifest([comparisonCase("case-1")]);
+
+		const parsed = parseComparisonManifest(JSON.stringify(value));
+
+		expect(parsed.cases).toHaveLength(1);
+		expect(parsed.cases[0]?.caseId).toBe("case-1");
+	});
+
+	it("names a manifest with no cases", () => {
+		const value = manifest([]);
 
 		expect(() => parseComparisonManifest(JSON.stringify(value))).toThrow(
 			"case manifest arm all field cases",

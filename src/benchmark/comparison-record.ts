@@ -31,7 +31,7 @@ export const comparisonManifestSchema = z
 					})
 					.strict(),
 			)
-			.min(2),
+			.min(1),
 	})
 	.strict()
 	.superRefine((manifest, context) => {
