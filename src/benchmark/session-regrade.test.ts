@@ -5,7 +5,10 @@ import { join } from "node:path";
 import type { SessionCase } from "#benchmark/case";
 import type { Immutable } from "#benchmark/contracts";
 import { TestResources } from "#benchmark/test-support";
-import { regradeAttempt } from "#benchmark/session-regrade";
+import {
+	gradingDefinitionDigest,
+	regradeAttempt,
+} from "#benchmark/session-regrade";
 import type { SessionAttemptRecord } from "#benchmark/session-record";
 import { sessionAttemptRecordSchema } from "#benchmark/session-record";
 
@@ -112,6 +115,49 @@ function caseDeclaring(checks: SessionCase["checks"]): SessionCase {
 		checks,
 	};
 }
+
+describe(gradingDefinitionDigest.name, () => {
+	it("differs when the case declares a different check", () => {
+		const one = gradingDefinitionDigest(
+			caseDeclaring([{ kind: "word-band", max: 2 }]),
+		);
+		const other = gradingDefinitionDigest(
+			caseDeclaring([{ kind: "word-band", max: 3 }]),
+		);
+
+		expect(one).not.toEqual(other);
+	});
+
+	it("differs when the case declares a different state scorer", () => {
+		const one = gradingDefinitionDigest({
+			...caseDeclaring([]),
+			stateCheck: { command: ["./score"], outcomes: ["clean"] },
+		});
+		const other = gradingDefinitionDigest({
+			...caseDeclaring([]),
+			stateCheck: { command: ["./score", "--strict"], outcomes: ["clean"] },
+		});
+
+		expect(one).not.toEqual(other);
+	});
+
+	it("is unchanged by the key order a check was written in", () => {
+		const one = caseDeclaring([{ kind: "word-band", min: 1, max: 2 }]);
+		const other = caseDeclaring([{ kind: "word-band", max: 2, min: 1 }]);
+
+		expect(gradingDefinitionDigest(one)).toEqual(
+			gradingDefinitionDigest(other),
+		);
+	});
+
+	it("is unchanged by a prompt the grading definition does not cover", () => {
+		const checks = caseDeclaring([{ kind: "word-band", max: 2 }]);
+
+		expect(gradingDefinitionDigest({ ...checks, prompt: "another" })).toEqual(
+			gradingDefinitionDigest(checks),
+		);
+	});
+});
 
 describe(regradeAttempt.name, () => {
 	it("grades a reply check against the saved reply", async () => {

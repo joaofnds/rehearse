@@ -67,7 +67,7 @@ export async function sessionUpstreamDigest(
  * member a value is comes from parsing it rather than from a `typeof` on its
  * representation.
  */
-function orderedForHashing(value: JsonValue): JsonValue {
+export function orderedForHashing(value: JsonValue): JsonValue {
 	const array = jsonArraySchema.safeParse(value);
 	if (array.success) {
 		return array.data.map((element) => orderedForHashing(element));

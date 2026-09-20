@@ -1,7 +1,10 @@
+import { createHash } from "node:crypto";
 import { join } from "node:path";
 import type { SessionCase } from "./case";
 import type { Immutable } from "./contracts";
+import { jsonValueSchema } from "./json-value";
 import type { SessionAttemptId } from "./run-layout";
+import { orderedForHashing } from "./session-lineage";
 import type { Check, CheckEvidence } from "./session-check";
 import { evaluateChecks } from "./session-check";
 import type { CheckKind } from "./session-check-result";
@@ -29,6 +32,31 @@ export interface RegradeRequest {
 
 export interface Assessment {
 	readonly checks: readonly RegradedCheck[];
+}
+
+/**
+ * The identity of the definition that produced an assessment, which nothing
+ * else on a record carries. `sessionUpstreamDigest` hashes the transcript,
+ * fixture, prompt, tools, settings, agents, project files and state scorer,
+ * but not `checks`, so two cases differing only in a reply check share a
+ * lineage and lineage cannot say which definition graded an attempt.
+ *
+ * The scorer's own bytes are deliberately not a component: they live inside
+ * the fixture, which lineage already hashes whole, and every record carries a
+ * lineage. `checks` is the one grading input nothing pins. Corpus, model and
+ * effort stay out because they name the arm rather than the grader.
+ */
+export function gradingDefinitionDigest(
+	sessionCase: Immutable<SessionCase>,
+): string {
+	const definition = jsonValueSchema.parse({
+		checks: sessionCase.checks,
+		stateCheck: sessionCase.stateCheck ?? null,
+	});
+
+	return createHash("sha256")
+		.update(JSON.stringify(orderedForHashing(definition)))
+		.digest("hex");
 }
 
 const NO_TRANSCRIPT_DETAIL =
