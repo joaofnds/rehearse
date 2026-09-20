@@ -1027,12 +1027,32 @@ describe("session comparison", () => {
 		);
 		const summary = shown.join("");
 
-		expect(summary).toContain("1 case, session mode, 2 reps.");
-		expect(summary).toContain("Sampling unit: rep");
-		expect(summary).not.toContain("final");
-		expect(summary).toContain("| candidate | 2/2 | 1.000 | 0.342-1.000 |");
-		expect(summary).toContain("| control | 0/2 | 0.000 | 0.000-0.658 |");
-		expect(summary).toContain("no observed spread");
+		expect(summary).toBe(
+			`## comparison:${digestValue}
+
+1 case, session mode, 2 reps.
+
+Sampling unit: rep. Arms are independent samples; this estimate covers case case-one only.
+
+| arm | successful | success rate | 95% interval | pass^k |
+| --- | --- | --- | --- | --- |
+| baseline | 1/2 | 0.500 | 0.095-0.905 | 0.250 |
+| candidate | 2/2 | 1.000 | 0.342-1.000 | 1.000 |
+| control | 0/2 | 0.000 | 0.000-0.658 | 0.000 |
+
+| contrast | outcome | success rate Δ | standard error | pass^k Δ |
+| --- | --- | --- | --- | --- |
+| candidate − baseline | checks | +0.500 | 0.354 | +0.750 |
+| candidate − control | checks | +1.000 | 0.000 | +1.000 |
+| baseline − control | checks | +0.500 | 0.354 | +0.250 |
+
+| contrast | cost Δ | standard error |
+| --- | --- | --- |
+| candidate − baseline | +0.000 | no observed spread |
+| candidate − control | +0.000 | no observed spread |
+| baseline − control | +0.000 | no observed spread |
+`,
+		);
 
 		const attemptHistories = await comparisonAttemptHistoryLinks(
 			report,
