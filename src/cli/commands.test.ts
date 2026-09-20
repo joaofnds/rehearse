@@ -67,6 +67,7 @@ describe("declared commands", () => {
 			"compare",
 			"list",
 			"show",
+			"regrade",
 			"stale",
 			"case list",
 			"case show",

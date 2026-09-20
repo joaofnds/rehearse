@@ -840,6 +840,13 @@ const BARE_REFUSALS: ReadonlyMap<string, { code: number; reason: string }> =
 		],
 		["list", { code: EXIT_CODES.usageError, reason: "is not one of" }],
 		["show", { code: EXIT_CODES.usageError, reason: "Provide the record id" }],
+		[
+			"regrade",
+			{
+				code: EXIT_CODES.usageError,
+				reason: "Provide the attempt to regrade",
+			},
+		],
 		["stale", { code: EXIT_CODES.completed, reason: "" }],
 		["case list", { code: EXIT_CODES.completed, reason: "" }],
 		[

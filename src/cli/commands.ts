@@ -246,6 +246,13 @@ export const COMMANDS: readonly CommandDefinition[] = [
 		],
 	},
 	{
+		name: "regrade",
+		summary:
+			"Re-evaluate a saved attempt's evidence against its case as it stands now; runs no session",
+		argument: "record-id",
+		flags: [jsonFlag],
+	},
+	{
 		name: "stale",
 		summary: "List the checkpoints and session cases a corpus edit invalidated",
 		flags: [

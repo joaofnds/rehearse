@@ -38,6 +38,7 @@ import { runList } from "./src/cli/list-command";
 import { judgesFor, runCalibrate } from "./src/cli/calibrate-command";
 import { runReview } from "./src/cli/review-command";
 import { runShow } from "./src/cli/show-command";
+import { runRegrade } from "./src/cli/regrade-command";
 import { runStale } from "./src/cli/stale-command";
 import { processOutput } from "./src/cli/output";
 
@@ -199,6 +200,22 @@ async function dispatch(
 					checkout: flagValue(commandLine.flags, "--checkout"),
 				},
 				processOutput,
+			);
+
+			return EXIT_CODES.completed;
+		}
+		case "regrade": {
+			await runRegrade(
+				{
+					id: commandLine.argument,
+					runsDirectory: benchmarkRunsDirectory(CONTROL_DIR),
+					json: commandLine.json,
+				},
+				{
+					output: processOutput,
+					requireCase,
+					now: () => new Date().toISOString(),
+				},
 			);
 
 			return EXIT_CODES.completed;
