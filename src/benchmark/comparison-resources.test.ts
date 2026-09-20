@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import type { ConfirmationRepRecord } from "./confirmation-record";
+import type { ComparisonArm } from "./comparison-record";
 import type { PairedEstimate } from "./comparison-estimator";
 import { buildComparisonResources } from "./comparison-resources";
 import {
@@ -275,5 +276,57 @@ describe(buildComparisonResources.name, () => {
 		}
 
 		expect(baseline.elapsedMs).toEqual({ values: [1000, 3000], mean: 2000 });
+	});
+	it("estimates a paired elapsed contrast across cases from each arm's durations", () => {
+		const arm = (
+			caseId: string,
+			role: ComparisonArm,
+			elapsedMs: number,
+		): readonly ConfirmationRepRecord[] =>
+			[1, 2].map((ordinal) =>
+				comparisonRep(`${caseId}-${role}`, ordinal, PASS, {
+					metricScale: 1,
+					elapsedMs,
+				}),
+			);
+		const report = buildComparisonResources({
+			contract: {
+				mode: "pipeline",
+				declaredStages: ["discuss", "build"],
+				reps: 2,
+			},
+			cases: [
+				{
+					caseId: "case-1",
+					arms: {
+						baseline: arm("case-1", "baseline", 1000),
+						candidate: arm("case-1", "candidate", 1500),
+						control: arm("case-1", "control", 800),
+					},
+				},
+				{
+					caseId: "case-2",
+					arms: {
+						baseline: arm("case-2", "baseline", 2000),
+						candidate: arm("case-2", "candidate", 3000),
+						control: arm("case-2", "control", 800),
+					},
+				},
+			],
+		});
+		const { resources } = report.contrasts.candidateMinusBaseline;
+		if (resources.status !== "AVAILABLE") {
+			throw new Error("candidate minus baseline resources should be available");
+		}
+
+		expect(resources.elapsedMs).toEqual({
+			caseDeltas: [
+				{ caseId: "case-1", value: 500 },
+				{ caseId: "case-2", value: 1000 },
+			],
+			meanDelta: 750,
+			standardError: 250,
+		});
+		expect(resources.elapsedMs).not.toEqual(resources.workerTurns);
 	});
 });
