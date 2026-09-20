@@ -104,11 +104,12 @@ See [current state](docs/status.md) for implementation coverage and
   control arms. Stage and pipeline comparisons need at least two benchmark
   cases; a session comparison may cover one. It starts no paid sessions. Session
   comparisons read the frozen case's checks and each recorded attempt, and do
-  not synthesize a pipeline final outcome. A version-4 report keeps each source
+  not synthesize a pipeline final outcome. A current report keeps each source
   rep's ordered quality outcomes beside its identity, so a reader can associate
   an ordinal with its grades and non-judged statuses without reopening source
-  records. Version-1 through version-3 reports remain readable with their
-  original fields.
+  records. Older reports remain readable with the fields they were written
+  with, and a measurement a version predates reads as unavailable rather than
+  as zero.
 - **Comparison arm** — one role in a comparison: baseline, candidate, or the
   mandatory minimal-corpus control. An arm uses the same corpus snapshot across
   every benchmark case; a session control may have an empty declared corpus.
@@ -622,12 +623,14 @@ See [current state](docs/status.md) for implementation coverage and
   board.
 - **Attempt elapsed time** — the wall-clock duration of one attempt, from its
   start to its finish, including work outside provider calls. Recorded per rep,
-  and carried into a comparison as each arm's per-attempt observations and
-  their mean. It is not the sum of a call's provider durations, and summing it
-  across attempts that ran concurrently does not give wall-clock time.
-- **Provider duration** — the time spent inside provider calls. Distinct from
-  attempt elapsed time, which also counts the work around those calls, and
-  never its sum. Comparison reports do not carry it.
+  and carried into a comparison as each arm's observations and their mean. The
+  observations are sorted by duration rather than by rep ordinal, so they
+  describe the arm's spread and not which rep was slow. It is not the sum of a
+  call's provider durations, and summing it across attempts that ran
+  concurrently does not give wall-clock time.
+- **Provider duration** — the time spent inside provider calls. The attempt
+  elapsed time of the same attempt encloses it, because it also counts the work
+  around those calls. Comparison reports do not carry it.
 - **Group makespan** — the wall-clock duration of a confirmation group, from
   its first attempt starting to its last finishing. Smaller than the summed
   attempt elapsed time whenever attempts ran concurrently. Recorded on the

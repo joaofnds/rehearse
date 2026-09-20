@@ -733,9 +733,9 @@ transcript path or any path observed inside a Read. It rejects traversal,
 symbolic links, non-regular evidence files, detected path or inode replacement
 during open verification, and paths outside the real run directory.
 
-Version-4 session comparison pages link to a rep's history only after the
-server verifies the recorded group, rep, and attempt paths, ownership, and all
-three SHA-256 digests. Failed provenance validation appears as stale provenance
+Session comparison pages, for every report version that records attempt
+evidence, link to a rep's history only after the server verifies the recorded
+group, rep, and attempt paths, ownership, and all three SHA-256 digests. Failed provenance validation appears as stale provenance
 without a navigable link; a valid failed experiment remains inspectable.
 
 ## Comparison manifests
