@@ -16,6 +16,7 @@ still requires environment-specific setup.
 | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Data-declared cases            | Session and pipeline kinds; bundled inputs have differing portability                                                                                                                                       | [Case loader](../src/benchmark/case.ts)                                                                                                                                                                                                                                          |
 | Session attempts               | Fixture/prefix support, deterministic reply/transcript checks, and command-scored grades over the preserved post-session tree                                                                               | [Session execution](../src/benchmark/session-attempt.ts)                                                                                                                                                                                                                         |
+| Regrading saved evidence       | Re-evaluates a saved attempt's reply, transcript and preserved state against the case as it stands now, reaching no provider; assessments accumulate beside the attempt and never rewrite it                | [Regrade](../src/benchmark/session-regrade.ts)                                                                                                                                                                                                                                   |
 | Session confirmation           | Repeated frozen inputs, retained failures, per-attempt checks, projected ceiling including model preflight                                                                                                  | [Session confirmation](../src/benchmark/session-confirmation.ts)                                                                                                                                                                                                                 |
 | Pipeline execution             | Configured stages, portable private-board setup, dynamic PO, Judges, baseline checks, calibration, restoration                                                                                              | [Run orchestration](../src/benchmark/run.ts)                                                                                                                                                                                                                                     |
 | Checkpoint replay              | One stage in a host worktree, including explicit corpus variants                                                                                                                                            | [Replay command](../src/cli/replay-command.ts)                                                                                                                                                                                                                                   |
@@ -65,9 +66,11 @@ verdict.
   corpus files it declares.
 - **Session output grading reads only what one run left.** Reply and transcript
   checks are joined by a case-declared scorer over the preserved post-session
-  tree, but regrading that saved evidence without another model run is not
-  available yet. A doctrine example's tool-call check is not
-  evidence that its implementation is correct.
+  tree, and `regrade` re-reads that saved evidence against a corrected case
+  without another model run. Comparison does not yet refuse two arms graded
+  under different definitions, so an assessment's grading definition digest is
+  recorded but not enforced across arms. A doctrine example's tool-call check
+  is not evidence that its implementation is correct.
 - **Context visibility is incomplete.** Session manifests still retain names
   rather than a timeline. The saved-attempt browser derives recorded Read and
   Skill deliveries, repeated loads, timestamps, content measurements, and
@@ -125,8 +128,9 @@ goals, with context visibility added to help explain resource use:
 
 1. Add reproducible public pipeline case inputs.
 2. Deliver isolated session skill variants and generated fixtures so realistic
-   skill outcomes can be graded, and regrade preserved evidence without paying
-   for another model run.
+   skill outcomes can be graded. Frozen skills, generated fixtures, state
+   grading and regrading have landed; comparing session experiments across arms
+   has not.
 3. Make context use inspectable alongside outcomes. Build on saved-session
    event and source inspection by validating per-request collection, then extend
    to pipeline steps and reviewer trees. Use a review-efficiency comparison to

@@ -267,6 +267,47 @@ five reps holds about five copies of the fixture per group. A group that grows
 too large is answered by reducing the fixture, which is the input under the case
 author's control.
 
+#### Regrading a saved attempt
+
+`regrade attempt:session:<case>/<uuid>` re-evaluates a saved attempt's evidence
+against its case as it stands now and prints the path of the assessment it
+wrote. It reaches no provider, so correcting a wrong check costs no second paid
+session.
+
+The definition comes from the case declaration on disk, the way `replay`,
+`calibrate` and `stale` all read frozen evidence against what the case declares
+today. An attempt whose case no longer exists is refused, naming both; there is
+no flag to grade it against a substitute definition.
+
+The evidence comes from the attempt directory: the reply from `attempt.json`,
+the transcript from `transcript.jsonl` beside it, and the files and git state
+from `state/`. A record's own `transcriptFile` is an absolute path on the
+machine that wrote it and is not what a regrade opens. Each pass restores the
+state evidence into its own copy before grading, so the saved reply, transcript
+and state stay byte-identical however many passes run and whatever the scorer
+writes.
+
+Transcript checks regrade over the boundary the attempt recorded, honoring
+`transcriptDiagnostics.prefixLinesExcluded` only when the diagnostics state is
+`complete` or `partial`. A record with no diagnostics, or whose state is
+`unavailable`, has its transcript checks reported unavailable rather than
+graded over a transcript that cannot be bounded: the `unavailable` variant
+still carries a `prefixLinesExcluded` of 0, and grading on that alone would
+report a `tool-calls` or `files-read` check passing over evidence that does not
+exist. A case declaring a `stateCheck` whose attempt preserved no `state/`
+reports that scorer unavailable for the same reason.
+
+An assessment carries `PASS`, `FAIL` or `UNAVAILABLE` per declared check, the
+digest of each evidence body it read, and a grading definition digest over
+`{checks, stateCheck}`. Two assessments of one attempt whose digests differ
+were produced by different definitions. An assessment in which any declared
+check is unavailable carries no overall outcome, because a verdict over the
+checks that had evidence would read as a verdict over the whole definition.
+
+Assessments accumulate; nothing prunes them, and none rewrites `attempt.json`.
+Comparison digests a rep's `attempt.json` bytes as provenance, so rewriting a
+record in place would stale every saved comparison over that rep.
+
 #### Transcript diagnostics
 
 Each new session attempt record carries `transcriptDiagnostics`, derived from

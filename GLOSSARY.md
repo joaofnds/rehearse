@@ -10,6 +10,13 @@ See [current state](docs/status.md) for implementation coverage and
   reply length.
 - **Artifact** — durable output of a stage: a spec or plan document, a backlog
   card update, or commits.
+- **Assessment** — the record one regrade writes: the attempt it read, the
+  digest of each evidence body it read, the grading definition digest that
+  produced it, one result per declared check, and a state grade where the case
+  declares a scorer. It carries an overall outcome only when every declared
+  check was graded, because a verdict over the checks that had evidence would
+  read as a verdict over the whole definition. It is filed beside the attempt
+  and never rewrites the attempt record.
 - **Attempt** — one execution of a case's unit of work: a stage at a checkpoint
   (the original run's stage result or any replay) or one session of a session
   case. The unit a comparison presents.
@@ -247,6 +254,13 @@ See [current state](docs/status.md) for implementation coverage and
   precondition (a needed approval whose flag is absent while stdin is not a
   TTY, a run that cannot be replayed); `1` an execution failure. A failing grade
   is evidence, not an error.
+- **Grading definition digest** — the identity of the check list and state
+  scorer that produced an assessment: a SHA-256 over the canonical form of
+  `{checks, stateCheck}`. Lineage cannot serve, because it hashes the
+  transcript, fixture, prompt, tools, settings, agents, project files and state
+  scorer but not `checks`, so two cases differing only in a reply check share
+  a lineage. Two assessments of one attempt carrying different digests is how
+  an operator sees that the definition changed between them.
 - **Fired reply** — the end-of-turn reply João answered with `/brief`. It is the
   reply the style produced and he rejected, not the one he wanted; the rewrite
   he accepted comes later in the same session. A cut is the fired reply's own
@@ -329,6 +343,13 @@ See [current state](docs/status.md) for implementation coverage and
 - **Provider call** — one invocation of the model provider by a worker, Product
   Owner, or Judge. Its evidence may include usage metrics; the call remains
   explicit when those metrics are absent.
+- **Regrade** — one re-evaluation of a saved attempt's evidence against the
+  case as it stands now, reaching no provider. It reads the recorded reply, the
+  transcript beside the attempt, and the preserved state evidence, and writes
+  an assessment. A check whose evidence the attempt does not hold is reported
+  unavailable rather than graded, and the saved reply, transcript and state
+  evidence are left byte-identical, so a corrected check costs no second paid
+  session.
 - **Record ID** — how a session names one recorded thing to the CLI and how
   the CLI names it back: a kind prefix and the identity that kind already has
   on disk, `case:<id>`, `run:<name>`, `checkpoint:<run>/<stage>`,
