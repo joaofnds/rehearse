@@ -30,8 +30,35 @@ export interface RegradeRequest {
 	readonly sessionCase: Immutable<SessionCase>;
 }
 
+/**
+ * The bodies the grade was read from, digested so a later reader can tell
+ * whether the assessment still describes the evidence beside it. A body the
+ * attempt does not hold is absent rather than digested as empty: a digest of
+ * nothing reads as a body that happened to be empty.
+ */
+export interface EvidenceDigests {
+	readonly reply?: string | undefined;
+	readonly transcript?: string | undefined;
+}
+
 export interface Assessment {
+	/**
+	 * The attempt this assessment read, as the two segments a
+	 * `attempt:session:<case>/<uuid>` id carries. The id's text form is the
+	 * CLI's vocabulary and is built where a reader is shown one; the record
+	 * keeps the fields so it parses back without a parser.
+	 */
+	readonly sourceAttempt: Immutable<SessionAttemptId>;
+	readonly gradingDefinition: string;
+	readonly evidence: EvidenceDigests;
 	readonly checks: readonly RegradedCheck[];
+	/**
+	 * Absent when any declared check was not graded. A verdict computed over
+	 * the subset that had evidence would read as a grade of the whole
+	 * definition, which is the fabricated grade the third status exists to
+	 * prevent.
+	 */
+	readonly outcome?: "SUCCESSFUL" | "UNSUCCESSFUL" | undefined;
 }
 
 /**
@@ -91,20 +118,58 @@ function recordedBoundary(
 	return diagnostics.prefixLinesExcluded;
 }
 
+interface ReadEvidence {
+	readonly evidence: CheckEvidence;
+	readonly digests: EvidenceDigests;
+}
+
+function sha256Of(text: string): string {
+	return createHash("sha256").update(text).digest("hex");
+}
+
+/**
+ * The digest covers the body as it sits on disk, taken from the same read the
+ * grade used, so an assessment cannot name a digest of bytes other than the
+ * ones it graded.
+ */
 async function savedEvidence(
 	request: Immutable<RegradeRequest>,
 	boundary: number | undefined,
-): Promise<CheckEvidence> {
-	const reply = request.record.reply ?? "";
+): Promise<ReadEvidence> {
+	const { reply } = request.record;
+	const replyDigest = reply === undefined ? undefined : sha256Of(reply);
 	if (boundary === undefined) {
-		return { reply, toolUses: [] };
+		return {
+			evidence: { reply: reply ?? "", toolUses: [] },
+			digests: { reply: replyDigest },
+		};
 	}
 
-	const lines = await parseTranscriptFile(
-		join(request.attemptDirectory, request.record.transcriptFile),
-	);
+	const file = join(request.attemptDirectory, request.record.transcriptFile);
+	const lines = await parseTranscriptFile(file);
 
-	return { reply, toolUses: toolUses(lines.slice(boundary)) };
+	return {
+		evidence: { reply: reply ?? "", toolUses: toolUses(lines.slice(boundary)) },
+		digests: {
+			reply: replyDigest,
+			transcript: sha256Of(await Bun.file(file).text()),
+		},
+	};
+}
+
+/**
+ * A grade over a subset of the declared checks is not a grade of the
+ * definition, so the verdict is withheld entirely rather than computed over
+ * whatever had evidence.
+ */
+function verdictOver(checks: readonly RegradedCheck[]): Assessment["outcome"] {
+	if (checks.some(({ status }) => status === "UNAVAILABLE")) {
+		return undefined;
+	}
+
+	return checks.every(({ status }) => status === "PASS")
+		? "SUCCESSFUL"
+		: "UNSUCCESSFUL";
 }
 
 function unavailable(check: Immutable<Check>): RegradedCheck {
@@ -131,17 +196,24 @@ export async function regradeAttempt(
 		.map((check, position) => ({ check, position }))
 		.filter(({ check }) => boundary !== undefined || !readsTranscript(check));
 
+	const { evidence, digests } = await savedEvidence(request, boundary);
 	const graded = evaluateChecks(
 		gradable.map(({ check }) => check),
-		await savedEvidence(request, boundary),
+		evidence,
 	);
 	const byPosition = new Map(
 		gradable.map(({ position }, index) => [position, graded.results[index]]),
 	);
 
+	const checks = request.sessionCase.checks.map(
+		(check, position) => byPosition.get(position) ?? unavailable(check),
+	);
+
 	return {
-		checks: request.sessionCase.checks.map(
-			(check, position) => byPosition.get(position) ?? unavailable(check),
-		),
+		sourceAttempt: request.attemptId,
+		gradingDefinition: gradingDefinitionDigest(request.sessionCase),
+		evidence: digests,
+		checks,
+		outcome: verdictOver(checks),
 	};
 }

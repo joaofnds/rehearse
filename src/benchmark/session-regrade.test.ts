@@ -51,6 +51,10 @@ function savedRecord(
 	});
 }
 
+function sha256Of(text: string): string {
+	return new Bun.CryptoHasher("sha256").update(text).digest("hex");
+}
+
 async function attemptWithTranscript(
 	tools: readonly string[],
 ): Promise<string> {
@@ -160,6 +164,77 @@ describe(gradingDefinitionDigest.name, () => {
 });
 
 describe(regradeAttempt.name, () => {
+	it("names the attempt it read and the definition that graded it", async () => {
+		const directory = await attemptWithTranscript(["Bash"]);
+		const sessionCase = caseDeclaring([{ kind: "word-band", max: 2 }]);
+
+		const assessment = await regradeAttempt({
+			attemptId: { caseId: "smoke", uuid: "attempt-uuid" },
+			record: savedRecord({ transcriptDiagnostics: completeBoundary(0) }),
+			attemptDirectory: directory,
+			sessionCase,
+		});
+
+		expect(assessment.sourceAttempt).toEqual({
+			caseId: "smoke",
+			uuid: "attempt-uuid",
+		});
+		expect(assessment.gradingDefinition).toBe(
+			gradingDefinitionDigest(sessionCase),
+		);
+	});
+
+	it("digests each evidence body it read", async () => {
+		const directory = await attemptWithTranscript(["Bash"]);
+
+		const assessment = await regradeAttempt({
+			attemptId: { caseId: "smoke", uuid: "attempt-uuid" },
+			record: savedRecord({
+				reply: "the reply",
+				transcriptDiagnostics: completeBoundary(0),
+			}),
+			attemptDirectory: directory,
+			sessionCase: caseDeclaring([{ kind: "word-band", max: 2 }]),
+		});
+
+		expect(assessment.evidence).toEqual({
+			reply: sha256Of("the reply"),
+			transcript: sha256Of(`${toolUseLine("Bash")}\n`),
+		});
+	});
+
+	it("reports a verdict when every declared check was graded", async () => {
+		const directory = await attemptWithTranscript(["Bash"]);
+
+		const assessment = await regradeAttempt({
+			attemptId: { caseId: "smoke", uuid: "attempt-uuid" },
+			record: savedRecord({
+				reply: "one",
+				transcriptDiagnostics: completeBoundary(0),
+			}),
+			attemptDirectory: directory,
+			sessionCase: caseDeclaring([{ kind: "word-band", max: 2 }]),
+		});
+
+		expect(assessment.outcome).toBe("SUCCESSFUL");
+	});
+
+	it("withholds a verdict when a declared check could not be graded", async () => {
+		const directory = await attemptDirectory();
+
+		const assessment = await regradeAttempt({
+			attemptId: { caseId: "smoke", uuid: "attempt-uuid" },
+			record: savedRecord({ reply: "one" }),
+			attemptDirectory: directory,
+			sessionCase: caseDeclaring([
+				{ kind: "word-band", max: 2 },
+				{ kind: "tool-calls", max: 0 },
+			]),
+		});
+
+		expect(assessment.outcome).toBeUndefined();
+	});
+
 	it("grades a reply check against the saved reply", async () => {
 		const directory = await attemptDirectory();
 
