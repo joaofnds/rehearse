@@ -1,8 +1,15 @@
 import { z } from "zod";
+import { COMPARISON_ARMS } from "./comparison-record";
 import type {
+	ComparisonArm,
 	ComparisonReport,
 	LegacyComparisonReport,
+	SingleCaseComparisonReport,
 } from "./comparison-record";
+import type {
+	ProportionInterval,
+	SingleCaseSpread,
+} from "./comparison-estimator";
 import type { ParsedConfirmationGroupRecord } from "./confirmation-record";
 import type { Immutable } from "./contracts";
 
@@ -200,10 +207,122 @@ export function groupSummary(
  * control arm, because a candidate that beats the baseline while both sit at
  * the control's rate has moved nothing.
  */
+function interval(arm: { readonly interval: ProportionInterval }): string {
+	return `${ratio(arm.interval.low)}-${ratio(arm.interval.high)}`;
+}
+
+function spread(estimate: { readonly spread: SingleCaseSpread }): string {
+	return estimate.spread.status === "ESTIMATED"
+		? ratio(estimate.spread.standardError)
+		: "no observed spread";
+}
+
+interface SingleCaseArmRow {
+	readonly name: ComparisonArm;
+	readonly successful: number;
+	readonly requested: number;
+	readonly rate: number;
+	readonly interval: ProportionInterval;
+	readonly passK: number;
+}
+
+/**
+ * Each arm's own counts and interval, which the report carries only inside the
+ * contrasts: every arm appears as the minuend or the subtrahend of at least one
+ * of the three, and the three agree on any arm they share.
+ */
+function armProportions(
+	report: Immutable<SingleCaseComparisonReport>,
+): readonly SingleCaseArmRow[] {
+	const rows = new Map<ComparisonArm, SingleCaseArmRow>();
+
+	for (const contrast of Object.values(report.contrasts)) {
+		for (const quality of contrast.quality) {
+			rows.set(contrast.minuend, {
+				name: contrast.minuend,
+				...quality.successRate.minuend,
+				passK: quality.passK.minuend,
+			});
+			rows.set(contrast.subtrahend, {
+				name: contrast.subtrahend,
+				...quality.successRate.subtrahend,
+				passK: quality.passK.subtrahend,
+			});
+		}
+	}
+
+	return COMPARISON_ARMS.flatMap((arm) => {
+		const row = rows.get(arm);
+
+		return row === undefined ? [] : [row];
+	});
+}
+
+function singleCaseComparisonSummary(
+	digest: string,
+	report: Immutable<SingleCaseComparisonReport>,
+): string {
+	const [benchmarkCase] = report.cases;
+	if (benchmarkCase === undefined) {
+		throw new Error("A single-case comparison report carries no case");
+	}
+
+	const armRows = armProportions(report).map((arm) => [
+		arm.name,
+		`${String(arm.successful)}/${String(arm.requested)}`,
+		ratio(arm.rate),
+		interval(arm),
+		ratio(arm.passK),
+	]);
+	const contrastRows = Object.values(report.contrasts).flatMap((contrast) =>
+		contrast.quality.map((quality) => [
+			`${contrast.minuend} − ${contrast.subtrahend}`,
+			quality.name,
+			delta(quality.successRate.delta),
+			ratio(quality.successRate.standardError),
+			delta(quality.passK.delta),
+		]),
+	);
+	const costRows = Object.values(report.contrasts).map((contrast) => [
+		`${contrast.minuend} − ${contrast.subtrahend}`,
+		contrast.resources.status === "AVAILABLE"
+			? delta(contrast.resources.total.costUsd.delta)
+			: "unavailable",
+		contrast.resources.status === "AVAILABLE"
+			? spread(contrast.resources.total.costUsd)
+			: "unavailable",
+	]);
+
+	return [
+		`## comparison:${digest}`,
+		"",
+		`1 case, ${report.mode} mode, ${String(report.reps)} reps.`,
+		"",
+		`Sampling unit: ${report.samplingUnit}. Arms are independent samples; this estimate covers case ${benchmarkCase.caseId} only.`,
+		"",
+		...table(
+			["arm", "successful", "success rate", "95% interval", "pass^k"],
+			armRows,
+		),
+		"",
+		...table(
+			["contrast", "outcome", "success rate Δ", "standard error", "pass^k Δ"],
+			contrastRows,
+		),
+		"",
+		...table(["contrast", "cost Δ", "standard error"], costRows),
+		"",
+	].join("\n");
+}
+
 export function comparisonSummary(
 	digest: string,
 	report: Immutable<ComparisonReport | LegacyComparisonReport>,
 ): string {
+	if ("samplingUnit" in report) {
+		return singleCaseComparisonSummary(digest, report);
+	}
+
 	const rows = Object.values(report.contrasts).flatMap((contrast) =>
 		contrast.quality.map((quality) => [
 			`${contrast.minuend} − ${contrast.subtrahend}`,

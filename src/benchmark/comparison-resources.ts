@@ -5,9 +5,11 @@ import type { ComparisonProjectionInput } from "./comparison-evidence";
 import type {
 	ComparisonContrast,
 	PairedEstimate,
+	SingleCaseMeanEstimate,
 } from "./comparison-estimator";
 import {
 	buildPairedEstimate,
+	buildSingleCaseMeanEstimate,
 	COMPARISON_CONTRASTS,
 } from "./comparison-estimator";
 import type { ComparisonArm } from "./comparison-record";
@@ -83,6 +85,14 @@ export interface ResourceMetricEstimates {
 	readonly cacheWriteTokens: PairedEstimate;
 }
 
+export interface SingleCaseResourceMetricEstimates {
+	readonly costUsd: SingleCaseMeanEstimate;
+	readonly inputTokens: SingleCaseMeanEstimate;
+	readonly outputTokens: SingleCaseMeanEstimate;
+	readonly cacheReadTokens: SingleCaseMeanEstimate;
+	readonly cacheWriteTokens: SingleCaseMeanEstimate;
+}
+
 export interface UnavailableContrastResources {
 	readonly status: "UNAVAILABLE";
 	readonly missingEvidence: readonly ContrastMissingResourceEvidence[];
@@ -94,6 +104,30 @@ export type ContrastResources =
 
 export interface ResourceContrastReport {
 	readonly resources: ContrastResources;
+}
+
+export interface AvailableSingleCaseContrastResources {
+	readonly status: "AVAILABLE";
+	readonly perRole: Readonly<
+		Record<ResourceRole, SingleCaseResourceMetricEstimates>
+	>;
+	readonly total: SingleCaseResourceMetricEstimates;
+	readonly workerTurns: SingleCaseMeanEstimate;
+}
+
+export type SingleCaseContrastResources =
+	| AvailableSingleCaseContrastResources
+	| UnavailableContrastResources;
+
+export interface SingleCaseResourceContrastReport {
+	readonly resources: SingleCaseContrastResources;
+}
+
+export interface SingleCaseComparisonResourcesReport {
+	readonly cases: readonly ComparisonResourceCase[];
+	readonly contrasts: Readonly<
+		Record<ComparisonContrast, SingleCaseResourceContrastReport>
+	>;
 }
 
 export interface ComparisonResourcesReport {
@@ -240,16 +274,57 @@ function buildResourceMetricEstimates(
 	};
 }
 
+function buildSingleCaseMetricEstimate(
+	request: Readonly<BuildMetricEstimateRequest>,
+): SingleCaseMeanEstimate {
+	const [benchmarkCase] = request.cases;
+	if (benchmarkCase === undefined) {
+		throw new Error("A single-case resource estimate requires one case");
+	}
+
+	return buildSingleCaseMeanEstimate({
+		minuend: request.values(availableResources(benchmarkCase, request.minuend)),
+		subtrahend: request.values(
+			availableResources(benchmarkCase, request.subtrahend),
+		),
+	});
+}
+
+function buildSingleCaseResourceMetricEstimates(
+	request: Readonly<BuildResourceMetricEstimatesRequest>,
+): SingleCaseResourceMetricEstimates {
+	const estimate = (
+		values: (metrics: ResourceMetricSummary) => readonly number[],
+	): SingleCaseMeanEstimate =>
+		buildSingleCaseMetricEstimate({
+			cases: request.cases,
+			minuend: request.minuend,
+			subtrahend: request.subtrahend,
+			values: (resources) => values(request.metrics(resources)),
+		});
+
+	return {
+		costUsd: estimate(({ costUsd }) => costUsd.values),
+		inputTokens: estimate(({ inputTokens }) => inputTokens.values),
+		outputTokens: estimate(({ outputTokens }) => outputTokens.values),
+		cacheReadTokens: estimate(({ cacheReadTokens }) => cacheReadTokens.values),
+		cacheWriteTokens: estimate(
+			({ cacheWriteTokens }) => cacheWriteTokens.values,
+		),
+	};
+}
+
 interface BuildResourceContrastRequest {
 	readonly cases: readonly ComparisonResourceCase[];
 	readonly minuend: ComparisonArm;
 	readonly subtrahend: ComparisonArm;
 }
 
-function buildResourceContrast(
+function contrastMissingEvidence(
 	request: Immutable<BuildResourceContrastRequest>,
-): ResourceContrastReport {
+): readonly ContrastMissingResourceEvidence[] {
 	const missingEvidence: ContrastMissingResourceEvidence[] = [];
+
 	for (const benchmarkCase of request.cases) {
 		for (const arm of [request.minuend, request.subtrahend]) {
 			const resources = benchmarkCase.arms[arm];
@@ -266,6 +341,61 @@ function buildResourceContrast(
 			}
 		}
 	}
+
+	return missingEvidence;
+}
+
+function buildSingleCaseResourceContrast(
+	request: Immutable<BuildResourceContrastRequest>,
+): SingleCaseResourceContrastReport {
+	const missingEvidence = contrastMissingEvidence(request);
+	if (missingEvidence.length > 0) {
+		return { resources: { status: "UNAVAILABLE", missingEvidence } };
+	}
+
+	const metricRequest = {
+		cases: request.cases,
+		minuend: request.minuend,
+		subtrahend: request.subtrahend,
+	};
+
+	return {
+		resources: {
+			status: "AVAILABLE",
+			perRole: {
+				worker: buildSingleCaseResourceMetricEstimates({
+					...metricRequest,
+					metrics: ({ perRole }) => perRole.worker,
+				}),
+				"product-owner": buildSingleCaseResourceMetricEstimates({
+					...metricRequest,
+					metrics: ({ perRole }) => perRole["product-owner"],
+				}),
+				"stage-judge": buildSingleCaseResourceMetricEstimates({
+					...metricRequest,
+					metrics: ({ perRole }) => perRole["stage-judge"],
+				}),
+				"final-judge": buildSingleCaseResourceMetricEstimates({
+					...metricRequest,
+					metrics: ({ perRole }) => perRole["final-judge"],
+				}),
+			},
+			total: buildSingleCaseResourceMetricEstimates({
+				...metricRequest,
+				metrics: ({ total }) => total,
+			}),
+			workerTurns: buildSingleCaseMetricEstimate({
+				...metricRequest,
+				values: ({ workerTurns }) => workerTurns.values,
+			}),
+		},
+	};
+}
+
+function buildResourceContrast(
+	request: Immutable<BuildResourceContrastRequest>,
+): ResourceContrastReport {
+	const missingEvidence = contrastMissingEvidence(request);
 	if (missingEvidence.length > 0) {
 		return { resources: { status: "UNAVAILABLE", missingEvidence } };
 	}
@@ -311,7 +441,7 @@ function buildResourceContrast(
 
 export function buildComparisonResources(
 	request: Immutable<ComparisonProjectionInput>,
-): ComparisonResourcesReport {
+): ComparisonResourcesReport | SingleCaseComparisonResourcesReport {
 	const cases = request.cases.map((benchmarkCase) => ({
 		caseId: benchmarkCase.caseId,
 		arms: {
@@ -322,6 +452,26 @@ export function buildComparisonResources(
 	}));
 	const [candidateMinusBaseline, candidateMinusControl, baselineMinusControl] =
 		COMPARISON_CONTRASTS;
+
+	if (cases.length === 1) {
+		return {
+			cases,
+			contrasts: {
+				candidateMinusBaseline: buildSingleCaseResourceContrast({
+					cases,
+					...candidateMinusBaseline,
+				}),
+				candidateMinusControl: buildSingleCaseResourceContrast({
+					cases,
+					...candidateMinusControl,
+				}),
+				baselineMinusControl: buildSingleCaseResourceContrast({
+					cases,
+					...baselineMinusControl,
+				}),
+			},
+		};
+	}
 
 	return {
 		cases,

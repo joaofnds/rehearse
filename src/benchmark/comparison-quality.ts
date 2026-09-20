@@ -11,9 +11,11 @@ import type { ComparisonProjectionInput } from "./comparison-evidence";
 import type {
 	ComparisonContrast,
 	PairedEstimate,
+	SingleCaseProportionEstimate,
 } from "./comparison-estimator";
 import {
 	buildPairedEstimate,
+	buildSingleCaseProportionEstimate,
 	COMPARISON_CONTRASTS,
 } from "./comparison-estimator";
 import type { ComparisonArm } from "./comparison-record";
@@ -30,14 +32,36 @@ export interface QualityContrastEstimate {
 	readonly passK: PairedEstimate;
 }
 
+export interface SingleCaseQualityContrastEstimate {
+	readonly name: string;
+	readonly successRate: SingleCaseProportionEstimate;
+	readonly passK: {
+		readonly minuend: number;
+		readonly subtrahend: number;
+		readonly delta: number;
+	};
+}
+
 export interface QualityContrastReport {
 	readonly quality: readonly QualityContrastEstimate[];
+}
+
+export interface SingleCaseQualityContrastReport {
+	readonly quality: readonly SingleCaseQualityContrastEstimate[];
 }
 
 export interface ComparisonQualityReport {
 	readonly cases: readonly ComparisonQualityCase[];
 	readonly contrasts: Readonly<
 		Record<ComparisonContrast, QualityContrastReport>
+	>;
+}
+
+export interface SingleCaseComparisonQualityReport {
+	readonly samplingUnit: "rep";
+	readonly cases: readonly ComparisonQualityCase[];
+	readonly contrasts: Readonly<
+		Record<ComparisonContrast, SingleCaseQualityContrastReport>
 	>;
 }
 
@@ -120,9 +144,41 @@ function buildQualityContrast(
 	};
 }
 
+function buildSingleCaseQualityContrast(
+	request: Immutable<BuildQualityContrastRequest>,
+): SingleCaseQualityContrastReport {
+	const [benchmarkCase] = request.cases;
+	if (benchmarkCase === undefined) {
+		throw new Error("A single-case quality contrast requires one case");
+	}
+
+	return {
+		quality: request.names.map((name) => {
+			const minuend = reliabilitySummaryNamed(
+				benchmarkCase.arms[request.minuend],
+				name,
+			);
+			const subtrahend = reliabilitySummaryNamed(
+				benchmarkCase.arms[request.subtrahend],
+				name,
+			);
+
+			return {
+				name,
+				successRate: buildSingleCaseProportionEstimate({ minuend, subtrahend }),
+				passK: {
+					minuend: minuend.passK,
+					subtrahend: subtrahend.passK,
+					delta: minuend.passK - subtrahend.passK,
+				},
+			};
+		}),
+	};
+}
+
 export function buildComparisonQuality(
 	request: Immutable<ComparisonProjectionInput>,
-): ComparisonQualityReport {
+): ComparisonQualityReport | SingleCaseComparisonQualityReport {
 	const cases = request.cases.map((benchmarkCase) => ({
 		caseId: benchmarkCase.caseId,
 		arms: {
@@ -137,6 +193,30 @@ export function buildComparisonQuality(
 	];
 	const [candidateMinusBaseline, candidateMinusControl, baselineMinusControl] =
 		COMPARISON_CONTRASTS;
+
+	if (cases.length === 1) {
+		return {
+			samplingUnit: "rep",
+			cases,
+			contrasts: {
+				candidateMinusBaseline: buildSingleCaseQualityContrast({
+					names,
+					cases,
+					...candidateMinusBaseline,
+				}),
+				candidateMinusControl: buildSingleCaseQualityContrast({
+					names,
+					cases,
+					...candidateMinusControl,
+				}),
+				baselineMinusControl: buildSingleCaseQualityContrast({
+					names,
+					cases,
+					...baselineMinusControl,
+				}),
+			},
+		};
+	}
 
 	return {
 		cases,

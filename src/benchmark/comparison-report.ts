@@ -13,6 +13,9 @@ import type { JudgeAgreementReport } from "./judge-agreement";
 import type {
 	ComparisonQualityCase,
 	ComparisonQualityReport,
+	QualityContrastEstimate,
+	SingleCaseComparisonQualityReport,
+	SingleCaseQualityContrastEstimate,
 } from "./comparison-quality";
 import {
 	buildComparisonQuality,
@@ -24,12 +27,21 @@ import type {
 	ArmResources,
 	ComparisonResourceCase,
 	ComparisonResourcesReport,
+	ContrastResources,
+	SingleCaseComparisonResourcesReport,
+	SingleCaseContrastResources,
 } from "./comparison-resources";
 import { buildComparisonResources } from "./comparison-resources";
 import type { Immutable } from "./contracts";
 
+type ComparisonQualityContrastEstimates = readonly QualityContrastEstimate[];
+type SingleCaseQualityContrastEstimates =
+	readonly SingleCaseQualityContrastEstimate[];
+
 function reportQualityCase(
-	report: Immutable<ComparisonQualityReport>,
+	report: Immutable<
+		ComparisonQualityReport | SingleCaseComparisonQualityReport
+	>,
 	caseId: string,
 ): Immutable<ComparisonQualityCase> {
 	const benchmarkCase = report.cases.find(
@@ -43,7 +55,9 @@ function reportQualityCase(
 }
 
 function reportResourceCase(
-	report: Immutable<ComparisonResourcesReport>,
+	report: Immutable<
+		ComparisonResourcesReport | SingleCaseComparisonResourcesReport
+	>,
 	caseId: string,
 ): Immutable<ComparisonResourceCase> {
 	const benchmarkCase = report.cases.find(
@@ -135,6 +149,15 @@ function buildReportArm(
 	};
 }
 
+interface ReportContrastInput {
+	readonly minuend: ComparisonArm;
+	readonly subtrahend: ComparisonArm;
+	readonly quality:
+		| ComparisonQualityContrastEstimates
+		| SingleCaseQualityContrastEstimates;
+	readonly resources: ContrastResources | SingleCaseContrastResources;
+}
+
 export function buildComparisonReport(
 	evidence: Immutable<ComparisonEvidence>,
 	judgeAgreement: Immutable<JudgeAgreementReport>,
@@ -156,7 +179,7 @@ export function buildComparisonReport(
 	const resources = buildComparisonResources(reportInput);
 	const contrast = (
 		definition: (typeof COMPARISON_CONTRASTS)[number],
-	): ComparisonReport["contrasts"]["candidateMinusBaseline"] => ({
+	): ReportContrastInput => ({
 		minuend: definition.minuend,
 		subtrahend: definition.subtrahend,
 		quality: quality.contrasts[definition.name].quality,
@@ -190,7 +213,7 @@ export function buildComparisonReport(
 			},
 		};
 	});
-	const report = {
+	const common = {
 		schemaVersion: 4 as const,
 		judgeAgreement,
 		manifest: { sha256: evidence.manifest.sha256 },
@@ -204,6 +227,12 @@ export function buildComparisonReport(
 			baselineMinusControl: contrast(COMPARISON_CONTRASTS[2]),
 		},
 	};
+	if ("samplingUnit" in quality) {
+		return comparisonReportSchema.parse({
+			...common,
+			samplingUnit: quality.samplingUnit,
+		});
+	}
 
-	return comparisonReportSchema.parse(report);
+	return comparisonReportSchema.parse(common);
 }

@@ -406,6 +406,110 @@ const reportContrastSchema = z
 	})
 	.strict();
 
+const proportionIntervalSchema = z
+	.object({ low: z.number().min(0).max(1), high: z.number().min(0).max(1) })
+	.strict();
+const singleCaseArmProportionSchema = z
+	.object({
+		successful: z.number().int().nonnegative(),
+		requested: z.number().int().positive(),
+		rate: z.number().min(0).max(1),
+		interval: proportionIntervalSchema,
+	})
+	.strict();
+const singleCaseProportionEstimateSchema = z
+	.object({
+		minuend: singleCaseArmProportionSchema,
+		subtrahend: singleCaseArmProportionSchema,
+		delta: z.number().min(-1).max(1),
+		standardError: z.number().nonnegative(),
+	})
+	.strict();
+const singleCasePassKSchema = z
+	.object({
+		minuend: z.number().min(0).max(1),
+		subtrahend: z.number().min(0).max(1),
+		delta: z.number().min(-1).max(1),
+	})
+	.strict();
+const singleCaseQualityContrastSchema = z
+	.object({
+		name: z.string().min(1),
+		successRate: singleCaseProportionEstimateSchema,
+		passK: singleCasePassKSchema,
+	})
+	.strict();
+const singleCaseSpreadSchema = z.discriminatedUnion("status", [
+	z.object({ status: z.literal("NO_OBSERVED_SPREAD") }).strict(),
+	z
+		.object({
+			status: z.literal("ESTIMATED"),
+			standardError: z.number().nonnegative(),
+		})
+		.strict(),
+]);
+const singleCaseArmMeanSchema = z
+	.object({
+		values: z.array(z.number().nonnegative()).min(1),
+		mean: z.number().nonnegative(),
+	})
+	.strict();
+const singleCaseMeanEstimateSchema = z
+	.object({
+		minuend: singleCaseArmMeanSchema,
+		subtrahend: singleCaseArmMeanSchema,
+		delta: z.number(),
+		spread: singleCaseSpreadSchema,
+	})
+	.strict();
+const singleCaseResourceMetricEstimatesSchema = z
+	.object({
+		costUsd: singleCaseMeanEstimateSchema,
+		inputTokens: singleCaseMeanEstimateSchema,
+		outputTokens: singleCaseMeanEstimateSchema,
+		cacheReadTokens: singleCaseMeanEstimateSchema,
+		cacheWriteTokens: singleCaseMeanEstimateSchema,
+	})
+	.strict();
+const singleCaseResourceRolesEstimatesSchema = z
+	.object({
+		worker: singleCaseResourceMetricEstimatesSchema,
+		"product-owner": singleCaseResourceMetricEstimatesSchema,
+		"stage-judge": singleCaseResourceMetricEstimatesSchema,
+		"final-judge": singleCaseResourceMetricEstimatesSchema,
+	})
+	.strict();
+const singleCaseContrastResourcesSchema = z.discriminatedUnion("status", [
+	z
+		.object({
+			status: z.literal("AVAILABLE"),
+			perRole: singleCaseResourceRolesEstimatesSchema,
+			total: singleCaseResourceMetricEstimatesSchema,
+			workerTurns: singleCaseMeanEstimateSchema,
+		})
+		.strict(),
+	z
+		.object({
+			status: z.literal("UNAVAILABLE"),
+			missingEvidence: z
+				.array(
+					missingResourceEvidenceSchema
+						.extend({ caseId: identitySchema, arm: comparisonArmSchema })
+						.strict(),
+				)
+				.min(1),
+		})
+		.strict(),
+]);
+const singleCaseReportContrastSchema = z
+	.object({
+		minuend: comparisonArmSchema,
+		subtrahend: comparisonArmSchema,
+		quality: z.array(singleCaseQualityContrastSchema).min(1),
+		resources: singleCaseContrastResourcesSchema,
+	})
+	.strict();
+
 const comparisonReportFields = {
 	manifest: z.object({ sha256: sha256Schema }).strict(),
 	mode: comparisonModeSchema,
@@ -480,10 +584,32 @@ const currentSessionComparisonReportSchema = z
 	})
 	.strict();
 
+const currentSingleCaseSessionComparisonReportSchema = z
+	.object({
+		schemaVersion: z.literal(4),
+		judgeAgreement: judgeAgreementReportSchema.extend({
+			baselines: z.array(z.never()).length(0),
+		}),
+		...comparisonReportFields,
+		mode: z.literal("session"),
+		declaredStages: z.tuple([z.literal("checks")]),
+		samplingUnit: z.literal("rep"),
+		cases: z.tuple([currentSessionReportCaseSchema]),
+		contrasts: z
+			.object({
+				candidateMinusBaseline: singleCaseReportContrastSchema,
+				candidateMinusControl: singleCaseReportContrastSchema,
+				baselineMinusControl: singleCaseReportContrastSchema,
+			})
+			.strict(),
+	})
+	.strict();
+
 const currentComparisonReportSchema = z.union([
 	currentStageComparisonReportSchema,
 	currentPipelineComparisonReportSchema,
 	currentSessionComparisonReportSchema,
+	currentSingleCaseSessionComparisonReportSchema,
 ]);
 
 type CurrentComparisonReport = Immutable<
@@ -706,6 +832,14 @@ export const comparisonReportSchema = currentComparisonReportSchema.superRefine(
 
 export type ComparisonReport = Immutable<
 	z.infer<typeof comparisonReportSchema>
+>;
+export type SingleCaseComparisonReport = Immutable<
+	z.infer<typeof currentSingleCaseSessionComparisonReportSchema>
+>;
+export type MultiCaseComparisonReport = Immutable<
+	| z.infer<typeof currentStageComparisonReportSchema>
+	| z.infer<typeof currentPipelineComparisonReportSchema>
+	| z.infer<typeof currentSessionComparisonReportSchema>
 >;
 export type LegacyComparisonReport = Immutable<
 	| z.infer<typeof legacyComparisonReportSchema>

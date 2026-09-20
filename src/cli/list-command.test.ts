@@ -4,8 +4,8 @@ import { homedir, tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { CONTROL_DIR, DEFAULT_CASE_ID } from "#benchmark/config";
 import type {
-	ComparisonReport,
 	LegacyComparisonReport,
+	MultiCaseComparisonReport,
 } from "#benchmark/comparison-record";
 import { parseComparisonReport } from "#benchmark/comparison-record";
 import { comparisonReportPaths } from "#benchmark/run-layout";
@@ -49,7 +49,7 @@ function parseLegacyCandidate(text: string): LegacyComparisonReport {
 }
 
 function withoutOutcomeArm(
-	arm: ComparisonReport["cases"][number]["arms"]["baseline"],
+	arm: MultiCaseComparisonReport["cases"][number]["arms"]["baseline"],
 ): LegacyPipelineArm {
 	return {
 		...arm,
@@ -64,7 +64,9 @@ function withoutOutcomeArm(
 	};
 }
 
-function withoutOutcomes(report: ComparisonReport): VersionTwoReport["cases"] {
+function withoutOutcomes(
+	report: MultiCaseComparisonReport,
+): VersionTwoReport["cases"] {
 	return report.cases.map(({ caseId, arms }) => ({
 		caseId,
 		arms: {
@@ -76,7 +78,7 @@ function withoutOutcomes(report: ComparisonReport): VersionTwoReport["cases"] {
 }
 
 function legacyComparisonReport(
-	report: ComparisonReport,
+	report: MultiCaseComparisonReport,
 	version: 1 | 2 | 3,
 ): LegacyComparisonReport {
 	const cases = withoutOutcomes(report);
@@ -121,7 +123,7 @@ function legacyComparisonReport(
 		}),
 	);
 	const sessionContrast = (
-		contrast: ComparisonReport["contrasts"]["candidateMinusBaseline"],
+		contrast: MultiCaseComparisonReport["contrasts"]["candidateMinusBaseline"],
 	): VersionThreeReport["contrasts"]["candidateMinusBaseline"] => ({
 		...contrast,
 		quality: Array.from(contrast.quality.slice(0, 1), (summary) => ({
@@ -354,8 +356,10 @@ describe(runList.name, () => {
 			const current = parseComparisonReport(
 				await Bun.file(paths.reportFile).text(),
 			);
-			if (current.schemaVersion !== 4) {
-				throw new Error("expected the fixture to write a version-4 report");
+			if (current.schemaVersion !== 4 || "samplingUnit" in current) {
+				throw new Error(
+					"expected the fixture to write a multi-case version-4 report",
+				);
 			}
 			const text = `${JSON.stringify(
 				legacyComparisonReport(current, version),

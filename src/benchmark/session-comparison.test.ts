@@ -671,8 +671,8 @@ describe("session comparison", () => {
 		const report = parseComparisonReport(await Bun.file(reportFile).text());
 
 		expect(report.schemaVersion).toBe(4);
-		if (report.schemaVersion !== 4) {
-			throw new Error("expected a version-4 session comparison report");
+		if (report.schemaVersion !== 4 || "samplingUnit" in report) {
+			throw new Error("expected a multi-case version-4 session report");
 		}
 		expect(report.mode).toBe("session");
 		expect(report.declaredStages).toEqual(["checks"]);
@@ -913,6 +913,30 @@ describe("session comparison", () => {
 		expect(report.cases).toHaveLength(1);
 		expect(report.mode).toBe("session");
 		expect(report.declaredStages).toEqual(["checks"]);
+		if (report.schemaVersion !== 4 || !("samplingUnit" in report)) {
+			throw new Error("expected a single-case version-4 session report");
+		}
+		expect(report.samplingUnit).toBe("rep");
+
+		const digestValue = digest(await Bun.file(manifestPath).text());
+		const shown: string[] = [];
+		await runShow(
+			{ id: `comparison:${digestValue}`, json: false, runsDirectory },
+			{
+				stdout: (text) => {
+					shown.push(text);
+				},
+				stderr: () => undefined,
+			},
+		);
+		const summary = shown.join("");
+
+		expect(summary).toContain("1 case, session mode, 2 reps.");
+		expect(summary).toContain("Sampling unit: rep");
+		expect(summary).not.toContain("final");
+		expect(summary).toContain("| candidate | 2/2 | 1.000 | 0.342-1.000 |");
+		expect(summary).toContain("| control | 0/2 | 0.000 | 0.000-0.658 |");
+		expect(summary).toContain("no observed spread");
 	});
 
 	it("retains no replies, execution failures, and missing metrics", async () => {
