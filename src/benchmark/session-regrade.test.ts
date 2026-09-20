@@ -48,6 +48,46 @@ function savedRecord(
 	});
 }
 
+async function attemptWithTranscript(
+	tools: readonly string[],
+): Promise<string> {
+	const directory = await attemptDirectory();
+	await Bun.write(
+		join(directory, "transcript.jsonl"),
+		tools.map((name) => `${toolUseLine(name)}\n`).join(""),
+	);
+
+	return directory;
+}
+
+function toolUseLine(name: string): string {
+	return JSON.stringify({
+		type: "assistant",
+		message: {
+			content: [{ type: "tool_use", name, input: {} }],
+		},
+	});
+}
+
+/**
+ * The diagnostics a grading pass writes when it read the whole transcript,
+ * which is the state a regrade needs before it may slice at the boundary.
+ */
+function completeBoundary(
+	prefixLinesExcluded: number,
+): SessionAttemptRecord["transcriptDiagnostics"] {
+	return {
+		state: "complete",
+		prefixLinesExcluded,
+		sourceLineCount: 0,
+		measuredLineCount: 0,
+		toolUseOccurrences: { total: 0, byName: [] },
+		toolErrors: [],
+		repeatedBashCommands: [],
+		issues: [],
+	};
+}
+
 function caseDeclaring(checks: SessionCase["checks"]): SessionCase {
 	return {
 		kind: "session",
@@ -74,6 +114,92 @@ function caseDeclaring(checks: SessionCase["checks"]): SessionCase {
 }
 
 describe(regradeAttempt.name, () => {
+	it("grades a reply check against the saved reply", async () => {
+		const directory = await attemptDirectory();
+
+		const assessment = await regradeAttempt({
+			attemptId: { caseId: "smoke", uuid: "attempt-uuid" },
+			record: savedRecord({ reply: "one two three" }),
+			attemptDirectory: directory,
+			sessionCase: caseDeclaring([{ kind: "word-band", max: 2 }]),
+		});
+
+		expect(assessment.checks).toEqual([
+			{
+				kind: "word-band",
+				status: "FAIL",
+				detail: "3 words outside at most 2",
+			},
+		]);
+	});
+
+	it("ignores a forbidden tool the attempt's transcript prefix carries", async () => {
+		const directory = await attemptWithTranscript(["Read", "Bash"]);
+
+		const assessment = await regradeAttempt({
+			attemptId: { caseId: "smoke", uuid: "attempt-uuid" },
+			record: savedRecord({ transcriptDiagnostics: completeBoundary(1) }),
+			attemptDirectory: directory,
+			sessionCase: caseDeclaring([{ kind: "tool-calls", names: ["Bash"] }]),
+		});
+
+		expect(assessment.checks).toEqual([
+			{ kind: "tool-calls", status: "PASS", detail: "1 tool calls" },
+		]);
+	});
+
+	it("counts a forbidden tool called after the boundary", async () => {
+		const directory = await attemptWithTranscript(["Bash", "Read"]);
+
+		const assessment = await regradeAttempt({
+			attemptId: { caseId: "smoke", uuid: "attempt-uuid" },
+			record: savedRecord({ transcriptDiagnostics: completeBoundary(1) }),
+			attemptDirectory: directory,
+			sessionCase: caseDeclaring([{ kind: "tool-calls", names: ["Bash"] }]),
+		});
+
+		expect(assessment.checks).toEqual([
+			{
+				kind: "tool-calls",
+				status: "FAIL",
+				detail: "undeclared tool called: Read",
+			},
+		]);
+	});
+
+	describe("when the record carries no transcript diagnostics", () => {
+		it("reports a transcript check unavailable and still grades the reply", async () => {
+			const directory = await attemptWithTranscript(["Read"]);
+
+			const assessment = await regradeAttempt({
+				attemptId: { caseId: "smoke", uuid: "attempt-uuid" },
+				record: savedRecord({
+					reply: "one two three",
+					transcriptDiagnostics: undefined,
+				}),
+				attemptDirectory: directory,
+				sessionCase: caseDeclaring([
+					{ kind: "tool-calls", names: ["Bash"] },
+					{ kind: "word-band", max: 2 },
+				]),
+			});
+
+			expect(assessment.checks).toEqual([
+				{
+					kind: "tool-calls",
+					status: "UNAVAILABLE",
+					detail:
+						"the attempt recorded no readable transcript boundary, so its tool uses cannot be counted",
+				},
+				{
+					kind: "word-band",
+					status: "FAIL",
+					detail: "3 words outside at most 2",
+				},
+			]);
+		});
+	});
+
 	describe("when the record's transcript is unavailable", () => {
 		it("reports a transcript check unavailable rather than grading an absent transcript", async () => {
 			const directory = await attemptDirectory();
@@ -90,7 +216,7 @@ describe(regradeAttempt.name, () => {
 					kind: "tool-calls",
 					status: "UNAVAILABLE",
 					detail:
-						"the attempt recorded no readable transcript, so its tool uses cannot be counted",
+						"the attempt recorded no readable transcript boundary, so its tool uses cannot be counted",
 				},
 			]);
 		});
