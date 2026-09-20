@@ -302,6 +302,20 @@ describe(assertComparableComparison.name, () => {
 		});
 	});
 
+	it("refuses a single case outside session mode, naming the mode", () => {
+		const cases = [benchmarkCase("case-1", CORPUS_DIGESTS)];
+
+		expect(() => assertComparableComparison(cases)).toThrow(
+			"requires at least two cases in stage mode",
+		);
+	});
+
+	it("refuses a comparison naming no case at all", () => {
+		expect(() => assertComparableComparison([])).toThrow(
+			"requires at least one case",
+		);
+	});
+
 	it("accepts pipeline checkpoints derived from each corpus arm", () => {
 		const cases = [
 			pipelineBenchmarkCase("case-1"),

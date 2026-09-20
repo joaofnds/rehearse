@@ -192,9 +192,10 @@ async function writeManifest(
 	root: string,
 	runsDirectory: string,
 	selectVariant?: AttemptVariantSelector,
+	caseIds: readonly string[] = ["case-one", "case-two"],
 ): Promise<string> {
 	const cases = [];
-	for (const caseId of ["case-one", "case-two"]) {
+	for (const caseId of caseIds) {
 		const arms = {
 			baseline: "",
 			candidate: "",
@@ -895,6 +896,23 @@ describe("session comparison", () => {
 				}),
 			),
 		).toThrow();
+	});
+
+	it("reports one session case across three arms without a second case", async () => {
+		const runsDirectory = join(root, "runs");
+		const manifestPath = await writeManifest(root, runsDirectory, undefined, [
+			"case-one",
+		]);
+
+		const reportFile = await writeComparisonReport({
+			manifestPath,
+			runsDirectory,
+		});
+		const report = parseComparisonReport(await Bun.file(reportFile).text());
+
+		expect(report.cases).toHaveLength(1);
+		expect(report.mode).toBe("session");
+		expect(report.declaredStages).toEqual(["checks"]);
 	});
 
 	it("retains no replies, execution failures, and missing metrics", async () => {

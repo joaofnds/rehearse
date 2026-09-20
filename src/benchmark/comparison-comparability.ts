@@ -372,13 +372,19 @@ export function assertComparableComparison(
 	cases: readonly Immutable<ComparisonCaseEvidence>[],
 ): ComparisonContract {
 	const [firstCase] = cases;
-	if (firstCase === undefined || cases.length < 2) {
+	if (firstCase === undefined) {
 		throw new ComparisonEvidenceError(
-			"case manifest arm all field cases requires at least two cases",
+			"case manifest arm all field cases requires at least one case",
 		);
 	}
 
 	const referenceArm = firstCase.arms.baseline;
+	if (cases.length < 2 && referenceArm.group.record.mode !== "session") {
+		throw new ComparisonEvidenceError(
+			`case manifest arm all field cases requires at least two cases in ${referenceArm.group.record.mode} mode`,
+		);
+	}
+
 	for (const benchmarkCase of cases) {
 		for (const role of COMPARISON_ARMS) {
 			const arm = benchmarkCase.arms[role];
