@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { LoadedCase, SessionCase } from "#benchmark/case";
 import { CaseDeclarationError } from "#benchmark/case";
+import { asRefusedPrecondition } from "#benchmark/preflight";
 import { sessionAttemptPaths } from "#benchmark/run-layout";
 import { parseAssessment } from "#benchmark/session-regrade";
 import { failureOf, recordOutput } from "#cli/cli-test-support";
@@ -152,8 +153,12 @@ describe(runRegrade.name, () => {
 					},
 					{
 						output: recordOutput().output,
-						requireCase: () =>
-							Promise.reject(new CaseDeclarationError("Unknown case smoke")),
+						requireCase: (caseId) =>
+							asRefusedPrecondition(() =>
+								Promise.reject(
+									new CaseDeclarationError(`Unknown case ${caseId}`),
+								),
+							),
 						now: clockAt("2026-09-20T12:00:00.000Z"),
 					},
 				),

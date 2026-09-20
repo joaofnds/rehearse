@@ -49,6 +49,13 @@ function attemptIdFrom(id: string | undefined): SessionAttemptRecordId {
  * substitute. Reporting the gap is what the whole command is for, and saved
  * attempts naming a deleted case are a discarded experiment rather than
  * evidence anyone wants regraded.
+ *
+ * The refusal names the attempt because the operator typed an attempt id and
+ * a message naming only the case leaves them guessing which one they asked
+ * for. `requireCase` has already turned a declaration error into a refusal by
+ * the time it arrives, so both shapes are caught: catching only the
+ * declaration error would leave this branch dead in production while a test
+ * double throwing the raw error kept it looking covered.
  */
 async function caseBehind(
 	id: SessionAttemptRecordId,
@@ -58,9 +65,12 @@ async function caseBehind(
 	try {
 		loaded = await dependencies.requireCase(id.caseId);
 	} catch (error) {
-		if (error instanceof CaseDeclarationError) {
+		if (
+			error instanceof RefusedPreconditionError ||
+			error instanceof CaseDeclarationError
+		) {
 			throw new RefusedPreconditionError(
-				`Attempt ${formatRecordId(id)} names case ${id.caseId}, which no longer exists: ${error.message}`,
+				`Attempt ${formatRecordId(id)} cannot be regraded: ${error.message}`,
 			);
 		}
 
@@ -69,7 +79,7 @@ async function caseBehind(
 
 	if (loaded.kind !== "session") {
 		throw new RefusedPreconditionError(
-			`Case ${id.caseId} is a pipeline case; regrade takes a session case`,
+			`Attempt ${formatRecordId(id)} names case ${id.caseId}, which is a pipeline case; regrade takes a session case`,
 		);
 	}
 
