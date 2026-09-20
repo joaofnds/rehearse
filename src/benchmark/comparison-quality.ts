@@ -144,13 +144,17 @@ function buildQualityContrast(
 	};
 }
 
+interface BuildSingleCaseQualityContrastRequest {
+	readonly names: readonly string[];
+	readonly benchmarkCase: ComparisonQualityCase;
+	readonly minuend: ComparisonArm;
+	readonly subtrahend: ComparisonArm;
+}
+
 function buildSingleCaseQualityContrast(
-	request: Immutable<BuildQualityContrastRequest>,
+	request: Immutable<BuildSingleCaseQualityContrastRequest>,
 ): SingleCaseQualityContrastReport {
-	const [benchmarkCase] = request.cases;
-	if (benchmarkCase === undefined) {
-		throw new Error("A single-case quality contrast requires one case");
-	}
+	const { benchmarkCase } = request;
 
 	return {
 		quality: request.names.map((name) => {
@@ -194,24 +198,25 @@ export function buildComparisonQuality(
 	const [candidateMinusBaseline, candidateMinusControl, baselineMinusControl] =
 		COMPARISON_CONTRASTS;
 
-	if (cases.length === 1) {
+	const [benchmarkCase] = cases;
+	if (benchmarkCase !== undefined && cases.length === 1) {
 		return {
 			samplingUnit: "rep",
 			cases,
 			contrasts: {
 				candidateMinusBaseline: buildSingleCaseQualityContrast({
 					names,
-					cases,
+					benchmarkCase,
 					...candidateMinusBaseline,
 				}),
 				candidateMinusControl: buildSingleCaseQualityContrast({
 					names,
-					cases,
+					benchmarkCase,
 					...candidateMinusControl,
 				}),
 				baselineMinusControl: buildSingleCaseQualityContrast({
 					names,
-					cases,
+					benchmarkCase,
 					...baselineMinusControl,
 				}),
 			},
