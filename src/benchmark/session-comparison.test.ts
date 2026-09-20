@@ -3,8 +3,9 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
-import { parseCaseDeclaration } from "./case";
+import { casesRoot, parseCaseDeclaration, readCaseDeclaration } from "./case";
 import type { SessionCase } from "./case";
+import type { StateCheck, StateResult } from "./session-state-check";
 import {
 	parseConfirmationGroupRecord,
 	parseConfirmationRepRecord,
@@ -91,7 +92,27 @@ function attemptChecks(
 	];
 }
 
-function sessionCase(caseId: string, role: Role): SessionCase {
+/**
+ * One state result per declared outcome. The scorer is not run here: this
+ * harness replaces the provider, and the grades are what a scorer would have
+ * reported for a session that did or did not do the work.
+ */
+function attemptStateResults(
+	stateCheck: Immutable<StateCheck>,
+	pass: boolean,
+): readonly StateResult[] {
+	return stateCheck.outcomes.map((name) => ({
+		name,
+		status: pass ? "PASS" : "FAIL",
+		detail: pass ? `${name} holds` : `${name} does not hold`,
+	}));
+}
+
+function sessionCase(
+	caseId: string,
+	role: Role,
+	stateCheck?: Immutable<StateCheck>,
+): SessionCase {
 	const corpusFiles = role === "control" ? [] : ["output-styles/brief.md"];
 	const prompt = caseId === "case-one" ? "Reply OK." : "Reply OK twice.";
 	const max = caseId === "case-one" ? 1 : 2;
@@ -113,6 +134,7 @@ function sessionCase(caseId: string, role: Role): SessionCase {
 		checks,
 		model: "sonnet" as const,
 		sessionBudgetUsd: 0.2,
+		stateCheck,
 	};
 
 	return {
@@ -127,6 +149,7 @@ function sessionCase(caseId: string, role: Role): SessionCase {
 		corpusFiles,
 		projectFiles: [],
 		checks: declaration.checks,
+		stateCheck,
 	};
 }
 
@@ -136,6 +159,7 @@ async function writeGroup(
 	caseId: string,
 	role: Role,
 	selectVariant?: AttemptVariantSelector,
+	stateCheck?: Immutable<StateCheck>,
 ): Promise<string> {
 	const corpus = join(root, "sources", `${caseId}-${role}`);
 	await mkdir(join(corpus, "output-styles"), { recursive: true });
@@ -146,7 +170,7 @@ async function writeGroup(
 		);
 	}
 
-	const benchmarkCase = sessionCase(caseId, role);
+	const benchmarkCase = sessionCase(caseId, role, stateCheck);
 	const request: SessionConfirmationRequest = {
 		runsDirectory,
 		groupId: `${caseId}-${role}`,
@@ -186,6 +210,10 @@ async function writeGroup(
 					checks: attemptChecks(caseId, pass, plan.ordinal),
 					contextManifest: undefined,
 					transcriptDiagnostics: unavailableTranscriptDiagnostics,
+					stateResults:
+						stateCheck === undefined
+							? undefined
+							: attemptStateResults(stateCheck, pass),
 				};
 				if (variant === "no-reply" || variant === "execution-failed") {
 					const failedAttempt: SessionAttempt = {
@@ -227,6 +255,7 @@ async function writeManifest(
 	runsDirectory: string,
 	selectVariant?: AttemptVariantSelector,
 	caseIds: readonly string[] = ["case-one", "case-two"],
+	stateCheck?: Immutable<StateCheck>,
 ): Promise<string> {
 	const cases = [];
 	for (const caseId of caseIds) {
@@ -242,6 +271,7 @@ async function writeManifest(
 				caseId,
 				role,
 				selectVariant,
+				stateCheck,
 			);
 		}
 		cases.push({ caseId, arms });
@@ -1041,6 +1071,63 @@ describe("session comparison", () => {
 				],
 			},
 		]);
+	});
+
+	it("compares a committed state-scored case across three arms end to end", async () => {
+		const declaration = await readCaseDeclaration("state-probe");
+		if (declaration.kind !== "session") {
+			throw new Error("state-probe is expected to be a session case");
+		}
+		const { stateCheck } = declaration;
+		if (stateCheck === undefined) {
+			throw new Error("state-probe is expected to declare a state check");
+		}
+
+		const runsDirectory = join(root, "runs");
+		const manifestPath = await writeManifest(
+			root,
+			runsDirectory,
+			undefined,
+			["case-one"],
+			stateCheck,
+		);
+
+		const reportFile = await writeComparisonReport({
+			manifestPath,
+			runsDirectory,
+		});
+		const report = parseComparisonReport(await Bun.file(reportFile).text());
+		if (report.schemaVersion !== 4 || !("samplingUnit" in report)) {
+			throw new Error("expected a single-case version-4 session report");
+		}
+		const reps = report.cases[0]?.arms.candidate.source.reps ?? [];
+
+		expect(report.cases).toHaveLength(1);
+		expect(reps.map((rep) => rep.stateResults)).toEqual([
+			{ passed: 3, declared: 3, failing: [] },
+			{ passed: 3, declared: 3, failing: [] },
+		]);
+		expect(
+			report.cases[0]?.arms.control.source.reps.map((rep) => rep.stateResults),
+		).toEqual([
+			{
+				passed: 0,
+				declared: 3,
+				failing: stateCheck.outcomes.map((name) => ({
+					name,
+					detail: `${name} does not hold`,
+				})),
+			},
+			{
+				passed: 0,
+				declared: 3,
+				failing: stateCheck.outcomes.map((name) => ({
+					name,
+					detail: `${name} does not hold`,
+				})),
+			},
+		]);
+		expect(casesRoot()).toContain("cases");
 	});
 
 	it("retains no replies, execution failures, and missing metrics", async () => {
