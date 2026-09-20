@@ -1,0 +1,1868 @@
+{
+	"schemaVersion": 4,
+	"judgeAgreement": {
+		"skippedCalibrations": 0,
+		"baselines": []
+	},
+	"manifest": {
+		"sha256": "8888888888888888888888888888888888888888888888888888888888888888"
+	},
+	"mode": "session",
+	"declaredStages": ["checks"],
+	"reps": 2,
+	"cases": [
+		{
+			"caseId": "case-one",
+			"arms": {
+				"baseline": {
+					"role": "baseline",
+					"source": {
+						"group": {
+							"path": "groups/case-one-baseline/group.json",
+							"sha256": "6666666666666666666666666666666666666666666666666666666666666666"
+						},
+						"reps": [
+							{
+								"path": "groups/case-one-baseline/reps/case-one-baseline-rep-1/rep.json",
+								"sha256": "7777777777777777777777777777777777777777777777777777777777777777",
+								"repId": "case-one-baseline-rep-1",
+								"ordinal": 1,
+								"attempt": {
+									"path": "groups/case-one-baseline/reps/case-one-baseline-rep-1/attempt.json",
+									"sha256": "9999999999999999999999999999999999999999999999999999999999999999"
+								},
+								"outcomes": [
+									{
+										"name": "checks",
+										"status": "JUDGED",
+										"grade": "A",
+										"successful": true
+									}
+								],
+								"checks": {
+									"passed": 1,
+									"declared": 1,
+									"failing": []
+								}
+							},
+							{
+								"path": "groups/case-one-baseline/reps/case-one-baseline-rep-2/rep.json",
+								"sha256": "7777777777777777777777777777777777777777777777777777777777777777",
+								"repId": "case-one-baseline-rep-2",
+								"ordinal": 2,
+								"attempt": {
+									"path": "groups/case-one-baseline/reps/case-one-baseline-rep-2/attempt.json",
+									"sha256": "9999999999999999999999999999999999999999999999999999999999999999"
+								},
+								"outcomes": [
+									{
+										"name": "checks",
+										"status": "JUDGED",
+										"grade": "A",
+										"successful": true
+									}
+								],
+								"checks": {
+									"passed": 1,
+									"declared": 1,
+									"failing": []
+								}
+							}
+						]
+					},
+					"executedCorpus": [
+						{
+							"path": "inputs/corpus/SKILL.md",
+							"sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+						}
+					],
+					"quality": [
+						{
+							"name": "checks",
+							"requested": 2,
+							"attempted": 2,
+							"notReached": 0,
+							"failed": 0,
+							"successful": 2,
+							"gradeDistribution": {
+								"A": 2
+							},
+							"successRate": 1,
+							"standardError": 0,
+							"passK": 1
+						}
+					],
+					"resources": {
+						"status": "AVAILABLE",
+						"completeReps": 2,
+						"missingMetricReps": 0,
+						"perRole": {
+							"worker": {
+								"costUsd": {
+									"values": [0.02, 0.02],
+									"mean": 0.02
+								},
+								"inputTokens": {
+									"values": [10, 10],
+									"mean": 10
+								},
+								"outputTokens": {
+									"values": [2, 2],
+									"mean": 2
+								},
+								"cacheReadTokens": {
+									"values": [3, 3],
+									"mean": 3
+								},
+								"cacheWriteTokens": {
+									"values": [4, 4],
+									"mean": 4
+								}
+							},
+							"product-owner": {
+								"costUsd": {
+									"values": [0, 0],
+									"mean": 0
+								},
+								"inputTokens": {
+									"values": [0, 0],
+									"mean": 0
+								},
+								"outputTokens": {
+									"values": [0, 0],
+									"mean": 0
+								},
+								"cacheReadTokens": {
+									"values": [0, 0],
+									"mean": 0
+								},
+								"cacheWriteTokens": {
+									"values": [0, 0],
+									"mean": 0
+								}
+							},
+							"stage-judge": {
+								"costUsd": {
+									"values": [0, 0],
+									"mean": 0
+								},
+								"inputTokens": {
+									"values": [0, 0],
+									"mean": 0
+								},
+								"outputTokens": {
+									"values": [0, 0],
+									"mean": 0
+								},
+								"cacheReadTokens": {
+									"values": [0, 0],
+									"mean": 0
+								},
+								"cacheWriteTokens": {
+									"values": [0, 0],
+									"mean": 0
+								}
+							},
+							"final-judge": {
+								"costUsd": {
+									"values": [0, 0],
+									"mean": 0
+								},
+								"inputTokens": {
+									"values": [0, 0],
+									"mean": 0
+								},
+								"outputTokens": {
+									"values": [0, 0],
+									"mean": 0
+								},
+								"cacheReadTokens": {
+									"values": [0, 0],
+									"mean": 0
+								},
+								"cacheWriteTokens": {
+									"values": [0, 0],
+									"mean": 0
+								}
+							}
+						},
+						"total": {
+							"costUsd": {
+								"values": [0.02, 0.02],
+								"mean": 0.02
+							},
+							"inputTokens": {
+								"values": [10, 10],
+								"mean": 10
+							},
+							"outputTokens": {
+								"values": [2, 2],
+								"mean": 2
+							},
+							"cacheReadTokens": {
+								"values": [3, 3],
+								"mean": 3
+							},
+							"cacheWriteTokens": {
+								"values": [4, 4],
+								"mean": 4
+							}
+						},
+						"workerTurns": {
+							"values": [1, 1],
+							"mean": 1
+						}
+					}
+				},
+				"candidate": {
+					"role": "candidate",
+					"source": {
+						"group": {
+							"path": "groups/case-one-candidate/group.json",
+							"sha256": "6666666666666666666666666666666666666666666666666666666666666666"
+						},
+						"reps": [
+							{
+								"path": "groups/case-one-candidate/reps/case-one-candidate-rep-1/rep.json",
+								"sha256": "7777777777777777777777777777777777777777777777777777777777777777",
+								"repId": "case-one-candidate-rep-1",
+								"ordinal": 1,
+								"attempt": {
+									"path": "groups/case-one-candidate/reps/case-one-candidate-rep-1/attempt.json",
+									"sha256": "9999999999999999999999999999999999999999999999999999999999999999"
+								},
+								"outcomes": [
+									{
+										"name": "checks",
+										"status": "JUDGED",
+										"grade": "A",
+										"successful": true
+									}
+								],
+								"checks": {
+									"passed": 1,
+									"declared": 1,
+									"failing": []
+								}
+							},
+							{
+								"path": "groups/case-one-candidate/reps/case-one-candidate-rep-2/rep.json",
+								"sha256": "7777777777777777777777777777777777777777777777777777777777777777",
+								"repId": "case-one-candidate-rep-2",
+								"ordinal": 2,
+								"attempt": {
+									"path": "groups/case-one-candidate/reps/case-one-candidate-rep-2/attempt.json",
+									"sha256": "9999999999999999999999999999999999999999999999999999999999999999"
+								},
+								"outcomes": [
+									{
+										"name": "checks",
+										"status": "JUDGED",
+										"grade": "A",
+										"successful": true
+									}
+								],
+								"checks": {
+									"passed": 1,
+									"declared": 1,
+									"failing": []
+								}
+							}
+						]
+					},
+					"executedCorpus": [
+						{
+							"path": "inputs/corpus/SKILL.md",
+							"sha256": "2222222222222222222222222222222222222222222222222222222222222222"
+						}
+					],
+					"quality": [
+						{
+							"name": "checks",
+							"requested": 2,
+							"attempted": 2,
+							"notReached": 0,
+							"failed": 0,
+							"successful": 2,
+							"gradeDistribution": {
+								"A": 2
+							},
+							"successRate": 1,
+							"standardError": 0,
+							"passK": 1
+						}
+					],
+					"resources": {
+						"status": "AVAILABLE",
+						"completeReps": 2,
+						"missingMetricReps": 0,
+						"perRole": {
+							"worker": {
+								"costUsd": {
+									"values": [0.02, 0.02],
+									"mean": 0.02
+								},
+								"inputTokens": {
+									"values": [10, 10],
+									"mean": 10
+								},
+								"outputTokens": {
+									"values": [2, 2],
+									"mean": 2
+								},
+								"cacheReadTokens": {
+									"values": [3, 3],
+									"mean": 3
+								},
+								"cacheWriteTokens": {
+									"values": [4, 4],
+									"mean": 4
+								}
+							},
+							"product-owner": {
+								"costUsd": {
+									"values": [0, 0],
+									"mean": 0
+								},
+								"inputTokens": {
+									"values": [0, 0],
+									"mean": 0
+								},
+								"outputTokens": {
+									"values": [0, 0],
+									"mean": 0
+								},
+								"cacheReadTokens": {
+									"values": [0, 0],
+									"mean": 0
+								},
+								"cacheWriteTokens": {
+									"values": [0, 0],
+									"mean": 0
+								}
+							},
+							"stage-judge": {
+								"costUsd": {
+									"values": [0, 0],
+									"mean": 0
+								},
+								"inputTokens": {
+									"values": [0, 0],
+									"mean": 0
+								},
+								"outputTokens": {
+									"values": [0, 0],
+									"mean": 0
+								},
+								"cacheReadTokens": {
+									"values": [0, 0],
+									"mean": 0
+								},
+								"cacheWriteTokens": {
+									"values": [0, 0],
+									"mean": 0
+								}
+							},
+							"final-judge": {
+								"costUsd": {
+									"values": [0, 0],
+									"mean": 0
+								},
+								"inputTokens": {
+									"values": [0, 0],
+									"mean": 0
+								},
+								"outputTokens": {
+									"values": [0, 0],
+									"mean": 0
+								},
+								"cacheReadTokens": {
+									"values": [0, 0],
+									"mean": 0
+								},
+								"cacheWriteTokens": {
+									"values": [0, 0],
+									"mean": 0
+								}
+							}
+						},
+						"total": {
+							"costUsd": {
+								"values": [0.02, 0.02],
+								"mean": 0.02
+							},
+							"inputTokens": {
+								"values": [10, 10],
+								"mean": 10
+							},
+							"outputTokens": {
+								"values": [2, 2],
+								"mean": 2
+							},
+							"cacheReadTokens": {
+								"values": [3, 3],
+								"mean": 3
+							},
+							"cacheWriteTokens": {
+								"values": [4, 4],
+								"mean": 4
+							}
+						},
+						"workerTurns": {
+							"values": [1, 1],
+							"mean": 1
+						}
+					}
+				},
+				"control": {
+					"role": "control",
+					"source": {
+						"group": {
+							"path": "groups/case-one-control/group.json",
+							"sha256": "6666666666666666666666666666666666666666666666666666666666666666"
+						},
+						"reps": [
+							{
+								"path": "groups/case-one-control/reps/case-one-control-rep-1/rep.json",
+								"sha256": "7777777777777777777777777777777777777777777777777777777777777777",
+								"repId": "case-one-control-rep-1",
+								"ordinal": 1,
+								"attempt": {
+									"path": "groups/case-one-control/reps/case-one-control-rep-1/attempt.json",
+									"sha256": "9999999999999999999999999999999999999999999999999999999999999999"
+								},
+								"outcomes": [
+									{
+										"name": "checks",
+										"status": "JUDGED",
+										"grade": "A",
+										"successful": true
+									}
+								],
+								"checks": {
+									"passed": 1,
+									"declared": 1,
+									"failing": []
+								}
+							},
+							{
+								"path": "groups/case-one-control/reps/case-one-control-rep-2/rep.json",
+								"sha256": "7777777777777777777777777777777777777777777777777777777777777777",
+								"repId": "case-one-control-rep-2",
+								"ordinal": 2,
+								"attempt": {
+									"path": "groups/case-one-control/reps/case-one-control-rep-2/attempt.json",
+									"sha256": "9999999999999999999999999999999999999999999999999999999999999999"
+								},
+								"outcomes": [
+									{
+										"name": "checks",
+										"status": "JUDGED",
+										"grade": "A",
+										"successful": true
+									}
+								],
+								"checks": {
+									"passed": 1,
+									"declared": 1,
+									"failing": []
+								}
+							}
+						]
+					},
+					"executedCorpus": [
+						{
+							"path": "inputs/corpus/SKILL.md",
+							"sha256": "3333333333333333333333333333333333333333333333333333333333333333"
+						}
+					],
+					"quality": [
+						{
+							"name": "checks",
+							"requested": 2,
+							"attempted": 2,
+							"notReached": 0,
+							"failed": 0,
+							"successful": 2,
+							"gradeDistribution": {
+								"A": 2
+							},
+							"successRate": 1,
+							"standardError": 0,
+							"passK": 1
+						}
+					],
+					"resources": {
+						"status": "AVAILABLE",
+						"completeReps": 2,
+						"missingMetricReps": 0,
+						"perRole": {
+							"worker": {
+								"costUsd": {
+									"values": [0.02, 0.02],
+									"mean": 0.02
+								},
+								"inputTokens": {
+									"values": [10, 10],
+									"mean": 10
+								},
+								"outputTokens": {
+									"values": [2, 2],
+									"mean": 2
+								},
+								"cacheReadTokens": {
+									"values": [3, 3],
+									"mean": 3
+								},
+								"cacheWriteTokens": {
+									"values": [4, 4],
+									"mean": 4
+								}
+							},
+							"product-owner": {
+								"costUsd": {
+									"values": [0, 0],
+									"mean": 0
+								},
+								"inputTokens": {
+									"values": [0, 0],
+									"mean": 0
+								},
+								"outputTokens": {
+									"values": [0, 0],
+									"mean": 0
+								},
+								"cacheReadTokens": {
+									"values": [0, 0],
+									"mean": 0
+								},
+								"cacheWriteTokens": {
+									"values": [0, 0],
+									"mean": 0
+								}
+							},
+							"stage-judge": {
+								"costUsd": {
+									"values": [0, 0],
+									"mean": 0
+								},
+								"inputTokens": {
+									"values": [0, 0],
+									"mean": 0
+								},
+								"outputTokens": {
+									"values": [0, 0],
+									"mean": 0
+								},
+								"cacheReadTokens": {
+									"values": [0, 0],
+									"mean": 0
+								},
+								"cacheWriteTokens": {
+									"values": [0, 0],
+									"mean": 0
+								}
+							},
+							"final-judge": {
+								"costUsd": {
+									"values": [0, 0],
+									"mean": 0
+								},
+								"inputTokens": {
+									"values": [0, 0],
+									"mean": 0
+								},
+								"outputTokens": {
+									"values": [0, 0],
+									"mean": 0
+								},
+								"cacheReadTokens": {
+									"values": [0, 0],
+									"mean": 0
+								},
+								"cacheWriteTokens": {
+									"values": [0, 0],
+									"mean": 0
+								}
+							}
+						},
+						"total": {
+							"costUsd": {
+								"values": [0.02, 0.02],
+								"mean": 0.02
+							},
+							"inputTokens": {
+								"values": [10, 10],
+								"mean": 10
+							},
+							"outputTokens": {
+								"values": [2, 2],
+								"mean": 2
+							},
+							"cacheReadTokens": {
+								"values": [3, 3],
+								"mean": 3
+							},
+							"cacheWriteTokens": {
+								"values": [4, 4],
+								"mean": 4
+							}
+						},
+						"workerTurns": {
+							"values": [1, 1],
+							"mean": 1
+						}
+					}
+				}
+			}
+		}
+	],
+	"contrasts": {
+		"candidateMinusBaseline": {
+			"minuend": "candidate",
+			"subtrahend": "baseline",
+			"quality": [
+				{
+					"name": "checks",
+					"successRate": {
+						"minuend": {
+							"successful": 2,
+							"requested": 2,
+							"rate": 1,
+							"interval": {
+								"low": 0.3423802274009781,
+								"high": 1
+							}
+						},
+						"subtrahend": {
+							"successful": 2,
+							"requested": 2,
+							"rate": 1,
+							"interval": {
+								"low": 0.3423802274009781,
+								"high": 1
+							}
+						},
+						"delta": 0,
+						"standardError": 0
+					},
+					"passK": {
+						"minuend": 1,
+						"subtrahend": 1,
+						"delta": 0
+					}
+				}
+			],
+			"resources": {
+				"status": "AVAILABLE",
+				"perRole": {
+					"worker": {
+						"costUsd": {
+							"minuend": {
+								"values": [0.02, 0.02],
+								"mean": 0.02
+							},
+							"subtrahend": {
+								"values": [0.02, 0.02],
+								"mean": 0.02
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						},
+						"inputTokens": {
+							"minuend": {
+								"values": [10, 10],
+								"mean": 10
+							},
+							"subtrahend": {
+								"values": [10, 10],
+								"mean": 10
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						},
+						"outputTokens": {
+							"minuend": {
+								"values": [2, 2],
+								"mean": 2
+							},
+							"subtrahend": {
+								"values": [2, 2],
+								"mean": 2
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						},
+						"cacheReadTokens": {
+							"minuend": {
+								"values": [3, 3],
+								"mean": 3
+							},
+							"subtrahend": {
+								"values": [3, 3],
+								"mean": 3
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						},
+						"cacheWriteTokens": {
+							"minuend": {
+								"values": [4, 4],
+								"mean": 4
+							},
+							"subtrahend": {
+								"values": [4, 4],
+								"mean": 4
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						}
+					},
+					"product-owner": {
+						"costUsd": {
+							"minuend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"subtrahend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						},
+						"inputTokens": {
+							"minuend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"subtrahend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						},
+						"outputTokens": {
+							"minuend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"subtrahend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						},
+						"cacheReadTokens": {
+							"minuend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"subtrahend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						},
+						"cacheWriteTokens": {
+							"minuend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"subtrahend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						}
+					},
+					"stage-judge": {
+						"costUsd": {
+							"minuend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"subtrahend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						},
+						"inputTokens": {
+							"minuend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"subtrahend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						},
+						"outputTokens": {
+							"minuend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"subtrahend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						},
+						"cacheReadTokens": {
+							"minuend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"subtrahend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						},
+						"cacheWriteTokens": {
+							"minuend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"subtrahend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						}
+					},
+					"final-judge": {
+						"costUsd": {
+							"minuend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"subtrahend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						},
+						"inputTokens": {
+							"minuend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"subtrahend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						},
+						"outputTokens": {
+							"minuend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"subtrahend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						},
+						"cacheReadTokens": {
+							"minuend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"subtrahend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						},
+						"cacheWriteTokens": {
+							"minuend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"subtrahend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						}
+					}
+				},
+				"total": {
+					"costUsd": {
+						"minuend": {
+							"values": [0.02, 0.02],
+							"mean": 0.02
+						},
+						"subtrahend": {
+							"values": [0.02, 0.02],
+							"mean": 0.02
+						},
+						"delta": 0,
+						"spread": {
+							"status": "NO_OBSERVED_SPREAD"
+						}
+					},
+					"inputTokens": {
+						"minuend": {
+							"values": [10, 10],
+							"mean": 10
+						},
+						"subtrahend": {
+							"values": [10, 10],
+							"mean": 10
+						},
+						"delta": 0,
+						"spread": {
+							"status": "NO_OBSERVED_SPREAD"
+						}
+					},
+					"outputTokens": {
+						"minuend": {
+							"values": [2, 2],
+							"mean": 2
+						},
+						"subtrahend": {
+							"values": [2, 2],
+							"mean": 2
+						},
+						"delta": 0,
+						"spread": {
+							"status": "NO_OBSERVED_SPREAD"
+						}
+					},
+					"cacheReadTokens": {
+						"minuend": {
+							"values": [3, 3],
+							"mean": 3
+						},
+						"subtrahend": {
+							"values": [3, 3],
+							"mean": 3
+						},
+						"delta": 0,
+						"spread": {
+							"status": "NO_OBSERVED_SPREAD"
+						}
+					},
+					"cacheWriteTokens": {
+						"minuend": {
+							"values": [4, 4],
+							"mean": 4
+						},
+						"subtrahend": {
+							"values": [4, 4],
+							"mean": 4
+						},
+						"delta": 0,
+						"spread": {
+							"status": "NO_OBSERVED_SPREAD"
+						}
+					}
+				},
+				"workerTurns": {
+					"minuend": {
+						"values": [1, 1],
+						"mean": 1
+					},
+					"subtrahend": {
+						"values": [1, 1],
+						"mean": 1
+					},
+					"delta": 0,
+					"spread": {
+						"status": "NO_OBSERVED_SPREAD"
+					}
+				}
+			}
+		},
+		"candidateMinusControl": {
+			"minuend": "candidate",
+			"subtrahend": "control",
+			"quality": [
+				{
+					"name": "checks",
+					"successRate": {
+						"minuend": {
+							"successful": 2,
+							"requested": 2,
+							"rate": 1,
+							"interval": {
+								"low": 0.3423802274009781,
+								"high": 1
+							}
+						},
+						"subtrahend": {
+							"successful": 2,
+							"requested": 2,
+							"rate": 1,
+							"interval": {
+								"low": 0.3423802274009781,
+								"high": 1
+							}
+						},
+						"delta": 0,
+						"standardError": 0
+					},
+					"passK": {
+						"minuend": 1,
+						"subtrahend": 1,
+						"delta": 0
+					}
+				}
+			],
+			"resources": {
+				"status": "AVAILABLE",
+				"perRole": {
+					"worker": {
+						"costUsd": {
+							"minuend": {
+								"values": [0.02, 0.02],
+								"mean": 0.02
+							},
+							"subtrahend": {
+								"values": [0.02, 0.02],
+								"mean": 0.02
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						},
+						"inputTokens": {
+							"minuend": {
+								"values": [10, 10],
+								"mean": 10
+							},
+							"subtrahend": {
+								"values": [10, 10],
+								"mean": 10
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						},
+						"outputTokens": {
+							"minuend": {
+								"values": [2, 2],
+								"mean": 2
+							},
+							"subtrahend": {
+								"values": [2, 2],
+								"mean": 2
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						},
+						"cacheReadTokens": {
+							"minuend": {
+								"values": [3, 3],
+								"mean": 3
+							},
+							"subtrahend": {
+								"values": [3, 3],
+								"mean": 3
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						},
+						"cacheWriteTokens": {
+							"minuend": {
+								"values": [4, 4],
+								"mean": 4
+							},
+							"subtrahend": {
+								"values": [4, 4],
+								"mean": 4
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						}
+					},
+					"product-owner": {
+						"costUsd": {
+							"minuend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"subtrahend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						},
+						"inputTokens": {
+							"minuend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"subtrahend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						},
+						"outputTokens": {
+							"minuend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"subtrahend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						},
+						"cacheReadTokens": {
+							"minuend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"subtrahend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						},
+						"cacheWriteTokens": {
+							"minuend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"subtrahend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						}
+					},
+					"stage-judge": {
+						"costUsd": {
+							"minuend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"subtrahend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						},
+						"inputTokens": {
+							"minuend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"subtrahend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						},
+						"outputTokens": {
+							"minuend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"subtrahend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						},
+						"cacheReadTokens": {
+							"minuend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"subtrahend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						},
+						"cacheWriteTokens": {
+							"minuend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"subtrahend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						}
+					},
+					"final-judge": {
+						"costUsd": {
+							"minuend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"subtrahend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						},
+						"inputTokens": {
+							"minuend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"subtrahend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						},
+						"outputTokens": {
+							"minuend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"subtrahend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						},
+						"cacheReadTokens": {
+							"minuend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"subtrahend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						},
+						"cacheWriteTokens": {
+							"minuend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"subtrahend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						}
+					}
+				},
+				"total": {
+					"costUsd": {
+						"minuend": {
+							"values": [0.02, 0.02],
+							"mean": 0.02
+						},
+						"subtrahend": {
+							"values": [0.02, 0.02],
+							"mean": 0.02
+						},
+						"delta": 0,
+						"spread": {
+							"status": "NO_OBSERVED_SPREAD"
+						}
+					},
+					"inputTokens": {
+						"minuend": {
+							"values": [10, 10],
+							"mean": 10
+						},
+						"subtrahend": {
+							"values": [10, 10],
+							"mean": 10
+						},
+						"delta": 0,
+						"spread": {
+							"status": "NO_OBSERVED_SPREAD"
+						}
+					},
+					"outputTokens": {
+						"minuend": {
+							"values": [2, 2],
+							"mean": 2
+						},
+						"subtrahend": {
+							"values": [2, 2],
+							"mean": 2
+						},
+						"delta": 0,
+						"spread": {
+							"status": "NO_OBSERVED_SPREAD"
+						}
+					},
+					"cacheReadTokens": {
+						"minuend": {
+							"values": [3, 3],
+							"mean": 3
+						},
+						"subtrahend": {
+							"values": [3, 3],
+							"mean": 3
+						},
+						"delta": 0,
+						"spread": {
+							"status": "NO_OBSERVED_SPREAD"
+						}
+					},
+					"cacheWriteTokens": {
+						"minuend": {
+							"values": [4, 4],
+							"mean": 4
+						},
+						"subtrahend": {
+							"values": [4, 4],
+							"mean": 4
+						},
+						"delta": 0,
+						"spread": {
+							"status": "NO_OBSERVED_SPREAD"
+						}
+					}
+				},
+				"workerTurns": {
+					"minuend": {
+						"values": [1, 1],
+						"mean": 1
+					},
+					"subtrahend": {
+						"values": [1, 1],
+						"mean": 1
+					},
+					"delta": 0,
+					"spread": {
+						"status": "NO_OBSERVED_SPREAD"
+					}
+				}
+			}
+		},
+		"baselineMinusControl": {
+			"minuend": "baseline",
+			"subtrahend": "control",
+			"quality": [
+				{
+					"name": "checks",
+					"successRate": {
+						"minuend": {
+							"successful": 2,
+							"requested": 2,
+							"rate": 1,
+							"interval": {
+								"low": 0.3423802274009781,
+								"high": 1
+							}
+						},
+						"subtrahend": {
+							"successful": 2,
+							"requested": 2,
+							"rate": 1,
+							"interval": {
+								"low": 0.3423802274009781,
+								"high": 1
+							}
+						},
+						"delta": 0,
+						"standardError": 0
+					},
+					"passK": {
+						"minuend": 1,
+						"subtrahend": 1,
+						"delta": 0
+					}
+				}
+			],
+			"resources": {
+				"status": "AVAILABLE",
+				"perRole": {
+					"worker": {
+						"costUsd": {
+							"minuend": {
+								"values": [0.02, 0.02],
+								"mean": 0.02
+							},
+							"subtrahend": {
+								"values": [0.02, 0.02],
+								"mean": 0.02
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						},
+						"inputTokens": {
+							"minuend": {
+								"values": [10, 10],
+								"mean": 10
+							},
+							"subtrahend": {
+								"values": [10, 10],
+								"mean": 10
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						},
+						"outputTokens": {
+							"minuend": {
+								"values": [2, 2],
+								"mean": 2
+							},
+							"subtrahend": {
+								"values": [2, 2],
+								"mean": 2
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						},
+						"cacheReadTokens": {
+							"minuend": {
+								"values": [3, 3],
+								"mean": 3
+							},
+							"subtrahend": {
+								"values": [3, 3],
+								"mean": 3
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						},
+						"cacheWriteTokens": {
+							"minuend": {
+								"values": [4, 4],
+								"mean": 4
+							},
+							"subtrahend": {
+								"values": [4, 4],
+								"mean": 4
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						}
+					},
+					"product-owner": {
+						"costUsd": {
+							"minuend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"subtrahend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						},
+						"inputTokens": {
+							"minuend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"subtrahend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						},
+						"outputTokens": {
+							"minuend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"subtrahend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						},
+						"cacheReadTokens": {
+							"minuend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"subtrahend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						},
+						"cacheWriteTokens": {
+							"minuend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"subtrahend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						}
+					},
+					"stage-judge": {
+						"costUsd": {
+							"minuend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"subtrahend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						},
+						"inputTokens": {
+							"minuend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"subtrahend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						},
+						"outputTokens": {
+							"minuend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"subtrahend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						},
+						"cacheReadTokens": {
+							"minuend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"subtrahend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						},
+						"cacheWriteTokens": {
+							"minuend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"subtrahend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						}
+					},
+					"final-judge": {
+						"costUsd": {
+							"minuend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"subtrahend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						},
+						"inputTokens": {
+							"minuend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"subtrahend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						},
+						"outputTokens": {
+							"minuend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"subtrahend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						},
+						"cacheReadTokens": {
+							"minuend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"subtrahend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						},
+						"cacheWriteTokens": {
+							"minuend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"subtrahend": {
+								"values": [0, 0],
+								"mean": 0
+							},
+							"delta": 0,
+							"spread": {
+								"status": "NO_OBSERVED_SPREAD"
+							}
+						}
+					}
+				},
+				"total": {
+					"costUsd": {
+						"minuend": {
+							"values": [0.02, 0.02],
+							"mean": 0.02
+						},
+						"subtrahend": {
+							"values": [0.02, 0.02],
+							"mean": 0.02
+						},
+						"delta": 0,
+						"spread": {
+							"status": "NO_OBSERVED_SPREAD"
+						}
+					},
+					"inputTokens": {
+						"minuend": {
+							"values": [10, 10],
+							"mean": 10
+						},
+						"subtrahend": {
+							"values": [10, 10],
+							"mean": 10
+						},
+						"delta": 0,
+						"spread": {
+							"status": "NO_OBSERVED_SPREAD"
+						}
+					},
+					"outputTokens": {
+						"minuend": {
+							"values": [2, 2],
+							"mean": 2
+						},
+						"subtrahend": {
+							"values": [2, 2],
+							"mean": 2
+						},
+						"delta": 0,
+						"spread": {
+							"status": "NO_OBSERVED_SPREAD"
+						}
+					},
+					"cacheReadTokens": {
+						"minuend": {
+							"values": [3, 3],
+							"mean": 3
+						},
+						"subtrahend": {
+							"values": [3, 3],
+							"mean": 3
+						},
+						"delta": 0,
+						"spread": {
+							"status": "NO_OBSERVED_SPREAD"
+						}
+					},
+					"cacheWriteTokens": {
+						"minuend": {
+							"values": [4, 4],
+							"mean": 4
+						},
+						"subtrahend": {
+							"values": [4, 4],
+							"mean": 4
+						},
+						"delta": 0,
+						"spread": {
+							"status": "NO_OBSERVED_SPREAD"
+						}
+					}
+				},
+				"workerTurns": {
+					"minuend": {
+						"values": [1, 1],
+						"mean": 1
+					},
+					"subtrahend": {
+						"values": [1, 1],
+						"mean": 1
+					},
+					"delta": 0,
+					"spread": {
+						"status": "NO_OBSERVED_SPREAD"
+					}
+				}
+			}
+		}
+	},
+	"samplingUnit": "rep"
+}

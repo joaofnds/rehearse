@@ -291,7 +291,7 @@ export function buildComparisonReport(
 		};
 	});
 	const common = {
-		schemaVersion: 4 as const,
+		schemaVersion: 5 as const,
 		judgeAgreement,
 		manifest: { sha256: evidence.manifest.sha256 },
 		mode: evidence.contract.mode,

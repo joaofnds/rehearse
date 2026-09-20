@@ -42,6 +42,19 @@ function digest(text: string): string {
 	return createHash("sha256").update(text).digest("hex");
 }
 
+/**
+ * The reps here run against a fake provider on a real clock, so their elapsed
+ * time is whatever the machine took. Its two cells are replaced so the rest of
+ * the summary stays a byte-for-byte assertion; the elapsed figures themselves
+ * are pinned in record-summary.test.ts against fixed durations.
+ */
+function withoutMeasuredElapsed(summary: string): string {
+	return summary.replaceAll(
+		/(?<costSpread>no observed spread \| )[^|]+\| [^|]+\|/gu,
+		"$<costSpread><measured> | <measured> |",
+	);
+}
+
 const metrics = {
 	costUsd: 0.02,
 	inputTokens: 10,
@@ -786,9 +799,9 @@ describe("session comparison", () => {
 		});
 		const report = parseComparisonReport(await Bun.file(reportFile).text());
 
-		expect(report.schemaVersion).toBe(4);
-		if (report.schemaVersion !== 4 || "samplingUnit" in report) {
-			throw new Error("expected a multi-case version-4 session report");
+		expect(report.schemaVersion).toBe(5);
+		if (report.schemaVersion !== 5 || "samplingUnit" in report) {
+			throw new Error("expected a multi-case version-5 session report");
 		}
 		expect(report.mode).toBe("session");
 		expect(report.declaredStages).toEqual(["checks"]);
@@ -975,7 +988,7 @@ describe("session comparison", () => {
 				stderr: () => undefined,
 			},
 		);
-		expect(parseComparisonReport(shownJson.join("")).schemaVersion).toBe(4);
+		expect(parseComparisonReport(shownJson.join("")).schemaVersion).toBe(5);
 		expect(() =>
 			parseComparisonReport(JSON.stringify({ ...report, mode: "pipeline" })),
 		).toThrow();
@@ -1030,8 +1043,8 @@ describe("session comparison", () => {
 		expect(report.cases).toHaveLength(1);
 		expect(report.mode).toBe("session");
 		expect(report.declaredStages).toEqual(["checks"]);
-		if (report.schemaVersion !== 4 || !("samplingUnit" in report)) {
-			throw new Error("expected a single-case version-4 session report");
+		if (report.schemaVersion !== 5 || !("samplingUnit" in report)) {
+			throw new Error("expected a single-case version-5 session report");
 		}
 		expect(report.samplingUnit).toBe("rep");
 
@@ -1046,7 +1059,7 @@ describe("session comparison", () => {
 				stderr: () => undefined,
 			},
 		);
-		const summary = shown.join("");
+		const summary = withoutMeasuredElapsed(shown.join(""));
 
 		const listed: string[] = [];
 		await runList(
@@ -1080,11 +1093,11 @@ Sampling unit: rep. Arms are independent samples; this estimate covers case case
 | candidate − control | checks | +1.000 | 0.000 | +1.000 |
 | baseline − control | checks | +0.500 | 0.354 | +0.250 |
 
-| contrast | cost Δ | standard error |
-| --- | --- | --- |
-| candidate − baseline | +0.000 | no observed spread |
-| candidate − control | +0.000 | no observed spread |
-| baseline − control | +0.000 | no observed spread |
+| contrast | cost Δ | standard error | per-attempt elapsed Δ (ms) | standard error |
+| --- | --- | --- | --- | --- |
+| candidate − baseline | +0.000 | no observed spread | <measured> | <measured> |
+| candidate − control | +0.000 | no observed spread | <measured> | <measured> |
+| baseline − control | +0.000 | no observed spread | <measured> | <measured> |
 `,
 		);
 
@@ -1134,8 +1147,8 @@ Sampling unit: rep. Arms are independent samples; this estimate covers case case
 			runsDirectory,
 		});
 		const report = parseComparisonReport(await Bun.file(reportFile).text());
-		if (report.schemaVersion !== 4 || !("samplingUnit" in report)) {
-			throw new Error("expected a single-case version-4 session report");
+		if (report.schemaVersion !== 5 || !("samplingUnit" in report)) {
+			throw new Error("expected a single-case version-5 session report");
 		}
 		const reps = report.cases[0]?.arms.baseline.source.reps ?? [];
 
@@ -1193,8 +1206,8 @@ Sampling unit: rep. Arms are independent samples; this estimate covers case case
 			runsDirectory,
 		});
 		const report = parseComparisonReport(await Bun.file(reportFile).text());
-		if (report.schemaVersion !== 4 || !("samplingUnit" in report)) {
-			throw new Error("expected a single-case version-4 session report");
+		if (report.schemaVersion !== 5 || !("samplingUnit" in report)) {
+			throw new Error("expected a single-case version-5 session report");
 		}
 		const reps = report.cases[0]?.arms.candidate.source.reps ?? [];
 
@@ -1249,8 +1262,8 @@ Sampling unit: rep. Arms are independent samples; this estimate covers case case
 				await writeComparisonReport({ manifestPath, runsDirectory }),
 			).text(),
 		);
-		if (report.schemaVersion !== 4 || report.mode !== "session") {
-			throw new Error("expected a version-4 session comparison report");
+		if (report.schemaVersion !== 5 || report.mode !== "session") {
+			throw new Error("expected a version-5 session comparison report");
 		}
 		const [benchmarkCase] = report.cases;
 		if (benchmarkCase === undefined) {
@@ -1322,8 +1335,8 @@ Sampling unit: rep. Arms are independent samples; this estimate covers case case
 					await writeComparisonReport({ manifestPath, runsDirectory }),
 				).text(),
 			);
-			if (report.schemaVersion !== 4 || report.mode !== "session") {
-				throw new Error("expected a version-4 session comparison report");
+			if (report.schemaVersion !== 5 || report.mode !== "session") {
+				throw new Error("expected a version-5 session comparison report");
 			}
 			const candidate = {
 				...report,
@@ -2029,8 +2042,8 @@ describe("a committed state-scored case compared across three arms", () => {
 			runsDirectory,
 		});
 		const report = parseComparisonReport(await Bun.file(reportFile).text());
-		if (report.schemaVersion !== 4 || !("samplingUnit" in report)) {
-			throw new Error("expected a single-case version-4 session report");
+		if (report.schemaVersion !== 5 || !("samplingUnit" in report)) {
+			throw new Error("expected a single-case version-5 session report");
 		}
 
 		/**

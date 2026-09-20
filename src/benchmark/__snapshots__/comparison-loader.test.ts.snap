@@ -2,7 +2,7 @@
 
 exports[`loadComparisonEvidence serializes a completed comparison fixture byte for byte 1`] = `
 "{
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "judgeAgreement": {
     "skippedCalibrations": 0,
     "baselines": []
@@ -276,6 +276,13 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                 2
               ],
               "mean": 1.5
+            },
+            "elapsedMs": {
+              "values": [
+                100,
+                200
+              ],
+              "mean": 150
             }
           }
         },
@@ -536,6 +543,13 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                 2
               ],
               "mean": 1.5
+            },
+            "elapsedMs": {
+              "values": [
+                100,
+                200
+              ],
+              "mean": 150
             }
           }
         },
@@ -796,6 +810,13 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                 2
               ],
               "mean": 1.5
+            },
+            "elapsedMs": {
+              "values": [
+                100,
+                200
+              ],
+              "mean": 150
             }
           }
         }
@@ -1061,6 +1082,13 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                 2
               ],
               "mean": 1.5
+            },
+            "elapsedMs": {
+              "values": [
+                100,
+                200
+              ],
+              "mean": 150
             }
           }
         },
@@ -1321,6 +1349,13 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                 2
               ],
               "mean": 1.5
+            },
+            "elapsedMs": {
+              "values": [
+                100,
+                200
+              ],
+              "mean": 150
             }
           }
         },
@@ -1581,6 +1616,13 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                 2
               ],
               "mean": 1.5
+            },
+            "elapsedMs": {
+              "values": [
+                100,
+                200
+              ],
+              "mean": 150
             }
           }
         }
@@ -1989,6 +2031,20 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
           }
         },
         "workerTurns": {
+          "caseDeltas": [
+            {
+              "caseId": "case-1",
+              "value": 0
+            },
+            {
+              "caseId": "case-2",
+              "value": 0
+            }
+          ],
+          "meanDelta": 0,
+          "standardError": 0
+        },
+        "elapsedMs": {
           "caseDeltas": [
             {
               "caseId": "case-1",
@@ -2417,6 +2473,20 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
           ],
           "meanDelta": 0,
           "standardError": 0
+        },
+        "elapsedMs": {
+          "caseDeltas": [
+            {
+              "caseId": "case-1",
+              "value": 0
+            },
+            {
+              "caseId": "case-2",
+              "value": 0
+            }
+          ],
+          "meanDelta": 0,
+          "standardError": 0
         }
       }
     },
@@ -2821,6 +2891,20 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
           }
         },
         "workerTurns": {
+          "caseDeltas": [
+            {
+              "caseId": "case-1",
+              "value": 0
+            },
+            {
+              "caseId": "case-2",
+              "value": 0
+            }
+          ],
+          "meanDelta": 0,
+          "standardError": 0
+        },
+        "elapsedMs": {
           "caseDeltas": [
             {
               "caseId": "case-1",

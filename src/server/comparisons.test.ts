@@ -15,6 +15,7 @@ import {
 import type {
 	ComparisonReport,
 	LegacyComparisonReport,
+	MultiCaseComparisonReport,
 } from "#benchmark/comparison-record";
 import { comparisonReportPaths } from "#benchmark/run-layout";
 import { createApiApp } from "./api";
@@ -72,6 +73,42 @@ async function comparisonResponseFrom(
 	};
 }
 
+type CurrentArmResources =
+	MultiCaseComparisonReport["cases"][number]["arms"]["baseline"]["resources"];
+type CurrentContrastResources =
+	MultiCaseComparisonReport["contrasts"]["candidateMinusBaseline"]["resources"];
+
+type VersionThreeReport = Extract<
+	LegacyComparisonReport,
+	{ readonly schemaVersion: 3 }
+>;
+type LegacyArmResources =
+	VersionThreeReport["cases"][number]["arms"]["baseline"]["resources"];
+type LegacyContrastResources =
+	VersionThreeReport["contrasts"]["candidateMinusBaseline"]["resources"];
+
+function armResourcesWithoutElapsed(
+	resources: CurrentArmResources,
+): LegacyArmResources {
+	if (resources.status === "UNAVAILABLE") {
+		return resources;
+	}
+	const { elapsedMs: _elapsedMs, ...withoutIt } = resources;
+
+	return withoutIt;
+}
+
+function contrastResourcesWithoutElapsed(
+	resources: CurrentContrastResources,
+): LegacyContrastResources {
+	if (resources.status === "UNAVAILABLE") {
+		return resources;
+	}
+	const { elapsedMs: _elapsedMs, ...withoutIt } = resources;
+
+	return withoutIt;
+}
+
 async function rewriteFixtureAsSession(
 	fixture: RecordedRunsFixture,
 ): Promise<void> {
@@ -80,7 +117,7 @@ async function rewriteFixtureAsSession(
 		fixture.comparisonDigest,
 	);
 	const pipeline = parseComparisonReport(await Bun.file(reportFile).text());
-	if (pipeline.schemaVersion !== 4 || pipeline.mode !== "pipeline") {
+	if (pipeline.schemaVersion !== 5 || pipeline.mode !== "pipeline") {
 		throw new Error("expected the fixture to write a current pipeline report");
 	}
 
@@ -97,6 +134,7 @@ async function rewriteFixtureAsSession(
 					role,
 					{
 						...arms[role],
+						resources: armResourcesWithoutElapsed(arms[role].resources),
 						source: {
 							...arms[role].source,
 							reps: arms[role].source.reps.map((rep) => {
@@ -128,6 +166,7 @@ async function rewriteFixtureAsSession(
 				pair,
 				{
 					...contrast,
+					resources: contrastResourcesWithoutElapsed(contrast.resources),
 					quality: [{ ...contrast.quality[0], name: "checks" }],
 				},
 			]),
@@ -148,7 +187,7 @@ async function rewriteFixtureAsLegacyPipeline(
 		fixture.comparisonDigest,
 	);
 	const current = parseComparisonReport(await Bun.file(reportFile).text());
-	if (current.schemaVersion !== 4 || current.mode !== "pipeline") {
+	if (current.schemaVersion !== 5 || current.mode !== "pipeline") {
 		throw new Error("expected the fixture to write a current pipeline report");
 	}
 	const cases = current.cases.map(({ caseId, arms }) => ({
@@ -158,6 +197,7 @@ async function rewriteFixtureAsLegacyPipeline(
 				role,
 				{
 					...arms[role],
+					resources: armResourcesWithoutElapsed(arms[role].resources),
 					source: {
 						...arms[role].source,
 						reps: arms[role].source.reps.map((rep) => {
@@ -170,13 +210,22 @@ async function rewriteFixtureAsLegacyPipeline(
 			]),
 		),
 	}));
+	const contrasts = Object.fromEntries(
+		Object.entries(current.contrasts).map(([pair, contrast]) => [
+			pair,
+			{
+				...contrast,
+				resources: contrastResourcesWithoutElapsed(contrast.resources),
+			},
+		]),
+	);
 	const legacy =
 		version === 2
-			? { ...current, schemaVersion: 2, cases }
+			? { ...current, schemaVersion: 2, cases, contrasts }
 			: (() => {
 					const { judgeAgreement: _judgeAgreement, ...fields } = current;
 
-					return { ...fields, schemaVersion: 1, cases };
+					return { ...fields, schemaVersion: 1, cases, contrasts };
 				})();
 	const text = `${JSON.stringify(legacy, null, 2)}\n`;
 
@@ -223,8 +272,8 @@ describe("GET /api/comparisons/:digest", () => {
 		const body = await comparisonResponseFrom(response);
 
 		expect(response.status).toBe(200);
-		if (body.report.schemaVersion !== 4) {
-			throw new Error("expected the public API to serve a version-4 report");
+		if (body.report.schemaVersion !== 5) {
+			throw new Error("expected the public API to serve a version-5 report");
 		}
 		expect(body.report.cases.map(({ caseId }) => caseId)).toEqual([
 			"case-1",

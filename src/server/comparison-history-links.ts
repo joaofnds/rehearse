@@ -160,7 +160,10 @@ export async function comparisonAttemptHistoryLinks(
 	report: ComparisonReport | LegacyComparisonReport,
 	runsDirectory: string,
 ): Promise<ComparisonAttemptHistoryLinks> {
-	if (report.schemaVersion !== 4 || report.mode !== "session") {
+	if (
+		(report.schemaVersion !== 4 && report.schemaVersion !== 5) ||
+		report.mode !== "session"
+	) {
 		return {};
 	}
 	const links: Record<

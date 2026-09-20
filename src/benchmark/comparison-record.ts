@@ -289,6 +289,27 @@ const armResourcesSchema = z.discriminatedUnion("status", [
 		})
 		.strict(),
 ]);
+const currentArmResourcesSchema = z.discriminatedUnion("status", [
+	z
+		.object({
+			status: z.literal("AVAILABLE"),
+			completeReps: z.number().int().positive(),
+			missingMetricReps: z.literal(0),
+			perRole: resourceRolesSummarySchema,
+			total: resourceMetricSummarySchema,
+			workerTurns: metricValueSummarySchema,
+			elapsedMs: metricValueSummarySchema,
+		})
+		.strict(),
+	z
+		.object({
+			status: z.literal("UNAVAILABLE"),
+			completeReps: z.number().int().nonnegative(),
+			missingMetricReps: z.number().int().positive(),
+			missingEvidence: z.array(missingResourceEvidenceSchema).min(1),
+		})
+		.strict(),
+]);
 const reportArmSchema = z
 	.object({
 		role: comparisonArmSchema,
@@ -317,7 +338,7 @@ const sessionReportArmSchema = z
 		resources: armResourcesSchema,
 	})
 	.strict();
-const currentReportArmSchema = reportArmSchema
+const versionFourReportArmSchema = reportArmSchema
 	.extend({
 		source: z
 			.object({
@@ -327,7 +348,7 @@ const currentReportArmSchema = reportArmSchema
 			.strict(),
 	})
 	.strict();
-const currentSessionReportArmSchema = sessionReportArmSchema
+const versionFourSessionReportArmSchema = sessionReportArmSchema
 	.extend({
 		source: z
 			.object({
@@ -336,6 +357,12 @@ const currentSessionReportArmSchema = sessionReportArmSchema
 			})
 			.strict(),
 	})
+	.strict();
+const currentReportArmSchema = versionFourReportArmSchema
+	.extend({ resources: currentArmResourcesSchema })
+	.strict();
+const currentSessionReportArmSchema = versionFourSessionReportArmSchema
+	.extend({ resources: currentArmResourcesSchema })
 	.strict();
 const reportCaseSchema = z
 	.object({
@@ -357,6 +384,28 @@ const sessionReportCaseSchema = z
 				baseline: sessionReportArmSchema,
 				candidate: sessionReportArmSchema,
 				control: sessionReportArmSchema,
+			})
+			.strict(),
+	})
+	.strict();
+const versionFourReportCaseSchema = reportCaseSchema
+	.extend({
+		arms: z
+			.object({
+				baseline: versionFourReportArmSchema,
+				candidate: versionFourReportArmSchema,
+				control: versionFourReportArmSchema,
+			})
+			.strict(),
+	})
+	.strict();
+const versionFourSessionReportCaseSchema = sessionReportCaseSchema
+	.extend({
+		arms: z
+			.object({
+				baseline: versionFourSessionReportArmSchema,
+				candidate: versionFourSessionReportArmSchema,
+				control: versionFourSessionReportArmSchema,
 			})
 			.strict(),
 	})
@@ -429,6 +478,29 @@ const contrastResourcesSchema = z.discriminatedUnion("status", [
 		})
 		.strict(),
 ]);
+const currentContrastResourcesSchema = z.discriminatedUnion("status", [
+	z
+		.object({
+			status: z.literal("AVAILABLE"),
+			perRole: resourceRolesEstimatesSchema,
+			total: resourceMetricEstimatesSchema,
+			workerTurns: pairedEstimateSchema,
+			elapsedMs: pairedEstimateSchema,
+		})
+		.strict(),
+	z
+		.object({
+			status: z.literal("UNAVAILABLE"),
+			missingEvidence: z
+				.array(
+					missingResourceEvidenceSchema
+						.extend({ caseId: identitySchema, arm: comparisonArmSchema })
+						.strict(),
+				)
+				.min(1),
+		})
+		.strict(),
+]);
 const reportContrastSchema = z
 	.object({
 		minuend: comparisonArmSchema,
@@ -436,6 +508,9 @@ const reportContrastSchema = z
 		quality: z.array(qualityContrastSchema).min(1),
 		resources: contrastResourcesSchema,
 	})
+	.strict();
+const currentReportContrastSchema = reportContrastSchema
+	.extend({ resources: currentContrastResourcesSchema })
 	.strict();
 
 const proportionIntervalSchema = z
@@ -533,6 +608,32 @@ const singleCaseContrastResourcesSchema = z.discriminatedUnion("status", [
 		})
 		.strict(),
 ]);
+const currentSingleCaseContrastResourcesSchema = z.discriminatedUnion(
+	"status",
+	[
+		z
+			.object({
+				status: z.literal("AVAILABLE"),
+				perRole: singleCaseResourceRolesEstimatesSchema,
+				total: singleCaseResourceMetricEstimatesSchema,
+				workerTurns: singleCaseMeanEstimateSchema,
+				elapsedMs: singleCaseMeanEstimateSchema,
+			})
+			.strict(),
+		z
+			.object({
+				status: z.literal("UNAVAILABLE"),
+				missingEvidence: z
+					.array(
+						missingResourceEvidenceSchema
+							.extend({ caseId: identitySchema, arm: comparisonArmSchema })
+							.strict(),
+					)
+					.min(1),
+			})
+			.strict(),
+	],
+);
 const singleCaseReportContrastSchema = z
 	.object({
 		minuend: comparisonArmSchema,
@@ -540,6 +641,9 @@ const singleCaseReportContrastSchema = z
 		quality: z.array(singleCaseQualityContrastSchema).min(1),
 		resources: singleCaseContrastResourcesSchema,
 	})
+	.strict();
+const currentSingleCaseReportContrastSchema = singleCaseReportContrastSchema
+	.extend({ resources: currentSingleCaseContrastResourcesSchema })
 	.strict();
 
 const comparisonReportFields = {
@@ -585,25 +689,31 @@ const versionThreeSessionComparisonReportSchema = z
 	})
 	.strict();
 
-const currentStageComparisonReportSchema = z
+/**
+ * Version 4 carries no elapsed time in its resource summaries. Published code
+ * wrote that shape, so it stays readable while version 5 requires the field:
+ * without the separate version, one number would mean either "no elapsed
+ * evidence" or "elapsed not yet recorded" with no way to tell them apart.
+ */
+const versionFourStageComparisonReportSchema = z
 	.object({
 		schemaVersion: z.literal(4),
 		judgeAgreement: judgeAgreementReportSchema,
 		...comparisonReportFields,
 		mode: z.literal("stage"),
-		cases: z.array(currentReportCaseSchema).min(2),
+		cases: z.array(versionFourReportCaseSchema).min(2),
 	})
 	.strict();
-const currentPipelineComparisonReportSchema = z
+const versionFourPipelineComparisonReportSchema = z
 	.object({
 		schemaVersion: z.literal(4),
 		judgeAgreement: judgeAgreementReportSchema,
 		...comparisonReportFields,
 		mode: z.literal("pipeline"),
-		cases: z.array(currentReportCaseSchema).min(2),
+		cases: z.array(versionFourReportCaseSchema).min(2),
 	})
 	.strict();
-const currentSessionComparisonReportSchema = z
+const versionFourSessionComparisonReportSchema = z
 	.object({
 		schemaVersion: z.literal(4),
 		judgeAgreement: judgeAgreementReportSchema.extend({
@@ -612,11 +722,10 @@ const currentSessionComparisonReportSchema = z
 		...comparisonReportFields,
 		mode: z.literal("session"),
 		declaredStages: z.tuple([z.literal("checks")]),
-		cases: z.array(currentSessionReportCaseSchema).min(2),
+		cases: z.array(versionFourSessionReportCaseSchema).min(2),
 	})
 	.strict();
-
-const currentSingleCaseSessionComparisonReportSchema = z
+const versionFourSingleCaseSessionComparisonReportSchema = z
 	.object({
 		schemaVersion: z.literal(4),
 		judgeAgreement: judgeAgreementReportSchema.extend({
@@ -626,12 +735,73 @@ const currentSingleCaseSessionComparisonReportSchema = z
 		mode: z.literal("session"),
 		declaredStages: z.tuple([z.literal("checks")]),
 		samplingUnit: z.literal("rep"),
-		cases: z.tuple([currentSessionReportCaseSchema]),
+		cases: z.tuple([versionFourSessionReportCaseSchema]),
 		contrasts: z
 			.object({
 				candidateMinusBaseline: singleCaseReportContrastSchema,
 				candidateMinusControl: singleCaseReportContrastSchema,
 				baselineMinusControl: singleCaseReportContrastSchema,
+			})
+			.strict(),
+	})
+	.strict();
+
+const currentComparisonReportFields = {
+	...comparisonReportFields,
+	cases: z.array(currentReportCaseSchema).min(2),
+	contrasts: z
+		.object({
+			candidateMinusBaseline: currentReportContrastSchema,
+			candidateMinusControl: currentReportContrastSchema,
+			baselineMinusControl: currentReportContrastSchema,
+		})
+		.strict(),
+};
+const currentStageComparisonReportSchema = z
+	.object({
+		schemaVersion: z.literal(5),
+		judgeAgreement: judgeAgreementReportSchema,
+		...currentComparisonReportFields,
+		mode: z.literal("stage"),
+	})
+	.strict();
+const currentPipelineComparisonReportSchema = z
+	.object({
+		schemaVersion: z.literal(5),
+		judgeAgreement: judgeAgreementReportSchema,
+		...currentComparisonReportFields,
+		mode: z.literal("pipeline"),
+	})
+	.strict();
+const currentSessionComparisonReportSchema = z
+	.object({
+		schemaVersion: z.literal(5),
+		judgeAgreement: judgeAgreementReportSchema.extend({
+			baselines: z.array(z.never()).length(0),
+		}),
+		...currentComparisonReportFields,
+		mode: z.literal("session"),
+		declaredStages: z.tuple([z.literal("checks")]),
+		cases: z.array(currentSessionReportCaseSchema).min(2),
+	})
+	.strict();
+
+const currentSingleCaseSessionComparisonReportSchema = z
+	.object({
+		schemaVersion: z.literal(5),
+		judgeAgreement: judgeAgreementReportSchema.extend({
+			baselines: z.array(z.never()).length(0),
+		}),
+		...currentComparisonReportFields,
+		mode: z.literal("session"),
+		declaredStages: z.tuple([z.literal("checks")]),
+		samplingUnit: z.literal("rep"),
+		cases: z.tuple([currentSessionReportCaseSchema]),
+		contrasts: z
+			.object({
+				candidateMinusBaseline: currentSingleCaseReportContrastSchema,
+				candidateMinusControl: currentSingleCaseReportContrastSchema,
+				baselineMinusControl: currentSingleCaseReportContrastSchema,
 			})
 			.strict(),
 	})
@@ -877,6 +1047,13 @@ export type LegacyComparisonReport = Immutable<
 	| z.infer<typeof legacyComparisonReportSchema>
 	| z.infer<typeof versionTwoComparisonReportSchema>
 	| z.infer<typeof versionThreeSessionComparisonReportSchema>
+	| z.infer<typeof versionFourStageComparisonReportSchema>
+	| z.infer<typeof versionFourPipelineComparisonReportSchema>
+	| z.infer<typeof versionFourSessionComparisonReportSchema>
+	| z.infer<typeof versionFourSingleCaseSessionComparisonReportSchema>
+>;
+export type LegacySingleCaseComparisonReport = Immutable<
+	z.infer<typeof versionFourSingleCaseSessionComparisonReportSchema>
 >;
 
 export function parseComparisonReport(
@@ -887,6 +1064,10 @@ export function parseComparisonReport(
 			legacyComparisonReportSchema,
 			versionTwoComparisonReportSchema,
 			versionThreeSessionComparisonReportSchema,
+			versionFourStageComparisonReportSchema,
+			versionFourPipelineComparisonReportSchema,
+			versionFourSessionComparisonReportSchema,
+			versionFourSingleCaseSessionComparisonReportSchema,
 			comparisonReportSchema,
 		])
 		.parse(JSON.parse(text));

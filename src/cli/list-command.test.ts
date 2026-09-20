@@ -41,11 +41,38 @@ type LegacySessionArm = VersionThreeReport["cases"][number]["arms"]["baseline"];
 
 function parseLegacyCandidate(text: string): LegacyComparisonReport {
 	const parsed = parseComparisonReport(text);
-	if (parsed.schemaVersion === 4) {
+	if (parsed.schemaVersion === 5) {
 		throw new Error("expected a legacy comparison report");
 	}
 
 	return parsed;
+}
+
+type CurrentArmResources =
+	MultiCaseComparisonReport["cases"][number]["arms"]["baseline"]["resources"];
+type CurrentContrastResources =
+	MultiCaseComparisonReport["contrasts"]["candidateMinusBaseline"]["resources"];
+
+function withoutArmElapsed(
+	resources: CurrentArmResources,
+): LegacyPipelineArm["resources"] {
+	if (resources.status === "UNAVAILABLE") {
+		return resources;
+	}
+	const { elapsedMs: _elapsedMs, ...withoutElapsed } = resources;
+
+	return withoutElapsed;
+}
+
+function withoutContrastElapsed(
+	resources: CurrentContrastResources,
+): VersionTwoReport["contrasts"]["candidateMinusBaseline"]["resources"] {
+	if (resources.status === "UNAVAILABLE") {
+		return resources;
+	}
+	const { elapsedMs: _elapsedMs, ...withoutElapsed } = resources;
+
+	return withoutElapsed;
 }
 
 function withoutOutcomeArm(
@@ -53,6 +80,7 @@ function withoutOutcomeArm(
 ): LegacyPipelineArm {
 	return {
 		...arm,
+		resources: withoutArmElapsed(arm.resources),
 		source: {
 			...arm.source,
 			reps: arm.source.reps.map((rep) => {
@@ -79,19 +107,62 @@ function withoutOutcomes(
 
 function legacyComparisonReport(
 	report: MultiCaseComparisonReport,
-	version: 1 | 2 | 3,
+	version: 1 | 2 | 3 | 4,
 ): LegacyComparisonReport {
 	const cases = withoutOutcomes(report);
+	const contrastWithoutElapsed = (
+		contrast: MultiCaseComparisonReport["contrasts"]["candidateMinusBaseline"],
+	): VersionTwoReport["contrasts"]["candidateMinusBaseline"] => ({
+		...contrast,
+		resources: withoutContrastElapsed(contrast.resources),
+	});
+	const contrasts = {
+		candidateMinusBaseline: contrastWithoutElapsed(
+			report.contrasts.candidateMinusBaseline,
+		),
+		candidateMinusControl: contrastWithoutElapsed(
+			report.contrasts.candidateMinusControl,
+		),
+		baselineMinusControl: contrastWithoutElapsed(
+			report.contrasts.baselineMinusControl,
+		),
+	};
+	if (version === 4) {
+		return parseLegacyCandidate(
+			JSON.stringify({
+				...report,
+				schemaVersion: 4,
+				cases: report.cases.map(({ caseId, arms }) => ({
+					caseId,
+					arms: {
+						baseline: {
+							...arms.baseline,
+							resources: withoutArmElapsed(arms.baseline.resources),
+						},
+						candidate: {
+							...arms.candidate,
+							resources: withoutArmElapsed(arms.candidate.resources),
+						},
+						control: {
+							...arms.control,
+							resources: withoutArmElapsed(arms.control.resources),
+						},
+					},
+				})),
+				contrasts,
+			}),
+		);
+	}
 	if (version === 1) {
 		const { judgeAgreement: _judgeAgreement, ...fields } = report;
 
 		return parseLegacyCandidate(
-			JSON.stringify({ ...fields, schemaVersion: 1, cases }),
+			JSON.stringify({ ...fields, schemaVersion: 1, cases, contrasts }),
 		);
 	}
 	if (version === 2) {
 		return parseLegacyCandidate(
-			JSON.stringify({ ...report, schemaVersion: 2, cases }),
+			JSON.stringify({ ...report, schemaVersion: 2, cases, contrasts }),
 		);
 	}
 
@@ -126,6 +197,7 @@ function legacyComparisonReport(
 		contrast: MultiCaseComparisonReport["contrasts"]["candidateMinusBaseline"],
 	): VersionThreeReport["contrasts"]["candidateMinusBaseline"] => ({
 		...contrast,
+		resources: withoutContrastElapsed(contrast.resources),
 		quality: Array.from(contrast.quality.slice(0, 1), (summary) => ({
 			...summary,
 			name: "checks",
@@ -345,7 +417,7 @@ describe(runList.name, () => {
 		]);
 	});
 
-	it.each([1, 2, 3] as const)(
+	it.each([1, 2, 3, 4] as const)(
 		"lists and shows a version-%i comparison without changing its bytes",
 		async (version) => {
 			const fixture = await writtenFixture();
@@ -356,9 +428,9 @@ describe(runList.name, () => {
 			const current = parseComparisonReport(
 				await Bun.file(paths.reportFile).text(),
 			);
-			if (current.schemaVersion !== 4 || "samplingUnit" in current) {
+			if (current.schemaVersion !== 5 || "samplingUnit" in current) {
 				throw new Error(
-					"expected the fixture to write a multi-case version-4 report",
+					"expected the fixture to write a multi-case version-5 report",
 				);
 			}
 			const text = `${JSON.stringify(

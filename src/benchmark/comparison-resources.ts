@@ -49,6 +49,7 @@ export interface AvailableArmResources {
 	readonly perRole: Readonly<Record<ResourceRole, ResourceMetricSummary>>;
 	readonly total: ResourceMetricSummary;
 	readonly workerTurns: MetricValueSummary;
+	readonly elapsedMs: MetricValueSummary;
 }
 
 export interface UnavailableArmResources {
@@ -75,6 +76,7 @@ export interface AvailableContrastResources {
 	readonly perRole: Readonly<Record<ResourceRole, ResourceMetricEstimates>>;
 	readonly total: ResourceMetricEstimates;
 	readonly workerTurns: PairedEstimate;
+	readonly elapsedMs: PairedEstimate;
 }
 
 export interface ResourceMetricEstimates {
@@ -113,6 +115,7 @@ export interface AvailableSingleCaseContrastResources {
 	>;
 	readonly total: SingleCaseResourceMetricEstimates;
 	readonly workerTurns: SingleCaseMeanEstimate;
+	readonly elapsedMs: SingleCaseMeanEstimate;
 }
 
 export type SingleCaseContrastResources =
@@ -203,6 +206,7 @@ function armResources(
 		},
 		total: resourceMetricSummary(resources.total),
 		workerTurns: metricValueSummary(resources.workerTurns),
+		elapsedMs: metricValueSummary(resources.repElapsedMs),
 	};
 }
 
@@ -388,6 +392,10 @@ function buildSingleCaseResourceContrast(
 				...metricRequest,
 				values: ({ workerTurns }) => workerTurns.values,
 			}),
+			elapsedMs: buildSingleCaseMetricEstimate({
+				...metricRequest,
+				values: ({ elapsedMs }) => elapsedMs.values,
+			}),
 		},
 	};
 }
@@ -434,6 +442,10 @@ function buildResourceContrast(
 			workerTurns: buildMetricEstimate({
 				...metricRequest,
 				values: ({ workerTurns }) => workerTurns.values,
+			}),
+			elapsedMs: buildMetricEstimate({
+				...metricRequest,
+				values: ({ elapsedMs }) => elapsedMs.values,
 			}),
 		},
 	};

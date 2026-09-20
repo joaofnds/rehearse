@@ -4,7 +4,10 @@ import {
 	parseComparisonReport,
 	serializeComparisonReport,
 } from "./comparison-record";
-import type { ComparisonReport } from "./comparison-record";
+import type {
+	ComparisonReport,
+	LegacyComparisonReport,
+} from "./comparison-record";
 import {
 	comparisonEvidenceFixture,
 	comparisonReps,
@@ -43,6 +46,15 @@ type MalformedReportCase = Omit<ReportCase, "arms"> & {
 type MalformedComparisonReport = Omit<ComparisonReport, "cases"> & {
 	readonly cases: readonly MalformedReportCase[];
 };
+
+type VersionTwoReport = Extract<
+	LegacyComparisonReport,
+	{ readonly schemaVersion: 2 }
+>;
+type LegacyArmResources =
+	VersionTwoReport["cases"][number]["arms"]["baseline"]["resources"];
+type LegacyContrastResources =
+	VersionTwoReport["contrasts"]["candidateMinusBaseline"]["resources"];
 
 function changeFirstBaseline(
 	report: ComparisonReport,
@@ -211,7 +223,7 @@ describe(buildComparisonReport.name, () => {
 		});
 		const [benchmarkCase] = report.cases;
 
-		expect(report.schemaVersion).toBe(4);
+		expect(report.schemaVersion).toBe(5);
 		expect(benchmarkCase?.arms.baseline.quality[0]?.gradeDistribution).toEqual(
 			Object.fromEntries([
 				["A", 2],
@@ -348,7 +360,7 @@ describe(buildComparisonReport.name, () => {
 		expect(serializeComparisonReport(report)).toBe(
 			`${JSON.stringify(report, null, 2)}\n`,
 		);
-		expect(report.schemaVersion).toBe(4);
+		expect(report.schemaVersion).toBe(5);
 		expect(report.judgeAgreement).toEqual(judgeAgreement);
 		expect(report.manifest).toEqual({ sha256: "8".repeat(64) });
 		expect(report.mode).toBe("pipeline");
@@ -534,33 +546,81 @@ describe(buildComparisonReport.name, () => {
 
 			return legacyRep;
 		};
+		type ArmResources =
+			(typeof current.cases)[number]["arms"]["baseline"]["resources"];
+		const armResourcesWithoutElapsed = (
+			resources: ArmResources,
+		): LegacyArmResources => {
+			if (resources.status === "UNAVAILABLE") {
+				return resources;
+			}
+			const { elapsedMs: _elapsedMs, ...withoutIt } = resources;
+
+			return withoutIt;
+		};
+		type ContrastResources =
+			(typeof current.contrasts)[keyof typeof current.contrasts]["resources"];
+		const contrastResourcesWithoutElapsed = (
+			resources: ContrastResources,
+		): LegacyContrastResources => {
+			if (resources.status === "UNAVAILABLE") {
+				return resources;
+			}
+			const { elapsedMs: _elapsedMs, ...withoutIt } = resources;
+
+			return withoutIt;
+		};
+		const withoutArmElapsed = (
+			arm: (typeof current.cases)[number]["arms"]["baseline"],
+		): Omit<typeof arm, "resources" | "source"> & {
+			readonly resources: LegacyArmResources;
+			readonly source: Omit<typeof arm.source, "reps"> & {
+				readonly reps: readonly Omit<
+					(typeof arm.source.reps)[number],
+					"outcomes"
+				>[];
+			};
+		} => ({
+			...arm,
+			resources: armResourcesWithoutElapsed(arm.resources),
+			source: {
+				...arm.source,
+				reps: arm.source.reps.map(withoutOutcomes),
+			},
+		});
+		const withoutContrastElapsed = (
+			contrast: (typeof current.contrasts)[keyof typeof current.contrasts],
+		): Omit<typeof contrast, "resources"> & {
+			readonly resources: LegacyContrastResources;
+		} => ({
+			...contrast,
+			resources: contrastResourcesWithoutElapsed(contrast.resources),
+		});
 		const cases = current.cases.map(({ caseId, arms }) => ({
 			caseId,
 			arms: {
-				baseline: {
-					...arms.baseline,
-					source: {
-						...arms.baseline.source,
-						reps: arms.baseline.source.reps.map(withoutOutcomes),
-					},
-				},
-				candidate: {
-					...arms.candidate,
-					source: {
-						...arms.candidate.source,
-						reps: arms.candidate.source.reps.map(withoutOutcomes),
-					},
-				},
-				control: {
-					...arms.control,
-					source: {
-						...arms.control.source,
-						reps: arms.control.source.reps.map(withoutOutcomes),
-					},
-				},
+				baseline: withoutArmElapsed(arms.baseline),
+				candidate: withoutArmElapsed(arms.candidate),
+				control: withoutArmElapsed(arms.control),
 			},
 		}));
-		const versionTwo = { ...current, schemaVersion: 2 as const, cases };
+		const contrasts = {
+			candidateMinusBaseline: withoutContrastElapsed(
+				current.contrasts.candidateMinusBaseline,
+			),
+			candidateMinusControl: withoutContrastElapsed(
+				current.contrasts.candidateMinusControl,
+			),
+			baselineMinusControl: withoutContrastElapsed(
+				current.contrasts.baselineMinusControl,
+			),
+		};
+		const versionTwo = {
+			...current,
+			schemaVersion: 2 as const,
+			cases,
+			contrasts,
+		};
 
 		expect(parseComparisonReport(JSON.stringify(versionTwo))).toEqual(
 			versionTwo,

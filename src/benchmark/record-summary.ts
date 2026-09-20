@@ -4,6 +4,7 @@ import type {
 	ComparisonArm,
 	ComparisonReport,
 	LegacyComparisonReport,
+	LegacySingleCaseComparisonReport,
 	SingleCaseComparisonReport,
 } from "./comparison-record";
 import type {
@@ -227,7 +228,9 @@ interface SingleCaseArmRow {
  * of the three, and the three agree on any arm they share.
  */
 function armProportions(
-	report: Immutable<SingleCaseComparisonReport>,
+	report: Immutable<
+		SingleCaseComparisonReport | LegacySingleCaseComparisonReport
+	>,
 ): readonly SingleCaseArmRow[] {
 	const rows = new Map<ComparisonArm, SingleCaseArmRow>();
 
@@ -253,9 +256,46 @@ function armProportions(
 	});
 }
 
+type ComparisonContrastName = keyof SingleCaseComparisonReport["contrasts"];
+type SingleCaseContrast = Immutable<
+	| SingleCaseComparisonReport["contrasts"][ComparisonContrastName]
+	| LegacySingleCaseComparisonReport["contrasts"][ComparisonContrastName]
+>;
+
+/**
+ * Elapsed time joins the cost table rather than taking one of its own, because
+ * an operator comparing spend against speed reads one row per contrast. A
+ * report written before version 5 carries no elapsed observation at all, which
+ * is why its column renders unavailable instead of a zero delta.
+ */
+function resourceRow(contrast: SingleCaseContrast): readonly string[] {
+	const name = `${contrast.minuend} − ${contrast.subtrahend}`;
+	const { resources } = contrast;
+	if (resources.status === "UNAVAILABLE") {
+		return [name, "unavailable", "unavailable", "unavailable", "unavailable"];
+	}
+
+	const cost = [
+		delta(resources.total.costUsd.delta),
+		spread(resources.total.costUsd),
+	];
+	if (!("elapsedMs" in resources)) {
+		return [name, ...cost, "unavailable", "unavailable"];
+	}
+
+	return [
+		name,
+		...cost,
+		delta(resources.elapsedMs.delta),
+		spread(resources.elapsedMs),
+	];
+}
+
 function singleCaseComparisonSummary(
 	digest: string,
-	report: Immutable<SingleCaseComparisonReport>,
+	report: Immutable<
+		SingleCaseComparisonReport | LegacySingleCaseComparisonReport
+	>,
 ): string {
 	const [benchmarkCase] = report.cases;
 	if (benchmarkCase === undefined) {
@@ -278,15 +318,9 @@ function singleCaseComparisonSummary(
 			delta(quality.passK.delta),
 		]),
 	);
-	const costRows = Object.values(report.contrasts).map((contrast) => [
-		`${contrast.minuend} − ${contrast.subtrahend}`,
-		contrast.resources.status === "AVAILABLE"
-			? delta(contrast.resources.total.costUsd.delta)
-			: "unavailable",
-		contrast.resources.status === "AVAILABLE"
-			? spread(contrast.resources.total.costUsd)
-			: "unavailable",
-	]);
+	const resourceRows = Object.values(report.contrasts).map((contrast) =>
+		resourceRow(contrast),
+	);
 
 	return [
 		`## comparison:${digest}`,
@@ -305,7 +339,16 @@ function singleCaseComparisonSummary(
 			contrastRows,
 		),
 		"",
-		...table(["contrast", "cost Δ", "standard error"], costRows),
+		...table(
+			[
+				"contrast",
+				"cost Δ",
+				"standard error",
+				"per-attempt elapsed Δ (ms)",
+				"standard error",
+			],
+			resourceRows,
+		),
 		"",
 	].join("\n");
 }

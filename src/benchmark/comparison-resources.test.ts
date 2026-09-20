@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import type { ConfirmationRepRecord } from "./confirmation-record";
 import type { PairedEstimate } from "./comparison-estimator";
 import { buildComparisonResources } from "./comparison-resources";
 import {
@@ -25,19 +26,19 @@ describe(buildComparisonResources.name, () => {
 							"case-1",
 							"baseline",
 							[PASS, PASS, PASS, PASS],
-							1,
+							{ metricScale: 1 },
 						),
 						candidate: comparisonReps(
 							"case-1",
 							"candidate",
 							[PASS, PASS, PASS, PASS],
-							2,
+							{ metricScale: 2 },
 						),
 						control: comparisonReps(
 							"case-1",
 							"control",
 							[PASS, PASS, PASS, PASS],
-							0,
+							{ metricScale: 0 },
 						),
 					},
 				},
@@ -48,19 +49,19 @@ describe(buildComparisonResources.name, () => {
 							"case-2",
 							"baseline",
 							[PASS, PASS, PASS, PASS],
-							1,
+							{ metricScale: 1 },
 						),
 						candidate: comparisonReps(
 							"case-2",
 							"candidate",
 							[PASS, PASS, PASS, PASS],
-							3,
+							{ metricScale: 3 },
 						),
 						control: comparisonReps(
 							"case-2",
 							"control",
 							[PASS, PASS, PASS, PASS],
-							0,
+							{ metricScale: 0 },
 						),
 					},
 				},
@@ -127,13 +128,13 @@ describe(buildComparisonResources.name, () => {
 
 	it("reports complete resource means and unavailable missing-metric contrasts", () => {
 		const caseOneControl = [
-			comparisonRep("case-1-control", 1, FAIL, 0),
+			comparisonRep("case-1-control", 1, FAIL, { metricScale: 0 }),
 			withMissingMetrics(
-				comparisonRep("case-1-control", 2, FAIL, 0),
+				comparisonRep("case-1-control", 2, FAIL, { metricScale: 0 }),
 				"stage-judge call metrics",
 			),
-			comparisonRep("case-1-control", 3, FAIL, 0),
-			comparisonRep("case-1-control", 4, FAIL, 0),
+			comparisonRep("case-1-control", 3, FAIL, { metricScale: 0 }),
+			comparisonRep("case-1-control", 4, FAIL, { metricScale: 0 }),
 		];
 		const report = buildComparisonResources({
 			contract: {
@@ -149,13 +150,13 @@ describe(buildComparisonResources.name, () => {
 							"case-1",
 							"baseline",
 							[PASS, PASS, PASS, PASS],
-							1,
+							{ metricScale: 1 },
 						),
 						candidate: comparisonReps(
 							"case-1",
 							"candidate",
 							[PASS, PASS, PASS, PASS],
-							2,
+							{ metricScale: 2 },
 						),
 						control: caseOneControl,
 					},
@@ -167,19 +168,19 @@ describe(buildComparisonResources.name, () => {
 							"case-2",
 							"baseline",
 							[PASS, PASS, PASS, PASS],
-							1,
+							{ metricScale: 1 },
 						),
 						candidate: comparisonReps(
 							"case-2",
 							"candidate",
 							[PASS, PASS, PASS, PASS],
-							3,
+							{ metricScale: 3 },
 						),
 						control: comparisonReps(
 							"case-2",
 							"control",
 							[FAIL, FAIL, FAIL, FAIL],
-							0,
+							{ metricScale: 0 },
 						),
 					},
 				},
@@ -239,5 +240,40 @@ describe(buildComparisonResources.name, () => {
 		expect(report.contrasts.baselineMinusControl.resources.status).toBe(
 			"UNAVAILABLE",
 		);
+	});
+
+	it("summarises each arm's per-attempt elapsed time from its reps", () => {
+		const arm = (
+			role: "baseline" | "candidate" | "control",
+			elapsedMs: readonly number[],
+		): readonly ConfirmationRepRecord[] =>
+			elapsedMs.map((elapsed, index) =>
+				comparisonRep(`case-1-${role}`, index + 1, PASS, {
+					elapsedMs: elapsed,
+				}),
+			);
+		const report = buildComparisonResources({
+			contract: {
+				mode: "pipeline",
+				declaredStages: ["discuss", "build"],
+				reps: 2,
+			},
+			cases: [
+				{
+					caseId: "case-1",
+					arms: {
+						baseline: arm("baseline", [1000, 3000]),
+						candidate: arm("candidate", [2000, 6000]),
+						control: arm("control", [500, 1500]),
+					},
+				},
+			],
+		});
+		const baseline = report.cases[0]?.arms.baseline;
+		if (baseline?.status !== "AVAILABLE") {
+			throw new Error("baseline resources should be available");
+		}
+
+		expect(baseline.elapsedMs).toEqual({ values: [1000, 3000], mean: 2000 });
 	});
 });
