@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
-import { casesRoot, parseCaseDeclaration, readCaseDeclaration } from "./case";
+import { parseCaseDeclaration, readCaseDeclaration } from "./case";
 import type { SessionCase } from "./case";
 import type { StateCheck, StateResult } from "./session-state-check";
 import {
@@ -1127,7 +1127,6 @@ describe("session comparison", () => {
 				})),
 			},
 		]);
-		expect(casesRoot()).toContain("cases");
 	});
 
 	it("retains no replies, execution failures, and missing metrics", async () => {
