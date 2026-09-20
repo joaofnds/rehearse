@@ -93,7 +93,7 @@ export async function runRegrade(
 	const assessment = await regradeAttempt({
 		attemptId: { caseId: attemptId.caseId, uuid: attemptId.uuid },
 		record,
-		attemptDirectory: paths.directory,
+		paths,
 		sessionCase: await caseBehind(attemptId, dependencies),
 	});
 

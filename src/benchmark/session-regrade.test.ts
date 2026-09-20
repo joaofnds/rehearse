@@ -6,6 +6,7 @@ import type { SessionCase } from "#benchmark/case";
 import type { Immutable } from "#benchmark/contracts";
 import { STATE_EVIDENCE_DIRECTORY } from "#benchmark/session-state-evidence";
 import { TestResources } from "#benchmark/test-support";
+import type { SessionAttemptPaths } from "#benchmark/run-layout";
 import { sessionAttemptPaths } from "#benchmark/run-layout";
 import type { Assessment, RegradedCheck } from "#benchmark/session-regrade";
 import {
@@ -54,6 +55,19 @@ function savedRecord(
 		elapsedMs: 1000,
 		...fields,
 	});
+}
+
+/**
+ * The two evidence paths a regrade reads, for an attempt directory a test
+ * built directly rather than under a runs directory.
+ */
+function pathsFor(
+	directory: string,
+): Pick<SessionAttemptPaths, "directory" | "transcriptFile"> {
+	return {
+		directory,
+		transcriptFile: join(directory, "transcript.jsonl"),
+	};
 }
 
 function sha256Of(text: string): string {
@@ -313,7 +327,7 @@ describe(regradeAttempt.name, () => {
 		const assessment = await regradeAttempt({
 			attemptId: { caseId: "smoke", uuid: "attempt-uuid" },
 			record: savedRecord({ transcriptDiagnostics: completeBoundary(0) }),
-			attemptDirectory: directory,
+			paths: pathsFor(directory),
 			sessionCase,
 		});
 
@@ -335,7 +349,7 @@ describe(regradeAttempt.name, () => {
 				reply: "the reply",
 				transcriptDiagnostics: completeBoundary(0),
 			}),
-			attemptDirectory: directory,
+			paths: pathsFor(directory),
 			sessionCase: caseDeclaring([{ kind: "word-band", max: 2 }]),
 		});
 
@@ -354,7 +368,7 @@ describe(regradeAttempt.name, () => {
 				reply: "one",
 				transcriptDiagnostics: completeBoundary(0),
 			}),
-			attemptDirectory: directory,
+			paths: pathsFor(directory),
 			sessionCase: caseDeclaring([{ kind: "word-band", max: 2 }]),
 		});
 
@@ -367,7 +381,7 @@ describe(regradeAttempt.name, () => {
 		const assessment = await regradeAttempt({
 			attemptId: { caseId: "smoke", uuid: "attempt-uuid" },
 			record: savedRecord({ reply: "one" }),
-			attemptDirectory: directory,
+			paths: pathsFor(directory),
 			sessionCase: caseDeclaring([
 				{ kind: "word-band", max: 2 },
 				{ kind: "tool-calls", max: 0 },
@@ -383,7 +397,7 @@ describe(regradeAttempt.name, () => {
 		const assessment = await regradeAttempt({
 			attemptId: { caseId: "smoke", uuid: "attempt-uuid" },
 			record: savedRecord({ reply: "one two three" }),
-			attemptDirectory: directory,
+			paths: pathsFor(directory),
 			sessionCase: caseDeclaring([{ kind: "word-band", max: 2 }]),
 		});
 
@@ -396,13 +410,35 @@ describe(regradeAttempt.name, () => {
 		]);
 	});
 
+	it("reads the transcript beside the attempt, not the path the record recorded", async () => {
+		const directory = await attemptWithTranscript(["Read"]);
+
+		const assessment = await regradeAttempt({
+			attemptId: { caseId: "smoke", uuid: "attempt-uuid" },
+			record: savedRecord({
+				transcriptFile: "/gone/on/another/machine/transcript.jsonl",
+				transcriptDiagnostics: completeBoundary(0),
+			}),
+			paths: pathsFor(directory),
+			sessionCase: caseDeclaring([{ kind: "tool-calls", names: ["Bash"] }]),
+		});
+
+		expect(assessment.checks).toEqual([
+			{
+				kind: "tool-calls",
+				status: "FAIL",
+				detail: "undeclared tool called: Read",
+			},
+		]);
+	});
+
 	it("ignores a forbidden tool the attempt's transcript prefix carries", async () => {
 		const directory = await attemptWithTranscript(["Read", "Bash"]);
 
 		const assessment = await regradeAttempt({
 			attemptId: { caseId: "smoke", uuid: "attempt-uuid" },
 			record: savedRecord({ transcriptDiagnostics: completeBoundary(1) }),
-			attemptDirectory: directory,
+			paths: pathsFor(directory),
 			sessionCase: caseDeclaring([{ kind: "tool-calls", names: ["Bash"] }]),
 		});
 
@@ -417,7 +453,7 @@ describe(regradeAttempt.name, () => {
 		const assessment = await regradeAttempt({
 			attemptId: { caseId: "smoke", uuid: "attempt-uuid" },
 			record: savedRecord({ transcriptDiagnostics: completeBoundary(1) }),
-			attemptDirectory: directory,
+			paths: pathsFor(directory),
 			sessionCase: caseDeclaring([{ kind: "tool-calls", names: ["Bash"] }]),
 		});
 
@@ -436,7 +472,7 @@ describe(regradeAttempt.name, () => {
 		const request = {
 			attemptId: { caseId: "smoke", uuid: "attempt-uuid" },
 			record: savedRecord({ transcriptDiagnostics: completeBoundary(0) }),
-			attemptDirectory: directory,
+			paths: pathsFor(directory),
 			sessionCase: caseScoringState({ writes: true }),
 		};
 		const before = await evidenceDigests(directory);
@@ -454,7 +490,7 @@ describe(regradeAttempt.name, () => {
 			const assessment = await regradeAttempt({
 				attemptId: { caseId: "smoke", uuid: "attempt-uuid" },
 				record: savedRecord({ transcriptDiagnostics: completeBoundary(0) }),
-				attemptDirectory: directory,
+				paths: pathsFor(directory),
 				sessionCase: caseScoringState(),
 			});
 
@@ -469,7 +505,7 @@ describe(regradeAttempt.name, () => {
 			const assessment = await regradeAttempt({
 				attemptId: { caseId: "smoke", uuid: "attempt-uuid" },
 				record: savedRecord({ transcriptDiagnostics: completeBoundary(0) }),
-				attemptDirectory: directory,
+				paths: pathsFor(directory),
 				sessionCase: caseScoringState(),
 			});
 
@@ -493,7 +529,7 @@ describe(regradeAttempt.name, () => {
 					reply: "one two three",
 					transcriptDiagnostics: undefined,
 				}),
-				attemptDirectory: directory,
+				paths: pathsFor(directory),
 				sessionCase: caseDeclaring([
 					{ kind: "tool-calls", names: ["Bash"] },
 					{ kind: "word-band", max: 2 },
@@ -523,7 +559,7 @@ describe(regradeAttempt.name, () => {
 			const assessment = await regradeAttempt({
 				attemptId: { caseId: "smoke", uuid: "attempt-uuid" },
 				record: savedRecord(),
-				attemptDirectory: directory,
+				paths: pathsFor(directory),
 				sessionCase: caseDeclaring([{ kind: "tool-calls", max: 0 }]),
 			});
 

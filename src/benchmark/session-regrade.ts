@@ -34,7 +34,16 @@ export interface RegradedCheck {
 export interface RegradeRequest {
 	readonly attemptId: Immutable<SessionAttemptId>;
 	readonly record: Immutable<SessionAttemptRecord>;
-	readonly attemptDirectory: string;
+	/**
+	 * Where the attempt keeps its evidence, from `sessionAttemptPaths` rather
+	 * than from the record. Every saved record stores `transcriptFile` as an
+	 * absolute path on the machine that wrote it, so a record read from
+	 * another checkout names a transcript that is not there while the
+	 * transcript itself travels with the attempt.
+	 */
+	readonly paths: Readonly<
+		Pick<SessionAttemptPaths, "directory" | "transcriptFile">
+	>;
 	readonly sessionCase: Immutable<SessionCase>;
 }
 
@@ -226,7 +235,9 @@ function sha256Of(text: string): string {
 /**
  * The digest covers the body as it sits on disk, taken from the same read the
  * grade used, so an assessment cannot name a digest of bytes other than the
- * ones it graded.
+ * ones it graded. A transcript the attempt does not hold is digested as
+ * absent rather than as empty, since a digest of nothing reads as a body that
+ * happened to be empty.
  */
 async function savedEvidence(
 	request: Immutable<RegradeRequest>,
@@ -241,14 +252,16 @@ async function savedEvidence(
 		};
 	}
 
-	const file = join(request.attemptDirectory, request.record.transcriptFile);
-	const lines = await parseTranscriptFile(file);
+	const body = Bun.file(request.paths.transcriptFile);
+	const lines = await parseTranscriptFile(request.paths.transcriptFile);
 
 	return {
 		evidence: { reply: reply ?? "", toolUses: toolUses(lines.slice(boundary)) },
 		digests: {
 			reply: replyDigest,
-			transcript: sha256Of(await Bun.file(file).text()),
+			transcript: (await body.exists())
+				? sha256Of(await body.text())
+				: undefined,
 		},
 	};
 }
@@ -280,7 +293,7 @@ async function regradeState(
 	}
 
 	const evidenceDirectory = join(
-		request.attemptDirectory,
+		request.paths.directory,
 		STATE_EVIDENCE_DIRECTORY,
 	);
 	const preserved = await statIfExists(evidenceDirectory);
