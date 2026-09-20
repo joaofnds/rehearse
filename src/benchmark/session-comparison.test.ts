@@ -3,7 +3,12 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { mkdir, mkdtemp, realpath, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
-import { casesRoot, parseCaseDeclaration, readCaseDeclaration } from "./case";
+import {
+	loadCase,
+	parseCaseDeclaration,
+	readCaseDeclaration,
+	requireSessionCase,
+} from "./case";
 import type { SessionCase } from "./case";
 import type { StateCheck, StateResult } from "./session-state-check";
 import {
@@ -1164,7 +1169,7 @@ Sampling unit: rep. Arms are independent samples; this estimate covers case case
 		]);
 	});
 
-	it("compares a committed state-scored case across three arms end to end", async () => {
+	it("carries per-state tallies for arms whose state grades differ", async () => {
 		const declaration = await readCaseDeclaration("state-probe");
 		if (declaration.kind !== "session") {
 			throw new Error("state-probe is expected to be a session case");
@@ -1858,6 +1863,11 @@ describe("a committed state-scored case compared across three arms", () => {
 	/**
 	 * Does the ledger work the case asks for, so state-probe's scorer grades
 	 * every declared outcome PASS. The control arm's session does nothing.
+	 *
+	 * The commit reads no configuration outside the fixture: the operator's
+	 * global config may sign commits, and a signing key this machine cannot
+	 * use would fail the commit and leave the grades undefined. The fixture's
+	 * dot-git/config carries the identity the commit needs.
 	 */
 	function workingClaude(): SessionAttemptRequest["runClaude"] {
 		return async (command, cwd) => {
@@ -1868,6 +1878,7 @@ describe("a committed state-scored case compared across three arms", () => {
 					String.raw`printf '2026-02-01 | February refund | -18.40\n' >> LEDGER.md && git add LEDGER.md && git commit -m 'fix(ledger): post the February refund'`,
 				],
 				cwd,
+				{ env: { GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" } },
 			);
 
 			return replyFrom(command, cwd);
@@ -1876,6 +1887,17 @@ describe("a committed state-scored case compared across three arms", () => {
 
 	function idleClaude(): SessionAttemptRequest["runClaude"] {
 		return (command: readonly string[], cwd: string) => replyFrom(command, cwd);
+	}
+
+	/**
+	 * What the arm's frozen corpus put in front of the session, read from the
+	 * directory the attempt handed it. An arm's treatment is its corpus, so a
+	 * comparison whose overlay never arrived is comparing nothing.
+	 */
+	async function overlaidStyle(cwd: string): Promise<string | undefined> {
+		const style = Bun.file(join(cwd, ".claude", "output-styles", "brief.md"));
+
+		return (await style.exists()) ? style.text() : undefined;
 	}
 
 	/**
@@ -1900,7 +1922,7 @@ describe("a committed state-scored case compared across three arms", () => {
 		role: Role,
 		benchmarkCase: SessionCase,
 		declaredBudgetUsd: number,
-	): Promise<string> {
+	): Promise<{ groupRecordFile: string; seenStyles: readonly string[] }> {
 		const corpus = join(root, "sources", `state-probe-${role}`);
 		await mkdir(join(corpus, "output-styles"), { recursive: true });
 		if (role !== "control") {
@@ -1910,17 +1932,25 @@ describe("a committed state-scored case compared across three arms", () => {
 			);
 		}
 
+		const seenStyles: string[] = [];
 		const outcome = await runSessionConfirmation(
 			{
-				executeAttempt: (plan) =>
-					runSessionAttempt({
+				executeAttempt: (plan) => {
+					const session = role === "control" ? idleClaude() : workingClaude();
+
+					return runSessionAttempt({
 						sessionCase: plan.sessionCase,
 						settings: plan.settings,
 						projectsDirectory: projects,
 						recordDirectory: plan.recordDirectory,
-						runClaude: role === "control" ? idleClaude() : workingClaude(),
+						runClaude: async (command, cwd) => {
+							seenStyles.push(`${role}:${await overlaidStyle(cwd)}`);
+
+							return session(command, cwd);
+						},
 						corpusSnapshot: plan.corpusSnapshot,
-					}),
+					});
+				},
 			},
 			{
 				runsDirectory,
@@ -1941,36 +1971,18 @@ describe("a committed state-scored case compared across three arms", () => {
 			},
 		);
 
-		return outcome.groupRecordFile;
+		return { groupRecordFile: outcome.groupRecordFile, seenStyles };
 	}
 
 	it("grades every arm with the case's own scorer over the tree its session left", async () => {
-		const declaration = await readCaseDeclaration("state-probe");
-		if (declaration.kind !== "session" || declaration.fixture === undefined) {
-			throw new Error("state-probe is expected to declare a fixture");
-		}
-
-		const { sessionBudgetUsd } = declaration;
+		const benchmarkCase = requireSessionCase(await loadCase("state-probe"));
+		const { sessionBudgetUsd } = benchmarkCase.declaration;
 		if (sessionBudgetUsd === undefined) {
 			throw new Error("state-probe is expected to declare a session budget");
 		}
 
 		const runsDirectory = join(root, "runs");
-		const benchmarkCase: SessionCase = {
-			kind: "session",
-			declaration,
-			fixturePath: join(casesRoot(), "state-probe", declaration.fixture),
-			transcriptPath: undefined,
-			prompt: declaration.prompt,
-			tools: declaration.tools,
-			settings: declaration.settings,
-			agents: undefined,
-			corpusFiles: declaration.corpusFiles,
-			projectFiles: declaration.projectFiles,
-			checks: declaration.checks,
-			stateCheck: declaration.stateCheck,
-		};
-		const arms = {
+		const groups = {
 			baseline: await writeStateGroup(
 				runsDirectory,
 				"baseline",
@@ -1990,6 +2002,19 @@ describe("a committed state-scored case compared across three arms", () => {
 				sessionBudgetUsd,
 			),
 		};
+		const arms = {
+			baseline: groups.baseline.groupRecordFile,
+			candidate: groups.candidate.groupRecordFile,
+			control: groups.control.groupRecordFile,
+		};
+
+		expect(
+			Object.values(groups).map((group) => group.seenStyles.toSorted()),
+		).toEqual([
+			["baseline:baseline corpus\n", "baseline:baseline corpus\n"],
+			["candidate:candidate corpus\n", "candidate:candidate corpus\n"],
+			["control:undefined", "control:undefined"],
+		]);
 		const manifestPath = join(root, "comparison.json");
 		await Bun.write(
 			manifestPath,
