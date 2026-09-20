@@ -1,14 +1,18 @@
 import { describe, expect, it } from "bun:test";
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import type { SessionCase } from "#benchmark/case";
 import type { Immutable } from "#benchmark/contracts";
 import { STATE_EVIDENCE_DIRECTORY } from "#benchmark/session-state-evidence";
 import { TestResources } from "#benchmark/test-support";
+import { sessionAttemptPaths } from "#benchmark/run-layout";
+import type { Assessment, RegradedCheck } from "#benchmark/session-regrade";
 import {
 	gradingDefinitionDigest,
+	parseAssessment,
 	regradeAttempt,
+	writeAssessment,
 } from "#benchmark/session-regrade";
 import type { SessionAttemptRecord } from "#benchmark/session-record";
 import { sessionAttemptRecordSchema } from "#benchmark/session-record";
@@ -110,17 +114,31 @@ async function attemptWithStateEvidence(contents: string): Promise<string> {
 	return directory;
 }
 
+interface ScorerBehavior {
+	/**
+	 * A scorer that rewrites and deletes the evidence it grades, which is what
+	 * makes "the second pass reads the bytes the first did" an observation
+	 * rather than an assumption.
+	 */
+	readonly writes?: boolean;
+}
+
 /**
  * A scorer reporting one outcome named after the file the session left, so a
  * grade over the restored copy is visible without a provider.
  */
-function caseScoringState(): SessionCase {
+function caseScoringState(
+	behavior: Readonly<ScorerBehavior> = {},
+): SessionCase {
 	const declared = caseDeclaring([]);
+	const report = String.raw`printf '{"results":[{"name":"left-a-file","status":"PASS","detail":"%s"}]}' "$(tr -d '\n' < left.txt)"`;
 	const stateCheck = {
 		command: [
 			"sh",
 			"-c",
-			String.raw`printf '{"results":[{"name":"left-a-file","status":"PASS","detail":"%s"}]}' "$(tr -d '\n' < left.txt)"`,
+			behavior.writes === true
+				? `${report}; printf overwritten > left.txt; printf planted > planted.txt`
+				: report,
 		],
 		outcomes: ["left-a-file"],
 	};
@@ -154,6 +172,46 @@ function caseDeclaring(checks: SessionCase["checks"]): SessionCase {
 		corpusFiles: ["CLAUDE.md"],
 		projectFiles: [],
 		checks,
+	};
+}
+
+/**
+ * The three evidence bodies hashed by name rather than by hashing the attempt
+ * directory, which necessarily changes: the assessments land inside it.
+ */
+async function evidenceDigests(
+	attempt: string,
+): Promise<Record<string, string>> {
+	const entries = await readdir(join(attempt, "state"), {
+		recursive: true,
+		withFileTypes: true,
+	});
+	const state = entries
+		.filter((entry) => entry.isFile())
+		.map((entry) => join(entry.parentPath, entry.name));
+
+	const named = [
+		join(attempt, "attempt.json"),
+		join(attempt, "transcript.jsonl"),
+		...state,
+	];
+	const digests: Record<string, string> = {};
+	for (const path of named) {
+		digests[relative(attempt, path)] = sha256Of(await Bun.file(path).text());
+	}
+
+	return digests;
+}
+
+function assessmentOf(
+	check: Immutable<Omit<RegradedCheck, "kind">>,
+): Assessment {
+	return {
+		sourceAttempt: { caseId: "smoke", uuid: "uuid-1" },
+		gradingDefinition: sha256Of("a definition"),
+		evidence: { reply: sha256Of("the reply") },
+		checks: [{ kind: "word-band", ...check }],
+		outcome: check.status === "PASS" ? "SUCCESSFUL" : "UNSUCCESSFUL",
 	};
 }
 
@@ -197,6 +255,53 @@ describe(gradingDefinitionDigest.name, () => {
 		expect(gradingDefinitionDigest({ ...checks, prompt: "another" })).toEqual(
 			gradingDefinitionDigest(checks),
 		);
+	});
+});
+
+describe(writeAssessment.name, () => {
+	it("files the assessment under the pass's timestamp inside the attempt", async () => {
+		const runsDirectory = await attemptDirectory();
+		const paths = sessionAttemptPaths(runsDirectory, {
+			caseId: "smoke",
+			uuid: "uuid-1",
+		});
+
+		const written = await writeAssessment(
+			paths,
+			"2026-09-20T12:00:00.000Z",
+			assessmentOf({ status: "PASS", detail: "3 words" }),
+		);
+
+		expect(written).toBe(paths.gradeFile("2026-09-20T12:00:00.000Z"));
+		expect(parseAssessment(await Bun.file(written).text())).toEqual(
+			assessmentOf({ status: "PASS", detail: "3 words" }),
+		);
+	});
+
+	it("keeps an earlier pass's assessment beside a later one", async () => {
+		const runsDirectory = await attemptDirectory();
+		const paths = sessionAttemptPaths(runsDirectory, {
+			caseId: "smoke",
+			uuid: "uuid-1",
+		});
+
+		await writeAssessment(
+			paths,
+			"2026-09-20T12:00:00.000Z",
+			assessmentOf({ status: "PASS", detail: "3 words" }),
+		);
+		await writeAssessment(
+			paths,
+			"2026-09-20T13:00:00.000Z",
+			assessmentOf({ status: "FAIL", detail: "9 words" }),
+		);
+
+		const filed = await readdir(paths.gradesDirectory);
+
+		expect(filed.toSorted((one, other) => one.localeCompare(other))).toEqual([
+			"2026-09-20T12-00-00.000Z.json",
+			"2026-09-20T13-00-00.000Z.json",
+		]);
 	});
 });
 
@@ -323,6 +428,23 @@ describe(regradeAttempt.name, () => {
 				detail: "undeclared tool called: Read",
 			},
 		]);
+	});
+
+	it("leaves the attempt's own evidence byte-identical across two passes", async () => {
+		const directory = await attemptWithStateEvidence("left-behind\n");
+		await Bun.write(join(directory, "attempt.json"), "{}\n");
+		const request = {
+			attemptId: { caseId: "smoke", uuid: "attempt-uuid" },
+			record: savedRecord({ transcriptDiagnostics: completeBoundary(0) }),
+			attemptDirectory: directory,
+			sessionCase: caseScoringState({ writes: true }),
+		};
+		const before = await evidenceDigests(directory);
+
+		await regradeAttempt(request);
+		await regradeAttempt(request);
+
+		expect(await evidenceDigests(directory)).toEqual(before);
 	});
 
 	describe("when the case declares a state scorer", () => {

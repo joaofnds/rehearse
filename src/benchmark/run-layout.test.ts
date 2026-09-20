@@ -169,7 +169,7 @@ describe(sessionAttemptPaths.name, () => {
 			uuid: "uuid-1",
 		});
 
-		expect(paths).toEqual({
+		expect(paths).toMatchObject({
 			directory: join(
 				"/control",
 				".benchmark-runs",
@@ -201,7 +201,26 @@ describe(sessionAttemptPaths.name, () => {
 				"uuid-1",
 				"corpus",
 			),
+			gradesDirectory: join(
+				"/control",
+				".benchmark-runs",
+				"sessions",
+				"smoke",
+				"uuid-1",
+				"grades",
+			),
 		});
+	});
+
+	it("files each regrade under a timestamp inside the attempt it read", () => {
+		const paths = sessionAttemptPaths(benchmarkRunsDirectory("/control"), {
+			caseId: "smoke",
+			uuid: "uuid-1",
+		});
+
+		expect(paths.gradeFile("2026-09-20T12:00:00.000Z")).toBe(
+			join(paths.gradesDirectory, "2026-09-20T12-00-00.000Z.json"),
+		);
 	});
 });
 

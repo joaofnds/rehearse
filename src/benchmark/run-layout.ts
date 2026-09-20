@@ -7,6 +7,7 @@ const MANIFEST_FILE = "manifest.json";
 const CHECKPOINT_FILE = "checkpoint.json";
 const ATTEMPT_FILE = "attempt.json";
 const SESSIONS_DIRECTORY = "sessions";
+const GRADES_DIRECTORY = "grades";
 const RECORD_SUFFIX = ".json";
 
 export interface BenchmarkRunPaths {
@@ -151,10 +152,18 @@ export function confirmationGroupPaths(
 }
 
 /**
- * Where one session attempt keeps its record and the corpus snapshot it ran
- * against. The command that writes an attempt and the three that read one all
- * come through here, so the layout is stated once and a change to it cannot
- * leave a reader looking at the old shape.
+ * Where one session attempt keeps its record, the corpus snapshot it ran
+ * against, and every later grade of its evidence. The command that writes an
+ * attempt and the three that read one all come through here, so the layout is
+ * stated once and a change to it cannot leave a reader looking at the old
+ * shape.
+ *
+ * A grade is filed inside the attempt it read, under the timestamp of the
+ * pass that produced it, so one attempt carries as many assessments as it has
+ * been regraded and none of them touches the record. A replay is filed the
+ * other way round, at the runs-directory level under its lineage, because a
+ * replay is reachable without naming a run and a grade is reached only by
+ * naming the attempt it grades.
  */
 export function sessionAttemptPaths(
 	runsDirectory: string,
@@ -167,11 +176,16 @@ export function sessionAttemptPaths(
 		attempt.uuid,
 	);
 
+	const gradesDirectory = join(directory, GRADES_DIRECTORY);
+
 	return {
 		directory,
 		recordFile: join(directory, ATTEMPT_FILE),
 		transcriptFile: join(directory, "transcript.jsonl"),
 		corpusDirectory: join(directory, "corpus"),
+		gradesDirectory,
+		gradeFile: (timestamp) =>
+			join(gradesDirectory, `${runNameFromTimestamp(timestamp)}.json`),
 	};
 }
 
@@ -282,6 +296,8 @@ export interface SessionAttemptPaths {
 	readonly recordFile: string;
 	readonly transcriptFile: string;
 	readonly corpusDirectory: string;
+	readonly gradesDirectory: string;
+	readonly gradeFile: (timestamp: string) => string;
 }
 
 export async function sessionAttemptIds(

@@ -1,19 +1,21 @@
 import { createHash } from "node:crypto";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { z } from "zod";
 import type { SessionCase } from "./case";
 import { statIfExists } from "./file-presence";
 import type { Immutable } from "./contracts";
 import { jsonValueSchema } from "./json-value";
-import type { SessionAttemptId } from "./run-layout";
+import type { SessionAttemptId, SessionAttemptPaths } from "./run-layout";
 import { orderedForHashing } from "./session-lineage";
 import type { Check, CheckEvidence } from "./session-check";
 import { evaluateChecks } from "./session-check";
 import type { CheckKind } from "./session-check-result";
+import { checkKindSchema } from "./session-check-result";
 import type { SessionAttemptRecord } from "./session-record";
 import type { StateResult } from "./session-state-check";
-import { gradeStateEvidence } from "./session-state-check";
+import { gradeStateEvidence, stateResultSchema } from "./session-state-check";
 import { STATE_EVIDENCE_DIRECTORY } from "./session-state-evidence";
 import { parseTranscriptFile, toolUses } from "./transcript";
 
@@ -84,6 +86,75 @@ export interface Assessment {
 export interface StateGradeProblem {
 	readonly status: "UNAVAILABLE" | "ERROR";
 	readonly detail: string;
+}
+
+const regradedCheckSchema = z
+	.object({
+		kind: checkKindSchema,
+		status: z.enum(["PASS", "FAIL", "UNAVAILABLE"]),
+		detail: z.string().min(1),
+	})
+	.strict();
+
+const stateGradeProblemSchema = z
+	.object({
+		status: z.enum(["UNAVAILABLE", "ERROR"]),
+		detail: z.string().min(1),
+	})
+	.strict();
+
+/**
+ * An assessment is its own record, never a rewrite of `attempt.json`.
+ * Comparison digests a rep's `attempt.json` bytes as provenance, so rewriting
+ * the record would stale every saved comparison over that rep, and most saved
+ * records are a schema version the writer can no longer emit, so rewriting
+ * them in place would mean migrating evidence rather than reading it.
+ */
+export const assessmentSchema = z
+	.object({
+		schemaVersion: z.literal(1),
+		sourceAttempt: z
+			.object({ caseId: z.string().min(1), uuid: z.string().min(1) })
+			.strict(),
+		gradingDefinition: z.string().min(1),
+		evidence: z
+			.object({
+				reply: z.string().min(1).optional(),
+				transcript: z.string().min(1).optional(),
+			})
+			.strict(),
+		checks: z.array(regradedCheckSchema),
+		stateCheck: stateGradeProblemSchema.optional(),
+		stateResults: z.array(stateResultSchema).optional(),
+		outcome: z.enum(["SUCCESSFUL", "UNSUCCESSFUL"]).optional(),
+	})
+	.strict();
+
+export function parseAssessment(text: string): Assessment {
+	const { schemaVersion: _schemaVersion, ...assessment } =
+		assessmentSchema.parse(JSON.parse(text));
+
+	return assessment;
+}
+
+/**
+ * Written under the timestamp of the pass that produced it, so a second pass
+ * over the same attempt lands beside the first rather than over it and an
+ * operator can read what the definition used to say.
+ */
+export async function writeAssessment(
+	paths: Readonly<SessionAttemptPaths>,
+	timestamp: string,
+	assessment: Immutable<Assessment>,
+): Promise<string> {
+	const file = paths.gradeFile(timestamp);
+	await mkdir(paths.gradesDirectory, { recursive: true });
+	await Bun.write(
+		file,
+		`${JSON.stringify({ schemaVersion: 1, ...assessment }, null, 2)}\n`,
+	);
+
+	return file;
 }
 
 /**
