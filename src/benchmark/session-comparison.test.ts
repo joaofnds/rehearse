@@ -1060,6 +1060,23 @@ describe("session comparison", () => {
 		}
 		const reps = report.cases[0]?.arms.baseline.source.reps ?? [];
 
+		expect(
+			report.cases[0]?.arms.control.source.reps.map((rep) => rep.checks),
+		).toEqual([
+			{
+				passed: 1,
+				declared: 2,
+				failing: [{ index: 0, kind: "word-band", detail: "3 words" }],
+			},
+			{
+				passed: 0,
+				declared: 2,
+				failing: [
+					{ index: 0, kind: "word-band", detail: "3 words" },
+					{ index: 1, kind: "tool-calls", detail: "3 tool calls" },
+				],
+			},
+		]);
 		expect(reps.map((rep) => rep.checks)).toEqual([
 			{ passed: 2, declared: 2, failing: [] },
 			{

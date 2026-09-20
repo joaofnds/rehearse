@@ -202,11 +202,6 @@ export function groupSummary(
 	].join("\n");
 }
 
-/**
- * Every paired delta the report carries, each beside the contrast against the
- * control arm, because a candidate that beats the baseline while both sit at
- * the control's rate has moved nothing.
- */
 function interval(arm: { readonly interval: ProportionInterval }): string {
 	return `${ratio(arm.interval.low)}-${ratio(arm.interval.high)}`;
 }
@@ -315,6 +310,11 @@ function singleCaseComparisonSummary(
 	].join("\n");
 }
 
+/**
+ * Every paired delta the report carries, each beside the contrast against the
+ * control arm, because a candidate that beats the baseline while both sit at
+ * the control's rate has moved nothing.
+ */
 export function comparisonSummary(
 	digest: string,
 	report: Immutable<ComparisonReport | LegacyComparisonReport>,

@@ -304,6 +304,7 @@ export function buildComparisonReport(
 			baselineMinusControl: contrast(COMPARISON_CONTRASTS[2]),
 		},
 	};
+
 	if ("samplingUnit" in quality) {
 		return comparisonReportSchema.parse({
 			...common,
