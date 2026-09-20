@@ -25,6 +25,8 @@ import { RefusedPreconditionError } from "./exit-codes";
 import { SessionInvocationError } from "./session-invocation-error";
 import { runList } from "#cli/list-command";
 import { runShow } from "#cli/show-command";
+import { comparisonReport } from "#server/comparisons";
+import { comparisonAttemptHistoryLinks } from "#server/comparison-history-links";
 
 function digest(text: string): string {
 	return createHash("sha256").update(text).digest("hex");
@@ -937,6 +939,16 @@ describe("session comparison", () => {
 		expect(summary).toContain("| candidate | 2/2 | 1.000 | 0.342-1.000 |");
 		expect(summary).toContain("| control | 0/2 | 0.000 | 0.000-0.658 |");
 		expect(summary).toContain("no observed spread");
+
+		const attemptHistories = await comparisonAttemptHistoryLinks(
+			report,
+			runsDirectory,
+		);
+		const served = comparisonReport(report, attemptHistories);
+
+		expect(Object.keys(served.attribution)).toEqual(["case-one"]);
+		expect(Object.keys(served.qualityReadings)).toEqual(["case-one"]);
+		expect(Object.keys(served.attemptHistories)).toEqual(["case-one"]);
 	});
 
 	it("retains no replies, execution failures, and missing metrics", async () => {
