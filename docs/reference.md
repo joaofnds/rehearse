@@ -740,8 +740,10 @@ without a navigable link; a valid failed experiment remains inspectable.
 
 ## Comparison manifests
 
-`compare` requires at least two distinct cases, each with baseline, candidate,
-and minimal-corpus control arms. Each path names a completed stage, pipeline, or
+`compare` requires baseline, candidate, and minimal-corpus control arms for
+every case. A stage or pipeline comparison needs at least two distinct cases; a
+session comparison may name one, and its report estimates uncertainty over that
+case's reps rather than across cases. Each path names a completed stage, pipeline, or
 session confirmation `group.json` and resolves relative to the manifest. Session
 groups must carry one frozen case declaration, their recorded attempt evidence,
 and a corpus inventory matching that declaration. The control corpus may be

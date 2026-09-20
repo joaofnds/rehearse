@@ -100,8 +100,9 @@ See [current state](docs/status.md) for implementation coverage and
   other and no progress, which goes to stderr. `show --json` reads the selected
   record directly.
 - **Comparison** — a deterministic report over completed stage, pipeline, or
-  session confirmation evidence for at least two benchmark cases, each with
-  baseline, candidate, and control arms. It starts no paid sessions. Session
+  session confirmation evidence, each case carrying baseline, candidate, and
+  control arms. Stage and pipeline comparisons need at least two benchmark
+  cases; a session comparison may cover one. It starts no paid sessions. Session
   comparisons read the frozen case's checks and each recorded attempt, and do
   not synthesize a pipeline final outcome. A version-4 report keeps each source
   rep's ordered quality outcomes beside its identity, so a reader can associate
@@ -119,7 +120,13 @@ See [current state](docs/status.md) for implementation coverage and
   is derived from each arm's recorded reliability summary, not from the paired
   estimate across cases.
 - **Benchmark case** — one frozen task with its source or checkpoint and all
-  non-corpus inputs; the independent unit on which comparison arms are paired.
+  non-corpus inputs. It is the sampling unit a multi-case comparison pairs its
+  arms on; a single-case session comparison samples reps instead.
+- **Sampling unit** — the observation a comparison's uncertainty is estimated
+  over. A multi-case comparison pairs its arms case by case and reads variation
+  between case means. A single-case session comparison samples the reps of one
+  case, treats the arms as independent samples rather than paired, and prints
+  the unit it used beside the estimate.
 - **Case** (design usage) — the UI design's phrase for a task plus the
   corpus, judges, and thresholds it runs under. It overlaps with this
   glossary's benchmark case without matching field for field: the case
@@ -390,6 +397,11 @@ See [current state](docs/status.md) for implementation coverage and
 - **Score** — a statistical summary over a confirmation run's rep outcomes:
   their distribution, success rate with standard error, and pass^k. A
   single-rep Judge result is evidence, not a score.
+- **Partial score** — how many of a rep's declared graded outcomes held, over
+  its checks and its state results, with the failing ones named. It separates a
+  rep that missed one outcome from one that missed them all, which a rep
+  outcome alone cannot. A comparison report records it per rep; whether a state
+  result also changes that rep's outcome is not settled by this count.
 - **Run artifact** — the recorded evidence of a run under `.benchmark-runs/`.
 - **Run artifact transition** — one persistence operation that advances a run's
   main or stage record. Transitions are serialized; abort recording is terminal
