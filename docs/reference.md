@@ -786,14 +786,22 @@ Statistics are recomputed from rep evidence, rather than copied from existing
 confirmation reports. The output at `comparisons/<manifest-sha256>/report.json`
 contains quality/resource contrasts for candidate minus baseline, candidate
 minus control, and baseline minus control, with Judge agreement context. New
-stage, pipeline, and session reports use schema version 4. Each source
+stage, pipeline, and session reports use schema version 5. Each source
 repetition retains an ordered outcome for every quality measure, including its
 judged grade and metrics-aware success value or its non-judged status. Pipeline
 outcomes append `final` after the declared stages. Session source repetitions
 also retain their attempt path and hash and carry an empty Judge-agreement
-baseline. Readers continue to accept strict version-1, version-2, and
-version-3 reports without adding outcomes that those records never contained.
+baseline. Readers continue to accept strict version-1 through version-4 reports
+without adding outcomes or measurements that those records never contained.
 `compare --json` prints the report bytes without starting provider sessions.
 Session resource values are per-repetition worker metrics; group preflight cost
 remains at confirmation-group level, and unavailable metrics stay visible as
 unavailable.
+
+Each arm's resources carry its attempt elapsed time as the per-repetition
+observations and their mean, beside cost and tokens, so a variant that got
+slower at the same spend stays visible. The single-case summary prints that
+delta beside the cost delta, labelled per-attempt. Version-4 and older reports
+carry no elapsed measurement, and their elapsed column reads `unavailable`
+rather than zero. Group makespan and provider duration are separate quantities
+that comparison reports do not carry; see [the glossary](../GLOSSARY.md).

@@ -620,3 +620,16 @@ See [current state](docs/status.md) for implementation coverage and
   restoration. A target's Backlog configuration determines where its board
   lives. These target artifacts are distinct from Rehearse's external personal
   board.
+- **Attempt elapsed time** — the wall-clock duration of one attempt, from its
+  start to its finish, including work outside provider calls. Recorded per rep,
+  and carried into a comparison as each arm's per-attempt observations and
+  their mean. It is not the sum of a call's provider durations, and summing it
+  across attempts that ran concurrently does not give wall-clock time.
+- **Provider duration** — the time spent inside provider calls. Distinct from
+  attempt elapsed time, which also counts the work around those calls, and
+  never its sum. Comparison reports do not carry it.
+- **Group makespan** — the wall-clock duration of a confirmation group, from
+  its first attempt starting to its last finishing. Smaller than the summed
+  attempt elapsed time whenever attempts ran concurrently. Recorded on the
+  group record and not carried into comparison reports, because it describes
+  how the operator scheduled the reps rather than the treatment under test.
