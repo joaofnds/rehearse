@@ -521,6 +521,40 @@ describe(buildComparisonReport.name, () => {
 		expect(outcome).not.toHaveProperty("grade");
 	});
 
+	it("refuses a current report whose arm resources omit the elapsed measurement", () => {
+		const report = buildComparisonReport(comparisonEvidenceFixture(), {
+			skippedCalibrations: 0,
+			baselines: [],
+		});
+		const [firstCase] = report.cases;
+		if (firstCase === undefined) {
+			throw new Error("comparison report has no first case");
+		}
+
+		const withoutElapsed = {
+			...report,
+			cases: [
+				{
+					...firstCase,
+					arms: {
+						...firstCase.arms,
+						baseline: {
+							...firstCase.arms.baseline,
+							resources: armResourcesWithoutElapsed(
+								firstCase.arms.baseline.resources,
+							),
+						},
+					},
+				},
+				...report.cases.slice(1),
+			],
+		};
+
+		expect(() =>
+			parseComparisonReport(JSON.stringify(withoutElapsed)),
+		).toThrow();
+	});
+
 	it("parses persisted version-one and version-two reports strictly", () => {
 		const current = buildComparisonReport(comparisonEvidenceFixture(), {
 			skippedCalibrations: 0,
