@@ -9,6 +9,7 @@ import {
 	asRefusedPrecondition,
 	defaultModelProbe,
 	defaultProbeModel,
+	MODEL_PREFLIGHT_MAXIMUM_USD,
 	probeModelAvailable,
 } from "./preflight";
 import { RefusedPreconditionError } from "./exit-codes";
@@ -18,6 +19,8 @@ interface FakeEnvelope {
 	readonly is_error: boolean;
 	readonly api_error_status?: number;
 	readonly result?: string;
+	readonly terminal_reason?: string;
+	readonly total_cost_usd?: number;
 }
 
 function fakeProbe(envelope: FakeEnvelope): () => Promise<string> {
@@ -127,6 +130,23 @@ describe(probeModelAvailable.name, () => {
 		expect(failure).rejects.toBeInstanceOf(RefusedPreconditionError);
 		expect(failure).rejects.toThrow("definitely-not-a-real-model-xyz");
 		expect(failure).rejects.toThrow(/re-declar|entitle/u);
+	});
+
+	it("refuses naming the spend and the cap when the probe exhausts its budget", () => {
+		const invoke = fakeProbe({
+			session_id: "session-1",
+			is_error: true,
+			terminal_reason: "budget_exhausted",
+			total_cost_usd: 0.022268,
+		});
+
+		const failure = probeModelAvailable("sonnet", invoke);
+
+		expect(failure).rejects.toBeInstanceOf(RefusedPreconditionError);
+		expect(failure).rejects.toThrow(/budget/iu);
+		expect(failure).rejects.toThrow("0.022268");
+		expect(failure).rejects.toThrow(String(MODEL_PREFLIGHT_MAXIMUM_USD));
+		expect(failure).rejects.not.toThrow("is not available");
 	});
 
 	it("propagates a malformed probe response instead of calling it unavailable", () => {

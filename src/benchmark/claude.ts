@@ -65,10 +65,29 @@ export function claudeArgs(invocation: ClaudeInvocation): string[] {
 	];
 }
 
+/**
+ * The provider names why it stopped in `terminal_reason`, and a budget halt
+ * reports what it spent getting there while carrying no `result` at all, so
+ * a caller that reads only the message cannot tell that cause from a rejected
+ * model. The message stays what it always was; callers that need the cause
+ * narrow on this type.
+ */
+export class ClaudeSessionError extends Error {
+	public readonly terminalReason: string | undefined;
+	public readonly costUsd: number | undefined;
+
+	public constructor(envelope: ClaudeEnvelope) {
+		super(envelope.result ?? "Claude session failed");
+		this.name = "ClaudeSessionError";
+		this.terminalReason = envelope.terminal_reason;
+		this.costUsd = envelope.total_cost_usd;
+	}
+}
+
 export function readClaudeEnvelope(output: string): ClaudeEnvelope {
 	const envelope = claudeEnvelopeSchema.parse(JSON.parse(output));
 	if (envelope.is_error === true) {
-		throw new Error(envelope.result ?? "Claude session failed");
+		throw new ClaudeSessionError(envelope);
 	}
 
 	return envelope;

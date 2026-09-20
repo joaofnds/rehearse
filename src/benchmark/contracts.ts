@@ -227,6 +227,7 @@ export const claudeEnvelopeSchema = z
 		usage: claudeUsageSchema.optional(),
 		modelUsage: claudeModelUsageByModelSchema.optional(),
 		is_error: z.boolean().optional(),
+		terminal_reason: z.string().optional(),
 		result: z.string().optional(),
 		structured_output: z.unknown().optional(),
 	})

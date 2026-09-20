@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { CaseDeclarationError } from "./case";
 import {
+	ClaudeSessionError,
 	claudeArgs,
 	readClaudeCallMetrics,
 	readClaudeEnvelope,
@@ -148,10 +149,10 @@ export function defaultModelProbe(
  * rather than the process exit code: an unrecognized or unentitled model still
  * exits the CLI process in a way that varies by release, but the envelope's
  * `is_error` is the one signal `readClaudeEnvelope` already commits to reading.
- * `readClaudeEnvelope` throws a bare `Error` only for that signal; a malformed
- * response throws `SyntaxError` or a zod error instead, and those name a probe
- * or provider problem, not an unavailable model, so only the bare `Error` is
- * relabeled here.
+ * `readClaudeEnvelope` throws `ClaudeSessionError` only for that signal; a
+ * malformed response throws `SyntaxError` or a zod error instead, and those
+ * name a probe or provider problem, not an unavailable model, so only the
+ * session error is relabeled here.
  */
 export async function probeModelAvailable(
 	model: string,
@@ -166,14 +167,36 @@ export async function probeModelAvailable(
 			? { status: "MISSING", missing: "preflight call metrics" }
 			: { status: "COMPLETE", call: { metrics } };
 	} catch (error) {
-		if (!(error instanceof Error) || !isBareError(error)) {
+		if (!(error instanceof ClaudeSessionError)) {
 			throw error;
 		}
 
-		throw new RefusedPreconditionError(
-			`Model ${model} is not available: ${error.message}. Re-declare a model this session can run, or check your entitlement for it.`,
-		);
+		throw new RefusedPreconditionError(refusalFor(model, error));
 	}
+}
+
+const BUDGET_EXHAUSTED_REASON = "budget_exhausted";
+
+/**
+ * The spend is printed as the provider reported it rather than rounded to
+ * cents like the rest of this project's money: a probe halt measures in
+ * thousandths of a dollar, and `$0.02` against a `$0.10` cap tells the
+ * operator nothing about how close the ceiling is.
+ */
+function refusalFor(
+	model: string,
+	error: Readonly<ClaudeSessionError>,
+): string {
+	if (error.terminalReason !== BUDGET_EXHAUSTED_REASON) {
+		return `Model ${model} is not available: ${error.message}. Re-declare a model this session can run, or check your entitlement for it.`;
+	}
+
+	const spent =
+		error.costUsd === undefined
+			? "an amount the provider did not report"
+			: `$${error.costUsd}`;
+
+	return `The ${model} availability probe exhausted its own budget, spending ${spent} against a $${MODEL_PREFLIGHT_MAXIMUM_USD} cap. Raise the cap or retry once the prompt cache is warm.`;
 }
 
 /**
