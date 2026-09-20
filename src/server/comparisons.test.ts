@@ -15,8 +15,11 @@ import {
 import type {
 	ComparisonReport,
 	LegacyComparisonReport,
-	MultiCaseComparisonReport,
 } from "#benchmark/comparison-record";
+import {
+	armResourcesWithoutElapsed,
+	contrastResourcesWithoutElapsed,
+} from "#benchmark/comparison-test-fixtures";
 import { comparisonReportPaths } from "#benchmark/run-layout";
 import { createApiApp } from "./api";
 
@@ -71,42 +74,6 @@ async function comparisonResponseFrom(
 		...parsed,
 		report: parseComparisonReport(JSON.stringify(parsed.report)),
 	};
-}
-
-type CurrentArmResources =
-	MultiCaseComparisonReport["cases"][number]["arms"]["baseline"]["resources"];
-type CurrentContrastResources =
-	MultiCaseComparisonReport["contrasts"]["candidateMinusBaseline"]["resources"];
-
-type VersionThreeReport = Extract<
-	LegacyComparisonReport,
-	{ readonly schemaVersion: 3 }
->;
-type LegacyArmResources =
-	VersionThreeReport["cases"][number]["arms"]["baseline"]["resources"];
-type LegacyContrastResources =
-	VersionThreeReport["contrasts"]["candidateMinusBaseline"]["resources"];
-
-function armResourcesWithoutElapsed(
-	resources: CurrentArmResources,
-): LegacyArmResources {
-	if (resources.status === "UNAVAILABLE") {
-		return resources;
-	}
-	const { elapsedMs: _elapsedMs, ...withoutIt } = resources;
-
-	return withoutIt;
-}
-
-function contrastResourcesWithoutElapsed(
-	resources: CurrentContrastResources,
-): LegacyContrastResources {
-	if (resources.status === "UNAVAILABLE") {
-		return resources;
-	}
-	const { elapsedMs: _elapsedMs, ...withoutIt } = resources;
-
-	return withoutIt;
 }
 
 async function rewriteFixtureAsSession(

@@ -13,7 +13,11 @@ import type {
 	ComparisonArmEvidence,
 	ComparisonEvidence,
 } from "./comparison-evidence";
-import type { ComparisonArm } from "./comparison-record";
+import type {
+	ComparisonArm,
+	LegacyComparisonReport,
+	MultiCaseComparisonReport,
+} from "./comparison-record";
 import { sessionAttemptRecordV3Schema } from "./session-record";
 import type { Immutable } from "./contracts";
 
@@ -478,4 +482,45 @@ export function singleCaseSessionEvidenceFixture(
 		},
 		sourcePaths: [],
 	};
+}
+
+type CurrentArmResources =
+	MultiCaseComparisonReport["cases"][number]["arms"]["baseline"]["resources"];
+type CurrentContrastResources =
+	MultiCaseComparisonReport["contrasts"]["candidateMinusBaseline"]["resources"];
+type VersionFourReport = Extract<
+	LegacyComparisonReport,
+	{ readonly schemaVersion: 4; readonly mode: "pipeline" }
+>;
+type VersionFourArmResources =
+	VersionFourReport["cases"][number]["arms"]["baseline"]["resources"];
+type VersionFourContrastResources =
+	VersionFourReport["contrasts"]["candidateMinusBaseline"]["resources"];
+
+/**
+ * What separates a version-4 report's resources from a current one's: the
+ * elapsed measurement version 5 added. Tests that build an older report from a
+ * current one go through here, so the next measurement to land has one place to
+ * teach rather than one per test file.
+ */
+export function armResourcesWithoutElapsed(
+	resources: Immutable<CurrentArmResources>,
+): VersionFourArmResources {
+	if (resources.status === "UNAVAILABLE") {
+		return resources;
+	}
+	const { elapsedMs: _elapsedMs, ...withoutElapsed } = resources;
+
+	return withoutElapsed;
+}
+
+export function contrastResourcesWithoutElapsed(
+	resources: Immutable<CurrentContrastResources>,
+): VersionFourContrastResources {
+	if (resources.status === "UNAVAILABLE") {
+		return resources;
+	}
+	const { elapsedMs: _elapsedMs, ...withoutElapsed } = resources;
+
+	return withoutElapsed;
 }

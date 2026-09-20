@@ -8,6 +8,10 @@ import type {
 	MultiCaseComparisonReport,
 } from "#benchmark/comparison-record";
 import { parseComparisonReport } from "#benchmark/comparison-record";
+import {
+	armResourcesWithoutElapsed,
+	contrastResourcesWithoutElapsed,
+} from "#benchmark/comparison-test-fixtures";
 import { comparisonReportPaths } from "#benchmark/run-layout";
 import { RecordedRunsFixture } from "#benchmark/run-records-test-support";
 import { failureOf, recordOutput } from "#cli/cli-test-support";
@@ -48,39 +52,12 @@ function parseLegacyCandidate(text: string): LegacyComparisonReport {
 	return parsed;
 }
 
-type CurrentArmResources =
-	MultiCaseComparisonReport["cases"][number]["arms"]["baseline"]["resources"];
-type CurrentContrastResources =
-	MultiCaseComparisonReport["contrasts"]["candidateMinusBaseline"]["resources"];
-
-function withoutArmElapsed(
-	resources: CurrentArmResources,
-): LegacyPipelineArm["resources"] {
-	if (resources.status === "UNAVAILABLE") {
-		return resources;
-	}
-	const { elapsedMs: _elapsedMs, ...withoutElapsed } = resources;
-
-	return withoutElapsed;
-}
-
-function withoutContrastElapsed(
-	resources: CurrentContrastResources,
-): VersionTwoReport["contrasts"]["candidateMinusBaseline"]["resources"] {
-	if (resources.status === "UNAVAILABLE") {
-		return resources;
-	}
-	const { elapsedMs: _elapsedMs, ...withoutElapsed } = resources;
-
-	return withoutElapsed;
-}
-
 function withoutOutcomeArm(
 	arm: MultiCaseComparisonReport["cases"][number]["arms"]["baseline"],
 ): LegacyPipelineArm {
 	return {
 		...arm,
-		resources: withoutArmElapsed(arm.resources),
+		resources: armResourcesWithoutElapsed(arm.resources),
 		source: {
 			...arm.source,
 			reps: arm.source.reps.map((rep) => {
@@ -114,7 +91,7 @@ function legacyComparisonReport(
 		contrast: MultiCaseComparisonReport["contrasts"]["candidateMinusBaseline"],
 	): VersionTwoReport["contrasts"]["candidateMinusBaseline"] => ({
 		...contrast,
-		resources: withoutContrastElapsed(contrast.resources),
+		resources: contrastResourcesWithoutElapsed(contrast.resources),
 	});
 	const contrasts = {
 		candidateMinusBaseline: contrastWithoutElapsed(
@@ -137,15 +114,15 @@ function legacyComparisonReport(
 					arms: {
 						baseline: {
 							...arms.baseline,
-							resources: withoutArmElapsed(arms.baseline.resources),
+							resources: armResourcesWithoutElapsed(arms.baseline.resources),
 						},
 						candidate: {
 							...arms.candidate,
-							resources: withoutArmElapsed(arms.candidate.resources),
+							resources: armResourcesWithoutElapsed(arms.candidate.resources),
 						},
 						control: {
 							...arms.control,
-							resources: withoutArmElapsed(arms.control.resources),
+							resources: armResourcesWithoutElapsed(arms.control.resources),
 						},
 					},
 				})),
@@ -197,7 +174,7 @@ function legacyComparisonReport(
 		contrast: MultiCaseComparisonReport["contrasts"]["candidateMinusBaseline"],
 	): VersionThreeReport["contrasts"]["candidateMinusBaseline"] => ({
 		...contrast,
-		resources: withoutContrastElapsed(contrast.resources),
+		resources: contrastResourcesWithoutElapsed(contrast.resources),
 		quality: Array.from(contrast.quality.slice(0, 1), (summary) => ({
 			...summary,
 			name: "checks",

@@ -4,13 +4,12 @@ import {
 	parseComparisonReport,
 	serializeComparisonReport,
 } from "./comparison-record";
-import type {
-	ComparisonReport,
-	LegacyComparisonReport,
-} from "./comparison-record";
+import type { ComparisonReport } from "./comparison-record";
 import {
+	armResourcesWithoutElapsed,
 	comparisonEvidenceFixture,
 	comparisonReps,
+	contrastResourcesWithoutElapsed,
 	FAIL,
 	PASS,
 	withMissingMetrics,
@@ -46,15 +45,6 @@ type MalformedReportCase = Omit<ReportCase, "arms"> & {
 type MalformedComparisonReport = Omit<ComparisonReport, "cases"> & {
 	readonly cases: readonly MalformedReportCase[];
 };
-
-type VersionTwoReport = Extract<
-	LegacyComparisonReport,
-	{ readonly schemaVersion: 2 }
->;
-type LegacyArmResources =
-	VersionTwoReport["cases"][number]["arms"]["baseline"]["resources"];
-type LegacyContrastResources =
-	VersionTwoReport["contrasts"]["candidateMinusBaseline"]["resources"];
 
 function changeFirstBaseline(
 	report: ComparisonReport,
@@ -546,34 +536,10 @@ describe(buildComparisonReport.name, () => {
 
 			return legacyRep;
 		};
-		type ArmResources =
-			(typeof current.cases)[number]["arms"]["baseline"]["resources"];
-		const armResourcesWithoutElapsed = (
-			resources: ArmResources,
-		): LegacyArmResources => {
-			if (resources.status === "UNAVAILABLE") {
-				return resources;
-			}
-			const { elapsedMs: _elapsedMs, ...withoutIt } = resources;
-
-			return withoutIt;
-		};
-		type ContrastResources =
-			(typeof current.contrasts)[keyof typeof current.contrasts]["resources"];
-		const contrastResourcesWithoutElapsed = (
-			resources: ContrastResources,
-		): LegacyContrastResources => {
-			if (resources.status === "UNAVAILABLE") {
-				return resources;
-			}
-			const { elapsedMs: _elapsedMs, ...withoutIt } = resources;
-
-			return withoutIt;
-		};
 		const withoutArmElapsed = (
 			arm: (typeof current.cases)[number]["arms"]["baseline"],
 		): Omit<typeof arm, "resources" | "source"> & {
-			readonly resources: LegacyArmResources;
+			readonly resources: ReturnType<typeof armResourcesWithoutElapsed>;
 			readonly source: Omit<typeof arm.source, "reps"> & {
 				readonly reps: readonly Omit<
 					(typeof arm.source.reps)[number],
@@ -591,7 +557,7 @@ describe(buildComparisonReport.name, () => {
 		const withoutContrastElapsed = (
 			contrast: (typeof current.contrasts)[keyof typeof current.contrasts],
 		): Omit<typeof contrast, "resources"> & {
-			readonly resources: LegacyContrastResources;
+			readonly resources: ReturnType<typeof contrastResourcesWithoutElapsed>;
 		} => ({
 			...contrast,
 			resources: contrastResourcesWithoutElapsed(contrast.resources),
