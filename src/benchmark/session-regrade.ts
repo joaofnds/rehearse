@@ -1,6 +1,9 @@
 import { createHash } from "node:crypto";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { SessionCase } from "./case";
+import { statIfExists } from "./file-presence";
 import type { Immutable } from "./contracts";
 import { jsonValueSchema } from "./json-value";
 import type { SessionAttemptId } from "./run-layout";
@@ -9,6 +12,9 @@ import type { Check, CheckEvidence } from "./session-check";
 import { evaluateChecks } from "./session-check";
 import type { CheckKind } from "./session-check-result";
 import type { SessionAttemptRecord } from "./session-record";
+import type { StateResult } from "./session-state-check";
+import { gradeStateEvidence } from "./session-state-check";
+import { STATE_EVIDENCE_DIRECTORY } from "./session-state-evidence";
 import { parseTranscriptFile, toolUses } from "./transcript";
 
 /**
@@ -53,12 +59,31 @@ export interface Assessment {
 	readonly evidence: EvidenceDigests;
 	readonly checks: readonly RegradedCheck[];
 	/**
+	 * Present only when the case declares a scorer and the scorer either could
+	 * not run or had nothing to read. A case declaring no scorer grades no
+	 * state, which is a different fact from evidence being absent, so it
+	 * leaves both this and `stateResults` unset.
+	 */
+	readonly stateCheck?: Immutable<StateGradeProblem> | undefined;
+	readonly stateResults?: readonly StateResult[] | undefined;
+	/**
 	 * Absent when any declared check was not graded. A verdict computed over
 	 * the subset that had evidence would read as a grade of the whole
 	 * definition, which is the fabricated grade the third status exists to
 	 * prevent.
 	 */
 	readonly outcome?: "SUCCESSFUL" | "UNSUCCESSFUL" | undefined;
+}
+
+/**
+ * Why a declared state scorer produced no results. `UNAVAILABLE` is the
+ * attempt's fault, evidence it never preserved, and `ERROR` is the scorer's.
+ * Neither is a failing grade, because neither says anything about the work
+ * the session did.
+ */
+export interface StateGradeProblem {
+	readonly status: "UNAVAILABLE" | "ERROR";
+	readonly detail: string;
 }
 
 /**
@@ -157,19 +182,85 @@ async function savedEvidence(
 	};
 }
 
+interface StateGrade {
+	readonly stateCheck?: StateGradeProblem | undefined;
+	readonly stateResults?: readonly StateResult[] | undefined;
+}
+
+const NO_STATE_EVIDENCE_DETAIL =
+	"the attempt preserved no files or git state, so its state scorer has nothing to grade";
+
+/**
+ * The grade runs against a fresh restore of the preserved tree rather than
+ * against the tree itself, which is what lets a second pass read the same
+ * bytes the first did even when the scorer writes.
+ *
+ * An attempt saved before retention existed has no `state/` beside it. That
+ * is evidence the attempt never preserved, not a scorer that failed, so it is
+ * reported as unavailable rather than run against an empty directory, which
+ * would grade the absence of the session's work as the session's work.
+ */
+async function regradeState(
+	request: Immutable<RegradeRequest>,
+): Promise<StateGrade> {
+	const { stateCheck } = request.sessionCase;
+	if (stateCheck === undefined) {
+		return {};
+	}
+
+	const evidenceDirectory = join(
+		request.attemptDirectory,
+		STATE_EVIDENCE_DIRECTORY,
+	);
+	const preserved = await statIfExists(evidenceDirectory);
+	if (preserved === undefined) {
+		return {
+			stateCheck: {
+				status: "UNAVAILABLE",
+				detail: NO_STATE_EVIDENCE_DETAIL,
+			},
+		};
+	}
+
+	const restoreDirectory = await mkdtemp(join(tmpdir(), "rehearse-regrade-"));
+	try {
+		const graded = await gradeStateEvidence({
+			evidenceDirectory,
+			restoreDirectory,
+			scorerSource: request.sessionCase.fixturePath,
+			command: stateCheck.command,
+			outcomes: stateCheck.outcomes,
+		});
+
+		return graded.kind === "results"
+			? { stateResults: graded.results }
+			: { stateCheck: { status: "ERROR", detail: graded.detail } };
+	} finally {
+		await rm(restoreDirectory, { force: true, recursive: true });
+	}
+}
+
 /**
  * A grade over a subset of the declared checks is not a grade of the
  * definition, so the verdict is withheld entirely rather than computed over
  * whatever had evidence.
  */
-function verdictOver(checks: readonly RegradedCheck[]): Assessment["outcome"] {
-	if (checks.some(({ status }) => status === "UNAVAILABLE")) {
+function verdictOver(
+	checks: readonly RegradedCheck[],
+	state: Readonly<StateGrade>,
+): Assessment["outcome"] {
+	if (
+		state.stateCheck !== undefined ||
+		checks.some(({ status }) => status === "UNAVAILABLE")
+	) {
 		return undefined;
 	}
 
-	return checks.every(({ status }) => status === "PASS")
-		? "SUCCESSFUL"
-		: "UNSUCCESSFUL";
+	const passed = [...checks, ...(state.stateResults ?? [])].every(
+		({ status }) => status === "PASS",
+	);
+
+	return passed ? "SUCCESSFUL" : "UNSUCCESSFUL";
 }
 
 function unavailable(check: Immutable<Check>): RegradedCheck {
@@ -208,12 +299,14 @@ export async function regradeAttempt(
 	const checks = request.sessionCase.checks.map(
 		(check, position) => byPosition.get(position) ?? unavailable(check),
 	);
+	const state = await regradeState(request);
 
 	return {
 		sourceAttempt: request.attemptId,
 		gradingDefinition: gradingDefinitionDigest(request.sessionCase),
 		evidence: digests,
 		checks,
-		outcome: verdictOver(checks),
+		...state,
+		outcome: verdictOver(checks, state),
 	};
 }

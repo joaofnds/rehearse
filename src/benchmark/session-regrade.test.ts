@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { SessionCase } from "#benchmark/case";
 import type { Immutable } from "#benchmark/contracts";
+import { STATE_EVIDENCE_DIRECTORY } from "#benchmark/session-state-evidence";
 import { TestResources } from "#benchmark/test-support";
 import {
 	gradingDefinitionDigest,
@@ -92,6 +93,42 @@ function completeBoundary(
 		toolErrors: [],
 		repeatedBashCommands: [],
 		issues: [],
+	};
+}
+
+/**
+ * An attempt whose `state/` directory holds one file, which is the shape
+ * retention leaves behind: the session's tree copied beside the record.
+ */
+async function attemptWithStateEvidence(contents: string): Promise<string> {
+	const directory = await attemptWithTranscript(["Bash"]);
+	await Bun.write(
+		join(directory, STATE_EVIDENCE_DIRECTORY, "left.txt"),
+		contents,
+	);
+
+	return directory;
+}
+
+/**
+ * A scorer reporting one outcome named after the file the session left, so a
+ * grade over the restored copy is visible without a provider.
+ */
+function caseScoringState(): SessionCase {
+	const declared = caseDeclaring([]);
+	const stateCheck = {
+		command: [
+			"sh",
+			"-c",
+			String.raw`printf '{"results":[{"name":"left-a-file","status":"PASS","detail":"%s"}]}' "$(tr -d '\n' < left.txt)"`,
+		],
+		outcomes: ["left-a-file"],
+	};
+
+	return {
+		...declared,
+		declaration: { ...declared.declaration, stateCheck },
+		stateCheck,
 	};
 }
 
@@ -286,6 +323,42 @@ describe(regradeAttempt.name, () => {
 				detail: "undeclared tool called: Read",
 			},
 		]);
+	});
+
+	describe("when the case declares a state scorer", () => {
+		it("grades the state the attempt preserved", async () => {
+			const directory = await attemptWithStateEvidence("left-behind\n");
+
+			const assessment = await regradeAttempt({
+				attemptId: { caseId: "smoke", uuid: "attempt-uuid" },
+				record: savedRecord({ transcriptDiagnostics: completeBoundary(0) }),
+				attemptDirectory: directory,
+				sessionCase: caseScoringState(),
+			});
+
+			expect(assessment.stateResults).toEqual([
+				{ name: "left-a-file", status: "PASS", detail: "left-behind" },
+			]);
+		});
+
+		it("reports the state check unavailable when the attempt preserved none", async () => {
+			const directory = await attemptWithTranscript(["Bash"]);
+
+			const assessment = await regradeAttempt({
+				attemptId: { caseId: "smoke", uuid: "attempt-uuid" },
+				record: savedRecord({ transcriptDiagnostics: completeBoundary(0) }),
+				attemptDirectory: directory,
+				sessionCase: caseScoringState(),
+			});
+
+			expect(assessment.stateCheck).toEqual({
+				status: "UNAVAILABLE",
+				detail:
+					"the attempt preserved no files or git state, so its state scorer has nothing to grade",
+			});
+			expect(assessment.stateResults).toBeUndefined();
+			expect(assessment.outcome).toBeUndefined();
+		});
 	});
 
 	describe("when the record carries no transcript diagnostics", () => {
