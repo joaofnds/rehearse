@@ -940,6 +940,7 @@ describe("session comparison", () => {
 			},
 		);
 		expect(listed.join("")).toContain(`comparison:${digestValue}`);
+		expect(listed.join("")).toContain("\t2 cases\t2 reps");
 		const shown: string[] = [];
 		await runShow(
 			{
@@ -1041,6 +1042,19 @@ describe("session comparison", () => {
 			},
 		);
 		const summary = shown.join("");
+
+		const listed: string[] = [];
+		await runList(
+			{ kind: "comparisons", runsDirectory },
+			{
+				stdout: (text) => {
+					listed.push(text);
+				},
+				stderr: () => undefined,
+			},
+		);
+
+		expect(listed.join("")).toContain("\t1 case\t2 reps");
 
 		expect(summary).toBe(
 			`## comparison:${digestValue}

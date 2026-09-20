@@ -245,7 +245,7 @@ async function listComparisons(runsDirectory: string): Promise<RecordListing> {
 			);
 
 			return [
-				`${String(report.cases.length)} cases`,
+				`${String(report.cases.length)} ${report.cases.length === 1 ? "case" : "cases"}`,
 				`${String(report.reps)} reps`,
 			];
 		},
