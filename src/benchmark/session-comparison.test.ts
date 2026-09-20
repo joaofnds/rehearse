@@ -2065,6 +2065,12 @@ describe("a committed state-scored case compared across three arms", () => {
 		expect(
 			report.cases[0]?.arms.control.source.reps.map((rep) => rep.stateResults),
 		).toEqual([idleStateResults, idleStateResults]);
+		expect(
+			report.cases[0]?.arms.control.source.reps.map((rep) => rep.checks),
+		).toEqual([
+			{ passed: 1, declared: 1, failing: [] },
+			{ passed: 1, declared: 1, failing: [] },
+		]);
 
 		const digestValue = digest(await Bun.file(manifestPath).text());
 		const shown: string[] = [];
