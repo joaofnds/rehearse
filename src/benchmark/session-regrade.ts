@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
 import type { SessionCase } from "./case";
@@ -15,7 +14,7 @@ import type { CheckKind } from "./session-check-result";
 import { checkKindSchema } from "./session-check-result";
 import type { SessionAttemptRecord } from "./session-record";
 import type { StateResult } from "./session-state-check";
-import { gradeStateEvidence, stateResultSchema } from "./session-state-check";
+import { gradeCaseState, stateResultSchema } from "./session-state-check";
 import { STATE_EVIDENCE_DIRECTORY } from "./session-state-evidence";
 import { parseTranscriptFile, toolUses } from "./transcript";
 
@@ -287,8 +286,7 @@ const NO_STATE_EVIDENCE_DETAIL =
 async function regradeState(
 	request: Immutable<RegradeRequest>,
 ): Promise<StateGrade> {
-	const { stateCheck } = request.sessionCase;
-	if (stateCheck === undefined) {
+	if (request.sessionCase.stateCheck === undefined) {
 		return {};
 	}
 
@@ -306,22 +304,14 @@ async function regradeState(
 		};
 	}
 
-	const restoreDirectory = await mkdtemp(join(tmpdir(), "rehearse-regrade-"));
-	try {
-		const graded = await gradeStateEvidence({
-			evidenceDirectory,
-			restoreDirectory,
-			scorerSource: request.sessionCase.fixturePath,
-			command: stateCheck.command,
-			outcomes: stateCheck.outcomes,
-		});
-
-		return graded.kind === "results"
-			? { stateResults: graded.results }
-			: { stateCheck: { status: "ERROR", detail: graded.detail } };
-	} finally {
-		await rm(restoreDirectory, { force: true, recursive: true });
+	const graded = await gradeCaseState(request.sessionCase, evidenceDirectory);
+	if (graded === undefined) {
+		return {};
 	}
+
+	return graded.kind === "results"
+		? { stateResults: graded.results }
+		: { stateCheck: { status: "ERROR", detail: graded.detail } };
 }
 
 /**

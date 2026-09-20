@@ -1,6 +1,8 @@
-import { cp } from "node:fs/promises";
+import { cp, mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
+import type { SessionCase } from "./case";
 import { CommandError } from "./command";
 import {
 	restoreStateEvidence,
@@ -221,4 +223,42 @@ export async function gradeStateEvidence(
 	}
 
 	return parseStateScorerOutput(stdout, request.outcomes);
+}
+
+/**
+ * Grading a case's declared scorer against preserved evidence, in a restore
+ * that exists only for this grade. The original attempt and a later regrade
+ * both come through here, so the temporary directory's lifetime and the
+ * scorer's source are stated once: a second copy of them would let one path
+ * grade in the evidence itself while the other graded in a copy.
+ *
+ * A case declaring no scorer grades no state, which the caller sees as
+ * `undefined` rather than as an empty result list. That is a different fact
+ * from a scorer that ran and reported nothing.
+ */
+export async function gradeCaseState(
+	sessionCase: Readonly<
+		Pick<SessionCase, "stateCheck"> & {
+			readonly fixturePath: string | undefined;
+		}
+	>,
+	evidenceDirectory: string,
+): Promise<StateScorerOutcome | undefined> {
+	const { stateCheck } = sessionCase;
+	if (stateCheck === undefined) {
+		return undefined;
+	}
+
+	const restoreDirectory = await mkdtemp(join(tmpdir(), "rehearse-grade-"));
+	try {
+		return await gradeStateEvidence({
+			evidenceDirectory,
+			restoreDirectory,
+			scorerSource: sessionCase.fixturePath,
+			command: stateCheck.command,
+			outcomes: stateCheck.outcomes,
+		});
+	} finally {
+		await rm(restoreDirectory, { force: true, recursive: true });
+	}
 }

@@ -41,7 +41,7 @@ import { normalizeContextEvidence } from "./context-evidence";
 import { STORED_GIT_DIRECTORY } from "./git-directory-name";
 import { preserveStateEvidence } from "./session-state-evidence";
 import type { StateResult } from "./session-state-check";
-import { gradeStateEvidence } from "./session-state-check";
+import { gradeCaseState } from "./session-state-check";
 import type {
 	ContextEvidence,
 	ContextEvidenceSource,
@@ -645,36 +645,23 @@ interface StateGrade {
 }
 
 /**
- * The grade runs against a restore rather than the attempt directory, so it
- * reads the same bytes a later regrade will and a scorer that writes cannot
- * change what the record says the session left. A case declaring no scorer
- * grades no state, which is a different fact from a scorer that failed.
+ * A scorer that could not grade is recorded as the reason it could not, never
+ * as a failing grade: a broken scorer must not read as a corpus that got
+ * worse. A case declaring no scorer grades no state, which is a different
+ * fact again, and leaves both fields unset.
  */
 async function gradeAttemptState(
 	sessionCase: SessionCase,
 	evidenceDirectory: string,
 ): Promise<StateGrade> {
-	const { stateCheck } = sessionCase;
-	if (stateCheck === undefined) {
+	const graded = await gradeCaseState(sessionCase, evidenceDirectory);
+	if (graded === undefined) {
 		return {};
 	}
 
-	const restoreDirectory = await mkdtemp(join(tmpdir(), "rehearse-grade-"));
-	try {
-		const graded = await gradeStateEvidence({
-			evidenceDirectory,
-			restoreDirectory,
-			scorerSource: sessionCase.fixturePath,
-			command: stateCheck.command,
-			outcomes: stateCheck.outcomes,
-		});
-
-		return graded.kind === "results"
-			? { stateResults: graded.results }
-			: { stateGradingError: graded.detail };
-	} finally {
-		await rm(restoreDirectory, { force: true, recursive: true });
-	}
+	return graded.kind === "results"
+		? { stateResults: graded.results }
+		: { stateGradingError: graded.detail };
 }
 
 async function recordAttempt(
