@@ -106,6 +106,18 @@ describe(buildSingleCaseMeanEstimate.name, () => {
 		}
 	});
 
+	it("estimates the spread when only one arm varies", () => {
+		const estimate = buildSingleCaseMeanEstimate({
+			minuend: [0.4, 0.44],
+			subtrahend: [0.37, 0.37],
+		});
+
+		expect(estimate.spread.status).toBe("ESTIMATED");
+		if (estimate.spread.status === "ESTIMATED") {
+			expect(estimate.spread.standardError).toBeCloseTo(0.02, 10);
+		}
+	});
+
 	it("records that an arm had no observed spread instead of a zero standard error", () => {
 		const estimate = buildSingleCaseMeanEstimate({
 			minuend: [0.42, 0.42, 0.42, 0.42],
