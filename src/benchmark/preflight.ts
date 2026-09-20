@@ -23,12 +23,11 @@ const DECLARED_REFERENCE_ERRORS = [
 ] as const;
 
 /**
- * A bare `Error`, as opposed to one of its subclasses: several checks in this
- * module throw a plain `Error` for the one condition they name and let a
- * subclassed failure (`CommandError`, `SyntaxError`, a zod error) from a
- * collaborator they call propagate on its own account, so relabeling that
- * collaborator's failure as this check's own would discard what it already
- * says.
+ * A bare `Error`, as opposed to one of its subclasses: the target checks
+ * throw a plain `Error` for the one condition they name and let a subclassed
+ * failure (`CommandError`, `SyntaxError`, a zod error) from a collaborator
+ * they call propagate on its own account, so relabeling that collaborator's
+ * failure as this check's own would discard what it already says.
  */
 function isBareError(error: Readonly<Error>): boolean {
 	return error.constructor === Error;
