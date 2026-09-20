@@ -127,10 +127,9 @@ well enough to decide whether an edit helped. The remaining work follows those
 goals, with context visibility added to help explain resource use:
 
 1. Add reproducible public pipeline case inputs.
-2. Deliver isolated session skill variants and generated fixtures so realistic
-   skill outcomes can be graded. Frozen skills, generated fixtures, state
-   grading and regrading have landed; comparing session experiments across arms
-   has not.
+2. Compare session experiments across arms. State grading and regrading have
+   landed; refusing a comparison whose arms were graded under different
+   definitions has not.
 3. Make context use inspectable alongside outcomes. Build on saved-session
    event and source inspection by validating per-request collection, then extend
    to pipeline steps and reviewer trees. Use a review-efficiency comparison to

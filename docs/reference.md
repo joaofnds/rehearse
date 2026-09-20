@@ -292,7 +292,8 @@ Transcript checks regrade over the boundary the attempt recorded, honoring
 `complete` or `partial`. A record with no diagnostics, or whose state is
 `unavailable`, has its transcript checks reported unavailable rather than
 graded over a transcript that cannot be bounded: the `unavailable` variant
-still carries a `prefixLinesExcluded` of 0, and grading on that alone would
+still carries a `prefixLinesExcluded`, which one saved record pairs with a
+zero-byte transcript, and grading on that field's presence alone would
 report a `tool-calls` or `files-read` check passing over evidence that does not
 exist. A case declaring a `stateCheck` whose attempt preserved no `state/`
 reports that scorer unavailable for the same reason.
