@@ -1,5 +1,8 @@
 import { describe, expect, it } from "bun:test";
-import { buildPairedEstimate } from "./comparison-estimator";
+import {
+	buildPairedEstimate,
+	buildSingleCaseProportionEstimate,
+} from "./comparison-estimator";
 
 describe(buildPairedEstimate.name, () => {
 	it("averages within cases before estimating paired differences", () => {
@@ -60,5 +63,30 @@ describe(buildPairedEstimate.name, () => {
 			standardError: 0.5,
 		});
 		expect(reversed).toEqual(forward);
+	});
+});
+
+describe(buildSingleCaseProportionEstimate.name, () => {
+	it("estimates an unpaired difference of proportions over rep counts", () => {
+		const estimate = buildSingleCaseProportionEstimate({
+			minuend: { successful: 5, requested: 6 },
+			subtrahend: { successful: 2, requested: 6 },
+		});
+
+		expect(estimate.delta).toBeCloseTo(0.5, 10);
+		expect(estimate.standardError).toBeCloseTo(0.2453, 4);
+	});
+
+	it("reports a non-degenerate interval for each arm when every rep agrees", () => {
+		const estimate = buildSingleCaseProportionEstimate({
+			minuend: { successful: 6, requested: 6 },
+			subtrahend: { successful: 0, requested: 6 },
+		});
+
+		expect(estimate.standardError).toBe(0);
+		expect(estimate.minuend.interval.low).toBeCloseTo(0.61, 2);
+		expect(estimate.minuend.interval.high).toBe(1);
+		expect(estimate.subtrahend.interval.low).toBe(0);
+		expect(estimate.subtrahend.interval.high).toBeCloseTo(0.39, 2);
 	});
 });
