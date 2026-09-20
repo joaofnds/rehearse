@@ -519,6 +519,57 @@ describe(regradeAttempt.name, () => {
 		});
 	});
 
+	describe("when the record saved no reply", () => {
+		it("reports a reply check unavailable rather than grading an empty reply", async () => {
+			const directory = await attemptWithTranscript(["Bash"]);
+
+			const assessment = await regradeAttempt({
+				attemptId: { caseId: "smoke", uuid: "attempt-uuid" },
+				record: savedRecord({
+					outcome: "NO_REPLY",
+					reply: undefined,
+					checks: [],
+					transcriptDiagnostics: completeBoundary(0),
+				}),
+				paths: pathsFor(directory),
+				sessionCase: caseDeclaring([{ kind: "word-band", max: 2 }]),
+			});
+
+			expect(assessment.checks).toEqual([
+				{
+					kind: "word-band",
+					status: "UNAVAILABLE",
+					detail:
+						"the attempt saved no reply, so nothing the session said can be read",
+				},
+			]);
+			expect(assessment.outcome).toBeUndefined();
+		});
+	});
+
+	describe("when the attempt holds no transcript file", () => {
+		it("reports a transcript check unavailable rather than counting an absent file", async () => {
+			const directory = await attemptDirectory();
+
+			const assessment = await regradeAttempt({
+				attemptId: { caseId: "smoke", uuid: "attempt-uuid" },
+				record: savedRecord({ transcriptDiagnostics: completeBoundary(0) }),
+				paths: pathsFor(directory),
+				sessionCase: caseDeclaring([{ kind: "tool-calls", max: 0 }]),
+			});
+
+			expect(assessment.checks).toEqual([
+				{
+					kind: "tool-calls",
+					status: "UNAVAILABLE",
+					detail:
+						"the attempt recorded no readable transcript boundary, so its tool uses cannot be counted",
+				},
+			]);
+			expect(assessment.outcome).toBeUndefined();
+		});
+	});
+
 	describe("when the record carries no transcript diagnostics", () => {
 		it("reports a transcript check unavailable and still grades the reply", async () => {
 			const directory = await attemptWithTranscript(["Read"]);

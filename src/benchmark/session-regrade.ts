@@ -5,6 +5,7 @@ import { z } from "zod";
 import type { SessionCase } from "./case";
 import { statIfExists } from "./file-presence";
 import type { Immutable } from "./contracts";
+import { unhandled } from "./contracts";
 import { jsonValueSchema } from "./json-value";
 import type { SessionAttemptId, SessionAttemptPaths } from "./run-layout";
 import { orderedForHashing } from "./session-lineage";
@@ -16,7 +17,7 @@ import type { SessionAttemptRecord } from "./session-record";
 import type { StateResult } from "./session-state-check";
 import { gradeCaseState, stateResultSchema } from "./session-state-check";
 import { STATE_EVIDENCE_DIRECTORY } from "./session-state-evidence";
-import { parseTranscriptFile, toolUses } from "./transcript";
+import { parseTranscript, toolUses } from "./transcript";
 
 /**
  * A regraded check carries a third status the recorded `checks` array cannot:
@@ -193,14 +194,35 @@ export function gradingDefinitionDigest(
 const NO_TRANSCRIPT_DETAIL =
 	"the attempt recorded no readable transcript boundary, so its tool uses cannot be counted";
 
+const NO_REPLY_DETAIL =
+	"the attempt saved no reply, so nothing the session said can be read";
+
 /**
- * Two of the four kinds read the reply the record saved and two read the
- * transcript on disk, so which evidence a check needs decides whether the
- * saved attempt can answer it at all.
+ * Which evidence a check needs decides whether the saved attempt can answer
+ * it at all. Every kind is named rather than defaulted, so a fifth kind stops
+ * the compiler here instead of being read as needing no transcript and graded
+ * over evidence the attempt may not hold.
  */
-function readsTranscript(check: Immutable<Check>): boolean {
-	return check.kind === "tool-calls" || check.kind === "files-read";
+function evidenceNeededBy(check: Immutable<Check>): keyof ReadEvidence["held"] {
+	switch (check.kind) {
+		case "tool-calls":
+		case "files-read": {
+			return "transcript";
+		}
+		case "word-band":
+		case "forbidden-text": {
+			return "reply";
+		}
+		default: {
+			return unhandled(check, "check kind");
+		}
+	}
 }
+
+const MISSING_EVIDENCE_DETAIL = {
+	reply: NO_REPLY_DETAIL,
+	transcript: NO_TRANSCRIPT_DETAIL,
+} satisfies Record<keyof ReadEvidence["held"], string>;
 
 /**
  * The boundary comes from the record and never from the case, because an
@@ -225,6 +247,17 @@ function recordedBoundary(
 interface ReadEvidence {
 	readonly evidence: CheckEvidence;
 	readonly digests: EvidenceDigests;
+	/**
+	 * Which bodies the attempt actually holds. A body it does not hold is not
+	 * an empty one: grading a `word-band` check against a reply that was never
+	 * saved reports zero words within the band, and a `tool-calls` check
+	 * against an absent transcript reports zero tool calls, both passing over
+	 * evidence nothing produced.
+	 */
+	readonly held: {
+		readonly reply: boolean;
+		readonly transcript: boolean;
+	};
 }
 
 function sha256Of(text: string): string {
@@ -232,36 +265,45 @@ function sha256Of(text: string): string {
 }
 
 /**
- * The digest covers the body as it sits on disk, taken from the same read the
- * grade used, so an assessment cannot name a digest of bytes other than the
- * ones it graded. A transcript the attempt does not hold is digested as
- * absent rather than as empty, since a digest of nothing reads as a body that
- * happened to be empty.
+ * The digest is taken over the bytes that produced the graded lines, read
+ * once, so an assessment cannot name a digest of bytes other than the ones it
+ * graded. A body the attempt does not hold is digested as absent rather than
+ * as empty, since a digest of nothing reads as a body that happened to be
+ * empty.
+ *
+ * A transcript is read only when the record carries a boundary to slice it
+ * at. Without one, there is nothing to say how much of the file belongs to
+ * the behavior under test, so the file is left unread rather than counted
+ * whole.
  */
 async function savedEvidence(
 	request: Immutable<RegradeRequest>,
 	boundary: number | undefined,
 ): Promise<ReadEvidence> {
 	const { reply } = request.record;
-	const replyDigest = reply === undefined ? undefined : sha256Of(reply);
-	if (boundary === undefined) {
+	const replyEvidence = {
+		reply: reply ?? "",
+		digests: { reply: reply === undefined ? undefined : sha256Of(reply) },
+		held: { reply: reply !== undefined },
+	};
+	const body = Bun.file(request.paths.transcriptFile);
+	if (boundary === undefined || !(await body.exists())) {
 		return {
-			evidence: { reply: reply ?? "", toolUses: [] },
-			digests: { reply: replyDigest },
+			evidence: { reply: replyEvidence.reply, toolUses: [] },
+			digests: replyEvidence.digests,
+			held: { ...replyEvidence.held, transcript: false },
 		};
 	}
 
-	const body = Bun.file(request.paths.transcriptFile);
-	const lines = await parseTranscriptFile(request.paths.transcriptFile);
+	const text = await body.text();
 
 	return {
-		evidence: { reply: reply ?? "", toolUses: toolUses(lines.slice(boundary)) },
-		digests: {
-			reply: replyDigest,
-			transcript: (await body.exists())
-				? sha256Of(await body.text())
-				: undefined,
+		evidence: {
+			reply: replyEvidence.reply,
+			toolUses: toolUses(parseTranscript(text).slice(boundary)),
 		},
+		digests: { ...replyEvidence.digests, transcript: sha256Of(text) },
+		held: { ...replyEvidence.held, transcript: true },
 	};
 }
 
@@ -341,7 +383,7 @@ function unavailable(check: Immutable<Check>): RegradedCheck {
 	return {
 		kind: check.kind,
 		status: "UNAVAILABLE",
-		detail: NO_TRANSCRIPT_DETAIL,
+		detail: MISSING_EVIDENCE_DETAIL[evidenceNeededBy(check)],
 	};
 }
 
@@ -357,11 +399,11 @@ export async function regradeAttempt(
 	request: Immutable<RegradeRequest>,
 ): Promise<Assessment> {
 	const boundary = recordedBoundary(request.record);
+	const { evidence, digests, held } = await savedEvidence(request, boundary);
 	const gradable = request.sessionCase.checks
 		.map((check, position) => ({ check, position }))
-		.filter(({ check }) => boundary !== undefined || !readsTranscript(check));
+		.filter(({ check }) => held[evidenceNeededBy(check)]);
 
-	const { evidence, digests } = await savedEvidence(request, boundary);
 	const graded = evaluateChecks(
 		gradable.map(({ check }) => check),
 		evidence,

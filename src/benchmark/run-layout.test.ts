@@ -169,7 +169,7 @@ describe(sessionAttemptPaths.name, () => {
 			uuid: "uuid-1",
 		});
 
-		expect(paths).toMatchObject({
+		expect(paths).toEqual({
 			directory: join(
 				"/control",
 				".benchmark-runs",
@@ -209,7 +209,16 @@ describe(sessionAttemptPaths.name, () => {
 				"uuid-1",
 				"grades",
 			),
+			gradeFile: paths.gradeFile,
 		});
+		expect(Object.keys(paths).toSorted()).toEqual([
+			"corpusDirectory",
+			"directory",
+			"gradeFile",
+			"gradesDirectory",
+			"recordFile",
+			"transcriptFile",
+		]);
 	});
 
 	it("files each regrade under a timestamp inside the attempt it read", () => {
