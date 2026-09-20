@@ -367,7 +367,9 @@ See [current state](docs/status.md) for implementation coverage and
 - **Record summary** — the short markdown a session pastes onto a card,
   computed as a pure function of one parsed record: for a run its stages,
   grades, verdict, and cost; for a group its reliability summary and cost; for
-  a comparison its paired deltas beside the control arm. It is never a second
+  a comparison its per-case paired deltas beside the control arm, or, for a
+  single-case session comparison, its sampling unit, each arm's own interval,
+  and the unpaired contrasts between them. It is never a second
   record shape: `--json` still prints the strict record's own bytes.
 - **Rep** — one repetition of a run; scores are distributions over reps, never
   a single rep. The UI's design's singular **attempt** already matches this
@@ -397,11 +399,15 @@ See [current state](docs/status.md) for implementation coverage and
 - **Score** — a statistical summary over a confirmation run's rep outcomes:
   their distribution, success rate with standard error, and pass^k. A
   single-rep Judge result is evidence, not a score.
-- **Partial score** — how many of a rep's declared graded outcomes held, over
-  its checks and its state results, with the failing ones named. It separates a
-  rep that missed one outcome from one that missed them all, which a rep
-  outcome alone cannot. A comparison report records it per rep; whether a state
-  result also changes that rep's outcome is not settled by this count.
+- **Partial score** — how many of a rep's declared graded outcomes held, which
+  separates a rep that missed one outcome from one that missed them all where a
+  rep outcome alone cannot. A comparison report carries two such tallies per
+  rep, one over the declared checks and one over the declared state results,
+  each counting what passed against what was declared and listing what failed:
+  a failing check by its declaration index and kind, a failing state result by
+  its declared name. No field combines the two, `show` prints neither, and
+  neither changes the rep outcome, which the live path takes from the checks
+  alone.
 - **Run artifact** — the recorded evidence of a run under `.benchmark-runs/`.
 - **Run artifact transition** — one persistence operation that advances a run's
   main or stage record. Transitions are serialized; abort recording is terminal
