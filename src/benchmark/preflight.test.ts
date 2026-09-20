@@ -9,7 +9,6 @@ import {
 	asRefusedPrecondition,
 	defaultModelProbe,
 	defaultProbeModel,
-	MODEL_PREFLIGHT_MAXIMUM_USD,
 	probeModelAvailable,
 } from "./preflight";
 import { RefusedPreconditionError } from "./exit-codes";
@@ -132,7 +131,27 @@ describe(probeModelAvailable.name, () => {
 		expect(failure).rejects.toThrow(/re-declar|entitle/u);
 	});
 
-	it("refuses naming the spend and the cap when the probe exhausts its budget", () => {
+	it.each([
+		["a halt below the cap", 0.022268, "$0.022268"],
+		["a halt past the cap", 0.134, "$0.134"],
+		["a spend too small for exponent-free notation", 1e-7, "$0.0000001"],
+	])(
+		"refuses naming the spend the envelope reported on %s",
+		(_label, reportedCostUsd, spend) => {
+			const invoke = fakeProbe({
+				session_id: "session-1",
+				is_error: true,
+				terminal_reason: "budget_exhausted",
+				total_cost_usd: reportedCostUsd,
+			});
+
+			const failure = probeModelAvailable("sonnet", invoke);
+
+			expect(failure).rejects.toThrow(spend);
+		},
+	);
+
+	it("refuses naming the budget, the cap, and no availability claim when the probe exhausts its budget", () => {
 		const invoke = fakeProbe({
 			session_id: "session-1",
 			is_error: true,
@@ -144,9 +163,20 @@ describe(probeModelAvailable.name, () => {
 
 		expect(failure).rejects.toBeInstanceOf(RefusedPreconditionError);
 		expect(failure).rejects.toThrow(/budget/iu);
-		expect(failure).rejects.toThrow("0.022268");
-		expect(failure).rejects.toThrow(String(MODEL_PREFLIGHT_MAXIMUM_USD));
+		expect(failure).rejects.toThrow("$0.10");
 		expect(failure).rejects.not.toThrow("is not available");
+	});
+
+	it("names the spend as unreported when the provider reports no cost", () => {
+		const invoke = fakeProbe({
+			session_id: "session-1",
+			is_error: true,
+			terminal_reason: "budget_exhausted",
+		});
+
+		const failure = probeModelAvailable("sonnet", invoke);
+
+		expect(failure).rejects.toThrow("did not report");
 	});
 
 	it("propagates a malformed probe response instead of calling it unavailable", () => {

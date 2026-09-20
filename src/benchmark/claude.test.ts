@@ -1,10 +1,12 @@
 import { describe, expect, it } from "bun:test";
 import {
+	ClaudeSessionError,
 	claudeArgs,
 	readClaudeCallMetrics,
 	readClaudeEnvelope,
 	readStructuredOutput,
 } from "./claude";
+import type { ClaudeEnvelope } from "./contracts";
 import {
 	claudeJsonSchema,
 	judgeGradeSchema,
@@ -32,6 +34,21 @@ describe(readClaudeEnvelope.name, () => {
 				}),
 			),
 		).toThrow("session exhausted its budget");
+	});
+
+	it("carries the halt's reason and cost when the envelope states no result", () => {
+		const read = (): ClaudeEnvelope =>
+			readClaudeEnvelope(
+				JSON.stringify({
+					session_id: "session-1",
+					is_error: true,
+					terminal_reason: "budget_exhausted",
+					total_cost_usd: 0.022268,
+				}),
+			);
+
+		expect(read).toThrow("Claude session failed");
+		expect(read).toThrow(ClaudeSessionError);
 	});
 });
 

@@ -177,11 +177,16 @@ export async function probeModelAvailable(
 const BUDGET_EXHAUSTED_REASON = "budget_exhausted";
 
 /**
- * The spend is printed as the provider reported it rather than rounded to
- * cents like the rest of this project's money: a probe halt measures in
- * thousandths of a dollar, and `$0.02` against a `$0.10` cap tells the
- * operator nothing about how close the ceiling is.
+ * A probe halt measures in thousandths of a dollar, so the spend keeps every
+ * digit the provider reported rather than rounding to cents like the rest of
+ * this project's money: `$0.02` against a `$0.10` cap tells the operator
+ * nothing about how close the ceiling is. Plain interpolation would render a
+ * sub-microdollar spend as `$1e-7`, which is not an amount anyone can read.
  */
+function spendUsd(costUsd: number): string {
+	return costUsd.toFixed(8).replace(/0+$/u, "").replace(/\.$/u, "");
+}
+
 function refusalFor(
 	model: string,
 	error: Readonly<ClaudeSessionError>,
@@ -193,9 +198,9 @@ function refusalFor(
 	const spent =
 		error.costUsd === undefined
 			? "an amount the provider did not report"
-			: `$${error.costUsd}`;
+			: `$${spendUsd(error.costUsd)}`;
 
-	return `The ${model} availability probe exhausted its own budget, spending ${spent} against a $${MODEL_PREFLIGHT_MAXIMUM_USD} cap. Raise the cap or retry once the prompt cache is warm.`;
+	return `The ${model} availability probe exhausted its own budget, spending ${spent} against a $${MODEL_PREFLIGHT_MAXIMUM_USD.toFixed(2)} cap. The model itself was not rejected; retry once the prompt cache is warm.`;
 }
 
 /**
