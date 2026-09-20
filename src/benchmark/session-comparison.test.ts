@@ -421,7 +421,8 @@ type SharedSessionCaseField =
 	| "settings"
 	| "agents"
 	| "projectFiles"
-	| "checks";
+	| "checks"
+	| "stateCheck";
 
 function changedSessionCase(
 	field: SharedSessionCaseField,
@@ -451,6 +452,15 @@ function changedSessionCase(
 					{ kind: "tool-calls", max: 0 },
 					{ kind: "word-band", max: 1 },
 				],
+			};
+		}
+		case "stateCheck": {
+			return {
+				...declaration,
+				stateCheck: {
+					command: ["bun", "run", "score-state.ts"],
+					outcomes: ["tree-clean"],
+				},
 			};
 		}
 		default: {
@@ -1152,6 +1162,7 @@ describe("session comparison", () => {
 		"agents",
 		"projectFiles",
 		"checks",
+		"stateCheck",
 	] as const) {
 		addSharedCaseFieldTest(field);
 	}

@@ -170,6 +170,7 @@ function sessionCaseDifference(
 		["agents", left.agents, right.agents],
 		["projectFiles", left.projectFiles, right.projectFiles],
 		["checks", left.checks, right.checks],
+		["stateCheck", left.stateCheck, right.stateCheck],
 		["model", left.model, right.model],
 		["sessionBudgetUsd", left.sessionBudgetUsd, right.sessionBudgetUsd],
 	] as const;
