@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import {
 	buildPairedEstimate,
+	buildSingleCaseMeanEstimate,
 	buildSingleCaseProportionEstimate,
 } from "./comparison-estimator";
 
@@ -88,5 +89,30 @@ describe(buildSingleCaseProportionEstimate.name, () => {
 		expect(estimate.minuend.interval.high).toBe(1);
 		expect(estimate.subtrahend.interval.low).toBe(0);
 		expect(estimate.subtrahend.interval.high).toBeCloseTo(0.39, 2);
+	});
+});
+
+describe(buildSingleCaseMeanEstimate.name, () => {
+	it("estimates an unpaired difference of means over per-rep values", () => {
+		const estimate = buildSingleCaseMeanEstimate({
+			minuend: [0.4, 0.44],
+			subtrahend: [0.35, 0.39],
+		});
+
+		expect(estimate.delta).toBeCloseTo(0.05, 10);
+		expect(estimate.spread.status).toBe("ESTIMATED");
+		if (estimate.spread.status === "ESTIMATED") {
+			expect(estimate.spread.standardError).toBeCloseTo(0.028284, 5);
+		}
+	});
+
+	it("records that an arm had no observed spread instead of a zero standard error", () => {
+		const estimate = buildSingleCaseMeanEstimate({
+			minuend: [0.42, 0.42, 0.42, 0.42],
+			subtrahend: [0.37, 0.37, 0.37, 0.37],
+		});
+
+		expect(estimate.delta).toBeCloseTo(0.05, 10);
+		expect(estimate.spread).toEqual({ status: "NO_OBSERVED_SPREAD" });
 	});
 });

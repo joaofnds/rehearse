@@ -154,3 +154,72 @@ export function buildSingleCaseProportionEstimate(
 		standardError: Math.sqrt(variance),
 	};
 }
+
+export interface SingleCaseArmMean {
+	readonly values: readonly number[];
+	readonly mean: number;
+}
+
+export type SingleCaseSpread =
+	| { readonly status: "NO_OBSERVED_SPREAD" }
+	| { readonly status: "ESTIMATED"; readonly standardError: number };
+
+export interface SingleCaseMeanEstimate {
+	readonly minuend: SingleCaseArmMean;
+	readonly subtrahend: SingleCaseArmMean;
+	readonly delta: number;
+	readonly spread: SingleCaseSpread;
+}
+
+function armMean(values: readonly number[]): SingleCaseArmMean {
+	if (values.length === 0) {
+		throw new Error("A single-case estimate requires a rep in every arm");
+	}
+
+	return { values, mean: mean(values) };
+}
+
+function sampleVariance(arm: SingleCaseArmMean): number {
+	if (arm.values.length < 2) {
+		return 0;
+	}
+
+	const squaredDifferences = arm.values.map((value) => (value - arm.mean) ** 2);
+
+	return (
+		squaredDifferences.reduce((total, value) => total + value, 0) /
+		(arm.values.length - 1)
+	);
+}
+
+function meanSpread(
+	minuend: SingleCaseArmMean,
+	subtrahend: SingleCaseArmMean,
+): SingleCaseSpread {
+	const variance =
+		sampleVariance(minuend) / minuend.values.length +
+		sampleVariance(subtrahend) / subtrahend.values.length;
+
+	if (variance === 0) {
+		return { status: "NO_OBSERVED_SPREAD" };
+	}
+
+	return { status: "ESTIMATED", standardError: Math.sqrt(variance) };
+}
+
+export function buildSingleCaseMeanEstimate(
+	arms: Readonly<{
+		minuend: readonly number[];
+		subtrahend: readonly number[];
+	}>,
+): SingleCaseMeanEstimate {
+	const minuend = armMean(arms.minuend);
+	const subtrahend = armMean(arms.subtrahend);
+
+	return {
+		minuend,
+		subtrahend,
+		delta: minuend.mean - subtrahend.mean,
+		spread: meanSpread(minuend, subtrahend),
+	};
+}
