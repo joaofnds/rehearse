@@ -1,9 +1,9 @@
 import { createHash } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
-import { parseCaseDeclaration, readCaseDeclaration } from "./case";
+import { casesRoot, parseCaseDeclaration, readCaseDeclaration } from "./case";
 import type { SessionCase } from "./case";
 import type { StateCheck, StateResult } from "./session-state-check";
 import {
@@ -22,8 +22,11 @@ import type {
 } from "./session-confirmation";
 import { parseSessionAttemptRecord } from "./session-record";
 import { comparisonReportPaths, confirmationGroupPaths } from "./run-layout";
-import type { SessionAttempt } from "./session-attempt";
+import type { SessionAttempt, SessionAttemptRequest } from "./session-attempt";
 import { RefusedPreconditionError } from "./exit-codes";
+import { runCommand } from "./command";
+import { runSessionAttempt } from "./session-attempt";
+import { projectSlug } from "./session-capture";
 import { SessionInvocationError } from "./session-invocation-error";
 import { runList } from "#cli/list-command";
 import { runShow } from "#cli/show-command";
@@ -1774,5 +1777,272 @@ Sampling unit: rep. Arms are independent samples; this estimate covers case case
 		).rejects.toBeInstanceOf(RefusedPreconditionError);
 		expect(await Bun.file(attemptPath).text()).toBe(attemptText);
 		expect(await Bun.file(reportPath).text()).toBe(attemptText);
+	});
+});
+
+/**
+ * The comparison harness above replaces the whole attempt, so a case's own
+ * fixture and scorer never run. This one replaces only the provider, so
+ * state-probe's committed score.sh grades the tree each session actually left.
+ */
+describe("a committed state-scored case compared across three arms", () => {
+	const WRITTEN_SESSION = "99999999-9999-9999-9999-999999999999";
+	let root: string;
+	let projects: string;
+
+	beforeEach(async () => {
+		root = await mkdtemp(join(tmpdir(), "rehearse-state-comparison-"));
+		projects = await mkdtemp(join(tmpdir(), "rehearse-state-projects-"));
+	});
+
+	afterEach(async () => {
+		await rm(root, { recursive: true, force: true });
+		await rm(projects, { recursive: true, force: true });
+	});
+
+	function envelope(result: string): string {
+		return JSON.stringify({
+			type: "result",
+			subtype: "success",
+			session_id: WRITTEN_SESSION,
+			is_error: false,
+			result,
+			total_cost_usd: 0.0012,
+			num_turns: 1,
+			duration_ms: 900,
+			duration_api_ms: 800,
+			usage: {
+				input_tokens: 12,
+				output_tokens: 3,
+				cache_read_input_tokens: 0,
+				cache_creation_input_tokens: 0,
+			},
+		});
+	}
+
+	async function replyFrom(
+		command: readonly string[],
+		cwd: string,
+	): Promise<string> {
+		const named = command.indexOf("--session-id");
+		const sessionId =
+			command[(named === -1 ? command.indexOf("--resume") : named) + 1] ?? "";
+		const slug = join(projects, projectSlug(await realpath(cwd)));
+		await mkdir(slug, { recursive: true });
+		await Bun.write(
+			join(slug, `${sessionId}.jsonl`),
+			`${JSON.stringify({
+				type: "assistant",
+				sessionId,
+				message: { content: [{ type: "text", text: "done" }] },
+			})}\n`,
+		);
+
+		return envelope("done");
+	}
+
+	/**
+	 * Does the ledger work the case asks for, so state-probe's scorer grades
+	 * every declared outcome PASS. The control arm's session does nothing.
+	 */
+	function workingClaude(): SessionAttemptRequest["runClaude"] {
+		return async (command, cwd) => {
+			await runCommand(
+				[
+					"sh",
+					"-c",
+					String.raw`printf '2026-02-01 | February refund | -18.40\n' >> LEDGER.md && git add LEDGER.md && git commit -m 'fix(ledger): post the February refund'`,
+				],
+				cwd,
+			);
+
+			return replyFrom(command, cwd);
+		};
+	}
+
+	function idleClaude(): SessionAttemptRequest["runClaude"] {
+		return (command: readonly string[], cwd: string) => replyFrom(command, cwd);
+	}
+
+	/**
+	 * The control arm runs the same case with its corpus removed, which is the
+	 * treatment the comparison exists to measure. The declaration each arm
+	 * freezes has to agree with what that arm actually ran.
+	 */
+	function armCase(benchmarkCase: SessionCase, role: Role): SessionCase {
+		if (role !== "control") {
+			return benchmarkCase;
+		}
+
+		return {
+			...benchmarkCase,
+			corpusFiles: [],
+			declaration: { ...benchmarkCase.declaration, corpusFiles: [] },
+		};
+	}
+
+	async function writeStateGroup(
+		runsDirectory: string,
+		role: Role,
+		benchmarkCase: SessionCase,
+		declaredBudgetUsd: number,
+	): Promise<string> {
+		const corpus = join(root, "sources", `state-probe-${role}`);
+		await mkdir(join(corpus, "output-styles"), { recursive: true });
+		if (role !== "control") {
+			await Bun.write(
+				join(corpus, "output-styles", "brief.md"),
+				`${role} corpus\n`,
+			);
+		}
+
+		const outcome = await runSessionConfirmation(
+			{
+				executeAttempt: (plan) =>
+					runSessionAttempt({
+						sessionCase: plan.sessionCase,
+						settings: plan.settings,
+						projectsDirectory: projects,
+						recordDirectory: plan.recordDirectory,
+						runClaude: role === "control" ? idleClaude() : workingClaude(),
+						corpusSnapshot: plan.corpusSnapshot,
+					}),
+			},
+			{
+				runsDirectory,
+				groupId: `state-probe-${role}`,
+				reps: 2,
+				projectedCost: {
+					reps: 2,
+					perRepMaximumUsd: 0.2,
+					preflightMaximumUsd: 0.1,
+					totalMaximumUsd: 0.5,
+				},
+				approvalMethod: "yes",
+				sessionCase: armCase(benchmarkCase, role),
+				corpus,
+				model: "sonnet",
+				sessionBudgetUsd: declaredBudgetUsd,
+				preflight: { status: "COMPLETE", call: { metrics } },
+			},
+		);
+
+		return outcome.groupRecordFile;
+	}
+
+	it("grades every arm with the case's own scorer over the tree its session left", async () => {
+		const declaration = await readCaseDeclaration("state-probe");
+		if (declaration.kind !== "session" || declaration.fixture === undefined) {
+			throw new Error("state-probe is expected to declare a fixture");
+		}
+
+		const { sessionBudgetUsd } = declaration;
+		if (sessionBudgetUsd === undefined) {
+			throw new Error("state-probe is expected to declare a session budget");
+		}
+
+		const runsDirectory = join(root, "runs");
+		const benchmarkCase: SessionCase = {
+			kind: "session",
+			declaration,
+			fixturePath: join(casesRoot(), "state-probe", declaration.fixture),
+			transcriptPath: undefined,
+			prompt: declaration.prompt,
+			tools: declaration.tools,
+			settings: declaration.settings,
+			agents: undefined,
+			corpusFiles: declaration.corpusFiles,
+			projectFiles: declaration.projectFiles,
+			checks: declaration.checks,
+			stateCheck: declaration.stateCheck,
+		};
+		const arms = {
+			baseline: await writeStateGroup(
+				runsDirectory,
+				"baseline",
+				benchmarkCase,
+				sessionBudgetUsd,
+			),
+			candidate: await writeStateGroup(
+				runsDirectory,
+				"candidate",
+				benchmarkCase,
+				sessionBudgetUsd,
+			),
+			control: await writeStateGroup(
+				runsDirectory,
+				"control",
+				benchmarkCase,
+				sessionBudgetUsd,
+			),
+		};
+		const manifestPath = join(root, "comparison.json");
+		await Bun.write(
+			manifestPath,
+			`${JSON.stringify({
+				schemaVersion: 1,
+				cases: [{ caseId: "state-probe", arms }],
+			})}\n`,
+		);
+
+		const reportFile = await writeComparisonReport({
+			manifestPath,
+			runsDirectory,
+		});
+		const report = parseComparisonReport(await Bun.file(reportFile).text());
+		if (report.schemaVersion !== 4 || !("samplingUnit" in report)) {
+			throw new Error("expected a single-case version-4 session report");
+		}
+
+		/**
+		 * A session that did nothing leaves the ledger unchanged and nothing to
+		 * commit, so the case's scorer fails two outcomes and passes tree-clean.
+		 * That 1-of-3 is the partial score the report has to keep visible.
+		 */
+		const idleStateResults = {
+			passed: 1,
+			declared: 3,
+			failing: [
+				{
+					name: "ledger-amended",
+					detail: "LEDGER.md carries the February refund",
+				},
+				{
+					name: "work-committed",
+					detail: "the top commit posts the February refund",
+				},
+			],
+		};
+
+		expect(report.cases).toHaveLength(1);
+		expect(
+			report.cases[0]?.arms.candidate.source.reps.map(
+				(rep) => rep.stateResults,
+			),
+		).toEqual([
+			{ passed: 3, declared: 3, failing: [] },
+			{ passed: 3, declared: 3, failing: [] },
+		]);
+		expect(
+			report.cases[0]?.arms.control.source.reps.map((rep) => rep.stateResults),
+		).toEqual([idleStateResults, idleStateResults]);
+
+		const digestValue = digest(await Bun.file(manifestPath).text());
+		const shown: string[] = [];
+		await runShow(
+			{ id: `comparison:${digestValue}`, json: false, runsDirectory },
+			{
+				stdout: (text) => {
+					shown.push(text);
+				},
+				stderr: () => undefined,
+			},
+		);
+		const summary = shown.join("");
+
+		expect(summary).toContain("1 case, session mode, 2 reps.");
+		expect(summary).toContain("this estimate covers case state-probe only");
+		expect(summary).toContain("| candidate | 2/2 | 1.000 | 0.342-1.000 |");
+		expect(summary).toContain("| control | 2/2 | 1.000 | 0.342-1.000 |");
 	});
 });
