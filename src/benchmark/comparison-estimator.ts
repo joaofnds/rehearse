@@ -179,7 +179,7 @@ function armMean(values: readonly number[]): SingleCaseArmMean {
 	return { values, mean: mean(values) };
 }
 
-function sampleVariance(arm: SingleCaseArmMean): number {
+function armSampleVariance(arm: SingleCaseArmMean): number {
 	if (arm.values.length < 2) {
 		return 0;
 	}
@@ -197,8 +197,8 @@ function meanSpread(
 	subtrahend: SingleCaseArmMean,
 ): SingleCaseSpread {
 	const variance =
-		sampleVariance(minuend) / minuend.values.length +
-		sampleVariance(subtrahend) / subtrahend.values.length;
+		armSampleVariance(minuend) / minuend.values.length +
+		armSampleVariance(subtrahend) / subtrahend.values.length;
 
 	if (variance === 0) {
 		return { status: "NO_OBSERVED_SPREAD" };
