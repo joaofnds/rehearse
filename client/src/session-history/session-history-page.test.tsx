@@ -45,6 +45,7 @@ function renderPage(): void {
 				{
 					schemaVersion: 1,
 					attempt: {
+						kind: "session",
 						caseId: "case-a",
 						id: "attempt-a",
 						model: "sonnet",
@@ -548,6 +549,62 @@ describe(SessionHistoryPage.name, () => {
 		).toBeInTheDocument();
 	});
 
+	it("heads a session attempt with its case, attempt id and outcome", async () => {
+		renderPage();
+
+		const header = await screen.findByRole("banner");
+
+		expect(within(header).getByText("Attempt")).toBeInTheDocument();
+		expect(within(header).getByText("attempt-a")).toBeInTheDocument();
+		expect(within(header).getByText("Outcome")).toBeInTheDocument();
+		expect(within(header).getByText("SUCCESSFUL")).toBeInTheDocument();
+		expect(within(header).queryByText("Stage")).not.toBeInTheDocument();
+	});
+
+	it("heads a pipeline stage with its run, stage and lineage instead of an attempt id", async () => {
+		stubFetchByPath(
+			new Map([
+				[
+					"/api/attempts/session/case-a/attempt-a/history",
+					{
+						schemaVersion: 1,
+						attempt: {
+							kind: "stage",
+							caseId: "case-a",
+							run: "2026-09-06T21-58-29.508Z",
+							stage: "shape",
+							lineage: "lineage-1",
+							upstream: "upstream-1",
+							model: "sonnet",
+							corpusFiles: [],
+						},
+						evidence: { state: "complete" },
+						boundary: "known",
+						startingContext: [],
+						attemptEvents: [],
+						boundaryUnknown: [],
+						startingSources: [],
+						sources: [],
+					},
+				],
+			]),
+		);
+		renderStandalonePage();
+
+		const header = await screen.findByRole("banner");
+
+		expect(within(header).getByText("Run")).toBeInTheDocument();
+		expect(
+			within(header).getByText("2026-09-06T21-58-29.508Z"),
+		).toBeInTheDocument();
+		expect(within(header).getByText("Stage")).toBeInTheDocument();
+		expect(within(header).getByText("shape")).toBeInTheDocument();
+		expect(within(header).getByText("Lineage")).toBeInTheDocument();
+		expect(within(header).getByText("lineage-1")).toBeInTheDocument();
+		expect(within(header).queryByText("Attempt")).not.toBeInTheDocument();
+		expect(within(header).queryByText("Outcome")).not.toBeInTheDocument();
+	});
+
 	it("names an empty historical attempt as boundary unknown", async () => {
 		stubFetchByPath(
 			new Map([
@@ -556,6 +613,7 @@ describe(SessionHistoryPage.name, () => {
 					{
 						schemaVersion: 1,
 						attempt: {
+							kind: "session",
 							caseId: "case-a",
 							id: "attempt-a",
 							model: "sonnet",

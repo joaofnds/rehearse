@@ -125,6 +125,7 @@ describe(sessionHistoryReport.name, () => {
 
 		const report = sessionHistoryReport({
 			attempt: {
+				kind: "session",
 				caseId: "case-a",
 				id: "attempt-a",
 				model: "sonnet",
@@ -184,6 +185,7 @@ describe(sessionHistoryReport.name, () => {
 
 		const report = sessionHistoryReport({
 			attempt: {
+				kind: "session",
 				caseId: "case-a",
 				id: "attempt-a",
 				model: "sonnet",
@@ -224,6 +226,7 @@ describe(sessionHistoryReport.name, () => {
 
 		const report = sessionHistoryReport({
 			attempt: {
+				kind: "session",
 				caseId: "case-a",
 				id: "attempt-a",
 				model: "sonnet",
@@ -262,6 +265,7 @@ describe(sessionHistoryReport.name, () => {
 	it("retains no-content historical rows as unsupported locator evidence", () => {
 		const report = sessionHistoryReport({
 			attempt: {
+				kind: "session",
 				caseId: "case-a",
 				id: "attempt-a",
 				model: "sonnet",
@@ -302,6 +306,7 @@ describe(sessionHistoryReport.name, () => {
 	it("makes unsupported result content partial at report level", () => {
 		const report = sessionHistoryReport({
 			attempt: {
+				kind: "session",
 				caseId: "case-a",
 				id: "attempt-a",
 				model: "sonnet",
@@ -341,6 +346,7 @@ describe(sessionHistoryReport.name, () => {
 
 		const report = sessionHistoryReport({
 			attempt: {
+				kind: "session",
 				caseId: "case-a",
 				id: "attempt-a",
 				model: "sonnet",
@@ -372,6 +378,7 @@ describe(sessionHistoryReport.name, () => {
 	it("matches a relative Read against its exact recorded corpus path", () => {
 		const report = sessionHistoryReport({
 			attempt: {
+				kind: "session",
 				caseId: "case-a",
 				id: "attempt-a",
 				model: "sonnet",
@@ -397,6 +404,38 @@ describe(sessionHistoryReport.name, () => {
 		]);
 	});
 
+	it("echoes a stage identity naming its run, stage and lineage", () => {
+		const report = sessionHistoryReport({
+			attempt: {
+				kind: "stage",
+				caseId: "case-a",
+				run: "2026-09-06T21-58-29.508Z",
+				stage: "shape",
+				lineage: "lineage-1",
+				upstream: "upstream-1",
+				model: "sonnet",
+				corpusFiles: [{ path: "CLAUDE.md", sha256: "abc123" }],
+			},
+			resolvedCorpusFiles: [],
+			transcript: [
+				row(callIn("/wt", "read-1", "Read", { file_path: "/wt/src/index.ts" })),
+				row(resultIn("/wt", "read-1", "body")),
+			].join("\n"),
+			prefixLinesExcluded: 0,
+		});
+
+		expect(report.attempt).toEqual({
+			kind: "stage",
+			caseId: "case-a",
+			run: "2026-09-06T21-58-29.508Z",
+			stage: "shape",
+			lineage: "lineage-1",
+			upstream: "upstream-1",
+			model: "sonnet",
+			corpusFiles: [{ path: "CLAUDE.md", sha256: "abc123" }],
+		});
+	});
+
 	it("names a stage's corpus reads by layout path when no resolved corpus paths are supplied", () => {
 		const transcript = [
 			row(
@@ -417,6 +456,7 @@ describe(sessionHistoryReport.name, () => {
 
 		const report = sessionHistoryReport({
 			attempt: {
+				kind: "session",
 				caseId: "case-a",
 				id: "attempt-a",
 				model: "sonnet",
@@ -465,6 +505,7 @@ describe(sessionHistoryReport.name, () => {
 
 		const report = sessionHistoryReport({
 			attempt: {
+				kind: "session",
 				caseId: "case-a",
 				id: "attempt-a",
 				model: "sonnet",
@@ -502,6 +543,7 @@ describe(sessionHistoryReport.name, () => {
 		].join("\n");
 		const report = sessionHistoryReport({
 			attempt: {
+				kind: "session",
 				caseId: "case-a",
 				id: "attempt-a",
 				model: "sonnet",
@@ -539,6 +581,7 @@ describe(sessionHistoryReport.name, () => {
 
 		const report = sessionHistoryReport({
 			attempt: {
+				kind: "session",
 				caseId: "case-a",
 				id: "attempt-a",
 				model: "sonnet",
@@ -593,6 +636,7 @@ describe(sessionHistoryDetail.name, () => {
 		].join("\n");
 		const input = {
 			attempt: {
+				kind: "session",
 				caseId: "case-a",
 				id: "attempt-a",
 				model: "sonnet",
@@ -635,6 +679,7 @@ describe(sessionHistoryDetail.name, () => {
 		const detail = sessionHistoryDetail(
 			{
 				attempt: {
+					kind: "session",
 					caseId: "case-a",
 					id: "attempt-a",
 					model: "sonnet",

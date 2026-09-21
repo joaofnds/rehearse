@@ -83,7 +83,12 @@ export interface SessionHistorySource {
 	readonly eventIds: readonly string[];
 }
 
-export interface SessionHistoryAttemptIdentity {
+/**
+ * A saved standalone or confirmation session attempt, identified by the case it
+ * ran and its own attempt id.
+ */
+export interface SessionAttemptIdentity {
+	readonly kind: "session";
 	readonly caseId: string;
 	readonly id: string;
 	readonly model: string;
@@ -93,6 +98,31 @@ export interface SessionHistoryAttemptIdentity {
 		readonly resolvedPath: string;
 	}[];
 }
+
+/**
+ * One pipeline stage at its checkpoint. A checkpoint records no attempt id and
+ * no outcome, since it exists only for a stage that passed its grade, so the
+ * run and stage name it and the lineage places it among the other stages.
+ * Its declared corpus files carry hashes rather than resolved paths.
+ */
+export interface StageHistoryIdentity {
+	readonly kind: "stage";
+	readonly caseId: string;
+	readonly run: string;
+	readonly stage: string;
+	readonly lineage: string;
+	readonly upstream: string;
+	readonly model: string;
+	readonly effort?: string | undefined;
+	readonly corpusFiles: readonly {
+		readonly path: string;
+		readonly sha256: string;
+	}[];
+}
+
+export type SessionHistoryAttemptIdentity =
+	| SessionAttemptIdentity
+	| StageHistoryIdentity;
 
 /**
  * The corpus files whose bytes were resolved to a real path before the session

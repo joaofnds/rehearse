@@ -220,10 +220,13 @@ describe(readSessionAttemptHistory.name, () => {
 
 		const report = await readSessionAttemptHistory(fixture);
 
-		expect(report.attempt.caseId).toBe(fixture.caseId);
-		expect(report.attempt.id).toBe(fixture.uuid);
-		expect(report.attempt.model).toBe("sonnet");
-		expect(report.attempt.outcome).toBe("SUCCESSFUL");
+		expect(report.attempt).toMatchObject({
+			kind: "session",
+			caseId: fixture.caseId,
+			id: fixture.uuid,
+			model: "sonnet",
+			outcome: "SUCCESSFUL",
+		});
 		expect(
 			report.attemptEvents.map(({ id, state }) => ({ id, state })),
 		).toEqual([
@@ -624,7 +627,10 @@ describe(readConfirmationAttemptHistory.name, () => {
 
 		const report = await readConfirmationAttemptHistory(fixture);
 
-		expect(report.attempt.id).toBe(fixture.repId);
+		expect(report.attempt).toMatchObject({
+			kind: "session",
+			id: fixture.repId,
+		});
 		expect(
 			await Promise.all(
 				[

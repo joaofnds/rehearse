@@ -30,6 +30,36 @@ export type SessionHistoryIdentity =
 			readonly repId: string;
 	  };
 
+interface IdentityEntry {
+	readonly term: string;
+	readonly value: string;
+}
+
+/**
+ * A stage checkpoint records no attempt id and no outcome, so the run, the
+ * stage and the lineage place it instead.
+ */
+function identityEntries(
+	attempt: SessionHistoryReport["attempt"],
+): readonly IdentityEntry[] {
+	if (attempt.kind === "stage") {
+		return [
+			{ term: "Case", value: attempt.caseId },
+			{ term: "Run", value: attempt.run },
+			{ term: "Stage", value: attempt.stage },
+			{ term: "Lineage", value: attempt.lineage },
+			{ term: "Model", value: attempt.model },
+		];
+	}
+
+	return [
+		{ term: "Case", value: attempt.caseId },
+		{ term: "Attempt", value: attempt.id },
+		{ term: "Model", value: attempt.model },
+		{ term: "Outcome", value: attempt.outcome },
+	];
+}
+
 type SourceSort = "Introduced" | "Most repeated";
 
 function summaryPath(identity: SessionHistoryIdentity): string {
@@ -601,22 +631,12 @@ export function SessionHistoryPage({
 				</div>
 				{summary.data === undefined ? null : (
 					<dl>
-						<div>
-							<dt>Case</dt>
-							<dd>{summary.data.attempt.caseId}</dd>
-						</div>
-						<div>
-							<dt>Attempt</dt>
-							<dd>{summary.data.attempt.id}</dd>
-						</div>
-						<div>
-							<dt>Model</dt>
-							<dd>{summary.data.attempt.model}</dd>
-						</div>
-						<div>
-							<dt>Outcome</dt>
-							<dd>{summary.data.attempt.outcome}</dd>
-						</div>
+						{identityEntries(summary.data.attempt).map(({ term, value }) => (
+							<div key={term}>
+								<dt>{term}</dt>
+								<dd>{value}</dd>
+							</div>
+						))}
 					</dl>
 				)}
 			</header>

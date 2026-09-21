@@ -44,6 +44,7 @@ function emptyHistory(caseId: string, id: string): SessionHistoryReport {
 	return {
 		schemaVersion: 1,
 		attempt: {
+			kind: "session",
 			caseId,
 			id,
 			model: "sonnet",

@@ -312,6 +312,7 @@ async function reportMetadata(
 	return {
 		metadata: {
 			attempt: {
+				kind: "session",
 				caseId: attempt.caseId,
 				id,
 				model: attempt.model,
