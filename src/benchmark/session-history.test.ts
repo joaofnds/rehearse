@@ -2113,6 +2113,33 @@ describe(stageCorpusReconciliation.name, () => {
 		]);
 	});
 
+	it("leaves a non-layout file under the worktree .claude out of the reconciliation", () => {
+		const report = sessionHistoryReport({
+			attempt: {
+				kind: "stage",
+				caseId: "case-a",
+				run: "run-1",
+				stage: "shape",
+				lineage: "lineage-1",
+				upstream: "upstream-1",
+				model: "sonnet",
+				corpusFiles: [],
+			},
+			resolvedCorpusFiles: [],
+			transcript: [
+				row(
+					callIn("/wt", "settings", "Read", {
+						file_path: "/wt/.claude/settings.json",
+					}),
+				),
+				row(resultIn("/wt", "settings", "{}")),
+			].join("\n"),
+			prefixLinesExcluded: 0,
+		});
+
+		expect(stageCorpusReconciliation(report)).toEqual([]);
+	});
+
 	it("reconciles nothing for a session attempt, whose corpus is resolved to real paths", () => {
 		const report = sessionHistoryReport({
 			attempt: {

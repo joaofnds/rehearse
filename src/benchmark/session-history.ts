@@ -6,7 +6,7 @@ import {
 	usageIsZero,
 } from "./context-evidence-contract";
 import type { ContextRateCatalog } from "./context-evidence-contract";
-import { isCorpusLayoutPath } from "./corpus-file";
+import { corpusLayoutSuffix, isCorpusLayoutPath } from "./corpus-file";
 import type { Immutable } from "./contracts";
 import { jsonValueSchema } from "./json-value";
 import type { JsonValue } from "./json-value";
@@ -395,13 +395,12 @@ function corpusLayoutPathUnder(
 	normalizedPath: string,
 	normalizedCwd: string | undefined,
 ): string | undefined {
-	const marker = "/.claude/";
-	const at = normalizedPath.lastIndexOf(marker);
-	if (at === -1) {
+	const suffix = corpusLayoutSuffix(normalizedPath);
+	if (suffix === undefined || !isCorpusLayoutPath(suffix)) {
 		return undefined;
 	}
 
-	const corpusRoot = normalizedPath.slice(0, at + marker.length - 1);
+	const corpusRoot = normalizedPath.slice(0, -`/${suffix}`.length);
 	if (
 		normalizedCwd !== undefined &&
 		pathIsWithin(corpusRoot, normalizedCwd) &&
@@ -410,9 +409,7 @@ function corpusLayoutPathUnder(
 		return undefined;
 	}
 
-	const suffix = normalizedPath.slice(at + marker.length);
-
-	return isCorpusLayoutPath(suffix) ? suffix : undefined;
+	return suffix;
 }
 
 /**
@@ -1302,7 +1299,7 @@ export function stageCorpusReconciliation(
 
 	const observed = new Map(
 		[...report.startingSources, ...report.sources]
-			.filter(({ kind }) => kind === "corpus")
+			.filter(({ kind, name }) => kind === "corpus" && isCorpusLayoutPath(name))
 			.map((source) => [source.name, source.firstLocator]),
 	);
 	const declared = report.attempt.corpusFiles.map(({ path }) => {

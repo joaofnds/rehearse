@@ -1,4 +1,4 @@
-import { isCorpusLayoutPath } from "./corpus-file";
+import { corpusLayoutSuffix, isCorpusLayoutPath } from "./corpus-file";
 import type { Immutable } from "./contracts";
 import type { ToolUse } from "./transcript";
 import { filesRead, skillsInvoked } from "./transcript";
@@ -40,13 +40,6 @@ export type ManifestDivergence =
  * the manifest entry is the suffix after the last one, not the read path
  * itself.
  */
-function corpusLayoutSuffix(path: string): string | undefined {
-	const marker = "/.claude/";
-	const at = path.lastIndexOf(marker);
-
-	return at === -1 ? undefined : path.slice(at + marker.length);
-}
-
 function readCorpusLayoutPath(path: string): string | undefined {
 	if (isCorpusLayoutPath(path)) {
 		return path;

@@ -92,6 +92,22 @@ export function isCorpusLayoutPath(path: string): boolean {
 }
 
 /**
+ * The layout path a read path carries, or nothing where it carries none. Both
+ * roots a corpus can live under, the live install and an attempt's overlay,
+ * put the layout path after a `.claude/` segment, so the suffix after the last
+ * one is the name a declared entry is already written in.
+ *
+ * Paired with `isCorpusLayoutPath` above so the two readers that answer "what
+ * corpus file is this read?" split the path the same way rather than drifting.
+ */
+export function corpusLayoutSuffix(path: string): string | undefined {
+	const marker = "/.claude/";
+	const at = path.lastIndexOf(marker);
+
+	return at === -1 ? undefined : path.slice(at + marker.length);
+}
+
+/**
  * The one place that knows where a corpus layout path lands. A case names a
  * file in corpus layout paths, and this maps that layout onto the root the
  * resolved source carries, so the reader never learns where the bytes came
