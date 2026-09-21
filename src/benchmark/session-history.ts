@@ -139,12 +139,14 @@ export interface ResolvedCorpusFile {
  * Why no raw transcript backs this report. Each cause is a different fact
  * about the record, so an operator reading "unavailable" learns which one
  * rather than being left to assume the provider failed.
+ *
+ * Two further causes have no record to read and so no variant here: a stage
+ * that stopped on its grade wrote no checkpoint at all, and a replay writes no
+ * transcript and removes the worktree whose name locates the provider's copy.
  */
 export type HistoryUnavailableReason =
 	| "provider-wrote-none"
-	| "no-capture-recorded"
-	| "replay-retains-none"
-	| "stage-stopped-before-checkpoint";
+	| "no-capture-recorded";
 
 export interface SessionHistoryReportInput {
 	readonly attempt: SessionHistoryAttemptIdentity;
@@ -1170,9 +1172,6 @@ const UNAVAILABLE_REASON_TEXT = {
 		"the provider wrote no transcript for this stage session",
 	"no-capture-recorded":
 		"no raw transcript capture was recorded for this stage",
-	"replay-retains-none": "a replay retains no raw transcript",
-	"stage-stopped-before-checkpoint":
-		"the stage stopped before its checkpoint, so nothing was written",
 } satisfies Record<HistoryUnavailableReason, string>;
 
 function missingTranscriptReport(

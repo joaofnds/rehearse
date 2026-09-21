@@ -8,7 +8,7 @@ import {
 	parseConfirmationGroupRecord,
 	parseConfirmationRepRecord,
 } from "#benchmark/confirmation-record";
-import { loadRunManifest } from "#benchmark/manifest";
+import { parseRunManifest } from "#benchmark/manifest";
 import { checkpointsEntryForRun } from "#benchmark/run-layout";
 import { pathIsWithin } from "#benchmark/path-containment";
 import { parseSessionAttemptRecord } from "#benchmark/session-record";
@@ -526,7 +526,7 @@ async function stageInput(
 			"Saved run manifest is unavailable",
 		);
 	}
-	const manifest = await loadRunManifest(manifestFile);
+	const manifest = parseRunManifest(await readVerifiedFile(root, manifestFile));
 	const transcriptFile =
 		checkpoint.transcript?.status === "AVAILABLE"
 			? await verifiedFile(root, directory, checkpoint.transcript.file, true)

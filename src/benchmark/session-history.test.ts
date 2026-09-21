@@ -405,7 +405,7 @@ describe(sessionHistoryReport.name, () => {
 		]);
 	});
 
-	it("names why raw evidence is unavailable, distinctly per cause", () => {
+	it("names why raw evidence is unavailable, distinctly per readable cause", () => {
 		const stage = {
 			kind: "stage",
 			caseId: "case-a",
@@ -418,12 +418,7 @@ describe(sessionHistoryReport.name, () => {
 		} as const;
 
 		const reasons = (
-			[
-				"provider-wrote-none",
-				"no-capture-recorded",
-				"replay-retains-none",
-				"stage-stopped-before-checkpoint",
-			] as const
+			["provider-wrote-none", "no-capture-recorded"] as const
 		).map(
 			(unavailableReason) =>
 				sessionHistoryReport({
@@ -444,16 +439,6 @@ describe(sessionHistoryReport.name, () => {
 				state: "unavailable",
 				reasons: ["no raw transcript capture was recorded for this stage"],
 			},
-			{
-				state: "unavailable",
-				reasons: ["a replay retains no raw transcript"],
-			},
-			{
-				state: "unavailable",
-				reasons: [
-					"the stage stopped before its checkpoint, so nothing was written",
-				],
-			},
 		]);
 		expect(
 			new Set(
@@ -461,7 +446,7 @@ describe(sessionHistoryReport.name, () => {
 					evidence.state === "unavailable" ? evidence.reasons.at(0) : undefined,
 				),
 			).size,
-		).toBe(4);
+		).toBe(2);
 	});
 
 	it("keeps the session wording when no unavailable reason is supplied", () => {

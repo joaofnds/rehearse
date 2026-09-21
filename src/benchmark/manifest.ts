@@ -72,7 +72,15 @@ export async function loadRunManifest(path: string): Promise<RunManifest> {
 		);
 	}
 
-	const document: unknown = JSON.parse(await file.text());
+	return parseRunManifest(await file.text());
+}
+
+/**
+ * The parse without the read, so a caller holding its own verified handle
+ * does not reopen the path to hand it here.
+ */
+export function parseRunManifest(text: string): RunManifest {
+	const document: unknown = JSON.parse(text);
 	const current = runManifestSchema.safeParse(document);
 	if (current.success) {
 		return current.data;

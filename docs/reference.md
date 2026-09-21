@@ -738,14 +738,16 @@ entry reads as loaded on the strength of its hash, and no observation recorded
 is not a claim of absence.
 
 Missing raw evidence names the fact that produced it rather than one wording
-for all of them: the provider wrote no transcript for the stage session, no
-capture was recorded for the stage, a replay retains no raw transcript, or the
-stage stopped before its checkpoint. A stage that stopped on its grade wrote no
-checkpoint at all, since the grade assertion precedes the checkpoint write, so
-its raw history is unavailable; what the run history screen already shows of it
-is unchanged. A replay writes one flat record with no transcript field and
-removes the worktree whose name locates the provider's copy, so no replay
-retains raw history either.
+for all of them. A checkpoint recording transcript status UNAVAILABLE reads as
+the provider having written no transcript for the stage session; a checkpoint
+with no transcript field reads as no capture having been recorded.
+
+Two further causes have no record to read, so no stage URL reaches them. A stage
+that stopped on its grade wrote no checkpoint at all, since the grade assertion
+precedes the checkpoint write; what the run history screen already shows of that
+stage is unchanged. A replay writes one flat record with no transcript field and
+removes the worktree whose name locates the provider's copy, so a replay retains
+no raw history and has no context history route.
 
 The summary separates inherited Starting context from Attempt events when the
 attempt record retains its transcript cut. Older records without a cut use the

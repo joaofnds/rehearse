@@ -111,7 +111,7 @@ case present, but no browser check has been run over it.
 | `/comparisons/<digest>`              | Saved case/arm distributions, attribution, quality readings, and validated session-attempt links                                                                                                                  |
 | `/attempts/session/<case>/<uuid>`    | Saved standalone session context history, with the per-request token and cost timeline                                                                                                                            |
 | `/groups/<group>/reps/<rep>/attempt` | Saved confirmation-rep context history, with the per-request token and cost timeline                                                                                                                              |
-| `/runs/<run>/stages/<stage>`         | Saved pipeline-stage context history and its corpus reconciliation; no request timeline, and missing raw capture names which fact produced it                                                                     |
+| `/runs/<run>/stages/<stage>`         | Saved pipeline-stage context history and its corpus reconciliation; no request timeline, and missing raw capture names which record state produced it                                                             |
 | `/system`                            | Design tokens and reusable component gallery                                                                                                                                                                      |
 
 Run launch, full run detail, task/case management, calibration screens,

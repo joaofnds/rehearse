@@ -1352,6 +1352,19 @@ describe(readStageHistory.name, () => {
 		);
 	});
 
+	it("reads the run manifest through the same verified handle the other records use", async () => {
+		const fixture = await writtenStage();
+		const paths = benchmarkRunPaths(fixture.runsDirectory, fixture.run);
+		const outside = join(fixture.runsDirectory, "outside-manifest.json");
+		await Bun.write(outside, await Bun.file(paths.manifestFile).text());
+		await rm(paths.manifestFile);
+		await symlink(outside, paths.manifestFile);
+
+		expect(readStageHistory(fixture)).rejects.toBeInstanceOf(
+			SessionHistoryReaderError,
+		);
+	});
+
 	it("leaves the checkpoint and its transcript byte-identical", async () => {
 		const fixture = await writtenStage();
 		const paths = benchmarkRunPaths(fixture.runsDirectory, fixture.run);
