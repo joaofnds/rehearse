@@ -321,6 +321,9 @@ async function reportMetadata(
 					resolvedPath,
 				})),
 			},
+			resolvedCorpusFiles: attempt.corpusFiles.map(
+				({ path, resolvedPath }) => ({ path, resolvedPath }),
+			),
 			prefixLinesExcluded: attempt.transcriptDiagnostics?.prefixLinesExcluded,
 			diagnostics: attempt.transcriptDiagnostics,
 		},
@@ -496,7 +499,12 @@ async function detailFor(
 
 	return line === undefined
 		? undefined
-		: sessionHistoryDetailFromLine(report, eventId, line);
+		: sessionHistoryDetailFromLine(
+				report,
+				input.metadata.resolvedCorpusFiles,
+				eventId,
+				line,
+			);
 }
 
 export async function readSessionAttemptHistory(

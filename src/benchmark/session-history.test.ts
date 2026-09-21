@@ -80,6 +80,38 @@ function result(
 	};
 }
 
+function callIn(
+	cwd: string | undefined,
+	id: string,
+	name: string,
+	input: Readonly<Record<string, JsonValue>>,
+): JsonValue {
+	const base = {
+		type: "assistant",
+		timestamp: "2026-09-14T00:00:00.000Z",
+		message: { content: [{ type: "tool_use", id, name, input }] },
+	} satisfies JsonValue;
+
+	return cwd === undefined ? base : { ...base, cwd };
+}
+
+function resultIn(
+	cwd: string | undefined,
+	id: string,
+	content: string,
+): JsonValue {
+	const base = {
+		type: "user",
+		message: {
+			content: [
+				{ type: "tool_result", tool_use_id: id, content, is_error: false },
+			],
+		},
+	} satisfies JsonValue;
+
+	return cwd === undefined ? base : { ...base, cwd };
+}
+
 describe(sessionHistoryReport.name, () => {
 	it("separates inherited and repeated Read deliveries in source order", () => {
 		const transcript = [
@@ -99,6 +131,7 @@ describe(sessionHistoryReport.name, () => {
 				outcome: "SUCCESSFUL",
 				corpusFiles: [],
 			},
+			resolvedCorpusFiles: [],
 			transcript,
 			prefixLinesExcluded: 2,
 		});
@@ -157,6 +190,7 @@ describe(sessionHistoryReport.name, () => {
 				outcome: "SUCCESSFUL",
 				corpusFiles: [],
 			},
+			resolvedCorpusFiles: [],
 			transcript,
 			prefixLinesExcluded: undefined,
 		});
@@ -196,6 +230,7 @@ describe(sessionHistoryReport.name, () => {
 				outcome: "SUCCESSFUL",
 				corpusFiles: [],
 			},
+			resolvedCorpusFiles: [],
 			transcript,
 			prefixLinesExcluded: 0,
 		});
@@ -233,6 +268,7 @@ describe(sessionHistoryReport.name, () => {
 				outcome: "SUCCESSFUL",
 				corpusFiles: [],
 			},
+			resolvedCorpusFiles: [],
 			transcript: [
 				row({ type: "system" }),
 				row({ message: { content: [] } }),
@@ -272,6 +308,7 @@ describe(sessionHistoryReport.name, () => {
 				outcome: "SUCCESSFUL",
 				corpusFiles: [],
 			},
+			resolvedCorpusFiles: [],
 			transcript: [
 				row(call("bash-1", "Bash", { command: "pwd" })),
 				row({
@@ -310,6 +347,7 @@ describe(sessionHistoryReport.name, () => {
 				outcome: "SUCCESSFUL",
 				corpusFiles: [],
 			},
+			resolvedCorpusFiles: [],
 			transcript,
 			prefixLinesExcluded: 1,
 		});
@@ -340,6 +378,9 @@ describe(sessionHistoryReport.name, () => {
 				outcome: "SUCCESSFUL",
 				corpusFiles: [{ path: "shared.md", resolvedPath: "/work/shared.md" }],
 			},
+			resolvedCorpusFiles: [
+				{ path: "shared.md", resolvedPath: "/work/shared.md" },
+			],
 			transcript: [
 				row(call("read-1", "Read", { file_path: "shared.md" })),
 				row(result("read-1", "corpus body")),
@@ -353,6 +394,96 @@ describe(sessionHistoryReport.name, () => {
 				name: "shared.md",
 				path: "shared.md",
 			}),
+		]);
+	});
+
+	it("names a stage's corpus reads by layout path when no resolved corpus paths are supplied", () => {
+		const transcript = [
+			row(
+				callIn("/wt", "live", "Read", {
+					file_path: "/home/someone/.claude/rulebook/coding-style/core.md",
+				}),
+			),
+			row(resultIn("/wt", "live", "live corpus")),
+			row(
+				callIn("/wt", "overlay", "Read", {
+					file_path: "/wt/.claude/skills/build/SKILL.md",
+				}),
+			),
+			row(resultIn("/wt", "overlay", "overlay corpus")),
+			row(callIn("/wt", "repo", "Read", { file_path: "/wt/src/index.ts" })),
+			row(resultIn("/wt", "repo", "project body")),
+		].join("\n");
+
+		const report = sessionHistoryReport({
+			attempt: {
+				caseId: "case-a",
+				id: "attempt-a",
+				model: "sonnet",
+				outcome: "SUCCESSFUL",
+				corpusFiles: [],
+			},
+			resolvedCorpusFiles: [],
+			transcript,
+			prefixLinesExcluded: 0,
+		});
+
+		expect(report.sources.map(({ kind, path }) => ({ kind, path }))).toEqual([
+			{ kind: "corpus", path: "rulebook/coding-style/core.md" },
+			{ kind: "corpus", path: "skills/build/SKILL.md" },
+			{ kind: "project", path: "src/index.ts" },
+		]);
+	});
+
+	it("leaves every session-attempt classification unmoved when resolved corpus paths are supplied", () => {
+		const transcript = [
+			row(
+				call("other-root", "Read", {
+					file_path: "/home/someone/.claude/rulebook/core.md",
+				}),
+			),
+			row(result("other-root", "another install")),
+			row(
+				call("nested", "Read", {
+					file_path: "/work/vendor/.claude/skills/build/SKILL.md",
+				}),
+			),
+			row(result("nested", "vendored")),
+			row(
+				call("own", "Read", { file_path: "/work/.claude/skills/a/SKILL.md" }),
+			),
+			row(result("own", "own corpus")),
+			row(callIn(undefined, "bare-root", "Read", { file_path: "CLAUDE.md" })),
+			row(resultIn(undefined, "bare-root", "bare instructions")),
+			row(
+				callIn(undefined, "bare-skill", "Read", {
+					file_path: "skills/a/SKILL.md",
+				}),
+			),
+			row(resultIn(undefined, "bare-skill", "bare skill")),
+		].join("\n");
+
+		const report = sessionHistoryReport({
+			attempt: {
+				caseId: "case-a",
+				id: "attempt-a",
+				model: "sonnet",
+				outcome: "SUCCESSFUL",
+				corpusFiles: [],
+			},
+			resolvedCorpusFiles: [
+				{ path: "shared.md", resolvedPath: "/work/shared.md" },
+			],
+			transcript,
+			prefixLinesExcluded: 0,
+		});
+
+		expect(report.sources.map(({ kind, path }) => ({ kind, path }))).toEqual([
+			{ kind: "external", path: "/home/someone/.claude/rulebook/core.md" },
+			{ kind: "project", path: "vendor/.claude/skills/build/SKILL.md" },
+			{ kind: "corpus", path: "skills/a/SKILL.md" },
+			{ kind: "unclassified", path: undefined },
+			{ kind: "unclassified", path: undefined },
 		]);
 	});
 
@@ -377,6 +508,7 @@ describe(sessionHistoryReport.name, () => {
 				outcome: "SUCCESSFUL",
 				corpusFiles: [],
 			},
+			resolvedCorpusFiles: [],
 			transcript,
 			prefixLinesExcluded: 0,
 		});
@@ -413,6 +545,7 @@ describe(sessionHistoryReport.name, () => {
 				outcome: "SUCCESSFUL",
 				corpusFiles: [],
 			},
+			resolvedCorpusFiles: [],
 			transcript,
 			prefixLinesExcluded: 0,
 		});
@@ -466,6 +599,7 @@ describe(sessionHistoryDetail.name, () => {
 				outcome: "SUCCESSFUL",
 				corpusFiles: [],
 			},
+			resolvedCorpusFiles: [],
 			transcript,
 			prefixLinesExcluded: 0,
 		} as const;
@@ -507,6 +641,7 @@ describe(sessionHistoryDetail.name, () => {
 					outcome: "SUCCESSFUL",
 					corpusFiles: [],
 				},
+				resolvedCorpusFiles: [],
 				transcript,
 				prefixLinesExcluded: 0,
 			},

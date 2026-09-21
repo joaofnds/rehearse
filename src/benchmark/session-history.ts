@@ -6,6 +6,7 @@ import {
 	usageIsZero,
 } from "./context-evidence-contract";
 import type { ContextRateCatalog } from "./context-evidence-contract";
+import { isCorpusLayoutPath } from "./corpus-file";
 import type { Immutable } from "./contracts";
 import { jsonValueSchema } from "./json-value";
 import type { JsonValue } from "./json-value";
@@ -93,8 +94,20 @@ export interface SessionHistoryAttemptIdentity {
 	}[];
 }
 
+/**
+ * The corpus files whose bytes were resolved to a real path before the session
+ * ran. A saved session attempt records them; a pipeline stage does not, and
+ * supplies an empty list, which is what routes its reads to the corpus layout
+ * rule below rather than to the exact-path match.
+ */
+export interface ResolvedCorpusFile {
+	readonly path: string;
+	readonly resolvedPath: string;
+}
+
 export interface SessionHistoryReportInput {
 	readonly attempt: SessionHistoryAttemptIdentity;
+	readonly resolvedCorpusFiles: readonly ResolvedCorpusFile[];
 	readonly transcript: string | undefined;
 	readonly prefixLinesExcluded: number | undefined;
 	readonly diagnostics?: Immutable<TranscriptDiagnostics> | undefined;
@@ -319,12 +332,57 @@ function measureContent(value: JsonValue | undefined): MeasuredContent {
 	};
 }
 
+/**
+ * A caller with no resolved corpus paths has only the read path to go on. Both
+ * corpus roots a stage can read from, the live install and a worktree overlay,
+ * put the layout path after the last `.claude/` segment, so that suffix is the
+ * name the checkpoint's declared entries are already written in.
+ *
+ * Gating this on the resolved list being empty is load-bearing: applied to a
+ * session attempt it would reclassify a target repository's own nested
+ * `.claude` directory as corpus.
+ */
+function corpusLayoutPathUnder(normalizedPath: string): string | undefined {
+	const marker = "/.claude/";
+	const at = normalizedPath.lastIndexOf(marker);
+	if (at === -1) {
+		return undefined;
+	}
+
+	const suffix = normalizedPath.slice(at + marker.length);
+
+	return isCorpusLayoutPath(suffix) ? suffix : undefined;
+}
+
+/**
+ * The corpus name for a read, from the evidence the caller holds. A session
+ * attempt supplies resolved paths and gets an exact match; a stage supplies
+ * none and falls back to the layout rule, which is why the two cannot both
+ * apply to one read.
+ */
+function declaredCorpusPath(
+	normalizedObserved: string | undefined,
+	resolvedCorpusFiles: readonly ResolvedCorpusFile[],
+): string | undefined {
+	if (normalizedObserved === undefined) {
+		return undefined;
+	}
+
+	if (resolvedCorpusFiles.length === 0) {
+		return corpusLayoutPathUnder(normalizedObserved);
+	}
+
+	return resolvedCorpusFiles.find(
+		({ resolvedPath }) => resolve(resolvedPath) === normalizedObserved,
+	)?.path;
+}
+
 function sourceForCall(
 	toolName: string,
 	input: Readonly<HistoryBlockInput>,
 	cwd: string | undefined,
 	location: Readonly<TranscriptLocation>,
-	corpusFiles: SessionHistoryAttemptIdentity["corpusFiles"],
+	resolvedCorpusFiles: readonly ResolvedCorpusFile[],
 ): SourceIdentity {
 	if (toolName === "Skill") {
 		const parsedSkill = z.string().min(1).safeParse(input["skill"]);
@@ -361,17 +419,16 @@ function sourceForCall(
 	} else if (normalizedCwd !== undefined) {
 		normalizedObserved = resolve(normalizedCwd, observed);
 	}
-	const exactCorpus = corpusFiles.find(
-		({ resolvedPath }) =>
-			normalizedObserved !== undefined &&
-			resolve(resolvedPath) === normalizedObserved,
+	const declaredCorpus = declaredCorpusPath(
+		normalizedObserved,
+		resolvedCorpusFiles,
 	);
-	if (exactCorpus !== undefined) {
+	if (declaredCorpus !== undefined) {
 		return {
-			id: `corpus:${exactCorpus.path}`,
+			id: `corpus:${declaredCorpus}`,
 			kind: "corpus",
-			name: exactCorpus.path,
-			path: exactCorpus.path,
+			name: declaredCorpus,
+			path: declaredCorpus,
 		};
 	}
 	if (cwd === undefined) {
@@ -507,7 +564,7 @@ function parseRowEvents(
 				inputRecord,
 				row.cwd,
 				location,
-				input.attempt.corpusFiles,
+				input.resolvedCorpusFiles,
 			);
 			events.push({
 				...common,
@@ -1284,6 +1341,7 @@ export function sessionHistoryDetail(
 
 export function sessionHistoryDetailFromLine(
 	report: Immutable<SessionHistoryReport>,
+	resolvedCorpusFiles: readonly ResolvedCorpusFile[],
 	eventId: string,
 	lineText: string,
 ): SessionHistoryDetail | undefined {
@@ -1308,6 +1366,7 @@ export function sessionHistoryDetailFromLine(
 	const raw = parseRowEvents(
 		{
 			attempt: report.attempt,
+			resolvedCorpusFiles,
 			transcript: "",
 			prefixLinesExcluded,
 			diagnostics: report.diagnostics,
