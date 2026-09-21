@@ -143,6 +143,25 @@ async function fetchRequestSeries(
 	return response.json();
 }
 
+type StageCorpusResponse = InferResponseType<
+	(typeof apiClient.api.runs)[":run"]["stages"][":stage"]["history"]["corpus"]["$get"],
+	200
+>;
+
+async function fetchStageCorpus(
+	run: string,
+	stage: string,
+): Promise<StageCorpusResponse> {
+	const response = await apiClient.api.runs[":run"].stages[
+		":stage"
+	].history.corpus.$get({ param: { run, stage } });
+	if (!response.ok) {
+		throw new Error(`Request failed with ${response.status}`);
+	}
+
+	return response.json();
+}
+
 async function fetchDetail(
 	identity: SessionHistoryIdentity,
 	eventId: string,
@@ -570,6 +589,47 @@ function timelineNote(failed: boolean, recorded: boolean): string {
 		: "Loading the request timeline…";
 }
 
+/**
+ * What a checkpoint declared, against what its transcript shows. An entry with
+ * no matching read says no observation was recorded, never that the file was
+ * not loaded: the transcript records deliveries, so its silence about a file is
+ * an absence of evidence rather than evidence of absence.
+ */
+function DeclaredCorpusPane({
+	entries,
+}: {
+	readonly entries: StageCorpusResponse;
+}): React.JSX.Element {
+	return (
+		<section className="rh-history__corpus" aria-label="Declared corpus">
+			<h2>Declared corpus</h2>
+			<ul>
+				{entries.map((entry) => (
+					<li key={`${entry.state}:${entry.path}`}>
+						<code>{entry.path}</code> <small>{corpusStateLabel(entry)}</small>
+					</li>
+				))}
+			</ul>
+		</section>
+	);
+}
+
+function corpusStateLabel(entry: StageCorpusResponse[number]): string {
+	const locator =
+		entry.firstLocator === undefined
+			? ""
+			: ` · ${entry.firstLocator.line}:${entry.firstLocator.block}`;
+	if (entry.state === "observed") {
+		return `Observed${locator}`;
+	}
+
+	if (entry.state === "undeclared") {
+		return `Undeclared${locator}`;
+	}
+
+	return "No observation recorded";
+}
+
 function RequestTimelinePane({
 	read,
 	failed,
@@ -626,6 +686,14 @@ export function SessionHistoryPage({
 		queryFn: () => fetchSummary(identity),
 	});
 	const recordsRequestSeries = identity.kind !== "stage";
+	const stageCorpus = useQuery({
+		queryKey: ["stage-corpus", path],
+		queryFn: () =>
+			identity.kind === "stage"
+				? fetchStageCorpus(identity.run, identity.stage)
+				: Promise.resolve([]),
+		enabled: identity.kind === "stage",
+	});
 	const requests = useQuery({
 		queryKey: ["session-history-requests", path],
 		queryFn: () => fetchRequestSeries(identity),
@@ -714,6 +782,9 @@ export function SessionHistoryPage({
 						</div>
 						<strong>{reportEvidenceLabel(summary.data)}</strong>
 					</section>
+					{stageCorpus.data === undefined ? null : (
+						<DeclaredCorpusPane entries={stageCorpus.data} />
+					)}
 					<div className="rh-history__toolbar">
 						<span>Sort sources</span>
 						<Switcher

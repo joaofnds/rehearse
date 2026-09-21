@@ -654,6 +654,76 @@ describe(SessionHistoryPage.name, () => {
 		expect(within(timeline).queryByRole("alert")).not.toBeInTheDocument();
 	});
 
+	it("reconciles a stage's declared corpus against what its transcript shows", async () => {
+		stubFetchByPath(
+			new Map<string, unknown>([
+				[
+					"/api/runs/run-1/stages/shape/history",
+					{
+						schemaVersion: 1,
+						attempt: {
+							kind: "stage",
+							caseId: "case-a",
+							run: "run-1",
+							stage: "shape",
+							lineage: "lineage-1",
+							upstream: "upstream-1",
+							model: "sonnet",
+							corpusFiles: [],
+						},
+						evidence: { state: "complete" },
+						boundary: "known",
+						startingContext: [],
+						attemptEvents: [],
+						boundaryUnknown: [],
+						startingSources: [],
+						sources: [],
+					},
+				],
+				[
+					"/api/runs/run-1/stages/shape/history/corpus",
+					[
+						{
+							path: "CLAUDE.md",
+							state: "observed",
+							firstLocator: { line: 1, block: 1 },
+						},
+						{ path: "skills/build/SKILL.md", state: "no-observation-recorded" },
+						{
+							path: "agents/reviewer.md",
+							state: "undeclared",
+							firstLocator: { line: 3, block: 1 },
+						},
+					],
+				],
+			]),
+		);
+		const client = new QueryClient({
+			defaultOptions: { queries: { retry: false } },
+		});
+		render(
+			<QueryClientProvider client={client}>
+				<SessionHistoryPage
+					identity={{ kind: "stage", run: "run-1", stage: "shape" }}
+				/>
+			</QueryClientProvider>,
+		);
+
+		const corpus = await screen.findByRole("region", {
+			name: "Declared corpus",
+		});
+
+		expect(
+			within(corpus)
+				.getAllByRole("listitem")
+				.map((item) => item.textContent),
+		).toEqual([
+			"CLAUDE.md Observed · 1:1",
+			"skills/build/SKILL.md No observation recorded",
+			"agents/reviewer.md Undeclared · 3:1",
+		]);
+	});
+
 	it("names an empty historical attempt as boundary unknown", async () => {
 		stubFetchByPath(
 			new Map([

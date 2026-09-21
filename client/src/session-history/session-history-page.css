@@ -56,6 +56,36 @@
 	font-size: var(--font-size-11-5);
 }
 
+.rh-history__corpus {
+	padding: var(--space-10) var(--space-14);
+	border: var(--border-width-hairline) solid var(--color-border-2);
+	background: var(--color-surface-alt);
+	color: var(--color-text-secondary);
+}
+
+.rh-history__corpus h2 {
+	margin: 0 0 var(--space-6);
+	font-size: var(--font-size-11);
+	color: var(--color-text-dim);
+}
+
+.rh-history__corpus ul {
+	display: flex;
+	flex-direction: column;
+	gap: var(--space-3);
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.rh-history__corpus code {
+	font-family: var(--font-mono);
+}
+
+.rh-history__corpus small {
+	color: var(--color-text-dim);
+}
+
 .rh-history__starting {
 	display: flex;
 	justify-content: space-between;
