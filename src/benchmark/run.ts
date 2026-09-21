@@ -1,4 +1,5 @@
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { claudeProjectsDirectory } from "./session-capture";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -490,6 +491,13 @@ export interface StageContext {
 	readonly loadedSettings: LoadedStageSettings;
 	readonly stageFile: (stage: WorkflowStage) => string;
 	readonly checkpointDirectory: (stage: WorkflowStage) => string;
+	/**
+	 * Where the provider writes session transcripts. Injected rather than read
+	 * from the environment so a test can point it at a fixture, and optional so
+	 * a caller that does not supply it records no transcript instead of
+	 * guessing at the operator's home directory.
+	 */
+	readonly projectsDirectory?: string | undefined;
 	readonly writePendingStage: (pending: PendingStage) => Promise<void>;
 	readonly updatePendingStage: (pending: PendingStage) => void;
 	readonly writeStageProgress: (record: StageJudgeRecord) => Promise<void>;
@@ -813,6 +821,13 @@ export async function runGradedStages(
 				corpusFiles,
 				artifacts: hashArtifacts(input.artifact ? [input.artifact] : []),
 				settingsFile: context.loadedSettings.hashed,
+				transcript:
+					context.projectsDirectory === undefined
+						? undefined
+						: {
+								sessionId: session.transcript.sessionId,
+								projectsDirectory: context.projectsDirectory,
+							},
 			},
 		);
 		checkpoints.push(checkpoint);
@@ -1043,6 +1058,7 @@ export async function runBenchmark(
 					loadedSettings,
 					stageFile: runFiles.stageFile,
 					checkpointDirectory: runFiles.checkpointDirectory,
+					projectsDirectory: claudeProjectsDirectory(),
 					writePendingStage: abort.writePendingStage,
 					updatePendingStage: abort.updatePendingStage,
 					writeStageProgress: abort.writeStageProgress,

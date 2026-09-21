@@ -646,7 +646,13 @@ does not perform that restoration for you.
 
 An initial checkpoint captures task setup and the stage-settings digest;
 accepted stages create subsequent checkpoints with target SHA, workflow state,
-artifacts, settings, and lineage. Replay materializes the upstream state for the
+artifacts, settings, and lineage. A stage checkpoint also preserves that
+stage's raw session transcript as `transcript.jsonl` beside the record, so a
+later reader can observe what the stage actually loaded rather than inferring
+it from the parsed exchanges. Where the provider wrote no transcript, the
+record says so with an explicit unavailable status instead of omitting the
+evidence. Checkpoints written before this carry no transcript field and remain
+readable. Replay materializes the upstream state for the
 named stage. It can inspect a stale checkpoint for exploration, while
 confirmation/comparison require compatible frozen evidence. Replay permits an
 uncommitted control repository and records its SHA with a dirty marker.

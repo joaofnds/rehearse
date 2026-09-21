@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { projectSlug } from "./session-capture";
 import { join, relative } from "node:path";
 import { z } from "zod";
 import { SymlinkedEntryError } from "./file-presence";
@@ -624,6 +625,59 @@ describe(runGradedStages.name, () => {
 				Promise.resolve({ skippedCalibrations: 0, baselines: [] }),
 		};
 	}
+
+	it("preserves each stage's raw transcript into its checkpoint", async () => {
+		const { dependencies } = fakeStageDependencies();
+		const context = await stageContext();
+		// The fake stage reports sessionId "session"; seed the transcript the
+		// provider would have written for it, under the target's own slug.
+		const projectsDirectory = await mkdtemp(
+			join(tmpdir(), "rehearse-projects-"),
+		);
+		testResources.track(projectsDirectory);
+		const slug = join(projectsDirectory, projectSlug(context.targetDir));
+		await mkdir(slug, { recursive: true });
+		const raw = `{"type":"user"}\n`;
+		await Bun.write(join(slug, "session.jsonl"), raw);
+
+		const outcome = await runGradedStages(dependencies, {
+			...context,
+			projectsDirectory,
+		});
+
+		const [first] = outcome.checkpoints;
+		expect(first?.transcript).toEqual({
+			file: "transcript.jsonl",
+			sessionId: "session",
+			status: "AVAILABLE",
+		});
+		expect(
+			await Bun.file(
+				join(context.checkpointDirectory("shape"), "transcript.jsonl"),
+			).text(),
+		).toBe(raw);
+	});
+
+	it("records a stage whose provider wrote no transcript as unavailable", async () => {
+		const { dependencies } = fakeStageDependencies();
+		const context = await stageContext();
+		const projectsDirectory = await mkdtemp(
+			join(tmpdir(), "rehearse-projects-"),
+		);
+		testResources.track(projectsDirectory);
+
+		const outcome = await runGradedStages(dependencies, {
+			...context,
+			projectsDirectory,
+		});
+
+		// No transcript was seeded. The checkpoint must say so rather than
+		// leave a reader to treat the parsed exchanges as the raw record.
+		expect(outcome.checkpoints[0]?.transcript).toEqual({
+			sessionId: "session",
+			status: "UNAVAILABLE",
+		});
+	});
 
 	it("runs the stages in order and carries evidence forward", async () => {
 		const { dependencies, judged, executed } = fakeStageDependencies();

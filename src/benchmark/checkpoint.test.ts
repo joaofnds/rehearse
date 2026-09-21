@@ -36,6 +36,7 @@ import {
 	stageCorpusRoots,
 } from "./checkpoint";
 import type { CorpusRoot } from "./corpus-file";
+import { projectSlug } from "./session-capture";
 import { SymlinkedEntryError } from "./file-presence";
 import { failureOf } from "#cli/cli-test-support";
 import { TestResources } from "./test-support";
@@ -501,6 +502,70 @@ describe(recordCheckpoint.name, () => {
 			destination: join(directory, "materialized"),
 		};
 	}
+
+	it("preserves the stage's raw session transcript beside the checkpoint", async () => {
+		const { targetDir, checkpointDir } = await checkpointFixture();
+		const projectsDirectory = await mkdtemp(
+			join(tmpdir(), "rehearse-projects-"),
+		);
+		testResources.track(projectsDirectory);
+		const sessionId = "0f9a2c1e-1111-4222-8333-444455556666";
+		const slug = join(projectsDirectory, projectSlug(targetDir));
+		await mkdir(slug, { recursive: true });
+		const raw = `{"type":"user"}\n{"type":"assistant"}\n`;
+		await Bun.write(join(slug, `${sessionId}.jsonl`), raw);
+
+		const record = await recordCheckpoint(targetDir, checkpointDir, {
+			...checkpointInputs,
+			transcript: { sessionId, projectsDirectory },
+		});
+
+		expect(record.transcript).toEqual({
+			file: "transcript.jsonl",
+			sessionId,
+			status: "AVAILABLE",
+		});
+		// The bytes, not a parse of them: a later context manifest must be able
+		// to observe what the stage actually loaded.
+		expect(await Bun.file(join(checkpointDir, "transcript.jsonl")).text()).toBe(
+			raw,
+		);
+	});
+
+	it("records an absent stage transcript as unavailable", async () => {
+		const { targetDir, checkpointDir } = await checkpointFixture();
+		const projectsDirectory = await mkdtemp(
+			join(tmpdir(), "rehearse-projects-"),
+		);
+		testResources.track(projectsDirectory);
+		const sessionId = "0f9a2c1e-1111-4222-8333-444455556666";
+
+		const record = await recordCheckpoint(targetDir, checkpointDir, {
+			...checkpointInputs,
+			transcript: { sessionId, projectsDirectory },
+		});
+
+		// Unavailable must be said outright. Silence here would let a reader
+		// take the stage's parsed exchanges for the raw transcript.
+		expect(record.transcript).toEqual({ sessionId, status: "UNAVAILABLE" });
+		expect(
+			await Bun.file(join(checkpointDir, "transcript.jsonl")).exists(),
+		).toBe(false);
+	});
+
+	it("omits the transcript field when no session is supplied", async () => {
+		const { targetDir, checkpointDir } = await checkpointFixture();
+
+		const record = await recordCheckpoint(
+			targetDir,
+			checkpointDir,
+			checkpointInputs,
+		);
+
+		// The thirteen checkpoints already on disk carry no such field, and
+		// they must keep parsing.
+		expect(record.transcript).toBeUndefined();
+	});
 
 	it("materializes a recorded checkpoint byte-for-byte", async () => {
 		const { targetDir, checkpointDir, destination } = await checkpointFixture();

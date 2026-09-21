@@ -12,6 +12,7 @@ import {
 	resolvesOutsideCorpus,
 } from "./corpus-file";
 import type { Immutable } from "./contracts";
+import { projectSlug } from "./session-capture";
 import {
 	classifyEntry,
 	lstatIfPresent,
@@ -37,6 +38,16 @@ export interface LineageInputs {
 	readonly model: string;
 	readonly effort?: Effort | undefined;
 	readonly settingsFile?: HashedFile | undefined;
+}
+
+/**
+ * Where the provider writes a session's transcript: one file per session id,
+ * under a slug derived from the working directory. Session attempts already
+ * resolve it this way; a stage knows both halves by the time it checkpoints.
+ */
+export interface StageTranscriptSource {
+	readonly sessionId: string;
+	readonly projectsDirectory: string;
 }
 
 export interface RootLineageInputs {
@@ -870,6 +881,32 @@ export const hashedFileSchema = z.object({
 	sha256: z.string().regex(/^[0-9a-f]{64}$/u),
 });
 
+/**
+ * A stage's raw session transcript, or an explicit statement that the provider
+ * supplied none. The status is recorded rather than inferred from a missing
+ * file, because a reader that finds no transcript cannot otherwise tell a stage
+ * that produced none from one whose capture was never attempted, and would be
+ * free to read the stage's parsed exchanges as if they were the raw record.
+ *
+ * The field is optional: checkpoints written before this existed carry no
+ * transcript at all, and must keep parsing.
+ */
+const stageTranscriptEvidenceSchema = z.discriminatedUnion("status", [
+	z.object({
+		status: z.literal("AVAILABLE"),
+		sessionId: z.string().min(1),
+		file: z.string().min(1),
+	}),
+	z.object({
+		status: z.literal("UNAVAILABLE"),
+		sessionId: z.string().min(1),
+	}),
+]);
+
+export type StageTranscriptEvidence = Immutable<
+	z.infer<typeof stageTranscriptEvidenceSchema>
+>;
+
 const checkpointRecordSchema = z
 	.object({
 		stage: z.string().min(1),
@@ -882,6 +919,7 @@ const checkpointRecordSchema = z
 		artifacts: z.array(hashedFileSchema),
 		workflowState: z.array(hashedFileSchema),
 		settingsFile: hashedFileSchema.optional(),
+		transcript: stageTranscriptEvidenceSchema.optional(),
 	})
 	.strict();
 
@@ -902,6 +940,7 @@ export interface CheckpointInputs {
 	readonly corpusFiles: readonly HashedFile[];
 	readonly artifacts: readonly HashedFile[];
 	readonly settingsFile?: HashedFile | undefined;
+	readonly transcript?: StageTranscriptSource | undefined;
 }
 
 const RECORD_FILE = "checkpoint.json";
@@ -935,6 +974,44 @@ export async function hashWorkflowState(
  * judge context: materializing it must reproduce exactly the state the next
  * stage consumed (ACT-2 decision 2).
  */
+const TRANSCRIPT_FILE = "transcript.jsonl";
+
+/**
+ * Copies the provider's transcript beside the checkpoint so it survives the
+ * working directory it was written under. The bytes are copied rather than the
+ * path recorded: the source lives in the operator's own projects directory and
+ * a later read of an absolute path there has already broken once.
+ */
+async function preserveStageTranscript(
+	targetDir: string,
+	directory: string,
+	source: StageTranscriptSource | undefined,
+): Promise<StageTranscriptEvidence | undefined> {
+	if (source === undefined) {
+		return undefined;
+	}
+
+	const written = Bun.file(
+		join(
+			source.projectsDirectory,
+			projectSlug(targetDir),
+			`${source.sessionId}.jsonl`,
+		),
+	);
+	if (!(await written.exists())) {
+		return { status: "UNAVAILABLE", sessionId: source.sessionId };
+	}
+
+	await mkdir(directory, { recursive: true });
+	await Bun.write(join(directory, TRANSCRIPT_FILE), written);
+
+	return {
+		status: "AVAILABLE",
+		sessionId: source.sessionId,
+		file: TRANSCRIPT_FILE,
+	};
+}
+
 export async function recordCheckpoint(
 	targetDir: string,
 	directory: string,
@@ -954,6 +1031,11 @@ export async function recordCheckpoint(
 		artifacts: canonicalFiles(inputs.artifacts),
 		workflowState: canonicalFiles(workflowState),
 		settingsFile: inputs.settingsFile,
+		transcript: await preserveStageTranscript(
+			targetDir,
+			directory,
+			inputs.transcript,
+		),
 	};
 	await Bun.write(
 		join(directory, RECORD_FILE),
