@@ -1247,6 +1247,57 @@ function reportFromProjection(
 	};
 }
 
+/**
+ * What a stage's declared corpus and its transcript say about each other. The
+ * only key the two sides share is the corpus layout path: a declaration
+ * carries a hash of bytes on disk, and a transcript carries the text that was
+ * delivered, so a hash can never establish that a file entered context.
+ *
+ * "No observation recorded" is not absence from context. A stage that kept no
+ * transcript records nothing about every file it declared.
+ */
+export type StageCorpusState =
+	| "observed"
+	| "no-observation-recorded"
+	| "undeclared";
+
+export interface StageCorpusEntry {
+	readonly path: string;
+	readonly state: StageCorpusState;
+	readonly firstLocator?: TranscriptLocation | undefined;
+}
+
+export function stageCorpusReconciliation(
+	report: Immutable<SessionHistoryReport>,
+): readonly StageCorpusEntry[] {
+	if (report.attempt.kind !== "stage") {
+		return [];
+	}
+
+	const observed = new Map(
+		[...report.startingSources, ...report.sources]
+			.filter(({ kind }) => kind === "corpus")
+			.map((source) => [source.name, source.firstLocator]),
+	);
+	const declared = report.attempt.corpusFiles.map(({ path }) => {
+		const firstLocator = observed.get(path);
+
+		return firstLocator === undefined
+			? { path, state: "no-observation-recorded" as const }
+			: { path, state: "observed" as const, firstLocator };
+	});
+	const declaredPaths = new Set(declared.map(({ path }) => path));
+	const undeclared = [...observed.entries()]
+		.filter(([path]) => !declaredPaths.has(path))
+		.map(([path, firstLocator]) => ({
+			path,
+			state: "undeclared" as const,
+			firstLocator,
+		}));
+
+	return [...declared, ...undeclared];
+}
+
 export function sessionHistoryReport(
 	input: Immutable<SessionHistoryReportInput>,
 ): SessionHistoryReport {

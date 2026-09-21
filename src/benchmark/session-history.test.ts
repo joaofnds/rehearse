@@ -15,6 +15,7 @@ import {
 	sessionHistoryRequestCosts,
 	sessionHistoryRequestSeries,
 	sessionHistoryRequestSeriesFromLines,
+	stageCorpusReconciliation,
 } from "#benchmark/session-history";
 
 function row(record: JsonValue): string {
@@ -1966,5 +1967,96 @@ describe(sessionHistoryAttemptCost.name, () => {
 			state: "unavailable",
 			reasons: ["the provider reading is unavailable"],
 		});
+	});
+});
+
+describe(stageCorpusReconciliation.name, () => {
+	it("reports a declared file the transcript shows being read as observed", () => {
+		const report = sessionHistoryReport({
+			attempt: {
+				kind: "stage",
+				caseId: "case-a",
+				run: "run-1",
+				stage: "shape",
+				lineage: "lineage-1",
+				upstream: "upstream-1",
+				model: "sonnet",
+				corpusFiles: [
+					{ path: "CLAUDE.md", sha256: "a".repeat(64) },
+					{ path: "skills/build/SKILL.md", sha256: "b".repeat(64) },
+				],
+			},
+			resolvedCorpusFiles: [],
+			transcript: [
+				row(
+					callIn("/wt", "read-1", "Read", {
+						file_path: "/home/someone/.claude/CLAUDE.md",
+					}),
+				),
+				row(resultIn("/wt", "read-1", "instructions")),
+				row(
+					callIn("/wt", "read-2", "Read", {
+						file_path: "/home/someone/.claude/agents/reviewer.md",
+					}),
+				),
+				row(resultIn("/wt", "read-2", "reviewer")),
+			].join("\n"),
+			prefixLinesExcluded: 0,
+		});
+
+		expect(stageCorpusReconciliation(report)).toEqual([
+			{
+				path: "CLAUDE.md",
+				state: "observed",
+				firstLocator: { line: 1, block: 1 },
+			},
+			{ path: "skills/build/SKILL.md", state: "no-observation-recorded" },
+			{
+				path: "agents/reviewer.md",
+				state: "undeclared",
+				firstLocator: { line: 3, block: 1 },
+			},
+		]);
+	});
+
+	it("reconciles nothing for a session attempt, whose corpus is resolved to real paths", () => {
+		const report = sessionHistoryReport({
+			attempt: {
+				kind: "session",
+				caseId: "case-a",
+				id: "attempt-a",
+				model: "sonnet",
+				outcome: "SUCCESSFUL",
+				corpusFiles: [],
+			},
+			resolvedCorpusFiles: [],
+			transcript: undefined,
+			prefixLinesExcluded: 0,
+		});
+
+		expect(stageCorpusReconciliation(report)).toEqual([]);
+	});
+
+	it("records no observation rather than absence when a stage kept no transcript", () => {
+		const report = sessionHistoryReport({
+			attempt: {
+				kind: "stage",
+				caseId: "case-a",
+				run: "run-1",
+				stage: "shape",
+				lineage: "lineage-1",
+				upstream: "upstream-1",
+				model: "sonnet",
+				corpusFiles: [{ path: "CLAUDE.md", sha256: "a".repeat(64) }],
+			},
+			resolvedCorpusFiles: [],
+			transcript: undefined,
+			prefixLinesExcluded: 0,
+			unavailableReason: "no-capture-recorded",
+		});
+
+		expect(stageCorpusReconciliation(report)).toEqual([
+			{ path: "CLAUDE.md", state: "no-observation-recorded" },
+		]);
 	});
 });
