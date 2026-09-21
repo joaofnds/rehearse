@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import { createHash } from "node:crypto";
+import type { JsonValue } from "#benchmark/json-value";
 import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
@@ -13,12 +14,16 @@ import {
 	nothingRunning,
 } from "#benchmark/run-records-test-support";
 import {
+	benchmarkRunPaths,
 	confirmationGroupPaths,
 	sessionAttemptPaths,
 } from "#benchmark/run-layout";
+import { writeRunManifest } from "#benchmark/manifest";
+import { TEST_TARGET } from "#benchmark/test-support";
 import { createApiApp } from "#server/api";
 import {
 	readConfirmationAttemptHistory,
+	readStageHistory,
 	readConfirmationAttemptRequestSeries,
 	readSessionAttemptHistory,
 	readSessionAttemptRequestSeries,
@@ -1041,5 +1046,268 @@ describe(readConfirmationAttemptRequestSeries.name, () => {
 				repId: "group-a-rep-2",
 			}),
 		).rejects.toBeInstanceOf(SessionHistoryReaderError);
+	});
+});
+
+interface StageFixture {
+	readonly runsDirectory: string;
+	readonly run: string;
+	readonly stage: string;
+	readonly caseId: string;
+}
+
+const STAGE_TRANSCRIPT = [
+	JSON.stringify({
+		type: "assistant",
+		cwd: "/wt",
+		message: {
+			content: [
+				{
+					type: "tool_use",
+					id: "read-1",
+					name: "Read",
+					input: { file_path: `${homedir()}/.claude/CLAUDE.md` },
+				},
+			],
+		},
+	}),
+	JSON.stringify({
+		type: "user",
+		cwd: "/wt",
+		message: {
+			content: [
+				{
+					type: "tool_result",
+					tool_use_id: "read-1",
+					content: "1\tcorpus instructions",
+				},
+			],
+		},
+	}),
+].join("\n");
+
+type StageTranscriptMode = "available" | "unavailable" | "absent";
+
+function checkpointWithTranscript(
+	declared: Readonly<Record<string, JsonValue>>,
+	mode: StageTranscriptMode,
+): JsonValue {
+	if (mode === "available") {
+		return {
+			...declared,
+			transcript: {
+				status: "AVAILABLE",
+				sessionId: "session-1",
+				file: "transcript.jsonl",
+			},
+		};
+	}
+
+	if (mode === "unavailable") {
+		return {
+			...declared,
+			transcript: { status: "UNAVAILABLE", sessionId: "session-1" },
+		};
+	}
+
+	return declared;
+}
+
+async function writtenStage(
+	options: { readonly transcript?: StageTranscriptMode } = {},
+): Promise<StageFixture> {
+	const root = await mkdtemp(join(tmpdir(), "rehearse-stage-reader-"));
+	roots.push(root);
+	const runsDirectory = join(root, ".benchmark-runs");
+	const run = "2026-09-06T21-58-29.508Z";
+	const stage = "shape";
+	const caseId = "audit-log";
+	const paths = benchmarkRunPaths(runsDirectory, run);
+	const directory = paths.checkpointDirectory(stage);
+	await mkdir(directory, { recursive: true });
+	await writeRunManifest(paths.manifestFile, {
+		caseId,
+		timestamp: "2026-09-06T21:58:29.508Z",
+		controlSha: "control-sha",
+		sourceRoot: "/src",
+		sourceSha: "source-sha",
+		taskId: "TASK-1",
+		taskSha: "task-sha",
+		task: "Task text",
+		productBrief: "Brief text",
+		model: "sonnet",
+		judgeModel: "opus",
+		sessionBudgetUsd: 5,
+		pipeline: {
+			statuses: ["To Do", "Done"],
+			target: TEST_TARGET,
+			stages: [
+				{
+					name: stage,
+					kind: "delivery",
+					skill: "shape",
+					rubric: "rubrics/shape.json",
+				},
+			],
+		},
+		pipelinePath: "pipelines/default.json",
+	});
+	const mode = options.transcript ?? "available";
+	const declared = {
+		stage,
+		targetSha: "target-sha",
+		lineage: "lineage-1",
+		upstream: "upstream-1",
+		model: "sonnet",
+		corpusFiles: [
+			{ path: "CLAUDE.md", sha256: "a".repeat(64) },
+			{ path: "skills/build/SKILL.md", sha256: "b".repeat(64) },
+		],
+		artifacts: [],
+		workflowState: [],
+	};
+	await Bun.write(
+		join(directory, "checkpoint.json"),
+		`${JSON.stringify(checkpointWithTranscript(declared, mode))}\n`,
+	);
+	if (mode === "available") {
+		await Bun.write(join(directory, "transcript.jsonl"), STAGE_TRANSCRIPT);
+	}
+
+	return { runsDirectory, run, stage, caseId };
+}
+
+describe(readStageHistory.name, () => {
+	it("renders a stage's events in source order under a stage identity", async () => {
+		const fixture = await writtenStage();
+
+		const report = await readStageHistory(fixture);
+
+		expect(report.attempt).toEqual({
+			kind: "stage",
+			caseId: "audit-log",
+			run: fixture.run,
+			stage: "shape",
+			lineage: "lineage-1",
+			upstream: "upstream-1",
+			model: "sonnet",
+			corpusFiles: [
+				{ path: "CLAUDE.md", sha256: "a".repeat(64) },
+				{ path: "skills/build/SKILL.md", sha256: "b".repeat(64) },
+			],
+		});
+		expect(report.evidence).toEqual({ state: "complete" });
+		expect(report.boundary).toBe("known");
+		expect(report.startingContext).toEqual([]);
+		expect(
+			report.attemptEvents.map(({ id, state }) => ({ id, state })),
+		).toEqual([
+			{ id: "1:1", state: "invoked" },
+			{ id: "2:1", state: "delivered" },
+		]);
+		expect(report.sources.map(({ kind, name }) => ({ kind, name }))).toEqual([
+			{ kind: "corpus", name: "CLAUDE.md" },
+		]);
+	});
+
+	it("names a stage recording no provider transcript apart from one recording no capture", async () => {
+		const recorded = await readStageHistory(
+			await writtenStage({ transcript: "unavailable" }),
+		);
+		const absent = await readStageHistory(
+			await writtenStage({ transcript: "absent" }),
+		);
+
+		expect(recorded.evidence).toEqual({
+			state: "unavailable",
+			reasons: ["the provider wrote no transcript for this stage session"],
+		});
+		expect(absent.evidence).toEqual({
+			state: "unavailable",
+			reasons: ["no raw transcript capture was recorded for this stage"],
+		});
+		expect(recorded.attemptEvents).toEqual([]);
+		expect(absent.attemptEvents).toEqual([]);
+	});
+
+	it("refuses a stage whose checkpoint names another stage", async () => {
+		const fixture = await writtenStage();
+		const paths = benchmarkRunPaths(fixture.runsDirectory, fixture.run);
+		await mkdir(paths.checkpointDirectory("build"), { recursive: true });
+		await Bun.write(
+			join(paths.checkpointDirectory("build"), "checkpoint.json"),
+			await Bun.file(
+				join(paths.checkpointDirectory("shape"), "checkpoint.json"),
+			).text(),
+		);
+
+		expect(
+			readStageHistory({ ...fixture, stage: "build" }),
+		).rejects.toBeInstanceOf(SessionHistoryReaderError);
+	});
+
+	it.each([
+		["run segment", "../escape"],
+		["stage segment", "../shape"],
+	] as const)("refuses a traversing %s", async (name, segment) => {
+		const fixture = await writtenStage();
+
+		expect(
+			readStageHistory(
+				name === "run segment"
+					? { ...fixture, run: segment }
+					: { ...fixture, stage: segment },
+			),
+		).rejects.toBeInstanceOf(SessionHistoryReaderError);
+	});
+
+	it("refuses a symlinked stage transcript", async () => {
+		const fixture = await writtenStage();
+		const paths = benchmarkRunPaths(fixture.runsDirectory, fixture.run);
+		const directory = paths.checkpointDirectory(fixture.stage);
+		const outside = join(fixture.runsDirectory, "outside.jsonl");
+		await Bun.write(outside, "secret");
+		await rm(join(directory, "transcript.jsonl"));
+		await symlink(outside, join(directory, "transcript.jsonl"));
+
+		expect(readStageHistory(fixture)).rejects.toBeInstanceOf(
+			SessionHistoryReaderError,
+		);
+	});
+
+	it("refuses a symlinked checkpoint directory", async () => {
+		const fixture = await writtenStage();
+		const paths = benchmarkRunPaths(fixture.runsDirectory, fixture.run);
+		const directory = paths.checkpointDirectory(fixture.stage);
+		const outside = join(fixture.runsDirectory, "outside-stage");
+		await mkdir(outside);
+		await Bun.write(join(outside, "checkpoint.json"), "{}");
+		await rm(directory, { recursive: true });
+		await symlink(outside, directory);
+
+		expect(readStageHistory(fixture)).rejects.toBeInstanceOf(
+			SessionHistoryReaderError,
+		);
+	});
+
+	it("leaves the checkpoint and its transcript byte-identical", async () => {
+		const fixture = await writtenStage();
+		const paths = benchmarkRunPaths(fixture.runsDirectory, fixture.run);
+		const directory = paths.checkpointDirectory(fixture.stage);
+		const before = await Promise.all(
+			["checkpoint.json", "transcript.jsonl"].map((name) =>
+				Bun.file(join(directory, name)).text(),
+			),
+		);
+
+		await readStageHistory(fixture);
+
+		expect(
+			await Promise.all(
+				["checkpoint.json", "transcript.jsonl"].map((name) =>
+					Bun.file(join(directory, name)).text(),
+				),
+			),
+		).toEqual(before);
 	});
 });

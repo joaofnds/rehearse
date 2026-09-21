@@ -3,10 +3,13 @@ import { lstat, open, realpath } from "node:fs/promises";
 import type { FileHandle } from "node:fs/promises";
 import { z } from "zod";
 import { basename, isAbsolute, relative, resolve } from "node:path";
+import { parseCheckpointRecord } from "#benchmark/checkpoint";
 import {
 	parseConfirmationGroupRecord,
 	parseConfirmationRepRecord,
 } from "#benchmark/confirmation-record";
+import { loadRunManifest } from "#benchmark/manifest";
+import { checkpointsEntryForRun } from "#benchmark/run-layout";
 import { pathIsWithin } from "#benchmark/path-containment";
 import { parseSessionAttemptRecord } from "#benchmark/session-record";
 import { transcriptInstructionLoadsFromLines } from "#benchmark/transcript-instruction-loads";
@@ -20,6 +23,7 @@ import {
 	sessionHistoryRequestSeriesFromLines,
 } from "#benchmark/session-history";
 import type {
+	HistoryUnavailableReason,
 	SessionHistoryAttemptCost,
 	SessionHistoryDetail,
 	SessionHistoryReport,
@@ -57,6 +61,12 @@ interface ConfirmationAttemptHistoryIdentity {
 	readonly runsDirectory: string;
 	readonly groupId: string;
 	readonly repId: string;
+}
+
+interface StageHistoryIdentityInput {
+	readonly runsDirectory: string;
+	readonly run: string;
+	readonly stage: string;
 }
 
 const fileErrorSchema = z.object({ code: z.string() }).loose();
@@ -463,6 +473,106 @@ async function confirmationInput(
 	return { root, metadata, reportedCostUsd, transcriptFile };
 }
 
+/**
+ * A checkpoint records no case id and no run name, so the case is read from
+ * the run's own manifest, which sits inside the checkpoints directory. That
+ * only confirms the directory agrees with itself; the ownership check a stage
+ * permits is its checkpoint's own stage field against the requested one.
+ */
+async function stageInput(
+	identity: Readonly<StageHistoryIdentityInput>,
+): Promise<ResolvedHistoryInput> {
+	const root = await canonicalRunsRoot(identity.runsDirectory);
+	const checkpointsEntry = checkpointsEntryForRun(parseIdentity(identity.run));
+	const checkpointsDirectory = await verifiedDirectory(root, [
+		checkpointsEntry,
+	]);
+	const directory = await verifiedDirectory(root, [
+		checkpointsEntry,
+		identity.stage,
+	]);
+	const checkpointFile = await verifiedFile(
+		root,
+		directory,
+		"checkpoint.json",
+		true,
+	);
+	if (checkpointFile === undefined) {
+		throw new SessionHistoryReaderError(
+			"not-found",
+			"Saved stage checkpoint is unavailable",
+		);
+	}
+	const checkpoint = parseCheckpointRecord(
+		await readVerifiedFile(root, checkpointFile),
+	);
+	if (checkpoint.stage !== identity.stage) {
+		throw new SessionHistoryReaderError(
+			"refused",
+			"Saved checkpoint does not own this stage identity",
+		);
+	}
+	const manifestFile = await verifiedFile(
+		root,
+		checkpointsDirectory,
+		"manifest.json",
+		true,
+	);
+	if (manifestFile === undefined) {
+		throw new SessionHistoryReaderError(
+			"not-found",
+			"Saved run manifest is unavailable",
+		);
+	}
+	const manifest = await loadRunManifest(manifestFile);
+	const transcriptFile =
+		checkpoint.transcript?.status === "AVAILABLE"
+			? await verifiedFile(root, directory, checkpoint.transcript.file, true)
+			: undefined;
+
+	return {
+		root,
+		metadata: {
+			attempt: {
+				kind: "stage",
+				caseId: manifest.caseId,
+				run: identity.run,
+				stage: checkpoint.stage,
+				lineage: checkpoint.lineage,
+				upstream: checkpoint.upstream,
+				model: checkpoint.model,
+				effort: checkpoint.effort,
+				corpusFiles: checkpoint.corpusFiles.map(({ path, sha256 }) => ({
+					path,
+					sha256,
+				})),
+			},
+			resolvedCorpusFiles: [],
+			unavailableReason: stageUnavailableReason(checkpoint.transcript?.status),
+			prefixLinesExcluded: 0,
+		},
+		reportedCostUsd: undefined,
+		transcriptFile,
+	};
+}
+
+/**
+ * A stage session resumes no earlier session, so a transcript it has is the
+ * whole of its own history. Which fact left it without one is what the two
+ * absent states distinguish.
+ */
+function stageUnavailableReason(
+	status: "AVAILABLE" | "UNAVAILABLE" | undefined,
+): HistoryUnavailableReason | undefined {
+	if (status === "AVAILABLE") {
+		return undefined;
+	}
+
+	return status === "UNAVAILABLE"
+		? "provider-wrote-none"
+		: "no-capture-recorded";
+}
+
 function reportFor(
 	input: Readonly<ResolvedHistoryInput>,
 ): Promise<SessionHistoryReport> {
@@ -519,6 +629,19 @@ export async function readSessionAttemptHistoryDetail(
 	eventId: string,
 ): Promise<SessionHistoryDetail | undefined> {
 	return detailFor(await standaloneInput(identity), eventId);
+}
+
+export async function readStageHistory(
+	identity: Readonly<StageHistoryIdentityInput>,
+): Promise<SessionHistoryReport> {
+	return reportFor(await stageInput(identity));
+}
+
+export async function readStageHistoryDetail(
+	identity: Readonly<StageHistoryIdentityInput>,
+	eventId: string,
+): Promise<SessionHistoryDetail | undefined> {
+	return detailFor(await stageInput(identity), eventId);
 }
 
 export async function readConfirmationAttemptHistory(

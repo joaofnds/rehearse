@@ -67,6 +67,15 @@ export function runNameFromTimestamp(timestamp: string): string {
 	return timestamp.replaceAll(":", "-");
 }
 
+/**
+ * The directory entry holding a run's checkpoints. A reader that walks the
+ * runs directory one segment at a time needs the entry name rather than the
+ * joined path `benchmarkRunPaths` returns.
+ */
+export function checkpointsEntryForRun(name: string): string {
+	return `${name}${CHECKPOINTS_SUFFIX}`;
+}
+
 export function runNameFromCheckpointsEntry(entry: string): string | undefined {
 	if (!entry.endsWith(CHECKPOINTS_SUFFIX)) {
 		return undefined;
