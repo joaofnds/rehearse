@@ -582,7 +582,34 @@ describe(sessionHistoryReport.name, () => {
 		]);
 	});
 
-	it("names a stage's corpus reads by layout path when no resolved corpus paths are supplied", () => {
+	it("leaves a session attempt declaring no corpus files classifying as it did", () => {
+		const report = sessionHistoryReport({
+			attempt: {
+				kind: "session",
+				caseId: "case-a",
+				id: "attempt-a",
+				model: "sonnet",
+				outcome: "SUCCESSFUL",
+				corpusFiles: [],
+			},
+			resolvedCorpusFiles: [],
+			transcript: [
+				row(
+					call("outside", "Read", {
+						file_path: "/home/someone/.claude/rulebook/core.md",
+					}),
+				),
+				row(result("outside", "another install")),
+			].join("\n"),
+			prefixLinesExcluded: 0,
+		});
+
+		expect(report.sources.map(({ kind, name }) => ({ kind, name }))).toEqual([
+			{ kind: "external", name: "/home/someone/.claude/rulebook/core.md" },
+		]);
+	});
+
+	it("names a stage's corpus reads by layout path", () => {
 		const transcript = [
 			row(
 				callIn("/wt", "live", "Read", {
@@ -602,11 +629,13 @@ describe(sessionHistoryReport.name, () => {
 
 		const report = sessionHistoryReport({
 			attempt: {
-				kind: "session",
+				kind: "stage",
 				caseId: "case-a",
-				id: "attempt-a",
+				run: "run-1",
+				stage: "shape",
+				lineage: "lineage-1",
+				upstream: "upstream-1",
 				model: "sonnet",
-				outcome: "SUCCESSFUL",
 				corpusFiles: [],
 			},
 			resolvedCorpusFiles: [],

@@ -388,9 +388,8 @@ function measureContent(value: JsonValue | undefined): MeasuredContent {
  * corpus entry would report a file as observed on the evidence of a read of a
  * different file.
  *
- * Gating this on the resolved list being empty is load-bearing too: applied to
- * a session attempt, which resolves its corpus to real paths, it would move
- * reads the exact match already answers.
+ * Applying this to a session attempt is what `declaredCorpusPath` refuses: it
+ * would move reads whose resolved paths already answer the question.
  */
 function corpusLayoutPathUnder(
 	normalizedPath: string,
@@ -417,12 +416,17 @@ function corpusLayoutPathUnder(
 }
 
 /**
- * The corpus name for a read, from the evidence the caller holds. A session
- * attempt supplies resolved paths and gets an exact match; a stage supplies
- * none and falls back to the layout rule, which is why the two cannot both
- * apply to one read.
+ * The corpus name for a read, from the evidence the record holds. A session
+ * attempt resolved its corpus to real paths before it ran and gets an exact
+ * match; a stage checkpoint holds hashes and no paths, so only there does the
+ * layout rule apply.
+ *
+ * The discriminant is the record kind, not whether the resolved list happens to
+ * be empty. A session case may legitimately declare no corpus files, and its
+ * reads must keep classifying as they did.
  */
 function declaredCorpusPath(
+	kind: SessionHistoryAttemptIdentity["kind"],
 	normalizedObserved: string | undefined,
 	normalizedCwd: string | undefined,
 	resolvedCorpusFiles: readonly ResolvedCorpusFile[],
@@ -431,7 +435,7 @@ function declaredCorpusPath(
 		return undefined;
 	}
 
-	if (resolvedCorpusFiles.length === 0) {
+	if (kind === "stage") {
 		return corpusLayoutPathUnder(normalizedObserved, normalizedCwd);
 	}
 
@@ -445,6 +449,7 @@ function sourceForCall(
 	input: Readonly<HistoryBlockInput>,
 	cwd: string | undefined,
 	location: Readonly<TranscriptLocation>,
+	kind: SessionHistoryAttemptIdentity["kind"],
 	resolvedCorpusFiles: readonly ResolvedCorpusFile[],
 ): SourceIdentity {
 	if (toolName === "Skill") {
@@ -483,6 +488,7 @@ function sourceForCall(
 		normalizedObserved = resolve(normalizedCwd, observed);
 	}
 	const declaredCorpus = declaredCorpusPath(
+		kind,
 		normalizedObserved,
 		normalizedCwd,
 		resolvedCorpusFiles,
@@ -628,6 +634,7 @@ function parseRowEvents(
 				inputRecord,
 				row.cwd,
 				location,
+				input.attempt.kind,
 				input.resolvedCorpusFiles,
 			);
 			events.push({
