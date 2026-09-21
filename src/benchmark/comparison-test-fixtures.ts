@@ -524,3 +524,133 @@ export function contrastResourcesWithoutElapsed(
 
 	return withoutElapsed;
 }
+
+/**
+ * Two cases where the candidate wins one and ties the other exactly. The tie
+ * contributes a delta of exactly zero, the boundary the disagreement test turns
+ * on: zero counts as agreement, so this reads blank rather than as a
+ * disagreement, and relaxing the negative side of the test to `<=` reports it
+ * as one.
+ */
+export function flatCaseComparisonEvidenceFixture(): ComparisonEvidence {
+	const outcomes = {
+		"case-1": {
+			baseline: [PASS, PASS, FAIL, FAIL],
+			candidate: [PASS, PASS, PASS, PASS],
+		},
+		"case-2": {
+			baseline: [PASS, PASS, FAIL, FAIL],
+			candidate: [PASS, PASS, FAIL, FAIL],
+		},
+	} as const;
+
+	// The control arm outscores the candidate on case-1 and ties it on case-2,
+	// so candidate - control carries a negative delta beside the same exact
+	// zero. That row is the mirror of candidate - baseline: between them, a
+	// zero meets a positive and a negative, which is what pins both sides of
+	// the disagreement test.
+	const controlOutcomes = {
+		"case-1": [PASS, PASS, PASS, PASS],
+		"case-2": [PASS, PASS, FAIL, FAIL],
+	} as const;
+
+	const cases = (["case-1", "case-2"] as const).map((caseId) => ({
+		caseId,
+		arms: {
+			baseline: reportArmEvidence(
+				caseId,
+				"baseline",
+				comparisonReps(caseId, "baseline", [...outcomes[caseId].baseline]),
+			),
+			candidate: reportArmEvidence(
+				caseId,
+				"candidate",
+				comparisonReps(caseId, "candidate", [...outcomes[caseId].candidate]),
+			),
+			control: reportArmEvidence(
+				caseId,
+				"control",
+				comparisonReps(caseId, "control", [...controlOutcomes[caseId]]),
+			),
+		},
+	}));
+
+	return {
+		manifest: { path: "/tmp/comparison.json", sha256: "8".repeat(64) },
+		cases,
+		contract: {
+			mode: "pipeline",
+			declaredStages: ["discuss", "build"],
+			reps: 4,
+		},
+		sourcePaths: [],
+	};
+}
+
+/**
+ * Two cases whose candidate-minus-baseline deltas cancel: the candidate wins
+ * case-1 and loses case-2 by the same margin, so the mean is exactly zero while
+ * neither case is null. A report built from this is the shape a mean alone
+ * cannot describe.
+ */
+export function cancellingComparisonEvidenceFixture(): ComparisonEvidence {
+	const outcomes = {
+		"case-1": {
+			baseline: [PASS, PASS, FAIL, FAIL],
+			candidate: [PASS, PASS, PASS, PASS],
+		},
+		"case-2": {
+			baseline: [PASS, PASS, PASS, PASS],
+			candidate: [PASS, PASS, FAIL, FAIL],
+		},
+	} as const;
+
+	// Distinct scales per case and arm, so the cost deltas differ between the
+	// two cases and their standard error is not zero. A fixture whose arms cost
+	// the same cannot tell a real spread from a constant.
+	const scales = {
+		"case-1": { baseline: 1, candidate: 3, control: 2 },
+		"case-2": { baseline: 1, candidate: 2, control: 4 },
+	} as const;
+
+	const cases = (["case-1", "case-2"] as const).map((caseId) => {
+		const baseline = comparisonReps(
+			caseId,
+			"baseline",
+			[...outcomes[caseId].baseline],
+			{ metricScale: scales[caseId].baseline },
+		);
+		const candidate = comparisonReps(
+			caseId,
+			"candidate",
+			[...outcomes[caseId].candidate],
+			{ metricScale: scales[caseId].candidate },
+		);
+		const control = comparisonReps(
+			caseId,
+			"control",
+			[FAIL, FAIL, FAIL, FAIL],
+			{ metricScale: scales[caseId].control },
+		);
+
+		return {
+			caseId,
+			arms: {
+				baseline: reportArmEvidence(caseId, "baseline", baseline),
+				candidate: reportArmEvidence(caseId, "candidate", candidate),
+				control: reportArmEvidence(caseId, "control", control),
+			},
+		};
+	});
+
+	return {
+		manifest: { path: "/tmp/comparison.json", sha256: "8".repeat(64) },
+		cases,
+		contract: {
+			mode: "pipeline",
+			declaredStages: ["discuss", "build"],
+			reps: 4,
+		},
+		sourcePaths: [],
+	};
+}

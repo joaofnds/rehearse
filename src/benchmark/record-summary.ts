@@ -8,6 +8,7 @@ import type {
 	SingleCaseComparisonReport,
 } from "./comparison-record";
 import type {
+	PairedEstimate,
 	ProportionInterval,
 	SingleCaseSpread,
 } from "./comparison-estimator";
@@ -354,9 +355,59 @@ function singleCaseComparisonSummary(
 }
 
 /**
+ * A cost figure keeps six decimals where a success rate keeps three. The saved
+ * comparison 511cd2c4 carries a candidate-minus-baseline cost standard error of
+ * 0.0004999999999999172, which `ratio`'s three decimals render as "0.000", the
+ * false certainty a rounded zero always claims. The boundary is narrow: an
+ * error of 0.0005 exactly renders as "0.001" and would not have shown the
+ * defect. Six decimals put the figure beyond that boundary rather than beside
+ * it.
+ */
+function usdDelta(value: number): string {
+	return `${value >= 0 ? "+" : ""}${value.toFixed(6)}`;
+}
+
+function usdRatio(value: number): string {
+	return value.toFixed(6);
+}
+
+/**
+ * A mean over cases describes the cases only when they agree on a direction.
+ * Deltas of +0.5 and -0.5 average to exactly zero, which renders identically to
+ * two cases that did not move, so the sign disagreement is reported beside the
+ * mean rather than left for a reader to infer from a standard error.
+ *
+ * Sign is the test rather than the mean's distance from its standard error: a
+ * genuinely null result also sits within one standard error of zero, and this
+ * is reporting that the cases disagree, not that the mean is small.
+ *
+ * A delta of exactly zero counts as agreement. A case that did not move is not
+ * evidence of conflict, so a strict comparison is deliberate on both sides:
+ * relaxing either to `>=` or `<=` would report every flat case as a
+ * disagreement.
+ */
+function caseDeltasDisagree(estimate: Immutable<PairedEstimate>): boolean {
+	const values = estimate.caseDeltas.map(({ value }) => value);
+	return values.some((value) => value > 0) && values.some((value) => value < 0);
+}
+
+function perCaseDeltas(
+	estimate: Immutable<PairedEstimate>,
+	format: (value: number) => string = delta,
+): string {
+	return estimate.caseDeltas
+		.map(({ caseId, value }) => `${caseId} ${format(value)}`)
+		.join(", ");
+}
+
+/**
  * Every paired delta the report carries, each beside the contrast against the
  * control arm, because a candidate that beats the baseline while both sit at
  * the control's rate has moved nothing.
+ *
+ * The per-case column and the cost table both read figures the report already
+ * carries. Without them an operator reads a mean of zero as "the edit changed
+ * nothing" where the cases in fact disagreed, and reads no cost at all.
  */
 export function comparisonSummary(
 	digest: string,
@@ -373,8 +424,26 @@ export function comparisonSummary(
 			delta(quality.successRate.meanDelta),
 			ratio(quality.successRate.standardError),
 			delta(quality.passK.meanDelta),
+			perCaseDeltas(quality.successRate),
+			caseDeltasDisagree(quality.successRate) ? "cases disagree" : "",
 		]),
 	);
+
+	const costRows = Object.values(report.contrasts).map((contrast) => {
+		const name = `${contrast.minuend} − ${contrast.subtrahend}`;
+		const { resources } = contrast;
+		if (resources.status === "UNAVAILABLE") {
+			return [name, "unavailable", "unavailable", "unavailable"];
+		}
+
+		const { costUsd } = resources.total;
+		return [
+			name,
+			usdDelta(costUsd.meanDelta),
+			usdRatio(costUsd.standardError),
+			perCaseDeltas(costUsd, usdDelta),
+		];
+	});
 
 	return [
 		`## comparison:${digest}`,
@@ -382,8 +451,21 @@ export function comparisonSummary(
 		`${String(report.cases.length)} cases, ${report.mode} mode, ${String(report.reps)} reps.`,
 		"",
 		...table(
-			["contrast", "outcome", "success rate Δ", "standard error", "pass^k Δ"],
+			[
+				"contrast",
+				"outcome",
+				"success rate Δ",
+				"standard error",
+				"pass^k Δ",
+				"per-case Δ",
+				"reading",
+			],
 			rows,
+		),
+		"",
+		...table(
+			["contrast", "cost Δ (USD)", "standard error", "per-case Δ"],
+			costRows,
 		),
 		"",
 	].join("\n");

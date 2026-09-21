@@ -120,6 +120,14 @@ See [current state](docs/status.md) for implementation coverage and
   or the spans are separated and the arm that succeeds more often is named. It
   is derived from each arm's recorded reliability summary, not from the paired
   estimate across cases.
+- **Case disagreement** — the reading a multi-case comparison prints when the
+  per-case deltas of one contrast do not share a direction: one case moved up
+  and another moved down. It is reported beside the mean because a mean over
+  cases describes the cases only when they agree, and deltas of +0.5 and -0.5
+  average to the same zero as two cases that did not move at all. Sign is the
+  test rather than the mean's distance from its standard error, since a
+  genuinely null result also sits near zero and is not a disagreement. Unlike
+  the quality reading, it is derived from the paired estimate across cases.
 - **Benchmark case** — one frozen task with its source or checkpoint and all
   non-corpus inputs. It is the sampling unit a multi-case comparison pairs its
   arms on; a single-case session comparison samples reps instead.
