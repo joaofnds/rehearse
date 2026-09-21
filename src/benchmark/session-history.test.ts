@@ -485,6 +485,54 @@ describe(sessionHistoryReport.name, () => {
 		});
 	});
 
+	it("splits two stage reads of one corpus file into first and subsequent deliveries", () => {
+		const report = sessionHistoryReport({
+			attempt: {
+				kind: "stage",
+				caseId: "case-a",
+				run: "run-1",
+				stage: "shape",
+				lineage: "lineage-1",
+				upstream: "upstream-1",
+				model: "sonnet",
+				corpusFiles: [],
+			},
+			resolvedCorpusFiles: [],
+			transcript: [
+				row(
+					callIn("/wt", "read-1", "Read", {
+						file_path: "/home/someone/.claude/CLAUDE.md",
+					}),
+				),
+				row(resultIn("/wt", "read-1", "1\talpha")),
+				row(
+					callIn("/wt", "read-2", "Read", {
+						file_path: "/home/someone/.claude/CLAUDE.md",
+					}),
+				),
+				row(resultIn("/wt", "read-2", "1\talpha")),
+			].join("\n"),
+			prefixLinesExcluded: 0,
+		});
+
+		expect(
+			report.attemptEvents.map(({ id, kind, label }) => ({ id, kind, label })),
+		).toEqual([
+			{ id: "1:1", kind: "call", label: "Read invoked" },
+			{ id: "2:1", kind: "result", label: "Read delivered · first" },
+			{ id: "3:1", kind: "call", label: "Read invoked" },
+			{ id: "4:1", kind: "result", label: "Read delivered · subsequent" },
+		]);
+		expect(report.sources).toHaveLength(1);
+		expect(report.sources.at(0)).toMatchObject({
+			kind: "corpus",
+			name: "CLAUDE.md",
+			observedDeliveryCount: 2,
+			repeatDeliveryCount: 1,
+		});
+		expect(report.startingContext).toEqual([]);
+	});
+
 	it("echoes a stage identity naming its run, stage and lineage", () => {
 		const report = sessionHistoryReport({
 			attempt: {

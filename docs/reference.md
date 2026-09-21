@@ -712,12 +712,40 @@ from a rate catalog; any other basis stays reported spend.
 ### Saved session context history
 
 The local browser can inspect standalone session attempts at
-`/attempts/session/<case>/<uuid>` and confirmation attempts at
-`/groups/<group>/reps/<rep>/attempt`. Their JSON summaries are
-`/api/attempts/session/<case>/<uuid>/history` and
-`/api/groups/<group>/reps/<rep>/attempt/history`; appending
-`/<line>:<block>` to either API path returns the selected event detail. Each
-locator is the saved transcript's one-based physical line and content block.
+`/attempts/session/<case>/<uuid>`, confirmation attempts at
+`/groups/<group>/reps/<rep>/attempt`, and pipeline stages at
+`/runs/<run>/stages/<stage>`. Their JSON summaries are
+`/api/attempts/session/<case>/<uuid>/history`,
+`/api/groups/<group>/reps/<rep>/attempt/history`, and
+`/api/runs/<run>/stages/<stage>/history`; appending
+`/<line>:<block>` to any of those API paths returns the selected event detail.
+Each locator is the saved transcript's one-based physical line and content
+block.
+
+A stage report names its run, stage and lineage where an attempt report names a
+case and attempt id, because a checkpoint records no attempt id and no outcome.
+A stage session resumes no earlier session, so its whole transcript is its own
+region and Starting context is empty. A stage has no per-request token and cost
+timeline: those readings come from a session attempt record, which a checkpoint
+is not.
+
+`/api/runs/<run>/stages/<stage>/history/corpus` reconciles the checkpoint's
+declared corpus files against the reads its transcript shows, keyed on the
+corpus layout path. Each entry reads observed with its locator, no observation
+recorded, or undeclared for an observed corpus read the declaration omits.
+Hashing a file does not establish when its contents entered context, so no
+entry reads as loaded on the strength of its hash, and no observation recorded
+is not a claim of absence.
+
+Missing raw evidence names the fact that produced it rather than one wording
+for all of them: the provider wrote no transcript for the stage session, no
+capture was recorded for the stage, a replay retains no raw transcript, or the
+stage stopped before its checkpoint. A stage that stopped on its grade wrote no
+checkpoint at all, since the grade assertion precedes the checkpoint write, so
+its raw history is unavailable; what the run history screen already shows of it
+is unchanged. A replay writes one flat record with no transcript field and
+removes the worktree whose name locates the provider's copy, so no replay
+retains raw history either.
 
 The summary separates inherited Starting context from Attempt events when the
 attempt record retains its transcript cut. Older records without a cut use the

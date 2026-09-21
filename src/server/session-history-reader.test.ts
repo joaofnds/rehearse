@@ -1230,6 +1230,68 @@ describe(readStageHistory.name, () => {
 		expect(absent.attemptEvents).toEqual([]);
 	});
 
+	it("keeps two stages of one run and one stage across two runs separate", async () => {
+		const fixture = await writtenStage();
+		const paths = benchmarkRunPaths(fixture.runsDirectory, fixture.run);
+		const buildDirectory = paths.checkpointDirectory("build");
+		await mkdir(buildDirectory, { recursive: true });
+		await Bun.write(
+			join(buildDirectory, "checkpoint.json"),
+			`${JSON.stringify(
+				checkpointWithTranscript(
+					{
+						stage: "build",
+						targetSha: "target-sha",
+						lineage: "lineage-2",
+						upstream: "lineage-1",
+						model: "sonnet",
+						corpusFiles: [],
+						artifacts: [],
+						workflowState: [],
+					},
+					"available",
+				),
+			)}\n`,
+		);
+		await Bun.write(
+			join(buildDirectory, "transcript.jsonl"),
+			JSON.stringify({
+				type: "assistant",
+				cwd: "/wt",
+				message: {
+					content: [
+						{
+							type: "tool_use",
+							id: "read-9",
+							name: "Read",
+							input: { file_path: "/wt/only-in-build.ts" },
+						},
+					],
+				},
+			}),
+		);
+		const otherRun = await writtenStage();
+
+		const [firstStage, secondStage, sameStageOtherRun] = await Promise.all([
+			readStageHistory(fixture),
+			readStageHistory({ ...fixture, stage: "build" }),
+			readStageHistory(otherRun),
+		]);
+
+		expect(firstStage.sources.map(({ name }) => name)).toEqual(["CLAUDE.md"]);
+		expect(secondStage.sources.map(({ name }) => name)).toEqual([
+			"only-in-build.ts",
+		]);
+		expect(firstStage.attempt).not.toEqual(secondStage.attempt);
+		expect(sameStageOtherRun.sources.map(({ name }) => name)).toEqual([
+			"CLAUDE.md",
+		]);
+		expect(firstStage.attemptEvents).toEqual(sameStageOtherRun.attemptEvents);
+		expect(
+			[...firstStage.attemptEvents, ...secondStage.attemptEvents].length,
+		).toBeGreaterThan(secondStage.attemptEvents.length);
+	});
+
 	it("refuses a stage whose checkpoint names another stage", async () => {
 		const fixture = await writtenStage();
 		const paths = benchmarkRunPaths(fixture.runsDirectory, fixture.run);

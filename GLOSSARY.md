@@ -190,9 +190,15 @@ See [current state](docs/status.md) for implementation coverage and
   before entries carried a half has none, which means not recorded rather than
   corpus.
 - **Context history** — the ordered, read-only browser projection of one saved
-  session attempt's starting context, tool events, observed deliveries, results,
-  and evidence gaps. It is derived from the colocated transcript and is not a
-  measurement of the provider's active context window.
+  session attempt's or pipeline stage's starting context, tool events, observed
+  deliveries, results, and evidence gaps. It is derived from the colocated
+  transcript and is not a measurement of the provider's active context window.
+- **Stage corpus reconciliation** — the per-declared-file comparison between a
+  checkpoint's declared corpus files and the reads its stage transcript shows.
+  Each entry reads observed, no observation recorded, or undeclared. It is keyed
+  on the corpus layout path and never on the declared hash, since a hash of
+  bytes on disk cannot establish that their contents entered context. No
+  observation recorded means no recognized read, not absence from context.
 - **Corpus (instruction corpus)** — the instruction files under evaluation: the
   installed `CLAUDE.md`, the stage skills, the output styles, the agent
   definitions, and the rulebook. A case names the ones it reads in corpus
