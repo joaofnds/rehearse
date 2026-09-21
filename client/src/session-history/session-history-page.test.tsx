@@ -605,6 +605,55 @@ describe(SessionHistoryPage.name, () => {
 		expect(within(header).queryByText("Outcome")).not.toBeInTheDocument();
 	});
 
+	it("says a stage records no request series rather than reporting a load failure", async () => {
+		stubFetchByPath(
+			new Map([
+				[
+					"/api/runs/run-1/stages/shape/history",
+					{
+						schemaVersion: 1,
+						attempt: {
+							kind: "stage",
+							caseId: "case-a",
+							run: "run-1",
+							stage: "shape",
+							lineage: "lineage-1",
+							upstream: "upstream-1",
+							model: "sonnet",
+							corpusFiles: [],
+						},
+						evidence: { state: "complete" },
+						boundary: "known",
+						startingContext: [],
+						attemptEvents: [],
+						boundaryUnknown: [],
+						startingSources: [],
+						sources: [],
+					},
+				],
+			]),
+		);
+		const client = new QueryClient({
+			defaultOptions: { queries: { retry: false } },
+		});
+		render(
+			<QueryClientProvider client={client}>
+				<SessionHistoryPage
+					identity={{ kind: "stage", run: "run-1", stage: "shape" }}
+				/>
+			</QueryClientProvider>,
+		);
+
+		const timeline = await screen.findByRole("region", {
+			name: "Request timeline",
+		});
+
+		expect(
+			within(timeline).getByText("A saved stage records no request series."),
+		).toBeInTheDocument();
+		expect(within(timeline).queryByRole("alert")).not.toBeInTheDocument();
+	});
+
 	it("names an empty historical attempt as boundary unknown", async () => {
 		stubFetchByPath(
 			new Map([

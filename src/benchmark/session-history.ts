@@ -379,17 +379,35 @@ function measureContent(value: JsonValue | undefined): MeasuredContent {
 /**
  * A caller with no resolved corpus paths has only the read path to go on. Both
  * corpus roots a stage can read from, the live install and a worktree overlay,
- * put the layout path after the last `.claude/` segment, so that suffix is the
- * name the checkpoint's declared entries are already written in.
+ * put the layout path after a `.claude/` segment, so that suffix is the name
+ * the checkpoint's declared entries are already written in.
  *
- * Gating this on the resolved list being empty is load-bearing: applied to a
- * session attempt it would reclassify a target repository's own nested
- * `.claude` directory as corpus.
+ * The `.claude` directory must sit directly under the working directory or
+ * outside it entirely, never nested below `cwd`. A repository's own vendored
+ * `.claude` is a project file, and naming its `CLAUDE.md` as the declared
+ * corpus entry would report a file as observed on the evidence of a read of a
+ * different file.
+ *
+ * Gating this on the resolved list being empty is load-bearing too: applied to
+ * a session attempt, which resolves its corpus to real paths, it would move
+ * reads the exact match already answers.
  */
-function corpusLayoutPathUnder(normalizedPath: string): string | undefined {
+function corpusLayoutPathUnder(
+	normalizedPath: string,
+	normalizedCwd: string | undefined,
+): string | undefined {
 	const marker = "/.claude/";
 	const at = normalizedPath.lastIndexOf(marker);
 	if (at === -1) {
+		return undefined;
+	}
+
+	const corpusRoot = normalizedPath.slice(0, at + marker.length - 1);
+	if (
+		normalizedCwd !== undefined &&
+		pathIsWithin(corpusRoot, normalizedCwd) &&
+		corpusRoot !== resolve(normalizedCwd, ".claude")
+	) {
 		return undefined;
 	}
 
@@ -406,6 +424,7 @@ function corpusLayoutPathUnder(normalizedPath: string): string | undefined {
  */
 function declaredCorpusPath(
 	normalizedObserved: string | undefined,
+	normalizedCwd: string | undefined,
 	resolvedCorpusFiles: readonly ResolvedCorpusFile[],
 ): string | undefined {
 	if (normalizedObserved === undefined) {
@@ -413,7 +432,7 @@ function declaredCorpusPath(
 	}
 
 	if (resolvedCorpusFiles.length === 0) {
-		return corpusLayoutPathUnder(normalizedObserved);
+		return corpusLayoutPathUnder(normalizedObserved, normalizedCwd);
 	}
 
 	return resolvedCorpusFiles.find(
@@ -465,6 +484,7 @@ function sourceForCall(
 	}
 	const declaredCorpus = declaredCorpusPath(
 		normalizedObserved,
+		normalizedCwd,
 		resolvedCorpusFiles,
 	);
 	if (declaredCorpus !== undefined) {

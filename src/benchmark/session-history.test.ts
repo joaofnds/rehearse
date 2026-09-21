@@ -550,6 +550,38 @@ describe(sessionHistoryReport.name, () => {
 		});
 	});
 
+	it("refuses to name a stage read under a nested .claude as a declared corpus file", () => {
+		const report = sessionHistoryReport({
+			attempt: {
+				kind: "stage",
+				caseId: "case-a",
+				run: "run-1",
+				stage: "shape",
+				lineage: "lineage-1",
+				upstream: "upstream-1",
+				model: "sonnet",
+				corpusFiles: [{ path: "CLAUDE.md", sha256: "a".repeat(64) }],
+			},
+			resolvedCorpusFiles: [],
+			transcript: [
+				row(
+					callIn("/wt", "vendored", "Read", {
+						file_path: "/wt/node_modules/dep/.claude/CLAUDE.md",
+					}),
+				),
+				row(resultIn("/wt", "vendored", "a vendored copy")),
+			].join("\n"),
+			prefixLinesExcluded: 0,
+		});
+
+		expect(report.sources.map(({ kind, name }) => ({ kind, name }))).toEqual([
+			{ kind: "project", name: "node_modules/dep/.claude/CLAUDE.md" },
+		]);
+		expect(stageCorpusReconciliation(report)).toEqual([
+			{ path: "CLAUDE.md", state: "no-observation-recorded" },
+		]);
+	});
+
 	it("names a stage's corpus reads by layout path when no resolved corpus paths are supplied", () => {
 		const transcript = [
 			row(

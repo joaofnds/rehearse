@@ -555,15 +555,32 @@ function DetailPane({
  * failed request leaves a named column with a reason in it rather than a
  * four-column grid with three panes and one silent gap.
  */
+/**
+ * A record that never held a request series is a different fact from one whose
+ * series failed to load, and only the second is something the operator can act
+ * on.
+ */
+function timelineNote(failed: boolean, recorded: boolean): string {
+	if (!recorded) {
+		return "A saved stage records no request series.";
+	}
+
+	return failed
+		? "Could not load the request timeline."
+		: "Loading the request timeline…";
+}
+
 function RequestTimelinePane({
 	read,
 	failed,
+	recorded,
 	entries,
 	selected,
 	onSelect,
 }: {
 	readonly read: RequestSeriesResponse | undefined;
 	readonly failed: boolean;
+	readonly recorded: boolean;
 	readonly entries: readonly SessionHistoryRequestEntry[];
 	readonly selected: string | undefined;
 	readonly onSelect: (entry: SessionHistoryRequestEntry) => void;
@@ -572,10 +589,11 @@ function RequestTimelinePane({
 		return (
 			<section className="rh-timeline" aria-label="Request timeline">
 				<h2>Request timeline</h2>
-				<p className="rh-timeline__note" role={failed ? "alert" : undefined}>
-					{failed
-						? "Could not load the request timeline."
-						: "Loading the request timeline…"}
+				<p
+					className="rh-timeline__note"
+					role={failed && recorded ? "alert" : undefined}
+				>
+					{timelineNote(failed, recorded)}
 				</p>
 			</section>
 		);
@@ -607,9 +625,11 @@ export function SessionHistoryPage({
 		queryKey: ["session-history", path],
 		queryFn: () => fetchSummary(identity),
 	});
+	const recordsRequestSeries = identity.kind !== "stage";
 	const requests = useQuery({
 		queryKey: ["session-history-requests", path],
 		queryFn: () => fetchRequestSeries(identity),
+		enabled: recordsRequestSeries,
 	});
 	const events = useMemo(() => {
 		let all: readonly SessionHistoryEvent[] = [];
@@ -762,6 +782,7 @@ export function SessionHistoryPage({
 						<RequestTimelinePane
 							read={requests.data}
 							failed={requests.isError}
+							recorded={recordsRequestSeries}
 							entries={visibleEntries}
 							selected={selectedRequestRow}
 							onSelect={(entry) => {
