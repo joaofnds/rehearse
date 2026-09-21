@@ -165,6 +165,36 @@ describe(createAppRouter.name, () => {
 		expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 	});
 
+	it("renders a saved pipeline stage's context history", async () => {
+		renderAtWithStub(
+			"/runs/2026-09-06T21-58-29.508Z/stages/shape",
+			new Map<string, unknown>([
+				[
+					"/api/runs/2026-09-06T21-58-29.508Z/stages/shape/history",
+					{
+						...emptyHistory("case-a", "unused"),
+						attempt: {
+							kind: "stage",
+							caseId: "case-a",
+							run: "2026-09-06T21-58-29.508Z",
+							stage: "shape",
+							lineage: "lineage-1",
+							upstream: "upstream-1",
+							model: "sonnet",
+							corpusFiles: [],
+						},
+					},
+				],
+			]),
+		);
+
+		await waitFor(() => {
+			expect(screen.getByText("2026-09-06T21-58-29.508Z")).toBeInTheDocument();
+			expect(screen.getByText("shape")).toBeInTheDocument();
+			expect(screen.getByText("lineage-1")).toBeInTheDocument();
+		});
+	});
+
 	it("renders confirmation rep saved session history", async () => {
 		renderAtWithStub(
 			"/groups/group-a/reps/group-a-rep-1/attempt",

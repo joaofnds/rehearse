@@ -28,6 +28,11 @@ export type SessionHistoryIdentity =
 			readonly kind: "confirmation";
 			readonly groupId: string;
 			readonly repId: string;
+	  }
+	| {
+			readonly kind: "stage";
+			readonly run: string;
+			readonly stage: string;
 	  };
 
 interface IdentityEntry {
@@ -63,24 +68,38 @@ function identityEntries(
 type SourceSort = "Introduced" | "Most repeated";
 
 function summaryPath(identity: SessionHistoryIdentity): string {
-	return identity.kind === "standalone"
-		? `/api/attempts/session/${encodeURIComponent(identity.caseId)}/${encodeURIComponent(identity.uuid)}/history`
-		: `/api/groups/${encodeURIComponent(identity.groupId)}/reps/${encodeURIComponent(identity.repId)}/attempt/history`;
+	if (identity.kind === "standalone") {
+		return `/api/attempts/session/${encodeURIComponent(identity.caseId)}/${encodeURIComponent(identity.uuid)}/history`;
+	}
+
+	if (identity.kind === "stage") {
+		return `/api/runs/${encodeURIComponent(identity.run)}/stages/${encodeURIComponent(identity.stage)}/history`;
+	}
+
+	return `/api/groups/${encodeURIComponent(identity.groupId)}/reps/${encodeURIComponent(identity.repId)}/attempt/history`;
 }
 
 async function fetchSummary(
 	identity: SessionHistoryIdentity,
 ): Promise<SessionHistoryReport> {
-	const response =
-		identity.kind === "standalone"
-			? await apiClient.api.attempts.session[":caseId"][":uuid"].history.$get({
-					param: { caseId: identity.caseId, uuid: identity.uuid },
-				})
-			: await apiClient.api.groups[":groupId"].reps[
-					":repId"
-				].attempt.history.$get({
-					param: { groupId: identity.groupId, repId: identity.repId },
-				});
+	let response;
+	if (identity.kind === "standalone") {
+		response = await apiClient.api.attempts.session[":caseId"][
+			":uuid"
+		].history.$get({
+			param: { caseId: identity.caseId, uuid: identity.uuid },
+		});
+	} else if (identity.kind === "stage") {
+		response = await apiClient.api.runs[":run"].stages[":stage"].history.$get({
+			param: { run: identity.run, stage: identity.stage },
+		});
+	} else {
+		response = await apiClient.api.groups[":groupId"].reps[
+			":repId"
+		].attempt.history.$get({
+			param: { groupId: identity.groupId, repId: identity.repId },
+		});
+	}
 	if (!response.ok) {
 		throw new Error(`Request failed with ${response.status}`);
 	}
@@ -102,6 +121,9 @@ type RequestSeriesResponse = InferResponseType<
 async function fetchRequestSeries(
 	identity: SessionHistoryIdentity,
 ): Promise<RequestSeriesResponse> {
+	if (identity.kind === "stage") {
+		throw new Error("A saved stage records no request series");
+	}
 	const response =
 		identity.kind === "standalone"
 			? await apiClient.api.attempts.session[":caseId"][
@@ -125,18 +147,26 @@ async function fetchDetail(
 	identity: SessionHistoryIdentity,
 	eventId: string,
 ): Promise<SessionHistoryDetail> {
-	const response =
-		identity.kind === "standalone"
-			? await apiClient.api.attempts.session[":caseId"][":uuid"].history[
-					":eventId"
-				].$get({
-					param: { caseId: identity.caseId, uuid: identity.uuid, eventId },
-				})
-			: await apiClient.api.groups[":groupId"].reps[":repId"].attempt.history[
-					":eventId"
-				].$get({
-					param: { groupId: identity.groupId, repId: identity.repId, eventId },
-				});
+	let response;
+	if (identity.kind === "standalone") {
+		response = await apiClient.api.attempts.session[":caseId"][":uuid"].history[
+			":eventId"
+		].$get({
+			param: { caseId: identity.caseId, uuid: identity.uuid, eventId },
+		});
+	} else if (identity.kind === "stage") {
+		response = await apiClient.api.runs[":run"].stages[":stage"].history[
+			":eventId"
+		].$get({
+			param: { run: identity.run, stage: identity.stage, eventId },
+		});
+	} else {
+		response = await apiClient.api.groups[":groupId"].reps[
+			":repId"
+		].attempt.history[":eventId"].$get({
+			param: { groupId: identity.groupId, repId: identity.repId, eventId },
+		});
+	}
 	if (!response.ok) {
 		throw new Error(`Request failed with ${response.status}`);
 	}

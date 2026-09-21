@@ -65,6 +65,19 @@ function ConfirmationAttemptRoute(): React.JSX.Element {
 	return <SessionHistoryPage identity={{ kind: "confirmation", ...params }} />;
 }
 
+const stageHistoryRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/runs/$run/stages/$stage",
+	component: StageHistoryRoute,
+});
+
+function StageHistoryRoute(): React.JSX.Element {
+	const params: { readonly run: string; readonly stage: string } =
+		stageHistoryRoute.useParams();
+
+	return <SessionHistoryPage identity={{ kind: "stage", ...params }} />;
+}
+
 function ComparisonRoute(): React.JSX.Element {
 	const params: { readonly digest: string } = comparisonRoute.useParams();
 
@@ -73,6 +86,7 @@ function ComparisonRoute(): React.JSX.Element {
 
 const routeTree = rootRoute.addChildren([
 	runHistoryRoute,
+	stageHistoryRoute,
 	systemRoute,
 	corpusRoute,
 	comparisonRoute,

@@ -21,10 +21,12 @@ import {
 	sessionHistoryRequestCosts,
 	sessionHistoryRequestSeries,
 	sessionHistoryRequestSeriesFromLines,
+	stageCorpusReconciliation,
 } from "#benchmark/session-history";
 import type {
 	HistoryUnavailableReason,
 	SessionHistoryAttemptCost,
+	StageCorpusEntry,
 	SessionHistoryDetail,
 	SessionHistoryReport,
 	SessionHistoryReportMetadata,
@@ -642,6 +644,12 @@ export async function readStageHistoryDetail(
 	eventId: string,
 ): Promise<SessionHistoryDetail | undefined> {
 	return detailFor(await stageInput(identity), eventId);
+}
+
+export async function readStageCorpusReconciliation(
+	identity: Readonly<StageHistoryIdentityInput>,
+): Promise<readonly StageCorpusEntry[]> {
+	return stageCorpusReconciliation(await readStageHistory(identity));
 }
 
 export async function readConfirmationAttemptHistory(

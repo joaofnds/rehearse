@@ -27,6 +27,9 @@ import {
 	readSessionAttemptHistory,
 	readSessionAttemptHistoryDetail,
 	readSessionAttemptRequestSeries,
+	readStageCorpusReconciliation,
+	readStageHistory,
+	readStageHistoryDetail,
 	SessionHistoryReaderError,
 } from "./session-history-reader";
 import type { SessionHistoryAttemptSeries } from "./session-history-reader";
@@ -261,6 +264,66 @@ export const createApiApp = (dependencies: ApiDependencies) => {
 				}
 			},
 		)
+		.get("/api/runs/:run/stages/:stage/history/corpus", async (context) => {
+			try {
+				return context.json(
+					await readStageCorpusReconciliation({
+						runsDirectory: dependencies.runsDirectory,
+						run: context.req.param("run"),
+						stage: context.req.param("stage"),
+					}),
+				);
+			} catch (error) {
+				if (!(error instanceof SessionHistoryReaderError)) {
+					throw error;
+				}
+				const response = historyError(error);
+
+				return context.json({ error: response.message }, response.status);
+			}
+		})
+		.get("/api/runs/:run/stages/:stage/history/:eventId", async (context) => {
+			try {
+				const detail = await readStageHistoryDetail(
+					{
+						runsDirectory: dependencies.runsDirectory,
+						run: context.req.param("run"),
+						stage: context.req.param("stage"),
+					},
+					context.req.param("eventId"),
+				);
+				if (detail === undefined) {
+					return context.json({ error: "No event at this locator" }, 404);
+				}
+
+				return context.json(detail);
+			} catch (error) {
+				if (!(error instanceof SessionHistoryReaderError)) {
+					throw error;
+				}
+				const response = historyError(error);
+
+				return context.json({ error: response.message }, response.status);
+			}
+		})
+		.get("/api/runs/:run/stages/:stage/history", async (context) => {
+			try {
+				return context.json(
+					await readStageHistory({
+						runsDirectory: dependencies.runsDirectory,
+						run: context.req.param("run"),
+						stage: context.req.param("stage"),
+					}),
+				);
+			} catch (error) {
+				if (!(error instanceof SessionHistoryReaderError)) {
+					throw error;
+				}
+				const response = historyError(error);
+
+				return context.json({ error: response.message }, response.status);
+			}
+		})
 		.get("/api/attempts/session/:caseId/:uuid/history", async (context) => {
 			try {
 				return context.json(

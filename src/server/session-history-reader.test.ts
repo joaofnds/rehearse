@@ -1311,3 +1311,54 @@ describe(readStageHistory.name, () => {
 		).toEqual(before);
 	});
 });
+
+describe("saved stage history API", () => {
+	it("serves a stage summary, its event detail and its corpus reconciliation", async () => {
+		const fixture = await writtenStage();
+		const app = createApiApp({
+			runsDirectory: fixture.runsDirectory,
+			liveness: nothingRunning,
+			corpusSource: directorySource(fixture.runsDirectory),
+		});
+
+		const summary = await app.request(
+			`/api/runs/${fixture.run}/stages/${fixture.stage}/history`,
+		);
+		const detail = await app.request(
+			`/api/runs/${fixture.run}/stages/${fixture.stage}/history/2%3A1`,
+		);
+		const corpus = await app.request(
+			`/api/runs/${fixture.run}/stages/${fixture.stage}/history/corpus`,
+		);
+
+		expect(summary.status).toBe(200);
+		expect(detail.status).toBe(200);
+		expect(corpus.status).toBe(200);
+		expect(await corpus.json()).toEqual([
+			{
+				path: "CLAUDE.md",
+				state: "observed",
+				firstLocator: { line: 1, block: 1 },
+			},
+			{ path: "skills/build/SKILL.md", state: "no-observation-recorded" },
+		]);
+	});
+
+	it("refuses a traversing run segment without leaking an absolute path", async () => {
+		const fixture = await writtenStage();
+		const app = createApiApp({
+			runsDirectory: fixture.runsDirectory,
+			liveness: nothingRunning,
+			corpusSource: directorySource(fixture.runsDirectory),
+		});
+
+		const response = await app.request(
+			`/api/runs/${encodeURIComponent("../escape")}/stages/shape/history`,
+		);
+
+		expect(response.status).toBe(400);
+		expect(JSON.stringify(await response.json())).not.toContain(
+			fixture.runsDirectory,
+		);
+	});
+});
