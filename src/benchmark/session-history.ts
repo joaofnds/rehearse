@@ -141,14 +141,15 @@ export interface CorpusFileLocation {
  * about the record, so an operator reading "unavailable" learns which one
  * rather than being left to assume the provider failed.
  *
- * Two further causes have no record to read and so no variant here: a stage
- * that stopped on its grade wrote no checkpoint at all, and a replay writes no
- * transcript and removes the worktree whose name locates the provider's copy.
+ * A stage that stopped on its grade has no variant here. It does leave a stage
+ * record, but that record carries no lineage, so nothing identifies it the way
+ * this report's identity requires.
  */
 export type HistoryUnavailableReason =
 	| "provider-wrote-none"
 	| "no-capture-recorded"
-	| "recorded-transcript-missing";
+	| "recorded-transcript-missing"
+	| "replay-retains-none";
 
 export interface SessionHistoryReportInput {
 	readonly attempt: SessionHistoryAttemptIdentity;
@@ -1200,6 +1201,8 @@ const UNAVAILABLE_REASON_TEXT = {
 		"no raw transcript capture was recorded for this stage",
 	"recorded-transcript-missing":
 		"the checkpoint records a transcript whose file is no longer beside it",
+	"replay-retains-none":
+		"a replay retains no raw transcript for its stage session",
 } satisfies Record<HistoryUnavailableReason, string>;
 
 function missingTranscriptReport(

@@ -722,6 +722,10 @@ The local browser can inspect standalone session attempts at
 Each locator is the saved transcript's one-based physical line and content
 block.
 
+`/api/replays/<lineage>/<timestamp>/history` reports a replay under the same
+stage identity. A replay keeps no raw transcript, so the report is always
+evidence-unavailable and carries no event detail path.
+
 A stage report names its run, stage and lineage where an attempt report names a
 case and attempt id, because a checkpoint records no attempt id and no outcome.
 A stage session resumes no earlier session, so its whole transcript is its own
@@ -744,12 +748,17 @@ with no transcript field reads as no capture having been recorded; a checkpoint
 recording AVAILABLE whose file is no longer beside it says so rather than
 refusing the whole report.
 
-Two further causes have no record to read, so no stage URL reaches them. A stage
-that stopped on its grade wrote no checkpoint at all, since the grade assertion
-precedes the checkpoint write; what the run history screen already shows of that
-stage is unchanged. A replay writes one flat record with no transcript field and
-removes the worktree whose name locates the provider's copy, so a replay retains
-no raw history and has no context history route.
+A replay keeps its own route. It writes one flat record with no transcript field
+and removes the worktree whose name locates the provider's copy, so the record
+resolves and reports that a replay retains no raw transcript. Its scorecard holds
+parsed exchanges; those stay out of the event ledger, since a parsed exchange is
+not the raw evidence the report is about.
+
+One cause has no report at all. A stage that stopped on its grade wrote no
+checkpoint, since the grade assertion precedes the checkpoint write. It does
+leave a stage record, but that record carries no lineage, so nothing identifies
+it the way a stage report's identity requires; what the run history screen
+already shows of that stage is unchanged.
 
 The summary separates inherited Starting context from Attempt events when the
 attempt record retains its transcript cut. Older records without a cut use the

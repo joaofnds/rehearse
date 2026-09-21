@@ -27,6 +27,7 @@ import {
 	readSessionAttemptHistory,
 	readSessionAttemptHistoryDetail,
 	readSessionAttemptRequestSeries,
+	readReplayHistory,
 	readStageCorpusReconciliation,
 	readStageHistory,
 	readStageHistoryDetail,
@@ -264,6 +265,24 @@ export const createApiApp = (dependencies: ApiDependencies) => {
 				}
 			},
 		)
+		.get("/api/replays/:lineage/:timestamp/history", async (context) => {
+			try {
+				return context.json(
+					await readReplayHistory({
+						runsDirectory: dependencies.runsDirectory,
+						lineage: context.req.param("lineage"),
+						timestamp: context.req.param("timestamp"),
+					}),
+				);
+			} catch (error) {
+				if (!(error instanceof SessionHistoryReaderError)) {
+					throw error;
+				}
+				const response = historyError(error);
+
+				return context.json({ error: response.message }, response.status);
+			}
+		})
 		.get("/api/runs/:run/stages/:stage/history/corpus", async (context) => {
 			try {
 				return context.json(

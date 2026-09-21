@@ -11,6 +11,7 @@ import {
 import { parseRunManifest } from "#benchmark/manifest";
 import { checkpointsEntryForRun } from "#benchmark/run-layout";
 import { pathIsWithin } from "#benchmark/path-containment";
+import { replayRecordSchema } from "#benchmark/replay";
 import { parseSessionAttemptRecord } from "#benchmark/session-record";
 import { transcriptInstructionLoadsFromLines } from "#benchmark/transcript-instruction-loads";
 import {
@@ -69,6 +70,12 @@ interface StageHistoryIdentityInput {
 	readonly runsDirectory: string;
 	readonly run: string;
 	readonly stage: string;
+}
+
+interface ReplayHistoryIdentityInput {
+	readonly runsDirectory: string;
+	readonly lineage: string;
+	readonly timestamp: string;
 }
 
 const fileErrorSchema = z.object({ code: z.string() }).loose();
@@ -580,6 +587,103 @@ function stageUnavailableReason(
 		: "no-capture-recorded";
 }
 
+/**
+ * A replay record names no case, so the case comes from the manifest of the run
+ * it replayed, which is the same record the stage resolver reads it from.
+ */
+async function replayManifestFile(
+	root: string,
+	runName: string,
+): Promise<string> {
+	const checkpointsDirectory = await verifiedDirectory(root, [
+		checkpointsEntryForRun(parseIdentity(runName)),
+	]);
+	const manifestFile = await verifiedFile(
+		root,
+		checkpointsDirectory,
+		"manifest.json",
+		true,
+	);
+	if (manifestFile === undefined) {
+		throw new SessionHistoryReaderError(
+			"not-found",
+			"Saved run manifest is unavailable",
+		);
+	}
+
+	return manifestFile;
+}
+
+/**
+ * A replay is filed under the lineage it consumed rather than under a run, so
+ * the directory name is the caller's and the consumed lineage is what confirms
+ * it. The record's own lineage is the one the replay produced and names no
+ * directory. It keeps no raw transcript: the worktree whose name locates the
+ * provider's copy is removed when the replay finishes. Its parsed exchanges
+ * stay out of the report, which is what the unavailable state is for.
+ */
+async function replayInput(
+	identity: Readonly<ReplayHistoryIdentityInput>,
+): Promise<ResolvedHistoryInput> {
+	const root = await canonicalRunsRoot(identity.runsDirectory);
+	const directory = await verifiedDirectory(root, [
+		"replays",
+		identity.lineage,
+	]);
+	const recordFile = await verifiedFile(
+		root,
+		directory,
+		`${identity.timestamp}.json`,
+		true,
+	);
+	if (recordFile === undefined) {
+		throw new SessionHistoryReaderError(
+			"not-found",
+			"Saved replay record is unavailable",
+		);
+	}
+	const record = replayRecordSchema.parse(
+		JSON.parse(await readVerifiedFile(root, recordFile)),
+	);
+	if (record.consumed.lineage !== identity.lineage) {
+		throw new SessionHistoryReaderError(
+			"refused",
+			"Saved replay does not own this lineage identity",
+		);
+	}
+	const manifest = parseRunManifest(
+		await readVerifiedFile(
+			root,
+			await replayManifestFile(root, record.runName),
+		),
+	);
+
+	return {
+		root,
+		metadata: {
+			attempt: {
+				kind: "stage",
+				caseId: manifest.caseId,
+				run: record.runName,
+				stage: record.stage,
+				lineage: record.lineage,
+				upstream: record.consumed.lineage,
+				model: record.model,
+				effort: record.effort,
+				corpusFiles: record.corpusFiles.map(({ path, sha256 }) => ({
+					path,
+					sha256,
+				})),
+			},
+			resolvedCorpusFiles: [],
+			unavailableReason: "replay-retains-none",
+			prefixLinesExcluded: 0,
+		},
+		reportedCostUsd: record.stageCostUsd,
+		transcriptFile: undefined,
+	};
+}
+
 function reportFor(
 	input: Readonly<ResolvedHistoryInput>,
 ): Promise<SessionHistoryReport> {
@@ -649,6 +753,12 @@ export async function readStageHistoryDetail(
 	eventId: string,
 ): Promise<SessionHistoryDetail | undefined> {
 	return detailFor(await stageInput(identity), eventId);
+}
+
+export async function readReplayHistory(
+	identity: Readonly<ReplayHistoryIdentityInput>,
+): Promise<SessionHistoryReport> {
+	return reportFor(await replayInput(identity));
 }
 
 export async function readStageCorpusReconciliation(

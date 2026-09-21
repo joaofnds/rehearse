@@ -16,6 +16,7 @@ import {
 import {
 	benchmarkRunPaths,
 	confirmationGroupPaths,
+	replayRecordFile,
 	sessionAttemptPaths,
 } from "#benchmark/run-layout";
 import { writeRunManifest } from "#benchmark/manifest";
@@ -23,6 +24,7 @@ import { TEST_TARGET } from "#benchmark/test-support";
 import { createApiApp } from "#server/api";
 import {
 	readConfirmationAttemptHistory,
+	readReplayHistory,
 	readStageHistory,
 	readConfirmationAttemptRequestSeries,
 	readSessionAttemptHistory,
@@ -1447,6 +1449,217 @@ describe("saved stage history API", () => {
 
 		const response = await app.request(
 			`/api/runs/${encodeURIComponent("../escape")}/stages/shape/history`,
+		);
+
+		expect(response.status).toBe(400);
+		expect(JSON.stringify(await response.json())).not.toContain(
+			fixture.runsDirectory,
+		);
+	});
+});
+
+async function writtenReplay(): Promise<{
+	readonly runsDirectory: string;
+	readonly lineage: string;
+	readonly timestamp: string;
+}> {
+	const root = await mkdtemp(join(tmpdir(), "rehearse-replay-history-"));
+	roots.push(root);
+	const runsDirectory = join(root, ".benchmark-runs");
+	const lineage = "lineage-discuss";
+	const timestamp = "2026-09-06T22-33-15.057Z";
+	const runName = "2026-09-06T21-58-29.508Z";
+	const recordFile = replayRecordFile(runsDirectory, lineage, timestamp);
+	await mkdir(join(runsDirectory, "replays", lineage), { recursive: true });
+	const paths = benchmarkRunPaths(runsDirectory, runName);
+	await mkdir(paths.checkpointsDirectory, { recursive: true });
+	await writeRunManifest(paths.manifestFile, {
+		caseId: "audit-log",
+		timestamp: "2026-09-06T21:58:29.508Z",
+		controlSha: "control-sha",
+		sourceRoot: "/src",
+		sourceSha: "source-sha",
+		taskId: "TASK-1",
+		taskSha: "task-sha",
+		task: "Task text",
+		productBrief: "Brief text",
+		model: "sonnet",
+		judgeModel: "opus",
+		sessionBudgetUsd: 5,
+		pipeline: {
+			statuses: ["To Do", "Done"],
+			target: TEST_TARGET,
+			stages: [
+				{
+					name: "build",
+					kind: "delivery",
+					skill: "build",
+					rubric: "rubrics/build.json",
+				},
+			],
+		},
+		pipelinePath: "pipelines/default.json",
+	});
+	await Bun.write(
+		recordFile,
+		`${JSON.stringify({
+			replay: true,
+			timestamp,
+			runName,
+			stage: "build",
+			consumed: {
+				stage: "discuss",
+				lineage,
+				targetSha: "2".repeat(40),
+			},
+			baseSha: "2".repeat(40),
+			lineage: "lineage-build",
+			corpusFiles: [
+				{ path: "CLAUDE.md", sha256: "a".repeat(64) },
+				{ path: "skills/build/SKILL.md", sha256: "b".repeat(64) },
+			],
+			model: "sonnet",
+			judgeModel: "opus",
+			sessionBudgetUsd: 5,
+			controlSha: "1".repeat(40),
+			stageCostUsd: 1,
+			productOwnerCostUsd: 0.25,
+			judgeCostUsd: 0.5,
+			stale: false,
+			staleness: [],
+			scorecard: {
+				stage: "build",
+				costUsd: 1,
+				grade: { grade: "A", verdict: "CONTINUE", dimensions: [] },
+				input: {
+					stage: "build",
+					transcript: {
+						stage: "build",
+						sessionId: "1ad63c8d-75ec-4b27-8ff1-751826f6849e",
+						costUsd: 1,
+						providerCalls: [],
+						exchanges: [{ agent: "answered" }, { agent: "answered again" }],
+					},
+				},
+			},
+		})}\n`,
+	);
+
+	return { runsDirectory, lineage, timestamp };
+}
+
+describe(readReplayHistory.name, () => {
+	it("names a replay as retaining no raw capture under a stage identity", async () => {
+		const fixture = await writtenReplay();
+
+		const report = await readReplayHistory(fixture);
+
+		expect(report.attempt).toEqual({
+			kind: "stage",
+			caseId: "audit-log",
+			run: "2026-09-06T21-58-29.508Z",
+			stage: "build",
+			lineage: "lineage-build",
+			upstream: "lineage-discuss",
+			model: "sonnet",
+			corpusFiles: [
+				{ path: "CLAUDE.md", sha256: "a".repeat(64) },
+				{ path: "skills/build/SKILL.md", sha256: "b".repeat(64) },
+			],
+		});
+		expect(report.evidence).toEqual({
+			state: "unavailable",
+			reasons: ["a replay retains no raw transcript for its stage session"],
+		});
+	});
+
+	it("keeps a replay's parsed exchanges out of every event ledger", async () => {
+		const fixture = await writtenReplay();
+
+		const report = await readReplayHistory(fixture);
+
+		expect(report.startingContext).toEqual([]);
+		expect(report.attemptEvents).toEqual([]);
+		expect(report.boundaryUnknown).toEqual([]);
+		expect(report.sources).toEqual([]);
+	});
+
+	it("refuses a replay record filed under another lineage", async () => {
+		const fixture = await writtenReplay();
+		const recordFile = replayRecordFile(
+			fixture.runsDirectory,
+			"lineage-other",
+			fixture.timestamp,
+		);
+		await mkdir(join(fixture.runsDirectory, "replays", "lineage-other"), {
+			recursive: true,
+		});
+		await Bun.write(
+			recordFile,
+			await Bun.file(
+				replayRecordFile(
+					fixture.runsDirectory,
+					fixture.lineage,
+					fixture.timestamp,
+				),
+			).text(),
+		);
+
+		expect(
+			readReplayHistory({
+				runsDirectory: fixture.runsDirectory,
+				lineage: "lineage-other",
+				timestamp: fixture.timestamp,
+			}),
+		).rejects.toThrow(SessionHistoryReaderError);
+	});
+
+	it("refuses a traversing lineage segment without leaking an absolute path", async () => {
+		const fixture = await writtenReplay();
+
+		expect(
+			readReplayHistory({
+				runsDirectory: fixture.runsDirectory,
+				lineage: "../escape",
+				timestamp: fixture.timestamp,
+			}),
+		).rejects.toThrow(SessionHistoryReaderError);
+	});
+});
+
+describe("saved replay history API", () => {
+	it("serves a replay's unavailable report", async () => {
+		const fixture = await writtenReplay();
+		const app = createApiApp({
+			runsDirectory: fixture.runsDirectory,
+			liveness: nothingRunning,
+			corpusSource: directorySource(fixture.runsDirectory),
+		});
+
+		const response = await app.request(
+			`/api/replays/${fixture.lineage}/${fixture.timestamp}/history`,
+		);
+
+		expect(response.status).toBe(200);
+		expect(await response.json()).toMatchObject({
+			evidence: {
+				state: "unavailable",
+				reasons: ["a replay retains no raw transcript for its stage session"],
+			},
+			attempt: { kind: "stage", stage: "build" },
+		});
+	});
+
+	it("refuses a traversing replay lineage without leaking an absolute path", async () => {
+		const fixture = await writtenReplay();
+		const app = createApiApp({
+			runsDirectory: fixture.runsDirectory,
+			liveness: nothingRunning,
+			corpusSource: directorySource(fixture.runsDirectory),
+		});
+
+		const response = await app.request(
+			`/api/replays/${encodeURIComponent("../escape")}/${fixture.timestamp}/history`,
 		);
 
 		expect(response.status).toBe(400);
