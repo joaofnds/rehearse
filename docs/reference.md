@@ -740,7 +740,9 @@ is not a claim of absence.
 Missing raw evidence names the fact that produced it rather than one wording
 for all of them. A checkpoint recording transcript status UNAVAILABLE reads as
 the provider having written no transcript for the stage session; a checkpoint
-with no transcript field reads as no capture having been recorded.
+with no transcript field reads as no capture having been recorded; a checkpoint
+recording AVAILABLE whose file is no longer beside it says so rather than
+refusing the whole report.
 
 Two further causes have no record to read, so no stage URL reaches them. A stage
 that stopped on its grade wrote no checkpoint at all, since the grade assertion

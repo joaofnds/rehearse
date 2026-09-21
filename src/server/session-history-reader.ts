@@ -529,7 +529,7 @@ async function stageInput(
 	const manifest = parseRunManifest(await readVerifiedFile(root, manifestFile));
 	const transcriptFile =
 		checkpoint.transcript?.status === "AVAILABLE"
-			? await verifiedFile(root, directory, checkpoint.transcript.file, true)
+			? await verifiedFile(root, directory, checkpoint.transcript.file, false)
 			: undefined;
 
 	return {
@@ -550,7 +550,10 @@ async function stageInput(
 				})),
 			},
 			resolvedCorpusFiles: [],
-			unavailableReason: stageUnavailableReason(checkpoint.transcript?.status),
+			unavailableReason: stageUnavailableReason(
+				checkpoint.transcript?.status,
+				transcriptFile !== undefined,
+			),
 			prefixLinesExcluded: 0,
 		},
 		reportedCostUsd: undefined,
@@ -560,14 +563,16 @@ async function stageInput(
 
 /**
  * A stage session resumes no earlier session, so a transcript it has is the
- * whole of its own history. Which fact left it without one is what the two
- * absent states distinguish.
+ * whole of its own history. Which fact left it without one is what these states
+ * distinguish, the last of them a checkpoint whose own record disagrees with
+ * what is beside it.
  */
 function stageUnavailableReason(
 	status: "AVAILABLE" | "UNAVAILABLE" | undefined,
+	filePresent: boolean,
 ): HistoryUnavailableReason | undefined {
 	if (status === "AVAILABLE") {
-		return undefined;
+		return filePresent ? undefined : "recorded-transcript-missing";
 	}
 
 	return status === "UNAVAILABLE"

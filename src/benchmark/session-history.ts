@@ -6,6 +6,7 @@ import {
 	usageIsZero,
 } from "./context-evidence-contract";
 import type { ContextRateCatalog } from "./context-evidence-contract";
+import type { Effort } from "./config";
 import { corpusLayoutSuffix, isCorpusLayoutPath } from "./corpus-file";
 import type { Immutable } from "./contracts";
 import { jsonValueSchema } from "./json-value";
@@ -113,7 +114,7 @@ export interface StageHistoryIdentity {
 	readonly lineage: string;
 	readonly upstream: string;
 	readonly model: string;
-	readonly effort?: string | undefined;
+	readonly effort?: Effort | undefined;
 	readonly corpusFiles: readonly {
 		readonly path: string;
 		readonly sha256: string;
@@ -130,7 +131,7 @@ export type SessionHistoryAttemptIdentity =
  * supplies an empty list, which is what routes its reads to the corpus layout
  * rule below rather than to the exact-path match.
  */
-export interface ResolvedCorpusFile {
+export interface CorpusFileLocation {
 	readonly path: string;
 	readonly resolvedPath: string;
 }
@@ -146,11 +147,12 @@ export interface ResolvedCorpusFile {
  */
 export type HistoryUnavailableReason =
 	| "provider-wrote-none"
-	| "no-capture-recorded";
+	| "no-capture-recorded"
+	| "recorded-transcript-missing";
 
 export interface SessionHistoryReportInput {
 	readonly attempt: SessionHistoryAttemptIdentity;
-	readonly resolvedCorpusFiles: readonly ResolvedCorpusFile[];
+	readonly resolvedCorpusFiles: readonly CorpusFileLocation[];
 	readonly unavailableReason?: HistoryUnavailableReason | undefined;
 	readonly transcript: string | undefined;
 	readonly prefixLinesExcluded: number | undefined;
@@ -426,7 +428,7 @@ function declaredCorpusPath(
 	kind: SessionHistoryAttemptIdentity["kind"],
 	normalizedObserved: string | undefined,
 	normalizedCwd: string | undefined,
-	resolvedCorpusFiles: readonly ResolvedCorpusFile[],
+	resolvedCorpusFiles: readonly CorpusFileLocation[],
 ): string | undefined {
 	if (normalizedObserved === undefined) {
 		return undefined;
@@ -447,7 +449,7 @@ function sourceForCall(
 	cwd: string | undefined,
 	location: Readonly<TranscriptLocation>,
 	kind: SessionHistoryAttemptIdentity["kind"],
-	resolvedCorpusFiles: readonly ResolvedCorpusFile[],
+	resolvedCorpusFiles: readonly CorpusFileLocation[],
 ): SourceIdentity {
 	if (toolName === "Skill") {
 		const parsedSkill = z.string().min(1).safeParse(input["skill"]);
@@ -1196,6 +1198,8 @@ const UNAVAILABLE_REASON_TEXT = {
 		"the provider wrote no transcript for this stage session",
 	"no-capture-recorded":
 		"no raw transcript capture was recorded for this stage",
+	"recorded-transcript-missing":
+		"the checkpoint records a transcript whose file is no longer beside it",
 } satisfies Record<HistoryUnavailableReason, string>;
 
 function missingTranscriptReport(
@@ -1472,7 +1476,7 @@ export function sessionHistoryDetail(
 
 export function sessionHistoryDetailFromLine(
 	report: Immutable<SessionHistoryReport>,
-	resolvedCorpusFiles: readonly ResolvedCorpusFile[],
+	resolvedCorpusFiles: readonly CorpusFileLocation[],
 	eventId: string,
 	lineText: string,
 ): SessionHistoryDetail | undefined {

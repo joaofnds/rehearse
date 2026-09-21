@@ -418,7 +418,11 @@ describe(sessionHistoryReport.name, () => {
 		} as const;
 
 		const reasons = (
-			["provider-wrote-none", "no-capture-recorded"] as const
+			[
+				"provider-wrote-none",
+				"no-capture-recorded",
+				"recorded-transcript-missing",
+			] as const
 		).map(
 			(unavailableReason) =>
 				sessionHistoryReport({
@@ -439,6 +443,12 @@ describe(sessionHistoryReport.name, () => {
 				state: "unavailable",
 				reasons: ["no raw transcript capture was recorded for this stage"],
 			},
+			{
+				state: "unavailable",
+				reasons: [
+					"the checkpoint records a transcript whose file is no longer beside it",
+				],
+			},
 		]);
 		expect(
 			new Set(
@@ -446,7 +456,7 @@ describe(sessionHistoryReport.name, () => {
 					evidence.state === "unavailable" ? evidence.reasons.at(0) : undefined,
 				),
 			).size,
-		).toBe(2);
+		).toBe(3);
 	});
 
 	it("keeps the session wording when no unavailable reason is supplied", () => {

@@ -1292,6 +1292,24 @@ describe(readStageHistory.name, () => {
 		).toBeGreaterThan(secondStage.attemptEvents.length);
 	});
 
+	it("names a checkpoint claiming a transcript whose file is gone", async () => {
+		const fixture = await writtenStage();
+		const paths = benchmarkRunPaths(fixture.runsDirectory, fixture.run);
+		await rm(
+			join(paths.checkpointDirectory(fixture.stage), "transcript.jsonl"),
+		);
+
+		const report = await readStageHistory(fixture);
+
+		expect(report.evidence).toEqual({
+			state: "unavailable",
+			reasons: [
+				"the checkpoint records a transcript whose file is no longer beside it",
+			],
+		});
+		expect(report.attemptEvents).toEqual([]);
+	});
+
 	it("refuses a stage whose checkpoint names another stage", async () => {
 		const fixture = await writtenStage();
 		const paths = benchmarkRunPaths(fixture.runsDirectory, fixture.run);
