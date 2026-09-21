@@ -135,9 +135,21 @@ export interface ResolvedCorpusFile {
 	readonly resolvedPath: string;
 }
 
+/**
+ * Why no raw transcript backs this report. Each cause is a different fact
+ * about the record, so an operator reading "unavailable" learns which one
+ * rather than being left to assume the provider failed.
+ */
+export type HistoryUnavailableReason =
+	| "provider-wrote-none"
+	| "no-capture-recorded"
+	| "replay-retains-none"
+	| "stage-stopped-before-checkpoint";
+
 export interface SessionHistoryReportInput {
 	readonly attempt: SessionHistoryAttemptIdentity;
 	readonly resolvedCorpusFiles: readonly ResolvedCorpusFile[];
+	readonly unavailableReason?: HistoryUnavailableReason | undefined;
 	readonly transcript: string | undefined;
 	readonly prefixLinesExcluded: number | undefined;
 	readonly diagnostics?: Immutable<TranscriptDiagnostics> | undefined;
@@ -1153,13 +1165,28 @@ function publicEvent(event: Immutable<MutableEvent>): SessionHistoryEvent {
 	return publicFields;
 }
 
+const UNAVAILABLE_REASON_TEXT = {
+	"provider-wrote-none":
+		"the provider wrote no transcript for this stage session",
+	"no-capture-recorded":
+		"no raw transcript capture was recorded for this stage",
+	"replay-retains-none": "a replay retains no raw transcript",
+	"stage-stopped-before-checkpoint":
+		"the stage stopped before its checkpoint, so nothing was written",
+} satisfies Record<HistoryUnavailableReason, string>;
+
 function missingTranscriptReport(
 	input: Immutable<SessionHistoryReportMetadata>,
 ): SessionHistoryReport {
+	const reason =
+		input.unavailableReason === undefined
+			? "transcript unavailable"
+			: UNAVAILABLE_REASON_TEXT[input.unavailableReason];
+
 	return {
 		schemaVersion: 1,
 		attempt: input.attempt,
-		evidence: { state: "unavailable", reasons: ["transcript unavailable"] },
+		evidence: { state: "unavailable", reasons: [reason] },
 		boundary: input.prefixLinesExcluded === undefined ? "unknown" : "known",
 		startingContext: [],
 		attemptEvents: [],

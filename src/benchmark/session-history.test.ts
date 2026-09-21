@@ -404,6 +404,86 @@ describe(sessionHistoryReport.name, () => {
 		]);
 	});
 
+	it("names why raw evidence is unavailable, distinctly per cause", () => {
+		const stage = {
+			kind: "stage",
+			caseId: "case-a",
+			run: "run-1",
+			stage: "shape",
+			lineage: "lineage-1",
+			upstream: "upstream-1",
+			model: "sonnet",
+			corpusFiles: [],
+		} as const;
+
+		const reasons = (
+			[
+				"provider-wrote-none",
+				"no-capture-recorded",
+				"replay-retains-none",
+				"stage-stopped-before-checkpoint",
+			] as const
+		).map(
+			(unavailableReason) =>
+				sessionHistoryReport({
+					attempt: stage,
+					resolvedCorpusFiles: [],
+					transcript: undefined,
+					prefixLinesExcluded: 0,
+					unavailableReason,
+				}).evidence,
+		);
+
+		expect(reasons).toEqual([
+			{
+				state: "unavailable",
+				reasons: ["the provider wrote no transcript for this stage session"],
+			},
+			{
+				state: "unavailable",
+				reasons: ["no raw transcript capture was recorded for this stage"],
+			},
+			{
+				state: "unavailable",
+				reasons: ["a replay retains no raw transcript"],
+			},
+			{
+				state: "unavailable",
+				reasons: [
+					"the stage stopped before its checkpoint, so nothing was written",
+				],
+			},
+		]);
+		expect(
+			new Set(
+				reasons.map((evidence) =>
+					evidence.state === "unavailable" ? evidence.reasons.at(0) : undefined,
+				),
+			).size,
+		).toBe(4);
+	});
+
+	it("keeps the session wording when no unavailable reason is supplied", () => {
+		const report = sessionHistoryReport({
+			attempt: {
+				kind: "session",
+				caseId: "case-a",
+				id: "attempt-a",
+				model: "sonnet",
+				outcome: "SUCCESSFUL",
+				corpusFiles: [],
+			},
+			resolvedCorpusFiles: [],
+			transcript: undefined,
+			prefixLinesExcluded: 0,
+		});
+
+		expect(report.evidence).toEqual({
+			state: "unavailable",
+			reasons: ["transcript unavailable"],
+		});
+	});
+
 	it("echoes a stage identity naming its run, stage and lineage", () => {
 		const report = sessionHistoryReport({
 			attempt: {
