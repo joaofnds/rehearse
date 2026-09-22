@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { SectionLabel } from "./section-label";
 
 function numericMark(
 	numeric: readonly string[],
@@ -25,8 +26,8 @@ export function TableShell({
 }): React.JSX.Element {
 	return (
 		<table className="w-full border-separate border-spacing-0">
-			<caption className="pb-2 text-left text-xs tracking-widest text-dim uppercase">
-				{caption}
+			<caption className="pb-2 text-left">
+				<SectionLabel>{caption}</SectionLabel>
 			</caption>
 			<thead className="sticky top-0 bg-background">
 				<tr>
@@ -35,9 +36,9 @@ export function TableShell({
 							key={column}
 							scope="col"
 							data-numeric={numericMark(numeric, column)}
-							className="border-b border-divider px-3 py-2.5 text-left text-xs font-medium tracking-widest text-dim uppercase data-numeric:text-right"
+							className="border-b border-divider px-3 py-2.5 text-left font-medium data-numeric:text-right"
 						>
-							{column}
+							<SectionLabel>{column}</SectionLabel>
 						</th>
 					))}
 				</tr>

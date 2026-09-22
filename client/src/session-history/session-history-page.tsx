@@ -16,6 +16,11 @@ import {
 	requestRowForLine,
 	requestRowId,
 } from "./request-timeline";
+import { cn } from "cn";
+import { ScreenHeader } from "#client/system/components/screen-header";
+import { SectionLabel } from "#client/system/components/section-label";
+import { PaneHeading } from "./pane-heading";
+import { selectableRow } from "./selectable-row";
 
 export type SessionHistoryIdentity =
 	| {
@@ -350,12 +355,6 @@ function sortedSources(
 	});
 }
 
-const PANE_HEADING_CLASSES =
-	"border-b px-3 py-3 text-xs tracking-widest text-dim uppercase";
-
-const SOURCE_CLASSES =
-	"flex min-h-14 w-full flex-col gap-1 border-b border-l-2 border-b-subtle border-l-transparent px-3 py-3 text-left text-secondary-foreground hover:bg-row-hover aria-pressed:border-l-primary aria-pressed:bg-selected aria-pressed:text-bright";
-
 const DETAIL_SECTION_CLASSES =
 	"flex flex-col gap-2 border-t border-subtle px-3 py-3";
 
@@ -377,7 +376,10 @@ function SourceList({
 		<nav aria-label="Loaded sources">
 			<button
 				type="button"
-				className={SOURCE_CLASSES}
+				className={cn(
+					selectableRow({ markedBy: "pressed" }),
+					"flex flex-col gap-1",
+				)}
 				aria-pressed={selected === undefined}
 				onClick={() => {
 					onSelect(undefined);
@@ -394,7 +396,10 @@ function SourceList({
 				<button
 					type="button"
 					key={source.id}
-					className={SOURCE_CLASSES}
+					className={cn(
+						selectableRow({ markedBy: "pressed" }),
+						"flex flex-col gap-1",
+					)}
 					aria-pressed={selected === source.id}
 					onClick={() => {
 						onSelect(source);
@@ -410,8 +415,8 @@ function SourceList({
 							</span>
 						)}
 					</span>
-					<small className="text-xs tracking-widest text-dim uppercase">
-						{source.kind}
+					<small>
+						<SectionLabel>{source.kind}</SectionLabel>
 					</small>
 					<small className="text-xs text-dim">
 						{source.failedOccurrences} failed · {source.partialOccurrences}{" "}
@@ -476,7 +481,10 @@ function EventLedger({
 					role="option"
 					aria-selected={event.id === active}
 					aria-current={event.id === active ? "true" : undefined}
-					className="flex min-h-14 w-full flex-wrap items-baseline gap-x-2.5 gap-y-0.5 border-b border-l-2 border-b-subtle border-l-transparent px-3 py-2.5 text-left text-secondary-foreground hover:bg-row-hover aria-selected:border-l-primary aria-selected:bg-selected aria-selected:text-bright"
+					className={cn(
+						selectableRow({ markedBy: "selected" }),
+						"flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5",
+					)}
 					key={event.id}
 					onClick={() => {
 						onSelect(event.id);
@@ -486,9 +494,11 @@ function EventLedger({
 						{locatorLabel(event)}
 					</code>
 					<span className="min-w-0 flex-1">{event.label}</span>
-					<small className="shrink-0 text-xs tracking-widest text-dim uppercase">
-						<span aria-hidden="true">{stateGlyph(event.state)}</span>{" "}
-						{event.state}
+					<small className="shrink-0">
+						<SectionLabel>
+							<span aria-hidden="true">{stateGlyph(event.state)}</span>{" "}
+							{event.state}
+						</SectionLabel>
 					</small>
 					{event.timestamp === undefined ? null : (
 						<time className="basis-full pl-16.5 font-mono text-xs text-dim">
@@ -626,11 +636,6 @@ function DetailPane({
 }
 
 /**
- * The pane occupies its grid column whether or not its query landed, so a
- * failed request leaves a named column with a reason in it rather than a
- * four-column grid with three panes and one silent gap.
- */
-/**
  * A record that never held a request series is a different fact from one whose
  * series failed to load, and only the second is something the operator can act
  * on.
@@ -661,8 +666,8 @@ function DeclaredCorpusPane({
 			aria-label="Declared corpus"
 			className="rounded-lg border bg-muted px-4 py-3 text-secondary-foreground"
 		>
-			<h2 className="text-xs tracking-widest text-dim uppercase">
-				Declared corpus
+			<h2>
+				<SectionLabel>Declared corpus</SectionLabel>
 			</h2>
 			<ul className="mt-2 flex flex-col gap-1">
 				{entries.map((entry) => (
@@ -712,7 +717,7 @@ function RequestTimelinePane({
 	if (read === undefined) {
 		return (
 			<section aria-label="Request timeline">
-				<h2 className={PANE_HEADING_CLASSES}>Request timeline</h2>
+				<PaneHeading>Request timeline</PaneHeading>
 				<p
 					className="px-3 py-2.5 text-xs text-dim"
 					role={failed && recorded ? "alert" : undefined}
@@ -803,36 +808,32 @@ export function SessionHistoryPage({
 
 	return (
 		<div className="flex min-h-screen flex-col">
-			<header className="border-b border-divider px-6 pt-4 pb-3.5">
-				<a
-					href="/"
-					className="text-sm text-muted-foreground hover:text-foreground"
-				>
-					← Back to run history
-				</a>
-				<div className="mt-3 flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
-					<div>
-						<p className="text-xs tracking-widest text-accent-foreground">
-							ATTEMPT EVIDENCE
-						</p>
-						<h1 className="mt-1 text-xl font-medium tracking-tight">
-							Saved context history
-						</h1>
-					</div>
-					{summary.data === undefined ? null : (
+			<ScreenHeader
+				title="Saved context history"
+				eyebrow="Attempt evidence"
+				lead={
+					<a
+						href="/"
+						className="text-sm text-muted-foreground hover:text-foreground"
+					>
+						← Back to run history
+					</a>
+				}
+				aside={
+					summary.data === undefined ? undefined : (
 						<dl className="flex flex-wrap gap-x-5 gap-y-2">
 							{identityEntries(summary.data.attempt).map(({ term, value }) => (
 								<div key={term} className="flex flex-col gap-1">
-									<dt className="text-xs tracking-widest text-dim uppercase">
-										{term}
+									<dt>
+										<SectionLabel>{term}</SectionLabel>
 									</dt>
 									<dd className="font-mono text-sm">{value}</dd>
 								</div>
 							))}
 						</dl>
-					)}
-				</div>
-			</header>
+					)
+				}
+			/>
 			<div className="flex flex-1 flex-col gap-4 px-6 pt-4 pb-12">
 				{summary.isLoading ? (
 					<p className="text-muted-foreground">Loading history…</p>
@@ -903,7 +904,7 @@ export function SessionHistoryPage({
 								))}
 							</nav>
 						)}
-						{/* min-w-330 is the four pane floors' sum, so a narrow column scrolls the panes rather than crushing them. */}
+						{/* min-w-330 covers the four pane floors and the borders, so a narrow column scrolls the panes rather than crushing them. */}
 						<div className="flex min-h-96 flex-1 overflow-x-auto">
 							<div className="flex min-w-330 flex-1 overflow-hidden rounded-lg border bg-card">
 								<div className="min-w-58 flex-7 border-r">
@@ -936,11 +937,11 @@ export function SessionHistoryPage({
 									aria-label="Event ledger"
 									className="min-w-80 flex-10 border-r"
 								>
-									<h2 className={PANE_HEADING_CLASSES}>
+									<PaneHeading>
 										{summary.data.boundary === "unknown"
 											? "Boundary-unknown events"
 											: "Attempt events"}
-									</h2>
+									</PaneHeading>
 									<EventLedger
 										events={events}
 										selected={activeEventId}
@@ -967,7 +968,7 @@ export function SessionHistoryPage({
 									/>
 								</div>
 								<aside aria-label="Event detail" className="min-w-98 flex-13">
-									<h2 className={PANE_HEADING_CLASSES}>Evidence detail</h2>
+									<PaneHeading>Evidence detail</PaneHeading>
 									{detail.isLoading ? (
 										<p className="px-3 py-2.5 text-sm text-dim">
 											Loading evidence…

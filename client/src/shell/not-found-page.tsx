@@ -11,7 +11,7 @@ export function NotFoundPage(): React.JSX.Element {
 	const { pathname } = useLocation();
 
 	return (
-		<div className="grid min-h-screen place-items-center p-12">
+		<div className="grid min-h-screen place-items-center">
 			<EmptyState heading="No screen at this address">
 				<p>
 					Rehearse serves no screen at{" "}

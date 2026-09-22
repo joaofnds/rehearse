@@ -6,6 +6,9 @@ import { Button } from "#client/system/ui/button";
 import type { CorpusResponse } from "./corpus-query";
 import { corpusQuery } from "./corpus-query";
 import { plural } from "#client/plural";
+import { ScreenHeader } from "#client/system/components/screen-header";
+import { SectionLabel } from "#client/system/components/section-label";
+import { Notice } from "#client/system/components/notice";
 
 type CorpusFile = CorpusResponse["files"][number];
 
@@ -33,23 +36,23 @@ export function CorpusPage(): React.JSX.Element {
 
 	return (
 		<div>
-			<header className="border-b border-divider px-6 py-3.5">
-				<h1 className="text-xl font-medium tracking-tight">
-					Instruction corpus
-				</h1>
-				{query.isSuccess ? (
-					<p className="mt-1 text-sm text-dim">
-						<span className="font-mono">{query.data.root}</span>
-						{` · ${plural(query.data.files.length, "file")}`}
-						{query.data.refusals.length > 0 ? null : (
-							<>
-								{" · current version "}
-								<span className="font-mono text-pale">{`corpus root@${query.data.digest}`}</span>
-							</>
-						)}
-					</p>
-				) : null}
-			</header>
+			<ScreenHeader
+				title="Instruction corpus"
+				subline={
+					query.isSuccess ? (
+						<>
+							<span className="font-mono">{query.data.root}</span>
+							{` · ${plural(query.data.files.length, "file")}`}
+							{query.data.refusals.length > 0 ? null : (
+								<>
+									{" · current version "}
+									<span className="font-mono text-pale">{`corpus root@${query.data.digest}`}</span>
+								</>
+							)}
+						</>
+					) : undefined
+				}
+			/>
 
 			<div className="flex max-w-7xl flex-col gap-6 px-6 pt-4 pb-12">
 				{query.isLoading ? (
@@ -63,21 +66,10 @@ export function CorpusPage(): React.JSX.Element {
 				) : null}
 
 				{query.isSuccess && query.data.refusals.length > 0 ? (
-					<div
-						role="alert"
-						className="rounded-lg border border-strong bg-raised px-3 py-2.5 text-secondary-foreground"
-					>
-						<p>
-							<span aria-hidden="true">⚠ </span>
-							These entries could not be hashed, so they are missing from the
-							table, and a refused layout directory is missing from it whole:
-						</p>
-						<ul className="mt-1.5 flex flex-col gap-1 font-mono text-sm">
-							{query.data.refusals.map((refusal) => (
-								<li key={refusal}>{refusal}</li>
-							))}
-						</ul>
-					</div>
+					<Notice
+						message="These entries could not be hashed, so they are missing from the table, and a refused layout directory is missing from it whole:"
+						items={query.data.refusals}
+					/>
 				) : null}
 
 				{query.isSuccess &&
@@ -102,8 +94,8 @@ export function CorpusPage(): React.JSX.Element {
 				) : null}
 
 				<PlannedFeatureBlock heading="Edit an instruction, review, then apply">
-					<h3 className="text-xs tracking-widest text-dim uppercase">
-						Review before apply
+					<h3>
+						<SectionLabel>Review before apply</SectionLabel>
 					</h3>
 					<ul className="mt-2 flex list-disc flex-col gap-1.5 pl-4 text-sm text-muted-foreground">
 						<li>Writes a new corpus version, keeps the old one addressable</li>

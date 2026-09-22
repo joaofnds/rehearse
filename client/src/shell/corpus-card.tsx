@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { CorpusResponse } from "#client/corpus/corpus-query";
 import { corpusQuery } from "#client/corpus/corpus-query";
 import { plural } from "#client/plural";
+import { SectionLabel } from "#client/system/components/section-label";
 
 function latestEdit(files: CorpusResponse["files"]): string | undefined {
 	const times = files.map((file) => file.lastEditedAt).toSorted();
@@ -52,8 +53,8 @@ export function CorpusCard(): React.JSX.Element {
 			aria-label="Corpus under test"
 			className="mt-2.5 rounded-md border bg-raised px-2.5 py-2"
 		>
-			<h2 className="text-xs tracking-widest text-dim uppercase">
-				Corpus under test
+			<h2>
+				<SectionLabel>Corpus under test</SectionLabel>
 			</h2>
 
 			{query.isError ? (

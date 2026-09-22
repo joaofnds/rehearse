@@ -30,7 +30,8 @@ export const STATUS_VOCABULARY = {
 
 /**
  * The glyph and its word, at whatever size and colour the surrounding text
- * sets. A running state pulses unless the reader asked for reduced motion.
+ * sets, except that a running glyph takes the light accent and pulses unless
+ * the reader asked for reduced motion.
  */
 export function Status({
 	state,

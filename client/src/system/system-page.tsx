@@ -15,6 +15,7 @@ import {
 	RADIUS_TOKENS,
 	SPACE_TOKENS,
 } from "./token-names";
+import { ScreenHeader } from "./components/screen-header";
 
 const DEFERRED_COMPONENTS = [
 	{ name: "Step node card", neededBy: "ACT-51 (live monitor)" },
@@ -36,11 +37,7 @@ function noop(): void {
 export function SystemPage(): React.JSX.Element {
 	return (
 		<div>
-			<header className="border-b border-divider px-6 pt-4 pb-3.5">
-				<h1 className="text-xl font-medium tracking-tight">
-					Rehearse design system
-				</h1>
-			</header>
+			<ScreenHeader title="Rehearse design system" />
 
 			<div className="flex flex-col gap-9 px-6 pt-5 pb-12">
 				<section className="flex flex-col gap-3">

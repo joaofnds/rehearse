@@ -13,6 +13,9 @@ import type { RunHistoryResponse } from "./run-history-query";
 import { runHistoryQuery } from "./run-history-query";
 import { runStatusState } from "./run-status";
 import { plural } from "#client/plural";
+import { ScreenHeader } from "#client/system/components/screen-header";
+import { SectionLabel } from "#client/system/components/section-label";
+import { Notice } from "#client/system/components/notice";
 
 type RunHistoryRow = RunHistoryResponse["rows"][number];
 type UnreadableRun = RunHistoryResponse["unreadable"][number];
@@ -83,20 +86,10 @@ function UnreadableRuns({
 	readonly runs: readonly UnreadableRun[];
 }): React.JSX.Element {
 	return (
-		<div
-			role="alert"
-			className="rounded-lg border border-strong bg-raised px-3 py-2.5 text-secondary-foreground"
-		>
-			<p>
-				<span aria-hidden="true">⚠ </span>
-				These runs could not be read, so they are missing from the table below:
-			</p>
-			<ul className="mt-1.5 flex flex-col gap-1 font-mono text-sm">
-				{runs.map((run) => (
-					<li key={run.id}>{`${run.id} — ${run.reason}`}</li>
-				))}
-			</ul>
-		</div>
+		<Notice
+			message="These runs could not be read, so they are missing from the table below:"
+			items={runs.map((run) => `${run.id} — ${run.reason}`)}
+		/>
 	);
 }
 
@@ -198,10 +191,6 @@ function gradeCell(row: RunHistoryRow): React.JSX.Element {
 	return <Grade value={value} size="inline" />;
 }
 
-/**
- * "All" carries the record count once the list has loaded, matching the
- * count the nav badge shows beside it.
- */
 function filterLabel(filter: Filter, total: number | undefined): string {
 	return filter === "All" && total !== undefined ? `All ${total}` : filter;
 }
@@ -217,8 +206,8 @@ function FilterBar({
 }): React.JSX.Element {
 	return (
 		<div className="flex flex-wrap items-center gap-2 border-b border-divider px-6 py-2.5">
-			<span className="mr-0.5 text-xs tracking-widest text-dim uppercase">
-				Filter
+			<span className="mr-0.5">
+				<SectionLabel>Filter</SectionLabel>
 			</span>
 			{FILTERS.map((filter) => (
 				<FilterPill
@@ -255,14 +244,14 @@ export function RunHistoryPage(): React.JSX.Element {
 
 	return (
 		<div>
-			<header className="border-b border-divider px-6 pt-4 pb-3.5">
-				<h1 className="text-xl font-medium tracking-tight">Run history</h1>
-				{query.isSuccess ? (
-					<p className="mt-1 text-sm text-dim">
-						{`${plural(recorded.length, "record")} on disk · every row names the corpus version that produced it`}
-					</p>
-				) : null}
-			</header>
+			<ScreenHeader
+				title="Run history"
+				subline={
+					query.isSuccess
+						? `${plural(recorded.length, "record")} on disk · every row names the corpus version that produced it`
+						: undefined
+				}
+			/>
 
 			<FilterBar
 				active={filter}
@@ -284,15 +273,13 @@ export function RunHistoryPage(): React.JSX.Element {
 				{unreadable.length > 0 ? <UnreadableRuns runs={unreadable} /> : null}
 
 				{query.isSuccess && rows.length === 0 && !onlyUnreadableRuns ? (
-					<div className="grid place-items-center py-16">
-						<EmptyState heading="No runs recorded">
-							<p>
-								The corpus is linked and a spend limit is set. Declare a case,
-								then run it. Every attempt lands here as a durable record.
-							</p>
-							<Button disabled>Declare a case</Button>
-						</EmptyState>
-					</div>
+					<EmptyState heading="No runs recorded">
+						<p>
+							The corpus is linked and a spend limit is set. Declare a case,
+							then run it. Every attempt lands here as a durable record.
+						</p>
+						<Button disabled>Declare a case</Button>
+					</EmptyState>
 				) : null}
 
 				{rows.length > 0 ? (

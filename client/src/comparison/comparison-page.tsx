@@ -9,6 +9,8 @@ import { TableShell } from "#client/system/components/table-shell";
 import { armPairLabel, armPairNames } from "#server/comparison-arm-pair";
 import type { ComparisonAttribution } from "#server/comparison-attribution";
 import { plural } from "#client/plural";
+import { ScreenHeader } from "#client/system/components/screen-header";
+import { SectionLabel } from "#client/system/components/section-label";
 
 const PRESENTATIONS = ["Attempt pairs", "What moved"] as const;
 type Presentation = (typeof PRESENTATIONS)[number];
@@ -211,11 +213,8 @@ function AttemptHistoryLinks({
 			aria-labelledby="attempt-histories-heading"
 			className="flex max-w-6xl flex-col gap-2"
 		>
-			<h2
-				id="attempt-histories-heading"
-				className="text-xs tracking-widest text-dim uppercase"
-			>
-				Inspect saved attempt history
+			<h2 id="attempt-histories-heading">
+				<SectionLabel>Inspect saved attempt history</SectionLabel>
 			</h2>
 			{Object.entries(histories).map(([caseId, arms]) => (
 				<div
@@ -228,8 +227,8 @@ function AttemptHistoryLinks({
 							key={arm}
 							className="flex min-h-14 items-center gap-4 font-mono text-sm text-dim"
 						>
-							<span className="w-24 text-xs tracking-widest uppercase">
-								{arm}
+							<span className="w-24">
+								<SectionLabel>{arm}</SectionLabel>
 							</span>
 							{links.map((link) =>
 								link.status === "available" ? (
@@ -325,9 +324,13 @@ function AttributionCards({
 			aria-labelledby={headingId}
 			className="flex max-w-6xl flex-col gap-2"
 		>
-			<h2 id={headingId} className="text-xs tracking-widest text-dim uppercase">
-				{"Attribution · "}
-				<span className="font-mono tracking-normal normal-case">{caseId}</span>
+			<h2 id={headingId}>
+				<SectionLabel>
+					{"Attribution · "}
+					<span className="font-mono tracking-normal normal-case">
+						{caseId}
+					</span>
+				</SectionLabel>
 			</h2>
 			<div className="flex flex-col gap-2">
 				{Object.entries(attribution).map(([pairKey, claim]) => (
@@ -356,38 +359,36 @@ export function ComparisonPage({
 
 	return (
 		<div>
-			<header className="flex flex-wrap items-center gap-4 border-b border-divider px-6 py-3.5">
-				<div>
-					<h1 className="text-xl font-medium tracking-tight">Comparison</h1>
-					{query.isSuccess ? (
-						<p className="mt-1 text-sm text-dim">
+			<ScreenHeader
+				title="Comparison"
+				subline={
+					query.isSuccess ? (
+						<>
 							<span className="font-mono">{digest.slice(0, 12)}</span>
 							{` · ${plural(query.data.report.cases.length, "case")} · baseline, candidate and control arms`}
-						</p>
-					) : null}
-				</div>
-				{query.isSuccess ? (
-					<div className="ml-auto">
+						</>
+					) : undefined
+				}
+				aside={
+					query.isSuccess ? (
 						<Switcher
 							label="Comparison presentation"
 							options={PRESENTATIONS}
 							selected={presentation}
 							onSelect={setPresentation}
 						/>
-					</div>
-				) : null}
-			</header>
+					) : undefined
+				}
+			/>
 
 			<div className="flex flex-col gap-8 px-6 pt-4 pb-12">
 				{query.isLoading ? (
 					<p className="text-muted-foreground">Loading…</p>
 				) : null}
 				{query.isError && query.error instanceof ComparisonNotFoundError ? (
-					<div className="grid place-items-center py-16">
-						<EmptyState heading="No comparison recorded">
-							<p>No comparison is recorded for this digest yet.</p>
-						</EmptyState>
-					</div>
+					<EmptyState heading="No comparison recorded">
+						<p>No comparison is recorded for this digest yet.</p>
+					</EmptyState>
 				) : null}
 				{query.isError && !(query.error instanceof ComparisonNotFoundError) ? (
 					<p role="alert" className="text-muted-foreground">

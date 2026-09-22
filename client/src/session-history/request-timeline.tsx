@@ -9,6 +9,10 @@ import type {
 } from "#benchmark/session-history";
 import type { SessionHistoryRequestCostEntry } from "#server/session-history-reader";
 import type { TranscriptInstructionLoads } from "#benchmark/transcript-instruction-loads";
+import { cn } from "cn";
+import { SectionLabel } from "#client/system/components/section-label";
+import { PaneHeading } from "./pane-heading";
+import { selectableRow } from "./selectable-row";
 
 const tokens = new Intl.NumberFormat("en-US");
 const usd = new Intl.NumberFormat("en-US", {
@@ -219,46 +223,27 @@ export function RequestTimeline({
 
 	return (
 		<section aria-label="Request timeline">
-			<h2 className="border-b px-3 py-3 text-xs tracking-widest text-dim uppercase">
-				Request timeline
-			</h2>
+			<PaneHeading>Request timeline</PaneHeading>
 			<p className="px-3 py-2.5 text-xs text-dim">
 				{series.name}. The provider's active context window is not measured:
 				this number omits {series.omits.join(" and ")}.
 			</p>
 			<dl className="flex flex-col gap-1 px-3 pb-2.5">
-				<div className="flex flex-col gap-0.5">
-					<dt className="text-xs tracking-widest text-dim uppercase">
-						Attempt totals
-					</dt>
-					<dd className="font-mono text-xs text-secondary-foreground">
-						{totalsLabel(series)}
-					</dd>
-				</div>
-				<div className="flex flex-col gap-0.5">
-					<dt className="text-xs tracking-widest text-dim uppercase">
-						Provider reported
-					</dt>
-					<dd className="font-mono text-xs text-secondary-foreground">
-						{costLabel(cost.reported)}
-					</dd>
-				</div>
-				<div className="flex flex-col gap-0.5">
-					<dt className="text-xs tracking-widest text-dim uppercase">
-						Calculated
-					</dt>
-					<dd className="font-mono text-xs text-secondary-foreground">
-						{costLabel(cost.calculated)}
-					</dd>
-				</div>
-				<div className="flex flex-col gap-0.5">
-					<dt className="text-xs tracking-widest text-dim uppercase">
-						Remaining difference
-					</dt>
-					<dd className="font-mono text-xs text-secondary-foreground">
-						{costLabel(cost.difference)}
-					</dd>
-				</div>
+				{[
+					{ term: "Attempt totals", value: totalsLabel(series) },
+					{ term: "Provider reported", value: costLabel(cost.reported) },
+					{ term: "Calculated", value: costLabel(cost.calculated) },
+					{ term: "Remaining difference", value: costLabel(cost.difference) },
+				].map(({ term, value }) => (
+					<div key={term} className="flex flex-col gap-0.5">
+						<dt>
+							<SectionLabel>{term}</SectionLabel>
+						</dt>
+						<dd className="font-mono text-xs text-secondary-foreground">
+							{value}
+						</dd>
+					</div>
+				))}
 			</dl>
 			<div className="border-t" role="listbox" aria-label="Request timeline">
 				{entries.map((entry) => (
@@ -267,7 +252,10 @@ export function RequestTimeline({
 						role="option"
 						key={requestRowId(entry)}
 						aria-selected={requestRowId(entry) === selected}
-						className="flex min-h-14 w-full flex-col gap-1 border-b border-l-2 border-b-subtle border-l-transparent px-3 py-2.5 text-left text-secondary-foreground hover:bg-row-hover aria-selected:border-l-primary aria-selected:bg-selected aria-selected:text-bright"
+						className={cn(
+							selectableRow({ markedBy: "selected" }),
+							"flex flex-col gap-1",
+						)}
 						onClick={() => {
 							onSelect(entry);
 						}}
@@ -305,8 +293,8 @@ export function RequestTimeline({
 					</p>
 				) : null}
 			</div>
-			<h3 className="px-3 pt-3 text-xs tracking-widest text-dim uppercase">
-				Automatic instruction loads
+			<h3 className="px-3 pt-3">
+				<SectionLabel>Automatic instruction loads</SectionLabel>
 			</h3>
 			<InstructionLoads loads={instructionLoads} />
 		</section>
