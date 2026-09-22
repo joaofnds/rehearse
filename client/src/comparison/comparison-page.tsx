@@ -325,7 +325,7 @@ export function ComparisonPage({
 	});
 
 	return (
-		<main className="rh-comparison">
+		<div className="rh-comparison">
 			<h1>Comparison</h1>
 
 			{query.isLoading ? <p>Loading…</p> : null}
@@ -370,6 +370,6 @@ export function ComparisonPage({
 			{query.isSuccess && presentation === "What moved" ? (
 				<QualityReadingTables readings={query.data.qualityReadings} />
 			) : null}
-		</main>
+		</div>
 	);
 }

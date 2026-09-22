@@ -33,7 +33,7 @@ export function CorpusPage(): React.JSX.Element {
 	});
 
 	return (
-		<main className="rh-corpus">
+		<div className="rh-corpus">
 			<h1>Instruction corpus</h1>
 
 			{query.isLoading ? <p>Loading…</p> : null}
@@ -88,6 +88,6 @@ export function CorpusPage(): React.JSX.Element {
 			<PlannedFeatureBlock heading="Edit an instruction, review, then apply">
 				<p>Writes a new corpus version, keeps the old one addressable</p>
 			</PlannedFeatureBlock>
-		</main>
+		</div>
 	);
 }

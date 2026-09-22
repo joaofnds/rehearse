@@ -2,17 +2,17 @@ import {
 	createRootRoute,
 	createRoute,
 	createRouter,
-	Outlet,
 } from "@tanstack/react-router";
 import type { RouterHistory } from "@tanstack/react-router";
 import { ComparisonPage } from "#client/comparison/comparison-page";
 import { CorpusPage } from "#client/corpus/corpus-page";
 import { RunHistoryPage } from "#client/run-history/run-history-page";
 import { SessionHistoryPage } from "#client/session-history/session-history-page";
+import { AppShell } from "#client/shell/app-shell";
 import { SystemPage } from "#client/system/system-page";
 
 const rootRoute = createRootRoute({
-	component: () => <Outlet />,
+	component: AppShell,
 });
 
 const runHistoryRoute = createRoute({

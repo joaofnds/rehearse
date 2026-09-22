@@ -32,7 +32,7 @@ function noop(): void {
 
 export function SystemPage(): React.JSX.Element {
 	return (
-		<main className="rh-system-page">
+		<div className="rh-system-page">
 			<h1>Rehearse design system</h1>
 
 			<section>
@@ -253,6 +253,6 @@ export function SystemPage(): React.JSX.Element {
 					))}
 				</ul>
 			</section>
-		</main>
+		</div>
 	);
 }

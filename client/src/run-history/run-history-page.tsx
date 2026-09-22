@@ -243,7 +243,7 @@ export function RunHistoryPage(): React.JSX.Element {
 	);
 
 	return (
-		<main className="rh-run-history">
+		<div className="rh-run-history">
 			<h1>Run history</h1>
 			<FilterBar active={filter} onSelect={setFilter} />
 
@@ -278,6 +278,6 @@ export function RunHistoryPage(): React.JSX.Element {
 					])}
 				/>
 			) : null}
-		</main>
+		</div>
 	);
 }

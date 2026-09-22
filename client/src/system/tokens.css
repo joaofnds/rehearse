@@ -82,6 +82,9 @@
 	--space-36: 36px;
 	--space-56: 56px;
 
+	/* Layout */
+	--rail-width: 222px;
+
 	/* Radius */
 	--radius-focus: 3px;
 	--radius-chip: 4px;

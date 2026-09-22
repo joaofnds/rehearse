@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
 import type { SessionHistoryReport } from "#benchmark/session-history";
 import type { SessionHistoryAttemptSeries } from "#server/session-history-reader";
-import { stubFetch, stubFetchByPath } from "#client/test-support/fetch-stub";
+import { stubFetchByPath } from "#client/test-support/fetch-stub";
 import { createAppRouter } from "./router";
 
 const originalFetch = globalThis.fetch;
@@ -12,11 +12,6 @@ const originalFetch = globalThis.fetch;
 afterEach(() => {
 	globalThis.fetch = originalFetch;
 });
-
-function renderAt(path: string): void {
-	stubFetch({ rows: [], unreadable: [] });
-	renderRouterAt(path);
-}
 
 function renderAtWithStub(
 	path: string,
@@ -95,15 +90,20 @@ function emptyRequestSeries(): SessionHistoryAttemptSeries {
 
 describe(createAppRouter.name, () => {
 	it("renders run history at the root path, the landing screen", async () => {
-		renderAt("/");
+		renderAtWithStub(
+			"/",
+			new Map<string, unknown>([["/api/runs", { rows: [], unreadable: [] }]]),
+		);
 
 		await waitFor(() => {
-			expect(screen.getByText("Run history")).toBeInTheDocument();
+			expect(
+				screen.getByRole("heading", { name: "Run history" }),
+			).toBeInTheDocument();
 		});
 	});
 
 	it("renders the design system reference at /system", async () => {
-		renderAt("/system");
+		renderAtWithStub("/system", new Map<string, unknown>());
 
 		await waitFor(() => {
 			expect(screen.getByText("Rehearse design system")).toBeInTheDocument();

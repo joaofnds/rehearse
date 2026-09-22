@@ -764,7 +764,7 @@ export function SessionHistoryPage({
 			: requestRowsOwningEvents(timelineEntries, events);
 
 	return (
-		<main className="rh-history">
+		<div className="rh-history">
 			<a className="rh-history__back" href="/">
 				← Back to run history
 			</a>
@@ -906,6 +906,6 @@ export function SessionHistoryPage({
 					</div>
 				</>
 			)}
-		</main>
+		</div>
 	);
 }
