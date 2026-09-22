@@ -125,24 +125,18 @@ const SPEC_NAV_LABELS = [
 	"Settings",
 ];
 
-/**
- * The design label a nav entry's text opens with. An entry also shows its
- * badge count or the word planned, so the label is read as a prefix.
- */
-function navLabelOf(text: string | null): string | undefined {
-	return SPEC_NAV_LABELS.find((label) => text?.startsWith(label) === true);
-}
+const NAV_LABEL = new RegExp(`^(?:${SPEC_NAV_LABELS.join("|")})$`, "u");
 
 describe("the navigation shell", () => {
 	it("lists the design's nine sections in its order", async () => {
 		renderShellAt("/");
 
 		const nav = await screen.findByRole("navigation", { name: "Sections" });
-		const items = within(nav).getAllByRole("listitem");
+		const labels = within(nav)
+			.getAllByText(NAV_LABEL)
+			.map((label) => label.textContent);
 
-		expect(items.map((item) => navLabelOf(item.textContent))).toEqual(
-			SPEC_NAV_LABELS,
-		);
+		expect(labels).toEqual(SPEC_NAV_LABELS);
 	});
 
 	it("offers no link for a section that has no screen", async () => {
@@ -151,7 +145,7 @@ describe("the navigation shell", () => {
 		const nav = await screen.findByRole("navigation", { name: "Sections" });
 		const linked = within(nav)
 			.getAllByRole("link")
-			.map((link) => navLabelOf(link.textContent));
+			.map((link) => within(link).getByText(NAV_LABEL).textContent);
 
 		expect(linked).toEqual(["Run history", "Corpus"]);
 	});

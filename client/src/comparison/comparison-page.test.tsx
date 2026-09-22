@@ -304,6 +304,12 @@ describe(ComparisonPage.name, () => {
 		expect(within(table).getAllByRole("row")).toHaveLength(3);
 	});
 
+	it("names how many cases the comparison covers", async () => {
+		renderPage();
+
+		expect(await screen.findByText(/· 2 cases ·/u)).toBeInTheDocument();
+	});
+
 	it("renders each arm's grade distribution as counts, never a synthesized median", async () => {
 		renderPage();
 

@@ -43,10 +43,36 @@ function renderPage(): RenderResult {
 	);
 }
 
-/**
- * The cell a run's row shows under a column, found through the header's
- * position so an assertion names the column it reads.
- */
+function oneStoppedOneComplete(): RunHistoryResponseBody {
+	return {
+		rows: [
+			{
+				run: "2026-09-06T21-58-29.508Z",
+				caseId: "audit-log",
+				status: "STOPPED:build",
+				stage: "shape",
+				grade: "B",
+				corpus: { digest: "a3a62f" },
+				stale: true,
+				staleCauses: [],
+				progress: { state: "recorded" },
+			},
+			{
+				run: "2026-09-03T00-00-00.000Z",
+				caseId: "audit-log",
+				status: "COMPLETE",
+				stage: "build",
+				grade: "A",
+				corpus: { digest: "b1c2d3" },
+				stale: false,
+				staleCauses: [],
+				progress: { state: "recorded" },
+			},
+		],
+		unreadable: [],
+	};
+}
+
 function cellOf(run: string, column: string): HTMLElement {
 	const headers = screen
 		.getAllByRole("columnheader")
@@ -176,7 +202,7 @@ describe(RunHistoryPage.name, () => {
 					status: "STOPPED:discuss",
 					stage: undefined,
 					grade: undefined,
-					corpus: undefined,
+					corpus: { digest: "a3a62f" },
 					stale: false,
 					staleCauses: [],
 					progress: { state: "recorded" },
@@ -207,34 +233,26 @@ describe(RunHistoryPage.name, () => {
 		);
 	});
 
+	it("names how many records are on disk", async () => {
+		respondingWith(oneStoppedOneComplete());
+
+		renderPage();
+
+		expect(await screen.findByText(/^2 records on disk/u)).toBeInTheDocument();
+	});
+
+	it("keeps counting every record on the All pill while Stopped narrows the table", async () => {
+		respondingWith(oneStoppedOneComplete());
+		renderPage();
+		await screen.findByText("2026-09-03T00-00-00.000Z");
+
+		fireEvent.click(screen.getByRole("button", { name: "Stopped" }));
+
+		expect(screen.getByRole("button", { name: "All 2" })).toBeInTheDocument();
+	});
+
 	it("narrows the table to stopped runs when the Stopped filter is pressed", async () => {
-		respondingWith({
-			rows: [
-				{
-					run: "2026-09-06T21-58-29.508Z",
-					caseId: "audit-log",
-					status: "STOPPED:build",
-					stage: "shape",
-					grade: "B",
-					corpus: { digest: "a3a62f" },
-					stale: true,
-					staleCauses: [],
-					progress: { state: "recorded" },
-				},
-				{
-					run: "2026-09-03T00-00-00.000Z",
-					caseId: "audit-log",
-					status: "COMPLETE",
-					stage: "build",
-					grade: "A",
-					corpus: { digest: "b1c2d3" },
-					stale: false,
-					staleCauses: [],
-					progress: { state: "recorded" },
-				},
-			],
-			unreadable: [],
-		});
+		respondingWith(oneStoppedOneComplete());
 
 		renderPage();
 

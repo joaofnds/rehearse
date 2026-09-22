@@ -1,13 +1,20 @@
 import { render } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
+import type { CorpusResponse } from "#client/corpus/corpus-query";
 import { createAppRouter } from "#client/router";
+import type { RunHistoryResponse } from "#client/run-history/run-history-query";
 import { stubFetchByPath } from "./fetch-stub";
 
-/**
- * Renders the whole app, shell included, at an address, the way a browser
- * opening that address would.
- */
+const NO_RUNS: RunHistoryResponse = { rows: [], unreadable: [] };
+
+const EMPTY_CORPUS: CorpusResponse = {
+	root: "/corpus",
+	digest: "ffd58d",
+	files: [],
+	refusals: [],
+};
+
 export function renderAppAt(path: string): void {
 	const client = new QueryClient({
 		defaultOptions: { queries: { retry: false } },
@@ -34,11 +41,8 @@ export function renderAppWithStub(
 ): void {
 	stubFetchByPath(
 		new Map<string, unknown>([
-			["/api/runs", { rows: [], unreadable: [] }],
-			[
-				"/api/corpus",
-				{ root: "/corpus", digest: "ffd58d", files: [], refusals: [] },
-			],
+			["/api/runs", NO_RUNS],
+			["/api/corpus", EMPTY_CORPUS],
 			...byPath,
 		]),
 	);
