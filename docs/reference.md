@@ -724,7 +724,8 @@ block.
 
 `/api/replays/<lineage>/<timestamp>/history` reports a replay under the same
 stage identity. A replay keeps no raw transcript, so the report is always
-evidence-unavailable and carries no event detail path.
+evidence-unavailable and carries no event detail path. No browser page reaches
+it yet; it is an API surface only.
 
 A stage report names its run, stage and lineage where an attempt report names a
 case and attempt id, because a checkpoint records no attempt id and no outcome.
@@ -748,11 +749,11 @@ with no transcript field reads as no capture having been recorded; a checkpoint
 recording AVAILABLE whose file is no longer beside it says so rather than
 refusing the whole report.
 
-A replay keeps its own route. It writes one flat record with no transcript field
-and removes the worktree whose name locates the provider's copy, so the record
-resolves and reports that a replay retains no raw transcript. Its scorecard holds
-parsed exchanges; those stay out of the event ledger, since a parsed exchange is
-not the raw evidence the report is about.
+A replay reports through the API route above. It writes one flat record with no
+transcript field and removes the worktree whose name locates the provider's copy,
+so the record resolves and reports that a replay retains no raw transcript. Its
+scorecard holds parsed exchanges; those stay out of the event ledger, since a
+parsed exchange is not the raw evidence the report is about.
 
 One cause has no report at all. A stage that stopped on its grade wrote no
 checkpoint, since the grade assertion precedes the checkpoint write. It does

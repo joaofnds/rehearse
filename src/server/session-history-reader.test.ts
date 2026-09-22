@@ -1458,6 +1458,14 @@ describe("saved stage history API", () => {
 	});
 });
 
+/**
+ * A replay's scorecard carries its session id and parsed exchanges. The report
+ * must not render either as raw evidence, so the tests name them here and then
+ * assert the serialized report holds neither.
+ */
+const REPLAY_SESSION_ID = "1ad63c8d-75ec-4b27-8ff1-751826f6849e";
+const REPLAY_EXCHANGE_TEXT = "the replayed stage answered";
+
 async function writtenReplay(): Promise<{
 	readonly runsDirectory: string;
 	readonly lineage: string;
@@ -1469,6 +1477,7 @@ async function writtenReplay(): Promise<{
 	const lineage = "lineage-discuss";
 	const timestamp = "2026-09-06T22-33-15.057Z";
 	const runName = "2026-09-06T21-58-29.508Z";
+	const recordedTimestamp = "2026-09-06T22:33:15.057Z";
 	const recordFile = replayRecordFile(runsDirectory, lineage, timestamp);
 	await mkdir(join(runsDirectory, "replays", lineage), { recursive: true });
 	const paths = benchmarkRunPaths(runsDirectory, runName);
@@ -1504,7 +1513,7 @@ async function writtenReplay(): Promise<{
 		recordFile,
 		`${JSON.stringify({
 			replay: true,
-			timestamp,
+			timestamp: recordedTimestamp,
 			runName,
 			stage: "build",
 			consumed: {
@@ -1535,10 +1544,13 @@ async function writtenReplay(): Promise<{
 					stage: "build",
 					transcript: {
 						stage: "build",
-						sessionId: "1ad63c8d-75ec-4b27-8ff1-751826f6849e",
+						sessionId: REPLAY_SESSION_ID,
 						costUsd: 1,
 						providerCalls: [],
-						exchanges: [{ agent: "answered" }, { agent: "answered again" }],
+						exchanges: [
+							{ agent: REPLAY_EXCHANGE_TEXT },
+							{ agent: "answered again" },
+						],
 					},
 				},
 			},
@@ -1582,6 +1594,8 @@ describe(readReplayHistory.name, () => {
 		expect(report.attemptEvents).toEqual([]);
 		expect(report.boundaryUnknown).toEqual([]);
 		expect(report.sources).toEqual([]);
+		expect(JSON.stringify(report)).not.toContain(REPLAY_SESSION_ID);
+		expect(JSON.stringify(report)).not.toContain(REPLAY_EXCHANGE_TEXT);
 	});
 
 	it("refuses a replay record filed under another lineage", async () => {

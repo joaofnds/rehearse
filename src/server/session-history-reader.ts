@@ -665,7 +665,7 @@ async function replayInput(
 			unavailableReason: "replay-retains-none",
 			prefixLinesExcluded: 0,
 		},
-		reportedCostUsd: record.stageCostUsd,
+		reportedCostUsd: undefined,
 		transcriptFile: undefined,
 	};
 }
