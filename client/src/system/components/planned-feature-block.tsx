@@ -9,7 +9,7 @@ export function PlannedFeatureBlock({
 }): React.JSX.Element {
 	return (
 		<section className="overflow-hidden rounded-lg border border-dashed border-deeper opacity-60">
-			<header className="flex flex-wrap items-center gap-3 border-b border-dashed border-deeper bg-popover px-4 py-2.5">
+			<header className="flex flex-wrap items-center gap-3 border-b border-dashed border-deeper bg-raised px-4 py-2.5">
 				<h2 className="font-medium">{heading}</h2>
 				<span className="rounded-full border border-deep px-2 py-0.5 text-xs tracking-widest text-pale">
 					PLANNED

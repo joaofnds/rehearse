@@ -19,7 +19,7 @@ export function Switcher<Option extends string>({
 				<button
 					key={option}
 					type="button"
-					className="border-r border-strong px-3 py-1.5 text-sm text-secondary-foreground transition-colors last:border-r-0 hover:bg-subtle aria-pressed:bg-selected aria-pressed:text-foreground"
+					className="border-r border-strong px-3 py-1.5 text-sm text-secondary-foreground transition-colors last:border-r-0 hover:bg-row-hover aria-pressed:bg-selected aria-pressed:text-foreground"
 					aria-pressed={option === selected}
 					onClick={() => {
 						onSelect(option);

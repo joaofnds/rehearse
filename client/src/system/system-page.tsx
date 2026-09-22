@@ -174,11 +174,11 @@ export function SystemPage(): React.JSX.Element {
 						{GRADE_SIZES.map((size) => (
 							<li key={size} className="flex flex-col items-start gap-1.5">
 								<Grade value={{ letter: "A−" }} size={size} />
-								<code className={TOKEN_NAME_CLASSES}>{size}px</code>
+								<code className={TOKEN_NAME_CLASSES}>{size}</code>
 							</li>
 						))}
 						<li className="flex flex-col items-start gap-1.5">
-							<Grade value={{ pending: true }} size="19" />
+							<Grade value={{ pending: true }} size="node" />
 							<code className={TOKEN_NAME_CLASSES}>pending</code>
 						</li>
 					</ul>

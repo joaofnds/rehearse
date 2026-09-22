@@ -96,11 +96,6 @@ function intervalLabel(
 	return `${armName} ${interval.low} to ${interval.high}`;
 }
 
-/**
- * A reading's glyph and words. A movement reads in the primary text colour
- * and a reading of no movement sits back, as the handoff's delta cells do;
- * the glyph and the words carry the meaning either way.
- */
 function QualityVerdict({
 	reading,
 }: {
@@ -108,7 +103,7 @@ function QualityVerdict({
 }): React.JSX.Element {
 	if (reading.verdict.kind === "insideRerunNoise") {
 		return (
-			<span className="inline-flex items-baseline gap-1.5 text-muted-foreground">
+			<span className="inline-flex items-baseline gap-1.5 text-dim">
 				<span aria-hidden="true">~</span>
 				<span>inside rerun noise</span>
 			</span>

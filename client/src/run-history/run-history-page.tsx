@@ -85,7 +85,7 @@ function UnreadableRuns({
 	return (
 		<div
 			role="alert"
-			className="rounded-lg border border-strong bg-popover px-3 py-2.5 text-secondary-foreground"
+			className="rounded-lg border border-strong bg-raised px-3 py-2.5 text-secondary-foreground"
 		>
 			<p>
 				<span aria-hidden="true">⚠ </span>
@@ -195,7 +195,7 @@ function gradeCell(row: RunHistoryRow): React.JSX.Element {
 	const value: GradeValue =
 		row.grade === undefined ? { pending: true } : { letter: row.grade };
 
-	return <Grade value={value} size="13" />;
+	return <Grade value={value} size="inline" />;
 }
 
 /**

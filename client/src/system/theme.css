@@ -51,13 +51,12 @@
 	--color-deep: var(--color-accent-deep);
 	--color-deeper: var(--color-accent-deep-2);
 	--color-selected: var(--color-accent-tint-16);
+	--color-raised: var(--color-surface-2);
 	--color-row-hover: var(--color-row-hover);
 	--color-divider: var(--color-border);
 	--color-subtle: var(--color-border-subtle);
 	--color-strong: var(--color-border-strong);
-	--color-underline: var(--color-accent-border);
-	--color-diff-add: var(--color-diff-add);
-	--color-diff-remove: var(--color-diff-remove);
+	--color-accent-line: var(--color-accent-border);
 
 	--animate-live: live var(--pulse-duration) ease-in-out infinite;
 

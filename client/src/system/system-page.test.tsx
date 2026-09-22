@@ -21,10 +21,10 @@ describe(SystemPage.name, () => {
 		).toBeGreaterThan(0);
 	});
 
-	it.each([...GRADE_SIZES])("renders the %spx grade size", (size) => {
+	it.each([...GRADE_SIZES])("renders the %s grade size", (size) => {
 		render(<SystemPage />);
 
-		expect(screen.getByText(`${size}px`)).toBeInTheDocument();
+		expect(screen.getByText(size)).toBeInTheDocument();
 	});
 
 	it("renders the corpus pill", () => {

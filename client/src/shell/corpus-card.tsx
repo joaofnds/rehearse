@@ -50,7 +50,7 @@ export function CorpusCard(): React.JSX.Element {
 	return (
 		<section
 			aria-label="Corpus under test"
-			className="mt-2.5 rounded-md border bg-popover px-2.5 py-2"
+			className="mt-2.5 rounded-md border bg-raised px-2.5 py-2"
 		>
 			<h2 className="text-xs tracking-widest text-dim uppercase">
 				Corpus under test

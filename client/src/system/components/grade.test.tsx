@@ -4,13 +4,13 @@ import { Grade } from "./grade";
 
 describe(Grade.name, () => {
 	it("renders the letter grade", () => {
-		render(<Grade value={{ letter: "A−" }} size="13" />);
+		render(<Grade value={{ letter: "A−" }} size="inline" />);
 
 		expect(screen.getByText("A−")).toBeInTheDocument();
 	});
 
 	it("renders a pending grade as an em dash", () => {
-		render(<Grade value={{ pending: true }} size="13" />);
+		render(<Grade value={{ pending: true }} size="inline" />);
 
 		expect(screen.getByText("—")).toBeInTheDocument();
 	});

@@ -16,7 +16,7 @@ export function Disclosure({
 		<span className="flex flex-col items-start gap-1">
 			<button
 				type="button"
-				className="flex min-h-14 items-start text-left text-xs text-secondary-foreground underline decoration-underline underline-offset-4 hover:text-pale"
+				className="flex min-h-14 items-start text-left text-xs text-secondary-foreground underline decoration-accent-line underline-offset-4 hover:text-pale"
 				aria-expanded={expanded}
 				onClick={() => {
 					setExpanded(!expanded);

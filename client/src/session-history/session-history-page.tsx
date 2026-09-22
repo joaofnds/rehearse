@@ -360,7 +360,7 @@ const DETAIL_SECTION_CLASSES =
 	"flex flex-col gap-2 border-t border-subtle px-3 py-3";
 
 const EVIDENCE_TEXT_CLASSES =
-	"max-h-96 overflow-auto rounded-md bg-sidebar p-2.5 font-mono text-sm break-words whitespace-pre-wrap text-secondary-foreground";
+	"max-h-96 overflow-auto rounded-md bg-background p-2.5 font-mono text-sm break-words whitespace-pre-wrap text-secondary-foreground";
 
 function SourceList({
 	sources,

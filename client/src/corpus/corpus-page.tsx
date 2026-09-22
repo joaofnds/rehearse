@@ -65,7 +65,7 @@ export function CorpusPage(): React.JSX.Element {
 				{query.isSuccess && query.data.refusals.length > 0 ? (
 					<div
 						role="alert"
-						className="rounded-lg border border-strong bg-popover px-3 py-2.5 text-secondary-foreground"
+						className="rounded-lg border border-strong bg-raised px-3 py-2.5 text-secondary-foreground"
 					>
 						<p>
 							<span aria-hidden="true">⚠ </span>
