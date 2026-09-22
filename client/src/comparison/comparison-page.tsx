@@ -8,7 +8,6 @@ import { Switcher } from "#client/system/components/switcher";
 import { TableShell } from "#client/system/components/table-shell";
 import { armPairLabel, armPairNames } from "#server/comparison-arm-pair";
 import type { ComparisonAttribution } from "#server/comparison-attribution";
-import "./comparison-page.css";
 
 const PRESENTATIONS = ["Attempt pairs", "What moved"] as const;
 type Presentation = (typeof PRESENTATIONS)[number];
@@ -49,12 +48,12 @@ function GradeDistribution({
 	readonly arm: ComparisonArmReport;
 }): React.JSX.Element {
 	return (
-		<div className="rh-comparison__arm">
+		<div className="flex flex-col gap-1">
 			{arm.quality.map((measure) => (
-				<div key={measure.name} className="rh-comparison__measure">
-					<span className="rh-comparison__measure-name">{measure.name}</span>
+				<div key={measure.name} className="flex items-baseline gap-2.5">
+					<span className="text-xs text-dim">{measure.name}</span>
 					{Object.entries(measure.gradeDistribution).map(([grade, count]) => (
-						<span key={grade} className="rh-comparison__grade-count">
+						<span key={grade} className="font-mono font-bold">
 							{grade}×{count}
 						</span>
 					))}
@@ -74,8 +73,12 @@ const QUALITY_COLUMNS = [
 
 function rowFor(benchmarkCase: ComparisonCase): readonly React.ReactNode[] {
 	return [
-		benchmarkCase.caseId,
-		<GradeDistribution key="baseline" arm={benchmarkCase.arms.baseline} />,
+		<span key="case" className="font-mono text-sm">
+			{benchmarkCase.caseId}
+		</span>,
+		<span key="baseline" className="text-muted-foreground">
+			<GradeDistribution arm={benchmarkCase.arms.baseline} />
+		</span>,
 		<GradeDistribution key="candidate" arm={benchmarkCase.arms.candidate} />,
 		<GradeDistribution key="control" arm={benchmarkCase.arms.control} />,
 	];
@@ -92,38 +95,38 @@ function intervalLabel(
 	return `${armName} ${interval.low} to ${interval.high}`;
 }
 
-interface VerdictPresentation {
-	readonly glyph: "~" | "=" | "↑";
-	readonly label: string;
-}
-
-function verdictPresentation(reading: QualityReading): VerdictPresentation {
-	if (reading.verdict.kind === "insideRerunNoise") {
-		return { glyph: "~", label: "inside rerun noise" };
-	}
-
-	if (reading.verdict.kind === "unchangedAlreadyClear") {
-		return { glyph: "=", label: "unchanged, already clear" };
-	}
-
-	return { glyph: "↑", label: `${reading.verdict.arm} separates` };
-}
-
+/**
+ * A reading's glyph and words. A movement reads in the primary text colour
+ * and a reading of no movement sits back, as the handoff's delta cells do;
+ * the glyph and the words carry the meaning either way.
+ */
 function QualityVerdict({
 	reading,
 }: {
 	readonly reading: QualityReading;
 }): React.JSX.Element {
-	const verdict = verdictPresentation(reading);
+	if (reading.verdict.kind === "insideRerunNoise") {
+		return (
+			<span className="inline-flex items-baseline gap-1.5 text-muted-foreground">
+				<span aria-hidden="true">~</span>
+				<span>inside rerun noise</span>
+			</span>
+		);
+	}
+
+	if (reading.verdict.kind === "unchangedAlreadyClear") {
+		return (
+			<span className="inline-flex items-baseline gap-1.5 text-dim">
+				<span aria-hidden="true">=</span>
+				<span>unchanged, already clear</span>
+			</span>
+		);
+	}
 
 	return (
-		<span className="rh-comparison__quality-verdict">
-			<span
-				aria-hidden="true"
-				className="rh-comparison__quality-verdict-glyph"
-				data-glyph={verdict.glyph}
-			/>
-			<span>{verdict.label}</span>
+		<span className="inline-flex items-baseline gap-1.5 text-foreground">
+			<span aria-hidden="true">↑</span>
+			<span>{`${reading.verdict.arm} separates`}</span>
 		</span>
 	);
 }
@@ -138,7 +141,7 @@ function QualityIntervals({
 	const names = armPairNames(pairKey);
 
 	return (
-		<div className="rh-comparison__quality-intervals">
+		<div className="flex flex-col gap-1 font-mono text-sm">
 			<span>{intervalLabel(names.minuend, reading.interval.minuend)}</span>
 			<span>
 				{intervalLabel(names.subtrahend, reading.interval.subtrahend)}
@@ -153,7 +156,12 @@ function qualityRowsFor(
 	return Object.entries(readings).flatMap(([pairKey, measures]) =>
 		Object.entries(measures).map(([measureName, reading]) => [
 			armPairLabel(pairKey),
-			measureName,
+			<span
+				key={`${pairKey}-${measureName}-name`}
+				className="font-mono text-sm"
+			>
+				{measureName}
+			</span>,
 			<QualityIntervals
 				key={`${pairKey}-${measureName}`}
 				pairKey={pairKey}
@@ -173,11 +181,18 @@ function QualityReadingTables({
 	readonly readings: QualityReadings;
 }): React.JSX.Element {
 	return (
-		<div className="rh-comparison__quality-tables">
+		<div className="flex max-w-6xl flex-col gap-8">
 			{Object.entries(readings).map(([caseId, caseReadings]) => (
 				<TableShell
 					key={caseId}
-					caption={`WHAT MOVED · ${caseId}`}
+					caption={
+						<>
+							{"WHAT MOVED · "}
+							<span className="font-mono tracking-normal normal-case">
+								{caseId}
+							</span>
+						</>
+					}
 					columns={QUALITY_COLUMNS}
 					rows={qualityRowsFor(caseReadings)}
 				/>
@@ -197,19 +212,36 @@ function AttemptHistoryLinks({
 
 	return (
 		<section
-			className="rh-comparison__histories"
 			aria-labelledby="attempt-histories-heading"
+			className="flex max-w-6xl flex-col gap-2"
 		>
-			<h2 id="attempt-histories-heading">Inspect saved attempt history</h2>
+			<h2
+				id="attempt-histories-heading"
+				className="text-xs tracking-widest text-dim uppercase"
+			>
+				Inspect saved attempt history
+			</h2>
 			{Object.entries(histories).map(([caseId, arms]) => (
-				<div key={caseId} className="rh-comparison__history-case">
-					<strong>{caseId}</strong>
+				<div
+					key={caseId}
+					className="flex flex-col gap-3 rounded-lg border bg-card px-4 py-3"
+				>
+					<strong className="font-mono text-sm font-normal">{caseId}</strong>
 					{Object.entries(arms).map(([arm, links]) => (
-						<div key={arm} className="rh-comparison__history-arm">
-							<span>{arm}</span>
+						<div
+							key={arm}
+							className="flex items-baseline gap-4 font-mono text-sm text-dim"
+						>
+							<span className="w-24 text-xs tracking-widest uppercase">
+								{arm}
+							</span>
 							{links.map((link) =>
 								link.status === "available" ? (
-									<a key={link.repId} href={link.href}>
+									<a
+										key={link.repId}
+										href={link.href}
+										className="-my-5 py-5 text-accent-foreground underline decoration-deeper underline-offset-4 hover:text-pale"
+									>
 										Rep {link.ordinal}
 									</a>
 								) : (
@@ -237,8 +269,8 @@ function AttributionCard({
 	readonly attribution: ComparisonAttribution;
 }): React.JSX.Element {
 	return (
-		<div className="rh-comparison__attribution">
-			<span className="rh-comparison__attribution-pair">
+		<div className="flex flex-col gap-1.5 rounded-lg border bg-card px-4 py-3">
+			<span className="font-mono text-xs text-dim">
 				{armPairLabel(pairKey)}
 			</span>
 			<AttributionReading attribution={attribution} />
@@ -259,7 +291,7 @@ function AttributionReading({
 		return (
 			<p>
 				The only corpus difference between these arms is{" "}
-				<code className="rh-comparison__attribution-path">
+				<code className="font-mono text-sm text-pale">
 					{attribution.differingPath}
 				</code>
 				. A movement between them is attributable to that file.
@@ -270,10 +302,11 @@ function AttributionReading({
 	return (
 		<div>
 			<p>
+				<span aria-hidden="true">⚠ </span>
 				Refuses the attribution claim: more than one file could explain a
 				movement between these arms.
 			</p>
-			<ul>
+			<ul className="mt-1.5 flex flex-col gap-1 font-mono text-sm text-pale">
 				{attribution.differingPaths.map((path) => (
 					<li key={path}>{path}</li>
 				))}
@@ -293,13 +326,14 @@ function AttributionCards({
 
 	return (
 		<section
-			className="rh-comparison__attribution-group"
 			aria-labelledby={headingId}
+			className="flex max-w-6xl flex-col gap-2"
 		>
-			<h2 id={headingId} className="rh-comparison__attribution-heading">
-				Attribution · {caseId}
+			<h2 id={headingId} className="text-xs tracking-widest text-dim uppercase">
+				{"Attribution · "}
+				<span className="font-mono tracking-normal normal-case">{caseId}</span>
 			</h2>
-			<div className="rh-comparison__attribution-list">
+			<div className="flex flex-col gap-2">
 				{Object.entries(attribution).map(([pairKey, claim]) => (
 					<AttributionCard
 						key={pairKey}
@@ -325,51 +359,79 @@ export function ComparisonPage({
 	});
 
 	return (
-		<div className="rh-comparison">
-			<h1>Comparison</h1>
-
-			{query.isLoading ? <p>Loading…</p> : null}
-			{query.isError && query.error instanceof ComparisonNotFoundError ? (
-				<EmptyState heading="No comparison recorded">
-					<p>No comparison is recorded for this digest yet.</p>
-				</EmptyState>
-			) : null}
-			{query.isError && !(query.error instanceof ComparisonNotFoundError) ? (
-				<p role="alert">Could not load comparison.</p>
-			) : null}
-
-			{query.isSuccess ? (
-				<Switcher
-					label="Comparison presentation"
-					options={PRESENTATIONS}
-					selected={presentation}
-					onSelect={setPresentation}
-				/>
-			) : null}
-
-			{query.isSuccess && presentation === "Attempt pairs" ? (
-				<>
-					<TableShell
-						caption="ATTEMPT PAIRS"
-						columns={[...COLUMNS]}
-						rows={query.data.report.cases.map((benchmarkCase) =>
-							rowFor(benchmarkCase),
-						)}
-					/>
-					<AttemptHistoryLinks histories={query.data.attemptHistories ?? {}} />
-					{query.data.report.cases.map((benchmarkCase) => (
-						<AttributionCards
-							key={benchmarkCase.caseId}
-							caseId={benchmarkCase.caseId}
-							attribution={query.data.attribution[benchmarkCase.caseId] ?? {}}
+		<div>
+			<header className="flex flex-wrap items-center gap-4 border-b border-divider px-6 py-3.5">
+				<div>
+					<h1 className="text-xl font-medium tracking-tight">Comparison</h1>
+					{query.isSuccess ? (
+						<p className="mt-1 text-sm text-dim">
+							<span className="font-mono">{digest.slice(0, 12)}</span>
+							{` · ${plural(query.data.report.cases.length, "case")} · baseline, candidate and control arms`}
+						</p>
+					) : null}
+				</div>
+				{query.isSuccess ? (
+					<div className="ml-auto">
+						<Switcher
+							label="Comparison presentation"
+							options={PRESENTATIONS}
+							selected={presentation}
+							onSelect={setPresentation}
 						/>
-					))}
-				</>
-			) : null}
+					</div>
+				) : null}
+			</header>
 
-			{query.isSuccess && presentation === "What moved" ? (
-				<QualityReadingTables readings={query.data.qualityReadings} />
-			) : null}
+			<div className="flex flex-col gap-8 px-6 pt-4 pb-12">
+				{query.isLoading ? (
+					<p className="text-muted-foreground">Loading…</p>
+				) : null}
+				{query.isError && query.error instanceof ComparisonNotFoundError ? (
+					<div className="grid place-items-center py-16">
+						<EmptyState heading="No comparison recorded">
+							<p>No comparison is recorded for this digest yet.</p>
+						</EmptyState>
+					</div>
+				) : null}
+				{query.isError && !(query.error instanceof ComparisonNotFoundError) ? (
+					<p role="alert" className="text-muted-foreground">
+						<span aria-hidden="true">⚠ </span>
+						Could not load comparison.
+					</p>
+				) : null}
+
+				{query.isSuccess && presentation === "Attempt pairs" ? (
+					<>
+						<div className="max-w-6xl">
+							<TableShell
+								caption="ATTEMPT PAIRS"
+								columns={[...COLUMNS]}
+								rows={query.data.report.cases.map((benchmarkCase) =>
+									rowFor(benchmarkCase),
+								)}
+							/>
+						</div>
+						<AttemptHistoryLinks
+							histories={query.data.attemptHistories ?? {}}
+						/>
+						{query.data.report.cases.map((benchmarkCase) => (
+							<AttributionCards
+								key={benchmarkCase.caseId}
+								caseId={benchmarkCase.caseId}
+								attribution={query.data.attribution[benchmarkCase.caseId] ?? {}}
+							/>
+						))}
+					</>
+				) : null}
+
+				{query.isSuccess && presentation === "What moved" ? (
+					<QualityReadingTables readings={query.data.qualityReadings} />
+				) : null}
+			</div>
 		</div>
 	);
+}
+
+function plural(count: number, noun: string): string {
+	return count === 1 ? `1 ${noun}` : `${count} ${noun}s`;
 }

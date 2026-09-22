@@ -290,9 +290,7 @@ function expectQualityRow(
 	const verdictCell = within(row).getByRole("cell", {
 		name: expected.verdict,
 	});
-	expect(
-		verdictCell.querySelector(".rh-comparison__quality-verdict-glyph"),
-	).toHaveAttribute("data-glyph", expected.glyph);
+	expect(verdictCell).toHaveTextContent(`${expected.glyph}${expected.verdict}`);
 }
 
 describe(ComparisonPage.name, () => {
@@ -310,7 +308,9 @@ describe(ComparisonPage.name, () => {
 		renderPage();
 
 		await waitFor(() => {
-			expect(screen.getByText("case-1")).toBeInTheDocument();
+			expect(
+				screen.getByRole("rowheader", { name: "case-1" }),
+			).toBeInTheDocument();
 		});
 		expect(screen.getAllByText("A×3").length).toBeGreaterThan(0);
 		expect(screen.getAllByText("D×1").length).toBeGreaterThan(0);
@@ -321,7 +321,9 @@ describe(ComparisonPage.name, () => {
 		renderPage();
 
 		await waitFor(() => {
-			expect(screen.getByText("case-1")).toBeInTheDocument();
+			expect(
+				screen.getByRole("rowheader", { name: "case-1" }),
+			).toBeInTheDocument();
 		});
 		expect(
 			screen.getByRole("button", { name: "Attempt pairs", pressed: true }),
@@ -335,7 +337,9 @@ describe(ComparisonPage.name, () => {
 		renderPage();
 
 		await waitFor(() => {
-			expect(screen.getByText("case-1")).toBeInTheDocument();
+			expect(
+				screen.getByRole("rowheader", { name: "case-1" }),
+			).toBeInTheDocument();
 		});
 		fireEvent.click(screen.getByRole("button", { name: "What moved" }));
 
@@ -399,7 +403,9 @@ describe(ComparisonPage.name, () => {
 		renderPage();
 
 		await waitFor(() => {
-			expect(screen.getByText("case-1")).toBeInTheDocument();
+			expect(
+				screen.getByRole("rowheader", { name: "case-1" }),
+			).toBeInTheDocument();
 		});
 		const caseOne = screen.getByRole("region", {
 			name: "Attribution · case-1",
@@ -441,7 +447,9 @@ describe(ComparisonPage.name, () => {
 		renderPage();
 
 		await waitFor(() => {
-			expect(screen.getByText("case-1")).toBeInTheDocument();
+			expect(
+				screen.getByRole("rowheader", { name: "case-1" }),
+			).toBeInTheDocument();
 		});
 		const caseOne = screen.getByRole("region", {
 			name: "Attribution · case-1",
@@ -527,7 +535,9 @@ describe(ComparisonPage.name, () => {
 		);
 
 		await waitFor(() => {
-			expect(screen.getByText("case-1")).toBeInTheDocument();
+			expect(
+				screen.getByRole("rowheader", { name: "case-1" }),
+			).toBeInTheDocument();
 		});
 		expect(
 			screen.getByText(/no corpus difference between these arms/iu),

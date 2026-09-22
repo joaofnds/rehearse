@@ -1,5 +1,3 @@
-import "./switcher.css";
-
 export function Switcher<Option extends string>({
 	label,
 	options,
@@ -12,12 +10,16 @@ export function Switcher<Option extends string>({
 	readonly onSelect: (option: Option) => void;
 }): React.JSX.Element {
 	return (
-		<div className="rh-switcher" role="group" aria-label={label}>
+		<div
+			role="group"
+			aria-label={label}
+			className="inline-flex overflow-hidden rounded-md border border-strong"
+		>
 			{options.map((option) => (
 				<button
 					key={option}
 					type="button"
-					className={`rh-switcher__option ${option === selected ? "rh-switcher__option--pressed" : ""}`}
+					className="border-r border-strong px-3 py-1.5 text-sm text-secondary-foreground transition-colors last:border-r-0 hover:bg-subtle aria-pressed:bg-selected aria-pressed:text-foreground"
 					aria-pressed={option === selected}
 					onClick={() => {
 						onSelect(option);

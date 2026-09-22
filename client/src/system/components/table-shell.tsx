@@ -18,7 +18,7 @@ export function TableShell({
 	numeric = [],
 	rows,
 }: {
-	readonly caption: string;
+	readonly caption: ReactNode;
 	readonly columns: readonly string[];
 	readonly numeric?: readonly string[];
 	readonly rows: readonly (readonly ReactNode[])[];
