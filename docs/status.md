@@ -89,14 +89,14 @@ case present, but no browser check has been run over it.
   preserve it on an attempt. The shipped run path does not collect that bundle,
   and the UI does not render that richer form. A pipeline stage opens through
   the same browser projection, but only a stage that passed its grade and kept
-  a transcript can show events: a stage that stopped on its grade reports the
-  stop and its reason rather than events, and no saved checkpoint carries a
-  transcript yet, so every stage on disk today reports its evidence as
-  unavailable. Context visualizations beyond those panes are unfinished. Session transcript diagnostics report raw
-  post-cut tool occurrences, explicit errors, and exact command repetition; they
-  do not attribute phase, tokens, cost, causality, or waste. Their evidence
-  state distinguishes a complete observed zero from partial or unavailable
-  evidence.
+  a transcript can show events: a stage the run stopped on reports the stop and
+  its reason rather than events, and no saved checkpoint carries a transcript
+  yet, so every stage on disk today reports its evidence as unavailable.
+  Context visualizations beyond those panes are unfinished. Session transcript
+  diagnostics report raw post-cut tool occurrences, explicit errors, and exact
+  command repetition; they do not attribute phase, tokens, cost, causality, or
+  waste. Their evidence state distinguishes a complete observed zero from
+  partial or unavailable evidence.
 - **Progress events are not a resource timeline.** They contain no token/load
   events, and spend changes scope between stage start, worker turns, stage
   judging, stage completion, and run completion. The run list names what each
@@ -115,7 +115,7 @@ case present, but no browser check has been run over it.
 | `/comparisons/<digest>`              | Saved case/arm distributions, attribution, quality readings, and validated session-attempt links                                                                                                                                                               |
 | `/attempts/session/<case>/<uuid>`    | Saved standalone session context history, with the per-request token and cost timeline                                                                                                                                                                         |
 | `/groups/<group>/reps/<rep>/attempt` | Saved confirmation-rep context history, with the per-request token and cost timeline                                                                                                                                                                           |
-| `/runs/<run>/stages/<stage>`         | Saved pipeline-stage context history and its corpus reconciliation; no request timeline. Missing raw capture names which record state produced it; a stage that stopped on its grade wrote no checkpoint and reports the stop and its reason instead of events |
+| `/runs/<run>/stages/<stage>`         | Saved pipeline-stage context history and its corpus reconciliation; no request timeline. Missing raw capture names which record state produced it; a stage the run stopped on wrote no checkpoint and reports the stop, its reason and its declared corpus instead of events |
 | `/system`                            | Design tokens and reusable component gallery                                                                                                                                                                                                                   |
 
 Run launch, full run detail, task/case management, calibration screens,

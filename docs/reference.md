@@ -729,21 +729,24 @@ it yet; it is an API surface only.
 
 A stage report names its run, stage and lineage where an attempt report names a
 case and attempt id, because a checkpoint records no attempt id and no outcome.
+A stage the run stopped on wrote no checkpoint, so its report names the run and
+the stage without a lineage, and names why the stage stopped instead.
 A stage session resumes no earlier session, so its whole transcript is its own
 region and Starting context is empty. A stage has no per-request token and cost
 timeline: those readings come from a session attempt record, which a checkpoint
 is not.
 
-`/api/runs/<run>/stages/<stage>/history/corpus` reconciles the checkpoint's
-declared corpus files against the reads its transcript shows, keyed on the
-corpus layout path. Each entry reads observed with its locator, no observation
+`/api/runs/<run>/stages/<stage>/history/corpus` reconciles the declared corpus
+files the stage recorded, in its checkpoint or in its stop record, against the
+reads its transcript shows, keyed on the corpus layout path. Each entry reads observed with its locator, no observation
 recorded, or undeclared for an observed corpus read the declaration omits.
 Hashing a file does not establish when its contents entered context, so no
 entry reads as loaded on the strength of its hash, and no observation recorded
 is not a claim of absence. A stage whose report is evidence-unavailable has no
 reads to reconcile against, so every declared file reads no observation
-recorded. No checkpoint written so far carries a transcript, so that is what
-the reconciliation shows for every stage currently on disk.
+recorded. No checkpoint written so far carries a transcript, and a stopped
+stage records none at all, so that is what the reconciliation shows for every
+stage currently on disk.
 
 Missing raw evidence names the fact that produced it rather than one wording
 for all of them. A checkpoint recording transcript status UNAVAILABLE reads as
@@ -762,9 +765,9 @@ One cause reports without a checkpoint. A stage that stopped on its grade wrote
 none, since the grade assertion precedes the checkpoint write. It does leave a
 `<run>.<stage>.json` stop record, and `show run:<name>` prints that record's
 reason. The report reads that record when the checkpoint directory is absent and
-names the run, the stage and why the stage stopped, with its evidence
-unavailable. It shows no lineage, because the record carries none: a lineage is a
-hash of the inputs rather than a stored field, one of which no stop record holds,
+names the case, the run, the stage, the model, why the stage stopped and the
+corpus files the stage declared, with its evidence unavailable. It shows no lineage, because the record carries none: a lineage is a
+hash of the inputs rather than a stored field, two of which no stop record holds,
 so any lineage shown would be minted here and indistinguishable from a recorded
 one. A stage with neither a checkpoint nor a stop record still answers 404, which
 is what separates a stage that stopped from a page that failed. The run history

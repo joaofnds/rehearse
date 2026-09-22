@@ -304,7 +304,9 @@ See [current state](docs/status.md) for implementation coverage and
   record carries, not which hand typed it. `rehearse review` writes it from
   flags or from a file, and calibration reads it.
 - **Interrupted run** — a run whose process ended (a `kill -9` or a crash)
-  without writing a terminal artifact or stop record. It has no status of its
+  without writing a terminal artifact or stop record. A signal the handler
+  catches is not one: it stops the pending stage and writes that stage's stop
+  record on the way out. It has no status of its
   own on disk; the server's startup reconciliation pass finds it by checking
   whether the pid the run's claimed target recorded is still alive, and if
   not, marks the run's event stream `run-interrupted`, distinct from `FAILED`,
@@ -545,14 +547,15 @@ See [current state](docs/status.md) for implementation coverage and
   remains a proxy for the quality of the complete workflow.
 - **Stop record** — the `<run>.<stage>.json` a stopping stage writes in place
   of its scorecard, carrying the stopping status, the stage name, the reason
-  the run ended there, and the input the Judge was given. It is the only record
-  a stopped stage leaves, since the grade assertion precedes the checkpoint
-  write.
-- **Stopped stage** — the stage a run ended on, because its grade did not meet
-  the pipeline's minimum or its judging failed. It writes no checkpoint, so it
-  has no lineage placing it among the run's other stages; its stop record names
-  it by run and stage instead. The run list shows the run as
-  `STOPPED:<stage>`.
+  the run ended there, the input the Judge was given, and the model, effort and
+  declared corpus files the stage ran with. The run's manifest still supplies
+  the case; only the checkpoint the stage never wrote is missing.
+- **Stopped stage** — the stage a run ended on, whether its grade did not meet
+  the pipeline's minimum, its judging failed, or a signal stopped the run
+  mid-stage. Only the reason its stop record carries says which of those it
+  was. It writes no checkpoint, so it has no lineage placing it among the run's
+  other stages; its stop record names it by run and stage instead. The run list
+  shows the run as `STOPPED:<stage>`.
 - **Target repository (template project)** — the real application repository,
   kept at a stable baseline, that tasks run against.
 - **Target check** — one command declared by the pipeline and run against the
