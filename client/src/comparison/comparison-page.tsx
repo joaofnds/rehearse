@@ -8,6 +8,7 @@ import { Switcher } from "#client/system/components/switcher";
 import { TableShell } from "#client/system/components/table-shell";
 import { armPairLabel, armPairNames } from "#server/comparison-arm-pair";
 import type { ComparisonAttribution } from "#server/comparison-attribution";
+import { plural } from "#client/plural";
 
 const PRESENTATIONS = ["Attempt pairs", "What moved"] as const;
 type Presentation = (typeof PRESENTATIONS)[number];
@@ -430,8 +431,4 @@ export function ComparisonPage({
 			</div>
 		</div>
 	);
-}
-
-function plural(count: number, noun: string): string {
-	return count === 1 ? `1 ${noun}` : `${count} ${noun}s`;
 }

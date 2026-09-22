@@ -12,6 +12,7 @@ import { elapsedReading, liveElapsedMs, spendReading } from "./run-progress";
 import type { RunHistoryResponse } from "./run-history-query";
 import { runHistoryQuery } from "./run-history-query";
 import { runStatusState } from "./run-status";
+import { plural } from "#client/plural";
 
 type RunHistoryRow = RunHistoryResponse["rows"][number];
 type UnreadableRun = RunHistoryResponse["unreadable"][number];
@@ -323,8 +324,4 @@ export function RunHistoryPage(): React.JSX.Element {
 			</div>
 		</div>
 	);
-}
-
-function plural(count: number, noun: string): string {
-	return count === 1 ? `1 ${noun}` : `${count} ${noun}s`;
 }

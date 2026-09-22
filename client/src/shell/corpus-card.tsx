@@ -1,15 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import type { CorpusResponse } from "#client/corpus/corpus-query";
 import { corpusQuery } from "#client/corpus/corpus-query";
+import { plural } from "#client/plural";
 
 function latestEdit(files: CorpusResponse["files"]): string | undefined {
 	const times = files.map((file) => file.lastEditedAt).toSorted();
 
 	return times.at(-1);
-}
-
-function plural(count: number, noun: string): string {
-	return count === 1 ? `1 ${noun}` : `${count} ${noun}s`;
 }
 
 /**

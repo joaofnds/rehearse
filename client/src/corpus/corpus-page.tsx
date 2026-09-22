@@ -5,6 +5,7 @@ import { TableShell } from "#client/system/components/table-shell";
 import { Button } from "#client/system/ui/button";
 import type { CorpusResponse } from "./corpus-query";
 import { corpusQuery } from "./corpus-query";
+import { plural } from "#client/plural";
 
 type CorpusFile = CorpusResponse["files"][number];
 
@@ -25,10 +26,6 @@ function rowFor(file: CorpusFile): readonly React.ReactNode[] {
 			{file.readBy}
 		</span>,
 	];
-}
-
-function plural(count: number, noun: string): string {
-	return count === 1 ? `1 ${noun}` : `${count} ${noun}s`;
 }
 
 export function CorpusPage(): React.JSX.Element {
