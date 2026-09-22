@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import "./empty-state.css";
 
 export function EmptyState({
 	heading,
@@ -9,9 +8,11 @@ export function EmptyState({
 	readonly children: ReactNode;
 }): React.JSX.Element {
 	return (
-		<div className="rh-empty-state">
-			<h2>{heading}</h2>
-			{children}
+		<div className="max-w-sm">
+			<h2 className="text-lg font-medium">{heading}</h2>
+			<div className="mt-2 flex flex-col items-start gap-4 text-base text-muted-foreground">
+				{children}
+			</div>
 		</div>
 	);
 }

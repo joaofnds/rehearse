@@ -67,23 +67,9 @@ hover surface shadcn expects while `--color-accent` is the brand purple, and
 Write `bg-primary` for the brand, and read `theme.css` before trusting a Tailwind
 name to match the token it echoes.
 
-`theme.css` maps colors, fonts, radii, and the spacing tokens the migrated screens
-use. Type utilities still come from Tailwind's own scales, so editing
-`--font-size-13` moves the hand-written stylesheets and leaves every `text-*` where
-it was.
-
-Spacing is the exception, because Tailwind's own scale cannot reach the project's
-tokens. Its steps are multiples of `--spacing`, `0.25rem`, and `globals.css` sets
-`font-size` on `html` to 13px, so a step is 3.25px and no `--space-*` value lands on
-one. Each token a migrated screen needs is therefore aliased in `theme.css` as
-`--spacing-<n>px`, which generates `p-<n>px` and its siblings against
-`var(--space-<n>)`. Editing `--space-12` moves both the hand-written stylesheets and
-`p-12px`. Add the alias for a token when the screen that needs it migrates.
-
-Write the `px` suffix. Both scales are live, so `p-12` is a class Tailwind does know,
-and the linter reports nothing while the screen renders 39px instead of 12px. The
-suffix is the only thing separating the two, and it is the one typo no check here
-catches.
+`theme.css` maps colors, fonts, and radii. Spacing and type utilities still come
+from Tailwind's own scales, so editing `--space-12` or `--font-size-13` moves the
+hand-written stylesheets and leaves every `p-*` and `text-*` where it was.
 
 Add a primitive with `bunx --bun shadcn@4.21.0 add <name>`, and read the generated
 file before you commit it. Give its props a named type and add that name to the

@@ -44,8 +44,18 @@
 	--radius-lg: var(--radius-section);
 	--radius-xl: var(--radius-dialog);
 
-	/* Dropping a px suffix reaches Tailwind's own step: p-12 is 39px, not 12px. */
-	--spacing-12px: var(--space-12);
-	--spacing-14px: var(--space-14);
-	--spacing-20px: var(--space-20);
+	--color-dim: var(--color-text-dim);
+	--color-faint: var(--color-text-faint);
+	--color-bright: var(--color-text-bright);
+	--color-pale: var(--color-accent-pale);
+	--color-deep: var(--color-accent-deep);
+	--color-deeper: var(--color-accent-deep-2);
+	--color-selected: var(--color-accent-tint-16);
+	--color-row-hover: var(--color-row-hover);
+	--color-divider: var(--color-border);
+	--color-subtle: var(--color-border-subtle);
+	--color-strong: var(--color-border-strong);
+	--color-underline: var(--color-accent-border);
+	--color-diff-add: var(--color-diff-add);
+	--color-diff-remove: var(--color-diff-remove);
 }
