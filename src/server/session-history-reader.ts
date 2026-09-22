@@ -9,6 +9,7 @@ import {
 	parseConfirmationRepRecord,
 } from "#benchmark/confirmation-record";
 import { parseRunManifest } from "#benchmark/manifest";
+import type { RunManifest } from "#benchmark/manifest";
 import { checkpointsEntryForRun } from "#benchmark/run-layout";
 import { pathIsWithin } from "#benchmark/path-containment";
 import { replayRecordSchema } from "#benchmark/replay";
@@ -483,6 +484,30 @@ async function confirmationInput(
 }
 
 /**
+ * The manifest holding a run's case sits inside its checkpoints directory, and
+ * it is the only place either a stage or a replay can learn which case it ran.
+ */
+async function runManifest(
+	root: string,
+	checkpointsDirectory: string,
+): Promise<RunManifest> {
+	const manifestFile = await verifiedFile(
+		root,
+		checkpointsDirectory,
+		"manifest.json",
+		true,
+	);
+	if (manifestFile === undefined) {
+		throw new SessionHistoryReaderError(
+			"not-found",
+			"Saved run manifest is unavailable",
+		);
+	}
+
+	return parseRunManifest(await readVerifiedFile(root, manifestFile));
+}
+
+/**
  * A checkpoint records no case id and no run name, so the case is read from
  * the run's own manifest, which sits inside the checkpoints directory. That
  * only confirms the directory agrees with itself; the ownership check a stage
@@ -521,19 +546,7 @@ async function stageInput(
 			"Saved checkpoint does not own this stage identity",
 		);
 	}
-	const manifestFile = await verifiedFile(
-		root,
-		checkpointsDirectory,
-		"manifest.json",
-		true,
-	);
-	if (manifestFile === undefined) {
-		throw new SessionHistoryReaderError(
-			"not-found",
-			"Saved run manifest is unavailable",
-		);
-	}
-	const manifest = parseRunManifest(await readVerifiedFile(root, manifestFile));
+	const manifest = await runManifest(root, checkpointsDirectory);
 	const transcriptFile =
 		checkpoint.transcript?.status === "AVAILABLE"
 			? await verifiedFile(root, directory, checkpoint.transcript.file, false)
@@ -588,33 +601,6 @@ function stageUnavailableReason(
 }
 
 /**
- * A replay record names no case, so the case comes from the manifest of the run
- * it replayed, which is the same record the stage resolver reads it from.
- */
-async function replayManifestFile(
-	root: string,
-	runName: string,
-): Promise<string> {
-	const checkpointsDirectory = await verifiedDirectory(root, [
-		checkpointsEntryForRun(parseIdentity(runName)),
-	]);
-	const manifestFile = await verifiedFile(
-		root,
-		checkpointsDirectory,
-		"manifest.json",
-		true,
-	);
-	if (manifestFile === undefined) {
-		throw new SessionHistoryReaderError(
-			"not-found",
-			"Saved run manifest is unavailable",
-		);
-	}
-
-	return manifestFile;
-}
-
-/**
  * A replay is filed under the lineage it consumed rather than under a run, so
  * the directory name is the caller's and the consumed lineage is what confirms
  * it. The record's own lineage is the one the replay produced and names no
@@ -651,11 +637,11 @@ async function replayInput(
 			"Saved replay does not own this lineage identity",
 		);
 	}
-	const manifest = parseRunManifest(
-		await readVerifiedFile(
-			root,
-			await replayManifestFile(root, record.runName),
-		),
+	const manifest = await runManifest(
+		root,
+		await verifiedDirectory(root, [
+			checkpointsEntryForRun(parseIdentity(record.runName)),
+		]),
 	);
 
 	return {
