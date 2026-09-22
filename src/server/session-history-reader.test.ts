@@ -1344,7 +1344,15 @@ describe(readStageHistory.name, () => {
 					? { ...fixture, run: segment }
 					: { ...fixture, stage: segment },
 			),
-		).rejects.toBeInstanceOf(SessionHistoryReaderError);
+		).rejects.toMatchObject({ kind: "refused" });
+	});
+
+	it("refuses a traversing stage segment on a run that also stopped", async () => {
+		const fixture = await writtenStoppedRun();
+
+		expect(
+			readStageHistory({ ...fixture, stage: "../build" }),
+		).rejects.toMatchObject({ kind: "refused" });
 	});
 
 	it("refuses a symlinked stage transcript", async () => {
@@ -1410,7 +1418,7 @@ describe(readStageHistory.name, () => {
 		).toEqual(before);
 	});
 
-	it("names a stage that stopped on its grade rather than reporting it absent", async () => {
+	it("names a stage the run stopped on rather than reporting it absent", async () => {
 		const fixture = await writtenStoppedRun();
 
 		const report = await readStageHistory(fixture);
@@ -1426,7 +1434,7 @@ describe(readStageHistory.name, () => {
 		});
 		expect(report.evidence).toEqual({
 			state: "unavailable",
-			reasons: ["this stage stopped on its grade and recorded no transcript"],
+			reasons: ["this stage stopped before recording a transcript"],
 		});
 	});
 
@@ -1502,6 +1510,47 @@ describe(readStageHistory.name, () => {
 		expect(stageCorpusReconciliation(report)).toEqual([
 			{ path: "CLAUDE.md", state: "no-observation-recorded" },
 		]);
+	});
+
+	it("names the stop without asserting a grade, for a stage a signal stopped", async () => {
+		const fixture = await writtenStoppedRun();
+		const paths = benchmarkRunPaths(fixture.runsDirectory, fixture.run);
+		await Bun.write(
+			paths.stageFile("build"),
+			JSON.stringify({
+				status: "STAGE_JUDGE_FAILED",
+				stage: "build",
+				error: "run interrupted by SIGINT",
+			}),
+		);
+
+		const report = await readStageHistory(fixture);
+
+		expect(report.evidence).toEqual({
+			state: "unavailable",
+			reasons: ["this stage stopped before recording a transcript"],
+		});
+		expect(report.attempt).toMatchObject({
+			error: "run interrupted by SIGINT",
+		});
+	});
+
+	it("reports the model the stopped stage recorded rather than the run's", async () => {
+		const fixture = await writtenStoppedRun();
+		const paths = benchmarkRunPaths(fixture.runsDirectory, fixture.run);
+		await Bun.write(
+			paths.stageFile("build"),
+			JSON.stringify({
+				status: "STAGE_JUDGE_FAILED",
+				stage: "build",
+				error: "build stage graded C; minimum grade is B",
+				model: "opus",
+			}),
+		);
+
+		const report = await readStageHistory(fixture);
+
+		expect(report.attempt).toMatchObject({ model: "opus" });
 	});
 
 	it("keeps an absolute host path out of a stopped stage's reason", async () => {

@@ -63,9 +63,7 @@ function identityEntries(
 			{ term: "Case", value: attempt.caseId },
 			{ term: "Run", value: attempt.run },
 			{ term: "Stage", value: attempt.stage },
-			...(attempt.model === undefined
-				? []
-				: [{ term: "Model", value: attempt.model }]),
+			{ term: "Model", value: attempt.model },
 			{ term: "Stopped because", value: attempt.error },
 		];
 	}

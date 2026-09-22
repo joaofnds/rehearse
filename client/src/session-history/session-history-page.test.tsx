@@ -907,6 +907,10 @@ describe(SessionHistoryPage.name, () => {
 		stubFetchByPath(
 			new Map<string, unknown>([
 				[
+					"/api/runs/run-1/stages/build/history/corpus",
+					[{ path: "CLAUDE.md", state: "no-observation-recorded" }],
+				],
+				[
 					"/api/runs/run-1/stages/build/history",
 					{
 						schemaVersion: 1,
@@ -917,13 +921,11 @@ describe(SessionHistoryPage.name, () => {
 							stage: "build",
 							error: "build stage graded C; minimum grade is B",
 							model: "sonnet",
-							corpusFiles: [],
+							corpusFiles: [{ path: "CLAUDE.md", sha256: "a".repeat(64) }],
 						},
 						evidence: {
 							state: "unavailable",
-							reasons: [
-								"this stage stopped on its grade and recorded no transcript",
-							],
+							reasons: ["this stage stopped before recording a transcript"],
 						},
 						boundary: "known",
 						startingContext: [],
@@ -955,6 +957,16 @@ describe(SessionHistoryPage.name, () => {
 		expect(
 			screen.queryByText("Could not load saved history."),
 		).not.toBeInTheDocument();
+
+		const corpus = await screen.findByRole("region", {
+			name: "Declared corpus",
+		});
+
+		expect(
+			within(corpus)
+				.getAllByRole("listitem")
+				.map((item) => item.textContent),
+		).toEqual(["CLAUDE.md No observation recorded"]);
 	});
 
 	it("reports a stage whose page genuinely failed to load as a failure", async () => {

@@ -659,7 +659,7 @@ async function stoppedStageInput(
 				run: identity.run,
 				stage: record.data.stage,
 				error: redactAbsolutePaths(record.data.error),
-				model: manifest.model,
+				model: record.data.model ?? manifest.model,
 				corpusFiles: record.data.corpusFiles ?? [],
 			},
 			resolvedCorpusFiles: [],

@@ -123,11 +123,12 @@ export interface StageHistoryIdentity {
 }
 
 /**
- * One pipeline stage that stopped the run on its grade. It writes no
- * checkpoint, so nothing records a lineage for it and the run and stage name
- * it alone. The error is the reason the harness recorded for stopping, carried
- * as its own field rather than folded into the evidence reason, which every
- * other cause states in a sentence this project authored.
+ * One pipeline stage the run ended on, whether its grade fell short, its
+ * judging failed, or a signal stopped it. It writes no checkpoint, so nothing
+ * records a lineage for it and the run and stage name it alone. Only the
+ * error the harness recorded says which cause it was, so it is carried as its
+ * own field rather than folded into the evidence reason, which every other
+ * cause states in a sentence this project authored.
  */
 export interface StoppedStageHistoryIdentity {
 	readonly kind: "stopped-stage";
@@ -135,7 +136,7 @@ export interface StoppedStageHistoryIdentity {
 	readonly run: string;
 	readonly stage: string;
 	readonly error: string;
-	readonly model?: string | undefined;
+	readonly model: string;
 	readonly corpusFiles: readonly {
 		readonly path: string;
 		readonly sha256: string;
@@ -163,9 +164,10 @@ export interface CorpusFileLocation {
  * about the record, so an operator reading "unavailable" learns which one
  * rather than being left to assume the provider failed.
  *
- * A stage that stopped on its grade is one of them. It writes no checkpoint and
- * no transcript, and the stop record it leaves instead carries the reason on
- * the identity rather than here.
+ * A stage the run stopped on is one of them. It writes no checkpoint and no
+ * transcript, and the stop record it leaves instead carries the reason on the
+ * identity rather than here, since a grade and a signal both write this record
+ * and only that text tells them apart.
  */
 export type HistoryUnavailableReason =
 	| "provider-wrote-none"
@@ -441,8 +443,8 @@ function corpusLayoutPathUnder(
 /**
  * The corpus name for a read, from the evidence the record holds. A session
  * attempt resolved its corpus to real paths before it ran and gets an exact
- * match; a stage checkpoint holds hashes and no paths, so only there does the
- * layout rule apply.
+ * match; a stage holds hashes and no paths, whether it checkpointed or stopped,
+ * so only there does the layout rule apply.
  *
  * The discriminant is the record kind, not whether the resolved list happens to
  * be empty. A session case may legitimately declare no corpus files, and its
@@ -458,7 +460,7 @@ function declaredCorpusPath(
 		return undefined;
 	}
 
-	if (kind === "stage") {
+	if (kind === "stage" || kind === "stopped-stage") {
 		return corpusLayoutPathUnder(normalizedObserved, normalizedCwd);
 	}
 
@@ -1226,7 +1228,7 @@ const UNAVAILABLE_REASON_TEXT = {
 		"the checkpoint records a transcript whose file is no longer beside it",
 	"replay-retains-none":
 		"a replay retains no raw transcript for its stage session",
-	"stage-stopped": "this stage stopped on its grade and recorded no transcript",
+	"stage-stopped": "this stage stopped before recording a transcript",
 } satisfies Record<HistoryUnavailableReason, string>;
 
 function missingTranscriptReport(
@@ -1324,7 +1326,10 @@ export interface StageCorpusEntry {
 export function stageCorpusReconciliation(
 	report: Immutable<SessionHistoryReport>,
 ): readonly StageCorpusEntry[] {
-	if (report.attempt.kind === "session") {
+	if (
+		report.attempt.kind !== "stage" &&
+		report.attempt.kind !== "stopped-stage"
+	) {
 		return [];
 	}
 

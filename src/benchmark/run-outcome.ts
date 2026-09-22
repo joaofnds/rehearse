@@ -9,6 +9,7 @@ export const stoppedStageRecordSchema = z
 		corpusFiles: z
 			.array(z.object({ path: z.string().min(1), sha256: z.string().min(1) }))
 			.optional(),
+		model: z.string().min(1).optional(),
 	})
 	.loose();
 
