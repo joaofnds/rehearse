@@ -419,6 +419,7 @@
 
 .rh-timeline__bar {
 	display: block;
+	inline-size: var(--rh-bar-width, auto);
 	min-inline-size: var(--border-width-evidence);
 	block-size: var(--space-4);
 	background: var(--color-accent);

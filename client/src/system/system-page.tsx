@@ -42,7 +42,7 @@ export function SystemPage(): React.JSX.Element {
 						<li key={token} className="rh-system-page__swatch">
 							<span
 								className="rh-system-page__swatch-color"
-								style={{ background: `var(${token})` }}
+								style={{ "--rh-preview-color": `var(${token})` }}
 							/>
 							<code>{token}</code>
 						</li>
@@ -54,7 +54,11 @@ export function SystemPage(): React.JSX.Element {
 				<SectionLabel>TYPE SCALE</SectionLabel>
 				<ul className="rh-system-page__type-scale">
 					{FONT_SIZE_TOKENS.map((token) => (
-						<li key={token} style={{ fontSize: `var(${token})` }}>
+						<li
+							key={token}
+							className="rh-system-page__type-sample"
+							style={{ "--rh-preview-font-size": `var(${token})` }}
+						>
 							{token} — the quick brown fox
 						</li>
 					))}
@@ -68,7 +72,7 @@ export function SystemPage(): React.JSX.Element {
 						<li key={token}>
 							<span
 								className="rh-system-page__space-block"
-								style={{ width: `var(${token})`, height: `var(${token})` }}
+								style={{ "--rh-preview-size": `var(${token})` }}
 							/>
 							<code>{token}</code>
 						</li>
@@ -83,7 +87,7 @@ export function SystemPage(): React.JSX.Element {
 						<li key={token}>
 							<span
 								className="rh-system-page__radius-block"
-								style={{ borderRadius: `var(${token})` }}
+								style={{ "--rh-preview-radius": `var(${token})` }}
 							/>
 							<code>{token}</code>
 						</li>
@@ -95,7 +99,11 @@ export function SystemPage(): React.JSX.Element {
 				<SectionLabel>LETTER SPACING</SectionLabel>
 				<ul className="rh-system-page__type-scale">
 					{LETTER_SPACING_TOKENS.map((token) => (
-						<li key={token} style={{ letterSpacing: `var(${token})` }}>
+						<li
+							key={token}
+							className="rh-system-page__tracking-sample"
+							style={{ "--rh-preview-tracking": `var(${token})` }}
+						>
 							{token} — the quick brown fox
 						</li>
 					))}
@@ -106,34 +114,15 @@ export function SystemPage(): React.JSX.Element {
 				<SectionLabel>BORDER</SectionLabel>
 				<ul className="rh-system-page__border-list">
 					<li>
-						<span
-							className="rh-system-page__border-swatch"
-							style={{
-								border:
-									"var(--border-width-hairline) solid var(--color-border-2)",
-							}}
-						/>
+						<span className="rh-system-page__border-swatch rh-system-page__border-swatch--hairline" />
 						<code>--border-width-hairline</code>
 					</li>
 					<li>
-						<span
-							className="rh-system-page__border-swatch"
-							style={{
-								borderLeft:
-									"var(--border-width-evidence) solid var(--color-accent-deep-2)",
-							}}
-						/>
+						<span className="rh-system-page__border-swatch rh-system-page__border-swatch--evidence" />
 						<code>--border-width-evidence</code>
 					</li>
 					<li>
-						<span
-							className="rh-system-page__border-swatch"
-							style={{
-								border:
-									"var(--border-width-hairline) var(--border-style-planned) var(--color-accent-deep-2)",
-								opacity: "var(--opacity-planned)",
-							}}
-						/>
+						<span className="rh-system-page__border-swatch rh-system-page__border-swatch--planned" />
 						<code>--border-style-planned / --opacity-planned</code>
 					</li>
 				</ul>
@@ -141,10 +130,7 @@ export function SystemPage(): React.JSX.Element {
 
 			<section>
 				<SectionLabel>SHADOW</SectionLabel>
-				<span
-					className="rh-system-page__shadow-swatch"
-					style={{ boxShadow: "var(--shadow-dialog)" }}
-				/>
+				<span className="rh-system-page__shadow-swatch" />
 				<code>--shadow-dialog</code>
 			</section>
 

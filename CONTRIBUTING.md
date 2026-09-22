@@ -72,18 +72,18 @@ from Tailwind's own scales, so editing `--space-12` or `--font-size-13` moves th
 hand-written stylesheets and leaves every `p-*` and `text-*` where it was.
 
 Add a primitive with `bunx --bun shadcn@4.21.0 add <name>`, and read the generated
-file before you commit it. `client/src/system/ui/**` is exempt from
-`typescript/prefer-readonly-parameter-types`, because those components spread React's
-DOM prop types and those types are not deeply readonly. Every other lint rule applies
-there.
+file before you commit it. Give its props a named type and add that name to the
+`typescript/prefer-readonly-parameter-types` allow list, because React's DOM prop
+types are not deeply readonly and that rule matches exact names.
 
 The `rh-*` allowance on `shadcn/no-unknown-classes` is a plain prefix match, so a
 misspelled `rh-` class passes unreported. Remove the allowance once
 `grep -rn "rh-" client/src --include="*.tsx"` comes back empty.
 
-`shadcn/no-inline-styles` is off because the token showcase and the request
-timeline compute style values at runtime, and React's types reject the CSS custom
-property that would replace them unless you cast.
+Put a style value the component computes into a CSS custom property that the
+stylesheet reads, and keep a raw color out of it. Deleting
+`client/src/react-css.d.ts` breaks every one of those, since it is what makes the
+property names typecheck.
 
 Regenerating a primitive brings back the arbitrary values the linter rejects. The
 button's focus ring arrives as `ring-[3px]` and is written `ring-3` here. Re-apply

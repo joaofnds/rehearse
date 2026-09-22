@@ -259,7 +259,7 @@ export function RequestTimeline({
 						</span>
 						<span
 							className="rh-timeline__bar"
-							style={{ inlineSize: barWidth(entry, widest) }}
+							style={{ "--rh-bar-width": barWidth(entry, widest) }}
 						/>
 						<strong>
 							{entry.usageState === "complete"

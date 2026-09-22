@@ -43,7 +43,7 @@
 		"shadcn/no-raw-colors": "error",
 		"shadcn/no-arbitrary-values": "error",
 		"shadcn/require-static-classes": "error",
-		"shadcn/no-inline-styles": "off",
+		"shadcn/no-inline-styles": "error",
 		"shadcn/no-unknown-classes": [
 			"error",
 			{
@@ -90,7 +90,8 @@
 					"ReactNode",
 					"RouterHistory",
 					"Request",
-					"URL"
+					"URL",
+					"ButtonProps"
 				]
 			}
 		],
@@ -120,7 +121,10 @@
 		"typescript/no-empty-interface": ["error", { "allowSingleExtends": true }],
 		"typescript/no-empty-object-type": [
 			"error",
-			{ "allowWithName": "^Matchers$" }
+			{
+				"allowWithName": "^Matchers$",
+				"allowInterfaces": "with-single-extends"
+			}
 		],
 		"import/max-dependencies": "off",
 		"node/no-top-level-await": "off",
@@ -143,12 +147,6 @@
 			"files": ["client/vite.config.ts"],
 			"rules": {
 				"import/no-default-export": "off"
-			}
-		},
-		{
-			"files": ["client/src/system/ui/**"],
-			"rules": {
-				"typescript/prefer-readonly-parameter-types": "off"
 			}
 		}
 	]
