@@ -199,7 +199,7 @@ const NO_REPLY_DETAIL =
 
 /**
  * Which evidence a check needs decides whether the saved attempt can answer
- * it at all. Every kind is named rather than defaulted, so a fifth kind stops
+ * it at all. Every kind is named rather than defaulted, so a sixth kind stops
  * the compiler here instead of being read as needing no transcript and graded
  * over evidence the attempt may not hold.
  */
@@ -210,7 +210,8 @@ function evidenceNeededBy(check: Immutable<Check>): keyof ReadEvidence["held"] {
 			return "transcript";
 		}
 		case "word-band":
-		case "forbidden-text": {
+		case "forbidden-text":
+		case "forbidden-pattern": {
 			return "reply";
 		}
 		default: {

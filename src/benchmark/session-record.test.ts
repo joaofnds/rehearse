@@ -352,16 +352,19 @@ describe("sessionAttemptRecordSchema", () => {
 		expect(parsed.success).toBe(false);
 	});
 
-	it.each(["word-band", "forbidden-text", "tool-calls", "files-read"])(
-		"accepts a result of the %s kind",
-		(kind) => {
-			expect(
-				sessionAttemptRecordSchema.safeParse(
-					record({ checks: [{ kind, status: "PASS", detail: "ok" }] }),
-				).success,
-			).toBe(true);
-		},
-	);
+	it.each([
+		"word-band",
+		"forbidden-text",
+		"forbidden-pattern",
+		"tool-calls",
+		"files-read",
+	])("accepts a result of the %s kind", (kind) => {
+		expect(
+			sessionAttemptRecordSchema.safeParse(
+				record({ checks: [{ kind, status: "PASS", detail: "ok" }] }),
+			).success,
+		).toBe(true);
+	});
 
 	it("refuses a successful attempt whose check failed", () => {
 		const parsed = sessionAttemptRecordSchema.safeParse(

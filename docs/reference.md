@@ -176,17 +176,18 @@ is refused by name with the failing command's stderr, and the CLI exits 3. A
 `dot-git` that is a file rather than a directory is refused too. See
 `cases/history-probe` for a worked example.
 
-| Check            | Behavior                                                    |
-| ---------------- | ----------------------------------------------------------- |
-| `word-band`      | Count reply words against optional `min` and `max`          |
-| `forbidden-text` | Fail for declared strings present in the reply              |
-| `tool-calls`     | Check transcript tool-call count and optional allowed names |
-| `files-read`     | Require declared paths in transcript `Read` calls           |
+| Check               | Behavior                                                                                                                                                                                                                                  |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `word-band`         | Count reply words against optional `min` and `max`                                                                                                                                                                                        |
+| `forbidden-text`    | Fail for declared strings present in the reply                                                                                                                                                                                            |
+| `forbidden-pattern` | Fail when the reply matches any of `patterns`, each a `name`, an ECMAScript `regex`, and optional `flags`; a pattern the engine refuses to compile refuses the case, and the failure names each matching pattern with the text it matched |
+| `tool-calls`        | Check transcript tool-call count and optional allowed names                                                                                                                                                                               |
+| `files-read`        | Require declared paths in transcript `Read` calls                                                                                                                                                                                         |
 
 Checks measure only what the declaration asks. A passing tool-call ceiling does
 not establish implementation correctness. A session that returns no reply at a
-turn or budget limit records `NO_REPLY` without evaluating checks, since those
-four kinds read a reply that does not exist. Confirmation counts that rep as
+turn or budget limit records `NO_REPLY` without evaluating checks, since the
+reply checks would read a reply that does not exist. Confirmation counts that rep as
 unsuccessful; it also records execution failures and missing metrics
 explicitly.
 

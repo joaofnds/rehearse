@@ -7,6 +7,10 @@ import {
 	filesReadCheckSchema,
 } from "./session-check-files-read";
 import {
+	evaluateForbiddenPattern,
+	forbiddenPatternCheckSchema,
+} from "./session-check-forbidden-pattern";
+import {
 	evaluateForbiddenText,
 	forbiddenTextCheckSchema,
 } from "./session-check-forbidden-text";
@@ -26,6 +30,7 @@ export { checkResultSchema } from "./session-check-result";
 export const checkSchema = z.union([
 	wordBandCheckSchema,
 	forbiddenTextCheckSchema,
+	forbiddenPatternCheckSchema,
 	toolCallsCheckSchema,
 	filesReadCheckSchema,
 ]);
@@ -47,6 +52,9 @@ function evaluateCheck(
 		}
 		case "forbidden-text": {
 			return evaluateForbiddenText(check, evidence.reply);
+		}
+		case "forbidden-pattern": {
+			return evaluateForbiddenPattern(check, evidence.reply);
 		}
 		case "tool-calls": {
 			return evaluateToolCalls(check, evidence.toolUses);

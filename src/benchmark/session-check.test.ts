@@ -2,6 +2,10 @@ import { describe, expect, it } from "bun:test";
 import type { Check, CheckEvidence } from "#benchmark/session-check";
 import { evaluateChecks } from "#benchmark/session-check";
 import { evaluateFilesRead } from "#benchmark/session-check-files-read";
+import {
+	evaluateForbiddenPattern,
+	forbiddenPatternCheckSchema,
+} from "#benchmark/session-check-forbidden-pattern";
 import { evaluateForbiddenText } from "#benchmark/session-check-forbidden-text";
 import { evaluateToolCalls } from "#benchmark/session-check-tool-calls";
 import { evaluateWordBand } from "#benchmark/session-check-word-band";
@@ -65,6 +69,92 @@ describe(evaluateForbiddenText.name, () => {
 
 		expect(result.status).toBe("FAIL");
 		expect(result.detail).toBe('reply contains "—", "`"');
+	});
+});
+
+describe(evaluateForbiddenPattern.name, () => {
+	const check = {
+		kind: "forbidden-pattern",
+		patterns: [
+			{
+				name: "count opener",
+				regex: "\\b(two|three|four|a few|one) things?\\b",
+				flags: "i",
+			},
+			{
+				name: "closing offer",
+				regex: "\\b(want me to|let me know|should i)\\b",
+				flags: "i",
+			},
+			{
+				name: "label line",
+				regex: "^[A-Z][a-z]+( [a-z]+){0,2}[:.]$",
+				flags: "m",
+			},
+		],
+	} as const;
+
+	it("passes a reply that matches none of the declared patterns", () => {
+		expect(evaluateForbiddenPattern(check, "The fix is committed.")).toEqual({
+			kind: "forbidden-pattern",
+			status: "PASS",
+			detail: "none of 3 forbidden patterns match",
+		});
+	});
+
+	it("fails naming the pattern that matches and the text it matched", () => {
+		expect(evaluateForbiddenPattern(check, "Two things wait on you.")).toEqual({
+			kind: "forbidden-pattern",
+			status: "FAIL",
+			detail: 'reply matches count opener ("Two things")',
+		});
+	});
+
+	it("names every matching pattern in declaration order", () => {
+		const result = evaluateForbiddenPattern(
+			check,
+			"Two things wait on you.\n\nThe email is drafted. Want me to send it?",
+		);
+
+		expect(result.detail).toBe(
+			'reply matches count opener ("Two things"), closing offer ("Want me to")',
+		);
+	});
+
+	it("applies each pattern's own flags", () => {
+		expect(
+			evaluateForbiddenPattern(
+				check,
+				"The fix is committed.\n\nOpen questions.\n\n1. Drop the column?",
+			),
+		).toEqual({
+			kind: "forbidden-pattern",
+			status: "FAIL",
+			detail: 'reply matches label line ("Open questions.")',
+		});
+	});
+});
+
+describe("forbiddenPatternCheckSchema", () => {
+	it("refuses a pattern that does not compile, carrying the engine's reason", () => {
+		const parsed = forbiddenPatternCheckSchema.safeParse({
+			kind: "forbidden-pattern",
+			patterns: [{ name: "unclosed", regex: "(" }],
+		});
+
+		expect(parsed.success).toBe(false);
+		expect(parsed.error?.issues[0]?.message).toMatch(
+			/is a regular expression that compiles, and this one does not: ./u,
+		);
+	});
+
+	it("refuses flags the engine rejects", () => {
+		const parsed = forbiddenPatternCheckSchema.safeParse({
+			kind: "forbidden-pattern",
+			patterns: [{ name: "doubled", regex: "a", flags: "ii" }],
+		});
+
+		expect(parsed.success).toBe(false);
 	});
 });
 
@@ -142,12 +232,16 @@ describe(evaluateChecks.name, () => {
 	const passing: readonly Check[] = [
 		{ kind: "word-band", max: 5 },
 		{ kind: "forbidden-text", strings: ["—"] },
+		{
+			kind: "forbidden-pattern",
+			patterns: [{ name: "offer", regex: "want me" }],
+		},
 		{ kind: "tool-calls", max: 0 },
 		{ kind: "files-read", paths: ["/a.md"] },
 	];
 
 	it("reports the attempt successful when every check passes", () => {
-		const result = evaluateChecks(passing.slice(0, 3), evidence("OK"));
+		const result = evaluateChecks(passing.slice(0, 4), evidence("OK"));
 
 		expect(result.outcome).toBe("SUCCESSFUL");
 		expect(result.failed).toEqual([]);
@@ -157,7 +251,7 @@ describe(evaluateChecks.name, () => {
 		const result = evaluateChecks(passing, evidence("OK"));
 
 		expect(result.outcome).toBe("UNSUCCESSFUL");
-		expect(result.results).toHaveLength(4);
+		expect(result.results).toHaveLength(5);
 		expect(result.failed).toEqual([
 			{ kind: "files-read", status: "FAIL", detail: "never read /a.md" },
 		]);

@@ -532,12 +532,24 @@ describe(regradeAttempt.name, () => {
 					transcriptDiagnostics: completeBoundary(0),
 				}),
 				paths: pathsFor(directory),
-				sessionCase: caseDeclaring([{ kind: "word-band", max: 2 }]),
+				sessionCase: caseDeclaring([
+					{ kind: "word-band", max: 2 },
+					{
+						kind: "forbidden-pattern",
+						patterns: [{ name: "offer", regex: "want me" }],
+					},
+				]),
 			});
 
 			expect(assessment.checks).toEqual([
 				{
 					kind: "word-band",
+					status: "UNAVAILABLE",
+					detail:
+						"the attempt saved no reply, so nothing the session said can be read",
+				},
+				{
+					kind: "forbidden-pattern",
 					status: "UNAVAILABLE",
 					detail:
 						"the attempt saved no reply, so nothing the session said can be read",

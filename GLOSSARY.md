@@ -71,8 +71,9 @@ See [current state](docs/status.md) for implementation coverage and
 - **Check-integrity file** — a target-relative file declared by the pipeline
   whose presence and bytes are frozen at baseline and compared after delivery.
 - **Check kind** — one deterministic assertion a session case may declare, the
-  discriminator of a check: `word-band` and `forbidden-text` read the reply,
-  `tool-calls` and `files-read` read the transcript. A **state check** grades
+  discriminator of a check: `word-band`, `forbidden-text`, and
+  `forbidden-pattern` read the reply, `tool-calls` and `files-read` read the
+  transcript. A **state check** grades
   the files and git state the session left; it is declared beside the check
   list rather than inside it, and carries no kind of its own. A kind states what it
   needs and what it reports; the case supplies the values it compares against,
