@@ -20,6 +20,10 @@ export function stubFetch(body: RunHistoryResponseBody): void {
  * pathname rather than by response shape: each entry supplies the exact body
  * its own route's test already types against the server's response schema, so
  * this stub adds no shape of its own to get wrong.
+ *
+ * An unmapped path answers 404 rather than a 200 carrying `undefined`,
+ * because a page that tells a failed load apart from an empty record can only
+ * be observed against a response that is not ok.
  */
 export function stubFetchByPath(byPath: ReadonlyMap<string, unknown>): void {
 	const stub = (request: string | URL | Request): Promise<Response> => {
@@ -27,8 +31,14 @@ export function stubFetchByPath(byPath: ReadonlyMap<string, unknown>): void {
 			request instanceof Request ? request.url : request,
 			"http://localhost",
 		);
+		const body = byPath.get(pathname);
+		if (body === undefined) {
+			return Promise.resolve(
+				Response.json({ error: "not found" }, { status: 404 }),
+			);
+		}
 
-		return Promise.resolve(Response.json(byPath.get(pathname)));
+		return Promise.resolve(Response.json(body));
 	};
 	stub.preconnect = fetch.preconnect;
 	globalThis.fetch = stub;
