@@ -1,10 +1,8 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { render, screen, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
+import { screen, waitFor } from "@testing-library/react";
 import type { SessionHistoryReport } from "#benchmark/session-history";
 import type { SessionHistoryAttemptSeries } from "#server/session-history-reader";
-import { stubFetchByPath } from "#client/test-support/fetch-stub";
+import { renderAppWithStub } from "#client/test-support/render-app";
 import { createAppRouter } from "./router";
 
 const originalFetch = globalThis.fetch;
@@ -12,42 +10,6 @@ const originalFetch = globalThis.fetch;
 afterEach(() => {
 	globalThis.fetch = originalFetch;
 });
-
-/**
- * The shell queries run history and the corpus on every route for its nav
- * badges and corpus card, so every route test serves those two alongside
- * whatever its own screen reads.
- */
-function renderAtWithStub(
-	path: string,
-	byPath: ReadonlyMap<string, unknown>,
-): void {
-	stubFetchByPath(
-		new Map<string, unknown>([
-			["/api/runs", { rows: [], unreadable: [] }],
-			[
-				"/api/corpus",
-				{ root: "/corpus", digest: "ffd58d", files: [], refusals: [] },
-			],
-			...byPath,
-		]),
-	);
-	renderRouterAt(path);
-}
-
-function renderRouterAt(path: string): void {
-	const client = new QueryClient({
-		defaultOptions: { queries: { retry: false } },
-	});
-	const router = createAppRouter({
-		history: createMemoryHistory({ initialEntries: [path] }),
-	});
-	render(
-		<QueryClientProvider client={client}>
-			<RouterProvider router={router} />
-		</QueryClientProvider>,
-	);
-}
 
 function emptyHistory(caseId: string, id: string): SessionHistoryReport {
 	return {
@@ -104,7 +66,7 @@ function emptyRequestSeries(): SessionHistoryAttemptSeries {
 
 describe(createAppRouter.name, () => {
 	it("renders run history at the root path, the landing screen", async () => {
-		renderAtWithStub(
+		renderAppWithStub(
 			"/",
 			new Map<string, unknown>([["/api/runs", { rows: [], unreadable: [] }]]),
 		);
@@ -117,7 +79,7 @@ describe(createAppRouter.name, () => {
 	});
 
 	it("renders the design system reference at /system", async () => {
-		renderAtWithStub("/system", new Map<string, unknown>());
+		renderAppWithStub("/system", new Map<string, unknown>());
 
 		await waitFor(() => {
 			expect(screen.getByText("Rehearse design system")).toBeInTheDocument();
@@ -125,7 +87,7 @@ describe(createAppRouter.name, () => {
 	});
 
 	it("renders the corpus screen at /corpus", async () => {
-		renderAtWithStub(
+		renderAppWithStub(
 			"/corpus",
 			new Map([
 				[
@@ -142,7 +104,7 @@ describe(createAppRouter.name, () => {
 
 	it("renders the comparison screen at /comparisons/$digest", async () => {
 		const digest = "e".repeat(64);
-		renderAtWithStub(
+		renderAppWithStub(
 			`/comparisons/${digest}`,
 			new Map([
 				[
@@ -158,7 +120,7 @@ describe(createAppRouter.name, () => {
 	});
 
 	it("renders standalone saved session history", async () => {
-		renderAtWithStub(
+		renderAppWithStub(
 			"/attempts/session/case-a/attempt-a",
 			new Map<string, unknown>([
 				[
@@ -180,7 +142,7 @@ describe(createAppRouter.name, () => {
 	});
 
 	it("renders a saved pipeline stage's context history", async () => {
-		renderAtWithStub(
+		renderAppWithStub(
 			"/runs/2026-09-06T21-58-29.508Z/stages/shape",
 			new Map<string, unknown>([
 				[
@@ -210,7 +172,7 @@ describe(createAppRouter.name, () => {
 	});
 
 	it("renders confirmation rep saved session history", async () => {
-		renderAtWithStub(
+		renderAppWithStub(
 			"/groups/group-a/reps/group-a-rep-1/attempt",
 			new Map<string, unknown>([
 				[

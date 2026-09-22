@@ -1,17 +1,10 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import {
-	fireEvent,
-	render,
-	screen,
-	waitFor,
-	within,
-} from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { CorpusResponse } from "#client/corpus/corpus-query";
 import type { RunHistoryResponse } from "#client/run-history/run-history-query";
 import { stubFetchByPath } from "#client/test-support/fetch-stub";
 import { createAppRouter } from "#client/router";
+import { renderAppAt } from "#client/test-support/render-app";
 import { NAV_ITEMS } from "./nav-items";
 import { CHORD_DESTINATIONS } from "./use-go-to-shortcut";
 
@@ -117,22 +110,7 @@ function renderShellAt(
 		]),
 	);
 
-	renderRouterAt(path);
-}
-
-function renderRouterAt(path: string): void {
-	const client = new QueryClient({
-		defaultOptions: { queries: { retry: false } },
-	});
-	const router = createAppRouter({
-		history: createMemoryHistory({ initialEntries: [path] }),
-	});
-
-	render(
-		<QueryClientProvider client={client}>
-			<RouterProvider router={router} />
-		</QueryClientProvider>,
-	);
+	renderAppAt(path);
 }
 
 const SPEC_NAV_LABELS = [
@@ -292,7 +270,7 @@ describe("the navigation shell", () => {
 
 	it("says the corpus could not be read when its request fails", async () => {
 		stubFetchFailing("/api/corpus");
-		renderRouterAt("/");
+		renderAppAt("/");
 
 		const card = await screen.findByRole("region", {
 			name: "Corpus under test",
@@ -322,7 +300,7 @@ describe("the navigation shell", () => {
 				],
 			]),
 		);
-		renderRouterAt("/");
+		renderAppAt("/");
 
 		const card = await screen.findByRole("region", {
 			name: "Corpus under test",
@@ -459,7 +437,7 @@ describe("the navigation shell", () => {
 				],
 			]),
 		);
-		renderRouterAt(`/comparisons/${digest}`);
+		renderAppAt(`/comparisons/${digest}`);
 
 		await screen.findByRole("navigation", { name: "Sections" });
 
