@@ -4,6 +4,7 @@ import { corpusQuery } from "#client/corpus/corpus-query";
 import { runHistoryQuery } from "#client/run-history/run-history-query";
 import { CorpusCard } from "./corpus-card";
 import { useGoToShortcut } from "./use-go-to-shortcut";
+import type { BadgeCounts } from "./nav-items";
 import { NAV_ITEMS } from "./nav-items";
 import "./app-shell.css";
 
@@ -46,18 +47,11 @@ function NavEntry({
 }
 
 /**
- * A count per badge source, undefined while that collection has not loaded,
- * so an unloaded badge renders nothing rather than a zero it cannot vouch for.
- */
-interface BadgeCounts {
-	readonly runs: number | undefined;
-	readonly corpus: number | undefined;
-}
-
-/**
  * Each badge counts the whole collection its route serves, not the rows a
  * screen's own filter is showing, which is the design's own answer: its filter
- * bar reads "All 148" beside a nav badge of 148 (SPEC.md:107-109).
+ * bar reads "All 148" beside a nav badge of 148 (SPEC.md:107-109). A count is
+ * undefined until its collection loads, so an unloaded badge renders nothing
+ * rather than a zero it cannot vouch for.
  */
 function useBadgeCounts(): BadgeCounts {
 	const runs = useQuery(runHistoryQuery);

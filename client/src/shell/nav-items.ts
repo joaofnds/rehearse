@@ -19,6 +19,12 @@ import type { Icon } from "@phosphor-icons/react";
 export type BadgeSource = "runs" | "corpus";
 
 /**
+ * One count per badge source, so a source named on a nav item always has a
+ * place to read its number from.
+ */
+export type BadgeCounts = Readonly<Record<BadgeSource, number | undefined>>;
+
+/**
  * A nav item is live when `path` names a route the router serves, and planned
  * otherwise. A screen joins the nav by gaining a route, not by an edit here.
  */
