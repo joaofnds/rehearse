@@ -120,4 +120,5 @@
 
 	/* Pulse animation */
 	--pulse-duration: 1.4s;
+	--pulse-opacity: 0.28;
 }

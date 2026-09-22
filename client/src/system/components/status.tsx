@@ -44,7 +44,7 @@ export function Status({
 			{state === "running" ? (
 				<span
 					aria-hidden="true"
-					className="animate-pulse text-accent-foreground motion-reduce:animate-none"
+					className="animate-live text-accent-foreground motion-reduce:animate-none"
 				>
 					{glyph}
 				</span>

@@ -58,4 +58,17 @@
 	--color-underline: var(--color-accent-border);
 	--color-diff-add: var(--color-diff-add);
 	--color-diff-remove: var(--color-diff-remove);
+
+	--animate-live: live var(--pulse-duration) ease-in-out infinite;
+
+	@keyframes live {
+		0%,
+		100% {
+			opacity: 1;
+		}
+
+		50% {
+			opacity: var(--pulse-opacity);
+		}
+	}
 }
