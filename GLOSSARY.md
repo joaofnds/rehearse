@@ -171,7 +171,8 @@ See [current state](docs/status.md) for implementation coverage and
   are separate evidence. An invocation does not prove successful delivery or
   that the instruction was followed, and missing observations do not prove
   absence from context. The manifest deduplicates paths rather than retaining
-  a load history. Full pipeline context observation is not yet wired.
+  a load history. It is built for a session attempt; a pipeline stage is
+  observed through context history instead, and no manifest is built for one.
 - **Context evidence** — an optional, versioned attempt-record field containing
   an unchanged provider capture and the harness's normalized projection. The
   projection joins request usage, model, provider cost, agent parentage,
@@ -193,12 +194,6 @@ See [current state](docs/status.md) for implementation coverage and
   session attempt's or pipeline stage's starting context, tool events, observed
   deliveries, results, and evidence gaps. It is derived from the colocated
   transcript and is not a measurement of the provider's active context window.
-- **Stage corpus reconciliation** — the per-declared-file comparison between a
-  checkpoint's declared corpus files and the reads its stage transcript shows.
-  Each entry reads observed, no observation recorded, or undeclared. It is keyed
-  on the corpus layout path and never on the declared hash, since a hash of
-  bytes on disk cannot establish that their contents entered context. No
-  observation recorded means no recognized read, not absence from context.
 - **Corpus (instruction corpus)** — the instruction files under evaluation: the
   installed `CLAUDE.md`, the stage skills, the output styles, the agent
   definitions, and the rulebook. A case names the ones it reads in corpus
@@ -490,6 +485,12 @@ See [current state](docs/status.md) for implementation coverage and
   (see [UI vocabulary](docs/design-handoff/README.md)); the word in code, records, and this glossary stays stage.
 - **Stage commit history** — oldest-first subjects of the commits a stage added
   after its baseline; absent when the stage did not advance the target history.
+- **Stage corpus reconciliation** — the per-declared-file comparison between a
+  checkpoint's declared corpus files and the reads its stage transcript shows.
+  Each entry reads observed, no observation recorded, or undeclared. It is keyed
+  on the corpus layout path and never on the declared hash, since a hash of
+  bytes on disk cannot establish that their contents entered context. No
+  observation recorded means no recognized read, not absence from context.
 - **Stage scorecard** — persisted Judge result for one stage: its frozen input
   and rubric, citations, grade, prompt, and Judge cost; a rejected scorecard
   also carries its calibration.

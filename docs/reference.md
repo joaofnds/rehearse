@@ -740,7 +740,10 @@ corpus layout path. Each entry reads observed with its locator, no observation
 recorded, or undeclared for an observed corpus read the declaration omits.
 Hashing a file does not establish when its contents entered context, so no
 entry reads as loaded on the strength of its hash, and no observation recorded
-is not a claim of absence.
+is not a claim of absence. A stage whose report is evidence-unavailable has no
+reads to reconcile against, so every declared file reads no observation
+recorded. No checkpoint written so far carries a transcript, so that is what
+the reconciliation shows for every stage currently on disk.
 
 Missing raw evidence names the fact that produced it rather than one wording
 for all of them. A checkpoint recording transcript status UNAVAILABLE reads as
@@ -757,9 +760,13 @@ parsed exchange is not the raw evidence the report is about.
 
 One cause has no report at all. A stage that stopped on its grade wrote no
 checkpoint, since the grade assertion precedes the checkpoint write. It does
-leave a stage record, but that record carries no lineage, so nothing identifies
-it the way a stage report's identity requires; what the run history screen
-already shows of that stage is unchanged.
+leave a `<run>.<stage>.json` stage record, and `show run:<name>` prints that
+record's stop reason, but the record carries no lineage. A lineage is a hash of
+the inputs rather than a stored field, and recomputing one from a record's own
+fields does not reproduce the lineage a checkpoint stores, so deriving one for a
+stopped stage would mint an identifier that cannot be told from a real one. The
+stage report's identity therefore has nothing to key on, and its URL answers 404.
+The run history screen marks such a run stopped without naming the stage.
 
 The summary separates inherited Starting context from Attempt events when the
 attempt record retains its transcript cut. Older records without a cut use the

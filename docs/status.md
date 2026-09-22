@@ -87,8 +87,12 @@ case present, but no browser check has been run over it.
   harness can also normalize a supplied provider capture into request usage,
   nested-agent lineage, instruction loads, compactions, and priced cost, then
   preserve it on an attempt. The shipped run path does not collect that bundle,
-  and the UI does not render that richer form. Pipeline collection and context
-  visualizations are also unfinished. Session transcript diagnostics report raw
+  and the UI does not render that richer form. A pipeline stage opens through
+  the same browser projection, but only a stage that passed its grade and kept
+  a transcript can show events: a stage that stopped on its grade has no report,
+  and no saved checkpoint carries a transcript yet, so every stage on disk today
+  reports its evidence as unavailable. Context visualizations beyond those panes
+  are unfinished. Session transcript diagnostics report raw
   post-cut tool occurrences, explicit errors, and exact command repetition; they
   do not attribute phase, tokens, cost, causality, or waste. Their evidence
   state distinguishes a complete observed zero from partial or unavailable
@@ -104,15 +108,15 @@ case present, but no browser check has been run over it.
 
 ## Browser UI
 
-| Route                                | Available today                                                                                                                                                                                                   |
-| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/`                                  | Run-history report with each row's staleness causes and the runs it could not read, including empty and error states; a run in flight appears as a RUNNING row carrying its stage, elapsed time, and scoped spend |
-| `/corpus`                            | Live corpus inventory; instruction editing is marked planned                                                                                                                                                      |
-| `/comparisons/<digest>`              | Saved case/arm distributions, attribution, quality readings, and validated session-attempt links                                                                                                                  |
-| `/attempts/session/<case>/<uuid>`    | Saved standalone session context history, with the per-request token and cost timeline                                                                                                                            |
-| `/groups/<group>/reps/<rep>/attempt` | Saved confirmation-rep context history, with the per-request token and cost timeline                                                                                                                              |
-| `/runs/<run>/stages/<stage>`         | Saved pipeline-stage context history and its corpus reconciliation; no request timeline, and missing raw capture names which record state produced it                                                             |
-| `/system`                            | Design tokens and reusable component gallery                                                                                                                                                                      |
+| Route                                | Available today                                                                                                                                                                                                          |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `/`                                  | Run-history report with each row's staleness causes and the runs it could not read, including empty and error states; a run in flight appears as a RUNNING row carrying its stage, elapsed time, and scoped spend        |
+| `/corpus`                            | Live corpus inventory; instruction editing is marked planned                                                                                                                                                             |
+| `/comparisons/<digest>`              | Saved case/arm distributions, attribution, quality readings, and validated session-attempt links                                                                                                                         |
+| `/attempts/session/<case>/<uuid>`    | Saved standalone session context history, with the per-request token and cost timeline                                                                                                                                   |
+| `/groups/<group>/reps/<rep>/attempt` | Saved confirmation-rep context history, with the per-request token and cost timeline                                                                                                                                     |
+| `/runs/<run>/stages/<stage>`         | Saved pipeline-stage context history and its corpus reconciliation; no request timeline. Missing raw capture names which record state produced it; a stage that stopped on its grade wrote no checkpoint and has no page |
+| `/system`                            | Design tokens and reusable component gallery                                                                                                                                                                             |
 
 Run launch, full run detail, task/case management, calibration screens,
 settings, and first-run setup are design targets. Live monitoring is partly
