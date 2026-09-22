@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import type { CorpusResponse } from "#client/corpus/corpus-query";
 import { corpusQuery } from "#client/corpus/corpus-query";
-import "./corpus-card.css";
 
 function latestEdit(files: CorpusResponse["files"]): string | undefined {
 	const times = files.map((file) => file.lastEditedAt).toSorted();
@@ -28,7 +27,7 @@ function DigestLine({
 }): React.JSX.Element {
 	if (digest === undefined) {
 		return (
-			<span className="rh-corpus-card__digest">
+			<span className="font-mono text-sm text-pale">
 				<span aria-hidden="true">⚠ </span>
 				{`digest withheld · ${plural(refusals.length, "refusal")}`}
 			</span>
@@ -36,7 +35,7 @@ function DigestLine({
 	}
 
 	return (
-		<span className="rh-corpus-card__digest">{`corpus root@${digest}`}</span>
+		<span className="font-mono text-sm text-pale">{`corpus root@${digest}`}</span>
 	);
 }
 
@@ -52,34 +51,41 @@ export function CorpusCard(): React.JSX.Element {
 		query.data === undefined ? undefined : latestEdit(query.data.files);
 
 	return (
-		<section className="rh-corpus-card" aria-label="Corpus under test">
-			<h2 className="rh-corpus-card__label">Corpus under test</h2>
+		<section
+			aria-label="Corpus under test"
+			className="mt-2.5 rounded-md border bg-popover px-2.5 py-2"
+		>
+			<h2 className="text-xs tracking-widest text-dim uppercase">
+				Corpus under test
+			</h2>
 
 			{query.isError ? (
-				<p className="rh-corpus-card__pending" role="alert">
+				<p className="mt-1 text-xs text-muted-foreground" role="alert">
 					<span aria-hidden="true">⚠ </span>
 					Could not read the corpus
 				</p>
 			) : null}
 
 			{query.data === undefined && !query.isError ? (
-				<p className="rh-corpus-card__pending">Reading the corpus…</p>
+				<p className="mt-1 text-xs text-muted-foreground">
+					Reading the corpus…
+				</p>
 			) : null}
 
 			{query.data === undefined ? null : (
 				<>
-					<p className="rh-corpus-card__line">
+					<p className="mt-1 flex flex-wrap items-center gap-1.5">
 						<DigestLine
 							digest={query.data.digest}
 							refusals={query.data.refusals}
 						/>
-						<span className="rh-corpus-card__files">
+						<span className="font-mono text-xs text-muted-foreground">
 							{plural(query.data.files.length, "file")}
 						</span>
 					</p>
 
 					{edited === undefined ? null : (
-						<p className="rh-corpus-card__edited">
+						<p className="mt-1 text-xs text-muted-foreground">
 							{`last edit ${new Date(edited).toLocaleString()}`}
 						</p>
 					)}

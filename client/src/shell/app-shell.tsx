@@ -6,7 +6,6 @@ import { CorpusCard } from "./corpus-card";
 import { useGoToShortcut } from "./use-go-to-shortcut";
 import type { BadgeCounts } from "./nav-items";
 import { NAV_ITEMS } from "./nav-items";
-import "./app-shell.css";
 
 const ICON_SIZE = 15;
 
@@ -21,26 +20,32 @@ function NavEntry({
 	readonly path: string | undefined;
 	readonly count: number | undefined;
 }): React.JSX.Element {
-	const badge =
-		count === undefined ? null : <span className="rh-nav__badge">{count}</span>;
-
 	if (path === undefined) {
 		return (
-			<li className="rh-nav__item rh-nav__item--planned">
+			<li className="flex items-center gap-2.5 rounded-md border-l-2 border-transparent px-2.5 py-2 text-secondary-foreground opacity-60">
 				{icon}
-				<span className="rh-nav__label">{label}</span>
-				<span className="rh-visually-hidden">planned</span>
-				{badge}
+				<span className="flex-1">{label}</span>
+				<span className="font-mono text-xs text-dim">planned</span>
 			</li>
 		);
 	}
 
 	return (
-		<li className="rh-nav__item">
-			<Link to={path} className="rh-nav__link">
+		<li>
+			<Link
+				to={path}
+				className="flex items-center gap-2.5 rounded-md border-l-2 px-2.5 py-2"
+				activeProps={{ className: "border-primary bg-selected text-pale" }}
+				inactiveProps={{
+					className:
+						"border-transparent text-secondary-foreground hover:bg-subtle",
+				}}
+			>
 				{icon}
-				<span className="rh-nav__label">{label}</span>
-				{badge}
+				<span className="flex-1">{label}</span>
+				{count === undefined ? null : (
+					<span className="font-mono text-xs text-dim">{count}</span>
+				)}
 			</Link>
 		</li>
 	);
@@ -68,20 +73,29 @@ export function AppShell(): React.JSX.Element {
 	useGoToShortcut();
 
 	return (
-		<div className="rh-shell">
-			<nav className="rh-nav" aria-label="Sections">
-				<div className="rh-nav__masthead">
-					<span className="rh-nav__product">Rehearse</span>
+		<div className="flex min-h-screen">
+			{/* Sticky, because the corpus card must stay in view on a page several screens tall. */}
+			<nav
+				aria-label="Sections"
+				className="sticky top-0 flex h-screen w-68 flex-none flex-col gap-4 overflow-y-auto border-r border-divider bg-sidebar px-3 py-4"
+			>
+				<div className="px-2.5 pt-0.5">
+					<span className="text-lg font-medium tracking-tight">Rehearse</span>
+					<CorpusCard />
 				</div>
 
-				<CorpusCard />
-
-				<ul className="rh-nav__list">
+				<ul className="flex flex-col gap-0.5">
 					{NAV_ITEMS.map(({ label, icon: NavIcon, path, badge }) => (
 						<NavEntry
 							key={label}
 							label={label}
-							icon={<NavIcon size={ICON_SIZE} aria-hidden />}
+							icon={
+								<NavIcon
+									size={ICON_SIZE}
+									aria-hidden
+									className="flex-none opacity-85"
+								/>
+							}
 							path={path}
 							count={badge === undefined ? undefined : counts[badge]}
 						/>
@@ -89,7 +103,7 @@ export function AppShell(): React.JSX.Element {
 				</ul>
 			</nav>
 
-			<main className="rh-shell__main">
+			<main className="@container min-w-0 flex-1">
 				<Outlet />
 			</main>
 		</div>
