@@ -84,6 +84,7 @@
 
 	/* Layout */
 	--rail-width: 222px;
+	--hairline: 1px;
 
 	/* Radius */
 	--radius-focus: 3px;

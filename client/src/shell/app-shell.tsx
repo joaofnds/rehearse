@@ -18,6 +18,7 @@ function NavEntry({
 			<li className="rh-nav__item rh-nav__item--planned">
 				{icon}
 				<span className="rh-nav__label">{label}</span>
+				<span className="rh-visually-hidden">planned</span>
 			</li>
 		);
 	}
