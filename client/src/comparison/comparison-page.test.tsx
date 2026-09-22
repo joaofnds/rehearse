@@ -262,7 +262,7 @@ function qualityRow(
 		.slice(1)
 		.find(
 			(candidate) =>
-				within(candidate).queryByRole("cell", { name: pair }) !== null &&
+				within(candidate).queryByRole("rowheader", { name: pair }) !== null &&
 				within(candidate).queryByRole("cell", { name: measure }) !== null,
 		);
 

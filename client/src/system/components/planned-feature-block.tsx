@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import "./planned-feature-block.css";
 
 export function PlannedFeatureBlock({
 	heading,
@@ -9,15 +8,17 @@ export function PlannedFeatureBlock({
 	readonly children: ReactNode;
 }): React.JSX.Element {
 	return (
-		<section className="rh-planned-feature-block">
-			<header className="rh-planned-feature-block__header">
-				<h2>{heading}</h2>
-				<span className="rh-planned-feature-block__pill">PLANNED</span>
+		<section className="overflow-hidden rounded-lg border border-dashed border-deeper opacity-60">
+			<header className="flex flex-wrap items-center gap-3 border-b border-dashed border-deeper bg-popover px-4 py-2.5">
+				<h2 className="font-medium">{heading}</h2>
+				<span className="rounded-full border border-deep px-2 py-0.5 text-xs tracking-widest text-pale">
+					PLANNED
+				</span>
+				<p className="ml-auto text-sm text-muted-foreground">
+					Not available in v0.6 — edit on disk for now
+				</p>
 			</header>
-			<p className="rh-planned-feature-block__note">
-				Not available in v0.6 — edit on disk for now
-			</p>
-			{children}
+			<div className="px-4 py-3">{children}</div>
 		</section>
 	);
 }
