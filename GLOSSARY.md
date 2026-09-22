@@ -306,8 +306,8 @@ See [current state](docs/status.md) for implementation coverage and
 - **Interrupted run** — a run whose process ended (a `kill -9` or a crash)
   without writing a terminal artifact or stop record. A signal the handler
   catches is not one: it stops the pending stage and writes that stage's stop
-  record on the way out. It has no status of its
-  own on disk; the server's startup reconciliation pass finds it by checking
+  record on the way out. No file on disk gives the run a status of its own,
+  though the stage it died in may be left as a stage awaiting judgment; the server's startup reconciliation pass finds it by checking
   whether the pid the run's claimed target recorded is still alive, and if
   not, marks the run's event stream `run-interrupted`, distinct from `FAILED`,
   which a graceful signal handler still writes on its own.
@@ -485,6 +485,14 @@ See [current state](docs/status.md) for implementation coverage and
 - **Stage** — one pipeline step: a skill invocation consuming upstream
   artifacts and emitting its own. The UI's design calls this a **step**
   (see [UI vocabulary](docs/design-handoff/README.md)); the word in code, records, and this glossary stays stage.
+- **Stage awaiting judgment** — the stage a run was interrupted in after its
+  session finished and before its judging completed. Its `<run>.<stage>.json`
+  carries `AWAITING_STAGE_JUDGE`, the stage name and the Judge's input, which
+  the harness overwrites with a scorecard when judging completes, so a file
+  still carrying that status is one whose run died in that window. It writes no
+  checkpoint and no stop record, so it has neither a lineage nor a stop reason,
+  and the parsed exchanges its input holds are not the raw transcript. It is
+  not a stopped stage: nothing judged it and nothing failed.
 - **Stage commit history** — oldest-first subjects of the commits a stage added
   after its baseline; absent when the stage did not advance the target history.
 - **Stage corpus reconciliation** — the per-declared-file comparison between a

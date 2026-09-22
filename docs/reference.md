@@ -769,9 +769,23 @@ names the case, the run, the stage, the model, why the stage stopped and the
 corpus files the stage declared, with its evidence unavailable. It shows no lineage, because the record carries none: a lineage is a
 hash of the inputs rather than a stored field, two of which no stop record holds,
 so any lineage shown would be minted here and indistinguishable from a recorded
-one. A stage with neither a checkpoint nor a stop record still answers 404, which
-is what separates a stage that stopped from a page that failed. The run history
-screen marks such a run stopped without naming the stage.
+one.
+
+A second cause reports without a checkpoint. A run interrupted between a stage's
+session finishing and its judging completing leaves that stage's
+`<run>.<stage>.json` holding the Judge's pending input under
+`AWAITING_STAGE_JUDGE`, which nothing overwrote. The report reads that record
+too, and names the case, the run, the stage and the model with its evidence
+unavailable, giving that judging never completed as the reason. It carries no
+lineage and no stop reason, because the record holds neither, and it does not
+describe the stage as stopped: nothing judged it and nothing failed. The parsed
+exchanges the record's input holds stay out of every event ledger, the same
+substitution the unavailable state prevents for a replay.
+
+A stage with none of the three still answers 404, which is what separates a
+stage the reader can name from a page that failed. The run history screen marks
+a stopped run stopped without naming the stage, and reports an interrupted run
+as interrupted from its event stream.
 
 The summary separates inherited Starting context from Attempt events when the
 attempt record retains its transcript cut. Older records without a cut use the
