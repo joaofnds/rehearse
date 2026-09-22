@@ -690,6 +690,8 @@ export class RecordedRunsFixture {
 	 * `AWAITING_STAGE_JUDGE` and nothing overwrote it. It carries the three
 	 * fields the oldest such record on disk has, since the writer gained the
 	 * rest after that one was written and a reader must still read both shapes.
+	 * An earlier stage holds a judged scorecard, so a reader that mistakes one
+	 * for the other has somewhere to be caught.
 	 */
 	public async writeAwaitingJudgeRun(): Promise<void> {
 		const paths = benchmarkRunPaths(this.runsDirectory, this.awaitingJudgeRun);
@@ -697,6 +699,19 @@ export class RecordedRunsFixture {
 		await writeRunManifest(
 			paths.manifestFile,
 			manifest(this.awaitingJudgeRun, this.sourceRoot),
+		);
+		await Bun.write(
+			paths.stageFile("discuss"),
+			`${JSON.stringify(
+				{
+					stage: "discuss",
+					costUsd: 1,
+					grade: { grade: "A", verdict: "CONTINUE", dimensions: [] },
+					input: {},
+				},
+				null,
+				2,
+			)}\n`,
 		);
 		await Bun.write(
 			paths.stageFile("build"),

@@ -31,7 +31,9 @@ import { createApiApp } from "#server/api";
 import {
 	readConfirmationAttemptHistory,
 	readReplayHistory,
+	readStageCorpusReconciliation,
 	readStageHistory,
+	readStageHistoryDetail,
 	readConfirmationAttemptRequestSeries,
 	readSessionAttemptHistory,
 	readSessionAttemptRequestSeries,
@@ -1639,17 +1641,27 @@ describe("saved history for a stage whose judging never completed", () => {
 		expect(report.boundaryUnknown).toEqual([]);
 		expect(report.sources).toEqual([]);
 		expect(report.startingSources).toEqual([]);
-		expect(JSON.stringify(report)).not.toContain(AWAITING_JUDGE_SESSION_ID);
-		expect(JSON.stringify(report)).not.toContain(AWAITING_JUDGE_EXCHANGE_TEXT);
 	});
 
-	it("reports no lineage for an awaiting-judge stage rather than a derived one", async () => {
+	it("serves no event detail for an awaiting-judge stage, whose record parsed a transcript", async () => {
 		const fixture = await writtenAwaitingJudgeRun();
 
-		const report = await readStageHistory(fixture);
+		const detail = await readStageHistoryDetail(fixture, "1:1");
 
-		expect(Object.keys(report.attempt)).not.toContain("lineage");
-		expect(Object.keys(report.attempt)).not.toContain("upstream");
+		expect(detail).toBeUndefined();
+	});
+
+	it("keeps an awaiting-judge record's session content out of everything it serves", async () => {
+		const fixture = await writtenAwaitingJudgeRun();
+
+		const served = JSON.stringify([
+			await readStageHistory(fixture),
+			await readStageCorpusReconciliation(fixture),
+			await readStageHistoryDetail(fixture, "1:1"),
+		]);
+
+		expect(served).not.toContain(AWAITING_JUDGE_SESSION_ID);
+		expect(served).not.toContain(AWAITING_JUDGE_EXCHANGE_TEXT);
 	});
 
 	it("does not describe an awaiting-judge stage as stopped", async () => {
@@ -1657,8 +1669,15 @@ describe("saved history for a stage whose judging never completed", () => {
 
 		const report = await readStageHistory(fixture);
 
-		expect(Object.keys(report.attempt)).not.toContain("error");
 		expect(JSON.stringify(report)).not.toContain("stopped");
+	});
+
+	it("reports the judged stage beside it as absent rather than awaiting judgment", async () => {
+		const fixture = await writtenAwaitingJudgeRun();
+
+		expect(
+			readStageHistory({ ...fixture, stage: "discuss" }),
+		).rejects.toMatchObject({ kind: "not-found" });
 	});
 
 	it("refuses an awaiting-judge record filed under another stage", async () => {
@@ -1678,7 +1697,7 @@ describe("saved history for a stage whose judging never completed", () => {
 		const fixture = await writtenAwaitingJudgeRun();
 
 		expect(
-			readStageHistory({ ...fixture, stage: "discuss" }),
+			readStageHistory({ ...fixture, stage: "nonexistent" }),
 		).rejects.toMatchObject({ kind: "not-found" });
 	});
 });
