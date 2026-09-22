@@ -64,3 +64,13 @@
 	font-size: var(--font-size-10);
 	color: var(--color-text-dim);
 }
+
+.rh-nav__masthead {
+	padding: var(--space-2) var(--space-8) 0;
+}
+
+.rh-nav__product {
+	font-size: var(--font-size-15);
+	font-weight: 500;
+	letter-spacing: var(--letter-spacing-tight);
+}

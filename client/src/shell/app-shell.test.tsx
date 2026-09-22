@@ -77,6 +77,10 @@ function renderShellAt(
 		]),
 	);
 
+	renderRouterAt(path);
+}
+
+function renderRouterAt(path: string): void {
 	const client = new QueryClient({
 		defaultOptions: { queries: { retry: false } },
 	});
@@ -135,6 +139,64 @@ describe("the navigation shell", () => {
 			.map((link) => link.querySelector(".rh-nav__label")?.textContent);
 
 		expect(linked).toEqual(["Run history", "Corpus"]);
+	});
+
+	it("names the corpus under test on every screen", async () => {
+		renderShellAt("/", { runs: 0, corpusFiles: 137 });
+
+		const card = await screen.findByRole("region", {
+			name: "Corpus under test",
+		});
+
+		await waitFor(() => {
+			expect(within(card).getByText("corpus root@ffd58d")).toBeInTheDocument();
+		});
+		expect(within(card).getByText("137 files")).toBeInTheDocument();
+		expect(screen.queryByText("corpus@ffd58d")).not.toBeInTheDocument();
+	});
+
+	it.each(["/", "/corpus", "/system", "/runs/run-a/stages/build"])(
+		"names the corpus under test on %s",
+		async (path) => {
+			renderShellAt(path, { runs: 0, corpusFiles: 137 });
+
+			const card = await screen.findByRole("region", {
+				name: "Corpus under test",
+			});
+
+			await waitFor(() => {
+				expect(
+					within(card).getByText("corpus root@ffd58d"),
+				).toBeInTheDocument();
+			});
+		},
+	);
+
+	it("withholds the digest in words when a file refused hashing", async () => {
+		stubFetchByPath(
+			new Map<string, unknown>([
+				["/api/runs", { rows: [], unreadable: [] }],
+				[
+					"/api/corpus",
+					{
+						root: "/corpus",
+						files: [corpusFile("CLAUDE.md")],
+						refusals: ["skills/a resolves outside the corpus source"],
+					},
+				],
+			]),
+		);
+		renderRouterAt("/");
+
+		const card = await screen.findByRole("region", {
+			name: "Corpus under test",
+		});
+
+		await waitFor(() => {
+			expect(within(card).getByText(/withheld/u)).toBeInTheDocument();
+		});
+		expect(within(card).getByText(/1 refusal/u)).toBeInTheDocument();
+		expect(within(card).queryByText(/corpus root@/u)).not.toBeInTheDocument();
 	});
 
 	it("counts each section's own collection in its badge", async () => {

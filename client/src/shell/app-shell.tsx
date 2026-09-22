@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, Outlet } from "@tanstack/react-router";
 import { corpusQuery } from "#client/corpus/corpus-query";
 import { runHistoryQuery } from "#client/run-history/run-history-query";
+import { CorpusCard } from "./corpus-card";
 import { NAV_ITEMS } from "./nav-items";
 import "./app-shell.css";
 
@@ -73,6 +74,12 @@ export function AppShell(): React.JSX.Element {
 	return (
 		<div className="rh-shell">
 			<nav className="rh-nav" aria-label="Sections">
+				<div className="rh-nav__masthead">
+					<span className="rh-nav__product">Rehearse</span>
+				</div>
+
+				<CorpusCard />
+
 				<ul className="rh-nav__list">
 					{NAV_ITEMS.map(({ label, icon: NavIcon, path, badge }) => (
 						<NavEntry
