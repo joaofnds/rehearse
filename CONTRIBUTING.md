@@ -70,9 +70,9 @@ name to match the token it echoes.
 `theme.css` maps colors, fonts, and radii, including the handoff's palette roles
 that shadcn's names lack, such as `text-dim`, `text-pale`, and `border-divider`.
 Spacing and type come from Tailwind's own scales. `globals.css` sets `html` to the
-handoff's 13px base, so `text-base` is 13px and a spacing step is 3.25px. No utility
-reads the `--space-*` tokens or any `--font-size-*` token but the base, so editing
-one of them moves nothing on screen.
+handoff's 13px base, so `text-base` is 13px and a spacing step is 3.25px.
+`tokens.css` therefore holds no spacing, type size, or letter-spacing scale. Add a
+token there only for a value a utility or a base style reads.
 
 Add a primitive with `bunx --bun shadcn@4.21.0 add <name>`, and read the generated
 file before you commit it. Give its props a named type and add that name to the

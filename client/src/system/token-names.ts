@@ -33,64 +33,10 @@ export const COLOR_TOKENS = [
 	"--color-accent-border",
 ] as const;
 
-export const FONT_SIZE_TOKENS = [
-	"--font-size-9",
-	"--font-size-10",
-	"--font-size-10-5",
-	"--font-size-11",
-	"--font-size-11-5",
-	"--font-size-12",
-	"--font-size-12-5",
-	"--font-size-13",
-	"--font-size-14",
-	"--font-size-15",
-	"--font-size-17",
-	"--font-size-19",
-	"--font-size-20",
-	"--font-size-22",
-	"--font-size-24",
-	"--font-size-26",
-	"--font-size-30",
-] as const;
-
-export const SPACE_TOKENS = [
-	"--space-2",
-	"--space-3",
-	"--space-4",
-	"--space-5",
-	"--space-6",
-	"--space-7",
-	"--space-8",
-	"--space-9",
-	"--space-10",
-	"--space-11",
-	"--space-12",
-	"--space-14",
-	"--space-16",
-	"--space-18",
-	"--space-20",
-	"--space-22",
-	"--space-28",
-	"--space-36",
-	"--space-56",
-] as const;
-
 export const RADIUS_TOKENS = [
 	"--radius-focus",
 	"--radius-chip",
-	"--radius-5",
 	"--radius-button",
-	"--radius-card",
 	"--radius-section",
 	"--radius-dialog",
-	"--radius-pill",
-	"--radius-circle",
-] as const;
-
-export const LETTER_SPACING_TOKENS = [
-	"--letter-spacing-tight",
-	"--letter-spacing-tight-2",
-	"--letter-spacing-table-header",
-	"--letter-spacing-wide",
-	"--letter-spacing-section-label",
 ] as const;

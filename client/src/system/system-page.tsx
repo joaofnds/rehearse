@@ -8,13 +8,7 @@ import { SectionLabel } from "./components/section-label";
 import { Switcher } from "./components/switcher";
 import { STATUS_STATES, Status } from "./components/status";
 import { TableShell } from "./components/table-shell";
-import {
-	COLOR_TOKENS,
-	FONT_SIZE_TOKENS,
-	LETTER_SPACING_TOKENS,
-	RADIUS_TOKENS,
-	SPACE_TOKENS,
-} from "./token-names";
+import { COLOR_TOKENS, RADIUS_TOKENS } from "./token-names";
 import { ScreenHeader } from "./components/screen-header";
 
 const DEFERRED_COMPONENTS = [
@@ -56,36 +50,6 @@ export function SystemPage(): React.JSX.Element {
 				</section>
 
 				<section className="flex flex-col gap-3">
-					<SectionLabel>TYPE SCALE</SectionLabel>
-					<ul>
-						{FONT_SIZE_TOKENS.map((token) => (
-							<li
-								key={token}
-								className="text-(length:--preview-font-size)"
-								style={{ "--preview-font-size": `var(${token})` }}
-							>
-								{token} — the quick brown fox
-							</li>
-						))}
-					</ul>
-				</section>
-
-				<section className="flex flex-col gap-3">
-					<SectionLabel>SPACE</SectionLabel>
-					<ul className={SAMPLE_LIST_CLASSES}>
-						{SPACE_TOKENS.map((token) => (
-							<li key={token} className="flex flex-col items-start gap-1.5">
-								<span
-									className="block size-(--preview-size) bg-primary"
-									style={{ "--preview-size": `var(${token})` }}
-								/>
-								<code className={TOKEN_NAME_CLASSES}>{token}</code>
-							</li>
-						))}
-					</ul>
-				</section>
-
-				<section className="flex flex-col gap-3">
 					<SectionLabel>RADIUS</SectionLabel>
 					<ul className={SAMPLE_LIST_CLASSES}>
 						{RADIUS_TOKENS.map((token) => (
@@ -101,39 +65,20 @@ export function SystemPage(): React.JSX.Element {
 				</section>
 
 				<section className="flex flex-col gap-3">
-					<SectionLabel>LETTER SPACING</SectionLabel>
-					<ul>
-						{LETTER_SPACING_TOKENS.map((token) => (
-							<li
-								key={token}
-								className="tracking-(--preview-tracking)"
-								style={{ "--preview-tracking": `var(${token})` }}
-							>
-								{token} — the quick brown fox
-							</li>
-						))}
-					</ul>
-				</section>
-
-				<section className="flex flex-col gap-3">
 					<SectionLabel>BORDER</SectionLabel>
 					<ul className={SAMPLE_LIST_CLASSES}>
 						<li className="flex flex-col items-start gap-1.5">
 							<span className="block size-17 rounded-md border" />
-							<code className={TOKEN_NAME_CLASSES}>
-								--border-width-hairline
-							</code>
+							<code className={TOKEN_NAME_CLASSES}>border</code>
 						</li>
 						<li className="flex flex-col items-start gap-1.5">
 							<span className="block size-17 rounded-md border-l-2 border-l-deeper" />
-							<code className={TOKEN_NAME_CLASSES}>
-								--border-width-evidence
-							</code>
+							<code className={TOKEN_NAME_CLASSES}>border-l-2</code>
 						</li>
 						<li className="flex flex-col items-start gap-1.5">
 							<span className="block size-17 rounded-md border border-dashed border-deeper opacity-60" />
 							<code className={TOKEN_NAME_CLASSES}>
-								--border-style-planned / --opacity-planned
+								border-dashed opacity-60
 							</code>
 						</li>
 					</ul>

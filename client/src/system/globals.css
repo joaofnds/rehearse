@@ -5,6 +5,7 @@
 @import "@fontsource/jetbrains-mono/500.css";
 @import "@fontsource/jetbrains-mono/700.css";
 @import "tailwindcss";
+/* Unlayered on purpose: Tailwind copies theme.css's identity mappings into @layer theme as self-references, and only an unlayered declaration outranks them. */
 @import "./tokens.css";
 @import "./theme.css";
 
