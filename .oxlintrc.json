@@ -20,7 +20,8 @@
 		{
 			"name": "anti-slop",
 			"specifier": "./tools/oxlint/anti-slop/index.ts"
-		}
+		},
+		"@shadcn/lint"
 	],
 	"rules": {
 		"anti-slop/no-chained-type-assertions": "error",
@@ -38,6 +39,17 @@
 		"anti-slop/no-unsafe-dictionary-type": "error",
 		"anti-slop/no-widen-then-assert": "error",
 		"anti-slop/require-safety-comment-for-type-assertion": "error",
+		"shadcn/no-restyle": "error",
+		"shadcn/no-raw-colors": "error",
+		"shadcn/no-arbitrary-values": "error",
+		"shadcn/require-static-classes": "error",
+		"shadcn/no-inline-styles": "off",
+		"shadcn/no-unknown-classes": [
+			"error",
+			{
+				"allow": ["rh-*"]
+			}
+		],
 		"oxc/no-async-await": "off",
 		"oxc/no-optional-chaining": "off",
 		"oxc/no-rest-spread-properties": "off",

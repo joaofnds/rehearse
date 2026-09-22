@@ -77,6 +77,20 @@ file before you commit it. `client/src/system/ui/**` is exempt from
 DOM prop types and those types are not deeply readonly. Every other lint rule applies
 there.
 
+The `rh-*` allowance on `shadcn/no-unknown-classes` is a plain prefix match, so a
+misspelled `rh-` class passes unreported. Remove the allowance once
+`grep -rn "rh-" client/src --include="*.tsx"` comes back empty.
+
+`shadcn/no-inline-styles` is off because the token showcase and the request
+timeline compute style values at runtime, and React's types reject the CSS custom
+property that would replace them unless you cast.
+
+Regenerating a primitive brings back the arbitrary values the linter rejects. The
+button's focus ring arrives as `ring-[3px]` and is written `ring-3` here. Re-apply
+that kind of edit after every regeneration.
+
+Keep to the one icon set `components.json` names.
+
 Prefer a primitive from `client/src/system/ui/` to a new per-page stylesheet when you
 build a screen. The older components under `client/src/system/components/` that
 [design handoff](docs/design-handoff/README.md) names stay in use, and neither set is
