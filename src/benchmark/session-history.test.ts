@@ -2168,6 +2168,38 @@ describe(stageCorpusReconciliation.name, () => {
 		expect(stageCorpusReconciliation(report)).toEqual([]);
 	});
 
+	it("reconciles the reads of a stage whose judging never completed", () => {
+		const report = sessionHistoryReport({
+			attempt: {
+				kind: "awaiting-judge-stage",
+				caseId: "case-a",
+				run: "run-1",
+				stage: "build",
+				model: "sonnet",
+				corpusFiles: [{ path: "CLAUDE.md", sha256: "a".repeat(64) }],
+			},
+			resolvedCorpusFiles: [],
+			transcript: [
+				row(
+					callIn("/wt", "read-1", "Read", {
+						file_path: "/home/someone/.claude/agents/reviewer.md",
+					}),
+				),
+				row(resultIn("/wt", "read-1", "reviewer")),
+			].join("\n"),
+			prefixLinesExcluded: 0,
+		});
+
+		expect(stageCorpusReconciliation(report)).toEqual([
+			{ path: "CLAUDE.md", state: "no-observation-recorded" },
+			{
+				path: "agents/reviewer.md",
+				state: "undeclared",
+				firstLocator: { line: 1, block: 1 },
+			},
+		]);
+	});
+
 	it("records no observation rather than absence when a stage kept no transcript", () => {
 		const report = sessionHistoryReport({
 			attempt: {

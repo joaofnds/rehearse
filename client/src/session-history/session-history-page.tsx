@@ -44,6 +44,8 @@ interface IdentityEntry {
  * A stage checkpoint records no attempt id and no outcome, so the run, the
  * stage and the lineage place it instead. A stage that stopped wrote no
  * checkpoint, so it has no lineage to show and shows why it stopped instead.
+ * A stage whose judging never completed wrote neither, so it shows neither:
+ * the reason it has no transcript is the evidence's, not the identity's.
  */
 function identityEntries(
 	attempt: SessionHistoryReport["attempt"],
@@ -54,6 +56,15 @@ function identityEntries(
 			{ term: "Run", value: attempt.run },
 			{ term: "Stage", value: attempt.stage },
 			{ term: "Lineage", value: attempt.lineage },
+			{ term: "Model", value: attempt.model },
+		];
+	}
+
+	if (attempt.kind === "awaiting-judge-stage") {
+		return [
+			{ term: "Case", value: attempt.caseId },
+			{ term: "Run", value: attempt.run },
+			{ term: "Stage", value: attempt.stage },
 			{ term: "Model", value: attempt.model },
 		];
 	}

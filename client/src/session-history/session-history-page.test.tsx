@@ -969,6 +969,65 @@ describe(SessionHistoryPage.name, () => {
 		).toEqual(["CLAUDE.md No observation recorded"]);
 	});
 
+	it("names a stage whose judging never completed instead of reporting a load failure", async () => {
+		stubFetchByPath(
+			new Map<string, unknown>([
+				["/api/runs/run-1/stages/build/history/corpus", []],
+				[
+					"/api/runs/run-1/stages/build/history",
+					{
+						schemaVersion: 1,
+						attempt: {
+							kind: "awaiting-judge-stage",
+							caseId: "case-a",
+							run: "run-1",
+							stage: "build",
+							model: "sonnet",
+							corpusFiles: [],
+						},
+						evidence: {
+							state: "unavailable",
+							reasons: [
+								"this stage ran and its judging never completed, so no transcript was recorded",
+							],
+						},
+						boundary: "known",
+						startingContext: [],
+						attemptEvents: [],
+						boundaryUnknown: [],
+						startingSources: [],
+						sources: [],
+					},
+				],
+			]),
+		);
+		const client = new QueryClient({
+			defaultOptions: { queries: { retry: false } },
+		});
+		render(
+			<QueryClientProvider client={client}>
+				<SessionHistoryPage
+					identity={{ kind: "stage", run: "run-1", stage: "build" }}
+				/>
+			</QueryClientProvider>,
+		);
+
+		const heading = await screen.findByRole("banner");
+
+		expect(heading).toHaveTextContent(/Run.*run-1/u);
+		expect(heading).toHaveTextContent(/Stage.*build/u);
+		expect(heading).not.toHaveTextContent(/Lineage/u);
+		expect(heading).not.toHaveTextContent(/Stopped because/u);
+		expect(
+			screen.queryByText("Could not load saved history."),
+		).not.toBeInTheDocument();
+		expect(
+			await screen.findByText(
+				/its judging never completed, so no transcript was recorded/u,
+			),
+		).toBeInTheDocument();
+	});
+
 	it("reports a stage whose page genuinely failed to load as a failure", async () => {
 		stubFetchByPath(new Map<string, unknown>());
 		const client = new QueryClient({

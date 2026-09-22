@@ -143,10 +143,29 @@ export interface StoppedStageHistoryIdentity {
 	}[];
 }
 
+/**
+ * One pipeline stage whose session finished and whose judging never completed,
+ * because the run died between the two writes. It writes no checkpoint, so it
+ * has no lineage, and it records no error, because nothing failed: the run
+ * simply stopped before a verdict existed. The run and stage name it alone.
+ */
+export interface AwaitingJudgeStageHistoryIdentity {
+	readonly kind: "awaiting-judge-stage";
+	readonly caseId: string;
+	readonly run: string;
+	readonly stage: string;
+	readonly model: string;
+	readonly corpusFiles: readonly {
+		readonly path: string;
+		readonly sha256: string;
+	}[];
+}
+
 export type SessionHistoryAttemptIdentity =
 	| SessionAttemptIdentity
 	| StageHistoryIdentity
-	| StoppedStageHistoryIdentity;
+	| StoppedStageHistoryIdentity
+	| AwaitingJudgeStageHistoryIdentity;
 
 /**
  * The corpus files whose bytes were resolved to a real path before the session
@@ -174,7 +193,8 @@ export type HistoryUnavailableReason =
 	| "no-capture-recorded"
 	| "recorded-transcript-missing"
 	| "replay-retains-none"
-	| "stage-stopped";
+	| "stage-stopped"
+	| "stage-judging-never-completed";
 
 export interface SessionHistoryReportInput {
 	readonly attempt: SessionHistoryAttemptIdentity;
@@ -460,7 +480,11 @@ function declaredCorpusPath(
 		return undefined;
 	}
 
-	if (kind === "stage" || kind === "stopped-stage") {
+	if (
+		kind === "stage" ||
+		kind === "stopped-stage" ||
+		kind === "awaiting-judge-stage"
+	) {
 		return corpusLayoutPathUnder(normalizedObserved, normalizedCwd);
 	}
 
@@ -1229,6 +1253,8 @@ const UNAVAILABLE_REASON_TEXT = {
 	"replay-retains-none":
 		"a replay retains no raw transcript for its stage session",
 	"stage-stopped": "this stage stopped before recording a transcript",
+	"stage-judging-never-completed":
+		"this stage ran and its judging never completed, so no transcript was recorded",
 } satisfies Record<HistoryUnavailableReason, string>;
 
 function missingTranscriptReport(
@@ -1328,7 +1354,8 @@ export function stageCorpusReconciliation(
 ): readonly StageCorpusEntry[] {
 	if (
 		report.attempt.kind !== "stage" &&
-		report.attempt.kind !== "stopped-stage"
+		report.attempt.kind !== "stopped-stage" &&
+		report.attempt.kind !== "awaiting-judge-stage"
 	) {
 		return [];
 	}

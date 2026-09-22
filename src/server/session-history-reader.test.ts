@@ -15,6 +15,8 @@ import {
 	nothingRunning,
 	RecordedRunsFixture,
 	STOPPED_STAGE_EXCHANGE_TEXT,
+	AWAITING_JUDGE_EXCHANGE_TEXT,
+	AWAITING_JUDGE_SESSION_ID,
 	STOPPED_STAGE_SESSION_ID,
 } from "#benchmark/run-records-test-support";
 import {
@@ -1605,10 +1607,96 @@ describe(readStageHistory.name, () => {
 	});
 });
 
+describe("saved history for a stage whose judging never completed", () => {
+	it("names a stage whose judging never completed rather than reporting it absent", async () => {
+		const fixture = await writtenAwaitingJudgeRun();
+
+		const report = await readStageHistory(fixture);
+
+		expect(report.attempt).toEqual({
+			kind: "awaiting-judge-stage",
+			caseId: "audit-log",
+			run: fixture.run,
+			stage: "build",
+			model: "sonnet",
+			corpusFiles: [],
+		});
+		expect(report.evidence).toEqual({
+			state: "unavailable",
+			reasons: [
+				"this stage ran and its judging never completed, so no transcript was recorded",
+			],
+		});
+	});
+
+	it("keeps an unjudged stage's parsed exchanges out of every event ledger", async () => {
+		const fixture = await writtenAwaitingJudgeRun();
+
+		const report = await readStageHistory(fixture);
+
+		expect(report.startingContext).toEqual([]);
+		expect(report.attemptEvents).toEqual([]);
+		expect(report.boundaryUnknown).toEqual([]);
+		expect(report.sources).toEqual([]);
+		expect(report.startingSources).toEqual([]);
+		expect(JSON.stringify(report)).not.toContain(AWAITING_JUDGE_SESSION_ID);
+		expect(JSON.stringify(report)).not.toContain(AWAITING_JUDGE_EXCHANGE_TEXT);
+	});
+
+	it("reports no lineage for an unjudged stage rather than a derived one", async () => {
+		const fixture = await writtenAwaitingJudgeRun();
+
+		const report = await readStageHistory(fixture);
+
+		expect(Object.keys(report.attempt)).not.toContain("lineage");
+		expect(Object.keys(report.attempt)).not.toContain("upstream");
+	});
+
+	it("does not describe an unjudged stage as stopped", async () => {
+		const fixture = await writtenAwaitingJudgeRun();
+
+		const report = await readStageHistory(fixture);
+
+		expect(Object.keys(report.attempt)).not.toContain("error");
+		expect(JSON.stringify(report)).not.toContain("stopped");
+	});
+
+	it("refuses an awaiting-judge record filed under another stage", async () => {
+		const fixture = await writtenAwaitingJudgeRun();
+		const paths = benchmarkRunPaths(fixture.runsDirectory, fixture.run);
+		await Bun.write(
+			paths.stageFile("review"),
+			await Bun.file(paths.stageFile("build")).text(),
+		);
+
+		expect(
+			readStageHistory({ ...fixture, stage: "review" }),
+		).rejects.toMatchObject({ kind: "refused" });
+	});
+
+	it("reports a stage with no record at all as absent", async () => {
+		const fixture = await writtenAwaitingJudgeRun();
+
+		expect(
+			readStageHistory({ ...fixture, stage: "discuss" }),
+		).rejects.toMatchObject({ kind: "not-found" });
+	});
+});
+
 interface StoppedStageFixture {
 	readonly runsDirectory: string;
 	readonly run: string;
 	readonly stage: string;
+}
+
+async function writtenAwaitingJudgeRun(): Promise<StoppedStageFixture> {
+	const root = await mkdtemp(join(tmpdir(), "rehearse-awaiting-reader-"));
+	roots.push(root);
+	const runsDirectory = join(root, ".benchmark-runs");
+	const fixture = new RecordedRunsFixture(runsDirectory);
+	await fixture.writeAwaitingJudgeRun();
+
+	return { runsDirectory, run: fixture.awaitingJudgeRun, stage: "build" };
 }
 
 async function writtenStoppedRun(): Promise<StoppedStageFixture> {

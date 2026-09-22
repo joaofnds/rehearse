@@ -60,6 +60,14 @@ export const STOPPED_STAGE_SESSION_ID = "3d5f9c11-0000-4000-8000-000000000042";
 export const STOPPED_STAGE_EXCHANGE_TEXT = "the stopped stage answered";
 
 /**
+ * The same content on a record whose judging never completed. It is the judge's
+ * own input, written before judging started, so it carries a parsed transcript
+ * the report must not repeat either.
+ */
+export const AWAITING_JUDGE_SESSION_ID = "7c1e4a88-0000-4000-8000-000000000043";
+export const AWAITING_JUDGE_EXCHANGE_TEXT = "the unjudged stage answered";
+
+/**
  * The settings evidence an ordinary fixture record carries when the caller
  * names none. A literal, so writing a record never reads the repository's root
  * stage-settings.json. A test whose assertions depend on that file passes
@@ -397,6 +405,7 @@ export class RecordedRunsFixture {
 	public readonly interruptedRun = "2026-09-06T00-00-00.000Z";
 	public readonly runningRun = "2026-09-07T00-00-00.000Z";
 	public readonly abortedRun = "2026-09-08T00-00-00.000Z";
+	public readonly awaitingJudgeRun = "2026-09-09T00-00-00.000Z";
 
 	private readonly settingsFile: HashedFile;
 	private readonly sourceRoot: string;
@@ -666,6 +675,42 @@ export class RecordedRunsFixture {
 						transcript: {
 							sessionId: STOPPED_STAGE_SESSION_ID,
 							exchanges: [{ agent: { message: STOPPED_STAGE_EXCHANGE_TEXT } }],
+						},
+					},
+				},
+				null,
+				2,
+			)}\n`,
+		);
+	}
+
+	/**
+	 * A run interrupted between its stage session finishing and its judging
+	 * completing: the stage file holds the judge's pending input under
+	 * `AWAITING_STAGE_JUDGE` and nothing overwrote it, which is the shape the
+	 * repository's own 2026-09-08 run rests in. That record predates the fields
+	 * the writer adds today, so it carries the three the oldest one has.
+	 */
+	public async writeAwaitingJudgeRun(): Promise<void> {
+		const paths = benchmarkRunPaths(this.runsDirectory, this.awaitingJudgeRun);
+		await mkdir(paths.checkpointsDirectory, { recursive: true });
+		await writeRunManifest(
+			paths.manifestFile,
+			manifest(this.awaitingJudgeRun, this.sourceRoot),
+		);
+		await Bun.write(
+			paths.stageFile("build"),
+			`${JSON.stringify(
+				{
+					status: "AWAITING_STAGE_JUDGE",
+					stage: "build",
+					input: {
+						transcript: {
+							stage: "build",
+							sessionId: AWAITING_JUDGE_SESSION_ID,
+							costUsd: 1.5,
+							providerCalls: 3,
+							exchanges: [{ agent: { message: AWAITING_JUDGE_EXCHANGE_TEXT } }],
 						},
 					},
 				},

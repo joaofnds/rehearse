@@ -14,6 +14,7 @@ import { checkpointsEntryForRun } from "#benchmark/run-layout";
 import { pathIsWithin } from "#benchmark/path-containment";
 import { replayRecordSchema } from "#benchmark/replay";
 import {
+	awaitingJudgeStageRecordSchema,
 	stoppedStageDetailSchema,
 	stoppedStageRecordSchema,
 } from "#benchmark/run-outcome";
@@ -549,7 +550,7 @@ async function stageInput(
 		identity.stage,
 	]);
 	if (directory === undefined) {
-		return stoppedStageInput(root, checkpointsDirectory, identity);
+		return unjudgedStageInput(root, checkpointsDirectory, identity);
 	}
 	const checkpointFile = await verifiedFile(
 		root,
@@ -608,17 +609,15 @@ async function stageInput(
 }
 
 /**
- * A stage that stopped the run writes no checkpoint directory, so the reader
- * falls here and reads the stop record beside the run's checkpoints. The
- * record carries the reason and nothing that identifies the stage among the
- * run's others, so the case and the model come from the run manifest and no
- * lineage is reported at all. The reason is whatever the harness wrote, the
- * only record-derived sentence this report carries, so it is redacted here
- * rather than at the error path that covers every other one. Its own parsed
- * transcript stays out of the report, which is what the unavailable state is
- * for.
+ * A stage that wrote no checkpoint directory leaves a record beside the run's
+ * checkpoints instead, and two terminal states write one: the run stopped on
+ * this stage, or the run died between the stage's session finishing and its
+ * judging completing. Neither record identifies the stage among the run's
+ * others, so the case and the model come from the run manifest and no lineage
+ * is reported at all. Each record's own parsed transcript stays out of the
+ * report, which is what the unavailable state is for.
  */
-async function stoppedStageInput(
+async function unjudgedStageInput(
 	root: string,
 	checkpointsDirectory: string,
 	identity: Readonly<StageHistoryIdentityInput>,
@@ -636,43 +635,95 @@ async function stoppedStageInput(
 		);
 	}
 
-	const record = stoppedStageRecordSchema.safeParse(
-		JSON.parse(await readVerifiedFile(root, recordFile)),
+	const contents: unknown = JSON.parse(
+		await readVerifiedFile(root, recordFile),
 	);
-	if (!record.success) {
+	const stopped = stoppedStageRecordSchema.safeParse(contents);
+	const awaitingJudge = awaitingJudgeStageRecordSchema.safeParse(contents);
+	const recordedStage = stopped.success
+		? stopped.data.stage
+		: awaitingJudge.data?.stage;
+	if (recordedStage === undefined) {
 		throw new SessionHistoryReaderError(
 			"not-found",
 			"No saved attempt at this identity",
 		);
 	}
-	if (record.data.stage !== identity.stage) {
+	if (recordedStage !== identity.stage) {
 		throw new SessionHistoryReaderError(
 			"refused",
-			"Saved stop record does not own this stage identity",
+			"Saved stage record does not own this stage identity",
 		);
 	}
-	const detail = stoppedStageDetailSchema.safeParse(record.data);
+
+	const detail = stoppedStageDetailSchema.safeParse(contents);
 	const declared = detail.success ? detail.data : {};
 	const manifest = await runManifest(root, checkpointsDirectory);
+	const common = {
+		caseId: manifest.caseId,
+		run: identity.run,
+		stage: recordedStage,
+		model: declared.model ?? manifest.model,
+		corpusFiles: declared.corpusFiles ?? [],
+	};
 
 	return {
 		root,
 		metadata: {
-			attempt: {
-				kind: "stopped-stage",
-				caseId: manifest.caseId,
-				run: identity.run,
-				stage: record.data.stage,
-				error: redactAbsolutePaths(record.data.error),
-				model: declared.model ?? manifest.model,
-				corpusFiles: declared.corpusFiles ?? [],
-			},
+			...(stopped.success
+				? stoppedStageMetadata(common, stopped.data.error)
+				: awaitingJudgeStageMetadata(common)),
 			resolvedCorpusFiles: [],
-			unavailableReason: "stage-stopped",
 			prefixLinesExcluded: 0,
 		},
 		reportedCostUsd: undefined,
 		transcriptFile: undefined,
+	};
+}
+
+/**
+ * The fields both records share, before each names the state it rests in.
+ */
+interface UnjudgedStageFields {
+	readonly caseId: string;
+	readonly run: string;
+	readonly stage: string;
+	readonly model: string;
+	readonly corpusFiles: readonly {
+		readonly path: string;
+		readonly sha256: string;
+	}[];
+}
+
+/**
+ * The stop's reason is whatever the harness wrote, the only record-derived
+ * sentence this report carries, so it is redacted here rather than at the
+ * error path that covers every other one.
+ */
+function stoppedStageMetadata(
+	fields: Readonly<UnjudgedStageFields>,
+	error: string,
+): Pick<SessionHistoryReportMetadata, "attempt" | "unavailableReason"> {
+	return {
+		attempt: {
+			kind: "stopped-stage",
+			...fields,
+			error: redactAbsolutePaths(error),
+		},
+		unavailableReason: "stage-stopped",
+	};
+}
+
+/**
+ * Nothing failed here, so the record carries no reason to redact: the run
+ * ended before a verdict on this stage existed.
+ */
+function awaitingJudgeStageMetadata(
+	fields: Readonly<UnjudgedStageFields>,
+): Pick<SessionHistoryReportMetadata, "attempt" | "unavailableReason"> {
+	return {
+		attempt: { kind: "awaiting-judge-stage", ...fields },
+		unavailableReason: "stage-judging-never-completed",
 	};
 }
 
