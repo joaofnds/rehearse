@@ -55,9 +55,18 @@ export function CorpusCard(): React.JSX.Element {
 		<section className="rh-corpus-card" aria-label="Corpus under test">
 			<h2 className="rh-corpus-card__label">Corpus under test</h2>
 
-			{query.data === undefined ? (
+			{query.isError ? (
+				<p className="rh-corpus-card__pending" role="alert">
+					<span aria-hidden="true">⚠ </span>
+					Could not read the corpus
+				</p>
+			) : null}
+
+			{query.data === undefined && !query.isError ? (
 				<p className="rh-corpus-card__pending">Reading the corpus…</p>
-			) : (
+			) : null}
+
+			{query.data === undefined ? null : (
 				<>
 					<p className="rh-corpus-card__line">
 						<DigestLine

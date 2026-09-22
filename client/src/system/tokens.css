@@ -102,6 +102,7 @@
 	--border-width-evidence: 2px;
 	--border-style-planned: dashed;
 	--opacity-planned: 0.62;
+	--opacity-nav-icon: 0.85;
 
 	/* Shadow */
 	--shadow-dialog: 0 16px 40px rgba(0, 0, 0, 0.65);

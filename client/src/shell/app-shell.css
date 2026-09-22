@@ -36,8 +36,12 @@
 	gap: var(--space-9);
 	padding: var(--space-6) var(--space-8);
 	border-radius: var(--radius-button);
-	border-left: var(--border-width-evidence) solid transparent;
 	color: var(--color-text-secondary);
+}
+
+.rh-nav__item svg {
+	opacity: var(--opacity-nav-icon);
+	flex: none;
 }
 
 .rh-nav__link {
@@ -45,8 +49,22 @@
 	align-items: center;
 	gap: var(--space-9);
 	flex: 1;
+	margin: calc(-1 * var(--space-6)) calc(-1 * var(--space-8));
+	padding: var(--space-6) var(--space-8);
+	border-radius: var(--radius-button);
+	border-left: var(--border-width-evidence) solid transparent;
 	color: inherit;
 	text-decoration: none;
+}
+
+/*
+ * The open screen's own item, so the rail answers which screen this is
+ * without the reader parsing the address bar (SPEC.md:64).
+ */
+.rh-nav__link[aria-current="page"] {
+	border-left-color: var(--color-accent);
+	background: var(--color-accent-tint-16);
+	color: var(--color-accent-pale);
 }
 
 .rh-nav__label {

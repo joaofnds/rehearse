@@ -16,13 +16,39 @@ import { createAppRouter } from "#client/router";
 const originalFetch = globalThis.fetch;
 
 /**
- * Lets the router finish any navigation a keystroke started, so a test that
- * asserts no navigation happened is observing a settled tree rather than
- * winning a race against one.
+ * Answers every path but `failing` with the shell's baseline bodies, and
+ * rejects that one the way an unreachable server does, so a screen's
+ * error branch is observed against a real rejection rather than a body that
+ * merely lacks fields.
  */
-async function settled(): Promise<void> {
+function stubFetchFailing(failing: string): void {
+	const stub = (request: string | URL | Request): Promise<Response> => {
+		const { pathname } = new URL(
+			request instanceof Request ? request.url : request,
+			"http://localhost",
+		);
+		if (pathname === failing) {
+			return Promise.reject(new Error("connection refused"));
+		}
+
+		return Promise.resolve(Response.json({ rows: [], unreadable: [] }));
+	};
+	stub.preconnect = fetch.preconnect;
+	globalThis.fetch = stub;
+}
+
+/**
+ * Waits long enough that a navigation the keystroke under test might have
+ * started would have landed. The wait is what gives the assertion after it any
+ * force: without it the check runs in the same tick as the keystroke and
+ * passes whether or not the shortcut fired, which was observed by removing
+ * each guard and watching both tests keep passing.
+ */
+async function navigationWouldHaveLanded(): Promise<void> {
 	await waitFor(() => {
-		expect(true).toBe(true);
+		expect(
+			screen.getByRole("navigation", { name: "Sections" }),
+		).toBeInTheDocument();
 	});
 	await Promise.resolve();
 }
@@ -123,13 +149,8 @@ describe("the navigation shell", () => {
 	it("lists the design's nine sections in its order", async () => {
 		renderShellAt("/");
 
-		await waitFor(() => {
-			expect(
-				screen.getByRole("navigation", { name: "Sections" }),
-			).toBeInTheDocument();
-		});
-
-		const items = screen.getAllByRole("listitem");
+		const nav = await screen.findByRole("navigation", { name: "Sections" });
+		const items = within(nav).getAllByRole("listitem");
 
 		expect(items).toHaveLength(SPEC_NAV_LABELS.length);
 		expect(
@@ -140,13 +161,8 @@ describe("the navigation shell", () => {
 	it("offers no link for a section that has no screen", async () => {
 		renderShellAt("/");
 
-		await waitFor(() => {
-			expect(
-				screen.getByRole("navigation", { name: "Sections" }),
-			).toBeInTheDocument();
-		});
-
-		const linked = screen
+		const nav = await screen.findByRole("navigation", { name: "Sections" });
+		const linked = within(nav)
 			.getAllByRole("link")
 			.map((link) => link.querySelector(".rh-nav__label")?.textContent);
 
@@ -183,7 +199,7 @@ describe("the navigation shell", () => {
 
 		fireEvent.keyDown(document, { key: "r" });
 
-		await settled();
+		await navigationWouldHaveLanded();
 
 		expect(
 			screen.queryByRole("heading", { name: "Run history" }),
@@ -206,7 +222,7 @@ describe("the navigation shell", () => {
 		fireEvent.keyDown(field, { key: "g" });
 		fireEvent.keyDown(field, { key: "r" });
 
-		await settled();
+		await navigationWouldHaveLanded();
 
 		expect(
 			screen.queryByRole("heading", { name: "Run history" }),
@@ -265,6 +281,24 @@ describe("the navigation shell", () => {
 		},
 	);
 
+	it("says the corpus could not be read when its request fails", async () => {
+		stubFetchFailing("/api/corpus");
+		renderRouterAt("/");
+
+		const card = await screen.findByRole("region", {
+			name: "Corpus under test",
+		});
+
+		await waitFor(() => {
+			expect(within(card).getByRole("alert")).toHaveTextContent(
+				/Could not read the corpus/u,
+			);
+		});
+		expect(
+			within(card).queryByText(/Reading the corpus/u),
+		).not.toBeInTheDocument();
+	});
+
 	it("withholds the digest in words when a file refused hashing", async () => {
 		stubFetchByPath(
 			new Map<string, unknown>([
@@ -292,27 +326,24 @@ describe("the navigation shell", () => {
 		expect(within(card).queryByText(/corpus root@/u)).not.toBeInTheDocument();
 	});
 
-	it("counts each section's own collection in its badge", async () => {
-		renderShellAt("/", { runs: 4, corpusFiles: 137 });
+	it.each([
+		[4, 137],
+		[2, 9],
+	])(
+		"badges run history with %s and corpus with %s, each its own collection",
+		async (runs, corpusFiles) => {
+			renderShellAt("/", { runs, corpusFiles });
 
-		const nav = await screen.findByRole("navigation", { name: "Sections" });
-
-		await waitFor(() => {
-			expect(within(nav).getByText("4")).toBeInTheDocument();
-			expect(within(nav).getByText("137")).toBeInTheDocument();
-		});
-	});
-
-	it("moves a badge when the served collection changes", async () => {
-		renderShellAt("/", { runs: 2, corpusFiles: 9 });
-
-		const nav = await screen.findByRole("navigation", { name: "Sections" });
-
-		await waitFor(() => {
-			expect(within(nav).getByText("2")).toBeInTheDocument();
-			expect(within(nav).getByText("9")).toBeInTheDocument();
-		});
-	});
+			await waitFor(() => {
+				expect(
+					screen.getByRole("link", { name: `Run history ${runs}` }),
+				).toBeInTheDocument();
+			});
+			expect(
+				screen.getByRole("link", { name: `Corpus ${corpusFiles}` }),
+			).toBeInTheDocument();
+		},
+	);
 
 	it("navigates between run history and corpus by click", async () => {
 		renderShellAt("/");
@@ -372,16 +403,41 @@ describe("the navigation shell", () => {
 		expect(planned).toHaveLength(7);
 	});
 
-	it("gives the page one main landmark, the shell's own", async () => {
-		renderShellAt("/");
+	it.each(["/", "/corpus", "/system", "/runs/run-a/stages/build", "/tasks"])(
+		"gives %s one main landmark, the shell's own",
+		async (path) => {
+			renderShellAt(path, { runs: 0, corpusFiles: 137 });
+
+			await screen.findByRole("navigation", { name: "Sections" });
+
+			await waitFor(() => {
+				expect(screen.getAllByRole("main")).toHaveLength(1);
+			});
+		},
+	);
+
+	it("gives the comparison screen one main landmark too", async () => {
+		const digest = "e".repeat(64);
+		stubFetchByPath(
+			new Map<string, unknown>([
+				["/api/runs", { rows: [], unreadable: [] }],
+				[
+					"/api/corpus",
+					{ root: "/corpus", digest: "ffd58d", files: [], refusals: [] },
+				],
+				[
+					`/api/comparisons/${digest}`,
+					{ report: { cases: [] }, attribution: {} },
+				],
+			]),
+		);
+		renderRouterAt(`/comparisons/${digest}`);
+
+		await screen.findByRole("navigation", { name: "Sections" });
 
 		await waitFor(() => {
-			expect(
-				screen.getByRole("heading", { name: "Run history" }),
-			).toBeInTheDocument();
+			expect(screen.getAllByRole("main")).toHaveLength(1);
 		});
-
-		expect(screen.getAllByRole("main")).toHaveLength(1);
 	});
 
 	it("leads from the landing screen to the corpus screen", async () => {
