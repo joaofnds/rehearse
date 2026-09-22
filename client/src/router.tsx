@@ -9,10 +9,12 @@ import { CorpusPage } from "#client/corpus/corpus-page";
 import { RunHistoryPage } from "#client/run-history/run-history-page";
 import { SessionHistoryPage } from "#client/session-history/session-history-page";
 import { AppShell } from "#client/shell/app-shell";
+import { NotFoundPage } from "#client/shell/not-found-page";
 import { SystemPage } from "#client/system/system-page";
 
 const rootRoute = createRootRoute({
 	component: AppShell,
+	notFoundComponent: NotFoundPage,
 });
 
 const runHistoryRoute = createRoute({

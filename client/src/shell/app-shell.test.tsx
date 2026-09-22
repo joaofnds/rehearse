@@ -141,6 +141,25 @@ describe("the navigation shell", () => {
 		expect(linked).toEqual(["Run history", "Corpus"]);
 	});
 
+	it("answers an unknown address inside the shell, naming it", async () => {
+		renderShellAt("/tasks", { runs: 0, corpusFiles: 137 });
+
+		await waitFor(() => {
+			expect(
+				screen.getByRole("navigation", { name: "Sections" }),
+			).toBeInTheDocument();
+		});
+
+		expect(
+			screen.getByRole("region", { name: "Corpus under test" }),
+		).toBeInTheDocument();
+		expect(screen.getByText(/\/tasks/u)).toBeInTheDocument();
+		expect(screen.queryByText("Not Found")).not.toBeInTheDocument();
+		expect(
+			screen.getByRole("link", { name: /Back to run history/u }),
+		).toHaveAttribute("href", "/");
+	});
+
 	it("names the corpus under test on every screen", async () => {
 		renderShellAt("/", { runs: 0, corpusFiles: 137 });
 
