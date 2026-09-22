@@ -15,7 +15,7 @@ import { pathIsWithin } from "#benchmark/path-containment";
 import { replayRecordSchema } from "#benchmark/replay";
 import {
 	awaitingJudgeStageRecordSchema,
-	stoppedStageDetailSchema,
+	unjudgedStageDetailSchema,
 	stoppedStageRecordSchema,
 } from "#benchmark/run-outcome";
 import { redactAbsolutePaths } from "./redact-path";
@@ -656,7 +656,7 @@ async function unjudgedStageInput(
 		);
 	}
 
-	const detail = stoppedStageDetailSchema.safeParse(contents);
+	const detail = unjudgedStageDetailSchema.safeParse(contents);
 	const declared = detail.success ? detail.data : {};
 	const manifest = await runManifest(root, checkpointsDirectory);
 	const common = {

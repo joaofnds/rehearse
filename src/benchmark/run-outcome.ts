@@ -29,10 +29,11 @@ export const awaitingJudgeStageRecordSchema = z
 	.loose();
 
 /**
- * The stage's own recorded identity, beside the stop. Each field parses on its
- * own so that one the harness wrote in an older shape costs only itself.
+ * The stage's own recorded identity, beside whichever state its record rests
+ * in. Each field parses on its own so that one the harness wrote in an older
+ * shape costs only itself.
  */
-export const stoppedStageDetailSchema = z.object({
+export const unjudgedStageDetailSchema = z.object({
 	corpusFiles: z
 		.array(z.object({ path: z.string().min(1), sha256: z.string().min(1) }))
 		.optional(),
