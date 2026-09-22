@@ -318,10 +318,12 @@
 /*
  * 1110px is where the workbench first overflows: the four pane floors sum to
  * 1070, which under border-box already covers the grid's own hairline borders,
- * and .rh-history's padding adds 40. A media query cannot read the custom
- * properties above, so this number is derived by hand and changes with them.
+ * and .rh-history's padding adds 40. The query reads the shell's main column
+ * rather than the viewport, because the rail takes width the viewport cannot
+ * see: against the viewport this fired only below 1110px while the workbench
+ * already needed a 1332px window, spilling 52px past its column at 1280px.
  */
-@media (width < 1110px) {
+@container (width < 1110px) {
 	.rh-history {
 		overflow-x: auto;
 	}
