@@ -225,13 +225,13 @@ function AttemptHistoryLinks({
 			{Object.entries(histories).map(([caseId, arms]) => (
 				<div
 					key={caseId}
-					className="flex flex-col gap-3 rounded-lg border bg-card px-4 py-3"
+					className="flex flex-col rounded-lg border bg-card px-4 py-3"
 				>
 					<strong className="font-mono text-sm font-normal">{caseId}</strong>
 					{Object.entries(arms).map(([arm, links]) => (
 						<div
 							key={arm}
-							className="flex items-baseline gap-4 font-mono text-sm text-dim"
+							className="flex min-h-14 items-center gap-4 font-mono text-sm text-dim"
 						>
 							<span className="w-24 text-xs tracking-widest uppercase">
 								{arm}
@@ -241,7 +241,7 @@ function AttemptHistoryLinks({
 									<a
 										key={link.repId}
 										href={link.href}
-										className="-my-5 py-5 text-accent-foreground underline decoration-deeper underline-offset-4 hover:text-pale"
+										className="inline-flex min-h-14 items-center text-accent-foreground underline decoration-deeper underline-offset-4 hover:text-pale"
 									>
 										Rep {link.ordinal}
 									</a>
