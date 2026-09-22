@@ -611,8 +611,9 @@ async function stageInput(
  * run's others, so the case and the model come from the run manifest and no
  * lineage is reported at all. The reason is whatever the harness wrote, the
  * only record-derived sentence this report carries, so it is redacted here
- * rather than at the error path that covers every other one. Its own parsed transcript stays out of the
- * report, which is what the unavailable state is for.
+ * rather than at the error path that covers every other one. Its own parsed
+ * transcript stays out of the report, which is what the unavailable state is
+ * for.
  */
 async function stoppedStageInput(
 	root: string,
@@ -631,6 +632,7 @@ async function stoppedStageInput(
 			"No saved attempt at this identity",
 		);
 	}
+
 	const record = stoppedStageRecordSchema.safeParse(
 		JSON.parse(await readVerifiedFile(root, recordFile)),
 	);
