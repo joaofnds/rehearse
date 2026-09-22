@@ -13,7 +13,10 @@ import type { RunManifest } from "#benchmark/manifest";
 import { checkpointsEntryForRun } from "#benchmark/run-layout";
 import { pathIsWithin } from "#benchmark/path-containment";
 import { replayRecordSchema } from "#benchmark/replay";
-import { stoppedStageRecordSchema } from "#benchmark/run-outcome";
+import {
+	stoppedStageDetailSchema,
+	stoppedStageRecordSchema,
+} from "#benchmark/run-outcome";
 import { redactAbsolutePaths } from "./redact-path";
 import { parseSessionAttemptRecord } from "#benchmark/session-record";
 import { transcriptInstructionLoadsFromLines } from "#benchmark/transcript-instruction-loads";
@@ -648,6 +651,7 @@ async function stoppedStageInput(
 			"Saved stop record does not own this stage identity",
 		);
 	}
+	const detail = stoppedStageDetailSchema.parse(record.data);
 	const manifest = await runManifest(root, checkpointsDirectory);
 
 	return {
@@ -659,8 +663,8 @@ async function stoppedStageInput(
 				run: identity.run,
 				stage: record.data.stage,
 				error: redactAbsolutePaths(record.data.error),
-				model: record.data.model ?? manifest.model,
-				corpusFiles: record.data.corpusFiles ?? [],
+				model: detail.model ?? manifest.model,
+				corpusFiles: detail.corpusFiles,
 			},
 			resolvedCorpusFiles: [],
 			unavailableReason: "stage-stopped",

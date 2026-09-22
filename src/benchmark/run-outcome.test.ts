@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { RecordedRunsFixture } from "./run-records-test-support";
 import { stoppedStage } from "./run-outcome";
+import { benchmarkRunPaths } from "./run-layout";
 
 describe(stoppedStage.name, () => {
 	const roots: string[] = [];
@@ -24,6 +25,27 @@ describe(stoppedStage.name, () => {
 	it("names the stage whose file holds a stop record among several stage files", async () => {
 		const runs = await fixture();
 		await runs.writeStoppedRun();
+
+		const found = await stoppedStage(runs.runsDirectory, runs.stoppedRun);
+
+		expect(found).toEqual({
+			stage: "build",
+			error: "build stage graded F; minimum grade is B",
+		});
+	});
+
+	it("names a stopped stage whose record carries fields it cannot read", async () => {
+		const runs = await fixture();
+		await runs.writeStoppedRun();
+		await Bun.write(
+			benchmarkRunPaths(runs.runsDirectory, runs.stoppedRun).stageFile("build"),
+			JSON.stringify({
+				status: "STAGE_JUDGE_FAILED",
+				stage: "build",
+				error: "build stage graded F; minimum grade is B",
+				corpusFiles: [{ path: "CLAUDE.md" }],
+			}),
+		);
 
 		const found = await stoppedStage(runs.runsDirectory, runs.stoppedRun);
 
