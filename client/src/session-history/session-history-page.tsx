@@ -16,7 +16,6 @@ import {
 	requestRowForLine,
 	requestRowId,
 } from "./request-timeline";
-import "./session-history-page.css";
 
 export type SessionHistoryIdentity =
 	| {
@@ -351,6 +350,18 @@ function sortedSources(
 	});
 }
 
+const PANE_HEADING_CLASSES =
+	"border-b px-3 py-3 text-xs tracking-widest text-dim uppercase";
+
+const SOURCE_CLASSES =
+	"flex min-h-14 w-full flex-col gap-1 border-b border-l-2 border-b-subtle border-l-transparent px-3 py-3 text-left text-secondary-foreground hover:bg-row-hover aria-pressed:border-l-primary aria-pressed:bg-selected aria-pressed:text-bright";
+
+const DETAIL_SECTION_CLASSES =
+	"flex flex-col gap-2 border-t border-subtle px-3 py-3";
+
+const EVIDENCE_TEXT_CLASSES =
+	"max-h-96 overflow-auto rounded-md bg-sidebar p-2.5 font-mono text-sm break-words whitespace-pre-wrap text-secondary-foreground";
+
 function SourceList({
 	sources,
 	selected,
@@ -363,48 +374,61 @@ function SourceList({
 	readonly onSelect: (source: SessionHistorySource | undefined) => void;
 }): React.JSX.Element {
 	return (
-		<nav className="rh-history__sources" aria-label="Loaded sources">
+		<nav aria-label="Loaded sources">
 			<button
 				type="button"
-				className="rh-history__source"
+				className={SOURCE_CLASSES}
 				aria-pressed={selected === undefined}
 				onClick={() => {
 					onSelect(undefined);
 				}}
 			>
-				<span>All sources</span>
-				<span>{sources.length}</span>
+				<span className="flex items-baseline justify-between gap-2.5">
+					<span>All sources</span>
+					<span className="font-mono text-accent-foreground">
+						{sources.length}
+					</span>
+				</span>
 			</button>
 			{sortedSources(sources, sort).map((source) => (
 				<button
 					type="button"
 					key={source.id}
-					className="rh-history__source"
+					className={SOURCE_CLASSES}
 					aria-pressed={selected === source.id}
 					onClick={() => {
 						onSelect(source);
 					}}
 				>
-					<span>
-						<strong>{source.name}</strong>
-						<small>{source.kind}</small>
-						<small>
-							{source.failedOccurrences} failed · {source.partialOccurrences}{" "}
-							partial · {source.missingOccurrences} missing ·{" "}
-							{source.unavailableOccurrences} unavailable
-						</small>
-						<small>{measurementLabel(source.measurement)}</small>
-						<small>
-							{source.observedDeliveryCount === undefined
-								? "? Unavailable observed deliveries · boundary unknown"
-								: `${source.observedDeliveryCount} observed deliveries`}
-						</small>
+					<span className="flex items-baseline justify-between gap-2.5">
+						<strong className="min-w-0 font-medium break-words">
+							{source.name}
+						</strong>
+						{source.repeatDeliveryCount === undefined ? null : (
+							<span className="shrink-0 font-mono text-accent-foreground">
+								{`${source.repeatDeliveryCount}×`}
+							</span>
+						)}
 					</span>
-					<span className="rh-history__count">
-						{source.repeatDeliveryCount === undefined
-							? "? Unavailable repeats"
-							: `${source.repeatDeliveryCount}×`}
-					</span>
+					<small className="text-xs tracking-widest text-dim uppercase">
+						{source.kind}
+					</small>
+					<small className="text-xs text-dim">
+						{source.failedOccurrences} failed · {source.partialOccurrences}{" "}
+						partial · {source.missingOccurrences} missing ·{" "}
+						{source.unavailableOccurrences} unavailable
+					</small>
+					<small className="text-xs text-dim">
+						{measurementLabel(source.measurement)}
+					</small>
+					<small className="text-xs text-dim">
+						{source.observedDeliveryCount === undefined
+							? "? Unavailable observed deliveries · boundary unknown"
+							: `${source.observedDeliveryCount} observed deliveries`}
+					</small>
+					{source.repeatDeliveryCount === undefined ? (
+						<small className="text-xs text-dim">? Unavailable repeats</small>
+					) : null}
 				</button>
 			))}
 		</nav>
@@ -435,7 +459,7 @@ function EventLedger({
 
 	return (
 		<div
-			className="rh-history__ledger"
+			className="focus-visible:-outline-offset-2"
 			role="listbox"
 			aria-label="Attempt events"
 			tabIndex={0}
@@ -452,26 +476,32 @@ function EventLedger({
 					role="option"
 					aria-selected={event.id === active}
 					aria-current={event.id === active ? "true" : undefined}
-					className="rh-history__event"
+					className="flex min-h-14 w-full flex-wrap items-baseline gap-x-2.5 gap-y-0.5 border-b border-l-2 border-b-subtle border-l-transparent px-3 py-2.5 text-left text-secondary-foreground hover:bg-row-hover aria-selected:border-l-primary aria-selected:bg-selected aria-selected:text-bright"
 					key={event.id}
 					onClick={() => {
 						onSelect(event.id);
 					}}
 				>
-					<code>{locatorLabel(event)}</code>
-					<span>{event.label}</span>
-					<span className="rh-history__event-state">
-						<small>
-							<span aria-hidden="true">{stateGlyph(event.state)}</span>{" "}
-							{event.state}
-						</small>
-						{event.timestamp === undefined ? null : (
-							<time>{event.timestamp}</time>
-						)}
-					</span>
+					<code className="w-14 shrink-0 font-mono text-xs text-accent-foreground">
+						{locatorLabel(event)}
+					</code>
+					<span className="min-w-0 flex-1">{event.label}</span>
+					<small className="shrink-0 text-xs tracking-widest text-dim uppercase">
+						<span aria-hidden="true">{stateGlyph(event.state)}</span>{" "}
+						{event.state}
+					</small>
+					{event.timestamp === undefined ? null : (
+						<time className="basis-full pl-16.5 font-mono text-xs text-dim">
+							{event.timestamp}
+						</time>
+					)}
 				</button>
 			))}
-			{events.length === 0 ? <p>No events match this source.</p> : null}
+			{events.length === 0 ? (
+				<p className="px-3 py-2.5 text-sm text-dim">
+					No events match this source.
+				</p>
+			) : null}
 		</div>
 	);
 }
@@ -549,29 +579,29 @@ function DetailPane({
 	const contentHeading = detailContentHeading(detail);
 
 	return (
-		<div className="rh-history__detail-body">
-			<header>
-				<code>{`${detail.locator.line}:${detail.locator.block}`}</code>
+		<div>
+			<header className="flex justify-between gap-2.5 px-3 py-2.5 text-muted-foreground">
+				<code className="font-mono text-xs text-accent-foreground">{`${detail.locator.line}:${detail.locator.block}`}</code>
 				<span>{eventStateLabel(detail.state)}</span>
 			</header>
-			<section>
-				<h3>{contentHeading}</h3>
-				<p className="rh-history__measurement">
+			<section className={DETAIL_SECTION_CLASSES}>
+				<h3 className="text-sm font-medium">{contentHeading}</h3>
+				<p className="text-xs text-dim">
 					{measurementLabel(detail.deliveredMeasurement)}
 				</p>
 				{detail.deliveredText === undefined ? (
 					<p>Content unavailable.</p>
 				) : (
-					<pre>{detail.deliveredText}</pre>
+					<pre className={EVIDENCE_TEXT_CLASSES}>{detail.deliveredText}</pre>
 				)}
 			</section>
-			<section>
-				<h3>Structured source snapshot</h3>
-				<p className="rh-history__measurement">
+			<section className={DETAIL_SECTION_CLASSES}>
+				<h3 className="text-sm font-medium">Structured source snapshot</h3>
+				<p className="text-xs text-dim">
 					{measurementLabel(detail.snapshotMeasurement)}
 				</p>
 				{detail.sourceSnapshotRange === undefined ? null : (
-					<p className="rh-history__measurement">
+					<p className="text-xs text-dim">
 						Lines {detail.sourceSnapshotRange.startLine}–
 						{detail.sourceSnapshotRange.startLine +
 							detail.sourceSnapshotRange.deliveredLineCount -
@@ -583,11 +613,11 @@ function DetailPane({
 				{detail.sourceSnapshot === undefined ? (
 					<p>Snapshot unavailable.</p>
 				) : (
-					<pre>{detail.sourceSnapshot}</pre>
+					<pre className={EVIDENCE_TEXT_CLASSES}>{detail.sourceSnapshot}</pre>
 				)}
 			</section>
 			{detail.applicationTruncated ? (
-				<p className="rh-history__notice">
+				<p className="px-3 py-2.5 text-xs text-dim">
 					◐ Application-truncated · display capped at 65,536 UTF-8 bytes.
 				</p>
 			) : null}
@@ -627,12 +657,20 @@ function DeclaredCorpusPane({
 	readonly entries: StageCorpusResponse;
 }): React.JSX.Element {
 	return (
-		<section className="rh-history__corpus" aria-label="Declared corpus">
-			<h2>Declared corpus</h2>
-			<ul>
+		<section
+			aria-label="Declared corpus"
+			className="rounded-lg border bg-muted px-4 py-3 text-secondary-foreground"
+		>
+			<h2 className="text-xs tracking-widest text-dim uppercase">
+				Declared corpus
+			</h2>
+			<ul className="mt-2 flex flex-col gap-1">
 				{entries.map((entry) => (
 					<li key={`${entry.state}:${entry.path}`}>
-						<code>{entry.path}</code> <small>{corpusStateLabel(entry)}</small>
+						<code className="font-mono text-sm">{entry.path}</code>{" "}
+						<small className="text-xs text-dim">
+							{corpusStateLabel(entry)}
+						</small>
 					</li>
 				))}
 			</ul>
@@ -673,10 +711,10 @@ function RequestTimelinePane({
 }): React.JSX.Element {
 	if (read === undefined) {
 		return (
-			<section className="rh-timeline" aria-label="Request timeline">
-				<h2>Request timeline</h2>
+			<section aria-label="Request timeline">
+				<h2 className={PANE_HEADING_CLASSES}>Request timeline</h2>
 				<p
-					className="rh-timeline__note"
+					className="px-3 py-2.5 text-xs text-dim"
 					role={failed && recorded ? "alert" : undefined}
 				>
 					{timelineNote(failed, recorded)}
@@ -764,148 +802,192 @@ export function SessionHistoryPage({
 			: requestRowsOwningEvents(timelineEntries, events);
 
 	return (
-		<div className="rh-history">
-			<a className="rh-history__back" href="/">
-				← Back to run history
-			</a>
-			<header className="rh-history__header">
-				<div>
-					<p className="rh-history__eyebrow">ATTEMPT EVIDENCE</p>
-					<h1>Saved context history</h1>
+		<div className="flex min-h-screen flex-col">
+			<header className="border-b border-divider px-6 pt-4 pb-3.5">
+				<a
+					href="/"
+					className="text-sm text-muted-foreground hover:text-foreground"
+				>
+					← Back to run history
+				</a>
+				<div className="mt-3 flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+					<div>
+						<p className="text-xs tracking-widest text-accent-foreground">
+							ATTEMPT EVIDENCE
+						</p>
+						<h1 className="mt-1 text-xl font-medium tracking-tight">
+							Saved context history
+						</h1>
+					</div>
+					{summary.data === undefined ? null : (
+						<dl className="flex flex-wrap gap-x-5 gap-y-2">
+							{identityEntries(summary.data.attempt).map(({ term, value }) => (
+								<div key={term} className="flex flex-col gap-1">
+									<dt className="text-xs tracking-widest text-dim uppercase">
+										{term}
+									</dt>
+									<dd className="font-mono text-sm">{value}</dd>
+								</div>
+							))}
+						</dl>
+					)}
 				</div>
-				{summary.data === undefined ? null : (
-					<dl>
-						{identityEntries(summary.data.attempt).map(({ term, value }) => (
-							<div key={term}>
-								<dt>{term}</dt>
-								<dd>{value}</dd>
-							</div>
-						))}
-					</dl>
-				)}
 			</header>
-			{summary.isLoading ? <p>Loading history…</p> : null}
-			{summary.isError ? (
-				<p role="alert">Could not load saved history.</p>
-			) : null}
-			{summary.data === undefined ? null : (
-				<>
-					<section
-						className="rh-history__starting"
-						aria-label="Starting context"
-					>
-						<div>
-							<span>
-								{summary.data.boundary === "unknown"
-									? "Boundary unknown"
-									: "Starting context"}
-							</span>
-							{summary.data.startingContext.map((event) => (
-								<small key={event.id}>
-									<code>{locatorLabel(event)}</code> {event.label}
-								</small>
-							))}
-						</div>
-						<strong>{reportEvidenceLabel(summary.data)}</strong>
-					</section>
-					{stageCorpus.data === undefined ? null : (
-						<DeclaredCorpusPane entries={stageCorpus.data} />
-					)}
-					<div className="rh-history__toolbar">
-						<span>Sort sources</span>
-						<Switcher
-							label="Sort sources"
-							options={["Introduced", "Most repeated"]}
-							selected={sourceSort}
-							onSelect={setSourceSort}
-						/>
-					</div>
-					{diagnostics.length === 0 ? null : (
-						<nav
-							className="rh-history__diagnostics"
-							aria-label="Transcript diagnostics"
+			<div className="flex flex-1 flex-col gap-4 px-6 pt-4 pb-12">
+				{summary.isLoading ? (
+					<p className="text-muted-foreground">Loading history…</p>
+				) : null}
+				{summary.isError ? (
+					<p role="alert" className="text-muted-foreground">
+						<span aria-hidden="true">⚠ </span>
+						Could not load saved history.
+					</p>
+				) : null}
+				{summary.data === undefined ? null : (
+					<>
+						<section
+							aria-label="Starting context"
+							className="flex flex-wrap justify-between gap-4 rounded-lg border bg-muted px-4 py-3 text-secondary-foreground"
 						>
-							{diagnostics.map((entry) => (
-								<button
-									key={entry.id}
-									type="button"
-									onClick={() => {
-										setSourceId(undefined);
-										setSelectedEventId(entry.id);
-									}}
-								>
-									<code>{entry.id}</code> {entry.label}
-								</button>
-							))}
-						</nav>
-					)}
-					<div className="rh-history__workbench">
-						<SourceList
-							sources={summary.data.sources}
-							selected={sourceId}
-							sort={sourceSort}
-							onSelect={(source) => {
-								const allEvents =
-									summary.data.boundary === "unknown"
-										? summary.data.boundaryUnknown
-										: summary.data.attemptEvents;
-								const nextEvents =
-									source === undefined
-										? allEvents
-										: allEvents.filter(({ id }) =>
-												source.eventIds.includes(id),
-											);
-								setSourceId(source?.id);
-								setSelectedEventId((current) =>
-									current !== undefined &&
-									nextEvents.some(({ id }) => id === current)
-										? current
-										: nextEvents[0]?.id,
-								);
-							}}
-						/>
-						<section className="rh-history__events" aria-label="Event ledger">
-							<h2>
-								{summary.data.boundary === "unknown"
-									? "Boundary-unknown events"
-									: "Attempt events"}
-							</h2>
-							<EventLedger
-								events={events}
-								selected={activeEventId}
-								onSelect={setSelectedEventId}
-							/>
+							<div className="flex flex-col gap-1">
+								<span>
+									{summary.data.boundary === "unknown"
+										? "Boundary unknown"
+										: "Starting context"}
+								</span>
+								{summary.data.startingContext.map((event) => (
+									<small key={event.id} className="text-sm text-dim">
+										<code className="font-mono text-accent-foreground">
+											{locatorLabel(event)}
+										</code>{" "}
+										{event.label}
+									</small>
+								))}
+							</div>
+							<strong className="font-mono text-sm">
+								{reportEvidenceLabel(summary.data)}
+							</strong>
 						</section>
-						<RequestTimelinePane
-							read={requests.data}
-							failed={requests.isError}
-							recorded={recordsRequestSeries}
-							entries={visibleEntries}
-							selected={selectedRequestRow}
-							onSelect={(entry) => {
-								const target = eventForRequestRow(
-									timelineEntries,
-									events,
-									entry,
-								);
-								if (target !== undefined) {
-									setSelectedEventId(target.id);
-								}
-							}}
-						/>
-						<aside className="rh-history__detail" aria-label="Event detail">
-							<h2>Evidence detail</h2>
-							{detail.isLoading ? <p>Loading evidence…</p> : null}
-							{detail.isError ? (
-								<p role="alert">Could not load event evidence.</p>
-							) : null}
-							{detail.data === undefined ? null : (
-								<DetailPane detail={detail.data} />
-							)}
-						</aside>
-					</div>
-				</>
-			)}
+						{stageCorpus.data === undefined ? null : (
+							<DeclaredCorpusPane entries={stageCorpus.data} />
+						)}
+						<div className="flex items-center gap-2 text-sm text-dim">
+							<span>Sort sources</span>
+							<Switcher
+								label="Sort sources"
+								options={["Introduced", "Most repeated"]}
+								selected={sourceSort}
+								onSelect={setSourceSort}
+							/>
+						</div>
+						{diagnostics.length === 0 ? null : (
+							<nav
+								aria-label="Transcript diagnostics"
+								className="flex gap-1.5 overflow-x-auto"
+							>
+								{diagnostics.map((entry) => (
+									<button
+										key={entry.id}
+										type="button"
+										className="min-h-14 shrink-0 rounded-md border bg-muted px-2.5 py-1.5 whitespace-nowrap text-muted-foreground hover:border-primary hover:bg-accent"
+										onClick={() => {
+											setSourceId(undefined);
+											setSelectedEventId(entry.id);
+										}}
+									>
+										<code className="font-mono text-accent-foreground">
+											{entry.id}
+										</code>{" "}
+										{entry.label}
+									</button>
+								))}
+							</nav>
+						)}
+						{/* min-w-330 is the four pane floors' sum, so a narrow column scrolls the panes rather than crushing them. */}
+						<div className="flex min-h-96 flex-1 overflow-x-auto">
+							<div className="flex min-w-330 flex-1 overflow-hidden rounded-lg border bg-card">
+								<div className="min-w-58 flex-7 border-r">
+									<SourceList
+										sources={summary.data.sources}
+										selected={sourceId}
+										sort={sourceSort}
+										onSelect={(source) => {
+											const allEvents =
+												summary.data.boundary === "unknown"
+													? summary.data.boundaryUnknown
+													: summary.data.attemptEvents;
+											const nextEvents =
+												source === undefined
+													? allEvents
+													: allEvents.filter(({ id }) =>
+															source.eventIds.includes(id),
+														);
+											setSourceId(source?.id);
+											setSelectedEventId((current) =>
+												current !== undefined &&
+												nextEvents.some(({ id }) => id === current)
+													? current
+													: nextEvents[0]?.id,
+											);
+										}}
+									/>
+								</div>
+								<section
+									aria-label="Event ledger"
+									className="min-w-80 flex-10 border-r"
+								>
+									<h2 className={PANE_HEADING_CLASSES}>
+										{summary.data.boundary === "unknown"
+											? "Boundary-unknown events"
+											: "Attempt events"}
+									</h2>
+									<EventLedger
+										events={events}
+										selected={activeEventId}
+										onSelect={setSelectedEventId}
+									/>
+								</section>
+								<div className="min-w-92 flex-12 border-r">
+									<RequestTimelinePane
+										read={requests.data}
+										failed={requests.isError}
+										recorded={recordsRequestSeries}
+										entries={visibleEntries}
+										selected={selectedRequestRow}
+										onSelect={(entry) => {
+											const target = eventForRequestRow(
+												timelineEntries,
+												events,
+												entry,
+											);
+											if (target !== undefined) {
+												setSelectedEventId(target.id);
+											}
+										}}
+									/>
+								</div>
+								<aside aria-label="Event detail" className="min-w-98 flex-13">
+									<h2 className={PANE_HEADING_CLASSES}>Evidence detail</h2>
+									{detail.isLoading ? (
+										<p className="px-3 py-2.5 text-sm text-dim">
+											Loading evidence…
+										</p>
+									) : null}
+									{detail.isError ? (
+										<p role="alert" className="px-3 py-2.5 text-sm text-dim">
+											<span aria-hidden="true">⚠ </span>
+											Could not load event evidence.
+										</p>
+									) : null}
+									{detail.data === undefined ? null : (
+										<DetailPane detail={detail.data} />
+									)}
+								</aside>
+							</div>
+						</div>
+					</>
+				)}
+			</div>
 		</div>
 	);
 }

@@ -103,7 +103,7 @@ export function AppShell(): React.JSX.Element {
 				</ul>
 			</nav>
 
-			<main className="@container min-w-0 flex-1">
+			<main className="min-w-0 flex-1">
 				<Outlet />
 			</main>
 		</div>

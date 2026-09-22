@@ -164,19 +164,24 @@ function InstructionLoads({
 }): React.JSX.Element {
 	if (loads.state === "unavailable") {
 		return (
-			<p className="rh-timeline__note">
+			<p className="px-3 py-2.5 text-xs text-dim">
 				? Unavailable · the transcript carries no instructions attachment.
 			</p>
 		);
 	}
 
 	return (
-		<ul className="rh-timeline__loads">
+		<ul className="flex flex-col gap-1.5 px-3 py-2.5">
 			{loads.loads.map((load, index) => (
-				<li key={`${index}:${load.memoryType}:${load.filePath}`}>
-					<code>{load.filePath}</code>
-					<small>{load.memoryType}</small>
-					<small>
+				<li
+					key={`${index}:${load.memoryType}:${load.filePath}`}
+					className="flex min-w-0 flex-col gap-0.5"
+				>
+					<code className="truncate font-mono text-xs text-accent-foreground">
+						{load.filePath}
+					</code>
+					<small className="text-xs text-dim">{load.memoryType}</small>
+					<small className="text-xs text-dim">
 						reason, trigger and include parent unavailable in the transcript
 					</small>
 				</li>
@@ -213,78 +218,96 @@ export function RequestTimeline({
 	);
 
 	return (
-		<section className="rh-timeline" aria-label="Request timeline">
-			<h2>Request timeline</h2>
-			<p className="rh-timeline__note">
+		<section aria-label="Request timeline">
+			<h2 className="border-b px-3 py-3 text-xs tracking-widest text-dim uppercase">
+				Request timeline
+			</h2>
+			<p className="px-3 py-2.5 text-xs text-dim">
 				{series.name}. The provider's active context window is not measured:
 				this number omits {series.omits.join(" and ")}.
 			</p>
-			<dl className="rh-timeline__readings">
-				<div>
-					<dt>Attempt totals</dt>
-					<dd>{totalsLabel(series)}</dd>
+			<dl className="flex flex-col gap-1 px-3 pb-2.5">
+				<div className="flex flex-col gap-0.5">
+					<dt className="text-xs tracking-widest text-dim uppercase">
+						Attempt totals
+					</dt>
+					<dd className="font-mono text-xs text-secondary-foreground">
+						{totalsLabel(series)}
+					</dd>
 				</div>
-				<div>
-					<dt>Provider reported</dt>
-					<dd>{costLabel(cost.reported)}</dd>
+				<div className="flex flex-col gap-0.5">
+					<dt className="text-xs tracking-widest text-dim uppercase">
+						Provider reported
+					</dt>
+					<dd className="font-mono text-xs text-secondary-foreground">
+						{costLabel(cost.reported)}
+					</dd>
 				</div>
-				<div>
-					<dt>Calculated</dt>
-					<dd>{costLabel(cost.calculated)}</dd>
+				<div className="flex flex-col gap-0.5">
+					<dt className="text-xs tracking-widest text-dim uppercase">
+						Calculated
+					</dt>
+					<dd className="font-mono text-xs text-secondary-foreground">
+						{costLabel(cost.calculated)}
+					</dd>
 				</div>
-				<div>
-					<dt>Remaining difference</dt>
-					<dd>{costLabel(cost.difference)}</dd>
+				<div className="flex flex-col gap-0.5">
+					<dt className="text-xs tracking-widest text-dim uppercase">
+						Remaining difference
+					</dt>
+					<dd className="font-mono text-xs text-secondary-foreground">
+						{costLabel(cost.difference)}
+					</dd>
 				</div>
 			</dl>
-			<div
-				className="rh-timeline__rows"
-				role="listbox"
-				aria-label="Request timeline"
-			>
+			<div className="border-t" role="listbox" aria-label="Request timeline">
 				{entries.map((entry) => (
 					<button
 						type="button"
 						role="option"
 						key={requestRowId(entry)}
 						aria-selected={requestRowId(entry) === selected}
-						className="rh-timeline__row"
+						className="flex min-h-14 w-full flex-col gap-1 border-b border-l-2 border-b-subtle border-l-transparent px-3 py-2.5 text-left text-secondary-foreground hover:bg-row-hover aria-selected:border-l-primary aria-selected:bg-selected aria-selected:text-bright"
 						onClick={() => {
 							onSelect(entry);
 						}}
 					>
-						<span className="rh-timeline__row-head">
-							<code>{entry.requestId ?? "no request id"}</code>
-							<small>{entry.region}</small>
+						<span className="flex justify-between gap-2.5">
+							<code className="truncate font-mono text-xs text-accent-foreground">
+								{entry.requestId ?? "no request id"}
+							</code>
+							<small className="text-xs text-dim">{entry.region}</small>
 						</span>
 						<span
-							className="rh-timeline__bar"
-							style={{ "--rh-bar-width": barWidth(entry, widest) }}
+							className="block h-1 w-(--bar-width) min-w-0.5 bg-primary"
+							style={{ "--bar-width": barWidth(entry, widest) }}
 						/>
-						<strong>
+						<strong className="font-mono text-sm">
 							{entry.usageState === "complete"
 								? tokens.format(entry.totalInputTokens)
 								: "conflict"}
 						</strong>
-						<small>{categoryLabel(entry)}</small>
-						<small>{modelLabel(entry)}</small>
-						<small>
+						<small className="text-xs text-dim">{categoryLabel(entry)}</small>
+						<small className="text-xs text-dim">{modelLabel(entry)}</small>
+						<small className="text-xs text-dim">
 							{requestCostLabel(costByLine.get(entry.line), entry.region)}
 						</small>
 						{compacted.has(requestRowId(entry)) ? (
-							<small className="rh-timeline__compaction">
+							<small className="text-xs text-accent-foreground">
 								⇥ compaction after this request
 							</small>
 						) : null}
 					</button>
 				))}
 				{entries.length === 0 ? (
-					<p className="rh-timeline__note">
+					<p className="px-3 py-2.5 text-xs text-dim">
 						This attempt's transcript records no request.
 					</p>
 				) : null}
 			</div>
-			<h3>Automatic instruction loads</h3>
+			<h3 className="px-3 pt-3 text-xs tracking-widest text-dim uppercase">
+				Automatic instruction loads
+			</h3>
 			<InstructionLoads loads={instructionLoads} />
 		</section>
 	);
