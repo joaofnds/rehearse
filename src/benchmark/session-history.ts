@@ -121,9 +121,30 @@ export interface StageHistoryIdentity {
 	}[];
 }
 
+/**
+ * One pipeline stage that stopped the run on its grade. It writes no
+ * checkpoint, so nothing records a lineage for it and the run and stage name
+ * it alone. The error is the reason the harness recorded for stopping, carried
+ * as its own field rather than folded into the evidence reason, which every
+ * other cause states in a sentence this project authored.
+ */
+export interface StoppedStageHistoryIdentity {
+	readonly kind: "stopped-stage";
+	readonly caseId: string;
+	readonly run: string;
+	readonly stage: string;
+	readonly error: string;
+	readonly model?: string | undefined;
+	readonly corpusFiles: readonly {
+		readonly path: string;
+		readonly sha256: string;
+	}[];
+}
+
 export type SessionHistoryAttemptIdentity =
 	| SessionAttemptIdentity
-	| StageHistoryIdentity;
+	| StageHistoryIdentity
+	| StoppedStageHistoryIdentity;
 
 /**
  * The corpus files whose bytes were resolved to a real path before the session
@@ -141,15 +162,16 @@ export interface CorpusFileLocation {
  * about the record, so an operator reading "unavailable" learns which one
  * rather than being left to assume the provider failed.
  *
- * A stage that stopped on its grade has no variant here. It does leave a stage
- * record, but that record carries no lineage, so nothing identifies it the way
- * this report's identity requires.
+ * A stage that stopped on its grade is one of them. It writes no checkpoint and
+ * no transcript, and the stop record it leaves instead carries the reason on
+ * the identity rather than here.
  */
 export type HistoryUnavailableReason =
 	| "provider-wrote-none"
 	| "no-capture-recorded"
 	| "recorded-transcript-missing"
-	| "replay-retains-none";
+	| "replay-retains-none"
+	| "stage-stopped";
 
 export interface SessionHistoryReportInput {
 	readonly attempt: SessionHistoryAttemptIdentity;
@@ -1203,6 +1225,7 @@ const UNAVAILABLE_REASON_TEXT = {
 		"the checkpoint records a transcript whose file is no longer beside it",
 	"replay-retains-none":
 		"a replay retains no raw transcript for its stage session",
+	"stage-stopped": "this stage stopped on its grade and recorded no transcript",
 } satisfies Record<HistoryUnavailableReason, string>;
 
 function missingTranscriptReport(
@@ -1300,7 +1323,7 @@ export interface StageCorpusEntry {
 export function stageCorpusReconciliation(
 	report: Immutable<SessionHistoryReport>,
 ): readonly StageCorpusEntry[] {
-	if (report.attempt.kind !== "stage") {
+	if (report.attempt.kind === "session") {
 		return [];
 	}
 

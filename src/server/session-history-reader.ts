@@ -13,6 +13,7 @@ import type { RunManifest } from "#benchmark/manifest";
 import { checkpointsEntryForRun } from "#benchmark/run-layout";
 import { pathIsWithin } from "#benchmark/path-containment";
 import { replayRecordSchema } from "#benchmark/replay";
+import { stoppedStageRecordSchema } from "#benchmark/run-outcome";
 import { parseSessionAttemptRecord } from "#benchmark/session-record";
 import { transcriptInstructionLoadsFromLines } from "#benchmark/transcript-instruction-loads";
 import {
@@ -133,16 +134,34 @@ async function verifiedDirectory(
 	root: string,
 	segments: readonly string[],
 ): Promise<string> {
+	const directory = await verifiedDirectoryWhenPresent(root, segments);
+	if (directory === undefined) {
+		throw new SessionHistoryReaderError(
+			"not-found",
+			"No saved attempt at this identity",
+		);
+	}
+
+	return directory;
+}
+
+/**
+ * The absent directory is the only outcome this returns rather than throws.
+ * A caller that falls back on absence must still be refused a traversing or
+ * symlinked segment, so catching the thrown refusal instead of separating the
+ * two would turn a refusal into a read.
+ */
+async function verifiedDirectoryWhenPresent(
+	root: string,
+	segments: readonly string[],
+): Promise<string | undefined> {
 	let current = root;
 	for (const segment of segments) {
 		const safeSegment = parseIdentity(segment);
 		current = resolve(current, safeSegment);
 		const status = await lstatWhenPresent(current);
 		if (status === undefined) {
-			throw new SessionHistoryReaderError(
-				"not-found",
-				"No saved attempt at this identity",
-			);
+			return undefined;
 		}
 		if (status.isSymbolicLink() || !status.isDirectory()) {
 			throw new SessionHistoryReaderError(
@@ -521,10 +540,13 @@ async function stageInput(
 	const checkpointsDirectory = await verifiedDirectory(root, [
 		checkpointsEntry,
 	]);
-	const directory = await verifiedDirectory(root, [
+	const directory = await verifiedDirectoryWhenPresent(root, [
 		checkpointsEntry,
 		identity.stage,
 	]);
+	if (directory === undefined) {
+		return stoppedStageInput(root, checkpointsDirectory, identity);
+	}
 	const checkpointFile = await verifiedFile(
 		root,
 		directory,
@@ -578,6 +600,69 @@ async function stageInput(
 		},
 		reportedCostUsd: undefined,
 		transcriptFile,
+	};
+}
+
+/**
+ * A stage that stopped the run writes no checkpoint directory, so the reader
+ * falls here and reads the stop record beside the run's checkpoints. The
+ * record carries the reason and nothing that identifies the stage among the
+ * run's others, so the case and the model come from the run manifest and no
+ * lineage is reported at all. Its own parsed transcript stays out of the
+ * report, which is what the unavailable state is for.
+ */
+async function stoppedStageInput(
+	root: string,
+	checkpointsDirectory: string,
+	identity: Readonly<StageHistoryIdentityInput>,
+): Promise<ResolvedHistoryInput> {
+	const recordFile = await verifiedFile(
+		root,
+		root,
+		`${identity.run}.${identity.stage}.json`,
+		false,
+	);
+	if (recordFile === undefined) {
+		throw new SessionHistoryReaderError(
+			"not-found",
+			"No saved attempt at this identity",
+		);
+	}
+	const record = stoppedStageRecordSchema.safeParse(
+		JSON.parse(await readVerifiedFile(root, recordFile)),
+	);
+	if (!record.success) {
+		throw new SessionHistoryReaderError(
+			"not-found",
+			"No saved attempt at this identity",
+		);
+	}
+	if (record.data.stage !== identity.stage) {
+		throw new SessionHistoryReaderError(
+			"refused",
+			"Saved stop record does not own this stage identity",
+		);
+	}
+	const manifest = await runManifest(root, checkpointsDirectory);
+
+	return {
+		root,
+		metadata: {
+			attempt: {
+				kind: "stopped-stage",
+				caseId: manifest.caseId,
+				run: identity.run,
+				stage: record.data.stage,
+				error: record.data.error,
+				model: manifest.model,
+				corpusFiles: [],
+			},
+			resolvedCorpusFiles: [],
+			unavailableReason: "stage-stopped",
+			prefixLinesExcluded: 0,
+		},
+		reportedCostUsd: undefined,
+		transcriptFile: undefined,
 	};
 }
 

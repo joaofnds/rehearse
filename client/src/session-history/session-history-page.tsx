@@ -42,7 +42,8 @@ interface IdentityEntry {
 
 /**
  * A stage checkpoint records no attempt id and no outcome, so the run, the
- * stage and the lineage place it instead.
+ * stage and the lineage place it instead. A stage that stopped wrote no
+ * checkpoint, so it has no lineage to show and shows why it stopped instead.
  */
 function identityEntries(
 	attempt: SessionHistoryReport["attempt"],
@@ -54,6 +55,18 @@ function identityEntries(
 			{ term: "Stage", value: attempt.stage },
 			{ term: "Lineage", value: attempt.lineage },
 			{ term: "Model", value: attempt.model },
+		];
+	}
+
+	if (attempt.kind === "stopped-stage") {
+		return [
+			{ term: "Case", value: attempt.caseId },
+			{ term: "Run", value: attempt.run },
+			{ term: "Stage", value: attempt.stage },
+			...(attempt.model === undefined
+				? []
+				: [{ term: "Model", value: attempt.model }]),
+			{ term: "Stopped because", value: attempt.error },
 		];
 	}
 

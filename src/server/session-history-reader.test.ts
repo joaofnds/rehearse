@@ -12,6 +12,9 @@ import { sessionAttemptRecordSchema } from "#benchmark/session-record";
 import {
 	directorySource,
 	nothingRunning,
+	RecordedRunsFixture,
+	STOPPED_STAGE_EXCHANGE_TEXT,
+	STOPPED_STAGE_SESSION_ID,
 } from "#benchmark/run-records-test-support";
 import {
 	benchmarkRunPaths,
@@ -1405,7 +1408,110 @@ describe(readStageHistory.name, () => {
 			),
 		).toEqual(before);
 	});
+
+	it("names a stage that stopped on its grade rather than reporting it absent", async () => {
+		const fixture = await writtenStoppedRun();
+
+		const report = await readStageHistory(fixture);
+
+		expect(report.attempt).toEqual({
+			kind: "stopped-stage",
+			caseId: "audit-log",
+			run: fixture.run,
+			stage: "build",
+			error: "build stage graded F; minimum grade is B",
+			model: "sonnet",
+			corpusFiles: [],
+		});
+		expect(report.evidence).toEqual({
+			state: "unavailable",
+			reasons: ["this stage stopped on its grade and recorded no transcript"],
+		});
+	});
+
+	it("keeps a stopped stage's parsed exchanges out of every event ledger", async () => {
+		const fixture = await writtenStoppedRun();
+
+		const report = await readStageHistory(fixture);
+
+		expect(report.startingContext).toEqual([]);
+		expect(report.attemptEvents).toEqual([]);
+		expect(report.boundaryUnknown).toEqual([]);
+		expect(report.sources).toEqual([]);
+		expect(report.startingSources).toEqual([]);
+		expect(JSON.stringify(report)).not.toContain(STOPPED_STAGE_SESSION_ID);
+		expect(JSON.stringify(report)).not.toContain(STOPPED_STAGE_EXCHANGE_TEXT);
+	});
+
+	it("reads a stopped stage against a boundary it knows", async () => {
+		const fixture = await writtenStoppedRun();
+
+		const report = await readStageHistory(fixture);
+
+		expect(report.boundary).toEqual("known");
+	});
+
+	it("reports no lineage for a stopped stage rather than a derived one", async () => {
+		const fixture = await writtenStoppedRun();
+
+		const report = await readStageHistory(fixture);
+
+		expect(Object.keys(report.attempt)).not.toContain("lineage");
+		expect(Object.keys(report.attempt)).not.toContain("upstream");
+	});
+
+	it.each([
+		["a judged stage that did not stop", "discuss"],
+		["a stage with no record at all", "nonexistent"],
+	] as const)("reports %s as absent", async (_name, stage) => {
+		const fixture = await writtenStoppedRun();
+
+		expect(readStageHistory({ ...fixture, stage })).rejects.toMatchObject({
+			kind: "not-found",
+		});
+	});
+
+	it("reports a stopped run whose manifest is missing as absent", async () => {
+		const root = await mkdtemp(join(tmpdir(), "rehearse-stopped-reader-"));
+		roots.push(root);
+		const runsDirectory = join(root, ".benchmark-runs");
+		const runs = new RecordedRunsFixture(runsDirectory);
+		await runs.writeStoppedRunWithoutManifest();
+
+		expect(
+			readStageHistory({ runsDirectory, run: runs.stoppedRun, stage: "build" }),
+		).rejects.toMatchObject({ kind: "not-found" });
+	});
+
+	it("refuses a stop record filed under another stage", async () => {
+		const fixture = await writtenStoppedRun();
+		const paths = benchmarkRunPaths(fixture.runsDirectory, fixture.run);
+		await Bun.write(
+			paths.stageFile("review"),
+			await Bun.file(paths.stageFile("build")).text(),
+		);
+
+		expect(
+			readStageHistory({ ...fixture, stage: "review" }),
+		).rejects.toMatchObject({ kind: "refused" });
+	});
 });
+
+interface StoppedStageFixture {
+	readonly runsDirectory: string;
+	readonly run: string;
+	readonly stage: string;
+}
+
+async function writtenStoppedRun(): Promise<StoppedStageFixture> {
+	const root = await mkdtemp(join(tmpdir(), "rehearse-stopped-reader-"));
+	roots.push(root);
+	const runsDirectory = join(root, ".benchmark-runs");
+	const fixture = new RecordedRunsFixture(runsDirectory);
+	await fixture.writeStoppedRun();
+
+	return { runsDirectory, run: fixture.stoppedRun, stage: "build" };
+}
 
 describe("saved stage history API", () => {
 	it("serves a stage summary, its event detail and its corpus reconciliation", async () => {

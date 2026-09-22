@@ -51,6 +51,15 @@ const CORPUS_DIGEST = "a".repeat(64);
 const COMPARISON_DIGEST = "c".repeat(64);
 
 /**
+ * Session content a stop record carries and a history report must not repeat.
+ * The record the harness writes holds the judge's own input, a parsed
+ * transcript among it, so a test asserting the report excludes that content
+ * needs the content to exist in the fixture first.
+ */
+export const STOPPED_STAGE_SESSION_ID = "3d5f9c11-0000-4000-8000-000000000042";
+export const STOPPED_STAGE_EXCHANGE_TEXT = "the stopped stage answered";
+
+/**
  * The settings evidence an ordinary fixture record carries when the caller
  * names none. A literal, so writing a record never reads the repository's root
  * stage-settings.json. A test whose assertions depend on that file passes
@@ -653,6 +662,12 @@ export class RecordedRunsFixture {
 					status: "STAGE_JUDGE_FAILED",
 					stage: "build",
 					error: "build stage graded F; minimum grade is B",
+					input: {
+						transcript: {
+							sessionId: STOPPED_STAGE_SESSION_ID,
+							exchanges: [{ agent: { message: STOPPED_STAGE_EXCHANGE_TEXT } }],
+						},
+					},
 				},
 				null,
 				2,
@@ -674,6 +689,12 @@ export class RecordedRunsFixture {
 					status: "STAGE_JUDGE_FAILED",
 					stage: "build",
 					error: "build stage graded F; minimum grade is B",
+					input: {
+						transcript: {
+							sessionId: STOPPED_STAGE_SESSION_ID,
+							exchanges: [{ agent: { message: STOPPED_STAGE_EXCHANGE_TEXT } }],
+						},
+					},
 				},
 				null,
 				2,

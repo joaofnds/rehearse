@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { runStageFiles } from "./run-layout";
 
-const stoppedStageRecordSchema = z
+export const stoppedStageRecordSchema = z
 	.object({
 		status: z.literal("STAGE_JUDGE_FAILED"),
 		stage: z.string().min(1),
