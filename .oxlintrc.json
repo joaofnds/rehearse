@@ -44,12 +44,7 @@
 		"shadcn/no-arbitrary-values": "error",
 		"shadcn/require-static-classes": "error",
 		"shadcn/no-inline-styles": "error",
-		"shadcn/no-unknown-classes": [
-			"error",
-			{
-				"allow": ["rh-*"]
-			}
-		],
+		"shadcn/no-unknown-classes": "error",
 		"oxc/no-async-await": "off",
 		"oxc/no-optional-chaining": "off",
 		"oxc/no-rest-spread-properties": "off",

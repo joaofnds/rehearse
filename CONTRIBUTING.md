@@ -67,34 +67,37 @@ hover surface shadcn expects while `--color-accent` is the brand purple, and
 Write `bg-primary` for the brand, and read `theme.css` before trusting a Tailwind
 name to match the token it echoes.
 
-`theme.css` maps colors, fonts, and radii. Spacing and type utilities still come
-from Tailwind's own scales, so editing `--space-12` or `--font-size-13` moves the
-hand-written stylesheets and leaves every `p-*` and `text-*` where it was.
+`theme.css` maps colors, fonts, and radii, including the handoff's palette roles
+that shadcn's names lack, such as `text-dim`, `text-pale`, and `border-divider`.
+Spacing and type come from Tailwind's own scales. `globals.css` sets `html` to the
+handoff's 13px base, so `text-base` is 13px and a spacing step is 3.25px. No utility
+reads the `--space-*` tokens or any `--font-size-*` token but the base, so editing
+one of them moves nothing on screen.
 
 Add a primitive with `bunx --bun shadcn@4.21.0 add <name>`, and read the generated
 file before you commit it. Give its props a named type and add that name to the
 `typescript/prefer-readonly-parameter-types` allow list, because React's DOM prop
 types are not deeply readonly and that rule matches exact names.
 
-The `rh-*` allowance on `shadcn/no-unknown-classes` is a plain prefix match, so a
-misspelled `rh-` class passes unreported. Remove the allowance once
-`grep -rn "rh-" client/src --include="*.tsx"` comes back empty.
+`shadcn/no-unknown-classes` carries no allowance, so every class a component writes
+must be one Tailwind generates, and a misspelled one fails the lint.
 
-Put a style value the component computes into a CSS custom property that the
-stylesheet reads, and keep a raw color out of it. Deleting
+Put a style value the component computes into a CSS custom property that a utility
+reads, such as `w-(--bar-width)`, and keep a raw color out of it. Deleting
 `client/src/react-css.d.ts` breaks every one of those, since it is what makes the
 property names typecheck.
 
 Regenerating a primitive brings back the arbitrary values the linter rejects. The
-button's focus ring arrives as `ring-[3px]` and is written `ring-3` here. Re-apply
-that kind of edit after every regeneration.
+button's focus ring arrives as `ring-[3px]` and is written `ring-3` here, and its
+variants carry the handoff's button chrome in place of shadcn's filled defaults.
+Re-apply that kind of edit after every regeneration.
 
 Keep to the one icon set `components.json` names.
 
-Prefer a primitive from `client/src/system/ui/` to a new per-page stylesheet when you
-build a screen. The older components under `client/src/system/components/` that
-[design handoff](docs/design-handoff/README.md) names stay in use, and neither set is
-retired.
+Build a screen from the primitives in `client/src/system/ui/` and the components
+under `client/src/system/components/` that the
+[design handoff](docs/design-handoff/README.md) names, styled with Tailwind utilities.
+Neither set is retired.
 
 Keep provider calls behind injectable dependencies so behavior can be checked
 without a paid run. Preserve record compatibility when changing schemas, and
