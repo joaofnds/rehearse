@@ -1,7 +1,0 @@
-.rh-status {
-	display: inline-flex;
-	align-items: center;
-	gap: var(--space-5);
-	font-size: var(--font-size-11-5);
-	color: var(--color-text-secondary);
-}

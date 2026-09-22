@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import "./filter-pill.css";
 
 export function FilterPill({
 	pressed,
@@ -13,9 +12,9 @@ export function FilterPill({
 	return (
 		<button
 			type="button"
-			className={`rh-filter-pill rh-hoverable ${pressed ? "rh-filter-pill--pressed" : ""}`}
 			aria-pressed={pressed}
 			onClick={onPress}
+			className="rounded-full border border-strong px-3 py-1 text-sm text-secondary-foreground transition-colors hover:border-primary hover:bg-accent aria-pressed:border-primary aria-pressed:bg-selected aria-pressed:text-pale"
 		>
 			{children}
 		</button>

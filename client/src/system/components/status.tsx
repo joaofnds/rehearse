@@ -1,5 +1,3 @@
-import "./status.css";
-
 export const STATUS_STATES = [
 	"accepted",
 	"running",
@@ -30,6 +28,10 @@ export const STATUS_VOCABULARY = {
 	"checkpoint-absent": { glyph: "◇", word: "checkpoint absent" },
 } satisfies Record<StatusState, { glyph: string; word: string }>;
 
+/**
+ * The glyph and its word, at whatever size and colour the surrounding text
+ * sets. A running state pulses unless the reader asked for reduced motion.
+ */
 export function Status({
 	state,
 }: {
@@ -38,13 +40,17 @@ export function Status({
 	const { glyph, word } = STATUS_VOCABULARY[state];
 
 	return (
-		<span className={`rh-status rh-status--${state}`}>
-			<span
-				className={state === "running" ? "rh-live" : undefined}
-				aria-hidden="true"
-			>
-				{glyph}
-			</span>
+		<span className="inline-flex items-center gap-1.5">
+			{state === "running" ? (
+				<span
+					aria-hidden="true"
+					className="animate-pulse text-accent-foreground motion-reduce:animate-none"
+				>
+					{glyph}
+				</span>
+			) : (
+				<span aria-hidden="true">{glyph}</span>
+			)}
 			<span>{word}</span>
 		</span>
 	);

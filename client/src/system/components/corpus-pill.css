@@ -1,9 +1,0 @@
-.rh-corpus-pill {
-	display: inline-block;
-	padding: var(--space-2) var(--space-8);
-	border-radius: var(--radius-pill);
-	border: var(--border-width-hairline) solid var(--color-accent-border);
-	color: var(--color-accent-pale);
-	font-family: var(--font-mono);
-	font-size: var(--font-size-11-5);
-}

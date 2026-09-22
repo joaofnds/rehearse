@@ -43,6 +43,26 @@ function renderPage(): RenderResult {
 	);
 }
 
+/**
+ * The cell a run's row shows under a column, found through the header's
+ * position so an assertion names the column it reads.
+ */
+function cellOf(run: string, column: string): HTMLElement {
+	const headers = screen
+		.getAllByRole("columnheader")
+		.map((header) => header.textContent);
+	const cell = screen
+		.getByText(run)
+		.closest("tr")
+		?.children.item(headers.indexOf(column));
+
+	if (!(cell instanceof HTMLElement)) {
+		throw new Error(`No ${column} cell for ${run}`);
+	}
+
+	return cell;
+}
+
 describe(RunHistoryPage.name, () => {
 	it("renders the empty-state block when no runs are recorded", async () => {
 		respondingWith({ rows: [], unreadable: [] });
@@ -170,7 +190,7 @@ describe(RunHistoryPage.name, () => {
 		await waitFor(() => {
 			expect(screen.getByText("2026-09-04T00-00-00.000Z")).toBeInTheDocument();
 		});
-		expect(document.querySelector(".rh-grade--pending")).not.toBeNull();
+		expect(cellOf("2026-09-04T00-00-00.000Z", "Grade")).toHaveTextContent("—");
 	});
 
 	it("renders a filter bar built from FilterPill, all pressed by default", async () => {
@@ -610,7 +630,9 @@ describe(RunHistoryPage.name, () => {
 			screen.getByText("upstream stage initial is stale"),
 		).toBeInTheDocument();
 		expect(screen.queryByText(/^corpus@/u)).not.toBeInTheDocument();
-		expect(document.querySelector(".rh-run-history__no-corpus")).toBeNull();
+		expect(cellOf("2026-09-05T00-00-00.000Z", "Corpus")).not.toHaveTextContent(
+			"—",
+		);
 	});
 
 	describe("when the report can carry unreadable runs", () => {

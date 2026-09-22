@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import { useState } from "react";
-import "./disclosure.css";
 
 export function Disclosure({
 	collapsedLabel,
@@ -14,10 +13,10 @@ export function Disclosure({
 	const [expanded, setExpanded] = useState(false);
 
 	return (
-		<span className="rh-disclosure">
+		<span className="flex flex-col items-start gap-1">
 			<button
 				type="button"
-				className="rh-disclosure__toggle rh-hoverable"
+				className="-my-5 py-5 text-left text-xs text-secondary-foreground underline decoration-underline underline-offset-4 hover:text-pale"
 				aria-expanded={expanded}
 				onClick={() => {
 					setExpanded(!expanded);

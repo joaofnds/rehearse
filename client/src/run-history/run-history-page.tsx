@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { CorpusPill } from "#client/system/components/corpus-pill";
 import { Disclosure } from "#client/system/components/disclosure";
 import { EmptyState } from "#client/system/components/empty-state";
 import { FilterPill } from "#client/system/components/filter-pill";
@@ -8,11 +7,11 @@ import type { GradeValue } from "#client/system/components/grade";
 import { Grade } from "#client/system/components/grade";
 import { Status } from "#client/system/components/status";
 import { TableShell } from "#client/system/components/table-shell";
+import { Button } from "#client/system/ui/button";
 import { elapsedReading, liveElapsedMs, spendReading } from "./run-progress";
 import type { RunHistoryResponse } from "./run-history-query";
 import { runHistoryQuery } from "./run-history-query";
 import { runStatusState } from "./run-status";
-import "./run-history-page.css";
 
 type RunHistoryRow = RunHistoryResponse["rows"][number];
 type UnreadableRun = RunHistoryResponse["unreadable"][number];
@@ -83,11 +82,15 @@ function UnreadableRuns({
 	readonly runs: readonly UnreadableRun[];
 }): React.JSX.Element {
 	return (
-		<div className="rh-run-history__unreadable" role="alert">
+		<div
+			role="alert"
+			className="rounded-lg border border-strong bg-popover px-3 py-2.5 text-secondary-foreground"
+		>
 			<p>
+				<span aria-hidden="true">⚠ </span>
 				These runs could not be read, so they are missing from the table below:
 			</p>
-			<ul>
+			<ul className="mt-1.5 flex flex-col gap-1 font-mono text-sm">
 				{runs.map((run) => (
 					<li key={run.id}>{`${run.id} — ${run.reason}`}</li>
 				))}
@@ -98,9 +101,9 @@ function UnreadableRuns({
 
 function outcomeCell(row: RunHistoryRow): React.JSX.Element {
 	return (
-		<span className="rh-run-history__outcome">
+		<span className="flex flex-col gap-0.5">
 			<Status state={runStatusState(row.status)} />
-			<span className="rh-run-history__outcome-detail">{row.status}</span>
+			<span className="font-mono text-xs text-dim">{row.status}</span>
 		</span>
 	);
 }
@@ -119,15 +122,15 @@ function progressCell(row: RunHistoryRow, nowMs: number): React.JSX.Element {
 	const { stage, elapsedMs, measuredAt, spentUsd, spendScope } = row.progress;
 
 	return (
-		<span className="rh-run-history__progress">
-			<span className="rh-run-history__progress-stage">{stage}</span>
-			<span className="rh-run-history__progress-readings">
+		<span className="flex flex-col gap-0.5">
+			<span>{stage}</span>
+			<span className="flex gap-2.5 font-mono text-sm">
 				<span>
 					{elapsedReading(liveElapsedMs(elapsedMs, measuredAt, nowMs))}
 				</span>
 				<span>{spendReading(spentUsd)}</span>
 			</span>
-			<span className="rh-run-history__progress-scope">{spendScope}</span>
+			<span className="text-xs text-dim">{spendScope}</span>
 		</span>
 	);
 }
@@ -136,7 +139,7 @@ function causeList(
 	staleCauses: readonly string[],
 ): readonly React.JSX.Element[] {
 	return staleCauses.map((cause, index) => (
-		<span key={index} className="rh-run-history__cause">
+		<span key={index} className="text-xs text-dim">
 			{cause}
 		</span>
 	));
@@ -165,15 +168,23 @@ function causesFor(row: RunHistoryRow): React.ReactNode {
 
 function corpusCell(row: RunHistoryRow): React.JSX.Element {
 	if (row.corpus === undefined && !row.stale) {
-		return <span className="rh-run-history__no-corpus">—</span>;
+		return <span className="text-faint">—</span>;
 	}
 
 	return (
-		<span className="rh-run-history__corpus">
+		<span className="flex flex-col items-start gap-0.5">
 			{row.corpus === undefined ? null : (
-				<CorpusPill hash={row.corpus.digest} />
+				<span className="font-mono text-sm text-secondary-foreground">{`corpus@${row.corpus.digest}`}</span>
 			)}
-			<Status state={row.stale ? "stale" : "clear"} />
+			{row.stale ? (
+				<span className="text-xs text-secondary-foreground">
+					<Status state="stale" />
+				</span>
+			) : (
+				<span className="text-xs text-muted-foreground">
+					<Status state="clear" />
+				</span>
+			)}
 			{causesFor(row)}
 		</span>
 	);
@@ -186,15 +197,28 @@ function gradeCell(row: RunHistoryRow): React.JSX.Element {
 	return <Grade value={value} size="13" />;
 }
 
+/**
+ * "All" carries the record count once the list has loaded, matching the
+ * count the nav badge shows beside it.
+ */
+function filterLabel(filter: Filter, total: number | undefined): string {
+	return filter === "All" && total !== undefined ? `All ${total}` : filter;
+}
+
 function FilterBar({
 	active,
+	total,
 	onSelect,
 }: {
 	readonly active: Filter;
+	readonly total: number | undefined;
 	readonly onSelect: (filter: Filter) => void;
 }): React.JSX.Element {
 	return (
-		<div className="rh-run-history__filters">
+		<div className="flex flex-wrap items-center gap-2 border-b border-divider px-6 py-2.5">
+			<span className="mr-0.5 text-xs tracking-widest text-dim uppercase">
+				Filter
+			</span>
 			{FILTERS.map((filter) => (
 				<FilterPill
 					key={filter}
@@ -203,7 +227,7 @@ function FilterBar({
 						onSelect(filter);
 					}}
 				>
-					{filter}
+					{filterLabel(filter, total)}
 				</FilterPill>
 			))}
 		</div>
@@ -229,41 +253,78 @@ export function RunHistoryPage(): React.JSX.Element {
 	);
 
 	return (
-		<div className="rh-run-history">
-			<h1>Run history</h1>
-			<FilterBar active={filter} onSelect={setFilter} />
-
-			{query.isLoading ? <p>Loading…</p> : null}
-			{query.isError ? <p role="alert">Could not load run history.</p> : null}
-
-			{unreadable.length > 0 ? <UnreadableRuns runs={unreadable} /> : null}
-
-			{query.isSuccess && rows.length === 0 && !onlyUnreadableRuns ? (
-				<EmptyState heading="No runs recorded">
-					<p>
-						The corpus is linked and a spend limit is set. Declare a case, then
-						run it. Every attempt lands here as a durable record.
+		<div>
+			<header className="border-b border-divider px-6 pt-4 pb-3.5">
+				<h1 className="text-xl font-medium tracking-tight">Run history</h1>
+				{query.isSuccess ? (
+					<p className="mt-1 text-sm text-dim">
+						{`${plural(recorded.length, "record")} on disk · every row names the corpus version that produced it`}
 					</p>
-					<button type="button" disabled>
-						Declare a case
-					</button>
-				</EmptyState>
-			) : null}
+				) : null}
+			</header>
 
-			{rows.length > 0 ? (
-				<TableShell
-					caption="DURABLE RECORDS"
-					columns={[...COLUMNS]}
-					rows={rows.map((row) => [
-						row.run,
-						row.caseId,
-						outcomeCell(row),
-						progressCell(row, nowMs),
-						gradeCell(row),
-						corpusCell(row),
-					])}
-				/>
-			) : null}
+			<FilterBar
+				active={filter}
+				total={query.isSuccess ? recorded.length : undefined}
+				onSelect={setFilter}
+			/>
+
+			<div className="flex flex-col gap-4 px-6 pt-3 pb-12">
+				{query.isLoading ? (
+					<p className="text-muted-foreground">Loading…</p>
+				) : null}
+				{query.isError ? (
+					<p role="alert" className="text-muted-foreground">
+						<span aria-hidden="true">⚠ </span>
+						Could not load run history.
+					</p>
+				) : null}
+
+				{unreadable.length > 0 ? <UnreadableRuns runs={unreadable} /> : null}
+
+				{query.isSuccess && rows.length === 0 && !onlyUnreadableRuns ? (
+					<div className="grid place-items-center py-16">
+						<EmptyState heading="No runs recorded">
+							<p>
+								The corpus is linked and a spend limit is set. Declare a case,
+								then run it. Every attempt lands here as a durable record.
+							</p>
+							<Button disabled>Declare a case</Button>
+						</EmptyState>
+					</div>
+				) : null}
+
+				{rows.length > 0 ? (
+					<>
+						<TableShell
+							caption="DURABLE RECORDS"
+							columns={[...COLUMNS]}
+							rows={rows.map((row) => [
+								<span key="run" className="font-mono text-sm">
+									{row.run}
+								</span>,
+								<span key="case" className="font-mono text-sm">
+									{row.caseId}
+								</span>,
+								outcomeCell(row),
+								progressCell(row, nowMs),
+								gradeCell(row),
+								corpusCell(row),
+							])}
+						/>
+						<p className="max-w-prose text-sm text-dim">
+							A stopped run is a recorded outcome, not an error: the step that
+							fell below the minimum is the finding. Runs marked stale were
+							produced by a corpus version that has since changed, and their
+							grades are kept as history.
+						</p>
+					</>
+				) : null}
+			</div>
 		</div>
 	);
+}
+
+function plural(count: number, noun: string): string {
+	return count === 1 ? `1 ${noun}` : `${count} ${noun}s`;
 }
