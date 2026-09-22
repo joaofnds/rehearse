@@ -205,10 +205,10 @@ See [current state](docs/status.md) for implementation coverage and
   stage's checkpoint actually read, computed over the checkpoint's own
   recorded corpus files. Distinct from `corpus root@<hash>`, which digests a
   different set of files.
-- **`corpus root@<hash>`** — the corpus screen's label for a digest over every
-  file in the live corpus tree, including files no stage has ever read. Two
-  screens computing a digest over two different file sets is why the label
-  differs from `corpus@<hash>` rather than reusing it.
+- **`corpus root@<hash>`** — the label the corpus screen and the navigation
+  rail's corpus card give a digest over every file in the live corpus tree,
+  including files no stage has ever read. Two digests over two different file
+  sets is why the label differs from `corpus@<hash>` rather than reusing it.
 - **Cut** — the 0-based line index of the first session-file record a transcript
   prefix drops. A cut of N keeps lines [0, N).
 - **Corpus layout** — the directory shape a corpus takes once resolved, and the

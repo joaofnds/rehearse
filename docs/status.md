@@ -108,6 +108,20 @@ case present, but no browser check has been run over it.
 
 ## Browser UI
 
+Every screen carries a navigation rail listing the nine sections the design
+enumerates. It links the two that have a screen listing their whole collection,
+run history and the corpus, with a badge on each counting that collection, and
+marks the other seven planned. The rail reaches no other address: a comparison
+and a stage history are still opened by typing their address, and a comparison
+screen links onward to the attempts it names.
+
+The rail also names the corpus under test, showing the live tree's
+`corpus root@` digest, its file count and its latest edit, and saying in words
+that the digest is withheld when any entry refused hashing. Pressing `g` then
+`r` reaches run history from any screen. An address the app does not serve
+renders inside the same chrome, naming the address and linking back. `/system`
+is reachable only by typing it, because the design's nav does not name it.
+
 | Route                                | Available today                                                                                                                                                                                                                                                                                                                                                                                  |
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `/`                                  | Run-history report with each row's staleness causes and the runs it could not read, including empty and error states; a run in flight appears as a RUNNING row carrying its stage, elapsed time, and scoped spend                                                                                                                                                                                |
@@ -119,7 +133,9 @@ case present, but no browser check has been run over it.
 | `/system`                            | Design tokens and reusable component gallery                                                                                                                                                                                                                                                                                                                                                     |
 
 Run launch, full run detail, task/case management, calibration screens,
-settings, and first-run setup are design targets. Live monitoring is partly
+settings, and first-run setup are design targets. The rail marks Live monitor,
+Run detail, Comparisons, Tasks, Cases, Calibration and Settings planned rather
+than linking to them. Live monitoring is partly
 delivered: the run list reports a run in flight with its stage, elapsed time and
 scoped spend, while a monitor carrying the judge's reasoning and per-stage detail
 remains a design target. That row reads the event store through the same polled
