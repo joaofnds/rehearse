@@ -543,6 +543,16 @@ See [current state](docs/status.md) for implementation coverage and
 - **Stage mode** — running one stage against frozen upstream artifacts. This
   supports local debugging and repeated measurements, but an intermediate grade
   remains a proxy for the quality of the complete workflow.
+- **Stop record** — the `<run>.<stage>.json` a stopping stage writes in place
+  of its scorecard, carrying the stopping status, the stage name, the reason
+  the run ended there, and the input the Judge was given. It is the only record
+  a stopped stage leaves, since the grade assertion precedes the checkpoint
+  write.
+- **Stopped stage** — the stage a run ended on, because its grade did not meet
+  the pipeline's minimum or its judging failed. It writes no checkpoint, so it
+  has no lineage placing it among the run's other stages; its stop record names
+  it by run and stage instead. The run list shows the run as
+  `STOPPED:<stage>`.
 - **Target repository (template project)** — the real application repository,
   kept at a stable baseline, that tasks run against.
 - **Target check** — one command declared by the pipeline and run against the

@@ -103,7 +103,8 @@ export interface SessionAttemptIdentity {
 /**
  * One pipeline stage at its checkpoint. A checkpoint records no attempt id and
  * no outcome, since it exists only for a stage that passed its grade, so the
- * run and stage name it and the lineage places it among the other stages.
+ * run and stage name it and the lineage places it among the other stages. A
+ * stage that stopped the run has no checkpoint and takes the identity below.
  * Its declared corpus files carry hashes rather than resolved paths.
  */
 export interface StageHistoryIdentity {

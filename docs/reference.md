@@ -758,15 +758,17 @@ so the record resolves and reports that a replay retains no raw transcript. Its
 scorecard holds parsed exchanges; those stay out of the event ledger, since a
 parsed exchange is not the raw evidence the report is about.
 
-One cause has no report at all. A stage that stopped on its grade wrote no
-checkpoint, since the grade assertion precedes the checkpoint write. It does
-leave a `<run>.<stage>.json` stage record, and `show run:<name>` prints that
-record's stop reason, but the record carries no lineage. A lineage is a hash of
-the inputs rather than a stored field, and recomputing one from a record's own
-fields does not reproduce the lineage a checkpoint stores, so deriving one for a
-stopped stage would mint an identifier that cannot be told from a real one. The
-stage report's identity therefore has nothing to key on, and its URL answers 404.
-The run history screen marks such a run stopped without naming the stage.
+One cause reports without a checkpoint. A stage that stopped on its grade wrote
+none, since the grade assertion precedes the checkpoint write. It does leave a
+`<run>.<stage>.json` stop record, and `show run:<name>` prints that record's
+reason. The report reads that record when the checkpoint directory is absent and
+names the run, the stage and why the stage stopped, with its evidence
+unavailable. It shows no lineage, because the record carries none: a lineage is a
+hash of the inputs rather than a stored field, one of which no stop record holds,
+so any lineage shown would be minted here and indistinguishable from a recorded
+one. A stage with neither a checkpoint nor a stop record still answers 404, which
+is what separates a stage that stopped from a page that failed. The run history
+screen marks such a run stopped without naming the stage.
 
 The summary separates inherited Starting context from Attempt events when the
 attempt record retains its transcript cut. Older records without a cut use the
