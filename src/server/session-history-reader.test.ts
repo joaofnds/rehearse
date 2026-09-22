@@ -1535,6 +1535,27 @@ describe(readStageHistory.name, () => {
 		});
 	});
 
+	it("reports the stop when the record's declared corpus is unreadable", async () => {
+		const fixture = await writtenStoppedRun();
+		const paths = benchmarkRunPaths(fixture.runsDirectory, fixture.run);
+		await Bun.write(
+			paths.stageFile("build"),
+			JSON.stringify({
+				status: "STAGE_JUDGE_FAILED",
+				stage: "build",
+				error: "build stage graded C; minimum grade is B",
+				corpusFiles: [{ path: "CLAUDE.md" }],
+			}),
+		);
+
+		const report = await readStageHistory(fixture);
+
+		expect(report.attempt).toMatchObject({
+			error: "build stage graded C; minimum grade is B",
+			corpusFiles: [],
+		});
+	});
+
 	it("reports the model the stopped stage recorded rather than the run's", async () => {
 		const fixture = await writtenStoppedRun();
 		const paths = benchmarkRunPaths(fixture.runsDirectory, fixture.run);

@@ -22,9 +22,8 @@ export const stoppedStageRecordSchema = z
 export const stoppedStageDetailSchema = z.object({
 	corpusFiles: z
 		.array(z.object({ path: z.string().min(1), sha256: z.string().min(1) }))
-		.catch([])
-		.default([]),
-	model: z.string().min(1).optional().catch(undefined),
+		.optional(),
+	model: z.string().min(1).optional(),
 });
 
 export interface StoppedStage {

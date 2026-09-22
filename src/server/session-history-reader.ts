@@ -651,7 +651,8 @@ async function stoppedStageInput(
 			"Saved stop record does not own this stage identity",
 		);
 	}
-	const detail = stoppedStageDetailSchema.parse(record.data);
+	const detail = stoppedStageDetailSchema.safeParse(record.data);
+	const declared = detail.success ? detail.data : {};
 	const manifest = await runManifest(root, checkpointsDirectory);
 
 	return {
@@ -663,8 +664,8 @@ async function stoppedStageInput(
 				run: identity.run,
 				stage: record.data.stage,
 				error: redactAbsolutePaths(record.data.error),
-				model: detail.model ?? manifest.model,
-				corpusFiles: detail.corpusFiles,
+				model: declared.model ?? manifest.model,
+				corpusFiles: declared.corpusFiles ?? [],
 			},
 			resolvedCorpusFiles: [],
 			unavailableReason: "stage-stopped",
