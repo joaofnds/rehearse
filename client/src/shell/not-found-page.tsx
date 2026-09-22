@@ -1,5 +1,6 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import { EmptyState } from "#client/system/components/empty-state";
+import { Button } from "#client/system/ui/button";
 import "./not-found-page.css";
 
 /**
@@ -17,7 +18,9 @@ export function NotFoundPage(): React.JSX.Element {
 					Rehearse serves no screen at <code>{pathname}</code>.
 				</p>
 				<p>
-					<Link to="/">Back to run history</Link>
+					<Button asChild>
+						<Link to="/">Back to run history</Link>
+					</Button>
 				</p>
 			</EmptyState>
 		</div>

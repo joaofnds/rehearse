@@ -26,6 +26,8 @@ export const COLOR_TOKENS = [
 	"--color-accent-tint-14",
 	"--color-accent-tint-10",
 	"--color-accent-tint-08",
+	"--color-danger",
+	"--color-danger-foreground",
 	"--color-diff-add",
 	"--color-diff-remove",
 	"--color-accent-border",

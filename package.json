@@ -29,7 +29,10 @@
 		"@phosphor-icons/react": "^2.1.10",
 		"@tanstack/react-query": "^5.102.8",
 		"@tanstack/react-router": "^1.170.33",
+		"class-variance-authority": "^0.7.1",
+		"cn": "^0.4.0",
 		"hono": "^4.13.7",
+		"radix-ui": "^1.6.7",
 		"react": "^19.2.8",
 		"react-dom": "^19.2.8",
 		"zod": "^4.4.3"
@@ -37,6 +40,7 @@
 	"devDependencies": {
 		"@happy-dom/global-registrator": "^20.14.0",
 		"@oxlint/plugins": "1.80.0",
+		"@tailwindcss/vite": "4.3.3",
 		"@testing-library/jest-dom": "^7.0.1",
 		"@testing-library/react": "^16.3.3",
 		"@types/bun": "^1.4.0",
@@ -47,6 +51,7 @@
 		"oxlint": "^1.80.0",
 		"oxlint-tsgolint": "^7.0.2001",
 		"stylelint": "^17.0.0",
+		"tailwindcss": "4.3.3",
 		"typescript": "^7.0.2",
 		"vite": "^8.2.2"
 	},

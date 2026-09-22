@@ -60,6 +60,28 @@ class-transformer. Read [architecture](docs/design.md)
 for the component boundaries and [design handoff](docs/design-handoff/README.md)
 before implementing a new screen.
 
+Tailwind's theme names live in `client/src/system/theme.css`, and several bind to a
+different value than the raw token spelled the same way. `bg-accent` is the subtle
+hover surface shadcn expects while `--color-accent` is the brand purple, and
+`border-border` resolves to `--color-border-2` rather than to `--color-border`.
+Write `bg-primary` for the brand, and read `theme.css` before trusting a Tailwind
+name to match the token it echoes.
+
+`theme.css` maps colors, fonts, and radii. Spacing and type utilities still come
+from Tailwind's own scales, so editing `--space-12` or `--font-size-13` moves the
+hand-written stylesheets and leaves every `p-*` and `text-*` where it was.
+
+Add a primitive with `bunx --bun shadcn@4.21.0 add <name>`, and read the generated
+file before you commit it. `client/src/system/ui/**` is exempt from
+`typescript/prefer-readonly-parameter-types`, because those components spread React's
+DOM prop types and those types are not deeply readonly. Every other lint rule applies
+there.
+
+Prefer a primitive from `client/src/system/ui/` to a new per-page stylesheet when you
+build a screen. The older components under `client/src/system/components/` that
+[design handoff](docs/design-handoff/README.md) names stay in use, and neither set is
+retired.
+
 Keep provider calls behind injectable dependencies so behavior can be checked
 without a paid run. Preserve record compatibility when changing schemas, and
 distinguish missing evidence from a failed grade. Treat benchmark fixtures as

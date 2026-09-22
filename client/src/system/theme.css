@@ -1,0 +1,46 @@
+@theme inline {
+	--color-background: var(--color-canvas);
+	--color-foreground: var(--color-text);
+
+	--color-card: var(--color-surface);
+	--color-card-foreground: var(--color-text);
+
+	--color-popover: var(--color-surface-2);
+	--color-popover-foreground: var(--color-text);
+
+	--color-primary: var(--color-accent);
+	--color-primary-foreground: var(--color-canvas);
+
+	--color-secondary: var(--color-surface-alt);
+	--color-secondary-foreground: var(--color-text-secondary);
+
+	--color-muted: var(--color-surface-alt);
+	--color-muted-foreground: var(--color-text-muted);
+
+	--color-accent: var(--color-accent-tint-14);
+	--color-accent-foreground: var(--color-accent-light);
+
+	--color-destructive: var(--color-danger);
+	--color-destructive-foreground: var(--color-danger-foreground);
+
+	--color-border: var(--color-border-2);
+	--color-input: var(--color-border-2);
+	--color-ring: var(--color-accent);
+
+	--color-sidebar: var(--color-sidebar);
+	--color-sidebar-foreground: var(--color-text-secondary);
+	--color-sidebar-primary: var(--color-accent);
+	--color-sidebar-primary-foreground: var(--color-canvas);
+	--color-sidebar-accent: var(--color-accent-tint-14);
+	--color-sidebar-accent-foreground: var(--color-accent-light);
+	--color-sidebar-border: var(--color-border-subtle);
+	--color-sidebar-ring: var(--color-accent);
+
+	--font-sans: var(--font-ui);
+	--font-mono: var(--font-mono);
+
+	--radius-sm: var(--radius-chip);
+	--radius-md: var(--radius-button);
+	--radius-lg: var(--radius-section);
+	--radius-xl: var(--radius-dialog);
+}

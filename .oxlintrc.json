@@ -132,6 +132,12 @@
 			"rules": {
 				"import/no-default-export": "off"
 			}
+		},
+		{
+			"files": ["client/src/system/ui/**"],
+			"rules": {
+				"typescript/prefer-readonly-parameter-types": "off"
+			}
 		}
 	]
 }
