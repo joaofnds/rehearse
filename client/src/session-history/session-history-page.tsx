@@ -79,12 +79,16 @@ function identityEntries(
 		];
 	}
 
-	return [
-		{ term: "Case", value: attempt.caseId },
-		{ term: "Attempt", value: attempt.id },
-		{ term: "Model", value: attempt.model },
-		{ term: "Outcome", value: attempt.outcome },
-	];
+	if (attempt.kind === "session") {
+		return [
+			{ term: "Case", value: attempt.caseId },
+			{ term: "Attempt", value: attempt.id },
+			{ term: "Model", value: attempt.model },
+			{ term: "Outcome", value: attempt.outcome },
+		];
+	}
+
+	return attempt satisfies never;
 }
 
 type SourceSort = "Introduced" | "Most repeated";

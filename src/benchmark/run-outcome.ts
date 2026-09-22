@@ -30,8 +30,9 @@ export const awaitingJudgeStageRecordSchema = z
 
 /**
  * The stage's own recorded identity, beside whichever state its record rests
- * in. Each field parses on its own so that one the harness wrote in an older
- * shape costs only itself.
+ * in. Both fields are optional because a record written before the harness
+ * wrote them carries neither, and a record that fails this parse loses both
+ * together: the reader falls back to the run manifest for the whole of it.
  */
 export const stageRecordDetailSchema = z.object({
 	corpusFiles: z

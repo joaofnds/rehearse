@@ -187,6 +187,10 @@ export interface CorpusFileLocation {
  * transcript, and the stop record it leaves instead carries the reason on the
  * identity rather than here, since a grade and a signal both write this record
  * and only that text tells them apart.
+ *
+ * A stage whose judging never completed is another. Its record names no cause
+ * because none is recorded: the run ended before a verdict existed, so the
+ * sentence here is the whole of what is known.
  */
 export type HistoryUnavailableReason =
 	| "provider-wrote-none"
