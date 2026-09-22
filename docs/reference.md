@@ -737,16 +737,16 @@ timeline: those readings come from a session attempt record, which a checkpoint
 is not.
 
 `/api/runs/<run>/stages/<stage>/history/corpus` reconciles the declared corpus
-files the stage recorded, in its checkpoint or in its stop record, against the
+files the stage recorded, in whichever of its three records exists, against the
 reads its transcript shows, keyed on the corpus layout path. Each entry reads observed with its locator, no observation
 recorded, or undeclared for an observed corpus read the declaration omits.
 Hashing a file does not establish when its contents entered context, so no
 entry reads as loaded on the strength of its hash, and no observation recorded
 is not a claim of absence. A stage whose report is evidence-unavailable has no
 reads to reconcile against, so every declared file reads no observation
-recorded. No checkpoint written so far carries a transcript, and a stopped
-stage records none at all, so that is what the reconciliation shows for every
-stage currently on disk.
+recorded. No checkpoint written so far carries a transcript, and neither a
+stopped stage nor a stage awaiting judgment records one at all, so that is what
+the reconciliation shows for every stage currently on disk.
 
 Missing raw evidence names the fact that produced it rather than one wording
 for all of them. A checkpoint recording transcript status UNAVAILABLE reads as
@@ -782,10 +782,11 @@ describe the stage as stopped: nothing judged it and nothing failed. The parsed
 exchanges the record's input holds stay out of every event ledger, the same
 substitution the unavailable state prevents for a replay.
 
-A stage with none of the three still answers 404, which is what separates a
-stage the reader can name from a page that failed. The run history screen marks
-a stopped run stopped without naming the stage, and reports an interrupted run
-as interrupted from its event stream.
+A stage with none of those records still answers 404, which is what separates a
+stage the reader can name from a page that failed. The run history screen shows
+a stopped run as `STOPPED:<stage>` and an interrupted run, whose status comes
+from its event stream rather than any file, as `INTERRUPTED` without naming the
+stage it died in.
 
 The summary separates inherited Starting context from Attempt events when the
 attempt record retains its transcript cut. Older records without a cut use the
