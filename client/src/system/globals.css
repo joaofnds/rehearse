@@ -8,6 +8,8 @@
 @import "./tokens.css";
 @import "./theme.css";
 
+@custom-variant current (&[aria-current="page"]);
+
 @layer base {
 	*,
 	::before,

@@ -34,12 +34,7 @@ function NavEntry({
 		<li>
 			<Link
 				to={path}
-				className="flex items-center gap-2.5 rounded-md border-l-2 px-2.5 py-2"
-				activeProps={{ className: "border-primary bg-selected text-pale" }}
-				inactiveProps={{
-					className:
-						"border-transparent text-secondary-foreground hover:bg-subtle",
-				}}
+				className="flex items-center gap-2.5 rounded-md border-l-2 border-transparent px-2.5 py-2 text-secondary-foreground hover:bg-row-hover current:border-primary current:bg-selected current:text-pale"
 			>
 				{icon}
 				<span className="flex-1">{label}</span>
