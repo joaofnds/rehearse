@@ -15,7 +15,7 @@ import { pathIsWithin } from "#benchmark/path-containment";
 import { replayRecordSchema } from "#benchmark/replay";
 import {
 	awaitingJudgeStageRecordSchema,
-	unjudgedStageDetailSchema,
+	stageRecordDetailSchema,
 	stoppedStageRecordSchema,
 } from "#benchmark/run-outcome";
 import { redactAbsolutePaths } from "./redact-path";
@@ -550,7 +550,7 @@ async function stageInput(
 		identity.stage,
 	]);
 	if (directory === undefined) {
-		return unjudgedStageInput(root, checkpointsDirectory, identity);
+		return checkpointlessStageInput(root, checkpointsDirectory, identity);
 	}
 	const checkpointFile = await verifiedFile(
 		root,
@@ -617,7 +617,7 @@ async function stageInput(
  * is reported at all. Each record's own parsed transcript stays out of the
  * report, which is what the unavailable state is for.
  */
-async function unjudgedStageInput(
+async function checkpointlessStageInput(
 	root: string,
 	checkpointsDirectory: string,
 	identity: Readonly<StageHistoryIdentityInput>,
@@ -656,7 +656,7 @@ async function unjudgedStageInput(
 		);
 	}
 
-	const detail = unjudgedStageDetailSchema.safeParse(contents);
+	const detail = stageRecordDetailSchema.safeParse(contents);
 	const declared = detail.success ? detail.data : {};
 	const manifest = await runManifest(root, checkpointsDirectory);
 	const common = {
@@ -682,9 +682,9 @@ async function unjudgedStageInput(
 }
 
 /**
- * The fields both records share, before each names the state it rests in.
+ * What both records name the stage by, before each adds the state it rests in.
  */
-interface UnjudgedStageFields {
+interface StageRecordIdentityFields {
 	readonly caseId: string;
 	readonly run: string;
 	readonly stage: string;
@@ -701,7 +701,7 @@ interface UnjudgedStageFields {
  * error path that covers every other one.
  */
 function stoppedStageMetadata(
-	fields: Readonly<UnjudgedStageFields>,
+	fields: Readonly<StageRecordIdentityFields>,
 	error: string,
 ): Pick<SessionHistoryReportMetadata, "attempt" | "unavailableReason"> {
 	return {
@@ -714,12 +714,8 @@ function stoppedStageMetadata(
 	};
 }
 
-/**
- * Nothing failed here, so the record carries no reason to redact: the run
- * ended before a verdict on this stage existed.
- */
 function awaitingJudgeStageMetadata(
-	fields: Readonly<UnjudgedStageFields>,
+	fields: Readonly<StageRecordIdentityFields>,
 ): Pick<SessionHistoryReportMetadata, "attempt" | "unavailableReason"> {
 	return {
 		attempt: { kind: "awaiting-judge-stage", ...fields },

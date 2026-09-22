@@ -463,8 +463,8 @@ function corpusLayoutPathUnder(
 /**
  * The corpus name for a read, from the evidence the record holds. A session
  * attempt resolved its corpus to real paths before it ran and gets an exact
- * match; a stage holds hashes and no paths, whether it checkpointed or stopped,
- * so only there does the layout rule apply.
+ * match; a stage holds hashes and no paths, whichever state its record rests
+ * in, so only there does the layout rule apply.
  *
  * The discriminant is the record kind, not whether the resolved list happens to
  * be empty. A session case may legitimately declare no corpus files, and its

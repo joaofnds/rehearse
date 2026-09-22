@@ -1629,7 +1629,7 @@ describe("saved history for a stage whose judging never completed", () => {
 		});
 	});
 
-	it("keeps an unjudged stage's parsed exchanges out of every event ledger", async () => {
+	it("keeps an awaiting-judge stage's parsed exchanges out of every event ledger", async () => {
 		const fixture = await writtenAwaitingJudgeRun();
 
 		const report = await readStageHistory(fixture);
@@ -1643,7 +1643,7 @@ describe("saved history for a stage whose judging never completed", () => {
 		expect(JSON.stringify(report)).not.toContain(AWAITING_JUDGE_EXCHANGE_TEXT);
 	});
 
-	it("reports no lineage for an unjudged stage rather than a derived one", async () => {
+	it("reports no lineage for an awaiting-judge stage rather than a derived one", async () => {
 		const fixture = await writtenAwaitingJudgeRun();
 
 		const report = await readStageHistory(fixture);
@@ -1652,7 +1652,7 @@ describe("saved history for a stage whose judging never completed", () => {
 		expect(Object.keys(report.attempt)).not.toContain("upstream");
 	});
 
-	it("does not describe an unjudged stage as stopped", async () => {
+	it("does not describe an awaiting-judge stage as stopped", async () => {
 		const fixture = await writtenAwaitingJudgeRun();
 
 		const report = await readStageHistory(fixture);
@@ -1683,13 +1683,13 @@ describe("saved history for a stage whose judging never completed", () => {
 	});
 });
 
-interface StoppedStageFixture {
+interface StageRecordFixture {
 	readonly runsDirectory: string;
 	readonly run: string;
 	readonly stage: string;
 }
 
-async function writtenAwaitingJudgeRun(): Promise<StoppedStageFixture> {
+async function writtenAwaitingJudgeRun(): Promise<StageRecordFixture> {
 	const root = await mkdtemp(join(tmpdir(), "rehearse-awaiting-reader-"));
 	roots.push(root);
 	const runsDirectory = join(root, ".benchmark-runs");
@@ -1699,7 +1699,7 @@ async function writtenAwaitingJudgeRun(): Promise<StoppedStageFixture> {
 	return { runsDirectory, run: fixture.awaitingJudgeRun, stage: "build" };
 }
 
-async function writtenStoppedRun(): Promise<StoppedStageFixture> {
+async function writtenStoppedRun(): Promise<StageRecordFixture> {
 	const root = await mkdtemp(join(tmpdir(), "rehearse-stopped-reader-"));
 	roots.push(root);
 	const runsDirectory = join(root, ".benchmark-runs");

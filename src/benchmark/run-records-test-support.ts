@@ -60,12 +60,12 @@ export const STOPPED_STAGE_SESSION_ID = "3d5f9c11-0000-4000-8000-000000000042";
 export const STOPPED_STAGE_EXCHANGE_TEXT = "the stopped stage answered";
 
 /**
- * The same content on a record whose judging never completed. It is the judge's
- * own input, written before judging started, so it carries a parsed transcript
- * the report must not repeat either.
+ * Session content a record whose judging never completed carries, in the
+ * judge's input written before judging started.
  */
 export const AWAITING_JUDGE_SESSION_ID = "7c1e4a88-0000-4000-8000-000000000043";
-export const AWAITING_JUDGE_EXCHANGE_TEXT = "the unjudged stage answered";
+export const AWAITING_JUDGE_EXCHANGE_TEXT =
+	"the stage awaiting judgment answered";
 
 /**
  * The settings evidence an ordinary fixture record carries when the caller
@@ -687,9 +687,9 @@ export class RecordedRunsFixture {
 	/**
 	 * A run interrupted between its stage session finishing and its judging
 	 * completing: the stage file holds the judge's pending input under
-	 * `AWAITING_STAGE_JUDGE` and nothing overwrote it, which is the shape the
-	 * repository's own 2026-09-08 run rests in. That record predates the fields
-	 * the writer adds today, so it carries the three the oldest one has.
+	 * `AWAITING_STAGE_JUDGE` and nothing overwrote it. It carries the three
+	 * fields the oldest such record on disk has, since the writer gained the
+	 * rest after that one was written and a reader must still read both shapes.
 	 */
 	public async writeAwaitingJudgeRun(): Promise<void> {
 		const paths = benchmarkRunPaths(this.runsDirectory, this.awaitingJudgeRun);

@@ -33,7 +33,7 @@ export const awaitingJudgeStageRecordSchema = z
  * in. Each field parses on its own so that one the harness wrote in an older
  * shape costs only itself.
  */
-export const unjudgedStageDetailSchema = z.object({
+export const stageRecordDetailSchema = z.object({
 	corpusFiles: z
 		.array(z.object({ path: z.string().min(1), sha256: z.string().min(1) }))
 		.optional(),
