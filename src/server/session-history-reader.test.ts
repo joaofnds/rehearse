@@ -9,6 +9,7 @@ import {
 	sessionConfirmationRepRecordSchema,
 } from "#benchmark/confirmation-record";
 import { sessionAttemptRecordSchema } from "#benchmark/session-record";
+import { stageCorpusReconciliation } from "#benchmark/session-history";
 import {
 	directorySource,
 	nothingRunning,
@@ -1481,6 +1482,26 @@ describe(readStageHistory.name, () => {
 		expect(
 			readStageHistory({ runsDirectory, run: runs.stoppedRun, stage: "build" }),
 		).rejects.toMatchObject({ kind: "not-found" });
+	});
+
+	it("reconciles a stopped stage's declared corpus as unobserved rather than absent", async () => {
+		const fixture = await writtenStoppedRun();
+		const paths = benchmarkRunPaths(fixture.runsDirectory, fixture.run);
+		await Bun.write(
+			paths.stageFile("build"),
+			JSON.stringify({
+				status: "STAGE_JUDGE_FAILED",
+				stage: "build",
+				error: "build stage graded C; minimum grade is B",
+				corpusFiles: [{ path: "CLAUDE.md", sha256: "a".repeat(64) }],
+			}),
+		);
+
+		const report = await readStageHistory(fixture);
+
+		expect(stageCorpusReconciliation(report)).toEqual([
+			{ path: "CLAUDE.md", state: "no-observation-recorded" },
+		]);
 	});
 
 	it("keeps an absolute host path out of a stopped stage's reason", async () => {

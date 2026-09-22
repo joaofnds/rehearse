@@ -6,6 +6,9 @@ export const stoppedStageRecordSchema = z
 		status: z.literal("STAGE_JUDGE_FAILED"),
 		stage: z.string().min(1),
 		error: z.string().min(1),
+		corpusFiles: z
+			.array(z.object({ path: z.string().min(1), sha256: z.string().min(1) }))
+			.optional(),
 	})
 	.loose();
 
