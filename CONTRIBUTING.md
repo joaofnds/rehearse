@@ -71,8 +71,9 @@ name to match the token it echoes.
 that shadcn's names lack, such as `text-dim`, `text-pale`, and `border-divider`.
 Spacing and type come from Tailwind's own scales. `globals.css` sets `html` to the
 handoff's 13px base, so `text-base` is 13px and a spacing step is 3.25px.
-`tokens.css` therefore holds no spacing, type size, or letter-spacing scale. Add a
-token there only for a value a utility or a base style reads.
+`tokens.css` therefore holds no spacing, type size, or letter-spacing scale. It keeps
+the handoff's whole colour palette; outside the palette, add a token only for a value
+a utility or a base style reads.
 
 Add a primitive with `bunx --bun shadcn@4.21.0 add <name>`, and read the generated
 file before you commit it. Give its props a named type and add that name to the
@@ -80,10 +81,13 @@ file before you commit it. Give its props a named type and add that name to the
 types are not deeply readonly and that rule matches exact names.
 
 `shadcn/no-unknown-classes` carries no allowance, so every class a component writes
-must be one Tailwind generates, and a misspelled one fails the lint.
+must be one Tailwind generates, and a misspelled class name fails the lint.
 
 Put a style value the component computes into a CSS custom property that a utility
-reads, such as `w-(--bar-width)`, and keep a raw color out of it. Deleting
+reads, such as `w-(--bar-width)`, and keep a raw color out of it. The lint checks
+neither the property's name nor a length it carries, so a misspelled name or a
+hand-written pixel value passed this way goes unreported; keep the route for values
+the component computes. Deleting
 `client/src/react-css.d.ts` breaks every one of those, since it is what makes the
 property names typecheck.
 
