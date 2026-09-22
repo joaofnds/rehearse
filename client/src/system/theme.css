@@ -43,4 +43,15 @@
 	--radius-md: var(--radius-button);
 	--radius-lg: var(--radius-section);
 	--radius-xl: var(--radius-dialog);
+
+	/*
+	 * Tailwind's own spacing steps are multiples of --spacing, 0.25rem, and a
+	 * rem here is 13px because globals.css sets that font-size on html. The
+	 * steps therefore land 3.25px apart and reach none of the project's px
+	 * spacing tokens. Each token a screen needs is named for its pixel value
+	 * so p-12px cannot be misread as Tailwind's numeric p-12.
+	 */
+	--spacing-12px: var(--space-12);
+	--spacing-14px: var(--space-14);
+	--spacing-20px: var(--space-20);
 }

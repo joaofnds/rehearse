@@ -1,7 +1,6 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import { EmptyState } from "#client/system/components/empty-state";
 import { Button } from "#client/system/ui/button";
-import "./not-found-page.css";
 
 /**
  * What an address the app does not serve renders, in place of the router's
@@ -12,7 +11,7 @@ export function NotFoundPage(): React.JSX.Element {
 	const { pathname } = useLocation();
 
 	return (
-		<div className="rh-not-found">
+		<div className="pt-14px px-20px pb-12px">
 			<EmptyState heading="No screen at this address">
 				<p>
 					Rehearse serves no screen at <code>{pathname}</code>.
