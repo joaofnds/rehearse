@@ -34,9 +34,9 @@ body {
  */
 .rh-visually-hidden {
 	position: absolute;
-	inline-size: var(--hairline);
-	block-size: var(--hairline);
-	margin: calc(-1 * var(--hairline));
+	inline-size: var(--visually-hidden-size);
+	block-size: var(--visually-hidden-size);
+	margin: calc(-1 * var(--visually-hidden-size));
 	padding: 0;
 	overflow: hidden;
 	clip-path: inset(50%);

@@ -3,9 +3,19 @@
 	min-height: 100vh;
 }
 
+/*
+ * The rail sticks to the viewport rather than scrolling with the page, because
+ * the corpus card inside it is "the always-visible answer to which corpus am I
+ * looking at" (SPEC.md:62). A context-history page is three times the viewport
+ * tall, so without this the card is gone by the second screenful.
+ */
 .rh-nav {
 	inline-size: var(--rail-width);
 	flex: none;
+	position: sticky;
+	top: 0;
+	align-self: flex-start;
+	max-block-size: 100vh;
 	display: flex;
 	flex-direction: column;
 	gap: var(--space-14);

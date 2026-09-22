@@ -12,6 +12,8 @@ import type { CorpusResponse } from "#client/corpus/corpus-query";
 import type { RunHistoryResponse } from "#client/run-history/run-history-query";
 import { stubFetchByPath } from "#client/test-support/fetch-stub";
 import { createAppRouter } from "#client/router";
+import { NAV_ITEMS } from "./nav-items";
+import { CHORD_DESTINATIONS } from "./use-go-to-shortcut";
 
 const originalFetch = globalThis.fetch;
 
@@ -415,6 +417,25 @@ describe("the navigation shell", () => {
 			});
 		},
 	);
+
+	it("sends every live nav item and chord to a route the router serves", () => {
+		const served = new Set<string>(
+			Object.values(createAppRouter().routesById).map(
+				(route) => route.fullPath,
+			),
+		);
+		const destinations: string[] = [
+			...NAV_ITEMS.map((item) => item.path).filter(
+				(path) => path !== undefined,
+			),
+			...CHORD_DESTINATIONS.values(),
+		];
+
+		expect(destinations.length).toBeGreaterThan(0);
+		for (const path of destinations) {
+			expect(served.has(path)).toBe(true);
+		}
+	});
 
 	it("gives the comparison screen one main landmark too", async () => {
 		const digest = "e".repeat(64);

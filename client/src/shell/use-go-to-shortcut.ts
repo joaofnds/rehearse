@@ -9,12 +9,11 @@ import { useNavigate } from "@tanstack/react-router";
 const CHORD_WINDOW_MS = 1500;
 
 /**
- * Where each `g` chord goes. SPEC.md:356 also lists `g m` for the live
- * monitor, which has no route yet: binding a key to a screen that does not
- * exist navigates to the not-found page, the same defect as a nav item that
- * looks live while its screen is planned.
+ * Where each `g` chord goes, keyed by the chord's second key. A test checks
+ * each destination against the route tree, because a chord bound to a screen
+ * that does not exist would navigate to the not-found page.
  */
-const DESTINATIONS = new Map([["r", "/"]]);
+export const CHORD_DESTINATIONS = new Map([["r", "/"]]);
 
 function isTyping(target: EventTarget | null): boolean {
 	if (!(target instanceof HTMLElement)) {
@@ -56,7 +55,7 @@ export function useGoToShortcut(): void {
 				started !== undefined && Date.now() - started < CHORD_WINDOW_MS;
 			pendingSince.current = key === "g" ? Date.now() : undefined;
 
-			const destination = fresh ? DESTINATIONS.get(key) : undefined;
+			const destination = fresh ? CHORD_DESTINATIONS.get(key) : undefined;
 			if (destination !== undefined) {
 				void navigate({ to: destination });
 			}
