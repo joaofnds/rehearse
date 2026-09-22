@@ -1483,6 +1483,23 @@ describe(readStageHistory.name, () => {
 		).rejects.toMatchObject({ kind: "not-found" });
 	});
 
+	it("keeps an absolute host path out of a stopped stage's reason", async () => {
+		const fixture = await writtenStoppedRun();
+		const paths = benchmarkRunPaths(fixture.runsDirectory, fixture.run);
+		await Bun.write(
+			paths.stageFile("build"),
+			JSON.stringify({
+				status: "STAGE_JUDGE_FAILED",
+				stage: "build",
+				error: `build stage rubric missing at ${join(homedir(), "secrets", "rubric.json")}`,
+			}),
+		);
+
+		const report = await readStageHistory(fixture);
+
+		expect(JSON.stringify(report)).not.toContain(homedir());
+	});
+
 	it("refuses a stop record filed under another stage", async () => {
 		const fixture = await writtenStoppedRun();
 		const paths = benchmarkRunPaths(fixture.runsDirectory, fixture.run);

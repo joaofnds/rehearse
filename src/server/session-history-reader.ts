@@ -14,6 +14,7 @@ import { checkpointsEntryForRun } from "#benchmark/run-layout";
 import { pathIsWithin } from "#benchmark/path-containment";
 import { replayRecordSchema } from "#benchmark/replay";
 import { stoppedStageRecordSchema } from "#benchmark/run-outcome";
+import { redactAbsolutePaths } from "./redact-path";
 import { parseSessionAttemptRecord } from "#benchmark/session-record";
 import { transcriptInstructionLoadsFromLines } from "#benchmark/transcript-instruction-loads";
 import {
@@ -608,7 +609,9 @@ async function stageInput(
  * falls here and reads the stop record beside the run's checkpoints. The
  * record carries the reason and nothing that identifies the stage among the
  * run's others, so the case and the model come from the run manifest and no
- * lineage is reported at all. Its own parsed transcript stays out of the
+ * lineage is reported at all. The reason is whatever the harness wrote, the
+ * only record-derived sentence this report carries, so it is redacted here
+ * rather than at the error path that covers every other one. Its own parsed transcript stays out of the
  * report, which is what the unavailable state is for.
  */
 async function stoppedStageInput(
@@ -653,7 +656,7 @@ async function stoppedStageInput(
 				caseId: manifest.caseId,
 				run: identity.run,
 				stage: record.data.stage,
-				error: record.data.error,
+				error: redactAbsolutePaths(record.data.error),
 				model: manifest.model,
 				corpusFiles: [],
 			},
