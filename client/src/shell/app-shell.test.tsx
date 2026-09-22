@@ -15,6 +15,18 @@ import { createAppRouter } from "#client/router";
 
 const originalFetch = globalThis.fetch;
 
+/**
+ * Lets the router finish any navigation a keystroke started, so a test that
+ * asserts no navigation happened is observing a settled tree rather than
+ * winning a race against one.
+ */
+async function settled(): Promise<void> {
+	await waitFor(() => {
+		expect(true).toBe(true);
+	});
+	await Promise.resolve();
+}
+
 afterEach(() => {
 	globalThis.fetch = originalFetch;
 });
@@ -139,6 +151,68 @@ describe("the navigation shell", () => {
 			.map((link) => link.querySelector(".rh-nav__label")?.textContent);
 
 		expect(linked).toEqual(["Run history", "Corpus"]);
+	});
+
+	it("reaches run history from another screen by pressing g then r", async () => {
+		renderShellAt("/corpus", { runs: 0, corpusFiles: 137 });
+
+		await waitFor(() => {
+			expect(
+				screen.getByRole("heading", { name: "Instruction corpus" }),
+			).toBeInTheDocument();
+		});
+
+		fireEvent.keyDown(document, { key: "g" });
+		fireEvent.keyDown(document, { key: "r" });
+
+		await waitFor(() => {
+			expect(
+				screen.getByRole("heading", { name: "Run history" }),
+			).toBeInTheDocument();
+		});
+	});
+
+	it("stays put when r is pressed without its g prefix", async () => {
+		renderShellAt("/corpus", { runs: 0, corpusFiles: 137 });
+
+		await waitFor(() => {
+			expect(
+				screen.getByRole("heading", { name: "Instruction corpus" }),
+			).toBeInTheDocument();
+		});
+
+		fireEvent.keyDown(document, { key: "r" });
+
+		await settled();
+
+		expect(
+			screen.queryByRole("heading", { name: "Run history" }),
+		).not.toBeInTheDocument();
+	});
+
+	it("leaves the chord alone while the operator is typing in a field", async () => {
+		renderShellAt("/corpus", { runs: 0, corpusFiles: 137 });
+
+		await waitFor(() => {
+			expect(
+				screen.getByRole("heading", { name: "Instruction corpus" }),
+			).toBeInTheDocument();
+		});
+
+		const field = document.createElement("input");
+		document.body.append(field);
+		field.focus();
+
+		fireEvent.keyDown(field, { key: "g" });
+		fireEvent.keyDown(field, { key: "r" });
+
+		await settled();
+
+		expect(
+			screen.queryByRole("heading", { name: "Run history" }),
+		).not.toBeInTheDocument();
+
+		field.remove();
 	});
 
 	it("answers an unknown address inside the shell, naming it", async () => {

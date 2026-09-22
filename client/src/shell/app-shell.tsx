@@ -3,6 +3,7 @@ import { Link, Outlet } from "@tanstack/react-router";
 import { corpusQuery } from "#client/corpus/corpus-query";
 import { runHistoryQuery } from "#client/run-history/run-history-query";
 import { CorpusCard } from "./corpus-card";
+import { useGoToShortcut } from "./use-go-to-shortcut";
 import { NAV_ITEMS } from "./nav-items";
 import "./app-shell.css";
 
@@ -70,6 +71,7 @@ function useBadgeCounts(): BadgeCounts {
 
 export function AppShell(): React.JSX.Element {
 	const counts = useBadgeCounts();
+	useGoToShortcut();
 
 	return (
 		<div className="rh-shell">
