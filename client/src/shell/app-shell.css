@@ -58,3 +58,9 @@
 		var(--color-accent-deep-2);
 	opacity: var(--opacity-planned);
 }
+
+.rh-nav__badge {
+	font-family: var(--font-mono);
+	font-size: var(--font-size-10);
+	color: var(--color-text-dim);
+}

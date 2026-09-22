@@ -13,11 +13,25 @@ afterEach(() => {
 	globalThis.fetch = originalFetch;
 });
 
+/**
+ * The shell queries run history and the corpus on every route for its nav
+ * badges and corpus card, so every route test serves those two alongside
+ * whatever its own screen reads.
+ */
 function renderAtWithStub(
 	path: string,
 	byPath: ReadonlyMap<string, unknown>,
 ): void {
-	stubFetchByPath(byPath);
+	stubFetchByPath(
+		new Map<string, unknown>([
+			["/api/runs", { rows: [], unreadable: [] }],
+			[
+				"/api/corpus",
+				{ root: "/corpus", digest: "ffd58d", files: [], refusals: [] },
+			],
+			...byPath,
+		]),
+	);
 	renderRouterAt(path);
 }
 

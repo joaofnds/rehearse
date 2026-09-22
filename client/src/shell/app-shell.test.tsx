@@ -1,7 +1,15 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+	within,
+} from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
+import type { CorpusResponse } from "#client/corpus/corpus-query";
+import type { RunHistoryResponse } from "#client/run-history/run-history-query";
 import { stubFetchByPath } from "#client/test-support/fetch-stub";
 import { createAppRouter } from "#client/router";
 
@@ -11,13 +19,60 @@ afterEach(() => {
 	globalThis.fetch = originalFetch;
 });
 
-function renderShellAt(path: string): void {
+type RunHistoryRow = RunHistoryResponse["rows"][number];
+type CorpusFile = CorpusResponse["files"][number];
+
+function runRow(run: string): RunHistoryRow {
+	return {
+		run,
+		caseId: "audit-log",
+		status: "COMPLETE",
+		stage: "build",
+		grade: "B",
+		corpus: { digest: "a3a62f" },
+		stale: false,
+		staleCauses: [],
+		progress: { state: "recorded" },
+	};
+}
+
+function corpusFile(path: string): CorpusFile {
+	return {
+		path,
+		sha256: "a".repeat(64),
+		lastEditedAt: "2026-09-22T09:12:00.000Z",
+		readBy: 0,
+	};
+}
+
+function renderShellAt(
+	path: string,
+	served?: { readonly runs: number; readonly corpusFiles: number },
+): void {
+	const runs = served?.runs ?? 0;
+	const corpusFiles = served?.corpusFiles ?? 0;
+
 	stubFetchByPath(
 		new Map<string, unknown>([
-			["/api/runs", { rows: [], unreadable: [] }],
+			[
+				"/api/runs",
+				{
+					rows: Array.from({ length: runs }, (_unused, index) =>
+						runRow(`2026-09-06T21-58-29.50${index}Z`),
+					),
+					unreadable: [],
+				},
+			],
 			[
 				"/api/corpus",
-				{ root: "/corpus", digest: "ffd58d", files: [], refusals: [] },
+				{
+					root: "/corpus",
+					digest: "ffd58d",
+					files: Array.from({ length: corpusFiles }, (_unused, index) =>
+						corpusFile(`file-${index}.md`),
+					),
+					refusals: [],
+				},
 			],
 		]),
 	);
@@ -75,9 +130,33 @@ describe("the navigation shell", () => {
 			).toBeInTheDocument();
 		});
 
-		const linked = screen.getAllByRole("link").map((link) => link.textContent);
+		const linked = screen
+			.getAllByRole("link")
+			.map((link) => link.querySelector(".rh-nav__label")?.textContent);
 
 		expect(linked).toEqual(["Run history", "Corpus"]);
+	});
+
+	it("counts each section's own collection in its badge", async () => {
+		renderShellAt("/", { runs: 4, corpusFiles: 137 });
+
+		const nav = await screen.findByRole("navigation", { name: "Sections" });
+
+		await waitFor(() => {
+			expect(within(nav).getByText("4")).toBeInTheDocument();
+			expect(within(nav).getByText("137")).toBeInTheDocument();
+		});
+	});
+
+	it("moves a badge when the served collection changes", async () => {
+		renderShellAt("/", { runs: 2, corpusFiles: 9 });
+
+		const nav = await screen.findByRole("navigation", { name: "Sections" });
+
+		await waitFor(() => {
+			expect(within(nav).getByText("2")).toBeInTheDocument();
+			expect(within(nav).getByText("9")).toBeInTheDocument();
+		});
 	});
 
 	it("navigates between run history and corpus by click", async () => {

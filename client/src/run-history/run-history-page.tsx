@@ -1,7 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import type { InferResponseType } from "hono/client";
-import { apiClient } from "#client/api-client";
 import { CorpusPill } from "#client/system/components/corpus-pill";
 import { Disclosure } from "#client/system/components/disclosure";
 import { EmptyState } from "#client/system/components/empty-state";
@@ -11,16 +9,11 @@ import { Grade } from "#client/system/components/grade";
 import { Status } from "#client/system/components/status";
 import { TableShell } from "#client/system/components/table-shell";
 import { elapsedReading, liveElapsedMs, spendReading } from "./run-progress";
+import type { RunHistoryResponse } from "./run-history-query";
+import { runHistoryQuery } from "./run-history-query";
 import { runStatusState } from "./run-status";
 import "./run-history-page.css";
 
-/**
- * The row shape comes from the server's own route type via Hono's RPC
- * client, `apiClient.api.runs.$get`, rather than a hand-declared schema
- * repeating what `src/server/run-history.ts`'s `RunHistoryRow` already
- * states (decision-3's stated reason for choosing Hono).
- */
-type RunHistoryResponse = InferResponseType<typeof apiClient.api.runs.$get>;
 type RunHistoryRow = RunHistoryResponse["rows"][number];
 type UnreadableRun = RunHistoryResponse["unreadable"][number];
 
@@ -82,12 +75,6 @@ type Filter = (typeof FILTERS)[number];
 
 function matchesFilter(row: RunHistoryRow, filter: Filter): boolean {
 	return filter === "All" || row.status.startsWith("STOPPED:");
-}
-
-async function fetchRunHistoryReport(): Promise<RunHistoryResponse> {
-	const response = await apiClient.api.runs.$get();
-
-	return response.json();
 }
 
 function UnreadableRuns({
@@ -226,8 +213,7 @@ function FilterBar({
 export function RunHistoryPage(): React.JSX.Element {
 	const [filter, setFilter] = useState<Filter>("All");
 	const query = useQuery({
-		queryKey: ["run-history"],
-		queryFn: fetchRunHistoryReport,
+		...runHistoryQuery,
 		refetchInterval: ({ state }) =>
 			(state.data?.rows ?? []).some((row) => row.progress.state === "running")
 				? RUNNING_POLL_MS

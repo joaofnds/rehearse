@@ -1,21 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
-import type { InferResponseType } from "hono/client";
-import { apiClient } from "#client/api-client";
 import { EmptyState } from "#client/system/components/empty-state";
 import { PlannedFeatureBlock } from "#client/system/components/planned-feature-block";
 import { TableShell } from "#client/system/components/table-shell";
+import type { CorpusResponse } from "./corpus-query";
+import { corpusQuery } from "./corpus-query";
 import "./corpus-page.css";
 
-type CorpusResponse = InferResponseType<typeof apiClient.api.corpus.$get>;
 type CorpusFile = CorpusResponse["files"][number];
 
 const COLUMNS = ["Path", "Hash", "Last edited", "Read by"] as const;
-
-async function fetchCorpusReport(): Promise<CorpusResponse> {
-	const response = await apiClient.api.corpus.$get();
-
-	return response.json();
-}
 
 function rowFor(file: CorpusFile): readonly React.ReactNode[] {
 	return [
@@ -27,10 +20,7 @@ function rowFor(file: CorpusFile): readonly React.ReactNode[] {
 }
 
 export function CorpusPage(): React.JSX.Element {
-	const query = useQuery({
-		queryKey: ["corpus"],
-		queryFn: fetchCorpusReport,
-	});
+	const query = useQuery(corpusQuery);
 
 	return (
 		<div className="rh-corpus">
