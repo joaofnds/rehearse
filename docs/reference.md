@@ -78,9 +78,9 @@ Before that paid probe, a resumed session case checks local `claude --help` for
 `--system-prompt-snapshot <on|off>`. A CLI without that capability is refused;
 fresh session cases do not need the check.
 
-The session budget applies separately to workflow sessions, the shared PO
-session, and Judge invocations. It is not a whole-run ceiling. Confirmation
-projects rep costs from those budgets; session confirmation includes the probe
+The session budget applies to each workflow session, the shared PO session, and
+each Judge invocation on its own, not to the whole run. Confirmation projects
+rep costs from those budgets; session confirmation includes the probe
 allowance in its projection. A projection is a sum of budgets, not a cap:
 Claude Code stops a session only after the call that crosses its budget, and
 that call is charged in full. Stage/pipeline projections do not include that
@@ -490,9 +490,9 @@ unrelated machine default cannot decide whether the case can execute.
 
 Session attempts also run with `--strict-mcp-config` and no MCP configuration,
 so no MCP server reaches the session, the claude.ai account's connectors
-included. Those connectors would otherwise arrive after the first model call,
-differ between reps of one group, and make the next call rewrite the prompt
-cache.
+included. Those connectors would otherwise arrive at no fixed point in the
+session and differ between reps of one group, and one that arrives between two
+calls makes the second rewrite the prompt cache.
 
 A live session attempt copies the declared files it must overlay and hashes the
 copies, so `resolvedPath` names the frozen copy rather than the operator's

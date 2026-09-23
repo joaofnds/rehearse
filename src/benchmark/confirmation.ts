@@ -76,19 +76,14 @@ export function projectConfirmationCost(
 	};
 }
 
-/**
- * Claude Code stops a session only after the call that crosses its
- * `--max-budget-usd`, and that call is charged in full, so the sum of the
- * budgets is not a cap. The line says so where the operator approves it.
- */
 export function formatProjectedCost(
 	projection: ConfirmationCostProjection,
 ): string {
-	const reps = `${projection.reps} reps x $${projection.perRepMaximumUsd.toFixed(2)}`;
+	const repBudgets = `${projection.reps} reps x $${projection.perRepMaximumUsd.toFixed(2)}`;
 	const breakdown =
 		projection.preflightMaximumUsd === undefined
-			? reps
-			: `$${projection.preflightMaximumUsd.toFixed(2)} preflight + ${reps}`;
+			? repBudgets
+			: `$${projection.preflightMaximumUsd.toFixed(2)} preflight + ${repBudgets}`;
 
 	return `Projected budget: $${projection.totalMaximumUsd.toFixed(2)} (${breakdown}). A session stops only after the call that crosses its budget, so the charge can exceed this.`;
 }

@@ -151,7 +151,7 @@ describe(probeModelAvailable.name, () => {
 		},
 	);
 
-	it("refuses naming the budget, the cap, and no availability claim when the probe exhausts its budget", () => {
+	it("refuses naming the budget and its amount, with no availability claim, when the probe exhausts its budget", () => {
 		const invoke = fakeProbe({
 			session_id: "session-1",
 			is_error: true,

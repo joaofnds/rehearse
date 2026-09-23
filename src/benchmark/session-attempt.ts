@@ -146,8 +146,9 @@ function selectedSettings(
  * user source leaves the harness's own `.claude` as the only one, and the
  * operator's installed skills and settings cannot decide what the case measures.
  * `--strict-mcp-config` does the same for MCP: without it the claude.ai
- * account's connectors reach the session after its first call, differ between
- * reps of one group, and rewrite the prompt cache mid-session.
+ * account's connectors reach the session at no fixed point and differ between
+ * reps of one group, and one that arrives between two calls makes the second
+ * rewrite the prompt cache.
  */
 export function sessionCaseArgs(
 	sessionCase: SessionCase,

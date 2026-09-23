@@ -200,7 +200,7 @@ function refusalFor(
 			? "an amount the provider did not report"
 			: `$${spendUsd(error.costUsd)}`;
 
-	return `The ${model} availability probe exhausted its own budget, spending ${spent} against a $${MODEL_PREFLIGHT_MAXIMUM_USD.toFixed(2)} cap. The model itself was not rejected; retry once the prompt cache is warm.`;
+	return `The ${model} availability probe exhausted its own budget, spending ${spent} against its $${MODEL_PREFLIGHT_MAXIMUM_USD.toFixed(2)} budget. The model itself was not rejected; retry once the prompt cache is warm.`;
 }
 
 /**

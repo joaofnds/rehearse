@@ -64,7 +64,7 @@ separately using its [quickstart](https://code.claude.com/docs/en/quickstart);
 it is needed only when you run an experiment.
 
 **To run your first experiment:** follow the [runbook](docs/runbook.md). It
-provides the corpus file the smoke case needs, explains the spend limit, and
+provides the corpus file the smoke case needs, explains the session budget, and
 shows how to read the result. A bare `run` selects the `audit-log` pipeline, so
 choose `--case smoke` explicitly when starting out.
 

@@ -487,7 +487,7 @@ See [current state](docs/status.md) for implementation coverage and
   provider ran, not the uuid of the directory it was saved under.
 - **Session knobs** — the CLI and environment settings shared by run and replay
   that select the workflow and Judge models and efforts and set the per-session
-  spend limit.
+  budget.
 - **Stage** — one pipeline step: a skill invocation consuming upstream
   artifacts and emitting its own. The UI's design calls this a **step**
   (see [UI vocabulary](docs/design-handoff/README.md)); the word in code, records, and this glossary stays stage.
