@@ -824,10 +824,12 @@ Session comparison pages, for every report version that records attempt
 evidence, link to a rep's history only after the server verifies the recorded
 group, rep, and attempt paths, ownership, and all three SHA-256 digests. Failed provenance validation appears as stale provenance
 without a navigable link; a valid failed experiment remains inspectable.
-A comparison records those paths relative to its manifest, so a manifest kept
-inside the runs directory records them with leading `../` segments. The server
-resolves such a path from the runs directory after dropping those leading
-segments, and refuses a `..` anywhere after the first name.
+A comparison records those paths relative to its manifest. A path that names
+the runs directory resolves from after its last occurrence of that name, which
+covers a manifest outside the runs directory. A manifest in a subdirectory of the
+runs directory records paths that begin with `../`; the server drops those
+leading segments and resolves the rest from the runs directory. A `..` after
+the first other segment is refused.
 
 ## Comparison manifests
 

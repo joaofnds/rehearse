@@ -531,12 +531,15 @@ See [current state](docs/status.md) for implementation coverage and
 - **Stale checkpoint** — a checkpoint whose recorded inputs (corpus files,
   stage settings, model, effort, or an upstream checkpoint) no longer match
   the current state; still replayable for exploration, refused in comparisons.
-- **Stale provenance** — a comparison rep whose saved confirmation run, rep or
-  attempt file no longer matches the digest the comparison recorded, or no
-  longer sits where that run keeps it. The comparison still shows the rep, but
-  offers no path into its attempt history, because the evidence there is no
-  longer what was compared. It is unrelated to a stale case or a stale
-  checkpoint, which compare a record against the current corpus rather than
+- **Stale provenance** — the state of a comparison rep whose saved evidence
+  the comparison cannot vouch for: its confirmation run, rep or attempt
+  file is missing, unreadable, differs from the digest the comparison recorded,
+  sits somewhere other than where its confirmation run keeps it, or names a
+  different case, run or rep. The comparison page still shows the rep, marked
+  `stale`, but offers no path into its attempt history. A rep can be stale from
+  the moment the comparison is saved, when its files were never at their
+  confirmation run's own location. It is unrelated to a stale case or a stale
+  checkpoint, which compare a record against the current inputs rather than
   against the files it was measured from.
 - **State check** — the grading definition a session case declares for the
   files and git state its session leaves: a command to run and the outcome
