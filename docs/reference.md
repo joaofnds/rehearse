@@ -829,7 +829,10 @@ the runs directory resolves from after its last occurrence of that name, which
 covers a manifest outside the runs directory. A manifest in a subdirectory of the
 runs directory records paths that begin with `../`; the server drops those
 leading segments and resolves the rest from the runs directory. A `..` after
-the first other segment is refused.
+the first other segment is refused. A report does not record where its manifest
+was, so a manifest kept inside the `confirmations` directory, where every
+directory is read as a confirmation run, records paths that resolve nowhere,
+and its reps read as stale provenance.
 
 ## Comparison manifests
 
