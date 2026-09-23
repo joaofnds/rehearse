@@ -571,7 +571,7 @@ See [current state](docs/status.md) for implementation coverage and
   mid-stage. Only the reason its stop record carries says which of those it
   was. It writes no checkpoint, so it has no lineage placing it among the run's
   other stages; its stop record names it by run and stage instead. The run list
-  shows the run as `STOPPED:<stage>`.
+  shows the run as `STOPPED:<stage>`, linked to that stage's context history.
 - **Target repository (template project)** — the real application repository,
   kept at a stable baseline, that tasks run against.
 - **Target check** — one command declared by the pipeline and run against the
