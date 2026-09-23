@@ -64,7 +64,7 @@ may also declare a scorer over the files and git state the session leaves. That
 tree is copied into the run's record directory before cleanup, and each grade
 runs against its own restored copy, so the evidence outlives the attempt and a
 later pass reads the bytes this one did.
-Session confirmation freezes supported inputs once and retains each repetition,
+Session confirmation freezes its declared inputs once and retains each repetition,
 including unsuccessful and execution-failed attempts.
 
 ## Instruction and evidence identity
@@ -81,10 +81,11 @@ session debug attempts. Comparison loading checks compatible inputs and derives
 its statistics from rep records rather than trusting a saved summary.
 
 Corpus hashing and delivery are distinct responsibilities. A live debug session
-can retain a reference to installed files rather than a frozen copy; a session
-confirmation must copy and deliver its supported declared files. Replay can
-install stage corpus snapshots using project settings. The complete support
-matrix is in the [reference](reference.md#corpus-sources-and-delivery).
+that declares no corpus file keeps a reference to installed files rather than a
+frozen copy; any session that declares one, and every session confirmation,
+copies and delivers each declared file. Replay can install stage corpus
+snapshots using project settings. The complete support matrix is in the
+[reference](reference.md#corpus-sources-and-delivery).
 
 Do not treat an instruction being declared or hashed as proof the provider
 loaded it. Session context manifests reconcile declared inputs with transcript
