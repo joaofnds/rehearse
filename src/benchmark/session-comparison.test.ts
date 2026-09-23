@@ -16,8 +16,16 @@ import {
 	parseConfirmationRepRecord,
 } from "./confirmation-record";
 import type { SessionConfirmationGroupRecord } from "./confirmation-record";
-import { parseComparisonReport } from "./comparison-record";
-import type { MultiCaseComparisonReport } from "./comparison-record";
+import { COMPARISON_ARMS, parseComparisonReport } from "./comparison-record";
+import type {
+	ComparisonReport,
+	LegacyComparisonReport,
+	MultiCaseComparisonReport,
+} from "./comparison-record";
+import {
+	armResourcesWithoutElapsed,
+	contrastResourcesWithoutElapsed,
+} from "./comparison-test-fixtures";
 import { writeComparisonReport } from "./comparison-command";
 import type { Immutable } from "./contracts";
 import { runSessionConfirmation } from "./session-confirmation";
@@ -37,6 +45,10 @@ import { runList } from "#cli/list-command";
 import { runShow } from "#cli/show-command";
 import { comparisonReport } from "#server/comparisons";
 import { comparisonAttemptHistoryLinks } from "#server/comparison-history-links";
+import type {
+	ComparisonAttemptHistoryLink,
+	ComparisonAttemptHistoryLinks,
+} from "#server/comparison-history-links";
 
 function digest(text: string): string {
 	return createHash("sha256").update(text).digest("hex");
@@ -2102,5 +2114,108 @@ describe("a committed state-scored case compared across three arms", () => {
 		expect(summary).toContain("this estimate covers case state-probe only");
 		expect(summary).toContain("| candidate | 2/2 | 1.000 | 0.342-1.000 |");
 		expect(summary).toContain("| control | 2/2 | 1.000 | 0.342-1.000 |");
+	});
+});
+
+function asVersionThreeReport(
+	report: ComparisonReport | LegacyComparisonReport,
+): ComparisonReport | LegacyComparisonReport {
+	if (
+		report.schemaVersion !== 5 ||
+		report.mode !== "session" ||
+		"samplingUnit" in report
+	) {
+		throw new Error("expected a current multi-case session report");
+	}
+
+	return parseComparisonReport(
+		JSON.stringify({
+			...report,
+			schemaVersion: 3,
+			cases: report.cases.map(({ caseId, arms }) => ({
+				caseId,
+				arms: Object.fromEntries(
+					COMPARISON_ARMS.map((role) => [
+						role,
+						{
+							...arms[role],
+							resources: armResourcesWithoutElapsed(arms[role].resources),
+							source: {
+								...arms[role].source,
+								reps: arms[role].source.reps.map(
+									({
+										outcomes: _outcomes,
+										checks: _checks,
+										stateResults: _stateResults,
+										...rep
+									}) => rep,
+								),
+							},
+						},
+					]),
+				),
+			})),
+			contrasts: Object.fromEntries(
+				Object.entries(report.contrasts).map(([pair, contrast]) => [
+					pair,
+					{
+						...contrast,
+						resources: contrastResourcesWithoutElapsed(contrast.resources),
+					},
+				]),
+			),
+		}),
+	);
+}
+
+function everyRepAvailable(
+	caseIds: readonly string[],
+): ComparisonAttemptHistoryLinks {
+	const reps = (caseId: string, role: Role): ComparisonAttemptHistoryLink[] =>
+		[1, 2].map((ordinal) => ({
+			status: "available",
+			repId: `${caseId}-${role}-rep-${ordinal}`,
+			ordinal,
+			href: `/groups/${caseId}-${role}/reps/${caseId}-${role}-rep-${ordinal}/attempt`,
+		}));
+
+	return Object.fromEntries(
+		caseIds.map((caseId) => [
+			caseId,
+			{
+				baseline: reps(caseId, "baseline"),
+				candidate: reps(caseId, "candidate"),
+				control: reps(caseId, "control"),
+			},
+		]),
+	);
+}
+
+describe(comparisonAttemptHistoryLinks.name, () => {
+	let root: string;
+
+	beforeEach(async () => {
+		root = await mkdtemp(join(tmpdir(), "rehearse-comparison-links-"));
+	});
+
+	afterEach(async () => {
+		await rm(root, { recursive: true, force: true });
+	});
+
+	it("links every intact rep of a version-3 session report", async () => {
+		const runsDirectory = join(root, "runs");
+		const manifestPath = await writeManifest(root, runsDirectory);
+		const reportFile = await writeComparisonReport({
+			manifestPath,
+			runsDirectory,
+		});
+		const report = asVersionThreeReport(
+			parseComparisonReport(await Bun.file(reportFile).text()),
+		);
+
+		const links = await comparisonAttemptHistoryLinks(report, runsDirectory);
+
+		expect(report.schemaVersion).toBe(3);
+		expect(links).toEqual(everyRepAvailable(["case-one", "case-two"]));
 	});
 });
