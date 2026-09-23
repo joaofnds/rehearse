@@ -473,9 +473,9 @@ See [current state](docs/status.md) for implementation coverage and
 - **Session case** — a benchmark case whose unit of work is one Claude session.
   It declares a prompt, tools, corpus files, checks, and optional fixture,
   transcript prefix, settings, agents, project files, and state check. It runs once for
-  debugging or as isolated confirmation reps, and either way the session
-  receives every corpus file the case declares, skills and `CLAUDE.md`
-  included.
+  debugging or as isolated confirmation reps, and either way every corpus file
+  the case declares, skills and `CLAUDE.md` included, is written under the
+  attempt's `.claude/`.
 - **Session naming** — the uuid an attempt gives its own session before the
   call, as the fork's id when resuming and through `--session-id` otherwise. It
   is what lets the attempt name the one session file it owns under its slug, so
