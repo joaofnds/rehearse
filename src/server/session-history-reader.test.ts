@@ -2032,16 +2032,27 @@ describe(readRecordedEvidenceFile.name, () => {
 		expect(evidence.text).toBe("group");
 	});
 
+	it("resolves parents past the runs directory inside it, never outside", async () => {
+		const { root, runsDirectory } = await runsWithGroupFile();
+		await Bun.write(join(root, "outside.json"), "outside");
+		await Bun.write(join(runsDirectory, "outside.json"), "inside");
+
+		const evidence = await readRecordedEvidenceFile(
+			runsDirectory,
+			"../../outside.json",
+		);
+
+		expect(evidence.text).toBe("inside");
+	});
+
 	it.each([
 		["parents alone", "../.."],
 		["a parent after a name", "../confirmations/group-a/../group-a/group.json"],
-		["parents past the runs directory", "../../outside.json"],
 	])("refuses %s", async (_name, recordedPath) => {
-		const { root, runsDirectory } = await runsWithGroupFile();
-		await Bun.write(join(root, "outside.json"), "outside");
+		const { runsDirectory } = await runsWithGroupFile();
 
 		expect(
 			readRecordedEvidenceFile(runsDirectory, recordedPath),
-		).rejects.toBeInstanceOf(SessionHistoryReaderError);
+		).rejects.toMatchObject({ kind: "refused" });
 	});
 });
