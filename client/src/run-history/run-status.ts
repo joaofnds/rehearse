@@ -2,6 +2,16 @@ import type { StatusState } from "#client/system/components/status";
 
 const STOPPED_PREFIX = "STOPPED:";
 
+type StoppedStatus = `${typeof STOPPED_PREFIX}${string}`;
+
+export function isStopped(status: string): status is StoppedStatus {
+	return status.startsWith(STOPPED_PREFIX);
+}
+
+export function stoppedStage(status: StoppedStatus): string {
+	return status.slice(STOPPED_PREFIX.length);
+}
+
 /**
  * A run's recorded status, read as the design system's status vocabulary. A
  * stopped run is never rendered as a failure (SPEC.md's third product rule):
@@ -10,7 +20,7 @@ const STOPPED_PREFIX = "STOPPED:";
  * An unrecognized status reads as `pending` rather than guessing a glyph.
  */
 export function runStatusState(status: string): StatusState {
-	if (status.startsWith(STOPPED_PREFIX)) {
+	if (isStopped(status)) {
 		return "stopped";
 	}
 

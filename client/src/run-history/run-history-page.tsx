@@ -11,7 +11,7 @@ import { Button } from "#client/system/ui/button";
 import { elapsedReading, liveElapsedMs, spendReading } from "./run-progress";
 import type { RunHistoryResponse } from "./run-history-query";
 import { runHistoryQuery } from "./run-history-query";
-import { runStatusState } from "./run-status";
+import { isStopped, runStatusState, stoppedStage } from "./run-status";
 import { plural } from "#client/plural";
 import { ScreenHeader } from "#client/system/components/screen-header";
 import { SectionLabel } from "#client/system/components/section-label";
@@ -93,11 +93,26 @@ function UnreadableRuns({
 	);
 }
 
+function statusLine(row: RunHistoryRow): React.JSX.Element {
+	if (!isStopped(row.status)) {
+		return <span className="font-mono text-xs text-dim">{row.status}</span>;
+	}
+
+	return (
+		<a
+			href={`/runs/${encodeURIComponent(row.run)}/stages/${encodeURIComponent(stoppedStage(row.status))}`}
+			className="inline-flex min-h-14 items-center self-start font-mono text-xs text-accent-foreground underline decoration-deeper underline-offset-4 hover:text-pale"
+		>
+			{row.status}
+		</a>
+	);
+}
+
 function outcomeCell(row: RunHistoryRow): React.JSX.Element {
 	return (
 		<span className="flex flex-col gap-0.5">
 			<Status state={runStatusState(row.status)} />
-			<span className="font-mono text-xs text-dim">{row.status}</span>
+			{statusLine(row)}
 		</span>
 	);
 }

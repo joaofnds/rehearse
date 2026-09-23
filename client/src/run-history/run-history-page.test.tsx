@@ -167,6 +167,37 @@ describe(RunHistoryPage.name, () => {
 		expect(screen.getByText("B")).toBeInTheDocument();
 	});
 
+	it("links a stopped run to the stage it stopped on, not its last checkpoint", async () => {
+		respondingWith(oneStoppedOneComplete());
+
+		const page = renderPage();
+
+		expect(await page.findByRole("link", { name: /build/u })).toHaveAttribute(
+			"href",
+			"/runs/2026-09-06T21-58-29.508Z/stages/build",
+		);
+	});
+
+	it("leaves a status that is not a stop as text, linking nowhere", async () => {
+		respondingWith(oneStoppedOneComplete());
+
+		await renderPage().findByText("2026-09-03T00-00-00.000Z");
+
+		const outcome = cellOf("2026-09-03T00-00-00.000Z", "Outcome");
+		expect(outcome).toHaveTextContent("COMPLETE");
+		expect(within(outcome).queryByRole("link")).not.toBeInTheDocument();
+	});
+
+	it("leaves the run id unlinked, since it belongs to Run detail rather than a stage page", async () => {
+		respondingWith(oneStoppedOneComplete());
+
+		await renderPage().findByText("2026-09-06T21-58-29.508Z");
+
+		expect(
+			within(cellOf("2026-09-06T21-58-29.508Z", "Run")).queryByRole("link"),
+		).not.toBeInTheDocument();
+	});
+
 	it("names the records table once, so the caption is not doubled by a heading", async () => {
 		respondingWith({
 			rows: [
