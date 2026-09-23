@@ -1,16 +1,5 @@
 import type { StatusState } from "#client/system/components/status";
-
-const STOPPED_PREFIX = "STOPPED:";
-
-type StoppedStatus = `${typeof STOPPED_PREFIX}${string}`;
-
-export function isStopped(status: string): status is StoppedStatus {
-	return status.startsWith(STOPPED_PREFIX);
-}
-
-export function stoppedStage(status: StoppedStatus): string {
-	return status.slice(STOPPED_PREFIX.length);
-}
+import { isStopped } from "#benchmark/stopped-status";
 
 /**
  * A run's recorded status, read as the design system's status vocabulary. A

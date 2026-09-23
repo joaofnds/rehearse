@@ -20,6 +20,7 @@ import {
 import { parseRunSummaryRecord } from "#benchmark/record-summary";
 import { stoppedStage } from "#benchmark/run-outcome";
 import { staleCheckpoints } from "#benchmark/staleness-report";
+import { stoppedStatus } from "#benchmark/stopped-status";
 import type { RunLiveness } from "#benchmark/run-liveness";
 import { corpusDigest } from "./corpus-digest";
 import { redactAbsolutePaths } from "./redact-path";
@@ -226,7 +227,7 @@ async function statusAndCaseId(
 
 	const stopped = await stoppedStage(runsDirectory, run);
 	if (stopped !== undefined) {
-		return manifestBackedIdentity(paths, `STOPPED:${stopped.stage}`);
+		return manifestBackedIdentity(paths, stoppedStatus(stopped.stage));
 	}
 
 	const latest = runEvents.latestEvent(run);

@@ -11,7 +11,8 @@ import { Button } from "#client/system/ui/button";
 import { elapsedReading, liveElapsedMs, spendReading } from "./run-progress";
 import type { RunHistoryResponse } from "./run-history-query";
 import { runHistoryQuery } from "./run-history-query";
-import { isStopped, runStatusState, stoppedStage } from "./run-status";
+import { runStatusState } from "./run-status";
+import { isStopped, stoppedStageOf } from "#benchmark/stopped-status";
 import { plural } from "#client/plural";
 import { ScreenHeader } from "#client/system/components/screen-header";
 import { SectionLabel } from "#client/system/components/section-label";
@@ -100,7 +101,7 @@ function statusLine(row: RunHistoryRow): React.JSX.Element {
 
 	return (
 		<a
-			href={`/runs/${encodeURIComponent(row.run)}/stages/${encodeURIComponent(stoppedStage(row.status))}`}
+			href={`/runs/${encodeURIComponent(row.run)}/stages/${encodeURIComponent(stoppedStageOf(row.status))}`}
 			className="inline-flex min-h-14 items-start self-start font-mono text-xs text-accent-foreground underline decoration-deeper underline-offset-4 hover:text-pale"
 		>
 			{row.status}
