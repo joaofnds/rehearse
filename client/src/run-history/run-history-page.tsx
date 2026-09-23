@@ -77,7 +77,7 @@ const FILTERS = ["All", "Stopped"] as const;
 type Filter = (typeof FILTERS)[number];
 
 function matchesFilter(row: RunHistoryRow, filter: Filter): boolean {
-	return filter === "All" || row.status.startsWith("STOPPED:");
+	return filter === "All" || isStopped(row.status);
 }
 
 function UnreadableRuns({
