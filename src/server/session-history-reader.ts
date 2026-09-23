@@ -298,7 +298,6 @@ export interface RecordedEvidenceFile {
 
 function withoutLeadingParents(segments: readonly string[]): string[] {
 	const firstNamed = segments.findIndex((segment) => segment !== "..");
-
 	return firstNamed === -1 ? [] : segments.slice(firstNamed);
 }
 

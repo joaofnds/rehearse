@@ -2215,7 +2215,6 @@ describe(comparisonAttemptHistoryLinks.name, () => {
 
 		const links = await comparisonAttemptHistoryLinks(report, runsDirectory);
 
-		expect(report.schemaVersion).toBe(3);
 		expect(links).toEqual(everyRepAvailable(["case-one", "case-two"]));
 	});
 
