@@ -296,6 +296,12 @@ export interface RecordedEvidenceFile {
 	readonly text: string;
 }
 
+function withoutLeadingParents(segments: readonly string[]): string[] {
+	const firstNamed = segments.findIndex((segment) => segment !== "..");
+
+	return firstNamed === -1 ? [] : segments.slice(firstNamed);
+}
+
 /** Resolve a comparison-recorded path without trusting any path component. */
 export async function readRecordedEvidenceFile(
 	runsDirectory: string,
@@ -309,14 +315,15 @@ export async function readRecordedEvidenceFile(
 	const rootMarker = recordedSegments.lastIndexOf(basename(root));
 	const segments =
 		rootMarker === -1
-			? recordedSegments.filter((segment) => segment !== ".")
+			? withoutLeadingParents(
+					recordedSegments.filter((segment) => segment !== "."),
+				)
 			: recordedSegments.slice(rootMarker + 1);
 	if (
 		segments.length === 0 ||
 		segments.some(
 			(segment) => segment === "" || segment === "." || segment === "..",
-		) ||
-		(rootMarker === -1 && recordedSegments.includes(".."))
+		)
 	) {
 		throw new SessionHistoryReaderError(
 			"refused",

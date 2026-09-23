@@ -35,6 +35,7 @@ import {
 	readStageHistory,
 	readStageHistoryDetail,
 	readConfirmationAttemptRequestSeries,
+	readRecordedEvidenceFile,
 	readSessionAttemptHistory,
 	readSessionAttemptRequestSeries,
 	SessionHistoryReaderError,
@@ -2001,5 +2002,46 @@ describe("saved replay history API", () => {
 		expect(JSON.stringify(await response.json())).not.toContain(
 			fixture.runsDirectory,
 		);
+	});
+});
+
+describe(readRecordedEvidenceFile.name, () => {
+	async function runsWithGroupFile(): Promise<{
+		readonly root: string;
+		readonly runsDirectory: string;
+	}> {
+		const root = await mkdtemp(join(tmpdir(), "rehearse-recorded-evidence-"));
+		roots.push(root);
+		const runsDirectory = join(root, ".benchmark-runs");
+		await Bun.write(
+			join(runsDirectory, "confirmations", "group-a", "group.json"),
+			"group",
+		);
+
+		return { root, runsDirectory };
+	}
+
+	it("reads a manifest-relative path whose parents lead back into the runs directory", async () => {
+		const { runsDirectory } = await runsWithGroupFile();
+
+		const evidence = await readRecordedEvidenceFile(
+			runsDirectory,
+			"../../confirmations/group-a/group.json",
+		);
+
+		expect(evidence.text).toBe("group");
+	});
+
+	it.each([
+		["parents alone", "../.."],
+		["a parent after a name", "../confirmations/group-a/../group-a/group.json"],
+		["parents past the runs directory", "../../outside.json"],
+	])("refuses %s", async (_name, recordedPath) => {
+		const { root, runsDirectory } = await runsWithGroupFile();
+		await Bun.write(join(root, "outside.json"), "outside");
+
+		expect(
+			readRecordedEvidenceFile(runsDirectory, recordedPath),
+		).rejects.toBeInstanceOf(SessionHistoryReaderError);
 	});
 });

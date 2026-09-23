@@ -2218,4 +2218,25 @@ describe(comparisonAttemptHistoryLinks.name, () => {
 		expect(report.schemaVersion).toBe(3);
 		expect(links).toEqual(everyRepAvailable(["case-one", "case-two"]));
 	});
+
+	it("links every intact rep of a report saved from a manifest inside the runs directory", async () => {
+		const runsDirectory = join(root, "runs");
+		const manifestText = await Bun.file(
+			await writeManifest(root, runsDirectory),
+		).text();
+		const manifestPath = join(runsDirectory, "act-69", "comparison.json");
+		await Bun.write(manifestPath, manifestText);
+		const reportFile = await writeComparisonReport({
+			manifestPath,
+			runsDirectory,
+		});
+		const report = parseComparisonReport(await Bun.file(reportFile).text());
+
+		const links = await comparisonAttemptHistoryLinks(report, runsDirectory);
+
+		expect(report.cases[0]?.arms.baseline.source.group.path).toStartWith(
+			"../confirmations/",
+		);
+		expect(links).toEqual(everyRepAvailable(["case-one", "case-two"]));
+	});
 });
