@@ -824,6 +824,10 @@ Session comparison pages, for every report version that records attempt
 evidence, link to a rep's history only after the server verifies the recorded
 group, rep, and attempt paths, ownership, and all three SHA-256 digests. Failed provenance validation appears as stale provenance
 without a navigable link; a valid failed experiment remains inspectable.
+A comparison records those paths relative to its manifest, so a manifest kept
+inside the runs directory records them with leading `../` segments. The server
+resolves such a path from the runs directory after dropping those leading
+segments, and refuses a `..` anywhere after the first name.
 
 ## Comparison manifests
 
