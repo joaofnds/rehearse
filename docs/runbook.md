@@ -91,8 +91,8 @@ probe. For automation, add `--yes` to approve that projection without a prompt.
 Keep `--model` explicit; `--yes` does not select or authorize a case-default model
 for unattended use.
 
-A group freezes the declaration, fixture, prefix, and supported declared corpus
-inputs once. Each repetition gets its own attempt directory and evidence. Failed
+A group freezes the declaration, fixture, prefix, and declared corpus inputs
+once. Each repetition gets its own attempt directory and evidence. Failed
 repetitions remain in the group rather than disappearing from the result.
 
 ```sh
@@ -105,9 +105,17 @@ Two reps demonstrate the mechanism. They do not establish that an instruction
 helps. Confirmation defaults to five reps and requires at least two; choose a
 sample size appropriate to the result's variability.
 
-Session confirmation currently supports declared output styles, agent
-definitions, and rulebook files. Declared global `CLAUDE.md` and skills are
-refused before spending because their isolated delivery is not implemented.
+Session confirmation writes every declared corpus file, skills and `CLAUDE.md`
+included, under the attempt's own `.claude/`, and a declared skill brings its
+whole directory. The session runs with project settings sources, so a declared
+skill is the copy it runs, whether the model or a slash command invokes it, even
+when `~/.claude/skills` holds a skill of the same name. A declared `CLAUDE.md`
+is framed the way Claude Code frames a repository's own `CLAUDE.md`, not as the
+operator's user-level instructions, and an undeclared `~/.claude/CLAUDE.md` is
+not loaded. Other machine state, such as claude.ai connector instructions, still
+reaches the session. [Corpus sources and delivery](reference.md#corpus-sources-and-delivery)
+describes the overlay.
+
 Session groups can feed `compare` when each case has baseline, candidate, and
 control groups. The comparison reads the frozen case, checks, corpus inventory,
 rep records, and each referenced `attempt.json`; it starts no provider process.

@@ -475,7 +475,10 @@ Session overlays write declared styles, agents, rulebook, skills, and `CLAUDE.md
 under the attempt's `.claude/`, and session attempts run with project settings
 sources. That flag is what makes the overlay authoritative: a project-level skill
 does not otherwise shadow a same-named user-level one, so without it a declared
-skill would be hashed into lineage and never read.
+skill would be hashed into lineage and never read. A session attempt does not
+load the operator's `~/.claude/CLAUDE.md`, and a declared `CLAUDE.md` is framed
+the way Claude Code frames a repository's own `CLAUDE.md`, not as user-level
+instructions.
 
 Excluding the operator's settings source also means their permission defaults do
 not reach the session. A case that edits files or runs a command declares the
