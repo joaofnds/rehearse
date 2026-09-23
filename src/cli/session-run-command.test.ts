@@ -780,6 +780,7 @@ describe("running a session case against a corpus source", () => {
 					},
 					{
 						type: "user",
+						isMeta: true,
 						message: {
 							content: [
 								{

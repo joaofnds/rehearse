@@ -6,7 +6,7 @@ import {
 	instructionFiles,
 	outputStyles,
 	skillDirectories,
-	succeededToolUses,
+	toolUsesExceptFailed,
 } from "./transcript";
 
 export type ContextHalf = "corpus" | "project";
@@ -38,13 +38,13 @@ export type ManifestDivergence =
 	  };
 
 /**
- * A loaded path never carries a bare layout path: a `Read`, an instructions
- * attachment and a skill body each name a real file, so the path is absolute,
- * either under the live install (`~/.claude/<layoutPath>`) or under an
- * attempt's corpus overlay (`<attemptDirectory>/.claude/<layoutPath>`,
- * `session-corpus.ts`). Both shapes share the `.claude/` segment immediately
- * before the layout path, so the manifest entry is the suffix after the last
- * one, not the loaded path itself.
+ * A session loads a real file, so a `Read`, an instructions attachment and a
+ * skill body name an absolute path, either under the live install
+ * (`~/.claude/<layoutPath>`) or under an attempt's corpus overlay
+ * (`<attemptDirectory>/.claude/<layoutPath>`, `session-corpus.ts`). Both
+ * shapes share the `.claude/` segment immediately before the layout path, so
+ * the manifest entry is the suffix after the last one, not the loaded path
+ * itself.
  */
 function readCorpusLayoutPath(path: string): string | undefined {
 	if (isCorpusLayoutPath(path)) {
@@ -62,11 +62,11 @@ function readCorpusLayoutPath(path: string): string | undefined {
  * A corpus file always resolves under a `.claude/` segment (the live install or
  * the attempt's corpus overlay, `readCorpusLayoutPath` above); a project file
  * never does, since `seedFixture` copies it onto the attempt directory's own
- * root. Excluding a path the corpus classifier already claims keeps one Read
- * from tagging both halves at once, and rules out the one case this suffix
+ * root. Excluding a path the corpus classifier already claims keeps one loaded
+ * path from tagging both halves at once, and rules out the one case this suffix
  * match would otherwise get wrong for a single-segment declared name.
  *
- * A multi-segment declared name (`a/NOTES.md`) still suffix-matches a Read at
+ * A multi-segment declared name (`a/NOTES.md`) still suffix-matches a load at
  * an unrelated, deeper path ending in the same segments (`other/a/NOTES.md`):
  * nothing here knows the attempt directory's own boundary to rule that out,
  * short of threading it through from `session-attempt.ts`, which the fixture-
@@ -126,11 +126,11 @@ export function observedManifest(
 	declaredProjectFiles: readonly string[] = [],
 ): ContextManifest {
 	const loadedFiles = [
-		...filesRead(succeededToolUses(lines)),
+		...filesRead(toolUsesExceptFailed(lines)),
 		...instructionFiles(lines),
 		...skillDirectories(lines).map((directory) => `${directory}/SKILL.md`),
 	];
-	const readPaths = loadedFiles
+	const corpusPaths = loadedFiles
 		.map((path) => readCorpusLayoutPath(path))
 		.filter((path) => path !== undefined);
 	const projectPaths = loadedFiles
@@ -139,7 +139,7 @@ export function observedManifest(
 	const stylePath = outputStyleLayoutPath(outputStyles(lines));
 
 	const entries: ManifestEntry[] = [
-		...corpusEntries(readPaths),
+		...corpusEntries(corpusPaths),
 		...projectEntries(projectPaths),
 		...(stylePath === undefined ? [] : corpusEntries([stylePath])),
 	];

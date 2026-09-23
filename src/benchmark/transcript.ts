@@ -61,15 +61,18 @@ const attachmentRecordSchema = z.looseObject({
 	attachment: z.unknown(),
 });
 
+const metaRecordSchema = z.looseObject({ isMeta: z.literal(true) });
+
 const textBlockSchema = z.looseObject({
 	type: z.literal("text"),
 	text: z.string(),
 });
 
 /**
- * The provider opens a loaded skill's body with this line whether a slash
- * command or a Skill call loaded it, and a Skill call it refuses gets no body,
- * so this line rather than the call is the evidence the skill loaded.
+ * The provider opens a loaded skill's body with this line, in a user record it
+ * marks as meta, whether a slash command or a Skill call loaded it, and a Skill
+ * call it refuses gets no body, so this line rather than the call is the
+ * evidence the skill loaded.
  */
 const SKILL_BODY_OPENING =
 	/^Base directory for this skill: (?<directory>[^\n]+)/u;
@@ -453,7 +456,9 @@ function readLine(line: string, lineNumber: number): TranscriptLine {
 		outputStyle: readOutputStyle(parsed),
 		instructionFiles: readInstructionFiles(parsed),
 		skillDirectories:
-			record.data.type === "user" ? readSkillDirectories(blocks) : [],
+			record.data.type === "user" && metaRecordSchema.safeParse(parsed).success
+				? readSkillDirectories(blocks)
+				: [],
 		locatedToolUses,
 		locatedToolResults,
 		diagnosticIssues,
@@ -790,7 +795,7 @@ export function toolUses(
 	return lines.flatMap((line) => [...line.toolUses]);
 }
 
-export function succeededToolUses(
+export function toolUsesExceptFailed(
 	lines: Immutable<readonly TranscriptLine[]>,
 ): readonly ToolUse[] {
 	const failed = new Set(

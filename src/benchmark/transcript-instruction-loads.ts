@@ -11,6 +11,7 @@ const instructionFileSchema = z
 
 export const instructionsAttachmentSchema = z
 	.object({
+		type: z.literal("attachment"),
 		attachment: z
 			.object({
 				type: z.literal("instructions"),

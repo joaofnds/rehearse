@@ -135,17 +135,35 @@ describe(observedManifest.name, () => {
 	it("names no skill path for a Skill call the session refused", () => {
 		expect(
 			observedManifest(
-				transcript(skillUse("verify"), errorResult("toolu_skill")),
+				transcript(
+					toolCall("toolu_refused", "Skill", { skill: "verify" }),
+					errorResult("toolu_refused"),
+				),
 			).paths,
 		).toEqual([]);
+	});
+
+	it("keeps a skill a slash command loaded when a later Skill call for it is refused", () => {
+		expect(
+			observedManifest(
+				transcript(
+					slashCommand("verify"),
+					skillBody(VERIFY_DIRECTORY),
+					toolCall("toolu_refused", "Skill", { skill: "verify" }),
+					errorResult("toolu_refused"),
+				),
+			).paths,
+		).toEqual([{ path: "skills/verify/SKILL.md", half: "corpus" }]);
 	});
 
 	it("names no path for a Read whose result is an error", () => {
 		expect(
 			observedManifest(
 				transcript(
-					readUse("/tmp/rehearse-attempt/.claude/CLAUDE.md"),
-					errorResult("toolu_read"),
+					toolCall("toolu_failed", "Read", {
+						file_path: "/tmp/rehearse-attempt/.claude/CLAUDE.md",
+					}),
+					errorResult("toolu_failed"),
 				),
 			).paths,
 		).toEqual([]);

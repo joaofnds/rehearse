@@ -10,7 +10,7 @@ import {
 	parseTranscript,
 	parseTranscriptFile,
 	skillDirectories,
-	succeededToolUses,
+	toolUsesExceptFailed,
 	transcriptDiagnostics,
 	transcriptDiagnosticsSchema,
 	toolUses,
@@ -873,7 +873,7 @@ describe(parseTranscriptFile.name, () => {
 	});
 });
 
-describe(succeededToolUses.name, () => {
+describe(toolUsesExceptFailed.name, () => {
 	it("returns every tool use except those answered with an error", () => {
 		const transcript = parseTranscript(
 			[
@@ -887,7 +887,7 @@ describe(succeededToolUses.name, () => {
 			].join("\n"),
 		);
 
-		expect(succeededToolUses(transcript).map((use) => use.id)).toEqual([
+		expect(toolUsesExceptFailed(transcript).map((use) => use.id)).toEqual([
 			"toolu_ok",
 		]);
 	});
@@ -917,9 +917,13 @@ function userWith(...blocks: readonly JsonValue[]): string {
 	return line({ type: "user", message: { content: blocks } });
 }
 
+function metaUserWith(...blocks: readonly JsonValue[]): string {
+	return line({ type: "user", isMeta: true, message: { content: blocks } });
+}
+
 describe(skillDirectories.name, () => {
 	it("returns the directory every loaded skill body names", () => {
-		const transcript = parseTranscript(userWith(skillBody));
+		const transcript = parseTranscript(metaUserWith(skillBody));
 
 		expect(skillDirectories(transcript)).toEqual([
 			"/tmp/attempt/.claude/skills/verify",
@@ -938,9 +942,15 @@ describe(skillDirectories.name, () => {
 		expect(skillDirectories(transcript)).toEqual([]);
 	});
 
+	it("returns nothing for a skill body in a user message the provider did not mark as meta", () => {
+		const transcript = parseTranscript(userWith(skillBody));
+
+		expect(skillDirectories(transcript)).toEqual([]);
+	});
+
 	it("returns nothing for a message that names a skill directory after its first character", () => {
 		const transcript = parseTranscript(
-			userWith({ type: "text", text: `Quoted: ${skillBody.text}` }),
+			metaUserWith({ type: "text", text: `Quoted: ${skillBody.text}` }),
 		);
 
 		expect(skillDirectories(transcript)).toEqual([]);
