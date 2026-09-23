@@ -9,6 +9,7 @@ import { loadRunManifest } from "#benchmark/manifest";
 import { parseRunSummaryRecord } from "#benchmark/record-summary";
 import { readReplayRecord } from "#benchmark/replay";
 import { stoppedStage } from "#benchmark/run-outcome";
+import { stoppedStatus } from "#benchmark/stopped-status";
 import {
 	benchmarkRunPaths,
 	checkpointRecordFile,
@@ -158,7 +159,7 @@ async function listRuns(runsDirectory: string): Promise<RecordListing> {
 				},
 			);
 
-			return [caseId, `STOPPED:${stopped.stage}`, "replayable"];
+			return [caseId, stoppedStatus(stopped.stage), "replayable"];
 		},
 	);
 }
