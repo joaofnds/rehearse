@@ -96,7 +96,7 @@ describe(executeReplayStage.name, () => {
 		await Promise.resolve();
 		expect(confirmations).toEqual([]);
 		expect(events).toEqual([
-			"output:Projected maximum cost: $60.00 (3 reps x $20.00)",
+			"output:Projected budget: $60.00 (3 reps x $20.00). A session stops only after the call that crosses its budget, so the charge can exceed this.",
 			"prompt:Start confirmation? [y/N] ",
 		]);
 		approval.resolve("yes");
@@ -106,7 +106,7 @@ describe(executeReplayStage.name, () => {
 			evidence: { group: "confirmation-1" },
 		});
 		expect(events).toEqual([
-			"output:Projected maximum cost: $60.00 (3 reps x $20.00)",
+			"output:Projected budget: $60.00 (3 reps x $20.00). A session stops only after the call that crosses its budget, so the charge can exceed this.",
 			"prompt:Start confirmation? [y/N] ",
 			"start:3",
 		]);

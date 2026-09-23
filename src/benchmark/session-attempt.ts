@@ -145,6 +145,9 @@ function selectedSettings(
  * the attempt directory is the session's project directory, so excluding the
  * user source leaves the harness's own `.claude` as the only one, and the
  * operator's installed skills and settings cannot decide what the case measures.
+ * `--strict-mcp-config` does the same for MCP: without it the claude.ai
+ * account's connectors reach the session after its first call, differ between
+ * reps of one group, and rewrite the prompt cache mid-session.
  */
 export function sessionCaseArgs(
 	sessionCase: SessionCase,
@@ -167,6 +170,7 @@ export function sessionCaseArgs(
 		"json",
 		"--setting-sources",
 		"project",
+		"--strict-mcp-config",
 		"--tools",
 		sessionCase.tools.join(","),
 		...(declaredSettings === undefined ? [] : ["--settings", declaredSettings]),

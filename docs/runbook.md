@@ -57,9 +57,11 @@ mise exec -- bun run rehearse run --case smoke \
   --model sonnet --session-budget-usd 0.2
 ```
 
-The session ceiling is USD 0.20. The model-availability probe is a separate paid
-call with a USD 0.10 ceiling. These are configured limits, not price estimates.
-An actual charge depends on the provider, context, and cache state. No paid
+The session budget is USD 0.20. The model-availability probe is a separate paid
+call with a USD 0.10 budget. These are configured budgets, not price estimates,
+and not caps: Claude Code stops a session only after the call that crosses its
+budget, so a charge can exceed it. An actual charge depends on the provider,
+context, and cache state. No paid
 recipe in this guide was exercised for the documentation audit.
 
 The command prints check results and an attempt record path. Inspect it with:
@@ -85,9 +87,10 @@ mise exec -- bun run rehearse run --case smoke \
   --confirm --reps 2
 ```
 
-The terminal asks you to approve the projected maximum before any provider call.
+The terminal asks you to approve the projected budget before any provider call.
 For this example it is USD 0.50: two USD 0.20 sessions plus the USD 0.10 model
-probe. For automation, add `--yes` to approve that projection without a prompt.
+probe. It is the sum of those budgets, not a cap, since each session can overrun
+its own by the call that crosses it. For automation, add `--yes` to approve that projection without a prompt.
 Keep `--model` explicit; `--yes` does not select or authorize a case-default model
 for unattended use.
 
@@ -112,8 +115,10 @@ skill is the copy it runs, whether the model or a slash command invokes it, even
 when `~/.claude/skills` holds a skill of the same name. A declared `CLAUDE.md`
 is framed the way Claude Code frames a repository's own `CLAUDE.md`, not as the
 operator's user-level instructions, and an undeclared `~/.claude/CLAUDE.md` is
-not loaded. Other machine state, such as claude.ai connector instructions, still
-reaches the session. [Corpus sources and delivery](reference.md#corpus-sources-and-delivery)
+not loaded. The session also runs with `--strict-mcp-config`, so no MCP server
+reaches it, the claude.ai account's connectors included. Claude Code still
+attaches its own session context, such as the environment and the date.
+[Corpus sources and delivery](reference.md#corpus-sources-and-delivery)
 describes the overlay.
 
 Session groups can feed `compare` when each case has baseline, candidate, and

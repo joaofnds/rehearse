@@ -534,7 +534,7 @@ describe("rehearse", () => {
 		expect(result.exitCode).toBe(3);
 		expect(result.stdout).toBe("");
 		expect(result.stderr).toContain("stdin is not a terminal");
-		expect(result.stderr).not.toContain("Projected maximum cost");
+		expect(result.stderr).not.toContain("Projected budget");
 		expect(result.stderr).not.toContain("No replayable run named");
 	});
 

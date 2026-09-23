@@ -24,7 +24,7 @@ describe(projectConfirmationCost.name, () => {
 		});
 	});
 
-	it("prints a session group's projection as the dollars it will spend", () => {
+	it("prints a session group's projection as a budget the charge can exceed", () => {
 		expect(
 			formatProjectedCost(
 				projectConfirmationCost({
@@ -33,10 +33,12 @@ describe(projectConfirmationCost.name, () => {
 					sessionBudgetUsd: 0.2,
 				}),
 			),
-		).toBe("Projected maximum cost: $0.70 ($0.10 preflight + 3 reps x $0.20)");
+		).toBe(
+			"Projected budget: $0.70 ($0.10 preflight + 3 reps x $0.20). A session stops only after the call that crosses its budget, so the charge can exceed this.",
+		);
 	});
 
-	it("projects the bounded maximum before a confirmation", () => {
+	it("projects every session at its budget before a confirmation", () => {
 		const replay = projectConfirmationCost({
 			mode: "stage",
 			reps: 5,
@@ -60,13 +62,13 @@ describe(projectConfirmationCost.name, () => {
 			totalMaximumUsd: 375,
 		});
 		expect(formatProjectedCost(replay)).toBe(
-			"Projected maximum cost: $100.00 (5 reps x $20.00)",
+			"Projected budget: $100.00 (5 reps x $20.00). A session stops only after the call that crosses its budget, so the charge can exceed this.",
 		);
 	});
 });
 
 describe(requireConfirmationApproval.name, () => {
-	it("shows the ceiling before prompting for approval", async () => {
+	it("shows the projected budget before prompting for approval", async () => {
 		const events: string[] = [];
 
 		await requireConfirmationApproval(
@@ -88,7 +90,7 @@ describe(requireConfirmationApproval.name, () => {
 		);
 
 		expect(events).toEqual([
-			"output: Projected maximum cost: $100.00 (5 reps x $20.00)",
+			"output: Projected budget: $100.00 (5 reps x $20.00). A session stops only after the call that crosses its budget, so the charge can exceed this.",
 			"prompt: Start confirmation? [y/N] ",
 		]);
 	});
@@ -189,7 +191,7 @@ describe(runRequestedExecution.name, () => {
 
 		expect(result).toBe("confirmation result");
 		expect(events).toEqual([
-			"output:Projected maximum cost: $60.00 (3 reps x $20.00)",
+			"output:Projected budget: $60.00 (3 reps x $20.00). A session stops only after the call that crosses its budget, so the charge can exceed this.",
 			"prompt",
 			"start",
 		]);

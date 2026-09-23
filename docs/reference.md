@@ -68,7 +68,7 @@ rewrite the Judge's grade or make a low grade a reliability success.
 - `calibrate --confirm-rejudge` approves revised Judge conclusions. Calibration
   can invoke paid Judges even when the target was restored long ago.
 
-Model availability is checked with a paid probe whose budget ceiling is $0.10.
+Model availability is checked with a paid probe whose budget is $0.10.
 For pipeline `run`, repository and settings preconditions precede the probe,
 but baseline target checks happen afterward. Session execution also probes
 before some corpus and transcript validation. A refused input therefore does
@@ -81,7 +81,9 @@ fresh session cases do not need the check.
 The session budget applies separately to workflow sessions, the shared PO
 session, and Judge invocations. It is not a whole-run ceiling. Confirmation
 projects rep costs from those budgets; session confirmation includes the probe
-allowance in its projection. Stage/pipeline projections do not include that
+allowance in its projection. A projection is a sum of budgets, not a cap:
+Claude Code stops a session only after the call that crosses its budget, and
+that call is charged in full. Stage/pipeline projections do not include that
 probe allowance. Calibration rejudges are additional calls.
 
 ### Output and exit codes
@@ -485,6 +487,12 @@ not reach the session. A case that edits files or runs a command declares the
 grant itself, as a `permissions.allow` block in its `settings`, alongside the
 `tools` list that admits those tools. Both are the case's own declaration, so an
 unrelated machine default cannot decide whether the case can execute.
+
+Session attempts also run with `--strict-mcp-config` and no MCP configuration,
+so no MCP server reaches the session, the claude.ai account's connectors
+included. Those connectors would otherwise arrive after the first model call,
+differ between reps of one group, and make the next call rewrite the prompt
+cache.
 
 A live session attempt copies the declared files it must overlay and hashes the
 copies, so `resolvedPath` names the frozen copy rather than the operator's

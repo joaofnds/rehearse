@@ -942,7 +942,7 @@ describe("runRunCommand for a session case", () => {
 		);
 
 		expect(events.slice(0, 4)).toEqual([
-			"output:Projected maximum cost: $0.50 ($0.10 preflight + 2 reps x $0.20)",
+			"output:Projected budget: $0.50 ($0.10 preflight + 2 reps x $0.20). A session stops only after the call that crosses its budget, so the charge can exceed this.",
 			"probe",
 			"rep:1",
 			"rep:2",

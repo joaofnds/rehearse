@@ -133,7 +133,7 @@ describe(runReplayCommand.name, () => {
 		expect(failure).toBeInstanceOf(RefusedPreconditionError);
 		expect(resolved).toEqual([]);
 		expect(stdout).toEqual([]);
-		expect(stderr.join("")).not.toContain("Projected maximum cost");
+		expect(stderr.join("")).not.toContain("Projected budget");
 	});
 
 	it("does not check for a terminal when --yes answers the approval", async () => {

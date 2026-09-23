@@ -319,6 +319,10 @@ describe(sessionCaseArgs.name, () => {
 		expect(args()).not.toContain("--agents");
 	});
 
+	it("shuts out every MCP server the case never declared, the claude.ai account's connectors included", () => {
+		expect(args()).toContain("--strict-mcp-config");
+	});
+
 	/**
 	 * A case that edits a file and runs a CLI needs two independent grants, and
 	 * `--setting-sources project` means the operator's own settings supply
