@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { screen, waitFor } from "@testing-library/react";
+import { cleanup, screen, waitFor } from "@testing-library/react";
 import type { SessionHistoryReport } from "#benchmark/session-history";
 import type { SessionHistoryAttemptSeries } from "#server/session-history-reader";
 import { renderAppWithStub } from "#client/test-support/render-app";
@@ -169,6 +169,68 @@ describe(createAppRouter.name, () => {
 			expect(screen.getByText("shape")).toBeInTheDocument();
 			expect(screen.getByText("lineage-1")).toBeInTheDocument();
 		});
+	});
+
+	it("opens the stage a stopped run stopped on from its run history row", async () => {
+		renderAppWithStub(
+			"/",
+			new Map<string, unknown>([
+				[
+					"/api/runs",
+					{
+						rows: [
+							{
+								run: "2026-09-06T21-58-29.508Z",
+								caseId: "audit-log",
+								status: "STOPPED:build",
+								stage: "shape",
+								grade: "B",
+								corpus: { digest: "a3a62f" },
+								stale: false,
+								staleCauses: [],
+								progress: { state: "recorded" },
+							},
+						],
+						unreadable: [],
+					},
+				],
+			]),
+		);
+		const href =
+			(await screen.findByRole("link", { name: "STOPPED:build" })).getAttribute(
+				"href",
+			) ?? "";
+		cleanup();
+
+		renderAppWithStub(
+			href,
+			new Map<string, unknown>([
+				["/api/runs/2026-09-06T21-58-29.508Z/stages/build/history/corpus", []],
+				[
+					"/api/runs/2026-09-06T21-58-29.508Z/stages/build/history",
+					{
+						...emptyHistory("audit-log", "unused"),
+						attempt: {
+							kind: "stopped-stage",
+							caseId: "audit-log",
+							run: "2026-09-06T21-58-29.508Z",
+							stage: "build",
+							error: "build stage graded C; minimum grade is B",
+							model: "sonnet",
+							corpusFiles: [],
+						},
+						evidence: {
+							state: "unavailable",
+							reasons: ["this stage stopped before recording a transcript"],
+						},
+					},
+				],
+			]),
+		);
+
+		expect(
+			await screen.findByText("build stage graded C; minimum grade is B"),
+		).toBeInTheDocument();
 	});
 
 	it("renders confirmation rep saved session history", async () => {
