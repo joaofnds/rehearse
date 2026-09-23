@@ -113,10 +113,11 @@ enumerates. It links the two that have a screen listing their whole collection,
 run history and the corpus, with a badge on each counting that collection, and
 marks the other seven planned. The rail reaches no other address. A comparison
 is still opened by typing its address, and a comparison screen links onward to
-the attempts it names. A stopped run's row in run history links to the stage
-history of the stage it stopped on, which reports the stop. Every other stage
-history, a stage that wrote a checkpoint or a stage awaiting judgment, is still
-opened by typing its address.
+the attempts it names. In run history, the `STOPPED:<stage>` line in a stopped
+run's row links to the context history of the stage it stopped on, which
+reports the stop; the rest of the row links nowhere. Every other stage's context
+history, for a stage that wrote a checkpoint or a stage awaiting judgment, is
+still opened by typing its address.
 
 The rail also names the corpus under test, showing the live tree's
 `corpus root@` digest, its file count and its latest edit, and saying in words
@@ -127,7 +128,7 @@ is reachable only by typing it, because the design's nav does not name it.
 
 | Route                                | Available today                                                                                                                                                                                                                                                                                                                                                                                  |
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `/`                                  | Run-history report with each row's staleness causes and the runs it could not read, including empty and error states; a stopped run's outcome links to the stage history of the stage it stopped on; a run in flight appears as a RUNNING row carrying its stage, elapsed time, and scoped spend                                                                                                 |
+| `/`                                  | Run-history report with each row's staleness causes and the runs it could not read, including empty and error states; a stopped run's outcome links to the context history of the stage it stopped on; a run in flight appears as a RUNNING row carrying its stage, elapsed time, and scoped spend                                                                                               |
 | `/corpus`                            | Live corpus inventory; instruction editing is marked planned                                                                                                                                                                                                                                                                                                                                     |
 | `/comparisons/<digest>`              | Saved case/arm distributions, attribution, quality readings, and validated session-attempt links                                                                                                                                                                                                                                                                                                 |
 | `/attempts/session/<case>/<uuid>`    | Saved standalone session context history, with the per-request token and cost timeline                                                                                                                                                                                                                                                                                                           |
