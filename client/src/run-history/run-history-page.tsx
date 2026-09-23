@@ -101,7 +101,7 @@ function statusLine(row: RunHistoryRow): React.JSX.Element {
 	return (
 		<a
 			href={`/runs/${encodeURIComponent(row.run)}/stages/${encodeURIComponent(stoppedStage(row.status))}`}
-			className="inline-flex min-h-14 items-center self-start font-mono text-xs text-accent-foreground underline decoration-deeper underline-offset-4 hover:text-pale"
+			className="inline-flex min-h-14 items-start self-start font-mono text-xs text-accent-foreground underline decoration-deeper underline-offset-4 hover:text-pale"
 		>
 			{row.status}
 		</a>
