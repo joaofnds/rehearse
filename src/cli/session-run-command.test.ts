@@ -755,7 +755,7 @@ describe("running a session case against a corpus source", () => {
 		]);
 	});
 
-	it("reports an undeclared-file divergence for a skill the session invoked but the case never declared", async () => {
+	it("reports an undeclared-file divergence for a skill the session loaded but the case never declared", async () => {
 		const projects = await temporary("rehearse-projects-");
 		const runsDirectory = await temporary("rehearse-runs-");
 		const runClaude: ClaudeRunner = async (command, cwd) => {
@@ -764,15 +764,38 @@ describe("running a session case against a corpus source", () => {
 			await mkdir(slug, { recursive: true });
 			await writeFile(
 				join(slug, `${sessionId}.jsonl`),
-				`${JSON.stringify({
-					type: "assistant",
-					message: {
-						content: [
-							{ type: "tool_use", name: "Skill", input: { skill: "verify" } },
-							{ type: "text", text: "OK" },
-						],
+				`${[
+					{
+						type: "assistant",
+						message: {
+							content: [
+								{
+									type: "tool_use",
+									id: "toolu_skill",
+									name: "Skill",
+									input: { skill: "verify" },
+								},
+							],
+						},
 					},
-				})}\n`,
+					{
+						type: "user",
+						message: {
+							content: [
+								{
+									type: "text",
+									text: `Base directory for this skill: ${cwd}/.claude/skills/verify`,
+								},
+							],
+						},
+					},
+					{
+						type: "assistant",
+						message: { content: [{ type: "text", text: "OK" }] },
+					},
+				]
+					.map((record) => JSON.stringify(record))
+					.join("\n")}\n`,
 			);
 
 			return JSON.stringify({

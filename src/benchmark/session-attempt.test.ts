@@ -117,12 +117,18 @@ function readFileLine(sessionId: string, filePath: string): string {
 	});
 }
 
-function skillUseLine(sessionId: string, skill: string): string {
+function skillBodyLine(sessionId: string, skill: string): string {
 	return JSON.stringify({
-		type: "assistant",
+		type: "user",
 		sessionId,
+		isMeta: true,
 		message: {
-			content: [{ type: "tool_use", name: "Skill", input: { skill } }],
+			content: [
+				{
+					type: "text",
+					text: `Base directory for this skill: /tmp/rehearse-attempt/.claude/skills/${skill}\n\nReply OK.`,
+				},
+			],
 		},
 	});
 }
@@ -1170,7 +1176,7 @@ describe(runSessionAttempt.name, () => {
 		]);
 	});
 
-	it("names an invoked skill's layout path in the recorded context manifest", async () => {
+	it("names a loaded skill's layout path in the recorded context manifest", async () => {
 		const projects = await projectsRoot();
 
 		const attempt = await runSessionAttempt(
@@ -1179,7 +1185,7 @@ describe(runSessionAttempt.name, () => {
 				recordDirectory: await recordDirectory(),
 				runClaude: claudeWriting(
 					projects,
-					(sessionId) => [skillUseLine(sessionId, "verify")],
+					(sessionId) => [skillBodyLine(sessionId, "verify")],
 					"OK",
 				),
 			}),
@@ -1253,9 +1259,9 @@ describe(runSessionAttempt.name, () => {
 		});
 	});
 
-	it("excludes a skill invoked only in the seeded transcript prefix from the recorded context manifest", async () => {
+	it("excludes a skill loaded only in the seeded transcript prefix from the recorded context manifest", async () => {
 		const prefix = await writtenPrefix(
-			`${skillUseLine(SOURCE_SESSION, "verify")}\n`,
+			`${skillBodyLine(SOURCE_SESSION, "verify")}\n`,
 		);
 		const projects = await projectsRoot();
 

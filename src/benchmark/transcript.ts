@@ -4,6 +4,7 @@ import type { LineObserver } from "./file-lines";
 import { fileLines, IGNORE_CARRY } from "./file-lines";
 import type { JsonValue } from "./json-value";
 import { jsonValueSchema } from "./json-value";
+import { instructionsAttachmentSchema } from "./transcript-instruction-loads";
 
 /**
  * The session file's format is the provider's, not ours, so a record type this
@@ -60,11 +61,18 @@ const attachmentRecordSchema = z.looseObject({
 	attachment: z.unknown(),
 });
 
-const skillUseSchema = z.looseObject({
-	type: z.literal("tool_use"),
-	name: z.literal("Skill"),
-	input: z.looseObject({ skill: z.string().min(1) }),
+const textBlockSchema = z.looseObject({
+	type: z.literal("text"),
+	text: z.string(),
 });
+
+/**
+ * The provider opens a loaded skill's body with this line whether a slash
+ * command or a Skill call loaded it, and a Skill call it refuses gets no body,
+ * so this line rather than the call is the evidence the skill loaded.
+ */
+const SKILL_BODY_OPENING =
+	/^Base directory for this skill: (?<directory>[^\n]+)/u;
 
 export type ToolUse = z.infer<typeof toolUseSchema>;
 
@@ -313,6 +321,8 @@ export interface TranscriptLine {
 	readonly line: number;
 	readonly toolUses: readonly ToolUse[];
 	readonly outputStyle: string | undefined;
+	readonly instructionFiles: readonly string[];
+	readonly skillDirectories: readonly string[];
 	readonly locatedToolUses: readonly LocatedToolUse[];
 	readonly locatedToolResults: readonly LocatedToolResult[];
 	readonly diagnosticIssues: readonly LocatedDiagnosticIssue[];
@@ -329,6 +339,25 @@ function readOutputStyle(record: JsonValue): string | undefined {
 	);
 
 	return outputStyle.success ? outputStyle.data.style : undefined;
+}
+
+function readSkillDirectories(blocks: readonly unknown[]): readonly string[] {
+	return blocks
+		.map((block) => textBlockSchema.safeParse(block))
+		.filter((parsed) => parsed.success)
+		.map(
+			(parsed) =>
+				SKILL_BODY_OPENING.exec(parsed.data.text)?.groups?.["directory"],
+		)
+		.filter((directory) => directory !== undefined);
+}
+
+function readInstructionFiles(record: JsonValue): readonly string[] {
+	const instructions = instructionsAttachmentSchema.safeParse(record);
+
+	return instructions.success
+		? instructions.data.attachment.files.map((file) => file.path)
+		: [];
 }
 
 const SUPPORTED_NON_TOOL_BLOCKS = new Set([
@@ -422,6 +451,9 @@ function readLine(line: string, lineNumber: number): TranscriptLine {
 		line: lineNumber,
 		toolUses: locatedToolUses.map(({ use }) => use),
 		outputStyle: readOutputStyle(parsed),
+		instructionFiles: readInstructionFiles(parsed),
+		skillDirectories:
+			record.data.type === "user" ? readSkillDirectories(blocks) : [],
 		locatedToolUses,
 		locatedToolResults,
 		diagnosticIssues,
@@ -436,6 +468,8 @@ function emptyTranscriptLine(
 		line,
 		toolUses: [],
 		outputStyle: undefined,
+		instructionFiles: [],
+		skillDirectories: [],
 		locatedToolUses: [],
 		locatedToolResults: [],
 		diagnosticIssues: [{ kind, location: { line, block: 1 } }],
@@ -756,6 +790,22 @@ export function toolUses(
 	return lines.flatMap((line) => [...line.toolUses]);
 }
 
+export function succeededToolUses(
+	lines: Immutable<readonly TranscriptLine[]>,
+): readonly ToolUse[] {
+	const failed = new Set(
+		lines
+			.flatMap((line) => [...line.locatedToolResults])
+			.filter((result) => result.isError)
+			.map((result) => result.toolUseId)
+			.filter((id) => id !== undefined),
+	);
+
+	return toolUses(lines).filter(
+		(use) => use.id === undefined || !failed.has(use.id),
+	);
+}
+
 export function filesRead(
 	uses: Immutable<readonly ToolUse[]>,
 ): readonly string[] {
@@ -773,11 +823,14 @@ export function outputStyles(
 		.filter((style) => style !== undefined);
 }
 
-export function skillsInvoked(
-	uses: Immutable<readonly ToolUse[]>,
+export function instructionFiles(
+	lines: Immutable<readonly TranscriptLine[]>,
 ): readonly string[] {
-	return uses
-		.map((use) => skillUseSchema.safeParse(use))
-		.filter((parsed) => parsed.success)
-		.map((parsed) => parsed.data.input.skill);
+	return lines.flatMap((line) => [...line.instructionFiles]);
+}
+
+export function skillDirectories(
+	lines: Immutable<readonly TranscriptLine[]>,
+): readonly string[] {
+	return lines.flatMap((line) => [...line.skillDirectories]);
 }

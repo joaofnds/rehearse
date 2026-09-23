@@ -1,13 +1,9 @@
 import { describe, expect, it } from "bun:test";
 import { join } from "node:path";
 import { casesRoot, readCaseDeclaration } from "#benchmark/case";
-import type { ToolUse } from "#benchmark/transcript";
-import {
-	outputStyles,
-	parseTranscript,
-	parseTranscriptFile,
-	toolUses,
-} from "#benchmark/transcript";
+import type { JsonValue } from "#benchmark/json-value";
+import type { TranscriptLine } from "#benchmark/transcript";
+import { parseTranscript, parseTranscriptFile } from "#benchmark/transcript";
 import {
 	corpusEntries,
 	observedManifest,
@@ -15,38 +11,156 @@ import {
 	reconcileManifest,
 } from "#benchmark/context-manifest";
 
-function skillUse(skill: string): ToolUse {
-	return { type: "tool_use", name: "Skill", input: { skill } };
+function transcript(
+	...records: readonly JsonValue[]
+): readonly TranscriptLine[] {
+	return parseTranscript(
+		records.map((record) => JSON.stringify(record)).join("\n"),
+	);
 }
 
-function readUse(filePath: string): ToolUse {
-	return { type: "tool_use", name: "Read", input: { file_path: filePath } };
+function toolCall(id: string, name: string, input: JsonValue): JsonValue {
+	return {
+		type: "assistant",
+		message: { content: [{ type: "tool_use", id, name, input }] },
+	};
 }
 
-function bashUse(): ToolUse {
-	return { type: "tool_use", name: "Bash", input: { command: "ls" } };
+function skillUse(skill: string): JsonValue {
+	return toolCall("toolu_skill", "Skill", { skill });
+}
+
+function readUse(filePath: string): JsonValue {
+	return toolCall("toolu_read", "Read", { file_path: filePath });
+}
+
+function bashUse(): JsonValue {
+	return toolCall("toolu_bash", "Bash", { command: "ls" });
+}
+
+function outputStyle(style: string): JsonValue {
+	return { type: "attachment", attachment: { type: "output_style", style } };
+}
+
+function slashCommand(name: string): JsonValue {
+	return {
+		type: "user",
+		message: {
+			content: `<command-message>${name}</command-message>\n<command-name>/${name}</command-name>`,
+		},
+	};
+}
+
+const VERIFY_DIRECTORY = "/tmp/rehearse-attempt/.claude/skills/verify";
+
+function skillBody(directory: string): JsonValue {
+	return {
+		type: "user",
+		isMeta: true,
+		message: {
+			content: [
+				{
+					type: "text",
+					text: `Base directory for this skill: ${directory}\n\nReply with the token.`,
+				},
+			],
+		},
+	};
+}
+
+function errorResult(toolUseId: string): JsonValue {
+	return {
+		type: "user",
+		message: {
+			content: [
+				{
+					type: "tool_result",
+					tool_use_id: toolUseId,
+					is_error: true,
+					content: "<tool_use_error>Refused.</tool_use_error>",
+				},
+			],
+		},
+	};
+}
+
+function instructions(path: string): JsonValue {
+	return {
+		type: "attachment",
+		attachment: {
+			type: "instructions",
+			files: [{ path, type: "Project", content: "# Instructions" }],
+		},
+	};
 }
 
 describe(observedManifest.name, () => {
-	it("names the layout path of every skill invoked", () => {
-		expect(observedManifest([skillUse("verify")], []).paths).toContainEqual({
-			path: "skills/verify/SKILL.md",
-			half: "corpus",
-		});
+	it("names the layout path of a skill a Skill call loads", () => {
+		expect(
+			observedManifest(
+				transcript(skillUse("verify"), skillBody(VERIFY_DIRECTORY)),
+			).paths,
+		).toContainEqual({ path: "skills/verify/SKILL.md", half: "corpus" });
 	});
 
 	it("names no skill path for a skill only offered, never invoked", () => {
-		expect(observedManifest([bashUse()], []).paths).toEqual([]);
+		expect(observedManifest(transcript(bashUse())).paths).toEqual([]);
+	});
+
+	it("names CLAUDE.md when the session loads it as instructions", () => {
+		expect(
+			observedManifest(
+				transcript(instructions("/tmp/rehearse-attempt/.claude/CLAUDE.md")),
+			).paths,
+		).toContainEqual({ path: "CLAUDE.md", half: "corpus" });
+	});
+
+	it("names a declared project CLAUDE.md the session loads as instructions as project-half", () => {
+		expect(
+			observedManifest(
+				transcript(instructions("/tmp/rehearse-attempt/CLAUDE.md")),
+				["CLAUDE.md"],
+			).paths,
+		).toEqual([{ path: "CLAUDE.md", half: "project" }]);
+	});
+
+	it("names the layout path of a skill a slash command loads", () => {
+		expect(
+			observedManifest(
+				transcript(slashCommand("verify"), skillBody(VERIFY_DIRECTORY)),
+			).paths,
+		).toContainEqual({ path: "skills/verify/SKILL.md", half: "corpus" });
+	});
+
+	it("names no skill path for a Skill call the session refused", () => {
+		expect(
+			observedManifest(
+				transcript(skillUse("verify"), errorResult("toolu_skill")),
+			).paths,
+		).toEqual([]);
+	});
+
+	it("names no path for a Read whose result is an error", () => {
+		expect(
+			observedManifest(
+				transcript(
+					readUse("/tmp/rehearse-attempt/.claude/CLAUDE.md"),
+					errorResult("toolu_read"),
+				),
+			).paths,
+		).toEqual([]);
 	});
 
 	it("names the layout path of a corpus file read directly", () => {
 		expect(
-			observedManifest([readUse("skills/verify/SKILL.md")], []).paths,
+			observedManifest(transcript(readUse("skills/verify/SKILL.md"))).paths,
 		).toContainEqual({ path: "skills/verify/SKILL.md", half: "corpus" });
 	});
 
 	it("names CLAUDE.md read directly, the corpus layout's other kind of path", () => {
-		expect(observedManifest([readUse("CLAUDE.md")], []).paths).toContainEqual({
+		expect(
+			observedManifest(transcript(readUse("CLAUDE.md"))).paths,
+		).toContainEqual({
 			path: "CLAUDE.md",
 			half: "corpus",
 		});
@@ -55,8 +169,7 @@ describe(observedManifest.name, () => {
 	it("names the layout path of a corpus file the session read by its real, absolute path", () => {
 		expect(
 			observedManifest(
-				[readUse("/Users/joaofnds/.claude/skills/verify/SKILL.md")],
-				[],
+				transcript(readUse("/Users/joaofnds/.claude/skills/verify/SKILL.md")),
 			).paths,
 		).toContainEqual({ path: "skills/verify/SKILL.md", half: "corpus" });
 	});
@@ -64,35 +177,34 @@ describe(observedManifest.name, () => {
 	it("names the layout path of a rulebook file read by its real, absolute path", () => {
 		expect(
 			observedManifest(
-				[readUse("/Users/joaofnds/.claude/rulebook/coding-style.md")],
-				[],
+				transcript(readUse("/Users/joaofnds/.claude/rulebook/coding-style.md")),
 			).paths,
 		).toContainEqual({ path: "rulebook/coding-style.md", half: "corpus" });
 	});
 
 	it("names no path for a Read of a file outside the corpus install's .claude layout and outside the declared project files", () => {
 		expect(
-			observedManifest([readUse("/tmp/attempt/NOTES.md")], [], []).paths,
+			observedManifest(transcript(readUse("/tmp/attempt/NOTES.md")), []).paths,
 		).toEqual([]);
 	});
 
 	it("tags a declared project file's Read path as project-half, named by its fixture-relative path", () => {
 		expect(
-			observedManifest([readUse("/tmp/attempt/NOTES.md")], [], ["NOTES.md"])
-				.paths,
+			observedManifest(transcript(readUse("/tmp/attempt/NOTES.md")), [
+				"NOTES.md",
+			]).paths,
 		).toContainEqual({ path: "NOTES.md", half: "project" });
 	});
 
 	it("tags a declared project file's Read path as project-half when the read path is exactly the declared path", () => {
 		expect(
-			observedManifest([readUse("NOTES.md")], [], ["NOTES.md"]).paths,
+			observedManifest(transcript(readUse("NOTES.md")), ["NOTES.md"]).paths,
 		).toContainEqual({ path: "NOTES.md", half: "project" });
 	});
 
 	it("tags a Read matching both a corpus layout name and a declared project file's name as corpus-half only, never both", () => {
 		const manifest = observedManifest(
-			[readUse("/tmp/attempt/.claude/CLAUDE.md")],
-			[],
+			transcript(readUse("/tmp/attempt/.claude/CLAUDE.md")),
 			["CLAUDE.md"],
 		);
 
@@ -100,23 +212,29 @@ describe(observedManifest.name, () => {
 	});
 
 	it("names the last output_style attachment's layout path, not an earlier one", () => {
-		expect(observedManifest([], ["brief", "concise"]).paths).toContainEqual({
+		expect(
+			observedManifest(transcript(outputStyle("brief"), outputStyle("concise")))
+				.paths,
+		).toContainEqual({
 			path: "output-styles/concise.md",
 			half: "corpus",
 		});
-		expect(observedManifest([], ["brief", "concise"]).paths).not.toContainEqual(
-			{ path: "output-styles/brief.md", half: "corpus" },
-		);
+		expect(
+			observedManifest(transcript(outputStyle("brief"), outputStyle("concise")))
+				.paths,
+		).not.toContainEqual({ path: "output-styles/brief.md", half: "corpus" });
 	});
 
 	it("names no output-style path for a transcript with no output_style attachment", () => {
-		expect(observedManifest([], []).paths).toEqual([]);
+		expect(observedManifest(transcript()).paths).toEqual([]);
 	});
 
 	it("deduplicates a path reached by more than one route", () => {
 		const manifest = observedManifest(
-			[skillUse("verify"), readUse("skills/verify/SKILL.md")],
-			[],
+			transcript(
+				skillBody(VERIFY_DIRECTORY),
+				readUse("skills/verify/SKILL.md"),
+			),
 		);
 
 		expect(
@@ -127,7 +245,9 @@ describe(observedManifest.name, () => {
 
 describe(reconcileManifest.name, () => {
 	it("reports no divergence when the manifest matches the declaration exactly", () => {
-		const manifest = observedManifest([skillUse("verify")], ["brief"]);
+		const manifest = observedManifest(
+			transcript(skillBody(VERIFY_DIRECTORY), outputStyle("brief")),
+		);
 
 		expect(
 			reconcileManifest(
@@ -138,7 +258,7 @@ describe(reconcileManifest.name, () => {
 	});
 
 	it("reports an undeclared-file divergence for a loaded path the declaration omits", () => {
-		const manifest = observedManifest([skillUse("verify")], []);
+		const manifest = observedManifest(transcript(skillBody(VERIFY_DIRECTORY)));
 
 		expect(reconcileManifest(manifest, [])).toEqual([
 			{
@@ -150,7 +270,7 @@ describe(reconcileManifest.name, () => {
 	});
 
 	it("reports an unloaded-file divergence for a declared path the manifest never shows", () => {
-		const manifest = observedManifest([], []);
+		const manifest = observedManifest(transcript());
 
 		expect(
 			reconcileManifest(manifest, corpusEntries(["skills/verify/SKILL.md"])),
@@ -160,7 +280,7 @@ describe(reconcileManifest.name, () => {
 	});
 
 	it("reports an unloaded-file divergence for a declared rulebook file the session never read", () => {
-		const manifest = observedManifest([], []);
+		const manifest = observedManifest(transcript());
 
 		expect(
 			reconcileManifest(manifest, corpusEntries(["rulebook/coding-style.md"])),
@@ -174,7 +294,7 @@ describe(reconcileManifest.name, () => {
 	});
 
 	it("reports an unloaded-file divergence for a declared project file the session never read, tagged project-half", () => {
-		const manifest = observedManifest([], [], []);
+		const manifest = observedManifest(transcript(), []);
 
 		expect(
 			reconcileManifest(manifest, [{ path: "NOTES.md", half: "project" }]),
@@ -183,8 +303,7 @@ describe(reconcileManifest.name, () => {
 
 	it("reports an undeclared-file divergence for a project-half Read the case never declared, tagged project-half", () => {
 		const manifest = observedManifest(
-			[readUse("/tmp/attempt/NOTES.md")],
-			[],
+			transcript(readUse("/tmp/attempt/NOTES.md")),
 			["NOTES.md"],
 		);
 
@@ -196,15 +315,8 @@ describe(reconcileManifest.name, () => {
 
 describe("a transcript record of an unrecognized type", () => {
 	it("yields no manifest entry and no divergence, never a failed attempt", () => {
-		const transcript = parseTranscript(
-			JSON.stringify({
-				type: "future-record-kind",
-				payload: { skill: "verify" },
-			}),
-		);
 		const manifest = observedManifest(
-			toolUses(transcript),
-			outputStyles(transcript),
+			transcript({ type: "future-record-kind", payload: { skill: "verify" } }),
 		);
 
 		expect(manifest.paths).toEqual([]);
@@ -229,11 +341,9 @@ describe("over the manifest-probe fixture", () => {
 			"manifest-probe",
 			declaration.transcript.file,
 		);
-		const transcript = await parseTranscriptFile(transcriptPath);
-		const uses = toolUses(transcript);
-		const styles = outputStyles(transcript);
+		const lines = await parseTranscriptFile(transcriptPath);
 
-		const manifest = observedManifest(uses, styles, declaration.projectFiles);
+		const manifest = observedManifest(lines, declaration.projectFiles);
 
 		expect(
 			manifest.paths.toSorted((left, right) =>

@@ -169,11 +169,13 @@ See [current state](docs/status.md) for implementation coverage and
 - **Context manifest** — the transcript-observed instruction/context paths for
   a session attempt, classified as corpus or project inputs and reconciled
   against declarations. Observed entries are name-only; declared corpus hashes
-  are separate evidence. An invocation does not prove successful delivery or
-  that the instruction was followed, and missing observations do not prove
-  absence from context. The manifest deduplicates paths rather than retaining
-  a load history. It is built for a session attempt; a pipeline stage is
-  observed through context history instead, and no manifest is built for one.
+  are separate evidence. A file counts when a Read of it succeeds or an
+  instructions attachment names it, and a skill counts when its body arrives,
+  so a refused call records nothing. A load does not prove the instruction was
+  followed, and missing observations do not prove absence from context. The
+  manifest deduplicates paths rather than retaining a load history. It is
+  built for a session attempt; a pipeline stage is observed through context
+  history instead, and no manifest is built for one.
 - **Context evidence** — an optional, versioned attempt-record field containing
   an unchanged provider capture and the harness's normalized projection. The
   projection joins request usage, model, provider cost, agent parentage,

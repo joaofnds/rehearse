@@ -5,10 +5,12 @@ import { join } from "node:path";
 import type { JsonValue } from "#benchmark/json-value";
 import {
 	filesRead,
+	instructionFiles,
 	outputStyles,
 	parseTranscript,
 	parseTranscriptFile,
-	skillsInvoked,
+	skillDirectories,
+	succeededToolUses,
 	transcriptDiagnostics,
 	transcriptDiagnosticsSchema,
 	toolUses,
@@ -871,6 +873,26 @@ describe(parseTranscriptFile.name, () => {
 	});
 });
 
+describe(succeededToolUses.name, () => {
+	it("returns every tool use except those answered with an error", () => {
+		const transcript = parseTranscript(
+			[
+				assistantWith(readCall("toolu_ok"), readCall("toolu_failed")),
+				line({
+					type: "user",
+					message: {
+						content: [toolResult("toolu_ok"), toolResult("toolu_failed", true)],
+					},
+				}),
+			].join("\n"),
+		);
+
+		expect(succeededToolUses(transcript).map((use) => use.id)).toEqual([
+			"toolu_ok",
+		]);
+	});
+});
+
 describe(filesRead.name, () => {
 	it("returns the file_path of every Read call and nothing else", () => {
 		const transcript = parseTranscript(assistantWith(readBlock, bashBlock));
@@ -886,23 +908,73 @@ const skillBlock = {
 	input: { skill: "verify" },
 };
 
-describe(skillsInvoked.name, () => {
-	it("returns the skill name of every Skill call and nothing else", () => {
-		const transcript = parseTranscript(assistantWith(skillBlock, bashBlock));
+const skillBody = {
+	type: "text",
+	text: "Base directory for this skill: /tmp/attempt/.claude/skills/verify\n\nReply with the token.",
+};
 
-		expect(skillsInvoked(toolUses(transcript))).toEqual(["verify"]);
+function userWith(...blocks: readonly JsonValue[]): string {
+	return line({ type: "user", message: { content: blocks } });
+}
+
+describe(skillDirectories.name, () => {
+	it("returns the directory every loaded skill body names", () => {
+		const transcript = parseTranscript(userWith(skillBody));
+
+		expect(skillDirectories(transcript)).toEqual([
+			"/tmp/attempt/.claude/skills/verify",
+		]);
 	});
 
-	it("returns nothing for a transcript with no Skill call", () => {
-		const transcript = parseTranscript(assistantWith(bashBlock));
+	it("returns nothing for a Skill call whose body never loaded", () => {
+		const transcript = parseTranscript(assistantWith(skillBlock));
 
-		expect(skillsInvoked(toolUses(transcript))).toEqual([]);
+		expect(skillDirectories(transcript)).toEqual([]);
+	});
+
+	it("returns nothing for a reply that quotes a skill body", () => {
+		const transcript = parseTranscript(assistantWith(skillBody));
+
+		expect(skillDirectories(transcript)).toEqual([]);
+	});
+
+	it("returns nothing for a message that names a skill directory after its first character", () => {
+		const transcript = parseTranscript(
+			userWith({ type: "text", text: `Quoted: ${skillBody.text}` }),
+		);
+
+		expect(skillDirectories(transcript)).toEqual([]);
 	});
 });
 
 function attachmentLine(attachment: JsonValue): string {
 	return line({ type: "attachment", attachment });
 }
+
+describe(instructionFiles.name, () => {
+	it("returns the path of every file an instructions attachment names", () => {
+		const transcript = parseTranscript(
+			attachmentLine({
+				type: "instructions",
+				files: [
+					{ path: "/tmp/attempt/.claude/CLAUDE.md", type: "Project" },
+					{ path: "/tmp/attempt/CLAUDE.md", type: "Project" },
+				],
+			}),
+		);
+
+		expect(instructionFiles(transcript)).toEqual([
+			"/tmp/attempt/.claude/CLAUDE.md",
+			"/tmp/attempt/CLAUDE.md",
+		]);
+	});
+
+	it("returns nothing for a transcript with no instructions attachment", () => {
+		expect(
+			instructionFiles(parseTranscript(attachmentLine({ type: "budget_usd" }))),
+		).toEqual([]);
+	});
+});
 
 describe(outputStyles.name, () => {
 	it("returns the style name of every output_style attachment in order", () => {

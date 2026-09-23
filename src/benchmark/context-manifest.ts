@@ -1,7 +1,13 @@
 import { corpusLayoutSuffix, isCorpusLayoutPath } from "./corpus-file";
 import type { Immutable } from "./contracts";
-import type { ToolUse } from "./transcript";
-import { filesRead, skillsInvoked } from "./transcript";
+import type { TranscriptLine } from "./transcript";
+import {
+	filesRead,
+	instructionFiles,
+	outputStyles,
+	skillDirectories,
+	succeededToolUses,
+} from "./transcript";
 
 export type ContextHalf = "corpus" | "project";
 
@@ -32,13 +38,13 @@ export type ManifestDivergence =
 	  };
 
 /**
- * A `Read` tool_use never carries a bare layout path: the session reads a real
- * file, so `input.file_path` is absolute, either under the live install
- * (`~/.claude/<layoutPath>`) or under an attempt's corpus overlay
- * (`<attemptDirectory>/.claude/<layoutPath>`, `session-corpus.ts`). Both
- * shapes share the `.claude/` segment immediately before the layout path, so
- * the manifest entry is the suffix after the last one, not the read path
- * itself.
+ * A loaded path never carries a bare layout path: a `Read`, an instructions
+ * attachment and a skill body each name a real file, so the path is absolute,
+ * either under the live install (`~/.claude/<layoutPath>`) or under an
+ * attempt's corpus overlay (`<attemptDirectory>/.claude/<layoutPath>`,
+ * `session-corpus.ts`). Both shapes share the `.claude/` segment immediately
+ * before the layout path, so the manifest entry is the suffix after the last
+ * one, not the loaded path itself.
  */
 function readCorpusLayoutPath(path: string): string | undefined {
 	if (isCorpusLayoutPath(path)) {
@@ -116,23 +122,23 @@ function dedupeEntries(
 }
 
 export function observedManifest(
-	uses: Immutable<readonly ToolUse[]>,
-	styles: readonly string[],
+	lines: Immutable<readonly TranscriptLine[]>,
 	declaredProjectFiles: readonly string[] = [],
 ): ContextManifest {
-	const skillPaths = skillsInvoked(uses).map(
-		(skill) => `skills/${skill}/SKILL.md`,
-	);
-	const readPaths = filesRead(uses)
+	const loadedFiles = [
+		...filesRead(succeededToolUses(lines)),
+		...instructionFiles(lines),
+		...skillDirectories(lines).map((directory) => `${directory}/SKILL.md`),
+	];
+	const readPaths = loadedFiles
 		.map((path) => readCorpusLayoutPath(path))
 		.filter((path) => path !== undefined);
-	const projectPaths = filesRead(uses)
+	const projectPaths = loadedFiles
 		.map((path) => readProjectLayoutPath(path, declaredProjectFiles))
 		.filter((path) => path !== undefined);
-	const stylePath = outputStyleLayoutPath(styles);
+	const stylePath = outputStyleLayoutPath(outputStyles(lines));
 
 	const entries: ManifestEntry[] = [
-		...corpusEntries(skillPaths),
 		...corpusEntries(readPaths),
 		...projectEntries(projectPaths),
 		...(stylePath === undefined ? [] : corpusEntries([stylePath])),

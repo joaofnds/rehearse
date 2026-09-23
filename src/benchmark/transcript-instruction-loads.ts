@@ -9,7 +9,7 @@ const instructionFileSchema = z
 	})
 	.loose();
 
-const instructionsAttachmentSchema = z
+export const instructionsAttachmentSchema = z
 	.object({
 		attachment: z
 			.object({

@@ -31,7 +31,6 @@ import type { ContextManifest } from "./context-manifest";
 import { observedManifest } from "./context-manifest";
 import type { TranscriptDiagnostics, TranscriptLine } from "./transcript";
 import {
-	outputStyles,
 	parseTranscriptFile,
 	transcriptDiagnostics,
 	toolUses,
@@ -733,11 +732,7 @@ async function recordAttempt(
 			metrics,
 			outcome: result.outcome,
 			checks: result.results,
-			contextManifest: observedManifest(
-				toolUses(turn),
-				outputStyles(turn),
-				request.sessionCase.projectFiles,
-			),
+			contextManifest: observedManifest(turn, request.sessionCase.projectFiles),
 			transcriptDiagnostics: diagnostics,
 			stateEvidenceDirectory,
 			...stateGrade,
