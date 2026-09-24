@@ -48,11 +48,12 @@ import { corpusDigest } from "./corpus-digest";
 import { redactAbsolutePaths } from "./redact-path";
 import { readRunRecord } from "./run-record";
 import type {
+	CostReading,
 	FinalOutcome,
 	Reading,
 	RunRecord,
 	RunRecordStage,
-	RunTotals,
+	WallTimeReading,
 } from "./run-record";
 import {
 	checkpointlessStageRecorded,
@@ -88,8 +89,8 @@ export interface PipelineRunRow {
 	readonly stepGrades: Reading<{ readonly grades: readonly StepGrade[] }>;
 	/** The final judge's outcome, the design's task grade, with its note. */
 	readonly taskGrade: Reading<FinalOutcome>;
-	readonly cost: RunTotals["cost"];
-	readonly wallTime: RunTotals["wallTime"];
+	readonly cost: CostReading;
+	readonly wallTime: WallTimeReading;
 }
 
 export const NOT_RUN_REASON = "the run never reached this stage";
@@ -140,8 +141,8 @@ export interface SessionAttemptRow {
 	readonly shortId: string | undefined;
 	readonly status: SessionAttemptRecord["outcome"];
 	readonly links: readonly ContextLink[];
-	readonly cost: RunTotals["cost"];
-	readonly wallTime: RunTotals["wallTime"];
+	readonly cost: CostReading;
+	readonly wallTime: WallTimeReading;
 }
 
 /**
@@ -163,9 +164,9 @@ export interface ReplayRow {
 	readonly grade: string;
 	readonly status: ReplayRecord["scorecard"]["grade"]["verdict"];
 	readonly links: readonly ContextLink[];
-	readonly cost: RunTotals["cost"];
+	readonly cost: CostReading;
 	readonly taskGrade: NotApplicable;
-	readonly wallTime: RunTotals["wallTime"];
+	readonly wallTime: WallTimeReading;
 }
 
 /** A figure that has no meaning for a row's kind, rather than one not recorded. */
@@ -188,8 +189,8 @@ export interface ConfirmationGroupRow {
 	readonly reps: number;
 	readonly repAttempts: readonly RepAttempt[];
 	readonly links: readonly ContextLink[];
-	readonly cost: RunTotals["cost"];
-	readonly wallTime: RunTotals["wallTime"];
+	readonly cost: CostReading;
+	readonly wallTime: WallTimeReading;
 }
 
 export interface RepAttempt {
@@ -492,7 +493,7 @@ function replayCost(
 		ReplayRecord,
 		"stage" | "stageCostUsd" | "productOwnerCostUsd" | "judgeCostUsd"
 	>,
-): RunTotals["cost"] {
+): CostReading {
 	const parts = [
 		{ part: `${record.stage} session`, usd: record.stageCostUsd },
 		{ part: "Product Owner", usd: record.productOwnerCostUsd },

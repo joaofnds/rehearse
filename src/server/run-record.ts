@@ -144,16 +144,20 @@ export interface CostPart {
 	readonly usd: number;
 }
 
+/** Every recorded spend summed, naming each part summed and each lacked. */
+export type CostReading = Reading<{
+	readonly usd: number;
+	readonly parts: readonly CostPart[];
+	readonly missing: readonly MissingPart[];
+}>;
+
+export type WallTimeReading = Reading<{ readonly ms: number }>;
+
 export interface RunTotals {
 	readonly tokens: TokenReading;
-	/** Every recorded spend summed, naming each part summed and each lacked. */
-	readonly cost: Reading<{
-		readonly usd: number;
-		readonly parts: readonly CostPart[];
-		readonly missing: readonly MissingPart[];
-	}>;
+	readonly cost: CostReading;
 	readonly productOwnerCost: Reading<{ readonly usd: number }>;
-	readonly wallTime: Reading<{ readonly ms: number }>;
+	readonly wallTime: WallTimeReading;
 }
 
 export interface RunRecord {
