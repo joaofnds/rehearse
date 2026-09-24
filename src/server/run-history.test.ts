@@ -1389,7 +1389,31 @@ describe(runHistoryReport.name, () => {
 			});
 		});
 
-		it("does not count a run stopped at the replayed stage as an attempt there", async () => {
+		it("counts a run the Judge stopped at the replayed stage as an attempt there", async () => {
+			const fixture = await fixtureWithClaimedRun(async (earlier) => {
+				await earlier.writeGradedStoppedRun();
+				await earlier.writeReplayOf(
+					earlier.stoppedRun,
+					"2026-09-05T00-00-00.000Z",
+				);
+			});
+
+			const { rows } = await runHistoryReport(
+				fixture.runsDirectory,
+				directorySource(await corpusDirectory("build skill\n")),
+				nothingRunning,
+			);
+
+			expect(
+				rows.find(
+					(row) =>
+						row.kind === "replay" &&
+						row.timestamp === "2026-09-05T00-00-00.000Z",
+				),
+			).toMatchObject({ attempt: { position: 2, count: 2 } });
+		});
+
+		it("does not count a run whose judging failed at the replayed stage as an attempt there", async () => {
 			const fixture = await fixtureWithClaimedRun(async (earlier) => {
 				await earlier.writeStoppedRun();
 				await earlier.writeReplayOf(

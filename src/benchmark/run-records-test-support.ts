@@ -1,5 +1,5 @@
 import { mkdir } from "node:fs/promises";
-import type { z } from "zod";
+import { z } from "zod";
 import { buildComparisonReport } from "./comparison-report";
 import { serializeComparisonReport } from "./comparison-record";
 import {
@@ -694,6 +694,34 @@ export class RecordedRunsFixture {
 							exchanges: [{ agent: { message: STOPPED_STAGE_EXCHANGE_TEXT } }],
 						},
 					},
+				},
+				null,
+				2,
+			)}\n`,
+		);
+	}
+
+	/**
+	 * A run stopped at its build stage because the Judge graded it below the
+	 * pipeline's minimum, so the stop record carries the Judge's findings.
+	 */
+	public async writeGradedStoppedRun(): Promise<void> {
+		await this.writeStoppedRun();
+		const stageFile = benchmarkRunPaths(
+			this.runsDirectory,
+			this.stoppedRun,
+		).stageFile("build");
+		const stopRecord: unknown = JSON.parse(await Bun.file(stageFile).text());
+		await Bun.write(
+			stageFile,
+			`${JSON.stringify(
+				{
+					...z.object({}).loose().parse(stopRecord),
+					hardBlockers: [],
+					requirements: [],
+					dimensions: [],
+					summary: "the build misses its requirements",
+					costUsd: 0.5,
 				},
 				null,
 				2,

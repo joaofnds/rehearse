@@ -3,6 +3,7 @@ import {
 	parseConfirmationRepRecord,
 } from "#benchmark/confirmation-record";
 import { parseRunSummaryRecord } from "#benchmark/record-summary";
+import { stoppedStageRecordSchema } from "#benchmark/run-outcome";
 import { readReplayRecord } from "#benchmark/replay";
 import {
 	benchmarkRunPaths,
@@ -12,6 +13,7 @@ import {
 } from "#benchmark/run-layout";
 import type { ShortIdEntry } from "#benchmark/short-id";
 import { formatRecordId } from "#cli/record-id";
+import { z } from "zod";
 
 /** Which attempt at its checkpoint a record is: "attempt 2 of 3". */
 export interface AttemptPosition {
@@ -46,9 +48,18 @@ async function readable<Read>(
 }
 
 /**
+ * A stop record the Judge's findings are written into, because the stage was
+ * graded below the pipeline's minimum rather than failing to be judged.
+ */
+const gradedStopSchema = stoppedStageRecordSchema.extend({
+	summary: z.string(),
+});
+
+/**
  * The original run counts as an attempt at the checkpoint before a stage when
- * it recorded that stage's checkpoint or a grade for it. A stop record carries
- * no grade, so a run stopped at the stage does not count.
+ * it recorded that stage's checkpoint or a grade for it, a stop for a grade
+ * below the minimum included. A run whose judging failed at the stage recorded
+ * no result there, so it does not count.
  */
 async function originalRecorded(
 	runsDirectory: string,
@@ -67,10 +78,19 @@ async function originalRecorded(
 		parseRunSummaryRecord(await Bun.file(paths.artifactFile).text()),
 	);
 
-	return (
-		artifact?.stageScorecards.some((scorecard) => scorecard.stage === stage) ??
-		false
+	if (
+		artifact?.stageScorecards.some((scorecard) => scorecard.stage === stage) ===
+		true
+	) {
+		return true;
+	}
+	const stopRecord = await readable(async () =>
+		gradedStopSchema.parse(
+			JSON.parse(await Bun.file(paths.stageFile(stage)).text()),
+		),
 	);
+
+	return stopRecord !== undefined;
 }
 
 async function judgedStageReps(
