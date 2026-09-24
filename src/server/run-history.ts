@@ -37,6 +37,7 @@ import type { ReplayRecord } from "#benchmark/replay";
 import { parseSessionAttemptRecord } from "#benchmark/session-record";
 import type { SessionAttemptRecord } from "#benchmark/session-record";
 import { formatRecordId } from "#cli/record-id";
+import { shortIdsByRecordId } from "#cli/short-id-column";
 import {
 	awaitingJudgeStageRecordSchema,
 	stoppedStage,
@@ -118,6 +119,7 @@ export type ContextLink =
 export interface PipelineRunRow {
 	readonly kind: "run";
 	readonly run: string;
+	readonly shortId: string | undefined;
 	readonly caseId: string | undefined;
 	readonly status: string;
 	readonly stage: string | undefined;
@@ -133,6 +135,7 @@ export interface SessionAttemptRow {
 	readonly kind: "session-attempt";
 	readonly caseId: string;
 	readonly uuid: string;
+	readonly shortId: string | undefined;
 	readonly status: SessionAttemptRecord["outcome"];
 	readonly links: readonly ContextLink[];
 }
@@ -147,6 +150,7 @@ export interface ReplayRow {
 	readonly kind: "replay";
 	readonly lineage: string;
 	readonly timestamp: string;
+	readonly shortId: string | undefined;
 	readonly caseId: string | undefined;
 	readonly stage: string;
 	readonly grade: string;
@@ -161,6 +165,7 @@ export interface ReplayRow {
 export interface ConfirmationGroupRow {
 	readonly kind: "group";
 	readonly groupId: string;
+	readonly shortId: string | undefined;
 	readonly caseId: string;
 	readonly mode: ConfirmationMode;
 	readonly reps: number;
@@ -473,6 +478,7 @@ async function stageLinks(
 async function rowFor(
 	runsDirectory: string,
 	run: string,
+	shortId: string | undefined,
 	staleByCheckpointId: ReadonlyMap<string, readonly string[]>,
 	runEvents: RunEventStore,
 	liveness: RunLiveness,
@@ -502,6 +508,7 @@ async function rowFor(
 		return {
 			kind: "run",
 			run,
+			shortId,
 			status,
 			caseId,
 			stage: undefined,
@@ -523,6 +530,7 @@ async function rowFor(
 	return {
 		kind: "run",
 		run,
+		shortId,
 		status,
 		caseId,
 		stage,
@@ -538,6 +546,7 @@ async function rowFor(
 async function sessionAttemptRow(
 	runsDirectory: string,
 	attempt: SessionAttemptId,
+	shortId: string | undefined,
 ): Promise<SessionAttemptRow> {
 	const { recordFile } = sessionAttemptPaths(runsDirectory, attempt);
 	if (!(await Bun.file(recordFile).exists())) {
@@ -550,6 +559,7 @@ async function sessionAttemptRow(
 		kind: "session-attempt",
 		caseId: attempt.caseId,
 		uuid: attempt.uuid,
+		shortId,
 		status: record.outcome,
 		links: [
 			{
@@ -570,6 +580,7 @@ async function sourceCaseId(manifestFile: string): Promise<string> {
 async function replayRow(
 	runsDirectory: string,
 	attempt: StageAttemptId,
+	shortId: string | undefined,
 ): Promise<ReplayRow> {
 	const record = await readReplayRecord(
 		replayRecordFile(runsDirectory, attempt.lineage, attempt.timestamp),
@@ -583,6 +594,7 @@ async function replayRow(
 		kind: "replay",
 		lineage: attempt.lineage,
 		timestamp: attempt.timestamp,
+		shortId,
 		caseId,
 		stage: record.stage,
 		grade: record.scorecard.grade.grade,
@@ -665,6 +677,7 @@ async function repLink(
 async function groupRow(
 	runsDirectory: string,
 	groupId: string,
+	shortId: string | undefined,
 ): Promise<ConfirmationGroupRow> {
 	const { groupFile } = confirmationGroupPaths(runsDirectory, groupId);
 	if (!(await Bun.file(groupFile).exists())) {
@@ -681,6 +694,7 @@ async function groupRow(
 	return {
 		kind: "group",
 		groupId,
+		shortId,
 		caseId: record.caseId,
 		mode: record.mode,
 		reps: record.reps,
@@ -769,15 +783,19 @@ export async function runHistoryReport(
 	try {
 		const rows: RunHistoryRow[] = [];
 		const unreadable: UnreadableRecord[] = [];
+		const shortIds = await shortIdsByRecordId(runsDirectory);
 		const collect = async <Named>(
 			kind: RunHistoryRow["kind"],
 			named: readonly Named[],
 			idOf: (name: Named) => string,
-			read: (name: Named) => Promise<RunHistoryRow | undefined>,
+			read: (
+				name: Named,
+				shortId: string | undefined,
+			) => Promise<RunHistoryRow | undefined>,
 		): Promise<void> => {
 			for (const name of named) {
 				try {
-					const row = await read(name);
+					const row = await read(name, shortIds.get(idOf(name)));
 					if (row !== undefined) {
 						rows.push(row);
 					}
@@ -801,26 +819,33 @@ export async function runHistoryReport(
 			"run",
 			[...runs],
 			(run) => formatRecordId({ kind: "run", run }),
-			(run) =>
-				rowFor(runsDirectory, run, staleByCheckpointId, runEvents, liveness),
+			(run, shortId) =>
+				rowFor(
+					runsDirectory,
+					run,
+					shortId,
+					staleByCheckpointId,
+					runEvents,
+					liveness,
+				),
 		);
 		await collect(
 			"session-attempt",
 			await sessionAttemptIds(runsDirectory),
 			(attempt) => formatRecordId({ kind: "attempt:session", ...attempt }),
-			(attempt) => sessionAttemptRow(runsDirectory, attempt),
+			(attempt, shortId) => sessionAttemptRow(runsDirectory, attempt, shortId),
 		);
 		await collect(
 			"replay",
 			await replayAttemptIds(runsDirectory),
 			(attempt) => formatRecordId({ kind: "attempt:stage", ...attempt }),
-			(attempt) => replayRow(runsDirectory, attempt),
+			(attempt, shortId) => replayRow(runsDirectory, attempt, shortId),
 		);
 		await collect(
 			"group",
 			await confirmationGroupIds(runsDirectory),
 			(groupId) => formatRecordId({ kind: "group", groupId }),
-			(groupId) => groupRow(runsDirectory, groupId),
+			(groupId, shortId) => groupRow(runsDirectory, groupId, shortId),
 		);
 
 		return { rows: newestFirst(rows), unreadable };

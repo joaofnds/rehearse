@@ -28,6 +28,7 @@ import {
 	confirmationGroupPaths,
 	runEventsDatabaseFile,
 } from "#benchmark/run-layout";
+import { claimShortId } from "#benchmark/short-id";
 import type { ContextLink, PipelineRunRow, RunHistoryRow } from "./run-history";
 import { runHistoryReport } from "./run-history";
 
@@ -559,6 +560,7 @@ describe(runHistoryReport.name, () => {
 		expect(row).toEqual({
 			kind: "run",
 			run: fixture.stoppedRun,
+			shortId: undefined,
 			caseId: "audit-log",
 			status: "STOPPED:build",
 			stage: undefined,
@@ -609,6 +611,7 @@ describe(runHistoryReport.name, () => {
 		expect(row).toEqual({
 			kind: "run",
 			run: fixture.interruptedRun,
+			shortId: undefined,
 			caseId: "audit-log",
 			status: "INTERRUPTED",
 			stage: undefined,
@@ -960,6 +963,7 @@ describe(runHistoryReport.name, () => {
 			).toEqual({
 				kind: "group",
 				groupId: "group-s",
+				shortId: undefined,
 				caseId: fixture.sessionAttempt.caseId,
 				mode: "session",
 				reps: 2,
@@ -1231,6 +1235,63 @@ describe(runHistoryReport.name, () => {
 			`attempt ${fixture.sessionAttempt.uuid}`,
 			`group ${fixture.groupId}`,
 		]);
+	});
+
+	describe("short ids", () => {
+		const laterRun = "2026-09-11T00-00-00.000Z";
+
+		/**
+		 * A run claimed after the fixture's audit-log records are on disk, so
+		 * the claim numbers them first, oldest first, and takes the next number.
+		 * The run claims before it writes its record, as a started run does.
+		 */
+		async function fixtureWithClaimedRun(): Promise<RecordedRunsFixture> {
+			const fixture = await writtenFixture();
+			await claimShortId(fixture.runsDirectory, "audit-log", {
+				kind: "run",
+				run: laterRun,
+			});
+			await fixture.writePipelineRun(laterRun, "audit-log");
+
+			return fixture;
+		}
+
+		it("names each record of a claimed case by its short id", async () => {
+			const fixture = await fixtureWithClaimedRun();
+
+			const { rows } = await runHistoryReport(
+				fixture.runsDirectory,
+				directorySource(await corpusDirectory("build skill\n")),
+				nothingRunning,
+			);
+
+			expect(
+				rows
+					.filter((row) => row.caseId === "audit-log")
+					.map((row) => row.shortId),
+			).toEqual([
+				"audit-log/r5",
+				"audit-log/r3",
+				"audit-log/r2",
+				"audit-log/r1",
+				"audit-log/g4",
+			]);
+		});
+
+		it("names no short id for a record in a case no command has claimed in", async () => {
+			const fixture = await fixtureWithClaimedRun();
+
+			const { rows } = await runHistoryReport(
+				fixture.runsDirectory,
+				directorySource(await corpusDirectory("build skill\n")),
+				nothingRunning,
+			);
+
+			expect(rows.find((row) => row.kind === "session-attempt")).toMatchObject({
+				caseId: "smoke",
+				shortId: undefined,
+			});
+		});
 	});
 
 	it("writes nothing under the runs directory except the run event database", async () => {

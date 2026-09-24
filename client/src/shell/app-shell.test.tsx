@@ -38,6 +38,7 @@ type SavedComparison = ComparisonIndexResponse["comparisons"][number];
 function runRow(run: string): RunHistoryRow {
 	return {
 		kind: "run",
+		shortId: undefined,
 		links: [],
 		run,
 		caseId: "audit-log",
@@ -54,6 +55,7 @@ function runRow(run: string): RunHistoryRow {
 function sessionAttemptRow(uuid: string): RunHistoryRow {
 	return {
 		kind: "session-attempt",
+		shortId: undefined,
 		caseId: "brief-reply",
 		uuid,
 		status: "UNSUCCESSFUL",

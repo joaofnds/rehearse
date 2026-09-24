@@ -48,6 +48,7 @@ function oneStoppedOneComplete(): RunHistoryResponseBody {
 		rows: [
 			{
 				kind: "run",
+				shortId: undefined,
 				links: [],
 				run: "2026-09-06T21-58-29.508Z",
 				caseId: "audit-log",
@@ -61,6 +62,7 @@ function oneStoppedOneComplete(): RunHistoryResponseBody {
 			},
 			{
 				kind: "run",
+				shortId: undefined,
 				links: [],
 				run: "2026-09-03T00-00-00.000Z",
 				caseId: "audit-log",
@@ -115,6 +117,7 @@ describe(RunHistoryPage.name, () => {
 			rows: [
 				{
 					kind: "run",
+					shortId: undefined,
 					links: [],
 					run: "2026-09-06T21-58-29.508Z",
 					caseId: "audit-log",
@@ -148,6 +151,7 @@ describe(RunHistoryPage.name, () => {
 			rows: [
 				{
 					kind: "run",
+					shortId: undefined,
 					links: [],
 					run: "2026-09-06T21-58-29.508Z",
 					caseId: "audit-log",
@@ -211,6 +215,7 @@ describe(RunHistoryPage.name, () => {
 			rows: [
 				{
 					kind: "run",
+					shortId: undefined,
 					links: [],
 					run: "2026-09-06T21-58-29.508Z",
 					caseId: "audit-log",
@@ -239,6 +244,7 @@ describe(RunHistoryPage.name, () => {
 			rows: [
 				{
 					kind: "run",
+					shortId: undefined,
 					links: [],
 					run: "2026-09-04T00-00-00.000Z",
 					caseId: "audit-log",
@@ -317,6 +323,7 @@ describe(RunHistoryPage.name, () => {
 			rows: [
 				{
 					kind: "run",
+					shortId: undefined,
 					links: [],
 					run: "2026-09-06T21-58-29.508Z",
 					caseId: "audit-log",
@@ -344,6 +351,7 @@ describe(RunHistoryPage.name, () => {
 			rows: [
 				{
 					kind: "run",
+					shortId: undefined,
 					links: [],
 					run: "2026-09-06T21-58-29.508Z",
 					caseId: "audit-log",
@@ -396,6 +404,7 @@ describe(RunHistoryPage.name, () => {
 				rows: [
 					{
 						kind: "run",
+						shortId: undefined,
 						links: [],
 						run: "2026-09-06T00-00-00.000Z",
 						caseId: "audit-log",
@@ -409,6 +418,7 @@ describe(RunHistoryPage.name, () => {
 					},
 					{
 						kind: "run",
+						shortId: undefined,
 						links: [],
 						run: "2026-09-05T00-00-00.000Z",
 						caseId: "audit-log",
@@ -451,6 +461,7 @@ describe(RunHistoryPage.name, () => {
 	describe("when a run is in flight", () => {
 		const runningRow: RunHistoryResponseBody["rows"][number] = {
 			kind: "run",
+			shortId: undefined,
 			links: [],
 			run: "2026-09-07T00-00-00.000Z",
 			caseId: "audit-log",
@@ -649,6 +660,7 @@ describe(RunHistoryPage.name, () => {
 				rows: [
 					{
 						kind: "run",
+						shortId: undefined,
 						links: [],
 						run: "2026-09-06T00-00-00.000Z",
 						caseId: "audit-log",
@@ -681,6 +693,7 @@ describe(RunHistoryPage.name, () => {
 			rows: [
 				{
 					kind: "run",
+					shortId: undefined,
 					links: [],
 					run: "2026-09-05T00-00-00.000Z",
 					caseId: "audit-log",
@@ -715,6 +728,7 @@ describe(RunHistoryPage.name, () => {
 			rows: [
 				{
 					kind: "run",
+					shortId: undefined,
 					links: [],
 					run: "2026-09-06T21-58-29.508Z",
 					caseId: "audit-log",
@@ -849,6 +863,7 @@ describe(RunHistoryPage.name, () => {
 			rows: [
 				{
 					kind: "run",
+					shortId: undefined,
 					run: "2026-09-06T21-58-29.508Z",
 					caseId: "audit-log",
 					status: "STOPPED:build",
@@ -868,6 +883,7 @@ describe(RunHistoryPage.name, () => {
 				},
 				{
 					kind: "run",
+					shortId: undefined,
 					run: "2026-09-17T12-50-49.127Z",
 					caseId: undefined,
 					status: "FAILED",
@@ -887,6 +903,7 @@ describe(RunHistoryPage.name, () => {
 				},
 				{
 					kind: "replay",
+					shortId: undefined,
 					lineage: "60758c",
 					timestamp: "2026-09-06T22-33-15.057Z",
 					caseId: "audit-log",
@@ -903,6 +920,7 @@ describe(RunHistoryPage.name, () => {
 				},
 				{
 					kind: "session-attempt",
+					shortId: undefined,
 					caseId: "brief-reply",
 					uuid: "0f6b6f2a-0000-4000-8000-000000000001",
 					status: "UNSUCCESSFUL",
@@ -916,6 +934,7 @@ describe(RunHistoryPage.name, () => {
 				},
 				{
 					kind: "group",
+					shortId: undefined,
 					groupId: "group-a",
 					caseId: "brief-reply",
 					mode: "session",
@@ -1055,6 +1074,7 @@ describe(RunHistoryPage.name, () => {
 			rows: [
 				{
 					kind: "run",
+					shortId: undefined,
 					links: [],
 					run: "2026-09-05T00-00-00.000Z",
 					caseId: "audit-log",
