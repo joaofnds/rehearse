@@ -11,6 +11,7 @@ import {
 	RecordedRunsFixture,
 } from "#benchmark/run-records-test-support";
 import { createApiApp } from "./api";
+import { NOT_RUN_REASON } from "./run-history";
 import { STOPPED_GRADE_REASON } from "./run-record";
 
 /**
@@ -27,6 +28,11 @@ const runHistorySchema = z.object({
 });
 
 type ListedRow = z.infer<typeof runHistorySchema>["rows"][number];
+
+const liveRun: RunLiveness = {
+	readMarker: () => Promise.resolve({ pid: 1 }),
+	isAlive: () => true,
+};
 
 describe("/api/runs", () => {
 	const roots: string[] = [];
@@ -93,6 +99,27 @@ describe("/api/runs", () => {
 									state: "unavailable",
 									reasons: [STOPPED_GRADE_REASON],
 								},
+							},
+						],
+					},
+				});
+			});
+
+			it("marks each stage after the one a live run is in as not run", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeRunningRun("turn-completed", "discuss");
+
+				const row = await runRow(fixture, fixture.runningRun, liveRun);
+
+				expect(row).toMatchObject({
+					stepGrades: {
+						state: "available",
+						grades: [
+							{ stage: "discuss", status: "no-record" },
+							{
+								stage: "build",
+								status: "not-run",
+								grade: { state: "unavailable", reasons: [NOT_RUN_REASON] },
 							},
 						],
 					},

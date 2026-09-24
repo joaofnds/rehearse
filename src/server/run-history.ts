@@ -47,7 +47,7 @@ import type { AttemptPosition } from "./checkpoint-attempts";
 import { corpusDigest } from "./corpus-digest";
 import { redactAbsolutePaths } from "./redact-path";
 import { readRunRecord } from "./run-record";
-import type { Reading, RunRecordStage } from "./run-record";
+import type { Reading, RunRecord, RunRecordStage } from "./run-record";
 import {
 	checkpointlessStageRecorded,
 	latestCheckpointStage,
@@ -82,11 +82,35 @@ export interface PipelineRunRow {
 	readonly stepGrades: Reading<{ readonly grades: readonly StepGrade[] }>;
 }
 
+export const NOT_RUN_REASON = "the run never reached this stage";
+
 /** A stage's grade as the run's step grades column shows it. */
 export interface StepGrade {
 	readonly stage: string;
-	readonly status: RunRecordStage["status"];
+	readonly status: RunRecordStage["status"] | "not-run";
 	readonly grade: RunRecordStage["grade"];
+}
+
+/**
+ * A stage with no record is one the run never reached, unless it is the
+ * stage the run ended or is running in: that one ran, and left no record.
+ */
+function stepGrades(record: RunRecord): readonly StepGrade[] {
+	const { finalOutcome } = record;
+	const reachedStage =
+		finalOutcome.status === "NOT_REACHED" || finalOutcome.status === "PENDING"
+			? finalOutcome.stage
+			: undefined;
+
+	return record.stages.map(({ stage, status, grade }) =>
+		status === "no-record" && stage !== reachedStage
+			? {
+					stage,
+					status: "not-run",
+					grade: { state: "unavailable", reasons: [NOT_RUN_REASON] },
+				}
+			: { stage, status, grade },
+	);
 }
 
 export interface SessionAttemptRow {
@@ -242,11 +266,7 @@ async function runFigures(
 		return {
 			stepGrades: {
 				state: "available",
-				grades: record.stages.map(({ stage, status, grade }) => ({
-					stage,
-					status,
-					grade,
-				})),
+				grades: stepGrades(record),
 			},
 		};
 	} catch (error) {
