@@ -67,6 +67,7 @@ const FINISHED_RUN = "2026-09-11T00-00-00.000Z";
 async function reconciledAsInterrupted(
 	fixture: RecordedRunsFixture,
 	run: string,
+	stage = "build",
 ): Promise<void> {
 	const store = await openRunEventStore(
 		runEventsDatabaseFile(fixture.runsDirectory),
@@ -74,7 +75,7 @@ async function reconciledAsInterrupted(
 	store.append({
 		runId: run,
 		kind: "run-interrupted",
-		stage: "build",
+		stage,
 		spentUsd: 1,
 		elapsedMs: 5000,
 	});
@@ -289,6 +290,24 @@ describe("/api/runs", () => {
 				expect(row).toMatchObject({
 					stepGrades: { state: "available" },
 					taskGrade: { state: "available", status: "NOT_REACHED" },
+				});
+			});
+
+			it("marks each stage after the one an interrupted run ended in as not run", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeRunningRun("turn-completed", "discuss");
+				await reconciledAsInterrupted(fixture, fixture.runningRun, "discuss");
+
+				const row = await runRow(fixture, fixture.runningRun);
+
+				expect(row).toMatchObject({
+					stepGrades: {
+						state: "available",
+						grades: [
+							{ stage: "discuss", status: "no-record" },
+							{ stage: "build", status: "not-run" },
+						],
+					},
 				});
 			});
 

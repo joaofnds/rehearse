@@ -777,13 +777,11 @@ describe(RunHistoryPage.name, () => {
 			unreadable: [
 				{
 					kind: "run",
-					...UNREAD_RUN_FIGURES,
 					id: "run:2026-09-01T00-00-00.000Z",
 					reason: "manifest.json is empty",
 				},
 				{
 					kind: "run",
-					...UNREAD_RUN_FIGURES,
 					id: "run:2026-09-02T00-00-00.000Z",
 					reason: "artifact.json is empty",
 				},
@@ -797,25 +795,21 @@ describe(RunHistoryPage.name, () => {
 					...unreadableReport.unreadable,
 					{
 						kind: "group",
-						...UNREAD_COST_AND_TIME,
 						id: "group:g-1",
 						reason: "incomplete: no group.json recorded",
 					},
 					{
 						kind: "group",
-						...UNREAD_COST_AND_TIME,
 						id: "group:g-2",
 						reason: "incomplete: no group.json recorded",
 					},
 					{
 						kind: "replay",
-						...UNREAD_REPLAY_FIGURES,
 						id: "attempt:stage:lineage-build/2026-09-03T01-00-00.000Z",
 						reason: "replay record is empty",
 					},
 					{
 						kind: "session-attempt",
-						...UNREAD_COST_AND_TIME,
 						id: "attempt:session:smoke/0f6b",
 						reason: "incomplete: no attempt.json recorded",
 					},
