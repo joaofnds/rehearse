@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
@@ -56,6 +56,10 @@ const comparisonResponseSchema = z.object({
 		z.string(),
 		z.record(z.string(), z.record(z.string(), qualityReadingSchema)),
 	),
+});
+
+const unreadableResponseSchema = z.object({
+	unreadable: z.array(z.object({ id: z.string(), reason: z.string() })),
 });
 
 type ComparisonResponse = Omit<
@@ -246,6 +250,69 @@ describe("GET /api/comparisons", () => {
 				},
 			],
 			unreadable: [],
+		});
+	});
+
+	describe("when a comparison cannot be read", () => {
+		const corruptDigest = "a".repeat(64);
+		const missingReportDigest = "b".repeat(64);
+
+		async function fixtureWithUnreadableComparisons(): Promise<RecordedRunsFixture> {
+			const fixture = await writtenFixture();
+			const corrupt = comparisonReportPaths(
+				fixture.runsDirectory,
+				corruptDigest,
+			);
+			await mkdir(corrupt.directory, { recursive: true });
+			await Bun.write(corrupt.reportFile, "{ not json");
+			await mkdir(
+				comparisonReportPaths(fixture.runsDirectory, missingReportDigest)
+					.directory,
+				{ recursive: true },
+			);
+
+			return fixture;
+		}
+
+		it("lists it as unreadable while every readable comparison still lists", async () => {
+			const fixture = await fixtureWithUnreadableComparisons();
+			const app = createApiApp({
+				runsDirectory: fixture.runsDirectory,
+				liveness: nothingRunning,
+				corpusSource: directorySource(await corpusDirectory()),
+			});
+
+			const response = await app.request("/api/comparisons");
+
+			expect(response.status).toBe(200);
+			expect(await response.json()).toEqual({
+				comparisons: [
+					expect.objectContaining({ digest: fixture.comparisonDigest }),
+				],
+				unreadable: [
+					{ id: corruptDigest, reason: expect.any(String) },
+					{ id: missingReportDigest, reason: expect.any(String) },
+				],
+			});
+		});
+
+		it("gives a reason that names no absolute path", async () => {
+			const fixture = await fixtureWithUnreadableComparisons();
+			const app = createApiApp({
+				runsDirectory: fixture.runsDirectory,
+				liveness: nothingRunning,
+				corpusSource: directorySource(await corpusDirectory()),
+			});
+
+			const response = await app.request("/api/comparisons");
+
+			const { unreadable } = unreadableResponseSchema.parse(
+				await response.json(),
+			);
+			expect(unreadable.map(({ id }) => id)).toContain(missingReportDigest);
+			for (const { reason } of unreadable) {
+				expect(reason).not.toContain(fixture.runsDirectory);
+			}
 		});
 	});
 });

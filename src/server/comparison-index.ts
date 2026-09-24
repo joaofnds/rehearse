@@ -7,6 +7,7 @@ import {
 	comparisonDigests,
 	comparisonReportPaths,
 } from "#benchmark/run-layout";
+import { redactAbsolutePaths } from "./redact-path";
 
 export interface ComparisonIndexEntry {
 	readonly digest: string;
@@ -40,14 +41,26 @@ async function indexEntry(
 	};
 }
 
+/**
+ * One unreadable comparison must not hide the others, the precedent
+ * `runHistoryReport` follows from the CLI's `list` command. A missing
+ * report.json fails with the file's absolute path in its message, so every
+ * reason is redacted before it reaches a browser.
+ */
 export async function comparisonIndex(
 	runsDirectory: string,
 ): Promise<ComparisonIndex> {
 	const comparisons: ComparisonIndexEntry[] = [];
+	const unreadable: UnreadableComparison[] = [];
 
 	for (const digest of await comparisonDigests(runsDirectory)) {
-		comparisons.push(await indexEntry(runsDirectory, digest));
+		try {
+			comparisons.push(await indexEntry(runsDirectory, digest));
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			unreadable.push({ id: digest, reason: redactAbsolutePaths(message) });
+		}
 	}
 
-	return { comparisons, unreadable: [] };
+	return { comparisons, unreadable };
 }
