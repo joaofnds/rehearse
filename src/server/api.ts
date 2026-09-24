@@ -419,6 +419,7 @@ export const createApiApp = (dependencies: ApiDependencies) => {
 				await readRunRecord(
 					dependencies.runsDirectory,
 					context.req.param("run"),
+					dependencies.liveness,
 				),
 			),
 		)

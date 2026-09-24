@@ -326,7 +326,7 @@ function runningProgress(
  * this branch existed, to an unreadable entry blaming git on every page load,
  * for a run that is simply not executing.
  */
-async function claimsLiveTarget(
+export async function claimsLiveTarget(
 	manifestFile: string,
 	liveness: RunLiveness,
 ): Promise<boolean> {
@@ -347,7 +347,7 @@ async function claimsLiveTarget(
  * runner tracks records `run-failed` with no stage, so the last stage the run
  * started stands in, and a run that started none names no stage.
  */
-function failedStage(
+export function failedStage(
 	runEvents: RunEventStore,
 	run: string,
 ): string | undefined {

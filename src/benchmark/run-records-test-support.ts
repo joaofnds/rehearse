@@ -116,6 +116,8 @@ export const STOPPED_RUN_EVIDENCE = {
 	taskCard: ".boris/backlog/tasks/task-1 - Add-an-audit-log.md",
 } as const;
 
+export const FINAL_JUDGE_FAILURE = "the final judge returned no valid grade";
+
 /**
  * Session content a record whose judging never completed carries, in the
  * judge's input written before judging started.
@@ -576,6 +578,28 @@ export class RecordedRunsFixture {
 		await Bun.write(
 			paths.artifactFile,
 			serialize(this.artifact(run, "COMPLETE", caseId)),
+		);
+	}
+
+	/** A finished run the final judge graded FAIL. */
+	public async writeFailedVerdictRun(run: string): Promise<void> {
+		await this.writePipelineRun(run, CASE_ID);
+		await Bun.write(
+			benchmarkRunPaths(this.runsDirectory, run).artifactFile,
+			serialize(this.artifact(run, "FAILED")),
+		);
+	}
+
+	/**
+	 * A finished run whose final judge never returned a usable grade, so its
+	 * artifact carries the failure in place of a grade.
+	 */
+	public async writeFinalJudgeFailedRun(run: string): Promise<void> {
+		await this.writePipelineRun(run, CASE_ID);
+		const { grade: _grade, ...graded } = this.artifact(run, "FAILED");
+		await Bun.write(
+			benchmarkRunPaths(this.runsDirectory, run).artifactFile,
+			serialize({ ...graded, failure: FINAL_JUDGE_FAILURE }),
 		);
 	}
 
