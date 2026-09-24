@@ -1,8 +1,10 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, open, readdir, rename, rm, stat } from "node:fs/promises";
+import { mkdir, open, readdir, rename, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
+import { isCaseId } from "./case";
 import { INITIAL_CHECKPOINT_STAGE } from "./checkpoint";
+import { pathExists } from "./file-presence";
 import type { DatedRecord } from "./short-id-backfill";
 import { recordsOnDisk } from "./short-id-backfill";
 
@@ -10,20 +12,31 @@ const REGISTRY_DIRECTORY = "short-ids";
 const CLAIMS_DIRECTORY = "claims";
 const BINDINGS_DIRECTORY = "bindings";
 
-const runSchema = z.object({ kind: z.literal("run"), run: z.string().min(1) });
+/**
+ * A claim is read back from disk and names the directory a record lives in,
+ * so a name that is a path would carry `show` outside the runs directory. The
+ * rule is the one a typed Record ID is held to, and a claim breaking it names
+ * nothing.
+ */
+const segmentSchema = z
+	.string()
+	.min(1)
+	.refine((text) => text !== "." && text !== ".." && !text.includes("/"));
+
+const runSchema = z.object({ kind: z.literal("run"), run: segmentSchema });
 const sessionAttemptSchema = z.object({
 	kind: z.literal("attempt:session"),
-	caseId: z.string().min(1),
-	uuid: z.string().min(1),
+	caseId: segmentSchema,
+	uuid: segmentSchema,
 });
 const stageAttemptSchema = z.object({
 	kind: z.literal("attempt:stage"),
-	lineage: z.string().min(1),
-	timestamp: z.string().min(1),
+	lineage: segmentSchema,
+	timestamp: segmentSchema,
 });
 const groupSchema = z.object({
 	kind: z.literal("group"),
-	groupId: z.string().min(1),
+	groupId: segmentSchema,
 });
 
 /**
@@ -46,8 +59,8 @@ export type NamedRecord = z.infer<typeof namedRecordSchema>;
  */
 const pendingReplaySchema = z.object({
 	kind: z.literal("replay"),
-	run: z.string().min(1),
-	stage: z.string().min(1),
+	run: segmentSchema,
+	stage: segmentSchema,
 });
 
 const claimSchema = z.discriminatedUnion("kind", [
@@ -85,13 +98,22 @@ function shortIdKind(subject: ClaimSubject): ShortId["kind"] {
 	return subject.kind === "group" ? "group" : "run";
 }
 
-async function highestNumber(claimsDirectory: string): Promise<number> {
-	let highest = 0;
-	for (const name of await readdir(claimsDirectory)) {
-		highest = Math.max(highest, Number(name));
-	}
+const NUMBER_NAME = /^[1-9]\d*$/u;
 
-	return highest;
+/**
+ * The numbers claimed in a registry directory, ascending. A file whose name is
+ * not a number, a `.DS_Store` Finder leaves or an editor's swap file, claims
+ * none, and reading it as one would make every later claim a NaN.
+ */
+function claimedNumbers(names: readonly string[]): number[] {
+	return names
+		.filter((name) => NUMBER_NAME.test(name))
+		.map(Number)
+		.toSorted((left, right) => left - right);
+}
+
+async function highestNumber(claimsDirectory: string): Promise<number> {
+	return claimedNumbers(await readdir(claimsDirectory)).at(-1) ?? 0;
 }
 
 /**
@@ -155,11 +177,7 @@ async function ensureRegistry(
 	caseId: string,
 ): Promise<string> {
 	const directory = registryDirectory(runsDirectory, caseId);
-	const placed = await stat(join(directory, CLAIMS_DIRECTORY)).then(
-		() => true,
-		() => false,
-	);
-	if (placed) {
+	if (await pathExists(join(directory, CLAIMS_DIRECTORY))) {
 		return directory;
 	}
 
@@ -186,11 +204,21 @@ async function ensureRegistry(
 	return directory;
 }
 
+/**
+ * The case id names the registry's directory, and a replay reads it from a
+ * manifest on disk, so one that is not a case id is refused before it can
+ * name a directory outside the registry.
+ */
 export async function claimShortId(
 	runsDirectory: string,
 	caseId: string,
 	subject: ClaimSubject,
 ): Promise<ShortId> {
+	if (!isCaseId(caseId)) {
+		throw new Error(
+			`Cannot claim a short id in ${caseId}: it is not a case id`,
+		);
+	}
 	const claimsDirectory = join(
 		await ensureRegistry(runsDirectory, caseId),
 		CLAIMS_DIRECTORY,
@@ -248,10 +276,9 @@ export async function readShortIds(
 	const names = await readdir(join(directory, CLAIMS_DIRECTORY)).catch(
 		(): string[] => [],
 	);
-	const numbers = names.map(Number).toSorted((left, right) => left - right);
 	const entries: ShortIdEntry[] = [];
 
-	for (const number of numbers) {
+	for (const number of claimedNumbers(names)) {
 		const record = await readEntry(directory, number);
 		if (record === undefined) {
 			continue;
@@ -278,7 +305,7 @@ export async function readAllShortIds(
 		(): string[] => [],
 	);
 	const entries: ShortIdEntry[] = [];
-	for (const caseId of cases.filter((name) => !name.startsWith("."))) {
+	for (const caseId of cases.filter((name) => isCaseId(name))) {
 		entries.push(...(await readShortIds(runsDirectory, caseId)));
 	}
 

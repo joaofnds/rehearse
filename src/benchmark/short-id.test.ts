@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { failureOf } from "#cli/cli-test-support";
 import { RecordedRunsFixture } from "./run-records-test-support";
 import {
 	bindReplay,
@@ -139,6 +140,47 @@ describe(claimShortId.name, () => {
 	});
 });
 
+describe("when the registry directory holds a file that is not a number", () => {
+	it("claims above the numbers and ignores the file", async () => {
+		await claimShortId(runsDirectory, CASE_ID, {
+			kind: "run",
+			run: "2026-09-24T00-00-00.000Z",
+		});
+		await writeFile(
+			join(runsDirectory, "short-ids", CASE_ID, "claims", ".DS_Store"),
+			"",
+		);
+
+		const next = await claimShortId(runsDirectory, CASE_ID, {
+			kind: "run",
+			run: "2026-09-24T01-00-00.000Z",
+		});
+
+		const entries = await readShortIds(runsDirectory, CASE_ID);
+		expect(formatShortId(next)).toBe("audit-log/r2");
+		expect(entries.map(({ shortId }) => shortId)).toEqual([
+			"audit-log/r1",
+			"audit-log/r2",
+		]);
+	});
+});
+
+describe("when a claim is asked for in a case id that names a path", () => {
+	it("refuses it and writes nothing", async () => {
+		const records = join(runsDirectory, "records");
+
+		const failure = await failureOf(
+			claimShortId(records, "../escaped", {
+				kind: "run",
+				run: "2026-09-24T00-00-00.000Z",
+			}),
+		);
+
+		expect(failure.message).toContain("not a case id");
+		expect(await readdir(runsDirectory)).toEqual([]);
+	});
+});
+
 describe(bindReplay.name, () => {
 	it("names the replay's record by the number its claim took", async () => {
 		const claimed = await claimShortId(runsDirectory, CASE_ID, {
@@ -207,6 +249,28 @@ describe(resolveShortId.name, () => {
 
 			expect(
 				await resolveShortId(runsDirectory, { ...claimed, kind: "run" }),
+			).toBeUndefined();
+		});
+	});
+
+	describe("when a claim names a record by a path", () => {
+		it("names nothing", async () => {
+			const claims = join(runsDirectory, "short-ids", CASE_ID, "claims");
+			await claimShortId(runsDirectory, CASE_ID, {
+				kind: "group",
+				groupId: "group-1",
+			});
+			await writeFile(
+				join(claims, "2"),
+				JSON.stringify({ kind: "group", groupId: "../../outside" }),
+			);
+
+			expect(
+				await resolveShortId(runsDirectory, {
+					caseId: CASE_ID,
+					kind: "group",
+					number: 2,
+				}),
 			).toBeUndefined();
 		});
 	});
