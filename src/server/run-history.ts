@@ -97,7 +97,7 @@ export const NOT_RUN_REASON = "the run never reached this stage";
 export const REPLAY_TASK_GRADE_REASON =
 	"a replay runs one stage, and only a whole run reaches the final judge";
 export const REPLAY_WALL_TIME_REASON =
-	"the replay record keeps no time the stage started or ended";
+	"the replay record keeps no time the stage started";
 export const SESSION_COST_REASON = "the attempt recorded no call metrics";
 export const GROUP_COST_REASON =
 	"the group record keeps its projected cost, not what its reps spent";
@@ -112,19 +112,19 @@ export interface StepGrade {
 }
 
 /**
- * A stage with no record is one the run never reached, unless it saved a
- * checkpoint or is the stage the run ended or is running in: each of those
- * ran, and left no record.
+ * A stage with no record is one the run never reached when it comes after the
+ * stage the run ended or is running in. A run that finished reached every
+ * stage, and a stage before the one it ended in ran and left no record.
  */
 function stepGrades(record: RunRecord): readonly StepGrade[] {
 	const { finalOutcome } = record;
-	const reachedStage =
+	const reachedIndex =
 		finalOutcome.status === "NOT_REACHED" || finalOutcome.status === "PENDING"
-			? finalOutcome.stage
-			: undefined;
+			? record.stages.findIndex(({ stage }) => stage === finalOutcome.stage)
+			: -1;
 
-	return record.stages.map(({ stage, status, grade, checkpoint }) =>
-		status === "no-record" && checkpoint === "missing" && stage !== reachedStage
+	return record.stages.map(({ stage, status, grade }, index) =>
+		status === "no-record" && reachedIndex !== -1 && index > reachedIndex
 			? {
 					stage,
 					status: "not-run",

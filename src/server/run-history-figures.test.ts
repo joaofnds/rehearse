@@ -276,6 +276,23 @@ describe("/api/runs", () => {
 				});
 			});
 
+			it("keeps a stage before the one an interrupted run ended in as no-record", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeInterruptedRun();
+
+				const row = await runRow(fixture, fixture.interruptedRun);
+
+				expect(row).toMatchObject({
+					stepGrades: {
+						state: "available",
+						grades: [
+							{ stage: "discuss", status: "no-record" },
+							{ stage: "build", status: "no-record" },
+						],
+					},
+				});
+			});
+
 			it("keeps a stage that saved a checkpoint without a record as no-record", async () => {
 				const fixture = await emptyFixture();
 				await fixture.write();
