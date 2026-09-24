@@ -43,7 +43,9 @@ case present, but no browser check has been run over it.
 
 - **Short ids are unique per records directory.** Another clone numbers its own
   records from 1, so a short id quoted from one machine can name a different
-  record on another. A record written after its case's registry exists by a
+  record on another. A case's records get short ids when the server starts or
+  when a command first claims one in that case, and `list` shows `-` for a case
+  neither has reached. A record written after its case's registry exists by a
   process that started before short ids arrived is never numbered. See
   [record locations](reference.md#record-locations-and-ids).
 
