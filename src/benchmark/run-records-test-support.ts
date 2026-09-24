@@ -416,6 +416,7 @@ export class RecordedRunsFixture {
 	public readonly runningRun = "2026-09-07T00-00-00.000Z";
 	public readonly abortedRun = "2026-09-08T00-00-00.000Z";
 	public readonly awaitingJudgeRun = "2026-09-09T00-00-00.000Z";
+	public readonly eventsOnlyRun = "2026-09-10T00-00-00.000Z";
 
 	private readonly settingsFile: HashedFile;
 	private readonly sourceRoot: string;
@@ -976,6 +977,37 @@ export class RecordedRunsFixture {
 		await Bun.write(rep.attemptFile, serialize(sessionAttempt(caseId)));
 
 		return repIds;
+	}
+
+	/**
+	 * A run that failed before it created its checkpoints directory, so the
+	 * event stream is the only record it ever ran.
+	 */
+	public async writeEventsOnlyFailedRun(): Promise<void> {
+		const store = await openRunEventStore(
+			runEventsDatabaseFile(this.runsDirectory),
+		);
+		store.append({
+			runId: this.eventsOnlyRun,
+			kind: "run-failed",
+			stage: "shape",
+			spentUsd: 0,
+			elapsedMs: 100,
+		});
+		store.close();
+	}
+
+	/**
+	 * A checkpoints directory with nothing in it and no event, which is what a
+	 * test that names its own run leaves behind.
+	 */
+	public async writeEmptyRunDirectory(run: string): Promise<void> {
+		await mkdir(
+			benchmarkRunPaths(this.runsDirectory, run).checkpointsDirectory,
+			{
+				recursive: true,
+			},
+		);
 	}
 
 	public async writeUnreadableGroup(groupId: string): Promise<void> {

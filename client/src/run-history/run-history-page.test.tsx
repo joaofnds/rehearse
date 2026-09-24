@@ -48,6 +48,7 @@ function oneStoppedOneComplete(): RunHistoryResponseBody {
 		rows: [
 			{
 				kind: "run",
+				links: [],
 				run: "2026-09-06T21-58-29.508Z",
 				caseId: "audit-log",
 				status: "STOPPED:build",
@@ -60,6 +61,7 @@ function oneStoppedOneComplete(): RunHistoryResponseBody {
 			},
 			{
 				kind: "run",
+				links: [],
 				run: "2026-09-03T00-00-00.000Z",
 				caseId: "audit-log",
 				status: "COMPLETE",
@@ -113,6 +115,7 @@ describe(RunHistoryPage.name, () => {
 			rows: [
 				{
 					kind: "run",
+					links: [],
 					run: "2026-09-06T21-58-29.508Z",
 					caseId: "audit-log",
 					status: "COMPLETE",
@@ -145,6 +148,7 @@ describe(RunHistoryPage.name, () => {
 			rows: [
 				{
 					kind: "run",
+					links: [],
 					run: "2026-09-06T21-58-29.508Z",
 					caseId: "audit-log",
 					status: "STOPPED:build",
@@ -207,6 +211,7 @@ describe(RunHistoryPage.name, () => {
 			rows: [
 				{
 					kind: "run",
+					links: [],
 					run: "2026-09-06T21-58-29.508Z",
 					caseId: "audit-log",
 					status: "STOPPED:build",
@@ -234,6 +239,7 @@ describe(RunHistoryPage.name, () => {
 			rows: [
 				{
 					kind: "run",
+					links: [],
 					run: "2026-09-04T00-00-00.000Z",
 					caseId: "audit-log",
 					status: "STOPPED:discuss",
@@ -311,6 +317,7 @@ describe(RunHistoryPage.name, () => {
 			rows: [
 				{
 					kind: "run",
+					links: [],
 					run: "2026-09-06T21-58-29.508Z",
 					caseId: "audit-log",
 					status: "STOPPED:build",
@@ -337,6 +344,7 @@ describe(RunHistoryPage.name, () => {
 			rows: [
 				{
 					kind: "run",
+					links: [],
 					run: "2026-09-06T21-58-29.508Z",
 					caseId: "audit-log",
 					status: "STOPPED:build",
@@ -388,6 +396,7 @@ describe(RunHistoryPage.name, () => {
 				rows: [
 					{
 						kind: "run",
+						links: [],
 						run: "2026-09-06T00-00-00.000Z",
 						caseId: "audit-log",
 						status: "COMPLETE",
@@ -400,6 +409,7 @@ describe(RunHistoryPage.name, () => {
 					},
 					{
 						kind: "run",
+						links: [],
 						run: "2026-09-05T00-00-00.000Z",
 						caseId: "audit-log",
 						status: "STOPPED:build",
@@ -441,6 +451,7 @@ describe(RunHistoryPage.name, () => {
 	describe("when a run is in flight", () => {
 		const runningRow: RunHistoryResponseBody["rows"][number] = {
 			kind: "run",
+			links: [],
 			run: "2026-09-07T00-00-00.000Z",
 			caseId: "audit-log",
 			status: "RUNNING",
@@ -638,6 +649,7 @@ describe(RunHistoryPage.name, () => {
 				rows: [
 					{
 						kind: "run",
+						links: [],
 						run: "2026-09-06T00-00-00.000Z",
 						caseId: "audit-log",
 						status: "COMPLETE",
@@ -669,6 +681,7 @@ describe(RunHistoryPage.name, () => {
 			rows: [
 				{
 					kind: "run",
+					links: [],
 					run: "2026-09-05T00-00-00.000Z",
 					caseId: "audit-log",
 					status: "INTERRUPTED",
@@ -702,6 +715,7 @@ describe(RunHistoryPage.name, () => {
 			rows: [
 				{
 					kind: "run",
+					links: [],
 					run: "2026-09-06T21-58-29.508Z",
 					caseId: "audit-log",
 					status: "COMPLETE",
@@ -793,6 +807,7 @@ describe(RunHistoryPage.name, () => {
 			rows: [
 				{
 					kind: "run",
+					links: [],
 					run: "2026-09-05T00-00-00.000Z",
 					caseId: "audit-log",
 					status: "STOPPED:discuss",

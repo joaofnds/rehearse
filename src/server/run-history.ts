@@ -102,12 +102,14 @@ export type ContextLink =
 
 /**
  * One pipeline run's row, in decision-5's code vocabulary (`run`, `caseId`,
- * `stage`), never the design's task/step labels.
+ * `stage`), never the design's task/step labels. `caseId` is undefined only
+ * for a run whose status comes from its events and whose manifest was never
+ * written: the event table has no case column.
  */
 export interface PipelineRunRow {
 	readonly kind: "run";
 	readonly run: string;
-	readonly caseId: string;
+	readonly caseId: string | undefined;
 	readonly status: string;
 	readonly stage: string | undefined;
 	readonly grade: string | undefined;
@@ -115,6 +117,7 @@ export interface PipelineRunRow {
 	readonly stale: boolean;
 	readonly staleCauses: readonly string[];
 	readonly progress: RunProgress;
+	readonly links: readonly ContextLink[];
 }
 
 export interface SessionAttemptRow {
@@ -193,9 +196,10 @@ async function latestCheckpointStage(
 
 interface RunIdentity {
 	readonly status: string;
-	readonly caseId: string;
+	readonly caseId: string | undefined;
 	readonly gradeByStage: ReadonlyMap<string, string>;
 	readonly progress: RunProgress;
+	readonly links: readonly ContextLink[];
 }
 
 const RECORDED: RunProgress = { state: "recorded" };
@@ -222,7 +226,25 @@ async function manifestBackedIdentity(
 		caseId: manifest.caseId,
 		gradeByStage: new Map(),
 		progress,
+		links: [],
 	};
+}
+
+/**
+ * A run whose status comes from its event stream. The stream is the record
+ * it ran, so a missing manifest costs the row its case, not its place in the
+ * list.
+ */
+async function eventBackedIdentity(
+	paths: BenchmarkRunPaths,
+	status: string,
+	links: readonly ContextLink[],
+): Promise<RunIdentity> {
+	const caseId = (await Bun.file(paths.manifestFile).exists())
+		? await sourceCaseId(paths.manifestFile)
+		: undefined;
+
+	return { status, caseId, gradeByStage: new Map(), progress: RECORDED, links };
 }
 
 /**
@@ -296,6 +318,7 @@ async function statusAndCaseId(
 			status: record.status,
 			caseId: record.caseId,
 			progress: RECORDED,
+			links: [],
 			gradeByStage: new Map(
 				record.stageScorecards.map((scorecard) => [
 					scorecard.stage,
@@ -319,7 +342,30 @@ async function statusAndCaseId(
 	 * the one status this reader derives from SQLite instead of a file.
 	 */
 	if (latest?.kind === "run-interrupted") {
-		return manifestBackedIdentity(paths, "INTERRUPTED");
+		return eventBackedIdentity(paths, "INTERRUPTED", []);
+	}
+
+	/**
+	 * A signal abort, or a failure before the stage wrote its record, leaves
+	 * `run-failed` naming the stage it failed in and nothing on disk for that
+	 * stage, so the row says so instead of linking to a page with no record.
+	 */
+	if (latest?.kind === "run-failed") {
+		return eventBackedIdentity(paths, "FAILED", [
+			{
+				state: "unavailable",
+				label: latest.stage,
+				reason: "failed before saving its context",
+			},
+		]);
+	}
+
+	if (latest === undefined) {
+		throw new Error(
+			(await Bun.file(paths.manifestFile).exists())
+				? "no record: no stage record and no run events"
+				: "no manifest recorded",
+		);
 	}
 
 	const progress = runningProgress(latest);
@@ -350,7 +396,7 @@ async function rowFor(
 		return undefined;
 	}
 
-	const { status, caseId, gradeByStage, progress } = identity;
+	const { status, caseId, gradeByStage, progress, links } = identity;
 	const stage = await latestCheckpointStage(runsDirectory, run);
 	if (stage === undefined) {
 		const causes = staleByCheckpointId.get(`checkpoint:${run}/initial`) ?? [];
@@ -366,6 +412,7 @@ async function rowFor(
 			stale: causes.length > 0,
 			staleCauses: causes,
 			progress,
+			links,
 		};
 	}
 
@@ -386,6 +433,7 @@ async function rowFor(
 		stale: causes.length > 0,
 		staleCauses: causes,
 		progress,
+		links,
 	};
 }
 
@@ -585,8 +633,12 @@ export async function runHistoryReport(
 			}
 		};
 
+		const runs = new Set([
+			...(await recordedRunNames(runsDirectory)),
+			...runEvents.runIds(),
+		]);
 		await collect(
-			await recordedRunNames(runsDirectory),
+			[...runs],
 			(run) => formatRecordId({ kind: "run", run }),
 			(run) =>
 				rowFor(runsDirectory, run, staleByCheckpointId, runEvents, liveness),

@@ -438,7 +438,17 @@ describe(runHistoryReport.name, () => {
 			liveness(true),
 		);
 
-		expect(pipelineRun(rows, fixture.abortedRun)).toBeUndefined();
+		expect(pipelineRun(rows, fixture.abortedRun)).toMatchObject({
+			status: "FAILED",
+			caseId: "audit-log",
+			links: [
+				{
+					state: "unavailable",
+					label: "build",
+					reason: "failed before saving its context",
+				},
+			],
+		});
 	});
 
 	it("reports a run stopped mid-stage with STOPPED:<stage> and no corpus digest when it recorded no checkpoint", async () => {
@@ -484,6 +494,7 @@ describe(runHistoryReport.name, () => {
 			stale: true,
 			staleCauses: ["stage settings file stage-settings.json changed"],
 			progress: { state: "recorded" },
+			links: [],
 		});
 	});
 
@@ -527,6 +538,7 @@ describe(runHistoryReport.name, () => {
 			stale: true,
 			staleCauses: ["stage settings file stage-settings.json changed"],
 			progress: { state: "recorded" },
+			links: [],
 		});
 	});
 
@@ -546,7 +558,12 @@ describe(runHistoryReport.name, () => {
 		).toBe(true);
 	});
 
-	it("collects a run reconciled to INTERRUPTED with no manifest as unreadable, matching list runs, rather than dropping it silently", async () => {
+	/**
+	 * The event table has no case column, so a run whose status comes from its
+	 * events and whose manifest never got written is a row whose case is not
+	 * recorded, rather than an entry that hides a run the operator started.
+	 */
+	it("lists a run reconciled to INTERRUPTED with no manifest as a row whose case is not recorded", async () => {
 		const fixture = await writtenFixture();
 		await fixture.writeInterruptedRunWithoutManifest();
 
@@ -556,10 +573,68 @@ describe(runHistoryReport.name, () => {
 			nothingRunning,
 		);
 
-		expect(pipelineRun(rows, fixture.interruptedRun) !== undefined).toBe(false);
-		expect(
-			unreadable.some((entry) => entry.id === `run:${fixture.interruptedRun}`),
-		).toBe(true);
+		expect(pipelineRun(rows, fixture.interruptedRun)).toMatchObject({
+			status: "INTERRUPTED",
+			caseId: undefined,
+		});
+		expect(unreadable).toEqual([]);
+	});
+
+	it("lists a run known only from a run-failed event as a FAILED row whose case is not recorded", async () => {
+		const fixture = await writtenFixture();
+		await fixture.writeEventsOnlyFailedRun();
+
+		const { rows } = await runHistoryReport(
+			fixture.runsDirectory,
+			directorySource(await corpusDirectory("build skill\n")),
+			nothingRunning,
+		);
+
+		expect(pipelineRun(rows, fixture.eventsOnlyRun)).toMatchObject({
+			status: "FAILED",
+			caseId: undefined,
+			links: [
+				{
+					state: "unavailable",
+					label: "shape",
+					reason: "failed before saving its context",
+				},
+			],
+		});
+	});
+
+	it("names a run directory with no manifest and no events as unreadable, since nothing records what it ran", async () => {
+		const fixture = await writtenFixture();
+		await fixture.writeEmptyRunDirectory("any-name-1");
+
+		const { rows, unreadable } = await runHistoryReport(
+			fixture.runsDirectory,
+			directorySource(await corpusDirectory("build skill\n")),
+			nothingRunning,
+		);
+
+		expect(pipelineRun(rows, "any-name-1")).toBeUndefined();
+		expect(unreadable).toContainEqual({
+			id: "run:any-name-1",
+			reason: "no manifest recorded",
+		});
+	});
+
+	it("names a run with a manifest but no stage record and no events as unreadable, matching list runs' no record", async () => {
+		const fixture = await writtenFixture();
+		await fixture.writeNoRecordRun();
+
+		const { rows, unreadable } = await runHistoryReport(
+			fixture.runsDirectory,
+			directorySource(await corpusDirectory("build skill\n")),
+			nothingRunning,
+		);
+
+		expect(pipelineRun(rows, fixture.noRecordRun)).toBeUndefined();
+		expect(unreadable).toContainEqual({
+			id: `run:${fixture.noRecordRun}`,
+			reason: "no record: no stage record and no run events",
+		});
 	});
 
 	it("reads an empty runs directory as no rows, not an error", async () => {

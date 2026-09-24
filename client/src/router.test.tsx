@@ -181,6 +181,7 @@ describe(createAppRouter.name, () => {
 						rows: [
 							{
 								kind: "run",
+								links: [],
 								run: "2026-09-06T21-58-29.508Z",
 								caseId: "audit-log",
 								status: "STOPPED:build",

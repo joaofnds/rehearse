@@ -38,6 +38,7 @@ type SavedComparison = ComparisonIndexResponse["comparisons"][number];
 function runRow(run: string): RunHistoryRow {
 	return {
 		kind: "run",
+		links: [],
 		run,
 		caseId: "audit-log",
 		status: "COMPLETE",
