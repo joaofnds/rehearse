@@ -111,15 +111,15 @@ case present, but no browser check has been run over it.
 Every screen carries a navigation rail listing the nine sections the design
 enumerates. It links the three that have a screen listing their whole
 collection, run history, the saved comparisons and the corpus, with a badge on
-each counting that collection, and marks the other six planned. The comparisons
-badge counts only the comparisons that can be read. The rail reaches no other
-address. The comparisons screen links each saved comparison to its own page, in
-digest order because no comparison records when it was made, and a comparison
-screen links onward to the attempts it names. In run history, the `STOPPED:<stage>` line in a stopped
-run's row links to the context history of the stage it stopped on, which
-reports the stop; the rest of the row links nowhere. Every other stage's context
-history, for a stage that wrote a checkpoint or a stage awaiting judgment, is
-still opened by typing its address.
+each counting that collection, and marks the other six planned. The run and
+comparison badges leave out the entries that cannot be read. The rail reaches no
+other address. The comparisons screen links each saved comparison to its own
+page, in digest order because no comparison records when it was made, and a
+comparison screen links onward to the attempts it names. In run history, the
+`STOPPED:<stage>` line in a stopped run's row links to the context history of
+the stage it stopped on, which reports the stop; the rest of the row links
+nowhere. Every other stage's context history, for a stage that wrote a
+checkpoint or a stage awaiting judgment, is still opened by typing its address.
 
 The rail also names the corpus under test, showing the live tree's
 `corpus root@` digest, its file count and its latest edit, and saying in words
