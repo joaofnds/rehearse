@@ -23,6 +23,7 @@ import {
 	NOT_RUN_REASON,
 	REPLAY_TASK_GRADE_REASON,
 	REPLAY_WALL_TIME_REASON,
+	SESSION_COST_REASON,
 } from "./run-history";
 import {
 	INTERRUPTED_REASON,
@@ -44,6 +45,9 @@ const runHistorySchema = z.object({
 		}),
 	),
 });
+
+/** A session attempt record, read loosely so a test can drop one field. */
+const sessionRecordSchema = z.looseObject({ metrics: z.unknown() });
 
 type ListedRow = z.infer<typeof runHistorySchema>["rows"][number];
 
@@ -411,6 +415,41 @@ describe("/api/runs", () => {
 						state: "unavailable",
 						reasons: [REPLAY_WALL_TIME_REASON],
 					},
+				});
+			});
+		});
+
+		describe("a session attempt row", () => {
+			it("carries its recorded outcome, cost and elapsed time", async () => {
+				const fixture = await emptyFixture();
+				await fixture.write();
+
+				const row = await onlyRowOfKind(fixture, "session-attempt");
+
+				expect(row).toMatchObject({
+					status: "SUCCESSFUL",
+					cost: {
+						state: "available",
+						usd: 0.5,
+						parts: [{ part: "session", usd: 0.5 }],
+						missing: [],
+					},
+					wallTime: { state: "available", ms: 1000 },
+				});
+			});
+
+			it("carries its cost as not recorded when the attempt kept no call metrics", async () => {
+				const fixture = await emptyFixture();
+				await fixture.write();
+				const file = Bun.file(fixture.sessionAttemptFile);
+				const { metrics: _dropped, ...withoutMetrics } =
+					sessionRecordSchema.parse(await file.json());
+				await Bun.write(file, JSON.stringify(withoutMetrics));
+
+				const row = await onlyRowOfKind(fixture, "session-attempt");
+
+				expect(row).toMatchObject({
+					cost: { state: "unavailable", reasons: [SESSION_COST_REASON] },
 				});
 			});
 		});

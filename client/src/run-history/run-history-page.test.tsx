@@ -12,6 +12,7 @@ import type { InferResponseType } from "hono/client";
 import type { apiClient } from "#client/api-client";
 import { stubFetch } from "#client/test-support/fetch-stub";
 import {
+	UNREAD_COST_AND_TIME,
 	UNREAD_REPLAY_FIGURES,
 	UNREAD_RUN_FIGURES,
 } from "#client/test-support/run-figures";
@@ -812,6 +813,7 @@ describe(RunHistoryPage.name, () => {
 					},
 					{
 						kind: "session-attempt",
+						...UNREAD_COST_AND_TIME,
 						id: "attempt:session:smoke/0f6b",
 						reason: "incomplete: no attempt.json recorded",
 					},
@@ -982,6 +984,7 @@ describe(RunHistoryPage.name, () => {
 				},
 				{
 					kind: "session-attempt",
+					...UNREAD_COST_AND_TIME,
 					shortId: undefined,
 					caseId: "brief-reply",
 					uuid: "0f6b6f2a-0000-4000-8000-000000000001",

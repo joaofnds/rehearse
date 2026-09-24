@@ -4,7 +4,10 @@ import type { ComparisonIndexResponse } from "#client/comparison/comparison-inde
 import type { CorpusResponse } from "#client/corpus/corpus-query";
 import type { RunHistoryResponse } from "#client/run-history/run-history-query";
 import { stubFetchByPath } from "#client/test-support/fetch-stub";
-import { UNREAD_RUN_FIGURES } from "#client/test-support/run-figures";
+import {
+	UNREAD_COST_AND_TIME,
+	UNREAD_RUN_FIGURES,
+} from "#client/test-support/run-figures";
 import { createAppRouter } from "#client/router";
 import { renderAppAt, stubFetchFailing } from "#client/test-support/render-app";
 import { NAV_ITEMS } from "./nav-items";
@@ -58,6 +61,7 @@ function runRow(run: string): RunHistoryRow {
 function sessionAttemptRow(uuid: string): RunHistoryRow {
 	return {
 		kind: "session-attempt",
+		...UNREAD_COST_AND_TIME,
 		shortId: undefined,
 		caseId: "brief-reply",
 		uuid,

@@ -97,6 +97,7 @@ export const REPLAY_TASK_GRADE_REASON =
 	"a replay runs one stage, and only a whole run reaches the final judge";
 export const REPLAY_WALL_TIME_REASON =
 	"the replay record keeps no time the stage started or ended";
+export const SESSION_COST_REASON = "the attempt recorded no call metrics";
 export const NO_MANIFEST_REASON =
 	"the run wrote no manifest, which names its stages";
 
@@ -136,6 +137,8 @@ export interface SessionAttemptRow {
 	readonly shortId: string | undefined;
 	readonly status: SessionAttemptRecord["outcome"];
 	readonly links: readonly ContextLink[];
+	readonly cost: RunTotals["cost"];
+	readonly wallTime: RunTotals["wallTime"];
 }
 
 /**
@@ -421,6 +424,16 @@ async function sessionAttemptRow(
 				href: `/attempts/session/${encodeURIComponent(attempt.caseId)}/${encodeURIComponent(attempt.uuid)}`,
 			},
 		],
+		cost:
+			record.metrics === undefined
+				? { state: "unavailable", reasons: [SESSION_COST_REASON] }
+				: {
+						state: "available",
+						usd: record.metrics.costUsd,
+						parts: [{ part: "session", usd: record.metrics.costUsd }],
+						missing: [],
+					},
+		wallTime: { state: "available", ms: record.elapsedMs },
 	};
 }
 

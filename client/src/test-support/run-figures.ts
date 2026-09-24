@@ -21,3 +21,12 @@ export const UNREAD_REPLAY_FIGURES = {
 	},
 	wallTime: { state: "unavailable", reasons: ["not read by this test"] },
 } as const;
+
+/**
+ * The cost and wall time a session attempt or group row carries, for a test
+ * whose subject is another column.
+ */
+export const UNREAD_COST_AND_TIME = {
+	cost: { state: "unavailable", reasons: ["not read by this test"] },
+	wallTime: { state: "unavailable", reasons: ["not read by this test"] },
+} as const;
