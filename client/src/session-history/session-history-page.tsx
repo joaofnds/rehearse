@@ -51,8 +51,11 @@ export type SessionHistoryIdentity =
 interface IdentityEntry {
 	readonly term: string;
 	readonly value: string;
-	/** What the record was called before short ids, shown beneath one. */
-	readonly formerly?: string;
+	/**
+	 * The Record ID part a short id or position stands in for, shown beneath
+	 * it, since the short id is an alias and the Record ID stays canonical.
+	 */
+	readonly filedUnder?: string;
 }
 
 type HistoryRow = RunHistoryResponse["rows"][number];
@@ -153,8 +156,8 @@ function recordNames(
 	}
 }
 
-/** The entry for a term shows a short id, with its old value beneath. */
-function renamed(
+/** The entry for a term shows its short id or position, with what it is filed under beneath. */
+function named(
 	entries: readonly IdentityEntry[],
 	term: string,
 	value: string | undefined,
@@ -162,7 +165,7 @@ function renamed(
 	return value === undefined
 		? entries
 		: entries.map((entry) =>
-				entry.term === term ? { term, value, formerly: entry.value } : entry,
+				entry.term === term ? { term, value, filedUnder: entry.value } : entry,
 			);
 }
 
@@ -190,9 +193,9 @@ function entryOf(
  * loading have none of.
  */
 function runOf(report: SessionHistoryReport | undefined): string | undefined {
-	return report !== undefined && "run" in report.attempt
-		? report.attempt.run
-		: undefined;
+	return report === undefined || report.attempt.kind === "session"
+		? undefined
+		: report.attempt.run;
 }
 
 function namedEntries(
@@ -205,7 +208,7 @@ function namedEntries(
 		names.attempt === undefined ? undefined : attemptLabel(names.attempt);
 	switch (identity.kind) {
 		case "stage": {
-			return inserted(renamed(entries, "Run", names.shortId), "Stage", [
+			return inserted(named(entries, "Run", names.shortId), "Stage", [
 				entryOf("Checkpoint", names.checkpointShortId),
 			]);
 		}
@@ -216,11 +219,11 @@ function namedEntries(
 					: {
 							term: "Replay",
 							value: names.shortId,
-							formerly: identity.timestamp,
+							filedUnder: identity.timestamp,
 						};
 
 			return inserted(
-				inserted(renamed(entries, "Run", names.runShortId), "Case", [replay]),
+				inserted(named(entries, "Run", names.runShortId), "Case", [replay]),
 				"Stage",
 				[
 					entryOf("Started from", names.checkpointShortId),
@@ -229,7 +232,7 @@ function namedEntries(
 			);
 		}
 		case "standalone": {
-			return renamed(entries, "Attempt", names.shortId);
+			return named(entries, "Attempt", names.shortId);
 		}
 		case "confirmation": {
 			const position =
@@ -237,7 +240,7 @@ function namedEntries(
 					? attemptOf
 					: `${attemptOf} of ${names.shortId}`;
 
-			return renamed(entries, "Attempt", position);
+			return named(entries, "Attempt", position);
 		}
 		default: {
 			return identity satisfies never;
@@ -1081,16 +1084,16 @@ export function SessionHistoryPage({
 					summary.data === undefined ? undefined : (
 						<dl className="flex flex-wrap gap-x-5 gap-y-2">
 							{namedEntries(identity, summary.data.attempt, names).map(
-								({ term, value, formerly }) => (
+								({ term, value, filedUnder }) => (
 									<div key={term} className="flex flex-col gap-1">
 										<dt>
 											<SectionLabel>{term}</SectionLabel>
 										</dt>
 										<dd className="flex flex-col gap-0.5">
 											<span className="font-mono text-sm">{value}</span>
-											{formerly === undefined ? null : (
+											{filedUnder === undefined ? null : (
 												<span className="font-mono text-xs text-dim">
-													{formerly}
+													{filedUnder}
 												</span>
 											)}
 										</dd>
