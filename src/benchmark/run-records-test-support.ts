@@ -13,8 +13,16 @@ import {
 import type { CorpusRoot } from "./corpus-file";
 import { hashCorpusFiles, resolveCorpusFile } from "./corpus-file";
 import type { Immutable } from "./contracts";
-import { confirmationGroupRecordSchema } from "./confirmation-record";
-import type { ConfirmationGroupRecord } from "./confirmation-record";
+import {
+	confirmationGroupRecordSchema,
+	sessionConfirmationGroupRecordSchema,
+	sessionConfirmationRepRecordSchema,
+} from "./confirmation-record";
+import type {
+	ConfirmationGroupRecord,
+	SessionConfirmationGroupRecord,
+	SessionConfirmationRepRecord,
+} from "./confirmation-record";
 import type { RunManifest } from "./manifest";
 import { writeRunManifest } from "./manifest";
 import type { RunLiveness } from "./run-liveness";
@@ -92,6 +100,8 @@ type WrittenRecord =
 	| CheckpointRecord
 	| ParsedReplayRecord
 	| ConfirmationGroupRecord
+	| SessionConfirmationGroupRecord
+	| SessionConfirmationRepRecord
 	| LegacyGroupRecord
 	| GroupReportSummaryRecord
 	| RunSummaryRecord
@@ -885,6 +895,87 @@ export class RecordedRunsFixture {
 			elapsedMs: 5000,
 		});
 		store.close();
+	}
+
+	/**
+	 * A session-mode group of two reps where only the first rep recorded its
+	 * attempt, which is how a group interrupted between reps is left. Returns
+	 * the rep ids in ordinal order.
+	 */
+	public async writeSessionGroup(
+		groupId: string,
+	): Promise<readonly [string, string]> {
+		const repIds = [`${groupId}-rep-1`, `${groupId}-rep-2`] as const;
+		const paths = confirmationGroupPaths(this.runsDirectory, groupId);
+		const { caseId } = this.sessionAttempt;
+		await mkdir(paths.directory, { recursive: true });
+		await Bun.write(
+			paths.groupFile,
+			serialize(
+				sessionConfirmationGroupRecordSchema.parse({
+					schemaVersion: 2,
+					caseId,
+					groupId,
+					mode: "session",
+					reps: 2,
+					declaredStages: ["checks"],
+					inputs: {
+						lineage: { kind: "SESSION", lineage: "session-lineage" },
+						files: [
+							{ kind: "case", path: "inputs/case.json", sha256: CORPUS_DIGEST },
+						],
+						model: "sonnet",
+						sessionBudgetUsd: 1,
+					},
+					projectedCost: {
+						reps: 2,
+						perRepMaximumUsd: 1,
+						preflightMaximumUsd: 0,
+						totalMaximumUsd: 2,
+					},
+					preflight: { status: "MISSING", missing: "metrics unavailable" },
+					approval: { method: "yes", approved: true },
+					repRecords: repIds.map((repId, index) => ({
+						repId,
+						ordinal: index + 1,
+						path: `reps/${repId}/rep.json`,
+					})),
+					reportFile: "report.json",
+					makespanMs: 1,
+				}),
+			),
+		);
+		const rep = paths.rep(repIds[0]);
+		await Bun.write(
+			rep.recordFile,
+			serialize(
+				sessionConfirmationRepRecordSchema.parse({
+					schemaVersion: 2,
+					caseId,
+					groupId,
+					repId: repIds[0],
+					ordinal: 1,
+					mode: "session",
+					lineage: { kind: "SESSION", lineage: "session-lineage" },
+					outcome: "UNSUCCESSFUL",
+					stages: [
+						{
+							stage: "checks",
+							status: "NOT_REACHED",
+							reason: "not reached",
+							evidence: { recordFile: "attempt.json" },
+						},
+					],
+					finalOutcome: { status: "NOT_APPLICABLE" },
+					metrics: { status: "MISSING", calls: [], missing: ["metrics"] },
+					workerTrajectorySteps: 0,
+					elapsedMs: 1,
+				}),
+			),
+		);
+		await Bun.write(rep.attemptFile, serialize(sessionAttempt(caseId)));
+
+		return repIds;
 	}
 
 	public async writeUnreadableGroup(groupId: string): Promise<void> {

@@ -1,4 +1,5 @@
 import { readCheckpointRecord } from "#benchmark/checkpoint";
+import { parseConfirmationGroupRecord } from "#benchmark/confirmation-record";
 import type { CorpusRoot } from "#benchmark/corpus-file";
 import { loadRunManifest } from "#benchmark/manifest";
 import type {
@@ -9,6 +10,8 @@ import type {
 import {
 	benchmarkRunPaths,
 	checkpointStageNames,
+	confirmationGroupIds,
+	confirmationGroupPaths,
 	recordedRunNames,
 	replayAttemptIds,
 	replayRecordFile,
@@ -140,11 +143,28 @@ export interface ReplayRow {
 }
 
 /**
+ * One confirmation group, listed once rather than once per rep: its reps are
+ * links, since a rep is evidence of the group rather than a run of its own.
+ */
+export interface ConfirmationGroupRow {
+	readonly kind: "group";
+	readonly groupId: string;
+	readonly caseId: string;
+	readonly mode: string;
+	readonly reps: number;
+	readonly links: readonly ContextLink[];
+}
+
+/**
  * One run-history row, one per saved record an operator can open. This is
  * the single place that owns the read API's response shape for a run-history
  * row: no other card owns it.
  */
-export type RunHistoryRow = PipelineRunRow | SessionAttemptRow | ReplayRow;
+export type RunHistoryRow =
+	| PipelineRunRow
+	| SessionAttemptRow
+	| ReplayRow
+	| ConfirmationGroupRow;
 
 /**
  * The last checkpoint a run recorded, in pipeline order rather than
@@ -437,6 +457,73 @@ async function replayRow(
 	};
 }
 
+/**
+ * A rep's context opens only for a session group whose rep recorded both its
+ * rep record and its attempt, the files the confirmation history reader
+ * refuses to open without.
+ */
+async function repLink(
+	runsDirectory: string,
+	groupId: string,
+	mode: string,
+	reference: { readonly repId: string; readonly ordinal: number },
+): Promise<ContextLink> {
+	const label = `rep ${String(reference.ordinal)}`;
+	if (mode !== "session") {
+		return {
+			state: "unavailable",
+			label,
+			reason: "a stage group has no session context",
+		};
+	}
+
+	const rep = confirmationGroupPaths(runsDirectory, groupId).rep(
+		reference.repId,
+	);
+	const recorded =
+		(await Bun.file(rep.recordFile).exists()) &&
+		(await Bun.file(rep.attemptFile).exists());
+	if (!recorded) {
+		return {
+			state: "unavailable",
+			label,
+			reason: `no attempt recorded for ${reference.repId}`,
+		};
+	}
+
+	return {
+		state: "available",
+		label,
+		href: `/groups/${encodeURIComponent(groupId)}/reps/${encodeURIComponent(reference.repId)}/attempt`,
+	};
+}
+
+async function groupRow(
+	runsDirectory: string,
+	groupId: string,
+): Promise<ConfirmationGroupRow> {
+	const { groupFile } = confirmationGroupPaths(runsDirectory, groupId);
+	if (!(await Bun.file(groupFile).exists())) {
+		throw new Error("incomplete: no group.json recorded");
+	}
+
+	const record = parseConfirmationGroupRecord(await Bun.file(groupFile).text());
+	const links = await Promise.all(
+		record.repRecords.map((reference) =>
+			repLink(runsDirectory, groupId, record.mode, reference),
+		),
+	);
+
+	return {
+		kind: "group",
+		groupId,
+		caseId: record.caseId,
+		mode: record.mode,
+		reps: record.reps,
+		links,
+	};
+}
+
 export interface UnreadableRun {
 	readonly id: string;
 	readonly reason: string;
@@ -513,6 +600,11 @@ export async function runHistoryReport(
 			await replayAttemptIds(runsDirectory),
 			(attempt) => formatRecordId({ kind: "attempt:stage", ...attempt }),
 			(attempt) => replayRow(runsDirectory, attempt),
+		);
+		await collect(
+			await confirmationGroupIds(runsDirectory),
+			(groupId) => formatRecordId({ kind: "group", groupId }),
+			(groupId) => groupRow(runsDirectory, groupId),
 		);
 
 		return { rows, unreadable };

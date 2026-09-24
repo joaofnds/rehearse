@@ -398,7 +398,9 @@ describe(runHistoryReport.name, () => {
 			liveness(true),
 		);
 
-		expect(rows.map(({ status }) => status)).not.toContain("RUNNING");
+		expect(
+			rows.map((row) => (row.kind === "group" ? undefined : row.status)),
+		).not.toContain("RUNNING");
 	});
 
 	/**
@@ -719,6 +721,89 @@ describe(runHistoryReport.name, () => {
 						reason: "filed under a lineage it did not consume",
 					},
 				],
+			});
+		});
+	});
+
+	describe("when the runs directory holds confirmation groups", () => {
+		it("lists a session group as one row linking each rep that recorded an attempt", async () => {
+			const fixture = await writtenFixture();
+			const [recorded, missing] = await fixture.writeSessionGroup("group-s");
+
+			const { rows } = await runHistoryReport(
+				fixture.runsDirectory,
+				directorySource(await corpusDirectory("build skill\n")),
+				nothingRunning,
+			);
+
+			expect(
+				rows.find((row) => row.kind === "group" && row.groupId === "group-s"),
+			).toEqual({
+				kind: "group",
+				groupId: "group-s",
+				caseId: fixture.sessionAttempt.caseId,
+				mode: "session",
+				reps: 2,
+				links: [
+					{
+						state: "available",
+						label: "rep 1",
+						href: `/groups/group-s/reps/${recorded}/attempt`,
+					},
+					{
+						state: "unavailable",
+						label: "rep 2",
+						reason: `no attempt recorded for ${missing}`,
+					},
+				],
+			});
+		});
+
+		it("names every rep of a stage group unavailable, since only a session rep has a context page", async () => {
+			const fixture = await writtenFixture();
+
+			const { rows } = await runHistoryReport(
+				fixture.runsDirectory,
+				directorySource(await corpusDirectory("build skill\n")),
+				nothingRunning,
+			);
+
+			expect(
+				rows.find(
+					(row) => row.kind === "group" && row.groupId === fixture.groupId,
+				),
+			).toMatchObject({
+				mode: "stage",
+				links: [
+					{
+						state: "unavailable",
+						label: "rep 1",
+						reason: "a stage group has no session context",
+					},
+					{
+						state: "unavailable",
+						label: "rep 2",
+						reason: "a stage group has no session context",
+					},
+				],
+			});
+		});
+
+		it("names a group directory with no group.json as unreadable by its record id", async () => {
+			const fixture = await writtenFixture();
+			await mkdir(join(fixture.runsDirectory, "confirmations", "group-empty"), {
+				recursive: true,
+			});
+
+			const { unreadable } = await runHistoryReport(
+				fixture.runsDirectory,
+				directorySource(await corpusDirectory("build skill\n")),
+				nothingRunning,
+			);
+
+			expect(unreadable).toContainEqual({
+				id: "group:group-empty",
+				reason: "incomplete: no group.json recorded",
 			});
 		});
 	});
