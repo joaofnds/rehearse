@@ -157,6 +157,7 @@ async function ensureRegistry(
 	caseId: string,
 ): Promise<string> {
 	const directory = registryDirectory(runsDirectory, caseId);
+
 	await mkdir(join(directory, CLAIMS_DIRECTORY), { recursive: true });
 	await mkdir(join(directory, BINDINGS_DIRECTORY), { recursive: true });
 

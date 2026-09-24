@@ -193,10 +193,7 @@ function kindLine(row: HistoryRow): string {
 	}
 }
 
-/**
- * The record's short id, with the identity it is filed under beneath. A
- * record no claim names has none.
- */
+/** The record's short id, with the identity it is filed under beneath. */
 function runCell(row: HistoryRow): React.JSX.Element {
 	if (row.shortId === undefined) {
 		return <span className="font-mono text-sm">{identityOf(row)}</span>;
