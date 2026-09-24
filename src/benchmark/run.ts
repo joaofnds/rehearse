@@ -38,7 +38,7 @@ import {
 import { CommandError, killActiveCommands, runCommand } from "./command";
 import type { BenchmarkCase } from "./case";
 import type { BenchmarkConfig, Effort, WorkflowStage } from "./config";
-import { CONTROL_DIR } from "./config";
+import { CONTROL_DIR, DEFAULT_MINIMUM_STAGE_GRADE } from "./config";
 import { RefusedPreconditionError } from "./exit-codes";
 import type { CorpusRoot } from "./corpus-file";
 import { liveCorpusSource, readCorpusInstructions } from "./corpus-file";
@@ -148,6 +148,7 @@ export interface RunArtifactBaseInputs {
 	readonly stageScorecards: readonly StageScorecard[];
 	readonly checkpoints: readonly CheckpointRecord[];
 	readonly evidence: BuildEvidence;
+	readonly elapsedMs?: number | undefined;
 }
 
 export interface RunArtifactInputs extends RunArtifactBaseInputs {
@@ -189,6 +190,7 @@ export function buildRunManifest(inputs: RunManifestInputs): RunManifest {
 		pipelinePath: config.pipelinePath,
 		pipeline: inputs.pipeline,
 		baselineChecks: inputs.baselineChecks,
+		minimumGrade: config.minimumStageGrade,
 	};
 }
 
@@ -225,6 +227,7 @@ function runArtifactEvidence(
 		taskId: inputs.taskId,
 		productOwnerSessionId: productOwner.sessionId,
 		productOwnerCostUsd: productOwner.spentUsd,
+		productOwnerProviderCalls: productOwner.providerCalls,
 		workflow: inputs.workflow,
 		stageScorecards: inputs.stageScorecards,
 		checkpoints: inputs.checkpoints,
@@ -236,6 +239,7 @@ function runArtifactEvidence(
 		changedPaths: evidence.changedPaths,
 		checkIntegrity: evidence.checkIntegrity,
 		localChecks: evidence.localChecks,
+		elapsedMs: inputs.elapsedMs,
 	};
 }
 
@@ -683,6 +687,17 @@ export async function executeStageSession(
 	return { resultSha, corpusFiles, transcript, input, artifact, buildEvidence };
 }
 
+function stageElapsedMs(
+	runElapsedMs: (() => number) | undefined,
+	stageStartedAtMs: number | undefined,
+): number | undefined {
+	if (runElapsedMs === undefined || stageStartedAtMs === undefined) {
+		return undefined;
+	}
+
+	return runElapsedMs() - stageStartedAtMs;
+}
+
 export async function runGradedStages(
 	dependencies: StageDependencies,
 	context: StageContext,
@@ -710,11 +725,12 @@ export async function runGradedStages(
 
 	for (const definition of context.pipeline.stages) {
 		const stage = definition.name;
+		const stageStartedAtMs = context.elapsedMs?.();
 		context.runEvents?.record(
 			"stage-started",
 			stage,
 			workflow.reduce((total, transcript) => total + transcript.costUsd, 0),
-			context.elapsedMs?.() ?? 0,
+			stageStartedAtMs ?? 0,
 		);
 		const session = await executeStageSession(
 			dependencies,
@@ -775,6 +791,7 @@ export async function runGradedStages(
 			throw error;
 		}
 		stageScorecards.push(scorecard);
+		const elapsedMs = stageElapsedMs(context.elapsedMs, stageStartedAtMs);
 		const stageRecord: StageJudgeRecord = {
 			...scorecard,
 			corpusFiles,
@@ -783,6 +800,7 @@ export async function runGradedStages(
 			judgeEffort: context.judgeEffort,
 			sessionBudgetUsd: context.sessionBudgetUsd,
 			effort: context.effort,
+			elapsedMs,
 		};
 		const writeStageRecord =
 			scorecard.grade.verdict === "STOP"
@@ -790,7 +808,17 @@ export async function runGradedStages(
 				: context.completeStage;
 		await writeStageRecord(stageRecord);
 		if (scorecard.grade.verdict === "STOP") {
-			context.updatePendingStage({ ...pendingStage, scorecard });
+			context.updatePendingStage({
+				...pendingStage,
+				scorecard,
+				stopped: {
+					minimumGrade:
+						context.minimumStageGrade ?? DEFAULT_MINIMUM_STAGE_GRADE,
+					elapsedMs,
+					runElapsedMs: context.elapsedMs?.(),
+					productOwner: context.productOwner.snapshot(),
+				},
+			});
 			const calibration = await context.calibrateStageFailure(stageScorecards);
 			if (calibration !== undefined) {
 				const judgeAgreement = await context.collectJudgeAgreement([
@@ -1147,6 +1175,7 @@ export async function runBenchmark(
 			...artifactInputs,
 			judge,
 			reviewFile: runFiles.reviewFile,
+			elapsedMs: elapsedMs(),
 		});
 		await abort.writePendingArtifact(artifact);
 		log(`Run artifact: ${runFiles.artifactFile}`);

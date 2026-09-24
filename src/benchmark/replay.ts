@@ -136,6 +136,8 @@ export interface ReplayDependencies {
 	readonly installDependencies: (worktreeDir: string) => Promise<void>;
 	readonly installStageCorpusSnapshot: typeof installStageCorpusSnapshot;
 	readonly log: (message: string) => void;
+	/** The clock the replay's elapsed time is read from; the system's by default. */
+	readonly now?: (() => number) | undefined;
 }
 
 export interface ReplayRequest {
@@ -342,6 +344,8 @@ export async function runReplay(
 			productBrief: manifest.productBrief,
 		});
 
+		const now = dependencies.now ?? Date.now;
+		const stageStartedAtMs = now();
 		const session = await executeStageSession(
 			detachedStageDependencies(dependencies.stageSession),
 			{
@@ -376,6 +380,7 @@ export async function runReplay(
 			session.input,
 			await dependencies.loadStageRubric(plan.definition),
 		);
+		const elapsedMs = now() - stageStartedAtMs;
 
 		const timestamp = new Date().toISOString();
 		const record: ReplayRecord = {
@@ -411,6 +416,7 @@ export async function runReplay(
 			stale: staleness.length > 0,
 			staleness: staleness.map(({ stage, causes }) => ({ stage, causes })),
 			scorecard,
+			elapsedMs,
 		};
 		const recordPath = request.paths.replayRecordFile(
 			plan.consumed.lineage,

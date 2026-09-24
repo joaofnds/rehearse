@@ -410,6 +410,7 @@ export interface StageJudgeRecord extends StageScorecard {
 	readonly judgeEffort?: Effort | undefined;
 	readonly sessionBudgetUsd: number;
 	readonly effort?: Effort | undefined;
+	readonly elapsedMs?: number | undefined;
 	readonly calibration?: CalibrationResult | undefined;
 	readonly judgeAgreement?: JudgeAgreementReport | undefined;
 }
@@ -455,6 +456,7 @@ export interface RunArtifactEvidence {
 	readonly taskId: string;
 	readonly productOwnerSessionId: string;
 	readonly productOwnerCostUsd: number;
+	readonly productOwnerProviderCalls?: readonly ProviderCall[] | undefined;
 	readonly workflow: readonly StageTranscript[];
 	readonly stageScorecards: readonly StageScorecard[];
 	readonly checkpoints: readonly CheckpointRecord[];
@@ -466,6 +468,7 @@ export interface RunArtifactEvidence {
 	readonly changedPaths: readonly string[];
 	readonly checkIntegrity: LocalCheckResult;
 	readonly localChecks: LocalCheckResult;
+	readonly elapsedMs?: number | undefined;
 }
 
 export interface GradedRunArtifact extends RunArtifactEvidence {

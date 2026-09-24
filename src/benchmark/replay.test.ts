@@ -627,6 +627,31 @@ describe(runReplay.name, () => {
 		expect(record.scorecard["attempts"]).toEqual(attempts);
 	});
 
+	it("records the replayed stage's elapsed time, from its session to its judge's grade", async () => {
+		const run = await recordedRun();
+		const fake = new ReplayConfirmationHarness(testResources);
+		let clockMs = 1000;
+		const timed = {
+			...fake.dependencies,
+			now: () => clockMs,
+			runStageJudge: (
+				_model: string | undefined,
+				_effort: undefined | "low" | "medium" | "high" | "xhigh" | "max",
+				_budget: number,
+				input: StageJudgeInput,
+			) => {
+				clockMs += 3000;
+
+				return Promise.resolve(replayScorecard(input));
+			},
+		};
+
+		const outcome = await runReplay(timed, request(run, "build"));
+		const record = await readReplayRecord(outcome.recordPath);
+
+		expect(record.elapsedMs).toBe(3000);
+	});
+
 	it("replays the first stage from the initial checkpoint without installing dependencies", async () => {
 		const run = await recordedRun();
 		const fake = new ReplayConfirmationHarness(testResources);

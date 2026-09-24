@@ -97,7 +97,7 @@ export const NOT_RUN_REASON = "the run never reached this stage";
 export const REPLAY_TASK_GRADE_REASON =
 	"a replay runs one stage, and only a whole run reaches the final judge";
 export const REPLAY_WALL_TIME_REASON =
-	"the replay record keeps no time the stage started";
+	"the replay record predates its elapsed time";
 export const SESSION_COST_REASON = "the attempt recorded no call metrics";
 export const GROUP_COST_REASON =
 	"the group record keeps its projected cost, not what its reps spent";
@@ -483,7 +483,10 @@ async function replayRow(
 			status: "NOT_APPLICABLE",
 			reason: REPLAY_TASK_GRADE_REASON,
 		},
-		wallTime: { state: "unavailable", reasons: [REPLAY_WALL_TIME_REASON] },
+		wallTime:
+			record.elapsedMs === undefined
+				? { state: "unavailable", reasons: [REPLAY_WALL_TIME_REASON] }
+				: { state: "available", ms: record.elapsedMs },
 	};
 }
 

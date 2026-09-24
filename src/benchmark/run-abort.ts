@@ -5,10 +5,12 @@ import type {
 	RunArtifact,
 	StageJudgeInput,
 	StageJudgeRecord,
+	StageLetterGrade,
 	StageScorecard,
 } from "./contracts";
 import type { JudgeAttempt } from "./judge-attempt";
 import type { RunEventRecorder } from "./run-events";
+import type { ProductOwnerSnapshot } from "./workflow";
 
 export interface PendingStage {
 	readonly file: string;
@@ -28,6 +30,19 @@ export interface PendingStage {
 		  }
 		| undefined;
 	readonly scorecard?: StageScorecard | undefined;
+	readonly stopped?: StoppedStageReadings | undefined;
+}
+
+/**
+ * What a stop record needs beyond the scorecard to be read without its run's
+ * other files: the grade it fell below, the stage's and the run's elapsed time, and the
+ * Product Owner's spend up to the stop, which no other record holds.
+ */
+export interface StoppedStageReadings {
+	readonly minimumGrade: StageLetterGrade;
+	readonly elapsedMs?: number | undefined;
+	readonly runElapsedMs?: number | undefined;
+	readonly productOwner: ProductOwnerSnapshot;
 }
 
 export const noopRunEventRecorder: RunEventRecorder = {
@@ -151,9 +166,24 @@ export async function writeStageJudgeFailure(
 				requirements: pending.scorecard.grade.requirements,
 				dimensions: pending.scorecard.grade.dimensions,
 				summary: pending.scorecard.grade.summary,
+				grade: {
+					grade: pending.scorecard.grade.grade,
+					verdict: pending.scorecard.grade.verdict,
+				},
+				attempts: pending.scorecard.attempts,
 				costUsd: pending.scorecard.costUsd,
 			}
 		: undefined;
+	const stopped =
+		pending.stopped === undefined
+			? undefined
+			: {
+					minimumGrade: pending.stopped.minimumGrade,
+					elapsedMs: pending.stopped.elapsedMs,
+					runElapsedMs: pending.stopped.runElapsedMs,
+					productOwnerCostUsd: pending.stopped.productOwner.spentUsd,
+					productOwnerProviderCalls: pending.stopped.productOwner.providerCalls,
+				};
 	await persistence.write(
 		pending.file,
 		`${JSON.stringify(
@@ -169,6 +199,7 @@ export async function writeStageJudgeFailure(
 				judgeEffort: pending.judgeEffort,
 				sessionBudgetUsd: pending.sessionBudgetUsd,
 				...findings,
+				...stopped,
 				...pending.failure,
 			},
 			null,

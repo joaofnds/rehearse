@@ -41,16 +41,19 @@ export const AWAITING_GRADE_REASON = "the stage's judge has not returned";
 export const UNEXPLAINED_END_REASON =
 	"the run ended without recording how it ended";
 export const PRODUCT_OWNER_COST_REASON =
-	"only the main artifact records the Product Owner's cost, and the run wrote none";
-export const STOPPED_GRADE_REASON = "a stop record keeps no letter grade";
+	"neither a main artifact nor a stop record holds the Product Owner's cost, as the run wrote neither or they predate it";
+export const STOPPED_GRADE_REASON =
+	"the stop record keeps no letter grade, as it predates the letter or its judge returned none";
 export const WALL_TIME_REASON =
-	"no record keeps when a stage or run started and ended";
+	"the stage record keeps no elapsed time, as it predates the reading or its judge returned no grade";
+export const RUN_WALL_TIME_REASON =
+	"neither a main artifact nor a stop record holds the run's elapsed time, as the run wrote neither or they predate it";
 export const UNRECORDED_STAGE_REASON =
 	"the stage has written no record, and the run ended or is running in it";
 export const MINIMUM_GRADE_REASON =
-	"the run manifest does not record the minimum grade";
+	"the run manifest predates the minimum grade";
 export const PRODUCT_OWNER_TOKENS_REASON =
-	"no record keeps the Product Owner's call metrics";
+	"neither a main artifact nor a stop record holds the Product Owner's calls, as the run wrote neither or they predate them";
 
 export type Reading<Value> =
 	| ({ readonly state: "available" } & Value)
@@ -188,6 +191,11 @@ const stageFileSchema = z
 			.optional(),
 		attempts: callsSchema.optional(),
 		corpusFiles: z.array(hashedFileSchema).optional(),
+		elapsedMs: z.number().optional(),
+		/** A stop record's run-wide readings, up to the stop. */
+		runElapsedMs: z.number().optional(),
+		productOwnerCostUsd: z.number().optional(),
+		productOwnerProviderCalls: callsSchema.optional(),
 		input: z
 			.object({
 				commitSubjects: z.array(z.string()).optional(),
@@ -232,16 +240,33 @@ const artifactSpendSchema = z
 	.object({
 		judgeAttempts: callsSchema.optional(),
 		productOwnerCostUsd: z.number().optional(),
+		productOwnerProviderCalls: callsSchema.optional(),
 		judgeCostUsd: z.number().optional(),
+		elapsedMs: z.number().optional(),
 	})
 	.loose();
 
 type ArtifactSpend = Immutable<z.infer<typeof artifactSpendSchema>>;
 
-const UNRECORDED_WALL_TIME: Reading<{ readonly ms: number }> = {
-	state: "unavailable",
-	reasons: [WALL_TIME_REASON],
-};
+/**
+ * Where the run-wide readings live: the main artifact once the final judge
+ * ran, else a stop record, which holds them up to the stop.
+ */
+interface RunWideRecords {
+	readonly artifact: ArtifactSpend | undefined;
+	readonly stopRecord: StageFile | undefined;
+}
+
+function wallTime(
+	ms: number | undefined,
+	reason: string,
+): Reading<{ readonly ms: number }> {
+	if (ms === undefined) {
+		return { state: "unavailable", reasons: [reason] };
+	}
+
+	return { state: "available", ms };
+}
 
 /**
  * What a main artifact carries in place of a grade when the final judge
@@ -513,7 +538,12 @@ function stageRecord(
 						letter: file.grade.grade,
 						verdict: file.grade.verdict,
 					},
-		wallTime: UNRECORDED_WALL_TIME,
+		wallTime: wallTime(
+			file?.elapsedMs,
+			stageStatus(file) === "awaiting-judgment"
+				? AWAITING_GRADE_REASON
+				: unrecordedOr(file, WALL_TIME_REASON),
+		),
 		sessionCost: usd(
 			file?.input?.transcript?.costUsd,
 			unrecordedOr(file, "the stage record holds no session cost"),
@@ -585,15 +615,14 @@ function runTotals(
 	stages: readonly RunRecordStage[],
 	reachedStage: string | undefined,
 	tokenParts: readonly TokenPart[],
-	artifact: ArtifactSpend | undefined,
+	{ artifact, stopRecord }: RunWideRecords,
 ): RunTotals {
-	const productOwnerCost =
+	const productOwnerCost = usd(
 		artifact === undefined
-			? usd(undefined, PRODUCT_OWNER_COST_REASON)
-			: usd(
-					artifact.productOwnerCostUsd,
-					"the main artifact holds no Product Owner cost",
-				);
+			? stopRecord?.productOwnerCostUsd
+			: artifact.productOwnerCostUsd,
+		PRODUCT_OWNER_COST_REASON,
+	);
 	const runParts =
 		artifact === undefined
 			? [costPart("Product Owner", productOwnerCost)]
@@ -633,7 +662,10 @@ function runTotals(
 						missing,
 					},
 		productOwnerCost,
-		wallTime: UNRECORDED_WALL_TIME,
+		wallTime: wallTime(
+			artifact === undefined ? stopRecord?.runElapsedMs : artifact.elapsedMs,
+			RUN_WALL_TIME_REASON,
+		),
 	};
 }
 
@@ -650,15 +682,27 @@ async function readCheckpoint(
 }
 
 /**
- * The run's parts beyond its stages: the Product Owner, whose calls no record
- * keeps metrics for, and the final judge once the main artifact holds it.
+ * The run's parts beyond its stages: the Product Owner, whose calls the main
+ * artifact or a stop record holds, and the final judge once the main
+ * artifact holds it. A Product Owner never asked made no calls, so its empty
+ * list is a part summed rather than one lacked.
  */
-function runTokenParts(
-	artifact: ArtifactSpend | undefined,
-): readonly TokenPart[] {
-	const productOwner: TokenPart = {
-		missing: { part: "Product Owner", reason: PRODUCT_OWNER_TOKENS_REASON },
-	};
+function runTokenParts({
+	artifact,
+	stopRecord,
+}: RunWideRecords): readonly TokenPart[] {
+	const productOwnerCalls =
+		artifact === undefined
+			? stopRecord?.productOwnerProviderCalls
+			: artifact.productOwnerProviderCalls;
+	const productOwner: TokenPart =
+		productOwnerCalls?.length === 0
+			? { calls: productOwnerCalls }
+			: callsPart(
+					"Product Owner",
+					productOwnerCalls,
+					PRODUCT_OWNER_TOKENS_REASON,
+				);
 	if (artifact === undefined) {
 		return [productOwner];
 	}
@@ -864,7 +908,10 @@ export async function readRunRecord(
 			.map((checkpoint) => [checkpoint.lineage, checkpoint]),
 	);
 
-	const artifact = await readArtifactSpend(paths);
+	const runWide: RunWideRecords = {
+		artifact: await readArtifactSpend(paths),
+		stopRecord: stageWithStatus(stages, "STAGE_JUDGE_FAILED")?.file,
+	};
 	const shortId = await readRunShortId(runsDirectory, manifest.caseId, run);
 	const runEvents = await openRunEventStore(
 		runEventsDatabaseFile(runsDirectory),
@@ -901,16 +948,19 @@ export async function readRunRecord(
 			shortId,
 			caseId: manifest.caseId,
 			status: await statusReading(runsDirectory, run, runEvents, liveness),
-			minimumGrade: { state: "unavailable", reasons: [MINIMUM_GRADE_REASON] },
+			minimumGrade:
+				manifest.minimumGrade === undefined
+					? { state: "unavailable", reasons: [MINIMUM_GRADE_REASON] }
+					: { state: "available", letter: manifest.minimumGrade },
 			stages: records,
 			totals: runTotals(
 				records,
 				reachedStage,
 				[
 					...reached.flatMap((stage) => stageTokenParts(stage)),
-					...runTokenParts(artifact),
+					...runTokenParts(runWide),
 				],
-				artifact,
+				runWide,
 			),
 			finalOutcome: outcome,
 		};

@@ -75,6 +75,7 @@ import {
 	deriveStageGrade,
 	parseStageRubric,
 } from "./stage-grading";
+import type { WorkflowStageRequest } from "./workflow";
 
 const testResources = TestResources.forEachTest();
 
@@ -763,6 +764,47 @@ describe(runGradedStages.name, () => {
 		});
 	});
 
+	it("records each stage's elapsed time on its stage record, from the run clock", async () => {
+		const { dependencies, scorecardFor } = fakeStageDependencies();
+		let runClockMs = 0;
+		const timed = {
+			...dependencies,
+			runWorkflowStage: (request: WorkflowStageRequest) => {
+				runClockMs += request.stage === "shape" ? 1000 : 3000;
+
+				return dependencies.runWorkflowStage(request);
+			},
+			runStageJudge: (
+				_model: string,
+				_effort: undefined | "low" | "medium" | "high" | "xhigh" | "max",
+				_budget: number,
+				input: StageJudgeInput,
+			) => {
+				runClockMs += 200;
+
+				return Promise.resolve(scorecardFor(input, "CONTINUE"));
+			},
+		};
+		const context = {
+			...(await stageContext()),
+			elapsedMs: () => runClockMs,
+		};
+
+		await runGradedStages(timed, context);
+
+		const elapsed = z.object({ elapsedMs: z.number() });
+		expect(
+			elapsed.parse(
+				JSON.parse(await Bun.file(context.stageFile("shape")).text()),
+			),
+		).toEqual({ elapsedMs: 1200 });
+		expect(
+			elapsed.parse(
+				JSON.parse(await Bun.file(context.stageFile("build")).text()),
+			),
+		).toEqual({ elapsedMs: 3200 });
+	});
+
 	it("persists stage records through the run transition boundary", async () => {
 		const { dependencies } = fakeStageDependencies();
 		const persistence = new ControlledRunArtifactPersistence();
@@ -994,6 +1036,105 @@ describe(runGradedStages.name, () => {
 					sha256: createHash("sha256").update("shape").digest("hex"),
 				},
 			],
+		});
+	});
+
+	it("keeps the stopped grade, minimum grade, judge attempts, elapsed times and Product Owner spend in the aborted stage artifact", async () => {
+		const { dependencies, scorecardFor } = fakeStageDependencies();
+		const persistence = new ControlledRunArtifactPersistence();
+		const abort = createRunAbort(
+			{
+				killActiveCommands: () => Promise.resolve(),
+				registerSignal: () => undefined,
+				releaseSignal: () => undefined,
+				exit: () => undefined,
+				reportError: () => undefined,
+				persistence,
+			},
+			{
+				artifactFile: "/runs/run.json",
+				teardown: () => Promise.resolve(),
+			},
+		);
+		const judgeAttempts: readonly JudgeAttempt[] = [
+			{
+				payload: {},
+				costUsd: 0.4,
+				outcome: "ACCEPTED",
+				metrics: {
+					costUsd: 0.4,
+					inputTokens: 10,
+					outputTokens: 20,
+					cacheReadTokens: 30,
+					cacheWriteTokens: 40,
+					turns: 1,
+				},
+			},
+		];
+		const productOwnerCalls = [
+			{
+				metrics: {
+					costUsd: 0.75,
+					inputTokens: 1,
+					outputTokens: 2,
+					cacheReadTokens: 3,
+					cacheWriteTokens: 4,
+					turns: 1,
+				},
+			},
+		];
+		let runClockMs = 5000;
+		const context = {
+			...(await stageContext()),
+			minimumStageGrade: "C" as const,
+			elapsedMs: () => runClockMs,
+			productOwner: {
+				ask: () => Promise.reject(new Error("no product owner in this test")),
+				snapshot: () => ({
+					sessionId: "po",
+					spentUsd: 0.75,
+					providerCalls: productOwnerCalls,
+				}),
+			},
+			writePendingStage: abort.writePendingStage,
+			updatePendingStage: abort.updatePendingStage,
+			writeStageProgress: abort.writeStageProgress,
+			completeStage: abort.completeStage,
+			calibrateStageFailure: (): Promise<CalibrationResult | undefined> =>
+				Promise.resolve(undefined),
+		};
+		const failing = {
+			...dependencies,
+			runStageJudge: (
+				_model: string,
+				_effort: undefined | "low" | "medium" | "high" | "xhigh" | "max",
+				_budget: number,
+				input: StageJudgeInput,
+			) => {
+				runClockMs += 2500;
+
+				return Promise.resolve({
+					...scorecardFor(input, "STOP"),
+					attempts: judgeAttempts,
+				});
+			},
+		};
+
+		await runGradedStages(failing, context).catch(() => undefined);
+		await abort.markAborted("shape stage graded F; minimum grade is C");
+
+		const record: unknown = JSON.parse(
+			persistence.files.get(context.stageFile("shape")) ?? "",
+		);
+		expect(record).toMatchObject({
+			status: "STAGE_JUDGE_FAILED",
+			grade: { grade: "F", verdict: "STOP" },
+			minimumGrade: "C",
+			attempts: judgeAttempts,
+			elapsedMs: 2500,
+			runElapsedMs: 7500,
+			productOwnerCostUsd: 0.75,
+			productOwnerProviderCalls: productOwnerCalls,
 		});
 	});
 
@@ -2025,6 +2166,41 @@ describe(buildRunManifest.name, () => {
 
 		expect(manifest.baselineChecks).toEqual(baselineChecks);
 	});
+
+	it("records the minimum grade the run's stages must reach", async () => {
+		const config = parseArgs(
+			[
+				"--target",
+				"/tmp/target",
+				"--model",
+				"sonnet",
+				"--session-budget-usd",
+				"5",
+				"--minimum-grade",
+				"C",
+			],
+			{},
+			{
+				caseId: "audit-log",
+				pipelinePath: AUDIT_LOG_PIPELINE_PATH,
+				targetPath: "/tmp/target",
+			},
+		);
+
+		const manifest = buildRunManifest({
+			timestamp: "2026-09-02T00:00:00.000Z",
+			controlSha: "control-sha",
+			source: { root: "/tmp/target", sha: "source-sha" },
+			taskId: "TASK-1",
+			taskSha: "task-sha",
+			task: "Task",
+			productBrief: "Brief",
+			config,
+			pipeline: await loadDefaultPipeline(),
+		});
+
+		expect(manifest.minimumGrade).toBe("C");
+	});
 });
 
 describe(buildRunArtifact.name, () => {
@@ -2180,6 +2356,39 @@ describe(buildRunArtifact.name, () => {
 
 		expect(artifact.judgeAttempts).toBe(attempts);
 		expect(artifact.judgeCostUsd).toBeCloseTo(0.3);
+	});
+
+	it("records the run's elapsed time and the Product Owner's provider calls", async () => {
+		const pipeline = await loadDefaultPipeline();
+		const productOwnerCalls = [
+			{
+				metrics: {
+					costUsd: 0.5,
+					inputTokens: 1,
+					outputTokens: 2,
+					cacheReadTokens: 3,
+					cacheWriteTokens: 4,
+					turns: 1,
+				},
+			},
+		];
+		const inputs = artifactInputs(pipeline, AUDIT_LOG_PIPELINE_PATH);
+
+		const artifact = buildRunArtifact({
+			...inputs,
+			productOwner: {
+				sessionId: "po",
+				spentUsd: 0.5,
+				providerCalls: productOwnerCalls,
+			},
+			elapsedMs: 90_000,
+		});
+
+		expect(artifact).toMatchObject({
+			elapsedMs: 90_000,
+			productOwnerCostUsd: 0.5,
+			productOwnerProviderCalls: productOwnerCalls,
+		});
 	});
 
 	it("completes the final artifact with calibration and Judge agreement", async () => {

@@ -13,6 +13,7 @@ import {
 	FINAL_JUDGE_FAILURE,
 	nothingRunning,
 	RecordedRunsFixture,
+	RECORDED_READINGS,
 	STOPPED_RUN_ERROR,
 	STOPPED_RUN_EVIDENCE,
 } from "#benchmark/run-records-test-support";
@@ -25,6 +26,7 @@ import {
 	PRODUCT_OWNER_COST_REASON,
 	PRODUCT_OWNER_TOKENS_REASON,
 	RUN_FAILED_REASON,
+	RUN_WALL_TIME_REASON,
 	STOPPED_GRADE_REASON,
 	UNEXPLAINED_END_REASON,
 	UNRECORDED_STAGE_REASON,
@@ -511,21 +513,29 @@ describe("/api/runs/:run", () => {
 
 		describe("figures the records do not hold", () => {
 			it("reports wall time as not recorded for each stage and for the run", async () => {
-				const notRecorded = {
-					state: "unavailable",
-					reasons: [WALL_TIME_REASON],
-				};
 				const fixture = await emptyFixture();
 				await fixture.writeStoppedRunEvidence();
 
 				const response = await runRecord(fixture, fixture.stoppedRun);
 
 				expect(await response.json()).toMatchObject({
+					/**
+					 * Each expectation is its own object: Bun 1.4.0's toMatchObject
+					 * passes a mismatch where one expected object is reused.
+					 */
 					stages: [
-						{ stage: "discuss", wallTime: notRecorded },
-						{ stage: "build", wallTime: notRecorded },
+						{
+							stage: "discuss",
+							wallTime: { state: "unavailable", reasons: [WALL_TIME_REASON] },
+						},
+						{
+							stage: "build",
+							wallTime: { state: "unavailable", reasons: [WALL_TIME_REASON] },
+						},
 					],
-					totals: { wallTime: notRecorded },
+					totals: {
+						wallTime: { state: "unavailable", reasons: [RUN_WALL_TIME_REASON] },
+					},
 				});
 			});
 
@@ -654,6 +664,133 @@ describe("/api/runs/:run", () => {
 						tokens: {
 							state: "available",
 							missing: [{ part: "Product Owner" }, { part: "final judge" }],
+						},
+					},
+				});
+			});
+		});
+
+		describe("figures a newer run records", () => {
+			const { stageElapsedMs, runElapsedMs, productOwnerMetrics } =
+				RECORDED_READINGS;
+
+			it("serves each stage's and a stopped run's elapsed time", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeStoppedRunWithReadings();
+
+				const response = await runRecord(fixture, fixture.stoppedRun);
+
+				expect(await response.json()).toMatchObject({
+					stages: [
+						{
+							stage: "discuss",
+							wallTime: { state: "available", ms: stageElapsedMs.discuss },
+						},
+						{
+							stage: "build",
+							wallTime: { state: "available", ms: stageElapsedMs.build },
+						},
+					],
+					totals: { wallTime: { state: "available", ms: runElapsedMs } },
+				});
+			});
+
+			it("serves the letter and verdict a stopped stage fell to, and the minimum grade", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeStoppedRunWithReadings();
+
+				const response = await runRecord(fixture, fixture.stoppedRun);
+
+				expect(await response.json()).toMatchObject({
+					minimumGrade: {
+						state: "available",
+						letter: RECORDED_READINGS.minimumGrade,
+					},
+					stages: [
+						{ stage: "discuss" },
+						{
+							stage: "build",
+							status: "stopped",
+							grade: {
+								state: "available",
+								letter: RECORDED_READINGS.stoppedLetter,
+								verdict: "STOP",
+							},
+						},
+					],
+				});
+			});
+
+			it("sums a stopped run's cost and tokens with the Product Owner's spend up to the stop", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeStoppedRunWithReadings();
+				const judge = STOPPED_RUN_EVIDENCE.discussJudgeMetrics;
+				const calls = [
+					...STOPPED_RUN_EVIDENCE.discussSessionMetrics,
+					judge,
+					STOPPED_RUN_EVIDENCE.buildSessionMetrics,
+					judge,
+					productOwnerMetrics,
+				];
+				const sum = (
+					field:
+						| "inputTokens"
+						| "cacheReadTokens"
+						| "cacheWriteTokens"
+						| "outputTokens",
+				): number => calls.reduce((total, call) => total + call[field], 0);
+
+				const response = await runRecord(fixture, fixture.stoppedRun);
+
+				expect(await response.json()).toMatchObject({
+					totals: {
+						productOwnerCost: {
+							state: "available",
+							usd: RECORDED_READINGS.productOwnerCostUsd,
+						},
+						cost: {
+							state: "available",
+							usd: 2 + 1 + 3 + 0.5 + RECORDED_READINGS.productOwnerCostUsd,
+							missing: [],
+						},
+						tokens: {
+							state: "available",
+							input: sum("inputTokens"),
+							cacheRead: sum("cacheReadTokens"),
+							cacheWrite: sum("cacheWriteTokens"),
+							output: sum("outputTokens"),
+							missing: [],
+						},
+					},
+				});
+			});
+
+			it("serves a finished run's elapsed time and minimum grade, and counts the Product Owner's tokens", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeFinishedRunWithReadings(FINISHED_RUN);
+
+				const response = await runRecord(fixture, FINISHED_RUN);
+
+				expect(await response.json()).toMatchObject({
+					minimumGrade: {
+						state: "available",
+						letter: RECORDED_READINGS.minimumGrade,
+					},
+					stages: [
+						{
+							stage: "discuss",
+							wallTime: { state: "available", ms: stageElapsedMs.discuss },
+						},
+						{
+							stage: "build",
+							wallTime: { state: "available", ms: stageElapsedMs.build },
+						},
+					],
+					totals: {
+						wallTime: { state: "available", ms: runElapsedMs },
+						tokens: {
+							state: "available",
+							missing: [{ part: "final judge" }],
 						},
 					},
 				});

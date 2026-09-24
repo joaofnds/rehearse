@@ -778,8 +778,8 @@ record, implemented in [run-record.ts](../src/server/run-record.ts). It answers
 whole response with 500.
 
 The record names the run by its directory name and its short id, and carries
-its case id and its status as the run history reports it. The minimum grade is
-unavailable, since the run manifest does not record it.
+its case id and its status as the run history reports it, and the minimum
+grade the run manifest records, unavailable in a manifest that predates it.
 
 Each stage, in the manifest's order, reports its status (`graded`, `stopped`,
 `awaiting-judgment` or `no-record`), its grade as the letter and the judge's
@@ -793,22 +793,45 @@ continued from, and the commit subjects and changed paths its record carries.
 It says whether its checkpoint is `recorded` or `missing`, since a stopped
 stage saves none.
 
+Each stage also reports its wall time, the elapsed time its record keeps, and
+the run reports its own. A stage's elapsed time runs from its stage-started
+event to its judge's grade on the run's clock, and the run's from the run's
+start to its main artifact or, for a stopped run, to the stop.
+
 A figure the records do not hold reads `{"state": "unavailable", "reasons":
-[...]}` rather than zero or an empty list. Wall time is always unavailable,
-since no record keeps when a stage or run started and ended. A stopped stage's
-letter is unavailable, since a stop record keeps no letter grade, and an
-awaiting stage's grade is unavailable until its judge returns.
+[...]}` rather than zero or an empty list. Wall time is unavailable for a
+record that predates it, for a stage still awaiting its judge, and for a stop
+whose judge returned no grade. A stopped stage serves the letter and STOP
+verdict it fell to, unavailable in a stop record that predates the letter or
+whose judge returned none, and an awaiting stage's grade is unavailable until
+its judge returns.
 
 A sum over several parts, a stage's or the run's tokens and the run's cost,
 lists the parts it lacks under `missing` with a reason for each. A part is
 missing when its record holds no calls, when a call has no metrics, as in the
 oldest awaiting-judgment records, or when the stage the run ended in wrote no
-record at all. No record keeps the Product Owner's call metrics, so the run's
-tokens always name that part. The run's cost also lists under `parts` each
-amount it summed. When a sum has no part to add, it is unavailable and its
-reasons name each missing part. Only the main artifact records the Product
-Owner's cost, served as `productOwnerCost`, so a run that wrote none reports
-that cost as unavailable and the run cost names it as missing.
+record at all. The run's tokens and cost count the Product Owner's calls and
+cost from the main artifact once the final judge ran, and otherwise from a
+stop record, which holds them up to the stop. A Product Owner never asked made
+no calls, so its empty list is summed rather than missing. A run whose records
+predate those readings, or that wrote neither record, names the Product Owner
+as a missing part. The run's cost also lists under `parts` each amount it
+summed. When a sum has no part to add, it is unavailable and its reasons name
+each missing part. The Product Owner's cost is also served alone as
+`productOwnerCost`.
+
+The fields these readings come from are optional, so a record written before
+them still parses and reads each as unavailable:
+
+- the run manifest's `minimumGrade`, the letter every stage had to reach;
+- each stage record's and the main artifact's `elapsedMs`, and the main
+  artifact's `productOwnerProviderCalls`;
+- a stop record's `grade` (letter and verdict), judge `attempts`,
+  `minimumGrade`, `elapsedMs`, `runElapsedMs`, `productOwnerCostUsd` and
+  `productOwnerProviderCalls`, written when a stage's grade falls below the
+  minimum and absent when its judge returned no grade;
+- a replay record's `elapsedMs`, from its stage session's start to its judge's
+  grade.
 
 `finalOutcome` is the final judge's recorded result: `JUDGED` with its PASS or
 FAIL verdict, `JUDGING_FAILED` with the failure the main artifact records,
@@ -838,8 +861,8 @@ main record that does not parse still moves the run to `unreadable`.
 
 A replay row sums its session, Product Owner and judge cost and lacks no part.
 Its `taskGrade` is `NOT_APPLICABLE` with the reason, since only a whole run
-reaches the final judge, and its wall time is unavailable, since the replay
-record keeps no time the stage started. A session attempt row's cost is its call
+reaches the final judge, and its wall time is the elapsed time its record
+keeps, unavailable in a replay record that predates it. A session attempt row's cost is its call
 metrics' cost, unavailable when the attempt kept none, and its wall time is the
 elapsed time it recorded. A confirmation group row's wall time is its makespan,
 and its cost is unavailable, since the group record keeps its projected cost

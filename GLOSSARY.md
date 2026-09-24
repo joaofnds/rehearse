@@ -591,8 +591,11 @@ See [current state](docs/status.md) for implementation coverage and
 - **Stop record** — the `<run>.<stage>.json` a stopping stage writes in place
   of its scorecard, carrying the stopping status, the stage name, the reason
   the run ended there, the input the Judge was given, and the model, effort and
-  declared corpus files the stage ran with. The run's manifest still supplies
-  the case; only the checkpoint the stage never wrote is missing.
+  declared corpus files the stage ran with. A stop at a grade below the minimum
+  grade also carries the letter and verdict, the minimum grade, the Judge's
+  attempts, the stage and run elapsed times, and the Product Owner's cost and
+  calls up to the stop; older stop records lack them. The run's manifest still
+  supplies the case; only the checkpoint the stage never wrote is missing.
 - **Stopped stage** — the stage a run ended on, whether its grade did not meet
   the pipeline's minimum, its judging failed, or a signal stopped the run
   mid-stage. Only the reason its stop record carries says which of those it
@@ -707,3 +710,27 @@ See [current state](docs/status.md) for implementation coverage and
   attempt elapsed time whenever attempts ran concurrently. Recorded on the
   group record and not carried into comparison reports, because it describes
   how the operator scheduled the reps rather than the treatment under test.
+- **Stage elapsed time** — the wall-clock duration of one stage in a pipeline
+  run, from the stage starting to its Judge's grade, read from the run's clock.
+  Recorded on the stage's scorecard, and on its stop record when the stage's
+  grade fell below the minimum grade. Name accepted unattended as unsettled,
+  pending the operator's confirmation (doc-152, decision 4).
+- **Run elapsed time** — the wall-clock duration of a pipeline run, from its
+  start to its main artifact, or to the stop for a run a stage's grade stopped.
+  It encloses every stage elapsed time. Name accepted unattended as unsettled,
+  pending the operator's confirmation (doc-152, decision 4).
+- **Minimum grade** — the letter every stage of a run must reach for the run to
+  continue, set by `--minimum-grade` and B by default. The run manifest
+  records it. Changing it never changes the grade a Judge recorded. Name
+  accepted unattended as unsettled, pending the operator's confirmation
+  (doc-152, decision 4).
+- **Run cost** — the sum of the costs a pipeline run's records hold: each
+  stage's session and Judge, the Product Owner, and the final Judge, naming
+  each part it summed and each it lacks. Distinct from run spend, the figure a
+  terminal run event carries. Name accepted unattended as unsettled, pending
+  the operator's confirmation (doc-152, decision 4).
+- **Final outcome** — what a pipeline run's final Judge recorded, the UI
+  design's task grade: judged PASS or FAIL, judging failed, pending while the
+  run is live, or not reached with the reason the run ended. The final Judge
+  returns no letter. Name accepted unattended as unsettled, pending the
+  operator's confirmation (doc-152, decision 4).

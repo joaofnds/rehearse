@@ -38,6 +38,8 @@ export interface ReplayRecord {
 		readonly causes: readonly string[];
 	}[];
 	readonly scorecard: StageScorecard;
+	/** From the stage session's start to its judge's grade. */
+	readonly elapsedMs?: number | undefined;
 }
 
 /**
@@ -94,6 +96,8 @@ export const replayRecordSchema = z
 					.loose(),
 			})
 			.loose(),
+		/** From the stage session's start to its judge's grade; older records lack it. */
+		elapsedMs: z.number().nonnegative().optional(),
 	})
 	.strict();
 

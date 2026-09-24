@@ -15,6 +15,7 @@ import {
 	FINAL_JUDGE_FAILURE,
 	nothingRunning,
 	RecordedRunsFixture,
+	RECORDED_READINGS,
 	STOPPED_RUN_ERROR,
 } from "#benchmark/run-records-test-support";
 import { createApiApp } from "./api";
@@ -30,8 +31,8 @@ import {
 	INTERRUPTED_REASON,
 	PRODUCT_OWNER_COST_REASON,
 	RUN_FAILED_REASON,
+	RUN_WALL_TIME_REASON,
 	STOPPED_GRADE_REASON,
-	WALL_TIME_REASON,
 } from "./run-record";
 
 /**
@@ -387,26 +388,40 @@ describe("/api/runs", () => {
 				const row = await runRow(fixture, fixture.stoppedRun);
 
 				expect(row).toMatchObject({
-					wallTime: { state: "unavailable", reasons: [WALL_TIME_REASON] },
+					wallTime: { state: "unavailable", reasons: [RUN_WALL_TIME_REASON] },
+				});
+			});
+
+			it("carries a stopped run's wall time from its stop record", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeStoppedRunWithReadings();
+
+				const row = await runRow(fixture, fixture.stoppedRun);
+
+				expect(row).toMatchObject({
+					wallTime: {
+						state: "available",
+						ms: RECORDED_READINGS.runElapsedMs,
+					},
 				});
 			});
 
 			describe("when the run wrote no manifest", () => {
 				it("keeps the row with each figure unavailable for that reason", async () => {
-					const unavailable = {
-						state: "unavailable",
-						reasons: [NO_MANIFEST_REASON],
-					};
 					const fixture = await emptyFixture();
 					await fixture.writeEventsOnlyFailedRun();
 
 					const row = await runRow(fixture, fixture.eventsOnlyRun);
 
 					expect(row).toMatchObject({
-						stepGrades: unavailable,
-						taskGrade: unavailable,
-						cost: unavailable,
-						wallTime: unavailable,
+						/**
+						 * Each expectation is its own object: Bun 1.4.0's toMatchObject
+						 * passes a mismatch where one expected object is reused.
+						 */
+						stepGrades: { state: "unavailable", reasons: [NO_MANIFEST_REASON] },
+						taskGrade: { state: "unavailable", reasons: [NO_MANIFEST_REASON] },
+						cost: { state: "unavailable", reasons: [NO_MANIFEST_REASON] },
+						wallTime: { state: "unavailable", reasons: [NO_MANIFEST_REASON] },
 					});
 				});
 			});
@@ -437,11 +452,14 @@ describe("/api/runs", () => {
 		});
 
 		describe("a replay row", () => {
-			async function replayRow(): Promise<ListedRow | undefined> {
+			async function replayRow(
+				elapsedMs?: number,
+			): Promise<ListedRow | undefined> {
 				const fixture = await emptyFixture();
 				await fixture.writeReplayOf(
 					fixture.replayableRun,
 					fixture.stageAttempt.timestamp,
+					elapsedMs,
 				);
 
 				return onlyRowOfKind(fixture, "replay");
@@ -474,6 +492,14 @@ describe("/api/runs", () => {
 						status: "NOT_APPLICABLE",
 						reason: REPLAY_TASK_GRADE_REASON,
 					},
+				});
+			});
+
+			it("carries the elapsed time its record keeps as its wall time", async () => {
+				const row = await replayRow(3000);
+
+				expect(row).toMatchObject({
+					wallTime: { state: "available", ms: 3000 },
 				});
 			});
 

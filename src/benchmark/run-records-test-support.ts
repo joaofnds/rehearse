@@ -118,6 +118,51 @@ export const STOPPED_RUN_EVIDENCE = {
 } as const;
 
 /**
+ * The readings a run records once the harness keeps each stage's and the
+ * run's elapsed time, the minimum grade, a stopped stage's letter, and the
+ * Product Owner's calls, as `writeStoppedRunWithReadings` and
+ * `writeFinishedRunWithReadings` write them.
+ */
+export const RECORDED_READINGS = {
+	minimumGrade: "B",
+	stageElapsedMs: { discuss: 1200, build: 2500 },
+	runElapsedMs: 4000,
+	stoppedLetter: "F",
+	productOwnerCostUsd: 0.75,
+	productOwnerMetrics: callMetrics({
+		input: 4,
+		cacheRead: 400,
+		cacheWrite: 60,
+		output: 13,
+	}),
+} as const;
+
+/** The fields a newer harness adds to a record an older one wrote. */
+interface NewerRecordFields {
+	readonly grade?: { readonly grade: string; readonly verdict: string };
+	readonly attempts?: readonly unknown[];
+	readonly minimumGrade?: string;
+	readonly elapsedMs?: number;
+	readonly runElapsedMs?: number;
+	readonly productOwnerCostUsd?: number;
+	readonly productOwnerProviderCalls?: readonly {
+		readonly metrics: Immutable<ClaudeCallMetrics>;
+	}[];
+}
+
+/** Adds fields to a JSON record already on disk, as a newer writer would. */
+async function mergeIntoRecord(
+	file: string,
+	fields: NewerRecordFields,
+): Promise<void> {
+	const recorded: unknown = JSON.parse(await Bun.file(file).text());
+	await Bun.write(
+		file,
+		`${JSON.stringify({ ...z.object({}).loose().parse(recorded), ...fields }, null, 2)}\n`,
+	);
+}
+
+/**
  * A stage's scorecard as the harness writes it once the stage's judge
  * graded it A, its session spending $2 and its judge $1, with the discuss
  * call metrics of `STOPPED_RUN_EVIDENCE`.
@@ -945,6 +990,68 @@ export class RecordedRunsFixture {
 	}
 
 	/**
+	 * The stopped run as the harness writes it once it records the readings
+	 * of `RECORDED_READINGS`: the manifest names the minimum grade, each stage
+	 * record its elapsed time, and the stop record the letter build fell to,
+	 * the run's elapsed time and the Product Owner's spend up to the stop.
+	 */
+	public async writeStoppedRunWithReadings(): Promise<void> {
+		await this.writeStoppedRunEvidence();
+		const paths = benchmarkRunPaths(this.runsDirectory, this.stoppedRun);
+		await writeRunManifest(paths.manifestFile, {
+			...manifest(this.stoppedRun, this.sourceRoot),
+			minimumGrade: RECORDED_READINGS.minimumGrade,
+		});
+		await mergeIntoRecord(paths.stageFile("discuss"), {
+			elapsedMs: RECORDED_READINGS.stageElapsedMs.discuss,
+		});
+		await mergeIntoRecord(paths.stageFile("build"), {
+			grade: { grade: RECORDED_READINGS.stoppedLetter, verdict: "STOP" },
+			attempts: [
+				{
+					payload: {},
+					costUsd: 0.5,
+					outcome: "ACCEPTED",
+					metrics: STOPPED_RUN_EVIDENCE.discussJudgeMetrics,
+				},
+			],
+			minimumGrade: RECORDED_READINGS.minimumGrade,
+			elapsedMs: RECORDED_READINGS.stageElapsedMs.build,
+			runElapsedMs: RECORDED_READINGS.runElapsedMs,
+			productOwnerCostUsd: RECORDED_READINGS.productOwnerCostUsd,
+			productOwnerProviderCalls: [
+				{ metrics: RECORDED_READINGS.productOwnerMetrics },
+			],
+		});
+	}
+
+	/**
+	 * A finished run as the harness writes it once it records the readings of
+	 * `RECORDED_READINGS`: the manifest names the minimum grade, each
+	 * scorecard its elapsed time, and the main artifact the run's elapsed time
+	 * and the Product Owner's calls.
+	 */
+	public async writeFinishedRunWithReadings(run: string): Promise<void> {
+		await this.writeFinishedRunEvidence(run);
+		const paths = benchmarkRunPaths(this.runsDirectory, run);
+		await writeRunManifest(paths.manifestFile, {
+			...manifest(run, this.sourceRoot),
+			minimumGrade: RECORDED_READINGS.minimumGrade,
+		});
+		for (const [stage, elapsedMs] of Object.entries(
+			RECORDED_READINGS.stageElapsedMs,
+		)) {
+			await mergeIntoRecord(paths.stageFile(stage), { elapsedMs });
+		}
+		await mergeIntoRecord(paths.artifactFile, {
+			elapsedMs: RECORDED_READINGS.runElapsedMs,
+			productOwnerProviderCalls: [
+				{ metrics: RECORDED_READINGS.productOwnerMetrics },
+			],
+		});
+	}
+
+	/**
 	 * Replaces fields of discuss's checkpoint in the stopped run, for a test
 	 * about a checkpoint the evidence fixture does not write.
 	 */
@@ -1326,14 +1433,22 @@ export class RecordedRunsFixture {
 	 * A second replay filed under the fixture's replay lineage, of another
 	 * run, so two replays of one lineage are told apart by their source run.
 	 */
-	public async writeReplayOf(run: string, timestamp: string): Promise<void> {
+	/**
+	 * A replay of the run's build stage, with the elapsed time a newer replay
+	 * records when one is given.
+	 */
+	public async writeReplayOf(
+		run: string,
+		timestamp: string,
+		elapsedMs?: number,
+	): Promise<void> {
 		await Bun.write(
 			replayRecordFile(
 				this.runsDirectory,
 				this.stageAttempt.lineage,
 				timestamp,
 			),
-			serialize(replayRecord(run, timestamp)),
+			serialize({ ...replayRecord(run, timestamp), elapsedMs }),
 		);
 	}
 

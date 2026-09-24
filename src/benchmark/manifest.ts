@@ -2,7 +2,7 @@ import { z } from "zod";
 import { effortSchema, LEGACY_CASE_ID } from "./config";
 import { pipelineDefinitionSchema } from "./pipeline";
 import type { TargetDefinition } from "./pipeline";
-import { localCheckResultSchema } from "./contracts";
+import { localCheckResultSchema, stageLetterGradeSchema } from "./contracts";
 import type { Immutable } from "./contracts";
 
 const LEGACY_TARGET_DEFINITION = {
@@ -47,6 +47,7 @@ const runManifestSchema = z
 		pipelinePath: z.string().min(1),
 		pipeline: pipelineDefinitionSchema,
 		baselineChecks: localCheckResultSchema.optional(),
+		minimumGrade: stageLetterGradeSchema.optional(),
 	})
 	.strict();
 
