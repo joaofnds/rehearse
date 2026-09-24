@@ -15,6 +15,7 @@ import {
 	openRunEventStore,
 } from "#benchmark/run-events";
 import { comparisonReport } from "./comparisons";
+import { comparisonIndex } from "./comparison-index";
 import { comparisonAttemptHistoryLinks } from "./comparison-history-links";
 import { corpusReport } from "./corpus-report";
 import { redactAbsolutePaths, redactedFilePath } from "./redact-path";
@@ -148,6 +149,9 @@ export const createApiApp = (dependencies: ApiDependencies) => {
 
 			return context.json(report);
 		})
+		.get("/api/comparisons", async (context) =>
+			context.json(await comparisonIndex(dependencies.runsDirectory)),
+		)
 		.get("/api/comparisons/:digest", async (context) => {
 			try {
 				const id = parseRecordId(`comparison:${context.req.param("digest")}`);

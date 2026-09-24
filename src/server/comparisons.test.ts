@@ -200,31 +200,57 @@ async function rewriteFixtureAsLegacyPipeline(
 	await Bun.write(reportFile, text);
 }
 
-describe("GET /api/comparisons/:digest", () => {
-	const roots: string[] = [];
+const roots: string[] = [];
 
-	afterEach(async () => {
-		await Promise.all(
-			roots.splice(0).map((root) => rm(root, { force: true, recursive: true })),
-		);
+afterEach(async () => {
+	await Promise.all(
+		roots.splice(0).map((root) => rm(root, { force: true, recursive: true })),
+	);
+});
+
+async function corpusDirectory(): Promise<string> {
+	const root = await mkdtemp(join(tmpdir(), "rehearse-comparisons-corpus-"));
+	roots.push(root);
+
+	return root;
+}
+
+async function writtenFixture(): Promise<RecordedRunsFixture> {
+	const root = await mkdtemp(join(tmpdir(), "rehearse-comparisons-"));
+	roots.push(root);
+	const fixture = new RecordedRunsFixture(root);
+	await fixture.write();
+
+	return fixture;
+}
+
+describe("GET /api/comparisons", () => {
+	it("lists every saved comparison by digest, with its mode, cases and reps", async () => {
+		const fixture = await writtenFixture();
+		const app = createApiApp({
+			runsDirectory: fixture.runsDirectory,
+			liveness: nothingRunning,
+			corpusSource: directorySource(await corpusDirectory()),
+		});
+
+		const response = await app.request("/api/comparisons");
+
+		expect(response.status).toBe(200);
+		expect(await response.json()).toEqual({
+			comparisons: [
+				{
+					digest: fixture.comparisonDigest,
+					mode: "pipeline",
+					caseIds: ["case-1", "case-2"],
+					reps: 4,
+				},
+			],
+			unreadable: [],
+		});
 	});
+});
 
-	async function corpusDirectory(): Promise<string> {
-		const root = await mkdtemp(join(tmpdir(), "rehearse-comparisons-corpus-"));
-		roots.push(root);
-
-		return root;
-	}
-
-	async function writtenFixture(): Promise<RecordedRunsFixture> {
-		const root = await mkdtemp(join(tmpdir(), "rehearse-comparisons-"));
-		roots.push(root);
-		const fixture = new RecordedRunsFixture(root);
-		await fixture.write();
-
-		return fixture;
-	}
-
+describe("GET /api/comparisons/:digest", () => {
 	it("renders the recorded report plus attribution for every case and contrast", async () => {
 		const fixture = await writtenFixture();
 		const app = createApiApp({
