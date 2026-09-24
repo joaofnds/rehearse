@@ -828,7 +828,8 @@ available has the same shape as the pipeline run record's run cost: `usd`, the
 A pipeline run row reads its figures through the pipeline run record above.
 `stepGrades` lists each stage in the manifest's order with its status and
 grade. A stage with no record is `not-run` when the run never reached it, and
-keeps `no-record` when it is the stage the run ended or is running in.
+keeps `no-record` when it saved a checkpoint or is the stage the run ended or
+is running in.
 `taskGrade` is the run's `finalOutcome`, and `cost` and `wallTime` are the
 run's totals. A run that wrote no manifest, or whose record does not parse,
 keeps its row with those four figures unavailable and the reason, where the
