@@ -18,6 +18,7 @@ import {
 } from "./judge-attempt";
 import type { TargetCheck } from "./pipeline";
 import { runPipelineConfirmation } from "./pipeline-confirmation";
+import { readShortIds } from "./short-id";
 import {
 	CONFIRMATION_METRIC,
 	CONFIRMATION_PIPELINE,
@@ -103,6 +104,24 @@ describe(runPipelineConfirmation.name, () => {
 		expect(reps.map(({ caseId }) => caseId)).toEqual(
 			reps.map(() => "audit-log-follow-up"),
 		);
+	});
+
+	it("claims the group a short id in its case before any rep runs", async () => {
+		const harness = await PipelineConfirmationHarness.setup(testResources);
+
+		const outcome = await harness.run({ caseId: "audit-log-follow-up" });
+		const group = parseConfirmationGroupRecord(
+			await Bun.file(outcome.groupRecordFile).text(),
+		);
+
+		expect(
+			await readShortIds(harness.runsDirectory, "audit-log-follow-up"),
+		).toEqual([
+			{
+				shortId: "audit-log-follow-up/g1",
+				record: { kind: "group", groupId: group.groupId },
+			},
+		]);
 	});
 
 	it("reports agreement only for its exact Judge model", async () => {

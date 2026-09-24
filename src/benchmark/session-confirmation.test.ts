@@ -435,7 +435,7 @@ describe(runSessionConfirmation.name, () => {
 				stderr: () => undefined,
 			},
 		);
-		expect(listed.join("")).toContain("group:session-group");
+		expect(listed.join("")).toContain("group:session-group\tsmoke/g1\t");
 
 		const shown: string[] = [];
 		await runShow(

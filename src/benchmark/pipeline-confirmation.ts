@@ -68,6 +68,7 @@ import type {
 } from "./target";
 import type { ProductOwner, createProductOwner } from "./workflow";
 import { WorkflowExecutionError } from "./workflow";
+import { claimShortId } from "./short-id";
 
 interface LoadedStageRubric {
 	readonly rubricPath: string;
@@ -781,6 +782,10 @@ export async function runPipelineConfirmation(
 ): Promise<PipelineConfirmationOutcome> {
 	const now = request.now ?? (() => performance.now());
 	const paths = confirmationGroupPaths(request.runsDirectory, request.groupId);
+	await claimShortId(request.runsDirectory, request.caseId, {
+		kind: "group",
+		groupId: request.groupId,
+	});
 	await mkdir(paths.inputsDirectory, { recursive: true });
 	const worktreesDirectory = await mkdtemp(
 		join(tmpdir(), `rehearse-${request.groupId}-`),

@@ -28,6 +28,7 @@ import type { SessionCorpusSnapshot } from "./session-corpus";
 import { freezeSessionCorpus } from "./session-corpus";
 import { sessionLineage } from "./session-lineage";
 import { buildSessionAttemptRecord } from "./session-record";
+import { claimShortId } from "./short-id";
 
 export { SessionInvocationError } from "./session-invocation-error";
 
@@ -250,6 +251,11 @@ export async function runSessionConfirmation(
 ): Promise<ConfirmationGroupOutcome> {
 	const now = dependencies.now ?? Date.now;
 	const paths = confirmationGroupPaths(request.runsDirectory, request.groupId);
+	await claimShortId(
+		request.runsDirectory,
+		request.sessionCase.declaration.id,
+		{ kind: "group", groupId: request.groupId },
+	);
 	const inputs = await freezeInputs(
 		request,
 		paths.directory,
