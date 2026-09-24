@@ -630,12 +630,27 @@ describe(SessionHistoryPage.name, () => {
 			rows: [
 				{
 					kind: "run",
+					shortId: "audit-log/r4",
+					checkpoints: [{ stage: "build", shortId: "audit-log/r4/s2" }],
+					run: "2026-09-05T00-00-00.000Z",
+				},
+				{
+					kind: "run",
 					shortId: "audit-log/r5",
 					checkpoints: [
 						{ stage: "initial", shortId: "audit-log/r5/s0" },
 						{ stage: "build", shortId: "audit-log/r5/s2" },
+						{ stage: "review", shortId: "audit-log/r5/s3" },
 					],
 					run: "2026-09-06T21-58-29.508Z",
+				},
+				{
+					kind: "replay",
+					shortId: "audit-log/r8",
+					checkpointShortId: "audit-log/r4/s1",
+					attempt: { position: 1, count: 3 },
+					lineage: "lineage-1",
+					timestamp: "2026-09-06T23-00-00.000Z",
 				},
 				{
 					kind: "replay",
@@ -656,6 +671,7 @@ describe(SessionHistoryPage.name, () => {
 					shortId: "audit-log/g13",
 					groupId: "group-a",
 					repAttempts: [
+						{ repId: "group-a-rep-1", attempt: { position: 1, count: 6 } },
 						{ repId: "group-a-rep-2", attempt: { position: 2, count: 6 } },
 					],
 				},

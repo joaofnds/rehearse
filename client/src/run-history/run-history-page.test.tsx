@@ -1061,6 +1061,16 @@ describe(RunHistoryPage.name, () => {
 			).not.toBeInTheDocument();
 		});
 
+		it("names a replay no short id names by its stage alone", async () => {
+			respondingWith(everyKind);
+
+			await renderPage().findByText("group-a");
+
+			expect(cellOf("2026-09-06T22-33-15.057Z", "Case")).toHaveTextContent(
+				/replay · shape(?! ·)/u,
+			);
+		});
+
 		it("says a record's time is not recorded where its record holds none", async () => {
 			respondingWith(everyKind);
 
