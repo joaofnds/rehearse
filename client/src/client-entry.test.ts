@@ -4,8 +4,8 @@ import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
 const serverModule =
-	/^import (?!type )[^;]*? from "#(?<module>(?:benchmark|server)\/[^"]+)";/gmu;
-const runtimeImport = /^import (?!type )/mu;
+	/^(?:import|export) (?!type )[^;]*? from "#(?<module>(?:benchmark|cli|server)\/[^"]+)";/gmu;
+const runtimeImport = /^(?:import (?!type )|export (?!type )[^;]*? from )/mu;
 
 /**
  * Every server module the browser bundle executes, keyed by its import

@@ -214,10 +214,9 @@ interface RunIdentity {
 const RECORDED: RunProgress = { state: "recorded" };
 
 /**
- * A run known only from its manifest (no graded artifact): the STOPPED,
- * INTERRUPTED and RUNNING statuses all read the case ID from there, and all
- * refuse a run whose manifest never got written rather than reporting it with
- * no case ID.
+ * A run known only from its manifest (no graded artifact): the STOPPED and
+ * RUNNING statuses read the case ID from there, and refuse a run whose
+ * manifest never got written rather than reporting it with no case ID.
  */
 async function manifestBackedIdentity(
 	paths: BenchmarkRunPaths,
