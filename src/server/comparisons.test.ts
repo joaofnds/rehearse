@@ -58,7 +58,8 @@ const comparisonResponseSchema = z.object({
 	),
 });
 
-const unreadableResponseSchema = z.object({
+const comparisonIndexResponseSchema = z.object({
+	comparisons: z.array(z.object({ digest: z.string() })),
 	unreadable: z.array(z.object({ id: z.string(), reason: z.string() })),
 });
 
@@ -285,15 +286,14 @@ describe("GET /api/comparisons", () => {
 			const response = await app.request("/api/comparisons");
 
 			expect(response.status).toBe(200);
-			expect(await response.json()).toEqual({
-				comparisons: [
-					expect.objectContaining({ digest: fixture.comparisonDigest }),
-				],
-				unreadable: [
-					{ id: corruptDigest, reason: expect.any(String) },
-					{ id: missingReportDigest, reason: expect.any(String) },
-				],
-			});
+			const index = comparisonIndexResponseSchema.parse(await response.json());
+			expect(index.comparisons.map(({ digest }) => digest)).toEqual([
+				fixture.comparisonDigest,
+			]);
+			expect(index.unreadable.map(({ id }) => id)).toEqual([
+				corruptDigest,
+				missingReportDigest,
+			]);
 		});
 
 		it("gives a reason that names no absolute path", async () => {
@@ -306,7 +306,7 @@ describe("GET /api/comparisons", () => {
 
 			const response = await app.request("/api/comparisons");
 
-			const { unreadable } = unreadableResponseSchema.parse(
+			const { unreadable } = comparisonIndexResponseSchema.parse(
 				await response.json(),
 			);
 			expect(unreadable.map(({ id }) => id)).toContain(missingReportDigest);
