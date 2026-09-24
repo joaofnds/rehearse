@@ -17,18 +17,16 @@ import { plural } from "#client/plural";
 import { ScreenHeader } from "#client/system/components/screen-header";
 import { SectionLabel } from "#client/system/components/section-label";
 import { Notice } from "#client/system/components/notice";
+import { unhandled } from "#benchmark/contracts";
 
-type RunHistoryRow = Extract<
-	RunHistoryResponse["rows"][number],
-	{ readonly kind: "run" }
->;
+type HistoryRow = RunHistoryResponse["rows"][number];
+type RunHistoryRow = Extract<HistoryRow, { readonly kind: "run" }>;
+type ContextLink = HistoryRow["links"][number];
 
-function pipelineRuns(
-	rows: readonly RunHistoryResponse["rows"][number][],
-): readonly RunHistoryRow[] {
+function pipelineRuns(rows: readonly HistoryRow[]): readonly RunHistoryRow[] {
 	return rows.filter((row): row is RunHistoryRow => row.kind === "run");
 }
-type UnreadableRun = RunHistoryResponse["unreadable"][number];
+type UnreadableRecord = RunHistoryResponse["unreadable"][number];
 
 const COLUMNS = [
 	"Run",
@@ -86,20 +84,153 @@ function useNow(running: boolean): number {
 const FILTERS = ["All", "Stopped"] as const;
 type Filter = (typeof FILTERS)[number];
 
-function matchesFilter(row: RunHistoryRow, filter: Filter): boolean {
-	return filter === "All" || isStopped(row.status);
+/**
+ * Stopped names a pipeline run whose stage fell below the minimum. A replay's
+ * STOP verdict grades one stage in isolation and stops nothing, so it does not
+ * match.
+ */
+function matchesFilter(row: HistoryRow, filter: Filter): boolean {
+	return filter === "All" || (row.kind === "run" && isStopped(row.status));
 }
 
-function UnreadableRuns({
-	runs,
+/**
+ * The kind of record an unreadable id names, read from the prefix every
+ * record id carries, so the notice can say how many of each went missing
+ * before anyone opens the list.
+ */
+const UNREADABLE_KINDS = [
+	{ prefix: "run:", noun: "run" },
+	{ prefix: "attempt:session:", noun: "session attempt" },
+	{ prefix: "attempt:stage:", noun: "replay" },
+	{ prefix: "group:", noun: "confirmation run" },
+] as const;
+
+function unreadableSummary(
+	records: readonly UnreadableRecord[],
+): readonly string[] {
+	const counted = UNREADABLE_KINDS.map(({ prefix, noun }) =>
+		plural(records.filter(({ id }) => id.startsWith(prefix)).length, noun),
+	).filter((line) => !line.startsWith("0 "));
+	const other = records.filter(
+		({ id }) => !UNREADABLE_KINDS.some(({ prefix }) => id.startsWith(prefix)),
+	).length;
+
+	return other === 0 ? counted : [...counted, plural(other, "other record")];
+}
+
+function UnreadableRecords({
+	records,
 }: {
-	readonly runs: readonly UnreadableRun[];
+	readonly records: readonly UnreadableRecord[];
 }): React.JSX.Element {
 	return (
 		<Notice
-			message="These runs could not be read, so they are missing from the table below:"
-			items={runs.map((run) => `${run.id} — ${run.reason}`)}
-		/>
+			message="These records could not be read, so they are missing from the table below:"
+			items={unreadableSummary(records)}
+		>
+			<Disclosure
+				collapsedLabel={`show ${records.length}`}
+				expandedLabel="hide"
+			>
+				<ul className="flex flex-col gap-1 font-mono text-sm">
+					{records.map(({ id, reason }) => (
+						<li key={id}>{`${id}: ${reason}`}</li>
+					))}
+				</ul>
+			</Disclosure>
+		</Notice>
+	);
+}
+
+/**
+ * The name a record is filed under, which is what the operator quotes to the
+ * CLI. It stays plain text: the links in the case cell say which page each
+ * opens, where a linked name would leave that to guesswork.
+ */
+function identityOf(row: HistoryRow): string {
+	switch (row.kind) {
+		case "run": {
+			return row.run;
+		}
+		case "session-attempt": {
+			return row.uuid;
+		}
+		case "replay": {
+			return row.timestamp;
+		}
+		case "group": {
+			return row.groupId;
+		}
+		default: {
+			return unhandled(row, "run history row");
+		}
+	}
+}
+
+/**
+ * What kind of record the row is, and where its record holds no time, that
+ * the newest-first order could not place it.
+ */
+function kindLine(row: HistoryRow): string {
+	switch (row.kind) {
+		case "run": {
+			return "pipeline run";
+		}
+		case "session-attempt": {
+			return "session attempt · time not recorded";
+		}
+		case "replay": {
+			return `replay · ${row.stage}`;
+		}
+		case "group": {
+			return `confirmation run · ${row.mode} · ${plural(row.reps, "rep")} · time not recorded`;
+		}
+		default: {
+			return unhandled(row, "run history row");
+		}
+	}
+}
+
+const LINK_CLASS =
+	"inline-flex min-h-14 items-center text-xs text-accent-foreground underline decoration-deeper underline-offset-4 hover:text-pale";
+
+function contextLink(link: ContextLink): React.JSX.Element {
+	switch (link.state) {
+		case "available": {
+			return (
+				<a key={link.label} href={link.href} className={LINK_CLASS}>
+					{link.label}
+				</a>
+			);
+		}
+		case "unavailable": {
+			return (
+				<span key={link.label} className="text-xs text-dim">
+					{`${link.label} · ${link.reason}`}
+				</span>
+			);
+		}
+		default: {
+			return unhandled(link, "context link");
+		}
+	}
+}
+
+function caseCell(row: HistoryRow): React.JSX.Element {
+	return (
+		<span className="flex flex-col items-start gap-0.5">
+			{row.caseId === undefined ? (
+				<span className="text-sm text-dim">case not recorded</span>
+			) : (
+				<span className="font-mono text-sm">{row.caseId}</span>
+			)}
+			<span className="text-xs text-dim">{kindLine(row)}</span>
+			{row.links.length > 0 ? (
+				<span className="flex flex-wrap gap-x-3">
+					{row.links.map(contextLink)}
+				</span>
+			) : null}
+		</span>
 	);
 }
 
@@ -118,7 +249,25 @@ function statusLine(row: RunHistoryRow): React.JSX.Element {
 	);
 }
 
-function outcomeCell(row: RunHistoryRow): React.JSX.Element {
+function outcomeCell(row: HistoryRow): React.JSX.Element {
+	switch (row.kind) {
+		case "run": {
+			return runOutcomeCell(row);
+		}
+		case "session-attempt":
+		case "replay": {
+			return <span className="font-mono text-xs text-dim">{row.status}</span>;
+		}
+		case "group": {
+			return <span className="text-xs text-dim">per rep</span>;
+		}
+		default: {
+			return unhandled(row, "run history row");
+		}
+	}
+}
+
+function runOutcomeCell(row: RunHistoryRow): React.JSX.Element {
 	return (
 		<span className="flex flex-col gap-0.5">
 			<Status state={runStatusState(row.status)} />
@@ -209,11 +358,25 @@ function corpusCell(row: RunHistoryRow): React.JSX.Element {
 	);
 }
 
-function gradeCell(row: RunHistoryRow): React.JSX.Element {
-	const value: GradeValue =
-		row.grade === undefined ? { pending: true } : { letter: row.grade };
+function gradeCell(row: HistoryRow): React.JSX.Element {
+	switch (row.kind) {
+		case "run": {
+			const value: GradeValue =
+				row.grade === undefined ? { pending: true } : { letter: row.grade };
 
-	return <Grade value={value} size="inline" />;
+			return <Grade value={value} size="inline" />;
+		}
+		case "replay": {
+			return <Grade value={{ letter: row.grade }} size="inline" />;
+		}
+		case "session-attempt":
+		case "group": {
+			return <span />;
+		}
+		default: {
+			return unhandled(row, "run history row");
+		}
+	}
 }
 
 function filterLabel(filter: Filter, total: number | undefined): string {
@@ -262,11 +425,11 @@ export function RunHistoryPage(): React.JSX.Element {
 	});
 
 	const unreadable = query.data?.unreadable ?? [];
-	const recorded = pipelineRuns(query.data?.rows ?? []);
+	const recorded = query.data?.rows ?? [];
 	const rows = recorded.filter((row) => matchesFilter(row, filter));
-	const onlyUnreadableRuns = recorded.length === 0 && unreadable.length > 0;
+	const onlyUnreadableRecords = recorded.length === 0 && unreadable.length > 0;
 	const nowMs = useNow(
-		recorded.some((row) => row.progress.state === "running"),
+		pipelineRuns(recorded).some((row) => row.progress.state === "running"),
 	);
 
 	return (
@@ -297,9 +460,11 @@ export function RunHistoryPage(): React.JSX.Element {
 					</p>
 				) : null}
 
-				{unreadable.length > 0 ? <UnreadableRuns runs={unreadable} /> : null}
+				{unreadable.length > 0 ? (
+					<UnreadableRecords records={unreadable} />
+				) : null}
 
-				{query.isSuccess && rows.length === 0 && !onlyUnreadableRuns ? (
+				{query.isSuccess && rows.length === 0 && !onlyUnreadableRecords ? (
 					<EmptyState heading="No runs recorded">
 						<p>
 							The corpus is linked and a spend limit is set. Declare a case,
@@ -316,15 +481,13 @@ export function RunHistoryPage(): React.JSX.Element {
 							columns={[...COLUMNS]}
 							rows={rows.map((row) => [
 								<span key="run" className="font-mono text-sm">
-									{row.run}
+									{identityOf(row)}
 								</span>,
-								<span key="case" className="font-mono text-sm">
-									{row.caseId}
-								</span>,
+								<span key="case">{caseCell(row)}</span>,
 								outcomeCell(row),
-								progressCell(row, nowMs),
+								row.kind === "run" ? progressCell(row, nowMs) : <span />,
 								gradeCell(row),
-								corpusCell(row),
+								row.kind === "run" ? corpusCell(row) : <span />,
 							])}
 						/>
 						<p className="max-w-prose text-sm text-dim">

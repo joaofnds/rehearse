@@ -18,4 +18,16 @@ describe(Notice.name, () => {
 			within(screen.getByRole("alert")).getAllByRole("listitem"),
 		).toHaveLength(2);
 	});
+
+	it("carries further detail after the list, inside the alert", () => {
+		render(
+			<Notice message="Refused" items={["2 runs"]}>
+				<p>run:a: no manifest recorded</p>
+			</Notice>,
+		);
+
+		expect(screen.getByRole("alert")).toHaveTextContent(
+			"run:a: no manifest recorded",
+		);
+	});
 });

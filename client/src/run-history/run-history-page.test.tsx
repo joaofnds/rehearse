@@ -739,12 +739,39 @@ describe(RunHistoryPage.name, () => {
 			],
 		};
 
-		it("names every unreadable run by id and reason in an alert", async () => {
+		it("names them as records, counted by kind, whatever kinds they are", async () => {
+			respondingWith({
+				...unreadableReport,
+				unreadable: [
+					...unreadableReport.unreadable,
+					{ id: "group:g-1", reason: "incomplete: no group.json recorded" },
+					{ id: "group:g-2", reason: "incomplete: no group.json recorded" },
+					{
+						id: "attempt:session:smoke/0f6b",
+						reason: "incomplete: no attempt.json recorded",
+					},
+				],
+			});
+
+			renderPage();
+
+			const alert = await screen.findByRole("alert");
+
+			expect(alert).toHaveTextContent("These records could not be read");
+			expect(alert).not.toHaveTextContent("These runs");
+			expect(alert).toHaveTextContent("2 runs");
+			expect(alert).toHaveTextContent("2 confirmation runs");
+			expect(alert).toHaveTextContent("1 session attempt");
+			expect(alert).not.toHaveTextContent("group:g-1");
+		});
+
+		it("names every unreadable record by id and reason once the list is opened", async () => {
 			respondingWith(unreadableReport);
 
 			renderPage();
 
 			const alert = await screen.findByRole("alert");
+			fireEvent.click(within(alert).getByRole("button", { name: "show 2" }));
 
 			expect(alert).toHaveTextContent("run:2026-09-01T00-00-00.000Z");
 			expect(alert).toHaveTextContent("manifest.json is empty");
@@ -760,9 +787,7 @@ describe(RunHistoryPage.name, () => {
 			await screen.findByRole("alert");
 			fireEvent.click(screen.getByRole("button", { name: "Stopped" }));
 
-			expect(screen.getByRole("alert")).toHaveTextContent(
-				"run:2026-09-01T00-00-00.000Z",
-			);
+			expect(screen.getByRole("alert")).toHaveTextContent("2 runs");
 		});
 
 		it("shows the unreadable runs rather than the empty state when the report has no rows at all", async () => {
@@ -799,6 +824,208 @@ describe(RunHistoryPage.name, () => {
 			fireEvent.click(screen.getByRole("button", { name: "Stopped" }));
 
 			expect(screen.getByText("No runs recorded")).toBeInTheDocument();
+		});
+	});
+
+	describe("when the report lists every kind of saved record", () => {
+		const everyKind: RunHistoryResponseBody = {
+			rows: [
+				{
+					kind: "run",
+					run: "2026-09-06T21-58-29.508Z",
+					caseId: "audit-log",
+					status: "STOPPED:build",
+					stage: "shape",
+					grade: "B",
+					corpus: { digest: "a3a62f" },
+					stale: false,
+					staleCauses: [],
+					progress: { state: "recorded" },
+					links: [
+						{
+							state: "available",
+							label: "shape",
+							href: "/runs/2026-09-06T21-58-29.508Z/stages/shape",
+						},
+					],
+				},
+				{
+					kind: "run",
+					run: "2026-09-17T12-50-49.127Z",
+					caseId: undefined,
+					status: "FAILED",
+					stage: undefined,
+					grade: undefined,
+					corpus: undefined,
+					stale: false,
+					staleCauses: [],
+					progress: { state: "recorded" },
+					links: [
+						{
+							state: "unavailable",
+							label: "shape",
+							reason: "failed before saving its context",
+						},
+					],
+				},
+				{
+					kind: "replay",
+					lineage: "60758c",
+					timestamp: "2026-09-06T22-33-15.057Z",
+					caseId: "audit-log",
+					stage: "shape",
+					grade: "F",
+					status: "STOP",
+					links: [
+						{
+							state: "available",
+							label: "context",
+							href: "/replays/60758c/2026-09-06T22-33-15.057Z",
+						},
+					],
+				},
+				{
+					kind: "session-attempt",
+					caseId: "brief-reply",
+					uuid: "0f6b6f2a-0000-4000-8000-000000000001",
+					status: "UNSUCCESSFUL",
+					links: [
+						{
+							state: "available",
+							label: "context",
+							href: "/attempts/session/brief-reply/0f6b6f2a-0000-4000-8000-000000000001",
+						},
+					],
+				},
+				{
+					kind: "group",
+					groupId: "group-a",
+					caseId: "brief-reply",
+					mode: "session",
+					reps: 2,
+					links: [
+						{
+							state: "available",
+							label: "rep 1",
+							href: "/groups/group-a/reps/group-a-rep-1/attempt",
+						},
+						{
+							state: "unavailable",
+							label: "rep 2",
+							reason: "no attempt recorded for group-a-rep-2",
+						},
+					],
+				},
+			],
+			unreadable: [],
+		};
+
+		it("lists each record by its own identity, unlinked, with its outcome", async () => {
+			respondingWith(everyKind);
+
+			await renderPage().findByText("group-a");
+
+			for (const [identity, outcome] of [
+				["2026-09-17T12-50-49.127Z", "FAILED"],
+				["2026-09-06T22-33-15.057Z", "STOP"],
+				["0f6b6f2a-0000-4000-8000-000000000001", "UNSUCCESSFUL"],
+			] as const) {
+				expect(
+					within(cellOf(identity, "Run")).queryByRole("link"),
+				).not.toBeInTheDocument();
+				expect(cellOf(identity, "Outcome")).toHaveTextContent(outcome);
+			}
+		});
+
+		it("opens each available context from a link in the case cell, named by what it opens", async () => {
+			respondingWith(everyKind);
+
+			await renderPage().findByText("group-a");
+
+			for (const [identity, name, href] of [
+				[
+					"2026-09-06T21-58-29.508Z",
+					"shape",
+					"/runs/2026-09-06T21-58-29.508Z/stages/shape",
+				],
+				[
+					"2026-09-06T22-33-15.057Z",
+					"context",
+					"/replays/60758c/2026-09-06T22-33-15.057Z",
+				],
+				[
+					"0f6b6f2a-0000-4000-8000-000000000001",
+					"context",
+					"/attempts/session/brief-reply/0f6b6f2a-0000-4000-8000-000000000001",
+				],
+				["group-a", "rep 1", "/groups/group-a/reps/group-a-rep-1/attempt"],
+			] as const) {
+				expect(
+					within(cellOf(identity, "Case")).getByRole("link", { name }),
+				).toHaveAttribute("href", href);
+			}
+		});
+
+		it("names what cannot be opened and why, as text rather than a link", async () => {
+			respondingWith(everyKind);
+
+			await renderPage().findByText("group-a");
+
+			const failed = cellOf("2026-09-17T12-50-49.127Z", "Case");
+			expect(failed).toHaveTextContent("case not recorded");
+			expect(failed).toHaveTextContent(
+				"shape · failed before saving its context",
+			);
+			expect(within(failed).queryByRole("link")).not.toBeInTheDocument();
+			const group = cellOf("group-a", "Case");
+			expect(group).toHaveTextContent(
+				"rep 2 · no attempt recorded for group-a-rep-2",
+			);
+			expect(
+				within(group).queryByRole("link", { name: /rep 2/u }),
+			).not.toBeInTheDocument();
+		});
+
+		it("says a record's time is not recorded where its record holds none", async () => {
+			respondingWith(everyKind);
+
+			await renderPage().findByText("group-a");
+
+			expect(
+				cellOf("0f6b6f2a-0000-4000-8000-000000000001", "Case"),
+			).toHaveTextContent("time not recorded");
+			expect(cellOf("group-a", "Case")).toHaveTextContent("time not recorded");
+			expect(cellOf("2026-09-06T22-33-15.057Z", "Case")).not.toHaveTextContent(
+				"time not recorded",
+			);
+		});
+
+		it("counts every listed record on the All pill and the subline", async () => {
+			respondingWith(everyKind);
+
+			renderPage();
+
+			expect(
+				await screen.findByRole("button", { name: "All 5" }),
+			).toBeInTheDocument();
+			expect(screen.getByText(/^5 records on disk/u)).toBeInTheDocument();
+		});
+
+		it("keeps Stopped meaning a pipeline run with a stopped stage, so a STOP verdict does not match", async () => {
+			respondingWith(everyKind);
+			await renderPage().findByText("group-a");
+
+			fireEvent.click(screen.getByRole("button", { name: "Stopped" }));
+
+			expect(screen.getByText("2026-09-06T21-58-29.508Z")).toBeInTheDocument();
+			for (const identity of [
+				"2026-09-17T12-50-49.127Z",
+				"2026-09-06T22-33-15.057Z",
+				"0f6b6f2a-0000-4000-8000-000000000001",
+				"group-a",
+			]) {
+				expect(screen.queryByText(identity)).not.toBeInTheDocument();
+			}
 		});
 	});
 

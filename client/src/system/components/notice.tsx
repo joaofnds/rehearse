@@ -1,9 +1,13 @@
+import type { ReactNode } from "react";
+
 export function Notice({
 	message,
 	items,
+	children,
 }: {
 	readonly message: string;
 	readonly items: readonly string[];
+	readonly children?: ReactNode;
 }): React.JSX.Element {
 	return (
 		<div
@@ -19,6 +23,7 @@ export function Notice({
 					<li key={item}>{item}</li>
 				))}
 			</ul>
+			{children}
 		</div>
 	);
 }

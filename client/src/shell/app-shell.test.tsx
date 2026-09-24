@@ -51,6 +51,16 @@ function runRow(run: string): RunHistoryRow {
 	};
 }
 
+function sessionAttemptRow(uuid: string): RunHistoryRow {
+	return {
+		kind: "session-attempt",
+		caseId: "brief-reply",
+		uuid,
+		status: "UNSUCCESSFUL",
+		links: [],
+	};
+}
+
 function savedComparison(digest: string): SavedComparison {
 	return { digest, mode: "session", caseIds: ["audit-log"], reps: 2 };
 }
@@ -68,6 +78,7 @@ function renderShellAt(
 	path: string,
 	served?: {
 		readonly runs: number;
+		readonly sessionAttempts?: number;
 		readonly corpusFiles: number;
 		readonly comparisons?: number;
 		readonly unreadableComparisons?: number;
@@ -83,9 +94,15 @@ function renderShellAt(
 			[
 				"/api/runs",
 				{
-					rows: Array.from({ length: runs }, (_unused, index) =>
-						runRow(`2026-09-06T21-58-29.50${index}Z`),
-					),
+					rows: [
+						...Array.from({ length: runs }, (_unused, index) =>
+							runRow(`2026-09-06T21-58-29.50${index}Z`),
+						),
+						...Array.from(
+							{ length: served?.sessionAttempts ?? 0 },
+							(_unused, index) => sessionAttemptRow(`attempt-${index}`),
+						),
+					],
 					unreadable: [],
 				},
 			],
@@ -343,6 +360,16 @@ describe("the navigation shell", () => {
 			});
 		},
 	);
+
+	it("badges run history with every listed record, not only pipeline runs", async () => {
+		renderShellAt("/", { runs: 2, sessionAttempts: 3, corpusFiles: 0 });
+
+		await waitFor(() => {
+			expect(
+				screen.getByRole("link", { name: "Run history 5" }),
+			).toBeInTheDocument();
+		});
+	});
 
 	it("navigates between run history and corpus by click", async () => {
 		renderShellAt("/");
