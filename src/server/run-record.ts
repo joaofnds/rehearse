@@ -234,7 +234,7 @@ const artifactSpendSchema = z
 
 type ArtifactSpend = Immutable<z.infer<typeof artifactSpendSchema>>;
 
-const WALL_TIME: Reading<{ readonly ms: number }> = {
+const UNRECORDED_WALL_TIME: Reading<{ readonly ms: number }> = {
 	state: "unavailable",
 	reasons: [WALL_TIME_REASON],
 };
@@ -249,10 +249,10 @@ const failedJudgeArtifactSchema = z
 
 function usd(
 	amount: number | undefined,
-	missing: string,
+	reason: string,
 ): Reading<{ readonly usd: number }> {
 	if (amount === undefined) {
-		return { state: "unavailable", reasons: [missing] };
+		return { state: "unavailable", reasons: [reason] };
 	}
 
 	return { state: "available", usd: amount };
@@ -509,7 +509,7 @@ function stageRecord(
 						letter: file.grade.grade,
 						verdict: file.grade.verdict,
 					},
-		wallTime: WALL_TIME,
+		wallTime: UNRECORDED_WALL_TIME,
 		sessionCost: usd(
 			file?.input?.transcript?.costUsd,
 			unrecordedOr(file, "the stage record holds no session cost"),
@@ -629,7 +629,7 @@ function runTotals(
 						missing,
 					},
 		productOwnerCost,
-		wallTime: WALL_TIME,
+		wallTime: UNRECORDED_WALL_TIME,
 	};
 }
 
@@ -671,7 +671,7 @@ function runTokenParts(
 
 function stageWithStatus(
 	stages: readonly RecordedStage[],
-	status: string,
+	status: "STAGE_JUDGE_FAILED" | "AWAITING_STAGE_JUDGE",
 ): RecordedStage | undefined {
 	return stages.find(({ file }) => file?.status === status);
 }
