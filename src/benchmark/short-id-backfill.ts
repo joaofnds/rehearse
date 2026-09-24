@@ -2,6 +2,7 @@ import { unhandled } from "./contracts";
 import { z } from "zod";
 import { CaseDeclarationError, casesRoot, readCaseDeclaration } from "./case";
 import { parseConfirmationGroupRecord } from "./confirmation-record";
+import { textIfPresent } from "./file-presence";
 import { loadRunManifest } from "./manifest";
 import { parseRunSummaryRecord } from "./record-summary";
 import { readReplayRecord } from "./replay-record";
@@ -136,9 +137,7 @@ async function firstTranscriptTime(
 	transcriptFile: string,
 	prefixLines = 0,
 ): Promise<string | undefined> {
-	const text = await Bun.file(transcriptFile)
-		.text()
-		.catch(() => "");
+	const text = (await textIfPresent(transcriptFile)) ?? "";
 	for (const line of text.split("\n").slice(prefixLines)) {
 		let parsed: unknown;
 		try {

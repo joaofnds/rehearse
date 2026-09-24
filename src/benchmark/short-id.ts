@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { z } from "zod";
 import { isCaseId } from "./case";
 import { INITIAL_CHECKPOINT_STAGE } from "./checkpoint";
-import { pathExists } from "./file-presence";
+import { pathExists, readdirIfPresent, textIfPresent } from "./file-presence";
 import type { DatedRecord } from "./short-id-backfill";
 import { recordsOnDisk } from "./short-id-backfill";
 
@@ -246,9 +246,13 @@ async function readRegistryFile<Parsed>(
 	file: string,
 	schema: z.ZodType<Parsed>,
 ): Promise<Parsed | undefined> {
+	const text = await textIfPresent(file);
+	if (text === undefined) {
+		return undefined;
+	}
 	let contents: unknown;
 	try {
-		contents = JSON.parse(await Bun.file(file).text());
+		contents = JSON.parse(text);
 	} catch {
 		return undefined;
 	}
@@ -278,9 +282,8 @@ export async function readShortIds(
 	caseId: string,
 ): Promise<readonly ShortIdEntry[]> {
 	const directory = registryDirectory(runsDirectory, caseId);
-	const names = await readdir(join(directory, CLAIMS_DIRECTORY)).catch(
-		(): string[] => [],
-	);
+	const names =
+		(await readdirIfPresent(join(directory, CLAIMS_DIRECTORY))) ?? [];
 	const entries: ShortIdEntry[] = [];
 
 	for (const number of claimedNumbers(names)) {
@@ -306,9 +309,8 @@ export async function readShortIds(
 export async function readAllShortIds(
 	runsDirectory: string,
 ): Promise<readonly ShortIdEntry[]> {
-	const cases = await readdir(join(runsDirectory, REGISTRY_DIRECTORY)).catch(
-		(): string[] => [],
-	);
+	const cases =
+		(await readdirIfPresent(join(runsDirectory, REGISTRY_DIRECTORY))) ?? [];
 	const entries: ShortIdEntry[] = [];
 	for (const caseId of cases.filter((name) => isCaseId(name))) {
 		entries.push(...(await readShortIds(runsDirectory, caseId)));

@@ -1,5 +1,5 @@
 import type { Stats } from "node:fs";
-import { lstat, stat } from "node:fs/promises";
+import { lstat, readdir, stat } from "node:fs/promises";
 
 /**
  * Only a missing path may read as absent; any other failure (EACCES, EIO) must
@@ -29,6 +29,34 @@ export async function statIfExists(path: string): Promise<Stats | undefined> {
 export async function lstatIfPresent(path: string): Promise<Stats | undefined> {
 	try {
 		return await lstat(path);
+	} catch (error) {
+		if (error instanceof Error && "code" in error && error.code === "ENOENT") {
+			return undefined;
+		}
+
+		throw error;
+	}
+}
+
+/** The same rule as `statIfExists`, for a directory's entry names. */
+export async function readdirIfPresent(
+	path: string,
+): Promise<string[] | undefined> {
+	try {
+		return await readdir(path);
+	} catch (error) {
+		if (error instanceof Error && "code" in error && error.code === "ENOENT") {
+			return undefined;
+		}
+
+		throw error;
+	}
+}
+
+/** The same rule as `statIfExists`, for a file's text. */
+export async function textIfPresent(path: string): Promise<string | undefined> {
+	try {
+		return await Bun.file(path).text();
 	} catch (error) {
 		if (error instanceof Error && "code" in error && error.code === "ENOENT") {
 			return undefined;

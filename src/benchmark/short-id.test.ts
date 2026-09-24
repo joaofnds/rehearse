@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { failureOf } from "#cli/cli-test-support";
@@ -178,6 +178,25 @@ describe("when a claim is asked for in a case id that names a path", () => {
 
 		expect(failure.message).toContain("not a case id");
 		expect(await readdir(runsDirectory)).toEqual([]);
+	});
+});
+
+describe("when a case's registry cannot be read", () => {
+	it("says so rather than reading it as empty", async () => {
+		await claimShortId(runsDirectory, CASE_ID, {
+			kind: "run",
+			run: "2026-09-24T00-00-00.000Z",
+		});
+		const claims = join(runsDirectory, "short-ids", CASE_ID, "claims");
+		await chmod(claims, 0o000);
+
+		try {
+			const failure = await failureOf(readShortIds(runsDirectory, CASE_ID));
+
+			expect(failure.message).toContain("EACCES");
+		} finally {
+			await chmod(claims, 0o755);
+		}
 	});
 });
 
