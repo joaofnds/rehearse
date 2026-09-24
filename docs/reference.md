@@ -734,7 +734,12 @@ manifest is numbered even when `list runs` shows it as `no record`.
 short id, or `-` for a record its case's registry does not name; cases and
 comparisons have no short id column. `list` only reads registries, so a case no command has
 claimed in since short ids arrived prints `-` throughout. `stale` prints a
-checkpoint's short id the same way. Empty history is valid on a fresh clone. A malformed record is reported
+checkpoint's short id the same way. The server's `/api/runs` rows carry the
+same numbers: each row's `shortId`, a run's `checkpoints` with their short ids,
+a replay's `checkpointShortId` and `attempt` (its position and count at that
+checkpoint), and a group's `repAttempts`. The run history screen and the stage,
+replay, session attempt and rep pages name records by those short ids with the
+Record ID beneath, and every page URL stays the Record ID form. Empty history is valid on a fresh clone. A malformed record is reported
 without hiding readable neighbors. Stopped runs are visible through the same
 commands as completed runs. `list attempts` validates attempt diagnostics, and
 `show attempt:session:<case>/<uuid> --json` exposes the recorded projection. An
