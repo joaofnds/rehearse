@@ -5,8 +5,8 @@
  * figures the test does not read.
  */
 export const UNREAD_RUN_FIGURES = {
-	stepGrades: { state: "unavailable", reasons: ["not read by this test"] },
-	taskGrade: { state: "unavailable", reasons: ["not read by this test"] },
+	stageGrades: { state: "unavailable", reasons: ["not read by this test"] },
+	finalOutcome: { state: "unavailable", reasons: ["not read by this test"] },
 	cost: { state: "unavailable", reasons: ["not read by this test"] },
 	wallTime: { state: "unavailable", reasons: ["not read by this test"] },
 } as const;
@@ -14,7 +14,7 @@ export const UNREAD_RUN_FIGURES = {
 /** A replay row's figures, for a test whose subject is another column. */
 export const UNREAD_REPLAY_FIGURES = {
 	cost: { state: "unavailable", reasons: ["not read by this test"] },
-	taskGrade: {
+	finalOutcome: {
 		state: "available",
 		status: "NOT_APPLICABLE",
 		reason: "not read by this test",

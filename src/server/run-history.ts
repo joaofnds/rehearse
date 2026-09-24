@@ -86,15 +86,17 @@ export interface PipelineRunRow {
 	readonly staleCauses: readonly string[];
 	readonly progress: RunProgress;
 	readonly links: readonly ContextLink[];
-	readonly stepGrades: Reading<{ readonly grades: readonly StepGrade[] }>;
+	readonly stageGrades: Reading<{
+		readonly grades: readonly ListedStageGrade[];
+	}>;
 	/** The final judge's outcome, the design's task grade, with its note. */
-	readonly taskGrade: Reading<FinalOutcome>;
+	readonly finalOutcome: Reading<FinalOutcome>;
 	readonly cost: CostReading;
 	readonly wallTime: WallTimeReading;
 }
 
 export const NOT_RUN_REASON = "the run never reached this stage";
-export const REPLAY_TASK_GRADE_REASON =
+export const REPLAY_FINAL_OUTCOME_REASON =
 	"a replay runs one stage, and only a whole run reaches the final judge";
 export const REPLAY_WALL_TIME_REASON =
 	"the replay record predates its elapsed time";
@@ -105,7 +107,7 @@ export const NO_MANIFEST_REASON =
 	"the run wrote no manifest, which names its stages";
 
 /** A stage's grade as the run's step grades column shows it. */
-export interface StepGrade {
+export interface ListedStageGrade {
 	readonly stage: string;
 	readonly status: RunRecordStage["status"] | "not-run";
 	readonly grade: RunRecordStage["grade"];
@@ -116,7 +118,7 @@ export interface StepGrade {
  * stage the run ended or is running in. A run that finished reached every
  * stage, and a stage before the one it ended in ran and left no record.
  */
-function stepGrades(record: RunRecord): readonly StepGrade[] {
+function stageGrades(record: RunRecord): readonly ListedStageGrade[] {
 	const { finalOutcome } = record;
 	const reachedIndex =
 		finalOutcome.status === "NOT_REACHED" || finalOutcome.status === "PENDING"
@@ -165,7 +167,7 @@ export interface ReplayRow {
 	readonly status: ReplayRecord["scorecard"]["grade"]["verdict"];
 	readonly links: readonly ContextLink[];
 	readonly cost: CostReading;
-	readonly taskGrade: NotApplicable;
+	readonly finalOutcome: NotApplicable;
 	readonly wallTime: WallTimeReading;
 }
 
@@ -282,8 +284,8 @@ async function checkpointShortIds(
 }
 
 interface RunFigures {
-	readonly stepGrades: PipelineRunRow["stepGrades"];
-	readonly taskGrade: PipelineRunRow["taskGrade"];
+	readonly stageGrades: PipelineRunRow["stageGrades"];
+	readonly finalOutcome: PipelineRunRow["finalOutcome"];
 	readonly cost: PipelineRunRow["cost"];
 	readonly wallTime: PipelineRunRow["wallTime"];
 }
@@ -307,11 +309,11 @@ async function runFigures(
 		const record = await readRunRecord(runsDirectory, run, liveness);
 
 		return {
-			stepGrades: {
+			stageGrades: {
 				state: "available",
-				grades: stepGrades(record),
+				grades: stageGrades(record),
 			},
-			taskGrade: { state: "available", ...record.finalOutcome },
+			finalOutcome: { state: "available", ...record.finalOutcome },
 			cost: record.totals.cost,
 			wallTime: record.totals.wallTime,
 		};
@@ -324,8 +326,8 @@ async function runFigures(
 
 function unavailableFigures(reasons: readonly string[]): RunFigures {
 	return {
-		stepGrades: { state: "unavailable", reasons },
-		taskGrade: { state: "unavailable", reasons },
+		stageGrades: { state: "unavailable", reasons },
+		finalOutcome: { state: "unavailable", reasons },
 		cost: { state: "unavailable", reasons },
 		wallTime: { state: "unavailable", reasons },
 	};
@@ -478,10 +480,10 @@ async function replayRow(
 		status: record.scorecard.grade.verdict,
 		links: [replayLink(attempt, record.consumed.lineage, caseId)],
 		cost: replayCost(record),
-		taskGrade: {
+		finalOutcome: {
 			state: "available",
 			status: "NOT_APPLICABLE",
-			reason: REPLAY_TASK_GRADE_REASON,
+			reason: REPLAY_FINAL_OUTCOME_REASON,
 		},
 		wallTime: wallTime(record.elapsedMs, REPLAY_WALL_TIME_REASON),
 	};

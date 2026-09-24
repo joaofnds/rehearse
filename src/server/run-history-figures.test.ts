@@ -23,7 +23,7 @@ import {
 	GROUP_COST_REASON,
 	NO_MANIFEST_REASON,
 	NOT_RUN_REASON,
-	REPLAY_TASK_GRADE_REASON,
+	REPLAY_FINAL_OUTCOME_REASON,
 	REPLAY_WALL_TIME_REASON,
 	SESSION_COST_REASON,
 } from "./run-history";
@@ -83,35 +83,35 @@ async function reconciledAsInterrupted(
 	store.close();
 }
 
-interface TaskGradeCase {
+interface FinalOutcomeCase {
 	readonly outcome: string;
 	readonly write: (fixture: RecordedRunsFixture) => Promise<void>;
 	readonly run: (fixture: RecordedRunsFixture) => string;
 	readonly liveness: RunLiveness;
-	readonly taskGrade: Record<string, string>;
+	readonly finalOutcome: Record<string, string>;
 }
 
-const TASK_GRADES: readonly TaskGradeCase[] = [
+const FINAL_OUTCOMES: readonly FinalOutcomeCase[] = [
 	{
 		outcome: "the final judge's PASS",
 		write: (fixture) => fixture.writePipelineRun(FINISHED_RUN, "audit-log"),
 		run: () => FINISHED_RUN,
 		liveness: nothingRunning,
-		taskGrade: { state: "available", status: "JUDGED", verdict: "PASS" },
+		finalOutcome: { state: "available", status: "JUDGED", verdict: "PASS" },
 	},
 	{
 		outcome: "the final judge's FAIL",
 		write: (fixture) => fixture.writeFailedVerdictRun(FINISHED_RUN),
 		run: () => FINISHED_RUN,
 		liveness: nothingRunning,
-		taskGrade: { state: "available", status: "JUDGED", verdict: "FAIL" },
+		finalOutcome: { state: "available", status: "JUDGED", verdict: "FAIL" },
 	},
 	{
 		outcome: "judging failed with its reason",
 		write: (fixture) => fixture.writeFinalJudgeFailedRun(FINISHED_RUN),
 		run: () => FINISHED_RUN,
 		liveness: nothingRunning,
-		taskGrade: {
+		finalOutcome: {
 			state: "available",
 			status: "JUDGING_FAILED",
 			reason: FINAL_JUDGE_FAILURE,
@@ -122,14 +122,14 @@ const TASK_GRADES: readonly TaskGradeCase[] = [
 		write: (fixture) => fixture.writeRunningRun(),
 		run: (fixture) => fixture.runningRun,
 		liveness: liveRun,
-		taskGrade: { state: "available", status: "PENDING", stage: "build" },
+		finalOutcome: { state: "available", status: "PENDING", stage: "build" },
 	},
 	{
 		outcome: "not gradable at the stage a stopped run ended in",
 		write: (fixture) => fixture.writeStoppedRun(),
 		run: (fixture) => fixture.stoppedRun,
 		liveness: nothingRunning,
-		taskGrade: {
+		finalOutcome: {
 			state: "available",
 			status: "NOT_REACHED",
 			stage: "build",
@@ -141,7 +141,7 @@ const TASK_GRADES: readonly TaskGradeCase[] = [
 		write: (fixture) => fixture.writeInterruptedRun(),
 		run: (fixture) => fixture.interruptedRun,
 		liveness: nothingRunning,
-		taskGrade: {
+		finalOutcome: {
 			state: "available",
 			status: "NOT_REACHED",
 			stage: "build",
@@ -153,7 +153,7 @@ const TASK_GRADES: readonly TaskGradeCase[] = [
 		write: (fixture) => fixture.writeSignalAbortedRun(),
 		run: (fixture) => fixture.abortedRun,
 		liveness: nothingRunning,
-		taskGrade: {
+		finalOutcome: {
 			state: "available",
 			status: "NOT_REACHED",
 			stage: "build",
@@ -168,7 +168,7 @@ const TASK_GRADES: readonly TaskGradeCase[] = [
 		},
 		run: (fixture) => fixture.awaitingJudgeRun,
 		liveness: nothingRunning,
-		taskGrade: {
+		finalOutcome: {
 			state: "available",
 			status: "NOT_REACHED",
 			stage: "build",
@@ -229,14 +229,14 @@ describe("/api/runs", () => {
 
 	describe("GET", () => {
 		describe("a pipeline run row", () => {
-			it("carries one step grade per stage in pipeline order, marking a stopped stage's grade as not recorded", async () => {
+			it("carries one stage grade per stage in pipeline order, marking a stopped stage's grade as not recorded", async () => {
 				const fixture = await emptyFixture();
 				await fixture.writeStoppedRun();
 
 				const row = await runRow(fixture, fixture.stoppedRun);
 
 				expect(row).toMatchObject({
-					stepGrades: {
+					stageGrades: {
 						state: "available",
 						grades: [
 							{
@@ -264,7 +264,7 @@ describe("/api/runs", () => {
 				const row = await runRow(fixture, fixture.runningRun, liveRun);
 
 				expect(row).toMatchObject({
-					stepGrades: {
+					stageGrades: {
 						state: "available",
 						grades: [
 							{ stage: "discuss", status: "no-record" },
@@ -289,8 +289,8 @@ describe("/api/runs", () => {
 				const row = await runRow(fixture, fixture.stoppedRun);
 
 				expect(row).toMatchObject({
-					stepGrades: { state: "available" },
-					taskGrade: { state: "available", status: "NOT_REACHED" },
+					stageGrades: { state: "available" },
+					finalOutcome: { state: "available", status: "NOT_REACHED" },
 				});
 			});
 
@@ -302,7 +302,7 @@ describe("/api/runs", () => {
 				const row = await runRow(fixture, fixture.runningRun);
 
 				expect(row).toMatchObject({
-					stepGrades: {
+					stageGrades: {
 						state: "available",
 						grades: [
 							{ stage: "discuss", status: "no-record" },
@@ -319,7 +319,7 @@ describe("/api/runs", () => {
 				const row = await runRow(fixture, fixture.interruptedRun);
 
 				expect(row).toMatchObject({
-					stepGrades: {
+					stageGrades: {
 						state: "available",
 						grades: [
 							{ stage: "discuss", status: "no-record" },
@@ -336,7 +336,7 @@ describe("/api/runs", () => {
 				const row = await runRow(fixture, fixture.replayableRun);
 
 				expect(row).toMatchObject({
-					stepGrades: {
+					stageGrades: {
 						state: "available",
 						grades: [
 							{ stage: "discuss", status: "no-record" },
@@ -346,15 +346,15 @@ describe("/api/runs", () => {
 				});
 			});
 
-			it.each(TASK_GRADES.map((row) => [row.outcome, row]))(
-				"carries the task grade as %s",
-				async (_outcome, { write, run, liveness, taskGrade }) => {
+			it.each(FINAL_OUTCOMES.map((row) => [row.outcome, row]))(
+				"carries the final outcome as %s",
+				async (_outcome, { write, run, liveness, finalOutcome }) => {
 					const fixture = await emptyFixture();
 					await write(fixture);
 
 					const row = await runRow(fixture, run(fixture), liveness);
 
-					expect(row).toMatchObject({ taskGrade });
+					expect(row).toMatchObject({ finalOutcome });
 				},
 			);
 
@@ -418,8 +418,14 @@ describe("/api/runs", () => {
 						 * Each expectation is its own object: Bun 1.4.0's toMatchObject
 						 * passes a mismatch where one expected object is reused.
 						 */
-						stepGrades: { state: "unavailable", reasons: [NO_MANIFEST_REASON] },
-						taskGrade: { state: "unavailable", reasons: [NO_MANIFEST_REASON] },
+						stageGrades: {
+							state: "unavailable",
+							reasons: [NO_MANIFEST_REASON],
+						},
+						finalOutcome: {
+							state: "unavailable",
+							reasons: [NO_MANIFEST_REASON],
+						},
 						cost: { state: "unavailable", reasons: [NO_MANIFEST_REASON] },
 						wallTime: { state: "unavailable", reasons: [NO_MANIFEST_REASON] },
 					});
@@ -442,8 +448,8 @@ describe("/api/runs", () => {
 
 					expect(row).toMatchObject({
 						status: "STOPPED:build",
-						stepGrades: { state: "unavailable" },
-						taskGrade: { state: "unavailable" },
+						stageGrades: { state: "unavailable" },
+						finalOutcome: { state: "unavailable" },
 						cost: { state: "unavailable" },
 						wallTime: { state: "unavailable" },
 					});
@@ -483,14 +489,14 @@ describe("/api/runs", () => {
 				});
 			});
 
-			it("carries a task grade of not applicable with its reason", async () => {
+			it("carries a final outcome of not applicable with its reason", async () => {
 				const row = await replayRow();
 
 				expect(row).toMatchObject({
-					taskGrade: {
+					finalOutcome: {
 						state: "available",
 						status: "NOT_APPLICABLE",
-						reason: REPLAY_TASK_GRADE_REASON,
+						reason: REPLAY_FINAL_OUTCOME_REASON,
 					},
 				});
 			});
