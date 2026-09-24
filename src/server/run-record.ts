@@ -1,9 +1,15 @@
 import { z } from "zod";
+import {
+	INITIAL_CHECKPOINT_STAGE,
+	readCheckpointRecord,
+} from "#benchmark/checkpoint";
+import type { CheckpointRecord } from "#benchmark/checkpoint";
 import { claudeCallMetricsSchema } from "#benchmark/contracts";
 import type { ClaudeCallMetrics, Immutable } from "#benchmark/contracts";
 import { loadRunManifest } from "#benchmark/manifest";
 import {
 	benchmarkRunPaths,
+	checkpointRecordFile,
 	runEventsDatabaseFile,
 } from "#benchmark/run-layout";
 import type { BenchmarkRunPaths } from "#benchmark/run-layout";
@@ -55,6 +61,27 @@ export interface RunRecordStage {
 	readonly sessionCost: Reading<{ readonly usd: number }>;
 	readonly judgeCost: Reading<{ readonly usd: number }>;
 	readonly tokens: TokenReading;
+	/** Whether the stage saved a checkpoint; a stopped stage never does. */
+	readonly checkpoint: "recorded" | "missing";
+	/** The corpus files the stage ran under, from its checkpoint or record. */
+	readonly instructionFiles: readonly string[];
+	readonly artifactsOut: ArtifactsOut;
+}
+
+export interface WorkflowStateChange {
+	readonly path: string;
+	readonly change: "added" | "modified" | "removed";
+}
+
+export interface ArtifactsOut {
+	/** The artifact the stage declares, as its checkpoint recorded it. */
+	readonly declared: readonly string[];
+	/** Workflow-state files the stage changed against its upstream checkpoint. */
+	readonly workflowState: Reading<{
+		readonly changes: readonly WorkflowStateChange[];
+	}>;
+	readonly commitSubjects: Reading<{ readonly subjects: readonly string[] }>;
+	readonly changedPaths: Reading<{ readonly paths: readonly string[] }>;
 }
 
 /**
@@ -90,8 +117,11 @@ const stageFileSchema = z
 		status: z.string().optional(),
 		costUsd: z.number().optional(),
 		attempts: callsSchema.optional(),
+		corpusFiles: z.array(z.object({ path: z.string() }).loose()).optional(),
 		input: z
 			.object({
+				commitSubjects: z.array(z.string()).optional(),
+				changedPaths: z.array(z.string()).optional(),
 				transcript: z
 					.object({
 						costUsd: z.number().optional(),
@@ -113,7 +143,11 @@ type StageFile = Immutable<z.infer<typeof stageFileSchema>>;
 interface RecordedStage {
 	readonly stage: string;
 	readonly file: StageFile | undefined;
+	readonly checkpoint: CheckpointRecord | undefined;
 }
+
+/** A run's checkpoints, the initial one included, by lineage. */
+type CheckpointsByLineage = ReadonlyMap<string, CheckpointRecord>;
 
 const gradedArtifactSchema = z
 	.object({ grade: z.object({ verdict: z.enum(["PASS", "FAIL"]) }).loose() })
@@ -258,8 +292,55 @@ function total(
 	return metrics.reduce((sum, call) => sum + call[field], 0);
 }
 
-function stageRecord(recorded: RecordedStage): RunRecordStage {
-	const { file } = recorded;
+function workflowStateChanges(
+	checkpoint: CheckpointRecord | undefined,
+	checkpoints: CheckpointsByLineage,
+): ArtifactsOut["workflowState"] {
+	if (checkpoint === undefined) {
+		return {
+			state: "unavailable",
+			reasons: ["the stage saved no checkpoint to compare"],
+		};
+	}
+	const upstream = checkpoints.get(checkpoint.upstream);
+	if (upstream === undefined) {
+		return {
+			state: "unavailable",
+			reasons: ["the run holds no checkpoint the stage continued from"],
+		};
+	}
+
+	const before = new Map(
+		upstream.workflowState.map(({ path, sha256 }) => [path, sha256]),
+	);
+	const after = new Map(
+		checkpoint.workflowState.map(({ path, sha256 }) => [path, sha256]),
+	);
+	const changes: WorkflowStateChange[] = [];
+	for (const [path, sha256] of after) {
+		const earlier = before.get(path);
+		if (earlier === undefined) {
+			changes.push({ path, change: "added" });
+		} else if (earlier !== sha256) {
+			changes.push({ path, change: "modified" });
+		}
+	}
+	for (const path of before.keys()) {
+		if (!after.has(path)) {
+			changes.push({ path, change: "removed" });
+		}
+	}
+
+	return { state: "available", changes };
+}
+
+function stageRecord(
+	recorded: RecordedStage,
+	checkpoints: CheckpointsByLineage,
+): RunRecordStage {
+	const { file, checkpoint } = recorded;
+	const commitSubjects = file?.input?.commitSubjects;
+	const changedPaths = file?.input?.changedPaths;
 
 	return {
 		stage: recorded.stage,
@@ -269,7 +350,41 @@ function stageRecord(recorded: RecordedStage): RunRecordStage {
 		),
 		judgeCost: usd(file?.costUsd, "the stage record holds no judge cost"),
 		tokens: tokenReading(stageTokenParts(recorded)),
+		checkpoint: checkpoint === undefined ? "missing" : "recorded",
+		instructionFiles: (checkpoint?.corpusFiles ?? file?.corpusFiles ?? []).map(
+			({ path }) => path,
+		),
+		artifactsOut: {
+			declared: (checkpoint?.artifacts ?? []).map(({ path }) => path),
+			workflowState: workflowStateChanges(checkpoint, checkpoints),
+			commitSubjects:
+				commitSubjects === undefined
+					? {
+							state: "unavailable",
+							reasons: ["the stage record holds no commit subjects"],
+						}
+					: { state: "available", subjects: commitSubjects },
+			changedPaths:
+				changedPaths === undefined
+					? {
+							state: "unavailable",
+							reasons: ["the stage record holds no changed paths"],
+						}
+					: { state: "available", paths: changedPaths },
+		},
 	};
+}
+
+async function readCheckpoint(
+	paths: BenchmarkRunPaths,
+	stage: string,
+): Promise<CheckpointRecord | undefined> {
+	const directory = paths.checkpointDirectory(stage);
+	if (!(await Bun.file(checkpointRecordFile(directory)).exists())) {
+		return undefined;
+	}
+
+	return readCheckpointRecord(directory);
 }
 
 /**
@@ -395,8 +510,18 @@ export async function readRunRecord(
 	const manifest = await loadRunManifest(paths.manifestFile);
 	const stages: RecordedStage[] = [];
 	for (const { name } of manifest.pipeline.stages) {
-		stages.push({ stage: name, file: await readStageFile(paths, name) });
+		stages.push({
+			stage: name,
+			file: await readStageFile(paths, name),
+			checkpoint: await readCheckpoint(paths, name),
+		});
 	}
+	const initial = await readCheckpoint(paths, INITIAL_CHECKPOINT_STAGE);
+	const checkpoints = new Map(
+		[initial, ...stages.map(({ checkpoint }) => checkpoint)]
+			.filter((checkpoint) => checkpoint !== undefined)
+			.map((checkpoint) => [checkpoint.lineage, checkpoint]),
+	);
 
 	const runEvents = await openRunEventStore(
 		runEventsDatabaseFile(runsDirectory),
@@ -404,7 +529,7 @@ export async function readRunRecord(
 	try {
 		return {
 			run,
-			stages: stages.map((stage) => stageRecord(stage)),
+			stages: stages.map((stage) => stageRecord(stage, checkpoints)),
 			totals: {
 				tokens: tokenReading([
 					...stages.flatMap((stage) => stageTokenParts(stage)),
