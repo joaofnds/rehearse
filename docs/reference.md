@@ -774,7 +774,8 @@ from a rate catalog; any other basis stays reported spend.
 manifest, each stage's record, its checkpoints and its main artifact, into one
 record, implemented in [run-record.ts](../src/server/run-record.ts). It answers
 400 for any run name it refuses, such as one outside the runs directory, and
-404 for a run with no manifest.
+404 for a run with no manifest. One stage record that does not parse fails the
+whole response with 500.
 
 The record names the run by its directory name and its short id, and carries
 its case id and its status as the run history reports it. The minimum grade is
@@ -812,10 +813,10 @@ that cost as unavailable and the run cost names it as missing.
 `finalOutcome` is the final judge's recorded result: `JUDGED` with its PASS or
 FAIL verdict, `JUDGING_FAILED` with the failure the main artifact records,
 `PENDING` with the running stage while the run is live, or `NOT_REACHED` with
-the stage and reason the run ended on. That reason comes from the stop record,
-the run's interrupted or failed event, or a stage left awaiting judgment once
-the run is no longer live, in that order, and a run that recorded none of those
-says so. The final judge returns no letter, so none is served.
+the reason the run ended and, where a record names one, the stage it ended in.
+That reason comes from the stop record, the run's interrupted or failed event,
+or a stage left awaiting judgment once the run is no longer live, in that
+order, and a run that recorded none of those says so. The final judge returns no letter, so none is served.
 
 ### Saved session context history
 
