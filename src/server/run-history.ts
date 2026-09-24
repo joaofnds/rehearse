@@ -1,6 +1,7 @@
 import { unhandled } from "#benchmark/contracts";
 import { readCheckpointRecord } from "#benchmark/checkpoint";
 import { parseConfirmationGroupRecord } from "#benchmark/confirmation-record";
+import type { ConfirmationMode } from "#benchmark/confirmation-record";
 import type { CorpusRoot } from "#benchmark/corpus-file";
 import { loadRunManifest } from "#benchmark/manifest";
 import type {
@@ -31,7 +32,9 @@ import {
 } from "#benchmark/run-events";
 import { parseRunSummaryRecord } from "#benchmark/record-summary";
 import { readReplayRecord } from "#benchmark/replay";
+import type { ReplayRecord } from "#benchmark/replay";
 import { parseSessionAttemptRecord } from "#benchmark/session-record";
+import type { SessionAttemptRecord } from "#benchmark/session-record";
 import { formatRecordId } from "#cli/record-id";
 import {
 	awaitingJudgeStageRecordSchema,
@@ -129,7 +132,7 @@ export interface SessionAttemptRow {
 	readonly kind: "session-attempt";
 	readonly caseId: string;
 	readonly uuid: string;
-	readonly status: string;
+	readonly status: SessionAttemptRecord["outcome"];
 	readonly links: readonly ContextLink[];
 }
 
@@ -146,7 +149,7 @@ export interface ReplayRow {
 	readonly caseId: string | undefined;
 	readonly stage: string;
 	readonly grade: string;
-	readonly status: string;
+	readonly status: ReplayRecord["scorecard"]["grade"]["verdict"];
 	readonly links: readonly ContextLink[];
 }
 
@@ -158,7 +161,7 @@ export interface ConfirmationGroupRow {
 	readonly kind: "group";
 	readonly groupId: string;
 	readonly caseId: string;
-	readonly mode: string;
+	readonly mode: ConfirmationMode;
 	readonly reps: number;
 	readonly links: readonly ContextLink[];
 }
@@ -581,19 +584,37 @@ async function replayRow(
 		stage: record.stage,
 		grade: record.scorecard.grade.grade,
 		status: record.scorecard.grade.verdict,
-		links: [
-			record.consumed.lineage === attempt.lineage
-				? {
-						state: "available",
-						label: "context",
-						href: `/replays/${encodeURIComponent(attempt.lineage)}/${encodeURIComponent(attempt.timestamp)}`,
-					}
-				: {
-						state: "unavailable",
-						label: "context",
-						reason: "filed under a lineage it did not consume",
-					},
-		],
+		links: [replayLink(attempt, record.consumed.lineage, caseId)],
+	};
+}
+
+/**
+ * The replay page reads the source run's manifest, so a replay whose source
+ * manifest is gone has no page that renders.
+ */
+function replayLink(
+	attempt: StageAttemptId,
+	consumedLineage: string,
+	caseId: string | undefined,
+): ContextLink {
+	if (consumedLineage !== attempt.lineage) {
+		return {
+			state: "unavailable",
+			label: "context",
+			reason: "filed under a lineage it did not consume",
+		};
+	}
+	if (caseId === undefined) {
+		return {
+			state: "unavailable",
+			label: "context",
+			reason: "source run manifest not recorded",
+		};
+	}
+	return {
+		state: "available",
+		label: "context",
+		href: `/replays/${encodeURIComponent(attempt.lineage)}/${encodeURIComponent(attempt.timestamp)}`,
 	};
 }
 
@@ -605,7 +626,7 @@ async function replayRow(
 async function repLink(
 	runsDirectory: string,
 	groupId: string,
-	mode: string,
+	mode: ConfirmationMode,
 	reference: { readonly repId: string; readonly ordinal: number },
 ): Promise<ContextLink> {
 	const label = `rep ${String(reference.ordinal)}`;
@@ -613,7 +634,7 @@ async function repLink(
 		return {
 			state: "unavailable",
 			label,
-			reason: "a stage group has no session context",
+			reason: `a ${mode} group has no session context`,
 		};
 	}
 

@@ -21,7 +21,11 @@ import {
 import type { RecordedRunsOptions } from "#benchmark/run-records-test-support";
 import type { RunLiveness } from "#benchmark/run-liveness";
 import { openRunEventStore } from "#benchmark/run-events";
-import { runEventsDatabaseFile } from "#benchmark/run-layout";
+import {
+	benchmarkRunPaths,
+	confirmationGroupPaths,
+	runEventsDatabaseFile,
+} from "#benchmark/run-layout";
 import type { ContextLink, PipelineRunRow, RunHistoryRow } from "./run-history";
 import { runHistoryReport } from "./run-history";
 
@@ -873,6 +877,30 @@ describe(runHistoryReport.name, () => {
 				],
 			});
 		});
+		it("names its context unavailable when its source run's manifest is gone", async () => {
+			const fixture = await writtenFixture();
+			await rm(
+				benchmarkRunPaths(fixture.runsDirectory, fixture.replayableRun)
+					.manifestFile,
+			);
+
+			const { rows } = await runHistoryReport(
+				fixture.runsDirectory,
+				directorySource(await corpusDirectory("build skill\n")),
+				nothingRunning,
+			);
+
+			expect(rows.find((row) => row.kind === "replay")).toMatchObject({
+				caseId: undefined,
+				links: [
+					{
+						state: "unavailable",
+						label: "context",
+						reason: "source run manifest not recorded",
+					},
+				],
+			});
+		});
 	});
 
 	describe("when the runs directory holds confirmation groups", () => {
@@ -934,6 +962,45 @@ describe(runHistoryReport.name, () => {
 						state: "unavailable",
 						label: "rep 2",
 						reason: "a stage group has no session context",
+					},
+				],
+			});
+		});
+
+		it("names the mode of a pipeline group whose reps have no session context", async () => {
+			const fixture = await writtenFixture();
+			const { groupFile } = confirmationGroupPaths(
+				fixture.runsDirectory,
+				fixture.groupId,
+			);
+			const stageGroup = await Bun.file(groupFile).text();
+			await Bun.write(
+				groupFile,
+				stageGroup.replace(/"mode":\s*"stage"/u, '"mode": "pipeline"'),
+			);
+
+			const { rows } = await runHistoryReport(
+				fixture.runsDirectory,
+				directorySource(await corpusDirectory("build skill\n")),
+				nothingRunning,
+			);
+
+			expect(
+				rows.find(
+					(row) => row.kind === "group" && row.groupId === fixture.groupId,
+				),
+			).toMatchObject({
+				mode: "pipeline",
+				links: [
+					{
+						state: "unavailable",
+						label: "rep 1",
+						reason: "a pipeline group has no session context",
+					},
+					{
+						state: "unavailable",
+						label: "rep 2",
+						reason: "a pipeline group has no session context",
 					},
 				],
 			});
