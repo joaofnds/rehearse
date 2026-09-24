@@ -616,12 +616,10 @@ function stageCostParts(
  * unavailable when no part was recorded rather than a sum of zero.
  */
 export function costReading(
-	summed: readonly (CostPart | MissingPart)[],
+	spend: readonly (CostPart | MissingPart)[],
 ): CostReading {
-	const parts = summed.filter((part): part is CostPart => "usd" in part);
-	const missing = summed.filter(
-		(part): part is MissingPart => "reason" in part,
-	);
+	const parts = spend.filter((part): part is CostPart => "usd" in part);
+	const missing = spend.filter((part): part is MissingPart => "reason" in part);
 	if (parts.length === 0) {
 		return {
 			state: "unavailable",

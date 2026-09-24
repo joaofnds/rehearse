@@ -134,7 +134,7 @@ export function finalOutcomeTally(
 function preflightCost(
 	record: Immutable<ParsedConfirmationGroupRecord>,
 ): readonly (CostPart | MissingPart)[] {
-	if (!("preflight" in record)) {
+	if (record.schemaVersion !== 2) {
 		return [];
 	}
 	if (record.preflight.status === "MISSING") {
