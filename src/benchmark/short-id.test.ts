@@ -201,14 +201,23 @@ describe(backfillShortIds.name, () => {
 			const fixture = new RecordedRunsFixture(runsDirectory);
 			await fixture.writePipelineRun("2026-09-01T00-00-00.000Z", "../escape");
 
-			await backfillShortIds(runsDirectory);
+			await failureOf(backfillShortIds(runsDirectory));
 
 			expect(await readdir(runsDirectory)).not.toContain("escape");
+		});
+
+		it("reports the case", async () => {
+			const fixture = new RecordedRunsFixture(runsDirectory);
+			await fixture.writePipelineRun("2026-09-01T00-00-00.000Z", "../escape");
+
+			const failure = await failureOf(backfillShortIds(runsDirectory));
+
+			expect(failure).toMatchObject({ errors: [{ caseId: "../escape" }] });
 		});
 	});
 
 	describe("when a case's registry cannot be built", () => {
-		it("numbers the other cases and then reports the failure", async () => {
+		it("numbers the other cases and then reports the failing one", async () => {
 			const fixture = new RecordedRunsFixture(runsDirectory);
 			await fixture.writePipelineRun("2026-09-01T00-00-00.000Z", CASE_ID);
 			await fixture.writeAttemptAt(
@@ -225,6 +234,7 @@ describe(backfillShortIds.name, () => {
 			const failure = await failureOf(backfillShortIds(runsDirectory));
 
 			expect(failure).toBeInstanceOf(AggregateError);
+			expect(failure).toMatchObject({ errors: [{ caseId: CASE_ID }] });
 			expect(await readShortIds(runsDirectory, "smoke")).toEqual([
 				{
 					shortId: "smoke/r1",

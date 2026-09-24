@@ -209,21 +209,39 @@ async function ensureRegistry(
 	return directory;
 }
 
+/** A case whose records the backfill could not number, and what stopped it. */
+export class CaseNumberingError extends Error {
+	public override name = "CaseNumberingError";
+
+	public constructor(
+		public readonly caseId: string,
+		options: Readonly<ErrorOptions>,
+	) {
+		super(`Could not number the records of case ${caseId}`, options);
+	}
+}
+
 /**
  * Builds the registry of every case with records on disk, so records made
  * before short ids arrived are named before any claim in their case. A case
  * that cannot be numbered does not keep the others from being numbered.
  */
 export async function backfillShortIds(runsDirectory: string): Promise<void> {
-	const failures: unknown[] = [];
+	const failures: CaseNumberingError[] = [];
 	for (const caseId of await recordedCaseIds(runsDirectory)) {
 		if (!isCaseId(caseId)) {
+			failures.push(
+				new CaseNumberingError(caseId, {
+					cause: new Error(`${caseId} is not a case id`),
+				}),
+			);
 			continue;
 		}
+
 		try {
 			await ensureRegistry(runsDirectory, caseId);
 		} catch (error) {
-			failures.push(error);
+			failures.push(new CaseNumberingError(caseId, { cause: error }));
 		}
 	}
 
