@@ -6,7 +6,7 @@ import { isCaseId } from "./case";
 import { INITIAL_CHECKPOINT_STAGE } from "./checkpoint";
 import { pathExists, readdirIfPresent, textIfPresent } from "./file-presence";
 import type { DatedRecord } from "./short-id-backfill";
-import { recordsOnDisk } from "./short-id-backfill";
+import { recordedCaseIds, recordsOnDisk } from "./short-id-backfill";
 
 const REGISTRY_DIRECTORY = "short-ids";
 const CLAIMS_DIRECTORY = "claims";
@@ -207,6 +207,29 @@ async function ensureRegistry(
 	}
 
 	return directory;
+}
+
+/**
+ * Builds the registry of every case with records on disk, so records made
+ * before short ids arrived are named before any claim in their case. A case
+ * that cannot be numbered does not keep the others from being numbered.
+ */
+export async function backfillShortIds(runsDirectory: string): Promise<void> {
+	const failures: unknown[] = [];
+	for (const caseId of await recordedCaseIds(runsDirectory)) {
+		if (!isCaseId(caseId)) {
+			continue;
+		}
+		try {
+			await ensureRegistry(runsDirectory, caseId);
+		} catch (error) {
+			failures.push(error);
+		}
+	}
+
+	if (failures.length > 0) {
+		throw new AggregateError(failures, "Could not number every case's records");
+	}
 }
 
 /**

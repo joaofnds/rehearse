@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { failureOf } from "#cli/cli-test-support";
 import { RecordedRunsFixture } from "./run-records-test-support";
 import {
+	backfillShortIds,
 	bindReplay,
 	claimShortId,
 	checkpointStageAt,
@@ -134,6 +135,104 @@ describe(claimShortId.name, () => {
 				{
 					shortId: "audit-log/r3",
 					record: { kind: "run", run: "2026-09-24T01-00-00.000Z" },
+				},
+			]);
+		});
+	});
+});
+
+describe(backfillShortIds.name, () => {
+	it("numbers the records of every case that has any", async () => {
+		const fixture = new RecordedRunsFixture(runsDirectory);
+		await fixture.writePipelineRun("2026-09-02T00-00-00.000Z", CASE_ID);
+		await fixture.writePipelineRun("2026-09-01T00-00-00.000Z", CASE_ID);
+		await fixture.writeAttemptAt(
+			"0f6b6f2a-0000-4000-8000-000000000001",
+			runsDirectory,
+			"smoke",
+			[],
+		);
+
+		await backfillShortIds(runsDirectory);
+
+		expect([
+			...(await readShortIds(runsDirectory, CASE_ID)),
+			...(await readShortIds(runsDirectory, "smoke")),
+		]).toEqual([
+			{
+				shortId: "audit-log/r1",
+				record: { kind: "run", run: "2026-09-01T00-00-00.000Z" },
+			},
+			{
+				shortId: "audit-log/r2",
+				record: { kind: "run", run: "2026-09-02T00-00-00.000Z" },
+			},
+			{
+				shortId: "smoke/r1",
+				record: {
+					kind: "attempt:session",
+					caseId: "smoke",
+					uuid: "0f6b6f2a-0000-4000-8000-000000000001",
+				},
+			},
+		]);
+	});
+
+	it("leaves a case's existing registry as it was", async () => {
+		const fixture = new RecordedRunsFixture(runsDirectory);
+		await claimShortId(runsDirectory, CASE_ID, {
+			kind: "run",
+			run: "2026-09-24T00-00-00.000Z",
+		});
+		await fixture.writePipelineRun("2026-09-01T00-00-00.000Z", CASE_ID);
+
+		await backfillShortIds(runsDirectory);
+
+		expect(await readShortIds(runsDirectory, CASE_ID)).toEqual([
+			{
+				shortId: "audit-log/r1",
+				record: { kind: "run", run: "2026-09-24T00-00-00.000Z" },
+			},
+		]);
+	});
+
+	describe("when a record names a case by a path", () => {
+		it("builds no registry for it", async () => {
+			const fixture = new RecordedRunsFixture(runsDirectory);
+			await fixture.writePipelineRun("2026-09-01T00-00-00.000Z", "../escape");
+
+			await backfillShortIds(runsDirectory);
+
+			expect(await readdir(runsDirectory)).not.toContain("escape");
+		});
+	});
+
+	describe("when a case's registry cannot be built", () => {
+		it("numbers the other cases and then reports the failure", async () => {
+			const fixture = new RecordedRunsFixture(runsDirectory);
+			await fixture.writePipelineRun("2026-09-01T00-00-00.000Z", CASE_ID);
+			await fixture.writeAttemptAt(
+				"0f6b6f2a-0000-4000-8000-000000000001",
+				runsDirectory,
+				"smoke",
+				[],
+			);
+			await Bun.write(
+				join(runsDirectory, "short-ids", CASE_ID),
+				"not a registry",
+			);
+
+			const failure = await failureOf(backfillShortIds(runsDirectory));
+
+			expect(failure).toBeInstanceOf(AggregateError);
+			expect(await readShortIds(runsDirectory, "smoke")).toEqual([
+				{
+					shortId: "smoke/r1",
+					record: {
+						kind: "attempt:session",
+						caseId: "smoke",
+						uuid: "0f6b6f2a-0000-4000-8000-000000000001",
+					},
 				},
 			]);
 		});

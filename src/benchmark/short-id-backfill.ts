@@ -2,13 +2,14 @@ import { unhandled } from "./contracts";
 import { z } from "zod";
 import { CaseDeclarationError, casesRoot, readCaseDeclaration } from "./case";
 import { parseConfirmationGroupRecord } from "./confirmation-record";
+import type { ParsedConfirmationGroupRecord } from "./confirmation-record";
 import { textIfPresent } from "./file-presence";
 import { loadRunManifest } from "./manifest";
 import { parseRunSummaryRecord } from "./record-summary";
 import { readReplayRecord } from "./replay-record";
 import { openRunEventStore } from "./run-events";
 import type { RunEventStore } from "./run-events";
-import type { ConfirmationRepPaths } from "./run-layout";
+import type { ConfirmationRepPaths, StageAttemptId } from "./run-layout";
 import {
 	benchmarkRunPaths,
 	confirmationGroupIds,
@@ -171,29 +172,38 @@ const NO_EVENTS: Pick<RunEventStore, "latestEvent" | "close"> = {
 	close: () => undefined,
 };
 
-async function runs(
+/** Each recorded run with the case run history reads it under, if any. */
+async function runCases(
 	runsDirectory: string,
-	caseId: string,
-): Promise<DatedRecord[]> {
+): Promise<readonly { run: string; caseId: string | undefined }[]> {
 	const databaseFile = runEventsDatabaseFile(runsDirectory);
 	const events = (await Bun.file(databaseFile).exists())
 		? await openRunEventStore(databaseFile)
 		: NO_EVENTS;
 	try {
-		const found: DatedRecord[] = [];
+		const found: { run: string; caseId: string | undefined }[] = [];
 		for (const run of await recordedRunNames(runsDirectory)) {
-			const recordCase = await readable(() =>
-				runCaseId(runsDirectory, run, events),
-			);
-			if (recordCase === caseId) {
-				found.push({ record: { kind: "run", run }, recordedAt: run });
-			}
+			found.push({
+				run,
+				caseId: await readable(() => runCaseId(runsDirectory, run, events)),
+			});
 		}
 
 		return found;
 	} finally {
 		events.close();
 	}
+}
+
+async function runs(
+	runsDirectory: string,
+	caseId: string,
+): Promise<DatedRecord[]> {
+	const recorded = await runCases(runsDirectory);
+
+	return recorded
+		.filter((found) => found.caseId === caseId)
+		.map(({ run }) => ({ record: { kind: "run", run }, recordedAt: run }));
 }
 
 async function sessionAttempts(
@@ -229,22 +239,29 @@ async function sessionAttempts(
 	return found;
 }
 
+/** A replay's case is the one its source run's manifest names. */
+function replayCaseId(
+	runsDirectory: string,
+	attempt: StageAttemptId,
+): Promise<string | undefined> {
+	return readable(async () => {
+		const record = await readReplayRecord(
+			replayRecordFile(runsDirectory, attempt.lineage, attempt.timestamp),
+		);
+
+		return manifestCaseId(
+			benchmarkRunPaths(runsDirectory, record.runName).manifestFile,
+		);
+	});
+}
+
 async function replays(
 	runsDirectory: string,
 	caseId: string,
 ): Promise<DatedRecord[]> {
 	const found: DatedRecord[] = [];
 	for (const attempt of await replayAttemptIds(runsDirectory)) {
-		const recordCase = await readable(async () => {
-			const record = await readReplayRecord(
-				replayRecordFile(runsDirectory, attempt.lineage, attempt.timestamp),
-			);
-
-			return manifestCaseId(
-				benchmarkRunPaths(runsDirectory, record.runName).manifestFile,
-			);
-		});
-		if (recordCase === caseId) {
+		if ((await replayCaseId(runsDirectory, attempt)) === caseId) {
 			found.push({
 				record: { kind: "attempt:stage", ...attempt },
 				recordedAt: attempt.timestamp,
@@ -267,6 +284,17 @@ async function repTime(
 	return firstTranscriptTime(paths.transcriptFile, stored ?? declaredPrefix);
 }
 
+function readGroup(
+	runsDirectory: string,
+	groupId: string,
+): Promise<ParsedConfirmationGroupRecord | undefined> {
+	const { groupFile } = confirmationGroupPaths(runsDirectory, groupId);
+
+	return readable(async () =>
+		parseConfirmationGroupRecord(await Bun.file(groupFile).text()),
+	);
+}
+
 async function groups(
 	runsDirectory: string,
 	caseId: string,
@@ -275,9 +303,7 @@ async function groups(
 	const found: DatedRecord[] = [];
 	for (const groupId of await confirmationGroupIds(runsDirectory)) {
 		const paths = confirmationGroupPaths(runsDirectory, groupId);
-		const record = await readable(async () =>
-			parseConfirmationGroupRecord(await Bun.file(paths.groupFile).text()),
-		);
+		const record = await readGroup(runsDirectory, groupId);
 		if (record?.caseId !== caseId) {
 			continue;
 		}
@@ -367,4 +393,29 @@ export async function recordsOnDisk(
 	];
 
 	return found.toSorted(oldestFirst);
+}
+
+/**
+ * Every case some record on disk belongs to, as recordsOnDisk reads each
+ * record's case, so numbering each of these numbers every record it lists.
+ */
+export async function recordedCaseIds(
+	runsDirectory: string,
+): Promise<ReadonlySet<string>> {
+	const found = new Set<string | undefined>();
+	for (const { caseId } of await runCases(runsDirectory)) {
+		found.add(caseId);
+	}
+	for (const { caseId } of await sessionAttemptIds(runsDirectory)) {
+		found.add(caseId);
+	}
+	for (const attempt of await replayAttemptIds(runsDirectory)) {
+		found.add(await replayCaseId(runsDirectory, attempt));
+	}
+	for (const groupId of await confirmationGroupIds(runsDirectory)) {
+		const group = await readGroup(runsDirectory, groupId);
+		found.add(group?.caseId);
+	}
+
+	return new Set([...found].filter((caseId) => caseId !== undefined));
 }

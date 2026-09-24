@@ -9,7 +9,7 @@ import {
 	sessionAttemptPaths,
 } from "./run-layout";
 import { RecordedRunsFixture } from "./run-records-test-support";
-import { recordsOnDisk } from "./short-id-backfill";
+import { recordedCaseIds, recordsOnDisk } from "./short-id-backfill";
 
 let runsDirectory: string;
 let casesDirectory: string;
@@ -413,5 +413,43 @@ describe(recordsOnDisk.name, () => {
 
 			expect(await recordedIn("smoke")).toEqual([]);
 		});
+	});
+});
+
+describe(recordedCaseIds.name, () => {
+	it("names the case of every run, session attempt and group", async () => {
+		await fixture.writePipelineRun("2026-09-11T00-00-00.000Z", "audit-log");
+		await fixture.writeAttemptAt(
+			"aaaaaaaa-0000-4000-8000-000000000001",
+			runsDirectory,
+			"haiku",
+			[],
+		);
+		await fixture.writeSessionGroup("group-smoke");
+
+		const cases = await recordedCaseIds(runsDirectory);
+
+		expect(cases).toEqual(new Set(["audit-log", "haiku", "smoke"]));
+	});
+
+	it("names a replay's case when run history cannot list its source run", async () => {
+		await fixture.writeNoRecordRun();
+		await fixture.writeReplayOf(
+			fixture.noRecordRun,
+			"2026-09-05T01-00-00.000Z",
+		);
+
+		const cases = await recordedCaseIds(runsDirectory);
+
+		expect(cases).toEqual(new Set(["audit-log"]));
+	});
+
+	it("names no case for a record whose case cannot be read", async () => {
+		await fixture.writeNoRecordRun();
+		await fixture.writeUnreadableGroup("group-unreadable");
+
+		const cases = await recordedCaseIds(runsDirectory);
+
+		expect(cases).toEqual(new Set());
 	});
 });
