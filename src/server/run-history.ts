@@ -1,3 +1,4 @@
+import { unhandled } from "#benchmark/contracts";
 import { readCheckpointRecord } from "#benchmark/checkpoint";
 import { parseConfirmationGroupRecord } from "#benchmark/confirmation-record";
 import type { CorpusRoot } from "#benchmark/corpus-file";
@@ -640,6 +641,46 @@ async function groupRow(
 	};
 }
 
+/**
+ * The time a row's own identity records, or undefined when its record holds
+ * none. A run name and a replay file name are both the run's timestamp with
+ * colons replaced, so they sort as text.
+ */
+function recordedTime(row: RunHistoryRow): string | undefined {
+	switch (row.kind) {
+		case "run": {
+			return row.run;
+		}
+		case "replay": {
+			return row.timestamp;
+		}
+		case "session-attempt":
+		case "group": {
+			return undefined;
+		}
+		default: {
+			return unhandled(row, "run history row kind");
+		}
+	}
+}
+
+/**
+ * Newest first where a record says when it ran, then every row whose record
+ * does not, in listing order. Placing those by file time would claim an order
+ * the records never held: most attempt files share one modification second.
+ */
+function newestFirst(rows: readonly RunHistoryRow[]): RunHistoryRow[] {
+	const timed = rows.filter((row) => recordedTime(row) !== undefined);
+	const untimed = rows.filter((row) => recordedTime(row) === undefined);
+
+	return [
+		...timed.toSorted((left, right) =>
+			(recordedTime(right) ?? "").localeCompare(recordedTime(left) ?? ""),
+		),
+		...untimed,
+	];
+}
+
 export interface UnreadableRun {
 	readonly id: string;
 	readonly reason: string;
@@ -727,7 +768,7 @@ export async function runHistoryReport(
 			(groupId) => groupRow(runsDirectory, groupId),
 		);
 
-		return { rows, unreadable };
+		return { rows: newestFirst(rows), unreadable };
 	} finally {
 		runEvents.close();
 	}

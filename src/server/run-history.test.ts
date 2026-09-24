@@ -1,3 +1,4 @@
+import { unhandled } from "#benchmark/contracts";
 import { afterEach, describe, expect, it } from "bun:test";
 import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -957,5 +958,50 @@ describe(runHistoryReport.name, () => {
 				links: [stageLink(fixture.awaitingJudgeRun, "build")],
 			});
 		});
+	});
+
+	/**
+	 * Runs and replays carry a timestamp in their identity. Session attempts
+	 * and confirmation runs record none, so they follow in listing order
+	 * rather than being placed by a time the records do not hold.
+	 */
+	it("orders runs and replays newest first, then attempts and groups", async () => {
+		const fixture = await writtenFixture();
+		await fixture.writeStoppedRun();
+
+		const { rows } = await runHistoryReport(
+			fixture.runsDirectory,
+			directorySource(await corpusDirectory("build skill\n")),
+			nothingRunning,
+		);
+
+		expect(
+			rows.map((row) => {
+				switch (row.kind) {
+					case "run": {
+						return `run ${row.run}`;
+					}
+					case "replay": {
+						return `replay ${row.timestamp}`;
+					}
+					case "session-attempt": {
+						return `attempt ${row.uuid}`;
+					}
+					case "group": {
+						return `group ${row.groupId}`;
+					}
+					default: {
+						return unhandled(row, "run history row kind");
+					}
+				}
+			}),
+		).toEqual([
+			`run ${fixture.stoppedRun}`,
+			`replay ${fixture.stageAttempt.timestamp}`,
+			`run ${fixture.replayableRun}`,
+			`run ${fixture.unreplayableRun}`,
+			`attempt ${fixture.sessionAttempt.uuid}`,
+			`group ${fixture.groupId}`,
+		]);
 	});
 });
