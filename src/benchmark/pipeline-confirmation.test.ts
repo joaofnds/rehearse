@@ -106,7 +106,7 @@ describe(runPipelineConfirmation.name, () => {
 		);
 	});
 
-	it("claims the group a short id in its case before any rep runs", async () => {
+	it("claims the group a short id in its case", async () => {
 		const harness = await PipelineConfirmationHarness.setup(testResources);
 
 		const outcome = await harness.run({ caseId: "audit-log-follow-up" });

@@ -45,6 +45,7 @@ import { confirmationGroupPaths } from "./run-layout";
 import { recordRetentionRef } from "./target";
 import type { ProductOwner } from "./workflow";
 import { WorkflowExecutionError } from "./workflow";
+import { claimShortId } from "./short-id";
 
 interface FrozenReplayInputs {
 	readonly manifest: Awaited<ReturnType<typeof loadRunManifest>>;
@@ -384,6 +385,10 @@ export async function runReplayConfirmation(
 		paths.directory,
 		paths.inputsDirectory,
 	);
+	await claimShortId(request.paths.runsDirectory, frozen.manifest.caseId, {
+		kind: "group",
+		groupId: request.groupId,
+	});
 	const worktreesDirectory = await mkdtemp(
 		join(tmpdir(), `rehearse-${request.groupId}-`),
 	);

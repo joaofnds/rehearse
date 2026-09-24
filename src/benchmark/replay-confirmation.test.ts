@@ -30,6 +30,7 @@ import type { RunManifest } from "./manifest";
 import { writeRunManifest } from "./manifest";
 import { runReplayConfirmation } from "./replay-confirmation";
 import { benchmarkRunPaths } from "./run-layout";
+import { readShortIds } from "./short-id";
 import type { loadStageRubric } from "./stage-grading";
 import { addWorktree, currentSha, removeWorktree } from "./target";
 import {
@@ -69,6 +70,40 @@ describe(runReplayConfirmation.name, () => {
 		expect(failure).toBeInstanceOf(SymlinkedEntryError);
 		expect(harness.worktrees).toEqual([]);
 		expect(harness.stageDirs).toEqual([]);
+		expect(await readShortIds(run.paths.runsDirectory, "audit-log")).toEqual(
+			[],
+		);
+	});
+
+	it("claims the group a short id in its source run's case", async () => {
+		const harness = new ReplayConfirmationHarness(testResources);
+		const run = await harness.recordedRun();
+		const corpusRoot = await mkdtemp(join(tmpdir(), "rehearse-corpus-"));
+		testResources.track(corpusRoot);
+		for (const skill of ["discuss", "build", "doctrine"]) {
+			await Bun.write(
+				join(corpusRoot, "skills", skill, "SKILL.md"),
+				`${skill}\n`,
+			);
+		}
+
+		const outcome = await harness.runConfirmation(
+			{
+				paths: run.paths,
+				corpusRoots: [{ kind: "directory", root: corpusRoot }],
+			},
+			{ reps: 2 },
+		);
+		const group = parseConfirmationGroupRecord(
+			await Bun.file(outcome.groupRecordFile).text(),
+		);
+
+		expect(await readShortIds(run.paths.runsDirectory, "audit-log")).toEqual([
+			{
+				shortId: "audit-log/g1",
+				record: { kind: "group", groupId: group.groupId },
+			},
+		]);
 	});
 
 	it("reports agreement for the resolved Judge model", async () => {
