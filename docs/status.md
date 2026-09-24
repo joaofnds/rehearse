@@ -115,11 +115,24 @@ each counting that collection, and marks the other six planned. The run and
 comparison badges leave out the entries that cannot be read. The rail reaches no
 other address. The comparisons screen links each saved comparison to its own
 page, in digest order because no comparison records when it was made, and a
-comparison screen links onward to the attempts it names. In run history, the
-`STOPPED:<stage>` line in a stopped run's row links to the context history of
-the stage it stopped on, which reports the stop; the rest of the row links
-nowhere. Every other stage's context history, for a stage that wrote a
-checkpoint or a stage awaiting judgment, is still opened by typing its address.
+comparison screen links onward to the attempts it names.
+
+Run history lists every saved record kind in one table: pipeline runs, standalone
+session attempts, confirmation runs and stage replays, including a run that
+failed or was interrupted before writing any stage record. Each row names its
+kind and links every page that can render for it: each pipeline stage with a
+checkpoint, a stop record or a pending judgment, a session attempt's or a
+replay's own history, and each confirmation rep that recorded an attempt. A
+link that cannot open names why, such as a failed run's stage that saved no
+context or a stage-mode rep with no session to show. Rows whose records say
+when they ran come first, newest first, followed by session attempts and
+confirmation runs, which record no time. The count, the All filter and the
+rail badge cover every listed record, and Stopped matches only pipeline runs
+with a stopped stage. Records that cannot be read are counted by kind in a
+notice above the table, with their ids and reasons behind a toggle. A replay's
+page shows its summary and events but no per-event detail, request series or
+corpus reconciliation, because the server serves none for a replay. A run
+with unfinished events whose process is gone stays out of the list.
 
 The rail also names the corpus under test, showing the live tree's
 `corpus root@` digest, its file count and its latest edit, and saying in words

@@ -797,8 +797,9 @@ substitution the unavailable state prevents for a replay.
 A stage with none of those records still answers 404, which is what separates a
 stage the reader can name from a page that failed. The run history screen shows
 a stopped run as `STOPPED:<stage>`, linked to that stage's context history, and
-an interrupted run, whose status comes from its event stream rather than any
-file, as `INTERRUPTED` without naming the stage it died in.
+links every other stage whose page renders. An interrupted or failed run, whose
+status comes from its event stream rather than any file, shows as `INTERRUPTED`
+or `FAILED`, and a failed run names the stage it failed in as saving no context.
 
 The summary separates inherited Starting context from Attempt events when the
 attempt record retains its transcript cut. Older records without a cut use the
