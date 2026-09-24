@@ -898,7 +898,7 @@ export class RecordedRunsFixture {
 				{
 					status: "STAGE_JUDGE_FAILED",
 					stage: "build",
-					error: "build stage graded C; minimum grade is B",
+					error: STOPPED_RUN_ERROR,
 					input: {
 						transcript: {
 							stage: "build",
