@@ -705,25 +705,34 @@ a run, replay or session attempt, `<case>/g<n>` a confirmation group, and
 `<case>/r<n>/s<k>` a run's checkpoint, with `s0` taken after task setup and
 `s<k>` after the k-th stage of the pipeline the run froze in its manifest.
 Numbers are unpadded, and a run and a group of one case never share one. A
-command claims its number when it commits to executing, before any provider
-call, so a number whose command failed names nothing and is never reused. A
-short id whose case segment is not a case id is refused before any path is
-built.
+command claims its number when it commits to executing, after its refusals and
+before its first workflow session, and a number is never reused. A command
+that fails before writing its record, such as a failed replay, leaves a number
+that names nothing; a run or session attempt that fails still writes its
+record and keeps its number. A short id whose case segment is not a case id is
+refused before any path is built. Short ids are unique within one records
+directory: another clone numbers its own records from 1.
 
-Short ids live in the registry at `short-ids/<case>/`: `claims/<n>` holds the
-record each number names, and `bindings/<n>` names a replay's record once its
-timestamp is known. The registry is part of the records, not derived state:
-deleting it loses the numbers already printed and quoted. The first claim in a
-case builds its registry by numbering every record of that case run history
-can read, oldest first by the time each record says it ran. A run is timed by
-its name, a replay by its timestamp, a session attempt by the first line its
-own session wrote to the transcript, and a confirmation group by its earliest
-rep. Records that say nothing of when they ran follow the timed ones. A run
-the event store alone knows has no record to number.
+Short ids live in the registry at `short-ids/<case>/`. `claims/<n>` holds what
+the command knew when it claimed: the record for a run, session attempt or
+group, and for a replay the checkpoint it replays, whose record `bindings/<n>`
+names once its timestamp is known. A replay confirmation's claim also names
+the checkpoint its reps replayed. The registry is part of the records, not
+derived state: deleting it renumbers the case at its next claim, so a short id
+already printed or quoted can then name a different record. The first claim in
+a case builds its registry by numbering every record of that case the
+server's run history can read, oldest first by the time each record says it
+ran. A run is timed by its name, a replay by its timestamp, a session attempt
+by the first line its own session wrote to the transcript after the starting
+transcript its case declares, and a confirmation group by its earliest rep.
+Records that say nothing of when they ran follow the timed ones. A run the
+event store alone knows has no record to number, while a run with events and a
+manifest is numbered even when `list runs` shows it as `no record`.
 
 `list cases|runs|checkpoints|attempts|groups|comparisons` prints IDs usable by
-`show`, with the short id as the second column, or `-` for a record its case's
-registry does not name. `list` only reads registries, so a case no command has
+`show`. For runs, checkpoints, attempts and groups the second column is the
+short id, or `-` for a record its case's registry does not name; cases and
+comparisons have no short id column. `list` only reads registries, so a case no command has
 claimed in since short ids arrived prints `-` throughout. `stale` prints a
 checkpoint's short id the same way. Empty history is valid on a fresh clone. A malformed record is reported
 without hiding readable neighbors. Stopped runs are visible through the same

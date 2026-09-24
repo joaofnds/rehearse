@@ -106,6 +106,9 @@ mise exec -- bun run rehearse show group:<group-id>
 mise exec -- bun run rehearse show group:<group-id> --json
 ```
 
+`show` also takes the group's short id from the second column of `list
+groups`, such as `smoke/g4`.
+
 Two reps demonstrate the mechanism. They do not establish that an instruction
 helps. Confirmation defaults to five reps and requires at least two; choose a
 sample size appropriate to the result's variability.

@@ -119,6 +119,14 @@ Event recording is best effort; it must not turn a successful experiment into a
 failed one. It is not a substitute for the final artifact. There is no command
 that reconstructs a deleted event history from JSON records.
 
+The short id registry at `.benchmark-runs/short-ids/` is authoritative too,
+since a quoted short id means only what the registry says. Each number is
+claimed by an exclusive file create, so concurrent commands in one records
+directory never share a number, and a command that fails after claiming leaves
+a gap rather than freeing the number. A case's first claim numbers the case's
+existing records in a directory beside the live registry and renames it into
+place, so no new number is claimed before the backfill is whole.
+
 See [record formats and target restoration](reference.md) for storage paths,
 identifiers, retained candidates, and recovery boundaries.
 
