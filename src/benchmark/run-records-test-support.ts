@@ -397,7 +397,7 @@ export class RecordedRunsFixture {
 		uuid: "0f6b6f2a-0000-4000-8000-000000000001",
 	};
 	public readonly stageAttempt: StageAttemptId = {
-		lineage: "lineage-build",
+		lineage: "lineage-discuss",
 		timestamp: "2026-09-03T01-00-00.000Z",
 	};
 	public readonly stoppedRun = "2026-09-04T00-00-00.000Z";

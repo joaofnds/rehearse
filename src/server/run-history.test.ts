@@ -659,4 +659,67 @@ describe(runHistoryReport.name, () => {
 			});
 		});
 	});
+
+	describe("when the runs directory holds a stage replay", () => {
+		it("lists it as a row naming its source run's case, its stage grade, and the page that opens its context", async () => {
+			const fixture = await writtenFixture();
+			const { lineage, timestamp } = fixture.stageAttempt;
+
+			const { rows } = await runHistoryReport(
+				fixture.runsDirectory,
+				directorySource(await corpusDirectory("build skill\n")),
+				nothingRunning,
+			);
+
+			expect(rows.find((row) => row.kind === "replay")).toMatchObject({
+				lineage,
+				timestamp,
+				caseId: "audit-log",
+				stage: "build",
+				grade: "A",
+				status: "CONTINUE",
+				links: [
+					{
+						state: "available",
+						label: "context",
+						href: `/replays/${lineage}/${timestamp}`,
+					},
+				],
+			});
+		});
+
+		it("names its context unavailable when it is filed under a lineage it did not consume", async () => {
+			const fixture = await writtenFixture();
+			const { timestamp } = fixture.stageAttempt;
+			await Bun.write(
+				join(
+					fixture.runsDirectory,
+					"replays",
+					"lineage-other",
+					`${timestamp}.json`,
+				),
+				await Bun.file(fixture.stageAttemptFile).text(),
+			);
+
+			const { rows } = await runHistoryReport(
+				fixture.runsDirectory,
+				directorySource(await corpusDirectory("build skill\n")),
+				nothingRunning,
+			);
+
+			expect(
+				rows.find(
+					(row) => row.kind === "replay" && row.lineage === "lineage-other",
+				),
+			).toMatchObject({
+				links: [
+					{
+						state: "unavailable",
+						label: "context",
+						reason: "filed under a lineage it did not consume",
+					},
+				],
+			});
+		});
+	});
 });

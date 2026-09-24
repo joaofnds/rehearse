@@ -4,11 +4,14 @@ import { loadRunManifest } from "#benchmark/manifest";
 import type {
 	BenchmarkRunPaths,
 	SessionAttemptId,
+	StageAttemptId,
 } from "#benchmark/run-layout";
 import {
 	benchmarkRunPaths,
 	checkpointStageNames,
 	recordedRunNames,
+	replayAttemptIds,
+	replayRecordFile,
 	runEventsDatabaseFile,
 	sessionAttemptIds,
 	sessionAttemptPaths,
@@ -23,6 +26,7 @@ import {
 	openRunEventStore,
 } from "#benchmark/run-events";
 import { parseRunSummaryRecord } from "#benchmark/record-summary";
+import { readReplayRecord } from "#benchmark/replay";
 import { parseSessionAttemptRecord } from "#benchmark/session-record";
 import { formatRecordId } from "#cli/record-id";
 import { stoppedStage } from "#benchmark/run-outcome";
@@ -119,11 +123,28 @@ export interface SessionAttemptRow {
 }
 
 /**
+ * One stage replayed from a checkpoint. Its case is the source run's, read
+ * from that run's manifest, and is undefined when the manifest is gone. Its
+ * context opens only under the lineage it consumed, the one identity the
+ * replay history reader accepts for it.
+ */
+export interface ReplayRow {
+	readonly kind: "replay";
+	readonly lineage: string;
+	readonly timestamp: string;
+	readonly caseId: string | undefined;
+	readonly stage: string;
+	readonly grade: string;
+	readonly status: string;
+	readonly links: readonly ContextLink[];
+}
+
+/**
  * One run-history row, one per saved record an operator can open. This is
  * the single place that owns the read API's response shape for a run-history
  * row: no other card owns it.
  */
-export type RunHistoryRow = PipelineRunRow | SessionAttemptRow;
+export type RunHistoryRow = PipelineRunRow | SessionAttemptRow | ReplayRow;
 
 /**
  * The last checkpoint a run recorded, in pipeline order rather than
@@ -374,6 +395,48 @@ async function sessionAttemptRow(
 	};
 }
 
+async function sourceCaseId(manifestFile: string): Promise<string> {
+	const manifest = await loadRunManifest(manifestFile);
+
+	return manifest.caseId;
+}
+
+async function replayRow(
+	runsDirectory: string,
+	attempt: StageAttemptId,
+): Promise<ReplayRow> {
+	const record = await readReplayRecord(
+		replayRecordFile(runsDirectory, attempt.lineage, attempt.timestamp),
+	);
+	const { manifestFile } = benchmarkRunPaths(runsDirectory, record.runName);
+	const caseId = (await Bun.file(manifestFile).exists())
+		? await sourceCaseId(manifestFile)
+		: undefined;
+
+	return {
+		kind: "replay",
+		lineage: attempt.lineage,
+		timestamp: attempt.timestamp,
+		caseId,
+		stage: record.stage,
+		grade: record.scorecard.grade.grade,
+		status: record.scorecard.grade.verdict,
+		links: [
+			record.consumed.lineage === attempt.lineage
+				? {
+						state: "available",
+						label: "context",
+						href: `/replays/${encodeURIComponent(attempt.lineage)}/${encodeURIComponent(attempt.timestamp)}`,
+					}
+				: {
+						state: "unavailable",
+						label: "context",
+						reason: "filed under a lineage it did not consume",
+					},
+		],
+	};
+}
+
 export interface UnreadableRun {
 	readonly id: string;
 	readonly reason: string;
@@ -445,6 +508,11 @@ export async function runHistoryReport(
 			await sessionAttemptIds(runsDirectory),
 			(attempt) => formatRecordId({ kind: "attempt:session", ...attempt }),
 			(attempt) => sessionAttemptRow(runsDirectory, attempt),
+		);
+		await collect(
+			await replayAttemptIds(runsDirectory),
+			(attempt) => formatRecordId({ kind: "attempt:stage", ...attempt }),
+			(attempt) => replayRow(runsDirectory, attempt),
 		);
 
 		return { rows, unreadable };
