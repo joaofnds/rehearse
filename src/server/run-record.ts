@@ -1,9 +1,10 @@
 import { z } from "zod";
 import {
+	hashedFileSchema,
 	INITIAL_CHECKPOINT_STAGE,
 	readCheckpointRecord,
 } from "#benchmark/checkpoint";
-import type { CheckpointRecord } from "#benchmark/checkpoint";
+import type { CheckpointRecord, HashedFile } from "#benchmark/checkpoint";
 import { claudeCallMetricsSchema } from "#benchmark/contracts";
 import type { ClaudeCallMetrics, Immutable } from "#benchmark/contracts";
 import { loadRunManifest } from "#benchmark/manifest";
@@ -100,7 +101,7 @@ export interface RunRecordStage {
 	readonly checkpoint: "recorded" | "missing";
 	readonly checkpointShortId: ShortIdReading;
 	/** The corpus files the stage ran under, from its checkpoint or record. */
-	readonly instructionFiles: PathsReading;
+	readonly instructionFiles: Reading<{ readonly files: readonly HashedFile[] }>;
 	readonly artifactsOut: ArtifactsOut;
 }
 
@@ -182,7 +183,7 @@ const stageFileSchema = z
 			.loose()
 			.optional(),
 		attempts: callsSchema.optional(),
-		corpusFiles: z.array(z.object({ path: z.string() }).loose()).optional(),
+		corpusFiles: z.array(hashedFileSchema).optional(),
 		input: z
 			.object({
 				commitSubjects: z.array(z.string()).optional(),
@@ -255,6 +256,21 @@ function usd(
 	}
 
 	return { state: "available", usd: amount };
+}
+
+function filesOf(
+	files: readonly HashedFile[] | undefined,
+): RunRecordStage["instructionFiles"] {
+	if (files === undefined) {
+		return {
+			state: "unavailable",
+			reasons: [
+				"neither a checkpoint nor the stage record lists the stage's corpus files",
+			],
+		};
+	}
+
+	return { state: "available", files };
 }
 
 function pathsOf(
@@ -501,10 +517,7 @@ function stageRecord(
 		tokens: tokenReading(stageTokenParts(recorded)),
 		checkpoint: checkpoint === undefined ? "missing" : "recorded",
 		checkpointShortId,
-		instructionFiles: pathsOf(
-			checkpoint?.corpusFiles ?? file?.corpusFiles,
-			"neither a checkpoint nor the stage record lists the stage's corpus files",
-		),
+		instructionFiles: filesOf(checkpoint?.corpusFiles ?? file?.corpusFiles),
 		artifactsOut: {
 			declared: pathsOf(
 				checkpoint?.artifacts,

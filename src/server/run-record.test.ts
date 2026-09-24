@@ -8,6 +8,7 @@ import type { RunLiveness } from "#benchmark/run-liveness";
 import { stoppedStatus } from "#benchmark/stopped-status";
 import {
 	CASE_ID,
+	CORPUS_DIGEST,
 	corpusPath,
 	directorySource,
 	FINAL_JUDGE_FAILURE,
@@ -316,7 +317,7 @@ describe("/api/runs/:run", () => {
 							checkpoint: "recorded",
 							instructionFiles: {
 								state: "available",
-								paths: [corpusPath("discuss")],
+								files: [{ path: corpusPath("discuss"), sha256: CORPUS_DIGEST }],
 							},
 							artifactsOut: {
 								declared: { state: "available", paths: [] },
@@ -398,7 +399,7 @@ describe("/api/runs/:run", () => {
 							checkpoint: "missing",
 							instructionFiles: {
 								state: "available",
-								paths: [corpusPath("build")],
+								files: [{ path: corpusPath("build"), sha256: CORPUS_DIGEST }],
 							},
 							artifactsOut: {
 								declared: { state: "unavailable" },
