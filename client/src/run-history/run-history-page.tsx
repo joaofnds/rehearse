@@ -17,7 +17,6 @@ import { plural } from "#client/plural";
 import { ScreenHeader } from "#client/system/components/screen-header";
 import { SectionLabel } from "#client/system/components/section-label";
 import { Notice } from "#client/system/components/notice";
-import { unhandled } from "#benchmark/contracts";
 
 type HistoryRow = RunHistoryResponse["rows"][number];
 type RunHistoryRow = Extract<HistoryRow, { readonly kind: "run" }>;
@@ -162,7 +161,7 @@ function identityOf(row: HistoryRow): string {
 			return row.groupId;
 		}
 		default: {
-			return unhandled(row, "run history row");
+			return row satisfies never;
 		}
 	}
 }
@@ -186,7 +185,7 @@ function kindLine(row: HistoryRow): string {
 			return `confirmation run · ${row.mode} · ${plural(row.reps, "rep")} · time not recorded`;
 		}
 		default: {
-			return unhandled(row, "run history row");
+			return row satisfies never;
 		}
 	}
 }
@@ -211,7 +210,7 @@ function contextLink(link: ContextLink): React.JSX.Element {
 			);
 		}
 		default: {
-			return unhandled(link, "context link");
+			return link satisfies never;
 		}
 	}
 }
@@ -262,7 +261,7 @@ function outcomeCell(row: HistoryRow): React.JSX.Element {
 			return <span className="text-xs text-dim">per rep</span>;
 		}
 		default: {
-			return unhandled(row, "run history row");
+			return row satisfies never;
 		}
 	}
 }
@@ -374,7 +373,7 @@ function gradeCell(row: HistoryRow): React.JSX.Element {
 			return <span />;
 		}
 		default: {
-			return unhandled(row, "run history row");
+			return row satisfies never;
 		}
 	}
 }
