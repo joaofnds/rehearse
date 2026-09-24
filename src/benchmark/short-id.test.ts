@@ -49,10 +49,7 @@ async function claimInProcesses(
 }
 
 describe(claimShortId.name, () => {
-	it("gives every concurrent claim its own number from 1 and numbers no record it was not asked to", async () => {
-		const fixture = new RecordedRunsFixture(runsDirectory);
-		await fixture.writePipelineRun("2026-09-01T00-00-00.000Z", CASE_ID);
-
+	it("gives every concurrent claim its own number from 1", async () => {
 		await claimInProcesses(4, 10);
 
 		const named = await readShortIds(runsDirectory, CASE_ID);
@@ -61,9 +58,24 @@ describe(claimShortId.name, () => {
 				(index) => `audit-log/r${String(index + 1)}`,
 			),
 		);
-		expect(named.map(({ record }) => record)).not.toContainEqual({
-			kind: "run",
-			run: "2026-09-01T00-00-00.000Z",
+	});
+
+	describe("when a record of the case was written before its first claim", () => {
+		it("numbers only the claimed record, from 1", async () => {
+			const fixture = new RecordedRunsFixture(runsDirectory);
+			await fixture.writePipelineRun("2026-09-01T00-00-00.000Z", CASE_ID);
+
+			await claimShortId(runsDirectory, CASE_ID, {
+				kind: "run",
+				run: "2026-09-24T00-00-00.000Z",
+			});
+
+			expect(await readShortIds(runsDirectory, CASE_ID)).toEqual([
+				{
+					shortId: "audit-log/r1",
+					record: { kind: "run", run: "2026-09-24T00-00-00.000Z" },
+				},
+			]);
 		});
 	});
 

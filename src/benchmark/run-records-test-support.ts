@@ -481,7 +481,11 @@ export class RecordedRunsFixture {
 		}
 	}
 
-	/** What the commands that wrote the audit-log records claimed, oldest first. */
+	/**
+	 * The audit-log records' claims oldest first, in the shapes the one-time
+	 * numbering of records older than short ids wrote: a replay named by its
+	 * attempt, and a group with no checkpoint.
+	 */
 	public get auditLogClaims(): readonly ClaimSubject[] {
 		return [
 			{ kind: "run", run: this.unreplayableRun },
@@ -495,7 +499,7 @@ export class RecordedRunsFixture {
 		return [{ kind: "attempt:session", ...this.sessionAttempt }];
 	}
 
-	/** Claims a short id for each subject in turn, as the commands that wrote them do. */
+	/** Claims a short id for each subject in turn. */
 	public async claim(
 		caseId: string,
 		subjects: readonly ClaimSubject[],

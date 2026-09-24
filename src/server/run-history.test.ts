@@ -1569,6 +1569,27 @@ describe(runHistoryReport.name, () => {
 			expect(unreadable[0]?.reason).toContain("Directories cannot be read");
 		});
 
+		it("names no short id for a record no claim names in a claimed case", async () => {
+			const fixture = await writtenFixture();
+			await claimShortId(fixture.runsDirectory, "audit-log", {
+				kind: "run",
+				run: laterRun,
+			});
+			await fixture.writePipelineRun(laterRun, "audit-log");
+
+			const { rows } = await runHistoryReport(
+				fixture.runsDirectory,
+				directorySource(await corpusDirectory("build skill\n")),
+				nothingRunning,
+			);
+
+			expect(
+				rows
+					.filter((row) => row.caseId === "audit-log")
+					.map((row) => row.shortId),
+			).toEqual(["audit-log/r1", undefined, undefined, undefined, undefined]);
+		});
+
 		it("names no short id for a record in a case no command has claimed in", async () => {
 			const fixture = await fixtureWithClaimedRun();
 
