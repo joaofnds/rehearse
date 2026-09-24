@@ -978,6 +978,37 @@ describe(runHistoryReport.name, () => {
 			});
 		});
 
+		it.each([
+			["its rep record", "recordFile"],
+			["its attempt", "attemptFile"],
+		] as const)(
+			"names a session rep unavailable when %s is missing",
+			async (_missing, file) => {
+				const fixture = await writtenFixture();
+				const [recorded] = await fixture.writeSessionGroup("group-s");
+				await rm(
+					confirmationGroupPaths(fixture.runsDirectory, "group-s").rep(
+						recorded,
+					)[file],
+				);
+
+				const { rows } = await runHistoryReport(
+					fixture.runsDirectory,
+					directorySource(await corpusDirectory("build skill\n")),
+					nothingRunning,
+				);
+
+				expect(
+					rows.find((row) => row.kind === "group" && row.groupId === "group-s")
+						?.links[0],
+				).toEqual({
+					state: "unavailable",
+					label: "rep 1",
+					reason: `no attempt recorded for ${recorded}`,
+				});
+			},
+		);
+
 		it("names every rep of a stage group unavailable, since only a session rep has a context page", async () => {
 			const fixture = await writtenFixture();
 
