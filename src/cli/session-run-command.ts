@@ -32,6 +32,7 @@ import type { SessionConfirmationRepPlan } from "#benchmark/session-confirmation
 import type { SessionAttemptRecord } from "#benchmark/session-record";
 import { buildSessionAttemptRecord } from "#benchmark/session-record";
 import { UsageError } from "#cli/commands";
+import { claimShortId } from "#benchmark/short-id";
 import { corpusRefusal } from "#cli/corpus-failures";
 import { RefusedPreconditionError } from "#cli/interactive-stdin";
 import type { CommandOutput } from "#cli/output";
@@ -172,10 +173,8 @@ export async function runSessionDebugAttempt(
 ): Promise<SessionRunOutcome> {
 	const { sessionCase, config } = request;
 	const settings = settingsOf(config);
-	const attemptPaths = sessionAttemptPaths(request.runsDirectory, {
-		caseId: sessionCase.declaration.id,
-		uuid: randomUUID(),
-	});
+	const attemptId = { caseId: sessionCase.declaration.id, uuid: randomUUID() };
+	const attemptPaths = sessionAttemptPaths(request.runsDirectory, attemptId);
 	const recordDirectory = attemptPaths.directory;
 	const corpus = await requireCorpus(
 		sessionCase,
@@ -185,6 +184,10 @@ export async function runSessionDebugAttempt(
 	);
 	const corpusFiles = corpus.files;
 	const lineage = await lineageOf(sessionCase, corpusFiles, settings);
+	await claimShortId(request.runsDirectory, attemptId.caseId, {
+		kind: "attempt:session",
+		...attemptId,
+	});
 
 	const startedAt = Date.now();
 	const { recordFile } = attemptPaths;

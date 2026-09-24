@@ -8,7 +8,7 @@ import {
 	writeFile,
 } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import type { SessionCase } from "#benchmark/case";
 import type { Immutable } from "#benchmark/contracts";
 import type { SessionRunConfig } from "#benchmark/config";
@@ -16,6 +16,7 @@ import { EXIT_CODES, exitCodeFor } from "#benchmark/exit-codes";
 import { syntheticRateProvenance } from "#benchmark/rate-catalog-test-support";
 import { parseSessionAttemptRecord } from "#benchmark/session-record";
 import { projectSlug } from "#benchmark/session-capture";
+import { readShortIds } from "#benchmark/short-id";
 import type { ClaudeRunner } from "#benchmark/session-attempt";
 import { SessionInvocationError } from "#benchmark/session-invocation-error";
 import { TestResources } from "#benchmark/test-support";
@@ -265,6 +266,30 @@ describe(runSessionDebugAttempt.name, () => {
 		expect(await Bun.file(outcome.record.transcriptFile).text()).toContain(
 			"OK",
 		);
+	});
+
+	it("claims the attempt a short id in its case", async () => {
+		const runs = await temporary("rehearse-runs-");
+		const projects = await temporary("rehearse-projects-");
+
+		const outcome = await runSessionDebugAttempt({
+			sessionCase: sessionCase(),
+			config,
+			runsDirectory: runs,
+			runClaude: fakeClaude(projects, "OK"),
+			projectsDirectory: projects,
+		});
+
+		expect(await readShortIds(runs, "smoke")).toEqual([
+			{
+				shortId: "smoke/r1",
+				record: {
+					kind: "attempt:session",
+					caseId: "smoke",
+					uuid: basename(dirname(outcome.recordFile)),
+				},
+			},
+		]);
 	});
 
 	it("prints a record that parses with the schema that wrote it", async () => {
@@ -549,6 +574,7 @@ describe(runSessionDebugAttempt.name, () => {
 
 		expect(failure).toBeInstanceOf(RefusedPreconditionError);
 		expect(failure.message).toContain("no-such-style.md");
+		expect(await readShortIds(runs, "smoke")).toEqual([]);
 	});
 
 	it("refuses an out-of-extent live corpus file before any provider call", async () => {
