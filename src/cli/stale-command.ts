@@ -13,6 +13,12 @@ import { RefusedPreconditionError } from "#cli/interactive-stdin";
 import { corpusRefusal } from "#cli/corpus-failures";
 import type { CommandOutput } from "#cli/output";
 import { writeUnreadable } from "#cli/output";
+import { parseRecordId } from "#cli/record-id";
+import {
+	checkpointShortId,
+	NO_SHORT_ID,
+	shortIdsByRecordId,
+} from "#cli/short-id-column";
 
 /**
  * The knobs a session is about to replay with, not the ones a run was recorded
@@ -57,8 +63,26 @@ async function refusingCorpusFailures<Answer>(
 	}
 }
 
-function line(record: StaleRecord): string {
-	return `${[record.id, ...record.causes].join("\t")}\n`;
+function line(record: StaleRecord, shortId: string): string {
+	return `${[record.id, shortId, ...record.causes].join("\t")}\n`;
+}
+
+/**
+ * A checkpoint's short id, printed second as `list` prints it, so a reader
+ * finds both ids of a record in the first two columns whatever its kind.
+ */
+async function shortIdOf(
+	record: StaleRecord,
+	runsDirectory: string,
+	shortIds: ReadonlyMap<string, string>,
+): Promise<string> {
+	const id = parseRecordId(record.id);
+	const shortId =
+		id.kind === "checkpoint"
+			? await checkpointShortId(runsDirectory, shortIds, id.run, id.stage)
+			: shortIds.get(record.id);
+
+	return shortId ?? NO_SHORT_ID;
 }
 
 /**
@@ -92,7 +116,10 @@ async function report(
 	];
 
 	writeUnreadable(output, cases.unreadable);
+	const shortIds = await shortIdsByRecordId(request.runsDirectory);
 	for (const record of stale) {
-		output.stdout(line(record));
+		output.stdout(
+			line(record, await shortIdOf(record, request.runsDirectory, shortIds)),
+		);
 	}
 }

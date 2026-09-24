@@ -10,6 +10,7 @@ import {
 import { failureOf, recordOutput } from "#cli/cli-test-support";
 import { RefusedPreconditionError } from "#cli/interactive-stdin";
 import { runStale } from "#cli/stale-command";
+import { claimShortId } from "#benchmark/short-id";
 import { CorpusConfigurationError } from "#benchmark/corpus-file";
 
 const HALF_WRITTEN_UUID = "0f6b6f2a-0000-4000-8000-00000000000f";
@@ -113,6 +114,29 @@ describe(runStale.name, () => {
 		expect(printed.at(0)).toContain("skills/build/SKILL.md changed");
 	});
 
+	it("names a stale checkpoint by its short id beside its Record ID", async () => {
+		const fixture = await fixtureRecordedAgainst(
+			await corpusDirectory("build skill\n"),
+		);
+		await claimShortId(fixture.runsDirectory, "audit-log", {
+			kind: "run",
+			run: "2026-09-24T00-00-00.000Z",
+		});
+		const recorder = recordOutput();
+
+		await runStale(
+			{
+				corpus: await corpusDirectory("build skill, edited\n"),
+				runsDirectory: fixture.runsDirectory,
+			},
+			{ output: recorder.output },
+		);
+
+		expect(recorder.stdout.join("").trimEnd().split("\n")).toEqual([
+			`checkpoint:${fixture.replayableRun}/build\taudit-log/r2/s2\tskills/build/SKILL.md changed`,
+		]);
+	});
+
 	it("names no checkpoint when the corpus holds the recorded bytes", async () => {
 		const corpus = await corpusDirectory("build skill\n");
 		const fixture = await fixtureRecordedAgainst(corpus);
@@ -145,7 +169,7 @@ describe(runStale.name, () => {
 		);
 
 		expect(recorder.stdout.join("").trimEnd().split("\n")).toEqual([
-			`checkpoint:${fixture.stoppedRun}/initial\tstage settings file stage-settings.json changed`,
+			`checkpoint:${fixture.stoppedRun}/initial\t-\tstage settings file stage-settings.json changed`,
 		]);
 	});
 
@@ -274,7 +298,7 @@ describe(runStale.name, () => {
 			);
 
 			expect(recorder.stdout.join("").trimEnd().split("\n")).toEqual([
-				"case:smoke\toutput-styles/brief.md changed",
+				"case:smoke\t-\toutput-styles/brief.md changed",
 			]);
 		});
 

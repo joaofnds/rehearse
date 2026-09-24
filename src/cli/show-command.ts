@@ -19,7 +19,6 @@ import {
 	sessionAttemptPaths,
 } from "#benchmark/run-layout";
 import { stoppedStage } from "#benchmark/run-outcome";
-import { loadRunManifest } from "#benchmark/manifest";
 import { checkpointStageAt, resolveShortId } from "#benchmark/short-id";
 import { exists } from "node:fs/promises";
 import { z } from "zod";
@@ -28,6 +27,7 @@ import { UsageError } from "#cli/commands";
 import { RefusedPreconditionError } from "#cli/interactive-stdin";
 import type { CommandOutput } from "#cli/output";
 import type { RecordId, RunRecordId, ShortIdReference } from "#cli/record-id";
+import { frozenStages } from "#cli/short-id-column";
 import {
 	parseRecordId,
 	parseRecordReference,
@@ -161,19 +161,6 @@ async function groupSummaryOf(
 		parseConfirmationGroupRecord(text),
 		parseGroupReportSummaryRecord(await file.text()),
 	);
-}
-
-async function frozenStages(
-	runsDirectory: string,
-	run: string,
-): Promise<readonly string[]> {
-	const { manifestFile } = benchmarkRunPaths(runsDirectory, run);
-	if (!(await Bun.file(manifestFile).exists())) {
-		return [];
-	}
-	const manifest = await loadRunManifest(manifestFile);
-
-	return manifest.pipeline.stages.map(({ name }) => name);
 }
 
 /**

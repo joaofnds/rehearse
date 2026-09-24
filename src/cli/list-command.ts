@@ -11,11 +11,6 @@ import { readReplayRecord } from "#benchmark/replay";
 import { stoppedStage } from "#benchmark/run-outcome";
 import { stoppedStatus } from "#benchmark/stopped-status";
 import {
-	checkpointStageNumber,
-	formatCheckpointShortId,
-	readAllShortIds,
-} from "#benchmark/short-id";
-import {
 	benchmarkRunPaths,
 	checkpointRecordFile,
 	comparisonDigests,
@@ -34,6 +29,11 @@ import type { CommandOutput, UnreadableRecord } from "#cli/output";
 import { writeUnreadable } from "#cli/output";
 import type { RecordId } from "#cli/record-id";
 import { formatRecordId } from "#cli/record-id";
+import {
+	checkpointShortId,
+	NO_SHORT_ID,
+	shortIdsByRecordId,
+} from "#cli/short-id-column";
 
 export const LIST_KINDS = [
 	"cases",
@@ -105,19 +105,6 @@ export function controlRelative(reason: string): string {
 	return reason.replaceAll(`${CONTROL_DIR}/`, "");
 }
 
-/** What a listing prints in the short id column for a record with none. */
-const NO_SHORT_ID = "-";
-
-async function shortIdsByRecordId(
-	runsDirectory: string,
-): Promise<ReadonlyMap<string, string>> {
-	const entries = await readAllShortIds(runsDirectory);
-
-	return new Map(
-		entries.map(({ shortId, record }) => [formatRecordId(record), shortId]),
-	);
-}
-
 /**
  * The short id goes second, beside the Record ID it abbreviates, so a reader
  * finds both ids of a record in the first two columns whatever its kind.
@@ -140,28 +127,6 @@ async function numbered(
 	listing: RecordListing,
 ): Promise<RecordListing> {
 	return withShortIds(listing, await shortIdsByRecordId(runsDirectory));
-}
-
-async function checkpointShortId(
-	runsDirectory: string,
-	shortIds: ReadonlyMap<string, string>,
-	run: string,
-	stage: string,
-): Promise<string | undefined> {
-	const runShortId = shortIds.get(formatRecordId({ kind: "run", run }));
-	const { manifestFile } = benchmarkRunPaths(runsDirectory, run);
-	if (runShortId === undefined || !(await Bun.file(manifestFile).exists())) {
-		return undefined;
-	}
-	const manifest = await loadRunManifest(manifestFile);
-	const number = checkpointStageNumber(
-		manifest.pipeline.stages.map(({ name }) => name),
-		stage,
-	);
-
-	return number === undefined
-		? undefined
-		: formatCheckpointShortId(runShortId, number);
 }
 
 async function listDeclaredCases(): Promise<RecordListing> {
