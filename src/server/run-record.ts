@@ -41,8 +41,7 @@ export const UNEXPLAINED_END_REASON =
 	"the run ended without recording how it ended";
 export const PRODUCT_OWNER_COST_REASON =
 	"only the main artifact records the Product Owner's cost, and the run wrote none";
-export const STOPPED_GRADE_REASON =
-	"a stop record keeps the stage's findings but not its letter";
+export const STOPPED_GRADE_REASON = "a stop record keeps no letter grade";
 export const WALL_TIME_REASON =
 	"no record keeps when a stage or run started and ended";
 export const UNRECORDED_STAGE_REASON =
@@ -50,7 +49,7 @@ export const UNRECORDED_STAGE_REASON =
 export const MINIMUM_GRADE_REASON =
 	"the run manifest does not record the minimum grade";
 export const PRODUCT_OWNER_TOKENS_REASON =
-	"the run records the Product Owner's cost but not its call metrics";
+	"no record keeps the Product Owner's call metrics";
 
 export type Reading<Value> =
 	| ({ readonly state: "available" } & Value)
