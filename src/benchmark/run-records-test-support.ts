@@ -947,6 +947,15 @@ export class RecordedRunsFixture {
 				2,
 			)}\n`,
 		);
+		await this.writeAwaitingJudgeRecord(this.awaitingJudgeRun);
+	}
+
+	/**
+	 * The record a run leaves for its build stage between the stage's session
+	 * ending and its judge returning, in the oldest shape on disk.
+	 */
+	public async writeAwaitingJudgeRecord(run: string): Promise<void> {
+		const paths = benchmarkRunPaths(this.runsDirectory, run);
 		await Bun.write(
 			paths.stageFile("build"),
 			`${JSON.stringify(

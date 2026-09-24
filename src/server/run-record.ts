@@ -13,7 +13,10 @@ import {
 	runEventsDatabaseFile,
 } from "#benchmark/run-layout";
 import type { BenchmarkRunPaths } from "#benchmark/run-layout";
-import { openRunEventStore } from "#benchmark/run-events";
+import {
+	isTerminalRunEventKind,
+	openRunEventStore,
+} from "#benchmark/run-events";
 import type { RunEventStore } from "#benchmark/run-events";
 import type { RunLiveness } from "#benchmark/run-liveness";
 import { RefusedPreconditionError } from "#benchmark/exit-codes";
@@ -588,9 +591,10 @@ function stageWithStatus(
 
 /**
  * The records say how a run ended in this order: the main artifact once the
- * final judge ran, a stop record or a record left awaiting judgment, and only
- * then the event stream, which is best effort and is the one place an
- * interruption or an abort is recorded at all.
+ * final judge ran, a stop record, then the event stream, which is the one
+ * place an interruption, an abort or a live run is recorded at all. A record
+ * awaiting judgment is what every live run leaves while a stage is judged, so
+ * it says the run ended there only once the stream says the run is not live.
  */
 async function finalOutcome(
 	runsDirectory: string,
@@ -623,15 +627,6 @@ async function finalOutcome(
 		};
 	}
 
-	const awaiting = stageWithStatus(stages, "AWAITING_STAGE_JUDGE");
-	if (awaiting !== undefined) {
-		return {
-			status: "NOT_REACHED",
-			stage: awaiting.stage,
-			reason: AWAITING_JUDGMENT_REASON,
-		};
-	}
-
 	const latest = runEvents.latestEvent(run);
 	if (latest?.kind === "run-interrupted") {
 		return {
@@ -640,6 +635,7 @@ async function finalOutcome(
 			reason: INTERRUPTED_REASON,
 		};
 	}
+
 	if (latest?.kind === "run-failed") {
 		return {
 			status: "NOT_REACHED",
@@ -647,8 +643,22 @@ async function finalOutcome(
 			reason: RUN_FAILED_REASON,
 		};
 	}
-	if (await claimsLiveTarget(paths.manifestFile, liveness)) {
+
+	if (
+		latest !== undefined &&
+		!isTerminalRunEventKind(latest.kind) &&
+		(await claimsLiveTarget(paths.manifestFile, liveness))
+	) {
 		return { status: "PENDING" };
+	}
+
+	const awaiting = stageWithStatus(stages, "AWAITING_STAGE_JUDGE");
+	if (awaiting !== undefined) {
+		return {
+			status: "NOT_REACHED",
+			stage: awaiting.stage,
+			reason: AWAITING_JUDGMENT_REASON,
+		};
 	}
 
 	return {

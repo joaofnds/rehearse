@@ -483,6 +483,48 @@ describe("/api/runs/:run", () => {
 				});
 			});
 
+			it("reports pending while a live run's stage awaits its judge", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeRunningRun();
+				await fixture.writeAwaitingJudgeRecord(fixture.runningRun);
+
+				const response = await runRecord(fixture, fixture.runningRun, liveRun);
+
+				expect(await response.json()).toMatchObject({
+					finalOutcome: { status: "PENDING" },
+				});
+			});
+
+			it("reports an interrupted run that left a stage awaiting judgment as interrupted", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeInterruptedRun();
+				await fixture.writeAwaitingJudgeRecord(fixture.interruptedRun);
+
+				const response = await runRecord(fixture, fixture.interruptedRun);
+
+				expect(await response.json()).toMatchObject({
+					finalOutcome: {
+						status: "NOT_REACHED",
+						stage: "build",
+						reason: INTERRUPTED_REASON,
+					},
+				});
+			});
+
+			it("reports a run with no events as not reached even while another run holds its target", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeNoRecordRun();
+
+				const response = await runRecord(fixture, fixture.noRecordRun, liveRun);
+
+				expect(await response.json()).toMatchObject({
+					finalOutcome: {
+						status: "NOT_REACHED",
+						reason: UNEXPLAINED_END_REASON,
+					},
+				});
+			});
+
 			it("reports a run that recorded neither a stage nor an event as not reached for an unrecorded reason", async () => {
 				const fixture = await emptyFixture();
 				await fixture.writeNoRecordRun();
