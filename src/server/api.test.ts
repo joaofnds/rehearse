@@ -22,6 +22,7 @@ import type { RecordedRunsOptions } from "#benchmark/run-records-test-support";
 import { CONTROL_DIR } from "#benchmark/config";
 import { runEventsDatabaseFile } from "#benchmark/run-layout";
 import { openRunEventStore } from "#benchmark/run-events";
+import { claimShortId } from "#benchmark/short-id";
 import { createApiApp } from "./api";
 
 const runEventSchema = z.object({ kind: z.string() }).loose();
@@ -221,6 +222,47 @@ describe(createApiApp.name, () => {
 				`cases/${caseId}/settings.json`,
 			);
 			assertDoesNotLeak(JSON.stringify(body), CONTROL_DIR);
+		});
+
+		it("names each record by the same short id after a restart and a later claim, with a replay's checkpoint and attempt", async () => {
+			const fixture = await writtenFixture();
+			const corpus = await corpusDirectory();
+			const claimAndWrite = async (run: string): Promise<void> => {
+				await claimShortId(fixture.runsDirectory, "audit-log", {
+					kind: "run",
+					run,
+				});
+				await fixture.writePipelineRun(run, "audit-log");
+			};
+			const shortIds = async (): Promise<readonly unknown[]> => {
+				const app = createApiApp({
+					runsDirectory: fixture.runsDirectory,
+					liveness: nothingRunning,
+					corpusSource: directorySource(corpus),
+				});
+				const response = await app.request("/api/runs");
+				const body = runHistoryResponseSchema.parse(await response.json());
+
+				return body.rows.filter((row) => "shortId" in row);
+			};
+			await claimAndWrite("2026-09-11T00-00-00.000Z");
+
+			const before = await shortIds();
+			await claimAndWrite("2026-09-12T00-00-00.000Z");
+			const after = await shortIds();
+
+			expect(after).toHaveLength(before.length + 1);
+			for (const row of before) {
+				expect(after).toContainEqual(row);
+			}
+			expect(before).toContainEqual(
+				expect.objectContaining({
+					kind: "replay",
+					shortId: "audit-log/r3",
+					checkpointShortId: "audit-log/r2/s1",
+					attempt: { position: 2, count: 2 },
+				}),
+			);
 		});
 
 		it("renders an empty runs directory as no rows, not an error", async () => {
