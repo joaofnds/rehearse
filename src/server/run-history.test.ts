@@ -1339,6 +1339,36 @@ describe(runHistoryReport.name, () => {
 			]);
 		});
 
+		for (const [recordedBy, keptRecord] of [
+			["its checkpoint", "checkpoint"],
+			["its artifact's scorecard", "artifact"],
+		] as const) {
+			it(`counts the original run's stage from ${recordedBy} alone`, async () => {
+				const fixture = await fixtureWithClaimedRun();
+				const paths = benchmarkRunPaths(
+					fixture.runsDirectory,
+					fixture.replayableRun,
+				);
+				await rm(
+					keptRecord === "checkpoint"
+						? paths.artifactFile
+						: checkpointRecordFile(paths.checkpointDirectory("build")),
+				);
+
+				const { rows } = await runHistoryReport(
+					fixture.runsDirectory,
+					directorySource(await corpusDirectory("build skill\n")),
+					nothingRunning,
+				);
+
+				expect(
+					rows
+						.filter((row) => row.kind === "replay")
+						.map(({ attempt }) => attempt),
+				).toEqual([{ position: 2, count: 2 }]);
+			});
+		}
+
 		it("counts judged reps of a stage-mode group claimed at the checkpoint, after the replays claimed before it", async () => {
 			const fixture = await fixtureWithClaimedRun();
 			await fixture.writeStageGroupWithReps("group-at-build");
