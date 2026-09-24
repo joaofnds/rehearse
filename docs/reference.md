@@ -719,9 +719,11 @@ group, and for a replay the checkpoint it replays, whose record `bindings/<n>`
 names once its timestamp is known. A replay confirmation's claim also names
 the checkpoint its reps replayed. The registry is part of the records, not
 derived state: deleting it renumbers the case at its next claim, so a short id
-already printed or quoted can then name a different record. The first claim in
-a case builds its registry by numbering every record of that case the
-server's run history can read, oldest first by the time each record says it
+already printed or quoted can then name a different record. `rehearse serve`
+builds the registry of every case a record names when it starts, before it
+accepts requests, and a case with no registry yet gets one at its first claim.
+Either way the build numbers every record of that case the server's run
+history can read, oldest first by the time each record says it
 ran. A run is timed by its name, a replay by its timestamp, a session attempt
 by the first line its own session wrote to the transcript after the starting
 transcript its case declares, and a confirmation group by its earliest rep.
@@ -746,13 +748,14 @@ its position among the reps its group declared. A pipeline-mode rep, and a rep
 of a group whose claim names no checkpoint because the first claim in its case
 numbered it, has no attempt. A registry that cannot be read leaves every row
 without a short id and adds a `short-ids` entry to the response's unreadable
-records rather than failing it.
+records rather than failing it. A registry the server cannot build at startup
+is logged, the other cases are still numbered, and the server starts anyway.
 
 `list cases|runs|checkpoints|attempts|groups|comparisons` prints IDs usable by
 `show`. For runs, checkpoints, attempts and groups the second column is the
 short id, or `-` for a record its case's registry does not name; cases and
-comparisons have no short id column. `list` only reads registries, so a case no command has
-claimed in since short ids arrived prints `-` throughout. `stale` prints a
+comparisons have no short id column. `list` only reads registries, so a case whose registry
+neither a server start nor a claim has built prints `-` throughout. `stale` prints a
 checkpoint's short id the same way. Empty history is valid on a fresh clone. A malformed record is reported
 without hiding readable neighbors. Stopped runs are visible through the same
 commands as completed runs. `list attempts` validates attempt diagnostics, and
