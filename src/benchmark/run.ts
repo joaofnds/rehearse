@@ -105,6 +105,7 @@ import {
 import type { SourceBaseline } from "./target";
 import type { ProductOwner, ProductOwnerSnapshot } from "./workflow";
 import { createProductOwner, runWorkflowStage } from "./workflow";
+import { claimShortId, formatShortId } from "./short-id";
 
 async function createRunFiles(timestamp: string): Promise<BenchmarkRunPaths> {
 	const directory = benchmarkRunsDirectory(CONTROL_DIR);
@@ -952,6 +953,11 @@ export async function runBenchmark(
 	}
 
 	try {
+		const shortId = await claimShortId(runFiles.runsDirectory, config.caseId, {
+			kind: "run",
+			run: runFiles.name,
+		});
+		log(`Short id: ${formatShortId(shortId)}`);
 		log(`Target: ${source.root}`);
 		log(`Original commit: ${source.sha}`);
 		log(`Workflow backup: ${workflowBackup.directory}`);
