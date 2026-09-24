@@ -710,6 +710,12 @@ See [current state](docs/status.md) for implementation coverage and
   attempt elapsed time whenever attempts ran concurrently. Recorded on the
   group record and not carried into comparison reports, because it describes
   how the operator scheduled the reps rather than the treatment under test.
+- **Group median grade** — the grade a confirmation group's reps received at
+  one stage, taken from the reps a Judge graded there. On an even count it is
+  the lower of the two middle grades, so it is always a grade some rep
+  received. A session group has none, because its reps pass or fail on checks
+  and no Judge gives them a letter. Rule accepted unattended as unsettled,
+  pending the operator's confirmation (doc-152, decision 3).
 - **Stage elapsed time** — the wall-clock duration of one stage in a pipeline
   run, from the stage starting to its Judge's grade, read from the run's clock.
   Recorded on the stage's scorecard, and on its stop record when the stage's
