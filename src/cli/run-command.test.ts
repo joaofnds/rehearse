@@ -1042,6 +1042,7 @@ describe("runRunCommand for a session case", () => {
 			const { output } = recordOutput();
 			const calls: string[] = [];
 			const corpusRoot = await testResources.createControlDirectory();
+			const runsDirectory = await testResources.createControlDirectory();
 			await Bun.write(join(corpusRoot, corpusFile), "declared corpus\n");
 			const globalCase: SessionCase = {
 				...smokeCase,
@@ -1082,6 +1083,7 @@ describe("runRunCommand for a session case", () => {
 						executeSession: (config, commandOutput, loaded, boundary) =>
 							executeSessionRun(config, commandOutput, loaded, {
 								...boundary,
+								runsDirectory,
 								executeAttempt: () => {
 									calls.push("rep");
 
