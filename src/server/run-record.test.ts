@@ -2,8 +2,7 @@ import { afterEach, describe, expect, it } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { parseCheckpointRecord } from "#benchmark/checkpoint";
-import { benchmarkRunPaths, checkpointRecordFile } from "#benchmark/run-layout";
+
 import type { RunLiveness } from "#benchmark/run-liveness";
 import { stoppedStatus } from "#benchmark/stopped-status";
 import {
@@ -14,10 +13,12 @@ import {
 	FINAL_JUDGE_FAILURE,
 	nothingRunning,
 	RecordedRunsFixture,
+	STOPPED_RUN_ERROR,
 	STOPPED_RUN_EVIDENCE,
 } from "#benchmark/run-records-test-support";
 import { createApiApp } from "./api";
 import {
+	AWAITING_GRADE_REASON,
 	AWAITING_JUDGMENT_REASON,
 	INTERRUPTED_REASON,
 	MINIMUM_GRADE_REASON,
@@ -27,6 +28,7 @@ import {
 	STOPPED_GRADE_REASON,
 	UNEXPLAINED_END_REASON,
 	UNRECORDED_STAGE_REASON,
+	WALL_TIME_REASON,
 } from "./run-record";
 
 const FINISHED_RUN = "2026-09-11T00-00-00.000Z";
@@ -48,7 +50,7 @@ const RUNS_ENDED_BEFORE_THE_FINAL_JUDGE: readonly EndedRun[] = [
 		ending: "a stopped run",
 		write: (fixture) => fixture.writeStoppedRun(),
 		run: (fixture) => fixture.stoppedRun,
-		reason: "build stage graded F; minimum grade is B",
+		reason: STOPPED_RUN_ERROR,
 	},
 	{
 		ending: "an interrupted run",
@@ -179,6 +181,24 @@ describe("/api/runs/:run", () => {
 						state: "unavailable",
 						reasons: [MINIMUM_GRADE_REASON],
 					},
+				});
+			});
+
+			it("reports a stage left awaiting its judge as awaiting judgment with no letter", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeAwaitingJudgeRun();
+
+				const response = await runRecord(fixture, fixture.awaitingJudgeRun);
+
+				expect(await response.json()).toMatchObject({
+					stages: [
+						{ stage: "discuss", status: "graded" },
+						{
+							stage: "build",
+							status: "awaiting-judgment",
+							grade: { state: "unavailable", reasons: [AWAITING_GRADE_REASON] },
+						},
+					],
 				});
 			});
 
@@ -330,8 +350,13 @@ describe("/api/runs/:run", () => {
 		});
 
 		describe("artifacts in and out", () => {
-			const { taskCard, buildCommitSubjects, buildChangedPaths } =
-				STOPPED_RUN_EVIDENCE;
+			const {
+				taskCard,
+				untouchedCard,
+				buildCommitSubjects,
+				buildChangedPaths,
+			} = STOPPED_RUN_EVIDENCE;
+			const addedCard = ".boris/backlog/tasks/task-3 - Export-the-audit-log.md";
 
 			it("lists a stage's checkpointed instruction files and the task card it alone changed", async () => {
 				const fixture = await emptyFixture();
@@ -361,6 +386,55 @@ describe("/api/runs/:run", () => {
 				});
 			});
 
+			it("lists each workflow-state entry a stage added, modified or removed against its upstream checkpoint", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeStoppedRunEvidence();
+				await fixture.rewriteDiscussCheckpoint({
+					workflowState: [
+						{ path: taskCard, sha256: "5".repeat(64) },
+						{ path: addedCard, sha256: "8".repeat(64) },
+					],
+				});
+
+				const response = await runRecord(fixture, fixture.stoppedRun);
+
+				expect(await response.json()).toMatchObject({
+					stages: [
+						{
+							stage: "discuss",
+							artifactsOut: {
+								workflowState: {
+									state: "available",
+									changes: [
+										{ path: taskCard, change: "modified" },
+										{ path: addedCard, change: "added" },
+										{ path: untouchedCard, change: "removed" },
+									],
+								},
+							},
+						},
+						{ stage: "build" },
+					],
+				});
+			});
+
+			it("reports workflow-state changes as unavailable when the run holds no checkpoint the stage continued from", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writePipelineRun(FINISHED_RUN, CASE_ID);
+
+				const response = await runRecord(fixture, FINISHED_RUN);
+
+				expect(await response.json()).toMatchObject({
+					stages: [
+						{
+							stage: "discuss",
+							artifactsOut: { workflowState: { state: "unavailable" } },
+						},
+						{ stage: "build" },
+					],
+				});
+			});
+
 			it("reports the instruction files and declared artifact of a stage awaiting judgment as unavailable", async () => {
 				const fixture = await emptyFixture();
 				await fixture.writeAwaitingJudgeRun();
@@ -382,22 +456,9 @@ describe("/api/runs/:run", () => {
 			it("lists a stage's declared artifact", async () => {
 				const fixture = await emptyFixture();
 				await fixture.writeStoppedRunEvidence();
-				const checkpointFile = checkpointRecordFile(
-					benchmarkRunPaths(
-						fixture.runsDirectory,
-						fixture.stoppedRun,
-					).checkpointDirectory("discuss"),
-				);
-				const recorded = parseCheckpointRecord(
-					await Bun.file(checkpointFile).text(),
-				);
-				await Bun.write(
-					checkpointFile,
-					JSON.stringify({
-						...recorded,
-						artifacts: [{ path: "PLAN.md", sha256: "6".repeat(64) }],
-					}),
-				);
+				await fixture.rewriteDiscussCheckpoint({
+					artifacts: [{ path: "PLAN.md", sha256: "6".repeat(64) }],
+				});
 
 				const response = await runRecord(fixture, fixture.stoppedRun);
 
@@ -450,6 +511,10 @@ describe("/api/runs/:run", () => {
 
 		describe("figures the records do not hold", () => {
 			it("reports wall time as not recorded for each stage and for the run", async () => {
+				const notRecorded = {
+					state: "unavailable",
+					reasons: [WALL_TIME_REASON],
+				};
 				const fixture = await emptyFixture();
 				await fixture.writeStoppedRunEvidence();
 
@@ -457,14 +522,14 @@ describe("/api/runs/:run", () => {
 
 				expect(await response.json()).toMatchObject({
 					stages: [
-						{ stage: "discuss", wallTime: { state: "unavailable" } },
-						{ stage: "build", wallTime: { state: "unavailable" } },
+						{ stage: "discuss", wallTime: notRecorded },
+						{ stage: "build", wallTime: notRecorded },
 					],
-					totals: { wallTime: { state: "unavailable" } },
+					totals: { wallTime: notRecorded },
 				});
 			});
 
-			it("reports a graded stage's letter and a stopped stage's letter as not recorded", async () => {
+			it("reports a stopped stage's letter as not recorded", async () => {
 				const fixture = await emptyFixture();
 				await fixture.writeStoppedRunEvidence();
 
@@ -472,11 +537,7 @@ describe("/api/runs/:run", () => {
 
 				expect(await response.json()).toMatchObject({
 					stages: [
-						{
-							stage: "discuss",
-							status: "graded",
-							grade: { state: "available", letter: "A" },
-						},
+						{ stage: "discuss" },
 						{
 							stage: "build",
 							status: "stopped",

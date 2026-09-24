@@ -114,7 +114,10 @@ export const STOPPED_RUN_EVIDENCE = {
 	buildCommitSubjects: ["feat: add the audit log module"],
 	buildChangedPaths: ["src/audit-log.ts", "src/audit-log.test.ts"],
 	taskCard: ".boris/backlog/tasks/task-1 - Add-an-audit-log.md",
+	untouchedCard: ".boris/backlog/tasks/task-2 - Rotate-the-audit-log.md",
 } as const;
+
+export const STOPPED_RUN_ERROR = "build stage graded F; minimum grade is B";
 
 export const FINAL_JUDGE_FAILURE = "the final judge returned no valid grade";
 
@@ -783,7 +786,7 @@ export class RecordedRunsFixture {
 				{
 					status: "STAGE_JUDGE_FAILED",
 					stage: "build",
-					error: "build stage graded F; minimum grade is B",
+					error: STOPPED_RUN_ERROR,
 					input: {
 						transcript: {
 							sessionId: STOPPED_STAGE_SESSION_ID,
@@ -905,6 +908,7 @@ export class RecordedRunsFixture {
 				...initialCheckpoint(this.settingsFile),
 				workflowState: [
 					{ path: STOPPED_RUN_EVIDENCE.taskCard, sha256: "4".repeat(64) },
+					{ path: STOPPED_RUN_EVIDENCE.untouchedCard, sha256: "7".repeat(64) },
 				],
 			},
 			{
@@ -912,6 +916,7 @@ export class RecordedRunsFixture {
 				upstream: "lineage-initial",
 				workflowState: [
 					{ path: STOPPED_RUN_EVIDENCE.taskCard, sha256: "5".repeat(64) },
+					{ path: STOPPED_RUN_EVIDENCE.untouchedCard, sha256: "7".repeat(64) },
 				],
 			},
 		]) {
@@ -919,6 +924,23 @@ export class RecordedRunsFixture {
 			await mkdir(directory, { recursive: true });
 			await Bun.write(checkpointRecordFile(directory), serialize(record));
 		}
+	}
+
+	/**
+	 * Replaces fields of discuss's checkpoint in the stopped run, for a test
+	 * about a checkpoint the evidence fixture does not write.
+	 */
+	public async rewriteDiscussCheckpoint(
+		change: Partial<Pick<CheckpointRecord, "artifacts" | "workflowState">>,
+	): Promise<void> {
+		const file = checkpointRecordFile(
+			benchmarkRunPaths(
+				this.runsDirectory,
+				this.stoppedRun,
+			).checkpointDirectory("discuss"),
+		);
+		const recorded = parseCheckpointRecord(await Bun.file(file).text());
+		await Bun.write(file, serialize({ ...recorded, ...change }));
 	}
 
 	/**
@@ -994,7 +1016,7 @@ export class RecordedRunsFixture {
 				{
 					status: "STAGE_JUDGE_FAILED",
 					stage: "build",
-					error: "build stage graded F; minimum grade is B",
+					error: STOPPED_RUN_ERROR,
 					input: {
 						transcript: {
 							sessionId: STOPPED_STAGE_SESSION_ID,

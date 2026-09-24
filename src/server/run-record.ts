@@ -37,6 +37,7 @@ export const INTERRUPTED_REASON =
 export const RUN_FAILED_REASON = "the run failed before its final judge";
 export const AWAITING_JUDGMENT_REASON =
 	"the run ended while this stage awaited judgment";
+export const AWAITING_GRADE_REASON = "the stage's judge has not returned";
 export const UNEXPLAINED_END_REASON =
 	"the run ended without recording how it ended";
 export const PRODUCT_OWNER_COST_REASON =
@@ -480,7 +481,7 @@ function stageStatus(file: StageFile | undefined): StageStatus {
 
 const UNGRADED_REASONS = {
 	stopped: STOPPED_GRADE_REASON,
-	"awaiting-judgment": "the stage's judge never returned",
+	"awaiting-judgment": AWAITING_GRADE_REASON,
 	"no-record": "the stage wrote no record",
 	graded: "the scorecard holds no letter",
 } as const satisfies Record<StageStatus, string>;
