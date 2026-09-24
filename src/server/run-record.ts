@@ -26,6 +26,12 @@ export const AWAITING_JUDGMENT_REASON =
 	"the run ended while this stage awaited judgment";
 export const UNEXPLAINED_END_REASON =
 	"the run ended without recording how it ended";
+export const PRODUCT_OWNER_COST_REASON =
+	"only the main artifact records the Product Owner's cost, and the run wrote none";
+export const STOPPED_GRADE_REASON =
+	"a stop record keeps the stage's findings but not its letter";
+export const WALL_TIME_REASON =
+	"no record keeps when a stage or run started and ended";
 export const PRODUCT_OWNER_TOKENS_REASON =
 	"the run records the Product Owner's cost but not its call metrics";
 
@@ -56,8 +62,18 @@ export type TokenReading = Reading<
 	TokenCounts & { readonly missing: readonly MissingPart[] }
 >;
 
+/** Which record a stage left: a scorecard, a stop record, or one awaiting its judge. */
+export type StageStatus =
+	| "graded"
+	| "stopped"
+	| "awaiting-judgment"
+	| "no-record";
+
 export interface RunRecordStage {
 	readonly stage: string;
+	readonly status: StageStatus;
+	readonly grade: Reading<{ readonly letter: string }>;
+	readonly wallTime: Reading<{ readonly ms: number }>;
 	readonly sessionCost: Reading<{ readonly usd: number }>;
 	readonly judgeCost: Reading<{ readonly usd: number }>;
 	readonly tokens: TokenReading;
@@ -98,10 +114,27 @@ export type FinalOutcome =
 	  }
 	| { readonly status: "PENDING" };
 
+export interface CostPart {
+	readonly part: string;
+	readonly usd: number;
+}
+
+export interface RunTotals {
+	readonly tokens: TokenReading;
+	/** Every recorded spend summed, naming each part summed and each lacked. */
+	readonly cost: Reading<{
+		readonly usd: number;
+		readonly parts: readonly CostPart[];
+		readonly missing: readonly MissingPart[];
+	}>;
+	readonly productOwnerCost: Reading<{ readonly usd: number }>;
+	readonly wallTime: Reading<{ readonly ms: number }>;
+}
+
 export interface RunRecord {
 	readonly run: string;
 	readonly stages: readonly RunRecordStage[];
-	readonly totals: { readonly tokens: TokenReading };
+	readonly totals: RunTotals;
 	readonly finalOutcome: FinalOutcome;
 }
 
@@ -116,6 +149,7 @@ const stageFileSchema = z
 	.object({
 		status: z.string().optional(),
 		costUsd: z.number().optional(),
+		grade: z.object({ grade: z.string() }).loose().optional(),
 		attempts: callsSchema.optional(),
 		corpusFiles: z.array(z.object({ path: z.string() }).loose()).optional(),
 		input: z
@@ -153,9 +187,20 @@ const gradedArtifactSchema = z
 	.object({ grade: z.object({ verdict: z.enum(["PASS", "FAIL"]) }).loose() })
 	.loose();
 
-const artifactCallsSchema = z
-	.object({ judgeAttempts: callsSchema.optional() })
+const artifactSpendSchema = z
+	.object({
+		judgeAttempts: callsSchema.optional(),
+		productOwnerCostUsd: z.number().optional(),
+		judgeCostUsd: z.number().optional(),
+	})
 	.loose();
+
+type ArtifactSpend = Immutable<z.infer<typeof artifactSpendSchema>>;
+
+const WALL_TIME: Reading<{ readonly ms: number }> = {
+	state: "unavailable",
+	reasons: [WALL_TIME_REASON],
+};
 
 /**
  * What a main artifact carries in place of a grade when the final judge
@@ -334,6 +379,27 @@ function workflowStateChanges(
 	return { state: "available", changes };
 }
 
+function stageStatus(file: StageFile | undefined): StageStatus {
+	if (file === undefined) {
+		return "no-record";
+	}
+	if (file.status === "STAGE_JUDGE_FAILED") {
+		return "stopped";
+	}
+	if (file.status === "AWAITING_STAGE_JUDGE") {
+		return "awaiting-judgment";
+	}
+
+	return "graded";
+}
+
+const UNGRADED_REASONS = {
+	stopped: STOPPED_GRADE_REASON,
+	"awaiting-judgment": "the stage's judge never returned",
+	"no-record": "the stage wrote no record",
+	graded: "the scorecard holds no letter",
+} as const satisfies Record<StageStatus, string>;
+
 function stageRecord(
 	recorded: RecordedStage,
 	checkpoints: CheckpointsByLineage,
@@ -344,6 +410,15 @@ function stageRecord(
 
 	return {
 		stage: recorded.stage,
+		status: stageStatus(file),
+		grade:
+			file?.grade === undefined
+				? {
+						state: "unavailable",
+						reasons: [UNGRADED_REASONS[stageStatus(file)]],
+					}
+				: { state: "available", letter: file.grade.grade },
+		wallTime: WALL_TIME,
 		sessionCost: usd(
 			file?.input?.transcript?.costUsd,
 			"the stage record holds no session cost",
@@ -375,6 +450,94 @@ function stageRecord(
 	};
 }
 
+async function readArtifactSpend(
+	paths: BenchmarkRunPaths,
+): Promise<ArtifactSpend | undefined> {
+	const artifactFile = Bun.file(paths.artifactFile);
+	if (!(await artifactFile.exists())) {
+		return undefined;
+	}
+
+	return artifactSpendSchema.parse(JSON.parse(await artifactFile.text()));
+}
+
+function costPart(
+	part: string,
+	reading: Reading<{ readonly usd: number }>,
+): CostPart | MissingPart {
+	return reading.state === "available"
+		? { part, usd: reading.usd }
+		: { part, reason: reading.reasons.join("; ") };
+}
+
+function stageCostParts(
+	stage: RunRecordStage,
+): readonly (CostPart | MissingPart)[] {
+	if (stage.status === "no-record") {
+		return [];
+	}
+
+	const session = costPart(`${stage.stage} session`, stage.sessionCost);
+	if (stage.status === "awaiting-judgment") {
+		return [session];
+	}
+
+	return [session, costPart(`${stage.stage} judge`, stage.judgeCost)];
+}
+
+function runTotals(
+	stages: readonly RunRecordStage[],
+	tokenParts: readonly TokenPart[],
+	artifact: ArtifactSpend | undefined,
+): RunTotals {
+	const productOwnerCost =
+		artifact === undefined
+			? usd(undefined, PRODUCT_OWNER_COST_REASON)
+			: usd(
+					artifact.productOwnerCostUsd,
+					"the main artifact holds no Product Owner cost",
+				);
+	const runParts =
+		artifact === undefined
+			? [costPart("Product Owner", productOwnerCost)]
+			: [
+					costPart("Product Owner", productOwnerCost),
+					costPart(
+						"final judge",
+						usd(
+							artifact.judgeCostUsd,
+							"the main artifact holds no final judge cost",
+						),
+					),
+				];
+	const summed = [
+		...stages.flatMap((stage) => stageCostParts(stage)),
+		...runParts,
+	];
+	const parts = summed.filter((part): part is CostPart => "usd" in part);
+	const missing = summed.filter(
+		(part): part is MissingPart => "reason" in part,
+	);
+
+	return {
+		tokens: tokenReading(tokenParts),
+		cost:
+			parts.length === 0
+				? {
+						state: "unavailable",
+						reasons: missing.map(({ part, reason }) => `${part}: ${reason}`),
+					}
+				: {
+						state: "available",
+						usd: parts.reduce((sum, part) => sum + part.usd, 0),
+						parts,
+						missing,
+					},
+		productOwnerCost,
+		wallTime: WALL_TIME,
+	};
+}
+
 async function readCheckpoint(
 	paths: BenchmarkRunPaths,
 	stage: string,
@@ -391,20 +554,15 @@ async function readCheckpoint(
  * The run's parts beyond its stages: the Product Owner, whose calls no record
  * keeps metrics for, and the final judge once the main artifact holds it.
  */
-async function runTokenParts(
-	paths: BenchmarkRunPaths,
-): Promise<readonly TokenPart[]> {
+function runTokenParts(
+	artifact: ArtifactSpend | undefined,
+): readonly TokenPart[] {
 	const productOwner: TokenPart = {
 		missing: { part: "Product Owner", reason: PRODUCT_OWNER_TOKENS_REASON },
 	};
-	const artifactFile = Bun.file(paths.artifactFile);
-	if (!(await artifactFile.exists())) {
+	if (artifact === undefined) {
 		return [productOwner];
 	}
-
-	const artifact = artifactCallsSchema.parse(
-		JSON.parse(await artifactFile.text()),
-	);
 
 	return [
 		productOwner,
@@ -523,19 +681,23 @@ export async function readRunRecord(
 			.map((checkpoint) => [checkpoint.lineage, checkpoint]),
 	);
 
+	const records = stages.map((stage) => stageRecord(stage, checkpoints));
+	const artifact = await readArtifactSpend(paths);
 	const runEvents = await openRunEventStore(
 		runEventsDatabaseFile(runsDirectory),
 	);
 	try {
 		return {
 			run,
-			stages: stages.map((stage) => stageRecord(stage, checkpoints)),
-			totals: {
-				tokens: tokenReading([
+			stages: records,
+			totals: runTotals(
+				records,
+				[
 					...stages.flatMap((stage) => stageTokenParts(stage)),
-					...(await runTokenParts(paths)),
-				]),
-			},
+					...runTokenParts(artifact),
+				],
+				artifact,
+			),
 			finalOutcome: await finalOutcome(
 				runsDirectory,
 				run,

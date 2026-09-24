@@ -17,7 +17,9 @@ import { createApiApp } from "./api";
 import {
 	AWAITING_JUDGMENT_REASON,
 	INTERRUPTED_REASON,
+	PRODUCT_OWNER_COST_REASON,
 	RUN_FAILED_REASON,
+	STOPPED_GRADE_REASON,
 	UNEXPLAINED_END_REASON,
 } from "./run-record";
 
@@ -304,6 +306,111 @@ describe("/api/runs/:run", () => {
 							},
 						},
 					],
+				});
+			});
+		});
+
+		describe("figures the records do not hold", () => {
+			it("reports wall time as not recorded for each stage and for the run", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeStoppedRunEvidence();
+
+				const response = await runRecord(fixture, fixture.stoppedRun);
+
+				expect(await response.json()).toMatchObject({
+					stages: [
+						{ stage: "discuss", wallTime: { state: "unavailable" } },
+						{ stage: "build", wallTime: { state: "unavailable" } },
+					],
+					totals: { wallTime: { state: "unavailable" } },
+				});
+			});
+
+			it("reports a graded stage's letter and a stopped stage's letter as not recorded", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeStoppedRunEvidence();
+
+				const response = await runRecord(fixture, fixture.stoppedRun);
+
+				expect(await response.json()).toMatchObject({
+					stages: [
+						{
+							stage: "discuss",
+							status: "graded",
+							grade: { state: "available", letter: "A" },
+						},
+						{
+							stage: "build",
+							status: "stopped",
+							grade: {
+								state: "unavailable",
+								reasons: [STOPPED_GRADE_REASON],
+							},
+						},
+					],
+				});
+			});
+
+			it("reports the Product Owner's spend as not recorded on a run without a main artifact", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeStoppedRunEvidence();
+
+				const response = await runRecord(fixture, fixture.stoppedRun);
+
+				expect(await response.json()).toMatchObject({
+					totals: {
+						productOwnerCost: {
+							state: "unavailable",
+							reasons: [PRODUCT_OWNER_COST_REASON],
+						},
+					},
+				});
+			});
+
+			it("sums the run cost from the parts it names and names the part it lacks", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeStoppedRunEvidence();
+
+				const response = await runRecord(fixture, fixture.stoppedRun);
+
+				expect(await response.json()).toMatchObject({
+					totals: {
+						cost: {
+							state: "available",
+							usd: 2 + 1 + 3 + 0.5,
+							parts: [
+								{ part: "discuss session", usd: 2 },
+								{ part: "discuss judge", usd: 1 },
+								{ part: "build session", usd: 3 },
+								{ part: "build judge", usd: 0.5 },
+							],
+							missing: [
+								{ part: "Product Owner", reason: PRODUCT_OWNER_COST_REASON },
+							],
+						},
+					},
+				});
+			});
+
+			it("sums a finished run's cost with its Product Owner and final judge", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writePipelineRun(FINISHED_RUN, "audit-log");
+
+				const response = await runRecord(fixture, FINISHED_RUN);
+
+				expect(await response.json()).toMatchObject({
+					totals: {
+						productOwnerCost: { state: "available", usd: 0.25 },
+						cost: {
+							state: "available",
+							usd: 0.25 + 1.5,
+							parts: [
+								{ part: "Product Owner", usd: 0.25 },
+								{ part: "final judge", usd: 1.5 },
+							],
+							missing: [],
+						},
+					},
 				});
 			});
 		});
