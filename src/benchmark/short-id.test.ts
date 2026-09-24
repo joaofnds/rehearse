@@ -142,6 +142,16 @@ describe(claimShortId.name, () => {
 });
 
 describe(backfillShortIds.name, () => {
+	let casesDirectory: string;
+
+	beforeEach(async () => {
+		casesDirectory = await mkdtemp(join(tmpdir(), "rehearse-short-id-cases-"));
+	});
+
+	afterEach(async () => {
+		await rm(casesDirectory, { recursive: true, force: true });
+	});
+
 	it("numbers the records of every case that has any", async () => {
 		const fixture = new RecordedRunsFixture(runsDirectory);
 		await fixture.writePipelineRun("2026-09-02T00-00-00.000Z", CASE_ID);
@@ -153,7 +163,7 @@ describe(backfillShortIds.name, () => {
 			[],
 		);
 
-		await backfillShortIds(runsDirectory);
+		await backfillShortIds(runsDirectory, casesDirectory);
 
 		expect([
 			...(await readShortIds(runsDirectory, CASE_ID)),
@@ -186,7 +196,7 @@ describe(backfillShortIds.name, () => {
 		});
 		await fixture.writePipelineRun("2026-09-01T00-00-00.000Z", CASE_ID);
 
-		await backfillShortIds(runsDirectory);
+		await backfillShortIds(runsDirectory, casesDirectory);
 
 		expect(await readShortIds(runsDirectory, CASE_ID)).toEqual([
 			{
@@ -201,7 +211,7 @@ describe(backfillShortIds.name, () => {
 			const fixture = new RecordedRunsFixture(runsDirectory);
 			await fixture.writePipelineRun("2026-09-01T00-00-00.000Z", "../escape");
 
-			await failureOf(backfillShortIds(runsDirectory));
+			await failureOf(backfillShortIds(runsDirectory, casesDirectory));
 
 			expect(await readdir(runsDirectory)).not.toContain("escape");
 		});
@@ -210,7 +220,9 @@ describe(backfillShortIds.name, () => {
 			const fixture = new RecordedRunsFixture(runsDirectory);
 			await fixture.writePipelineRun("2026-09-01T00-00-00.000Z", "../escape");
 
-			const failure = await failureOf(backfillShortIds(runsDirectory));
+			const failure = await failureOf(
+				backfillShortIds(runsDirectory, casesDirectory),
+			);
 
 			expect(failure).toMatchObject({ errors: [{ caseId: "../escape" }] });
 		});
@@ -231,7 +243,9 @@ describe(backfillShortIds.name, () => {
 				"not a registry",
 			);
 
-			const failure = await failureOf(backfillShortIds(runsDirectory));
+			const failure = await failureOf(
+				backfillShortIds(runsDirectory, casesDirectory),
+			);
 
 			expect(failure).toBeInstanceOf(AggregateError);
 			expect(failure).toMatchObject({ errors: [{ caseId: CASE_ID }] });

@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, open, readdir, rename, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
-import { isCaseId } from "./case";
+import { casesRoot, isCaseId } from "./case";
 import { INITIAL_CHECKPOINT_STAGE } from "./checkpoint";
 import { pathExists, readdirIfPresent, textIfPresent } from "./file-presence";
 import type { DatedRecord } from "./short-id-backfill";
@@ -180,6 +180,7 @@ async function writeBackfill(
 async function ensureRegistry(
 	runsDirectory: string,
 	caseId: string,
+	casesDirectory: string = casesRoot(),
 ): Promise<string> {
 	const directory = registryDirectory(runsDirectory, caseId);
 	if (await pathExists(join(directory, CLAIMS_DIRECTORY))) {
@@ -192,7 +193,10 @@ async function ensureRegistry(
 		`.building-${caseId}-${randomUUID()}`,
 	);
 	try {
-		await writeBackfill(building, await recordsOnDisk(runsDirectory, caseId));
+		await writeBackfill(
+			building,
+			await recordsOnDisk(runsDirectory, caseId, casesDirectory),
+		);
 		await rename(building, directory);
 	} catch (error) {
 		const taken =
@@ -226,7 +230,10 @@ export class CaseNumberingError extends Error {
  * before short ids arrived are named before any claim in their case. A case
  * that cannot be numbered does not keep the others from being numbered.
  */
-export async function backfillShortIds(runsDirectory: string): Promise<void> {
+export async function backfillShortIds(
+	runsDirectory: string,
+	casesDirectory: string = casesRoot(),
+): Promise<void> {
 	const failures: CaseNumberingError[] = [];
 	for (const caseId of await recordedCaseIds(runsDirectory)) {
 		if (!isCaseId(caseId)) {
@@ -239,7 +246,7 @@ export async function backfillShortIds(runsDirectory: string): Promise<void> {
 		}
 
 		try {
-			await ensureRegistry(runsDirectory, caseId);
+			await ensureRegistry(runsDirectory, caseId, casesDirectory);
 		} catch (error) {
 			failures.push(new CaseNumberingError(caseId, { cause: error }));
 		}
