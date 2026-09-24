@@ -2301,6 +2301,7 @@ describe(buildRunArtifact.name, () => {
 					},
 				},
 				writeFailedArtifact: abort.writeFailedArtifact,
+				elapsedMs: () => 6400,
 				invoke: () => {
 					calls += 1;
 
@@ -2323,6 +2324,7 @@ describe(buildRunArtifact.name, () => {
 			expect(calls).toBe(2);
 			expect(artifact).toMatchObject({
 				status: "FAILED",
+				elapsedMs: 6400,
 				workflow: [],
 				stageScorecards: [],
 				judgeAttempts: [

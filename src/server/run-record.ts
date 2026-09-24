@@ -41,19 +41,19 @@ export const AWAITING_GRADE_REASON = "the stage's judge has not returned";
 export const UNEXPLAINED_END_REASON =
 	"the run ended without recording how it ended";
 export const PRODUCT_OWNER_COST_REASON =
-	"neither a main artifact nor a stop record holds the Product Owner's cost, as the run wrote neither or they predate it";
+	"neither a main artifact nor a stop record holds the Product Owner's cost, as the run wrote neither, they predate it, or the run stopped before a stage's judge returned a grade";
 export const STOPPED_GRADE_REASON =
 	"the stop record keeps no letter grade, as it predates the letter or its judge returned none";
 export const WALL_TIME_REASON =
 	"the stage record keeps no elapsed time, as it predates the reading or its judge returned no grade";
 export const RUN_WALL_TIME_REASON =
-	"neither a main artifact nor a stop record holds the run's elapsed time, as the run wrote neither or they predate it";
+	"neither a main artifact nor a stop record holds the run's elapsed time, as the run wrote neither, they predate it, or the run stopped before a stage's judge returned a grade";
 export const UNRECORDED_STAGE_REASON =
 	"the stage has written no record, and the run ended or is running in it";
 export const MINIMUM_GRADE_REASON =
 	"the run manifest predates the minimum grade";
 export const PRODUCT_OWNER_TOKENS_REASON =
-	"neither a main artifact nor a stop record holds the Product Owner's calls, as the run wrote neither or they predate them";
+	"neither a main artifact nor a stop record holds the Product Owner's calls, as the run wrote neither, they predate them, or the run stopped before a stage's judge returned a grade";
 
 export type Reading<Value> =
 	| ({ readonly state: "available" } & Value)

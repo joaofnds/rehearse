@@ -814,8 +814,9 @@ record at all. The run's tokens and cost count the Product Owner's calls and
 cost from the main artifact once the final judge ran, and otherwise from a
 stop record, which holds them up to the stop. A Product Owner never asked made
 no calls, so its empty list is summed rather than missing. A run whose records
-predate those readings, or that wrote neither record, names the Product Owner
-as a missing part. The run's cost also lists under `parts` each amount it
+predate those readings, that wrote neither record, or whose stop record was
+written before a stage's judge returned a grade, names the Product Owner as a
+missing part. The run's cost also lists under `parts` each amount it
 summed. When a sum has no part to add, it is unavailable and its reasons name
 each missing part. The Product Owner's cost is also served alone as
 `productOwnerCost`.

@@ -1432,10 +1432,7 @@ export class RecordedRunsFixture {
 	/**
 	 * A second replay filed under the fixture's replay lineage, of another
 	 * run, so two replays of one lineage are told apart by their source run.
-	 */
-	/**
-	 * A replay of the run's build stage, with the elapsed time a newer replay
-	 * records when one is given.
+	 * It records the elapsed time a newer replay writes when one is given.
 	 */
 	public async writeReplayOf(
 		run: string,

@@ -296,6 +296,7 @@ export interface FinalJudgeRequest {
 		artifact: FailedJudgeRunArtifact,
 	) => Promise<void>;
 	readonly invoke?: JudgeInvoker | undefined;
+	readonly elapsedMs?: (() => number) | undefined;
 }
 
 export async function runFinalJudge(
@@ -320,7 +321,10 @@ export async function runFinalJudge(
 	} catch (error) {
 		if (error instanceof JudgeOutputValidationError) {
 			await request.writeFailedArtifact(
-				buildFailedJudgeRunArtifact(inputs, error),
+				buildFailedJudgeRunArtifact(
+					{ ...inputs, elapsedMs: request.elapsedMs?.() },
+					error,
+				),
 			);
 		}
 
@@ -1169,6 +1173,7 @@ export async function runBenchmark(
 		const judge = await runFinalJudge({
 			artifactInputs,
 			writeFailedArtifact: abort.writeFailedArtifact,
+			elapsedMs,
 		});
 		const { grade } = judge;
 		log(JSON.stringify(grade, null, 2));
