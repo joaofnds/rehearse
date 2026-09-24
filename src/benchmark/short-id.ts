@@ -352,7 +352,8 @@ export async function readShortIds(
 /**
  * Every short id claimed in any case, for a listing that prints them beside
  * Record IDs. It reads registries and builds none, so listing stays read-only
- * and a case no command has claimed in since the change prints no short ids.
+ * and a case whose registry neither a server start nor a claim has built
+ * prints no short ids.
  */
 export async function readAllShortIds(
 	runsDirectory: string,
