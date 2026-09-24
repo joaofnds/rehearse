@@ -557,6 +557,45 @@ describe("/api/runs", () => {
 		});
 
 		describe("a confirmation group row", () => {
+			it("summarizes each stage by its lower middle grade, its range and its graded count", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writePipelineGroup(
+					"pipeline-group",
+					(["A", "B", "C", "D"] as const).map((build) => ({
+						discussion: "A",
+						build,
+						final: "pass",
+					})),
+				);
+
+				const row = await onlyRowOfKind(fixture, "group");
+
+				expect(row).toMatchObject({
+					stageSummaries: [
+						{
+							stage: "discuss",
+							graded: 4,
+							grades: {
+								state: "available",
+								median: "A",
+								lowest: "A",
+								highest: "A",
+							},
+						},
+						{
+							stage: "build",
+							graded: 4,
+							grades: {
+								state: "available",
+								median: "C",
+								lowest: "D",
+								highest: "A",
+							},
+						},
+					],
+				});
+			});
+
 			it("carries its makespan as its wall time and its cost as not recorded", async () => {
 				const fixture = await emptyFixture();
 				await fixture.write();

@@ -6,6 +6,7 @@ import {
 	comparisonEvidenceFixture,
 	comparisonRep,
 } from "./comparison-test-fixtures";
+import type { RepFixtureOutcomes } from "./comparison-test-fixtures";
 import type { CheckpointRecord, HashedFile } from "./checkpoint";
 import {
 	captureStageCorpus,
@@ -1485,6 +1486,49 @@ export class RecordedRunsFixture {
 					}),
 				),
 			);
+		}
+	}
+
+	/**
+	 * A pipeline-mode group over discuss and build with one rep per outcome
+	 * given, in ordinal order. An undefined outcome is a rep that recorded
+	 * nothing, which is how a group interrupted between reps is left.
+	 */
+	public async writePipelineGroup(
+		groupId: string,
+		outcomes: readonly (RepFixtureOutcomes | undefined)[],
+	): Promise<void> {
+		const paths = confirmationGroupPaths(this.runsDirectory, groupId);
+		const reps = outcomes.length;
+		await mkdir(paths.directory, { recursive: true });
+		await Bun.write(
+			paths.groupFile,
+			serialize(
+				confirmationGroupRecordSchema.parse({
+					...group(groupId),
+					mode: "pipeline",
+					reps,
+					declaredStages: ["discuss", "build"],
+					projectedCost: {
+						reps,
+						perRepMaximumUsd: 20,
+						totalMaximumUsd: 20 * reps,
+					},
+					repRecords: outcomes.map((_outcome, index) => ({
+						repId: `${groupId}-rep-${index + 1}`,
+						ordinal: index + 1,
+						path: `reps/${groupId}-rep-${index + 1}/rep.json`,
+					})),
+				}),
+			),
+		);
+		for (const [index, outcome] of outcomes.entries()) {
+			if (outcome !== undefined) {
+				const rep = comparisonRep(groupId, index + 1, outcome);
+				const { recordFile } = paths.rep(rep.repId);
+				await mkdir(dirname(recordFile), { recursive: true });
+				await Bun.write(recordFile, serialize(rep));
+			}
 		}
 	}
 

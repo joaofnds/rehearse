@@ -1,10 +1,14 @@
 import { unhandled } from "#benchmark/contracts";
 import type { Immutable } from "#benchmark/contracts";
 import { readCheckpointRecord } from "#benchmark/checkpoint";
-import { parseConfirmationGroupRecord } from "#benchmark/confirmation-record";
+import {
+	parseConfirmationGroupRecord,
+	parseConfirmationRepRecord,
+} from "#benchmark/confirmation-record";
 import type {
 	ConfirmationMode,
 	ParsedConfirmationGroupRecord,
+	ParsedConfirmationRepRecord,
 } from "#benchmark/confirmation-record";
 import type { CorpusRoot } from "#benchmark/corpus-file";
 import { loadRunManifest } from "#benchmark/manifest";
@@ -44,6 +48,8 @@ import { staleCheckpoints } from "#benchmark/staleness-report";
 import type { RunLiveness } from "#benchmark/run-liveness";
 import { checkpointAttempts, repAttemptId } from "./checkpoint-attempts";
 import type { AttemptPosition } from "./checkpoint-attempts";
+import { stageSummaries } from "./confirmation-group-summary";
+import type { GroupStageSummary } from "./confirmation-group-summary";
 import { corpusDigest } from "./corpus-digest";
 import { redactAbsolutePaths } from "./redact-path";
 import { readRunRecord, wallTime } from "./run-record";
@@ -191,6 +197,7 @@ export interface ConfirmationGroupRow {
 	readonly reps: number;
 	readonly repAttempts: readonly RepAttempt[];
 	readonly links: readonly ContextLink[];
+	readonly stageSummaries: readonly GroupStageSummary[];
 	readonly cost: CostReading;
 	readonly wallTime: WallTimeReading;
 }
@@ -600,6 +607,23 @@ function repAttempts(
 	});
 }
 
+/** The rep records a group's reps wrote, skipping a rep that wrote none. */
+async function recordedReps(
+	runsDirectory: string,
+	record: Immutable<ParsedConfirmationGroupRecord>,
+): Promise<readonly ParsedConfirmationRepRecord[]> {
+	const paths = confirmationGroupPaths(runsDirectory, record.groupId);
+	const reps: ParsedConfirmationRepRecord[] = [];
+	for (const { repId } of record.repRecords) {
+		const file = Bun.file(paths.rep(repId).recordFile);
+		if (await file.exists()) {
+			reps.push(parseConfirmationRepRecord(await file.text()));
+		}
+	}
+
+	return reps;
+}
+
 async function groupRow(
 	runsDirectory: string,
 	groupId: string,
@@ -617,6 +641,7 @@ async function groupRow(
 			repLink(runsDirectory, groupId, record.mode, reference),
 		),
 	);
+	const reps = await recordedReps(runsDirectory, record);
 
 	return {
 		kind: "group",
@@ -627,6 +652,7 @@ async function groupRow(
 		reps: record.reps,
 		repAttempts: repAttempts(record, attempts),
 		links,
+		stageSummaries: stageSummaries(record.mode, record.declaredStages, reps),
 		cost: { state: "unavailable", reasons: [GROUP_COST_REASON] },
 		wallTime: { state: "available", ms: record.makespanMs },
 	};

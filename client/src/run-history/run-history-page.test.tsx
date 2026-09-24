@@ -13,6 +13,7 @@ import type { apiClient } from "#client/api-client";
 import { stubFetch } from "#client/test-support/fetch-stub";
 import {
 	UNREAD_COST_AND_TIME,
+	UNREAD_GROUP_FIGURES,
 	UNREAD_REPLAY_FIGURES,
 	UNREAD_RUN_FIGURES,
 } from "#client/test-support/run-figures";
@@ -995,7 +996,7 @@ describe(RunHistoryPage.name, () => {
 				},
 				{
 					kind: "group",
-					...UNREAD_COST_AND_TIME,
+					...UNREAD_GROUP_FIGURES,
 					shortId: undefined,
 					groupId: "group-a",
 					caseId: "brief-reply",
@@ -1184,7 +1185,7 @@ describe(RunHistoryPage.name, () => {
 				},
 				{
 					kind: "group",
-					...UNREAD_COST_AND_TIME,
+					...UNREAD_GROUP_FIGURES,
 					shortId: "brief-reply/g4",
 					groupId: "group-a",
 					caseId: "brief-reply",

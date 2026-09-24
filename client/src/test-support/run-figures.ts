@@ -30,3 +30,9 @@ export const UNREAD_COST_AND_TIME = {
 	cost: { state: "unavailable", reasons: ["not read by this test"] },
 	wallTime: { state: "unavailable", reasons: ["not read by this test"] },
 } as const;
+
+/** A confirmation group row's figures, for a test whose subject is another column. */
+export const UNREAD_GROUP_FIGURES = {
+	...UNREAD_COST_AND_TIME,
+	stageSummaries: [],
+} as const;

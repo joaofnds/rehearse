@@ -19,9 +19,10 @@ import type {
 	MultiCaseComparisonReport,
 } from "./comparison-record";
 import { sessionAttemptRecordV3Schema } from "./session-record";
-import type { Immutable } from "./contracts";
+import type { Immutable, StageLetterGrade } from "./contracts";
 
 type StageFixtureOutcome =
+	| StageLetterGrade
 	| "pass"
 	| "fail"
 	| "error"
@@ -54,10 +55,22 @@ function stageOutcome(
 		return { stage, status: "METRICS_MISSING", error: "metrics missing" };
 	}
 
+	if (outcome === "pass" || outcome === "fail") {
+		return judgedStage(stage, outcome === "pass" ? "A" : "D", outcome);
+	}
+
+	return judgedStage(stage, outcome, "pass");
+}
+
+function judgedStage(
+	stage: string,
+	grade: StageLetterGrade,
+	outcome: "pass" | "fail",
+): ConfirmationRepRecord["stages"][number] {
 	return {
 		stage,
 		status: "JUDGED",
-		grade: outcome === "pass" ? "A" : "D",
+		grade,
 		verdict: outcome === "pass" ? "CONTINUE" : "STOP",
 		elapsedMs: 10,
 		evidence: {
