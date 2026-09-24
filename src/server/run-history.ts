@@ -52,6 +52,7 @@ import type {
 	Reading,
 	RunRecord,
 	RunRecordStage,
+	RunTotals,
 } from "./run-record";
 import {
 	checkpointlessStageRecorded,
@@ -87,6 +88,8 @@ export interface PipelineRunRow {
 	readonly stepGrades: Reading<{ readonly grades: readonly StepGrade[] }>;
 	/** The final judge's outcome, the design's task grade, with its note. */
 	readonly taskGrade: Reading<FinalOutcome>;
+	readonly cost: RunTotals["cost"];
+	readonly wallTime: RunTotals["wallTime"];
 }
 
 export const NOT_RUN_REASON = "the run never reached this stage";
@@ -256,6 +259,8 @@ async function checkpointShortIds(
 interface RunFigures {
 	readonly stepGrades: PipelineRunRow["stepGrades"];
 	readonly taskGrade: PipelineRunRow["taskGrade"];
+	readonly cost: PipelineRunRow["cost"];
+	readonly wallTime: PipelineRunRow["wallTime"];
 }
 
 /**
@@ -277,6 +282,8 @@ async function runFigures(
 				grades: stepGrades(record),
 			},
 			taskGrade: { state: "available", ...record.finalOutcome },
+			cost: record.totals.cost,
+			wallTime: record.totals.wallTime,
 		};
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
@@ -285,6 +292,8 @@ async function runFigures(
 		return {
 			stepGrades: { state: "unavailable", reasons },
 			taskGrade: { state: "unavailable", reasons },
+			cost: { state: "unavailable", reasons },
+			wallTime: { state: "unavailable", reasons },
 		};
 	}
 }

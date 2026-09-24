@@ -18,8 +18,10 @@ import { createApiApp } from "./api";
 import { NOT_RUN_REASON } from "./run-history";
 import {
 	INTERRUPTED_REASON,
+	PRODUCT_OWNER_COST_REASON,
 	RUN_FAILED_REASON,
 	STOPPED_GRADE_REASON,
+	WALL_TIME_REASON,
 } from "./run-record";
 
 /**
@@ -263,6 +265,40 @@ describe("/api/runs", () => {
 					expect(row).toMatchObject({ taskGrade });
 				},
 			);
+
+			it("carries the run's cost summed over the parts it names, naming the part it lacks", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeStoppedRunEvidence();
+
+				const row = await runRow(fixture, fixture.stoppedRun);
+
+				expect(row).toMatchObject({
+					cost: {
+						state: "available",
+						usd: 2 + 1 + 3 + 0.5,
+						parts: [
+							{ part: "discuss session", usd: 2 },
+							{ part: "discuss judge", usd: 1 },
+							{ part: "build session", usd: 3 },
+							{ part: "build judge", usd: 0.5 },
+						],
+						missing: [
+							{ part: "Product Owner", reason: PRODUCT_OWNER_COST_REASON },
+						],
+					},
+				});
+			});
+
+			it("carries the run's wall time as not recorded with its reason", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeStoppedRunEvidence();
+
+				const row = await runRow(fixture, fixture.stoppedRun);
+
+				expect(row).toMatchObject({
+					wallTime: { state: "unavailable", reasons: [WALL_TIME_REASON] },
+				});
+			});
 		});
 	});
 });

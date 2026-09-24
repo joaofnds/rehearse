@@ -7,4 +7,6 @@
 export const UNREAD_RUN_FIGURES = {
 	stepGrades: { state: "unavailable", reasons: ["not read by this test"] },
 	taskGrade: { state: "unavailable", reasons: ["not read by this test"] },
+	cost: { state: "unavailable", reasons: ["not read by this test"] },
+	wallTime: { state: "unavailable", reasons: ["not read by this test"] },
 } as const;
