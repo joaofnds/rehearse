@@ -355,10 +355,18 @@ export function assertStageGradePassed(
 	scorecard: StageScorecard,
 	minimumGrade: StageLetterGrade | undefined = DEFAULT_MINIMUM_STAGE_GRADE,
 ): void {
-	if (
-		GRADE_ORDER.indexOf(scorecard.grade.grade) >
-		GRADE_ORDER.indexOf(minimumGrade)
-	) {
+	if (!stageGradePassed(scorecard, minimumGrade)) {
 		throw new StageQualityError(scorecard, minimumGrade);
 	}
+}
+
+/** Whether the stage's letter reaches the minimum, the gate's own test. */
+export function stageGradePassed(
+	scorecard: StageScorecard,
+	minimumGrade: StageLetterGrade | undefined = DEFAULT_MINIMUM_STAGE_GRADE,
+): boolean {
+	return (
+		GRADE_ORDER.indexOf(scorecard.grade.grade) <=
+		GRADE_ORDER.indexOf(minimumGrade)
+	);
 }

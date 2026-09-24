@@ -85,6 +85,7 @@ import {
 } from "./run-layout";
 import {
 	assertStageGradePassed,
+	stageGradePassed,
 	captureStageJudgeInput,
 	loadStageRubric,
 	runStageJudge,
@@ -802,12 +803,12 @@ export async function runGradedStages(
 			effort: context.effort,
 			elapsedMs,
 		};
-		const writeStageRecord =
-			scorecard.grade.verdict === "STOP"
-				? context.writeStageProgress
-				: context.completeStage;
+		const stops = !stageGradePassed(scorecard, context.minimumStageGrade);
+		const writeStageRecord = stops
+			? context.writeStageProgress
+			: context.completeStage;
 		await writeStageRecord(stageRecord);
-		if (scorecard.grade.verdict === "STOP") {
+		if (stops) {
 			context.updatePendingStage({
 				...pendingStage,
 				scorecard,

@@ -1138,6 +1138,56 @@ describe(runGradedStages.name, () => {
 		});
 	});
 
+	it("stops at a raised minimum grade with a stop record, though the judge's verdict is CONTINUE", async () => {
+		const { dependencies, scorecardFor } = fakeStageDependencies();
+		const persistence = new ControlledRunArtifactPersistence();
+		const abort = createRunAbort(
+			{
+				killActiveCommands: () => Promise.resolve(),
+				registerSignal: () => undefined,
+				releaseSignal: () => undefined,
+				exit: () => undefined,
+				reportError: () => undefined,
+				persistence,
+			},
+			{
+				artifactFile: "/runs/run.json",
+				teardown: () => Promise.resolve(),
+			},
+		);
+		const context = {
+			...(await stageContext()),
+			minimumStageGrade: "A" as const,
+			writePendingStage: abort.writePendingStage,
+			updatePendingStage: abort.updatePendingStage,
+			writeStageProgress: abort.writeStageProgress,
+			completeStage: abort.completeStage,
+			calibrateStageFailure: (): Promise<CalibrationResult | undefined> =>
+				Promise.resolve(undefined),
+		};
+		const passingB = {
+			...dependencies,
+			runStageJudge: (
+				_model: string,
+				_effort: undefined | "low" | "medium" | "high" | "xhigh" | "max",
+				_budget: number,
+				input: StageJudgeInput,
+			) => Promise.resolve(scorecardFor(input, "CONTINUE")),
+		};
+
+		await runGradedStages(passingB, context).catch(() => undefined);
+		await abort.markAborted("shape stage graded B; minimum grade is A");
+
+		const record: unknown = JSON.parse(
+			persistence.files.get(context.stageFile("shape")) ?? "",
+		);
+		expect(record).toMatchObject({
+			status: "STAGE_JUDGE_FAILED",
+			grade: { grade: "B", verdict: "CONTINUE" },
+			minimumGrade: "A",
+		});
+	});
+
 	it("records workflow model, judge model, effort settings, and budget in the aborted stage artifact when judgment fails", async () => {
 		const { dependencies, scorecardFor } = fakeStageDependencies();
 		const persistence = new ControlledRunArtifactPersistence();
