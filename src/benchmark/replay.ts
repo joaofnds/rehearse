@@ -136,7 +136,10 @@ export interface ReplayDependencies {
 	readonly installDependencies: (worktreeDir: string) => Promise<void>;
 	readonly installStageCorpusSnapshot: typeof installStageCorpusSnapshot;
 	readonly log: (message: string) => void;
-	/** The clock the replay's elapsed time is read from; the system's by default. */
+	/**
+	 * The clock the replay's elapsed time is read from; a monotonic one by
+	 * default, so a system clock step cannot make it negative.
+	 */
 	readonly now?: (() => number) | undefined;
 }
 
@@ -344,7 +347,7 @@ export async function runReplay(
 			productBrief: manifest.productBrief,
 		});
 
-		const now = dependencies.now ?? Date.now;
+		const now = dependencies.now ?? (() => performance.now());
 		const stageStartedAtMs = now();
 		const session = await executeStageSession(
 			detachedStageDependencies(dependencies.stageSession),

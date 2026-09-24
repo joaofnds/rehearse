@@ -1029,9 +1029,13 @@ export class RecordedRunsFixture {
 	 * A finished run as the harness writes it once it records the readings of
 	 * `RECORDED_READINGS`: the manifest names the minimum grade, each
 	 * scorecard its elapsed time, and the main artifact the run's elapsed time
-	 * and the Product Owner's calls.
+	 * and the Product Owner's calls, none when the Product Owner was never
+	 * asked.
 	 */
-	public async writeFinishedRunWithReadings(run: string): Promise<void> {
+	public async writeFinishedRunWithReadings(
+		run: string,
+		productOwner: "asked" | "never asked" = "asked",
+	): Promise<void> {
 		await this.writeFinishedRunEvidence(run);
 		const paths = benchmarkRunPaths(this.runsDirectory, run);
 		await writeRunManifest(paths.manifestFile, {
@@ -1045,9 +1049,10 @@ export class RecordedRunsFixture {
 		}
 		await mergeIntoRecord(paths.artifactFile, {
 			elapsedMs: RECORDED_READINGS.runElapsedMs,
-			productOwnerProviderCalls: [
-				{ metrics: RECORDED_READINGS.productOwnerMetrics },
-			],
+			productOwnerProviderCalls:
+				productOwner === "asked"
+					? [{ metrics: RECORDED_READINGS.productOwnerMetrics }]
+					: [],
 		});
 	}
 

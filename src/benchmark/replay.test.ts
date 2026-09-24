@@ -634,6 +634,18 @@ describe(runReplay.name, () => {
 		const timed = {
 			...fake.dependencies,
 			now: () => clockMs,
+			stageSession: {
+				...fake.dependencies.stageSession,
+				runWorkflowStage: (
+					input: Parameters<
+						typeof fake.dependencies.stageSession.runWorkflowStage
+					>[0],
+				) => {
+					clockMs += 2000;
+
+					return fake.dependencies.stageSession.runWorkflowStage(input);
+				},
+			},
 			runStageJudge: (
 				_model: string | undefined,
 				_effort: undefined | "low" | "medium" | "high" | "xhigh" | "max",
@@ -649,7 +661,7 @@ describe(runReplay.name, () => {
 		const outcome = await runReplay(timed, request(run, "build"));
 		const record = await readReplayRecord(outcome.recordPath);
 
-		expect(record.elapsedMs).toBe(3000);
+		expect(record.elapsedMs).toBe(5000);
 	});
 
 	it("replays the first stage from the initial checkpoint without installing dependencies", async () => {

@@ -74,6 +74,7 @@ import {
 	assertStageGradePassed,
 	deriveStageGrade,
 	parseStageRubric,
+	StageQualityError,
 } from "./stage-grading";
 import type { WorkflowStageRequest } from "./workflow";
 
@@ -1120,7 +1121,9 @@ describe(runGradedStages.name, () => {
 			},
 		};
 
-		await runGradedStages(failing, context).catch(() => undefined);
+		const stopped = runGradedStages(failing, context);
+		expect(stopped).rejects.toBeInstanceOf(StageQualityError);
+		await stopped.catch(() => undefined);
 		await abort.markAborted("shape stage graded F; minimum grade is C");
 
 		const record: unknown = JSON.parse(
@@ -1175,7 +1178,9 @@ describe(runGradedStages.name, () => {
 			) => Promise.resolve(scorecardFor(input, "CONTINUE")),
 		};
 
-		await runGradedStages(passingB, context).catch(() => undefined);
+		const stopped = runGradedStages(passingB, context);
+		expect(stopped).rejects.toBeInstanceOf(StageQualityError);
+		await stopped.catch(() => undefined);
 		await abort.markAborted("shape stage graded B; minimum grade is A");
 
 		const record: unknown = JSON.parse(

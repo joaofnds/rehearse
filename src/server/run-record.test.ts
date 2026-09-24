@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { z } from "zod";
 
 import type { RunLiveness } from "#benchmark/run-liveness";
 import { stoppedStatus } from "#benchmark/stopped-status";
@@ -34,6 +35,20 @@ import {
 } from "./run-record";
 
 const FINISHED_RUN = "2026-09-11T00-00-00.000Z";
+const ASKED_RUN = "2026-09-12T00-00-00.000Z";
+
+/** The served run's token totals, read to compare two runs. */
+const runTokensSchema = z.object({
+	totals: z.object({
+		tokens: z.object({
+			input: z.number(),
+			cacheRead: z.number(),
+			cacheWrite: z.number(),
+			output: z.number(),
+			missing: z.array(z.object({ part: z.string() }).loose()),
+		}),
+	}),
+});
 
 const liveRun: RunLiveness = {
 	readMarker: () => Promise.resolve({ pid: 1 }),
@@ -199,6 +214,10 @@ describe("/api/runs/:run", () => {
 							stage: "build",
 							status: "awaiting-judgment",
 							grade: { state: "unavailable", reasons: [AWAITING_GRADE_REASON] },
+							wallTime: {
+								state: "unavailable",
+								reasons: [AWAITING_GRADE_REASON],
+							},
 						},
 					],
 				});
@@ -765,7 +784,7 @@ describe("/api/runs/:run", () => {
 				});
 			});
 
-			it("serves a finished run's elapsed time and minimum grade, and counts the Product Owner's tokens", async () => {
+			it("serves a finished run's elapsed time and minimum grade", async () => {
 				const fixture = await emptyFixture();
 				await fixture.writeFinishedRunWithReadings(FINISHED_RUN);
 
@@ -788,8 +807,33 @@ describe("/api/runs/:run", () => {
 					],
 					totals: {
 						wallTime: { state: "available", ms: runElapsedMs },
+					},
+				});
+			});
+
+			it("adds the Product Owner's calls to a finished run's tokens, and misses none when it was never asked", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeFinishedRunWithReadings(FINISHED_RUN, "never asked");
+				await fixture.writeFinishedRunWithReadings(ASKED_RUN, "asked");
+				const neverAskedResponse = await runRecord(fixture, FINISHED_RUN);
+				const askedResponse = await runRecord(fixture, ASKED_RUN);
+
+				const neverAsked = runTokensSchema.parse(
+					await neverAskedResponse.json(),
+				);
+				const asked: unknown = await askedResponse.json();
+
+				const { tokens } = neverAsked.totals;
+				expect(tokens.missing.map(({ part }) => part)).toEqual(["final judge"]);
+				expect(asked).toMatchObject({
+					totals: {
 						tokens: {
 							state: "available",
+							input: tokens.input + productOwnerMetrics.inputTokens,
+							cacheRead: tokens.cacheRead + productOwnerMetrics.cacheReadTokens,
+							cacheWrite:
+								tokens.cacheWrite + productOwnerMetrics.cacheWriteTokens,
+							output: tokens.output + productOwnerMetrics.outputTokens,
 							missing: [{ part: "final judge" }],
 						},
 					},
