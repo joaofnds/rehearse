@@ -15,6 +15,7 @@ import {
 } from "#benchmark/run-reconciliation";
 import { backfillShortIds } from "#benchmark/short-id";
 import { createAppServer } from "./app";
+import type { AppServerDependencies } from "./app";
 
 const DEFAULT_PORT = 4173;
 
@@ -62,22 +63,33 @@ async function backfillShortIdsOnStartup(runsDirectory: string): Promise<void> {
 	}
 }
 
+/**
+ * Serves the app once the runs directory is reconciled and every case's
+ * records are numbered, so the first response already reflects both.
+ */
+export async function serve(
+	dependencies: AppServerDependencies,
+	port: number,
+): Promise<Bun.Server<undefined>> {
+	await reconcileOnStartup(dependencies.runsDirectory);
+	await backfillShortIdsOnStartup(dependencies.runsDirectory);
+
+	return startLocalServer(port, createAppServer(dependencies).fetch);
+}
+
 async function main(): Promise<void> {
 	assertPinnedBunVersion();
 
-	const runsDirectory = benchmarkRunsDirectory(CONTROL_DIR);
-	await reconcileOnStartup(runsDirectory);
-	await backfillShortIdsOnStartup(runsDirectory);
-
-	const app = createAppServer({
-		runsDirectory,
-		corpusSource: liveCorpusSource(),
-		liveness: liveRunLiveness(),
-		clientDistDirectory: join(CONTROL_DIR, "client", "dist"),
-	});
-
 	const port = Number(Bun.env["PORT"] ?? DEFAULT_PORT);
-	startLocalServer(port, app.fetch);
+	await serve(
+		{
+			runsDirectory: benchmarkRunsDirectory(CONTROL_DIR),
+			corpusSource: liveCorpusSource(),
+			liveness: liveRunLiveness(),
+			clientDistDirectory: join(CONTROL_DIR, "client", "dist"),
+		},
+		port,
+	);
 	console.log(`rehearse serving on http://localhost:${String(port)}`);
 }
 
