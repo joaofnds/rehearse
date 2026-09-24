@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import { fireEvent, screen } from "@testing-library/react";
 import type { ComparisonIndexResponse } from "./comparison-index-query";
-import { renderAppWithStub } from "#client/test-support/render-app";
+import {
+	renderAppAt,
+	renderAppWithStub,
+	stubFetchFailing,
+} from "#client/test-support/render-app";
 
 const originalFetch = globalThis.fetch;
 
@@ -100,7 +104,8 @@ describe("/comparisons", () => {
 
 	describe("when the list request fails", () => {
 		it("says the comparisons could not be loaded instead of loading forever", async () => {
-			renderAppWithStub("/comparisons", new Map());
+			stubFetchFailing("/api/comparisons");
+			renderAppAt("/comparisons");
 
 			expect(await screen.findByRole("alert")).toHaveTextContent(
 				"Could not load the saved comparisons.",

@@ -1,36 +1,15 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import type { ComparisonIndexResponse } from "#client/comparison/comparison-index-query";
 import type { CorpusResponse } from "#client/corpus/corpus-query";
 import type { RunHistoryResponse } from "#client/run-history/run-history-query";
 import { stubFetchByPath } from "#client/test-support/fetch-stub";
 import { createAppRouter } from "#client/router";
-import { renderAppAt } from "#client/test-support/render-app";
+import { renderAppAt, stubFetchFailing } from "#client/test-support/render-app";
 import { NAV_ITEMS } from "./nav-items";
 import { CHORD_DESTINATIONS } from "./use-go-to-shortcut";
 
 const originalFetch = globalThis.fetch;
-
-/**
- * Answers every path but `failing` with the shell's baseline bodies, and
- * rejects that one the way an unreachable server does, so a screen's
- * error branch is observed against a real rejection rather than a body that
- * merely lacks fields.
- */
-function stubFetchFailing(failing: string): void {
-	const stub = (request: string | URL | Request): Promise<Response> => {
-		const { pathname } = new URL(
-			request instanceof Request ? request.url : request,
-			"http://localhost",
-		);
-		if (pathname === failing) {
-			return Promise.reject(new Error("connection refused"));
-		}
-
-		return Promise.resolve(Response.json({ rows: [], unreadable: [] }));
-	};
-	stub.preconnect = fetch.preconnect;
-	globalThis.fetch = stub;
-}
 
 /**
  * Waits long enough that a navigation the keystroke under test might have
@@ -54,6 +33,7 @@ afterEach(() => {
 
 type RunHistoryRow = RunHistoryResponse["rows"][number];
 type CorpusFile = CorpusResponse["files"][number];
+type SavedComparison = ComparisonIndexResponse["comparisons"][number];
 
 function runRow(run: string): RunHistoryRow {
 	return {
@@ -69,6 +49,10 @@ function runRow(run: string): RunHistoryRow {
 	};
 }
 
+function savedComparison(digest: string): SavedComparison {
+	return { digest, mode: "session", caseIds: ["audit-log"], reps: 2 };
+}
+
 function corpusFile(path: string): CorpusFile {
 	return {
 		path,
@@ -80,10 +64,15 @@ function corpusFile(path: string): CorpusFile {
 
 function renderShellAt(
 	path: string,
-	served?: { readonly runs: number; readonly corpusFiles: number },
+	served?: {
+		readonly runs: number;
+		readonly corpusFiles: number;
+		readonly comparisons?: number;
+	},
 ): void {
 	const runs = served?.runs ?? 0;
 	const corpusFiles = served?.corpusFiles ?? 0;
+	const comparisons = served?.comparisons ?? 0;
 
 	stubFetchByPath(
 		new Map<string, unknown>([
@@ -105,6 +94,15 @@ function renderShellAt(
 						corpusFile(`file-${index}.md`),
 					),
 					refusals: [],
+				},
+			],
+			[
+				"/api/comparisons",
+				{
+					comparisons: Array.from({ length: comparisons }, (_unused, index) =>
+						savedComparison(String(index).repeat(64)),
+					),
+					unreadable: [{ id: "f".repeat(64), reason: "JSON Parse error" }],
 				},
 			],
 		]),
@@ -147,7 +145,7 @@ describe("the navigation shell", () => {
 			.getAllByRole("link")
 			.map((link) => within(link).getByText(NAV_LABEL).textContent);
 
-		expect(linked).toEqual(["Run history", "Corpus"]);
+		expect(linked).toEqual(["Run history", "Comparisons", "Corpus"]);
 	});
 
 	it("reaches run history from another screen by pressing g then r", async () => {
@@ -308,12 +306,12 @@ describe("the navigation shell", () => {
 	});
 
 	it.each([
-		[4, 137],
-		[2, 9],
+		[4, 137, 3],
+		[2, 9, 1],
 	])(
-		"badges run history with %s and corpus with %s, each its own collection",
-		async (runs, corpusFiles) => {
-			renderShellAt("/", { runs, corpusFiles });
+		"badges run history with %s, corpus with %s and comparisons with %s, each its own collection",
+		async (runs, corpusFiles, comparisons) => {
+			renderShellAt("/", { runs, corpusFiles, comparisons });
 
 			await waitFor(() => {
 				expect(
@@ -323,6 +321,11 @@ describe("the navigation shell", () => {
 			expect(
 				screen.getByRole("link", { name: `Corpus ${corpusFiles}` }),
 			).toBeInTheDocument();
+			await waitFor(() => {
+				expect(
+					screen.getByRole("link", { name: `Comparisons ${comparisons}` }),
+				).toBeInTheDocument();
+			});
 		},
 	);
 
@@ -370,6 +373,22 @@ describe("the navigation shell", () => {
 		).not.toHaveAttribute("aria-current");
 	});
 
+	it.each(["/comparisons", `/comparisons/${"e".repeat(64)}`])(
+		"marks comparisons as the current section on %s",
+		async (path) => {
+			renderShellAt(path);
+
+			await screen.findByRole("navigation", { name: "Sections" });
+
+			expect(
+				screen.getByRole("link", { name: /^Comparisons/u }),
+			).toHaveAttribute("aria-current", "page");
+			expect(
+				screen.getByRole("link", { name: /Run history/u }),
+			).not.toHaveAttribute("aria-current");
+		},
+	);
+
 	it("says in words that a section without a screen is planned", async () => {
 		renderShellAt("/");
 
@@ -381,7 +400,7 @@ describe("the navigation shell", () => {
 
 		const planned = screen.getAllByText("planned");
 
-		expect(planned).toHaveLength(7);
+		expect(planned).toHaveLength(6);
 	});
 
 	it.each(["/", "/corpus", "/system", "/runs/run-a/stages/build", "/tasks"])(
