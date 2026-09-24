@@ -2,7 +2,6 @@ import type { CorpusRoot } from "./corpus-file";
 import { mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { z } from "zod";
 import type {
 	CheckpointRecord,
 	HashedFile,
@@ -15,7 +14,6 @@ import {
 	deriveStaleness,
 	hashedCorpus,
 	hashArtifacts,
-	hashedFileSchema,
 	INITIAL_CHECKPOINT_STAGE,
 	lineageKey,
 	readCheckpointRecord,
@@ -23,15 +21,16 @@ import {
 } from "./checkpoint";
 import type { captureBaselineContext, captureFileHashes } from "./checks";
 import type { Effort } from "./config";
-import { effortSchema } from "./config";
-import type { ContextFile, StageScorecard } from "./contracts";
-import { stageLetterGradeSchema } from "./contracts";
+import type { ContextFile } from "./contracts";
 import type { RunManifest } from "./manifest";
 import { loadRunManifest } from "./manifest";
 import type { StageDefinition } from "./pipeline";
 import type { StageSessionDependencies } from "./run";
 import { executeStageSession } from "./run";
+import type { ReplayRecord } from "./replay-record";
 import type { BenchmarkRunPaths } from "./run-layout";
+import { runNameFromTimestamp } from "./run-layout";
+import { bindReplay, claimShortId } from "./short-id";
 import type { loadStageRubric, runStageJudge } from "./stage-grading";
 import type { addWorktree, currentSha, removeWorktree } from "./target";
 import type { createProductOwner } from "./workflow";
@@ -154,102 +153,8 @@ export interface ReplayRequest {
 	readonly loadedSettings?: LoadedStageSettings | undefined;
 }
 
-export interface ReplayRecord {
-	readonly replay: true;
-	readonly timestamp: string;
-	readonly runName: string;
-	readonly stage: string;
-	readonly consumed: {
-		readonly stage: string;
-		readonly lineage: string;
-		readonly targetSha: string;
-	};
-	readonly baseSha: string;
-	readonly lineage: string;
-	readonly corpusFiles: readonly HashedFile[];
-	readonly settingsFile?: HashedFile | undefined;
-	readonly model: string;
-	readonly effort?: Effort | undefined;
-	readonly judgeModel: string;
-	readonly judgeEffort?: Effort | undefined;
-	readonly sessionBudgetUsd: number;
-	readonly controlSha: string;
-	readonly stageCostUsd: number;
-	readonly productOwnerCostUsd: number;
-	readonly judgeCostUsd: number;
-	readonly resultSha?: string | undefined;
-	/** Whether the consumed chain still reflects the current corpus. */
-	readonly stale: boolean;
-	/** Per stale checkpoint, why: named corpus files, model, or effort. */
-	readonly staleness: readonly {
-		readonly stage: string;
-		readonly causes: readonly string[];
-	}[];
-	readonly scorecard: StageScorecard;
-}
-
-/**
- * The replay-specific envelope is strict; the scorecard inside it stays open
- * because its shape belongs to stage grading and is validated there.
- */
-export const replayRecordSchema = z
-	.object({
-		replay: z.literal(true),
-		timestamp: z.string().min(1),
-		runName: z.string().min(1),
-		stage: z.string().min(1),
-		consumed: z
-			.object({
-				stage: z.string().min(1),
-				lineage: z.string().min(1),
-				targetSha: z.string().min(1),
-			})
-			.strict(),
-		baseSha: z.string().min(1),
-		lineage: z.string().min(1),
-		corpusFiles: z.array(hashedFileSchema),
-		settingsFile: hashedFileSchema.optional(),
-		model: z.string().min(1),
-		effort: effortSchema.optional(),
-		judgeModel: z.string().min(1),
-		judgeEffort: effortSchema.optional(),
-		sessionBudgetUsd: z.number().positive(),
-		controlSha: z.string().min(1),
-		stageCostUsd: z.number().nonnegative(),
-		productOwnerCostUsd: z.number().nonnegative(),
-		judgeCostUsd: z.number().nonnegative(),
-		resultSha: z.string().min(1).optional(),
-		stale: z.boolean().optional(),
-		staleness: z
-			.array(
-				z
-					.object({
-						stage: z.string().min(1),
-						causes: z.array(z.string().min(1)),
-					})
-					.strict(),
-			)
-			.optional(),
-		scorecard: z
-			.object({
-				stage: z.string().min(1),
-				costUsd: z.number(),
-				grade: z
-					.object({
-						grade: stageLetterGradeSchema,
-						verdict: z.enum(["CONTINUE", "STOP"]),
-					})
-					.loose(),
-			})
-			.loose(),
-	})
-	.strict();
-
-export async function readReplayRecord(
-	path: string,
-): Promise<z.infer<typeof replayRecordSchema>> {
-	return replayRecordSchema.parse(JSON.parse(await Bun.file(path).text()));
-}
+export type { ReplayRecord } from "./replay-record";
+export { readReplayRecord, replayRecordSchema } from "./replay-record";
 
 export interface ReplayOutcome {
 	readonly record: ReplayRecord;
@@ -359,6 +264,11 @@ export async function runReplay(
 		request.paths.checkpointsDirectory,
 	);
 	const plan = resolveReplay(manifest, checkpoints, request.stage);
+	const shortId = await claimShortId(
+		request.paths.runsDirectory,
+		manifest.caseId,
+		{ kind: "replay", run: request.paths.name, stage: request.stage },
+	);
 
 	const parent = await mkdtemp(join(tmpdir(), "rehearse-replay-"));
 	const worktreeDir = join(parent, "worktree");
@@ -506,6 +416,10 @@ export async function runReplay(
 			plan.consumed.lineage,
 			timestamp,
 		);
+		await bindReplay(request.paths.runsDirectory, shortId, {
+			lineage: plan.consumed.lineage,
+			timestamp: runNameFromTimestamp(timestamp),
+		});
 		await Bun.write(recordPath, `${JSON.stringify(record, null, 2)}\n`);
 		outcome = { record, recordPath };
 	} catch (error) {

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { parseConfirmationGroupRecord } from "./confirmation-record";
 import { loadRunManifest } from "./manifest";
 import { parseRunSummaryRecord } from "./record-summary";
-import { readReplayRecord } from "./replay";
+import { readReplayRecord } from "./replay-record";
 import { openRunEventStore } from "./run-events";
 import type { RunEventStore } from "./run-events";
 import {

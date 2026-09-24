@@ -30,7 +30,9 @@ import {
 	resolveReplay,
 	runReplay,
 } from "./replay";
-import { benchmarkRunPaths } from "./run-layout";
+import { benchmarkRunPaths, runNameFromTimestamp } from "./run-layout";
+import { readShortIds } from "./short-id";
+import { failureOf } from "#cli/cli-test-support";
 import { loadStageRubric } from "./stage-grading";
 import { addWorktree, currentSha, removeWorktree } from "./target";
 import {
@@ -552,6 +554,51 @@ describe(runReplay.name, () => {
 		expect(record.consumed.lineage).toBe(run.discuss.lineage);
 		expect(record.corpusFiles.length).toBeGreaterThan(0);
 		expect(record.scorecard.grade.verdict).toBe("CONTINUE");
+	});
+
+	it("names its record by the short id it claimed before its session ran", async () => {
+		const run = await recordedRun();
+		const fake = new ReplayConfirmationHarness(testResources);
+
+		const outcome = await runReplay(fake.dependencies, request(run, "build"));
+
+		expect(await readShortIds(run.paths.runsDirectory, "audit-log")).toEqual([
+			{
+				shortId: "audit-log/r1",
+				record: {
+					kind: "attempt:stage",
+					lineage: run.discuss.lineage,
+					timestamp: runNameFromTimestamp(outcome.record.timestamp),
+				},
+			},
+		]);
+	});
+
+	describe("when the replay fails before its record is written", () => {
+		it("leaves its short id naming nothing, and the next claim above it", async () => {
+			const run = await recordedRun();
+			const fake = new ReplayConfirmationHarness(testResources);
+			const failing = {
+				...fake.dependencies,
+				runStageJudge: () => Promise.reject(new Error("judge died")),
+			};
+
+			await failureOf(runReplay(failing, request(run, "build")));
+			testResources.track(dirname(fake.worktrees[0]?.path ?? "missing"));
+			const next = await runReplay(fake.dependencies, request(run, "build"));
+			const named = await readShortIds(run.paths.runsDirectory, "audit-log");
+
+			expect(named.map(({ shortId, record }) => [shortId, record])).toEqual([
+				[
+					"audit-log/r2",
+					{
+						kind: "attempt:stage",
+						lineage: run.discuss.lineage,
+						timestamp: runNameFromTimestamp(next.record.timestamp),
+					},
+				],
+			]);
+		});
 	});
 
 	it("retains the stage scorecard's Judge attempts", async () => {
