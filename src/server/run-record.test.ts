@@ -235,9 +235,12 @@ describe("/api/runs/:run", () => {
 						{
 							stage: "discuss",
 							checkpoint: "recorded",
-							instructionFiles: [corpusPath("discuss")],
+							instructionFiles: {
+								state: "available",
+								paths: [corpusPath("discuss")],
+							},
 							artifactsOut: {
-								declared: [],
+								declared: { state: "available", paths: [] },
 								workflowState: {
 									state: "available",
 									changes: [{ path: taskCard, change: "modified" }],
@@ -245,6 +248,24 @@ describe("/api/runs/:run", () => {
 							},
 						},
 						{ stage: "build" },
+					],
+				});
+			});
+
+			it("reports the instruction files and declared artifact of a stage awaiting judgment as unavailable", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeAwaitingJudgeRun();
+
+				const response = await runRecord(fixture, fixture.awaitingJudgeRun);
+
+				expect(await response.json()).toMatchObject({
+					stages: [
+						{ stage: "discuss" },
+						{
+							stage: "build",
+							instructionFiles: { state: "unavailable" },
+							artifactsOut: { declared: { state: "unavailable" } },
+						},
 					],
 				});
 			});
@@ -273,7 +294,12 @@ describe("/api/runs/:run", () => {
 
 				expect(await response.json()).toMatchObject({
 					stages: [
-						{ stage: "discuss", artifactsOut: { declared: ["PLAN.md"] } },
+						{
+							stage: "discuss",
+							artifactsOut: {
+								declared: { state: "available", paths: ["PLAN.md"] },
+							},
+						},
 						{ stage: "build" },
 					],
 				});
@@ -291,9 +317,12 @@ describe("/api/runs/:run", () => {
 						{
 							stage: "build",
 							checkpoint: "missing",
-							instructionFiles: [corpusPath("build")],
+							instructionFiles: {
+								state: "available",
+								paths: [corpusPath("build")],
+							},
 							artifactsOut: {
-								declared: [],
+								declared: { state: "unavailable" },
 								workflowState: { state: "unavailable" },
 								commitSubjects: {
 									state: "available",

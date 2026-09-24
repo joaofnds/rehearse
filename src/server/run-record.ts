@@ -84,9 +84,11 @@ export interface RunRecordStage {
 	/** Whether the stage saved a checkpoint; a stopped stage never does. */
 	readonly checkpoint: "recorded" | "missing";
 	/** The corpus files the stage ran under, from its checkpoint or record. */
-	readonly instructionFiles: readonly string[];
+	readonly instructionFiles: PathsReading;
 	readonly artifactsOut: ArtifactsOut;
 }
+
+export type PathsReading = Reading<{ readonly paths: readonly string[] }>;
 
 export interface WorkflowStateChange {
 	readonly path: string;
@@ -95,13 +97,13 @@ export interface WorkflowStateChange {
 
 export interface ArtifactsOut {
 	/** The artifact the stage declares, as its checkpoint recorded it. */
-	readonly declared: readonly string[];
+	readonly declared: PathsReading;
 	/** Workflow-state files the stage changed against its upstream checkpoint. */
 	readonly workflowState: Reading<{
 		readonly changes: readonly WorkflowStateChange[];
 	}>;
 	readonly commitSubjects: Reading<{ readonly subjects: readonly string[] }>;
-	readonly changedPaths: Reading<{ readonly paths: readonly string[] }>;
+	readonly changedPaths: PathsReading;
 }
 
 /**
@@ -223,6 +225,17 @@ function usd(
 	}
 
 	return { state: "available", usd: amount };
+}
+
+function pathsOf(
+	files: readonly { readonly path: string }[] | undefined,
+	absent: string,
+): PathsReading {
+	if (files === undefined) {
+		return { state: "unavailable", reasons: [absent] };
+	}
+
+	return { state: "available", paths: files.map(({ path }) => path) };
 }
 
 async function readStageFile(
@@ -439,11 +452,15 @@ function stageRecord(
 		judgeCost: usd(file?.costUsd, "the stage record holds no judge cost"),
 		tokens: tokenReading(stageTokenParts(recorded)),
 		checkpoint: checkpoint === undefined ? "missing" : "recorded",
-		instructionFiles: (checkpoint?.corpusFiles ?? file?.corpusFiles ?? []).map(
-			({ path }) => path,
+		instructionFiles: pathsOf(
+			checkpoint?.corpusFiles ?? file?.corpusFiles,
+			"neither a checkpoint nor the stage record lists the stage's corpus files",
 		),
 		artifactsOut: {
-			declared: (checkpoint?.artifacts ?? []).map(({ path }) => path),
+			declared: pathsOf(
+				checkpoint?.artifacts,
+				"the stage saved no checkpoint to declare its artifact",
+			),
 			workflowState: workflowStateChanges(checkpoint, checkpoints),
 			commitSubjects:
 				commitSubjects === undefined
