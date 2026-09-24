@@ -638,5 +638,25 @@ describe(runHistoryReport.name, () => {
 				],
 			});
 		});
+
+		it("names an attempt directory with no record as unreadable by its record id", async () => {
+			const fixture = await writtenFixture();
+			const uuid = "0f6b6f2a-0000-4000-8000-000000000002";
+			await fixture.writeEmptyAttemptDirectory("smoke", uuid);
+
+			const { rows, unreadable } = await runHistoryReport(
+				fixture.runsDirectory,
+				directorySource(await corpusDirectory("build skill\n")),
+				nothingRunning,
+			);
+
+			expect(
+				rows.some((row) => row.kind === "session-attempt" && row.uuid === uuid),
+			).toBe(false);
+			expect(unreadable).toContainEqual({
+				id: `attempt:session:smoke/${uuid}`,
+				reason: "incomplete: no attempt.json recorded",
+			});
+		});
 	});
 });
