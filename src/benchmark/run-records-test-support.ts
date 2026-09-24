@@ -830,9 +830,14 @@ export class RecordedRunsFixture {
 	 * scorecard carries its session transcript and judge attempts, discuss
 	 * changed the task card against the setup checkpoint, and build's stop
 	 * record keeps its session, commits and judge cost but no judge attempts.
-	 * Build never saved a checkpoint, as no stopped stage does.
+	 * Build never saved a checkpoint, as no stopped stage does. A test about a
+	 * session record the harness could write differently passes build's calls.
 	 */
-	public async writeStoppedRunEvidence(): Promise<void> {
+	public async writeStoppedRunEvidence(
+		buildSessionCalls: readonly {
+			readonly metrics?: Immutable<ClaudeCallMetrics>;
+		}[] = [{ metrics: STOPPED_RUN_EVIDENCE.buildSessionMetrics }],
+	): Promise<void> {
 		await this.writeStoppedRun();
 		const paths = benchmarkRunPaths(this.runsDirectory, this.stoppedRun);
 		await Bun.write(
@@ -878,9 +883,7 @@ export class RecordedRunsFixture {
 							stage: "build",
 							sessionId: STOPPED_STAGE_SESSION_ID,
 							costUsd: 3,
-							providerCalls: [
-								{ metrics: STOPPED_RUN_EVIDENCE.buildSessionMetrics },
-							],
+							providerCalls: buildSessionCalls,
 							exchanges: [{ agent: { message: STOPPED_STAGE_EXCHANGE_TEXT } }],
 						},
 						commitSubjects: STOPPED_RUN_EVIDENCE.buildCommitSubjects,

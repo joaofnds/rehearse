@@ -285,6 +285,35 @@ describe("/api/runs/:run", () => {
 				});
 			});
 
+			it.each([
+				["holds no calls", []],
+				[
+					"holds a call without metrics",
+					[{ metrics: buildSessionMetrics }, {}],
+				],
+			])(
+				"names a session whose record %s as a part the run's sum lacks",
+				async (_record, buildSessionCalls) => {
+					const fixture = await emptyFixture();
+					await fixture.writeStoppedRunEvidence(buildSessionCalls);
+
+					const response = await runRecord(fixture, fixture.stoppedRun);
+
+					expect(await response.json()).toMatchObject({
+						totals: {
+							tokens: {
+								state: "available",
+								missing: [
+									{ part: "build session" },
+									{ part: "build judge" },
+									{ part: "Product Owner" },
+								],
+							},
+						},
+					});
+				},
+			);
+
 			it("reports tokens as unavailable for a stage whose record holds no call metrics", async () => {
 				const fixture = await emptyFixture();
 				await fixture.writeAwaitingJudgeRun();

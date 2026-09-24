@@ -317,6 +317,10 @@ function callsPart(
 			},
 		};
 	}
+	if (calls.length === 0) {
+		return { missing: { part, reason: "the record holds no calls" } };
+	}
+
 	if (calls.some(({ metrics }) => metrics === undefined)) {
 		return {
 			missing: { part, reason: "a call in the record has no metrics" },
