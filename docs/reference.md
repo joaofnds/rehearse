@@ -869,8 +869,9 @@ keeps, unavailable in a replay record that predates it. A session attempt row's 
 metrics' cost, unavailable when the attempt kept none, and its wall time is the
 elapsed time it recorded. A confirmation group row's wall time is its makespan.
 Its cost sums a session group's preflight call and each rep's recorded calls,
-named by rep id. A rep that recorded nothing, or whose metrics are incomplete,
-is named under `missing`.
+named by rep id. A rep whose record is absent or does not parse, or whose
+metrics are incomplete, is named under `missing`, and under `reasons` when no
+part recorded any spend.
 
 A confirmation group row accounts for every rep. `stageSummaries` has one entry
 per declared stage with the `graded` count, the `ungraded` reps counted under
@@ -878,9 +879,11 @@ their recorded status, and `grades`: the `lowest`, the `highest` and the
 `median`. On an even count the median is the lower of the two middle grades, so
 it is always a grade some rep received. `finalOutcomes` counts the reps by the
 final judge's verdict, or by their status where it did not judge. `successful`
-counts the successful reps of the `reps` requested, and `unrecordedReps` names
-each rep that wrote no record. A session group has no `stageSummaries`, since
-its reps pass or fail on checks and no judge gives them a letter.
+counts the successful reps of the `reps` requested, and `unreadReps` names each
+rep whose record is absent or does not parse, with the reason, so one damaged
+rep never hides the row. A session group's `checks` summary counts its reps but
+serves no letter, since its reps pass or fail on checks and no judge grades
+them, and its `finalOutcomes` are all `NOT_APPLICABLE`.
 
 ### Saved session context history
 

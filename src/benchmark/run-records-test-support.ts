@@ -1491,8 +1491,8 @@ export class RecordedRunsFixture {
 
 	/**
 	 * A pipeline-mode group over discuss and build with one rep per outcome
-	 * given, in ordinal order. An undefined outcome is a rep that recorded
-	 * nothing, which is how a group interrupted between reps is left.
+	 * given, in ordinal order. An undefined outcome is a rep whose record is
+	 * absent, as when it is deleted after the group finished.
 	 */
 	public async writePipelineGroup(
 		groupId: string,

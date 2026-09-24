@@ -52,10 +52,12 @@ import {
 	finalOutcomeTally,
 	groupCost,
 	stageSummaries,
+	UNRECORDED_REP_REASON,
 } from "./confirmation-group-summary";
 import type {
 	GroupStageSummary,
 	RepCounts,
+	UnreadRep,
 } from "./confirmation-group-summary";
 import { corpusDigest } from "./corpus-digest";
 import { redactAbsolutePaths } from "./redact-path";
@@ -206,8 +208,8 @@ export interface ConfirmationGroupRow {
 	readonly finalOutcomes: RepCounts;
 	/** Of `reps` requested, how many the group recorded as successful. */
 	readonly successful: number;
-	/** Each rep that recorded nothing, which no other figure counts. */
-	readonly unrecordedReps: readonly string[];
+	/** Each rep the server could not read, which no other figure counts. */
+	readonly unreadReps: readonly UnreadRep[];
 	readonly cost: CostReading;
 	readonly wallTime: WallTimeReading;
 }
@@ -617,29 +619,34 @@ function repAttempts(
 	});
 }
 
-interface GroupReps {
-	readonly recorded: readonly ParsedConfirmationRepRecord[];
-	readonly unrecorded: readonly string[];
-}
+type GroupRep = ParsedConfirmationRepRecord | UnreadRep;
 
-/** The rep records a group's reps wrote, and each rep that wrote none. */
-async function groupReps(
+/**
+ * Each rep the group lists, in its order: the record it wrote, or why that
+ * record could not be read. One unreadable rep never hides the others.
+ */
+function groupReps(
 	runsDirectory: string,
 	record: Immutable<ParsedConfirmationGroupRecord>,
-): Promise<GroupReps> {
+): Promise<readonly GroupRep[]> {
 	const paths = confirmationGroupPaths(runsDirectory, record.groupId);
-	const recorded: ParsedConfirmationRepRecord[] = [];
-	const unrecorded: string[] = [];
-	for (const { repId } of record.repRecords) {
-		const file = Bun.file(paths.rep(repId).recordFile);
-		if (await file.exists()) {
-			recorded.push(parseConfirmationRepRecord(await file.text()));
-		} else {
-			unrecorded.push(repId);
-		}
-	}
 
-	return { recorded, unrecorded };
+	return Promise.all(
+		record.repRecords.map(async ({ repId }): Promise<GroupRep> => {
+			const file = Bun.file(paths.rep(repId).recordFile);
+			if (!(await file.exists())) {
+				return { repId, reason: UNRECORDED_REP_REASON };
+			}
+
+			try {
+				return parseConfirmationRepRecord(await file.text());
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+
+				return { repId, reason: redactAbsolutePaths(message) };
+			}
+		}),
+	);
 }
 
 async function groupRow(
@@ -659,7 +666,8 @@ async function groupRow(
 			repLink(runsDirectory, groupId, record.mode, reference),
 		),
 	);
-	const { recorded, unrecorded } = await groupReps(runsDirectory, record);
+	const reps = await groupReps(runsDirectory, record);
+	const recorded = reps.filter((rep) => "metrics" in rep);
 
 	return {
 		kind: "group",
@@ -678,8 +686,8 @@ async function groupRow(
 		finalOutcomes: finalOutcomeTally(recorded),
 		successful: recorded.filter(({ outcome }) => outcome === "SUCCESSFUL")
 			.length,
-		unrecordedReps: unrecorded,
-		cost: groupCost(record, recorded),
+		unreadReps: reps.filter((rep) => "reason" in rep),
+		cost: groupCost(record, reps),
 		wallTime: { state: "available", ms: record.makespanMs },
 	};
 }

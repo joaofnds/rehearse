@@ -22,6 +22,7 @@ import { PASS } from "#benchmark/comparison-test-fixtures";
 import { createApiApp } from "./api";
 import {
 	NO_GRADED_REP_REASON,
+	SESSION_GRADE_REASON,
 	UNRECORDED_REP_REASON,
 } from "./confirmation-group-summary";
 import {
@@ -57,6 +58,10 @@ const sessionRecordSchema = z.looseObject({ metrics: z.unknown() });
 
 /** A rep record, read loosely so a test can mark its metrics incomplete. */
 const repRecordSchema = z.looseObject({ metrics: z.looseObject({}) });
+
+const unreadRepsSchema = z.looseObject({
+	unreadReps: z.array(z.object({ repId: z.string(), reason: z.string() })),
+});
 
 type ListedRow = z.infer<typeof runHistorySchema>["rows"][number];
 
@@ -623,8 +628,36 @@ describe("/api/runs", () => {
 							ungraded: { EXECUTION_FAILED: 1, NOT_REACHED: 1 },
 						},
 					],
-					unrecordedReps: ["pipeline-group-rep-3"],
+					unreadReps: [
+						{ repId: "pipeline-group-rep-3", reason: UNRECORDED_REP_REASON },
+					],
 				});
+			});
+
+			it("keeps its row when a rep record does not parse, naming that rep and why", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writePipelineGroup("pipeline-group", [PASS, PASS]);
+				await Bun.write(
+					fixture.repRecordFile("pipeline-group", "pipeline-group-rep-2"),
+					"{ not json",
+				);
+
+				const row = await onlyRowOfKind(fixture, "group");
+
+				expect(row).toMatchObject({
+					stageSummaries: [
+						{ stage: "discuss", graded: 1 },
+						{ stage: "build", graded: 1 },
+					],
+					unreadReps: [{ repId: "pipeline-group-rep-2" }],
+					cost: {
+						state: "available",
+						usd: 1,
+						missing: [{ part: "pipeline-group-rep-2" }],
+					},
+				});
+				const [unread] = unreadRepsSchema.parse(row).unreadReps;
+				expect(unread?.reason).toContain("JSON Parse error");
 			});
 
 			it("tallies its reps' final outcomes by verdict or status and counts the successful reps", async () => {
@@ -659,8 +692,17 @@ describe("/api/runs", () => {
 					mode: "session",
 					reps: 2,
 					successful: 0,
-					stageSummaries: [],
-					unrecordedReps: ["session-group-rep-2"],
+					stageSummaries: [
+						{
+							stage: "checks",
+							graded: 0,
+							ungraded: { NOT_REACHED: 1 },
+							grades: { state: "unavailable", reasons: [SESSION_GRADE_REASON] },
+						},
+					],
+					unreadReps: [
+						{ repId: "session-group-rep-2", reason: UNRECORDED_REP_REASON },
+					],
 				});
 			});
 

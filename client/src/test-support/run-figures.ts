@@ -37,5 +37,5 @@ export const UNREAD_GROUP_FIGURES = {
 	stageSummaries: [],
 	finalOutcomes: {},
 	successful: 0,
-	unrecordedReps: [],
+	unreadReps: [],
 } as const;

@@ -11,6 +11,14 @@ import type { CostPart, CostReading, MissingPart, Reading } from "./run-record";
 
 export const NO_GRADED_REP_REASON = "no rep was graded at this stage";
 export const UNRECORDED_REP_REASON = "the rep recorded nothing";
+export const SESSION_GRADE_REASON =
+	"a session rep is graded by its checks passing, not by a letter";
+
+/** A rep whose record the group lists but the server could not read. */
+export interface UnreadRep {
+	readonly repId: string;
+	readonly reason: string;
+}
 
 /** How many reps fell under each name, a verdict or a recorded status. */
 export type RepCounts = Readonly<Record<string, number>>;
@@ -50,6 +58,7 @@ function tally(names: readonly string[]): RepCounts {
 }
 
 function stageSummary(
+	mode: ConfirmationMode,
 	stage: string,
 	reps: readonly Immutable<ParsedConfirmationRepRecord>[],
 ): GroupStageSummary {
@@ -64,6 +73,15 @@ function stageSummary(
 	const ungraded = tally(
 		outcomes.flatMap(({ status }) => (status === "JUDGED" ? [] : [status])),
 	);
+	if (mode === "session") {
+		return {
+			stage,
+			graded: grades.length,
+			ungraded,
+			grades: { state: "unavailable", reasons: [SESSION_GRADE_REASON] },
+		};
+	}
+
 	const highest = grades.at(0);
 	const lowest = grades.at(-1);
 	const median = grades[Math.floor(grades.length / 2)];
@@ -86,18 +104,15 @@ function stageSummary(
 
 /**
  * One summary per declared stage. A session group's reps are graded by
- * their checks passing, not by a judge's letter, so it summarizes no stage.
+ * their checks passing, not by a judge's letter, so its summary counts the
+ * reps and serves no letter.
  */
 export function stageSummaries(
 	mode: ConfirmationMode,
 	declaredStages: readonly string[],
 	reps: readonly Immutable<ParsedConfirmationRepRecord>[],
 ): readonly GroupStageSummary[] {
-	if (mode === "session") {
-		return [];
-	}
-
-	return declaredStages.map((stage) => stageSummary(stage, reps));
+	return declaredStages.map((stage) => stageSummary(mode, stage, reps));
 }
 
 /**
@@ -134,11 +149,11 @@ function preflightCost(
  * and named for the ones it lacks, so its part is never read as whole.
  */
 function repCost(
-	repId: string,
-	rep: Immutable<ParsedConfirmationRepRecord> | undefined,
+	rep: Immutable<ParsedConfirmationRepRecord> | UnreadRep,
 ): readonly (CostPart | MissingPart)[] {
-	if (rep === undefined) {
-		return [{ part: repId, reason: UNRECORDED_REP_REASON }];
+	const { repId } = rep;
+	if (!("metrics" in rep)) {
+		return [{ part: repId, reason: rep.reason }];
 	}
 
 	const { calls } = rep.metrics;
@@ -158,17 +173,16 @@ function repCost(
 	return spent;
 }
 
-/** What the group spent: its preflight, then each rep in ordinal order. */
+/**
+ * What the group spent: its preflight, then each rep in the order the group
+ * lists them, read or not.
+ */
 export function groupCost(
 	record: Immutable<ParsedConfirmationGroupRecord>,
-	reps: readonly Immutable<ParsedConfirmationRepRecord>[],
+	reps: readonly (Immutable<ParsedConfirmationRepRecord> | UnreadRep)[],
 ): CostReading {
-	const byId = new Map(reps.map((rep) => [rep.repId, rep]));
-
 	return costReading([
 		...preflightCost(record),
-		...record.repRecords.flatMap(({ repId }) =>
-			repCost(repId, byId.get(repId)),
-		),
+		...reps.flatMap((rep) => repCost(rep)),
 	]);
 }
