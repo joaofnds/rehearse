@@ -98,6 +98,8 @@ export const REPLAY_TASK_GRADE_REASON =
 export const REPLAY_WALL_TIME_REASON =
 	"the replay record keeps no time the stage started or ended";
 export const SESSION_COST_REASON = "the attempt recorded no call metrics";
+export const GROUP_COST_REASON =
+	"the group record keeps its projected cost, not what its reps spent";
 export const NO_MANIFEST_REASON =
 	"the run wrote no manifest, which names its stages";
 
@@ -185,6 +187,8 @@ export interface ConfirmationGroupRow {
 	readonly reps: number;
 	readonly repAttempts: readonly RepAttempt[];
 	readonly links: readonly ContextLink[];
+	readonly cost: RunTotals["cost"];
+	readonly wallTime: RunTotals["wallTime"];
 }
 
 export interface RepAttempt {
@@ -619,6 +623,8 @@ async function groupRow(
 		reps: record.reps,
 		repAttempts: repAttempts(record, attempts),
 		links,
+		cost: { state: "unavailable", reasons: [GROUP_COST_REASON] },
+		wallTime: { state: "available", ms: record.makespanMs },
 	};
 }
 

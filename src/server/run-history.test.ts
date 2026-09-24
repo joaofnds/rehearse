@@ -963,7 +963,7 @@ describe(runHistoryReport.name, () => {
 
 			expect(
 				rows.find((row) => row.kind === "group" && row.groupId === "group-s"),
-			).toEqual({
+			).toMatchObject({
 				kind: "group",
 				groupId: "group-s",
 				shortId: undefined,

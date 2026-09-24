@@ -19,6 +19,7 @@ import {
 } from "#benchmark/run-records-test-support";
 import { createApiApp } from "./api";
 import {
+	GROUP_COST_REASON,
 	NO_MANIFEST_REASON,
 	NOT_RUN_REASON,
 	REPLAY_TASK_GRADE_REASON,
@@ -450,6 +451,20 @@ describe("/api/runs", () => {
 
 				expect(row).toMatchObject({
 					cost: { state: "unavailable", reasons: [SESSION_COST_REASON] },
+				});
+			});
+		});
+
+		describe("a confirmation group row", () => {
+			it("carries its makespan as its wall time and its cost as not recorded", async () => {
+				const fixture = await emptyFixture();
+				await fixture.write();
+
+				const row = await onlyRowOfKind(fixture, "group");
+
+				expect(row).toMatchObject({
+					cost: { state: "unavailable", reasons: [GROUP_COST_REASON] },
+					wallTime: { state: "available", ms: 200 },
 				});
 			});
 		});

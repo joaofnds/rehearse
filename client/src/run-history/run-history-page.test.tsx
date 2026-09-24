@@ -797,11 +797,13 @@ describe(RunHistoryPage.name, () => {
 					...unreadableReport.unreadable,
 					{
 						kind: "group",
+						...UNREAD_COST_AND_TIME,
 						id: "group:g-1",
 						reason: "incomplete: no group.json recorded",
 					},
 					{
 						kind: "group",
+						...UNREAD_COST_AND_TIME,
 						id: "group:g-2",
 						reason: "incomplete: no group.json recorded",
 					},
@@ -999,6 +1001,7 @@ describe(RunHistoryPage.name, () => {
 				},
 				{
 					kind: "group",
+					...UNREAD_COST_AND_TIME,
 					shortId: undefined,
 					groupId: "group-a",
 					caseId: "brief-reply",
@@ -1187,6 +1190,7 @@ describe(RunHistoryPage.name, () => {
 				},
 				{
 					kind: "group",
+					...UNREAD_COST_AND_TIME,
 					shortId: "brief-reply/g4",
 					groupId: "group-a",
 					caseId: "brief-reply",
