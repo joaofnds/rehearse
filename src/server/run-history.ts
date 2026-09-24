@@ -307,6 +307,21 @@ async function claimsLiveTarget(
 	return marker !== undefined && liveness.isAlive(marker.pid);
 }
 
+/**
+ * The stage a failed run failed in. A failure caught outside any stage the
+ * runner tracks records `run-failed` with no stage, so the last stage the run
+ * started stands in, and a run that started none names no stage.
+ */
+function failedStage(
+	runEvents: RunEventStore,
+	run: string,
+): string | undefined {
+	return runEvents
+		.eventsSince(run, 0)
+		.map(({ stage }) => stage)
+		.findLast((stage) => stage !== "");
+}
+
 async function statusAndCaseId(
 	runsDirectory: string,
 	run: string,
@@ -352,17 +367,25 @@ async function statusAndCaseId(
 
 	/**
 	 * A signal abort, or a failure before the stage wrote its record, leaves
-	 * `run-failed` naming the stage it failed in and nothing on disk for that
-	 * stage, so the row says so instead of linking to a page with no record.
+	 * `run-failed` and nothing on disk for the stage it failed in, so the row
+	 * says so instead of linking to a page with no record.
 	 */
 	if (latest?.kind === "run-failed") {
-		return eventBackedIdentity(paths, "FAILED", [
-			{
-				state: "unavailable",
-				label: latest.stage,
-				reason: "failed before saving its context",
-			},
-		]);
+		const stage = failedStage(runEvents, run);
+
+		return eventBackedIdentity(
+			paths,
+			"FAILED",
+			stage === undefined
+				? []
+				: [
+						{
+							state: "unavailable",
+							label: stage,
+							reason: "failed before saving its context",
+						},
+					],
+		);
 	}
 
 	if (latest === undefined) {

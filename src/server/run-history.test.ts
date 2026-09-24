@@ -640,6 +640,44 @@ describe(runHistoryReport.name, () => {
 		});
 	});
 
+	it("names the last stage a failed run started when its failure event names none", async () => {
+		const fixture = await writtenFixture();
+		await fixture.writeEventsOnlyFailedRunNamingNoStage(["shape", "build"]);
+
+		const { rows } = await runHistoryReport(
+			fixture.runsDirectory,
+			directorySource(await corpusDirectory("build skill\n")),
+			nothingRunning,
+		);
+
+		expect(pipelineRun(rows, fixture.eventsOnlyRun)).toMatchObject({
+			status: "FAILED",
+			links: [
+				{
+					state: "unavailable",
+					label: "build",
+					reason: "failed before saving its context",
+				},
+			],
+		});
+	});
+
+	it("names no stage for a run that failed before starting one", async () => {
+		const fixture = await writtenFixture();
+		await fixture.writeEventsOnlyFailedRunNamingNoStage([]);
+
+		const { rows } = await runHistoryReport(
+			fixture.runsDirectory,
+			directorySource(await corpusDirectory("build skill\n")),
+			nothingRunning,
+		);
+
+		expect(pipelineRun(rows, fixture.eventsOnlyRun)).toMatchObject({
+			status: "FAILED",
+			links: [],
+		});
+	});
+
 	it("names a run directory with no manifest and no events as unreadable, since nothing records what it ran", async () => {
 		const fixture = await writtenFixture();
 		await fixture.writeEmptyRunDirectory("any-name-1");

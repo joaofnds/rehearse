@@ -959,16 +959,41 @@ export class RecordedRunsFixture {
 	 * event stream is the only record it ever ran.
 	 */
 	public async writeEventsOnlyFailedRun(): Promise<void> {
+		await this.appendRunEvents([{ kind: "run-failed", stage: "shape" }]);
+	}
+
+	/**
+	 * A run whose failure event names no stage, which is what the runner
+	 * records when the failure is caught outside any stage it tracks. The
+	 * stages it started are the only record of where it was.
+	 */
+	public async writeEventsOnlyFailedRunNamingNoStage(
+		startedStages: readonly string[],
+	): Promise<void> {
+		await this.appendRunEvents([
+			...startedStages.map((stage) => ({
+				kind: "stage-started" as const,
+				stage,
+			})),
+			{ kind: "run-failed", stage: "" },
+		]);
+	}
+
+	private async appendRunEvents(
+		events: readonly { readonly kind: RunEventKind; readonly stage: string }[],
+	): Promise<void> {
 		const store = await openRunEventStore(
 			runEventsDatabaseFile(this.runsDirectory),
 		);
-		store.append({
-			runId: this.eventsOnlyRun,
-			kind: "run-failed",
-			stage: "shape",
-			spentUsd: 0,
-			elapsedMs: 100,
-		});
+		for (const { kind, stage } of events) {
+			store.append({
+				runId: this.eventsOnlyRun,
+				kind,
+				stage,
+				spentUsd: 0,
+				elapsedMs: 100,
+			});
+		}
 		store.close();
 	}
 
