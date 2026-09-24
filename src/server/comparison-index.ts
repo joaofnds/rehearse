@@ -7,6 +7,7 @@ import {
 	comparisonDigests,
 	comparisonReportPaths,
 } from "#benchmark/run-layout";
+import { ZodError } from "zod";
 import { redactAbsolutePaths } from "./redact-path";
 
 export interface ComparisonIndexEntry {
@@ -41,6 +42,10 @@ async function indexEntry(
 	};
 }
 
+// The report schema is a union of every version, so a schema error lists each
+// version's mismatches, thousands of lines no operator can read.
+const UNRECOGNIZED_REPORT = "report.json matches no known comparison report";
+
 /**
  * One unreadable comparison must not hide the others, the precedent
  * `runHistoryReport` follows from the CLI's `list` command. A missing
@@ -58,7 +63,13 @@ export async function comparisonIndex(
 			comparisons.push(await indexEntry(runsDirectory, digest));
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			unreadable.push({ id: digest, reason: redactAbsolutePaths(message) });
+			unreadable.push({
+				id: digest,
+				reason:
+					error instanceof ZodError
+						? UNRECOGNIZED_REPORT
+						: redactAbsolutePaths(message),
+			});
 		}
 	}
 

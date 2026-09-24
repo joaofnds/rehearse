@@ -230,8 +230,18 @@ async function writtenFixture(): Promise<RecordedRunsFixture> {
 }
 
 describe("GET /api/comparisons", () => {
-	it("lists every saved comparison by digest, with its mode, cases and reps", async () => {
+	it("lists every saved comparison in digest order, each with its mode, cases and reps", async () => {
 		const fixture = await writtenFixture();
+		const earlierDigest = "0".repeat(64);
+		const earlier = comparisonReportPaths(fixture.runsDirectory, earlierDigest);
+		await mkdir(earlier.directory, { recursive: true });
+		await Bun.write(
+			earlier.reportFile,
+			Bun.file(
+				comparisonReportPaths(fixture.runsDirectory, fixture.comparisonDigest)
+					.reportFile,
+			),
+		);
 		const app = createApiApp({
 			runsDirectory: fixture.runsDirectory,
 			liveness: nothingRunning,
@@ -242,14 +252,12 @@ describe("GET /api/comparisons", () => {
 
 		expect(response.status).toBe(200);
 		expect(await response.json()).toEqual({
-			comparisons: [
-				{
-					digest: fixture.comparisonDigest,
-					mode: "pipeline",
-					caseIds: ["case-1", "case-2"],
-					reps: 4,
-				},
-			],
+			comparisons: [earlierDigest, fixture.comparisonDigest].map((digest) => ({
+				digest,
+				mode: "pipeline",
+				caseIds: ["case-1", "case-2"],
+				reps: 4,
+			})),
 			unreadable: [],
 		});
 	});
@@ -257,6 +265,7 @@ describe("GET /api/comparisons", () => {
 	describe("when a comparison cannot be read", () => {
 		const corruptDigest = "a".repeat(64);
 		const missingReportDigest = "b".repeat(64);
+		const unrecognizedReportDigest = "d".repeat(64);
 
 		async function fixtureWithUnreadableComparisons(): Promise<RecordedRunsFixture> {
 			const fixture = await writtenFixture();
@@ -271,6 +280,12 @@ describe("GET /api/comparisons", () => {
 					.directory,
 				{ recursive: true },
 			);
+			const unrecognizedReport = comparisonReportPaths(
+				fixture.runsDirectory,
+				unrecognizedReportDigest,
+			);
+			await mkdir(unrecognizedReport.directory, { recursive: true });
+			await Bun.write(unrecognizedReport.reportFile, '{ "mode": "session" }');
 
 			return fixture;
 		}
@@ -293,7 +308,11 @@ describe("GET /api/comparisons", () => {
 			expect(index.unreadable.map(({ id }) => id)).toEqual([
 				corruptDigest,
 				missingReportDigest,
+				unrecognizedReportDigest,
 			]);
+			expect(index.unreadable.filter(({ reason }) => reason === "")).toEqual(
+				[],
+			);
 		});
 
 		it("gives a reason that names no absolute path", async () => {
@@ -310,9 +329,30 @@ describe("GET /api/comparisons", () => {
 				await response.json(),
 			);
 			expect(unreadable.map(({ id }) => id)).toContain(missingReportDigest);
-			for (const { reason } of unreadable) {
-				expect(reason).not.toContain(fixture.runsDirectory);
-			}
+			expect(JSON.stringify(unreadable)).not.toMatch(
+				/\/(?:Users|home|var|tmp)\//u,
+			);
+		});
+
+		it("names a report no known version matches in one short line", async () => {
+			const fixture = await fixtureWithUnreadableComparisons();
+			const app = createApiApp({
+				runsDirectory: fixture.runsDirectory,
+				liveness: nothingRunning,
+				corpusSource: directorySource(await corpusDirectory()),
+			});
+
+			const response = await app.request("/api/comparisons");
+
+			const { unreadable } = comparisonIndexResponseSchema.parse(
+				await response.json(),
+			);
+			expect(
+				unreadable.find(({ id }) => id === unrecognizedReportDigest),
+			).toEqual({
+				id: unrecognizedReportDigest,
+				reason: "report.json matches no known comparison report",
+			});
 		});
 	});
 });
