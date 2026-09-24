@@ -388,6 +388,7 @@ export async function runReplayConfirmation(
 	await claimShortId(request.paths.runsDirectory, frozen.manifest.caseId, {
 		kind: "group",
 		groupId: request.groupId,
+		source: { run: request.paths.name, stage: request.stage },
 	});
 	const worktreesDirectory = await mkdtemp(
 		join(tmpdir(), `rehearse-${request.groupId}-`),

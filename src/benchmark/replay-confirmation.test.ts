@@ -101,7 +101,11 @@ describe(runReplayConfirmation.name, () => {
 		expect(await readShortIds(run.paths.runsDirectory, "audit-log")).toEqual([
 			{
 				shortId: "audit-log/g1",
-				record: { kind: "group", groupId: group.groupId },
+				record: {
+					kind: "group",
+					groupId: group.groupId,
+					source: { run: run.paths.name, stage: "discuss" },
+				},
 			},
 		]);
 	});

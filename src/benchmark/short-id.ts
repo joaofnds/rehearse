@@ -34,9 +34,14 @@ const stageAttemptSchema = z.object({
 	lineage: segmentSchema,
 	timestamp: segmentSchema,
 });
+/**
+ * A replay confirmation's group names the checkpoint its reps replayed, since
+ * its own record carries only a lineage and two runs can share one.
+ */
 const groupSchema = z.object({
 	kind: z.literal("group"),
 	groupId: segmentSchema,
+	source: z.object({ run: segmentSchema, stage: segmentSchema }).optional(),
 });
 
 /**
