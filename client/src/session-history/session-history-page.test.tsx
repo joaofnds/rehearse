@@ -741,6 +741,9 @@ describe(SessionHistoryPage.name, () => {
 			});
 			expect(await entry("Started from")).toHaveTextContent("audit-log/r5/s1");
 			expect(await entry("Attempt")).toHaveTextContent("attempt 2 of 3");
+			expect(await entry("Run")).toHaveTextContent(
+				"audit-log/r52026-09-06T21-58-29.508Z",
+			);
 		});
 
 		it("names a session attempt by short id, with its attempt id beneath", async () => {

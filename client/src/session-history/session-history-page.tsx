@@ -60,12 +60,15 @@ type HistoryRow = RunHistoryResponse["rows"][number];
 /** What run history calls the record a page shows. */
 interface RecordNames {
 	readonly shortId: string | undefined;
+	/** A replay's source run, which the page names beside the replay itself. */
+	readonly runShortId: string | undefined;
 	readonly checkpointShortId: string | undefined;
 	readonly attempt: AttemptPosition | undefined;
 }
 
 const UNNAMED: RecordNames = {
 	shortId: undefined,
+	runShortId: undefined,
 	checkpointShortId: undefined,
 	attempt: undefined,
 };
@@ -84,6 +87,7 @@ type GroupRow = Extract<HistoryRow, { kind: "group" }>;
 function recordNames(
 	identity: SessionHistoryIdentity,
 	rows: readonly HistoryRow[],
+	sourceRun: string | undefined,
 ): RecordNames {
 	switch (identity.kind) {
 		case "stage": {
@@ -112,6 +116,10 @@ function recordNames(
 				? UNNAMED
 				: {
 						shortId: row.shortId,
+						runShortId: rows.find(
+							(candidate): candidate is RunRow =>
+								candidate.kind === "run" && candidate.run === sourceRun,
+						)?.shortId,
 						checkpointShortId: row.checkpointShortId,
 						attempt: row.attempt,
 					};
@@ -177,6 +185,16 @@ function entryOf(
 	return value === undefined ? undefined : { term, value };
 }
 
+/**
+ * The run a stage report names, which a session attempt and a report still
+ * loading have none of.
+ */
+function runOf(report: SessionHistoryReport | undefined): string | undefined {
+	return report !== undefined && "run" in report.attempt
+		? report.attempt.run
+		: undefined;
+}
+
 function namedEntries(
 	identity: SessionHistoryIdentity,
 	attempt: SessionHistoryReport["attempt"],
@@ -201,10 +219,14 @@ function namedEntries(
 							formerly: identity.timestamp,
 						};
 
-			return inserted(inserted(entries, "Case", [replay]), "Stage", [
-				entryOf("Started from", names.checkpointShortId),
-				entryOf("Attempt", attemptOf),
-			]);
+			return inserted(
+				inserted(renamed(entries, "Run", names.runShortId), "Case", [replay]),
+				"Stage",
+				[
+					entryOf("Started from", names.checkpointShortId),
+					entryOf("Attempt", attemptOf),
+				],
+			);
 		}
 		case "standalone": {
 			return renamed(entries, "Attempt", names.shortId);
@@ -979,7 +1001,11 @@ export function SessionHistoryPage({
 		queryFn: () => fetchSummary(identity),
 	});
 	const runHistory = useQuery(runHistoryQuery);
-	const names = recordNames(identity, runHistory.data?.rows ?? []);
+	const names = recordNames(
+		identity,
+		runHistory.data?.rows ?? [],
+		runOf(summary.data),
+	);
 	const recordsRequestSeries =
 		identity.kind === "standalone" || identity.kind === "confirmation";
 	/**
