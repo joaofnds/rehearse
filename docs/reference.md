@@ -729,17 +729,31 @@ Records that say nothing of when they ran follow the timed ones. A run the
 event store alone knows has no record to number, while a run with events and a
 manifest is numbered even when `list runs` shows it as `no record`.
 
+The server's `/api/runs` rows carry the same numbers. A row's `shortId` is
+absent when its case's registry does not name it, a run lists its
+`checkpoints` with their short ids, a replay carries the `checkpointShortId` it
+started from and its `attempt`, and a group lists `repAttempts` as
+`{repId, attempt}` entries. An `attempt` is `{position, count}`, a replay's or
+stage-mode rep's place among the attempts at its checkpoint. Those attempts are
+the original run's stage when it saved that stage's checkpoint, scored it, or
+stopped on a grade below the pipeline's minimum, every replay of the checkpoint
+that claimed a short id, and every stage-mode rep judged at every stage in a
+group whose claim names the checkpoint, ordered by when each claimed its number
+and then by rep order. The count grows with every later attempt, and a replay
+claimed after a group moves back once that group's reps are judged, so an
+attempt is a position label rather than a name. A session-mode rep's attempt is
+its position among the reps its group declared. A pipeline-mode rep, and a rep
+of a group whose claim names no checkpoint because the first claim in its case
+numbered it, has no attempt. A registry that cannot be read leaves every row
+without a short id and adds a `short-ids` entry to the response's unreadable
+records rather than failing it.
+
 `list cases|runs|checkpoints|attempts|groups|comparisons` prints IDs usable by
 `show`. For runs, checkpoints, attempts and groups the second column is the
 short id, or `-` for a record its case's registry does not name; cases and
 comparisons have no short id column. `list` only reads registries, so a case no command has
 claimed in since short ids arrived prints `-` throughout. `stale` prints a
-checkpoint's short id the same way. The server's `/api/runs` rows carry the
-same numbers: each row's `shortId`, a run's `checkpoints` with their short ids,
-a replay's `checkpointShortId` and `attempt` (its position and count at that
-checkpoint), and a group's `repAttempts`. The run history screen and the stage,
-replay, session attempt and rep pages name records by those short ids with the
-Record ID beneath, and every page URL stays the Record ID form. Empty history is valid on a fresh clone. A malformed record is reported
+checkpoint's short id the same way. Empty history is valid on a fresh clone. A malformed record is reported
 without hiding readable neighbors. Stopped runs are visible through the same
 commands as completed runs. `list attempts` validates attempt diagnostics, and
 `show attempt:session:<case>/<uuid> --json` exposes the recorded projection. An
@@ -772,6 +786,15 @@ The local browser can inspect standalone session attempts at
 `/<line>:<block>` to any of those API paths returns the selected event detail.
 Each locator is the saved transcript's one-based physical line and content
 block.
+
+The run history screen and these pages name a record by its short id where
+`/api/runs` names it, keeping beneath it the name the record is filed under:
+the run name, the attempt id, the replay's timestamp or, on the run history
+screen, the group id. A stage page also names its checkpoint, and a replay page
+the run and checkpoint it started from and its attempt, by short id. A session-mode rep's page shows
+its attempt within its group, such as `attempt 2 of 2 of <case>/g1`. A
+stage-mode rep has no page, so its attempt appears only in `/api/runs`. The
+page URLs and history APIs above take no short id.
 
 `/api/replays/<lineage>/<timestamp>/history` reports a replay under the same
 stage identity. A replay keeps no raw transcript, so the report is always

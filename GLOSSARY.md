@@ -500,11 +500,11 @@ See [current state](docs/status.md) for implementation coverage and
   given names nothing else. `s0` is the checkpoint taken after task setup and
   `s<k>` the one after the k-th stage of the run's frozen pipeline. It is an
   alias for the record's **Record ID**, which stays canonical.
-  A replay or confirmation rep is also named by its place at its checkpoint,
-  attempt n of m, counting the original run's stage when it recorded a result
-  there, every replay of that checkpoint and every stage-mode rep judged from
-  it, in claim order. A rep of a session-mode group has no checkpoint and is
-  named by its position in its group.
+  A replay or confirmation rep also has a place among the attempts at its
+  checkpoint, shown as attempt n of m, where the original run's stage counts
+  when it recorded a result there. The place is a label and not a name, since m
+  grows with every later attempt and n can too. A rep of a session-mode group
+  has no checkpoint and is placed by its position in its group.
 - **Stage** — one pipeline step: a skill invocation consuming upstream
   artifacts and emitting its own. The UI's design calls this a **step**
   (see [UI vocabulary](docs/design-handoff/README.md)); the word in code, records, and this glossary stays stage.
