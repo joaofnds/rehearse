@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
@@ -273,6 +273,22 @@ describe("/api/runs", () => {
 							},
 						],
 					},
+				});
+			});
+
+			it("keeps its figures when the short id registry cannot be read", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeStoppedRun();
+				await mkdir(
+					join(fixture.runsDirectory, "short-ids", "audit-log", "claims", "99"),
+					{ recursive: true },
+				);
+
+				const row = await runRow(fixture, fixture.stoppedRun);
+
+				expect(row).toMatchObject({
+					stepGrades: { state: "available" },
+					taskGrade: { state: "available", status: "NOT_REACHED" },
 				});
 			});
 

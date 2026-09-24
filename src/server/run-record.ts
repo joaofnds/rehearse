@@ -46,7 +46,7 @@ export const STOPPED_GRADE_REASON = "a stop record keeps no letter grade";
 export const WALL_TIME_REASON =
 	"no record keeps when a stage or run started and ended";
 export const UNRECORDED_STAGE_REASON =
-	"the run ended in this stage before the stage wrote its record";
+	"the stage has written no record, and the run ended or is running in it";
 export const MINIMUM_GRADE_REASON =
 	"the run manifest does not record the minimum grade";
 export const PRODUCT_OWNER_TOKENS_REASON =
@@ -764,17 +764,27 @@ async function readRunShortId(
 	caseId: string,
 	run: string,
 ): Promise<ShortIdReading> {
-	const shortId = shortIdsOf(await readShortIds(runsDirectory, caseId)).get(
-		formatRecordId({ kind: "run", run }),
-	);
-	if (shortId === undefined) {
-		return {
-			state: "unavailable",
-			reasons: ["no command claimed a short id for the run"],
-		};
-	}
+	/**
+	 * The registry names the run and nothing else, so a registry that cannot
+	 * be read costs the record its short id rather than every figure.
+	 */
+	try {
+		const shortId = shortIdsOf(await readShortIds(runsDirectory, caseId)).get(
+			formatRecordId({ kind: "run", run }),
+		);
+		if (shortId === undefined) {
+			return {
+				state: "unavailable",
+				reasons: ["no command claimed a short id for the run"],
+			};
+		}
 
-	return { state: "available", shortId };
+		return { state: "available", shortId };
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+
+		return { state: "unavailable", reasons: [redactAbsolutePaths(message)] };
+	}
 }
 
 function stageCheckpointShortId(
