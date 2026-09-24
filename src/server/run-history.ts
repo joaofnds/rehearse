@@ -50,6 +50,7 @@ import { checkpointAttempts, repAttemptId } from "./checkpoint-attempts";
 import type { AttemptPosition } from "./checkpoint-attempts";
 import {
 	finalOutcomeTally,
+	groupCost,
 	stageSummaries,
 } from "./confirmation-group-summary";
 import type {
@@ -113,8 +114,6 @@ export const REPLAY_FINAL_OUTCOME_REASON =
 export const REPLAY_WALL_TIME_REASON =
 	"the replay record predates its elapsed time";
 export const SESSION_COST_REASON = "the attempt recorded no call metrics";
-export const GROUP_COST_REASON =
-	"the group record keeps its projected cost, not what its reps spent";
 export const NO_MANIFEST_REASON =
 	"the run wrote no manifest, which names its stages";
 
@@ -680,7 +679,7 @@ async function groupRow(
 		successful: recorded.filter(({ outcome }) => outcome === "SUCCESSFUL")
 			.length,
 		unrecordedReps: unrecorded,
-		cost: { state: "unavailable", reasons: [GROUP_COST_REASON] },
+		cost: groupCost(record, recorded),
 		wallTime: { state: "available", ms: record.makespanMs },
 	};
 }

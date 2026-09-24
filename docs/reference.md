@@ -867,9 +867,20 @@ Its `finalOutcome` is `NOT_APPLICABLE` with the reason, since only a whole run
 reaches the final judge, and its wall time is the elapsed time its record
 keeps, unavailable in a replay record that predates it. A session attempt row's cost is its call
 metrics' cost, unavailable when the attempt kept none, and its wall time is the
-elapsed time it recorded. A confirmation group row's wall time is its makespan,
-and its cost is unavailable, since the group record keeps its projected cost
-rather than what its reps spent.
+elapsed time it recorded. A confirmation group row's wall time is its makespan.
+Its cost sums a session group's preflight call and each rep's recorded calls,
+named by rep id. A rep that recorded nothing, or whose metrics are incomplete,
+is named under `missing`.
+
+A confirmation group row accounts for every rep. `stageSummaries` has one entry
+per declared stage with the `graded` count, the `ungraded` reps counted under
+their recorded status, and `grades`: the `lowest`, the `highest` and the
+`median`. On an even count the median is the lower of the two middle grades, so
+it is always a grade some rep received. `finalOutcomes` counts the reps by the
+final judge's verdict, or by their status where it did not judge. `successful`
+counts the successful reps of the `reps` requested, and `unrecordedReps` names
+each rep that wrote no record. A session group has no `stageSummaries`, since
+its reps pass or fail on checks and no judge gives them a letter.
 
 ### Saved session context history
 

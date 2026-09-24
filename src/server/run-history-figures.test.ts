@@ -18,10 +18,13 @@ import {
 	RECORDED_READINGS,
 	STOPPED_RUN_ERROR,
 } from "#benchmark/run-records-test-support";
+import { PASS } from "#benchmark/comparison-test-fixtures";
 import { createApiApp } from "./api";
-import { NO_GRADED_REP_REASON } from "./confirmation-group-summary";
 import {
-	GROUP_COST_REASON,
+	NO_GRADED_REP_REASON,
+	UNRECORDED_REP_REASON,
+} from "./confirmation-group-summary";
+import {
 	NO_MANIFEST_REASON,
 	NOT_RUN_REASON,
 	REPLAY_FINAL_OUTCOME_REASON,
@@ -51,6 +54,9 @@ const runHistorySchema = z.object({
 
 /** A session attempt record, read loosely so a test can drop one field. */
 const sessionRecordSchema = z.looseObject({ metrics: z.unknown() });
+
+/** A rep record, read loosely so a test can mark its metrics incomplete. */
+const repRecordSchema = z.looseObject({ metrics: z.looseObject({}) });
 
 type ListedRow = z.infer<typeof runHistorySchema>["rows"][number];
 
@@ -658,15 +664,92 @@ describe("/api/runs", () => {
 				});
 			});
 
-			it("carries its makespan as its wall time and its cost as not recorded", async () => {
+			it("carries its makespan as its wall time", async () => {
 				const fixture = await emptyFixture();
 				await fixture.write();
 
 				const row = await onlyRowOfKind(fixture, "group");
 
 				expect(row).toMatchObject({
-					cost: { state: "unavailable", reasons: [GROUP_COST_REASON] },
 					wallTime: { state: "available", ms: 200 },
+				});
+			});
+
+			it("sums what its reps spent and names each rep that recorded nothing", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writePipelineGroup("pipeline-group", [
+					PASS,
+					PASS,
+					undefined,
+				]);
+
+				const row = await onlyRowOfKind(fixture, "group");
+
+				expect(row).toMatchObject({
+					cost: {
+						state: "available",
+						usd: 3,
+						parts: [
+							{ part: "pipeline-group-rep-1", usd: 1 },
+							{ part: "pipeline-group-rep-2", usd: 2 },
+						],
+						missing: [
+							{ part: "pipeline-group-rep-3", reason: UNRECORDED_REP_REASON },
+						],
+					},
+				});
+			});
+
+			it("sums the calls a rep with incomplete metrics recorded and names what it lacks", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writePipelineGroup("pipeline-group", [PASS, undefined]);
+				const file = Bun.file(
+					fixture.repRecordFile("pipeline-group", "pipeline-group-rep-1"),
+				);
+				const rep = repRecordSchema.parse(await file.json());
+				await Bun.write(
+					file,
+					JSON.stringify({
+						...rep,
+						outcome: "UNSUCCESSFUL",
+						metrics: {
+							...rep.metrics,
+							status: "MISSING",
+							missing: ["final judge"],
+						},
+					}),
+				);
+
+				const row = await onlyRowOfKind(fixture, "group");
+
+				expect(row).toMatchObject({
+					cost: {
+						state: "available",
+						usd: 1,
+						parts: [{ part: "pipeline-group-rep-1", usd: 1 }],
+						missing: [
+							{ part: "pipeline-group-rep-1", reason: "final judge" },
+							{ part: "pipeline-group-rep-2", reason: UNRECORDED_REP_REASON },
+						],
+					},
+				});
+			});
+
+			it("carries its cost as not recorded, naming each part, when no rep or preflight recorded its spend", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeSessionGroup("session-group", 1);
+
+				const row = await onlyRowOfKind(fixture, "group");
+
+				expect(row).toMatchObject({
+					cost: {
+						state: "unavailable",
+						reasons: [
+							"preflight: metrics unavailable",
+							"session-group-rep-1: metrics",
+							`session-group-rep-2: ${UNRECORDED_REP_REASON}`,
+						],
+					},
 				});
 			});
 		});

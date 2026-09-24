@@ -1532,6 +1532,11 @@ export class RecordedRunsFixture {
 		}
 	}
 
+	public repRecordFile(groupId: string, repId: string): string {
+		return confirmationGroupPaths(this.runsDirectory, groupId).rep(repId)
+			.recordFile;
+	}
+
 	public async writeUnreadableGroup(groupId: string): Promise<void> {
 		const paths = confirmationGroupPaths(this.runsDirectory, groupId);
 		await mkdir(paths.directory, { recursive: true });

@@ -3,11 +3,14 @@ import type { StageLetterGrade } from "#benchmark/config";
 import type { Immutable } from "#benchmark/contracts";
 import type {
 	ConfirmationMode,
+	ParsedConfirmationGroupRecord,
 	ParsedConfirmationRepRecord,
 } from "#benchmark/confirmation-record";
-import type { Reading } from "./run-record";
+import { costReading } from "./run-record";
+import type { CostPart, CostReading, MissingPart, Reading } from "./run-record";
 
 export const NO_GRADED_REP_REASON = "no rep was graded at this stage";
+export const UNRECORDED_REP_REASON = "the rep recorded nothing";
 
 /** How many reps fell under each name, a verdict or a recorded status. */
 export type RepCounts = Readonly<Record<string, number>>;
@@ -111,4 +114,61 @@ export function finalOutcomeTally(
 				: finalOutcome.status,
 		),
 	);
+}
+
+function preflightCost(
+	record: Immutable<ParsedConfirmationGroupRecord>,
+): readonly (CostPart | MissingPart)[] {
+	if (!("preflight" in record)) {
+		return [];
+	}
+	if (record.preflight.status === "MISSING") {
+		return [{ part: "preflight", reason: record.preflight.missing }];
+	}
+
+	return [{ part: "preflight", usd: record.preflight.call.metrics.costUsd }];
+}
+
+/**
+ * A rep whose metrics are incomplete is summed over the calls it recorded
+ * and named for the ones it lacks, so its part is never read as whole.
+ */
+function repCost(
+	repId: string,
+	rep: Immutable<ParsedConfirmationRepRecord> | undefined,
+): readonly (CostPart | MissingPart)[] {
+	if (rep === undefined) {
+		return [{ part: repId, reason: UNRECORDED_REP_REASON }];
+	}
+
+	const { calls } = rep.metrics;
+	const spent =
+		calls.length === 0
+			? []
+			: [
+					{
+						part: repId,
+						usd: calls.reduce((sum, call) => sum + call.metrics.costUsd, 0),
+					},
+				];
+	if (rep.metrics.status === "MISSING") {
+		return [...spent, { part: repId, reason: rep.metrics.missing.join("; ") }];
+	}
+
+	return spent;
+}
+
+/** What the group spent: its preflight, then each rep in ordinal order. */
+export function groupCost(
+	record: Immutable<ParsedConfirmationGroupRecord>,
+	reps: readonly Immutable<ParsedConfirmationRepRecord>[],
+): CostReading {
+	const byId = new Map(reps.map((rep) => [rep.repId, rep]));
+
+	return costReading([
+		...preflightCost(record),
+		...record.repRecords.flatMap(({ repId }) =>
+			repCost(repId, byId.get(repId)),
+		),
+	]);
 }
