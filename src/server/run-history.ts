@@ -725,14 +725,16 @@ function newestFirst(rows: readonly RunHistoryRow[]): RunHistoryRow[] {
 	];
 }
 
-export interface UnreadableRun {
+/** A saved record that failed to read, with the row kind it would have been. */
+export interface UnreadableRecord {
+	readonly kind: RunHistoryRow["kind"];
 	readonly id: string;
 	readonly reason: string;
 }
 
 export interface RunHistoryReport {
 	readonly rows: readonly RunHistoryRow[];
-	readonly unreadable: readonly UnreadableRun[];
+	readonly unreadable: readonly UnreadableRecord[];
 }
 
 /**
@@ -763,8 +765,9 @@ export async function runHistoryReport(
 	);
 	try {
 		const rows: RunHistoryRow[] = [];
-		const unreadable: UnreadableRun[] = [];
+		const unreadable: UnreadableRecord[] = [];
 		const collect = async <Named>(
+			kind: RunHistoryRow["kind"],
 			named: readonly Named[],
 			idOf: (name: Named) => string,
 			read: (name: Named) => Promise<RunHistoryRow | undefined>,
@@ -779,6 +782,7 @@ export async function runHistoryReport(
 					const message =
 						error instanceof Error ? error.message : String(error);
 					unreadable.push({
+						kind,
 						id: idOf(name),
 						reason: redactAbsolutePaths(message),
 					});
@@ -791,22 +795,26 @@ export async function runHistoryReport(
 			...runEvents.runIds(),
 		]);
 		await collect(
+			"run",
 			[...runs],
 			(run) => formatRecordId({ kind: "run", run }),
 			(run) =>
 				rowFor(runsDirectory, run, staleByCheckpointId, runEvents, liveness),
 		);
 		await collect(
+			"session-attempt",
 			await sessionAttemptIds(runsDirectory),
 			(attempt) => formatRecordId({ kind: "attempt:session", ...attempt }),
 			(attempt) => sessionAttemptRow(runsDirectory, attempt),
 		);
 		await collect(
+			"replay",
 			await replayAttemptIds(runsDirectory),
 			(attempt) => formatRecordId({ kind: "attempt:stage", ...attempt }),
 			(attempt) => replayRow(runsDirectory, attempt),
 		);
 		await collect(
+			"group",
 			await confirmationGroupIds(runsDirectory),
 			(groupId) => formatRecordId({ kind: "group", groupId }),
 			(groupId) => groupRow(runsDirectory, groupId),

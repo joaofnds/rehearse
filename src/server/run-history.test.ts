@@ -694,6 +694,7 @@ describe(runHistoryReport.name, () => {
 
 		expect(pipelineRun(rows, "any-name-1")).toBeUndefined();
 		expect(unreadable).toContainEqual({
+			kind: "run",
 			id: "run:any-name-1",
 			reason: "no manifest recorded",
 		});
@@ -711,6 +712,7 @@ describe(runHistoryReport.name, () => {
 
 		expect(pipelineRun(rows, fixture.noRecordRun)).toBeUndefined();
 		expect(unreadable).toContainEqual({
+			kind: "run",
 			id: `run:${fixture.noRecordRun}`,
 			reason: "no record: no stage record and no run events",
 		});
@@ -810,6 +812,7 @@ describe(runHistoryReport.name, () => {
 				rows.some((row) => row.kind === "session-attempt" && row.uuid === uuid),
 			).toBe(false);
 			expect(unreadable).toContainEqual({
+				kind: "session-attempt",
 				id: `attempt:session:smoke/${uuid}`,
 				reason: "incomplete: no attempt.json recorded",
 			});
@@ -1019,6 +1022,7 @@ describe(runHistoryReport.name, () => {
 			);
 
 			expect(unreadable).toContainEqual({
+				kind: "group",
 				id: "group:group-empty",
 				reason: "incomplete: no group.json recorded",
 			});

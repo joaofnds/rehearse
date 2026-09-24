@@ -92,29 +92,21 @@ function matchesFilter(row: HistoryRow, filter: Filter): boolean {
 	return filter === "All" || (row.kind === "run" && isStopped(row.status));
 }
 
-/**
- * The kind of record an unreadable id names, read from the prefix every
- * record id carries, so the notice can say how many of each went missing
- * before anyone opens the list.
- */
-const UNREADABLE_KINDS = [
-	{ prefix: "run:", noun: "run" },
-	{ prefix: "attempt:session:", noun: "session attempt" },
-	{ prefix: "attempt:stage:", noun: "replay" },
-	{ prefix: "group:", noun: "confirmation run" },
-] as const;
+const UNREADABLE_NOUNS = {
+	run: "run",
+	"session-attempt": "session attempt",
+	replay: "replay",
+	group: "confirmation run",
+} as const satisfies Readonly<Record<HistoryRow["kind"], string>>;
 
 function unreadableSummary(
 	records: readonly UnreadableRecord[],
 ): readonly string[] {
-	const counted = UNREADABLE_KINDS.map(({ prefix, noun }) =>
-		plural(records.filter(({ id }) => id.startsWith(prefix)).length, noun),
-	).filter((line) => !line.startsWith("0 "));
-	const other = records.filter(
-		({ id }) => !UNREADABLE_KINDS.some(({ prefix }) => id.startsWith(prefix)),
-	).length;
+	return Object.entries(UNREADABLE_NOUNS).flatMap(([kind, noun]) => {
+		const count = records.filter((record) => record.kind === kind).length;
 
-	return other === 0 ? counted : [...counted, plural(other, "other record")];
+		return count === 0 ? [] : [plural(count, noun)];
+	});
 }
 
 function UnreadableRecords({
@@ -142,8 +134,8 @@ function UnreadableRecords({
 }
 
 /**
- * The name a record is filed under, which is what the operator quotes to the
- * CLI. It stays plain text: the links in the case cell say which page each
+ * The name a record is filed under, the last part of its CLI record id. It
+ * stays plain text: the links in the case cell say which page each
  * opens, where a linked name would leave that to guesswork.
  */
 function identityOf(row: HistoryRow): string {
@@ -437,7 +429,7 @@ export function RunHistoryPage(): React.JSX.Element {
 				title="Run history"
 				subline={
 					query.isSuccess
-						? `${plural(recorded.length, "record")} on disk · every row names the corpus version that produced it`
+						? `${plural(recorded.length, "record")} on disk · every pipeline run names the corpus version that produced it`
 						: undefined
 				}
 			/>

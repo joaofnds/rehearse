@@ -62,7 +62,9 @@ const pipelineRunRowSchema = z
 	.loose();
 const runHistoryResponseSchema = z.object({
 	rows: z.array(z.object({ kind: z.string() }).loose()),
-	unreadable: z.array(z.object({ id: z.string(), reason: z.string() })),
+	unreadable: z.array(
+		z.object({ kind: z.string(), id: z.string(), reason: z.string() }),
+	),
 });
 
 interface PipelineRunHistory {

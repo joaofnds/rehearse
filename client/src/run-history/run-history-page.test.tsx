@@ -729,10 +729,12 @@ describe(RunHistoryPage.name, () => {
 			],
 			unreadable: [
 				{
+					kind: "run",
 					id: "run:2026-09-01T00-00-00.000Z",
 					reason: "manifest.json is empty",
 				},
 				{
+					kind: "run",
 					id: "run:2026-09-02T00-00-00.000Z",
 					reason: "artifact.json is empty",
 				},
@@ -744,9 +746,23 @@ describe(RunHistoryPage.name, () => {
 				...unreadableReport,
 				unreadable: [
 					...unreadableReport.unreadable,
-					{ id: "group:g-1", reason: "incomplete: no group.json recorded" },
-					{ id: "group:g-2", reason: "incomplete: no group.json recorded" },
 					{
+						kind: "group",
+						id: "group:g-1",
+						reason: "incomplete: no group.json recorded",
+					},
+					{
+						kind: "group",
+						id: "group:g-2",
+						reason: "incomplete: no group.json recorded",
+					},
+					{
+						kind: "replay",
+						id: "attempt:stage:lineage-build/2026-09-03T01-00-00.000Z",
+						reason: "replay record is empty",
+					},
+					{
+						kind: "session-attempt",
 						id: "attempt:session:smoke/0f6b",
 						reason: "incomplete: no attempt.json recorded",
 					},
@@ -762,6 +778,7 @@ describe(RunHistoryPage.name, () => {
 			expect(alert).toHaveTextContent("2 runs");
 			expect(alert).toHaveTextContent("2 confirmation runs");
 			expect(alert).toHaveTextContent("1 session attempt");
+			expect(alert).toHaveTextContent("1 replay");
 			expect(alert).not.toHaveTextContent("group:g-1");
 		});
 
@@ -1008,7 +1025,11 @@ describe(RunHistoryPage.name, () => {
 			expect(
 				await screen.findByRole("button", { name: "All 5" }),
 			).toBeInTheDocument();
-			expect(screen.getByText(/^5 records on disk/u)).toBeInTheDocument();
+			expect(
+				screen.getByText(
+					/^5 records on disk · every pipeline run names the corpus version/u,
+				),
+			).toBeInTheDocument();
 		});
 
 		it("keeps Stopped meaning a pipeline run with a stopped stage, so a STOP verdict does not match", async () => {
