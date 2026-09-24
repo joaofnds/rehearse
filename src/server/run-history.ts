@@ -93,6 +93,8 @@ export interface PipelineRunRow {
 }
 
 export const NOT_RUN_REASON = "the run never reached this stage";
+export const NO_MANIFEST_REASON =
+	"the run wrote no manifest, which names its stages";
 
 /** A stage's grade as the run's step grades column shows it. */
 export interface StepGrade {
@@ -273,6 +275,11 @@ async function runFigures(
 	run: string,
 	liveness: RunLiveness,
 ): Promise<RunFigures> {
+	const { manifestFile } = benchmarkRunPaths(runsDirectory, run);
+	if (!(await Bun.file(manifestFile).exists())) {
+		return unavailableFigures([NO_MANIFEST_REASON]);
+	}
+
 	try {
 		const record = await readRunRecord(runsDirectory, run, liveness);
 
@@ -287,15 +294,18 @@ async function runFigures(
 		};
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
-		const reasons = [redactAbsolutePaths(message)];
 
-		return {
-			stepGrades: { state: "unavailable", reasons },
-			taskGrade: { state: "unavailable", reasons },
-			cost: { state: "unavailable", reasons },
-			wallTime: { state: "unavailable", reasons },
-		};
+		return unavailableFigures([redactAbsolutePaths(message)]);
 	}
+}
+
+function unavailableFigures(reasons: readonly string[]): RunFigures {
+	return {
+		stepGrades: { state: "unavailable", reasons },
+		taskGrade: { state: "unavailable", reasons },
+		cost: { state: "unavailable", reasons },
+		wallTime: { state: "unavailable", reasons },
+	};
 }
 
 async function rowFor(

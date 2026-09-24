@@ -15,7 +15,7 @@ import {
 	STOPPED_RUN_ERROR,
 } from "#benchmark/run-records-test-support";
 import { createApiApp } from "./api";
-import { NOT_RUN_REASON } from "./run-history";
+import { NO_MANIFEST_REASON, NOT_RUN_REASON } from "./run-history";
 import {
 	INTERRUPTED_REASON,
 	PRODUCT_OWNER_COST_REASON,
@@ -297,6 +297,26 @@ describe("/api/runs", () => {
 
 				expect(row).toMatchObject({
 					wallTime: { state: "unavailable", reasons: [WALL_TIME_REASON] },
+				});
+			});
+
+			describe("when the run wrote no manifest", () => {
+				it("keeps the row with each figure unavailable for that reason", async () => {
+					const unavailable = {
+						state: "unavailable",
+						reasons: [NO_MANIFEST_REASON],
+					};
+					const fixture = await emptyFixture();
+					await fixture.writeEventsOnlyFailedRun();
+
+					const row = await runRow(fixture, fixture.eventsOnlyRun);
+
+					expect(row).toMatchObject({
+						stepGrades: unavailable,
+						taskGrade: unavailable,
+						cost: unavailable,
+						wallTime: unavailable,
+					});
 				});
 			});
 		});
