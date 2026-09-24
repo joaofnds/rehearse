@@ -1,9 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { RecordedRunsFixture } from "./run-records-test-support";
-import { claimShortId, formatShortId, readShortIds } from "./short-id";
+import {
+	bindReplay,
+	claimShortId,
+	formatShortId,
+	readShortIds,
+} from "./short-id";
 
 const CASE_ID = "audit-log";
 
@@ -68,6 +73,104 @@ describe(claimShortId.name, () => {
 				(index) => `audit-log/r${String(index + 4)}`,
 			),
 		);
+	});
+	it("gives a run and a confirmation group of one case different numbers from one sequence", async () => {
+		const run = await claimShortId(runsDirectory, CASE_ID, {
+			kind: "run",
+			run: "2026-09-24T00-00-00.000Z",
+		});
+		const group = await claimShortId(runsDirectory, CASE_ID, {
+			kind: "group",
+			groupId: "group-1",
+		});
+
+		expect([formatShortId(run), formatShortId(group)]).toEqual([
+			"audit-log/r1",
+			"audit-log/g2",
+		]);
+	});
+
+	it("numbers each case on its own", async () => {
+		await claimShortId(runsDirectory, CASE_ID, {
+			kind: "run",
+			run: "2026-09-24T00-00-00.000Z",
+		});
+
+		const other = await claimShortId(runsDirectory, "smoke", {
+			kind: "attempt:session",
+			caseId: "smoke",
+			uuid: "0f6b6f2a-0000-4000-8000-000000000001",
+		});
+
+		expect(formatShortId(other)).toBe("smoke/r1");
+	});
+
+	describe("when a writer died between creating its claim and writing it", () => {
+		it("names nothing by that number and claims above it", async () => {
+			await claimShortId(runsDirectory, CASE_ID, {
+				kind: "run",
+				run: "2026-09-24T00-00-00.000Z",
+			});
+			await writeFile(
+				join(runsDirectory, "short-ids", CASE_ID, "claims", "2"),
+				"",
+			);
+
+			const next = await claimShortId(runsDirectory, CASE_ID, {
+				kind: "run",
+				run: "2026-09-24T01-00-00.000Z",
+			});
+
+			expect(formatShortId(next)).toBe("audit-log/r3");
+			expect(await readShortIds(runsDirectory, CASE_ID)).toEqual([
+				{
+					shortId: "audit-log/r1",
+					record: { kind: "run", run: "2026-09-24T00-00-00.000Z" },
+				},
+				{
+					shortId: "audit-log/r3",
+					record: { kind: "run", run: "2026-09-24T01-00-00.000Z" },
+				},
+			]);
+		});
+	});
+});
+
+describe(bindReplay.name, () => {
+	it("names the replay's record by the number its claim took", async () => {
+		const claimed = await claimShortId(runsDirectory, CASE_ID, {
+			kind: "replay",
+			run: "2026-09-24T00-00-00.000Z",
+			stage: "build",
+		});
+
+		await bindReplay(runsDirectory, claimed, {
+			lineage: "lineage-build",
+			timestamp: "2026-09-24T02-00-00.000Z",
+		});
+
+		expect(await readShortIds(runsDirectory, CASE_ID)).toEqual([
+			{
+				shortId: "audit-log/r1",
+				record: {
+					kind: "attempt:stage",
+					lineage: "lineage-build",
+					timestamp: "2026-09-24T02-00-00.000Z",
+				},
+			},
+		]);
+	});
+
+	describe("when the replay failed before it was bound", () => {
+		it("names nothing by its number", async () => {
+			await claimShortId(runsDirectory, CASE_ID, {
+				kind: "replay",
+				run: "2026-09-24T00-00-00.000Z",
+				stage: "build",
+			});
+
+			expect(await readShortIds(runsDirectory, CASE_ID)).toEqual([]);
+		});
 	});
 });
 

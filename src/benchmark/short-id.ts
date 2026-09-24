@@ -208,7 +208,10 @@ export async function claimShortId(
 	return { caseId, kind: shortIdKind(subject), number };
 }
 
-async function readClaim(file: string): Promise<ClaimSubject | undefined> {
+async function readRegistryFile<Parsed>(
+	file: string,
+	schema: z.ZodType<Parsed>,
+): Promise<Parsed | undefined> {
 	let contents: unknown;
 	try {
 		contents = JSON.parse(await Bun.file(file).text());
@@ -216,7 +219,7 @@ async function readClaim(file: string): Promise<ClaimSubject | undefined> {
 		return undefined;
 	}
 
-	return claimSchema.safeParse(contents).data;
+	return schema.safeParse(contents).data;
 }
 
 export async function readShortIds(
@@ -231,22 +234,48 @@ export async function readShortIds(
 	const entries: ShortIdEntry[] = [];
 
 	for (const number of numbers) {
-		const claim = await readClaim(
+		const claim = await readRegistryFile(
 			join(directory, CLAIMS_DIRECTORY, String(number)),
+			claimSchema,
 		);
-		if (claim === undefined || claim.kind === "replay") {
+		const record =
+			claim?.kind === "replay"
+				? await readRegistryFile(
+						join(directory, BINDINGS_DIRECTORY, String(number)),
+						stageAttemptSchema,
+					)
+				: claim;
+		if (record === undefined) {
 			continue;
 		}
 
 		entries.push({
-			shortId: formatShortId({
-				caseId,
-				kind: shortIdKind(claim),
-				number,
-			}),
-			record: claim,
+			shortId: formatShortId({ caseId, kind: shortIdKind(record), number }),
+			record,
 		});
 	}
 
 	return entries;
+}
+
+export async function bindReplay(
+	runsDirectory: string,
+	id: ShortId,
+	attempt: { readonly lineage: string; readonly timestamp: string },
+): Promise<void> {
+	const binding = join(
+		registryDirectory(runsDirectory, id.caseId),
+		BINDINGS_DIRECTORY,
+		String(id.number),
+	);
+
+	const bound = await createExclusively(
+		binding,
+		serialize({ kind: "attempt:stage", ...attempt }),
+	);
+	if (!bound) {
+		throw new Error(
+			`Short id ${formatShortId(id)} is already bound to a replay record`,
+		);
+	}
 }
