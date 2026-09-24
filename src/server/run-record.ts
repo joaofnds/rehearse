@@ -30,7 +30,7 @@ import {
 import { formatRecordId } from "#cli/record-id";
 import { shortIdsOf } from "#cli/short-id-column";
 import { redactAbsolutePaths } from "./redact-path";
-import { claimsLiveTarget, failedStage, runStatus } from "./run-history";
+import { claimsLiveTarget, failedStage, runStatus } from "./run-status";
 
 export const INTERRUPTED_REASON =
 	"the run was interrupted before its final judge";
