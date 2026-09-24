@@ -28,6 +28,7 @@ import {
 	confirmationGroupPaths,
 	runEventsDatabaseFile,
 } from "#benchmark/run-layout";
+import type { ClaimSubject } from "#benchmark/short-id";
 import { bindReplay, claimShortId } from "#benchmark/short-id";
 import type { ContextLink, PipelineRunRow, RunHistoryRow } from "./run-history";
 import { runHistoryReport } from "./run-history";
@@ -1247,16 +1248,21 @@ describe(runHistoryReport.name, () => {
 		const laterRun = "2026-09-11T00-00-00.000Z";
 
 		/**
-		 * A run claimed after the fixture's audit-log records are on disk, so
-		 * the claim numbers them first, oldest first, and takes the next number.
-		 * The run claims before it writes its record, as a started run does.
+		 * The fixture's audit-log records claimed oldest first, then the claims
+		 * of any records written earlier, then a later run that claims before it
+		 * writes its record, as a started run does.
 		 */
 		async function fixtureWithClaimedRun(
-			recordEarlier: (fixture: RecordedRunsFixture) => Promise<void> = () =>
-				Promise.resolve(),
+			recordEarlier: (
+				fixture: RecordedRunsFixture,
+			) => Promise<readonly ClaimSubject[]> = () => Promise.resolve([]),
 		): Promise<RecordedRunsFixture> {
 			const fixture = await writtenFixture();
-			await recordEarlier(fixture);
+			const earlierClaims = await recordEarlier(fixture);
+			await fixture.claim("audit-log", [
+				...fixture.auditLogClaims,
+				...earlierClaims,
+			]);
 			await claimShortId(fixture.runsDirectory, "audit-log", {
 				kind: "run",
 				run: laterRun,
@@ -1307,9 +1313,17 @@ describe(runHistoryReport.name, () => {
 
 		it("names a replay's checkpoint and which attempt there it is, the original run's stage first", async () => {
 			const laterReplay = "2026-09-04T00-00-00.000Z";
-			const fixture = await fixtureWithClaimedRun((earlier) =>
-				earlier.writeReplayOf(earlier.replayableRun, laterReplay),
-			);
+			const fixture = await fixtureWithClaimedRun(async (earlier) => {
+				await earlier.writeReplayOf(earlier.replayableRun, laterReplay);
+
+				return [
+					{
+						kind: "attempt:stage",
+						lineage: earlier.stageAttempt.lineage,
+						timestamp: laterReplay,
+					},
+				];
+			});
 
 			const { rows } = await runHistoryReport(
 				fixture.runsDirectory,
@@ -1327,7 +1341,7 @@ describe(runHistoryReport.name, () => {
 					})),
 			).toEqual([
 				{
-					shortId: "audit-log/r4",
+					shortId: "audit-log/r5",
 					checkpointShortId: "audit-log/r2/s1",
 					attempt: { position: 3, count: 3 },
 				},
@@ -1467,6 +1481,15 @@ describe(runHistoryReport.name, () => {
 					earlier.stoppedRun,
 					"2026-09-05T00-00-00.000Z",
 				);
+
+				return [
+					{ kind: "run", run: earlier.stoppedRun },
+					{
+						kind: "attempt:stage",
+						lineage: earlier.stageAttempt.lineage,
+						timestamp: "2026-09-05T00-00-00.000Z",
+					},
+				];
 			});
 
 			const { rows } = await runHistoryReport(
@@ -1491,6 +1514,15 @@ describe(runHistoryReport.name, () => {
 					earlier.stoppedRun,
 					"2026-09-05T00-00-00.000Z",
 				);
+
+				return [
+					{ kind: "run", run: earlier.stoppedRun },
+					{
+						kind: "attempt:stage",
+						lineage: earlier.stageAttempt.lineage,
+						timestamp: "2026-09-05T00-00-00.000Z",
+					},
+				];
 			});
 
 			const { rows } = await runHistoryReport(

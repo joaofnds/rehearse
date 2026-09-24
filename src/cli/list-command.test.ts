@@ -22,7 +22,6 @@ import { UsageError } from "#cli/commands";
 import { LIST_KINDS, runList } from "#cli/list-command";
 import { parseRecordId } from "#cli/record-id";
 import { runShow } from "#cli/show-command";
-import { claimShortId } from "#benchmark/short-id";
 
 const RECORDLESS_UUID = "0f6b6f2a-0000-4000-8000-0000000000ff";
 
@@ -337,14 +336,8 @@ describe(runList.name, () => {
 	describe("when the records' cases are numbered", () => {
 		async function numberedFixture(): Promise<RecordedRunsFixture> {
 			const fixture = await writtenFixture();
-			await claimShortId(fixture.runsDirectory, "audit-log", {
-				kind: "run",
-				run: "2026-09-24T00-00-00.000Z",
-			});
-			await claimShortId(fixture.runsDirectory, "smoke", {
-				kind: "run",
-				run: "2026-09-24T00-00-01.000Z",
-			});
+			await fixture.claim("audit-log", fixture.auditLogClaims);
+			await fixture.claim("smoke", fixture.smokeClaims);
 
 			return fixture;
 		}

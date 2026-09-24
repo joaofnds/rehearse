@@ -1,12 +1,9 @@
-import { randomUUID } from "node:crypto";
-import { mkdir, open, readdir, rename, rm } from "node:fs/promises";
+import { mkdir, open, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
-import { casesRoot, isCaseId } from "./case";
+import { isCaseId } from "./case";
 import { INITIAL_CHECKPOINT_STAGE } from "./checkpoint";
-import { pathExists, readdirIfPresent, textIfPresent } from "./file-presence";
-import type { DatedRecord } from "./short-id-backfill";
-import { recordedCaseIds, recordsOnDisk } from "./short-id-backfill";
+import { readdirIfPresent, textIfPresent } from "./file-presence";
 
 const REGISTRY_DIRECTORY = "short-ids";
 const CLAIMS_DIRECTORY = "claims";
@@ -155,106 +152,15 @@ function serialize(value: ClaimSubject): string {
 	return `${JSON.stringify(value)}\n`;
 }
 
-async function writeBackfill(
-	directory: string,
-	records: readonly DatedRecord[],
-): Promise<void> {
-	await mkdir(join(directory, CLAIMS_DIRECTORY), { recursive: true });
-	await mkdir(join(directory, BINDINGS_DIRECTORY), { recursive: true });
-
-	for (const [index, { record }] of records.entries()) {
-		await Bun.write(
-			join(directory, CLAIMS_DIRECTORY, String(index + 1)),
-			serialize(record),
-		);
-	}
-}
-
-/**
- * A case's registry appears whole or not at all: it is built beside the live
- * one and renamed into place, and a rename onto a registry another process
- * already placed fails rather than replacing it, since a registry always holds
- * its two directories. The loser discards its copy and claims in the winner's,
- * so no new number can be claimed before the case's records are numbered.
- */
 async function ensureRegistry(
 	runsDirectory: string,
 	caseId: string,
-	casesDirectory: string = casesRoot(),
 ): Promise<string> {
 	const directory = registryDirectory(runsDirectory, caseId);
-	if (await pathExists(join(directory, CLAIMS_DIRECTORY))) {
-		return directory;
-	}
-
-	const building = join(
-		runsDirectory,
-		REGISTRY_DIRECTORY,
-		`.building-${caseId}-${randomUUID()}`,
-	);
-	try {
-		await writeBackfill(
-			building,
-			await recordsOnDisk(runsDirectory, caseId, casesDirectory),
-		);
-		await rename(building, directory);
-	} catch (error) {
-		const taken =
-			error instanceof Error &&
-			"code" in error &&
-			(error.code === "ENOTEMPTY" || error.code === "EEXIST");
-		if (!taken) {
-			throw error;
-		}
-	} finally {
-		await rm(building, { recursive: true, force: true });
-	}
+	await mkdir(join(directory, CLAIMS_DIRECTORY), { recursive: true });
+	await mkdir(join(directory, BINDINGS_DIRECTORY), { recursive: true });
 
 	return directory;
-}
-
-/** A case whose records the backfill could not number, and what stopped it. */
-export class CaseNumberingError extends Error {
-	public override name = "CaseNumberingError";
-
-	public constructor(
-		public readonly caseId: string,
-		options: Readonly<ErrorOptions>,
-	) {
-		super(`Could not number the records of case ${caseId}`, options);
-	}
-}
-
-/**
- * Builds the registry of every case with records on disk, so records made
- * before short ids arrived are named before any claim in their case. A case
- * that cannot be numbered does not keep the others from being numbered.
- */
-export async function backfillShortIds(
-	runsDirectory: string,
-	casesDirectory: string = casesRoot(),
-): Promise<void> {
-	const failures: CaseNumberingError[] = [];
-	for (const caseId of await recordedCaseIds(runsDirectory)) {
-		if (!isCaseId(caseId)) {
-			failures.push(
-				new CaseNumberingError(caseId, {
-					cause: new Error(`${caseId} is not a case id`),
-				}),
-			);
-			continue;
-		}
-
-		try {
-			await ensureRegistry(runsDirectory, caseId, casesDirectory);
-		} catch (error) {
-			failures.push(new CaseNumberingError(caseId, { cause: error }));
-		}
-	}
-
-	if (failures.length > 0) {
-		throw new AggregateError(failures, "Could not number every case's records");
-	}
 }
 
 /**
@@ -352,8 +258,7 @@ export async function readShortIds(
 /**
  * Every short id claimed in any case, for a listing that prints them beside
  * Record IDs. It reads registries and builds none, so listing stays read-only
- * and a case whose registry neither a server start nor a claim has built
- * prints no short ids.
+ * and a case no command has claimed in prints no short ids.
  */
 export async function readAllShortIds(
 	runsDirectory: string,

@@ -5,7 +5,6 @@ import { join } from "node:path";
 import { failureOf } from "#cli/cli-test-support";
 import { RecordedRunsFixture } from "./run-records-test-support";
 import {
-	backfillShortIds,
 	bindReplay,
 	claimShortId,
 	checkpointStageAt,
@@ -50,35 +49,24 @@ async function claimInProcesses(
 }
 
 describe(claimShortId.name, () => {
-	it("numbers the case's records oldest first and gives every concurrent claim its own number above them", async () => {
+	it("gives every concurrent claim its own number from 1 and numbers no record it was not asked to", async () => {
 		const fixture = new RecordedRunsFixture(runsDirectory);
-		await fixture.writePipelineRun("2026-09-03T00-00-00.000Z", CASE_ID);
 		await fixture.writePipelineRun("2026-09-01T00-00-00.000Z", CASE_ID);
-		await fixture.writePipelineRun("2026-09-02T00-00-00.000Z", CASE_ID);
 
 		await claimInProcesses(4, 10);
 
 		const named = await readShortIds(runsDirectory, CASE_ID);
-		expect(named.slice(0, 3)).toEqual([
-			{
-				shortId: "audit-log/r1",
-				record: { kind: "run", run: "2026-09-01T00-00-00.000Z" },
-			},
-			{
-				shortId: "audit-log/r2",
-				record: { kind: "run", run: "2026-09-02T00-00-00.000Z" },
-			},
-			{
-				shortId: "audit-log/r3",
-				record: { kind: "run", run: "2026-09-03T00-00-00.000Z" },
-			},
-		]);
-		expect(named.slice(3).map(({ shortId }) => shortId)).toEqual(
+		expect(named.map(({ shortId }) => shortId)).toEqual(
 			[...Array.from({ length: 40 }).keys()].map(
-				(index) => `audit-log/r${String(index + 4)}`,
+				(index) => `audit-log/r${String(index + 1)}`,
 			),
 		);
+		expect(named.map(({ record }) => record)).not.toContainEqual({
+			kind: "run",
+			run: "2026-09-01T00-00-00.000Z",
+		});
 	});
+
 	it("gives a run and a confirmation group of one case different numbers from one sequence", async () => {
 		const run = await claimShortId(runsDirectory, CASE_ID, {
 			kind: "run",
@@ -135,128 +123,6 @@ describe(claimShortId.name, () => {
 				{
 					shortId: "audit-log/r3",
 					record: { kind: "run", run: "2026-09-24T01-00-00.000Z" },
-				},
-			]);
-		});
-	});
-});
-
-describe(backfillShortIds.name, () => {
-	let casesDirectory: string;
-
-	beforeEach(async () => {
-		casesDirectory = await mkdtemp(join(tmpdir(), "rehearse-short-id-cases-"));
-	});
-
-	afterEach(async () => {
-		await rm(casesDirectory, { recursive: true, force: true });
-	});
-
-	it("numbers the records of every case that has any", async () => {
-		const fixture = new RecordedRunsFixture(runsDirectory);
-		await fixture.writePipelineRun("2026-09-02T00-00-00.000Z", CASE_ID);
-		await fixture.writePipelineRun("2026-09-01T00-00-00.000Z", CASE_ID);
-		await fixture.writeAttemptAt(
-			"0f6b6f2a-0000-4000-8000-000000000001",
-			runsDirectory,
-			"smoke",
-			[],
-		);
-
-		await backfillShortIds(runsDirectory, casesDirectory);
-
-		expect([
-			...(await readShortIds(runsDirectory, CASE_ID)),
-			...(await readShortIds(runsDirectory, "smoke")),
-		]).toEqual([
-			{
-				shortId: "audit-log/r1",
-				record: { kind: "run", run: "2026-09-01T00-00-00.000Z" },
-			},
-			{
-				shortId: "audit-log/r2",
-				record: { kind: "run", run: "2026-09-02T00-00-00.000Z" },
-			},
-			{
-				shortId: "smoke/r1",
-				record: {
-					kind: "attempt:session",
-					caseId: "smoke",
-					uuid: "0f6b6f2a-0000-4000-8000-000000000001",
-				},
-			},
-		]);
-	});
-
-	it("leaves a case's existing registry as it was", async () => {
-		const fixture = new RecordedRunsFixture(runsDirectory);
-		await claimShortId(runsDirectory, CASE_ID, {
-			kind: "run",
-			run: "2026-09-24T00-00-00.000Z",
-		});
-		await fixture.writePipelineRun("2026-09-01T00-00-00.000Z", CASE_ID);
-
-		await backfillShortIds(runsDirectory, casesDirectory);
-
-		expect(await readShortIds(runsDirectory, CASE_ID)).toEqual([
-			{
-				shortId: "audit-log/r1",
-				record: { kind: "run", run: "2026-09-24T00-00-00.000Z" },
-			},
-		]);
-	});
-
-	describe("when a record names a case by a path", () => {
-		it("builds no registry for it", async () => {
-			const fixture = new RecordedRunsFixture(runsDirectory);
-			await fixture.writePipelineRun("2026-09-01T00-00-00.000Z", "../escape");
-
-			await failureOf(backfillShortIds(runsDirectory, casesDirectory));
-
-			expect(await readdir(runsDirectory)).not.toContain("escape");
-		});
-
-		it("reports the case", async () => {
-			const fixture = new RecordedRunsFixture(runsDirectory);
-			await fixture.writePipelineRun("2026-09-01T00-00-00.000Z", "../escape");
-
-			const failure = await failureOf(
-				backfillShortIds(runsDirectory, casesDirectory),
-			);
-
-			expect(failure).toMatchObject({ errors: [{ caseId: "../escape" }] });
-		});
-	});
-
-	describe("when a case's registry cannot be built", () => {
-		it("numbers the other cases and then reports the failing one", async () => {
-			const fixture = new RecordedRunsFixture(runsDirectory);
-			await fixture.writePipelineRun("2026-09-01T00-00-00.000Z", CASE_ID);
-			await fixture.writeAttemptAt(
-				"0f6b6f2a-0000-4000-8000-000000000001",
-				runsDirectory,
-				"smoke",
-				[],
-			);
-			await Bun.write(
-				join(runsDirectory, "short-ids", CASE_ID),
-				"not a registry",
-			);
-
-			const failure = await failureOf(
-				backfillShortIds(runsDirectory, casesDirectory),
-			);
-
-			expect(failure).toBeInstanceOf(AggregateError);
-			expect(failure).toMatchObject({ errors: [{ caseId: CASE_ID }] });
-			expect(await readShortIds(runsDirectory, "smoke")).toEqual([
-				{
-					shortId: "smoke/r1",
-					record: {
-						kind: "attempt:session",
-						caseId: "smoke",
-						uuid: "0f6b6f2a-0000-4000-8000-000000000001",
-					},
 				},
 			]);
 		});

@@ -13,9 +13,7 @@ import {
 	liveReconciliationDependencies,
 	reconcileInterruptedRuns,
 } from "#benchmark/run-reconciliation";
-import { backfillShortIds } from "#benchmark/short-id";
 import { createAppServer } from "./app";
-import type { AppServerDependencies } from "./app";
 
 const DEFAULT_PORT = 4173;
 
@@ -49,47 +47,21 @@ async function reconcileOnStartup(runsDirectory: string): Promise<void> {
 	}
 }
 
-/**
- * Listing reads short ids and builds no registry, so without this a case
- * whose records all predate short ids shows none until something new runs
- * in it. A case left unnumbered is numbered by its next claim instead, which
- * is no reason to refuse to serve.
- */
-async function backfillShortIdsOnStartup(runsDirectory: string): Promise<void> {
-	try {
-		await backfillShortIds(runsDirectory);
-	} catch (error) {
-		console.error("rehearse could not number every case's records:", error);
-	}
-}
-
-/**
- * Serves the app once the runs directory is reconciled and every case's
- * records are numbered, so the first response already reflects both.
- */
-export async function serve(
-	dependencies: AppServerDependencies,
-	port: number,
-): Promise<Bun.Server<undefined>> {
-	await reconcileOnStartup(dependencies.runsDirectory);
-	await backfillShortIdsOnStartup(dependencies.runsDirectory);
-
-	return startLocalServer(port, createAppServer(dependencies).fetch);
-}
-
 async function main(): Promise<void> {
 	assertPinnedBunVersion();
 
+	const runsDirectory = benchmarkRunsDirectory(CONTROL_DIR);
+	await reconcileOnStartup(runsDirectory);
+
+	const app = createAppServer({
+		runsDirectory,
+		corpusSource: liveCorpusSource(),
+		liveness: liveRunLiveness(),
+		clientDistDirectory: join(CONTROL_DIR, "client", "dist"),
+	});
+
 	const port = Number(Bun.env["PORT"] ?? DEFAULT_PORT);
-	await serve(
-		{
-			runsDirectory: benchmarkRunsDirectory(CONTROL_DIR),
-			corpusSource: liveCorpusSource(),
-			liveness: liveRunLiveness(),
-			clientDistDirectory: join(CONTROL_DIR, "client", "dist"),
-		},
-		port,
-	);
+	startLocalServer(port, app.fetch);
 	console.log(`rehearse serving on http://localhost:${String(port)}`);
 }
 

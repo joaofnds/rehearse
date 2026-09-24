@@ -16,7 +16,6 @@ import { UsageError } from "#cli/commands";
 import { RefusedPreconditionError } from "#cli/interactive-stdin";
 import { LIST_KINDS, runList } from "#cli/list-command";
 import { runShow } from "#cli/show-command";
-import { claimShortId } from "#benchmark/short-id";
 import { runCommand } from "#benchmark/command";
 import { recordRetentionRef } from "#benchmark/target";
 import { TestResources } from "#benchmark/test-support";
@@ -326,14 +325,8 @@ describe(runShow.name, () => {
 	describe("when given a short id", () => {
 		async function numberedFixture(): Promise<RecordedRunsFixture> {
 			const fixture = await writtenFixture();
-			await claimShortId(fixture.runsDirectory, "audit-log", {
-				kind: "run",
-				run: "2026-09-24T00-00-00.000Z",
-			});
-			await claimShortId(fixture.runsDirectory, "smoke", {
-				kind: "run",
-				run: "2026-09-24T00-00-01.000Z",
-			});
+			await fixture.claim("audit-log", fixture.auditLogClaims);
+			await fixture.claim("smoke", fixture.smokeClaims);
 
 			return fixture;
 		}

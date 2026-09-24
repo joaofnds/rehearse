@@ -38,6 +38,8 @@ import type {
 	RunSummaryRecord,
 } from "./record-summary";
 import { groupReportSummarySchema, runSummarySchema } from "./record-summary";
+import type { ClaimSubject } from "./short-id";
+import { claimShortId } from "./short-id";
 import type { SessionAttemptRecord } from "./session-record";
 import { sessionAttemptRecordSchema } from "./session-record";
 import { replayRecordSchema } from "./replay";
@@ -476,6 +478,30 @@ export class RecordedRunsFixture {
 				checkpointRecordFile(directory),
 				serialize({ ...record, corpusFiles }),
 			);
+		}
+	}
+
+	/** What the commands that wrote the audit-log records claimed, oldest first. */
+	public get auditLogClaims(): readonly ClaimSubject[] {
+		return [
+			{ kind: "run", run: this.unreplayableRun },
+			{ kind: "run", run: this.replayableRun },
+			{ kind: "attempt:stage", ...this.stageAttempt },
+			{ kind: "group", groupId: this.groupId },
+		];
+	}
+
+	public get smokeClaims(): readonly ClaimSubject[] {
+		return [{ kind: "attempt:session", ...this.sessionAttempt }];
+	}
+
+	/** Claims a short id for each subject in turn, as the commands that wrote them do. */
+	public async claim(
+		caseId: string,
+		subjects: readonly ClaimSubject[],
+	): Promise<void> {
+		for (const subject of subjects) {
+			await claimShortId(this.runsDirectory, caseId, subject);
 		}
 	}
 

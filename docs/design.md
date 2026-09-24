@@ -123,12 +123,8 @@ The short id registry at `.benchmark-runs/short-ids/` is authoritative too,
 since a quoted short id means only what the registry says. Each number is
 claimed by an exclusive file create, so concurrent commands in one records
 directory never share a number, and a command that fails after claiming leaves
-a gap rather than freeing the number. The server's start, before it accepts
-requests, builds the registry of every case with records, and a case's first
-claim builds its own when no start has. Either numbers the case's existing
-records in a directory beside the live registry and renames it into place, so
-no new number is claimed before the backfill is whole, and neither touches a
-registry that already exists.
+a gap rather than freeing the number. Only a claim writes a number, so a
+record no claim names stays unnumbered.
 
 See [record formats and target restoration](reference.md) for storage paths,
 identifiers, retained candidates, and recovery boundaries.

@@ -10,7 +10,6 @@ import {
 import { failureOf, recordOutput } from "#cli/cli-test-support";
 import { RefusedPreconditionError } from "#cli/interactive-stdin";
 import { runStale } from "#cli/stale-command";
-import { claimShortId } from "#benchmark/short-id";
 import { CorpusConfigurationError } from "#benchmark/corpus-file";
 
 const HALF_WRITTEN_UUID = "0f6b6f2a-0000-4000-8000-00000000000f";
@@ -118,10 +117,7 @@ describe(runStale.name, () => {
 		const fixture = await fixtureRecordedAgainst(
 			await corpusDirectory("build skill\n"),
 		);
-		await claimShortId(fixture.runsDirectory, "audit-log", {
-			kind: "run",
-			run: "2026-09-24T00-00-00.000Z",
-		});
+		await fixture.claim("audit-log", fixture.auditLogClaims);
 		const recorder = recordOutput();
 
 		await runStale(

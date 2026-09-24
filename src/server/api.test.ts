@@ -245,6 +245,7 @@ describe(createApiApp.name, () => {
 
 				return body.rows.filter((row) => "shortId" in row);
 			};
+			await fixture.claim("audit-log", fixture.auditLogClaims);
 			await claimAndWrite("2026-09-11T00-00-00.000Z");
 
 			const before = await shortIds();

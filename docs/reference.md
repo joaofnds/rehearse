@@ -717,25 +717,13 @@ Short ids live in the registry at `short-ids/<case>/`. `claims/<n>` holds what
 the command knew when it claimed: the record for a run, session attempt or
 group, and for a replay the checkpoint it replays, whose record `bindings/<n>`
 names once its timestamp is known. A replay confirmation's claim also names
-the checkpoint its reps replayed. The registry is part of the records, not
-derived state: deleting it renumbers the case at the next server start or
-claim, so a short id already printed or quoted can then name a different
-record. `bun run serve` builds the registry of every case a record names when
-it starts, before it accepts requests, and a case with no registry yet gets one
-at its first claim. A registry that already exists is left as it is, so neither
-a start nor a claim renumbers the case or numbers a record its registry missed. A case the server
-cannot number at startup, including one whose recorded case id is not a case
-id, is logged by name, the other cases are still numbered, and the server
-starts anyway. Either way the build numbers every record of that case the
-server's run history can read, oldest first by the time each record says it
-ran. A run is timed by its name, a replay by its timestamp, a session attempt
-by the first line its own session wrote to the transcript after the starting
-transcript its case declares, and a confirmation group by its earliest rep.
-Records that say nothing of when they ran follow the timed ones. Records with
-the same time, or none, go runs first, then replays, session attempts and
-groups, each kind in order of its Record ID. A run the
-event store alone knows has no record to number, while a run with events and a
-manifest is numbered even when `list runs` shows it as `no record`.
+the checkpoint its reps replayed. A command that writes a run, replay, session
+attempt or confirmation group claims its number as it writes the record, and a
+case's first claim takes number 1. A record no claim names has no short id,
+and nothing numbers it later. The registry is part of the records, not derived
+state: deleting it drops every number in its case and the next claim starts
+again at 1, so a short id already printed or quoted can then name a different
+record.
 
 The server's `/api/runs` rows carry the same numbers. A row's `shortId` is
 absent when its case's registry does not name it, a run lists its
@@ -751,16 +739,15 @@ and then by rep order. The count grows with every later attempt, and a replay
 claimed after a group moves back once that group's reps are judged, so an
 attempt is a position label rather than a name. A session-mode rep's attempt is
 its position among the reps its group declared. A pipeline-mode rep, and a rep
-of a group whose claim names no checkpoint because a server start or its
-case's first claim numbered it, has no attempt. A registry that cannot be read leaves every row
+of a group whose claim names no checkpoint, has no attempt. A registry that cannot be read leaves every row
 without a short id and adds a `short-ids` entry to the response's unreadable
 records rather than failing it.
 
 `list cases|runs|checkpoints|attempts|groups|comparisons` prints IDs usable by
 `show`. For runs, checkpoints, attempts and groups the second column is the
 short id, or `-` for a record its case's registry does not name; cases and
-comparisons have no short id column. `list` only reads registries, so a case whose registry
-neither a server start nor a claim has built prints `-` throughout. `stale` prints a
+comparisons have no short id column. `list` only reads registries, so a case no command
+has claimed in prints `-` throughout. `stale` prints a
 checkpoint's short id the same way. Empty history is valid on a fresh clone. A malformed record is reported
 without hiding readable neighbors. Stopped runs are visible through the same
 commands as completed runs. `list attempts` validates attempt diagnostics, and

@@ -195,8 +195,7 @@ function kindLine(row: HistoryRow): string {
 
 /**
  * The record's short id, with the identity it is filed under beneath. A
- * record in a case whose registry neither a server start nor a claim has
- * built has none.
+ * record no claim names has none.
  */
 function runCell(row: HistoryRow): React.JSX.Element {
 	if (row.shortId === undefined) {
