@@ -1,6 +1,14 @@
 import { unhandled } from "#benchmark/contracts";
 import { afterEach, describe, expect, it } from "bun:test";
-import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import {
+	mkdir,
+	mkdtemp,
+	readdir,
+	rm,
+	stat,
+	symlink,
+	writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CONTROL_DIR } from "#benchmark/config";
@@ -16,6 +24,26 @@ import { openRunEventStore } from "#benchmark/run-events";
 import { runEventsDatabaseFile } from "#benchmark/run-layout";
 import type { ContextLink, PipelineRunRow, RunHistoryRow } from "./run-history";
 import { runHistoryReport } from "./run-history";
+
+/**
+ * Every entry under a directory, keyed by its relative path: a file with the
+ * size and modification time a write would change, a directory only by its
+ * presence, since adding a child changes its time.
+ */
+async function fileStates(directory: string): Promise<Map<string, string>> {
+	const states = new Map<string, string>();
+	for (const path of await readdir(directory, { recursive: true })) {
+		const found = await stat(join(directory, path));
+		states.set(
+			path,
+			found.isFile()
+				? `${String(found.size)}:${String(found.mtimeMs)}`
+				: "directory",
+		);
+	}
+
+	return states;
+}
 
 function pipelineRun(
 	rows: readonly RunHistoryRow[],
@@ -1003,5 +1031,28 @@ describe(runHistoryReport.name, () => {
 			`attempt ${fixture.sessionAttempt.uuid}`,
 			`group ${fixture.groupId}`,
 		]);
+	});
+
+	it("writes nothing under the runs directory except the run event database", async () => {
+		const fixture = await writtenFixture();
+		await fixture.writeStoppedRun();
+		await fixture.writeSessionGroup("group-s");
+		await fixture.writeEventsOnlyFailedRun();
+		await fixture.writeEmptyRunDirectory("any-name-1");
+		const before = await fileStates(fixture.runsDirectory);
+
+		await runHistoryReport(
+			fixture.runsDirectory,
+			directorySource(await corpusDirectory("build skill\n")),
+			nothingRunning,
+		);
+
+		const after = await fileStates(fixture.runsDirectory);
+		const changed = [...new Set([...before.keys(), ...after.keys()])].filter(
+			(path) => before.get(path) !== after.get(path),
+		);
+		expect(
+			changed.filter((path) => !path.startsWith("run-events.sqlite")),
+		).toEqual([]);
 	});
 });
