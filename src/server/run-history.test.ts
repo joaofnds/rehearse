@@ -11,7 +11,17 @@ import {
 } from "#benchmark/run-records-test-support";
 import type { RecordedRunsOptions } from "#benchmark/run-records-test-support";
 import type { RunLiveness } from "#benchmark/run-liveness";
+import type { PipelineRunRow, RunHistoryRow } from "./run-history";
 import { runHistoryReport } from "./run-history";
+
+function pipelineRun(
+	rows: readonly RunHistoryRow[],
+	run: string,
+): PipelineRunRow | undefined {
+	return rows.find(
+		(row): row is PipelineRunRow => row.kind === "run" && row.run === run,
+	);
+}
 
 describe(runHistoryReport.name, () => {
 	const roots: string[] = [];
@@ -71,9 +81,7 @@ describe(runHistoryReport.name, () => {
 			nothingRunning,
 		);
 
-		const row = rows.find(
-			(candidate) => candidate.run === fixture.replayableRun,
-		);
+		const row = pipelineRun(rows, fixture.replayableRun);
 		expect(row).toMatchObject({
 			run: fixture.replayableRun,
 			caseId: "audit-log",
@@ -93,9 +101,8 @@ describe(runHistoryReport.name, () => {
 			directorySource(before),
 			nothingRunning,
 		);
-		const beforeDigest = beforeRows.find(
-			(candidate) => candidate.run === fixture.replayableRun,
-		)?.corpus?.digest;
+		const beforeDigest = pipelineRun(beforeRows, fixture.replayableRun)?.corpus
+			?.digest;
 
 		const after = await corpusDirectory("build skill, edited\n");
 		await fixture.recordCorpusFrom(directorySource(after));
@@ -104,9 +111,8 @@ describe(runHistoryReport.name, () => {
 			directorySource(after),
 			nothingRunning,
 		);
-		const afterDigest = afterRows.find(
-			(candidate) => candidate.run === fixture.replayableRun,
-		)?.corpus?.digest;
+		const afterDigest = pipelineRun(afterRows, fixture.replayableRun)?.corpus
+			?.digest;
 
 		expect(afterDigest).not.toBe(beforeDigest);
 	});
@@ -123,9 +129,7 @@ describe(runHistoryReport.name, () => {
 			nothingRunning,
 		);
 
-		const row = rows.find(
-			(candidate) => candidate.run === fixture.replayableRun,
-		);
+		const row = pipelineRun(rows, fixture.replayableRun);
 		expect(row?.stale).toBe(true);
 		expect(row?.staleCauses.join(" ")).toContain("skills/build/SKILL.md");
 	});
@@ -146,7 +150,7 @@ describe(runHistoryReport.name, () => {
 				nothingRunning,
 			);
 
-			expect(rows.map(({ run }) => run)).toContain(fixture.replayableRun);
+			expect(pipelineRun(rows, fixture.replayableRun)).toBeDefined();
 		});
 
 		it("marks the row stale, naming the entry that could not be hashed", async () => {
@@ -164,9 +168,7 @@ describe(runHistoryReport.name, () => {
 				nothingRunning,
 			);
 
-			const row = rows.find(
-				(candidate) => candidate.run === fixture.replayableRun,
-			);
+			const row = pipelineRun(rows, fixture.replayableRun);
 			expect(row?.stale).toBe(true);
 			expect(row?.staleCauses.join(" ")).toContain("skills/build/escape.md");
 		});
@@ -187,7 +189,9 @@ describe(runHistoryReport.name, () => {
 			);
 
 			expect(
-				rows.flatMap(({ staleCauses }) => staleCauses).join(" "),
+				rows
+					.flatMap((row) => (row.kind === "run" ? row.staleCauses : []))
+					.join(" "),
 			).not.toContain(corpus);
 		});
 	});
@@ -203,9 +207,7 @@ describe(runHistoryReport.name, () => {
 			nothingRunning,
 		);
 
-		const row = rows.find(
-			(candidate) => candidate.run === fixture.replayableRun,
-		);
+		const row = pipelineRun(rows, fixture.replayableRun);
 		expect(row?.stale).toBe(false);
 		expect(row?.staleCauses).toEqual([]);
 	});
@@ -233,7 +235,7 @@ describe(runHistoryReport.name, () => {
 			liveness(true),
 		);
 
-		const row = rows.find((candidate) => candidate.run === fixture.runningRun);
+		const row = pipelineRun(rows, fixture.runningRun);
 		expect(row).toMatchObject({
 			run: fixture.runningRun,
 			caseId: "audit-log",
@@ -251,7 +253,7 @@ describe(runHistoryReport.name, () => {
 			liveness(true),
 		);
 
-		const row = rows.find((candidate) => candidate.run === fixture.runningRun);
+		const row = pipelineRun(rows, fixture.runningRun);
 		expect(row?.progress).toMatchObject({
 			state: "running",
 			stage: "build",
@@ -278,7 +280,7 @@ describe(runHistoryReport.name, () => {
 			liveness(true),
 		);
 
-		const row = rows.find((candidate) => candidate.run === fixture.runningRun);
+		const row = pipelineRun(rows, fixture.runningRun);
 		const measuredAt =
 			row?.progress.state === "running"
 				? Date.parse(row.progress.measuredAt)
@@ -310,9 +312,7 @@ describe(runHistoryReport.name, () => {
 				liveness(true),
 			);
 
-			const row = rows.find(
-				(candidate) => candidate.run === fixture.runningRun,
-			);
+			const row = pipelineRun(rows, fixture.runningRun);
 			expect(row?.progress).toMatchObject({ spendScope: scope });
 		},
 	);
@@ -326,9 +326,7 @@ describe(runHistoryReport.name, () => {
 			nothingRunning,
 		);
 
-		const row = rows.find(
-			(candidate) => candidate.run === fixture.replayableRun,
-		);
+		const row = pipelineRun(rows, fixture.replayableRun);
 		expect(row?.progress).toEqual({ state: "recorded" });
 	});
 
@@ -355,9 +353,7 @@ describe(runHistoryReport.name, () => {
 			},
 		);
 
-		expect(
-			rows.find((candidate) => candidate.run === fixture.runningRun),
-		).toBeUndefined();
+		expect(pipelineRun(rows, fixture.runningRun)).toBeUndefined();
 		expect(unreadable).toEqual([]);
 	});
 
@@ -371,9 +367,7 @@ describe(runHistoryReport.name, () => {
 			liveness(false),
 		);
 
-		expect(
-			rows.find((candidate) => candidate.run === fixture.runningRun),
-		).toBeUndefined();
+		expect(pipelineRun(rows, fixture.runningRun)).toBeUndefined();
 	});
 
 	/**
@@ -392,9 +386,7 @@ describe(runHistoryReport.name, () => {
 			{ readMarker: () => Promise.resolve(undefined), isAlive: () => true },
 		);
 
-		expect(
-			rows.find((candidate) => candidate.run === fixture.runningRun),
-		).toBeUndefined();
+		expect(pipelineRun(rows, fixture.runningRun)).toBeUndefined();
 	});
 
 	it("does not report a finished run as running, whatever the target's marker says", async () => {
@@ -424,9 +416,7 @@ describe(runHistoryReport.name, () => {
 			liveness(true),
 		);
 
-		const row = rows.find(
-			(candidate) => candidate.run === fixture.interruptedRun,
-		);
+		const row = pipelineRun(rows, fixture.interruptedRun);
 		expect(row).toMatchObject({ status: "INTERRUPTED" });
 	});
 
@@ -446,9 +436,7 @@ describe(runHistoryReport.name, () => {
 			liveness(true),
 		);
 
-		expect(
-			rows.find((candidate) => candidate.run === fixture.abortedRun),
-		).toBeUndefined();
+		expect(pipelineRun(rows, fixture.abortedRun)).toBeUndefined();
 	});
 
 	it("reports a run stopped mid-stage with STOPPED:<stage> and no corpus digest when it recorded no checkpoint", async () => {
@@ -461,7 +449,7 @@ describe(runHistoryReport.name, () => {
 			nothingRunning,
 		);
 
-		const row = rows.find((candidate) => candidate.run === fixture.stoppedRun);
+		const row = pipelineRun(rows, fixture.stoppedRun);
 		expect(row).toMatchObject({ status: "STOPPED:build" });
 		expect(row?.corpus).toBeUndefined();
 		expect(row?.stale).toBe(false);
@@ -482,8 +470,9 @@ describe(runHistoryReport.name, () => {
 			nothingRunning,
 		);
 
-		const row = rows.find((candidate) => candidate.run === fixture.stoppedRun);
+		const row = pipelineRun(rows, fixture.stoppedRun);
 		expect(row).toEqual({
+			kind: "run",
 			run: fixture.stoppedRun,
 			caseId: "audit-log",
 			status: "STOPPED:build",
@@ -506,9 +495,7 @@ describe(runHistoryReport.name, () => {
 			nothingRunning,
 		);
 
-		const row = rows.find(
-			(candidate) => candidate.run === fixture.interruptedRun,
-		);
+		const row = pipelineRun(rows, fixture.interruptedRun);
 		expect(row).toMatchObject({ status: "INTERRUPTED" });
 	});
 
@@ -526,10 +513,9 @@ describe(runHistoryReport.name, () => {
 			nothingRunning,
 		);
 
-		const row = rows.find(
-			(candidate) => candidate.run === fixture.interruptedRun,
-		);
+		const row = pipelineRun(rows, fixture.interruptedRun);
 		expect(row).toEqual({
+			kind: "run",
 			run: fixture.interruptedRun,
 			caseId: "audit-log",
 			status: "INTERRUPTED",
@@ -552,7 +538,7 @@ describe(runHistoryReport.name, () => {
 			nothingRunning,
 		);
 
-		expect(rows.some((row) => row.run === fixture.stoppedRun)).toBe(false);
+		expect(pipelineRun(rows, fixture.stoppedRun) !== undefined).toBe(false);
 		expect(
 			unreadable.some((entry) => entry.id === `run:${fixture.stoppedRun}`),
 		).toBe(true);
@@ -568,7 +554,7 @@ describe(runHistoryReport.name, () => {
 			nothingRunning,
 		);
 
-		expect(rows.some((row) => row.run === fixture.interruptedRun)).toBe(false);
+		expect(pipelineRun(rows, fixture.interruptedRun) !== undefined).toBe(false);
 		expect(
 			unreadable.some((entry) => entry.id === `run:${fixture.interruptedRun}`),
 		).toBe(true);
@@ -602,8 +588,8 @@ describe(runHistoryReport.name, () => {
 			nothingRunning,
 		);
 
-		expect(rows.some((row) => row.run === fixture.replayableRun)).toBe(false);
-		expect(rows.some((row) => row.run === fixture.unreplayableRun)).toBe(true);
+		expect(pipelineRun(rows, fixture.replayableRun) !== undefined).toBe(false);
+		expect(pipelineRun(rows, fixture.unreplayableRun) !== undefined).toBe(true);
 		expect(unreadable).toHaveLength(1);
 		expect(unreadable.at(0)?.id).toBe(`run:${fixture.replayableRun}`);
 		expect(unreadable.at(0)?.reason.length).toBeGreaterThan(0);
@@ -627,5 +613,30 @@ describe(runHistoryReport.name, () => {
 		const reason = unreadable.at(0)?.reason ?? "";
 		expect(reason).not.toContain(CONTROL_DIR);
 		expect(reason).not.toMatch(/\/(?<segment>Users|home|var|tmp)\//u);
+	});
+	describe("when the runs directory holds a standalone session attempt", () => {
+		it("lists it as a row naming its case, uuid, and the page that opens its context", async () => {
+			const fixture = await writtenFixture();
+			const { caseId, uuid } = fixture.sessionAttempt;
+
+			const { rows } = await runHistoryReport(
+				fixture.runsDirectory,
+				directorySource(await corpusDirectory("build skill\n")),
+				nothingRunning,
+			);
+
+			expect(rows.find((row) => row.kind === "session-attempt")).toMatchObject({
+				caseId,
+				uuid,
+				status: "SUCCESSFUL",
+				links: [
+					{
+						state: "available",
+						label: "context",
+						href: `/attempts/session/${caseId}/${uuid}`,
+					},
+				],
+			});
+		});
 	});
 });

@@ -52,22 +52,39 @@ const corpusResponseSchema = z.object({
 	refusals: z.array(z.string()),
 });
 
-const runHistoryRowSchema = z
+const pipelineRunRowSchema = z
 	.object({
+		kind: z.literal("run"),
 		run: z.string(),
 		stale: z.boolean(),
 		staleCauses: z.array(z.string()),
 	})
 	.loose();
 const runHistoryResponseSchema = z.object({
-	rows: z.array(runHistoryRowSchema),
+	rows: z.array(z.object({ kind: z.string() }).loose()),
 	unreadable: z.array(z.object({ id: z.string(), reason: z.string() })),
 });
 
+interface PipelineRunHistory {
+	readonly rows: readonly z.infer<typeof pipelineRunRowSchema>[];
+	readonly unreadable: z.infer<typeof runHistoryResponseSchema>["unreadable"];
+}
+
+/**
+ * The pipeline run rows only: these tests are about runs and their corpus
+ * staleness, and the fixture also records attempts, a group and a replay.
+ */
 async function runHistoryResponseFrom(
 	response: Response,
-): Promise<z.infer<typeof runHistoryResponseSchema>> {
-	return runHistoryResponseSchema.parse(await response.json());
+): Promise<PipelineRunHistory> {
+	const body = runHistoryResponseSchema.parse(await response.json());
+
+	return {
+		rows: body.rows
+			.filter((row) => row.kind === "run")
+			.map((row) => pipelineRunRowSchema.parse(row)),
+		unreadable: body.unreadable,
+	};
 }
 
 /**
@@ -230,7 +247,7 @@ describe(createApiApp.name, () => {
 		describe("when the corpus cannot supply its instruction file", () => {
 			async function historyFor(
 				corpusSource: CorpusRoot,
-			): Promise<z.infer<typeof runHistoryResponseSchema>> {
+			): Promise<PipelineRunHistory> {
 				const fixture = await fixtureRecordingLiveSettings();
 				const app = createApiApp({
 					runsDirectory: fixture.runsDirectory,

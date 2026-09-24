@@ -18,7 +18,16 @@ import { ScreenHeader } from "#client/system/components/screen-header";
 import { SectionLabel } from "#client/system/components/section-label";
 import { Notice } from "#client/system/components/notice";
 
-type RunHistoryRow = RunHistoryResponse["rows"][number];
+type RunHistoryRow = Extract<
+	RunHistoryResponse["rows"][number],
+	{ readonly kind: "run" }
+>;
+
+function pipelineRuns(
+	rows: readonly RunHistoryResponse["rows"][number][],
+): readonly RunHistoryRow[] {
+	return rows.filter((row): row is RunHistoryRow => row.kind === "run");
+}
 type UnreadableRun = RunHistoryResponse["unreadable"][number];
 
 const COLUMNS = [
@@ -245,13 +254,15 @@ export function RunHistoryPage(): React.JSX.Element {
 	const query = useQuery({
 		...runHistoryQuery,
 		refetchInterval: ({ state }) =>
-			(state.data?.rows ?? []).some((row) => row.progress.state === "running")
+			pipelineRuns(state.data?.rows ?? []).some(
+				(row) => row.progress.state === "running",
+			)
 				? RUNNING_POLL_MS
 				: false,
 	});
 
 	const unreadable = query.data?.unreadable ?? [];
-	const recorded = query.data?.rows ?? [];
+	const recorded = pipelineRuns(query.data?.rows ?? []);
 	const rows = recorded.filter((row) => matchesFilter(row, filter));
 	const onlyUnreadableRuns = recorded.length === 0 && unreadable.length > 0;
 	const nowMs = useNow(

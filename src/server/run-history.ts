@@ -1,12 +1,17 @@
 import { readCheckpointRecord } from "#benchmark/checkpoint";
 import type { CorpusRoot } from "#benchmark/corpus-file";
 import { loadRunManifest } from "#benchmark/manifest";
-import type { BenchmarkRunPaths } from "#benchmark/run-layout";
+import type {
+	BenchmarkRunPaths,
+	SessionAttemptId,
+} from "#benchmark/run-layout";
 import {
 	benchmarkRunPaths,
 	checkpointStageNames,
 	recordedRunNames,
 	runEventsDatabaseFile,
+	sessionAttemptIds,
+	sessionAttemptPaths,
 } from "#benchmark/run-layout";
 import type {
 	NonTerminalRunEventKind,
@@ -18,6 +23,8 @@ import {
 	openRunEventStore,
 } from "#benchmark/run-events";
 import { parseRunSummaryRecord } from "#benchmark/record-summary";
+import { parseSessionAttemptRecord } from "#benchmark/session-record";
+import { formatRecordId } from "#cli/record-id";
 import { stoppedStage } from "#benchmark/run-outcome";
 import { staleCheckpoints } from "#benchmark/staleness-report";
 import { stoppedStatus } from "#benchmark/stopped-status";
@@ -69,12 +76,29 @@ export type RunProgress =
 	  };
 
 /**
- * One run-history row, in decision-5's code vocabulary (`run`, `caseId`,
- * `stage`), never the design's task/step labels. This is the single place
- * that owns the read API's response shape for a run-history row: no other
- * card owns it.
+ * Where a row's saved context opens, or why it cannot. A link is built only
+ * from the record's own recorded identity, never derived, so it cannot open a
+ * sibling's evidence; a record whose context has no page says so instead of
+ * linking to one that would fail.
  */
-export interface RunHistoryRow {
+export type ContextLink =
+	| {
+			readonly state: "available";
+			readonly label: string;
+			readonly href: string;
+	  }
+	| {
+			readonly state: "unavailable";
+			readonly label: string;
+			readonly reason: string;
+	  };
+
+/**
+ * One pipeline run's row, in decision-5's code vocabulary (`run`, `caseId`,
+ * `stage`), never the design's task/step labels.
+ */
+export interface PipelineRunRow {
+	readonly kind: "run";
 	readonly run: string;
 	readonly caseId: string;
 	readonly status: string;
@@ -85,6 +109,21 @@ export interface RunHistoryRow {
 	readonly staleCauses: readonly string[];
 	readonly progress: RunProgress;
 }
+
+export interface SessionAttemptRow {
+	readonly kind: "session-attempt";
+	readonly caseId: string;
+	readonly uuid: string;
+	readonly status: string;
+	readonly links: readonly ContextLink[];
+}
+
+/**
+ * One run-history row, one per saved record an operator can open. This is
+ * the single place that owns the read API's response shape for a run-history
+ * row: no other card owns it.
+ */
+export type RunHistoryRow = PipelineRunRow | SessionAttemptRow;
 
 /**
  * The last checkpoint a run recorded, in pipeline order rather than
@@ -259,7 +298,7 @@ async function rowFor(
 	staleByCheckpointId: ReadonlyMap<string, readonly string[]>,
 	runEvents: RunEventStore,
 	liveness: RunLiveness,
-): Promise<RunHistoryRow | undefined> {
+): Promise<PipelineRunRow | undefined> {
 	const identity = await statusAndCaseId(
 		runsDirectory,
 		run,
@@ -276,6 +315,7 @@ async function rowFor(
 		const causes = staleByCheckpointId.get(`checkpoint:${run}/initial`) ?? [];
 
 		return {
+			kind: "run",
 			run,
 			status,
 			caseId,
@@ -295,6 +335,7 @@ async function rowFor(
 	const causes = staleByCheckpointId.get(`checkpoint:${run}/${stage}`) ?? [];
 
 	return {
+		kind: "run",
 		run,
 		status,
 		caseId,
@@ -304,6 +345,32 @@ async function rowFor(
 		stale: causes.length > 0,
 		staleCauses: causes,
 		progress,
+	};
+}
+
+async function sessionAttemptRow(
+	runsDirectory: string,
+	attempt: SessionAttemptId,
+): Promise<SessionAttemptRow> {
+	const { recordFile } = sessionAttemptPaths(runsDirectory, attempt);
+	if (!(await Bun.file(recordFile).exists())) {
+		throw new Error("incomplete: no attempt.json recorded");
+	}
+
+	const record = parseSessionAttemptRecord(await Bun.file(recordFile).text());
+
+	return {
+		kind: "session-attempt",
+		caseId: attempt.caseId,
+		uuid: attempt.uuid,
+		status: record.outcome,
+		links: [
+			{
+				state: "available",
+				label: "context",
+				href: `/attempts/session/${encodeURIComponent(attempt.caseId)}/${encodeURIComponent(attempt.uuid)}`,
+			},
+		],
 	};
 }
 
@@ -346,26 +413,39 @@ export async function runHistoryReport(
 	try {
 		const rows: RunHistoryRow[] = [];
 		const unreadable: UnreadableRun[] = [];
-		for (const run of await recordedRunNames(runsDirectory)) {
-			try {
-				const row = await rowFor(
-					runsDirectory,
-					run,
-					staleByCheckpointId,
-					runEvents,
-					liveness,
-				);
-				if (row !== undefined) {
-					rows.push(row);
+		const collect = async <Named>(
+			named: readonly Named[],
+			idOf: (name: Named) => string,
+			read: (name: Named) => Promise<RunHistoryRow | undefined>,
+		): Promise<void> => {
+			for (const name of named) {
+				try {
+					const row = await read(name);
+					if (row !== undefined) {
+						rows.push(row);
+					}
+				} catch (error) {
+					const message =
+						error instanceof Error ? error.message : String(error);
+					unreadable.push({
+						id: idOf(name),
+						reason: redactAbsolutePaths(message),
+					});
 				}
-			} catch (error) {
-				const message = error instanceof Error ? error.message : String(error);
-				unreadable.push({
-					id: `run:${run}`,
-					reason: redactAbsolutePaths(message),
-				});
 			}
-		}
+		};
+
+		await collect(
+			await recordedRunNames(runsDirectory),
+			(run) => formatRecordId({ kind: "run", run }),
+			(run) =>
+				rowFor(runsDirectory, run, staleByCheckpointId, runEvents, liveness),
+		);
+		await collect(
+			await sessionAttemptIds(runsDirectory),
+			(attempt) => formatRecordId({ kind: "attempt:session", ...attempt }),
+			(attempt) => sessionAttemptRow(runsDirectory, attempt),
+		);
 
 		return { rows, unreadable };
 	} finally {
