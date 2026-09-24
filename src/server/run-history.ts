@@ -111,8 +111,9 @@ export interface StepGrade {
 }
 
 /**
- * A stage with no record is one the run never reached, unless it is the
- * stage the run ended or is running in: that one ran, and left no record.
+ * A stage with no record is one the run never reached, unless it saved a
+ * checkpoint or is the stage the run ended or is running in: each of those
+ * ran, and left no record.
  */
 function stepGrades(record: RunRecord): readonly StepGrade[] {
 	const { finalOutcome } = record;
@@ -121,8 +122,8 @@ function stepGrades(record: RunRecord): readonly StepGrade[] {
 			? finalOutcome.stage
 			: undefined;
 
-	return record.stages.map(({ stage, status, grade }) =>
-		status === "no-record" && stage !== reachedStage
+	return record.stages.map(({ stage, status, grade, checkpoint }) =>
+		status === "no-record" && checkpoint === "missing" && stage !== reachedStage
 			? {
 					stage,
 					status: "not-run",

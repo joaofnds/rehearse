@@ -276,6 +276,23 @@ describe("/api/runs", () => {
 				});
 			});
 
+			it("keeps a stage that saved a checkpoint without a record as no-record", async () => {
+				const fixture = await emptyFixture();
+				await fixture.write();
+
+				const row = await runRow(fixture, fixture.replayableRun);
+
+				expect(row).toMatchObject({
+					stepGrades: {
+						state: "available",
+						grades: [
+							{ stage: "discuss", status: "no-record" },
+							{ stage: "build", status: "no-record" },
+						],
+					},
+				});
+			});
+
 			it.each(TASK_GRADES.map((row) => [row.outcome, row]))(
 				"carries the task grade as %s",
 				async (_outcome, { write, run, liveness, taskGrade }) => {
