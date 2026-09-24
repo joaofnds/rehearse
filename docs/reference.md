@@ -717,10 +717,10 @@ Short ids live in the registry at `short-ids/<case>/`. `claims/<n>` holds what
 the command knew when it claimed: the record for a run, session attempt or
 group, and for a replay the checkpoint it replays, whose record `bindings/<n>`
 names once its timestamp is known. A replay confirmation's claim also names
-the checkpoint its reps replayed. A command that writes a run, replay, session
-attempt or confirmation group claims its number as it writes the record, and a
-case's first claim takes number 1. A record no claim names has no short id,
-and nothing numbers it later. The registry is part of the records, not derived
+the checkpoint its reps replayed. Every command that writes a run, replay,
+session attempt or confirmation group claims a number, and a case's first
+claim takes number 1. A record no claim names has no short id, and nothing
+numbers it later. The registry is part of the records, not derived
 state: deleting it drops every number in its case and the next claim starts
 again at 1, so a short id already printed or quoted can then name a different
 record.
