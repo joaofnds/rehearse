@@ -4,7 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
 
-import { runEventsDatabaseFile } from "#benchmark/run-layout";
+import {
+	benchmarkRunPaths,
+	runEventsDatabaseFile,
+} from "#benchmark/run-layout";
 import { openRunEventStore } from "#benchmark/run-events";
 import type { RunLiveness } from "#benchmark/run-liveness";
 import {
@@ -316,6 +319,30 @@ describe("/api/runs", () => {
 						taskGrade: unavailable,
 						cost: unavailable,
 						wallTime: unavailable,
+					});
+				});
+			});
+
+			describe("when a stage record does not parse", () => {
+				it("keeps the row with each figure unavailable", async () => {
+					const fixture = await emptyFixture();
+					await fixture.writeStoppedRun();
+					await Bun.write(
+						benchmarkRunPaths(
+							fixture.runsDirectory,
+							fixture.stoppedRun,
+						).stageFile("discuss"),
+						JSON.stringify({ stage: "discuss", costUsd: "one dollar" }),
+					);
+
+					const row = await runRow(fixture, fixture.stoppedRun);
+
+					expect(row).toMatchObject({
+						status: "STOPPED:build",
+						stepGrades: { state: "unavailable" },
+						taskGrade: { state: "unavailable" },
+						cost: { state: "unavailable" },
+						wallTime: { state: "unavailable" },
 					});
 				});
 			});
