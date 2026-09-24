@@ -771,39 +771,51 @@ from a rate catalog; any other basis stays reported spend.
 ### Pipeline run record
 
 `/api/runs/<run>` reads one pipeline run across the files it wrote, its
-manifest, each stage's record, its checkpoints and its main artifact, into the
-figures a run's page shows. It answers 400 for a run name outside the runs
-directory and 404 for a run with no manifest.
+manifest, each stage's record, its checkpoints and its main artifact, into one
+record, implemented in [run-record.ts](../src/server/run-record.ts). It answers
+400 for any run name it refuses, such as one outside the runs directory, and
+404 for a run with no manifest.
+
+The record names the run by its directory name and its short id, and carries
+its case id and its status as the run history reports it. The minimum grade is
+unavailable, since the run manifest does not record it.
 
 Each stage, in the manifest's order, reports its status (`graded`, `stopped`,
-`awaiting-judgment` or `no-record`), its letter grade, its session and judge
-cost, and its tokens as input, cache read, cache write, output and total input,
-summed over its session calls and judge attempts. It lists its instruction
-files, the corpus files its checkpoint records, or its stop record's when it
-saved no checkpoint. As artifacts out it lists its declared artifact, the
+`awaiting-judgment` or `no-record`), its grade as the letter and the judge's
+verdict, its checkpoint's short id, its session and judge cost, and its tokens
+as input, cache read, cache write, output and total input, summed over its
+session calls and judge attempts. Its instruction files are the corpus files
+its checkpoint records, or its stop record's when it saved no checkpoint, each
+with its sha256 digest. As artifacts out it lists its declared artifact, the
 workflow-state files it added, modified or removed against the checkpoint it
 continued from, and the commit subjects and changed paths its record carries.
 It says whether its checkpoint is `recorded` or `missing`, since a stopped
 stage saves none.
 
 A figure the records do not hold reads `{"state": "unavailable", "reasons":
-[...]}` rather than zero. Wall time is always unavailable, since no record keeps
-when a stage or run started and ended. A stopped stage's letter is unavailable,
-since a stop record keeps the findings but not the letter. A sum over several
-parts, a stage's or the run's tokens and the run's cost, lists the parts it
-lacks under `missing` with a reason for each: a stop record keeps no judge
-attempts, the oldest awaiting-judgment records count their calls without
-metrics, and no record keeps the Product Owner's call metrics. Only the main
-artifact records the Product Owner's cost, so a run that wrote none reports
+[...]}` rather than zero or an empty list. Wall time is always unavailable,
+since no record keeps when a stage or run started and ended. A stopped stage's
+letter is unavailable, since a stop record keeps no letter grade, and an
+awaiting stage's grade is unavailable until its judge returns.
+
+A sum over several parts, a stage's or the run's tokens and the run's cost,
+lists the parts it lacks under `missing` with a reason for each. A part is
+missing when its record holds no calls, when a call has no metrics, as in the
+oldest awaiting-judgment records, or when the stage the run ended in wrote no
+record at all. No record keeps the Product Owner's call metrics, so the run's
+tokens always name that part. The run's cost also lists under `parts` each
+amount it summed. When a sum has no part to add, it is unavailable and its
+reasons name each missing part. Only the main artifact records the Product
+Owner's cost, served as `productOwnerCost`, so a run that wrote none reports
 that cost as unavailable and the run cost names it as missing.
 
 `finalOutcome` is the final judge's recorded result: `JUDGED` with its PASS or
 FAIL verdict, `JUDGING_FAILED` with the failure the main artifact records,
-`PENDING` while the run is live, or `NOT_REACHED` with the stage and reason the
-run ended on. That reason comes from the stop record, a stage left awaiting
-judgment, or the run's interrupted or failed event, in that order, and a run
-that recorded none of those says so. The final judge returns no letter, so none
-is served.
+`PENDING` with the running stage while the run is live, or `NOT_REACHED` with
+the stage and reason the run ended on. That reason comes from the stop record,
+the run's interrupted or failed event, or a stage left awaiting judgment once
+the run is no longer live, in that order, and a run that recorded none of those
+says so. The final judge returns no letter, so none is served.
 
 ### Saved session context history
 
