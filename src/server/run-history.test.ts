@@ -28,7 +28,7 @@ import {
 	confirmationGroupPaths,
 	runEventsDatabaseFile,
 } from "#benchmark/run-layout";
-import { claimShortId } from "#benchmark/short-id";
+import { bindReplay, claimShortId } from "#benchmark/short-id";
 import type { ContextLink, PipelineRunRow, RunHistoryRow } from "./run-history";
 import { runHistoryReport } from "./run-history";
 
@@ -1368,6 +1368,47 @@ describe(runHistoryReport.name, () => {
 				).toEqual([{ position: 2, count: 2 }]);
 			});
 		}
+
+		it("orders replays at a checkpoint by when they claimed, not by when they finished", async () => {
+			const fixture = await fixtureWithClaimedRun();
+			const claimedFirst = "2026-09-20T00-00-00.000Z";
+			const claimedSecond = "2026-09-19T00-00-00.000Z";
+			for (const timestamp of [claimedFirst, claimedSecond]) {
+				const id = await claimShortId(fixture.runsDirectory, "audit-log", {
+					kind: "replay",
+					run: fixture.replayableRun,
+					stage: "build",
+				});
+				await fixture.writeReplayOf(fixture.replayableRun, timestamp);
+				await bindReplay(fixture.runsDirectory, id, {
+					lineage: fixture.stageAttempt.lineage,
+					timestamp,
+				});
+			}
+
+			const { rows } = await runHistoryReport(
+				fixture.runsDirectory,
+				directorySource(await corpusDirectory("build skill\n")),
+				nothingRunning,
+			);
+
+			expect(
+				rows
+					.filter((row) => row.kind === "replay")
+					.map(({ timestamp, attempt }) => ({ timestamp, attempt })),
+			).toContainEqual({
+				timestamp: claimedFirst,
+				attempt: { position: 3, count: 4 },
+			});
+			expect(
+				rows
+					.filter((row) => row.kind === "replay")
+					.map(({ timestamp, attempt }) => ({ timestamp, attempt })),
+			).toContainEqual({
+				timestamp: claimedSecond,
+				attempt: { position: 4, count: 4 },
+			});
+		});
 
 		it("counts judged reps of a stage-mode group claimed at the checkpoint, after the replays claimed before it", async () => {
 			const fixture = await fixtureWithClaimedRun();
