@@ -403,6 +403,47 @@ describe(runShow.name, () => {
 			expect(failure.message).toContain("audit-log/r2/s9");
 		});
 
+		it("refuses a stage of a record that is not a run, naming its kind", async () => {
+			const fixture = await numberedFixture();
+
+			const failure = await failureOf(
+				runShow(
+					{
+						id: "audit-log/r3/s1",
+						json: false,
+						runsDirectory: fixture.runsDirectory,
+					},
+					recordOutput().output,
+				),
+			);
+
+			expect(failure).toBeInstanceOf(RefusedPreconditionError);
+			expect(failure.message).toContain("attempt:stage");
+		});
+
+		it("refuses a stage of a run whose manifest cannot be read", async () => {
+			const fixture = await numberedFixture();
+			await Bun.write(
+				benchmarkRunPaths(fixture.runsDirectory, fixture.replayableRun)
+					.manifestFile,
+				"{ not json\n",
+			);
+
+			const failure = await failureOf(
+				runShow(
+					{
+						id: "audit-log/r2/s1",
+						json: false,
+						runsDirectory: fixture.runsDirectory,
+					},
+					recordOutput().output,
+				),
+			);
+
+			expect(failure).toBeInstanceOf(RefusedPreconditionError);
+			expect(failure.message).toContain("manifest");
+		});
+
 		it("refuses a malformed case segment and creates or opens no path", async () => {
 			const root = await mkdtemp(join(tmpdir(), "rehearse-show-"));
 			roots.push(root);

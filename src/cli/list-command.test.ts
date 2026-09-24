@@ -12,7 +12,10 @@ import {
 	armResourcesWithoutElapsed,
 	contrastResourcesWithoutElapsed,
 } from "#benchmark/comparison-test-fixtures";
-import { comparisonReportPaths } from "#benchmark/run-layout";
+import {
+	benchmarkRunPaths,
+	comparisonReportPaths,
+} from "#benchmark/run-layout";
 import { RecordedRunsFixture } from "#benchmark/run-records-test-support";
 import { failureOf, recordOutput } from "#cli/cli-test-support";
 import { UsageError } from "#cli/commands";
@@ -379,6 +382,22 @@ describe(runList.name, () => {
 			expect(await listed("groups", runsDirectory)).toEqual([
 				`group:${fixture.groupId}\taudit-log/g4`,
 			]);
+		});
+
+		describe("when a numbered run's manifest cannot be read", () => {
+			it("still lists its checkpoints, without a short id", async () => {
+				const fixture = await numberedFixture();
+				const { runsDirectory, replayableRun } = fixture;
+				await Bun.write(
+					benchmarkRunPaths(runsDirectory, replayableRun).manifestFile,
+					"{ not json\n",
+				);
+
+				expect(await listed("checkpoints", runsDirectory)).toEqual([
+					`checkpoint:${replayableRun}/build\t-`,
+					`checkpoint:${replayableRun}/discuss\t-`,
+				]);
+			});
 		});
 
 		it("labels the checkpoint taken after task setup s0", async () => {

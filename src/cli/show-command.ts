@@ -185,14 +185,19 @@ async function resolvedShortId(
 		return record;
 	}
 
-	const stage =
-		record.kind === "run"
-			? checkpointStageAt(
-					await frozenStages(runsDirectory, record.run),
-					reference.stage,
-				)
-			: undefined;
-	if (stage === undefined || record.kind !== "run") {
+	if (record.kind !== "run") {
+		throw new RefusedPreconditionError(
+			`No checkpoint holds short id ${given}: it numbers a ${record.kind} record, not a run`,
+		);
+	}
+	const stages = await frozenStages(runsDirectory, record.run);
+	if (stages === undefined) {
+		throw new RefusedPreconditionError(
+			`No checkpoint holds short id ${given}: its run's manifest cannot be read`,
+		);
+	}
+	const stage = checkpointStageAt(stages, reference.stage);
+	if (stage === undefined) {
 		throw new RefusedPreconditionError(
 			`No checkpoint holds short id ${given}: its run has no stage ${String(reference.stage)}`,
 		);

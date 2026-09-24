@@ -22,19 +22,22 @@ export async function shortIdsByRecordId(
 
 /**
  * The stages a run froze into its manifest when it started, which is what a
- * checkpoint label counts, or none for a run whose manifest is gone.
+ * checkpoint label counts, none for a run whose manifest is gone, and
+ * undefined for one whose manifest cannot be read. A label is a column beside
+ * a record, so one bad manifest leaves its run's checkpoints unlabelled rather
+ * than hiding every other checkpoint from the listing.
  */
 export async function frozenStages(
 	runsDirectory: string,
 	run: string,
-): Promise<readonly string[]> {
+): Promise<readonly string[] | undefined> {
 	const { manifestFile } = benchmarkRunPaths(runsDirectory, run);
 	if (!(await Bun.file(manifestFile).exists())) {
 		return [];
 	}
-	const manifest = await loadRunManifest(manifestFile);
+	const manifest = await loadRunManifest(manifestFile).catch(() => undefined);
 
-	return manifest.pipeline.stages.map(({ name }) => name);
+	return manifest?.pipeline.stages.map(({ name }) => name);
 }
 
 export async function checkpointShortId(
@@ -47,10 +50,9 @@ export async function checkpointShortId(
 	if (runShortId === undefined) {
 		return undefined;
 	}
-	const number = checkpointStageNumber(
-		await frozenStages(runsDirectory, run),
-		stage,
-	);
+	const stages = await frozenStages(runsDirectory, run);
+	const number =
+		stages === undefined ? undefined : checkpointStageNumber(stages, stage);
 
 	return number === undefined
 		? undefined
