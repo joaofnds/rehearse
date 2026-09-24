@@ -15,7 +15,7 @@ import {
 } from "./checkpoint";
 import type { CorpusRoot } from "./corpus-file";
 import { hashCorpusFiles, resolveCorpusFile } from "./corpus-file";
-import type { Immutable } from "./contracts";
+import type { ClaudeCallMetrics, Immutable } from "./contracts";
 import {
 	confirmationGroupRecordSchema,
 	confirmationRepRecordSchema,
@@ -73,6 +73,48 @@ const COMPARISON_DIGEST = "c".repeat(64);
  */
 export const STOPPED_STAGE_SESSION_ID = "3d5f9c11-0000-4000-8000-000000000042";
 export const STOPPED_STAGE_EXCHANGE_TEXT = "the stopped stage answered";
+
+function callMetrics(tokens: {
+	readonly input: number;
+	readonly cacheRead: number;
+	readonly cacheWrite: number;
+	readonly output: number;
+}): Immutable<ClaudeCallMetrics> {
+	return {
+		costUsd: 0.1,
+		inputTokens: tokens.input,
+		cacheReadTokens: tokens.cacheRead,
+		cacheWriteTokens: tokens.cacheWrite,
+		outputTokens: tokens.output,
+		turns: 1,
+	};
+}
+
+/**
+ * The readings `writeStoppedRunEvidence` records, so a test states what it
+ * expects in terms of what the fixture wrote rather than in copied literals.
+ */
+export const STOPPED_RUN_EVIDENCE = {
+	discussSessionMetrics: [
+		callMetrics({ input: 10, cacheRead: 100, cacheWrite: 20, output: 5 }),
+		callMetrics({ input: 1, cacheRead: 200, cacheWrite: 0, output: 7 }),
+	],
+	discussJudgeMetrics: callMetrics({
+		input: 3,
+		cacheRead: 30,
+		cacheWrite: 40,
+		output: 9,
+	}),
+	buildSessionMetrics: callMetrics({
+		input: 2,
+		cacheRead: 300,
+		cacheWrite: 50,
+		output: 11,
+	}),
+	buildCommitSubjects: ["feat: add the audit log module"],
+	buildChangedPaths: ["src/audit-log.ts", "src/audit-log.test.ts"],
+	taskCard: ".boris/backlog/tasks/task-1 - Add-an-audit-log.md",
+} as const;
 
 /**
  * Session content a record whose judging never completed carries, in the
@@ -757,6 +799,99 @@ export class RecordedRunsFixture {
 				2,
 			)}\n`,
 		);
+	}
+
+	/**
+	 * The stopped run with the evidence the harness writes today: discuss's
+	 * scorecard carries its session transcript and judge attempts, discuss
+	 * changed the task card against the setup checkpoint, and build's stop
+	 * record keeps its session, commits and judge cost but no judge attempts.
+	 * Build never saved a checkpoint, as no stopped stage does.
+	 */
+	public async writeStoppedRunEvidence(): Promise<void> {
+		await this.writeStoppedRun();
+		const paths = benchmarkRunPaths(this.runsDirectory, this.stoppedRun);
+		await Bun.write(
+			paths.stageFile("discuss"),
+			`${JSON.stringify(
+				{
+					stage: "discuss",
+					costUsd: 1,
+					grade: { grade: "A", verdict: "CONTINUE", dimensions: [] },
+					attempts: [
+						{
+							payload: {},
+							costUsd: 1,
+							outcome: "ACCEPTED",
+							metrics: STOPPED_RUN_EVIDENCE.discussJudgeMetrics,
+						},
+					],
+					input: {
+						transcript: {
+							stage: "discuss",
+							sessionId: "discuss-session",
+							costUsd: 2,
+							providerCalls: STOPPED_RUN_EVIDENCE.discussSessionMetrics.map(
+								(metrics) => ({ metrics }),
+							),
+							exchanges: [],
+						},
+					},
+				},
+				null,
+				2,
+			)}\n`,
+		);
+		await Bun.write(
+			paths.stageFile("build"),
+			`${JSON.stringify(
+				{
+					status: "STAGE_JUDGE_FAILED",
+					stage: "build",
+					error: "build stage graded C; minimum grade is B",
+					input: {
+						transcript: {
+							stage: "build",
+							sessionId: STOPPED_STAGE_SESSION_ID,
+							costUsd: 3,
+							providerCalls: [
+								{ metrics: STOPPED_RUN_EVIDENCE.buildSessionMetrics },
+							],
+							exchanges: [{ agent: { message: STOPPED_STAGE_EXCHANGE_TEXT } }],
+						},
+						commitSubjects: STOPPED_RUN_EVIDENCE.buildCommitSubjects,
+						changedPaths: STOPPED_RUN_EVIDENCE.buildChangedPaths,
+					},
+					corpusFiles: [{ path: corpusPath("build"), sha256: CORPUS_DIGEST }],
+					hardBlockers: [],
+					requirements: [],
+					dimensions: [],
+					summary: "the build misses its requirements",
+					costUsd: 0.5,
+				},
+				null,
+				2,
+			)}\n`,
+		);
+		for (const record of [
+			{
+				...initialCheckpoint(this.settingsFile),
+				workflowState: [
+					{ path: STOPPED_RUN_EVIDENCE.taskCard, sha256: "4".repeat(64) },
+				],
+			},
+			{
+				...checkpoint("discuss", corpusPath("discuss"), this.settingsFile),
+				upstream: "lineage-initial",
+				workflowState: [
+					{ path: STOPPED_RUN_EVIDENCE.taskCard, sha256: "5".repeat(64) },
+				],
+			},
+		]) {
+			const directory = paths.checkpointDirectory(record.stage);
+			await mkdir(directory, { recursive: true });
+			await Bun.write(checkpointRecordFile(directory), serialize(record));
+		}
 	}
 
 	/**

@@ -21,6 +21,7 @@ import { corpusReport } from "./corpus-report";
 import { redactAbsolutePaths, redactedFilePath } from "./redact-path";
 import type { RunLiveness } from "#benchmark/run-liveness";
 import { runHistoryReport } from "./run-history";
+import { readRunRecord } from "./run-record";
 import {
 	readConfirmationAttemptHistory,
 	readConfirmationAttemptHistoryDetail,
@@ -412,6 +413,14 @@ export const createApiApp = (dependencies: ApiDependencies) => {
 					return context.json({ error: response.message }, response.status);
 				}
 			},
+		)
+		.get("/api/runs/:run", async (context) =>
+			context.json(
+				await readRunRecord(
+					dependencies.runsDirectory,
+					context.req.param("run"),
+				),
+			),
 		)
 		.get("/api/runs/:run/events", (context) => {
 			const runId = context.req.param("run");
