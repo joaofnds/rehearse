@@ -51,6 +51,7 @@ import {
 	formatCheckpointShortId,
 	readAllShortIds,
 } from "#benchmark/short-id";
+import type { ShortIdEntry } from "#benchmark/short-id";
 import {
 	awaitingJudgeStageRecordSchema,
 	stoppedStage,
@@ -845,9 +846,12 @@ function newestFirst(rows: readonly RunHistoryRow[]): RunHistoryRow[] {
 	];
 }
 
-/** A saved record that failed to read, with the row kind it would have been. */
+/**
+ * A saved record that failed to read, with the row kind it would have been,
+ * or the short id registry, whose failure leaves every row unnamed.
+ */
 export interface UnreadableRecord {
-	readonly kind: RunHistoryRow["kind"];
+	readonly kind: RunHistoryRow["kind"] | "short-ids";
 	readonly id: string;
 	readonly reason: string;
 }
@@ -855,6 +859,32 @@ export interface UnreadableRecord {
 export interface RunHistoryReport {
 	readonly rows: readonly RunHistoryRow[];
 	readonly unreadable: readonly UnreadableRecord[];
+}
+
+/**
+ * The registry names rows and nothing else, so a failure to read it leaves
+ * every row listed under its Record ID and is reported beside the rows.
+ */
+async function registryEntries(runsDirectory: string): Promise<{
+	readonly entries: readonly ShortIdEntry[];
+	readonly unreadable: readonly UnreadableRecord[];
+}> {
+	try {
+		return { entries: await readAllShortIds(runsDirectory), unreadable: [] };
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+
+		return {
+			entries: [],
+			unreadable: [
+				{
+					kind: "short-ids",
+					id: "short-ids",
+					reason: redactAbsolutePaths(message),
+				},
+			],
+		};
+	}
 }
 
 /**
@@ -886,7 +916,9 @@ export async function runHistoryReport(
 	try {
 		const rows: RunHistoryRow[] = [];
 		const unreadable: UnreadableRecord[] = [];
-		const shortIdEntries = await readAllShortIds(runsDirectory);
+		const registry = await registryEntries(runsDirectory);
+		unreadable.push(...registry.unreadable);
+		const shortIdEntries = registry.entries;
 		const shortIds = shortIdsOf(shortIdEntries);
 		const attempts = await checkpointAttempts(runsDirectory, shortIdEntries);
 		const collect = async <Named>(

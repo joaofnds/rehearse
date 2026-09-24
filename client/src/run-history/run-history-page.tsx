@@ -98,7 +98,8 @@ const UNREADABLE_NOUNS = {
 	"session-attempt": "session attempt",
 	replay: "replay",
 	group: "confirmation run",
-} as const satisfies Readonly<Record<HistoryRow["kind"], string>>;
+	"short-ids": "short id registry",
+} as const satisfies Readonly<Record<UnreadableRecord["kind"], string>>;
 
 function unreadableSummary(
 	records: readonly UnreadableRecord[],

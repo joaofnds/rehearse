@@ -1437,6 +1437,35 @@ describe(runHistoryReport.name, () => {
 			).toMatchObject({ attempt: { position: 1, count: 1 } });
 		});
 
+		it("lists every record without short ids when the short id registry cannot be read", async () => {
+			const fixture = await fixtureWithClaimedRun();
+			const source = directorySource(await corpusDirectory("build skill\n"));
+			const intact = await runHistoryReport(
+				fixture.runsDirectory,
+				source,
+				nothingRunning,
+			);
+			await mkdir(
+				join(fixture.runsDirectory, "short-ids", "audit-log", "claims", "99"),
+			);
+
+			const { rows, unreadable } = await runHistoryReport(
+				fixture.runsDirectory,
+				source,
+				nothingRunning,
+			);
+
+			expect(
+				rows.map((row) => ({ kind: row.kind, shortId: row.shortId })),
+			).toEqual(
+				intact.rows.map((row) => ({ kind: row.kind, shortId: undefined })),
+			);
+			expect(unreadable.map(({ kind, id }) => ({ kind, id }))).toEqual([
+				{ kind: "short-ids", id: "short-ids" },
+			]);
+			expect(unreadable[0]?.reason).toContain("Directories cannot be read");
+		});
+
 		it("names no short id for a record in a case no command has claimed in", async () => {
 			const fixture = await fixtureWithClaimedRun();
 

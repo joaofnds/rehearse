@@ -810,6 +810,26 @@ describe(RunHistoryPage.name, () => {
 			expect(alert).not.toHaveTextContent("group:g-1");
 		});
 
+		it("names an unreadable short id registry among them", async () => {
+			respondingWith({
+				...unreadableReport,
+				unreadable: [
+					...unreadableReport.unreadable,
+					{
+						kind: "short-ids",
+						id: "short-ids",
+						reason: "Directories cannot be read like files",
+					},
+				],
+			});
+
+			renderPage();
+
+			expect(await screen.findByRole("alert")).toHaveTextContent(
+				"1 short id registry",
+			);
+		});
+
 		it("names every unreadable record by id and reason once the list is opened", async () => {
 			respondingWith(unreadableReport);
 
