@@ -1289,11 +1289,13 @@ export class RecordedRunsFixture {
 	/**
 	 * A session-mode group of two reps where only the first `recordedReps`
 	 * recorded their attempt. One is how a group interrupted between reps is
-	 * left. Returns the rep ids in ordinal order.
+	 * left. Its preflight recorded no metrics unless given what it cost.
+	 * Returns the rep ids in ordinal order.
 	 */
 	public async writeSessionGroup(
 		groupId: string,
 		recordedReps = 1,
+		preflightCostUsd?: number,
 	): Promise<readonly [string, string]> {
 		const repIds = [`${groupId}-rep-1`, `${groupId}-rep-2`] as const;
 		const paths = confirmationGroupPaths(this.runsDirectory, groupId);
@@ -1323,7 +1325,23 @@ export class RecordedRunsFixture {
 						preflightMaximumUsd: 0,
 						totalMaximumUsd: 2,
 					},
-					preflight: { status: "MISSING", missing: "metrics unavailable" },
+					preflight:
+						preflightCostUsd === undefined
+							? { status: "MISSING", missing: "metrics unavailable" }
+							: {
+									status: "COMPLETE",
+									call: {
+										role: "worker",
+										metrics: {
+											costUsd: preflightCostUsd,
+											inputTokens: 0,
+											outputTokens: 0,
+											cacheReadTokens: 0,
+											cacheWriteTokens: 0,
+											turns: 1,
+										},
+									},
+								},
 					approval: { method: "yes", approved: true },
 					repRecords: repIds.map((repId, index) => ({
 						repId,

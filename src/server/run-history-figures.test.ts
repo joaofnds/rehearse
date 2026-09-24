@@ -59,6 +59,14 @@ const sessionRecordSchema = z.looseObject({ metrics: z.unknown() });
 /** A rep record, read loosely so a test can mark its metrics incomplete. */
 const repRecordSchema = z.looseObject({ metrics: z.looseObject({}) });
 
+/** A group row's counts, read whole so a test can pin every name counted. */
+const groupCountsSchema = z.looseObject({
+	stageSummaries: z.array(
+		z.looseObject({ ungraded: z.record(z.string(), z.number()) }),
+	),
+	finalOutcomes: z.record(z.string(), z.number()),
+});
+
 const unreadRepsSchema = z.looseObject({
 	unreadReps: z.array(z.object({ repId: z.string(), reason: z.string() })),
 });
@@ -573,7 +581,7 @@ describe("/api/runs", () => {
 				const fixture = await emptyFixture();
 				await fixture.writePipelineGroup(
 					"pipeline-group",
-					(["A", "B", "C", "D"] as const).map((build) => ({
+					(["C", "A", "D", "B"] as const).map((build) => ({
 						discussion: "A",
 						build,
 						final: "pass",
@@ -608,6 +616,36 @@ describe("/api/runs", () => {
 				});
 			});
 
+			it("summarizes an odd count of grades by its middle grade", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writePipelineGroup(
+					"pipeline-group",
+					(["B", "D", "A"] as const).map((build) => ({
+						discussion: "A",
+						build,
+						final: "pass",
+					})),
+				);
+
+				const row = await onlyRowOfKind(fixture, "group");
+
+				expect(row).toMatchObject({
+					stageSummaries: [
+						{ stage: "discuss" },
+						{
+							stage: "build",
+							graded: 3,
+							grades: {
+								state: "available",
+								median: "B",
+								lowest: "D",
+								highest: "A",
+							},
+						},
+					],
+				});
+			});
+
 			it("counts each rep a stage did not grade under its recorded status and names each rep that recorded nothing", async () => {
 				const fixture = await emptyFixture();
 				await fixture.writePipelineGroup("pipeline-group", [
@@ -618,14 +656,18 @@ describe("/api/runs", () => {
 
 				const row = await onlyRowOfKind(fixture, "group");
 
+				expect(
+					groupCountsSchema
+						.parse(row)
+						.stageSummaries.map(({ ungraded }) => ungraded),
+				).toEqual([{}, { EXECUTION_FAILED: 1, NOT_REACHED: 1 }]);
 				expect(row).toMatchObject({
 					stageSummaries: [
-						{ stage: "discuss", graded: 2, ungraded: {} },
+						{ stage: "discuss", graded: 2 },
 						{
 							stage: "build",
 							graded: 0,
 							grades: { state: "unavailable", reasons: [NO_GRADED_REP_REASON] },
-							ungraded: { EXECUTION_FAILED: 1, NOT_REACHED: 1 },
 						},
 					],
 					unreadReps: [
@@ -671,15 +713,13 @@ describe("/api/runs", () => {
 
 				const row = await onlyRowOfKind(fixture, "group");
 
-				expect(row).toMatchObject({
-					finalOutcomes: {
-						PASS: 1,
-						FAIL: 1,
-						EXECUTION_FAILED: 1,
-						NOT_REACHED: 1,
-					},
-					successful: 1,
+				expect(groupCountsSchema.parse(row).finalOutcomes).toEqual({
+					PASS: 1,
+					FAIL: 1,
+					EXECUTION_FAILED: 1,
+					NOT_REACHED: 1,
 				});
+				expect(row).toMatchObject({ successful: 1 });
 			});
 
 			it("carries a session group's successful reps of those requested and no grade letter", async () => {
@@ -772,6 +812,25 @@ describe("/api/runs", () => {
 						missing: [
 							{ part: "pipeline-group-rep-1", reason: "final judge" },
 							{ part: "pipeline-group-rep-2", reason: UNRECORDED_REP_REASON },
+						],
+					},
+				});
+			});
+
+			it("adds a session group's recorded preflight spend to its reps'", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeSessionGroup("session-group", 1, 0.25);
+
+				const row = await onlyRowOfKind(fixture, "group");
+
+				expect(row).toMatchObject({
+					cost: {
+						state: "available",
+						usd: 0.25,
+						parts: [{ part: "preflight", usd: 0.25 }],
+						missing: [
+							{ part: "session-group-rep-1", reason: "metrics" },
+							{ part: "session-group-rep-2", reason: UNRECORDED_REP_REASON },
 						],
 					},
 				});
