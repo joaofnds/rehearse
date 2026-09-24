@@ -18,9 +18,11 @@ import {
 	AWAITING_JUDGMENT_REASON,
 	INTERRUPTED_REASON,
 	PRODUCT_OWNER_COST_REASON,
+	PRODUCT_OWNER_TOKENS_REASON,
 	RUN_FAILED_REASON,
 	STOPPED_GRADE_REASON,
 	UNEXPLAINED_END_REASON,
+	UNRECORDED_STAGE_REASON,
 } from "./run-record";
 
 const FINISHED_RUN = "2026-09-11T00-00-00.000Z";
@@ -421,6 +423,32 @@ describe("/api/runs/:run", () => {
 				});
 			});
 
+			it("names the session of the stage a run ended in without a record as a part the run's sums lack", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeInterruptedRun();
+
+				const response = await runRecord(fixture, fixture.interruptedRun);
+
+				expect(await response.json()).toMatchObject({
+					totals: {
+						cost: {
+							state: "unavailable",
+							reasons: [
+								`build session: ${UNRECORDED_STAGE_REASON}`,
+								`Product Owner: ${PRODUCT_OWNER_COST_REASON}`,
+							],
+						},
+						tokens: {
+							state: "unavailable",
+							reasons: [
+								`build session: ${UNRECORDED_STAGE_REASON}`,
+								`Product Owner: ${PRODUCT_OWNER_TOKENS_REASON}`,
+							],
+						},
+					},
+				});
+			});
+
 			it("sums a finished run's cost with its Product Owner and final judge", async () => {
 				const fixture = await emptyFixture();
 				await fixture.writePipelineRun(FINISHED_RUN, "audit-log");
@@ -508,7 +536,7 @@ describe("/api/runs/:run", () => {
 				const response = await runRecord(fixture, fixture.runningRun, liveRun);
 
 				expect(await response.json()).toMatchObject({
-					finalOutcome: { status: "PENDING" },
+					finalOutcome: { status: "PENDING", stage: "build" },
 				});
 			});
 

@@ -36,6 +36,8 @@ export const STOPPED_GRADE_REASON =
 	"a stop record keeps the stage's findings but not its letter";
 export const WALL_TIME_REASON =
 	"no record keeps when a stage or run started and ended";
+export const UNRECORDED_STAGE_REASON =
+	"the run ended in this stage before the stage wrote its record";
 export const PRODUCT_OWNER_TOKENS_REASON =
 	"the run records the Product Owner's cost but not its call metrics";
 
@@ -118,7 +120,7 @@ export type FinalOutcome =
 			readonly stage?: string | undefined;
 			readonly reason: string;
 	  }
-	| { readonly status: "PENDING" };
+	| { readonly status: "PENDING"; readonly stage: string };
 
 export interface CostPart {
 	readonly part: string;
@@ -184,6 +186,11 @@ interface RecordedStage {
 	readonly stage: string;
 	readonly file: StageFile | undefined;
 	readonly checkpoint: CheckpointRecord | undefined;
+}
+
+/** A recorded stage, and whether the run ended in it or is running in it. */
+interface ReachedStage extends RecordedStage {
+	readonly reached: boolean;
 }
 
 /** A run's checkpoints, the initial one included, by lineage. */
@@ -280,16 +287,22 @@ function callsPart(
 	return { calls };
 }
 
+/** Why a stage's figure is missing: its record lacks it, or it wrote none. */
+function unrecordedOr(file: StageFile | undefined, reason: string): string {
+	return file === undefined ? UNRECORDED_STAGE_REASON : reason;
+}
+
 type Spender = "session" | "judge";
 
 /**
  * Who spent on a stage: its session, then its judge once the judge ran. A
- * stage that wrote no record contributes nothing a sum could lack.
+ * stage that wrote no record spent only when the run ended or runs in it.
  */
-function spenders(status: StageStatus): readonly Spender[] {
+function spenders(status: StageStatus, reached: boolean): readonly Spender[] {
 	if (status === "no-record") {
-		return [];
+		return reached ? ["session"] : [];
 	}
+
 	if (status === "awaiting-judgment") {
 		return ["session"];
 	}
@@ -297,18 +310,22 @@ function spenders(status: StageStatus): readonly Spender[] {
 	return ["session", "judge"];
 }
 
-function stageTokenParts({ stage, file }: RecordedStage): readonly TokenPart[] {
-	return spenders(stageStatus(file)).map((spender) =>
+function stageTokenParts({
+	stage,
+	file,
+	reached,
+}: ReachedStage): readonly TokenPart[] {
+	return spenders(stageStatus(file), reached).map((spender) =>
 		spender === "session"
 			? callsPart(
 					`${stage} session`,
 					file?.input?.transcript?.providerCalls,
-					"the stage record holds no session calls",
+					unrecordedOr(file, "the stage record holds no session calls"),
 				)
 			: callsPart(
 					`${stage} judge`,
 					file?.attempts,
-					"the stage record holds no judge attempts",
+					unrecordedOr(file, "the stage record holds no judge attempts"),
 				),
 	);
 }
@@ -427,7 +444,7 @@ const UNGRADED_REASONS = {
 } as const satisfies Record<StageStatus, string>;
 
 function stageRecord(
-	recorded: RecordedStage,
+	recorded: ReachedStage,
 	checkpoints: CheckpointsByLineage,
 ): RunRecordStage {
 	const { file, checkpoint } = recorded;
@@ -447,9 +464,12 @@ function stageRecord(
 		wallTime: WALL_TIME,
 		sessionCost: usd(
 			file?.input?.transcript?.costUsd,
-			"the stage record holds no session cost",
+			unrecordedOr(file, "the stage record holds no session cost"),
 		),
-		judgeCost: usd(file?.costUsd, "the stage record holds no judge cost"),
+		judgeCost: usd(
+			file?.costUsd,
+			unrecordedOr(file, "the stage record holds no judge cost"),
+		),
 		tokens: tokenReading(stageTokenParts(recorded)),
 		checkpoint: checkpoint === undefined ? "missing" : "recorded",
 		instructionFiles: pathsOf(
@@ -502,8 +522,9 @@ function costPart(
 
 function stageCostParts(
 	stage: RunRecordStage,
+	reached: boolean,
 ): readonly (CostPart | MissingPart)[] {
-	return spenders(stage.status).map((spender) =>
+	return spenders(stage.status, reached).map((spender) =>
 		spender === "session"
 			? costPart(`${stage.stage} session`, stage.sessionCost)
 			: costPart(`${stage.stage} judge`, stage.judgeCost),
@@ -512,6 +533,7 @@ function stageCostParts(
 
 function runTotals(
 	stages: readonly RunRecordStage[],
+	reachedStage: string | undefined,
 	tokenParts: readonly TokenPart[],
 	artifact: ArtifactSpend | undefined,
 ): RunTotals {
@@ -536,7 +558,9 @@ function runTotals(
 					),
 				];
 	const summed = [
-		...stages.flatMap((stage) => stageCostParts(stage)),
+		...stages.flatMap((stage) =>
+			stageCostParts(stage, stage.stage === reachedStage),
+		),
 		...runParts,
 	];
 	const parts = summed.filter((part): part is CostPart => "usd" in part);
@@ -666,7 +690,7 @@ async function finalOutcome(
 		!isTerminalRunEventKind(latest.kind) &&
 		(await claimsLiveTarget(paths.manifestFile, liveness))
 	) {
-		return { status: "PENDING" };
+		return { status: "PENDING", stage: latest.stage };
 	}
 
 	const awaiting = stageWithStatus(stages, "AWAITING_STAGE_JUDGE");
@@ -716,30 +740,43 @@ export async function readRunRecord(
 			.map((checkpoint) => [checkpoint.lineage, checkpoint]),
 	);
 
-	const records = stages.map((stage) => stageRecord(stage, checkpoints));
 	const artifact = await readArtifactSpend(paths);
 	const runEvents = await openRunEventStore(
 		runEventsDatabaseFile(runsDirectory),
 	);
 	try {
+		const outcome = await finalOutcome(
+			runsDirectory,
+			run,
+			stages,
+			runEvents,
+			liveness,
+		);
+		const reachedStage =
+			outcome.status === "NOT_REACHED" || outcome.status === "PENDING"
+				? outcome.stage
+				: undefined;
+		const reached = stages.map(({ stage, file, checkpoint }): ReachedStage => ({
+			stage,
+			file,
+			checkpoint,
+			reached: stage === reachedStage,
+		}));
+		const records = reached.map((stage) => stageRecord(stage, checkpoints));
+
 		return {
 			run,
 			stages: records,
 			totals: runTotals(
 				records,
+				reachedStage,
 				[
-					...stages.flatMap((stage) => stageTokenParts(stage)),
+					...reached.flatMap((stage) => stageTokenParts(stage)),
 					...runTokenParts(artifact),
 				],
 				artifact,
 			),
-			finalOutcome: await finalOutcome(
-				runsDirectory,
-				run,
-				stages,
-				runEvents,
-				liveness,
-			),
+			finalOutcome: outcome,
 		};
 	} finally {
 		runEvents.close();
