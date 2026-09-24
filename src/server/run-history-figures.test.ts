@@ -643,6 +643,21 @@ describe("/api/runs", () => {
 				});
 			});
 
+			it("carries a session group's successful reps of those requested and no grade letter", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeSessionGroup("session-group", 1);
+
+				const row = await onlyRowOfKind(fixture, "group");
+
+				expect(row).toMatchObject({
+					mode: "session",
+					reps: 2,
+					successful: 0,
+					stageSummaries: [],
+					unrecordedReps: ["session-group-rep-2"],
+				});
+			});
+
 			it("carries its makespan as its wall time and its cost as not recorded", async () => {
 				const fixture = await emptyFixture();
 				await fixture.write();
