@@ -13,6 +13,7 @@ import type { RunHistoryResponse } from "./run-history-query";
 import { runHistoryQuery } from "./run-history-query";
 import { runStatusState } from "./run-status";
 import { isStopped, stoppedStageOf } from "#benchmark/stopped-status";
+import { attemptLabel } from "#client/attempt-label";
 import { plural } from "#client/plural";
 import { ScreenHeader } from "#client/system/components/screen-header";
 import { SectionLabel } from "#client/system/components/section-label";
@@ -171,7 +172,16 @@ function kindLine(row: HistoryRow): string {
 			return "session attempt · time not recorded";
 		}
 		case "replay": {
-			return `replay · ${row.stage}`;
+			return [
+				"replay",
+				row.stage,
+				row.checkpointShortId === undefined
+					? undefined
+					: `from ${row.checkpointShortId}`,
+				row.attempt === undefined ? undefined : attemptLabel(row.attempt),
+			]
+				.filter((part) => part !== undefined)
+				.join(" · ");
 		}
 		case "group": {
 			return `confirmation run · ${row.mode} · ${plural(row.reps, "rep")} · time not recorded`;
@@ -180,6 +190,23 @@ function kindLine(row: HistoryRow): string {
 			return row satisfies never;
 		}
 	}
+}
+
+/**
+ * The record's short id, with the identity it is filed under beneath. A
+ * record in a case no command has claimed in since short ids began has none.
+ */
+function runCell(row: HistoryRow): React.JSX.Element {
+	if (row.shortId === undefined) {
+		return <span className="font-mono text-sm">{identityOf(row)}</span>;
+	}
+
+	return (
+		<span className="flex flex-col gap-0.5">
+			<span className="font-mono text-sm">{row.shortId}</span>
+			<span className="font-mono text-xs text-dim">{identityOf(row)}</span>
+		</span>
+	);
 }
 
 const LINK_CLASS =
@@ -471,9 +498,7 @@ export function RunHistoryPage(): React.JSX.Element {
 							caption="DURABLE RECORDS"
 							columns={[...COLUMNS]}
 							rows={rows.map((row) => [
-								<span key="run" className="font-mono text-sm">
-									{identityOf(row)}
-								</span>,
+								<span key="run">{runCell(row)}</span>,
 								<span key="case">{caseCell(row)}</span>,
 								outcomeCell(row),
 								row.kind === "run" ? progressCell(row, nowMs) : <span />,

@@ -1088,6 +1088,85 @@ describe(RunHistoryPage.name, () => {
 		});
 	});
 
+	describe("when records carry short ids", () => {
+		const named: RunHistoryResponseBody = {
+			rows: [
+				{
+					kind: "run",
+					shortId: "audit-log/r7",
+					checkpoints: [{ stage: "initial", shortId: "audit-log/r7/s0" }],
+					links: [],
+					run: "2026-09-07T00-00-00.000Z",
+					caseId: "audit-log",
+					status: "RUNNING",
+					stage: undefined,
+					grade: undefined,
+					corpus: undefined,
+					stale: false,
+					staleCauses: [],
+					progress: {
+						state: "running",
+						stage: "build",
+						elapsedMs: 9000,
+						measuredAt: new Date().toISOString(),
+						spentUsd: 0.9,
+						spendScope: "this stage's session so far",
+					},
+				},
+				{
+					kind: "replay",
+					shortId: "audit-log/r6",
+					checkpointShortId: "audit-log/r2/s1",
+					attempt: { position: 2, count: 3 },
+					lineage: "60758c",
+					timestamp: "2026-09-06T22-33-15.057Z",
+					caseId: "audit-log",
+					stage: "build",
+					grade: "A",
+					status: "CONTINUE",
+					links: [],
+				},
+				{
+					kind: "group",
+					shortId: "brief-reply/g4",
+					groupId: "group-a",
+					caseId: "brief-reply",
+					mode: "session",
+					reps: 2,
+					repAttempts: [],
+					links: [],
+				},
+			],
+			unreadable: [],
+		};
+
+		it("names each record by its short id, with the identity it is filed under beneath", async () => {
+			respondingWith(named);
+
+			await renderPage().findByText("group-a");
+
+			for (const [identity, shortId] of [
+				["2026-09-07T00-00-00.000Z", "audit-log/r7"],
+				["2026-09-06T22-33-15.057Z", "audit-log/r6"],
+				["group-a", "brief-reply/g4"],
+			] as const) {
+				expect(cellOf(identity, "Run")).toHaveTextContent(
+					`${shortId}${identity}`,
+				);
+			}
+		});
+
+		it("names the checkpoint a replay started from and which attempt there it is", async () => {
+			respondingWith(named);
+
+			await renderPage().findByText("group-a");
+
+			expect(cellOf("2026-09-06T22-33-15.057Z", "Case")).toHaveTextContent(
+				"replay · build · from audit-log/r2/s1 · attempt 2 of 3",
+			);
+		});
+	});
+
 	it("renders a run with no recorded checkpoint without a corpus digest", async () => {
 		respondingWith({
 			rows: [
