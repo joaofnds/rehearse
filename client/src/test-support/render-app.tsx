@@ -62,12 +62,14 @@ export function renderAppWithStub(
 }
 
 /**
- * Answers every path but `failing` with the shell's baseline bodies, and
- * rejects that one the way an unreachable server does, so a screen's
- * error branch is observed against a real rejection rather than a body that
- * merely lacks fields.
+ * Answers every path but `failing` as `stubFetchByPath` answers the shell's
+ * baseline, a 404 for any path outside it, and rejects that one the way an
+ * unreachable server does, so a screen's error branch is observed against a
+ * real rejection rather than a body that merely lacks fields.
  */
 export function stubFetchFailing(failing: string): void {
+	stubFetchByPath(SHELL_BASELINE);
+	const answer = globalThis.fetch;
 	const stub = (request: string | URL | Request): Promise<Response> => {
 		const { pathname } = new URL(
 			request instanceof Request ? request.url : request,
@@ -77,7 +79,7 @@ export function stubFetchFailing(failing: string): void {
 			return Promise.reject(new Error("connection refused"));
 		}
 
-		return Promise.resolve(Response.json(SHELL_BASELINE.get(pathname)));
+		return answer(request);
 	};
 	stub.preconnect = fetch.preconnect;
 	globalThis.fetch = stub;

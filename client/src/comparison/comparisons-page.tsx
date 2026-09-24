@@ -16,7 +16,7 @@ function rowFor(comparison: SavedComparison): readonly React.ReactNode[] {
 	return [
 		<Link
 			key="digest"
-			to={`/comparisons/${comparison.digest}`}
+			to={`/comparisons/${encodeURIComponent(comparison.digest)}`}
 			className="font-mono text-sm text-accent-foreground underline decoration-deeper underline-offset-4 hover:text-pale"
 		>
 			{comparison.digest.slice(0, 12)}
@@ -33,6 +33,12 @@ function rowFor(comparison: SavedComparison): readonly React.ReactNode[] {
 	];
 }
 
+function savedLine(readable: number, unreadable: number): string {
+	const saved = `${plural(readable + unreadable, "comparison")} saved`;
+
+	return unreadable > 0 ? `${saved}, ${unreadable} unreadable` : saved;
+}
+
 export function ComparisonsPage(): React.JSX.Element {
 	const query = useQuery(comparisonIndexQuery);
 	const comparisons = query.data?.comparisons ?? [];
@@ -44,7 +50,7 @@ export function ComparisonsPage(): React.JSX.Element {
 				title="Comparisons"
 				subline={
 					query.isSuccess
-						? `${plural(comparisons.length, "comparison")} saved`
+						? savedLine(comparisons.length, unreadable.length)
 						: undefined
 				}
 			/>
@@ -62,8 +68,8 @@ export function ComparisonsPage(): React.JSX.Element {
 
 				{unreadable.length > 0 ? (
 					<Notice
-						message="These comparisons could not be read, so they are missing from the table below:"
-						items={unreadable.map(({ id, reason }) => `${id} — ${reason}`)}
+						message="These comparisons could not be read, so no table row shows them:"
+						items={unreadable.map(({ id, reason }) => `${id}: ${reason}`)}
 					/>
 				) : null}
 

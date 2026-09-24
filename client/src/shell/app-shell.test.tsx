@@ -68,11 +68,13 @@ function renderShellAt(
 		readonly runs: number;
 		readonly corpusFiles: number;
 		readonly comparisons?: number;
+		readonly unreadableComparisons?: number;
 	},
 ): void {
 	const runs = served?.runs ?? 0;
 	const corpusFiles = served?.corpusFiles ?? 0;
 	const comparisons = served?.comparisons ?? 0;
+	const unreadableComparisons = served?.unreadableComparisons ?? 0;
 
 	stubFetchByPath(
 		new Map<string, unknown>([
@@ -102,7 +104,13 @@ function renderShellAt(
 					comparisons: Array.from({ length: comparisons }, (_unused, index) =>
 						savedComparison(String(index).repeat(64)),
 					),
-					unreadable: [{ id: "f".repeat(64), reason: "JSON Parse error" }],
+					unreadable: Array.from(
+						{ length: unreadableComparisons },
+						(_unused, index) => ({
+							id: `f${index}`.repeat(32),
+							reason: "JSON Parse error",
+						}),
+					),
 				},
 			],
 		]),
@@ -306,12 +314,17 @@ describe("the navigation shell", () => {
 	});
 
 	it.each([
-		[4, 137, 3],
-		[2, 9, 1],
+		[4, 137, 3, 1],
+		[2, 9, 1, 2],
 	])(
-		"badges run history with %s, corpus with %s and comparisons with %s, each its own collection",
-		async (runs, corpusFiles, comparisons) => {
-			renderShellAt("/", { runs, corpusFiles, comparisons });
+		"badges run history with %s, corpus with %s and comparisons with the %s readable ones, leaving out %s unreadable",
+		async (runs, corpusFiles, comparisons, unreadableComparisons) => {
+			renderShellAt("/", {
+				runs,
+				corpusFiles,
+				comparisons,
+				unreadableComparisons,
+			});
 
 			await waitFor(() => {
 				expect(
