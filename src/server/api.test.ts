@@ -346,6 +346,112 @@ describe(createApiApp.name, () => {
 			expect(firstRow?.stale).toBe(false);
 			expect(secondRow?.stale).toBe(true);
 		});
+
+		/**
+		 * Siblings share a case, a group or a lineage, so a link that dropped
+		 * or derived one identity field would open a neighbor's history and
+		 * still answer 200. Each expected attempt comes from what the fixture
+		 * wrote, never from the link, so the check cannot agree with itself.
+		 */
+		it("links every record to a history route that opens that record, never a sibling", async () => {
+			const fixture = await writtenFixture();
+			const corpus = await corpusDirectory();
+			const { caseId, uuid } = fixture.sessionAttempt;
+			const secondUuid = "0f6b6f2a-0000-4000-8000-000000000002";
+			await fixture.writeAttemptAt(secondUuid, corpus, caseId, []);
+			const [firstRep, secondRep] = await fixture.writeSessionGroup(
+				"group-s",
+				2,
+			);
+			await fixture.writeStoppedRun();
+			const { lineage, timestamp } = fixture.stageAttempt;
+			const secondReplay = "2026-09-03T02-00-00.000Z";
+			await fixture.writeReplayOf(fixture.stoppedRun, secondReplay);
+			const app = createApiApp({
+				runsDirectory: fixture.runsDirectory,
+				liveness: nothingRunning,
+				corpusSource: directorySource(corpus),
+			});
+			const expected = new Map<string, object>([
+				[`/attempts/session/${caseId}/${uuid}`, { kind: "session", id: uuid }],
+				[
+					`/attempts/session/${caseId}/${secondUuid}`,
+					{ kind: "session", id: secondUuid },
+				],
+				[
+					`/groups/group-s/reps/${firstRep}/attempt`,
+					{ kind: "session", id: firstRep },
+				],
+				[
+					`/groups/group-s/reps/${secondRep}/attempt`,
+					{ kind: "session", id: secondRep },
+				],
+				[
+					`/replays/${lineage}/${timestamp}`,
+					{ kind: "stage", run: fixture.replayableRun },
+				],
+				[
+					`/replays/${lineage}/${secondReplay}`,
+					{ kind: "stage", run: fixture.stoppedRun },
+				],
+				[
+					`/runs/${fixture.replayableRun}/stages/discuss`,
+					{ kind: "stage", run: fixture.replayableRun, stage: "discuss" },
+				],
+				[
+					`/runs/${fixture.replayableRun}/stages/build`,
+					{ kind: "stage", run: fixture.replayableRun, stage: "build" },
+				],
+				[
+					`/runs/${fixture.stoppedRun}/stages/build`,
+					{ kind: "stopped-stage", run: fixture.stoppedRun, stage: "build" },
+				],
+			]);
+
+			const listing = await app.request("/api/runs");
+			const listed = z
+				.object({
+					rows: z.array(
+						z
+							.object({
+								links: z
+									.array(
+										z.union([
+											z
+												.object({
+													state: z.literal("available"),
+													href: z.string(),
+												})
+												.loose(),
+											z.object({ state: z.literal("unavailable") }).loose(),
+										]),
+									)
+									.default([]),
+							})
+							.loose(),
+					),
+				})
+				.parse(await listing.json());
+			const hrefs = listed.rows.flatMap((row) =>
+				row.links.flatMap((link) =>
+					link.state === "available" ? [link.href] : [],
+				),
+			);
+
+			expect(hrefs.toSorted()).toEqual([...expected.keys()].toSorted());
+			for (const [href, attempt] of expected) {
+				const response = await app.request(`/api${href}/history`);
+				const body = z
+					.object({ attempt: z.object({}).loose() })
+					.loose()
+					.parse(await response.json());
+				expect({ href, status: response.status }).toEqual({
+					href,
+					status: 200,
+				});
+				expect(body.attempt).toMatchObject(attempt);
+			}
+		});
 	});
 
 	describe("GET /api/corpus", () => {

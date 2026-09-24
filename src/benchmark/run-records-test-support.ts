@@ -899,12 +899,13 @@ export class RecordedRunsFixture {
 	}
 
 	/**
-	 * A session-mode group of two reps where only the first rep recorded its
-	 * attempt, which is how a group interrupted between reps is left. Returns
-	 * the rep ids in ordinal order.
+	 * A session-mode group of two reps where only the first `recordedReps`
+	 * recorded their attempt. One is how a group interrupted between reps is
+	 * left. Returns the rep ids in ordinal order.
 	 */
 	public async writeSessionGroup(
 		groupId: string,
+		recordedReps = 1,
 	): Promise<readonly [string, string]> {
 		const repIds = [`${groupId}-rep-1`, `${groupId}-rep-2`] as const;
 		const paths = confirmationGroupPaths(this.runsDirectory, groupId);
@@ -946,35 +947,9 @@ export class RecordedRunsFixture {
 				}),
 			),
 		);
-		const rep = paths.rep(repIds[0]);
-		await Bun.write(
-			rep.recordFile,
-			serialize(
-				sessionConfirmationRepRecordSchema.parse({
-					schemaVersion: 2,
-					caseId,
-					groupId,
-					repId: repIds[0],
-					ordinal: 1,
-					mode: "session",
-					lineage: { kind: "SESSION", lineage: "session-lineage" },
-					outcome: "UNSUCCESSFUL",
-					stages: [
-						{
-							stage: "checks",
-							status: "NOT_REACHED",
-							reason: "not reached",
-							evidence: { recordFile: "attempt.json" },
-						},
-					],
-					finalOutcome: { status: "NOT_APPLICABLE" },
-					metrics: { status: "MISSING", calls: [], missing: ["metrics"] },
-					workerTrajectorySteps: 0,
-					elapsedMs: 1,
-				}),
-			),
-		);
-		await Bun.write(rep.attemptFile, serialize(sessionAttempt(caseId)));
+		for (const [index, repId] of repIds.slice(0, recordedReps).entries()) {
+			await this.writeSessionRep(groupId, repId, index + 1);
+		}
 
 		return repIds;
 	}
@@ -1007,6 +982,58 @@ export class RecordedRunsFixture {
 			{
 				recursive: true,
 			},
+		);
+	}
+
+	private async writeSessionRep(
+		groupId: string,
+		repId: string,
+		ordinal: number,
+	): Promise<void> {
+		const { caseId } = this.sessionAttempt;
+		const rep = confirmationGroupPaths(this.runsDirectory, groupId).rep(repId);
+		await Bun.write(
+			rep.recordFile,
+			serialize(
+				sessionConfirmationRepRecordSchema.parse({
+					schemaVersion: 2,
+					caseId,
+					groupId,
+					repId,
+					ordinal,
+					mode: "session",
+					lineage: { kind: "SESSION", lineage: "session-lineage" },
+					outcome: "UNSUCCESSFUL",
+					stages: [
+						{
+							stage: "checks",
+							status: "NOT_REACHED",
+							reason: "not reached",
+							evidence: { recordFile: "attempt.json" },
+						},
+					],
+					finalOutcome: { status: "NOT_APPLICABLE" },
+					metrics: { status: "MISSING", calls: [], missing: ["metrics"] },
+					workerTrajectorySteps: 0,
+					elapsedMs: 1,
+				}),
+			),
+		);
+		await Bun.write(rep.attemptFile, serialize(sessionAttempt(caseId)));
+	}
+
+	/**
+	 * A second replay filed under the fixture's replay lineage, of another
+	 * run, so two replays of one lineage are told apart by their source run.
+	 */
+	public async writeReplayOf(run: string, timestamp: string): Promise<void> {
+		await Bun.write(
+			replayRecordFile(
+				this.runsDirectory,
+				this.stageAttempt.lineage,
+				timestamp,
+			),
+			serialize(replayRecord(run, timestamp)),
 		);
 	}
 
