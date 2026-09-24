@@ -21,7 +21,15 @@ import type { RunEventStore } from "#benchmark/run-events";
 import type { RunLiveness } from "#benchmark/run-liveness";
 import { RefusedPreconditionError } from "#benchmark/exit-codes";
 import { stoppedStage } from "#benchmark/run-outcome";
-import { claimsLiveTarget, failedStage } from "./run-history";
+import {
+	checkpointStageNumber,
+	formatCheckpointShortId,
+	readShortIds,
+} from "#benchmark/short-id";
+import { formatRecordId } from "#cli/record-id";
+import { shortIdsOf } from "#cli/short-id-column";
+import { redactAbsolutePaths } from "./redact-path";
+import { claimsLiveTarget, failedStage, runStatus } from "./run-history";
 
 export const INTERRUPTED_REASON =
 	"the run was interrupted before its final judge";
@@ -38,6 +46,8 @@ export const WALL_TIME_REASON =
 	"no record keeps when a stage or run started and ended";
 export const UNRECORDED_STAGE_REASON =
 	"the run ended in this stage before the stage wrote its record";
+export const MINIMUM_GRADE_REASON =
+	"the run manifest does not record the minimum grade";
 export const PRODUCT_OWNER_TOKENS_REASON =
 	"the run records the Product Owner's cost but not its call metrics";
 
@@ -78,17 +88,23 @@ export type StageStatus =
 export interface RunRecordStage {
 	readonly stage: string;
 	readonly status: StageStatus;
-	readonly grade: Reading<{ readonly letter: string }>;
+	readonly grade: Reading<{
+		readonly letter: string;
+		readonly verdict: string;
+	}>;
 	readonly wallTime: Reading<{ readonly ms: number }>;
 	readonly sessionCost: Reading<{ readonly usd: number }>;
 	readonly judgeCost: Reading<{ readonly usd: number }>;
 	readonly tokens: TokenReading;
 	/** Whether the stage saved a checkpoint; a stopped stage never does. */
 	readonly checkpoint: "recorded" | "missing";
+	readonly checkpointShortId: ShortIdReading;
 	/** The corpus files the stage ran under, from its checkpoint or record. */
 	readonly instructionFiles: PathsReading;
 	readonly artifactsOut: ArtifactsOut;
 }
+
+export type ShortIdReading = Reading<{ readonly shortId: string }>;
 
 export type PathsReading = Reading<{ readonly paths: readonly string[] }>;
 
@@ -141,6 +157,10 @@ export interface RunTotals {
 
 export interface RunRecord {
 	readonly run: string;
+	readonly shortId: ShortIdReading;
+	readonly caseId: string;
+	readonly status: Reading<{ readonly status: string }>;
+	readonly minimumGrade: Reading<{ readonly letter: string }>;
 	readonly stages: readonly RunRecordStage[];
 	readonly totals: RunTotals;
 	readonly finalOutcome: FinalOutcome;
@@ -157,7 +177,10 @@ const stageFileSchema = z
 	.object({
 		status: z.string().optional(),
 		costUsd: z.number().optional(),
-		grade: z.object({ grade: z.string() }).loose().optional(),
+		grade: z
+			.object({ grade: z.string(), verdict: z.string() })
+			.loose()
+			.optional(),
 		attempts: callsSchema.optional(),
 		corpusFiles: z.array(z.object({ path: z.string() }).loose()).optional(),
 		input: z
@@ -446,6 +469,7 @@ const UNGRADED_REASONS = {
 function stageRecord(
 	recorded: ReachedStage,
 	checkpoints: CheckpointsByLineage,
+	checkpointShortId: ShortIdReading,
 ): RunRecordStage {
 	const { file, checkpoint } = recorded;
 	const commitSubjects = file?.input?.commitSubjects;
@@ -460,7 +484,11 @@ function stageRecord(
 						state: "unavailable",
 						reasons: [UNGRADED_REASONS[stageStatus(file)]],
 					}
-				: { state: "available", letter: file.grade.grade },
+				: {
+						state: "available",
+						letter: file.grade.grade,
+						verdict: file.grade.verdict,
+					},
 		wallTime: WALL_TIME,
 		sessionCost: usd(
 			file?.input?.transcript?.costUsd,
@@ -472,6 +500,7 @@ function stageRecord(
 		),
 		tokens: tokenReading(stageTokenParts(recorded)),
 		checkpoint: checkpoint === undefined ? "missing" : "recorded",
+		checkpointShortId,
 		instructionFiles: pathsOf(
 			checkpoint?.corpusFiles ?? file?.corpusFiles,
 			"neither a checkpoint nor the stage record lists the stage's corpus files",
@@ -709,6 +738,70 @@ async function finalOutcome(
 	};
 }
 
+async function readRunShortId(
+	runsDirectory: string,
+	caseId: string,
+	run: string,
+): Promise<ShortIdReading> {
+	const shortId = shortIdsOf(await readShortIds(runsDirectory, caseId)).get(
+		formatRecordId({ kind: "run", run }),
+	);
+	if (shortId === undefined) {
+		return {
+			state: "unavailable",
+			reasons: ["no command claimed a short id for the run"],
+		};
+	}
+
+	return { state: "available", shortId };
+}
+
+function stageCheckpointShortId(
+	runShortId: ShortIdReading,
+	stages: readonly string[],
+	{ stage, checkpoint }: RecordedStage,
+): ShortIdReading {
+	const number = checkpointStageNumber(stages, stage);
+	if (checkpoint === undefined || number === undefined) {
+		return {
+			state: "unavailable",
+			reasons: ["the stage saved no checkpoint"],
+		};
+	}
+
+	if (runShortId.state === "unavailable") {
+		return runShortId;
+	}
+
+	return {
+		state: "available",
+		shortId: formatCheckpointShortId(runShortId.shortId, number),
+	};
+}
+
+async function statusReading(
+	runsDirectory: string,
+	run: string,
+	runEvents: RunEventStore,
+	liveness: RunLiveness,
+): Promise<Reading<{ readonly status: string }>> {
+	try {
+		const status = await runStatus(runsDirectory, run, runEvents, liveness);
+		if (status === undefined) {
+			return {
+				state: "unavailable",
+				reasons: ["run history lists no row for the run"],
+			};
+		}
+
+		return { state: "available", status };
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+
+		return { state: "unavailable", reasons: [redactAbsolutePaths(message)] };
+	}
+}
+
 /**
  * One pipeline run projected across the files it wrote: its manifest for the
  * stage order, each stage's own record, its checkpoints, and its main
@@ -741,6 +834,7 @@ export async function readRunRecord(
 	);
 
 	const artifact = await readArtifactSpend(paths);
+	const shortId = await readRunShortId(runsDirectory, manifest.caseId, run);
 	const runEvents = await openRunEventStore(
 		runEventsDatabaseFile(runsDirectory),
 	);
@@ -762,10 +856,21 @@ export async function readRunRecord(
 			checkpoint,
 			reached: stage === reachedStage,
 		}));
-		const records = reached.map((stage) => stageRecord(stage, checkpoints));
+		const names = stages.map(({ stage }) => stage);
+		const records = reached.map((stage) =>
+			stageRecord(
+				stage,
+				checkpoints,
+				stageCheckpointShortId(shortId, names, stage),
+			),
+		);
 
 		return {
 			run,
+			shortId,
+			caseId: manifest.caseId,
+			status: await statusReading(runsDirectory, run, runEvents, liveness),
+			minimumGrade: { state: "unavailable", reasons: [MINIMUM_GRADE_REASON] },
 			stages: records,
 			totals: runTotals(
 				records,

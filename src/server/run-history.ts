@@ -443,6 +443,26 @@ async function statusAndCaseId(
 }
 
 /**
+ * The status a run's history row shows, undefined for a run the history lists
+ * no row for.
+ */
+export async function runStatus(
+	runsDirectory: string,
+	run: string,
+	runEvents: RunEventStore,
+	liveness: RunLiveness,
+): Promise<string | undefined> {
+	const identity = await statusAndCaseId(
+		runsDirectory,
+		run,
+		runEvents,
+		liveness,
+	);
+
+	return identity?.status;
+}
+
+/**
  * Whether a stage's own record file is one the stage page renders without a
  * checkpoint: a stop record, or a record left awaiting judgment, naming this
  * stage.

@@ -60,7 +60,7 @@ import {
 	sessionAttemptPaths,
 } from "./run-layout";
 
-const CASE_ID = "audit-log";
+export const CASE_ID = "audit-log";
 const SOURCE_ROOT = "/sources/template";
 const CORPUS_DIGEST = "a".repeat(64);
 const COMPARISON_DIGEST = "c".repeat(64);

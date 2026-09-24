@@ -5,7 +5,9 @@ import { join } from "node:path";
 import { parseCheckpointRecord } from "#benchmark/checkpoint";
 import { benchmarkRunPaths, checkpointRecordFile } from "#benchmark/run-layout";
 import type { RunLiveness } from "#benchmark/run-liveness";
+import { stoppedStatus } from "#benchmark/stopped-status";
 import {
+	CASE_ID,
 	corpusPath,
 	directorySource,
 	FINAL_JUDGE_FAILURE,
@@ -17,6 +19,7 @@ import { createApiApp } from "./api";
 import {
 	AWAITING_JUDGMENT_REASON,
 	INTERRUPTED_REASON,
+	MINIMUM_GRADE_REASON,
 	PRODUCT_OWNER_COST_REASON,
 	PRODUCT_OWNER_TOKENS_REASON,
 	RUN_FAILED_REASON,
@@ -119,6 +122,80 @@ describe("/api/runs/:run", () => {
 						judgeCost: { state: "available", usd: 0.5 },
 					},
 				],
+			});
+		});
+
+		describe("the run and its stages", () => {
+			it("names the run's short id and case and each checkpointed stage's short id", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeStoppedRunEvidence();
+				await fixture.claim(CASE_ID, [
+					{ kind: "run", run: fixture.stoppedRun },
+				]);
+
+				const response = await runRecord(fixture, fixture.stoppedRun);
+
+				expect(await response.json()).toMatchObject({
+					shortId: { state: "available", shortId: `${CASE_ID}/r1` },
+					caseId: CASE_ID,
+					stages: [
+						{
+							stage: "discuss",
+							checkpointShortId: {
+								state: "available",
+								shortId: `${CASE_ID}/r1/s1`,
+							},
+						},
+						{ stage: "build", checkpointShortId: { state: "unavailable" } },
+					],
+				});
+			});
+
+			it("reports the short id as unavailable for a run no command claimed one for", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeStoppedRunEvidence();
+
+				const response = await runRecord(fixture, fixture.stoppedRun);
+
+				expect(await response.json()).toMatchObject({
+					shortId: { state: "unavailable" },
+					stages: [
+						{ stage: "discuss", checkpointShortId: { state: "unavailable" } },
+						{ stage: "build", checkpointShortId: { state: "unavailable" } },
+					],
+				});
+			});
+
+			it("reports the run's status as run history reads it and its minimum grade as not recorded", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeStoppedRunEvidence();
+
+				const response = await runRecord(fixture, fixture.stoppedRun);
+
+				expect(await response.json()).toMatchObject({
+					status: { state: "available", status: stoppedStatus("build") },
+					minimumGrade: {
+						state: "unavailable",
+						reasons: [MINIMUM_GRADE_REASON],
+					},
+				});
+			});
+
+			it("reports a graded stage's letter with its verdict", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeStoppedRunEvidence();
+
+				const response = await runRecord(fixture, fixture.stoppedRun);
+
+				expect(await response.json()).toMatchObject({
+					stages: [
+						{
+							stage: "discuss",
+							grade: { state: "available", letter: "A", verdict: "CONTINUE" },
+						},
+						{ stage: "build" },
+					],
+				});
 			});
 		});
 
