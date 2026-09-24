@@ -12,16 +12,64 @@ import { RecordedRunsFixture } from "./run-records-test-support";
 import { recordsOnDisk } from "./short-id-backfill";
 
 let runsDirectory: string;
+let casesDirectory: string;
 let fixture: RecordedRunsFixture;
 
 beforeEach(async () => {
 	runsDirectory = await mkdtemp(join(tmpdir(), "rehearse-backfill-"));
+	casesDirectory = await mkdtemp(join(tmpdir(), "rehearse-backfill-cases-"));
 	fixture = new RecordedRunsFixture(runsDirectory);
 });
 
 afterEach(async () => {
 	await rm(runsDirectory, { recursive: true, force: true });
+	await rm(casesDirectory, { recursive: true, force: true });
 });
+
+/** A session case whose starting transcript is the first `cut` lines. */
+async function declareSmokeCut(cut: number): Promise<void> {
+	await Bun.write(
+		join(casesDirectory, "smoke", "case.json"),
+		JSON.stringify({
+			id: "smoke",
+			kind: "session",
+			title: "Smoke",
+			prompt: "Reply with the single word OK.",
+			transcript: {
+				file: "prefix.jsonl",
+				sha256: "a".repeat(64),
+				sourceSession: "aaaaaaaa-1111-2222-3333-444444444444",
+				cut,
+			},
+			tools: [],
+			corpusFiles: [],
+			checks: [{ kind: "tool-calls", max: 0 }],
+		}),
+	);
+}
+
+/** An attempt as written before attempts stored their prefix line count. */
+async function withoutStoredPrefix(attemptFile: string): Promise<void> {
+	const record: unknown = JSON.parse(await Bun.file(attemptFile).text());
+	const { transcriptDiagnostics: _stored, ...rest } = z
+		.record(z.string(), z.unknown())
+		.parse(record);
+	await Bun.write(attemptFile, JSON.stringify(rest));
+}
+
+async function withPrefixExcluded(
+	attemptFile: string,
+	prefixLinesExcluded: number,
+): Promise<void> {
+	const record: unknown = JSON.parse(await Bun.file(attemptFile).text());
+	await Bun.write(
+		attemptFile,
+		JSON.stringify({
+			...z.record(z.string(), z.unknown()).parse(record),
+			transcriptDiagnostics: { state: "unavailable", prefixLinesExcluded },
+		}),
+	);
+}
 
 function transcript(...timestamps: readonly string[]): string {
 	return timestamps
@@ -30,7 +78,7 @@ function transcript(...timestamps: readonly string[]): string {
 }
 
 async function recordedIn(caseId: string): Promise<readonly unknown[]> {
-	const found = await recordsOnDisk(runsDirectory, caseId);
+	const found = await recordsOnDisk(runsDirectory, caseId, casesDirectory);
 
 	return found.map(({ record }) => record);
 }
@@ -142,17 +190,7 @@ describe(recordsOnDisk.name, () => {
 				"smoke",
 				[],
 			);
-			const record: unknown = JSON.parse(await Bun.file(resumed).text());
-			await Bun.write(
-				resumed,
-				JSON.stringify({
-					...z.record(z.string(), z.unknown()).parse(record),
-					transcriptDiagnostics: {
-						state: "unavailable",
-						prefixLinesExcluded: 1,
-					},
-				}),
-			);
+			await withPrefixExcluded(resumed, 1);
 			await Bun.write(
 				join(resumed, "..", "transcript.jsonl"),
 				transcript("2026-09-01T00:00:00.000Z", "2026-09-09T00:00:00.000Z"),
@@ -173,6 +211,95 @@ describe(recordsOnDisk.name, () => {
 					caseId: "smoke",
 					uuid: "ffffffff-0000-4000-8000-000000000006",
 				},
+			]);
+		});
+	});
+
+	describe("when a session record predates the prefix count it stores", () => {
+		it("dates it after the prefix its case declares", async () => {
+			await declareSmokeCut(1);
+			const resumed = await fixture.writeAttemptAt(
+				"00000000-0000-4000-8000-000000000006",
+				runsDirectory,
+				"smoke",
+				[],
+			);
+			const other = await fixture.writeAttemptAt(
+				"11111111-0000-4000-8000-000000000007",
+				runsDirectory,
+				"smoke",
+				[],
+			);
+			await withoutStoredPrefix(resumed);
+			await withoutStoredPrefix(other);
+			await Bun.write(
+				join(resumed, "..", "transcript.jsonl"),
+				transcript("2026-09-01T00:00:00.000Z", "2026-09-09T00:00:00.000Z"),
+			);
+			await Bun.write(
+				join(other, "..", "transcript.jsonl"),
+				transcript("2026-09-01T00:00:00.000Z", "2026-09-05T00:00:00.000Z"),
+			);
+
+			expect(await recordedIn("smoke")).toEqual([
+				{
+					kind: "attempt:session",
+					caseId: "smoke",
+					uuid: "11111111-0000-4000-8000-000000000007",
+				},
+				{
+					kind: "attempt:session",
+					caseId: "smoke",
+					uuid: "00000000-0000-4000-8000-000000000006",
+				},
+			]);
+		});
+	});
+
+	describe("when a group's reps resumed a transcript a prior session began", () => {
+		async function groupsResumingOneLine(): Promise<void> {
+			for (const [groupId, ownLine] of [
+				["group-a-late", "2026-09-09T00:00:00.000Z"],
+				["group-b-early", "2026-09-05T00:00:00.000Z"],
+			] as const) {
+				const [repId] = await fixture.writeSessionGroup(groupId, 1);
+				await Bun.write(
+					confirmationGroupPaths(runsDirectory, groupId).rep(repId)
+						.transcriptFile,
+					transcript("2026-09-01T00:00:00.000Z", ownLine),
+				);
+			}
+		}
+
+		it("dates each rep after the prefix its attempt excludes", async () => {
+			await groupsResumingOneLine();
+			for (const groupId of ["group-a-late", "group-b-early"]) {
+				await withPrefixExcluded(
+					confirmationGroupPaths(runsDirectory, groupId).rep(`${groupId}-rep-1`)
+						.attemptFile,
+					1,
+				);
+			}
+
+			expect(await recordedIn("smoke")).toEqual([
+				{ kind: "group", groupId: "group-b-early" },
+				{ kind: "group", groupId: "group-a-late" },
+			]);
+		});
+
+		it("dates a rep that stores no count after the prefix its case declares", async () => {
+			await declareSmokeCut(1);
+			await groupsResumingOneLine();
+			for (const groupId of ["group-a-late", "group-b-early"]) {
+				await withoutStoredPrefix(
+					confirmationGroupPaths(runsDirectory, groupId).rep(`${groupId}-rep-1`)
+						.attemptFile,
+				);
+			}
+
+			expect(await recordedIn("smoke")).toEqual([
+				{ kind: "group", groupId: "group-b-early" },
+				{ kind: "group", groupId: "group-a-late" },
 			]);
 		});
 	});

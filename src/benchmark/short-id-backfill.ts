@@ -1,11 +1,13 @@
 import { unhandled } from "./contracts";
 import { z } from "zod";
+import { CaseDeclarationError, casesRoot, readCaseDeclaration } from "./case";
 import { parseConfirmationGroupRecord } from "./confirmation-record";
 import { loadRunManifest } from "./manifest";
 import { parseRunSummaryRecord } from "./record-summary";
 import { readReplayRecord } from "./replay-record";
 import { openRunEventStore } from "./run-events";
 import type { RunEventStore } from "./run-events";
+import type { ConfirmationRepPaths } from "./run-layout";
 import {
 	benchmarkRunPaths,
 	confirmationGroupIds,
@@ -86,6 +88,47 @@ const excludedPrefixSchema = z.object({
 });
 
 /**
+ * The prefix line count an attempt stored with its transcript, or undefined
+ * for a record written before attempts stored it.
+ */
+function storedPrefixLines(attemptText: string): number | undefined {
+	let contents: unknown;
+	try {
+		contents = JSON.parse(attemptText);
+	} catch {
+		return undefined;
+	}
+
+	return excludedPrefixSchema.safeParse(contents).data?.transcriptDiagnostics
+		?.prefixLinesExcluded;
+}
+
+/**
+ * The lines a case's starting transcript puts ahead of a session's own, which
+ * is the count the harness stores when it records an attempt. A record written
+ * before attempts stored it is dated after this many lines, and a case that
+ * declares no starting transcript, or no longer exists, puts none.
+ */
+async function declaredPrefixLines(
+	caseId: string,
+	casesDirectory: string,
+): Promise<number> {
+	try {
+		const declaration = await readCaseDeclaration(caseId, casesDirectory);
+
+		return declaration.kind === "session"
+			? (declaration.transcript?.cut ?? 0)
+			: 0;
+	} catch (error) {
+		if (error instanceof CaseDeclarationError) {
+			return 0;
+		}
+
+		throw error;
+	}
+}
+
+/**
  * The first time a transcript recorded after the lines a prior session left
  * in it, in the run-name spelling so it sorts beside run names as text.
  */
@@ -157,6 +200,7 @@ async function runs(
 async function sessionAttempts(
 	runsDirectory: string,
 	caseId: string,
+	declaredPrefix: number,
 ): Promise<DatedRecord[]> {
 	const found: DatedRecord[] = [];
 	for (const attempt of await sessionAttemptIds(runsDirectory)) {
@@ -164,23 +208,22 @@ async function sessionAttempts(
 			continue;
 		}
 		const paths = sessionAttemptPaths(runsDirectory, attempt);
-		const prefixLines = await readable(async () => {
-			const text = await Bun.file(paths.recordFile).text();
-			parseSessionAttemptRecord(text);
-			const contents: unknown = JSON.parse(text);
+		const text = await readable(async () => {
+			const recordText = await Bun.file(paths.recordFile).text();
+			parseSessionAttemptRecord(recordText);
 
-			return (
-				excludedPrefixSchema.parse(contents).transcriptDiagnostics
-					?.prefixLinesExcluded ?? 0
-			);
+			return recordText;
 		});
-		if (prefixLines === undefined) {
+		if (text === undefined) {
 			continue;
 		}
 
 		found.push({
 			record: { kind: "attempt:session", ...attempt },
-			recordedAt: await firstTranscriptTime(paths.transcriptFile, prefixLines),
+			recordedAt: await firstTranscriptTime(
+				paths.transcriptFile,
+				storedPrefixLines(text) ?? declaredPrefix,
+			),
 		});
 	}
 
@@ -213,9 +256,22 @@ async function replays(
 	return found;
 }
 
+async function repTime(
+	paths: ConfirmationRepPaths,
+	declaredPrefix: number,
+): Promise<string | undefined> {
+	const attempt = Bun.file(paths.attemptFile);
+	const stored = (await attempt.exists())
+		? storedPrefixLines(await attempt.text())
+		: undefined;
+
+	return firstTranscriptTime(paths.transcriptFile, stored ?? declaredPrefix);
+}
+
 async function groups(
 	runsDirectory: string,
 	caseId: string,
+	declaredPrefix: number,
 ): Promise<DatedRecord[]> {
 	const found: DatedRecord[] = [];
 	for (const groupId of await confirmationGroupIds(runsDirectory)) {
@@ -229,7 +285,7 @@ async function groups(
 
 		const repTimes = await Promise.all(
 			record.repRecords.map(({ repId }) =>
-				firstTranscriptTime(paths.rep(repId).transcriptFile),
+				repTime(paths.rep(repId), declaredPrefix),
 			),
 		);
 		found.push({
@@ -301,12 +357,14 @@ function oldestFirst(left: DatedRecord, right: DatedRecord): number {
 export async function recordsOnDisk(
 	runsDirectory: string,
 	caseId: string,
+	casesDirectory: string = casesRoot(),
 ): Promise<readonly DatedRecord[]> {
+	const declaredPrefix = await declaredPrefixLines(caseId, casesDirectory);
 	const found = [
 		...(await runs(runsDirectory, caseId)),
-		...(await sessionAttempts(runsDirectory, caseId)),
+		...(await sessionAttempts(runsDirectory, caseId, declaredPrefix)),
 		...(await replays(runsDirectory, caseId)),
-		...(await groups(runsDirectory, caseId)),
+		...(await groups(runsDirectory, caseId, declaredPrefix)),
 	];
 
 	return found.toSorted(oldestFirst);
