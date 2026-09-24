@@ -725,8 +725,9 @@ from a rate catalog; any other basis stays reported spend.
 
 The local browser can inspect standalone session attempts at
 `/attempts/session/<case>/<uuid>`, confirmation attempts at
-`/groups/<group>/reps/<rep>/attempt`, and pipeline stages at
-`/runs/<run>/stages/<stage>`. Their JSON summaries are
+`/groups/<group>/reps/<rep>/attempt`, pipeline stages at
+`/runs/<run>/stages/<stage>`, and stage replays at
+`/replays/<lineage>/<timestamp>`. Their JSON summaries are
 `/api/attempts/session/<case>/<uuid>/history`,
 `/api/groups/<group>/reps/<rep>/attempt/history`, and
 `/api/runs/<run>/stages/<stage>/history`; appending
@@ -736,8 +737,11 @@ block.
 
 `/api/replays/<lineage>/<timestamp>/history` reports a replay under the same
 stage identity. A replay keeps no raw transcript, so the report is always
-evidence-unavailable and carries no event detail path. No browser page reaches
-it yet; it is an API surface only.
+evidence-unavailable and carries no event detail path. Its browser page shows
+that summary and says it serves no per-event detail, and it asks for no request
+series or corpus reconciliation. It reads the source run's manifest, so a replay
+whose source run manifest is gone has no page, and run history names that
+instead of linking it.
 
 A stage report names its run, stage and lineage where an attempt report names a
 case and attempt id, because a checkpoint records no attempt id and no outcome.
@@ -797,9 +801,13 @@ substitution the unavailable state prevents for a replay.
 A stage with none of those records still answers 404, which is what separates a
 stage the reader can name from a page that failed. The run history screen shows
 a stopped run as `STOPPED:<stage>`, linked to that stage's context history, and
-links every other stage whose page renders. An interrupted or failed run, whose
-status comes from its event stream rather than any file, shows as `INTERRUPTED`
-or `FAILED`, and a failed run names the stage it failed in as saving no context.
+links every other stage whose page renders. A run with no artifact takes its
+status from its event stream and shows as `INTERRUPTED` or `FAILED`. A run the
+server did not see end becomes `INTERRUPTED` when the next server start
+reconciles it, and stays out of the list until then. When a failed run's last
+started stage saved no checkpoint, the row names that stage as having failed
+before saving its context. A failed run whose events name no started stage
+names no stage.
 
 The summary separates inherited Starting context from Attempt events when the
 attempt record retains its transcript cut. Older records without a cut use the

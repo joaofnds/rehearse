@@ -453,14 +453,17 @@ See [current state](docs/status.md) for implementation coverage and
   and `stage-completed` that session together with its Judge. None of them is
   run spend, which is why a reading of one is shown with the words for what it
   covers.
-- **Unreadable run** — a recorded run whose own files the run-history report
-  could not read into a row, carried by its record ID and a reason with
-  absolute paths redacted. A malformed artifact, or a manifest missing from a
-  run that stopped or was interrupted, produces one. An unreadable run is data
-  the report carries, not a failure of the report, so one bad run does not
+- **Unreadable record** — a saved record (a pipeline run, a session attempt, a
+  stage replay or a confirmation run) whose own files the run-history report
+  could not read into a row, carried by its kind, its record ID and a reason
+  with absolute paths redacted. A malformed artifact, a run directory with
+  neither a manifest nor run events, or a group directory with no group record
+  produces one. A run that failed or was interrupted before writing a manifest
+  is still listed as a row from its events. An unreadable record is data the
+  report carries, not a failure of the report, so one bad record does not
   blank the rest. Staleness is judged for every run before any of them is read,
   so a corpus the staleness pass cannot resolve does not produce an unreadable
-  run: it produces a staleness cause, or no report at all. A staleness report
+  record: it produces a staleness cause, or no report at all. A staleness report
   carries its own unreadable list, keyed by case and attempt rather than by
   run; the two are the same idea applied to different records.
 - **Project slug** — the name the provider gives the directory it writes a
