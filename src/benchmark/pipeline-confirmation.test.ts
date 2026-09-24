@@ -54,6 +54,19 @@ describe(runPipelineConfirmation.name, () => {
 		expect(await readdir(group.directory)).not.toContain("reps");
 	});
 
+	it("claims no short id when its inputs are refused", async () => {
+		const harness = await PipelineConfirmationHarness.setup(testResources);
+		const outside = join(harness.runsDirectory, "foreign");
+		await Bun.write(join(outside, "private.md"), "foreign bytes\n");
+		await symlink(outside, join(harness.corpusRoot, "agents"));
+
+		await failureOf(harness.run({ caseId: "audit-log-follow-up" }));
+
+		expect(
+			await readShortIds(harness.runsDirectory, "audit-log-follow-up"),
+		).toEqual([]);
+	});
+
 	it("records the resolved Judge model in pipeline confirmation evidence", async () => {
 		const harness = await PipelineConfirmationHarness.setup(testResources);
 		const config = parseArgs(

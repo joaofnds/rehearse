@@ -953,11 +953,6 @@ export async function runBenchmark(
 	}
 
 	try {
-		const shortId = await claimShortId(runFiles.runsDirectory, config.caseId, {
-			kind: "run",
-			run: runFiles.name,
-		});
-		log(`Short id: ${formatShortId(shortId)}`);
 		log(`Target: ${source.root}`);
 		log(`Original commit: ${source.sha}`);
 		log(`Workflow backup: ${workflowBackup.directory}`);
@@ -973,6 +968,11 @@ export async function runBenchmark(
 				source,
 				pipeline.target,
 			);
+		const shortId = await claimShortId(runFiles.runsDirectory, config.caseId, {
+			kind: "run",
+			run: runFiles.name,
+		});
+		log(`Short id: ${formatShortId(shortId)}`);
 		const { task, productBrief, finalRubric: rubric } = benchmarkCase;
 		const corpusSource = liveCorpusSource();
 		const [instructions, claudeVersion] = await Promise.all([

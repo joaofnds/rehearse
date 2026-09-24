@@ -14,6 +14,7 @@ import {
 } from "./session-confirmation";
 import { parseGroupReportSummaryRecord } from "./record-summary";
 import { failureOf } from "#cli/cli-test-support";
+import { readShortIds } from "./short-id";
 import { runList } from "#cli/list-command";
 import { runShow } from "#cli/show-command";
 import { historyFixture } from "./test-support";
@@ -88,6 +89,59 @@ describe(runSessionConfirmation.name, () => {
 				.splice(0)
 				.map((directory) => rm(directory, { force: true, recursive: true })),
 		);
+	});
+
+	it("claims no short id when its corpus is refused", async () => {
+		const root = await mkdtemp(join(tmpdir(), "rehearse-session-live-"));
+		temporaryDirectories.push(root);
+		const liveRoot = join(root, "install");
+		const backingRoot = join(root, "backing");
+		const outside = join(root, "outside");
+		await mkdir(join(liveRoot, "output-styles"), { recursive: true });
+		await mkdir(backingRoot, { recursive: true });
+		await mkdir(outside, { recursive: true });
+		await Bun.write(join(outside, "foreign.md"), "FOREIGN STYLE\n");
+		await symlink(
+			join(outside, "foreign.md"),
+			join(liveRoot, "output-styles", "foreign.md"),
+		);
+		const declared = simpleSessionCase("hostile-live");
+		const sessionCase: SessionCase = {
+			...declared,
+			declaration: {
+				...declared.declaration,
+				corpusFiles: ["output-styles/foreign.md"],
+			},
+			corpusFiles: ["output-styles/foreign.md"],
+		};
+		await failureOf(
+			runSessionConfirmation(
+				{
+					resolveCorpus: () =>
+						Promise.resolve({ kind: "live", root: liveRoot, backingRoot }),
+					executeAttempt: () =>
+						Promise.reject(new Error("a provider call must not happen")),
+				},
+				{
+					runsDirectory: join(root, "runs"),
+					groupId: "hostile-live-group",
+					reps: 2,
+					projectedCost: {
+						reps: 2,
+						perRepMaximumUsd: 0.2,
+						preflightMaximumUsd: 0.1,
+						totalMaximumUsd: 0.5,
+					},
+					approvalMethod: "yes",
+					sessionCase,
+					model: "sonnet",
+					sessionBudgetUsd: 0.2,
+					preflight: { status: "MISSING", missing: "metrics" },
+				},
+			),
+		);
+
+		expect(await readShortIds(join(root, "runs"), "hostile-live")).toEqual([]);
 	});
 
 	it("refuses an out-of-extent live corpus file before starting a rep", async () => {

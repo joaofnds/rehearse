@@ -782,10 +782,6 @@ export async function runPipelineConfirmation(
 ): Promise<PipelineConfirmationOutcome> {
 	const now = request.now ?? (() => performance.now());
 	const paths = confirmationGroupPaths(request.runsDirectory, request.groupId);
-	await claimShortId(request.runsDirectory, request.caseId, {
-		kind: "group",
-		groupId: request.groupId,
-	});
 	await mkdir(paths.inputsDirectory, { recursive: true });
 	const worktreesDirectory = await mkdtemp(
 		join(tmpdir(), `rehearse-${request.groupId}-`),
@@ -798,6 +794,10 @@ export async function runPipelineConfirmation(
 			paths.inputsDirectory,
 			worktreesDirectory,
 		);
+		await claimShortId(request.runsDirectory, request.caseId, {
+			kind: "group",
+			groupId: request.groupId,
+		});
 		const makespanStart = now();
 		const results = await runConfirmation(
 			{

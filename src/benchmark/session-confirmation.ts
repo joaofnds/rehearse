@@ -251,16 +251,16 @@ export async function runSessionConfirmation(
 ): Promise<ConfirmationGroupOutcome> {
 	const now = dependencies.now ?? Date.now;
 	const paths = confirmationGroupPaths(request.runsDirectory, request.groupId);
-	await claimShortId(
-		request.runsDirectory,
-		request.sessionCase.declaration.id,
-		{ kind: "group", groupId: request.groupId },
-	);
 	const inputs = await freezeInputs(
 		request,
 		paths.directory,
 		paths.inputsDirectory,
 		dependencies.resolveCorpus,
+	);
+	await claimShortId(
+		request.runsDirectory,
+		request.sessionCase.declaration.id,
+		{ kind: "group", groupId: request.groupId },
 	);
 	const startedAt = now();
 	const results = await runConfirmation<FrozenSessionInputs, ExecutedRep>(
