@@ -801,8 +801,9 @@ start to its main artifact or, for a stopped run, to the stop.
 A figure the records do not hold reads `{"state": "unavailable", "reasons":
 [...]}` rather than zero or an empty list. Wall time is unavailable for a
 record that predates it, for a stage still awaiting its judge, and for a stop
-whose judge returned no grade. A stopped stage serves the letter and STOP
-verdict it fell to, unavailable in a stop record that predates the letter or
+whose judge returned no grade. A stopped stage serves the letter it fell to
+and the judge's verdict, which the judge sets against a fixed B while the stop
+follows the run's minimum grade, both unavailable in a stop record that predates the letter or
 whose judge returned none, and an awaiting stage's grade is unavailable until
 its judge returns.
 
