@@ -920,6 +920,8 @@ describe(RunHistoryPage.name, () => {
 				{
 					kind: "replay",
 					shortId: undefined,
+					checkpointShortId: undefined,
+					attempt: undefined,
 					lineage: "60758c",
 					timestamp: "2026-09-06T22-33-15.057Z",
 					caseId: "audit-log",

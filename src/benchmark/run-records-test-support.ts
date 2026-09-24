@@ -2,7 +2,10 @@ import { mkdir } from "node:fs/promises";
 import type { z } from "zod";
 import { buildComparisonReport } from "./comparison-report";
 import { serializeComparisonReport } from "./comparison-record";
-import { comparisonEvidenceFixture } from "./comparison-test-fixtures";
+import {
+	comparisonEvidenceFixture,
+	comparisonRep,
+} from "./comparison-test-fixtures";
 import type { CheckpointRecord, HashedFile } from "./checkpoint";
 import {
 	captureStageCorpus,
@@ -15,11 +18,13 @@ import { hashCorpusFiles, resolveCorpusFile } from "./corpus-file";
 import type { Immutable } from "./contracts";
 import {
 	confirmationGroupRecordSchema,
+	confirmationRepRecordSchema,
 	sessionConfirmationGroupRecordSchema,
 	sessionConfirmationRepRecordSchema,
 } from "./confirmation-record";
 import type {
 	ConfirmationGroupRecord,
+	ConfirmationRepRecord,
 	SessionConfirmationGroupRecord,
 	SessionConfirmationRepRecord,
 } from "./confirmation-record";
@@ -41,7 +46,7 @@ import {
 	DEFAULT_STAGE_SETTINGS_FILE,
 	loadStageSettings,
 } from "./stage-settings";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import type { SessionAttemptId, StageAttemptId } from "./run-layout";
 import {
 	benchmarkRunPaths,
@@ -102,6 +107,7 @@ type WrittenRecord =
 	| ConfirmationGroupRecord
 	| SessionConfirmationGroupRecord
 	| SessionConfirmationRepRecord
+	| ConfirmationRepRecord
 	| LegacyGroupRecord
 	| GroupReportSummaryRecord
 	| RunSummaryRecord
@@ -1060,6 +1066,40 @@ export class RecordedRunsFixture {
 			),
 			serialize(replayRecord(run, timestamp)),
 		);
+	}
+
+	/**
+	 * A stage-mode group at the replayable run's build stage whose first rep
+	 * was judged and whose second failed to execute, so it recorded no result.
+	 */
+	public async writeStageGroupWithReps(groupId: string): Promise<void> {
+		const paths = confirmationGroupPaths(this.runsDirectory, groupId);
+		await mkdir(paths.directory, { recursive: true });
+		await Bun.write(paths.groupFile, serialize(group(groupId)));
+		for (const [ordinal, build] of [
+			[1, "pass"],
+			[2, "error"],
+		] as const) {
+			const rep = comparisonRep(groupId, ordinal, {
+				discussion: "pass",
+				build,
+				final: "pass",
+			});
+			const { recordFile } = paths.rep(rep.repId);
+			await mkdir(dirname(recordFile), { recursive: true });
+			await Bun.write(
+				recordFile,
+				serialize(
+					confirmationRepRecordSchema.parse({
+						...rep,
+						mode: "stage",
+						outcome: "UNSUCCESSFUL",
+						stages: rep.stages.filter(({ stage }) => stage === "build"),
+						finalOutcome: { status: "NOT_APPLICABLE" },
+					}),
+				),
+			);
+		}
 	}
 
 	public async writeUnreadableGroup(groupId: string): Promise<void> {

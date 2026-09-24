@@ -1247,8 +1247,12 @@ describe(runHistoryReport.name, () => {
 		 * the claim numbers them first, oldest first, and takes the next number.
 		 * The run claims before it writes its record, as a started run does.
 		 */
-		async function fixtureWithClaimedRun(): Promise<RecordedRunsFixture> {
+		async function fixtureWithClaimedRun(
+			recordEarlier: (fixture: RecordedRunsFixture) => Promise<void> = () =>
+				Promise.resolve(),
+		): Promise<RecordedRunsFixture> {
 			const fixture = await writtenFixture();
+			await recordEarlier(fixture);
 			await claimShortId(fixture.runsDirectory, "audit-log", {
 				kind: "run",
 				run: laterRun,
@@ -1295,6 +1299,85 @@ describe(runHistoryReport.name, () => {
 				{ stage: "discuss", shortId: "audit-log/r5/s1" },
 				{ stage: "build", shortId: "audit-log/r5/s2" },
 			]);
+		});
+
+		it("names a replay's checkpoint and which attempt there it is, the original run's stage first", async () => {
+			const laterReplay = "2026-09-04T00-00-00.000Z";
+			const fixture = await fixtureWithClaimedRun((earlier) =>
+				earlier.writeReplayOf(earlier.replayableRun, laterReplay),
+			);
+
+			const { rows } = await runHistoryReport(
+				fixture.runsDirectory,
+				directorySource(await corpusDirectory("build skill\n")),
+				nothingRunning,
+			);
+
+			expect(
+				rows
+					.filter((row) => row.kind === "replay")
+					.map(({ shortId, checkpointShortId, attempt }) => ({
+						shortId,
+						checkpointShortId,
+						attempt,
+					})),
+			).toEqual([
+				{
+					shortId: "audit-log/r4",
+					checkpointShortId: "audit-log/r2/s1",
+					attempt: { position: 3, count: 3 },
+				},
+				{
+					shortId: "audit-log/r3",
+					checkpointShortId: "audit-log/r2/s1",
+					attempt: { position: 2, count: 3 },
+				},
+			]);
+		});
+
+		it("counts judged reps of a stage-mode group claimed at the checkpoint, after the replays claimed before it", async () => {
+			const fixture = await fixtureWithClaimedRun();
+			await fixture.writeStageGroupWithReps("group-at-build");
+			await claimShortId(fixture.runsDirectory, "audit-log", {
+				kind: "group",
+				groupId: "group-at-build",
+				source: { run: fixture.replayableRun, stage: "build" },
+			});
+
+			const { rows } = await runHistoryReport(
+				fixture.runsDirectory,
+				directorySource(await corpusDirectory("build skill\n")),
+				nothingRunning,
+			);
+
+			expect(rows.find((row) => row.kind === "replay")?.attempt).toEqual({
+				position: 2,
+				count: 3,
+			});
+		});
+
+		it("does not count a run stopped at the replayed stage as an attempt there", async () => {
+			const fixture = await fixtureWithClaimedRun(async (earlier) => {
+				await earlier.writeStoppedRun();
+				await earlier.writeReplayOf(
+					earlier.stoppedRun,
+					"2026-09-05T00-00-00.000Z",
+				);
+			});
+
+			const { rows } = await runHistoryReport(
+				fixture.runsDirectory,
+				directorySource(await corpusDirectory("build skill\n")),
+				nothingRunning,
+			);
+
+			expect(
+				rows.find(
+					(row) =>
+						row.kind === "replay" &&
+						row.timestamp === "2026-09-05T00-00-00.000Z",
+				),
+			).toMatchObject({ attempt: { position: 1, count: 1 } });
 		});
 
 		it("names no short id for a record in a case no command has claimed in", async () => {

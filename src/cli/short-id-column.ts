@@ -5,19 +5,24 @@ import {
 	formatCheckpointShortId,
 	readAllShortIds,
 } from "#benchmark/short-id";
+import type { ShortIdEntry } from "#benchmark/short-id";
 import { formatRecordId } from "#cli/record-id";
 
 /** What a listing prints in the short id column for a record with none. */
 export const NO_SHORT_ID = "-";
 
-export async function shortIdsByRecordId(
-	runsDirectory: string,
-): Promise<ReadonlyMap<string, string>> {
-	const entries = await readAllShortIds(runsDirectory);
-
+export function shortIdsOf(
+	entries: readonly ShortIdEntry[],
+): ReadonlyMap<string, string> {
 	return new Map(
 		entries.map(({ shortId, record }) => [formatRecordId(record), shortId]),
 	);
+}
+
+export async function shortIdsByRecordId(
+	runsDirectory: string,
+): Promise<ReadonlyMap<string, string>> {
+	return shortIdsOf(await readAllShortIds(runsDirectory));
 }
 
 /**

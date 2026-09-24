@@ -37,10 +37,15 @@ import type { ReplayRecord } from "#benchmark/replay";
 import { parseSessionAttemptRecord } from "#benchmark/session-record";
 import type { SessionAttemptRecord } from "#benchmark/session-record";
 import { formatRecordId } from "#cli/record-id";
-import { frozenStages, shortIdsByRecordId } from "#cli/short-id-column";
+import {
+	checkpointShortId,
+	frozenStages,
+	shortIdsOf,
+} from "#cli/short-id-column";
 import {
 	checkpointStageNumber,
 	formatCheckpointShortId,
+	readAllShortIds,
 } from "#benchmark/short-id";
 import {
 	awaitingJudgeStageRecordSchema,
@@ -50,6 +55,8 @@ import {
 import { staleCheckpoints } from "#benchmark/staleness-report";
 import { stoppedStatus } from "#benchmark/stopped-status";
 import type { RunLiveness } from "#benchmark/run-liveness";
+import { replayAttempts } from "./checkpoint-attempts";
+import type { AttemptPosition } from "./checkpoint-attempts";
 import { corpusDigest } from "./corpus-digest";
 import { redactAbsolutePaths } from "./redact-path";
 
@@ -157,6 +164,9 @@ export interface ReplayRow {
 	readonly lineage: string;
 	readonly timestamp: string;
 	readonly shortId: string | undefined;
+	/** The short id of the checkpoint the replay started from. */
+	readonly checkpointShortId: string | undefined;
+	readonly attempt: AttemptPosition | undefined;
 	readonly caseId: string | undefined;
 	readonly stage: string;
 	readonly grade: string;
@@ -632,6 +642,8 @@ async function replayRow(
 	runsDirectory: string,
 	attempt: StageAttemptId,
 	shortId: string | undefined,
+	shortIds: ReadonlyMap<string, string>,
+	attempts: ReadonlyMap<string, AttemptPosition>,
 ): Promise<ReplayRow> {
 	const record = await readReplayRecord(
 		replayRecordFile(runsDirectory, attempt.lineage, attempt.timestamp),
@@ -646,6 +658,15 @@ async function replayRow(
 		lineage: attempt.lineage,
 		timestamp: attempt.timestamp,
 		shortId,
+		checkpointShortId: await checkpointShortId(
+			runsDirectory,
+			shortIds,
+			record.runName,
+			record.consumed.stage,
+		),
+		attempt: attempts.get(
+			formatRecordId({ kind: "attempt:stage", ...attempt }),
+		),
 		caseId,
 		stage: record.stage,
 		grade: record.scorecard.grade.grade,
@@ -834,7 +855,9 @@ export async function runHistoryReport(
 	try {
 		const rows: RunHistoryRow[] = [];
 		const unreadable: UnreadableRecord[] = [];
-		const shortIds = await shortIdsByRecordId(runsDirectory);
+		const shortIdEntries = await readAllShortIds(runsDirectory);
+		const shortIds = shortIdsOf(shortIdEntries);
+		const attempts = await replayAttempts(runsDirectory, shortIdEntries);
 		const collect = async <Named>(
 			kind: RunHistoryRow["kind"],
 			named: readonly Named[],
@@ -890,7 +913,8 @@ export async function runHistoryReport(
 			"replay",
 			await replayAttemptIds(runsDirectory),
 			(attempt) => formatRecordId({ kind: "attempt:stage", ...attempt }),
-			(attempt, shortId) => replayRow(runsDirectory, attempt, shortId),
+			(attempt, shortId) =>
+				replayRow(runsDirectory, attempt, shortId, shortIds, attempts),
 		);
 		await collect(
 			"group",
