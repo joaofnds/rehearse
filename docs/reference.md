@@ -827,18 +827,19 @@ available has the same shape as the pipeline run record's run cost: `usd`, the
 
 A pipeline run row reads its figures through the pipeline run record above.
 `stepGrades` lists each stage in the manifest's order with its status and
-grade. A stage with no record is `not-run` when the run never reached it, and
-keeps `no-record` when it saved a checkpoint or is the stage the run ended or
-is running in.
+grade. A stage with no record is `not-run` when it comes after the stage the
+run ended or is running in, and keeps `no-record` otherwise, since a run that
+finished reached every stage.
 `taskGrade` is the run's `finalOutcome`, and `cost` and `wallTime` are the
-run's totals. A run that wrote no manifest, or whose record does not parse,
-keeps its row with those four figures unavailable and the reason, where the
-pipeline run record's route answers 404 or 500 for the same run.
+run's totals. A run that wrote no manifest, or one of whose stage records does
+not parse, keeps its row with those four figures unavailable and the reason,
+where the pipeline run record's route answers 404 or 500 for the same run. A
+main record that does not parse still moves the run to `unreadable`.
 
 A replay row sums its session, Product Owner and judge cost and lacks no part.
 Its `taskGrade` is `NOT_APPLICABLE` with the reason, since only a whole run
 reaches the final judge, and its wall time is unavailable, since the replay
-record keeps no start or end time. A session attempt row's cost is its call
+record keeps no time the stage started. A session attempt row's cost is its call
 metrics' cost, unavailable when the attempt kept none, and its wall time is the
 elapsed time it recorded. A confirmation group row's wall time is its makespan,
 and its cost is unavailable, since the group record keeps its projected cost
