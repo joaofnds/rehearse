@@ -19,6 +19,7 @@ import {
 	STOPPED_RUN_ERROR,
 } from "#benchmark/run-records-test-support";
 import { createApiApp } from "./api";
+import { NO_GRADED_REP_REASON } from "./confirmation-group-summary";
 import {
 	GROUP_COST_REASON,
 	NO_MANIFEST_REASON,
@@ -593,6 +594,52 @@ describe("/api/runs", () => {
 							},
 						},
 					],
+				});
+			});
+
+			it("counts each rep a stage did not grade under its recorded status and names each rep that recorded nothing", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writePipelineGroup("pipeline-group", [
+					{ discussion: "A", build: "error", final: "not-reached" },
+					{ discussion: "A", build: "not-reached", final: "not-reached" },
+					undefined,
+				]);
+
+				const row = await onlyRowOfKind(fixture, "group");
+
+				expect(row).toMatchObject({
+					stageSummaries: [
+						{ stage: "discuss", graded: 2, ungraded: {} },
+						{
+							stage: "build",
+							graded: 0,
+							grades: { state: "unavailable", reasons: [NO_GRADED_REP_REASON] },
+							ungraded: { EXECUTION_FAILED: 1, NOT_REACHED: 1 },
+						},
+					],
+					unrecordedReps: ["pipeline-group-rep-3"],
+				});
+			});
+
+			it("tallies its reps' final outcomes by verdict or status and counts the successful reps", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writePipelineGroup("pipeline-group", [
+					{ discussion: "pass", build: "pass", final: "pass" },
+					{ discussion: "pass", build: "pass", final: "fail" },
+					{ discussion: "pass", build: "error", final: "error" },
+					{ discussion: "fail", build: "not-reached", final: "not-reached" },
+				]);
+
+				const row = await onlyRowOfKind(fixture, "group");
+
+				expect(row).toMatchObject({
+					finalOutcomes: {
+						PASS: 1,
+						FAIL: 1,
+						EXECUTION_FAILED: 1,
+						NOT_REACHED: 1,
+					},
+					successful: 1,
 				});
 			});
 

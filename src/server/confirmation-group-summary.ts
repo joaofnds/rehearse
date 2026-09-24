@@ -9,6 +9,9 @@ import type { Reading } from "./run-record";
 
 export const NO_GRADED_REP_REASON = "no rep was graded at this stage";
 
+/** How many reps fell under each name, a verdict or a recorded status. */
+export type RepCounts = Readonly<Record<string, number>>;
+
 /**
  * What a group's reps scored at one stage. The median of an even count is
  * the lower of the two middle grades, so the summary is always a grade some
@@ -17,6 +20,8 @@ export const NO_GRADED_REP_REASON = "no rep was graded at this stage";
 export interface GroupStageSummary {
 	readonly stage: string;
 	readonly graded: number;
+	/** Each rep the stage did not grade, counted under its recorded status. */
+	readonly ungraded: RepCounts;
 	readonly grades: Reading<{
 		readonly median: StageLetterGrade;
 		readonly lowest: StageLetterGrade;
@@ -32,18 +37,29 @@ function bestFirst(grades: readonly StageLetterGrade[]): StageLetterGrade[] {
 	);
 }
 
+function tally(names: readonly string[]): RepCounts {
+	const counts = new Map<string, number>();
+	for (const name of names) {
+		counts.set(name, (counts.get(name) ?? 0) + 1);
+	}
+
+	return Object.fromEntries(counts);
+}
+
 function stageSummary(
 	stage: string,
 	reps: readonly Immutable<ParsedConfirmationRepRecord>[],
 ): GroupStageSummary {
+	const outcomes = reps.flatMap(({ stages }) =>
+		stages.filter((outcome) => outcome.stage === stage),
+	);
 	const grades = bestFirst(
-		reps.flatMap(({ stages }) =>
-			stages.flatMap((outcome) =>
-				outcome.stage === stage && outcome.status === "JUDGED"
-					? [outcome.grade]
-					: [],
-			),
+		outcomes.flatMap((outcome) =>
+			outcome.status === "JUDGED" ? [outcome.grade] : [],
 		),
+	);
+	const ungraded = tally(
+		outcomes.flatMap(({ status }) => (status === "JUDGED" ? [] : [status])),
 	);
 	const highest = grades.at(0);
 	const lowest = grades.at(-1);
@@ -52,6 +68,7 @@ function stageSummary(
 		return {
 			stage,
 			graded: 0,
+			ungraded,
 			grades: { state: "unavailable", reasons: [NO_GRADED_REP_REASON] },
 		};
 	}
@@ -59,6 +76,7 @@ function stageSummary(
 	return {
 		stage,
 		graded: grades.length,
+		ungraded,
 		grades: { state: "available", median, lowest, highest },
 	};
 }
@@ -77,4 +95,20 @@ export function stageSummaries(
 	}
 
 	return declaredStages.map((stage) => stageSummary(stage, reps));
+}
+
+/**
+ * The reps' final outcomes counted by the final judge's verdict where it
+ * judged, and by the recorded status where it did not.
+ */
+export function finalOutcomeTally(
+	reps: readonly Immutable<ParsedConfirmationRepRecord>[],
+): RepCounts {
+	return tally(
+		reps.map(({ finalOutcome }) =>
+			finalOutcome.status === "JUDGED"
+				? finalOutcome.verdict
+				: finalOutcome.status,
+		),
+	);
 }

@@ -48,8 +48,14 @@ import { staleCheckpoints } from "#benchmark/staleness-report";
 import type { RunLiveness } from "#benchmark/run-liveness";
 import { checkpointAttempts, repAttemptId } from "./checkpoint-attempts";
 import type { AttemptPosition } from "./checkpoint-attempts";
-import { stageSummaries } from "./confirmation-group-summary";
-import type { GroupStageSummary } from "./confirmation-group-summary";
+import {
+	finalOutcomeTally,
+	stageSummaries,
+} from "./confirmation-group-summary";
+import type {
+	GroupStageSummary,
+	RepCounts,
+} from "./confirmation-group-summary";
 import { corpusDigest } from "./corpus-digest";
 import { redactAbsolutePaths } from "./redact-path";
 import { readRunRecord, wallTime } from "./run-record";
@@ -198,6 +204,11 @@ export interface ConfirmationGroupRow {
 	readonly repAttempts: readonly RepAttempt[];
 	readonly links: readonly ContextLink[];
 	readonly stageSummaries: readonly GroupStageSummary[];
+	readonly finalOutcomes: RepCounts;
+	/** Of `reps` requested, how many the group recorded as successful. */
+	readonly successful: number;
+	/** Each rep that recorded nothing, which no other figure counts. */
+	readonly unrecordedReps: readonly string[];
 	readonly cost: CostReading;
 	readonly wallTime: WallTimeReading;
 }
@@ -607,21 +618,29 @@ function repAttempts(
 	});
 }
 
-/** The rep records a group's reps wrote, skipping a rep that wrote none. */
-async function recordedReps(
+interface GroupReps {
+	readonly recorded: readonly ParsedConfirmationRepRecord[];
+	readonly unrecorded: readonly string[];
+}
+
+/** The rep records a group's reps wrote, and each rep that wrote none. */
+async function groupReps(
 	runsDirectory: string,
 	record: Immutable<ParsedConfirmationGroupRecord>,
-): Promise<readonly ParsedConfirmationRepRecord[]> {
+): Promise<GroupReps> {
 	const paths = confirmationGroupPaths(runsDirectory, record.groupId);
-	const reps: ParsedConfirmationRepRecord[] = [];
+	const recorded: ParsedConfirmationRepRecord[] = [];
+	const unrecorded: string[] = [];
 	for (const { repId } of record.repRecords) {
 		const file = Bun.file(paths.rep(repId).recordFile);
 		if (await file.exists()) {
-			reps.push(parseConfirmationRepRecord(await file.text()));
+			recorded.push(parseConfirmationRepRecord(await file.text()));
+		} else {
+			unrecorded.push(repId);
 		}
 	}
 
-	return reps;
+	return { recorded, unrecorded };
 }
 
 async function groupRow(
@@ -641,7 +660,7 @@ async function groupRow(
 			repLink(runsDirectory, groupId, record.mode, reference),
 		),
 	);
-	const reps = await recordedReps(runsDirectory, record);
+	const { recorded, unrecorded } = await groupReps(runsDirectory, record);
 
 	return {
 		kind: "group",
@@ -652,7 +671,15 @@ async function groupRow(
 		reps: record.reps,
 		repAttempts: repAttempts(record, attempts),
 		links,
-		stageSummaries: stageSummaries(record.mode, record.declaredStages, reps),
+		stageSummaries: stageSummaries(
+			record.mode,
+			record.declaredStages,
+			recorded,
+		),
+		finalOutcomes: finalOutcomeTally(recorded),
+		successful: recorded.filter(({ outcome }) => outcome === "SUCCESSFUL")
+			.length,
+		unrecordedReps: unrecorded,
 		cost: { state: "unavailable", reasons: [GROUP_COST_REASON] },
 		wallTime: { state: "available", ms: record.makespanMs },
 	};

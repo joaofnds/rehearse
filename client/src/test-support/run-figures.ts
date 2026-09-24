@@ -35,4 +35,7 @@ export const UNREAD_COST_AND_TIME = {
 export const UNREAD_GROUP_FIGURES = {
 	...UNREAD_COST_AND_TIME,
 	stageSummaries: [],
+	finalOutcomes: {},
+	successful: 0,
+	unrecordedReps: [],
 } as const;
