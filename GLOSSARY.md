@@ -380,7 +380,9 @@ See [current state](docs/status.md) for implementation coverage and
   `attempt:stage:<lineage>/<timestamp>`, `attempt:session:<case>/<uuid>`,
   `group:<group-id>`, `comparison:<manifest-digest>`. Every id `list` prints is
   one `show` accepts, and the prefix is parsed once at the boundary into the
-  kind, so `show` never guesses which record a bare string named.
+  kind, so `show` never guesses which record a bare string named. `show` also
+  accepts a **short id**, resolved through its case's registry to the Record
+  ID it aliases.
 - **Record summary** — the short markdown a session pastes onto a card,
   computed as a pure function of one parsed record: for a run its stages,
   grades, verdict, and cost; for a group its reliability summary and cost; for
@@ -491,6 +493,13 @@ See [current state](docs/status.md) for implementation coverage and
 - **Session knobs** — the CLI and environment settings shared by run and replay
   that select the workflow and Judge models and efforts and set the per-session
   budget.
+- **Short id**: how the operator and a session name a run, replay, session
+  attempt, confirmation run or checkpoint, scoped by its case: `<case>/r<n>`,
+  `<case>/g<n>`, `<case>/r<n>/s<k>`. Each case numbers its runs, replays,
+  session attempts and confirmation runs in one sequence, and a number once
+  given names nothing else. `s0` is the checkpoint taken after task setup and
+  `s<k>` the one after the k-th stage of the run's frozen pipeline. It is an
+  alias for the record's **Record ID**, which stays canonical.
 - **Stage** — one pipeline step: a skill invocation consuming upstream
   artifacts and emitting its own. The UI's design calls this a **step**
   (see [UI vocabulary](docs/design-handoff/README.md)); the word in code, records, and this glossary stays stage.

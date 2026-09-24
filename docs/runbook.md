@@ -71,7 +71,8 @@ mise exec -- bun run rehearse list attempts
 mise exec -- bun run rehearse show attempt:session:smoke/<uuid>
 ```
 
-Use the complete ID printed by `list attempts`. The record includes the prompt,
+Use the complete ID printed by `list attempts`, or the short id beside it, such
+as `smoke/r3`. The record includes the prompt,
 reply, declared corpus digests, transcript evidence, check results, provider
 metrics, and the grades of a declared state scorer. `NO_REPLY` means the session
 ended without a final reply, so the reply and transcript checks were not
@@ -241,6 +242,10 @@ mise exec -- bun run rehearse list runs
 mise exec -- bun run rehearse show run:<run-name>
 mise exec -- bun run rehearse list checkpoints
 ```
+
+`show` takes a run's short id, such as `audit-log/r4`, in place of
+`run:<run-name>`, and `audit-log/r4/s1` names the checkpoint after its first
+stage.
 
 Stopped runs are included. Their summary shows recorded stages, grades, failure
 information, and costs where available. The default stage continuation threshold
