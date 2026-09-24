@@ -21,6 +21,10 @@ import { ScreenHeader } from "#client/system/components/screen-header";
 import { SectionLabel } from "#client/system/components/section-label";
 import { PaneHeading } from "./pane-heading";
 import { selectableRow } from "./selectable-row";
+import { attemptLabel } from "#client/attempt-label";
+import type { AttemptPosition } from "#client/attempt-label";
+import { runHistoryQuery } from "#client/run-history/run-history-query";
+import type { RunHistoryResponse } from "#client/run-history/run-history-query";
 
 export type SessionHistoryIdentity =
 	| {
@@ -47,6 +51,176 @@ export type SessionHistoryIdentity =
 interface IdentityEntry {
 	readonly term: string;
 	readonly value: string;
+	/** What the record was called before short ids, shown beneath one. */
+	readonly formerly?: string;
+}
+
+type HistoryRow = RunHistoryResponse["rows"][number];
+
+/** What run history calls the record a page shows. */
+interface RecordNames {
+	readonly shortId: string | undefined;
+	readonly checkpointShortId: string | undefined;
+	readonly attempt: AttemptPosition | undefined;
+}
+
+const UNNAMED: RecordNames = {
+	shortId: undefined,
+	checkpointShortId: undefined,
+	attempt: undefined,
+};
+
+type RunRow = Extract<HistoryRow, { kind: "run" }>;
+type ReplayRow = Extract<HistoryRow, { kind: "replay" }>;
+type SessionAttemptRow = Extract<HistoryRow, { kind: "session-attempt" }>;
+type GroupRow = Extract<HistoryRow, { kind: "group" }>;
+
+/**
+ * The shell loads run history on every page, so a page reads its record's
+ * names from that report rather than asking its own route to name it again.
+ * A stage page's checkpoint is the one the stage recorded; a replay's is the
+ * one it started from.
+ */
+function recordNames(
+	identity: SessionHistoryIdentity,
+	rows: readonly HistoryRow[],
+): RecordNames {
+	switch (identity.kind) {
+		case "stage": {
+			const row = rows.find(
+				(candidate): candidate is RunRow =>
+					candidate.kind === "run" && candidate.run === identity.run,
+			);
+
+			return {
+				...UNNAMED,
+				shortId: row?.shortId,
+				checkpointShortId: row?.checkpoints.find(
+					({ stage }) => stage === identity.stage,
+				)?.shortId,
+			};
+		}
+		case "replay": {
+			const row = rows.find(
+				(candidate): candidate is ReplayRow =>
+					candidate.kind === "replay" &&
+					candidate.lineage === identity.lineage &&
+					candidate.timestamp === identity.timestamp,
+			);
+
+			return row === undefined
+				? UNNAMED
+				: {
+						shortId: row.shortId,
+						checkpointShortId: row.checkpointShortId,
+						attempt: row.attempt,
+					};
+		}
+		case "standalone": {
+			const row = rows.find(
+				(candidate): candidate is SessionAttemptRow =>
+					candidate.kind === "session-attempt" &&
+					candidate.caseId === identity.caseId &&
+					candidate.uuid === identity.uuid,
+			);
+
+			return { ...UNNAMED, shortId: row?.shortId };
+		}
+		case "confirmation": {
+			const row = rows.find(
+				(candidate): candidate is GroupRow =>
+					candidate.kind === "group" && candidate.groupId === identity.groupId,
+			);
+
+			return {
+				...UNNAMED,
+				shortId: row?.shortId,
+				attempt: row?.repAttempts.find(({ repId }) => repId === identity.repId)
+					?.attempt,
+			};
+		}
+		default: {
+			return identity satisfies never;
+		}
+	}
+}
+
+/** The entry for a term shows a short id, with its old value beneath. */
+function renamed(
+	entries: readonly IdentityEntry[],
+	term: string,
+	value: string | undefined,
+): readonly IdentityEntry[] {
+	return value === undefined
+		? entries
+		: entries.map((entry) =>
+				entry.term === term ? { term, value, formerly: entry.value } : entry,
+			);
+}
+
+function inserted(
+	entries: readonly IdentityEntry[],
+	afterTerm: string,
+	added: readonly (IdentityEntry | undefined)[],
+): readonly IdentityEntry[] {
+	const present = added.filter((entry) => entry !== undefined);
+
+	return entries.flatMap((entry) =>
+		entry.term === afterTerm ? [entry, ...present] : [entry],
+	);
+}
+
+function entryOf(
+	term: string,
+	value: string | undefined,
+): IdentityEntry | undefined {
+	return value === undefined ? undefined : { term, value };
+}
+
+function namedEntries(
+	identity: SessionHistoryIdentity,
+	attempt: SessionHistoryReport["attempt"],
+	names: RecordNames,
+): readonly IdentityEntry[] {
+	const entries = identityEntries(attempt);
+	const attemptOf =
+		names.attempt === undefined ? undefined : attemptLabel(names.attempt);
+	switch (identity.kind) {
+		case "stage": {
+			return inserted(renamed(entries, "Run", names.shortId), "Stage", [
+				entryOf("Checkpoint", names.checkpointShortId),
+			]);
+		}
+		case "replay": {
+			const replay =
+				names.shortId === undefined
+					? undefined
+					: {
+							term: "Replay",
+							value: names.shortId,
+							formerly: identity.timestamp,
+						};
+
+			return inserted(inserted(entries, "Case", [replay]), "Stage", [
+				entryOf("Started from", names.checkpointShortId),
+				entryOf("Attempt", attemptOf),
+			]);
+		}
+		case "standalone": {
+			return renamed(entries, "Attempt", names.shortId);
+		}
+		case "confirmation": {
+			const position =
+				attemptOf === undefined || names.shortId === undefined
+					? attemptOf
+					: `${attemptOf} of ${names.shortId}`;
+
+			return renamed(entries, "Attempt", position);
+		}
+		default: {
+			return identity satisfies never;
+		}
+	}
 }
 
 /**
@@ -804,6 +978,8 @@ export function SessionHistoryPage({
 		queryKey: ["session-history", path],
 		queryFn: () => fetchSummary(identity),
 	});
+	const runHistory = useQuery(runHistoryQuery);
+	const names = recordNames(identity, runHistory.data?.rows ?? []);
 	const recordsRequestSeries =
 		identity.kind === "standalone" || identity.kind === "confirmation";
 	/**
@@ -878,14 +1054,23 @@ export function SessionHistoryPage({
 				aside={
 					summary.data === undefined ? undefined : (
 						<dl className="flex flex-wrap gap-x-5 gap-y-2">
-							{identityEntries(summary.data.attempt).map(({ term, value }) => (
-								<div key={term} className="flex flex-col gap-1">
-									<dt>
-										<SectionLabel>{term}</SectionLabel>
-									</dt>
-									<dd className="font-mono text-sm">{value}</dd>
-								</div>
-							))}
+							{namedEntries(identity, summary.data.attempt, names).map(
+								({ term, value, formerly }) => (
+									<div key={term} className="flex flex-col gap-1">
+										<dt>
+											<SectionLabel>{term}</SectionLabel>
+										</dt>
+										<dd className="flex flex-col gap-0.5">
+											<span className="font-mono text-sm">{value}</span>
+											{formerly === undefined ? null : (
+												<span className="font-mono text-xs text-dim">
+													{formerly}
+												</span>
+											)}
+										</dd>
+									</div>
+								),
+							)}
 						</dl>
 					)
 				}

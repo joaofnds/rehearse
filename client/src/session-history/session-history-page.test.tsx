@@ -10,6 +10,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { stubFetchByPath } from "#client/test-support/fetch-stub";
 import type {
 	SessionHistoryEvent,
+	SessionHistoryReport,
 	SessionHistoryRequestEntry,
 } from "#benchmark/session-history";
 import {
@@ -17,6 +18,7 @@ import {
 	requestRowsOwningEvents,
 	SessionHistoryPage,
 } from "./session-history-page";
+import type { SessionHistoryIdentity } from "./session-history-page";
 
 const originalFetch = globalThis.fetch;
 
@@ -603,6 +605,171 @@ describe(SessionHistoryPage.name, () => {
 		expect(within(header).getByText("lineage-1")).toBeInTheDocument();
 		expect(within(header).queryByText("Attempt")).not.toBeInTheDocument();
 		expect(within(header).queryByText("Outcome")).not.toBeInTheDocument();
+	});
+
+	describe("when run history names the record by short id", () => {
+		const stageAttempt: SessionHistoryReport["attempt"] = {
+			kind: "stage",
+			caseId: "audit-log",
+			run: "2026-09-06T21-58-29.508Z",
+			stage: "build",
+			lineage: "lineage-1",
+			upstream: "upstream-1",
+			model: "sonnet",
+			corpusFiles: [],
+		};
+		const sessionAttempt: SessionHistoryReport["attempt"] = {
+			kind: "session",
+			caseId: "audit-log",
+			id: "attempt-a",
+			model: "sonnet",
+			outcome: "SUCCESSFUL",
+			corpusFiles: [],
+		};
+		const runHistory = {
+			rows: [
+				{
+					kind: "run",
+					shortId: "audit-log/r5",
+					checkpoints: [
+						{ stage: "initial", shortId: "audit-log/r5/s0" },
+						{ stage: "build", shortId: "audit-log/r5/s2" },
+					],
+					run: "2026-09-06T21-58-29.508Z",
+				},
+				{
+					kind: "replay",
+					shortId: "audit-log/r6",
+					checkpointShortId: "audit-log/r5/s1",
+					attempt: { position: 2, count: 3 },
+					lineage: "lineage-1",
+					timestamp: "2026-09-07T00-00-00.000Z",
+				},
+				{
+					kind: "session-attempt",
+					shortId: "audit-log/r7",
+					caseId: "audit-log",
+					uuid: "attempt-a",
+				},
+				{
+					kind: "group",
+					shortId: "audit-log/g13",
+					groupId: "group-a",
+					repAttempts: [
+						{ repId: "group-a-rep-2", attempt: { position: 2, count: 6 } },
+					],
+				},
+			],
+			unreadable: [],
+		};
+
+		function renderNamed(
+			identity: SessionHistoryIdentity,
+			historyPath: string,
+			attempt: SessionHistoryReport["attempt"],
+		): void {
+			stubFetchByPath(
+				new Map<string, unknown>([
+					[
+						historyPath,
+						{
+							schemaVersion: 1,
+							attempt,
+							evidence: { state: "complete" },
+							boundary: "known",
+							startingContext: [],
+							attemptEvents: [],
+							boundaryUnknown: [],
+							startingSources: [],
+							sources: [],
+						},
+					],
+					["/api/runs", runHistory],
+				]),
+			);
+			const client = new QueryClient({
+				defaultOptions: { queries: { retry: false } },
+			});
+			render(
+				<QueryClientProvider client={client}>
+					<SessionHistoryPage identity={identity} />
+				</QueryClientProvider>,
+			);
+		}
+
+		async function entry(term: string): Promise<HTMLElement> {
+			const header = await screen.findByRole("banner");
+			const label = await within(header).findByText(term);
+			const definition = label.closest("div")?.querySelector("dd");
+			if (!(definition instanceof HTMLElement)) {
+				throw new Error(`No ${term} entry`);
+			}
+
+			return definition;
+		}
+
+		it("names a stage's run and the checkpoint it recorded by short id", async () => {
+			renderNamed(
+				{ kind: "stage", run: "2026-09-06T21-58-29.508Z", stage: "build" },
+				"/api/runs/2026-09-06T21-58-29.508Z/stages/build/history",
+				stageAttempt,
+			);
+
+			await waitFor(async () => {
+				expect(await entry("Run")).toHaveTextContent(
+					"audit-log/r52026-09-06T21-58-29.508Z",
+				);
+			});
+			expect(await entry("Checkpoint")).toHaveTextContent("audit-log/r5/s2");
+		});
+
+		it("names a replay, the checkpoint it started from and which attempt there it is", async () => {
+			renderNamed(
+				{
+					kind: "replay",
+					lineage: "lineage-1",
+					timestamp: "2026-09-07T00-00-00.000Z",
+				},
+				"/api/replays/lineage-1/2026-09-07T00-00-00.000Z/history",
+				stageAttempt,
+			);
+
+			await waitFor(async () => {
+				expect(await entry("Replay")).toHaveTextContent(
+					"audit-log/r62026-09-07T00-00-00.000Z",
+				);
+			});
+			expect(await entry("Started from")).toHaveTextContent("audit-log/r5/s1");
+			expect(await entry("Attempt")).toHaveTextContent("attempt 2 of 3");
+		});
+
+		it("names a session attempt by short id, with its attempt id beneath", async () => {
+			renderNamed(
+				{ kind: "standalone", caseId: "audit-log", uuid: "attempt-a" },
+				"/api/attempts/session/audit-log/attempt-a/history",
+				sessionAttempt,
+			);
+
+			await waitFor(async () => {
+				expect(await entry("Attempt")).toHaveTextContent(
+					"audit-log/r7attempt-a",
+				);
+			});
+		});
+
+		it("names a rep by its position in its group", async () => {
+			renderNamed(
+				{ kind: "confirmation", groupId: "group-a", repId: "group-a-rep-2" },
+				"/api/groups/group-a/reps/group-a-rep-2/attempt/history",
+				sessionAttempt,
+			);
+
+			await waitFor(async () => {
+				expect(await entry("Attempt")).toHaveTextContent(
+					"attempt 2 of 6 of audit-log/g13attempt-a",
+				);
+			});
+		});
 	});
 
 	it("says a stage records no request series rather than reporting a load failure", async () => {
