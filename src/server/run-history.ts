@@ -46,7 +46,7 @@ import { checkpointAttempts, repAttemptId } from "./checkpoint-attempts";
 import type { AttemptPosition } from "./checkpoint-attempts";
 import { corpusDigest } from "./corpus-digest";
 import { redactAbsolutePaths } from "./redact-path";
-import { readRunRecord } from "./run-record";
+import { readRunRecord, wallTime } from "./run-record";
 import type {
 	CostReading,
 	FinalOutcome,
@@ -483,10 +483,7 @@ async function replayRow(
 			status: "NOT_APPLICABLE",
 			reason: REPLAY_TASK_GRADE_REASON,
 		},
-		wallTime:
-			record.elapsedMs === undefined
-				? { state: "unavailable", reasons: [REPLAY_WALL_TIME_REASON] }
-				: { state: "available", ms: record.elapsedMs },
+		wallTime: wallTime(record.elapsedMs, REPLAY_WALL_TIME_REASON),
 	};
 }
 

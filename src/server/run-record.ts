@@ -257,7 +257,7 @@ interface RunWideRecords {
 	readonly stopRecord: StageFile | undefined;
 }
 
-function wallTime(
+export function wallTime(
 	ms: number | undefined,
 	reason: string,
 ): Reading<{ readonly ms: number }> {
