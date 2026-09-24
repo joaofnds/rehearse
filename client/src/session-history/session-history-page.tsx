@@ -37,6 +37,11 @@ export type SessionHistoryIdentity =
 			readonly kind: "stage";
 			readonly run: string;
 			readonly stage: string;
+	  }
+	| {
+			readonly kind: "replay";
+			readonly lineage: string;
+			readonly timestamp: string;
 	  };
 
 interface IdentityEntry {
@@ -106,6 +111,10 @@ function summaryPath(identity: SessionHistoryIdentity): string {
 		return `/api/runs/${encodeURIComponent(identity.run)}/stages/${encodeURIComponent(identity.stage)}/history`;
 	}
 
+	if (identity.kind === "replay") {
+		return `/api/replays/${encodeURIComponent(identity.lineage)}/${encodeURIComponent(identity.timestamp)}/history`;
+	}
+
 	return `/api/groups/${encodeURIComponent(identity.groupId)}/reps/${encodeURIComponent(identity.repId)}/attempt/history`;
 }
 
@@ -122,6 +131,12 @@ async function fetchSummary(
 	} else if (identity.kind === "stage") {
 		response = await apiClient.api.runs[":run"].stages[":stage"].history.$get({
 			param: { run: identity.run, stage: identity.stage },
+		});
+	} else if (identity.kind === "replay") {
+		response = await apiClient.api.replays[":lineage"][
+			":timestamp"
+		].history.$get({
+			param: { lineage: identity.lineage, timestamp: identity.timestamp },
 		});
 	} else {
 		response = await apiClient.api.groups[":groupId"].reps[
@@ -151,7 +166,7 @@ type RequestSeriesResponse = InferResponseType<
 async function fetchRequestSeries(
 	identity: SessionHistoryIdentity,
 ): Promise<RequestSeriesResponse> {
-	if (identity.kind === "stage") {
+	if (identity.kind === "stage" || identity.kind === "replay") {
 		throw new Error("A saved stage records no request series");
 	}
 	const response =
@@ -209,6 +224,8 @@ async function fetchDetail(
 		].$get({
 			param: { run: identity.run, stage: identity.stage, eventId },
 		});
+	} else if (identity.kind === "replay") {
+		throw new Error("A replay serves no per-event evidence detail");
 	} else {
 		response = await apiClient.api.groups[":groupId"].reps[
 			":repId"
@@ -640,6 +657,39 @@ function DetailPane({
  * series failed to load, and only the second is something the operator can act
  * on.
  */
+function EvidenceDetail({
+	served,
+	loading,
+	failed,
+	detail,
+}: {
+	readonly served: boolean;
+	readonly loading: boolean;
+	readonly failed: boolean;
+	readonly detail: SessionHistoryDetail | undefined;
+}): React.JSX.Element | null {
+	if (!served) {
+		return (
+			<p className="px-3 py-2.5 text-sm text-dim">
+				A replay serves no per-event evidence detail.
+			</p>
+		);
+	}
+	if (loading) {
+		return <p className="px-3 py-2.5 text-sm text-dim">Loading evidence…</p>;
+	}
+	if (failed) {
+		return (
+			<p role="alert" className="px-3 py-2.5 text-sm text-dim">
+				<span aria-hidden="true">⚠ </span>
+				Could not load event evidence.
+			</p>
+		);
+	}
+
+	return detail === undefined ? null : <DetailPane detail={detail} />;
+}
+
 function timelineNote(failed: boolean, recorded: boolean): string {
 	if (!recorded) {
 		return "A saved stage records no request series.";
@@ -754,7 +804,13 @@ export function SessionHistoryPage({
 		queryKey: ["session-history", path],
 		queryFn: () => fetchSummary(identity),
 	});
-	const recordsRequestSeries = identity.kind !== "stage";
+	const recordsRequestSeries =
+		identity.kind === "standalone" || identity.kind === "confirmation";
+	/**
+	 * The server reads a replay's summary only: no route serves one event's
+	 * evidence from a replay, so the detail pane says so instead of asking.
+	 */
+	const servesEventDetail = identity.kind !== "replay";
 	const stageCorpus = useQuery({
 		queryKey: ["stage-corpus", path],
 		queryFn: () =>
@@ -786,7 +842,7 @@ export function SessionHistoryPage({
 	const detail = useQuery({
 		queryKey: ["session-history-detail", path, activeEventId],
 		queryFn: () => fetchDetail(identity, activeEventId ?? ""),
-		enabled: activeEventId !== undefined,
+		enabled: servesEventDetail && activeEventId !== undefined,
 	});
 	const diagnostics =
 		summary.data === undefined ? [] : diagnosticLocators(summary.data);
@@ -969,20 +1025,12 @@ export function SessionHistoryPage({
 								</div>
 								<aside aria-label="Event detail" className="min-w-98 flex-13">
 									<PaneHeading>Evidence detail</PaneHeading>
-									{detail.isLoading ? (
-										<p className="px-3 py-2.5 text-sm text-dim">
-											Loading evidence…
-										</p>
-									) : null}
-									{detail.isError ? (
-										<p role="alert" className="px-3 py-2.5 text-sm text-dim">
-											<span aria-hidden="true">⚠ </span>
-											Could not load event evidence.
-										</p>
-									) : null}
-									{detail.data === undefined ? null : (
-										<DetailPane detail={detail.data} />
-									)}
+									<EvidenceDetail
+										served={servesEventDetail}
+										loading={detail.isLoading}
+										failed={detail.isError}
+										detail={detail.data}
+									/>
 								</aside>
 							</div>
 						</div>

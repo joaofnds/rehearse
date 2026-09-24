@@ -171,6 +171,57 @@ describe(createAppRouter.name, () => {
 		});
 	});
 
+	it("renders a stage replay's saved history from the replay it names, asking for nothing it does not serve", async () => {
+		renderAppWithStub(
+			"/replays/60758c/2026-09-06T22-33-15.057Z",
+			new Map<string, unknown>([
+				[
+					"/api/replays/60758c/2026-09-06T22-33-15.057Z/history",
+					{
+						...emptyHistory("case-a", "unused"),
+						attempt: {
+							kind: "stage",
+							caseId: "case-a",
+							run: "2026-09-06T22-33-15.057Z",
+							stage: "shape",
+							lineage: "60758c",
+							upstream: "upstream-1",
+							model: "sonnet",
+							corpusFiles: [],
+						},
+						attemptEvents: [
+							{
+								id: "1:1",
+								locator: { line: 1, block: 1 },
+								region: "attempt",
+								kind: "call",
+								state: "invoked",
+								label: "Read CLAUDE.md",
+								timestamp: "2026-09-06T22:33:16.000Z",
+								toolUseId: "read-1",
+								toolName: "Read",
+								sourceId: "project:/work/CLAUDE.md",
+								measurement: {
+									state: "unavailable",
+									reasons: ["not delivered"],
+								},
+								relatedEventIds: [],
+							},
+						],
+					},
+				],
+			]),
+		);
+
+		await waitFor(() => {
+			expect(screen.getByText("60758c")).toBeInTheDocument();
+			expect(
+				screen.getByText("A replay serves no per-event evidence detail."),
+			).toBeInTheDocument();
+		});
+		expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+	});
+
 	it("opens the stage a stopped run stopped on from its run history row", async () => {
 		renderAppWithStub(
 			"/",

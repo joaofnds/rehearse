@@ -87,6 +87,19 @@ function StageHistoryRoute(): React.JSX.Element {
 	return <SessionHistoryPage identity={{ kind: "stage", ...params }} />;
 }
 
+const replayHistoryRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/replays/$lineage/$timestamp",
+	component: ReplayHistoryRoute,
+});
+
+function ReplayHistoryRoute(): React.JSX.Element {
+	const params: { readonly lineage: string; readonly timestamp: string } =
+		replayHistoryRoute.useParams();
+
+	return <SessionHistoryPage identity={{ kind: "replay", ...params }} />;
+}
+
 function ComparisonRoute(): React.JSX.Element {
 	const params: { readonly digest: string } = comparisonRoute.useParams();
 
@@ -96,6 +109,7 @@ function ComparisonRoute(): React.JSX.Element {
 const routeTree = rootRoute.addChildren([
 	runHistoryRoute,
 	stageHistoryRoute,
+	replayHistoryRoute,
 	systemRoute,
 	corpusRoute,
 	comparisonsRoute,
