@@ -7,7 +7,7 @@ import { stoppedStageRecordSchema } from "#benchmark/run-outcome";
 import { readReplayRecord } from "#benchmark/replay";
 import {
 	benchmarkRunPaths,
-	checkpointRecordFile,
+	checkpointRecorded,
 	confirmationGroupPaths,
 	replayRecordFile,
 } from "#benchmark/run-layout";
@@ -67,11 +67,7 @@ async function originalRecorded(
 	stage: string,
 ): Promise<boolean> {
 	const paths = benchmarkRunPaths(runsDirectory, run);
-	if (
-		await Bun.file(
-			checkpointRecordFile(paths.checkpointDirectory(stage)),
-		).exists()
-	) {
+	if (await checkpointRecorded(paths, stage)) {
 		return true;
 	}
 	const artifact = await readable(async () =>

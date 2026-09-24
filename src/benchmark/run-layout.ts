@@ -202,6 +202,16 @@ export function checkpointRecordFile(checkpointDirectory: string): string {
 	return join(checkpointDirectory, CHECKPOINT_FILE);
 }
 
+/** Whether a stage of a run saved its checkpoint record. */
+export function checkpointRecorded(
+	paths: Pick<BenchmarkRunPaths, "checkpointDirectory">,
+	stage: string,
+): Promise<boolean> {
+	return Bun.file(
+		checkpointRecordFile(paths.checkpointDirectory(stage)),
+	).exists();
+}
+
 export function comparisonReportPaths(
 	runsDirectory: string,
 	manifestDigest: string,
