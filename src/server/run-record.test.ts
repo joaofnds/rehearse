@@ -617,9 +617,9 @@ describe("/api/runs/:run", () => {
 				});
 			});
 
-			it("sums a finished run's cost with its Product Owner and final judge", async () => {
+			it("sums a finished run's cost over its stages, Product Owner and final judge", async () => {
 				const fixture = await emptyFixture();
-				await fixture.writePipelineRun(FINISHED_RUN, "audit-log");
+				await fixture.writeFinishedRunEvidence(FINISHED_RUN);
 
 				const response = await runRecord(fixture, FINISHED_RUN);
 
@@ -628,12 +628,32 @@ describe("/api/runs/:run", () => {
 						productOwnerCost: { state: "available", usd: 0.25 },
 						cost: {
 							state: "available",
-							usd: 0.25 + 1.5,
+							usd: 2 + 1 + 2 + 1 + 0.25 + 1.5,
 							parts: [
+								{ part: "discuss session", usd: 2 },
+								{ part: "discuss judge", usd: 1 },
+								{ part: "build session", usd: 2 },
+								{ part: "build judge", usd: 1 },
 								{ part: "Product Owner", usd: 0.25 },
 								{ part: "final judge", usd: 1.5 },
 							],
 							missing: [],
+						},
+					},
+				});
+			});
+
+			it("names the Product Owner and the final judge as the parts a finished run's token sum lacks", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeFinishedRunEvidence(FINISHED_RUN);
+
+				const response = await runRecord(fixture, FINISHED_RUN);
+
+				expect(await response.json()).toMatchObject({
+					totals: {
+						tokens: {
+							state: "available",
+							missing: [{ part: "Product Owner" }, { part: "final judge" }],
 						},
 					},
 				});

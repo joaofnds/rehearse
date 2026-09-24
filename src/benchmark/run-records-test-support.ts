@@ -117,6 +117,42 @@ export const STOPPED_RUN_EVIDENCE = {
 	untouchedCard: ".boris/backlog/tasks/task-2 - Rotate-the-audit-log.md",
 } as const;
 
+/**
+ * A stage's scorecard as the harness writes it once the stage's judge
+ * graded it A, its session spending $2 and its judge $1, with the discuss
+ * call metrics of `STOPPED_RUN_EVIDENCE`.
+ */
+function scorecard(stage: string): string {
+	return `${JSON.stringify(
+		{
+			stage,
+			costUsd: 1,
+			grade: { grade: "A", verdict: "CONTINUE", dimensions: [] },
+			attempts: [
+				{
+					payload: {},
+					costUsd: 1,
+					outcome: "ACCEPTED",
+					metrics: STOPPED_RUN_EVIDENCE.discussJudgeMetrics,
+				},
+			],
+			input: {
+				transcript: {
+					stage,
+					sessionId: `${stage}-session`,
+					costUsd: 2,
+					providerCalls: STOPPED_RUN_EVIDENCE.discussSessionMetrics.map(
+						(metrics) => ({ metrics }),
+					),
+					exchanges: [],
+				},
+			},
+		},
+		null,
+		2,
+	)}\n`;
+}
+
 export const STOPPED_RUN_ERROR = "build stage graded F; minimum grade is B";
 
 export const FINAL_JUDGE_FAILURE = "the final judge returned no valid grade";
@@ -584,6 +620,18 @@ export class RecordedRunsFixture {
 		);
 	}
 
+	/**
+	 * A finished run with the stage scorecards the harness writes beside its
+	 * main artifact, each as `scorecard` describes.
+	 */
+	public async writeFinishedRunEvidence(run: string): Promise<void> {
+		await this.writePipelineRun(run, CASE_ID);
+		const paths = benchmarkRunPaths(this.runsDirectory, run);
+		for (const stage of this.stages) {
+			await Bun.write(paths.stageFile(stage), scorecard(stage));
+		}
+	}
+
 	/** A finished run the final judge graded FAIL. */
 	public async writeFailedVerdictRun(run: string): Promise<void> {
 		await this.writePipelineRun(run, CASE_ID);
@@ -843,37 +891,7 @@ export class RecordedRunsFixture {
 	): Promise<void> {
 		await this.writeStoppedRun();
 		const paths = benchmarkRunPaths(this.runsDirectory, this.stoppedRun);
-		await Bun.write(
-			paths.stageFile("discuss"),
-			`${JSON.stringify(
-				{
-					stage: "discuss",
-					costUsd: 1,
-					grade: { grade: "A", verdict: "CONTINUE", dimensions: [] },
-					attempts: [
-						{
-							payload: {},
-							costUsd: 1,
-							outcome: "ACCEPTED",
-							metrics: STOPPED_RUN_EVIDENCE.discussJudgeMetrics,
-						},
-					],
-					input: {
-						transcript: {
-							stage: "discuss",
-							sessionId: "discuss-session",
-							costUsd: 2,
-							providerCalls: STOPPED_RUN_EVIDENCE.discussSessionMetrics.map(
-								(metrics) => ({ metrics }),
-							),
-							exchanges: [],
-						},
-					},
-				},
-				null,
-				2,
-			)}\n`,
-		);
+		await Bun.write(paths.stageFile("discuss"), scorecard("discuss"));
 		await Bun.write(
 			paths.stageFile("build"),
 			`${JSON.stringify(
