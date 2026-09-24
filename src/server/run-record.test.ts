@@ -8,6 +8,7 @@ import {
 	FINAL_JUDGE_FAILURE,
 	nothingRunning,
 	RecordedRunsFixture,
+	STOPPED_RUN_EVIDENCE,
 } from "#benchmark/run-records-test-support";
 import { createApiApp } from "./api";
 import {
@@ -111,6 +112,106 @@ describe("/api/runs/:run", () => {
 						judgeCost: { state: "available", usd: 0.5 },
 					},
 				],
+			});
+		});
+
+		describe("tokens", () => {
+			const {
+				discussSessionMetrics,
+				discussJudgeMetrics,
+				buildSessionMetrics,
+			} = STOPPED_RUN_EVIDENCE;
+			const discussCalls = [...discussSessionMetrics, discussJudgeMetrics];
+
+			function sum(
+				calls: readonly (typeof buildSessionMetrics)[],
+				field: keyof typeof buildSessionMetrics,
+			): number {
+				return calls.reduce((total, call) => total + Number(call[field]), 0);
+			}
+
+			it("sums a stage's session and judge calls in four categories and as total input", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeStoppedRunEvidence();
+
+				const response = await runRecord(fixture, fixture.stoppedRun);
+
+				expect(await response.json()).toMatchObject({
+					stages: [
+						{
+							stage: "discuss",
+							tokens: {
+								state: "available",
+								input: sum(discussCalls, "inputTokens"),
+								cacheRead: sum(discussCalls, "cacheReadTokens"),
+								cacheWrite: sum(discussCalls, "cacheWriteTokens"),
+								output: sum(discussCalls, "outputTokens"),
+								totalInput:
+									sum(discussCalls, "inputTokens") +
+									sum(discussCalls, "cacheReadTokens") +
+									sum(discussCalls, "cacheWriteTokens"),
+								missing: [],
+							},
+						},
+						{ stage: "build" },
+					],
+				});
+			});
+
+			it("names the judge as the part a stop record's sum lacks", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeStoppedRunEvidence();
+
+				const response = await runRecord(fixture, fixture.stoppedRun);
+
+				expect(await response.json()).toMatchObject({
+					stages: [
+						{ stage: "discuss" },
+						{
+							stage: "build",
+							tokens: {
+								state: "available",
+								input: buildSessionMetrics.inputTokens,
+								output: buildSessionMetrics.outputTokens,
+								missing: [{ part: "build judge" }],
+							},
+						},
+					],
+				});
+			});
+
+			it("names the Product Owner and the stop record's judge as the parts the run's sum lacks", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeStoppedRunEvidence();
+
+				const response = await runRecord(fixture, fixture.stoppedRun);
+
+				expect(await response.json()).toMatchObject({
+					totals: {
+						tokens: {
+							state: "available",
+							output: sum(
+								[...discussCalls, buildSessionMetrics],
+								"outputTokens",
+							),
+							missing: [{ part: "build judge" }, { part: "Product Owner" }],
+						},
+					},
+				});
+			});
+
+			it("reports tokens as unavailable for a stage whose record holds no call metrics", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeAwaitingJudgeRun();
+
+				const response = await runRecord(fixture, fixture.awaitingJudgeRun);
+
+				expect(await response.json()).toMatchObject({
+					stages: [
+						{ stage: "discuss" },
+						{ stage: "build", tokens: { state: "unavailable" } },
+					],
+				});
 			});
 		});
 

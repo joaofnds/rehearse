@@ -1,5 +1,6 @@
 import { z } from "zod";
-import type { Immutable } from "#benchmark/contracts";
+import { claudeCallMetricsSchema } from "#benchmark/contracts";
+import type { ClaudeCallMetrics, Immutable } from "#benchmark/contracts";
 import { loadRunManifest } from "#benchmark/manifest";
 import {
 	benchmarkRunPaths,
@@ -19,15 +20,41 @@ export const AWAITING_JUDGMENT_REASON =
 	"the run ended while this stage awaited judgment";
 export const UNEXPLAINED_END_REASON =
 	"the run ended without recording how it ended";
+export const PRODUCT_OWNER_TOKENS_REASON =
+	"the run records the Product Owner's cost but not its call metrics";
 
 export type Reading<Value> =
 	| ({ readonly state: "available" } & Value)
 	| { readonly state: "unavailable"; readonly reasons: readonly string[] };
 
+/** A part of a sum the records do not hold, and why. */
+export interface MissingPart {
+	readonly part: string;
+	readonly reason: string;
+}
+
+export interface TokenCounts {
+	readonly input: number;
+	readonly cacheRead: number;
+	readonly cacheWrite: number;
+	readonly output: number;
+	/** Input, cache read and cache write together: all the model read. */
+	readonly totalInput: number;
+}
+
+/**
+ * A sum over the parts the records hold, naming each part they lack, so a
+ * partial figure is never read as the whole.
+ */
+export type TokenReading = Reading<
+	TokenCounts & { readonly missing: readonly MissingPart[] }
+>;
+
 export interface RunRecordStage {
 	readonly stage: string;
 	readonly sessionCost: Reading<{ readonly usd: number }>;
 	readonly judgeCost: Reading<{ readonly usd: number }>;
+	readonly tokens: TokenReading;
 }
 
 /**
@@ -47,17 +74,32 @@ export type FinalOutcome =
 export interface RunRecord {
 	readonly run: string;
 	readonly stages: readonly RunRecordStage[];
+	readonly totals: { readonly tokens: TokenReading };
 	readonly finalOutcome: FinalOutcome;
 }
+
+/** Stands for a call count a record keeps in place of the calls. */
+const COUNTED_CALLS = "counted" as const;
+
+const callsSchema = z.array(
+	z.object({ metrics: claudeCallMetricsSchema.optional() }).loose(),
+);
 
 const stageFileSchema = z
 	.object({
 		status: z.string().optional(),
 		costUsd: z.number().optional(),
+		attempts: callsSchema.optional(),
 		input: z
 			.object({
 				transcript: z
-					.object({ costUsd: z.number().optional() })
+					.object({
+						costUsd: z.number().optional(),
+						/** A count, not a list, in the oldest awaiting-judgment records. */
+						providerCalls: z
+							.union([callsSchema, z.number().transform(() => COUNTED_CALLS)])
+							.optional(),
+					})
 					.loose()
 					.optional(),
 			})
@@ -75,6 +117,10 @@ interface RecordedStage {
 
 const gradedArtifactSchema = z
 	.object({ grade: z.object({ verdict: z.enum(["PASS", "FAIL"]) }).loose() })
+	.loose();
+
+const artifactCallsSchema = z
+	.object({ judgeAttempts: callsSchema.optional() })
 	.loose();
 
 /**
@@ -108,15 +154,151 @@ async function readStageFile(
 	return stageFileSchema.parse(JSON.parse(await file.text()));
 }
 
-function stageRecord({ stage, file }: RecordedStage): RunRecordStage {
+type Calls = Immutable<z.infer<typeof callsSchema>>;
+
+/** A part of a sum: the calls the records hold for it, or why they hold none. */
+type TokenPart = { readonly calls: Calls } | { readonly missing: MissingPart };
+
+function callsPart(
+	part: string,
+	calls: Calls | typeof COUNTED_CALLS | undefined,
+	absent: string,
+): TokenPart {
+	if (calls === undefined) {
+		return { missing: { part, reason: absent } };
+	}
+	if (calls === COUNTED_CALLS) {
+		return {
+			missing: {
+				part,
+				reason: "the record counts its calls but keeps no call metrics",
+			},
+		};
+	}
+	if (calls.some(({ metrics }) => metrics === undefined)) {
+		return {
+			missing: { part, reason: "a call in the record has no metrics" },
+		};
+	}
+
+	return { calls };
+}
+
+function stageTokenParts({ stage, file }: RecordedStage): readonly TokenPart[] {
+	if (file === undefined) {
+		return [];
+	}
+
+	const session = callsPart(
+		`${stage} session`,
+		file.input?.transcript?.providerCalls,
+		"the stage record holds no session calls",
+	);
+	if (file.status === "AWAITING_STAGE_JUDGE") {
+		return [session];
+	}
+
+	return [
+		session,
+		callsPart(
+			`${stage} judge`,
+			file.attempts,
+			"the stage record holds no judge attempts",
+		),
+	];
+}
+
+function tokenReading(parts: readonly TokenPart[]): TokenReading {
+	const metrics: ClaudeCallMetrics[] = [];
+	const missing: MissingPart[] = [];
+	for (const part of parts) {
+		if ("missing" in part) {
+			missing.push(part.missing);
+		} else {
+			for (const call of part.calls) {
+				if (call.metrics !== undefined) {
+					metrics.push(call.metrics);
+				}
+			}
+		}
+	}
+	if (!parts.some((part) => "calls" in part)) {
+		return {
+			state: "unavailable",
+			reasons:
+				missing.length === 0
+					? ["the records hold no calls for this sum"]
+					: missing.map(({ part, reason }) => `${part}: ${reason}`),
+		};
+	}
+
+	const input = total(metrics, "inputTokens");
+	const cacheRead = total(metrics, "cacheReadTokens");
+	const cacheWrite = total(metrics, "cacheWriteTokens");
+
 	return {
-		stage,
+		state: "available",
+		input,
+		cacheRead,
+		cacheWrite,
+		output: total(metrics, "outputTokens"),
+		totalInput: input + cacheRead + cacheWrite,
+		missing,
+	};
+}
+
+function total(
+	metrics: readonly ClaudeCallMetrics[],
+	field:
+		| "inputTokens"
+		| "outputTokens"
+		| "cacheReadTokens"
+		| "cacheWriteTokens",
+): number {
+	return metrics.reduce((sum, call) => sum + call[field], 0);
+}
+
+function stageRecord(recorded: RecordedStage): RunRecordStage {
+	const { file } = recorded;
+
+	return {
+		stage: recorded.stage,
 		sessionCost: usd(
 			file?.input?.transcript?.costUsd,
 			"the stage record holds no session cost",
 		),
 		judgeCost: usd(file?.costUsd, "the stage record holds no judge cost"),
+		tokens: tokenReading(stageTokenParts(recorded)),
 	};
+}
+
+/**
+ * The run's parts beyond its stages: the Product Owner, whose calls no record
+ * keeps metrics for, and the final judge once the main artifact holds it.
+ */
+async function runTokenParts(
+	paths: BenchmarkRunPaths,
+): Promise<readonly TokenPart[]> {
+	const productOwner: TokenPart = {
+		missing: { part: "Product Owner", reason: PRODUCT_OWNER_TOKENS_REASON },
+	};
+	const artifactFile = Bun.file(paths.artifactFile);
+	if (!(await artifactFile.exists())) {
+		return [productOwner];
+	}
+
+	const artifact = artifactCallsSchema.parse(
+		JSON.parse(await artifactFile.text()),
+	);
+
+	return [
+		productOwner,
+		callsPart(
+			"final judge",
+			artifact.judgeAttempts,
+			"the main artifact holds no judge attempts",
+		),
+	];
 }
 
 function stageWithStatus(
@@ -223,6 +405,12 @@ export async function readRunRecord(
 		return {
 			run,
 			stages: stages.map((stage) => stageRecord(stage)),
+			totals: {
+				tokens: tokenReading([
+					...stages.flatMap((stage) => stageTokenParts(stage)),
+					...(await runTokenParts(paths)),
+				]),
+			},
 			finalOutcome: await finalOutcome(
 				runsDirectory,
 				run,
