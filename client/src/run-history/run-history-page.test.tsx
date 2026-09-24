@@ -11,6 +11,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { InferResponseType } from "hono/client";
 import type { apiClient } from "#client/api-client";
 import { stubFetch } from "#client/test-support/fetch-stub";
+import { UNREAD_RUN_FIGURES } from "#client/test-support/run-figures";
 import { RunHistoryPage } from "./run-history-page";
 
 type RunHistoryResponseBody = InferResponseType<typeof apiClient.api.runs.$get>;
@@ -48,6 +49,7 @@ function oneStoppedOneComplete(): RunHistoryResponseBody {
 		rows: [
 			{
 				kind: "run",
+				...UNREAD_RUN_FIGURES,
 				shortId: undefined,
 				checkpoints: [],
 				links: [],
@@ -63,6 +65,7 @@ function oneStoppedOneComplete(): RunHistoryResponseBody {
 			},
 			{
 				kind: "run",
+				...UNREAD_RUN_FIGURES,
 				shortId: undefined,
 				checkpoints: [],
 				links: [],
@@ -119,6 +122,7 @@ describe(RunHistoryPage.name, () => {
 			rows: [
 				{
 					kind: "run",
+					...UNREAD_RUN_FIGURES,
 					shortId: undefined,
 					checkpoints: [],
 					links: [],
@@ -154,6 +158,7 @@ describe(RunHistoryPage.name, () => {
 			rows: [
 				{
 					kind: "run",
+					...UNREAD_RUN_FIGURES,
 					shortId: undefined,
 					checkpoints: [],
 					links: [],
@@ -219,6 +224,7 @@ describe(RunHistoryPage.name, () => {
 			rows: [
 				{
 					kind: "run",
+					...UNREAD_RUN_FIGURES,
 					shortId: undefined,
 					checkpoints: [],
 					links: [],
@@ -249,6 +255,7 @@ describe(RunHistoryPage.name, () => {
 			rows: [
 				{
 					kind: "run",
+					...UNREAD_RUN_FIGURES,
 					shortId: undefined,
 					checkpoints: [],
 					links: [],
@@ -329,6 +336,7 @@ describe(RunHistoryPage.name, () => {
 			rows: [
 				{
 					kind: "run",
+					...UNREAD_RUN_FIGURES,
 					shortId: undefined,
 					checkpoints: [],
 					links: [],
@@ -358,6 +366,7 @@ describe(RunHistoryPage.name, () => {
 			rows: [
 				{
 					kind: "run",
+					...UNREAD_RUN_FIGURES,
 					shortId: undefined,
 					checkpoints: [],
 					links: [],
@@ -412,6 +421,7 @@ describe(RunHistoryPage.name, () => {
 				rows: [
 					{
 						kind: "run",
+						...UNREAD_RUN_FIGURES,
 						shortId: undefined,
 						checkpoints: [],
 						links: [],
@@ -427,6 +437,7 @@ describe(RunHistoryPage.name, () => {
 					},
 					{
 						kind: "run",
+						...UNREAD_RUN_FIGURES,
 						shortId: undefined,
 						checkpoints: [],
 						links: [],
@@ -471,6 +482,7 @@ describe(RunHistoryPage.name, () => {
 	describe("when a run is in flight", () => {
 		const runningRow: RunHistoryResponseBody["rows"][number] = {
 			kind: "run",
+			...UNREAD_RUN_FIGURES,
 			shortId: undefined,
 			checkpoints: [],
 			links: [],
@@ -671,6 +683,7 @@ describe(RunHistoryPage.name, () => {
 				rows: [
 					{
 						kind: "run",
+						...UNREAD_RUN_FIGURES,
 						shortId: undefined,
 						checkpoints: [],
 						links: [],
@@ -705,6 +718,7 @@ describe(RunHistoryPage.name, () => {
 			rows: [
 				{
 					kind: "run",
+					...UNREAD_RUN_FIGURES,
 					shortId: undefined,
 					checkpoints: [],
 					links: [],
@@ -741,6 +755,7 @@ describe(RunHistoryPage.name, () => {
 			rows: [
 				{
 					kind: "run",
+					...UNREAD_RUN_FIGURES,
 					shortId: undefined,
 					checkpoints: [],
 					links: [],
@@ -758,11 +773,13 @@ describe(RunHistoryPage.name, () => {
 			unreadable: [
 				{
 					kind: "run",
+					...UNREAD_RUN_FIGURES,
 					id: "run:2026-09-01T00-00-00.000Z",
 					reason: "manifest.json is empty",
 				},
 				{
 					kind: "run",
+					...UNREAD_RUN_FIGURES,
 					id: "run:2026-09-02T00-00-00.000Z",
 					reason: "artifact.json is empty",
 				},
@@ -897,6 +914,7 @@ describe(RunHistoryPage.name, () => {
 			rows: [
 				{
 					kind: "run",
+					...UNREAD_RUN_FIGURES,
 					shortId: undefined,
 					checkpoints: [],
 					run: "2026-09-06T21-58-29.508Z",
@@ -918,6 +936,7 @@ describe(RunHistoryPage.name, () => {
 				},
 				{
 					kind: "run",
+					...UNREAD_RUN_FIGURES,
 					shortId: undefined,
 					checkpoints: [],
 					run: "2026-09-17T12-50-49.127Z",
@@ -1123,6 +1142,7 @@ describe(RunHistoryPage.name, () => {
 			rows: [
 				{
 					kind: "run",
+					...UNREAD_RUN_FIGURES,
 					shortId: "audit-log/r7",
 					checkpoints: [{ stage: "initial", shortId: "audit-log/r7/s0" }],
 					links: [],
@@ -1202,6 +1222,7 @@ describe(RunHistoryPage.name, () => {
 			rows: [
 				{
 					kind: "run",
+					...UNREAD_RUN_FIGURES,
 					shortId: undefined,
 					checkpoints: [],
 					links: [],

@@ -46,6 +46,8 @@ import { checkpointAttempts, repAttemptId } from "./checkpoint-attempts";
 import type { AttemptPosition } from "./checkpoint-attempts";
 import { corpusDigest } from "./corpus-digest";
 import { redactAbsolutePaths } from "./redact-path";
+import { readRunRecord } from "./run-record";
+import type { Reading, RunRecordStage } from "./run-record";
 import {
 	checkpointlessStageRecorded,
 	latestCheckpointStage,
@@ -77,6 +79,14 @@ export interface PipelineRunRow {
 	readonly staleCauses: readonly string[];
 	readonly progress: RunProgress;
 	readonly links: readonly ContextLink[];
+	readonly stepGrades: Reading<{ readonly grades: readonly StepGrade[] }>;
+}
+
+/** A stage's grade as the run's step grades column shows it. */
+export interface StepGrade {
+	readonly stage: string;
+	readonly status: RunRecordStage["status"];
+	readonly grade: RunRecordStage["grade"];
 }
 
 export interface SessionAttemptRow {
@@ -212,6 +222,41 @@ async function checkpointShortIds(
 		}));
 }
 
+interface RunFigures {
+	readonly stepGrades: PipelineRunRow["stepGrades"];
+}
+
+/**
+ * The figures a run's row shares with its run record, read through the same
+ * projection. A record that cannot be read leaves the row listed, with each
+ * figure unavailable for that reason.
+ */
+async function runFigures(
+	runsDirectory: string,
+	run: string,
+	liveness: RunLiveness,
+): Promise<RunFigures> {
+	try {
+		const record = await readRunRecord(runsDirectory, run, liveness);
+
+		return {
+			stepGrades: {
+				state: "available",
+				grades: record.stages.map(({ stage, status, grade }) => ({
+					stage,
+					status,
+					grade,
+				})),
+			},
+		};
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		const reasons = [redactAbsolutePaths(message)];
+
+		return { stepGrades: { state: "unavailable", reasons } };
+	}
+}
+
 async function rowFor(
 	runsDirectory: string,
 	run: string,
@@ -239,6 +284,7 @@ async function rowFor(
 		),
 	];
 	const checkpoints = await checkpointShortIds(runsDirectory, run, shortId);
+	const figures = await runFigures(runsDirectory, run, liveness);
 	const stage = await latestCheckpointStage(runsDirectory, run);
 	if (stage === undefined) {
 		const causes = staleByCheckpointId.get(`checkpoint:${run}/initial`) ?? [];
@@ -257,6 +303,7 @@ async function rowFor(
 			staleCauses: causes,
 			progress,
 			links,
+			...figures,
 		};
 	}
 
@@ -280,6 +327,7 @@ async function rowFor(
 		staleCauses: causes,
 		progress,
 		links,
+		...figures,
 	};
 }
 

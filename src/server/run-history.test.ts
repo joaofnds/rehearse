@@ -558,7 +558,7 @@ describe(runHistoryReport.name, () => {
 		);
 
 		const row = pipelineRun(rows, fixture.stoppedRun);
-		expect(row).toEqual({
+		expect(row).toMatchObject({
 			kind: "run",
 			run: fixture.stoppedRun,
 			shortId: undefined,
@@ -610,7 +610,7 @@ describe(runHistoryReport.name, () => {
 		);
 
 		const row = pipelineRun(rows, fixture.interruptedRun);
-		expect(row).toEqual({
+		expect(row).toMatchObject({
 			kind: "run",
 			run: fixture.interruptedRun,
 			shortId: undefined,

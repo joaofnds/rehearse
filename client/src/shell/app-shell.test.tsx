@@ -4,6 +4,7 @@ import type { ComparisonIndexResponse } from "#client/comparison/comparison-inde
 import type { CorpusResponse } from "#client/corpus/corpus-query";
 import type { RunHistoryResponse } from "#client/run-history/run-history-query";
 import { stubFetchByPath } from "#client/test-support/fetch-stub";
+import { UNREAD_RUN_FIGURES } from "#client/test-support/run-figures";
 import { createAppRouter } from "#client/router";
 import { renderAppAt, stubFetchFailing } from "#client/test-support/render-app";
 import { NAV_ITEMS } from "./nav-items";
@@ -38,6 +39,7 @@ type SavedComparison = ComparisonIndexResponse["comparisons"][number];
 function runRow(run: string): RunHistoryRow {
 	return {
 		kind: "run",
+		...UNREAD_RUN_FIGURES,
 		shortId: undefined,
 		checkpoints: [],
 		links: [],
