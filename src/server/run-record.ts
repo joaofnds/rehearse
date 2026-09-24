@@ -264,28 +264,37 @@ function callsPart(
 	return { calls };
 }
 
-function stageTokenParts({ stage, file }: RecordedStage): readonly TokenPart[] {
-	if (file === undefined) {
+type Spender = "session" | "judge";
+
+/**
+ * Who spent on a stage: its session, then its judge once the judge ran. A
+ * stage that wrote no record contributes nothing a sum could lack.
+ */
+function spenders(status: StageStatus): readonly Spender[] {
+	if (status === "no-record") {
 		return [];
 	}
-
-	const session = callsPart(
-		`${stage} session`,
-		file.input?.transcript?.providerCalls,
-		"the stage record holds no session calls",
-	);
-	if (file.status === "AWAITING_STAGE_JUDGE") {
-		return [session];
+	if (status === "awaiting-judgment") {
+		return ["session"];
 	}
 
-	return [
-		session,
-		callsPart(
-			`${stage} judge`,
-			file.attempts,
-			"the stage record holds no judge attempts",
-		),
-	];
+	return ["session", "judge"];
+}
+
+function stageTokenParts({ stage, file }: RecordedStage): readonly TokenPart[] {
+	return spenders(stageStatus(file)).map((spender) =>
+		spender === "session"
+			? callsPart(
+					`${stage} session`,
+					file?.input?.transcript?.providerCalls,
+					"the stage record holds no session calls",
+				)
+			: callsPart(
+					`${stage} judge`,
+					file?.attempts,
+					"the stage record holds no judge attempts",
+				),
+	);
 }
 
 function tokenReading(parts: readonly TokenPart[]): TokenReading {
@@ -474,16 +483,11 @@ function costPart(
 function stageCostParts(
 	stage: RunRecordStage,
 ): readonly (CostPart | MissingPart)[] {
-	if (stage.status === "no-record") {
-		return [];
-	}
-
-	const session = costPart(`${stage.stage} session`, stage.sessionCost);
-	if (stage.status === "awaiting-judgment") {
-		return [session];
-	}
-
-	return [session, costPart(`${stage.stage} judge`, stage.judgeCost)];
+	return spenders(stage.status).map((spender) =>
+		spender === "session"
+			? costPart(`${stage.stage} session`, stage.sessionCost)
+			: costPart(`${stage.stage} judge`, stage.judgeCost),
+	);
 }
 
 function runTotals(
