@@ -611,6 +611,32 @@ function stageCostParts(
 	);
 }
 
+/**
+ * The spend summed over the parts recorded, naming each part lacked, and
+ * unavailable when no part was recorded rather than a sum of zero.
+ */
+export function costReading(
+	summed: readonly (CostPart | MissingPart)[],
+): CostReading {
+	const parts = summed.filter((part): part is CostPart => "usd" in part);
+	const missing = summed.filter(
+		(part): part is MissingPart => "reason" in part,
+	);
+	if (parts.length === 0) {
+		return {
+			state: "unavailable",
+			reasons: missing.map(({ part, reason }) => `${part}: ${reason}`),
+		};
+	}
+
+	return {
+		state: "available",
+		usd: parts.reduce((sum, part) => sum + part.usd, 0),
+		parts,
+		missing,
+	};
+}
+
 function runTotals(
 	stages: readonly RunRecordStage[],
 	reachedStage: string | undefined,
@@ -642,25 +668,10 @@ function runTotals(
 		),
 		...runParts,
 	];
-	const parts = summed.filter((part): part is CostPart => "usd" in part);
-	const missing = summed.filter(
-		(part): part is MissingPart => "reason" in part,
-	);
 
 	return {
 		tokens: tokenReading(tokenParts),
-		cost:
-			parts.length === 0
-				? {
-						state: "unavailable",
-						reasons: missing.map(({ part, reason }) => `${part}: ${reason}`),
-					}
-				: {
-						state: "available",
-						usd: parts.reduce((sum, part) => sum + part.usd, 0),
-						parts,
-						missing,
-					},
+		cost: costReading(summed),
 		productOwnerCost,
 		wallTime: wallTime(
 			artifact === undefined ? stopRecord?.runElapsedMs : artifact.elapsedMs,
