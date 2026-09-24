@@ -19,6 +19,7 @@ import { UsageError } from "#cli/commands";
 import { LIST_KINDS, runList } from "#cli/list-command";
 import { parseRecordId } from "#cli/record-id";
 import { runShow } from "#cli/show-command";
+import { claimShortId } from "#benchmark/short-id";
 
 const RECORDLESS_UUID = "0f6b6f2a-0000-4000-8000-0000000000ff";
 
@@ -251,8 +252,8 @@ describe(runList.name, () => {
 		);
 
 		expect(lines(recorder.stdout)).toEqual([
-			`run:${fixture.unreplayableRun}\taudit-log\tFAILED\tnot replayable`,
-			`run:${fixture.replayableRun}\taudit-log\tCOMPLETE\treplayable`,
+			`run:${fixture.unreplayableRun}\t-\taudit-log\tFAILED\tnot replayable`,
+			`run:${fixture.replayableRun}\t-\taudit-log\tCOMPLETE\treplayable`,
 		]);
 	});
 
@@ -267,7 +268,7 @@ describe(runList.name, () => {
 		);
 
 		expect(lines(recorder.stdout)).toContain(
-			`run:${fixture.stoppedRun}\taudit-log\tSTOPPED:build\treplayable`,
+			`run:${fixture.stoppedRun}\t-\taudit-log\tSTOPPED:build\treplayable`,
 		);
 	});
 
@@ -311,7 +312,7 @@ describe(runList.name, () => {
 		);
 
 		expect(lines(recorder.stdout)).toContain(
-			`run:${fixture.noRecordRun}\tno record`,
+			`run:${fixture.noRecordRun}\t-\tno record`,
 		);
 	});
 
@@ -325,9 +326,69 @@ describe(runList.name, () => {
 		);
 
 		expect(lines(recorder.stdout)).toEqual([
-			`checkpoint:${fixture.replayableRun}/build\tbuild\tlineage-build`,
-			`checkpoint:${fixture.replayableRun}/discuss\tdiscuss\tlineage-discuss`,
+			`checkpoint:${fixture.replayableRun}/build\t-\tbuild\tlineage-build`,
+			`checkpoint:${fixture.replayableRun}/discuss\t-\tdiscuss\tlineage-discuss`,
 		]);
+	});
+
+	describe("when the records' cases are numbered", () => {
+		async function numberedFixture(): Promise<RecordedRunsFixture> {
+			const fixture = await writtenFixture();
+			await claimShortId(fixture.runsDirectory, "audit-log", {
+				kind: "run",
+				run: "2026-09-24T00-00-00.000Z",
+			});
+			await claimShortId(fixture.runsDirectory, "smoke", {
+				kind: "run",
+				run: "2026-09-24T00-00-01.000Z",
+			});
+
+			return fixture;
+		}
+
+		async function listed(
+			kind: string,
+			runsDirectory: string,
+		): Promise<readonly string[]> {
+			const recorder = recordOutput();
+			await runList({ kind, runsDirectory }, recorder.output);
+
+			return lines(recorder.stdout).map((line) =>
+				line.split("\t").slice(0, 2).join("\t"),
+			);
+		}
+
+		it("prints each record's short id beside its Record ID", async () => {
+			const fixture = await numberedFixture();
+			const { runsDirectory, replayableRun, unreplayableRun } = fixture;
+			const { lineage, timestamp } = fixture.stageAttempt;
+			const { caseId, uuid } = fixture.sessionAttempt;
+
+			expect(await listed("runs", runsDirectory)).toEqual([
+				`run:${unreplayableRun}\taudit-log/r1`,
+				`run:${replayableRun}\taudit-log/r2`,
+			]);
+			expect(await listed("checkpoints", runsDirectory)).toEqual([
+				`checkpoint:${replayableRun}/build\taudit-log/r2/s2`,
+				`checkpoint:${replayableRun}/discuss\taudit-log/r2/s1`,
+			]);
+			expect(await listed("attempts", runsDirectory)).toEqual([
+				`attempt:session:${caseId}/${uuid}\tsmoke/r1`,
+				`attempt:stage:${lineage}/${timestamp}\taudit-log/r3`,
+			]);
+			expect(await listed("groups", runsDirectory)).toEqual([
+				`group:${fixture.groupId}\taudit-log/g4`,
+			]);
+		});
+
+		it("labels the checkpoint taken after task setup s0", async () => {
+			const fixture = await numberedFixture();
+			await fixture.writeInitialCheckpoint();
+
+			expect(await listed("checkpoints", fixture.runsDirectory)).toContain(
+				`checkpoint:${fixture.replayableRun}/initial\taudit-log/r2/s0`,
+			);
+		});
 	});
 
 	describe("when a checkpoint stage directory holds no record", () => {
@@ -376,7 +437,7 @@ describe(runList.name, () => {
 		);
 
 		expect(lines(recorder.stdout)).toEqual([
-			`group:${fixture.groupId}\taudit-log\tstage\t2 reps`,
+			`group:${fixture.groupId}\t-\taudit-log\tstage\t2 reps`,
 		]);
 	});
 
@@ -462,8 +523,8 @@ describe(runList.name, () => {
 		);
 
 		expect(lines(recorder.stdout)).toEqual([
-			`attempt:session:${fixture.sessionAttempt.caseId}/${fixture.sessionAttempt.uuid}\tsmoke\tSUCCESSFUL\tsonnet`,
-			`attempt:stage:${fixture.stageAttempt.lineage}/${fixture.stageAttempt.timestamp}\tbuild\tA CONTINUE\tsonnet`,
+			`attempt:session:${fixture.sessionAttempt.caseId}/${fixture.sessionAttempt.uuid}\t-\tsmoke\tSUCCESSFUL\tsonnet`,
+			`attempt:stage:${fixture.stageAttempt.lineage}/${fixture.stageAttempt.timestamp}\t-\tbuild\tA CONTINUE\tsonnet`,
 		]);
 	});
 
@@ -477,7 +538,7 @@ describe(runList.name, () => {
 		);
 
 		expect(lines(recorder.stdout)).toContain(
-			`attempt:session:${fixture.sessionAttempt.caseId}/${fixture.sessionAttempt.uuid}\tsmoke\tSUCCESSFUL\tsonnet`,
+			`attempt:session:${fixture.sessionAttempt.caseId}/${fixture.sessionAttempt.uuid}\t-\tsmoke\tSUCCESSFUL\tsonnet`,
 		);
 		expect(recorder.stderr).toEqual([]);
 	});

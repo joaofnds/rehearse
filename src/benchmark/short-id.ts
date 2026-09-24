@@ -267,6 +267,25 @@ export async function readShortIds(
 }
 
 /**
+ * Every short id claimed in any case, for a listing that prints them beside
+ * Record IDs. It reads registries and builds none, so listing stays read-only
+ * and a case no command has claimed in since the change prints no short ids.
+ */
+export async function readAllShortIds(
+	runsDirectory: string,
+): Promise<readonly ShortIdEntry[]> {
+	const cases = await readdir(join(runsDirectory, REGISTRY_DIRECTORY)).catch(
+		(): string[] => [],
+	);
+	const entries: ShortIdEntry[] = [];
+	for (const caseId of cases.filter((name) => !name.startsWith("."))) {
+		entries.push(...(await readShortIds(runsDirectory, caseId)));
+	}
+
+	return entries;
+}
+
+/**
  * The record a short id names, or undefined when its number names nothing or
  * was claimed for the other letter: `g4` never names the run claimed as `r4`.
  */
@@ -299,6 +318,13 @@ export function checkpointStageNumber(
 	const index = stages.indexOf(stage);
 
 	return index === -1 ? undefined : index + 1;
+}
+
+export function formatCheckpointShortId(
+	runShortId: string,
+	stage: number,
+): string {
+	return `${runShortId}/s${String(stage)}`;
 }
 
 export function checkpointStageAt(

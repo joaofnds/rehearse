@@ -11,6 +11,11 @@ import { readReplayRecord } from "#benchmark/replay";
 import { stoppedStage } from "#benchmark/run-outcome";
 import { stoppedStatus } from "#benchmark/stopped-status";
 import {
+	checkpointStageNumber,
+	formatCheckpointShortId,
+	readAllShortIds,
+} from "#benchmark/short-id";
+import {
 	benchmarkRunPaths,
 	checkpointRecordFile,
 	comparisonDigests,
@@ -100,6 +105,65 @@ export function controlRelative(reason: string): string {
 	return reason.replaceAll(`${CONTROL_DIR}/`, "");
 }
 
+/** What a listing prints in the short id column for a record with none. */
+const NO_SHORT_ID = "-";
+
+async function shortIdsByRecordId(
+	runsDirectory: string,
+): Promise<ReadonlyMap<string, string>> {
+	const entries = await readAllShortIds(runsDirectory);
+
+	return new Map(
+		entries.map(({ shortId, record }) => [formatRecordId(record), shortId]),
+	);
+}
+
+/**
+ * The short id goes second, beside the Record ID it abbreviates, so a reader
+ * finds both ids of a record in the first two columns whatever its kind.
+ */
+function withShortIds(
+	listing: RecordListing,
+	shortIds: ReadonlyMap<string, string>,
+): RecordListing {
+	return {
+		entries: listing.entries.map(({ id, fields }) => ({
+			id,
+			fields: [shortIds.get(id) ?? NO_SHORT_ID, ...fields],
+		})),
+		unreadable: listing.unreadable,
+	};
+}
+
+async function numbered(
+	runsDirectory: string,
+	listing: RecordListing,
+): Promise<RecordListing> {
+	return withShortIds(listing, await shortIdsByRecordId(runsDirectory));
+}
+
+async function checkpointShortId(
+	runsDirectory: string,
+	shortIds: ReadonlyMap<string, string>,
+	run: string,
+	stage: string,
+): Promise<string | undefined> {
+	const runShortId = shortIds.get(formatRecordId({ kind: "run", run }));
+	const { manifestFile } = benchmarkRunPaths(runsDirectory, run);
+	if (runShortId === undefined || !(await Bun.file(manifestFile).exists())) {
+		return undefined;
+	}
+	const manifest = await loadRunManifest(manifestFile);
+	const number = checkpointStageNumber(
+		manifest.pipeline.stages.map(({ name }) => name),
+		stage,
+	);
+
+	return number === undefined
+		? undefined
+		: formatCheckpointShortId(runShortId, number);
+}
+
 async function listDeclaredCases(): Promise<RecordListing> {
 	const listing = await listCases();
 
@@ -128,39 +192,42 @@ async function listDeclaredCases(): Promise<RecordListing> {
 async function listRuns(runsDirectory: string): Promise<RecordListing> {
 	const names = await recordedRunNames(runsDirectory);
 
-	return collect(
-		names,
-		(run) => ({ kind: "run", run }),
-		async (run) => {
-			const paths = benchmarkRunPaths(runsDirectory, run);
-			if (await Bun.file(paths.artifactFile).exists()) {
-				const record = parseRunSummaryRecord(
-					await Bun.file(paths.artifactFile).text(),
-				);
-				const replayable = await Bun.file(paths.manifestFile).exists();
-
-				return [
-					record.caseId,
-					record.status,
-					replayable ? "replayable" : "not replayable",
-				];
-			}
-
-			const stopped = await stoppedStage(runsDirectory, run);
-			if (stopped === undefined) {
-				return ["no record"];
-			}
-
-			const { caseId } = await loadRunManifest(paths.manifestFile).catch(
-				(): never => {
-					throw new Error(
-						`incomplete: no manifest.json at ${paths.manifestFile}`,
+	return numbered(
+		runsDirectory,
+		await collect(
+			names,
+			(run) => ({ kind: "run", run }),
+			async (run) => {
+				const paths = benchmarkRunPaths(runsDirectory, run);
+				if (await Bun.file(paths.artifactFile).exists()) {
+					const record = parseRunSummaryRecord(
+						await Bun.file(paths.artifactFile).text(),
 					);
-				},
-			);
+					const replayable = await Bun.file(paths.manifestFile).exists();
 
-			return [caseId, stoppedStatus(stopped.stage), "replayable"];
-		},
+					return [
+						record.caseId,
+						record.status,
+						replayable ? "replayable" : "not replayable",
+					];
+				}
+
+				const stopped = await stoppedStage(runsDirectory, run);
+				if (stopped === undefined) {
+					return ["no record"];
+				}
+
+				const { caseId } = await loadRunManifest(paths.manifestFile).catch(
+					(): never => {
+						throw new Error(
+							`incomplete: no manifest.json at ${paths.manifestFile}`,
+						);
+					},
+				);
+
+				return [caseId, stoppedStatus(stopped.stage), "replayable"];
+			},
+		),
 	);
 }
 
@@ -198,8 +265,16 @@ async function stageDirectories(
 
 async function listCheckpoints(runsDirectory: string): Promise<RecordListing> {
 	const checkpoints = await recordedCheckpoints(runsDirectory);
+	const shortIds = await shortIdsByRecordId(runsDirectory);
+	const labelled = new Map<string, string>();
+	for (const { run, stage } of checkpoints) {
+		const label = await checkpointShortId(runsDirectory, shortIds, run, stage);
+		if (label !== undefined) {
+			labelled.set(formatRecordId({ kind: "checkpoint", run, stage }), label);
+		}
+	}
 
-	return collect(
+	const listing = await collect(
 		checkpoints,
 		({ run, stage }) => ({ kind: "checkpoint", run, stage }),
 		async ({ run, stage }) => {
@@ -214,22 +289,27 @@ async function listCheckpoints(runsDirectory: string): Promise<RecordListing> {
 			return [record.stage, record.lineage];
 		},
 	);
+
+	return withShortIds(listing, labelled);
 }
 
 async function listGroups(runsDirectory: string): Promise<RecordListing> {
 	const groupIds = await confirmationGroupIds(runsDirectory);
 
-	return collect(
-		groupIds,
-		(groupId) => ({ kind: "group", groupId }),
-		async (groupId) => {
-			const paths = confirmationGroupPaths(runsDirectory, groupId);
-			const record = parseConfirmationGroupRecord(
-				await Bun.file(paths.groupFile).text(),
-			);
+	return numbered(
+		runsDirectory,
+		await collect(
+			groupIds,
+			(groupId) => ({ kind: "group", groupId }),
+			async (groupId) => {
+				const paths = confirmationGroupPaths(runsDirectory, groupId);
+				const record = parseConfirmationGroupRecord(
+					await Bun.file(paths.groupFile).text(),
+				);
 
-			return [record.caseId, record.mode, `${String(record.reps)} reps`];
-		},
+				return [record.caseId, record.mode, `${String(record.reps)} reps`];
+			},
+		),
 	);
 }
 
@@ -292,10 +372,10 @@ async function listAttempts(runsDirectory: string): Promise<RecordListing> {
 		},
 	);
 
-	return {
+	return numbered(runsDirectory, {
 		entries: [...sessions.entries, ...replays.entries],
 		unreadable: [...sessions.unreadable, ...replays.unreadable],
-	};
+	});
 }
 
 export function listRecords(
