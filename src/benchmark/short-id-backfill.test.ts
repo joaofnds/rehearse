@@ -176,6 +176,53 @@ describe(recordsOnDisk.name, () => {
 		]);
 	});
 
+	it("dates a group by the earliest of several reps", async () => {
+		const reps = await fixture.writeSessionGroup("group-z-two-reps", 2);
+		const [single] = await fixture.writeSessionGroup("group-a-one-rep", 1);
+		const twoReps = confirmationGroupPaths(runsDirectory, "group-z-two-reps");
+		await Bun.write(
+			twoReps.rep(reps[0]).transcriptFile,
+			transcript("2026-09-10T00:00:00.000Z"),
+		);
+		await Bun.write(
+			twoReps.rep(reps[1]).transcriptFile,
+			transcript("2026-09-01T00:00:00.000Z"),
+		);
+		await Bun.write(
+			confirmationGroupPaths(runsDirectory, "group-a-one-rep").rep(single)
+				.transcriptFile,
+			transcript("2026-09-05T00:00:00.000Z"),
+		);
+
+		expect(await recordedIn("smoke")).toEqual([
+			{ kind: "group", groupId: "group-z-two-reps" },
+			{ kind: "group", groupId: "group-a-one-rep" },
+		]);
+	});
+
+	it("orders a transcript-dated attempt against a run started in the same hour", async () => {
+		const attempt = await fixture.writeAttemptAt(
+			"ffffffff-0000-4000-8000-000000000008",
+			runsDirectory,
+			"smoke",
+			[],
+		);
+		await Bun.write(
+			join(attempt, "..", "transcript.jsonl"),
+			transcript("2026-09-09T00:30:00.000Z"),
+		);
+		await fixture.writePipelineRun("2026-09-09T00-45-00.000Z", "smoke");
+
+		expect(await recordedIn("smoke")).toEqual([
+			{
+				kind: "attempt:session",
+				caseId: "smoke",
+				uuid: "ffffffff-0000-4000-8000-000000000008",
+			},
+			{ kind: "run", run: "2026-09-09T00-45-00.000Z" },
+		]);
+	});
+
 	describe("when a session resumed a transcript a prior session began", () => {
 		it("dates the attempt by the first line its own session wrote", async () => {
 			const resumed = await fixture.writeAttemptAt(
