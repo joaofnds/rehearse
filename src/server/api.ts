@@ -7,7 +7,7 @@ import { parseComparisonReport } from "#benchmark/comparison-record";
 import { recordFileFor } from "#cli/show-command";
 import { UsageError } from "#cli/commands";
 import { RefusedPreconditionError } from "#benchmark/exit-codes";
-import { parseRecordId } from "#cli/record-id";
+import { parseRecordId, parseRunRecordId } from "#cli/record-id";
 import { runEventsDatabaseFile } from "#benchmark/run-layout";
 import type { RunEventStore } from "#benchmark/run-events";
 import {
@@ -414,15 +414,34 @@ export const createApiApp = (dependencies: ApiDependencies) => {
 				}
 			},
 		)
-		.get("/api/runs/:run", async (context) =>
-			context.json(
-				await readRunRecord(
-					dependencies.runsDirectory,
-					context.req.param("run"),
-					dependencies.liveness,
-				),
-			),
-		)
+		.get("/api/runs/:run", async (context) => {
+			try {
+				const id = parseRunRecordId(context.req.param("run"));
+
+				return context.json(
+					await readRunRecord(
+						dependencies.runsDirectory,
+						id.run,
+						dependencies.liveness,
+					),
+				);
+			} catch (error) {
+				if (error instanceof UsageError) {
+					return context.json(
+						{ error: redactAbsolutePaths(error.message) },
+						400,
+					);
+				}
+				if (error instanceof RefusedPreconditionError) {
+					return context.json(
+						{ error: redactAbsolutePaths(error.message) },
+						404,
+					);
+				}
+
+				throw error;
+			}
+		})
 		.get("/api/runs/:run/events", (context) => {
 			const runId = context.req.param("run");
 

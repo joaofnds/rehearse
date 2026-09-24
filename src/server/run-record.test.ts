@@ -415,6 +415,26 @@ describe("/api/runs/:run", () => {
 			});
 		});
 
+		describe("a run it cannot serve", () => {
+			it("answers 404 without the runs directory's path for a run it holds no record of", async () => {
+				const fixture = await emptyFixture();
+
+				const response = await runRecord(fixture, "2026-01-01T00-00-00.000Z");
+
+				expect(response.status).toBe(404);
+				expect(await response.text()).not.toContain(fixture.runsDirectory);
+			});
+
+			it("answers 400 for a run name that leaves the runs directory", async () => {
+				const fixture = await emptyFixture();
+
+				const response = await runRecord(fixture, "../outside");
+
+				expect(response.status).toBe(400);
+				expect(await response.text()).not.toContain(fixture.runsDirectory);
+			});
+		});
+
 		describe("the final outcome", () => {
 			it("reports the final judge's PASS on a finished run", async () => {
 				const fixture = await emptyFixture();

@@ -16,6 +16,7 @@ import type { BenchmarkRunPaths } from "#benchmark/run-layout";
 import { openRunEventStore } from "#benchmark/run-events";
 import type { RunEventStore } from "#benchmark/run-events";
 import type { RunLiveness } from "#benchmark/run-liveness";
+import { RefusedPreconditionError } from "#benchmark/exit-codes";
 import { stoppedStage } from "#benchmark/run-outcome";
 import { claimsLiveTarget, failedStage } from "./run-history";
 
@@ -665,6 +666,9 @@ export async function readRunRecord(
 	liveness: RunLiveness,
 ): Promise<RunRecord> {
 	const paths = benchmarkRunPaths(runsDirectory, run);
+	if (!(await Bun.file(paths.manifestFile).exists())) {
+		throw new RefusedPreconditionError(`No pipeline run ${run} is recorded`);
+	}
 	const manifest = await loadRunManifest(paths.manifestFile);
 	const stages: RecordedStage[] = [];
 	for (const { name } of manifest.pipeline.stages) {
