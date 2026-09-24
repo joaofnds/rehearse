@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, open, readdir, rename, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
+import { INITIAL_CHECKPOINT_STAGE } from "./checkpoint";
 import type { DatedRecord } from "./short-id-backfill";
 import { recordsOnDisk } from "./short-id-backfill";
 
@@ -222,6 +223,23 @@ async function readRegistryFile<Parsed>(
 	return schema.safeParse(contents).data;
 }
 
+async function readEntry(
+	directory: string,
+	number: number,
+): Promise<NamedRecord | undefined> {
+	const claim = await readRegistryFile(
+		join(directory, CLAIMS_DIRECTORY, String(number)),
+		claimSchema,
+	);
+
+	return claim?.kind === "replay"
+		? readRegistryFile(
+				join(directory, BINDINGS_DIRECTORY, String(number)),
+				stageAttemptSchema,
+			)
+		: claim;
+}
+
 export async function readShortIds(
 	runsDirectory: string,
 	caseId: string,
@@ -234,17 +252,7 @@ export async function readShortIds(
 	const entries: ShortIdEntry[] = [];
 
 	for (const number of numbers) {
-		const claim = await readRegistryFile(
-			join(directory, CLAIMS_DIRECTORY, String(number)),
-			claimSchema,
-		);
-		const record =
-			claim?.kind === "replay"
-				? await readRegistryFile(
-						join(directory, BINDINGS_DIRECTORY, String(number)),
-						stageAttemptSchema,
-					)
-				: claim;
+		const record = await readEntry(directory, number);
 		if (record === undefined) {
 			continue;
 		}
@@ -256,6 +264,48 @@ export async function readShortIds(
 	}
 
 	return entries;
+}
+
+/**
+ * The record a short id names, or undefined when its number names nothing or
+ * was claimed for the other letter: `g4` never names the run claimed as `r4`.
+ */
+export async function resolveShortId(
+	runsDirectory: string,
+	id: ShortId,
+): Promise<NamedRecord | undefined> {
+	const record = await readEntry(
+		registryDirectory(runsDirectory, id.caseId),
+		id.number,
+	);
+
+	return record !== undefined && shortIdKind(record) === id.kind
+		? record
+		: undefined;
+}
+
+/**
+ * A checkpoint's label is its place in the run: 0 for the one taken after
+ * task setup, then each stage by its position in the pipeline the run froze
+ * into its manifest, so the label is fixed when the run starts.
+ */
+export function checkpointStageNumber(
+	stages: readonly string[],
+	stage: string,
+): number | undefined {
+	if (stage === INITIAL_CHECKPOINT_STAGE) {
+		return 0;
+	}
+	const index = stages.indexOf(stage);
+
+	return index === -1 ? undefined : index + 1;
+}
+
+export function checkpointStageAt(
+	stages: readonly string[],
+	number: number,
+): string | undefined {
+	return number === 0 ? INITIAL_CHECKPOINT_STAGE : stages[number - 1];
 }
 
 export async function bindReplay(

@@ -1,13 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { RecordedRunsFixture } from "./run-records-test-support";
 import {
 	bindReplay,
 	claimShortId,
+	checkpointStageAt,
+	checkpointStageNumber,
 	formatShortId,
 	readShortIds,
+	resolveShortId,
 } from "./short-id";
 
 const CASE_ID = "audit-log";
@@ -179,5 +182,65 @@ describe(formatShortId.name, () => {
 		expect(formatShortId({ caseId: CASE_ID, kind: "run", number: 12 })).toBe(
 			"audit-log/r12",
 		);
+	});
+});
+
+describe(resolveShortId.name, () => {
+	it("names the record its number was claimed for", async () => {
+		const claimed = await claimShortId(runsDirectory, CASE_ID, {
+			kind: "group",
+			groupId: "group-1",
+		});
+
+		expect(await resolveShortId(runsDirectory, claimed)).toEqual({
+			kind: "group",
+			groupId: "group-1",
+		});
+	});
+
+	describe("when the letter does not match the kind claimed", () => {
+		it("names nothing", async () => {
+			const claimed = await claimShortId(runsDirectory, CASE_ID, {
+				kind: "group",
+				groupId: "group-1",
+			});
+
+			expect(
+				await resolveShortId(runsDirectory, { ...claimed, kind: "run" }),
+			).toBeUndefined();
+		});
+	});
+
+	describe("when no registry exists for the case", () => {
+		it("names nothing and creates none", async () => {
+			expect(
+				await resolveShortId(runsDirectory, {
+					caseId: CASE_ID,
+					kind: "run",
+					number: 1,
+				}),
+			).toBeUndefined();
+			expect(await readdir(runsDirectory)).toEqual([]);
+		});
+	});
+});
+
+describe("checkpoint labels", () => {
+	const stages = ["discuss", "build"];
+
+	it("numbers the setup checkpoint 0 and each stage by its place in the pipeline", () => {
+		expect(
+			["initial", "discuss", "build"].map((stage) =>
+				checkpointStageNumber(stages, stage),
+			),
+		).toEqual([0, 1, 2]);
+		expect(
+			[0, 1, 2].map((number) => checkpointStageAt(stages, number)),
+		).toEqual(["initial", "discuss", "build"]);
+	});
+
+	it("names no label for a stage outside the pipeline", () => {
+		expect(checkpointStageNumber(stages, "review")).toBeUndefined();
+		expect(checkpointStageAt(stages, 3)).toBeUndefined();
 	});
 });

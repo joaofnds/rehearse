@@ -16,6 +16,7 @@ import { UsageError } from "#cli/commands";
 import { RefusedPreconditionError } from "#cli/interactive-stdin";
 import { LIST_KINDS, runList } from "#cli/list-command";
 import { runShow } from "#cli/show-command";
+import { claimShortId } from "#benchmark/short-id";
 import { runCommand } from "#benchmark/command";
 import { recordRetentionRef } from "#benchmark/target";
 import { TestResources } from "#benchmark/test-support";
@@ -322,6 +323,103 @@ describe(runShow.name, () => {
 		});
 	});
 
+	describe("when given a short id", () => {
+		async function numberedFixture(): Promise<RecordedRunsFixture> {
+			const fixture = await writtenFixture();
+			await claimShortId(fixture.runsDirectory, "audit-log", {
+				kind: "run",
+				run: "2026-09-24T00-00-00.000Z",
+			});
+			await claimShortId(fixture.runsDirectory, "smoke", {
+				kind: "run",
+				run: "2026-09-24T00-00-01.000Z",
+			});
+
+			return fixture;
+		}
+
+		it.each([true, false])(
+			"prints what the Record ID prints for each kind it names, --json %p",
+			async (json) => {
+				const fixture = await numberedFixture();
+				const { runsDirectory, replayableRun, stageAttempt, groupId } = fixture;
+				const pairs = [
+					["audit-log/r2", `run:${replayableRun}`],
+					["audit-log/r2/s0", `checkpoint:${replayableRun}/initial`],
+					["audit-log/r2/s2", `checkpoint:${replayableRun}/build`],
+					[
+						"audit-log/r3",
+						`attempt:stage:${stageAttempt.lineage}/${stageAttempt.timestamp}`,
+					],
+					["audit-log/g4", `group:${groupId}`],
+					[
+						"smoke/r1",
+						`attempt:session:${fixture.sessionAttempt.caseId}/${fixture.sessionAttempt.uuid}`,
+					],
+				] as const;
+				await fixture.writeInitialCheckpoint(replayableRun);
+
+				for (const [shortId, recordId] of pairs) {
+					expect(await printed(shortId, json, runsDirectory)).toBe(
+						await printed(recordId, json, runsDirectory),
+					);
+				}
+			},
+		);
+
+		it("refuses a number no record holds, naming the id as typed", async () => {
+			const fixture = await numberedFixture();
+
+			const failure = await failureOf(
+				runShow(
+					{
+						id: "audit-log/r99",
+						json: false,
+						runsDirectory: fixture.runsDirectory,
+					},
+					recordOutput().output,
+				),
+			);
+
+			expect(failure).toBeInstanceOf(RefusedPreconditionError);
+			expect(failure.message).toContain("audit-log/r99");
+		});
+
+		it("refuses a stage the run's pipeline does not have", async () => {
+			const fixture = await numberedFixture();
+
+			const failure = await failureOf(
+				runShow(
+					{
+						id: "audit-log/r2/s9",
+						json: false,
+						runsDirectory: fixture.runsDirectory,
+					},
+					recordOutput().output,
+				),
+			);
+
+			expect(failure).toBeInstanceOf(RefusedPreconditionError);
+			expect(failure.message).toContain("audit-log/r2/s9");
+		});
+
+		it("refuses a malformed case segment and creates or opens no path", async () => {
+			const root = await mkdtemp(join(tmpdir(), "rehearse-show-"));
+			roots.push(root);
+			const runsDirectory = join(root, "runs");
+
+			const failure = await failureOf(
+				runShow(
+					{ id: "../x/r1", json: false, runsDirectory },
+					recordOutput().output,
+				),
+			);
+
+			expect(failure).toBeInstanceOf(UsageError);
+			expect(await readdir(root)).toEqual([]);
+		});
+	});
+
 	describe("when the id is missing or malformed", () => {
 		it("refuses no argument by naming every id form", async () => {
 			const fixture = await writtenFixture();
@@ -339,6 +437,7 @@ describe(runShow.name, () => {
 
 			expect(failure).toBeInstanceOf(UsageError);
 			expect(failure.message).toContain("checkpoint:<run>/<stage>");
+			expect(failure.message).toContain("<case>/r<n>/s<k>");
 		});
 
 		it("refuses an unknown prefix as a usage error", async () => {

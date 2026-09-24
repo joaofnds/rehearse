@@ -49,6 +49,19 @@ export type RecordId =
 	| GroupRecordId
 	| ComparisonRecordId;
 
+/**
+ * A short id as typed: the case it was claimed in, the number the claim took,
+ * and for a checkpoint the stage's position, 0 being the setup checkpoint.
+ * Which record it names is the registry's answer, not the parser's.
+ */
+export interface ShortIdReference {
+	readonly kind: "short";
+	readonly caseId: string;
+	readonly shortKind: "run" | "group";
+	readonly number: number;
+	readonly stage?: number;
+}
+
 const RUN_PREFIX = "run:";
 
 /**
@@ -67,8 +80,14 @@ const ID_FORMS: readonly string[] = [
 	"comparison:<manifest-digest>",
 ];
 
+const SHORT_ID_FORMS: readonly string[] = [
+	"<case>/r<n>",
+	"<case>/g<n>",
+	"<case>/r<n>/s<k>",
+];
+
 export function recordIdForms(): readonly string[] {
-	return ID_FORMS;
+	return [...ID_FORMS, ...SHORT_ID_FORMS];
 }
 
 /**
@@ -113,15 +132,18 @@ function segment(id: IdBody): string {
  * with the same sentence, and an id `show` accepts must be one `case show`
  * would have accepted.
  */
-function caseSegment(id: IdBody): string {
-	const caseId = segment(id);
+function checkedCaseId(given: string, caseId: string): string {
 	if (!isCaseId(caseId)) {
 		throw new UsageError(
-			`Record id ${id.given} names no case: a case id is lowercase letters, digits, or dashes`,
+			`Record id ${given} names no case: a case id is lowercase letters, digits, or dashes`,
 		);
 	}
 
 	return caseId;
+}
+
+function caseSegment(id: IdBody): string {
+	return checkedCaseId(id.given, segment(id));
 }
 
 function twoSegments(id: IdBody): readonly [string, string] {
@@ -231,6 +253,50 @@ export function parseRecordId(text: string): RecordId {
 			);
 		}
 	}
+}
+
+const SHORT_NUMBER = /^(?<letter>[rg])(?<number>[1-9]\d*)$/u;
+const SHORT_STAGE = /^s(?<stage>0|[1-9]\d*)$/u;
+
+/**
+ * The case segment is checked before anything else is read from the id, since
+ * it names a directory under the registry and `../x/r1` would otherwise name
+ * one outside it.
+ */
+function parseShortId(text: string): ShortIdReference {
+	const [caseText = "", numbered = "", staged, ...extra] = text.split("/");
+	const caseId = checkedCaseId(text, caseText);
+	const malformed = new UsageError(
+		`Record id ${text} takes the form ${SHORT_ID_FORMS.join(", ")}`,
+	);
+	const claimed = SHORT_NUMBER.exec(numbered)?.groups;
+	if (claimed?.["letter"] === undefined || claimed["number"] === undefined) {
+		throw malformed;
+	}
+	const shortKind = claimed["letter"] === "g" ? "group" : "run";
+	const number = Number(claimed["number"]);
+	if (staged === undefined) {
+		return { kind: "short", caseId, shortKind, number };
+	}
+
+	const stage = SHORT_STAGE.exec(staged)?.groups?.["stage"];
+	if (shortKind !== "run" || stage === undefined || extra.length > 0) {
+		throw malformed;
+	}
+
+	return { kind: "short", caseId, shortKind, number, stage: Number(stage) };
+}
+
+/**
+ * What `show` accepts: a Record ID, or a short id, told apart by the colon
+ * every Record ID's prefix ends in and the slash a short id always holds.
+ */
+export function parseRecordReference(
+	text: string,
+): RecordId | ShortIdReference {
+	return !text.includes(":") && text.includes("/")
+		? parseShortId(text)
+		: parseRecordId(text);
 }
 
 /**

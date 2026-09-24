@@ -1,6 +1,11 @@
 import { describe, expect, it } from "bun:test";
 import { UsageError } from "#cli/commands";
-import { formatRecordId, parseRecordId } from "#cli/record-id";
+import {
+	formatRecordId,
+	parseRecordId,
+	parseRecordReference,
+} from "#cli/record-id";
+import type { ShortIdReference } from "#cli/record-id";
 
 const EVERY_FORM = [
 	"case:audit-log",
@@ -117,6 +122,75 @@ describe(parseRecordId.name, () => {
 
 		it("refuses a prefix with an empty body", () => {
 			expect(() => parseRecordId("run:")).toThrow(/run:<name>/u);
+		});
+	});
+});
+
+describe(parseRecordReference.name, () => {
+	it.each<[string, ShortIdReference]>([
+		[
+			"audit-log/r12",
+			{ kind: "short", caseId: "audit-log", shortKind: "run", number: 12 },
+		],
+		[
+			"audit-log/g3",
+			{ kind: "short", caseId: "audit-log", shortKind: "group", number: 3 },
+		],
+		[
+			"audit-log/r12/s0",
+			{
+				kind: "short",
+				caseId: "audit-log",
+				shortKind: "run",
+				number: 12,
+				stage: 0,
+			},
+		],
+		[
+			"audit-log/r12/s2",
+			{
+				kind: "short",
+				caseId: "audit-log",
+				shortKind: "run",
+				number: 12,
+				stage: 2,
+			},
+		],
+	])("reads %s as a short id", (text, shortId) => {
+		expect(parseRecordReference(text)).toEqual(shortId);
+	});
+
+	it.each(EVERY_FORM)("reads %s as the Record ID it always was", (text) => {
+		expect(parseRecordReference(text)).toEqual(parseRecordId(text));
+	});
+
+	describe("when a short id's case segment is not a case id", () => {
+		it.each(["../x/r1", "../r1", "UPPER/r1", "/r1", "a b/r1"])(
+			"refuses %s before any path is built",
+			(text) => {
+				expect(() => parseRecordReference(text)).toThrow(UsageError);
+				expect(() => parseRecordReference(text)).toThrow(
+					`Record id ${text} names no case: a case id is lowercase letters, digits, or dashes`,
+				);
+			},
+		);
+	});
+
+	describe("when a short id's number is not one a claim writes", () => {
+		it.each([
+			"audit-log/r0",
+			"audit-log/r01",
+			"audit-log/x1",
+			"audit-log/r",
+			"audit-log/g1/s0",
+			"audit-log/r1/s01",
+			"audit-log/r1/s",
+			"audit-log/r1/s0/extra",
+		])("names the forms a short id takes for %s", (text) => {
+			expect(() => parseRecordReference(text)).toThrow(UsageError);
+			expect(() => parseRecordReference(text)).toThrow(
+				/<case>\/r<n>.*<case>\/g<n>.*<case>\/r<n>\/s<k>/u,
+			);
 		});
 	});
 });

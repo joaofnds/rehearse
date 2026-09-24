@@ -19,14 +19,21 @@ import {
 	sessionAttemptPaths,
 } from "#benchmark/run-layout";
 import { stoppedStage } from "#benchmark/run-outcome";
+import { loadRunManifest } from "#benchmark/manifest";
+import { checkpointStageAt, resolveShortId } from "#benchmark/short-id";
 import { exists } from "node:fs/promises";
 import { z } from "zod";
 import { addWorktree, refExists } from "#benchmark/target";
 import { UsageError } from "#cli/commands";
 import { RefusedPreconditionError } from "#cli/interactive-stdin";
 import type { CommandOutput } from "#cli/output";
-import type { RecordId, RunRecordId } from "#cli/record-id";
-import { parseRecordId, parseRunRecordId, recordIdForms } from "#cli/record-id";
+import type { RecordId, RunRecordId, ShortIdReference } from "#cli/record-id";
+import {
+	parseRecordId,
+	parseRecordReference,
+	parseRunRecordId,
+	recordIdForms,
+} from "#cli/record-id";
 
 /**
  * A run that stopped at a stage never writes an artifact, so its id resolves
@@ -156,6 +163,65 @@ async function groupSummaryOf(
 	);
 }
 
+async function frozenStages(
+	runsDirectory: string,
+	run: string,
+): Promise<readonly string[]> {
+	const { manifestFile } = benchmarkRunPaths(runsDirectory, run);
+	if (!(await Bun.file(manifestFile).exists())) {
+		return [];
+	}
+	const manifest = await loadRunManifest(manifestFile);
+
+	return manifest.pipeline.stages.map(({ name }) => name);
+}
+
+/**
+ * The Record ID a short id names, read from the registry and, for a
+ * checkpoint, from the stages the run froze into its manifest. A short id that
+ * names nothing is refused the way a Record ID naming no file is.
+ */
+async function resolvedShortId(
+	given: string,
+	reference: ShortIdReference,
+	runsDirectory: string,
+): Promise<RecordId> {
+	const record = await resolveShortId(runsDirectory, {
+		caseId: reference.caseId,
+		kind: reference.shortKind,
+		number: reference.number,
+	});
+	if (record === undefined) {
+		throw new RefusedPreconditionError(`No record holds short id ${given}`);
+	}
+	if (reference.stage === undefined) {
+		return record;
+	}
+
+	const stage =
+		record.kind === "run"
+			? checkpointStageAt(
+					await frozenStages(runsDirectory, record.run),
+					reference.stage,
+				)
+			: undefined;
+	if (stage === undefined || record.kind !== "run") {
+		throw new RefusedPreconditionError(
+			`No checkpoint holds short id ${given}: its run has no stage ${String(reference.stage)}`,
+		);
+	}
+
+	return { kind: "checkpoint", run: record.run, stage };
+}
+
+function recordIdFor(given: string, runsDirectory: string): Promise<RecordId> {
+	const reference = parseRecordReference(given);
+
+	return reference.kind === "short"
+		? resolvedShortId(given, reference, runsDirectory)
+		: Promise.resolve(reference);
+}
+
 export interface ShowRequest {
 	readonly id: string | undefined;
 	readonly json: boolean;
@@ -180,7 +246,7 @@ export async function runShow(
 		return;
 	}
 
-	const id = parseRecordId(request.id);
+	const id = await recordIdFor(request.id, request.runsDirectory);
 	const text = await recordText(
 		request.id,
 		await recordFileFor(id, request.runsDirectory),
