@@ -332,6 +332,23 @@ export async function runFinalJudge(
 	}
 }
 
+/**
+ * Judges the run and builds its graded artifact, reading the run clock once
+ * the judge returns so the run's elapsed time includes the judgment.
+ */
+export async function judgeRun(
+	request: FinalJudgeRequest & { readonly reviewFile: string },
+): Promise<GradedRunArtifact> {
+	const judge = await runFinalJudge(request);
+
+	return buildRunArtifact({
+		...request.artifactInputs,
+		judge,
+		reviewFile: request.reviewFile,
+		elapsedMs: request.elapsedMs?.(),
+	});
+}
+
 export interface FinalCalibrationInput {
 	readonly originalInstructions: string;
 	readonly originalRubric: string;
@@ -1170,19 +1187,14 @@ export async function runBenchmark(
 		};
 
 		log("\nJudge session");
-		const judge = await runFinalJudge({
+		const artifact = await judgeRun({
 			artifactInputs,
 			writeFailedArtifact: abort.writeFailedArtifact,
 			elapsedMs,
-		});
-		const { grade } = judge;
-		log(JSON.stringify(grade, null, 2));
-		const artifact = buildRunArtifact({
-			...artifactInputs,
-			judge,
 			reviewFile: runFiles.reviewFile,
-			elapsedMs: elapsedMs(),
 		});
+		const { grade } = artifact;
+		log(JSON.stringify(grade, null, 2));
 		await abort.writePendingArtifact(artifact);
 		log(`Run artifact: ${runFiles.artifactFile}`);
 		if (config.pause) {

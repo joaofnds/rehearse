@@ -55,6 +55,7 @@ import {
 	completeRunArtifact,
 	ordinaryInitialCheckpointInputs,
 	retainedCheckpointRecorder,
+	judgeRun,
 	runFinalJudge,
 	runGradedStages,
 } from "./run";
@@ -2341,6 +2342,49 @@ describe(buildRunArtifact.name, () => {
 					"Judge cited unavailable evidence for tests: diff:src/missing.ts",
 			});
 			expect(artifact).not.toHaveProperty("grade");
+		});
+	});
+
+	describe(judgeRun.name, () => {
+		it("builds the graded artifact with the run clock read once the judge returns", async () => {
+			const pipeline = await loadDefaultPipeline();
+			const baseInputs = artifactBaseInputs(pipeline, AUDIT_LOG_PIPELINE_PATH);
+			const rubric = RUBRIC_IDS.map(
+				(id, index) => `${index + 1}. \`${id}\`: ${id} requirement.`,
+			).join("\n");
+			let clockMs = 1000;
+
+			const artifact = await judgeRun({
+				artifactInputs: {
+					...baseInputs,
+					rubric,
+					rubricIds: RUBRIC_IDS,
+					evidence: {
+						...baseInputs.evidence,
+						changedPaths: ["src/audit/example.ts"],
+					},
+				},
+				writeFailedArtifact: () => Promise.resolve(),
+				reviewFile: "/runs/review.md",
+				elapsedMs: () => clockMs,
+				invoke: () => {
+					clockMs += 5000;
+
+					return Promise.resolve(
+						JSON.stringify({
+							session_id: "judge-session",
+							total_cost_usd: 0.1,
+							structured_output: completeGrade("PASS"),
+						}),
+					);
+				},
+			});
+
+			expect(artifact).toMatchObject({
+				status: "AWAITING_HUMAN_REVIEW",
+				elapsedMs: 6000,
+				reviewFile: "/runs/review.md",
+			});
 		});
 	});
 
