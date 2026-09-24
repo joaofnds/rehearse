@@ -818,6 +818,31 @@ That reason comes from the stop record, the run's interrupted or failed event,
 or a stage left awaiting judgment once the run is no longer live, in that
 order, and a run that recorded none of those says so. The final judge returns no letter, so none is served.
 
+### Run history figures
+
+Every `/api/runs` row carries `cost` and `wallTime`, and a figure its records
+do not hold reads unavailable with its reasons, never zero. A cost that is
+available has the same shape as the pipeline run record's run cost: `usd`, the
+`parts` it summed and the parts it lacks under `missing`.
+
+A pipeline run row reads its figures through the pipeline run record above.
+`stepGrades` lists each stage in the manifest's order with its status and
+grade. A stage with no record is `not-run` when the run never reached it, and
+keeps `no-record` when it is the stage the run ended or is running in.
+`taskGrade` is the run's `finalOutcome`, and `cost` and `wallTime` are the
+run's totals. A run that wrote no manifest, or whose record does not parse,
+keeps its row with those four figures unavailable and the reason, where the
+pipeline run record's route answers 404 or 500 for the same run.
+
+A replay row sums its session, Product Owner and judge cost and lacks no part.
+Its `taskGrade` is `NOT_APPLICABLE` with the reason, since only a whole run
+reaches the final judge, and its wall time is unavailable, since the replay
+record keeps no start or end time. A session attempt row's cost is its call
+metrics' cost, unavailable when the attempt kept none, and its wall time is the
+elapsed time it recorded. A confirmation group row's wall time is its makespan,
+and its cost is unavailable, since the group record keeps its projected cost
+rather than what its reps spent.
+
 ### Saved session context history
 
 The local browser can inspect standalone session attempts at
