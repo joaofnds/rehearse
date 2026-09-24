@@ -4,15 +4,23 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
 
+import { runEventsDatabaseFile } from "#benchmark/run-layout";
+import { openRunEventStore } from "#benchmark/run-events";
 import type { RunLiveness } from "#benchmark/run-liveness";
 import {
 	directorySource,
+	FINAL_JUDGE_FAILURE,
 	nothingRunning,
 	RecordedRunsFixture,
+	STOPPED_RUN_ERROR,
 } from "#benchmark/run-records-test-support";
 import { createApiApp } from "./api";
 import { NOT_RUN_REASON } from "./run-history";
-import { STOPPED_GRADE_REASON } from "./run-record";
+import {
+	INTERRUPTED_REASON,
+	RUN_FAILED_REASON,
+	STOPPED_GRADE_REASON,
+} from "./run-record";
 
 /**
  * Only the fields a test finds a row by: the rest of the row is what each
@@ -33,6 +41,124 @@ const liveRun: RunLiveness = {
 	readMarker: () => Promise.resolve({ pid: 1 }),
 	isAlive: () => true,
 };
+
+const FINISHED_RUN = "2026-09-11T00-00-00.000Z";
+
+/**
+ * The event reconciliation appends for a run no live process holds. Run
+ * history lists a run whose last event is not terminal only while it runs,
+ * so a run that died awaiting judgment is listed once this is recorded.
+ */
+async function reconciledAsInterrupted(
+	fixture: RecordedRunsFixture,
+	run: string,
+): Promise<void> {
+	const store = await openRunEventStore(
+		runEventsDatabaseFile(fixture.runsDirectory),
+	);
+	store.append({
+		runId: run,
+		kind: "run-interrupted",
+		stage: "build",
+		spentUsd: 1,
+		elapsedMs: 5000,
+	});
+	store.close();
+}
+
+interface TaskGradeCase {
+	readonly outcome: string;
+	readonly write: (fixture: RecordedRunsFixture) => Promise<void>;
+	readonly run: (fixture: RecordedRunsFixture) => string;
+	readonly liveness: RunLiveness;
+	readonly taskGrade: Record<string, string>;
+}
+
+const TASK_GRADES: readonly TaskGradeCase[] = [
+	{
+		outcome: "the final judge's PASS",
+		write: (fixture) => fixture.writePipelineRun(FINISHED_RUN, "audit-log"),
+		run: () => FINISHED_RUN,
+		liveness: nothingRunning,
+		taskGrade: { state: "available", status: "JUDGED", verdict: "PASS" },
+	},
+	{
+		outcome: "the final judge's FAIL",
+		write: (fixture) => fixture.writeFailedVerdictRun(FINISHED_RUN),
+		run: () => FINISHED_RUN,
+		liveness: nothingRunning,
+		taskGrade: { state: "available", status: "JUDGED", verdict: "FAIL" },
+	},
+	{
+		outcome: "judging failed with its reason",
+		write: (fixture) => fixture.writeFinalJudgeFailedRun(FINISHED_RUN),
+		run: () => FINISHED_RUN,
+		liveness: nothingRunning,
+		taskGrade: {
+			state: "available",
+			status: "JUDGING_FAILED",
+			reason: FINAL_JUDGE_FAILURE,
+		},
+	},
+	{
+		outcome: "pending while the run executes",
+		write: (fixture) => fixture.writeRunningRun(),
+		run: (fixture) => fixture.runningRun,
+		liveness: liveRun,
+		taskGrade: { state: "available", status: "PENDING", stage: "build" },
+	},
+	{
+		outcome: "not gradable at the stage a stopped run ended in",
+		write: (fixture) => fixture.writeStoppedRun(),
+		run: (fixture) => fixture.stoppedRun,
+		liveness: nothingRunning,
+		taskGrade: {
+			state: "available",
+			status: "NOT_REACHED",
+			stage: "build",
+			reason: STOPPED_RUN_ERROR,
+		},
+	},
+	{
+		outcome: "not gradable at the stage an interrupted run ended in",
+		write: (fixture) => fixture.writeInterruptedRun(),
+		run: (fixture) => fixture.interruptedRun,
+		liveness: nothingRunning,
+		taskGrade: {
+			state: "available",
+			status: "NOT_REACHED",
+			stage: "build",
+			reason: INTERRUPTED_REASON,
+		},
+	},
+	{
+		outcome: "not gradable at the stage an aborted run ended in",
+		write: (fixture) => fixture.writeSignalAbortedRun(),
+		run: (fixture) => fixture.abortedRun,
+		liveness: nothingRunning,
+		taskGrade: {
+			state: "available",
+			status: "NOT_REACHED",
+			stage: "build",
+			reason: RUN_FAILED_REASON,
+		},
+	},
+	{
+		outcome: "not gradable at the stage a run died awaiting judgment in",
+		write: async (fixture) => {
+			await fixture.writeAwaitingJudgeRun();
+			await reconciledAsInterrupted(fixture, fixture.awaitingJudgeRun);
+		},
+		run: (fixture) => fixture.awaitingJudgeRun,
+		liveness: nothingRunning,
+		taskGrade: {
+			state: "available",
+			status: "NOT_REACHED",
+			stage: "build",
+			reason: INTERRUPTED_REASON,
+		},
+	},
+];
 
 describe("/api/runs", () => {
 	const roots: string[] = [];
@@ -125,6 +251,18 @@ describe("/api/runs", () => {
 					},
 				});
 			});
+
+			it.each(TASK_GRADES.map((row) => [row.outcome, row]))(
+				"carries the task grade as %s",
+				async (_outcome, { write, run, liveness, taskGrade }) => {
+					const fixture = await emptyFixture();
+					await write(fixture);
+
+					const row = await runRow(fixture, run(fixture), liveness);
+
+					expect(row).toMatchObject({ taskGrade });
+				},
+			);
 		});
 	});
 });
