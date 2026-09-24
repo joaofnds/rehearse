@@ -561,6 +561,7 @@ describe(runHistoryReport.name, () => {
 			kind: "run",
 			run: fixture.stoppedRun,
 			shortId: undefined,
+			checkpoints: [],
 			caseId: "audit-log",
 			status: "STOPPED:build",
 			stage: undefined,
@@ -612,6 +613,7 @@ describe(runHistoryReport.name, () => {
 			kind: "run",
 			run: fixture.interruptedRun,
 			shortId: undefined,
+			checkpoints: [],
 			caseId: "audit-log",
 			status: "INTERRUPTED",
 			stage: undefined,
@@ -1275,6 +1277,23 @@ describe(runHistoryReport.name, () => {
 				"audit-log/r2",
 				"audit-log/r1",
 				"audit-log/g4",
+			]);
+		});
+
+		it("names each checkpoint of a claimed run by its stage number", async () => {
+			const fixture = await fixtureWithClaimedRun();
+			await fixture.writeInitialCheckpoint(laterRun);
+
+			const { rows } = await runHistoryReport(
+				fixture.runsDirectory,
+				directorySource(await corpusDirectory("build skill\n")),
+				nothingRunning,
+			);
+
+			expect(pipelineRun(rows, laterRun)?.checkpoints).toEqual([
+				{ stage: "initial", shortId: "audit-log/r5/s0" },
+				{ stage: "discuss", shortId: "audit-log/r5/s1" },
+				{ stage: "build", shortId: "audit-log/r5/s2" },
 			]);
 		});
 

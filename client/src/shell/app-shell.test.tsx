@@ -39,6 +39,7 @@ function runRow(run: string): RunHistoryRow {
 	return {
 		kind: "run",
 		shortId: undefined,
+		checkpoints: [],
 		links: [],
 		run,
 		caseId: "audit-log",

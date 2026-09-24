@@ -37,7 +37,11 @@ import type { ReplayRecord } from "#benchmark/replay";
 import { parseSessionAttemptRecord } from "#benchmark/session-record";
 import type { SessionAttemptRecord } from "#benchmark/session-record";
 import { formatRecordId } from "#cli/record-id";
-import { shortIdsByRecordId } from "#cli/short-id-column";
+import { frozenStages, shortIdsByRecordId } from "#cli/short-id-column";
+import {
+	checkpointStageNumber,
+	formatCheckpointShortId,
+} from "#benchmark/short-id";
 import {
 	awaitingJudgeStageRecordSchema,
 	stoppedStage,
@@ -120,6 +124,8 @@ export interface PipelineRunRow {
 	readonly kind: "run";
 	readonly run: string;
 	readonly shortId: string | undefined;
+	/** The short id of each checkpoint the run recorded, earliest first. */
+	readonly checkpoints: readonly CheckpointShortId[];
 	readonly caseId: string | undefined;
 	readonly status: string;
 	readonly stage: string | undefined;
@@ -475,6 +481,48 @@ async function stageLinks(
 	return links;
 }
 
+export interface CheckpointShortId {
+	readonly stage: string;
+	readonly shortId: string;
+}
+
+/**
+ * A claimed run's recorded checkpoints by short id, numbered by the stages
+ * its manifest froze, none for a run with no short id or no readable manifest.
+ */
+async function checkpointShortIds(
+	runsDirectory: string,
+	run: string,
+	shortId: string | undefined,
+): Promise<readonly CheckpointShortId[]> {
+	const stages =
+		shortId === undefined ? undefined : await frozenStages(runsDirectory, run);
+	if (shortId === undefined || stages === undefined) {
+		return [];
+	}
+
+	const paths = benchmarkRunPaths(runsDirectory, run);
+	const numbered: { stage: string; number: number }[] = [];
+	for (const stage of await checkpointStageNames(runsDirectory, run)) {
+		const number = checkpointStageNumber(stages, stage);
+		if (
+			number !== undefined &&
+			(await Bun.file(
+				checkpointRecordFile(paths.checkpointDirectory(stage)),
+			).exists())
+		) {
+			numbered.push({ stage, number });
+		}
+	}
+
+	return numbered
+		.toSorted((left, right) => left.number - right.number)
+		.map(({ stage, number }) => ({
+			stage,
+			shortId: formatCheckpointShortId(shortId, number),
+		}));
+}
+
 async function rowFor(
 	runsDirectory: string,
 	run: string,
@@ -501,6 +549,7 @@ async function rowFor(
 			({ label }) => !available.some((link) => link.label === label),
 		),
 	];
+	const checkpoints = await checkpointShortIds(runsDirectory, run, shortId);
 	const stage = await latestCheckpointStage(runsDirectory, run);
 	if (stage === undefined) {
 		const causes = staleByCheckpointId.get(`checkpoint:${run}/initial`) ?? [];
@@ -509,6 +558,7 @@ async function rowFor(
 			kind: "run",
 			run,
 			shortId,
+			checkpoints,
 			status,
 			caseId,
 			stage: undefined,
@@ -531,6 +581,7 @@ async function rowFor(
 		kind: "run",
 		run,
 		shortId,
+		checkpoints,
 		status,
 		caseId,
 		stage,

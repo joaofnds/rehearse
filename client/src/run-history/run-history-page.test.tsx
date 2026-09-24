@@ -49,6 +49,7 @@ function oneStoppedOneComplete(): RunHistoryResponseBody {
 			{
 				kind: "run",
 				shortId: undefined,
+				checkpoints: [],
 				links: [],
 				run: "2026-09-06T21-58-29.508Z",
 				caseId: "audit-log",
@@ -63,6 +64,7 @@ function oneStoppedOneComplete(): RunHistoryResponseBody {
 			{
 				kind: "run",
 				shortId: undefined,
+				checkpoints: [],
 				links: [],
 				run: "2026-09-03T00-00-00.000Z",
 				caseId: "audit-log",
@@ -118,6 +120,7 @@ describe(RunHistoryPage.name, () => {
 				{
 					kind: "run",
 					shortId: undefined,
+					checkpoints: [],
 					links: [],
 					run: "2026-09-06T21-58-29.508Z",
 					caseId: "audit-log",
@@ -152,6 +155,7 @@ describe(RunHistoryPage.name, () => {
 				{
 					kind: "run",
 					shortId: undefined,
+					checkpoints: [],
 					links: [],
 					run: "2026-09-06T21-58-29.508Z",
 					caseId: "audit-log",
@@ -216,6 +220,7 @@ describe(RunHistoryPage.name, () => {
 				{
 					kind: "run",
 					shortId: undefined,
+					checkpoints: [],
 					links: [],
 					run: "2026-09-06T21-58-29.508Z",
 					caseId: "audit-log",
@@ -245,6 +250,7 @@ describe(RunHistoryPage.name, () => {
 				{
 					kind: "run",
 					shortId: undefined,
+					checkpoints: [],
 					links: [],
 					run: "2026-09-04T00-00-00.000Z",
 					caseId: "audit-log",
@@ -324,6 +330,7 @@ describe(RunHistoryPage.name, () => {
 				{
 					kind: "run",
 					shortId: undefined,
+					checkpoints: [],
 					links: [],
 					run: "2026-09-06T21-58-29.508Z",
 					caseId: "audit-log",
@@ -352,6 +359,7 @@ describe(RunHistoryPage.name, () => {
 				{
 					kind: "run",
 					shortId: undefined,
+					checkpoints: [],
 					links: [],
 					run: "2026-09-06T21-58-29.508Z",
 					caseId: "audit-log",
@@ -405,6 +413,7 @@ describe(RunHistoryPage.name, () => {
 					{
 						kind: "run",
 						shortId: undefined,
+						checkpoints: [],
 						links: [],
 						run: "2026-09-06T00-00-00.000Z",
 						caseId: "audit-log",
@@ -419,6 +428,7 @@ describe(RunHistoryPage.name, () => {
 					{
 						kind: "run",
 						shortId: undefined,
+						checkpoints: [],
 						links: [],
 						run: "2026-09-05T00-00-00.000Z",
 						caseId: "audit-log",
@@ -462,6 +472,7 @@ describe(RunHistoryPage.name, () => {
 		const runningRow: RunHistoryResponseBody["rows"][number] = {
 			kind: "run",
 			shortId: undefined,
+			checkpoints: [],
 			links: [],
 			run: "2026-09-07T00-00-00.000Z",
 			caseId: "audit-log",
@@ -661,6 +672,7 @@ describe(RunHistoryPage.name, () => {
 					{
 						kind: "run",
 						shortId: undefined,
+						checkpoints: [],
 						links: [],
 						run: "2026-09-06T00-00-00.000Z",
 						caseId: "audit-log",
@@ -694,6 +706,7 @@ describe(RunHistoryPage.name, () => {
 				{
 					kind: "run",
 					shortId: undefined,
+					checkpoints: [],
 					links: [],
 					run: "2026-09-05T00-00-00.000Z",
 					caseId: "audit-log",
@@ -729,6 +742,7 @@ describe(RunHistoryPage.name, () => {
 				{
 					kind: "run",
 					shortId: undefined,
+					checkpoints: [],
 					links: [],
 					run: "2026-09-06T21-58-29.508Z",
 					caseId: "audit-log",
@@ -864,6 +878,7 @@ describe(RunHistoryPage.name, () => {
 				{
 					kind: "run",
 					shortId: undefined,
+					checkpoints: [],
 					run: "2026-09-06T21-58-29.508Z",
 					caseId: "audit-log",
 					status: "STOPPED:build",
@@ -884,6 +899,7 @@ describe(RunHistoryPage.name, () => {
 				{
 					kind: "run",
 					shortId: undefined,
+					checkpoints: [],
 					run: "2026-09-17T12-50-49.127Z",
 					caseId: undefined,
 					status: "FAILED",
@@ -1075,6 +1091,7 @@ describe(RunHistoryPage.name, () => {
 				{
 					kind: "run",
 					shortId: undefined,
+					checkpoints: [],
 					links: [],
 					run: "2026-09-05T00-00-00.000Z",
 					caseId: "audit-log",
