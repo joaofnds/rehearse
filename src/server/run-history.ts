@@ -32,7 +32,11 @@ import { parseRunSummaryRecord } from "#benchmark/record-summary";
 import { readReplayRecord } from "#benchmark/replay";
 import { parseSessionAttemptRecord } from "#benchmark/session-record";
 import { formatRecordId } from "#cli/record-id";
-import { stoppedStage } from "#benchmark/run-outcome";
+import {
+	awaitingJudgeStageRecordSchema,
+	stoppedStage,
+	stoppedStageRecordSchema,
+} from "#benchmark/run-outcome";
 import { staleCheckpoints } from "#benchmark/staleness-report";
 import { stoppedStatus } from "#benchmark/stopped-status";
 import type { RunLiveness } from "#benchmark/run-liveness";
@@ -379,6 +383,63 @@ async function statusAndCaseId(
 	return undefined;
 }
 
+/**
+ * Whether a stage's own record file is one the stage page renders without a
+ * checkpoint: a stop record, or a record left awaiting judgment, naming this
+ * stage.
+ */
+async function checkpointlessStageRecorded(
+	paths: BenchmarkRunPaths,
+	stage: string,
+): Promise<boolean> {
+	const file = Bun.file(paths.stageFile(stage));
+	if (!(await file.exists())) {
+		return false;
+	}
+
+	const contents: unknown = JSON.parse(await file.text());
+	const recorded =
+		stoppedStageRecordSchema.safeParse(contents).data?.stage ??
+		awaitingJudgeStageRecordSchema.safeParse(contents).data?.stage;
+
+	return recorded === stage;
+}
+
+/**
+ * A link to every stage whose context page renders a report, in pipeline
+ * order: a stage that saved a checkpoint, the stage that stopped the run, and
+ * a stage left awaiting judgment. `initial` is not a pipeline stage, so
+ * reading the stage list off the manifest leaves it out, and a run with no
+ * manifest has no page for any stage.
+ */
+async function stageLinks(
+	runsDirectory: string,
+	run: string,
+): Promise<readonly ContextLink[]> {
+	const paths = benchmarkRunPaths(runsDirectory, run);
+	if (!(await Bun.file(paths.manifestFile).exists())) {
+		return [];
+	}
+
+	const manifest = await loadRunManifest(paths.manifestFile);
+	const checkpointed = new Set(await checkpointStageNames(runsDirectory, run));
+	const links: ContextLink[] = [];
+	for (const { name: stage } of manifest.pipeline.stages) {
+		if (
+			checkpointed.has(stage) ||
+			(await checkpointlessStageRecorded(paths, stage))
+		) {
+			links.push({
+				state: "available",
+				label: stage,
+				href: `/runs/${encodeURIComponent(run)}/stages/${encodeURIComponent(stage)}`,
+			});
+		}
+	}
+
+	return links;
+}
+
 async function rowFor(
 	runsDirectory: string,
 	run: string,
@@ -396,7 +457,14 @@ async function rowFor(
 		return undefined;
 	}
 
-	const { status, caseId, gradeByStage, progress, links } = identity;
+	const { status, caseId, gradeByStage, progress } = identity;
+	const available = await stageLinks(runsDirectory, run);
+	const links = [
+		...available,
+		...identity.links.filter(
+			({ label }) => !available.some((link) => link.label === label),
+		),
+	];
 	const stage = await latestCheckpointStage(runsDirectory, run);
 	if (stage === undefined) {
 		const causes = staleByCheckpointId.get(`checkpoint:${run}/initial`) ?? [];

@@ -11,7 +11,9 @@ import {
 } from "#benchmark/run-records-test-support";
 import type { RecordedRunsOptions } from "#benchmark/run-records-test-support";
 import type { RunLiveness } from "#benchmark/run-liveness";
-import type { PipelineRunRow, RunHistoryRow } from "./run-history";
+import { openRunEventStore } from "#benchmark/run-events";
+import { runEventsDatabaseFile } from "#benchmark/run-layout";
+import type { ContextLink, PipelineRunRow, RunHistoryRow } from "./run-history";
 import { runHistoryReport } from "./run-history";
 
 function pipelineRun(
@@ -494,7 +496,13 @@ describe(runHistoryReport.name, () => {
 			stale: true,
 			staleCauses: ["stage settings file stage-settings.json changed"],
 			progress: { state: "recorded" },
-			links: [],
+			links: [
+				{
+					state: "available",
+					label: "build",
+					href: `/runs/${fixture.stoppedRun}/stages/build`,
+				},
+			],
 		});
 	});
 
@@ -879,6 +887,74 @@ describe(runHistoryReport.name, () => {
 			expect(unreadable).toContainEqual({
 				id: "group:group-empty",
 				reason: "incomplete: no group.json recorded",
+			});
+		});
+	});
+
+	describe("stage links on a pipeline run", () => {
+		function stageLink(run: string, stage: string): ContextLink {
+			return {
+				state: "available",
+				label: stage,
+				href: `/runs/${run}/stages/${stage}`,
+			};
+		}
+
+		it("links each stage that saved a checkpoint, in pipeline order, and never the initial checkpoint", async () => {
+			const fixture = await writtenFixture();
+			await fixture.writeInitialCheckpoint();
+
+			const { rows } = await runHistoryReport(
+				fixture.runsDirectory,
+				directorySource(await corpusDirectory("build skill\n")),
+				nothingRunning,
+			);
+
+			expect(pipelineRun(rows, fixture.replayableRun)?.links).toEqual([
+				stageLink(fixture.replayableRun, "discuss"),
+				stageLink(fixture.replayableRun, "build"),
+			]);
+		});
+
+		it("links the stage that stopped the run, whose page renders from its stop record", async () => {
+			const fixture = await writtenFixture();
+			await fixture.writeStoppedRun();
+
+			const { rows } = await runHistoryReport(
+				fixture.runsDirectory,
+				directorySource(await corpusDirectory("build skill\n")),
+				nothingRunning,
+			);
+
+			expect(pipelineRun(rows, fixture.stoppedRun)?.links).toEqual([
+				stageLink(fixture.stoppedRun, "build"),
+			]);
+		});
+
+		it("links a stage left awaiting judgment by a run that was interrupted while judging", async () => {
+			const fixture = await writtenFixture();
+			await fixture.writeAwaitingJudgeRun();
+			const store = await openRunEventStore(
+				runEventsDatabaseFile(fixture.runsDirectory),
+			);
+			store.append({
+				runId: fixture.awaitingJudgeRun,
+				kind: "run-interrupted",
+				stage: "build",
+				spentUsd: 1,
+				elapsedMs: 5000,
+			});
+			store.close();
+
+			const { rows } = await runHistoryReport(
+				fixture.runsDirectory,
+				directorySource(await corpusDirectory("build skill\n")),
+				nothingRunning,
+			);
+
+			expect(pipelineRun(rows, fixture.awaitingJudgeRun)).toMatchObject({
+				status: "INTERRUPTED",
+				links: [stageLink(fixture.awaitingJudgeRun, "build")],
 			});
 		});
 	});
