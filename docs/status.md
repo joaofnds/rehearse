@@ -1,6 +1,6 @@
 # Current state and priorities
 
-Reviewed against the code and project board on **2026-09-23**. This is the public
+Reviewed against the code and project board on **2026-09-24**. This is the public
 feature inventory, not a release guarantee. The [vision](vision.md) describes the
 longer-term goal; the [runbook](runbook.md) describes the supported first steps.
 
@@ -109,11 +109,13 @@ case present, but no browser check has been run over it.
 ## Browser UI
 
 Every screen carries a navigation rail listing the nine sections the design
-enumerates. It links the two that have a screen listing their whole collection,
-run history and the corpus, with a badge on each counting that collection, and
-marks the other seven planned. The rail reaches no other address. A comparison
-is still opened by typing its address, and a comparison screen links onward to
-the attempts it names. In run history, the `STOPPED:<stage>` line in a stopped
+enumerates. It links the three that have a screen listing their whole
+collection, run history, the saved comparisons and the corpus, with a badge on
+each counting that collection, and marks the other six planned. The comparisons
+badge counts only the comparisons that can be read. The rail reaches no other
+address. The comparisons screen links each saved comparison to its own page, in
+digest order because no comparison records when it was made, and a comparison
+screen links onward to the attempts it names. In run history, the `STOPPED:<stage>` line in a stopped
 run's row links to the context history of the stage it stopped on, which
 reports the stop; the rest of the row links nowhere. Every other stage's context
 history, for a stage that wrote a checkpoint or a stage awaiting judgment, is
@@ -130,6 +132,7 @@ is reachable only by typing it, because the design's nav does not name it.
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `/`                                  | Run-history report with each row's staleness causes and the runs it could not read, including empty and error states; a stopped run's outcome links to the context history of the stage it stopped on; a run in flight appears as a RUNNING row carrying its stage, elapsed time, and scoped spend                                                                                               |
 | `/corpus`                            | Live corpus inventory; instruction editing is marked planned                                                                                                                                                                                                                                                                                                                                     |
+| `/comparisons`                       | Every saved comparison by digest, mode, cases and reps, each linking to its own page; the comparisons that could not be read, with their reasons; empty and error states                                                                                                                                                                                                                         |
 | `/comparisons/<digest>`              | Saved case/arm distributions, attribution, quality readings, and validated session-attempt links                                                                                                                                                                                                                                                                                                 |
 | `/attempts/session/<case>/<uuid>`    | Saved standalone session context history, with the per-request token and cost timeline                                                                                                                                                                                                                                                                                                           |
 | `/groups/<group>/reps/<rep>/attempt` | Saved confirmation-rep context history, with the per-request token and cost timeline                                                                                                                                                                                                                                                                                                             |
@@ -138,7 +141,7 @@ is reachable only by typing it, because the design's nav does not name it.
 
 Run launch, full run detail, task/case management, calibration screens,
 settings, and first-run setup are design targets. The rail marks Live monitor,
-Run detail, Comparisons, Tasks, Cases, Calibration and Settings planned rather
+Run detail, Tasks, Cases, Calibration and Settings planned rather
 than linking to them. Live monitoring is partly
 delivered: the run list reports a run in flight with its stage, elapsed time and
 scoped spend, while a monitor carrying the judge's reasoning and per-stage detail
