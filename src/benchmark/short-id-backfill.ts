@@ -2,7 +2,6 @@ import { unhandled } from "./contracts";
 import { z } from "zod";
 import { CaseDeclarationError, casesRoot, readCaseDeclaration } from "./case";
 import { parseConfirmationGroupRecord } from "./confirmation-record";
-import type { ParsedConfirmationGroupRecord } from "./confirmation-record";
 import { textIfPresent } from "./file-presence";
 import { loadRunManifest } from "./manifest";
 import { parseRunSummaryRecord } from "./record-summary";
@@ -172,20 +171,34 @@ const NO_EVENTS: Pick<RunEventStore, "latestEvent" | "close"> = {
 	close: () => undefined,
 };
 
-/** Each recorded run with the case run history reads it under, if any. */
-async function runCases(
-	runsDirectory: string,
-): Promise<readonly { run: string; caseId: string | undefined }[]> {
+/**
+ * A readable record and the case it belongs to, dated once the lines its
+ * case's starting transcript declares are known.
+ */
+interface CaseRecord {
+	readonly caseId: string;
+	readonly dated: (declaredPrefix: number) => Promise<DatedRecord>;
+}
+
+async function runs(runsDirectory: string): Promise<CaseRecord[]> {
 	const databaseFile = runEventsDatabaseFile(runsDirectory);
 	const events = (await Bun.file(databaseFile).exists())
 		? await openRunEventStore(databaseFile)
 		: NO_EVENTS;
 	try {
-		const found: { run: string; caseId: string | undefined }[] = [];
+		const found: CaseRecord[] = [];
 		for (const run of await recordedRunNames(runsDirectory)) {
+			const caseId = await readable(() =>
+				runCaseId(runsDirectory, run, events),
+			);
+			if (caseId === undefined) {
+				continue;
+			}
+
 			found.push({
-				run,
-				caseId: await readable(() => runCaseId(runsDirectory, run, events)),
+				caseId,
+				dated: () =>
+					Promise.resolve({ record: { kind: "run", run }, recordedAt: run }),
 			});
 		}
 
@@ -195,27 +208,9 @@ async function runCases(
 	}
 }
 
-async function runs(
-	runsDirectory: string,
-	caseId: string,
-): Promise<DatedRecord[]> {
-	const recorded = await runCases(runsDirectory);
-
-	return recorded
-		.filter((found) => found.caseId === caseId)
-		.map(({ run }) => ({ record: { kind: "run", run }, recordedAt: run }));
-}
-
-async function sessionAttempts(
-	runsDirectory: string,
-	caseId: string,
-	declaredPrefix: number,
-): Promise<DatedRecord[]> {
-	const found: DatedRecord[] = [];
+async function sessionAttempts(runsDirectory: string): Promise<CaseRecord[]> {
+	const found: CaseRecord[] = [];
 	for (const attempt of await sessionAttemptIds(runsDirectory)) {
-		if (attempt.caseId !== caseId) {
-			continue;
-		}
 		const paths = sessionAttemptPaths(runsDirectory, attempt);
 		const text = await readable(async () => {
 			const recordText = await Bun.file(paths.recordFile).text();
@@ -228,11 +223,14 @@ async function sessionAttempts(
 		}
 
 		found.push({
-			record: { kind: "attempt:session", ...attempt },
-			recordedAt: await firstTranscriptTime(
-				paths.transcriptFile,
-				storedPrefixLines(text) ?? declaredPrefix,
-			),
+			caseId: attempt.caseId,
+			dated: async (declaredPrefix) => ({
+				record: { kind: "attempt:session", ...attempt },
+				recordedAt: await firstTranscriptTime(
+					paths.transcriptFile,
+					storedPrefixLines(text) ?? declaredPrefix,
+				),
+			}),
 		});
 	}
 
@@ -255,18 +253,22 @@ function replayCaseId(
 	});
 }
 
-async function replays(
-	runsDirectory: string,
-	caseId: string,
-): Promise<DatedRecord[]> {
-	const found: DatedRecord[] = [];
+async function replays(runsDirectory: string): Promise<CaseRecord[]> {
+	const found: CaseRecord[] = [];
 	for (const attempt of await replayAttemptIds(runsDirectory)) {
-		if ((await replayCaseId(runsDirectory, attempt)) === caseId) {
-			found.push({
-				record: { kind: "attempt:stage", ...attempt },
-				recordedAt: attempt.timestamp,
-			});
+		const caseId = await replayCaseId(runsDirectory, attempt);
+		if (caseId === undefined) {
+			continue;
 		}
+
+		found.push({
+			caseId,
+			dated: () =>
+				Promise.resolve({
+					record: { kind: "attempt:stage", ...attempt },
+					recordedAt: attempt.timestamp,
+				}),
+		});
 	}
 
 	return found;
@@ -284,42 +286,46 @@ async function repTime(
 	return firstTranscriptTime(paths.transcriptFile, stored ?? declaredPrefix);
 }
 
-function readGroup(
-	runsDirectory: string,
-	groupId: string,
-): Promise<ParsedConfirmationGroupRecord | undefined> {
-	const { groupFile } = confirmationGroupPaths(runsDirectory, groupId);
-
-	return readable(async () =>
-		parseConfirmationGroupRecord(await Bun.file(groupFile).text()),
-	);
-}
-
-async function groups(
-	runsDirectory: string,
-	caseId: string,
-	declaredPrefix: number,
-): Promise<DatedRecord[]> {
-	const found: DatedRecord[] = [];
+async function groups(runsDirectory: string): Promise<CaseRecord[]> {
+	const found: CaseRecord[] = [];
 	for (const groupId of await confirmationGroupIds(runsDirectory)) {
 		const paths = confirmationGroupPaths(runsDirectory, groupId);
-		const record = await readGroup(runsDirectory, groupId);
-		if (record?.caseId !== caseId) {
+		const record = await readable(async () =>
+			parseConfirmationGroupRecord(await Bun.file(paths.groupFile).text()),
+		);
+		if (record === undefined) {
 			continue;
 		}
 
-		const repTimes = await Promise.all(
-			record.repRecords.map(({ repId }) =>
-				repTime(paths.rep(repId), declaredPrefix),
-			),
-		);
 		found.push({
-			record: { kind: "group", groupId },
-			recordedAt: earliest(repTimes),
+			caseId: record.caseId,
+			dated: async (declaredPrefix) => {
+				const repTimes = await Promise.all(
+					record.repRecords.map(({ repId }) =>
+						repTime(paths.rep(repId), declaredPrefix),
+					),
+				);
+
+				return {
+					record: { kind: "group", groupId },
+					recordedAt: earliest(repTimes),
+				};
+			},
 		});
 	}
 
 	return found;
+}
+
+async function caseRecords(
+	runsDirectory: string,
+): Promise<readonly CaseRecord[]> {
+	return [
+		...(await runs(runsDirectory)),
+		...(await sessionAttempts(runsDirectory)),
+		...(await replays(runsDirectory)),
+		...(await groups(runsDirectory)),
+	];
 }
 
 const KIND_ORDER: readonly NamedRecord["kind"][] = [
@@ -385,37 +391,23 @@ export async function recordsOnDisk(
 	casesDirectory: string = casesRoot(),
 ): Promise<readonly DatedRecord[]> {
 	const declaredPrefix = await declaredPrefixLines(caseId, casesDirectory);
-	const found = [
-		...(await runs(runsDirectory, caseId)),
-		...(await sessionAttempts(runsDirectory, caseId, declaredPrefix)),
-		...(await replays(runsDirectory, caseId)),
-		...(await groups(runsDirectory, caseId, declaredPrefix)),
-	];
+	const recorded = await caseRecords(runsDirectory);
+	const found = await Promise.all(
+		recorded
+			.filter((record) => record.caseId === caseId)
+			.map(({ dated }) => dated(declaredPrefix)),
+	);
 
 	return found.toSorted(oldestFirst);
 }
 
 /**
- * Every case some record on disk belongs to, as recordsOnDisk reads each
- * record's case, so numbering each of these numbers every record it lists.
+ * Every case some record on disk belongs to, so numbering each of these
+ * numbers every record recordsOnDisk lists.
  */
 export async function recordedCaseIds(
 	runsDirectory: string,
 ): Promise<ReadonlySet<string>> {
-	const found = new Set<string | undefined>();
-	for (const { caseId } of await runCases(runsDirectory)) {
-		found.add(caseId);
-	}
-	for (const { caseId } of await sessionAttemptIds(runsDirectory)) {
-		found.add(caseId);
-	}
-	for (const attempt of await replayAttemptIds(runsDirectory)) {
-		found.add(await replayCaseId(runsDirectory, attempt));
-	}
-	for (const groupId of await confirmationGroupIds(runsDirectory)) {
-		const group = await readGroup(runsDirectory, groupId);
-		found.add(group?.caseId);
-	}
-
-	return new Set([...found].filter((caseId) => caseId !== undefined));
+	const recorded = await caseRecords(runsDirectory);
+	return new Set(recorded.map(({ caseId }) => caseId));
 }

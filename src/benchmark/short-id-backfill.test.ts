@@ -429,27 +429,46 @@ describe(recordedCaseIds.name, () => {
 
 		const cases = await recordedCaseIds(runsDirectory);
 
-		expect(cases).toEqual(new Set(["audit-log", "haiku", "smoke"]));
-	});
-
-	it("names a replay's case when run history cannot list its source run", async () => {
-		await fixture.writeNoRecordRun();
-		await fixture.writeReplayOf(
-			fixture.noRecordRun,
-			"2026-09-05T01-00-00.000Z",
+		expect(cases).toEqual(
+			new Set(["audit-log", "haiku", fixture.sessionAttempt.caseId]),
 		);
-
-		const cases = await recordedCaseIds(runsDirectory);
-
-		expect(cases).toEqual(new Set(["audit-log"]));
 	});
 
-	it("names no case for a record whose case cannot be read", async () => {
-		await fixture.writeNoRecordRun();
-		await fixture.writeUnreadableGroup("group-unreadable");
+	describe("when run history cannot list a replay's source run", () => {
+		it("names the replay's case", async () => {
+			await fixture.writeNoRecordRun();
+			await fixture.writeReplayOf(
+				fixture.noRecordRun,
+				"2026-09-05T01-00-00.000Z",
+			);
 
-		const cases = await recordedCaseIds(runsDirectory);
+			const cases = await recordedCaseIds(runsDirectory);
 
-		expect(cases).toEqual(new Set());
+			expect(cases).toEqual(new Set(["audit-log"]));
+		});
+	});
+
+	describe("when a run's or a group's case cannot be read", () => {
+		it("names no case for it", async () => {
+			await fixture.writeNoRecordRun();
+			await fixture.writeUnreadableGroup("group-unreadable");
+
+			const cases = await recordedCaseIds(runsDirectory);
+
+			expect(cases).toEqual(new Set());
+		});
+	});
+
+	describe("when an attempt was half-written", () => {
+		it("names no case for it", async () => {
+			await fixture.writeUnreadableAttempt(
+				"smoke",
+				"eeeeeeee-0000-4000-8000-000000000005",
+			);
+
+			const cases = await recordedCaseIds(runsDirectory);
+
+			expect(cases).toEqual(new Set());
+		});
 	});
 });
