@@ -957,6 +957,7 @@ describe(RunHistoryPage.name, () => {
 					caseId: "brief-reply",
 					mode: "session",
 					reps: 2,
+					repAttempts: [],
 					links: [
 						{
 							state: "available",

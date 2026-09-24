@@ -21,13 +21,18 @@ export interface AttemptPosition {
 
 /**
  * One run of a stage from the checkpoint before it, ordered by claim number
- * and, inside a confirmation group, by the rep's position in it. Only a
- * replay has a page that names its attempt, so only a replay keeps its id.
+ * and, inside a confirmation group, by the rep's position in it. The original
+ * run's stage is counted and named by nothing.
  */
 interface Attempt {
-	readonly replayId: string | undefined;
+	readonly id: string | undefined;
 	readonly claim: number;
 	readonly ordinal: number;
+}
+
+/** How a rep is looked up among the attempts, beside replays' Record IDs. */
+export function repAttemptId(groupId: string, repId: string): string {
+	return `rep:${groupId}/${repId}`;
 }
 
 async function readable<Read>(
@@ -71,7 +76,7 @@ async function originalRecorded(
 async function judgedStageReps(
 	runsDirectory: string,
 	groupId: string,
-): Promise<readonly number[]> {
+): Promise<readonly { repId: string; ordinal: number }[]> {
 	const paths = confirmationGroupPaths(runsDirectory, groupId);
 	const group = await readable(async () =>
 		parseConfirmationGroupRecord(await Bun.file(paths.groupFile).text()),
@@ -80,7 +85,7 @@ async function judgedStageReps(
 		return [];
 	}
 
-	const judged: number[] = [];
+	const judged: { repId: string; ordinal: number }[] = [];
 	for (const { repId, ordinal } of group.repRecords) {
 		const rep = await readable(async () =>
 			parseConfirmationRepRecord(
@@ -88,7 +93,7 @@ async function judgedStageReps(
 			),
 		);
 		if (rep?.stages.every(({ status }) => status === "JUDGED") === true) {
-			judged.push(ordinal);
+			judged.push({ repId, ordinal });
 		}
 	}
 
@@ -97,12 +102,13 @@ async function judgedStageReps(
 
 /**
  * Each claimed replay's attempt at the checkpoint it started from, by its
- * Record ID. The count takes every attempt there that recorded a result: the
- * original run's stage, replays, and judged reps of stage-mode groups whose
- * claim names the run and stage. A group claimed before claims recorded their
- * source cannot be placed and is left out.
+ * Record ID, and each judged rep's, by its rep attempt id. The count takes
+ * every attempt there that recorded a result: the original run's stage,
+ * replays, and judged reps of stage-mode groups whose claim names the run and
+ * stage. A group claimed before claims recorded their source cannot be placed
+ * and is left out.
  */
-export async function replayAttempts(
+export async function checkpointAttempts(
 	runsDirectory: string,
 	entries: readonly ShortIdEntry[],
 ): Promise<ReadonlyMap<string, AttemptPosition>> {
@@ -130,7 +136,7 @@ export async function replayAttempts(
 			);
 			if (replay !== undefined) {
 				add(replay.runName, replay.stage, {
-					replayId: formatRecordId(record),
+					id: formatRecordId(record),
 					claim,
 					ordinal: 0,
 				});
@@ -138,11 +144,15 @@ export async function replayAttempts(
 		}
 		if (record.kind === "group" && record.source !== undefined) {
 			const { run, stage } = record.source;
-			for (const ordinal of await judgedStageReps(
+			for (const { repId, ordinal } of await judgedStageReps(
 				runsDirectory,
 				record.groupId,
 			)) {
-				add(run, stage, { replayId: undefined, claim, ordinal });
+				add(run, stage, {
+					id: repAttemptId(record.groupId, repId),
+					claim,
+					ordinal,
+				});
 			}
 		}
 	}
@@ -152,15 +162,15 @@ export async function replayAttempts(
 		const counted = (await originalRecorded(runsDirectory, run, stage))
 			? [
 					...attempts,
-					{ replayId: undefined, claim: runClaims.get(run) ?? -1, ordinal: 0 },
+					{ id: undefined, claim: runClaims.get(run) ?? -1, ordinal: 0 },
 				]
 			: attempts;
 		const ordered = counted.toSorted(
 			(left, right) => left.claim - right.claim || left.ordinal - right.ordinal,
 		);
-		for (const [index, { replayId }] of ordered.entries()) {
-			if (replayId !== undefined) {
-				positions.set(replayId, {
+		for (const [index, { id }] of ordered.entries()) {
+			if (id !== undefined) {
+				positions.set(id, {
 					position: index + 1,
 					count: ordered.length,
 				});

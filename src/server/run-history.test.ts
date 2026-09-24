@@ -969,6 +969,10 @@ describe(runHistoryReport.name, () => {
 				caseId: fixture.sessionAttempt.caseId,
 				mode: "session",
 				reps: 2,
+				repAttempts: [
+					{ repId: "group-s-rep-1", attempt: { position: 1, count: 2 } },
+					{ repId: "group-s-rep-2", attempt: { position: 2, count: 2 } },
+				],
 				links: [
 					{
 						state: "available",
@@ -1353,6 +1357,35 @@ describe(runHistoryReport.name, () => {
 			expect(rows.find((row) => row.kind === "replay")?.attempt).toEqual({
 				position: 2,
 				count: 3,
+			});
+			expect(
+				rows.find(
+					(row) => row.kind === "group" && row.groupId === "group-at-build",
+				),
+			).toMatchObject({
+				repAttempts: [
+					{ repId: "group-at-build-rep-1", attempt: { position: 3, count: 3 } },
+				],
+			});
+		});
+
+		it("names each rep of a session-mode group by its position in the group", async () => {
+			const fixture = await writtenFixture();
+			await fixture.writeSessionGroup("group-s");
+
+			const { rows } = await runHistoryReport(
+				fixture.runsDirectory,
+				directorySource(await corpusDirectory("build skill\n")),
+				nothingRunning,
+			);
+
+			expect(
+				rows.find((row) => row.kind === "group" && row.groupId === "group-s"),
+			).toMatchObject({
+				repAttempts: [
+					{ repId: "group-s-rep-1", attempt: { position: 1, count: 2 } },
+					{ repId: "group-s-rep-2", attempt: { position: 2, count: 2 } },
+				],
 			});
 		});
 

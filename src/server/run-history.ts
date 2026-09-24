@@ -1,7 +1,11 @@
 import { unhandled } from "#benchmark/contracts";
+import type { Immutable } from "#benchmark/contracts";
 import { readCheckpointRecord } from "#benchmark/checkpoint";
 import { parseConfirmationGroupRecord } from "#benchmark/confirmation-record";
-import type { ConfirmationMode } from "#benchmark/confirmation-record";
+import type {
+	ConfirmationMode,
+	ParsedConfirmationGroupRecord,
+} from "#benchmark/confirmation-record";
 import type { CorpusRoot } from "#benchmark/corpus-file";
 import { loadRunManifest } from "#benchmark/manifest";
 import type {
@@ -55,7 +59,7 @@ import {
 import { staleCheckpoints } from "#benchmark/staleness-report";
 import { stoppedStatus } from "#benchmark/stopped-status";
 import type { RunLiveness } from "#benchmark/run-liveness";
-import { replayAttempts } from "./checkpoint-attempts";
+import { checkpointAttempts, repAttemptId } from "./checkpoint-attempts";
 import type { AttemptPosition } from "./checkpoint-attempts";
 import { corpusDigest } from "./corpus-digest";
 import { redactAbsolutePaths } from "./redact-path";
@@ -185,7 +189,13 @@ export interface ConfirmationGroupRow {
 	readonly caseId: string;
 	readonly mode: ConfirmationMode;
 	readonly reps: number;
+	readonly repAttempts: readonly RepAttempt[];
 	readonly links: readonly ContextLink[];
+}
+
+export interface RepAttempt {
+	readonly repId: string;
+	readonly attempt: AttemptPosition;
 }
 
 /**
@@ -746,10 +756,30 @@ async function repLink(
 	};
 }
 
+/**
+ * A session-mode rep has no checkpoint, so its attempt is its position in its
+ * group. A stage-mode rep's is its attempt at the checkpoint it ran from, and
+ * one that recorded no result, or whose group cannot be placed, has none.
+ */
+function repAttempts(
+	record: Immutable<ParsedConfirmationGroupRecord>,
+	attempts: ReadonlyMap<string, AttemptPosition>,
+): readonly RepAttempt[] {
+	return record.repRecords.flatMap(({ repId, ordinal }) => {
+		const attempt =
+			record.mode === "session"
+				? { position: ordinal, count: record.reps }
+				: attempts.get(repAttemptId(record.groupId, repId));
+
+		return attempt === undefined ? [] : [{ repId, attempt }];
+	});
+}
+
 async function groupRow(
 	runsDirectory: string,
 	groupId: string,
 	shortId: string | undefined,
+	attempts: ReadonlyMap<string, AttemptPosition>,
 ): Promise<ConfirmationGroupRow> {
 	const { groupFile } = confirmationGroupPaths(runsDirectory, groupId);
 	if (!(await Bun.file(groupFile).exists())) {
@@ -770,6 +800,7 @@ async function groupRow(
 		caseId: record.caseId,
 		mode: record.mode,
 		reps: record.reps,
+		repAttempts: repAttempts(record, attempts),
 		links,
 	};
 }
@@ -857,7 +888,7 @@ export async function runHistoryReport(
 		const unreadable: UnreadableRecord[] = [];
 		const shortIdEntries = await readAllShortIds(runsDirectory);
 		const shortIds = shortIdsOf(shortIdEntries);
-		const attempts = await replayAttempts(runsDirectory, shortIdEntries);
+		const attempts = await checkpointAttempts(runsDirectory, shortIdEntries);
 		const collect = async <Named>(
 			kind: RunHistoryRow["kind"],
 			named: readonly Named[],
@@ -920,7 +951,7 @@ export async function runHistoryReport(
 			"group",
 			await confirmationGroupIds(runsDirectory),
 			(groupId) => formatRecordId({ kind: "group", groupId }),
-			(groupId, shortId) => groupRow(runsDirectory, groupId, shortId),
+			(groupId, shortId) => groupRow(runsDirectory, groupId, shortId, attempts),
 		);
 
 		return { rows: newestFirst(rows), unreadable };
