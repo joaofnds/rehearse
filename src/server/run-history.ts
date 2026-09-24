@@ -93,6 +93,10 @@ export interface PipelineRunRow {
 }
 
 export const NOT_RUN_REASON = "the run never reached this stage";
+export const REPLAY_TASK_GRADE_REASON =
+	"a replay runs one stage, and only a whole run reaches the final judge";
+export const REPLAY_WALL_TIME_REASON =
+	"the replay record keeps no time the stage started or ended";
 export const NO_MANIFEST_REASON =
 	"the run wrote no manifest, which names its stages";
 
@@ -153,6 +157,16 @@ export interface ReplayRow {
 	readonly grade: string;
 	readonly status: ReplayRecord["scorecard"]["grade"]["verdict"];
 	readonly links: readonly ContextLink[];
+	readonly cost: RunTotals["cost"];
+	readonly taskGrade: NotApplicable;
+	readonly wallTime: RunTotals["wallTime"];
+}
+
+/** A figure that has no meaning for a row's kind, rather than one not recorded. */
+export interface NotApplicable {
+	readonly state: "available";
+	readonly status: "NOT_APPLICABLE";
+	readonly reason: string;
 }
 
 /**
@@ -444,6 +458,34 @@ async function replayRow(
 		grade: record.scorecard.grade.grade,
 		status: record.scorecard.grade.verdict,
 		links: [replayLink(attempt, record.consumed.lineage, caseId)],
+		cost: replayCost(record),
+		taskGrade: {
+			state: "available",
+			status: "NOT_APPLICABLE",
+			reason: REPLAY_TASK_GRADE_REASON,
+		},
+		wallTime: { state: "unavailable", reasons: [REPLAY_WALL_TIME_REASON] },
+	};
+}
+
+/** A replay records each spend, so its sum lacks no part. */
+function replayCost(
+	record: Pick<
+		ReplayRecord,
+		"stage" | "stageCostUsd" | "productOwnerCostUsd" | "judgeCostUsd"
+	>,
+): RunTotals["cost"] {
+	const parts = [
+		{ part: `${record.stage} session`, usd: record.stageCostUsd },
+		{ part: "Product Owner", usd: record.productOwnerCostUsd },
+		{ part: `${record.stage} judge`, usd: record.judgeCostUsd },
+	];
+
+	return {
+		state: "available",
+		usd: parts.reduce((sum, { usd }) => sum + usd, 0),
+		parts,
+		missing: [],
 	};
 }
 

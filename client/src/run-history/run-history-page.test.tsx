@@ -11,7 +11,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { InferResponseType } from "hono/client";
 import type { apiClient } from "#client/api-client";
 import { stubFetch } from "#client/test-support/fetch-stub";
-import { UNREAD_RUN_FIGURES } from "#client/test-support/run-figures";
+import {
+	UNREAD_REPLAY_FIGURES,
+	UNREAD_RUN_FIGURES,
+} from "#client/test-support/run-figures";
 import { RunHistoryPage } from "./run-history-page";
 
 type RunHistoryResponseBody = InferResponseType<typeof apiClient.api.runs.$get>;
@@ -803,6 +806,7 @@ describe(RunHistoryPage.name, () => {
 					},
 					{
 						kind: "replay",
+						...UNREAD_REPLAY_FIGURES,
 						id: "attempt:stage:lineage-build/2026-09-03T01-00-00.000Z",
 						reason: "replay record is empty",
 					},
@@ -958,6 +962,7 @@ describe(RunHistoryPage.name, () => {
 				},
 				{
 					kind: "replay",
+					...UNREAD_REPLAY_FIGURES,
 					shortId: undefined,
 					checkpointShortId: undefined,
 					attempt: undefined,
@@ -1165,6 +1170,7 @@ describe(RunHistoryPage.name, () => {
 				},
 				{
 					kind: "replay",
+					...UNREAD_REPLAY_FIGURES,
 					shortId: "audit-log/r6",
 					checkpointShortId: "audit-log/r2/s1",
 					attempt: { position: 2, count: 3 },

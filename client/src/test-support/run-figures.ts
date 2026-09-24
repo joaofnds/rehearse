@@ -10,3 +10,14 @@ export const UNREAD_RUN_FIGURES = {
 	cost: { state: "unavailable", reasons: ["not read by this test"] },
 	wallTime: { state: "unavailable", reasons: ["not read by this test"] },
 } as const;
+
+/** A replay row's figures, for a test whose subject is another column. */
+export const UNREAD_REPLAY_FIGURES = {
+	cost: { state: "unavailable", reasons: ["not read by this test"] },
+	taskGrade: {
+		state: "available",
+		status: "NOT_APPLICABLE",
+		reason: "not read by this test",
+	},
+	wallTime: { state: "unavailable", reasons: ["not read by this test"] },
+} as const;

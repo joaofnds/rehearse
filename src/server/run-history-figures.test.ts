@@ -18,7 +18,12 @@ import {
 	STOPPED_RUN_ERROR,
 } from "#benchmark/run-records-test-support";
 import { createApiApp } from "./api";
-import { NO_MANIFEST_REASON, NOT_RUN_REASON } from "./run-history";
+import {
+	NO_MANIFEST_REASON,
+	NOT_RUN_REASON,
+	REPLAY_TASK_GRADE_REASON,
+	REPLAY_WALL_TIME_REASON,
+} from "./run-history";
 import {
 	INTERRUPTED_REASON,
 	PRODUCT_OWNER_COST_REASON,
@@ -206,6 +211,15 @@ describe("/api/runs", () => {
 		return listed.find((row) => row.kind === "run" && row.run === run);
 	}
 
+	async function onlyRowOfKind(
+		fixture: RecordedRunsFixture,
+		kind: string,
+	): Promise<ListedRow | undefined> {
+		const listed = await rows(fixture);
+
+		return listed.find((row) => row.kind === kind);
+	}
+
 	describe("GET", () => {
 		describe("a pipeline run row", () => {
 			it("carries one step grade per stage in pipeline order, marking a stopped stage's grade as not recorded", async () => {
@@ -344,6 +358,59 @@ describe("/api/runs", () => {
 						cost: { state: "unavailable" },
 						wallTime: { state: "unavailable" },
 					});
+				});
+			});
+		});
+
+		describe("a replay row", () => {
+			async function replayRow(): Promise<ListedRow | undefined> {
+				const fixture = await emptyFixture();
+				await fixture.writeReplayOf(
+					fixture.replayableRun,
+					fixture.stageAttempt.timestamp,
+				);
+
+				return onlyRowOfKind(fixture, "replay");
+			}
+
+			it("carries its stage's grade and its cost summed over its session, Product Owner and judge", async () => {
+				const row = await replayRow();
+
+				expect(row).toMatchObject({
+					grade: "A",
+					cost: {
+						state: "available",
+						usd: 1 + 0.25 + 0.5,
+						parts: [
+							{ part: "build session", usd: 1 },
+							{ part: "Product Owner", usd: 0.25 },
+							{ part: "build judge", usd: 0.5 },
+						],
+						missing: [],
+					},
+				});
+			});
+
+			it("carries a task grade of not applicable with its reason", async () => {
+				const row = await replayRow();
+
+				expect(row).toMatchObject({
+					taskGrade: {
+						state: "available",
+						status: "NOT_APPLICABLE",
+						reason: REPLAY_TASK_GRADE_REASON,
+					},
+				});
+			});
+
+			it("carries its wall time as not recorded with its reason", async () => {
+				const row = await replayRow();
+
+				expect(row).toMatchObject({
+					wallTime: {
+						state: "unavailable",
+						reasons: [REPLAY_WALL_TIME_REASON],
+					},
 				});
 			});
 		});
