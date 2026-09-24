@@ -652,11 +652,6 @@ function DetailPane({
 	);
 }
 
-/**
- * A record that never held a request series is a different fact from one whose
- * series failed to load, and only the second is something the operator can act
- * on.
- */
 function EvidenceDetail({
 	served,
 	loading,
@@ -690,6 +685,11 @@ function EvidenceDetail({
 	return detail === undefined ? null : <DetailPane detail={detail} />;
 }
 
+/**
+ * A record that never held a request series is a different fact from one whose
+ * series failed to load, and only the second is something the operator can act
+ * on.
+ */
 function timelineNote(failed: boolean, recorded: boolean): string {
 	if (!recorded) {
 		return "A saved stage records no request series.";
