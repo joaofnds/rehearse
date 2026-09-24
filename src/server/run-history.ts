@@ -11,6 +11,7 @@ import type {
 } from "#benchmark/run-layout";
 import {
 	benchmarkRunPaths,
+	checkpointRecordFile,
 	checkpointStageNames,
 	confirmationGroupIds,
 	confirmationGroupPaths,
@@ -453,7 +454,10 @@ async function stageLinks(
 	const links: ContextLink[] = [];
 	for (const { name: stage } of manifest.pipeline.stages) {
 		if (
-			checkpointed.has(stage) ||
+			(checkpointed.has(stage) &&
+				(await Bun.file(
+					checkpointRecordFile(paths.checkpointDirectory(stage)),
+				).exists())) ||
 			(await checkpointlessStageRecorded(paths, stage))
 		) {
 			links.push({

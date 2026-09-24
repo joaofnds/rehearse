@@ -1,6 +1,7 @@
 import { unhandled } from "#benchmark/contracts";
 import { afterEach, describe, expect, it } from "bun:test";
 import {
+	cp,
 	mkdir,
 	mkdtemp,
 	readdir,
@@ -23,6 +24,7 @@ import type { RunLiveness } from "#benchmark/run-liveness";
 import { openRunEventStore } from "#benchmark/run-events";
 import {
 	benchmarkRunPaths,
+	checkpointRecordFile,
 	confirmationGroupPaths,
 	runEventsDatabaseFile,
 } from "#benchmark/run-layout";
@@ -484,6 +486,42 @@ describe(runHistoryReport.name, () => {
 				},
 			],
 		});
+	});
+
+	it("links a failed run's saved stages once each, the stage it failed in included when that stage saved its context", async () => {
+		const fixture = await writtenFixture();
+		await fixture.writeSignalAbortedRun();
+		const saved = benchmarkRunPaths(
+			fixture.runsDirectory,
+			fixture.replayableRun,
+		);
+		const failed = benchmarkRunPaths(fixture.runsDirectory, fixture.abortedRun);
+		for (const stage of ["discuss", "build"]) {
+			await cp(
+				saved.checkpointDirectory(stage),
+				failed.checkpointDirectory(stage),
+				{ recursive: true },
+			);
+		}
+
+		const { rows } = await runHistoryReport(
+			fixture.runsDirectory,
+			directorySource(await corpusDirectory("build skill\n")),
+			nothingRunning,
+		);
+
+		expect(pipelineRun(rows, fixture.abortedRun)?.links).toEqual([
+			{
+				state: "available",
+				label: "discuss",
+				href: `/runs/${fixture.abortedRun}/stages/discuss`,
+			},
+			{
+				state: "available",
+				label: "build",
+				href: `/runs/${fixture.abortedRun}/stages/build`,
+			},
+		]);
 	});
 
 	it("reports a run stopped mid-stage with STOPPED:<stage> and no corpus digest when it recorded no checkpoint", async () => {
@@ -1050,6 +1088,28 @@ describe(runHistoryReport.name, () => {
 
 			expect(pipelineRun(rows, fixture.replayableRun)?.links).toEqual([
 				stageLink(fixture.replayableRun, "discuss"),
+				stageLink(fixture.replayableRun, "build"),
+			]);
+		});
+
+		it("does not link a stage directory that holds no checkpoint record", async () => {
+			const fixture = await writtenFixture();
+			await rm(
+				checkpointRecordFile(
+					benchmarkRunPaths(
+						fixture.runsDirectory,
+						fixture.replayableRun,
+					).checkpointDirectory("discuss"),
+				),
+			);
+
+			const { rows } = await runHistoryReport(
+				fixture.runsDirectory,
+				directorySource(await corpusDirectory("build skill\n")),
+				nothingRunning,
+			);
+
+			expect(pipelineRun(rows, fixture.replayableRun)?.links).toEqual([
 				stageLink(fixture.replayableRun, "build"),
 			]);
 		});
