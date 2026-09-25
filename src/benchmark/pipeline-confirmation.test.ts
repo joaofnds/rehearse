@@ -444,6 +444,58 @@ describe(runPipelineConfirmation.name, () => {
 		).toEqual([[rubricEntry], [rubricEntry], [rubricEntry]]);
 	});
 
+	it("keeps on the stage file of a rep its judge rejected the read manifest of that stage", async () => {
+		const harness = await PipelineConfirmationHarness.setup(testResources);
+
+		const outcome = await harness.run({}, (dependencies) => ({
+			...dependencies,
+			runStageJudge: () =>
+				Promise.reject(
+					new JudgeOutputValidationError({
+						message: "Stage Judge rejected both attempts",
+						prompt: "stage prompt",
+						attempts: [
+							{
+								payload: { invalid: true },
+								costUsd: CONFIRMATION_METRIC.costUsd,
+								metrics: CONFIRMATION_METRIC,
+								outcome: "REJECTED",
+								error: "invalid output",
+							},
+						],
+						costUsd: CONFIRMATION_METRIC.costUsd,
+					}),
+				),
+		}));
+		const groupDirectory = dirname(outcome.groupRecordFile);
+		const stageFiles = await Array.fromAsync(
+			new Bun.Glob("reps/*/stages/discuss.json").scan(groupDirectory),
+		);
+		const recorded = await Promise.all(
+			stageFiles.map(async (file) =>
+				z
+					.object({
+						status: z.literal("REJECTED"),
+						readManifest: readManifestSchema,
+					})
+					.parse(JSON.parse(await Bun.file(join(groupDirectory, file)).text())),
+			),
+		);
+
+		const rubricEntry: ReadManifestEntry = {
+			path: "rubrics/discuss.json",
+			half: "rubric",
+			role: "judge rubric",
+			evidence: "declared",
+			sha256: stageRubricSha256(CONFIRMATION_STAGE_RUBRIC),
+		};
+		expect(
+			recorded.map(({ readManifest }) =>
+				readManifest.filter(({ half }) => half === "rubric"),
+			),
+		).toEqual([[rubricEntry], [rubricEntry], [rubricEntry]]);
+	});
+
 	it("marks a stage skill the rep's session was observed to read", async () => {
 		const harness = await PipelineConfirmationHarness.setup(testResources);
 		const projectsDirectory = await mkdtemp(

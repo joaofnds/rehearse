@@ -71,6 +71,7 @@ import type { ProductOwner, createProductOwner } from "./workflow";
 import { WorkflowExecutionError } from "./workflow";
 import { claimShortId } from "./short-id";
 import { stageRubricSha256 } from "./judge-agreement";
+import type { ReadManifestEntry } from "./read-manifest";
 import { recordStageReads } from "./stage-reads";
 
 interface LoadedStageRubric {
@@ -382,6 +383,7 @@ async function runPipelineRep(
 	let currentSession: StageSessionResult | undefined;
 	let stageClock = createStageClock(now);
 	let judgingStage = false;
+	let judgedReads: readonly ReadManifestEntry[] = [];
 	let judgingFinal = false;
 	let setupOperation: string | undefined = "worktree creation";
 
@@ -478,6 +480,7 @@ async function runPipelineRep(
 					sha256: stageRubricSha256(rubric.rubric),
 				},
 			});
+			judgedReads = readManifest;
 			judgingStage = true;
 			const scorecard = await dependencies.runStageJudge(
 				request.judgeModel,
@@ -731,6 +734,7 @@ async function runPipelineRep(
 							attempts: judgeFailure.attempts,
 							costUsd: judgeFailure.costUsd,
 							error: failure.message,
+							readManifest: judgedReads,
 						},
 						null,
 						2,
