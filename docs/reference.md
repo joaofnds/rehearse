@@ -849,6 +849,22 @@ without writing to the store, and omits it when any entry refused hashing.
 Until a run, replay or session attempt measures that tree, the store does not
 hold its version, so the rail's `corpus@` label can name a version that answers 404.
 
+`corpus invalidation [--corpus <dir>]` prints one line per corpus file,
+`<read-by>\t<invalidated>\t<path>`, then the last edit's line and the id of
+each row it invalidated, one per line. `/api/corpus` carries the same counts as
+each file's `readBy` and `invalidated` and the report's `lastEdit`. Read-by
+counts the distinct run-history rows whose records read the file: a pipeline
+run, whatever its stages read, a session attempt, a replay and a confirmation
+group. Invalidated counts the rows that read the file with the hash the
+previous version holds while the file differs now. The previous version is the
+log entry before the corpus under test. The last edit's rows are those fresh
+against that entry and stale now: stale only because corpus files changed,
+having read every file as the previous version holds it. `lastEdit` answers
+`{kind: "measured", previous, count, rows}`, or `{kind: "not-recorded",
+reason}` when the log holds no earlier version. A record that cannot be read
+counts nowhere. `/api/runs?ids=<id>,<id>` returns only the rows with those
+record ids, so the last edit's rows list as run history.
+
 ### Pipeline run record
 
 `/api/runs/<run>` reads one pipeline run across the files it wrote, its
