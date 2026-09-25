@@ -63,7 +63,8 @@ function oneStoppedOneComplete(): RunHistoryResponseBody {
 				status: "STOPPED:build",
 				stage: "shape",
 				grade: "B",
-				corpus: { digest: "a3a62f" },
+				corpusVersion: { kind: "version", digest: "a3a62f" },
+				corpusChangedDuringRun: false,
 				stale: true,
 				staleCauses: [],
 				progress: { state: "recorded" },
@@ -79,7 +80,8 @@ function oneStoppedOneComplete(): RunHistoryResponseBody {
 				status: "COMPLETE",
 				stage: "build",
 				grade: "A",
-				corpus: { digest: "b1c2d3" },
+				corpusVersion: { kind: "version", digest: "b1c2d3" },
+				corpusChangedDuringRun: false,
 				stale: false,
 				staleCauses: [],
 				progress: { state: "recorded" },
@@ -136,7 +138,8 @@ describe(RunHistoryPage.name, () => {
 					status: "COMPLETE",
 					stage: "build",
 					grade: "B",
-					corpus: { digest: "a3a62f" },
+					corpusVersion: { kind: "version", digest: "a3a62f" },
+					corpusChangedDuringRun: false,
 					stale: true,
 					staleCauses: [
 						"Corpus file CLAUDE.md resolves outside the corpus source, which would hash bytes the corpus does not hold",
@@ -172,7 +175,8 @@ describe(RunHistoryPage.name, () => {
 					status: "STOPPED:build",
 					stage: "shape",
 					grade: "B",
-					corpus: { digest: "a3a62f" },
+					corpusVersion: { kind: "version", digest: "a3a62f" },
+					corpusChangedDuringRun: false,
 					stale: true,
 					staleCauses: ["CLAUDE.md changed"],
 					progress: { state: "recorded" },
@@ -238,7 +242,8 @@ describe(RunHistoryPage.name, () => {
 					status: "STOPPED:build",
 					stage: "shape",
 					grade: "B",
-					corpus: { digest: "a3a62f" },
+					corpusVersion: { kind: "version", digest: "a3a62f" },
+					corpusChangedDuringRun: false,
 					stale: true,
 					staleCauses: ["CLAUDE.md changed"],
 					progress: { state: "recorded" },
@@ -269,7 +274,8 @@ describe(RunHistoryPage.name, () => {
 					status: "STOPPED:discuss",
 					stage: undefined,
 					grade: undefined,
-					corpus: { digest: "a3a62f" },
+					corpusVersion: { kind: "version", digest: "a3a62f" },
+					corpusChangedDuringRun: false,
 					stale: false,
 					staleCauses: [],
 					progress: { state: "recorded" },
@@ -350,7 +356,8 @@ describe(RunHistoryPage.name, () => {
 					status: "STOPPED:build",
 					stage: "shape",
 					grade: "B",
-					corpus: { digest: "a3a62f" },
+					corpusVersion: { kind: "version", digest: "a3a62f" },
+					corpusChangedDuringRun: false,
 					stale: true,
 					staleCauses: ["CLAUDE.md changed"],
 					progress: { state: "recorded" },
@@ -380,7 +387,8 @@ describe(RunHistoryPage.name, () => {
 					status: "STOPPED:build",
 					stage: "shape",
 					grade: "B",
-					corpus: { digest: "a3a62f" },
+					corpusVersion: { kind: "version", digest: "a3a62f" },
+					corpusChangedDuringRun: false,
 					stale: true,
 					staleCauses: ["CLAUDE.md changed", "agents/advisor.md added"],
 					progress: { state: "recorded" },
@@ -435,7 +443,8 @@ describe(RunHistoryPage.name, () => {
 						status: "COMPLETE",
 						stage: "build",
 						grade: "A",
-						corpus: { digest: "aaaaaa" },
+						corpusVersion: { kind: "version", digest: "aaaaaa" },
+						corpusChangedDuringRun: false,
 						stale: true,
 						staleCauses: ["CLAUDE.md changed", "agents/advisor.md added"],
 						progress: { state: "recorded" },
@@ -451,7 +460,8 @@ describe(RunHistoryPage.name, () => {
 						status: "STOPPED:build",
 						stage: "build",
 						grade: "B",
-						corpus: { digest: "bbbbbb" },
+						corpusVersion: { kind: "version", digest: "bbbbbb" },
+						corpusChangedDuringRun: false,
 						stale: true,
 						staleCauses: [
 							"output-styles/brief.md changed",
@@ -496,7 +506,8 @@ describe(RunHistoryPage.name, () => {
 			status: "RUNNING",
 			stage: undefined,
 			grade: undefined,
-			corpus: undefined,
+			corpusVersion: undefined,
+			corpusChangedDuringRun: false,
 			stale: false,
 			staleCauses: [],
 			progress: {
@@ -697,7 +708,8 @@ describe(RunHistoryPage.name, () => {
 						status: "COMPLETE",
 						stage: "build",
 						grade: "A",
-						corpus: { digest: "aaaaaa" },
+						corpusVersion: { kind: "version", digest: "aaaaaa" },
+						corpusChangedDuringRun: false,
 						stale: false,
 						staleCauses: [],
 						progress: { state: "recorded" },
@@ -732,7 +744,8 @@ describe(RunHistoryPage.name, () => {
 					status: "INTERRUPTED",
 					stage: undefined,
 					grade: undefined,
-					corpus: undefined,
+					corpusVersion: undefined,
+					corpusChangedDuringRun: false,
 					stale: true,
 					staleCauses: ["upstream stage initial is stale"],
 					progress: { state: "recorded" },
@@ -769,7 +782,8 @@ describe(RunHistoryPage.name, () => {
 					status: "COMPLETE",
 					stage: "build",
 					grade: "B",
-					corpus: { digest: "a3a62f" },
+					corpusVersion: { kind: "version", digest: "a3a62f" },
+					corpusChangedDuringRun: false,
 					stale: false,
 					staleCauses: [],
 					progress: { state: "recorded" },
@@ -925,7 +939,8 @@ describe(RunHistoryPage.name, () => {
 					status: "STOPPED:build",
 					stage: "shape",
 					grade: "B",
-					corpus: { digest: "a3a62f" },
+					corpusVersion: { kind: "version", digest: "a3a62f" },
+					corpusChangedDuringRun: false,
 					stale: false,
 					staleCauses: [],
 					progress: { state: "recorded" },
@@ -947,7 +962,8 @@ describe(RunHistoryPage.name, () => {
 					status: "FAILED",
 					stage: undefined,
 					grade: undefined,
-					corpus: undefined,
+					corpusVersion: undefined,
+					corpusChangedDuringRun: false,
 					stale: false,
 					staleCauses: [],
 					progress: { state: "recorded" },
@@ -961,6 +977,7 @@ describe(RunHistoryPage.name, () => {
 				},
 				{
 					kind: "replay",
+					corpusVersion: undefined,
 					...UNREAD_REPLAY_FIGURES,
 					shortId: undefined,
 					checkpointShortId: undefined,
@@ -981,6 +998,7 @@ describe(RunHistoryPage.name, () => {
 				},
 				{
 					kind: "session-attempt",
+					corpusVersion: undefined,
 					...UNREAD_COST_AND_TIME,
 					shortId: undefined,
 					caseId: "brief-reply",
@@ -996,6 +1014,7 @@ describe(RunHistoryPage.name, () => {
 				},
 				{
 					kind: "group",
+					corpusVersion: undefined,
 					...UNREAD_GROUP_FIGURES,
 					shortId: undefined,
 					groupId: "group-a",
@@ -1035,6 +1054,35 @@ describe(RunHistoryPage.name, () => {
 				).not.toBeInTheDocument();
 				expect(cellOf(identity, "Outcome")).toHaveTextContent(outcome);
 			}
+		});
+
+		it("names on every kind of row the corpus version its record measured, the refusal, or that none was recorded", async () => {
+			const measured = {
+				replay: { kind: "refused", refusal: "a symlink escapes the root" },
+				"session-attempt": { kind: "version", digest: "c".repeat(64) },
+				group: { kind: "version", digest: "d".repeat(64) },
+			} as const;
+			respondingWith({
+				...everyKind,
+				rows: everyKind.rows.map((row) =>
+					row.kind === "run"
+						? row
+						: { ...row, corpusVersion: measured[row.kind] },
+				),
+			});
+
+			await renderPage().findByText("group-a");
+
+			expect(cellOf("2026-09-17T12-50-49.127Z", "Corpus")).toHaveTextContent(
+				"version not recorded",
+			);
+			expect(cellOf("2026-09-06T22-33-15.057Z", "Corpus")).toHaveTextContent(
+				"refused: a symlink escapes the root",
+			);
+			expect(
+				cellOf("0f6b6f2a-0000-4000-8000-000000000001", "Corpus"),
+			).toHaveTextContent("corpus@cccccc");
+			expect(cellOf("group-a", "Corpus")).toHaveTextContent("corpus@dddddd");
 		});
 
 		it("opens each available context from a link in the case cell, named by what it opens", async () => {
@@ -1157,7 +1205,8 @@ describe(RunHistoryPage.name, () => {
 					status: "RUNNING",
 					stage: undefined,
 					grade: undefined,
-					corpus: undefined,
+					corpusVersion: undefined,
+					corpusChangedDuringRun: false,
 					stale: false,
 					staleCauses: [],
 					progress: {
@@ -1171,6 +1220,7 @@ describe(RunHistoryPage.name, () => {
 				},
 				{
 					kind: "replay",
+					corpusVersion: undefined,
 					...UNREAD_REPLAY_FIGURES,
 					shortId: "audit-log/r6",
 					checkpointShortId: "audit-log/r2/s1",
@@ -1185,6 +1235,7 @@ describe(RunHistoryPage.name, () => {
 				},
 				{
 					kind: "group",
+					corpusVersion: undefined,
 					...UNREAD_GROUP_FIGURES,
 					shortId: "brief-reply/g4",
 					groupId: "group-a",
@@ -1225,7 +1276,27 @@ describe(RunHistoryPage.name, () => {
 		});
 	});
 
-	it("renders a run with no recorded checkpoint without a corpus digest", async () => {
+	it("says the corpus changed during a run whose stages measured different versions", async () => {
+		const [first] = oneStoppedOneComplete().rows;
+		respondingWith({
+			rows:
+				first?.kind === "run"
+					? [{ ...first, corpusChangedDuringRun: true }]
+					: [],
+			unreadable: [],
+		});
+
+		await renderPage().findByText("2026-09-06T21-58-29.508Z");
+
+		expect(cellOf("2026-09-06T21-58-29.508Z", "Corpus")).toHaveTextContent(
+			"corpus@a3a62f",
+		);
+		expect(cellOf("2026-09-06T21-58-29.508Z", "Corpus")).toHaveTextContent(
+			"corpus changed during the run",
+		);
+	});
+
+	it("renders a run with no recorded checkpoint as recording no corpus version", async () => {
 		respondingWith({
 			rows: [
 				{
@@ -1239,7 +1310,8 @@ describe(RunHistoryPage.name, () => {
 					status: "STOPPED:discuss",
 					stage: undefined,
 					grade: undefined,
-					corpus: undefined,
+					corpusVersion: undefined,
+					corpusChangedDuringRun: false,
 					stale: false,
 					staleCauses: [],
 					progress: { state: "recorded" },
@@ -1254,5 +1326,8 @@ describe(RunHistoryPage.name, () => {
 			expect(screen.getByText("2026-09-05T00-00-00.000Z")).toBeInTheDocument();
 		});
 		expect(screen.queryByText(/^corpus@/u)).not.toBeInTheDocument();
+		expect(cellOf("2026-09-05T00-00-00.000Z", "Corpus")).toHaveTextContent(
+			"version not recorded",
+		);
 	});
 });

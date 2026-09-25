@@ -12,7 +12,9 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { z } from "zod";
 import { CONTROL_DIR } from "#benchmark/config";
+import type { CorpusMeasurement } from "#benchmark/corpus-measurement";
 import {
 	directorySource,
 	liveStageSettings,
@@ -51,6 +53,33 @@ async function fileStates(directory: string): Promise<Map<string, string>> {
 	}
 
 	return states;
+}
+
+/** Adds the corpus version a newer writer records to a record on disk. */
+async function recordCorpusVersion(
+	file: string,
+	corpusVersion: CorpusMeasurement,
+): Promise<void> {
+	const recorded = z
+		.object({})
+		.loose()
+		.parse(JSON.parse(await Bun.file(file).text()));
+	await Bun.write(file, `${JSON.stringify({ ...recorded, corpusVersion })}\n`);
+}
+
+/** Adds the corpus version to a group record's frozen inputs on disk. */
+async function recordGroupCorpusVersion(
+	file: string,
+	corpusVersion: CorpusMeasurement,
+): Promise<void> {
+	const recorded = z
+		.object({ inputs: z.object({}).loose() })
+		.loose()
+		.parse(JSON.parse(await Bun.file(file).text()));
+	await Bun.write(
+		file,
+		`${JSON.stringify({ ...recorded, inputs: { ...recorded.inputs, corpusVersion } })}\n`,
+	);
 }
 
 function pipelineRun(
@@ -109,51 +138,105 @@ describe(runHistoryReport.name, () => {
 		return writtenFixture({ settingsFile: await liveStageSettings() });
 	}
 
-	it("names a run's status, stage, and corpus digest from its own recorded corpus files", async () => {
+	it("names a run's status, stage, and grade from its own records", async () => {
 		const fixture = await writtenFixture();
-		const corpus = await corpusDirectory("build skill\n");
-		await fixture.recordCorpusFrom(directorySource(corpus));
 
 		const { rows } = await runHistoryReport(
 			fixture.runsDirectory,
-			directorySource(corpus),
+			directorySource(await corpusDirectory("build skill\n")),
 			nothingRunning,
 		);
 
-		const row = pipelineRun(rows, fixture.replayableRun);
-		expect(row).toMatchObject({
+		expect(pipelineRun(rows, fixture.replayableRun)).toMatchObject({
 			run: fixture.replayableRun,
 			caseId: "audit-log",
 			status: "COMPLETE",
 			stage: "build",
 			grade: "B",
 		});
-		expect(row?.corpus?.digest).toMatch(/^[0-9a-f]{6}$/u);
 	});
 
-	it("changes a run's rendered corpus digest when one corpus byte changes", async () => {
+	it("names on every kind of row the corpus version its record measured, and reads an older record as not recorded", async () => {
 		const fixture = await writtenFixture();
-		const before = await corpusDirectory("build skill\n");
-		await fixture.recordCorpusFrom(directorySource(before));
-		const { rows: beforeRows } = await runHistoryReport(
+		const version: CorpusMeasurement = {
+			kind: "version",
+			digest: "a".repeat(64),
+		};
+		const refused: CorpusMeasurement = {
+			kind: "refused",
+			refusal: "a symlink escapes the root",
+		};
+		const paths = benchmarkRunPaths(
 			fixture.runsDirectory,
-			directorySource(before),
+			fixture.replayableRun,
+		);
+		for (const stage of fixture.stages) {
+			await recordCorpusVersion(
+				checkpointRecordFile(paths.checkpointDirectory(stage)),
+				version,
+			);
+		}
+		await recordCorpusVersion(fixture.stageAttemptFile, refused);
+		await recordCorpusVersion(fixture.sessionAttemptFile, version);
+		await recordGroupCorpusVersion(
+			confirmationGroupPaths(fixture.runsDirectory, fixture.groupId).groupFile,
+			version,
+		);
+
+		const { rows } = await runHistoryReport(
+			fixture.runsDirectory,
+			directorySource(await corpusDirectory("build skill\n")),
 			nothingRunning,
 		);
-		const beforeDigest = pipelineRun(beforeRows, fixture.replayableRun)?.corpus
-			?.digest;
 
-		const after = await corpusDirectory("build skill, edited\n");
-		await fixture.recordCorpusFrom(directorySource(after));
-		const { rows: afterRows } = await runHistoryReport(
+		expect(pipelineRun(rows, fixture.replayableRun)).toMatchObject({
+			corpusVersion: version,
+			corpusChangedDuringRun: false,
+		});
+		expect(
+			pipelineRun(rows, fixture.unreplayableRun)?.corpusVersion,
+		).toBeUndefined();
+		expect(rows.find((row) => row.kind === "replay")?.corpusVersion).toEqual(
+			refused,
+		);
+		expect(
+			rows.find((row) => row.kind === "session-attempt")?.corpusVersion,
+		).toEqual(version);
+		expect(rows.find((row) => row.kind === "group")?.corpusVersion).toEqual(
+			version,
+		);
+	});
+
+	it("shows a run's latest stage version and says the corpus changed when its stages measured different versions", async () => {
+		const fixture = await writtenFixture();
+		const paths = benchmarkRunPaths(
 			fixture.runsDirectory,
-			directorySource(after),
+			fixture.replayableRun,
+		);
+		const [first, last] = fixture.stages;
+		const later: CorpusMeasurement = {
+			kind: "version",
+			digest: "b".repeat(64),
+		};
+		await recordCorpusVersion(
+			checkpointRecordFile(paths.checkpointDirectory(first ?? "")),
+			{ kind: "version", digest: "a".repeat(64) },
+		);
+		await recordCorpusVersion(
+			checkpointRecordFile(paths.checkpointDirectory(last ?? "")),
+			later,
+		);
+
+		const { rows } = await runHistoryReport(
+			fixture.runsDirectory,
+			directorySource(await corpusDirectory("build skill\n")),
 			nothingRunning,
 		);
-		const afterDigest = pipelineRun(afterRows, fixture.replayableRun)?.corpus
-			?.digest;
 
-		expect(afterDigest).not.toBe(beforeDigest);
+		expect(pipelineRun(rows, fixture.replayableRun)).toMatchObject({
+			corpusVersion: later,
+			corpusChangedDuringRun: true,
+		});
 	});
 
 	it("marks a row stale when its latest checkpoint's corpus no longer matches", async () => {
@@ -526,7 +609,7 @@ describe(runHistoryReport.name, () => {
 		]);
 	});
 
-	it("reports a run stopped mid-stage with STOPPED:<stage> and no corpus digest when it recorded no checkpoint", async () => {
+	it("reports a run stopped mid-stage with STOPPED:<stage> and no corpus version when it recorded no checkpoint", async () => {
 		const fixture = await writtenFixture();
 		await fixture.writeStoppedRun();
 
@@ -538,7 +621,7 @@ describe(runHistoryReport.name, () => {
 
 		const row = pipelineRun(rows, fixture.stoppedRun);
 		expect(row).toMatchObject({ status: "STOPPED:build" });
-		expect(row?.corpus).toBeUndefined();
+		expect(row?.corpusVersion).toBeUndefined();
 		expect(row?.stale).toBe(false);
 		expect(row?.grade).toBeUndefined();
 	});
@@ -567,7 +650,7 @@ describe(runHistoryReport.name, () => {
 			status: "STOPPED:build",
 			stage: undefined,
 			grade: undefined,
-			corpus: undefined,
+			corpusVersion: undefined,
 			stale: true,
 			staleCauses: ["stage settings file stage-settings.json changed"],
 			progress: { state: "recorded" },
@@ -619,7 +702,7 @@ describe(runHistoryReport.name, () => {
 			status: "INTERRUPTED",
 			stage: undefined,
 			grade: undefined,
-			corpus: undefined,
+			corpusVersion: undefined,
 			stale: true,
 			staleCauses: ["stage settings file stage-settings.json changed"],
 			progress: { state: "recorded" },

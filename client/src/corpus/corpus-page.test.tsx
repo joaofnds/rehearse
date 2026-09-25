@@ -17,7 +17,7 @@ type CorpusResponse = InferResponseType<typeof apiClient.api.corpus.$get>;
 function corpusResponseBody(): CorpusResponse {
 	return {
 		root: "/home/user/.claude",
-		digest: "a41c7e",
+		digest: `a41c7e${"0".repeat(58)}`,
 		files: [
 			{
 				path: "CLAUDE.md",
@@ -51,12 +51,13 @@ describe(CorpusPage.name, () => {
 		});
 	});
 
-	it("labels the header digest 'corpus root@<hash>', distinct from run history's 'corpus@<hash>'", async () => {
+	it("labels the current version 'corpus@' over its first six characters, as run history does", async () => {
 		renderPage();
 
 		await waitFor(() => {
-			expect(screen.getByText("corpus root@a41c7e")).toBeInTheDocument();
+			expect(screen.getByText("corpus@a41c7e")).toBeInTheDocument();
 		});
+		expect(screen.queryByText(/corpus root@/u)).toBeNull();
 	});
 
 	it("renders one row per file with its path, hash, last-edited time, and read-by count", async () => {
@@ -127,13 +128,13 @@ describe(CorpusPage.name, () => {
 			expect(screen.queryByText("Could not load the corpus.")).toBeNull();
 		});
 
-		it("renders no corpus root digest, since the report carries none for a partial tree", async () => {
+		it("renders no corpus version, since the report carries none for a partial tree", async () => {
 			renderRefusing(corpusResponseBody().files);
 
 			await waitFor(() => {
 				expect(screen.getByText("CLAUDE.md")).toBeInTheDocument();
 			});
-			expect(screen.queryByText(/corpus root@/u)).toBeNull();
+			expect(screen.queryByText(/corpus@/u)).toBeNull();
 		});
 
 		it("renders every refusal, so a benign entry sorting first cannot hide a hostile one", async () => {

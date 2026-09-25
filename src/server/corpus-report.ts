@@ -4,9 +4,9 @@ import type { CheckpointRecord } from "#benchmark/checkpoint";
 import { parseCheckpointRecord } from "#benchmark/checkpoint";
 import type { CorpusRoot } from "#benchmark/corpus-file";
 import { hashCorpusLayout } from "#benchmark/corpus-layout";
+import { corpusVersionDigest } from "#benchmark/corpus-version";
 import { benchmarkRunPaths, checkpointRecordFile } from "#benchmark/run-layout";
 import { recordedCheckpoints } from "#cli/list-command";
-import { corpusDigest } from "./corpus-digest";
 import { redactAbsolutePaths } from "./redact-path";
 
 export interface CorpusFileReport {
@@ -70,7 +70,10 @@ export async function corpusReport(
 
 	return {
 		root: source.root,
-		digest: layout.refusals.length > 0 ? undefined : corpusDigest(layout.files),
+		digest:
+			layout.refusals.length > 0
+				? undefined
+				: corpusVersionDigest(layout.files),
 		files,
 		refusals: layout.refusals.map((refusal) => redactAbsolutePaths(refusal)),
 	};

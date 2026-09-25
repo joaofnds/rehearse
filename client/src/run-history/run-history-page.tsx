@@ -12,6 +12,10 @@ import { elapsedReading, liveElapsedMs, spendReading } from "./run-progress";
 import type { RunHistoryResponse } from "./run-history-query";
 import { runHistoryQuery } from "./run-history-query";
 import { runStatusState } from "./run-status";
+import {
+	corpusMeasurementReading,
+	corpusVersionLabel,
+} from "#benchmark/corpus-version-label";
 import { isStopped, stoppedStageOf } from "#benchmark/stopped-status";
 import { attemptLabel } from "#client/attempt-label";
 import { plural } from "#client/plural";
@@ -350,16 +354,31 @@ function causesFor(row: RunHistoryRow): React.ReactNode {
 	);
 }
 
-function corpusCell(row: RunHistoryRow): React.JSX.Element {
-	if (row.corpus === undefined && !row.stale) {
-		return <span className="text-faint">—</span>;
-	}
-
+function corpusCell(row: HistoryRow): React.JSX.Element {
 	return (
 		<span className="flex flex-col items-start gap-0.5">
-			{row.corpus === undefined ? null : (
-				<span className="font-mono text-sm text-secondary-foreground">{`corpus@${row.corpus.digest}`}</span>
+			{row.corpusVersion?.kind === "version" ? (
+				<span className="font-mono text-sm text-secondary-foreground">
+					{corpusVersionLabel(row.corpusVersion.digest)}
+				</span>
+			) : (
+				<span className="text-xs text-muted-foreground">
+					{corpusMeasurementReading(row.corpusVersion)}
+				</span>
 			)}
+			{row.kind === "run" ? runCorpusState(row) : null}
+		</span>
+	);
+}
+
+function runCorpusState(row: RunHistoryRow): React.JSX.Element {
+	return (
+		<>
+			{row.corpusChangedDuringRun ? (
+				<span className="text-xs text-secondary-foreground">
+					corpus changed during the run
+				</span>
+			) : null}
 			{row.stale ? (
 				<span className="text-xs text-secondary-foreground">
 					<Status state="stale" />
@@ -370,7 +389,7 @@ function corpusCell(row: RunHistoryRow): React.JSX.Element {
 				</span>
 			)}
 			{causesFor(row)}
-		</span>
+		</>
 	);
 }
 
@@ -501,7 +520,7 @@ export function RunHistoryPage(): React.JSX.Element {
 								outcomeCell(row),
 								row.kind === "run" ? progressCell(row, nowMs) : <span />,
 								gradeCell(row),
-								row.kind === "run" ? corpusCell(row) : <span />,
+								corpusCell(row),
 							])}
 						/>
 						<p className="max-w-prose text-sm text-dim">

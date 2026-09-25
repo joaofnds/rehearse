@@ -3,7 +3,7 @@ import {
 	CorpusSourceError,
 	resolveCorpusSource,
 } from "#benchmark/corpus-source";
-import { corpusVersionLabel } from "#benchmark/corpus-measurement";
+import { corpusVersionLabel } from "#benchmark/corpus-version-label";
 import {
 	corpusVersionLog,
 	CorpusVersionError,

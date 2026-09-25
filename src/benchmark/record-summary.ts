@@ -14,7 +14,7 @@ import type {
 } from "./comparison-estimator";
 import type { ParsedConfirmationGroupRecord } from "./confirmation-record";
 import type { Immutable } from "./contracts";
-import { corpusMeasurementReading } from "./corpus-measurement";
+import { corpusMeasurementReading } from "./corpus-version-label";
 
 /**
  * The short markdown a session pastes onto a card. Each summary is a pure

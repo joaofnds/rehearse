@@ -11,6 +11,7 @@ import type {
 	ParsedConfirmationRepRecord,
 } from "#benchmark/confirmation-record";
 import type { CorpusRoot } from "#benchmark/corpus-file";
+import type { CorpusMeasurement } from "#benchmark/corpus-measurement";
 import { loadRunManifest } from "#benchmark/manifest";
 import type { SessionAttemptId, StageAttemptId } from "#benchmark/run-layout";
 import {
@@ -59,7 +60,6 @@ import type {
 	RepCounts,
 	UnreadRep,
 } from "./confirmation-group-summary";
-import { corpusDigest } from "./corpus-digest";
 import { redactAbsolutePaths } from "./redact-path";
 import { readRunRecord, wallTime } from "./run-record";
 import type {
@@ -96,7 +96,10 @@ export interface PipelineRunRow {
 	readonly status: string;
 	readonly stage: string | undefined;
 	readonly grade: string | undefined;
-	readonly corpus: { readonly digest: string } | undefined;
+	/** The version its latest checkpoint measured; undefined when none recorded one. */
+	readonly corpusVersion: CorpusMeasurement | undefined;
+	/** Whether its checkpoints measured more than one corpus version. */
+	readonly corpusChangedDuringRun: boolean;
 	readonly stale: boolean;
 	readonly staleCauses: readonly string[];
 	readonly progress: RunProgress;
@@ -155,6 +158,7 @@ export interface SessionAttemptRow {
 	readonly uuid: string;
 	readonly shortId: string | undefined;
 	readonly status: SessionAttemptRecord["outcome"];
+	readonly corpusVersion: CorpusMeasurement | undefined;
 	readonly links: readonly ContextLink[];
 	readonly cost: CostReading;
 	readonly wallTime: WallTimeReading;
@@ -178,6 +182,7 @@ export interface ReplayRow {
 	readonly stage: string;
 	readonly grade: string;
 	readonly status: ReplayRecord["scorecard"]["grade"]["verdict"];
+	readonly corpusVersion: CorpusMeasurement | undefined;
 	readonly links: readonly ContextLink[];
 	readonly cost: CostReading;
 	readonly finalOutcome: NotApplicable;
@@ -202,6 +207,7 @@ export interface ConfirmationGroupRow {
 	readonly caseId: string;
 	readonly mode: ConfirmationMode;
 	readonly reps: number;
+	readonly corpusVersion: CorpusMeasurement | undefined;
 	readonly repAttempts: readonly RepAttempt[];
 	readonly links: readonly ContextLink[];
 	readonly stageSummaries: readonly GroupStageSummary[];
@@ -302,6 +308,31 @@ async function checkpointShortIds(
 		}));
 }
 
+/**
+ * Whether a run's checkpoints measured more than one corpus version, which a
+ * source edited between two of its stages leaves behind. A checkpoint older
+ * than versions measured none and counts toward neither answer.
+ */
+async function corpusChangedDuringRun(
+	runsDirectory: string,
+	run: string,
+): Promise<boolean> {
+	const paths = benchmarkRunPaths(runsDirectory, run);
+	const measured = new Set<string>();
+	for (const stage of await checkpointStageNames(runsDirectory, run)) {
+		if (await checkpointRecorded(paths, stage)) {
+			const { corpusVersion } = await readCheckpointRecord(
+				paths.checkpointDirectory(stage),
+			);
+			if (corpusVersion !== undefined) {
+				measured.add(JSON.stringify(corpusVersion));
+			}
+		}
+	}
+
+	return measured.size > 1;
+}
+
 interface RunFigures {
 	readonly stageGrades: PipelineRunRow["stageGrades"];
 	readonly finalOutcome: PipelineRunRow["finalOutcome"];
@@ -393,7 +424,8 @@ async function rowFor(
 			caseId,
 			stage: undefined,
 			grade: undefined,
-			corpus: undefined,
+			corpusVersion: undefined,
+			corpusChangedDuringRun: false,
 			stale: causes.length > 0,
 			staleCauses: causes,
 			progress,
@@ -417,7 +449,8 @@ async function rowFor(
 		caseId,
 		stage,
 		grade: gradeByStage.get(stage),
-		corpus: { digest: corpusDigest(checkpoint.corpusFiles) },
+		corpusVersion: checkpoint.corpusVersion,
+		corpusChangedDuringRun: await corpusChangedDuringRun(runsDirectory, run),
 		stale: causes.length > 0,
 		staleCauses: causes,
 		progress,
@@ -444,6 +477,7 @@ async function sessionAttemptRow(
 		uuid: attempt.uuid,
 		shortId,
 		status: record.outcome,
+		corpusVersion: record.corpusVersion,
 		links: [
 			{
 				state: "available",
@@ -497,6 +531,7 @@ async function replayRow(
 		stage: record.stage,
 		grade: record.scorecard.grade.grade,
 		status: record.scorecard.grade.verdict,
+		corpusVersion: record.corpusVersion,
 		links: [replayLink(attempt, record.consumed.lineage, caseId)],
 		cost: replayCost(record),
 		finalOutcome: {
@@ -676,6 +711,7 @@ async function groupRow(
 		caseId: record.caseId,
 		mode: record.mode,
 		reps: record.reps,
+		corpusVersion: record.inputs.corpusVersion,
 		repAttempts: repAttempts(record, attempts),
 		links,
 		stageSummaries: stageSummaries(

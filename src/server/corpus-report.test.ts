@@ -13,6 +13,7 @@ import {
 	directorySource,
 	RecordedRunsFixture,
 } from "#benchmark/run-records-test-support";
+import { measureCorpusVersion } from "#benchmark/corpus-version";
 import type { CorpusReport } from "./corpus-report";
 import { corpusReport } from "./corpus-report";
 
@@ -499,7 +500,24 @@ describe(corpusReport.name, () => {
 			await runsDirectory(),
 		);
 
-		expect(report.digest).toBe("4e196b");
+		expect(report.digest).toStartWith("4e196b");
+	});
+
+	it("names the live tree by the version a measurement of it records", async () => {
+		const root = await fullCorpusDirectory();
+		const measured = await measureCorpusVersion(
+			await runsDirectory(),
+			directorySource(root),
+		);
+
+		const report = await corpusReport(
+			directorySource(root),
+			await runsDirectory(),
+		);
+
+		expect(measured.kind === "version" ? measured.digest : "refused").toBe(
+			report.digest ?? "withheld",
+		);
 	});
 
 	it("reports a root reached through a symlinked parent directory, since the link does not leave the corpus", async () => {

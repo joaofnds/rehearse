@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { CorpusRoot } from "./corpus-file";
 import {
+	corpusVersionDigest,
 	corpusVersionLog,
 	findCorpusVersion,
 	measureCorpusVersion,
@@ -202,5 +203,29 @@ describe(findCorpusVersion.name, () => {
 				.filter((digest) => digest.startsWith(prefix))
 				.toSorted(),
 		});
+	});
+});
+
+describe(corpusVersionDigest.name, () => {
+	it("changes when one file's hash changes", () => {
+		const before = corpusVersionDigest([
+			{ path: "CLAUDE.md", sha256: "a".repeat(64) },
+		]);
+		const after = corpusVersionDigest([
+			{ path: "CLAUDE.md", sha256: "b".repeat(64) },
+		]);
+
+		expect(after).not.toBe(before);
+	});
+
+	it("is independent of file order", () => {
+		const files = [
+			{ path: "CLAUDE.md", sha256: "a".repeat(64) },
+			{ path: "skills/build.md", sha256: "b".repeat(64) },
+		];
+
+		expect(corpusVersionDigest(files)).toBe(
+			corpusVersionDigest(files.toReversed()),
+		);
 	});
 });

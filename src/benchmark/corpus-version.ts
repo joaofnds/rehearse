@@ -6,7 +6,7 @@ import type { HashedFile } from "./checkpoint";
 import { canonicalFiles, hashedFileSchema } from "./checkpoint";
 import type { CorpusRoot } from "./corpus-file";
 import type { CorpusMeasurement } from "./corpus-measurement";
-import { CORPUS_VERSION_LABEL } from "./corpus-measurement";
+import { CORPUS_VERSION_LABEL } from "./corpus-version-label";
 import { hashCorpusLayout } from "./corpus-layout";
 import { readdirIfPresent, textIfPresent } from "./file-presence";
 
@@ -24,11 +24,11 @@ function sha256(bytes: string | Readonly<Uint8Array>): string {
 }
 
 /**
- * The same canonical list the corpus report has always hashed, in full, so a
- * version's first six characters are the digest that report showed for the
- * same tree.
+ * The version a hashed layout is: the same canonical list the corpus report
+ * has always hashed, in full, so a version's first six characters are the
+ * digest that report showed for the same tree.
  */
-function versionDigestOf(files: readonly HashedFile[]): string {
+export function corpusVersionDigest(files: readonly HashedFile[]): string {
 	return sha256(JSON.stringify(canonicalFiles(files)));
 }
 
@@ -173,7 +173,7 @@ export async function measureCorpusVersion(
 		source,
 		layout.files.map(({ path }) => path),
 	);
-	const digest = versionDigestOf(files);
+	const digest = corpusVersionDigest(files);
 	await mkdir(join(storeDirectory(recordsDirectory), VERSIONS_DIRECTORY), {
 		recursive: true,
 	});

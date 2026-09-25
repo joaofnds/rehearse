@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { corpusVersionLabel } from "#benchmark/corpus-version-label";
 import { EmptyState } from "#client/system/components/empty-state";
 import { PlannedFeatureBlock } from "#client/system/components/planned-feature-block";
 import { TableShell } from "#client/system/components/table-shell";
@@ -43,10 +44,12 @@ export function CorpusPage(): React.JSX.Element {
 						<>
 							<span className="font-mono">{query.data.root}</span>
 							{` · ${plural(query.data.files.length, "file")}`}
-							{query.data.refusals.length > 0 ? null : (
+							{query.data.digest === undefined ? null : (
 								<>
 									{" · current version "}
-									<span className="font-mono text-pale">{`corpus root@${query.data.digest}`}</span>
+									<span className="font-mono text-pale">
+										{corpusVersionLabel(query.data.digest)}
+									</span>
 								</>
 							)}
 						</>

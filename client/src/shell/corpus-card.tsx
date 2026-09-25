@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { corpusVersionLabel } from "#benchmark/corpus-version-label";
 import type { CorpusResponse } from "#client/corpus/corpus-query";
 import { corpusQuery } from "#client/corpus/corpus-query";
 import { plural } from "#client/plural";
@@ -33,16 +34,13 @@ function DigestLine({
 	}
 
 	return (
-		<span className="font-mono text-sm text-pale">{`corpus root@${digest}`}</span>
+		<span className="font-mono text-sm text-pale">
+			{corpusVersionLabel(digest)}
+		</span>
 	);
 }
 
-/**
- * The always-visible answer to which corpus am I looking at (SPEC.md:62). The
- * hash is labeled `corpus root@`, not the design's `corpus@`: GLOSSARY.md
- * fixes those as two labels over two different file sets, and this one digests
- * every file in the live tree.
- */
+/** The always-visible answer to which corpus am I looking at (SPEC.md:62). */
 export function CorpusCard(): React.JSX.Element {
 	const query = useQuery(corpusQuery);
 	const edited =

@@ -51,7 +51,8 @@ function runRow(run: string): RunHistoryRow {
 		status: "COMPLETE",
 		stage: "build",
 		grade: "B",
-		corpus: { digest: "a3a62f" },
+		corpusVersion: { kind: "version", digest: "a3a62f" },
+		corpusChangedDuringRun: false,
 		stale: false,
 		staleCauses: [],
 		progress: { state: "recorded" },
@@ -61,6 +62,7 @@ function runRow(run: string): RunHistoryRow {
 function sessionAttemptRow(uuid: string): RunHistoryRow {
 	return {
 		kind: "session-attempt",
+		corpusVersion: undefined,
 		...UNREAD_COST_AND_TIME,
 		shortId: undefined,
 		caseId: "brief-reply",
@@ -119,7 +121,7 @@ function renderShellAt(
 				"/api/corpus",
 				{
 					root: "/corpus",
-					digest: "ffd58d",
+					digest: `ffd58d${"0".repeat(58)}`,
 					files: Array.from({ length: corpusFiles }, (_unused, index) =>
 						corpusFile(`file-${index}.md`),
 					),
@@ -273,10 +275,10 @@ describe("the navigation shell", () => {
 		});
 
 		await waitFor(() => {
-			expect(within(card).getByText("corpus root@ffd58d")).toBeInTheDocument();
+			expect(within(card).getByText("corpus@ffd58d")).toBeInTheDocument();
 		});
 		expect(within(card).getByText("137 files")).toBeInTheDocument();
-		expect(screen.queryByText("corpus@ffd58d")).not.toBeInTheDocument();
+		expect(screen.queryByText(/corpus root@/u)).not.toBeInTheDocument();
 	});
 
 	it.each(["/", "/corpus", "/system", "/runs/run-a/stages/build"])(
@@ -289,9 +291,7 @@ describe("the navigation shell", () => {
 			});
 
 			await waitFor(() => {
-				expect(
-					within(card).getByText("corpus root@ffd58d"),
-				).toBeInTheDocument();
+				expect(within(card).getByText("corpus@ffd58d")).toBeInTheDocument();
 			});
 		},
 	);
@@ -338,7 +338,7 @@ describe("the navigation shell", () => {
 			expect(within(card).getByText(/withheld/u)).toBeInTheDocument();
 		});
 		expect(within(card).getByText(/1 refusal/u)).toBeInTheDocument();
-		expect(within(card).queryByText(/corpus root@/u)).not.toBeInTheDocument();
+		expect(within(card).queryByText(/corpus@/u)).not.toBeInTheDocument();
 	});
 
 	it.each([
