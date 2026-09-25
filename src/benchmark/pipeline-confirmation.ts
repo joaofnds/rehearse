@@ -1,6 +1,6 @@
 import type { CorpusRoot } from "./corpus-file";
 import type { CorpusMeasurement } from "./corpus-measurement";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import type { seedTaskBoard } from "./backlog";
@@ -70,6 +70,8 @@ import type {
 import type { ProductOwner, createProductOwner } from "./workflow";
 import { WorkflowExecutionError } from "./workflow";
 import { claimShortId } from "./short-id";
+import { stageRubricSha256 } from "./judge-agreement";
+import { recordStageReads } from "./stage-reads";
 
 interface LoadedStageRubric {
 	readonly rubricPath: string;
@@ -115,6 +117,7 @@ export interface PipelineConfirmationDependencies {
 	readonly recordCheckpoint: typeof recordCheckpoint;
 	readonly recordRetentionRef: typeof recordRetentionRef;
 	readonly captureBuildCandidate: typeof captureBuildCandidate;
+	readonly projectsDirectory?: string | undefined;
 	readonly log: (message: string) => void;
 }
 
@@ -519,6 +522,23 @@ async function runPipelineRep(
 					removeWorktree: dependencies.removeWorktree,
 				});
 			}
+			const readManifest = await recordStageReads({
+				targetDir: plan.worktreePath,
+				startSha: baselineSha,
+				transcript:
+					dependencies.projectsDirectory === undefined
+						? undefined
+						: {
+								sessionId: currentSession.transcript.sessionId,
+								projectsDirectory: dependencies.projectsDirectory,
+							},
+				skill: definition.skill,
+				corpusFiles: frozen.corpusFiles[definition.name] ?? [],
+				rubric: {
+					path: definition.rubric,
+					sha256: stageRubricSha256(scorecard.rubric),
+				},
+			});
 			({ resultSha: baselineSha } = currentSession);
 			if (currentSession.artifact !== undefined) {
 				priorArtifacts.push(currentSession.artifact);
@@ -541,6 +561,7 @@ async function runPipelineRep(
 						currentSession.artifact ? [currentSession.artifact] : [],
 					),
 					settingsFile: request.loadedSettings?.hashed,
+					readManifest,
 				},
 			);
 			upstream = checkpoint.lineage;
@@ -791,8 +812,9 @@ export async function runPipelineConfirmation(
 	const now = request.now ?? (() => performance.now());
 	const paths = confirmationGroupPaths(request.runsDirectory, request.groupId);
 	await mkdir(paths.inputsDirectory, { recursive: true });
-	const worktreesDirectory = await mkdtemp(
-		join(tmpdir(), `rehearse-${request.groupId}-`),
+	// The provider names a session's transcript after its real working path.
+	const worktreesDirectory = await realpath(
+		await mkdtemp(join(tmpdir(), `rehearse-${request.groupId}-`)),
 	);
 	try {
 		const frozen = await freezePipelineInputs(

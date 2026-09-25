@@ -2,7 +2,15 @@ import { failureOf } from "#cli/cli-test-support";
 import { confirmationGroupPaths } from "./run-layout";
 import { SymlinkedEntryError } from "./file-presence";
 import { describe, expect, it } from "bun:test";
-import { readdir, stat, symlink } from "node:fs/promises";
+import {
+	mkdir,
+	mkdtemp,
+	readdir,
+	realpath,
+	stat,
+	symlink,
+} from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { z } from "zod";
 import type { ConfirmationRepRecord } from "./confirmation-record";
@@ -12,6 +20,7 @@ import {
 } from "./confirmation-record";
 import { parseCheckpointRecord } from "./checkpoint";
 import { runCommand } from "./command";
+import { stageRubricSha256 } from "./judge-agreement";
 import type { CorpusMeasurement } from "./corpus-measurement";
 import { parseArgs } from "./config";
 import {
@@ -20,10 +29,12 @@ import {
 } from "./judge-attempt";
 import type { TargetCheck } from "./pipeline";
 import { runPipelineConfirmation } from "./pipeline-confirmation";
+import { projectSlug } from "./session-capture";
 import { readShortIds } from "./short-id";
 import {
 	CONFIRMATION_METRIC,
 	CONFIRMATION_PIPELINE,
+	CONFIRMATION_STAGE_RUBRIC,
 	PipelineConfirmationHarness,
 	completeFinalGrade,
 	pipelineStageScorecard,
@@ -353,6 +364,108 @@ describe(runPipelineConfirmation.name, () => {
 		expect(recorded.map(({ corpusVersion }) => corpusVersion)).toEqual(
 			recorded.map(() => groupVersion),
 		);
+	});
+
+	it("records on every rep stage checkpoint a read manifest of its judge rubric and corpus files", async () => {
+		const harness = await PipelineConfirmationHarness.setup(testResources);
+
+		const outcome = await harness.run({});
+		const groupDirectory = dirname(outcome.groupRecordFile);
+		const repCheckpoints = await Array.fromAsync(
+			new Bun.Glob("reps/**/checkpoint.json").scan(groupDirectory),
+		);
+		const recorded = await Promise.all(
+			repCheckpoints.map(async (file) =>
+				parseCheckpointRecord(
+					await Bun.file(join(groupDirectory, file)).text(),
+				),
+			),
+		);
+
+		expect(recorded).not.toHaveLength(0);
+		for (const checkpoint of recorded) {
+			expect(checkpoint.readManifest).toContainEqual({
+				path: `rubrics/${checkpoint.stage}.json`,
+				half: "rubric",
+				role: "judge rubric",
+				evidence: "declared",
+				sha256: stageRubricSha256(CONFIRMATION_STAGE_RUBRIC),
+			});
+			expect(
+				checkpoint.readManifest
+					?.filter(({ half }) => half === "corpus")
+					.map(({ path, sha256 }) => ({ path, sha256 })),
+			).toEqual([...checkpoint.corpusFiles]);
+		}
+	});
+
+	it("marks a stage skill the rep's session was observed to read", async () => {
+		const harness = await PipelineConfirmationHarness.setup(testResources);
+		const projectsDirectory = await mkdtemp(
+			join(tmpdir(), "rehearse-projects-"),
+		);
+		testResources.track(projectsDirectory);
+
+		const outcome = await harness.run({}, (dependencies) => ({
+			...dependencies,
+			projectsDirectory,
+			stageSession: {
+				...dependencies.stageSession,
+				runWorkflowStage: async (request) => {
+					const slug = join(
+						projectsDirectory,
+						projectSlug(await realpath(request.targetDir)),
+					);
+					await mkdir(slug, { recursive: true });
+					await Bun.write(
+						join(slug, `${request.stage}.jsonl`),
+						JSON.stringify({
+							type: "assistant",
+							message: {
+								content: [
+									{
+										type: "tool_use",
+										id: "t",
+										name: "Read",
+										input: {
+											file_path: join(
+												request.targetDir,
+												`.claude/skills/${request.stage}/SKILL.md`,
+											),
+										},
+									},
+								],
+							},
+						}),
+					);
+
+					return dependencies.stageSession.runWorkflowStage(request);
+				},
+			},
+		}));
+		const groupDirectory = dirname(outcome.groupRecordFile);
+		const repCheckpoints = await Array.fromAsync(
+			new Bun.Glob("reps/**/checkpoint.json").scan(groupDirectory),
+		);
+		const recorded = await Promise.all(
+			repCheckpoints.map(async (file) =>
+				parseCheckpointRecord(
+					await Bun.file(join(groupDirectory, file)).text(),
+				),
+			),
+		);
+
+		expect(recorded).not.toHaveLength(0);
+		for (const checkpoint of recorded) {
+			expect(
+				checkpoint.readManifest?.find(
+					({ path }) => path === `skills/${checkpoint.stage}/SKILL.md`,
+				),
+			).toMatchObject({
+				role: "stage skill",
+				evidence: "declared and observed",
+			});
+		}
 	});
 
 	it("passes a declared settings overlay to every stage session", async () => {

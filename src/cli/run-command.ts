@@ -54,6 +54,7 @@ import {
 } from "#benchmark/preflight";
 import type { PipelineConfirmationRequest } from "#benchmark/pipeline-confirmation";
 import { runPipelineConfirmation } from "#benchmark/pipeline-confirmation";
+import { claudeProjectsDirectory } from "#benchmark/session-capture";
 import type {
 	SessionConfirmationDependencies,
 	SessionConfirmationRequest,
@@ -426,6 +427,7 @@ async function confirmRun(
 			recordCheckpoint,
 			recordRetentionRef,
 			captureBuildCandidate,
+			projectsDirectory: claudeProjectsDirectory(),
 			log: diagnosticWriter(output),
 		},
 		buildConfirmationRequest({
