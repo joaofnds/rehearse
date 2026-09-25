@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runCommand } from "#benchmark/command";
@@ -254,6 +254,38 @@ describe("recordStageReads", () => {
 				role: "read for context",
 				evidence: "observed",
 				sha256: "c".repeat(64),
+			},
+		]);
+	});
+
+	it("finds a target .claude read recorded under the link-resolved target path", async () => {
+		const target = await testResources.createRepository();
+		const startSha = await currentSha(target.directory);
+		const links = await mkdtemp(join(tmpdir(), "rehearse-links-"));
+		testResources.track(links);
+		const linked = join(links, "target");
+		await symlink(target.directory, linked);
+		const projectsDirectory = await transcriptOf(linked, [
+			join(await realpath(target.directory), ".claude", "notes.md"),
+		]);
+
+		const manifest = await recordStageReads({
+			targetDir: linked,
+			startSha,
+			transcript: { sessionId: "session", projectsDirectory },
+			skill: "shape",
+			corpusSources: [],
+			corpusFiles: [],
+			versionFiles: [],
+			rubric: { path: "rubrics/shape.json", sha256: "e".repeat(64) },
+		});
+
+		expect(manifest.filter(({ evidence }) => evidence === "observed")).toEqual([
+			{
+				path: ".claude/notes.md",
+				half: "project",
+				role: "read for context",
+				evidence: "observed",
 			},
 		]);
 	});
