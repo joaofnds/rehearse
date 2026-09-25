@@ -835,6 +835,9 @@ export async function runGradedStages(
 				sha256: stageRubricSha256(rubric.rubric),
 			},
 		});
+		const readStage: PendingStage = { ...pendingStage, readManifest };
+		context.updatePendingStage(readStage);
+
 		let scorecard: StageScorecard;
 		try {
 			scorecard = await dependencies.runStageJudge(
@@ -847,8 +850,7 @@ export async function runGradedStages(
 		} catch (error) {
 			if (error instanceof JudgeOutputValidationError) {
 				context.updatePendingStage({
-					...pendingStage,
-					readManifest,
+					...readStage,
 					failure: {
 						prompt: error.prompt,
 						attempts: error.attempts,
@@ -880,9 +882,8 @@ export async function runGradedStages(
 		await writeStageRecord(stageRecord);
 		if (stops) {
 			context.updatePendingStage({
-				...pendingStage,
+				...readStage,
 				scorecard,
-				readManifest,
 				stopped: {
 					minimumGrade:
 						context.minimumStageGrade ?? DEFAULT_MINIMUM_STAGE_GRADE,

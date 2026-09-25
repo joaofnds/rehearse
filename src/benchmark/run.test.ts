@@ -2133,59 +2133,67 @@ describe(runGradedStages.name, () => {
 		});
 	});
 
-	it("keeps what a stage declared and loaded on its failure record when its judge output never validates", async () => {
-		const { dependencies } = fakeStageDependencies();
-		const persistence = new ControlledRunArtifactPersistence();
-		const abort = createRunAbort(
-			{
-				killActiveCommands: () => Promise.resolve(),
-				registerSignal: () => undefined,
-				releaseSignal: () => undefined,
-				exit: () => undefined,
-				reportError: () => undefined,
-				persistence,
-			},
-			{
-				artifactFile: "/runs/run.json",
-				teardown: () => Promise.resolve(),
-			},
-		);
-		const context = {
-			...(await stageContext()),
-			writePendingStage: abort.writePendingStage,
-			updatePendingStage: abort.updatePendingStage,
-		};
-		const failure = new JudgeOutputValidationError({
-			message: "invalid evidence",
-			prompt: "original prompt",
-			attempts: [],
-			costUsd: 0.1,
-		});
-		const failing = {
-			...dependencies,
-			runStageJudge: () => Promise.reject(failure),
-		};
-
-		await runGradedStages(failing, context).catch(() => undefined);
-		await abort.markAborted("invalid evidence");
-
-		const record: unknown = JSON.parse(
-			persistence.files.get(context.stageFile("shape")) ?? "",
-		);
-		expect(record).toMatchObject({
-			status: "STAGE_JUDGE_FAILED",
-			readManifest: [
+	it.each([
+		[
+			"its judge output never validates",
+			new JudgeOutputValidationError({
+				message: "invalid evidence",
+				prompt: "original prompt",
+				attempts: [],
+				costUsd: 0.1,
+			}),
+		],
+		["its judge process fails", new Error("judge exited 1")],
+	])(
+		"keeps what a stage declared and loaded on its failure record when %s",
+		async (_when, failure) => {
+			const { dependencies } = fakeStageDependencies();
+			const persistence = new ControlledRunArtifactPersistence();
+			const abort = createRunAbort(
 				{
-					path: "CLAUDE.md",
-					half: "corpus",
-					role: "global instructions",
-					evidence: "declared",
+					killActiveCommands: () => Promise.resolve(),
+					registerSignal: () => undefined,
+					releaseSignal: () => undefined,
+					exit: () => undefined,
+					reportError: () => undefined,
+					persistence,
 				},
-				{ path: "skills/shape/SKILL.md", role: "stage skill" },
-				{ path: "cases/audit-log/rubrics/shape.json", role: "judge rubric" },
-			],
-		});
-	});
+				{
+					artifactFile: "/runs/run.json",
+					teardown: () => Promise.resolve(),
+				},
+			);
+			const context = {
+				...(await stageContext()),
+				writePendingStage: abort.writePendingStage,
+				updatePendingStage: abort.updatePendingStage,
+			};
+			const failing = {
+				...dependencies,
+				runStageJudge: () => Promise.reject(failure),
+			};
+
+			await runGradedStages(failing, context).catch(() => undefined);
+			await abort.markAborted(failure.message);
+
+			const record: unknown = JSON.parse(
+				persistence.files.get(context.stageFile("shape")) ?? "",
+			);
+			expect(record).toMatchObject({
+				status: "STAGE_JUDGE_FAILED",
+				readManifest: [
+					{
+						path: "CLAUDE.md",
+						half: "corpus",
+						role: "global instructions",
+						evidence: "declared",
+					},
+					{ path: "skills/shape/SKILL.md", role: "stage skill" },
+					{ path: "cases/audit-log/rubrics/shape.json", role: "judge rubric" },
+				],
+			});
+		},
+	);
 
 	it("retains commit subjects when calibrating a stopped delivery", async () => {
 		const { dependencies, scorecardFor } = fakeStageDependencies();
