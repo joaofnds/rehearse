@@ -15,6 +15,7 @@ import { CorpusConfigurationError } from "#benchmark/corpus-file";
 const HALF_WRITTEN_UUID = "0f6b6f2a-0000-4000-8000-00000000000f";
 const SMOKE_ATTEMPT =
 	"attempt:session:smoke/0f6b6f2a-0000-4000-8000-000000000001";
+const REPLAY_ATTEMPT = "attempt:stage:lineage-discuss/2026-09-03T01-00-00.000Z";
 
 async function treeOf(root: string): Promise<readonly string[]> {
 	const entries = await readdir(root, { recursive: true });
@@ -68,6 +69,7 @@ describe(runStale.name, () => {
 		});
 		await fixture.write();
 		await fixture.recordCorpusFrom(directorySource(corpusRoot));
+		await fixture.recordReplayFrom(directorySource(corpusRoot));
 		await fixture.writeAttemptReading(corpusRoot, "smoke", [
 			"output-styles/brief.md",
 		]);
@@ -108,10 +110,10 @@ describe(runStale.name, () => {
 		);
 
 		const printed = recorder.stdout.join("").trimEnd().split("\n");
-		expect(printed).toHaveLength(1);
-		expect(printed.at(0)).toContain(
+		expect(printed.map((printedLine) => printedLine.split("\t")[0])).toEqual([
 			`checkpoint:${fixture.replayableRun}/build`,
-		);
+			REPLAY_ATTEMPT,
+		]);
 		expect(printed.at(0)).toContain("skills/build/SKILL.md changed");
 	});
 
@@ -132,6 +134,7 @@ describe(runStale.name, () => {
 
 		expect(recorder.stdout.join("").trimEnd().split("\n")).toEqual([
 			`checkpoint:${fixture.replayableRun}/build\taudit-log/r2/s2\tdistance not recorded\tskills/build/SKILL.md changed`,
+			`${REPLAY_ATTEMPT}\taudit-log/r3\tdistance not recorded\tskills/build/SKILL.md changed`,
 		]);
 	});
 
@@ -152,6 +155,7 @@ describe(runStale.name, () => {
 
 		expect(recorder.stdout.join("").trimEnd().split("\n")).toEqual([
 			`checkpoint:${fixture.replayableRun}/build\t-\tdistance 1\tskills/build/SKILL.md changed`,
+			`${REPLAY_ATTEMPT}\t-\tdistance 1\tskills/build/SKILL.md changed`,
 		]);
 	});
 
@@ -217,6 +221,7 @@ describe(runStale.name, () => {
 			`checkpoint:${fixture.replayableRun}/discuss`,
 			`checkpoint:${fixture.replayableRun}/build`,
 			SMOKE_ATTEMPT,
+			REPLAY_ATTEMPT,
 		]);
 		expect(printed.at(0)).toContain("output-styles/brief.md changed");
 		expect(printed.at(2)).toContain("output-styles/brief.md changed");
@@ -260,8 +265,10 @@ describe(runStale.name, () => {
 			expect(printed.map((line) => line.split("\t")[0])).toEqual([
 				`checkpoint:${fixture.replayableRun}/discuss`,
 				`checkpoint:${fixture.replayableRun}/build`,
+				REPLAY_ATTEMPT,
 			]);
 			expect(printed.at(0)).toContain("model sonnet is now opus");
+			expect(printed.at(2)).toContain("model sonnet is now opus");
 		});
 	});
 
@@ -287,7 +294,7 @@ describe(runStale.name, () => {
 					.trimEnd()
 					.split("\n")
 					.map((printed) => printed.split("\t")[0]),
-			).toEqual([`checkpoint:${fixture.replayableRun}/build`]);
+			).toEqual([`checkpoint:${fixture.replayableRun}/build`, REPLAY_ATTEMPT]);
 			expect(recorder.stderr.join("")).toContain(
 				`attempt:session:smoke/${HALF_WRITTEN_UUID}`,
 			);

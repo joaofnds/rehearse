@@ -3,18 +3,16 @@ import { listCases } from "./case";
 import type {
 	ChangedCorpusFile,
 	CheckpointRecord,
-	HashedFile,
 	StageCorpus,
 } from "./checkpoint";
 import {
 	captureStageCorpus,
-	changedFileCauses,
-	corpusFileChanges,
 	deriveStaleness,
 	hashedCorpus,
 	INITIAL_CHECKPOINT_STAGE,
 	parseCheckpointRecord,
 	refusedCorpus,
+	stageCorpusChanges,
 } from "./checkpoint";
 import {
 	refusedEntryReason,
@@ -39,9 +37,13 @@ import {
 	benchmarkRunPaths,
 	checkpointRecordFile,
 	recordedRunNames,
+	replayAttemptIds,
+	replayRecordFile,
 	sessionAttemptIds,
 	sessionAttemptPaths,
 } from "./run-layout";
+import { readReplayRecord } from "./replay-record";
+import type { ReplayRecord } from "./replay-record";
 import { parseSessionAttemptRecord } from "./session-record";
 
 /**
@@ -340,19 +342,6 @@ async function currentCaseCorpus(
 	}
 }
 
-function attemptCorpusChanges(
-	recorded: readonly HashedFile[],
-	current: StageCorpus,
-): Pick<RecordStaleness, "causes" | "changedFiles"> {
-	if ("refused" in current) {
-		return { causes: [current.refused], changedFiles: [] };
-	}
-
-	const changedFiles = corpusFileChanges(recorded, current.hashed);
-
-	return { causes: changedFileCauses(changedFiles), changedFiles };
-}
-
 /**
  * Every session attempt judged against the corpus under test, each on its
  * own: an older attempt of a case is a result on the run history as much as
@@ -394,7 +383,7 @@ export async function sessionAttemptStaleness(
 
 			try {
 				const record = parseSessionAttemptRecord(text);
-				const changes = attemptCorpusChanges(
+				const changes = stageCorpusChanges(
 					record.corpusFiles.map(({ path, sha256 }) => ({ path, sha256 })),
 					current,
 				);
@@ -410,6 +399,104 @@ export async function sessionAttemptStaleness(
 					reason: error instanceof Error ? error.message : String(error),
 				});
 			}
+		}
+	}
+
+	return { records, unreadable };
+}
+
+function replayKnobCauses(
+	record: Pick<ReplayRecord, "model" | "effort">,
+	knobs: CurrentSessionKnobs,
+): readonly string[] {
+	const causes: string[] = [];
+	if (knobs.model !== undefined && knobs.model !== record.model) {
+		causes.push(`model ${record.model} is now ${knobs.model}`);
+	}
+	if (knobs.effort !== undefined && knobs.effort !== record.effort) {
+		causes.push(`effort ${record.effort ?? "none"} is now ${knobs.effort}`);
+	}
+
+	return causes;
+}
+
+async function currentReplayCorpus(
+	runsDirectory: string,
+	record: Pick<ReplayRecord, "runName" | "stage">,
+	source: CorpusRoot,
+	instructions: CurrentInstructions,
+): Promise<StageCorpus> {
+	const manifest = await loadRunManifest(
+		benchmarkRunPaths(runsDirectory, record.runName).manifestFile,
+	);
+	const definition = manifest.pipeline.stages.find(
+		({ name }) => name === record.stage,
+	);
+	if (definition === undefined) {
+		throw new Error(
+			`the run's pipeline does not declare the ${record.stage} stage it replayed`,
+		);
+	}
+	if ("refused" in instructions) {
+		return refusedCorpus(instructions.refused);
+	}
+
+	return hashedOrRefused(definition.skill, instructions.text, [source]);
+}
+
+/**
+ * Every stage replay judged against the corpus under test. A replay is stale
+ * when a corpus file its stage read changed, when the checkpoint it consumed
+ * went stale, or when the caller names a model or effort it did not run with.
+ * The consumed checkpoint is judged with its own run's knobs: a knob the
+ * caller names is compared against the replay's own value once, rather than
+ * again through every checkpoint upstream of it. A settings change needs no
+ * cause of its own here, since it stales the consumed checkpoint and reaches
+ * the replay as that upstream cause.
+ */
+export async function replayAttemptStaleness(
+	runsDirectory: string,
+	source: CorpusRoot,
+	knobs: CurrentSessionKnobs = {},
+): Promise<StalenessReport> {
+	const instructions = await currentInstructions(source);
+	const underTest = await readCorpusUnderTest(runsDirectory, source);
+	const upstream = await staleCheckpoints(runsDirectory, source);
+	const staleCheckpointIds = new Set(upstream.map(({ id }) => id));
+	const records: RecordStaleness[] = [];
+	const unreadable: UnreadableStaleRecord[] = [];
+
+	for (const { lineage, timestamp } of await replayAttemptIds(runsDirectory)) {
+		const id = `attempt:stage:${lineage}/${timestamp}`;
+
+		try {
+			const record = await readReplayRecord(
+				replayRecordFile(runsDirectory, lineage, timestamp),
+			);
+			const corpus = stageCorpusChanges(
+				record.corpusFiles,
+				await currentReplayCorpus(runsDirectory, record, source, instructions),
+			);
+			const consumed = `checkpoint:${record.runName}/${record.consumed.stage}`;
+			const causes = [
+				...(staleCheckpointIds.has(consumed)
+					? [`upstream stage ${record.consumed.stage} is stale`]
+					: []),
+				...replayKnobCauses(record, knobs),
+				...corpus.causes,
+			];
+			records.push({
+				id,
+				stale: causes.length > 0,
+				causes,
+				changedFiles: corpus.changedFiles,
+				distance: underTest.distanceOf(record.corpusVersion),
+			});
+		} catch (error) {
+			unreadable.push({
+				id,
+				reason: error instanceof Error ? error.message : String(error),
+			});
 		}
 	}
 

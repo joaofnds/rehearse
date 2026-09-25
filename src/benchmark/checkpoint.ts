@@ -767,7 +767,7 @@ export interface ChangedCorpusFile {
  * Every file two sets of hashed files disagree on, the left side being the
  * record and the right the corpus it is compared against.
  */
-export function corpusFileChanges(
+function corpusFileChanges(
 	left: readonly HashedFile[],
 	right: readonly HashedFile[],
 ): ChangedCorpusFile[] {
@@ -821,7 +821,7 @@ export function corpusDifferences(
 }
 
 /** Each changed file as a stale cause, the path and how it changed. */
-export function changedFileCauses(
+function changedFileCauses(
 	changedFiles: readonly ChangedCorpusFile[],
 ): string[] {
 	return changedFiles.map(({ path, change }) => `${path} ${change}`).toSorted();
@@ -831,7 +831,7 @@ export function changedFileCauses(
  * A corpus file the record has and the corpus no longer does was removed;
  * the reverse was added. Both invalidate the checkpoint as surely as an edit.
  */
-function stageCorpusChanges(
+export function stageCorpusChanges(
 	recorded: readonly HashedFile[],
 	current: StageCorpus,
 ): Pick<CheckpointStaleness, "causes" | "changedFiles"> {

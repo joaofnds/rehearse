@@ -616,6 +616,33 @@ export class RecordedRunsFixture {
 	 * Measures the source's version into this records directory and writes it
 	 * onto every stage checkpoint of the run, as a stage measures at its start.
 	 */
+	/**
+	 * Re-records the stage attempt's corpus files and version from a real
+	 * corpus, the way `replay` records them when the attempt runs.
+	 */
+	public async recordReplayFrom(source: CorpusRoot): Promise<void> {
+		const instructions = await Bun.file(
+			resolveCorpusFile(source, "CLAUDE.md"),
+		).text();
+		const record = replayRecordSchema.parse(
+			JSON.parse(await Bun.file(this.stageAttemptFile).text()),
+		);
+		const corpusFiles = await captureStageCorpus(
+			record.stage,
+			instructions,
+			stageCorpusRoots(source, this.sourceRoot),
+		);
+		const corpusVersion = await measureCorpusVersion(
+			this.runsDirectory,
+			source,
+		);
+
+		await Bun.write(
+			this.stageAttemptFile,
+			serialize({ ...record, corpusFiles, corpusVersion }),
+		);
+	}
+
 	public async recordVersionFrom(
 		source: CorpusRoot,
 		run = this.replayableRun,

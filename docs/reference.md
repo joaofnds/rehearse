@@ -679,7 +679,10 @@ initial checkpoint participates, including for runs that stopped before an
 accepted stage. Optional model/effort flags assert those intended replay
 settings as well. Every session attempt is judged on its own against the files
 its case declares, so an older attempt is named as well as the newest, and a
-session case with no prior attempt has no stale measurement.
+session case with no prior attempt has no stale measurement. Every stage replay
+is judged against the stage corpus it read, and is also stale when the
+checkpoint it consumed is stale or when a model or effort flag differs from the
+one it ran with.
 
 Each line `stale` prints is the record id, its short id or `-`, its version
 distance, and each cause. The distance reads `distance N`, the number of

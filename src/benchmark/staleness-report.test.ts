@@ -13,6 +13,7 @@ import {
 import { TestResources } from "./test-support";
 import {
 	checkpointStaleness,
+	replayAttemptStaleness,
 	sessionAttemptStaleness,
 	staleCheckpoints,
 } from "./staleness-report";
@@ -487,6 +488,119 @@ describe(checkpointStaleness.name, () => {
 				changedFiles: [{ path: "skills/build/SKILL.md", change: "changed" }],
 				distance: { kind: "measured", versions: 1 },
 			},
+		]);
+	});
+});
+
+describe(replayAttemptStaleness.name, () => {
+	const roots: string[] = [];
+
+	afterEach(async () => {
+		await Promise.all(
+			roots.splice(0).map((root) => rm(root, { force: true, recursive: true })),
+		);
+	});
+
+	async function temporaryDirectory(prefix: string): Promise<string> {
+		const root = await mkdtemp(join(tmpdir(), prefix));
+		roots.push(root);
+
+		return root;
+	}
+
+	async function recordedFixture(): Promise<{
+		readonly fixture: RecordedRunsFixture;
+		readonly corpus: string;
+	}> {
+		const root = await temporaryDirectory("rehearse-replay-staleness-");
+		const fixture = new RecordedRunsFixture(root, {
+			settingsFile: await liveStageSettings(),
+		});
+		await fixture.write();
+		await fixture.writeInitialCheckpoint();
+		const corpus = await temporaryDirectory("rehearse-replay-corpus-");
+		await mkdir(join(corpus, "skills", "build"), { recursive: true });
+		await mkdir(join(corpus, "skills", "discuss"), { recursive: true });
+		await Bun.write(join(corpus, "CLAUDE.md"), "the instructions\n");
+		await Bun.write(join(corpus, "skills", "build", "SKILL.md"), "build\n");
+		await Bun.write(join(corpus, "skills", "discuss", "SKILL.md"), "discuss\n");
+		await fixture.recordCorpusFrom(directorySource(corpus));
+		await fixture.recordVersionFrom(directorySource(corpus));
+		await fixture.recordReplayFrom(directorySource(corpus));
+
+		return { fixture, corpus };
+	}
+
+	const REPLAY_ATTEMPT =
+		"attempt:stage:lineage-discuss/2026-09-03T01-00-00.000Z";
+
+	it("names each stage corpus file the replay read that changed, with its version distance", async () => {
+		const { fixture, corpus } = await recordedFixture();
+		await Bun.write(join(corpus, "skills", "build", "SKILL.md"), "edited\n");
+
+		const report = await replayAttemptStaleness(
+			fixture.runsDirectory,
+			directorySource(corpus),
+		);
+
+		expect(report).toEqual({
+			records: [
+				{
+					id: REPLAY_ATTEMPT,
+					stale: true,
+					causes: ["skills/build/SKILL.md changed"],
+					changedFiles: [{ path: "skills/build/SKILL.md", change: "changed" }],
+					distance: { kind: "measured", versions: 1 },
+				},
+			],
+			unreadable: [],
+		});
+	});
+
+	it("reports the replay clean at distance 0 when nothing it read changed", async () => {
+		const { fixture, corpus } = await recordedFixture();
+
+		const report = await replayAttemptStaleness(
+			fixture.runsDirectory,
+			directorySource(corpus),
+		);
+
+		expect(report.records).toEqual([
+			{
+				id: REPLAY_ATTEMPT,
+				stale: false,
+				causes: [],
+				changedFiles: [],
+				distance: { kind: "measured", versions: 0 },
+			},
+		]);
+	});
+
+	it("stales the replay when the checkpoint it consumed went stale", async () => {
+		const { fixture, corpus } = await recordedFixture();
+		await Bun.write(join(corpus, "skills", "discuss", "SKILL.md"), "edited\n");
+
+		const report = await replayAttemptStaleness(
+			fixture.runsDirectory,
+			directorySource(corpus),
+		);
+
+		expect(report.records.map(({ causes }) => causes)).toEqual([
+			["upstream stage discuss is stale"],
+		]);
+	});
+
+	it("stales the replay on a model the caller names that differs from its own", async () => {
+		const { fixture, corpus } = await recordedFixture();
+
+		const report = await replayAttemptStaleness(
+			fixture.runsDirectory,
+			directorySource(corpus),
+			{ model: "opus" },
+		);
+
+		expect(report.records.map(({ causes }) => causes)).toEqual([
+			["model sonnet is now opus"],
 		]);
 	});
 });
