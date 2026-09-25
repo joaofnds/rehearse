@@ -228,7 +228,9 @@ export const claudeEnvelopeSchema = z
 		usage: claudeUsageSchema.optional(),
 		// Recording-only evidence whose shape moves between CLI releases, so a
 		// block that no longer fits is dropped rather than failing a paid call.
-		modelUsage: claudeModelUsageByModelSchema.optional().catch(undefined),
+		modelUsage: claudeModelUsageByModelSchema
+			.optional()
+			.or(z.unknown().transform(() => undefined)),
 		is_error: z.boolean().optional(),
 		terminal_reason: z.string().optional(),
 		result: z.string().optional(),
