@@ -667,8 +667,15 @@ evidence. Checkpoints written before this carry no transcript field and remain
 readable. A stage checkpoint, a replay record and a session attempt record
 also carry `readManifest`, the files the record declared or its transcript
 shows it loading. A stage record carries `readManifest` too, which is the only
-copy for a stage its judge stopped, since that stage saves no checkpoint. From the target, a stage lists only the `CLAUDE.md` and
-`AGENTS.md` files it loaded, not every file it read there. Each entry has a `path`, a `half` of `corpus`, `project` or
+copy for a stage its judge stopped, since that stage saves no checkpoint, and so
+does each stage file of a confirmation rep, stopped or not. From the target, a stage lists the `CLAUDE.md` and
+`AGENTS.md` files it loaded and each file it loaded from the target's own
+`.claude`, the latter as a `project` entry by its path in the target, such as
+`.claude/skills/local/SKILL.md`, not every file it read there. A corpus entry is
+a file loaded from a directory the record's corpus resolved from: the corpus
+copy installed under the stage's worktree or the attempt's overlay, or the live
+install when the corpus is live. A load from any other `.claude` directory is
+left out. Each entry has a `path`, a `half` of `corpus`, `project` or
 `rubric`, one `role` of `global instructions`, `project instructions`,
 `stage skill`, `judge rubric` or `read for context`, an `evidence` of
 `declared`, `observed` or `declared and observed`, and a `sha256` where one is
@@ -712,7 +719,12 @@ file several stages froze is named once. A group is also stale when a model or
 effort flag differs from the one it froze. A stage or pipeline group froze its
 own checkpoint, so no live checkpoint can stale it. A stage or pipeline group
 that froze no pipeline, and a session group whose case is no longer declared,
-are named on stderr rather than judged.
+are named on stderr rather than judged. A group is also judged by the read
+manifests its reps recorded, on their stage files and checkpoints or their
+attempts: a corpus file a rep loaded outside the frozen files stales the group
+when it changed, and a judge rubric a rep's stage was graded by that now
+differs names `judge rubric <path> changed`, which makes the group count as
+stale by more than corpus files.
 
 Each line `stale` prints is the record id, its short id or `-`, its version
 distance, and each cause. The distance reads `distance N`, the number of
@@ -928,7 +940,8 @@ its checkpoint records, or its stop record's when it saved no checkpoint, each
 with its sha256 digest, and its `corpusVersion` comes from the same place. Its `readManifest` is its checkpoint's read manifest, each corpus and judge
 rubric entry with a `state` judged as the run history judges its latest
 checkpoint (below), or, when the stage saved no checkpoint, as when its judge
-stopped it, its stage record's, without a state. When the corpus under test
+stopped it, its stage record's, judged against the corpus files that stage
+record captured. When the corpus under test
 cannot judge the run, such as when it no longer holds a stage's skill, every
 entry is served without a state rather than failing the response. It is unavailable when the stage recorded neither or its checkpoint
 predates read manifests. As artifacts out it lists its declared artifact, the
@@ -1033,8 +1046,8 @@ record's read manifest with a `state` of `unchanged` or `changed` on each
 corpus and judge rubric entry that recorded a hash. A project entry carries no
 state, since the target repository is not under test, and neither does a corpus
 entry when the corpus under test refuses to be read. The list is empty for a
-record written before read manifests, a confirmation group, and a run row
-judged at its initial checkpoint. A pipeline run row is judged at its latest
+record written before read manifests, a confirmation group whose reps recorded
+none, and a run row judged at its initial checkpoint. A pipeline run row is judged at its latest
 checkpoint, or at its initial checkpoint when it saved no stage. Each row is
 judged with the model and effort its record ran with, since the history
 compares a record against the corpus rather than against a replay about to

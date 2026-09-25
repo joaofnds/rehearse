@@ -185,7 +185,9 @@ See [current state](docs/status.md) for implementation coverage and
   whether it was declared, observed, or both. A corpus file's hash is the bytes
   the record's corpus resolved at its start, a rubric's is the frozen
   scorecard's rubric as parsed, not its bytes, and a project file's is the target's bytes at the record's start,
-  absent when the file was not there. Like the context manifest, a load not
+  absent when the file was not there. A corpus file is one loaded from where
+  the record's corpus resolved. A file loaded from the target's own `.claude`
+  is a project file, and one from any other `.claude` is left out. Like the context manifest, a load not
   observed is not proof of absence.
 - **Context evidence** — an optional, versioned attempt-record field containing
   an unchanged provider capture and the harness's normalized projection. The

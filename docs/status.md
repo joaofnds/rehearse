@@ -57,17 +57,13 @@ case present, but no browser check has been run over it.
   outside its captured corpus files is hashed from the corpus version measured
   at its start, so it carries no hash when that measurement refused or the
   version holds no file at that path.
-  Entries read from the target's own `.claude`, or from any other `.claude`
-  directory the session read, are recorded as corpus entries rather than
-  marked as coming from where they were read. One loaded outside the captured
-  files takes the corpus version's hash for its path, not a hash of the bytes
-  read, so an edit to the corpus file stales the record while a change to the
-  bytes the stage read goes unseen.
-  A stage its judge stopped keeps its manifest on its stop record, and the
-  run API serves those entries without a changed state, since staleness judges
-  checkpoints, replays and attempts only. A confirmation rep's stage its judge
-  stopped records no manifest, and staleness judges a confirmation group on
-  the files it froze, so a rep's manifest entries are never marked changed.
+  A corpus file loaded outside the captured files takes the corpus version's
+  hash for its path, not a hash of the bytes read, so an edit to the corpus
+  file stales the record while a change to the bytes the stage read goes
+  unseen. On a live corpus a stage's captured files resolve from the target's
+  own `.claude` first, so a captured file the target overrides is still a
+  corpus entry, while the load the transcript shows from there is a project
+  entry.
   The run API serves a run's entries without a changed state when the corpus
   under test cannot judge it, such as when it no longer holds a stage's skill.
   The run history screen shows a rubric-only stale record with the plain stale
