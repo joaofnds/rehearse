@@ -408,6 +408,28 @@ describe(corpusReport.name, () => {
 			});
 		});
 
+		it("counts a stopped run's row as invalidated when the stage its judge stopped read the edited file", async () => {
+			const corpus = await fullCorpusDirectory();
+			const runs = await runsDirectory();
+			const fixture = new RecordedRunsFixture(runs, {
+				settingsFile: await liveStageSettings(),
+			});
+			await fixture.writeStoppedRun();
+			await fixture.recordStoppedStageFrom(directorySource(corpus));
+			await writeFile(
+				join(corpus, "skills", "build", "SKILL.md"),
+				"build skill, edited\n",
+			);
+
+			const report = await corpusReport(directorySource(corpus), runs);
+
+			expect(report.lastEdit).toMatchObject({
+				kind: "measured",
+				count: 1,
+				rows: [`run:${fixture.stoppedRun}`],
+			});
+		});
+
 		it("counts the row against the edited file and not against a file the edit left alone", async () => {
 			const { report } = await editedAfterRun();
 

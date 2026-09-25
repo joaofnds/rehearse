@@ -444,7 +444,8 @@ async function rowFor(
 			caseId,
 			stage: undefined,
 			grade: undefined,
-			staleness: staleness.of(
+			staleness: staleness.ofRun(
+				run,
 				formatRecordId({ kind: "checkpoint", run, stage: "initial" }),
 			),
 			progress,
@@ -462,7 +463,10 @@ async function rowFor(
 		caseId,
 		stage,
 		grade: gradeByStage.get(stage),
-		staleness: staleness.of(formatRecordId({ kind: "checkpoint", run, stage })),
+		staleness: staleness.ofRun(
+			run,
+			formatRecordId({ kind: "checkpoint", run, stage }),
+		),
 		progress,
 		links,
 		...figures,
@@ -831,6 +835,11 @@ async function registryEntries(runsDirectory: string): Promise<{
 
 interface Staleness {
 	readonly of: (recordId: string) => RowStaleness;
+	/**
+	 * A run row's staleness: the judgment of the stage its judge stopped, which
+	 * stands under the run's own id, or else its latest checkpoint's.
+	 */
+	readonly ofRun: (run: string, latestCheckpoint: string) => RowStaleness;
 }
 
 /**
@@ -852,28 +861,34 @@ async function recordStaleness(
 		await replayAttemptStaleness(runsDirectory, source),
 		await groupStaleness(runsDirectory, source),
 	];
-	const byId = new Map<string, RowStaleness>();
+	const judgedById = new Map<string, RowStaleness>();
 	for (const { id, readFiles: _read, ...judged } of reports.flatMap(
 		({ records }) => records,
 	)) {
-		byId.set(id, { state: "available", ...judged });
+		judgedById.set(id, { state: "available", ...judged });
 	}
+	const unreadableById = new Map<string, RowStaleness>();
 	for (const { id, reason } of reports.flatMap(
 		({ unreadable }) => unreadable,
 	)) {
-		byId.set(id, {
+		unreadableById.set(id, {
 			state: "unavailable",
 			reasons: [redactAbsolutePaths(reason)],
 		});
 	}
+	const of = (recordId: string): RowStaleness =>
+		unreadableById.get(recordId) ??
+		judgedById.get(recordId) ??
+		unreadableById.get(runOfCheckpoint(recordId)) ?? {
+			state: "unavailable",
+			reasons: [UNJUDGED_REASON],
+		};
 
 	return {
-		of: (recordId) =>
-			byId.get(recordId) ??
-			byId.get(runOfCheckpoint(recordId)) ?? {
-				state: "unavailable",
-				reasons: [UNJUDGED_REASON],
-			},
+		of,
+		ofRun: (run, latestCheckpoint) =>
+			judgedById.get(formatRecordId({ kind: "run", run })) ??
+			of(latestCheckpoint),
 	};
 }
 

@@ -779,6 +779,27 @@ describe(runHistoryReport.name, () => {
 		});
 	});
 
+	it("judges a stopped run's row by the stage its judge stopped, at that stage's version distance", async () => {
+		const fixture = await fixtureRecordingLiveSettings();
+		await fixture.writeStoppedRun();
+		const corpus = await corpusDirectory("build skill\n");
+		await fixture.recordStoppedStageFrom(directorySource(corpus));
+		await Bun.write(join(corpus, "skills", "build", "SKILL.md"), "edited\n");
+
+		const { rows } = await runHistoryReport(
+			fixture.runsDirectory,
+			directorySource(corpus),
+			nothingRunning,
+		);
+
+		expect(pipelineRun(rows, fixture.stoppedRun)?.staleness).toMatchObject({
+			state: "available",
+			stale: true,
+			causes: ["skills/build/SKILL.md changed"],
+			distance: { kind: "measured", versions: 1 },
+		});
+	});
+
 	it("reports a run stopped mid-stage with STOPPED:<stage> and no corpus version when its stage records name none", async () => {
 		const fixture = await writtenFixture();
 		await fixture.writeStoppedRun();

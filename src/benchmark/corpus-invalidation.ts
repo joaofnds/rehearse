@@ -49,15 +49,16 @@ interface RowReading extends Pick<RecordStaleness, "id" | "readFiles"> {
 }
 
 /**
- * A run's row reads what any of its checkpoints read, and is judged as the
- * run history judges it: by its latest checkpoint directory in pipeline
- * order, the initial one when it recorded no stage, which carries every
- * upstream cause. A directory holding no judged record has no judgment.
+ * A run's row reads what any of its stages read, and is judged as the run
+ * history judges it: by the stage its judge stopped, which stands under the
+ * run's own id, or else by its latest checkpoint directory in pipeline order,
+ * the initial one when it recorded no stage. Either carries every upstream
+ * cause. A directory holding no judged record has no judgment.
  */
 async function runRow(
 	runsDirectory: string,
 	run: string,
-	checkpoints: readonly RecordStaleness[],
+	records: readonly RecordStaleness[],
 ): Promise<RowReading> {
 	const manifest = await loadRunManifest(
 		benchmarkRunPaths(runsDirectory, run).manifestFile,
@@ -67,14 +68,14 @@ async function runRow(
 		manifest.pipeline.stages
 			.map(({ name }) => name)
 			.findLast((name) => recorded.has(name)) ?? INITIAL_CHECKPOINT_STAGE;
-	const judged = checkpoints.find(
-		({ id }) => id === `checkpoint:${run}/${latest}`,
-	);
+	const judged =
+		records.find(({ id }) => id === `run:${run}`) ??
+		records.find(({ id }) => id === `checkpoint:${run}/${latest}`);
 
 	return {
 		id: `run:${run}`,
 		stale: judged?.stale,
-		readFiles: checkpoints.flatMap(({ readFiles }) => readFiles),
+		readFiles: records.flatMap(({ readFiles }) => readFiles),
 	};
 }
 
@@ -89,8 +90,8 @@ async function rowReadings(
 		await groupStaleness(runsDirectory, source),
 	];
 	const runs = await Promise.all(
-		[...byRun.entries()].map(([run, checkpoints]) =>
-			runRow(runsDirectory, run, checkpoints),
+		[...byRun.entries()].map(([run, records]) =>
+			runRow(runsDirectory, run, records),
 		),
 	);
 

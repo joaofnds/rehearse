@@ -226,6 +226,45 @@ describe(createApiApp.name, () => {
 			]);
 		});
 
+		it("answers the rows the corpus's last edit invalidated as stale rows, a stopped run among them", async () => {
+			const root = await emptyDirectory("rehearse-api-");
+			const fixture = new RecordedRunsFixture(root, {
+				settingsFile: await liveStageSettings(),
+			});
+			await fixture.writeStoppedRun();
+			const corpus = await corpusDirectory();
+			await fixture.recordStoppedStageFrom(directorySource(corpus));
+			await writeFile(join(corpus, "skills", "build", "SKILL.md"), "edited\n");
+			const app = createApiApp({
+				runsDirectory: fixture.runsDirectory,
+				liveness: nothingRunning,
+				corpusSource: directorySource(corpus),
+			});
+			const corpusResponse = await app.request("/api/corpus");
+			const { lastEdit } = z
+				.object({ lastEdit: z.object({ rows: z.array(z.string()) }) })
+				.parse(await corpusResponse.json());
+			const invalidated = lastEdit.rows;
+
+			const response = await app.request(
+				`/api/runs?ids=${encodeURIComponent(invalidated.join(","))}`,
+			);
+			const body = await runHistoryResponseFrom(response);
+
+			expect(invalidated).toEqual([`run:${fixture.stoppedRun}`]);
+			expect(
+				body.rows.map(({ run, staleness }) => ({ run, staleness })),
+			).toMatchObject([
+				{
+					run: fixture.stoppedRun,
+					staleness: {
+						stale: true,
+						distance: { kind: "measured", versions: 1 },
+					},
+				},
+			]);
+		});
+
 		it("answers the healthy rows when one run's manifest does not parse", async () => {
 			const fixture = await writtenFixture();
 			const corpus = await corpusDirectory();
