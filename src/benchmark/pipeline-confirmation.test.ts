@@ -444,7 +444,7 @@ describe(runPipelineConfirmation.name, () => {
 		).toEqual([[rubricEntry], [rubricEntry], [rubricEntry]]);
 	});
 
-	it("keeps on the stage file of a rep its judge rejected the read manifest of that stage", async () => {
+	it("keeps the stage's reads on the stage file of a rep whose judge rejected it", async () => {
 		const harness = await PipelineConfirmationHarness.setup(testResources);
 
 		const outcome = await harness.run({}, (dependencies) => ({
