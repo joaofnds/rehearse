@@ -1,4 +1,5 @@
 import type { CorpusRoot } from "./corpus-file";
+import type { CorpusMeasurement } from "./corpus-measurement";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
@@ -158,6 +159,7 @@ interface FrozenPipelineInputs {
 	readonly baselineHashes: ReadonlyMap<string, string>;
 	readonly corpusDirectories: Readonly<Record<string, string>>;
 	readonly corpusFiles: Readonly<Record<string, readonly HashedFile[]>>;
+	readonly corpusVersion: CorpusMeasurement;
 	readonly files: readonly FrozenFile[];
 }
 
@@ -168,6 +170,7 @@ async function freezePipelineInputs(
 	inputsDirectory: string,
 	worktreesDirectory: string,
 ): Promise<FrozenPipelineInputs> {
+	const corpusVersion = await dependencies.stageSession.measureCorpus();
 	const corpusRoot = join(inputsDirectory, "corpus");
 	const corpusDirectories: Record<string, string> = {};
 	const corpusFiles: Record<string, readonly HashedFile[]> = {};
@@ -302,6 +305,7 @@ async function freezePipelineInputs(
 		baselineHashes,
 		corpusDirectories,
 		corpusFiles,
+		corpusVersion,
 		files,
 	};
 }
@@ -413,7 +417,10 @@ async function runPipelineRep(
 			);
 			setupOperation = undefined;
 			currentSession = await executeStageSession(
-				measuredStageDependencies(dependencies.stageSession, stageClock),
+				{
+					...measuredStageDependencies(dependencies.stageSession, stageClock),
+					measureCorpus: () => Promise.resolve(frozen.corpusVersion),
+				},
 				{
 					targetDir: plan.worktreePath,
 					model: request.model,
@@ -529,6 +536,7 @@ async function runPipelineRep(
 					model: request.model,
 					effort: request.effort,
 					corpusFiles: frozen.corpusFiles[definition.name] ?? [],
+					corpusVersion: frozen.corpusVersion,
 					artifacts: hashArtifacts(
 						currentSession.artifact ? [currentSession.artifact] : [],
 					),
@@ -832,6 +840,7 @@ export async function runPipelineConfirmation(
 				judgeEffort: request.judgeEffort,
 				sessionBudgetUsd: request.sessionBudgetUsd,
 				pipelinePath: request.pipelinePath,
+				corpusVersion: frozen.corpusVersion,
 			},
 			projectedCost: request.projectedCost,
 			approvalMethod: request.approvalMethod,

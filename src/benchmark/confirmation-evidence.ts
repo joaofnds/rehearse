@@ -3,6 +3,7 @@ import { readdir, rm } from "node:fs/promises";
 import { join, relative } from "node:path";
 import type { ConfirmationCostProjection } from "./confirmation";
 import type { Effort } from "./config";
+import type { CorpusMeasurement } from "./corpus-measurement";
 import {
 	filterJudgeAgreementReport,
 	loadJudgeAgreementReport,
@@ -163,6 +164,7 @@ interface ConfirmationGroupInputs {
 	readonly judgeEffort?: Effort | undefined;
 	readonly sessionBudgetUsd: number;
 	readonly pipelinePath: string;
+	readonly corpusVersion?: CorpusMeasurement | undefined;
 }
 
 interface SessionConfirmationGroupInputs {
@@ -171,6 +173,7 @@ interface SessionConfirmationGroupInputs {
 	readonly model: string;
 	readonly effort?: Effort | undefined;
 	readonly sessionBudgetUsd: number;
+	readonly corpusVersion?: CorpusMeasurement | undefined;
 }
 
 type ConfirmationGroupFinalization = ConfirmationGroupFinalizationBase &

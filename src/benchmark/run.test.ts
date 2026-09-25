@@ -26,6 +26,7 @@ import type {
 	StageScorecard,
 } from "./contracts";
 import { StageValidationError } from "./contracts";
+import type { CorpusMeasurement } from "./corpus-measurement";
 import { RefusedPreconditionError } from "./exit-codes";
 import { failureOf } from "#cli/cli-test-support";
 import type {
@@ -562,6 +563,8 @@ describe(runGradedStages.name, () => {
 							sha256: createHash("sha256").update(skill).digest("hex"),
 						},
 					]),
+				measureCorpus: () =>
+					Promise.resolve({ kind: "version", digest: "c".repeat(64) }),
 				recordCheckpoint,
 			},
 		};
@@ -659,6 +662,48 @@ describe(runGradedStages.name, () => {
 				join(context.checkpointDirectory("shape"), "transcript.jsonl"),
 			).text(),
 		).toBe(raw);
+	});
+
+	it("records in each stage's checkpoint the corpus version measured before its session ran", async () => {
+		const { dependencies, executed } = fakeStageDependencies();
+		const sessionsBeforeEachMeasurement: number[] = [];
+		const measureCorpus = (): Promise<CorpusMeasurement> => {
+			sessionsBeforeEachMeasurement.push(executed.length);
+
+			return Promise.resolve({
+				kind: "version",
+				digest: String(executed.length).repeat(64),
+			});
+		};
+
+		const outcome = await runGradedStages(
+			{ ...dependencies, measureCorpus },
+			await stageContext(),
+		);
+
+		expect(sessionsBeforeEachMeasurement).toEqual([0, 1]);
+		expect(
+			outcome.checkpoints.map(({ corpusVersion }) => corpusVersion),
+		).toEqual([
+			{ kind: "version", digest: "0".repeat(64) },
+			{ kind: "version", digest: "1".repeat(64) },
+		]);
+	});
+
+	it("records a refused corpus layout in the checkpoint and still runs the stage", async () => {
+		const { dependencies, executed } = fakeStageDependencies();
+		const refusal: CorpusMeasurement = {
+			kind: "refused",
+			refusal: "skills/escape.md resolves outside the tree",
+		};
+
+		const outcome = await runGradedStages(
+			{ ...dependencies, measureCorpus: () => Promise.resolve(refusal) },
+			await stageContext(),
+		);
+
+		expect(executed).toEqual(["shape", "build"]);
+		expect(outcome.checkpoints[0]?.corpusVersion).toEqual(refusal);
 	});
 
 	it("records a stage whose provider wrote no transcript as unavailable", async () => {

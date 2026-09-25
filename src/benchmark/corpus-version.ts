@@ -5,6 +5,7 @@ import { z } from "zod";
 import type { HashedFile } from "./checkpoint";
 import { canonicalFiles, hashedFileSchema } from "./checkpoint";
 import type { CorpusRoot } from "./corpus-file";
+import type { CorpusMeasurement } from "./corpus-measurement";
 import { hashCorpusLayout } from "./corpus-layout";
 import { readdirIfPresent, textIfPresent } from "./file-presence";
 
@@ -12,15 +13,6 @@ const STORE_DIRECTORY = "corpus-versions";
 const BLOBS_DIRECTORY = "blobs";
 const VERSIONS_DIRECTORY = "versions";
 const LOGS_DIRECTORY = "logs";
-
-/**
- * What measuring a corpus source yields: the version its whole layout is, or
- * the refusal that kept it from being one. A refused layout still lets the
- * attempt run, and its record carries the refusal in place of a version.
- */
-export type CorpusMeasurement =
-	| { readonly kind: "version"; readonly digest: string }
-	| { readonly kind: "refused"; readonly refusal: string };
 
 const versionManifestSchema = z.object({
 	files: z.array(hashedFileSchema),

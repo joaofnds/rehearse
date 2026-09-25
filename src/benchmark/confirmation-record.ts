@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { effortSchema, LEGACY_CASE_ID } from "./config";
 import { claudeCallMetricsSchema, stageLetterGradeSchema } from "./contracts";
+import { corpusMeasurementSchema } from "./corpus-measurement";
 
 /**
  * The three units a confirmation group repeats: one stage from a checkpoint,
@@ -381,6 +382,7 @@ const frozenInputsSchema = z
 		judgeEffort: effortSchema.optional(),
 		sessionBudgetUsd: z.number().positive(),
 		pipelinePath: z.string().min(1),
+		corpusVersion: corpusMeasurementSchema.optional(),
 	})
 	.strict();
 
@@ -491,6 +493,7 @@ export const sessionConfirmationGroupRecordSchema = z
 				judgeEffort: z.never().optional(),
 				sessionBudgetUsd: z.number().positive(),
 				pipelinePath: z.never().optional(),
+				corpusVersion: corpusMeasurementSchema.optional(),
 			})
 			.strict(),
 		projectedCost: sessionProjectedCostSchema,

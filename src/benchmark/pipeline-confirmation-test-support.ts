@@ -210,6 +210,8 @@ export class PipelineConfirmationHarness {
 				captureTreatmentChecks: () =>
 					Promise.resolve(harnessResult("PASS", "all green")),
 				captureStageCorpus,
+				measureCorpus: () =>
+					Promise.resolve({ kind: "version", digest: "c".repeat(64) }),
 			},
 			runStageJudge: (_model, _effort, _budget, input, source) =>
 				Promise.resolve(pipelineStageScorecard(input, source)),

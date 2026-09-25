@@ -10,7 +10,9 @@ import {
 	confirmationRepRecordSchema,
 	parseConfirmationGroupRecord,
 } from "./confirmation-record";
+import { parseCheckpointRecord } from "./checkpoint";
 import { runCommand } from "./command";
+import type { CorpusMeasurement } from "./corpus-measurement";
 import { parseArgs } from "./config";
 import {
 	JudgeExecutionError,
@@ -304,6 +306,53 @@ describe(runPipelineConfirmation.name, () => {
 		expect(initialCheckpoint).toMatchObject({
 			settingsFile: { sha256: declaredSettings.hashed.sha256 },
 		});
+	});
+
+	it("measures the corpus once for the group and records that version on the group and every rep stage", async () => {
+		const harness = await PipelineConfirmationHarness.setup(testResources);
+		let measurements = 0;
+
+		const outcome = await harness.run({}, (dependencies) => ({
+			...dependencies,
+			stageSession: {
+				...dependencies.stageSession,
+				measureCorpus: () => {
+					measurements += 1;
+
+					return Promise.resolve({
+						kind: "version",
+						digest: String(measurements).repeat(64),
+					});
+				},
+			},
+		}));
+		const groupDirectory = dirname(outcome.groupRecordFile);
+		const group = parseConfirmationGroupRecord(
+			await Bun.file(outcome.groupRecordFile).text(),
+		);
+		const repCheckpoints = await Array.fromAsync(
+			new Bun.Glob("reps/**/checkpoint.json").scan(groupDirectory),
+		);
+		const recorded = await Promise.all(
+			repCheckpoints.map(async (file) =>
+				parseCheckpointRecord(
+					await Bun.file(join(groupDirectory, file)).text(),
+				),
+			),
+		);
+
+		const groupVersion: CorpusMeasurement = {
+			kind: "version",
+			digest: "1".repeat(64),
+		};
+		expect(measurements).toBe(1);
+		expect(group.inputs.corpusVersion).toEqual(groupVersion);
+		expect(recorded).toHaveLength(
+			group.reps * CONFIRMATION_PIPELINE.stages.length,
+		);
+		expect(recorded.map(({ corpusVersion }) => corpusVersion)).toEqual(
+			recorded.map(() => groupVersion),
+		);
 	});
 
 	it("passes a declared settings overlay to every stage session", async () => {

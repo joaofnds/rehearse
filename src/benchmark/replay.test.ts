@@ -983,6 +983,8 @@ describe(runReplay.name, () => {
 								sha256: createHash("sha256").update(skill).digest("hex"),
 							},
 						]),
+					measureCorpus: () =>
+						Promise.resolve({ kind: "version", digest: "c".repeat(64) }),
 				},
 				runStageJudge: async (_model, _effort, _budget, input) => {
 					judged.push(input);

@@ -332,6 +332,8 @@ export class ReplayConfirmationHarness {
 						},
 					]);
 				},
+				measureCorpus: () =>
+					Promise.resolve({ kind: "version", digest: "c".repeat(64) }),
 			},
 			runStageJudge: (_model, _effort, _budget, input) => {
 				this.judged.push(input);

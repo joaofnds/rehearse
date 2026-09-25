@@ -12,6 +12,8 @@ import {
 	resolvesOutsideCorpus,
 } from "./corpus-file";
 import type { Immutable } from "./contracts";
+import type { CorpusMeasurement } from "./corpus-measurement";
+import { corpusMeasurementSchema } from "./corpus-measurement";
 import { projectSlug } from "./session-capture";
 import {
 	classifyEntry,
@@ -920,6 +922,7 @@ const checkpointRecordSchema = z
 		workflowState: z.array(hashedFileSchema),
 		settingsFile: hashedFileSchema.optional(),
 		transcript: stageTranscriptEvidenceSchema.optional(),
+		corpusVersion: corpusMeasurementSchema.optional(),
 	})
 	.strict();
 
@@ -941,6 +944,7 @@ export interface CheckpointInputs {
 	readonly artifacts: readonly HashedFile[];
 	readonly settingsFile?: HashedFile | undefined;
 	readonly transcript?: StageTranscriptSource | undefined;
+	readonly corpusVersion?: CorpusMeasurement | undefined;
 }
 
 const RECORD_FILE = "checkpoint.json";
@@ -1036,6 +1040,7 @@ export async function recordCheckpoint(
 			directory,
 			inputs.transcript,
 		),
+		corpusVersion: inputs.corpusVersion,
 	};
 	await Bun.write(
 		join(directory, RECORD_FILE),

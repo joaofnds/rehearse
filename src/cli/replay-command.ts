@@ -37,6 +37,7 @@ import { loadRunManifest } from "#benchmark/manifest";
 import { readCorpusInstructions } from "#benchmark/corpus-file";
 import type { CorpusSourceResolver } from "#benchmark/corpus-source";
 import { resolveCorpusSource } from "#benchmark/corpus-source";
+import { measureCorpusVersion } from "#benchmark/corpus-version";
 import { loadCurrentStageSettings } from "#benchmark/current-stage-settings";
 import { runReplay } from "#benchmark/replay";
 import type { ReplayDependencies, ReplayRequest } from "#benchmark/replay";
@@ -257,6 +258,10 @@ export async function executeReplay(
 	paths: BenchmarkRunPaths,
 	output: CommandOutput,
 ): Promise<ReplayCommandOutcome> {
+	const [corpus, loadedSettings] = await Promise.all([
+		replayCorpus(config.corpus),
+		replaySettingsFile(paths.manifestFile),
+	]);
 	const replayDependencies: ReplayDependencies = {
 		createProductOwner,
 		stageSession: {
@@ -271,6 +276,8 @@ export async function executeReplay(
 			captureTreatmentChecks: (targetDir, checks) =>
 				captureTreatmentChecks(targetDir, checks, diagnosticWriter(output)),
 			captureStageCorpus,
+			measureCorpus: () =>
+				measureCorpusVersion(paths.runsDirectory, corpus.source),
 		},
 		runStageJudge,
 		loadStageRubric,
@@ -286,10 +293,6 @@ export async function executeReplay(
 		installStageCorpusSnapshot,
 		log: diagnosticWriter(output),
 	};
-	const [corpus, loadedSettings] = await Promise.all([
-		replayCorpus(config.corpus),
-		replaySettingsFile(paths.manifestFile),
-	]);
 	const replayRequest: ReplayRequest = {
 		paths,
 		stage: config.stage,

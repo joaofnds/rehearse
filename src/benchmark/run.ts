@@ -43,6 +43,8 @@ import {
 	DEFAULT_MINIMUM_STAGE_GRADE,
 	recordsDirectory,
 } from "./config";
+import type { CorpusMeasurement } from "./corpus-measurement";
+import { measureCorpusVersion } from "./corpus-version";
 import { RefusedPreconditionError } from "./exit-codes";
 import type { CorpusRoot } from "./corpus-file";
 import { liveCorpusSource, readCorpusInstructions } from "./corpus-file";
@@ -491,6 +493,7 @@ export interface StageSessionDependencies {
 		checks: readonly TargetCheck[],
 	) => Promise<LocalCheckResult>;
 	readonly captureStageCorpus: typeof captureStageCorpus;
+	readonly measureCorpus: () => Promise<CorpusMeasurement>;
 }
 
 export interface StageDependencies extends StageSessionDependencies {
@@ -575,6 +578,7 @@ export interface StageSessionEnvironment {
 export interface StageSessionResult {
 	readonly resultSha: string;
 	readonly corpusFiles: readonly HashedFile[];
+	readonly corpusVersion: CorpusMeasurement;
 	readonly transcript: StageTranscript;
 	readonly input: StageJudgeInput;
 	readonly artifact?: ContextFile | undefined;
@@ -599,6 +603,7 @@ export async function executeStageSession(
 		environment.instructions,
 		environment.corpusRoots,
 	);
+	const corpusVersion = await dependencies.measureCorpus();
 	const transcript = await dependencies.runWorkflowStage({
 		targetDir: environment.targetDir,
 		model: environment.model,
@@ -709,7 +714,15 @@ export async function executeStageSession(
 		};
 	});
 
-	return { resultSha, corpusFiles, transcript, input, artifact, buildEvidence };
+	return {
+		resultSha,
+		corpusFiles,
+		corpusVersion,
+		transcript,
+		input,
+		artifact,
+		buildEvidence,
+	};
 }
 
 function stageElapsedMs(
@@ -873,6 +886,7 @@ export async function runGradedStages(
 				model: context.model,
 				effort: context.effort,
 				corpusFiles,
+				corpusVersion: session.corpusVersion,
 				artifacts: hashArtifacts(input.artifact ? [input.artifact] : []),
 				settingsFile: context.loadedSettings.hashed,
 				transcript:
@@ -1093,6 +1107,8 @@ export async function runBenchmark(
 						captureTreatmentChecks(targetDir, checks, log),
 					resolveSkillDirectory,
 					captureStageCorpus,
+					measureCorpus: () =>
+						measureCorpusVersion(runFiles.runsDirectory, corpusSource),
 					recordCheckpoint: recordRetainedCheckpoint,
 				},
 				{
