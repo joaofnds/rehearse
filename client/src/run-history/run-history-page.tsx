@@ -403,15 +403,13 @@ function corpusState(
 /**
  * The prototype's three readings, for a record judged against a version it
  * can count back to: clean at the version under test, and stale or
- * superseded when a corpus file it read is the only thing that changed.
+ * superseded when the server judged corpus files it read the only thing that
+ * changed, counting an upstream stage gone stale from those same edits.
  * Every other judgment keeps the plain stale or clear badge, since the
- * prototype has no reading for a stale model, settings file or upstream stage.
+ * prototype has no reading for a changed model, effort or settings file.
  */
 function judgment(staleness: JudgedStaleness): React.JSX.Element {
-	const { distance } = staleness;
-	const onlyCorpusFiles =
-		staleness.changedFiles.length > 0 &&
-		staleness.causes.length === staleness.changedFiles.length;
+	const { distance, onlyCorpusFiles } = staleness;
 
 	if (
 		distance.kind === "measured" &&

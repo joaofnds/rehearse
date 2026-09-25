@@ -61,6 +61,7 @@ export function unversionedStaleness(judgment: {
 		state: "available",
 		...judgment,
 		changedFiles: [],
+		onlyCorpusFiles: false,
 		distance: {
 			kind: "not-recorded",
 			reason: "recorded before corpus versions",

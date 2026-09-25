@@ -14,6 +14,7 @@ import {
 	INITIAL_CHECKPOINT_STAGE,
 	parseCheckpointRecord,
 	refusedCorpus,
+	readChangedFilesOnly,
 	stageCorpusChanges,
 } from "./checkpoint";
 import {
@@ -66,6 +67,11 @@ export interface RecordStaleness {
 	/** Every reason it went stale, empty when it is clean. */
 	readonly causes: readonly string[];
 	readonly changedFiles: readonly ChangedCorpusFile[];
+	/**
+	 * Stale only because corpus files changed, among them one it read, which
+	 * is what a reader can count in versions.
+	 */
+	readonly onlyCorpusFiles: boolean;
 	readonly distance: VersionDistance;
 }
 
@@ -299,6 +305,7 @@ export async function checkpointStaleness(
 				stale: staleness.stale,
 				causes: staleness.causes,
 				changedFiles: staleness.changedFiles,
+				onlyCorpusFiles: staleness.onlyCorpusFiles,
 				distance:
 					staleness.stage === INITIAL_CHECKPOINT_STAGE
 						? INITIAL_CHECKPOINT_DISTANCE
@@ -434,6 +441,7 @@ export async function sessionAttemptStaleness(
 					id,
 					stale: changes.causes.length > 0,
 					...changes,
+					onlyCorpusFiles: readChangedFilesOnly(changes),
 					distance: underTest.distanceOf(record.corpusVersion),
 				});
 			} catch (error) {
@@ -506,7 +514,9 @@ export async function replayAttemptStaleness(
 	const instructions = await currentInstructions(source);
 	const underTest = await readCorpusUnderTest(runsDirectory, source);
 	const upstream = await staleCheckpoints(runsDirectory, source);
-	const staleCheckpointIds = new Set(upstream.map(({ id }) => id));
+	const staleCheckpointsById = new Map(
+		upstream.map((checkpoint) => [checkpoint.id, checkpoint]),
+	);
 	const records: RecordStaleness[] = [];
 	const unreadable: UnreadableStaleRecord[] = [];
 
@@ -521,12 +531,15 @@ export async function replayAttemptStaleness(
 				record.corpusFiles,
 				await currentReplayCorpus(runsDirectory, record, source, instructions),
 			);
-			const consumed = `checkpoint:${record.runName}/${record.consumed.stage}`;
+			const consumed = staleCheckpointsById.get(
+				`checkpoint:${record.runName}/${record.consumed.stage}`,
+			);
+			const knobCauses = namedKnobCauses(record, knobs);
 			const causes = [
-				...(staleCheckpointIds.has(consumed)
-					? [`upstream stage ${record.consumed.stage} is stale`]
-					: []),
-				...namedKnobCauses(record, knobs),
+				...(consumed === undefined
+					? []
+					: [`upstream stage ${record.consumed.stage} is stale`]),
+				...knobCauses,
 				...corpus.causes,
 			];
 			records.push({
@@ -534,6 +547,10 @@ export async function replayAttemptStaleness(
 				stale: causes.length > 0,
 				causes,
 				changedFiles: corpus.changedFiles,
+				onlyCorpusFiles:
+					knobCauses.length === 0 &&
+					(consumed?.onlyCorpusFiles ?? true) &&
+					readChangedFilesOnly(corpus),
 				distance: underTest.distanceOf(record.corpusVersion),
 			});
 		} catch (error) {
@@ -689,15 +706,15 @@ export async function groupStaleness(
 							source,
 							instructions,
 						);
-			const causes = [
-				...namedKnobCauses(record.inputs, knobs),
-				...corpus.causes,
-			];
+			const knobCauses = namedKnobCauses(record.inputs, knobs);
+			const causes = [...knobCauses, ...corpus.causes];
 			records.push({
 				id,
 				stale: causes.length > 0,
 				causes,
 				changedFiles: corpus.changedFiles,
+				onlyCorpusFiles:
+					knobCauses.length === 0 && readChangedFilesOnly(corpus),
 				distance: underTest.distanceOf(record.inputs.corpusVersion),
 			});
 		} catch (error) {

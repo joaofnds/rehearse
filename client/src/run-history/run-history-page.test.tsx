@@ -357,6 +357,7 @@ describe(RunHistoryPage.name, () => {
 				stale: true,
 				causes: ["skills/build/SKILL.md changed"],
 				changedFiles: [{ path: "skills/build/SKILL.md", change: "changed" }],
+				onlyCorpusFiles: true,
 				distance: { kind: "measured", versions },
 			};
 		}
@@ -396,6 +397,7 @@ describe(RunHistoryPage.name, () => {
 					stale: false,
 					causes: [],
 					changedFiles: [],
+					onlyCorpusFiles: false,
 					distance: { kind: "measured", versions: 0 },
 				} satisfies RowStaleness,
 				"✓clean",
@@ -409,6 +411,34 @@ describe(RunHistoryPage.name, () => {
 				"superseded two or more versions back when only files it read changed",
 				corpusFileEdit(3),
 				"⚠superseded · 3 versions back",
+			],
+			[
+				"superseded from exactly two versions back",
+				corpusFileEdit(2),
+				"⚠superseded · 2 versions back",
+			],
+			[
+				"stale one version back when its upstream stage went stale from the same file edit",
+				{
+					...corpusFileEdit(1),
+					causes: [
+						"skills/build/SKILL.md changed",
+						"upstream stage shape is stale",
+					],
+				},
+				"⚠stale · corpus changed since",
+			],
+			[
+				"stale, not clean, at the version under test when a setting changed",
+				{
+					state: "available",
+					stale: true,
+					causes: ["model sonnet is now opus"],
+					changedFiles: [],
+					onlyCorpusFiles: false,
+					distance: { kind: "measured", versions: 0 },
+				} satisfies RowStaleness,
+				"⚠stale",
 			],
 		])("reads %s", async (_scenario, staleness, reading) => {
 			respondingWith(
@@ -433,6 +463,7 @@ describe(RunHistoryPage.name, () => {
 							...corpusFileEdit(1),
 							causes: ["model sonnet is now opus"],
 							changedFiles: [],
+							onlyCorpusFiles: false,
 						},
 					},
 				]),
@@ -444,6 +475,38 @@ describe(RunHistoryPage.name, () => {
 				expect(
 					screen.getByText("model sonnet is now opus"),
 				).toBeInTheDocument();
+			});
+			expect(cellOf("2026-09-06T00-00-00.000Z", "Corpus")).toHaveTextContent(
+				"⚠stale",
+			);
+			expect(
+				cellOf("2026-09-06T00-00-00.000Z", "Corpus"),
+			).not.toHaveTextContent("corpus changed since");
+		});
+
+		it("keeps the plain stale badge when a settings file changed alongside a corpus file", async () => {
+			respondingWith(
+				historyOf([
+					{
+						name: "2026-09-06T00-00-00.000Z",
+						staleness: {
+							...corpusFileEdit(1),
+							causes: [
+								"skills/build/SKILL.md changed",
+								"settings.json changed",
+							],
+							onlyCorpusFiles: false,
+						},
+					},
+				]),
+			);
+
+			renderPage();
+
+			await waitFor(() => {
+				expect(cellOf("2026-09-06T00-00-00.000Z", "Corpus")).toHaveTextContent(
+					"⚠stale",
+				);
 			});
 			expect(
 				cellOf("2026-09-06T00-00-00.000Z", "Corpus"),

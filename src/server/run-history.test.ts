@@ -286,6 +286,7 @@ describe(runHistoryReport.name, () => {
 			stale: true,
 			causes: ["skills/build/SKILL.md changed"],
 			changedFiles: [{ path: "skills/build/SKILL.md", change: "changed" }],
+			onlyCorpusFiles: true,
 			distance: { kind: "measured", versions: 1 },
 		};
 		expect(pipelineRun(rows, fixture.replayableRun)?.staleness).toEqual(edited);
@@ -302,6 +303,34 @@ describe(runHistoryReport.name, () => {
 				reason: "recorded before corpus versions",
 			},
 		});
+	});
+
+	it("counts a row stale only from corpus files when its upstream stage went stale from the same edit", async () => {
+		const fixture = await fixtureRecordingLiveSettings();
+		const corpus = await corpusDirectory("build skill\n");
+		await fixture.recordCorpusFrom(directorySource(corpus));
+		await fixture.recordVersionFrom(directorySource(corpus));
+		await fixture.recordReplayFrom(directorySource(corpus));
+		await fixture.recordGroupFrom(directorySource(corpus));
+		await Bun.write(join(corpus, "CLAUDE.md"), "edited instructions\n");
+
+		const { rows } = await runHistoryReport(
+			fixture.runsDirectory,
+			directorySource(corpus),
+			nothingRunning,
+		);
+
+		for (const row of [
+			pipelineRun(rows, fixture.replayableRun),
+			rows.find(({ kind }) => kind === "replay"),
+			rows.find(({ kind }) => kind === "group"),
+		]) {
+			expect(row?.staleness).toMatchObject({
+				state: "available",
+				stale: true,
+				onlyCorpusFiles: true,
+			});
+		}
 	});
 
 	it("says why a row's staleness could not be judged rather than calling it clean", async () => {

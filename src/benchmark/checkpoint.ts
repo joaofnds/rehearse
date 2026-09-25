@@ -706,6 +706,12 @@ export interface CheckpointStaleness {
 	readonly causes: readonly string[];
 	/** The stage's own corpus files that changed, never its upstream's. */
 	readonly changedFiles: readonly ChangedCorpusFile[];
+	/**
+	 * Stale only because corpus files changed: files this stage read, and
+	 * files that staled its upstream, with no model, effort, settings or
+	 * refusal among the causes.
+	 */
+	readonly onlyCorpusFiles: boolean;
 }
 
 /**
@@ -845,6 +851,45 @@ export function stageCorpusChanges(
 }
 
 /**
+ * Whether a stage's own corpus causes are files it read that changed, and at
+ * least one: a refusal is a cause `stageCorpusChanges` gives no file for.
+ */
+export function readChangedFilesOnly(
+	corpus: Pick<CheckpointStaleness, "causes" | "changedFiles">,
+): boolean {
+	return (
+		corpus.changedFiles.length > 0 &&
+		corpus.causes.length === corpus.changedFiles.length
+	);
+}
+
+/** The causes a checkpoint's model, effort and stage settings give it. */
+function knobCauses(
+	record: CheckpointRecord,
+	request: StalenessRequest,
+): string[] {
+	const causes: string[] = [];
+	if (record.model !== request.model) {
+		causes.push(`model ${record.model} is now ${request.model}`);
+	}
+	if (record.effort !== request.effort) {
+		causes.push(
+			`effort ${record.effort ?? "none"} is now ${request.effort ?? "none"}`,
+		);
+	}
+	if (request.settingsFileRefusal !== undefined) {
+		causes.push(request.settingsFileRefusal);
+	} else if (record.settingsFile?.sha256 !== request.settingsFile?.sha256) {
+		const candidate =
+			request.settingsFile?.path ?? record.settingsFile?.path ?? "none";
+		const path = isAbsolute(candidate) ? basename(candidate) : candidate;
+		causes.push(`stage settings file ${path} changed`);
+	}
+
+	return causes;
+}
+
+/**
  * Walks the chain in order, so an upstream stale checkpoint carries forward:
  * a checkpoint produced from state that can no longer be reproduced is stale
  * whatever its own corpus says. The initial checkpoint consumes no corpus, so
@@ -860,45 +905,38 @@ export function deriveStaleness(
 ): CheckpointStaleness[] {
 	const staleness: CheckpointStaleness[] = [];
 	let staleUpstream: string | undefined;
+	let upstreamOnlyCorpusFiles = true;
 
 	for (const record of chain) {
-		const causes: string[] = [];
-		if (staleUpstream !== undefined) {
-			causes.push(`upstream stage ${staleUpstream} is stale`);
-		}
-		if (record.model !== request.model) {
-			causes.push(`model ${record.model} is now ${request.model}`);
-		}
-		if (record.effort !== request.effort) {
-			causes.push(
-				`effort ${record.effort ?? "none"} is now ${request.effort ?? "none"}`,
-			);
-		}
-		if (request.settingsFileRefusal !== undefined) {
-			causes.push(request.settingsFileRefusal);
-		} else if (record.settingsFile?.sha256 !== request.settingsFile?.sha256) {
-			const candidate =
-				request.settingsFile?.path ?? record.settingsFile?.path ?? "none";
-			const path = isAbsolute(candidate) ? basename(candidate) : candidate;
-			causes.push(`stage settings file ${path} changed`);
-		}
-
+		const knobs = knobCauses(record, request);
 		const currentCorpus = current.get(record.stage);
 		const corpus =
 			currentCorpus === undefined
 				? { causes: [], changedFiles: [] }
 				: stageCorpusChanges(record.corpusFiles, currentCorpus);
-		causes.push(...corpus.causes);
+		const causes = [
+			...(staleUpstream === undefined
+				? []
+				: [`upstream stage ${staleUpstream} is stale`]),
+			...knobs,
+			...corpus.causes,
+		];
 
 		const stale = causes.length > 0;
+		const onlyCorpusFiles: boolean =
+			knobs.length === 0 &&
+			upstreamOnlyCorpusFiles &&
+			readChangedFilesOnly(corpus);
 		staleness.push({
 			stage: record.stage,
 			stale,
 			causes,
 			changedFiles: corpus.changedFiles,
+			onlyCorpusFiles,
 		});
 		if (stale && staleUpstream === undefined) {
 			staleUpstream = record.stage;
+			upstreamOnlyCorpusFiles = onlyCorpusFiles;
 		}
 	}
 

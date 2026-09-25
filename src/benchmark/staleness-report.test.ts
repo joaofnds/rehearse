@@ -470,6 +470,7 @@ describe(checkpointStaleness.name, () => {
 				stale: false,
 				causes: [],
 				changedFiles: [],
+				onlyCorpusFiles: false,
 				distance: {
 					kind: "not-recorded",
 					reason: "the initial checkpoint reads no corpus",
@@ -480,6 +481,7 @@ describe(checkpointStaleness.name, () => {
 				stale: false,
 				causes: [],
 				changedFiles: [],
+				onlyCorpusFiles: false,
 				distance: { kind: "measured", versions: 1 },
 			},
 			{
@@ -487,6 +489,7 @@ describe(checkpointStaleness.name, () => {
 				stale: true,
 				causes: ["skills/build/SKILL.md changed"],
 				changedFiles: [{ path: "skills/build/SKILL.md", change: "changed" }],
+				onlyCorpusFiles: true,
 				distance: { kind: "measured", versions: 1 },
 			},
 		]);
@@ -551,6 +554,7 @@ describe(replayAttemptStaleness.name, () => {
 					stale: true,
 					causes: ["skills/build/SKILL.md changed"],
 					changedFiles: [{ path: "skills/build/SKILL.md", change: "changed" }],
+					onlyCorpusFiles: true,
 					distance: { kind: "measured", versions: 1 },
 				},
 			],
@@ -572,6 +576,7 @@ describe(replayAttemptStaleness.name, () => {
 				stale: false,
 				causes: [],
 				changedFiles: [],
+				onlyCorpusFiles: false,
 				distance: { kind: "measured", versions: 0 },
 			},
 		]);
@@ -662,6 +667,7 @@ describe(groupStaleness.name, () => {
 					stale: true,
 					causes: ["skills/build/SKILL.md changed"],
 					changedFiles: [{ path: "skills/build/SKILL.md", change: "changed" }],
+					onlyCorpusFiles: true,
 					distance: { kind: "measured", versions: 1 },
 				},
 			],
@@ -699,6 +705,7 @@ describe(groupStaleness.name, () => {
 				stale: false,
 				causes: [],
 				changedFiles: [],
+				onlyCorpusFiles: false,
 				distance: { kind: "measured", versions: 0 },
 			},
 		]);
@@ -727,6 +734,7 @@ describe(groupStaleness.name, () => {
 				stale: true,
 				causes: ["output-styles/brief.md changed"],
 				changedFiles: [{ path: "output-styles/brief.md", change: "changed" }],
+				onlyCorpusFiles: true,
 				distance: { kind: "measured", versions: 1 },
 			},
 		]);
@@ -805,6 +813,7 @@ describe(sessionAttemptStaleness.name, () => {
 				stale: true,
 				causes: ["output-styles/brief.md changed"],
 				changedFiles: [{ path: "output-styles/brief.md", change: "changed" }],
+				onlyCorpusFiles: true,
 				distance: {
 					kind: "not-recorded",
 					reason: "recorded before corpus versions",
@@ -867,12 +876,15 @@ describe(sessionAttemptStaleness.name, () => {
 		});
 
 		expect(
-			report.records.map(({ id, stale, causes, changedFiles }) => ({
-				id,
-				stale,
-				causes,
-				changedFiles,
-			})),
+			report.records.map(
+				({ id, stale, causes, changedFiles, onlyCorpusFiles }) => ({
+					id,
+					stale,
+					causes,
+					changedFiles,
+					onlyCorpusFiles,
+				}),
+			),
 		).toEqual([
 			{
 				id: SMOKE_ATTEMPT,
@@ -881,6 +893,7 @@ describe(sessionAttemptStaleness.name, () => {
 					"Corpus file output-styles/brief.md resolves outside the live corpus extent, which would hash bytes the corpus does not hold",
 				],
 				changedFiles: [],
+				onlyCorpusFiles: false,
 			},
 		]);
 	});
