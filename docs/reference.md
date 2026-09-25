@@ -668,14 +668,16 @@ readable. A stage checkpoint, a replay record and a session attempt record
 also carry `readManifest`, the files the record declared or its transcript
 shows it loading. A stage record carries `readManifest` too, which is the only
 copy for a stage its judge stopped, since that stage saves no checkpoint, and so
-does each stage file of a confirmation rep, stopped or not. From the target, a stage lists the `CLAUDE.md` and
-`AGENTS.md` files it loaded and each file it loaded from the target's own
-`.claude`, the latter as a `project` entry by its path in the target, such as
-`.claude/skills/local/SKILL.md`, not every file it read there. A corpus entry is
-a file loaded from a directory the record's corpus resolved from: the corpus
-copy installed under the stage's worktree or the attempt's overlay, or the live
-install when the corpus is live. A load from any other `.claude` directory is
-left out. Each entry has a `path`, a `half` of `corpus`, `project` or
+does each stage file of a confirmation rep, stopped or not. A corpus entry is
+a file loaded from where the record's corpus resolved it: the live install
+when the corpus is live, or, in a `.claude` the harness installed the corpus
+into or the corpus resolved files from, only the files installed or resolved
+there at the start. From the target, a stage, replay or rep lists the
+`CLAUDE.md` and `AGENTS.md` files it loaded and each other file it loaded from
+the target's own `.claude`, the latter as a `project` entry by its path in the
+target, such as `.claude/skills/local/SKILL.md`. A session attempt leaves out
+a load from its `.claude` that the harness did not install, and every record
+leaves out a load from any other `.claude` directory. Each entry has a `path`, a `half` of `corpus`, `project` or
 `rubric`, one `role` of `global instructions`, `project instructions`,
 `stage skill`, `judge rubric` or `read for context`, an `evidence` of
 `declared`, `observed` or `declared and observed`, and a `sha256` where one is

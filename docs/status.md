@@ -54,16 +54,18 @@ case present, but no browser check has been run over it.
   so one it never loaded is absent, and one is hashed only when the starting
   commit held it. A record whose transcript could not be read lists only its
   declared entries and does not say so. A corpus file the record loaded
-  outside its captured corpus files is hashed from the corpus version measured
-  at its start, so it carries no hash when that measurement refused or the
-  version holds no file at that path.
-  A corpus file loaded outside the captured files takes the corpus version's
-  hash for its path, not a hash of the bytes read, so an edit to the corpus
-  file stales the record while a change to the bytes the stage read goes
-  unseen. On a live corpus a stage's captured files resolve from the target's
-  own `.claude` first, so a captured file the target overrides is still a
-  corpus entry, while the load the transcript shows from there is a project
-  entry.
+  outside its captured corpus files takes the hash the corpus version measured
+  at its start holds for its path, not a hash of the bytes read, so it carries
+  no hash when that measurement refused or the version holds no file there,
+  and an edit to the corpus file stales the record while a change to the bytes
+  the stage read goes unseen. On a live corpus a stage's captured files resolve
+  from the target's own `.claude` first, so a file the target overrides is a
+  corpus entry carrying the target's bytes, not the live install's. A session
+  attempt's manifest leaves out a load from its `.claude` that the harness did
+  not install, so a file the session wrote there and read is not listed.
+  The run API marks a stopped stage's entries changed or unchanged, but
+  `stale` and run history judge checkpoints, replays, attempts and groups, not
+  a stopped stage's record, so a stopped stage never shows as stale there.
   The run API serves a run's entries without a changed state when the corpus
   under test cannot judge it, such as when it no longer holds a stage's skill.
   The run history screen shows a rubric-only stale record with the plain stale

@@ -172,7 +172,9 @@ See [current state](docs/status.md) for implementation coverage and
   are separate evidence. A file counts when an instructions attachment names it
   or a Read of it is not answered with an error, a skill counts when its body
   arrives, and the output style counts when its attachment names it, so a
-  refused call records nothing. A load does not prove the instruction was
+  refused call records nothing. A load from a `.claude` outside the session's
+  corpus, or from the attempt's `.claude` that the harness did not install, is
+  left out. A load does not prove the instruction was
   followed, and missing observations do not prove absence from context. The
   manifest deduplicates paths rather than retaining a load history. It is
   built for a session attempt; a pipeline stage is observed through context
@@ -186,8 +188,12 @@ See [current state](docs/status.md) for implementation coverage and
   the record's corpus resolved at its start, a rubric's is the frozen
   scorecard's rubric as parsed, not its bytes, and a project file's is the target's bytes at the record's start,
   absent when the file was not there. A corpus file is one loaded from where
-  the record's corpus resolved. A file loaded from the target's own `.claude`
-  is a project file, and one from any other `.claude` is left out. Like the context manifest, a load not
+  the record's corpus resolved it, and under a `.claude` the corpus was
+  installed into only the files installed or resolved there at the start
+  count. Any other file a stage, replay or rep loaded from the target's own
+  `.claude` is a project file. A session attempt leaves out a load from its
+  `.claude` that the harness did not install, and every record leaves out one
+  from any other `.claude`. Like the context manifest, a load not
   observed is not proof of absence.
 - **Context evidence** — an optional, versioned attempt-record field containing
   an unchanged provider capture and the harness's normalized projection. The
