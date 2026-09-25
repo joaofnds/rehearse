@@ -298,6 +298,12 @@ export type VersionDistance =
 	| { readonly kind: "not-recorded"; readonly reason: string };
 
 export interface CorpusUnderTest {
+	/**
+	 * The log entry the last edit started from: the one before the corpus
+	 * under test's position, undefined when the log holds none or the corpus
+	 * under test refused.
+	 */
+	readonly previousVersion: string | undefined;
 	readonly distanceOf: (
 		measurement: CorpusMeasurement | undefined,
 	) => VersionDistance;
@@ -326,6 +332,10 @@ export async function readCorpusUnderTest(
 	const livePosition = log.at(-1) === current ? log.length : log.length + 1;
 
 	return {
+		previousVersion:
+			current === undefined || livePosition < 2
+				? undefined
+				: log[livePosition - 2],
 		distanceOf(measurement) {
 			if (measurement === undefined) {
 				return notRecorded("recorded before corpus versions");

@@ -14,6 +14,11 @@ const EMPTY_CORPUS: CorpusResponse = {
 	digest: "ffd58d",
 	files: [],
 	refusals: [],
+	lastEdit: {
+		kind: "not-recorded",
+		reason:
+			"the corpus under test has no earlier version in its log to compare against",
+	},
 };
 
 const NO_COMPARISONS: ComparisonIndexResponse = {

@@ -1,19 +1,23 @@
 import { stat } from "node:fs/promises";
 import { join } from "node:path";
-import type { CheckpointRecord } from "#benchmark/checkpoint";
-import { parseCheckpointRecord } from "#benchmark/checkpoint";
 import type { CorpusRoot } from "#benchmark/corpus-file";
+import type { LastEdit } from "#benchmark/corpus-invalidation";
+import { corpusInvalidation } from "#benchmark/corpus-invalidation";
 import { hashCorpusLayout } from "#benchmark/corpus-layout";
 import { corpusVersionDigest } from "#benchmark/corpus-version";
-import { benchmarkRunPaths, checkpointRecordFile } from "#benchmark/run-layout";
-import { recordedCheckpoints } from "#cli/list-command";
 import { redactAbsolutePaths } from "./redact-path";
 
 export interface CorpusFileReport {
 	readonly path: string;
 	readonly sha256: string;
 	readonly lastEditedAt: string;
+	/** Distinct run-history rows that read the file. */
 	readonly readBy: number;
+	/**
+	 * Rows that read the file's hash in the previous version, which the
+	 * corpus under test no longer holds.
+	 */
+	readonly invalidated: number;
 }
 
 export interface CorpusReport {
@@ -21,33 +25,7 @@ export interface CorpusReport {
 	readonly digest: string | undefined;
 	readonly files: readonly CorpusFileReport[];
 	readonly refusals: readonly string[];
-}
-
-async function readCountsByPath(
-	runsDirectory: string,
-): Promise<ReadonlyMap<string, number>> {
-	const runsByPath = new Map<string, Set<string>>();
-
-	for (const { run, stage } of await recordedCheckpoints(runsDirectory)) {
-		const paths = benchmarkRunPaths(runsDirectory, run);
-		const recordFile = checkpointRecordFile(paths.checkpointDirectory(stage));
-		let record: CheckpointRecord;
-		try {
-			record = parseCheckpointRecord(await Bun.file(recordFile).text());
-		} catch {
-			continue;
-		}
-
-		for (const file of record.corpusFiles) {
-			const runs = runsByPath.get(file.path) ?? new Set<string>();
-			runs.add(run);
-			runsByPath.set(file.path, runs);
-		}
-	}
-
-	return new Map(
-		[...runsByPath.entries()].map(([path, runs]) => [path, runs.size]),
-	);
+	readonly lastEdit: LastEdit;
 }
 
 export async function corpusReport(
@@ -55,7 +33,7 @@ export async function corpusReport(
 	runsDirectory: string,
 ): Promise<CorpusReport> {
 	const layout = await hashCorpusLayout(source);
-	const readCounts = await readCountsByPath(runsDirectory);
+	const invalidation = await corpusInvalidation(runsDirectory, source);
 
 	const files: CorpusFileReport[] = [];
 	for (const file of layout.files) {
@@ -64,7 +42,8 @@ export async function corpusReport(
 			path: file.path,
 			sha256: file.sha256,
 			lastEditedAt: fileStats.mtime.toISOString(),
-			readBy: readCounts.get(file.path) ?? 0,
+			readBy: invalidation.readBy.get(file.path) ?? 0,
+			invalidated: invalidation.invalidated.get(file.path) ?? 0,
 		});
 	}
 
@@ -76,5 +55,6 @@ export async function corpusReport(
 				: corpusVersionDigest(layout.files),
 		files,
 		refusals: layout.refusals.map((refusal) => redactAbsolutePaths(refusal)),
+		lastEdit: invalidation.lastEdit,
 	};
 }

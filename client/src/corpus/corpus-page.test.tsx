@@ -24,9 +24,15 @@ function corpusResponseBody(): CorpusResponse {
 				sha256: "0".repeat(64),
 				lastEditedAt: "2026-09-04T09:41:00.000Z",
 				readBy: 23,
+				invalidated: 0,
 			},
 		],
 		refusals: [],
+		lastEdit: {
+			kind: "not-recorded",
+			reason:
+				"the corpus under test has no earlier version in its log to compare against",
+		},
 	};
 }
 
@@ -90,6 +96,11 @@ describe(CorpusPage.name, () => {
 				digest: undefined,
 				files,
 				refusals,
+				lastEdit: {
+					kind: "not-recorded",
+					reason:
+						"the corpus under test has no earlier version in its log to compare against",
+				},
 			};
 			stubFetchByPath(new Map([["/api/corpus", body]]));
 			const client = new QueryClient({

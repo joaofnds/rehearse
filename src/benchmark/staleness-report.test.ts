@@ -22,6 +22,10 @@ import { measureCorpusVersion } from "./corpus-version";
 
 const HALF_WRITTEN_UUID = "0f6b6f2a-0000-4000-8000-00000000000f";
 
+function sha256Of(contents: string): string {
+	return new Bun.CryptoHasher("sha256").update(contents).digest("hex");
+}
+
 describe(staleCheckpoints.name, () => {
 	const roots: string[] = [];
 
@@ -480,7 +484,7 @@ describe(checkpointStaleness.name, () => {
 			report.filter(({ id }) =>
 				id.startsWith(`checkpoint:${fixture.replayableRun}/`),
 			),
-		).toEqual([
+		).toMatchObject([
 			{
 				id: `checkpoint:${fixture.replayableRun}/initial`,
 				stale: false,
@@ -565,14 +569,14 @@ describe(replayAttemptStaleness.name, () => {
 
 		expect(report).toEqual({
 			records: [
-				{
+				expect.objectContaining({
 					id: REPLAY_ATTEMPT,
 					stale: true,
 					causes: ["skills/build/SKILL.md changed"],
 					changedFiles: [{ path: "skills/build/SKILL.md", change: "changed" }],
 					onlyCorpusFiles: true,
 					distance: { kind: "measured", versions: 1 },
-				},
+				}),
 			],
 			unreadable: [],
 		});
@@ -587,14 +591,14 @@ describe(replayAttemptStaleness.name, () => {
 		);
 
 		expect(report.records).toEqual([
-			{
+			expect.objectContaining({
 				id: REPLAY_ATTEMPT,
 				stale: false,
 				causes: [],
 				changedFiles: [],
 				onlyCorpusFiles: false,
 				distance: { kind: "measured", versions: 0 },
-			},
+			}),
 		]);
 	});
 
@@ -666,6 +670,23 @@ describe(groupStaleness.name, () => {
 		return fixture;
 	}
 
+	it("reports the files each frozen stage read, by layout path and hash", async () => {
+		const corpus = await stageCorpus();
+		const fixture = await fixtureWithGroupFrom(corpus);
+
+		const report = await groupStaleness(
+			fixture.runsDirectory,
+			directorySource(corpus),
+		);
+
+		expect(report.records.at(0)?.readFiles).toEqual([
+			{ path: "CLAUDE.md", sha256: sha256Of("the instructions\n") },
+			{ path: "skills/discuss/SKILL.md", sha256: sha256Of("discuss\n") },
+			{ path: "CLAUDE.md", sha256: sha256Of("the instructions\n") },
+			{ path: "skills/build/SKILL.md", sha256: sha256Of("build\n") },
+		]);
+	});
+
 	it("names each frozen stage corpus file that changed, with its version distance", async () => {
 		const corpus = await stageCorpus();
 		const fixture = await fixtureWithGroupFrom(corpus);
@@ -678,14 +699,14 @@ describe(groupStaleness.name, () => {
 
 		expect(report).toEqual({
 			records: [
-				{
+				expect.objectContaining({
 					id: `group:${fixture.groupId}`,
 					stale: true,
 					causes: ["skills/build/SKILL.md changed"],
 					changedFiles: [{ path: "skills/build/SKILL.md", change: "changed" }],
 					onlyCorpusFiles: true,
 					distance: { kind: "measured", versions: 1 },
-				},
+				}),
 			],
 			unreadable: [],
 		});
@@ -724,14 +745,14 @@ describe(groupStaleness.name, () => {
 		);
 
 		expect(report.records).toEqual([
-			{
+			expect.objectContaining({
 				id: `group:${fixture.groupId}`,
 				stale: false,
 				causes: [],
 				changedFiles: [],
 				onlyCorpusFiles: false,
 				distance: { kind: "measured", versions: 0 },
-			},
+			}),
 		]);
 	});
 
@@ -753,14 +774,14 @@ describe(groupStaleness.name, () => {
 		);
 
 		expect(report.records).toEqual([
-			{
+			expect.objectContaining({
 				id: "group:session-group",
 				stale: true,
 				causes: ["output-styles/brief.md changed"],
 				changedFiles: [{ path: "output-styles/brief.md", change: "changed" }],
 				onlyCorpusFiles: true,
 				distance: { kind: "measured", versions: 1 },
-			},
+			}),
 		]);
 	});
 
@@ -832,7 +853,7 @@ describe(sessionAttemptStaleness.name, () => {
 		);
 
 		expect(report.records).toEqual([
-			{
+			expect.objectContaining({
 				id: SMOKE_ATTEMPT,
 				stale: true,
 				causes: ["output-styles/brief.md changed"],
@@ -842,7 +863,7 @@ describe(sessionAttemptStaleness.name, () => {
 					kind: "not-recorded",
 					reason: "recorded before corpus versions",
 				},
-			},
+			}),
 		]);
 	});
 

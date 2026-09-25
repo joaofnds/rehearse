@@ -75,6 +75,8 @@ export interface RecordStaleness {
 	 */
 	readonly onlyCorpusFiles: boolean;
 	readonly distance: VersionDistance;
+	/** The corpus files it read, each with the hash it recorded. */
+	readonly readFiles: readonly HashedFile[];
 }
 
 export interface UnreadableStaleRecord {
@@ -270,7 +272,18 @@ export async function checkpointStaleness(
 	source: CorpusRoot,
 	knobs: CurrentSessionKnobs = {},
 ): Promise<readonly RecordStaleness[]> {
-	const report: RecordStaleness[] = [];
+	const byRun = await checkpointStalenessByRun(runsDirectory, source, knobs);
+
+	return [...byRun.values()].flat();
+}
+
+/** `checkpointStaleness` keyed by run, each run's checkpoints in chain order. */
+export async function checkpointStalenessByRun(
+	runsDirectory: string,
+	source: CorpusRoot,
+	knobs: CurrentSessionKnobs = {},
+): Promise<ReadonlyMap<string, readonly RecordStaleness[]>> {
+	const report = new Map<string, RecordStaleness[]>();
 	const instructions = await currentInstructions(source);
 	const underTest = await readCorpusUnderTest(runsDirectory, source);
 
@@ -293,16 +306,15 @@ export async function checkpointStaleness(
 			instructions,
 		);
 		const settings = await compareCurrentStageSettings(manifest.caseId);
-		const versionByStage = new Map(
-			chain.map(({ stage, corpusVersion }) => [stage, corpusVersion]),
-		);
+		const byStage = new Map(chain.map((record) => [record.stage, record]));
+		const judged: RecordStaleness[] = [];
 
 		for (const staleness of deriveStaleness(chain, current, {
 			model: knobs.model ?? manifest.model,
 			effort: knobs.effort ?? manifest.effort,
 			...settings,
 		})) {
-			report.push({
+			judged.push({
 				id: `checkpoint:${run}/${staleness.stage}`,
 				stale: staleness.stale,
 				causes: staleness.causes,
@@ -311,9 +323,11 @@ export async function checkpointStaleness(
 				distance:
 					staleness.stage === INITIAL_CHECKPOINT_STAGE
 						? INITIAL_CHECKPOINT_DISTANCE
-						: underTest.distanceOf(versionByStage.get(staleness.stage)),
+						: underTest.distanceOf(byStage.get(staleness.stage)?.corpusVersion),
+				readFiles: byStage.get(staleness.stage)?.corpusFiles ?? [],
 			});
 		}
+		report.set(run, judged);
 	}
 
 	return report;
@@ -435,16 +449,18 @@ export async function sessionAttemptStaleness(
 
 			try {
 				const record = parseSessionAttemptRecord(text);
-				const changes = stageCorpusChanges(
-					record.corpusFiles.map(({ path, sha256 }) => ({ path, sha256 })),
-					current,
-				);
+				const readFiles = record.corpusFiles.map(({ path, sha256 }) => ({
+					path,
+					sha256,
+				}));
+				const changes = stageCorpusChanges(readFiles, current);
 				records.push({
 					id,
 					stale: changes.causes.length > 0,
 					...changes,
 					onlyCorpusFiles: readChangedFilesOnly(changes),
 					distance: underTest.distanceOf(record.corpusVersion),
+					readFiles,
 				});
 			} catch (error) {
 				unreadable.push({
@@ -554,6 +570,7 @@ export async function replayAttemptStaleness(
 					(consumed?.onlyCorpusFiles ?? true) &&
 					readChangedFilesOnly(corpus),
 				distance: underTest.distanceOf(record.corpusVersion),
+				readFiles: record.corpusFiles,
 			});
 		} catch (error) {
 			unreadable.push({
@@ -569,6 +586,8 @@ export async function replayAttemptStaleness(
 const FROZEN_CORPUS = "inputs/corpus/";
 
 type CorpusChanges = Pick<RecordStaleness, "causes" | "changedFiles">;
+
+type GroupCorpus = CorpusChanges & Pick<RecordStaleness, "readFiles">;
 
 type FrozenGroupFile = ParsedConfirmationGroupRecord["inputs"]["files"][number];
 
@@ -627,9 +646,10 @@ async function stageGroupChanges(
 	files: readonly FrozenGroupFile[],
 	source: CorpusRoot,
 	instructions: CurrentInstructions,
-): Promise<CorpusChanges> {
+): Promise<GroupCorpus> {
 	const pipeline = await frozenPipeline(groupDirectory, files);
 	const changes: CorpusChanges[] = [];
+	const readFiles: HashedFile[] = [];
 
 	for (const stage of pipeline.stages) {
 		const recorded = frozenCorpusFiles(files, `${FROZEN_CORPUS}${stage.name}/`);
@@ -637,6 +657,7 @@ async function stageGroupChanges(
 			continue;
 		}
 
+		readFiles.push(...recorded);
 		changes.push(
 			stageCorpusChanges(
 				recorded,
@@ -645,14 +666,14 @@ async function stageGroupChanges(
 		);
 	}
 
-	return mergedChanges(changes);
+	return { ...mergedChanges(changes), readFiles };
 }
 
 async function sessionGroupChanges(
 	caseId: string,
 	files: readonly FrozenGroupFile[],
 	source: CorpusRoot,
-): Promise<CorpusChanges> {
+): Promise<GroupCorpus> {
 	const listing = await listCases();
 	const declaration = sessionCases(listing.declarations).find(
 		({ id }) => id === caseId,
@@ -663,10 +684,15 @@ async function sessionGroupChanges(
 		);
 	}
 
-	return stageCorpusChanges(
-		frozenCorpusFiles(files, FROZEN_CORPUS),
-		await currentCaseCorpus(declaration, source),
-	);
+	const readFiles = frozenCorpusFiles(files, FROZEN_CORPUS);
+
+	return {
+		...stageCorpusChanges(
+			readFiles,
+			await currentCaseCorpus(declaration, source),
+		),
+		readFiles,
+	};
 }
 
 /**
@@ -718,6 +744,7 @@ export async function groupStaleness(
 				onlyCorpusFiles:
 					knobCauses.length === 0 && readChangedFilesOnly(corpus),
 				distance: underTest.distanceOf(record.inputs.corpusVersion),
+				readFiles: corpus.readFiles,
 			});
 		} catch (error) {
 			unreadable.push({

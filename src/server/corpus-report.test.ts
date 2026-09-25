@@ -11,6 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
 	directorySource,
+	liveStageSettings,
 	RecordedRunsFixture,
 } from "#benchmark/run-records-test-support";
 import { measureCorpusVersion } from "#benchmark/corpus-version";
@@ -365,6 +366,104 @@ describe(corpusReport.name, () => {
 
 		const instructions = report.files.find((file) => file.path === "CLAUDE.md");
 		expect(instructions?.readBy).toBe(1);
+	});
+
+	describe("when the corpus was edited after a run read it", () => {
+		async function editedAfterRun(): Promise<{
+			readonly report: CorpusReport;
+			readonly fixture: RecordedRunsFixture;
+			readonly previous: string;
+		}> {
+			const corpus = await fullCorpusDirectory();
+			const runs = await runsDirectory();
+			const fixture = new RecordedRunsFixture(runs, {
+				settingsFile: await liveStageSettings(),
+			});
+			await fixture.write();
+			await fixture.recordCorpusFrom(directorySource(corpus));
+			const measured = await fixture.recordVersionFrom(directorySource(corpus));
+			await writeFile(
+				join(corpus, "skills", "build", "SKILL.md"),
+				"build skill, edited\n",
+			);
+
+			const report = await corpusReport(directorySource(corpus), runs);
+
+			return {
+				report,
+				fixture,
+				previous: measured.kind === "version" ? measured.digest : "refused",
+			};
+		}
+
+		it("counts the run's row as invalidated by the last edit, by its id", async () => {
+			const { report, fixture, previous } = await editedAfterRun();
+
+			expect(report.lastEdit).toEqual({
+				kind: "measured",
+				previous,
+				count: 1,
+				rows: [`run:${fixture.replayableRun}`],
+			});
+		});
+
+		it("counts the row against the edited file and not against a file the edit left alone", async () => {
+			const { report } = await editedAfterRun();
+
+			const counts = Object.fromEntries(
+				report.files.map(({ path, invalidated }) => [path, invalidated]),
+			);
+			expect(counts).toEqual({
+				"CLAUDE.md": 0,
+				"skills/build/SKILL.md": 1,
+				"skills/discuss/SKILL.md": 0,
+			});
+		});
+
+		it("leaves out a row an earlier edit had already made stale", async () => {
+			const corpus = await fullCorpusDirectory();
+			const runs = await runsDirectory();
+			const fixture = new RecordedRunsFixture(runs, {
+				settingsFile: await liveStageSettings(),
+			});
+			await fixture.write();
+			await fixture.recordCorpusFrom(directorySource(corpus));
+			await fixture.recordVersionFrom(directorySource(corpus));
+			await writeFile(
+				join(corpus, "skills", "build", "SKILL.md"),
+				"build skill, edited\n",
+			);
+			await measureCorpusVersion(runs, directorySource(corpus));
+			await writeFile(
+				join(corpus, "skills", "discuss", "SKILL.md"),
+				"discuss skill, edited\n",
+			);
+
+			const report = await corpusReport(directorySource(corpus), runs);
+
+			expect(report.lastEdit).toMatchObject({ kind: "measured", count: 0 });
+		});
+
+		it("reads the last edit as not recorded when the log holds no earlier version", async () => {
+			const corpus = await fullCorpusDirectory();
+			const runs = await runsDirectory();
+			const fixture = new RecordedRunsFixture(runs, {
+				settingsFile: await liveStageSettings(),
+			});
+			await fixture.write();
+			await fixture.recordCorpusFrom(directorySource(corpus));
+			await writeFile(
+				join(corpus, "skills", "build", "SKILL.md"),
+				"build skill, edited\n",
+			);
+
+			const report = await corpusReport(directorySource(corpus), runs);
+
+			expect(report.lastEdit.kind).toBe("not-recorded");
+			expect(report.files.map(({ invalidated }) => invalidated)).toEqual([
+				0, 0, 0,
+			]);
+		});
 	});
 
 	it("reports a run whose checkpoint directory holds no checkpoint.json as read-by zero, rather than throwing", async () => {

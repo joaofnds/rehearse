@@ -91,7 +91,7 @@ export type { ContextLink, RunProgress } from "./run-status";
  * recorded. A record the report could not judge says why rather than reading
  * as clean.
  */
-export type RowStaleness = Reading<Omit<RecordStaleness, "id">>;
+export type RowStaleness = Reading<Omit<RecordStaleness, "id" | "readFiles">>;
 
 export const UNJUDGED_REASON =
 	"no recorded checkpoint or attempt to judge against the corpus under test";
@@ -853,7 +853,7 @@ async function recordStaleness(
 		await groupStaleness(runsDirectory, source),
 	];
 	const byId = new Map<string, RowStaleness>();
-	for (const { id, ...judged } of [
+	for (const { id, readFiles: _read, ...judged } of [
 		...checkpoints,
 		...reports.flatMap(({ records }) => records),
 	]) {
