@@ -110,6 +110,46 @@ describe(runReplayConfirmation.name, () => {
 		]);
 	});
 
+	it("measures the corpus once for the group and records that version on the group", async () => {
+		const harness = new ReplayConfirmationHarness(testResources);
+		const run = await harness.recordedRun();
+		const corpusRoot = await mkdtemp(join(tmpdir(), "rehearse-corpus-"));
+		testResources.track(corpusRoot);
+		await Bun.write(join(corpusRoot, "skills", "discuss", "SKILL.md"), "d\n");
+		let measurements = 0;
+
+		const outcome = await harness.runConfirmation(
+			{
+				paths: run.paths,
+				corpusRoots: [{ kind: "directory", root: corpusRoot }],
+			},
+			{ reps: 2 },
+			(dependencies) => ({
+				...dependencies,
+				stageSession: {
+					...dependencies.stageSession,
+					measureCorpus: () => {
+						measurements += 1;
+
+						return Promise.resolve({
+							kind: "version",
+							digest: String(measurements).repeat(64),
+						});
+					},
+				},
+			}),
+		);
+		const group = parseConfirmationGroupRecord(
+			await Bun.file(outcome.groupRecordFile).text(),
+		);
+
+		expect(measurements).toBe(1);
+		expect(group.inputs.corpusVersion).toEqual({
+			kind: "version",
+			digest: "1".repeat(64),
+		});
+	});
+
 	it("reports agreement for the resolved Judge model", async () => {
 		const harness = new ReplayConfirmationHarness(testResources);
 		const run = await harness.recordedRun();

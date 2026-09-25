@@ -1,4 +1,5 @@
 import type { CorpusRoot } from "./corpus-file";
+import type { CorpusMeasurement } from "./corpus-measurement";
 import { cp, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
@@ -58,6 +59,7 @@ interface FrozenReplayInputs {
 		readonly stage: string;
 		readonly causes: readonly string[];
 	}[];
+	readonly corpusVersion: CorpusMeasurement;
 	readonly files: readonly FrozenFile[];
 }
 
@@ -82,6 +84,7 @@ async function freezeReplayInputs(
 	groupDirectory: string,
 	inputsDirectory: string,
 ): Promise<FrozenReplayInputs> {
+	const corpusVersion = await dependencies.stageSession.measureCorpus();
 	const manifest = await loadRunManifest(request.paths.manifestFile);
 	const checkpoints = await loadRunCheckpoints(
 		request.paths.checkpointsDirectory,
@@ -185,6 +188,7 @@ async function freezeReplayInputs(
 		rubric,
 		instructions: request.instructions,
 		staleness: staleness.map(({ stage, causes }) => ({ stage, causes })),
+		corpusVersion,
 		files,
 	};
 }
@@ -481,7 +485,10 @@ async function runReplayConfirmationBody(
 				stageStart = now();
 				setupOperation = undefined;
 				session = await executeStageSession(
-					detachedStageDependencies(dependencies.stageSession),
+					{
+						...detachedStageDependencies(dependencies.stageSession),
+						measureCorpus: () => Promise.resolve(frozen.corpusVersion),
+					},
 					{
 						targetDir: plan.worktreePath,
 						model: request.model,
@@ -680,6 +687,7 @@ async function runReplayConfirmationBody(
 			judgeEffort: request.judgeEffort,
 			sessionBudgetUsd: request.sessionBudgetUsd,
 			pipelinePath: frozen.manifest.pipelinePath,
+			corpusVersion: frozen.corpusVersion,
 		},
 		projectedCost: request.projectedCost,
 		approvalMethod: request.approvalMethod,

@@ -5,6 +5,8 @@ import type { Effort } from "./config";
 import { effortSchema } from "./config";
 import type { StageScorecard } from "./contracts";
 import { stageLetterGradeSchema } from "./contracts";
+import type { CorpusMeasurement } from "./corpus-measurement";
+import { corpusMeasurementSchema } from "./corpus-measurement";
 
 export interface ReplayRecord {
 	readonly replay: true;
@@ -19,6 +21,7 @@ export interface ReplayRecord {
 	readonly baseSha: string;
 	readonly lineage: string;
 	readonly corpusFiles: readonly HashedFile[];
+	readonly corpusVersion?: CorpusMeasurement | undefined;
 	readonly settingsFile?: HashedFile | undefined;
 	readonly model: string;
 	readonly effort?: Effort | undefined;
@@ -62,6 +65,7 @@ export const replayRecordSchema = z
 		baseSha: z.string().min(1),
 		lineage: z.string().min(1),
 		corpusFiles: z.array(hashedFileSchema),
+		corpusVersion: corpusMeasurementSchema.optional(),
 		settingsFile: hashedFileSchema.optional(),
 		model: z.string().min(1),
 		effort: effortSchema.optional(),

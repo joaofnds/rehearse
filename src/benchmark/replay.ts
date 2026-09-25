@@ -405,6 +405,7 @@ export async function runReplay(
 				settingsFile: request.loadedSettings?.hashed,
 			}),
 			corpusFiles: session.corpusFiles,
+			corpusVersion: session.corpusVersion,
 			settingsFile: request.loadedSettings?.hashed,
 			model: request.model,
 			effort: request.effort,

@@ -20,6 +20,7 @@ import { captureBaselineContext, captureFileHashes } from "./checks";
 import { runCommand } from "./command";
 import { parseReplayArgs } from "./config";
 import type { StageJudgeInput } from "./contracts";
+import type { CorpusMeasurement } from "./corpus-measurement";
 import type { JudgeAttempt } from "./judge-attempt";
 import type { RunManifest } from "./manifest";
 import { writeRunManifest } from "./manifest";
@@ -554,6 +555,29 @@ describe(runReplay.name, () => {
 		expect(record.consumed.lineage).toBe(run.discuss.lineage);
 		expect(record.corpusFiles.length).toBeGreaterThan(0);
 		expect(record.scorecard.grade.verdict).toBe("CONTINUE");
+	});
+
+	it("records the corpus version its stage session measured", async () => {
+		const run = await recordedRun();
+		const fake = new ReplayConfirmationHarness(testResources);
+		const measured: CorpusMeasurement = {
+			kind: "version",
+			digest: "d".repeat(64),
+		};
+
+		const outcome = await runReplay(
+			{
+				...fake.dependencies,
+				stageSession: {
+					...fake.dependencies.stageSession,
+					measureCorpus: () => Promise.resolve(measured),
+				},
+			},
+			request(run, "build"),
+		);
+		const record = await readReplayRecord(outcome.recordPath);
+
+		expect(record.corpusVersion).toEqual(measured);
 	});
 
 	it("names its record by the short id it claimed before its session ran", async () => {
