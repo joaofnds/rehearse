@@ -771,6 +771,149 @@ describe("staleness over read manifests", () => {
 		]);
 	});
 
+	// No stage captures another skill, so a stage that loads one reads it beyond its captured files.
+	const STYLE = "skills/delivery/SKILL.md";
+
+	function styleEntry(content: string): ReadManifestEntry {
+		return {
+			path: STYLE,
+			half: "corpus",
+			role: "read for context",
+			evidence: "observed",
+			sha256: sha256Of(content),
+		};
+	}
+
+	async function withStyle(corpus: string, content: string): Promise<void> {
+		await mkdir(join(corpus, "skills", "delivery"), { recursive: true });
+		await Bun.write(join(corpus, STYLE), content);
+	}
+
+	it("stales a checkpoint whose loaded file beyond its captured files changed, and its downstream stages", async () => {
+		const { fixture, corpus } = await recordedFixture();
+		await withStyle(corpus, "style\n");
+		await fixture.recordReadManifest("discuss", [
+			...discussManifest(await planningRubricNow()),
+			styleEntry("style\n"),
+		]);
+		await Bun.write(join(corpus, STYLE), "edited\n");
+
+		const report = await checkpointStaleness(
+			fixture.runsDirectory,
+			directorySource(corpus),
+		);
+
+		const run = report.records.filter(({ id }) =>
+			id.startsWith(`checkpoint:${fixture.replayableRun}/`),
+		);
+		expect(run).toMatchObject([
+			{ stale: false },
+			{
+				stale: true,
+				causes: [`${STYLE} changed`],
+				changedFiles: [{ path: STYLE, change: "changed" }],
+				onlyCorpusFiles: true,
+			},
+			{
+				stale: true,
+				causes: ["upstream stage discuss is stale"],
+				changedFiles: [],
+			},
+		]);
+		expect(run[1]?.readManifest.find(({ path }) => path === STYLE)?.state).toBe(
+			"changed",
+		);
+		expect(run[1]?.readFiles.map(({ path }) => path)).toContain(STYLE);
+	});
+
+	it("keeps a checkpoint fresh while its loaded file beyond its captured files hashes as recorded", async () => {
+		const { fixture, corpus } = await recordedFixture();
+		await withStyle(corpus, "style\n");
+		await fixture.recordReadManifest("discuss", [
+			...discussManifest(await planningRubricNow()),
+			styleEntry("style\n"),
+		]);
+
+		const report = await checkpointStaleness(
+			fixture.runsDirectory,
+			directorySource(corpus),
+		);
+
+		const discuss = report.records.find(
+			({ id }) => id === `checkpoint:${fixture.replayableRun}/discuss`,
+		);
+		expect(discuss).toMatchObject({ stale: false, causes: [] });
+		expect(
+			discuss?.readManifest.find(({ path }) => path === STYLE)?.state,
+		).toBe("unchanged");
+	});
+
+	it("names a loaded file beyond the captured files the corpus no longer holds as removed", async () => {
+		const { fixture, corpus } = await recordedFixture();
+		await fixture.recordReadManifest("discuss", [
+			...discussManifest(await planningRubricNow()),
+			styleEntry("style\n"),
+		]);
+
+		const report = await checkpointStaleness(
+			fixture.runsDirectory,
+			directorySource(corpus),
+		);
+
+		expect(
+			report.records.find(
+				({ id }) => id === `checkpoint:${fixture.replayableRun}/discuss`,
+			),
+		).toMatchObject({ stale: true, causes: [`${STYLE} removed`] });
+	});
+
+	it("stales a checkpoint whose loaded file beyond its captured files now links out of the corpus, naming no absolute path", async () => {
+		const { fixture, corpus } = await recordedFixture();
+		const outside = await temporaryDirectory("rehearse-manifest-outside-");
+		await Bun.write(join(outside, "SKILL.md"), "style\n");
+		await mkdir(join(corpus, "skills", "delivery"), { recursive: true });
+		await symlink(join(outside, "SKILL.md"), join(corpus, STYLE));
+		await fixture.recordReadManifest("discuss", [
+			...discussManifest(await planningRubricNow()),
+			styleEntry("style\n"),
+		]);
+
+		const report = await checkpointStaleness(
+			fixture.runsDirectory,
+			directorySource(corpus),
+		);
+
+		const discuss = report.records.find(
+			({ id }) => id === `checkpoint:${fixture.replayableRun}/discuss`,
+		);
+		expect(discuss?.stale).toBe(true);
+		expect(discuss?.onlyCorpusFiles).toBe(false);
+		expect(discuss?.causes.join("\n")).toContain(STYLE);
+		expect(discuss?.causes.join("\n")).not.toContain(corpus);
+		expect(discuss?.causes.join("\n")).not.toContain(outside);
+	});
+
+	it("stales a replay whose loaded file beyond its captured files changed", async () => {
+		const { fixture, corpus } = await recordedFixture();
+		await withStyle(corpus, "edited\n");
+		await fixture.recordReplayReadManifest([styleEntry("style\n")]);
+
+		const report = await replayAttemptStaleness(
+			fixture.runsDirectory,
+			directorySource(corpus),
+		);
+
+		expect(report.records).toMatchObject([
+			{
+				stale: true,
+				causes: [`${STYLE} changed`],
+				changedFiles: [{ path: STYLE, change: "changed" }],
+				onlyCorpusFiles: true,
+				readManifest: [{ path: STYLE, state: "changed" }],
+			},
+		]);
+	});
+
 	it("says nothing of a corpus entry when the corpus under test cannot be read", async () => {
 		const { fixture, corpus } = await recordedFixture();
 		await fixture.recordReadManifest(
@@ -1144,6 +1287,44 @@ describe(sessionAttemptStaleness.name, () => {
 					kind: "not-recorded",
 					reason: "recorded before corpus versions",
 				},
+			}),
+		]);
+	});
+
+	it("stales an attempt whose loaded file beyond its declared files changed", async () => {
+		const corpus = await styleCorpus("the brief style\n");
+		await mkdir(join(corpus, "skills", "delivery"), { recursive: true });
+		await Bun.write(join(corpus, "skills", "delivery", "SKILL.md"), "edited\n");
+		const root = await mkdtemp(join(tmpdir(), "rehearse-case-stale-"));
+		roots.push(root);
+		const fixture = new RecordedRunsFixture(root);
+		await fixture.writeAttemptReading(corpus, "smoke", [
+			"output-styles/brief.md",
+		]);
+		await fixture.recordAttemptReadManifest([
+			{
+				path: "skills/delivery/SKILL.md",
+				half: "corpus",
+				role: "read for context",
+				evidence: "observed",
+				sha256: sha256Of("delivery\n"),
+			},
+		]);
+
+		const report = await sessionAttemptStaleness(root, directorySource(corpus));
+
+		expect(report.records).toEqual([
+			expect.objectContaining({
+				id: SMOKE_ATTEMPT,
+				stale: true,
+				causes: ["skills/delivery/SKILL.md changed"],
+				onlyCorpusFiles: true,
+				readManifest: [
+					expect.objectContaining({
+						path: "skills/delivery/SKILL.md",
+						state: "changed",
+					}),
+				],
 			}),
 		]);
 	});

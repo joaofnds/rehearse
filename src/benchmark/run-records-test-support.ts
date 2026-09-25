@@ -834,6 +834,29 @@ export class RecordedRunsFixture {
 		);
 	}
 
+	/** Writes a read manifest onto the session attempt, as a v3 attempt holds one. */
+	public async recordAttemptReadManifest(
+		readManifest: readonly ReadManifestEntry[],
+	): Promise<void> {
+		const { recordFile } = sessionAttemptPaths(
+			this.runsDirectory,
+			this.sessionAttempt,
+		);
+		const record = sessionAttemptRecordSchema.parse(
+			JSON.parse(await Bun.file(recordFile).text()),
+		);
+		await Bun.write(
+			recordFile,
+			serialize(
+				sessionAttemptRecordSchema.parse({
+					...record,
+					schemaVersion: 3,
+					readManifest,
+				}),
+			),
+		);
+	}
+
 	/**
 	 * One attempt under a uuid the caller names, so a test can put two attempts
 	 * for one case on disk, each measured at its own version.

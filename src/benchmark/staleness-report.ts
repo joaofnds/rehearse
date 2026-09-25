@@ -13,7 +13,9 @@ import {
 	deriveStaleness,
 	hashedCorpus,
 	INITIAL_CHECKPOINT_STAGE,
+	loadedBeyondCaptured,
 	parseCheckpointRecord,
+	readCorpusFiles,
 	refusedCorpus,
 	readChangedFilesOnly,
 	modelCause,
@@ -21,6 +23,7 @@ import {
 	stageCorpusChanges,
 } from "./checkpoint";
 import {
+	classifyEntry,
 	refusedEntryReason,
 	SymlinkedEntryError,
 	textIfPresent,
@@ -34,6 +37,7 @@ import {
 	corpusFileRefusal,
 	corpusInstructionsEntry,
 	hashCorpusFiles,
+	resolveCorpusFile,
 } from "./corpus-file";
 import type { CorpusUnderTest, VersionDistance } from "./corpus-version";
 import { readCorpusUnderTest } from "./corpus-version";
@@ -319,6 +323,43 @@ function stageCorpusNow(
 }
 
 /**
+ * A stage's corpus now, with each file it loaded beyond its captured ones as
+ * the corpus under test holds it. A file the corpus no longer holds is left
+ * out, so the comparison names it removed.
+ */
+async function withLoadedFilesNow(
+	now: StageCorpus,
+	loaded: readonly HashedFile[],
+	source: CorpusRoot,
+): Promise<StageCorpus> {
+	if ("refused" in now) {
+		return now;
+	}
+
+	const hashed: HashedFile[] = [...now.hashed];
+	for (const { path } of loaded) {
+		const entry = await classifyEntry(resolveCorpusFile(source, path));
+		if (entry.kind === "absent") {
+			continue;
+		}
+		try {
+			const [file] = await hashCorpusFiles(source, [path]);
+			if (file !== undefined) {
+				hashed.push({ path: file.path, sha256: file.sha256 });
+			}
+		} catch (error) {
+			if (error instanceof SymlinkedEntryError) {
+				return refusedCorpus(withoutAbsolutePaths(error.message, source));
+			}
+
+			throw error;
+		}
+	}
+
+	return hashedCorpus(hashed);
+}
+
+/**
  * `stale` answers one question per invocation: what the corpus the operator
  * named invalidated. So a live corpus here is the operator's install, not the
  * target each run recorded, even though `replay` resolves the same source
@@ -349,7 +390,11 @@ async function currentStageCorpus(
 
 		corpus.set(
 			record.stage,
-			await stageCorpusNow(definition.skill, instructions, source),
+			await withLoadedFilesNow(
+				await stageCorpusNow(definition.skill, instructions, source),
+				loadedBeyondCaptured(record),
+				source,
+			),
 		);
 	}
 
@@ -509,7 +554,9 @@ async function runCheckpointStaleness(
 				staleness.stage === INITIAL_CHECKPOINT_STAGE
 					? INITIAL_CHECKPOINT_DISTANCE
 					: underTest.distanceOf(byStage.get(staleness.stage)?.corpusVersion),
-			readFiles: byStage.get(staleness.stage)?.corpusFiles ?? [],
+			readFiles: readCorpusFiles(
+				byStage.get(staleness.stage) ?? { corpusFiles: [] },
+			),
 		});
 	}
 
@@ -632,11 +679,21 @@ export async function sessionAttemptStaleness(
 
 			try {
 				const record = parseSessionAttemptRecord(text);
-				const readFiles = record.corpusFiles.map(({ path, sha256 }) => ({
-					path,
-					sha256,
-				}));
-				const changes = stageCorpusChanges(readFiles, current);
+				const reads = {
+					corpusFiles: record.corpusFiles.map(({ path, sha256 }) => ({
+						path,
+						sha256,
+					})),
+					readManifest:
+						record.schemaVersion === 1 ? undefined : record.readManifest,
+				};
+				const readFiles = readCorpusFiles(reads);
+				const corpusNow = await withLoadedFilesNow(
+					current,
+					loadedBeyondCaptured(reads),
+					source,
+				);
+				const changes = stageCorpusChanges(readFiles, corpusNow);
 				records.push({
 					id,
 					stale: changes.causes.length > 0,
@@ -645,8 +702,8 @@ export async function sessionAttemptStaleness(
 					distance: underTest.distanceOf(record.corpusVersion),
 					readFiles,
 					readManifest: await judgedReadManifest(
-						record.schemaVersion === 1 ? undefined : record.readManifest,
-						comparedCorpus(current, changes),
+						reads.readManifest,
+						comparedCorpus(corpusNow, changes),
 						undefined,
 					),
 				});
@@ -740,12 +797,13 @@ export async function replayAttemptStaleness(
 				);
 			}
 			const definition = await replayedStage(runsDirectory, record);
-			const corpusNow = await stageCorpusNow(
-				definition.skill,
-				instructions,
+			const corpusNow = await withLoadedFilesNow(
+				await stageCorpusNow(definition.skill, instructions, source),
+				loadedBeyondCaptured(record),
 				source,
 			);
-			const corpus = stageCorpusChanges(record.corpusFiles, corpusNow);
+			const readFiles = readCorpusFiles(record);
+			const corpus = stageCorpusChanges(readFiles, corpusNow);
 			const consumed = staleCheckpointsById.get(
 				`checkpoint:${record.runName}/${record.consumed.stage}`,
 			);
@@ -775,7 +833,7 @@ export async function replayAttemptStaleness(
 					(consumed === undefined || consumed.onlyCorpusFiles) &&
 					readChangedFilesOnly(corpus),
 				distance: underTest.distanceOf(record.corpusVersion),
-				readFiles: record.corpusFiles,
+				readFiles,
 				readManifest,
 			});
 		} catch (error) {
