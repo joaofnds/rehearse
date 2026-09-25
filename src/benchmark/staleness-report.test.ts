@@ -519,6 +519,35 @@ describe(checkpointStaleness.name, () => {
 			},
 		]);
 	});
+
+	it("lists a stage its judge stopped, under its run's id, with the file it read that changed and its version distance", async () => {
+		const root = await temporaryDirectory("rehearse-staleness-");
+		const fixture = new RecordedRunsFixture(root, {
+			settingsFile: await liveStageSettings(),
+		});
+		await fixture.writeStoppedRun();
+		const corpus = await temporaryDirectory("rehearse-staleness-corpus-");
+		await mkdir(join(corpus, "skills", "build"), { recursive: true });
+		await Bun.write(join(corpus, "CLAUDE.md"), "the instructions\n");
+		await Bun.write(join(corpus, "skills", "build", "SKILL.md"), "build\n");
+		await fixture.recordStoppedStageFrom(directorySource(corpus));
+		await Bun.write(join(corpus, "skills", "build", "SKILL.md"), "edited\n");
+
+		const stale = await staleCheckpoints(
+			fixture.runsDirectory,
+			directorySource(corpus),
+		);
+
+		expect(stale).toMatchObject([
+			{
+				id: `run:${fixture.stoppedRun}`,
+				causes: ["skills/build/SKILL.md changed"],
+				changedFiles: [{ path: "skills/build/SKILL.md", change: "changed" }],
+				onlyCorpusFiles: true,
+				distance: { kind: "measured", versions: 1 },
+			},
+		]);
+	});
 });
 
 const PLANNING_RUBRIC = "cases/audit-log/rubrics/shape.json";

@@ -8,11 +8,13 @@ import type {
 	HashedFile,
 	RecordedReads,
 	StageCorpus,
+	StalenessLink,
 } from "./checkpoint";
 import {
 	captureStageCorpus,
 	deriveStaleness,
 	hashedCorpus,
+	hashedFileSchema,
 	INITIAL_CHECKPOINT_STAGE,
 	withLoadedFilesNow,
 	parseCheckpointRecord,
@@ -29,6 +31,8 @@ import {
 	textIfPresent,
 } from "./file-presence";
 import type { Effort } from "./config";
+import { corpusMeasurementSchema } from "./corpus-measurement";
+import { stoppedStage } from "./run-outcome";
 import { compareCurrentStageSettings } from "./current-stage-settings";
 import type { CorpusRoot } from "./corpus-file";
 import {
@@ -70,7 +74,7 @@ import type { ReadManifestEntry } from "./read-manifest";
 import { readManifestSchema } from "./read-manifest";
 import { z } from "zod";
 import { parseStageRubric } from "./stage-grading";
-import { CONTROL_DIR } from "./config";
+import { CONTROL_DIR, effortSchema } from "./config";
 
 /**
  * One record judged against the corpus under test, stale or clean, with the
@@ -228,7 +232,7 @@ function rubricCauses(readManifest: readonly JudgedReadEntry[]): string[] {
 }
 
 export async function chainRubricCauses(
-	chain: readonly CheckpointRecord[],
+	chain: readonly StalenessLink[],
 	stages: readonly StageDefinition[],
 ): Promise<ReadonlyMap<string, readonly string[]>> {
 	const causes = new Map<string, readonly string[]>();
@@ -368,7 +372,7 @@ function stageCorpusNow(
  */
 async function currentStageCorpus(
 	manifest: RunManifest,
-	chain: readonly CheckpointRecord[],
+	chain: readonly StalenessLink[],
 	source: CorpusRoot,
 	instructions: CurrentInstructions,
 ): Promise<ReadonlyMap<string, StageCorpus>> {
@@ -397,6 +401,63 @@ async function currentStageCorpus(
 	}
 
 	return corpus;
+}
+
+/** A link of a run's chain with the corpus version its stage measured. */
+type JudgedLink = StalenessLink & Pick<CheckpointRecord, "corpusVersion">;
+
+const stopRecordReadsSchema = z.object({
+	corpusFiles: z.array(hashedFileSchema).optional(),
+	corpusVersion: corpusMeasurementSchema.optional(),
+	readManifest: readManifestSchema.optional(),
+	model: z.string().min(1).optional(),
+	effort: effortSchema.optional(),
+});
+
+/**
+ * The stage its judge stopped, judged as the link after the run's last
+ * checkpoint from the reads its stop record keeps, since it saved no
+ * checkpoint to judge. None when no stage stopped, when the stopped stage
+ * has a checkpoint after all, or when its stop record predates stop records
+ * keeping the corpus files a stage read, since judging no files would report
+ * every file it read as added. A stop record written before it kept its model
+ * or effort takes the run's. Stage settings are loaded once per run, so the
+ * stopped stage ran under the settings file its run's checkpoints recorded.
+ */
+async function stoppedStageLink(
+	runsDirectory: string,
+	run: string,
+	manifest: RunManifest,
+	checkpoints: readonly CheckpointRecord[],
+): Promise<JudgedLink | undefined> {
+	const stopped = await stoppedStage(runsDirectory, run);
+	if (
+		stopped === undefined ||
+		checkpoints.some(({ stage }) => stage === stopped.stage)
+	) {
+		return undefined;
+	}
+
+	const reads = stopRecordReadsSchema.parse(
+		JSON.parse(
+			await Bun.file(
+				benchmarkRunPaths(runsDirectory, run).stageFile(stopped.stage),
+			).text(),
+		),
+	);
+	if (reads.corpusFiles === undefined) {
+		return undefined;
+	}
+
+	return {
+		stage: stopped.stage,
+		model: reads.model ?? manifest.model,
+		effort: reads.effort ?? manifest.effort,
+		settingsFile: checkpoints.at(-1)?.settingsFile,
+		corpusFiles: reads.corpusFiles,
+		readManifest: reads.readManifest,
+		corpusVersion: reads.corpusVersion,
+	};
 }
 
 async function checkpointChain(
@@ -575,10 +636,18 @@ async function runCheckpointStaleness(
 	}
 
 	const manifest = await loadRunManifest(paths.manifestFile);
-	const chain = await checkpointChain(runsDirectory, run, [
+	const checkpoints = await checkpointChain(runsDirectory, run, [
 		INITIAL_CHECKPOINT_STAGE,
 		...manifest.pipeline.stages.map(({ name }) => name),
 	]);
+	const stopped = await stoppedStageLink(
+		runsDirectory,
+		run,
+		manifest,
+		checkpoints,
+	);
+	const chain: readonly JudgedLink[] =
+		stopped === undefined ? checkpoints : [...checkpoints, stopped];
 	const current = await currentStageCorpus(
 		manifest,
 		chain,
@@ -601,7 +670,10 @@ async function runCheckpointStaleness(
 			manifest.pipeline.stages.find(({ name }) => name === staleness.stage),
 		);
 		judged.push({
-			id: `checkpoint:${run}/${staleness.stage}`,
+			id:
+				staleness.stage === stopped?.stage
+					? `run:${run}`
+					: `checkpoint:${run}/${staleness.stage}`,
 			stale: staleness.stale,
 			causes: staleness.causes,
 			changedFiles: staleness.changedFiles,

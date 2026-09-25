@@ -980,9 +980,20 @@ export function effortCause(
 	return `effort ${recorded ?? "none"} is now ${now ?? "none"}`;
 }
 
-/** The causes a checkpoint's model, effort and stage settings give it. */
+/**
+ * What judging one stage's staleness reads from its record. A checkpoint
+ * carries all of it, and so does a stage its judge stopped, whose stop record
+ * keeps its reads though it saved no checkpoint.
+ */
+export type StalenessLink = Pick<
+	CheckpointRecord,
+	"stage" | "model" | "effort" | "settingsFile"
+> &
+	RecordedReads;
+
+/** The causes a stage's model, effort and stage settings give it. */
 function knobCauses(
-	record: CheckpointRecord,
+	record: StalenessLink,
 	request: StalenessRequest,
 ): string[] {
 	const causes: string[] = [];
@@ -1014,7 +1025,7 @@ function knobCauses(
  * corpus is left unjudged and only its upstream can make it stale.
  */
 export function deriveStaleness(
-	chain: readonly CheckpointRecord[],
+	chain: readonly StalenessLink[],
 	current: ReadonlyMap<string, StageCorpus>,
 	request: StalenessRequest,
 ): CheckpointStaleness[] {

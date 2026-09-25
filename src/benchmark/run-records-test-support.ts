@@ -156,6 +156,8 @@ interface NewerRecordFields {
 	}[];
 	readonly readManifest?: readonly ReadManifestEntry[];
 	readonly corpusFiles?: readonly HashedFile[];
+	readonly corpusVersion?: CorpusMeasurement;
+	readonly model?: string;
 }
 
 /** Adds fields to a JSON record already on disk, as a newer writer would. */
@@ -642,6 +644,31 @@ export class RecordedRunsFixture {
 		await mergeIntoRecord(
 			benchmarkRunPaths(this.runsDirectory, this.stoppedRun).stageFile(stage),
 			{ readManifest, corpusFiles },
+		);
+	}
+
+	/**
+	 * Re-records the stopped run's build stage from a real corpus, as the
+	 * harness keeps a stopped stage's reads on its stop record: the corpus files
+	 * it captured, the version measured at its start, and its model. Its
+	 * initial checkpoint is written too, as every run writes one before a stage.
+	 */
+	public async recordStoppedStageFrom(source: CorpusRoot): Promise<void> {
+		await this.writeInitialCheckpoint(this.stoppedRun);
+		const instructions = await Bun.file(
+			resolveCorpusFile(source, "CLAUDE.md"),
+		).text();
+		await mergeIntoRecord(
+			benchmarkRunPaths(this.runsDirectory, this.stoppedRun).stageFile("build"),
+			{
+				corpusFiles: await captureStageCorpus(
+					"build",
+					instructions,
+					stageCorpusRoots(source, this.sourceRoot),
+				),
+				corpusVersion: await measureCorpusVersion(this.runsDirectory, source),
+				model: "sonnet",
+			},
 		);
 	}
 
