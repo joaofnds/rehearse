@@ -420,7 +420,10 @@ const stopRecordReadsSchema = z.object({
  * checkpoint to judge. None when no stage stopped, when the stopped stage
  * has a checkpoint after all, or when its stop record predates stop records
  * keeping the corpus files a stage read, since judging no files would report
- * every file it read as added. A stop record written before it kept its model
+ * every file it read as added. None too when the reads it keeps do not parse,
+ * which costs this reader the stopped stage and never the run's checkpoints,
+ * the way a stop record's other readers treat a field they cannot parse. A
+ * stop record written before it kept its model
  * or effort takes the run's. Stage settings are loaded once per run, so the
  * stopped stage ran under the settings file its run's checkpoints recorded.
  */
@@ -438,16 +441,18 @@ async function stoppedStageLink(
 		return undefined;
 	}
 
-	const reads = stopRecordReadsSchema.parse(
+	const parsed = stopRecordReadsSchema.safeParse(
 		JSON.parse(
 			await Bun.file(
 				benchmarkRunPaths(runsDirectory, run).stageFile(stopped.stage),
 			).text(),
 		),
 	);
-	if (reads.corpusFiles === undefined) {
+	if (!parsed.success || parsed.data.corpusFiles === undefined) {
 		return undefined;
 	}
+
+	const reads = parsed.data;
 
 	return {
 		stage: stopped.stage,

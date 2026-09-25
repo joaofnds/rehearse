@@ -20,7 +20,7 @@ import {
 	staleCheckpoints,
 } from "./staleness-report";
 import { measureCorpusVersion } from "./corpus-version";
-import { confirmationGroupPaths } from "./run-layout";
+import { benchmarkRunPaths, confirmationGroupPaths } from "./run-layout";
 import { stageRubricSha256 } from "./judge-agreement";
 import type { ReadManifestEntry } from "./read-manifest";
 import { loadStageRubric } from "./stage-grading";
@@ -547,6 +547,43 @@ describe(checkpointStaleness.name, () => {
 				distance: { kind: "measured", versions: 1 },
 			},
 		]);
+	});
+
+	it("still judges a stopped run's checkpoints when its stop record's reads do not parse", async () => {
+		const root = await temporaryDirectory("rehearse-staleness-");
+		const fixture = new RecordedRunsFixture(root, {
+			settingsFile: await liveStageSettings(),
+		});
+		await fixture.writeStoppedRun();
+		const corpus = await temporaryDirectory("rehearse-staleness-corpus-");
+		await mkdir(join(corpus, "skills", "build"), { recursive: true });
+		await Bun.write(join(corpus, "CLAUDE.md"), "the instructions\n");
+		await Bun.write(join(corpus, "skills", "build", "SKILL.md"), "build\n");
+		await fixture.recordStoppedStageFrom(directorySource(corpus));
+		const stopRecord = benchmarkRunPaths(
+			fixture.runsDirectory,
+			fixture.stoppedRun,
+		).stageFile("build");
+		await Bun.write(
+			stopRecord,
+			JSON.stringify({
+				...JSON.parse(await Bun.file(stopRecord).text()),
+				corpusVersion: { kind: "version", digest: "not a digest" },
+			}),
+		);
+
+		const report = await checkpointStaleness(
+			fixture.runsDirectory,
+			directorySource(corpus),
+		);
+
+		expect({
+			ids: report.records.map(({ id }) => id),
+			unreadable: report.unreadable,
+		}).toEqual({
+			ids: [`checkpoint:${fixture.stoppedRun}/initial`],
+			unreadable: [],
+		});
 	});
 });
 
