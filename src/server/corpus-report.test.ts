@@ -542,6 +542,54 @@ describe(corpusReport.name, () => {
 			expect(report.lastEdit).toMatchObject({ kind: "measured", rows: [] });
 		});
 
+		it("counts a run judged by its latest checkpoint when an earlier one holds no record", async () => {
+			const corpus = await fullCorpusDirectory();
+			const runs = await runsDirectory();
+			const fixture = new RecordedRunsFixture(runs, {
+				settingsFile: await liveStageSettings(),
+			});
+			await fixture.write();
+			await fixture.recordCorpusFrom(directorySource(corpus));
+			await fixture.recordVersionFrom(directorySource(corpus));
+			await rm(
+				checkpointRecordFile(
+					benchmarkRunPaths(runs, fixture.replayableRun).checkpointDirectory(
+						"discuss",
+					),
+				),
+			);
+			await writeFile(
+				join(corpus, "skills", "build", "SKILL.md"),
+				"build skill, edited\n",
+			);
+
+			const report = await corpusReport(directorySource(corpus), runs);
+
+			expect(report.lastEdit).toMatchObject({
+				kind: "measured",
+				rows: [`run:${fixture.replayableRun}`],
+			});
+		});
+
+		it("reads the last edit as not recorded when the previous version's files are gone from the store", async () => {
+			const corpus = await fullCorpusDirectory();
+			const runs = await runsDirectory();
+			await measureCorpusVersion(runs, directorySource(corpus));
+			await rm(join(runs, "corpus-versions", "blobs"), {
+				recursive: true,
+			});
+			await writeFile(
+				join(corpus, "skills", "build", "SKILL.md"),
+				"build skill, edited\n",
+			);
+
+			const report = await corpusReport(directorySource(corpus), runs);
+
+			expect(
+				report.lastEdit.kind === "not-recorded" && report.lastEdit.reason,
+			).toContain("cannot be read");
+		});
+
 		it("names a refused corpus under test as the reason the last edit is not recorded", async () => {
 			const corpus = await fullCorpusDirectory();
 			const runs = await runsDirectory();

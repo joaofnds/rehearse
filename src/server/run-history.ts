@@ -32,7 +32,7 @@ import { readReplayRecord } from "#benchmark/replay";
 import type { ReplayRecord } from "#benchmark/replay";
 import { parseSessionAttemptRecord } from "#benchmark/session-record";
 import type { SessionAttemptRecord } from "#benchmark/session-record";
-import { formatRecordId } from "#cli/record-id";
+import { formatRecordId, parseRecordId } from "#cli/record-id";
 import {
 	checkpointShortId,
 	frozenStages,
@@ -869,11 +869,24 @@ async function recordStaleness(
 
 	return {
 		of: (recordId) =>
-			byId.get(recordId) ?? {
+			byId.get(recordId) ??
+			byId.get(runOfCheckpoint(recordId)) ?? {
 				state: "unavailable",
 				reasons: [UNJUDGED_REASON],
 			},
 	};
+}
+
+/**
+ * A run whose checkpoints do not parse is unreadable as a whole, so each of
+ * its checkpoints answers with the run's reason.
+ */
+function runOfCheckpoint(recordId: string): string {
+	const id = parseRecordId(recordId);
+
+	return id.kind === "checkpoint"
+		? formatRecordId({ kind: "run", run: id.run })
+		: recordId;
 }
 
 /**
@@ -882,7 +895,7 @@ async function recordStaleness(
  * silently wrong is worse than the cost of hashing the corpus.
  *
  * One run's failure to read, a malformed artifact, a missing manifest, a
- * corpus file `staleCheckpoints` cannot resolve, is collected rather than
+ * corpus file `checkpointStaleness` cannot resolve, is collected rather than
  * thrown: the `list runs` precedent (`src/cli/list-command.ts`'s `collect`)
  * is what this follows, so a single bad run cannot blank the whole response
  * the way an uncaught throw would. The reason is redacted the same way,

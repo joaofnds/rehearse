@@ -24,6 +24,7 @@ import type { RecordedRunsOptions } from "#benchmark/run-records-test-support";
 import { CONTROL_DIR } from "#benchmark/config";
 import {
 	benchmarkRunPaths,
+	checkpointRecordFile,
 	runEventsDatabaseFile,
 } from "#benchmark/run-layout";
 import { openRunEventStore } from "#benchmark/run-events";
@@ -246,6 +247,37 @@ describe(createApiApp.name, () => {
 			expect(body.rows.some((row) => row.run === fixture.replayableRun)).toBe(
 				true,
 			);
+		});
+
+		it("gives a run whose checkpoint does not parse the parse error as its unavailable reason", async () => {
+			const fixture = await writtenFixture();
+			const corpus = await corpusDirectory();
+			await fixture.recordCorpusFrom(directorySource(corpus));
+			await Bun.write(
+				checkpointRecordFile(
+					benchmarkRunPaths(
+						fixture.runsDirectory,
+						fixture.replayableRun,
+					).checkpointDirectory("build"),
+				),
+				"{ not json",
+			);
+			const app = createApiApp({
+				runsDirectory: fixture.runsDirectory,
+				liveness: nothingRunning,
+				corpusSource: directorySource(corpus),
+			});
+
+			const response = await app.request("/api/runs");
+			const body = await runHistoryResponseFrom(response);
+
+			const staleness = body.rows.find(
+				({ run }) => run === fixture.replayableRun,
+			)?.staleness;
+			expect(staleness?.state).toBe("unavailable");
+			expect(
+				staleness?.state === "unavailable" && staleness.reasons.join("\n"),
+			).toContain("JSON Parse error");
 		});
 
 		it("keeps healthy rows when one run's current settings are unavailable", async () => {

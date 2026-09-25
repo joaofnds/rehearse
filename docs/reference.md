@@ -863,13 +863,15 @@ edit's rows. The previous version is the log entry before the corpus under
 test. The last edit's rows are those the stale judgment calls fresh against
 that entry's stored files and stale against the corpus under test, so a row
 stale through an upstream stage, its settings or a knob before the edit is not
-among them. A pipeline run whose latest checkpoint directory holds no record
-has no judgment in the run history and is not among them either. `lastEdit`
+among them. A pipeline run is judged by its latest checkpoint directory in
+pipeline order, as the run history judges it, so a run whose latest directory
+holds no record has no judgment and is not among them either. `lastEdit`
 answers `{kind: "measured", previous, count, rows}`, or `{kind:
-"not-recorded", reason}` when the log holds no earlier version or the corpus
-under test refused hashing. A record that cannot be read counts nowhere, and
+"not-recorded", reason}` when the log holds no earlier version, the store no
+longer holds that version's files, or the corpus under test refused hashing. A record that cannot be read counts nowhere, and
 a run whose manifest or checkpoints do not parse is named unreadable by its
-run id in `stale` and the run history rather than failing either.
+run id in `stale`, and its run-history row reads unavailable with the parse
+error, rather than failing either.
 `/api/runs?ids=<id>,<id>` returns only the rows with those record ids, taking
 every `ids` parameter given, so the last edit's rows list as run history. An
 empty `ids=` names no record and returns no row.

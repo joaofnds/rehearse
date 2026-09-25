@@ -4,12 +4,16 @@ import { dirname, join } from "node:path";
 import type { HashedFile } from "./checkpoint";
 import type { CorpusRoot } from "./corpus-file";
 import { hashCorpusLayout } from "./corpus-layout";
+import { corpusVersionLabel } from "./corpus-version-label";
 import {
+	CorpusVersionError,
 	readCorpusUnderTest,
 	readCorpusVersion,
 	readCorpusVersionFile,
 } from "./corpus-version";
-import { checkpointStageNames } from "./run-layout";
+import { INITIAL_CHECKPOINT_STAGE } from "./checkpoint";
+import { loadRunManifest } from "./manifest";
+import { benchmarkRunPaths, checkpointStageNames } from "./run-layout";
 import type { RecordStaleness } from "./staleness-report";
 import {
 	checkpointStalenessByRun,
@@ -45,25 +49,31 @@ interface RowReading extends Pick<RecordStaleness, "id" | "readFiles"> {
 }
 
 /**
- * A run's row reads what any of its checkpoints read, and is stale as its
- * latest checkpoint is, since that one carries every upstream cause. The run
- * history judges the run by its latest checkpoint directory, so a run whose
- * latest directory holds no judged checkpoint has no judgment to count.
+ * A run's row reads what any of its checkpoints read, and is judged as the
+ * run history judges it: by its latest checkpoint directory in pipeline
+ * order, the initial one when it recorded no stage, which carries every
+ * upstream cause. A directory holding no judged record has no judgment.
  */
 async function runRow(
 	runsDirectory: string,
 	run: string,
 	checkpoints: readonly RecordStaleness[],
 ): Promise<RowReading> {
-	const judged = new Set(checkpoints.map(({ id }) => id));
-	const recorded = await checkpointStageNames(runsDirectory, run);
-	const complete = recorded.every((stage) =>
-		judged.has(`checkpoint:${run}/${stage}`),
+	const manifest = await loadRunManifest(
+		benchmarkRunPaths(runsDirectory, run).manifestFile,
+	);
+	const recorded = new Set(await checkpointStageNames(runsDirectory, run));
+	const latest =
+		manifest.pipeline.stages
+			.map(({ name }) => name)
+			.findLast((name) => recorded.has(name)) ?? INITIAL_CHECKPOINT_STAGE;
+	const judged = checkpoints.find(
+		({ id }) => id === `checkpoint:${run}/${latest}`,
 	);
 
 	return {
 		id: `run:${run}`,
-		stale: complete ? checkpoints.at(-1)?.stale : undefined,
+		stale: judged?.stale,
 		readFiles: checkpoints.flatMap(({ readFiles }) => readFiles),
 	};
 }
@@ -119,6 +129,37 @@ async function freshAgainst(
 	}
 }
 
+/**
+ * The previous version's hashes and the rows fresh against it, undefined
+ * when the store no longer holds its manifest or one of its files.
+ */
+async function judgedAgainst(
+	runsDirectory: string,
+	version: string,
+): Promise<
+	| {
+			readonly previous: ReadonlyMap<string, string>;
+			readonly freshBefore: ReadonlySet<string>;
+	  }
+	| undefined
+> {
+	try {
+		return {
+			previous: hashesByPath(await readCorpusVersion(runsDirectory, version)),
+			freshBefore: await freshAgainst(runsDirectory, version),
+		};
+	} catch (error) {
+		if (
+			error instanceof CorpusVersionError ||
+			(error instanceof Error && "code" in error && error.code === "ENOENT")
+		) {
+			return undefined;
+		}
+
+		throw error;
+	}
+}
+
 function hashesByPath(
 	files: readonly HashedFile[],
 ): ReadonlyMap<string, string> {
@@ -162,13 +203,22 @@ export async function corpusInvalidation(
 		};
 	}
 
-	const previous = hashesByPath(
-		await readCorpusVersion(runsDirectory, underTest.previousVersion),
-	);
-	const freshBefore = await freshAgainst(
+	const judgedBefore = await judgedAgainst(
 		runsDirectory,
 		underTest.previousVersion,
 	);
+	if (judgedBefore === undefined) {
+		return {
+			readBy,
+			invalidated: new Map(),
+			lastEdit: {
+				kind: "not-recorded",
+				reason: `the previous version ${corpusVersionLabel(underTest.previousVersion)} cannot be read from the store`,
+			},
+		};
+	}
+
+	const { previous, freshBefore } = judgedBefore;
 	const invalidatedRows = rows
 		.filter(({ id, stale }) => stale === true && freshBefore.has(id))
 		.map(({ id }) => id)
