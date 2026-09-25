@@ -159,8 +159,8 @@ the record's version distance and its causes. With no prior measurement there is
 nothing to mark stale. It reads the current corpus and starts no session.
 
 For pipeline checkpoints, replays and groups, add `--model` or `--effort` to
-check those conditions as well. Without those flags, the command checks corpus changes and each run's
-current declared or default stage settings. A settings value change stales the
+check those conditions as well. Without those flags, the command checks corpus changes, each recorded judge
+rubric, and each run's current declared or default stage settings. A settings value change stales the
 initial checkpoint and carries forward through later checkpoints; changing only
 JSON whitespace does not. A missing or invalid settings file appears as a cause
 for the affected run while the command continues reporting the others.

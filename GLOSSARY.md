@@ -178,13 +178,13 @@ See [current state](docs/status.md) for implementation coverage and
   built for a session attempt; a pipeline stage is observed through context
   history instead, and no manifest is built for one.
 - **Read manifest**: what one pipeline stage, replay or session attempt
-  declared and was observed to load, with each file's role and hash. It extends
-  the context manifest to every record kind and adds judge rubrics. Each entry
+  declared or was observed to load, with each file's role and hash. It extends
+  the context manifest to stage checkpoints and replays and adds judge rubrics. Each entry
   names its half (corpus, project or rubric), one role (global instructions,
   project instructions, stage skill, judge rubric, read for context), and
   whether it was declared, observed, or both. A corpus file's hash is the bytes
-  the record's corpus resolved at its start, a rubric's comes from the frozen
-  scorecard, and a project file's is the target's bytes at the record's start,
+  the record's corpus resolved at its start, a rubric's is the frozen
+  scorecard's rubric as parsed, not its bytes, and a project file's is the target's bytes at the record's start,
   absent when the file was not there. Like the context manifest, a load not
   observed is not proof of absence.
 - **Context evidence** — an optional, versioned attempt-record field containing
@@ -546,7 +546,7 @@ See [current state](docs/status.md) for implementation coverage and
   recorded path beside it. See [the reference](docs/reference.md) for what a
   record stores and when an edit stales a run.
 - **Stale checkpoint** — a checkpoint whose recorded inputs (corpus files,
-  stage settings, model, effort, or an upstream checkpoint) no longer match
+  stage settings, model, effort, its judge rubric, or an upstream checkpoint) no longer match
   the current state; still replayable for exploration, refused in comparisons.
 - **Stale provenance** — the state of a comparison rep whose saved evidence
   the comparison cannot vouch for: its confirmation run, rep or attempt
@@ -582,12 +582,12 @@ See [current state](docs/status.md) for implementation coverage and
   those says anything about the session's work.
 - **Staleness cause** — one named statement of why a recorded result no longer
   describes the current state. A cause names the thing that moved, an upstream
-  stage, the model, the effort, the stage settings file, or one corpus file
-  that changed, was added, or was removed, or else it carries a corpus refusal
-  verbatim, since a corpus that cannot be read cannot be shown to still match.
-  A checkpoint carries its causes as a list: at most four that are not about
-  corpus files, then one per corpus file that drifted, so the list has no bound
-  but the corpus's size. Its length counts reasons and is not a distance
+  stage, the model, the effort, the stage settings file, one corpus file
+  that changed, was added, or was removed, or the judge rubric, or else it
+  carries a corpus refusal verbatim, since a corpus that cannot be read cannot
+  be shown to still match. A checkpoint carries its causes as a list: at most
+  four that are not about corpus files, then one per corpus file that drifted,
+  then its judge rubric, so the list has no bound but the corpus's size. Its length counts reasons and is not a distance
   between corpus versions.
 - **Stage kind** — which validation and evidence strategy a stage uses:
   planning or delivery. Declared per stage, independent of the stage's name.
