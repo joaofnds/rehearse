@@ -410,5 +410,20 @@ describe(readCorpusUnderTest.name, () => {
 				});
 			},
 		);
+
+		it("reads not recorded, naming the refusal, when the corpus under test is refused", async () => {
+			const digest = await measureWith("brief\n");
+			const outside = join(scratch, "outside.md");
+			await writeFile(outside, "outside\n");
+			await symlink(outside, join(source.root, "output-styles", "escape.md"));
+
+			const underTest = await readCorpusUnderTest(recordsDirectory, source);
+
+			expect(underTest.distanceOf({ kind: "version", digest })).toEqual({
+				kind: "not-recorded",
+				reason:
+					"the corpus under test refused: output-styles/escape.md resolves outside the tree it is named under, so its bytes are not the ones that tree holds",
+			});
+		});
 	});
 });

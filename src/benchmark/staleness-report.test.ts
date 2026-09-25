@@ -685,8 +685,16 @@ describe(groupStaleness.name, () => {
 			directorySource(corpus),
 		);
 
-		expect(report.records.map(({ causes }) => causes)).toEqual([
-			["CLAUDE.md changed"],
+		expect(
+			report.records.map(({ causes, changedFiles }) => ({
+				causes,
+				changedFiles,
+			})),
+		).toEqual([
+			{
+				causes: ["CLAUDE.md changed"],
+				changedFiles: [{ path: "CLAUDE.md", change: "changed" }],
+			},
 		]);
 	});
 
