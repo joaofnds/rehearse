@@ -45,9 +45,10 @@ const COLUMNS = [
  * How often the list re-reads itself while a run is in flight. The operator is
  * watching readings move, so the interval has to be shorter than the attention
  * span of someone staring at a screen; the route's cost is reading every saved
- * record under the runs directory plus one liveness probe per candidate run,
- * tens of milliseconds for a few hundred records. Polling stops when no run is
- * running, so a page left open on finished history costs nothing.
+ * record under the runs directory, one liveness probe per candidate run, and
+ * judging every record's staleness against the corpus under test, about a third
+ * of a second for a hundred records. Polling stops when no run is running, so a
+ * page left open on finished history costs nothing.
  */
 const RUNNING_POLL_MS = 2000;
 
