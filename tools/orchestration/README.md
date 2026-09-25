@@ -14,6 +14,6 @@ The worker reads the project's contributor instructions and reports its evidence
 back to the orchestrator. Its configured Opus model is the orchestration worker
 model, separate from the model selected for a benchmark experiment.
 
-Keep the worker's project guidance aligned with [CLAUDE.md](../../CLAUDE.md)
+Keep the worker's project guidance aligned with [AGENTS.md](../../AGENTS.md)
 and [Contributing](../../CONTRIBUTING.md). The dispatch supplies task-specific paths
 and decisions. Keep personal checkout paths out of the definition.
