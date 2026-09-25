@@ -1,7 +1,15 @@
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import type { HashedFile } from "./checkpoint";
 import type { CorpusRoot } from "./corpus-file";
 import { hashCorpusLayout } from "./corpus-layout";
-import { readCorpusUnderTest, readCorpusVersion } from "./corpus-version";
+import {
+	readCorpusUnderTest,
+	readCorpusVersion,
+	readCorpusVersionFile,
+} from "./corpus-version";
+import { checkpointStageNames } from "./run-layout";
 import type { RecordStaleness } from "./staleness-report";
 import {
 	checkpointStalenessByRun,
@@ -31,27 +39,31 @@ export interface CorpusInvalidation {
 	readonly lastEdit: LastEdit;
 }
 
-type RowReading = Omit<RecordStaleness, "distance">;
+interface RowReading extends Pick<RecordStaleness, "id" | "readFiles"> {
+	/** Undefined when no judgment answers for the row the history shows. */
+	readonly stale: boolean | undefined;
+}
 
 /**
  * A run's row reads what any of its checkpoints read, and is stale as its
- * latest checkpoint is, since that one carries every upstream cause.
+ * latest checkpoint is, since that one carries every upstream cause. The run
+ * history judges the run by its latest checkpoint directory, so a run whose
+ * latest directory holds no judged checkpoint has no judgment to count.
  */
-function runRow(
+async function runRow(
+	runsDirectory: string,
 	run: string,
 	checkpoints: readonly RecordStaleness[],
-): RowReading | undefined {
-	const latest = checkpoints.at(-1);
-	if (latest === undefined) {
-		return undefined;
-	}
+): Promise<RowReading> {
+	const judged = new Set(checkpoints.map(({ id }) => id));
+	const recorded = await checkpointStageNames(runsDirectory, run);
+	const complete = recorded.every((stage) =>
+		judged.has(`checkpoint:${run}/${stage}`),
+	);
 
 	return {
 		id: `run:${run}`,
-		stale: latest.stale,
-		causes: latest.causes,
-		onlyCorpusFiles: latest.onlyCorpusFiles,
-		changedFiles: checkpoints.flatMap(({ changedFiles }) => changedFiles),
+		stale: complete ? checkpoints.at(-1)?.stale : undefined,
 		readFiles: checkpoints.flatMap(({ readFiles }) => readFiles),
 	};
 }
@@ -66,38 +78,51 @@ async function rowReadings(
 		await replayAttemptStaleness(runsDirectory, source),
 		await groupStaleness(runsDirectory, source),
 	];
+	const runs = await Promise.all(
+		[...byRun.entries()].map(([run, checkpoints]) =>
+			runRow(runsDirectory, run, checkpoints),
+		),
+	);
 
-	return [
-		...[...byRun.entries()]
-			.map(([run, checkpoints]) => runRow(run, checkpoints))
-			.filter((row) => row !== undefined),
-		...reports.flatMap(({ records }) => records),
-	];
+	return [...runs, ...reports.flatMap(({ records }) => records)];
+}
+
+/**
+ * The ids of the rows judged fresh against a stored version, judged as
+ * `stale` judges the live corpus: the version's files are written to a
+ * scratch directory and judged as a corpus source.
+ */
+async function freshAgainst(
+	runsDirectory: string,
+	version: string,
+): Promise<ReadonlySet<string>> {
+	const root = await mkdtemp(join(tmpdir(), "rehearse-corpus-version-"));
+	try {
+		for (const { path } of await readCorpusVersion(runsDirectory, version)) {
+			const file = join(root, path);
+			await mkdir(dirname(file), { recursive: true });
+			await Bun.write(
+				file,
+				await readCorpusVersionFile(runsDirectory, version, path),
+			);
+		}
+		const rows = await rowReadings(runsDirectory, {
+			kind: "directory",
+			root,
+		});
+
+		return new Set(
+			rows.filter(({ stale }) => stale === false).map(({ id }) => id),
+		);
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
 }
 
 function hashesByPath(
 	files: readonly HashedFile[],
 ): ReadonlyMap<string, string> {
 	return new Map(files.map(({ path, sha256 }) => [path, sha256]));
-}
-
-/**
- * Fresh against the previous version when every file it read held the hash
- * that version holds and no file its stage now adds was already there, and
- * stale now only because files it read changed.
- */
-function invalidatedByLastEdit(
-	row: RowReading,
-	previous: ReadonlyMap<string, string>,
-): boolean {
-	return (
-		row.stale &&
-		row.onlyCorpusFiles &&
-		row.readFiles.every(({ path, sha256 }) => previous.get(path) === sha256) &&
-		row.changedFiles.every(
-			({ path, change }) => change !== "added" || !previous.has(path),
-		)
-	);
 }
 
 /**
@@ -130,7 +155,9 @@ export async function corpusInvalidation(
 			lastEdit: {
 				kind: "not-recorded",
 				reason:
-					"the corpus under test has no earlier version in its log to compare against",
+					layout.refusals.length > 0
+						? "the corpus under test refused hashing, so it has no place in its log"
+						: "the corpus under test has no earlier version in its log to compare against",
 			},
 		};
 	}
@@ -138,8 +165,12 @@ export async function corpusInvalidation(
 	const previous = hashesByPath(
 		await readCorpusVersion(runsDirectory, underTest.previousVersion),
 	);
+	const freshBefore = await freshAgainst(
+		runsDirectory,
+		underTest.previousVersion,
+	);
 	const invalidatedRows = rows
-		.filter((row) => invalidatedByLastEdit(row, previous))
+		.filter(({ id, stale }) => stale === true && freshBefore.has(id))
 		.map(({ id }) => id)
 		.toSorted();
 	const invalidated = new Map(
