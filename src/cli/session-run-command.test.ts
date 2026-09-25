@@ -25,7 +25,10 @@ import { failureOf } from "#cli/cli-test-support";
 import { UsageError } from "#cli/commands";
 import { RefusedPreconditionError } from "#cli/interactive-stdin";
 import { runSessionDebugAttempt } from "#cli/session-run-command";
-import { CorpusConfigurationError } from "#benchmark/corpus-file";
+import {
+	CorpusConfigurationError,
+	liveCorpusSource,
+} from "#benchmark/corpus-file";
 import {
 	contextEvidenceSourceSchema,
 	contextRateCatalogSchema,
@@ -824,7 +827,7 @@ describe("running a session case against a corpus source", () => {
 							content: [
 								{
 									type: "text",
-									text: `Base directory for this skill: ${cwd}/.claude/skills/verify`,
+									text: `Base directory for this skill: ${liveCorpusSource().root}/skills/verify`,
 								},
 							],
 						},
