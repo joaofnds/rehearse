@@ -706,7 +706,11 @@ longer loads as a pipeline case. The comparison uses canonical JSON, so
 whitespace-only edits and checkout relocation remain fresh. A missing or invalid
 current settings file stales that run by name without hiding other runs. The
 initial checkpoint participates, including for runs that stopped before an
-accepted stage. Optional model/effort flags assert those intended replay
+accepted stage. A stage its judge stopped saves no checkpoint, so it is judged
+from the reads its stop record keeps, as the link after the run's last
+checkpoint, and listed under its run's id, `run:<run>`, which `show` opens.
+Run history and `corpus invalidation` judge that run's row by it. A stop record
+from before stop records kept their corpus files is not judged. Optional model/effort flags assert those intended replay
 settings as well for checkpoints, replays and groups. Every session attempt is
 judged on its own against the files its case declares, so an older attempt is
 named as well as the newest, and a session case with no prior attempt has no

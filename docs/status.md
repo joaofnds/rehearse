@@ -63,9 +63,8 @@ case present, but no browser check has been run over it.
   corpus entry carrying the target's bytes, not the live install's. A session
   attempt's manifest leaves out a load from its `.claude` that the harness did
   not install, so a file the session wrote there and read is not listed.
-  The run API marks a stopped stage's entries changed or unchanged, but
-  `stale` and run history judge checkpoints, replays, attempts and groups, not
-  a stopped stage's record, so a stopped stage never shows as stale there.
+  A stop record written before stop records kept the corpus files their stage
+  read is not judged, so its run is judged by its checkpoints alone.
   The run API serves a run's entries without a changed state when the corpus
   under test cannot judge it, such as when it no longer holds a stage's skill.
   The run history screen shows a rubric-only stale record with the plain stale

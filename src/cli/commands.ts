@@ -255,7 +255,7 @@ export const COMMANDS: readonly CommandDefinition[] = [
 	{
 		name: "stale",
 		summary:
-			"List the checkpoints, session attempts, stage replays and confirmation groups an edit invalidated",
+			"List the checkpoints, stopped stages, session attempts, stage replays and confirmation groups an edit invalidated",
 		flags: [
 			corpusFlag,
 			{
