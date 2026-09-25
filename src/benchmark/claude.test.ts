@@ -445,6 +445,38 @@ describe("per-model usage", () => {
 		).toBe(0);
 	});
 
+	it("survives a sub-agent's per-model block without canonical model, provider or cost basis", () => {
+		const envelope = readClaudeEnvelope(
+			JSON.stringify({
+				session_id: "session-1",
+				total_cost_usd: 1,
+				num_turns: 1,
+				usage: {
+					input_tokens: 2,
+					output_tokens: 4,
+					cache_read_input_tokens: 0,
+					cache_creation_input_tokens: 10,
+				},
+				modelUsage: {
+					"claude-opus-5-5[1m]": {
+						inputTokens: 36,
+						outputTokens: 24_590,
+						cacheReadInputTokens: 614_679,
+						cacheCreationInputTokens: 77_748,
+						costUSD: 1,
+						contextWindow: 1_000_000,
+						maxOutputTokens: 128_000,
+					},
+				},
+			}),
+		);
+
+		expect(
+			readClaudeCallMetrics(envelope)?.modelUsage?.["claude-opus-5-5[1m]"]
+				?.costUSD,
+		).toBe(1);
+	});
+
 	it("preserves a missing per-model block as absence", () => {
 		const envelope = readClaudeEnvelope(
 			JSON.stringify({

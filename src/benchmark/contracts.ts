@@ -181,7 +181,9 @@ const claudeUsageSchema = z
  * Loose for the same reason as the usage object: the provider adds fields here
  * between releases. Probed 2026-09-14 on CLI 2.1.270, a sonnet call reported
  * webSearchRequests and thinkingTokens that a haiku call two hours earlier did
- * not.
+ * not. On CLI 2.1.281 a sub-agent's block, keyed like claude-opus-5-5[1m],
+ * omits canonicalModel, provider and costBasis that the session's own block
+ * carries, so requiring them failed a whole run after its spend.
  */
 const claudeModelUsageSchema = z
 	.object({
@@ -192,9 +194,6 @@ const claudeModelUsageSchema = z
 		costUSD: z.number().nonnegative(),
 		contextWindow: z.number().int().nonnegative(),
 		maxOutputTokens: z.number().int().nonnegative(),
-		canonicalModel: z.string().min(1),
-		provider: z.string().min(1),
-		costBasis: z.string().min(1),
 	})
 	.loose();
 
