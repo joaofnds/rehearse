@@ -153,12 +153,13 @@ no longer match it:
 mise exec -- bun run rehearse stale --corpus .benchmark-runs/example-corpus
 ```
 
-The session result is reported at case level using its latest debug attempt.
-This command does not inventory confirmation groups. With no prior measurement
-there is nothing to mark stale. It reads the current corpus and starts no session.
+Every debug attempt is judged on its own, so an older attempt is named as well
+as the newest, and so are stage replays and confirmation groups. Each line gives
+the record's version distance and its causes. With no prior measurement there is
+nothing to mark stale. It reads the current corpus and starts no session.
 
-For pipeline checkpoints, add `--model` or `--effort` to check those conditions
-as well. Without those flags, the command checks corpus changes and each run's
+For pipeline checkpoints, replays and groups, add `--model` or `--effort` to
+check those conditions as well. Without those flags, the command checks corpus changes and each run's
 current declared or default stage settings. A settings value change stales the
 initial checkpoint and carries forward through later checkpoints; changing only
 JSON whitespace does not. A missing or invalid settings file appears as a cause

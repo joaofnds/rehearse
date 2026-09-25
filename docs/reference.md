@@ -677,25 +677,30 @@ whitespace-only edits and checkout relocation remain fresh. A missing or invalid
 current settings file stales that run by name without hiding other runs. The
 initial checkpoint participates, including for runs that stopped before an
 accepted stage. Optional model/effort flags assert those intended replay
-settings as well. Every session attempt is judged on its own against the files
-its case declares, so an older attempt is named as well as the newest, and a
-session case with no prior attempt has no stale measurement. Every stage replay
+settings as well for checkpoints, replays and groups. Every session attempt is
+judged on its own against the files its case declares, so an older attempt is
+named as well as the newest, and a session case with no prior attempt has no
+stale measurement. An attempt of a case no longer declared is named on stderr
+rather than judged, since its corpus files are unknown. Every stage replay
 is judged against the stage corpus it read, and is also stale when the
 checkpoint it consumed is stale or when a model or effort flag differs from the
 one it ran with. Every confirmation group is judged by the corpus files it
 froze: a stage or pipeline group per stage, against the skill its frozen
 pipeline names, and a session group against the files its case declares. A
-file several stages froze is named once. A group froze its own checkpoint, so
-no live checkpoint can stale it, and a stage or pipeline group that froze no
-pipeline is named on stderr rather than judged.
+file several stages froze is named once. A group is also stale when a model or
+effort flag differs from the one it froze. A stage or pipeline group froze its
+own checkpoint, so no live checkpoint can stale it. A stage or pipeline group
+that froze no pipeline, and a session group whose case is no longer declared,
+are named on stderr rather than judged.
 
 Each line `stale` prints is the record id, its short id or `-`, its version
 distance, and each cause. The distance reads `distance N`, the number of
 positions the record's corpus version sits behind the corpus under test in that
 corpus's version log, with 0 when the corpus under test is that version. It
-reads `distance not recorded` for a record written before corpus versions, one
-whose attempt measured no version, one whose version is not in that corpus's
-log, or when the corpus under test refuses a layout entry. Distance never makes
+reads `distance not recorded` for the initial checkpoint, which reads no corpus,
+a record written before corpus versions, one whose attempt measured no version,
+one whose version is not in that corpus's log, or when the corpus under test
+refuses a layout entry. Distance never makes
 a record stale. Only its causes do.
 Missing files and changed inputs are evidence to inspect, not a substitute for
 running the revised case.
@@ -959,15 +964,18 @@ inputs froze.
 Every row also carries `staleness`, the judgment `stale` makes of the same
 record against the corpus the server serves: `stale`, its `causes`, its
 `changedFiles`, each a `path` with a `change` of `changed`, `added` or
-`removed`, and its `distance`. A pipeline run row is judged at its latest
+`removed`, its `distance`, and `onlyCorpusFiles`. A pipeline run row is judged at its latest
 checkpoint, or at its initial checkpoint when it saved no stage. Each row is
 judged with the model and effort its record ran with, since the history
 compares a record against the corpus rather than against a replay about to
-run. A record the staleness report cannot read, or never reaches, such as a
-run that wrote no manifest or a session attempt of a case no longer declared,
+run. A record the staleness report names unreadable, or never reaches, such as
+a run that wrote no manifest or a session attempt of a case no longer declared,
 has `staleness` unavailable with its reason rather than clear. The run history
 screen's corpus column shows `✓ clean` for a record at distance 0 with no
-cause. When changed corpus files are the record's only causes, it shows
+cause. `onlyCorpusFiles` is true when changed corpus files the record read are
+its own only causes, and any upstream stage it follows went stale from changed
+corpus files alone, so one edit to a file every stage reads keeps its wording
+through the chain. Then the column shows
 `⚠ stale · corpus changed since` at distance 1 and
 `⚠ superseded · N versions back` at 2 or more. Any other judgment shows the
 stale or clear badge with its causes.

@@ -535,12 +535,6 @@ See [current state](docs/status.md) for implementation coverage and
   raw bytes. Staleness compares that digest alone, while lineage folds in the
   recorded path beside it. See [the reference](docs/reference.md) for what a
   record stores and when an edit stales a run.
-- **Stale case** — a session case whose most recent attempt recorded corpus
-  file digests that the current corpus no longer matches. It is the session
-  kind's counterpart to a stale checkpoint: the same "this measurement no
-  longer describes the corpus" claim, keyed on the files the case declared
-  rather than on the skill a stage invoked. A case with no attempt is not
-  stale, because nothing was invalidated.
 - **Stale checkpoint** — a checkpoint whose recorded inputs (corpus files,
   stage settings, model, effort, or an upstream checkpoint) no longer match
   the current state; still replayable for exploration, refused in comparisons.
@@ -551,9 +545,15 @@ See [current state](docs/status.md) for implementation coverage and
   different case, run or rep. The comparison page still shows the rep, marked
   `stale`, but offers no path into its attempt history. A rep can be stale from
   the moment the comparison is saved, when its files were never at their
-  confirmation run's own location. It is unrelated to a stale case or a stale
-  checkpoint, which compare a record against the current inputs rather than
-  against the files it was measured from.
+  confirmation run's own location. It is unrelated to a stale session attempt
+  or a stale checkpoint, which compare a record against the current inputs
+  rather than against the files it was measured from.
+- **Stale session attempt**: a session attempt whose recorded corpus file
+  digests the corpus under test no longer matches. It is the session kind's
+  counterpart to a stale checkpoint, the same claim that a measurement no
+  longer describes the corpus, keyed on the files the case declared rather
+  than on the skill a stage invoked. Each attempt is judged, not only a
+  case's most recent one.
 - **State check** — the grading definition a session case declares for the
   files and git state its session leaves: a command to run and the outcome
   names it must report. It is declared inline in `case.json`, which is what
@@ -690,9 +690,11 @@ See [current state](docs/status.md) for implementation coverage and
   corpus under test: 0 when the corpus under test is the version the record
   measured, and otherwise the positions between that version's latest entry
   in the corpus's version log and the corpus under test. It is not recorded
-  for a record written before versions, one whose version is absent from the
-  log, or a corpus that refuses an entry. It never makes a record stale on its
-  own. Only a staleness cause does.
+  for the initial checkpoint, which reads no corpus, a record written before
+  versions, one whose version is absent from the log, or a corpus that refuses
+  an entry. It never makes a record stale on its own. Only a staleness cause
+  does. Name accepted unattended as unsettled, pending the operator's
+  confirmation (doc-157, question 6).
 - **Workflow state** — the `backlog/` and `.boris/` trees copied independently
   of Git to carry workflow artifacts across stage materialization and target
   restoration. A target's Backlog configuration determines where its board
