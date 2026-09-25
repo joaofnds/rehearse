@@ -6,8 +6,10 @@ import type { ConfirmationCostProjection } from "./confirmation";
 import { runConfirmation } from "./confirmation";
 import type { Immutable } from "./contracts";
 import type { ResolvedCorpusFile } from "./corpus-file";
+import type { CorpusMeasurement } from "./corpus-measurement";
 import { hashCorpusFiles } from "./corpus-file";
 import { resolveCorpusSource } from "./corpus-source";
+import { measureCorpusVersion } from "./corpus-version";
 import type { CorpusSourceResolver } from "./corpus-source";
 import type { SessionConfirmationRepRecord } from "./confirmation-record";
 import { sessionConfirmationRepRecordSchema } from "./confirmation-record";
@@ -72,6 +74,7 @@ interface FrozenSessionInputs {
 	readonly settings: SessionSettings;
 	readonly corpusSnapshot: SessionCorpusSnapshot;
 	readonly corpusFiles: readonly ResolvedCorpusFile[];
+	readonly corpusVersion: CorpusMeasurement;
 	readonly lineage: string;
 	readonly files: readonly FrozenFile[];
 }
@@ -84,6 +87,10 @@ async function freezeInputs(
 ): Promise<FrozenSessionInputs> {
 	await mkdir(inputsDirectory, { recursive: true });
 	const source = await resolveCorpus(request.corpus);
+	const corpusVersion = await measureCorpusVersion(
+		request.runsDirectory,
+		source,
+	);
 	const corpusDirectory = join(inputsDirectory, "corpus");
 	const corpusSnapshot = await freezeSessionCorpus(
 		source,
@@ -149,6 +156,7 @@ async function freezeInputs(
 		settings,
 		corpusSnapshot,
 		corpusFiles,
+		corpusVersion,
 		lineage,
 		files,
 	};
@@ -321,6 +329,7 @@ export async function runSessionConfirmation(
 					lineage: inputs.lineage,
 					corpusFiles: inputs.corpusFiles,
 					corpusOrigin: inputs.corpusSnapshot.origin,
+					corpusVersion: inputs.corpusVersion,
 					attempt: executed.attempt,
 					error: executed.error,
 					elapsedMs: executed.elapsedMs,
@@ -351,6 +360,7 @@ export async function runSessionConfirmation(
 		inputs: {
 			lineage: { kind: "SESSION", lineage: inputs.lineage },
 			files: inputs.files,
+			corpusVersion: inputs.corpusVersion,
 			model: request.model,
 			effort: request.effort,
 			sessionBudgetUsd: request.sessionBudgetUsd,

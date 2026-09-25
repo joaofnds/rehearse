@@ -12,6 +12,7 @@ import { basename, dirname, join } from "node:path";
 import type { SessionCase } from "#benchmark/case";
 import type { Immutable } from "#benchmark/contracts";
 import type { SessionRunConfig } from "#benchmark/config";
+import { measureCorpusVersion } from "#benchmark/corpus-version";
 import { EXIT_CODES, exitCodeFor } from "#benchmark/exit-codes";
 import { syntheticRateProvenance } from "#benchmark/rate-catalog-test-support";
 import { parseSessionAttemptRecord } from "#benchmark/session-record";
@@ -730,6 +731,18 @@ describe("running a session case against a corpus source", () => {
 			kind: "directory",
 			source: root,
 		});
+	});
+
+	it("records the corpus version of the source it ran against", async () => {
+		const root = await corpusDirectory("marker brief\n");
+		const expected = await measureCorpusVersion(
+			await temporary("rehearse-records-"),
+			{ kind: "directory", root },
+		);
+
+		const outcome = await attemptWith(root);
+
+		expect(outcome.record.corpusVersion).toEqual(expected);
 	});
 
 	it("records the live install as the origin when no source is named", async () => {

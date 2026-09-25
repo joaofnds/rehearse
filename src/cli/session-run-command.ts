@@ -5,13 +5,14 @@ import type { SessionSettings } from "#benchmark/claude";
 import { runCommand } from "#benchmark/command";
 import type { SessionRunConfig } from "#benchmark/config";
 import { CLAUDE_TIMEOUT_MS } from "#benchmark/config";
-import type { ResolvedCorpusFile } from "#benchmark/corpus-file";
+import type { CorpusRoot, ResolvedCorpusFile } from "#benchmark/corpus-file";
 import {
 	CorpusConfigurationError,
 	hashCorpusFiles,
 } from "#benchmark/corpus-file";
 import type { CorpusSourceResolver } from "#benchmark/corpus-source";
 import { resolveCorpusSource } from "#benchmark/corpus-source";
+import { measureCorpusVersion } from "#benchmark/corpus-version";
 import { SymlinkedEntryError } from "#benchmark/file-presence";
 import type {
 	ClaudeRunner,
@@ -64,6 +65,7 @@ function settingsOf(config: SessionRunConfig): SessionSettings {
 }
 
 interface AttemptCorpus {
+	readonly source: CorpusRoot;
 	readonly snapshot: SessionCorpusSnapshot;
 	readonly files: readonly ResolvedCorpusFile[];
 }
@@ -105,6 +107,7 @@ async function requireCorpus(
 		);
 
 		return {
+			source,
 			snapshot,
 			files: await hashCorpusFiles(snapshot, sessionCase.corpusFiles),
 		};
@@ -183,6 +186,10 @@ export async function runSessionDebugAttempt(
 		request.resolveCorpus,
 	);
 	const corpusFiles = corpus.files;
+	const corpusVersion = await measureCorpusVersion(
+		request.runsDirectory,
+		corpus.source,
+	);
 	const lineage = await lineageOf(sessionCase, corpusFiles, settings);
 	await claimShortId(request.runsDirectory, attemptId.caseId, {
 		kind: "attempt:session",
@@ -201,6 +208,7 @@ export async function runSessionDebugAttempt(
 			lineage,
 			corpusFiles,
 			corpusOrigin: corpus.snapshot.origin,
+			corpusVersion,
 			attempt,
 			elapsedMs: Date.now() - startedAt,
 			error,

@@ -1,12 +1,13 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import { mkdir, mkdtemp, readdir, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, relative } from "node:path";
+import { dirname, join, relative } from "node:path";
 import type { SessionCase } from "./case";
 import {
 	parseConfirmationGroupRecord,
 	parseConfirmationRepRecord,
 } from "./confirmation-record";
+import { measureCorpusVersion } from "./corpus-version";
 import { parseSessionAttemptRecord } from "./session-record";
 import {
 	runSessionConfirmation,
@@ -294,6 +295,87 @@ describe(runSessionConfirmation.name, () => {
 		expect(observed).toEqual([
 			"original skill\n|original instructions\n",
 			"original skill\n|original instructions\n",
+		]);
+	});
+
+	it("records on the group and every rep the corpus version measured before the reps ran", async () => {
+		const root = await mkdtemp(join(tmpdir(), "rehearse-session-version-"));
+		temporaryDirectories.push(root);
+		const corpusRoot = join(root, "source-corpus");
+		await Bun.write(join(corpusRoot, "CLAUDE.md"), "original instructions\n");
+		const expected = await measureCorpusVersion(join(root, "elsewhere"), {
+			kind: "directory",
+			root: corpusRoot,
+		});
+		const declared = simpleSessionCase("version-group");
+		const sessionCase: SessionCase = {
+			...declared,
+			declaration: { ...declared.declaration, corpusFiles: ["CLAUDE.md"] },
+			corpusFiles: ["CLAUDE.md"],
+		};
+
+		const outcome = await runSessionConfirmation(
+			{
+				executeAttempt: async (plan) => {
+					await Bun.write(join(corpusRoot, "CLAUDE.md"), "mutated\n");
+					const transcriptFile = join(plan.recordDirectory, "transcript.jsonl");
+					await Bun.write(transcriptFile, `rep ${plan.ordinal}\n`);
+
+					return {
+						attemptDirectory: join(plan.recordDirectory, "execution"),
+						reply: "OK",
+						transcriptFile,
+						metrics,
+						outcome: "SUCCESSFUL" as const,
+						checks: [
+							{
+								kind: "word-band" as const,
+								status: "PASS" as const,
+								detail: "1 word",
+							},
+						],
+						contextManifest: undefined,
+						transcriptDiagnostics: unavailableTranscriptDiagnostics,
+					};
+				},
+			},
+			{
+				runsDirectory: join(root, "runs"),
+				groupId: "version-group",
+				reps: 2,
+				projectedCost: {
+					reps: 2,
+					perRepMaximumUsd: 0.2,
+					preflightMaximumUsd: 0.1,
+					totalMaximumUsd: 0.5,
+				},
+				approvalMethod: "yes",
+				sessionCase,
+				corpus: corpusRoot,
+				model: "sonnet",
+				sessionBudgetUsd: 0.2,
+				preflight: { status: "COMPLETE", call: { metrics } },
+			},
+		);
+		const groupDirectory = dirname(outcome.groupRecordFile);
+		const group = parseConfirmationGroupRecord(
+			await Bun.file(outcome.groupRecordFile).text(),
+		);
+		const attemptFiles = await Array.fromAsync(
+			new Bun.Glob("reps/*/attempt.json").scan(groupDirectory),
+		);
+		const attempts = await Promise.all(
+			attemptFiles.map(async (file) =>
+				parseSessionAttemptRecord(
+					await Bun.file(join(groupDirectory, file)).text(),
+				),
+			),
+		);
+
+		expect(group.inputs.corpusVersion).toEqual(expected);
+		expect(attempts.map(({ corpusVersion }) => corpusVersion)).toEqual([
+			expected,
+			expected,
 		]);
 	});
 

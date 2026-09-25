@@ -9,6 +9,8 @@ import {
 } from "./context-manifest";
 import { claudeCallMetricsSchema } from "./contracts";
 import type { ResolvedCorpusFile } from "./corpus-file";
+import type { CorpusMeasurement } from "./corpus-measurement";
+import { corpusMeasurementSchema } from "./corpus-measurement";
 import { checkResultSchema } from "./session-check";
 import { stateResultSchema } from "./session-state-check";
 import { sessionSettingsDigest } from "./session-lineage";
@@ -217,6 +219,7 @@ const sessionAttemptRecordFields = {
 	sessionBudgetUsd: z.number().positive(),
 	corpusFiles: z.array(corpusFileSchema),
 	corpusOrigin: corpusSnapshotOriginSchema.optional(),
+	corpusVersion: corpusMeasurementSchema.optional(),
 	settingsDigest: sha256Schema.optional(),
 	prompt: z.string().min(1),
 	reply: z.string().optional(),
@@ -274,6 +277,7 @@ export const executionFailedSessionAttemptRecordSchema = z
 		sessionBudgetUsd: z.number().positive(),
 		corpusFiles: z.array(corpusFileSchema),
 		corpusOrigin: corpusSnapshotOriginSchema.optional(),
+		corpusVersion: corpusMeasurementSchema.optional(),
 		settingsDigest: sha256Schema.optional(),
 		contextManifest: z.undefined().optional(),
 		divergences: z.undefined().optional(),
@@ -343,6 +347,7 @@ export interface SessionAttemptRecordInputs {
 	readonly lineage: string;
 	readonly corpusFiles: readonly ResolvedCorpusFile[];
 	readonly corpusOrigin: CorpusSnapshotOrigin;
+	readonly corpusVersion?: CorpusMeasurement | undefined;
 	readonly attempt: SessionAttempt;
 	readonly elapsedMs: number;
 	readonly error?: string | undefined;
@@ -357,6 +362,7 @@ interface MutableSessionAttemptRecord {
 	sessionBudgetUsd: number;
 	corpusFiles: ResolvedCorpusFile[];
 	corpusOrigin: CorpusSnapshotOrigin;
+	corpusVersion?: CorpusMeasurement;
 	settingsDigest?: string;
 	contextManifest?: z.infer<typeof contextManifestSchema>;
 	divergences?: ReturnType<typeof reconcileManifest>;
@@ -401,6 +407,9 @@ export function buildSessionAttemptRecord(
 	}
 	if (settings.effort !== undefined) {
 		record.effort = settings.effort;
+	}
+	if (inputs.corpusVersion !== undefined) {
+		record.corpusVersion = { ...inputs.corpusVersion };
 	}
 	if (attempt.reply !== undefined) {
 		record.reply = attempt.reply;
