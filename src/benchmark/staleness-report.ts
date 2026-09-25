@@ -185,6 +185,35 @@ async function judgedReadManifest(
 	return judged;
 }
 
+type JudgedReads = CorpusChanges &
+	Pick<RecordStaleness, "readFiles" | "readManifest">;
+
+/**
+ * One record's reads judged against its corpus now, with each file it loaded
+ * beyond its captured ones read from `source`, so both sides hold the same
+ * files and each manifest entry says whether its file changed.
+ */
+async function judgedReads(
+	reads: RecordedReads,
+	current: StageCorpus,
+	source: CorpusRoot,
+	definition: StageDefinition | undefined,
+): Promise<JudgedReads> {
+	const readFiles = readCorpusFiles(reads);
+	const now = await withLoadedFilesNow(current, reads, source);
+	const changes = stageCorpusChanges(readFiles, now);
+
+	return {
+		...changes,
+		readFiles,
+		readManifest: await judgedReadManifest(
+			reads.readManifest,
+			comparedCorpus(now, changes),
+			definition,
+		),
+	};
+}
+
 /**
  * A changed rubric changes the grade, not the version the record read, so it
  * stales the record without moving its distance. A later stage ran only
@@ -511,21 +540,18 @@ export async function judgedStageReads(
 		throw new Error(`The run's pipeline does not declare the ${stage} stage`);
 	}
 
-	const now = await withLoadedFilesNow(
+	const judged = await judgedReads(
+		reads,
 		await stageCorpusNow(
 			definition.skill,
 			await currentInstructions(source),
 			source,
 		),
-		reads,
 		source,
-	);
-
-	return judgedReadManifest(
-		reads.readManifest,
-		comparedCorpus(now, stageCorpusChanges(readCorpusFiles(reads), now)),
 		definition,
 	);
+
+	return judged.readManifest;
 }
 
 interface CorpusJudgedAgainst {
@@ -706,21 +732,13 @@ export async function sessionAttemptStaleness(
 					readManifest:
 						record.schemaVersion === 1 ? undefined : record.readManifest,
 				};
-				const readFiles = readCorpusFiles(reads);
-				const corpusNow = await withLoadedFilesNow(current, reads, source);
-				const changes = stageCorpusChanges(readFiles, corpusNow);
+				const judged = await judgedReads(reads, current, source, undefined);
 				records.push({
 					id,
-					stale: changes.causes.length > 0,
-					...changes,
-					onlyCorpusFiles: readChangedFilesOnly(changes),
+					stale: judged.causes.length > 0,
+					...judged,
+					onlyCorpusFiles: readChangedFilesOnly(judged),
 					distance: underTest.distanceOf(record.corpusVersion),
-					readFiles,
-					readManifest: await judgedReadManifest(
-						reads.readManifest,
-						comparedCorpus(corpusNow, changes),
-						undefined,
-					),
 				});
 			} catch (error) {
 				unreadable.push({
@@ -812,23 +830,17 @@ export async function replayAttemptStaleness(
 				);
 			}
 			const definition = await replayedStage(runsDirectory, record);
-			const corpusNow = await withLoadedFilesNow(
-				await stageCorpusNow(definition.skill, instructions, source),
+			const corpus = await judgedReads(
 				record,
+				await stageCorpusNow(definition.skill, instructions, source),
 				source,
+				definition,
 			);
-			const readFiles = readCorpusFiles(record);
-			const corpus = stageCorpusChanges(readFiles, corpusNow);
 			const consumed = staleCheckpointsById.get(
 				`checkpoint:${record.runName}/${record.consumed.stage}`,
 			);
 			const knobCauses = namedKnobCauses(record, knobs);
-			const readManifest = await judgedReadManifest(
-				record.readManifest,
-				comparedCorpus(corpusNow, corpus),
-				definition,
-			);
-			const rubric = rubricCauses(readManifest);
+			const rubric = rubricCauses(corpus.readManifest);
 			const causes = [
 				...(consumed === undefined
 					? []
@@ -848,8 +860,8 @@ export async function replayAttemptStaleness(
 					(consumed === undefined || consumed.onlyCorpusFiles) &&
 					readChangedFilesOnly(corpus),
 				distance: underTest.distanceOf(record.corpusVersion),
-				readFiles,
-				readManifest,
+				readFiles: corpus.readFiles,
+				readManifest: corpus.readManifest,
 			});
 		} catch (error) {
 			unreadable.push({
@@ -865,9 +877,6 @@ export async function replayAttemptStaleness(
 const FROZEN_CORPUS = "inputs/corpus/";
 
 type CorpusChanges = Pick<RecordStaleness, "causes" | "changedFiles">;
-
-type GroupCorpus = CorpusChanges &
-	Pick<RecordStaleness, "readFiles" | "readManifest">;
 
 type FrozenGroupFile = ParsedConfirmationGroupRecord["inputs"]["files"][number];
 
@@ -927,7 +936,7 @@ async function stageGroupChanges(
 	files: readonly FrozenGroupFile[],
 	source: CorpusRoot,
 	instructions: CurrentInstructions,
-): Promise<GroupCorpus> {
+): Promise<JudgedReads> {
 	const paths = confirmationGroupPaths(runsDirectory, groupId);
 	const pipeline = await frozenPipeline(paths.directory, files);
 	const repIds = await confirmationRepIds(runsDirectory, groupId);
@@ -941,25 +950,18 @@ async function stageGroupChanges(
 			continue;
 		}
 
-		const reads = {
-			corpusFiles: recorded,
-			readManifest: await repStageManifest(paths, repIds, stage.name),
-		};
-		const now = await withLoadedFilesNow(
+		const judged = await judgedReads(
+			{
+				corpusFiles: recorded,
+				readManifest: await repStageManifest(paths, repIds, stage.name),
+			},
 			await stageCorpusNow(stage.skill, instructions, source),
-			reads,
 			source,
+			stage,
 		);
-		const change = stageCorpusChanges(readCorpusFiles(reads), now);
-		readFiles.push(...readCorpusFiles(reads));
-		changes.push(change);
-		readManifest.push(
-			...(await judgedReadManifest(
-				reads.readManifest,
-				comparedCorpus(now, change),
-				stage,
-			)),
-		);
+		readFiles.push(...judged.readFiles);
+		changes.push(judged);
+		readManifest.push(...judged.readManifest);
 	}
 
 	return { ...mergedChanges(changes), readFiles, readManifest };
@@ -1007,7 +1009,7 @@ async function sessionGroupChanges(
 	caseId: string,
 	files: readonly FrozenGroupFile[],
 	source: CorpusRoot,
-): Promise<GroupCorpus> {
+): Promise<JudgedReads> {
 	const listing = await listCases();
 	const declaration = sessionCases(listing.declarations).find(
 		({ id }) => id === caseId,
@@ -1018,27 +1020,15 @@ async function sessionGroupChanges(
 		);
 	}
 
-	const reads = {
-		corpusFiles: frozenCorpusFiles(files, FROZEN_CORPUS),
-		readManifest: await repAttemptManifest(runsDirectory, groupId),
-	};
-	const readFiles = readCorpusFiles(reads);
-	const now = await withLoadedFilesNow(
+	return judgedReads(
+		{
+			corpusFiles: frozenCorpusFiles(files, FROZEN_CORPUS),
+			readManifest: await repAttemptManifest(runsDirectory, groupId),
+		},
 		await currentCaseCorpus(declaration, source),
-		reads,
 		source,
+		undefined,
 	);
-	const changes = stageCorpusChanges(readFiles, now);
-
-	return {
-		...changes,
-		readFiles,
-		readManifest: await judgedReadManifest(
-			reads.readManifest,
-			comparedCorpus(now, changes),
-			undefined,
-		),
-	};
 }
 
 /** Every read a session group's rep attempts recorded, once per file and hash. */
