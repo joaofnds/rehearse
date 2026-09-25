@@ -38,7 +38,12 @@ import {
 	toolUses,
 } from "./transcript";
 import { SessionInvocationError } from "./session-invocation-error";
-import { loadedProjectInstructions } from "./stage-reads";
+import {
+	corpusSourceDirectories,
+	loadedProjectInstructions,
+	spellings,
+} from "./stage-reads";
+import { liveCorpusRoot } from "./corpus-file";
 import { normalizeContextEvidence } from "./context-evidence";
 import { STORED_GIT_DIRECTORY } from "./git-directory-name";
 import { preserveStateEvidence } from "./session-state-evidence";
@@ -445,6 +450,25 @@ interface CorpusOverlay {
 }
 
 /**
+ * Where the session reads its corpus: the overlay under the attempt directory,
+ * and the live install when the variant is live or none was given. A load
+ * from any other `.claude` is not the corpus under test.
+ */
+function sessionCorpusDirectories(
+	snapshot: SessionCorpusSnapshot | undefined,
+	attemptDirectory: string,
+): readonly string[] {
+	const overlay = join(attemptDirectory, ".claude");
+	if (snapshot === undefined) {
+		return [overlay, liveCorpusRoot()];
+	}
+
+	return snapshot.kind === "live"
+		? [overlay, ...corpusSourceDirectories(snapshot)]
+		: [overlay];
+}
+
+/**
  * The corpus variant reaches the session as project-level files under the
  * attempt directory the harness owns, which shadow the same-named user-level
  * ones. A live corpus needs no overlay: the session already reads it.
@@ -800,7 +824,13 @@ async function recordAttempt(
 			metrics,
 			outcome: result.outcome,
 			checks: result.results,
-			contextManifest: observedManifest(turn, request.sessionCase.projectFiles),
+			contextManifest: observedManifest(
+				turn,
+				request.sessionCase.projectFiles,
+				await spellings(
+					sessionCorpusDirectories(request.corpusSnapshot, attemptDirectory),
+				),
+			),
 			loadedProjectInstructions: await loadedProjectInstructions(
 				turn,
 				attemptDirectory,

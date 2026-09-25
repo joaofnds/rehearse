@@ -1,3 +1,4 @@
+import { isAbsolute, relative } from "node:path";
 import { corpusLayoutSuffix, isCorpusLayoutPath } from "./corpus-file";
 import type { Immutable } from "./contracts";
 import type { TranscriptLine } from "./transcript";
@@ -45,17 +46,43 @@ export type ManifestDivergence =
  * shapes share the `.claude/` segment immediately before the layout path, so
  * the manifest entry is the suffix after the last one, not the loaded path
  * itself.
+ *
+ * A caller that knows the roots its corpus resolved from passes them, and then
+ * only a load under one of them is a corpus file, by its path inside that
+ * root. A `.claude/` directory anywhere else holds bytes the corpus version
+ * never measured.
  */
-function readCorpusLayoutPath(path: string): string | undefined {
+function readCorpusLayoutPath(
+	path: string,
+	corpusRoots?: readonly string[],
+): string | undefined {
 	if (isCorpusLayoutPath(path)) {
 		return path;
 	}
 
-	const suffix = corpusLayoutSuffix(path);
+	const inside =
+		corpusRoots === undefined
+			? corpusLayoutSuffix(path)
+			: pathInsideAny(path, corpusRoots);
 
-	return suffix !== undefined && isCorpusLayoutPath(suffix)
-		? suffix
+	return inside !== undefined && isCorpusLayoutPath(inside)
+		? inside
 		: undefined;
+}
+
+/** The path relative to the first of `roots` it lies under, if any. */
+export function pathInsideAny(
+	path: string,
+	roots: readonly string[],
+): string | undefined {
+	for (const root of roots) {
+		const inside = relative(root, path);
+		if (inside !== "" && !inside.startsWith("..") && !isAbsolute(inside)) {
+			return inside;
+		}
+	}
+
+	return undefined;
 }
 
 /**
@@ -139,10 +166,11 @@ export function isCorpusLoad(path: string): boolean {
 export function observedManifest(
 	lines: Immutable<readonly TranscriptLine[]>,
 	declaredProjectFiles: readonly string[] = [],
+	corpusRoots?: readonly string[],
 ): ContextManifest {
 	const loaded = loadedFiles(lines);
 	const corpusPaths = loaded
-		.map((path) => readCorpusLayoutPath(path))
+		.map((path) => readCorpusLayoutPath(path, corpusRoots))
 		.filter((path) => path !== undefined);
 	const projectPaths = loaded
 		.map((path) => readProjectLayoutPath(path, declaredProjectFiles))

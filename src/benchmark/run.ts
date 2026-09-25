@@ -80,7 +80,7 @@ import type {
 } from "./pipeline";
 import type { PendingStage } from "./run-abort";
 import { createRunAbort, fileRunArtifactPersistence } from "./run-abort";
-import { recordStageReads } from "./stage-reads";
+import { corpusSourceDirectories, recordStageReads } from "./stage-reads";
 import type { RunEventRecorder } from "./run-events";
 import { openRunEventStore, runEventRecorderFor } from "./run-events";
 import type { BenchmarkRunPaths } from "./run-layout";
@@ -850,6 +850,7 @@ export async function runGradedStages(
 			startSha: baselineSha,
 			transcript: stageTranscript,
 			skill: definition.skill,
+			corpusRoots: corpusSourceDirectories(context.corpusSource),
 			corpusFiles,
 			versionFiles,
 			rubric: {

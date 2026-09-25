@@ -1,35 +1,23 @@
 import { createHash } from "node:crypto";
 import { realpath } from "node:fs/promises";
-import { basename, relative } from "node:path";
+import { basename } from "node:path";
 import type { HashedFile, StageTranscriptSource } from "./checkpoint";
 import { stageTranscriptFile } from "./checkpoint";
 import {
 	isCorpusLoad,
 	loadedFiles,
 	observedManifest,
+	pathInsideAny,
 	projectEntries,
 } from "./context-manifest";
 import type { ContextManifest } from "./context-manifest";
+import type { CorpusRoot } from "./corpus-file";
 import type { ReadManifestEntry } from "./read-manifest";
 import { PROJECT_INSTRUCTION_FILES, stageReadManifest } from "./read-manifest";
 import { runCommand } from "./command";
 import type { Immutable } from "./contracts";
 import type { TranscriptLine } from "./transcript";
 import { parseTranscriptFile } from "./transcript";
-
-function targetPath(
-	path: string,
-	targetRoots: readonly string[],
-): string | undefined {
-	for (const root of targetRoots) {
-		const inside = relative(root, path);
-		if (inside !== "" && !inside.startsWith("..") && !inside.startsWith("/")) {
-			return inside;
-		}
-	}
-
-	return undefined;
-}
 
 /**
  * Project instructions the stage loaded from the target, by their path in it.
@@ -40,7 +28,7 @@ export async function loadedProjectInstructions(
 	lines: Immutable<readonly TranscriptLine[]>,
 	targetDir: string,
 ): Promise<readonly string[]> {
-	const roots = [...new Set([targetDir, await realpath(targetDir)])];
+	const roots = await spellings([targetDir]);
 	const paths: string[] = [];
 	for (const path of loadedFiles(lines)) {
 		if (
@@ -50,8 +38,60 @@ export async function loadedProjectInstructions(
 			continue;
 		}
 
-		const inside = targetPath(path, roots);
+		const inside = pathInsideAny(path, roots);
 		if (inside !== undefined) {
+			paths.push(inside);
+		}
+	}
+
+	return [...new Set(paths)];
+}
+
+/**
+ * The directories a corpus source reads from. A live install may resolve
+ * into the tree backing it, so a load there is the corpus's too.
+ */
+export function corpusSourceDirectories(source: CorpusRoot): readonly string[] {
+	return source.kind === "live"
+		? [source.root, source.backingRoot]
+		: [source.root];
+}
+
+/**
+ * Each directory as given and as its links resolve, since the provider may
+ * record a load under either. A directory that does not exist is kept as
+ * given.
+ */
+export async function spellings(
+	directories: readonly string[],
+): Promise<readonly string[]> {
+	const found: string[] = [];
+	for (const directory of directories) {
+		found.push(directory, await realpath(directory).catch(() => directory));
+	}
+
+	return [...new Set(found)];
+}
+
+/**
+ * Files the stage loaded from the target's own `.claude` that no corpus root
+ * holds, by their path in the target. They come from the repository, not the
+ * corpus under test, so they are the target's and are hashed as its starting
+ * commit held them.
+ */
+async function loadedTargetClaudeFiles(
+	lines: Immutable<readonly TranscriptLine[]>,
+	targetDir: string,
+	corpusRoots: readonly string[],
+): Promise<readonly string[]> {
+	const targetRoots = await spellings([targetDir]);
+	const paths: string[] = [];
+	for (const path of loadedFiles(lines)) {
+		const inside = pathInsideAny(path, targetRoots);
+		if (
+			pathInsideAny(path, corpusRoots) === undefined &&
+			inside?.startsWith(".claude/") === true
+		) {
 			paths.push(inside);
 		}
 	}
@@ -114,6 +154,11 @@ export interface StageReadsRequest {
 	readonly startSha: string;
 	readonly transcript: StageTranscriptSource | undefined;
 	readonly skill: string;
+	/**
+	 * The directories the stage's corpus resolved from. Only a load under one
+	 * of them is a corpus entry.
+	 */
+	readonly corpusRoots: readonly string[];
 	readonly corpusFiles: readonly HashedFile[];
 	/** The corpus version measured at the stage's start. */
 	readonly versionFiles: readonly HashedFile[];
@@ -130,12 +175,16 @@ export async function recordStageReads(
 			: await parseTranscriptFile(
 					stageTranscriptFile(request.targetDir, request.transcript),
 				);
-	const projectPaths = await loadedProjectInstructions(
-		lines,
-		request.targetDir,
-	);
+	const corpusRoots = await spellings(request.corpusRoots);
+	const projectPaths = [
+		...(await loadedProjectInstructions(lines, request.targetDir)),
+		...(await loadedTargetClaudeFiles(lines, request.targetDir, corpusRoots)),
+	];
 	const observed: ContextManifest = {
-		paths: [...observedManifest(lines).paths, ...projectEntries(projectPaths)],
+		paths: [
+			...observedManifest(lines, [], corpusRoots).paths,
+			...projectEntries(projectPaths),
+		],
 	};
 
 	return stageReadManifest({

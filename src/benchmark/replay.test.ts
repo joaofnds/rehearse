@@ -587,10 +587,7 @@ describe(runReplay.name, () => {
 									id: "t",
 									name: "Read",
 									input: {
-										file_path: join(
-											options.targetDir,
-											".claude/skills/build/SKILL.md",
-										),
+										file_path: "/live/skills/build/SKILL.md",
 									},
 								},
 							],

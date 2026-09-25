@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { mkdir, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { runCommand } from "#benchmark/command";
 import { projectSlug } from "#benchmark/session-capture";
 import { recordStageReads } from "#benchmark/stage-reads";
 import { currentSha } from "#benchmark/target";
@@ -55,6 +56,7 @@ describe("recordStageReads", () => {
 			startSha,
 			transcript: { sessionId: "session", projectsDirectory },
 			skill: "shape",
+			corpusRoots: [],
 			corpusFiles: [],
 			versionFiles: [],
 			rubric: { path: "rubrics/shape.json", sha256: "e".repeat(64) },
@@ -75,6 +77,103 @@ describe("recordStageReads", () => {
 				half: "project",
 				role: "project instructions",
 				evidence: "observed",
+			},
+		]);
+	});
+
+	async function transcriptOf(
+		targetDirectory: string,
+		paths: readonly string[],
+	): Promise<string> {
+		const projectsDirectory = await mkdtemp(
+			join(tmpdir(), "rehearse-projects-"),
+		);
+		testResources.track(projectsDirectory);
+		const slug = join(projectsDirectory, projectSlug(targetDirectory));
+		await mkdir(slug, { recursive: true });
+		await Bun.write(
+			join(slug, "session.jsonl"),
+			paths.map((path) => readLine(path)).join("\n"),
+		);
+
+		return projectsDirectory;
+	}
+
+	it("records only a read under the stage's corpus root as a corpus entry", async () => {
+		const target = await testResources.createRepository();
+		const startSha = await currentSha(target.directory);
+		const corpusRoot = await mkdtemp(join(tmpdir(), "rehearse-corpus-"));
+		testResources.track(corpusRoot);
+		const elsewhere = await mkdtemp(join(tmpdir(), "rehearse-elsewhere-"));
+		testResources.track(elsewhere);
+		const projectsDirectory = await transcriptOf(target.directory, [
+			join(corpusRoot, "skills", "delivery", "SKILL.md"),
+			join(elsewhere, ".claude", "skills", "planted", "SKILL.md"),
+		]);
+
+		const manifest = await recordStageReads({
+			targetDir: target.directory,
+			startSha,
+			transcript: { sessionId: "session", projectsDirectory },
+			skill: "shape",
+			corpusRoots: [corpusRoot],
+			corpusFiles: [],
+			versionFiles: [
+				{ path: "skills/delivery/SKILL.md", sha256: "d".repeat(64) },
+				{ path: "skills/planted/SKILL.md", sha256: "a".repeat(64) },
+			],
+			rubric: { path: "rubrics/shape.json", sha256: "e".repeat(64) },
+		});
+
+		expect(manifest.filter(({ evidence }) => evidence === "observed")).toEqual([
+			{
+				path: "skills/delivery/SKILL.md",
+				half: "corpus",
+				role: "read for context",
+				evidence: "observed",
+				sha256: "d".repeat(64),
+			},
+		]);
+	});
+
+	it("marks a read from the target's own .claude as from the target, hashed at its starting commit", async () => {
+		const target = await testResources.createRepository();
+		await mkdir(join(target.directory, ".claude", "skills", "local"), {
+			recursive: true,
+		});
+		await Bun.write(
+			join(target.directory, ".claude", "skills", "local", "SKILL.md"),
+			"as the target held it\n",
+		);
+		await runCommand(["git", "add", "--force", ".claude"], target.directory);
+		await commitAll(target.directory, "chore: add a local skill");
+		const startSha = await currentSha(target.directory);
+		const corpusRoot = await mkdtemp(join(tmpdir(), "rehearse-corpus-"));
+		testResources.track(corpusRoot);
+		const projectsDirectory = await transcriptOf(target.directory, [
+			join(target.directory, ".claude", "skills", "local", "SKILL.md"),
+		]);
+
+		const manifest = await recordStageReads({
+			targetDir: target.directory,
+			startSha,
+			transcript: { sessionId: "session", projectsDirectory },
+			skill: "shape",
+			corpusRoots: [corpusRoot],
+			corpusFiles: [],
+			versionFiles: [{ path: "skills/local/SKILL.md", sha256: "c".repeat(64) }],
+			rubric: { path: "rubrics/shape.json", sha256: "e".repeat(64) },
+		});
+
+		expect(manifest.filter(({ evidence }) => evidence === "observed")).toEqual([
+			{
+				path: ".claude/skills/local/SKILL.md",
+				half: "project",
+				role: "read for context",
+				evidence: "observed",
+				sha256: createHash("sha256")
+					.update("as the target held it\n")
+					.digest("hex"),
 			},
 		]);
 	});

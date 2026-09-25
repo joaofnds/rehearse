@@ -480,6 +480,7 @@ async function runPipelineRep(
 								projectsDirectory: dependencies.projectsDirectory,
 							},
 				skill: definition.skill,
+				corpusRoots: [join(plan.worktreePath, ".claude")],
 				corpusFiles: frozen.corpusFiles[definition.name] ?? [],
 				versionFiles: frozen.versionFiles,
 				rubric: {

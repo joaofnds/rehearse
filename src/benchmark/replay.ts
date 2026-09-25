@@ -32,7 +32,7 @@ import type { ReplayRecord } from "./replay-record";
 import type { BenchmarkRunPaths } from "./run-layout";
 import { runNameFromTimestamp } from "./run-layout";
 import { bindReplay, claimShortId } from "./short-id";
-import { recordStageReads } from "./stage-reads";
+import { corpusSourceDirectories, recordStageReads } from "./stage-reads";
 import { chainRubricCauses } from "./staleness-report";
 import { stageRubricSha256 } from "./judge-agreement";
 import type { loadStageRubric, runStageJudge } from "./stage-grading";
@@ -417,6 +417,10 @@ export async function runReplay(
 							projectsDirectory: dependencies.projectsDirectory,
 						},
 			skill: plan.definition.skill,
+			corpusRoots:
+				request.corpusSource.kind === "directory"
+					? [join(worktreeDir, ".claude")]
+					: corpusSourceDirectories(request.corpusSource),
 			corpusFiles: session.corpusFiles,
 			versionFiles: session.versionFiles,
 			rubric: {

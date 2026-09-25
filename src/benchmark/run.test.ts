@@ -692,7 +692,7 @@ describe(runGradedStages.name, () => {
 			});
 		await Bun.write(
 			join(slug, "session.jsonl"),
-			`${read("/install/.claude/skills/shape/SKILL.md")}\n${read("/install/.claude/rulebook/style.md")}\n`,
+			`${read(join(context.corpusSource.root, "skills/shape/SKILL.md"))}\n${read(join(context.corpusSource.root, "rulebook/style.md"))}\n`,
 		);
 
 		// The real judge grades against the rubric the stage loaded.

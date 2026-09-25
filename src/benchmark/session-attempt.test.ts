@@ -118,7 +118,11 @@ function readFileLine(sessionId: string, filePath: string): string {
 	});
 }
 
-function skillBodyLine(sessionId: string, skill: string): string {
+function skillBodyLine(
+	sessionId: string,
+	skill: string,
+	directory = "/tmp/rehearse-attempt",
+): string {
 	return JSON.stringify({
 		type: "user",
 		sessionId,
@@ -127,7 +131,7 @@ function skillBodyLine(sessionId: string, skill: string): string {
 			content: [
 				{
 					type: "text",
-					text: `Base directory for this skill: /tmp/rehearse-attempt/.claude/skills/${skill}\n\nReply OK.`,
+					text: `Base directory for this skill: ${directory}/.claude/skills/${skill}\n\nReply OK.`,
 				},
 			],
 		},
@@ -652,7 +656,7 @@ function appendingClaude(
  */
 function claudeWriting(
 	projects: string,
-	extraLines: (sessionId: string) => readonly string[],
+	extraLines: (sessionId: string, cwd: string) => readonly string[],
 	reply: string,
 ): SessionAttemptRequest["runClaude"] {
 	return async (command, cwd) => {
@@ -661,7 +665,7 @@ function claudeWriting(
 		await mkdir(slug, { recursive: true });
 		await writeFile(
 			join(slug, `${sessionId}.jsonl`),
-			`${[...extraLines(sessionId), transcriptLine(sessionId, reply)].join("\n")}\n`,
+			`${[...extraLines(sessionId, cwd), transcriptLine(sessionId, reply)].join("\n")}\n`,
 		);
 
 		return envelope(reply);
@@ -1190,7 +1194,7 @@ describe(runSessionAttempt.name, () => {
 				recordDirectory: await recordDirectory(),
 				runClaude: claudeWriting(
 					projects,
-					(sessionId) => [skillBodyLine(sessionId, "verify")],
+					(sessionId, cwd) => [skillBodyLine(sessionId, "verify", cwd)],
 					"OK",
 				),
 			}),
@@ -1198,6 +1202,29 @@ describe(runSessionAttempt.name, () => {
 
 		expect(attempt.contextManifest?.paths).toContainEqual({
 			path: "skills/verify/SKILL.md",
+			half: "corpus",
+		});
+	});
+
+	it("leaves out of the recorded context manifest a skill loaded from a .claude outside the session's corpus", async () => {
+		const projects = await projectsRoot();
+
+		const attempt = await runSessionAttempt(
+			request({
+				projectsDirectory: projects,
+				recordDirectory: await recordDirectory(),
+				runClaude: claudeWriting(
+					projects,
+					(sessionId) => [
+						skillBodyLine(sessionId, "planted", "/tmp/elsewhere"),
+					],
+					"OK",
+				),
+			}),
+		);
+
+		expect(attempt.contextManifest?.paths).not.toContainEqual({
+			path: "skills/planted/SKILL.md",
 			half: "corpus",
 		});
 	});
