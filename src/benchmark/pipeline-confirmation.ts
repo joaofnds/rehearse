@@ -469,8 +469,29 @@ async function runPipelineRep(
 			);
 			judgingStage = false;
 			stageJudgeCalls.push(...scorecard.attempts);
+			const readManifest = await recordStageReads({
+				targetDir: plan.worktreePath,
+				startSha: baselineSha,
+				transcript:
+					dependencies.projectsDirectory === undefined
+						? undefined
+						: {
+								sessionId: currentSession.transcript.sessionId,
+								projectsDirectory: dependencies.projectsDirectory,
+							},
+				skill: definition.skill,
+				corpusFiles: frozen.corpusFiles[definition.name] ?? [],
+				versionFiles: frozen.versionFiles,
+				rubric: {
+					path: definition.rubric,
+					sha256: stageRubricSha256(scorecard.rubric),
+				},
+			});
 			const stageFile = repPaths.stageFile(definition.name);
-			await Bun.write(stageFile, `${JSON.stringify(scorecard, null, 2)}\n`);
+			await Bun.write(
+				stageFile,
+				`${JSON.stringify({ ...scorecard, readManifest }, null, 2)}\n`,
+			);
 			stageOutcomes.push({
 				stage: definition.name,
 				status: "JUDGED",
@@ -527,24 +548,6 @@ async function runPipelineRep(
 					removeWorktree: dependencies.removeWorktree,
 				});
 			}
-			const readManifest = await recordStageReads({
-				targetDir: plan.worktreePath,
-				startSha: baselineSha,
-				transcript:
-					dependencies.projectsDirectory === undefined
-						? undefined
-						: {
-								sessionId: currentSession.transcript.sessionId,
-								projectsDirectory: dependencies.projectsDirectory,
-							},
-				skill: definition.skill,
-				corpusFiles: frozen.corpusFiles[definition.name] ?? [],
-				versionFiles: frozen.versionFiles,
-				rubric: {
-					path: definition.rubric,
-					sha256: stageRubricSha256(scorecard.rubric),
-				},
-			});
 			({ resultSha: baselineSha } = currentSession);
 			if (currentSession.artifact !== undefined) {
 				priorArtifacts.push(currentSession.artifact);

@@ -21,6 +21,7 @@ import {
 import { parseCheckpointRecord } from "./checkpoint";
 import { runCommand } from "./command";
 import { stageRubricSha256 } from "./judge-agreement";
+import { readManifestSchema } from "./read-manifest";
 import type { CorpusMeasurement } from "./corpus-measurement";
 import { parseArgs } from "./config";
 import {
@@ -396,6 +397,47 @@ describe(runPipelineConfirmation.name, () => {
 					?.filter(({ half }) => half === "corpus")
 					.map(({ path, sha256 }) => ({ path, sha256 })),
 			).toEqual([...checkpoint.corpusFiles]);
+		}
+	});
+
+	it("keeps on the stage file of a rep its judge stopped the read manifest of that stage", async () => {
+		const harness = await PipelineConfirmationHarness.setup(testResources);
+
+		const outcome = await harness.run({}, (dependencies) => ({
+			...dependencies,
+			runStageJudge: (_model, _effort, _budget, input, source) => {
+				const scorecard = pipelineStageScorecard(input, source);
+
+				return Promise.resolve({
+					...scorecard,
+					grade: { ...scorecard.grade, grade: "F", verdict: "STOP" },
+				});
+			},
+		}));
+		const groupDirectory = dirname(outcome.groupRecordFile);
+		const stageFiles = await Array.fromAsync(
+			new Bun.Glob("reps/*/stages/discuss.json").scan(groupDirectory),
+		);
+		const recorded = await Promise.all(
+			stageFiles.map(
+				async (file) =>
+					z
+						.object({ readManifest: readManifestSchema })
+						.parse(
+							JSON.parse(await Bun.file(join(groupDirectory, file)).text()),
+						).readManifest,
+			),
+		);
+
+		expect(recorded).not.toHaveLength(0);
+		for (const readManifest of recorded) {
+			expect(readManifest).toContainEqual({
+				path: "rubrics/discuss.json",
+				half: "rubric",
+				role: "judge rubric",
+				evidence: "declared",
+				sha256: stageRubricSha256(CONFIRMATION_STAGE_RUBRIC),
+			});
 		}
 	});
 
