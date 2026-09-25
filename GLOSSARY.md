@@ -255,13 +255,6 @@ See [current state](docs/status.md) for implementation coverage and
   corpus's own links cannot declare another permitted tree.
 - **Corpus tier** — stage-local (a skill; testable in stage mode) or global
   (`CLAUDE.md`, doctrine; validated only end-to-end).
-- **Corpus version**: the whole corpus layout of one source as it stood when
-  it was measured, identified by the sha256 of its canonical file list, so two
-  measurements of the same bytes are one version. Every run stage, replay,
-  session attempt and confirmation group records the version it ran against,
-  and the records directory keeps each version's files, so a version can be
-  read back after the source has changed. A source whose layout refused
-  hashing has no version, and the record says so instead.
 - **Corpus variant** — one corpus a comparison arm runs against, identified by
   the snapshot its source resolved to rather than by the source string, so two
   directories holding the same bytes are the same variant. It is the corpus half

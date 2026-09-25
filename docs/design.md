@@ -128,7 +128,11 @@ only the store keeps once the source changes. File bodies and version manifests
 are content-addressed and written whole before they are renamed into place, so
 concurrent writers of one version write the same bytes. Each source's log entry
 is linked into place by an exclusive create, and a writer that loses the race
-re-reads the log, so two measurements of one new state add one entry.
+re-reads the log, so two measurements of one new state add one entry. A new
+entry takes the position after the highest one present, so a missing entry
+cannot stall later writers. Two measurements racing across an edit can still
+log the older state after the newer one, since each compares against the
+latest entry it read.
 
 The short id registry at `.benchmark-runs/short-ids/` is authoritative too,
 since a quoted short id means only what the registry says. Each number is

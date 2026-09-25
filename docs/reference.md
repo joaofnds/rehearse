@@ -787,7 +787,8 @@ before each stage session, a replay and a session attempt before their
 session, and a confirmation group once when it freezes its inputs, so every rep
 carries the group's version. The measurement lands in the record as
 `corpusVersion`, either `{kind: "version", digest}` or `{kind: "refused",
-refusal}` when the layout refused hashing: on a stage checkpoint, a replay
+refusal}` when the layout refused hashing: on a stage checkpoint and the
+stage's record, including a stop record and one whose judge failed, a replay
 record, a session attempt record and a group's `inputs`. A record written
 before versions were measured has no field, which readers report as version
 not recorded.
@@ -795,25 +796,34 @@ not recorded.
 Measuring keeps the version under `corpus-versions/` in the records directory:
 `blobs/<sha256>` holds each file body once, `versions/<digest>.json` lists the
 version's files, and `logs/<source>/<n>` numbers the versions one source was
-measured at, where `<source>` is a hash of the source's resolved root. An entry
-is added only when the measured version differs from the source's latest one,
-so repeated or concurrent measurements of an unchanged tree add nothing. The
+measured at, where `<source>` is a hash of the directory the source's root
+resolves to, so a root reached through a link shares that directory's log. File
+bodies are written readable by their owner only. An entry is added only when
+the measured version differs from the source's latest one, so repeated or
+concurrent measurements of an unchanged tree add nothing, and a new entry takes
+the position after the highest one present. The
 store copies instruction files, so a records directory inside the repository
 other than `.benchmark-runs/` leaves them where git can see them.
 
 `corpus versions [--corpus <dir>]` lists a source's log, oldest first, with
 each entry's position, label and digest. `corpus show <version>` prints a
 version's files, and `--file <layout-path>` prints one file as that version
-held it. A version is named by its label or any prefix of its digest, with or
-without `corpus@`, and a prefix matching several recorded versions is refused
-with exit code 3 naming each of them. The server serves the same reads:
+held it, decoded as UTF-8 text, so bytes that are not UTF-8 print as
+replacement characters. A version is named by its label or any prefix of its
+digest, with or without `corpus@`. An empty prefix names no version, and a
+prefix matching several versions the store holds is refused with exit code 3
+naming each of them. The server serves the same reads:
 `/api/corpus/versions` lists the live source's log as `{position, label,
 digest}` entries, `/api/corpus/versions/<version>` answers `{digest, label,
 files}`, and `/api/corpus/versions/<version>/file?path=<layout-path>` answers
-the file's text. A version no record holds, or a file the version does not
+the file's stored bytes as `application/octet-stream`, and 400 when `path` is
+missing. A version the store does not hold, or a file the version does not
 hold, answers 404, and an ambiguous prefix answers 409 with its `candidates`.
 `/api/corpus` names the live tree by its full version `digest`, computed
 without writing to the store, and omits it when any entry refused hashing.
+Until a run, replay or session attempt measures that tree, the store does not
+hold its version, so the rail's `corpus@` label can name a version that answers
+404.
 
 ### Pipeline run record
 
@@ -834,7 +844,7 @@ verdict, its checkpoint's short id, its session and judge cost, and its tokens
 as input, cache read, cache write, output and total input, summed over its
 session calls and judge attempts. Its instruction files are the corpus files
 its checkpoint records, or its stop record's when it saved no checkpoint, each
-with its sha256 digest. As artifacts out it lists its declared artifact, the
+with its sha256 digest, and its `corpusVersion` comes from the same place. As artifacts out it lists its declared artifact, the
 workflow-state files it added, modified or removed against the checkpoint it
 continued from, and the commit subjects and changed paths its record carries.
 It says whether its checkpoint is `recorded` or `missing`, since a stopped
@@ -921,9 +931,10 @@ metrics are incomplete, is named under `missing`, and under `reasons` when no
 part recorded any spend.
 
 Every row carries `corpusVersion`, the version its record measured, absent
-when the record predates versions. A pipeline run row shows its latest stage
-checkpoint's version and sets `corpusChangedDuringRun` when its checkpoints
-recorded more than one version. A session attempt row and a replay row show
+when the record predates versions. A pipeline run row shows the version of its
+latest stage that recorded one, from the stage's checkpoint or, when it saved
+none, its stop record, and sets `corpusChangedDuringRun` when its stages
+measured more than one version. A refusal counts toward neither. A session attempt row and a replay row show
 their own record's version, and a confirmation group row shows the version its
 inputs froze.
 
