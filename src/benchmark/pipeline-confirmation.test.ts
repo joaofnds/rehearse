@@ -21,6 +21,7 @@ import {
 import { parseCheckpointRecord } from "./checkpoint";
 import { runCommand } from "./command";
 import { stageRubricSha256 } from "./judge-agreement";
+import type { ReadManifestEntry } from "./read-manifest";
 import { readManifestSchema } from "./read-manifest";
 import type { CorpusMeasurement } from "./corpus-measurement";
 import { parseArgs } from "./config";
@@ -429,16 +430,18 @@ describe(runPipelineConfirmation.name, () => {
 			),
 		);
 
-		expect(recorded).not.toHaveLength(0);
-		for (const readManifest of recorded) {
-			expect(readManifest).toContainEqual({
-				path: "rubrics/discuss.json",
-				half: "rubric",
-				role: "judge rubric",
-				evidence: "declared",
-				sha256: stageRubricSha256(CONFIRMATION_STAGE_RUBRIC),
-			});
-		}
+		const rubricEntry: ReadManifestEntry = {
+			path: "rubrics/discuss.json",
+			half: "rubric",
+			role: "judge rubric",
+			evidence: "declared",
+			sha256: stageRubricSha256(CONFIRMATION_STAGE_RUBRIC),
+		};
+		expect(
+			recorded.map((readManifest) =>
+				readManifest.filter(({ half }) => half === "rubric"),
+			),
+		).toEqual([[rubricEntry], [rubricEntry], [rubricEntry]]);
 	});
 
 	it("marks a stage skill the rep's session was observed to read", async () => {
