@@ -6,6 +6,7 @@ import { join, relative } from "node:path";
 import {
 	deriveStaleness,
 	hashedCorpus,
+	withLoadedFilesNow,
 	snapshotStageCorpus,
 	installStageCorpusSnapshot,
 	INITIAL_CHECKPOINT_STAGE,
@@ -135,7 +136,17 @@ async function freezeReplayInputs(
 			),
 		);
 	}
-	const staleness = deriveStaleness(plan.chain, corpusByStage, {
+	const chainCorpus = new Map<string, StageCorpus>();
+	for (const record of plan.chain) {
+		const corpus = corpusByStage.get(record.stage);
+		if (corpus !== undefined) {
+			chainCorpus.set(
+				record.stage,
+				await withLoadedFilesNow(corpus, record, request.corpusSource),
+			);
+		}
+	}
+	const staleness = deriveStaleness(plan.chain, chainCorpus, {
 		model: request.model,
 		effort: request.effort,
 		settingsFile: request.loadedSettings?.hashed,

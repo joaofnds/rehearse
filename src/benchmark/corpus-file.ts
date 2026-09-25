@@ -108,6 +108,19 @@ export function corpusLayoutSuffix(path: string): string | undefined {
 }
 
 /**
+ * The corpus root stripped back out of a message built for a caller that
+ * throws. `resolveCorpusFile` names the resolved path so an operator reading a
+ * refusal on stderr can find the file; the same string on stdout would carry
+ * the operator's home directory into a record every reader of `stale` sees.
+ */
+export function withoutAbsolutePaths(
+	message: string,
+	source: CorpusRoot,
+): string {
+	return message.replaceAll(`${source.root}/`, "");
+}
+
+/**
  * The one place that knows where a corpus layout path lands. A case names a
  * file in corpus layout paths, and this maps that layout onto the root the
  * resolved source carries, so the reader never learns where the bytes came

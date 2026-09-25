@@ -13,7 +13,7 @@ import {
 	deriveStaleness,
 	hashedCorpus,
 	INITIAL_CHECKPOINT_STAGE,
-	loadedBeyondCaptured,
+	withLoadedFilesNow,
 	parseCheckpointRecord,
 	readCorpusFiles,
 	refusedCorpus,
@@ -23,7 +23,6 @@ import {
 	stageCorpusChanges,
 } from "./checkpoint";
 import {
-	classifyEntry,
 	refusedEntryReason,
 	SymlinkedEntryError,
 	textIfPresent,
@@ -37,7 +36,7 @@ import {
 	corpusFileRefusal,
 	corpusInstructionsEntry,
 	hashCorpusFiles,
-	resolveCorpusFile,
+	withoutAbsolutePaths,
 } from "./corpus-file";
 import type { CorpusUnderTest, VersionDistance } from "./corpus-version";
 import { readCorpusUnderTest } from "./corpus-version";
@@ -323,43 +322,6 @@ function stageCorpusNow(
 }
 
 /**
- * A stage's corpus now, with each file it loaded beyond its captured ones as
- * the corpus under test holds it. A file the corpus no longer holds is left
- * out, so the comparison names it removed.
- */
-async function withLoadedFilesNow(
-	now: StageCorpus,
-	loaded: readonly HashedFile[],
-	source: CorpusRoot,
-): Promise<StageCorpus> {
-	if ("refused" in now) {
-		return now;
-	}
-
-	const hashed: HashedFile[] = [...now.hashed];
-	for (const { path } of loaded) {
-		const entry = await classifyEntry(resolveCorpusFile(source, path));
-		if (entry.kind === "absent") {
-			continue;
-		}
-		try {
-			const [file] = await hashCorpusFiles(source, [path]);
-			if (file !== undefined) {
-				hashed.push({ path: file.path, sha256: file.sha256 });
-			}
-		} catch (error) {
-			if (error instanceof SymlinkedEntryError) {
-				return refusedCorpus(withoutAbsolutePaths(error.message, source));
-			}
-
-			throw error;
-		}
-	}
-
-	return hashedCorpus(hashed);
-}
-
-/**
  * `stale` answers one question per invocation: what the corpus the operator
  * named invalidated. So a live corpus here is the operator's install, not the
  * target each run recorded, even though `replay` resolves the same source
@@ -392,7 +354,7 @@ async function currentStageCorpus(
 			record.stage,
 			await withLoadedFilesNow(
 				await stageCorpusNow(definition.skill, instructions, source),
-				loadedBeyondCaptured(record),
+				record,
 				source,
 			),
 		);
@@ -607,16 +569,6 @@ function sessionCases(
 }
 
 /**
- * The corpus root stripped back out of a message built for a caller that
- * throws. `resolveCorpusFile` names the resolved path so an operator reading a
- * refusal on stderr can find the file; the same string on stdout would carry
- * the operator's home directory into a record every reader of `stale` sees.
- */
-function withoutAbsolutePaths(message: string, source: CorpusRoot): string {
-	return message.replaceAll(`${source.root}/`, "");
-}
-
-/**
  * The declared files as the corpus under test holds them now, or why it
  * cannot hold them. A declared corpus file the corpus under test no longer
  * holds invalidates the measurement as surely as an edit does, the case cannot
@@ -711,11 +663,7 @@ export async function sessionAttemptStaleness(
 						record.schemaVersion === 1 ? undefined : record.readManifest,
 				};
 				const readFiles = readCorpusFiles(reads);
-				const corpusNow = await withLoadedFilesNow(
-					current,
-					loadedBeyondCaptured(reads),
-					source,
-				);
+				const corpusNow = await withLoadedFilesNow(current, reads, source);
 				const changes = stageCorpusChanges(readFiles, corpusNow);
 				records.push({
 					id,
@@ -822,7 +770,7 @@ export async function replayAttemptStaleness(
 			const definition = await replayedStage(runsDirectory, record);
 			const corpusNow = await withLoadedFilesNow(
 				await stageCorpusNow(definition.skill, instructions, source),
-				loadedBeyondCaptured(record),
+				record,
 				source,
 			);
 			const readFiles = readCorpusFiles(record);

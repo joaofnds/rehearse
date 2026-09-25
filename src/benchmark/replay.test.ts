@@ -23,6 +23,7 @@ import type { StageJudgeInput } from "./contracts";
 import type { CorpusMeasurement } from "./corpus-measurement";
 import type { JudgeAttempt } from "./judge-attempt";
 import type { RunManifest } from "./manifest";
+import type { ReadManifestEntry } from "./read-manifest";
 import { writeRunManifest } from "./manifest";
 import type { ReplayDependencies, ReplayRequest } from "./replay";
 import {
@@ -251,6 +252,7 @@ describe(runReplay.name, () => {
 
 	async function recordedRun(
 		discussCorpus: readonly HashedFile[] = [],
+		discussReads: readonly ReadManifestEntry[] = [],
 	): Promise<RecordedRun> {
 		const directory = await mkdtemp(join(tmpdir(), "rehearse-replayrun-"));
 		testResources.track(directory);
@@ -280,6 +282,7 @@ describe(runReplay.name, () => {
 				upstream: initial.lineage,
 				model: "sonnet",
 				corpusFiles: discussCorpus,
+				readManifest: discussReads,
 				artifacts: [
 					{
 						path: SPEC_PATH,
@@ -887,6 +890,37 @@ describe(runReplay.name, () => {
 				backingRoot: "/backing",
 			}),
 		);
+	});
+
+	it("records the replay fresh when a file the upstream stage loaded beyond its corpus is unchanged", async () => {
+		const corpus = await mkdtemp(join(tmpdir(), "rehearse-replaycorpus-"));
+		testResources.track(corpus);
+		await Bun.write(join(corpus, "skills", "shape", "SKILL.md"), "shape");
+		const run = await recordedRun(
+			[
+				{
+					path: "skills/discuss/SKILL.md",
+					sha256: createHash("sha256").update("discuss").digest("hex"),
+				},
+			],
+			[
+				{
+					path: "skills/shape/SKILL.md",
+					half: "corpus",
+					role: "read for context",
+					evidence: "observed",
+					sha256: createHash("sha256").update("shape").digest("hex"),
+				},
+			],
+		);
+		const fake = new ReplayConfirmationHarness(testResources);
+
+		const outcome = await runReplay(fake.dependencies, {
+			...request(run, "build"),
+			corpusSource: { kind: "live", root: corpus, backingRoot: corpus },
+		});
+
+		expect(outcome.record.staleness).toEqual([]);
 	});
 
 	it("records the replay stale and names the changed upstream file", async () => {

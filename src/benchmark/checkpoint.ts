@@ -8,9 +8,13 @@ import { effortSchema } from "./config";
 import type { CorpusRoot, LiveCorpusRoot } from "./corpus-file";
 import {
 	CORPUS_LAYOUT_DIRECTORIES,
+	CorpusFileError,
+	hashCorpusFiles,
 	readCorpusInstructions,
+	resolveCorpusFile,
 	resolvesOutside,
 	resolvesOutsideCorpus,
+	withoutAbsolutePaths,
 } from "./corpus-file";
 import type { Immutable } from "./contracts";
 import type { CorpusMeasurement } from "./corpus-measurement";
@@ -900,6 +904,54 @@ export function loadedBeyondCaptured(record: RecordedReads): HashedFile[] {
 /** Every corpus file a record read, captured or loaded beyond that. */
 export function readCorpusFiles(record: RecordedReads): HashedFile[] {
 	return [...record.corpusFiles, ...loadedBeyondCaptured(record)];
+}
+
+/**
+ * A stage's corpus now, with each file its record loaded beyond the captured
+ * ones as `source` holds it, so every caller comparing against
+ * `readCorpusFiles` holds the same files on both sides. A file the source no
+ * longer holds is left out, so the comparison names it removed; one it
+ * refuses to read refuses the whole corpus, as a refused captured file does.
+ * A file the stage captures now is already on the current side.
+ */
+export async function withLoadedFilesNow(
+	now: StageCorpus,
+	record: RecordedReads,
+	source: CorpusRoot,
+): Promise<StageCorpus> {
+	if ("refused" in now) {
+		return now;
+	}
+
+	const hashed: HashedFile[] = [...now.hashed];
+	const capturedNow = new Set(now.hashed.map(({ path }) => path));
+	try {
+		for (const { path } of loadedBeyondCaptured(record)) {
+			if (capturedNow.has(path)) {
+				continue;
+			}
+
+			const entry = await classifyEntry(resolveCorpusFile(source, path));
+			if (entry.kind === "absent") {
+				continue;
+			}
+
+			for (const file of await hashCorpusFiles(source, [path])) {
+				hashed.push({ path: file.path, sha256: file.sha256 });
+			}
+		}
+	} catch (error) {
+		if (
+			error instanceof CorpusFileError ||
+			error instanceof SymlinkedEntryError
+		) {
+			return refusedCorpus(withoutAbsolutePaths(error.message, source));
+		}
+
+		throw error;
+	}
+
+	return hashedCorpus(hashed);
 }
 
 /**

@@ -848,6 +848,31 @@ describe("staleness over read manifests", () => {
 		).toBe("unchanged");
 	});
 
+	it("judges a loaded file beyond the captured files once the stage captures it now", async () => {
+		const { fixture, corpus } = await recordedFixture();
+		const extra = "skills/discuss/references/extra.md";
+		await mkdir(join(corpus, "skills", "discuss", "references"), {
+			recursive: true,
+		});
+		await Bun.write(join(corpus, extra), "extra\n");
+		await fixture.recordReadManifest("discuss", [
+			...discussManifest(await planningRubricNow()),
+			{ ...styleEntry("extra\n"), path: extra },
+		]);
+
+		const report = await checkpointStaleness(
+			fixture.runsDirectory,
+			directorySource(corpus),
+		);
+
+		expect(report.unreadable).toEqual([]);
+		expect(
+			report.records.find(
+				({ id }) => id === `checkpoint:${fixture.replayableRun}/discuss`,
+			),
+		).toMatchObject({ stale: false, causes: [] });
+	});
+
 	it("names a loaded file beyond the captured files the corpus no longer holds as removed", async () => {
 		const { fixture, corpus } = await recordedFixture();
 		await fixture.recordReadManifest("discuss", [

@@ -13,6 +13,7 @@ import type { LoadedStageSettings } from "./stage-settings";
 import {
 	deriveStaleness,
 	hashedCorpus,
+	withLoadedFilesNow,
 	hashArtifacts,
 	INITIAL_CHECKPOINT_STAGE,
 	lineageKey,
@@ -238,6 +239,7 @@ async function currentChainCorpus(
 	manifest: RunManifest,
 	instructions: string,
 	roots: readonly CorpusRoot[],
+	source: CorpusRoot,
 	captureStageCorpus: StageSessionDependencies["captureStageCorpus"],
 ): Promise<Map<string, StageCorpus>> {
 	const corpus = new Map<string, StageCorpus>();
@@ -258,8 +260,12 @@ async function currentChainCorpus(
 
 		corpus.set(
 			record.stage,
-			hashedCorpus(
-				await captureStageCorpus(definition.skill, instructions, roots),
+			await withLoadedFilesNow(
+				hashedCorpus(
+					await captureStageCorpus(definition.skill, instructions, roots),
+				),
+				record,
+				source,
 			),
 		);
 	}
@@ -328,6 +334,7 @@ export async function runReplay(
 				manifest,
 				request.instructions,
 				corpusRoots,
+				request.corpusSource,
 				dependencies.stageSession.captureStageCorpus,
 			),
 			{
