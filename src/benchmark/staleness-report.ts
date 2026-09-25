@@ -179,8 +179,8 @@ async function judgedReadManifest(
 
 /**
  * A changed rubric changes the grade, not the version the record read, so it
- * stales the record without moving its distance, and it does not reach a
- * stage downstream, which consumed the artifact rather than the grade.
+ * stales the record without moving its distance. A later stage ran only
+ * because that grade let it, so the cause reaches it as an upstream one.
  */
 function rubricCauses(readManifest: readonly JudgedReadEntry[]): string[] {
 	return readManifest
@@ -188,22 +188,28 @@ function rubricCauses(readManifest: readonly JudgedReadEntry[]): string[] {
 		.map(({ path }) => judgeRubricCause(path));
 }
 
-function causesBesideItsRubric(record: RecordStaleness): readonly string[] {
-	const rubric = new Set(rubricCauses(record.readManifest));
+async function chainRubricCauses(
+	chain: readonly CheckpointRecord[],
+	stages: readonly StageDefinition[],
+): Promise<ReadonlyMap<string, readonly string[]>> {
+	const causes = new Map<string, readonly string[]>();
+	for (const record of chain) {
+		const rubricEntries = (record.readManifest ?? []).filter(
+			({ half }) => half === "rubric",
+		);
+		causes.set(
+			record.stage,
+			rubricCauses(
+				await judgedReadManifest(
+					rubricEntries,
+					[],
+					stages.find(({ name }) => name === record.stage),
+				),
+			),
+		);
+	}
 
-	return record.causes.filter((cause) => !rubric.has(cause));
-}
-
-function staleBesideItsRubric(record: RecordStaleness): boolean {
-	return causesBesideItsRubric(record).length > 0;
-}
-
-/** Whether a consumer of this checkpoint reads it as stale only by corpus files. */
-function onlyCorpusFilesBesideItsRubric(record: RecordStaleness): boolean {
-	return readChangedFilesOnly({
-		causes: causesBesideItsRubric(record),
-		changedFiles: record.changedFiles,
-	});
+	return causes;
 }
 
 export interface UnreadableStaleRecord {
@@ -484,6 +490,7 @@ async function runCheckpointStaleness(
 	for (const staleness of deriveStaleness(chain, current, {
 		model: knobs.model ?? manifest.model,
 		effort: knobs.effort ?? manifest.effort,
+		judgeRubricCauses: await chainRubricCauses(chain, manifest.pipeline.stages),
 		...settings,
 	})) {
 		const readManifest = await judgedReadManifest(
@@ -491,13 +498,12 @@ async function runCheckpointStaleness(
 			comparedCorpus(current.get(staleness.stage), staleness),
 			manifest.pipeline.stages.find(({ name }) => name === staleness.stage),
 		);
-		const rubric = rubricCauses(readManifest);
 		judged.push({
 			id: `checkpoint:${run}/${staleness.stage}`,
-			stale: staleness.stale || rubric.length > 0,
-			causes: [...staleness.causes, ...rubric],
+			stale: staleness.stale,
+			causes: staleness.causes,
 			changedFiles: staleness.changedFiles,
-			onlyCorpusFiles: staleness.onlyCorpusFiles && rubric.length === 0,
+			onlyCorpusFiles: staleness.onlyCorpusFiles,
 			readManifest,
 			distance:
 				staleness.stage === INITIAL_CHECKPOINT_STAGE
@@ -714,7 +720,7 @@ export async function replayAttemptStaleness(
 	const upstream = await checkpointStaleness(runsDirectory, source);
 	const staleCheckpointsById = new Map(
 		upstream.records
-			.filter(staleBesideItsRubric)
+			.filter(({ stale }) => stale)
 			.map((checkpoint) => [checkpoint.id, checkpoint]),
 	);
 	const unreadableRuns = new Set(upstream.unreadable.map(({ id }) => id));
@@ -766,8 +772,7 @@ export async function replayAttemptStaleness(
 				onlyCorpusFiles:
 					knobCauses.length === 0 &&
 					rubric.length === 0 &&
-					(consumed === undefined ||
-						onlyCorpusFilesBesideItsRubric(consumed)) &&
+					(consumed === undefined || consumed.onlyCorpusFiles) &&
 					readChangedFilesOnly(corpus),
 				distance: underTest.distanceOf(record.corpusVersion),
 				readFiles: record.corpusFiles,

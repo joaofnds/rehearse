@@ -706,6 +706,8 @@ export function rootLineage(inputs: RootLineageInputs): string {
 interface StalenessInputs {
 	readonly model: string;
 	readonly effort?: Effort | undefined;
+	/** Each stage's judge rubric causes, which stale it as no corpus file does. */
+	readonly judgeRubricCauses?: ReadonlyMap<string, readonly string[]>;
 }
 
 type SettingsComparison =
@@ -943,7 +945,10 @@ export function deriveStaleness(
 	let upstreamOnlyCorpusFiles = true;
 
 	for (const record of chain) {
-		const knobs = knobCauses(record, request);
+		const knobs = [
+			...knobCauses(record, request),
+			...(request.judgeRubricCauses?.get(record.stage) ?? []),
+		];
 		const currentCorpus = current.get(record.stage);
 		const corpus =
 			currentCorpus === undefined

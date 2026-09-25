@@ -721,9 +721,10 @@ do. A checkpoint or replay whose read manifest holds a judge rubric
 that now differs, is gone, or no longer parses, names
 `judge rubric <path> changed`. The rubric is read from the control repository,
 whatever `--corpus` names. That
-cause leaves the distance as it was, and it does not stale a later stage or a
-replay that consumed the checkpoint, since those used its artifact rather than
-its grade.
+cause leaves the distance as it was. A later stage and a replay that consumed
+the checkpoint read it as `upstream stage <stage> is stale`, since they ran
+only because that stage's grade let them, and none of them counts as stale only
+by corpus files.
 
 Missing files and changed inputs are evidence to inspect, not a substitute for
 running the revised case.

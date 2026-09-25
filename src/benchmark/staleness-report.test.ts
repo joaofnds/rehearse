@@ -653,7 +653,7 @@ describe("staleness over read manifests", () => {
 		]);
 	});
 
-	it("stales a checkpoint whose judge rubric changed without moving its distance or its downstream stages", async () => {
+	it("stales a checkpoint whose judge rubric changed, and its downstream stages, without moving its distance", async () => {
 		const { fixture, corpus } = await recordedFixture();
 		await fixture.recordReadManifest(
 			"discuss",
@@ -677,7 +677,12 @@ describe("staleness over read manifests", () => {
 				onlyCorpusFiles: false,
 				distance: { kind: "measured", versions: 0 },
 			},
-			{ stale: false, causes: [] },
+			{
+				stale: true,
+				causes: ["upstream stage discuss is stale"],
+				onlyCorpusFiles: false,
+				distance: { kind: "measured", versions: 0 },
+			},
 		]);
 		expect(
 			run[1]?.readManifest.find(({ half }) => half === "rubric")?.state,
@@ -726,7 +731,7 @@ describe("staleness over read manifests", () => {
 		]);
 	});
 
-	it("does not stale a replay whose consumed stage only had its judge rubric change", async () => {
+	it("stales a replay whose consumed stage had its judge rubric change", async () => {
 		const { fixture, corpus } = await recordedFixture();
 		await fixture.recordReadManifest(
 			"discuss",
@@ -738,10 +743,16 @@ describe("staleness over read manifests", () => {
 			directorySource(corpus),
 		);
 
-		expect(report.records).toMatchObject([{ stale: false, causes: [] }]);
+		expect(report.records).toMatchObject([
+			{
+				stale: true,
+				causes: ["upstream stage discuss is stale"],
+				onlyCorpusFiles: false,
+			},
+		]);
 	});
 
-	it("keeps a replay stale only by corpus files when its consumed stage also had its judge rubric change", async () => {
+	it("does not read a replay as stale only by corpus files when its consumed stage also had its judge rubric change", async () => {
 		const { fixture, corpus } = await recordedFixture();
 		await fixture.recordReadManifest(
 			"discuss",
@@ -756,7 +767,7 @@ describe("staleness over read manifests", () => {
 		);
 
 		expect(report.records).toMatchObject([
-			{ stale: true, onlyCorpusFiles: true },
+			{ stale: true, onlyCorpusFiles: false },
 		]);
 	});
 
