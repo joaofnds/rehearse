@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { loadAttempts, presentAttempts } from "./attempts";
@@ -568,7 +568,10 @@ describe(runReplay.name, () => {
 		testResources.track(projectsDirectory);
 		const runWorkflowStage: ReplayDependencies["stageSession"]["runWorkflowStage"] =
 			async (options) => {
-				const slug = join(projectsDirectory, projectSlug(options.targetDir));
+				const slug = join(
+					projectsDirectory,
+					projectSlug(await realpath(options.targetDir)),
+				);
 				await mkdir(slug, { recursive: true });
 				await Bun.write(
 					join(slug, "session.jsonl"),
@@ -605,28 +608,32 @@ describe(runReplay.name, () => {
 		);
 
 		const record = await readReplayRecord(outcome.recordPath);
-		expect(
-			record.readManifest?.map(({ path, role, evidence }) => ({
-				path,
-				role,
-				evidence,
-			})),
-		).toEqual([
-			{ path: "CLAUDE.md", role: "global instructions", evidence: "declared" },
+		const read = new Map(
+			record.corpusFiles.map(({ path, sha256 }) => [path, sha256]),
+		);
+		expect(record.readManifest).toEqual([
+			{
+				path: "CLAUDE.md",
+				half: "corpus",
+				role: "global instructions",
+				evidence: "declared",
+				sha256: read.get("CLAUDE.md"),
+			},
 			{
 				path: "skills/build/SKILL.md",
+				half: "corpus",
 				role: "stage skill",
 				evidence: "declared and observed",
+				sha256: read.get("skills/build/SKILL.md"),
 			},
 			{
 				path: "rubrics/build.json",
+				half: "rubric",
 				role: "judge rubric",
 				evidence: "declared",
+				sha256: stageRubricSha256(outcome.record.scorecard.rubric),
 			},
 		]);
-		expect(record.readManifest?.[2]?.sha256).toBe(
-			stageRubricSha256(outcome.record.scorecard.rubric),
-		);
 	});
 
 	it("records the corpus version its stage session measured", async () => {

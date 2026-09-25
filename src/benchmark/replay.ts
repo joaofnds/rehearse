@@ -1,5 +1,5 @@
 import type { CorpusRoot } from "./corpus-file";
-import { mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type {
@@ -282,7 +282,10 @@ export async function runReplay(
 		{ kind: "replay", run: request.paths.name, stage: request.stage },
 	);
 
-	const parent = await mkdtemp(join(tmpdir(), "rehearse-replay-"));
+	// The provider names a session's transcript after its real working path.
+	const parent = await realpath(
+		await mkdtemp(join(tmpdir(), "rehearse-replay-")),
+	);
 	const worktreeDir = join(parent, "worktree");
 	const productOwnerDirectory = join(parent, "product-owner");
 	await mkdir(productOwnerDirectory, { recursive: true });
