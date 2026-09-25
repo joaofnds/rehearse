@@ -100,6 +100,9 @@ context at individual model requests or across a worker's nested agents.
 
 ## Persistence and recovery
 
+The paths below are under the records directory, which is `.benchmark-runs/`
+unless `REHEARSE_RECORDS_DIR` names another.
+
 JSON artifacts are authoritative evidence for a completed attempt or run. They
 retain grading inputs, outcomes, provider metrics when available, and failures.
 Record schemas are versioned where their contracts differ. Readers preserve

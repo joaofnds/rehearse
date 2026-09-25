@@ -691,12 +691,12 @@ The authoritative evidence lives under ignored `.benchmark-runs/`. The SQLite
 run-event store supports live UI updates and is derived state.
 
 Set `REHEARSE_RECORDS_DIR` to keep records in another directory. Every command
-and `serve` then read and write there instead of `.benchmark-runs/`, and the
-locations below are relative to it. A relative value resolves against the
-working directory, and an empty value is refused. The test suite sets it to a
-temporary directory, so a test run leaves the repository's records untouched.
+and `serve` then read and write there instead of `.benchmark-runs/`, including
+the locations below and the stores `case capture` searches. A relative value
+resolves against the directory the command runs in, which `bun run rehearse`
+sets to the repository root. An empty value is a usage error.
 
-| ID accepted by `show`                 | Record location under `.benchmark-runs/`                    |
+| ID accepted by `show`                 | Record location under the records directory                 |
 | ------------------------------------- | ----------------------------------------------------------- |
 | `case:<id>`                           | Declaration is outside run state, at `cases/<id>/case.json` |
 | `run:<name>`                          | `<name>.json`, or the stopped-stage record                  |

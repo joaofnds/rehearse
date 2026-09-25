@@ -38,20 +38,23 @@ bun run build:client
 ```
 
 `bun run test` runs the backend suite and then the client's DOM suite. A bare
-`bun test` omits the client tests.
-
-Each test process points `REHEARSE_RECORDS_DIR` at its own temporary directory
-through a preload named in `bunfig.toml`, so tests never write into
-`.benchmark-runs/`. A `Bun.spawn` without an `env` option does not pass that
-variable on, so a test that spawns the CLI gives it `env: { ...Bun.env }`. A
-test that runs a copied control removes the variable, so the copy keeps its
-records under its own `.benchmark-runs/`. If the first half fails, the second half does
+`bun test` omits the client tests. If the first half fails, the second half does
 not run; execute it separately when checking client work:
 
 ```sh
 bun test --path-ignore-patterns "**/node_modules/**" \
   --preload ./client/test-setup.ts ./client
 ```
+
+A preload named in `bunfig.toml` points `REHEARSE_RECORDS_DIR` at a temporary
+directory for each test process, so code that resolves the records location
+inside a test writes there rather than into `.benchmark-runs/`. A spawned CLI
+sees the variable only when its `env` is derived from `Bun.env`, as
+`{ ...Bun.env }` and `environmentWithoutKnobs()` are. A spawn with no `env`, or
+with one built by hand, writes into the real records, and nothing enforces
+this, so check each new spawning test against it. A test that runs a copied
+control removes the variable, so the copy keeps its records under its own
+`.benchmark-runs/`.
 
 For an integrated browser check, run `mise exec -- bun run build:client`, then
 `mise exec -- bun run serve`. The `dev:client` script runs Vite alone; its current
