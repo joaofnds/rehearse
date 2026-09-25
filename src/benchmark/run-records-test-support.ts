@@ -1122,7 +1122,9 @@ export class RecordedRunsFixture {
 	 * about a checkpoint the evidence fixture does not write.
 	 */
 	public async rewriteDiscussCheckpoint(
-		change: Partial<Pick<CheckpointRecord, "artifacts" | "workflowState">>,
+		change: Partial<
+			Pick<CheckpointRecord, "artifacts" | "workflowState" | "readManifest">
+		>,
 	): Promise<void> {
 		const file = checkpointRecordFile(
 			benchmarkRunPaths(

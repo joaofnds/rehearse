@@ -407,6 +407,53 @@ describe("/api/runs/:run", () => {
 				});
 			});
 
+			it("serves the read manifest a stage's checkpoint recorded", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeStoppedRunEvidence();
+				const readManifest = [
+					{
+						path: "CLAUDE.md",
+						half: "corpus",
+						role: "global instructions",
+						evidence: "declared",
+						sha256: "1".repeat(64),
+					},
+				] as const;
+				await fixture.rewriteDiscussCheckpoint({ readManifest });
+
+				const response = await runRecord(fixture, fixture.stoppedRun);
+
+				expect(await response.json()).toMatchObject({
+					stages: [
+						{
+							stage: "discuss",
+							readManifest: { state: "available", entries: readManifest },
+						},
+						{ stage: "build" },
+					],
+				});
+			});
+
+			it("says a checkpoint recorded before read manifests holds none", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeStoppedRunEvidence();
+
+				const response = await runRecord(fixture, fixture.stoppedRun);
+
+				expect(await response.json()).toMatchObject({
+					stages: [
+						{
+							stage: "discuss",
+							readManifest: {
+								state: "unavailable",
+								reasons: ["the checkpoint was recorded before read manifests"],
+							},
+						},
+						{ stage: "build" },
+					],
+				});
+			});
+
 			it("lists each workflow-state entry a stage added, modified or removed against its upstream checkpoint", async () => {
 				const fixture = await emptyFixture();
 				await fixture.writeStoppedRunEvidence();

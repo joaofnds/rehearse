@@ -2,6 +2,7 @@ import { basename } from "node:path";
 import { z } from "zod";
 import type { HashedFile } from "./checkpoint";
 import type { ContextManifest, ManifestEntry } from "./context-manifest";
+import type { Immutable } from "./contracts";
 
 export const READ_ROLES = [
 	"global instructions",
@@ -13,32 +14,26 @@ export const READ_ROLES = [
 
 export type ReadRole = (typeof READ_ROLES)[number];
 
-export type ReadHalf = "corpus" | "project" | "rubric";
+export type ReadEvidence = ReadManifestEntry["evidence"];
 
-export type ReadEvidence = "declared" | "observed" | "declared and observed";
+const readManifestEntrySchema = z
+	.object({
+		path: z.string().min(1),
+		half: z.enum(["corpus", "project", "rubric"]),
+		role: z.enum(READ_ROLES),
+		evidence: z.enum(["declared", "observed", "declared and observed"]),
+		sha256: z
+			.string()
+			.regex(/^[0-9a-f]{64}$/u)
+			.optional(),
+	})
+	.strict();
 
-export interface ReadManifestEntry {
-	readonly path: string;
-	readonly half: ReadHalf;
-	readonly role: ReadRole;
-	readonly evidence: ReadEvidence;
-	readonly sha256?: string;
-}
+export const readManifestSchema = z.array(readManifestEntrySchema);
 
-export const readManifestSchema = z.array(
-	z
-		.object({
-			path: z.string().min(1),
-			half: z.enum(["corpus", "project", "rubric"]),
-			role: z.enum(READ_ROLES),
-			evidence: z.enum(["declared", "observed", "declared and observed"]),
-			sha256: z
-				.string()
-				.regex(/^[0-9a-f]{64}$/u)
-				.optional(),
-		})
-		.strict(),
-);
+export type ReadManifestEntry = Immutable<
+	z.infer<typeof readManifestEntrySchema>
+>;
 
 export const PROJECT_INSTRUCTION_FILES: readonly string[] = [
 	"CLAUDE.md",

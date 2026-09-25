@@ -10,6 +10,7 @@ import { corpusMeasurementSchema } from "#benchmark/corpus-measurement";
 import type { CorpusMeasurement } from "#benchmark/corpus-measurement";
 import type { ClaudeCallMetrics, Immutable } from "#benchmark/contracts";
 import { loadRunManifest } from "#benchmark/manifest";
+import type { ReadManifestEntry } from "#benchmark/read-manifest";
 import {
 	benchmarkRunPaths,
 	checkpointRecordFile,
@@ -109,6 +110,10 @@ export interface RunRecordStage {
 	readonly instructionFiles: Reading<{ readonly files: readonly HashedFile[] }>;
 	/** The corpus version the stage ran against, from its checkpoint or record. */
 	readonly corpusVersion: CorpusMeasurement | undefined;
+	/** What the stage declared and loaded, from its checkpoint. */
+	readonly readManifest: Reading<{
+		readonly entries: readonly ReadManifestEntry[];
+	}>;
 	readonly artifactsOut: ArtifactsOut;
 }
 
@@ -531,6 +536,25 @@ function ranUnder({
 	};
 }
 
+function readManifestOf(
+	checkpoint: CheckpointRecord | undefined,
+): RunRecordStage["readManifest"] {
+	if (checkpoint === undefined) {
+		return {
+			state: "unavailable",
+			reasons: ["the stage saved no checkpoint"],
+		};
+	}
+	if (checkpoint.readManifest === undefined) {
+		return {
+			state: "unavailable",
+			reasons: ["the checkpoint was recorded before read manifests"],
+		};
+	}
+
+	return { state: "available", entries: checkpoint.readManifest };
+}
+
 function stageRecord(
 	recorded: ReachedStage,
 	checkpoints: CheckpointsByLineage,
@@ -572,6 +596,7 @@ function stageRecord(
 		checkpoint: checkpoint === undefined ? "missing" : "recorded",
 		checkpointShortId,
 		...ranUnder(recorded),
+		readManifest: readManifestOf(checkpoint),
 		artifactsOut: {
 			declared: pathsOf(
 				checkpoint?.artifacts,
