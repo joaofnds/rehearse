@@ -214,12 +214,13 @@ describe(createApiApp.name, () => {
 			});
 
 			const response = await app.request(
-				`/api/runs?ids=${encodeURIComponent(`run:${otherRun},group:absent`)}`,
+				`/api/runs?ids=${encodeURIComponent(`run:${otherRun},group:absent`)}&ids=${encodeURIComponent(`run:${fixture.replayableRun}`)}`,
 			);
 			const body = await runHistoryResponseFrom(response);
 
 			expect(body.rows.map((row) => row.kind === "run" && row.run)).toEqual([
 				otherRun,
+				fixture.replayableRun,
 			]);
 		});
 
