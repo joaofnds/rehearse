@@ -672,6 +672,41 @@ describe(createApiApp.name, () => {
 				],
 			});
 		});
+
+		it("serves the run with its read manifests unjudged when the corpus under test cannot judge them", async () => {
+			const fixture = await writtenFixture();
+			const corpus = await corpusDirectory();
+			await fixture.recordCorpusFrom(directorySource(corpus));
+			const entry = {
+				path: "skills/build/SKILL.md",
+				half: "corpus",
+				role: "stage skill",
+				evidence: "declared",
+				sha256: sha256Hex("build skill\n"),
+			} as const;
+			await fixture.recordReadManifest("build", [entry]);
+			await rm(join(corpus, "skills", "build"), { recursive: true });
+			const app = createApiApp({
+				runsDirectory: fixture.runsDirectory,
+				liveness: nothingRunning,
+				corpusSource: directorySource(corpus),
+			});
+
+			const response = await app.request(
+				`/api/runs/${encodeURIComponent(fixture.replayableRun)}`,
+			);
+
+			expect(response.status).toBe(200);
+			expect(await response.json()).toMatchObject({
+				stages: [
+					{ stage: "discuss" },
+					{
+						stage: "build",
+						readManifest: { state: "available", entries: [entry] },
+					},
+				],
+			});
+		});
 	});
 
 	describe("GET /api/corpus", () => {

@@ -1033,7 +1033,10 @@ export async function readRunRecord(
 /**
  * The run's record with each checkpoint's read manifest judged against the
  * corpus under test, as the run's page shows it. The run history reads the
- * unjudged record, since it judges each row once for itself.
+ * unjudged record, since it judges each row once for itself. A corpus under
+ * test that cannot judge the run leaves its entries without a state, since
+ * the record stands on its own and the run history names why the run is
+ * unreadable.
  */
 export async function readJudgedRunRecord(
 	runsDirectory: string,
@@ -1046,7 +1049,7 @@ export async function readJudgedRunRecord(
 		runsDirectory,
 		run,
 		source,
-	);
+	).catch(() => []);
 	const judged = new Map(
 		checkpoints.map(({ id, readManifest }) => [id, readManifest]),
 	);
