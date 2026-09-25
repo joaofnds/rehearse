@@ -15,6 +15,8 @@ import {
 	parseCheckpointRecord,
 	refusedCorpus,
 	readChangedFilesOnly,
+	modelCause,
+	effortCause,
 	stageCorpusChanges,
 } from "./checkpoint";
 import {
@@ -466,10 +468,10 @@ function namedKnobCauses(
 ): readonly string[] {
 	const causes: string[] = [];
 	if (knobs.model !== undefined && knobs.model !== record.model) {
-		causes.push(`model ${record.model} is now ${knobs.model}`);
+		causes.push(modelCause(record.model, knobs.model));
 	}
 	if (knobs.effort !== undefined && knobs.effort !== record.effort) {
-		causes.push(`effort ${record.effort ?? "none"} is now ${knobs.effort}`);
+		causes.push(effortCause(record.effort, knobs.effort));
 	}
 
 	return causes;

@@ -863,6 +863,19 @@ export function readChangedFilesOnly(
 	);
 }
 
+/** The cause a record run on one model gets when another is now asked for. */
+export function modelCause(recorded: string, now: string): string {
+	return `model ${recorded} is now ${now}`;
+}
+
+/** The cause a record run at one effort gets when another is now asked for. */
+export function effortCause(
+	recorded: Effort | undefined,
+	now: Effort | undefined,
+): string {
+	return `effort ${recorded ?? "none"} is now ${now ?? "none"}`;
+}
+
 /** The causes a checkpoint's model, effort and stage settings give it. */
 function knobCauses(
 	record: CheckpointRecord,
@@ -870,12 +883,10 @@ function knobCauses(
 ): string[] {
 	const causes: string[] = [];
 	if (record.model !== request.model) {
-		causes.push(`model ${record.model} is now ${request.model}`);
+		causes.push(modelCause(record.model, request.model));
 	}
 	if (record.effort !== request.effort) {
-		causes.push(
-			`effort ${record.effort ?? "none"} is now ${request.effort ?? "none"}`,
-		);
+		causes.push(effortCause(record.effort, request.effort));
 	}
 	if (request.settingsFileRefusal !== undefined) {
 		causes.push(request.settingsFileRefusal);
