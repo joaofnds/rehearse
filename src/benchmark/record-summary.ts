@@ -15,6 +15,7 @@ import type {
 import type { ParsedConfirmationGroupRecord } from "./confirmation-record";
 import type { Immutable } from "./contracts";
 import { corpusMeasurementReading } from "./corpus-version-label";
+import type { GroupRepReadsReading } from "./staleness-report";
 
 /**
  * The short markdown a session pastes onto a card. Each summary is a pure
@@ -167,6 +168,7 @@ export function parseGroupReportSummaryRecord(
 export function groupSummary(
 	record: Immutable<ParsedConfirmationGroupRecord>,
 	report: GroupReportSummaryRecord,
+	reads: GroupRepReadsReading,
 ): string {
 	const costs = report.resources.total.costUsd;
 	const total = costs.reduce((sum, cost) => sum + cost, 0);
@@ -203,7 +205,33 @@ export function groupSummary(
 		"",
 		costLine,
 		"",
+		...readLines(reads),
+		"",
 	].join("\n");
+}
+
+/** Each rep stage's reads, one row per file, with whether it changed since. */
+function readLines(reads: GroupRepReadsReading): string[] {
+	if (reads.state === "unavailable") {
+		return [`Reads not judged: ${reads.reasons.join("; ")}.`];
+	}
+	if (reads.reps.length === 0) {
+		return ["No rep recorded a read."];
+	}
+
+	return table(
+		["rep", "stage", "path", "role", "evidence", "state"],
+		reads.reps.flatMap(({ repId, stage, readManifest }) =>
+			readManifest.map((entry) => [
+				repId,
+				stage ?? "session",
+				entry.path,
+				entry.role,
+				entry.evidence,
+				entry.state ?? "not judged",
+			]),
+		),
+	);
 }
 
 function interval(arm: { readonly interval: ProportionInterval }): string {

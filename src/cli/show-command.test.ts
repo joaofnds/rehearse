@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { mkdtemp, readdir, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { caseDeclarationPath, casesRoot } from "#benchmark/case";
@@ -10,12 +10,16 @@ import {
 	comparisonReportPaths,
 	confirmationGroupPaths,
 } from "#benchmark/run-layout";
-import { RecordedRunsFixture } from "#benchmark/run-records-test-support";
+import {
+	directorySource,
+	RecordedRunsFixture,
+} from "#benchmark/run-records-test-support";
 import { failureOf, recordOutput } from "#cli/cli-test-support";
 import { UsageError } from "#cli/commands";
 import { RefusedPreconditionError } from "#cli/interactive-stdin";
 import { LIST_KINDS, runList } from "#cli/list-command";
 import { runShow } from "#cli/show-command";
+import type { ShowDependencies } from "#cli/show-command";
 import { runCommand } from "#benchmark/command";
 import { recordRetentionRef } from "#benchmark/target";
 import { TestResources } from "#benchmark/test-support";
@@ -69,9 +73,10 @@ describe(runShow.name, () => {
 		id: string,
 		json: boolean,
 		runsDirectory: string,
+		dependencies: ShowDependencies = {},
 	): Promise<string> {
 		const recorder = recordOutput();
-		await runShow({ id, json, runsDirectory }, recorder.output);
+		await runShow({ id, json, runsDirectory }, recorder.output, dependencies);
 
 		return recorder.stdout.join("");
 	}
@@ -183,6 +188,67 @@ describe(runShow.name, () => {
 		);
 
 		expect(stdout).toBe(await Bun.file(fixture.stageAttemptFile).text());
+	});
+
+	async function stageCorpus(): Promise<string> {
+		const corpus = await mkdtemp(join(tmpdir(), "rehearse-show-corpus-"));
+		roots.push(corpus);
+		await mkdir(join(corpus, "skills", "build"), { recursive: true });
+		await mkdir(join(corpus, "skills", "discuss"), { recursive: true });
+		await Bun.write(join(corpus, "CLAUDE.md"), "the instructions\n");
+		await Bun.write(join(corpus, "skills", "build", "SKILL.md"), "build\n");
+		await Bun.write(join(corpus, "skills", "discuss", "SKILL.md"), "discuss\n");
+
+		return corpus;
+	}
+
+	function corpusAt(root: string): ShowDependencies {
+		return {
+			resolveCorpus: () => Promise.resolve({ kind: "directory", root }),
+		};
+	}
+
+	it("prints each rep stage's reads in a group's summary, with whether each file changed since", async () => {
+		const corpus = await stageCorpus();
+		const fixture = await writtenFixture();
+		await fixture.recordGroupFrom(directorySource(corpus));
+		const repId = `${fixture.groupId}-rep-1`;
+		await fixture.recordGroupRepReadManifest(repId, "build", [
+			{
+				path: "skills/build/SKILL.md",
+				half: "corpus",
+				role: "stage skill",
+				evidence: "declared",
+				sha256: new Bun.CryptoHasher("sha256").update("build\n").digest("hex"),
+			},
+		]);
+		await Bun.write(join(corpus, "skills", "build", "SKILL.md"), "edited\n");
+
+		const stdout = await printed(
+			`group:${fixture.groupId}`,
+			false,
+			fixture.runsDirectory,
+			corpusAt(corpus),
+		);
+
+		expect(stdout).toContain(
+			`| ${repId} | build | skills/build/SKILL.md | stage skill | declared | changed |`,
+		);
+	});
+
+	it("names why a group's rep reads could not be judged in its summary", async () => {
+		const fixture = await writtenFixture();
+
+		const stdout = await printed(
+			`group:${fixture.groupId}`,
+			false,
+			fixture.runsDirectory,
+			corpusAt(await stageCorpus()),
+		);
+
+		expect(stdout).toContain(
+			"Reads not judged: the group froze no pipeline to hash its stages against.",
+		);
 	});
 
 	it("prints a confirmation rep's stage file with the reads it recorded", async () => {

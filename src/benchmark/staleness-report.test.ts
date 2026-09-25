@@ -13,6 +13,7 @@ import {
 import { TestResources } from "./test-support";
 import {
 	checkpointStaleness,
+	groupRepReads,
 	groupStaleness,
 	replayAttemptStaleness,
 	sessionAttemptStaleness,
@@ -1427,6 +1428,90 @@ describe(groupStaleness.name, () => {
 				],
 			}),
 		]);
+	});
+
+	describe(groupRepReads.name, () => {
+		function deliveryRead(content: string): ReadManifestEntry {
+			return {
+				path: "skills/delivery/SKILL.md",
+				half: "corpus",
+				role: "read for context",
+				evidence: "observed",
+				sha256: sha256Of(content),
+			};
+		}
+
+		it("judges each rep stage's reads apart, naming the rep and the stage", async () => {
+			const corpus = await stageCorpus();
+			const fixture = await fixtureWithGroupFrom(corpus);
+			await fixture.recordGroupRepReadManifest("rep-1", "build", [
+				deliveryRead("delivery\n"),
+			]);
+			await fixture.recordGroupRepReadManifest("rep-2", "build", [
+				deliveryRead("edited\n"),
+			]);
+			await mkdir(join(corpus, "skills", "delivery"), { recursive: true });
+			await Bun.write(
+				join(corpus, "skills", "delivery", "SKILL.md"),
+				"edited\n",
+			);
+
+			const reads = await groupRepReads(
+				fixture.runsDirectory,
+				fixture.groupId,
+				directorySource(corpus),
+			);
+
+			expect(reads).toEqual([
+				{
+					repId: "rep-1",
+					stage: "build",
+					readManifest: [{ ...deliveryRead("delivery\n"), state: "changed" }],
+				},
+				{
+					repId: "rep-2",
+					stage: "build",
+					readManifest: [{ ...deliveryRead("edited\n"), state: "unchanged" }],
+				},
+			]);
+		});
+
+		it("judges a session rep's reads under its rep with no stage", async () => {
+			const corpus = await temporaryDirectory("rehearse-group-style-");
+			await mkdir(join(corpus, "output-styles"), { recursive: true });
+			await mkdir(join(corpus, "skills", "delivery"), { recursive: true });
+			await Bun.write(join(corpus, "output-styles", "brief.md"), "brief\n");
+			await Bun.write(
+				join(corpus, "skills", "delivery", "SKILL.md"),
+				"edited\n",
+			);
+			const fixture = new RecordedRunsFixture(
+				await temporaryDirectory("rehearse-session-group-"),
+			);
+			await fixture.recordSessionGroupFrom("session-group", corpus, [
+				"output-styles/brief.md",
+			]);
+			await fixture.recordSessionGroupRepAttempt(
+				"session-group",
+				"session-group-rep-1",
+				corpus,
+				["output-styles/brief.md"],
+				[deliveryRead("delivery\n")],
+			);
+
+			const reads = await groupRepReads(
+				fixture.runsDirectory,
+				"session-group",
+				directorySource(corpus),
+			);
+
+			expect(reads).toEqual([
+				{
+					repId: "session-group-rep-1",
+					readManifest: [{ ...deliveryRead("delivery\n"), state: "changed" }],
+				},
+			]);
+		});
 	});
 
 	describe("when a stage group froze no pipeline", () => {

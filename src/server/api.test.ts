@@ -25,6 +25,7 @@ import { CONTROL_DIR } from "#benchmark/config";
 import {
 	benchmarkRunPaths,
 	checkpointRecordFile,
+	confirmationGroupPaths,
 	runEventsDatabaseFile,
 } from "#benchmark/run-layout";
 import { openRunEventStore } from "#benchmark/run-events";
@@ -1168,6 +1169,117 @@ describe(createApiApp.name, () => {
 
 			expect(missing.status).toBe(404);
 			expect(absentFile.status).toBe(404);
+		});
+	});
+
+	describe("GET /api/groups/:groupId/reads", () => {
+		it("serves each rep stage's reads with whether each file changed since", async () => {
+			const corpus = await corpusDirectory();
+			const fixture = await writtenFixture();
+			await fixture.recordGroupFrom(directorySource(corpus));
+			const repId = `${fixture.groupId}-rep-1`;
+			const read = {
+				path: "skills/build/SKILL.md",
+				half: "corpus",
+				role: "stage skill",
+				evidence: "declared",
+				sha256: new Bun.CryptoHasher("sha256")
+					.update("build skill\n")
+					.digest("hex"),
+			} as const;
+			await fixture.recordGroupRepReadManifest(repId, "build", [read]);
+			await Bun.write(join(corpus, "skills", "build", "SKILL.md"), "edited\n");
+			const app = createApiApp({
+				runsDirectory: fixture.runsDirectory,
+				liveness: nothingRunning,
+				corpusSource: directorySource(corpus),
+			});
+
+			const response = await app.request(
+				`/api/groups/${fixture.groupId}/reads`,
+			);
+
+			expect(response.status).toBe(200);
+			expect(await response.json()).toEqual({
+				state: "available",
+				reps: [
+					{
+						repId,
+						stage: "build",
+						readManifest: [{ ...read, state: "changed" }],
+					},
+				],
+			});
+		});
+
+		it("names why the reps' reads could not be judged", async () => {
+			const fixture = await writtenFixture();
+			const app = createApiApp({
+				runsDirectory: fixture.runsDirectory,
+				liveness: nothingRunning,
+				corpusSource: directorySource(await corpusDirectory()),
+			});
+
+			const response = await app.request(
+				`/api/groups/${fixture.groupId}/reads`,
+			);
+
+			expect(response.status).toBe(200);
+			expect(await response.json()).toEqual({
+				state: "unavailable",
+				reasons: ["the group froze no pipeline to hash its stages against"],
+			});
+		});
+
+		it("names no absolute path in why the reps' reads could not be judged", async () => {
+			const corpus = await corpusDirectory();
+			const fixture = await writtenFixture();
+			await fixture.recordGroupFrom(directorySource(corpus));
+			const { inputsDirectory } = confirmationGroupPaths(
+				fixture.runsDirectory,
+				fixture.groupId,
+			);
+			await rm(join(inputsDirectory, "pipeline.json"));
+			const app = createApiApp({
+				runsDirectory: fixture.runsDirectory,
+				liveness: nothingRunning,
+				corpusSource: directorySource(corpus),
+			});
+
+			const response = await app.request(
+				`/api/groups/${fixture.groupId}/reads`,
+			);
+			const body = await response.text();
+
+			expect(JSON.parse(body)).toMatchObject({ state: "unavailable" });
+			assertDoesNotLeak(body, fixture.runsDirectory);
+		});
+
+		it("refuses a group that was never recorded, naming no absolute path", async () => {
+			const fixture = await writtenFixture();
+			const app = createApiApp({
+				runsDirectory: fixture.runsDirectory,
+				liveness: nothingRunning,
+				corpusSource: directorySource(await corpusDirectory()),
+			});
+
+			const response = await app.request("/api/groups/no-such-group/reads");
+
+			expect(response.status).toBe(404);
+			assertDoesNotLeak(await response.text(), fixture.runsDirectory);
+		});
+
+		it("refuses a group id that escapes the runs directory, without a 500", async () => {
+			const fixture = await writtenFixture();
+			const app = createApiApp({
+				runsDirectory: fixture.runsDirectory,
+				liveness: nothingRunning,
+				corpusSource: directorySource(await corpusDirectory()),
+			});
+
+			const response = await app.request("/api/groups/..%2F..%2Fetc/reads");
+
+			expect(response.status).toBe(400);
 		});
 	});
 

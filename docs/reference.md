@@ -1067,6 +1067,16 @@ through the chain. Then the column shows
 `⚠ superseded · N versions back` at 2 or more. Any other judgment shows the
 stale or clear badge with its causes.
 
+A confirmation group row merges the reads of all its reps into one list.
+`/api/groups/<group>/reads` keeps them apart: `reps` holds one entry for each
+rep and stage that recorded reads, with its `repId`, its `stage`, absent for a
+session rep, and its `readManifest` judged the same way. A group that cannot be
+judged, such as one whose session case is no longer declared or a stage group
+that froze no pipeline, is served `state` `unavailable` with its `reasons`.
+`show group:<id>` prints the same reads as a table after the group's cost,
+judged against the live install as `stale` judges by default, and names the
+reason where they cannot be judged.
+
 A confirmation group row accounts for every rep. `stageSummaries` has one entry
 per declared stage with the `graded` count, the `ungraded` reps counted under
 their recorded status, and `grades`: the `lowest`, the `highest` and the

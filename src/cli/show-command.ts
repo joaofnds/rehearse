@@ -2,6 +2,14 @@ import { caseDeclarationPath, casesRoot } from "#benchmark/case";
 import { parseComparisonReport } from "#benchmark/comparison-record";
 import { parseConfirmationGroupRecord } from "#benchmark/confirmation-record";
 import { displayPath } from "#benchmark/config";
+import {
+	CorpusSourceError,
+	resolveCorpusSource,
+} from "#benchmark/corpus-source";
+import type {
+	CorpusSourceResolver,
+	ResolvedCorpusSource,
+} from "#benchmark/corpus-source";
 import { unhandled } from "#benchmark/contracts";
 import {
 	comparisonSummary,
@@ -20,6 +28,8 @@ import {
 } from "#benchmark/run-layout";
 import { stoppedStage } from "#benchmark/run-outcome";
 import { checkpointStageAt, resolveShortId } from "#benchmark/short-id";
+import { groupRepReadsReading } from "#benchmark/staleness-report";
+import type { GroupRepReadsReading } from "#benchmark/staleness-report";
 import { exists } from "node:fs/promises";
 import { z } from "zod";
 import { addWorktree, refExists } from "#benchmark/target";
@@ -129,9 +139,15 @@ async function summaryOf(
 	id: RecordId,
 	text: string,
 	runsDirectory: string,
+	resolveCorpus: CorpusSourceResolver,
 ): Promise<string> {
 	if (id.kind === "group") {
-		const summary = await groupSummaryOf(id.groupId, text, runsDirectory);
+		const summary = await groupSummaryOf(
+			id.groupId,
+			text,
+			runsDirectory,
+			resolveCorpus,
+		);
 
 		return summary;
 	}
@@ -157,6 +173,7 @@ async function groupSummaryOf(
 	groupId: string,
 	text: string,
 	runsDirectory: string,
+	resolveCorpus: CorpusSourceResolver,
 ): Promise<string> {
 	const { reportFile } = confirmationGroupPaths(runsDirectory, groupId);
 	const file = Bun.file(reportFile);
@@ -169,7 +186,32 @@ async function groupSummaryOf(
 	return groupSummary(
 		parseConfirmationGroupRecord(text),
 		parseGroupReportSummaryRecord(await file.text()),
+		await groupRepReadsOf(runsDirectory, groupId, resolveCorpus),
 	);
+}
+
+/**
+ * The reps' reads are judged against the corpus `stale` judges them against,
+ * the live install, and a corpus that does not resolve leaves them unjudged
+ * rather than refusing the rest of the summary.
+ */
+async function groupRepReadsOf(
+	runsDirectory: string,
+	groupId: string,
+	resolveCorpus: CorpusSourceResolver,
+): Promise<GroupRepReadsReading> {
+	let source: ResolvedCorpusSource;
+	try {
+		source = await resolveCorpus(undefined);
+	} catch (error) {
+		if (error instanceof CorpusSourceError) {
+			return { state: "unavailable", reasons: [error.message] };
+		}
+
+		throw error;
+	}
+
+	return groupRepReadsReading(runsDirectory, groupId, source);
 }
 
 /**
@@ -230,9 +272,14 @@ export interface ShowRequest {
 	readonly checkout?: string | undefined;
 }
 
+export interface ShowDependencies {
+	readonly resolveCorpus?: CorpusSourceResolver | undefined;
+}
+
 export async function runShow(
 	request: ShowRequest,
 	output: CommandOutput,
+	dependencies: ShowDependencies = {},
 ): Promise<void> {
 	if (request.id === undefined) {
 		throw new UsageError(
@@ -254,7 +301,14 @@ export async function runShow(
 	);
 
 	output.stdout(
-		request.json ? text : await summaryOf(id, text, request.runsDirectory),
+		request.json
+			? text
+			: await summaryOf(
+					id,
+					text,
+					request.runsDirectory,
+					dependencies.resolveCorpus ?? resolveCorpusSource,
+				),
 	);
 }
 

@@ -8,7 +8,11 @@ import { recordFileFor } from "#cli/show-command";
 import { UsageError } from "#cli/commands";
 import { RefusedPreconditionError } from "#benchmark/exit-codes";
 import { parseRecordId, parseRunRecordId } from "#cli/record-id";
-import { runEventsDatabaseFile } from "#benchmark/run-layout";
+import {
+	confirmationGroupPaths,
+	runEventsDatabaseFile,
+} from "#benchmark/run-layout";
+import { groupRepReadsReading } from "#benchmark/staleness-report";
 import type { RunEventStore } from "#benchmark/run-events";
 import {
 	isTerminalRunEventKind,
@@ -595,6 +599,52 @@ export const createApiApp = (dependencies: ApiDependencies) => {
 				 */
 				() => Promise.resolve(),
 			);
+		})
+		.get("/api/groups/:groupId/reads", async (context) => {
+			try {
+				const id = parseRecordId(`group:${context.req.param("groupId")}`);
+				if (id.kind !== "group") {
+					throw new UsageError(
+						`${context.req.param("groupId")} names no group`,
+					);
+				}
+				const { groupFile } = confirmationGroupPaths(
+					dependencies.runsDirectory,
+					id.groupId,
+				);
+				if (!(await Bun.file(groupFile).exists())) {
+					throw new RefusedPreconditionError(
+						`No record group:${id.groupId} at ${displayPath(groupFile)}`,
+					);
+				}
+
+				const reads = await groupRepReadsReading(
+					dependencies.runsDirectory,
+					id.groupId,
+					dependencies.corpusSource,
+				);
+
+				return context.json(
+					reads.state === "available"
+						? reads
+						: { ...reads, reasons: reads.reasons.map(redactAbsolutePaths) },
+				);
+			} catch (error) {
+				if (error instanceof UsageError) {
+					return context.json(
+						{ error: redactAbsolutePaths(error.message) },
+						400,
+					);
+				}
+				if (error instanceof RefusedPreconditionError) {
+					return context.json(
+						{ error: redactAbsolutePaths(error.message) },
+						404,
+					);
+				}
+
+				throw error;
+			}
 		})
 		.get("/api/records/:id", async (context) => {
 			try {

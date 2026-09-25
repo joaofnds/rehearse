@@ -4,6 +4,7 @@ import { buildComparisonReport } from "./comparison-report";
 import { parseComparisonReport } from "./comparison-record";
 import type { ComparisonEvidence } from "./comparison-evidence";
 import type { Immutable } from "./contracts";
+import type { GroupRepReadsReading } from "./staleness-report";
 import {
 	cancellingComparisonEvidenceFixture,
 	comparisonEvidenceFixture,
@@ -104,6 +105,8 @@ const GROUP_REPORT: GroupReportSummaryRecord = parseGroupReportSummaryRecord(
 	}),
 );
 
+const NO_READS: GroupRepReadsReading = { state: "available", reps: [] };
+
 const SESSION_GROUP_RECORD = parseConfirmationGroupRecord(
 	JSON.stringify({
 		schemaVersion: 2,
@@ -159,7 +162,7 @@ Total cost $11.75.
 
 describe(groupSummary.name, () => {
 	it("renders the reliability summary and the group's cost", () => {
-		expect(groupSummary(GROUP_RECORD, GROUP_REPORT)).toBe(
+		expect(groupSummary(GROUP_RECORD, GROUP_REPORT, NO_READS)).toBe(
 			`## group:group-1
 
 Case audit-log, stage mode, 2 reps.
@@ -170,7 +173,71 @@ Corpus version not recorded.
 | build | 1/2 | 0.500 | 0.354 | 0.250 |
 
 Cost $4.00 over 2 reps.
+
+No rep recorded a read.
 `,
+		);
+	});
+
+	it("lists each rep stage's reads with whether each file changed since", () => {
+		const reads: GroupRepReadsReading = {
+			state: "available",
+			reps: [
+				{
+					repId: "group-1-rep-1",
+					stage: "build",
+					readManifest: [
+						{
+							path: "skills/build/SKILL.md",
+							half: "corpus",
+							role: "stage skill",
+							evidence: "declared and observed",
+							sha256: "b".repeat(64),
+							state: "changed",
+						},
+						{
+							path: "CLAUDE.md",
+							half: "project",
+							role: "project instructions",
+							evidence: "observed",
+							sha256: "c".repeat(64),
+						},
+					],
+				},
+				{
+					repId: "group-1-rep-2",
+					readManifest: [
+						{
+							path: "output-styles/brief.md",
+							half: "corpus",
+							role: "global instructions",
+							evidence: "declared",
+							sha256: "d".repeat(64),
+							state: "unchanged",
+						},
+					],
+				},
+			],
+		};
+
+		expect(groupSummary(GROUP_RECORD, GROUP_REPORT, reads)).toContain(
+			`| rep | stage | path | role | evidence | state |
+| --- | --- | --- | --- | --- | --- |
+| group-1-rep-1 | build | skills/build/SKILL.md | stage skill | declared and observed | changed |
+| group-1-rep-1 | build | CLAUDE.md | project instructions | observed | not judged |
+| group-1-rep-2 | session | output-styles/brief.md | global instructions | declared | unchanged |
+`,
+		);
+	});
+
+	it("names why the reps' reads could not be judged", () => {
+		expect(
+			groupSummary(GROUP_RECORD, GROUP_REPORT, {
+				state: "unavailable",
+				reasons: ["the group froze no pipeline to hash its stages against"],
+			}),
+		).toContain(
+			"\nReads not judged: the group froze no pipeline to hash its stages against.\n",
 		);
 	});
 
@@ -183,7 +250,7 @@ Cost $4.00 over 2 reps.
 			},
 		});
 
-		expect(groupSummary(record, GROUP_REPORT)).toContain(
+		expect(groupSummary(record, GROUP_REPORT, NO_READS)).toContain(
 			"\nCorpus corpus@4e196b.\n",
 		);
 	});
@@ -200,7 +267,7 @@ Cost $4.00 over 2 reps.
 			},
 		});
 
-		expect(groupSummary(record, GROUP_REPORT)).toContain(
+		expect(groupSummary(record, GROUP_REPORT, NO_READS)).toContain(
 			"\nCorpus refused: a symlink escapes the root.\n",
 		);
 	});
@@ -219,16 +286,18 @@ Cost $4.00 over 2 reps.
 			}),
 		);
 
-		expect(groupSummary(GROUP_RECORD, report)).toContain(
+		expect(groupSummary(GROUP_RECORD, report, NO_READS)).toContain(
 			"Cost unavailable: preflight call metrics.",
 		);
-		expect(groupSummary(GROUP_RECORD, report)).not.toContain("Cost $4.00");
+		expect(groupSummary(GROUP_RECORD, report, NO_READS)).not.toContain(
+			"Cost $4.00",
+		);
 	});
 
 	it("does not fall back to rep-only cost when a v2 session report omits its command total", () => {
-		expect(groupSummary(SESSION_GROUP_RECORD, GROUP_REPORT)).toContain(
-			"Cost unavailable: command total evidence is missing.",
-		);
+		expect(
+			groupSummary(SESSION_GROUP_RECORD, GROUP_REPORT, NO_READS),
+		).toContain("Cost unavailable: command total evidence is missing.");
 	});
 });
 
