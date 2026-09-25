@@ -856,14 +856,23 @@ each file's `readBy` and `invalidated` and the report's `lastEdit`. Read-by
 counts the distinct run-history rows whose records read the file: a pipeline
 run, whatever its stages read, a session attempt, a replay and a confirmation
 group. Invalidated counts the rows that read the file with the hash the
-previous version holds while the file differs now. The previous version is the
-log entry before the corpus under test. The last edit's rows are those fresh
-against that entry and stale now: stale only because corpus files changed,
-having read every file as the previous version holds it. `lastEdit` answers
-`{kind: "measured", previous, count, rows}`, or `{kind: "not-recorded",
-reason}` when the log holds no earlier version. A record that cannot be read
-counts nowhere. `/api/runs?ids=<id>,<id>` returns only the rows with those
-record ids, so the last edit's rows list as run history.
+previous version holds while the file differs now, which can include a row
+already stale for another reason. Both list only the files the corpus holds
+now, so a row that read a file the last edit deleted shows only among the last
+edit's rows. The previous version is the log entry before the corpus under
+test. The last edit's rows are those the stale judgment calls fresh against
+that entry's stored files and stale against the corpus under test, so a row
+stale through an upstream stage, its settings or a knob before the edit is not
+among them. A pipeline run whose latest checkpoint directory holds no record
+has no judgment in the run history and is not among them either. `lastEdit`
+answers `{kind: "measured", previous, count, rows}`, or `{kind:
+"not-recorded", reason}` when the log holds no earlier version or the corpus
+under test refused hashing. A record that cannot be read counts nowhere, and
+a run whose manifest or checkpoints do not parse is named unreadable by its
+run id in `stale` and the run history rather than failing either.
+`/api/runs?ids=<id>,<id>` returns only the rows with those record ids, taking
+every `ids` parameter given, so the last edit's rows list as run history. An
+empty `ids=` names no record and returns no row.
 
 ### Pipeline run record
 

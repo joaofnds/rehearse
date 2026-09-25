@@ -61,8 +61,10 @@ no recognized observation, not proof that the file was absent from context.
 Observed entries carry path and corpus/project half, without the bytes read or
 a hash. Declared corpus hashes are separate evidence. Reading today's file
 cannot recover the version, excerpt, or truncated result seen earlier. The
-corpus screen's `readBy` count also comes from checkpoint corpus inventories,
-not observed session reads ([report builder](../src/server/corpus-report.ts)).
+corpus screen's `readBy` count also comes from recorded corpus inventories,
+those of checkpoints, session attempts, replays and confirmation groups, not
+observed session reads
+([invalidation counts](../src/benchmark/corpus-invalidation.ts)).
 
 Session attempts preserve the main transcript before normal cleanup, including
 handled execution failures. An absent transcript is currently saved as an empty
