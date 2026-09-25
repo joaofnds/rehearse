@@ -274,6 +274,24 @@ export const COMMANDS: readonly CommandDefinition[] = [
 		],
 	},
 	{
+		name: "corpus versions",
+		summary: "List the versions a corpus source was measured at, oldest first",
+		flags: [corpusFlag],
+	},
+	{
+		name: "corpus show",
+		summary:
+			"Print a recorded corpus version's files, or one file as that version held it",
+		argument: "corpus-version",
+		flags: [
+			{
+				name: "--file",
+				kind: "value",
+				help: "Corpus layout path to print, such as output-styles/brief.md",
+			},
+		],
+	},
+	{
 		name: "case list",
 		summary: "List every declared benchmark case under cases/",
 		flags: [jsonFlag],

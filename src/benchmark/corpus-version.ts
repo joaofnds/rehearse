@@ -236,3 +236,51 @@ export async function readCorpusVersionFile(
 
 	return Bun.file(blobFile(recordsDirectory, file.sha256)).bytes();
 }
+
+export const CORPUS_VERSION_LABEL = "corpus@";
+const VERSION_LABEL_LENGTH = 6;
+
+/** How a version is named wherever it is shown: the label and six hex characters. */
+export function corpusVersionLabel(digest: string): string {
+	return `${CORPUS_VERSION_LABEL}${digest.slice(0, VERSION_LABEL_LENGTH)}`;
+}
+
+export type FoundCorpusVersion =
+	| { readonly kind: "found"; readonly digest: string }
+	| { readonly kind: "ambiguous"; readonly candidates: readonly string[] }
+	| { readonly kind: "missing" };
+
+const MANIFEST_NAME = /^(?<digest>[0-9a-f]{64})\.json$/u;
+
+/**
+ * Versions are content, so a prefix is matched against every version this
+ * records directory holds, whichever source measured it. The prefix is only
+ * compared against listed names, never joined into a path.
+ */
+export async function findCorpusVersion(
+	recordsDirectory: string,
+	prefix: string,
+): Promise<FoundCorpusVersion> {
+	const wanted = prefix.startsWith(CORPUS_VERSION_LABEL)
+		? prefix.slice(CORPUS_VERSION_LABEL.length)
+		: prefix;
+	const names =
+		(await readdirIfPresent(
+			join(storeDirectory(recordsDirectory), VERSIONS_DIRECTORY),
+		)) ?? [];
+	const candidates = names
+		.map((name) => MANIFEST_NAME.exec(name)?.groups?.["digest"])
+		.filter((digest) => digest !== undefined)
+		.filter((digest) => digest.startsWith(wanted))
+		.toSorted();
+
+	const [only] = candidates;
+	if (only === undefined) {
+		return { kind: "missing" };
+	}
+	if (candidates.length > 1) {
+		return { kind: "ambiguous", candidates };
+	}
+
+	return { kind: "found", digest: only };
+}

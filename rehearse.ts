@@ -9,6 +9,7 @@ import {
 } from "./src/cli/case-command";
 import { claudeProjectsDirectory } from "./src/benchmark/session-capture";
 import { runCompare } from "./src/cli/compare-command";
+import { runCorpusShow, runCorpusVersions } from "./src/cli/corpus-command";
 import {
 	executeReplay,
 	resolveRunDirectory,
@@ -228,6 +229,29 @@ async function dispatch(
 					runsDirectory,
 				},
 				{ output: processOutput },
+			);
+
+			return EXIT_CODES.completed;
+		}
+		case "corpus versions": {
+			await runCorpusVersions(
+				{
+					corpus: flagValue(commandLine.flags, "--corpus"),
+					runsDirectory,
+				},
+				{ output: processOutput },
+			);
+
+			return EXIT_CODES.completed;
+		}
+		case "corpus show": {
+			await runCorpusShow(
+				{
+					version: commandLine.argument,
+					file: flagValue(commandLine.flags, "--file"),
+					runsDirectory,
+				},
+				processOutput,
 			);
 
 			return EXIT_CODES.completed;

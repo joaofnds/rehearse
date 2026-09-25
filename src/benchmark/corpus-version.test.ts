@@ -5,6 +5,7 @@ import { join } from "node:path";
 import type { CorpusRoot } from "./corpus-file";
 import {
 	corpusVersionLog,
+	findCorpusVersion,
 	measureCorpusVersion,
 	readCorpusVersionFile,
 } from "./corpus-version";
@@ -146,6 +147,60 @@ describe(measureCorpusVersion.name, () => {
 
 			expect(measurement.kind).toBe("refused");
 			expect(await corpusVersionLog(recordsDirectory, source)).toEqual([]);
+		});
+	});
+});
+
+describe(findCorpusVersion.name, () => {
+	it("finds a version by a unique prefix of its digest, with or without the corpus@ label", async () => {
+		const digest = versionDigest(
+			await measureCorpusVersion(recordsDirectory, source),
+		);
+
+		const found = await Promise.all([
+			findCorpusVersion(recordsDirectory, digest.slice(0, 6)),
+			findCorpusVersion(recordsDirectory, `corpus@${digest.slice(0, 6)}`),
+		]);
+
+		expect(found).toEqual([
+			{ kind: "found", digest },
+			{ kind: "found", digest },
+		]);
+	});
+
+	it("reports a prefix no version starts with as missing", async () => {
+		await measureCorpusVersion(recordsDirectory, source);
+
+		expect(await findCorpusVersion(recordsDirectory, "corpus@zz")).toEqual({
+			kind: "missing",
+		});
+	});
+
+	it("names every candidate a prefix shared by several versions matches", async () => {
+		const digests: string[] = [];
+		for (let edit = 0; edit <= 16; edit += 1) {
+			await writeFile(
+				join(source.root, "output-styles", "brief.md"),
+				`edit ${String(edit)}\n`,
+			);
+			digests.push(
+				versionDigest(await measureCorpusVersion(recordsDirectory, source)),
+			);
+		}
+		const shared = digests.find((digest) =>
+			digests.some(
+				(other) => other !== digest && other.startsWith(digest.slice(0, 1)),
+			),
+		);
+		const prefix = shared?.slice(0, 1) ?? "";
+
+		const found = await findCorpusVersion(recordsDirectory, prefix);
+
+		expect(found).toEqual({
+			kind: "ambiguous",
+			candidates: digests
+				.filter((digest) => digest.startsWith(prefix))
+				.toSorted(),
 		});
 	});
 });

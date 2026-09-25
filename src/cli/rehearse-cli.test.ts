@@ -926,6 +926,11 @@ const BARE_REFUSALS: ReadonlyMap<string, { code: number; reason: string }> =
 			},
 		],
 		["stale", { code: EXIT_CODES.completed, reason: "" }],
+		["corpus versions", { code: EXIT_CODES.completed, reason: "" }],
+		[
+			"corpus show",
+			{ code: EXIT_CODES.usageError, reason: "Provide the corpus version" },
+		],
 		["case list", { code: EXIT_CODES.completed, reason: "" }],
 		[
 			"case show",
