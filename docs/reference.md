@@ -700,8 +700,9 @@ corpus's version log, with 0 when the corpus under test is that version. It
 reads `distance not recorded` for the initial checkpoint, which reads no corpus,
 a record written before corpus versions, one whose attempt measured no version,
 one whose version is not in that corpus's log, or when the corpus under test
-refuses a layout entry. Distance never makes
-a record stale. Only its causes do.
+refuses a layout entry. Distance never makes a record stale. Only its causes
+do.
+
 Missing files and changed inputs are evidence to inspect, not a substitute for
 running the revised case.
 

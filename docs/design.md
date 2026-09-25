@@ -76,8 +76,8 @@ A target's own instructions are separate project inputs.
 Checkpoints record source commits, workflow state, artifacts, corpus digests,
 the canonical stage-settings digest, and lineage. A changed upstream input,
 model, effort, or stage-settings value changes the conditions under which a
-result was produced. `stale` reports mismatches for recorded checkpoints and
-session debug attempts. Comparison loading checks compatible inputs and derives
+result was produced. `stale` reports mismatches for recorded checkpoints,
+session debug attempts, stage replays and confirmation groups. Comparison loading checks compatible inputs and derives
 its statistics from rep records rather than trusting a saved summary.
 
 Corpus hashing and delivery are distinct responsibilities. A live debug session
