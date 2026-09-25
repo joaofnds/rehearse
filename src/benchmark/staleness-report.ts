@@ -52,17 +52,21 @@ import {
 	checkpointRecordFile,
 	confirmationGroupIds,
 	confirmationGroupPaths,
+	confirmationRepIds,
 	recordedRunNames,
 	replayAttemptIds,
 	replayRecordFile,
 	sessionAttemptIds,
 	sessionAttemptPaths,
 } from "./run-layout";
+import type { ConfirmationGroupPaths } from "./run-layout";
 import { readReplayRecord } from "./replay-record";
 import type { ReplayRecord } from "./replay-record";
 import { parseSessionAttemptRecord } from "./session-record";
 import { stageRubricSha256 } from "./judge-agreement";
 import type { ReadManifestEntry } from "./read-manifest";
+import { readManifestSchema } from "./read-manifest";
+import { z } from "zod";
 import { parseStageRubric } from "./stage-grading";
 import { CONTROL_DIR } from "./config";
 
@@ -862,7 +866,8 @@ const FROZEN_CORPUS = "inputs/corpus/";
 
 type CorpusChanges = Pick<RecordStaleness, "causes" | "changedFiles">;
 
-type GroupCorpus = CorpusChanges & Pick<RecordStaleness, "readFiles">;
+type GroupCorpus = CorpusChanges &
+	Pick<RecordStaleness, "readFiles" | "readManifest">;
 
 type FrozenGroupFile = ParsedConfirmationGroupRecord["inputs"]["files"][number];
 
@@ -917,14 +922,18 @@ async function frozenPipeline(
  * pipeline does not change what the group is compared with.
  */
 async function stageGroupChanges(
-	groupDirectory: string,
+	runsDirectory: string,
+	groupId: string,
 	files: readonly FrozenGroupFile[],
 	source: CorpusRoot,
 	instructions: CurrentInstructions,
 ): Promise<GroupCorpus> {
-	const pipeline = await frozenPipeline(groupDirectory, files);
+	const paths = confirmationGroupPaths(runsDirectory, groupId);
+	const pipeline = await frozenPipeline(paths.directory, files);
+	const repIds = await confirmationRepIds(runsDirectory, groupId);
 	const changes: CorpusChanges[] = [];
 	const readFiles: HashedFile[] = [];
+	const readManifest: JudgedReadEntry[] = [];
 
 	for (const stage of pipeline.stages) {
 		const recorded = frozenCorpusFiles(files, `${FROZEN_CORPUS}${stage.name}/`);
@@ -932,19 +941,69 @@ async function stageGroupChanges(
 			continue;
 		}
 
-		readFiles.push(...recorded);
-		changes.push(
-			stageCorpusChanges(
-				recorded,
-				await stageCorpusNow(stage.skill, instructions, source),
-			),
+		const reads = {
+			corpusFiles: recorded,
+			readManifest: await repStageManifest(paths, repIds, stage.name),
+		};
+		const now = await withLoadedFilesNow(
+			await stageCorpusNow(stage.skill, instructions, source),
+			reads,
+			source,
+		);
+		const change = stageCorpusChanges(readCorpusFiles(reads), now);
+		readFiles.push(...readCorpusFiles(reads));
+		changes.push(change);
+		readManifest.push(
+			...(await judgedReadManifest(
+				reads.readManifest,
+				comparedCorpus(now, change),
+				stage,
+			)),
 		);
 	}
 
-	return { ...mergedChanges(changes), readFiles };
+	return { ...mergedChanges(changes), readFiles, readManifest };
+}
+
+const recordedManifestSchema = z
+	.object({ readManifest: readManifestSchema.optional() })
+	.loose();
+
+/**
+ * Every read one stage of a group's reps recorded, once per file and hash. A
+ * rep keeps it on its stage file, and one that saved a checkpoint keeps it
+ * there too, as a rep recorded before its stage file held one does.
+ */
+async function repStageManifest(
+	paths: ConfirmationGroupPaths,
+	repIds: readonly string[],
+	stage: string,
+): Promise<readonly ReadManifestEntry[]> {
+	const entries = new Map<string, ReadManifestEntry>();
+	for (const repId of repIds) {
+		const rep = paths.rep(repId);
+		for (const file of [
+			rep.stageFile(stage),
+			checkpointRecordFile(rep.checkpointDirectory(stage)),
+		]) {
+			const text = await textIfPresent(file);
+			if (text === undefined) {
+				continue;
+			}
+
+			const { readManifest } = recordedManifestSchema.parse(JSON.parse(text));
+			for (const entry of readManifest ?? []) {
+				entries.set(readKey(entry), entry);
+			}
+		}
+	}
+
+	return [...entries.values()];
 }
 
 async function sessionGroupChanges(
+	runsDirectory: string,
+	groupId: string,
 	caseId: string,
 	files: readonly FrozenGroupFile[],
 	source: CorpusRoot,
@@ -959,20 +1018,61 @@ async function sessionGroupChanges(
 		);
 	}
 
-	const readFiles = frozenCorpusFiles(files, FROZEN_CORPUS);
+	const reads = {
+		corpusFiles: frozenCorpusFiles(files, FROZEN_CORPUS),
+		readManifest: await repAttemptManifest(runsDirectory, groupId),
+	};
+	const readFiles = readCorpusFiles(reads);
+	const now = await withLoadedFilesNow(
+		await currentCaseCorpus(declaration, source),
+		reads,
+		source,
+	);
+	const changes = stageCorpusChanges(readFiles, now);
 
 	return {
-		...stageCorpusChanges(
-			readFiles,
-			await currentCaseCorpus(declaration, source),
-		),
+		...changes,
 		readFiles,
+		readManifest: await judgedReadManifest(
+			reads.readManifest,
+			comparedCorpus(now, changes),
+			undefined,
+		),
 	};
+}
+
+/** Every read a session group's rep attempts recorded, once per file and hash. */
+async function repAttemptManifest(
+	runsDirectory: string,
+	groupId: string,
+): Promise<readonly ReadManifestEntry[]> {
+	const paths = confirmationGroupPaths(runsDirectory, groupId);
+	const entries = new Map<string, ReadManifestEntry>();
+	for (const repId of await confirmationRepIds(runsDirectory, groupId)) {
+		const text = await textIfPresent(paths.rep(repId).attemptFile);
+		if (text === undefined) {
+			continue;
+		}
+
+		const record = parseSessionAttemptRecord(text);
+		for (const entry of record.schemaVersion === 1
+			? []
+			: (record.readManifest ?? [])) {
+			entries.set(readKey(entry), entry);
+		}
+	}
+
+	return [...entries.values()];
+}
+
+function readKey(entry: ReadManifestEntry): string {
+	return `${entry.half}:${entry.path}:${entry.sha256}`;
 }
 
 /**
  * Every confirmation group judged against the corpus under test by the corpus
- * files it froze. A group froze its checkpoint and pipeline too, so nothing
+ * files it froze and the reads its reps recorded, a changed judge rubric
+ * included. A group froze its checkpoint and pipeline too, so nothing
  * upstream of it in the live run records can stale it, and its settings are
  * compared by the checkpoint it froze rather than here.
  */
@@ -999,28 +1099,34 @@ export async function groupStaleness(
 			const corpus =
 				record.mode === "session"
 					? await sessionGroupChanges(
+							runsDirectory,
+							groupId,
 							record.caseId,
 							record.inputs.files,
 							source,
 						)
 					: await stageGroupChanges(
-							paths.directory,
+							runsDirectory,
+							groupId,
 							record.inputs.files,
 							source,
 							instructions,
 						);
 			const knobCauses = namedKnobCauses(record.inputs, knobs);
-			const causes = [...knobCauses, ...corpus.causes];
+			const rubric = rubricCauses(corpus.readManifest);
+			const causes = [...knobCauses, ...corpus.causes, ...rubric];
 			records.push({
 				id,
 				stale: causes.length > 0,
 				causes,
 				changedFiles: corpus.changedFiles,
 				onlyCorpusFiles:
-					knobCauses.length === 0 && readChangedFilesOnly(corpus),
+					knobCauses.length === 0 &&
+					rubric.length === 0 &&
+					readChangedFilesOnly(corpus),
 				distance: underTest.distanceOf(record.inputs.corpusVersion),
 				readFiles: corpus.readFiles,
-				readManifest: [],
+				readManifest: corpus.readManifest,
 			});
 		} catch (error) {
 			unreadable.push({

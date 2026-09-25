@@ -1237,6 +1237,122 @@ describe(groupStaleness.name, () => {
 		]);
 	});
 
+	it("stales a stage group whose rep loaded a file beyond the frozen corpus that changed", async () => {
+		const corpus = await stageCorpus();
+		const fixture = await fixtureWithGroupFrom(corpus);
+		await fixture.recordGroupRepReadManifest("rep-1", "build", [
+			{
+				path: "skills/delivery/SKILL.md",
+				half: "corpus",
+				role: "read for context",
+				evidence: "observed",
+				sha256: sha256Of("delivery\n"),
+			},
+		]);
+		await mkdir(join(corpus, "skills", "delivery"), { recursive: true });
+		await Bun.write(join(corpus, "skills", "delivery", "SKILL.md"), "edited\n");
+
+		const report = await groupStaleness(
+			fixture.runsDirectory,
+			directorySource(corpus),
+		);
+
+		expect(report.records).toEqual([
+			expect.objectContaining({
+				stale: true,
+				causes: ["skills/delivery/SKILL.md changed"],
+				onlyCorpusFiles: true,
+				readManifest: [
+					expect.objectContaining({
+						path: "skills/delivery/SKILL.md",
+						state: "changed",
+					}),
+				],
+			}),
+		]);
+		expect(report.records[0]?.readFiles.map(({ path }) => path)).toContain(
+			"skills/delivery/SKILL.md",
+		);
+	});
+
+	it("stales a stage group whose rep's judge rubric changed since", async () => {
+		const corpus = await stageCorpus();
+		const fixture = await fixtureWithGroupFrom(corpus);
+		await fixture.recordGroupRepReadManifest("rep-1", "discuss", [
+			{
+				path: "rubrics/discuss.json",
+				half: "rubric",
+				role: "judge rubric",
+				evidence: "declared",
+				sha256: "aa".repeat(32),
+			},
+		]);
+
+		const report = await groupStaleness(
+			fixture.runsDirectory,
+			directorySource(corpus),
+		);
+
+		expect(report.records).toEqual([
+			expect.objectContaining({
+				stale: true,
+				causes: ["judge rubric rubrics/discuss.json changed"],
+				onlyCorpusFiles: false,
+			}),
+		]);
+	});
+
+	it("stales a session group whose rep loaded a file beyond the frozen corpus that changed", async () => {
+		const corpus = await temporaryDirectory("rehearse-group-style-");
+		await mkdir(join(corpus, "output-styles"), { recursive: true });
+		await mkdir(join(corpus, "skills", "delivery"), { recursive: true });
+		await Bun.write(join(corpus, "output-styles", "brief.md"), "brief\n");
+		await Bun.write(
+			join(corpus, "skills", "delivery", "SKILL.md"),
+			"delivery\n",
+		);
+		const fixture = new RecordedRunsFixture(
+			await temporaryDirectory("rehearse-session-group-"),
+		);
+		await fixture.recordSessionGroupFrom("session-group", corpus, [
+			"output-styles/brief.md",
+		]);
+		await fixture.recordSessionGroupRepAttempt(
+			"session-group",
+			"session-group-rep-1",
+			corpus,
+			["output-styles/brief.md"],
+			[
+				{
+					path: "skills/delivery/SKILL.md",
+					half: "corpus",
+					role: "read for context",
+					evidence: "observed",
+					sha256: sha256Of("delivery\n"),
+				},
+			],
+		);
+		await Bun.write(join(corpus, "skills", "delivery", "SKILL.md"), "edited\n");
+
+		const report = await groupStaleness(
+			fixture.runsDirectory,
+			directorySource(corpus),
+		);
+
+		expect(report.records).toEqual([
+			expect.objectContaining({
+				stale: true,
+				causes: ["skills/delivery/SKILL.md changed"],
+				readManifest: [
+					expect.objectContaining({
+						path: "skills/delivery/SKILL.md",
+						state: "changed",
+					}),
+				],
+			}),
+		]);
+	});
+
 	describe("when a stage group froze no pipeline", () => {
 		it("names the group unreadable rather than judging it", async () => {
 			const fixture = new RecordedRunsFixture(

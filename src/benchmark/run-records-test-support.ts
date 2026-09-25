@@ -1589,6 +1589,54 @@ export class RecordedRunsFixture {
 	}
 
 	/**
+	 * Keeps on one rep's stage file of the stage group the read manifest that
+	 * stage recorded, the way a confirmation rep writes it.
+	 */
+	public async recordGroupRepReadManifest(
+		repId: string,
+		stage: string,
+		readManifest: readonly ReadManifestEntry[],
+	): Promise<void> {
+		const file = confirmationGroupPaths(this.runsDirectory, this.groupId)
+			.rep(repId)
+			.stageFile(stage);
+		await mkdir(dirname(file), { recursive: true });
+		await Bun.write(
+			file,
+			`${JSON.stringify({ stage, readManifest }, null, 2)}\n`,
+		);
+	}
+
+	/**
+	 * Writes a session group rep's attempt over the named layout files with
+	 * the read manifest it recorded, the way session confirmation writes it.
+	 */
+	public async recordSessionGroupRepAttempt(
+		groupId: string,
+		repId: string,
+		corpusRoot: string,
+		layoutPaths: readonly string[],
+		readManifest: readonly ReadManifestEntry[],
+	): Promise<void> {
+		const { caseId } = this.sessionAttempt;
+		const record = sessionAttemptRecordSchema.parse({
+			...sessionAttempt(caseId),
+			schemaVersion: 3,
+			corpusFiles: await hashCorpusFiles(
+				directorySource(corpusRoot),
+				layoutPaths,
+			),
+			readManifest,
+		});
+		const { attemptFile } = confirmationGroupPaths(
+			this.runsDirectory,
+			groupId,
+		).rep(repId);
+		await mkdir(dirname(attemptFile), { recursive: true });
+		await Bun.write(attemptFile, serialize(record));
+	}
+
+	/**
 	 * A run that failed before it created its checkpoints directory, so the
 	 * event stream is the only record it ever ran.
 	 */

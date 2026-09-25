@@ -299,6 +299,16 @@ export function confirmationGroupIds(
 	return directoryNames(join(runsDirectory, "confirmations"));
 }
 
+/** Every rep directory a confirmation group holds, whether or not it finished. */
+export function confirmationRepIds(
+	runsDirectory: string,
+	groupId: string,
+): Promise<readonly string[]> {
+	return directoryNames(
+		confirmationGroupPaths(runsDirectory, groupId).repsDirectory,
+	);
+}
+
 export function comparisonDigests(
 	runsDirectory: string,
 ): Promise<readonly string[]> {
