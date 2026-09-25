@@ -347,7 +347,7 @@ export interface SessionAttemptRecordInputs {
 	readonly lineage: string;
 	readonly corpusFiles: readonly ResolvedCorpusFile[];
 	readonly corpusOrigin: CorpusSnapshotOrigin;
-	readonly corpusVersion?: CorpusMeasurement | undefined;
+	readonly corpusVersion: CorpusMeasurement;
 	readonly attempt: SessionAttempt;
 	readonly elapsedMs: number;
 	readonly error?: string | undefined;
@@ -400,6 +400,7 @@ export function buildSessionAttemptRecord(
 		outcome: attempt.outcome,
 		checks: attempt.checks.map((check) => ({ ...check })),
 		elapsedMs: inputs.elapsedMs,
+		corpusVersion: { ...inputs.corpusVersion },
 	};
 	const settingsDigest = sessionSettingsDigest(sessionCase);
 	if (settingsDigest !== undefined) {
@@ -407,9 +408,6 @@ export function buildSessionAttemptRecord(
 	}
 	if (settings.effort !== undefined) {
 		record.effort = settings.effort;
-	}
-	if (inputs.corpusVersion !== undefined) {
-		record.corpusVersion = { ...inputs.corpusVersion };
 	}
 	if (attempt.reply !== undefined) {
 		record.reply = attempt.reply;

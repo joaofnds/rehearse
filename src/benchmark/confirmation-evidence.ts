@@ -164,7 +164,7 @@ interface ConfirmationGroupInputs {
 	readonly judgeEffort?: Effort | undefined;
 	readonly sessionBudgetUsd: number;
 	readonly pipelinePath: string;
-	readonly corpusVersion?: CorpusMeasurement | undefined;
+	readonly corpusVersion: CorpusMeasurement;
 }
 
 interface SessionConfirmationGroupInputs {
@@ -173,7 +173,7 @@ interface SessionConfirmationGroupInputs {
 	readonly model: string;
 	readonly effort?: Effort | undefined;
 	readonly sessionBudgetUsd: number;
-	readonly corpusVersion?: CorpusMeasurement | undefined;
+	readonly corpusVersion: CorpusMeasurement;
 }
 
 type ConfirmationGroupFinalization = ConfirmationGroupFinalizationBase &
