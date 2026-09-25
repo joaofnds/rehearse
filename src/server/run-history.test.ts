@@ -319,6 +319,29 @@ describe(runHistoryReport.name, () => {
 		});
 	});
 
+	it("names no absolute filesystem path in why a row's staleness could not be judged", async () => {
+		const fixture = await fixtureRecordingLiveSettings();
+		const corpus = await corpusDirectory("build skill\n");
+		await fixture.recordCorpusFrom(directorySource(corpus));
+		await fixture.recordReplayFrom(directorySource(corpus));
+		await rm(
+			benchmarkRunPaths(fixture.runsDirectory, fixture.replayableRun)
+				.manifestFile,
+		);
+
+		const { rows } = await runHistoryReport(
+			fixture.runsDirectory,
+			directorySource(corpus),
+			nothingRunning,
+		);
+
+		const replay = rows.find((row) => row.kind === "replay");
+		expect(replay?.staleness.state).toBe("unavailable");
+		expect(JSON.stringify(replay?.staleness)).not.toContain(
+			fixture.runsDirectory,
+		);
+	});
+
 	describe("when a corpus directory holds a symlink out of the tree", () => {
 		it("renders every row it could read rather than failing the report", async () => {
 			const fixture = await writtenFixture();

@@ -862,7 +862,10 @@ async function recordStaleness(
 	for (const { id, reason } of reports.flatMap(
 		({ unreadable }) => unreadable,
 	)) {
-		byId.set(id, { state: "unavailable", reasons: [reason] });
+		byId.set(id, {
+			state: "unavailable",
+			reasons: [redactAbsolutePaths(reason)],
+		});
 	}
 
 	return {
