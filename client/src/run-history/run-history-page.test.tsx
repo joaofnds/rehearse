@@ -359,6 +359,7 @@ describe(RunHistoryPage.name, () => {
 				changedFiles: [{ path: "skills/build/SKILL.md", change: "changed" }],
 				onlyCorpusFiles: true,
 				distance: { kind: "measured", versions },
+				readManifest: [],
 			};
 		}
 
@@ -399,6 +400,7 @@ describe(RunHistoryPage.name, () => {
 					changedFiles: [],
 					onlyCorpusFiles: false,
 					distance: { kind: "measured", versions: 0 },
+					readManifest: [],
 				} satisfies RowStaleness,
 				"✓clean",
 			],
@@ -437,6 +439,7 @@ describe(RunHistoryPage.name, () => {
 					changedFiles: [],
 					onlyCorpusFiles: false,
 					distance: { kind: "measured", versions: 0 },
+					readManifest: [],
 				} satisfies RowStaleness,
 				"⚠stale",
 			],

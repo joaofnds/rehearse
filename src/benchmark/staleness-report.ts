@@ -41,7 +41,7 @@ import type { ParsedConfirmationGroupRecord } from "./confirmation-record";
 import { loadRunManifest } from "./manifest";
 import type { RunManifest } from "./manifest";
 import { pipelineDefinitionSchema } from "./pipeline";
-import type { PipelineDefinition } from "./pipeline";
+import type { PipelineDefinition, StageDefinition } from "./pipeline";
 import {
 	benchmarkRunPaths,
 	checkpointRecordFile,
@@ -56,6 +56,9 @@ import {
 import { readReplayRecord } from "./replay-record";
 import type { ReplayRecord } from "./replay-record";
 import { parseSessionAttemptRecord } from "./session-record";
+import { stageRubricSha256 } from "./judge-agreement";
+import type { ReadManifestEntry } from "./read-manifest";
+import { loadStageRubric } from "./stage-grading";
 
 /**
  * One record judged against the corpus under test, stale or clean, with the
@@ -77,6 +80,86 @@ export interface RecordStaleness {
 	readonly distance: VersionDistance;
 	/** The corpus files it read, each with the hash it recorded. */
 	readonly readFiles: readonly HashedFile[];
+	/**
+	 * What it declared and loaded, each corpus and rubric entry with a
+	 * recorded hash saying whether that file changed since. Empty for a record
+	 * written before read manifests.
+	 */
+	readonly readManifest: readonly JudgedReadEntry[];
+}
+
+export type JudgedReadEntry = ReadManifestEntry & {
+	readonly state?: "unchanged" | "changed";
+};
+
+export function judgeRubricCause(path: string): string {
+	return `judge rubric ${path} changed`;
+}
+
+/**
+ * The hash a rubric has now, the way a stage's scorecard froze it. A rubric
+ * that is gone or no longer parses has none, so it reads as changed.
+ */
+async function rubricHashNow(
+	definition: StageDefinition | undefined,
+	path: string,
+): Promise<string | undefined> {
+	if (definition === undefined) {
+		return undefined;
+	}
+
+	try {
+		const loaded = await loadStageRubric({ ...definition, rubric: path });
+
+		return stageRubricSha256(loaded.rubric);
+	} catch {
+		return undefined;
+	}
+}
+
+/**
+ * A project entry gets no state, since the target repository is not under
+ * test, and neither does an entry that recorded no hash to compare.
+ */
+async function judgedReadManifest(
+	entries: readonly ReadManifestEntry[] | undefined,
+	changedFiles: readonly ChangedCorpusFile[],
+	definition: StageDefinition | undefined,
+): Promise<readonly JudgedReadEntry[]> {
+	const judged: JudgedReadEntry[] = [];
+	for (const entry of entries ?? []) {
+		if (entry.sha256 === undefined || entry.half === "project") {
+			judged.push(entry);
+		} else if (entry.half === "corpus") {
+			const changed = changedFiles.some(({ path }) => path === entry.path);
+			judged.push({ ...entry, state: changed ? "changed" : "unchanged" });
+		} else {
+			const now = await rubricHashNow(definition, entry.path);
+			judged.push({
+				...entry,
+				state: now === entry.sha256 ? "unchanged" : "changed",
+			});
+		}
+	}
+
+	return judged;
+}
+
+/**
+ * A changed rubric changes the grade, not the version the record read, so it
+ * stales the record without moving its distance, and it does not reach a
+ * stage downstream, which consumed the artifact rather than the grade.
+ */
+function rubricCauses(readManifest: readonly JudgedReadEntry[]): string[] {
+	return readManifest
+		.filter(({ half, state }) => half === "rubric" && state === "changed")
+		.map(({ path }) => judgeRubricCause(path));
+}
+
+function staleBesideItsRubric(record: RecordStaleness): boolean {
+	const rubric = new Set(rubricCauses(record.readManifest));
+
+	return record.causes.some((cause) => !rubric.has(cause));
 }
 
 export interface UnreadableStaleRecord {
@@ -359,12 +442,19 @@ async function runCheckpointStaleness(
 		effort: knobs.effort ?? manifest.effort,
 		...settings,
 	})) {
+		const readManifest = await judgedReadManifest(
+			byStage.get(staleness.stage)?.readManifest,
+			staleness.changedFiles,
+			manifest.pipeline.stages.find(({ name }) => name === staleness.stage),
+		);
+		const rubric = rubricCauses(readManifest);
 		judged.push({
 			id: `checkpoint:${run}/${staleness.stage}`,
-			stale: staleness.stale,
-			causes: staleness.causes,
+			stale: staleness.stale || rubric.length > 0,
+			causes: [...staleness.causes, ...rubric],
 			changedFiles: staleness.changedFiles,
-			onlyCorpusFiles: staleness.onlyCorpusFiles,
+			onlyCorpusFiles: staleness.onlyCorpusFiles && rubric.length === 0,
+			readManifest,
 			distance:
 				staleness.stage === INITIAL_CHECKPOINT_STAGE
 					? INITIAL_CHECKPOINT_DISTANCE
@@ -504,6 +594,11 @@ export async function sessionAttemptStaleness(
 					onlyCorpusFiles: readChangedFilesOnly(changes),
 					distance: underTest.distanceOf(record.corpusVersion),
 					readFiles,
+					readManifest: await judgedReadManifest(
+						record.schemaVersion === 1 ? undefined : record.readManifest,
+						changes.changedFiles,
+						undefined,
+					),
 				});
 			} catch (error) {
 				unreadable.push({
@@ -536,12 +631,10 @@ function namedKnobCauses(
 	return causes;
 }
 
-async function currentReplayCorpus(
+async function replayedStage(
 	runsDirectory: string,
 	record: Pick<ReplayRecord, "runName" | "stage">,
-	source: CorpusRoot,
-	instructions: CurrentInstructions,
-): Promise<StageCorpus> {
+): Promise<StageDefinition> {
 	const manifest = await loadRunManifest(
 		benchmarkRunPaths(runsDirectory, record.runName).manifestFile,
 	);
@@ -554,7 +647,7 @@ async function currentReplayCorpus(
 		);
 	}
 
-	return stageCorpusNow(definition.skill, instructions, source);
+	return definition;
 }
 
 /**
@@ -577,7 +670,7 @@ export async function replayAttemptStaleness(
 	const upstream = await checkpointStaleness(runsDirectory, source);
 	const staleCheckpointsById = new Map(
 		upstream.records
-			.filter(({ stale }) => stale)
+			.filter(staleBesideItsRubric)
 			.map((checkpoint) => [checkpoint.id, checkpoint]),
 	);
 	const unreadableRuns = new Set(upstream.unreadable.map(({ id }) => id));
@@ -596,20 +689,28 @@ export async function replayAttemptStaleness(
 					`the run ${record.runName} it replayed cannot be read to judge its upstream stages`,
 				);
 			}
+			const definition = await replayedStage(runsDirectory, record);
 			const corpus = stageCorpusChanges(
 				record.corpusFiles,
-				await currentReplayCorpus(runsDirectory, record, source, instructions),
+				await stageCorpusNow(definition.skill, instructions, source),
 			);
 			const consumed = staleCheckpointsById.get(
 				`checkpoint:${record.runName}/${record.consumed.stage}`,
 			);
 			const knobCauses = namedKnobCauses(record, knobs);
+			const readManifest = await judgedReadManifest(
+				record.readManifest,
+				corpus.changedFiles,
+				definition,
+			);
+			const rubric = rubricCauses(readManifest);
 			const causes = [
 				...(consumed === undefined
 					? []
 					: [`upstream stage ${record.consumed.stage} is stale`]),
 				...knobCauses,
 				...corpus.causes,
+				...rubric,
 			];
 			records.push({
 				id,
@@ -618,10 +719,12 @@ export async function replayAttemptStaleness(
 				changedFiles: corpus.changedFiles,
 				onlyCorpusFiles:
 					knobCauses.length === 0 &&
+					rubric.length === 0 &&
 					(consumed?.onlyCorpusFiles ?? true) &&
 					readChangedFilesOnly(corpus),
 				distance: underTest.distanceOf(record.corpusVersion),
 				readFiles: record.corpusFiles,
+				readManifest,
 			});
 		} catch (error) {
 			unreadable.push({
@@ -796,6 +899,7 @@ export async function groupStaleness(
 					knobCauses.length === 0 && readChangedFilesOnly(corpus),
 				distance: underTest.distanceOf(record.inputs.corpusVersion),
 				readFiles: corpus.readFiles,
+				readManifest: [],
 			});
 		} catch (error) {
 			unreadable.push({

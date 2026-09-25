@@ -8,6 +8,7 @@ import {
 } from "./comparison-test-fixtures";
 import type { RepFixtureOutcomes } from "./comparison-test-fixtures";
 import type { CheckpointRecord, HashedFile } from "./checkpoint";
+import type { ReadManifestEntry } from "./read-manifest";
 import {
 	captureStageCorpus,
 	INITIAL_CHECKPOINT_STAGE,
@@ -612,6 +613,32 @@ export class RecordedRunsFixture {
 				serialize({ ...record, corpusFiles }),
 			);
 		}
+	}
+
+	/** Writes a read manifest onto one stage checkpoint of the run. */
+	public async recordReadManifest(
+		stage: string,
+		readManifest: readonly ReadManifestEntry[],
+		run = this.replayableRun,
+	): Promise<void> {
+		const file = checkpointRecordFile(
+			benchmarkRunPaths(this.runsDirectory, run).checkpointDirectory(stage),
+		);
+		const record = parseCheckpointRecord(await Bun.file(file).text());
+		await Bun.write(file, serialize({ ...record, readManifest }));
+	}
+
+	/** Writes a read manifest onto the stage attempt, as `replay` does. */
+	public async recordReplayReadManifest(
+		readManifest: readonly ReadManifestEntry[],
+	): Promise<void> {
+		const record = replayRecordSchema.parse(
+			JSON.parse(await Bun.file(this.stageAttemptFile).text()),
+		);
+		await Bun.write(
+			this.stageAttemptFile,
+			serialize({ ...record, readManifest }),
+		);
 	}
 
 	/**

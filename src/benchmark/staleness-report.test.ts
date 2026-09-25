@@ -19,6 +19,9 @@ import {
 	staleCheckpoints,
 } from "./staleness-report";
 import { measureCorpusVersion } from "./corpus-version";
+import { stageRubricSha256 } from "./judge-agreement";
+import type { ReadManifestEntry } from "./read-manifest";
+import { loadStageRubric } from "./stage-grading";
 
 const HALF_WRITTEN_UUID = "0f6b6f2a-0000-4000-8000-00000000000f";
 
@@ -511,6 +514,186 @@ describe(checkpointStaleness.name, () => {
 				changedFiles: [{ path: "skills/build/SKILL.md", change: "changed" }],
 				onlyCorpusFiles: true,
 				distance: { kind: "measured", versions: 1 },
+			},
+		]);
+	});
+});
+
+describe("staleness over read manifests", () => {
+	const roots: string[] = [];
+
+	afterEach(async () => {
+		await Promise.all(
+			roots.splice(0).map((root) => rm(root, { force: true, recursive: true })),
+		);
+	});
+
+	async function temporaryDirectory(prefix: string): Promise<string> {
+		const root = await mkdtemp(join(tmpdir(), prefix));
+		roots.push(root);
+
+		return root;
+	}
+
+	const PLANNING_RUBRIC = "cases/audit-log/rubrics/shape.json";
+
+	async function planningRubricNow(): Promise<string> {
+		const loaded = await loadStageRubric({
+			name: "discuss",
+			kind: "planning",
+			skill: "discuss",
+			rubric: PLANNING_RUBRIC,
+			requiresAcceptanceCriteria: false,
+		});
+
+		return stageRubricSha256(loaded.rubric);
+	}
+
+	async function recordedFixture(): Promise<{
+		readonly fixture: RecordedRunsFixture;
+		readonly corpus: string;
+	}> {
+		const root = await temporaryDirectory("rehearse-manifest-staleness-");
+		const fixture = new RecordedRunsFixture(root, {
+			settingsFile: await liveStageSettings(),
+		});
+		await fixture.write();
+		await fixture.writeInitialCheckpoint();
+		const corpus = await temporaryDirectory("rehearse-manifest-corpus-");
+		await mkdir(join(corpus, "skills", "build"), { recursive: true });
+		await mkdir(join(corpus, "skills", "discuss"), { recursive: true });
+		await Bun.write(join(corpus, "CLAUDE.md"), "the instructions\n");
+		await Bun.write(join(corpus, "skills", "build", "SKILL.md"), "build\n");
+		await Bun.write(join(corpus, "skills", "discuss", "SKILL.md"), "discuss\n");
+		await fixture.recordCorpusFrom(directorySource(corpus));
+		await fixture.recordVersionFrom(directorySource(corpus));
+		await fixture.recordReplayFrom(directorySource(corpus));
+
+		return { fixture, corpus };
+	}
+
+	function discussManifest(rubricSha: string): readonly ReadManifestEntry[] {
+		return [
+			{
+				path: "CLAUDE.md",
+				half: "corpus",
+				role: "global instructions",
+				evidence: "declared",
+				sha256: sha256Of("the instructions\n"),
+			},
+			{
+				path: "skills/discuss/SKILL.md",
+				half: "corpus",
+				role: "stage skill",
+				evidence: "declared and observed",
+				sha256: sha256Of("discuss\n"),
+			},
+			{
+				path: PLANNING_RUBRIC,
+				half: "rubric",
+				role: "judge rubric",
+				evidence: "declared",
+				sha256: rubricSha,
+			},
+			{
+				path: "CLAUDE.md",
+				half: "project",
+				role: "project instructions",
+				evidence: "observed",
+				sha256: "d".repeat(64),
+			},
+		];
+	}
+
+	it("says of each corpus and rubric entry whether it changed since the record, and of a project entry nothing", async () => {
+		const { fixture, corpus } = await recordedFixture();
+		await fixture.recordReadManifest(
+			"discuss",
+			discussManifest(await planningRubricNow()),
+		);
+		await Bun.write(join(corpus, "skills", "discuss", "SKILL.md"), "edited\n");
+
+		const report = await checkpointStaleness(
+			fixture.runsDirectory,
+			directorySource(corpus),
+		);
+
+		expect(
+			report.records
+				.find(({ id }) => id === `checkpoint:${fixture.replayableRun}/discuss`)
+				?.readManifest.map(({ path, half, state }) => ({ path, half, state })),
+		).toEqual([
+			{ path: "CLAUDE.md", half: "corpus", state: "unchanged" },
+			{ path: "skills/discuss/SKILL.md", half: "corpus", state: "changed" },
+			{ path: PLANNING_RUBRIC, half: "rubric", state: "unchanged" },
+			{ path: "CLAUDE.md", half: "project", state: undefined },
+		]);
+	});
+
+	it("stales a checkpoint whose judge rubric changed without moving its distance or its downstream stages", async () => {
+		const { fixture, corpus } = await recordedFixture();
+		await fixture.recordReadManifest(
+			"discuss",
+			discussManifest("0".repeat(64)),
+		);
+
+		const report = await checkpointStaleness(
+			fixture.runsDirectory,
+			directorySource(corpus),
+		);
+
+		const run = report.records.filter(({ id }) =>
+			id.startsWith(`checkpoint:${fixture.replayableRun}/`),
+		);
+		expect(run).toMatchObject([
+			{ stale: false },
+			{
+				stale: true,
+				causes: [`judge rubric ${PLANNING_RUBRIC} changed`],
+				changedFiles: [],
+				onlyCorpusFiles: false,
+				distance: { kind: "measured", versions: 0 },
+			},
+			{ stale: false, causes: [] },
+		]);
+		expect(
+			run[1]?.readManifest.find(({ half }) => half === "rubric")?.state,
+		).toBe("changed");
+	});
+
+	it("stales a replay whose judge rubric changed, and not one whose consumed stage only had its rubric change", async () => {
+		const { fixture, corpus } = await recordedFixture();
+		await fixture.recordReadManifest(
+			"discuss",
+			discussManifest("0".repeat(64)),
+		);
+
+		const clean = await replayAttemptStaleness(
+			fixture.runsDirectory,
+			directorySource(corpus),
+		);
+		await fixture.recordReplayReadManifest([
+			{
+				path: PLANNING_RUBRIC,
+				half: "rubric",
+				role: "judge rubric",
+				evidence: "declared",
+				sha256: "0".repeat(64),
+			},
+		]);
+		const stale = await replayAttemptStaleness(
+			fixture.runsDirectory,
+			directorySource(corpus),
+		);
+
+		expect(clean.records.map((record) => record.stale)).toEqual([false]);
+		expect(stale.records).toMatchObject([
+			{
+				stale: true,
+				causes: [`judge rubric ${PLANNING_RUBRIC} changed`],
+				onlyCorpusFiles: false,
+				distance: { kind: "measured", versions: 0 },
+				readManifest: [{ path: PLANNING_RUBRIC, state: "changed" }],
 			},
 		]);
 	});

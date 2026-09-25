@@ -288,6 +288,7 @@ describe(runHistoryReport.name, () => {
 			changedFiles: [{ path: "skills/build/SKILL.md", change: "changed" }],
 			onlyCorpusFiles: true,
 			distance: { kind: "measured", versions: 1 },
+			readManifest: [],
 		};
 		expect(pipelineRun(rows, fixture.replayableRun)?.staleness).toEqual(edited);
 		expect(rows.find((row) => row.kind === "replay")?.staleness).toEqual(
