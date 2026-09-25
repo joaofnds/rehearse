@@ -34,8 +34,7 @@ import {
 	corpusInstructionsEntry,
 	hashCorpusFiles,
 } from "./corpus-file";
-import type { VersionDistance } from "./corpus-version";
-import type { CorpusUnderTest } from "./corpus-version";
+import type { CorpusUnderTest, VersionDistance } from "./corpus-version";
 import { readCorpusUnderTest } from "./corpus-version";
 import { parseConfirmationGroupRecord } from "./confirmation-record";
 import type { ParsedConfirmationGroupRecord } from "./confirmation-record";
