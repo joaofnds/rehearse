@@ -17,6 +17,15 @@ import {
 import { comparisonReport } from "./comparisons";
 import { comparisonIndex } from "./comparison-index";
 import { comparisonAttemptHistoryLinks } from "./comparison-history-links";
+import type { FoundCorpusVersion } from "#benchmark/corpus-version";
+import {
+	corpusVersionLog,
+	CorpusVersionError,
+	findCorpusVersion,
+	readCorpusVersion,
+	readCorpusVersionFile,
+} from "#benchmark/corpus-version";
+import { corpusVersionLabel } from "#benchmark/corpus-version-label";
 import { corpusReport } from "./corpus-report";
 import { redactAbsolutePaths, redactedFilePath } from "./redact-path";
 import type { RunLiveness } from "#benchmark/run-liveness";
@@ -117,6 +126,34 @@ export interface ApiDependencies {
 	readonly liveness: RunLiveness;
 }
 
+/** Why a version prefix opened nothing: no version, or more than one. */
+interface CorpusVersionRefusal {
+	readonly body: {
+		readonly error: string;
+		readonly candidates: readonly string[];
+	};
+	readonly status: 404 | 409;
+}
+
+function versionRefusal(
+	found: Exclude<FoundCorpusVersion, { readonly kind: "found" }>,
+): CorpusVersionRefusal {
+	if (found.kind === "missing") {
+		return {
+			body: { error: "No corpus version matches", candidates: [] },
+			status: 404,
+		};
+	}
+
+	return {
+		body: {
+			error: "The corpus version prefix is ambiguous",
+			candidates: found.candidates,
+		},
+		status: 409,
+	};
+}
+
 /**
  * Chained (`.get().get()`) rather than two separate `app.get()` statements,
  * because Hono's RPC type inference builds `AppType` off the chain: a caller
@@ -149,6 +186,67 @@ export const createApiApp = (dependencies: ApiDependencies) => {
 			);
 
 			return context.json(report);
+		})
+		.get("/api/corpus/versions", async (context) => {
+			const log = await corpusVersionLog(
+				dependencies.runsDirectory,
+				dependencies.corpusSource,
+			);
+
+			return context.json({
+				versions: log.map((digest, index) => ({
+					position: index + 1,
+					label: corpusVersionLabel(digest),
+					digest,
+				})),
+			});
+		})
+		.get("/api/corpus/versions/:version", async (context) => {
+			const found = await findCorpusVersion(
+				dependencies.runsDirectory,
+				context.req.param("version"),
+			);
+			if (found.kind !== "found") {
+				const refusal = versionRefusal(found);
+
+				return context.json(refusal.body, refusal.status);
+			}
+
+			return context.json({
+				digest: found.digest,
+				label: corpusVersionLabel(found.digest),
+				files: await readCorpusVersion(
+					dependencies.runsDirectory,
+					found.digest,
+				),
+			});
+		})
+		.get("/api/corpus/versions/:version/file", async (context) => {
+			const found = await findCorpusVersion(
+				dependencies.runsDirectory,
+				context.req.param("version"),
+			);
+			if (found.kind !== "found") {
+				const refusal = versionRefusal(found);
+
+				return context.json(refusal.body, refusal.status);
+			}
+
+			try {
+				const bytes = await readCorpusVersionFile(
+					dependencies.runsDirectory,
+					found.digest,
+					context.req.query("path") ?? "",
+				);
+
+				return context.text(new TextDecoder().decode(bytes));
+			} catch (error) {
+				if (error instanceof CorpusVersionError) {
+					return context.json({ error: error.message }, 404);
+				}
+
+				throw error;
+			}
 		})
 		.get("/api/comparisons", async (context) =>
 			context.json(await comparisonIndex(dependencies.runsDirectory)),

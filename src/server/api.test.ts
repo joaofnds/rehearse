@@ -23,6 +23,7 @@ import { CONTROL_DIR } from "#benchmark/config";
 import { runEventsDatabaseFile } from "#benchmark/run-layout";
 import { openRunEventStore } from "#benchmark/run-events";
 import { claimShortId } from "#benchmark/short-id";
+import { measureCorpusVersion } from "#benchmark/corpus-version";
 import { createApiApp } from "./api";
 
 const runEventSchema = z.object({ kind: z.string() }).loose();
@@ -715,6 +716,95 @@ describe(createApiApp.name, () => {
 			expect(body.digest).toBeUndefined();
 			expect(text).not.toContain("SECRET BYTES");
 			expect(text).not.toContain(outside);
+		});
+	});
+
+	describe("GET /api/corpus/versions", () => {
+		async function measuredTwice(): Promise<{
+			readonly app: ReturnType<typeof createApiApp>;
+			readonly older: string;
+		}> {
+			const corpus = await corpusDirectory();
+			const runsDirectory = await emptyDirectory("rehearse-api-runs-");
+			const source = directorySource(corpus);
+			const older = await measureCorpusVersion(runsDirectory, source);
+			await Bun.write(join(corpus, "CLAUDE.md"), "edited instructions\n");
+			await measureCorpusVersion(runsDirectory, source);
+			if (older.kind !== "version") {
+				throw new Error("the fixture corpus should measure to a version");
+			}
+
+			return {
+				app: createApiApp({
+					runsDirectory,
+					liveness: nothingRunning,
+					corpusSource: source,
+				}),
+				older: older.digest,
+			};
+		}
+
+		it("lists the corpus under test's versions in log order, each named corpus@ and six characters", async () => {
+			const { app, older } = await measuredTwice();
+
+			const response = await app.request("/api/corpus/versions");
+			const body = z
+				.object({
+					versions: z.array(
+						z.object({
+							position: z.number(),
+							label: z.string(),
+							digest: z.string(),
+						}),
+					),
+				})
+				.parse(await response.json());
+
+			expect(response.status).toBe(200);
+			expect(body.versions.map(({ position }) => position)).toEqual([1, 2]);
+			expect(body.versions[0]).toEqual({
+				position: 1,
+				label: `corpus@${older.slice(0, 6)}`,
+				digest: older,
+			});
+			expect(body.versions[1]?.digest).not.toBe(older);
+		});
+
+		it("opens the older version's file by a unique prefix after the source file changed", async () => {
+			const { app, older } = await measuredTwice();
+
+			const response = await app.request(
+				`/api/corpus/versions/corpus@${older.slice(0, 12)}/file?path=CLAUDE.md`,
+			);
+
+			expect(response.status).toBe(200);
+			expect(await response.text()).toBe("the instructions\n");
+		});
+
+		it("refuses an ambiguous prefix and names its candidates", async () => {
+			const { app } = await measuredTwice();
+
+			const response = await app.request("/api/corpus/versions/corpus@");
+			const body = z
+				.object({ error: z.string(), candidates: z.array(z.string()) })
+				.parse(await response.json());
+
+			expect(response.status).toBe(409);
+			expect(body.candidates).toHaveLength(2);
+		});
+
+		it("refuses a version no record holds and a file the version does not hold", async () => {
+			const { app, older } = await measuredTwice();
+
+			const missing = await app.request(
+				`/api/corpus/versions/${"f".repeat(64)}`,
+			);
+			const absentFile = await app.request(
+				`/api/corpus/versions/${older}/file?path=agents/none.md`,
+			);
+
+			expect(missing.status).toBe(404);
+			expect(absentFile.status).toBe(404);
 		});
 	});
 
