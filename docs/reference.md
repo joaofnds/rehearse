@@ -777,6 +777,44 @@ written from a CLI that reports no such block omits the field rather than
 recording an empty one. Only a cost the provider priced at list is re-derivable
 from a rate catalog; any other basis stays reported spend.
 
+### Corpus versions
+
+A corpus version is the whole corpus layout of one source as it stood when it
+was measured: every file the layout holds, whether or not a stage reads it,
+identified by the sha256 of the canonical file list. Its label is `corpus@`
+followed by the first six hex characters. A pipeline run measures its source
+before each stage session, a replay and a session attempt before their
+session, and a confirmation group once when it freezes its inputs, so every rep
+carries the group's version. The measurement lands in the record as
+`corpusVersion`, either `{kind: "version", digest}` or `{kind: "refused",
+refusal}` when the layout refused hashing: on a stage checkpoint, a replay
+record, a session attempt record and a group's `inputs`. A record written
+before versions were measured has no field, which readers report as version
+not recorded.
+
+Measuring keeps the version under `corpus-versions/` in the records directory:
+`blobs/<sha256>` holds each file body once, `versions/<digest>.json` lists the
+version's files, and `logs/<source>/<n>` numbers the versions one source was
+measured at, where `<source>` is a hash of the source's resolved root. An entry
+is added only when the measured version differs from the source's latest one,
+so repeated or concurrent measurements of an unchanged tree add nothing. The
+store copies instruction files, so a records directory inside the repository
+other than `.benchmark-runs/` leaves them where git can see them.
+
+`corpus versions [--corpus <dir>]` lists a source's log, oldest first, with
+each entry's position, label and digest. `corpus show <version>` prints a
+version's files, and `--file <layout-path>` prints one file as that version
+held it. A version is named by its label or any prefix of its digest, with or
+without `corpus@`, and a prefix matching several recorded versions is refused
+with exit code 3 naming each of them. The server serves the same reads:
+`/api/corpus/versions` lists the live source's log as `{position, label,
+digest}` entries, `/api/corpus/versions/<version>` answers `{digest, label,
+files}`, and `/api/corpus/versions/<version>/file?path=<layout-path>` answers
+the file's text. A version no record holds, or a file the version does not
+hold, answers 404, and an ambiguous prefix answers 409 with its `candidates`.
+`/api/corpus` names the live tree by its full version `digest`, computed
+without writing to the store, and omits it when any entry refused hashing.
+
 ### Pipeline run record
 
 `/api/runs/<run>` reads one pipeline run across the files it wrote, its
@@ -881,6 +919,13 @@ Its cost sums a session group's preflight call and each rep's recorded calls,
 named by rep id. A rep whose record is absent or does not parse, or whose
 metrics are incomplete, is named under `missing`, and under `reasons` when no
 part recorded any spend.
+
+Every row carries `corpusVersion`, the version its record measured, absent
+when the record predates versions. A pipeline run row shows its latest stage
+checkpoint's version and sets `corpusChangedDuringRun` when its checkpoints
+recorded more than one version. A session attempt row and a replay row show
+their own record's version, and a confirmation group row shows the version its
+inputs froze.
 
 A confirmation group row accounts for every rep. `stageSummaries` has one entry
 per declared stage with the `graded` count, the `ungraded` reps counted under

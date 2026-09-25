@@ -204,14 +204,10 @@ See [current state](docs/status.md) for implementation coverage and
   layout paths (`CLAUDE.md`, `skills/<name>/...`, `output-styles/<name>.md`,
   `agents/<name>.md`, `rulebook/<name>.md`), which one resolver maps onto the
   install, so an edit to any of them can make a prior attempt stale.
-- **`corpus@<hash>`** — run history's label for a run's corpus digest: what one
-  stage's checkpoint actually read, computed over the checkpoint's own
-  recorded corpus files. Distinct from `corpus root@<hash>`, which digests a
-  different set of files.
-- **`corpus root@<hash>`** — the label the corpus screen and the navigation
-  rail's corpus card give a digest over every file in the live corpus tree,
-  including files no stage has ever read. Two digests over two different file
-  sets is why the label differs from `corpus@<hash>` rather than reusing it.
+- **`corpus@<hash>`**: the label of a corpus version, `corpus@` and the first
+  six hex characters of its digest. Run history, the navigation rail's corpus
+  card and the corpus screen all show it, and a command that opens a version
+  accepts any unambiguous prefix of the digest, with or without `corpus@`.
 - **Cut** — the 0-based line index of the first session-file record a transcript
   prefix drops. A cut of N keeps lines [0, N).
 - **Corpus layout** — the directory shape a corpus takes once resolved, and the
@@ -259,6 +255,13 @@ See [current state](docs/status.md) for implementation coverage and
   corpus's own links cannot declare another permitted tree.
 - **Corpus tier** — stage-local (a skill; testable in stage mode) or global
   (`CLAUDE.md`, doctrine; validated only end-to-end).
+- **Corpus version**: the whole corpus layout of one source as it stood when
+  it was measured, identified by the sha256 of its canonical file list, so two
+  measurements of the same bytes are one version. Every run stage, replay,
+  session attempt and confirmation group records the version it ran against,
+  and the records directory keeps each version's files, so a version can be
+  read back after the source has changed. A source whose layout refused
+  hashing has no version, and the record says so instead.
 - **Corpus variant** — one corpus a comparison arm runs against, identified by
   the snapshot its source resolved to rather than by the source string, so two
   directories holding the same bytes are the same variant. It is the corpus half

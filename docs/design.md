@@ -122,6 +122,14 @@ Event recording is best effort; it must not turn a successful experiment into a
 failed one. It is not a substitute for the final artifact. There is no command
 that reconstructs a deleted event history from JSON records.
 
+The corpus version store at `.benchmark-runs/corpus-versions/` is
+authoritative too, since a record's `corpusVersion` names a version whose files
+only the store keeps once the source changes. File bodies and version manifests
+are content-addressed and written whole before they are renamed into place, so
+concurrent writers of one version write the same bytes. Each source's log entry
+is linked into place by an exclusive create, and a writer that loses the race
+re-reads the log, so two measurements of one new state add one entry.
+
 The short id registry at `.benchmark-runs/short-ids/` is authoritative too,
 since a quoted short id means only what the registry says. Each number is
 claimed by an exclusive file create, so concurrent commands in one records
