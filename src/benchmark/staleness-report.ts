@@ -499,8 +499,8 @@ const INITIAL_CHECKPOINT_DISTANCE: VersionDistance = {
  * given and nothing else, and those roots are the ones a replay against the
  * same corpus would search.
  *
- * Every checkpoint of every recorded run, judged against the corpus under
- * test. A run with no manifest contributes nothing rather than failing the
+ * Every checkpoint of every recorded run, and the stage its judge stopped
+ * under the run's id, judged against the corpus under test. A run with no manifest contributes nothing rather than failing the
  * report: it was never replayable, so nothing about it can go stale. A run
  * whose manifest or checkpoints do not parse is unreadable under its run id,
  * so one bad record cannot blank every reader of the report.
@@ -524,7 +524,7 @@ export async function checkpointStaleness(
 }
 
 export interface CheckpointStalenessByRun {
-	/** Each readable run's checkpoints, in chain order. */
+	/** Each readable run's checkpoints in chain order, then its stopped stage. */
 	readonly byRun: ReadonlyMap<string, readonly RecordStaleness[]>;
 	readonly unreadable: readonly UnreadableStaleRecord[];
 }
