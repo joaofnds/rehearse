@@ -73,6 +73,12 @@ case present, but no browser check has been run over it.
   `corpus show --file` command prints a file as UTF-8 text, so a non-text file
   does not print as its bytes; the file route serves the bytes. See
   [corpus versions](reference.md#corpus-versions).
+- **The corpus column words only corpus-file drift by distance.** A record
+  stale because its model, effort, stage settings or upstream stage changed
+  shows the plain stale badge and its causes, since the design has no reading
+  for those yet. A session attempt of a case that is no longer declared reads
+  its staleness as unavailable on the run history, while `stale` passes over
+  it without a line.
 - **Pipeline `run --corpus` is refused.** Replay supports explicit corpus
   directories, but the forward pipeline command does not yet use that path.
 - **Several cases depend on private inputs.** `brief-reply-*` need transcript

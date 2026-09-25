@@ -686,6 +686,13 @@ See [current state](docs/status.md) for implementation coverage and
   does not describe: the cost remains the spend the provider reported, and it is
   not evidence about rates.
 - **Variant** — a named configuration: corpus snapshot, model, and effort.
+- **Version distance**: how many corpus versions a record sits behind the
+  corpus under test: 0 when the corpus under test is the version the record
+  measured, and otherwise the positions between that version's latest entry
+  in the corpus's version log and the corpus under test. It is not recorded
+  for a record written before versions, one whose version is absent from the
+  log, or a corpus that refuses an entry. It never makes a record stale on its
+  own. Only a staleness cause does.
 - **Workflow state** — the `backlog/` and `.boris/` trees copied independently
   of Git to carry workflow artifacts across stage materialization and target
   restoration. A target's Backlog configuration determines where its board

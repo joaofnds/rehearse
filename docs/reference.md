@@ -956,6 +956,22 @@ measured more than one version. A refusal counts toward neither. A session attem
 their own record's version, and a confirmation group row shows the version its
 inputs froze.
 
+Every row also carries `staleness`, the judgment `stale` makes of the same
+record against the corpus the server serves: `stale`, its `causes`, its
+`changedFiles`, each a `path` with a `change` of `changed`, `added` or
+`removed`, and its `distance`. A pipeline run row is judged at its latest
+checkpoint, or at its initial checkpoint when it saved no stage. Each row is
+judged with the model and effort its record ran with, since the history
+compares a record against the corpus rather than against a replay about to
+run. A record the staleness report cannot read, or never reaches, such as a
+run that wrote no manifest or a session attempt of a case no longer declared,
+has `staleness` unavailable with its reason rather than clear. The run history
+screen's corpus column shows `✓ clean` for a record with no cause at distance
+0. When changed corpus files are the record's only causes, it shows
+`⚠ stale · corpus changed since` at distance 1 and
+`⚠ superseded · N versions back` at 2 or more. Any other judgment shows the
+stale or clear badge with its causes.
+
 A confirmation group row accounts for every rep. `stageSummaries` has one entry
 per declared stage with the `graded` count, the `ungraded` reps counted under
 their recorded status, and `grades`: the `lowest`, the `highest` and the
