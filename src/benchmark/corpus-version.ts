@@ -288,3 +288,70 @@ export async function findCorpusVersion(
 
 	return { kind: "found", digest: only };
 }
+
+/**
+ * How many log positions a record's version sits behind the corpus under
+ * test, or why that cannot be said. Stale or clean never comes from here.
+ */
+export type VersionDistance =
+	| { readonly kind: "measured"; readonly versions: number }
+	| { readonly kind: "not-recorded"; readonly reason: string };
+
+export interface CorpusUnderTest {
+	readonly distanceOf: (
+		measurement: CorpusMeasurement | undefined,
+	) => VersionDistance;
+}
+
+function notRecorded(reason: string): VersionDistance {
+	return { kind: "not-recorded", reason };
+}
+
+/**
+ * The corpus under test, hashed but not measured, so reading a distance adds
+ * no version to its log. Its position is the latest entry's when their
+ * digests match and one past it otherwise, and a version is placed at the
+ * latest position it holds, so a revert counts from where it came back.
+ */
+export async function readCorpusUnderTest(
+	recordsDirectory: string,
+	source: CorpusRoot,
+): Promise<CorpusUnderTest> {
+	const layout = await hashCorpusLayout(source);
+	const log = await corpusVersionLog(recordsDirectory, source);
+	const current =
+		layout.refusals.length === 0
+			? corpusVersionDigest(layout.files)
+			: undefined;
+	const livePosition = log.at(-1) === current ? log.length : log.length + 1;
+
+	return {
+		distanceOf(measurement) {
+			if (measurement === undefined) {
+				return notRecorded("recorded before corpus versions");
+			}
+			if (measurement.kind === "refused") {
+				return notRecorded(
+					`the attempt measured no version: ${measurement.refusal}`,
+				);
+			}
+			if (current === undefined) {
+				return notRecorded(
+					`the corpus under test refused: ${layout.refusals.join("; ")}`,
+				);
+			}
+			if (measurement.digest === current) {
+				return { kind: "measured", versions: 0 };
+			}
+
+			const position = log.lastIndexOf(measurement.digest) + 1;
+			if (position === 0) {
+				return notRecorded(
+					"its version is not in the log of the corpus under test",
+				);
+			}
+
+			return { kind: "measured", versions: livePosition - position };
+		},
+	};
+}

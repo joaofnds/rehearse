@@ -17,6 +17,7 @@ import {
 	CorpusVersionError,
 	findCorpusVersion,
 	measureCorpusVersion,
+	readCorpusUnderTest,
 	readCorpusVersion,
 	readCorpusVersionFile,
 } from "./corpus-version";
@@ -319,6 +320,95 @@ describe(corpusVersionDigest.name, () => {
 
 		expect(corpusVersionDigest(files)).toBe(
 			corpusVersionDigest(files.toReversed()),
+		);
+	});
+});
+
+describe(readCorpusUnderTest.name, () => {
+	async function measureWith(contents: string): Promise<string> {
+		await writeFile(join(source.root, "output-styles", "brief.md"), contents);
+
+		return versionDigest(await measureCorpusVersion(recordsDirectory, source));
+	}
+
+	it("puts a record measured on the corpus under test at distance 0", async () => {
+		const digest = await measureWith("brief\n");
+
+		const underTest = await readCorpusUnderTest(recordsDirectory, source);
+
+		expect(underTest.distanceOf({ kind: "version", digest })).toEqual({
+			kind: "measured",
+			versions: 0,
+		});
+	});
+
+	it("counts an edit not yet measured as one version past the latest entry", async () => {
+		const digest = await measureWith("brief\n");
+		await writeFile(join(source.root, "output-styles", "brief.md"), "edited\n");
+
+		const underTest = await readCorpusUnderTest(recordsDirectory, source);
+
+		expect(underTest.distanceOf({ kind: "version", digest })).toEqual({
+			kind: "measured",
+			versions: 1,
+		});
+	});
+
+	it("counts measured versions between the record's and the corpus under test", async () => {
+		const first = await measureWith("brief\n");
+		await measureWith("second\n");
+		await measureWith("third\n");
+
+		const underTest = await readCorpusUnderTest(recordsDirectory, source);
+
+		expect(underTest.distanceOf({ kind: "version", digest: first })).toEqual({
+			kind: "measured",
+			versions: 2,
+		});
+	});
+
+	it("measures a reverted version from its latest position in the log", async () => {
+		const first = await measureWith("brief\n");
+		const second = await measureWith("second\n");
+		await measureWith("brief\n");
+		await measureWith("third\n");
+
+		const underTest = await readCorpusUnderTest(recordsDirectory, source);
+
+		expect([
+			underTest.distanceOf({ kind: "version", digest: first }),
+			underTest.distanceOf({ kind: "version", digest: second }),
+		]).toEqual([
+			{ kind: "measured", versions: 1 },
+			{ kind: "measured", versions: 2 },
+		]);
+	});
+
+	describe("when the record's distance cannot be measured", () => {
+		it.each([
+			["no version", undefined, "recorded before corpus versions"],
+			[
+				"a refusal",
+				{ kind: "refused", refusal: "skills links out" } as const,
+				"the attempt measured no version: skills links out",
+			],
+			[
+				"a version this corpus's log never held",
+				{ kind: "version", digest: "0".repeat(64) } as const,
+				"its version is not in the log of the corpus under test",
+			],
+		])(
+			"reads not recorded for a record with %s",
+			async (_holding, measurement, reason) => {
+				await measureWith("brief\n");
+
+				const underTest = await readCorpusUnderTest(recordsDirectory, source);
+
+				expect(underTest.distanceOf(measurement)).toEqual({
+					kind: "not-recorded",
+					reason,
+				});
+			},
 		);
 	});
 });
