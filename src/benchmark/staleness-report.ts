@@ -395,6 +395,19 @@ export async function sessionAttemptStaleness(
 		({ id, reason }) => ({ id: `case:${id}`, reason }),
 	);
 
+	const known = new Set([
+		...listing.declarations.map(({ id }) => id),
+		...listing.unreadable.map(({ id }) => id),
+	]);
+	for (const attempt of attempts) {
+		if (!known.has(attempt.caseId)) {
+			unreadable.push({
+				id: `attempt:session:${attempt.caseId}/${attempt.uuid}`,
+				reason: `case ${attempt.caseId} is no longer declared as a session case, so its corpus files are unknown`,
+			});
+		}
+	}
+
 	for (const declaration of sessionCases(listing.declarations)) {
 		const current = await currentCaseCorpus(declaration, source);
 

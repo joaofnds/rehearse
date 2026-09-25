@@ -813,6 +813,26 @@ describe(sessionAttemptStaleness.name, () => {
 		]);
 	});
 
+	it("says why an attempt of a case no longer declared cannot be judged", async () => {
+		const corpus = await styleCorpus("the brief style\n");
+		const root = await mkdtemp(join(tmpdir(), "rehearse-case-stale-"));
+		roots.push(root);
+		await new RecordedRunsFixture(root).writeAttemptReading(
+			corpus,
+			"retired-case",
+			["output-styles/brief.md"],
+		);
+
+		const report = await sessionAttemptStaleness(root, directorySource(corpus));
+
+		expect(report.records).toEqual([]);
+		expect(report.unreadable).toContainEqual({
+			id: "attempt:session:retired-case/0f6b6f2a-0000-4000-8000-000000000001",
+			reason:
+				"case retired-case is no longer declared as a session case, so its corpus files are unknown",
+		});
+	});
+
 	it("reports the attempt clean when the corpus still holds the recorded bytes", async () => {
 		const corpus = await styleCorpus("the brief style\n");
 		const runsDirectory = await runsWithSmokeAttempt(corpus);
