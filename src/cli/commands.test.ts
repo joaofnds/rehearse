@@ -70,6 +70,7 @@ describe("declared commands", () => {
 			"regrade",
 			"stale",
 			"corpus versions",
+			"corpus invalidation",
 			"corpus show",
 			"case list",
 			"case show",
