@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { caseDeclarationPath, casesRoot } from "#benchmark/case";
 import { CONTROL_DIR, DEFAULT_CASE_ID } from "#benchmark/config";
 import {
@@ -21,6 +21,7 @@ import { LIST_KINDS, runList } from "#cli/list-command";
 import { runShow } from "#cli/show-command";
 import type { ShowDependencies } from "#cli/show-command";
 import { CorpusConfigurationError } from "#benchmark/corpus-file";
+import { CorpusSourceError } from "#benchmark/corpus-source";
 import type { ReadManifestEntry } from "#benchmark/read-manifest";
 import { runCommand } from "#benchmark/command";
 import { recordRetentionRef } from "#benchmark/target";
@@ -53,6 +54,16 @@ describe("naming a record a session pastes onto a card", () => {
 	});
 });
 
+/**
+ * A group summary judges its reps' reads against a corpus, and the default
+ * resolver reads the operator's live install, so a test that does not name a
+ * corpus gets none rather than whatever this machine has installed.
+ */
+const NO_CORPUS: ShowDependencies = {
+	resolveCorpus: () =>
+		Promise.reject(new CorpusSourceError("this test resolves no corpus")),
+};
+
 describe(runShow.name, () => {
 	const roots: string[] = [];
 
@@ -75,7 +86,7 @@ describe(runShow.name, () => {
 		id: string,
 		json: boolean,
 		runsDirectory: string,
-		dependencies: ShowDependencies = {},
+		dependencies: ShowDependencies = NO_CORPUS,
 	): Promise<string> {
 		const recorder = recordOutput();
 		await runShow({ id, json, runsDirectory }, recorder.output, dependencies);
@@ -290,6 +301,42 @@ Reads not judged: the group froze no pipeline to hash its stages against.`,
 			`| stage skill | declared | ${BUILD_SKILL_SHA256.slice(0, 12)} | not judged |
 Reads not judged: the backing root is relative.`,
 		);
+	});
+
+	/**
+	 * The production runs directory is under the control root, so a filesystem
+	 * error naming a rep's file there would disclose the home directory on the
+	 * card this summary is pasted onto.
+	 */
+	it("names a rep stage it could not read relative to the control root", async () => {
+		const root = await mkdtemp(join(CONTROL_DIR, "rehearse-show-test-"));
+		roots.push(root);
+		const fixture = new RecordedRunsFixture(root);
+		await fixture.write();
+		const repId = `${fixture.groupId}-rep-1`;
+		await fixture.recordGroupRepReadManifest(repId, "build", [
+			BUILD_SKILL_READ,
+		]);
+		const stageFile = confirmationGroupPaths(
+			fixture.runsDirectory,
+			fixture.groupId,
+		)
+			.rep(repId)
+			.stageFile("build");
+		await chmod(stageFile, 0);
+
+		const stdout = await printed(
+			`group:${fixture.groupId}`,
+			false,
+			fixture.runsDirectory,
+			corpusAt(await stageCorpus()),
+		);
+
+		await chmod(stageFile, 0o644);
+		expect(stdout).toContain(
+			`${repId} build could not be read: EACCES: permission denied, open '${relative(CONTROL_DIR, stageFile)}'`,
+		);
+		expect(stdout).not.toContain(homedir());
 	});
 
 	it("prints a confirmation rep's stage file with the reads it recorded", async () => {
@@ -732,8 +779,27 @@ describe("list and show are read-only", () => {
 	it("leaves every file under the runs directory byte-identical", async () => {
 		const root = await mkdtemp(join(tmpdir(), "rehearse-readonly-"));
 		roots.push(root);
+		const corpus = await mkdtemp(join(tmpdir(), "rehearse-readonly-corpus-"));
+		roots.push(corpus);
+		await Bun.write(join(corpus, "CLAUDE.md"), "the instructions\n");
+		await Bun.write(join(corpus, "skills", "build", "SKILL.md"), "build\n");
+		await Bun.write(join(corpus, "skills", "discuss", "SKILL.md"), "discuss\n");
 		const fixture = new RecordedRunsFixture(root);
 		await fixture.write();
+		await fixture.recordGroupFrom(directorySource(corpus));
+		const repId = `${fixture.groupId}-rep-1`;
+		await fixture.recordGroupRepReadManifest(repId, "build", [
+			{
+				path: "skills/build/SKILL.md",
+				half: "corpus",
+				role: "stage skill",
+				evidence: "declared",
+				sha256: "b".repeat(64),
+			},
+		]);
+		const judgedAgainstCorpus: ShowDependencies = {
+			resolveCorpus: () => Promise.resolve({ kind: "directory", root: corpus }),
+		};
 		const before = await digestOfTree(root);
 		const recorder = recordOutput();
 
@@ -744,12 +810,21 @@ describe("list and show are read-only", () => {
 			`run:${fixture.replayableRun}`,
 			`checkpoint:${fixture.replayableRun}/build`,
 			`group:${fixture.groupId}`,
+			`rep:stage:${fixture.groupId}/${repId}/build`,
 			`comparison:${fixture.comparisonDigest}`,
 			`attempt:session:${fixture.sessionAttempt.caseId}/${fixture.sessionAttempt.uuid}`,
 			`attempt:stage:${fixture.stageAttempt.lineage}/${fixture.stageAttempt.timestamp}`,
 		]) {
-			await runShow({ id, json: true, runsDirectory: root }, recorder.output);
-			await runShow({ id, json: false, runsDirectory: root }, recorder.output);
+			await runShow(
+				{ id, json: true, runsDirectory: root },
+				recorder.output,
+				judgedAgainstCorpus,
+			);
+			await runShow(
+				{ id, json: false, runsDirectory: root },
+				recorder.output,
+				judgedAgainstCorpus,
+			);
 		}
 
 		expect(await digestOfTree(root)).toEqual(before);
