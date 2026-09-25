@@ -222,6 +222,13 @@ See [current state](docs/status.md) for implementation coverage and
   layout paths (`CLAUDE.md`, `skills/<name>/...`, `output-styles/<name>.md`,
   `agents/<name>.md`, `rulebook/<name>.md`), which one resolver maps onto the
   install, so an edit to any of them can make a prior attempt stale.
+- **Corpus version**: one state of the whole corpus layout of a corpus source,
+  every file the layout holds whether or not a stage reads it, identified by the
+  sha256 of its canonical file list. A pipeline stage, replay and session attempt
+  measure it before their session, and a confirmation group once when it freezes
+  its inputs. The records directory keeps each version openable. A layout that
+  refuses hashing yields a corpus refusal in its place. Name accepted unattended
+  as unsettled, pending the operator's confirmation (doc-157, question 6).
 - **`corpus@<hash>`**: the label of a corpus version, `corpus@` and the first
   six hex characters of its digest. Run history, the navigation rail's corpus
   card and the corpus screen all show it, and a command that opens a version
@@ -717,6 +724,11 @@ See [current state](docs/status.md) for implementation coverage and
   an entry. It never makes a record stale on its own. Only a staleness cause
   does. Name accepted unattended as unsettled, pending the operator's
   confirmation (doc-157, question 6).
+- **Version log**: the ordered corpus versions one corpus source has been
+  measured at, in one records directory. A version enters only when it differs
+  from the source's latest entry, and order is position, not time. Name accepted
+  unattended as unsettled, pending the operator's confirmation (doc-157,
+  question 6).
 - **Workflow state** — the `backlog/` and `.boris/` trees copied independently
   of Git to carry workflow artifacts across stage materialization and target
   restoration. A target's Backlog configuration determines where its board
