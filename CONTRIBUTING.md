@@ -54,7 +54,9 @@ sees the variable only when its `env` is derived from `Bun.env`, as
 with one built by hand, writes into the real records, and nothing enforces
 this, so check each new spawning test against it. A test that runs a copied
 control removes the variable, so the copy keeps its records under its own
-`.benchmark-runs/`.
+`.benchmark-runs/`. Bun reads `bunfig.toml` from the working directory only, so
+run `bun test` from the repository root. From a subdirectory neither preload
+loads, and tests write into the real records.
 
 For an integrated browser check, run `mise exec -- bun run build:client`, then
 `mise exec -- bun run serve`. The `dev:client` script runs Vite alone; its current

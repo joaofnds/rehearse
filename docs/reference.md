@@ -694,7 +694,10 @@ Set `REHEARSE_RECORDS_DIR` to keep records in another directory. Every command
 and `serve` then read and write there instead of `.benchmark-runs/`, including
 the locations below and the stores `case capture` searches. A relative value
 resolves against the directory the command runs in, which `bun run rehearse`
-sets to the repository root. An empty value is a usage error.
+sets to the repository root. An empty value is a usage error. Give `serve` and
+the commands the same value, or the UI shows a store the commands do not write.
+Only `.benchmark-runs/` is git-ignored, so an override inside the repository
+leaves transcripts and run artifacts where git can see them.
 
 | ID accepted by `show`                 | Record location under the records directory                 |
 | ------------------------------------- | ----------------------------------------------------------- |
