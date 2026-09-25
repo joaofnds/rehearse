@@ -17,6 +17,7 @@ import {
 	CorpusVersionError,
 	findCorpusVersion,
 	measureCorpusVersion,
+	measuredCorpusFiles,
 	readCorpusUnderTest,
 	readCorpusVersion,
 	readCorpusVersionFile,
@@ -297,6 +298,35 @@ describe(readCorpusVersion.name, () => {
 		const reading = readCorpusVersion(recordsDirectory, "../../planted");
 
 		expect(reading).rejects.toThrow(CorpusVersionError);
+	});
+});
+
+describe(measuredCorpusFiles.name, () => {
+	it("gives the files a measured version holds as they were measured", async () => {
+		const measurement = await measureCorpusVersion(recordsDirectory, source);
+		await writeFile(join(source.root, "output-styles", "brief.md"), "edited\n");
+
+		const files = await measuredCorpusFiles(recordsDirectory, measurement);
+
+		expect(files.map(({ path }) => path).toSorted()).toEqual([
+			"CLAUDE.md",
+			"output-styles/brief.md",
+		]);
+		expect(files.find(({ path }) => path === "output-styles/brief.md")).toEqual(
+			{
+				path: "output-styles/brief.md",
+				sha256: new Bun.CryptoHasher("sha256").update("brief\n").digest("hex"),
+			},
+		);
+	});
+
+	it("gives no files for a measurement that refused", async () => {
+		const files = await measuredCorpusFiles(recordsDirectory, {
+			kind: "refused",
+			refusal: "skills is a symlink",
+		});
+
+		expect(files).toEqual([]);
 	});
 });
 

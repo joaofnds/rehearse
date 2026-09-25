@@ -37,7 +37,10 @@ import { loadRunManifest } from "#benchmark/manifest";
 import { readCorpusInstructions } from "#benchmark/corpus-file";
 import type { CorpusSourceResolver } from "#benchmark/corpus-source";
 import { resolveCorpusSource } from "#benchmark/corpus-source";
-import { measureCorpusVersion } from "#benchmark/corpus-version";
+import {
+	measureCorpusVersion,
+	measuredCorpusFiles,
+} from "#benchmark/corpus-version";
 import { loadCurrentStageSettings } from "#benchmark/current-stage-settings";
 import { runReplay } from "#benchmark/replay";
 import { claudeProjectsDirectory } from "#benchmark/session-capture";
@@ -279,6 +282,8 @@ export async function executeReplay(
 			captureStageCorpus,
 			measureCorpus: () =>
 				measureCorpusVersion(paths.runsDirectory, corpus.source),
+			corpusVersionFiles: (measurement) =>
+				measuredCorpusFiles(paths.runsDirectory, measurement),
 		},
 		runStageJudge,
 		loadStageRubric,

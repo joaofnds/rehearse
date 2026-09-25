@@ -163,6 +163,7 @@ interface FrozenPipelineInputs {
 	readonly corpusDirectories: Readonly<Record<string, string>>;
 	readonly corpusFiles: Readonly<Record<string, readonly HashedFile[]>>;
 	readonly corpusVersion: CorpusMeasurement;
+	readonly versionFiles: readonly HashedFile[];
 	readonly files: readonly FrozenFile[];
 }
 
@@ -174,6 +175,8 @@ async function freezePipelineInputs(
 	worktreesDirectory: string,
 ): Promise<FrozenPipelineInputs> {
 	const corpusVersion = await dependencies.stageSession.measureCorpus();
+	const versionFiles =
+		await dependencies.stageSession.corpusVersionFiles(corpusVersion);
 	const corpusRoot = join(inputsDirectory, "corpus");
 	const corpusDirectories: Record<string, string> = {};
 	const corpusFiles: Record<string, readonly HashedFile[]> = {};
@@ -309,6 +312,7 @@ async function freezePipelineInputs(
 		corpusDirectories,
 		corpusFiles,
 		corpusVersion,
+		versionFiles,
 		files,
 	};
 }
@@ -423,6 +427,7 @@ async function runPipelineRep(
 				{
 					...measuredStageDependencies(dependencies.stageSession, stageClock),
 					measureCorpus: () => Promise.resolve(frozen.corpusVersion),
+					corpusVersionFiles: () => Promise.resolve(frozen.versionFiles),
 				},
 				{
 					targetDir: plan.worktreePath,
@@ -534,6 +539,7 @@ async function runPipelineRep(
 							},
 				skill: definition.skill,
 				corpusFiles: frozen.corpusFiles[definition.name] ?? [],
+				versionFiles: frozen.versionFiles,
 				rubric: {
 					path: definition.rubric,
 					sha256: stageRubricSha256(scorecard.rubric),

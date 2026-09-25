@@ -11,6 +11,7 @@ describe("stageReadManifest", () => {
 				{ path: "skills/shape/SKILL.md", sha256: "b".repeat(64) },
 				{ path: "rulebook/style.md", sha256: "c".repeat(64) },
 			],
+			versionFiles: [],
 			targetFiles: [{ path: "CLAUDE.md", sha256: "d".repeat(64) }],
 			rubric: { path: "rubrics/shape.json", sha256: "e".repeat(64) },
 			observed: {
@@ -64,6 +65,7 @@ describe("stageReadManifest", () => {
 		const manifest = stageReadManifest({
 			skill: "shape",
 			corpusFiles: [],
+			versionFiles: [],
 			targetFiles: [],
 			rubric: undefined,
 			observed: { paths: projectEntries(["AGENTS.md"]) },
@@ -74,6 +76,28 @@ describe("stageReadManifest", () => {
 			half: "project",
 			role: "project instructions",
 			evidence: "observed",
+		});
+	});
+
+	it("hashes a corpus file the stage loaded beyond its captured files from the version it started at", () => {
+		const manifest = stageReadManifest({
+			skill: "build",
+			corpusFiles: [{ path: "skills/build/SKILL.md", sha256: "a".repeat(64) }],
+			versionFiles: [
+				{ path: "skills/build/SKILL.md", sha256: "a".repeat(64) },
+				{ path: "skills/delivery/SKILL.md", sha256: "b".repeat(64) },
+			],
+			targetFiles: [],
+			rubric: undefined,
+			observed: { paths: corpusEntries(["skills/delivery/SKILL.md"]) },
+		});
+
+		expect(manifest).toContainEqual({
+			path: "skills/delivery/SKILL.md",
+			half: "corpus",
+			role: "read for context",
+			evidence: "observed",
+			sha256: "b".repeat(64),
 		});
 	});
 });

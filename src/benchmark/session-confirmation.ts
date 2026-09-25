@@ -9,7 +9,8 @@ import type { ResolvedCorpusFile } from "./corpus-file";
 import type { CorpusMeasurement } from "./corpus-measurement";
 import { hashCorpusFiles } from "./corpus-file";
 import { resolveCorpusSource } from "./corpus-source";
-import { measureCorpusVersion } from "./corpus-version";
+import type { HashedFile } from "./checkpoint";
+import { measureCorpusVersion, measuredCorpusFiles } from "./corpus-version";
 import type { CorpusSourceResolver } from "./corpus-source";
 import type { SessionConfirmationRepRecord } from "./confirmation-record";
 import { sessionConfirmationRepRecordSchema } from "./confirmation-record";
@@ -75,6 +76,7 @@ interface FrozenSessionInputs {
 	readonly corpusSnapshot: SessionCorpusSnapshot;
 	readonly corpusFiles: readonly ResolvedCorpusFile[];
 	readonly corpusVersion: CorpusMeasurement;
+	readonly versionFiles: readonly HashedFile[];
 	readonly lineage: string;
 	readonly files: readonly FrozenFile[];
 }
@@ -157,6 +159,10 @@ async function freezeInputs(
 		corpusSnapshot,
 		corpusFiles,
 		corpusVersion,
+		versionFiles: await measuredCorpusFiles(
+			request.runsDirectory,
+			corpusVersion,
+		),
 		lineage,
 		files,
 	};
@@ -330,6 +336,7 @@ export async function runSessionConfirmation(
 					corpusFiles: inputs.corpusFiles,
 					corpusOrigin: inputs.corpusSnapshot.origin,
 					corpusVersion: inputs.corpusVersion,
+					versionFiles: inputs.versionFiles,
 					attempt: executed.attempt,
 					error: executed.error,
 					elapsedMs: executed.elapsedMs,

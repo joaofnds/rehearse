@@ -650,6 +650,7 @@ describe(runReplay.name, () => {
 				stageSession: {
 					...fake.dependencies.stageSession,
 					measureCorpus: () => Promise.resolve(measured),
+					corpusVersionFiles: () => Promise.resolve([]),
 				},
 			},
 			request(run, "build"),
@@ -1088,6 +1089,7 @@ describe(runReplay.name, () => {
 						]),
 					measureCorpus: () =>
 						Promise.resolve({ kind: "version", digest: "c".repeat(64) }),
+					corpusVersionFiles: () => Promise.resolve([]),
 				},
 				runStageJudge: async (_model, _effort, _budget, input) => {
 					judged.push(input);

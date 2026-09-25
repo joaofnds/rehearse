@@ -42,7 +42,10 @@ import {
 	readCorpusInstructions,
 } from "#benchmark/corpus-file";
 import { CorpusSourceError } from "#benchmark/corpus-source";
-import { measureCorpusVersion } from "#benchmark/corpus-version";
+import {
+	measureCorpusVersion,
+	measuredCorpusFiles,
+} from "#benchmark/corpus-version";
 import { runJudge, validateRubricDefinition } from "#benchmark/judge";
 import type {
 	ModelPreflightEvidence,
@@ -401,6 +404,8 @@ async function confirmRun(
 				captureStageCorpus,
 				measureCorpus: () =>
 					measureCorpusVersion(recordsDirectory(), corpusSource),
+				corpusVersionFiles: (measurement) =>
+					measuredCorpusFiles(recordsDirectory(), measurement),
 			},
 			runStageJudge,
 			runFinalJudge: (judgeRequest) =>

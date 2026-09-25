@@ -56,6 +56,7 @@ describe("recordStageReads", () => {
 			transcript: { sessionId: "session", projectsDirectory },
 			skill: "shape",
 			corpusFiles: [],
+			versionFiles: [],
 			rubric: { path: "rubrics/shape.json", sha256: "e".repeat(64) },
 		});
 

@@ -567,6 +567,7 @@ describe(runGradedStages.name, () => {
 					]),
 				measureCorpus: () =>
 					Promise.resolve({ kind: "version", digest: "c".repeat(64) }),
+				corpusVersionFiles: () => Promise.resolve([]),
 				recordCheckpoint,
 			},
 		};
@@ -702,8 +703,14 @@ describe(runGradedStages.name, () => {
 			rubric: args[4].rubric,
 		});
 
+		const styleAtStart = { path: "rulebook/style.md", sha256: "f".repeat(64) };
+
 		const outcome = await runGradedStages(
-			{ ...dependencies, runStageJudge: judgeAgainstLoadedRubric },
+			{
+				...dependencies,
+				runStageJudge: judgeAgainstLoadedRubric,
+				corpusVersionFiles: () => Promise.resolve([styleAtStart]),
+			},
 			{ ...context, projectsDirectory },
 		);
 
@@ -743,6 +750,7 @@ describe(runGradedStages.name, () => {
 				half: "corpus",
 				role: "read for context",
 				evidence: "observed",
+				sha256: styleAtStart.sha256,
 			},
 		]);
 	});

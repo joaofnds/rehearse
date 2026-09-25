@@ -225,6 +225,16 @@ export async function readCorpusVersion(
 	return versionManifestSchema.parse(JSON.parse(text)).files;
 }
 
+/** The files a measurement's version holds, none when it refused. */
+export function measuredCorpusFiles(
+	recordsDirectory: string,
+	measurement: CorpusMeasurement,
+): Promise<readonly HashedFile[]> {
+	return measurement.kind === "version"
+		? readCorpusVersion(recordsDirectory, measurement.digest)
+		: Promise.resolve([]);
+}
+
 /**
  * A version's file is found through its manifest, never by a raw hash or a
  * path, so only bytes a version holds can be opened through it.

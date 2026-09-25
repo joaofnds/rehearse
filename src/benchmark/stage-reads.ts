@@ -115,6 +115,8 @@ export interface StageReadsRequest {
 	readonly transcript: StageTranscriptSource | undefined;
 	readonly skill: string;
 	readonly corpusFiles: readonly HashedFile[];
+	/** The corpus version measured at the stage's start. */
+	readonly versionFiles: readonly HashedFile[];
 	readonly rubric: HashedFile;
 }
 
@@ -139,6 +141,7 @@ export async function recordStageReads(
 	return stageReadManifest({
 		skill: request.skill,
 		corpusFiles: request.corpusFiles,
+		versionFiles: request.versionFiles,
 		targetFiles: await hashesAtStart(
 			request.targetDir,
 			request.startSha,

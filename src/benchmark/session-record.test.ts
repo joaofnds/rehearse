@@ -522,6 +522,7 @@ describe("sessionAttemptRecordSchema", () => {
 
 		const built = buildSessionAttemptRecord({
 			corpusVersion: MEASURED_VERSION,
+			versionFiles: [],
 			sessionCase: sampleCase,
 			settings: sampleSettings,
 			lineage: "b".repeat(64),
@@ -590,6 +591,7 @@ describe("sessionAttemptRecordSchema", () => {
 			contextManifest: {
 				paths: [
 					{ path: "skills/verify/SKILL.md", half: "corpus" },
+					{ path: "rulebook/style.md", half: "corpus" },
 					{ path: "AGENTS.md", half: "project" },
 				],
 			},
@@ -602,6 +604,7 @@ describe("sessionAttemptRecordSchema", () => {
 
 		const built = buildSessionAttemptRecord({
 			corpusVersion: MEASURED_VERSION,
+			versionFiles: [{ path: "rulebook/style.md", sha256: "f".repeat(64) }],
 			sessionCase,
 			settings: { model: "sonnet", budgetUsd: 0.2 },
 			lineage: "b".repeat(64),
@@ -652,6 +655,13 @@ describe("sessionAttemptRecordSchema", () => {
 				sha256: "c".repeat(64),
 			},
 			{
+				path: "rulebook/style.md",
+				half: "corpus",
+				role: "read for context",
+				evidence: "observed",
+				sha256: "f".repeat(64),
+			},
+			{
 				path: "CLAUDE.md",
 				half: "project",
 				role: "project instructions",
@@ -696,6 +706,7 @@ describe("sessionAttemptRecordSchema", () => {
 	it("records a settings digest that distinguishes two arms differing only in settings", () => {
 		const withBrief = buildSessionAttemptRecord({
 			corpusVersion: MEASURED_VERSION,
+			versionFiles: [],
 			sessionCase: { ...smokeCase(), settings: { outputStyle: "brief" } },
 			settings: { model: "haiku", budgetUsd: 0.2 },
 			lineage: "b".repeat(64),
@@ -706,6 +717,7 @@ describe("sessionAttemptRecordSchema", () => {
 		});
 		const withVerbose = buildSessionAttemptRecord({
 			corpusVersion: MEASURED_VERSION,
+			versionFiles: [],
 			sessionCase: { ...smokeCase(), settings: { outputStyle: "verbose" } },
 			settings: { model: "haiku", budgetUsd: 0.2 },
 			lineage: "b".repeat(64),
@@ -716,6 +728,7 @@ describe("sessionAttemptRecordSchema", () => {
 		});
 		const withNone = buildSessionAttemptRecord({
 			corpusVersion: MEASURED_VERSION,
+			versionFiles: [],
 			sessionCase: smokeCase(),
 			settings: { model: "haiku", budgetUsd: 0.2 },
 			lineage: "b".repeat(64),
@@ -743,6 +756,7 @@ describe("sessionAttemptRecordSchema", () => {
 		function digestOf(settings: Readonly<JsonObject>): string | undefined {
 			return buildSessionAttemptRecord({
 				corpusVersion: MEASURED_VERSION,
+				versionFiles: [],
 				sessionCase: { ...smokeCase(), settings },
 				settings: { model: "haiku", budgetUsd: 0.2 },
 				lineage: "b".repeat(64),
@@ -782,6 +796,7 @@ describe("sessionAttemptRecordSchema", () => {
 	it("retains the provider's per-model usage block on a built record", () => {
 		const built = buildSessionAttemptRecord({
 			corpusVersion: MEASURED_VERSION,
+			versionFiles: [],
 			sessionCase: smokeCase(),
 			settings: { model: "haiku", budgetUsd: 0.2 },
 			lineage: "b".repeat(64),
@@ -892,6 +907,7 @@ describe("sessionAttemptRecordSchema", () => {
 			// SAFETY: Exercising runtime rejection when raw session attempt data carries legacy string paths
 			buildSessionAttemptRecord({
 				corpusVersion: MEASURED_VERSION,
+				versionFiles: [],
 				sessionCase: sampleCase,
 				settings: sampleSettings,
 				lineage: "b".repeat(64),
@@ -924,6 +940,7 @@ describe("the state grades a session attempt record carries", () => {
 	): SessionAttemptRecord {
 		return buildSessionAttemptRecord({
 			corpusVersion: MEASURED_VERSION,
+			versionFiles: [],
 			sessionCase: smokeCase(),
 			settings: { model: "haiku", effort: "low", budgetUsd: 0.2 },
 			lineage: "b".repeat(64),

@@ -74,6 +74,12 @@ export interface ReadManifestInputs {
 	readonly skill: string | undefined;
 	/** Corpus files as the record's corpus resolved them at its start. */
 	readonly corpusFiles: readonly HashedFile[];
+	/**
+	 * The corpus version measured at the record's start, which hashes a corpus
+	 * file the record loaded beyond `corpusFiles`. Empty when that measurement
+	 * refused, so such a file carries no hash.
+	 */
+	readonly versionFiles: readonly HashedFile[];
 	/** Target files as the record's starting checkpoint held them. */
 	readonly targetFiles: readonly HashedFile[];
 	/** Corpus files the record declares it reads, beside the stage skill. */
@@ -103,7 +109,9 @@ export function readManifest(
 		role: role(manifestEntry, inputs.skill),
 		evidence,
 		...hashOf(
-			manifestEntry.half === "corpus" ? inputs.corpusFiles : inputs.targetFiles,
+			manifestEntry.half === "corpus"
+				? [...inputs.corpusFiles, ...inputs.versionFiles]
+				: inputs.targetFiles,
 			manifestEntry.path,
 		),
 	});
@@ -138,6 +146,7 @@ export function readManifest(
 export interface StageReadManifestInputs {
 	readonly skill: string;
 	readonly corpusFiles: readonly HashedFile[];
+	readonly versionFiles: readonly HashedFile[];
 	readonly targetFiles: readonly HashedFile[];
 	readonly rubric: HashedFile | undefined;
 	readonly observed: ContextManifest;

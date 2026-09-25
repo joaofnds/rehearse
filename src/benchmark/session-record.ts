@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { SessionCase } from "./case";
+import type { HashedFile } from "./checkpoint";
 import type { SessionSettings } from "./claude";
 import { effortSchema } from "./config";
 import {
@@ -352,6 +353,8 @@ export interface SessionAttemptRecordInputs {
 	readonly corpusFiles: readonly ResolvedCorpusFile[];
 	readonly corpusOrigin: CorpusSnapshotOrigin;
 	readonly corpusVersion: CorpusMeasurement;
+	/** The files `corpusVersion` holds. */
+	readonly versionFiles: readonly HashedFile[];
 	readonly attempt: SessionAttempt;
 	readonly elapsedMs: number;
 	readonly error?: string | undefined;
@@ -414,6 +417,7 @@ export function buildSessionAttemptRecord(
 			...readManifest({
 				skill: undefined,
 				corpusFiles: inputs.corpusFiles,
+				versionFiles: inputs.versionFiles,
 				targetFiles: attempt.startingProjectFiles ?? [],
 				declared,
 				rubric: undefined,

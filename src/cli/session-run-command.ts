@@ -12,7 +12,10 @@ import {
 } from "#benchmark/corpus-file";
 import type { CorpusSourceResolver } from "#benchmark/corpus-source";
 import { resolveCorpusSource } from "#benchmark/corpus-source";
-import { measureCorpusVersion } from "#benchmark/corpus-version";
+import {
+	measureCorpusVersion,
+	measuredCorpusFiles,
+} from "#benchmark/corpus-version";
 import { SymlinkedEntryError } from "#benchmark/file-presence";
 import type {
 	ClaudeRunner,
@@ -190,6 +193,10 @@ export async function runSessionDebugAttempt(
 		request.runsDirectory,
 		corpus.source,
 	);
+	const versionFiles = await measuredCorpusFiles(
+		request.runsDirectory,
+		corpusVersion,
+	);
 	const lineage = await lineageOf(sessionCase, corpusFiles, settings);
 	await claimShortId(request.runsDirectory, attemptId.caseId, {
 		kind: "attempt:session",
@@ -209,6 +216,7 @@ export async function runSessionDebugAttempt(
 			corpusFiles,
 			corpusOrigin: corpus.snapshot.origin,
 			corpusVersion,
+			versionFiles,
 			attempt,
 			elapsedMs: Date.now() - startedAt,
 			error,

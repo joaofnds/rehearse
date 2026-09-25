@@ -44,7 +44,7 @@ import {
 	recordsDirectory,
 } from "./config";
 import type { CorpusMeasurement } from "./corpus-measurement";
-import { measureCorpusVersion } from "./corpus-version";
+import { measureCorpusVersion, measuredCorpusFiles } from "./corpus-version";
 import { RefusedPreconditionError } from "./exit-codes";
 import type { CorpusRoot } from "./corpus-file";
 import { liveCorpusSource, readCorpusInstructions } from "./corpus-file";
@@ -495,6 +495,9 @@ export interface StageSessionDependencies {
 	) => Promise<LocalCheckResult>;
 	readonly captureStageCorpus: typeof captureStageCorpus;
 	readonly measureCorpus: () => Promise<CorpusMeasurement>;
+	readonly corpusVersionFiles: (
+		measurement: CorpusMeasurement,
+	) => Promise<readonly HashedFile[]>;
 }
 
 export interface StageDependencies extends StageSessionDependencies {
@@ -580,6 +583,8 @@ export interface StageSessionResult {
 	readonly resultSha: string;
 	readonly corpusFiles: readonly HashedFile[];
 	readonly corpusVersion: CorpusMeasurement;
+	/** The files `corpusVersion` holds, read before the session spends. */
+	readonly versionFiles: readonly HashedFile[];
 	readonly transcript: StageTranscript;
 	readonly input: StageJudgeInput;
 	readonly artifact?: ContextFile | undefined;
@@ -605,6 +610,7 @@ export async function executeStageSession(
 		environment.corpusRoots,
 	);
 	const corpusVersion = await dependencies.measureCorpus();
+	const versionFiles = await dependencies.corpusVersionFiles(corpusVersion);
 	const transcript = await dependencies.runWorkflowStage({
 		targetDir: environment.targetDir,
 		model: environment.model,
@@ -719,6 +725,7 @@ export async function executeStageSession(
 		resultSha,
 		corpusFiles,
 		corpusVersion,
+		versionFiles,
 		transcript,
 		input,
 		artifact,
@@ -784,7 +791,7 @@ export async function runGradedStages(
 			definition,
 			stageArtifacts,
 		);
-		const { corpusFiles, corpusVersion, input } = session;
+		const { corpusFiles, corpusVersion, versionFiles, input } = session;
 		workflow.push(session.transcript);
 		if (session.artifact) {
 			stageArtifacts.push(session.artifact);
@@ -844,6 +851,7 @@ export async function runGradedStages(
 			transcript: stageTranscript,
 			skill: definition.skill,
 			corpusFiles,
+			versionFiles,
 			rubric: {
 				path: definition.rubric,
 				sha256: stageRubricSha256(scorecard.rubric),
@@ -1125,6 +1133,8 @@ export async function runBenchmark(
 					captureStageCorpus,
 					measureCorpus: () =>
 						measureCorpusVersion(runFiles.runsDirectory, corpusSource),
+					corpusVersionFiles: (measurement) =>
+						measuredCorpusFiles(runFiles.runsDirectory, measurement),
 					recordCheckpoint: recordRetainedCheckpoint,
 				},
 				{

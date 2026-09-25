@@ -406,6 +406,7 @@ export async function runReplay(
 						},
 			skill: plan.definition.skill,
 			corpusFiles: session.corpusFiles,
+			versionFiles: session.versionFiles,
 			rubric: {
 				path: plan.definition.rubric,
 				sha256: stageRubricSha256(scorecard.rubric),
