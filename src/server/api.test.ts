@@ -828,7 +828,7 @@ describe(createApiApp.name, () => {
 			const corpus = await corpusDirectory();
 			const runsDirectory = await emptyDirectory("rehearse-api-runs-");
 			const source = directorySource(corpus);
-			const bytes = Uint8Array.of(0xFF, 0xFE, 0, 1);
+			const bytes = Uint8Array.of(0xff, 0xfe, 0, 1);
 			await Bun.write(join(corpus, "skills", "build", "table.bin"), bytes);
 			const measured = await measureCorpusVersion(runsDirectory, source);
 			if (measured.kind !== "version") {
