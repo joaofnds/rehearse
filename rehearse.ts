@@ -97,12 +97,14 @@ async function dispatch(
 	name: string,
 	commandLine: CommandLine,
 ): Promise<number> {
+	const runsDirectory = asUsageError(() => recordsDirectory());
+
 	switch (name) {
 		case "review": {
 			await runReview(
 				{
 					id: commandLine.argument,
-					runsDirectory: recordsDirectory(),
+					runsDirectory,
 					json: commandLine.json,
 					file: flagValue(commandLine.flags, "--file"),
 					verdict: flagValue(commandLine.flags, "--verdict"),
@@ -118,7 +120,7 @@ async function dispatch(
 			await runCalibrate(
 				{
 					id: commandLine.argument,
-					runsDirectory: recordsDirectory(),
+					runsDirectory,
 					json: commandLine.json,
 					confirmRejudge: commandLine.flags.includes("--confirm-rejudge"),
 				},
@@ -135,7 +137,7 @@ async function dispatch(
 			await runCompare(
 				{
 					manifestPath: commandLine.argument,
-					runsDirectory: recordsDirectory(),
+					runsDirectory,
 					json: commandLine.json,
 				},
 				processOutput,
@@ -183,7 +185,7 @@ async function dispatch(
 			await runList(
 				{
 					kind: commandLine.argument,
-					runsDirectory: recordsDirectory(),
+					runsDirectory,
 				},
 				processOutput,
 			);
@@ -195,7 +197,7 @@ async function dispatch(
 				{
 					id: commandLine.argument,
 					json: commandLine.json,
-					runsDirectory: recordsDirectory(),
+					runsDirectory,
 					checkout: flagValue(commandLine.flags, "--checkout"),
 				},
 				processOutput,
@@ -207,7 +209,7 @@ async function dispatch(
 			await runRegrade(
 				{
 					id: commandLine.argument,
-					runsDirectory: recordsDirectory(),
+					runsDirectory,
 					json: commandLine.json,
 				},
 				{
@@ -223,7 +225,7 @@ async function dispatch(
 			await runStale(
 				{
 					...asUsageError(() => parseStaleArgs(commandLine.flags)),
-					runsDirectory: recordsDirectory(),
+					runsDirectory,
 				},
 				{ output: processOutput },
 			);
@@ -253,7 +255,7 @@ async function dispatch(
 				},
 				{
 					projectsDirectory: claudeProjectsDirectory(),
-					runsDirectory: recordsDirectory(),
+					runsDirectory,
 					output: processOutput,
 				},
 			);

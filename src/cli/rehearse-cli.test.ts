@@ -558,6 +558,22 @@ describe("rehearse", () => {
 		);
 	});
 
+	it("refuses an empty records location with a usage exit code", async () => {
+		const child = Bun.spawn([process.execPath, "rehearse.ts", "list", "runs"], {
+			cwd: PROJECT_ROOT,
+			env: { ...environmentWithoutKnobs(), REHEARSE_RECORDS_DIR: "" },
+			stdout: "pipe",
+			stderr: "pipe",
+		});
+		const [exitCode, stderr] = await Promise.all([
+			child.exited,
+			new Response(child.stderr).text(),
+		]);
+
+		expect(stderr).toContain("REHEARSE_RECORDS_DIR is empty");
+		expect(exitCode).toBe(EXIT_CODES.usageError);
+	});
+
 	it("refuses an unknown flag by name, with a usage exit code and no stdout", async () => {
 		const result = await runCli(["run", "--bogus"]);
 
