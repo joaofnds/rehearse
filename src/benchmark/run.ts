@@ -848,6 +848,7 @@ export async function runGradedStages(
 			if (error instanceof JudgeOutputValidationError) {
 				context.updatePendingStage({
 					...pendingStage,
+					readManifest,
 					failure: {
 						prompt: error.prompt,
 						attempts: error.attempts,
