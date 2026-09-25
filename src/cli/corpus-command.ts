@@ -18,19 +18,19 @@ import { UsageError } from "#cli/commands";
 import { RefusedPreconditionError } from "#cli/interactive-stdin";
 import type { CommandOutput } from "#cli/output";
 
-export interface CorpusVersionsRequest {
+export interface NamedCorpusRequest {
 	readonly corpus: string | undefined;
 	readonly runsDirectory: string;
 }
 
-export interface CorpusVersionsDependencies {
+export interface NamedCorpusDependencies {
 	readonly output: CommandOutput;
 	readonly resolveCorpus?: CorpusSourceResolver | undefined;
 }
 
 async function namedCorpus(
-	request: CorpusVersionsRequest,
-	dependencies: CorpusVersionsDependencies,
+	request: NamedCorpusRequest,
+	dependencies: NamedCorpusDependencies,
 ): Promise<CorpusRoot> {
 	try {
 		return await (dependencies.resolveCorpus ?? resolveCorpusSource)(
@@ -50,8 +50,8 @@ async function namedCorpus(
  * named, as `stale` judges against the same corpus.
  */
 export async function runCorpusVersions(
-	request: CorpusVersionsRequest,
-	dependencies: CorpusVersionsDependencies,
+	request: NamedCorpusRequest,
+	dependencies: NamedCorpusDependencies,
 ): Promise<void> {
 	const source = await namedCorpus(request, dependencies);
 	const log = await corpusVersionLog(request.runsDirectory, source);
@@ -68,8 +68,8 @@ export async function runCorpusVersions(
  * last edit invalidated, by id, for `/api/runs?ids=`.
  */
 export async function runCorpusInvalidation(
-	request: CorpusVersionsRequest,
-	dependencies: CorpusVersionsDependencies,
+	request: NamedCorpusRequest,
+	dependencies: NamedCorpusDependencies,
 ): Promise<void> {
 	const source = await namedCorpus(request, dependencies);
 	const layout = await hashCorpusLayout(source);
