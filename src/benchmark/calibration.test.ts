@@ -405,9 +405,7 @@ describe(collectCalibration.name, () => {
 			rl,
 			reviewFile,
 			targetDir: reviewDirectory,
-			originalInstructions: await Bun.file(
-				join(PROJECT_ROOT, "CLAUDE.md"),
-			).text(),
+			originalInstructions: "instructions\n",
 			originalRubric: await Bun.file(
 				join(PROJECT_ROOT, AUDIT_LOG_CASE_DIR, "rubric.md"),
 			).text(),
@@ -498,9 +496,7 @@ describe(collectCalibration.name, () => {
 			rl,
 			reviewFile,
 			targetDir: reviewDirectory,
-			originalInstructions: await Bun.file(
-				join(PROJECT_ROOT, "CLAUDE.md"),
-			).text(),
+			originalInstructions: "instructions\n",
 			originalRubric: "1. `old`: Old requirement.\n",
 			finalRubricPath: join(PROJECT_ROOT, AUDIT_LOG_CASE_DIR, "rubric.md"),
 			rubricsDirectory: join(PROJECT_ROOT, AUDIT_LOG_RUBRICS_PATH),
@@ -569,9 +565,7 @@ describe(collectCalibration.name, () => {
 			rl,
 			reviewFile,
 			targetDir: reviewDirectory,
-			originalInstructions: await Bun.file(
-				join(PROJECT_ROOT, "CLAUDE.md"),
-			).text(),
+			originalInstructions: "instructions\n",
 			originalRubric: await Bun.file(
 				join(PROJECT_ROOT, AUDIT_LOG_CASE_DIR, "rubric.md"),
 			).text(),
