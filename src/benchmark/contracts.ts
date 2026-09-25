@@ -212,6 +212,8 @@ export const claudeCallMetricsSchema = z
 		turns: z.number().int().nonnegative(),
 		durationMs: z.number().int().nonnegative().optional(),
 		apiDurationMs: z.number().int().nonnegative().optional(),
+		// The session's running figures as the provider reports them, so on a
+		// resumed call they include earlier calls, unlike costUsd and the tokens.
 		modelUsage: claudeModelUsageByModelSchema.optional(),
 	})
 	.strict();
@@ -224,7 +226,9 @@ export const claudeEnvelopeSchema = z
 		duration_ms: z.number().int().nonnegative().optional(),
 		duration_api_ms: z.number().int().nonnegative().optional(),
 		usage: claudeUsageSchema.optional(),
-		modelUsage: claudeModelUsageByModelSchema.optional(),
+		// Recording-only evidence whose shape moves between CLI releases, so a
+		// block that no longer fits is dropped rather than failing a paid call.
+		modelUsage: claudeModelUsageByModelSchema.optional().catch(undefined),
 		is_error: z.boolean().optional(),
 		terminal_reason: z.string().optional(),
 		result: z.string().optional(),

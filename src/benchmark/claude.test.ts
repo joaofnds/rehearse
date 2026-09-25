@@ -477,6 +477,41 @@ describe("per-model usage", () => {
 		).toBe(1);
 	});
 
+	it("keeps a call's metrics when a per-model block drops a field it used to carry", () => {
+		const envelope = readClaudeEnvelope(
+			JSON.stringify({
+				session_id: "session-1",
+				total_cost_usd: 1,
+				num_turns: 1,
+				usage: {
+					input_tokens: 2,
+					output_tokens: 4,
+					cache_read_input_tokens: 0,
+					cache_creation_input_tokens: 10,
+				},
+				modelUsage: {
+					"claude-opus-5-5[1m]": {
+						inputTokens: 36,
+						outputTokens: 24_590,
+						cacheReadInputTokens: 614_679,
+						cacheCreationInputTokens: 77_748,
+						costUSD: 1,
+						maxOutputTokens: 128_000,
+					},
+				},
+			}),
+		);
+
+		expect(readClaudeCallMetrics(envelope)).toEqual({
+			costUsd: 1,
+			inputTokens: 2,
+			outputTokens: 4,
+			cacheReadTokens: 0,
+			cacheWriteTokens: 10,
+			turns: 1,
+		});
+	});
+
 	it("preserves a missing per-model block as absence", () => {
 		const envelope = readClaudeEnvelope(
 			JSON.stringify({
