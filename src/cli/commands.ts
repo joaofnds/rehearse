@@ -280,6 +280,12 @@ export const COMMANDS: readonly CommandDefinition[] = [
 		flags: [corpusFlag],
 	},
 	{
+		name: "corpus invalidation",
+		summary:
+			"Count the run-history rows that read each corpus file, and list the rows the last edit invalidated",
+		flags: [corpusFlag],
+	},
+	{
 		name: "corpus show",
 		summary:
 			"Print a recorded corpus version's files, or one file as that version held it",

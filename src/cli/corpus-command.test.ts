@@ -4,9 +4,17 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { DirectoryCorpusRoot } from "#benchmark/corpus-file";
 import { measureCorpusVersion } from "#benchmark/corpus-version";
+import {
+	liveStageSettings,
+	RecordedRunsFixture,
+} from "#benchmark/run-records-test-support";
 import { failureOf, recordOutput } from "#cli/cli-test-support";
 import { UsageError } from "#cli/commands";
-import { runCorpusShow, runCorpusVersions } from "#cli/corpus-command";
+import {
+	runCorpusInvalidation,
+	runCorpusShow,
+	runCorpusVersions,
+} from "#cli/corpus-command";
 import { RefusedPreconditionError } from "#cli/interactive-stdin";
 
 let scratch: string;
@@ -66,6 +74,64 @@ describe(runCorpusVersions.name, () => {
 		);
 
 		expect(failure).toBeInstanceOf(RefusedPreconditionError);
+	});
+});
+
+describe(runCorpusInvalidation.name, () => {
+	it("prints each file's read-by and invalidated counts, then the rows the last edit invalidated by id", async () => {
+		// The fixture's replay also read the build skill and its session
+		// attempt the brief style, so each is read by two distinct rows.
+		await mkdir(join(source.root, "skills", "build"), { recursive: true });
+		await mkdir(join(source.root, "skills", "discuss"), { recursive: true });
+		await writeFile(
+			join(source.root, "skills", "build", "SKILL.md"),
+			"build\n",
+		);
+		await writeFile(
+			join(source.root, "skills", "discuss", "SKILL.md"),
+			"discuss\n",
+		);
+		const fixture = new RecordedRunsFixture(runsDirectory, {
+			settingsFile: await liveStageSettings(),
+		});
+		await fixture.write();
+		await fixture.recordCorpusFrom(source);
+		const measured = await fixture.recordVersionFrom(source);
+		const previous = measured.kind === "version" ? measured.digest : "";
+		await writeFile(
+			join(source.root, "skills", "build", "SKILL.md"),
+			"build, edited\n",
+		);
+		const recorder = recordOutput();
+
+		await runCorpusInvalidation(
+			{ corpus: source.root, runsDirectory },
+			{ output: recorder.output },
+		);
+
+		expect(recorder.stdout.join("")).toBe(
+			[
+				"1\t0\tCLAUDE.md\n",
+				"2\t1\tskills/build/SKILL.md\n",
+				"1\t0\tskills/discuss/SKILL.md\n",
+				"2\t0\toutput-styles/brief.md\n",
+				`last edit from corpus@${previous.slice(0, 6)} invalidated 1 row\n`,
+				`run:${fixture.replayableRun}\n`,
+			].join(""),
+		);
+	});
+
+	it("says the last edit is not recorded when the log holds no earlier version", async () => {
+		const recorder = recordOutput();
+
+		await runCorpusInvalidation(
+			{ corpus: source.root, runsDirectory },
+			{ output: recorder.output },
+		);
+
+		expect(recorder.stdout.join("")).toBe(
+			"0\t0\tCLAUDE.md\n0\t0\toutput-styles/brief.md\nlast edit not recorded: the corpus under test has no earlier version in its log to compare against\n",
+		);
 	});
 });
 

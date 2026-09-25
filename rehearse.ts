@@ -9,7 +9,11 @@ import {
 } from "./src/cli/case-command";
 import { claudeProjectsDirectory } from "./src/benchmark/session-capture";
 import { runCompare } from "./src/cli/compare-command";
-import { runCorpusShow, runCorpusVersions } from "./src/cli/corpus-command";
+import {
+	runCorpusInvalidation,
+	runCorpusShow,
+	runCorpusVersions,
+} from "./src/cli/corpus-command";
 import {
 	executeReplay,
 	resolveRunDirectory,
@@ -235,6 +239,17 @@ async function dispatch(
 		}
 		case "corpus versions": {
 			await runCorpusVersions(
+				{
+					corpus: flagValue(commandLine.flags, "--corpus"),
+					runsDirectory,
+				},
+				{ output: processOutput },
+			);
+
+			return EXIT_CODES.completed;
+		}
+		case "corpus invalidation": {
+			await runCorpusInvalidation(
 				{
 					corpus: flagValue(commandLine.flags, "--corpus"),
 					runsDirectory,

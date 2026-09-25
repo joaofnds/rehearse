@@ -1,3 +1,6 @@
+import { corpusInvalidation } from "#benchmark/corpus-invalidation";
+import type { CorpusRoot } from "#benchmark/corpus-file";
+import { hashCorpusLayout } from "#benchmark/corpus-layout";
 import type { CorpusSourceResolver } from "#benchmark/corpus-source";
 import {
 	CorpusSourceError,
@@ -25,17 +28,12 @@ export interface CorpusVersionsDependencies {
 	readonly resolveCorpus?: CorpusSourceResolver | undefined;
 }
 
-/**
- * The log of the corpus the caller names, the live install when none is
- * named, as `stale` judges against the same corpus.
- */
-export async function runCorpusVersions(
+async function namedCorpus(
 	request: CorpusVersionsRequest,
 	dependencies: CorpusVersionsDependencies,
-): Promise<void> {
-	let source;
+): Promise<CorpusRoot> {
 	try {
-		source = await (dependencies.resolveCorpus ?? resolveCorpusSource)(
+		return await (dependencies.resolveCorpus ?? resolveCorpusSource)(
 			request.corpus,
 		);
 	} catch (error) {
@@ -45,12 +43,58 @@ export async function runCorpusVersions(
 
 		throw error;
 	}
+}
 
+/**
+ * The log of the corpus the caller names, the live install when none is
+ * named, as `stale` judges against the same corpus.
+ */
+export async function runCorpusVersions(
+	request: CorpusVersionsRequest,
+	dependencies: CorpusVersionsDependencies,
+): Promise<void> {
+	const source = await namedCorpus(request, dependencies);
 	const log = await corpusVersionLog(request.runsDirectory, source);
 	for (const [index, digest] of log.entries()) {
 		dependencies.output.stdout(
 			`${String(index + 1)}\t${corpusVersionLabel(digest)}\t${digest}\n`,
 		);
+	}
+}
+
+/**
+ * Per corpus file, how many run-history rows read it and how many read the
+ * previous version's bytes of it while it differs now, then the rows the
+ * last edit invalidated, by id, for `/api/runs?ids=`.
+ */
+export async function runCorpusInvalidation(
+	request: CorpusVersionsRequest,
+	dependencies: CorpusVersionsDependencies,
+): Promise<void> {
+	const source = await namedCorpus(request, dependencies);
+	const layout = await hashCorpusLayout(source);
+	const counts = await corpusInvalidation(request.runsDirectory, source);
+	for (const { path } of layout.files) {
+		const readBy = counts.readBy.get(path) ?? 0;
+		const invalidated = counts.invalidated.get(path) ?? 0;
+		dependencies.output.stdout(
+			`${String(readBy)}\t${String(invalidated)}\t${path}\n`,
+		);
+	}
+
+	const { lastEdit } = counts;
+	if (lastEdit.kind === "not-recorded") {
+		dependencies.output.stdout(`last edit not recorded: ${lastEdit.reason}\n`);
+
+		return;
+	}
+
+	const rows = lastEdit.count === 1 ? "row" : "rows";
+	dependencies.output.stdout(
+		`last edit from ${corpusVersionLabel(lastEdit.previous)} invalidated ${String(lastEdit.count)} ${rows}\n`,
+	);
+	for (const id of lastEdit.rows) {
+		dependencies.output.stdout(`${id}\n`);
 	}
 }
 
