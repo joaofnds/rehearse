@@ -814,30 +814,7 @@ export async function runGradedStages(
 			sessionBudgetUsd: context.sessionBudgetUsd,
 		};
 		await context.writePendingStage(pendingStage);
-		let scorecard: StageScorecard;
-		try {
-			scorecard = await dependencies.runStageJudge(
-				context.judgeModel,
-				context.judgeEffort,
-				context.sessionBudgetUsd,
-				input,
-				await loadStageRubric(definition),
-			);
-		} catch (error) {
-			if (error instanceof JudgeOutputValidationError) {
-				context.updatePendingStage({
-					...pendingStage,
-					failure: {
-						prompt: error.prompt,
-						attempts: error.attempts,
-						costUsd: error.costUsd,
-					},
-				});
-			}
-
-			throw error;
-		}
-		stageScorecards.push(scorecard);
+		const rubric = await loadStageRubric(definition);
 		const stageTranscript =
 			context.projectsDirectory === undefined
 				? undefined
@@ -855,9 +832,33 @@ export async function runGradedStages(
 			versionFiles,
 			rubric: {
 				path: definition.rubric,
-				sha256: stageRubricSha256(scorecard.rubric),
+				sha256: stageRubricSha256(rubric.rubric),
 			},
 		});
+		let scorecard: StageScorecard;
+		try {
+			scorecard = await dependencies.runStageJudge(
+				context.judgeModel,
+				context.judgeEffort,
+				context.sessionBudgetUsd,
+				input,
+				rubric,
+			);
+		} catch (error) {
+			if (error instanceof JudgeOutputValidationError) {
+				context.updatePendingStage({
+					...pendingStage,
+					failure: {
+						prompt: error.prompt,
+						attempts: error.attempts,
+						costUsd: error.costUsd,
+					},
+				});
+			}
+
+			throw error;
+		}
+		stageScorecards.push(scorecard);
 		const elapsedMs = stageElapsedMs(context.elapsedMs, stageStartedAtMs);
 		const stageRecord: StageJudgeRecord = {
 			...scorecard,

@@ -459,16 +459,6 @@ async function runPipelineRep(
 			if (rubric === undefined) {
 				throw new Error(`No frozen rubric for ${definition.name}`);
 			}
-			judgingStage = true;
-			const scorecard = await dependencies.runStageJudge(
-				request.judgeModel,
-				request.judgeEffort,
-				request.sessionBudgetUsd,
-				currentSession.input,
-				rubric,
-			);
-			judgingStage = false;
-			stageJudgeCalls.push(...scorecard.attempts);
 			const readManifest = await recordStageReads({
 				targetDir: plan.worktreePath,
 				startSha: baselineSha,
@@ -485,9 +475,19 @@ async function runPipelineRep(
 				versionFiles: frozen.versionFiles,
 				rubric: {
 					path: definition.rubric,
-					sha256: stageRubricSha256(scorecard.rubric),
+					sha256: stageRubricSha256(rubric.rubric),
 				},
 			});
+			judgingStage = true;
+			const scorecard = await dependencies.runStageJudge(
+				request.judgeModel,
+				request.judgeEffort,
+				request.sessionBudgetUsd,
+				currentSession.input,
+				rubric,
+			);
+			judgingStage = false;
+			stageJudgeCalls.push(...scorecard.attempts);
 			const stageFile = repPaths.stageFile(definition.name);
 			await Bun.write(
 				stageFile,
