@@ -1,6 +1,5 @@
 import { unhandled } from "#benchmark/contracts";
 import type { Immutable } from "#benchmark/contracts";
-import { readCheckpointRecord } from "#benchmark/checkpoint";
 import {
 	parseConfirmationGroupRecord,
 	parseConfirmationRepRecord,
@@ -309,28 +308,27 @@ async function checkpointShortIds(
 }
 
 /**
- * Whether a run's checkpoints measured more than one corpus version, which a
- * source edited between two of its stages leaves behind. A checkpoint older
- * than versions measured none and counts toward neither answer.
+ * A run's version is its latest stage's, whether that stage saved a
+ * checkpoint or stopped. The corpus changed during the run when its stages
+ * measured more than one version. A refusal is not a version, and a record
+ * older than versions measured none, so neither counts toward a change.
  */
-async function corpusChangedDuringRun(
-	runsDirectory: string,
-	run: string,
-): Promise<boolean> {
-	const paths = benchmarkRunPaths(runsDirectory, run);
-	const measured = new Set<string>();
-	for (const stage of await checkpointStageNames(runsDirectory, run)) {
-		if (await checkpointRecorded(paths, stage)) {
-			const { corpusVersion } = await readCheckpointRecord(
-				paths.checkpointDirectory(stage),
-			);
-			if (corpusVersion !== undefined) {
-				measured.add(JSON.stringify(corpusVersion));
-			}
-		}
-	}
+function runCorpus(
+	record: RunRecord,
+): Pick<PipelineRunRow, "corpusVersion" | "corpusChangedDuringRun"> {
+	const measured = record.stages
+		.map(({ corpusVersion }) => corpusVersion)
+		.filter((corpusVersion) => corpusVersion !== undefined);
+	const digests = new Set(
+		measured.flatMap((corpusVersion) =>
+			corpusVersion.kind === "version" ? [corpusVersion.digest] : [],
+		),
+	);
 
-	return measured.size > 1;
+	return {
+		corpusVersion: measured.at(-1),
+		corpusChangedDuringRun: digests.size > 1,
+	};
 }
 
 interface RunFigures {
@@ -338,6 +336,8 @@ interface RunFigures {
 	readonly finalOutcome: PipelineRunRow["finalOutcome"];
 	readonly cost: PipelineRunRow["cost"];
 	readonly wallTime: PipelineRunRow["wallTime"];
+	readonly corpusVersion: PipelineRunRow["corpusVersion"];
+	readonly corpusChangedDuringRun: boolean;
 }
 
 /**
@@ -366,6 +366,7 @@ async function runFigures(
 			finalOutcome: { state: "available", ...record.finalOutcome },
 			cost: record.totals.cost,
 			wallTime: record.totals.wallTime,
+			...runCorpus(record),
 		};
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
@@ -380,6 +381,8 @@ function unavailableFigures(reasons: readonly string[]): RunFigures {
 		finalOutcome: { state: "unavailable", reasons },
 		cost: { state: "unavailable", reasons },
 		wallTime: { state: "unavailable", reasons },
+		corpusVersion: undefined,
+		corpusChangedDuringRun: false,
 	};
 }
 
@@ -424,8 +427,6 @@ async function rowFor(
 			caseId,
 			stage: undefined,
 			grade: undefined,
-			corpusVersion: undefined,
-			corpusChangedDuringRun: false,
 			stale: causes.length > 0,
 			staleCauses: causes,
 			progress,
@@ -434,10 +435,6 @@ async function rowFor(
 		};
 	}
 
-	const paths = benchmarkRunPaths(runsDirectory, run);
-	const checkpoint = await readCheckpointRecord(
-		paths.checkpointDirectory(stage),
-	);
 	const causes = staleByCheckpointId.get(`checkpoint:${run}/${stage}`) ?? [];
 
 	return {
@@ -449,8 +446,6 @@ async function rowFor(
 		caseId,
 		stage,
 		grade: gradeByStage.get(stage),
-		corpusVersion: checkpoint.corpusVersion,
-		corpusChangedDuringRun: await corpusChangedDuringRun(runsDirectory, run),
 		stale: causes.length > 0,
 		staleCauses: causes,
 		progress,

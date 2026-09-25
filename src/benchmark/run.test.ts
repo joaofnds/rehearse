@@ -1085,7 +1085,7 @@ describe(runGradedStages.name, () => {
 					sha256: createHash("sha256").update("shape").digest("hex"),
 				},
 			],
-		corpusVersion: { kind: "version", digest: "c".repeat(64) },
+			corpusVersion: { kind: "version", digest: "c".repeat(64) },
 		});
 	});
 

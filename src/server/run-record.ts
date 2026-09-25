@@ -6,6 +6,8 @@ import {
 } from "#benchmark/checkpoint";
 import type { CheckpointRecord, HashedFile } from "#benchmark/checkpoint";
 import { claudeCallMetricsSchema } from "#benchmark/contracts";
+import { corpusMeasurementSchema } from "#benchmark/corpus-measurement";
+import type { CorpusMeasurement } from "#benchmark/corpus-measurement";
 import type { ClaudeCallMetrics, Immutable } from "#benchmark/contracts";
 import { loadRunManifest } from "#benchmark/manifest";
 import {
@@ -105,6 +107,8 @@ export interface RunRecordStage {
 	readonly checkpointShortId: ShortIdReading;
 	/** The corpus files the stage ran under, from its checkpoint or record. */
 	readonly instructionFiles: Reading<{ readonly files: readonly HashedFile[] }>;
+	/** The corpus version the stage ran against, from its checkpoint or record. */
+	readonly corpusVersion: CorpusMeasurement | undefined;
 	readonly artifactsOut: ArtifactsOut;
 }
 
@@ -191,6 +195,7 @@ const stageFileSchema = z
 			.optional(),
 		attempts: callsSchema.optional(),
 		corpusFiles: z.array(hashedFileSchema).optional(),
+		corpusVersion: corpusMeasurementSchema.optional(),
 		elapsedMs: z.number().optional(),
 		/** A stop record's run-wide readings, up to the stop. */
 		runElapsedMs: z.number().optional(),
@@ -515,6 +520,17 @@ const UNGRADED_REASONS = {
 	graded: "the scorecard holds no letter",
 } as const satisfies Record<StageStatus, string>;
 
+/** The corpus a stage ran under, from its checkpoint or, failing one, its record. */
+function ranUnder({
+	file,
+	checkpoint,
+}: RecordedStage): Pick<RunRecordStage, "instructionFiles" | "corpusVersion"> {
+	return {
+		instructionFiles: filesOf(checkpoint?.corpusFiles ?? file?.corpusFiles),
+		corpusVersion: checkpoint?.corpusVersion ?? file?.corpusVersion,
+	};
+}
+
 function stageRecord(
 	recorded: ReachedStage,
 	checkpoints: CheckpointsByLineage,
@@ -555,7 +571,7 @@ function stageRecord(
 		tokens: tokenReading(stageTokenParts(recorded)),
 		checkpoint: checkpoint === undefined ? "missing" : "recorded",
 		checkpointShortId,
-		instructionFiles: filesOf(checkpoint?.corpusFiles ?? file?.corpusFiles),
+		...ranUnder(recorded),
 		artifactsOut: {
 			declared: pathsOf(
 				checkpoint?.artifacts,

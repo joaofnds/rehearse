@@ -609,7 +609,59 @@ describe(runHistoryReport.name, () => {
 		]);
 	});
 
-	it("reports a run stopped mid-stage with STOPPED:<stage> and no corpus version when it recorded no checkpoint", async () => {
+	it("shows the version a stopped stage's record names and says the corpus changed when an earlier stage measured another", async () => {
+		const fixture = await writtenFixture();
+		await fixture.writeStoppedRun();
+		const paths = benchmarkRunPaths(fixture.runsDirectory, fixture.stoppedRun);
+		const stopped: CorpusMeasurement = {
+			kind: "version",
+			digest: "b".repeat(64),
+		};
+		await recordCorpusVersion(paths.stageFile("discuss"), {
+			kind: "version",
+			digest: "a".repeat(64),
+		});
+		await recordCorpusVersion(paths.stageFile("build"), stopped);
+
+		const { rows } = await runHistoryReport(
+			fixture.runsDirectory,
+			directorySource(await corpusDirectory("build skill\n")),
+			nothingRunning,
+		);
+
+		expect(pipelineRun(rows, fixture.stoppedRun)).toMatchObject({
+			corpusVersion: stopped,
+			corpusChangedDuringRun: true,
+		});
+	});
+
+	it("does not call a refused measurement a corpus change", async () => {
+		const fixture = await writtenFixture();
+		await fixture.writeStoppedRun();
+		const paths = benchmarkRunPaths(fixture.runsDirectory, fixture.stoppedRun);
+		const refused: CorpusMeasurement = {
+			kind: "refused",
+			refusal: "a symlink escapes the root",
+		};
+		await recordCorpusVersion(paths.stageFile("discuss"), {
+			kind: "version",
+			digest: "a".repeat(64),
+		});
+		await recordCorpusVersion(paths.stageFile("build"), refused);
+
+		const { rows } = await runHistoryReport(
+			fixture.runsDirectory,
+			directorySource(await corpusDirectory("build skill\n")),
+			nothingRunning,
+		);
+
+		expect(pipelineRun(rows, fixture.stoppedRun)).toMatchObject({
+			corpusVersion: refused,
+			corpusChangedDuringRun: false,
+		});
+	});
+
+	it("reports a run stopped mid-stage with STOPPED:<stage> and no corpus version when its stage records name none", async () => {
 		const fixture = await writtenFixture();
 		await fixture.writeStoppedRun();
 
