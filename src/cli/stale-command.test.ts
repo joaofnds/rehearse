@@ -13,6 +13,8 @@ import { runStale } from "#cli/stale-command";
 import { CorpusConfigurationError } from "#benchmark/corpus-file";
 
 const HALF_WRITTEN_UUID = "0f6b6f2a-0000-4000-8000-00000000000f";
+const SMOKE_ATTEMPT =
+	"attempt:session:smoke/0f6b6f2a-0000-4000-8000-000000000001";
 
 async function treeOf(root: string): Promise<readonly string[]> {
 	const entries = await readdir(root, { recursive: true });
@@ -129,7 +131,27 @@ describe(runStale.name, () => {
 		);
 
 		expect(recorder.stdout.join("").trimEnd().split("\n")).toEqual([
-			`checkpoint:${fixture.replayableRun}/build\taudit-log/r2/s2\tskills/build/SKILL.md changed`,
+			`checkpoint:${fixture.replayableRun}/build\taudit-log/r2/s2\tdistance not recorded\tskills/build/SKILL.md changed`,
+		]);
+	});
+
+	it("prints how many versions a stale checkpoint sits behind the corpus under test", async () => {
+		const corpus = await corpusDirectory("build skill\n");
+		const fixture = await fixtureRecordedAgainst(corpus);
+		await fixture.recordVersionFrom(directorySource(corpus));
+		await Bun.write(
+			join(corpus, "skills", "build", "SKILL.md"),
+			"build skill, edited\n",
+		);
+		const recorder = recordOutput();
+
+		await runStale(
+			{ corpus, runsDirectory: fixture.runsDirectory },
+			{ output: recorder.output },
+		);
+
+		expect(recorder.stdout.join("").trimEnd().split("\n")).toEqual([
+			`checkpoint:${fixture.replayableRun}/build\t-\tdistance 1\tskills/build/SKILL.md changed`,
 		]);
 	});
 
@@ -165,11 +187,11 @@ describe(runStale.name, () => {
 		);
 
 		expect(recorder.stdout.join("").trimEnd().split("\n")).toEqual([
-			`checkpoint:${fixture.stoppedRun}/initial\t-\tstage settings file stage-settings.json changed`,
+			`checkpoint:${fixture.stoppedRun}/initial\t-\tdistance not recorded\tstage settings file stage-settings.json changed`,
 		]);
 	});
 
-	it("names a stale session case beside the stale checkpoints", async () => {
+	it("names a stale session attempt beside the stale checkpoints", async () => {
 		const fixture = await fixtureRecordedAgainst(
 			await corpusDirectory("build skill\n"),
 		);
@@ -194,7 +216,7 @@ describe(runStale.name, () => {
 		expect(printed.map((line) => line.split("\t")[0])).toEqual([
 			`checkpoint:${fixture.replayableRun}/discuss`,
 			`checkpoint:${fixture.replayableRun}/build`,
-			"case:smoke",
+			SMOKE_ATTEMPT,
 		]);
 		expect(printed.at(0)).toContain("output-styles/brief.md changed");
 		expect(printed.at(2)).toContain("output-styles/brief.md changed");
@@ -294,7 +316,7 @@ describe(runStale.name, () => {
 			);
 
 			expect(recorder.stdout.join("").trimEnd().split("\n")).toEqual([
-				"case:smoke\t-\toutput-styles/brief.md changed",
+				`${SMOKE_ATTEMPT}\t-\tdistance not recorded\toutput-styles/brief.md changed`,
 			]);
 		});
 
@@ -315,7 +337,7 @@ describe(runStale.name, () => {
 				{ output: recorder.output },
 			);
 
-			expect(recorder.stdout.join("")).toContain("case:smoke");
+			expect(recorder.stdout.join("")).toContain(SMOKE_ATTEMPT);
 			expect(recorder.stdout.join("")).not.toContain(empty);
 		});
 
@@ -373,7 +395,7 @@ describe(runStale.name, () => {
 				{ output: recorder.output },
 			);
 
-			expect(recorder.stdout.join("")).toContain("case:smoke");
+			expect(recorder.stdout.join("")).toContain(SMOKE_ATTEMPT);
 			expect(recorder.stdout.join("")).toContain("output-styles/brief.md");
 		});
 	});

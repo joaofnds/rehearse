@@ -7,8 +7,11 @@ import {
 	CorpusSourceError,
 	resolveCorpusSource,
 } from "#benchmark/corpus-source";
-import type { StaleRecord } from "#benchmark/staleness-report";
-import { staleCases, staleCheckpoints } from "#benchmark/staleness-report";
+import type { RecordStaleness } from "#benchmark/staleness-report";
+import {
+	sessionAttemptStaleness,
+	staleCheckpoints,
+} from "#benchmark/staleness-report";
 import { RefusedPreconditionError } from "#cli/interactive-stdin";
 import { corpusRefusal } from "#cli/corpus-failures";
 import type { CommandOutput } from "#cli/output";
@@ -63,8 +66,14 @@ async function refusingCorpusFailures<Answer>(
 	}
 }
 
-function line(record: StaleRecord, shortId: string): string {
-	return `${[record.id, shortId, ...record.causes].join("\t")}\n`;
+function distanceReading({ distance }: RecordStaleness): string {
+	return distance.kind === "measured"
+		? `distance ${distance.versions}`
+		: "distance not recorded";
+}
+
+function line(record: RecordStaleness, shortId: string): string {
+	return `${[record.id, shortId, distanceReading(record), ...record.causes].join("\t")}\n`;
 }
 
 /**
@@ -72,7 +81,7 @@ function line(record: StaleRecord, shortId: string): string {
  * finds both ids of a record in the first two columns whatever its kind.
  */
 async function shortIdOf(
-	record: StaleRecord,
+	record: RecordStaleness,
 	runsDirectory: string,
 	shortIds: ReadonlyMap<string, string>,
 ): Promise<string> {
@@ -107,15 +116,15 @@ async function report(
 	source: ResolvedCorpusSource,
 	output: CommandOutput,
 ): Promise<void> {
-	const cases = await staleCases(request.runsDirectory, source);
+	const attempts = await sessionAttemptStaleness(request.runsDirectory, source);
 	const stale = [
 		...(await refusingCorpusFailures(() =>
 			staleCheckpoints(request.runsDirectory, source, request),
 		)),
-		...cases.records,
+		...attempts.records.filter((record) => record.stale),
 	];
 
-	writeUnreadable(output, cases.unreadable);
+	writeUnreadable(output, attempts.unreadable);
 	const shortIds = await shortIdsByRecordId(request.runsDirectory);
 	for (const record of stale) {
 		output.stdout(

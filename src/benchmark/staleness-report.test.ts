@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { mkdir, mkdtemp, rm, symlink, utimes } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CASES_DIRECTORY } from "./case";
@@ -13,13 +13,12 @@ import {
 import { TestResources } from "./test-support";
 import {
 	checkpointStaleness,
-	staleCases,
+	sessionAttemptStaleness,
 	staleCheckpoints,
 } from "./staleness-report";
+import { measureCorpusVersion } from "./corpus-version";
 
 const HALF_WRITTEN_UUID = "0f6b6f2a-0000-4000-8000-00000000000f";
-const EARLY = new Date("2026-09-01T00:00:00.000Z");
-const LATE = new Date("2026-09-02T00:00:00.000Z");
 
 describe(staleCheckpoints.name, () => {
 	const roots: string[] = [];
@@ -492,7 +491,7 @@ describe(checkpointStaleness.name, () => {
 	});
 });
 
-describe(staleCases.name, () => {
+describe(sessionAttemptStaleness.name, () => {
 	const roots: string[] = [];
 
 	afterEach(async () => {
@@ -521,29 +520,45 @@ describe(staleCases.name, () => {
 		return root;
 	}
 
-	it("names each declared corpus file whose digest the attempt no longer matches", async () => {
+	const SMOKE_ATTEMPT =
+		"attempt:session:smoke/0f6b6f2a-0000-4000-8000-000000000001";
+
+	it("names each declared corpus file the attempt read that changed", async () => {
 		const runsDirectory = await runsWithSmokeAttempt(
 			await styleCorpus("the brief style\n"),
 		);
 
-		const report = await staleCases(
+		const report = await sessionAttemptStaleness(
 			runsDirectory,
 			directorySource(await styleCorpus("the brief style, edited\n")),
 		);
 
-		expect(report.records.map(({ id }) => id)).toEqual(["case:smoke"]);
-		expect(report.records.at(0)?.causes).toEqual([
-			"output-styles/brief.md changed",
+		expect(report.records).toEqual([
+			{
+				id: SMOKE_ATTEMPT,
+				stale: true,
+				causes: ["output-styles/brief.md changed"],
+				changedFiles: [{ path: "output-styles/brief.md", change: "changed" }],
+				distance: {
+					kind: "not-recorded",
+					reason: "recorded before corpus versions",
+				},
+			},
 		]);
 	});
 
-	it("names no case when the corpus still holds the recorded bytes", async () => {
+	it("reports the attempt clean when the corpus still holds the recorded bytes", async () => {
 		const corpus = await styleCorpus("the brief style\n");
 		const runsDirectory = await runsWithSmokeAttempt(corpus);
 
-		const report = await staleCases(runsDirectory, directorySource(corpus));
+		const report = await sessionAttemptStaleness(
+			runsDirectory,
+			directorySource(corpus),
+		);
 
-		expect(report.records).toEqual([]);
+		expect(report.records.map(({ id, stale }) => ({ id, stale }))).toEqual([
+			{ id: SMOKE_ATTEMPT, stale: false },
+		]);
 	});
 
 	it("names an out-of-extent live file as a stale cause instead of freshness", async () => {
@@ -559,89 +574,98 @@ describe(staleCases.name, () => {
 			join(root, "output-styles", "brief.md"),
 		);
 
-		const report = await staleCases(runsDirectory, {
+		const report = await sessionAttemptStaleness(runsDirectory, {
 			kind: "live",
 			root,
 			backingRoot,
 		});
 
-		expect(report.records).toEqual([
+		expect(
+			report.records.map(({ id, stale, causes, changedFiles }) => ({
+				id,
+				stale,
+				causes,
+				changedFiles,
+			})),
+		).toEqual([
 			{
-				id: "case:smoke",
+				id: SMOKE_ATTEMPT,
+				stale: true,
 				causes: [
 					"Corpus file output-styles/brief.md resolves outside the live corpus extent, which would hash bytes the corpus does not hold",
 				],
+				changedFiles: [],
 			},
 		]);
 	});
 
-	describe("when a case has two attempts", () => {
+	describe("when a case has two attempts measured at two versions", () => {
 		const OLDER = "0f6b6f2a-0000-4000-8000-00000000000a";
 		const NEWER = "0f6b6f2a-0000-4000-8000-00000000000b";
 
-		/**
-		 * Recency is decided by the record file's modification time, because the
-		 * attempt record carries no timestamp and a uuid gives no order. Setting
-		 * both times explicitly is what makes the choice observable rather than
-		 * an accident of which uuid `readdir` happened to yield first.
-		 */
-		async function twoAttempts(
-			olderCorpus: string,
-			newerCorpus: string,
-		): Promise<string> {
+		it("answers for each attempt on its own, with its distance", async () => {
+			const corpus = await styleCorpus("some older style\n");
 			const root = await mkdtemp(join(tmpdir(), "rehearse-case-two-"));
 			roots.push(root);
 			const fixture = new RecordedRunsFixture(root);
-			const older = await fixture.writeAttemptAt(OLDER, olderCorpus, "smoke", [
-				"output-styles/brief.md",
-			]);
-			const newer = await fixture.writeAttemptAt(NEWER, newerCorpus, "smoke", [
-				"output-styles/brief.md",
-			]);
-			await utimes(older, EARLY, EARLY);
-			await utimes(newer, LATE, LATE);
-
-			return root;
-		}
-
-		it("answers from the most recent one", async () => {
-			const corpus = await styleCorpus("the brief style\n");
-			const runsDirectory = await twoAttempts(
-				await styleCorpus("some older style\n"),
+			const older = await measureCorpusVersion(root, directorySource(corpus));
+			await fixture.writeAttemptAt(
+				OLDER,
 				corpus,
-			);
-
-			const report = await staleCases(runsDirectory, directorySource(corpus));
-
-			expect(report.records).toEqual([]);
-		});
-
-		it("ignores the older one even when the corpus still matches it", async () => {
-			const older = await styleCorpus("some older style\n");
-			const runsDirectory = await twoAttempts(
+				"smoke",
+				["output-styles/brief.md"],
 				older,
-				await styleCorpus("the brief style\n"),
+			);
+			await Bun.write(
+				join(corpus, "output-styles", "brief.md"),
+				"the brief style\n",
+			);
+			const newer = await measureCorpusVersion(root, directorySource(corpus));
+			await fixture.writeAttemptAt(
+				NEWER,
+				corpus,
+				"smoke",
+				["output-styles/brief.md"],
+				newer,
 			);
 
-			const report = await staleCases(runsDirectory, directorySource(older));
+			const report = await sessionAttemptStaleness(
+				root,
+				directorySource(corpus),
+			);
 
-			expect(report.records.map(({ id }) => id)).toEqual(["case:smoke"]);
+			expect(
+				report.records
+					.map(({ id, stale, distance }) => ({ id, stale, distance }))
+					.toSorted((left, right) => left.id.localeCompare(right.id)),
+			).toEqual([
+				{
+					id: `attempt:session:smoke/${OLDER}`,
+					stale: true,
+					distance: { kind: "measured", versions: 1 },
+				},
+				{
+					id: `attempt:session:smoke/${NEWER}`,
+					stale: false,
+					distance: { kind: "measured", versions: 0 },
+				},
+			]);
 		});
 	});
 
 	describe("when one attempt record cannot be read", () => {
-		it("names it as unreadable and still answers for the case", async () => {
+		it("names it as unreadable and still answers for the other attempt", async () => {
 			const corpus = await styleCorpus("the brief style\n");
 			const runsDirectory = await runsWithSmokeAttempt(corpus);
 			const fixture = new RecordedRunsFixture(runsDirectory);
 			await fixture.writeUnreadableAttempt("smoke", HALF_WRITTEN_UUID);
 
-			const report = await staleCases(
+			const report = await sessionAttemptStaleness(
 				runsDirectory,
 				directorySource(await styleCorpus("the brief style, edited\n")),
 			);
 
-			expect(report.records.map(({ id }) => id)).toEqual(["case:smoke"]);
+			expect(report.records.map(({ id }) => id)).toEqual([SMOKE_ATTEMPT]);
 			expect(report.unreadable.map(({ id }) => id)).toEqual([
 				`attempt:session:smoke/${HALF_WRITTEN_UUID}`,
 			]);
@@ -658,7 +682,7 @@ describe(staleCases.name, () => {
 			const root = await mkdtemp(join(tmpdir(), "rehearse-case-unread-"));
 			roots.push(root);
 
-			const report = await staleCases(
+			const report = await sessionAttemptStaleness(
 				root,
 				directorySource(await styleCorpus("the brief style\n")),
 			);
@@ -670,11 +694,11 @@ describe(staleCases.name, () => {
 	});
 
 	describe("when a case has no recorded attempt", () => {
-		it("names no case, because nothing was invalidated", async () => {
+		it("reports no record, because nothing was measured", async () => {
 			const root = await mkdtemp(join(tmpdir(), "rehearse-case-none-"));
 			roots.push(root);
 
-			const report = await staleCases(
+			const report = await sessionAttemptStaleness(
 				root,
 				directorySource(await styleCorpus("the brief style\n")),
 			);

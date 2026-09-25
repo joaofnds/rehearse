@@ -820,6 +820,13 @@ export function corpusDifferences(
 		.toSorted();
 }
 
+/** Each changed file as a stale cause, the path and how it changed. */
+export function changedFileCauses(
+	changedFiles: readonly ChangedCorpusFile[],
+): string[] {
+	return changedFiles.map(({ path, change }) => `${path} ${change}`).toSorted();
+}
+
 /**
  * A corpus file the record has and the corpus no longer does was removed;
  * the reverse was added. Both invalidate the checkpoint as surely as an edit.
@@ -834,12 +841,7 @@ function stageCorpusChanges(
 
 	const changedFiles = corpusFileChanges(recorded, current.hashed);
 
-	return {
-		causes: changedFiles
-			.map(({ path, change }) => `${path} ${change}`)
-			.toSorted(),
-		changedFiles,
-	};
+	return { causes: changedFileCauses(changedFiles), changedFiles };
 }
 
 /**

@@ -1,4 +1,3 @@
-import { stat } from "node:fs/promises";
 import type { CaseDeclaration, SessionCaseDeclaration } from "./case";
 import { listCases } from "./case";
 import type {
@@ -9,14 +8,19 @@ import type {
 } from "./checkpoint";
 import {
 	captureStageCorpus,
-	corpusDifferences,
+	changedFileCauses,
+	corpusFileChanges,
 	deriveStaleness,
 	hashedCorpus,
 	INITIAL_CHECKPOINT_STAGE,
 	parseCheckpointRecord,
 	refusedCorpus,
 } from "./checkpoint";
-import { refusedEntryReason, SymlinkedEntryError } from "./file-presence";
+import {
+	refusedEntryReason,
+	SymlinkedEntryError,
+	textIfPresent,
+} from "./file-presence";
 import type { Effort } from "./config";
 import { compareCurrentStageSettings } from "./current-stage-settings";
 import type { CorpusRoot } from "./corpus-file";
@@ -41,29 +45,16 @@ import {
 import { parseSessionAttemptRecord } from "./session-record";
 
 /**
- * One record an edit invalidated, named by the id `show` accepts back and by
- * every reason it went stale. A caller prints these; nothing here formats.
- */
-export interface StaleRecord {
-	readonly id: string;
-	readonly causes: readonly string[];
-}
-
-/**
- * A record the report could not read, named by the id `show` accepts back and
- * by the reason. One half-written attempt must not hide every other answer, so
- * it is collected here rather than thrown: the `case list` precedent, which
- * `list` already follows for every kind it reads. It is declared here rather
- * than imported from the CLI's `UnreadableRecord`, which prints it, because
- * this module is what the CLI points inward at.
- */
-/**
  * One record judged against the corpus under test, stale or clean, with the
  * corpus files it read that changed and how many versions behind it sits.
  * Stale or clean comes from the causes, never from the distance.
  */
-export interface RecordStaleness extends StaleRecord {
+export interface RecordStaleness {
+	/** The id `show` accepts back. */
+	readonly id: string;
 	readonly stale: boolean;
+	/** Every reason it went stale, empty when it is clean. */
+	readonly causes: readonly string[];
 	readonly changedFiles: readonly ChangedCorpusFile[];
 	readonly distance: VersionDistance;
 }
@@ -74,7 +65,7 @@ export interface UnreadableStaleRecord {
 }
 
 export interface StalenessReport {
-	readonly records: readonly StaleRecord[];
+	readonly records: readonly RecordStaleness[];
 	readonly unreadable: readonly UnreadableStaleRecord[];
 }
 
@@ -298,66 +289,6 @@ export async function staleCheckpoints(
 	return report.filter(({ stale }) => stale);
 }
 
-const CASE_STALENESS_WORDING = {
-	modified: (path: string) => `${path} changed`,
-	missingFromRight: (path: string) => `${path} removed`,
-	missingFromLeft: (path: string) => `${path} added`,
-};
-
-interface LatestAttempt {
-	readonly recorded: readonly HashedFile[] | undefined;
-	readonly unreadable: readonly UnreadableStaleRecord[];
-}
-
-/**
- * The most recent attempt whose record parses, with every record that did not
- * named beside it. A record read fails on the whole file, so an unreadable one
- * cannot be the answer for its case; taking the newest readable record keeps
- * the case's answer available while the reader still hears about the file that
- * was lost.
- */
-async function latestAttemptRecord(
-	runsDirectory: string,
-	caseId: string,
-): Promise<LatestAttempt> {
-	const everyAttempt = await sessionAttemptIds(runsDirectory);
-	const attempts = everyAttempt.filter(
-		(candidate) => candidate.caseId === caseId,
-	);
-	const unreadable: UnreadableStaleRecord[] = [];
-	let latest:
-		| { readonly at: number; readonly record: readonly HashedFile[] }
-		| undefined;
-
-	for (const attempt of attempts) {
-		const { recordFile: file } = sessionAttemptPaths(runsDirectory, attempt);
-		const stats = await stat(file).catch(() => undefined);
-		if (stats === undefined) {
-			continue;
-		}
-
-		try {
-			const record = parseSessionAttemptRecord(await Bun.file(file).text());
-			if (latest === undefined || stats.mtimeMs > latest.at) {
-				latest = {
-					at: stats.mtimeMs,
-					record: record.corpusFiles.map(({ path, sha256 }) => ({
-						path,
-						sha256,
-					})),
-				};
-			}
-		} catch (error) {
-			unreadable.push({
-				id: `attempt:session:${caseId}/${attempt.uuid}`,
-				reason: error instanceof Error ? error.message : String(error),
-			});
-		}
-	}
-
-	return { recorded: latest?.record, unreadable };
-}
-
 function sessionCases(
 	declarations: readonly CaseDeclaration[],
 ): readonly SessionCaseDeclaration[] {
@@ -378,71 +309,107 @@ function withoutAbsolutePaths(message: string, source: CorpusRoot): string {
 }
 
 /**
- * A declared corpus file the corpus under test no longer holds invalidates the
- * measurement as surely as an edit does, the case cannot even run against this
- * corpus, so it is a cause rather than a failure that hides every other case's
- * answer.
+ * The declared files as the corpus under test holds them now, or why it
+ * cannot hold them. A declared corpus file the corpus under test no longer
+ * holds invalidates the measurement as surely as an edit does, the case cannot
+ * even run against this corpus, so it is a cause rather than a failure that
+ * hides every other case's answer.
  *
  * The cause names the layout path alone. A refusal built for a caller that
  * throws carries the resolved path, which helps an operator reading a refusal
  * on stderr and leaks the corpus root into the record ids and causes this
  * command prints on stdout, where a reader acts on the layout path anyway.
  */
-async function caseStaleness(
+async function currentCaseCorpus(
 	declaration: SessionCaseDeclaration,
-	recorded: readonly HashedFile[],
 	source: CorpusRoot,
-): Promise<readonly string[]> {
+): Promise<StageCorpus> {
 	try {
 		const current = await hashCorpusFiles(source, declaration.corpusFiles);
 
-		return corpusDifferences(
-			recorded,
-			current.map(({ path, sha256 }) => ({ path, sha256 })),
-			CASE_STALENESS_WORDING,
-		);
+		return hashedCorpus(current.map(({ path, sha256 }) => ({ path, sha256 })));
 	} catch (error) {
 		if (
 			error instanceof CorpusFileError ||
 			error instanceof SymlinkedEntryError
 		) {
-			return [withoutAbsolutePaths(error.message, source)];
+			return refusedCorpus(withoutAbsolutePaths(error.message, source));
 		}
 
 		throw error;
 	}
 }
 
+function attemptCorpusChanges(
+	recorded: readonly HashedFile[],
+	current: StageCorpus,
+): Pick<RecordStaleness, "causes" | "changedFiles"> {
+	if ("refused" in current) {
+		return { causes: [current.refused], changedFiles: [] };
+	}
+
+	const changedFiles = corpusFileChanges(recorded, current.hashed);
+
+	return { causes: changedFileCauses(changedFiles), changedFiles };
+}
+
 /**
- * A session case is stale when its most recent attempt recorded corpus digests
- * the corpus no longer matches. A case with no attempt is not stale: staleness
- * claims a prior measurement no longer describes the corpus, and with no
- * measurement there is nothing to invalidate.
+ * Every session attempt judged against the corpus under test, each on its
+ * own: an older attempt of a case is a result on the run history as much as
+ * the newest one, and its distance differs. An attempt is stale when a corpus
+ * file its case declares changed since it was recorded.
  *
- * A declaration that does not read is reported rather than dropped: silence
- * there is indistinguishable from fresh, and a mistyped `corpusFiles` entry
- * would then read as an answer.
+ * A record that does not read is named rather than dropped, since one
+ * half-written attempt must not hide every other answer. So is a declaration
+ * that does not read: silence there is indistinguishable from fresh, and a
+ * mistyped `corpusFiles` entry would then read as an answer.
  */
-export async function staleCases(
+export async function sessionAttemptStaleness(
 	runsDirectory: string,
 	source: CorpusRoot,
 ): Promise<StalenessReport> {
 	const listing = await listCases();
-	const records: StaleRecord[] = [];
+	const underTest = await readCorpusUnderTest(runsDirectory, source);
+	const attempts = await sessionAttemptIds(runsDirectory);
+	const records: RecordStaleness[] = [];
 	const unreadable: UnreadableStaleRecord[] = listing.unreadable.map(
 		({ id, reason }) => ({ id: `case:${id}`, reason }),
 	);
 
 	for (const declaration of sessionCases(listing.declarations)) {
-		const latest = await latestAttemptRecord(runsDirectory, declaration.id);
-		unreadable.push(...latest.unreadable);
-		if (latest.recorded === undefined) {
-			continue;
-		}
+		const current = await currentCaseCorpus(declaration, source);
 
-		const causes = await caseStaleness(declaration, latest.recorded, source);
-		if (causes.length > 0) {
-			records.push({ id: `case:${declaration.id}`, causes });
+		for (const attempt of attempts) {
+			if (attempt.caseId !== declaration.id) {
+				continue;
+			}
+
+			const id = `attempt:session:${attempt.caseId}/${attempt.uuid}`;
+			const text = await textIfPresent(
+				sessionAttemptPaths(runsDirectory, attempt).recordFile,
+			);
+			if (text === undefined) {
+				continue;
+			}
+
+			try {
+				const record = parseSessionAttemptRecord(text);
+				const changes = attemptCorpusChanges(
+					record.corpusFiles.map(({ path, sha256 }) => ({ path, sha256 })),
+					current,
+				);
+				records.push({
+					id,
+					stale: changes.causes.length > 0,
+					...changes,
+					distance: underTest.distanceOf(record.corpusVersion),
+				});
+			} catch (error) {
+				unreadable.push({
+					id,
+					reason: error instanceof Error ? error.message : String(error),
+				});
+			}
 		}
 	}
 

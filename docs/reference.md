@@ -677,7 +677,18 @@ whitespace-only edits and checkout relocation remain fresh. A missing or invalid
 current settings file stales that run by name without hiding other runs. The
 initial checkpoint participates, including for runs that stopped before an
 accepted stage. Optional model/effort flags assert those intended replay
-settings as well. A session case with no prior attempt has no stale measurement.
+settings as well. Every session attempt is judged on its own against the files
+its case declares, so an older attempt is named as well as the newest, and a
+session case with no prior attempt has no stale measurement.
+
+Each line `stale` prints is the record id, its short id or `-`, its version
+distance, and each cause. The distance reads `distance N`, the number of
+positions the record's corpus version sits behind the corpus under test in that
+corpus's version log, with 0 when the corpus under test is that version. It
+reads `distance not recorded` for a record written before corpus versions, one
+whose attempt measured no version, one whose version is not in that corpus's
+log, or when the corpus under test refuses a layout entry. Distance never makes
+a record stale. Only its causes do.
 Missing files and changed inputs are evidence to inspect, not a substitute for
 running the revised case.
 
@@ -757,7 +768,7 @@ records rather than failing it.
 short id, or `-` for a record its case's registry does not name; cases and
 comparisons have no short id column. `list` only reads registries, so a case no command
 has claimed in prints `-` throughout. `stale` prints a
-checkpoint's short id the same way. Empty history is valid on a fresh clone. A malformed record is reported
+checkpoint's or an attempt's short id the same way. Empty history is valid on a fresh clone. A malformed record is reported
 without hiding readable neighbors. Stopped runs are visible through the same
 commands as completed runs. `list attempts` validates attempt diagnostics, and
 `show attempt:session:<case>/<uuid> --json` exposes the recorded projection. An

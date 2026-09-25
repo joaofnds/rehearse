@@ -780,14 +780,14 @@ export class RecordedRunsFixture {
 
 	/**
 	 * One attempt under a uuid the caller names, so a test can put two attempts
-	 * for one case on disk and set their modification times itself. Recency is
-	 * decided by mtime today, and without two records nothing observes that.
+	 * for one case on disk, each measured at its own version.
 	 */
 	public async writeAttemptAt(
 		uuid: string,
 		corpusRoot: string,
 		caseId: string,
 		layoutPaths: readonly string[],
+		corpusVersion?: CorpusMeasurement,
 	): Promise<string> {
 		const corpusFiles = await hashCorpusFiles(
 			directorySource(corpusRoot),
@@ -803,6 +803,7 @@ export class RecordedRunsFixture {
 				sessionAttemptRecordSchema.parse({
 					...sessionAttempt(caseId),
 					corpusFiles,
+					corpusVersion,
 				}),
 			),
 		);
