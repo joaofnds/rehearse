@@ -10,7 +10,6 @@ import {
 } from "#benchmark/comparison-record";
 import { runCommand } from "#benchmark/command";
 import {
-	CONTROL_DIR,
 	RECORDS_DIRECTORY_VARIABLE,
 	recordsDirectory,
 } from "#benchmark/config";
@@ -533,15 +532,11 @@ describe("rehearse", () => {
 
 		const stdout = await runCliThroughPipe(["compare", fixture.manifestFile]);
 
-		const reportFile = stdout.trim();
-		writtenReportDirectory = dirname(reportFile);
-
-		expect(reportFile).toEndWith("report.json");
-		expect(reportFile).not.toStartWith(benchmarkRunsDirectory(CONTROL_DIR));
-		expect(reportFile).not.toStartWith(".benchmark-runs");
+		expect(stdout).toStartWith(join(recordsDirectory(), "comparisons"));
+		expect(recordsDirectory()).toStartWith(tmpdir());
 	});
 
-	it("writes a comparison report under the control's .benchmark-runs when nothing overrides the records location", async () => {
+	it("writes a comparison report under the control's .benchmark-runs, wherever it runs from, when nothing overrides the records location", async () => {
 		const directory = await mkdtemp(
 			join(tmpdir(), "rehearse-cli-default-records-"),
 		);
@@ -550,14 +545,27 @@ describe("rehearse", () => {
 		const fixture = new ComparisonEvidenceFixture(directory);
 		await fixture.write();
 
-		const result = await runPipelineCli(
-			["compare", fixture.manifestFile],
-			control,
-			join(directory, "bin"),
+		const child = Bun.spawn(
+			[
+				process.execPath,
+				join(control, "rehearse.ts"),
+				"compare",
+				fixture.manifestFile,
+			],
+			{
+				cwd: directory,
+				env: environmentWithoutRecordsLocation(),
+				stdout: "pipe",
+				stderr: "pipe",
+			},
 		);
+		const [exitCode, stdout] = await Promise.all([
+			child.exited,
+			new Response(child.stdout).text(),
+		]);
 
-		expect(result.exitCode).toBe(0);
-		expect(result.stdout).toStartWith(
+		expect(exitCode).toBe(0);
+		expect(stdout).toStartWith(
 			join(await realpath(control), ".benchmark-runs", "comparisons"),
 		);
 	});

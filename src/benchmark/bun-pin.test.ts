@@ -48,7 +48,7 @@ describe("bun-pin-guard", () => {
 });
 
 describe("bunfig.toml", () => {
-	it("preloads the guard and a temporary records directory into every test process", async () => {
+	it("lists the version guard and the records-directory preload in bunfig", async () => {
 		const bunfig = TOML.parse(
 			await Bun.file(join(PROJECT_ROOT, "bunfig.toml")).text(),
 		);
