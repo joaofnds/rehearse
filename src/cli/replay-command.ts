@@ -40,6 +40,7 @@ import { resolveCorpusSource } from "#benchmark/corpus-source";
 import { measureCorpusVersion } from "#benchmark/corpus-version";
 import { loadCurrentStageSettings } from "#benchmark/current-stage-settings";
 import { runReplay } from "#benchmark/replay";
+import { claudeProjectsDirectory } from "#benchmark/session-capture";
 import type { ReplayDependencies, ReplayRequest } from "#benchmark/replay";
 import type { ReplayStageOutcome } from "#benchmark/replay-command";
 import { executeReplayStage } from "#benchmark/replay-command";
@@ -291,6 +292,7 @@ export async function executeReplay(
 			await runCommand(["bun", "install", "--frozen-lockfile"], worktreeDir);
 		},
 		installStageCorpusSnapshot,
+		projectsDirectory: claudeProjectsDirectory(),
 		log: diagnosticWriter(output),
 	};
 	const replayRequest: ReplayRequest = {

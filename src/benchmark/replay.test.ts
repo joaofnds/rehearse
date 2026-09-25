@@ -24,7 +24,7 @@ import type { CorpusMeasurement } from "./corpus-measurement";
 import type { JudgeAttempt } from "./judge-attempt";
 import type { RunManifest } from "./manifest";
 import { writeRunManifest } from "./manifest";
-import type { ReplayRequest } from "./replay";
+import type { ReplayDependencies, ReplayRequest } from "./replay";
 import {
 	loadRunCheckpoints,
 	readReplayRecord,
@@ -35,6 +35,8 @@ import { benchmarkRunPaths, runNameFromTimestamp } from "./run-layout";
 import { readShortIds } from "./short-id";
 import { failureOf } from "#cli/cli-test-support";
 import { loadStageRubric } from "./stage-grading";
+import { stageRubricSha256 } from "./judge-agreement";
+import { projectSlug } from "./session-capture";
 import { addWorktree, currentSha, removeWorktree } from "./target";
 import {
 	TEST_TARGET,
@@ -555,6 +557,76 @@ describe(runReplay.name, () => {
 		expect(record.consumed.lineage).toBe(run.discuss.lineage);
 		expect(record.corpusFiles.length).toBeGreaterThan(0);
 		expect(record.scorecard.grade.verdict).toBe("CONTINUE");
+	});
+
+	it("records what the replayed stage declared and loaded, with roles", async () => {
+		const run = await recordedRun();
+		const fake = new ReplayConfirmationHarness(testResources);
+		const projectsDirectory = await mkdtemp(
+			join(tmpdir(), "rehearse-projects-"),
+		);
+		testResources.track(projectsDirectory);
+		const runWorkflowStage: ReplayDependencies["stageSession"]["runWorkflowStage"] =
+			async (options) => {
+				const slug = join(projectsDirectory, projectSlug(options.targetDir));
+				await mkdir(slug, { recursive: true });
+				await Bun.write(
+					join(slug, "session.jsonl"),
+					JSON.stringify({
+						type: "assistant",
+						message: {
+							content: [
+								{
+									type: "tool_use",
+									id: "t",
+									name: "Read",
+									input: {
+										file_path: join(
+											options.targetDir,
+											".claude/skills/build/SKILL.md",
+										),
+									},
+								},
+							],
+						},
+					}),
+				);
+
+				return fake.dependencies.stageSession.runWorkflowStage(options);
+			};
+
+		const outcome = await runReplay(
+			{
+				...fake.dependencies,
+				stageSession: { ...fake.dependencies.stageSession, runWorkflowStage },
+				projectsDirectory,
+			},
+			request(run, "build"),
+		);
+
+		const record = await readReplayRecord(outcome.recordPath);
+		expect(
+			record.readManifest?.map(({ path, role, evidence }) => ({
+				path,
+				role,
+				evidence,
+			})),
+		).toEqual([
+			{ path: "CLAUDE.md", role: "global instructions", evidence: "declared" },
+			{
+				path: "skills/build/SKILL.md",
+				role: "stage skill",
+				evidence: "declared and observed",
+			},
+			{
+				path: "rubrics/build.json",
+				role: "judge rubric",
+				evidence: "declared",
+			},
+		]);
+		expect(record.readManifest?.[2]?.sha256).toBe(
+			stageRubricSha256(outcome.record.scorecard.rubric),
+		);
 	});
 
 	it("records the corpus version its stage session measured", async () => {

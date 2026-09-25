@@ -7,6 +7,8 @@ import type { StageScorecard } from "./contracts";
 import { stageLetterGradeSchema } from "./contracts";
 import type { CorpusMeasurement } from "./corpus-measurement";
 import { corpusMeasurementSchema } from "./corpus-measurement";
+import type { ReadManifestEntry } from "./read-manifest";
+import { readManifestSchema } from "./read-manifest";
 
 export interface ReplayRecord {
 	readonly replay: true;
@@ -43,6 +45,8 @@ export interface ReplayRecord {
 	readonly scorecard: StageScorecard;
 	/** From the stage session's start to its judge's grade. */
 	readonly elapsedMs?: number | undefined;
+	/** What the replayed stage declared and loaded; older records lack it. */
+	readonly readManifest?: readonly ReadManifestEntry[] | undefined;
 }
 
 /**
@@ -102,6 +106,7 @@ export const replayRecordSchema = z
 			.loose(),
 		/** From the stage session's start to its judge's grade; older records lack it. */
 		elapsedMs: z.number().nonnegative().optional(),
+		readManifest: readManifestSchema.optional(),
 	})
 	.strict();
 

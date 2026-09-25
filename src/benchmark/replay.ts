@@ -31,6 +31,8 @@ import type { ReplayRecord } from "./replay-record";
 import type { BenchmarkRunPaths } from "./run-layout";
 import { runNameFromTimestamp } from "./run-layout";
 import { bindReplay, claimShortId } from "./short-id";
+import { recordStageReads } from "./stage-reads";
+import { stageRubricSha256 } from "./judge-agreement";
 import type { loadStageRubric, runStageJudge } from "./stage-grading";
 import type { addWorktree, currentSha, removeWorktree } from "./target";
 import type { createProductOwner } from "./workflow";
@@ -135,6 +137,11 @@ export interface ReplayDependencies {
 	readonly currentSha: typeof currentSha;
 	readonly installDependencies: (worktreeDir: string) => Promise<void>;
 	readonly installStageCorpusSnapshot: typeof installStageCorpusSnapshot;
+	/**
+	 * Where the provider writes session transcripts, read for what the stage
+	 * loaded. Without it the read manifest holds only what the stage declared.
+	 */
+	readonly projectsDirectory?: string | undefined;
 	readonly log: (message: string) => void;
 	/**
 	 * The clock the replay's elapsed time is read from; a monotonic one by
@@ -384,6 +391,23 @@ export async function runReplay(
 			await dependencies.loadStageRubric(plan.definition),
 		);
 		const elapsedMs = now() - stageStartedAtMs;
+		const readManifest = await recordStageReads({
+			targetDir: worktreeDir,
+			startSha: baseSha,
+			transcript:
+				dependencies.projectsDirectory === undefined
+					? undefined
+					: {
+							sessionId: session.transcript.sessionId,
+							projectsDirectory: dependencies.projectsDirectory,
+						},
+			skill: plan.definition.skill,
+			corpusFiles: session.corpusFiles,
+			rubric: {
+				path: plan.definition.rubric,
+				sha256: stageRubricSha256(scorecard.rubric),
+			},
+		});
 
 		const timestamp = new Date().toISOString();
 		const record: ReplayRecord = {
@@ -421,6 +445,7 @@ export async function runReplay(
 			staleness: staleness.map(({ stage, causes }) => ({ stage, causes })),
 			scorecard,
 			elapsedMs,
+			readManifest,
 		};
 		const recordPath = request.paths.replayRecordFile(
 			plan.consumed.lineage,
