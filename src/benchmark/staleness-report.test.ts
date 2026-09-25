@@ -559,36 +559,39 @@ describe(checkpointStaleness.name, () => {
 				}),
 		],
 		["its stop record was cut short", (record: string) => record.slice(0, 20)],
-	])("still judges a stopped run's checkpoints when %s", async (_, damage) => {
-		const root = await temporaryDirectory("rehearse-staleness-");
-		const fixture = new RecordedRunsFixture(root, {
-			settingsFile: await liveStageSettings(),
-		});
-		await fixture.writeStoppedRun();
-		const corpus = await temporaryDirectory("rehearse-staleness-corpus-");
-		await mkdir(join(corpus, "skills", "build"), { recursive: true });
-		await Bun.write(join(corpus, "CLAUDE.md"), "the instructions\n");
-		await Bun.write(join(corpus, "skills", "build", "SKILL.md"), "build\n");
-		await fixture.recordStoppedStageFrom(directorySource(corpus));
-		const stopRecord = benchmarkRunPaths(
-			fixture.runsDirectory,
-			fixture.stoppedRun,
-		).stageFile("build");
-		await Bun.write(stopRecord, damage(await Bun.file(stopRecord).text()));
+	])(
+		"still judges a stopped run's checkpoints when %s",
+		async (_situation, damage) => {
+			const root = await temporaryDirectory("rehearse-staleness-");
+			const fixture = new RecordedRunsFixture(root, {
+				settingsFile: await liveStageSettings(),
+			});
+			await fixture.writeStoppedRun();
+			const corpus = await temporaryDirectory("rehearse-staleness-corpus-");
+			await mkdir(join(corpus, "skills", "build"), { recursive: true });
+			await Bun.write(join(corpus, "CLAUDE.md"), "the instructions\n");
+			await Bun.write(join(corpus, "skills", "build", "SKILL.md"), "build\n");
+			await fixture.recordStoppedStageFrom(directorySource(corpus));
+			const stopRecord = benchmarkRunPaths(
+				fixture.runsDirectory,
+				fixture.stoppedRun,
+			).stageFile("build");
+			await Bun.write(stopRecord, damage(await Bun.file(stopRecord).text()));
 
-		const report = await checkpointStaleness(
-			fixture.runsDirectory,
-			directorySource(corpus),
-		);
+			const report = await checkpointStaleness(
+				fixture.runsDirectory,
+				directorySource(corpus),
+			);
 
-		expect({
-			ids: report.records.map(({ id }) => id),
-			unreadable: report.unreadable,
-		}).toEqual({
-			ids: [`checkpoint:${fixture.stoppedRun}/initial`],
-			unreadable: [],
-		});
-	});
+			expect({
+				ids: report.records.map(({ id }) => id),
+				unreadable: report.unreadable,
+			}).toEqual({
+				ids: [`checkpoint:${fixture.stoppedRun}/initial`],
+				unreadable: [],
+			});
+		},
+	);
 });
 
 const PLANNING_RUBRIC = "cases/audit-log/rubrics/shape.json";
