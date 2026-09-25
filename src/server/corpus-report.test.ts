@@ -491,6 +491,17 @@ describe(corpusReport.name, () => {
 		]);
 	});
 
+	it("identifies a fixed tree by the same digest on every machine", async () => {
+		const root = await fullCorpusDirectory();
+
+		const report = await corpusReport(
+			directorySource(root),
+			await runsDirectory(),
+		);
+
+		expect(report.digest).toBe("4e196b");
+	});
+
 	it("reports a root reached through a symlinked parent directory, since the link does not leave the corpus", async () => {
 		const parent = await corpusDirectory();
 		const root = join(parent, "corpus");
