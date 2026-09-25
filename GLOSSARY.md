@@ -585,9 +585,10 @@ See [current state](docs/status.md) for implementation coverage and
   stage, the model, the effort, the stage settings file, one corpus file
   that changed, was added, or was removed, or the judge rubric, or else it
   carries a corpus refusal verbatim, since a corpus that cannot be read cannot
-  be shown to still match. A checkpoint carries its causes as a list: at most
-  four that are not about corpus files, then one per corpus file that drifted,
-  then its judge rubric, so the list has no bound but the corpus's size. Its length counts reasons and is not a distance
+  be shown to still match. A checkpoint carries its causes as a list: those
+  that are not about corpus files, its judge rubric among them, then one per
+  corpus file that drifted, so the list has no bound but the corpus's size. A
+  replay lists its judge rubric last. Its length counts reasons and is not a distance
   between corpus versions.
 - **Stage kind** — which validation and evidence strategy a stage uses:
   planning or delivery. Declared per stage, independent of the stage's name.

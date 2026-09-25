@@ -55,12 +55,21 @@ case present, but no browser check has been run over it.
   commit held it. A record whose transcript could not be read lists only its
   declared entries and does not say so. A corpus file the record loaded
   outside its captured corpus files is hashed from the corpus version measured
-  at its start, so it carries no hash when that measurement refused.
-  Entries read from the target's own `.claude` are recorded as corpus entries,
-  with the corpus file's hash, rather than marked as coming from the target.
-  A stage its judge stopped keeps its manifest on its stage record, and the
+  at its start, so it carries no hash when that measurement refused or the
+  version holds no file at that path.
+  Entries read from the target's own `.claude`, or from any other `.claude`
+  directory the session read, are recorded as corpus entries rather than
+  marked as coming from where they were read. One loaded outside the captured
+  files takes the corpus version's hash for its path, not a hash of the bytes
+  read, so an edit to the corpus file stales the record while a change to the
+  bytes the stage read goes unseen.
+  A stage its judge stopped keeps its manifest on its stop record, and the
   run API serves those entries without a changed state, since staleness judges
-  checkpoints, replays and attempts only.
+  checkpoints, replays and attempts only. A confirmation rep's stage its judge
+  stopped records no manifest, and staleness judges a confirmation group on
+  the files it froze, so a rep's manifest entries are never marked changed.
+  The run API serves a run's entries without a changed state when the corpus
+  under test cannot judge it, such as when it no longer holds a stage's skill.
   The run history screen shows a rubric-only stale record with the plain stale
   badge rather than the agreed `⚠ stale · judge rubric changed`.
 
@@ -95,7 +104,7 @@ case present, but no browser check has been run over it.
   [corpus versions](reference.md#corpus-versions).
 - **The corpus column words only corpus-file drift by distance.** A record
   stale because its model, effort or stage settings changed, or downstream of
-  a stage that did, shows the plain stale badge and its causes, since the
+  a stage that did or whose judge rubric changed, shows the plain stale badge and its causes, since the
   design has no reading for those yet. A record with no cause reads `✓ clean`
   only at distance 0 and `✓ clear` otherwise, including the initial checkpoint
   and records written before corpus versions, whose distance is not recorded.

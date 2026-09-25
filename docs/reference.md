@@ -666,8 +666,8 @@ record says so with an explicit unavailable status instead of omitting the
 evidence. Checkpoints written before this carry no transcript field and remain
 readable. A stage checkpoint, a replay record and a session attempt record
 also carry `readManifest`, the files the record declared or its transcript
-shows it loading. A stage its judge stopped saves no checkpoint, so its stage
-record carries its `readManifest` instead. From the target, a stage lists only the `CLAUDE.md` and
+shows it loading. A stage record carries `readManifest` too, which is the only
+copy for a stage its judge stopped, since that stage saves no checkpoint. From the target, a stage lists only the `CLAUDE.md` and
 `AGENTS.md` files it loaded, not every file it read there. Each entry has a `path`, a `half` of `corpus`, `project` or
 `rubric`, one `role` of `global instructions`, `project instructions`,
 `stage skill`, `judge rubric` or `read for context`, an `evidence` of
@@ -676,7 +676,9 @@ recorded. A stage or replay declares the corpus `CLAUDE.md`, its skill and its
 judge rubric, and a session attempt declares its case's corpus and project
 files. A corpus hash is the one the record's corpus files carry, or for a
 corpus file loaded outside them, the one the corpus version measured at the
-record's start holds, absent when that measurement refused. A rubric hash
+record's start holds, absent when that measurement refused or holds no file at
+that path. A confirmation rep measures that version once, at its group's
+start. A rubric hash
 is the SHA-256 of the frozen scorecard's rubric as parsed, not of the file's
 bytes, so an edit to formatting or to a field the parser drops leaves it
 unchanged, and a project file's hash is its bytes when
@@ -720,8 +722,8 @@ reads `distance not recorded` for the initial checkpoint, which reads no corpus,
 a record written before corpus versions, one whose attempt measured no version,
 one whose version is not in that corpus's log, or when the corpus under test
 refuses a layout entry. Distance never makes a record stale. Only its causes
-do. A corpus file the record loaded outside its captured corpus files, and
-hashed, is compared too, so an edit to it or its removal stales the record as
+do. A corpus file a checkpoint, replay or session attempt loaded outside its
+captured corpus files, and hashed, is compared too, so an edit to it or its removal stales the record as
 an edit to a captured file does. A checkpoint or replay whose read manifest holds a judge rubric
 that now differs, is gone, or no longer parses, names
 `judge rubric <path> changed`. The rubric is read from the control repository,
@@ -924,9 +926,11 @@ as input, cache read, cache write, output and total input, summed over its
 session calls and judge attempts. Its instruction files are the corpus files
 its checkpoint records, or its stop record's when it saved no checkpoint, each
 with its sha256 digest, and its `corpusVersion` comes from the same place. Its `readManifest` is its checkpoint's read manifest, each corpus and judge
-rubric entry with the `state` the run history gives it (below), or, when its
-judge stopped it before it saved a checkpoint, its stage record's, without a
-state. It is unavailable when the stage recorded neither or its checkpoint
+rubric entry with a `state` judged as the run history judges its latest
+checkpoint (below), or, when the stage saved no checkpoint, as when its judge
+stopped it, its stage record's, without a state. When the corpus under test
+cannot judge the run, such as when it no longer holds a stage's skill, every
+entry is served without a state rather than failing the response. It is unavailable when the stage recorded neither or its checkpoint
 predates read manifests. As artifacts out it lists its declared artifact, the
 workflow-state files it added, modified or removed against the checkpoint it
 continued from, and the commit subjects and changed paths its record carries.
