@@ -232,14 +232,21 @@ export const createApiApp = (dependencies: ApiDependencies) => {
 				return context.json(refusal.body, refusal.status);
 			}
 
+			const path = context.req.query("path");
+			if (path === undefined) {
+				return context.json({ error: "Name the file with ?path=" }, 400);
+			}
+
 			try {
 				const bytes = await readCorpusVersionFile(
 					dependencies.runsDirectory,
 					found.digest,
-					context.req.query("path") ?? "",
+					path,
 				);
 
-				return context.text(new TextDecoder().decode(bytes));
+				return context.body(new Uint8Array(bytes), 200, {
+					"content-type": "application/octet-stream",
+				});
 			} catch (error) {
 				if (error instanceof CorpusVersionError) {
 					return context.json({ error: error.message }, 404);

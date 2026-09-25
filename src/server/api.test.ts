@@ -7,6 +7,7 @@ import {
 	symlink,
 	writeFile,
 } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
@@ -25,6 +26,10 @@ import { openRunEventStore } from "#benchmark/run-events";
 import { claimShortId } from "#benchmark/short-id";
 import { measureCorpusVersion } from "#benchmark/corpus-version";
 import { createApiApp } from "./api";
+
+function sha256Hex(text: string): string {
+	return createHash("sha256").update(text).digest("hex");
+}
 
 const runEventSchema = z.object({ kind: z.string() }).loose();
 
@@ -795,6 +800,59 @@ describe(createApiApp.name, () => {
 					"49a9e463aae61c91d06da870b9c0d74822ac5ca1696bc8148806467c0356774a",
 				],
 			});
+		});
+
+		it("opens a version by a unique prefix as its digest, label and files", async () => {
+			const { app, older } = await measuredTwice();
+
+			const response = await app.request(
+				`/api/corpus/versions/${older.slice(0, 6)}`,
+			);
+
+			expect(response.status).toBe(200);
+			expect(await response.json()).toEqual({
+				digest: older,
+				label: `corpus@${older.slice(0, 6)}`,
+				files: [
+					{ path: "CLAUDE.md", sha256: sha256Hex("the instructions\n") },
+					{ path: "skills/build/SKILL.md", sha256: sha256Hex("build skill\n") },
+					{
+						path: "skills/discuss/SKILL.md",
+						sha256: sha256Hex("discuss skill\n"),
+					},
+				],
+			});
+		});
+
+		it("serves a version's file as the bytes it held, text or not", async () => {
+			const corpus = await corpusDirectory();
+			const runsDirectory = await emptyDirectory("rehearse-api-runs-");
+			const source = directorySource(corpus);
+			const bytes = Uint8Array.of(0xFF, 0xFE, 0, 1);
+			await Bun.write(join(corpus, "skills", "build", "table.bin"), bytes);
+			const measured = await measureCorpusVersion(runsDirectory, source);
+			if (measured.kind !== "version") {
+				throw new Error("the fixture corpus should measure to a version");
+			}
+			const app = createApiApp({
+				runsDirectory,
+				liveness: nothingRunning,
+				corpusSource: source,
+			});
+
+			const response = await app.request(
+				`/api/corpus/versions/${measured.digest}/file?path=skills/build/table.bin`,
+			);
+
+			expect(new Uint8Array(await response.arrayBuffer())).toEqual(bytes);
+		});
+
+		it("answers a file request that names no path as a bad request", async () => {
+			const { app, older } = await measuredTwice();
+
+			const response = await app.request(`/api/corpus/versions/${older}/file`);
+
+			expect(response.status).toBe(400);
 		});
 
 		it("refuses a version no record holds and a file the version does not hold", async () => {
