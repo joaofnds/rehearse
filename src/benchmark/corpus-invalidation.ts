@@ -60,7 +60,7 @@ async function rowReadings(
 	runsDirectory: string,
 	source: CorpusRoot,
 ): Promise<readonly RowReading[]> {
-	const byRun = await checkpointStalenessByRun(runsDirectory, source);
+	const { byRun } = await checkpointStalenessByRun(runsDirectory, source);
 	const reports = [
 		await sessionAttemptStaleness(runsDirectory, source),
 		await replayAttemptStaleness(runsDirectory, source),

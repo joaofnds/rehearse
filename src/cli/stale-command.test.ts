@@ -11,6 +11,7 @@ import { failureOf, recordOutput } from "#cli/cli-test-support";
 import { RefusedPreconditionError } from "#cli/interactive-stdin";
 import { runStale } from "#cli/stale-command";
 import { CorpusConfigurationError } from "#benchmark/corpus-file";
+import { benchmarkRunPaths } from "#benchmark/run-layout";
 
 const HALF_WRITTEN_UUID = "0f6b6f2a-0000-4000-8000-00000000000f";
 const SMOKE_ATTEMPT =
@@ -339,6 +340,42 @@ describe(runStale.name, () => {
 			expect(recorder.stderr.join("")).toContain(
 				`attempt:session:smoke/${HALF_WRITTEN_UUID}`,
 			);
+		});
+	});
+
+	describe("when another run's manifest does not parse", () => {
+		it("still prints the stale records and names the run on stderr", async () => {
+			const fixture = await fixtureRecordedAgainst(
+				await corpusDirectory("build skill\n"),
+			);
+			const brokenRun = "2026-09-12T00-00-00.000Z";
+			await fixture.writePipelineRun(brokenRun, "audit-log");
+			await Bun.write(
+				benchmarkRunPaths(fixture.runsDirectory, brokenRun).manifestFile,
+				"{ not json",
+			);
+			const recorder = recordOutput();
+
+			await runStale(
+				{
+					corpus: await corpusDirectory("build skill, edited\n"),
+					runsDirectory: fixture.runsDirectory,
+				},
+				{ output: recorder.output },
+			);
+
+			expect(
+				recorder.stdout
+					.join("")
+					.trimEnd()
+					.split("\n")
+					.map((printed) => printed.split("\t")[0]),
+			).toEqual([
+				`checkpoint:${fixture.replayableRun}/build`,
+				REPLAY_ATTEMPT,
+				GROUP,
+			]);
+			expect(recorder.stderr.join("")).toContain(`run:${brokenRun}`);
 		});
 	});
 

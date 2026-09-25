@@ -22,7 +22,10 @@ import {
 } from "#benchmark/run-records-test-support";
 import type { RecordedRunsOptions } from "#benchmark/run-records-test-support";
 import { CONTROL_DIR } from "#benchmark/config";
-import { runEventsDatabaseFile } from "#benchmark/run-layout";
+import {
+	benchmarkRunPaths,
+	runEventsDatabaseFile,
+} from "#benchmark/run-layout";
 import { openRunEventStore } from "#benchmark/run-events";
 import { claimShortId } from "#benchmark/short-id";
 import { measureCorpusVersion } from "#benchmark/corpus-version";
@@ -218,6 +221,30 @@ describe(createApiApp.name, () => {
 			expect(body.rows.map((row) => row.kind === "run" && row.run)).toEqual([
 				otherRun,
 			]);
+		});
+
+		it("answers the healthy rows when one run's manifest does not parse", async () => {
+			const fixture = await writtenFixture();
+			const corpus = await corpusDirectory();
+			const brokenRun = "2026-09-12T00-00-00.000Z";
+			await fixture.writePipelineRun(brokenRun, "audit-log");
+			await Bun.write(
+				benchmarkRunPaths(fixture.runsDirectory, brokenRun).manifestFile,
+				"{ not json",
+			);
+			const app = createApiApp({
+				runsDirectory: fixture.runsDirectory,
+				liveness: nothingRunning,
+				corpusSource: directorySource(corpus),
+			});
+
+			const response = await app.request("/api/runs");
+			const body = await runHistoryResponseFrom(response);
+
+			expect(response.status).toBe(200);
+			expect(body.rows.some((row) => row.run === fixture.replayableRun)).toBe(
+				true,
+			);
 		});
 
 		it("keeps healthy rows when one run's current settings are unavailable", async () => {

@@ -15,6 +15,7 @@ import {
 	RecordedRunsFixture,
 } from "#benchmark/run-records-test-support";
 import { measureCorpusVersion } from "#benchmark/corpus-version";
+import { benchmarkRunPaths } from "#benchmark/run-layout";
 import type { CorpusReport } from "./corpus-report";
 import { corpusReport } from "./corpus-report";
 
@@ -417,6 +418,34 @@ describe(corpusReport.name, () => {
 				"CLAUDE.md": 0,
 				"skills/build/SKILL.md": 1,
 				"skills/discuss/SKILL.md": 0,
+			});
+		});
+
+		it("counts the readable rows when another run's manifest does not parse, rather than failing the report", async () => {
+			const corpus = await fullCorpusDirectory();
+			const runs = await runsDirectory();
+			const fixture = new RecordedRunsFixture(runs, {
+				settingsFile: await liveStageSettings(),
+			});
+			await fixture.write();
+			await fixture.recordCorpusFrom(directorySource(corpus));
+			await fixture.recordVersionFrom(directorySource(corpus));
+			const brokenRun = "2026-09-12T00-00-00.000Z";
+			await fixture.writePipelineRun(brokenRun, "audit-log");
+			await writeFile(
+				benchmarkRunPaths(runs, brokenRun).manifestFile,
+				"{ not json",
+			);
+			await writeFile(
+				join(corpus, "skills", "build", "SKILL.md"),
+				"build skill, edited\n",
+			);
+
+			const report = await corpusReport(directorySource(corpus), runs);
+
+			expect(report.lastEdit).toMatchObject({
+				kind: "measured",
+				rows: [`run:${fixture.replayableRun}`],
 			});
 		});
 

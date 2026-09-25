@@ -481,7 +481,7 @@ describe(checkpointStaleness.name, () => {
 		);
 
 		expect(
-			report.filter(({ id }) =>
+			report.records.filter(({ id }) =>
 				id.startsWith(`checkpoint:${fixture.replayableRun}/`),
 			),
 		).toMatchObject([

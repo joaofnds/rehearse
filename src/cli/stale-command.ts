@@ -12,7 +12,7 @@ import {
 	groupStaleness,
 	replayAttemptStaleness,
 	sessionAttemptStaleness,
-	staleCheckpoints,
+	checkpointStaleness,
 } from "#benchmark/staleness-report";
 import { RefusedPreconditionError } from "#cli/interactive-stdin";
 import { corpusRefusal } from "#cli/corpus-failures";
@@ -127,14 +127,20 @@ async function report(
 		request,
 	);
 	const groups = await groupStaleness(request.runsDirectory, source, request);
+	const checkpoints = await checkpointStaleness(
+		request.runsDirectory,
+		source,
+		request,
+	);
 	const stale = [
-		...(await staleCheckpoints(request.runsDirectory, source, request)),
+		...checkpoints.records.filter((record) => record.stale),
 		...attempts.records.filter((record) => record.stale),
 		...replays.records.filter((record) => record.stale),
 		...groups.records.filter((record) => record.stale),
 	];
 
 	writeUnreadable(output, [
+		...checkpoints.unreadable,
 		...attempts.unreadable,
 		...replays.unreadable,
 		...groups.unreadable,

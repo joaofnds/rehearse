@@ -35,6 +35,7 @@ import {
 	hashCorpusFiles,
 } from "./corpus-file";
 import type { VersionDistance } from "./corpus-version";
+import type { CorpusUnderTest } from "./corpus-version";
 import { readCorpusUnderTest } from "./corpus-version";
 import { parseConfirmationGroupRecord } from "./confirmation-record";
 import type { ParsedConfirmationGroupRecord } from "./confirmation-record";
@@ -259,9 +260,10 @@ const INITIAL_CHECKPOINT_DISTANCE: VersionDistance = {
  * same corpus would search.
  *
  * Every checkpoint of every recorded run, judged against the corpus under
- * test. A run whose manifest cannot be read contributes
- * nothing rather than failing the report: it was never replayable, so nothing
- * about it can go stale.
+ * test. A run with no manifest contributes nothing rather than failing the
+ * report: it was never replayable, so nothing about it can go stale. A run
+ * whose manifest or checkpoints do not parse is unreadable under its run id,
+ * so one bad record cannot blank every reader of the report.
  *
  * The instruction file is read once for the whole report rather than once per
  * run: the corpus under test does not change between runs, so one read answers
@@ -271,69 +273,111 @@ export async function checkpointStaleness(
 	runsDirectory: string,
 	source: CorpusRoot,
 	knobs: CurrentSessionKnobs = {},
-): Promise<readonly RecordStaleness[]> {
-	const byRun = await checkpointStalenessByRun(runsDirectory, source, knobs);
+): Promise<StalenessReport> {
+	const { byRun, unreadable } = await checkpointStalenessByRun(
+		runsDirectory,
+		source,
+		knobs,
+	);
 
-	return [...byRun.values()].flat();
+	return { records: [...byRun.values()].flat(), unreadable };
 }
 
-/** `checkpointStaleness` keyed by run, each run's checkpoints in chain order. */
+export interface CheckpointStalenessByRun {
+	/** Each readable run's checkpoints, in chain order. */
+	readonly byRun: ReadonlyMap<string, readonly RecordStaleness[]>;
+	readonly unreadable: readonly UnreadableStaleRecord[];
+}
+
+/** `checkpointStaleness` keyed by run. */
 export async function checkpointStalenessByRun(
 	runsDirectory: string,
 	source: CorpusRoot,
 	knobs: CurrentSessionKnobs = {},
-): Promise<ReadonlyMap<string, readonly RecordStaleness[]>> {
-	const report = new Map<string, RecordStaleness[]>();
+): Promise<CheckpointStalenessByRun> {
+	const byRun = new Map<string, RecordStaleness[]>();
+	const unreadable: UnreadableStaleRecord[] = [];
 	const instructions = await currentInstructions(source);
 	const underTest = await readCorpusUnderTest(runsDirectory, source);
 
 	for (const run of await recordedRunNames(runsDirectory)) {
-		const paths = benchmarkRunPaths(runsDirectory, run);
-		const manifestFile = Bun.file(paths.manifestFile);
-		if (!(await manifestFile.exists())) {
-			continue;
-		}
-
-		const manifest = await loadRunManifest(paths.manifestFile);
-		const chain = await checkpointChain(runsDirectory, run, [
-			INITIAL_CHECKPOINT_STAGE,
-			...manifest.pipeline.stages.map(({ name }) => name),
-		]);
-		const current = await currentStageCorpus(
-			manifest,
-			chain,
-			source,
-			instructions,
-		);
-		const settings = await compareCurrentStageSettings(manifest.caseId);
-		const byStage = new Map(chain.map((record) => [record.stage, record]));
-		const judged: RecordStaleness[] = [];
-
-		for (const staleness of deriveStaleness(chain, current, {
-			model: knobs.model ?? manifest.model,
-			effort: knobs.effort ?? manifest.effort,
-			...settings,
-		})) {
-			judged.push({
-				id: `checkpoint:${run}/${staleness.stage}`,
-				stale: staleness.stale,
-				causes: staleness.causes,
-				changedFiles: staleness.changedFiles,
-				onlyCorpusFiles: staleness.onlyCorpusFiles,
-				distance:
-					staleness.stage === INITIAL_CHECKPOINT_STAGE
-						? INITIAL_CHECKPOINT_DISTANCE
-						: underTest.distanceOf(byStage.get(staleness.stage)?.corpusVersion),
-				readFiles: byStage.get(staleness.stage)?.corpusFiles ?? [],
+		try {
+			const judged = await runCheckpointStaleness(
+				runsDirectory,
+				run,
+				{ source, instructions, underTest },
+				knobs,
+			);
+			if (judged !== undefined) {
+				byRun.set(run, judged);
+			}
+		} catch (error) {
+			unreadable.push({
+				id: `run:${run}`,
+				reason: error instanceof Error ? error.message : String(error),
 			});
 		}
-		report.set(run, judged);
 	}
 
-	return report;
+	return { byRun, unreadable };
 }
 
-/** The checkpoints `checkpointStaleness` finds stale, and only those. */
+interface CorpusJudgedAgainst {
+	readonly source: CorpusRoot;
+	readonly instructions: CurrentInstructions;
+	readonly underTest: CorpusUnderTest;
+}
+
+async function runCheckpointStaleness(
+	runsDirectory: string,
+	run: string,
+	{ source, instructions, underTest }: CorpusJudgedAgainst,
+	knobs: CurrentSessionKnobs,
+): Promise<RecordStaleness[] | undefined> {
+	const paths = benchmarkRunPaths(runsDirectory, run);
+	const manifestFile = Bun.file(paths.manifestFile);
+	if (!(await manifestFile.exists())) {
+		return undefined;
+	}
+
+	const manifest = await loadRunManifest(paths.manifestFile);
+	const chain = await checkpointChain(runsDirectory, run, [
+		INITIAL_CHECKPOINT_STAGE,
+		...manifest.pipeline.stages.map(({ name }) => name),
+	]);
+	const current = await currentStageCorpus(
+		manifest,
+		chain,
+		source,
+		instructions,
+	);
+	const settings = await compareCurrentStageSettings(manifest.caseId);
+	const byStage = new Map(chain.map((record) => [record.stage, record]));
+	const judged: RecordStaleness[] = [];
+
+	for (const staleness of deriveStaleness(chain, current, {
+		model: knobs.model ?? manifest.model,
+		effort: knobs.effort ?? manifest.effort,
+		...settings,
+	})) {
+		judged.push({
+			id: `checkpoint:${run}/${staleness.stage}`,
+			stale: staleness.stale,
+			causes: staleness.causes,
+			changedFiles: staleness.changedFiles,
+			onlyCorpusFiles: staleness.onlyCorpusFiles,
+			distance:
+				staleness.stage === INITIAL_CHECKPOINT_STAGE
+					? INITIAL_CHECKPOINT_DISTANCE
+					: underTest.distanceOf(byStage.get(staleness.stage)?.corpusVersion),
+			readFiles: byStage.get(staleness.stage)?.corpusFiles ?? [],
+		});
+	}
+
+	return judged;
+}
+
+/** The readable checkpoints `checkpointStaleness` finds stale, and only those. */
 export async function staleCheckpoints(
 	runsDirectory: string,
 	source: CorpusRoot,
@@ -341,7 +385,7 @@ export async function staleCheckpoints(
 ): Promise<readonly RecordStaleness[]> {
 	const report = await checkpointStaleness(runsDirectory, source, knobs);
 
-	return report.filter(({ stale }) => stale);
+	return report.records.filter(({ stale }) => stale);
 }
 
 function sessionCases(
@@ -531,10 +575,13 @@ export async function replayAttemptStaleness(
 ): Promise<StalenessReport> {
 	const instructions = await currentInstructions(source);
 	const underTest = await readCorpusUnderTest(runsDirectory, source);
-	const upstream = await staleCheckpoints(runsDirectory, source);
+	const upstream = await checkpointStaleness(runsDirectory, source);
 	const staleCheckpointsById = new Map(
-		upstream.map((checkpoint) => [checkpoint.id, checkpoint]),
+		upstream.records
+			.filter(({ stale }) => stale)
+			.map((checkpoint) => [checkpoint.id, checkpoint]),
 	);
+	const unreadableRuns = new Set(upstream.unreadable.map(({ id }) => id));
 	const records: RecordStaleness[] = [];
 	const unreadable: UnreadableStaleRecord[] = [];
 
@@ -545,6 +592,11 @@ export async function replayAttemptStaleness(
 			const record = await readReplayRecord(
 				replayRecordFile(runsDirectory, lineage, timestamp),
 			);
+			if (unreadableRuns.has(`run:${record.runName}`)) {
+				throw new Error(
+					`the run ${record.runName} it replayed cannot be read to judge its upstream stages`,
+				);
+			}
 			const corpus = stageCorpusChanges(
 				record.corpusFiles,
 				await currentReplayCorpus(runsDirectory, record, source, instructions),

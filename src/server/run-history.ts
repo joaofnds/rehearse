@@ -846,17 +846,16 @@ async function recordStaleness(
 	runsDirectory: string,
 	source: CorpusRoot,
 ): Promise<Staleness> {
-	const checkpoints = await checkpointStaleness(runsDirectory, source);
 	const reports = [
+		await checkpointStaleness(runsDirectory, source),
 		await sessionAttemptStaleness(runsDirectory, source),
 		await replayAttemptStaleness(runsDirectory, source),
 		await groupStaleness(runsDirectory, source),
 	];
 	const byId = new Map<string, RowStaleness>();
-	for (const { id, readFiles: _read, ...judged } of [
-		...checkpoints,
-		...reports.flatMap(({ records }) => records),
-	]) {
+	for (const { id, readFiles: _read, ...judged } of reports.flatMap(
+		({ records }) => records,
+	)) {
 		byId.set(id, { state: "available", ...judged });
 	}
 	for (const { id, reason } of reports.flatMap(
