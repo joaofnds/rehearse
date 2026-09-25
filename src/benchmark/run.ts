@@ -38,7 +38,11 @@ import {
 import { CommandError, killActiveCommands, runCommand } from "./command";
 import type { BenchmarkCase } from "./case";
 import type { BenchmarkConfig, Effort, WorkflowStage } from "./config";
-import { CONTROL_DIR, DEFAULT_MINIMUM_STAGE_GRADE } from "./config";
+import {
+	CONTROL_DIR,
+	DEFAULT_MINIMUM_STAGE_GRADE,
+	recordsDirectory,
+} from "./config";
 import { RefusedPreconditionError } from "./exit-codes";
 import type { CorpusRoot } from "./corpus-file";
 import { liveCorpusSource, readCorpusInstructions } from "./corpus-file";
@@ -79,7 +83,6 @@ import { openRunEventStore, runEventRecorderFor } from "./run-events";
 import type { BenchmarkRunPaths } from "./run-layout";
 import {
 	benchmarkRunPaths,
-	benchmarkRunsDirectory,
 	runEventsDatabaseFile,
 	runNameFromTimestamp,
 } from "./run-layout";
@@ -109,7 +112,7 @@ import { createProductOwner, runWorkflowStage } from "./workflow";
 import { claimShortId, formatShortId } from "./short-id";
 
 async function createRunFiles(timestamp: string): Promise<BenchmarkRunPaths> {
-	const directory = benchmarkRunsDirectory(CONTROL_DIR);
+	const directory = recordsDirectory();
 
 	await mkdir(directory, { recursive: true });
 

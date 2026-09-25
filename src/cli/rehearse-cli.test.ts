@@ -9,7 +9,7 @@ import {
 	parseComparisonReport,
 } from "#benchmark/comparison-record";
 import { runCommand } from "#benchmark/command";
-import { CONTROL_DIR } from "#benchmark/config";
+import { CONTROL_DIR, recordsDirectory } from "#benchmark/config";
 import {
 	benchmarkRunsDirectory,
 	comparisonReportPaths,
@@ -60,6 +60,18 @@ async function runCli(
 	return { exitCode, stdout, stderr };
 }
 
+/**
+ * A copied control keeps its records under its own .benchmark-runs, which is
+ * where recordRunFor looks for them, so its child gets no records location.
+ */
+function environmentWithoutRecordsLocation(): Record<string, string> {
+	return Object.fromEntries(
+		Object.entries(environmentWithoutKnobs()).filter(
+			([name]) => name !== "REHEARSE_RECORDS_DIR",
+		),
+	);
+}
+
 async function runPipelineCli(
 	args: readonly string[],
 	control: string,
@@ -68,7 +80,7 @@ async function runPipelineCli(
 	const child = Bun.spawn([process.execPath, "rehearse.ts", ...args], {
 		cwd: control,
 		env: {
-			...environmentWithoutKnobs(),
+			...environmentWithoutRecordsLocation(),
 			PATH: `${binDirectory}:${Bun.env["PATH"] ?? ""}`,
 		},
 		stdin: new Blob([""]),
@@ -113,6 +125,7 @@ async function runCliThroughPipe(args: readonly string[]): Promise<string> {
 		["sh", "-c", `'${process.execPath}' rehearse.ts ${quoted} | cat`],
 		{
 			cwd: PROJECT_ROOT,
+			env: { ...Bun.env },
 			stdin: new Blob([""]),
 			stdout: "pipe",
 			stderr: "pipe",
@@ -445,7 +458,7 @@ describe("rehearse", () => {
 			.update(await Bun.file(fixture.manifestFile).text())
 			.digest("hex");
 		const { directory: reportDirectory, reportFile } = comparisonReportPaths(
-			benchmarkRunsDirectory(CONTROL_DIR),
+			recordsDirectory(),
 			manifestSha,
 		);
 		writtenReportDirectory = reportDirectory;
@@ -466,7 +479,7 @@ describe("rehearse", () => {
 			.update(await Bun.file(fixture.manifestFile).text())
 			.digest("hex");
 		const { directory: reportDirectory, reportFile } = comparisonReportPaths(
-			benchmarkRunsDirectory(CONTROL_DIR),
+			recordsDirectory(),
 			manifestSha,
 		);
 		writtenReportDirectory = reportDirectory;
@@ -494,7 +507,7 @@ describe("rehearse", () => {
 			.update(await Bun.file(manifestFile).text())
 			.digest("hex");
 		const { directory: reportDirectory, reportFile } = comparisonReportPaths(
-			benchmarkRunsDirectory(CONTROL_DIR),
+			recordsDirectory(),
 			manifestSha,
 		);
 		writtenReportDirectory = reportDirectory;
@@ -506,6 +519,43 @@ describe("rehearse", () => {
 		expect(piped.length).toBe(written.length);
 		expect(piped).toBe(written);
 		expect(parseComparisonReport(piped).cases).toHaveLength(12);
+	});
+
+	it("writes a spawned CLI's comparison report outside the operator's records directory", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "rehearse-cli-compare-"));
+		temporaryDirectories.push(directory);
+		const fixture = new ComparisonEvidenceFixture(directory);
+		await fixture.write();
+
+		const stdout = await runCliThroughPipe(["compare", fixture.manifestFile]);
+
+		const reportFile = stdout.trim();
+		writtenReportDirectory = dirname(reportFile);
+
+		expect(reportFile).toEndWith("report.json");
+		expect(reportFile).not.toStartWith(benchmarkRunsDirectory(CONTROL_DIR));
+		expect(reportFile).not.toStartWith(".benchmark-runs");
+	});
+
+	it("writes a comparison report under the control's .benchmark-runs when nothing overrides the records location", async () => {
+		const directory = await mkdtemp(
+			join(tmpdir(), "rehearse-cli-default-records-"),
+		);
+		temporaryDirectories.push(directory);
+		const control = await controlCopy(directory);
+		const fixture = new ComparisonEvidenceFixture(directory);
+		await fixture.write();
+
+		const result = await runPipelineCli(
+			["compare", fixture.manifestFile],
+			control,
+			join(directory, "bin"),
+		);
+
+		expect(result.exitCode).toBe(0);
+		expect(result.stdout).toStartWith(
+			join(await realpath(control), ".benchmark-runs", "comparisons"),
+		);
 	});
 
 	it("refuses an unknown flag by name, with a usage exit code and no stdout", async () => {

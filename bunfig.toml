@@ -1,3 +1,6 @@
 [test]
 pathIgnorePatterns = ["client/**"]
-preload = ["./src/benchmark/bun-pin-guard.ts"]
+preload = [
+	"./src/benchmark/bun-pin-guard.ts",
+	"./src/benchmark/test-records-directory.ts",
+]

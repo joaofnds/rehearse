@@ -31,6 +31,7 @@ import {
 	parseReplayArgs,
 	parseReplayConfirmation,
 	parseRunName,
+	recordsDirectory,
 } from "#benchmark/config";
 import { loadRunManifest } from "#benchmark/manifest";
 import { readCorpusInstructions } from "#benchmark/corpus-file";
@@ -44,11 +45,7 @@ import { executeReplayStage } from "#benchmark/replay-command";
 import type { ReplayConfirmationOutcome } from "#benchmark/replay-confirmation";
 import { runReplayConfirmation } from "#benchmark/replay-confirmation";
 import type { BenchmarkRunPaths } from "#benchmark/run-layout";
-import {
-	benchmarkRunPaths,
-	benchmarkRunsDirectory,
-	recordedRunNames,
-} from "#benchmark/run-layout";
+import { benchmarkRunPaths, recordedRunNames } from "#benchmark/run-layout";
 import { loadStageRubric, runStageJudge } from "#benchmark/stage-grading";
 import type { LoadedStageSettings } from "#benchmark/stage-settings";
 import {
@@ -115,7 +112,7 @@ export async function runReplayCommand(
 	}
 
 	await dependencies.resolveRunDirectory(runName);
-	const paths = benchmarkRunPaths(benchmarkRunsDirectory(CONTROL_DIR), runName);
+	const paths = benchmarkRunPaths(recordsDirectory(), runName);
 	const declared = await declaredSessionKnobs(paths.manifestFile);
 	const config = asUsageError(() =>
 		parseReplayArgs(request.args, Bun.env, declared),
@@ -376,7 +373,7 @@ export async function replayCorpus(
 }
 
 export async function resolveRunDirectory(runName: string): Promise<string> {
-	const paths = benchmarkRunPaths(benchmarkRunsDirectory(CONTROL_DIR), runName);
+	const paths = benchmarkRunPaths(recordsDirectory(), runName);
 	if (await Bun.file(paths.manifestFile).exists()) {
 		return paths.checkpointsDirectory;
 	}

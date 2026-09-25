@@ -48,13 +48,18 @@ describe("bun-pin-guard", () => {
 });
 
 describe("bunfig.toml", () => {
-	it("preloads the guard into every test process", async () => {
+	it("preloads the guard and a temporary records directory into every test process", async () => {
 		const bunfig = TOML.parse(
 			await Bun.file(join(PROJECT_ROOT, "bunfig.toml")).text(),
 		);
 
 		expect(bunfig).toMatchObject({
-			test: { preload: ["./src/benchmark/bun-pin-guard.ts"] },
+			test: {
+				preload: [
+					"./src/benchmark/bun-pin-guard.ts",
+					"./src/benchmark/test-records-directory.ts",
+				],
+			},
 		});
 	});
 });

@@ -98,6 +98,7 @@ describe(executeBenchmark.name, () => {
 			],
 			{
 				cwd: PROJECT_ROOT,
+				env: { ...Bun.env },
 				stdin: new Blob([""]),
 				stdout: "pipe",
 				stderr: "pipe",

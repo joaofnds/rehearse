@@ -1,12 +1,9 @@
 #!/usr/bin/env bun
 import { join } from "node:path";
-import { CONTROL_DIR } from "#benchmark/config";
+import { CONTROL_DIR, recordsDirectory } from "#benchmark/config";
 import { assertPinnedBunVersion } from "#benchmark/bun-pin";
 import { liveCorpusSource } from "#benchmark/corpus-file";
-import {
-	benchmarkRunsDirectory,
-	runEventsDatabaseFile,
-} from "#benchmark/run-layout";
+import { runEventsDatabaseFile } from "#benchmark/run-layout";
 import { openRunEventStore } from "#benchmark/run-events";
 import { liveRunLiveness } from "#benchmark/run-liveness";
 import {
@@ -50,7 +47,7 @@ async function reconcileOnStartup(runsDirectory: string): Promise<void> {
 async function main(): Promise<void> {
 	assertPinnedBunVersion();
 
-	const runsDirectory = benchmarkRunsDirectory(CONTROL_DIR);
+	const runsDirectory = recordsDirectory();
 	await reconcileOnStartup(runsDirectory);
 
 	const app = createAppServer({

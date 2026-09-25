@@ -30,11 +30,11 @@ import type {
 } from "#benchmark/config";
 import type { Immutable } from "#benchmark/contracts";
 import {
-	CONTROL_DIR,
 	judgeSelfPreferenceWarning,
 	parseArgs,
 	parseCaseId,
 	parseSessionArgs,
+	recordsDirectory,
 } from "#benchmark/config";
 import type { LiveCorpusRoot } from "#benchmark/corpus-file";
 import {
@@ -63,7 +63,6 @@ import {
 	runRequestedExecution,
 } from "#benchmark/confirmation";
 import { runBenchmark } from "#benchmark/run";
-import { benchmarkRunsDirectory } from "#benchmark/run-layout";
 import { runStageJudge } from "#benchmark/stage-grading";
 import type { LoadedStageSettings } from "#benchmark/stage-settings";
 import {
@@ -343,7 +342,7 @@ export function buildConfirmationRequest(
 	const { benchmarkCase, config, confirmation } = inputs;
 
 	return {
-		runsDirectory: benchmarkRunsDirectory(CONTROL_DIR),
+		runsDirectory: recordsDirectory(),
 		groupId: randomUUID(),
 		reps: confirmation.reps,
 		projectedCost: confirmation.projectedCost,
@@ -464,8 +463,7 @@ export async function executeSessionRun(
 	const runDebug = dependencies.runDebug ?? runSessionDebugAttempt;
 	const executeAttempt =
 		dependencies.executeAttempt ?? runPreparedSessionAttempt;
-	const runsDirectory =
-		dependencies.runsDirectory ?? benchmarkRunsDirectory(CONTROL_DIR);
+	const runsDirectory = dependencies.runsDirectory ?? recordsDirectory();
 
 	return runRequestedExecution<RunOutcome>({
 		confirmation: config.confirmation,
@@ -482,11 +480,7 @@ export async function executeSessionRun(
 		runDebug: async () => {
 			await dependencies.probeModel(config.model);
 			const outcome = await runDebug({
-				...defaultSessionRunRequest(
-					sessionCase,
-					config,
-					benchmarkRunsDirectory(CONTROL_DIR),
-				),
+				...defaultSessionRunRequest(sessionCase, config, recordsDirectory()),
 				resolveCorpus: dependencies.resolveCorpus,
 			});
 			reportSessionChecks(outcome.record, output);

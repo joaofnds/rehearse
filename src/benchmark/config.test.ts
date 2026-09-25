@@ -14,6 +14,7 @@ import {
 	parseRunName,
 	parseSessionArgs,
 	parseStaleArgs,
+	recordsDirectory,
 } from "./config";
 
 const CASE_DEFAULTS: CaseDefaults = {
@@ -854,6 +855,30 @@ describe(displayPath.name, () => {
 	it("leaves a path outside the control root as it is", () => {
 		expect(displayPath("/tmp/elsewhere/record.json")).toBe(
 			"/tmp/elsewhere/record.json",
+		);
+	});
+});
+
+describe(recordsDirectory.name, () => {
+	it("keeps records under the repository's .benchmark-runs when nothing overrides it", () => {
+		expect(recordsDirectory({})).toBe(join(CONTROL_DIR, ".benchmark-runs"));
+	});
+
+	it("keeps records where REHEARSE_RECORDS_DIR names", () => {
+		expect(
+			recordsDirectory({ REHEARSE_RECORDS_DIR: "/elsewhere/records" }),
+		).toBe("/elsewhere/records");
+	});
+
+	it("resolves a relative REHEARSE_RECORDS_DIR against the working directory", () => {
+		expect(recordsDirectory({ REHEARSE_RECORDS_DIR: "./records" })).toBe(
+			join(process.cwd(), "records"),
+		);
+	});
+
+	it("refuses an empty REHEARSE_RECORDS_DIR rather than writing into the working directory", () => {
+		expect(() => recordsDirectory({ REHEARSE_RECORDS_DIR: "" })).toThrow(
+			"REHEARSE_RECORDS_DIR is empty",
 		);
 	});
 });

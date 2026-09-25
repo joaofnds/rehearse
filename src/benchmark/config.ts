@@ -1,5 +1,6 @@
 import { isAbsolute, relative, resolve } from "node:path";
 import { z } from "zod";
+import { benchmarkRunsDirectory } from "./run-layout";
 
 export const CONTROL_DIR = resolve(import.meta.dir, "../..");
 export const REQUIRED_BUN_VERSION = "1.4.0";
@@ -35,6 +36,26 @@ export function displayPath(path: string): string {
 	return controlRelative.startsWith("..") || isAbsolute(controlRelative)
 		? path
 		: controlRelative;
+}
+
+/**
+ * Where every command reads and writes its records. The test preload points
+ * REHEARSE_RECORDS_DIR at a temporary directory, which is what keeps a test
+ * run out of the operator's records.
+ */
+export function recordsDirectory(
+	env: Readonly<Record<string, string | undefined>> = Bun.env,
+): string {
+	const override = env["REHEARSE_RECORDS_DIR"];
+	if (override === "") {
+		throw new Error(
+			"REHEARSE_RECORDS_DIR is empty; unset it to keep records under .benchmark-runs",
+		);
+	}
+
+	return override === undefined
+		? benchmarkRunsDirectory(CONTROL_DIR)
+		: resolve(override);
 }
 
 export const DEFAULT_CASE_ID = "audit-log";

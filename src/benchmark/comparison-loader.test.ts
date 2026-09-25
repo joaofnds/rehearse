@@ -23,9 +23,9 @@ import {
 } from "./comparison-evidence-test-support";
 import { parseComparisonReport } from "./comparison-record";
 import { runCommand } from "./command";
-import { CONTROL_DIR } from "./config";
+import { CONTROL_DIR, recordsDirectory } from "./config";
 import { loadComparisonEvidence } from "./comparison-loader";
-import { benchmarkRunsDirectory, comparisonReportPaths } from "./run-layout";
+import { comparisonReportPaths } from "./run-layout";
 
 async function directoryDigests(
 	directory: string,
@@ -351,7 +351,7 @@ describe(loadComparisonEvidence.name, () => {
 		);
 		const manifestSha = digest(await Bun.file(fixture.manifestFile).text());
 		const expectedReportFile = comparisonReportPaths(
-			benchmarkRunsDirectory(CONTROL_DIR),
+			recordsDirectory(),
 			manifestSha,
 		).reportFile;
 		await mkdir(trapsDirectory);

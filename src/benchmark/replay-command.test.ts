@@ -154,6 +154,7 @@ describe(executeReplayStage.name, () => {
 			],
 			{
 				cwd: PROJECT_ROOT,
+				env: { ...Bun.env },
 				stdout: "pipe",
 				stderr: "pipe",
 			},

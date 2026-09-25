@@ -38,7 +38,14 @@ bun run build:client
 ```
 
 `bun run test` runs the backend suite and then the client's DOM suite. A bare
-`bun test` omits the client tests. If the first half fails, the second half does
+`bun test` omits the client tests.
+
+Each test process points `REHEARSE_RECORDS_DIR` at its own temporary directory
+through a preload named in `bunfig.toml`, so tests never write into
+`.benchmark-runs/`. A `Bun.spawn` without an `env` option does not pass that
+variable on, so a test that spawns the CLI gives it `env: { ...Bun.env }`. A
+test that runs a copied control removes the variable, so the copy keeps its
+records under its own `.benchmark-runs/`. If the first half fails, the second half does
 not run; execute it separately when checking client work:
 
 ```sh

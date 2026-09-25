@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-import { CONTROL_DIR, parseStaleArgs } from "./src/benchmark/config";
+import { parseStaleArgs, recordsDirectory } from "./src/benchmark/config";
 import { assertPinnedBunVersion } from "./src/benchmark/bun-pin";
 import {
 	requireCase,
@@ -8,7 +8,6 @@ import {
 	runCaseShow,
 } from "./src/cli/case-command";
 import { claudeProjectsDirectory } from "./src/benchmark/session-capture";
-import { benchmarkRunsDirectory } from "./src/benchmark/run-layout";
 import { runCompare } from "./src/cli/compare-command";
 import {
 	executeReplay,
@@ -103,7 +102,7 @@ async function dispatch(
 			await runReview(
 				{
 					id: commandLine.argument,
-					runsDirectory: benchmarkRunsDirectory(CONTROL_DIR),
+					runsDirectory: recordsDirectory(),
 					json: commandLine.json,
 					file: flagValue(commandLine.flags, "--file"),
 					verdict: flagValue(commandLine.flags, "--verdict"),
@@ -119,7 +118,7 @@ async function dispatch(
 			await runCalibrate(
 				{
 					id: commandLine.argument,
-					runsDirectory: benchmarkRunsDirectory(CONTROL_DIR),
+					runsDirectory: recordsDirectory(),
 					json: commandLine.json,
 					confirmRejudge: commandLine.flags.includes("--confirm-rejudge"),
 				},
@@ -136,7 +135,7 @@ async function dispatch(
 			await runCompare(
 				{
 					manifestPath: commandLine.argument,
-					runsDirectory: benchmarkRunsDirectory(CONTROL_DIR),
+					runsDirectory: recordsDirectory(),
 					json: commandLine.json,
 				},
 				processOutput,
@@ -184,7 +183,7 @@ async function dispatch(
 			await runList(
 				{
 					kind: commandLine.argument,
-					runsDirectory: benchmarkRunsDirectory(CONTROL_DIR),
+					runsDirectory: recordsDirectory(),
 				},
 				processOutput,
 			);
@@ -196,7 +195,7 @@ async function dispatch(
 				{
 					id: commandLine.argument,
 					json: commandLine.json,
-					runsDirectory: benchmarkRunsDirectory(CONTROL_DIR),
+					runsDirectory: recordsDirectory(),
 					checkout: flagValue(commandLine.flags, "--checkout"),
 				},
 				processOutput,
@@ -208,7 +207,7 @@ async function dispatch(
 			await runRegrade(
 				{
 					id: commandLine.argument,
-					runsDirectory: benchmarkRunsDirectory(CONTROL_DIR),
+					runsDirectory: recordsDirectory(),
 					json: commandLine.json,
 				},
 				{
@@ -224,7 +223,7 @@ async function dispatch(
 			await runStale(
 				{
 					...asUsageError(() => parseStaleArgs(commandLine.flags)),
-					runsDirectory: benchmarkRunsDirectory(CONTROL_DIR),
+					runsDirectory: recordsDirectory(),
 				},
 				{ output: processOutput },
 			);
@@ -254,7 +253,7 @@ async function dispatch(
 				},
 				{
 					projectsDirectory: claudeProjectsDirectory(),
-					runsDirectory: benchmarkRunsDirectory(CONTROL_DIR),
+					runsDirectory: recordsDirectory(),
 					output: processOutput,
 				},
 			);

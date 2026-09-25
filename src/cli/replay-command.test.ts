@@ -2,15 +2,16 @@ import { afterEach, describe, expect, it } from "bun:test";
 import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CONTROL_DIR, parseArgs, parseReplayArgs } from "#benchmark/config";
+import {
+	parseArgs,
+	parseReplayArgs,
+	recordsDirectory,
+} from "#benchmark/config";
 import { corpusLayoutRoots } from "#benchmark/checkpoint";
 import { RefusedPreconditionError } from "#cli/interactive-stdin";
 import { buildRunManifest } from "#benchmark/run";
 import { writeRunManifest } from "#benchmark/manifest";
-import {
-	benchmarkRunPaths,
-	benchmarkRunsDirectory,
-} from "#benchmark/run-layout";
+import { benchmarkRunPaths } from "#benchmark/run-layout";
 import {
 	AUDIT_LOG_PIPELINE_PATH,
 	AUDIT_LOG_RUBRICS_PATH,
@@ -57,7 +58,7 @@ function replayConfigFor(runName: string, corpus: string): ReplayCliConfig {
 }
 
 async function writeManifestFor(runName: string): Promise<string> {
-	const paths = benchmarkRunPaths(benchmarkRunsDirectory(CONTROL_DIR), runName);
+	const paths = benchmarkRunPaths(recordsDirectory(), runName);
 	const config = parseArgs(
 		["--target", "/tmp/target", ...sessionArgs],
 		{},
@@ -415,10 +416,7 @@ describe("--corpus on a stage replay", () => {
 			const failure = await failureOf(
 				executeReplay(
 					replayConfigFor("any-name-corpus-linked", root),
-					benchmarkRunPaths(
-						benchmarkRunsDirectory(CONTROL_DIR),
-						"any-name-corpus-linked",
-					),
+					benchmarkRunPaths(recordsDirectory(), "any-name-corpus-linked"),
 					recordOutput().output,
 				),
 			);
