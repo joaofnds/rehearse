@@ -1,3 +1,5 @@
+import type { RowStaleness } from "#server/run-history";
+
 /**
  * The figures a pipeline run row carries, each reported unavailable, for a
  * test whose subject is another column: it spreads these into a row it
@@ -39,3 +41,29 @@ export const UNREAD_GROUP_FIGURES = {
 	successful: 0,
 	unreadReps: [],
 } as const;
+
+/** A row's staleness, reported unavailable, for a test whose subject is another column. */
+export const UNREAD_STALENESS = {
+	state: "unavailable",
+	reasons: ["not read by this test"],
+} as const;
+
+/**
+ * A staleness judgment with no version to measure a distance from, the
+ * reading a record written before corpus versions gets, for a test whose
+ * subject is the stale or clear judgment rather than the distance.
+ */
+export function unversionedStaleness(judgment: {
+	readonly stale: boolean;
+	readonly causes: readonly string[];
+}): RowStaleness {
+	return {
+		state: "available",
+		...judgment,
+		changedFiles: [],
+		distance: {
+			kind: "not-recorded",
+			reason: "recorded before corpus versions",
+		},
+	};
+}

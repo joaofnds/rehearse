@@ -3,6 +3,7 @@ import { cleanup, screen, waitFor } from "@testing-library/react";
 import type { SessionHistoryReport } from "#benchmark/session-history";
 import type { SessionHistoryAttemptSeries } from "#server/session-history-reader";
 import { renderAppWithStub } from "#client/test-support/render-app";
+import { unversionedStaleness } from "#client/test-support/run-figures";
 import { createAppRouter } from "./router";
 
 const originalFetch = globalThis.fetch;
@@ -240,8 +241,7 @@ describe(createAppRouter.name, () => {
 								grade: "B",
 								corpusVersion: { kind: "version", digest: "a3a62f" },
 								corpusChangedDuringRun: false,
-								stale: false,
-								staleCauses: [],
+								staleness: unversionedStaleness({ stale: false, causes: [] }),
 								progress: { state: "recorded" },
 							},
 						],

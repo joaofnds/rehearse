@@ -7,6 +7,8 @@ import { stubFetchByPath } from "#client/test-support/fetch-stub";
 import {
 	UNREAD_COST_AND_TIME,
 	UNREAD_RUN_FIGURES,
+	UNREAD_STALENESS,
+	unversionedStaleness,
 } from "#client/test-support/run-figures";
 import { createAppRouter } from "#client/router";
 import { renderAppAt, stubFetchFailing } from "#client/test-support/render-app";
@@ -53,8 +55,7 @@ function runRow(run: string): RunHistoryRow {
 		grade: "B",
 		corpusVersion: { kind: "version", digest: "a3a62f" },
 		corpusChangedDuringRun: false,
-		stale: false,
-		staleCauses: [],
+		staleness: unversionedStaleness({ stale: false, causes: [] }),
 		progress: { state: "recorded" },
 	};
 }
@@ -62,6 +63,7 @@ function runRow(run: string): RunHistoryRow {
 function sessionAttemptRow(uuid: string): RunHistoryRow {
 	return {
 		kind: "session-attempt",
+		staleness: UNREAD_STALENESS,
 		corpusVersion: undefined,
 		...UNREAD_COST_AND_TIME,
 		shortId: undefined,

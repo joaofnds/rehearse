@@ -44,7 +44,13 @@ import {
 	readAllShortIds,
 } from "#benchmark/short-id";
 import type { ShortIdEntry } from "#benchmark/short-id";
-import { staleCheckpoints } from "#benchmark/staleness-report";
+import {
+	checkpointStaleness,
+	groupStaleness,
+	replayAttemptStaleness,
+	sessionAttemptStaleness,
+} from "#benchmark/staleness-report";
+import type { RecordStaleness } from "#benchmark/staleness-report";
 import type { RunLiveness } from "#benchmark/run-liveness";
 import { checkpointAttempts, repAttemptId } from "./checkpoint-attempts";
 import type { AttemptPosition } from "./checkpoint-attempts";
@@ -80,6 +86,17 @@ import type { ContextLink, RunProgress } from "./run-status";
 export type { ContextLink, RunProgress } from "./run-status";
 
 /**
+ * Whether a row's record still measures the corpus under test: what makes it
+ * stale, the files it read that changed, and how many versions back it was
+ * recorded. A record the report could not judge says why rather than reading
+ * as clean.
+ */
+export type RowStaleness = Reading<Omit<RecordStaleness, "id">>;
+
+export const UNJUDGED_REASON =
+	"no recorded checkpoint or attempt to judge against the corpus under test";
+
+/**
  * One pipeline run's row, in decision-5's code vocabulary (`run`, `caseId`,
  * `stage`), never the design's task/step labels. `caseId` is undefined only
  * for a run whose status comes from its events and whose manifest was never
@@ -99,8 +116,7 @@ export interface PipelineRunRow {
 	readonly corpusVersion: CorpusMeasurement | undefined;
 	/** Whether its checkpoints measured more than one corpus version. */
 	readonly corpusChangedDuringRun: boolean;
-	readonly stale: boolean;
-	readonly staleCauses: readonly string[];
+	readonly staleness: RowStaleness;
 	readonly progress: RunProgress;
 	readonly links: readonly ContextLink[];
 	readonly stageGrades: Reading<{
@@ -158,6 +174,7 @@ export interface SessionAttemptRow {
 	readonly shortId: string | undefined;
 	readonly status: SessionAttemptRecord["outcome"];
 	readonly corpusVersion: CorpusMeasurement | undefined;
+	readonly staleness: RowStaleness;
 	readonly links: readonly ContextLink[];
 	readonly cost: CostReading;
 	readonly wallTime: WallTimeReading;
@@ -182,6 +199,7 @@ export interface ReplayRow {
 	readonly grade: string;
 	readonly status: ReplayRecord["scorecard"]["grade"]["verdict"];
 	readonly corpusVersion: CorpusMeasurement | undefined;
+	readonly staleness: RowStaleness;
 	readonly links: readonly ContextLink[];
 	readonly cost: CostReading;
 	readonly finalOutcome: NotApplicable;
@@ -207,6 +225,7 @@ export interface ConfirmationGroupRow {
 	readonly mode: ConfirmationMode;
 	readonly reps: number;
 	readonly corpusVersion: CorpusMeasurement | undefined;
+	readonly staleness: RowStaleness;
 	readonly repAttempts: readonly RepAttempt[];
 	readonly links: readonly ContextLink[];
 	readonly stageSummaries: readonly GroupStageSummary[];
@@ -390,7 +409,7 @@ async function rowFor(
 	runsDirectory: string,
 	run: string,
 	shortId: string | undefined,
-	staleByCheckpointId: ReadonlyMap<string, readonly string[]>,
+	staleness: Staleness,
 	runEvents: RunEventStore,
 	liveness: RunLiveness,
 ): Promise<PipelineRunRow | undefined> {
@@ -416,8 +435,6 @@ async function rowFor(
 	const figures = await runFigures(runsDirectory, run, liveness);
 	const stage = await latestCheckpointStage(runsDirectory, run);
 	if (stage === undefined) {
-		const causes = staleByCheckpointId.get(`checkpoint:${run}/initial`) ?? [];
-
 		return {
 			kind: "run",
 			run,
@@ -427,15 +444,12 @@ async function rowFor(
 			caseId,
 			stage: undefined,
 			grade: undefined,
-			stale: causes.length > 0,
-			staleCauses: causes,
+			staleness: staleness.of(`checkpoint:${run}/initial`),
 			progress,
 			links,
 			...figures,
 		};
 	}
-
-	const causes = staleByCheckpointId.get(`checkpoint:${run}/${stage}`) ?? [];
 
 	return {
 		kind: "run",
@@ -446,8 +460,7 @@ async function rowFor(
 		caseId,
 		stage,
 		grade: gradeByStage.get(stage),
-		stale: causes.length > 0,
-		staleCauses: causes,
+		staleness: staleness.of(`checkpoint:${run}/${stage}`),
 		progress,
 		links,
 		...figures,
@@ -458,6 +471,7 @@ async function sessionAttemptRow(
 	runsDirectory: string,
 	attempt: SessionAttemptId,
 	shortId: string | undefined,
+	staleness: Staleness,
 ): Promise<SessionAttemptRow> {
 	const { recordFile } = sessionAttemptPaths(runsDirectory, attempt);
 	if (!(await Bun.file(recordFile).exists())) {
@@ -473,6 +487,9 @@ async function sessionAttemptRow(
 		shortId,
 		status: record.outcome,
 		corpusVersion: record.corpusVersion,
+		staleness: staleness.of(
+			formatRecordId({ kind: "attempt:session", ...attempt }),
+		),
 		links: [
 			{
 				state: "available",
@@ -499,6 +516,7 @@ async function replayRow(
 	shortId: string | undefined,
 	shortIds: ReadonlyMap<string, string>,
 	attempts: ReadonlyMap<string, AttemptPosition>,
+	staleness: Staleness,
 ): Promise<ReplayRow> {
 	const record = await readReplayRecord(
 		replayRecordFile(runsDirectory, attempt.lineage, attempt.timestamp),
@@ -527,6 +545,9 @@ async function replayRow(
 		grade: record.scorecard.grade.grade,
 		status: record.scorecard.grade.verdict,
 		corpusVersion: record.corpusVersion,
+		staleness: staleness.of(
+			formatRecordId({ kind: "attempt:stage", ...attempt }),
+		),
 		links: [replayLink(attempt, record.consumed.lineage, caseId)],
 		cost: replayCost(record),
 		finalOutcome: {
@@ -684,6 +705,7 @@ async function groupRow(
 	groupId: string,
 	shortId: string | undefined,
 	attempts: ReadonlyMap<string, AttemptPosition>,
+	staleness: Staleness,
 ): Promise<ConfirmationGroupRow> {
 	const { groupFile } = confirmationGroupPaths(runsDirectory, groupId);
 	if (!(await Bun.file(groupFile).exists())) {
@@ -707,6 +729,7 @@ async function groupRow(
 		mode: record.mode,
 		reps: record.reps,
 		corpusVersion: record.inputs.corpusVersion,
+		staleness: staleness.of(formatRecordId({ kind: "group", groupId })),
 		repAttempts: repAttempts(record, attempts),
 		links,
 		stageSummaries: stageSummaries(
@@ -804,6 +827,51 @@ async function registryEntries(runsDirectory: string): Promise<{
 	}
 }
 
+interface Staleness {
+	readonly of: (recordId: string) => RowStaleness;
+}
+
+/**
+ * Every record's staleness by its Record ID, judged with the knobs each record
+ * was recorded with: the run history compares a record against the corpus
+ * under test, not against a replay about to run. A record the report named as
+ * unreadable is unavailable for its reason, and a record the report never
+ * reached, a run with no manifest or an attempt of a case no longer declared,
+ * is unavailable too, since reading it as clean would claim a judgment nobody
+ * made.
+ */
+async function recordStaleness(
+	runsDirectory: string,
+	source: CorpusRoot,
+): Promise<Staleness> {
+	const checkpoints = await checkpointStaleness(runsDirectory, source);
+	const reports = [
+		await sessionAttemptStaleness(runsDirectory, source),
+		await replayAttemptStaleness(runsDirectory, source),
+		await groupStaleness(runsDirectory, source),
+	];
+	const byId = new Map<string, RowStaleness>();
+	for (const { id, ...judged } of [
+		...checkpoints,
+		...reports.flatMap(({ records }) => records),
+	]) {
+		byId.set(id, { state: "available", ...judged });
+	}
+	for (const { id, reason } of reports.flatMap(
+		({ unreadable }) => unreadable,
+	)) {
+		byId.set(id, { state: "unavailable", reasons: [reason] });
+	}
+
+	return {
+		of: (recordId) =>
+			byId.get(recordId) ?? {
+				state: "unavailable",
+				reasons: [UNJUDGED_REASON],
+			},
+	};
+}
+
 /**
  * Every recorded run rendered as a run-history row, staleness recomputed
  * against `source` on every call rather than cached: a stale badge that is
@@ -822,10 +890,7 @@ export async function runHistoryReport(
 	source: CorpusRoot,
 	liveness: RunLiveness,
 ): Promise<RunHistoryReport> {
-	const stale = await staleCheckpoints(runsDirectory, source);
-	const staleByCheckpointId = new Map(
-		stale.map((record) => [record.id, record.causes]),
-	);
+	const staleness = await recordStaleness(runsDirectory, source);
 
 	const runEvents = await openRunEventStore(
 		runEventsDatabaseFile(runsDirectory),
@@ -874,33 +939,35 @@ export async function runHistoryReport(
 			[...runs],
 			(run) => formatRecordId({ kind: "run", run }),
 			(run, shortId) =>
-				rowFor(
-					runsDirectory,
-					run,
-					shortId,
-					staleByCheckpointId,
-					runEvents,
-					liveness,
-				),
+				rowFor(runsDirectory, run, shortId, staleness, runEvents, liveness),
 		);
 		await collect(
 			"session-attempt",
 			await sessionAttemptIds(runsDirectory),
 			(attempt) => formatRecordId({ kind: "attempt:session", ...attempt }),
-			(attempt, shortId) => sessionAttemptRow(runsDirectory, attempt, shortId),
+			(attempt, shortId) =>
+				sessionAttemptRow(runsDirectory, attempt, shortId, staleness),
 		);
 		await collect(
 			"replay",
 			await replayAttemptIds(runsDirectory),
 			(attempt) => formatRecordId({ kind: "attempt:stage", ...attempt }),
 			(attempt, shortId) =>
-				replayRow(runsDirectory, attempt, shortId, shortIds, attempts),
+				replayRow(
+					runsDirectory,
+					attempt,
+					shortId,
+					shortIds,
+					attempts,
+					staleness,
+				),
 		);
 		await collect(
 			"group",
 			await confirmationGroupIds(runsDirectory),
 			(groupId) => formatRecordId({ kind: "group", groupId }),
-			(groupId, shortId) => groupRow(runsDirectory, groupId, shortId, attempts),
+			(groupId, shortId) =>
+				groupRow(runsDirectory, groupId, shortId, attempts, staleness),
 		);
 
 		return { rows: newestFirst(rows), unreadable };

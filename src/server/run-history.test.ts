@@ -32,8 +32,13 @@ import {
 } from "#benchmark/run-layout";
 import type { ClaimSubject } from "#benchmark/short-id";
 import { bindReplay, claimShortId } from "#benchmark/short-id";
-import type { ContextLink, PipelineRunRow, RunHistoryRow } from "./run-history";
-import { runHistoryReport } from "./run-history";
+import type {
+	ContextLink,
+	PipelineRunRow,
+	RowStaleness,
+	RunHistoryRow,
+} from "./run-history";
+import { runHistoryReport, UNJUDGED_REASON } from "./run-history";
 
 /**
  * Every entry under a directory, keyed by its relative path: a file with the
@@ -251,9 +256,67 @@ describe(runHistoryReport.name, () => {
 			nothingRunning,
 		);
 
-		const row = pipelineRun(rows, fixture.replayableRun);
-		expect(row?.stale).toBe(true);
-		expect(row?.staleCauses.join(" ")).toContain("skills/build/SKILL.md");
+		expect(pipelineRun(rows, fixture.replayableRun)?.staleness).toMatchObject({
+			state: "available",
+			stale: true,
+			causes: ["skills/build/SKILL.md changed"],
+		});
+	});
+
+	it("gives every kind of row the files it read that changed and its version distance", async () => {
+		const fixture = await fixtureRecordingLiveSettings();
+		const corpus = await corpusDirectory("build skill\n");
+		await fixture.recordCorpusFrom(directorySource(corpus));
+		await fixture.recordVersionFrom(directorySource(corpus));
+		await fixture.recordReplayFrom(directorySource(corpus));
+		await fixture.recordGroupFrom(directorySource(corpus));
+		await Bun.write(
+			join(corpus, "skills", "build", "SKILL.md"),
+			"build skill, edited\n",
+		);
+
+		const { rows } = await runHistoryReport(
+			fixture.runsDirectory,
+			directorySource(corpus),
+			nothingRunning,
+		);
+
+		const edited: RowStaleness = {
+			state: "available",
+			stale: true,
+			causes: ["skills/build/SKILL.md changed"],
+			changedFiles: [{ path: "skills/build/SKILL.md", change: "changed" }],
+			distance: { kind: "measured", versions: 1 },
+		};
+		expect(pipelineRun(rows, fixture.replayableRun)?.staleness).toEqual(edited);
+		expect(rows.find((row) => row.kind === "replay")?.staleness).toEqual(
+			edited,
+		);
+		expect(rows.find((row) => row.kind === "group")?.staleness).toEqual(edited);
+		expect(
+			rows.find((row) => row.kind === "session-attempt")?.staleness,
+		).toMatchObject({
+			state: "available",
+			distance: {
+				kind: "not-recorded",
+				reason: "recorded before corpus versions",
+			},
+		});
+	});
+
+	it("says why a row's staleness could not be judged rather than calling it clean", async () => {
+		const fixture = await fixtureRecordingLiveSettings();
+
+		const { rows } = await runHistoryReport(
+			fixture.runsDirectory,
+			directorySource(await corpusDirectory("build skill\n")),
+			nothingRunning,
+		);
+
+		expect(pipelineRun(rows, fixture.unreplayableRun)?.staleness).toEqual({
+			state: "unavailable",
+			reasons: [UNJUDGED_REASON],
+		});
 	});
 
 	describe("when a corpus directory holds a symlink out of the tree", () => {
@@ -291,8 +354,10 @@ describe(runHistoryReport.name, () => {
 			);
 
 			const row = pipelineRun(rows, fixture.replayableRun);
-			expect(row?.stale).toBe(true);
-			expect(row?.staleCauses.join(" ")).toContain("skills/build/escape.md");
+			expect(row?.staleness).toMatchObject({ state: "available", stale: true });
+			expect(JSON.stringify(row?.staleness)).toContain(
+				"skills/build/escape.md",
+			);
 		});
 
 		it("names no absolute filesystem path in the row's causes", async () => {
@@ -311,9 +376,7 @@ describe(runHistoryReport.name, () => {
 			);
 
 			expect(
-				rows
-					.flatMap((row) => (row.kind === "run" ? row.staleCauses : []))
-					.join(" "),
+				rows.map((row) => JSON.stringify(row.staleness)).join(" "),
 			).not.toContain(corpus);
 		});
 	});
@@ -329,9 +392,11 @@ describe(runHistoryReport.name, () => {
 			nothingRunning,
 		);
 
-		const row = pipelineRun(rows, fixture.replayableRun);
-		expect(row?.stale).toBe(false);
-		expect(row?.staleCauses).toEqual([]);
+		expect(pipelineRun(rows, fixture.replayableRun)?.staleness).toMatchObject({
+			state: "available",
+			stale: false,
+			causes: [],
+		});
 	});
 
 	/**
@@ -674,7 +739,10 @@ describe(runHistoryReport.name, () => {
 		const row = pipelineRun(rows, fixture.stoppedRun);
 		expect(row).toMatchObject({ status: "STOPPED:build" });
 		expect(row?.corpusVersion).toBeUndefined();
-		expect(row?.stale).toBe(false);
+		expect(row?.staleness).toEqual({
+			state: "unavailable",
+			reasons: [UNJUDGED_REASON],
+		});
 		expect(row?.grade).toBeUndefined();
 	});
 
@@ -703,8 +771,11 @@ describe(runHistoryReport.name, () => {
 			stage: undefined,
 			grade: undefined,
 			corpusVersion: undefined,
-			stale: true,
-			staleCauses: ["stage settings file stage-settings.json changed"],
+			staleness: {
+				state: "available",
+				stale: true,
+				causes: ["stage settings file stage-settings.json changed"],
+			},
 			progress: { state: "recorded" },
 			links: [
 				{
@@ -755,8 +826,11 @@ describe(runHistoryReport.name, () => {
 			stage: undefined,
 			grade: undefined,
 			corpusVersion: undefined,
-			stale: true,
-			staleCauses: ["stage settings file stage-settings.json changed"],
+			staleness: {
+				state: "available",
+				stale: true,
+				causes: ["stage settings file stage-settings.json changed"],
+			},
 			progress: { state: "recorded" },
 			links: [],
 		});

@@ -323,10 +323,11 @@ function progressCell(row: RunHistoryRow, nowMs: number): React.JSX.Element {
 	);
 }
 
-function causeList(
-	staleCauses: readonly string[],
-): readonly React.JSX.Element[] {
-	return staleCauses.map((cause, index) => (
+type RowStaleness = HistoryRow["staleness"];
+type JudgedStaleness = Extract<RowStaleness, { readonly state: "available" }>;
+
+function causeList(causes: readonly string[]): readonly React.JSX.Element[] {
+	return causes.map((cause, index) => (
 		<span key={index} className="text-xs text-dim">
 			{cause}
 		</span>
@@ -336,20 +337,23 @@ function causeList(
 /**
  * TableShell keys its rows by index, so filtering the table hands a row's
  * cells to whatever Disclosure the previous row left mounted there, with its
- * open state intact. Keying by the run makes React remount it instead.
+ * open state intact. Keying by the row makes React remount it instead.
  */
-function causesFor(row: RunHistoryRow): React.ReactNode {
-	if (row.staleCauses.length <= 1) {
-		return causeList(row.staleCauses);
+function causesFor(
+	row: HistoryRow,
+	causes: readonly string[],
+): React.ReactNode {
+	if (causes.length <= 1) {
+		return causeList(causes);
 	}
 
 	return (
 		<Disclosure
-			key={row.run}
-			collapsedLabel={`${row.staleCauses.length} causes`}
+			key={`${row.kind}:${identityOf(row)}`}
+			collapsedLabel={`${causes.length} causes`}
 			expandedLabel="hide causes"
 		>
-			{causeList(row.staleCauses)}
+			{causeList(causes)}
 		</Disclosure>
 	);
 }
@@ -366,30 +370,94 @@ function corpusCell(row: HistoryRow): React.JSX.Element {
 					{corpusMeasurementReading(row.corpusVersion)}
 				</span>
 			)}
-			{row.kind === "run" ? runCorpusState(row) : null}
-		</span>
-	);
-}
-
-function runCorpusState(row: RunHistoryRow): React.JSX.Element {
-	return (
-		<>
-			{row.corpusChangedDuringRun ? (
+			{row.kind === "run" && row.corpusChangedDuringRun ? (
 				<span className="text-xs text-secondary-foreground">
 					corpus changed during the run
 				</span>
 			) : null}
-			{row.stale ? (
-				<span className="text-xs text-secondary-foreground">
-					<Status state="stale" />
-				</span>
-			) : (
-				<span className="text-xs text-muted-foreground">
-					<Status state="clear" />
-				</span>
-			)}
-			{causesFor(row)}
+			{corpusState(row, row.staleness)}
+		</span>
+	);
+}
+
+function corpusState(
+	row: HistoryRow,
+	staleness: RowStaleness,
+): React.JSX.Element {
+	if (staleness.state === "unavailable") {
+		return (
+			<span className="text-xs text-muted-foreground">
+				{staleness.reasons.join("; ")}
+			</span>
+		);
+	}
+
+	return (
+		<>
+			{judgment(staleness)}
+			{causesFor(row, staleness.causes)}
 		</>
+	);
+}
+
+/**
+ * The prototype's three readings, for a record judged against a version it
+ * can count back to: clean at the version under test, and stale or
+ * superseded when a corpus file it read is the only thing that changed.
+ * Every other judgment keeps the plain stale or clear badge, since the
+ * prototype has no reading for a stale model, settings file or upstream stage.
+ */
+function judgment(staleness: JudgedStaleness): React.JSX.Element {
+	const { distance } = staleness;
+	const onlyCorpusFiles =
+		staleness.changedFiles.length > 0 &&
+		staleness.causes.length === staleness.changedFiles.length;
+
+	if (
+		distance.kind === "measured" &&
+		!staleness.stale &&
+		distance.versions === 0
+	) {
+		return (
+			<span className="text-xs text-muted-foreground">
+				<Status state="clean" />
+			</span>
+		);
+	}
+	if (
+		distance.kind === "measured" &&
+		onlyCorpusFiles &&
+		distance.versions === 1
+	) {
+		return (
+			<span className="text-xs text-secondary-foreground">
+				<Status state="stale" /> · corpus changed since
+			</span>
+		);
+	}
+	if (
+		distance.kind === "measured" &&
+		onlyCorpusFiles &&
+		distance.versions > 1
+	) {
+		return (
+			<span className="text-xs text-secondary-foreground">
+				<Status state="superseded" /> · {distance.versions} versions back
+			</span>
+		);
+	}
+	if (staleness.stale) {
+		return (
+			<span className="text-xs text-secondary-foreground">
+				<Status state="stale" />
+			</span>
+		);
+	}
+
+	return (
+		<span className="text-xs text-muted-foreground">
+			<Status state="clear" />
+		</span>
 	);
 }
 

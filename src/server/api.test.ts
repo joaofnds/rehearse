@@ -1,3 +1,4 @@
+import type { Immutable } from "#benchmark/contracts";
 import { afterEach, describe, expect, it } from "bun:test";
 import {
 	chmod,
@@ -59,12 +60,21 @@ const corpusResponseSchema = z.object({
 	refusals: z.array(z.string()),
 });
 
+const rowStalenessSchema = z.discriminatedUnion("state", [
+	z
+		.object({
+			state: z.literal("available"),
+			stale: z.boolean(),
+			causes: z.array(z.string()),
+		})
+		.loose(),
+	z.object({ state: z.literal("unavailable"), reasons: z.array(z.string()) }),
+]);
 const pipelineRunRowSchema = z
 	.object({
 		kind: z.literal("run"),
 		run: z.string(),
-		stale: z.boolean(),
-		staleCauses: z.array(z.string()),
+		staleness: rowStalenessSchema,
 	})
 	.loose();
 const runHistoryResponseSchema = z.object({
@@ -94,6 +104,15 @@ async function runHistoryResponseFrom(
 			.map((row) => pipelineRunRowSchema.parse(row)),
 		unreadable: body.unreadable,
 	};
+}
+
+/** Every stale cause the history names, across the rows it could judge. */
+function staleCausesOf(
+	history: Immutable<PipelineRunHistory>,
+): readonly string[] {
+	return history.rows.flatMap(({ staleness }) =>
+		staleness.state === "available" ? staleness.causes : [],
+	);
 }
 
 /**
@@ -220,11 +239,14 @@ describe(createApiApp.name, () => {
 
 			expect(response.status).toBe(200);
 			expect(
-				body.rows.find(({ run }) => run === fixture.replayableRun)?.stale,
-			).toBe(false);
+				body.rows.find(({ run }) => run === fixture.replayableRun)?.staleness,
+			).toMatchObject({ state: "available", stale: false });
 			const broken = body.rows.find(({ run }) => run === brokenRun);
-			expect(broken?.stale).toBe(true);
-			expect(broken?.staleCauses.join(" ")).toContain(
+			expect(broken?.staleness).toMatchObject({
+				state: "available",
+				stale: true,
+			});
+			expect(JSON.stringify(broken?.staleness)).toContain(
 				`cases/${caseId}/settings.json`,
 			);
 			assertDoesNotLeak(JSON.stringify(body), CONTROL_DIR);
@@ -322,10 +344,15 @@ describe(createApiApp.name, () => {
 
 				const body = await historyFor(directorySource(corpus));
 
-				expect(body.rows.flatMap((row) => row.staleCauses)).toContain(
+				expect(staleCausesOf(body)).toContain(
 					"Corpus file CLAUDE.md resolves outside the corpus source, which would hash bytes the corpus does not hold",
 				);
-				expect(body.rows.some((row) => row.stale)).toBe(true);
+				expect(
+					body.rows.some(
+						({ staleness }) =>
+							staleness.state === "available" && staleness.stale,
+					),
+				).toBe(true);
 				assertDoesNotLeak(JSON.stringify(body), "SECRET BYTES");
 				assertDoesNotLeak(JSON.stringify(body), outside);
 			});
@@ -342,7 +369,7 @@ describe(createApiApp.name, () => {
 					backingRoot,
 				});
 
-				expect(body.rows.flatMap((row) => row.staleCauses)).toContain(
+				expect(staleCausesOf(body)).toContain(
 					"Corpus file CLAUDE.md is a link that never resolves to a file, so it names no bytes",
 				);
 			});
@@ -353,7 +380,7 @@ describe(createApiApp.name, () => {
 
 				const body = await historyFor(directorySource(corpus));
 
-				expect(body.rows.flatMap((row) => row.staleCauses)).toContain(
+				expect(staleCausesOf(body)).toContain(
 					"Corpus file CLAUDE.md is not in the corpus under test, so a checkpoint that hashed it cannot be compared",
 				);
 			});
@@ -394,8 +421,8 @@ describe(createApiApp.name, () => {
 			const secondRow = second.rows.find(
 				(row) => row.run === fixture.replayableRun,
 			);
-			expect(firstRow?.stale).toBe(false);
-			expect(secondRow?.stale).toBe(true);
+			expect(firstRow?.staleness).toMatchObject({ stale: false });
+			expect(secondRow?.staleness).toMatchObject({ stale: true });
 		});
 
 		/**

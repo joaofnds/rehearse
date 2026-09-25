@@ -16,7 +16,10 @@ import {
 	UNREAD_GROUP_FIGURES,
 	UNREAD_REPLAY_FIGURES,
 	UNREAD_RUN_FIGURES,
+	UNREAD_STALENESS,
+	unversionedStaleness,
 } from "#client/test-support/run-figures";
+import type { RowStaleness } from "#server/run-history";
 import { RunHistoryPage } from "./run-history-page";
 
 type RunHistoryResponseBody = InferResponseType<typeof apiClient.api.runs.$get>;
@@ -65,8 +68,7 @@ function oneStoppedOneComplete(): RunHistoryResponseBody {
 				grade: "B",
 				corpusVersion: { kind: "version", digest: "a3a62f" },
 				corpusChangedDuringRun: false,
-				stale: true,
-				staleCauses: [],
+				staleness: unversionedStaleness({ stale: true, causes: [] }),
 				progress: { state: "recorded" },
 			},
 			{
@@ -82,8 +84,7 @@ function oneStoppedOneComplete(): RunHistoryResponseBody {
 				grade: "A",
 				corpusVersion: { kind: "version", digest: "b1c2d3" },
 				corpusChangedDuringRun: false,
-				stale: false,
-				staleCauses: [],
+				staleness: unversionedStaleness({ stale: false, causes: [] }),
 				progress: { state: "recorded" },
 			},
 		],
@@ -140,10 +141,12 @@ describe(RunHistoryPage.name, () => {
 					grade: "B",
 					corpusVersion: { kind: "version", digest: "a3a62f" },
 					corpusChangedDuringRun: false,
-					stale: true,
-					staleCauses: [
-						"Corpus file CLAUDE.md resolves outside the corpus source, which would hash bytes the corpus does not hold",
-					],
+					staleness: unversionedStaleness({
+						stale: true,
+						causes: [
+							"Corpus file CLAUDE.md resolves outside the corpus source, which would hash bytes the corpus does not hold",
+						],
+					}),
 					progress: { state: "recorded" },
 				},
 			],
@@ -177,8 +180,10 @@ describe(RunHistoryPage.name, () => {
 					grade: "B",
 					corpusVersion: { kind: "version", digest: "a3a62f" },
 					corpusChangedDuringRun: false,
-					stale: true,
-					staleCauses: ["CLAUDE.md changed"],
+					staleness: unversionedStaleness({
+						stale: true,
+						causes: ["CLAUDE.md changed"],
+					}),
 					progress: { state: "recorded" },
 				},
 			],
@@ -244,8 +249,10 @@ describe(RunHistoryPage.name, () => {
 					grade: "B",
 					corpusVersion: { kind: "version", digest: "a3a62f" },
 					corpusChangedDuringRun: false,
-					stale: true,
-					staleCauses: ["CLAUDE.md changed"],
+					staleness: unversionedStaleness({
+						stale: true,
+						causes: ["CLAUDE.md changed"],
+					}),
 					progress: { state: "recorded" },
 				},
 			],
@@ -276,8 +283,7 @@ describe(RunHistoryPage.name, () => {
 					grade: undefined,
 					corpusVersion: { kind: "version", digest: "a3a62f" },
 					corpusChangedDuringRun: false,
-					stale: false,
-					staleCauses: [],
+					staleness: unversionedStaleness({ stale: false, causes: [] }),
 					progress: { state: "recorded" },
 				},
 			],
@@ -342,6 +348,135 @@ describe(RunHistoryPage.name, () => {
 		).not.toBeInTheDocument();
 	});
 
+	describe("the corpus column's judgment of a record against the corpus under test", () => {
+		function corpusFileEdit(
+			versions: number,
+		): Extract<RowStaleness, { readonly state: "available" }> {
+			return {
+				state: "available",
+				stale: true,
+				causes: ["skills/build/SKILL.md changed"],
+				changedFiles: [{ path: "skills/build/SKILL.md", change: "changed" }],
+				distance: { kind: "measured", versions },
+			};
+		}
+
+		function historyOf(
+			rows: readonly {
+				readonly name: string;
+				readonly staleness: RowStaleness;
+			}[],
+		): RunHistoryResponseBody {
+			return {
+				rows: rows.map(({ name, staleness }) => ({
+					kind: "replay",
+					staleness,
+					corpusVersion: undefined,
+					...UNREAD_REPLAY_FIGURES,
+					shortId: undefined,
+					checkpointShortId: undefined,
+					attempt: undefined,
+					lineage: "60758c",
+					timestamp: name,
+					caseId: "audit-log",
+					stage: "build",
+					grade: "B",
+					status: "CONTINUE",
+					links: [],
+				})),
+				unreadable: [],
+			};
+		}
+
+		it.each([
+			[
+				"clean at the version under test",
+				{
+					state: "available",
+					stale: false,
+					causes: [],
+					changedFiles: [],
+					distance: { kind: "measured", versions: 0 },
+				} satisfies RowStaleness,
+				"✓clean",
+			],
+			[
+				"stale one version back when only a file it read changed",
+				corpusFileEdit(1),
+				"⚠stale · corpus changed since",
+			],
+			[
+				"superseded two or more versions back when only files it read changed",
+				corpusFileEdit(3),
+				"⚠superseded · 3 versions back",
+			],
+		])("reads %s", async (_scenario, staleness, reading) => {
+			respondingWith(
+				historyOf([{ name: "2026-09-06T00-00-00.000Z", staleness }]),
+			);
+
+			renderPage();
+
+			await waitFor(() => {
+				expect(cellOf("2026-09-06T00-00-00.000Z", "Corpus")).toHaveTextContent(
+					reading,
+				);
+			});
+		});
+
+		it("keeps the stale badge and names the cause when something besides a corpus file made the record stale", async () => {
+			respondingWith(
+				historyOf([
+					{
+						name: "2026-09-06T00-00-00.000Z",
+						staleness: {
+							...corpusFileEdit(1),
+							causes: ["model sonnet is now opus"],
+							changedFiles: [],
+						},
+					},
+				]),
+			);
+
+			renderPage();
+
+			await waitFor(() => {
+				expect(
+					screen.getByText("model sonnet is now opus"),
+				).toBeInTheDocument();
+			});
+			expect(
+				cellOf("2026-09-06T00-00-00.000Z", "Corpus"),
+			).not.toHaveTextContent("corpus changed since");
+		});
+
+		it("says why a record's staleness could not be judged", async () => {
+			respondingWith(
+				historyOf([
+					{
+						name: "2026-09-06T00-00-00.000Z",
+						staleness: {
+							state: "unavailable",
+							reasons: [
+								"the group froze no pipeline to hash its stages against",
+							],
+						},
+					},
+				]),
+			);
+
+			renderPage();
+
+			await waitFor(() => {
+				expect(
+					screen.getByText(
+						"the group froze no pipeline to hash its stages against",
+					),
+				).toBeInTheDocument();
+			});
+		});
+	});
+
 	it("names the cause when a row is stale for one reason", async () => {
 		respondingWith({
 			rows: [
@@ -358,8 +493,10 @@ describe(RunHistoryPage.name, () => {
 					grade: "B",
 					corpusVersion: { kind: "version", digest: "a3a62f" },
 					corpusChangedDuringRun: false,
-					stale: true,
-					staleCauses: ["CLAUDE.md changed"],
+					staleness: unversionedStaleness({
+						stale: true,
+						causes: ["CLAUDE.md changed"],
+					}),
 					progress: { state: "recorded" },
 				},
 			],
@@ -389,8 +526,10 @@ describe(RunHistoryPage.name, () => {
 					grade: "B",
 					corpusVersion: { kind: "version", digest: "a3a62f" },
 					corpusChangedDuringRun: false,
-					stale: true,
-					staleCauses: ["CLAUDE.md changed", "agents/advisor.md added"],
+					staleness: unversionedStaleness({
+						stale: true,
+						causes: ["CLAUDE.md changed", "agents/advisor.md added"],
+					}),
 					progress: { state: "recorded" },
 				},
 			],
@@ -445,8 +584,10 @@ describe(RunHistoryPage.name, () => {
 						grade: "A",
 						corpusVersion: { kind: "version", digest: "aaaaaa" },
 						corpusChangedDuringRun: false,
-						stale: true,
-						staleCauses: ["CLAUDE.md changed", "agents/advisor.md added"],
+						staleness: unversionedStaleness({
+							stale: true,
+							causes: ["CLAUDE.md changed", "agents/advisor.md added"],
+						}),
 						progress: { state: "recorded" },
 					},
 					{
@@ -462,12 +603,14 @@ describe(RunHistoryPage.name, () => {
 						grade: "B",
 						corpusVersion: { kind: "version", digest: "bbbbbb" },
 						corpusChangedDuringRun: false,
-						stale: true,
-						staleCauses: [
-							"output-styles/brief.md changed",
-							"rulebook/coupling.md added",
-							"rulebook/ownership.md changed",
-						],
+						staleness: unversionedStaleness({
+							stale: true,
+							causes: [
+								"output-styles/brief.md changed",
+								"rulebook/coupling.md added",
+								"rulebook/ownership.md changed",
+							],
+						}),
 						progress: { state: "recorded" },
 					},
 				],
@@ -495,33 +638,41 @@ describe(RunHistoryPage.name, () => {
 	});
 
 	describe("when a run is in flight", () => {
-		const runningRow: RunHistoryResponseBody["rows"][number] = {
-			kind: "run",
-			...UNREAD_RUN_FIGURES,
-			shortId: undefined,
-			checkpoints: [],
-			links: [],
-			run: "2026-09-07T00-00-00.000Z",
-			caseId: "audit-log",
-			status: "RUNNING",
-			stage: undefined,
-			grade: undefined,
-			corpusVersion: undefined,
-			corpusChangedDuringRun: false,
-			stale: false,
-			staleCauses: [],
-			progress: {
-				state: "running",
-				stage: "build",
-				elapsedMs: 9000,
-				measuredAt: new Date().toISOString(),
-				spentUsd: 0.9,
-				spendScope: "this stage's session so far",
-			},
-		};
+		/**
+		 * Measured when the test reads it, so the elapsed reading does not
+		 * depend on how long the tests before it took.
+		 */
+		function runningRow(): Extract<
+			RunHistoryResponseBody["rows"][number],
+			{ readonly kind: "run" }
+		> {
+			return {
+				kind: "run",
+				...UNREAD_RUN_FIGURES,
+				shortId: undefined,
+				checkpoints: [],
+				links: [],
+				run: "2026-09-07T00-00-00.000Z",
+				caseId: "audit-log",
+				status: "RUNNING",
+				stage: undefined,
+				grade: undefined,
+				corpusVersion: undefined,
+				corpusChangedDuringRun: false,
+				staleness: unversionedStaleness({ stale: false, causes: [] }),
+				progress: {
+					state: "running",
+					stage: "build",
+					elapsedMs: 9000,
+					measuredAt: new Date().toISOString(),
+					spentUsd: 0.9,
+					spendScope: "this stage's session so far",
+				},
+			};
+		}
 
 		it("lists the running run beside the finished ones, marked running", async () => {
-			respondingWith({ rows: [runningRow], unreadable: [] });
+			respondingWith({ rows: [runningRow()], unreadable: [] });
 
 			renderPage();
 
@@ -534,7 +685,7 @@ describe(RunHistoryPage.name, () => {
 		});
 
 		it("reads out the stage the run is in, how long it has run, and what it has spent", async () => {
-			respondingWith({ rows: [runningRow], unreadable: [] });
+			respondingWith({ rows: [runningRow()], unreadable: [] });
 
 			renderPage();
 
@@ -551,7 +702,7 @@ describe(RunHistoryPage.name, () => {
 		 * single stage falls when the next stage begins.
 		 */
 		it("says what the spend figure covers rather than presenting it as the run total", async () => {
-			respondingWith({ rows: [runningRow], unreadable: [] });
+			respondingWith({ rows: [runningRow()], unreadable: [] });
 
 			renderPage();
 
@@ -570,7 +721,7 @@ describe(RunHistoryPage.name, () => {
 		 * word would fail for a reason that has nothing to do with the row.
 		 */
 		it("shows no spend ceiling or limit beside the figure", async () => {
-			respondingWith({ rows: [runningRow], unreadable: [] });
+			respondingWith({ rows: [runningRow()], unreadable: [] });
 
 			renderPage();
 
@@ -595,11 +746,11 @@ describe(RunHistoryPage.name, () => {
 		 */
 		it("moves the stage, elapsed and spend readings with no page reload", async () => {
 			const bodies: RunHistoryResponseBody[] = [
-				{ rows: [runningRow], unreadable: [] },
+				{ rows: [runningRow()], unreadable: [] },
 				{
 					rows: [
 						{
-							...runningRow,
+							...runningRow(),
 							progress: {
 								state: "running",
 								stage: "review",
@@ -644,7 +795,7 @@ describe(RunHistoryPage.name, () => {
 			respondingWith({
 				rows: [
 					{
-						...runningRow,
+						...runningRow(),
 						progress: {
 							state: "running",
 							stage: "build",
@@ -673,7 +824,7 @@ describe(RunHistoryPage.name, () => {
 
 				return Promise.resolve(
 					Response.json({
-						rows: [{ ...runningRow, progress: { state: "recorded" } }],
+						rows: [{ ...runningRow(), progress: { state: "recorded" } }],
 						unreadable: [],
 					}),
 				);
@@ -710,8 +861,7 @@ describe(RunHistoryPage.name, () => {
 						grade: "A",
 						corpusVersion: { kind: "version", digest: "aaaaaa" },
 						corpusChangedDuringRun: false,
-						stale: false,
-						staleCauses: [],
+						staleness: unversionedStaleness({ stale: false, causes: [] }),
 						progress: { state: "recorded" },
 					},
 				],
@@ -746,8 +896,10 @@ describe(RunHistoryPage.name, () => {
 					grade: undefined,
 					corpusVersion: undefined,
 					corpusChangedDuringRun: false,
-					stale: true,
-					staleCauses: ["upstream stage initial is stale"],
+					staleness: unversionedStaleness({
+						stale: true,
+						causes: ["upstream stage initial is stale"],
+					}),
 					progress: { state: "recorded" },
 				},
 			],
@@ -784,8 +936,7 @@ describe(RunHistoryPage.name, () => {
 					grade: "B",
 					corpusVersion: { kind: "version", digest: "a3a62f" },
 					corpusChangedDuringRun: false,
-					stale: false,
-					staleCauses: [],
+					staleness: unversionedStaleness({ stale: false, causes: [] }),
 					progress: { state: "recorded" },
 				},
 			],
@@ -941,8 +1092,7 @@ describe(RunHistoryPage.name, () => {
 					grade: "B",
 					corpusVersion: { kind: "version", digest: "a3a62f" },
 					corpusChangedDuringRun: false,
-					stale: false,
-					staleCauses: [],
+					staleness: unversionedStaleness({ stale: false, causes: [] }),
 					progress: { state: "recorded" },
 					links: [
 						{
@@ -964,8 +1114,7 @@ describe(RunHistoryPage.name, () => {
 					grade: undefined,
 					corpusVersion: undefined,
 					corpusChangedDuringRun: false,
-					stale: false,
-					staleCauses: [],
+					staleness: unversionedStaleness({ stale: false, causes: [] }),
 					progress: { state: "recorded" },
 					links: [
 						{
@@ -977,6 +1126,7 @@ describe(RunHistoryPage.name, () => {
 				},
 				{
 					kind: "replay",
+					staleness: UNREAD_STALENESS,
 					corpusVersion: undefined,
 					...UNREAD_REPLAY_FIGURES,
 					shortId: undefined,
@@ -998,6 +1148,7 @@ describe(RunHistoryPage.name, () => {
 				},
 				{
 					kind: "session-attempt",
+					staleness: UNREAD_STALENESS,
 					corpusVersion: undefined,
 					...UNREAD_COST_AND_TIME,
 					shortId: undefined,
@@ -1014,6 +1165,7 @@ describe(RunHistoryPage.name, () => {
 				},
 				{
 					kind: "group",
+					staleness: UNREAD_STALENESS,
 					corpusVersion: undefined,
 					...UNREAD_GROUP_FIGURES,
 					shortId: undefined,
@@ -1207,8 +1359,7 @@ describe(RunHistoryPage.name, () => {
 					grade: undefined,
 					corpusVersion: undefined,
 					corpusChangedDuringRun: false,
-					stale: false,
-					staleCauses: [],
+					staleness: unversionedStaleness({ stale: false, causes: [] }),
 					progress: {
 						state: "running",
 						stage: "build",
@@ -1220,6 +1371,7 @@ describe(RunHistoryPage.name, () => {
 				},
 				{
 					kind: "replay",
+					staleness: UNREAD_STALENESS,
 					corpusVersion: undefined,
 					...UNREAD_REPLAY_FIGURES,
 					shortId: "audit-log/r6",
@@ -1235,6 +1387,7 @@ describe(RunHistoryPage.name, () => {
 				},
 				{
 					kind: "group",
+					staleness: UNREAD_STALENESS,
 					corpusVersion: undefined,
 					...UNREAD_GROUP_FIGURES,
 					shortId: "brief-reply/g4",
@@ -1312,8 +1465,7 @@ describe(RunHistoryPage.name, () => {
 					grade: undefined,
 					corpusVersion: undefined,
 					corpusChangedDuringRun: false,
-					stale: false,
-					staleCauses: [],
+					staleness: unversionedStaleness({ stale: false, causes: [] }),
 					progress: { state: "recorded" },
 				},
 			],
