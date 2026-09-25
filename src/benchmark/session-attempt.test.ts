@@ -1278,6 +1278,50 @@ describe(runSessionAttempt.name, () => {
 		]);
 	});
 
+	it("hashes project instructions the session loaded undeclared as the fixture seeded them", async () => {
+		const fixture = await mkdtemp(join(tmpdir(), "rehearse-fixture-"));
+		resources.track(fixture);
+		await writeFile(join(fixture, "CLAUDE.md"), "as seeded\n");
+		const projects = await projectsRoot();
+		const runClaude: SessionAttemptRequest["runClaude"] = async (
+			command,
+			cwd,
+		) => {
+			await writeFile(join(cwd, "CLAUDE.md"), "as the session left it\n");
+			const sessionId = namedSession(command);
+			const slug = join(projects, projectSlug(await realpath(cwd)));
+			await mkdir(slug, { recursive: true });
+			await writeFile(
+				join(slug, `${sessionId}.jsonl`),
+				`${[
+					readFileLine(sessionId, join(cwd, "CLAUDE.md")),
+					transcriptLine(sessionId, "OK"),
+				].join("\n")}\n`,
+			);
+
+			return envelope("OK");
+		};
+
+		const attempt = await runSessionAttempt(
+			request({
+				sessionCase: sessionCase({ fixturePath: fixture }),
+				projectsDirectory: projects,
+				recordDirectory: await recordDirectory(),
+				runClaude,
+			}),
+		);
+
+		expect(attempt).toMatchObject({
+			loadedProjectInstructions: ["CLAUDE.md"],
+			startingProjectFiles: [
+				{
+					path: "CLAUDE.md",
+					sha256: createHash("sha256").update("as seeded\n").digest("hex"),
+				},
+			],
+		});
+	});
+
 	it("keeps the declared project files' starting hashes on an attempt whose session failed", async () => {
 		const fixture = await mkdtemp(join(tmpdir(), "rehearse-fixture-"));
 		resources.track(fixture);

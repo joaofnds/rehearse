@@ -36,7 +36,7 @@ function targetPath(
  * The provider may record the target under a link-resolved path, so both
  * spellings of its root are tried.
  */
-async function loadedProjectInstructions(
+export async function loadedProjectInstructions(
 	lines: Immutable<readonly TranscriptLine[]>,
 	targetDir: string,
 ): Promise<readonly string[]> {

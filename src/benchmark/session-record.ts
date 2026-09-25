@@ -417,7 +417,12 @@ export function buildSessionAttemptRecord(
 				targetFiles: attempt.startingProjectFiles ?? [],
 				declared,
 				rubric: undefined,
-				observed: attempt.contextManifest ?? { paths: [] },
+				observed: {
+					paths: [
+						...(attempt.contextManifest?.paths ?? []),
+						...projectEntries(attempt.loadedProjectInstructions ?? []),
+					],
+				},
 			}),
 		],
 	};

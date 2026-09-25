@@ -593,7 +593,11 @@ describe("sessionAttemptRecordSchema", () => {
 					{ path: "AGENTS.md", half: "project" },
 				],
 			},
-			startingProjectFiles: [{ path: "AGENTS.md", sha256: "d".repeat(64) }],
+			startingProjectFiles: [
+				{ path: "AGENTS.md", sha256: "d".repeat(64) },
+				{ path: "CLAUDE.md", sha256: "e".repeat(64) },
+			],
+			loadedProjectInstructions: ["AGENTS.md", "CLAUDE.md"],
 		};
 
 		const built = buildSessionAttemptRecord({
@@ -618,7 +622,8 @@ describe("sessionAttemptRecordSchema", () => {
 			elapsedMs: 1,
 		});
 
-		expect(built.schemaVersion === 3 ? built.readManifest : undefined).toEqual([
+		expect(built).toMatchObject({ schemaVersion: 3 });
+		expect("readManifest" in built && built.readManifest).toEqual([
 			{
 				path: "CLAUDE.md",
 				half: "corpus",
@@ -645,6 +650,13 @@ describe("sessionAttemptRecordSchema", () => {
 				role: "read for context",
 				evidence: "observed",
 				sha256: "c".repeat(64),
+			},
+			{
+				path: "CLAUDE.md",
+				half: "project",
+				role: "project instructions",
+				evidence: "observed",
+				sha256: "e".repeat(64),
 			},
 		]);
 		expect(parseSessionAttemptRecord(JSON.stringify(built))).toEqual(built);

@@ -38,6 +38,7 @@ import {
 	toolUses,
 } from "./transcript";
 import { SessionInvocationError } from "./session-invocation-error";
+import { loadedProjectInstructions } from "./stage-reads";
 import { normalizeContextEvidence } from "./context-evidence";
 import { STORED_GIT_DIRECTORY } from "./git-directory-name";
 import { preserveStateEvidence } from "./session-state-evidence";
@@ -88,6 +89,8 @@ export interface SessionAttempt {
 	 * session could write them. A declared file the fixture lacked is absent.
 	 */
 	readonly startingProjectFiles?: readonly HashedFile[] | undefined;
+	/** Project instructions the session loaded, by their path in the target. */
+	readonly loadedProjectInstructions?: readonly string[] | undefined;
 	readonly transcriptDiagnostics: Immutable<TranscriptDiagnostics>;
 	readonly contextEvidence?: ContextEvidence | undefined;
 	readonly stateEvidenceDirectory?: string | undefined;
@@ -459,6 +462,25 @@ async function installCorpusOverlay(
 	return { styleName: snapshotStyleName(snapshot) };
 }
 
+/**
+ * Project instructions the session loaded without the case declaring them,
+ * hashed from the fixture that seeded them, since the session may since have
+ * rewritten its copy.
+ */
+function undeclaredProjectInstructions(
+	sessionCase: SessionCase,
+	loaded: readonly string[],
+): Promise<readonly HashedFile[]> {
+	if (sessionCase.fixturePath === undefined) {
+		return Promise.resolve([]);
+	}
+
+	return seededProjectFiles(
+		loaded.filter((path) => !sessionCase.projectFiles.includes(path)),
+		sessionCase.fixturePath,
+	);
+}
+
 async function seededProjectFiles(
 	projectFiles: readonly string[],
 	attemptDirectory: string,
@@ -529,13 +551,21 @@ export async function runSessionAttempt(
 				});
 			}
 
+			const recorded = await recordAttempt(request, attemptDirectory, {
+				output,
+				writtenTranscript: transcriptPath,
+				contextEvidence,
+			});
+
 			return {
-				...(await recordAttempt(request, attemptDirectory, {
-					output,
-					writtenTranscript: transcriptPath,
-					contextEvidence,
-				})),
-				startingProjectFiles,
+				...recorded,
+				startingProjectFiles: [
+					...startingProjectFiles,
+					...(await undeclaredProjectInstructions(
+						sessionCase,
+						recorded.loadedProjectInstructions ?? [],
+					)),
+				],
 			};
 		} finally {
 			await removeAttemptFiles(attemptDirectory, slug, transcriptPath);
@@ -771,6 +801,10 @@ async function recordAttempt(
 			outcome: result.outcome,
 			checks: result.results,
 			contextManifest: observedManifest(turn, request.sessionCase.projectFiles),
+			loadedProjectInstructions: await loadedProjectInstructions(
+				turn,
+				attemptDirectory,
+			),
 			transcriptDiagnostics: diagnostics,
 			stateEvidenceDirectory,
 			...stateGrade,
