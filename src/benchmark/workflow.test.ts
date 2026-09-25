@@ -60,6 +60,50 @@ describe("workflow provider metrics", () => {
 		});
 	});
 
+	it("charges a resumed Product Owner call only its increase over the session's reported total", async () => {
+		const usage = {
+			input_tokens: 50,
+			output_tokens: 10,
+			cache_read_input_tokens: 5,
+			cache_creation_input_tokens: 6,
+		};
+		const responses = [
+			JSON.stringify({
+				session_id: "po-session",
+				total_cost_usd: 0.2,
+				num_turns: 1,
+				usage,
+				structured_output: { answer: "Use the small scope" },
+			}),
+			JSON.stringify({
+				session_id: "po-session",
+				total_cost_usd: 0.5,
+				num_turns: 1,
+				usage,
+				structured_output: { answer: "Keep the same scope" },
+			}),
+		];
+		const productOwner = createProductOwner(
+			{
+				directory: "/target",
+				model: "sonnet",
+				sessionBudgetUsd: 5,
+				task: "Build it",
+				productBrief: "Keep it small",
+			},
+			() => Promise.resolve(responses.shift() ?? ""),
+		);
+
+		await productOwner.ask("shape", "Which scope?");
+		await productOwner.ask("shape", "Any constraints?");
+
+		const { spentUsd, providerCalls } = productOwner.snapshot();
+		const [first, resumed] = providerCalls;
+		expect(spentUsd).toBe(0.5);
+		expect(first?.metrics?.costUsd).toBe(0.2);
+		expect(resumed?.metrics?.costUsd).toBeCloseTo(0.3);
+	});
+
 	it("keeps an earlier Product Owner snapshot unchanged", async () => {
 		const responses = [
 			JSON.stringify({
