@@ -6,6 +6,7 @@ import type {
 	CheckpointRecord,
 	CheckpointStaleness,
 	HashedFile,
+	RecordedReads,
 	StageCorpus,
 } from "./checkpoint";
 import {
@@ -482,6 +483,45 @@ export async function checkpointStalenessOfRun(
 	);
 
 	return judged ?? [];
+}
+
+/**
+ * The read manifest of a stage that saved no checkpoint, judged against the
+ * corpus under test the way a checkpoint's is, from the corpus files its stage
+ * record keeps.
+ */
+export async function judgedStageReads(
+	runsDirectory: string,
+	run: string,
+	stage: string,
+	reads: RecordedReads,
+	source: CorpusRoot,
+): Promise<readonly JudgedReadEntry[]> {
+	const manifest = await loadRunManifest(
+		benchmarkRunPaths(runsDirectory, run).manifestFile,
+	);
+	const definition = manifest.pipeline.stages.find(
+		({ name }) => name === stage,
+	);
+	if (definition === undefined) {
+		throw new Error(`The run's pipeline does not declare the ${stage} stage`);
+	}
+
+	const now = await withLoadedFilesNow(
+		await stageCorpusNow(
+			definition.skill,
+			await currentInstructions(source),
+			source,
+		),
+		reads,
+		source,
+	);
+
+	return judgedReadManifest(
+		reads.readManifest,
+		comparedCorpus(now, stageCorpusChanges(readCorpusFiles(reads), now)),
+		definition,
+	);
 }
 
 interface CorpusJudgedAgainst {

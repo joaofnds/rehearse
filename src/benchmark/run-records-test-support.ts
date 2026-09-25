@@ -155,6 +155,7 @@ interface NewerRecordFields {
 		readonly metrics: Immutable<ClaudeCallMetrics>;
 	}[];
 	readonly readManifest?: readonly ReadManifestEntry[];
+	readonly corpusFiles?: readonly HashedFile[];
 }
 
 /** Adds fields to a JSON record already on disk, as a newer writer would. */
@@ -629,15 +630,18 @@ export class RecordedRunsFixture {
 		await Bun.write(file, serialize({ ...record, readManifest }));
 	}
 
-	/** Writes a read manifest onto a stage record, as a stopped stage keeps it. */
+	/**
+	 * Writes a read manifest onto a stage record, with the corpus files the
+	 * stage captured, as a stopped stage keeps them.
+	 */
 	public async recordStageReadManifest(
 		stage: string,
 		readManifest: readonly ReadManifestEntry[],
-		run = this.stoppedRun,
+		corpusFiles: readonly HashedFile[] = [],
 	): Promise<void> {
 		await mergeIntoRecord(
-			benchmarkRunPaths(this.runsDirectory, run).stageFile(stage),
-			{ readManifest },
+			benchmarkRunPaths(this.runsDirectory, this.stoppedRun).stageFile(stage),
+			{ readManifest, corpusFiles },
 		);
 	}
 

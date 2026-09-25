@@ -880,7 +880,7 @@ export function stageCorpusChanges(
 	return { causes: changedFileCauses(changedFiles), changedFiles };
 }
 
-interface RecordedReads {
+export interface RecordedReads {
 	readonly corpusFiles: readonly HashedFile[];
 	readonly readManifest?: readonly ReadManifestEntry[] | undefined;
 }

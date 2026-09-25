@@ -12,7 +12,10 @@ import type { ClaudeCallMetrics, Immutable } from "#benchmark/contracts";
 import { loadRunManifest } from "#benchmark/manifest";
 import { readManifestSchema } from "#benchmark/read-manifest";
 import type { CorpusRoot } from "#benchmark/corpus-file";
-import { checkpointStalenessOfRun } from "#benchmark/staleness-report";
+import {
+	checkpointStalenessOfRun,
+	judgedStageReads,
+} from "#benchmark/staleness-report";
 import type { JudgedReadEntry } from "#benchmark/staleness-report";
 import {
 	benchmarkRunPaths,
@@ -1054,17 +1057,48 @@ export async function readJudgedRunRecord(
 		checkpoints.map(({ id, readManifest }) => [id, readManifest]),
 	);
 
-	return {
-		...record,
-		stages: record.stages.map((stage) =>
+	const stages: RunRecordStage[] = [];
+	for (const stage of record.stages) {
+		stages.push(
 			withJudgedReadManifest(
 				stage,
 				judged.get(
 					formatRecordId({ kind: "checkpoint", run, stage: stage.stage }),
-				),
+				) ?? (await stoppedStageReads(runsDirectory, run, stage.stage, source)),
 			),
-		),
-	};
+		);
+	}
+
+	return { ...record, stages };
+}
+
+/**
+ * A stage that saved no checkpoint keeps its reads on its stage record, so
+ * they are judged from there, and left unjudged where the corpus under test
+ * cannot judge them.
+ */
+async function stoppedStageReads(
+	runsDirectory: string,
+	run: string,
+	stage: string,
+	source: CorpusRoot,
+): Promise<readonly JudgedReadEntry[] | undefined> {
+	const paths = benchmarkRunPaths(runsDirectory, run);
+	const file = await readStageFile(paths, stage);
+	if (
+		file?.readManifest === undefined ||
+		(await readCheckpoint(paths, stage)) !== undefined
+	) {
+		return undefined;
+	}
+
+	return judgedStageReads(
+		runsDirectory,
+		run,
+		stage,
+		{ corpusFiles: file.corpusFiles ?? [], readManifest: file.readManifest },
+		source,
+	).catch(() => undefined);
 }
 
 /** A stage whose recorded manifest the judged one stands in for, when there is one. */

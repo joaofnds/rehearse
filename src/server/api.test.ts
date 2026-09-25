@@ -673,6 +673,60 @@ describe(createApiApp.name, () => {
 			});
 		});
 
+		it("says of a stopped stage's read-manifest corpus entry whether that file changed since", async () => {
+			const fixture = await writtenFixture();
+			await fixture.writeStoppedRunEvidence();
+			const corpus = await corpusDirectory();
+			const instructions = {
+				path: "CLAUDE.md",
+				half: "corpus",
+				role: "global instructions",
+				evidence: "declared",
+				sha256: sha256Hex("the instructions\n"),
+			} as const;
+			const skill = {
+				path: "skills/build/SKILL.md",
+				half: "corpus",
+				role: "stage skill",
+				evidence: "declared",
+				sha256: sha256Hex("build skill\n"),
+			} as const;
+			await fixture.recordStageReadManifest(
+				"build",
+				[instructions, skill],
+				[instructions, skill].map(({ path, sha256 }) => ({ path, sha256 })),
+			);
+			await Bun.write(
+				join(corpus, "skills", "build", "SKILL.md"),
+				"build skill, edited\n",
+			);
+			const app = createApiApp({
+				runsDirectory: fixture.runsDirectory,
+				liveness: nothingRunning,
+				corpusSource: directorySource(corpus),
+			});
+
+			const response = await app.request(
+				`/api/runs/${encodeURIComponent(fixture.stoppedRun)}`,
+			);
+
+			expect(await response.json()).toMatchObject({
+				stages: [
+					{ stage: "discuss" },
+					{
+						stage: "build",
+						readManifest: {
+							state: "available",
+							entries: [
+								{ ...instructions, state: "unchanged" },
+								{ ...skill, state: "changed" },
+							],
+						},
+					},
+				],
+			});
+		});
+
 		it("serves the run with its read manifests unjudged when the corpus under test cannot judge them", async () => {
 			const fixture = await writtenFixture();
 			const corpus = await corpusDirectory();
