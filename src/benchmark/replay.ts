@@ -397,15 +397,7 @@ export async function runReplay(
 			priorArtifacts,
 		);
 
-		dependencies.log(`\n${request.stage} stage Judge`);
-		const scorecard = await dependencies.runStageJudge(
-			request.judgeModel,
-			request.judgeEffort,
-			request.sessionBudgetUsd,
-			session.input,
-			await dependencies.loadStageRubric(plan.definition),
-		);
-		const elapsedMs = now() - stageStartedAtMs;
+		const rubric = await dependencies.loadStageRubric(plan.definition);
 		const readManifest = await recordStageReads({
 			targetDir: worktreeDir,
 			startSha: baseSha,
@@ -425,9 +417,18 @@ export async function runReplay(
 			versionFiles: session.versionFiles,
 			rubric: {
 				path: plan.definition.rubric,
-				sha256: stageRubricSha256(scorecard.rubric),
+				sha256: stageRubricSha256(rubric.rubric),
 			},
 		});
+		dependencies.log(`\n${request.stage} stage Judge`);
+		const scorecard = await dependencies.runStageJudge(
+			request.judgeModel,
+			request.judgeEffort,
+			request.sessionBudgetUsd,
+			session.input,
+			rubric,
+		);
+		const elapsedMs = now() - stageStartedAtMs;
 
 		const timestamp = new Date().toISOString();
 		const record: ReplayRecord = {

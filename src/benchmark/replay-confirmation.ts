@@ -49,6 +49,8 @@ import type { ProductOwner } from "./workflow";
 import { WorkflowExecutionError } from "./workflow";
 import { claimShortId } from "./short-id";
 import { chainRubricCauses } from "./staleness-report";
+import { stageRubricSha256 } from "./judge-agreement";
+import { recordStageReads } from "./stage-reads";
 
 interface FrozenReplayInputs {
 	readonly manifest: Awaited<ReturnType<typeof loadRunManifest>>;
@@ -530,6 +532,25 @@ async function runReplayConfirmationBody(
 					frozen.plan.definition,
 					priorArtifacts,
 				);
+				const readManifest = await recordStageReads({
+					targetDir: plan.worktreePath,
+					startSha: baseSha,
+					transcript:
+						dependencies.projectsDirectory === undefined
+							? undefined
+							: {
+									sessionId: session.transcript.sessionId,
+									projectsDirectory: dependencies.projectsDirectory,
+								},
+					skill: frozen.plan.definition.skill,
+					corpusSources: [],
+					corpusFiles: session.corpusFiles,
+					versionFiles: session.versionFiles,
+					rubric: {
+						path: frozen.plan.definition.rubric,
+						sha256: stageRubricSha256(frozen.rubric.rubric),
+					},
+				});
 				const scorecard = await dependencies.runStageJudge(
 					request.judgeModel,
 					request.judgeEffort,
@@ -541,7 +562,7 @@ async function runReplayConfirmationBody(
 				const scorecardFile = repPaths.stageFile(request.stage);
 				await Bun.write(
 					scorecardFile,
-					`${JSON.stringify(scorecard, null, 2)}\n`,
+					`${JSON.stringify({ ...scorecard, readManifest }, null, 2)}\n`,
 				);
 				const record = completeRepRecord(
 					{

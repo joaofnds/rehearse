@@ -713,6 +713,47 @@ describe(runReplayConfirmation.name, () => {
 		});
 	});
 
+	it("records on each rep's stage file the judge rubric it was graded by", async () => {
+		const harness = new ReplayConfirmationHarness(testResources);
+		const run = await harness.recordedRun();
+
+		const corpusRoot = await mkdtemp(join(tmpdir(), "rehearse-corpus-"));
+		testResources.track(corpusRoot);
+		await Bun.write(join(corpusRoot, "skills", "discuss", "SKILL.md"), "d\n");
+
+		const outcome = await harness.runConfirmation(
+			{
+				paths: run.paths,
+				corpusRoots: [{ kind: "directory", root: corpusRoot }],
+			},
+			{ reps: 2 },
+		);
+
+		const rubricEntries = await Promise.all(
+			outcome.repRecordFiles.map(async (recordFile) =>
+				z
+					.object({
+						readManifest: z.array(
+							z.object({ path: z.string(), half: z.string() }).loose(),
+						),
+					})
+					.parse(
+						JSON.parse(
+							await Bun.file(
+								join(dirname(recordFile), "stages", "discuss.json"),
+							).text(),
+						),
+					)
+					.readManifest.filter(({ half }) => half === "rubric")
+					.map(({ path, half, role }) => ({ path, half, role })),
+			),
+		);
+		expect(rubricEntries).toEqual([
+			[{ path: "rubrics/discuss.json", half: "rubric", role: "judge rubric" }],
+			[{ path: "rubrics/discuss.json", half: "rubric", role: "judge rubric" }],
+		]);
+	});
+
 	it("retains completed stage evidence when the Judge invocation fails", async () => {
 		const metric: ClaudeCallMetrics = {
 			costUsd: 0.25,
