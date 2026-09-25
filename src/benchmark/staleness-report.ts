@@ -191,7 +191,7 @@ function rubricCauses(readManifest: readonly JudgedReadEntry[]): string[] {
 		.map(({ path }) => judgeRubricCause(path));
 }
 
-async function chainRubricCauses(
+export async function chainRubricCauses(
 	chain: readonly CheckpointRecord[],
 	stages: readonly StageDefinition[],
 ): Promise<ReadonlyMap<string, readonly string[]>> {

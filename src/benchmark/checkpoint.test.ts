@@ -880,7 +880,11 @@ describe(deriveStaleness.name, () => {
 		return corpus;
 	}
 
-	const request = { model: "sonnet", effort: "high" } as const;
+	const request = {
+		model: "sonnet",
+		effort: "high",
+		judgeRubricCauses: new Map<string, readonly string[]>(),
+	} as const;
 
 	it("reports every checkpoint fresh when nothing changed", () => {
 		const staleness = deriveStaleness(chain, currentCorpus(), request);
@@ -1108,6 +1112,7 @@ describe(deriveStaleness.name, () => {
 
 	it("marks every checkpoint including the initial one stale on a model change", () => {
 		const staleness = deriveStaleness(chain, currentCorpus(), {
+			...request,
 			model: "opus",
 			effort: "high",
 		});
@@ -1118,6 +1123,7 @@ describe(deriveStaleness.name, () => {
 
 	it("marks every checkpoint including the initial one stale on an effort change", () => {
 		const staleness = deriveStaleness(chain, currentCorpus(), {
+			...request,
 			model: "sonnet",
 			effort: "low",
 		});

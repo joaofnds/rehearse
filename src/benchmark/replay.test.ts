@@ -937,6 +937,37 @@ describe(runReplay.name, () => {
 		]);
 	});
 
+	it("records the replay stale when its upstream stage's judge rubric changed", async () => {
+		const run = await recordedRun(
+			[
+				{
+					path: "skills/discuss/SKILL.md",
+					sha256: createHash("sha256").update("discuss").digest("hex"),
+				},
+			],
+			[
+				{
+					path: "rubrics/discuss.json",
+					half: "rubric",
+					role: "judge rubric",
+					evidence: "declared",
+					sha256: "aa".repeat(32),
+				},
+			],
+		);
+		const fake = new ReplayConfirmationHarness(testResources);
+
+		const outcome = await runReplay(fake.dependencies, request(run, "build"));
+
+		expect(outcome.record.stale).toBe(true);
+		expect(outcome.record.staleness).toEqual([
+			{
+				stage: "discuss",
+				causes: ["judge rubric rubrics/discuss.json changed"],
+			},
+		]);
+	});
+
 	it("prints every stale checkpoint when the chain is stale", async () => {
 		const run = await recordedRun([
 			{ path: "skills/discuss/SKILL.md", sha256: "aa".repeat(32) },

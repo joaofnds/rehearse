@@ -48,6 +48,7 @@ import { recordRetentionRef } from "./target";
 import type { ProductOwner } from "./workflow";
 import { WorkflowExecutionError } from "./workflow";
 import { claimShortId } from "./short-id";
+import { chainRubricCauses } from "./staleness-report";
 
 interface FrozenReplayInputs {
 	readonly manifest: Awaited<ReturnType<typeof loadRunManifest>>;
@@ -149,6 +150,10 @@ async function freezeReplayInputs(
 	const staleness = deriveStaleness(plan.chain, chainCorpus, {
 		model: request.model,
 		effort: request.effort,
+		judgeRubricCauses: await chainRubricCauses(
+			plan.chain,
+			manifest.pipeline.stages,
+		),
 		settingsFile: request.loadedSettings?.hashed,
 	}).filter(({ stale }) => stale);
 	const rubric = await dependencies.loadStageRubric(plan.definition);

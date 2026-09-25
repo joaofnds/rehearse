@@ -33,6 +33,7 @@ import type { BenchmarkRunPaths } from "./run-layout";
 import { runNameFromTimestamp } from "./run-layout";
 import { bindReplay, claimShortId } from "./short-id";
 import { recordStageReads } from "./stage-reads";
+import { chainRubricCauses } from "./staleness-report";
 import { stageRubricSha256 } from "./judge-agreement";
 import type { loadStageRubric, runStageJudge } from "./stage-grading";
 import type { addWorktree, currentSha, removeWorktree } from "./target";
@@ -340,6 +341,10 @@ export async function runReplay(
 			{
 				model: request.model,
 				effort: request.effort,
+				judgeRubricCauses: await chainRubricCauses(
+					plan.chain,
+					manifest.pipeline.stages,
+				),
 				settingsFile: request.loadedSettings?.hashed,
 			},
 		).filter(({ stale }) => stale);

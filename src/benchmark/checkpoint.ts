@@ -711,7 +711,7 @@ interface StalenessInputs {
 	readonly model: string;
 	readonly effort?: Effort | undefined;
 	/** Each stage's judge rubric causes, which stale it without counting as corpus-file causes. */
-	readonly judgeRubricCauses?: ReadonlyMap<string, readonly string[]>;
+	readonly judgeRubricCauses: ReadonlyMap<string, readonly string[]>;
 }
 
 type SettingsComparison =
@@ -1025,7 +1025,7 @@ export function deriveStaleness(
 	for (const record of chain) {
 		const knobs = [
 			...knobCauses(record, request),
-			...(request.judgeRubricCauses?.get(record.stage) ?? []),
+			...(request.judgeRubricCauses.get(record.stage) ?? []),
 		];
 		const currentCorpus = current.get(record.stage);
 		const corpus =
