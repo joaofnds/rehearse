@@ -2074,11 +2074,31 @@ describe(runGradedStages.name, () => {
 		expect(stageRecord).not.toHaveProperty("judgeAgreement");
 	});
 
-	it("keeps what a stopped stage declared and loaded on its stage record, since it saves no checkpoint", async () => {
+	it("keeps what a stopped stage declared and loaded on its stop record, since it saves no checkpoint", async () => {
 		const { dependencies, scorecardFor } = fakeStageDependencies();
+		const persistence = new ControlledRunArtifactPersistence();
+		const abort = createRunAbort(
+			{
+				killActiveCommands: () => Promise.resolve(),
+				registerSignal: () => undefined,
+				releaseSignal: () => undefined,
+				exit: () => undefined,
+				reportError: () => undefined,
+				persistence,
+			},
+			{
+				artifactFile: "/runs/run.json",
+				teardown: () => Promise.resolve(),
+			},
+		);
 		const context = {
 			...(await stageContext()),
-			calibrateStageFailure: () => Promise.resolve(undefined),
+			writePendingStage: abort.writePendingStage,
+			updatePendingStage: abort.updatePendingStage,
+			writeStageProgress: abort.writeStageProgress,
+			completeStage: abort.completeStage,
+			calibrateStageFailure: (): Promise<CalibrationResult | undefined> =>
+				Promise.resolve(undefined),
 		};
 		const failing = {
 			...dependencies,
@@ -2090,14 +2110,16 @@ describe(runGradedStages.name, () => {
 			) => Promise.resolve(scorecardFor(input, "STOP")),
 		};
 
-		const outcome = runGradedStages(failing, context);
+		const stopped = runGradedStages(failing, context);
+		expect(stopped).rejects.toBeInstanceOf(StageQualityError);
+		await stopped.catch(() => undefined);
+		await abort.markAborted("shape stage graded F; minimum grade is C");
 
-		expect(outcome).rejects.toBeInstanceOf(StageQualityError);
-		await outcome.catch(() => undefined);
-		const stageRecord: unknown = JSON.parse(
-			await Bun.file(context.stageFile("shape")).text(),
+		const record: unknown = JSON.parse(
+			persistence.files.get(context.stageFile("shape")) ?? "",
 		);
-		expect(stageRecord).toMatchObject({
+		expect(record).toMatchObject({
+			status: "STAGE_JUDGE_FAILED",
 			readManifest: [
 				{
 					path: "CLAUDE.md",

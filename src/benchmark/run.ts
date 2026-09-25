@@ -879,6 +879,7 @@ export async function runGradedStages(
 			context.updatePendingStage({
 				...pendingStage,
 				scorecard,
+				readManifest,
 				stopped: {
 					minimumGrade:
 						context.minimumStageGrade ?? DEFAULT_MINIMUM_STAGE_GRADE,

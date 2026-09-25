@@ -10,6 +10,7 @@ import type {
 	StageScorecard,
 } from "./contracts";
 import type { JudgeAttempt } from "./judge-attempt";
+import type { ReadManifestEntry } from "./read-manifest";
 import type { RunEventRecorder } from "./run-events";
 import type { ProductOwnerSnapshot } from "./workflow";
 
@@ -24,6 +25,7 @@ export interface PendingStage {
 	readonly sessionBudgetUsd?: number | undefined;
 	readonly corpusFiles?: readonly HashedFile[] | undefined;
 	readonly corpusVersion?: CorpusMeasurement | undefined;
+	readonly readManifest?: readonly ReadManifestEntry[] | undefined;
 	readonly failure?:
 		| {
 				readonly prompt: string;
@@ -196,6 +198,7 @@ export async function writeStageJudgeFailure(
 				input: pending.input,
 				corpusFiles: pending.corpusFiles,
 				corpusVersion: pending.corpusVersion,
+				readManifest: pending.readManifest,
 				model: pending.model,
 				effort: pending.effort,
 				judgeModel: pending.judgeModel,
