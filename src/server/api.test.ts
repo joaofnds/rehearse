@@ -751,15 +751,58 @@ describe(createApiApp.name, () => {
 			);
 
 			expect(response.status).toBe(200);
-			expect(await response.json()).toMatchObject({
-				stages: [
-					{ stage: "discuss" },
-					{
-						stage: "build",
-						readManifest: { state: "available", entries: [entry] },
-					},
-				],
+			expect(await response.json()).toEqual(
+				expect.objectContaining({
+					stages: [
+						expect.objectContaining({ stage: "discuss" }),
+						expect.objectContaining({
+							stage: "build",
+							readManifest: { state: "available", entries: [entry] },
+						}),
+					],
+				}),
+			);
+		});
+
+		it("serves a stopped stage's read manifest unjudged when the corpus under test cannot judge it", async () => {
+			const fixture = await writtenFixture();
+			await fixture.writeStoppedRunEvidence();
+			const corpus = await corpusDirectory();
+			const skill = {
+				path: "skills/build/SKILL.md",
+				half: "corpus",
+				role: "stage skill",
+				evidence: "declared",
+				sha256: sha256Hex("build skill\n"),
+			} as const;
+			await fixture.recordStageReadManifest(
+				"build",
+				[skill],
+				[{ path: skill.path, sha256: skill.sha256 }],
+			);
+			await rm(join(corpus, "skills", "build"), { recursive: true });
+			const app = createApiApp({
+				runsDirectory: fixture.runsDirectory,
+				liveness: nothingRunning,
+				corpusSource: directorySource(corpus),
 			});
+
+			const response = await app.request(
+				`/api/runs/${encodeURIComponent(fixture.stoppedRun)}`,
+			);
+
+			expect(response.status).toBe(200);
+			expect(await response.json()).toEqual(
+				expect.objectContaining({
+					stages: [
+						expect.objectContaining({ stage: "discuss" }),
+						expect.objectContaining({
+							stage: "build",
+							readManifest: { state: "available", entries: [skill] },
+						}),
+					],
+				}),
+			);
 		});
 	});
 
