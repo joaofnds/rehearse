@@ -84,6 +84,15 @@ export async function recordFileFor(
 		case "group": {
 			return confirmationGroupPaths(runsDirectory, id.groupId).groupFile;
 		}
+		case "rep:stage": {
+			return confirmationGroupPaths(runsDirectory, id.groupId)
+				.rep(id.repId)
+				.stageFile(id.stage);
+		}
+		case "rep:session": {
+			return confirmationGroupPaths(runsDirectory, id.groupId).rep(id.repId)
+				.attemptFile;
+		}
 		case "comparison": {
 			return comparisonReportPaths(runsDirectory, id.manifestDigest).reportFile;
 		}

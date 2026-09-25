@@ -185,6 +185,67 @@ describe(runShow.name, () => {
 		expect(stdout).toBe(await Bun.file(fixture.stageAttemptFile).text());
 	});
 
+	it("prints a confirmation rep's stage file with the reads it recorded", async () => {
+		const fixture = await writtenFixture();
+		const repId = `${fixture.groupId}-rep-1`;
+		await fixture.recordGroupRepReadManifest(repId, "build", [
+			{
+				path: "skills/build/SKILL.md",
+				half: "corpus",
+				role: "stage skill",
+				evidence: "declared",
+				sha256: "b".repeat(64),
+			},
+		]);
+
+		const stdout = await printed(
+			`rep:stage:${fixture.groupId}/${repId}/build`,
+			false,
+			fixture.runsDirectory,
+		);
+
+		expect(stdout).toBe(
+			await Bun.file(
+				confirmationGroupPaths(fixture.runsDirectory, fixture.groupId)
+					.rep(repId)
+					.stageFile("build"),
+			).text(),
+		);
+	});
+
+	it("prints a session confirmation rep's attempt with the reads it recorded", async () => {
+		const fixture = await writtenFixture();
+		const repId = `${fixture.groupId}-rep-1`;
+		await fixture.recordSessionGroupRepAttempt(
+			fixture.groupId,
+			repId,
+			fixture.runsDirectory,
+			[],
+			[
+				{
+					path: "CLAUDE.md",
+					half: "project",
+					role: "project instructions",
+					evidence: "declared",
+				},
+			],
+		);
+
+		const stdout = await printed(
+			`rep:session:${fixture.groupId}/${repId}`,
+			false,
+			fixture.runsDirectory,
+		);
+
+		expect(stdout).toBe(
+			await Bun.file(
+				confirmationGroupPaths(fixture.runsDirectory, fixture.groupId).rep(
+					repId,
+				).attemptFile,
+			).text(),
+		);
+	});
+
 	it("prints the record that exists on disk for a run that stopped at a stage", async () => {
 		const fixture = await writtenFixture();
 		await fixture.writeStoppedRun();

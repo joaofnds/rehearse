@@ -14,6 +14,8 @@ const EVERY_FORM = [
 	"attempt:session:smoke/fa239c6c-6389-4999-b2f1-90708471af9d",
 	"attempt:stage:cafe1234/2026-09-03T00-00-00.000Z",
 	"group:group-1",
+	"rep:stage:group-1/group-1-rep-2/build",
+	"rep:session:group-1/group-1-rep-2",
 	`comparison:${"a".repeat(64)}`,
 ];
 
@@ -50,6 +52,27 @@ describe(parseRecordId.name, () => {
 		});
 	});
 
+	it("reads a rep stage id as the group, the rep and the stage it names", () => {
+		const id = parseRecordId("rep:stage:group-1/group-1-rep-2/build");
+
+		expect(id).toEqual({
+			kind: "rep:stage",
+			groupId: "group-1",
+			repId: "group-1-rep-2",
+			stage: "build",
+		});
+	});
+
+	it("reads a rep session id as the group and the rep it names", () => {
+		const id = parseRecordId("rep:session:group-1/group-1-rep-2");
+
+		expect(id).toEqual({
+			kind: "rep:session",
+			groupId: "group-1",
+			repId: "group-1-rep-2",
+		});
+	});
+
 	it.each(EVERY_FORM)("round-trips %s through its parsed value", (text) => {
 		expect(formatRecordId(parseRecordId(text))).toBe(text);
 	});
@@ -73,6 +96,10 @@ describe(parseRecordId.name, () => {
 			"checkpoint:run/../build",
 			"attempt:session:../smoke/uuid",
 			"attempt:stage:lineage/..",
+			"rep:stage:../rep/build",
+			"rep:stage:group/../build",
+			"rep:stage:group/rep/..",
+			"rep:session:group/..",
 		])("refuses %s as a usage error", (text) => {
 			expect(() => parseRecordId(text)).toThrow(UsageError);
 		});
@@ -117,6 +144,18 @@ describe(parseRecordId.name, () => {
 		it("refuses an attempt id that names no attempt kind", () => {
 			expect(() => parseRecordId("attempt:cafe1234/2026-09-03")).toThrow(
 				/attempt:session:<case>\/<uuid>/u,
+			);
+		});
+
+		it("refuses a rep id that names no rep kind", () => {
+			expect(() => parseRecordId("rep:group-1/group-1-rep-2")).toThrow(
+				/rep:stage:<group-id>\/<rep-id>\/<stage>/u,
+			);
+		});
+
+		it("names the three segments a rep stage id takes", () => {
+			expect(() => parseRecordId("rep:stage:group-1/group-1-rep-2")).toThrow(
+				/rep:stage:<group-id>\/<rep-id>\/<stage>/u,
 			);
 		});
 

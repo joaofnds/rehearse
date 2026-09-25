@@ -392,11 +392,12 @@ See [current state](docs/status.md) for implementation coverage and
   the CLI names it back: a kind prefix and the identity that kind already has
   on disk, `case:<id>`, `run:<name>`, `checkpoint:<run>/<stage>`,
   `attempt:stage:<lineage>/<timestamp>`, `attempt:session:<case>/<uuid>`,
-  `group:<group-id>`, `comparison:<manifest-digest>`. Every id `list` prints is
-  one `show` accepts, and the prefix is parsed once at the boundary into the
-  kind, so `show` never guesses which record a bare string named. `show` also
-  accepts a **short id**, resolved through its case's registry to the Record
-  ID it aliases.
+  `group:<group-id>`, `rep:stage:<group-id>/<rep-id>/<stage>`,
+  `rep:session:<group-id>/<rep-id>`, `comparison:<manifest-digest>`. Every id
+  `list` prints is one `show` accepts, and the prefix is parsed once at the
+  boundary into the kind, so `show` never guesses which record a bare string
+  named. `show` also accepts a **short id**, resolved through its case's
+  registry to the Record ID it aliases.
 - **Record summary** — the short markdown a session pastes onto a card,
   computed as a pure function of one parsed record: for a run its stages,
   grades, verdict, and cost; for a group its reliability summary and cost; for

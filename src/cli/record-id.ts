@@ -35,6 +35,19 @@ export interface GroupRecordId {
 	readonly groupId: string;
 }
 
+export interface RepStageRecordId {
+	readonly kind: "rep:stage";
+	readonly groupId: string;
+	readonly repId: string;
+	readonly stage: string;
+}
+
+export interface RepSessionRecordId {
+	readonly kind: "rep:session";
+	readonly groupId: string;
+	readonly repId: string;
+}
+
 export interface ComparisonRecordId {
 	readonly kind: "comparison";
 	readonly manifestDigest: string;
@@ -47,6 +60,8 @@ export type RecordId =
 	| SessionAttemptRecordId
 	| StageAttemptRecordId
 	| GroupRecordId
+	| RepStageRecordId
+	| RepSessionRecordId
 	| ComparisonRecordId;
 
 /**
@@ -77,6 +92,8 @@ const ID_FORMS: readonly string[] = [
 	"attempt:session:<case>/<uuid>",
 	"attempt:stage:<lineage>/<timestamp>",
 	"group:<group-id>",
+	"rep:stage:<group-id>/<rep-id>/<stage>",
+	"rep:session:<group-id>/<rep-id>",
 	"comparison:<manifest-digest>",
 ];
 
@@ -191,6 +208,53 @@ function parseAttemptId(id: string, body: string): RecordId {
 	);
 }
 
+function threeSegments(id: IdBody): readonly [string, string, string] {
+	const parts = id.body.split("/");
+	const [first, second, third] = parts;
+	if (
+		parts.length !== 3 ||
+		first === undefined ||
+		first === "" ||
+		second === undefined ||
+		second === "" ||
+		third === undefined ||
+		third === ""
+	) {
+		throw new UsageError(`Record id ${id.given} takes the form ${id.form}`);
+	}
+
+	return [confined(id, first), confined(id, second), confined(id, third)];
+}
+
+function parseRepId(id: string, body: string): RecordId {
+	const separator = body.indexOf(":");
+	const repKind = separator === -1 ? body : body.slice(0, separator);
+	const rest = separator === -1 ? "" : body.slice(separator + 1);
+
+	if (repKind === "stage") {
+		const [groupId, repId, stage] = threeSegments({
+			given: id,
+			form: "rep:stage:<group-id>/<rep-id>/<stage>",
+			body: rest,
+		});
+
+		return { kind: "rep:stage", groupId, repId, stage };
+	}
+	if (repKind === "session") {
+		const [groupId, repId] = twoSegments({
+			given: id,
+			form: "rep:session:<group-id>/<rep-id>",
+			body: rest,
+		});
+
+		return { kind: "rep:session", groupId, repId };
+	}
+
+	throw new UsageError(
+		`Record id rep:${body} names no rep kind: use rep:stage:<group-id>/<rep-id>/<stage> or rep:session:<group-id>/<rep-id>`,
+	);
+}
+
 /**
  * The one place a string becomes a record id. `show` holds the parsed value
  * and never asks which record a bare string named, and `formatRecordId` is its
@@ -236,6 +300,9 @@ export function parseRecordId(text: string): RecordId {
 				kind: "group",
 				groupId: segment({ given: text, form: "group:<group-id>", body }),
 			};
+		}
+		case "rep": {
+			return parseRepId(text, body);
 		}
 		case "comparison": {
 			return {
@@ -335,6 +402,12 @@ export function formatRecordId(id: RecordId): string {
 		}
 		case "group": {
 			return `group:${id.groupId}`;
+		}
+		case "rep:stage": {
+			return `rep:stage:${id.groupId}/${id.repId}/${id.stage}`;
+		}
+		case "rep:session": {
+			return `rep:session:${id.groupId}/${id.repId}`;
 		}
 		case "comparison": {
 			return `comparison:${id.manifestDigest}`;

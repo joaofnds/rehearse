@@ -768,15 +768,17 @@ the commands the same value, or the UI shows a store the commands do not write.
 Only `.benchmark-runs/` is git-ignored, so an override inside the repository
 leaves transcripts and run artifacts where git can see them.
 
-| ID accepted by `show`                 | Record location under the records directory                 |
-| ------------------------------------- | ----------------------------------------------------------- |
-| `case:<id>`                           | Declaration is outside run state, at `cases/<id>/case.json` |
-| `run:<name>`                          | `<name>.json`, or the stopped-stage record                  |
-| `checkpoint:<run>/<stage>`            | `<run>.checkpoints/<stage>/checkpoint.json`                 |
-| `attempt:stage:<lineage>/<timestamp>` | `replays/<lineage>/<timestamp>.json`                        |
-| `attempt:session:<case>/<uuid>`       | `sessions/<case>/<uuid>/attempt.json`                       |
-| `group:<group-id>`                    | `confirmations/<group-id>/group.json`                       |
-| `comparison:<digest>`                 | `comparisons/<digest>/report.json`                          |
+| ID accepted by `show`                   | Record location under the records directory                  |
+| --------------------------------------- | ------------------------------------------------------------ |
+| `case:<id>`                             | Declaration is outside run state, at `cases/<id>/case.json`  |
+| `run:<name>`                            | `<name>.json`, or the stopped-stage record                   |
+| `checkpoint:<run>/<stage>`              | `<run>.checkpoints/<stage>/checkpoint.json`                  |
+| `attempt:stage:<lineage>/<timestamp>`   | `replays/<lineage>/<timestamp>.json`                         |
+| `attempt:session:<case>/<uuid>`         | `sessions/<case>/<uuid>/attempt.json`                        |
+| `group:<group-id>`                      | `confirmations/<group-id>/group.json`                        |
+| `rep:stage:<group-id>/<rep-id>/<stage>` | `confirmations/<group-id>/reps/<rep-id>/stages/<stage>.json` |
+| `rep:session:<group-id>/<rep-id>`       | `confirmations/<group-id>/reps/<rep-id>/attempt.json`        |
+| `comparison:<digest>`                   | `comparisons/<digest>/report.json`                           |
 
 `show` also accepts a short id, an alias scoped by case: `<case>/r<n>` names
 a run, replay or session attempt, `<case>/g<n>` a confirmation group, and

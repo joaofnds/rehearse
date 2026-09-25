@@ -1172,6 +1172,40 @@ describe(createApiApp.name, () => {
 	});
 
 	describe("GET /api/records/:id", () => {
+		it("serves a confirmation rep's stage file with the reads it recorded", async () => {
+			const fixture = await writtenFixture();
+			const repId = `${fixture.groupId}-rep-1`;
+			await fixture.recordGroupRepReadManifest(repId, "build", [
+				{
+					path: "skills/build/SKILL.md",
+					half: "corpus",
+					role: "stage skill",
+					evidence: "declared",
+					sha256: "b".repeat(64),
+				},
+			]);
+			const app = createApiApp({
+				runsDirectory: fixture.runsDirectory,
+				liveness: nothingRunning,
+				corpusSource: directorySource(await corpusDirectory()),
+			});
+
+			const response = await app.request(
+				`/api/records/${encodeURIComponent(`rep:stage:${fixture.groupId}/${repId}/build`)}`,
+			);
+			const body = z
+				.object({
+					readManifest: z.array(z.object({ path: z.string() }).loose()),
+				})
+				.loose()
+				.parse(await response.json());
+
+			expect(response.status).toBe(200);
+			expect(body.readManifest.map((entry) => entry.path)).toEqual([
+				"skills/build/SKILL.md",
+			]);
+		});
+
 		it("refuses a record id whose segment escapes the runs directory, without a 500", async () => {
 			const fixture = await writtenFixture();
 			const app = createApiApp({
