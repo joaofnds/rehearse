@@ -1,20 +1,22 @@
 import { createHash } from "node:crypto";
 import { realpath } from "node:fs/promises";
-import { basename } from "node:path";
+import { basename, join } from "node:path";
 import type { HashedFile, StageTranscriptSource } from "./checkpoint";
 import { stageTranscriptFile } from "./checkpoint";
 import {
 	isCorpusLoad,
+	isCorpusRead,
 	loadedFiles,
 	observedManifest,
 	pathInsideAny,
 	projectEntries,
 } from "./context-manifest";
-import type { ContextManifest } from "./context-manifest";
+import type { ContextManifest, CorpusReadRoots } from "./context-manifest";
 import type { CorpusRoot } from "./corpus-file";
 import type { ReadManifestEntry } from "./read-manifest";
 import { PROJECT_INSTRUCTION_FILES, stageReadManifest } from "./read-manifest";
 import { runCommand } from "./command";
+import { statIfExists } from "./file-presence";
 import type { Immutable } from "./contracts";
 import type { TranscriptLine } from "./transcript";
 import { parseTranscriptFile } from "./transcript";
@@ -67,30 +69,34 @@ export async function spellings(
 ): Promise<readonly string[]> {
 	const found: string[] = [];
 	for (const directory of directories) {
-		found.push(directory, await realpath(directory).catch(() => directory));
+		found.push(
+			directory,
+			(await statIfExists(directory)) === undefined
+				? directory
+				: await realpath(directory),
+		);
 	}
 
 	return [...new Set(found)];
 }
 
 /**
- * Files the stage loaded from the target's own `.claude` that no corpus root
- * holds, by their path in the target. They come from the repository, not the
- * corpus under test, so they are the target's and are hashed as its starting
- * commit held them.
+ * Files the stage loaded from the target's own `.claude` that the corpus does
+ * not account for, by their path in the target. They come from the
+ * repository or the session, not the corpus under test, so they are the
+ * target's and are hashed as its starting commit held them.
  */
-async function loadedTargetClaudeFiles(
+function loadedTargetClaudeFiles(
 	lines: Immutable<readonly TranscriptLine[]>,
-	targetDir: string,
-	corpusRoots: readonly string[],
-): Promise<readonly string[]> {
-	const targetRoots = await spellings([targetDir]);
+	targetRoots: readonly string[],
+	corpusRoots: CorpusReadRoots,
+): readonly string[] {
 	const paths: string[] = [];
 	for (const path of loadedFiles(lines)) {
 		const inside = pathInsideAny(path, targetRoots);
 		if (
-			pathInsideAny(path, corpusRoots) === undefined &&
-			inside?.startsWith(".claude/") === true
+			inside?.startsWith(".claude/") === true &&
+			!isCorpusRead(path, corpusRoots)
 		) {
 			paths.push(inside);
 		}
@@ -155,10 +161,11 @@ export interface StageReadsRequest {
 	readonly transcript: StageTranscriptSource | undefined;
 	readonly skill: string;
 	/**
-	 * The directories the stage's corpus resolved from. Only a load under one
-	 * of them is a corpus entry.
+	 * The directories holding the whole corpus source the stage read past its
+	 * own `.claude`. A stage whose corpus was installed into its worktree has
+	 * none.
 	 */
-	readonly corpusRoots: readonly string[];
+	readonly corpusSources: readonly string[];
 	readonly corpusFiles: readonly HashedFile[];
 	/** The corpus version measured at the stage's start. */
 	readonly versionFiles: readonly HashedFile[];
@@ -175,10 +182,15 @@ export async function recordStageReads(
 			: await parseTranscriptFile(
 					stageTranscriptFile(request.targetDir, request.transcript),
 				);
-	const corpusRoots = await spellings(request.corpusRoots);
+	const targetRoots = await spellings([request.targetDir]);
+	const corpusRoots: CorpusReadRoots = {
+		sources: await spellings(request.corpusSources),
+		shadow: targetRoots.map((root) => join(root, ".claude")),
+		shadowed: request.corpusFiles.map((file) => file.path),
+	};
 	const projectPaths = [
 		...(await loadedProjectInstructions(lines, request.targetDir)),
-		...(await loadedTargetClaudeFiles(lines, request.targetDir, corpusRoots)),
+		...loadedTargetClaudeFiles(lines, targetRoots, corpusRoots),
 	];
 	const observed: ContextManifest = {
 		paths: [

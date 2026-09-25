@@ -47,27 +47,54 @@ export type ManifestDivergence =
  * the manifest entry is the suffix after the last one, not the loaded path
  * itself.
  *
- * A caller that knows the roots its corpus resolved from passes them, and then
- * only a load under one of them is a corpus file, by its path inside that
+ * A caller that knows where its corpus resolved from passes those roots, and
+ * then only a load they account for is a corpus file, by its path inside its
  * root. A `.claude/` directory anywhere else holds bytes the corpus version
  * never measured.
  */
 function readCorpusLayoutPath(
 	path: string,
-	corpusRoots?: readonly string[],
+	corpusRoots?: CorpusReadRoots,
 ): string | undefined {
-	if (isCorpusLayoutPath(path)) {
-		return path;
+	if (corpusRoots === undefined) {
+		const inside = isCorpusLayoutPath(path) ? path : corpusLayoutSuffix(path);
+
+		return inside !== undefined && isCorpusLayoutPath(inside)
+			? inside
+			: undefined;
 	}
 
+	const shadowed = pathInsideAny(path, corpusRoots.shadow);
 	const inside =
-		corpusRoots === undefined
-			? corpusLayoutSuffix(path)
-			: pathInsideAny(path, corpusRoots);
+		shadowed === undefined
+			? pathInsideAny(path, corpusRoots.sources)
+			: corpusRoots.shadowed.find((file) => file === shadowed);
 
 	return inside !== undefined && isCorpusLayoutPath(inside)
 		? inside
 		: undefined;
+}
+
+/**
+ * Where a session's corpus resolved from. A source directory holds the whole
+ * corpus, so any layout file under it is the corpus's. The `.claude` a
+ * session searches first, the target's own or the copy installed into it,
+ * holds corpus bytes only for the files the corpus resolved there at the
+ * start, so a file beside them came from the repository or was written by
+ * the session.
+ */
+export interface CorpusReadRoots {
+	readonly sources: readonly string[];
+	readonly shadow: readonly string[];
+	readonly shadowed: readonly string[];
+}
+
+/** Whether `path` is a load of the corpus under `corpusRoots`. */
+export function isCorpusRead(
+	path: string,
+	corpusRoots: CorpusReadRoots,
+): boolean {
+	return readCorpusLayoutPath(path, corpusRoots) !== undefined;
 }
 
 /** The path relative to the first of `roots` it lies under, if any. */
@@ -166,7 +193,7 @@ export function isCorpusLoad(path: string): boolean {
 export function observedManifest(
 	lines: Immutable<readonly TranscriptLine[]>,
 	declaredProjectFiles: readonly string[] = [],
-	corpusRoots?: readonly string[],
+	corpusRoots?: CorpusReadRoots,
 ): ContextManifest {
 	const loaded = loadedFiles(lines);
 	const corpusPaths = loaded

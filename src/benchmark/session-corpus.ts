@@ -244,21 +244,49 @@ function declares(
  * Output styles and agent definitions placed under the attempt directory's
  * `.claude` shadow the same-named user-level ones, verified on claude 2.1.258.
  * The attempt directory is the harness's own and no live session reads it, so
- * this is how a corpus variant reaches a session without an install.
+ * this is how a corpus variant reaches a session without an install. It
+ * returns the layout paths it installed.
  */
 export async function installSessionCorpusSnapshot(
 	snapshot: SessionCorpusSnapshot,
 	attemptDirectory: string,
-): Promise<void> {
+): Promise<readonly string[]> {
 	if (snapshot.kind === "live") {
-		return;
+		return [];
 	}
 
+	const installed: string[] = [];
 	for (const layoutPath of overlaidRoots(snapshot.declaredPaths)) {
+		const source = join(snapshot.root, layoutPath);
 		const target = join(attemptDirectory, ".claude", layoutPath);
 		await mkdir(dirname(target), { recursive: true });
-		await cp(join(snapshot.root, layoutPath), target, { recursive: true });
+		await cp(source, target, { recursive: true });
+		installed.push(...(await filesUnder(source, layoutPath)));
 	}
+
+	return installed;
+}
+
+/** The layout paths of the files `source` holds, itself when it is a file. */
+async function filesUnder(
+	source: string,
+	layoutPath: string,
+): Promise<readonly string[]> {
+	const found = await stat(source);
+	if (!found.isDirectory()) {
+		return [layoutPath];
+	}
+
+	const entries = await readdir(source, {
+		recursive: true,
+		withFileTypes: true,
+	});
+
+	return entries
+		.filter((entry) => entry.isFile())
+		.map((entry) =>
+			join(layoutPath, relative(source, join(entry.parentPath, entry.name))),
+		);
 }
 
 const SKILLS_KIND = "skills/";

@@ -850,7 +850,7 @@ export async function runGradedStages(
 			startSha: baselineSha,
 			transcript: stageTranscript,
 			skill: definition.skill,
-			corpusRoots: corpusSourceDirectories(context.corpusSource),
+			corpusSources: corpusSourceDirectories(context.corpusSource),
 			corpusFiles,
 			versionFiles,
 			rubric: {

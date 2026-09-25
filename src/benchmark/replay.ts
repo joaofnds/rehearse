@@ -417,9 +417,9 @@ export async function runReplay(
 							projectsDirectory: dependencies.projectsDirectory,
 						},
 			skill: plan.definition.skill,
-			corpusRoots:
+			corpusSources:
 				request.corpusSource.kind === "directory"
-					? [join(worktreeDir, ".claude")]
+					? []
 					: corpusSourceDirectories(request.corpusSource),
 			corpusFiles: session.corpusFiles,
 			versionFiles: session.versionFiles,

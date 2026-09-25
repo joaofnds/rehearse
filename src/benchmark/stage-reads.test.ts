@@ -56,7 +56,7 @@ describe("recordStageReads", () => {
 			startSha,
 			transcript: { sessionId: "session", projectsDirectory },
 			skill: "shape",
-			corpusRoots: [],
+			corpusSources: [],
 			corpusFiles: [],
 			versionFiles: [],
 			rubric: { path: "rubrics/shape.json", sha256: "e".repeat(64) },
@@ -116,7 +116,7 @@ describe("recordStageReads", () => {
 			startSha,
 			transcript: { sessionId: "session", projectsDirectory },
 			skill: "shape",
-			corpusRoots: [corpusRoot],
+			corpusSources: [corpusRoot],
 			corpusFiles: [],
 			versionFiles: [
 				{ path: "skills/delivery/SKILL.md", sha256: "d".repeat(64) },
@@ -159,7 +159,7 @@ describe("recordStageReads", () => {
 			startSha,
 			transcript: { sessionId: "session", projectsDirectory },
 			skill: "shape",
-			corpusRoots: [corpusRoot],
+			corpusSources: [corpusRoot],
 			corpusFiles: [],
 			versionFiles: [{ path: "skills/local/SKILL.md", sha256: "c".repeat(64) }],
 			rubric: { path: "rubrics/shape.json", sha256: "e".repeat(64) },
@@ -174,6 +174,86 @@ describe("recordStageReads", () => {
 				sha256: createHash("sha256")
 					.update("as the target held it\n")
 					.digest("hex"),
+			},
+		]);
+	});
+
+	it("counts only the files the harness installed in the stage's .claude as corpus reads", async () => {
+		const target = await testResources.createRepository();
+		const startSha = await currentSha(target.directory);
+		const claude = join(target.directory, ".claude");
+		const projectsDirectory = await transcriptOf(target.directory, [
+			join(claude, "skills", "delivery", "SKILL.md"),
+			join(claude, "skills", "planted", "SKILL.md"),
+			join(claude, "notes.md"),
+		]);
+
+		const manifest = await recordStageReads({
+			targetDir: target.directory,
+			startSha,
+			transcript: { sessionId: "session", projectsDirectory },
+			skill: "shape",
+			corpusSources: [],
+			corpusFiles: [
+				{ path: "skills/delivery/SKILL.md", sha256: "d".repeat(64) },
+			],
+			versionFiles: [
+				{ path: "skills/delivery/SKILL.md", sha256: "d".repeat(64) },
+				{ path: "skills/planted/SKILL.md", sha256: "a".repeat(64) },
+			],
+			rubric: { path: "rubrics/shape.json", sha256: "e".repeat(64) },
+		});
+
+		expect(manifest.filter(({ evidence }) => evidence === "observed")).toEqual([
+			{
+				path: "skills/delivery/SKILL.md",
+				half: "corpus",
+				role: "read for context",
+				evidence: "observed",
+				sha256: "d".repeat(64),
+			},
+			{
+				path: ".claude/skills/planted/SKILL.md",
+				half: "project",
+				role: "read for context",
+				evidence: "observed",
+			},
+			{
+				path: ".claude/notes.md",
+				half: "project",
+				role: "read for context",
+				evidence: "observed",
+			},
+		]);
+	});
+
+	it("records a target skill the corpus resolved in its place once, as the corpus's", async () => {
+		const target = await testResources.createRepository();
+		const startSha = await currentSha(target.directory);
+		const corpusRoot = await mkdtemp(join(tmpdir(), "rehearse-corpus-"));
+		testResources.track(corpusRoot);
+		const projectsDirectory = await transcriptOf(target.directory, [
+			join(target.directory, ".claude", "skills", "local", "SKILL.md"),
+		]);
+
+		const manifest = await recordStageReads({
+			targetDir: target.directory,
+			startSha,
+			transcript: { sessionId: "session", projectsDirectory },
+			skill: "shape",
+			corpusSources: [corpusRoot],
+			corpusFiles: [{ path: "skills/local/SKILL.md", sha256: "c".repeat(64) }],
+			versionFiles: [{ path: "skills/local/SKILL.md", sha256: "c".repeat(64) }],
+			rubric: { path: "rubrics/shape.json", sha256: "e".repeat(64) },
+		});
+
+		expect(manifest.filter(({ evidence }) => evidence === "observed")).toEqual([
+			{
+				path: "skills/local/SKILL.md",
+				half: "corpus",
+				role: "read for context",
+				evidence: "observed",
+				sha256: "c".repeat(64),
 			},
 		]);
 	});

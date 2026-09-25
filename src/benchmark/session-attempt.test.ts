@@ -407,22 +407,22 @@ describe(sessionCaseArgs.name, () => {
 	);
 });
 
+async function snapshotHolding(
+	layoutPath: string,
+	contents: string,
+): Promise<SessionCorpusSnapshot> {
+	const root = await resources.createControlDirectory();
+	await Bun.write(join(root, layoutPath), contents);
+
+	return {
+		kind: "directory",
+		root,
+		origin: { kind: "directory", source: root },
+		declaredPaths: [layoutPath],
+	};
+}
+
 describe("the corpus overlay a session attempt installs", () => {
-	async function snapshotHolding(
-		layoutPath: string,
-		contents: string,
-	): Promise<SessionCorpusSnapshot> {
-		const root = await resources.createControlDirectory();
-		await Bun.write(join(root, layoutPath), contents);
-
-		return {
-			kind: "directory",
-			root,
-			origin: { kind: "directory", source: root },
-			declaredPaths: [layoutPath],
-		};
-	}
-
 	it("places the snapshot's output style where the session reads it", async () => {
 		const projects = await projectsRoot();
 		const claude = new FakeClaude(projects, "OK");
@@ -1197,11 +1197,40 @@ describe(runSessionAttempt.name, () => {
 					(sessionId, cwd) => [skillBodyLine(sessionId, "verify", cwd)],
 					"OK",
 				),
+				corpusSnapshot: await snapshotHolding(
+					"skills/verify/SKILL.md",
+					"verify skill\n",
+				),
 			}),
 		);
 
 		expect(attempt.contextManifest?.paths).toContainEqual({
 			path: "skills/verify/SKILL.md",
+			half: "corpus",
+		});
+	});
+
+	it("leaves out of the recorded context manifest a skill the session wrote beside the installed corpus", async () => {
+		const projects = await projectsRoot();
+
+		const attempt = await runSessionAttempt(
+			request({
+				projectsDirectory: projects,
+				recordDirectory: await recordDirectory(),
+				runClaude: claudeWriting(
+					projects,
+					(sessionId, cwd) => [skillBodyLine(sessionId, "planted", cwd)],
+					"OK",
+				),
+				corpusSnapshot: await snapshotHolding(
+					"skills/verify/SKILL.md",
+					"verify skill\n",
+				),
+			}),
+		);
+
+		expect(attempt.contextManifest?.paths).not.toContainEqual({
+			path: "skills/planted/SKILL.md",
 			half: "corpus",
 		});
 	});

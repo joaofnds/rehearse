@@ -29,7 +29,7 @@ import {
 import { evaluateChecks } from "./session-check";
 import type { HashedFile } from "./checkpoint";
 import { hashFile } from "./checkpoint";
-import type { ContextManifest } from "./context-manifest";
+import type { ContextManifest, CorpusReadRoots } from "./context-manifest";
 import { observedManifest } from "./context-manifest";
 import type { TranscriptDiagnostics, TranscriptLine } from "./transcript";
 import {
@@ -43,7 +43,7 @@ import {
 	loadedProjectInstructions,
 	spellings,
 } from "./stage-reads";
-import { liveCorpusRoot } from "./corpus-file";
+import { liveCorpusSource } from "./corpus-file";
 import { normalizeContextEvidence } from "./context-evidence";
 import { STORED_GIT_DIRECTORY } from "./git-directory-name";
 import { preserveStateEvidence } from "./session-state-evidence";
@@ -447,25 +447,31 @@ async function fixtureHistoryOutput(
 
 interface CorpusOverlay {
 	readonly styleName: string | undefined;
+	readonly installed: readonly string[];
 }
 
 /**
- * Where the session reads its corpus: the overlay under the attempt directory,
- * and the live install when the variant is live or none was given. A load
- * from any other `.claude` is not the corpus under test.
+ * Where the session reads its corpus: the files installed into the overlay
+ * under the attempt directory, and the live install when the variant is live
+ * or none was given. A load from any other `.claude` is not the corpus under
+ * test.
  */
-function sessionCorpusDirectories(
+async function sessionCorpusRoots(
 	snapshot: SessionCorpusSnapshot | undefined,
 	attemptDirectory: string,
-): readonly string[] {
-	const overlay = join(attemptDirectory, ".claude");
-	if (snapshot === undefined) {
-		return [overlay, liveCorpusRoot()];
-	}
+	installed: readonly string[],
+): Promise<CorpusReadRoots> {
+	const source = snapshot ?? liveCorpusSource();
+	const attemptRoots = await spellings([attemptDirectory]);
 
-	return snapshot.kind === "live"
-		? [overlay, ...corpusSourceDirectories(snapshot)]
-		: [overlay];
+	return {
+		sources:
+			source.kind === "live"
+				? await spellings(corpusSourceDirectories(source))
+				: [],
+		shadow: attemptRoots.map((root) => join(root, ".claude")),
+		shadowed: installed,
+	};
 }
 
 /**
@@ -478,12 +484,13 @@ async function installCorpusOverlay(
 	attemptDirectory: string,
 ): Promise<CorpusOverlay> {
 	if (snapshot === undefined) {
-		return { styleName: undefined };
+		return { styleName: undefined, installed: [] };
 	}
 
-	await installSessionCorpusSnapshot(snapshot, attemptDirectory);
-
-	return { styleName: snapshotStyleName(snapshot) };
+	return {
+		styleName: snapshotStyleName(snapshot),
+		installed: await installSessionCorpusSnapshot(snapshot, attemptDirectory),
+	};
 }
 
 /**
@@ -579,6 +586,7 @@ export async function runSessionAttempt(
 				output,
 				writtenTranscript: transcriptPath,
 				contextEvidence,
+				installedCorpus: overlay.installed,
 			});
 
 			return {
@@ -604,6 +612,7 @@ interface AttemptOutput {
 	readonly output: string;
 	readonly writtenTranscript: string;
 	readonly contextEvidence?: ContextEvidence | undefined;
+	readonly installedCorpus: readonly string[];
 }
 
 interface PreservedTranscript {
@@ -827,8 +836,10 @@ async function recordAttempt(
 			contextManifest: observedManifest(
 				turn,
 				request.sessionCase.projectFiles,
-				await spellings(
-					sessionCorpusDirectories(request.corpusSnapshot, attemptDirectory),
+				await sessionCorpusRoots(
+					request.corpusSnapshot,
+					attemptDirectory,
+					attempt.installedCorpus,
 				),
 			),
 			loadedProjectInstructions: await loadedProjectInstructions(
