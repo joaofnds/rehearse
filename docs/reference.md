@@ -408,7 +408,7 @@ prefix's original conversation. Missing or changed bytes are refused.
 
 The corpus is the engineer's instruction set. The target's own `CLAUDE.md`,
 `AGENTS.md`, and project documents belong to the target. Rehearse's root
-`CLAUDE.md` instructs contributors working on Rehearse.
+`AGENTS.md` instructs contributors working on Rehearse.
 
 A corpus directory has this layout; only the entries needed by an execution
 must be present:

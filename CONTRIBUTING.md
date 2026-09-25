@@ -149,7 +149,7 @@ map to find its home:
 | Product direction or evidence standard                           | `docs/vision.md`                                     |
 | Domain meaning or UI vocabulary                                  | `GLOSSARY.md`                                        |
 | Toolchain, checks, or contributor workflow                       | `CONTRIBUTING.md`                                    |
-| Agent-specific project convention                                | `CLAUDE.md`, `tools/orchestration/worker-agent.json` |
+| Agent-specific project convention                                | `AGENTS.md`, `tools/orchestration/worker-agent.json` |
 
 CLI flag definitions in `src/cli/commands.ts`, scripts in `package.json`, and
 schemas in `src/benchmark/` are the sources for their respective contracts.
