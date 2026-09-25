@@ -516,13 +516,17 @@ export async function runSessionAttempt(
 			} catch (error) {
 				const failure =
 					error instanceof Error ? error : new Error(String(error));
-				throw await failedInvocation(
+				const invocation = await failedInvocation(
 					request,
 					attemptDirectory,
 					transcriptPath,
 					failure,
 					contextEvidence,
 				);
+				throw new SessionInvocationError(invocation.message, {
+					...invocation.attempt,
+					startingProjectFiles,
+				});
 			}
 
 			return {

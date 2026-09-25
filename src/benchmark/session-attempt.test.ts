@@ -1278,6 +1278,44 @@ describe(runSessionAttempt.name, () => {
 		]);
 	});
 
+	it("keeps the declared project files' starting hashes on an attempt whose session failed", async () => {
+		const fixture = await mkdtemp(join(tmpdir(), "rehearse-fixture-"));
+		resources.track(fixture);
+		await writeFile(join(fixture, "AGENTS.md"), "as seeded\n");
+		const projects = await projectsRoot();
+		const claude = new FakeClaude(projects, "OK");
+
+		const failure = await failureOf(
+			runSessionAttempt(
+				request({
+					sessionCase: sessionCase({
+						fixturePath: fixture,
+						projectFiles: ["AGENTS.md"],
+					}),
+					projectsDirectory: projects,
+					recordDirectory: await recordDirectory(),
+					runClaude: async (command, cwd) => {
+						await claude.run(command, cwd);
+
+						throw new Error("claude exited 1");
+					},
+				}),
+			),
+		);
+
+		expect(failure).toMatchObject({
+			attempt: {
+				outcome: "EXECUTION_FAILED",
+				startingProjectFiles: [
+					{
+						path: "AGENTS.md",
+						sha256: createHash("sha256").update("as seeded\n").digest("hex"),
+					},
+				],
+			},
+		});
+	});
+
 	it("names the last output_style attachment's layout path in the recorded context manifest", async () => {
 		const projects = await projectsRoot();
 
