@@ -783,7 +783,7 @@ export async function runGradedStages(
 			definition,
 			stageArtifacts,
 		);
-		const { corpusFiles, input } = session;
+		const { corpusFiles, corpusVersion, input } = session;
 		workflow.push(session.transcript);
 		if (session.artifact) {
 			stageArtifacts.push(session.artifact);
@@ -798,6 +798,7 @@ export async function runGradedStages(
 			stage,
 			input,
 			corpusFiles,
+			corpusVersion,
 			model: context.model,
 			effort: context.effort,
 			judgeModel: context.judgeModel,
@@ -833,6 +834,7 @@ export async function runGradedStages(
 		const stageRecord: StageJudgeRecord = {
 			...scorecard,
 			corpusFiles,
+			corpusVersion,
 			model: context.model,
 			judgeModel: context.judgeModel,
 			judgeEffort: context.judgeEffort,
@@ -886,7 +888,7 @@ export async function runGradedStages(
 				model: context.model,
 				effort: context.effort,
 				corpusFiles,
-				corpusVersion: session.corpusVersion,
+				corpusVersion,
 				artifacts: hashArtifacts(input.artifact ? [input.artifact] : []),
 				settingsFile: context.loadedSettings.hashed,
 				transcript:

@@ -1,4 +1,5 @@
 import type { HashedFile } from "./checkpoint";
+import type { CorpusMeasurement } from "./corpus-measurement";
 import type { Effort, WorkflowStage } from "./config";
 import type {
 	FailedJudgeRunArtifact,
@@ -22,6 +23,7 @@ export interface PendingStage {
 	readonly judgeEffort?: Effort | undefined;
 	readonly sessionBudgetUsd?: number | undefined;
 	readonly corpusFiles?: readonly HashedFile[] | undefined;
+	readonly corpusVersion?: CorpusMeasurement | undefined;
 	readonly failure?:
 		| {
 				readonly prompt: string;
@@ -193,6 +195,7 @@ export async function writeStageJudgeFailure(
 				error: reason,
 				input: pending.input,
 				corpusFiles: pending.corpusFiles,
+				corpusVersion: pending.corpusVersion,
 				model: pending.model,
 				effort: pending.effort,
 				judgeModel: pending.judgeModel,
@@ -273,6 +276,7 @@ export function createRunAbort(
 						status: "AWAITING_STAGE_JUDGE",
 						stage: pending.stage,
 						input: pending.input,
+						corpusVersion: pending.corpusVersion,
 						model: pending.model,
 						effort: pending.effort,
 						judgeModel: pending.judgeModel,

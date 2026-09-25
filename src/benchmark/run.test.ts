@@ -795,6 +795,7 @@ describe(runGradedStages.name, () => {
 				corpusFiles: z.array(
 					z.object({ path: z.string(), sha256: z.string() }),
 				),
+				corpusVersion: z.object({ kind: z.string(), digest: z.string() }),
 				model: z.string(),
 				effort: z.string(),
 			})
@@ -806,6 +807,7 @@ describe(runGradedStages.name, () => {
 					sha256: createHash("sha256").update("shape").digest("hex"),
 				},
 			],
+			corpusVersion: { kind: "version", digest: "c".repeat(64) },
 			model: "opus",
 			effort: "high",
 		});
@@ -1023,7 +1025,7 @@ describe(runGradedStages.name, () => {
 		expect(pendingStages.at(-1)?.scorecard?.grade.verdict).toBe("STOP");
 	});
 
-	it("keeps the judge's findings and captured corpus files in the aborted stage artifact after a normal grade failure", async () => {
+	it("keeps the judge's findings, captured corpus files and corpus version in the aborted stage artifact after a normal grade failure", async () => {
 		const { dependencies, scorecardFor } = fakeStageDependencies();
 		const persistence = new ControlledRunArtifactPersistence();
 		const abort = createRunAbort(
@@ -1083,6 +1085,7 @@ describe(runGradedStages.name, () => {
 					sha256: createHash("sha256").update("shape").digest("hex"),
 				},
 			],
+		corpusVersion: { kind: "version", digest: "c".repeat(64) },
 		});
 	});
 

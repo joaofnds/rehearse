@@ -225,6 +225,7 @@ export async function writeStoppedStageFixture(
 		JSON.stringify({
 			...scorecard,
 			corpusFiles: [],
+			corpusVersion: { kind: "version", digest: "c".repeat(64) },
 			model: "sonnet",
 			effort: "medium",
 			...judgeKnobs,

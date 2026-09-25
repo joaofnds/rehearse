@@ -508,6 +508,7 @@ describe(createRunAbort.name, () => {
 		await abort.completeStage({
 			...stageScorecard("PASS"),
 			corpusFiles: [],
+			corpusVersion: { kind: "version", digest: "c".repeat(64) },
 			model: "sonnet",
 			judgeModel: "opus",
 			sessionBudgetUsd: 5,
@@ -550,6 +551,7 @@ describe(createRunAbort.name, () => {
 		await abort.completeStage({
 			...stageScorecard("PASS"),
 			corpusFiles: [],
+			corpusVersion: { kind: "version", digest: "c".repeat(64) },
 			model: "sonnet",
 			judgeModel: "opus",
 			sessionBudgetUsd: 5,
@@ -838,6 +840,7 @@ describe(createRunAbort.name, () => {
 		const completionWrite = abort.completeStage({
 			...stageScorecard("PASS"),
 			corpusFiles: [],
+			corpusVersion: { kind: "version", digest: "c".repeat(64) },
 			model: "sonnet",
 			judgeModel: "opus",
 			sessionBudgetUsd: 5,
@@ -877,6 +880,7 @@ describe(createRunAbort.name, () => {
 		const completionWrite = abort.completeStage({
 			...stageScorecard("PASS"),
 			corpusFiles: [],
+			corpusVersion: { kind: "version", digest: "c".repeat(64) },
 			model: "sonnet",
 			judgeModel: "opus",
 			sessionBudgetUsd: 5,

@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import type { CheckpointRecord, HashedFile } from "./checkpoint";
+import type { CorpusMeasurement } from "./corpus-measurement";
 import type { Effort, WorkflowStage } from "./config";
 import { STAGE_LETTER_GRADES } from "./config";
 import type { JudgeAttempt } from "./judge-attempt";
@@ -410,6 +411,7 @@ export interface StageScorecard {
 
 export interface StageJudgeRecord extends StageScorecard {
 	readonly corpusFiles: readonly HashedFile[];
+	readonly corpusVersion: CorpusMeasurement;
 	readonly model: string;
 	readonly judgeModel: string;
 	readonly judgeEffort?: Effort | undefined;
