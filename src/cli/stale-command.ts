@@ -9,6 +9,7 @@ import {
 } from "#benchmark/corpus-source";
 import type { RecordStaleness } from "#benchmark/staleness-report";
 import {
+	groupStaleness,
 	replayAttemptStaleness,
 	sessionAttemptStaleness,
 	staleCheckpoints,
@@ -123,15 +124,21 @@ async function report(
 		source,
 		request,
 	);
+	const groups = await groupStaleness(request.runsDirectory, source, request);
 	const stale = [
 		...(await refusingCorpusFailures(() =>
 			staleCheckpoints(request.runsDirectory, source, request),
 		)),
 		...attempts.records.filter((record) => record.stale),
 		...replays.records.filter((record) => record.stale),
+		...groups.records.filter((record) => record.stale),
 	];
 
-	writeUnreadable(output, [...attempts.unreadable, ...replays.unreadable]);
+	writeUnreadable(output, [
+		...attempts.unreadable,
+		...replays.unreadable,
+		...groups.unreadable,
+	]);
 	const shortIds = await shortIdsByRecordId(request.runsDirectory);
 	for (const record of stale) {
 		output.stdout(

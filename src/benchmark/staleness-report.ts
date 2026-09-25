@@ -1,8 +1,10 @@
 import type { CaseDeclaration, SessionCaseDeclaration } from "./case";
 import { listCases } from "./case";
+import { join } from "node:path";
 import type {
 	ChangedCorpusFile,
 	CheckpointRecord,
+	HashedFile,
 	StageCorpus,
 } from "./checkpoint";
 import {
@@ -31,11 +33,17 @@ import {
 } from "./corpus-file";
 import type { VersionDistance } from "./corpus-version";
 import { readCorpusUnderTest } from "./corpus-version";
+import { parseConfirmationGroupRecord } from "./confirmation-record";
+import type { ParsedConfirmationGroupRecord } from "./confirmation-record";
 import { loadRunManifest } from "./manifest";
 import type { RunManifest } from "./manifest";
+import { pipelineDefinitionSchema } from "./pipeline";
+import type { PipelineDefinition } from "./pipeline";
 import {
 	benchmarkRunPaths,
 	checkpointRecordFile,
+	confirmationGroupIds,
+	confirmationGroupPaths,
 	recordedRunNames,
 	replayAttemptIds,
 	replayRecordFile,
@@ -154,6 +162,19 @@ async function currentInstructions(
 	}
 }
 
+/** A stage's corpus in the corpus under test, or why it cannot be hashed. */
+function stageCorpusNow(
+	skill: string,
+	instructions: CurrentInstructions,
+	source: CorpusRoot,
+): Promise<StageCorpus> {
+	if ("refused" in instructions) {
+		return Promise.resolve(refusedCorpus(instructions.refused));
+	}
+
+	return hashedOrRefused(skill, instructions.text, [source]);
+}
+
 /**
  * `stale` answers one question per invocation: what the corpus the operator
  * named invalidated. So a live corpus here is the operator's install, not the
@@ -170,7 +191,6 @@ async function currentStageCorpus(
 	instructions: CurrentInstructions,
 ): Promise<ReadonlyMap<string, StageCorpus>> {
 	const corpus = new Map<string, StageCorpus>();
-	const roots = [source];
 
 	for (const record of chain) {
 		if (record.stage === INITIAL_CHECKPOINT_STAGE) {
@@ -186,9 +206,7 @@ async function currentStageCorpus(
 
 		corpus.set(
 			record.stage,
-			"refused" in instructions
-				? refusedCorpus(instructions.refused)
-				: await hashedOrRefused(definition.skill, instructions.text, roots),
+			await stageCorpusNow(definition.skill, instructions, source),
 		);
 	}
 
@@ -405,7 +423,11 @@ export async function sessionAttemptStaleness(
 	return { records, unreadable };
 }
 
-function replayKnobCauses(
+/**
+ * A model or effort the caller names that differs from the one the record ran
+ * with. An unnamed knob asserts nothing, as it does for a checkpoint.
+ */
+function namedKnobCauses(
 	record: Pick<ReplayRecord, "model" | "effort">,
 	knobs: CurrentSessionKnobs,
 ): readonly string[] {
@@ -437,11 +459,8 @@ async function currentReplayCorpus(
 			`the run's pipeline does not declare the ${record.stage} stage it replayed`,
 		);
 	}
-	if ("refused" in instructions) {
-		return refusedCorpus(instructions.refused);
-	}
 
-	return hashedOrRefused(definition.skill, instructions.text, [source]);
+	return stageCorpusNow(definition.skill, instructions, source);
 }
 
 /**
@@ -482,7 +501,7 @@ export async function replayAttemptStaleness(
 				...(staleCheckpointIds.has(consumed)
 					? [`upstream stage ${record.consumed.stage} is stale`]
 					: []),
-				...replayKnobCauses(record, knobs),
+				...namedKnobCauses(record, knobs),
 				...corpus.causes,
 			];
 			records.push({
@@ -491,6 +510,170 @@ export async function replayAttemptStaleness(
 				causes,
 				changedFiles: corpus.changedFiles,
 				distance: underTest.distanceOf(record.corpusVersion),
+			});
+		} catch (error) {
+			unreadable.push({
+				id,
+				reason: error instanceof Error ? error.message : String(error),
+			});
+		}
+	}
+
+	return { records, unreadable };
+}
+
+const FROZEN_CORPUS = "inputs/corpus/";
+
+type CorpusChanges = Pick<RecordStaleness, "causes" | "changedFiles">;
+
+type FrozenGroupFile = ParsedConfirmationGroupRecord["inputs"]["files"][number];
+
+/** The frozen corpus files under one prefix, by the layout path each holds. */
+function frozenCorpusFiles(
+	files: readonly FrozenGroupFile[],
+	prefix: string,
+): readonly HashedFile[] {
+	return files
+		.filter(({ kind, path }) => kind === "corpus" && path.startsWith(prefix))
+		.map(({ path, sha256 }) => ({ path: path.slice(prefix.length), sha256 }));
+}
+
+/**
+ * A group freezes one corpus per stage, and a file every stage reads, the
+ * instructions for one, sits in each of them. The reader is owed one line per
+ * file, so a file that changed under several stages is named once.
+ */
+function mergedChanges(changes: readonly CorpusChanges[]): CorpusChanges {
+	const causes = new Set(changes.flatMap((change) => change.causes));
+	const changedFiles = new Map(
+		changes.flatMap((change) =>
+			change.changedFiles.map((file) => [file.path, file] as const),
+		),
+	);
+
+	return {
+		causes: [...causes].toSorted(),
+		changedFiles: [...changedFiles.values()].toSorted((first, second) =>
+			first.path.localeCompare(second.path),
+		),
+	};
+}
+
+async function frozenPipeline(
+	groupDirectory: string,
+	files: readonly FrozenGroupFile[],
+): Promise<PipelineDefinition> {
+	const frozen = files.find(({ kind }) => kind === "pipeline");
+	if (frozen === undefined) {
+		throw new Error("the group froze no pipeline to hash its stages against");
+	}
+
+	return pipelineDefinitionSchema.parse(
+		JSON.parse(await Bun.file(join(groupDirectory, frozen.path)).text()),
+	);
+}
+
+/**
+ * A stage or pipeline group is judged per stage it froze, against the skill
+ * its frozen pipeline names for that stage, so a later edit to the case's
+ * pipeline does not change what the group is compared with.
+ */
+async function stageGroupChanges(
+	groupDirectory: string,
+	files: readonly FrozenGroupFile[],
+	source: CorpusRoot,
+	instructions: CurrentInstructions,
+): Promise<CorpusChanges> {
+	const pipeline = await frozenPipeline(groupDirectory, files);
+	const changes: CorpusChanges[] = [];
+
+	for (const stage of pipeline.stages) {
+		const recorded = frozenCorpusFiles(files, `${FROZEN_CORPUS}${stage.name}/`);
+		if (recorded.length === 0) {
+			continue;
+		}
+
+		changes.push(
+			stageCorpusChanges(
+				recorded,
+				await stageCorpusNow(stage.skill, instructions, source),
+			),
+		);
+	}
+
+	return mergedChanges(changes);
+}
+
+async function sessionGroupChanges(
+	caseId: string,
+	files: readonly FrozenGroupFile[],
+	source: CorpusRoot,
+): Promise<CorpusChanges> {
+	const listing = await listCases();
+	const declaration = sessionCases(listing.declarations).find(
+		({ id }) => id === caseId,
+	);
+	if (declaration === undefined) {
+		throw new Error(
+			`case ${caseId} is no longer declared as a session case, so its corpus files are unknown`,
+		);
+	}
+
+	return stageCorpusChanges(
+		frozenCorpusFiles(files, FROZEN_CORPUS),
+		await currentCaseCorpus(declaration, source),
+	);
+}
+
+/**
+ * Every confirmation group judged against the corpus under test by the corpus
+ * files it froze. A group froze its checkpoint and pipeline too, so nothing
+ * upstream of it in the live run records can stale it, and its settings are
+ * compared by the checkpoint it froze rather than here.
+ */
+export async function groupStaleness(
+	runsDirectory: string,
+	source: CorpusRoot,
+	knobs: CurrentSessionKnobs = {},
+): Promise<StalenessReport> {
+	const instructions = await currentInstructions(source);
+	const underTest = await readCorpusUnderTest(runsDirectory, source);
+	const records: RecordStaleness[] = [];
+	const unreadable: UnreadableStaleRecord[] = [];
+
+	for (const groupId of await confirmationGroupIds(runsDirectory)) {
+		const id = `group:${groupId}`;
+		const paths = confirmationGroupPaths(runsDirectory, groupId);
+		const text = await textIfPresent(paths.groupFile);
+		if (text === undefined) {
+			continue;
+		}
+
+		try {
+			const record = parseConfirmationGroupRecord(text);
+			const corpus =
+				record.mode === "session"
+					? await sessionGroupChanges(
+							record.caseId,
+							record.inputs.files,
+							source,
+						)
+					: await stageGroupChanges(
+							paths.directory,
+							record.inputs.files,
+							source,
+							instructions,
+						);
+			const causes = [
+				...namedKnobCauses(record.inputs, knobs),
+				...corpus.causes,
+			];
+			records.push({
+				id,
+				stale: causes.length > 0,
+				causes,
+				changedFiles: corpus.changedFiles,
+				distance: underTest.distanceOf(record.inputs.corpusVersion),
 			});
 		} catch (error) {
 			unreadable.push({

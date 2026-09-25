@@ -13,6 +13,7 @@ import {
 import { TestResources } from "./test-support";
 import {
 	checkpointStaleness,
+	groupStaleness,
 	replayAttemptStaleness,
 	sessionAttemptStaleness,
 	staleCheckpoints,
@@ -602,6 +603,157 @@ describe(replayAttemptStaleness.name, () => {
 		expect(report.records.map(({ causes }) => causes)).toEqual([
 			["model sonnet is now opus"],
 		]);
+	});
+});
+
+describe(groupStaleness.name, () => {
+	const roots: string[] = [];
+
+	afterEach(async () => {
+		await Promise.all(
+			roots.splice(0).map((root) => rm(root, { force: true, recursive: true })),
+		);
+	});
+
+	async function temporaryDirectory(prefix: string): Promise<string> {
+		const root = await mkdtemp(join(tmpdir(), prefix));
+		roots.push(root);
+
+		return root;
+	}
+
+	async function stageCorpus(): Promise<string> {
+		const corpus = await temporaryDirectory("rehearse-group-corpus-");
+		await mkdir(join(corpus, "skills", "build"), { recursive: true });
+		await mkdir(join(corpus, "skills", "discuss"), { recursive: true });
+		await Bun.write(join(corpus, "CLAUDE.md"), "the instructions\n");
+		await Bun.write(join(corpus, "skills", "build", "SKILL.md"), "build\n");
+		await Bun.write(join(corpus, "skills", "discuss", "SKILL.md"), "discuss\n");
+
+		return corpus;
+	}
+
+	async function fixtureWithGroupFrom(
+		corpus: string,
+	): Promise<RecordedRunsFixture> {
+		const fixture = new RecordedRunsFixture(
+			await temporaryDirectory("rehearse-group-staleness-"),
+		);
+		await fixture.write();
+		await fixture.recordGroupFrom(directorySource(corpus));
+
+		return fixture;
+	}
+
+	it("names each frozen stage corpus file that changed, with its version distance", async () => {
+		const corpus = await stageCorpus();
+		const fixture = await fixtureWithGroupFrom(corpus);
+		await Bun.write(join(corpus, "skills", "build", "SKILL.md"), "edited\n");
+
+		const report = await groupStaleness(
+			fixture.runsDirectory,
+			directorySource(corpus),
+		);
+
+		expect(report).toEqual({
+			records: [
+				{
+					id: `group:${fixture.groupId}`,
+					stale: true,
+					causes: ["skills/build/SKILL.md changed"],
+					changedFiles: [{ path: "skills/build/SKILL.md", change: "changed" }],
+					distance: { kind: "measured", versions: 1 },
+				},
+			],
+			unreadable: [],
+		});
+	});
+
+	it("names a file every stage froze once", async () => {
+		const corpus = await stageCorpus();
+		const fixture = await fixtureWithGroupFrom(corpus);
+		await Bun.write(join(corpus, "CLAUDE.md"), "edited instructions\n");
+
+		const report = await groupStaleness(
+			fixture.runsDirectory,
+			directorySource(corpus),
+		);
+
+		expect(report.records.map(({ causes }) => causes)).toEqual([
+			["CLAUDE.md changed"],
+		]);
+	});
+
+	it("reports the group clean at distance 0 when nothing it froze changed", async () => {
+		const corpus = await stageCorpus();
+		const fixture = await fixtureWithGroupFrom(corpus);
+
+		const report = await groupStaleness(
+			fixture.runsDirectory,
+			directorySource(corpus),
+		);
+
+		expect(report.records).toEqual([
+			{
+				id: `group:${fixture.groupId}`,
+				stale: false,
+				causes: [],
+				changedFiles: [],
+				distance: { kind: "measured", versions: 0 },
+			},
+		]);
+	});
+
+	it("names each frozen session corpus file that changed", async () => {
+		const corpus = await temporaryDirectory("rehearse-group-style-");
+		await mkdir(join(corpus, "output-styles"), { recursive: true });
+		await Bun.write(join(corpus, "output-styles", "brief.md"), "brief\n");
+		const fixture = new RecordedRunsFixture(
+			await temporaryDirectory("rehearse-session-group-"),
+		);
+		await fixture.recordSessionGroupFrom("session-group", corpus, [
+			"output-styles/brief.md",
+		]);
+		await Bun.write(join(corpus, "output-styles", "brief.md"), "edited\n");
+
+		const report = await groupStaleness(
+			fixture.runsDirectory,
+			directorySource(corpus),
+		);
+
+		expect(report.records).toEqual([
+			{
+				id: "group:session-group",
+				stale: true,
+				causes: ["output-styles/brief.md changed"],
+				changedFiles: [{ path: "output-styles/brief.md", change: "changed" }],
+				distance: { kind: "measured", versions: 1 },
+			},
+		]);
+	});
+
+	describe("when a stage group froze no pipeline", () => {
+		it("names the group unreadable rather than judging it", async () => {
+			const fixture = new RecordedRunsFixture(
+				await temporaryDirectory("rehearse-group-no-pipeline-"),
+			);
+			await fixture.write();
+
+			const report = await groupStaleness(
+				fixture.runsDirectory,
+				directorySource(await stageCorpus()),
+			);
+
+			expect(report).toEqual({
+				records: [],
+				unreadable: [
+					{
+						id: `group:${fixture.groupId}`,
+						reason: "the group froze no pipeline to hash its stages against",
+					},
+				],
+			});
+		});
 	});
 });
 

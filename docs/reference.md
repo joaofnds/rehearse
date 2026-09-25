@@ -682,7 +682,12 @@ its case declares, so an older attempt is named as well as the newest, and a
 session case with no prior attempt has no stale measurement. Every stage replay
 is judged against the stage corpus it read, and is also stale when the
 checkpoint it consumed is stale or when a model or effort flag differs from the
-one it ran with.
+one it ran with. Every confirmation group is judged by the corpus files it
+froze: a stage or pipeline group per stage, against the skill its frozen
+pipeline names, and a session group against the files its case declares. A
+file several stages froze is named once. A group froze its own checkpoint, so
+no live checkpoint can stale it, and a stage or pipeline group that froze no
+pipeline is named on stderr rather than judged.
 
 Each line `stale` prints is the record id, its short id or `-`, its version
 distance, and each cause. The distance reads `distance N`, the number of

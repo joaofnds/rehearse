@@ -12,8 +12,10 @@ import {
 	captureStageCorpus,
 	INITIAL_CHECKPOINT_STAGE,
 	parseCheckpointRecord,
+	snapshotStageCorpus,
 	stageCorpusRoots,
 } from "./checkpoint";
+import { frozenDirectoryFiles, writeFrozenFile } from "./confirmation-evidence";
 import type { CorpusRoot } from "./corpus-file";
 import { hashCorpusFiles, resolveCorpusFile } from "./corpus-file";
 import type { CorpusMeasurement } from "./corpus-measurement";
@@ -1416,6 +1418,105 @@ export class RecordedRunsFixture {
 		}
 
 		return repIds;
+	}
+
+	/**
+	 * Freezes every stage corpus and the pipeline into the stage group from a
+	 * real corpus, the way confirmation freezes them, and records the version
+	 * it measured.
+	 */
+	public async recordGroupFrom(source: CorpusRoot): Promise<void> {
+		const paths = confirmationGroupPaths(this.runsDirectory, this.groupId);
+		const record = group(this.groupId);
+		const { pipeline } = manifest(this.replayableRun, this.sourceRoot);
+		const instructions = await Bun.file(
+			resolveCorpusFile(source, "CLAUDE.md"),
+		).text();
+		const corpusDirectory = join(paths.inputsDirectory, "corpus");
+		for (const stage of pipeline.stages) {
+			await snapshotStageCorpus(
+				stage.skill,
+				instructions,
+				stageCorpusRoots(source, this.sourceRoot),
+				join(corpusDirectory, stage.name),
+			);
+		}
+		const files = [
+			...(await frozenDirectoryFiles(
+				paths.directory,
+				corpusDirectory,
+				"corpus",
+			)),
+			await writeFrozenFile(
+				paths.directory,
+				join(paths.inputsDirectory, "pipeline.json"),
+				`${JSON.stringify(pipeline, null, 2)}\n`,
+				"pipeline",
+			),
+		];
+		const corpusVersion = await measureCorpusVersion(
+			this.runsDirectory,
+			source,
+		);
+
+		await Bun.write(
+			paths.groupFile,
+			serialize(
+				confirmationGroupRecordSchema.parse({
+					...record,
+					inputs: { ...record.inputs, files, corpusVersion },
+				}),
+			),
+		);
+	}
+
+	/**
+	 * Freezes the named layout files into a session group from a real corpus,
+	 * the way session confirmation freezes a case's declared corpus files, and
+	 * records the version it measured.
+	 */
+	public async recordSessionGroupFrom(
+		groupId: string,
+		corpusRoot: string,
+		layoutPaths: readonly string[],
+	): Promise<void> {
+		await this.writeSessionGroup(groupId);
+		const paths = confirmationGroupPaths(this.runsDirectory, groupId);
+		const record = sessionConfirmationGroupRecordSchema.parse(
+			JSON.parse(await Bun.file(paths.groupFile).text()),
+		);
+		const corpusDirectory = join(paths.inputsDirectory, "corpus");
+		for (const layoutPath of layoutPaths) {
+			await mkdir(dirname(join(corpusDirectory, layoutPath)), {
+				recursive: true,
+			});
+			await Bun.write(
+				join(corpusDirectory, layoutPath),
+				Bun.file(join(corpusRoot, layoutPath)),
+			);
+		}
+		const files = [
+			...record.inputs.files,
+			...(await frozenDirectoryFiles(
+				paths.directory,
+				corpusDirectory,
+				"corpus",
+			)),
+		];
+		const corpusVersion = await measureCorpusVersion(
+			this.runsDirectory,
+			directorySource(corpusRoot),
+		);
+
+		await Bun.write(
+			paths.groupFile,
+			serialize(
+				sessionConfirmationGroupRecordSchema.parse({
+					...record,
+					inputs: { ...record.inputs, files, corpusVersion },
+				}),
+			),
+		);
 	}
 
 	/**
