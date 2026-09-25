@@ -1566,7 +1566,7 @@ describe(groupStaleness.name, () => {
 			});
 		});
 
-		it("judges a session rep's reads under its rep with no stage", async () => {
+		it("judges a session rep's reads under its rep with no stage, leaving out a rep that read nothing", async () => {
 			const corpus = await temporaryDirectory("rehearse-group-style-");
 			await mkdir(join(corpus, "output-styles"), { recursive: true });
 			await mkdir(join(corpus, "skills", "delivery"), { recursive: true });
@@ -1587,6 +1587,13 @@ describe(groupStaleness.name, () => {
 				corpus,
 				["output-styles/brief.md"],
 				[deliveryRead("delivery\n")],
+			);
+			await fixture.recordSessionGroupRepAttempt(
+				"session-group",
+				"session-group-rep-2",
+				corpus,
+				["output-styles/brief.md"],
+				[],
 			);
 
 			const reads = await groupRepReads(

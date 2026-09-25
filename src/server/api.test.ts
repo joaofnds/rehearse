@@ -1183,9 +1183,7 @@ describe(createApiApp.name, () => {
 				half: "corpus",
 				role: "stage skill",
 				evidence: "declared",
-				sha256: new Bun.CryptoHasher("sha256")
-					.update("build skill\n")
-					.digest("hex"),
+				sha256: sha256Hex("build skill\n"),
 			} as const;
 			await fixture.recordGroupRepReadManifest(repId, "build", [read]);
 			await Bun.write(join(corpus, "skills", "build", "SKILL.md"), "edited\n");
@@ -1321,14 +1319,15 @@ describe(createApiApp.name, () => {
 			const response = await app.request(
 				`/api/records/${encodeURIComponent(`rep:stage:${fixture.groupId}/${repId}/build`)}`,
 			);
+			const json: unknown = await response.json();
+
+			expect(response.status).toBe(200);
 			const body = z
 				.object({
 					readManifest: z.array(z.object({ path: z.string() }).loose()),
 				})
 				.loose()
-				.parse(await response.json());
-
-			expect(response.status).toBe(200);
+				.parse(json);
 			expect(body.readManifest.map((entry) => entry.path)).toEqual([
 				"skills/build/SKILL.md",
 			]);
@@ -1346,8 +1345,7 @@ describe(createApiApp.name, () => {
 				`/api/records/${encodeURIComponent("checkpoint:../../etc/passwd/shape")}`,
 			);
 
-			expect(response.status).toBeGreaterThanOrEqual(400);
-			expect(response.status).toBeLessThan(500);
+			expect(response.status).toBe(400);
 		});
 
 		it("names no absolute filesystem path in a refusal body", async () => {
@@ -1363,8 +1361,7 @@ describe(createApiApp.name, () => {
 			);
 			const body = await response.text();
 
-			expect(response.status).toBeGreaterThanOrEqual(400);
-			expect(response.status).toBeLessThan(500);
+			expect(response.status).toBe(404);
 			assertDoesNotLeak(body, fixture.runsDirectory);
 		});
 
@@ -1382,8 +1379,7 @@ describe(createApiApp.name, () => {
 			);
 			const body = await response.text();
 
-			expect(response.status).toBeGreaterThanOrEqual(400);
-			expect(response.status).toBeLessThan(500);
+			expect(response.status).toBe(404);
 			assertDoesNotLeak(body, fixture.runsDirectory);
 		});
 	});

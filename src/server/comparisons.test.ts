@@ -561,8 +561,7 @@ describe("GET /api/comparisons/:digest", () => {
 			`/api/comparisons/${encodeURIComponent("../../etc/passwd")}`,
 		);
 
-		expect(response.status).toBeGreaterThanOrEqual(400);
-		expect(response.status).toBeLessThan(500);
+		expect(response.status).toBe(400);
 	});
 
 	it("refuses a digest that names no recorded comparison, without a 500", async () => {
@@ -576,7 +575,6 @@ describe("GET /api/comparisons/:digest", () => {
 
 		const response = await app.request(`/api/comparisons/${"9".repeat(64)}`);
 
-		expect(response.status).toBeGreaterThanOrEqual(400);
-		expect(response.status).toBeLessThan(500);
+		expect(response.status).toBe(404);
 	});
 });
