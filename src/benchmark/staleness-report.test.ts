@@ -937,6 +937,9 @@ describe("staleness over read manifests", () => {
 				readManifest: [{ path: STYLE, state: "changed" }],
 			},
 		]);
+		expect(report.records[0]?.readFiles.map(({ path }) => path)).toContain(
+			STYLE,
+		);
 	});
 
 	it("says nothing of a corpus entry when the corpus under test cannot be read", async () => {
@@ -1352,6 +1355,9 @@ describe(sessionAttemptStaleness.name, () => {
 				],
 			}),
 		]);
+		expect(report.records[0]?.readFiles.map(({ path }) => path)).toContain(
+			"skills/delivery/SKILL.md",
+		);
 	});
 
 	it("says why an attempt of a case no longer declared cannot be judged", async () => {
