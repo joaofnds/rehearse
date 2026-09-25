@@ -263,7 +263,7 @@ export const COMMANDS: readonly CommandDefinition[] = [
 				kind: "value",
 				envVar: "BENCHMARK_MODEL",
 				defaultValue: "the model each run recorded, asserting nothing",
-				help: "Model a replay would use, compared against every recorded checkpoint, replay and group",
+				help: "Model a replay would use, compared against every recorded checkpoint, stopped stage, replay and group",
 			},
 			{
 				name: "--effort",

@@ -62,7 +62,8 @@ Observed entries carry path and corpus/project half, without the bytes read or
 a hash. Declared corpus hashes are separate evidence. Reading today's file
 cannot recover the version, excerpt, or truncated result seen earlier. The
 corpus screen's `readBy` count also comes from recorded corpus inventories,
-those of checkpoints, session attempts, replays and confirmation groups, not
+those of checkpoints, stopped stages, session attempts, replays and confirmation
+groups, not
 observed session reads
 ([invalidation counts](../src/benchmark/corpus-invalidation.ts)).
 

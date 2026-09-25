@@ -158,7 +158,7 @@ as the newest, and so are stage replays and confirmation groups. Each line gives
 the record's version distance and its causes. With no prior measurement there is
 nothing to mark stale. It reads the current corpus and starts no session.
 
-For pipeline checkpoints, replays and groups, add `--model` or `--effort` to
+For pipeline checkpoints, stopped stages, replays and groups, add `--model` or `--effort` to
 check those conditions as well. Without those flags, the command checks corpus changes, each recorded judge
 rubric, and each run's current declared or default stage settings. A settings value change stales the
 initial checkpoint and carries forward through later checkpoints; changing only

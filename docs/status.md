@@ -1,6 +1,6 @@
 # Current state and priorities
 
-Reviewed against the code and project board on **2026-09-25**. This is the public
+Reviewed against the code and project board on **2026-09-26**. This is the public
 feature inventory, not a release guarantee. The [vision](vision.md) describes the
 longer-term goal; the [runbook](runbook.md) describes the supported first steps.
 
@@ -63,8 +63,6 @@ case present, but no browser check has been run over it.
   corpus entry carrying the target's bytes, not the live install's. A session
   attempt's manifest leaves out a load from its `.claude` that the harness did
   not install, so a file the session wrote there and read is not listed.
-  A stop record written before stop records kept the corpus files their stage
-  read is not judged, so its run is judged by its checkpoints alone.
   The run API serves a run's entries without a changed state when the corpus
   under test cannot judge it, such as when it no longer holds a stage's skill.
   The run history screen shows a rubric-only stale record with the plain stale
@@ -107,6 +105,9 @@ case present, but no browser check has been run over it.
   and records written before corpus versions, whose distance is not recorded.
   A session attempt of a case that is no longer declared reads its staleness
   as unavailable on the run history, and `stale` names it on stderr.
+  A stopped stage whose stop record has no `corpusFiles` (written before
+  2026-09-07) or whose kept reads do not parse is not judged, so its run is
+  judged by its checkpoints alone.
 - **Pipeline `run --corpus` is refused.** Replay supports explicit corpus
   directories, but the forward pipeline command does not yet use that path.
 - **Several cases depend on private inputs.** `brief-reply-*` need transcript
