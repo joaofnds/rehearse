@@ -108,9 +108,8 @@ const calibratedStageArtifactSchema = z
 /**
  * What the agreement baseline reads out of a stage's record: the stage it
  * graded, the rubric it graded against, and the grade. Deliberately not the
- * `stageScorecardSchema` a scorecard is parsed by, which is strict and holds
- * five more fields: this reads records other cards may have added fields to,
- * and it needs none of them.
+ * `stageScorecardSchema` a scorecard is parsed by, which requires five more
+ * fields this needs none of, so a record lacking one still yields its grade.
  */
 const gradedStageSchema = calibratedStageArtifactSchema.omit({
 	judgeModel: true,
