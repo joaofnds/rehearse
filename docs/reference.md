@@ -966,8 +966,8 @@ compares a record against the corpus rather than against a replay about to
 run. A record the staleness report cannot read, or never reaches, such as a
 run that wrote no manifest or a session attempt of a case no longer declared,
 has `staleness` unavailable with its reason rather than clear. The run history
-screen's corpus column shows `✓ clean` for a record with no cause at distance
-0. When changed corpus files are the record's only causes, it shows
+screen's corpus column shows `✓ clean` for a record at distance 0 with no
+cause. When changed corpus files are the record's only causes, it shows
 `⚠ stale · corpus changed since` at distance 1 and
 `⚠ superseded · N versions back` at 2 or more. Any other judgment shows the
 stale or clear badge with its causes.
