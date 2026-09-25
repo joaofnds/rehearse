@@ -43,6 +43,7 @@ import type { CorpusUnderTest, VersionDistance } from "./corpus-version";
 import { readCorpusUnderTest } from "./corpus-version";
 import { parseConfirmationGroupRecord } from "./confirmation-record";
 import type { ParsedConfirmationGroupRecord } from "./confirmation-record";
+import type { Immutable } from "./contracts";
 import { loadRunManifest } from "./manifest";
 import type { RunManifest } from "./manifest";
 import { pipelineDefinitionSchema } from "./pipeline";
@@ -53,6 +54,7 @@ import {
 	confirmationGroupIds,
 	confirmationGroupPaths,
 	confirmationRepIds,
+	confirmationRepStageNames,
 	recordedRunNames,
 	replayAttemptIds,
 	replayRecordFile,
@@ -920,9 +922,12 @@ async function frozenPipeline(
 		throw new Error("the group froze no pipeline to hash its stages against");
 	}
 
-	return pipelineDefinitionSchema.parse(
-		JSON.parse(await Bun.file(join(groupDirectory, frozen.path)).text()),
-	);
+	const text = await textIfPresent(join(groupDirectory, frozen.path));
+	if (text === undefined) {
+		throw new Error(`the group's frozen pipeline ${frozen.path} is missing`);
+	}
+
+	return pipelineDefinitionSchema.parse(JSON.parse(text));
 }
 
 /**
@@ -934,6 +939,7 @@ async function stageGroupChanges(
 	runsDirectory: string,
 	groupId: string,
 	files: readonly FrozenGroupFile[],
+	instructions: CurrentInstructions,
 	source: CorpusRoot,
 ): Promise<JudgedReads> {
 	const paths = confirmationGroupPaths(runsDirectory, groupId);
@@ -941,12 +947,9 @@ async function stageGroupChanges(
 	const changes: CorpusChanges[] = [];
 	const readFiles: HashedFile[] = [];
 	const readManifest: JudgedReadEntry[] = [];
+	const stages = await frozenStageCorpora(paths, files, instructions, source);
 
-	for (const { stage, corpusFiles, current } of await frozenStageCorpora(
-		paths,
-		files,
-		source,
-	)) {
+	for (const { stage, corpusFiles, current } of stages) {
 		const judged = await judgedReads(
 			{
 				corpusFiles,
@@ -1076,91 +1079,143 @@ export interface RepReads {
 	readonly readManifest: readonly JudgedReadEntry[];
 }
 
-export type GroupRepReadsReading =
-	| { readonly state: "available"; readonly reps: readonly RepReads[] }
-	| { readonly state: "unavailable"; readonly reasons: readonly string[] };
-
-/**
- * A group's rep reads, or why they could not be judged: a session case no
- * longer declared or a pipeline the group never froze stops the judging, and
- * the rest of what a reader asked for about the group still stands.
- */
-export async function groupRepReadsReading(
-	runsDirectory: string,
-	groupId: string,
-	source: CorpusRoot,
-): Promise<GroupRepReadsReading> {
-	try {
-		return {
-			state: "available",
-			reps: await groupRepReads(runsDirectory, groupId, source),
-		};
-	} catch (error) {
-		return {
-			state: "unavailable",
-			reasons: [error instanceof Error ? error.message : String(error)],
-		};
-	}
+export interface GroupRepReads {
+	readonly reps: readonly RepReads[];
+	/** Why a rep's reads are missing from `reps` or carry no state. */
+	readonly reasons: readonly string[];
 }
 
 /**
  * What each rep of one group declared and loaded, each stage apart, judged
  * the way `groupStaleness` judges the reads of all its reps together. A rep
- * stage that recorded no reads is left out.
+ * stage that recorded no reads is left out. The reads are listed whether or
+ * not they can be judged: a rep stage whose file does not parse is named in
+ * `reasons` and the other reps still stand, and a group that cannot be judged
+ * at all, its session case no longer declared or its pipeline never frozen,
+ * keeps its reads with no state and says why.
  */
 export async function groupRepReads(
 	runsDirectory: string,
 	groupId: string,
 	source: CorpusRoot,
-): Promise<readonly RepReads[]> {
+): Promise<GroupRepReads> {
 	const paths = confirmationGroupPaths(runsDirectory, groupId);
 	const record = parseConfirmationGroupRecord(
 		await Bun.file(paths.groupFile).text(),
 	);
-	const repIds = await confirmationRepIds(runsDirectory, groupId);
-	const reads: RepReads[] = [];
+	const recorded = await recordedRepReads(runsDirectory, groupId, record);
+	try {
+		const judged = await judgedRepReads(paths, record, recorded.reps, source);
 
+		return {
+			reps: judged.reps,
+			reasons: [...recorded.reasons, ...judged.reasons],
+		};
+	} catch (error) {
+		return {
+			reps: recorded.reps,
+			reasons: [
+				...recorded.reasons,
+				`Reads not judged: ${error instanceof Error ? error.message : String(error)}`,
+			],
+		};
+	}
+}
+
+/** What the reps of one group recorded, with no state yet. */
+export async function recordedRepReads(
+	runsDirectory: string,
+	groupId: string,
+	record: Pick<ParsedConfirmationGroupRecord, "mode">,
+): Promise<GroupRepReads> {
+	const paths = confirmationGroupPaths(runsDirectory, groupId);
+	const reps: RepReads[] = [];
+	const reasons: string[] = [];
+	for (const repId of await confirmationRepIds(runsDirectory, groupId)) {
+		const stages: readonly (string | undefined)[] =
+			record.mode === "session"
+				? [undefined]
+				: await confirmationRepStageNames(runsDirectory, groupId, repId);
+		for (const stage of stages) {
+			try {
+				const readManifest =
+					stage === undefined
+						? await repAttemptReads(paths, repId)
+						: await repStageManifest(paths, [repId], stage);
+				if (readManifest.length > 0) {
+					reps.push(
+						stage === undefined
+							? { repId, readManifest }
+							: { repId, stage, readManifest },
+					);
+				}
+			} catch (error) {
+				reasons.push(
+					`${[repId, stage].filter((part) => part !== undefined).join(" ")} could not be read: ${error instanceof Error ? error.message : String(error)}`,
+				);
+			}
+		}
+	}
+
+	return { reps, reasons };
+}
+
+async function judgedRepReads(
+	paths: ConfirmationGroupPaths,
+	record: Immutable<ParsedConfirmationGroupRecord>,
+	recorded: readonly RepReads[],
+	source: CorpusRoot,
+): Promise<GroupRepReads> {
 	if (record.mode === "session") {
 		const corpusFiles = frozenCorpusFiles(record.inputs.files, FROZEN_CORPUS);
 		const current = await sessionCaseCorpusNow(record.caseId, source);
-		for (const repId of repIds) {
+		const reps: RepReads[] = [];
+		for (const rep of recorded) {
 			const judged = await judgedReads(
-				{ corpusFiles, readManifest: await repAttemptReads(paths, repId) },
+				{ corpusFiles, readManifest: rep.readManifest },
 				current,
 				source,
 				undefined,
 			);
-			if (judged.readManifest.length > 0) {
-				reads.push({ repId, readManifest: judged.readManifest });
-			}
+			reps.push({ ...rep, readManifest: judged.readManifest });
 		}
 
-		return reads;
+		return { reps, reasons: [] };
 	}
 
-	const stages = await frozenStageCorpora(paths, record.inputs.files, source);
-	for (const repId of repIds) {
-		for (const { stage, corpusFiles, current } of stages) {
-			const judged = await judgedReads(
-				{
-					corpusFiles,
-					readManifest: await repStageManifest(paths, [repId], stage.name),
-				},
-				current,
-				source,
-				stage,
-			);
-			if (judged.readManifest.length > 0) {
-				reads.push({
-					repId,
-					stage: stage.name,
-					readManifest: judged.readManifest,
-				});
-			}
+	const frozen = await frozenStageCorpora(
+		paths,
+		record.inputs.files,
+		await currentInstructions(source),
+		source,
+	);
+	const corpora = new Map(frozen.map((corpus) => [corpus.stage.name, corpus]));
+	const reps: RepReads[] = [];
+	const unfrozen = new Set<string>();
+	for (const rep of recorded) {
+		const corpus = rep.stage === undefined ? undefined : corpora.get(rep.stage);
+		if (corpus === undefined) {
+			unfrozen.add(rep.stage ?? "");
+			reps.push(rep);
+			continue;
 		}
+
+		const judged = await judgedReads(
+			{ corpusFiles: corpus.corpusFiles, readManifest: rep.readManifest },
+			corpus.current,
+			source,
+			corpus.stage,
+		);
+		reps.push({ ...rep, readManifest: judged.readManifest });
 	}
 
-	return reads;
+	return {
+		reps,
+		reasons: [...unfrozen].map(
+			(stage) =>
+				`Reads not judged for stage ${stage}: the group froze no corpus for it`,
+		),
+	};
 }
 
 interface FrozenStageCorpus {
@@ -1173,10 +1228,10 @@ interface FrozenStageCorpus {
 async function frozenStageCorpora(
 	paths: ConfirmationGroupPaths,
 	files: readonly FrozenGroupFile[],
+	instructions: CurrentInstructions,
 	source: CorpusRoot,
 ): Promise<readonly FrozenStageCorpus[]> {
 	const pipeline = await frozenPipeline(paths.directory, files);
-	const instructions = await currentInstructions(source);
 	const stages: FrozenStageCorpus[] = [];
 	for (const stage of pipeline.stages) {
 		const corpusFiles = frozenCorpusFiles(
@@ -1209,6 +1264,7 @@ export async function groupStaleness(
 	source: CorpusRoot,
 	knobs: CurrentSessionKnobs = {},
 ): Promise<StalenessReport> {
+	const instructions = await currentInstructions(source);
 	const underTest = await readCorpusUnderTest(runsDirectory, source);
 	const records: RecordStaleness[] = [];
 	const unreadable: UnreadableStaleRecord[] = [];
@@ -1236,6 +1292,7 @@ export async function groupStaleness(
 							runsDirectory,
 							groupId,
 							record.inputs.files,
+							instructions,
 							source,
 						);
 			const knobCauses = namedKnobCauses(record.inputs, knobs);

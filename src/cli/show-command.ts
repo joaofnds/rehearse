@@ -1,6 +1,8 @@
 import { caseDeclarationPath, casesRoot } from "#benchmark/case";
 import { parseComparisonReport } from "#benchmark/comparison-record";
 import { parseConfirmationGroupRecord } from "#benchmark/confirmation-record";
+import type { ParsedConfirmationGroupRecord } from "#benchmark/confirmation-record";
+import { CorpusConfigurationError } from "#benchmark/corpus-file";
 import { displayPath } from "#benchmark/config";
 import {
 	CorpusSourceError,
@@ -11,6 +13,7 @@ import type {
 	ResolvedCorpusSource,
 } from "#benchmark/corpus-source";
 import { unhandled } from "#benchmark/contracts";
+import type { Immutable } from "#benchmark/contracts";
 import {
 	comparisonSummary,
 	groupSummary,
@@ -18,6 +21,7 @@ import {
 	runSummary,
 	runSummarySchema,
 } from "#benchmark/record-summary";
+import type { RepReadsSummary } from "#benchmark/record-summary";
 import {
 	benchmarkRunPaths,
 	checkpointRecordFile,
@@ -28,8 +32,7 @@ import {
 } from "#benchmark/run-layout";
 import { stoppedStage } from "#benchmark/run-outcome";
 import { checkpointStageAt, resolveShortId } from "#benchmark/short-id";
-import { groupRepReadsReading } from "#benchmark/staleness-report";
-import type { GroupRepReadsReading } from "#benchmark/staleness-report";
+import { groupRepReads, recordedRepReads } from "#benchmark/staleness-report";
 import { exists } from "node:fs/promises";
 import { z } from "zod";
 import { addWorktree, refExists } from "#benchmark/target";
@@ -183,35 +186,58 @@ async function groupSummaryOf(
 		);
 	}
 
+	const record = parseConfirmationGroupRecord(text);
+
 	return groupSummary(
-		parseConfirmationGroupRecord(text),
+		record,
 		parseGroupReportSummaryRecord(await file.text()),
-		await groupRepReadsOf(runsDirectory, groupId, resolveCorpus),
+		await groupRepReadsOf(runsDirectory, record, resolveCorpus),
 	);
 }
 
 /**
  * The reps' reads are judged against the corpus `stale` judges them against,
- * the live install, and a corpus that does not resolve leaves them unjudged
- * rather than refusing the rest of the summary.
+ * the live install, and a corpus that does not resolve leaves them listed
+ * unjudged rather than refusing the rest of the summary.
  */
 async function groupRepReadsOf(
 	runsDirectory: string,
-	groupId: string,
+	record: Immutable<ParsedConfirmationGroupRecord>,
 	resolveCorpus: CorpusSourceResolver,
-): Promise<GroupRepReadsReading> {
+): Promise<RepReadsSummary> {
 	let source: ResolvedCorpusSource;
 	try {
 		source = await resolveCorpus(undefined);
 	} catch (error) {
-		if (error instanceof CorpusSourceError) {
-			return { state: "unavailable", reasons: [error.message] };
+		if (
+			error instanceof CorpusSourceError ||
+			error instanceof CorpusConfigurationError
+		) {
+			const recorded = await recordedRepReads(
+				runsDirectory,
+				record.groupId,
+				record,
+			);
+
+			return {
+				reads: {
+					reps: recorded.reps,
+					reasons: [...recorded.reasons, `Reads not judged: ${error.message}`],
+				},
+				judgedAgainst: undefined,
+			};
 		}
 
 		throw error;
 	}
 
-	return groupRepReadsReading(runsDirectory, groupId, source);
+	return {
+		reads: await groupRepReads(runsDirectory, record.groupId, source),
+		judgedAgainst:
+			source.kind === "live"
+				? "the live install"
+				: `the corpus at ${displayPath(source.root)}`,
+	};
 }
 
 /**

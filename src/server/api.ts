@@ -12,7 +12,7 @@ import {
 	confirmationGroupPaths,
 	runEventsDatabaseFile,
 } from "#benchmark/run-layout";
-import { groupRepReadsReading } from "#benchmark/staleness-report";
+import { groupRepReads } from "#benchmark/staleness-report";
 import type { RunEventStore } from "#benchmark/run-events";
 import {
 	isTerminalRunEventKind,
@@ -612,17 +612,16 @@ export const createApiApp = (dependencies: ApiDependencies) => {
 					);
 				}
 
-				const reads = await groupRepReadsReading(
+				const reads = await groupRepReads(
 					dependencies.runsDirectory,
 					id.groupId,
 					dependencies.corpusSource,
 				);
 
-				return context.json(
-					reads.state === "available"
-						? reads
-						: { ...reads, reasons: reads.reasons.map(redactAbsolutePaths) },
-				);
+				return context.json({
+					...reads,
+					reasons: reads.reasons.map(redactAbsolutePaths),
+				});
 			} catch (error) {
 				if (
 					error instanceof UsageError ||

@@ -400,7 +400,9 @@ See [current state](docs/status.md) for implementation coverage and
   registry to the Record ID it aliases.
 - **Record summary** — the short markdown a session pastes onto a card,
   computed as a pure function of one parsed record: for a run its stages,
-  grades, verdict, and cost; for a group its reliability summary and cost; for
+  grades, verdict, and cost; for a group its reliability summary and cost,
+  and its reps' reads, whose states are judged against the live install when
+  `show` runs, so that one section follows the corpus and names it; for
   a comparison its per-case paired deltas beside the control arm, or, for a
   single-case session comparison, its sampling unit, each arm's own interval,
   and the unpaired contrasts between them. It is never a second

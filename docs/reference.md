@@ -1068,14 +1068,27 @@ through the chain. Then the column shows
 stale or clear badge with its causes.
 
 A confirmation group row merges the reads of all its reps into one list.
-`/api/groups/<group>/reads` keeps them apart: `reps` holds one entry for each
-rep and stage that recorded reads, with its `repId`, its `stage`, absent for a
-session rep, and its `readManifest` judged the same way. A group that cannot be
-judged, such as one whose session case is no longer declared or a stage group
-that froze no pipeline, is served `state` `unavailable` with its `reasons`.
+`/api/groups/<group>/reads` keeps them apart. Its `reps` holds one entry for
+each rep and stage that recorded reads, with its `repId`, its `stage`, which a
+session rep leaves out, and its `readManifest`, judged the same way where the
+group can be judged. The reads are listed whether or not they can be judged.
+`reasons` names each rep stage whose file does not parse, which leaves only
+that rep stage out, and why the rest carry no state: a session case no longer
+declared, a stage or pipeline group that froze no pipeline or whose frozen
+pipeline is missing, or a stage the group froze no corpus for. `reasons` is
+empty when every entry was judged. An id that names no group is refused with
+404 and one that escapes the records directory with 400.
+
 `show group:<id>` prints the same reads as a table after the group's cost,
-judged against the live install as `stale` judges by default, and names the
-reason where they cannot be judged.
+with the first 12 characters of each file's hash, judged against the live
+install as `stale` judges by default. A line under the table names that
+corpus, because the states follow the corpus as it is when `show` runs and
+the rest of the summary follows the record alone. Each reason prints on its
+own line. A live install that does not resolve lists the reads with no state
+and names why. A group whose reps recorded no read, which includes every
+group written before read manifests, prints `No rep recorded a read.` A
+single rep's raw file prints through `show rep:stage:...` or
+`show rep:session:...`, with its full hashes and no state.
 
 A confirmation group row accounts for every rep. `stageSummaries` has one entry
 per declared stage with the `graded` count, the `ungraded` reps counted under

@@ -15,13 +15,16 @@ import type {
 import type { ParsedConfirmationGroupRecord } from "./confirmation-record";
 import type { Immutable } from "./contracts";
 import { corpusMeasurementReading } from "./corpus-version-label";
-import type { GroupRepReadsReading } from "./staleness-report";
+import type { GroupRepReads } from "./staleness-report";
 
 /**
  * The short markdown a session pastes onto a card. Each summary is a pure
- * function of one parsed record: no file is read and no clock is consulted, so
- * the same record renders the same bytes on every machine and a committed
- * expected string is a meaningful assertion.
+ * function of what it is given: no file is read and no clock is consulted, so
+ * the same inputs render the same bytes on every machine and a committed
+ * expected string is a meaningful assertion. A run or comparison summary is
+ * given one parsed record. A group summary is also given its reps' reads as
+ * judged against a corpus when `show` ran, so its read states follow that
+ * corpus and the summary names it.
  */
 function table(
 	header: readonly string[],
@@ -168,7 +171,7 @@ export function parseGroupReportSummaryRecord(
 export function groupSummary(
 	record: Immutable<ParsedConfirmationGroupRecord>,
 	report: GroupReportSummaryRecord,
-	reads: GroupRepReadsReading,
+	reads: RepReadsSummary,
 ): string {
 	const costs = report.resources.total.costUsd;
 	const total = costs.reduce((sum, cost) => sum + cost, 0);
@@ -205,33 +208,73 @@ export function groupSummary(
 		"",
 		costLine,
 		"",
-		...readLines(reads),
+		...readLines(record.mode === "session", reads),
 		"",
 	].join("\n");
 }
 
-/** Each rep stage's reads, one row per file, with whether it changed since. */
-function readLines(reads: GroupRepReadsReading): string[] {
-	if (reads.state === "unavailable") {
-		return [`Reads not judged: ${reads.reasons.join("; ")}.`];
-	}
-	if (reads.reps.length === 0) {
+/**
+ * A group's rep reads and the corpus their states were judged against, named
+ * the way a reader would say it, or undefined when no corpus could judge them.
+ */
+export interface RepReadsSummary {
+	readonly reads: GroupRepReads;
+	readonly judgedAgainst: string | undefined;
+}
+
+/** A table cell holds one line, and a pipe in it would start a new cell. */
+function cell(text: string): string {
+	return text.replaceAll(/\s+/gu, " ").replaceAll("|", String.raw`\|`);
+}
+
+/**
+ * Each rep stage's reads, one row per file, with the start of its hash and
+ * whether it changed since. A session rep ran no stage, so a session group's
+ * table has no stage column.
+ */
+function readLines(session: boolean, summary: RepReadsSummary): string[] {
+	const { reps, reasons } = summary.reads;
+	if (reps.length === 0 && reasons.length === 0) {
 		return ["No rep recorded a read."];
 	}
 
-	return table(
-		["rep", "stage", "path", "role", "evidence", "state"],
-		reads.reps.flatMap(({ repId, stage, readManifest }) =>
-			readManifest.map((entry) => [
-				repId,
-				stage ?? "session",
-				entry.path,
-				entry.role,
-				entry.evidence,
-				entry.state ?? "not judged",
-			]),
-		),
+	const rows = reps.flatMap(({ repId, stage, readManifest }) =>
+		readManifest.map((entry) => [
+			repId,
+			...(session ? [] : [stage ?? ""]),
+			entry.path,
+			entry.role,
+			entry.evidence,
+			entry.sha256?.slice(0, 12) ?? "none",
+			entry.state ?? "not judged",
+		]),
 	);
+	const judged = reps.some(({ readManifest }) =>
+		readManifest.some(({ state }) => state !== undefined),
+	);
+
+	return [
+		...(rows.length === 0
+			? []
+			: table(
+					[
+						"rep",
+						...(session ? [] : ["stage"]),
+						"path",
+						"role",
+						"evidence",
+						"sha256",
+						"state",
+					],
+					rows.map((row) => row.map((text) => cell(text))),
+				)),
+		...(judged && summary.judgedAgainst !== undefined
+			? [
+					`States compare each file with ${summary.judgedAgainst} as it was when this summary was printed.`,
+				]
+			: []),
+		...reasons.map((reason) => `${cell(reason)}.`),
+	];
 }
 
 function interval(arm: { readonly interval: ProportionInterval }): string {

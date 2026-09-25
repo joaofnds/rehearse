@@ -20,6 +20,8 @@ import { RefusedPreconditionError } from "#cli/interactive-stdin";
 import { LIST_KINDS, runList } from "#cli/list-command";
 import { runShow } from "#cli/show-command";
 import type { ShowDependencies } from "#cli/show-command";
+import { CorpusConfigurationError } from "#benchmark/corpus-file";
+import type { ReadManifestEntry } from "#benchmark/read-manifest";
 import { runCommand } from "#benchmark/command";
 import { recordRetentionRef } from "#benchmark/target";
 import { TestResources } from "#benchmark/test-support";
@@ -202,6 +204,17 @@ describe(runShow.name, () => {
 		return corpus;
 	}
 
+	const BUILD_SKILL_SHA256 = new Bun.CryptoHasher("sha256")
+		.update("build\n")
+		.digest("hex");
+	const BUILD_SKILL_READ: ReadManifestEntry = {
+		path: "skills/build/SKILL.md",
+		half: "corpus",
+		role: "stage skill",
+		evidence: "declared",
+		sha256: BUILD_SKILL_SHA256,
+	};
+
 	function corpusAt(root: string): ShowDependencies {
 		return {
 			resolveCorpus: () => Promise.resolve({ kind: "directory", root }),
@@ -214,13 +227,7 @@ describe(runShow.name, () => {
 		await fixture.recordGroupFrom(directorySource(corpus));
 		const repId = `${fixture.groupId}-rep-1`;
 		await fixture.recordGroupRepReadManifest(repId, "build", [
-			{
-				path: "skills/build/SKILL.md",
-				half: "corpus",
-				role: "stage skill",
-				evidence: "declared",
-				sha256: new Bun.CryptoHasher("sha256").update("build\n").digest("hex"),
-			},
+			BUILD_SKILL_READ,
 		]);
 		await Bun.write(join(corpus, "skills", "build", "SKILL.md"), "edited\n");
 
@@ -232,12 +239,24 @@ describe(runShow.name, () => {
 		);
 
 		expect(stdout).toContain(
-			`| ${repId} | build | skills/build/SKILL.md | stage skill | declared | changed |`,
+			`| ${repId} | build | skills/build/SKILL.md | stage skill | declared | ${BUILD_SKILL_SHA256.slice(0, 12)} | changed |
+States compare each file with the corpus at ${corpus} as it was when this summary was printed.`,
 		);
 	});
 
-	it("names why a group's rep reads could not be judged in its summary", async () => {
+	async function fixtureWithRepRead(): Promise<RecordedRunsFixture> {
 		const fixture = await writtenFixture();
+		await fixture.recordGroupRepReadManifest(
+			`${fixture.groupId}-rep-1`,
+			"build",
+			[BUILD_SKILL_READ],
+		);
+
+		return fixture;
+	}
+
+	it("lists a group's rep reads unjudged and names why when they could not be judged", async () => {
+		const fixture = await fixtureWithRepRead();
 
 		const stdout = await printed(
 			`group:${fixture.groupId}`,
@@ -247,7 +266,29 @@ describe(runShow.name, () => {
 		);
 
 		expect(stdout).toContain(
-			"Reads not judged: the group froze no pipeline to hash its stages against.",
+			`| ${fixture.groupId}-rep-1 | build | skills/build/SKILL.md | stage skill | declared | ${BUILD_SKILL_SHA256.slice(0, 12)} | not judged |
+Reads not judged: the group froze no pipeline to hash its stages against.`,
+		);
+	});
+
+	it("lists a group's rep reads unjudged when the live install is misconfigured", async () => {
+		const fixture = await fixtureWithRepRead();
+
+		const stdout = await printed(
+			`group:${fixture.groupId}`,
+			false,
+			fixture.runsDirectory,
+			{
+				resolveCorpus: () =>
+					Promise.reject(
+						new CorpusConfigurationError("the backing root is relative"),
+					),
+			},
+		);
+
+		expect(stdout).toContain(
+			`| stage skill | declared | ${BUILD_SKILL_SHA256.slice(0, 12)} | not judged |
+Reads not judged: the backing root is relative.`,
 		);
 	});
 

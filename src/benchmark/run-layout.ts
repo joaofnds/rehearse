@@ -309,6 +309,26 @@ export function confirmationRepIds(
 	);
 }
 
+/**
+ * Every stage one rep kept a record of, from its stage files and its
+ * checkpoints, so a rep's reads can be listed without the pipeline its group
+ * froze.
+ */
+export async function confirmationRepStageNames(
+	runsDirectory: string,
+	groupId: string,
+	repId: string,
+): Promise<readonly string[]> {
+	const rep = confirmationGroupPaths(runsDirectory, groupId).rep(repId);
+	const found = await entries(rep.stagesDirectory);
+	const stageFiles = found
+		.filter((entry) => entry.isFile() && entry.name.endsWith(RECORD_SUFFIX))
+		.map(({ name }) => name.slice(0, -RECORD_SUFFIX.length));
+	const checkpoints = await directoryNames(rep.checkpointsDirectory);
+
+	return [...new Set([...stageFiles, ...checkpoints])].toSorted();
+}
+
 export function comparisonDigests(
 	runsDirectory: string,
 ): Promise<readonly string[]> {

@@ -4,7 +4,6 @@ import { buildComparisonReport } from "./comparison-report";
 import { parseComparisonReport } from "./comparison-record";
 import type { ComparisonEvidence } from "./comparison-evidence";
 import type { Immutable } from "./contracts";
-import type { GroupRepReadsReading } from "./staleness-report";
 import {
 	cancellingComparisonEvidenceFixture,
 	comparisonEvidenceFixture,
@@ -19,6 +18,7 @@ import {
 } from "./confirmation-record";
 import type {
 	GroupReportSummaryRecord,
+	RepReadsSummary,
 	RunSummaryRecord,
 } from "./record-summary";
 import {
@@ -105,7 +105,10 @@ const GROUP_REPORT: GroupReportSummaryRecord = parseGroupReportSummaryRecord(
 	}),
 );
 
-const NO_READS: GroupRepReadsReading = { state: "available", reps: [] };
+const NO_READS: RepReadsSummary = {
+	reads: { reps: [], reasons: [] },
+	judgedAgainst: "the live install",
+};
 
 const SESSION_GROUP_RECORD = parseConfirmationGroupRecord(
 	JSON.stringify({
@@ -179,65 +182,109 @@ No rep recorded a read.
 		);
 	});
 
-	it("lists each rep stage's reads with whether each file changed since", () => {
-		const reads: GroupRepReadsReading = {
-			state: "available",
-			reps: [
-				{
-					repId: "group-1-rep-1",
-					stage: "build",
-					readManifest: [
-						{
-							path: "skills/build/SKILL.md",
-							half: "corpus",
-							role: "stage skill",
-							evidence: "declared and observed",
-							sha256: "b".repeat(64),
-							state: "changed",
-						},
-						{
-							path: "CLAUDE.md",
-							half: "project",
-							role: "project instructions",
-							evidence: "observed",
-							sha256: "c".repeat(64),
-						},
-					],
-				},
-				{
-					repId: "group-1-rep-2",
-					readManifest: [
-						{
-							path: "output-styles/brief.md",
-							half: "corpus",
-							role: "global instructions",
-							evidence: "declared",
-							sha256: "d".repeat(64),
-							state: "unchanged",
-						},
-					],
-				},
-			],
+	it("lists each rep stage's reads with its hash and whether it changed since", () => {
+		const summary: RepReadsSummary = {
+			reads: {
+				reps: [
+					{
+						repId: "group-1-rep-1",
+						stage: "build",
+						readManifest: [
+							{
+								path: "skills/build/SKILL.md",
+								half: "corpus",
+								role: "stage skill",
+								evidence: "declared and observed",
+								sha256: "b".repeat(64),
+								state: "changed",
+							},
+							{
+								path: "CLAUDE.md",
+								half: "project",
+								role: "project instructions",
+								evidence: "observed",
+								sha256: "c".repeat(64),
+							},
+						],
+					},
+				],
+				reasons: [],
+			},
+			judgedAgainst: "the live install",
 		};
 
-		expect(groupSummary(GROUP_RECORD, GROUP_REPORT, reads)).toContain(
-			`| rep | stage | path | role | evidence | state |
-| --- | --- | --- | --- | --- | --- |
-| group-1-rep-1 | build | skills/build/SKILL.md | stage skill | declared and observed | changed |
-| group-1-rep-1 | build | CLAUDE.md | project instructions | observed | not judged |
-| group-1-rep-2 | session | output-styles/brief.md | global instructions | declared | unchanged |
+		expect(groupSummary(GROUP_RECORD, GROUP_REPORT, summary)).toContain(
+			`| rep | stage | path | role | evidence | sha256 | state |
+| --- | --- | --- | --- | --- | --- | --- |
+| group-1-rep-1 | build | skills/build/SKILL.md | stage skill | declared and observed | bbbbbbbbbbbb | changed |
+| group-1-rep-1 | build | CLAUDE.md | project instructions | observed | cccccccccccc | not judged |
+States compare each file with the live install as it was when this summary was printed.
 `,
 		);
 	});
 
-	it("names why the reps' reads could not be judged", () => {
-		expect(
-			groupSummary(GROUP_RECORD, GROUP_REPORT, {
-				state: "unavailable",
-				reasons: ["the group froze no pipeline to hash its stages against"],
-			}),
-		).toContain(
-			"\nReads not judged: the group froze no pipeline to hash its stages against.\n",
+	it("lists a session rep's reads with no stage column", () => {
+		const summary: RepReadsSummary = {
+			reads: {
+				reps: [
+					{
+						repId: "session-rep-1",
+						readManifest: [
+							{
+								path: "output-styles/brief.md",
+								half: "corpus",
+								role: "global instructions",
+								evidence: "declared",
+								sha256: "d".repeat(64),
+								state: "unchanged",
+							},
+						],
+					},
+				],
+				reasons: [],
+			},
+			judgedAgainst: "the live install",
+		};
+
+		expect(groupSummary(SESSION_GROUP_RECORD, GROUP_REPORT, summary)).toContain(
+			`| rep | path | role | evidence | sha256 | state |
+| --- | --- | --- | --- | --- | --- |
+| session-rep-1 | output-styles/brief.md | global instructions | declared | dddddddddddd | unchanged |
+`,
+		);
+	});
+
+	it("keeps the reads it could not judge and names why, one line each", () => {
+		const summary: RepReadsSummary = {
+			reads: {
+				reps: [
+					{
+						repId: "group-1-rep-1",
+						stage: "build",
+						readManifest: [
+							{
+								path: "skills/a|b/SKILL.md",
+								half: "corpus",
+								role: "read for context",
+								evidence: "observed",
+								sha256: "e".repeat(64),
+							},
+						],
+					},
+				],
+				reasons: [
+					'group-1-rep-2 build could not be read: [\n  {\n    "code": "invalid_value"',
+					"Reads not judged: the group froze no pipeline to hash its stages against",
+				],
+			},
+			judgedAgainst: undefined,
+		};
+
+		expect(groupSummary(GROUP_RECORD, GROUP_REPORT, summary)).toContain(
+			`| group-1-rep-1 | build | skills/a\\|b/SKILL.md | read for context | observed | eeeeeeeeeeee | not judged |
+group-1-rep-2 build could not be read: [ { "code": "invalid_value".
+Reads not judged: the group froze no pipeline to hash its stages against.
+`,
 		);
 	});
 

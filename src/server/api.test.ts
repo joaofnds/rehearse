@@ -1201,7 +1201,6 @@ describe(createApiApp.name, () => {
 
 			expect(response.status).toBe(200);
 			expect(await response.json()).toEqual({
-				state: "available",
 				reps: [
 					{
 						repId,
@@ -1209,11 +1208,21 @@ describe(createApiApp.name, () => {
 						readManifest: [{ ...read, state: "changed" }],
 					},
 				],
+				reasons: [],
 			});
 		});
 
-		it("names why the reps' reads could not be judged", async () => {
+		it("serves the reps' reads unjudged and names why they could not be judged", async () => {
 			const fixture = await writtenFixture();
+			const repId = `${fixture.groupId}-rep-1`;
+			const read = {
+				path: "skills/build/SKILL.md",
+				half: "corpus",
+				role: "stage skill",
+				evidence: "declared",
+				sha256: "a".repeat(64),
+			} as const;
+			await fixture.recordGroupRepReadManifest(repId, "build", [read]);
 			const app = createApiApp({
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
@@ -1226,12 +1235,14 @@ describe(createApiApp.name, () => {
 
 			expect(response.status).toBe(200);
 			expect(await response.json()).toEqual({
-				state: "unavailable",
-				reasons: ["the group froze no pipeline to hash its stages against"],
+				reps: [{ repId, stage: "build", readManifest: [read] }],
+				reasons: [
+					"Reads not judged: the group froze no pipeline to hash its stages against",
+				],
 			});
 		});
 
-		it("names no absolute path in why the reps' reads could not be judged", async () => {
+		it("names a missing frozen pipeline by its path in the group, not an absolute one", async () => {
 			const corpus = await corpusDirectory();
 			const fixture = await writtenFixture();
 			await fixture.recordGroupFrom(directorySource(corpus));
@@ -1251,7 +1262,12 @@ describe(createApiApp.name, () => {
 			);
 			const body = await response.text();
 
-			expect(JSON.parse(body)).toMatchObject({ state: "unavailable" });
+			expect(JSON.parse(body)).toEqual({
+				reps: [],
+				reasons: [
+					"Reads not judged: the group's frozen pipeline inputs/pipeline.json is missing",
+				],
+			});
 			assertDoesNotLeak(body, fixture.runsDirectory);
 		});
 

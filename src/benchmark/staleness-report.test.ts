@@ -20,6 +20,7 @@ import {
 	staleCheckpoints,
 } from "./staleness-report";
 import { measureCorpusVersion } from "./corpus-version";
+import { confirmationGroupPaths } from "./run-layout";
 import { stageRubricSha256 } from "./judge-agreement";
 import type { ReadManifestEntry } from "./read-manifest";
 import { loadStageRubric } from "./stage-grading";
@@ -1462,18 +1463,107 @@ describe(groupStaleness.name, () => {
 				directorySource(corpus),
 			);
 
-			expect(reads).toEqual([
-				{
-					repId: "rep-1",
-					stage: "build",
-					readManifest: [{ ...deliveryRead("delivery\n"), state: "changed" }],
-				},
-				{
-					repId: "rep-2",
-					stage: "build",
-					readManifest: [{ ...deliveryRead("edited\n"), state: "unchanged" }],
-				},
+			expect(reads).toEqual({
+				reps: [
+					{
+						repId: "rep-1",
+						stage: "build",
+						readManifest: [{ ...deliveryRead("delivery\n"), state: "changed" }],
+					},
+					{
+						repId: "rep-2",
+						stage: "build",
+						readManifest: [{ ...deliveryRead("edited\n"), state: "unchanged" }],
+					},
+				],
+				reasons: [],
+			});
+		});
+
+		it("lists the reads unjudged and says why when the group froze no pipeline", async () => {
+			const fixture = new RecordedRunsFixture(
+				await temporaryDirectory("rehearse-group-no-pipeline-"),
+			);
+			await fixture.write();
+			await fixture.recordGroupRepReadManifest("rep-1", "build", [
+				deliveryRead("delivery\n"),
 			]);
+
+			const reads = await groupRepReads(
+				fixture.runsDirectory,
+				fixture.groupId,
+				directorySource(await stageCorpus()),
+			);
+
+			expect(reads).toEqual({
+				reps: [
+					{
+						repId: "rep-1",
+						stage: "build",
+						readManifest: [deliveryRead("delivery\n")],
+					},
+				],
+				reasons: [
+					"Reads not judged: the group froze no pipeline to hash its stages against",
+				],
+			});
+		});
+
+		it("names a frozen pipeline that went missing by its path in the group", async () => {
+			const corpus = await stageCorpus();
+			const fixture = await fixtureWithGroupFrom(corpus);
+			await fixture.recordGroupRepReadManifest("rep-1", "build", [
+				deliveryRead("delivery\n"),
+			]);
+			await rm(
+				join(
+					confirmationGroupPaths(fixture.runsDirectory, fixture.groupId)
+						.inputsDirectory,
+					"pipeline.json",
+				),
+			);
+
+			const reads = await groupRepReads(
+				fixture.runsDirectory,
+				fixture.groupId,
+				directorySource(corpus),
+			);
+
+			expect(reads.reasons).toEqual([
+				"Reads not judged: the group's frozen pipeline inputs/pipeline.json is missing",
+			]);
+		});
+
+		it("names a rep stage whose file does not parse and still judges the others", async () => {
+			const corpus = await stageCorpus();
+			const fixture = await fixtureWithGroupFrom(corpus);
+			await fixture.recordGroupRepReadManifest("rep-1", "build", [
+				deliveryRead("delivery\n"),
+			]);
+			await fixture.recordGroupRepReadManifest("rep-2", "build", []);
+			await Bun.write(
+				confirmationGroupPaths(fixture.runsDirectory, fixture.groupId)
+					.rep("rep-2")
+					.stageFile("build"),
+				"{broken",
+			);
+
+			const reads = await groupRepReads(
+				fixture.runsDirectory,
+				fixture.groupId,
+				directorySource(corpus),
+			);
+
+			expect(reads).toEqual({
+				reps: [
+					{
+						repId: "rep-1",
+						stage: "build",
+						readManifest: [{ ...deliveryRead("delivery\n"), state: "changed" }],
+					},
+				],
+				reasons: [expect.stringMatching(/^rep-2 build could not be read: /u)],
+			});
 		});
 
 		it("judges a session rep's reads under its rep with no stage", async () => {
@@ -1505,12 +1595,15 @@ describe(groupStaleness.name, () => {
 				directorySource(corpus),
 			);
 
-			expect(reads).toEqual([
-				{
-					repId: "session-group-rep-1",
-					readManifest: [{ ...deliveryRead("delivery\n"), state: "changed" }],
-				},
-			]);
+			expect(reads).toEqual({
+				reps: [
+					{
+						repId: "session-group-rep-1",
+						readManifest: [{ ...deliveryRead("delivery\n"), state: "changed" }],
+					},
+				],
+				reasons: [],
+			});
 		});
 	});
 
