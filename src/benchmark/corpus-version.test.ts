@@ -1,13 +1,23 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import {
+	mkdir,
+	mkdtemp,
+	readdir,
+	rm,
+	stat,
+	symlink,
+	writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { CorpusRoot } from "./corpus-file";
 import {
 	corpusVersionDigest,
 	corpusVersionLog,
+	CorpusVersionError,
 	findCorpusVersion,
 	measureCorpusVersion,
+	readCorpusVersion,
 	readCorpusVersionFile,
 } from "./corpus-version";
 
@@ -116,6 +126,60 @@ describe(measureCorpusVersion.name, () => {
 		expect(await corpusVersionLog(recordsDirectory, source)).toHaveLength(1);
 	});
 
+	it("keeps logging new states after an entry goes missing", async () => {
+		const first = versionDigest(
+			await measureCorpusVersion(recordsDirectory, source),
+		);
+		await writeFile(join(source.root, "output-styles", "brief.md"), "edited\n");
+		const second = versionDigest(
+			await measureCorpusVersion(recordsDirectory, source),
+		);
+		const logs = join(recordsDirectory, "corpus-versions", "logs");
+		const [log] = await readdir(logs);
+		await rm(join(logs, log ?? "", "1"));
+		await writeFile(join(source.root, "output-styles", "brief.md"), "again\n");
+
+		const third = versionDigest(
+			await measureCorpusVersion(recordsDirectory, source),
+		);
+
+		expect(first).not.toBe(second);
+		expect(await corpusVersionLog(recordsDirectory, source)).toEqual([
+			second,
+			third,
+		]);
+	});
+
+	it("keeps the stored file bodies readable by their owner only", async () => {
+		await measureCorpusVersion(recordsDirectory, source);
+		const blobs = join(recordsDirectory, "corpus-versions", "blobs");
+
+		const names = await readdir(blobs);
+		const modes = await Promise.all(
+			names.map(async (blob) => {
+				const found = await stat(join(blobs, blob));
+
+				return found.mode.toString(8).slice(-3);
+			}),
+		);
+
+		expect(modes).toEqual(["600", "600"]);
+	});
+
+	it("logs a source reached through a symbolic link in the log of the directory it names", async () => {
+		const alias = join(scratch, "alias");
+		await symlink(source.root, alias);
+
+		const digest = versionDigest(
+			await measureCorpusVersion(recordsDirectory, {
+				kind: "directory",
+				root: alias,
+			}),
+		);
+
+		expect(await corpusVersionLog(recordsDirectory, source)).toEqual([digest]);
+	});
+
 	it("names the same tree by the digest the corpus report showed for it", async () => {
 		const root = join(scratch, "report-fixture");
 		await mkdir(join(root, "skills", "build"), { recursive: true });
@@ -146,7 +210,11 @@ describe(measureCorpusVersion.name, () => {
 
 			const measurement = await measureCorpusVersion(recordsDirectory, source);
 
-			expect(measurement.kind).toBe("refused");
+			expect(measurement).toEqual({
+				kind: "refused",
+				refusal:
+					"output-styles/escape.md resolves outside the tree it is named under, so its bytes are not the ones that tree holds",
+			});
 			expect(await corpusVersionLog(recordsDirectory, source)).toEqual([]);
 		});
 	});
@@ -167,6 +235,17 @@ describe(findCorpusVersion.name, () => {
 			{ kind: "found", digest },
 			{ kind: "found", digest },
 		]);
+	});
+
+	it("matches no version by an empty prefix, even when only one is recorded", async () => {
+		await measureCorpusVersion(recordsDirectory, source);
+
+		const found = await Promise.all([
+			findCorpusVersion(recordsDirectory, ""),
+			findCorpusVersion(recordsDirectory, "corpus@"),
+		]);
+
+		expect(found).toEqual([{ kind: "missing" }, { kind: "missing" }]);
 	});
 
 	it("reports a prefix no version starts with as missing", async () => {
@@ -203,6 +282,20 @@ describe(findCorpusVersion.name, () => {
 				.filter((digest) => digest.startsWith(prefix))
 				.toSorted(),
 		});
+	});
+});
+
+describe(readCorpusVersion.name, () => {
+	it("refuses a name that is not a full version digest before reading any file", async () => {
+		await mkdir(recordsDirectory, { recursive: true });
+		await writeFile(
+			join(recordsDirectory, "planted.json"),
+			JSON.stringify({ files: [] }),
+		);
+
+		const reading = readCorpusVersion(recordsDirectory, "../../planted");
+
+		expect(reading).rejects.toThrow(CorpusVersionError);
 	});
 });
 

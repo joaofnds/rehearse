@@ -26,14 +26,17 @@ afterEach(async () => {
 	await rm(scratch, { recursive: true, force: true });
 });
 
-async function measureThenEdit(): Promise<readonly string[]> {
+async function measureThenEdit(
+	edited = "edited\n",
+): Promise<readonly string[]> {
 	const digests: string[] = [];
-	for (const text of ["brief\n", "edited\n"]) {
+	for (const text of ["brief\n", edited]) {
 		await writeFile(join(source.root, "output-styles", "brief.md"), text);
 		const measurement = await measureCorpusVersion(runsDirectory, source);
-		if (measurement.kind === "version") {
-			digests.push(measurement.digest);
+		if (measurement.kind !== "version") {
+			throw new Error(`expected a version, got ${measurement.refusal}`);
 		}
+		digests.push(measurement.digest);
 	}
 
 	return digests;
@@ -98,19 +101,20 @@ describe(runCorpusShow.name, () => {
 	});
 
 	it("refuses a prefix several versions share, naming each candidate", async () => {
-		const digests = await measureThenEdit();
+		// Both versions of this fixed tree start with "d".
+		await measureThenEdit("edit 4\n");
 
 		const failure = await failureOf(
 			runCorpusShow(
-				{ version: "corpus@", file: undefined, runsDirectory },
+				{ version: "corpus@d", file: undefined, runsDirectory },
 				recordOutput().output,
 			),
 		);
 
 		expect(failure).toBeInstanceOf(RefusedPreconditionError);
-		for (const digest of digests) {
-			expect(failure.message).toContain(digest);
-		}
+		expect(failure.message).toBe(
+			"Corpus version corpus@d is ambiguous; it matches d86658fcc2d40b287a828747950f2d2ec902111a794516b112ff0e90dfd3842c, dcae610193682abd5ab633e4fd0773af6cb7b86abb09e2c671cc520234c23849",
+		);
 	});
 
 	it("refuses a prefix no version starts with", async () => {

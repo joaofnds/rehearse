@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { link, mkdir, rename, rm, writeFile } from "node:fs/promises";
+import { link, mkdir, realpath, rename, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { z } from "zod";
 import type { HashedFile } from "./checkpoint";
@@ -49,15 +49,17 @@ function versionFile(recordsDirectory: string, digest: string): string {
 }
 
 /**
- * One log per corpus source root, named by a hash of the root so a path
- * never has to become a directory name.
+ * One log per corpus source root, named by a hash of the directory the root
+ * resolves to, so a path never has to become a directory name and two paths
+ * to one directory share its log.
  */
-function logDirectory(recordsDirectory: string, source: CorpusRoot): string {
-	return join(
-		storeDirectory(recordsDirectory),
-		LOGS_DIRECTORY,
-		sha256(resolve(source.root)),
-	);
+async function logDirectory(
+	recordsDirectory: string,
+	source: CorpusRoot,
+): Promise<string> {
+	const root = await realpath(source.root).catch(() => resolve(source.root));
+
+	return join(storeDirectory(recordsDirectory), LOGS_DIRECTORY, sha256(root));
 }
 
 /**
@@ -70,7 +72,7 @@ async function writeWhole(
 	contents: string | Readonly<Uint8Array>,
 ): Promise<void> {
 	const temporary = `${file}.${randomUUID()}.tmp`;
-	await writeFile(temporary, contents);
+	await writeFile(temporary, contents, { mode: 0o600 });
 	await rename(temporary, file);
 }
 
@@ -103,23 +105,30 @@ function positions(names: readonly string[]): number[] {
 		.toSorted((left, right) => left - right);
 }
 
-async function readLog(directory: string): Promise<string[]> {
-	const digests: string[] = [];
+interface LogEntry {
+	readonly position: number;
+	readonly digest: string;
+}
+
+async function readLog(directory: string): Promise<LogEntry[]> {
+	const entries: LogEntry[] = [];
 	for (const position of positions((await readdirIfPresent(directory)) ?? [])) {
 		const text = await textIfPresent(join(directory, String(position)));
 		if (text !== undefined) {
-			digests.push(text.trim());
+			entries.push({ position, digest: text.trim() });
 		}
 	}
 
-	return digests;
+	return entries;
 }
 
 /**
  * An entry is linked into place from a file already holding its digest, so
  * the create is exclusive and no reader sees an empty entry. A writer that
  * loses the race re-reads the log before trying again, which is what keeps
- * two measurements of one new state to one entry.
+ * two measurements of one new state to one entry. The next position follows
+ * the highest one present rather than the count, so a missing entry never
+ * leaves a writer retrying a position that is already taken.
  */
 async function appendToLog(directory: string, digest: string): Promise<void> {
 	await mkdir(directory, { recursive: true });
@@ -129,12 +138,16 @@ async function appendToLog(directory: string, digest: string): Promise<void> {
 	try {
 		for (;;) {
 			const log = await readLog(directory);
-			if (log.at(-1) === digest) {
+			const latest = log.at(-1);
+			if (latest?.digest === digest) {
 				return;
 			}
 
 			try {
-				await link(temporary, join(directory, String(log.length + 1)));
+				await link(
+					temporary,
+					join(directory, String((latest?.position ?? 0) + 1)),
+				);
 
 				return;
 			} catch (error) {
@@ -181,27 +194,35 @@ export async function measureCorpusVersion(
 		versionFile(recordsDirectory, digest),
 		`${JSON.stringify({ files: canonicalFiles(files) })}\n`,
 	);
-	await appendToLog(logDirectory(recordsDirectory, source), digest);
+	await appendToLog(await logDirectory(recordsDirectory, source), digest);
 
 	return { kind: "version", digest };
 }
 
 /** The versions one source has been measured at, oldest first. */
-export function corpusVersionLog(
+export async function corpusVersionLog(
 	recordsDirectory: string,
 	source: CorpusRoot,
 ): Promise<readonly string[]> {
-	return readLog(logDirectory(recordsDirectory, source));
+	const entries = await readLog(await logDirectory(recordsDirectory, source));
+
+	return entries.map(({ digest }) => digest);
 }
 
 export class CorpusVersionError extends Error {
 	public override name = "CorpusVersionError";
 }
 
+const DIGEST = /^[0-9a-f]{64}$/u;
+
 export async function readCorpusVersion(
 	recordsDirectory: string,
 	digest: string,
 ): Promise<readonly HashedFile[]> {
+	if (!DIGEST.test(digest)) {
+		throw new CorpusVersionError(`${digest} is not a corpus version digest`);
+	}
+
 	const text = await textIfPresent(versionFile(recordsDirectory, digest));
 	if (text === undefined) {
 		throw new CorpusVersionError(`No corpus version ${digest} is recorded`);
@@ -249,6 +270,10 @@ export async function findCorpusVersion(
 	const wanted = prefix.startsWith(CORPUS_VERSION_LABEL)
 		? prefix.slice(CORPUS_VERSION_LABEL.length)
 		: prefix;
+	if (wanted === "") {
+		return { kind: "missing" };
+	}
+
 	const names =
 		(await readdirIfPresent(
 			join(storeDirectory(recordsDirectory), VERSIONS_DIRECTORY),

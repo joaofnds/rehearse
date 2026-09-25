@@ -728,7 +728,7 @@ describe(createApiApp.name, () => {
 			const runsDirectory = await emptyDirectory("rehearse-api-runs-");
 			const source = directorySource(corpus);
 			const older = await measureCorpusVersion(runsDirectory, source);
-			await Bun.write(join(corpus, "CLAUDE.md"), "edited instructions\n");
+			await Bun.write(join(corpus, "CLAUDE.md"), "edited instructions 3\n");
 			await measureCorpusVersion(runsDirectory, source);
 			if (older.kind !== "version") {
 				throw new Error("the fixture corpus should measure to a version");
@@ -784,13 +784,17 @@ describe(createApiApp.name, () => {
 		it("refuses an ambiguous prefix and names its candidates", async () => {
 			const { app } = await measuredTwice();
 
-			const response = await app.request("/api/corpus/versions/corpus@");
-			const body = z
-				.object({ error: z.string(), candidates: z.array(z.string()) })
-				.parse(await response.json());
+			// Both versions of this fixed tree start with "4".
+			const response = await app.request("/api/corpus/versions/corpus@4");
 
 			expect(response.status).toBe(409);
-			expect(body.candidates).toHaveLength(2);
+			expect(await response.json()).toEqual({
+				error: "The corpus version prefix is ambiguous",
+				candidates: [
+					"4821f98acb79d83b1eddd201252732a1b8ddc996ca6eee8aedcf348cb988a326",
+					"49a9e463aae61c91d06da870b9c0d74822ac5ca1696bc8148806467c0356774a",
+				],
+			});
 		});
 
 		it("refuses a version no record holds and a file the version does not hold", async () => {
