@@ -43,7 +43,7 @@ describe("workflow provider metrics", () => {
 
 		expect(productOwner.snapshot()).toEqual({
 			sessionId: "po-session",
-			spentUsd: 0.4,
+			spentUsd: 0.2,
 			providerCalls: [
 				{
 					metrics: {
@@ -149,6 +149,62 @@ describe("workflow provider metrics", () => {
 		]);
 	});
 
+	it("charges a resumed worker call only its increase over the session's reported total", async () => {
+		const responses = [
+			JSON.stringify({
+				session_id: "worker-session",
+				total_cost_usd: 12.4,
+				num_turns: 47,
+				usage: {
+					input_tokens: 60,
+					output_tokens: 21_774,
+					cache_read_input_tokens: 7,
+					cache_creation_input_tokens: 8,
+				},
+				structured_output: { status: "QUESTION", message: "Which scope?" },
+			}),
+			JSON.stringify({
+				session_id: "worker-session",
+				total_cost_usd: 12.6,
+				num_turns: 7,
+				usage: {
+					input_tokens: 6,
+					output_tokens: 2450,
+					cache_read_input_tokens: 7,
+					cache_creation_input_tokens: 8,
+				},
+				structured_output: { status: "COMPLETE", message: "Built" },
+			}),
+		];
+		const productOwner: ProductOwner = {
+			ask: () => Promise.resolve("Use the small scope"),
+			snapshot: () => ({
+				sessionId: "po-session",
+				spentUsd: 0,
+				providerCalls: [],
+			}),
+		};
+
+		const transcript = await runWorkflowStage(
+			{
+				targetDir: "/target",
+				model: "sonnet",
+				effort: undefined,
+				sessionBudgetUsd: 15,
+				productOwner,
+				taskId: "ACT-5",
+				stage: "build",
+				skill: "build",
+			},
+			() => Promise.resolve(responses.shift() ?? ""),
+		);
+
+		const [first, resumed] = transcript.providerCalls;
+		expect(transcript.costUsd).toBeCloseTo(12.6);
+		expect(first?.metrics?.costUsd).toBe(12.4);
+		expect(resumed?.metrics?.costUsd).toBeCloseTo(0.2);
+	});
+
 	it("records a turn-completed run event for every provider turn, with the running spend", async () => {
 		const responses = [
 			JSON.stringify({
@@ -198,7 +254,7 @@ describe("workflow provider metrics", () => {
 
 		expect(recorded).toEqual([
 			{ kind: "turn-completed", spentUsd: 0.3, elapsedMs: 500 },
-			{ kind: "turn-completed", spentUsd: 0.7, elapsedMs: 500 },
+			{ kind: "turn-completed", spentUsd: 0.4, elapsedMs: 500 },
 		]);
 	});
 

@@ -83,8 +83,17 @@ export class WorkflowExecutionError extends Error {
 	}
 }
 
-function providerCall(metrics: ClaudeCallMetrics | undefined): ProviderCall {
-	return metrics === undefined ? {} : { metrics };
+/**
+ * A resumed call's envelope reports the session's running total, while its
+ * token counts are the call's own, so the call is charged the increase.
+ */
+function providerCall(
+	metrics: ClaudeCallMetrics | undefined,
+	callCostUsd: number,
+): ProviderCall {
+	return metrics === undefined
+		? {}
+		: { metrics: { ...metrics, costUsd: callCostUsd } };
 }
 
 function remainingBudget(limitUsd: number, spentUsd: number): number {
@@ -150,9 +159,16 @@ export function createProductOwner(
 			);
 			const envelope = readClaudeEnvelope(output);
 
+			const sessionTotalUsd = envelope.total_cost_usd ?? spentUsd;
+
 			sessionId = envelope.session_id;
-			spentUsd += envelope.total_cost_usd ?? 0;
-			providerCalls.push(providerCall(readClaudeCallMetrics(envelope)));
+			providerCalls.push(
+				providerCall(
+					readClaudeCallMetrics(envelope),
+					sessionTotalUsd - spentUsd,
+				),
+			);
+			spentUsd = sessionTotalUsd;
 			started = true;
 
 			return readStructuredOutput(envelope, productAnswerSchema).answer;
@@ -222,9 +238,13 @@ export async function runWorkflowStage(
 			});
 		}
 
+		const sessionTotalUsd = envelope.total_cost_usd ?? spentUsd;
+
 		sessionId = envelope.session_id;
-		spentUsd += envelope.total_cost_usd ?? 0;
-		providerCalls.push(providerCall(readClaudeCallMetrics(envelope)));
+		providerCalls.push(
+			providerCall(readClaudeCallMetrics(envelope), sessionTotalUsd - spentUsd),
+		);
+		spentUsd = sessionTotalUsd;
 
 		if (agent.status === "COMPLETE") {
 			exchanges.push({ agent });
