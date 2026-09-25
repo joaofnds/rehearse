@@ -171,10 +171,12 @@ function versionRefusal(
 export const createApiApp = (dependencies: ApiDependencies) => {
 	const app = new Hono()
 		.get("/api/runs", async (context) => {
+			const ids = context.req.query("ids");
 			const report = await runHistoryReport(
 				dependencies.runsDirectory,
 				dependencies.corpusSource,
 				dependencies.liveness,
+				ids === undefined ? undefined : new Set(ids.split(",")),
 			);
 
 			return context.json(report);

@@ -199,6 +199,27 @@ describe(createApiApp.name, () => {
 			);
 		});
 
+		it("returns exactly the rows the ids parameter names", async () => {
+			const fixture = await writtenFixture();
+			const corpus = await corpusDirectory();
+			const otherRun = "2026-09-12T00-00-00.000Z";
+			await fixture.writePipelineRun(otherRun, "audit-log");
+			const app = createApiApp({
+				runsDirectory: fixture.runsDirectory,
+				liveness: nothingRunning,
+				corpusSource: directorySource(corpus),
+			});
+
+			const response = await app.request(
+				`/api/runs?ids=${encodeURIComponent(`run:${otherRun},group:absent`)}`,
+			);
+			const body = await runHistoryResponseFrom(response);
+
+			expect(body.rows.map((row) => row.kind === "run" && row.run)).toEqual([
+				otherRun,
+			]);
+		});
+
 		it("keeps healthy rows when one run's current settings are unavailable", async () => {
 			const fixture = await fixtureRecordingLiveSettings();
 			const corpus = await corpusDirectory();

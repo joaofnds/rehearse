@@ -889,11 +889,15 @@ async function recordStaleness(
  * the way an uncaught throw would. The reason is redacted the same way,
  * since a filesystem error can name a path under the corpus root or the
  * target repository, neither of which lives under `CONTROL_DIR`.
+ *
+ * Given `only`, the report holds just the records with those ids, such as
+ * the rows the corpus report says the last edit invalidated.
  */
 export async function runHistoryReport(
 	runsDirectory: string,
 	source: CorpusRoot,
 	liveness: RunLiveness,
+	only?: ReadonlySet<string>,
 ): Promise<RunHistoryReport> {
 	const staleness = await recordStaleness(runsDirectory, source);
 
@@ -917,7 +921,9 @@ export async function runHistoryReport(
 				shortId: string | undefined,
 			) => Promise<RunHistoryRow | undefined>,
 		): Promise<void> => {
-			for (const name of named) {
+			for (const name of named.filter(
+				(candidate) => only?.has(idOf(candidate)) ?? true,
+			)) {
 				try {
 					const row = await read(name, shortIds.get(idOf(name)));
 					if (row !== undefined) {
