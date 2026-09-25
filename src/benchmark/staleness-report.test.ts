@@ -731,6 +731,23 @@ describe("staleness over read manifests", () => {
 		]);
 	});
 
+	it("does not read a replay as stale only by corpus files when its own judge rubric changed too", async () => {
+		const { fixture, corpus } = await recordedFixture();
+		await fixture.recordReplayReadManifest([
+			deliveryRubricEntry("0".repeat(64)),
+		]);
+		await Bun.write(join(corpus, "skills", "build", "SKILL.md"), "edited\n");
+
+		const report = await replayAttemptStaleness(
+			fixture.runsDirectory,
+			directorySource(corpus),
+		);
+
+		expect(report.records).toMatchObject([
+			{ stale: true, onlyCorpusFiles: false },
+		]);
+	});
+
 	it("stales a replay whose consumed stage had its judge rubric change", async () => {
 		const { fixture, corpus } = await recordedFixture();
 		await fixture.recordReadManifest(
@@ -1302,6 +1319,44 @@ describe(groupStaleness.name, () => {
 				stale: true,
 				causes: [`judge rubric ${PLANNING_RUBRIC} changed`],
 				onlyCorpusFiles: false,
+			}),
+		]);
+	});
+
+	it("does not call a stage group's staleness corpus-only when its rep's judge rubric changed too", async () => {
+		const corpus = await stageCorpus();
+		const fixture = await fixtureWithGroupFrom(corpus);
+		await fixture.recordGroupRepReadManifest("rep-1", "discuss", [
+			judgeRubricEntry("aa".repeat(32)),
+		]);
+		await Bun.write(join(corpus, "skills", "build", "SKILL.md"), "edited\n");
+
+		const report = await groupStaleness(
+			fixture.runsDirectory,
+			directorySource(corpus),
+		);
+
+		expect(report.records).toEqual([
+			expect.objectContaining({ stale: true, onlyCorpusFiles: false }),
+		]);
+	});
+
+	it("judges the read manifest a rep's stage checkpoint holds", async () => {
+		const corpus = await stageCorpus();
+		const fixture = await fixtureWithGroupFrom(corpus);
+		await fixture.recordGroupRepCheckpointReadManifest("rep-1", "discuss", [
+			judgeRubricEntry("aa".repeat(32)),
+		]);
+
+		const report = await groupStaleness(
+			fixture.runsDirectory,
+			directorySource(corpus),
+		);
+
+		expect(report.records).toEqual([
+			expect.objectContaining({
+				stale: true,
+				causes: [`judge rubric ${PLANNING_RUBRIC} changed`],
 			}),
 		]);
 	});

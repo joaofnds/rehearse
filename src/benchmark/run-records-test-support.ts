@@ -1608,6 +1608,26 @@ export class RecordedRunsFixture {
 	}
 
 	/**
+	 * Writes the read manifest a rep's stage checkpoint holds, beside a stage
+	 * file that holds none, the way a rep written before stage files carried
+	 * one would read.
+	 */
+	public async recordGroupRepCheckpointReadManifest(
+		repId: string,
+		stage: string,
+		readManifest: readonly ReadManifestEntry[],
+	): Promise<void> {
+		const rep = confirmationGroupPaths(this.runsDirectory, this.groupId).rep(
+			repId,
+		);
+		await mkdir(dirname(rep.stageFile(stage)), { recursive: true });
+		await Bun.write(rep.stageFile(stage), `${JSON.stringify({ stage })}\n`);
+		const file = checkpointRecordFile(rep.checkpointDirectory(stage));
+		await mkdir(dirname(file), { recursive: true });
+		await Bun.write(file, `${JSON.stringify({ readManifest }, null, 2)}\n`);
+	}
+
+	/**
 	 * Writes a session group rep's attempt over the named layout files with
 	 * the read manifest it recorded, the way session confirmation writes it.
 	 */
