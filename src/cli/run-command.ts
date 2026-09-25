@@ -459,11 +459,11 @@ export async function executeSessionRun(
 		)();
 	}
 
-	const questioner = terminalQuestioner();
+	const runsDirectory = dependencies.runsDirectory ?? recordsDirectory();
 	const runDebug = dependencies.runDebug ?? runSessionDebugAttempt;
 	const executeAttempt =
 		dependencies.executeAttempt ?? runPreparedSessionAttempt;
-	const runsDirectory = dependencies.runsDirectory ?? recordsDirectory();
+	const questioner = terminalQuestioner();
 
 	return runRequestedExecution<RunOutcome>({
 		confirmation: config.confirmation,
