@@ -819,6 +819,41 @@ describe("runRunCommand for a session case", () => {
 		expect(events).toEqual(["capability", "probe", "attempt"]);
 	});
 
+	it("records a debug session attempt under the records directory it was given", async () => {
+		const { output } = recordOutput();
+		const recordedUnder: string[] = [];
+
+		await failureOf(
+			runRunCommand(
+				{
+					args: ["--case", "smoke", ...sessionArgs],
+					json: false,
+					stdinIsTerminal: false,
+				},
+				{
+					output,
+					requireCase: () => Promise.resolve(resumedSmokeCase),
+					assertPreflight: passingPreflight,
+					probeModel: () => Promise.resolve(missingPreflight),
+					execute: () => Promise.reject(new Error("no pipeline here")),
+					executeSession: (config, commandOutput, loaded, boundary) =>
+						executeSessionRun(config, commandOutput, loaded, {
+							...boundary,
+							runsDirectory: "/given/records",
+							assertSystemPromptSnapshotSupported: () => Promise.resolve(),
+							runDebug: (request) => {
+								recordedUnder.push(request.runsDirectory);
+
+								return Promise.reject(new Error("attempt reached"));
+							},
+						}),
+				},
+			),
+		);
+
+		expect(recordedUnder).toEqual(["/given/records"]);
+	});
+
 	it("refuses an unsupported resumed confirmation before its model probe and reps", async () => {
 		const { output } = recordOutput();
 		const paidCalls: string[] = [];

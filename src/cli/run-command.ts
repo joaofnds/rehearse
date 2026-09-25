@@ -480,7 +480,7 @@ export async function executeSessionRun(
 		runDebug: async () => {
 			await dependencies.probeModel(config.model);
 			const outcome = await runDebug({
-				...defaultSessionRunRequest(sessionCase, config, recordsDirectory()),
+				...defaultSessionRunRequest(sessionCase, config, runsDirectory),
 				resolveCorpus: dependencies.resolveCorpus,
 			});
 			reportSessionChecks(outcome.record, output);
