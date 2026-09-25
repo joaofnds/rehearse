@@ -163,6 +163,7 @@ describe(groupSummary.name, () => {
 			`## group:group-1
 
 Case audit-log, stage mode, 2 reps.
+Corpus version not recorded.
 
 | outcome | successful | success rate | standard error | pass^k |
 | --- | --- | --- | --- | --- |
@@ -170,6 +171,37 @@ Case audit-log, stage mode, 2 reps.
 
 Cost $4.00 over 2 reps.
 `,
+		);
+	});
+
+	it("names the corpus version the group ran against", () => {
+		const record = confirmationGroupRecordSchema.parse({
+			...GROUP_RECORD,
+			inputs: {
+				...GROUP_RECORD.inputs,
+				corpusVersion: { kind: "version", digest: `4e196b${"0".repeat(58)}` },
+			},
+		});
+
+		expect(groupSummary(record, GROUP_REPORT)).toContain(
+			"\nCorpus corpus@4e196b.\n",
+		);
+	});
+
+	it("names the refusal that kept the group's corpus from being a version", () => {
+		const record = confirmationGroupRecordSchema.parse({
+			...GROUP_RECORD,
+			inputs: {
+				...GROUP_RECORD.inputs,
+				corpusVersion: {
+					kind: "refused",
+					refusal: "a symlink escapes the root",
+				},
+			},
+		});
+
+		expect(groupSummary(record, GROUP_REPORT)).toContain(
+			"\nCorpus refused: a symlink escapes the root.\n",
 		);
 	});
 

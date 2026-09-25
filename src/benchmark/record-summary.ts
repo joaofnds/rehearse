@@ -14,6 +14,7 @@ import type {
 } from "./comparison-estimator";
 import type { ParsedConfirmationGroupRecord } from "./confirmation-record";
 import type { Immutable } from "./contracts";
+import { corpusMeasurementReading } from "./corpus-measurement";
 
 /**
  * The short markdown a session pastes onto a card. Each summary is a pure
@@ -187,6 +188,7 @@ export function groupSummary(
 		`## group:${record.groupId}`,
 		"",
 		`Case ${record.caseId}, ${record.mode} mode, ${String(record.reps)} reps.`,
+		`Corpus ${corpusMeasurementReading(record.inputs.corpusVersion)}.`,
 		"",
 		...table(
 			["outcome", "successful", "success rate", "standard error", "pass^k"],

@@ -6,6 +6,7 @@ import type { HashedFile } from "./checkpoint";
 import { canonicalFiles, hashedFileSchema } from "./checkpoint";
 import type { CorpusRoot } from "./corpus-file";
 import type { CorpusMeasurement } from "./corpus-measurement";
+import { CORPUS_VERSION_LABEL } from "./corpus-measurement";
 import { hashCorpusLayout } from "./corpus-layout";
 import { readdirIfPresent, textIfPresent } from "./file-presence";
 
@@ -227,14 +228,6 @@ export async function readCorpusVersionFile(
 	}
 
 	return Bun.file(blobFile(recordsDirectory, file.sha256)).bytes();
-}
-
-export const CORPUS_VERSION_LABEL = "corpus@";
-const VERSION_LABEL_LENGTH = 6;
-
-/** How a version is named wherever it is shown: the label and six hex characters. */
-export function corpusVersionLabel(digest: string): string {
-	return `${CORPUS_VERSION_LABEL}${digest.slice(0, VERSION_LABEL_LENGTH)}`;
 }
 
 export type FoundCorpusVersion =
