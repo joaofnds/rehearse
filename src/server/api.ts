@@ -70,6 +70,16 @@ function historyError(error: HistoryErrorView): HistoryErrorResponse {
 	};
 }
 
+/** A malformed argument is 400 and a record that is not there is 404. */
+function commandRefusal(
+	error: Readonly<UsageError> | Readonly<RefusedPreconditionError>,
+): HistoryErrorResponse {
+	return {
+		message: redactAbsolutePaths(error.message),
+		status: error instanceof UsageError ? 400 : 404,
+	};
+}
+
 /**
  * The instructions attachment records each loaded file by its absolute path on
  * the machine that ran the attempt, so serving it verbatim would put the
@@ -292,10 +302,8 @@ export const createApiApp = (dependencies: ApiDependencies) => {
 					error instanceof UsageError ||
 					error instanceof RefusedPreconditionError
 				) {
-					return context.json(
-						{ error: redactAbsolutePaths(error.message) },
-						error instanceof UsageError ? 400 : 404,
-					);
+					const refusal = commandRefusal(error);
+					return context.json({ error: refusal.message }, refusal.status);
 				}
 
 				throw error;
@@ -541,10 +549,8 @@ export const createApiApp = (dependencies: ApiDependencies) => {
 					error instanceof UsageError ||
 					error instanceof RefusedPreconditionError
 				) {
-					return context.json(
-						{ error: redactAbsolutePaths(error.message) },
-						error instanceof UsageError ? 400 : 404,
-					);
+					const refusal = commandRefusal(error);
+					return context.json({ error: refusal.message }, refusal.status);
 				}
 
 				throw error;
@@ -627,10 +633,8 @@ export const createApiApp = (dependencies: ApiDependencies) => {
 					error instanceof UsageError ||
 					error instanceof RefusedPreconditionError
 				) {
-					return context.json(
-						{ error: redactAbsolutePaths(error.message) },
-						error instanceof UsageError ? 400 : 404,
-					);
+					const refusal = commandRefusal(error);
+					return context.json({ error: refusal.message }, refusal.status);
 				}
 
 				throw error;
@@ -654,10 +658,8 @@ export const createApiApp = (dependencies: ApiDependencies) => {
 					error instanceof UsageError ||
 					error instanceof RefusedPreconditionError
 				) {
-					return context.json(
-						{ error: redactAbsolutePaths(error.message) },
-						error instanceof UsageError ? 400 : 404,
-					);
+					const refusal = commandRefusal(error);
+					return context.json({ error: refusal.message }, refusal.status);
 				}
 
 				throw error;
