@@ -519,6 +519,20 @@ describe(checkpointStaleness.name, () => {
 	});
 });
 
+const PLANNING_RUBRIC = "cases/audit-log/rubrics/shape.json";
+
+async function planningRubricNow(): Promise<string> {
+	const loaded = await loadStageRubric({
+		name: "discuss",
+		kind: "planning",
+		skill: "discuss",
+		rubric: PLANNING_RUBRIC,
+		requiresAcceptanceCriteria: false,
+	});
+
+	return stageRubricSha256(loaded.rubric);
+}
+
 describe("staleness over read manifests", () => {
 	const roots: string[] = [];
 
@@ -533,20 +547,6 @@ describe("staleness over read manifests", () => {
 		roots.push(root);
 
 		return root;
-	}
-
-	const PLANNING_RUBRIC = "cases/audit-log/rubrics/shape.json";
-
-	async function planningRubricNow(): Promise<string> {
-		const loaded = await loadStageRubric({
-			name: "discuss",
-			kind: "planning",
-			skill: "discuss",
-			rubric: PLANNING_RUBRIC,
-			requiresAcceptanceCriteria: false,
-		});
-
-		return stageRubricSha256(loaded.rubric);
 	}
 
 	async function recordedFixture(): Promise<{
@@ -1275,17 +1275,21 @@ describe(groupStaleness.name, () => {
 		);
 	});
 
+	function judgeRubricEntry(sha256: string): ReadManifestEntry {
+		return {
+			path: PLANNING_RUBRIC,
+			half: "rubric",
+			role: "judge rubric",
+			evidence: "declared",
+			sha256,
+		};
+	}
+
 	it("stales a stage group whose rep's judge rubric changed since", async () => {
 		const corpus = await stageCorpus();
 		const fixture = await fixtureWithGroupFrom(corpus);
 		await fixture.recordGroupRepReadManifest("rep-1", "discuss", [
-			{
-				path: "rubrics/discuss.json",
-				half: "rubric",
-				role: "judge rubric",
-				evidence: "declared",
-				sha256: "aa".repeat(32),
-			},
+			judgeRubricEntry("aa".repeat(32)),
 		]);
 
 		const report = await groupStaleness(
@@ -1296,9 +1300,26 @@ describe(groupStaleness.name, () => {
 		expect(report.records).toEqual([
 			expect.objectContaining({
 				stale: true,
-				causes: ["judge rubric rubrics/discuss.json changed"],
+				causes: [`judge rubric ${PLANNING_RUBRIC} changed`],
 				onlyCorpusFiles: false,
 			}),
+		]);
+	});
+
+	it("keeps a stage group fresh when its rep's judge rubric is unchanged", async () => {
+		const corpus = await stageCorpus();
+		const fixture = await fixtureWithGroupFrom(corpus);
+		await fixture.recordGroupRepReadManifest("rep-1", "discuss", [
+			judgeRubricEntry(await planningRubricNow()),
+		]);
+
+		const report = await groupStaleness(
+			fixture.runsDirectory,
+			directorySource(corpus),
+		);
+
+		expect(report.records).toEqual([
+			expect.objectContaining({ stale: false, causes: [] }),
 		]);
 	});
 
