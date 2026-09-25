@@ -15,6 +15,8 @@ import {
 import type { Immutable } from "./contracts";
 import type { CorpusMeasurement } from "./corpus-measurement";
 import { corpusMeasurementSchema } from "./corpus-measurement";
+import { readManifestSchema } from "./read-manifest";
+import type { ReadManifestEntry } from "./read-manifest";
 import { projectSlug } from "./session-capture";
 import {
 	classifyEntry,
@@ -1036,6 +1038,7 @@ const checkpointRecordSchema = z
 		settingsFile: hashedFileSchema.optional(),
 		transcript: stageTranscriptEvidenceSchema.optional(),
 		corpusVersion: corpusMeasurementSchema.optional(),
+		readManifest: readManifestSchema.optional(),
 	})
 	.strict();
 
@@ -1058,6 +1061,7 @@ export interface CheckpointInputs {
 	readonly settingsFile?: HashedFile | undefined;
 	readonly transcript?: StageTranscriptSource | undefined;
 	readonly corpusVersion?: CorpusMeasurement | undefined;
+	readonly readManifest?: readonly ReadManifestEntry[] | undefined;
 }
 
 const RECORD_FILE = "checkpoint.json";
@@ -1093,6 +1097,18 @@ export async function hashWorkflowState(
  */
 const TRANSCRIPT_FILE = "transcript.jsonl";
 
+/** Where the provider wrote a stage session's transcript. */
+export function stageTranscriptFile(
+	targetDir: string,
+	source: StageTranscriptSource,
+): string {
+	return join(
+		source.projectsDirectory,
+		projectSlug(targetDir),
+		`${source.sessionId}.jsonl`,
+	);
+}
+
 /**
  * Copies the provider's transcript beside the checkpoint so it survives the
  * working directory it was written under. The bytes are copied rather than the
@@ -1108,13 +1124,7 @@ async function preserveStageTranscript(
 		return undefined;
 	}
 
-	const written = Bun.file(
-		join(
-			source.projectsDirectory,
-			projectSlug(targetDir),
-			`${source.sessionId}.jsonl`,
-		),
-	);
+	const written = Bun.file(stageTranscriptFile(targetDir, source));
 	if (!(await written.exists())) {
 		return { status: "UNAVAILABLE", sessionId: source.sessionId };
 	}
@@ -1154,6 +1164,7 @@ export async function recordCheckpoint(
 			inputs.transcript,
 		),
 		corpusVersion: inputs.corpusVersion,
+		readManifest: inputs.readManifest,
 	};
 	await Bun.write(
 		join(directory, RECORD_FILE),

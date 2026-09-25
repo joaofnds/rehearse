@@ -67,7 +67,7 @@ import type {
 	JudgeAgreementCalibration,
 	JudgeAgreementReport,
 } from "./judge-agreement";
-import { loadJudgeAgreementReport } from "./judge-agreement";
+import { loadJudgeAgreementReport, stageRubricSha256 } from "./judge-agreement";
 import type { JudgeResult } from "./judge";
 import { runJudge, validateRubricDefinition } from "./judge";
 import type { RunManifest } from "./manifest";
@@ -80,6 +80,7 @@ import type {
 } from "./pipeline";
 import type { PendingStage } from "./run-abort";
 import { createRunAbort, fileRunArtifactPersistence } from "./run-abort";
+import { recordStageReads } from "./stage-reads";
 import type { RunEventRecorder } from "./run-events";
 import { openRunEventStore, runEventRecorderFor } from "./run-events";
 import type { BenchmarkRunPaths } from "./run-layout";
@@ -830,6 +831,24 @@ export async function runGradedStages(
 			throw error;
 		}
 		stageScorecards.push(scorecard);
+		const stageTranscript =
+			context.projectsDirectory === undefined
+				? undefined
+				: {
+						sessionId: session.transcript.sessionId,
+						projectsDirectory: context.projectsDirectory,
+					};
+		const readManifest = await recordStageReads({
+			targetDir: context.targetDir,
+			startSha: baselineSha,
+			transcript: stageTranscript,
+			skill: definition.skill,
+			corpusFiles,
+			rubric: {
+				path: definition.rubric,
+				sha256: stageRubricSha256(scorecard.rubric),
+			},
+		});
 		const elapsedMs = stageElapsedMs(context.elapsedMs, stageStartedAtMs);
 		const stageRecord: StageJudgeRecord = {
 			...scorecard,
@@ -891,13 +910,8 @@ export async function runGradedStages(
 				corpusVersion,
 				artifacts: hashArtifacts(input.artifact ? [input.artifact] : []),
 				settingsFile: context.loadedSettings.hashed,
-				transcript:
-					context.projectsDirectory === undefined
-						? undefined
-						: {
-								sessionId: session.transcript.sessionId,
-								projectsDirectory: context.projectsDirectory,
-							},
+				transcript: stageTranscript,
+				readManifest,
 			},
 		);
 		checkpoints.push(checkpoint);

@@ -121,19 +121,30 @@ function dedupeEntries(
 	return [...seen.values()];
 }
 
-export function observedManifest(
+/** Every file path a transcript shows the session loading, as it was loaded. */
+export function loadedFiles(
 	lines: Immutable<readonly TranscriptLine[]>,
-	declaredProjectFiles: readonly string[] = [],
-): ContextManifest {
-	const loadedFiles = [
+): readonly string[] {
+	return [
 		...filesRead(toolUsesExceptFailed(lines)),
 		...instructionFiles(lines),
 		...skillDirectories(lines).map((directory) => `${directory}/SKILL.md`),
 	];
-	const corpusPaths = loadedFiles
+}
+
+export function isCorpusLoad(path: string): boolean {
+	return readCorpusLayoutPath(path) !== undefined;
+}
+
+export function observedManifest(
+	lines: Immutable<readonly TranscriptLine[]>,
+	declaredProjectFiles: readonly string[] = [],
+): ContextManifest {
+	const loaded = loadedFiles(lines);
+	const corpusPaths = loaded
 		.map((path) => readCorpusLayoutPath(path))
 		.filter((path) => path !== undefined);
-	const projectPaths = loadedFiles
+	const projectPaths = loaded
 		.map((path) => readProjectLayoutPath(path, declaredProjectFiles))
 		.filter((path) => path !== undefined);
 	const stylePath = outputStyleLayoutPath(outputStyles(lines));

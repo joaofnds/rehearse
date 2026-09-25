@@ -664,6 +664,76 @@ describe(runGradedStages.name, () => {
 		).toBe(raw);
 	});
 
+	it("records in each stage's checkpoint what it declared and loaded, with roles", async () => {
+		const { dependencies } = fakeStageDependencies();
+		const context = await stageContext();
+		const projectsDirectory = await mkdtemp(
+			join(tmpdir(), "rehearse-projects-"),
+		);
+		testResources.track(projectsDirectory);
+		const slug = join(projectsDirectory, projectSlug(context.targetDir));
+		await mkdir(slug, { recursive: true });
+		const read = (path: string): string =>
+			JSON.stringify({
+				type: "assistant",
+				message: {
+					content: [
+						{
+							type: "tool_use",
+							id: "t",
+							name: "Read",
+							input: { file_path: path },
+						},
+					],
+				},
+			});
+		await Bun.write(
+			join(slug, "session.jsonl"),
+			`${read("/install/.claude/skills/shape/SKILL.md")}\n${read("/install/.claude/rulebook/style.md")}\n`,
+		);
+
+		const outcome = await runGradedStages(dependencies, {
+			...context,
+			projectsDirectory,
+		});
+
+		expect(
+			outcome.checkpoints[0]?.readManifest?.map(
+				({ path, role, evidence, sha256 }) => ({
+					path,
+					role,
+					evidence,
+					hashed: sha256 !== undefined,
+				}),
+			),
+		).toEqual([
+			{
+				path: "CLAUDE.md",
+				role: "global instructions",
+				evidence: "declared",
+				hashed: false,
+			},
+			{
+				path: "skills/shape/SKILL.md",
+				role: "stage skill",
+				evidence: "declared and observed",
+				hashed: true,
+			},
+			{
+				path: "cases/audit-log/rubrics/shape.json",
+				role: "judge rubric",
+				evidence: "declared",
+				hashed: true,
+			},
+			{
+				path: "rulebook/style.md",
+				role: "read for context",
+				evidence: "observed",
+				hashed: false,
+			},
+		]);
+	});
+
 	it("records in each stage's checkpoint the corpus version measured before its session ran", async () => {
 		const { dependencies, executed } = fakeStageDependencies();
 		const sessionsBeforeEachMeasurement: number[] = [];
