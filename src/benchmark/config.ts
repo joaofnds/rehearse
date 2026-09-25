@@ -12,9 +12,10 @@ export const MAX_CONTEXT_FILE_BYTES = 256 * 1024;
 export const MAX_CONTEXT_TOTAL_BYTES = 1024 * 1024;
 
 /**
- * The grade letters live here rather than in contracts because config is the
- * leaf every other module imports, and contracts imports config. Contracts
- * re-derives its schema from this list, so the letters have one definition.
+ * The grade letters live here rather than in contracts because contracts
+ * imports config, and config imports nothing of this project but run-layout.
+ * Contracts re-derives its schema from this list, so the letters have one
+ * definition.
  */
 export const STAGE_LETTER_GRADES = ["A", "B", "C", "D", "F"] as const;
 
@@ -39,17 +40,26 @@ export function displayPath(path: string): string {
 }
 
 /**
+ * The resolver reads this variable, the test preload sets it, and the CLI
+ * tests pass it to spawned children, so all three name it through this
+ * constant. It must not start with BENCHMARK_, because the CLI tests strip
+ * those variables from every child.
+ */
+export const RECORDS_DIRECTORY_VARIABLE = "REHEARSE_RECORDS_DIR";
+
+/**
  * Where every command reads and writes its records. The test preload points
- * REHEARSE_RECORDS_DIR at a temporary directory, which is what keeps a test
- * run out of the operator's records.
+ * the variable at a temporary directory, which is what keeps a test run out of
+ * the operator's records.
  */
 export function recordsDirectory(
 	env: Readonly<Record<string, string | undefined>> = Bun.env,
 ): string {
-	const override = env["REHEARSE_RECORDS_DIR"];
+	const override = env[RECORDS_DIRECTORY_VARIABLE];
+
 	if (override === "") {
 		throw new Error(
-			"REHEARSE_RECORDS_DIR is empty; unset it to keep records under .benchmark-runs",
+			`${RECORDS_DIRECTORY_VARIABLE} is empty; unset it to keep records under .benchmark-runs`,
 		);
 	}
 

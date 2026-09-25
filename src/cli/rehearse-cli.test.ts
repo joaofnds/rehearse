@@ -9,7 +9,11 @@ import {
 	parseComparisonReport,
 } from "#benchmark/comparison-record";
 import { runCommand } from "#benchmark/command";
-import { CONTROL_DIR, recordsDirectory } from "#benchmark/config";
+import {
+	CONTROL_DIR,
+	RECORDS_DIRECTORY_VARIABLE,
+	recordsDirectory,
+} from "#benchmark/config";
 import {
 	benchmarkRunsDirectory,
 	comparisonReportPaths,
@@ -67,7 +71,7 @@ async function runCli(
 function environmentWithoutRecordsLocation(): Record<string, string> {
 	return Object.fromEntries(
 		Object.entries(environmentWithoutKnobs()).filter(
-			([name]) => name !== "REHEARSE_RECORDS_DIR",
+			([name]) => name !== RECORDS_DIRECTORY_VARIABLE,
 		),
 	);
 }
@@ -561,7 +565,7 @@ describe("rehearse", () => {
 	it("refuses an empty records location with a usage exit code", async () => {
 		const child = Bun.spawn([process.execPath, "rehearse.ts", "list", "runs"], {
 			cwd: PROJECT_ROOT,
-			env: { ...environmentWithoutKnobs(), REHEARSE_RECORDS_DIR: "" },
+			env: { ...environmentWithoutKnobs(), [RECORDS_DIRECTORY_VARIABLE]: "" },
 			stdout: "pipe",
 			stderr: "pipe",
 		});
