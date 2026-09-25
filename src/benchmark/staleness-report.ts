@@ -499,6 +499,29 @@ export async function checkpointStalenessByRun(
 	return { byRun, unreadable };
 }
 
+/**
+ * One run's checkpoints judged as `checkpointStaleness` judges them, none when
+ * the run recorded no manifest.
+ */
+export async function checkpointStalenessOfRun(
+	runsDirectory: string,
+	run: string,
+	source: CorpusRoot,
+): Promise<readonly RecordStaleness[]> {
+	const judged = await runCheckpointStaleness(
+		runsDirectory,
+		run,
+		{
+			source,
+			instructions: await currentInstructions(source),
+			underTest: await readCorpusUnderTest(runsDirectory, source),
+		},
+		{},
+	);
+
+	return judged ?? [];
+}
+
 interface CorpusJudgedAgainst {
 	readonly source: CorpusRoot;
 	readonly instructions: CurrentInstructions;

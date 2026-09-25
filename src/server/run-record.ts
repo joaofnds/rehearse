@@ -11,7 +11,9 @@ import type { CorpusMeasurement } from "#benchmark/corpus-measurement";
 import type { ClaudeCallMetrics, Immutable } from "#benchmark/contracts";
 import { loadRunManifest } from "#benchmark/manifest";
 import { readManifestSchema } from "#benchmark/read-manifest";
-import type { ReadManifestEntry } from "#benchmark/read-manifest";
+import type { CorpusRoot } from "#benchmark/corpus-file";
+import { checkpointStalenessOfRun } from "#benchmark/staleness-report";
+import type { JudgedReadEntry } from "#benchmark/staleness-report";
 import {
 	benchmarkRunPaths,
 	checkpointRecordFile,
@@ -113,10 +115,12 @@ export interface RunRecordStage {
 	readonly corpusVersion: CorpusMeasurement | undefined;
 	/**
 	 * What the stage declared and loaded, from its checkpoint, or from its
-	 * stage record when its judge stopped it before it saved one.
+	 * stage record when its judge stopped it before it saved one. A checkpoint's
+	 * entries say whether each file changed since, where `readJudgedRunRecord`
+	 * judged them.
 	 */
 	readonly readManifest: Reading<{
-		readonly entries: readonly ReadManifestEntry[];
+		readonly entries: readonly JudgedReadEntry[];
 	}>;
 	readonly artifactsOut: ArtifactsOut;
 }
@@ -1024,4 +1028,50 @@ export async function readRunRecord(
 	} finally {
 		runEvents.close();
 	}
+}
+
+/**
+ * The run's record with each checkpoint's read manifest judged against the
+ * corpus under test, as the run's page shows it. The run history reads the
+ * unjudged record, since it judges each row once for itself.
+ */
+export async function readJudgedRunRecord(
+	runsDirectory: string,
+	run: string,
+	liveness: RunLiveness,
+	source: CorpusRoot,
+): Promise<RunRecord> {
+	const record = await readRunRecord(runsDirectory, run, liveness);
+	const checkpoints = await checkpointStalenessOfRun(
+		runsDirectory,
+		run,
+		source,
+	);
+	const judged = new Map(
+		checkpoints.map(({ id, readManifest }) => [id, readManifest]),
+	);
+
+	return {
+		...record,
+		stages: record.stages.map((stage) =>
+			withJudgedReadManifest(
+				stage,
+				judged.get(
+					formatRecordId({ kind: "checkpoint", run, stage: stage.stage }),
+				),
+			),
+		),
+	};
+}
+
+/** A stage whose recorded manifest the judged one stands in for, when there is one. */
+function withJudgedReadManifest(
+	stage: RunRecordStage,
+	judged: readonly JudgedReadEntry[] | undefined,
+): RunRecordStage {
+	if (stage.readManifest.state === "unavailable" || judged === undefined) {
+		return stage;
+	}
+
+	return { ...stage, readManifest: { state: "available", entries: judged } };
 }

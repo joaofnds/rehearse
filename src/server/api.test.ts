@@ -613,6 +613,67 @@ describe(createApiApp.name, () => {
 		});
 	});
 
+	describe("GET /api/runs/:run", () => {
+		it("says of each stage's read-manifest corpus entry whether that file changed since", async () => {
+			const fixture = await writtenFixture();
+			const corpus = await corpusDirectory();
+			await fixture.recordCorpusFrom(directorySource(corpus));
+			const skillEntry = (stage: string, content: string) =>
+				({
+					path: `skills/${stage}/SKILL.md`,
+					half: "corpus",
+					role: "stage skill",
+					evidence: "declared",
+					sha256: sha256Hex(content),
+				}) as const;
+			await fixture.recordReadManifest("discuss", [
+				skillEntry("discuss", "discuss skill\n"),
+			]);
+			await fixture.recordReadManifest("build", [
+				skillEntry("build", "build skill\n"),
+			]);
+			await Bun.write(
+				join(corpus, "skills", "build", "SKILL.md"),
+				"build skill, edited\n",
+			);
+			const app = createApiApp({
+				runsDirectory: fixture.runsDirectory,
+				liveness: nothingRunning,
+				corpusSource: directorySource(corpus),
+			});
+
+			const response = await app.request(
+				`/api/runs/${encodeURIComponent(fixture.replayableRun)}`,
+			);
+
+			expect(await response.json()).toMatchObject({
+				stages: [
+					{
+						stage: "discuss",
+						readManifest: {
+							state: "available",
+							entries: [
+								{
+									...skillEntry("discuss", "discuss skill\n"),
+									state: "unchanged",
+								},
+							],
+						},
+					},
+					{
+						stage: "build",
+						readManifest: {
+							state: "available",
+							entries: [
+								{ ...skillEntry("build", "build skill\n"), state: "changed" },
+							],
+						},
+					},
+				],
+			});
+		});
+	});
+
 	describe("GET /api/corpus", () => {
 		it("refuses an escaping live layout root without revealing its target or descendants", async () => {
 			const corpus = await corpusDirectory();

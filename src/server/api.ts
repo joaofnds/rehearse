@@ -30,7 +30,7 @@ import { corpusReport } from "./corpus-report";
 import { redactAbsolutePaths, redactedFilePath } from "./redact-path";
 import type { RunLiveness } from "#benchmark/run-liveness";
 import { runHistoryReport } from "./run-history";
-import { readRunRecord } from "./run-record";
+import { readJudgedRunRecord } from "./run-record";
 import {
 	readConfirmationAttemptHistory,
 	readConfirmationAttemptHistoryDetail,
@@ -528,10 +528,11 @@ export const createApiApp = (dependencies: ApiDependencies) => {
 				const id = parseRunRecordId(context.req.param("run"));
 
 				return context.json(
-					await readRunRecord(
+					await readJudgedRunRecord(
 						dependencies.runsDirectory,
 						id.run,
 						dependencies.liveness,
+						dependencies.corpusSource,
 					),
 				);
 			} catch (error) {
