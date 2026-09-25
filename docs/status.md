@@ -69,9 +69,9 @@ case present, but no browser check has been run over it.
 - **Corpus versions have gaps at their edges.** Two measurements racing across
   an edit can log the older version after the newer one. The rail's `corpus@`
   label names the live tree before anything has measured it, so that version
-  may not open until a run, replay or session attempt stores it. `corpus show
-  --file` prints a file as UTF-8 text, so a non-text file does not print as its
-  bytes; the file route serves the bytes. See
+  may not open until a run, replay or session attempt stores it. The
+  `corpus show --file` command prints a file as UTF-8 text, so a non-text file
+  does not print as its bytes; the file route serves the bytes. See
   [corpus versions](reference.md#corpus-versions).
 - **Pipeline `run --corpus` is refused.** Replay supports explicit corpus
   directories, but the forward pipeline command does not yet use that path.

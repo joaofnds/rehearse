@@ -822,8 +822,7 @@ hold, answers 404, and an ambiguous prefix answers 409 with its `candidates`.
 `/api/corpus` names the live tree by its full version `digest`, computed
 without writing to the store, and omits it when any entry refused hashing.
 Until a run, replay or session attempt measures that tree, the store does not
-hold its version, so the rail's `corpus@` label can name a version that answers
-404.
+hold its version, so the rail's `corpus@` label can name a version that answers 404.
 
 ### Pipeline run record
 
