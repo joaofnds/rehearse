@@ -50,6 +50,7 @@ import { WorkflowExecutionError } from "./workflow";
 import { claimShortId } from "./short-id";
 import { chainRubricCauses } from "./staleness-report";
 import { stageRubricSha256 } from "./judge-agreement";
+import type { ReadManifestEntry } from "./read-manifest";
 import { recordStageReads } from "./stage-reads";
 
 interface FrozenReplayInputs {
@@ -453,6 +454,7 @@ async function runReplayConfirmationBody(
 			let worktreeCreated = false;
 			let productOwner: ProductOwner | undefined;
 			let session: StageSessionResult | undefined;
+			let judgedReads: readonly ReadManifestEntry[] = [];
 			let stageStart = repStart;
 			let setupOperation: string | undefined = "worktree creation";
 			try {
@@ -532,7 +534,7 @@ async function runReplayConfirmationBody(
 					frozen.plan.definition,
 					priorArtifacts,
 				);
-				const readManifest = await recordStageReads({
+				judgedReads = await recordStageReads({
 					targetDir: plan.worktreePath,
 					startSha: baseSha,
 					transcript:
@@ -562,7 +564,7 @@ async function runReplayConfirmationBody(
 				const scorecardFile = repPaths.stageFile(request.stage);
 				await Bun.write(
 					scorecardFile,
-					`${JSON.stringify({ ...scorecard, readManifest }, null, 2)}\n`,
+					`${JSON.stringify({ ...scorecard, readManifest: judgedReads }, null, 2)}\n`,
 				);
 				const record = completeRepRecord(
 					{
@@ -615,6 +617,7 @@ async function runReplayConfirmationBody(
 								attempts: failure.attempts,
 								costUsd: failure.costUsd,
 								error: failure.message,
+								readManifest: judgedReads,
 							},
 							null,
 							2,

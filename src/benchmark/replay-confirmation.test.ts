@@ -754,6 +754,66 @@ describe(runReplayConfirmation.name, () => {
 		]);
 	});
 
+	it("keeps the stage's reads on the stage file of a rep whose judge rejected it", async () => {
+		const harness = new ReplayConfirmationHarness(testResources);
+		const run = await harness.recordedRun();
+		const corpusRoot = await mkdtemp(join(tmpdir(), "rehearse-corpus-"));
+		testResources.track(corpusRoot);
+		await Bun.write(join(corpusRoot, "skills", "discuss", "SKILL.md"), "d\n");
+
+		const outcome = await harness.runConfirmation(
+			{
+				paths: run.paths,
+				corpusRoots: [{ kind: "directory", root: corpusRoot }],
+			},
+			{ reps: 2 },
+			(dependencies) => ({
+				...dependencies,
+				currentSha: () => Promise.resolve(run.manifest.taskSha),
+				runStageJudge: () => {
+					throw new JudgeOutputValidationError({
+						message: "Judge rejected both attempts",
+						prompt: "prompt",
+						attempts: [
+							{
+								payload: { summary: "completed" },
+								costUsd: 0,
+								outcome: "REJECTED",
+								error: "invalid output",
+							},
+						],
+						costUsd: 0,
+					});
+				},
+			}),
+		);
+		const rubricEntries = await Promise.all(
+			outcome.repRecordFiles.map(async (recordFile) =>
+				z
+					.object({
+						status: z.literal("REJECTED"),
+						readManifest: z.array(
+							z.object({ path: z.string(), half: z.string() }).loose(),
+						),
+					})
+					.parse(
+						JSON.parse(
+							await Bun.file(
+								join(dirname(recordFile), "stages", "discuss.json"),
+							).text(),
+						),
+					)
+					.readManifest.filter(({ half }) => half === "rubric")
+					.map(({ path, half, role }) => ({ path, half, role })),
+			),
+		);
+
+		expect(rubricEntries).toEqual([
+			[{ path: "rubrics/discuss.json", half: "rubric", role: "judge rubric" }],
+			[{ path: "rubrics/discuss.json", half: "rubric", role: "judge rubric" }],
+		]);
+	});
+
 	it("retains completed stage evidence when the Judge invocation fails", async () => {
 		const metric: ClaudeCallMetrics = {
 			costUsd: 0.25,
