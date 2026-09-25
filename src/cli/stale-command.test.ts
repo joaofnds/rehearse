@@ -97,6 +97,35 @@ describe(runStale.name, () => {
 		expect(failure.message).toContain("invalid backing root");
 	});
 
+	it("refuses a live corpus whose backing tree is invalid, with no record to judge", async () => {
+		const root = await temporaryDirectory("rehearse-stale-live-");
+		const outside = await temporaryDirectory("rehearse-stale-outside-");
+		const backingRoot = join(
+			await temporaryDirectory("rehearse-stale-backing-"),
+			"file",
+		);
+		await Bun.write(backingRoot, "not a directory\n");
+		await Bun.write(join(outside, "CLAUDE.md"), "the instructions\n");
+		await symlink(join(outside, "CLAUDE.md"), join(root, "CLAUDE.md"));
+
+		const failure = await failureOf(
+			runStale(
+				{
+					corpus: undefined,
+					runsDirectory: await temporaryDirectory("rehearse-stale-runs-"),
+				},
+				{
+					output: recordOutput().output,
+					resolveCorpus: () =>
+						Promise.resolve({ kind: "live", root, backingRoot }),
+				},
+			),
+		);
+
+		expect(failure).toBeInstanceOf(RefusedPreconditionError);
+		expect(failure.message).toContain("not a directory");
+	});
+
 	it("names each stale checkpoint with its causes, and no fresh one", async () => {
 		const fixture = await fixtureRecordedAgainst(
 			await corpusDirectory("build skill\n"),

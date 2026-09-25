@@ -110,7 +110,9 @@ export async function runStale(
 		(dependencies.resolveCorpus ?? resolveCorpusSource)(request.corpus),
 	);
 
-	await report(request, source, dependencies.output);
+	await refusingCorpusFailures(() =>
+		report(request, source, dependencies.output),
+	);
 }
 
 async function report(
@@ -126,9 +128,7 @@ async function report(
 	);
 	const groups = await groupStaleness(request.runsDirectory, source, request);
 	const stale = [
-		...(await refusingCorpusFailures(() =>
-			staleCheckpoints(request.runsDirectory, source, request),
-		)),
+		...(await staleCheckpoints(request.runsDirectory, source, request)),
 		...attempts.records.filter((record) => record.stale),
 		...replays.records.filter((record) => record.stale),
 		...groups.records.filter((record) => record.stale),
