@@ -472,7 +472,7 @@ describe(checkpointStaleness.name, () => {
 				changedFiles: [],
 				distance: {
 					kind: "not-recorded",
-					reason: "recorded before corpus versions",
+					reason: "the initial checkpoint reads no corpus",
 				},
 			},
 			{

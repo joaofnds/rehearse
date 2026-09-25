@@ -234,6 +234,15 @@ async function checkpointChain(
 }
 
 /**
+ * The initial checkpoint freezes the target before any stage reads the
+ * corpus, so no version applies to it, whenever its run was recorded.
+ */
+const INITIAL_CHECKPOINT_DISTANCE: VersionDistance = {
+	kind: "not-recorded",
+	reason: "the initial checkpoint reads no corpus",
+};
+
+/**
  * Staleness needs the corpus hashed, never installed, so `stale` needs no
  * worktree, no git, and no session: `captureStageCorpus` reads the roots it is
  * given and nothing else, and those roots are the ones a replay against the
@@ -290,7 +299,10 @@ export async function checkpointStaleness(
 				stale: staleness.stale,
 				causes: staleness.causes,
 				changedFiles: staleness.changedFiles,
-				distance: underTest.distanceOf(versionByStage.get(staleness.stage)),
+				distance:
+					staleness.stage === INITIAL_CHECKPOINT_STAGE
+						? INITIAL_CHECKPOINT_DISTANCE
+						: underTest.distanceOf(versionByStage.get(staleness.stage)),
 			});
 		}
 	}
