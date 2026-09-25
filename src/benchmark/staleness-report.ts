@@ -1,7 +1,12 @@
 import { stat } from "node:fs/promises";
 import type { CaseDeclaration, SessionCaseDeclaration } from "./case";
 import { listCases } from "./case";
-import type { CheckpointRecord, HashedFile, StageCorpus } from "./checkpoint";
+import type {
+	ChangedCorpusFile,
+	CheckpointRecord,
+	HashedFile,
+	StageCorpus,
+} from "./checkpoint";
 import {
 	captureStageCorpus,
 	corpusDifferences,
@@ -22,6 +27,8 @@ import {
 	corpusInstructionsEntry,
 	hashCorpusFiles,
 } from "./corpus-file";
+import type { VersionDistance } from "./corpus-version";
+import { readCorpusUnderTest } from "./corpus-version";
 import { loadRunManifest } from "./manifest";
 import type { RunManifest } from "./manifest";
 import {
@@ -50,6 +57,17 @@ export interface StaleRecord {
  * than imported from the CLI's `UnreadableRecord`, which prints it, because
  * this module is what the CLI points inward at.
  */
+/**
+ * One record judged against the corpus under test, stale or clean, with the
+ * corpus files it read that changed and how many versions behind it sits.
+ * Stale or clean comes from the causes, never from the distance.
+ */
+export interface RecordStaleness extends StaleRecord {
+	readonly stale: boolean;
+	readonly changedFiles: readonly ChangedCorpusFile[];
+	readonly distance: VersionDistance;
+}
+
 export interface UnreadableStaleRecord {
 	readonly id: string;
 	readonly reason: string;
@@ -210,8 +228,8 @@ async function checkpointChain(
  * given and nothing else, and those roots are the ones a replay against the
  * same corpus would search.
  *
- * Every checkpoint of every recorded run whose recorded inputs no longer match
- * the corpus under test. A run whose manifest cannot be read contributes
+ * Every checkpoint of every recorded run, judged against the corpus under
+ * test. A run whose manifest cannot be read contributes
  * nothing rather than failing the report: it was never replayable, so nothing
  * about it can go stale.
  *
@@ -219,13 +237,14 @@ async function checkpointChain(
  * run: the corpus under test does not change between runs, so one read answers
  * for all of them and a refusal is decided in one place.
  */
-export async function staleCheckpoints(
+export async function checkpointStaleness(
 	runsDirectory: string,
 	source: CorpusRoot,
 	knobs: CurrentSessionKnobs = {},
-): Promise<readonly StaleRecord[]> {
-	const stale: StaleRecord[] = [];
+): Promise<readonly RecordStaleness[]> {
+	const report: RecordStaleness[] = [];
 	const instructions = await currentInstructions(source);
+	const underTest = await readCorpusUnderTest(runsDirectory, source);
 
 	for (const run of await recordedRunNames(runsDirectory)) {
 		const paths = benchmarkRunPaths(runsDirectory, run);
@@ -246,22 +265,37 @@ export async function staleCheckpoints(
 			instructions,
 		);
 		const settings = await compareCurrentStageSettings(manifest.caseId);
+		const versionByStage = new Map(
+			chain.map(({ stage, corpusVersion }) => [stage, corpusVersion]),
+		);
 
 		for (const staleness of deriveStaleness(chain, current, {
 			model: knobs.model ?? manifest.model,
 			effort: knobs.effort ?? manifest.effort,
 			...settings,
 		})) {
-			if (staleness.stale) {
-				stale.push({
-					id: `checkpoint:${run}/${staleness.stage}`,
-					causes: staleness.causes,
-				});
-			}
+			report.push({
+				id: `checkpoint:${run}/${staleness.stage}`,
+				stale: staleness.stale,
+				causes: staleness.causes,
+				changedFiles: staleness.changedFiles,
+				distance: underTest.distanceOf(versionByStage.get(staleness.stage)),
+			});
 		}
 	}
 
-	return stale;
+	return report;
+}
+
+/** The checkpoints `checkpointStaleness` finds stale, and only those. */
+export async function staleCheckpoints(
+	runsDirectory: string,
+	source: CorpusRoot,
+	knobs: CurrentSessionKnobs = {},
+): Promise<readonly RecordStaleness[]> {
+	const report = await checkpointStaleness(runsDirectory, source, knobs);
+
+	return report.filter(({ stale }) => stale);
 }
 
 const CASE_STALENESS_WORDING = {

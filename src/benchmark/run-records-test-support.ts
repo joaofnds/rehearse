@@ -16,6 +16,8 @@ import {
 } from "./checkpoint";
 import type { CorpusRoot } from "./corpus-file";
 import { hashCorpusFiles, resolveCorpusFile } from "./corpus-file";
+import type { CorpusMeasurement } from "./corpus-measurement";
+import { measureCorpusVersion } from "./corpus-version";
 import type { ClaudeCallMetrics, Immutable } from "./contracts";
 import {
 	confirmationGroupRecordSchema,
@@ -608,6 +610,34 @@ export class RecordedRunsFixture {
 				serialize({ ...record, corpusFiles }),
 			);
 		}
+	}
+
+	/**
+	 * Measures the source's version into this records directory and writes it
+	 * onto every stage checkpoint of the run, as a stage measures at its start.
+	 */
+	public async recordVersionFrom(
+		source: CorpusRoot,
+		run = this.replayableRun,
+	): Promise<CorpusMeasurement> {
+		const corpusVersion = await measureCorpusVersion(
+			this.runsDirectory,
+			source,
+		);
+		const paths = benchmarkRunPaths(this.runsDirectory, run);
+
+		for (const stage of this.stages) {
+			const directory = paths.checkpointDirectory(stage);
+			const record = parseCheckpointRecord(
+				await Bun.file(checkpointRecordFile(directory)).text(),
+			);
+			await Bun.write(
+				checkpointRecordFile(directory),
+				serialize({ ...record, corpusVersion }),
+			);
+		}
+
+		return corpusVersion;
 	}
 
 	/**

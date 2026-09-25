@@ -11,7 +11,11 @@ import {
 	RecordedRunsFixture,
 } from "./run-records-test-support";
 import { TestResources } from "./test-support";
-import { staleCases, staleCheckpoints } from "./staleness-report";
+import {
+	checkpointStaleness,
+	staleCases,
+	staleCheckpoints,
+} from "./staleness-report";
 
 const HALF_WRITTEN_UUID = "0f6b6f2a-0000-4000-8000-00000000000f";
 const EARLY = new Date("2026-09-01T00:00:00.000Z");
@@ -141,7 +145,7 @@ describe(staleCheckpoints.name, () => {
 			directorySource(corpus),
 		);
 
-		expect(stale).toEqual([
+		expect(stale.map(({ id, causes }) => ({ id, causes }))).toEqual([
 			{
 				id: `checkpoint:${fixture.replayableRun}/initial`,
 				causes: ["stage settings file stage-settings.json changed"],
@@ -265,7 +269,7 @@ describe(staleCheckpoints.name, () => {
 			directorySource(root),
 		);
 
-		expect(stale).toEqual([
+		expect(stale.map(({ id, causes }) => ({ id, causes }))).toEqual([
 			{
 				id: `checkpoint:${fixture.replayableRun}/discuss`,
 				causes: [
@@ -405,6 +409,86 @@ describe(staleCheckpoints.name, () => {
 
 			expect(stale.at(0)?.causes).toContain("effort none is now high");
 		});
+	});
+});
+
+describe(checkpointStaleness.name, () => {
+	const roots: string[] = [];
+
+	afterEach(async () => {
+		await Promise.all(
+			roots.splice(0).map((root) => rm(root, { force: true, recursive: true })),
+		);
+	});
+
+	async function temporaryDirectory(prefix: string): Promise<string> {
+		const root = await mkdtemp(join(tmpdir(), prefix));
+		roots.push(root);
+
+		return root;
+	}
+
+	async function editedFixture(): Promise<{
+		readonly fixture: RecordedRunsFixture;
+		readonly corpus: string;
+	}> {
+		const root = await temporaryDirectory("rehearse-staleness-");
+		const fixture = new RecordedRunsFixture(root, {
+			settingsFile: await liveStageSettings(),
+		});
+		await fixture.write();
+		await fixture.writeInitialCheckpoint();
+		const corpus = await temporaryDirectory("rehearse-staleness-corpus-");
+		await mkdir(join(corpus, "skills", "build"), { recursive: true });
+		await mkdir(join(corpus, "skills", "discuss"), { recursive: true });
+		await Bun.write(join(corpus, "CLAUDE.md"), "the instructions\n");
+		await Bun.write(join(corpus, "skills", "build", "SKILL.md"), "build\n");
+		await Bun.write(join(corpus, "skills", "discuss", "SKILL.md"), "discuss\n");
+		await fixture.recordCorpusFrom(directorySource(corpus));
+		await fixture.recordVersionFrom(directorySource(corpus));
+		await Bun.write(join(corpus, "skills", "build", "SKILL.md"), "edited\n");
+
+		return { fixture, corpus };
+	}
+
+	it("reports every checkpoint with the files it read that changed and its version distance", async () => {
+		const { fixture, corpus } = await editedFixture();
+
+		const report = await checkpointStaleness(
+			fixture.runsDirectory,
+			directorySource(corpus),
+		);
+
+		expect(
+			report.filter(({ id }) =>
+				id.startsWith(`checkpoint:${fixture.replayableRun}/`),
+			),
+		).toEqual([
+			{
+				id: `checkpoint:${fixture.replayableRun}/initial`,
+				stale: false,
+				causes: [],
+				changedFiles: [],
+				distance: {
+					kind: "not-recorded",
+					reason: "recorded before corpus versions",
+				},
+			},
+			{
+				id: `checkpoint:${fixture.replayableRun}/discuss`,
+				stale: false,
+				causes: [],
+				changedFiles: [],
+				distance: { kind: "measured", versions: 1 },
+			},
+			{
+				id: `checkpoint:${fixture.replayableRun}/build`,
+				stale: true,
+				causes: ["skills/build/SKILL.md changed"],
+				changedFiles: [{ path: "skills/build/SKILL.md", change: "changed" }],
+				distance: { kind: "measured", versions: 1 },
+			},
+		]);
 	});
 });
 

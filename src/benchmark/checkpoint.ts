@@ -704,6 +704,8 @@ export interface CheckpointStaleness {
 	readonly stage: string;
 	readonly stale: boolean;
 	readonly causes: readonly string[];
+	/** The stage's own corpus files that changed, never its upstream's. */
+	readonly changedFiles: readonly ChangedCorpusFile[];
 }
 
 /**
@@ -753,6 +755,51 @@ function assertUniqueCorpusPaths(files: readonly HashedFile[]): void {
 }
 
 /**
+ * How one corpus file the record read differs now: its bytes changed, it was
+ * added to the side compared against, or it was removed from it.
+ */
+export interface ChangedCorpusFile {
+	readonly path: string;
+	readonly change: "changed" | "added" | "removed";
+}
+
+/**
+ * Every file two sets of hashed files disagree on, the left side being the
+ * record and the right the corpus it is compared against.
+ */
+export function corpusFileChanges(
+	left: readonly HashedFile[],
+	right: readonly HashedFile[],
+): ChangedCorpusFile[] {
+	assertUniqueCorpusPaths(left);
+	assertUniqueCorpusPaths(right);
+
+	const rightByPath = new Map(right.map((file) => [file.path, file.sha256]));
+	const changes: ChangedCorpusFile[] = [];
+
+	for (const file of left) {
+		const counterpart = rightByPath.get(file.path);
+		if (counterpart === undefined) {
+			changes.push({ path: file.path, change: "removed" });
+			continue;
+		}
+		if (counterpart !== file.sha256) {
+			changes.push({ path: file.path, change: "changed" });
+		}
+
+		rightByPath.delete(file.path);
+	}
+
+	for (const path of rightByPath.keys()) {
+		changes.push({ path, change: "added" });
+	}
+
+	return changes.toSorted((first, second) =>
+		first.path.localeCompare(second.path),
+	);
+}
+
+/**
  * Every way two sets of hashed files disagree, each named by its path so a
  * reader learns which file it was, not merely that one differed. Sorted, so
  * the same disagreement reads the same way twice.
@@ -762,51 +809,37 @@ export function corpusDifferences(
 	right: readonly HashedFile[],
 	wording: CorpusDifferenceWording,
 ): string[] {
-	assertUniqueCorpusPaths(left);
-	assertUniqueCorpusPaths(right);
+	const words = {
+		changed: wording.modified,
+		removed: wording.missingFromRight,
+		added: wording.missingFromLeft,
+	};
 
-	const rightByPath = new Map(right.map((file) => [file.path, file.sha256]));
-	const differences: string[] = [];
-
-	for (const file of left) {
-		const counterpart = rightByPath.get(file.path);
-		if (counterpart === undefined) {
-			differences.push(wording.missingFromRight(file.path));
-			continue;
-		}
-		if (counterpart !== file.sha256) {
-			differences.push(wording.modified(file.path));
-		}
-
-		rightByPath.delete(file.path);
-	}
-
-	for (const path of rightByPath.keys()) {
-		differences.push(wording.missingFromLeft(path));
-	}
-
-	return differences.toSorted();
+	return corpusFileChanges(left, right)
+		.map(({ path, change }) => words[change](path))
+		.toSorted();
 }
 
 /**
  * A corpus file the record has and the corpus no longer does was removed;
  * the reverse was added. Both invalidate the checkpoint as surely as an edit.
  */
-const STALENESS_WORDING: CorpusDifferenceWording = {
-	modified: (path) => `${path} changed`,
-	missingFromRight: (path) => `${path} removed`,
-	missingFromLeft: (path) => `${path} added`,
-};
-
-function stageCorpusCauses(
+function stageCorpusChanges(
 	recorded: readonly HashedFile[],
 	current: StageCorpus,
-): readonly string[] {
+): Pick<CheckpointStaleness, "causes" | "changedFiles"> {
 	if ("refused" in current) {
-		return [current.refused];
+		return { causes: [current.refused], changedFiles: [] };
 	}
 
-	return corpusDifferences(recorded, current.hashed, STALENESS_WORDING);
+	const changedFiles = corpusFileChanges(recorded, current.hashed);
+
+	return {
+		causes: changedFiles
+			.map(({ path, change }) => `${path} ${change}`)
+			.toSorted(),
+		changedFiles,
+	};
 }
 
 /**
@@ -849,12 +882,19 @@ export function deriveStaleness(
 		}
 
 		const currentCorpus = current.get(record.stage);
-		if (currentCorpus !== undefined) {
-			causes.push(...stageCorpusCauses(record.corpusFiles, currentCorpus));
-		}
+		const corpus =
+			currentCorpus === undefined
+				? { causes: [], changedFiles: [] }
+				: stageCorpusChanges(record.corpusFiles, currentCorpus);
+		causes.push(...corpus.causes);
 
 		const stale = causes.length > 0;
-		staleness.push({ stage: record.stage, stale, causes });
+		staleness.push({
+			stage: record.stage,
+			stale,
+			causes,
+			changedFiles: corpus.changedFiles,
+		});
 		if (stale && staleUpstream === undefined) {
 			staleUpstream = record.stage;
 		}
