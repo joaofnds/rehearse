@@ -229,7 +229,8 @@ export async function writeStoppedStageFixture(
 			model: "sonnet",
 			effort: "medium",
 			...judgeKnobs,
-		} satisfies Omit<StageJudgeRecord, "sessionBudgetUsd"> & StageJudgeKnobs),
+		} satisfies Omit<StageJudgeRecord, "sessionBudgetUsd" | "readManifest"> &
+			StageJudgeKnobs),
 	);
 
 	return {

@@ -154,6 +154,7 @@ interface NewerRecordFields {
 	readonly productOwnerProviderCalls?: readonly {
 		readonly metrics: Immutable<ClaudeCallMetrics>;
 	}[];
+	readonly readManifest?: readonly ReadManifestEntry[];
 }
 
 /** Adds fields to a JSON record already on disk, as a newer writer would. */
@@ -626,6 +627,18 @@ export class RecordedRunsFixture {
 		);
 		const record = parseCheckpointRecord(await Bun.file(file).text());
 		await Bun.write(file, serialize({ ...record, readManifest }));
+	}
+
+	/** Writes a read manifest onto a stage record, as a stopped stage keeps it. */
+	public async recordStageReadManifest(
+		stage: string,
+		readManifest: readonly ReadManifestEntry[],
+		run = this.stoppedRun,
+	): Promise<void> {
+		await mergeIntoRecord(
+			benchmarkRunPaths(this.runsDirectory, run).stageFile(stage),
+			{ readManifest },
+		);
 	}
 
 	/** Writes a read manifest onto the stage attempt, as `replay` does. */

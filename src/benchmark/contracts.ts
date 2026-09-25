@@ -7,6 +7,7 @@ import { STAGE_LETTER_GRADES } from "./config";
 import type { JudgeAttempt } from "./judge-attempt";
 import type { JudgeAgreementReport } from "./judge-agreement";
 import type { PipelineDefinition, StageKind } from "./pipeline";
+import type { ReadManifestEntry } from "./read-manifest";
 
 /**
  * The deep-readonly view of a parsed value. Zod schemas describe the wire
@@ -412,6 +413,7 @@ export interface StageScorecard {
 export interface StageJudgeRecord extends StageScorecard {
 	readonly corpusFiles: readonly HashedFile[];
 	readonly corpusVersion: CorpusMeasurement;
+	readonly readManifest: readonly ReadManifestEntry[];
 	readonly model: string;
 	readonly judgeModel: string;
 	readonly judgeEffort?: Effort | undefined;

@@ -434,6 +434,33 @@ describe("/api/runs/:run", () => {
 				});
 			});
 
+			it("serves the read manifest a stopped stage kept on its stage record", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeStoppedRunEvidence();
+				const readManifest = [
+					{
+						path: "CLAUDE.md",
+						half: "corpus",
+						role: "global instructions",
+						evidence: "declared",
+						sha256: "1".repeat(64),
+					},
+				] as const;
+				await fixture.recordStageReadManifest("build", readManifest);
+
+				const response = await runRecord(fixture, fixture.stoppedRun);
+
+				expect(await response.json()).toMatchObject({
+					stages: [
+						{ stage: "discuss" },
+						{
+							stage: "build",
+							readManifest: { state: "available", entries: readManifest },
+						},
+					],
+				});
+			});
+
 			it("says a checkpoint recorded before read manifests holds none", async () => {
 				const fixture = await emptyFixture();
 				await fixture.writeStoppedRunEvidence();

@@ -2074,6 +2074,43 @@ describe(runGradedStages.name, () => {
 		expect(stageRecord).not.toHaveProperty("judgeAgreement");
 	});
 
+	it("keeps what a stopped stage declared and loaded on its stage record, since it saves no checkpoint", async () => {
+		const { dependencies, scorecardFor } = fakeStageDependencies();
+		const context = {
+			...(await stageContext()),
+			calibrateStageFailure: () => Promise.resolve(undefined),
+		};
+		const failing = {
+			...dependencies,
+			runStageJudge: (
+				_model: string,
+				_effort: undefined | "low" | "medium" | "high" | "xhigh" | "max",
+				_budget: number,
+				input: StageJudgeInput,
+			) => Promise.resolve(scorecardFor(input, "STOP")),
+		};
+
+		const outcome = runGradedStages(failing, context);
+
+		expect(outcome).rejects.toBeInstanceOf(StageQualityError);
+		await outcome.catch(() => undefined);
+		const stageRecord: unknown = JSON.parse(
+			await Bun.file(context.stageFile("shape")).text(),
+		);
+		expect(stageRecord).toMatchObject({
+			readManifest: [
+				{
+					path: "CLAUDE.md",
+					half: "corpus",
+					role: "global instructions",
+					evidence: "declared",
+				},
+				{ path: "skills/shape/SKILL.md", role: "stage skill" },
+				{ path: "cases/audit-log/rubrics/shape.json", role: "judge rubric" },
+			],
+		});
+	});
+
 	it("retains commit subjects when calibrating a stopped delivery", async () => {
 		const { dependencies, scorecardFor } = fakeStageDependencies();
 		const context = {

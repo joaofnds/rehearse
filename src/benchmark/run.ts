@@ -862,6 +862,7 @@ export async function runGradedStages(
 			...scorecard,
 			corpusFiles,
 			corpusVersion,
+			readManifest,
 			model: context.model,
 			judgeModel: context.judgeModel,
 			judgeEffort: context.judgeEffort,
