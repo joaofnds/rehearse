@@ -549,7 +549,17 @@ describe(checkpointStaleness.name, () => {
 		]);
 	});
 
-	it("still judges a stopped run's checkpoints when its stop record's reads do not parse", async () => {
+	it.each([
+		[
+			"its stop record's reads do not parse",
+			(record: string) =>
+				JSON.stringify({
+					...JSON.parse(record),
+					corpusVersion: { kind: "version", digest: "not a digest" },
+				}),
+		],
+		["its stop record was cut short", (record: string) => record.slice(0, 20)],
+	])("still judges a stopped run's checkpoints when %s", async (_, damage) => {
 		const root = await temporaryDirectory("rehearse-staleness-");
 		const fixture = new RecordedRunsFixture(root, {
 			settingsFile: await liveStageSettings(),
@@ -564,13 +574,7 @@ describe(checkpointStaleness.name, () => {
 			fixture.runsDirectory,
 			fixture.stoppedRun,
 		).stageFile("build");
-		await Bun.write(
-			stopRecord,
-			JSON.stringify({
-				...JSON.parse(await Bun.file(stopRecord).text()),
-				corpusVersion: { kind: "version", digest: "not a digest" },
-			}),
-		);
+		await Bun.write(stopRecord, damage(await Bun.file(stopRecord).text()));
 
 		const report = await checkpointStaleness(
 			fixture.runsDirectory,
