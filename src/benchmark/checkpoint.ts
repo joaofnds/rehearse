@@ -710,7 +710,7 @@ export function rootLineage(inputs: RootLineageInputs): string {
 interface StalenessInputs {
 	readonly model: string;
 	readonly effort?: Effort | undefined;
-	/** Each stage's judge rubric causes, which stale it as no corpus file does. */
+	/** Each stage's judge rubric causes, which stale it without counting as corpus-file causes. */
 	readonly judgeRubricCauses?: ReadonlyMap<string, readonly string[]>;
 }
 
