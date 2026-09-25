@@ -288,16 +288,13 @@ export const createApiApp = (dependencies: ApiDependencies) => {
 					),
 				);
 			} catch (error) {
-				if (error instanceof UsageError) {
+				if (
+					error instanceof UsageError ||
+					error instanceof RefusedPreconditionError
+				) {
 					return context.json(
 						{ error: redactAbsolutePaths(error.message) },
-						400,
-					);
-				}
-				if (error instanceof RefusedPreconditionError) {
-					return context.json(
-						{ error: redactAbsolutePaths(error.message) },
-						404,
+						error instanceof UsageError ? 400 : 404,
 					);
 				}
 
@@ -540,16 +537,13 @@ export const createApiApp = (dependencies: ApiDependencies) => {
 					),
 				);
 			} catch (error) {
-				if (error instanceof UsageError) {
+				if (
+					error instanceof UsageError ||
+					error instanceof RefusedPreconditionError
+				) {
 					return context.json(
 						{ error: redactAbsolutePaths(error.message) },
-						400,
-					);
-				}
-				if (error instanceof RefusedPreconditionError) {
-					return context.json(
-						{ error: redactAbsolutePaths(error.message) },
-						404,
+						error instanceof UsageError ? 400 : 404,
 					);
 				}
 
@@ -630,16 +624,13 @@ export const createApiApp = (dependencies: ApiDependencies) => {
 						: { ...reads, reasons: reads.reasons.map(redactAbsolutePaths) },
 				);
 			} catch (error) {
-				if (error instanceof UsageError) {
+				if (
+					error instanceof UsageError ||
+					error instanceof RefusedPreconditionError
+				) {
 					return context.json(
 						{ error: redactAbsolutePaths(error.message) },
-						400,
-					);
-				}
-				if (error instanceof RefusedPreconditionError) {
-					return context.json(
-						{ error: redactAbsolutePaths(error.message) },
-						404,
+						error instanceof UsageError ? 400 : 404,
 					);
 				}
 
@@ -660,16 +651,13 @@ export const createApiApp = (dependencies: ApiDependencies) => {
 					"content-type": "application/json",
 				});
 			} catch (error) {
-				if (error instanceof UsageError) {
+				if (
+					error instanceof UsageError ||
+					error instanceof RefusedPreconditionError
+				) {
 					return context.json(
 						{ error: redactAbsolutePaths(error.message) },
-						400,
-					);
-				}
-				if (error instanceof RefusedPreconditionError) {
-					return context.json(
-						{ error: redactAbsolutePaths(error.message) },
-						404,
+						error instanceof UsageError ? 400 : 404,
 					);
 				}
 
