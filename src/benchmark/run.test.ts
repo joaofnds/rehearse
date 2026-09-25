@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import { stageRubricSha256 } from "./judge-agreement";
 import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -77,6 +78,7 @@ import {
 	deriveStageGrade,
 	parseStageRubric,
 	StageQualityError,
+	loadStageRubric,
 } from "./stage-grading";
 import type { WorkflowStageRequest } from "./workflow";
 
@@ -664,7 +666,7 @@ describe(runGradedStages.name, () => {
 		).toBe(raw);
 	});
 
-	it("records in each stage's checkpoint what it declared and loaded, with roles", async () => {
+	it("records in a stage's checkpoint what it declared and loaded, hashed as a later staleness check reads it", async () => {
 		const { dependencies } = fakeStageDependencies();
 		const context = await stageContext();
 		const projectsDirectory = await mkdtemp(
@@ -692,44 +694,55 @@ describe(runGradedStages.name, () => {
 			`${read("/install/.claude/skills/shape/SKILL.md")}\n${read("/install/.claude/rulebook/style.md")}\n`,
 		);
 
-		const outcome = await runGradedStages(dependencies, {
-			...context,
-			projectsDirectory,
+		// The real judge grades against the rubric the stage loaded.
+		const judgeAgainstLoadedRubric: typeof dependencies.runStageJudge = async (
+			...args
+		) => ({
+			...(await dependencies.runStageJudge(...args)),
+			rubric: args[4].rubric,
 		});
 
-		expect(
-			outcome.checkpoints[0]?.readManifest?.map(
-				({ path, role, evidence, sha256 }) => ({
-					path,
-					role,
-					evidence,
-					hashed: sha256 !== undefined,
-				}),
-			),
-		).toEqual([
+		const outcome = await runGradedStages(
+			{ ...dependencies, runStageJudge: judgeAgainstLoadedRubric },
+			{ ...context, projectsDirectory },
+		);
+
+		const [checkpoint] = outcome.checkpoints;
+		const rubricNow = await loadStageRubric({
+			name: "shape",
+			kind: "planning",
+			skill: "shape",
+			rubric: "cases/audit-log/rubrics/shape.json",
+			requiresAcceptanceCriteria: false,
+		});
+		expect(checkpoint?.readManifest).toEqual([
 			{
 				path: "CLAUDE.md",
+				half: "corpus",
 				role: "global instructions",
 				evidence: "declared",
-				hashed: false,
 			},
 			{
 				path: "skills/shape/SKILL.md",
+				half: "corpus",
 				role: "stage skill",
 				evidence: "declared and observed",
-				hashed: true,
+				sha256: checkpoint?.corpusFiles.find(
+					({ path }) => path === "skills/shape/SKILL.md",
+				)?.sha256,
 			},
 			{
 				path: "cases/audit-log/rubrics/shape.json",
+				half: "rubric",
 				role: "judge rubric",
 				evidence: "declared",
-				hashed: true,
+				sha256: stageRubricSha256(rubricNow.rubric),
 			},
 			{
 				path: "rulebook/style.md",
+				half: "corpus",
 				role: "read for context",
 				evidence: "observed",
-				hashed: false,
 			},
 		]);
 	});
