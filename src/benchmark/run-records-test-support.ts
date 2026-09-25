@@ -615,10 +615,6 @@ export class RecordedRunsFixture {
 	}
 
 	/**
-	 * Measures the source's version into this records directory and writes it
-	 * onto every stage checkpoint of the run, as a stage measures at its start.
-	 */
-	/**
 	 * Re-records the stage attempt's corpus files and version from a real
 	 * corpus, the way `replay` records them when the attempt runs.
 	 */
@@ -645,6 +641,10 @@ export class RecordedRunsFixture {
 		);
 	}
 
+	/**
+	 * Measures the source's version into this records directory and writes it
+	 * onto every stage checkpoint of the run, as a stage measures at its start.
+	 */
 	public async recordVersionFrom(
 		source: CorpusRoot,
 		run = this.replayableRun,
