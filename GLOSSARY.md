@@ -177,6 +177,16 @@ See [current state](docs/status.md) for implementation coverage and
   manifest deduplicates paths rather than retaining a load history. It is
   built for a session attempt; a pipeline stage is observed through context
   history instead, and no manifest is built for one.
+- **Read manifest**: what one pipeline stage, replay or session attempt
+  declared and was observed to load, with each file's role and hash. It extends
+  the context manifest to every record kind and adds judge rubrics. Each entry
+  names its half (corpus, project or rubric), one role (global instructions,
+  project instructions, stage skill, judge rubric, read for context), and
+  whether it was declared, observed, or both. A corpus file's hash is the bytes
+  the record's corpus resolved at its start, a rubric's comes from the frozen
+  scorecard, and a project file's is the target's bytes at the record's start,
+  absent when the file was not there. Like the context manifest, a load not
+  observed is not proof of absence.
 - **Context evidence** — an optional, versioned attempt-record field containing
   an unchanged provider capture and the harness's normalized projection. The
   projection joins request usage, model, provider cost, agent parentage,

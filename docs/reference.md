@@ -664,7 +664,19 @@ later reader can observe what the stage actually loaded rather than inferring
 it from the parsed exchanges. Where the provider wrote no transcript, the
 record says so with an explicit unavailable status instead of omitting the
 evidence. Checkpoints written before this carry no transcript field and remain
-readable. Replay materializes the upstream state for the
+readable. A stage checkpoint, a replay record and a session attempt record
+also carry `readManifest`, the files the record declared or its transcript
+shows it loading. Each entry has a `path`, a `half` of `corpus`, `project` or
+`rubric`, one `role` of `global instructions`, `project instructions`,
+`stage skill`, `judge rubric` or `read for context`, an `evidence` of
+`declared`, `observed` or `declared and observed`, and a `sha256` where one is
+recorded. A stage or replay declares the corpus `CLAUDE.md`, its skill and its
+judge rubric, and a session attempt declares its case's corpus and project
+files. A corpus hash is the one the record's corpus files carry, a rubric hash
+is the frozen scorecard's rubric, and a project file's hash is its bytes when
+the record started: at the stage's starting commit, or as the fixture seeded
+the attempt. A project file absent there has no hash. Records written before
+this carry no `readManifest` and remain readable. Replay materializes the upstream state for the
 named stage. It can inspect a stale checkpoint for exploration, while
 confirmation/comparison require compatible frozen evidence. Replay permits an
 uncommitted control repository and records its SHA with a dirty marker.
@@ -701,7 +713,11 @@ reads `distance not recorded` for the initial checkpoint, which reads no corpus,
 a record written before corpus versions, one whose attempt measured no version,
 one whose version is not in that corpus's log, or when the corpus under test
 refuses a layout entry. Distance never makes a record stale. Only its causes
-do.
+do. A checkpoint or replay whose read manifest holds a judge rubric
+that now differs, or no longer loads, names `judge rubric <path> changed`. That
+cause leaves the distance as it was, and it does not stale a later stage or a
+replay that consumed the checkpoint, since those used its artifact rather than
+its grade.
 
 Missing files and changed inputs are evidence to inspect, not a substitute for
 running the revised case.
@@ -895,7 +911,8 @@ verdict, its checkpoint's short id, its session and judge cost, and its tokens
 as input, cache read, cache write, output and total input, summed over its
 session calls and judge attempts. Its instruction files are the corpus files
 its checkpoint records, or its stop record's when it saved no checkpoint, each
-with its sha256 digest, and its `corpusVersion` comes from the same place. As artifacts out it lists its declared artifact, the
+with its sha256 digest, and its `corpusVersion` comes from the same place. Its `readManifest` is its checkpoint's read manifest, unavailable
+when it saved no checkpoint or its checkpoint predates read manifests. As artifacts out it lists its declared artifact, the
 workflow-state files it added, modified or removed against the checkpoint it
 continued from, and the commit subjects and changed paths its record carries.
 It says whether its checkpoint is `recorded` or `missing`, since a stopped
@@ -992,7 +1009,11 @@ inputs froze.
 Every row also carries `staleness`, the judgment `stale` makes of the same
 record against the corpus the server serves: `stale`, its `causes`, its
 `changedFiles`, each a `path` with a `change` of `changed`, `added` or
-`removed`, its `distance`, and `onlyCorpusFiles`. A pipeline run row is judged at its latest
+`removed`, its `distance`, `onlyCorpusFiles`, and `readManifest`, the
+record's read manifest with a `state` of `unchanged` or `changed` on each
+corpus and judge rubric entry that recorded a hash. A project entry carries no
+state, since the target repository is not under test, and a record written
+before read manifests has an empty list. A pipeline run row is judged at its latest
 checkpoint, or at its initial checkpoint when it saved no stage. Each row is
 judged with the model and effort its record ran with, since the history
 compares a record against the corpus rather than against a replay about to
