@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import type { Stats } from "node:fs";
 import { cp, mkdir, readdir, rm } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, relative, sep } from "node:path";
 import { z } from "zod";
@@ -419,13 +420,34 @@ interface CorpusDirectory {
 	readonly layoutPath: string;
 }
 
+/**
+ * A layout directory that loops or cannot be read is refused by name, as an
+ * entry escaping the tree is, so a staleness reader can judge against it.
+ */
+async function layoutDirectoryStats(
+	directory: string,
+	layoutPath: string,
+): Promise<Stats | undefined> {
+	try {
+		return await statIfExists(directory);
+	} catch (error) {
+		const reason =
+			error instanceof Error ? refusedEntryReason(error, directory) : undefined;
+		if (reason === undefined) {
+			throw error;
+		}
+
+		throw refusedEntry(layoutPath, reason);
+	}
+}
+
 async function resolveLayoutDirectory(
 	layoutPath: string,
 	roots: readonly CorpusRoot[],
 ): Promise<CorpusDirectory | undefined> {
 	for (const source of roots) {
 		const directory = join(source.root, layoutPath);
-		const directoryStats = await statIfExists(directory);
+		const directoryStats = await layoutDirectoryStats(directory, layoutPath);
 		if (directoryStats?.isDirectory() === true) {
 			if (await resolvesOutsideCorpus(source, directory)) {
 				throw symlinkedEntry(layoutPath);

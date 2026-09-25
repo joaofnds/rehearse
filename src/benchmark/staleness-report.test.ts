@@ -287,6 +287,22 @@ describe(staleCheckpoints.name, () => {
 		]);
 	});
 
+	it("reports a looping layout directory as the checkpoint's cause, rather than failing the report", async () => {
+		const fixture = await writtenFixture();
+		const root = await corpusDirectory("build skill\n");
+		await fixture.recordCorpusFrom(directorySource(root));
+		await symlink(join(root, "agents"), join(root, "agents"));
+
+		const stale = await staleCheckpoints(
+			fixture.runsDirectory,
+			directorySource(root),
+		);
+
+		expect(stale.at(0)?.causes).toEqual([
+			"agents is a link that never resolves to a file, so it names no bytes",
+		]);
+	});
+
 	describe("when no corpus is named, which is the live install", () => {
 		it("answers over a runs directory holding no run, reaching no skill", async () => {
 			const runsDirectory = await temporaryDirectory("rehearse-stale-live-");
