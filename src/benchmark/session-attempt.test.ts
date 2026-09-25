@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it } from "bun:test";
 import {
 	mkdir,
@@ -1240,6 +1241,41 @@ describe(runSessionAttempt.name, () => {
 			path: "NOTES.md",
 			half: "project",
 		});
+	});
+
+	it("hashes each declared project file as the fixture seeded it, before the session could rewrite it", async () => {
+		const fixture = await mkdtemp(join(tmpdir(), "rehearse-fixture-"));
+		resources.track(fixture);
+		await writeFile(join(fixture, "AGENTS.md"), "as seeded\n");
+		const projects = await projectsRoot();
+		const claude = new FakeClaude(projects, "OK");
+		const runClaude: SessionAttemptRequest["runClaude"] = async (
+			command,
+			cwd,
+		) => {
+			await writeFile(join(cwd, "AGENTS.md"), "as the session left it\n");
+
+			return claude.run(command, cwd);
+		};
+
+		const attempt = await runSessionAttempt(
+			request({
+				sessionCase: sessionCase({
+					fixturePath: fixture,
+					projectFiles: ["AGENTS.md", "NOTES.md"],
+				}),
+				projectsDirectory: projects,
+				recordDirectory: await recordDirectory(),
+				runClaude,
+			}),
+		);
+
+		expect(attempt.startingProjectFiles).toEqual([
+			{
+				path: "AGENTS.md",
+				sha256: createHash("sha256").update("as seeded\n").digest("hex"),
+			},
+		]);
 	});
 
 	it("names the last output_style attachment's layout path in the recorded context manifest", async () => {

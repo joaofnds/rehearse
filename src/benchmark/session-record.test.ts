@@ -547,6 +547,109 @@ describe("sessionAttemptRecordSchema", () => {
 		}
 	});
 
+	it("buildSessionAttemptRecord records what the attempt declared and loaded, with roles and starting hashes", () => {
+		const sessionCase: SessionCase = {
+			kind: "session",
+			declaration: {
+				id: "smoke",
+				kind: "session",
+				title: "Smoke",
+				prompt: "Reply OK.",
+				tools: [],
+				corpusFiles: ["CLAUDE.md"],
+				projectFiles: ["AGENTS.md", "NOTES.md"],
+				checks: [{ kind: "word-band", max: 1 }],
+			},
+			fixturePath: undefined,
+			transcriptPath: undefined,
+			prompt: "Reply OK.",
+			tools: [],
+			settings: undefined,
+			agents: undefined,
+			corpusFiles: ["CLAUDE.md"],
+			projectFiles: ["AGENTS.md", "NOTES.md"],
+			checks: [{ kind: "word-band", max: 1 }],
+		};
+		const attempt: SessionAttempt = {
+			attemptDirectory: "/runs/attempt",
+			metrics: undefined,
+			transcriptFile: "/runs/transcript.jsonl",
+			transcriptDiagnostics: {
+				state: "complete",
+				prefixLinesExcluded: 0,
+				sourceLineCount: 1,
+				measuredLineCount: 1,
+				toolUseOccurrences: { total: 0, byName: [] },
+				toolErrors: [],
+				repeatedBashCommands: [],
+				issues: [],
+			},
+			reply: "OK",
+			outcome: "SUCCESSFUL",
+			checks: [{ kind: "word-band", status: "PASS", detail: "1 word" }],
+			contextManifest: {
+				paths: [
+					{ path: "skills/verify/SKILL.md", half: "corpus" },
+					{ path: "AGENTS.md", half: "project" },
+				],
+			},
+			startingProjectFiles: [{ path: "AGENTS.md", sha256: "d".repeat(64) }],
+		};
+
+		const built = buildSessionAttemptRecord({
+			corpusVersion: MEASURED_VERSION,
+			sessionCase,
+			settings: { model: "sonnet", budgetUsd: 0.2 },
+			lineage: "b".repeat(64),
+			corpusFiles: [
+				{
+					path: "CLAUDE.md",
+					resolvedPath: "/live/CLAUDE.md",
+					sha256: "a".repeat(64),
+				},
+				{
+					path: "skills/verify/SKILL.md",
+					resolvedPath: "/live/skills/verify/SKILL.md",
+					sha256: "c".repeat(64),
+				},
+			],
+			corpusOrigin: { kind: "live" },
+			attempt,
+			elapsedMs: 1,
+		});
+
+		expect(built.schemaVersion === 3 ? built.readManifest : undefined).toEqual([
+			{
+				path: "CLAUDE.md",
+				half: "corpus",
+				role: "global instructions",
+				evidence: "declared",
+				sha256: "a".repeat(64),
+			},
+			{
+				path: "AGENTS.md",
+				half: "project",
+				role: "project instructions",
+				evidence: "declared and observed",
+				sha256: "d".repeat(64),
+			},
+			{
+				path: "NOTES.md",
+				half: "project",
+				role: "read for context",
+				evidence: "declared",
+			},
+			{
+				path: "skills/verify/SKILL.md",
+				half: "corpus",
+				role: "read for context",
+				evidence: "observed",
+				sha256: "c".repeat(64),
+			},
+		]);
+		expect(parseSessionAttemptRecord(JSON.stringify(built))).toEqual(built);
+	});
+
 	const savedAttempts: readonly {
 		readonly name: string;
 		readonly schemaVersion: 1 | 3;

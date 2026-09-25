@@ -17,6 +17,8 @@ import { sessionSettingsDigest } from "./session-lineage";
 import type { SessionAttempt } from "./session-attempt";
 import { transcriptDiagnosticsSchema } from "./transcript";
 import { contextEvidenceSchema } from "./context-evidence";
+import type { ReadManifestEntry } from "./read-manifest";
+import { readManifest, readManifestSchema } from "./read-manifest";
 
 /**
  * Where the attempt's corpus bytes were read from, recorded beside the digests
@@ -280,6 +282,7 @@ export const executionFailedSessionAttemptRecordSchema = z
 		corpusVersion: corpusMeasurementSchema.optional(),
 		settingsDigest: sha256Schema.optional(),
 		contextManifest: z.undefined().optional(),
+		readManifest: readManifestSchema.optional(),
 		divergences: z.undefined().optional(),
 		prompt: z.string().min(1),
 		reply: z.undefined().optional(),
@@ -301,6 +304,7 @@ export const sessionAttemptRecordV3Schema = z
 		...stateGradeFields,
 		contextManifest: contextManifestSchema.optional(),
 		divergences: z.array(manifestDivergenceSchema).optional(),
+		readManifest: readManifestSchema.optional(),
 	})
 	.strict()
 	.superRefine(refineSessionAttemptRecord);
@@ -366,6 +370,7 @@ interface MutableSessionAttemptRecord {
 	settingsDigest?: string;
 	contextManifest?: z.infer<typeof contextManifestSchema>;
 	divergences?: ReturnType<typeof reconcileManifest>;
+	readManifest: ReadManifestEntry[];
 	prompt: string;
 	reply?: string;
 	error?: string;
@@ -384,6 +389,10 @@ export function buildSessionAttemptRecord(
 	inputs: Readonly<SessionAttemptRecordInputs>,
 ): SessionAttemptRecord {
 	const { attempt, sessionCase, settings } = inputs;
+	const declared = [
+		...corpusEntries(sessionCase.corpusFiles),
+		...projectEntries(sessionCase.projectFiles),
+	];
 	const record: MutableSessionAttemptRecord = {
 		schemaVersion: attempt.outcome === "EXECUTION_FAILED" ? 2 : 3,
 		caseId: sessionCase.declaration.id,
@@ -401,6 +410,16 @@ export function buildSessionAttemptRecord(
 		checks: attempt.checks.map((check) => ({ ...check })),
 		elapsedMs: inputs.elapsedMs,
 		corpusVersion: { ...inputs.corpusVersion },
+		readManifest: [
+			...readManifest({
+				skill: undefined,
+				corpusFiles: inputs.corpusFiles,
+				targetFiles: attempt.startingProjectFiles ?? [],
+				declared,
+				rubric: undefined,
+				observed: attempt.contextManifest ?? { paths: [] },
+			}),
+		],
 	};
 	const settingsDigest = sessionSettingsDigest(sessionCase);
 	if (settingsDigest !== undefined) {
@@ -434,10 +453,7 @@ export function buildSessionAttemptRecord(
 		record.contextManifest = {
 			paths: manifest.paths.map((entry) => ({ ...entry })),
 		};
-		record.divergences = reconcileManifest(manifest, [
-			...corpusEntries(sessionCase.corpusFiles),
-			...projectEntries(sessionCase.projectFiles),
-		]);
+		record.divergences = reconcileManifest(manifest, declared);
 	}
 
 	return writableSessionAttemptRecordSchema.parse(record);

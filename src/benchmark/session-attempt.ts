@@ -27,6 +27,8 @@ import {
 	snapshotStyleName,
 } from "./session-corpus";
 import { evaluateChecks } from "./session-check";
+import type { HashedFile } from "./checkpoint";
+import { hashFile } from "./checkpoint";
 import type { ContextManifest } from "./context-manifest";
 import { observedManifest } from "./context-manifest";
 import type { TranscriptDiagnostics, TranscriptLine } from "./transcript";
@@ -81,6 +83,11 @@ export interface SessionAttempt {
 		| "EXECUTION_FAILED";
 	readonly checks: readonly CheckResult[];
 	readonly contextManifest: ContextManifest | undefined;
+	/**
+	 * The declared project files the seeded fixture held, hashed before the
+	 * session could write them. A declared file the fixture lacked is absent.
+	 */
+	readonly startingProjectFiles?: readonly HashedFile[] | undefined;
 	readonly transcriptDiagnostics: Immutable<TranscriptDiagnostics>;
 	readonly contextEvidence?: ContextEvidence | undefined;
 	readonly stateEvidenceDirectory?: string | undefined;
@@ -452,6 +459,21 @@ async function installCorpusOverlay(
 	return { styleName: snapshotStyleName(snapshot) };
 }
 
+async function seededProjectFiles(
+	projectFiles: readonly string[],
+	attemptDirectory: string,
+): Promise<readonly HashedFile[]> {
+	const files: HashedFile[] = [];
+	for (const path of projectFiles) {
+		const file = join(attemptDirectory, path);
+		if (await Bun.file(file).exists()) {
+			files.push({ path, sha256: await hashFile(file) });
+		}
+	}
+
+	return files;
+}
+
 export async function runSessionAttempt(
 	request: SessionAttemptRequest,
 ): Promise<SessionAttempt> {
@@ -464,6 +486,10 @@ export async function runSessionAttempt(
 			await seedFixture(sessionCase.fixturePath, attemptDirectory);
 		}
 
+		const startingProjectFiles = await seededProjectFiles(
+			sessionCase.projectFiles,
+			attemptDirectory,
+		);
 		const overlay = await installCorpusOverlay(
 			request.corpusSnapshot,
 			attemptDirectory,
@@ -499,11 +525,14 @@ export async function runSessionAttempt(
 				);
 			}
 
-			return await recordAttempt(request, attemptDirectory, {
-				output,
-				writtenTranscript: transcriptPath,
-				contextEvidence,
-			});
+			return {
+				...(await recordAttempt(request, attemptDirectory, {
+					output,
+					writtenTranscript: transcriptPath,
+					contextEvidence,
+				})),
+				startingProjectFiles,
+			};
 		} finally {
 			await removeAttemptFiles(attemptDirectory, slug, transcriptPath);
 		}
