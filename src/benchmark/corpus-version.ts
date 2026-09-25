@@ -9,6 +9,7 @@ import type { CorpusMeasurement } from "./corpus-measurement";
 import { CORPUS_VERSION_LABEL } from "./corpus-version-label";
 import { hashCorpusLayout } from "./corpus-layout";
 import { readdirIfPresent, textIfPresent } from "./file-presence";
+import { claimedNumbers } from "./numbered-claims";
 
 const STORE_DIRECTORY = "corpus-versions";
 const BLOBS_DIRECTORY = "blobs";
@@ -96,15 +97,6 @@ async function storeFiles(
 	return stored;
 }
 
-const POSITION_NAME = /^[1-9]\d*$/u;
-
-function positions(names: readonly string[]): number[] {
-	return names
-		.filter((name) => POSITION_NAME.test(name))
-		.map(Number)
-		.toSorted((left, right) => left - right);
-}
-
 interface LogEntry {
 	readonly position: number;
 	readonly digest: string;
@@ -112,7 +104,9 @@ interface LogEntry {
 
 async function readLog(directory: string): Promise<LogEntry[]> {
 	const entries: LogEntry[] = [];
-	for (const position of positions((await readdirIfPresent(directory)) ?? [])) {
+	for (const position of claimedNumbers(
+		(await readdirIfPresent(directory)) ?? [],
+	)) {
 		const text = await textIfPresent(join(directory, String(position)));
 		if (text !== undefined) {
 			entries.push({ position, digest: text.trim() });

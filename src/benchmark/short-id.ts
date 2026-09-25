@@ -4,6 +4,7 @@ import { z } from "zod";
 import { isCaseId } from "./case";
 import { INITIAL_CHECKPOINT_STAGE } from "./checkpoint";
 import { readdirIfPresent, textIfPresent } from "./file-presence";
+import { claimedNumbers } from "./numbered-claims";
 
 const REGISTRY_DIRECTORY = "short-ids";
 const CLAIMS_DIRECTORY = "claims";
@@ -98,20 +99,6 @@ function registryDirectory(runsDirectory: string, caseId: string): string {
 
 function shortIdKind(subject: ClaimSubject): ShortId["kind"] {
 	return subject.kind === "group" ? "group" : "run";
-}
-
-const NUMBER_NAME = /^[1-9]\d*$/u;
-
-/**
- * The numbers claimed in a registry directory, ascending. A file whose name is
- * not a number, a `.DS_Store` Finder leaves or an editor's swap file, claims
- * none, and reading it as one would make every later claim a NaN.
- */
-function claimedNumbers(names: readonly string[]): number[] {
-	return names
-		.filter((name) => NUMBER_NAME.test(name))
-		.map(Number)
-		.toSorted((left, right) => left - right);
 }
 
 async function highestNumber(claimsDirectory: string): Promise<number> {
