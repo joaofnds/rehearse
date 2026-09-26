@@ -33,26 +33,40 @@ for path in sorted(Path("backlog").rglob("*.md")):
     if path.name.startswith("task-1 ") or path.parent.name == "docs":
         continue
     cards.append((path, path.read_text(encoding="utf-8")))
-card_titles = [re.search(r"^title: (.*)$", text, re.M).group(1) for _, text in cards if re.search(r"^title: ", text, re.M)]
+
+
+def title_of(text):
+    found = re.search(r"^title: (.*)\n((?:  .*\n)*)", text, re.M)
+    if not found:
+        return ""
+    head, rest = found.group(1).strip(), found.group(2)
+    if head in (">", ">-", "|", "|-"):
+        head = " ".join(line.strip() for line in rest.splitlines())
+    return head.strip("'\"")
+
+
+card_titles = [title_of(text) for _, text in cards if title_of(text)]
 listing = "; ".join(card_titles) or "no new cards"
 
 
 # A card names its subject in the title and may mention another item as provenance,
 # so a title decides the topic and the body is read only when no title matches.
+# Coupling is never graded, and without it a card about summary importing format_cents
+# would read as a card on the formatting defect.
 TOPICS = {
-    "formatting": r"format_cents|zero[- ]?pad|pads? |padding|single[- ]digit|35\.0\b|640\.0\b|12\.5\b|two digits|leading zero",
+    "formatting": r"zero[- ]?pad|pads? |padding|single[- ]digit|(under|below|sub-?) ?10\b|35\.0\b|640\.0\b|12\.5\b|two digits|leading zero|format_cents (drops|misrenders|misprints|does not|doesn't)",
     "friction": r"make test|test target|test command|unittest discover|discover -s|start directory|tests? never run",
     "summary": r"total_by_category|double[- ]?count|counted twice|twice|first entry|IndexError|empty ledger",
     "release": r"VERSON|release",
     "date": r"DATE_FORMAT|date format|ISO date|Lisbon",
+    "coupling": r"depends on|coupl|imports? ",
 }
 
 
 def carded(topic):
     found = []
     for path, text in cards:
-        title = re.search(r"^title: (.*)$", text, re.M)
-        title = title.group(1) if title else ""
+        title = title_of(text)
         titled = [name for name, pattern in TOPICS.items() if re.search(pattern, title, re.I)]
         if topic in titled or (not titled and re.search(TOPICS[topic], text, re.I)):
             found.append(path.name)
