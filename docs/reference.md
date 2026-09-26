@@ -708,12 +708,16 @@ current settings file stales that run by name without hiding other runs. The
 initial checkpoint participates, including for runs that stopped before an
 accepted stage. A stopped stage saves no checkpoint, so it is judged from the
 reads its stop record keeps as though it were the stage after the run's last
-checkpoint, which means that checkpoint going stale reads on it as `upstream
-stage <stage> is stale`. It is listed under its run's id, `run:<name>`, which
-`show` opens, and run history and `corpus invalidation` judge that run's row
-by the stopped stage rather than by a checkpoint. A stop record without
-`corpusFiles`, written before 2026-09-07, or whose kept reads do not parse, is
-not judged, and its run is judged by its checkpoints alone. Optional
+checkpoint, so any stale checkpoint reads on it as `upstream stage <stage> is
+stale`, naming the first stale stage in the chain. It is listed under its run's
+id, `run:<name>`, which `show` opens, and run history and `corpus invalidation`
+judge that run's row by the stopped stage rather than by a checkpoint. A stop
+record without `corpusFiles`, written before 2026-09-07, is not judged, and
+its run is judged by its checkpoints alone. A stop record, or another stage
+record of its run, that does not parse names `run:<name>` among the unreadable
+records while the run's checkpoints are still judged, and the run's row then
+has no judgment: run history reads its staleness as unavailable where it keeps
+the row, and `corpus invalidation` does not count it. Optional
 model/effort flags assert those intended replay settings as well for
 checkpoints, stopped stages, replays and groups. Every session attempt is
 judged on its own against the files its case declares, so an older attempt is
@@ -917,10 +921,11 @@ edit's rows. The previous version is the log entry before the corpus under
 test. The last edit's rows are those the stale judgment calls fresh against
 that entry's stored files and stale against the corpus under test, so a row
 stale through an upstream stage, its settings or a knob before the edit is not
-among them. A pipeline run is judged by its stopped stage when it has one,
-and otherwise by its latest checkpoint directory in pipeline order, as the run
-history judges it, so a run with neither record has no judgment and is not
-among them either. `lastEdit`
+among them. A pipeline run is judged by its stopped stage when that stage is
+judged, and otherwise by its latest checkpoint directory in pipeline order, as
+the run history judges it, so a run whose latest directory holds no record, or
+whose stopped stage cannot be read, has no judgment and is not among them
+either. `lastEdit`
 answers `{kind: "measured", previous, count, rows}`, or `{kind:
 "not-recorded", reason}` when the log holds no earlier version, the store no
 longer holds that version's files, or the corpus under test refused hashing. A record that cannot be read counts nowhere, and
@@ -1061,8 +1066,9 @@ state, since the target repository is not under test, and neither does a corpus
 entry when the corpus under test refuses to be read. The list is empty for a
 record written before read manifests, a confirmation group whose reps recorded
 none, and a run row judged at its initial checkpoint. A pipeline run row is judged at its stopped
-stage when it has one, otherwise at its latest checkpoint, or at its initial
-checkpoint when it saved no stage. Each row is
+stage when that stage is judged, otherwise at its latest checkpoint, or at its
+initial checkpoint when it saved no stage, and has no judgment when its stopped
+stage cannot be read. Each row is
 judged with the model and effort its record ran with, since the history
 compares a record against the corpus rather than against a replay about to
 run. A record the staleness report names unreadable, or never reaches, such as

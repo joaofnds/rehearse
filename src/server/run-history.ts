@@ -837,7 +837,8 @@ interface Staleness {
 	readonly of: (recordId: string) => RowStaleness;
 	/**
 	 * A run row's staleness: the judgment of the stage its judge stopped, which
-	 * stands under the run's own id, or else its latest checkpoint's.
+	 * stands under the run's own id, unavailable when that stage cannot be
+	 * read, or else its latest checkpoint's.
 	 */
 	readonly ofRun: (run: string, latestCheckpoint: string) => RowStaleness;
 }
@@ -888,6 +889,7 @@ async function recordStaleness(
 		of,
 		ofRun: (run, latestCheckpoint) =>
 			judgedById.get(formatRecordId({ kind: "run", run })) ??
+			unreadableById.get(formatRecordId({ kind: "run", run })) ??
 			of(latestCheckpoint),
 	};
 }

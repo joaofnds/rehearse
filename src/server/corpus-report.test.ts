@@ -433,6 +433,33 @@ describe(corpusReport.name, () => {
 			).toMatchObject({ readBy: 1, invalidated: 1 });
 		});
 
+		it("leaves a run's row uncounted when a stage record it keeps does not parse, rather than judging it by its checkpoint", async () => {
+			const corpus = await fullCorpusDirectory();
+			const runs = await runsDirectory();
+			const fixture = new RecordedRunsFixture(runs, {
+				settingsFile: await liveStageSettings(),
+			});
+			await fixture.write();
+			await fixture.recordCorpusFrom(directorySource(corpus));
+			await fixture.recordVersionFrom(directorySource(corpus));
+			await writeFile(
+				benchmarkRunPaths(runs, fixture.replayableRun).stageFile("aaa"),
+				'{"status": "AWAIT',
+			);
+			await writeFile(
+				join(corpus, "skills", "build", "SKILL.md"),
+				"build skill, edited\n",
+			);
+
+			const report = await corpusReport(directorySource(corpus), runs);
+
+			expect(report.lastEdit).toMatchObject({
+				kind: "measured",
+				count: 0,
+				rows: [],
+			});
+		});
+
 		it("counts the row against the edited file and not against a file the edit left alone", async () => {
 			const { report } = await editedAfterRun();
 

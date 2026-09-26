@@ -800,6 +800,34 @@ describe(runHistoryReport.name, () => {
 		});
 	});
 
+	it("reads a stopped run's row as unavailable when its stop record does not parse, rather than clean by its checkpoint", async () => {
+		const fixture = await fixtureRecordingLiveSettings();
+		await fixture.writeStoppedRun();
+		const corpus = await corpusDirectory("build skill\n");
+		await fixture.recordStoppedStageFrom(directorySource(corpus));
+		const stopRecord = benchmarkRunPaths(
+			fixture.runsDirectory,
+			fixture.stoppedRun,
+		).stageFile("build");
+		await Bun.write(
+			stopRecord,
+			JSON.stringify({
+				...z.looseObject({}).parse(await Bun.file(stopRecord).json()),
+				corpusVersion: { kind: "version", digest: "not a digest" },
+			}),
+		);
+
+		const { rows } = await runHistoryReport(
+			fixture.runsDirectory,
+			directorySource(corpus),
+			nothingRunning,
+		);
+
+		expect(pipelineRun(rows, fixture.stoppedRun)?.staleness).toMatchObject({
+			state: "unavailable",
+		});
+	});
+
 	it("reports a run stopped mid-stage with STOPPED:<stage> and no corpus version when its stage records name none", async () => {
 		const fixture = await writtenFixture();
 		await fixture.writeStoppedRun();

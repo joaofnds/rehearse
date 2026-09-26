@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "bun:test";
+import { z } from "zod";
 import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -596,18 +597,42 @@ describe(checkpointStaleness.name, () => {
 		]);
 	});
 
-	it.each([
+	const damagedStopRecords: readonly (readonly [
+		string,
+		(stageFile: (stage: string) => string) => Promise<void>,
+	])[] = [
 		[
 			"its stop record's reads do not parse",
-			(record: string) =>
-				JSON.stringify({
-					...JSON.parse(record),
-					corpusVersion: { kind: "version", digest: "not a digest" },
-				}),
+			async (stageFile) => {
+				const record = z
+					.looseObject({})
+					.parse(await Bun.file(stageFile("build")).json());
+				await Bun.write(
+					stageFile("build"),
+					JSON.stringify({
+						...record,
+						corpusVersion: { kind: "version", digest: "not a digest" },
+					}),
+				);
+			},
 		],
-		["its stop record was cut short", (record: string) => record.slice(0, 20)],
-	])(
-		"still judges a stopped run's checkpoints when %s",
+		[
+			"its stop record was cut short",
+			async (stageFile) => {
+				const record = await Bun.file(stageFile("build")).text();
+				await Bun.write(stageFile("build"), record.slice(0, 20));
+			},
+		],
+		[
+			"another of its stage records was cut short",
+			async (stageFile) => {
+				await Bun.write(stageFile("aaa"), '{"status": "AWAIT');
+			},
+		],
+	];
+
+	it.each(damagedStopRecords)(
+		"names its stopped stage unreadable and still judges its checkpoints when %s",
 		async (_situation, damage) => {
 			const root = await temporaryDirectory("rehearse-staleness-");
 			const fixture = new RecordedRunsFixture(root, {
@@ -619,11 +644,11 @@ describe(checkpointStaleness.name, () => {
 			await Bun.write(join(corpus, "CLAUDE.md"), "the instructions\n");
 			await Bun.write(join(corpus, "skills", "build", "SKILL.md"), "build\n");
 			await fixture.recordStoppedStageFrom(directorySource(corpus));
-			const stopRecord = benchmarkRunPaths(
+			const paths = benchmarkRunPaths(
 				fixture.runsDirectory,
 				fixture.stoppedRun,
-			).stageFile("build");
-			await Bun.write(stopRecord, damage(await Bun.file(stopRecord).text()));
+			);
+			await damage((stage) => paths.stageFile(stage));
 
 			const report = await checkpointStaleness(
 				fixture.runsDirectory,
@@ -632,10 +657,10 @@ describe(checkpointStaleness.name, () => {
 
 			expect({
 				ids: report.records.map(({ id }) => id),
-				unreadable: report.unreadable,
+				unreadable: report.unreadable.map(({ id }) => id),
 			}).toEqual({
 				ids: [`checkpoint:${fixture.stoppedRun}/initial`],
-				unreadable: [],
+				unreadable: [`run:${fixture.stoppedRun}`],
 			});
 		},
 	);

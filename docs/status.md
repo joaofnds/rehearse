@@ -106,8 +106,9 @@ case present, but no browser check has been run over it.
   A session attempt of a case that is no longer declared reads its staleness
   as unavailable on the run history, and `stale` names it on stderr.
   A stopped stage whose stop record has no `corpusFiles` (written before
-  2026-09-07) or whose kept reads do not parse is not judged, so its run is
-  judged by its checkpoints alone.
+  2026-09-07) is not judged, so its run is judged by its checkpoints alone.
+  One whose stage records do not parse is named unreadable, and its run row
+  has no judgment.
 - **Pipeline `run --corpus` is refused.** Replay supports explicit corpus
   directories, but the forward pipeline command does not yet use that path.
 - **Several cases depend on private inputs.** `brief-reply-*` need transcript

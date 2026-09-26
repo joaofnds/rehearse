@@ -53,12 +53,15 @@ interface RowReading extends Pick<RecordStaleness, "id" | "readFiles"> {
  * history judges it: by the stage its judge stopped, which stands under the
  * run's own id, or else by its latest checkpoint directory in pipeline order,
  * the initial one when it recorded no stage. Either carries every upstream
- * cause. A directory holding no judged record has no judgment.
+ * cause. A directory holding no judged record has no judgment, and neither
+ * does a run whose stopped stage cannot be read, since its checkpoint would
+ * read clean for a stage that may be stale.
  */
 async function runRow(
 	runsDirectory: string,
 	run: string,
 	records: readonly RecordStaleness[],
+	stopUnreadable: boolean,
 ): Promise<RowReading> {
 	const manifest = await loadRunManifest(
 		benchmarkRunPaths(runsDirectory, run).manifestFile,
@@ -68,9 +71,10 @@ async function runRow(
 		manifest.pipeline.stages
 			.map(({ name }) => name)
 			.findLast((name) => recorded.has(name)) ?? INITIAL_CHECKPOINT_STAGE;
-	const judged =
-		records.find(({ id }) => id === `run:${run}`) ??
-		records.find(({ id }) => id === `checkpoint:${run}/${latest}`);
+	const judged = stopUnreadable
+		? undefined
+		: (records.find(({ id }) => id === `run:${run}`) ??
+			records.find(({ id }) => id === `checkpoint:${run}/${latest}`));
 
 	return {
 		id: `run:${run}`,
@@ -83,7 +87,11 @@ async function rowReadings(
 	runsDirectory: string,
 	source: CorpusRoot,
 ): Promise<readonly RowReading[]> {
-	const { byRun } = await checkpointStalenessByRun(runsDirectory, source);
+	const { byRun, unreadable } = await checkpointStalenessByRun(
+		runsDirectory,
+		source,
+	);
+	const unreadableIds = new Set(unreadable.map(({ id }) => id));
 	const reports = [
 		await sessionAttemptStaleness(runsDirectory, source),
 		await replayAttemptStaleness(runsDirectory, source),
@@ -91,7 +99,7 @@ async function rowReadings(
 	];
 	const runs = await Promise.all(
 		[...byRun.entries()].map(([run, records]) =>
-			runRow(runsDirectory, run, records),
+			runRow(runsDirectory, run, records, unreadableIds.has(`run:${run}`)),
 		),
 	);
 

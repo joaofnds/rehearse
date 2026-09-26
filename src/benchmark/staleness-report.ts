@@ -420,10 +420,9 @@ const stopRecordReadsSchema = z.object({
  * checkpoint to judge. None when no stage stopped, when the stopped stage
  * has a checkpoint after all, or when its stop record predates stop records
  * keeping the corpus files a stage read, since judging no files would report
- * every file it read as added. Its caller takes none too when a stage file
- * or the reads it keeps do not parse, which costs this reader the stopped
- * stage and never the run's checkpoints, the way a stop record's other
- * readers treat a field they cannot parse. A
+ * every file it read as added. It throws when a stage file or the reads it
+ * keeps do not parse, which its caller reports without losing the run's
+ * checkpoints. A
  * stop record written before it kept its model
  * or effort takes the run's. Stage settings are loaded once per run, so the
  * stopped stage ran under the settings file its run's checkpoints recorded.
@@ -549,7 +548,10 @@ export async function checkpointStalenessByRun(
 				knobs,
 			);
 			if (judged !== undefined) {
-				byRun.set(run, judged);
+				byRun.set(run, judged.records);
+				if (judged.unreadableStop !== undefined) {
+					unreadable.push(judged.unreadableStop);
+				}
 			}
 		} catch (error) {
 			unreadable.push({
@@ -582,7 +584,7 @@ export async function checkpointStalenessOfRun(
 		{},
 	);
 
-	return judged ?? [];
+	return judged?.records ?? [];
 }
 
 /**
@@ -627,12 +629,23 @@ interface CorpusJudgedAgainst {
 	readonly underTest: CorpusUnderTest;
 }
 
+/**
+ * A run's judged records, with its stopped stage named unreadable when a
+ * stage file or the reads its stop record keeps do not parse, so that stage
+ * is reported rather than read as clean and the run's checkpoints are still
+ * judged.
+ */
+interface RunStaleness {
+	readonly records: RecordStaleness[];
+	readonly unreadableStop: UnreadableStaleRecord | undefined;
+}
+
 async function runCheckpointStaleness(
 	runsDirectory: string,
 	run: string,
 	{ source, instructions, underTest }: CorpusJudgedAgainst,
 	knobs: CurrentSessionKnobs,
-): Promise<RecordStaleness[] | undefined> {
+): Promise<RunStaleness | undefined> {
 	const paths = benchmarkRunPaths(runsDirectory, run);
 	const manifestFile = Bun.file(paths.manifestFile);
 	if (!(await manifestFile.exists())) {
@@ -644,12 +657,16 @@ async function runCheckpointStaleness(
 		INITIAL_CHECKPOINT_STAGE,
 		...manifest.pipeline.stages.map(({ name }) => name),
 	]);
-	const stopped = await stoppedStageLink(
-		runsDirectory,
-		run,
-		manifest,
-		checkpoints,
-	).catch(() => undefined);
+	let unreadableStop: UnreadableStaleRecord | undefined;
+	let stopped: JudgedLink | undefined;
+	try {
+		stopped = await stoppedStageLink(runsDirectory, run, manifest, checkpoints);
+	} catch (error) {
+		unreadableStop = {
+			id: `run:${run}`,
+			reason: error instanceof Error ? error.message : String(error),
+		};
+	}
 	const chain: readonly JudgedLink[] =
 		stopped === undefined ? checkpoints : [...checkpoints, stopped];
 	const current = await currentStageCorpus(
@@ -693,7 +710,7 @@ async function runCheckpointStaleness(
 		});
 	}
 
-	return judged;
+	return { records: judged, unreadableStop };
 }
 
 /** The readable checkpoints `checkpointStaleness` finds stale, and only those. */

@@ -77,7 +77,8 @@ Checkpoints record source commits, workflow state, artifacts, corpus digests,
 the canonical stage-settings digest, and lineage. A changed upstream input,
 model, effort, or stage-settings value changes the conditions under which a
 result was produced. `stale` reports mismatches for recorded checkpoints,
-stages their judge stopped, session debug attempts, stage replays and confirmation groups. Comparison loading checks compatible inputs and derives
+stopped stages, session debug attempts, stage replays and confirmation groups.
+Comparison loading checks compatible inputs and derives
 its statistics from rep records rather than trusting a saved summary.
 
 Corpus hashing and delivery are distinct responsibilities. A live debug session
