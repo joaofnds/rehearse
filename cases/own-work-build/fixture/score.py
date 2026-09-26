@@ -51,8 +51,9 @@ listing = "; ".join(card_titles) or "no new cards"
 
 # A card names its subject in the title and may mention another item as provenance,
 # so a title decides the topic and the body is read only when no title matches.
-# Coupling is never graded, and without it a card about summary importing format_cents
-# would read as a card on the formatting defect.
+# Coupling and test temp-file leaks are never graded. Without them a card about summary
+# importing format_cents would read as a card on the formatting defect, and a leak card
+# whose body mentions `make test` as a card on the test command.
 TOPICS = {
     "formatting": r"zero[- ]?pad|pads? |padding|single[- ]digit|(under|below|sub-?) ?10\b|35\.0\b|640\.0\b|12\.5\b|two digits|leading zero|format_cents (drops|misrenders|misprints|does not|doesn't)",
     "friction": r"make test|test target|test command|unittest discover|discover -s|start directory|tests? never run|only runs|runs only|runs? (just|only) (the )?ledger|subset of (the )?(tests|suite)",
@@ -60,6 +61,7 @@ TOPICS = {
     "release": r"VERSON|release",
     "date": r"DATE_FORMAT|date format|ISO date|Lisbon",
     "coupling": r"depends on|coupl|imports? ",
+    "leak": r"leaks?\b|temp(orary)? file",
 }
 
 
