@@ -1,0 +1,6 @@
+# Household ledger
+2026-02-14 | Flowers | gifts | 35.00
+2026-02-27 | Rent share | housing | 640.00
+2026-03-02 | Coffee beans | groceries | 18.99
+2026-03-09 | Train ticket | travel | 42.50
+2026-03-15 | Farmers market | groceries | 23.40
