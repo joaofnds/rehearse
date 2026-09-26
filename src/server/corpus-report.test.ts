@@ -428,6 +428,9 @@ describe(corpusReport.name, () => {
 				count: 1,
 				rows: [`run:${fixture.stoppedRun}`],
 			});
+			expect(
+				report.files.find(({ path }) => path === "skills/build/SKILL.md"),
+			).toMatchObject({ readBy: 1, invalidated: 1 });
 		});
 
 		it("counts the row against the edited file and not against a file the edit left alone", async () => {

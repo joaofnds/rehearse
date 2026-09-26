@@ -549,6 +549,53 @@ describe(checkpointStaleness.name, () => {
 		]);
 	});
 
+	it("lists a stage its judge stopped when the judge rubric it read changed, without moving its distance", async () => {
+		const root = await temporaryDirectory("rehearse-staleness-");
+		const fixture = new RecordedRunsFixture(root, {
+			settingsFile: await liveStageSettings(),
+		});
+		await fixture.writeStoppedRun();
+		const corpus = await temporaryDirectory("rehearse-staleness-corpus-");
+		await mkdir(join(corpus, "skills", "build"), { recursive: true });
+		await Bun.write(join(corpus, "CLAUDE.md"), "the instructions\n");
+		await Bun.write(join(corpus, "skills", "build", "SKILL.md"), "build\n");
+		await fixture.recordStoppedStageFrom(directorySource(corpus));
+		const rubric = "cases/audit-log/rubrics/build.json";
+		const stopRecord = benchmarkRunPaths(
+			fixture.runsDirectory,
+			fixture.stoppedRun,
+		).stageFile("build");
+		await Bun.write(
+			stopRecord,
+			JSON.stringify({
+				...JSON.parse(await Bun.file(stopRecord).text()),
+				readManifest: [
+					{
+						path: rubric,
+						half: "rubric",
+						role: "judge rubric",
+						evidence: "declared",
+						sha256: "0".repeat(64),
+					},
+				],
+			}),
+		);
+
+		const stale = await staleCheckpoints(
+			fixture.runsDirectory,
+			directorySource(corpus),
+		);
+
+		expect(stale).toMatchObject([
+			{
+				id: `run:${fixture.stoppedRun}`,
+				causes: [`judge rubric ${rubric} changed`],
+				onlyCorpusFiles: false,
+				distance: { kind: "measured", versions: 0 },
+			},
+		]);
+	});
+
 	it.each([
 		[
 			"its stop record's reads do not parse",
