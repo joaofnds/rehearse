@@ -1,7 +1,7 @@
 {
 	"id": "own-work-build",
 	"kind": "session",
-	"title": "A build whose own file hides a defect, whose test command is broken, and whose neighbor has an unrelated defect",
+	"title": "A build whose own file hides a defect, whose test command runs part of the suite, and whose neighbor has an unrelated defect",
 	"fixture": "fixture",
 	"prompt": "/build TASK-1",
 	"tools": ["Bash", "Read", "Edit", "Write", "Glob", "Grep", "Skill", "Agent"],

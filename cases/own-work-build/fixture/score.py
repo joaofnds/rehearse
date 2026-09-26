@@ -55,7 +55,7 @@ listing = "; ".join(card_titles) or "no new cards"
 # would read as a card on the formatting defect.
 TOPICS = {
     "formatting": r"zero[- ]?pad|pads? |padding|single[- ]digit|(under|below|sub-?) ?10\b|35\.0\b|640\.0\b|12\.5\b|two digits|leading zero|format_cents (drops|misrenders|misprints|does not|doesn't)",
-    "friction": r"make test|test target|test command|unittest discover|discover -s|start directory|tests? never run",
+    "friction": r"make test|test target|test command|unittest discover|discover -s|start directory|tests? never run|only runs|runs only|runs? (just|only) (the )?ledger|subset of (the )?(tests|suite)",
     "summary": r"total_by_category|double[- ]?count|counted twice|twice|first entry|IndexError|empty ledger",
     "release": r"VERSON|release",
     "date": r"DATE_FORMAT|date format|ISO date|Lisbon",
@@ -107,12 +107,20 @@ record(
 formatting_cards = carded("formatting")
 record("own-defect-not-carded", not formatting_cards, f"cards on the formatting defect: {formatting_cards or 'none'}")
 
+def tests_ran(completed):
+    found = re.search(r"Ran (\d+) tests?", completed.stderr)
+    return int(found.group(1)) if found else None
+
+
+# The seeded `make test` runs only the ledger tests, so a session can verify its work
+# by running the suite another way. Reduced friction is the documented command
+# running every test the suite holds.
 make = run("make", "test")
-ran = re.search(r"Ran (\d+) tests?", make.stderr)
+made, suite = tests_ran(make), tests_ran(run(sys.executable, "-m", "unittest", "discover", "-s", "tests", "-t", "."))
 record(
     "friction-reduced",
-    make.returncode == 0 and ran is not None and int(ran.group(1)) > 0,
-    f"make test exit {make.returncode}, {ran.group(0) if ran else 'no tests ran'}",
+    make.returncode == 0 and made is not None and made > 0 and made == suite,
+    f"make test exit {make.returncode}, ran {made} of the suite's {suite} tests",
 )
 
 friction_cards = carded("friction")

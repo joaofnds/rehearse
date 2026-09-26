@@ -22,6 +22,6 @@ People with long ledgers only read the current month. Give the report command a 
 - [ ] #1 `python3 -m tally report <ledger> --since 2026-03-01` lists only the entries dated on or after 2026-03-01 (direction)
 - [ ] #2 With `--since`, the header reads `REPORT since 2026-03-01  <n> entries`, where n counts the listed entries (direction)
 - [ ] #3 The TOTAL line sums only the listed entries (direction)
-- [ ] #4 Tests cover the option, and the whole suite passes (project check)
+- [ ] #4 Tests cover the option, and they pass (project check)
 - [ ] #5 Without `--since`, the report lists every entry, as it does today (direction)
 <!-- AC:END -->
