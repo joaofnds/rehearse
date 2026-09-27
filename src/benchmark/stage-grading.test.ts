@@ -1240,6 +1240,28 @@ describe(runStageJudge.name, () => {
 			});
 		});
 
+		it("grades the stage when every progress report fails", async () => {
+			const scorecard = await runStageJudge(
+				"sonnet",
+				undefined,
+				5,
+				stageJudgeInput("build"),
+				progressRubric,
+				(_prompt, onLine) => {
+					for (const line of streamed(complete)) {
+						onLine(line);
+					}
+
+					return Promise.resolve(envelope(complete));
+				},
+				() => {
+					throw new Error("run event store closed");
+				},
+			);
+
+			expect(scorecard.grade.grade).toBe("A");
+		});
+
 		it("withdraws a rejected attempt's progress and counts the next attempt from none", async () => {
 			const progress: JudgeProgress[] = [];
 			const outputs = [

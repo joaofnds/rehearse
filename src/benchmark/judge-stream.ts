@@ -68,7 +68,7 @@ interface ItemScanner {
 
 function itemScanner(itemClosed: (item: ClosedItem) => void): ItemScanner {
 	let text = "";
-	let position = 0;
+	let scanned = 0;
 	let depth = 0;
 	let inString = false;
 	let escaped = false;
@@ -77,7 +77,7 @@ function itemScanner(itemClosed: (item: ClosedItem) => void): ItemScanner {
 	let section: string | undefined;
 	let itemStart = 0;
 
-	const scanString = (character: string): void => {
+	const scanString = (character: string, position: number): void => {
 		if (escaped) {
 			escaped = false;
 		} else if (character === "\\") {
@@ -92,9 +92,9 @@ function itemScanner(itemClosed: (item: ClosedItem) => void): ItemScanner {
 		}
 	};
 
-	const scan = (character: string): void => {
+	const scan = (character: string, position: number): void => {
 		if (inString) {
-			scanString(character);
+			scanString(character, position);
 
 			return;
 		}
@@ -145,8 +145,12 @@ function itemScanner(itemClosed: (item: ClosedItem) => void): ItemScanner {
 	return {
 		feed: (chunk) => {
 			text += chunk;
-			for (; position < text.length; position += 1) {
-				scan(text.charAt(position));
+			// A listener that throws leaves the scan past its character, so the
+			// next chunk carries on from a consistent nesting depth.
+			while (scanned < text.length) {
+				const position = scanned;
+				scanned += 1;
+				scan(text.charAt(position), position);
 			}
 		},
 	};
@@ -169,11 +173,12 @@ export class StructuredOutputStream {
 			if (event.content_block.name !== STRUCTURED_OUTPUT_TOOL) {
 				return;
 			}
-			if (this.scanner !== undefined) {
-				this.listener.restarted();
-			}
+			const restarting = this.scanner !== undefined;
 			this.block = event.index;
 			this.scanner = itemScanner(this.listener.itemClosed);
+			if (restarting) {
+				this.listener.restarted();
+			}
 
 			return;
 		}

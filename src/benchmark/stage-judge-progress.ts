@@ -40,6 +40,15 @@ export function watchJudgeProgress(
 	checkItem: (partial: StageJudgeResponse) => void,
 	report: (progress: JudgeProgress) => void,
 ): JudgeProgressWatch {
+	// Progress is a reading of the session, never part of its result, so a
+	// reading it cannot record or a line it cannot read leaves the judge running.
+	const reportSafely = (progress: JudgeProgress): void => {
+		try {
+			report(progress);
+		} catch {
+			// The next reading is reported afresh.
+		}
+	};
 	let attempt = 0;
 	let returned = new Map<ProgressSection, Set<string>>();
 
@@ -63,7 +72,7 @@ export function watchJudgeProgress(
 		returned = new Map(
 			PROGRESS_SECTIONS.map((section) => [section, new Set()]),
 		);
-		report(returning());
+		reportSafely(returning());
 	};
 	const passedChecks = (
 		section: ProgressSection,
@@ -103,7 +112,7 @@ export function watchJudgeProgress(
 		const id = passedChecks(known.data, closed);
 		if (id !== undefined) {
 			returned.get(known.data)?.add(id);
-			report(returning());
+			reportSafely(returning());
 		}
 	};
 
@@ -117,17 +126,15 @@ export function watchJudgeProgress(
 			});
 
 			return invoke(prompt, (line) => {
-				// Progress is a reading of the session, never part of its result,
-				// so a line it cannot read or record leaves the judge running.
 				try {
 					stream.line(line);
 				} catch {
-					// The next line reports again.
+					// The stream reads on from the next line.
 				}
 			});
 		},
 		rejected: (reason) => {
-			report({ state: "rejected", attempt, reason });
+			reportSafely({ state: "rejected", attempt, reason });
 		},
 	};
 }

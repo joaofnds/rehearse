@@ -112,6 +112,42 @@ describe(StructuredOutputStream.name, () => {
 		expect(restarts).toEqual([1]);
 	});
 
+	it("keeps reporting after a listener fails on one item", () => {
+		const items: ClosedItem[] = [];
+		let restarts = 0;
+		const stream = new StructuredOutputStream({
+			itemClosed: (item) => {
+				items.push(item);
+				if (items.length === 1) {
+					throw new Error("report failed");
+				}
+			},
+			restarted: () => {
+				restarts += 1;
+			},
+		});
+
+		for (const line of [
+			blockStart(0),
+			...chunked(
+				'{"dimensions":[{"id":"d1"},{"id":"d2"}],"hardBlockers":[{"id":"b1"}]}',
+			),
+		]) {
+			try {
+				stream.line(line);
+			} catch {
+				// The caller carries on with the next line.
+			}
+		}
+
+		expect(items.map(({ item }) => item)).toEqual([
+			{ id: "d1" },
+			{ id: "d2" },
+			{ id: "b1" },
+		]);
+		expect(restarts).toBe(0);
+	});
+
 	it("reads only the structured output block's own deltas", () => {
 		const { stream, items } = watched();
 
