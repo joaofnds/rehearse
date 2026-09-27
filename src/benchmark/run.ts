@@ -846,6 +846,15 @@ export async function runGradedStages(
 				context.sessionBudgetUsd,
 				input,
 				rubric,
+				undefined,
+				(progress) => {
+					context.runEvents?.recordJudgeProgress(
+						stage,
+						input.transcript.costUsd,
+						context.elapsedMs?.() ?? 0,
+						progress,
+					);
+				},
 			);
 		} catch (error) {
 			if (error instanceof JudgeOutputValidationError) {

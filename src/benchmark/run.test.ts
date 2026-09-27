@@ -72,7 +72,7 @@ import {
 } from "./test-support";
 import type { PendingStage, RunArtifactPersistence } from "./run-abort";
 import { createRunAbort, fileRunArtifactPersistence } from "./run-abort";
-import type { RunEventKind } from "./run-events";
+import type { JudgeProgress, RunEventKind } from "./run-events";
 import {
 	assertStageGradePassed,
 	deriveStageGrade,
@@ -881,6 +881,76 @@ describe(runGradedStages.name, () => {
 			{ kind: "stage-started", stage: "build", spentUsd: 0, elapsedMs: 500 },
 		]);
 		expect(executedCountAtEachStart).toEqual([0, 1]);
+	});
+
+	it("records each progress reading its stage judge reports as a run event of that stage", async () => {
+		type JudgeArguments = Parameters<StageDependencies["runStageJudge"]>;
+		const { dependencies, scorecardFor } = fakeStageDependencies();
+		const reading: JudgeProgress = {
+			state: "returning",
+			attempt: 1,
+			sections: {
+				hardBlockers: { returned: 1, total: 2 },
+				requirements: { returned: 0, total: 1 },
+				dimensions: { returned: 2, total: 3 },
+			},
+		};
+		const stageSpend: number[] = [];
+		const recorded: {
+			readonly stage: string;
+			readonly spentUsd: number;
+			readonly elapsedMs: number;
+			readonly judge: JudgeProgress;
+		}[] = [];
+		const reporting = {
+			...dependencies,
+			runStageJudge: (
+				_model: string,
+				_effort: undefined | "low" | "medium" | "high" | "xhigh" | "max",
+				_budget: number,
+				input: StageJudgeInput,
+				_source: JudgeArguments[4],
+				_invoke: JudgeArguments[5],
+				onProgress: JudgeArguments[6],
+			) => {
+				stageSpend.push(input.transcript.costUsd);
+				onProgress?.(reading);
+
+				return Promise.resolve(scorecardFor(input, "CONTINUE"));
+			},
+		};
+		const context = {
+			...(await stageContext()),
+			runEvents: {
+				record: () => undefined,
+				recordJudgeProgress: (
+					stage: string,
+					spentUsd: number,
+					elapsedMs: number,
+					judge: JudgeProgress,
+				) => {
+					recorded.push({ stage, spentUsd, elapsedMs, judge });
+				},
+			},
+			elapsedMs: () => 700,
+		};
+
+		await runGradedStages(reporting, context);
+
+		expect(recorded).toEqual([
+			{
+				stage: "shape",
+				spentUsd: stageSpend[0] ?? -1,
+				elapsedMs: 700,
+				judge: reading,
+			},
+			{
+				stage: "build",
+				spentUsd: stageSpend[1] ?? -1,
+				elapsedMs: 700,
+				judge: reading,
+			},
+		]);
 	});
 
 	it("records the stage session inputs beside a continued scorecard", async () => {
