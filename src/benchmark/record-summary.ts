@@ -13,7 +13,12 @@ import type {
 	SingleCaseSpread,
 } from "./comparison-estimator";
 import type { ParsedConfirmationGroupRecord } from "./confirmation-record";
-import type { Immutable } from "./contracts";
+import type {
+	EvidenceLocator,
+	Immutable,
+	RecordedStageEvidence,
+} from "./contracts";
+import { recordedStageEvidenceSchema, unhandled } from "./contracts";
 import { corpusMeasurementReading } from "./corpus-version-label";
 import type { GroupRepReads } from "./staleness-report";
 
@@ -55,6 +60,15 @@ function delta(value: number): string {
  * This is not a second record shape: `--json` still prints the artifact's own
  * bytes.
  */
+const judgedItemSchema = z
+	.object({
+		id: z.string().min(1),
+		status: z.string().min(1).optional(),
+		grade: z.string().min(1).optional(),
+		evidence: z.array(recordedStageEvidenceSchema),
+	})
+	.loose();
+
 export const runSummarySchema = z
 	.object({
 		caseId: z.string().min(1),
@@ -77,6 +91,9 @@ export const runSummarySchema = z
 						.object({
 							grade: z.string().min(1),
 							verdict: z.string().min(1),
+							hardBlockers: z.array(judgedItemSchema).optional(),
+							requirements: z.array(judgedItemSchema).optional(),
+							dimensions: z.array(judgedItemSchema).optional(),
 						})
 						.loose(),
 				})
@@ -121,7 +138,101 @@ export function runSummary(runName: string, record: RunSummaryRecord): string {
 		`Final verdict ${record.grade?.verdict ?? record.failure ?? "none"}.`,
 		`Total cost ${usd(totalCost)}.`,
 		"",
+		...record.stageScorecards.flatMap(({ stage, grade }) =>
+			stageEvidenceLines(stage, [
+				...(grade.hardBlockers ?? []),
+				...(grade.requirements ?? []),
+				...(grade.dimensions ?? []),
+			]),
+		),
 	].join("\n");
+}
+
+type JudgedItem = Immutable<z.infer<typeof judgedItemSchema>>;
+
+function stageEvidenceLines(
+	stage: string,
+	items: readonly JudgedItem[],
+): string[] {
+	if (items.length === 0) {
+		return [];
+	}
+
+	return [
+		`### ${stage} evidence`,
+		"",
+		...items.flatMap((item) => {
+			const result = `${item.id} ${item.status ?? item.grade ?? ""}`;
+
+			return item.evidence.length === 0
+				? [`- ${result}: no evidence.`]
+				: item.evidence.map(
+						(evidence) => `- ${result}: ${evidenceReading(evidence)}`,
+					);
+		}),
+		"",
+	];
+}
+
+/**
+ * An item without a locator was recorded before quoted spans, which is not
+ * the same as an item recorded with no evidence at all.
+ */
+function evidenceReading(evidence: RecordedStageEvidence): string {
+	const cited = `${oneLine(evidence.claim)} (${evidence.source} ${evidence.path}).`;
+	if (evidence.locator === undefined) {
+		return `${cited} Recorded before quoted spans.`;
+	}
+	if (evidence.quote === undefined) {
+		return `${cited} ${capitalized(locatorReading(evidence.locator))}.`;
+	}
+
+	return `${cited} Quote "${oneLine(evidence.quote)}" at ${locatorReading(evidence.locator)}.`;
+}
+
+function locatorReading(locator: EvidenceLocator): string {
+	switch (locator.kind) {
+		case "lines": {
+			const lines =
+				locator.startLine === locator.endLine
+					? String(locator.startLine)
+					: `${String(locator.startLine)}-${String(locator.endLine)}`;
+
+			return `${locator.file}:${lines}${occurrences(locator.occurrences)}`;
+		}
+		case "hunk": {
+			return `${locator.file} ${locator.hunk}${occurrences(locator.occurrences)}`;
+		}
+		case "commit-subject": {
+			return `commit subject ${String(locator.index + 1)}`;
+		}
+		case "exchange": {
+			return `exchange ${String(locator.exchange + 1)} ${locator.field}, characters ${String(locator.start)}-${String(locator.end)}`;
+		}
+		case "harness": {
+			return locator.recorded
+				? `harness result ${locator.result}`
+				: `harness result ${locator.result}, which the stage input does not hold`;
+		}
+		case "absent": {
+			return "a source the stage input does not hold";
+		}
+		default: {
+			return unhandled(locator, "evidence locator");
+		}
+	}
+}
+
+function occurrences(count: number): string {
+	return count === 1 ? "" : `, ${String(count)} occurrences`;
+}
+
+function oneLine(text: string): string {
+	return text.replaceAll(/\s+/gu, " ").trim();
+}
+
+function capitalized(text: string): string {
+	return `${text.charAt(0).toUpperCase()}${text.slice(1)}`;
 }
 
 const reliabilitySummarySchema = z

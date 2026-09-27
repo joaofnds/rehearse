@@ -161,6 +161,87 @@ Total cost $11.75.
 `,
 		);
 	});
+
+	it("lists each judged item's evidence with its quote and locator", () => {
+		const record = parseRunSummaryRecord(
+			JSON.stringify({
+				caseId: "audit-log",
+				timestamp: "2026-09-03T00-00-00.000Z",
+				status: "STOPPED",
+				productOwnerCostUsd: 0,
+				judgeCostUsd: 0,
+				workflow: [],
+				stageScorecards: [
+					{
+						stage: "build",
+						costUsd: 2,
+						grade: {
+							grade: "B",
+							verdict: "CONTINUE",
+							hardBlockers: [
+								{
+									id: "unfinished-delivery",
+									status: "PASS",
+									evidence: [
+										{
+											source: "local-checks",
+											path: "harness",
+											claim: "checks pass",
+											locator: {
+												kind: "harness",
+												result: "localChecks",
+												recorded: true,
+											},
+										},
+									],
+								},
+							],
+							requirements: [
+								{
+									id: "scope",
+									status: "PASS",
+									evidence: [
+										{
+											source: "diff",
+											path: "src/app.ts",
+											claim: "the module is wired",
+											quote: "import {\n  AuditLog }",
+											locator: {
+												kind: "hunk",
+												file: "src/app.ts",
+												hunk: "@@ -1,2 +1,3 @@",
+												occurrences: 2,
+											},
+										},
+									],
+								},
+							],
+							dimensions: [
+								{
+									id: "clarity",
+									grade: "B",
+									evidence: [
+										{
+											source: "task",
+											path: "backlog-seed.md",
+											claim: "the task is clear",
+										},
+									],
+								},
+							],
+						},
+					},
+				],
+			}),
+		);
+
+		expect(runSummary("run-1", record)).toContain(`### build evidence
+
+- unfinished-delivery PASS: checks pass (local-checks harness). Harness result localChecks.
+- scope PASS: the module is wired (diff src/app.ts). Quote "import { AuditLog }" at src/app.ts @@ -1,2 +1,3 @@, 2 occurrences.
+- clarity B: the task is clear (task backlog-seed.md). Recorded before quoted spans.
+`);
+	});
 });
 
 describe(groupSummary.name, () => {

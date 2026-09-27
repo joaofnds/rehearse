@@ -146,7 +146,7 @@ export const evidenceLocatorSchema = z.discriminatedUnion("kind", [
  * before quoted spans; after them every item carries a locator, and every item
  * a judge wrote from a source it was given carries its quote.
  */
-const recordedStageEvidenceSchema = z.object({
+export const recordedStageEvidenceSchema = z.object({
 	source: stageEvidenceSourceSchema,
 	path: z.string().min(1),
 	claim: z.string().min(1),
@@ -332,6 +332,9 @@ export type StageJudgeResponse = Immutable<
 	z.infer<typeof stageJudgeResponseSchema>
 >;
 export type EvidenceLocator = Immutable<z.infer<typeof evidenceLocatorSchema>>;
+export type RecordedStageEvidence = Immutable<
+	z.infer<typeof recordedStageEvidenceSchema>
+>;
 
 export class StageValidationError extends Error {
 	public override name = "StageValidationError";
