@@ -75,7 +75,11 @@ export const runSummarySchema = z
 		timestamp: z.string().min(1),
 		status: z.string().min(1),
 		grade: z
-			.object({ verdict: z.string().min(1), summary: z.string().min(1) })
+			.object({
+				verdict: z.string().min(1),
+				summary: z.string().min(1),
+				requirements: z.array(judgedItemSchema).optional(),
+			})
 			.loose()
 			.optional(),
 		failure: z.string().min(1).optional(),
@@ -139,27 +143,25 @@ export function runSummary(runName: string, record: RunSummaryRecord): string {
 		`Total cost ${usd(totalCost)}.`,
 		"",
 		...record.stageScorecards.flatMap(({ stage, grade }) =>
-			stageEvidenceLines(stage, [
+			evidenceLines(stage, [
 				...(grade.hardBlockers ?? []),
 				...(grade.requirements ?? []),
 				...(grade.dimensions ?? []),
 			]),
 		),
+		...evidenceLines("final judge", record.grade?.requirements ?? []),
 	].join("\n");
 }
 
 type JudgedItem = Immutable<z.infer<typeof judgedItemSchema>>;
 
-function stageEvidenceLines(
-	stage: string,
-	items: readonly JudgedItem[],
-): string[] {
+function evidenceLines(judge: string, items: readonly JudgedItem[]): string[] {
 	if (items.length === 0) {
 		return [];
 	}
 
 	return [
-		`### ${stage} evidence`,
+		`### ${judge} evidence`,
 		"",
 		...items.flatMap((item) => {
 			const result = `${item.id} ${item.status ?? item.grade ?? ""}`;

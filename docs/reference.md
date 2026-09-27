@@ -574,9 +574,12 @@ for the transcript. A quote its cited source does not hold rejects the attempt.
 Items citing `check-integrity`, `local-checks` or `harness-failure`, and blockers
 the harness forces, carry no quote and a `harness` locator saying whether the
 input holds that result; commit subjects a stage never recorded get an `absent`
-locator. Stage records written before quoted spans have neither field, and
-`show run:<name>` lists each item's evidence, marking those items as recorded
-before quoted spans.
+locator. The final Judge quotes the diff and baseline context the same way, and
+its `check-integrity` and `local-checks` requirements carry the harness's own
+results with a `harness` locator; the local check results the run records keep
+their shape. Records written before quoted spans have neither field, and
+`show run:<name>` lists each stage's and the final Judge's evidence, marking
+those items as recorded before quoted spans.
 
 After accepted delivery, the final Judge grades the external rubric against
 baseline context, the candidate diff, and measured checks. Requirement IDs must

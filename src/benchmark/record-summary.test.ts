@@ -719,4 +719,58 @@ Sampling unit: rep. Arms are independent samples; this estimate covers case case
 			"| candidate − baseline | unavailable | unavailable | unavailable | unavailable |",
 		);
 	});
+	it("lists the final judge's evidence, reading an old item as recorded before quoted spans", () => {
+		const record = parseRunSummaryRecord(
+			JSON.stringify({
+				caseId: "audit-log",
+				timestamp: "2026-09-03T00-00-00.000Z",
+				status: "AWAITING_HUMAN_REVIEW",
+				grade: {
+					verdict: "PASS",
+					summary: "complete",
+					requirements: [
+						{
+							id: "tests",
+							status: "PASS",
+							evidence: [
+								{
+									source: "diff",
+									path: "src/audit.test.ts",
+									claim: "the log is tested",
+									quote: "it('records a change')",
+									locator: {
+										kind: "hunk",
+										file: "src/audit.test.ts",
+										hunk: "@@ -0,0 +1,9 @@",
+										occurrences: 1,
+									},
+								},
+							],
+						},
+						{
+							id: "worker",
+							status: "PASS",
+							evidence: [
+								{
+									source: "baseline-context",
+									path: "CLAUDE.md",
+									claim: "the worker followed the rules",
+								},
+							],
+						},
+					],
+				},
+				productOwnerCostUsd: 0,
+				judgeCostUsd: 0,
+				workflow: [],
+				stageScorecards: [],
+			}),
+		);
+
+		expect(runSummary("run-1", record)).toContain(`### final judge evidence
+
+- tests PASS: the log is tested (diff src/audit.test.ts). Quote "it('records a change')" at src/audit.test.ts @@ -0,0 +1,9 @@.
+- worker PASS: the worker followed the rules (baseline-context CLAUDE.md). Recorded before quoted spans.
+`);
+	});
 });
