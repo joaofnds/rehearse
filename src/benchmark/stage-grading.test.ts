@@ -1,6 +1,9 @@
 import { describe, expect, it } from "bun:test";
+import { chmod, mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { readClaudeEnvelope } from "./claude";
+import { runCommand } from "./command";
 import type {
 	StageJudgeOutput,
 	StageJudgeResponse,
@@ -20,7 +23,10 @@ import {
 	AUDIT_LOG_RUBRICS_PATH,
 	harnessResult,
 	PROJECT_ROOT,
+	TestResources,
 } from "./test-support";
+
+const testResources = TestResources.forEachTest();
 
 function stageJudgeOutput(
 	blocker: "PASS" | "FAIL",
@@ -1268,6 +1274,56 @@ describe(runStageJudge.name, () => {
 				attempt: 1,
 				sections: { dimensions: { returned: 1, total: 3 } },
 			});
+		});
+
+		it("streams the Claude CLI's output into progress and grades from its result line", async () => {
+			const directory = await mkdtemp(join(tmpdir(), "rehearse-judge-cli-"));
+			testResources.track(directory);
+			const claude = join(directory, "claude");
+			await Bun.write(
+				claude,
+				'#!/bin/sh\nprintf "%s\\n" "$@" > "$JUDGE_ARGS"\ncat > /dev/null\ncat "$JUDGE_STREAM"\n',
+			);
+			await chmod(claude, 0o755);
+			await Bun.write(
+				join(directory, "stream.jsonl"),
+				[...streamed(complete), envelope(complete), ""].join("\n"),
+			);
+			await Bun.write(
+				join(directory, "judge.json"),
+				JSON.stringify({ input: stageJudgeInput("build"), progressRubric }),
+			);
+			await Bun.write(
+				join(directory, "judge.ts"),
+				`import { runStageJudge } from ${JSON.stringify(join(PROJECT_ROOT, "src/benchmark/stage-grading.ts"))};
+const { input, progressRubric } = await Bun.file(${JSON.stringify(join(directory, "judge.json"))}).json();
+const returned = [];
+const scorecard = await runStageJudge("sonnet", undefined, 5, input, progressRubric, undefined, (reading) => {
+	returned.push(reading.state === "returning" ? reading.sections.dimensions.returned : -1);
+});
+console.log(JSON.stringify({ returned, grade: scorecard.grade.grade }));
+`,
+			);
+
+			const output = await runCommand(
+				[process.execPath, join(directory, "judge.ts")],
+				directory,
+				{
+					env: {
+						PATH: `${directory}:${Bun.env["PATH"] ?? ""}`,
+						JUDGE_ARGS: join(directory, "args.txt"),
+						JUDGE_STREAM: join(directory, "stream.jsonl"),
+					},
+				},
+			);
+
+			expect(JSON.parse(output)).toEqual({
+				returned: [0, 1, 2, 3, 3, 3, 3],
+				grade: "A",
+			});
+			expect(await Bun.file(join(directory, "args.txt")).text()).toContain(
+				"stream-json\n--verbose\n--include-partial-messages",
+			);
 		});
 
 		it("grades the stage when every progress report fails", async () => {
