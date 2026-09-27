@@ -1,5 +1,5 @@
 import { QueryClient } from "@tanstack/react-query";
-import { ComparisonNotFoundError } from "#client/comparison/comparison-page";
+import { RecordNotFoundError } from "#client/record-not-found";
 
 const MAX_ATTEMPTS = 3;
 
@@ -17,7 +17,7 @@ export function createQueryClient(): QueryClient {
 		defaultOptions: {
 			queries: {
 				retry: (failureCount, error) =>
-					!(error instanceof ComparisonNotFoundError) &&
+					!(error instanceof RecordNotFoundError) &&
 					failureCount < MAX_ATTEMPTS,
 			},
 		},

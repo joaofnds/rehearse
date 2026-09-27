@@ -1,5 +1,6 @@
 import type { InferResponseType } from "hono/client";
 import { apiClient } from "#client/api-client";
+import { RecordNotFoundError } from "#client/record-not-found";
 
 const stageEvidence =
 	apiClient.api.runs[":run"].stages[":stage"].evidence[":section"][":item"][
@@ -37,6 +38,9 @@ export async function fetchEvidenceSource(
 		identity.kind === "stage"
 			? await stageEvidence.$get({ param: identity })
 			: await finalEvidence.$get({ param: identity });
+	if (response.status === 404) {
+		throw new RecordNotFoundError("The run record holds no such evidence item");
+	}
 	if (!response.ok) {
 		throw new Error(`Evidence source answered ${String(response.status)}`);
 	}

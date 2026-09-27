@@ -3,6 +3,7 @@ import type { InferResponseType } from "hono/client";
 import { useState } from "react";
 import type { ComparisonArm as ComparisonArmRole } from "#benchmark/comparison-record";
 import { apiClient } from "#client/api-client";
+import { RecordNotFoundError } from "#client/record-not-found";
 import { EmptyState } from "#client/system/components/empty-state";
 import { Switcher } from "#client/system/components/switcher";
 import { TableShell } from "#client/system/components/table-shell";
@@ -27,7 +28,7 @@ type AttemptHistories = ComparisonResponse["attemptHistories"];
 type CaseQualityReadings = QualityReadings[string];
 type QualityReading = CaseQualityReadings[string][string];
 
-export class ComparisonNotFoundError extends Error {
+export class ComparisonNotFoundError extends RecordNotFoundError {
 	public override name = "ComparisonNotFoundError";
 }
 
