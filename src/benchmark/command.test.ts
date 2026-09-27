@@ -55,6 +55,24 @@ describe(killActiveCommands.name, () => {
 });
 
 describe(runCommand.name, () => {
+	it("kills the command when its line reader fails", async () => {
+		const failure = await runCommand(
+			["sh", "-c", "sleep 987652 & echo started; wait"],
+			process.cwd(),
+			{
+				onLine: () => {
+					throw new Error("reader failed");
+				},
+			},
+		).then(
+			() => "finished",
+			() => "failed",
+		);
+
+		expect(failure).toBe("failed");
+		expect(await pgrepMatches("sleep 987652")).toBe("");
+	});
+
 	it("hands each output line to its reader while the command still runs, and returns the whole output", async () => {
 		const lines: string[] = [];
 		const marker = `${process.pid}-${String(Date.now())}`;

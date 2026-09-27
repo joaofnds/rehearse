@@ -63,6 +63,28 @@ function killProcessGroup(child: KillableProcess): void {
 	}
 }
 
+interface ReadableProcess extends KillableProcess {
+	readonly stdout: ReadableStream<Uint8Array>;
+	readonly exited: Promise<number>;
+}
+
+/**
+ * A failed reader ends the command, which would otherwise run on past its
+ * timeout and out of reach of killActiveCommands.
+ */
+async function readLinesOrKill(
+	child: ReadableProcess,
+	onLine: (line: string) => void,
+): Promise<string> {
+	try {
+		return await readLines(child.stdout, onLine);
+	} catch (error) {
+		killProcessGroup(child);
+		await child.exited;
+		throw error;
+	}
+}
+
 export async function runCommand(
 	command: readonly string[],
 	cwd: string,
@@ -86,7 +108,7 @@ export async function runCommand(
 			child.exited,
 			options.onLine === undefined
 				? new Response(child.stdout).text()
-				: readLines(child.stdout, options.onLine),
+				: readLinesOrKill(child, options.onLine),
 			new Response(child.stderr).text(),
 		]);
 
