@@ -869,6 +869,7 @@ describe(runGradedStages.name, () => {
 						executedCountAtEachStart.push(executed.length);
 					}
 				},
+				recordJudgeProgress: () => undefined,
 			},
 			elapsedMs: () => 500,
 		};

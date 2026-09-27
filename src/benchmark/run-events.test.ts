@@ -1,7 +1,9 @@
+import { Database } from "bun:sqlite";
 import { describe, expect, it } from "bun:test";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { JudgeProgress } from "./run-events";
 import {
 	isTerminalRunEventKind,
 	openRunEventStore,
@@ -158,6 +160,78 @@ describe(openRunEventStore.name, () => {
 		});
 
 		expect(store.runIds().toSorted()).toEqual(["run-1", "run-2"]);
+		store.close();
+	});
+});
+
+const RETURNING: JudgeProgress = {
+	state: "returning",
+	attempt: 1,
+	sections: {
+		hardBlockers: { returned: 1, total: 4 },
+		requirements: { returned: 0, total: 3 },
+		dimensions: { returned: 2, total: 5 },
+	},
+};
+
+describe("run event store judge progress", () => {
+	it("keeps a judge progress event's counts and serves them back", async () => {
+		const store = await openRunEventStore(":memory:");
+
+		store.append({
+			runId: "run-1",
+			kind: "judge-progress",
+			stage: "build",
+			spentUsd: 1,
+			elapsedMs: 10,
+			judge: RETURNING,
+		});
+
+		expect(store.latestEvent("run-1")).toMatchObject({
+			kind: "judge-progress",
+			judge: RETURNING,
+		});
+		store.close();
+	});
+
+	it("opens a store created before judge progress, keeps its events and records new ones", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "rehearse-run-events-"));
+		testResources.track(directory);
+		const path = join(directory, "events.sqlite");
+		const old = new Database(path);
+		old.run(`CREATE TABLE run_events (
+			sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+			run_id TEXT NOT NULL,
+			kind TEXT NOT NULL,
+			stage TEXT NOT NULL,
+			spent_usd REAL NOT NULL,
+			elapsed_ms INTEGER NOT NULL,
+			recorded_at TEXT NOT NULL
+		)`);
+		old.run(
+			"INSERT INTO run_events (run_id, kind, stage, spent_usd, elapsed_ms, recorded_at) VALUES ('run-1', 'stage-judging', 'build', 1, 5, '2026-09-27T00:00:00.000Z')",
+		);
+		old.close();
+
+		const store = await openRunEventStore(path);
+		store.append({
+			runId: "run-1",
+			kind: "judge-progress",
+			stage: "build",
+			spentUsd: 1,
+			elapsedMs: 10,
+			judge: { state: "rejected", attempt: 1, reason: "unknown id" },
+		});
+
+		expect(
+			store.eventsSince("run-1", 0).map(({ kind, judge }) => ({ kind, judge })),
+		).toEqual([
+			{ kind: "stage-judging", judge: undefined },
+			{
+				kind: "judge-progress",
+				judge: { state: "rejected", attempt: 1, reason: "unknown id" },
+			},
+		]);
 		store.close();
 	});
 });

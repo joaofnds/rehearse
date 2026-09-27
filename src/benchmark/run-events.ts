@@ -7,6 +7,7 @@ const runEventKindSchema = z.enum([
 	"stage-started",
 	"turn-completed",
 	"stage-judging",
+	"judge-progress",
 	"stage-completed",
 	"run-completed",
 	"run-failed",
@@ -14,6 +15,9 @@ const runEventKindSchema = z.enum([
 ]);
 
 export type RunEventKind = z.infer<typeof runEventKindSchema>;
+
+/** Every kind but judge progress, which alone carries counts. */
+export type PlainRunEventKind = Exclude<RunEventKind, "judge-progress">;
 
 const TERMINAL_RUN_EVENT_KINDS = [
 	"run-completed",
@@ -49,18 +53,55 @@ export function isTerminalRunEventKind(
 	return TERMINAL_KIND_SET.has(kind);
 }
 
-export interface NewRunEvent {
+const sectionCountSchema = z.object({
+	returned: z.number().int().nonnegative(),
+	total: z.number().int().nonnegative(),
+});
+
+/**
+ * How far a stage judge's output has come back, counted per rubric section
+ * from the items that closed and passed their own checks. A rejected attempt
+ * withdraws its counts, and the next attempt starts again from none.
+ */
+export const judgeProgressSchema = z.discriminatedUnion("state", [
+	z.object({
+		state: z.literal("returning"),
+		attempt: z.number().int().positive(),
+		sections: z.object({
+			hardBlockers: sectionCountSchema,
+			requirements: sectionCountSchema,
+			dimensions: sectionCountSchema,
+		}),
+	}),
+	z.object({
+		state: z.literal("rejected"),
+		attempt: z.number().int().positive(),
+		reason: z.string(),
+	}),
+]);
+
+export type JudgeProgress = z.infer<typeof judgeProgressSchema>;
+
+interface RunEventFields {
 	readonly runId: string;
-	readonly kind: RunEventKind;
 	readonly stage: string;
 	readonly spentUsd: number;
 	readonly elapsedMs: number;
 }
 
-export interface RunEvent extends NewRunEvent {
+export type NewRunEvent = RunEventFields &
+	(
+		| {
+				readonly kind: PlainRunEventKind;
+				readonly judge?: undefined;
+		  }
+		| { readonly kind: "judge-progress"; readonly judge: JudgeProgress }
+	);
+
+export type RunEvent = NewRunEvent & {
 	readonly sequence: number;
 	readonly recordedAt: string;
-}
+};
 
 export interface RunEventStore {
 	readonly append: (event: NewRunEvent) => RunEvent;
@@ -76,10 +117,16 @@ export interface RunEventStore {
 
 export interface RunEventRecorder {
 	readonly record: (
-		kind: RunEventKind,
+		kind: PlainRunEventKind,
 		stage: string,
 		spentUsd: number,
 		elapsedMs: number,
+	) => void;
+	readonly recordJudgeProgress: (
+		stage: string,
+		spentUsd: number,
+		elapsedMs: number,
+		judge: JudgeProgress,
 	) => void;
 }
 
@@ -95,14 +142,28 @@ export function runEventRecorderFor(
 	store: RunEventStore,
 	runId: string,
 ): RunEventRecorder {
+	const append = (event: NewRunEvent): void => {
+		try {
+			store.append(event);
+		} catch {
+			// Best-effort: the event stream can drop an entry without
+			// affecting the run it describes.
+		}
+	};
+
 	return {
 		record: (kind, stage, spentUsd, elapsedMs) => {
-			try {
-				store.append({ runId, kind, stage, spentUsd, elapsedMs });
-			} catch {
-				// Best-effort: the event stream can drop an entry without
-				// affecting the run it describes.
-			}
+			append({ runId, kind, stage, spentUsd, elapsedMs });
+		},
+		recordJudgeProgress: (stage, spentUsd, elapsedMs, judge) => {
+			append({
+				runId,
+				kind: "judge-progress",
+				stage,
+				spentUsd,
+				elapsedMs,
+				judge,
+			});
 		},
 	};
 }
@@ -120,6 +181,20 @@ const SCHEMA = `
 	CREATE INDEX IF NOT EXISTS run_events_run_id ON run_events(run_id, sequence);
 `;
 
+/**
+ * A store created before judge progress has no column for it. Adding a
+ * nullable column keeps every row it holds and lets it record progress.
+ */
+function addJudgeProgressColumn(database: Database): void {
+	const columns = database
+		.query<{ name: string }, []>("PRAGMA table_info(run_events)")
+		.all()
+		.map(({ name }) => name);
+	if (!columns.includes("judge_progress")) {
+		database.run("ALTER TABLE run_events ADD COLUMN judge_progress TEXT");
+	}
+}
+
 interface RunEventRow {
 	readonly sequence: number;
 	readonly run_id: string;
@@ -128,18 +203,28 @@ interface RunEventRow {
 	readonly spent_usd: number;
 	readonly elapsed_ms: number;
 	readonly recorded_at: string;
+	readonly judge_progress: string | null;
 }
 
 function toRunEvent(row: RunEventRow): RunEvent {
-	return {
+	const fields = {
 		sequence: row.sequence,
 		runId: row.run_id,
-		kind: runEventKindSchema.parse(row.kind),
 		stage: row.stage,
 		spentUsd: row.spent_usd,
 		elapsedMs: row.elapsed_ms,
 		recordedAt: row.recorded_at,
 	};
+	const kind = runEventKindSchema.parse(row.kind);
+	if (kind === "judge-progress") {
+		return {
+			...fields,
+			kind,
+			judge: judgeProgressSchema.parse(JSON.parse(row.judge_progress ?? "")),
+		};
+	}
+
+	return { ...fields, kind };
 }
 
 export async function openRunEventStore(path: string): Promise<RunEventStore> {
@@ -150,16 +235,17 @@ export async function openRunEventStore(path: string): Promise<RunEventStore> {
 	database.run("PRAGMA busy_timeout = 5000");
 	database.run("PRAGMA journal_mode = WAL");
 	database.run(SCHEMA);
+	addJudgeProgressColumn(database);
 
 	const selectJournalMode = database.query<{ journal_mode: string }, []>(
 		"PRAGMA journal_mode",
 	);
 	const insert = database.query<
 		RunEventRow,
-		[string, RunEventKind, string, number, number, string]
+		[string, RunEventKind, string, number, number, string, string | null]
 	>(
-		`INSERT INTO run_events (run_id, kind, stage, spent_usd, elapsed_ms, recorded_at)
-		 VALUES (?, ?, ?, ?, ?, ?)
+		`INSERT INTO run_events (run_id, kind, stage, spent_usd, elapsed_ms, recorded_at, judge_progress)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)
 		 RETURNING *`,
 	);
 	const selectSince = database.query<RunEventRow, [string, number]>(
@@ -181,6 +267,7 @@ export async function openRunEventStore(path: string): Promise<RunEventStore> {
 				event.spentUsd,
 				event.elapsedMs,
 				new Date().toISOString(),
+				event.judge === undefined ? null : JSON.stringify(event.judge),
 			);
 			if (row === null) {
 				throw new Error("Failed to append run event");

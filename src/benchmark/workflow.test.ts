@@ -290,6 +290,7 @@ describe("workflow provider metrics", () => {
 					record: (kind, _stage, spentUsd, elapsedMs) => {
 						recorded.push({ kind, spentUsd, elapsedMs });
 					},
+					recordJudgeProgress: () => undefined,
 				},
 				elapsedMs: () => 500,
 			},

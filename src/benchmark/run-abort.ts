@@ -51,6 +51,7 @@ export interface StoppedStageReadings {
 
 export const noopRunEventRecorder: RunEventRecorder = {
 	record: () => undefined,
+	recordJudgeProgress: () => undefined,
 };
 
 export interface RunAbortDependencies {

@@ -29,6 +29,7 @@ const SPEND_SCOPE = {
 	"stage-started": "the stages finished before this one",
 	"turn-completed": "this stage's session so far",
 	"stage-judging": "this stage's session",
+	"judge-progress": "this stage's session",
 	"stage-completed": "this stage's session and its judge",
 } as const satisfies Record<NonTerminalRunEventKind, string>;
 

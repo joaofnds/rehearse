@@ -37,7 +37,7 @@ import type {
 import type { RunManifest } from "./manifest";
 import { writeRunManifest } from "./manifest";
 import type { RunLiveness } from "./run-liveness";
-import type { RunEventKind } from "./run-events";
+import type { PlainRunEventKind } from "./run-events";
 import { openRunEventStore } from "./run-events";
 import type {
 	GroupReportSummaryRecord,
@@ -1363,7 +1363,7 @@ export class RecordedRunsFixture {
 	 * run in flight.
 	 */
 	public async writeRunningRun(
-		kind: RunEventKind = "turn-completed",
+		kind: PlainRunEventKind = "turn-completed",
 		stage = "build",
 		spentUsd = 0.9,
 		elapsedMs = 9000,
@@ -1709,7 +1709,10 @@ export class RecordedRunsFixture {
 	}
 
 	private async appendRunEvents(
-		events: readonly { readonly kind: RunEventKind; readonly stage: string }[],
+		events: readonly {
+			readonly kind: PlainRunEventKind;
+			readonly stage: string;
+		}[],
 	): Promise<void> {
 		const store = await openRunEventStore(
 			runEventsDatabaseFile(this.runsDirectory),
