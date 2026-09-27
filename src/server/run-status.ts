@@ -23,7 +23,7 @@ import type { RunLiveness } from "#benchmark/run-liveness";
  * is the run total: a display that called them all "spent this run" would
  * show a number that falls when a stage begins judging. The words are chosen
  * here rather than in the client because which scope a kind carries is the
- * emitter's knowledge, verified at the four emission sites in `run.ts`,
+ * emitter's knowledge, verified at each emission site in `run.ts`,
  * `workflow.ts` and `run-abort.ts`.
  */
 const SPEND_SCOPE = {
