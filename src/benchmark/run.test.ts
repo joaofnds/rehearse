@@ -895,7 +895,6 @@ describe(runGradedStages.name, () => {
 				dimensions: { returned: 2, total: 3 },
 			},
 		};
-		const stageSpend: number[] = [];
 		const recorded: {
 			readonly stage: string;
 			readonly spentUsd: number;
@@ -904,6 +903,10 @@ describe(runGradedStages.name, () => {
 		}[] = [];
 		const reporting = {
 			...dependencies,
+			runWorkflowStage: async (request: WorkflowStageRequest) => ({
+				...(await dependencies.runWorkflowStage(request)),
+				costUsd: request.stage === "shape" ? 1.5 : 2.5,
+			}),
 			runStageJudge: (
 				_model: string,
 				_effort: undefined | "low" | "medium" | "high" | "xhigh" | "max",
@@ -913,7 +916,6 @@ describe(runGradedStages.name, () => {
 				_invoke: JudgeArguments[5],
 				onProgress: JudgeArguments[6],
 			) => {
-				stageSpend.push(input.transcript.costUsd);
 				onProgress?.(reading);
 
 				return Promise.resolve(scorecardFor(input, "CONTINUE"));
@@ -940,13 +942,13 @@ describe(runGradedStages.name, () => {
 		expect(recorded).toEqual([
 			{
 				stage: "shape",
-				spentUsd: stageSpend[0] ?? -1,
+				spentUsd: 1.5,
 				elapsedMs: 700,
 				judge: reading,
 			},
 			{
 				stage: "build",
-				spentUsd: stageSpend[1] ?? -1,
+				spentUsd: 2.5,
 				elapsedMs: 700,
 				judge: reading,
 			},
