@@ -1,6 +1,6 @@
 # Current state and priorities
 
-Reviewed against the code and project board on **2026-09-26**. This is the public
+Reviewed against the code and project board on **2026-09-28**. This is the public
 feature inventory, not a release guarantee. The [vision](vision.md) describes the
 longer-term goal; the [runbook](runbook.md) describes the supported first steps.
 
@@ -211,8 +211,9 @@ settings, and first-run setup are design targets. The rail marks Live monitor,
 Run detail, Tasks, Cases, Calibration and Settings planned rather
 than linking to them. Live monitoring is partly
 delivered: the run list reports a run in flight with its stage, elapsed time and
-scoped spend, while a monitor carrying the judge's reasoning and per-stage detail
-remains a design target. That row reads the event store through the same polled
+scoped spend, and the run API also reports how many of a judging stage's
+rubric items are back per section, which no screen shows yet. A monitor
+carrying the judge's reasoning and per-stage detail remains a design target. That row reads the event store through the same polled
 route the list uses rather than through the SSE API. The server has no
 authentication and binds to IPv4 loopback; use it locally.
 

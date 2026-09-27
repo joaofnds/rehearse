@@ -346,9 +346,11 @@ See [current state](docs/status.md) for implementation coverage and
   recording its returned payload, call cost, and whether harness validation
   accepted or rejected it.
 - **Judge progress** — while a stage Judge call is in flight, each blocker,
-  requirement or dimension it has finished writing, counted against the rubric
-  per section ("4 of 4 hard blockers evaluated", "3 of 5 dimensions returned").
-  Progress is best-effort, like every run event, and is never a record.
+  requirement or dimension it has finished writing and that passes the checks
+  its whole output will face, counted against the rubric per section ("4 of 4
+  hard blockers evaluated", "3 of 5 dimensions returned"). A rejected attempt
+  withdraws its count, and the next attempt counts from none. Progress is
+  best-effort, like every run event, and is never a record.
 - **Lineage** — hash of everything that produced a checkpoint: upstream
   checkpoint, corpus files feeding the stage, model, effort, and canonical
   stage settings.
@@ -487,8 +489,9 @@ See [current state](docs/status.md) for implementation coverage and
 - **Stage spend** — what one stage has cost. Every non-terminal run event
   carries a spend figure, and the event's kind decides which stage spend it is:
   `stage-started` reports the stages finished before this one, `turn-completed`
-  this stage's session so far, `stage-judging` this stage's finished session,
-  and `stage-completed` that session together with its Judge. None of them is
+  this stage's session so far, `stage-judging` and `judge-progress` this
+  stage's finished session, and `stage-completed` that session together with
+  its Judge. None of them is
   run spend, which is why a reading of one is shown with the words for what it
   covers.
 - **Unreadable record** — a saved record (a pipeline run, a session attempt, a

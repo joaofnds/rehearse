@@ -1056,6 +1056,29 @@ The browser opens the same item at `/runs/<run>/stages/<stage>/evidence/...`
 and `/runs/<run>/final/evidence/<item>/<index>`, showing the recorded text
 read-only with the quoted span marked and scrolled into view.
 
+### Judge progress
+
+A pipeline run's stage judge streams its output, and the run records a
+`judge-progress` event each time an item of the judge's output closes and
+passes the checks the whole output will face: its id is one of the rubric
+section's items and not yet returned, each citation names a supplied source,
+and each quote is text that source holds. The event's `judge` field is
+`{state: "returning", attempt, sections}`, where `sections` holds
+`hardBlockers`, `requirements` and `dimensions`, each as `{returned, total}`
+against the rubric, or `{state: "rejected", attempt, reason}` when the whole
+output of that attempt failed validation. The next attempt reports again from
+zero returned items, so a rejected attempt's counts never carry forward. The
+grade and verdict exist only once an attempt is accepted and arrive with the
+`stage-completed` event. Its `spentUsd` covers the stage's session, as
+`stage-judging` does.
+
+`/api/runs/<run>/events` serves these events like any other. While a
+`judge-progress` event is a running run's latest, its `/api/runs` row's
+`progress` carries it as `judge`, and the field is absent otherwise. A run
+event store created before this event existed gains its column on open and
+keeps its events. Stage replays, calibration and pipeline confirmation do not
+record judge progress. No screen shows it yet.
+
 ### Run history figures
 
 Every `/api/runs` row carries `cost` and `wallTime`, and a figure its records
