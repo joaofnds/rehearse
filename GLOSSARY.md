@@ -345,9 +345,18 @@ See [current state](docs/status.md) for implementation coverage and
 - **Judge attempt** — one Judge call against frozen evidence and a rubric,
   recording its returned payload, call cost, and whether harness validation
   accepted or rejected it.
+- **Judge progress** — while a stage Judge call is in flight, each blocker,
+  requirement or dimension it has finished writing, counted against the rubric
+  per section ("4 of 4 hard blockers evaluated", "3 of 5 dimensions returned").
+  Progress is best-effort, like every run event, and is never a record.
 - **Lineage** — hash of everything that produced a checkpoint: upstream
   checkpoint, corpus files feeding the stage, model, effort, and canonical
   stage settings.
+- **Locator** — where a quoted span sits in the source the record holds: a
+  line range, a diff hunk, a commit subject, or a transcript exchange's
+  character range. The harness computes it and never takes it from the Judge.
+  Evidence the harness writes, and evidence citing a harness result, carries a
+  locator naming that result instead of a span.
 - **Materialize** — write a checkpoint's frozen state into a directory,
   byte-faithfully, so a stage can run from it.
 - **Model family** — a named Claude model line — Opus, Sonnet, or Haiku —
@@ -388,6 +397,9 @@ See [current state](docs/status.md) for implementation coverage and
 - **Provider call** — one invocation of the model provider by a worker, Product
   Owner, or Judge. Its evidence may include usage metrics; the call remains
   explicit when those metrics are absent.
+- **Quoted span** — the text a Judge copied from one source it was given,
+  stored on the evidence item beside the claim. A quote its cited source does
+  not hold rejects the Judge attempt.
 - **Regrade** — one re-evaluation of a saved attempt's evidence against the
   case as it stands now, reaching no provider. It reads the recorded reply, the
   transcript beside the attempt, and the preserved state evidence, and writes

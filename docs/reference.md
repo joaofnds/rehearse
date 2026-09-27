@@ -565,6 +565,19 @@ attempt against the same evidence; invocation/envelope failures are not retried.
 Scorecards retain the prompt, frozen rubric/input, returned attempts, validation
 outcomes, and costs.
 
+Each stage Judge evidence item carries a quote copied from the source it cites.
+The harness finds the quote in the frozen input, after collapsing whitespace and,
+for the diff, with or without line prefixes, and records a `locator`: the file
+and line range for a text source, the file and hunk header for the diff, the
+subject index for commit subjects, and the exchange, field and character range
+for the transcript. A quote its cited source does not hold rejects the attempt.
+Items citing `check-integrity`, `local-checks` or `harness-failure`, and blockers
+the harness forces, carry no quote and a `harness` locator saying whether the
+input holds that result; commit subjects a stage never recorded get an `absent`
+locator. Stage records written before quoted spans have neither field, and
+`show run:<name>` lists each item's evidence, marking those items as recorded
+before quoted spans.
+
 After accepted delivery, the final Judge grades the external rubric against
 baseline context, the candidate diff, and measured checks. Requirement IDs must
 appear exactly once, citations must refer to supplied evidence, and PASS needs
