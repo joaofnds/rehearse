@@ -34,6 +34,8 @@ import { corpusReport } from "./corpus-report";
 import { redactAbsolutePaths, redactedFilePath } from "./redact-path";
 import type { RunLiveness } from "#benchmark/run-liveness";
 import { runHistoryReport } from "./run-history";
+import type { EvidenceRequest, EvidenceSource } from "./evidence-source";
+import { EvidenceSourceError, readEvidenceSource } from "./evidence-source";
 import { readJudgedRunRecord } from "./run-record";
 import {
 	readConfirmationAttemptHistory,
@@ -166,6 +168,28 @@ function versionRefusal(
 		},
 		status: 409,
 	};
+}
+
+type EvidenceSourceAnswer =
+	| { readonly found: true; readonly source: EvidenceSource }
+	| { readonly found: false; readonly error: HistoryErrorResponse };
+
+/**
+ * One evidence item's recorded source, or the history error a refusal or a
+ * missing item answers with, so both evidence routes answer alike.
+ */
+async function evidenceSourceAnswer(
+	request: EvidenceRequest,
+): Promise<EvidenceSourceAnswer> {
+	try {
+		return { found: true, source: await readEvidenceSource(request) };
+	} catch (error) {
+		if (!(error instanceof EvidenceSourceError)) {
+			throw error;
+		}
+
+		return { found: false, error: historyError(error) };
+	}
 }
 
 /**
@@ -465,6 +489,37 @@ export const createApiApp = (dependencies: ApiDependencies) => {
 
 				return context.json({ error: response.message }, response.status);
 			}
+		})
+		.get(
+			"/api/runs/:run/stages/:stage/evidence/:section/:item/:index",
+			async (context) => {
+				const answer = await evidenceSourceAnswer({
+					runsDirectory: dependencies.runsDirectory,
+					run: context.req.param("run"),
+					judge: { kind: "stage", stage: context.req.param("stage") },
+					section: context.req.param("section"),
+					item: context.req.param("item"),
+					index: context.req.param("index"),
+				});
+
+				return answer.found
+					? context.json(answer.source)
+					: context.json({ error: answer.error.message }, answer.error.status);
+			},
+		)
+		.get("/api/runs/:run/final/evidence/:item/:index", async (context) => {
+			const answer = await evidenceSourceAnswer({
+				runsDirectory: dependencies.runsDirectory,
+				run: context.req.param("run"),
+				judge: { kind: "final" },
+				section: "requirements",
+				item: context.req.param("item"),
+				index: context.req.param("index"),
+			});
+
+			return answer.found
+				? context.json(answer.source)
+				: context.json({ error: answer.error.message }, answer.error.status);
 		})
 		.get("/api/attempts/session/:caseId/:uuid/history", async (context) => {
 			try {

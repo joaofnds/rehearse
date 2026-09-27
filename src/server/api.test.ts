@@ -1521,4 +1521,147 @@ describe(createApiApp.name, () => {
 			assertDoesNotLeak(body, corpus);
 		});
 	});
+	describe("GET evidence sources", () => {
+		const run = "2026-09-27T00-00-00.000Z";
+		const passwdEvidence = {
+			source: "baseline-context",
+			path: "../../etc/passwd",
+			claim: "the rules say so",
+			quote: "recorded bytes",
+			locator: {
+				kind: "lines",
+				file: "../../etc/passwd",
+				startLine: 1,
+				endLine: 1,
+				occurrences: 1,
+			},
+		};
+
+		async function evidenceApp(): Promise<ReturnType<typeof createApiApp>> {
+			const runsDirectory = await emptyDirectory("rehearse-api-evidence-");
+			const judgedItem = {
+				id: "scope",
+				status: "PASS",
+				evidence: [passwdEvidence],
+			};
+			await writeFile(
+				join(runsDirectory, `${run}.build.json`),
+				JSON.stringify({
+					stage: "build",
+					grade: {
+						hardBlockers: [],
+						requirements: [judgedItem],
+						dimensions: [],
+					},
+					input: {
+						stage: "build",
+						kind: "delivery",
+						task: "Task",
+						productBrief: "Brief",
+						instructions: "Instructions",
+						baselineContext: [
+							{ path: "../../etc/passwd", content: "recorded bytes\n" },
+						],
+						taskState: "State",
+						transcript: {
+							stage: "build",
+							sessionId: "session",
+							costUsd: 1,
+							providerCalls: [],
+							exchanges: [],
+						},
+						priorArtifacts: [],
+					},
+				}),
+			);
+			await writeFile(
+				join(runsDirectory, `${run}.json`),
+				JSON.stringify({
+					grade: { verdict: "PASS", summary: "s", requirements: [judgedItem] },
+					diff: "",
+					baselineContext: [
+						{ path: "../../etc/passwd", content: "recorded bytes\n" },
+					],
+					checkIntegrity: { status: "PASS", evidence: [] },
+					localChecks: { status: "PASS", evidence: [] },
+				}),
+			);
+
+			return createApiApp({
+				runsDirectory,
+				liveness: nothingRunning,
+				corpusSource: directorySource(await corpusDirectory()),
+			});
+		}
+
+		it("serves a stage evidence item's recorded source, never the path the judge wrote", async () => {
+			const app = await evidenceApp();
+
+			const response = await app.request(
+				`/api/runs/${run}/stages/build/evidence/requirements/scope/0`,
+			);
+			const body: unknown = await response.json();
+
+			expect(response.status).toBe(200);
+			expect(body).toMatchObject({
+				source: "baseline-context",
+				path: "../../etc/passwd",
+				view: {
+					kind: "text",
+					label: "../../etc/passwd",
+					text: "recorded bytes\n",
+					span: { start: 0, end: 14 },
+				},
+			});
+			expect(JSON.stringify(body)).not.toContain("root:");
+		});
+
+		it("serves the final judge's evidence item", async () => {
+			const app = await evidenceApp();
+
+			const response = await app.request(
+				`/api/runs/${run}/final/evidence/scope/0`,
+			);
+
+			expect(response.status).toBe(200);
+			expect(await response.json()).toMatchObject({
+				view: { kind: "text", text: "recorded bytes\n" },
+			});
+		});
+
+		it.each([
+			[
+				"an evidence item the grade lacks",
+				`/api/runs/${run}/stages/build/evidence/requirements/scope/1`,
+			],
+			[
+				"a stage the run did not record",
+				`/api/runs/${run}/stages/ship/evidence/requirements/scope/0`,
+			],
+			[
+				"a stage named ..",
+				`/api/runs/${run}/stages/%2E%2E/evidence/requirements/scope/0`,
+			],
+			[
+				"a stage holding a slash",
+				`/api/runs/${run}/stages/build%2Fx/evidence/requirements/scope/0`,
+			],
+		])("answers 404 for %s", async (_label, url) => {
+			const app = await evidenceApp();
+
+			const response = await app.request(url);
+
+			expect(response.status).toBe(404);
+		});
+
+		it("refuses a run id with a traversing segment", async () => {
+			const app = await evidenceApp();
+
+			const response = await app.request(
+				"/api/runs/..%2Foutside/final/evidence/scope/0",
+			);
+
+			expect(response.status).toBe(400);
+		});
+	});
 });
