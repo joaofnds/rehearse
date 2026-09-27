@@ -259,6 +259,52 @@ describe(runEventRecorderFor.name, () => {
 		]);
 		store.close();
 	});
+
+	const reading = {
+		state: "returning",
+		attempt: 1,
+		sections: {
+			hardBlockers: { returned: 1, total: 2 },
+			requirements: { returned: 0, total: 1 },
+			dimensions: { returned: 3, total: 3 },
+		},
+	} as const;
+
+	it("appends a judge progress reading with its counts", async () => {
+		const store = await openRunEventStore(":memory:");
+
+		runEventRecorderFor(store, "run-1").recordJudgeProgress(
+			"build",
+			2,
+			3000,
+			reading,
+		);
+
+		expect(store.eventsSince("run-1", 0)).toMatchObject([
+			{
+				kind: "judge-progress",
+				stage: "build",
+				spentUsd: 2,
+				elapsedMs: 3000,
+				judge: reading,
+			},
+		]);
+		store.close();
+	});
+
+	it("drops a judge progress reading the store cannot take", async () => {
+		const store = await openRunEventStore(":memory:");
+		store.close();
+
+		expect(() => {
+			runEventRecorderFor(store, "run-1").recordJudgeProgress(
+				"build",
+				2,
+				3000,
+				reading,
+			);
+		}).not.toThrow();
+	});
 });
 
 describe(isTerminalRunEventKind.name, () => {
