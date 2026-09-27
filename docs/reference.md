@@ -1059,25 +1059,35 @@ read-only with the quoted span marked and scrolled into view.
 ### Judge progress
 
 A pipeline run's stage judge streams its output, and the run records a
-`judge-progress` event each time an item of the judge's output closes and
-passes the checks the whole output will face: its id is one of the rubric
-section's items and not yet returned, each citation names a supplied source,
-and each quote is text that source holds. The event's `judge` field is
+`judge-progress` event when each judge attempt starts, with every count at
+zero, and again each time an item of the judge's output closes and passes the
+checks one item can face: its id is one of the rubric section's items and not
+yet returned, each citation names a supplied source, and each quote is text
+that source holds. Checks on the whole output, such as every rubric item
+returned exactly once, run only when the attempt ends, so an attempt can count
+every item it wrote and still be rejected. The event's `judge` field is
 `{state: "returning", attempt, sections}`, where `sections` holds
 `hardBlockers`, `requirements` and `dimensions`, each as `{returned, total}`
 against the rubric, or `{state: "rejected", attempt, reason}` when the whole
-output of that attempt failed validation. The next attempt reports again from
-zero returned items, so a rejected attempt's counts never carry forward. The
-grade and verdict exist only once an attempt is accepted and arrive with the
-`stage-completed` event. Its `spentUsd` covers the stage's session, as
+output of that attempt failed validation. A stage judge gets two attempts, so
+a rejected first attempt is followed by a second that counts again from zero,
+and a rejected second attempt ends the stage. A judge call that fails outright,
+such as a timeout or a stream that ends without a result, records no rejected
+reading. If the model starts its structured output over within one attempt,
+the counts return to zero under the same attempt number. The grade and verdict
+exist only once an attempt is accepted, in the stage's record rather than in
+any event. Each event's `spentUsd` covers the stage's session, as
 `stage-judging` does.
 
 `/api/runs/<run>/events` serves these events like any other. While a
 `judge-progress` event is a running run's latest, its `/api/runs` row's
-`progress` carries it as `judge`, and the field is absent otherwise. A run
-event store created before this event existed gains its column on open and
-keeps its events. Stage replays, calibration and pipeline confirmation do not
-record judge progress. No screen shows it yet.
+`progress` carries it as `judge`, and the field is absent otherwise. A stage
+graded below its minimum records no event of its own, so while a paused run
+waits for its calibration review the row still carries the last reading. A
+run event store created before this event existed gains its column on open and
+keeps its events. Stage replays, replay confirmation, calibration, pipeline
+confirmation and the final judge do not record judge progress. No screen shows
+it yet.
 
 ### Run history figures
 

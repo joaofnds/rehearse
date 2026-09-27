@@ -347,7 +347,7 @@ See [current state](docs/status.md) for implementation coverage and
   accepted or rejected it.
 - **Judge progress** — while a stage Judge call is in flight, each blocker,
   requirement or dimension it has finished writing and that passes the checks
-  its whole output will face, counted against the rubric per section ("4 of 4
+  one item can face, counted against the rubric per section ("4 of 4
   hard blockers evaluated", "3 of 5 dimensions returned"). A rejected attempt
   withdraws its count, and the next attempt counts from none. Progress is
   best-effort, like every run event, and is never a record.

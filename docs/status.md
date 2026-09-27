@@ -212,9 +212,10 @@ Run detail, Tasks, Cases, Calibration and Settings planned rather
 than linking to them. Live monitoring is partly
 delivered: the run list reports a run in flight with its stage, elapsed time and
 scoped spend, and the run API also reports how many of a judging stage's
-rubric items are back per section, which no screen shows yet. A monitor
-carrying the judge's reasoning and per-stage detail remains a design target. That row reads the event store through the same polled
-route the list uses rather than through the SSE API. The server has no
+rubric items are back per section, which no screen shows yet. The run list
+reads the event store through a polled route rather than through the SSE API.
+A monitor carrying the judge's reasoning and per-stage detail remains a design
+target. The server has no
 authentication and binds to IPv4 loopback; use it locally.
 
 ## Near-term priorities
