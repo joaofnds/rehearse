@@ -20,6 +20,12 @@ interface Match {
 	readonly occurrences: number;
 }
 
+/** A character range in a recorded source's raw text. */
+export interface Span {
+	readonly start: number;
+	readonly end: number;
+}
+
 export interface CitedFile {
 	readonly file: string;
 	readonly text: string;
@@ -89,6 +95,15 @@ function match(raw: string, quote: string): Match | undefined {
 	};
 }
 
+/** The raw character range of the quote's first occurrence in the text. */
+export function findSpan(text: string, quote: string): Span | undefined {
+	const found = match(text, quote);
+
+	return found === undefined
+		? undefined
+		: { start: found.start, end: found.end };
+}
+
 function lineAt(text: string, offset: number): number {
 	return text.slice(0, offset).split("\n").length;
 }
@@ -125,10 +140,22 @@ export function locateInFiles(
 	};
 }
 
+interface DiffLine {
+	readonly text: string;
+	/** Where the line starts in the whole diff. */
+	readonly offset: number;
+}
+
 interface DiffHunk {
 	readonly file: string;
 	readonly header: string;
-	readonly lines: readonly string[];
+	readonly lines: readonly DiffLine[];
+}
+
+/** A hunk's text as searched, with the raw diff offset of each character. */
+interface HunkText {
+	readonly text: string;
+	readonly offsets: readonly number[];
 }
 
 const HUNK_HEADER = /^@@ [^@]* @@/u;
@@ -142,11 +169,14 @@ function diffFileName(line: string): string {
  * or the `---` name for a deleted file.
  */
 function diffHunks(diff: string): DiffHunk[] {
-	const hunks: { file: string; header: string; lines: string[] }[] = [];
+	const hunks: { file: string; header: string; lines: DiffLine[] }[] = [];
 	let removed = "";
 	let file = "";
-	let current: { file: string; header: string; lines: string[] } | undefined;
+	let current: { file: string; header: string; lines: DiffLine[] } | undefined;
+	let offset = 0;
 	for (const line of diff.split("\n")) {
+		const start = offset;
+		offset += line.length + 1;
 		if (line.startsWith("diff --git ")) {
 			current = undefined;
 			continue;
@@ -166,29 +196,50 @@ function diffHunks(diff: string): DiffHunk[] {
 			hunks.push(current);
 			continue;
 		}
-		current?.lines.push(line);
+		current?.lines.push({ text: line, offset: start });
 	}
 
 	return hunks;
 }
 
+function hunkText(hunk: DiffHunk, prefixLength: number): HunkText {
+	let text = "";
+	const offsets: number[] = [];
+	for (const [index, line] of hunk.lines.entries()) {
+		if (index > 0) {
+			text += "\n";
+			offsets.push(line.offset - 1);
+		}
+		const kept = line.text.slice(prefixLength);
+		text += kept;
+		for (let column = 0; column < kept.length; column += 1) {
+			offsets.push(line.offset + prefixLength + column);
+		}
+	}
+
+	return { text, offsets };
+}
+
 /**
- * The file and hunk header of the quote's first occurrence. A judge quotes a
- * changed line either with its `+`, `-` or space prefix or without it, so the
- * hunks are searched with the prefixes stripped first and as written second.
+ * A judge quotes a changed line either with its `+`, `-` or space prefix or
+ * without it, so a hunk is searched with the prefixes stripped first and as
+ * written second.
  */
+const HUNK_VARIANTS = [
+	(hunk: DiffHunk): HunkText => hunkText(hunk, 1),
+	(hunk: DiffHunk): HunkText => hunkText(hunk, 0),
+];
+
+/** The file and hunk header of the quote's first occurrence. */
 export function locateInDiff(
 	quote: string,
 	diff: string,
 	cites: (file: string) => boolean,
 ): EvidenceLocator | undefined {
 	const hunks = diffHunks(diff).filter(({ file }) => cites(file));
-	for (const text of [
-		(hunk: DiffHunk) => hunk.lines.map((line) => line.slice(1)).join("\n"),
-		(hunk: DiffHunk) => hunk.lines.join("\n"),
-	]) {
+	for (const variant of HUNK_VARIANTS) {
 		const found = hunks.flatMap((hunk) => {
-			const located = match(text(hunk), quote);
+			const located = match(variant(hunk).text, quote);
 
 			return located === undefined ? [] : [{ hunk, located }];
 		});
@@ -203,6 +254,35 @@ export function locateInDiff(
 					0,
 				),
 			};
+		}
+	}
+
+	return undefined;
+}
+
+/**
+ * The raw range in the whole diff of the quote inside the hunk a locator
+ * names, so a view of the recorded diff can mark it.
+ */
+export function spanInDiff(
+	quote: string,
+	diff: string,
+	locator: { readonly file: string; readonly hunk: string },
+): Span | undefined {
+	const hunk = diffHunks(diff).find(
+		({ file, header }) => file === locator.file && header === locator.hunk,
+	);
+	if (hunk === undefined) {
+		return undefined;
+	}
+
+	for (const variant of HUNK_VARIANTS) {
+		const { text, offsets } = variant(hunk);
+		const found = match(text, quote);
+		if (found !== undefined) {
+			const start = offsets[found.start] ?? 0;
+
+			return { start, end: (offsets[found.end - 1] ?? start) + 1 };
 		}
 	}
 

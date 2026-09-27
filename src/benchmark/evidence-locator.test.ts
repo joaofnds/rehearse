@@ -4,6 +4,7 @@ import {
 	locateInDiff,
 	locateInExchanges,
 	locateInFiles,
+	spanInDiff,
 } from "./evidence-locator";
 
 const DIFF = [
@@ -118,6 +119,40 @@ describe(locateInDiff.name, () => {
 		);
 
 		expect(locator).toBeUndefined();
+	});
+});
+
+describe(spanInDiff.name, () => {
+	it("gives the raw range in the whole diff of a quote copied without prefixes", () => {
+		const quote =
+			"import { Module } from './module';\nimport { AuditLog } from './audit-log';";
+
+		const span = spanInDiff(quote, DIFF, {
+			file: "src/app.ts",
+			hunk: "@@ -1,2 +1,3 @@",
+		});
+
+		expect(DIFF.slice(span?.start, span?.end)).toBe(
+			"import { Module } from './module';\n+import { AuditLog } from './audit-log';",
+		);
+	});
+
+	it("gives the range of a quote copied with its prefix", () => {
+		const span = spanInDiff("+\tAuditLog,", DIFF, {
+			file: "src/app.ts",
+			hunk: "@@ -30,1 +31,2 @@",
+		});
+
+		expect(DIFF.slice(span?.start, span?.end)).toBe("+\tAuditLog,");
+	});
+
+	it("finds nothing outside the hunk the locator names", () => {
+		expect(
+			spanInDiff("export const old = 1;", DIFF, {
+				file: "src/app.ts",
+				hunk: "@@ -1,2 +1,3 @@",
+			}),
+		).toBeUndefined();
 	});
 });
 

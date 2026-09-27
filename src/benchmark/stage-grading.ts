@@ -272,13 +272,52 @@ function harnessLocator(
 	};
 }
 
-function citedFiles(
-	evidence: JudgeStageEvidence,
-	files: readonly ContextFile[],
+function textFiles(files: readonly ContextFile[]): CitedFile[] {
+	return files.map(({ path, content }) => ({ file: path, text: content }));
+}
+
+/**
+ * The recorded text a stage evidence source names, one entry per file, under
+ * the name a lines locator gives it. A source that is not text has none.
+ */
+export function stageTextFiles(
+	source: RecordedStageEvidence["source"],
+	input: StageJudgeInput,
 ): CitedFile[] {
-	return files
-		.filter(({ path }) => citesFile(evidence, path))
-		.map(({ path, content }) => ({ file: path, text: content }));
+	switch (source) {
+		case "task": {
+			return [{ file: "backlog-seed.md", text: input.task }];
+		}
+		case "product-brief": {
+			return [{ file: "product-brief.md", text: input.productBrief }];
+		}
+		case "instructions": {
+			return [{ file: "CLAUDE.md", text: input.instructions }];
+		}
+		case "task-state": {
+			return [{ file: "backlog/task.json", text: input.taskState }];
+		}
+		case "artifact": {
+			return textFiles(input.artifact ? [input.artifact] : []);
+		}
+		case "prior-artifact": {
+			return textFiles(input.priorArtifacts);
+		}
+		case "baseline-context": {
+			return textFiles(input.baselineContext);
+		}
+		case "transcript":
+		case "diff":
+		case "commit-subjects":
+		case "check-integrity":
+		case "local-checks":
+		case "harness-failure": {
+			return [];
+		}
+		default: {
+			return unhandled(source, "stage evidence source");
+		}
+	}
 }
 
 function citesFile(evidence: JudgeStageEvidence, file: string): boolean {
@@ -309,40 +348,24 @@ function stageEvidenceLocator(
 				? { kind: "absent" }
 				: locateInCommitSubjects(quote, input.commitSubjects);
 		}
-		case "task": {
-			return locateInFiles(quote, [
-				{ file: "backlog-seed.md", text: input.task },
-			]);
-		}
-		case "product-brief": {
-			return locateInFiles(quote, [
-				{ file: "product-brief.md", text: input.productBrief },
-			]);
-		}
-		case "instructions": {
-			return locateInFiles(quote, [
-				{ file: "CLAUDE.md", text: input.instructions },
-			]);
-		}
+		case "task":
+		case "product-brief":
+		case "instructions":
 		case "task-state": {
-			return locateInFiles(quote, [
-				{ file: "backlog/task.json", text: input.taskState },
-			]);
+			return locateInFiles(quote, stageTextFiles(evidence.source, input));
 		}
 		case "transcript": {
 			return locateInExchanges(quote, input.transcript.exchanges);
 		}
-		case "artifact": {
+		case "artifact":
+		case "prior-artifact":
+		case "baseline-context": {
 			return locateInFiles(
 				quote,
-				citedFiles(evidence, input.artifact ? [input.artifact] : []),
+				stageTextFiles(evidence.source, input).filter(({ file }) =>
+					citesFile(evidence, file),
+				),
 			);
-		}
-		case "prior-artifact": {
-			return locateInFiles(quote, citedFiles(evidence, input.priorArtifacts));
-		}
-		case "baseline-context": {
-			return locateInFiles(quote, citedFiles(evidence, input.baselineContext));
 		}
 		case "diff": {
 			return locateInDiff(quote, input.diff ?? "", (file) =>
