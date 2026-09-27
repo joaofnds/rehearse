@@ -1034,6 +1034,28 @@ That reason comes from the stop record, the run's interrupted or failed event,
 or a stage left awaiting judgment once the run is no longer live, in that
 order, and a run that recorded none of those says so. The final judge returns no letter, so none is served.
 
+### Judge evidence sources
+
+`/api/runs/<run>/stages/<stage>/evidence/<section>/<item>/<index>` opens the
+source a stage judge's evidence item cites, and
+`/api/runs/<run>/final/evidence/<item>/<index>` opens one of the final judge's
+requirements, implemented in
+[evidence-source.ts](../src/server/evidence-source.ts). The section is
+`hardBlockers`, `requirements` or `dimensions`, and the index counts the
+item's evidence from 0. The answer names the record file relative to the
+repository, the cited source, path, claim and quote, and a `view`: `text` with
+the recorded text and the quoted span's `start` and `end`, `harness` with the
+harness result the locator names, `absent`, or `before-quoted-spans` for an
+item recorded before quoted spans. Every text comes from the run's record, so
+a path a judge wrote never reaches the filesystem. The stage is matched against
+the stage records the run wrote. A missing item, section, index or stage,
+including `..` and a name holding a slash, answers 404, and a run id with a
+traversing segment answers 400.
+
+The browser opens the same item at `/runs/<run>/stages/<stage>/evidence/...`
+and `/runs/<run>/final/evidence/<item>/<index>`, showing the recorded text
+read-only with the quoted span marked and scrolled into view.
+
 ### Run history figures
 
 Every `/api/runs` row carries `cost` and `wallTime`, and a figure its records
