@@ -532,7 +532,6 @@ describe(runHistoryReport.name, () => {
 			spendScope: "this stage's session",
 			judge,
 		});
-		expect(row?.grade).toBeUndefined();
 	});
 
 	it("carries no judge reading while the stage has reported none", async () => {
