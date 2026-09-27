@@ -4,6 +4,8 @@ interface CommandOptions {
 	readonly env?: Readonly<Record<string, string>> | undefined;
 	readonly input?: string | undefined;
 	readonly timeoutMs?: number | undefined;
+	/** Called with each stdout line as it arrives, the last one unterminated. */
+	readonly onLine?: ((line: string) => void) | undefined;
 }
 
 export class CommandError extends Error {
@@ -19,6 +21,31 @@ export class CommandError extends Error {
 			`Command failed (${exitCode}): ${command.join(" ")}\n${stderr || stdout}`,
 		);
 	}
+}
+
+/** The whole stream as text, handing each line to `onLine` on the way. */
+async function readLines(
+	stream: ReadableStream<Uint8Array>,
+	onLine: (line: string) => void,
+): Promise<string> {
+	const decoder = new TextDecoder();
+	let text = "";
+	let lineStart = 0;
+	for await (const chunk of stream) {
+		text += decoder.decode(chunk, { stream: true });
+		let lineEnd = text.indexOf("\n", lineStart);
+		while (lineEnd !== -1) {
+			onLine(text.slice(lineStart, lineEnd));
+			lineStart = lineEnd + 1;
+			lineEnd = text.indexOf("\n", lineStart);
+		}
+	}
+	text += decoder.decode();
+	if (lineStart < text.length) {
+		onLine(text.slice(lineStart));
+	}
+
+	return text;
 }
 
 const activeProcesses = new Set<ReturnType<typeof Bun.spawn>>();
@@ -57,7 +84,9 @@ export async function runCommand(
 	try {
 		const [exitCode, stdout, stderr] = await Promise.all([
 			child.exited,
-			new Response(child.stdout).text(),
+			options.onLine === undefined
+				? new Response(child.stdout).text()
+				: readLines(child.stdout, options.onLine),
 			new Response(child.stderr).text(),
 		]);
 

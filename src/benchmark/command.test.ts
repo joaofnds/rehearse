@@ -53,3 +53,35 @@ describe(killActiveCommands.name, () => {
 		expect(await pgrepMatches("sleep 987653")).toBe("");
 	});
 });
+
+describe(runCommand.name, () => {
+	it("hands each output line to its reader while the command still runs, and returns the whole output", async () => {
+		const lines: string[] = [];
+		const marker = `${process.pid}-${String(Date.now())}`;
+		const running = runCommand(
+			[
+				"sh",
+				"-c",
+				`printf 'one\\ntw'; sleep 0.2; printf 'o\\n'; while [ ! -e /tmp/rehearse-${marker} ]; do sleep 0.05; done; printf 'three'`,
+			],
+			process.cwd(),
+			{
+				onLine: (line) => {
+					lines.push(line);
+				},
+			},
+		);
+		while (lines.length < 2) {
+			await Bun.sleep(25);
+		}
+		const beforeExit = [...lines];
+		await Bun.write(`/tmp/rehearse-${marker}`, "");
+
+		const output = await running;
+		await Bun.file(`/tmp/rehearse-${marker}`).delete();
+
+		expect(beforeExit).toEqual(["one", "two"]);
+		expect(lines).toEqual(["one", "two", "three"]);
+		expect(output).toBe("one\ntwo\nthree");
+	});
+});
