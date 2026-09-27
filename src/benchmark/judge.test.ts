@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import type { JudgeGrade } from "./contracts";
+import type { ContextFile, JudgeGrade } from "./contracts";
 import {
 	applyHarnessResults,
 	parseRubricIds,
@@ -9,6 +9,15 @@ import {
 import type { JudgeInvoker } from "./judge-attempt";
 import { JudgeExecutionError } from "./judge-attempt";
 import { harnessResult } from "./test-support";
+
+const DIFF = [
+	"--- a/src/audit/example.ts",
+	"+++ b/src/audit/example.ts",
+	"@@ -1 +1,2 @@",
+	" export {};",
+	"+export const audit = true;",
+].join("\n");
+const QUOTE = "export const audit = true;";
 
 const RUBRIC_IDS = [
 	"tests",
@@ -29,6 +38,7 @@ function requirement(
 				source: "diff",
 				path: "src/audit/example.ts",
 				claim: `${id} evidence`,
+				quote: QUOTE,
 			},
 		],
 	};
@@ -63,14 +73,17 @@ describe(runJudge.name, () => {
 		});
 	}
 
-	function gradeWith(invoke: JudgeInvoker): ReturnType<typeof runJudge> {
+	function gradeWith(
+		invoke: JudgeInvoker,
+		baselineContext: readonly ContextFile[] = [],
+	): ReturnType<typeof runJudge> {
 		return runJudge(
 			"sonnet",
 			undefined,
 			5,
 			rubric,
-			[],
-			"candidate diff",
+			baselineContext,
+			DIFF,
 			["src/audit/example.ts"],
 			passingChecks,
 			passingChecks,
@@ -87,6 +100,7 @@ describe(runJudge.name, () => {
 					source: "diff",
 					path: "src/missing.ts",
 					claim: "unavailable evidence",
+					quote: QUOTE,
 				},
 			],
 		});
@@ -163,6 +177,7 @@ describe(runJudge.name, () => {
 					source: "diff",
 					path: injectedPath,
 					claim: "unavailable evidence",
+					quote: QUOTE,
 				},
 			],
 		});
@@ -192,6 +207,7 @@ describe(runJudge.name, () => {
 					source: "diff",
 					path: "src/missing.ts",
 					claim: "unavailable evidence",
+					quote: QUOTE,
 				},
 			],
 		});
@@ -235,6 +251,7 @@ describe(runJudge.name, () => {
 					source: "diff",
 					path: "src/missing.ts",
 					claim: "unavailable evidence",
+					quote: QUOTE,
 				},
 			],
 		});
@@ -330,6 +347,173 @@ describe(runJudge.name, () => {
 			}),
 		).rejects.toThrow("Claude session failed");
 		expect(calls).toBe(1);
+	});
+	describe("quoted spans", () => {
+		function gradedOnce(
+			first: JudgeGrade["requirements"][number],
+			baselineContext: readonly ContextFile[] = [],
+		): ReturnType<typeof runJudge> {
+			return gradeWith(
+				() =>
+					Promise.resolve(
+						response(withFirstRequirement(completeGrade("PASS"), first)),
+					),
+				baselineContext,
+			);
+		}
+
+		it("records the file and hunk of a quote from the diff", async () => {
+			const result = await gradedOnce(requirement("tests", "PASS"));
+
+			expect(result.grade.requirements[0]?.evidence).toEqual([
+				{
+					source: "diff",
+					path: "src/audit/example.ts",
+					claim: "tests evidence",
+					quote: QUOTE,
+					locator: {
+						kind: "hunk",
+						file: "src/audit/example.ts",
+						hunk: "@@ -1 +1,2 @@",
+						occurrences: 1,
+					},
+				},
+			]);
+		});
+
+		it("records the line range of a quote from a baseline context file", async () => {
+			const result = await gradedOnce(
+				{
+					id: "tests",
+					status: "PASS",
+					evidence: [
+						{
+							source: "baseline-context",
+							path: "CLAUDE.md",
+							claim: "tests are required",
+							quote: "Write a test first.",
+						},
+					],
+				},
+				[{ path: "CLAUDE.md", content: "# Rules\n\nWrite a test first.\n" }],
+			);
+
+			expect(result.grade.requirements[0]?.evidence[0]?.locator).toEqual({
+				kind: "lines",
+				file: "CLAUDE.md",
+				startLine: 3,
+				endLine: 3,
+				occurrences: 1,
+			});
+		});
+
+		it("rejects a quote its cited source does not hold", () => {
+			const unheldQuote = withFirstRequirement(completeGrade("PASS"), {
+				...requirement("tests", "PASS"),
+				evidence: [
+					{
+						source: "diff",
+						path: "src/audit/example.ts",
+						claim: "tests evidence",
+						quote: "export const audit = false;",
+					},
+				],
+			});
+			const rejected = {
+				outcome: "REJECTED",
+				error:
+					"Judge quoted text its cited source does not hold for tests: diff:src/audit/example.ts",
+			};
+
+			expect(
+				gradeWith(() => Promise.resolve(response(unheldQuote))),
+			).rejects.toMatchObject({
+				name: "JudgeOutputValidationError",
+				attempts: [rejected, rejected],
+			});
+		});
+
+		it("names the local checks result for an item citing local checks, with no quote", async () => {
+			const result = await gradedOnce({
+				id: "tests",
+				status: "PASS",
+				evidence: [
+					{
+						source: "local-checks",
+						path: "local-checks",
+						claim: "the suite passes",
+						quote: "",
+					},
+				],
+			});
+
+			expect(result.grade.requirements[0]?.evidence).toEqual([
+				{
+					source: "local-checks",
+					path: "local-checks",
+					claim: "the suite passes",
+					locator: { kind: "harness", result: "localChecks", recorded: true },
+				},
+			]);
+		});
+
+		it("names the harness result on the requirements the harness writes", async () => {
+			const result = await gradedOnce(requirement("tests", "PASS"));
+
+			expect(
+				result.grade.requirements
+					.filter(({ id }) => id === "check-integrity" || id === "local-checks")
+					.map(({ id, evidence }) => ({ id, evidence })),
+			).toEqual([
+				{
+					id: "check-integrity",
+					evidence: [
+						{
+							source: "local-checks",
+							path: "harness",
+							claim: "passes",
+							locator: {
+								kind: "harness",
+								result: "checkIntegrity",
+								recorded: true,
+							},
+						},
+					],
+				},
+				{
+					id: "local-checks",
+					evidence: [
+						{
+							source: "local-checks",
+							path: "harness",
+							claim: "passes",
+							locator: {
+								kind: "harness",
+								result: "localChecks",
+								recorded: true,
+							},
+						},
+					],
+				},
+			]);
+			expect(passingChecks.evidence).toEqual([
+				{ source: "local-checks", path: "harness", claim: "passes" },
+			]);
+		});
+
+		it("asks the judge to quote the diff and baseline context", async () => {
+			const prompts: string[] = [];
+
+			await gradeWith((prompt) => {
+				prompts.push(prompt);
+
+				return Promise.resolve(response(completeGrade("PASS")));
+			});
+
+			expect(prompts[0]).toContain(
+				"Every evidence entry must also carry quote: a span copied character for character from the cited diff or baseline context file, one to five lines, that supports the claim. Leave quote empty for local-checks.",
+			);
+		});
 	});
 });
 

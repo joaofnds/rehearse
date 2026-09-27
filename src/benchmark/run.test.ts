@@ -306,6 +306,16 @@ const RUBRIC_IDS = [
 	"local-checks",
 ] as const;
 
+/** A diff holding the quote every scripted final judge evidence item cites. */
+const JUDGED_QUOTE = "export const audit = true;";
+const JUDGED_DIFF = [
+	"--- a/src/audit/example.ts",
+	"+++ b/src/audit/example.ts",
+	"@@ -1 +1,2 @@",
+	" export {};",
+	`+${JUDGED_QUOTE}`,
+].join("\n");
+
 function requirement(
 	id: string,
 	status: "PASS" | "FAIL",
@@ -318,6 +328,7 @@ function requirement(
 				source: "diff",
 				path: "src/audit/example.ts",
 				claim: `${id} evidence`,
+				quote: JUDGED_QUOTE,
 			},
 		],
 	};
@@ -2552,6 +2563,7 @@ describe(buildRunArtifact.name, () => {
 						source: "diff",
 						path: "src/missing.ts",
 						claim: "unavailable evidence",
+						quote: JUDGED_QUOTE,
 					},
 				],
 			});
@@ -2563,6 +2575,7 @@ describe(buildRunArtifact.name, () => {
 					rubricIds: RUBRIC_IDS,
 					evidence: {
 						...baseInputs.evidence,
+						diff: JUDGED_DIFF,
 						changedPaths: ["src/audit/example.ts"],
 					},
 				},
@@ -2621,6 +2634,7 @@ describe(buildRunArtifact.name, () => {
 					rubricIds: RUBRIC_IDS,
 					evidence: {
 						...baseInputs.evidence,
+						diff: JUDGED_DIFF,
 						changedPaths: ["src/audit/example.ts"],
 					},
 				},

@@ -37,18 +37,6 @@ export const evidenceSchema = z.object({
 	claim: z.string().min(1),
 });
 
-export const judgeGradeSchema = z.object({
-	requirements: z.array(
-		z.object({
-			id: z.string().min(1),
-			status: z.enum(["PASS", "FAIL"]),
-			evidence: z.array(evidenceSchema).min(1),
-		}),
-	),
-	verdict: z.enum(["PASS", "FAIL"]),
-	summary: z.string().min(1),
-});
-
 export const stageTurnSchema = z.object({
 	status: z
 		.enum(["QUESTION", "COMPLETE"])
@@ -175,6 +163,49 @@ const dimensionFields = {
 };
 const judgeEvidenceListSchema = z.array(judgeStageEvidenceSchema).min(1);
 const recordedEvidenceListSchema = z.array(recordedStageEvidenceSchema).min(1);
+
+const judgeEvidenceSchema = evidenceSchema.extend({
+	quote: z
+		.string()
+		.describe(
+			"Text copied character for character from the cited diff or baseline context file that supports the claim; empty for local-checks",
+		),
+});
+
+/**
+ * The final judge's evidence as recorded: the stage judge's quote and locator,
+ * both absent on an item recorded before quoted spans.
+ */
+const recordedEvidenceSchema = evidenceSchema.extend({
+	quote: z.string().min(1).optional(),
+	locator: evidenceLocatorSchema.optional(),
+});
+
+const verdictFields = {
+	verdict: z.enum(["PASS", "FAIL"]),
+	summary: z.string().min(1),
+};
+
+/** What the final judge is asked to return: every evidence item with a quote. */
+export const judgeGradeResponseSchema = z.object({
+	requirements: z.array(
+		z.object({
+			...passFailFields,
+			evidence: z.array(judgeEvidenceSchema).min(1),
+		}),
+	),
+	...verdictFields,
+});
+
+export const judgeGradeSchema = z.object({
+	requirements: z.array(
+		z.object({
+			...passFailFields,
+			evidence: z.array(recordedEvidenceSchema).min(1),
+		}),
+	),
+	...verdictFields,
+});
 
 /** What the stage judge is asked to return: every evidence item with a quote. */
 export const stageJudgeResponseSchema = z.object({
@@ -314,6 +345,9 @@ export const claudeEnvelopeSchema = z
 	.loose();
 
 export type JudgeGrade = Immutable<z.infer<typeof judgeGradeSchema>>;
+export type JudgeGradeResponse = Immutable<
+	z.infer<typeof judgeGradeResponseSchema>
+>;
 export type HumanReview = Immutable<z.infer<typeof humanReviewSchema>>;
 export type StageTurn = Immutable<z.infer<typeof stageTurnSchema>>;
 export type ClaudeEnvelope = Immutable<z.infer<typeof claudeEnvelopeSchema>>;
