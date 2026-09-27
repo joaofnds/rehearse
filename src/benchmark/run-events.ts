@@ -177,22 +177,25 @@ const SCHEMA = `
 		stage TEXT NOT NULL,
 		spent_usd REAL NOT NULL,
 		elapsed_ms INTEGER NOT NULL,
-		recorded_at TEXT NOT NULL
+		recorded_at TEXT NOT NULL,
+		judge_progress TEXT
 	);
 	CREATE INDEX IF NOT EXISTS run_events_run_id ON run_events(run_id, sequence);
 `;
 
 /**
  * A store created before judge progress has no column for it. Adding a
- * nullable column keeps every row it holds and lets it record progress.
+ * nullable column keeps every row it holds and lets it record progress. The
+ * column is added rather than checked for first, so two processes opening the
+ * same old store at once cannot both find it missing and one fail to add it.
  */
 function addJudgeProgressColumn(database: Database): void {
-	const columns = database
-		.query<{ name: string }, []>("PRAGMA table_info(run_events)")
-		.all()
-		.map(({ name }) => name);
-	if (!columns.includes("judge_progress")) {
+	try {
 		database.run("ALTER TABLE run_events ADD COLUMN judge_progress TEXT");
+	} catch (error) {
+		if (!String(error).includes("duplicate column name")) {
+			throw error;
+		}
 	}
 }
 
