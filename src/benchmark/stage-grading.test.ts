@@ -693,6 +693,38 @@ describe(runStageJudge.name, () => {
 			]);
 		});
 
+		it("locates a quote from a whole-source diff citation by its file and hunk", async () => {
+			const input = stageJudgeInput("build", {
+				diff: [
+					"--- a/src/a.ts",
+					"+++ b/src/a.ts",
+					"@@ -1 +1,2 @@",
+					" export {};",
+					"+export const audit = true;",
+				].join("\n"),
+				changedPaths: ["src/a.ts"],
+			});
+
+			const scorecard = await judgedOnce(
+				input,
+				quotedResponse([
+					{
+						source: "diff",
+						path: "diff",
+						claim: "the audit flag is exported",
+						quote: "export const audit = true;",
+					},
+				]),
+			);
+
+			expect(scorecard.grade.requirements[0]?.evidence[0]?.locator).toEqual({
+				kind: "hunk",
+				file: "src/a.ts",
+				hunk: "@@ -1 +1,2 @@",
+				occurrences: 1,
+			});
+		});
+
 		it("asks the judge to quote every source but the harness sources", async () => {
 			let prompt = "";
 
