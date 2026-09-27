@@ -38,7 +38,8 @@ export async function fetchEvidenceSource(
 		identity.kind === "stage"
 			? await stageEvidence.$get({ param: identity })
 			: await finalEvidence.$get({ param: identity });
-	if (response.status === 404) {
+	// A refused run id names no record either, and asking again changes nothing.
+	if (response.status === 404 || response.status === 400) {
 		throw new RecordNotFoundError("The run record holds no such evidence item");
 	}
 	if (!response.ok) {

@@ -41,29 +41,32 @@ describe(createQueryClient.name, () => {
 		expect(calls).toBe(1);
 	});
 
-	it("says an evidence item is missing on the first answer, without retrying it", async () => {
-		let calls = 0;
-		const stub = (): Promise<Response> => {
-			calls += 1;
+	it.each([404, 400])(
+		"says an evidence item cannot be opened on the first %d answer, without retrying it",
+		async (status) => {
+			let calls = 0;
+			const stub = (): Promise<Response> => {
+				calls += 1;
 
-			return Promise.resolve(
-				Response.json({ error: "not found" }, { status: 404 }),
+				return Promise.resolve(
+					Response.json({ error: "no such item" }, { status }),
+				);
+			};
+			stub.preconnect = originalFetch.preconnect;
+			globalThis.fetch = stub;
+
+			render(
+				<QueryClientProvider client={createQueryClient()}>
+					<EvidenceSourcePage
+						identity={{ kind: "final", run: "run", item: "tests", index: "0" }}
+					/>
+				</QueryClientProvider>,
 			);
-		};
-		stub.preconnect = originalFetch.preconnect;
-		globalThis.fetch = stub;
 
-		render(
-			<QueryClientProvider client={createQueryClient()}>
-				<EvidenceSourcePage
-					identity={{ kind: "final", run: "run", item: "tests", index: "0" }}
-				/>
-			</QueryClientProvider>,
-		);
-
-		expect(await screen.findByRole("alert")).toHaveTextContent(
-			"Could not open this evidence item.",
-		);
-		expect(calls).toBe(1);
-	});
+			expect(await screen.findByRole("alert")).toHaveTextContent(
+				"Could not open this evidence item.",
+			);
+			expect(calls).toBe(1);
+		},
+	);
 });
