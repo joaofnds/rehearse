@@ -215,6 +215,20 @@ describe(EvidenceSourcePage.name, () => {
 		expect(await screen.findByText("the module is wired")).toBeInTheDocument();
 	});
 
+	it("asks the API for a run id holding a slash, never a path it climbs to", async () => {
+		renderPage(
+			{ kind: "final", run: "../../etc", item: "tests", index: "0" },
+			new Map([
+				[
+					"/api/runs/..%2F..%2Fetc/final/evidence/tests/0",
+					sourceWith({ kind: "absent" }),
+				],
+			]),
+		);
+
+		expect(await screen.findByText("the module is wired")).toBeInTheDocument();
+	});
+
 	it("says the evidence item could not be opened", async () => {
 		renderPage(STAGE, new Map());
 

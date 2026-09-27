@@ -31,13 +31,34 @@ export type EvidenceSourceIdentity =
 			readonly index: string;
 	  };
 
+/**
+ * The Hono RPC client writes each path param into the URL as given (hono
+ * 4.13.7, `replaceUrlParam`), so a `/` or `..` in a param would move the
+ * request to another path unless it is escaped here.
+ */
+const escaped = encodeURIComponent;
+
 export async function fetchEvidenceSource(
 	identity: EvidenceSourceIdentity,
 ): Promise<EvidenceSourceResponse> {
 	const response =
 		identity.kind === "stage"
-			? await stageEvidence.$get({ param: identity })
-			: await finalEvidence.$get({ param: identity });
+			? await stageEvidence.$get({
+					param: {
+						run: escaped(identity.run),
+						stage: escaped(identity.stage),
+						section: escaped(identity.section),
+						item: escaped(identity.item),
+						index: escaped(identity.index),
+					},
+				})
+			: await finalEvidence.$get({
+					param: {
+						run: escaped(identity.run),
+						item: escaped(identity.item),
+						index: escaped(identity.index),
+					},
+				});
 	// A refused run id names no record either, and asking again changes nothing.
 	if (response.status === 404 || response.status === 400) {
 		throw new RecordNotFoundError("The run record holds no such evidence item");
