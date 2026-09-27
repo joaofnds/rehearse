@@ -1,8 +1,8 @@
 import { describe, expect, it } from "bun:test";
 import { join } from "node:path";
-import { readClaudeEnvelope, readStructuredOutput } from "./claude";
+import { readClaudeEnvelope } from "./claude";
 import type { StageJudgeOutput, StageScorecard } from "./contracts";
-import { StageValidationError, stageJudgeOutputSchema } from "./contracts";
+import { StageValidationError } from "./contracts";
 import {
 	applyAuthoritativeStageResults,
 	captureStageJudgeInput,
@@ -583,37 +583,11 @@ describe(runStageJudge.name, () => {
 	function judgeResponse(
 		evidencePath: string,
 		evidenceSource: StageJudgeOutput["requirements"][number]["evidence"][number]["source"] = "task",
+		quote = "Task",
 	): string {
-		const item = (id: string): StageJudgeOutput["requirements"][number] => ({
-			id,
-			status: "PASS",
-			evidence: [
-				{ source: evidenceSource, path: evidencePath, claim: "grounded" },
-			],
-		});
-
-		return JSON.stringify({
-			session_id: "judge-session",
-			total_cost_usd: 0.1,
-			structured_output: {
-				hardBlockers: [item("invalid-stage-delivery")],
-				requirements: [item("scope")],
-				dimensions: [
-					{
-						id: "clarity",
-						grade: "A",
-						evidence: [
-							{
-								source: evidenceSource,
-								path: evidencePath,
-								claim: "grounded",
-							},
-						],
-					},
-				],
-				summary: "graded",
-			},
-		});
+		return quotedResponse([
+			{ source: evidenceSource, path: evidencePath, claim: "grounded", quote },
+		]);
 	}
 
 	const rubricSource = {
@@ -629,6 +603,247 @@ describe(runStageJudge.name, () => {
 			],
 		},
 	};
+
+	function quotedResponse(
+		evidence: readonly (StageJudgeOutput["requirements"][number]["evidence"][number] & {
+			readonly quote: string;
+		})[],
+	): string {
+		return JSON.stringify({
+			session_id: "judge-session",
+			total_cost_usd: 0.1,
+			structured_output: {
+				hardBlockers: [
+					{ id: "invalid-stage-delivery", status: "PASS", evidence },
+				],
+				requirements: [{ id: "scope", status: "PASS", evidence }],
+				dimensions: [{ id: "clarity", grade: "A", evidence }],
+				summary: "graded",
+			},
+		});
+	}
+
+	function quotedResponseFor(blockerIds: readonly string[]): string {
+		const evidence = [
+			{
+				source: "task",
+				path: "backlog-seed.md",
+				claim: "grounded",
+				quote: "Task",
+			},
+		];
+
+		return JSON.stringify({
+			session_id: "judge-session",
+			total_cost_usd: 0.1,
+			structured_output: {
+				hardBlockers: blockerIds.map((id) => ({
+					id,
+					status: "PASS",
+					evidence,
+				})),
+				requirements: [{ id: "scope", status: "PASS", evidence }],
+				dimensions: [{ id: "clarity", grade: "A", evidence }],
+				summary: "graded",
+			},
+		});
+	}
+
+	function judgedOnce(
+		input: StageScorecard["input"],
+		response: string,
+	): Promise<StageScorecard> {
+		return runStageJudge("sonnet", undefined, 5, input, rubricSource, () =>
+			Promise.resolve(response),
+		);
+	}
+
+	describe("quoted spans", () => {
+		it("locates a quote from the task state by its line range", async () => {
+			const input = stageJudgeInput("shape", {
+				taskState: '{\n  "status": "Done",\n  "title": "Audit log"\n}',
+			});
+
+			const scorecard = await judgedOnce(
+				input,
+				quotedResponse([
+					{
+						source: "task-state",
+						path: "backlog/task.json",
+						claim: "the task is done",
+						quote: '"status": "Done",',
+					},
+				]),
+			);
+
+			expect(scorecard.grade.requirements[0]?.evidence).toEqual([
+				{
+					source: "task-state",
+					path: "backlog/task.json",
+					claim: "the task is done",
+					quote: '"status": "Done",',
+					locator: {
+						kind: "lines",
+						file: "backlog/task.json",
+						startLine: 2,
+						endLine: 2,
+						occurrences: 1,
+					},
+				},
+			]);
+		});
+
+		it("asks the judge to quote every source but the harness sources", async () => {
+			let prompt = "";
+
+			await runStageJudge(
+				"sonnet",
+				undefined,
+				5,
+				stageJudgeInput("shape"),
+				rubricSource,
+				(judgePrompt) => {
+					prompt = judgePrompt;
+
+					return Promise.resolve(judgeResponse("backlog-seed.md"));
+				},
+			);
+
+			expect(prompt).toContain(
+				"Every evidence entry must also carry quote: a span copied character for character from the cited source's supplied text, one to five lines, that supports the claim. Leave quote empty for check-integrity, local-checks and harness-failure.",
+			);
+		});
+
+		it("rejects a quote its cited source does not hold and records the retry", async () => {
+			const responses = [
+				judgeResponse("backlog-seed.md", "task", "Brief"),
+				judgeResponse("backlog-seed.md", "task", "Task"),
+			];
+
+			const scorecard = await runStageJudge(
+				"sonnet",
+				undefined,
+				5,
+				stageJudgeInput("shape"),
+				rubricSource,
+				() => Promise.resolve(responses.shift() ?? ""),
+			);
+
+			expect(scorecard.attempts.map(({ outcome }) => outcome)).toEqual([
+				"REJECTED",
+				"ACCEPTED",
+			]);
+			expect(scorecard.attempts[0]).toMatchObject({
+				error:
+					"Stage Judge quoted text its cited source does not hold for invalid-stage-delivery: task:backlog-seed.md",
+			});
+			expect(scorecard.grade.requirements[0]?.evidence[0]).toMatchObject({
+				quote: "Task",
+				locator: { kind: "lines", file: "backlog-seed.md", startLine: 1 },
+			});
+		});
+
+		it("drops the quote on a harness citation and names the harness result", async () => {
+			const input = stageJudgeInput("build", {
+				checkIntegrity: harnessResult("PASS", "check definitions match"),
+			});
+
+			const scorecard = await judgedOnce(
+				input,
+				quotedResponse([
+					{
+						source: "check-integrity",
+						path: "harness",
+						claim: "checks are intact",
+						quote: '{"status":"PASS"}',
+					},
+					{
+						source: "local-checks",
+						path: "harness",
+						claim: "no check results were recorded",
+						quote: "",
+					},
+				]),
+			);
+
+			expect(scorecard.grade.requirements[0]?.evidence).toEqual([
+				{
+					source: "check-integrity",
+					path: "harness",
+					claim: "checks are intact",
+					locator: {
+						kind: "harness",
+						result: "checkIntegrity",
+						recorded: true,
+					},
+				},
+				{
+					source: "local-checks",
+					path: "harness",
+					claim: "no check results were recorded",
+					locator: { kind: "harness", result: "localChecks", recorded: false },
+				},
+			]);
+		});
+
+		it("says a cited commit history the stage lacks is absent", async () => {
+			const scorecard = await judgedOnce(
+				stageJudgeInput("build"),
+				judgeResponse("commitSubjects", "commit-subjects", "add audit event"),
+			);
+
+			expect(scorecard.grade.requirements[0]?.evidence).toEqual([
+				{
+					source: "commit-subjects",
+					path: "commitSubjects",
+					claim: "grounded",
+					locator: { kind: "absent" },
+				},
+			]);
+		});
+
+		it("names the harness result on a blocker the harness failed", async () => {
+			const scorecard = await runStageJudge(
+				"sonnet",
+				undefined,
+				5,
+				stageJudgeInput("build", {
+					kind: "delivery",
+					localChecks: harnessResult("FAIL", "unit tests exited 1"),
+				}),
+				{
+					...rubricSource,
+					rubric: {
+						...rubricSource.rubric,
+						hardBlockers: [
+							...rubricSource.rubric.hardBlockers,
+							{ id: "unfinished-delivery", description: "Finished" },
+						],
+					},
+				},
+				() =>
+					Promise.resolve(
+						quotedResponseFor([
+							"invalid-stage-delivery",
+							"unfinished-delivery",
+						]),
+					),
+			);
+
+			expect(
+				scorecard.grade.hardBlockers.find(
+					({ id }) => id === "unfinished-delivery",
+				)?.evidence,
+			).toEqual([
+				{
+					source: "local-checks",
+					path: "harness",
+					claim: "unit tests exited 1",
+					locator: { kind: "harness", result: "localChecks", recorded: true },
+				},
+			]);
+		});
+	});
 
 	it("accepts commit subjects as citable stage evidence", async () => {
 		let prompt = "";
@@ -646,7 +861,7 @@ describe(runStageJudge.name, () => {
 				prompt = judgePrompt;
 
 				return Promise.resolve(
-					judgeResponse("commitSubjects", "commit-subjects"),
+					judgeResponse("commitSubjects", "commit-subjects", "audit event"),
 				);
 			},
 		);
@@ -670,19 +885,6 @@ describe(runStageJudge.name, () => {
 				input,
 			);
 		}).not.toThrow();
-	});
-
-	it("rejects commit subject citations when the stage has no history", () => {
-		const output = readStructuredOutput(
-			readClaudeEnvelope(judgeResponse("commitSubjects", "commit-subjects")),
-			stageJudgeOutputSchema,
-		);
-
-		expect(() => {
-			validateStageJudgeEvidence(output, stageJudgeInput("build"));
-		}).toThrow(
-			"cited unavailable evidence for invalid-stage-delivery: commit-subjects:commitSubjects",
-		);
 	});
 
 	it("retries once with the rejection quoted and sums the costs", async () => {

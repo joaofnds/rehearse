@@ -87,45 +87,118 @@ export const stageRubricSchema = z.object({
 		.min(1),
 });
 
-const stageEvidenceListSchema = z
-	.array(
-		z.object({
-			source: z.enum([
-				"task",
-				"product-brief",
-				"instructions",
-				"task-state",
-				"transcript",
-				"artifact",
-				"prior-artifact",
-				"baseline-context",
-				"diff",
-				"commit-subjects",
-				"check-integrity",
-				"local-checks",
-				"harness-failure",
-			]),
-			path: z.string().min(1),
-			claim: z.string().min(1),
-		}),
-	)
-	.min(1);
+const stageEvidenceSourceSchema = z.enum([
+	"task",
+	"product-brief",
+	"instructions",
+	"task-state",
+	"transcript",
+	"artifact",
+	"prior-artifact",
+	"baseline-context",
+	"diff",
+	"commit-subjects",
+	"check-integrity",
+	"local-checks",
+	"harness-failure",
+]);
 
-const stagePassFailResultSchema = z.object({
+const lineCountSchema = z.number().int().positive();
+const indexSchema = z.number().int().nonnegative();
+
+/**
+ * Where a quoted span sits in the source the record holds, computed by the
+ * harness and never taken from the judge. A harness locator names the harness
+ * result in the judge's input, and `recorded` says whether the input holds it.
+ */
+export const evidenceLocatorSchema = z.discriminatedUnion("kind", [
+	z.object({
+		kind: z.literal("lines"),
+		file: z.string().min(1),
+		startLine: lineCountSchema,
+		endLine: lineCountSchema,
+		occurrences: lineCountSchema,
+	}),
+	z.object({
+		kind: z.literal("hunk"),
+		file: z.string().min(1),
+		hunk: z.string().min(1),
+		occurrences: lineCountSchema,
+	}),
+	z.object({ kind: z.literal("commit-subject"), index: indexSchema }),
+	z.object({
+		kind: z.literal("exchange"),
+		exchange: indexSchema,
+		field: z.enum(["message", "productOwnerAnswer"]),
+		start: indexSchema,
+		end: indexSchema,
+	}),
+	z.object({
+		kind: z.literal("harness"),
+		result: z.enum(["checkIntegrity", "localChecks", "harnessFailure"]),
+		recorded: z.boolean(),
+	}),
+	z.object({ kind: z.literal("absent") }),
+]);
+
+/**
+ * The evidence item as recorded. Both fields are absent on an item recorded
+ * before quoted spans; after them every item carries a locator, and every item
+ * a judge wrote from a source it was given carries its quote.
+ */
+const recordedStageEvidenceSchema = z.object({
+	source: stageEvidenceSourceSchema,
+	path: z.string().min(1),
+	claim: z.string().min(1),
+	quote: z.string().min(1).optional(),
+	locator: evidenceLocatorSchema.optional(),
+});
+
+const judgeStageEvidenceSchema = z.object({
+	source: stageEvidenceSourceSchema,
+	path: z.string().min(1),
+	claim: z.string().min(1),
+	quote: z
+		.string()
+		.describe(
+			"Text copied character for character from the cited source's supplied text that supports the claim; empty for check-integrity, local-checks and harness-failure",
+		),
+});
+
+const passFailFields = {
 	id: z.string().min(1),
 	status: z.enum(["PASS", "FAIL"]),
-	evidence: stageEvidenceListSchema,
+};
+const dimensionFields = {
+	id: z.string().min(1),
+	grade: stageLetterGradeSchema,
+};
+const judgeEvidenceListSchema = z.array(judgeStageEvidenceSchema).min(1);
+const recordedEvidenceListSchema = z.array(recordedStageEvidenceSchema).min(1);
+
+/** What the stage judge is asked to return: every evidence item with a quote. */
+export const stageJudgeResponseSchema = z.object({
+	hardBlockers: z.array(
+		z.object({ ...passFailFields, evidence: judgeEvidenceListSchema }),
+	),
+	requirements: z.array(
+		z.object({ ...passFailFields, evidence: judgeEvidenceListSchema }),
+	),
+	dimensions: z.array(
+		z.object({ ...dimensionFields, evidence: judgeEvidenceListSchema }),
+	),
+	summary: z.string().min(1),
 });
 
 export const stageJudgeOutputSchema = z.object({
-	hardBlockers: z.array(stagePassFailResultSchema),
-	requirements: z.array(stagePassFailResultSchema),
+	hardBlockers: z.array(
+		z.object({ ...passFailFields, evidence: recordedEvidenceListSchema }),
+	),
+	requirements: z.array(
+		z.object({ ...passFailFields, evidence: recordedEvidenceListSchema }),
+	),
 	dimensions: z.array(
-		z.object({
-			id: z.string().min(1),
-			grade: stageLetterGradeSchema,
-			evidence: stageEvidenceListSchema,
-		}),
+		z.object({ ...dimensionFields, evidence: recordedEvidenceListSchema }),
 	),
 	summary: z.string().min(1),
 });
@@ -255,6 +328,10 @@ export type StageRubric = Immutable<z.infer<typeof stageRubricSchema>>;
 export type StageJudgeOutput = Immutable<
 	z.infer<typeof stageJudgeOutputSchema>
 >;
+export type StageJudgeResponse = Immutable<
+	z.infer<typeof stageJudgeResponseSchema>
+>;
+export type EvidenceLocator = Immutable<z.infer<typeof evidenceLocatorSchema>>;
 
 export class StageValidationError extends Error {
 	public override name = "StageValidationError";
