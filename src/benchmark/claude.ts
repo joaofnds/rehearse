@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CommandError, runCommand } from "./command";
 import type { Effort } from "./config";
 import type { ClaudeCallMetrics, ClaudeEnvelope } from "./contracts";
 import {
@@ -96,19 +97,48 @@ export class ClaudeSessionError extends Error {
 const streamLineSchema = z.looseObject({ type: z.string() });
 
 /** The result line a streamed session ends on. */
-export function readStreamResult(output: string): string {
-	const result = output.split("\n").findLast((line) => {
+function streamResultLine(output: string): string | undefined {
+	return output.split("\n").findLast((line) => {
 		try {
 			return streamLineSchema.parse(JSON.parse(line)).type === "result";
 		} catch {
 			return false;
 		}
 	});
+}
+
+export function readStreamResult(output: string): string {
+	const result = streamResultLine(output);
 	if (result === undefined) {
 		throw new Error("Claude stream ended without a result");
 	}
 
 	return result;
+}
+
+/**
+ * Runs a session whose output is streamed and resolves to its result line. A
+ * failed session reports its result line as its output rather than every
+ * streamed line, as a json session reports its one envelope.
+ */
+export async function runStreamedSession(
+	command: readonly string[],
+	cwd: string,
+	options: Parameters<typeof runCommand>[2] = {},
+): Promise<string> {
+	try {
+		return readStreamResult(await runCommand(command, cwd, options));
+	} catch (error) {
+		if (error instanceof CommandError) {
+			throw new CommandError(
+				error.command,
+				error.exitCode,
+				streamResultLine(error.stdout) ?? "",
+				error.stderr,
+			);
+		}
+		throw error;
+	}
 }
 
 export function readClaudeEnvelope(output: string): ClaudeEnvelope {

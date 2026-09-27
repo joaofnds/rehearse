@@ -6,6 +6,7 @@ import {
 	readClaudeEnvelope,
 	readStreamResult,
 	readStructuredOutput,
+	runStreamedSession,
 } from "./claude";
 import type { ClaudeEnvelope } from "./contracts";
 import {
@@ -837,5 +838,45 @@ describe(readStreamResult.name, () => {
 		expect(() =>
 			readStreamResult(JSON.stringify({ type: "system", subtype: "init" })),
 		).toThrow("Claude stream ended without a result");
+	});
+});
+
+describe(runStreamedSession.name, () => {
+	const init = JSON.stringify({ type: "system", subtype: "init" });
+	const partial = JSON.stringify({
+		type: "stream_event",
+		event: { type: "content_block_delta", index: 0 },
+	});
+	const result = JSON.stringify({ type: "result", is_error: true });
+	const printing = (exitCode: number): string[] => [
+		"sh",
+		"-c",
+		`printf '%s\\n' "$0" "$1" "$2"; exit ${exitCode}`,
+		init,
+		partial,
+		result,
+	];
+
+	it("hands each line on and resolves to the result line", async () => {
+		const lines: string[] = [];
+
+		const output = await runStreamedSession(printing(0), process.cwd(), {
+			onLine: (line) => {
+				lines.push(line);
+			},
+		});
+
+		expect(output).toBe(result);
+		expect(lines.filter((line) => line !== "")).toEqual([
+			init,
+			partial,
+			result,
+		]);
+	});
+
+	it("reports a failed session with its result line, not the whole stream", () => {
+		expect(runStreamedSession(printing(3), process.cwd())).rejects.toThrow(
+			/^Command failed \(3\)[^\n]*\n\{"type":"result","is_error":true\}$/u,
+		);
 	});
 });
