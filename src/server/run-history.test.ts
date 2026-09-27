@@ -23,6 +23,7 @@ import {
 } from "#benchmark/run-records-test-support";
 import type { RecordedRunsOptions } from "#benchmark/run-records-test-support";
 import type { RunLiveness } from "#benchmark/run-liveness";
+import type { JudgeProgress } from "#benchmark/run-events";
 import { openRunEventStore } from "#benchmark/run-events";
 import {
 	benchmarkRunPaths,
@@ -501,6 +502,52 @@ describe(runHistoryReport.name, () => {
 			spentUsd: 0.9,
 			spendScope: "this stage's session so far",
 		});
+	});
+
+	it("reports per rubric section how many of a judging stage's items are back, before its grade exists", async () => {
+		const fixture = await writtenFixture();
+		await fixture.writeRunningRun("stage-judging", "build", 0.9, 9000);
+		const judge: JudgeProgress = {
+			state: "returning",
+			attempt: 1,
+			sections: {
+				hardBlockers: { returned: 4, total: 4 },
+				requirements: { returned: 0, total: 2 },
+				dimensions: { returned: 3, total: 5 },
+			},
+		};
+		await fixture.appendRunningJudgeProgress(judge);
+
+		const { rows } = await runHistoryReport(
+			fixture.runsDirectory,
+			directorySource(await corpusDirectory("build skill\n")),
+			liveness(true),
+		);
+
+		const row = pipelineRun(rows, fixture.runningRun);
+		expect(row?.progress).toMatchObject({
+			state: "running",
+			stage: "build",
+			elapsedMs: 9500,
+			spendScope: "this stage's session",
+			judge,
+		});
+		expect(row?.grade).toBeUndefined();
+	});
+
+	it("carries no judge reading while the stage has reported none", async () => {
+		const fixture = await writtenFixture();
+		await fixture.writeRunningRun("stage-judging");
+
+		const { rows } = await runHistoryReport(
+			fixture.runsDirectory,
+			directorySource(await corpusDirectory("build skill\n")),
+			liveness(true),
+		);
+
+		expect(pipelineRun(rows, fixture.runningRun)?.progress).not.toHaveProperty(
+			"judge",
+		);
 	});
 
 	/**

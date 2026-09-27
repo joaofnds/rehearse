@@ -28,6 +28,7 @@ import {
 	confirmationGroupPaths,
 	runEventsDatabaseFile,
 } from "#benchmark/run-layout";
+import type { JudgeProgress } from "#benchmark/run-events";
 import { openRunEventStore } from "#benchmark/run-events";
 import { claimShortId } from "#benchmark/short-id";
 import { measureCorpusVersion } from "#benchmark/corpus-version";
@@ -1459,6 +1460,54 @@ describe(createApiApp.name, () => {
 				"stage-started",
 				"run-completed",
 			]);
+		});
+
+		it("serves a stage judge's progress event with its per-section counts", async () => {
+			const runsDirectory = await mkdtemp(join(tmpdir(), "rehearse-api-runs-"));
+			roots.push(runsDirectory);
+			const judge: JudgeProgress = {
+				state: "returning",
+				attempt: 1,
+				sections: {
+					hardBlockers: { returned: 4, total: 4 },
+					requirements: { returned: 1, total: 2 },
+					dimensions: { returned: 3, total: 5 },
+				},
+			};
+			const store = await openRunEventStore(
+				runEventsDatabaseFile(runsDirectory),
+			);
+			store.append({
+				runId: "run-1",
+				kind: "judge-progress",
+				stage: "build",
+				spentUsd: 1,
+				elapsedMs: 500,
+				judge,
+			});
+			store.append({
+				runId: "run-1",
+				kind: "run-completed",
+				stage: "build",
+				spentUsd: 2,
+				elapsedMs: 1000,
+			});
+			store.close();
+			const app = createApiApp({
+				runsDirectory,
+				liveness: nothingRunning,
+				corpusSource: directorySource(await corpusDirectory()),
+			});
+
+			const response = await app.request("/api/runs/run-1/events");
+			const frames = parseSSEFrames(await response.text());
+
+			expect(frames[0]).toMatchObject({
+				kind: "judge-progress",
+				stage: "build",
+				judge,
+			});
+			expect(frames[1]).not.toHaveProperty("judge");
 		});
 
 		it("keeps a run with no events open rather than closing the connection, since the run may not have started emitting yet", async () => {

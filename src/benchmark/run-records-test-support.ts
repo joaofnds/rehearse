@@ -37,7 +37,7 @@ import type {
 import type { RunManifest } from "./manifest";
 import { writeRunManifest } from "./manifest";
 import type { RunLiveness } from "./run-liveness";
-import type { PlainRunEventKind } from "./run-events";
+import type { JudgeProgress, PlainRunEventKind } from "./run-events";
 import { openRunEventStore } from "./run-events";
 import type {
 	GroupReportSummaryRecord,
@@ -1385,6 +1385,25 @@ export class RecordedRunsFixture {
 			elapsedMs: 0,
 		});
 		store.append({ runId: this.runningRun, kind, stage, spentUsd, elapsedMs });
+		store.close();
+	}
+
+	/** A progress reading from the running run's stage judge, its latest event. */
+	public async appendRunningJudgeProgress(
+		judge: JudgeProgress,
+		stage = "build",
+	): Promise<void> {
+		const store = await openRunEventStore(
+			runEventsDatabaseFile(this.runsDirectory),
+		);
+		store.append({
+			runId: this.runningRun,
+			kind: "judge-progress",
+			stage,
+			spentUsd: 0.9,
+			elapsedMs: 9500,
+			judge,
+		});
 		store.close();
 	}
 

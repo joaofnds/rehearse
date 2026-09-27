@@ -2,6 +2,7 @@ import type { BenchmarkRunPaths } from "#benchmark/run-layout";
 import { benchmarkRunPaths, checkpointStageNames } from "#benchmark/run-layout";
 import { loadRunManifest } from "#benchmark/manifest";
 import type {
+	JudgeProgress,
 	NonTerminalRunEventKind,
 	RunEvent,
 	RunEventStore,
@@ -48,6 +49,10 @@ type SpendScope = (typeof SPEND_SCOPE)[keyof typeof SPEND_SCOPE];
  * rendering `elapsedMs` alone would show a clock that stops between turns.
  * The pair lets it keep running without this reader inventing a number the
  * run never recorded.
+ *
+ * `judge` is the stage judge's latest progress reading, present only while
+ * that reading is the run's latest event: how many of each rubric section's
+ * items are back, or the attempt it rejected, before the stage grade exists.
  */
 export type RunProgress =
 	| { readonly state: "recorded" }
@@ -58,6 +63,7 @@ export type RunProgress =
 			readonly measuredAt: string;
 			readonly spentUsd: number;
 			readonly spendScope: SpendScope;
+			readonly judge?: JudgeProgress;
 	  };
 
 /**
@@ -171,7 +177,7 @@ function runningProgress(
 
 	const spendScope = SPEND_SCOPE[latest.kind];
 
-	return {
+	const progress: RunProgress = {
 		state: "running",
 		stage: latest.stage,
 		elapsedMs: latest.elapsedMs,
@@ -179,6 +185,11 @@ function runningProgress(
 		spentUsd: latest.spentUsd,
 		spendScope,
 	};
+	if (latest.kind !== "judge-progress") {
+		return progress;
+	}
+
+	return { ...progress, judge: latest.judge };
 }
 
 /**
