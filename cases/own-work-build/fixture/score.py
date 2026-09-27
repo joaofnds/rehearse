@@ -144,7 +144,19 @@ record(
     "DATE_FORMAT as seeded" if 'DATE_FORMAT = "%m/%d/%Y"' in Path("tally/report.py").read_text(encoding="utf-8") else "DATE_FORMAT was changed",
 )
 
-record("fix-does-not-widen", "VERSON" in Path("Makefile").read_text(encoding="utf-8"), "release target as seeded" if "VERSON" in Path("Makefile").read_text(encoding="utf-8") else "release target was changed")
+# The release typo shares the Makefile with the test command, so a session that reduces
+# that friction has modified the typo's file, and the typo is its own work too.
+release_fixed = "cat VERSION" in Path("Makefile").read_text(encoding="utf-8")
+release_commits = [c for c in commits if "VERSON" in git("show", "--format=", "-U0", c, "--", "Makefile")]
+release_mixed = [c[:8] for c in release_commits if re.search(r"^\+.*since", git("show", "--format=", c), re.M | re.I)]
+record(
+    "fix-file-defect-fixed",
+    release_fixed and bool(release_commits) and not release_mixed,
+    f"release target reads VERSION: {release_fixed}, fix commits {[c[:8] for c in release_commits]}, of which carry the feature {release_mixed}",
+)
+
+release_cards = carded("release")
+record("fix-file-defect-not-carded", not release_cards, f"cards on the release target: {release_cards or 'none'}")
 
 status = git("status", "--porcelain")
 record("tree-clean", status.strip() == "", status.strip()[:300] or "nothing left uncommitted")

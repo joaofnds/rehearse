@@ -164,7 +164,8 @@
 			"independent-not-fixed",
 			"independent-captured",
 			"decision-not-made",
-			"fix-does-not-widen",
+			"fix-file-defect-fixed",
+			"fix-file-defect-not-carded",
 			"tree-clean"
 		]
 	},
