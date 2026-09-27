@@ -67,10 +67,9 @@ describe(StructuredOutputStream.name, () => {
 			summary: "{not an item}",
 		});
 
-		const seen: number[] = [];
-		for (const line of [blockStart(0), ...chunked(output)]) {
+		// The output never closes, so each item is reported on its own close.
+		for (const line of [blockStart(0), ...chunked(output.slice(0, -1))]) {
 			stream.line(line);
-			seen.push(items.length);
 		}
 
 		expect(items).toEqual([
@@ -84,8 +83,6 @@ describe(StructuredOutputStream.name, () => {
 			},
 			{ section: "hardBlockers", item: { id: "b1", status: "PASS" } },
 		]);
-		expect(seen.indexOf(2)).toBeLessThan(seen.indexOf(3));
-		expect(seen.at(-1)).toBe(3);
 	});
 
 	it("ignores lines that are not structured output deltas", () => {

@@ -1240,6 +1240,36 @@ describe(runStageJudge.name, () => {
 			});
 		});
 
+		it("counts only the output the judge wrote last when it starts over within one attempt", async () => {
+			const progress: JudgeProgress[] = [];
+
+			await runStageJudge(
+				"sonnet",
+				undefined,
+				5,
+				stageJudgeInput("build"),
+				progressRubric,
+				(_prompt, onLine) => {
+					for (const line of [
+						...streamed({ dimensions: [graded("d1"), graded("d2")] }),
+						...streamed({ dimensions: [graded("d3")] }),
+					]) {
+						onLine(line);
+					}
+
+					return Promise.resolve(envelope(complete));
+				},
+				(reading) => {
+					progress.push(reading);
+				},
+			);
+
+			expect(progress.at(-1)).toMatchObject({
+				attempt: 1,
+				sections: { dimensions: { returned: 1, total: 3 } },
+			});
+		});
+
 		it("grades the stage when every progress report fails", async () => {
 			const scorecard = await runStageJudge(
 				"sonnet",
