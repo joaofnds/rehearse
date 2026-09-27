@@ -7,6 +7,7 @@ import type { RouterHistory } from "@tanstack/react-router";
 import { ComparisonPage } from "#client/comparison/comparison-page";
 import { ComparisonsPage } from "#client/comparison/comparisons-page";
 import { CorpusPage } from "#client/corpus/corpus-page";
+import { EvidenceSourcePage } from "#client/evidence/evidence-source-page";
 import { RunHistoryPage } from "#client/run-history/run-history-page";
 import { SessionHistoryPage } from "#client/session-history/session-history-page";
 import { AppShell } from "#client/shell/app-shell";
@@ -87,6 +88,40 @@ function StageHistoryRoute(): React.JSX.Element {
 	return <SessionHistoryPage identity={{ kind: "stage", ...params }} />;
 }
 
+const stageEvidenceRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/runs/$run/stages/$stage/evidence/$section/$item/$index",
+	component: StageEvidenceRoute,
+});
+
+function StageEvidenceRoute(): React.JSX.Element {
+	const params: {
+		readonly run: string;
+		readonly stage: string;
+		readonly section: string;
+		readonly item: string;
+		readonly index: string;
+	} = stageEvidenceRoute.useParams();
+
+	return <EvidenceSourcePage identity={{ kind: "stage", ...params }} />;
+}
+
+const finalEvidenceRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/runs/$run/final/evidence/$item/$index",
+	component: FinalEvidenceRoute,
+});
+
+function FinalEvidenceRoute(): React.JSX.Element {
+	const params: {
+		readonly run: string;
+		readonly item: string;
+		readonly index: string;
+	} = finalEvidenceRoute.useParams();
+
+	return <EvidenceSourcePage identity={{ kind: "final", ...params }} />;
+}
+
 const replayHistoryRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/replays/$lineage/$timestamp",
@@ -109,6 +144,8 @@ function ComparisonRoute(): React.JSX.Element {
 const routeTree = rootRoute.addChildren([
 	runHistoryRoute,
 	stageHistoryRoute,
+	stageEvidenceRoute,
+	finalEvidenceRoute,
 	replayHistoryRoute,
 	systemRoute,
 	corpusRoute,

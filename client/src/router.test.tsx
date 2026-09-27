@@ -285,6 +285,48 @@ describe(createAppRouter.name, () => {
 		).toBeInTheDocument();
 	});
 
+	it("opens a stage judge's evidence item at its source route", async () => {
+		const run = "2026-09-27T00-00-00.000Z";
+		renderAppWithStub(
+			`/runs/${run}/stages/build/evidence/requirements/scope/0`,
+			new Map<string, unknown>([
+				[
+					`/api/runs/${run}/stages/build/evidence/requirements/scope/0`,
+					{
+						record: `.benchmark-runs/${run}.build.json`,
+						source: "diff",
+						path: "src/app.ts",
+						claim: "the stage claim",
+						view: { kind: "absent" },
+					},
+				],
+			]),
+		);
+
+		expect(await screen.findByText("the stage claim")).toBeInTheDocument();
+	});
+
+	it("opens a final judge's evidence item at its source route", async () => {
+		const run = "2026-09-27T00-00-00.000Z";
+		renderAppWithStub(
+			`/runs/${run}/final/evidence/tests/1`,
+			new Map<string, unknown>([
+				[
+					`/api/runs/${run}/final/evidence/tests/1`,
+					{
+						record: `.benchmark-runs/${run}.json`,
+						source: "diff",
+						path: "src/app.ts",
+						claim: "the final claim",
+						view: { kind: "before-quoted-spans" },
+					},
+				],
+			]),
+		);
+
+		expect(await screen.findByText("the final claim")).toBeInTheDocument();
+	});
+
 	it("renders confirmation rep saved session history", async () => {
 		renderAppWithStub(
 			"/groups/group-a/reps/group-a-rep-1/attempt",

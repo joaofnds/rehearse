@@ -52,9 +52,15 @@ export type SourceView =
 	  }
 	| {
 			readonly kind: "harness";
-			readonly result: HarnessResult;
+			readonly result: "checkIntegrity" | "localChecks";
 			readonly recorded: boolean;
-			readonly value?: LocalCheckResult | string;
+			readonly value?: LocalCheckResult;
+	  }
+	| {
+			readonly kind: "harness";
+			readonly result: "harnessFailure";
+			readonly recorded: boolean;
+			readonly value?: string;
 	  }
 	| { readonly kind: "absent" }
 	| { readonly kind: "before-quoted-spans" };
@@ -80,8 +86,6 @@ export class EvidenceSourceError extends Error {
 	}
 }
 
-type HarnessResult = Extract<EvidenceLocator, { kind: "harness" }>["result"];
-
 interface RecordedSources {
 	readonly texts: (
 		source: RecordedStageEvidence["source"],
@@ -89,7 +93,11 @@ interface RecordedSources {
 	readonly diff: string | undefined;
 	readonly commitSubjects: readonly string[] | undefined;
 	readonly exchanges: readonly StageExchange[];
-	readonly harness: Partial<Record<HarnessResult, LocalCheckResult | string>>;
+	readonly harness: {
+		readonly checkIntegrity?: LocalCheckResult;
+		readonly localChecks?: LocalCheckResult;
+		readonly harnessFailure?: string;
+	};
 }
 
 interface JudgedItems {
@@ -243,6 +251,24 @@ function commitSubjectView(
 	);
 }
 
+function harnessView(
+	{ result, recorded }: Extract<EvidenceLocator, { kind: "harness" }>,
+	harness: RecordedSources["harness"],
+): SourceView {
+	if (result === "harnessFailure") {
+		const value = harness.harnessFailure;
+
+		return value === undefined
+			? { kind: "harness", result, recorded }
+			: { kind: "harness", result, recorded, value };
+	}
+	const value = harness[result];
+
+	return value === undefined
+		? { kind: "harness", result, recorded }
+		: { kind: "harness", result, recorded, value };
+}
+
 function sourceView(
 	evidence: RecordedStageEvidence,
 	sources: RecordedSources,
@@ -304,20 +330,7 @@ function sourceView(
 			);
 		}
 		case "harness": {
-			const value = sources.harness[locator.result];
-
-			return value === undefined
-				? {
-						kind: "harness",
-						result: locator.result,
-						recorded: locator.recorded,
-					}
-				: {
-						kind: "harness",
-						result: locator.result,
-						recorded: locator.recorded,
-						value,
-					};
+			return harnessView(locator, sources.harness);
 		}
 		case "absent": {
 			return { kind: "absent" };
