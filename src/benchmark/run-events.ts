@@ -81,6 +81,7 @@ export const judgeProgressSchema = z.discriminatedUnion("state", [
 ]);
 
 export type JudgeProgress = z.infer<typeof judgeProgressSchema>;
+export type JudgeSectionCount = z.infer<typeof sectionCountSchema>;
 
 interface RunEventFields {
 	readonly runId: string;

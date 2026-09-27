@@ -1,7 +1,12 @@
 import { describe, expect, it } from "bun:test";
 import { join } from "node:path";
 import { readClaudeEnvelope } from "./claude";
-import type { StageJudgeOutput, StageScorecard } from "./contracts";
+import type {
+	StageJudgeOutput,
+	StageJudgeResponse,
+	StageScorecard,
+} from "./contracts";
+import type { JudgeProgress } from "./run-events";
 import { StageValidationError } from "./contracts";
 import {
 	applyAuthoritativeStageResults,
@@ -1057,5 +1062,234 @@ describe(runStageJudge.name, () => {
 			),
 		).rejects.toThrow("Claude session failed");
 		expect(calls).toBe(1);
+	});
+
+	describe("judge progress", () => {
+		const progressRubric = {
+			rubricPath: "rubrics/build.json",
+			content: "{}",
+			rubric: {
+				hardBlockers: [
+					{ id: "b1", description: "Blocker one" },
+					{ id: "b2", description: "Blocker two" },
+				],
+				requirements: [{ id: "r1", description: "Requirement" }],
+				dimensions: [
+					{ id: "d1", description: "One", good: "g", excellent: "e" },
+					{ id: "d2", description: "Two", good: "g", excellent: "e" },
+					{ id: "d3", description: "Three", good: "g", excellent: "e" },
+				],
+			},
+		};
+		const cited: StageJudgeResponse["dimensions"][number]["evidence"][number] =
+			{
+				source: "task",
+				path: "backlog-seed.md",
+				claim: "grounded",
+				quote: "Task",
+			};
+		const grounded = [cited];
+		const pass = (id: string): StageJudgeResponse["hardBlockers"][number] => ({
+			id,
+			status: "PASS",
+			evidence: grounded,
+		});
+		const graded = (id: string): StageJudgeResponse["dimensions"][number] => ({
+			id,
+			grade: "A",
+			evidence: grounded,
+		});
+
+		function streamed(output: Partial<StageJudgeResponse>): string[] {
+			const json = JSON.stringify(output);
+			const deltas: string[] = [];
+			for (let start = 0; start < json.length; start += 5) {
+				deltas.push(
+					JSON.stringify({
+						type: "stream_event",
+						event: {
+							type: "content_block_delta",
+							index: 0,
+							delta: {
+								type: "input_json_delta",
+								partial_json: json.slice(start, start + 5),
+							},
+						},
+					}),
+				);
+			}
+
+			return [
+				JSON.stringify({
+					type: "stream_event",
+					event: {
+						type: "content_block_start",
+						index: 0,
+						content_block: {
+							type: "tool_use",
+							name: "StructuredOutput",
+							input: {},
+						},
+					},
+				}),
+				...deltas,
+			];
+		}
+
+		function envelope(output: Partial<StageJudgeResponse>): string {
+			return JSON.stringify({
+				type: "result",
+				session_id: "judge-session",
+				total_cost_usd: 0.1,
+				structured_output: output,
+			});
+		}
+
+		const complete = {
+			dimensions: [graded("d1"), graded("d2"), graded("d3")],
+			hardBlockers: [pass("b1"), pass("b2")],
+			requirements: [pass("r1")],
+			summary: "graded",
+		};
+
+		it("counts each item as it closes, per rubric section, before any grade exists", async () => {
+			const progress: JudgeProgress[] = [];
+			let beforeGrade: JudgeProgress | undefined;
+
+			const scorecard = await runStageJudge(
+				"sonnet",
+				undefined,
+				5,
+				stageJudgeInput("build"),
+				progressRubric,
+				(_prompt, onLine) => {
+					const partial = {
+						dimensions: [graded("d1"), graded("d2")],
+						hardBlockers: [pass("b1")],
+					};
+					for (const line of streamed(partial)) {
+						onLine(line);
+					}
+					beforeGrade = progress.at(-1);
+
+					return Promise.resolve(envelope(complete));
+				},
+				(reading) => {
+					progress.push(reading);
+				},
+			);
+
+			expect(progress[0]).toEqual({
+				state: "returning",
+				attempt: 1,
+				sections: {
+					hardBlockers: { returned: 0, total: 2 },
+					requirements: { returned: 0, total: 1 },
+					dimensions: { returned: 0, total: 3 },
+				},
+			});
+			expect(beforeGrade).toEqual({
+				state: "returning",
+				attempt: 1,
+				sections: {
+					hardBlockers: { returned: 1, total: 2 },
+					requirements: { returned: 0, total: 1 },
+					dimensions: { returned: 2, total: 3 },
+				},
+			});
+			expect(scorecard.grade.grade).toBe("A");
+		});
+
+		it("does not count an item that fails its own checks", async () => {
+			const progress: JudgeProgress[] = [];
+
+			await runStageJudge(
+				"sonnet",
+				undefined,
+				5,
+				stageJudgeInput("build"),
+				progressRubric,
+				(_prompt, onLine) => {
+					for (const line of streamed({
+						dimensions: [
+							graded("unknown"),
+							{
+								...graded("d1"),
+								evidence: [{ ...cited, path: "nowhere.md" }],
+							},
+							{
+								...graded("d2"),
+								evidence: [{ ...cited, quote: "absent" }],
+							},
+							graded("d3"),
+							graded("d3"),
+						],
+					})) {
+						onLine(line);
+					}
+
+					return Promise.resolve(envelope(complete));
+				},
+				(reading) => {
+					progress.push(reading);
+				},
+			);
+
+			expect(progress.at(-1)).toMatchObject({
+				sections: { dimensions: { returned: 1, total: 3 } },
+			});
+		});
+
+		it("withdraws a rejected attempt's progress and counts the next attempt from none", async () => {
+			const progress: JudgeProgress[] = [];
+			const outputs = [
+				{ ...complete, dimensions: [graded("d1"), graded("d2")] },
+				complete,
+			];
+
+			const scorecard = await runStageJudge(
+				"sonnet",
+				undefined,
+				5,
+				stageJudgeInput("build"),
+				progressRubric,
+				(_prompt, onLine) => {
+					const output = outputs.shift() ?? complete;
+					for (const line of streamed(output)) {
+						onLine(line);
+					}
+
+					return Promise.resolve(envelope(output));
+				},
+				(reading) => {
+					progress.push(reading);
+				},
+			);
+
+			const rejected = progress.findIndex(({ state }) => state === "rejected");
+			expect(progress[rejected]).toEqual({
+				state: "rejected",
+				attempt: 1,
+				reason:
+					"Stage Judge must return every quality dimensions item exactly once",
+			});
+			expect(progress[rejected - 1]).toMatchObject({
+				attempt: 1,
+				sections: { dimensions: { returned: 2, total: 3 } },
+			});
+			expect(progress[rejected + 1]).toMatchObject({
+				state: "returning",
+				attempt: 2,
+				sections: { dimensions: { returned: 0, total: 3 } },
+			});
+			expect(progress.at(-1)).toMatchObject({
+				attempt: 2,
+				sections: { dimensions: { returned: 3, total: 3 } },
+			});
+			expect(scorecard.attempts.map(({ outcome }) => outcome)).toEqual([
+				"REJECTED",
+				"ACCEPTED",
+			]);
+		});
 	});
 });
