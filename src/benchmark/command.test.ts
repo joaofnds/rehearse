@@ -1,5 +1,11 @@
 import { describe, expect, it } from "bun:test";
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { CommandError, killActiveCommands, runCommand } from "./command";
+import { TestResources } from "./test-support";
+
+const testResources = TestResources.forEachTest();
 
 async function pgrepMatches(pattern: string): Promise<string> {
 	try {
@@ -74,29 +80,33 @@ describe(runCommand.name, () => {
 	});
 
 	it("hands each output line to its reader while the command still runs, and returns the whole output", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "rehearse-command-"));
+		testResources.track(directory);
+		const gate = join(directory, "gate");
 		const lines: string[] = [];
-		const marker = `${process.pid}-${String(Date.now())}`;
+		const twoLines = Promise.withResolvers<undefined>();
 		const running = runCommand(
 			[
 				"sh",
 				"-c",
-				`printf 'one\\ntw'; sleep 0.2; printf 'o\\n'; while [ ! -e /tmp/rehearse-${marker} ]; do sleep 0.05; done; printf 'three'`,
+				`printf 'one\\ntw'; sleep 0.2; printf 'o\\n'; while [ ! -e "$0" ]; do sleep 0.05; done; printf 'three'`,
+				gate,
 			],
 			process.cwd(),
 			{
 				onLine: (line) => {
 					lines.push(line);
+					if (lines.length === 2) {
+						twoLines.resolve(undefined);
+					}
 				},
 			},
 		);
-		while (lines.length < 2) {
-			await Bun.sleep(25);
-		}
+		await twoLines.promise;
 		const beforeExit = [...lines];
-		await Bun.write(`/tmp/rehearse-${marker}`, "");
+		await Bun.write(gate, "");
 
 		const output = await running;
-		await Bun.file(`/tmp/rehearse-${marker}`).delete();
 
 		expect(beforeExit).toEqual(["one", "two"]);
 		expect(lines).toEqual(["one", "two", "three"]);
