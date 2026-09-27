@@ -1,4 +1,4 @@
-import type { z } from "zod";
+import { z } from "zod";
 import type { Effort } from "./config";
 import type { ClaudeCallMetrics, ClaudeEnvelope } from "./contracts";
 import {
@@ -23,6 +23,12 @@ export interface ClaudeInvocation {
 		| undefined;
 	readonly settingSources?: "project" | undefined;
 	readonly settingsOverlay?: string | undefined;
+	/**
+	 * `stream` writes each event as a line while the session runs, partial
+	 * structured output included, and ends on a result line shaped like the
+	 * `json` envelope. `readStreamResult` recovers that line.
+	 */
+	readonly output?: "json" | "stream" | undefined;
 }
 
 export function claudeArgs(invocation: ClaudeInvocation): string[] {
@@ -34,6 +40,7 @@ export function claudeArgs(invocation: ClaudeInvocation): string[] {
 		session,
 		settingSources,
 		settingsOverlay,
+		output,
 	} = invocation;
 
 	return [
@@ -48,7 +55,9 @@ export function claudeArgs(invocation: ClaudeInvocation): string[] {
 		"--max-budget-usd",
 		String(settings.budgetUsd),
 		"--output-format",
-		"json",
+		...(output === "stream"
+			? ["stream-json", "--verbose", "--include-partial-messages"]
+			: ["json"]),
 		"--json-schema",
 		claudeJsonSchema(schema),
 		...(access === "sealed"
@@ -82,6 +91,24 @@ export class ClaudeSessionError extends Error {
 		this.terminalReason = envelope.terminal_reason;
 		this.costUsd = envelope.total_cost_usd;
 	}
+}
+
+const streamLineSchema = z.looseObject({ type: z.string() });
+
+/** The result line a streamed session ends on. */
+export function readStreamResult(output: string): string {
+	const result = output.split("\n").findLast((line) => {
+		try {
+			return streamLineSchema.parse(JSON.parse(line)).type === "result";
+		} catch {
+			return false;
+		}
+	});
+	if (result === undefined) {
+		throw new Error("Claude stream ended without a result");
+	}
+
+	return result;
 }
 
 export function readClaudeEnvelope(output: string): ClaudeEnvelope {

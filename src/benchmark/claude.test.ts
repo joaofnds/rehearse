@@ -4,6 +4,7 @@ import {
 	claudeArgs,
 	readClaudeCallMetrics,
 	readClaudeEnvelope,
+	readStreamResult,
 	readStructuredOutput,
 } from "./claude";
 import type { ClaudeEnvelope } from "./contracts";
@@ -211,6 +212,24 @@ describe(claudeArgs.name, () => {
 			"--system-prompt",
 			"You are a judge.",
 			"--no-session-persistence",
+		]);
+	});
+
+	it("streams a session's output as it is written when asked to", () => {
+		const command = claudeArgs({
+			settings: { model: "sonnet", budgetUsd: 5 },
+			schema: judgeGradeSchema,
+			access: "sealed",
+			output: "stream",
+		});
+
+		const format = command.indexOf("--output-format");
+		expect(command.slice(format, format + 5)).toEqual([
+			"--output-format",
+			"stream-json",
+			"--verbose",
+			"--include-partial-messages",
+			"--json-schema",
 		]);
 	});
 
@@ -794,5 +813,29 @@ describe("per-model usage", () => {
 
 		expect(metrics).toBeDefined();
 		expect(metrics && "modelUsage" in metrics).toBe(false);
+	});
+});
+
+describe(readStreamResult.name, () => {
+	it("returns the result line of a streamed session, the json envelope's shape", () => {
+		const result = JSON.stringify({
+			type: "result",
+			total_cost_usd: 0.2,
+			structured_output: { answer: "ship it" },
+		});
+		const output = [
+			JSON.stringify({ type: "system", subtype: "init" }),
+			JSON.stringify({ type: "stream_event", event: { type: "message_stop" } }),
+			result,
+			"",
+		].join("\n");
+
+		expect(readStreamResult(output)).toBe(result);
+	});
+
+	it("rejects a stream that ended without a result", () => {
+		expect(() =>
+			readStreamResult(JSON.stringify({ type: "system", subtype: "init" })),
+		).toThrow("Claude stream ended without a result");
 	});
 });
