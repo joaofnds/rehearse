@@ -385,6 +385,19 @@ function stageEvidenceLocator(
  * quote its cited source does not hold rejects the output, since a claim must
  * be traceable to a source the operator can open.
  */
+/**
+ * The checks every judge item faces, whether it is counted as progress while
+ * the judge writes or accepted with the whole output.
+ */
+function checkedStageEvidence(
+	response: StageJudgeResponse,
+	input: StageJudgeInput,
+): StageJudgeOutput {
+	validateStageJudgeEvidence(response, input);
+
+	return locateStageEvidence(response, input);
+}
+
 export function locateStageEvidence(
 	response: StageJudgeResponse,
 	input: StageJudgeInput,
@@ -500,8 +513,7 @@ export async function runStageJudge(
 		invokeJudge,
 		source.rubric,
 		(partial) => {
-			validateStageJudgeEvidence(partial, input);
-			locateStageEvidence(partial, input);
+			checkedStageEvidence(partial, input);
 		},
 		onProgress ?? ((): void => undefined),
 	);
@@ -513,11 +525,9 @@ export async function runStageJudge(
 					envelope,
 					stageJudgeResponseSchema,
 				);
-				validateStageJudgeEvidence(response, input);
-
 				return deriveStageGrade(
 					applyAuthoritativeStageResults(
-						locateStageEvidence(response, input),
+						checkedStageEvidence(response, input),
 						input,
 					),
 					source.rubric,
