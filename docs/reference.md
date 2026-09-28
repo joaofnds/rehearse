@@ -535,13 +535,14 @@ sessions have broad tool access and skip permission prompts. Use a dedicated
 target whose services and schema already satisfy the case's declared checks.
 
 A stage session's call has no limit on how long it runs. It streams its events,
-and the harness kills it, with its whole process group, only after its output
-stays silent for 30 minutes, the silence limit. The run then fails with
-`Command wrote nothing for 1800000 ms, its silence limit, and was killed`,
-which tells a stalled call from one that crashed. Claude Code writes a progress
+and the harness's own timer kills it, with its whole process group, only after
+its stdout stays silent for 30 minutes while it still runs, the silence limit.
+The stage then fails with an error containing `Command wrote nothing for
+1800000 ms, its silence limit, and was killed`, which names silence rather
+than a crash. Claude Code 2.1.283, probed with a Bash tool, writes a progress
 line every 30 seconds during a foreground tool, so a long tool does not count
-as silence. A wait on a background sub-agent writes nothing, so a sub-agent
-running longer than the limit ends the call while it still works. The Product
+as silence. A wait on a background sub-agent writes nothing, so waiting on one
+for longer than the limit ends the call while it still works. The Product
 Owner and the Judges keep a 30-minute limit on elapsed time.
 
 A shared Product Owner session answers engineering questions using the task and

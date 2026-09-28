@@ -780,7 +780,7 @@ See [current state](docs/status.md) for implementation coverage and
   It encloses every stage elapsed time. Name accepted unattended as unsettled,
   pending the operator's confirmation (doc-152, decision 4).
 - **Silence limit**: the longest a stage's provider call may write nothing to
-  its output before the harness ends it, 30 minutes. A call that keeps writing
+  its stdout before the harness ends it, 30 minutes. A call that keeps writing
   runs as long as it needs. Name and length accepted unattended as unsettled,
   pending the operator's confirmation (ACT-347).
 - **Minimum grade** — the letter every stage of a run must reach for the run to
