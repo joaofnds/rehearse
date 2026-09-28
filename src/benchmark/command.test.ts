@@ -23,31 +23,33 @@ async function pgrepMatches(pattern: string): Promise<string> {
 
 describe(killActiveCommands.name, () => {
 	it("kills a running command's whole process group", async () => {
+		const sleeper = uniqueSleeper();
 		const running = (async () => {
 			try {
 				return await runCommand(
-					["sh", "-c", "sleep 987654 & wait"],
+					["sh", "-c", `${sleeper} & wait`],
 					process.cwd(),
 				);
 			} catch {
 				return "killed";
 			}
 		})();
-		while ((await pgrepMatches("sleep 987654")) === "") {
+		while ((await pgrepMatches(sleeper)) === "") {
 			await Bun.sleep(25);
 		}
 
 		await killActiveCommands();
 
 		expect(await running).toBe("killed");
-		expect(await pgrepMatches("sleep 987654")).toBe("");
+		expect(await pgrepMatches(sleeper)).toBe("");
 	});
 
 	it("kills the whole group when a command times out", async () => {
+		const sleeper = uniqueSleeper();
 		const running = (async () => {
 			try {
 				return await runCommand(
-					["sh", "-c", "sleep 987653 & wait"],
+					["sh", "-c", `${sleeper} & wait`],
 					process.cwd(),
 					{ timeoutMs: 250 },
 				);
@@ -57,14 +59,15 @@ describe(killActiveCommands.name, () => {
 		})();
 
 		expect(await running).toBe("killed");
-		expect(await pgrepMatches("sleep 987653")).toBe("");
+		expect(await pgrepMatches(sleeper)).toBe("");
 	});
 });
 
 describe(runCommand.name, () => {
 	it("kills the command when its line reader fails", async () => {
+		const sleeper = uniqueSleeper();
 		const failure = await runCommand(
-			["sh", "-c", "sleep 987652 & echo started; wait"],
+			["sh", "-c", `${sleeper} & echo started; wait`],
 			process.cwd(),
 			{
 				onLine: () => {
@@ -77,7 +80,7 @@ describe(runCommand.name, () => {
 		);
 
 		expect(failure).toBe("failed");
-		expect(await pgrepMatches("sleep 987652")).toBe("");
+		expect(await pgrepMatches(sleeper)).toBe("");
 	});
 
 	it("hands each output line to its reader while the command still runs, and returns the whole output", async () => {
