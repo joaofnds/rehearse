@@ -117,6 +117,7 @@ function renderShellAt(
 							(_unused, index) => sessionAttemptRow(`attempt-${index}`),
 						),
 					],
+					launches: [],
 					unreadable: [],
 				},
 			],
@@ -320,7 +321,7 @@ describe("the navigation shell", () => {
 	it("withholds the digest in words when a file refused hashing", async () => {
 		stubFetchByPath(
 			new Map<string, unknown>([
-				["/api/runs", { rows: [], unreadable: [] }],
+				["/api/runs", { rows: [], launches: [], unreadable: [] }],
 				[
 					"/api/corpus",
 					{
@@ -493,7 +494,7 @@ describe("the navigation shell", () => {
 		const digest = "e".repeat(64);
 		stubFetchByPath(
 			new Map<string, unknown>([
-				["/api/runs", { rows: [], unreadable: [] }],
+				["/api/runs", { rows: [], launches: [], unreadable: [] }],
 				[
 					"/api/corpus",
 					{ root: "/corpus", digest: "ffd58d", files: [], refusals: [] },

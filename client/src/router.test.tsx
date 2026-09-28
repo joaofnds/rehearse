@@ -69,7 +69,9 @@ describe(createAppRouter.name, () => {
 	it("renders run history at the root path, the landing screen", async () => {
 		renderAppWithStub(
 			"/",
-			new Map<string, unknown>([["/api/runs", { rows: [], unreadable: [] }]]),
+			new Map<string, unknown>([
+				["/api/runs", { rows: [], launches: [], unreadable: [] }],
+			]),
 		);
 
 		await waitFor(() => {
@@ -245,6 +247,7 @@ describe(createAppRouter.name, () => {
 								progress: { state: "recorded" },
 							},
 						],
+						launches: [],
 						unreadable: [],
 					},
 				],

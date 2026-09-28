@@ -1573,4 +1573,80 @@ describe(RunHistoryPage.name, () => {
 			"version not recorded",
 		);
 	});
+
+	describe("when a launch from the browser has not recorded anything yet", () => {
+		const launchedAt = "2026-09-29T10:00:00.000Z";
+
+		it("lists a started case as running, above the records", async () => {
+			respondingWith({
+				rows: [],
+				launches: [
+					{
+						kind: "launch",
+						id: "7b0c2d4e-0000-4000-8000-000000000000",
+						target: "case",
+						caseId: "audit-log",
+						run: undefined,
+						stage: undefined,
+						attempts: 3,
+						launchedAt,
+						status: "RUNNING",
+					},
+				],
+				unreadable: [],
+			});
+
+			renderPage();
+
+			await waitFor(() => {
+				expect(screen.getByText("launch 7b0c2d4e")).toBeInTheDocument();
+			});
+			expect(cellOf("launch 7b0c2d4e", "Case")).toHaveTextContent("audit-log");
+			expect(cellOf("launch 7b0c2d4e", "Case")).toHaveTextContent(
+				"group · 3 attempts",
+			);
+			expect(cellOf("launch 7b0c2d4e", "Outcome")).toHaveTextContent("running");
+			expect(screen.queryByText("No runs recorded")).not.toBeInTheDocument();
+		});
+
+		it("names the stage and run a started replay replays", async () => {
+			respondingWith({
+				rows: [],
+				launches: [
+					{
+						kind: "launch",
+						id: "9c1d3e5f-0000-4000-8000-000000000000",
+						target: "replay",
+						caseId: undefined,
+						run: "2026-09-06T21-58-29.508Z",
+						stage: "build",
+						attempts: 1,
+						launchedAt,
+						status: "RUNNING",
+					},
+				],
+				unreadable: [],
+			});
+
+			renderPage();
+
+			await waitFor(() => {
+				expect(screen.getByText("launch 9c1d3e5f")).toBeInTheDocument();
+			});
+			expect(cellOf("launch 9c1d3e5f", "Case")).toHaveTextContent(
+				"replay build · 2026-09-06T21-58-29.508Z",
+			);
+		});
+	});
+
+	it("opens the launch dialog from New run", async () => {
+		respondingWith({ rows: [], launches: [], unreadable: [] });
+		renderPage();
+
+		fireEvent.click(await screen.findByRole("button", { name: "New run" }));
+
+		expect(
+			await screen.findByRole("dialog", { name: "Start a run" }),
+		).toBeInTheDocument();
+	});
 });

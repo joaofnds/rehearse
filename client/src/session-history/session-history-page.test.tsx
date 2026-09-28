@@ -1231,6 +1231,38 @@ describe(SessionHistoryPage.name, () => {
 
 		expect(alert).toHaveTextContent("Could not load saved history.");
 	});
+
+	it("opens the replay dialog for the stage from Replay from here", async () => {
+		stubFetchByPath(new Map());
+		const client = new QueryClient({
+			defaultOptions: { queries: { retry: false } },
+		});
+		render(
+			<QueryClientProvider client={client}>
+				<SessionHistoryPage
+					identity={{ kind: "stage", run: "run-1", stage: "shape" }}
+				/>
+			</QueryClientProvider>,
+		);
+
+		fireEvent.click(
+			await screen.findByRole("button", { name: "Replay from here" }),
+		);
+
+		expect(
+			await screen.findByRole("dialog", {
+				name: "Replay shape from checkpoint",
+			}),
+		).toBeInTheDocument();
+	});
+
+	it("offers no replay on a page that is not a stage", () => {
+		renderStandalonePage();
+
+		expect(
+			screen.queryByRole("button", { name: "Replay from here" }),
+		).not.toBeInTheDocument();
+	});
 });
 
 const textOnlyReply: SessionHistoryRequestEntry = {

@@ -22,6 +22,7 @@ import { plural } from "#client/plural";
 import { ScreenHeader } from "#client/system/components/screen-header";
 import { SectionLabel } from "#client/system/components/section-label";
 import { Notice } from "#client/system/components/notice";
+import { LaunchDialog } from "#client/launch/launch-dialog";
 
 type HistoryRow = RunHistoryResponse["rows"][number];
 type RunHistoryRow = Extract<HistoryRow, { readonly kind: "run" }>;
@@ -31,6 +32,7 @@ function pipelineRuns(rows: readonly HistoryRow[]): readonly RunHistoryRow[] {
 	return rows.filter((row): row is RunHistoryRow => row.kind === "run");
 }
 type UnreadableRecord = RunHistoryResponse["unreadable"][number];
+type LaunchRow = RunHistoryResponse["launches"][number];
 
 const COLUMNS = [
 	"Run",
@@ -515,11 +517,46 @@ function FilterBar({
 	);
 }
 
+function launchAttemptsLine(attempts: number): string {
+	return attempts === 1 ? "one run" : `group · ${String(attempts)} attempts`;
+}
+
+/**
+ * A launch the browser started, listed until its first record replaces it. It
+ * has no record yet, so it has no id, grade or corpus judgment to show.
+ */
+function launchCells(launch: LaunchRow): readonly React.JSX.Element[] {
+	const target =
+		launch.target === "case"
+			? (launch.caseId ?? "")
+			: `replay ${launch.stage ?? ""} · ${launch.run ?? ""}`;
+
+	return [
+		<span key="run" className="font-mono text-sm">
+			{`launch ${launch.id.slice(0, 8)}`}
+		</span>,
+		<span key="case" className="flex flex-col items-start gap-0.5">
+			<span className="font-mono text-sm">{target}</span>
+			<span className="text-xs text-dim">
+				{launchAttemptsLine(launch.attempts)}
+			</span>
+		</span>,
+		<span key="outcome" className="flex flex-col gap-0.5">
+			<Status state="running" />
+			<span className="text-xs text-dim">started from the browser</span>
+		</span>,
+		<span key="progress" />,
+		<span key="grade" />,
+		<span key="corpus" />,
+	];
+}
+
 export function RunHistoryPage(): React.JSX.Element {
 	const [filter, setFilter] = useState<Filter>("All");
 	const query = useQuery({
 		...runHistoryQuery,
 		refetchInterval: ({ state }) =>
+			(state.data?.launches.length ?? 0) > 0 ||
 			pipelineRuns(state.data?.rows ?? []).some(
 				(row) => row.progress.state === "running",
 			)
@@ -530,6 +567,7 @@ export function RunHistoryPage(): React.JSX.Element {
 	const unreadable = query.data?.unreadable ?? [];
 	const recorded = query.data?.rows ?? [];
 	const rows = recorded.filter((row) => matchesFilter(row, filter));
+	const launches = filter === "All" ? (query.data?.launches ?? []) : [];
 	const onlyUnreadableRecords = recorded.length === 0 && unreadable.length > 0;
 	const nowMs = useNow(
 		pipelineRuns(recorded).some((row) => row.progress.state === "running"),
@@ -543,6 +581,9 @@ export function RunHistoryPage(): React.JSX.Element {
 					query.isSuccess
 						? `${plural(recorded.length, "record")} on disk · every pipeline run names the corpus version that produced it`
 						: undefined
+				}
+				aside={
+					<LaunchDialog target={{ kind: "case" }} triggerLabel="New run" />
 				}
 			/>
 
@@ -567,7 +608,10 @@ export function RunHistoryPage(): React.JSX.Element {
 					<UnreadableRecords records={unreadable} />
 				) : null}
 
-				{query.isSuccess && rows.length === 0 && !onlyUnreadableRecords ? (
+				{query.isSuccess &&
+				rows.length === 0 &&
+				launches.length === 0 &&
+				!onlyUnreadableRecords ? (
 					<EmptyState heading="No runs recorded">
 						<p>
 							The corpus is linked and a spend limit is set. Declare a case,
@@ -577,19 +621,22 @@ export function RunHistoryPage(): React.JSX.Element {
 					</EmptyState>
 				) : null}
 
-				{rows.length > 0 ? (
+				{rows.length > 0 || launches.length > 0 ? (
 					<>
 						<TableShell
 							caption="DURABLE RECORDS"
 							columns={[...COLUMNS]}
-							rows={rows.map((row) => [
-								<span key="run">{runCell(row)}</span>,
-								<span key="case">{caseCell(row)}</span>,
-								outcomeCell(row),
-								row.kind === "run" ? progressCell(row, nowMs) : <span />,
-								gradeCell(row),
-								corpusCell(row),
-							])}
+							rows={[
+								...launches.map((launch) => launchCells(launch)),
+								...rows.map((row) => [
+									<span key="run">{runCell(row)}</span>,
+									<span key="case">{caseCell(row)}</span>,
+									outcomeCell(row),
+									row.kind === "run" ? progressCell(row, nowMs) : <span />,
+									gradeCell(row),
+									corpusCell(row),
+								]),
+							]}
 						/>
 						<p className="max-w-prose text-sm text-dim">
 							A stopped run is a recorded outcome, not an error: the step that

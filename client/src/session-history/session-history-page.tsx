@@ -17,6 +17,7 @@ import {
 	requestRowId,
 } from "./request-timeline";
 import { cn } from "cn";
+import { LaunchDialog } from "#client/launch/launch-dialog";
 import { ScreenHeader } from "#client/system/components/screen-header";
 import { SectionLabel } from "#client/system/components/section-label";
 import { PaneHeading } from "./pane-heading";
@@ -990,6 +991,30 @@ function RequestTimelinePane({
 	);
 }
 
+/** A stage page also offers its stage for replay (SPEC.md:355). */
+function PageLead({
+	identity,
+}: {
+	readonly identity: SessionHistoryIdentity;
+}): React.JSX.Element {
+	return (
+		<span className="flex flex-wrap items-center gap-4">
+			<a
+				href="/"
+				className="text-sm text-muted-foreground hover:text-foreground"
+			>
+				← Back to run history
+			</a>
+			{identity.kind === "stage" ? (
+				<LaunchDialog
+					target={{ kind: "replay", run: identity.run, stage: identity.stage }}
+					triggerLabel="Replay from here"
+				/>
+			) : null}
+		</span>
+	);
+}
+
 export function SessionHistoryPage({
 	identity,
 }: {
@@ -1072,14 +1097,7 @@ export function SessionHistoryPage({
 			<ScreenHeader
 				title="Saved context history"
 				eyebrow="Attempt evidence"
-				lead={
-					<a
-						href="/"
-						className="text-sm text-muted-foreground hover:text-foreground"
-					>
-						← Back to run history
-					</a>
-				}
+				lead={<PageLead identity={identity} />}
 				aside={
 					summary.data === undefined ? undefined : (
 						<dl className="flex flex-wrap gap-x-5 gap-y-2">
