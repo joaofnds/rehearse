@@ -149,6 +149,8 @@ interface DiffLine {
 interface DiffHunk {
 	readonly file: string;
 	readonly header: string;
+	/** The file's own header lines, before its first hunk only. */
+	readonly fileHeader: readonly DiffLine[];
 	readonly headerLine: DiffLine;
 	readonly lines: readonly DiffLine[];
 }
@@ -177,11 +179,13 @@ function diffHunks(diff: string): DiffHunk[] {
 	const hunks: {
 		file: string;
 		header: string;
+		fileHeader: DiffLine[];
 		headerLine: DiffLine;
 		lines: DiffLine[];
 	}[] = [];
 	let removed = "";
 	let file = "";
+	let fileHeader: DiffLine[] = [];
 	let current: (typeof hunks)[number] | undefined;
 	let offset = 0;
 	for (const line of diff.split("\n")) {
@@ -189,15 +193,14 @@ function diffHunks(diff: string): DiffHunk[] {
 		offset += line.length + 1;
 		if (line.startsWith("diff --git ")) {
 			current = undefined;
+			fileHeader = [{ text: line, offset: start }];
 			continue;
 		}
 		if (current === undefined && line.startsWith("--- ")) {
 			removed = diffFileName(line);
-			continue;
 		}
 		if (current === undefined && line.startsWith("+++ ")) {
 			file = line === "+++ /dev/null" ? removed : diffFileName(line);
-			continue;
 		}
 
 		const header = HUNK_HEADER.exec(line)?.[0];
@@ -205,13 +208,19 @@ function diffHunks(diff: string): DiffHunk[] {
 			current = {
 				file,
 				header,
+				fileHeader,
 				headerLine: { text: line, offset: start },
 				lines: [],
 			};
 			hunks.push(current);
+			fileHeader = [];
 			continue;
 		}
-		current?.lines.push({ text: line, offset: start });
+		if (current === undefined) {
+			fileHeader.push({ text: line, offset: start });
+		} else {
+			current.lines.push({ text: line, offset: start });
+		}
 	}
 
 	return hunks;
@@ -223,21 +232,33 @@ function hunksByFile(
 ): DiffHunk[][] {
 	const files = new Map<string, DiffHunk[]>();
 	for (const hunk of diffHunks(diff)) {
-		if (cites(hunk.file)) {
-			files.set(hunk.file, [...(files.get(hunk.file) ?? []), hunk]);
+		if (!cites(hunk.file)) {
+			continue;
+		}
+
+		const hunks = files.get(hunk.file);
+		if (hunks === undefined) {
+			files.set(hunk.file, [hunk]);
+		} else {
+			hunks.push(hunk);
 		}
 	}
 
 	return [...files.values()];
 }
 
-/** A file's hunks read in order, each header line whole and each body line past its prefix. */
+/**
+ * A file's diff read in order: its header lines and each hunk header whole,
+ * and each hunk body line past its prefix. A hunk starts at its first line,
+ * so the first hunk takes in the file's header lines.
+ */
 function fileText(hunks: readonly DiffHunk[], prefixLength: number): FileText {
 	let text = "";
 	const offsets: number[] = [];
 	const hunkStarts: number[] = [];
 	for (const hunk of hunks) {
-		for (const [index, line] of [hunk.headerLine, ...hunk.lines].entries()) {
+		const whole = [...hunk.fileHeader, hunk.headerLine];
+		for (const [index, line] of [...whole, ...hunk.lines].entries()) {
 			if (hunkStarts.length > 0 || index > 0) {
 				text += "\n";
 				offsets.push(line.offset - 1);
@@ -246,7 +267,8 @@ function fileText(hunks: readonly DiffHunk[], prefixLength: number): FileText {
 				hunkStarts.push(text.length);
 			}
 
-			const kept = index === 0 ? line.text : line.text.slice(prefixLength);
+			const kept =
+				index < whole.length ? line.text : line.text.slice(prefixLength);
 			const skipped = line.text.length - kept.length;
 			text += kept;
 			for (let column = 0; column < kept.length; column += 1) {
@@ -282,6 +304,7 @@ export function locateInDiff(
 			if (located === undefined) {
 				return [];
 			}
+
 			const hunk =
 				hunks[hunkStarts.findLastIndex((start) => start <= located.start)];
 

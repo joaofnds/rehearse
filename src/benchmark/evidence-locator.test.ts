@@ -177,6 +177,21 @@ describe(locateInDiff.name, () => {
 		});
 	});
 
+	it("names the first hunk of a quote that starts in the file's header lines", () => {
+		const locator = locateInDiff(
+			"+++ b/src/app.ts\n@@ -1,2 +1,3 @@ export class App {",
+			DIFF,
+			everyFile,
+		);
+
+		expect(locator).toEqual({
+			kind: "hunk",
+			file: "src/app.ts",
+			hunk: "@@ -1,2 +1,3 @@",
+			occurrences: 1,
+		});
+	});
+
 	it("searches only the files the citation names", () => {
 		const locator = locateInDiff(
 			"export const old = 1;",
@@ -221,6 +236,18 @@ describe(spanInDiff.name, () => {
 
 		expect(DIFF.slice(span?.start, span?.end)).toBe(
 			"export class App {}\n@@ -30,1 +31,2 @@\n \tmodules,",
+		);
+	});
+
+	it("gives the range of a quote that starts in the file's header lines", () => {
+		const span = spanInDiff(
+			"deleted file mode 100644\n--- a/src/old.ts",
+			DIFF,
+			{ file: "src/old.ts", hunk: "@@ -1 +0,0 @@" },
+		);
+
+		expect(DIFF.slice(span?.start, span?.end)).toBe(
+			"deleted file mode 100644\n--- a/src/old.ts",
 		);
 	});
 
