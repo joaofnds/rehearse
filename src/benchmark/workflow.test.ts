@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import { STAGE_SILENCE_LIMIT_MS } from "./config";
 import type { ProductOwner } from "./workflow";
 import {
 	createProductOwner,
@@ -138,6 +139,7 @@ describe("workflow provider metrics", () => {
 	it("retains every worker call and provider turn", async () => {
 		const responses = [
 			JSON.stringify({
+				type: "result",
 				session_id: "worker-session",
 				total_cost_usd: 0.3,
 				num_turns: 2,
@@ -150,6 +152,7 @@ describe("workflow provider metrics", () => {
 				structured_output: { status: "QUESTION", message: "Which scope?" },
 			}),
 			JSON.stringify({
+				type: "result",
 				session_id: "worker-session",
 				total_cost_usd: 0.4,
 				structured_output: { status: "COMPLETE", message: "Shaped" },
@@ -196,6 +199,7 @@ describe("workflow provider metrics", () => {
 	it("charges a resumed worker call only its increase over the session's reported total", async () => {
 		const responses = [
 			JSON.stringify({
+				type: "result",
 				session_id: "worker-session",
 				total_cost_usd: 12.4,
 				num_turns: 47,
@@ -208,6 +212,7 @@ describe("workflow provider metrics", () => {
 				structured_output: { status: "QUESTION", message: "Which scope?" },
 			}),
 			JSON.stringify({
+				type: "result",
 				session_id: "worker-session",
 				total_cost_usd: 12.6,
 				num_turns: 7,
@@ -252,11 +257,13 @@ describe("workflow provider metrics", () => {
 	it("records a turn-completed run event for every provider turn, with the running spend", async () => {
 		const responses = [
 			JSON.stringify({
+				type: "result",
 				session_id: "worker-session",
 				total_cost_usd: 0.3,
 				structured_output: { status: "QUESTION", message: "Which scope?" },
 			}),
 			JSON.stringify({
+				type: "result",
 				session_id: "worker-session",
 				total_cost_usd: 0.4,
 				structured_output: { status: "COMPLETE", message: "Shaped" },
@@ -303,6 +310,61 @@ describe("workflow provider metrics", () => {
 		]);
 	});
 
+	it("streams the stage call under a silence limit alone and reads its result line", async () => {
+		const calls: {
+			readonly command: readonly string[];
+			readonly options: object;
+		}[] = [];
+		const productOwner: ProductOwner = {
+			ask: () => Promise.resolve("Use the small scope"),
+			snapshot: () => ({
+				sessionId: "po-session",
+				spentUsd: 0,
+				providerCalls: [],
+			}),
+		};
+
+		const transcript = await runWorkflowStage(
+			{
+				targetDir: "/target",
+				model: "sonnet",
+				effort: undefined,
+				sessionBudgetUsd: 5,
+				productOwner,
+				taskId: "ACT-347",
+				stage: "build",
+				skill: "build",
+			},
+			(command, _directory, options) => {
+				calls.push({ command, options });
+
+				return Promise.resolve(
+					[
+						JSON.stringify({ type: "system", subtype: "init" }),
+						JSON.stringify({ type: "tool_progress" }),
+						JSON.stringify({
+							type: "result",
+							session_id: "worker-session",
+							total_cost_usd: 0.4,
+							structured_output: { status: "COMPLETE", message: "Built" },
+						}),
+						"",
+					].join("\n"),
+				);
+			},
+		);
+
+		const [call] = calls;
+		expect(call?.command).toContain("stream-json");
+		expect(call?.command).not.toContain("--include-partial-messages");
+		expect(call?.options).toEqual({ silenceLimitMs: STAGE_SILENCE_LIMIT_MS });
+		expect(transcript).toMatchObject({
+			sessionId: "worker-session",
+			costUsd: 0.4,
+			exchanges: [{ agent: { status: "COMPLETE", message: "Built" } }],
+		});
+	});
+
 	it("restricts a stage session to project-level settings when asked", async () => {
 		const commands: string[][] = [];
 		const productOwner: ProductOwner = {
@@ -331,6 +393,7 @@ describe("workflow provider metrics", () => {
 
 				return Promise.resolve(
 					JSON.stringify({
+						type: "result",
 						session_id: "worker-session",
 						structured_output: { status: "COMPLETE", message: "Shaped" },
 					}),
@@ -368,6 +431,7 @@ describe("workflow provider metrics", () => {
 
 				return Promise.resolve(
 					JSON.stringify({
+						type: "result",
 						session_id: "worker-session",
 						structured_output: { status: "COMPLETE", message: "Shaped" },
 					}),
@@ -406,6 +470,7 @@ describe("workflow provider metrics", () => {
 
 				return Promise.resolve(
 					JSON.stringify({
+						type: "result",
 						session_id: "worker-session",
 						structured_output: { status: "COMPLETE", message: "Shaped" },
 					}),
@@ -428,6 +493,7 @@ describe("workflow provider metrics", () => {
 		{
 			boundary: "structured output decoding",
 			laterResponse: JSON.stringify({
+				type: "result",
 				session_id: "worker-session",
 				structured_output: { status: "COMPLETE" },
 			}),
@@ -445,6 +511,7 @@ describe("workflow provider metrics", () => {
 			};
 			const responses: (string | Error)[] = [
 				JSON.stringify({
+					type: "result",
 					session_id: "worker-session",
 					total_cost_usd: firstCall.costUsd,
 					num_turns: firstCall.turns,
@@ -506,6 +573,7 @@ describe("workflow provider metrics", () => {
 	it("does not classify budget exhaustion as a failed provider call", async () => {
 		const responses = [
 			JSON.stringify({
+				type: "result",
 				session_id: "worker-session",
 				total_cost_usd: 5,
 				structured_output: { status: "QUESTION", message: "Which scope?" },

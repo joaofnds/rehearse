@@ -27,9 +27,23 @@ export interface ClaudeInvocation {
 	/**
 	 * `stream` writes each event as a line while the session runs, partial
 	 * structured output included, and ends on a result line shaped like the
-	 * `json` envelope. `readStreamResult` recovers that line.
+	 * `json` envelope. `readStreamResult` recovers that line. `events` writes
+	 * the same lines without the partial messages, which still reports progress
+	 * during a long tool call while keeping the held output small.
 	 */
-	readonly output?: "json" | "stream" | undefined;
+	readonly output?: "json" | "stream" | "events" | undefined;
+}
+
+function outputFormat(output: ClaudeInvocation["output"]): string[] {
+	if (output === "stream") {
+		return ["stream-json", "--verbose", "--include-partial-messages"];
+	}
+
+	if (output === "events") {
+		return ["stream-json", "--verbose"];
+	}
+
+	return ["json"];
 }
 
 export function claudeArgs(invocation: ClaudeInvocation): string[] {
@@ -56,9 +70,7 @@ export function claudeArgs(invocation: ClaudeInvocation): string[] {
 		"--max-budget-usd",
 		String(settings.budgetUsd),
 		"--output-format",
-		...(output === "stream"
-			? ["stream-json", "--verbose", "--include-partial-messages"]
-			: ["json"]),
+		...outputFormat(output),
 		"--json-schema",
 		claudeJsonSchema(schema),
 		...(access === "sealed"

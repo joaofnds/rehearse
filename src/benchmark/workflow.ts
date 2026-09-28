@@ -3,11 +3,17 @@ import {
 	claudeArgs,
 	readClaudeCallMetrics,
 	readClaudeEnvelope,
+	readStreamResult,
 	readStructuredOutput,
+	runStreamedSession,
 } from "./claude";
 import { runCommand } from "./command";
 import type { Effort, WorkflowStage } from "./config";
-import { CLAUDE_TIMEOUT_MS, MAX_STAGE_TURNS } from "./config";
+import {
+	CLAUDE_TIMEOUT_MS,
+	MAX_STAGE_TURNS,
+	STAGE_SILENCE_LIMIT_MS,
+} from "./config";
 import type {
 	ClaudeEnvelope,
 	ProviderCall,
@@ -39,7 +45,7 @@ export interface ProductOwnerConfiguration {
 export type ClaudeCommand = (
 	command: readonly string[],
 	directory: string,
-	options: { readonly timeoutMs: number },
+	options: { readonly timeoutMs: number } | { readonly silenceLimitMs: number },
 ) => Promise<string>;
 
 export interface WorkflowStageRequest {
@@ -188,7 +194,7 @@ export function createProductOwner(
 
 export async function runWorkflowStage(
 	request: WorkflowStageRequest,
-	runClaude: ClaudeCommand = runCommand,
+	runClaude: ClaudeCommand = runStreamedSession,
 ): Promise<StageTranscript> {
 	const {
 		targetDir,
@@ -228,13 +234,14 @@ export async function runWorkflowStage(
 						session: { id: sessionId, resume: turn > 0 },
 						settingSources,
 						settingsOverlay,
+						output: "events",
 					}),
 					prompt,
 				],
 				targetDir,
-				{ timeoutMs: CLAUDE_TIMEOUT_MS },
+				{ silenceLimitMs: STAGE_SILENCE_LIMIT_MS },
 			);
-			envelope = readClaudeEnvelope(output);
+			envelope = readClaudeEnvelope(readStreamResult(output));
 			agent = readStructuredOutput(envelope, stageTurnSchema);
 		} catch (error) {
 			throw new WorkflowExecutionError({
