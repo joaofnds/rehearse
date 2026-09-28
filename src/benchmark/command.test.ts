@@ -3,6 +3,7 @@ import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CommandError, killActiveCommands, runCommand } from "./command";
+import { CommandSilenceError } from "./command-silence-error";
 import { TestResources } from "./test-support";
 
 const testResources = TestResources.forEachTest();
@@ -112,4 +113,54 @@ describe(runCommand.name, () => {
 		expect(lines).toEqual(["one", "two", "three"]);
 		expect(output).toBe("one\ntwo\nthree");
 	});
+
+	describe("with a silence limit", () => {
+		it("lets a command that keeps writing run past the limit and returns its whole output", async () => {
+			const output = await runCommand(
+				[
+					"sh",
+					"-c",
+					"for i in 1 2 3 4 5 6 7 8 9 10 11 12; do echo $i; sleep 0.05; done",
+				],
+				process.cwd(),
+				{ silenceLimitMs: 200 },
+			);
+
+			expect(output).toBe("1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n");
+		});
+
+		it("kills a silent command's whole process group and names the silence", async () => {
+			const sleeper = uniqueSleeper();
+			const startedAt = Date.now();
+
+			try {
+				const running = runCommand(
+					["sh", "-c", `echo started; ${sleeper} & wait`],
+					process.cwd(),
+					{ silenceLimitMs: 200 },
+				);
+
+				expect(running).rejects.toBeInstanceOf(CommandSilenceError);
+				expect(running).rejects.toThrow("wrote nothing for 200 ms");
+				expect(Date.now() - startedAt).toBeLessThan(1500);
+				expect(await pgrepMatches(sleeper)).toBe("");
+			} finally {
+				await runCommand(["pkill", "-f", sleeper], process.cwd()).catch(
+					() => undefined,
+				);
+			}
+		});
+	});
 });
+
+let sleepers = 0;
+
+/**
+ * A sleep command no other test run spawns, so a sleeper leaked by one failed
+ * run cannot fail the process check of another.
+ */
+function uniqueSleeper(): string {
+	sleepers += 1;
+
+	return `sleep ${process.pid}${sleepers}${Date.now() % 1000}`;
+}

@@ -1,12 +1,23 @@
+import { CommandSilenceError } from "./command-silence-error";
 import { COMMAND_TIMEOUT_MS } from "./config";
 
-interface CommandOptions {
+/**
+ * A command ends at its wall limit, `timeoutMs` or the default, or, when given
+ * a silence limit instead, only once its stdout stays silent that long.
+ */
+type CommandLimit =
+	| {
+			readonly timeoutMs?: number | undefined;
+			readonly silenceLimitMs?: undefined;
+	  }
+	| { readonly silenceLimitMs: number; readonly timeoutMs?: undefined };
+
+type CommandOptions = CommandLimit & {
 	readonly env?: Readonly<Record<string, string>> | undefined;
 	readonly input?: string | undefined;
-	readonly timeoutMs?: number | undefined;
 	/** Called with each stdout line as it arrives, the last one unterminated. */
 	readonly onLine?: ((line: string) => void) | undefined;
-}
+};
 
 export class CommandError extends Error {
 	public override name = "CommandError";
@@ -23,26 +34,35 @@ export class CommandError extends Error {
 	}
 }
 
-/** The whole stream as text, handing each line to `onLine` on the way. */
+interface OutputReader {
+	readonly onChunk: () => void;
+	readonly onLine?: ((line: string) => void) | undefined;
+}
+
+/**
+ * The whole stream as text, telling `onChunk` each time a chunk arrives and
+ * handing each line to `onLine` on the way.
+ */
 async function readLines(
 	stream: ReadableStream<Uint8Array>,
-	onLine: (line: string) => void,
+	reader: OutputReader,
 ): Promise<string> {
 	const decoder = new TextDecoder();
 	let text = "";
 	let lineStart = 0;
 	for await (const chunk of stream) {
+		reader.onChunk();
 		text += decoder.decode(chunk, { stream: true });
 		let lineEnd = text.indexOf("\n", lineStart);
 		while (lineEnd !== -1) {
-			onLine(text.slice(lineStart, lineEnd));
+			reader.onLine?.(text.slice(lineStart, lineEnd));
 			lineStart = lineEnd + 1;
 			lineEnd = text.indexOf("\n", lineStart);
 		}
 	}
 	text += decoder.decode();
 	if (lineStart < text.length) {
-		onLine(text.slice(lineStart));
+		reader.onLine?.(text.slice(lineStart));
 	}
 
 	return text;
@@ -74,10 +94,10 @@ interface ReadableProcess extends KillableProcess {
  */
 async function readLinesOrKill(
 	child: ReadableProcess,
-	onLine: (line: string) => void,
+	reader: OutputReader,
 ): Promise<string> {
 	try {
-		return await readLines(child.stdout, onLine);
+		return await readLines(child.stdout, reader);
 	} catch (error) {
 		killProcessGroup(child);
 		await child.exited;
@@ -99,18 +119,32 @@ export async function runCommand(
 		detached: true,
 	});
 	activeProcesses.add(child);
-	const timeout = setTimeout(() => {
-		killProcessGroup(child);
-	}, options.timeoutMs ?? COMMAND_TIMEOUT_MS);
+	let silenced = false;
+	const timeout = setTimeout(
+		() => {
+			silenced = options.silenceLimitMs !== undefined;
+			killProcessGroup(child);
+		},
+		options.silenceLimitMs ?? options.timeoutMs ?? COMMAND_TIMEOUT_MS,
+	);
 
 	try {
 		const [exitCode, stdout, stderr] = await Promise.all([
 			child.exited,
-			options.onLine === undefined
-				? new Response(child.stdout).text()
-				: readLinesOrKill(child, options.onLine),
+			readLinesOrKill(child, {
+				onChunk: () => {
+					if (options.silenceLimitMs !== undefined) {
+						timeout.refresh();
+					}
+				},
+				onLine: options.onLine,
+			}),
 			new Response(child.stderr).text(),
 		]);
+
+		if (silenced && options.silenceLimitMs !== undefined) {
+			throw new CommandSilenceError(command, options.silenceLimitMs);
+		}
 
 		if (exitCode !== 0) {
 			throw new CommandError(command, exitCode, stdout, stderr);
