@@ -78,7 +78,11 @@ import type {
 	TargetCheck,
 	TargetDefinition,
 } from "./pipeline";
-import type { CeilingStop, PendingStage } from "./run-abort";
+import type {
+	CeilingStop,
+	CeilingStopReadings,
+	PendingStage,
+} from "./run-abort";
 import { createRunAbort, fileRunArtifactPersistence } from "./run-abort";
 import { corpusSourceDirectories, recordStageReads } from "./stage-reads";
 import type { RunEventRecorder } from "./run-events";
@@ -756,24 +760,46 @@ function stageElapsedMs(
 	return runElapsedMs() - stageStartedAtMs;
 }
 
+/** A refusal names the ceiling that refused, which for a rep may be its group's. */
+function ceilingReadings(
+	refusal: Readonly<SpendCeilingReachedError> | undefined,
+	spendCeiling: SpendCeiling,
+): CeilingStopReadings | undefined {
+	if (refusal !== undefined) {
+		return { ceilingUsd: refusal.ceilingUsd, spentUsd: refusal.spentUsd };
+	}
+
+	const spentUsd = spendCeiling.spentUsd();
+
+	return spentUsd >= spendCeiling.ceilingUsd
+		? { ceilingUsd: spendCeiling.ceilingUsd, spentUsd }
+		: undefined;
+}
+
 /**
  * A paid call the ceiling refuses stops the run in the stage that made it,
  * so the stop is recorded against that stage before the refusal propagates.
+ * A call that fails after spending to the ceiling stops it the same way,
+ * since its budget was what the ceiling had left: a provider halts such a
+ * call at that budget rather than returning a result.
  */
 async function stoppingAtCeiling<Result>(
-	context: Pick<StageContext, "stageFile" | "stopAtCeiling">,
+	context: Pick<StageContext, "spendCeiling" | "stageFile" | "stopAtCeiling">,
 	stage: string,
 	paid: () => Promise<Result>,
 ): Promise<Result> {
 	try {
 		return await paid();
 	} catch (error) {
-		if (error instanceof SpendCeilingReachedError) {
+		const readings = ceilingReadings(
+			error instanceof SpendCeilingReachedError ? error : undefined,
+			context.spendCeiling,
+		);
+		if (readings !== undefined) {
 			context.stopAtCeiling({
 				file: context.stageFile(stage),
 				stage,
-				ceilingUsd: error.ceilingUsd,
-				spentUsd: error.spentUsd,
+				...readings,
 			});
 		}
 

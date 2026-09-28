@@ -1,4 +1,8 @@
-import { readClaudeCallMetrics, readClaudeEnvelope } from "./claude";
+import {
+	ClaudeSessionError,
+	readClaudeCallMetrics,
+	readClaudeEnvelope,
+} from "./claude";
 import type { ClaudeCallMetrics, ClaudeEnvelope } from "./contracts";
 import { JudgeExecutionError } from "./judge-execution-error";
 import type { SpendCeiling } from "./spend-ceiling";
@@ -88,6 +92,9 @@ export async function runJudgeAttempts<Value>(
 			const output = await invoke(attemptPrompt, budgetUsd);
 			envelope = readClaudeEnvelope(output);
 		} catch (error) {
+			budget.spendCeiling.charge(
+				(error instanceof ClaudeSessionError ? error.costUsd : undefined) ?? 0,
+			);
 			throw new JudgeExecutionError({
 				cause: error,
 				prompt,

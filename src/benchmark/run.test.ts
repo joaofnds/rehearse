@@ -1325,6 +1325,31 @@ describe(runGradedStages.name, () => {
 			expect(record.ceilingStop.spentUsd).toBeCloseTo(1.2);
 		});
 
+		it("records the stop when the session crossing the ceiling fails", async () => {
+			const { dependencies } = fakeStageDependencies();
+			const { persistence, abort } = atCeiling();
+			const context = await ceilingContext(abort);
+			const sessions = {
+				...dependencies,
+				runWorkflowStage: (request: WorkflowStageRequest) => {
+					request.spendCeiling.budgetFor(5);
+					request.spendCeiling.charge(1.1);
+
+					return Promise.reject(new Error("budget exhausted"));
+				},
+			};
+
+			const failure = await failureOf(runGradedStages(sessions, context));
+			await abort.markAborted(failure.message);
+
+			expect(
+				JSON.parse(persistence.files.get(context.stageFile("shape")) ?? ""),
+			).toMatchObject({
+				stage: "shape",
+				ceilingStop: { ceilingUsd: 1, spentUsd: 1.1 },
+			});
+		});
+
 		it("records the stop for a stage whose session the ceiling refused", async () => {
 			const { dependencies } = fakeStageDependencies();
 			const { persistence, abort } = atCeiling();

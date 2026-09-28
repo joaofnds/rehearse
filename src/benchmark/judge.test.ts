@@ -351,6 +351,30 @@ describe(runJudge.name, () => {
 			expect(spendCeiling.spentUsd()).toBeCloseTo(0.1);
 		});
 
+		it("charges the ceiling an attempt that ends in an error", async () => {
+			const spendCeiling = createSpendCeiling({ ceilingUsd: 1 });
+
+			await failureOf(
+				gradeWith(
+					() =>
+						Promise.resolve(
+							JSON.stringify({
+								type: "result",
+								session_id: "judge-session",
+								is_error: true,
+								subtype: "error_max_budget_usd",
+								terminal_reason: "budget_exhausted",
+								total_cost_usd: 0.4,
+							}),
+						),
+					[],
+					spendCeiling,
+				),
+			);
+
+			expect(spendCeiling.spentUsd()).toBeCloseTo(0.4);
+		});
+
 		it("starts no attempt once the spend has reached the ceiling", async () => {
 			const spendCeiling = createSpendCeiling({ ceilingUsd: 1 });
 			spendCeiling.charge(1);

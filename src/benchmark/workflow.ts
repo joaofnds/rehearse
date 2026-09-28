@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import {
 	claudeArgs,
+	ClaudeSessionError,
 	readClaudeCallMetrics,
 	readClaudeEnvelope,
 	readStructuredOutput,
@@ -176,7 +177,16 @@ export function createProductOwner(
 				configuration.directory,
 				{ timeoutMs: CLAUDE_TIMEOUT_MS },
 			);
-			const envelope = readClaudeEnvelope(output);
+			let envelope;
+			try {
+				envelope = readClaudeEnvelope(output);
+			} catch (error) {
+				configuration.spendCeiling.charge(
+					((error instanceof ClaudeSessionError ? error.costUsd : undefined) ??
+						spentUsd) - spentUsd,
+				);
+				throw error;
+			}
 
 			sessionId = envelope.session_id;
 			providerCalls.push(providerCall(envelope, spentUsd));
@@ -226,7 +236,6 @@ export async function runWorkflowStage(
 			remainingBudget(sessionBudgetUsd, spentUsd),
 		);
 		let envelope;
-		let agent;
 		try {
 			const output = await runClaude(
 				[
@@ -249,8 +258,11 @@ export async function runWorkflowStage(
 				{ silenceLimitMs: STAGE_SILENCE_LIMIT_MS },
 			);
 			envelope = readClaudeEnvelope(output);
-			agent = readStructuredOutput(envelope, stageTurnSchema);
 		} catch (error) {
+			spendCeiling.charge(
+				((error instanceof ClaudeSessionError ? error.costUsd : undefined) ??
+					spentUsd) - spentUsd,
+			);
 			throw new WorkflowExecutionError({
 				cause: error,
 				providerCalls: [...providerCalls, {}],
@@ -261,6 +273,15 @@ export async function runWorkflowStage(
 		providerCalls.push(providerCall(envelope, spentUsd));
 		spendCeiling.charge(sessionSpendUsd(envelope, spentUsd) - spentUsd);
 		spentUsd = sessionSpendUsd(envelope, spentUsd);
+		let agent;
+		try {
+			agent = readStructuredOutput(envelope, stageTurnSchema);
+		} catch (error) {
+			throw new WorkflowExecutionError({
+				cause: error,
+				providerCalls: [...providerCalls],
+			});
+		}
 
 		if (agent.status === "COMPLETE") {
 			exchanges.push({ agent });

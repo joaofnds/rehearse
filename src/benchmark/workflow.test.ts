@@ -789,6 +789,61 @@ describe("the spend ceiling", () => {
 		expect(spendCeiling.spentUsd()).toBeCloseTo(0.5);
 	});
 
+	function budgetHalt(costUsd: number): string {
+		return JSON.stringify({
+			type: "result",
+			session_id: "halted-session",
+			is_error: true,
+			subtype: "error_max_budget_usd",
+			terminal_reason: "budget_exhausted",
+			total_cost_usd: costUsd,
+		});
+	}
+
+	describe("when a paid call ends in an error", () => {
+		it("charges the ceiling the worker turn's reported cost", async () => {
+			const spendCeiling = createSpendCeiling({ ceilingUsd: 1 });
+
+			await failureOf(
+				runWorkflowStage(stageRequest(spendCeiling), () =>
+					Promise.resolve(budgetHalt(0.4)),
+				),
+			);
+
+			expect(spendCeiling.spentUsd()).toBeCloseTo(0.4);
+		});
+
+		it("charges the ceiling a worker turn whose answer is not a turn", async () => {
+			const spendCeiling = createSpendCeiling({ ceilingUsd: 1 });
+
+			await failureOf(
+				runWorkflowStage(stageRequest(spendCeiling), () =>
+					Promise.resolve(
+						JSON.stringify({
+							type: "result",
+							session_id: "worker-session",
+							total_cost_usd: 0.3,
+							structured_output: { status: "UNKNOWN" },
+						}),
+					),
+				),
+			);
+
+			expect(spendCeiling.spentUsd()).toBeCloseTo(0.3);
+		});
+
+		it("charges the ceiling the Product Owner call's reported cost", async () => {
+			const spendCeiling = createSpendCeiling({ ceilingUsd: 1 });
+			const productOwner = productOwnerFor(spendCeiling, () =>
+				Promise.resolve(budgetHalt(0.25)),
+			);
+
+			await failureOf(productOwner.ask("shape", "Which scope?"));
+
+			expect(spendCeiling.spentUsd()).toBeCloseTo(0.25);
+		});
+	});
+
 	describe("when the spend has reached the ceiling", () => {
 		it("starts no worker turn", async () => {
 			const spendCeiling = createSpendCeiling({ ceilingUsd: 1 });
