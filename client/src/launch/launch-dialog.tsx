@@ -1,7 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import type { InferResponseType } from "hono/client";
-import { z } from "zod";
 import { corpusVersionLabel } from "#benchmark/corpus-version-label";
 import type { LaunchAttempts } from "#benchmark/launch-attempts";
 import { LAUNCH_ATTEMPTS } from "#benchmark/launch-attempts";
@@ -30,45 +29,40 @@ type CaseListing = InferResponseType<
 	typeof launchClient.api.cases.$get
 >["cases"][number];
 
-const refusalSchema = z.object({ error: z.string() });
-
-interface RefusedResponse {
-	readonly headers: Headers;
-	readonly text: () => Promise<string>;
-}
-
-/**
- * The launch routes answer a refusal as JSON `{ error }`, and the request
- * guard answers its 403 in plain text, so either is what the operator reads.
- */
-async function refusalMessage(response: RefusedResponse): Promise<string> {
-	const text = await response.text();
-	const contentType = response.headers.get("content-type") ?? "";
-	if (!contentType.startsWith("application/json")) {
-		return text;
-	}
-	const refusal = refusalSchema.parse(JSON.parse(text));
-
-	return refusal.error;
-}
-
 class LaunchRefusedError extends Error {
 	public override name = "LaunchRefusedError";
 }
 
+/**
+ * A refusal the launch routes declare arrives as `{ error }`. Anything else,
+ * the request guard's plain-text 403 included, is shown as the server sent it.
+ */
 async function postLaunch(request: LaunchRequest): Promise<void> {
 	const response = await launchClient.api.launches.$post({ json: request });
-	if (!response.ok) {
-		throw new LaunchRefusedError(await refusalMessage(response));
+	if (response.ok) {
+		return;
 	}
+	if (
+		response.status === 400 ||
+		response.status === 404 ||
+		response.status === 409
+	) {
+		const refusal = await response.json();
+		throw new LaunchRefusedError(refusal.error);
+	}
+	throw new LaunchRefusedError(await response.text());
 }
 
 async function fetchSettings(): Promise<
 	InferResponseType<typeof launchClient.api.settings.$get, 200>
 > {
 	const response = await launchClient.api.settings.$get();
+	if (response.status === 409) {
+		const refusal = await response.json();
+		throw new LaunchRefusedError(refusal.error);
+	}
 	if (!response.ok) {
-		throw new LaunchRefusedError(await refusalMessage(response));
+		throw new LaunchRefusedError(await response.text());
 	}
 
 	return response.json();

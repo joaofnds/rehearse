@@ -232,10 +232,13 @@ export const createLaunchApp = (dependencies: LaunchDependencies) => {
 				return context.json({ error: error.message }, error.status);
 			}
 
-			return context.json({
-				spendCeilingUsd: settings.spendCeilingUsd ?? null,
-				setCommand: SET_SPEND_CEILING_COMMAND,
-			});
+			return context.json(
+				{
+					spendCeilingUsd: settings.spendCeilingUsd ?? null,
+					setCommand: SET_SPEND_CEILING_COMMAND,
+				},
+				200,
+			);
 		})
 		.get("/api/cases", async (context) => {
 			const listing = await listCases(dependencies.casesRoot);
