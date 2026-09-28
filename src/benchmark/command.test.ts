@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { afterEach, describe, expect, it } from "bun:test";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -15,6 +15,25 @@ async function pgrepMatches(pattern: string): Promise<string> {
 	} catch (error) {
 		if (error instanceof CommandError && error.exitCode === 1) {
 			return "";
+		}
+
+		throw error;
+	}
+}
+
+/**
+ * What the command failed with, awaited plainly so a command that never ends
+ * fails the test at its timeout instead of hanging the run.
+ */
+async function rejectionOf(
+	running: Promise<string>,
+): Promise<Error | undefined> {
+	try {
+		await running;
+		return undefined;
+	} catch (error) {
+		if (error instanceof Error) {
+			return error;
 		}
 
 		throw error;
@@ -136,8 +155,8 @@ describe(runCommand.name, () => {
 			const sleeper = uniqueSleeper();
 			const startedAt = Date.now();
 
-			try {
-				const running = runCommand(
+			const failure = await rejectionOf(
+				runCommand(
 					[
 						"sh",
 						"-c",
@@ -145,45 +164,48 @@ describe(runCommand.name, () => {
 					],
 					process.cwd(),
 					{ silenceLimitMs: 200 },
-				);
+				),
+			);
 
-				expect(running).rejects.toBeInstanceOf(CommandSilenceError);
-				expect(running).rejects.toThrow("wrote nothing for 200 ms");
-				expect(running).rejects.toThrow("stuck");
-				expect(Date.now() - startedAt).toBeLessThan(1500);
-				expect(await pgrepMatches(sleeper)).toBe("");
-			} finally {
-				await runCommand(["pkill", "-f", sleeper], process.cwd()).catch(
-					() => undefined,
-				);
-			}
+			expect(failure).toBeInstanceOf(CommandSilenceError);
+			expect(failure?.message).toContain("wrote nothing for 200 ms");
+			expect(failure?.message).toContain("stuck");
+			expect(Date.now() - startedAt).toBeLessThan(1500);
+			expect(await pgrepMatches(sleeper)).toBe("");
 		});
 
 		it("returns the output of a command that exited while a process it left holds its output open", async () => {
 			const sleeper = uniqueSleeper();
 
-			try {
-				const output = await runCommand(
-					["sh", "-c", `echo result; ${sleeper} & exit 0`],
-					process.cwd(),
-					{ silenceLimitMs: 200 },
-				);
+			const output = await runCommand(
+				["sh", "-c", `echo result; ${sleeper} & exit 0`],
+				process.cwd(),
+				{ silenceLimitMs: 200 },
+			);
 
-				expect(output).toBe("result\n");
-			} finally {
-				await runCommand(["pkill", "-f", sleeper], process.cwd()).catch(
-					() => undefined,
-				);
-			}
+			expect(output).toBe("result\n");
 		});
 	});
 });
 
 let sleepers = 0;
+const spawnedSleepers: string[] = [];
+
+afterEach(async () => {
+	const spawned = spawnedSleepers.splice(0);
+	await Promise.all(
+		spawned.map((sleeper) =>
+			runCommand(["pkill", "-f", sleeper], process.cwd()).catch(
+				() => undefined,
+			),
+		),
+	);
+});
 
 /**
  * A sleep command no other test run spawns, so a sleeper leaked by one failed
- * run cannot fail the process check of another.
+ * run cannot fail the process check of another. Each test's sleepers are
+ * killed after it, even when it failed or timed out.
  */
 function uniqueSleeper(): string {
 	sleepers += 1;
@@ -191,5 +213,8 @@ function uniqueSleeper(): string {
 	const pid = String(process.pid).padStart(7, "0");
 	const run = String(sleepers).padStart(3, "0");
 
-	return `sleep ${pid}${run}`;
+	const sleeper = `sleep ${pid}${run}`;
+	spawnedSleepers.push(sleeper);
+
+	return sleeper;
 }
