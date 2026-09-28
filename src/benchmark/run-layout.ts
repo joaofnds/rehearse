@@ -9,6 +9,7 @@ const ATTEMPT_FILE = "attempt.json";
 const SESSIONS_DIRECTORY = "sessions";
 const GRADES_DIRECTORY = "grades";
 const RECORD_SUFFIX = ".json";
+const LAUNCHES_DIRECTORY = "launches";
 
 export interface BenchmarkRunPaths {
 	readonly runsDirectory: string;
@@ -327,6 +328,36 @@ export async function confirmationRepStageNames(
 	const checkpoints = await directoryNames(rep.checkpointsDirectory);
 
 	return [...new Set([...stageFiles, ...checkpoints])].toSorted();
+}
+
+export interface LaunchPaths {
+	readonly directory: string;
+	readonly recordFile: string;
+	readonly logFile: string;
+}
+
+/**
+ * A browser launch is kept in the records directory rather than in server
+ * memory, so the pid it started is still known after the server restarts.
+ */
+export function launchPaths(runsDirectory: string, id: string): LaunchPaths {
+	const directory = join(runsDirectory, LAUNCHES_DIRECTORY);
+
+	return {
+		directory,
+		recordFile: join(directory, `${id}${RECORD_SUFFIX}`),
+		logFile: join(directory, `${id}.log`),
+	};
+}
+
+export async function launchIds(
+	runsDirectory: string,
+): Promise<readonly string[]> {
+	const found = await entries(join(runsDirectory, LAUNCHES_DIRECTORY));
+
+	return found
+		.filter((entry) => entry.isFile() && entry.name.endsWith(RECORD_SUFFIX))
+		.map(({ name }) => name.slice(0, -RECORD_SUFFIX.length));
 }
 
 export function comparisonDigests(
