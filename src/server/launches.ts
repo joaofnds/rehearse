@@ -9,6 +9,7 @@ import {
 import {
 	CaseDeclarationError,
 	isCaseId,
+	listCases,
 	readCaseDeclaration,
 } from "#benchmark/case";
 import { INITIAL_CHECKPOINT_STAGE } from "#benchmark/checkpoint";
@@ -218,36 +219,70 @@ function launchRecord(
  */
 // oxlint-disable-next-line typescript/explicit-function-return-type, typescript/explicit-module-boundary-types
 export const createLaunchApp = (dependencies: LaunchDependencies) => {
-	const app = new Hono().post("/api/launches", async (context) => {
-		const parsed = launchRequestSchema.safeParse(
-			await context.req.json().catch(() => undefined),
-		);
-		if (!parsed.success) {
-			return context.json({ error: z.prettifyError(parsed.error) }, 400);
-		}
-		const request = parsed.data;
-		let argv;
-		try {
-			argv = await launchArguments(request, dependencies);
-		} catch (error) {
-			if (!(error instanceof LaunchRefusalError)) {
-				throw error;
+	const app = new Hono()
+		.get("/api/settings", async (context) => {
+			let settings;
+			try {
+				settings = await storedSettings(dependencies.runsDirectory);
+			} catch (error) {
+				if (!(error instanceof LaunchRefusalError)) {
+					throw error;
+				}
+
+				return context.json({ error: error.message }, error.status);
 			}
 
-			return context.json({ error: error.message }, error.status);
-		}
-		const id = randomUUID();
-		const pid = await dependencies.launcher.launch(
-			argv,
-			launchPaths(dependencies.runsDirectory, id).logFile,
-		);
-		await writeLaunchRecord(
-			dependencies.runsDirectory,
-			launchRecord(request, id, pid),
-		);
+			return context.json({
+				spendCeilingUsd: settings.spendCeilingUsd ?? null,
+				setCommand: SET_SPEND_CEILING_COMMAND,
+			});
+		})
+		.get("/api/cases", async (context) => {
+			const listing = await listCases(dependencies.casesRoot);
 
-		return context.json({ id }, 202);
-	});
+			return context.json({
+				cases: listing.declarations.map((declaration) => ({
+					id: declaration.id,
+					kind: declaration.kind,
+					title: declaration.title,
+					model: declaration.model ?? null,
+				})),
+				unreadable: listing.unreadable.map(({ id, reason }) => ({
+					id,
+					reason: redactAbsolutePaths(reason),
+				})),
+			});
+		})
+		.post("/api/launches", async (context) => {
+			const parsed = launchRequestSchema.safeParse(
+				await context.req.json().catch(() => undefined),
+			);
+			if (!parsed.success) {
+				return context.json({ error: z.prettifyError(parsed.error) }, 400);
+			}
+			const request = parsed.data;
+			let argv;
+			try {
+				argv = await launchArguments(request, dependencies);
+			} catch (error) {
+				if (!(error instanceof LaunchRefusalError)) {
+					throw error;
+				}
+
+				return context.json({ error: error.message }, error.status);
+			}
+			const id = randomUUID();
+			const pid = await dependencies.launcher.launch(
+				argv,
+				launchPaths(dependencies.runsDirectory, id).logFile,
+			);
+			await writeLaunchRecord(
+				dependencies.runsDirectory,
+				launchRecord(request, id, pid),
+			);
+
+			return context.json({ id }, 202);
+		});
 
 	/** The read API's net: an unanticipated failure reaches the browser redacted. */
 	app.onError((caughtError, context) => {

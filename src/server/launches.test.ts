@@ -9,31 +9,14 @@ import {
 	SET_SPEND_CEILING_COMMAND,
 	storeSpendCeiling,
 } from "#benchmark/settings";
-import type { Launcher } from "./launches";
+import { FAKE_LAUNCH_PID, FakeLauncher } from "./launch-test-support";
 import { createLaunchApp } from "./launches";
-
-const PID = 4242;
 
 const launchedSchema = z.object({ id: z.string() });
 const refusalSchema = z.object({ error: z.string() });
 
 /** The body the launch dialog posts, or a malformed one a test sends. */
 type LaunchRequestBody = Readonly<Record<string, number | string>>;
-
-interface Launch {
-	readonly argv: readonly string[];
-	readonly logFile: string;
-}
-
-class FakeLauncher implements Launcher {
-	public readonly launches: Launch[] = [];
-
-	public launch(argv: readonly string[], logFile: string): Promise<number> {
-		this.launches.push({ argv, logFile });
-
-		return Promise.resolve(PID);
-	}
-}
 
 const PIPELINE_CASE = {
 	id: "pipe-case",
@@ -104,6 +87,7 @@ describe(createLaunchApp.name, () => {
 		readonly launcher: FakeLauncher;
 		readonly runsDirectory: string;
 		readonly post: (body: LaunchRequestBody) => Promise<Response>;
+		readonly get: (path: string) => Promise<Response>;
 	}
 
 	async function harness(
@@ -127,6 +111,7 @@ describe(createLaunchApp.name, () => {
 		return {
 			launcher,
 			runsDirectory,
+			get: (path) => Promise.resolve(app.request(path)),
 			post: (body) =>
 				Promise.resolve(
 					app.request("/api/launches", {
@@ -171,7 +156,7 @@ describe(createLaunchApp.name, () => {
 				kind: "case",
 				caseId: "pipe-case",
 				attempts: 1,
-				pid: PID,
+				pid: FAKE_LAUNCH_PID,
 			});
 			expect(launcher.launches[0]?.logFile).toBe(
 				join(runsDirectory, "launches", `${id}.log`),
@@ -393,6 +378,86 @@ describe(createLaunchApp.name, () => {
 			expect(error).toContain(SET_SPEND_CEILING_COMMAND);
 			expect(error).not.toContain(runsDirectory);
 			expect(launcher.launches).toEqual([]);
+		});
+	});
+	describe("when the launch dialog reads what it offers", () => {
+		const settingsSchema = z.object({
+			spendCeilingUsd: z.number().nullable(),
+			setCommand: z.string(),
+		});
+		const casesSchema = z.object({
+			cases: z.array(
+				z.object({
+					id: z.string(),
+					kind: z.string(),
+					title: z.string(),
+					model: z.string().nullable(),
+				}),
+			),
+			unreadable: z.array(z.object({ id: z.string(), reason: z.string() })),
+		});
+
+		it("reads the stored spend ceiling and the command that sets it", async () => {
+			const { get } = await harness();
+
+			const response = await get("/api/settings");
+
+			expect(settingsSchema.parse(await response.json())).toEqual({
+				spendCeilingUsd: 5,
+				setCommand: SET_SPEND_CEILING_COMMAND,
+			});
+		});
+
+		it("reads no ceiling when none is stored", async () => {
+			const { get } = await harness("missing");
+
+			const response = await get("/api/settings");
+
+			expect(
+				settingsSchema.parse(await response.json()).spendCeilingUsd,
+			).toBeNull();
+		});
+
+		it("answers a conflict naming the fix when the settings file cannot be read", async () => {
+			const { get, runsDirectory } = await harness("missing");
+			await Bun.write(join(runsDirectory, "settings.json"), "not json");
+
+			const response = await get("/api/settings");
+
+			expect(response.status).toBe(409);
+			expect(refusalSchema.parse(await response.json()).error).toContain(
+				SET_SPEND_CEILING_COMMAND,
+			);
+		});
+
+		it("lists every declared case with the model it runs under", async () => {
+			const { get } = await harness();
+
+			const response = await get("/api/cases");
+
+			expect(casesSchema.parse(await response.json())).toEqual({
+				cases: [
+					{
+						id: "no-model",
+						kind: "session",
+						title: UNMODELLED_CASE.title,
+						model: null,
+					},
+					{
+						id: "pipe-case",
+						kind: "pipeline",
+						title: PIPELINE_CASE.title,
+						model: "sonnet",
+					},
+					{
+						id: "sess-case",
+						kind: "session",
+						title: SESSION_CASE.title,
+						model: "haiku",
+					},
+				],
+				unreadable: [],
+			});
 		});
 	});
 });
