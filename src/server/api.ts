@@ -123,6 +123,7 @@ async function streamRunEvents(
 
 	while (!sawTerminalEvent && !stream.aborted) {
 		const events = store.eventsSince(runId, sequence);
+
 		if (events.length === 0) {
 			await stream.write(": keepalive\n\n");
 		}
