@@ -8,6 +8,7 @@ import {
 	runCaseShow,
 } from "./src/cli/case-command";
 import { claudeProjectsDirectory } from "./src/benchmark/session-capture";
+import { requireSpendCeiling } from "./src/benchmark/settings";
 import { runCompare } from "./src/cli/compare-command";
 import {
 	runCorpusInvalidation,
@@ -134,6 +135,7 @@ async function dispatch(
 					buildJudges: judgesFor,
 					output: processOutput,
 					probeModel: defaultAssertModelAvailable,
+					requireSpendCeiling,
 				},
 			);
 
@@ -162,6 +164,7 @@ async function dispatch(
 					output: processOutput,
 					resolveRunDirectory,
 					probeModel: defaultAssertModelAvailable,
+					requireSpendCeiling,
 					execute: executeReplay,
 				},
 			);
@@ -180,6 +183,7 @@ async function dispatch(
 					requireCase,
 					assertPreflight: assertPipelinePreflight,
 					probeModel: defaultProbeModel,
+					requireSpendCeiling,
 					execute: executeRun,
 					executeSession: executeSessionRun,
 				},

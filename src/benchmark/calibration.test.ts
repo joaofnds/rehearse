@@ -12,6 +12,7 @@ import {
 import {
 	AUDIT_LOG_CASE_DIR,
 	AUDIT_LOG_RUBRICS_PATH,
+	ampleSpendCeiling,
 	PROJECT_ROOT,
 	TestResources,
 } from "./test-support";
@@ -342,6 +343,7 @@ describe(collectCalibration.name, () => {
 
 		const result = await collectCalibration({
 			log: ignoreLog,
+			spendCeiling: ampleSpendCeiling(),
 			rl: {
 				async question() {
 					await Bun.write(
@@ -402,6 +404,7 @@ describe(collectCalibration.name, () => {
 
 		const result = await collectCalibration({
 			log: ignoreLog,
+			spendCeiling: ampleSpendCeiling(),
 			rl,
 			reviewFile,
 			targetDir: reviewDirectory,
@@ -493,6 +496,7 @@ describe(collectCalibration.name, () => {
 
 		const result = await collectCalibration({
 			log: ignoreLog,
+			spendCeiling: ampleSpendCeiling(),
 			rl,
 			reviewFile,
 			targetDir: reviewDirectory,
@@ -562,6 +566,7 @@ describe(collectCalibration.name, () => {
 
 		const result = await collectCalibration({
 			log: ignoreLog,
+			spendCeiling: ampleSpendCeiling(),
 			rl,
 			reviewFile,
 			targetDir: reviewDirectory,

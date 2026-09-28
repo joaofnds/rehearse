@@ -19,6 +19,7 @@ describe(executeReplayStage.name, () => {
 			model: "sonnet",
 			judgeModel: "opus",
 			sessionBudgetUsd: 5,
+			spendCeilingUsd: 100,
 		};
 
 		const outcome = await executeReplayStage(
@@ -64,6 +65,7 @@ describe(executeReplayStage.name, () => {
 			judgeModel: "opus",
 			judgeEffort: "high",
 			sessionBudgetUsd: 5,
+			spendCeilingUsd: 100,
 		};
 		const execution = executeReplayStage(
 			{ confirmation: { reps: 3, approved: false } },

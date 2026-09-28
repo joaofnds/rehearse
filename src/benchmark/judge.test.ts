@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import { failureOf } from "#cli/cli-test-support";
 import type { ContextFile, JudgeGrade } from "./contracts";
 import {
 	applyHarnessResults,
@@ -8,6 +9,8 @@ import {
 } from "./judge";
 import type { JudgeInvoker } from "./judge-attempt";
 import { JudgeExecutionError } from "./judge-attempt";
+import type { SpendCeiling } from "./spend-ceiling";
+import { createSpendCeiling, SpendCeilingReachedError } from "./spend-ceiling";
 import { harnessResult } from "./test-support";
 
 const DIFF = [
@@ -76,11 +79,12 @@ describe(runJudge.name, () => {
 	function gradeWith(
 		invoke: JudgeInvoker,
 		baselineContext: readonly ContextFile[] = [],
+		spendCeiling: SpendCeiling = createSpendCeiling({ ceilingUsd: 100 }),
 	): ReturnType<typeof runJudge> {
 		return runJudge(
 			"sonnet",
 			undefined,
-			5,
+			{ sessionBudgetUsd: 5, spendCeiling },
 			rubric,
 			baselineContext,
 			DIFF,
@@ -308,6 +312,64 @@ describe(runJudge.name, () => {
 			providerCalls: [{ metrics: firstCall }, {}],
 		});
 		expect(calls).toBe(2);
+	});
+
+	describe("under a spend ceiling", () => {
+		it("starts each attempt with no more budget than the ceiling left", async () => {
+			const invalidGrade = withFirstRequirement(completeGrade("PASS"), {
+				...requirement(RUBRIC_IDS[0], "PASS"),
+				evidence: [],
+			});
+			const responses = [
+				response(invalidGrade),
+				response(completeGrade("PASS")),
+			];
+			const budgets: number[] = [];
+
+			await gradeWith(
+				(_prompt, budgetUsd) => {
+					budgets.push(budgetUsd);
+					return Promise.resolve(responses.shift() ?? "");
+				},
+				[],
+				createSpendCeiling({ ceilingUsd: 0.25 }),
+			);
+
+			expect(budgets[0]).toBeCloseTo(0.25);
+			expect(budgets[1]).toBeCloseTo(0.15);
+		});
+
+		it("charges the ceiling every attempt's cost", async () => {
+			const spendCeiling = createSpendCeiling({ ceilingUsd: 10 });
+
+			await gradeWith(
+				() => Promise.resolve(response(completeGrade("PASS"))),
+				[],
+				spendCeiling,
+			);
+
+			expect(spendCeiling.spentUsd()).toBeCloseTo(0.1);
+		});
+
+		it("starts no attempt once the spend has reached the ceiling", async () => {
+			const spendCeiling = createSpendCeiling({ ceilingUsd: 1 });
+			spendCeiling.charge(1);
+			let calls = 0;
+
+			const failure = await failureOf(
+				gradeWith(
+					() => {
+						calls += 1;
+						return Promise.resolve(response(completeGrade("PASS")));
+					},
+					[],
+					spendCeiling,
+				),
+			);
+
+			expect(failure).toBeInstanceOf(SpendCeilingReachedError);
+			expect(calls).toBe(0);
+		});
 	});
 
 	it("does not retry an invocation failure", () => {

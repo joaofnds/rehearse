@@ -47,6 +47,7 @@ const missingPreflight = {
 	missing: "preflight call metrics",
 } as const;
 
+const storedCeiling = (): Promise<number> => Promise.resolve(100);
 const passingProbe: RunCommandDependencies["probeModel"] = () =>
 	Promise.resolve(missingPreflight);
 
@@ -173,6 +174,7 @@ describe(runRunCommand.name, () => {
 					output,
 					requireCase: loadsAuditLog().requireCase,
 					assertPreflight: passingPreflight,
+					requireSpendCeiling: storedCeiling,
 					probeModel: passingProbe,
 					executeSession: neverASession,
 					execute: () => Promise.reject(new Error("run must not start")),
@@ -196,6 +198,7 @@ describe(runRunCommand.name, () => {
 				output,
 				requireCase: loadsAuditLog().requireCase,
 				assertPreflight: passingPreflight,
+				requireSpendCeiling: storedCeiling,
 				probeModel: passingProbe,
 				executeSession: neverASession,
 				execute: (config) => {
@@ -220,6 +223,7 @@ describe(runRunCommand.name, () => {
 			output,
 			requireCase: loader.requireCase,
 			assertPreflight: passingPreflight,
+			requireSpendCeiling: storedCeiling,
 			probeModel: passingProbe,
 			executeSession: neverASession,
 			execute: () =>
@@ -260,6 +264,7 @@ describe(runRunCommand.name, () => {
 					requireCase: (id) =>
 						Promise.reject(new RefusedPreconditionError(`Unknown case ${id}`)),
 					assertPreflight: passingPreflight,
+					requireSpendCeiling: storedCeiling,
 					probeModel: passingProbe,
 					executeSession: neverASession,
 					execute: () => Promise.reject(new Error("run must not start")),
@@ -286,6 +291,7 @@ describe(runRunCommand.name, () => {
 				output,
 				requireCase: loadsAuditLog().requireCase,
 				assertPreflight: passingPreflight,
+				requireSpendCeiling: storedCeiling,
 				probeModel: passingProbe,
 				executeSession: neverASession,
 				execute: (config) => {
@@ -319,6 +325,7 @@ describe(runRunCommand.name, () => {
 
 					return Promise.resolve(loadedStageSettings);
 				},
+				requireSpendCeiling: storedCeiling,
 				probeModel: passingProbe,
 				executeSession: neverASession,
 				execute: (_config, _output, _case, settings) => {
@@ -352,6 +359,7 @@ describe(runRunCommand.name, () => {
 				output,
 				requireCase: loadsAuditLog().requireCase,
 				assertPreflight: passingPreflight,
+				requireSpendCeiling: storedCeiling,
 				probeModel: passingProbe,
 				executeSession: neverASession,
 				execute: (_config, _commandOutput, benchmarkCase) => {
@@ -386,6 +394,7 @@ describe(runRunCommand.name, () => {
 						pipelinePath: "cases/audit-log/pipelines/other.json",
 					}),
 				assertPreflight: passingPreflight,
+				requireSpendCeiling: storedCeiling,
 				probeModel: passingProbe,
 				executeSession: neverASession,
 				execute: (config) => {
@@ -420,6 +429,7 @@ describe(runRunCommand.name, () => {
 					output,
 					requireCase: loadsAuditLog().requireCase,
 					assertPreflight: passingPreflight,
+					requireSpendCeiling: storedCeiling,
 					probeModel: passingProbe,
 					executeSession: neverASession,
 					execute: () => Promise.reject(new Error("run must not start")),
@@ -446,6 +456,7 @@ describe(runRunCommand.name, () => {
 				output,
 				requireCase: loadsAuditLog().requireCase,
 				assertPreflight: passingPreflight,
+				requireSpendCeiling: storedCeiling,
 				probeModel: passingProbe,
 				executeSession: neverASession,
 				execute: () =>
@@ -473,6 +484,7 @@ describe(runRunCommand.name, () => {
 					output,
 					requireCase: loadsAuditLog().requireCase,
 					assertPreflight: passingPreflight,
+					requireSpendCeiling: storedCeiling,
 					probeModel: passingProbe,
 					executeSession: neverASession,
 					execute: () => Promise.reject(new Error("run must not start")),
@@ -492,6 +504,7 @@ describe(runRunCommand.name, () => {
 				output,
 				requireCase: loadsAuditLog().requireCase,
 				assertPreflight: passingPreflight,
+				requireSpendCeiling: storedCeiling,
 				probeModel: passingProbe,
 				executeSession: neverASession,
 				execute: (_config, commandOutput) => {
@@ -545,6 +558,7 @@ describe(runRunCommand.name, () => {
 					});
 				},
 				assertPreflight: passingPreflight,
+				requireSpendCeiling: storedCeiling,
 				probeModel: passingProbe,
 				executeSession: neverASession,
 				execute: () =>
@@ -576,6 +590,7 @@ describe(runRunCommand.name, () => {
 				output,
 				requireCase: loadsAuditLog().requireCase,
 				assertPreflight: passingPreflight,
+				requireSpendCeiling: storedCeiling,
 				probeModel: passingProbe,
 				executeSession: neverASession,
 				execute: () => Promise.resolve({ kind: "debug" as const, recordFile }),
@@ -628,6 +643,7 @@ describe(buildConfirmationRequest.name, () => {
 			source: { root: "/target", sha: "b".repeat(40), origin: undefined },
 			instructions: "Frozen instructions\n",
 			loadedSettings,
+			spendCeilingUsd: 100,
 		});
 
 		expect(request.caseId).toBe("audit-log-follow-up");
@@ -655,6 +671,7 @@ describe(buildConfirmationRequest.name, () => {
 			source: { root: "/target", sha: "b".repeat(40), origin: undefined },
 			instructions: "Frozen instructions\n",
 			loadedSettings,
+			spendCeilingUsd: 100,
 		});
 
 		expect(request.corpusRoots).toEqual(
@@ -693,6 +710,7 @@ describe(buildConfirmationRequest.name, () => {
 			source: { root: "/target", sha: "b".repeat(40), origin: undefined },
 			instructions: "Frozen instructions\n",
 			loadedSettings: declaredSettings,
+			spendCeilingUsd: 100,
 		});
 
 		expect(request.loadedSettings).toEqual(declaredSettings);
@@ -719,6 +737,7 @@ describe("runRunCommand for a session case", () => {
 				output,
 				requireCase: loadsSmoke(),
 				assertPreflight: passingPreflight,
+				requireSpendCeiling: storedCeiling,
 				probeModel: passingProbe,
 				execute: () => Promise.reject(new Error("no pipeline here")),
 				executeSession: () =>
@@ -730,6 +749,43 @@ describe("runRunCommand for a session case", () => {
 		);
 
 		expect(stdout.join("")).toBe("/runs/attempt.json\n");
+	});
+
+	it("holds a session attempt's budget to the stored spend ceiling", async () => {
+		const budgets: number[] = [];
+
+		await runRunCommand(
+			{
+				args: [
+					"--case",
+					"smoke",
+					"--model",
+					"haiku",
+					"--session-budget-usd",
+					"5",
+				],
+				json: false,
+				stdinIsTerminal: false,
+			},
+			{
+				output: recordOutput().output,
+				requireCase: loadsSmoke(),
+				assertPreflight: passingPreflight,
+				requireSpendCeiling: () => Promise.resolve(0.75),
+				probeModel: passingProbe,
+				execute: () => Promise.reject(new Error("no pipeline here")),
+				executeSession: (config) => {
+					budgets.push(config.sessionBudgetUsd);
+
+					return Promise.resolve({
+						kind: "debug" as const,
+						recordFile: "/runs/attempt.json",
+					});
+				},
+			},
+		);
+
+		expect(budgets).toEqual([0.75]);
 	});
 
 	it("refuses an unsupported resumed session before the model probe", async () => {
@@ -747,6 +803,7 @@ describe("runRunCommand for a session case", () => {
 					output,
 					requireCase: () => Promise.resolve(resumedSmokeCase),
 					assertPreflight: passingPreflight,
+					requireSpendCeiling: storedCeiling,
 					probeModel: () => {
 						paidCalls.push("probe");
 
@@ -791,6 +848,7 @@ describe("runRunCommand for a session case", () => {
 					output,
 					requireCase: () => Promise.resolve(resumedSmokeCase),
 					assertPreflight: passingPreflight,
+					requireSpendCeiling: storedCeiling,
 					probeModel: () => {
 						events.push("probe");
 
@@ -834,6 +892,7 @@ describe("runRunCommand for a session case", () => {
 					output,
 					requireCase: () => Promise.resolve(resumedSmokeCase),
 					assertPreflight: passingPreflight,
+					requireSpendCeiling: storedCeiling,
 					probeModel: () => Promise.resolve(missingPreflight),
 					execute: () => Promise.reject(new Error("no pipeline here")),
 					executeSession: (config, commandOutput, loaded, boundary) =>
@@ -877,6 +936,7 @@ describe("runRunCommand for a session case", () => {
 					output,
 					requireCase: () => Promise.resolve(resumedSmokeCase),
 					assertPreflight: passingPreflight,
+					requireSpendCeiling: storedCeiling,
 					probeModel: () => {
 						paidCalls.push("probe");
 
@@ -936,6 +996,7 @@ describe("runRunCommand for a session case", () => {
 				output: orderedOutput,
 				requireCase: loadsSmoke(),
 				assertPreflight: passingPreflight,
+				requireSpendCeiling: storedCeiling,
 				probeModel: () => {
 					events.push("probe");
 
@@ -1015,6 +1076,7 @@ describe("runRunCommand for a session case", () => {
 					output,
 					requireCase: loadsSmoke(),
 					assertPreflight: passingPreflight,
+					requireSpendCeiling: storedCeiling,
 					probeModel: () =>
 						Promise.reject(
 							new RefusedPreconditionError("Model haiku is not available"),
@@ -1048,6 +1110,7 @@ describe("runRunCommand for a session case", () => {
 					output,
 					requireCase: loadsSmoke(),
 					assertPreflight: passingPreflight,
+					requireSpendCeiling: storedCeiling,
 					probeModel: (model) => {
 						probes.push(model);
 
@@ -1109,6 +1172,7 @@ describe("runRunCommand for a session case", () => {
 						output,
 						requireCase: () => Promise.resolve(globalCase),
 						assertPreflight: passingPreflight,
+						requireSpendCeiling: storedCeiling,
 						probeModel: () => {
 							calls.push("probe");
 
@@ -1160,6 +1224,7 @@ describe("runRunCommand for a session case", () => {
 					output,
 					requireCase: loadsSmoke(),
 					assertPreflight: passingPreflight,
+					requireSpendCeiling: storedCeiling,
 					probeModel: () => {
 						calls.push("probe");
 
@@ -1208,6 +1273,7 @@ describe("runRunCommand for a session case", () => {
 					output,
 					requireCase: loadsSmoke(),
 					assertPreflight: passingPreflight,
+					requireSpendCeiling: storedCeiling,
 					probeModel: () => {
 						calls.push("probe");
 
@@ -1253,6 +1319,7 @@ describe("runRunCommand for a session case", () => {
 						output,
 						requireCase: loadsSmoke(),
 						assertPreflight: passingPreflight,
+						requireSpendCeiling: storedCeiling,
 						probeModel: passingProbe,
 						execute: () => Promise.reject(new Error("no pipeline here")),
 						executeSession: neverASession,
@@ -1280,6 +1347,7 @@ describe("runRunCommand for a session case", () => {
 				output,
 				requireCase: loadsSmoke(),
 				assertPreflight: passingPreflight,
+				requireSpendCeiling: storedCeiling,
 				probeModel: passingProbe,
 				execute: () => Promise.reject(new Error("no pipeline here")),
 				executeSession: () =>
@@ -1314,6 +1382,7 @@ describe("--corpus on a pipeline case", () => {
 					output,
 					requireCase: loadsAuditLog().requireCase,
 					assertPreflight: passingPreflight,
+					requireSpendCeiling: storedCeiling,
 					probeModel: passingProbe,
 					executeSession: neverASession,
 					execute: () => Promise.reject(new Error("run must not start")),

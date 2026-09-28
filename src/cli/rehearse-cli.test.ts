@@ -19,6 +19,10 @@ import {
 } from "#benchmark/run-layout";
 import { COMMANDS } from "#cli/commands";
 import { EXIT_CODES } from "#benchmark/exit-codes";
+import {
+	SET_SPEND_CEILING_COMMAND,
+	storeSpendCeiling,
+} from "#benchmark/settings";
 import { PROJECT_ROOT } from "#benchmark/test-support";
 
 const PIPE_BUFFER_BYTES = 131_072;
@@ -187,6 +191,12 @@ async function writeOversizedManifest(
  * so anything named `claude` ahead of the provider shadows it for the whole
  * process tree, which is why the shim stays in a directory the test removes.
  */
+const PROVIDER_CALLS_LOG = "provider-calls.log";
+
+function providerCallsIn(binDirectory: string): Promise<boolean> {
+	return Bun.file(join(binDirectory, PROVIDER_CALLS_LOG)).exists();
+}
+
 async function providerShim(directory: string): Promise<string> {
 	const binDirectory = join(directory, "bin");
 	await mkdir(binDirectory, { recursive: true });
@@ -218,6 +228,7 @@ async function providerShim(directory: string): Promise<string> {
 			"\t\t--help) echo '--print --model --settings --append-system-prompt --permission-mode --allowedTools --add-dir --output-format --session-id --resume --strict-mcp-config --mcp-config --agents'; exit 0 ;;",
 			"\tesac",
 			"done",
+			`printf '%s\\n' "$*" >> '${join(binDirectory, PROVIDER_CALLS_LOG)}'`,
 			"cat >/dev/null",
 			`cat <<'ENVELOPE'`,
 			envelope,
@@ -381,6 +392,7 @@ async function pipelineFixture(directory: string): Promise<PipelineFixture> {
 		providerShim(directory),
 		passingTarget(directory),
 	]);
+	await storeSpendCeiling(benchmarkRunsDirectory(control), 100);
 
 	return { control, binDirectory, target };
 }
@@ -1035,6 +1047,99 @@ describe("the spend ceiling", () => {
 			spendCeilingUsd: 2.5,
 			recordsDirectory: records,
 		});
+	});
+
+	describe("when none is stored", () => {
+		let directory: string;
+		let binDirectory: string;
+		let unceiled: ReturnType<typeof environmentWithoutKnobs>;
+
+		beforeEach(async () => {
+			directory = await mkdtemp(join(tmpdir(), "rehearse-cli-unceiled-"));
+			binDirectory = await providerShim(directory);
+			unceiled = {
+				...inRecords,
+				PATH: `${binDirectory}:${Bun.env["PATH"] ?? ""}`,
+			};
+		});
+
+		afterEach(async () => {
+			await rm(directory, { force: true, recursive: true });
+		});
+
+		it.each([
+			{
+				kind: "run",
+				args: ["--case", "audit-log", "--target", "/nonexistent-target"],
+			},
+			{
+				kind: "confirmation group",
+				args: [
+					"--case",
+					"audit-log",
+					"--target",
+					"/nonexistent-target",
+					"--confirm",
+					"--yes",
+					"--reps",
+					"2",
+				],
+			},
+			{ kind: "session attempt", args: ["--case", "smoke"] },
+		])(
+			"refuses a $kind before any provider call, naming how to set one",
+			async ({ args }) => {
+				const result = await runCli(
+					["run", ...args, "--model", "sonnet"],
+					"empty",
+					unceiled,
+				);
+
+				expect(result.exitCode).toBe(EXIT_CODES.refusedPrecondition);
+				expect(result.stderr).toContain(SET_SPEND_CEILING_COMMAND);
+				expect(await providerCallsIn(binDirectory)).toBe(false);
+			},
+		);
+
+		it.each([
+			{ kind: "replay", args: [] },
+			{ kind: "replay group", args: ["--confirm", "--yes", "--reps", "2"] },
+		])(
+			"refuses a $kind before any provider call, naming how to set one",
+			async ({ args }) => {
+				const fixture = await pipelineFixture(directory);
+				const recorded = await recordRunFor(
+					fixture.control,
+					fixture.binDirectory,
+					fixture.target,
+				);
+				await rm(
+					join(benchmarkRunsDirectory(fixture.control), "settings.json"),
+				);
+				await rm(join(fixture.binDirectory, PROVIDER_CALLS_LOG));
+
+				const result = await runPipelineCli(
+					[
+						"replay",
+						"--run",
+						recorded,
+						"--stage",
+						"shape",
+						"--model",
+						"sonnet",
+						"--session-budget-usd",
+						"1",
+						...args,
+					],
+					fixture.control,
+					fixture.binDirectory,
+				);
+
+				expect(result.exitCode).toBe(EXIT_CODES.refusedPrecondition);
+				expect(result.stderr).toContain(SET_SPEND_CEILING_COMMAND);
+				expect(await providerCallsIn(fixture.binDirectory)).toBe(false);
+			},
+		);
 	});
 
 	it("refuses a ceiling that is not a positive number as a usage error", async () => {

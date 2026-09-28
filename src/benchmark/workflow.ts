@@ -20,6 +20,7 @@ import type {
 } from "./contracts";
 import { productAnswerSchema, stageTurnSchema } from "./contracts";
 import type { RunEventRecorder } from "./run-events";
+import type { SpendCeiling } from "./spend-ceiling";
 
 export interface ProductOwnerSnapshot {
 	readonly sessionId: string;
@@ -37,6 +38,7 @@ export interface ProductOwnerConfiguration {
 	readonly model: string;
 	readonly effort?: Effort | undefined;
 	readonly sessionBudgetUsd: number;
+	readonly spendCeiling: SpendCeiling;
 	readonly task: string;
 	readonly productBrief: string;
 }
@@ -52,6 +54,7 @@ export interface WorkflowStageRequest {
 	readonly model: string;
 	readonly effort?: Effort | undefined;
 	readonly sessionBudgetUsd: number;
+	readonly spendCeiling: SpendCeiling;
 	readonly productOwner: ProductOwner;
 	readonly taskId: string;
 	readonly stage: WorkflowStage;
@@ -158,9 +161,8 @@ export function createProductOwner(
 						settings: {
 							model: configuration.model,
 							effort: configuration.effort,
-							budgetUsd: remainingBudget(
-								configuration.sessionBudgetUsd,
-								spentUsd,
+							budgetUsd: configuration.spendCeiling.budgetFor(
+								remainingBudget(configuration.sessionBudgetUsd, spentUsd),
 							),
 						},
 						schema: productAnswerSchema,
@@ -178,6 +180,9 @@ export function createProductOwner(
 
 			sessionId = envelope.session_id;
 			providerCalls.push(providerCall(envelope, spentUsd));
+			configuration.spendCeiling.charge(
+				sessionSpendUsd(envelope, spentUsd) - spentUsd,
+			);
 			spentUsd = sessionSpendUsd(envelope, spentUsd);
 			started = true;
 
@@ -200,6 +205,7 @@ export async function runWorkflowStage(
 		model,
 		effort,
 		sessionBudgetUsd,
+		spendCeiling,
 		productOwner,
 		taskId,
 		stage,
@@ -216,7 +222,9 @@ export async function runWorkflowStage(
 	const exchanges: StageTranscript["exchanges"][number][] = [];
 
 	for (let turn = 0; turn < MAX_STAGE_TURNS; turn += 1) {
-		const budgetUsd = remainingBudget(sessionBudgetUsd, spentUsd);
+		const budgetUsd = spendCeiling.budgetFor(
+			remainingBudget(sessionBudgetUsd, spentUsd),
+		);
 		let envelope;
 		let agent;
 		try {
@@ -251,6 +259,7 @@ export async function runWorkflowStage(
 
 		sessionId = envelope.session_id;
 		providerCalls.push(providerCall(envelope, spentUsd));
+		spendCeiling.charge(sessionSpendUsd(envelope, spentUsd) - spentUsd);
 		spentUsd = sessionSpendUsd(envelope, spentUsd);
 
 		if (agent.status === "COMPLETE") {

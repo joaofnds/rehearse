@@ -219,6 +219,7 @@ export class ReplayConfirmationHarness {
 			model: "sonnet",
 			judgeModel: "opus",
 			sessionBudgetUsd: 5,
+			spendCeilingUsd: 100,
 			groupId: "confirmation-stage-1",
 			reps,
 			corpusRoots,

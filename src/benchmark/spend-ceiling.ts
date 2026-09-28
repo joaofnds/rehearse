@@ -54,3 +54,19 @@ export function createSpendCeiling(props: {
 		},
 	};
 }
+
+/**
+ * A confirmation group's reps run at once, each held to the stored ceiling and
+ * all of them together to the group ceiling, the reps times that ceiling.
+ */
+export function repSpendCeilings(props: {
+	readonly spendCeilingUsd: number;
+	readonly reps: number;
+}): () => SpendCeiling {
+	const group = createSpendCeiling({
+		ceilingUsd: props.spendCeilingUsd * props.reps,
+	});
+
+	return () =>
+		createSpendCeiling({ ceilingUsd: props.spendCeilingUsd, within: group });
+}

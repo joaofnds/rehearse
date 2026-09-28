@@ -28,6 +28,7 @@ import { UsageError } from "#cli/commands";
 import { RefusedPreconditionError } from "#cli/interactive-stdin";
 
 const passingProbe = (): Promise<void> => Promise.resolve();
+const storedCeiling = (): Promise<number> => Promise.resolve(100);
 
 const directories: string[] = [];
 
@@ -164,6 +165,7 @@ describe(runCalibrate.name, () => {
 						};
 					},
 					output: recordOutput().output,
+					requireSpendCeiling: storedCeiling,
 					probeModel: () => {
 						providerCalls += 1;
 						return Promise.resolve();
@@ -174,6 +176,44 @@ describe(runCalibrate.name, () => {
 
 		expect(failure).toBeInstanceOf(SymlinkedEntryError);
 		expect(failure.message).toContain("CLAUDE.md");
+		expect(providerCalls).toBe(0);
+	});
+
+	it("refuses a rejudge without a stored spend ceiling before any provider call", async () => {
+		const fixture = await writeRunFixture();
+		directories.push(fixture.runsDirectory);
+		await writeReview(fixture.reviewFile, []);
+		let providerCalls = 0;
+
+		const failure = await failureOf(
+			runCalibrate(
+				{
+					id: RUN_NAME,
+					runsDirectory: fixture.runsDirectory,
+					json: false,
+					confirmRejudge: false,
+					readCurrentSources: unchangedControlSources,
+				},
+				{
+					buildJudges: () => {
+						providerCalls += 1;
+						return {
+							stageJudge: () => Promise.reject(new Error("no stage rejudge")),
+							finalJudge: () => Promise.reject(new Error("no final rejudge")),
+						};
+					},
+					output: recordOutput().output,
+					requireSpendCeiling: () =>
+						Promise.reject(new RefusedPreconditionError("No spend ceiling")),
+					probeModel: () => {
+						providerCalls += 1;
+						return Promise.resolve();
+					},
+				},
+			),
+		);
+
+		expect(failure).toBeInstanceOf(RefusedPreconditionError);
 		expect(providerCalls).toBe(0);
 	});
 
@@ -203,6 +243,7 @@ describe(runCalibrate.name, () => {
 						};
 					},
 					output,
+					requireSpendCeiling: storedCeiling,
 					probeModel: () =>
 						Promise.reject(
 							new RefusedPreconditionError("Model sonnet is not available"),
@@ -232,6 +273,7 @@ describe(runCalibrate.name, () => {
 				{
 					buildJudges: rejudgingStage(),
 					output,
+					requireSpendCeiling: storedCeiling,
 					probeModel: passingProbe,
 				},
 			),
@@ -258,6 +300,7 @@ describe(runCalibrate.name, () => {
 			{
 				buildJudges: rejudgingStage(),
 				output,
+				requireSpendCeiling: storedCeiling,
 				probeModel: passingProbe,
 			},
 		);
@@ -294,6 +337,7 @@ describe(runCalibrate.name, () => {
 						Promise.reject(new Error("no final rejudge was needed")),
 				}),
 				output,
+				requireSpendCeiling: storedCeiling,
 				probeModel: passingProbe,
 			},
 		);
@@ -326,6 +370,7 @@ describe(runCalibrate.name, () => {
 				{
 					buildJudges: rejudgingStage(),
 					output,
+					requireSpendCeiling: storedCeiling,
 					probeModel: passingProbe,
 				},
 			),
@@ -359,6 +404,7 @@ describe(runCalibrate.name, () => {
 						finalJudge: () => Promise.reject(new Error("no provider call")),
 					}),
 					output,
+					requireSpendCeiling: storedCeiling,
 					probeModel: passingProbe,
 				},
 			),
@@ -389,6 +435,7 @@ describe(runCalibrate.name, () => {
 						finalJudge: () => Promise.reject(new Error("no provider call")),
 					}),
 					output,
+					requireSpendCeiling: storedCeiling,
 					probeModel: passingProbe,
 				},
 			),
@@ -453,6 +500,7 @@ describe(runCalibrate.name, () => {
 						}),
 				}),
 				output,
+				requireSpendCeiling: storedCeiling,
 				probeModel: passingProbe,
 			},
 		);
@@ -485,6 +533,7 @@ describe(runCalibrate.name, () => {
 			{
 				buildJudges: rejudgingStage(),
 				output,
+				requireSpendCeiling: storedCeiling,
 				probeModel: passingProbe,
 			},
 		);
@@ -523,12 +572,13 @@ describe(runCalibrate.name, () => {
 				readCurrentSources: unchangedControlSources,
 			},
 			{
-				buildJudges: (recorded) => {
+				buildJudges: (recorded, spendCeiling) => {
 					knobs.push(recorded);
 
-					return rejudgingStage()(recorded);
+					return rejudgingStage()(recorded, spendCeiling);
 				},
 				output,
+				requireSpendCeiling: storedCeiling,
 				probeModel: passingProbe,
 			},
 		);
@@ -564,6 +614,7 @@ describe(runCalibrate.name, () => {
 					finalJudge: () => Promise.reject(new Error("no provider call")),
 				}),
 				output,
+				requireSpendCeiling: storedCeiling,
 				probeModel: passingProbe,
 			},
 		);
@@ -608,6 +659,7 @@ describe(runCalibrate.name, () => {
 					finalJudge: () => Promise.reject(new Error("no provider call")),
 				}),
 				output,
+				requireSpendCeiling: storedCeiling,
 				probeModel: passingProbe,
 			},
 		);
@@ -650,6 +702,7 @@ describe(runCalibrate.name, () => {
 						finalJudge: () => Promise.reject(new Error("no provider call")),
 					}),
 					output,
+					requireSpendCeiling: storedCeiling,
 					probeModel: passingProbe,
 				},
 			),
@@ -710,6 +763,7 @@ describe(runCalibrate.name, () => {
 							finalJudge: () => Promise.reject(new Error("no provider call")),
 						}),
 						output,
+						requireSpendCeiling: storedCeiling,
 						probeModel: passingProbe,
 					},
 				),
@@ -741,6 +795,7 @@ describe(runCalibrate.name, () => {
 						finalJudge: () => Promise.reject(new Error("no provider call")),
 					}),
 					output,
+					requireSpendCeiling: storedCeiling,
 					probeModel: passingProbe,
 				},
 			),
@@ -775,6 +830,7 @@ describe(runCalibrate.name, () => {
 						finalJudge: () => Promise.reject(new Error("no provider call")),
 					}),
 					output,
+					requireSpendCeiling: storedCeiling,
 					probeModel: passingProbe,
 				},
 			),
@@ -828,6 +884,7 @@ describe(runCalibrate.name, () => {
 					finalJudge: () => Promise.reject(new Error("no provider call")),
 				}),
 				output,
+				requireSpendCeiling: storedCeiling,
 				probeModel: passingProbe,
 			},
 		);
@@ -864,6 +921,7 @@ describe(runCalibrate.name, () => {
 					finalJudge: () => Promise.reject(new Error("no provider call")),
 				}),
 				output,
+				requireSpendCeiling: storedCeiling,
 				probeModel: passingProbe,
 			},
 		);
@@ -883,6 +941,7 @@ describe(runCalibrate.name, () => {
 						finalJudge: () => Promise.reject(new Error("no provider call")),
 					}),
 					output,
+					requireSpendCeiling: storedCeiling,
 					probeModel: passingProbe,
 				},
 			),

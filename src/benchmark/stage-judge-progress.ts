@@ -13,6 +13,7 @@ import type { JudgeProgress, JudgeSectionCount } from "./run-events";
 export type StageJudgeInvoker = (
 	prompt: string,
 	onLine: (line: string) => void,
+	budgetUsd: number,
 ) => Promise<string>;
 
 const PROGRESS_SECTIONS = [
@@ -117,7 +118,7 @@ export function watchJudgeProgress(
 	};
 
 	return {
-		invoke: (prompt) => {
+		invoke: (prompt, budgetUsd) => {
 			attempt += 1;
 			startOver();
 			const stream = new StructuredOutputStream({
@@ -125,13 +126,17 @@ export function watchJudgeProgress(
 				restarted: startOver,
 			});
 
-			return invoke(prompt, (line) => {
-				try {
-					stream.line(line);
-				} catch {
-					// The stream reads on from the next line.
-				}
-			});
+			return invoke(
+				prompt,
+				(line) => {
+					try {
+						stream.line(line);
+					} catch {
+						// The stream reads on from the next line.
+					}
+				},
+				budgetUsd,
+			);
 		},
 		rejected: (reason) => {
 			reportSafely({ state: "rejected", attempt, reason });

@@ -29,8 +29,11 @@ import type {
 } from "#benchmark/contracts";
 import { humanReviewSchema } from "#benchmark/contracts";
 import type { JudgeAgreementCalibration } from "#benchmark/judge-agreement";
+import type { JudgeBudget } from "#benchmark/judge-attempt";
 import { loadJudgeAgreementReport } from "#benchmark/judge-agreement";
 import { runJudge } from "#benchmark/judge";
+import type { SpendCeiling } from "#benchmark/spend-ceiling";
+import { createSpendCeiling } from "#benchmark/spend-ceiling";
 import { runStageJudge } from "#benchmark/stage-grading";
 import { completeRunArtifact } from "#benchmark/run";
 import { benchmarkRunPaths } from "#benchmark/run-layout";
@@ -352,15 +355,18 @@ export interface CalibrateJudges {
  * A record written before the budget was recorded has none, so the rejudge it
  * would need is refused rather than run at a limit nobody set.
  */
-export function judgesFor(knobs: Readonly<JudgeKnobs>): CalibrateJudges {
-	const budget = (): number => {
+export function judgesFor(
+	knobs: Readonly<JudgeKnobs>,
+	spendCeiling: SpendCeiling,
+): CalibrateJudges {
+	const budget = (): JudgeBudget => {
 		if (knobs.sessionBudgetUsd === undefined) {
 			throw new RefusedPreconditionError(
 				"This run recorded no session budget, so its evidence cannot be rejudged under the limit it ran with; calibrate it against the rubrics it froze",
 			);
 		}
 
-		return knobs.sessionBudgetUsd;
+		return { sessionBudgetUsd: knobs.sessionBudgetUsd, spendCeiling };
 	};
 
 	return {
@@ -418,15 +424,19 @@ function judgeKnobsOf(record: Readonly<CalibratableRecord>): JudgeKnobs {
  */
 export interface CalibrateDependencies {
 	readonly output: CommandOutput;
-	readonly buildJudges: (knobs: Readonly<JudgeKnobs>) => CalibrateJudges;
+	readonly buildJudges: (
+		knobs: Readonly<JudgeKnobs>,
+		spendCeiling: SpendCeiling,
+	) => CalibrateJudges;
 	readonly probeModel: (model: string) => Promise<void>;
+	readonly requireSpendCeiling: (recordsDirectory: string) => Promise<number>;
 }
 
 export async function runCalibrate(
 	request: Readonly<CalibrateRequest>,
 	dependencies: Readonly<CalibrateDependencies>,
 ): Promise<void> {
-	const { buildJudges, output, probeModel } = dependencies;
+	const { buildJudges, output, probeModel, requireSpendCeiling } = dependencies;
 	if (request.id === undefined) {
 		throw new UsageError("Provide the run: rehearse calibrate <run:name|name>");
 	}
@@ -439,8 +449,11 @@ export async function runCalibrate(
 	const current = await currentSources(request, frozen, recordedCaseId(record));
 
 	const knobs = judgeKnobsOf(record);
+	const spendCeiling = createSpendCeiling({
+		ceilingUsd: await requireSpendCeiling(request.runsDirectory),
+	});
 	await probeModel(knobs.judgeModel);
-	const judges = buildJudges(knobs);
+	const judges = buildJudges(knobs, spendCeiling);
 	const calibration = await reportIncomplete(output, () =>
 		calibrate(frozen, current, review, {
 			stageJudge: judges.stageJudge,

@@ -34,7 +34,7 @@ import type {
 	JudgeAgreementCalibration,
 	JudgeAgreementReport,
 } from "./judge-agreement";
-import type { JudgeAttempt } from "./judge-attempt";
+import type { JudgeAttempt, JudgeBudget } from "./judge-attempt";
 import { JudgeOutputValidationError } from "./judge-attempt";
 import type { PipelineDefinition, PlanningStageDefinition } from "./pipeline";
 import { loadPipeline } from "./pipeline";
@@ -69,6 +69,7 @@ import {
 	harnessResult,
 	AUDIT_LOG_PIPELINE_PATH,
 	AUDIT_LOG_RUBRICS_PATH,
+	ampleSpendCeiling,
 } from "./test-support";
 import type { PendingStage, RunArtifactPersistence } from "./run-abort";
 import { createRunAbort, fileRunArtifactPersistence } from "./run-abort";
@@ -519,7 +520,7 @@ describe(runGradedStages.name, () => {
 				runStageJudge: (
 					_model: string,
 					_effort: undefined | "low" | "medium" | "high" | "xhigh" | "max",
-					_budget: number,
+					_budget: JudgeBudget,
 					input: StageJudgeInput,
 					source: { readonly rubricPath: string },
 				) => {
@@ -609,6 +610,7 @@ describe(runGradedStages.name, () => {
 			model: "sonnet",
 			judgeModel: "sonnet",
 			sessionBudgetUsd: 5,
+			spendCeiling: ampleSpendCeiling(),
 			productOwner: {
 				ask: () => Promise.reject(new Error("no product owner in this test")),
 				snapshot: () => ({
@@ -910,7 +912,7 @@ describe(runGradedStages.name, () => {
 			runStageJudge: (
 				_model: string,
 				_effort: undefined | "low" | "medium" | "high" | "xhigh" | "max",
-				_budget: number,
+				_budget: JudgeBudget,
 				input: StageJudgeInput,
 				_source: JudgeArguments[4],
 				_invoke: JudgeArguments[5],
@@ -1001,7 +1003,7 @@ describe(runGradedStages.name, () => {
 			runStageJudge: (
 				_model: string,
 				_effort: undefined | "low" | "medium" | "high" | "xhigh" | "max",
-				_budget: number,
+				_budget: JudgeBudget,
 				input: StageJudgeInput,
 			) => {
 				runClockMs += 200;
@@ -1071,7 +1073,7 @@ describe(runGradedStages.name, () => {
 			runStageJudge: async (
 				_model: string,
 				_effort: undefined | "low" | "medium" | "high" | "xhigh" | "max",
-				_budget: number,
+				_budget: JudgeBudget,
 				input: StageJudgeInput,
 			) => {
 				if (input.stage === "build") {
@@ -1117,7 +1119,7 @@ describe(runGradedStages.name, () => {
 			runStageJudge: (
 				_model: string,
 				_effort: undefined | "low" | "medium" | "high" | "xhigh" | "max",
-				_budget: number,
+				_budget: JudgeBudget,
 				input: StageJudgeInput,
 			) =>
 				Promise.resolve({
@@ -1188,7 +1190,7 @@ describe(runGradedStages.name, () => {
 			runStageJudge: (
 				_model: string,
 				_effort: undefined | "low" | "medium" | "high" | "xhigh" | "max",
-				_budget: number,
+				_budget: JudgeBudget,
 				input: StageJudgeInput,
 			) => Promise.resolve(scorecardFor(input, "STOP")),
 		};
@@ -1232,7 +1234,7 @@ describe(runGradedStages.name, () => {
 			runStageJudge: (
 				_model: string,
 				_effort: undefined | "low" | "medium" | "high" | "xhigh" | "max",
-				_budget: number,
+				_budget: JudgeBudget,
 				input: StageJudgeInput,
 			) => {
 				stoppedScorecard = scorecardFor(input, "STOP");
@@ -1333,7 +1335,7 @@ describe(runGradedStages.name, () => {
 			runStageJudge: (
 				_model: string,
 				_effort: undefined | "low" | "medium" | "high" | "xhigh" | "max",
-				_budget: number,
+				_budget: JudgeBudget,
 				input: StageJudgeInput,
 			) => {
 				runClockMs += 2500;
@@ -1397,7 +1399,7 @@ describe(runGradedStages.name, () => {
 			runStageJudge: (
 				_model: string,
 				_effort: undefined | "low" | "medium" | "high" | "xhigh" | "max",
-				_budget: number,
+				_budget: JudgeBudget,
 				input: StageJudgeInput,
 			) => Promise.resolve(scorecardFor(input, "CONTINUE")),
 		};
@@ -1453,7 +1455,7 @@ describe(runGradedStages.name, () => {
 			runStageJudge: (
 				_model: string,
 				_effort: undefined | "low" | "medium" | "high" | "xhigh" | "max",
-				_budget: number,
+				_budget: JudgeBudget,
 				input: StageJudgeInput,
 			) => Promise.resolve(scorecardFor(input, "STOP")),
 		};
@@ -1815,7 +1817,7 @@ describe(runGradedStages.name, () => {
 			runStageJudge: (
 				_model: string,
 				_effort: undefined | "low" | "medium" | "high" | "xhigh" | "max",
-				_budget: number,
+				_budget: JudgeBudget,
 				input: StageJudgeInput,
 				_source: {
 					readonly rubricPath: string;
@@ -1955,7 +1957,7 @@ describe(runGradedStages.name, () => {
 			runStageJudge: (
 				_model: string,
 				_effort: undefined | "low" | "medium" | "high" | "xhigh" | "max",
-				_budget: number,
+				_budget: JudgeBudget,
 				input: StageJudgeInput,
 				_source: {
 					readonly rubricPath: string;
@@ -2038,7 +2040,7 @@ describe(runGradedStages.name, () => {
 			runStageJudge: (
 				_model: string,
 				_effort: undefined | "low" | "medium" | "high" | "xhigh" | "max",
-				_budget: number,
+				_budget: JudgeBudget,
 				input: StageJudgeInput,
 			) => Promise.resolve(scorecardFor(input, "STOP")),
 		};
@@ -2087,7 +2089,7 @@ describe(runGradedStages.name, () => {
 			runStageJudge: (
 				_model: string,
 				_effort: undefined | "low" | "medium" | "high" | "xhigh" | "max",
-				_budget: number,
+				_budget: JudgeBudget,
 				input: StageJudgeInput,
 			) => Promise.resolve(scorecardFor(input, "STOP")),
 		};
@@ -2140,7 +2142,7 @@ describe(runGradedStages.name, () => {
 			runStageJudge: (
 				_model: string,
 				_effort: undefined | "low" | "medium" | "high" | "xhigh" | "max",
-				_budget: number,
+				_budget: JudgeBudget,
 				input: StageJudgeInput,
 			) => Promise.resolve(scorecardFor(input, "STOP")),
 		};
@@ -2189,7 +2191,7 @@ describe(runGradedStages.name, () => {
 			runStageJudge: (
 				_model: string,
 				_effort: undefined | "low" | "medium" | "high" | "xhigh" | "max",
-				_budget: number,
+				_budget: JudgeBudget,
 				input: StageJudgeInput,
 			) => Promise.resolve(scorecardFor(input, "STOP")),
 		};
@@ -2301,7 +2303,7 @@ describe(runGradedStages.name, () => {
 			runStageJudge: (
 				_model: string,
 				_effort: undefined | "low" | "medium" | "high" | "xhigh" | "max",
-				_budget: number,
+				_budget: JudgeBudget,
 				input: StageJudgeInput,
 			) => Promise.resolve(scorecardFor(input, "STOP")),
 		};
@@ -2653,6 +2655,7 @@ describe(buildRunArtifact.name, () => {
 					},
 				},
 				writeFailedArtifact: abort.writeFailedArtifact,
+				spendCeiling: ampleSpendCeiling(),
 				elapsedMs: () => 6400,
 				invoke: () => {
 					calls += 1;
@@ -2713,6 +2716,7 @@ describe(buildRunArtifact.name, () => {
 				},
 				writeFailedArtifact: () => Promise.resolve(),
 				reviewFile: "/runs/review.md",
+				spendCeiling: ampleSpendCeiling(),
 				elapsedMs: () => clockMs,
 				invoke: () => {
 					clockMs += 5000;

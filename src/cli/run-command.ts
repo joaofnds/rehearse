@@ -68,6 +68,7 @@ import {
 	runRequestedExecution,
 } from "#benchmark/confirmation";
 import { runBenchmark } from "#benchmark/run";
+import { createSpendCeiling } from "#benchmark/spend-ceiling";
 import { runStageJudge } from "#benchmark/stage-grading";
 import type { LoadedStageSettings } from "#benchmark/stage-settings";
 import {
@@ -122,11 +123,13 @@ export interface RunCommandDependencies {
 		inputs: PipelinePreflightInputs,
 	) => Promise<LoadedStageSettings>;
 	readonly probeModel: (model: string) => Promise<ModelPreflightEvidence>;
+	readonly requireSpendCeiling: (recordsDirectory: string) => Promise<number>;
 	readonly execute: (
 		config: BenchmarkConfig,
 		output: CommandOutput,
 		benchmarkCase: BenchmarkCase,
 		loadedSettings: LoadedStageSettings,
+		spendCeilingUsd: number,
 	) => Promise<RunOutcome>;
 	readonly executeSession: (
 		config: SessionRunConfig,
@@ -177,6 +180,8 @@ export async function runRunCommand(
 	const selected = await asRefusedPrecondition(() =>
 		selectedCase(benchmarkCase, config),
 	);
+	const spendCeilingUsd =
+		await dependencies.requireSpendCeiling(recordsDirectory());
 	const loadedSettings = await dependencies.assertPreflight({
 		sourceDir: config.sourceDir,
 		settingsFilePath: selected.settingsFilePath,
@@ -188,6 +193,7 @@ export async function runRunCommand(
 		dependencies.output,
 		selected,
 		loadedSettings,
+		spendCeilingUsd,
 	);
 
 	await writeRecord(dependencies.output, outcome.recordFile, request.json);
@@ -227,7 +233,7 @@ async function runSessionCase(
 	request: RunCommandRequest,
 	dependencies: RunCommandDependencies,
 ): Promise<void> {
-	const config = asUsageError(() =>
+	const parsed = asUsageError(() =>
 		parseSessionArgs(request.args, Bun.env, {
 			caseId: sessionCase.declaration.id,
 			model: sessionCase.declaration.model,
@@ -236,7 +242,14 @@ async function runSessionCase(
 	);
 
 	requireSpendAuthorization(request.args, Bun.env, request.stdinIsTerminal);
-	requireConfirmationTerminal(config.confirmation, request.stdinIsTerminal);
+	requireConfirmationTerminal(parsed.confirmation, request.stdinIsTerminal);
+	const spendCeiling = createSpendCeiling({
+		ceilingUsd: await dependencies.requireSpendCeiling(recordsDirectory()),
+	});
+	const config = {
+		...parsed,
+		sessionBudgetUsd: spendCeiling.budgetFor(parsed.sessionBudgetUsd),
+	};
 
 	const outcome = await dependencies.executeSession(
 		config,
@@ -269,6 +282,7 @@ export async function executeRun(
 	output: CommandOutput,
 	benchmarkCase: BenchmarkCase,
 	loadedSettings: LoadedStageSettings,
+	spendCeilingUsd: number,
 ): Promise<RunOutcome> {
 	const questioner = terminalQuestioner();
 
@@ -288,6 +302,7 @@ export async function executeRun(
 						loadedSettings,
 						questioner,
 						diagnosticWriter(output),
+						spendCeilingUsd,
 					),
 				runConfirmed: (confirmation) =>
 					confirmRun(
@@ -296,6 +311,7 @@ export async function executeRun(
 						loadedSettings,
 						confirmation,
 						output,
+						spendCeilingUsd,
 					),
 			},
 		);
@@ -334,6 +350,7 @@ export interface ConfirmationRequestInputs {
 	readonly source: SourceBaseline;
 	readonly instructions: string;
 	readonly loadedSettings: LoadedStageSettings;
+	readonly spendCeilingUsd: number;
 }
 
 /**
@@ -368,6 +385,7 @@ export function buildConfirmationRequest(
 		judgeModel: config.judgeModel,
 		judgeEffort: config.judgeEffort,
 		sessionBudgetUsd: config.sessionBudgetUsd,
+		spendCeilingUsd: inputs.spendCeilingUsd,
 		loadedSettings: inputs.loadedSettings,
 	};
 }
@@ -378,6 +396,7 @@ async function confirmRun(
 	loadedSettings: LoadedStageSettings,
 	confirmation: ConfirmationApproval,
 	output: CommandOutput,
+	spendCeilingUsd: number,
 ): Promise<Awaited<ReturnType<typeof runPipelineConfirmation>>> {
 	const corpusSource = liveCorpusSource();
 	const [controlSha, source, instructions] = await Promise.all([
@@ -412,7 +431,10 @@ async function confirmRun(
 				runJudge(
 					config.judgeModel,
 					config.judgeEffort,
-					config.sessionBudgetUsd,
+					{
+						sessionBudgetUsd: config.sessionBudgetUsd,
+						spendCeiling: judgeRequest.spendCeiling,
+					},
 					judgeRequest.rubric,
 					judgeRequest.baselineContext,
 					judgeRequest.evidence.diff,
@@ -444,6 +466,7 @@ async function confirmRun(
 			source,
 			instructions,
 			loadedSettings,
+			spendCeilingUsd,
 		}),
 	);
 }

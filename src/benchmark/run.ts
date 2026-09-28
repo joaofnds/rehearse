@@ -113,6 +113,8 @@ import type { SourceBaseline } from "./target";
 import type { ProductOwner, ProductOwnerSnapshot } from "./workflow";
 import { createProductOwner, runWorkflowStage } from "./workflow";
 import { claimShortId, formatShortId } from "./short-id";
+import type { SpendCeiling } from "./spend-ceiling";
+import { createSpendCeiling } from "./spend-ceiling";
 
 async function createRunFiles(timestamp: string): Promise<BenchmarkRunPaths> {
 	const directory = recordsDirectory();
@@ -303,6 +305,7 @@ export interface FinalJudgeRequest {
 	) => Promise<void>;
 	readonly invoke?: JudgeInvoker | undefined;
 	readonly elapsedMs?: (() => number) | undefined;
+	readonly spendCeiling: SpendCeiling;
 }
 
 export async function runFinalJudge(
@@ -315,7 +318,10 @@ export async function runFinalJudge(
 		return await runJudge(
 			config.judgeModel,
 			config.judgeEffort,
-			config.sessionBudgetUsd,
+			{
+				sessionBudgetUsd: config.sessionBudgetUsd,
+				spendCeiling: request.spendCeiling,
+			},
 			inputs.rubric,
 			inputs.baselineContext,
 			evidence.diff,
@@ -515,6 +521,7 @@ export interface StageContext {
 	readonly judgeModel: string;
 	readonly judgeEffort?: Effort | undefined;
 	readonly sessionBudgetUsd: number;
+	readonly spendCeiling: SpendCeiling;
 	readonly minimumStageGrade?: StageLetterGrade | undefined;
 	readonly productOwner: ProductOwner;
 	readonly task: string;
@@ -561,6 +568,7 @@ export interface StageSessionEnvironment {
 	readonly model: string;
 	readonly effort?: Effort | undefined;
 	readonly sessionBudgetUsd: number;
+	readonly spendCeiling: SpendCeiling;
 	readonly productOwner: ProductOwner;
 	readonly task: string;
 	readonly productBrief: string;
@@ -616,6 +624,7 @@ export async function executeStageSession(
 		model: environment.model,
 		effort: environment.effort,
 		sessionBudgetUsd: environment.sessionBudgetUsd,
+		spendCeiling: environment.spendCeiling,
 		productOwner: environment.productOwner,
 		taskId: environment.taskId,
 		stage,
@@ -843,7 +852,10 @@ export async function runGradedStages(
 			scorecard = await dependencies.runStageJudge(
 				context.judgeModel,
 				context.judgeEffort,
-				context.sessionBudgetUsd,
+				{
+					sessionBudgetUsd: context.sessionBudgetUsd,
+					spendCeiling: context.spendCeiling,
+				},
 				input,
 				rubric,
 				undefined,
@@ -1014,8 +1026,10 @@ export async function runBenchmark(
 	loadedSettings: LoadedStageSettings,
 	rl: Questioner,
 	log: (message: string) => void,
+	spendCeilingUsd: number,
 ): Promise<BenchmarkRunPaths> {
 	const { pipeline } = benchmarkCase;
+	const spendCeiling = createSpendCeiling({ ceilingUsd: spendCeilingUsd });
 	const controlSha = await assertControlReady();
 	const source = await assertSourceReady(config.sourceDir);
 	const workflowBackup = await captureWorkflowBackup(source.root);
@@ -1127,6 +1141,7 @@ export async function runBenchmark(
 			model: config.model,
 			effort: config.effort,
 			sessionBudgetUsd: config.sessionBudgetUsd,
+			spendCeiling,
 			task,
 			productBrief,
 		});
@@ -1161,6 +1176,7 @@ export async function runBenchmark(
 					judgeModel: config.judgeModel,
 					judgeEffort: config.judgeEffort,
 					sessionBudgetUsd: config.sessionBudgetUsd,
+					spendCeiling,
 					minimumStageGrade: config.minimumStageGrade,
 					productOwner,
 					task,
@@ -1198,6 +1214,7 @@ export async function runBenchmark(
 							judgeModel: config.judgeModel,
 							judgeEffort: config.judgeEffort,
 							sessionBudgetUsd: config.sessionBudgetUsd,
+							spendCeiling,
 							log,
 						});
 						stageFailureCalibrated = true;
@@ -1251,6 +1268,7 @@ export async function runBenchmark(
 			artifactInputs,
 			writeFailedArtifact: abort.writeFailedArtifact,
 			elapsedMs,
+			spendCeiling,
 			reviewFile: runFiles.reviewFile,
 		});
 		const { grade } = artifact;
@@ -1295,6 +1313,7 @@ export async function runBenchmark(
 						judgeModel: config.judgeModel,
 						judgeEffort: config.judgeEffort,
 						sessionBudgetUsd: config.sessionBudgetUsd,
+						spendCeiling,
 						log,
 					}),
 				collectJudgeAgreement: (calibration) =>

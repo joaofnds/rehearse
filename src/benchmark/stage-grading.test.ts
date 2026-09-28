@@ -22,6 +22,7 @@ import {
 import {
 	AUDIT_LOG_RUBRICS_PATH,
 	harnessResult,
+	judgeBudget,
 	PROJECT_ROOT,
 	TestResources,
 } from "./test-support";
@@ -664,8 +665,13 @@ describe(runStageJudge.name, () => {
 		input: StageScorecard["input"],
 		response: string,
 	): Promise<StageScorecard> {
-		return runStageJudge("sonnet", undefined, 5, input, rubricSource, () =>
-			Promise.resolve(response),
+		return runStageJudge(
+			"sonnet",
+			undefined,
+			judgeBudget(),
+			input,
+			rubricSource,
+			() => Promise.resolve(response),
 		);
 	}
 
@@ -742,7 +748,7 @@ describe(runStageJudge.name, () => {
 			await runStageJudge(
 				"sonnet",
 				undefined,
-				5,
+				judgeBudget(),
 				stageJudgeInput("shape"),
 				rubricSource,
 				(judgePrompt) => {
@@ -766,7 +772,7 @@ describe(runStageJudge.name, () => {
 			const scorecard = await runStageJudge(
 				"sonnet",
 				undefined,
-				5,
+				judgeBudget(),
 				stageJudgeInput("shape"),
 				rubricSource,
 				() => Promise.resolve(responses.shift() ?? ""),
@@ -849,7 +855,7 @@ describe(runStageJudge.name, () => {
 			const scorecard = await runStageJudge(
 				"sonnet",
 				undefined,
-				5,
+				judgeBudget(),
 				stageJudgeInput("build", {
 					kind: "delivery",
 					localChecks: harnessResult("FAIL", "unit tests exited 1"),
@@ -897,7 +903,7 @@ describe(runStageJudge.name, () => {
 		const scorecard = await runStageJudge(
 			"sonnet",
 			undefined,
-			5,
+			judgeBudget(),
 			input,
 			rubricSource,
 			(judgePrompt) => {
@@ -942,7 +948,7 @@ describe(runStageJudge.name, () => {
 		const scorecard = await runStageJudge(
 			"sonnet",
 			undefined,
-			5,
+			judgeBudget(),
 			stageJudgeInput("shape"),
 			rubricSource,
 			(prompt) => {
@@ -985,7 +991,7 @@ describe(runStageJudge.name, () => {
 			runStageJudge(
 				"sonnet",
 				undefined,
-				5,
+				judgeBudget(),
 				stageJudgeInput("shape"),
 				rubricSource,
 				() => {
@@ -1025,7 +1031,7 @@ describe(runStageJudge.name, () => {
 			runStageJudge(
 				"sonnet",
 				undefined,
-				5,
+				judgeBudget(),
 				stageJudgeInput("shape"),
 				rubricSource,
 				() => {
@@ -1051,7 +1057,7 @@ describe(runStageJudge.name, () => {
 			runStageJudge(
 				"sonnet",
 				undefined,
-				5,
+				judgeBudget(),
 				stageJudgeInput("shape"),
 				rubricSource,
 				() => {
@@ -1165,7 +1171,7 @@ describe(runStageJudge.name, () => {
 			const scorecard = await runStageJudge(
 				"sonnet",
 				undefined,
-				5,
+				judgeBudget(),
 				stageJudgeInput("build"),
 				progressRubric,
 				(_prompt, onLine) => {
@@ -1212,7 +1218,7 @@ describe(runStageJudge.name, () => {
 			await runStageJudge(
 				"sonnet",
 				undefined,
-				5,
+				judgeBudget(),
 				stageJudgeInput("build"),
 				progressRubric,
 				(_prompt, onLine) => {
@@ -1252,7 +1258,7 @@ describe(runStageJudge.name, () => {
 			await runStageJudge(
 				"sonnet",
 				undefined,
-				5,
+				judgeBudget(),
 				stageJudgeInput("build"),
 				progressRubric,
 				(_prompt, onLine) => {
@@ -1296,9 +1302,11 @@ describe(runStageJudge.name, () => {
 			await Bun.write(
 				join(directory, "judge.ts"),
 				`import { runStageJudge } from ${JSON.stringify(join(PROJECT_ROOT, "src/benchmark/stage-grading.ts"))};
+import { createSpendCeiling } from ${JSON.stringify(join(PROJECT_ROOT, "src/benchmark/spend-ceiling.ts"))};
 const { input, progressRubric } = await Bun.file(${JSON.stringify(join(directory, "judge.json"))}).json();
 const returned = [];
-const scorecard = await runStageJudge("sonnet", undefined, 5, input, progressRubric, undefined, (reading) => {
+const budget = { sessionBudgetUsd: 5, spendCeiling: createSpendCeiling({ ceilingUsd: 100 }) };
+const scorecard = await runStageJudge("sonnet", undefined, budget, input, progressRubric, undefined, (reading) => {
 	returned.push(reading.state === "returning" ? reading.sections.dimensions.returned : -1);
 });
 console.log(JSON.stringify({ returned, grade: scorecard.grade.grade }));
@@ -1330,7 +1338,7 @@ console.log(JSON.stringify({ returned, grade: scorecard.grade.grade }));
 			const scorecard = await runStageJudge(
 				"sonnet",
 				undefined,
-				5,
+				judgeBudget(),
 				stageJudgeInput("build"),
 				progressRubric,
 				(_prompt, onLine) => {
@@ -1358,7 +1366,7 @@ console.log(JSON.stringify({ returned, grade: scorecard.grade.grade }));
 			const scorecard = await runStageJudge(
 				"sonnet",
 				undefined,
-				5,
+				judgeBudget(),
 				stageJudgeInput("build"),
 				progressRubric,
 				(_prompt, onLine) => {

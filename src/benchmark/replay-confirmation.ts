@@ -52,6 +52,7 @@ import { chainRubricCauses } from "./staleness-report";
 import { stageRubricSha256 } from "./judge-agreement";
 import type { ReadManifestEntry } from "./read-manifest";
 import { recordStageReads } from "./stage-reads";
+import { repSpendCeilings } from "./spend-ceiling";
 
 interface FrozenReplayInputs {
 	readonly manifest: Awaited<ReturnType<typeof loadRunManifest>>;
@@ -440,6 +441,10 @@ async function runReplayConfirmationBody(
 	now: () => number,
 ): Promise<ReplayConfirmationOutcome> {
 	const makespanStart = now();
+	const repSpendCeiling = repSpendCeilings({
+		spendCeilingUsd: request.spendCeilingUsd,
+		reps: request.reps,
+	});
 	const results = await runConfirmation(
 		{
 			groupId: request.groupId,
@@ -451,6 +456,7 @@ async function runReplayConfirmationBody(
 			const repPaths = paths.rep(plan.repId);
 			await mkdir(repPaths.stagesDirectory, { recursive: true });
 			const repStart = now();
+			const spendCeiling = repSpendCeiling();
 			let worktreeCreated = false;
 			let productOwner: ProductOwner | undefined;
 			let session: StageSessionResult | undefined;
@@ -499,6 +505,7 @@ async function runReplayConfirmationBody(
 					model: request.model,
 					effort: request.effort,
 					sessionBudgetUsd: request.sessionBudgetUsd,
+					spendCeiling,
 					task: frozen.manifest.task,
 					productBrief: frozen.manifest.productBrief,
 				});
@@ -514,6 +521,7 @@ async function runReplayConfirmationBody(
 						model: request.model,
 						effort: request.effort,
 						sessionBudgetUsd: request.sessionBudgetUsd,
+						spendCeiling,
 						productOwner,
 						task: frozen.manifest.task,
 						productBrief: frozen.manifest.productBrief,
@@ -556,7 +564,7 @@ async function runReplayConfirmationBody(
 				const scorecard = await dependencies.runStageJudge(
 					request.judgeModel,
 					request.judgeEffort,
-					request.sessionBudgetUsd,
+					{ sessionBudgetUsd: request.sessionBudgetUsd, spendCeiling },
 					session.input,
 					frozen.rubric,
 				);

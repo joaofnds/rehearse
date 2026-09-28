@@ -5,7 +5,10 @@ import { join } from "node:path";
 import { runCommand } from "./command";
 import { STORED_GIT_DIRECTORY } from "./git-directory-name";
 import type { LocalCheckResult } from "./contracts";
+import type { JudgeBudget } from "./judge-attempt";
 import type { TargetDefinition } from "./pipeline";
+import type { SpendCeiling } from "./spend-ceiling";
+import { createSpendCeiling } from "./spend-ceiling";
 import { removeWorktree } from "./target";
 
 export const PROJECT_ROOT = join(import.meta.dir, "../..");
@@ -196,4 +199,13 @@ export function harnessResult(
 			},
 		],
 	};
+}
+
+/** A ceiling far above anything a test's fake providers report. */
+export function ampleSpendCeiling(): SpendCeiling {
+	return createSpendCeiling({ ceilingUsd: 100 });
+}
+
+export function judgeBudget(): JudgeBudget {
+	return { sessionBudgetUsd: 5, spendCeiling: ampleSpendCeiling() };
 }

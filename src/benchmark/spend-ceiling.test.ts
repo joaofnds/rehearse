@@ -1,5 +1,9 @@
 import { describe, expect, it } from "bun:test";
-import { createSpendCeiling, SpendCeilingReachedError } from "./spend-ceiling";
+import {
+	createSpendCeiling,
+	repSpendCeilings,
+	SpendCeilingReachedError,
+} from "./spend-ceiling";
 
 function reachedError(action: () => number): SpendCeilingReachedError {
 	try {
@@ -84,5 +88,24 @@ describe(createSpendCeiling.name, () => {
 
 			expect(error.ceilingUsd).toBe(1);
 		});
+	});
+});
+
+describe(repSpendCeilings.name, () => {
+	it("holds every rep to the ceiling", () => {
+		const repCeiling = repSpendCeilings({ spendCeilingUsd: 1, reps: 3 });
+		const rep = repCeiling();
+
+		expect(rep.budgetFor(5)).toBe(1);
+	});
+
+	it("holds the reps together to the reps times the ceiling", () => {
+		const repCeiling = repSpendCeilings({ spendCeilingUsd: 1, reps: 2 });
+		const overrun = repCeiling();
+		const other = repCeiling();
+		overrun.charge(1.5);
+		other.charge(0.4);
+
+		expect(other.budgetFor(5)).toBeCloseTo(0.1);
 	});
 });

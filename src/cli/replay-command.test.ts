@@ -39,6 +39,7 @@ const sessionArgs = [
 ];
 
 const passingProbe = (): Promise<void> => Promise.resolve();
+const storedCeiling = (): Promise<number> => Promise.resolve(100);
 
 /**
  * Replay now reads the run's own manifest to find the case it replayed, so a
@@ -125,6 +126,7 @@ describe(runReplayCommand.name, () => {
 
 						return Promise.resolve("/runs/any-name");
 					},
+					requireSpendCeiling: storedCeiling,
 					probeModel: passingProbe,
 					execute: () => Promise.reject(new Error("replay must not run")),
 				},
@@ -163,6 +165,7 @@ describe(runReplayCommand.name, () => {
 
 						return Promise.reject(new Error(`No replayable run named ${name}`));
 					},
+					requireSpendCeiling: storedCeiling,
 					probeModel: passingProbe,
 					execute: () => Promise.reject(new Error("replay must not run")),
 				},
@@ -192,6 +195,7 @@ describe(runReplayCommand.name, () => {
 
 						return Promise.reject(new Error(`No replayable run named ${name}`));
 					},
+					requireSpendCeiling: storedCeiling,
 					probeModel: passingProbe,
 					execute: () => Promise.reject(new Error("replay must not run")),
 				},
@@ -224,6 +228,7 @@ describe(runReplayCommand.name, () => {
 					{
 						output,
 						resolveRunDirectory: () => Promise.resolve("/runs/any-name"),
+						requireSpendCeiling: storedCeiling,
 						probeModel: () =>
 							Promise.reject(
 								new RefusedPreconditionError("Model sonnet is not available"),
@@ -262,6 +267,7 @@ describe(runReplayCommand.name, () => {
 			{
 				output,
 				resolveRunDirectory: () => Promise.resolve("/runs/any-name"),
+				requireSpendCeiling: storedCeiling,
 				probeModel: passingProbe,
 				execute: (_config, _paths, commandOutput) => {
 					commandOutput.stderr("Replay progress\n");
@@ -383,6 +389,7 @@ describe("--corpus on a stage replay", () => {
 				{
 					output,
 					resolveRunDirectory: () => Promise.resolve("/runs/any-name"),
+					requireSpendCeiling: storedCeiling,
 					probeModel: passingProbe,
 					execute: (config) => {
 						corpora.push(config.corpus);
@@ -418,6 +425,7 @@ describe("--corpus on a stage replay", () => {
 					replayConfigFor("any-name-corpus-linked", root),
 					benchmarkRunPaths(recordsDirectory(), "any-name-corpus-linked"),
 					recordOutput().output,
+					100,
 				),
 			);
 

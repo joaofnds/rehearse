@@ -37,6 +37,7 @@ import { chainRubricCauses } from "./staleness-report";
 import { stageRubricSha256 } from "./judge-agreement";
 import type { loadStageRubric, runStageJudge } from "./stage-grading";
 import type { addWorktree, currentSha, removeWorktree } from "./target";
+import { createSpendCeiling } from "./spend-ceiling";
 import type { createProductOwner } from "./workflow";
 
 export class ReplayError extends Error {
@@ -163,6 +164,7 @@ export interface ReplayRequest {
 	readonly judgeModel: string;
 	readonly judgeEffort?: Effort | undefined;
 	readonly sessionBudgetUsd: number;
+	readonly spendCeilingUsd: number;
 	readonly settingSources?: "project" | undefined;
 	readonly loadedSettings?: LoadedStageSettings | undefined;
 }
@@ -360,11 +362,15 @@ export async function runReplay(
 		);
 		const baselineContext =
 			await dependencies.captureBaselineContext(worktreeDir);
+		const spendCeiling = createSpendCeiling({
+			ceilingUsd: request.spendCeilingUsd,
+		});
 		const productOwner = dependencies.createProductOwner({
 			directory: productOwnerDirectory,
 			model: request.model,
 			effort: request.effort,
 			sessionBudgetUsd: request.sessionBudgetUsd,
+			spendCeiling,
 			task: manifest.task,
 			productBrief: manifest.productBrief,
 		});
@@ -378,6 +384,7 @@ export async function runReplay(
 				model: request.model,
 				effort: request.effort,
 				sessionBudgetUsd: request.sessionBudgetUsd,
+				spendCeiling,
 				productOwner,
 				task: manifest.task,
 				productBrief: manifest.productBrief,
@@ -424,7 +431,10 @@ export async function runReplay(
 		const scorecard = await dependencies.runStageJudge(
 			request.judgeModel,
 			request.judgeEffort,
-			request.sessionBudgetUsd,
+			{
+				sessionBudgetUsd: request.sessionBudgetUsd,
+				spendCeiling,
+			},
 			session.input,
 			rubric,
 		);

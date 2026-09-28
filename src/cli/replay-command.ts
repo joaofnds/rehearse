@@ -94,10 +94,12 @@ export interface ReplayCommandDependencies {
 	readonly output: CommandOutput;
 	readonly resolveRunDirectory: (runName: string) => Promise<string>;
 	readonly probeModel: (model: string) => Promise<void>;
+	readonly requireSpendCeiling: (recordsDirectory: string) => Promise<number>;
 	readonly execute: (
 		config: ReplayCliConfig,
 		paths: BenchmarkRunPaths,
 		output: CommandOutput,
+		spendCeilingUsd: number,
 	) => Promise<ReplayCommandOutcome>;
 }
 
@@ -127,12 +129,15 @@ export async function runReplayCommand(
 
 	writeDiagnostic(dependencies.output, judgeSelfPreferenceWarning(config));
 
+	const spendCeilingUsd =
+		await dependencies.requireSpendCeiling(recordsDirectory());
 	await dependencies.probeModel(config.model);
 
 	const outcome = await dependencies.execute(
 		config,
 		paths,
 		dependencies.output,
+		spendCeilingUsd,
 	);
 
 	await reportOutcome(request, config, paths, outcome, dependencies.output);
@@ -261,6 +266,7 @@ export async function executeReplay(
 	config: ReplayCliConfig,
 	paths: BenchmarkRunPaths,
 	output: CommandOutput,
+	spendCeilingUsd: number,
 ): Promise<ReplayCommandOutcome> {
 	const [corpus, loadedSettings] = await Promise.all([
 		replayCorpus(config.corpus),
@@ -313,6 +319,7 @@ export async function executeReplay(
 		judgeModel: config.judgeModel,
 		judgeEffort: config.judgeEffort,
 		sessionBudgetUsd: config.sessionBudgetUsd,
+		spendCeilingUsd,
 	};
 	const questioner = terminalQuestioner();
 

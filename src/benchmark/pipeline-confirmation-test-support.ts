@@ -270,6 +270,7 @@ export class PipelineConfirmationHarness {
 				totalMaximumUsd: 135,
 			},
 			approvalMethod: "yes",
+			spendCeilingUsd: 100,
 			source: { root: this.sourceRoot, sha: this.sourceSha },
 			controlSha: "a".repeat(40),
 			pipelinePath: "pipelines/test.json",

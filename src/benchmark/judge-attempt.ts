@@ -1,10 +1,23 @@
 import { readClaudeCallMetrics, readClaudeEnvelope } from "./claude";
 import type { ClaudeCallMetrics, ClaudeEnvelope } from "./contracts";
 import { JudgeExecutionError } from "./judge-execution-error";
+import type { SpendCeiling } from "./spend-ceiling";
 
 export { JudgeExecutionError } from "./judge-execution-error";
 
-export type JudgeInvoker = (prompt: string) => Promise<string>;
+export type JudgeInvoker = (
+	prompt: string,
+	budgetUsd: number,
+) => Promise<string>;
+
+/**
+ * What one Judge attempt may spend: its own session budget, clamped to the
+ * spend ceiling the run has left.
+ */
+export interface JudgeBudget {
+	readonly sessionBudgetUsd: number;
+	readonly spendCeiling: SpendCeiling;
+}
 
 interface JudgeAttemptEvidence {
 	readonly payload: unknown;
@@ -63,14 +76,16 @@ export async function runJudgeAttempts<Value>(
 	prompt: string,
 	invoke: JudgeInvoker,
 	validate: (envelope: ClaudeEnvelope) => Value,
+	budget: JudgeBudget,
 ): Promise<JudgeAttemptResult<Value>> {
 	let costUsd = 0;
 	const attempts: JudgeAttempt[] = [];
 	let attemptPrompt = prompt;
 	for (let attempt = 1; ; attempt += 1) {
+		const budgetUsd = budget.spendCeiling.budgetFor(budget.sessionBudgetUsd);
 		let envelope;
 		try {
-			const output = await invoke(attemptPrompt);
+			const output = await invoke(attemptPrompt, budgetUsd);
 			envelope = readClaudeEnvelope(output);
 		} catch (error) {
 			throw new JudgeExecutionError({
@@ -84,6 +99,7 @@ export async function runJudgeAttempts<Value>(
 		const metrics = readClaudeCallMetrics(envelope);
 		const payload = envelope.structured_output ?? envelope.result ?? null;
 		costUsd += attemptCostUsd;
+		budget.spendCeiling.charge(attemptCostUsd);
 		try {
 			const value = validate(envelope);
 			attempts.push(

@@ -18,6 +18,8 @@ import type {
 import { humanReviewSchema } from "./contracts";
 import type { JudgeResult } from "./judge";
 import { runJudge, validateRubricDefinition } from "./judge";
+import type { JudgeBudget } from "./judge-attempt";
+import type { SpendCeiling } from "./spend-ceiling";
 import { parseStageRubric, runStageJudge } from "./stage-grading";
 
 export interface Questioner {
@@ -46,6 +48,7 @@ interface CalibrationContext {
 	readonly judgeModel: string;
 	readonly judgeEffort?: Effort | undefined;
 	readonly sessionBudgetUsd: number;
+	readonly spendCeiling: SpendCeiling;
 	readonly stageJudge?: typeof runStageJudge | undefined;
 	readonly resolveCorpus?: CorpusSourceResolver | undefined;
 	readonly log: (message: string) => void;
@@ -498,6 +501,13 @@ export async function collectCalibration(
 	}
 }
 
+function judgeBudgetOf(context: Readonly<CalibrationContext>): JudgeBudget {
+	return {
+		sessionBudgetUsd: context.sessionBudgetUsd,
+		spendCeiling: context.spendCeiling,
+	};
+}
+
 function calibrationJudges(
 	context: Readonly<CalibrationContext>,
 ): CalibrationJudges {
@@ -506,7 +516,7 @@ function calibrationJudges(
 			(context.stageJudge ?? runStageJudge)(
 				context.judgeModel,
 				context.judgeEffort,
-				context.sessionBudgetUsd,
+				judgeBudgetOf(context),
 				scorecard.input,
 				source,
 			),
@@ -514,7 +524,7 @@ function calibrationJudges(
 			runJudge(
 				context.judgeModel,
 				context.judgeEffort,
-				context.sessionBudgetUsd,
+				judgeBudgetOf(context),
 				rubric,
 				candidate.baselineContext,
 				candidate.diff,

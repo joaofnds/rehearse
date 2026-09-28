@@ -1,6 +1,13 @@
 import { describe, expect, it } from "bun:test";
+import { failureOf } from "#cli/cli-test-support";
 import { STAGE_SILENCE_LIMIT_MS } from "./config";
-import type { ProductOwner } from "./workflow";
+import type { SpendCeiling } from "./spend-ceiling";
+import { createSpendCeiling, SpendCeilingReachedError } from "./spend-ceiling";
+import type {
+	ClaudeCommand,
+	ProductOwner,
+	WorkflowStageRequest,
+} from "./workflow";
 import {
 	createProductOwner,
 	runWorkflowStage,
@@ -33,6 +40,7 @@ describe("workflow provider metrics", () => {
 				directory: "/target",
 				model: "sonnet",
 				sessionBudgetUsd: 5,
+				spendCeiling: createSpendCeiling({ ceilingUsd: 100 }),
 				task: "Build it",
 				productBrief: "Keep it small",
 			},
@@ -89,6 +97,7 @@ describe("workflow provider metrics", () => {
 				directory: "/target",
 				model: "sonnet",
 				sessionBudgetUsd: 5,
+				spendCeiling: createSpendCeiling({ ceilingUsd: 100 }),
 				task: "Build it",
 				productBrief: "Keep it small",
 			},
@@ -123,6 +132,7 @@ describe("workflow provider metrics", () => {
 				directory: "/target",
 				model: "sonnet",
 				sessionBudgetUsd: 5,
+				spendCeiling: createSpendCeiling({ ceilingUsd: 100 }),
 				task: "Build it",
 				productBrief: "Keep it small",
 			},
@@ -173,6 +183,7 @@ describe("workflow provider metrics", () => {
 				model: "sonnet",
 				effort: undefined,
 				sessionBudgetUsd: 5,
+				spendCeiling: createSpendCeiling({ ceilingUsd: 100 }),
 				productOwner,
 				taskId: "ACT-5",
 				stage: "shape",
@@ -240,6 +251,7 @@ describe("workflow provider metrics", () => {
 				model: "sonnet",
 				effort: undefined,
 				sessionBudgetUsd: 15,
+				spendCeiling: createSpendCeiling({ ceilingUsd: 100 }),
 				productOwner,
 				taskId: "ACT-5",
 				stage: "build",
@@ -289,6 +301,7 @@ describe("workflow provider metrics", () => {
 				model: "sonnet",
 				effort: undefined,
 				sessionBudgetUsd: 5,
+				spendCeiling: createSpendCeiling({ ceilingUsd: 100 }),
 				productOwner,
 				taskId: "ACT-5",
 				stage: "shape",
@@ -330,6 +343,7 @@ describe("workflow provider metrics", () => {
 				model: "sonnet",
 				effort: undefined,
 				sessionBudgetUsd: 5,
+				spendCeiling: createSpendCeiling({ ceilingUsd: 100 }),
 				productOwner,
 				taskId: "ACT-347",
 				stage: "build",
@@ -382,6 +396,7 @@ describe("workflow provider metrics", () => {
 				model: "sonnet",
 				effort: undefined,
 				sessionBudgetUsd: 5,
+				spendCeiling: createSpendCeiling({ ceilingUsd: 100 }),
 				productOwner,
 				taskId: "ACT-28",
 				stage: "shape",
@@ -421,6 +436,7 @@ describe("workflow provider metrics", () => {
 				model: "sonnet",
 				effort: undefined,
 				sessionBudgetUsd: 5,
+				spendCeiling: createSpendCeiling({ ceilingUsd: 100 }),
 				productOwner,
 				taskId: "ACT-28",
 				stage: "shape",
@@ -459,6 +475,7 @@ describe("workflow provider metrics", () => {
 				model: "sonnet",
 				effort: undefined,
 				sessionBudgetUsd: 5,
+				spendCeiling: createSpendCeiling({ ceilingUsd: 100 }),
 				productOwner,
 				taskId: "ACT-28",
 				stage: "shape",
@@ -540,6 +557,7 @@ describe("workflow provider metrics", () => {
 					model: "sonnet",
 					effort: undefined,
 					sessionBudgetUsd: 5,
+					spendCeiling: createSpendCeiling({ ceilingUsd: 100 }),
 					productOwner,
 					taskId: "ACT-22.1",
 					stage: "shape",
@@ -596,6 +614,7 @@ describe("workflow provider metrics", () => {
 					model: "sonnet",
 					effort: undefined,
 					sessionBudgetUsd: 5,
+					spendCeiling: createSpendCeiling({ ceilingUsd: 100 }),
 					productOwner,
 					taskId: "ACT-22.1",
 					stage: "shape",
@@ -630,6 +649,7 @@ describe("workflow provider metrics", () => {
 					model: "sonnet",
 					effort: undefined,
 					sessionBudgetUsd: 5,
+					spendCeiling: createSpendCeiling({ ceilingUsd: 100 }),
 					productOwner,
 					taskId: "ACT-22.1",
 					stage: "build",
@@ -644,6 +664,163 @@ describe("workflow provider metrics", () => {
 		expect(failure).toBeInstanceOf(WorkflowExecutionError);
 		expect(failure).toMatchObject({
 			message: "Worker execution failed: claude exited with code 143",
+		});
+	});
+});
+
+describe("the spend ceiling", () => {
+	const idleProductOwner: ProductOwner = {
+		ask: () => Promise.resolve("Use the small scope"),
+		snapshot: () => ({
+			sessionId: "po-session",
+			spentUsd: 0,
+			providerCalls: [],
+		}),
+	};
+
+	function stageResult(totalCostUsd: number): string {
+		return JSON.stringify({
+			type: "result",
+			session_id: "worker-session",
+			total_cost_usd: totalCostUsd,
+			structured_output: { status: "COMPLETE", message: "Shaped" },
+		});
+	}
+
+	function answer(totalCostUsd: number): string {
+		return JSON.stringify({
+			session_id: "po-session",
+			total_cost_usd: totalCostUsd,
+			structured_output: { answer: "Use the small scope" },
+		});
+	}
+
+	function budgetOf(command: readonly string[]): string | undefined {
+		return command[command.indexOf("--max-budget-usd") + 1];
+	}
+
+	function stageRequest(spendCeiling: SpendCeiling): WorkflowStageRequest {
+		return {
+			targetDir: "/target",
+			model: "sonnet",
+			effort: undefined,
+			sessionBudgetUsd: 5,
+			spendCeiling,
+			productOwner: idleProductOwner,
+			taskId: "ACT-5",
+			stage: "shape",
+			skill: "shape",
+		};
+	}
+
+	function productOwnerFor(
+		spendCeiling: SpendCeiling,
+		runClaude: ClaudeCommand,
+	): ProductOwner {
+		return createProductOwner(
+			{
+				directory: "/target",
+				model: "sonnet",
+				sessionBudgetUsd: 5,
+				spendCeiling,
+				task: "Build it",
+				productBrief: "Keep it small",
+			},
+			runClaude,
+		);
+	}
+
+	it("starts a worker turn with no more budget than the ceiling left", async () => {
+		const spendCeiling = createSpendCeiling({ ceilingUsd: 1 });
+		spendCeiling.charge(0.6);
+		const budgets: (string | undefined)[] = [];
+
+		await runWorkflowStage(stageRequest(spendCeiling), (command) => {
+			budgets.push(budgetOf(command));
+			return Promise.resolve(stageResult(0.1));
+		});
+
+		expect(budgets).toEqual(["0.4"]);
+	});
+
+	it("charges the ceiling what each worker turn adds to the session", async () => {
+		const spendCeiling = createSpendCeiling({ ceilingUsd: 10 });
+		const responses = [
+			JSON.stringify({
+				type: "result",
+				session_id: "worker-session",
+				total_cost_usd: 0.3,
+				structured_output: { status: "QUESTION", message: "Which scope?" },
+			}),
+			stageResult(0.5),
+		];
+
+		await runWorkflowStage(stageRequest(spendCeiling), () =>
+			Promise.resolve(responses.shift() ?? ""),
+		);
+
+		expect(spendCeiling.spentUsd()).toBeCloseTo(0.5);
+	});
+
+	it("starts a Product Owner call with no more budget than the ceiling left", async () => {
+		const spendCeiling = createSpendCeiling({ ceilingUsd: 1 });
+		spendCeiling.charge(0.75);
+		const budgets: (string | undefined)[] = [];
+		const productOwner = productOwnerFor(spendCeiling, (command) => {
+			budgets.push(budgetOf(command));
+			return Promise.resolve(answer(0.1));
+		});
+
+		await productOwner.ask("shape", "Which scope?");
+
+		expect(budgets).toEqual(["0.25"]);
+	});
+
+	it("charges the ceiling what each Product Owner call adds to its session", async () => {
+		const spendCeiling = createSpendCeiling({ ceilingUsd: 10 });
+		const responses = [answer(0.2), answer(0.5)];
+		const productOwner = productOwnerFor(spendCeiling, () =>
+			Promise.resolve(responses.shift() ?? ""),
+		);
+
+		await productOwner.ask("shape", "Which scope?");
+		await productOwner.ask("shape", "Any constraints?");
+
+		expect(spendCeiling.spentUsd()).toBeCloseTo(0.5);
+	});
+
+	describe("when the spend has reached the ceiling", () => {
+		it("starts no worker turn", async () => {
+			const spendCeiling = createSpendCeiling({ ceilingUsd: 1 });
+			spendCeiling.charge(1);
+			let calls = 0;
+
+			const failure = await failureOf(
+				runWorkflowStage(stageRequest(spendCeiling), () => {
+					calls += 1;
+					return Promise.resolve(stageResult(0.1));
+				}),
+			);
+
+			expect(failure).toBeInstanceOf(SpendCeilingReachedError);
+			expect(calls).toBe(0);
+		});
+
+		it("starts no Product Owner call", async () => {
+			const spendCeiling = createSpendCeiling({ ceilingUsd: 1 });
+			spendCeiling.charge(1);
+			let calls = 0;
+			const productOwner = productOwnerFor(spendCeiling, () => {
+				calls += 1;
+				return Promise.resolve(answer(0.1));
+			});
+
+			const failure = await failureOf(
+				productOwner.ask("shape", "Which scope?"),
+			);
+
+			expect(failure).toBeInstanceOf(SpendCeilingReachedError);
+			expect(calls).toBe(0);
 		});
 	});
 });

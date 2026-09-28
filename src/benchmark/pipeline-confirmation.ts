@@ -35,6 +35,9 @@ import {
 	JudgeExecutionError,
 	JudgeOutputValidationError,
 } from "./judge-attempt";
+import type { JudgeBudget } from "./judge-attempt";
+import type { SpendCeiling } from "./spend-ceiling";
+import { repSpendCeilings } from "./spend-ceiling";
 import type { PipelineDefinition, TargetCheck } from "./pipeline";
 import type { ConfirmationCostProjection } from "./confirmation";
 import { runConfirmation } from "./confirmation";
@@ -87,6 +90,7 @@ export interface PipelineFinalJudgeRequest {
 	readonly rubric: string;
 	readonly baselineContext: readonly ContextFile[];
 	readonly evidence: BuildEvidence;
+	readonly spendCeiling: SpendCeiling;
 }
 
 export interface PipelineConfirmationDependencies {
@@ -95,7 +99,7 @@ export interface PipelineConfirmationDependencies {
 	readonly runStageJudge: (
 		model: string,
 		effort: Effort | undefined,
-		budget: number,
+		budget: JudgeBudget,
 		input: StageScorecard["input"],
 		source: LoadedStageRubric,
 	) => Promise<StageScorecard>;
@@ -144,6 +148,7 @@ export interface PipelineConfirmationRequest {
 	readonly judgeModel: string;
 	readonly judgeEffort?: Effort | undefined;
 	readonly sessionBudgetUsd: number;
+	readonly spendCeilingUsd: number;
 	readonly loadedSettings?: LoadedStageSettings | undefined;
 	readonly now?: (() => number) | undefined;
 }
@@ -365,6 +370,7 @@ async function runPipelineRep(
 	paths: ReturnType<typeof confirmationGroupPaths>,
 	plan: PipelineRepPlan,
 	now: () => number,
+	spendCeiling: SpendCeiling,
 ): Promise<ConfirmationRepResult> {
 	const repPaths = paths.rep(plan.repId);
 	await mkdir(repPaths.stagesDirectory, { recursive: true });
@@ -411,6 +417,7 @@ async function runPipelineRep(
 			model: request.model,
 			effort: request.effort,
 			sessionBudgetUsd: request.sessionBudgetUsd,
+			spendCeiling,
 			task: request.task,
 			productBrief: request.productBrief,
 		});
@@ -436,6 +443,7 @@ async function runPipelineRep(
 					model: request.model,
 					effort: request.effort,
 					sessionBudgetUsd: request.sessionBudgetUsd,
+					spendCeiling,
 					productOwner,
 					task: request.task,
 					productBrief: request.productBrief,
@@ -485,7 +493,7 @@ async function runPipelineRep(
 			const scorecard = await dependencies.runStageJudge(
 				request.judgeModel,
 				request.judgeEffort,
-				request.sessionBudgetUsd,
+				{ sessionBudgetUsd: request.sessionBudgetUsd, spendCeiling },
 				currentSession.input,
 				rubric,
 			);
@@ -599,6 +607,7 @@ async function runPipelineRep(
 				diff: fullCandidate.diff,
 				changedPaths: fullCandidate.changedPaths,
 			},
+			spendCeiling,
 		});
 		await Bun.write(
 			repPaths.finalFile,
@@ -843,6 +852,10 @@ export async function runPipelineConfirmation(
 			groupId: request.groupId,
 		});
 		const makespanStart = now();
+		const repSpendCeiling = repSpendCeilings({
+			spendCeilingUsd: request.spendCeilingUsd,
+			reps: request.reps,
+		});
 		const results = await runConfirmation(
 			{
 				groupId: request.groupId,
@@ -850,7 +863,16 @@ export async function runPipelineConfirmation(
 				frozenInputs: frozen,
 				worktreePath: (repId) => join(worktreesDirectory, repId),
 			},
-			(plan) => runPipelineRep(dependencies, request, frozen, paths, plan, now),
+			(plan) =>
+				runPipelineRep(
+					dependencies,
+					request,
+					frozen,
+					paths,
+					plan,
+					now,
+					repSpendCeiling(),
+				),
 		);
 		const makespanMs = now() - makespanStart;
 		const repResults = results.map(({ outcome }) => {

@@ -21,7 +21,7 @@ import { runCommand } from "./command";
 import { parseReplayArgs } from "./config";
 import type { StageJudgeInput } from "./contracts";
 import type { CorpusMeasurement } from "./corpus-measurement";
-import type { JudgeAttempt } from "./judge-attempt";
+import type { JudgeAttempt, JudgeBudget } from "./judge-attempt";
 import type { RunManifest } from "./manifest";
 import type { ReadManifestEntry } from "./read-manifest";
 import { writeRunManifest } from "./manifest";
@@ -373,6 +373,7 @@ describe(runReplay.name, () => {
 			model: "sonnet",
 			judgeModel: "opus",
 			sessionBudgetUsd: 5,
+			spendCeilingUsd: 100,
 		};
 	}
 
@@ -720,7 +721,7 @@ describe(runReplay.name, () => {
 			runStageJudge: (
 				_model: string | undefined,
 				_effort: undefined | "low" | "medium" | "high" | "xhigh" | "max",
-				_budget: number,
+				_budget: JudgeBudget,
 				input: StageJudgeInput,
 			) => Promise.resolve({ ...replayScorecard(input), attempts }),
 		};
@@ -753,7 +754,7 @@ describe(runReplay.name, () => {
 			runStageJudge: (
 				_model: string | undefined,
 				_effort: undefined | "low" | "medium" | "high" | "xhigh" | "max",
-				_budget: number,
+				_budget: JudgeBudget,
 				input: StageJudgeInput,
 			) => {
 				clockMs += 3000;
@@ -788,7 +789,7 @@ describe(runReplay.name, () => {
 			runStageJudge: (
 				_model: string | undefined,
 				_effort: undefined | "low" | "medium" | "high" | "xhigh" | "max",
-				_budget: number,
+				_budget: JudgeBudget,
 				input: StageJudgeInput,
 			) => Promise.resolve(replayScorecard(input, "STOP")),
 		};
@@ -1226,6 +1227,7 @@ describe(runReplay.name, () => {
 				model: "sonnet",
 				judgeModel: "opus",
 				sessionBudgetUsd: 5,
+				spendCeilingUsd: 100,
 			},
 		);
 
