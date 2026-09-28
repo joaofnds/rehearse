@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { serveStatic } from "hono/bun";
 import type { ApiDependencies } from "./api";
 import { createApiApp } from "./api";
-import { loopbackHostGuard } from "./request-guard";
+import { requestGuard } from "./request-guard";
 
 export interface AppServerDependencies extends ApiDependencies {
 	readonly clientDistDirectory: string;
@@ -17,7 +17,7 @@ export interface AppServerDependencies extends ApiDependencies {
 export function createAppServer(dependencies: AppServerDependencies): Hono {
 	const app = new Hono();
 
-	app.use("*", loopbackHostGuard(dependencies.port));
+	app.use("*", requestGuard(dependencies.port));
 	app.route("/", createApiApp(dependencies));
 	app.use(
 		"*",

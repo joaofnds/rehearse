@@ -136,4 +136,66 @@ describe(createAppServer.name, () => {
 			expect(response.status).toBe(200);
 		});
 	});
+
+	describe("when a request writes", () => {
+		const origin = `http://127.0.0.1:${String(PORT)}`;
+		const sameOrigin = {
+			...LOOPBACK,
+			origin,
+			"content-type": "application/json",
+			"sec-fetch-site": "same-origin",
+		};
+
+		it("passes a same-origin JSON request on to the routes", async () => {
+			const app = createAppServer({
+				runsDirectory: await runsDirectory(),
+				liveness: nothingRunning,
+				corpusSource: directorySource(await corpusDirectory()),
+				clientDistDirectory: await clientDistDirectory(),
+				port: PORT,
+			});
+
+			const response = await app.request("/api/no-such-route", {
+				method: "POST",
+				headers: sameOrigin,
+				body: "{}",
+			});
+
+			expect(response.status).not.toBe(403);
+		});
+
+		it.each([
+			["a foreign Origin", { ...sameOrigin, origin: "https://evil.example" }],
+			[
+				"an Origin on another port",
+				{ ...sameOrigin, origin: "http://127.0.0.1:9999" },
+			],
+			["no Origin", { ...LOOPBACK, "content-type": "application/json" }],
+			["a cross-site fetch", { ...sameOrigin, "sec-fetch-site": "cross-site" }],
+			["a form body", { ...sameOrigin, "content-type": "text/plain" }],
+			[
+				"a urlencoded body",
+				{
+					...sameOrigin,
+					"content-type": "application/x-www-form-urlencoded",
+				},
+			],
+		])("refuses %s", async (_label, headers) => {
+			const app = createAppServer({
+				runsDirectory: await runsDirectory(),
+				liveness: nothingRunning,
+				corpusSource: directorySource(await corpusDirectory()),
+				clientDistDirectory: await clientDistDirectory(),
+				port: PORT,
+			});
+
+			const response = await app.request("/api/no-such-route", {
+				method: "POST",
+				headers,
+				body: "{}",
+			});
+
+			expect(response.status).toBe(403);
+		});
+	});
 });
