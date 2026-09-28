@@ -70,8 +70,7 @@ call with a USD 0.10 budget. These are configured budgets, not price estimates,
 and not caps: Claude Code stops a session only after the call that crosses its
 budget, so a charge can exceed it. The spend ceiling is the limit that holds
 across sessions: each session starts with a budget no larger than the ceiling
-left. An actual charge depends on the provider,
-context, and cache state. No paid recipe in this guide was exercised for the
+left. An actual charge depends on the provider, context, and cache state. No paid recipe in this guide was exercised for the
 documentation audit.
 
 The command prints check results and an attempt record path. Inspect it with:
@@ -234,9 +233,12 @@ mise exec -- bun run rehearse run --case audit-log \
   --model sonnet --effort medium --session-budget-usd 10
 ```
 
-This is paid workflow execution. The limit applies per session, not to the
-entire run: workers, the shared Product Owner, Judges, and rejudges can all
-consume budget. The CLI checks repository readiness and settings before its
+This is paid workflow execution. The session budget applies per session:
+workers, the shared Product Owner, Judges, and rejudges can all consume
+budget. The stored spend ceiling bounds the whole run, so a ceiling of USD 1
+clamps every session to what is left of it and stops the run once it is spent.
+Raise it first with `settings --spend-ceiling-usd <USD>` to let the run
+finish. The CLI checks repository readiness and settings before its
 paid model probe. The harness then runs baseline target checks before launching
 workflow stages. A baseline failure therefore avoids workflow spend, but may
 follow the model probe.
@@ -279,7 +281,7 @@ mise exec -- bun run rehearse replay --run <run-name> --stage build \
 ```
 
 Replay creates a temporary host worktree, runs only that stage, and writes an
-attempt. It can use `--corpus /absolute/path/to/variant` and can repeat with
+attempt. The stored spend ceiling bounds it as it bounds a run. It can use `--corpus /absolute/path/to/variant` and can repeat with
 `--confirm`. Read the [corpus support matrix](reference.md#corpus-sources-and-delivery)
 before choosing a mode; pipeline `run` and `replay` have different support.
 

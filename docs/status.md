@@ -1,6 +1,6 @@
 # Current state and priorities
 
-Reviewed against the code and project board on **2026-09-28**. This is the public
+Reviewed against the code and project board on **2026-09-29**. This is the public
 feature inventory, not a release guarantee. The [vision](vision.md) describes the
 longer-term goal; the [runbook](runbook.md) describes the supported first steps.
 
@@ -47,9 +47,10 @@ case present, but no browser check has been run over it.
 - **The spend ceiling can be overrun by the call in flight.** Claude Code
   stops a session only after the call that crosses its budget, a provider
   call that fails without a result envelope reports no cost and is not
-  counted, and the model probe is outside the run's spend. A replay or group
-  rep the ceiling refuses fails like any other execution failure, without the
-  ceiling-stop reading a pipeline run records. See
+  counted, and the model probe is outside the run's spend. A replay, a group
+  rep, or a pipeline run's final Judge or calibration rejudge that the ceiling
+  refuses fails like any other execution failure, without the ceiling-stop
+  reading a pipeline stage records. See
   [spend ceiling](reference.md#spend-ceiling).
 
 - **Short ids are unique per records directory.** Another clone numbers its own

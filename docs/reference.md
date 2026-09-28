@@ -98,16 +98,20 @@ spends nothing.
 The ceiling holds a run's whole spend: every workflow, PO and Judge session,
 and every Judge retry, is started with a budget no larger than the ceiling
 minus what the run has spent so far. Once the spend reaches the ceiling, the
-next paid call is refused. A pipeline run then stops in the stage it was in,
-writes that stage's stopped record with `ceilingStop` carrying the ceiling and
-the spend, restores the target, and starts no later session. A session
+next paid call is refused. When a stage's session or stage Judge is refused,
+or fails after its spend reached the ceiling, a pipeline run stops in that
+stage, writes the stage's stopped record with `ceilingStop` carrying the
+ceiling and the spend, restores the target, and starts no later session. A
+refused final Judge or calibration rejudge fails the run without a
+`ceilingStop` record. A session
 attempt's budget is clamped to the ceiling, and its record keeps the clamped
 value as `sessionBudgetUsd`.
 
-A confirmation group holds each rep to the ceiling and all reps together to
-the reps times the ceiling. Since reps run at once, one rep's overrun counts
-against the others, and once the group total is reached no rep starts another
-session. A replay or a group rep refused by the ceiling fails through its
+A pipeline or replay confirmation group holds each rep to the ceiling and all
+reps together to the reps times the ceiling. Since reps run at once, one rep's
+overrun counts against the others, and once the group total is reached no rep
+starts another session. A session group's reps each start one session with a
+budget clamped to the ceiling, so they share no running total. A replay or a group rep refused by the ceiling fails through its
 ordinary failure path, without a `ceilingStop` field.
 
 The run manifest, a replay record, a session attempt record, and every
@@ -116,7 +120,9 @@ before the ceiling existed have no such field.
 
 The ceiling bounds spend by at most the call in flight, because Claude Code
 stops a session only after the call that crosses its budget. A provider call
-that fails without a result envelope reports no cost, so it is not counted.
+that fails with a result envelope, such as a session halted at its budget, is
+charged the cost it reports. One that fails without an envelope reports no
+cost, so it is not counted.
 The model probe runs before the run's spend is counted and is outside it.
 
 ### Output and exit codes
