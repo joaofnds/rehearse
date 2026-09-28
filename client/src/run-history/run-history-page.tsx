@@ -103,6 +103,7 @@ const UNREADABLE_NOUNS = {
 	"session-attempt": "session attempt",
 	replay: "replay",
 	group: "confirmation run",
+	launch: "launch",
 	"short-ids": "short id registry",
 } as const satisfies Readonly<Record<UnreadableRecord["kind"], string>>;
 

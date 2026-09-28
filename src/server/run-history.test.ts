@@ -25,6 +25,7 @@ import type { RecordedRunsOptions } from "#benchmark/run-records-test-support";
 import type { RunLiveness } from "#benchmark/run-liveness";
 import type { JudgeProgress } from "#benchmark/run-events";
 import { openRunEventStore } from "#benchmark/run-events";
+import { writeLaunchRecord } from "#benchmark/launch-record";
 import {
 	benchmarkRunPaths,
 	checkpointRecordFile,
@@ -1599,6 +1600,147 @@ describe(runHistoryReport.name, () => {
 			`attempt ${fixture.sessionAttempt.uuid}`,
 			`group ${fixture.groupId}`,
 		]);
+	});
+
+	describe("when the browser launched a run that has not recorded one yet", () => {
+		const LAUNCH_ID = "8a1c0000-0000-4000-8000-000000000001";
+		const LIVE_PID = 4242;
+
+		function launchLiveness(markerPid: number | undefined): RunLiveness {
+			return {
+				readMarker: () =>
+					Promise.resolve(
+						markerPid === undefined ? undefined : { pid: markerPid },
+					),
+				isAlive: (pid) => pid === LIVE_PID,
+			};
+		}
+
+		async function launched(
+			fixture: RecordedRunsFixture,
+			pid: number,
+		): Promise<void> {
+			await writeLaunchRecord(fixture.runsDirectory, {
+				id: LAUNCH_ID,
+				kind: "case",
+				caseId: "audit-log",
+				attempts: 3,
+				pid,
+				launchedAt: "2026-09-29T10:00:00.000Z",
+			});
+		}
+
+		it("lists the launch as RUNNING while its process is alive", async () => {
+			const fixture = await writtenFixture();
+			await launched(fixture, LIVE_PID);
+
+			const { launches } = await runHistoryReport(
+				fixture.runsDirectory,
+				directorySource(await corpusDirectory("build skill\n")),
+				launchLiveness(undefined),
+			);
+
+			expect(launches).toEqual([
+				{
+					kind: "launch",
+					id: LAUNCH_ID,
+					target: "case",
+					caseId: "audit-log",
+					run: undefined,
+					stage: undefined,
+					attempts: 3,
+					launchedAt: "2026-09-29T10:00:00.000Z",
+					status: "RUNNING",
+				},
+			]);
+		});
+
+		it("lists a replay launch under the run and stage it replays", async () => {
+			const fixture = await writtenFixture();
+			await writeLaunchRecord(fixture.runsDirectory, {
+				id: LAUNCH_ID,
+				kind: "replay",
+				run: fixture.replayableRun,
+				stage: "build",
+				attempts: 1,
+				pid: LIVE_PID,
+				launchedAt: "2026-09-29T10:00:00.000Z",
+			});
+
+			const { launches } = await runHistoryReport(
+				fixture.runsDirectory,
+				directorySource(await corpusDirectory("build skill\n")),
+				launchLiveness(undefined),
+			);
+
+			expect(launches[0]).toMatchObject({
+				target: "replay",
+				caseId: undefined,
+				run: fixture.replayableRun,
+				stage: "build",
+			});
+		});
+
+		it("drops the launch once its process has exited", async () => {
+			const fixture = await writtenFixture();
+			await launched(fixture, 999_999);
+
+			const { launches } = await runHistoryReport(
+				fixture.runsDirectory,
+				directorySource(await corpusDirectory("build skill\n")),
+				launchLiveness(undefined),
+			);
+
+			expect(launches).toEqual([]);
+		});
+
+		it("lists a launched pipeline run once, as its own row, when that run is RUNNING", async () => {
+			const fixture = await writtenFixture();
+			await fixture.writeRunningRun();
+			await launched(fixture, LIVE_PID);
+
+			const { launches, rows } = await runHistoryReport(
+				fixture.runsDirectory,
+				directorySource(await corpusDirectory("build skill\n")),
+				launchLiveness(LIVE_PID),
+			);
+
+			expect(launches).toEqual([]);
+			expect(pipelineRun(rows, fixture.runningRun)?.status).toBe("RUNNING");
+		});
+
+		it("reports a launch record that does not read beside the rows", async () => {
+			const fixture = await writtenFixture();
+			await mkdir(join(fixture.runsDirectory, "launches"), { recursive: true });
+			await Bun.write(
+				join(fixture.runsDirectory, "launches", `${LAUNCH_ID}.json`),
+				"{}",
+			);
+
+			const { unreadable } = await runHistoryReport(
+				fixture.runsDirectory,
+				directorySource(await corpusDirectory("build skill\n")),
+				launchLiveness(undefined),
+			);
+
+			expect(
+				unreadable.filter(({ kind }) => kind === "launch").map(({ id }) => id),
+			).toEqual([LAUNCH_ID]);
+		});
+
+		it("leaves the launch out of a report asked for named records", async () => {
+			const fixture = await writtenFixture();
+			await launched(fixture, LIVE_PID);
+
+			const { launches } = await runHistoryReport(
+				fixture.runsDirectory,
+				directorySource(await corpusDirectory("build skill\n")),
+				launchLiveness(undefined),
+				new Set([`run:${fixture.replayableRun}`]),
+			);
+
+			expect(launches).toEqual([]);
+		});
 	});
 
 	describe("short ids", () => {

@@ -88,6 +88,7 @@ function oneStoppedOneComplete(): RunHistoryResponseBody {
 				progress: { state: "recorded" },
 			},
 		],
+		launches: [],
 		unreadable: [],
 	};
 }
@@ -110,7 +111,7 @@ function cellOf(run: string, column: string): HTMLElement {
 
 describe(RunHistoryPage.name, () => {
 	it("renders the empty-state block when no runs are recorded", async () => {
-		respondingWith({ rows: [], unreadable: [] });
+		respondingWith({ rows: [], launches: [], unreadable: [] });
 
 		renderPage();
 
@@ -150,6 +151,7 @@ describe(RunHistoryPage.name, () => {
 					progress: { state: "recorded" },
 				},
 			],
+			launches: [],
 			unreadable: [],
 		});
 
@@ -187,6 +189,7 @@ describe(RunHistoryPage.name, () => {
 					progress: { state: "recorded" },
 				},
 			],
+			launches: [],
 			unreadable: [],
 		});
 
@@ -256,6 +259,7 @@ describe(RunHistoryPage.name, () => {
 					progress: { state: "recorded" },
 				},
 			],
+			launches: [],
 			unreadable: [],
 		});
 
@@ -287,6 +291,7 @@ describe(RunHistoryPage.name, () => {
 					progress: { state: "recorded" },
 				},
 			],
+			launches: [],
 			unreadable: [],
 		});
 
@@ -299,7 +304,7 @@ describe(RunHistoryPage.name, () => {
 	});
 
 	it("renders a filter bar built from FilterPill, all pressed by default", async () => {
-		respondingWith({ rows: [], unreadable: [] });
+		respondingWith({ rows: [], launches: [], unreadable: [] });
 
 		renderPage();
 
@@ -386,6 +391,7 @@ describe(RunHistoryPage.name, () => {
 					status: "CONTINUE",
 					links: [],
 				})),
+				launches: [],
 				unreadable: [],
 			};
 		}
@@ -566,6 +572,7 @@ describe(RunHistoryPage.name, () => {
 					progress: { state: "recorded" },
 				},
 			],
+			launches: [],
 			unreadable: [],
 		});
 
@@ -599,6 +606,7 @@ describe(RunHistoryPage.name, () => {
 					progress: { state: "recorded" },
 				},
 			],
+			launches: [],
 			unreadable: [],
 		};
 
@@ -680,6 +688,7 @@ describe(RunHistoryPage.name, () => {
 						progress: { state: "recorded" },
 					},
 				],
+				launches: [],
 				unreadable: [],
 			});
 
@@ -738,7 +747,7 @@ describe(RunHistoryPage.name, () => {
 		}
 
 		it("lists the running run beside the finished ones, marked running", async () => {
-			respondingWith({ rows: [runningRow()], unreadable: [] });
+			respondingWith({ rows: [runningRow()], launches: [], unreadable: [] });
 
 			renderPage();
 
@@ -751,7 +760,7 @@ describe(RunHistoryPage.name, () => {
 		});
 
 		it("reads out the stage the run is in, how long it has run, and what it has spent", async () => {
-			respondingWith({ rows: [runningRow()], unreadable: [] });
+			respondingWith({ rows: [runningRow()], launches: [], unreadable: [] });
 
 			renderPage();
 
@@ -768,7 +777,7 @@ describe(RunHistoryPage.name, () => {
 		 * single stage falls when the next stage begins.
 		 */
 		it("says what the spend figure covers rather than presenting it as the run total", async () => {
-			respondingWith({ rows: [runningRow()], unreadable: [] });
+			respondingWith({ rows: [runningRow()], launches: [], unreadable: [] });
 
 			renderPage();
 
@@ -787,7 +796,7 @@ describe(RunHistoryPage.name, () => {
 		 * word would fail for a reason that has nothing to do with the row.
 		 */
 		it("shows no spend ceiling or limit beside the figure", async () => {
-			respondingWith({ rows: [runningRow()], unreadable: [] });
+			respondingWith({ rows: [runningRow()], launches: [], unreadable: [] });
 
 			renderPage();
 
@@ -812,7 +821,7 @@ describe(RunHistoryPage.name, () => {
 		 */
 		it("moves the stage, elapsed and spend readings with no page reload", async () => {
 			const bodies: RunHistoryResponseBody[] = [
-				{ rows: [runningRow()], unreadable: [] },
+				{ rows: [runningRow()], launches: [], unreadable: [] },
 				{
 					rows: [
 						{
@@ -827,6 +836,7 @@ describe(RunHistoryPage.name, () => {
 							},
 						},
 					],
+					launches: [],
 					unreadable: [],
 				},
 			];
@@ -872,6 +882,7 @@ describe(RunHistoryPage.name, () => {
 						},
 					},
 				],
+				launches: [],
 				unreadable: [],
 			});
 
@@ -891,6 +902,7 @@ describe(RunHistoryPage.name, () => {
 				return Promise.resolve(
 					Response.json({
 						rows: [{ ...runningRow(), progress: { state: "recorded" } }],
+						launches: [],
 						unreadable: [],
 					}),
 				);
@@ -931,6 +943,7 @@ describe(RunHistoryPage.name, () => {
 						progress: { state: "recorded" },
 					},
 				],
+				launches: [],
 				unreadable: [],
 			});
 
@@ -969,6 +982,7 @@ describe(RunHistoryPage.name, () => {
 					progress: { state: "recorded" },
 				},
 			],
+			launches: [],
 			unreadable: [],
 		});
 
@@ -1006,6 +1020,7 @@ describe(RunHistoryPage.name, () => {
 					progress: { state: "recorded" },
 				},
 			],
+			launches: [],
 			unreadable: [
 				{
 					kind: "run",
@@ -1023,6 +1038,7 @@ describe(RunHistoryPage.name, () => {
 		it("names them as records, counted by kind, whatever kinds they are", async () => {
 			respondingWith({
 				...unreadableReport,
+				launches: [],
 				unreadable: [
 					...unreadableReport.unreadable,
 					{
@@ -1064,6 +1080,7 @@ describe(RunHistoryPage.name, () => {
 		it("names an unreadable short id registry among them", async () => {
 			respondingWith({
 				...unreadableReport,
+				launches: [],
 				unreadable: [
 					...unreadableReport.unreadable,
 					{
@@ -1107,7 +1124,11 @@ describe(RunHistoryPage.name, () => {
 		});
 
 		it("shows the unreadable runs rather than the empty state when the report has no rows at all", async () => {
-			respondingWith({ rows: [], unreadable: unreadableReport.unreadable });
+			respondingWith({
+				rows: [],
+				launches: [],
+				unreadable: unreadableReport.unreadable,
+			});
 
 			renderPage();
 
@@ -1117,7 +1138,7 @@ describe(RunHistoryPage.name, () => {
 		});
 
 		it("keeps the empty state when rows exist, the filter hides them, and nothing was unreadable", async () => {
-			respondingWith({ ...unreadableReport, unreadable: [] });
+			respondingWith({ ...unreadableReport, launches: [], unreadable: [] });
 
 			renderPage();
 
@@ -1254,6 +1275,7 @@ describe(RunHistoryPage.name, () => {
 					],
 				},
 			],
+			launches: [],
 			unreadable: [],
 		};
 
@@ -1465,6 +1487,7 @@ describe(RunHistoryPage.name, () => {
 					links: [],
 				},
 			],
+			launches: [],
 			unreadable: [],
 		};
 
@@ -1502,6 +1525,7 @@ describe(RunHistoryPage.name, () => {
 				first?.kind === "run"
 					? [{ ...first, corpusChangedDuringRun: true }]
 					: [],
+			launches: [],
 			unreadable: [],
 		});
 
@@ -1535,6 +1559,7 @@ describe(RunHistoryPage.name, () => {
 					progress: { state: "recorded" },
 				},
 			],
+			launches: [],
 			unreadable: [],
 		});
 

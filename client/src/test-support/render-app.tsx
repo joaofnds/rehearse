@@ -7,7 +7,7 @@ import { createAppRouter } from "#client/router";
 import type { RunHistoryResponse } from "#client/run-history/run-history-query";
 import { stubFetchByPath } from "./fetch-stub";
 
-const NO_RUNS: RunHistoryResponse = { rows: [], unreadable: [] };
+const NO_RUNS: RunHistoryResponse = { rows: [], launches: [], unreadable: [] };
 
 const EMPTY_CORPUS: CorpusResponse = {
 	root: "/corpus",

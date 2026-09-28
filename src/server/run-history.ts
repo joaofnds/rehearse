@@ -11,6 +11,8 @@ import type {
 } from "#benchmark/confirmation-record";
 import type { CorpusRoot } from "#benchmark/corpus-file";
 import type { CorpusMeasurement } from "#benchmark/corpus-measurement";
+import { readLaunchRecord } from "#benchmark/launch-record";
+import type { LaunchRecord } from "#benchmark/launch-record";
 import { loadRunManifest } from "#benchmark/manifest";
 import type { SessionAttemptId, StageAttemptId } from "#benchmark/run-layout";
 import {
@@ -19,6 +21,7 @@ import {
 	checkpointStageNames,
 	confirmationGroupIds,
 	confirmationGroupPaths,
+	launchIds,
 	recordedRunNames,
 	replayAttemptIds,
 	replayRecordFile,
@@ -236,6 +239,25 @@ export interface ConfirmationGroupRow {
 	readonly unreadReps: readonly UnreadRep[];
 	readonly cost: CostReading;
 	readonly wallTime: WallTimeReading;
+}
+
+/**
+ * A run, replay or group the browser started whose process is still alive
+ * and which has no RUNNING row of its own yet: a replay and a group never
+ * get one, and a pipeline run gets one only once its first stage starts. It
+ * is listed apart from the rows, because it names a process rather than a
+ * saved record, so it has no Record ID, short id, staleness or links.
+ */
+export interface LaunchRow {
+	readonly kind: "launch";
+	readonly id: string;
+	readonly target: LaunchRecord["kind"];
+	readonly caseId: string | undefined;
+	readonly run: string | undefined;
+	readonly stage: string | undefined;
+	readonly attempts: number;
+	readonly launchedAt: string;
+	readonly status: "RUNNING";
 }
 
 export interface RepAttempt {
@@ -753,6 +775,87 @@ async function groupRow(
 }
 
 /**
+ * The pid holding each RUNNING pipeline run's target, so a launch whose
+ * process is that pid is listed once, as the run's own row.
+ */
+async function runningRunPids(
+	runsDirectory: string,
+	rows: readonly RunHistoryRow[],
+	liveness: RunLiveness,
+): Promise<ReadonlySet<number>> {
+	const pids = new Set<number>();
+	for (const row of rows) {
+		if (row.kind === "run" && row.status === "RUNNING") {
+			const manifest = await loadRunManifest(
+				benchmarkRunPaths(runsDirectory, row.run).manifestFile,
+			);
+			const marker = await liveness
+				.readMarker(manifest.sourceRoot)
+				.catch(() => undefined);
+			if (marker !== undefined) {
+				pids.add(marker.pid);
+			}
+		}
+	}
+
+	return pids;
+}
+
+function launchRow(record: LaunchRecord): LaunchRow {
+	return {
+		kind: "launch",
+		id: record.id,
+		target: record.kind,
+		caseId: record.kind === "case" ? record.caseId : undefined,
+		run: record.kind === "replay" ? record.run : undefined,
+		stage: record.kind === "replay" ? record.stage : undefined,
+		attempts: record.attempts,
+		launchedAt: record.launchedAt,
+		status: "RUNNING",
+	};
+}
+
+/**
+ * Each launch whose process is alive and is not already a RUNNING run's own
+ * row. A record that does not read is reported beside the rows, like any
+ * other.
+ */
+async function liveLaunches(
+	runsDirectory: string,
+	rows: readonly RunHistoryRow[],
+	liveness: RunLiveness,
+): Promise<{
+	readonly launches: readonly LaunchRow[];
+	readonly unreadable: readonly UnreadableRecord[];
+}> {
+	const runningPids = await runningRunPids(runsDirectory, rows, liveness);
+	const launches: LaunchRow[] = [];
+	const unreadable: UnreadableRecord[] = [];
+	for (const id of await launchIds(runsDirectory)) {
+		try {
+			const record = await readLaunchRecord(runsDirectory, id);
+			if (liveness.isAlive(record.pid) && !runningPids.has(record.pid)) {
+				launches.push(launchRow(record));
+			}
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			unreadable.push({
+				kind: "launch",
+				id,
+				reason: redactAbsolutePaths(message),
+			});
+		}
+	}
+
+	return {
+		launches: launches.toSorted((left, right) =>
+			right.launchedAt.localeCompare(left.launchedAt),
+		),
+		unreadable,
+	};
+}
+
+/**
  * The time a row's own identity records, or undefined when its record holds
  * none. A run name and a replay file name are both the run's timestamp with
  * colons replaced, so they sort as text.
@@ -797,13 +900,15 @@ function newestFirst(rows: readonly RunHistoryRow[]): RunHistoryRow[] {
  * or the short id registry, whose failure leaves every row unnamed.
  */
 export interface UnreadableRecord {
-	readonly kind: RunHistoryRow["kind"] | "short-ids";
+	readonly kind: RunHistoryRow["kind"] | "launch" | "short-ids";
 	readonly id: string;
 	readonly reason: string;
 }
 
 export interface RunHistoryReport {
 	readonly rows: readonly RunHistoryRow[];
+	/** Live browser launches, newest first. */
+	readonly launches: readonly LaunchRow[];
 	readonly unreadable: readonly UnreadableRecord[];
 }
 
@@ -1010,7 +1115,15 @@ export async function runHistoryReport(
 				groupRow(runsDirectory, groupId, shortId, attempts, staleness),
 		);
 
-		return { rows: newestFirst(rows), unreadable };
+		const live =
+			only === undefined
+				? await liveLaunches(runsDirectory, rows, liveness)
+				: { launches: [], unreadable: [] };
+		return {
+			rows: newestFirst(rows),
+			launches: live.launches,
+			unreadable: [...unreadable, ...live.unreadable],
+		};
 	} finally {
 		runEvents.close();
 	}
