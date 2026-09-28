@@ -141,6 +141,8 @@ export interface RunCommandDependencies {
 
 export interface SessionExecutionBoundary {
 	readonly probeModel: RunCommandDependencies["probeModel"];
+	/** The stored ceiling each attempt's record carries. */
+	readonly spendCeilingUsd: number;
 }
 
 /**
@@ -255,7 +257,10 @@ async function runSessionCase(
 		config,
 		dependencies.output,
 		sessionCase,
-		{ probeModel: dependencies.probeModel },
+		{
+			probeModel: dependencies.probeModel,
+			spendCeilingUsd: spendCeiling.ceilingUsd,
+		},
 	);
 
 	await writeRecord(dependencies.output, outcome.recordFile, request.json);
@@ -513,7 +518,12 @@ export async function executeSessionRun(
 		runDebug: async () => {
 			await dependencies.probeModel(config.model);
 			const outcome = await runDebug({
-				...defaultSessionRunRequest(sessionCase, config, runsDirectory),
+				...defaultSessionRunRequest(
+					sessionCase,
+					config,
+					runsDirectory,
+					dependencies.spendCeilingUsd,
+				),
 				resolveCorpus: dependencies.resolveCorpus,
 			});
 			reportSessionChecks(outcome.record, output);
@@ -545,6 +555,7 @@ export async function executeSessionRun(
 				model: config.model,
 				effort: config.effort,
 				sessionBudgetUsd: config.sessionBudgetUsd,
+				spendCeilingUsd: dependencies.spendCeilingUsd,
 				preflight,
 			};
 			let outcome;

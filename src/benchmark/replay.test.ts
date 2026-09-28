@@ -563,6 +563,19 @@ describe(runReplay.name, () => {
 		expect(record.scorecard.grade.verdict).toBe("CONTINUE");
 	});
 
+	it("records the spend ceiling the replay ran under", async () => {
+		const run = await recordedRun();
+		const fake = new ReplayConfirmationHarness(testResources);
+
+		const outcome = await runReplay(fake.dependencies, {
+			...request(run, "build"),
+			spendCeilingUsd: 12,
+		});
+
+		const record = await readReplayRecord(outcome.recordPath);
+		expect(record.spendCeilingUsd).toBe(12);
+	});
+
 	it("records what the replayed stage declared and loaded, with roles", async () => {
 		const run = await recordedRun();
 		const fake = new ReplayConfirmationHarness(testResources);

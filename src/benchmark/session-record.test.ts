@@ -521,6 +521,7 @@ describe("sessionAttemptRecordSchema", () => {
 		};
 
 		const built = buildSessionAttemptRecord({
+			spendCeilingUsd: 7.5,
 			corpusVersion: MEASURED_VERSION,
 			versionFiles: [],
 			sessionCase: sampleCase,
@@ -538,6 +539,7 @@ describe("sessionAttemptRecordSchema", () => {
 			{ path: "NOTES.md", half: "project" },
 		]);
 		expect(built.divergences).toEqual([]);
+		expect(built.spendCeilingUsd).toBe(7.5);
 
 		const roundtripped = parseSessionAttemptRecord(JSON.stringify(built));
 		expect(roundtripped).toEqual(built);
@@ -603,6 +605,7 @@ describe("sessionAttemptRecordSchema", () => {
 		};
 
 		const built = buildSessionAttemptRecord({
+			spendCeilingUsd: 7.5,
 			corpusVersion: MEASURED_VERSION,
 			versionFiles: [{ path: "rulebook/style.md", sha256: "f".repeat(64) }],
 			sessionCase,
@@ -705,6 +708,7 @@ describe("sessionAttemptRecordSchema", () => {
 	 */
 	it("records a settings digest that distinguishes two arms differing only in settings", () => {
 		const withBrief = buildSessionAttemptRecord({
+			spendCeilingUsd: 7.5,
 			corpusVersion: MEASURED_VERSION,
 			versionFiles: [],
 			sessionCase: { ...smokeCase(), settings: { outputStyle: "brief" } },
@@ -716,6 +720,7 @@ describe("sessionAttemptRecordSchema", () => {
 			elapsedMs: 1,
 		});
 		const withVerbose = buildSessionAttemptRecord({
+			spendCeilingUsd: 7.5,
 			corpusVersion: MEASURED_VERSION,
 			versionFiles: [],
 			sessionCase: { ...smokeCase(), settings: { outputStyle: "verbose" } },
@@ -727,6 +732,7 @@ describe("sessionAttemptRecordSchema", () => {
 			elapsedMs: 1,
 		});
 		const withNone = buildSessionAttemptRecord({
+			spendCeilingUsd: 7.5,
 			corpusVersion: MEASURED_VERSION,
 			versionFiles: [],
 			sessionCase: smokeCase(),
@@ -755,6 +761,7 @@ describe("sessionAttemptRecordSchema", () => {
 	it("distinguishes a nested settings difference and ignores key order", () => {
 		function digestOf(settings: Readonly<JsonObject>): string | undefined {
 			return buildSessionAttemptRecord({
+				spendCeilingUsd: 7.5,
 				corpusVersion: MEASURED_VERSION,
 				versionFiles: [],
 				sessionCase: { ...smokeCase(), settings },
@@ -795,6 +802,7 @@ describe("sessionAttemptRecordSchema", () => {
 
 	it("retains the provider's per-model usage block on a built record", () => {
 		const built = buildSessionAttemptRecord({
+			spendCeilingUsd: 7.5,
 			corpusVersion: MEASURED_VERSION,
 			versionFiles: [],
 			sessionCase: smokeCase(),
@@ -906,6 +914,7 @@ describe("sessionAttemptRecordSchema", () => {
 		expect(() =>
 			// SAFETY: Exercising runtime rejection when raw session attempt data carries legacy string paths
 			buildSessionAttemptRecord({
+				spendCeilingUsd: 7.5,
 				corpusVersion: MEASURED_VERSION,
 				versionFiles: [],
 				sessionCase: sampleCase,
@@ -939,6 +948,7 @@ describe("the state grades a session attempt record carries", () => {
 		grade: Immutable<Partial<SessionAttempt>>,
 	): SessionAttemptRecord {
 		return buildSessionAttemptRecord({
+			spendCeilingUsd: 7.5,
 			corpusVersion: MEASURED_VERSION,
 			versionFiles: [],
 			sessionCase: smokeCase(),

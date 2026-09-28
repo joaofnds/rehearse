@@ -14,6 +14,7 @@ import {
 	recordsDirectory,
 } from "#benchmark/config";
 import {
+	benchmarkRunPaths,
 	benchmarkRunsDirectory,
 	comparisonReportPaths,
 } from "#benchmark/run-layout";
@@ -1194,6 +1195,11 @@ describe("the spend ceiling", () => {
 			const record: unknown = await Bun.file(
 				join(runsDirectory, stopRecord ?? ""),
 			).json();
+			const { manifestFile } = benchmarkRunPaths(
+				runsDirectory,
+				basename(stopRecord ?? "", ".shape.json"),
+			);
+			const manifest: unknown = await Bun.file(manifestFile).json();
 			const providerCalls = await Bun.file(
 				join(binDirectory, PROVIDER_CALLS_LOG),
 			).text();
@@ -1208,6 +1214,7 @@ describe("the spend ceiling", () => {
 				ceilingStop: { ceilingUsd: 1, spentUsd: 1.2 },
 			});
 			expect(paidCalls.at(-1)).toContain("--max-budget-usd 0.4");
+			expect(manifest).toMatchObject({ spendCeilingUsd: 1 });
 			expect(result.stderr).toContain(`Target restored to ${startSha}.`);
 		});
 	});

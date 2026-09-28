@@ -48,6 +48,7 @@ const runManifestSchema = z
 		pipeline: pipelineDefinitionSchema,
 		baselineChecks: localCheckResultSchema.optional(),
 		minimumGrade: stageLetterGradeSchema.optional(),
+		spendCeilingUsd: z.number().positive().optional(),
 	})
 	.strict();
 

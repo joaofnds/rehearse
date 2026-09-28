@@ -51,6 +51,7 @@ export const runClaudeCommand: ClaudeRunner = (command, cwd) =>
 export interface SessionRunRequest {
 	readonly sessionCase: SessionCase;
 	readonly config: SessionRunConfig;
+	readonly spendCeilingUsd: number;
 	readonly runsDirectory: string;
 	readonly runClaude: ClaudeRunner;
 	readonly projectsDirectory: string;
@@ -212,6 +213,7 @@ export async function runSessionDebugAttempt(
 		const record = buildSessionAttemptRecord({
 			sessionCase,
 			settings,
+			spendCeilingUsd: request.spendCeilingUsd,
 			lineage,
 			corpusFiles,
 			corpusOrigin: corpus.snapshot.origin,
@@ -272,10 +274,12 @@ export function defaultSessionRunRequest(
 	sessionCase: SessionCase,
 	config: SessionRunConfig,
 	runsDirectory: string,
+	spendCeilingUsd: number,
 ): SessionRunRequest {
 	return {
 		sessionCase,
 		config,
+		spendCeilingUsd,
 		runsDirectory,
 		runClaude: runClaudeCommand,
 		projectsDirectory: claudeProjectsDirectory(),

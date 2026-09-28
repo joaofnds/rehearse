@@ -231,6 +231,7 @@ async function writeGroup(
 		corpus,
 		model: "sonnet",
 		sessionBudgetUsd: 0.2,
+		spendCeilingUsd: 100,
 		preflight: { status: "COMPLETE", call: { metrics } },
 	};
 
@@ -1992,6 +1993,7 @@ describe("a committed state-scored case compared across three arms", () => {
 				corpus,
 				model: "sonnet",
 				sessionBudgetUsd: declaredBudgetUsd,
+				spendCeilingUsd: 100,
 				preflight: { status: "COMPLETE", call: { metrics } },
 			},
 		);

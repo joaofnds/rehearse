@@ -220,6 +220,7 @@ const sessionAttemptRecordFields = {
 	model: z.string().min(1),
 	effort: effortSchema.optional(),
 	sessionBudgetUsd: z.number().positive(),
+	spendCeilingUsd: z.number().positive().optional(),
 	corpusFiles: z.array(corpusFileSchema),
 	corpusOrigin: corpusSnapshotOriginSchema.optional(),
 	corpusVersion: corpusMeasurementSchema.optional(),
@@ -278,6 +279,7 @@ export const executionFailedSessionAttemptRecordSchema = z
 		model: z.string().min(1),
 		effort: effortSchema.optional(),
 		sessionBudgetUsd: z.number().positive(),
+		spendCeilingUsd: z.number().positive().optional(),
 		corpusFiles: z.array(corpusFileSchema),
 		corpusOrigin: corpusSnapshotOriginSchema.optional(),
 		corpusVersion: corpusMeasurementSchema.optional(),
@@ -349,6 +351,7 @@ export function parseSessionAttemptRecord(text: string): SessionAttemptRecord {
 export interface SessionAttemptRecordInputs {
 	readonly sessionCase: SessionCase;
 	readonly settings: SessionSettings;
+	readonly spendCeilingUsd: number;
 	readonly lineage: string;
 	readonly corpusFiles: readonly ResolvedCorpusFile[];
 	readonly corpusOrigin: CorpusSnapshotOrigin;
@@ -367,6 +370,7 @@ interface MutableSessionAttemptRecord {
 	model: string;
 	effort?: SessionSettings["effort"];
 	sessionBudgetUsd: number;
+	spendCeilingUsd: number;
 	corpusFiles: ResolvedCorpusFile[];
 	corpusOrigin: CorpusSnapshotOrigin;
 	corpusVersion?: CorpusMeasurement;
@@ -402,6 +406,7 @@ export function buildSessionAttemptRecord(
 		lineage: inputs.lineage,
 		model: settings.model,
 		sessionBudgetUsd: settings.budgetUsd,
+		spendCeilingUsd: inputs.spendCeilingUsd,
 		corpusFiles: inputs.corpusFiles.map((file) => ({ ...file })),
 		corpusOrigin: inputs.corpusOrigin,
 		prompt: sessionCase.prompt,

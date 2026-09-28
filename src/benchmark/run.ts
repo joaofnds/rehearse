@@ -176,6 +176,7 @@ export interface RunManifestInputs {
 	readonly config: BenchmarkConfig;
 	readonly pipeline: PipelineDefinition;
 	readonly baselineChecks?: LocalCheckResult | undefined;
+	readonly spendCeilingUsd: number;
 }
 
 export function buildRunManifest(inputs: RunManifestInputs): RunManifest {
@@ -200,6 +201,7 @@ export function buildRunManifest(inputs: RunManifestInputs): RunManifest {
 		pipeline: inputs.pipeline,
 		baselineChecks: inputs.baselineChecks,
 		minimumGrade: config.minimumStageGrade,
+		spendCeilingUsd: inputs.spendCeilingUsd,
 	};
 }
 
@@ -1150,6 +1152,7 @@ export async function runBenchmark(
 				config,
 				pipeline,
 				baselineChecks,
+				spendCeilingUsd,
 			}),
 		);
 		const initialCheckpoint = await recordRetainedCheckpoint(

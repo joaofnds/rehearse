@@ -30,6 +30,7 @@ export interface ReplayRecord {
 	readonly judgeModel: string;
 	readonly judgeEffort?: Effort | undefined;
 	readonly sessionBudgetUsd: number;
+	readonly spendCeilingUsd?: number | undefined;
 	readonly controlSha: string;
 	readonly stageCostUsd: number;
 	readonly productOwnerCostUsd: number;
@@ -76,6 +77,7 @@ export const replayRecordSchema = z
 		judgeModel: z.string().min(1),
 		judgeEffort: effortSchema.optional(),
 		sessionBudgetUsd: z.number().positive(),
+		spendCeilingUsd: z.number().positive().optional(),
 		controlSha: z.string().min(1),
 		stageCostUsd: z.number().nonnegative(),
 		productOwnerCostUsd: z.number().nonnegative(),

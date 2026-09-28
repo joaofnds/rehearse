@@ -75,6 +75,32 @@ describe(runReplayConfirmation.name, () => {
 		);
 	});
 
+	it("records on the group the spend ceiling each rep ran under", async () => {
+		const harness = new ReplayConfirmationHarness(testResources);
+		const run = await harness.recordedRun();
+		const corpusRoot = await mkdtemp(join(tmpdir(), "rehearse-corpus-"));
+		testResources.track(corpusRoot);
+		for (const skill of ["discuss", "build", "doctrine"]) {
+			await Bun.write(
+				join(corpusRoot, "skills", skill, "SKILL.md"),
+				`${skill}\n`,
+			);
+		}
+
+		const outcome = await harness.runConfirmation(
+			{
+				paths: run.paths,
+				corpusRoots: [{ kind: "directory", root: corpusRoot }],
+			},
+			{ reps: 2, spendCeilingUsd: 12 },
+		);
+		const group = parseConfirmationGroupRecord(
+			await Bun.file(outcome.groupRecordFile).text(),
+		);
+
+		expect(group.inputs.spendCeilingUsd).toBe(12);
+	});
+
 	it("claims the group a short id in its source run's case", async () => {
 		const harness = new ReplayConfirmationHarness(testResources);
 		const run = await harness.recordedRun();

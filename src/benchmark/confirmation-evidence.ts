@@ -163,6 +163,7 @@ interface ConfirmationGroupInputs {
 	readonly judgeModel: string;
 	readonly judgeEffort?: Effort | undefined;
 	readonly sessionBudgetUsd: number;
+	readonly spendCeilingUsd: number;
 	readonly pipelinePath: string;
 	readonly corpusVersion: CorpusMeasurement;
 }
@@ -173,6 +174,7 @@ interface SessionConfirmationGroupInputs {
 	readonly model: string;
 	readonly effort?: Effort | undefined;
 	readonly sessionBudgetUsd: number;
+	readonly spendCeilingUsd: number;
 	readonly corpusVersion: CorpusMeasurement;
 }
 

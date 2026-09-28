@@ -48,6 +48,7 @@ export interface SessionConfirmationRequest {
 	readonly model: string;
 	readonly effort?: SessionSettings["effort"] | undefined;
 	readonly sessionBudgetUsd: number;
+	readonly spendCeilingUsd: number;
 	readonly preflight: ModelPreflightEvidence;
 }
 
@@ -332,6 +333,7 @@ export async function runSessionConfirmation(
 				buildSessionAttemptRecord({
 					sessionCase: inputs.sessionCase,
 					settings: inputs.settings,
+					spendCeilingUsd: request.spendCeilingUsd,
 					lineage: inputs.lineage,
 					corpusFiles: inputs.corpusFiles,
 					corpusOrigin: inputs.corpusSnapshot.origin,
@@ -371,6 +373,7 @@ export async function runSessionConfirmation(
 			model: request.model,
 			effort: request.effort,
 			sessionBudgetUsd: request.sessionBudgetUsd,
+			spendCeilingUsd: request.spendCeilingUsd,
 		},
 		projectedCost: request.projectedCost,
 		preflight:

@@ -115,6 +115,17 @@ describe(runPipelineConfirmation.name, () => {
 		}).toEqual({ model: "sonnet", judgeModel: "opus" });
 	});
 
+	it("records on the group the spend ceiling each rep ran under", async () => {
+		const harness = await PipelineConfirmationHarness.setup(testResources);
+
+		const outcome = await harness.run({ spendCeilingUsd: 12 });
+		const group = parseConfirmationGroupRecord(
+			await Bun.file(outcome.groupRecordFile).text(),
+		);
+
+		expect(group.inputs.spendCeilingUsd).toBe(12);
+	});
+
 	it("names the case its group and rep records ran", async () => {
 		const harness = await PipelineConfirmationHarness.setup(testResources);
 

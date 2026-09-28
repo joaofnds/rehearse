@@ -137,6 +137,7 @@ describe(runSessionConfirmation.name, () => {
 					sessionCase,
 					model: "sonnet",
 					sessionBudgetUsd: 0.2,
+					spendCeilingUsd: 100,
 					preflight: { status: "MISSING", missing: "metrics" },
 				},
 			),
@@ -194,6 +195,7 @@ describe(runSessionConfirmation.name, () => {
 					sessionCase,
 					model: "sonnet",
 					sessionBudgetUsd: 0.2,
+					spendCeilingUsd: 100,
 					preflight: { status: "MISSING", missing: "metrics" },
 				},
 			),
@@ -288,6 +290,7 @@ describe(runSessionConfirmation.name, () => {
 				corpus: corpusRoot,
 				model: "sonnet",
 				sessionBudgetUsd: 0.2,
+				spendCeilingUsd: 100,
 				preflight: { status: "COMPLETE", call: { metrics } },
 			},
 		);
@@ -298,7 +301,7 @@ describe(runSessionConfirmation.name, () => {
 		]);
 	});
 
-	it("records on the group and every rep the corpus version measured before the reps ran", async () => {
+	it("records on the group and every rep the corpus version measured before the reps ran and the spend ceiling they ran under", async () => {
 		const root = await mkdtemp(join(tmpdir(), "rehearse-session-version-"));
 		temporaryDirectories.push(root);
 		const corpusRoot = join(root, "source-corpus");
@@ -354,6 +357,7 @@ describe(runSessionConfirmation.name, () => {
 				corpus: corpusRoot,
 				model: "sonnet",
 				sessionBudgetUsd: 0.2,
+				spendCeilingUsd: 12,
 				preflight: { status: "COMPLETE", call: { metrics } },
 			},
 		);
@@ -376,6 +380,10 @@ describe(runSessionConfirmation.name, () => {
 		expect(attempts.map(({ corpusVersion }) => corpusVersion)).toEqual([
 			expected,
 			expected,
+		]);
+		expect(group.inputs.spendCeilingUsd).toBe(12);
+		expect(attempts.map(({ spendCeilingUsd }) => spendCeilingUsd)).toEqual([
+			12, 12,
 		]);
 	});
 
@@ -502,6 +510,7 @@ describe(runSessionConfirmation.name, () => {
 				corpus: corpusRoot,
 				model: "sonnet",
 				sessionBudgetUsd: 0.2,
+				spendCeilingUsd: 100,
 				preflight: { status: "COMPLETE", call: { metrics } },
 			},
 		);
@@ -694,6 +703,7 @@ describe(runSessionConfirmation.name, () => {
 				corpus: corpusRoot,
 				model: "sonnet",
 				sessionBudgetUsd: 0.2,
+				spendCeilingUsd: 100,
 				preflight: { status: "MISSING", missing: "preflight call metrics" },
 			},
 		);
@@ -777,6 +787,7 @@ describe(runSessionConfirmation.name, () => {
 				corpus: corpusRoot,
 				model: "sonnet",
 				sessionBudgetUsd: 0.2,
+				spendCeilingUsd: 100,
 				preflight: { status: "COMPLETE", call: { metrics } },
 			},
 		);
@@ -823,6 +834,7 @@ describe(runSessionConfirmation.name, () => {
 				corpus: corpusRoot,
 				model: "sonnet",
 				sessionBudgetUsd: 0.2,
+				spendCeilingUsd: 100,
 				preflight: { status: "MISSING", missing: "metrics" },
 			},
 		);
@@ -878,6 +890,7 @@ describe(runSessionConfirmation.name, () => {
 				corpus: corpusRoot,
 				model: "sonnet",
 				sessionBudgetUsd: 0.2,
+				spendCeilingUsd: 100,
 				preflight: { status: "MISSING", missing: "metrics" },
 			},
 		);

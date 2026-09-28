@@ -243,6 +243,7 @@ describe(runSessionDebugAttempt.name, () => {
 			sessionCase: sessionCase(),
 			config,
 			runsDirectory: runs,
+			spendCeilingUsd: 100,
 			runClaude: fakeClaude(projects, "OK"),
 			projectsDirectory: projects,
 		});
@@ -280,6 +281,7 @@ describe(runSessionDebugAttempt.name, () => {
 			sessionCase: sessionCase(),
 			config,
 			runsDirectory: runs,
+			spendCeilingUsd: 100,
 			runClaude: fakeClaude(projects, "OK"),
 			projectsDirectory: projects,
 		});
@@ -304,6 +306,7 @@ describe(runSessionDebugAttempt.name, () => {
 			sessionCase: sessionCase(),
 			config,
 			runsDirectory: runs,
+			spendCeilingUsd: 100,
 			runClaude: fakeClaude(projects, "OK"),
 			projectsDirectory: projects,
 		});
@@ -347,6 +350,7 @@ describe(runSessionDebugAttempt.name, () => {
 			sessionCase: sessionCase(),
 			config,
 			runsDirectory: runs,
+			spendCeilingUsd: 100,
 			runClaude: fakeClaude(projects, "OK"),
 			projectsDirectory: projects,
 			contextEvidenceSource,
@@ -387,6 +391,7 @@ describe(runSessionDebugAttempt.name, () => {
 			sessionCase: sessionCase(),
 			config,
 			runsDirectory: runs,
+			spendCeilingUsd: 100,
 			runClaude: diagnosticClaude(projects),
 			projectsDirectory: projects,
 		});
@@ -441,6 +446,7 @@ describe(runSessionDebugAttempt.name, () => {
 				sessionCase: sessionCase(),
 				config,
 				runsDirectory: runs,
+				spendCeilingUsd: 100,
 				projectsDirectory: projects,
 				runClaude: async (command, cwd) => {
 					await writesTranscript(command, cwd);
@@ -480,6 +486,7 @@ describe(runSessionDebugAttempt.name, () => {
 			sessionCase: sessionCase(),
 			config,
 			runsDirectory: runs,
+			spendCeilingUsd: 100,
 			runClaude: fakeClaude(projects, "OK sure thing"),
 			projectsDirectory: projects,
 		});
@@ -499,6 +506,7 @@ describe(runSessionDebugAttempt.name, () => {
 				sessionCase: sessionCase({ fixturePath: fixture }),
 				config,
 				runsDirectory: runs,
+				spendCeilingUsd: 100,
 				runClaude: () =>
 					Promise.reject(new Error("a provider call must not happen")),
 				projectsDirectory: projects,
@@ -523,6 +531,7 @@ describe(runSessionDebugAttempt.name, () => {
 				sessionCase: sessionCase({ fixturePath: fixture }),
 				config,
 				runsDirectory: runs,
+				spendCeilingUsd: 100,
 				runClaude: (_command, cwd) => {
 					calls.push(cwd);
 
@@ -549,6 +558,7 @@ describe(runSessionDebugAttempt.name, () => {
 				sessionCase: resumingCase(prefix),
 				config,
 				runsDirectory: runs,
+				spendCeilingUsd: 100,
 				runClaude: () =>
 					Promise.reject(new Error("a provider call must not happen")),
 				projectsDirectory: projects,
@@ -570,6 +580,7 @@ describe(runSessionDebugAttempt.name, () => {
 				}),
 				config,
 				runsDirectory: runs,
+				spendCeilingUsd: 100,
 				runClaude: () =>
 					Promise.reject(new Error("a provider call must not happen")),
 				projectsDirectory: projects,
@@ -602,6 +613,7 @@ describe(runSessionDebugAttempt.name, () => {
 				}),
 				config,
 				runsDirectory: runs,
+				spendCeilingUsd: 100,
 				resolveCorpus: () =>
 					Promise.resolve({ kind: "live", root, backingRoot }),
 				runClaude: () => {
@@ -639,6 +651,7 @@ describe(runSessionDebugAttempt.name, () => {
 				}),
 				config,
 				runsDirectory: runs,
+				spendCeilingUsd: 100,
 				resolveCorpus: () =>
 					Promise.resolve({ kind: "live", root, backingRoot }),
 				runClaude: () => {
@@ -660,6 +673,7 @@ describe(runSessionDebugAttempt.name, () => {
 				sessionCase: sessionCase(),
 				config,
 				runsDirectory: await temporary("rehearse-runs-"),
+				spendCeilingUsd: 100,
 				resolveCorpus: () =>
 					Promise.reject(new CorpusConfigurationError("invalid backing root")),
 				runClaude: () =>
@@ -707,6 +721,7 @@ describe("running a session case against a corpus source", () => {
 			sessionCase: styledCase(),
 			config: corpus === undefined ? config : { ...config, corpus },
 			runsDirectory,
+			spendCeilingUsd: 100,
 			runClaude: fakeClaude(projects, "OK"),
 			projectsDirectory: projects,
 		});
@@ -862,6 +877,7 @@ describe("running a session case against a corpus source", () => {
 			sessionCase: sessionCase(),
 			config,
 			runsDirectory,
+			spendCeilingUsd: 100,
 			runClaude,
 			projectsDirectory: projects,
 		});
@@ -883,6 +899,7 @@ describe("running a session case against a corpus source", () => {
 			sessionCase: sessionCase({ projectFiles: ["NOTES.md"] }),
 			config,
 			runsDirectory,
+			spendCeilingUsd: 100,
 			runClaude: fakeClaude(projects, "OK"),
 			projectsDirectory: projects,
 		});
@@ -931,6 +948,7 @@ describe("running a session case against a corpus source", () => {
 			sessionCase: sessionCase(),
 			config,
 			runsDirectory: await temporary("rehearse-runs-"),
+			spendCeilingUsd: 100,
 			runClaude: fakeClaude(projects, "OK"),
 			projectsDirectory: projects,
 		});

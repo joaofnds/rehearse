@@ -467,6 +467,7 @@ export async function runReplay(
 			judgeModel: request.judgeModel,
 			judgeEffort: request.judgeEffort,
 			sessionBudgetUsd: request.sessionBudgetUsd,
+			spendCeilingUsd: request.spendCeilingUsd,
 			controlSha: request.controlSha,
 			stageCostUsd: session.transcript.costUsd,
 			productOwnerCostUsd: productOwner.snapshot().spentUsd,

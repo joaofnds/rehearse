@@ -734,6 +734,7 @@ async function runReplayConfirmationBody(
 			judgeModel: request.judgeModel,
 			judgeEffort: request.judgeEffort,
 			sessionBudgetUsd: request.sessionBudgetUsd,
+			spendCeilingUsd: request.spendCeilingUsd,
 			pipelinePath: frozen.manifest.pipelinePath,
 			corpusVersion: frozen.corpusVersion,
 		},

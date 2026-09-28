@@ -83,6 +83,7 @@ async function writeManifestFor(runName: string): Promise<string> {
 		productBrief: "Brief",
 		config,
 		pipeline,
+		spendCeilingUsd: 100,
 	});
 
 	await writeRunManifest(paths.manifestFile, manifest);

@@ -897,6 +897,7 @@ export async function runPipelineConfirmation(
 				judgeModel: request.judgeModel,
 				judgeEffort: request.judgeEffort,
 				sessionBudgetUsd: request.sessionBudgetUsd,
+				spendCeilingUsd: request.spendCeilingUsd,
 				pipelinePath: request.pipelinePath,
 				corpusVersion: frozen.corpusVersion,
 			},

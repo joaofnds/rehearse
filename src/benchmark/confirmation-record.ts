@@ -381,6 +381,7 @@ const frozenInputsSchema = z
 		judgeModel: z.string().min(1),
 		judgeEffort: effortSchema.optional(),
 		sessionBudgetUsd: z.number().positive(),
+		spendCeilingUsd: z.number().positive().optional(),
 		pipelinePath: z.string().min(1),
 		corpusVersion: corpusMeasurementSchema.optional(),
 	})
@@ -492,6 +493,7 @@ export const sessionConfirmationGroupRecordSchema = z
 				judgeModel: z.never().optional(),
 				judgeEffort: z.never().optional(),
 				sessionBudgetUsd: z.number().positive(),
+				spendCeilingUsd: z.number().positive().optional(),
 				pipelinePath: z.never().optional(),
 				corpusVersion: corpusMeasurementSchema.optional(),
 			})

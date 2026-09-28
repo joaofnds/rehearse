@@ -751,8 +751,9 @@ describe("runRunCommand for a session case", () => {
 		expect(stdout.join("")).toBe("/runs/attempt.json\n");
 	});
 
-	it("holds a session attempt's budget to the stored spend ceiling", async () => {
+	it("holds a session attempt's budget to the stored spend ceiling and carries the ceiling to its record", async () => {
 		const budgets: number[] = [];
+		const ceilings: number[] = [];
 
 		await runRunCommand(
 			{
@@ -774,8 +775,9 @@ describe("runRunCommand for a session case", () => {
 				requireSpendCeiling: () => Promise.resolve(0.75),
 				probeModel: passingProbe,
 				execute: () => Promise.reject(new Error("no pipeline here")),
-				executeSession: (config) => {
+				executeSession: (config, _output, _sessionCase, boundary) => {
 					budgets.push(config.sessionBudgetUsd);
+					ceilings.push(boundary.spendCeilingUsd);
 
 					return Promise.resolve({
 						kind: "debug" as const,
@@ -785,7 +787,10 @@ describe("runRunCommand for a session case", () => {
 			},
 		);
 
-		expect(budgets).toEqual([0.75]);
+		expect({ budgets, ceilings }).toEqual({
+			budgets: [0.75],
+			ceilings: [0.75],
+		});
 	});
 
 	it("refuses an unsupported resumed session before the model probe", async () => {

@@ -2653,6 +2653,7 @@ describe(buildRunManifest.name, () => {
 			productBrief: "Brief",
 			config,
 			pipeline,
+			spendCeilingUsd: 100,
 		});
 		const artifact = buildRunArtifact({
 			...artifactInputs(pipeline, config.pipelinePath),
@@ -2674,6 +2675,40 @@ describe(buildRunManifest.name, () => {
 			manifest: { caseId: "audit-log", model: "sonnet", judgeModel: "opus" },
 			artifact: { caseId: "audit-log", model: "sonnet", judgeModel: "opus" },
 		});
+	});
+
+	it("records the spend ceiling the run ran under", async () => {
+		const config = parseArgs(
+			[
+				"--target",
+				"/tmp/target",
+				"--model",
+				"sonnet",
+				"--session-budget-usd",
+				"5",
+			],
+			{},
+			{
+				caseId: "audit-log",
+				pipelinePath: AUDIT_LOG_PIPELINE_PATH,
+				targetPath: "/tmp/target",
+			},
+		);
+
+		const manifest = buildRunManifest({
+			timestamp: "2026-09-02T00:00:00.000Z",
+			controlSha: "control-sha",
+			source: { root: "/tmp/target", sha: "source-sha" },
+			taskId: "TASK-1",
+			taskSha: "task-sha",
+			task: "Task",
+			productBrief: "Brief",
+			config,
+			pipeline: await loadDefaultPipeline(),
+			spendCeilingUsd: 7.5,
+		});
+
+		expect(manifest.spendCeilingUsd).toBe(7.5);
 	});
 
 	it("carries the baseline check result a proceeding run captured", async () => {
@@ -2715,6 +2750,7 @@ describe(buildRunManifest.name, () => {
 			productBrief: "Brief",
 			config,
 			pipeline,
+			spendCeilingUsd: 100,
 			baselineChecks,
 		});
 
@@ -2751,6 +2787,7 @@ describe(buildRunManifest.name, () => {
 			productBrief: "Brief",
 			config,
 			pipeline: await loadDefaultPipeline(),
+			spendCeilingUsd: 100,
 		});
 
 		expect(manifest.minimumGrade).toBe("C");
