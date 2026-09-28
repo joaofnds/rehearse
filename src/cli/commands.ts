@@ -299,6 +299,19 @@ export const COMMANDS: readonly CommandDefinition[] = [
 		],
 	},
 	{
+		name: "settings",
+		summary:
+			"Show the stored spend ceiling and the records location, or store a new ceiling",
+		flags: [
+			{
+				name: "--spend-ceiling-usd",
+				kind: "value",
+				help: "The most a run, replay or session attempt may spend in USD; a confirmation group may spend its attempts times this",
+			},
+			jsonFlag,
+		],
+	},
+	{
 		name: "case list",
 		summary: "List every declared benchmark case under cases/",
 		flags: [jsonFlag],

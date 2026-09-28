@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { createHash } from "node:crypto";
 import { chmod, mkdir, mkdtemp, readdir, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -46,10 +46,11 @@ function environmentWithoutKnobs(): Record<string, string> {
 async function runCli(
 	args: readonly string[],
 	stdin: "inherit" | "empty" = "empty",
+	env: Readonly<Record<string, string>> = environmentWithoutKnobs(),
 ): Promise<CliResult> {
 	const child = Bun.spawn([process.execPath, "rehearse.ts", ...args], {
 		cwd: PROJECT_ROOT,
-		env: environmentWithoutKnobs(),
+		env,
 		stdin: stdin === "empty" ? new Blob([""]) : "inherit",
 		stdout: "pipe",
 		stderr: "pipe",
@@ -932,6 +933,7 @@ const BARE_REFUSALS: ReadonlyMap<string, { code: number; reason: string }> =
 			"corpus show",
 			{ code: EXIT_CODES.usageError, reason: "Provide the corpus version" },
 		],
+		["settings", { code: EXIT_CODES.completed, reason: "" }],
 		["case list", { code: EXIT_CODES.completed, reason: "" }],
 		[
 			"case show",
@@ -1001,6 +1003,50 @@ describe("a paying command given every session knob", () => {
 			expect(result.stdout).toBe("");
 		},
 	);
+});
+
+describe("the spend ceiling", () => {
+	let records: string;
+	let inRecords: ReturnType<typeof environmentWithoutKnobs>;
+
+	beforeEach(async () => {
+		records = await mkdtemp(join(tmpdir(), "rehearse-cli-settings-"));
+		inRecords = {
+			...environmentWithoutKnobs(),
+			[RECORDS_DIRECTORY_VARIABLE]: records,
+		};
+	});
+
+	afterEach(async () => {
+		await rm(records, { force: true, recursive: true });
+	});
+
+	it("is read back unchanged by a new process after one stores it", async () => {
+		await runCli(
+			["settings", "--spend-ceiling-usd", "2.5"],
+			"empty",
+			inRecords,
+		);
+
+		const result = await runCli(["settings", "--json"], "empty", inRecords);
+
+		expect(result.exitCode).toBe(EXIT_CODES.completed);
+		expect(JSON.parse(result.stdout)).toEqual({
+			spendCeilingUsd: 2.5,
+			recordsDirectory: records,
+		});
+	});
+
+	it("refuses a ceiling that is not a positive number as a usage error", async () => {
+		const result = await runCli(
+			["settings", "--spend-ceiling-usd", "0"],
+			"empty",
+			inRecords,
+		);
+
+		expect(result.exitCode).toBe(EXIT_CODES.usageError);
+		expect(result.stdout).toBe("");
+	});
 });
 
 describe("reading the records", () => {

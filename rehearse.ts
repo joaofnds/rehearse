@@ -41,6 +41,7 @@ import {
 import { runList } from "./src/cli/list-command";
 import { judgesFor, runCalibrate } from "./src/cli/calibrate-command";
 import { runReview } from "./src/cli/review-command";
+import { runSettings } from "./src/cli/settings-command";
 import { runShow } from "./src/cli/show-command";
 import { runRegrade } from "./src/cli/regrade-command";
 import { runStale } from "./src/cli/stale-command";
@@ -265,6 +266,18 @@ async function dispatch(
 					version: commandLine.argument,
 					file: flagValue(commandLine.flags, "--file"),
 					runsDirectory,
+				},
+				processOutput,
+			);
+
+			return EXIT_CODES.completed;
+		}
+		case "settings": {
+			await runSettings(
+				{
+					runsDirectory,
+					spendCeilingUsd: flagValue(commandLine.flags, "--spend-ceiling-usd"),
+					json: commandLine.json,
 				},
 				processOutput,
 			);
