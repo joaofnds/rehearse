@@ -350,8 +350,13 @@ describe("workflow provider metrics", () => {
 		);
 
 		const [call] = calls;
-		expect(call?.command).toContain("stream-json");
-		expect(call?.command).not.toContain("--include-partial-messages");
+		const format = call?.command.indexOf("--output-format") ?? -1;
+		expect(call?.command.slice(format, format + 4)).toEqual([
+			"--output-format",
+			"stream-json",
+			"--verbose",
+			"--json-schema",
+		]);
 		expect(call?.options).toEqual({ silenceLimitMs: STAGE_SILENCE_LIMIT_MS });
 		expect(transcript).toMatchObject({
 			sessionId: "worker-session",
