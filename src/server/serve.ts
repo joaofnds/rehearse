@@ -50,14 +50,15 @@ async function main(): Promise<void> {
 	const runsDirectory = recordsDirectory();
 	await reconcileOnStartup(runsDirectory);
 
+	const port = Number(Bun.env["PORT"] ?? DEFAULT_PORT);
 	const app = createAppServer({
 		runsDirectory,
 		corpusSource: liveCorpusSource(),
 		liveness: liveRunLiveness(),
 		clientDistDirectory: join(CONTROL_DIR, "client", "dist"),
+		port,
 	});
 
-	const port = Number(Bun.env["PORT"] ?? DEFAULT_PORT);
 	startLocalServer(port, app.fetch);
 	console.log(`rehearse serving on http://localhost:${String(port)}`);
 }

@@ -11,6 +11,9 @@ import { createAppServer } from "./app";
 
 const runHistoryResponseSchema = z.object({ rows: z.array(z.unknown()) });
 
+const PORT = 4173;
+const LOOPBACK = { host: `127.0.0.1:${String(PORT)}` };
+
 describe(createAppServer.name, () => {
 	const roots: string[] = [];
 
@@ -54,9 +57,10 @@ describe(createAppServer.name, () => {
 			liveness: nothingRunning,
 			corpusSource: directorySource(await corpusDirectory()),
 			clientDistDirectory: await clientDistDirectory(),
+			port: PORT,
 		});
 
-		const response = await app.request("/api/runs");
+		const response = await app.request("/api/runs", { headers: LOOPBACK });
 		const body = runHistoryResponseSchema.parse(await response.json());
 
 		expect(response.status).toBe(200);
@@ -69,9 +73,10 @@ describe(createAppServer.name, () => {
 			liveness: nothingRunning,
 			corpusSource: directorySource(await corpusDirectory()),
 			clientDistDirectory: await clientDistDirectory(),
+			port: PORT,
 		});
 
-		const response = await app.request("/assets/app.js");
+		const response = await app.request("/assets/app.js", { headers: LOOPBACK });
 		const body = await response.text();
 
 		expect(response.status).toBe(200);
@@ -84,12 +89,51 @@ describe(createAppServer.name, () => {
 			liveness: nothingRunning,
 			corpusSource: directorySource(await corpusDirectory()),
 			clientDistDirectory: await clientDistDirectory(),
+			port: PORT,
 		});
 
-		const response = await app.request("/some/router/path");
+		const response = await app.request("/some/router/path", {
+			headers: LOOPBACK,
+		});
 		const body = await response.text();
 
 		expect(response.status).toBe(200);
 		expect(body).toContain("rehearse");
+	});
+
+	describe("when the Host is not the loopback address it serves on", () => {
+		it.each([
+			["a rebound DNS name", `rebound.example:${String(PORT)}`],
+			["another port", "127.0.0.1:9999"],
+			["no port", "localhost"],
+		])("refuses a GET from %s", async (_label, host) => {
+			const app = createAppServer({
+				runsDirectory: await runsDirectory(),
+				liveness: nothingRunning,
+				corpusSource: directorySource(await corpusDirectory()),
+				clientDistDirectory: await clientDistDirectory(),
+				port: PORT,
+			});
+
+			const response = await app.request("/api/runs", { headers: { host } });
+
+			expect(response.status).toBe(403);
+		});
+
+		it("serves localhost on the same port", async () => {
+			const app = createAppServer({
+				runsDirectory: await runsDirectory(),
+				liveness: nothingRunning,
+				corpusSource: directorySource(await corpusDirectory()),
+				clientDistDirectory: await clientDistDirectory(),
+				port: PORT,
+			});
+
+			const response = await app.request("/api/runs", {
+				headers: { host: `localhost:${String(PORT)}` },
+			});
+
+			expect(response.status).toBe(200);
+		});
 	});
 });
