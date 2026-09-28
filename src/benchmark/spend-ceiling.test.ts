@@ -60,10 +60,10 @@ describe(createSpendCeiling.name, () => {
 			const group = createSpendCeiling({ ceilingUsd: 2 });
 			const first = createSpendCeiling({ ceilingUsd: 1, within: group });
 			const second = createSpendCeiling({ ceilingUsd: 1, within: group });
-			first.charge(0.9);
-			second.charge(0.9);
+			first.charge(0.6);
+			second.charge(1.2);
 
-			expect(first.budgetFor(1)).toBeCloseTo(0.1);
+			expect(first.budgetFor(1)).toBeCloseTo(0.2);
 		});
 
 		it("refuses every rep once the group's spend reaches the group ceiling", () => {
