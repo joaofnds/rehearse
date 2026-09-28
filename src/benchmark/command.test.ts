@@ -136,6 +136,18 @@ describe(runCommand.name, () => {
 		expect(output).toBe("one\ntwo\nthree");
 	});
 
+	it("ends a command at its wall limit however much it writes", async () => {
+		const failure = await rejectionOf(
+			runCommand(
+				["sh", "-c", "while true; do echo tick; sleep 0.05; done"],
+				process.cwd(),
+				{ timeoutMs: 200 },
+			),
+		);
+
+		expect(failure).toBeInstanceOf(CommandError);
+	});
+
 	describe("with a silence limit", () => {
 		it("lets a command that keeps writing run past the limit and returns its whole output", async () => {
 			const output = await runCommand(
