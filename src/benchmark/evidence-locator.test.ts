@@ -118,9 +118,26 @@ describe(locateInDiff.name, () => {
 			everyFile,
 		);
 
-		expect(locator).toMatchObject({
+		expect(locator).toEqual({
+			kind: "hunk",
 			file: "src/app.ts",
 			hunk: "@@ -30,1 +31,2 @@",
+			occurrences: 1,
+		});
+	});
+
+	it("finds a quote of a header line whole with its function context", () => {
+		const locator = locateInDiff(
+			"@@ -1,2 +1,3 @@ export class App {\nimport { Module } from './module';",
+			DIFF,
+			everyFile,
+		);
+
+		expect(locator).toEqual({
+			kind: "hunk",
+			file: "src/app.ts",
+			hunk: "@@ -1,2 +1,3 @@",
+			occurrences: 1,
 		});
 	});
 
@@ -131,9 +148,32 @@ describe(locateInDiff.name, () => {
 			everyFile,
 		);
 
-		expect(locator).toMatchObject({
+		expect(locator).toEqual({
+			kind: "hunk",
 			file: "src/app.ts",
 			hunk: "@@ -1,2 +1,3 @@",
+			occurrences: 1,
+		});
+	});
+
+	it("finds a quote running through a header into an added line copied without its prefix", () => {
+		const locator = locateInDiff(
+			"export class App {}\n@@ -30,1 +31,2 @@\n\tmodules,\n\tAuditLog,",
+			DIFF,
+			everyFile,
+		);
+
+		expect(locator).toMatchObject({ hunk: "@@ -1,2 +1,3 @@" });
+	});
+
+	it("counts a quote in every hunk that holds it", () => {
+		const locator = locateInDiff("AuditLog", DIFF, everyFile);
+
+		expect(locator).toEqual({
+			kind: "hunk",
+			file: "src/app.ts",
+			hunk: "@@ -1,2 +1,3 @@",
+			occurrences: 2,
 		});
 	});
 
