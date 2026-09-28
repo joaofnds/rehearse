@@ -188,5 +188,8 @@ let sleepers = 0;
 function uniqueSleeper(): string {
 	sleepers += 1;
 
-	return `sleep ${process.pid}${sleepers}${Date.now() % 1000}`;
+	const pid = String(process.pid).padStart(7, "0");
+	const run = String(sleepers).padStart(3, "0");
+
+	return `sleep ${pid}${run}`;
 }
