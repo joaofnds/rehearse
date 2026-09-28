@@ -49,6 +49,14 @@ sealed environment.
 
 ## Run one attempt
 
+Every paid command refuses until you store a spend ceiling, the most one run,
+replay or session attempt may spend. This one costs nothing and is kept in
+`settings.json` in the records directory, so later commands read it back:
+
+```sh
+mise exec -- bun run rehearse settings --spend-ceiling-usd 1
+```
+
 The next command calls the provider and costs money:
 
 ```sh
@@ -60,7 +68,9 @@ mise exec -- bun run rehearse run --case smoke \
 The session budget is USD 0.20. The model-availability probe is a separate paid
 call with a USD 0.10 budget. These are configured budgets, not price estimates,
 and not caps: Claude Code stops a session only after the call that crosses its
-budget, so a charge can exceed it. An actual charge depends on the provider,
+budget, so a charge can exceed it. The spend ceiling is the limit that holds
+across sessions: each session starts with a budget no larger than the ceiling
+left. An actual charge depends on the provider,
 context, and cache state. No paid recipe in this guide was exercised for the
 documentation audit.
 

@@ -86,6 +86,39 @@ Claude Code stops a session only after the call that crosses its budget, and
 that call is charged in full. Stage/pipeline projections do not include that
 probe allowance. Calibration rejudges are additional calls.
 
+### Spend ceiling
+
+`settings --spend-ceiling-usd <USD>` stores the ceiling in `settings.json` in
+the records directory; `settings` alone shows it and the records location.
+Pipeline and session `run`, `replay`, every `--confirm` group, and `calibrate`
+refuse with exit code 3 and name that command when no ceiling is stored. The
+refusal comes after the terminal checks and before the model probe, so it
+spends nothing.
+
+The ceiling holds a run's whole spend: every workflow, PO and Judge session,
+and every Judge retry, is started with a budget no larger than the ceiling
+minus what the run has spent so far. Once the spend reaches the ceiling, the
+next paid call is refused. A pipeline run then stops in the stage it was in,
+writes that stage's stopped record with `ceilingStop` carrying the ceiling and
+the spend, restores the target, and starts no later session. A session
+attempt's budget is clamped to the ceiling, and its record keeps the clamped
+value as `sessionBudgetUsd`.
+
+A confirmation group holds each rep to the ceiling and all reps together to
+the reps times the ceiling. Since reps run at once, one rep's overrun counts
+against the others, and once the group total is reached no rep starts another
+session. A replay or a group rep refused by the ceiling fails through its
+ordinary failure path, without a `ceilingStop` field.
+
+The run manifest, a replay record, a session attempt record, and every
+group's `inputs` record the ceiling as `spendCeilingUsd`. Records written
+before the ceiling existed have no such field.
+
+The ceiling bounds spend by at most the call in flight, because Claude Code
+stops a session only after the call that crosses its budget. A provider call
+that fails without a result envelope reports no cost, so it is not counted.
+The model probe runs before the run's spend is counted and is outside it.
+
 ### Output and exit codes
 
 | Code | Meaning                                                               |
