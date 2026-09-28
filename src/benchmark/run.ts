@@ -78,7 +78,7 @@ import type {
 	TargetCheck,
 	TargetDefinition,
 } from "./pipeline";
-import type { PendingStage } from "./run-abort";
+import type { CeilingStop, PendingStage } from "./run-abort";
 import { createRunAbort, fileRunArtifactPersistence } from "./run-abort";
 import { corpusSourceDirectories, recordStageReads } from "./stage-reads";
 import type { RunEventRecorder } from "./run-events";
@@ -114,7 +114,7 @@ import type { ProductOwner, ProductOwnerSnapshot } from "./workflow";
 import { createProductOwner, runWorkflowStage } from "./workflow";
 import { claimShortId, formatShortId } from "./short-id";
 import type { SpendCeiling } from "./spend-ceiling";
-import { createSpendCeiling } from "./spend-ceiling";
+import { createSpendCeiling, SpendCeilingReachedError } from "./spend-ceiling";
 
 async function createRunFiles(timestamp: string): Promise<BenchmarkRunPaths> {
 	const directory = recordsDirectory();
@@ -544,6 +544,7 @@ export interface StageContext {
 	readonly projectsDirectory?: string | undefined;
 	readonly writePendingStage: (pending: PendingStage) => Promise<void>;
 	readonly updatePendingStage: (pending: PendingStage) => void;
+	readonly stopAtCeiling: (stop: CeilingStop) => void;
 	readonly writeStageProgress: (record: StageJudgeRecord) => Promise<void>;
 	readonly completeStage: (record: StageJudgeRecord) => Promise<void>;
 	readonly calibrateStageFailure: (
@@ -753,6 +754,31 @@ function stageElapsedMs(
 	return runElapsedMs() - stageStartedAtMs;
 }
 
+/**
+ * A paid call the ceiling refuses stops the run in the stage that made it,
+ * so the stop is recorded against that stage before the refusal propagates.
+ */
+async function stoppingAtCeiling<Result>(
+	context: Pick<StageContext, "stageFile" | "stopAtCeiling">,
+	stage: string,
+	paid: () => Promise<Result>,
+): Promise<Result> {
+	try {
+		return await paid();
+	} catch (error) {
+		if (error instanceof SpendCeilingReachedError) {
+			context.stopAtCeiling({
+				file: context.stageFile(stage),
+				stage,
+				ceilingUsd: error.ceilingUsd,
+				spentUsd: error.spentUsd,
+			});
+		}
+
+		throw error;
+	}
+}
+
 export async function runGradedStages(
 	dependencies: StageDependencies,
 	context: StageContext,
@@ -787,18 +813,21 @@ export async function runGradedStages(
 			workflow.reduce((total, transcript) => total + transcript.costUsd, 0),
 			stageStartedAtMs ?? 0,
 		);
-		const session = await executeStageSession(
-			dependencies,
-			{
-				...context,
-				target: context.pipeline.target,
-				corpusRoots,
-				baselineSha,
-				commitSubjectPattern: context.pipeline.commitSubjectPattern,
-				settingsOverlay: context.loadedSettings.json,
-			},
-			definition,
-			stageArtifacts,
+		const sessionContext = {
+			...context,
+			target: context.pipeline.target,
+			corpusRoots,
+			baselineSha,
+			commitSubjectPattern: context.pipeline.commitSubjectPattern,
+			settingsOverlay: context.loadedSettings.json,
+		};
+		const session = await stoppingAtCeiling(context, stage, () =>
+			executeStageSession(
+				dependencies,
+				sessionContext,
+				definition,
+				stageArtifacts,
+			),
 		);
 		const { corpusFiles, corpusVersion, versionFiles, input } = session;
 		workflow.push(session.transcript);
@@ -849,24 +878,26 @@ export async function runGradedStages(
 
 		let scorecard: StageScorecard;
 		try {
-			scorecard = await dependencies.runStageJudge(
-				context.judgeModel,
-				context.judgeEffort,
-				{
-					sessionBudgetUsd: context.sessionBudgetUsd,
-					spendCeiling: context.spendCeiling,
-				},
-				input,
-				rubric,
-				undefined,
-				(progress) => {
-					context.runEvents?.recordJudgeProgress(
-						stage,
-						input.transcript.costUsd,
-						context.elapsedMs?.() ?? 0,
-						progress,
-					);
-				},
+			scorecard = await stoppingAtCeiling(context, stage, () =>
+				dependencies.runStageJudge(
+					context.judgeModel,
+					context.judgeEffort,
+					{
+						sessionBudgetUsd: context.sessionBudgetUsd,
+						spendCeiling: context.spendCeiling,
+					},
+					input,
+					rubric,
+					undefined,
+					(progress) => {
+						context.runEvents?.recordJudgeProgress(
+							stage,
+							input.transcript.costUsd,
+							context.elapsedMs?.() ?? 0,
+							progress,
+						);
+					},
+				),
 			);
 		} catch (error) {
 			if (error instanceof JudgeOutputValidationError) {
@@ -1195,6 +1226,7 @@ export async function runBenchmark(
 					updatePendingStage: abort.updatePendingStage,
 					writeStageProgress: abort.writeStageProgress,
 					completeStage: abort.completeStage,
+					stopAtCeiling: abort.stopAtCeiling,
 					runEvents,
 					elapsedMs,
 					calibrateStageFailure: async (scorecards) => {

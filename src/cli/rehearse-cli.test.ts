@@ -197,7 +197,10 @@ function providerCallsIn(binDirectory: string): Promise<boolean> {
 	return Bun.file(join(binDirectory, PROVIDER_CALLS_LOG)).exists();
 }
 
-async function providerShim(directory: string): Promise<string> {
+async function providerShim(
+	directory: string,
+	callCostUsd = 0,
+): Promise<string> {
 	const binDirectory = join(directory, "bin");
 	await mkdir(binDirectory, { recursive: true });
 	const shim = join(binDirectory, "claude");
@@ -206,7 +209,7 @@ async function providerShim(directory: string): Promise<string> {
 		subtype: "success",
 		is_error: false,
 		result: JSON.stringify({ status: "COMPLETE", message: "done" }),
-		total_cost_usd: 0,
+		total_cost_usd: callCostUsd,
 		duration_ms: 1,
 		duration_api_ms: 1,
 		num_turns: 1,
@@ -386,13 +389,21 @@ interface PipelineFixture {
  * declared checks pass. The caller registers `directory` for removal, which
  * takes all three with it.
  */
-async function pipelineFixture(directory: string): Promise<PipelineFixture> {
+const FREE_SPEND = { ceilingUsd: 100, callCostUsd: 0 } as const;
+
+async function pipelineFixture(
+	directory: string,
+	spend: {
+		readonly ceilingUsd: number;
+		readonly callCostUsd: number;
+	} = FREE_SPEND,
+): Promise<PipelineFixture> {
 	const [control, binDirectory, target] = await Promise.all([
 		controlCopy(directory),
-		providerShim(directory),
+		providerShim(directory, spend.callCostUsd),
 		passingTarget(directory),
 	]);
-	await storeSpendCeiling(benchmarkRunsDirectory(control), 100);
+	await storeSpendCeiling(benchmarkRunsDirectory(control), spend.ceilingUsd);
 
 	return { control, binDirectory, target };
 }
@@ -1140,6 +1151,65 @@ describe("the spend ceiling", () => {
 				expect(await providerCallsIn(fixture.binDirectory)).toBe(false);
 			},
 		);
+	});
+
+	describe("when a run's spend reaches it", () => {
+		let directory: string;
+
+		beforeEach(async () => {
+			directory = await mkdtemp(join(tmpdir(), "rehearse-cli-ceiling-stop-"));
+		});
+
+		afterEach(async () => {
+			await rm(directory, { force: true, recursive: true });
+		});
+
+		it("stops the run in its stage, records the stop, and restores the target", async () => {
+			const { control, binDirectory, target } = await pipelineFixture(
+				directory,
+				{ ceilingUsd: 1, callCostUsd: 0.6 },
+			);
+			const startSha = await headSha(target);
+
+			const result = await runPipelineCli(
+				[
+					"run",
+					"--case",
+					"audit-log",
+					"--model",
+					"sonnet",
+					"--target",
+					target,
+					"--json",
+				],
+				control,
+				binDirectory,
+			);
+
+			const runsDirectory = benchmarkRunsDirectory(control);
+			const runFiles = await readdir(runsDirectory);
+			const stopRecord = runFiles.find((entry) =>
+				entry.endsWith(".shape.json"),
+			);
+			const record: unknown = await Bun.file(
+				join(runsDirectory, stopRecord ?? ""),
+			).json();
+			const providerCalls = await Bun.file(
+				join(binDirectory, PROVIDER_CALLS_LOG),
+			).text();
+			const paidCalls = providerCalls
+				.trimEnd()
+				.split("\n")
+				.filter((call) => call.includes("--max-budget-usd"));
+			expect(result.exitCode).toBe(EXIT_CODES.executionFailure);
+			expect(record).toMatchObject({
+				status: "STAGE_JUDGE_FAILED",
+				stage: "shape",
+				ceilingStop: { ceilingUsd: 1, spentUsd: 1.2 },
+			});
+			expect(paidCalls.at(-1)).toContain("--max-budget-usd 0.4");
+			expect(result.stderr).toContain(`Target restored to ${startSha}.`);
+		});
 	});
 
 	it("refuses a ceiling that is not a positive number as a usage error", async () => {

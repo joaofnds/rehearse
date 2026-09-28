@@ -35,6 +35,22 @@ export interface PendingStage {
 		| undefined;
 	readonly scorecard?: StageScorecard | undefined;
 	readonly stopped?: StoppedStageReadings | undefined;
+	readonly ceilingStop?: CeilingStopReadings | undefined;
+}
+
+/** The ceiling a run stopped at and the run spend that reached it. */
+export interface CeilingStopReadings {
+	readonly ceilingUsd: number;
+	readonly spentUsd: number;
+}
+
+/**
+ * A stage the spend ceiling stopped. Its session may have been refused before
+ * any stage record existed, so it names the file its stop record goes to.
+ */
+export interface CeilingStop extends CeilingStopReadings {
+	readonly file: string;
+	readonly stage: string;
 }
 
 /**
@@ -95,6 +111,7 @@ export interface RunAbort {
 		artifact: FailedJudgeRunArtifact,
 	) => Promise<void>;
 	readonly markAborted: (reason: string) => Promise<void>;
+	readonly stopAtCeiling: (stop: CeilingStop) => void;
 	readonly teardown: () => Promise<void>;
 	readonly release: () => void;
 }
@@ -208,6 +225,31 @@ export async function writeStageJudgeFailure(
 				...findings,
 				...stopped,
 				...pending.failure,
+				ceilingStop: pending.ceilingStop,
+			},
+			null,
+			2,
+		)}\n`,
+	);
+}
+
+/**
+ * The stop record of a stage whose session the ceiling refused: nothing ran
+ * in it to judge, so it holds the stop and the readings alone.
+ */
+async function writeCeilingStop(
+	stop: CeilingStop,
+	reason: string,
+	persistence: RunArtifactPersistence,
+): Promise<void> {
+	await persistence.write(
+		stop.file,
+		`${JSON.stringify(
+			{
+				status: "STAGE_JUDGE_FAILED",
+				stage: stop.stage,
+				error: reason,
+				ceilingStop: { ceilingUsd: stop.ceilingUsd, spentUsd: stop.spentUsd },
 			},
 			null,
 			2,
@@ -221,6 +263,7 @@ export function createRunAbort(
 ): RunAbort {
 	let pendingArtifact: RunArtifact | undefined;
 	let pendingStage: PendingStage | undefined;
+	let ceilingStop: CeilingStop | undefined;
 	let terminalEventRecorded = false;
 	let abortRecorded: Promise<void> | undefined;
 	let teardownStarted: Promise<void> | undefined;
@@ -427,13 +470,14 @@ export function createRunAbort(
 		if (abortRecorded === undefined) {
 			abortRequested = true;
 			const stageToFail = pendingStage;
+			const unjudgedCeilingStop = ceilingStop;
 			const artifactToFail = pendingArtifact;
 			abortRecorded = enqueueTransition(async () => {
 				if (!terminalEventRecorded) {
 					recordRunEvent(dependencies.reportError, () => {
 						runEvents.record(
 							"run-failed",
-							stageToFail?.stage ?? "",
+							stageToFail?.stage ?? unjudgedCeilingStop?.stage ?? "",
 							artifactToFail === undefined
 								? (stageToFail?.input.transcript.costUsd ?? 0)
 								: totalSpentUsd(artifactToFail),
@@ -446,6 +490,19 @@ export function createRunAbort(
 					try {
 						await writeStageJudgeFailure(
 							stageToFail,
+							reason,
+							dependencies.persistence,
+						);
+					} catch (error) {
+						dependencies.reportError(
+							`Failed to update run artifacts: ${error instanceof Error ? error.message : String(error)}`,
+						);
+					}
+				}
+				if (stageToFail === undefined && unjudgedCeilingStop !== undefined) {
+					try {
+						await writeCeilingStop(
+							unjudgedCeilingStop,
 							reason,
 							dependencies.persistence,
 						);
@@ -535,6 +592,17 @@ export function createRunAbort(
 		awaitArtifactReview,
 		writeFailedArtifact,
 		markAborted,
+		stopAtCeiling: (stop) => {
+			if (abortRequested) {
+				return;
+			}
+			const readings = { ceilingUsd: stop.ceilingUsd, spentUsd: stop.spentUsd };
+			if (pendingStage?.stage === stop.stage) {
+				pendingStage = { ...pendingStage, ceilingStop: readings };
+			} else {
+				ceilingStop = stop;
+			}
+		},
 		teardown,
 		release,
 	};

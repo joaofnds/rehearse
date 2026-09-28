@@ -73,6 +73,7 @@ import {
 } from "./test-support";
 import type { PendingStage, RunArtifactPersistence } from "./run-abort";
 import { createRunAbort, fileRunArtifactPersistence } from "./run-abort";
+import { createSpendCeiling, SpendCeilingReachedError } from "./spend-ceiling";
 import type { JudgeProgress, RunEventKind } from "./run-events";
 import {
 	assertStageGradePassed,
@@ -641,6 +642,7 @@ describe(runGradedStages.name, () => {
 			updatePendingStage: transitions.updatePendingStage,
 			writeStageProgress: transitions.writeStageProgress,
 			completeStage: transitions.completeStage,
+			stopAtCeiling: transitions.stopAtCeiling,
 			calibrateStageFailure: (): Promise<CalibrationResult> =>
 				Promise.reject(new Error("calibration not expected")),
 			collectJudgeAgreement: () =>
@@ -1200,6 +1202,156 @@ describe(runGradedStages.name, () => {
 		expect(outcome).rejects.toThrow("minimum grade is B");
 		await outcome.catch(() => undefined);
 		expect(pendingStages.at(-1)?.scorecard?.grade.verdict).toBe("STOP");
+	});
+
+	describe("when the run's spend reaches the stored ceiling", () => {
+		interface AbortAtCeiling {
+			readonly persistence: ControlledRunArtifactPersistence;
+			readonly abort: ReturnType<typeof createRunAbort>;
+		}
+
+		function atCeiling(): AbortAtCeiling {
+			const persistence = new ControlledRunArtifactPersistence();
+			const abort = createRunAbort(
+				{
+					killActiveCommands: () => Promise.resolve(),
+					registerSignal: () => undefined,
+					releaseSignal: () => undefined,
+					exit: () => undefined,
+					reportError: () => undefined,
+					persistence,
+				},
+				{
+					artifactFile: "/runs/run.json",
+					teardown: () => Promise.resolve(),
+				},
+			);
+
+			return { persistence, abort };
+		}
+
+		async function ceilingContext(
+			abort: ReturnType<typeof createRunAbort>,
+		): Promise<StageContext> {
+			return {
+				...(await stageContext()),
+				spendCeiling: createSpendCeiling({ ceilingUsd: 1 }),
+				writePendingStage: abort.writePendingStage,
+				updatePendingStage: abort.updatePendingStage,
+				writeStageProgress: abort.writeStageProgress,
+				completeStage: abort.completeStage,
+				stopAtCeiling: abort.stopAtCeiling,
+			};
+		}
+
+		it("starts the next session within what is left and no session after it", async () => {
+			const { dependencies, scorecardFor } = fakeStageDependencies();
+			const { abort } = atCeiling();
+			const context = await ceilingContext(abort);
+			const budgets: number[] = [];
+			const sessions = {
+				...dependencies,
+				runWorkflowStage: (request: WorkflowStageRequest) => {
+					budgets.push(request.spendCeiling.budgetFor(5));
+					request.spendCeiling.charge(0.6);
+
+					return dependencies.runWorkflowStage(request);
+				},
+				runStageJudge: (
+					_model: string,
+					_effort: undefined | "low" | "medium" | "high" | "xhigh" | "max",
+					budget: JudgeBudget,
+					input: StageJudgeInput,
+				) => {
+					budget.spendCeiling.budgetFor(budget.sessionBudgetUsd);
+
+					return Promise.resolve(scorecardFor(input, "CONTINUE"));
+				},
+			};
+
+			const failure = await failureOf(runGradedStages(sessions, context));
+
+			expect(failure).toBeInstanceOf(SpendCeilingReachedError);
+			expect(budgets).toHaveLength(2);
+			expect(budgets[1]).toBeCloseTo(0.4);
+		});
+
+		it("stops in that session's stage with a record naming the ceiling and the spend", async () => {
+			const { dependencies, scorecardFor } = fakeStageDependencies();
+			const { persistence, abort } = atCeiling();
+			const context = await ceilingContext(abort);
+			const sessions = {
+				...dependencies,
+				runWorkflowStage: (request: WorkflowStageRequest) => {
+					request.spendCeiling.budgetFor(5);
+					request.spendCeiling.charge(0.6);
+
+					return dependencies.runWorkflowStage(request);
+				},
+				runStageJudge: (
+					_model: string,
+					_effort: undefined | "low" | "medium" | "high" | "xhigh" | "max",
+					budget: JudgeBudget,
+					input: StageJudgeInput,
+				) => {
+					budget.spendCeiling.budgetFor(budget.sessionBudgetUsd);
+
+					return Promise.resolve(scorecardFor(input, "CONTINUE"));
+				},
+			};
+
+			const failure = await failureOf(runGradedStages(sessions, context));
+			await abort.markAborted(failure.message);
+
+			const record = z
+				.object({
+					status: z.string(),
+					stage: z.string(),
+					error: z.string(),
+					ceilingStop: z.object({
+						ceilingUsd: z.number(),
+						spentUsd: z.number(),
+					}),
+				})
+				.parse(
+					JSON.parse(persistence.files.get(context.stageFile("build")) ?? ""),
+				);
+			expect(record).toMatchObject({
+				status: "STAGE_JUDGE_FAILED",
+				stage: "build",
+				error: failure.message,
+				ceilingStop: { ceilingUsd: 1 },
+			});
+			expect(record.ceilingStop.spentUsd).toBeCloseTo(1.2);
+		});
+
+		it("records the stop for a stage whose session the ceiling refused", async () => {
+			const { dependencies } = fakeStageDependencies();
+			const { persistence, abort } = atCeiling();
+			const context = await ceilingContext(abort);
+			const sessions = {
+				...dependencies,
+				runWorkflowStage: (request: WorkflowStageRequest) => {
+					request.spendCeiling.budgetFor(5);
+					request.spendCeiling.charge(1.5);
+
+					return dependencies.runWorkflowStage(request);
+				},
+			};
+
+			const failure = await failureOf(runGradedStages(sessions, context));
+			await abort.markAborted(failure.message);
+
+			const record: unknown = JSON.parse(
+				persistence.files.get(context.stageFile("build")) ?? "",
+			);
+			expect(record).toMatchObject({
+				status: "STAGE_JUDGE_FAILED",
+				stage: "build",
+				error: failure.message,
+				ceilingStop: { ceilingUsd: 1, spentUsd: 1.5 },
+			});
+		});
 	});
 
 	it("keeps the judge's findings, captured corpus files and corpus version in the aborted stage artifact after a normal grade failure", async () => {
