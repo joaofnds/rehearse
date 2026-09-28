@@ -100,6 +100,10 @@ const STAGE_RECORD = {
 						locator: { kind: "absent" },
 					}),
 					evidence("task", "backlog-seed.md"),
+					evidence("commit-subjects", "commit-subjects", {
+						quote: "add entity\nfeat: add",
+						locator: { kind: "commit-subject", index: 0 },
+					}),
 				],
 			},
 		],
@@ -276,6 +280,12 @@ describe(readEvidenceSource.name, () => {
 			text: "feat: add entity\nfeat: add persistence layer",
 		});
 		expect(marked(source)).toBe("persistence");
+	});
+
+	it("marks a quote that spans commit subjects from its first subject", async () => {
+		const source = await stageSource("dimensions", "clarity", "4");
+
+		expect(marked(source)).toBe("add entity\nfeat: add");
 	});
 
 	it("returns the harness result a harness locator names", async () => {

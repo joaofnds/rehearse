@@ -165,6 +165,19 @@ describe(locateInCommitSubjects.name, () => {
 
 		expect(locator).toEqual({ kind: "commit-subject", index: 1 });
 	});
+
+	it("gives the index of the subject a quote spanning subjects starts in", () => {
+		const locator = locateInCommitSubjects(
+			"feat(audit-log): add persistence layer\ntest(audit-log): cover",
+			[
+				"feat(audit-log): add entity",
+				"feat(audit-log): add persistence layer",
+				"test(audit-log): cover validation",
+			],
+		);
+
+		expect(locator).toEqual({ kind: "commit-subject", index: 1 });
+	});
 });
 
 describe(locateInExchanges.name, () => {

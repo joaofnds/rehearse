@@ -580,8 +580,9 @@ Each stage Judge evidence item carries a quote copied from the source it cites.
 The harness finds the quote in the frozen input, after collapsing whitespace and,
 for the diff, with or without line prefixes, and records a `locator`: the file
 and line range for a text source, the file and hunk header for the diff, the
-subject index for commit subjects, and the exchange, field and character range
-for the transcript. A quote its cited source does not hold rejects the attempt.
+index of the subject a quote starts in for commit subjects, which the harness
+reads one per line so a quote may span consecutive subjects, and the exchange,
+field and character range for the transcript. A quote its cited source does not hold rejects the attempt.
 Items citing `check-integrity`, `local-checks` or `harness-failure`, and blockers
 the harness forces, carry no quote and a `harness` locator saying whether the
 input holds that result; commit subjects a stage never recorded get an `absent`

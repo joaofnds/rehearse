@@ -233,18 +233,19 @@ function commitSubjectView(
 	index: number,
 	quote: string | undefined,
 ): SourceView {
-	const subject = subjects[index];
-	if (subject === undefined) {
+	if (subjects[index] === undefined) {
 		throw notFound(`The record holds no commit subject ${String(index + 1)}`);
 	}
+	const text = subjects.join("\n");
 	const offset = subjects
 		.slice(0, index)
 		.reduce((total, earlier) => total + earlier.length + 1, 0);
-	const found = quote === undefined ? undefined : findSpan(subject, quote);
+	const found =
+		quote === undefined ? undefined : findSpan(text.slice(offset), quote);
 
 	return textView(
 		`commit subject ${String(index + 1)}`,
-		subjects.join("\n"),
+		text,
 		found === undefined
 			? undefined
 			: { start: offset + found.start, end: offset + found.end },

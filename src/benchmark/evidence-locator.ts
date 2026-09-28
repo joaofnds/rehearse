@@ -293,11 +293,16 @@ export function locateInCommitSubjects(
 	quote: string,
 	subjects: readonly string[],
 ): EvidenceLocator | undefined {
-	const index = subjects.findIndex(
-		(subject) => match(subject, quote) !== undefined,
-	);
+	const text = subjects.join("\n");
+	const found = match(text, quote);
+	if (found === undefined) {
+		return undefined;
+	}
 
-	return index === -1 ? undefined : { kind: "commit-subject", index };
+	return {
+		kind: "commit-subject",
+		index: text.slice(0, found.start).split("\n").length - 1,
+	};
 }
 
 /**
