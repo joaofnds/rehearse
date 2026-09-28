@@ -173,6 +173,18 @@ describe(createAppServer.name, () => {
 			expect(response.status).not.toBe(403);
 		});
 
+		it("answers a write to a route that does not exist 404, not with the client page", async () => {
+			const { app } = await appServer();
+
+			const response = await app.request("/api/no-such-route", {
+				method: "POST",
+				headers: sameOrigin,
+				body: "{}",
+			});
+
+			expect(response.status).toBe(404);
+		});
+
 		it.each([
 			["a foreign Origin", { ...sameOrigin, origin: "https://evil.example" }],
 			[

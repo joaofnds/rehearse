@@ -16,7 +16,8 @@ export interface AppServerDependencies
  * The whole stack behind one Hono instance, every route behind the request
  * guard: the read API and the launch routes under `/api`, the built client's
  * static assets, and an index.html fallback for every other
- * path so the client-side router owns its own routes.
+ * path read with GET so the client-side router owns its own routes. A write
+ * to a path no route declares answers 404 rather than the client page.
  */
 export function createAppServer(dependencies: AppServerDependencies): Hono {
 	const app = new Hono();
@@ -24,14 +25,14 @@ export function createAppServer(dependencies: AppServerDependencies): Hono {
 	app.use("*", requestGuard(dependencies.port));
 	app.route("/", createApiApp(dependencies));
 	app.route("/", createLaunchApp(dependencies));
-	app.use(
+	app.get(
 		"*",
 		serveStatic({
 			root: dependencies.clientDistDirectory,
 			rewriteRequestPath: (path) => (path === "/" ? "/index.html" : path),
 		}),
 	);
-	app.use(
+	app.get(
 		"*",
 		serveStatic({
 			root: dependencies.clientDistDirectory,

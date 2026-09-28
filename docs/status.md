@@ -237,8 +237,7 @@ non-loopback `Host`, and to a write that is not a same-origin JSON request.
 A launch whose command refuses before writing any record leaves only its log
 under `launches/` once its process exits, with no row in run history. A launch
 row is kept while a process holds its recorded pid, and a reused pid is not
-told apart. An unknown `/api` path requested with POST falls through to the
-client's `index.html` with 200.
+told apart.
 
 ## Near-term priorities
 
