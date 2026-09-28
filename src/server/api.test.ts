@@ -45,7 +45,7 @@ function parseSSEFrames(
 ): readonly z.infer<typeof runEventSchema>[] {
 	return body
 		.split("\n\n")
-		.filter((frame) => frame.length > 0)
+		.filter((frame) => frame.length > 0 && !frame.startsWith(":"))
 		.map((frame) =>
 			runEventSchema.parse(
 				JSON.parse(
@@ -1532,9 +1532,19 @@ describe(createApiApp.name, () => {
 			await reader?.cancel();
 		});
 
-		it("writes a comment while no event arrives, so a server's idle timeout does not close a stream whose stage runs for minutes", async () => {
-			const runsDirectory = await mkdtemp(join(tmpdir(), "rehearse-api-runs-"));
-			roots.push(runsDirectory);
+		it("writes a comment line once a started stage goes quiet, so a server's idle timeout does not close a stream whose stage runs for minutes", async () => {
+			const runsDirectory = await emptyDirectory("rehearse-api-runs-");
+			const store = await openRunEventStore(
+				runEventsDatabaseFile(runsDirectory),
+			);
+			store.append({
+				runId: "quiet-run",
+				kind: "stage-started",
+				stage: "build",
+				spentUsd: 0,
+				elapsedMs: 0,
+			});
+			store.close();
 			const app = createApiApp({
 				runsDirectory,
 				liveness: nothingRunning,
@@ -1545,15 +1555,28 @@ describe(createApiApp.name, () => {
 				signal: controller.signal,
 			});
 			const reader = response.body?.getReader();
+			const read = async (): Promise<string> => {
+				const chunk = await reader?.read();
 
-			const firstWrite = await Promise.race([
-				reader?.read().then(({ value }) => new TextDecoder().decode(value)),
-				Bun.sleep(2000).then(() => "nothing written within 2 s"),
-			]);
-			controller.abort();
-			await reader?.cancel();
+				return new TextDecoder().decode(chunk?.value);
+			};
+			const timeout = async (): Promise<string> => {
+				await Bun.sleep(2000);
 
-			expect(firstWrite).toStartWith(":");
+				return "nothing written within 2 s";
+			};
+			const nextWrite = (): Promise<string> =>
+				Promise.race([read(), timeout()]);
+
+			try {
+				await nextWrite();
+				const writeAfterEvent = await nextWrite();
+
+				expect(writeAfterEvent).toMatch(/^:[^\n]*\n\n$/u);
+			} finally {
+				controller.abort();
+				await reader?.cancel();
+			}
 		});
 	});
 

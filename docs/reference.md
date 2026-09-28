@@ -1079,15 +1079,18 @@ exist only once an attempt is accepted, in the stage's record rather than in
 any event. Each event's `spentUsd` covers the stage's session, as
 `stage-judging` does.
 
-`/api/runs/<run>/events` serves these events like any other. While a
-`judge-progress` event is a running run's latest, its `/api/runs` row's
-`progress` carries it as `judge`, and the field is absent otherwise. A stage
-graded below its minimum records no event of its own, so while a paused run
-waits for its calibration review the row still carries the last reading. A
-run event store created before this event existed gains its column on open and
-keeps its events. Stage replays, replay confirmation, calibration, pipeline
-confirmation and the final judge do not record judge progress. No screen shows
-it yet.
+`/api/runs/<run>/events` serves these events like any other. While no new event
+arrives, it writes an SSE comment line (`: keepalive`) every 500 ms, which
+carries no event, so a reader that parses the stream itself must skip it. The
+stream ends only after a terminal event, so a reader of a run that died or never
+existed closes the connection itself. While a `judge-progress` event is a
+running run's latest, its `/api/runs` row's `progress` carries it as `judge`,
+and the field is absent otherwise. A stage graded below its minimum records no
+event of its own, so while a paused run waits for its calibration review the row
+still carries the last reading. A run event store created before this event
+existed gains its column on open and keeps its events. Stage replays, replay
+confirmation, calibration, pipeline confirmation and the final judge do not
+record judge progress. No screen shows it yet.
 
 ### Run history figures
 

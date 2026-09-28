@@ -110,20 +110,21 @@ Record schemas are versioned where their contracts differ. Readers preserve
 supported historical formats rather than rewriting old evidence.
 
 The SQLite database at `.benchmark-runs/run-events.sqlite` stores progress
-notifications. The server streams those through `/api/runs/:run/events`,
-writing an SSE comment on each poll that finds no new event so an idle
-connection is not closed mid-stage, and reconciles abandoned processes at
-startup. The run-history report reads the
-same store to tell a run in flight from one that ended. It reads the store only
-after the authoritative files answer nothing: an artifact or a stop record
-settles a run's outcome on its own, and the stream is consulted for the runs
-those files do not cover. A non-terminal stream is not enough by itself, so the
-report also checks that the process holding the run's target is alive. A run
-that dies while the server keeps running leaves its stream non-terminal, and
-startup is the only moment reconciliation could correct that.
-Event recording is best effort; it must not turn a successful experiment into a
-failed one. It is not a substitute for the final artifact. There is no command
-that reconstructs a deleted event history from JSON records.
+notifications. The server streams those through `/api/runs/:run/events` and
+reconciles abandoned processes at startup. The stream writes an SSE comment on
+each poll that finds no new event, because Bun.serve closes a connection that
+writes nothing for 10 seconds and a stage can run for many minutes between
+events. The poll interval must therefore stay under that timeout. The
+run-history report reads the same store to tell a run in flight from one that
+ended. It reads the store only after the authoritative files answer nothing: an
+artifact or a stop record settles a run's outcome on its own, and the stream is
+consulted for the runs those files do not cover. A non-terminal stream is not
+enough by itself, so the report also checks that the process holding the run's
+target is alive. A run that dies while the server keeps running leaves its
+stream non-terminal, and startup is the only moment reconciliation could correct
+that. Event recording is best effort; it must not turn a successful experiment
+into a failed one. It is not a substitute for the final artifact. There is no
+command that reconstructs a deleted event history from JSON records.
 
 The corpus version store at `.benchmark-runs/corpus-versions/` is
 authoritative too, since a record's `corpusVersion` names a version whose files
