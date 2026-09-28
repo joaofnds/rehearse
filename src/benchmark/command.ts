@@ -122,7 +122,10 @@ export async function runCommand(
 	let silenced = false;
 	const timeout = setTimeout(
 		() => {
-			silenced = options.silenceLimitMs !== undefined;
+			// A command that already exited has finished, whatever a process it
+			// left behind still holds open.
+			silenced =
+				options.silenceLimitMs !== undefined && child.exitCode === null;
 			killProcessGroup(child);
 		},
 		options.silenceLimitMs ?? options.timeoutMs ?? COMMAND_TIMEOUT_MS,

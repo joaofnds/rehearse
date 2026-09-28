@@ -153,6 +153,24 @@ describe(runCommand.name, () => {
 				);
 			}
 		});
+
+		it("returns the output of a command that exited while a process it left holds its output open", async () => {
+			const sleeper = uniqueSleeper();
+
+			try {
+				const output = await runCommand(
+					["sh", "-c", `echo result; ${sleeper} & exit 0`],
+					process.cwd(),
+					{ silenceLimitMs: 200 },
+				);
+
+				expect(output).toBe("result\n");
+			} finally {
+				await runCommand(["pkill", "-f", sleeper], process.cwd()).catch(
+					() => undefined,
+				);
+			}
+		});
 	});
 });
 
