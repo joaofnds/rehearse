@@ -216,6 +216,16 @@ describe(locateInCommitSubjects.name, () => {
 
 		expect(locator).toEqual({ kind: "commit-subject", index: 1 });
 	});
+
+	it("finds nothing for a quote joining subjects that are not consecutive", () => {
+		const locator = locateInCommitSubjects("add entity\ncover validation", [
+			"feat(audit-log): add entity",
+			"feat(audit-log): add persistence layer",
+			"test(audit-log): cover validation",
+		]);
+
+		expect(locator).toBeUndefined();
+	});
 });
 
 describe(locateInExchanges.name, () => {
