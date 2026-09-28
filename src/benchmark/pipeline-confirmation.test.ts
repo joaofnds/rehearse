@@ -1388,6 +1388,63 @@ describe(runPipelineConfirmation.name, () => {
 		await removeWorktree(harness.sourceRoot, preservedPath);
 	});
 
+	it("starts no further session in any rep once the reps' spend reaches the group ceiling", async () => {
+		const harness = await PipelineConfirmationHarness.setup(testResources);
+		const discussCostUsd = new Map([
+			[1, 2.5],
+			[2, 0.6],
+			[3, 0],
+		]);
+		const allBudgeted = Promise.withResolvers<boolean>();
+		const budgeted = new Set<number>();
+		const started: string[] = [];
+
+		const outcome = await harness.run(
+			{ groupId: "pipeline-ceiling", spendCeilingUsd: 1 },
+			(dependencies) => {
+				const { stageSession } = dependencies;
+				const { runWorkflowStage } = stageSession;
+
+				return {
+					...dependencies,
+					stageSession: {
+						...stageSession,
+						runWorkflowStage: async (request) => {
+							const ordinal = repOrdinal(request.targetDir);
+							request.spendCeiling.budgetFor(request.sessionBudgetUsd);
+							started.push(`${String(ordinal)}-${request.stage}`);
+							if (request.stage === "discuss") {
+								budgeted.add(ordinal);
+								if (budgeted.size === 3) {
+									allBudgeted.resolve(true);
+								}
+								await allBudgeted.promise;
+								request.spendCeiling.charge(discussCostUsd.get(ordinal) ?? 0);
+							}
+
+							return runWorkflowStage(request);
+						},
+					},
+				};
+			},
+		);
+		const records = await Promise.all(
+			outcome.repRecordFiles.map(async (path) =>
+				parseConfirmationRepRecord(await Bun.file(path).text()),
+			),
+		);
+		for (const record of records) {
+			testResources.track(dirname(record.worktreePath));
+		}
+
+		expect(started.toSorted()).toEqual(["1-discuss", "2-discuss", "3-discuss"]);
+		const refused = records[2]?.stages[1];
+		expect(refused?.status).toBe("EXECUTION_FAILED");
+		expect(
+			refused !== undefined && "error" in refused ? refused.error : "",
+		).toContain("spend ceiling of USD 3");
+	});
+
 	it("removes its worktrees directory when the confirmation body throws", async () => {
 		const harness = await PipelineConfirmationHarness.setup(testResources);
 		let worktreesDirectory: string | undefined;
