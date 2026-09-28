@@ -5,13 +5,17 @@ import { join } from "node:path";
 import { z } from "zod";
 import { readLaunchRecord } from "#benchmark/launch-record";
 import { RecordedRunsFixture } from "#benchmark/run-records-test-support";
-import { storeSpendCeiling } from "#benchmark/settings";
+import {
+	SET_SPEND_CEILING_COMMAND,
+	storeSpendCeiling,
+} from "#benchmark/settings";
 import type { Launcher } from "./launches";
 import { createLaunchApp } from "./launches";
 
 const PID = 4242;
 
 const launchedSchema = z.object({ id: z.string() });
+const refusalSchema = z.object({ error: z.string() });
 
 /** The body the launch dialog posts, or a malformed one a test sends. */
 type LaunchRequestBody = Readonly<Record<string, number | string>>;
@@ -42,6 +46,16 @@ const PIPELINE_CASE = {
 	rubrics: "rubrics",
 	target: { path: "/target" },
 	model: "sonnet",
+};
+
+const UNMODELLED_CASE = {
+	id: "no-model",
+	kind: "session",
+	title: "A case that declares no model",
+	prompt: "Reply OK.",
+	tools: [],
+	corpusFiles: [],
+	checks: [{ kind: "word-band", max: 1 }],
 };
 
 const SESSION_CASE = {
@@ -102,7 +116,11 @@ describe(createLaunchApp.name, () => {
 		const launcher = new FakeLauncher();
 		const app = createLaunchApp({
 			runsDirectory,
-			casesRoot: await casesRoot([PIPELINE_CASE, SESSION_CASE]),
+			casesRoot: await casesRoot([
+				PIPELINE_CASE,
+				SESSION_CASE,
+				UNMODELLED_CASE,
+			]),
 			launcher,
 		});
 
@@ -230,6 +248,150 @@ describe(createLaunchApp.name, () => {
 				stage: "discuss",
 				attempts: 3,
 			});
+		});
+	});
+	describe("when the launch cannot be started as asked", () => {
+		async function recordedRun(
+			runsDirectory: string,
+			initialCheckpoint: "recorded" | "missing",
+		): Promise<string> {
+			const fixture = new RecordedRunsFixture(runsDirectory);
+			await fixture.write();
+			if (initialCheckpoint === "recorded") {
+				await fixture.writeInitialCheckpoint();
+			}
+
+			return fixture.replayableRun;
+		}
+
+		it.each([
+			[
+				"an attempt count the dialog does not offer",
+				{ kind: "case", caseId: "pipe-case", attempts: 5 },
+			],
+			["an unknown kind", { kind: "review", caseId: "pipe-case", attempts: 1 }],
+			[
+				"a malformed case id",
+				{ kind: "case", caseId: "../pipe-case", attempts: 1 },
+			],
+			[
+				"a field the launch does not take",
+				{ kind: "case", caseId: "pipe-case", attempts: 1, model: "opus" },
+			],
+		])(
+			"refuses %s as a bad request and starts nothing",
+			async (_label, body) => {
+				const { launcher, post } = await harness();
+
+				const response = await post(body);
+
+				expect(response.status).toBe(400);
+				expect(refusalSchema.parse(await response.json()).error).not.toBe("");
+				expect(launcher.launches).toEqual([]);
+			},
+		);
+
+		it.each([
+			[
+				"a case with no declaration",
+				{ kind: "case", caseId: "missing-case", attempts: 1 },
+			],
+			[
+				"a run never recorded",
+				{
+					kind: "replay",
+					run: "2026-01-01T00-00-00.000Z",
+					stage: "build",
+					attempts: 1,
+				},
+			],
+			[
+				"a run named by a path",
+				{ kind: "replay", run: "../../etc", stage: "build", attempts: 1 },
+			],
+			[
+				"a stage the run's pipeline lacks",
+				{
+					kind: "replay",
+					run: "2026-09-03T00-00-00.000Z",
+					stage: "ship",
+					attempts: 1,
+				},
+			],
+		])("refuses %s as not found and starts nothing", async (_label, body) => {
+			const { launcher, post, runsDirectory } = await harness();
+			await recordedRun(runsDirectory, "recorded");
+
+			const response = await post(body);
+
+			expect(response.status).toBe(404);
+			expect(launcher.launches).toEqual([]);
+		});
+
+		it("refuses a replay whose preceding checkpoint was never recorded", async () => {
+			const { launcher, post, runsDirectory } = await harness();
+			const run = await recordedRun(runsDirectory, "missing");
+
+			const response = await post({
+				kind: "replay",
+				run,
+				stage: "discuss",
+				attempts: 1,
+			});
+
+			expect(response.status).toBe(409);
+			expect(refusalSchema.parse(await response.json()).error).toContain(
+				"initial",
+			);
+			expect(launcher.launches).toEqual([]);
+		});
+
+		it("refuses a case that declares no model, since the child cannot ask for one", async () => {
+			const { launcher, post } = await harness();
+
+			const response = await post({
+				kind: "case",
+				caseId: "no-model",
+				attempts: 1,
+			});
+
+			expect(response.status).toBe(409);
+			expect(refusalSchema.parse(await response.json()).error).toContain(
+				"model",
+			);
+			expect(launcher.launches).toEqual([]);
+		});
+
+		it("refuses every launch while no spend ceiling is stored, naming how to set one", async () => {
+			const { launcher, post } = await harness("missing");
+
+			const response = await post({
+				kind: "case",
+				caseId: "pipe-case",
+				attempts: 1,
+			});
+
+			expect(response.status).toBe(409);
+			expect(refusalSchema.parse(await response.json()).error).toContain(
+				SET_SPEND_CEILING_COMMAND,
+			);
+			expect(launcher.launches).toEqual([]);
+		});
+		it("refuses while the settings file cannot be read, without the records path", async () => {
+			const { launcher, post, runsDirectory } = await harness("missing");
+			await Bun.write(join(runsDirectory, "settings.json"), "not json");
+
+			const response = await post({
+				kind: "case",
+				caseId: "pipe-case",
+				attempts: 1,
+			});
+			const { error } = refusalSchema.parse(await response.json());
+
+			expect(response.status).toBe(409);
+			expect(error).toContain(SET_SPEND_CEILING_COMMAND);
+			expect(error).not.toContain(runsDirectory);
+			expect(launcher.launches).toEqual([]);
 		});
 	});
 });
