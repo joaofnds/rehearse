@@ -301,8 +301,27 @@ export function locateInCommitSubjects(
 
 	return {
 		kind: "commit-subject",
-		index: text.slice(0, found.start).split("\n").length - 1,
+		index: lineAt(text, found.start) - 1,
 	};
+}
+
+/**
+ * The raw range in the subjects read one per line of the quote's first
+ * occurrence from the subject a locator names, so a view can mark it.
+ */
+export function spanInCommitSubjects(
+	quote: string,
+	subjects: readonly string[],
+	index: number,
+): Span | undefined {
+	const offset = subjects
+		.slice(0, index)
+		.reduce((total, earlier) => total + earlier.length + 1, 0);
+	const found = findSpan(subjects.join("\n").slice(offset), quote);
+
+	return found === undefined
+		? undefined
+		: { start: offset + found.start, end: offset + found.end };
 }
 
 /**

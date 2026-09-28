@@ -15,7 +15,11 @@ import {
 	unhandled,
 } from "#benchmark/contracts";
 import type { CitedFile, Span } from "#benchmark/evidence-locator";
-import { findSpan, spanInDiff } from "#benchmark/evidence-locator";
+import {
+	findSpan,
+	spanInCommitSubjects,
+	spanInDiff,
+} from "#benchmark/evidence-locator";
 import { benchmarkRunPaths, runStageFiles } from "#benchmark/run-layout";
 import { stageTextFiles } from "#benchmark/stage-grading";
 import { UsageError } from "#cli/commands";
@@ -236,19 +240,13 @@ function commitSubjectView(
 	if (subjects[index] === undefined) {
 		throw notFound(`The record holds no commit subject ${String(index + 1)}`);
 	}
-	const text = subjects.join("\n");
-	const offset = subjects
-		.slice(0, index)
-		.reduce((total, earlier) => total + earlier.length + 1, 0);
-	const found =
-		quote === undefined ? undefined : findSpan(text.slice(offset), quote);
 
 	return textView(
 		`commit subject ${String(index + 1)}`,
-		text,
-		found === undefined
+		subjects.join("\n"),
+		quote === undefined
 			? undefined
-			: { start: offset + found.start, end: offset + found.end },
+			: spanInCommitSubjects(quote, subjects, index),
 	);
 }
 
