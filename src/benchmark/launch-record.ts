@@ -1,10 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, rename, writeFile } from "node:fs/promises";
 import { z } from "zod";
+import { LAUNCH_ATTEMPTS } from "./launch-attempts";
 import { launchIds, launchPaths } from "./run-layout";
-
-/** The attempt counts the launch dialog offers, and no other. */
-export const LAUNCH_ATTEMPTS = [1, 3, 6, 12] as const;
 
 export const launchAttemptsSchema = z.union(
 	LAUNCH_ATTEMPTS.map((count) => z.literal(count)),

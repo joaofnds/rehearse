@@ -73,7 +73,7 @@ const launchRequestSchema = z.discriminatedUnion("kind", [
 		.strict(),
 ]);
 
-type LaunchRequest = z.infer<typeof launchRequestSchema>;
+export type LaunchRequest = z.infer<typeof launchRequestSchema>;
 
 /**
  * A browser click approves the spend the dialog stated, so a group is started

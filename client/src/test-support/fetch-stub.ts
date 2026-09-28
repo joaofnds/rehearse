@@ -43,3 +43,62 @@ export function stubFetchByPath(byPath: ReadonlyMap<string, unknown>): void {
 	stub.preconnect = fetch.preconnect;
 	globalThis.fetch = stub;
 }
+
+export interface SentRequest {
+	readonly method: string;
+	readonly pathname: string;
+	readonly contentType: string | null;
+	readonly body: string;
+}
+
+export interface Reply {
+	readonly status: number;
+	readonly body: unknown;
+}
+
+/**
+ * A `fetch` Fake for a page that writes as well as reads: each route, keyed
+ * `"METHOD /path"`, answers with its status and body, and every request is
+ * kept in `sent` so a test can read what the page posted. An unmapped route
+ * answers 404, as `stubFetchByPath` does.
+ */
+export class FakeServer {
+	public readonly sent: SentRequest[] = [];
+
+	public constructor(private readonly routes: ReadonlyMap<string, Reply>) {}
+
+	public install(): void {
+		const stub = Object.assign(
+			async (
+				input: string | URL | Request,
+				init?: RequestInit,
+			): Promise<Response> => {
+				const url = new URL(
+					input instanceof Request ? input.url : input,
+					"http://localhost",
+				);
+				const request = new Request(url, init);
+				this.sent.push({
+					method: request.method,
+					pathname: url.pathname,
+					contentType: request.headers.get("content-type"),
+					body: await request.text(),
+				});
+				const reply = this.routes.get(`${request.method} ${url.pathname}`) ?? {
+					status: 404,
+					body: { error: "not found" },
+				};
+
+				return Response.json(reply.body, { status: reply.status });
+			},
+			{ preconnect: fetch.preconnect },
+		);
+		globalThis.fetch = stub;
+	}
+
+	public posted(pathname: string): readonly SentRequest[] {
+		return this.sent.filter(
+			(request) => request.method === "POST" && request.pathname === pathname,
+		);
+	}
+}

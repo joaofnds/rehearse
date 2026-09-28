@@ -85,6 +85,7 @@
 					"ReactNode",
 					"RouterHistory",
 					"Request",
+					"RequestInit",
 					"URL",
 					"ButtonProps"
 				]
