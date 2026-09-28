@@ -125,6 +125,38 @@ charged the cost it reports. One that fails without an envelope reports no
 cost, so it is not counted.
 The model probe runs before the run's spend is counted and is outside it.
 
+### Browser launches
+
+The browser's New run and Replay from here buttons post to `POST /api/launches`,
+which starts the same CLI command a terminal would, detached from the server so
+the run outlives a server restart. A case launch runs
+`run --case <id> --model <model>` under the case's declared model, and a replay
+launch runs `replay --run <run> --stage <stage> --model <model>` under the model
+the run's manifest recorded. Three, six or twelve attempts add
+`--confirm --reps <N> --yes --approved-in-browser`, so the group's `approval`
+records `method` `browser`. `--approved-in-browser` is refused without `--yes`.
+
+The route answers 202 with the launch id and writes
+`<records>/launches/<id>.json`, holding the pid, the kind, the case or run and
+stage, the attempts and the launch time, with the child's output in
+`<id>.log` beside it. It answers 409 and starts nothing when no ceiling is
+stored, the settings file cannot be read, or the checkpoint a replayed stage
+starts from is not on disk. It answers 404 for an unknown case, run or stage,
+and 400 for a malformed body or attempts other than 1, 3, 6 or 12. A case that declares no model is refused 409,
+because the browser has no terminal to pick one on. `GET /api/settings` returns
+the stored ceiling and the command that sets it, and `GET /api/cases` lists the
+declared cases with their models.
+
+`/api/runs` lists each launch in `launches`, apart from `rows`, while its pid
+is alive, and drops it once the pipeline run it started shows as running under
+that pid. A session attempt or group keeps its launch listed until the process
+exits.
+
+Every request whose `Host` is not `127.0.0.1:<port>` or `localhost:<port>`
+gets 403. Every request other than GET or HEAD also needs an `Origin` equal to
+the server's own, `Sec-Fetch-Site` `same-origin` when the browser sends it, and
+an `application/json` body, or it gets 403 and starts nothing.
+
 ### Output and exit codes
 
 | Code | Meaning                                                               |

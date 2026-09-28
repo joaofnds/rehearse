@@ -216,8 +216,14 @@ is reachable only by typing it, because the design's nav does not name it.
 | `/replays/<lineage>/<timestamp>`                                                                            | Saved stage-replay summary, always evidence-unavailable because a replay keeps no raw transcript; no events, per-event detail, request timeline or corpus reconciliation                                                                                                                                                                                                                                 |
 | `/system`                                                                                                   | Design tokens and reusable component gallery                                                                                                                                                                                                                                                                                                                                                             |
 
-Run launch, full run detail, task/case management, calibration screens,
-settings, and first-run setup are design targets. The rail marks Live monitor,
+New run on run history and Replay from here on a pipeline stage's page open
+the run-launch dialog, which starts a case or replays a stage as one attempt or
+a group of three, six or twelve under the stored spend ceiling. The launch shows
+in run history as running until its process exits or its pipeline run shows
+as running. The dialog shows the
+ceiling but cannot change it, and it has no projected cost. Full run detail,
+task/case management, calibration screens, settings, and first-run setup are
+design targets. The rail marks Live monitor,
 Run detail, Tasks, Cases, Calibration and Settings planned rather
 than linking to them. Live monitoring is partly
 delivered: the run list reports a run in flight with its stage, elapsed time and
@@ -226,7 +232,13 @@ rubric items are back per section, which no screen shows yet. The run list
 reads the event store through a polled route rather than through the SSE API.
 A monitor carrying the judge's reasoning and per-stage detail remains a design
 target. The server has no
-authentication and binds to IPv4 loopback; use it locally.
+authentication and binds to IPv4 loopback; use it locally. It answers 403 to a
+non-loopback `Host`, and to a write that is not a same-origin JSON request.
+A launch whose command refuses before writing any record leaves only its log
+under `launches/` once its process exits, with no row in run history. A launch
+row is kept while a process holds its recorded pid, and a reused pid is not
+told apart. An unknown `/api` path requested with POST falls through to the
+client's `index.html` with 200.
 
 ## Near-term priorities
 

@@ -293,9 +293,16 @@ mise exec -- bun run serve
 ```
 
 Open `http://localhost:4173`. `PORT` overrides the server port. The server reads
-local records and the live corpus; it does not launch experiments. It has no
-authentication and binds to `127.0.0.1`; do not forward its port or otherwise
-expose it as a public service.
+local records and the live corpus. It has no authentication and binds to
+`127.0.0.1`; do not forward its port or otherwise expose it as a public service.
+
+New run on the run history page starts a case, and Replay from here on a
+pipeline stage's page replays that stage. Both cost money. The dialog picks one,
+three, six or twelve attempts and states the stored spend ceiling that will hold
+them; store one first with `settings --spend-ceiling-usd <USD>`, since Start
+stays disabled without it. The run keeps going if you stop the server, and its
+output goes to `launches/<id>.log` in the records directory. See
+[browser launches](reference.md#browser-launches).
 
 For linked instruction files, configure the server's shell using
 [live-corpus setup](#configure-a-linked-live-corpus). A layout directory or file
