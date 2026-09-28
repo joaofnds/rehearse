@@ -34,6 +34,34 @@ describe(readSettings.name, () => {
 
 		expect(settings).toEqual({});
 	});
+
+	it("keeps settings it does not know when storing a ceiling", async () => {
+		await Bun.write(
+			join(recordsDirectory, "settings.json"),
+			JSON.stringify({ laterSetting: "kept" }),
+		);
+
+		await storeSpendCeiling(recordsDirectory, 2.5);
+
+		expect(
+			await Bun.file(join(recordsDirectory, "settings.json")).json(),
+		).toEqual({ laterSetting: "kept", spendCeilingUsd: 2.5 });
+	});
+
+	describe.each([
+		["not JSON", "not json"],
+		["a ceiling that is not a number", '{"spendCeilingUsd":"5"}'],
+	])("when the settings file holds %s", (_case, contents) => {
+		it("refuses, naming the file to repair", async () => {
+			const file = join(recordsDirectory, "settings.json");
+			await Bun.write(file, contents);
+
+			const error = await failureOf(readSettings(recordsDirectory));
+
+			expect(error).toBeInstanceOf(RefusedPreconditionError);
+			expect(error.message).toContain(file);
+		});
+	});
 });
 
 describe(storeSpendCeiling.name, () => {

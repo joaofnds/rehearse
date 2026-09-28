@@ -1219,16 +1219,19 @@ describe("the spend ceiling", () => {
 		});
 	});
 
-	it("refuses a ceiling that is not a positive number as a usage error", async () => {
-		const result = await runCli(
-			["settings", "--spend-ceiling-usd", "0"],
-			"empty",
-			inRecords,
-		);
+	it.each(["0", "0x10", ""])(
+		"refuses %p as a ceiling, as a usage error",
+		async (ceiling) => {
+			const result = await runCli(
+				["settings", "--spend-ceiling-usd", ceiling],
+				"empty",
+				inRecords,
+			);
 
-		expect(result.exitCode).toBe(EXIT_CODES.usageError);
-		expect(result.stdout).toBe("");
-	});
+			expect(result.exitCode).toBe(EXIT_CODES.usageError);
+			expect(result.stdout).toBe("");
+		},
+	);
 });
 
 describe("reading the records", () => {

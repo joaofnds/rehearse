@@ -1,12 +1,17 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
 import { RefusedPreconditionError } from "./exit-codes";
+import { textIfPresent } from "./file-presence";
 
 const SETTINGS_FILE = "settings.json";
 
-const settingsSchema = z.object({
+export const SET_SPEND_CEILING_COMMAND =
+	"rehearse settings --spend-ceiling-usd <USD>";
+
+/** Loose, so storing a ceiling keeps settings a later version wrote. */
+const settingsSchema = z.looseObject({
 	spendCeilingUsd: z.number().positive().optional(),
 });
 
@@ -19,18 +24,28 @@ function settingsFile(recordsDirectory: string): string {
 export async function readSettings(
 	recordsDirectory: string,
 ): Promise<Settings> {
-	let contents: string;
-	try {
-		contents = await readFile(settingsFile(recordsDirectory), "utf8");
-	} catch (error) {
-		if (error instanceof Error && "code" in error && error.code === "ENOENT") {
-			return {};
-		}
-
-		throw error;
+	const file = settingsFile(recordsDirectory);
+	const contents = await textIfPresent(file);
+	if (contents === undefined) {
+		return {};
 	}
 
-	return settingsSchema.parse(JSON.parse(contents));
+	const settings = parsedSettings(contents);
+	if (settings === undefined) {
+		throw new RefusedPreconditionError(
+			`The settings file ${file} is not valid settings, so no spend ceiling can be read from it. Correct or delete it, then set the ceiling with: ${SET_SPEND_CEILING_COMMAND}`,
+		);
+	}
+
+	return settings;
+}
+
+function parsedSettings(contents: string): Settings | undefined {
+	try {
+		return settingsSchema.safeParse(JSON.parse(contents)).data;
+	} catch {
+		return undefined;
+	}
 }
 
 /**
@@ -40,7 +55,7 @@ export async function readSettings(
  */
 async function writeSettings(
 	recordsDirectory: string,
-	settings: Settings,
+	settings: Readonly<Settings>,
 ): Promise<void> {
 	const file = settingsFile(recordsDirectory);
 	const temporary = `${file}.${randomUUID()}.tmp`;
@@ -65,9 +80,6 @@ export async function storeSpendCeiling(
 		spendCeilingUsd: ceilingUsd,
 	});
 }
-
-export const SET_SPEND_CEILING_COMMAND =
-	"rehearse settings --spend-ceiling-usd <USD>";
 
 /**
  * Every paid command reads the ceiling through here before its first provider

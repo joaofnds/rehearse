@@ -24,7 +24,7 @@ export async function runSettings(
 	const { spendCeilingUsd } = request;
 	if (spendCeilingUsd !== undefined) {
 		await asUsageErrorAsync(() =>
-			storeSpendCeiling(request.runsDirectory, Number(spendCeilingUsd)),
+			storeSpendCeiling(request.runsDirectory, decimalUsd(spendCeilingUsd)),
 		);
 	}
 
@@ -44,4 +44,9 @@ export async function runSettings(
 	output.stdout(
 		`Spend ceiling: ${ceiling}\nRecords location: ${request.runsDirectory}\n`,
 	);
+}
+
+/** Only a plain decimal is an amount, so "0x10" or "" is refused, not read as 16 or 0. */
+function decimalUsd(text: string): number {
+	return /^\d+(?:\.\d+)?$/u.test(text) ? Number(text) : Number.NaN;
 }
