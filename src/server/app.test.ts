@@ -7,7 +7,9 @@ import {
 	directorySource,
 	nothingRunning,
 } from "#benchmark/run-records-test-support";
+import { storeSpendCeiling } from "#benchmark/settings";
 import { createAppServer } from "./app";
+import { FakeLauncher } from "./launch-test-support";
 
 const runHistoryResponseSchema = z.object({ rows: z.array(z.unknown()) });
 
@@ -51,14 +53,51 @@ describe(createAppServer.name, () => {
 		return root;
 	}
 
-	it("serves the API under /api", async () => {
+	interface AppServer {
+		readonly app: ReturnType<typeof createAppServer>;
+		readonly launcher: FakeLauncher;
+	}
+
+	async function appServer(): Promise<AppServer> {
+		const records = await runsDirectory();
+		await storeSpendCeiling(records, 5);
+		const launcher = new FakeLauncher();
 		const app = createAppServer({
-			runsDirectory: await runsDirectory(),
+			runsDirectory: records,
 			liveness: nothingRunning,
 			corpusSource: directorySource(await corpusDirectory()),
 			clientDistDirectory: await clientDistDirectory(),
 			port: PORT,
+			casesRoot: await casesDirectory(),
+			launcher,
 		});
+
+		return { app, launcher };
+	}
+
+	async function casesDirectory(): Promise<string> {
+		const root = await mkdtemp(join(tmpdir(), "rehearse-app-cases-"));
+		roots.push(root);
+		await mkdir(join(root, "smoke"), { recursive: true });
+		await Bun.write(
+			join(root, "smoke", "case.json"),
+			JSON.stringify({
+				id: "smoke",
+				kind: "session",
+				title: "Smoke",
+				prompt: "Reply OK.",
+				tools: [],
+				corpusFiles: [],
+				checks: [{ kind: "word-band", max: 1 }],
+				model: "sonnet",
+			}),
+		);
+
+		return root;
+	}
+
+	it("serves the API under /api", async () => {
+		const { app } = await appServer();
 
 		const response = await app.request("/api/runs", { headers: LOOPBACK });
 		const body = runHistoryResponseSchema.parse(await response.json());
@@ -68,13 +107,7 @@ describe(createAppServer.name, () => {
 	});
 
 	it("serves a built client asset by path", async () => {
-		const app = createAppServer({
-			runsDirectory: await runsDirectory(),
-			liveness: nothingRunning,
-			corpusSource: directorySource(await corpusDirectory()),
-			clientDistDirectory: await clientDistDirectory(),
-			port: PORT,
-		});
+		const { app } = await appServer();
 
 		const response = await app.request("/assets/app.js", { headers: LOOPBACK });
 		const body = await response.text();
@@ -84,13 +117,7 @@ describe(createAppServer.name, () => {
 	});
 
 	it("falls back to index.html for a client-side route the router owns", async () => {
-		const app = createAppServer({
-			runsDirectory: await runsDirectory(),
-			liveness: nothingRunning,
-			corpusSource: directorySource(await corpusDirectory()),
-			clientDistDirectory: await clientDistDirectory(),
-			port: PORT,
-		});
+		const { app } = await appServer();
 
 		const response = await app.request("/some/router/path", {
 			headers: LOOPBACK,
@@ -107,13 +134,7 @@ describe(createAppServer.name, () => {
 			["another port", "127.0.0.1:9999"],
 			["no port", "localhost"],
 		])("refuses a GET from %s", async (_label, host) => {
-			const app = createAppServer({
-				runsDirectory: await runsDirectory(),
-				liveness: nothingRunning,
-				corpusSource: directorySource(await corpusDirectory()),
-				clientDistDirectory: await clientDistDirectory(),
-				port: PORT,
-			});
+			const { app } = await appServer();
 
 			const response = await app.request("/api/runs", { headers: { host } });
 
@@ -121,13 +142,7 @@ describe(createAppServer.name, () => {
 		});
 
 		it("serves localhost on the same port", async () => {
-			const app = createAppServer({
-				runsDirectory: await runsDirectory(),
-				liveness: nothingRunning,
-				corpusSource: directorySource(await corpusDirectory()),
-				clientDistDirectory: await clientDistDirectory(),
-				port: PORT,
-			});
+			const { app } = await appServer();
 
 			const response = await app.request("/api/runs", {
 				headers: { host: `localhost:${String(PORT)}` },
@@ -147,13 +162,7 @@ describe(createAppServer.name, () => {
 		};
 
 		it("passes a same-origin JSON request on to the routes", async () => {
-			const app = createAppServer({
-				runsDirectory: await runsDirectory(),
-				liveness: nothingRunning,
-				corpusSource: directorySource(await corpusDirectory()),
-				clientDistDirectory: await clientDistDirectory(),
-				port: PORT,
-			});
+			const { app } = await appServer();
 
 			const response = await app.request("/api/no-such-route", {
 				method: "POST",
@@ -181,13 +190,7 @@ describe(createAppServer.name, () => {
 				},
 			],
 		])("refuses %s", async (_label, headers) => {
-			const app = createAppServer({
-				runsDirectory: await runsDirectory(),
-				liveness: nothingRunning,
-				corpusSource: directorySource(await corpusDirectory()),
-				clientDistDirectory: await clientDistDirectory(),
-				port: PORT,
-			});
+			const { app } = await appServer();
 
 			const response = await app.request("/api/no-such-route", {
 				method: "POST",
@@ -196,6 +199,46 @@ describe(createAppServer.name, () => {
 			});
 
 			expect(response.status).toBe(403);
+		});
+		describe("to launch a run", () => {
+			const launch = JSON.stringify({
+				kind: "case",
+				caseId: "smoke",
+				attempts: 1,
+			});
+
+			it("starts the launch a same-origin JSON request asks for", async () => {
+				const { app, launcher } = await appServer();
+
+				const response = await app.request("/api/launches", {
+					method: "POST",
+					headers: sameOrigin,
+					body: launch,
+				});
+
+				expect(response.status).toBe(202);
+				expect(launcher.launches).toHaveLength(1);
+			});
+
+			it.each([
+				["a foreign Origin", { ...sameOrigin, origin: "https://evil.example" }],
+				[
+					"a rebound Host",
+					{ ...sameOrigin, host: `rebound.example:${String(PORT)}` },
+				],
+				["a form body", { ...sameOrigin, "content-type": "text/plain" }],
+			])("starts nothing for %s", async (_label, headers) => {
+				const { app, launcher } = await appServer();
+
+				const response = await app.request("/api/launches", {
+					method: "POST",
+					headers,
+					body: launch,
+				});
+
+				expect(response.status).toBe(403);
+				expect(launcher.launches).toEqual([]);
+			});
 		});
 	});
 });

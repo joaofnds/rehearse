@@ -1,6 +1,11 @@
 #!/usr/bin/env bun
 import { join } from "node:path";
-import { CONTROL_DIR, recordsDirectory } from "#benchmark/config";
+import { casesRoot } from "#benchmark/case";
+import {
+	CONTROL_DIR,
+	RECORDS_DIRECTORY_VARIABLE,
+	recordsDirectory,
+} from "#benchmark/config";
 import { assertPinnedBunVersion } from "#benchmark/bun-pin";
 import { liveCorpusSource } from "#benchmark/corpus-file";
 import { runEventsDatabaseFile } from "#benchmark/run-layout";
@@ -11,6 +16,7 @@ import {
 	reconcileInterruptedRuns,
 } from "#benchmark/run-reconciliation";
 import { createAppServer } from "./app";
+import { processLauncher } from "./process-launcher";
 
 const DEFAULT_PORT = 4173;
 
@@ -57,6 +63,11 @@ async function main(): Promise<void> {
 		liveness: liveRunLiveness(),
 		clientDistDirectory: join(CONTROL_DIR, "client", "dist"),
 		port,
+		casesRoot: casesRoot(),
+		launcher: processLauncher(
+			[process.execPath, join(CONTROL_DIR, "rehearse.ts")],
+			{ ...Bun.env, [RECORDS_DIRECTORY_VARIABLE]: runsDirectory },
+		),
 	});
 
 	startLocalServer(port, app.fetch);

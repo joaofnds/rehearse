@@ -2,16 +2,20 @@ import { Hono } from "hono";
 import { serveStatic } from "hono/bun";
 import type { ApiDependencies } from "./api";
 import { createApiApp } from "./api";
+import type { LaunchDependencies } from "./launches";
+import { createLaunchApp } from "./launches";
 import { requestGuard } from "./request-guard";
 
-export interface AppServerDependencies extends ApiDependencies {
+export interface AppServerDependencies
+	extends ApiDependencies, LaunchDependencies {
 	readonly clientDistDirectory: string;
 	readonly port: number;
 }
 
 /**
- * The whole stack behind one Hono instance: the read API under `/api`, the
- * built client's static assets, and an index.html fallback for every other
+ * The whole stack behind one Hono instance, every route behind the request
+ * guard: the read API and the launch routes under `/api`, the built client's
+ * static assets, and an index.html fallback for every other
  * path so the client-side router owns its own routes.
  */
 export function createAppServer(dependencies: AppServerDependencies): Hono {
@@ -19,6 +23,7 @@ export function createAppServer(dependencies: AppServerDependencies): Hono {
 
 	app.use("*", requestGuard(dependencies.port));
 	app.route("/", createApiApp(dependencies));
+	app.route("/", createLaunchApp(dependencies));
 	app.use(
 		"*",
 		serveStatic({
