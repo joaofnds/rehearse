@@ -146,7 +146,7 @@ export async function runCommand(
 		]);
 
 		if (silenced && options.silenceLimitMs !== undefined) {
-			throw new CommandSilenceError(command, options.silenceLimitMs);
+			throw new CommandSilenceError(command, options.silenceLimitMs, stderr);
 		}
 
 		if (exitCode !== 0) {

@@ -132,19 +132,24 @@ describe(runCommand.name, () => {
 			expect(output).toBe("1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n");
 		});
 
-		it("kills a silent command's whole process group and names the silence", async () => {
+		it("kills a silent command's whole process group and names the silence and its stderr", async () => {
 			const sleeper = uniqueSleeper();
 			const startedAt = Date.now();
 
 			try {
 				const running = runCommand(
-					["sh", "-c", `echo started; ${sleeper} & wait`],
+					[
+						"sh",
+						"-c",
+						`echo started; printf 'st%sck\\n' u >&2; ${sleeper} & wait`,
+					],
 					process.cwd(),
 					{ silenceLimitMs: 200 },
 				);
 
 				expect(running).rejects.toBeInstanceOf(CommandSilenceError);
 				expect(running).rejects.toThrow("wrote nothing for 200 ms");
+				expect(running).rejects.toThrow("stuck");
 				expect(Date.now() - startedAt).toBeLessThan(1500);
 				expect(await pgrepMatches(sleeper)).toBe("");
 			} finally {
