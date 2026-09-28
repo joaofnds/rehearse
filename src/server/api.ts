@@ -122,7 +122,11 @@ async function streamRunEvents(
 	let sawTerminalEvent = false;
 
 	while (!sawTerminalEvent && !stream.aborted) {
-		for (const event of store.eventsSince(runId, sequence)) {
+		const events = store.eventsSince(runId, sequence);
+		if (events.length === 0) {
+			await stream.write(": keepalive\n\n");
+		}
+		for (const event of events) {
 			const { kind, sequence: eventSequence } = event;
 			await stream.writeSSE({ data: JSON.stringify(event) });
 			sequence = eventSequence;

@@ -110,8 +110,10 @@ Record schemas are versioned where their contracts differ. Readers preserve
 supported historical formats rather than rewriting old evidence.
 
 The SQLite database at `.benchmark-runs/run-events.sqlite` stores progress
-notifications. The server streams those through `/api/runs/:run/events` and
-reconciles abandoned processes at startup. The run-history report reads the
+notifications. The server streams those through `/api/runs/:run/events`,
+writing an SSE comment on each poll that finds no new event so an idle
+connection is not closed mid-stage, and reconciles abandoned processes at
+startup. The run-history report reads the
 same store to tell a run in flight from one that ended. It reads the store only
 after the authoritative files answer nothing: an artifact or a stop record
 settles a run's outcome on its own, and the stream is consulted for the runs

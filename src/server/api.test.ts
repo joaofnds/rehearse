@@ -1531,6 +1531,30 @@ describe(createApiApp.name, () => {
 			controller.abort();
 			await reader?.cancel();
 		});
+
+		it("writes a comment while no event arrives, so a server's idle timeout does not close a stream whose stage runs for minutes", async () => {
+			const runsDirectory = await mkdtemp(join(tmpdir(), "rehearse-api-runs-"));
+			roots.push(runsDirectory);
+			const app = createApiApp({
+				runsDirectory,
+				liveness: nothingRunning,
+				corpusSource: directorySource(await corpusDirectory()),
+			});
+			const controller = new AbortController();
+			const response = await app.request("/api/runs/quiet-run/events", {
+				signal: controller.signal,
+			});
+			const reader = response.body?.getReader();
+
+			const firstWrite = await Promise.race([
+				reader?.read().then(({ value }) => new TextDecoder().decode(value)),
+				Bun.sleep(2000).then(() => "nothing written within 2 s"),
+			]);
+			controller.abort();
+			await reader?.cancel();
+
+			expect(firstWrite).toStartWith(":");
+		});
 	});
 
 	describe("unguarded route-level throw", () => {
