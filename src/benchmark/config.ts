@@ -95,9 +95,18 @@ interface SessionKnobs {
 	readonly minimumStageGrade?: StageLetterGrade | undefined;
 }
 
+/**
+ * How a confirmation group's projected cost was approved: at the terminal's
+ * prompt, by `--yes`, or by the Start click in the browser's launch dialog,
+ * which starts the CLI with `--yes --approved-in-browser`.
+ */
+export const APPROVAL_METHODS = ["interactive", "yes", "browser"] as const;
+
+export type ApprovalMethod = (typeof APPROVAL_METHODS)[number];
+
 export interface ConfirmationConfig {
 	readonly reps: number;
-	readonly approved: boolean;
+	readonly approval: ApprovalMethod;
 }
 
 /**
@@ -172,7 +181,12 @@ export function judgeSelfPreferenceWarning(config: {
 	return `Self-preference warning: Judge model ${config.judgeModel} and workflow model ${config.model} are both in the ${workflowFamily} family; grades may favor the workflow output.`;
 }
 
-const SWITCH_FLAGS = new Set(["--confirm", "--yes", "--pause"]);
+const SWITCH_FLAGS = new Set([
+	"--confirm",
+	"--yes",
+	"--approved-in-browser",
+	"--pause",
+]);
 
 function flagValues(args: readonly string[]): ParsedFlags {
 	const values = new Map<string, string>();
@@ -203,10 +217,23 @@ function flagValues(args: readonly string[]): ParsedFlags {
 	return { values, switches };
 }
 
+function approvalMethod(approved: boolean, inBrowser: boolean): ApprovalMethod {
+	if (!approved) {
+		return "interactive";
+	}
+
+	return inBrowser ? "browser" : "yes";
+}
+
 function parseConfirmation(flags: ParsedFlags): ConfirmationConfig | undefined {
 	const confirmation = flags.switches.has("--confirm");
 	const approved = flags.switches.has("--yes");
+	const inBrowser = flags.switches.has("--approved-in-browser");
 	const repsText = flags.values.get("--reps");
+
+	if (inBrowser && !approved) {
+		throw new Error("Use --approved-in-browser only with --yes");
+	}
 
 	if (!confirmation) {
 		if (repsText !== undefined || approved) {
@@ -221,7 +248,7 @@ function parseConfirmation(flags: ParsedFlags): ConfirmationConfig | undefined {
 		throw new Error("Confirmation reps must be an integer of at least 2");
 	}
 
-	return { reps, approved };
+	return { reps, approval: approvalMethod(approved, inBrowser) };
 }
 
 function withConfirmation<Config extends object>(

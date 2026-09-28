@@ -62,7 +62,7 @@ export function executeReplayStage<DebugEvidence, ConfirmationEvidence>(
 					reps: confirmation.reps,
 					corpusRoots: dependencies.corpusRoots,
 					projectedCost,
-					approvalMethod: confirmation.approved ? "yes" : "interactive",
+					approvalMethod: confirmation.approval,
 				}),
 			};
 		},

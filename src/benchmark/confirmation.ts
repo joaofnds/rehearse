@@ -132,7 +132,7 @@ export async function runRequestedExecution<Result>(
 	const projection = execution.projectCost();
 	await requireConfirmationApproval(
 		projection,
-		execution.confirmation.approved,
+		execution.confirmation.approval !== "interactive",
 		execution.approval,
 	);
 

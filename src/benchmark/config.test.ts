@@ -398,12 +398,16 @@ describe(parseArgs.name, () => {
 			CASE_DEFAULTS,
 		);
 
-		expect(config.confirmation).toEqual({ reps: 5, approved: false });
+		expect(config.confirmation).toEqual({ reps: 5, approval: "interactive" });
 	});
 
 	it.each([
 		{ flags: ["--reps", "3"], error: "only with --confirm" },
 		{ flags: ["--yes"], error: "only with --confirm" },
+		{
+			flags: ["--confirm", "--approved-in-browser"],
+			error: "--approved-in-browser only with --yes",
+		},
 		{
 			flags: ["--confirm", "--reps", "1"],
 			error: "integer of at least 2",
@@ -568,7 +572,30 @@ describe(parseReplayArgs.name, () => {
 			{},
 		);
 
-		expect(config.confirmation).toEqual({ reps: 7, approved: true });
+		expect(config.confirmation).toEqual({ reps: 7, approval: "yes" });
+	});
+
+	it("records an approval given in the browser", () => {
+		const config = parseReplayArgs(
+			[
+				"--run",
+				"run-1",
+				"--stage",
+				"build",
+				"--model",
+				"sonnet",
+				"--session-budget-usd",
+				"5",
+				"--confirm",
+				"--reps",
+				"3",
+				"--yes",
+				"--approved-in-browser",
+			],
+			{},
+		);
+
+		expect(config.confirmation).toEqual({ reps: 3, approval: "browser" });
 	});
 
 	it("falls back to the benchmark environment variables", () => {
@@ -657,7 +684,7 @@ describe(parseReplayConfirmation.name, () => {
 				"build",
 				"--confirm",
 			]),
-		).toEqual({ reps: 5, approved: false });
+		).toEqual({ reps: 5, approval: "interactive" });
 	});
 
 	it("reads no confirmation when --confirm is absent", () => {

@@ -68,7 +68,7 @@ describe(executeReplayStage.name, () => {
 			spendCeilingUsd: 100,
 		};
 		const execution = executeReplayStage(
-			{ confirmation: { reps: 3, approved: false } },
+			{ confirmation: { reps: 3, approval: "interactive" } },
 			replayRequest,
 			{
 				approval: {

@@ -129,6 +129,7 @@ describe("declared commands", () => {
 			"--confirm",
 			"--reps",
 			"--yes",
+			"--approved-in-browser",
 			"--json",
 		]);
 	});

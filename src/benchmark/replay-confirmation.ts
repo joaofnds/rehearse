@@ -1,3 +1,4 @@
+import type { ApprovalMethod } from "./config";
 import type { CorpusRoot } from "./corpus-file";
 import type { CorpusMeasurement } from "./corpus-measurement";
 import { cp, mkdir, mkdtemp, rm } from "node:fs/promises";
@@ -74,7 +75,7 @@ export interface ReplayConfirmationRequest extends ReplayRequest {
 	readonly reps: number;
 	readonly corpusRoots: readonly CorpusRoot[];
 	readonly projectedCost: ConfirmationCostProjection;
-	readonly approvalMethod: "interactive" | "yes";
+	readonly approvalMethod: ApprovalMethod;
 	readonly now?: (() => number) | undefined;
 }
 

@@ -113,6 +113,11 @@ const confirmationFlags: readonly FlagDefinition[] = [
 		kind: "switch",
 		help: "Approve the projected cost without a prompt, only with --confirm",
 	},
+	{
+		name: "--approved-in-browser",
+		kind: "switch",
+		help: "Record the --yes approval as given in the browser's launch dialog",
+	},
 ];
 
 const jsonFlag: FlagDefinition = {

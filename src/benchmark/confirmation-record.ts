@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { effortSchema, LEGACY_CASE_ID } from "./config";
+import { APPROVAL_METHODS, effortSchema, LEGACY_CASE_ID } from "./config";
 import { claudeCallMetricsSchema, stageLetterGradeSchema } from "./contracts";
 import { corpusMeasurementSchema } from "./corpus-measurement";
 
@@ -441,7 +441,7 @@ const legacyConfirmationGroupRecordSchema = z
 		projectedCost: projectedCostSchema,
 		approval: z
 			.object({
-				method: z.enum(["interactive", "yes"]),
+				method: z.enum(APPROVAL_METHODS),
 				approved: z.literal(true),
 			})
 			.strict(),
@@ -502,7 +502,7 @@ export const sessionConfirmationGroupRecordSchema = z
 		preflight: preflightEvidenceSchema,
 		approval: z
 			.object({
-				method: z.enum(["interactive", "yes"]),
+				method: z.enum(APPROVAL_METHODS),
 				approved: z.literal(true),
 			})
 			.strict(),

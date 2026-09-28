@@ -35,7 +35,7 @@ describe(executeBenchmark.name, () => {
 		const events: string[] = [];
 		const confirmations: unknown[] = [];
 		const execution = executeBenchmark(
-			{ ...config, confirmation: { reps: 3, approved: false } },
+			{ ...config, confirmation: { reps: 3, approval: "interactive" } },
 			2,
 			{
 				approval: {

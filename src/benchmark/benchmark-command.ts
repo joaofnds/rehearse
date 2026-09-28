@@ -1,11 +1,11 @@
-import type { BenchmarkConfig } from "./config";
+import type { ApprovalMethod, BenchmarkConfig } from "./config";
 import { projectConfirmationCost, runRequestedExecution } from "./confirmation";
 import type { ConfirmationCostProjection } from "./confirmation";
 
 export interface BenchmarkConfirmationExecution {
 	readonly reps: number;
 	readonly projectedCost: ConfirmationCostProjection;
-	readonly approvalMethod: "interactive" | "yes";
+	readonly approvalMethod: ApprovalMethod;
 }
 
 export type BenchmarkExecutionOutcome<DebugEvidence, ConfirmationEvidence> =
@@ -62,7 +62,7 @@ export function executeBenchmark<DebugEvidence, ConfirmationEvidence>(
 				evidence: await dependencies.runConfirmed({
 					reps: confirmation.reps,
 					projectedCost,
-					approvalMethod: confirmation.approved ? "yes" : "interactive",
+					approvalMethod: confirmation.approval,
 				}),
 			};
 		},

@@ -24,6 +24,7 @@ import {
 import type { BenchmarkCase, LoadedCase, SessionCase } from "#benchmark/case";
 import { withPipeline } from "#benchmark/case";
 import type {
+	ApprovalMethod,
 	BenchmarkConfig,
 	ConfirmationConfig,
 	SessionRunConfig,
@@ -220,7 +221,7 @@ function requireConfirmationTerminal(
 	confirmation: Readonly<ConfirmationConfig> | undefined,
 	stdinIsTerminal: boolean,
 ): void {
-	if (confirmation !== undefined && !confirmation.approved) {
+	if (confirmation?.approval === "interactive") {
 		requireInteractiveStdin(stdinIsTerminal, COST_APPROVAL_REASON);
 	}
 }
@@ -343,7 +344,7 @@ export async function executeRun(
 interface ConfirmationApproval {
 	readonly reps: number;
 	readonly projectedCost: PipelineConfirmationRequest["projectedCost"];
-	readonly approvalMethod: "interactive" | "yes";
+	readonly approvalMethod: ApprovalMethod;
 }
 
 export interface ConfirmationRequestInputs {
@@ -549,7 +550,7 @@ export async function executeSessionRun(
 					...projectedCost,
 					preflightMaximumUsd: projectedCost.preflightMaximumUsd,
 				},
-				approvalMethod: config.confirmation.approved ? "yes" : "interactive",
+				approvalMethod: config.confirmation.approval,
 				sessionCase,
 				corpus: config.corpus,
 				model: config.model,

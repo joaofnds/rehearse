@@ -167,7 +167,7 @@ describe(runRequestedExecution.name, () => {
 		const events: string[] = [];
 
 		const result = await runRequestedExecution({
-			confirmation: { reps: 3, approved: false },
+			confirmation: { reps: 3, approval: "interactive" },
 			projectCost: () => ({
 				reps: 3,
 				perRepMaximumUsd: 20,

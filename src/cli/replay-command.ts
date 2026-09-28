@@ -111,7 +111,7 @@ export async function runReplayCommand(
 	const confirmation = asUsageError(() =>
 		parseReplayConfirmation(request.args),
 	);
-	if (confirmation !== undefined && !confirmation.approved) {
+	if (confirmation?.approval === "interactive") {
 		requireInteractiveStdin(
 			request.stdinIsTerminal,
 			"approving the projected cost needs a TTY; pass --yes instead",

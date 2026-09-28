@@ -1,3 +1,4 @@
+import type { ApprovalMethod } from "./config";
 import { cp, mkdir } from "node:fs/promises";
 import { basename, join } from "node:path";
 import type { SessionCase } from "./case";
@@ -42,7 +43,7 @@ export interface SessionConfirmationRequest {
 	readonly projectedCost: ConfirmationCostProjection & {
 		readonly preflightMaximumUsd: number;
 	};
-	readonly approvalMethod: "interactive" | "yes";
+	readonly approvalMethod: ApprovalMethod;
 	readonly sessionCase: SessionCase;
 	readonly corpus?: string | undefined;
 	readonly model: string;

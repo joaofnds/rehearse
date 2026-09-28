@@ -385,6 +385,27 @@ describe(parseConfirmationGroupRecord.name, () => {
 		);
 	});
 
+	it.each(["interactive", "yes", "browser"] as const)(
+		"accepts a group approved by the %s method",
+		(method) => {
+			const pipeline = {
+				...groupRecord(),
+				approval: { method, approved: true },
+			};
+			const session = {
+				...sessionGroupRecord(),
+				approval: { method, approved: true },
+			};
+
+			expect(
+				parseConfirmationGroupRecord(JSON.stringify(pipeline)).approval.method,
+			).toBe(method);
+			expect(
+				parseConfirmationGroupRecord(JSON.stringify(session)).approval.method,
+			).toBe(method);
+		},
+	);
+
 	it("reads a group record without a caseId as the audit-log case", () => {
 		const { caseId: _caseId, ...legacy } = groupRecord();
 

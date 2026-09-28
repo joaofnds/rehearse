@@ -23,7 +23,7 @@ import type {
 	captureFileHashes,
 	runChecks,
 } from "./checks";
-import type { Effort } from "./config";
+import type { ApprovalMethod, Effort } from "./config";
 import type {
 	ContextFile,
 	ProviderCall,
@@ -132,7 +132,7 @@ export interface PipelineConfirmationRequest {
 	readonly groupId: string;
 	readonly reps: number;
 	readonly projectedCost: ConfirmationCostProjection;
-	readonly approvalMethod: "interactive" | "yes";
+	readonly approvalMethod: ApprovalMethod;
 	readonly source: SourceBaseline;
 	readonly controlSha: string;
 	readonly pipelinePath: string;

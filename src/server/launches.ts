@@ -81,7 +81,13 @@ type LaunchRequest = z.infer<typeof launchRequestSchema>;
 function confirmationArguments(attempts: number): readonly string[] {
 	return attempts === 1
 		? []
-		: ["--confirm", "--reps", String(attempts), "--yes"];
+		: [
+				"--confirm",
+				"--reps",
+				String(attempts),
+				"--yes",
+				"--approved-in-browser",
+			];
 }
 
 async function caseArguments(

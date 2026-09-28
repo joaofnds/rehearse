@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { readdir, rm } from "node:fs/promises";
 import { join, relative } from "node:path";
 import type { ConfirmationCostProjection } from "./confirmation";
-import type { Effort } from "./config";
+import type { ApprovalMethod, Effort } from "./config";
 import type { CorpusMeasurement } from "./corpus-measurement";
 import {
 	filterJudgeAgreementReport,
@@ -137,7 +137,7 @@ interface ConfirmationGroupFinalizationBase {
 	readonly groupId: string;
 	readonly reps: number;
 	readonly declaredStages: readonly string[];
-	readonly approvalMethod: "interactive" | "yes";
+	readonly approvalMethod: ApprovalMethod;
 	readonly repResults: readonly ConfirmationRepResult[];
 	readonly worktreesDirectory: string;
 	readonly groupDirectory: string;

@@ -198,6 +198,7 @@ describe(createLaunchApp.name, () => {
 						"--reps",
 						String(attempts),
 						"--yes",
+						"--approved-in-browser",
 					],
 				]);
 			},
