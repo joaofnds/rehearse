@@ -310,7 +310,7 @@ describe("workflow provider metrics", () => {
 		]);
 	});
 
-	it("streams the stage call under a silence limit alone and reads its result line", async () => {
+	it("streams the stage call under a silence limit alone and reads the result line its runner returns", async () => {
 		const calls: {
 			readonly command: readonly string[];
 			readonly options: object;
@@ -339,17 +339,12 @@ describe("workflow provider metrics", () => {
 				calls.push({ command, options });
 
 				return Promise.resolve(
-					[
-						JSON.stringify({ type: "system", subtype: "init" }),
-						JSON.stringify({ type: "tool_progress" }),
-						JSON.stringify({
-							type: "result",
-							session_id: "worker-session",
-							total_cost_usd: 0.4,
-							structured_output: { status: "COMPLETE", message: "Built" },
-						}),
-						"",
-					].join("\n"),
+					JSON.stringify({
+						type: "result",
+						session_id: "worker-session",
+						total_cost_usd: 0.4,
+						structured_output: { status: "COMPLETE", message: "Built" },
+					}),
 				);
 			},
 		);

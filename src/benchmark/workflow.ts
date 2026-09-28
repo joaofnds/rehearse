@@ -3,7 +3,6 @@ import {
 	claudeArgs,
 	readClaudeCallMetrics,
 	readClaudeEnvelope,
-	readStreamResult,
 	readStructuredOutput,
 	runStreamedSession,
 } from "./claude";
@@ -241,7 +240,7 @@ export async function runWorkflowStage(
 				targetDir,
 				{ silenceLimitMs: STAGE_SILENCE_LIMIT_MS },
 			);
-			envelope = readClaudeEnvelope(readStreamResult(output));
+			envelope = readClaudeEnvelope(output);
 			agent = readStructuredOutput(envelope, stageTurnSchema);
 		} catch (error) {
 			throw new WorkflowExecutionError({
