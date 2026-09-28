@@ -104,6 +104,10 @@ const STAGE_RECORD = {
 						quote: "add entity\nfeat: add",
 						locator: { kind: "commit-subject", index: 0 },
 					}),
+					evidence("commit-subjects", "commit-subjects", {
+						quote: "feat: add",
+						locator: { kind: "commit-subject", index: 1 },
+					}),
 				],
 			},
 		],
@@ -286,6 +290,12 @@ describe(readEvidenceSource.name, () => {
 		const source = await stageSource("dimensions", "clarity", "4");
 
 		expect(marked(source)).toBe("add entity\nfeat: add");
+	});
+
+	it("marks the cited subject's occurrence of a quote an earlier subject also holds", async () => {
+		const source = await stageSource("dimensions", "clarity", "5");
+
+		expect(source.view).toMatchObject({ span: { start: 17, end: 26 } });
 	});
 
 	it("returns the harness result a harness locator names", async () => {
