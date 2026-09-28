@@ -111,6 +111,32 @@ describe(locateInDiff.name, () => {
 		});
 	});
 
+	it("names the hunk of a quote that starts with its header", () => {
+		const locator = locateInDiff(
+			"@@ -30,1 +31,2 @@\n\tmodules,",
+			DIFF,
+			everyFile,
+		);
+
+		expect(locator).toMatchObject({
+			file: "src/app.ts",
+			hunk: "@@ -30,1 +31,2 @@",
+		});
+	});
+
+	it("names the hunk a quote spanning hunks starts in", () => {
+		const locator = locateInDiff(
+			"export class App {}\n@@ -30,1 +31,2 @@\n\tmodules,",
+			DIFF,
+			everyFile,
+		);
+
+		expect(locator).toMatchObject({
+			file: "src/app.ts",
+			hunk: "@@ -1,2 +1,3 @@",
+		});
+	});
+
 	it("searches only the files the citation names", () => {
 		const locator = locateInDiff(
 			"export const old = 1;",
@@ -146,7 +172,19 @@ describe(spanInDiff.name, () => {
 		expect(DIFF.slice(span?.start, span?.end)).toBe("+\tAuditLog,");
 	});
 
-	it("finds nothing outside the hunk the locator names", () => {
+	it("gives the range of a quote spanning hunks from the hunk it starts in", () => {
+		const span = spanInDiff(
+			"export class App {}\n@@ -30,1 +31,2 @@\n\tmodules,",
+			DIFF,
+			{ file: "src/app.ts", hunk: "@@ -1,2 +1,3 @@" },
+		);
+
+		expect(DIFF.slice(span?.start, span?.end)).toBe(
+			"export class App {}\n@@ -30,1 +31,2 @@\n \tmodules,",
+		);
+	});
+
+	it("finds nothing outside the file the locator names", () => {
 		expect(
 			spanInDiff("export const old = 1;", DIFF, {
 				file: "src/app.ts",

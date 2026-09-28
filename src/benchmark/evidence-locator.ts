@@ -149,13 +149,18 @@ interface DiffLine {
 interface DiffHunk {
 	readonly file: string;
 	readonly header: string;
+	readonly headerLine: DiffLine;
 	readonly lines: readonly DiffLine[];
 }
 
-/** A hunk's text as searched, with the raw diff offset of each character. */
-interface HunkText {
+/**
+ * One file's hunks as searched, header lines included, with the raw diff
+ * offset of each character and where each hunk starts.
+ */
+interface FileText {
 	readonly text: string;
 	readonly offsets: readonly number[];
+	readonly hunkStarts: readonly number[];
 }
 
 const HUNK_HEADER = /^@@ [^@]* @@/u;
@@ -169,10 +174,15 @@ function diffFileName(line: string): string {
  * or the `---` name for a deleted file.
  */
 function diffHunks(diff: string): DiffHunk[] {
-	const hunks: { file: string; header: string; lines: DiffLine[] }[] = [];
+	const hunks: {
+		file: string;
+		header: string;
+		headerLine: DiffLine;
+		lines: DiffLine[];
+	}[] = [];
 	let removed = "";
 	let file = "";
-	let current: { file: string; header: string; lines: DiffLine[] } | undefined;
+	let current: (typeof hunks)[number] | undefined;
 	let offset = 0;
 	for (const line of diff.split("\n")) {
 		const start = offset;
@@ -192,7 +202,12 @@ function diffHunks(diff: string): DiffHunk[] {
 
 		const header = HUNK_HEADER.exec(line)?.[0];
 		if (header !== undefined) {
-			current = { file, header, lines: [] };
+			current = {
+				file,
+				header,
+				headerLine: { text: line, offset: start },
+				lines: [],
+			};
 			hunks.push(current);
 			continue;
 		}
@@ -202,46 +217,75 @@ function diffHunks(diff: string): DiffHunk[] {
 	return hunks;
 }
 
-function hunkText(hunk: DiffHunk, prefixLength: number): HunkText {
-	let text = "";
-	const offsets: number[] = [];
-	for (const [index, line] of hunk.lines.entries()) {
-		if (index > 0) {
-			text += "\n";
-			offsets.push(line.offset - 1);
-		}
-		const kept = line.text.slice(prefixLength);
-		text += kept;
-		for (let column = 0; column < kept.length; column += 1) {
-			offsets.push(line.offset + prefixLength + column);
+function hunksByFile(
+	diff: string,
+	cites: (file: string) => boolean,
+): DiffHunk[][] {
+	const files = new Map<string, DiffHunk[]>();
+	for (const hunk of diffHunks(diff)) {
+		if (cites(hunk.file)) {
+			files.set(hunk.file, [...(files.get(hunk.file) ?? []), hunk]);
 		}
 	}
 
-	return { text, offsets };
+	return [...files.values()];
+}
+
+/** A file's hunks read in order, each header line whole and each body line past its prefix. */
+function fileText(hunks: readonly DiffHunk[], prefixLength: number): FileText {
+	let text = "";
+	const offsets: number[] = [];
+	const hunkStarts: number[] = [];
+	for (const hunk of hunks) {
+		for (const [index, line] of [hunk.headerLine, ...hunk.lines].entries()) {
+			if (hunkStarts.length > 0 || index > 0) {
+				text += "\n";
+				offsets.push(line.offset - 1);
+			}
+			if (index === 0) {
+				hunkStarts.push(text.length);
+			}
+
+			const kept = index === 0 ? line.text : line.text.slice(prefixLength);
+			const skipped = line.text.length - kept.length;
+			text += kept;
+			for (let column = 0; column < kept.length; column += 1) {
+				offsets.push(line.offset + skipped + column);
+			}
+		}
+	}
+
+	return { text, offsets, hunkStarts };
 }
 
 /**
  * A judge quotes a changed line either with its `+`, `-` or space prefix or
- * without it, so a hunk is searched with the prefixes stripped first and as
- * written second.
+ * without it, so a file's hunks are searched with the prefixes stripped first
+ * and as written second.
  */
-const HUNK_VARIANTS = [
-	(hunk: DiffHunk): HunkText => hunkText(hunk, 1),
-	(hunk: DiffHunk): HunkText => hunkText(hunk, 0),
-];
+const PREFIX_LENGTHS = [1, 0];
 
-/** The file and hunk header of the quote's first occurrence. */
+/**
+ * The file and hunk header of the quote's first occurrence. A quote spanning
+ * hunks of one file names the hunk it starts in.
+ */
 export function locateInDiff(
 	quote: string,
 	diff: string,
 	cites: (file: string) => boolean,
 ): EvidenceLocator | undefined {
-	const hunks = diffHunks(diff).filter(({ file }) => cites(file));
-	for (const variant of HUNK_VARIANTS) {
-		const found = hunks.flatMap((hunk) => {
-			const located = match(variant(hunk).text, quote);
+	const files = hunksByFile(diff, cites);
+	for (const prefixLength of PREFIX_LENGTHS) {
+		const found = files.flatMap((hunks) => {
+			const { text, hunkStarts } = fileText(hunks, prefixLength);
+			const located = match(text, quote);
+			if (located === undefined) {
+				return [];
+			}
+			const hunk =
+				hunks[hunkStarts.findLastIndex((start) => start <= located.start)];
 
-			return located === undefined ? [] : [{ hunk, located }];
+			return hunk === undefined ? [] : [{ hunk, located }];
 		});
 		const [first] = found;
 		if (first !== undefined) {
@@ -261,28 +305,28 @@ export function locateInDiff(
 }
 
 /**
- * The raw range in the whole diff of the quote inside the hunk a locator
- * names, so a view of the recorded diff can mark it.
+ * The raw range in the whole diff of the quote's first occurrence from the
+ * hunk a locator names, so a view of the recorded diff can mark it.
  */
 export function spanInDiff(
 	quote: string,
 	diff: string,
 	locator: { readonly file: string; readonly hunk: string },
 ): Span | undefined {
-	const hunk = diffHunks(diff).find(
-		({ file, header }) => file === locator.file && header === locator.hunk,
-	);
-	if (hunk === undefined) {
+	const [hunks = []] = hunksByFile(diff, (file) => file === locator.file);
+	const index = hunks.findIndex(({ header }) => header === locator.hunk);
+	if (index === -1) {
 		return undefined;
 	}
 
-	for (const variant of HUNK_VARIANTS) {
-		const { text, offsets } = variant(hunk);
-		const found = match(text, quote);
+	for (const prefixLength of PREFIX_LENGTHS) {
+		const { text, offsets, hunkStarts } = fileText(hunks, prefixLength);
+		const from = hunkStarts[index] ?? 0;
+		const found = match(text.slice(from), quote);
 		if (found !== undefined) {
-			const start = offsets[found.start] ?? 0;
+			const start = offsets[from + found.start] ?? 0;
 
-			return { start, end: (offsets[found.end - 1] ?? start) + 1 };
+			return { start, end: (offsets[from + found.end - 1] ?? start) + 1 };
 		}
 	}
 
