@@ -48,5 +48,11 @@ export async function runSettings(
 
 /** Only a plain decimal is an amount, so "0x10" or "" is refused, not read as 16 or 0. */
 function decimalUsd(text: string): number {
-	return /^\d+(?:\.\d+)?$/u.test(text) ? Number(text) : Number.NaN;
+	if (!/^\d+(?:\.\d+)?$/u.test(text)) {
+		throw new RangeError(
+			`A spend ceiling is a positive number of USD, not ${JSON.stringify(text)}`,
+		);
+	}
+
+	return Number(text);
 }
