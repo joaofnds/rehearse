@@ -4,6 +4,7 @@ import type { InferResponseType } from "hono/client";
 import { corpusVersionLabel } from "#benchmark/corpus-version-label";
 import type { LaunchAttempts } from "#benchmark/launch-attempts";
 import { LAUNCH_ATTEMPTS } from "#benchmark/launch-attempts";
+import { groupSpendCeilingUsd } from "#benchmark/spend-ceiling";
 import { launchClient } from "#client/api-client";
 import { corpusQuery } from "#client/corpus/corpus-query";
 import { runHistoryQuery } from "#client/run-history/run-history-query";
@@ -81,15 +82,14 @@ function attemptsLabel(attempts: LaunchAttempts): string {
 
 /**
  * A group's attempts each run under the stored ceiling and all of them
- * together under that ceiling times the attempts, as `repSpendCeilings`
- * holds them. A call already in flight when the ceiling is reached still
- * lands, which is why the ceiling can be overrun.
+ * together under the group ceiling. A call already in flight when the ceiling
+ * is reached still lands, which is why the ceiling can be overrun.
  */
 function ceilingReading(ceilingUsd: number, attempts: LaunchAttempts): string {
 	const holds =
 		attempts === 1
 			? `Ceiling ${spendReading(ceilingUsd)}`
-			: `Ceiling ${spendReading(ceilingUsd)} per attempt, ${spendReading(ceilingUsd * attempts)} for the group of ${String(attempts)}`;
+			: `Ceiling ${spendReading(ceilingUsd)} per attempt, ${spendReading(groupSpendCeilingUsd({ spendCeilingUsd: ceilingUsd, reps: attempts }))} for the group of ${String(attempts)}`;
 
 	return `${holds} · stops mid-step if reached, and can be overrun by the calls in flight`;
 }
