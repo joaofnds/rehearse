@@ -13,6 +13,16 @@ const identitySchema = z
 	.string()
 	.regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/u, "Invalid comparison identity");
 
+/** One confirmation group, or several of the same variant read together. */
+/** One group path, or several read together as one arm, parsed as a list. */
+const manifestArmSchema = z.union([
+	z
+		.string()
+		.min(1)
+		.transform((group): [string] => [group]),
+	z.tuple([z.string().min(1)]).rest(z.string().min(1)),
+]);
+
 export const comparisonManifestSchema = z
 	.object({
 		schemaVersion: z.literal(1),
@@ -23,9 +33,9 @@ export const comparisonManifestSchema = z
 						caseId: identitySchema,
 						arms: z
 							.object({
-								baseline: z.string().min(1),
-								candidate: z.string().min(1),
-								control: z.string().min(1),
+								baseline: manifestArmSchema,
+								candidate: manifestArmSchema,
+								control: manifestArmSchema,
 							})
 							.strict(),
 					})
@@ -51,6 +61,11 @@ export const comparisonManifestSchema = z
 
 export type ComparisonManifest = Immutable<
 	z.infer<typeof comparisonManifestSchema>
+>;
+
+/** A comparison manifest as written, where an arm of one group may be a path. */
+export type ComparisonManifestText = Immutable<
+	z.input<typeof comparisonManifestSchema>
 >;
 
 const manifestContextSchema = z
@@ -394,10 +409,10 @@ const versionFourSessionReportArmSchema = sessionReportArmSchema
 			.strict(),
 	})
 	.strict();
-const currentReportArmSchema = versionFourReportArmSchema
+const versionFiveReportArmSchema = versionFourReportArmSchema
 	.extend({ resources: currentArmResourcesSchema })
 	.strict();
-const currentSessionReportArmSchema = versionFourSessionReportArmSchema
+const versionFiveSessionReportArmSchema = versionFourSessionReportArmSchema
 	.extend({ resources: currentArmResourcesSchema })
 	.strict();
 const reportCaseSchema = z
@@ -446,24 +461,24 @@ const versionFourSessionReportCaseSchema = sessionReportCaseSchema
 			.strict(),
 	})
 	.strict();
-const currentReportCaseSchema = reportCaseSchema
+const versionFiveReportCaseSchema = reportCaseSchema
 	.extend({
 		arms: z
 			.object({
-				baseline: currentReportArmSchema,
-				candidate: currentReportArmSchema,
-				control: currentReportArmSchema,
+				baseline: versionFiveReportArmSchema,
+				candidate: versionFiveReportArmSchema,
+				control: versionFiveReportArmSchema,
 			})
 			.strict(),
 	})
 	.strict();
-const currentSessionReportCaseSchema = sessionReportCaseSchema
+const versionFiveSessionReportCaseSchema = sessionReportCaseSchema
 	.extend({
 		arms: z
 			.object({
-				baseline: currentSessionReportArmSchema,
-				candidate: currentSessionReportArmSchema,
-				control: currentSessionReportArmSchema,
+				baseline: versionFiveSessionReportArmSchema,
+				candidate: versionFiveSessionReportArmSchema,
+				control: versionFiveSessionReportArmSchema,
 			})
 			.strict(),
 	})
@@ -782,6 +797,147 @@ const versionFourSingleCaseSessionComparisonReportSchema = z
 	})
 	.strict();
 
+const versionFiveComparisonReportFields = {
+	...comparisonReportFields,
+	cases: z.array(versionFiveReportCaseSchema).min(2),
+	contrasts: z
+		.object({
+			candidateMinusBaseline: currentReportContrastSchema,
+			candidateMinusControl: currentReportContrastSchema,
+			baselineMinusControl: currentReportContrastSchema,
+		})
+		.strict(),
+};
+const versionFiveStageComparisonReportSchema = z
+	.object({
+		schemaVersion: z.literal(5),
+		judgeAgreement: judgeAgreementReportSchema,
+		...versionFiveComparisonReportFields,
+		mode: z.literal("stage"),
+	})
+	.strict();
+const versionFivePipelineComparisonReportSchema = z
+	.object({
+		schemaVersion: z.literal(5),
+		judgeAgreement: judgeAgreementReportSchema,
+		...versionFiveComparisonReportFields,
+		mode: z.literal("pipeline"),
+	})
+	.strict();
+const versionFiveSessionComparisonReportSchema = z
+	.object({
+		schemaVersion: z.literal(5),
+		judgeAgreement: judgeAgreementReportSchema.extend({
+			baselines: z.array(z.never()).length(0),
+		}),
+		...versionFiveComparisonReportFields,
+		mode: z.literal("session"),
+		declaredStages: z.tuple([z.literal("checks")]),
+		cases: z.array(versionFiveSessionReportCaseSchema).min(2),
+	})
+	.strict();
+
+const versionFiveSingleCaseSessionComparisonReportSchema = z
+	.object({
+		schemaVersion: z.literal(5),
+		judgeAgreement: judgeAgreementReportSchema.extend({
+			baselines: z.array(z.never()).length(0),
+		}),
+		...versionFiveComparisonReportFields,
+		mode: z.literal("session"),
+		declaredStages: z.tuple([z.literal("checks")]),
+		samplingUnit: z.literal("rep"),
+		cases: z.tuple([versionFiveSessionReportCaseSchema]),
+		contrasts: z
+			.object({
+				candidateMinusBaseline: currentSingleCaseReportContrastSchema,
+				candidateMinusControl: currentSingleCaseReportContrastSchema,
+				baselineMinusControl: currentSingleCaseReportContrastSchema,
+			})
+			.strict(),
+	})
+	.strict();
+
+const versionFiveSingleCaseStageComparisonReportSchema = z
+	.object({
+		schemaVersion: z.literal(5),
+		judgeAgreement: judgeAgreementReportSchema,
+		...versionFiveComparisonReportFields,
+		mode: z.literal("stage"),
+		samplingUnit: z.literal("rep"),
+		cases: z.tuple([versionFiveReportCaseSchema]),
+		contrasts: z
+			.object({
+				candidateMinusBaseline: currentSingleCaseReportContrastSchema,
+				candidateMinusControl: currentSingleCaseReportContrastSchema,
+				baselineMinusControl: currentSingleCaseReportContrastSchema,
+			})
+			.strict(),
+	})
+	.strict();
+
+/**
+ * Version 6 names every confirmation group an arm's attempts came from, since
+ * adding attempts to a comparison records them in a group of their own. Each
+ * attempt names its group by position and is numbered within the arm, so
+ * version 5, whose arm held one group, stays readable as it was written.
+ */
+const currentSourceGroupsSchema = z.array(digestedPathSchema).min(1);
+const currentReportArmSchema = versionFiveReportArmSchema
+	.extend({
+		source: z
+			.object({
+				groups: currentSourceGroupsSchema,
+				reps: z
+					.array(
+						currentSourceRepSchema
+							.extend({ group: z.number().int().nonnegative() })
+							.strict(),
+					)
+					.min(1),
+			})
+			.strict(),
+	})
+	.strict();
+const currentSessionReportArmSchema = versionFiveSessionReportArmSchema
+	.extend({
+		source: z
+			.object({
+				groups: currentSourceGroupsSchema,
+				reps: z
+					.array(
+						currentSessionSourceRepSchema
+							.extend({ group: z.number().int().nonnegative() })
+							.strict(),
+					)
+					.min(1),
+			})
+			.strict(),
+	})
+	.strict();
+const currentReportCaseSchema = reportCaseSchema
+	.extend({
+		arms: z
+			.object({
+				baseline: currentReportArmSchema,
+				candidate: currentReportArmSchema,
+				control: currentReportArmSchema,
+			})
+			.strict(),
+	})
+	.strict();
+const currentSessionReportCaseSchema = sessionReportCaseSchema
+	.extend({
+		arms: z
+			.object({
+				baseline: currentSessionReportArmSchema,
+				candidate: currentSessionReportArmSchema,
+				control: currentSessionReportArmSchema,
+			})
+			.strict(),
+	})
+	.strict();
+
 const currentComparisonReportFields = {
 	...comparisonReportFields,
 	cases: z.array(currentReportCaseSchema).min(2),
@@ -795,7 +951,7 @@ const currentComparisonReportFields = {
 };
 const currentStageComparisonReportSchema = z
 	.object({
-		schemaVersion: z.literal(5),
+		schemaVersion: z.literal(6),
 		judgeAgreement: judgeAgreementReportSchema,
 		...currentComparisonReportFields,
 		mode: z.literal("stage"),
@@ -803,7 +959,7 @@ const currentStageComparisonReportSchema = z
 	.strict();
 const currentPipelineComparisonReportSchema = z
 	.object({
-		schemaVersion: z.literal(5),
+		schemaVersion: z.literal(6),
 		judgeAgreement: judgeAgreementReportSchema,
 		...currentComparisonReportFields,
 		mode: z.literal("pipeline"),
@@ -811,7 +967,7 @@ const currentPipelineComparisonReportSchema = z
 	.strict();
 const currentSessionComparisonReportSchema = z
 	.object({
-		schemaVersion: z.literal(5),
+		schemaVersion: z.literal(6),
 		judgeAgreement: judgeAgreementReportSchema.extend({
 			baselines: z.array(z.never()).length(0),
 		}),
@@ -824,7 +980,7 @@ const currentSessionComparisonReportSchema = z
 
 const currentSingleCaseSessionComparisonReportSchema = z
 	.object({
-		schemaVersion: z.literal(5),
+		schemaVersion: z.literal(6),
 		judgeAgreement: judgeAgreementReportSchema.extend({
 			baselines: z.array(z.never()).length(0),
 		}),
@@ -845,7 +1001,7 @@ const currentSingleCaseSessionComparisonReportSchema = z
 
 const currentSingleCaseStageComparisonReportSchema = z
 	.object({
-		schemaVersion: z.literal(5),
+		schemaVersion: z.literal(6),
 		judgeAgreement: judgeAgreementReportSchema,
 		...currentComparisonReportFields,
 		mode: z.literal("stage"),
@@ -984,6 +1140,22 @@ function validateArm(
 		);
 	}
 
+	const groups = arm.source.reps.map(({ group }) => group);
+	const namedGroups = Array.from(
+		{ length: arm.source.groups.length },
+		(_value, index) => index,
+	);
+	if (
+		!sameStrings([...new Set(groups)].map(String), namedGroups.map(String)) ||
+		groups.some((group, index) => group < (groups[index - 1] ?? 0))
+	) {
+		addReportIssue(
+			context,
+			[...path, "source", "reps"],
+			"reps must come from every named group, in order",
+		);
+	}
+
 	const names = expectedOutcomeNames(report);
 	if (
 		!sameStrings(
@@ -1107,9 +1279,16 @@ export type LegacyComparisonReport = Immutable<
 	| z.infer<typeof versionFourPipelineComparisonReportSchema>
 	| z.infer<typeof versionFourSessionComparisonReportSchema>
 	| z.infer<typeof versionFourSingleCaseSessionComparisonReportSchema>
+	| z.infer<typeof versionFiveStageComparisonReportSchema>
+	| z.infer<typeof versionFivePipelineComparisonReportSchema>
+	| z.infer<typeof versionFiveSessionComparisonReportSchema>
+	| z.infer<typeof versionFiveSingleCaseSessionComparisonReportSchema>
+	| z.infer<typeof versionFiveSingleCaseStageComparisonReportSchema>
 >;
 export type LegacySingleCaseComparisonReport = Immutable<
-	z.infer<typeof versionFourSingleCaseSessionComparisonReportSchema>
+	| z.infer<typeof versionFourSingleCaseSessionComparisonReportSchema>
+	| z.infer<typeof versionFiveSingleCaseSessionComparisonReportSchema>
+	| z.infer<typeof versionFiveSingleCaseStageComparisonReportSchema>
 >;
 
 export function parseComparisonReport(
@@ -1124,6 +1303,11 @@ export function parseComparisonReport(
 			versionFourPipelineComparisonReportSchema,
 			versionFourSessionComparisonReportSchema,
 			versionFourSingleCaseSessionComparisonReportSchema,
+			versionFiveStageComparisonReportSchema,
+			versionFivePipelineComparisonReportSchema,
+			versionFiveSessionComparisonReportSchema,
+			versionFiveSingleCaseSessionComparisonReportSchema,
+			versionFiveSingleCaseStageComparisonReportSchema,
 			comparisonReportSchema,
 		])
 		.parse(JSON.parse(text));

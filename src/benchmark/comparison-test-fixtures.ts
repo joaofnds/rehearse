@@ -239,14 +239,17 @@ function reportArmEvidence(
 		makespanMs: 400,
 	});
 
+	const group = {
+		path: `groups/${groupId}/group.json`,
+		sha256: "6".repeat(64),
+		record,
+	};
+
 	return {
 		role,
 		declaredCaseId: record.caseId,
-		group: {
-			path: `groups/${groupId}/group.json`,
-			sha256: "6".repeat(64),
-			record,
-		},
+		group,
+		groups: [group],
 		reps: reps.map((rep) => ({
 			path: `groups/${groupId}/reps/${rep.repId}/rep.json`,
 			sha256: "7".repeat(64),
@@ -396,14 +399,17 @@ function sessionArmEvidence(
 		makespanMs: 1,
 	});
 
+	const group = {
+		path: `groups/${groupId}/group.json`,
+		sha256: "6".repeat(64),
+		record,
+	};
+
 	return {
 		role,
 		declaredCaseId: record.caseId,
-		group: {
-			path: `groups/${groupId}/group.json`,
-			sha256: "6".repeat(64),
-			record,
-		},
+		group,
+		groups: [group],
 		reps: reps.map((rep) => ({
 			path: `groups/${groupId}/reps/${rep.repId}/rep.json`,
 			sha256: "7".repeat(64),
@@ -525,6 +531,36 @@ export function armResourcesWithoutElapsed(
 	const { elapsedMs: _elapsedMs, ...withoutElapsed } = resources;
 
 	return withoutElapsed;
+}
+
+/** A version-5 arm's source: the one group its attempts all came from. */
+export interface SingleGroupSource<Rep> {
+	readonly group: { readonly path: string; readonly sha256: string };
+	readonly reps: readonly Omit<Immutable<Rep>, "group">[];
+}
+
+/**
+ * What separates a version-5 arm's source from a current one's: version 6
+ * names every group the arm's attempts came from, and each attempt its group.
+ */
+export function singleGroupSource<Rep extends { readonly group: number }>(
+	source: Immutable<{
+		readonly groups: readonly {
+			readonly path: string;
+			readonly sha256: string;
+		}[];
+		readonly reps: readonly Rep[];
+	}>,
+): SingleGroupSource<Rep> {
+	const [group, ...others] = source.groups;
+	if (group === undefined || others.length > 0) {
+		throw new Error("expected an arm of exactly one group");
+	}
+
+	return {
+		group,
+		reps: source.reps.map(({ group: _group, ...rep }) => rep),
+	};
 }
 
 export function contrastResourcesWithoutElapsed(

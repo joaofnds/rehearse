@@ -142,14 +142,17 @@ function arm(
 	role: ComparisonArm,
 	record: Immutable<ParsedConfirmationGroupRecord>,
 ): ComparisonArmEvidence {
+	const group = {
+		path: `${record.groupId}/group.json`,
+		sha256: "d".repeat(64),
+		record,
+	};
+
 	return {
 		role,
 		declaredCaseId: record.caseId,
-		group: {
-			path: `${record.groupId}/group.json`,
-			sha256: "d".repeat(64),
-			record,
-		},
+		group,
+		groups: [group],
 		reps: [],
 		executedCorpus: record.inputs.files.filter(({ kind }) => kind === "corpus"),
 		controlledFiles: record.inputs.files.filter(

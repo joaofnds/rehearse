@@ -28,112 +28,151 @@ function digest(text: string): string {
 	return new Bun.CryptoHasher("sha256").update(text).digest("hex");
 }
 
-describe(comparisonAttemptHistoryLink.name, () => {
-	it("links only when the group, rep, and attempt paths and digests agree", async () => {
-		const root = await mkdtemp(join(tmpdir(), "rehearse-comparison-history-"));
-		roots.push(root);
-		const runsDirectory = join(root, ".benchmark-runs");
-		const paths = confirmationGroupPaths(runsDirectory, "group-a");
-		const repPaths = paths.rep("group-a-rep-1");
-		await mkdir(repPaths.directory, { recursive: true });
-		const groupText = `${JSON.stringify(
-			sessionConfirmationGroupRecordSchema.parse({
-				schemaVersion: 2,
-				caseId: "case-a",
-				groupId: "group-a",
-				mode: "session",
-				reps: 2,
-				declaredStages: ["checks"],
-				inputs: {
-					lineage: { kind: "SESSION", lineage: "lineage-a" },
-					files: [
-						{ kind: "case", path: "inputs/case.json", sha256: "a".repeat(64) },
-					],
-					model: "sonnet",
-					sessionBudgetUsd: 1,
-				},
-				projectedCost: {
-					reps: 2,
-					perRepMaximumUsd: 1,
-					preflightMaximumUsd: 0,
-					totalMaximumUsd: 2,
-				},
-				preflight: { status: "MISSING", missing: "metrics unavailable" },
-				approval: { method: "yes", approved: true },
-				repRecords: [1, 2].map((ordinal) => ({
-					repId: `group-a-rep-${ordinal}`,
-					ordinal,
-					path: `reps/group-a-rep-${ordinal}/rep.json`,
-				})),
-				reportFile: "report.json",
-				makespanMs: 1,
-			}),
-		)}\n`;
-		const repText = `${JSON.stringify(
-			sessionConfirmationRepRecordSchema.parse({
-				schemaVersion: 2,
-				caseId: "case-a",
-				groupId: "group-a",
-				repId: "group-a-rep-1",
-				ordinal: 1,
-				mode: "session",
+interface RecordedSessionAttempt {
+	readonly root: string;
+	readonly runsDirectory: string;
+	readonly paths: ReturnType<typeof confirmationGroupPaths>;
+	readonly repPaths: ReturnType<
+		ReturnType<typeof confirmationGroupPaths>["rep"]
+	>;
+	readonly groupText: string;
+	readonly repText: string;
+	readonly attemptText: string;
+	readonly recorded: (path: string) => string;
+	readonly request: Parameters<typeof comparisonAttemptHistoryLink>[0];
+}
+
+async function recordSessionAttempt(): Promise<RecordedSessionAttempt> {
+	const root = await mkdtemp(join(tmpdir(), "rehearse-comparison-history-"));
+	roots.push(root);
+	const runsDirectory = join(root, ".benchmark-runs");
+	const paths = confirmationGroupPaths(runsDirectory, "group-a");
+	const repPaths = paths.rep("group-a-rep-1");
+	await mkdir(repPaths.directory, { recursive: true });
+	const groupText = `${JSON.stringify(
+		sessionConfirmationGroupRecordSchema.parse({
+			schemaVersion: 2,
+			caseId: "case-a",
+			groupId: "group-a",
+			mode: "session",
+			reps: 2,
+			declaredStages: ["checks"],
+			inputs: {
 				lineage: { kind: "SESSION", lineage: "lineage-a" },
-				outcome: "UNSUCCESSFUL",
-				stages: [
-					{
-						stage: "checks",
-						status: "NOT_REACHED",
-						reason: "not reached",
-						evidence: { recordFile: "attempt.json" },
-					},
+				files: [
+					{ kind: "case", path: "inputs/case.json", sha256: "a".repeat(64) },
 				],
-				finalOutcome: { status: "NOT_APPLICABLE" },
-				metrics: { status: "MISSING", calls: [], missing: ["metrics"] },
-				workerTrajectorySteps: 0,
-				elapsedMs: 1,
-			}),
-		)}\n`;
-		const attemptText = `${JSON.stringify(
-			sessionAttemptRecordSchema.parse({
-				schemaVersion: 1,
-				caseId: "case-a",
-				lineage: "lineage-a",
 				model: "sonnet",
 				sessionBudgetUsd: 1,
-				corpusFiles: [],
-				prompt: "inspect",
-				reply: "done",
-				transcriptFile: "ignored",
-				outcome: "SUCCESSFUL",
-				checks: [{ kind: "word-band", status: "PASS", detail: "pass" }],
-				elapsedMs: 1,
-			}),
-		)}\n`;
-		await Bun.write(paths.groupFile, groupText);
-		await Bun.write(repPaths.recordFile, repText);
-		await Bun.write(repPaths.attemptFile, attemptText);
-		await Bun.write(
-			repPaths.transcriptFile,
-			`${JSON.stringify({ type: "assistant", message: { content: "saved" } })}\n`,
-		);
-		const manifestDirectory = join(root, "manifests", "nested");
-		const recorded = (path: string): string =>
-			relative(manifestDirectory, path);
-		const request = {
-			runsDirectory,
-			caseId: "case-a",
-			group: { path: recorded(paths.groupFile), sha256: digest(groupText) },
-			rep: {
-				repId: "group-a-rep-1",
-				ordinal: 1,
-				path: recorded(repPaths.recordFile),
-				sha256: digest(repText),
-				attempt: {
-					path: recorded(repPaths.attemptFile),
-					sha256: digest(attemptText),
-				},
 			},
-		};
+			projectedCost: {
+				reps: 2,
+				perRepMaximumUsd: 1,
+				preflightMaximumUsd: 0,
+				totalMaximumUsd: 2,
+			},
+			preflight: { status: "MISSING", missing: "metrics unavailable" },
+			approval: { method: "yes", approved: true },
+			repRecords: [1, 2].map((ordinal) => ({
+				repId: `group-a-rep-${ordinal}`,
+				ordinal,
+				path: `reps/group-a-rep-${ordinal}/rep.json`,
+			})),
+			reportFile: "report.json",
+			makespanMs: 1,
+		}),
+	)}\n`;
+	const repText = `${JSON.stringify(
+		sessionConfirmationRepRecordSchema.parse({
+			schemaVersion: 2,
+			caseId: "case-a",
+			groupId: "group-a",
+			repId: "group-a-rep-1",
+			ordinal: 1,
+			mode: "session",
+			lineage: { kind: "SESSION", lineage: "lineage-a" },
+			outcome: "UNSUCCESSFUL",
+			stages: [
+				{
+					stage: "checks",
+					status: "NOT_REACHED",
+					reason: "not reached",
+					evidence: { recordFile: "attempt.json" },
+				},
+			],
+			finalOutcome: { status: "NOT_APPLICABLE" },
+			metrics: { status: "MISSING", calls: [], missing: ["metrics"] },
+			workerTrajectorySteps: 0,
+			elapsedMs: 1,
+		}),
+	)}\n`;
+	const attemptText = `${JSON.stringify(
+		sessionAttemptRecordSchema.parse({
+			schemaVersion: 1,
+			caseId: "case-a",
+			lineage: "lineage-a",
+			model: "sonnet",
+			sessionBudgetUsd: 1,
+			corpusFiles: [],
+			prompt: "inspect",
+			reply: "done",
+			transcriptFile: "ignored",
+			outcome: "SUCCESSFUL",
+			checks: [{ kind: "word-band", status: "PASS", detail: "pass" }],
+			elapsedMs: 1,
+		}),
+	)}\n`;
+	await Bun.write(paths.groupFile, groupText);
+	await Bun.write(repPaths.recordFile, repText);
+	await Bun.write(repPaths.attemptFile, attemptText);
+	await Bun.write(
+		repPaths.transcriptFile,
+		`${JSON.stringify({ type: "assistant", message: { content: "saved" } })}\n`,
+	);
+	const manifestDirectory = join(root, "manifests", "nested");
+	const recorded = (path: string): string => relative(manifestDirectory, path);
+	const request = {
+		runsDirectory,
+		caseId: "case-a",
+		group: { path: recorded(paths.groupFile), sha256: digest(groupText) },
+		rep: {
+			repId: "group-a-rep-1",
+			ordinal: 1,
+			path: recorded(repPaths.recordFile),
+			sha256: digest(repText),
+			attempt: {
+				path: recorded(repPaths.attemptFile),
+				sha256: digest(attemptText),
+			},
+		},
+	};
+
+	return {
+		root,
+		runsDirectory,
+		paths,
+		repPaths,
+		groupText,
+		repText,
+		attemptText,
+		recorded,
+		request,
+	};
+}
+
+describe(comparisonAttemptHistoryLink.name, () => {
+	it("links only when the group, rep, and attempt paths and digests agree", async () => {
+		const {
+			root,
+			runsDirectory,
+			paths,
+			repPaths,
+			groupText,
+			repText,
+			attemptText,
+			recorded,
+			request,
+		} = await recordSessionAttempt();
 
 		expect(await comparisonAttemptHistoryLink(request)).toEqual({
 			status: "available",
@@ -214,5 +253,21 @@ describe(comparisonAttemptHistoryLink.name, () => {
 		await Bun.write(repPaths.recordFile, repText);
 		await Bun.write(repPaths.attemptFile, `${attemptText}\n`);
 		expect(await comparisonAttemptHistoryLink(request)).toEqual(stale);
+	});
+
+	it("links an attempt numbered within its arm, after an earlier group's attempts", async () => {
+		const { request } = await recordSessionAttempt();
+
+		const link = await comparisonAttemptHistoryLink({
+			...request,
+			rep: { ...request.rep, ordinal: 3 },
+		});
+
+		expect(link).toEqual({
+			status: "available",
+			repId: "group-a-rep-1",
+			ordinal: 3,
+			href: "/groups/group-a/reps/group-a-rep-1/attempt",
+		});
 	});
 });

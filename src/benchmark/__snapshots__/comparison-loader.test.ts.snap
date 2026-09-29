@@ -2,7 +2,7 @@
 
 exports[`loadComparisonEvidence serializes a completed comparison fixture byte for byte 1`] = `
 "{
-  "schemaVersion": 5,
+  "schemaVersion": 6,
   "judgeAgreement": {
     "skippedCalibrations": 0,
     "baselines": []
@@ -22,10 +22,12 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
         "baseline": {
           "role": "baseline",
           "source": {
-            "group": {
-              "path": "groups/case-1-baseline/group.json",
-              "sha256": "7783234a73b4906201b9cba99cc91d4e5c0f8da71b60ec8a642b667bd3d659d5"
-            },
+            "groups": [
+              {
+                "path": "groups/case-1-baseline/group.json",
+                "sha256": "7783234a73b4906201b9cba99cc91d4e5c0f8da71b60ec8a642b667bd3d659d5"
+              }
+            ],
             "reps": [
               {
                 "path": "groups/case-1-baseline/reps/case-1-baseline-rep-1/rep.json",
@@ -64,7 +66,8 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                 "words": {
                   "state": "available",
                   "words": 7
-                }
+                },
+                "group": 0
               },
               {
                 "path": "groups/case-1-baseline/reps/case-1-baseline-rep-2/rep.json",
@@ -103,7 +106,8 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                 "words": {
                   "state": "available",
                   "words": 8
-                }
+                },
+                "group": 0
               }
             ]
           },
@@ -339,10 +343,12 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
         "candidate": {
           "role": "candidate",
           "source": {
-            "group": {
-              "path": "groups/case-1-candidate/group.json",
-              "sha256": "3ed99caa21d8371e58a2a66053aff342f92428d6d44113332167774e7c22f321"
-            },
+            "groups": [
+              {
+                "path": "groups/case-1-candidate/group.json",
+                "sha256": "3ed99caa21d8371e58a2a66053aff342f92428d6d44113332167774e7c22f321"
+              }
+            ],
             "reps": [
               {
                 "path": "groups/case-1-candidate/reps/case-1-candidate-rep-1/rep.json",
@@ -381,7 +387,8 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                 "words": {
                   "state": "available",
                   "words": 3
-                }
+                },
+                "group": 0
               },
               {
                 "path": "groups/case-1-candidate/reps/case-1-candidate-rep-2/rep.json",
@@ -420,7 +427,8 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                 "words": {
                   "state": "available",
                   "words": 4
-                }
+                },
+                "group": 0
               }
             ]
           },
@@ -656,10 +664,12 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
         "control": {
           "role": "control",
           "source": {
-            "group": {
-              "path": "groups/case-1-control/group.json",
-              "sha256": "f6ee2ebc7f83f41b7a763aac8609b73ec3e2a58919d48aa9aaefac4693a5bd0b"
-            },
+            "groups": [
+              {
+                "path": "groups/case-1-control/group.json",
+                "sha256": "f6ee2ebc7f83f41b7a763aac8609b73ec3e2a58919d48aa9aaefac4693a5bd0b"
+              }
+            ],
             "reps": [
               {
                 "path": "groups/case-1-control/reps/case-1-control-rep-1/rep.json",
@@ -698,7 +708,8 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                 "words": {
                   "state": "available",
                   "words": 4
-                }
+                },
+                "group": 0
               },
               {
                 "path": "groups/case-1-control/reps/case-1-control-rep-2/rep.json",
@@ -737,7 +748,8 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                 "words": {
                   "state": "available",
                   "words": 5
-                }
+                },
+                "group": 0
               }
             ]
           },
@@ -978,10 +990,12 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
         "baseline": {
           "role": "baseline",
           "source": {
-            "group": {
-              "path": "groups/case-2-baseline/group.json",
-              "sha256": "a9d662500d0ed7cb27011d00a761cf425d06049c8985775598a04e766338bb48"
-            },
+            "groups": [
+              {
+                "path": "groups/case-2-baseline/group.json",
+                "sha256": "a9d662500d0ed7cb27011d00a761cf425d06049c8985775598a04e766338bb48"
+              }
+            ],
             "reps": [
               {
                 "path": "groups/case-2-baseline/reps/case-2-baseline-rep-1/rep.json",
@@ -1020,7 +1034,8 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                 "words": {
                   "state": "available",
                   "words": 7
-                }
+                },
+                "group": 0
               },
               {
                 "path": "groups/case-2-baseline/reps/case-2-baseline-rep-2/rep.json",
@@ -1059,7 +1074,8 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                 "words": {
                   "state": "available",
                   "words": 8
-                }
+                },
+                "group": 0
               }
             ]
           },
@@ -1295,10 +1311,12 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
         "candidate": {
           "role": "candidate",
           "source": {
-            "group": {
-              "path": "groups/case-2-candidate/group.json",
-              "sha256": "50fe92f825684a842236b1b410bfa61666ce82d387b48dd5c0c7c5ebab311d42"
-            },
+            "groups": [
+              {
+                "path": "groups/case-2-candidate/group.json",
+                "sha256": "50fe92f825684a842236b1b410bfa61666ce82d387b48dd5c0c7c5ebab311d42"
+              }
+            ],
             "reps": [
               {
                 "path": "groups/case-2-candidate/reps/case-2-candidate-rep-1/rep.json",
@@ -1337,7 +1355,8 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                 "words": {
                   "state": "available",
                   "words": 3
-                }
+                },
+                "group": 0
               },
               {
                 "path": "groups/case-2-candidate/reps/case-2-candidate-rep-2/rep.json",
@@ -1376,7 +1395,8 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                 "words": {
                   "state": "available",
                   "words": 4
-                }
+                },
+                "group": 0
               }
             ]
           },
@@ -1612,10 +1632,12 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
         "control": {
           "role": "control",
           "source": {
-            "group": {
-              "path": "groups/case-2-control/group.json",
-              "sha256": "73a5b1180345ac134623c02daa03204c615d8a29d22ee99db93475a661d5daca"
-            },
+            "groups": [
+              {
+                "path": "groups/case-2-control/group.json",
+                "sha256": "73a5b1180345ac134623c02daa03204c615d8a29d22ee99db93475a661d5daca"
+              }
+            ],
             "reps": [
               {
                 "path": "groups/case-2-control/reps/case-2-control-rep-1/rep.json",
@@ -1654,7 +1676,8 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                 "words": {
                   "state": "available",
                   "words": 4
-                }
+                },
+                "group": 0
               },
               {
                 "path": "groups/case-2-control/reps/case-2-control-rep-2/rep.json",
@@ -1693,7 +1716,8 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                 "words": {
                   "state": "available",
                   "words": 5
-                }
+                },
+                "group": 0
               }
             ]
           },

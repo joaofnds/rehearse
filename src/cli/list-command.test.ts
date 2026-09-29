@@ -10,8 +10,10 @@ import type {
 import { parseComparisonReport } from "#benchmark/comparison-record";
 import {
 	armResourcesWithoutElapsed,
+	singleGroupSource,
 	contrastResourcesWithoutElapsed,
 } from "#benchmark/comparison-test-fixtures";
+import type { SingleGroupSource } from "#benchmark/comparison-test-fixtures";
 import {
 	benchmarkRunPaths,
 	comparisonReportPaths,
@@ -46,11 +48,13 @@ type VersionThreeReport = Extract<
 	LegacyComparisonReport,
 	{ readonly schemaVersion: 3 }
 >;
+type CurrentArm =
+	MultiCaseComparisonReport["cases"][number]["arms"]["baseline"];
 type LegacySessionArm = VersionThreeReport["cases"][number]["arms"]["baseline"];
 
 function parseLegacyCandidate(text: string): LegacyComparisonReport {
 	const parsed = parseComparisonReport(text);
-	if (parsed.schemaVersion === 5) {
+	if (parsed.schemaVersion === 6) {
 		throw new Error("expected a legacy comparison report");
 	}
 
@@ -64,8 +68,8 @@ function withoutOutcomeArm(
 		...arm,
 		resources: armResourcesWithoutElapsed(arm.resources),
 		source: {
-			...arm.source,
-			reps: arm.source.reps.map((rep) => {
+			group: singleGroupSource(arm.source).group,
+			reps: singleGroupSource(arm.source).reps.map((rep) => {
 				const { outcomes: _outcomes, ...legacyRep } = rep;
 
 				return legacyRep;
@@ -89,7 +93,7 @@ function withoutOutcomes(
 
 function legacyComparisonReport(
 	report: MultiCaseComparisonReport,
-	version: 1 | 2 | 3 | 4,
+	version: 1 | 2 | 3 | 4 | 5,
 ): LegacyComparisonReport {
 	const cases = withoutOutcomes(report);
 	const contrastWithoutElapsed = (
@@ -109,6 +113,27 @@ function legacyComparisonReport(
 			report.contrasts.baselineMinusControl,
 		),
 	};
+	const singleGroupArm = (
+		arm: CurrentArm,
+	): Omit<CurrentArm, "source"> & {
+		readonly source: SingleGroupSource<CurrentArm["source"]["reps"][number]>;
+	} => ({ ...arm, source: singleGroupSource(arm.source) });
+	if (version === 5) {
+		return parseLegacyCandidate(
+			JSON.stringify({
+				...report,
+				schemaVersion: 5,
+				cases: report.cases.map(({ caseId, arms }) => ({
+					caseId,
+					arms: {
+						baseline: singleGroupArm(arms.baseline),
+						candidate: singleGroupArm(arms.candidate),
+						control: singleGroupArm(arms.control),
+					},
+				})),
+			}),
+		);
+	}
 	if (version === 4) {
 		return parseLegacyCandidate(
 			JSON.stringify({
@@ -118,15 +143,15 @@ function legacyComparisonReport(
 					caseId,
 					arms: {
 						baseline: {
-							...arms.baseline,
+							...singleGroupArm(arms.baseline),
 							resources: armResourcesWithoutElapsed(arms.baseline.resources),
 						},
 						candidate: {
-							...arms.candidate,
+							...singleGroupArm(arms.candidate),
 							resources: armResourcesWithoutElapsed(arms.candidate.resources),
 						},
 						control: {
-							...arms.control,
+							...singleGroupArm(arms.control),
 							resources: armResourcesWithoutElapsed(arms.control.resources),
 						},
 					},
@@ -489,7 +514,7 @@ describe(runList.name, () => {
 		]);
 	});
 
-	it.each([1, 2, 3, 4] as const)(
+	it.each([1, 2, 3, 4, 5] as const)(
 		"lists and shows a version-%i comparison without changing its bytes",
 		async (version) => {
 			const fixture = await writtenFixture();
@@ -500,9 +525,9 @@ describe(runList.name, () => {
 			const current = parseComparisonReport(
 				await Bun.file(paths.reportFile).text(),
 			);
-			if (current.schemaVersion !== 5 || "samplingUnit" in current) {
+			if (current.schemaVersion !== 6 || "samplingUnit" in current) {
 				throw new Error(
-					"expected the fixture to write a multi-case version-5 report",
+					"expected the fixture to write a multi-case version-6 report",
 				);
 			}
 			const text = `${JSON.stringify(

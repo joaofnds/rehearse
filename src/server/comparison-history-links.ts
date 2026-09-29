@@ -114,7 +114,7 @@ export async function comparisonAttemptHistoryLink(
 		const owned = group.repRecords.some(
 			(reference) =>
 				reference.repId === request.rep.repId &&
-				reference.ordinal === request.rep.ordinal &&
+				reference.ordinal === rep.ordinal &&
 				reference.path === relative(dirname(groupSource.path), repSource.path),
 		);
 		if (
@@ -125,7 +125,6 @@ export async function comparisonAttemptHistoryLink(
 			attempt.caseId !== request.caseId ||
 			rep.groupId !== group.groupId ||
 			rep.repId !== request.rep.repId ||
-			rep.ordinal !== request.rep.ordinal ||
 			!owned ||
 			!(await sameRealPath(groupSource.path, expected.groupFile)) ||
 			!(await sameRealPath(repSource.path, expectedRep.recordFile)) ||
@@ -156,6 +155,26 @@ export async function comparisonAttemptHistoryLink(
 	}
 }
 
+type SessionReportSource = Extract<
+	ComparisonReport | LegacyComparisonReport,
+	{ readonly mode: "session" }
+>["cases"][number]["arms"][ComparisonArm]["source"];
+
+/** Each attempt beside the group it was recorded in. */
+function groupedReps(
+	source: SessionReportSource,
+): readonly Omit<ComparisonAttemptLinkRequest, "runsDirectory" | "caseId">[] {
+	if ("group" in source) {
+		return source.reps.map((rep) => ({ group: source.group, rep }));
+	}
+
+	return source.groups.flatMap((group, index) =>
+		source.reps
+			.filter((rep) => rep.group === index)
+			.map((rep) => ({ group, rep })),
+	);
+}
+
 export async function comparisonAttemptHistoryLinks(
 	report: ComparisonReport | LegacyComparisonReport,
 	runsDirectory: string,
@@ -172,11 +191,11 @@ export async function comparisonAttemptHistoryLinks(
 			arm: ComparisonArm,
 		): Promise<readonly ComparisonAttemptHistoryLink[]> =>
 			Promise.all(
-				benchmarkCase.arms[arm].source.reps.map((rep) =>
+				groupedReps(benchmarkCase.arms[arm].source).map(({ group, rep }) =>
 					comparisonAttemptHistoryLink({
 						runsDirectory,
 						caseId: benchmarkCase.caseId,
-						group: benchmarkCase.arms[arm].source.group,
+						group,
 						rep,
 					}),
 				),

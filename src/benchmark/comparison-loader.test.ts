@@ -22,7 +22,7 @@ import {
 	ComparisonEvidenceFixture,
 	digest,
 } from "./comparison-evidence-test-support";
-import { parseComparisonReport } from "./comparison-record";
+import { COMPARISON_ARMS, parseComparisonReport } from "./comparison-record";
 import { runCommand } from "./command";
 import { CONTROL_DIR, recordsDirectory } from "./config";
 import { loadComparisonEvidence } from "./comparison-loader";
@@ -96,6 +96,63 @@ describe(loadComparisonEvidence.name, () => {
 		]);
 	});
 
+	it("reads together the reps of every group an arm names, in the order named", async () => {
+		for (const caseId of fixture.caseIds) {
+			for (const role of COMPARISON_ARMS) {
+				await fixture.addGroup(caseId, role);
+			}
+		}
+
+		const evidence = await loadComparisonEvidence(fixture.manifestFile);
+		const candidate = evidence.cases.at(0)?.arms.candidate;
+
+		expect(evidence.contract.reps).toBe(4);
+		expect(candidate?.groups.map(({ path }) => path)).toEqual([
+			"groups/case-1-candidate/group.json",
+			"groups/case-1-candidate-more/group.json",
+		]);
+		expect(candidate?.reps.map(({ path }) => path)).toEqual([
+			"groups/case-1-candidate/reps/case-1-candidate-rep-1/rep.json",
+			"groups/case-1-candidate/reps/case-1-candidate-rep-2/rep.json",
+			"groups/case-1-candidate-more/reps/case-1-candidate-more-rep-1/rep.json",
+			"groups/case-1-candidate-more/reps/case-1-candidate-more-rep-2/rep.json",
+		]);
+	});
+
+	it("reports an arm of two groups as one arm, each attempt numbered within it and naming its group", async () => {
+		for (const caseId of fixture.caseIds) {
+			for (const role of COMPARISON_ARMS) {
+				await fixture.addGroup(caseId, role);
+			}
+		}
+		const runsDirectory = join(temporaryDirectory, "grouped-output");
+		await mkdir(runsDirectory);
+
+		const reportFile = await writeComparisonReport({
+			manifestPath: fixture.manifestFile,
+			runsDirectory,
+		});
+
+		const report = parseComparisonReport(await Bun.file(reportFile).text());
+		if (report.schemaVersion !== 6) {
+			throw new Error("Expected a version-6 report");
+		}
+		const source = report.cases[0]?.arms.candidate.source;
+		expect(report.reps).toBe(4);
+		expect(source?.groups.map(({ path }) => path)).toEqual([
+			"groups/case-1-candidate/group.json",
+			"groups/case-1-candidate-more/group.json",
+		]);
+		expect(
+			source?.reps.map(({ repId, ordinal, group }) => [repId, ordinal, group]),
+		).toEqual([
+			["case-1-candidate-rep-1", 1, 0],
+			["case-1-candidate-rep-2", 2, 0],
+			["case-1-candidate-more-rep-1", 3, 1],
+			["case-1-candidate-more-rep-2", 4, 1],
+		]);
+	});
+
 	it("hashes each judged stage's scorecard as rep evidence", async () => {
 		const evidence = await loadComparisonEvidence(fixture.manifestFile);
 		const [scorecard] = evidence.cases.at(0)?.arms.baseline.reps.at(0)
@@ -162,6 +219,55 @@ describe(loadComparisonEvidence.name, () => {
 		expect(loadComparisonEvidence(fixture.manifestFile)).rejects.toThrow(
 			"case case-1 arm control field repRecords[1].stages[0].evidence.recordFile: invalid stage scorecard for build",
 		);
+	});
+
+	describe("when an arm names a group run on other inputs than its first", () => {
+		it("refuses a group graded by another judge model", async () => {
+			const groupId = await fixture.addGroup("case-1", "candidate");
+			await fixture.changeGroup(groupId, (group) => ({
+				...group,
+				inputs: { ...group.inputs, judgeModel: "haiku" },
+			}));
+
+			expect(loadComparisonEvidence(fixture.manifestFile)).rejects.toThrow(
+				"case case-1 arm candidate group groups/case-1-candidate-more/group.json field inputs.judgeModel differs from group groups/case-1-candidate/group.json",
+			);
+		});
+
+		it("refuses a group that ran another corpus", async () => {
+			const groupId = await fixture.addGroup("case-1", "candidate");
+			const corpus = "inputs/corpus/build/SKILL.md";
+			await Bun.write(
+				join(dirname(fixture.groupFileOf(groupId)), corpus),
+				"edited corpus\n",
+			);
+			await fixture.changeGroup(groupId, (group) => ({
+				...group,
+				inputs: {
+					...group.inputs,
+					files: group.inputs.files.map((file) =>
+						file.path === corpus
+							? { ...file, sha256: digest("edited corpus\n") }
+							: file,
+					),
+				},
+			}));
+
+			expect(loadComparisonEvidence(fixture.manifestFile)).rejects.toThrow(
+				"case case-1 arm candidate group groups/case-1-candidate-more/group.json field inputs.files.corpus differs from group groups/case-1-candidate/group.json",
+			);
+		});
+
+		it("refuses a group named twice, whose reps would count twice", async () => {
+			await fixture.nameGroups("case-1", "candidate", [
+				"case-1-candidate",
+				"case-1-candidate",
+			]);
+
+			expect(loadComparisonEvidence(fixture.manifestFile)).rejects.toThrow(
+				"case case-1 arm candidate group groups/case-1-candidate/group.json is named twice",
+			);
+		});
 	});
 
 	it("names a missing source group before report creation", async () => {
@@ -576,7 +682,7 @@ describe(loadComparisonEvidence.name, () => {
 		});
 		const report = z
 			.object({
-				schemaVersion: z.literal(5),
+				schemaVersion: z.literal(6),
 				judgeAgreement: z.object({
 					baselines: z.array(
 						z.object({

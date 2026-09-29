@@ -44,15 +44,26 @@ export interface DigestedComparisonRep {
 	readonly scorecards?: readonly DigestedRecord<StageGradingRecord>[];
 }
 
+/** Each confirmation group an arm names, in the order the manifest names them. */
+export type LoadedComparisonArmGroups = readonly [
+	LoadedComparisonArmEvidence,
+	...LoadedComparisonArmEvidence[],
+];
+
 export interface LoadedComparisonCaseEvidence {
 	readonly caseId: string;
-	readonly arms: Readonly<Record<ComparisonArm, LoadedComparisonArmEvidence>>;
+	readonly arms: Readonly<Record<ComparisonArm, LoadedComparisonArmGroups>>;
 }
 
 export interface ComparisonArmEvidence {
 	readonly role: ComparisonArm;
 	readonly declaredCaseId: string | undefined;
+	/** The arm's first group, which every other group of the arm matched. */
 	readonly group: DigestedRecord<Immutable<ParsedConfirmationGroupRecord>>;
+	readonly groups: readonly DigestedRecord<
+		Immutable<ParsedConfirmationGroupRecord>
+	>[];
+	/** Every group's reps, the groups in the order the manifest names them. */
 	readonly reps: readonly DigestedComparisonRep[];
 	readonly executedCorpus: readonly FrozenFile[];
 	readonly controlledFiles: readonly FrozenFile[];

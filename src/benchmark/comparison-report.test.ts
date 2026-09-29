@@ -5,8 +5,10 @@ import {
 	serializeComparisonReport,
 } from "./comparison-record";
 import type { ComparisonReport } from "./comparison-record";
+import type { SingleGroupSource } from "./comparison-test-fixtures";
 import {
 	armResourcesWithoutElapsed,
+	singleGroupSource,
 	comparisonEvidenceFixture,
 	comparisonReps,
 	contrastResourcesWithoutElapsed,
@@ -213,7 +215,7 @@ describe(buildComparisonReport.name, () => {
 		});
 		const [benchmarkCase] = report.cases;
 
-		expect(report.schemaVersion).toBe(5);
+		expect(report.schemaVersion).toBe(6);
 		expect(benchmarkCase?.arms.baseline.quality[0]?.gradeDistribution).toEqual(
 			Object.fromEntries([
 				["A", 2],
@@ -350,20 +352,23 @@ describe(buildComparisonReport.name, () => {
 		expect(serializeComparisonReport(report)).toBe(
 			`${JSON.stringify(report, null, 2)}\n`,
 		);
-		expect(report.schemaVersion).toBe(5);
+		expect(report.schemaVersion).toBe(6);
 		expect(report.judgeAgreement).toEqual(judgeAgreement);
 		expect(report.manifest).toEqual({ sha256: "8".repeat(64) });
 		expect(report.mode).toBe("pipeline");
 		expect(report.declaredStages).toEqual(["discuss", "build"]);
 		expect(report.reps).toBe(4);
 		expect(candidate?.role).toBe("candidate");
-		expect(candidate?.source.group).toEqual({
-			path: "groups/case-1-candidate/group.json",
-			sha256: "6".repeat(64),
-		});
+		expect(candidate?.source.groups).toEqual([
+			{
+				path: "groups/case-1-candidate/group.json",
+				sha256: "6".repeat(64),
+			},
+		]);
 		expect(candidate?.source.reps.at(0)).toEqual({
 			repId: "case-1-candidate-rep-1",
 			ordinal: 1,
+			group: 0,
 			path: "groups/case-1-candidate/reps/case-1-candidate-rep-1/rep.json",
 			sha256: "7".repeat(64),
 			outcomes: [
@@ -563,31 +568,29 @@ describe(buildComparisonReport.name, () => {
 		if (current.mode !== "pipeline") {
 			throw new Error("expected a stage or pipeline comparison report");
 		}
-		const withoutOutcomes = (
-			rep: (typeof current.cases)[number]["arms"]["baseline"]["source"]["reps"][number],
-		): Omit<typeof rep, "outcomes"> => {
-			const { outcomes: _outcomes, ...legacyRep } = rep;
-
-			return legacyRep;
-		};
 		const withoutArmElapsed = (
 			arm: (typeof current.cases)[number]["arms"]["baseline"],
 		): Omit<typeof arm, "resources" | "source"> & {
 			readonly resources: ReturnType<typeof armResourcesWithoutElapsed>;
-			readonly source: Omit<typeof arm.source, "reps"> & {
+			readonly source: {
+				readonly group: SingleGroupSource<unknown>["group"];
 				readonly reps: readonly Omit<
 					(typeof arm.source.reps)[number],
-					"outcomes"
+					"outcomes" | "group"
 				>[];
 			};
-		} => ({
-			...arm,
-			resources: armResourcesWithoutElapsed(arm.resources),
-			source: {
-				...arm.source,
-				reps: arm.source.reps.map(withoutOutcomes),
-			},
-		});
+		} => {
+			const source = singleGroupSource(arm.source);
+
+			return {
+				...arm,
+				resources: armResourcesWithoutElapsed(arm.resources),
+				source: {
+					group: source.group,
+					reps: source.reps.map(({ outcomes: _outcomes, ...rep }) => rep),
+				},
+			};
+		};
 		const withoutContrastElapsed = (
 			contrast: (typeof current.contrasts)[keyof typeof current.contrasts],
 		): Omit<typeof contrast, "resources"> & {

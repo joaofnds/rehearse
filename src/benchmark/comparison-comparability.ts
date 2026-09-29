@@ -9,6 +9,7 @@ import type {
 	ComparisonContract,
 	FrozenFile,
 	LoadedComparisonArmEvidence,
+	LoadedComparisonArmGroups,
 	LoadedComparisonCaseEvidence,
 } from "./comparison-evidence";
 import { ComparisonEvidenceError } from "./comparison-evidence";
@@ -102,6 +103,7 @@ function projectArm(
 		role: arm.role,
 		declaredCaseId: arm.declaredCaseId,
 		group: arm.group,
+		groups: [arm.group],
 		reps: arm.reps,
 		executedCorpus,
 		controlledFiles,
@@ -297,7 +299,7 @@ function contractDifference(
 	if (!sameValue(reference.declaredStages, other.declaredStages)) {
 		return "declaredStages";
 	}
-	if (reference.reps !== other.reps) {
+	if (armReps(comparison.referenceArm) !== armReps(comparison.arm)) {
 		return "reps";
 	}
 
@@ -340,13 +342,20 @@ function assertExpectedRepCount(
 	caseId: string,
 	arm: Immutable<ComparisonArmEvidence>,
 ): void {
-	const actual = arm.group.record.repRecords.length;
-	const expected = arm.group.record.reps;
-	if (actual !== expected) {
-		throw new ComparisonEvidenceError(
-			`case ${caseId} arm ${arm.role} field repRecords has ${actual} reps; expected ${expected}`,
-		);
+	for (const { record } of arm.groups) {
+		const actual = record.repRecords.length;
+		const expected = record.reps;
+		if (actual !== expected) {
+			throw new ComparisonEvidenceError(
+				`case ${caseId} arm ${arm.role} field repRecords has ${actual} reps; expected ${expected}`,
+			);
+		}
 	}
+}
+
+/** The attempts an arm's groups set out to record, together. */
+function armReps(arm: Immutable<ComparisonArmEvidence>): number {
+	return arm.groups.reduce((total, { record }) => total + record.reps, 0);
 }
 
 function assertArmCorpusSnapshot(
@@ -417,7 +426,7 @@ export function assertComparableComparison(
 	return {
 		mode: referenceArm.group.record.mode,
 		declaredStages: referenceArm.group.record.declaredStages,
-		reps: referenceArm.group.record.reps,
+		reps: armReps(referenceArm),
 	};
 }
 
@@ -426,15 +435,89 @@ export interface ComparableComparison {
 	readonly contract: ComparisonContract;
 }
 
+function groupDifference(
+	caseId: string,
+	reference: Immutable<ComparisonArmEvidence>,
+	other: Immutable<ComparisonArmEvidence>,
+): string | undefined {
+	if (reference.group.record.mode !== other.group.record.mode) {
+		return "mode";
+	}
+	if (
+		!sameValue(
+			reference.group.record.declaredStages,
+			other.group.record.declaredStages,
+		)
+	) {
+		return "declaredStages";
+	}
+	const controlled = controlledInputDifference({ caseId, reference, other });
+	if (controlled !== undefined) {
+		return controlled;
+	}
+	if (
+		!sameValue(
+			sortedFiles(reference.executedCorpus),
+			sortedFiles(other.executedCorpus),
+		)
+	) {
+		return "inputs.files.corpus";
+	}
+
+	return undefined;
+}
+
+/**
+ * Reads an arm's groups as one arm. Every group must have run the arm's
+ * variant on the first group's inputs and corpus, or its attempts would
+ * answer another question than the arm's.
+ */
+function mergeArm(
+	caseId: string,
+	groups: LoadedComparisonArmGroups,
+): ComparisonArmEvidence {
+	const [first, ...rest] = groups;
+	const reference = projectArm(caseId, first);
+	const others = rest.map((group) => projectArm(caseId, group));
+	const named = new Set([reference.group.record.groupId]);
+	for (const other of others) {
+		if (named.has(other.group.record.groupId)) {
+			throw new ComparisonEvidenceError(
+				`case ${caseId} arm ${other.role} group ${other.group.path} is named twice`,
+			);
+		}
+		named.add(other.group.record.groupId);
+		assertArmRanTheCase(caseId, other);
+		const field = groupDifference(caseId, reference, other);
+		if (field !== undefined) {
+			throw new ComparisonEvidenceError(
+				`case ${caseId} arm ${other.role} group ${other.group.path} field ${field} differs from group ${reference.group.path}`,
+			);
+		}
+	}
+	if (others.length === 0) {
+		return reference;
+	}
+
+	return {
+		...reference,
+		groups: [reference, ...others].map(({ group }) => group),
+		reps: [reference, ...others].flatMap(({ reps }) => reps),
+		sourcePaths: [reference, ...others].flatMap(
+			({ sourcePaths }) => sourcePaths,
+		),
+	};
+}
+
 export function buildComparableComparison(
-	loadedCases: readonly Immutable<LoadedComparisonCaseEvidence>[],
+	loadedCases: readonly LoadedComparisonCaseEvidence[],
 ): ComparableComparison {
 	const cases = loadedCases.map((benchmarkCase) => ({
 		caseId: benchmarkCase.caseId,
 		arms: {
-			baseline: projectArm(benchmarkCase.caseId, benchmarkCase.arms.baseline),
-			candidate: projectArm(benchmarkCase.caseId, benchmarkCase.arms.candidate),
-			control: projectArm(benchmarkCase.caseId, benchmarkCase.arms.control),
+			baseline: mergeArm(benchmarkCase.caseId, benchmarkCase.arms.baseline),
+			candidate: mergeArm(benchmarkCase.caseId, benchmarkCase.arms.candidate),
+			control: mergeArm(benchmarkCase.caseId, benchmarkCase.arms.control),
 		},
 	}));
 

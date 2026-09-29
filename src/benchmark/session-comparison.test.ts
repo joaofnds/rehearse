@@ -25,6 +25,7 @@ import type {
 import {
 	armResourcesWithoutElapsed,
 	contrastResourcesWithoutElapsed,
+	singleGroupSource,
 } from "./comparison-test-fixtures";
 import { writeComparisonReport } from "./comparison-command";
 import type { Immutable } from "./contracts";
@@ -337,10 +338,11 @@ async function expectedSessionSource(
 	caseId: string,
 	role: Role,
 ): Promise<{
-	group: { path: string; sha256: string };
+	groups: { path: string; sha256: string }[];
 	reps: {
 		repId: string;
 		ordinal: number;
+		group: number;
 		path: string;
 		sha256: string;
 		attempt: { path: string; sha256: string };
@@ -379,6 +381,7 @@ async function expectedSessionSource(
 			return {
 				repId,
 				ordinal,
+				group: 0,
 				path: relative(manifestDirectory, repPath),
 				sha256: digest(repText),
 				attempt: {
@@ -398,10 +401,12 @@ async function expectedSessionSource(
 	);
 
 	return {
-		group: {
-			path: relative(manifestDirectory, groupPath),
-			sha256: digest(groupText),
-		},
+		groups: [
+			{
+				path: relative(manifestDirectory, groupPath),
+				sha256: digest(groupText),
+			},
+		],
 		reps,
 	};
 }
@@ -531,7 +536,7 @@ type MultiCaseRepProvenance = Omit<
 	"checks" | "stateResults" | "words"
 >;
 interface ArmSourceProvenance {
-	readonly group: MultiCaseArmSource["group"];
+	readonly groups: MultiCaseArmSource["groups"];
 	readonly reps: readonly MultiCaseRepProvenance[];
 }
 
@@ -819,9 +824,9 @@ describe("session comparison", () => {
 		});
 		const report = parseComparisonReport(await Bun.file(reportFile).text());
 
-		expect(report.schemaVersion).toBe(5);
-		if (report.schemaVersion !== 5 || "samplingUnit" in report) {
-			throw new Error("expected a multi-case version-5 session report");
+		expect(report.schemaVersion).toBe(6);
+		if (report.schemaVersion !== 6 || "samplingUnit" in report) {
+			throw new Error("expected a multi-case version-6 session report");
 		}
 		expect(report.mode).toBe("session");
 		expect(report.declaredStages).toEqual(["checks"]);
@@ -1008,7 +1013,7 @@ describe("session comparison", () => {
 				stderr: () => undefined,
 			},
 		);
-		expect(parseComparisonReport(shownJson.join("")).schemaVersion).toBe(5);
+		expect(parseComparisonReport(shownJson.join("")).schemaVersion).toBe(6);
 		expect(() =>
 			parseComparisonReport(JSON.stringify({ ...report, mode: "pipeline" })),
 		).toThrow();
@@ -1063,8 +1068,8 @@ describe("session comparison", () => {
 		expect(report.cases).toHaveLength(1);
 		expect(report.mode).toBe("session");
 		expect(report.declaredStages).toEqual(["checks"]);
-		if (report.schemaVersion !== 5 || !("samplingUnit" in report)) {
-			throw new Error("expected a single-case version-5 session report");
+		if (report.schemaVersion !== 6 || !("samplingUnit" in report)) {
+			throw new Error("expected a single-case version-6 session report");
 		}
 		expect(report.samplingUnit).toBe("rep");
 
@@ -1167,8 +1172,8 @@ Sampling unit: rep. Arms are independent samples; this estimate covers case case
 			runsDirectory,
 		});
 		const report = parseComparisonReport(await Bun.file(reportFile).text());
-		if (report.schemaVersion !== 5 || !("samplingUnit" in report)) {
-			throw new Error("expected a single-case version-5 session report");
+		if (report.schemaVersion !== 6 || !("samplingUnit" in report)) {
+			throw new Error("expected a single-case version-6 session report");
 		}
 		const reps = report.cases[0]?.arms.baseline.source.reps ?? [];
 
@@ -1226,8 +1231,8 @@ Sampling unit: rep. Arms are independent samples; this estimate covers case case
 			runsDirectory,
 		});
 		const report = parseComparisonReport(await Bun.file(reportFile).text());
-		if (report.schemaVersion !== 5 || !("samplingUnit" in report)) {
-			throw new Error("expected a single-case version-5 session report");
+		if (report.schemaVersion !== 6 || !("samplingUnit" in report)) {
+			throw new Error("expected a single-case version-6 session report");
 		}
 		const reps = report.cases[0]?.arms.candidate.source.reps ?? [];
 
@@ -1274,8 +1279,8 @@ Sampling unit: rep. Arms are independent samples; this estimate covers case case
 				await writeComparisonReport({ manifestPath, runsDirectory }),
 			).text(),
 		);
-		if (report.schemaVersion !== 5 || report.mode !== "session") {
-			throw new Error("expected a version-5 session comparison report");
+		if (report.schemaVersion !== 6 || report.mode !== "session") {
+			throw new Error("expected a version-6 session comparison report");
 		}
 		const arms = report.cases[0]?.arms;
 
@@ -1313,8 +1318,8 @@ Sampling unit: rep. Arms are independent samples; this estimate covers case case
 				await writeComparisonReport({ manifestPath, runsDirectory }),
 			).text(),
 		);
-		if (report.schemaVersion !== 5 || report.mode !== "session") {
-			throw new Error("expected a version-5 session comparison report");
+		if (report.schemaVersion !== 6 || report.mode !== "session") {
+			throw new Error("expected a version-6 session comparison report");
 		}
 		const [benchmarkCase] = report.cases;
 		if (benchmarkCase === undefined) {
@@ -1386,8 +1391,8 @@ Sampling unit: rep. Arms are independent samples; this estimate covers case case
 					await writeComparisonReport({ manifestPath, runsDirectory }),
 				).text(),
 			);
-			if (report.schemaVersion !== 5 || report.mode !== "session") {
-				throw new Error("expected a version-5 session comparison report");
+			if (report.schemaVersion !== 6 || report.mode !== "session") {
+				throw new Error("expected a version-6 session comparison report");
 			}
 			const candidate = {
 				...report,
@@ -2094,8 +2099,8 @@ describe("a committed state-scored case compared across three arms", () => {
 			runsDirectory,
 		});
 		const report = parseComparisonReport(await Bun.file(reportFile).text());
-		if (report.schemaVersion !== 5 || !("samplingUnit" in report)) {
-			throw new Error("expected a single-case version-5 session report");
+		if (report.schemaVersion !== 6 || !("samplingUnit" in report)) {
+			throw new Error("expected a single-case version-6 session report");
 		}
 
 		/**
@@ -2161,7 +2166,7 @@ function asVersionThreeReport(
 	report: ComparisonReport | LegacyComparisonReport,
 ): ComparisonReport | LegacyComparisonReport {
 	if (
-		report.schemaVersion !== 5 ||
+		report.schemaVersion !== 6 ||
 		report.mode !== "session" ||
 		"samplingUnit" in report
 	) {
@@ -2181,8 +2186,8 @@ function asVersionThreeReport(
 							...arms[role],
 							resources: armResourcesWithoutElapsed(arms[role].resources),
 							source: {
-								...arms[role].source,
-								reps: arms[role].source.reps.map(
+								group: singleGroupSource(arms[role].source).group,
+								reps: singleGroupSource(arms[role].source).reps.map(
 									({
 										outcomes: _outcomes,
 										checks: _checks,
@@ -2274,7 +2279,10 @@ describe(comparisonAttemptHistoryLinks.name, () => {
 
 		const links = await comparisonAttemptHistoryLinks(report, runsDirectory);
 
-		expect(report.cases[0]?.arms.baseline.source.group.path).toStartWith(
+		if (report.schemaVersion !== 6) {
+			throw new Error("Expected a version-6 report");
+		}
+		expect(report.cases[0]?.arms.baseline.source.groups[0]?.path).toStartWith(
 			"../confirmations/",
 		);
 		expect(links).toEqual(everyRepAvailable(["case-one", "case-two"]));

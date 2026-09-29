@@ -10,7 +10,10 @@ import type { Immutable } from "./contracts";
 import type { ConfirmationGroupRecord } from "./confirmation-record";
 import { writeComparisonReport } from "./comparison-command";
 import { loadComparisonEvidence } from "./comparison-loader";
-import type { ComparisonArm, ComparisonManifest } from "./comparison-record";
+import type {
+	ComparisonArm,
+	ComparisonManifestText,
+} from "./comparison-record";
 import { executedCorpusFiles } from "./comparison-comparability";
 import { confirmationGroupRecordSchema } from "./confirmation-record";
 import {
@@ -165,7 +168,7 @@ export async function recordedArm(
 function singleCaseManifest(
 	caseId: string,
 	groupFiles: Readonly<Record<ComparisonArm, string>>,
-): ComparisonManifest {
+): ComparisonManifestText {
 	return { schemaVersion: 1, cases: [{ caseId, arms: groupFiles }] };
 }
 

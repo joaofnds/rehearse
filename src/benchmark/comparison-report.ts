@@ -150,10 +150,14 @@ interface BuildReportArmRequest {
 interface BuiltReportArm {
 	readonly role: ComparisonArm;
 	readonly source: {
-		readonly group: { readonly path: string; readonly sha256: string };
+		readonly groups: readonly {
+			readonly path: string;
+			readonly sha256: string;
+		}[];
 		readonly reps: readonly {
 			readonly repId: string;
 			readonly ordinal: number;
+			readonly group: number;
 			readonly path: string;
 			readonly sha256: string;
 			readonly outcomes: readonly ReliabilityOutcome[];
@@ -229,14 +233,16 @@ function repStateScore(
 function buildReportArm(
 	request: Immutable<BuildReportArmRequest>,
 ): BuiltReportArm {
-	const reps = request.evidence.reps.map((rep) => {
+	const groupIds = request.evidence.groups.map(({ record }) => record.groupId);
+	const reps = request.evidence.reps.map((rep, index) => {
 		const outcomes = buildReliabilityOutcomes(
 			request.contract.declaredStages,
 			comparisonReliabilityRep(request.contract, rep.record),
 		);
 		const source = {
 			repId: rep.record.repId,
-			ordinal: rep.record.ordinal,
+			ordinal: index + 1,
+			group: groupIds.indexOf(rep.record.groupId),
 			path: rep.path,
 			sha256: rep.sha256,
 			outcomes:
@@ -272,10 +278,10 @@ function buildReportArm(
 	return {
 		role: request.evidence.role,
 		source: {
-			group: {
-				path: request.evidence.group.path,
-				sha256: request.evidence.group.sha256,
-			},
+			groups: request.evidence.groups.map(({ path, sha256 }) => ({
+				path,
+				sha256,
+			})),
 			reps,
 		},
 		executedCorpus: request.evidence.executedCorpus.map(({ path, sha256 }) => ({
@@ -352,7 +358,7 @@ export function buildComparisonReport(
 		};
 	});
 	const common = {
-		schemaVersion: 5 as const,
+		schemaVersion: 6 as const,
 		judgeAgreement,
 		manifest: { sha256: evidence.manifest.sha256 },
 		mode: evidence.contract.mode,

@@ -28,6 +28,7 @@ import type {
 	DigestedRecord,
 	FrozenFile,
 	LoadedComparisonArmEvidence,
+	LoadedComparisonArmGroups,
 	LoadedComparisonCaseEvidence,
 	LoadedFrozenFile,
 } from "./comparison-evidence";
@@ -1156,32 +1157,45 @@ async function loadArm(
 	return { ...loaded, sessionCase: session.sessionCase };
 }
 
+async function loadArmGroups(
+	request: Readonly<Omit<LoadArmRequest, "groupReference">>,
+	groupReferences: ComparisonManifest["cases"][number]["arms"][ComparisonArm],
+): Promise<LoadedComparisonArmGroups> {
+	const [first, ...rest] = groupReferences;
+	if (first === undefined) {
+		throw evidenceError(
+			{ caseId: request.caseId, arm: request.role, field: "group.path" },
+			"the arm names no confirmation group",
+		);
+	}
+	const groups: [
+		LoadedComparisonArmEvidence,
+		...LoadedComparisonArmEvidence[],
+	] = [await loadArm({ ...request, groupReference: first })];
+	for (const groupReference of rest) {
+		groups.push(await loadArm({ ...request, groupReference }));
+	}
+
+	return groups;
+}
+
 async function loadCase(
 	manifestDirectory: string,
 	benchmarkCase: ComparisonManifest["cases"][number],
 ): Promise<LoadedComparisonCaseEvidence> {
-	const baseline = await loadArm({
-		manifestDirectory,
-		caseId: benchmarkCase.caseId,
-		role: "baseline",
-		groupReference: benchmarkCase.arms.baseline,
-	});
-	const candidate = await loadArm({
-		manifestDirectory,
-		caseId: benchmarkCase.caseId,
-		role: "candidate",
-		groupReference: benchmarkCase.arms.candidate,
-	});
-	const control = await loadArm({
-		manifestDirectory,
-		caseId: benchmarkCase.caseId,
-		role: "control",
-		groupReference: benchmarkCase.arms.control,
-	});
+	const armGroups = (role: ComparisonArm): Promise<LoadedComparisonArmGroups> =>
+		loadArmGroups(
+			{ manifestDirectory, caseId: benchmarkCase.caseId, role },
+			benchmarkCase.arms[role],
+		);
 
 	return {
 		caseId: benchmarkCase.caseId,
-		arms: { baseline, candidate, control },
+		arms: {
+			baseline: await armGroups("baseline"),
+			candidate: await armGroups("candidate"),
+			control: await armGroups("control"),
+		},
 	};
 }
 
@@ -1211,7 +1225,9 @@ export async function loadComparisonEvidence(
 		sourcePaths: [
 			source.canonicalPath,
 			...loadedCases.flatMap(({ arms }) =>
-				COMPARISON_ARMS.flatMap((role) => arms[role].sourcePaths),
+				COMPARISON_ARMS.flatMap((role) =>
+					arms[role].flatMap(({ sourcePaths }) => sourcePaths),
+				),
 			),
 		],
 	};

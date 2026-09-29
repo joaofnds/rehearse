@@ -40,13 +40,14 @@ function arm(
 	return {
 		role,
 		source: {
-			group: { path: "group.json", sha256: "0".repeat(64) },
+			groups: [{ path: "group.json", sha256: "0".repeat(64) }],
 			reps: [
 				{
 					path: "rep.json",
 					sha256: "0".repeat(64),
 					repId: "rep-1",
 					ordinal: 1,
+					group: 0,
 					outcomes: [
 						{
 							name: "final",

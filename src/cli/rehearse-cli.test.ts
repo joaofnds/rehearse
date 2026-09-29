@@ -166,13 +166,15 @@ async function writeOversizedManifest(
 		const manifest = parseComparisonManifest(
 			await Bun.file(fixture.manifestFile).text(),
 		);
+		const rooted = (groups: readonly string[]): readonly string[] =>
+			groups.map((group) => join(root, group));
 		for (const benchmarkCase of manifest.cases) {
 			cases.push({
 				caseId: benchmarkCase.caseId,
 				arms: {
-					baseline: join(root, benchmarkCase.arms.baseline),
-					candidate: join(root, benchmarkCase.arms.candidate),
-					control: join(root, benchmarkCase.arms.control),
+					baseline: rooted(benchmarkCase.arms.baseline),
+					candidate: rooted(benchmarkCase.arms.candidate),
+					control: rooted(benchmarkCase.arms.control),
 				},
 			});
 		}

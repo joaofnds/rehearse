@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { mkdir } from "node:fs/promises";
 import { dirname, join, relative } from "node:path";
+import { z } from "zod";
 import type {
 	ConfirmationGroupRecord,
 	ConfirmationRepRecord,
@@ -11,6 +12,7 @@ import {
 	parseConfirmationRepRecord,
 } from "./confirmation-record";
 import type { ComparisonArm } from "./comparison-record";
+import type { Immutable } from "./contracts";
 import type { StageLetterGrade } from "./config";
 import type { StageGradingRecord } from "./comparison-stage-grading";
 
@@ -45,10 +47,81 @@ export class ComparisonEvidenceFixture {
 	}
 
 	public repFile(caseId: string, role: ComparisonArm, ordinal: number): string {
+		return this.repFileOf(`${caseId}-${role}`, ordinal);
+	}
+
+	/**
+	 * Records a second confirmation group of the arm's variant, run on the same
+	 * frozen inputs, and names both groups for the arm in the manifest.
+	 */
+	public async addGroup(caseId: string, role: ComparisonArm): Promise<string> {
+		const groupId = `${caseId}-${role}-more`;
+		await this.writeGroup(caseId, role, groupId);
+		await this.nameGroups(caseId, role, [`${caseId}-${role}`, groupId]);
+
+		return groupId;
+	}
+
+	/** Names the arm's groups in the manifest, in the order given. */
+	public async nameGroups(
+		caseId: string,
+		role: ComparisonArm,
+		groupIds: readonly string[],
+	): Promise<void> {
+		const manifest = z
+			.object({
+				cases: z.array(
+					z.object({
+						caseId: z.string(),
+						arms: z.record(z.string(), z.unknown()),
+					}),
+				),
+			})
+			.loose()
+			.parse(JSON.parse(await Bun.file(this.manifestFile).text()));
+		const cases = manifest.cases.map((benchmarkCase) =>
+			benchmarkCase.caseId === caseId
+				? {
+						...benchmarkCase,
+						arms: {
+							...benchmarkCase.arms,
+							[role]: groupIds.map((groupId) =>
+								relative(dirname(this.manifestFile), this.groupFileOf(groupId)),
+							),
+						},
+					}
+				: benchmarkCase,
+		);
+		await Bun.write(
+			this.manifestFile,
+			`${JSON.stringify({ ...manifest, cases }, null, 2)}\n`,
+		);
+	}
+
+	public async changeGroup(
+		groupId: string,
+		change: (
+			group: Immutable<ConfirmationGroupRecord>,
+		) => Immutable<ConfirmationGroupRecord>,
+	): Promise<void> {
+		const groupFile = this.groupFileOf(groupId);
+		const group = confirmationGroupRecordSchema.parse(
+			JSON.parse(await Bun.file(groupFile).text()),
+		);
+		await Bun.write(groupFile, `${JSON.stringify(change(group), null, 2)}\n`);
+	}
+
+	public groupFileOf(groupId: string): string {
+		return join(this.root, "groups", groupId, "group.json");
+	}
+
+	private repFileOf(groupId: string, ordinal: number): string {
 		return join(
-			this.groupDirectory(caseId, role),
+			this.root,
+			"groups",
+			groupId,
 			"reps",
-			`${caseId}-${role}-rep-${ordinal}`,
+			`${groupId}-rep-${ordinal}`,
 			"rep.json",
 		);
 	}
@@ -445,8 +518,9 @@ export class ComparisonEvidenceFixture {
 	private async writeFrozenInputs(
 		caseId: string,
 		role: ComparisonArm,
+		groupId: string,
 	): Promise<ConfirmationGroupRecord["inputs"]["files"]> {
-		const directory = this.groupDirectory(caseId, role);
+		const directory = join(this.root, "groups", groupId);
 		const files = [
 			{
 				kind: "checkpoint" as const,
@@ -534,10 +608,9 @@ export class ComparisonEvidenceFixture {
 
 	private static repRecord(
 		caseId: string,
-		role: ComparisonArm,
+		groupId: string,
 		ordinal: number,
 	): ConfirmationRepRecord {
-		const groupId = `${caseId}-${role}`;
 		const repId = `${groupId}-rep-${ordinal}`;
 		const resultEvidence = {
 			resultSha: "e".repeat(40),
@@ -589,22 +662,20 @@ export class ComparisonEvidenceFixture {
 	private async writeGroup(
 		caseId: string,
 		role: ComparisonArm,
+		groupId = `${caseId}-${role}`,
 	): Promise<string> {
-		const groupId = `${caseId}-${role}`;
-		const groupDirectory = this.groupDirectory(caseId, role);
+		const groupDirectory = join(this.root, "groups", groupId);
 		const repRecords = [];
 		for (const ordinal of [1, 2]) {
-			const recordFile = this.repFile(caseId, role, ordinal);
+			const recordFile = this.repFileOf(groupId, ordinal);
 			await mkdir(dirname(recordFile), { recursive: true });
 			await Bun.write(
 				recordFile,
-				`${JSON.stringify(ComparisonEvidenceFixture.repRecord(caseId, role, ordinal), null, 2)}\n`,
+				`${JSON.stringify(ComparisonEvidenceFixture.repRecord(caseId, groupId, ordinal), null, 2)}\n`,
 			);
-			await this.writeScorecard(
-				caseId,
-				role,
-				ordinal,
-				ComparisonEvidenceFixture.scorecard(role, ordinal),
+			await Bun.write(
+				join(dirname(recordFile), "stages", "build.json"),
+				`${JSON.stringify(ComparisonEvidenceFixture.scorecard(role, ordinal), null, 2)}\n`,
 			);
 			repRecords.push({
 				repId: `${groupId}-rep-${ordinal}`,
@@ -622,7 +693,7 @@ export class ComparisonEvidenceFixture {
 			declaredStages: ["build"],
 			inputs: {
 				lineage: ComparisonEvidenceFixture.lineage(caseId),
-				files: await this.writeFrozenInputs(caseId, role),
+				files: await this.writeFrozenInputs(caseId, role, groupId),
 				model: "sonnet",
 				judgeModel: "opus",
 				sessionBudgetUsd: 5,
@@ -638,7 +709,7 @@ export class ComparisonEvidenceFixture {
 			reportFile: "report.json",
 			makespanMs: 200,
 		});
-		const groupFile = this.groupFile(caseId, role);
+		const groupFile = this.groupFileOf(groupId);
 		await Bun.write(groupFile, `${JSON.stringify(group, null, 2)}\n`);
 
 		return relative(dirname(this.manifestFile), groupFile);

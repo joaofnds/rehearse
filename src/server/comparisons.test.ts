@@ -19,6 +19,7 @@ import type {
 } from "#benchmark/comparison-record";
 import {
 	armResourcesWithoutElapsed,
+	singleGroupSource,
 	contrastResourcesWithoutElapsed,
 } from "#benchmark/comparison-test-fixtures";
 import { comparisonReportPaths } from "#benchmark/run-layout";
@@ -124,7 +125,7 @@ async function rewriteFixtureAsSession(
 		fixture.comparisonDigest,
 	);
 	const pipeline = parseComparisonReport(await Bun.file(reportFile).text());
-	if (pipeline.schemaVersion !== 5 || pipeline.mode !== "pipeline") {
+	if (pipeline.schemaVersion !== 6 || pipeline.mode !== "pipeline") {
 		throw new Error("expected the fixture to write a current pipeline report");
 	}
 
@@ -143,17 +144,16 @@ async function rewriteFixtureAsSession(
 						...arms[role],
 						resources: armResourcesWithoutElapsed(arms[role].resources),
 						source: {
-							...arms[role].source,
-							reps: arms[role].source.reps.map((rep) => {
+							group: singleGroupSource(arms[role].source).group,
+							reps: singleGroupSource(arms[role].source).reps.map((rep) => {
 								const { outcomes: _outcomes, ...legacyRep } = rep;
 
-								return {
-									...legacyRep,
+								return Object.assign(legacyRep, {
 									attempt: {
 										path: `attempts/${rep.repId}.json`,
 										sha256: "a".repeat(64),
 									},
-								};
+								});
 							}),
 						},
 						executedCorpus:
@@ -194,7 +194,7 @@ async function rewriteFixtureAsLegacyPipeline(
 		fixture.comparisonDigest,
 	);
 	const current = parseComparisonReport(await Bun.file(reportFile).text());
-	if (current.schemaVersion !== 5 || current.mode !== "pipeline") {
+	if (current.schemaVersion !== 6 || current.mode !== "pipeline") {
 		throw new Error("expected the fixture to write a current pipeline report");
 	}
 	const cases = current.cases.map(({ caseId, arms }) => ({
@@ -206,8 +206,8 @@ async function rewriteFixtureAsLegacyPipeline(
 					...arms[role],
 					resources: armResourcesWithoutElapsed(arms[role].resources),
 					source: {
-						...arms[role].source,
-						reps: arms[role].source.reps.map((rep) => {
+						group: singleGroupSource(arms[role].source).group,
+						reps: singleGroupSource(arms[role].source).reps.map((rep) => {
 							const { outcomes: _outcomes, ...legacyRep } = rep;
 
 							return legacyRep;
@@ -535,8 +535,8 @@ describe("GET /api/comparisons/:digest", () => {
 		const body = await comparisonResponseFrom(response);
 
 		expect(response.status).toBe(200);
-		if (body.report.schemaVersion !== 5) {
-			throw new Error("expected the public API to serve a version-5 report");
+		if (body.report.schemaVersion !== 6) {
+			throw new Error("expected the public API to serve a version-6 report");
 		}
 		expect(body.report.cases.map(({ caseId }) => caseId)).toEqual([
 			"case-1",

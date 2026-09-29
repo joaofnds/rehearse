@@ -2,9 +2,9 @@ import { describe, expect, it } from "bun:test";
 import { parseComparisonManifest } from "./comparison-record";
 
 interface ManifestFixtureArmPaths {
-	readonly baseline: string;
-	readonly candidate: string;
-	readonly control?: string | undefined;
+	readonly baseline: string | readonly string[];
+	readonly candidate: string | readonly string[];
+	readonly control?: string | readonly string[] | undefined;
 }
 
 interface ManifestFixtureCase {
@@ -43,7 +43,7 @@ function manifest(cases?: readonly ManifestFixtureCase[]): ManifestFixture {
 }
 
 describe(parseComparisonManifest.name, () => {
-	it("accepts two cases with exactly the three comparison arms", () => {
+	it("accepts two cases with exactly the three comparison arms, each read as a list of groups", () => {
 		const parsed = parseComparisonManifest(JSON.stringify(manifest()));
 
 		expect(parsed).toEqual({
@@ -52,21 +52,41 @@ describe(parseComparisonManifest.name, () => {
 				{
 					caseId: "case-1",
 					arms: {
-						baseline: "groups/case-1-baseline/group.json",
-						candidate: "groups/case-1-candidate/group.json",
-						control: "groups/case-1-control/group.json",
+						baseline: ["groups/case-1-baseline/group.json"],
+						candidate: ["groups/case-1-candidate/group.json"],
+						control: ["groups/case-1-control/group.json"],
 					},
 				},
 				{
 					caseId: "case-2",
 					arms: {
-						baseline: "groups/case-2-baseline/group.json",
-						candidate: "groups/case-2-candidate/group.json",
-						control: "groups/case-2-control/group.json",
+						baseline: ["groups/case-2-baseline/group.json"],
+						candidate: ["groups/case-2-candidate/group.json"],
+						control: ["groups/case-2-control/group.json"],
 					},
 				},
 			],
 		});
+	});
+
+	it("accepts an arm naming several groups, in the order named", () => {
+		const value = manifest([
+			comparisonCase("case-1", {
+				baseline: [
+					"groups/case-1-baseline/group.json",
+					"groups/case-1-baseline-more/group.json",
+				],
+				candidate: "groups/case-1-candidate/group.json",
+				control: "groups/case-1-control/group.json",
+			}),
+		]);
+
+		const parsed = parseComparisonManifest(JSON.stringify(value));
+
+		expect(parsed.cases[0]?.arms.baseline).toEqual([
+			"groups/case-1-baseline/group.json",
+			"groups/case-1-baseline-more/group.json",
+		]);
 	});
 
 	it("names a missing control arm at the manifest boundary", () => {
