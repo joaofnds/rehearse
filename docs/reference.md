@@ -1609,7 +1609,7 @@ replay meets the spend ceiling, model probe and cost approval of any replay,
 the model probe the command refuses a stage rubric that changed since arm A was
 recorded, since the baseline would be graded on a rubric arm A was not. A replay
 that would resolve a knob, such as a Judge effort, to a value arm A did not
-record is refused before its first rep. The command then writes the manifest to
+record is refused before the model probe too. The command then writes the manifest to
 `comparison-manifests/<control-group-id>.json`, writes `baseline.json` in the
 report's directory, then the report as `compare` does, and prints the report's
 path. `baseline.json` records how the baseline arm was made: `kind` `derived` or

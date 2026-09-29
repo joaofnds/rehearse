@@ -217,11 +217,11 @@ describe(replayBaselineGroup.name, () => {
 		expect(probed).toBe(false);
 	});
 
-	it("refuses before running a rep when the environment would set an effort arm A ran without", async () => {
+	it("refuses before probing the model when the environment would set an effort arm A ran without", async () => {
 		manifests.push(await writeReplayableRunManifest(RUN));
 		Bun.env["BENCHMARK_EFFORT"] = "low";
 		const { output } = recordOutput();
-		let executed = false;
+		let probed = false;
 
 		const failure = await failureOf(
 			replayBaselineGroup(
@@ -230,12 +230,12 @@ describe(replayBaselineGroup.name, () => {
 					output,
 					resolveRunDirectory: () => Promise.resolve(`/runs/${RUN}`),
 					requireSpendCeiling: () => Promise.resolve(100),
-					probeModel: () => Promise.resolve(),
-					execute: () => {
-						executed = true;
+					probeModel: () => {
+						probed = true;
 
-						return Promise.reject(new Error("replay must not run"));
+						return Promise.resolve();
 					},
+					execute: () => Promise.reject(new Error("replay must not run")),
 				},
 			)({
 				run: RUN,
@@ -255,7 +255,7 @@ describe(replayBaselineGroup.name, () => {
 		expect(failure.message).toBe(
 			"the baseline replay would run effort low where arm A recorded none, so its group could not be compared",
 		);
-		expect(executed).toBe(false);
+		expect(probed).toBe(false);
 	});
 });
 

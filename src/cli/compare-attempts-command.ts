@@ -12,7 +12,7 @@ import { loadStageRubric } from "#benchmark/stage-grading";
 import { UsageError } from "#cli/commands";
 import { writeRecord } from "#cli/output";
 import type { ReplayCommandDependencies } from "#cli/replay-command";
-import { runReplayCommand } from "#cli/replay-command";
+import { replayConfig, runReplayCommand } from "#cli/replay-command";
 
 export interface BaselineReplayRequest {
 	readonly approval: ApprovalMethod;
@@ -77,7 +77,7 @@ const CONTROLLED_KNOBS = [
  * Replay fills a knob its flags leave out from the environment, and a Judge
  * effort from the worker's, so a baseline replay can resolve to inputs arm A
  * never ran. Its group would then be refused by the comparison only after it
- * was paid for, so the difference is refused before replay runs a rep.
+ * was paid for, so the difference is refused before replay probes the model.
  */
 function assertRunsArmAInputs(
 	baseline: Readonly<BaselineGroupRequest>,
@@ -132,10 +132,18 @@ export function replayBaselineGroup(
 	return async (baseline) => {
 		await dependencies.resolveRunDirectory(baseline.run);
 		await assertGradesOnArmARubric(baseline);
+		const args = baselineReplayArguments(baseline, request.approval);
+		assertRunsArmAInputs(
+			baseline,
+			await replayConfig(
+				args,
+				benchmarkRunPaths(recordsDirectory(), baseline.run).manifestFile,
+			),
+		);
 		let groupRecordFile: string | undefined;
 		await runReplayCommand(
 			{
-				args: baselineReplayArguments(baseline, request.approval),
+				args,
 				json: false,
 				stdinIsTerminal: request.stdinIsTerminal,
 			},
@@ -146,7 +154,6 @@ export function replayBaselineGroup(
 					stderr: dependencies.output.stderr,
 				},
 				execute: async (...execution) => {
-					assertRunsArmAInputs(baseline, execution[0]);
 					const outcome = await dependencies.execute(...execution);
 					if (outcome.kind === "confirmation") {
 						({ groupRecordFile } = outcome.evidence);

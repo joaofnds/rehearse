@@ -122,10 +122,7 @@ export async function runReplayCommand(
 
 	await dependencies.resolveRunDirectory(runName);
 	const paths = benchmarkRunPaths(recordsDirectory(), runName);
-	const declared = await declaredSessionKnobs(paths.manifestFile);
-	const config = asUsageError(() =>
-		parseReplayArgs(request.args, Bun.env, declared),
-	);
+	const config = await replayConfig(request.args, paths.manifestFile);
 
 	requireSpendAuthorization(request.args, Bun.env, request.stdinIsTerminal);
 
@@ -152,6 +149,19 @@ export async function runReplayCommand(
  * since the run, leaves replay to the flags and environment alone rather
  * than refusing a replay those still cover.
  */
+/**
+ * The knobs a replay with these arguments runs, filled from the environment
+ * and the run's manifest where the arguments leave them out.
+ */
+export async function replayConfig(
+	args: readonly string[],
+	manifestFile: string,
+): Promise<ReplayCliConfig> {
+	const declared = await declaredSessionKnobs(manifestFile);
+
+	return asUsageError(() => parseReplayArgs(args, Bun.env, declared));
+}
+
 async function declaredSessionKnobs(manifestFile: string): Promise<{
 	readonly model?: string | undefined;
 	readonly sessionBudgetUsd?: number | undefined;
