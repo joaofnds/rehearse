@@ -1098,6 +1098,19 @@ describe("What moved", () => {
 				},
 			});
 		});
+
+		it("gives the reply-length change from arm A to arm B with its reading", async () => {
+			const { summary } = await oneCheckpointComparison();
+
+			expect(summary["build-checkpoint"]?.["replyLength"]).toEqual({
+				interval: {
+					minuend: { low: 3, high: 4 },
+					subtrahend: { low: 7, high: 8 },
+				},
+				change: "-53%",
+				verdict: { kind: "insideRerunNoise" },
+			});
+		});
 	});
 
 	it("lists each arm's recorded attempts side by side by ordinal, claiming no pairing between arms", async () => {

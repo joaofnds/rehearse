@@ -12,6 +12,8 @@ import type {
 	QualityScale,
 	QualityVerdict,
 } from "./comparison-quality-reading";
+import type { MeterReading, WhatMovedRow } from "./comparison-what-moved";
+import { meterReading } from "./comparison-what-moved";
 import { NO_GRADED_REP_REASON } from "./confirmation-group-summary";
 import type { Reading } from "./run-record";
 
@@ -38,6 +40,8 @@ export interface CaseSummary {
 	readonly contrasts: Readonly<
 		Record<string, Readonly<Record<string, MeasureContrast>>>
 	>;
+	/** Arm B's reply length against arm A's. */
+	readonly replyLength: MeterReading;
 }
 
 /** Each attempt's standing on the measure, higher for a better attempt. */
@@ -108,23 +112,38 @@ function measureContrast(
 	};
 }
 
+function armBReplyLength(rows: readonly WhatMovedRow[]): MeterReading {
+	for (const row of rows) {
+		if (row.kind === "meter" && row.name === "replyLength") {
+			return meterReading(row.arms.candidate, row.arms.baseline, {
+				minuend: "candidate",
+				subtrahend: "baseline",
+			});
+		}
+	}
+	throw new Error("What moved holds no reply length row");
+}
+
 /**
  * How arm B compares with arm A and each with the baseline arm, per overall
  * measure: the reading's verdict beside how the attempts compare.
  */
 export function caseSummary(
 	benchmarkCase: ReportCase,
-	qualityReadings: Readonly<
-		Record<string, Readonly<Record<string, QualityReading>>>
-	>,
+	readings: {
+		readonly quality: Readonly<
+			Record<string, Readonly<Record<string, QualityReading>>>
+		>;
+		readonly whatMoved: readonly WhatMovedRow[];
+	},
 	scaleFor: (measure: string) => QualityScale,
 ): CaseSummary {
 	return {
 		contrasts: Object.fromEntries(
-			Object.entries(qualityReadings).map(([pair, readings]) => [
+			Object.entries(readings.quality).map(([pair, byMeasure]) => [
 				pair,
 				Object.fromEntries(
-					Object.entries(readings).map(([name, reading]) => [
+					Object.entries(byMeasure).map(([name, reading]) => [
 						name,
 						measureContrast(
 							benchmarkCase,
@@ -136,5 +155,6 @@ export function caseSummary(
 				),
 			]),
 		),
+		replyLength: armBReplyLength(readings.whatMoved),
 	};
 }

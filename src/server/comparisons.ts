@@ -140,15 +140,16 @@ export function comparisonReport(
 		const caseFigures = figuresByArm(report, benchmarkCase);
 		figures[benchmarkCase.caseId] = caseFigures;
 		attempts[benchmarkCase.caseId] = comparisonAttempts(benchmarkCase);
-		rows[benchmarkCase.caseId] = whatMoved(
+		const caseRows = whatMoved(
 			benchmarkCase,
 			caseFigures,
 			qualityByPair,
 			measures,
 		);
+		rows[benchmarkCase.caseId] = caseRows;
 		summary[benchmarkCase.caseId] = caseSummary(
 			benchmarkCase,
-			qualityByPair,
+			{ quality: qualityByPair, whatMoved: caseRows },
 			(measure) => scaleFor(report, measure),
 		);
 	}
