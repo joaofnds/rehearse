@@ -486,7 +486,7 @@ function LaunchForm({
 	const caseId =
 		pickedCase ?? cases.data?.cases.find((listed) => listed.model !== null)?.id;
 	const request = launchRequest(target, caseId, attempts);
-	const runs = target.kind === "comparison" ? target.reps : attempts;
+	const startedAttempts = target.kind === "comparison" ? target.reps : attempts;
 	const ceilingUsd = settings.data?.spendCeilingUsd ?? undefined;
 	const startable =
 		ceilingUsd !== undefined &&
@@ -576,7 +576,7 @@ function LaunchForm({
 			<footer className="flex flex-wrap items-center gap-2.5 border-t border-strong px-4 py-3">
 				{ceilingUsd === undefined ? null : (
 					<span className="text-xs text-dim">
-						{ceilingReading(ceilingUsd, runs)}
+						{ceilingReading(ceilingUsd, startedAttempts)}
 					</span>
 				)}
 				<span className="ml-auto flex gap-2">
@@ -591,7 +591,7 @@ function LaunchForm({
 							}
 						}}
 					>
-						{`Start · ${attemptsLabel(runs)}`}
+						{`Start · ${attemptsLabel(startedAttempts)}`}
 					</Button>
 				</span>
 			</footer>
