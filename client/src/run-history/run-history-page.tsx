@@ -526,16 +526,31 @@ function launchAttemptsLine(attempts: number): string {
 	return attempts === 1 ? "one run" : `group · ${String(attempts)} attempts`;
 }
 
+function launchTarget(launch: LaunchRow): string {
+	const checkpoint = `${launch.stage ?? ""} · ${launch.run ?? ""}`;
+	switch (launch.target) {
+		case "case": {
+			return launch.caseId ?? "";
+		}
+		case "replay": {
+			return `replay ${checkpoint}`;
+		}
+		case "comparison": {
+			return `compare attempts at ${checkpoint}`;
+		}
+		default: {
+			return launch.target satisfies never;
+		}
+	}
+}
+
 /**
  * A launch the browser started, listed until its first record replaces it,
  * or for good once the operator stopped one that leaves no record. It has no
  * record, so it has no id, grade or corpus judgment to show.
  */
 function launchCells(launch: LaunchRow): readonly React.JSX.Element[] {
-	const target =
-		launch.target === "case"
-			? (launch.caseId ?? "")
-			: `replay ${launch.stage ?? ""} · ${launch.run ?? ""}`;
+	const target = launchTarget(launch);
 
 	return [
 		<span key="run" className="font-mono text-sm">

@@ -1747,6 +1747,35 @@ describe(runHistoryReport.name, () => {
 			});
 		});
 
+		it("lists a comparison launch under the checkpoint its arms replayed", async () => {
+			const fixture = await writtenFixture();
+			await writeLaunchRecord(fixture.runsDirectory, {
+				id: LAUNCH_ID,
+				kind: "comparison",
+				armA: "build-checkpoint-baseline",
+				armB: "build-checkpoint-candidate",
+				run: fixture.replayableRun,
+				stage: "build",
+				attempts: 2,
+				pid: LIVE_PID,
+				launchedAt: "2026-09-29T10:00:00.000Z",
+			});
+
+			const { launches } = await runHistoryReport(
+				fixture.runsDirectory,
+				directorySource(await corpusDirectory("build skill\n")),
+				launchLiveness(undefined),
+			);
+
+			expect(launches[0]).toMatchObject({
+				target: "comparison",
+				caseId: undefined,
+				run: fixture.replayableRun,
+				stage: "build",
+				attempts: 2,
+			});
+		});
+
 		it("drops the launch once its process has exited", async () => {
 			const fixture = await writtenFixture();
 			await launched(fixture, 999_999);
