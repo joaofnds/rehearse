@@ -72,6 +72,8 @@ import { runBenchmark } from "#benchmark/run";
 import { createSpendCeiling } from "#benchmark/spend-ceiling";
 import { runStageJudge } from "#benchmark/stage-grading";
 import { processSignalStop, stopOnSignal } from "#benchmark/stop-on-signal";
+import { operatorStopRecord } from "#benchmark/operator-stop";
+import { confirmationGroupPaths } from "#benchmark/run-layout";
 import type { LoadedStageSettings } from "#benchmark/stage-settings";
 import {
 	addWorktree,
@@ -492,7 +494,10 @@ export interface SessionRunExecutionDependencies extends SessionExecutionBoundar
 	readonly executeAttempt?: SessionConfirmationDependencies["executeAttempt"];
 	readonly resolveCorpus?: SessionConfirmationDependencies["resolveCorpus"];
 	readonly runsDirectory?: string;
-	readonly stopOnSignal?: (cleanUp: () => Promise<void>) => () => void;
+	readonly stopOnSignal?: (
+		cleanUp: () => Promise<void>,
+		recordStop: (signal: NodeJS.Signals) => Promise<void>,
+	) => () => void;
 }
 
 export async function executeSessionRun(
@@ -513,12 +518,28 @@ export async function executeSessionRun(
 	const executeAttempt =
 		dependencies.executeAttempt ?? runPreparedSessionAttempt;
 	const questioner = terminalQuestioner();
-	// A session attempt keeps no worktree, so the stop only kills its commands.
+	const groupId = randomUUID();
+	// A session attempt keeps no worktree, so the stop only kills its commands,
+	// and only a group has a directory to record the stop in.
 	const release = (
 		dependencies.stopOnSignal ??
-		((cleanUp) =>
-			stopOnSignal(processSignalStop(diagnosticWriter(output)), cleanUp))
-	)(() => Promise.resolve());
+		((cleanUp, recordStop) =>
+			stopOnSignal(
+				processSignalStop(diagnosticWriter(output)),
+				cleanUp,
+				recordStop,
+			))
+	)(
+		() => Promise.resolve(),
+		async (signal) => {
+			if (config.confirmation !== undefined) {
+				await Bun.write(
+					confirmationGroupPaths(runsDirectory, groupId).operatorStopFile,
+					operatorStopRecord(signal),
+				);
+			}
+		},
+	);
 
 	return runRequestedExecution<RunOutcome>({
 		confirmation: config.confirmation,
@@ -560,7 +581,7 @@ export async function executeSessionRun(
 
 			const request: SessionConfirmationRequest = {
 				runsDirectory,
-				groupId: randomUUID(),
+				groupId,
 				reps: config.confirmation.reps,
 				projectedCost: {
 					...projectedCost,

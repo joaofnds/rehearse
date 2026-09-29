@@ -8,6 +8,9 @@ import type { BenchmarkConfig } from "#benchmark/config";
 import { parseArgs } from "#benchmark/config";
 import type { PipelineDefinition } from "#benchmark/pipeline";
 import { parseConfirmationGroupRecord } from "#benchmark/confirmation-record";
+import { GroupStoppedError } from "#benchmark/confirmation-evidence";
+import { operatorStopped } from "#benchmark/operator-stop";
+import { confirmationGroupPaths } from "#benchmark/run-layout";
 import { TestResources } from "#benchmark/test-support";
 import { RefusedPreconditionError } from "#cli/interactive-stdin";
 import { failureOf, recordOutput } from "#cli/cli-test-support";
@@ -958,6 +961,84 @@ describe("runRunCommand for a session case", () => {
 		);
 
 		expect(events).toEqual(["stop held", "attempt", "stop released"]);
+	});
+
+	it("records a stopped confirmation group's operator stop and writes no group record", async () => {
+		const { output } = recordOutput();
+		const runsDirectory = await testResources.createControlDirectory();
+		const stops: (() => Promise<void>)[] = [];
+
+		const failure = await failureOf(
+			runRunCommand(
+				{
+					args: [
+						"--case",
+						"smoke",
+						...sessionArgs,
+						"--confirm",
+						"--reps",
+						"2",
+						"--yes",
+					],
+					json: false,
+					stdinIsTerminal: false,
+				},
+				{
+					output,
+					requireCase: loadsSmoke(),
+					assertPreflight: passingPreflight,
+					requireSpendCeiling: storedCeiling,
+					probeModel: () =>
+						Promise.resolve({
+							status: "COMPLETE" as const,
+							call: { metrics: sessionMetrics },
+						}),
+					execute: () => Promise.reject(new Error("no pipeline here")),
+					executeSession: (config, commandOutput, loaded, boundary) =>
+						executeSessionRun(config, commandOutput, loaded, {
+							...boundary,
+							runsDirectory,
+							stopOnSignal: (cleanUp, recordStop) => {
+								stops.push(async () => {
+									await recordStop("SIGTERM");
+									await cleanUp();
+								});
+
+								return () => undefined;
+							},
+							executeAttempt: async (plan) => {
+								await stops[0]?.();
+								const transcriptFile = join(
+									plan.recordDirectory,
+									"transcript.jsonl",
+								);
+								await Bun.write(transcriptFile, "transcript\n");
+
+								return {
+									attemptDirectory: join(plan.recordDirectory, "execution"),
+									reply: "OK",
+									transcriptFile,
+									metrics: sessionMetrics,
+									outcome: "SUCCESSFUL",
+									checks: [
+										{ kind: "word-band", status: "PASS", detail: "1 word" },
+									],
+									contextManifest: undefined,
+									transcriptDiagnostics: unavailableTranscriptDiagnostics,
+								};
+							},
+						}),
+				},
+			),
+		);
+
+		expect(failure).toBeInstanceOf(GroupStoppedError);
+		const [groupId = "missing"] = await readdir(
+			join(runsDirectory, "confirmations"),
+		);
+		const paths = confirmationGroupPaths(runsDirectory, groupId);
+		expect(await operatorStopped(paths)).toBe(true);
+		expect(await Bun.file(paths.groupFile).exists()).toBe(false);
 	});
 
 	it("refuses an unsupported resumed confirmation before its model probe and reps", async () => {
