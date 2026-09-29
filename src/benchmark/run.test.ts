@@ -60,6 +60,7 @@ import {
 	judgeRun,
 	runFinalJudge,
 	runGradedStages,
+	RunPausedError,
 } from "./run";
 import {
 	commitAll,
@@ -830,6 +831,43 @@ describe(runGradedStages.name, () => {
 		expect(outcome.checkpoints[0]?.transcript).toEqual({
 			sessionId: "session",
 			status: "UNAVAILABLE",
+		});
+	});
+
+	describe("when a pause is requested during a stage", () => {
+		it("ends after that stage's checkpoint and starts no further stage", async () => {
+			const { dependencies, executed } = fakeStageDependencies();
+			const context = await stageContext();
+
+			const failure = await failureOf(
+				runGradedStages(dependencies, {
+					...context,
+					pauseRequested: () => Promise.resolve(true),
+				}),
+			);
+
+			expect(failure).toBeInstanceOf(RunPausedError);
+			expect(failure).toMatchObject({ stage: "shape" });
+			expect(executed).toEqual(["shape"]);
+			expect(
+				await Bun.file(
+					join(context.checkpointDirectory("shape"), "checkpoint.json"),
+				).exists(),
+			).toBe(true);
+		});
+
+		it("finishes the run when the request arrives during the last stage", async () => {
+			const { dependencies, executed } = fakeStageDependencies();
+			const context = await stageContext();
+			const pauseAfter = new Set(["build"]);
+
+			await runGradedStages(dependencies, {
+				...context,
+				pauseRequested: () =>
+					Promise.resolve(executed.some((stage) => pauseAfter.has(stage))),
+			});
+
+			expect(executed).toEqual(["shape", "build"]);
 		});
 	});
 

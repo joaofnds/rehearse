@@ -4,6 +4,8 @@ import { join } from "node:path";
 
 const CHECKPOINTS_SUFFIX = ".checkpoints";
 const MANIFEST_FILE = "manifest.json";
+const PAUSE_REQUEST_FILE = "pause-request.json";
+const PAUSED_FILE = "paused.json";
 const CHECKPOINT_FILE = "checkpoint.json";
 const ATTEMPT_FILE = "attempt.json";
 const SESSIONS_DIRECTORY = "sessions";
@@ -18,6 +20,8 @@ export interface BenchmarkRunPaths {
 	readonly reviewFile: string;
 	readonly checkpointsDirectory: string;
 	readonly manifestFile: string;
+	readonly pauseRequestFile: string;
+	readonly pausedFile: string;
 	readonly replaysDirectory: string;
 	readonly stageFile: (stage: string) => string;
 	readonly checkpointDirectory: (stage: string) => string;
@@ -119,6 +123,8 @@ export function benchmarkRunPaths(
 		reviewFile: join(runsDirectory, `${name}.review.json`),
 		checkpointsDirectory,
 		manifestFile: join(checkpointsDirectory, MANIFEST_FILE),
+		pauseRequestFile: join(checkpointsDirectory, PAUSE_REQUEST_FILE),
+		pausedFile: join(checkpointsDirectory, PAUSED_FILE),
 		replaysDirectory,
 		stageFile: (stage) => join(runsDirectory, `${name}.${stage}.json`),
 		checkpointDirectory: (stage) => join(checkpointsDirectory, stage),

@@ -88,6 +88,7 @@ import { corpusSourceDirectories, recordStageReads } from "./stage-reads";
 import type { RunEventRecorder } from "./run-events";
 import { openRunEventStore, runEventRecorderFor } from "./run-events";
 import type { BenchmarkRunPaths } from "./run-layout";
+import { pauseRequested, recordPaused } from "./run-pause";
 import {
 	benchmarkRunPaths,
 	runEventsDatabaseFile,
@@ -561,6 +562,26 @@ export interface StageContext {
 	) => Promise<JudgeAgreementReport>;
 	readonly runEvents?: RunEventRecorder | undefined;
 	readonly elapsedMs?: (() => number) | undefined;
+	/**
+	 * Whether the operator asked the run to pause after the stage now running.
+	 * Asked once a stage's checkpoint is written and another stage remains.
+	 */
+	readonly pauseRequested?: (() => Promise<boolean>) | undefined;
+}
+
+/**
+ * A run the operator paused: its last stage finished, was judged and wrote
+ * its checkpoint, and no further stage starts. It is an ending of its own,
+ * neither a failure nor a stop below the minimum grade.
+ */
+export class RunPausedError extends Error {
+	public readonly stage: string;
+
+	public constructor(stage: string) {
+		super(`Run paused after the ${stage} stage, as the operator asked.`);
+		this.name = "RunPausedError";
+		this.stage = stage;
+	}
 }
 
 export interface StageOutcome {
@@ -1010,6 +1031,10 @@ export async function runGradedStages(
 		);
 		checkpoints.push(checkpoint);
 		upstream = checkpoint.lineage;
+		const remaining = context.pipeline.stages.at(-1) !== definition;
+		if (remaining && (await context.pauseRequested?.()) === true) {
+			throw new RunPausedError(stage);
+		}
 	}
 
 	return { workflow, stageScorecards, checkpoints, buildEvidence };
@@ -1258,6 +1283,7 @@ export async function runBenchmark(
 					stopAtCeiling: abort.stopAtCeiling,
 					runEvents,
 					elapsedMs,
+					pauseRequested: () => pauseRequested(runFiles),
 					calibrateStageFailure: async (scorecards) => {
 						if (!config.pause) {
 							return undefined;
@@ -1396,6 +1422,10 @@ export async function runBenchmark(
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
 		console.error(message);
+		if (error instanceof RunPausedError) {
+			await recordPaused(runFiles, error.stage, new Date().toISOString());
+			throw error;
+		}
 		await abort.markAborted(message);
 		if (pausesOnFailure(config.pause, stageFailureCalibrated)) {
 			await pauseForFailureInspection(rl, source.root, console.error);
