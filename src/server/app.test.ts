@@ -172,16 +172,17 @@ describe(createAppServer.name, () => {
 			"sec-fetch-site": "same-origin",
 		};
 
-		it("passes a same-origin JSON request on to the routes", async () => {
+		it("judges a browser that sends no Sec-Fetch-Site on the rest alone", async () => {
 			const { app } = await appServer();
+			const { "sec-fetch-site": _fetchSite, ...withoutFetchSite } = sameOrigin;
 
 			const response = await app.request("/api/no-such-route", {
 				method: "POST",
-				headers: sameOrigin,
+				headers: withoutFetchSite,
 				body: "{}",
 			});
 
-			expect(response.status).not.toBe(403);
+			expect(response.status).toBe(404);
 		});
 
 		it("answers a write to a route that does not exist 404, not with the client page", async () => {
@@ -204,6 +205,7 @@ describe(createAppServer.name, () => {
 			],
 			["no Origin", { ...LOOPBACK, "content-type": "application/json" }],
 			["a cross-site fetch", { ...sameOrigin, "sec-fetch-site": "cross-site" }],
+			["a same-site fetch", { ...sameOrigin, "sec-fetch-site": "same-site" }],
 			["a form body", { ...sameOrigin, "content-type": "text/plain" }],
 			[
 				"a urlencoded body",
@@ -223,6 +225,7 @@ describe(createAppServer.name, () => {
 
 			expect(response.status).toBe(403);
 		});
+
 		describe("to launch a run", () => {
 			const launch = JSON.stringify({
 				kind: "case",

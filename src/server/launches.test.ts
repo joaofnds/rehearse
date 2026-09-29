@@ -221,6 +221,33 @@ describe(createLaunchApp.name, () => {
 			]);
 		});
 
+		it.each([3, 6, 12])(
+			"asks for a replay group of %d already approved",
+			async (attempts) => {
+				const { launcher, post, runsDirectory } = await harness();
+				const run = await recordedRun(runsDirectory);
+
+				await post({ kind: "replay", run, stage: "build", attempts });
+
+				expect(launcher.launches.map(({ argv }) => argv)).toEqual([
+					[
+						"replay",
+						"--run",
+						run,
+						"--stage",
+						"build",
+						"--model",
+						"sonnet",
+						"--confirm",
+						"--reps",
+						String(attempts),
+						"--yes",
+						"--approved-in-browser",
+					],
+				]);
+			},
+		);
+
 		it("records the run and stage the launch replays", async () => {
 			const { post, runsDirectory } = await harness();
 			const run = await recordedRun(runsDirectory);
@@ -241,6 +268,7 @@ describe(createLaunchApp.name, () => {
 			});
 		});
 	});
+
 	describe("when the launch cannot be started as asked", () => {
 		async function recordedRun(
 			runsDirectory: string,
