@@ -794,6 +794,36 @@ describe(createLaunchApp.name, () => {
 			});
 		});
 
+		describe("when the settings file cannot be read", () => {
+			it.each([
+				["PUT", "/api/settings/spend-ceiling", { usd: 2 }],
+				["PUT", "/api/settings/corpus", { directory: "<corpus>" }],
+				["DELETE", "/api/settings/corpus", {}],
+				["POST", "/api/settings/corpus/rehash", {}],
+			] as const)(
+				"answers %s %s with a conflict and leaves the file",
+				async (method, path, body) => {
+					const { send, runsDirectory } = await harness("missing");
+					const settingsFile = join(runsDirectory, "settings.json");
+					await Bun.write(settingsFile, "not json");
+
+					const corpus = await corpusDirectory();
+
+					const response = await send(
+						method,
+						path,
+						"directory" in body ? { directory: corpus } : body,
+					);
+
+					expect(response.status).toBe(409);
+					expect(refusalSchema.parse(await response.json()).error).toContain(
+						SET_SPEND_CEILING_COMMAND,
+					);
+					expect(await Bun.file(settingsFile).text()).toBe("not json");
+				},
+			);
+		});
+
 		describe("when the written value is refused", () => {
 			it.each([0, -1, "5"])("refuses %p as a ceiling", async (usd) => {
 				const { send, get } = await harness();
