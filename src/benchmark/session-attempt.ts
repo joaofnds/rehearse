@@ -13,11 +13,15 @@ import {
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import type { SessionCase, TranscriptPrefix } from "./case";
-import { readClaudeCallMetrics } from "./claude";
+import {
+	failedCommandEnvelope,
+	parseClaudeEnvelope,
+	readClaudeCallMetrics,
+	statedFailure,
+} from "./claude";
 import type { SessionSettings } from "./claude";
 import { CommandError, runCommand } from "./command";
-import type { ClaudeCallMetrics, Immutable } from "./contracts";
-import { claudeEnvelopeSchema } from "./contracts";
+import type { ClaudeCallMetrics, ClaudeEnvelope, Immutable } from "./contracts";
 import { fileLines, terminatedFileLines } from "./file-lines";
 import { projectSlug } from "./session-capture";
 import type { CheckResult } from "./session-check";
@@ -665,21 +669,15 @@ async function failedInvocation(
 		transcript,
 	);
 
-	if (error instanceof CommandError && error.stdout !== "") {
-		let document: unknown;
-		try {
-			document = JSON.parse(error.stdout);
-		} catch {
-			document = undefined;
-		}
-		const parsed = claudeEnvelopeSchema.safeParse(document);
-		if (parsed.success) {
+	if (error instanceof CommandError) {
+		const envelope = failedCommandEnvelope(error);
+		if (envelope !== undefined) {
 			return invocationError(
-				providerFailureMessage(parsed.data.result, error.message),
+				providerFailureMessage(envelope, error.message, error.stderr),
 				attemptDirectory,
 				transcript.file,
 				diagnostics,
-				readClaudeCallMetrics(parsed.data),
+				readClaudeCallMetrics(envelope),
 				contextEvidence,
 			);
 		}
@@ -695,11 +693,27 @@ async function failedInvocation(
 	);
 }
 
+/**
+ * A statement-less envelope keeps the fallback without the stderr, because a
+ * failed command's message already carries it.
+ */
 function providerFailureMessage(
-	result: string | undefined,
+	envelope: ClaudeEnvelope,
 	fallback: string,
+	stderr = "",
 ): string {
-	return result === undefined || result.length === 0 ? fallback : result;
+	const spent =
+		envelope.total_cost_usd === undefined
+			? ""
+			: ` (spent $${String(envelope.total_cost_usd)})`;
+	const stated = statedFailure(envelope);
+	if (stated === undefined) {
+		return `${fallback}${spent}`;
+	}
+
+	return stderr.trim() === ""
+		? `${stated}${spent}`
+		: `${stated}${spent}\n${stderr.trimEnd()}`;
 }
 
 function invocationError(
@@ -778,11 +792,11 @@ async function recordAttempt(
 		transcript,
 	);
 
-	const envelope = claudeEnvelopeSchema.parse(JSON.parse(attempt.output));
+	const envelope = parseClaudeEnvelope(attempt.output);
 	const metrics = readClaudeCallMetrics(envelope);
 	if (envelope.is_error === true) {
 		throw invocationError(
-			providerFailureMessage(envelope.result, "Claude session failed"),
+			providerFailureMessage(envelope, "Claude session failed"),
 			attemptDirectory,
 			transcript.file,
 			diagnostics,

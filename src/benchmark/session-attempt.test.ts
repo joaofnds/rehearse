@@ -21,7 +21,11 @@ import type { ContextEvidenceSource } from "#benchmark/context-evidence";
 import { projectSlug } from "#benchmark/session-capture";
 import { failureOf } from "#cli/cli-test-support";
 import type { SessionCorpusSnapshot } from "#benchmark/session-corpus";
-import { historyFixture, TestResources } from "#benchmark/test-support";
+import {
+	budgetHaltEnvelope,
+	historyFixture,
+	TestResources,
+} from "#benchmark/test-support";
 import type { SessionAttemptRequest } from "#benchmark/session-attempt";
 import {
 	forkTranscript,
@@ -1906,7 +1910,7 @@ describe(runSessionAttempt.name, () => {
 
 		expect(failure).toBeInstanceOf(SessionInvocationError);
 		expect(failure).toMatchObject({
-			message: "session exhausted its budget",
+			message: "session exhausted its budget (spent $0.0012)",
 			attempt: {
 				outcome: "EXECUTION_FAILED",
 				metrics: { costUsd: 0.0012, turns: 2 },
@@ -1951,7 +1955,7 @@ describe(runSessionAttempt.name, () => {
 
 		expect(failure).toBeInstanceOf(SessionInvocationError);
 		expect(failure).toMatchObject({
-			message: "session exhausted its budget",
+			message: "session exhausted its budget (spent $0.0012)",
 			attempt: {
 				outcome: "EXECUTION_FAILED",
 				metrics: { costUsd: 0.0012, turns: 2 },
@@ -1993,6 +1997,74 @@ describe(runSessionAttempt.name, () => {
 					state: "unavailable",
 					prefixLinesExcluded: 0,
 				},
+			},
+		});
+	});
+
+	it("names a budget halt's stated error and cost when the command exits non-zero", async () => {
+		const halt = await budgetHaltEnvelope();
+
+		const failure = await failureOf(
+			runSessionAttempt(
+				request({
+					projectsDirectory: await projectsRoot(),
+					recordDirectory: await recordDirectory(),
+					runClaude: (command) => {
+						throw new CommandError(command, 1, halt, "");
+					},
+				}),
+			),
+		);
+
+		expect(failure).toBeInstanceOf(SessionInvocationError);
+		expect(failure).toMatchObject({
+			message: "Reached maximum budget ($0.2853308) (spent $0.5782854)",
+			attempt: {
+				outcome: "EXECUTION_FAILED",
+				metrics: { costUsd: 0.5782854 },
+			},
+		});
+	});
+
+	it("keeps a halted command's stderr on its own line after the stated error", async () => {
+		const halt = await budgetHaltEnvelope();
+
+		const failure = await failureOf(
+			runSessionAttempt(
+				request({
+					projectsDirectory: await projectsRoot(),
+					recordDirectory: await recordDirectory(),
+					runClaude: (command) => {
+						throw new CommandError(command, 1, halt, "hook exited 2\n");
+					},
+				}),
+			),
+		);
+
+		expect(failure.message).toBe(
+			"Reached maximum budget ($0.2853308) (spent $0.5782854)\nhook exited 2",
+		);
+	});
+
+	it("names a budget halt's stated error and cost when the command exits 0", async () => {
+		const halt = await budgetHaltEnvelope();
+
+		const failure = await failureOf(
+			runSessionAttempt(
+				request({
+					projectsDirectory: await projectsRoot(),
+					recordDirectory: await recordDirectory(),
+					runClaude: () => Promise.resolve(halt),
+				}),
+			),
+		);
+
+		expect(failure).toBeInstanceOf(SessionInvocationError);
+		expect(failure).toMatchObject({
+			message: "Reached maximum budget ($0.2853308) (spent $0.5782854)",
+			attempt: {
+				outcome: "EXECUTION_FAILED",
+				metrics: { costUsd: 0.5782854 },
 			},
 		});
 	});

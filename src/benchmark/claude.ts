@@ -112,7 +112,7 @@ export class ClaudeSessionError extends Error {
 	}
 }
 
-function statedFailure(envelope: ClaudeEnvelope): string | undefined {
+export function statedFailure(envelope: ClaudeEnvelope): string | undefined {
 	if (envelope.result !== undefined && envelope.result !== "") {
 		return envelope.result;
 	}
@@ -197,22 +197,36 @@ export async function runJsonSession(
 function sessionFailure(
 	error: Readonly<CommandError>,
 ): CommandError | ClaudeSessionError {
+	const envelope = failedCommandEnvelope(error);
+
+	return envelope?.is_error === true
+		? new ClaudeSessionError(envelope, error)
+		: error;
+}
+
+/** The envelope a failed command wrote, whatever its `is_error` says. */
+export function failedCommandEnvelope(
+	error: Readonly<CommandError>,
+): ClaudeEnvelope | undefined {
 	let output: unknown;
 	try {
 		output = JSON.parse(error.stdout);
 	} catch {
-		return error;
+		return undefined;
 	}
 
 	const envelope = claudeEnvelopeSchema.safeParse(output);
 
-	return envelope.success && envelope.data.is_error === true
-		? new ClaudeSessionError(envelope.data, error)
-		: error;
+	return envelope.success ? envelope.data : undefined;
+}
+
+/** The envelope a session wrote, read without judging its `is_error`. */
+export function parseClaudeEnvelope(output: string): ClaudeEnvelope {
+	return claudeEnvelopeSchema.parse(JSON.parse(output));
 }
 
 export function readClaudeEnvelope(output: string): ClaudeEnvelope {
-	const envelope = claudeEnvelopeSchema.parse(JSON.parse(output));
+	const envelope = parseClaudeEnvelope(output);
 	if (envelope.is_error === true) {
 		throw new ClaudeSessionError(envelope);
 	}

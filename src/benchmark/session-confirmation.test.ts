@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readdir, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import type { SessionCase } from "./case";
+import { CommandError } from "./command";
 import {
 	parseConfirmationGroupRecord,
 	parseConfirmationRepRecord,
@@ -18,7 +19,8 @@ import { failureOf } from "#cli/cli-test-support";
 import { readShortIds } from "./short-id";
 import { runList } from "#cli/list-command";
 import { runShow } from "#cli/show-command";
-import { historyFixture } from "./test-support";
+import { runSessionAttempt } from "./session-attempt";
+import { budgetHaltEnvelope, historyFixture } from "./test-support";
 
 const metrics = {
 	costUsd: 0.02,
@@ -740,6 +742,62 @@ describe(runSessionConfirmation.name, () => {
 			status: "MISSING",
 			missing: ["preflight call metrics", "1 rep call metrics"],
 		});
+	});
+
+	it("records a budget-halted rep's stated error and cost on its stage and attempt", async () => {
+		const root = await mkdtemp(join(tmpdir(), "rehearse-session-halt-"));
+		temporaryDirectories.push(root);
+		const corpusRoot = join(root, "corpus");
+		const projectsDirectory = join(root, "projects");
+		await mkdir(join(corpusRoot, "output-styles"), { recursive: true });
+		await mkdir(projectsDirectory);
+		const halt = await budgetHaltEnvelope();
+
+		const outcome = await runSessionConfirmation(
+			{
+				executeAttempt: (plan) =>
+					runSessionAttempt({
+						sessionCase: plan.sessionCase,
+						settings: plan.settings,
+						projectsDirectory,
+						recordDirectory: plan.recordDirectory,
+						corpusSnapshot: plan.corpusSnapshot,
+						runClaude: (command) => {
+							throw new CommandError(command, 1, halt, "");
+						},
+					}),
+			},
+			{
+				runsDirectory: join(root, "runs"),
+				groupId: "halt-group",
+				reps: 2,
+				projectedCost: {
+					reps: 2,
+					perRepMaximumUsd: 0.2,
+					preflightMaximumUsd: 0.1,
+					totalMaximumUsd: 0.5,
+				},
+				approvalMethod: "yes",
+				sessionCase: simpleSessionCase(),
+				corpus: corpusRoot,
+				model: "sonnet",
+				sessionBudgetUsd: 0.2,
+				spendCeilingUsd: 100,
+				preflight: { status: "MISSING", missing: "preflight call metrics" },
+			},
+		);
+
+		const repFile = requiredPath(outcome.repRecordFiles[0]);
+		const rep = parseConfirmationRepRecord(await Bun.file(repFile).text());
+		const attempt = parseSessionAttemptRecord(
+			await Bun.file(join(repFile, "..", "attempt.json")).text(),
+		);
+		const stated = "Reached maximum budget ($0.2853308) (spent $0.5782854)";
+		expect(rep.stages[0]).toMatchObject({
+			status: "EXECUTION_FAILED",
+			error: stated,
+		});
+		expect(attempt).toMatchObject({ error: stated });
 	});
 
 	it("freezes every file of a fixture's committed history as a named input", async () => {
