@@ -1,16 +1,21 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
 import { readLaunchRecord, writeLaunchRecord } from "#benchmark/launch-record";
-import { RecordedRunsFixture } from "#benchmark/run-records-test-support";
+import {
+	directorySource,
+	RecordedRunsFixture,
+} from "#benchmark/run-records-test-support";
 import { benchmarkRunPaths } from "#benchmark/run-layout";
 import type { RunLiveness } from "#benchmark/run-liveness";
 import { pauseRequested } from "#benchmark/run-pause";
 import { CONTROL_DIR, RECORDS_DIRECTORY_VARIABLE } from "#benchmark/config";
 import { liveCorpusSource } from "#benchmark/corpus-file";
 import { linkCorpus } from "#benchmark/corpus-source";
+import { corpusVersionLog } from "#benchmark/corpus-version";
+import { corpusVersionLabel } from "#benchmark/corpus-version-label";
 import { CEILING_OVERRUN_STATEMENT } from "#benchmark/spend-ceiling";
 import {
 	SET_SPEND_CEILING_COMMAND,
@@ -744,6 +749,49 @@ describe(createLaunchApp.name, () => {
 			expect(unlinked.status).toBe(200);
 			const after = await reading(get);
 			expect(after.linkedCorpus.kind).toBe("live");
+		});
+
+		describe("when the linked corpus is measured now", () => {
+			const measuredSchema = z.object({
+				label: z.string(),
+				digest: z.string(),
+			});
+
+			it("records a version of the linked directory and answers its label", async () => {
+				const { send, runsDirectory } = await harness();
+				const corpus = await corpusDirectory();
+				await send("PUT", "/api/settings/corpus", { directory: corpus });
+
+				const response = await send("POST", "/api/settings/corpus/rehash", {});
+				const measured = measuredSchema.parse(await response.json());
+
+				expect(response.status).toBe(200);
+				expect(measured.label).toBe(corpusVersionLabel(measured.digest));
+				expect(
+					await corpusVersionLog(runsDirectory, directorySource(corpus)),
+				).toEqual([measured.digest]);
+			});
+
+			it("refuses a corpus it cannot measure, naming why", async () => {
+				const { send } = await harness();
+				const corpus = await corpusDirectory();
+				const outside = await temporaryDirectory("rehearse-outside-");
+				await Bun.write(join(outside, "secret.md"), "outside\n");
+				await mkdir(join(corpus, "skills", "leak"), { recursive: true });
+				await symlink(
+					join(outside, "secret.md"),
+					join(corpus, "skills", "leak", "SKILL.md"),
+				);
+				await send("PUT", "/api/settings/corpus", { directory: corpus });
+
+				const response = await send("POST", "/api/settings/corpus/rehash", {});
+				const refused = z
+					.object({ error: z.string() })
+					.parse(await response.json());
+
+				expect(response.status).toBe(409);
+				expect(refused.error).toContain("SKILL.md");
+			});
 		});
 
 		describe("when the written value is refused", () => {

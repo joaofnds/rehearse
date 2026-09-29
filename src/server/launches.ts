@@ -23,6 +23,8 @@ import {
 	refusePipelineUnderLinkedDirectory,
 	unlinkCorpus,
 } from "#benchmark/corpus-source";
+import { measureCorpusVersion } from "#benchmark/corpus-version";
+import { corpusVersionLabel } from "#benchmark/corpus-version-label";
 import { loadRunManifest } from "#benchmark/manifest";
 import {
 	benchmarkRunPaths,
@@ -249,6 +251,20 @@ async function linkCorpusDirectory(
 }
 
 /**
+ * Records a version of the linked corpus now, so the version log holds it
+ * before any run reads it. A layout it cannot measure is refused with why.
+ */
+async function measureLinkedCorpus(runsDirectory: string): Promise<string> {
+	const source = await asLaunchRefusal(() => linkedCorpusSource(runsDirectory));
+	const measurement = await measureCorpusVersion(runsDirectory, source);
+	if (measurement.kind === "refused") {
+		throw new LaunchRefusalError(redactAbsolutePaths(measurement.refusal), 409);
+	}
+
+	return measurement.digest;
+}
+
+/**
  * What the settings screen and the launch dialog show. The records location
  * is read, never written: the environment variable that points every command
  * at it owns it.
@@ -445,6 +461,19 @@ export const createLaunchApp = (dependencies: LaunchDependencies) => {
 				);
 
 				return context.json(await settingsReading(dependencies), 200);
+			} catch (error) {
+				if (!(error instanceof LaunchRefusalError)) {
+					throw error;
+				}
+
+				return context.json({ error: error.message }, error.status);
+			}
+		})
+		.post("/api/settings/corpus/rehash", async (context) => {
+			try {
+				const digest = await measureLinkedCorpus(dependencies.runsDirectory);
+
+				return context.json({ label: corpusVersionLabel(digest), digest }, 200);
 			} catch (error) {
 				if (!(error instanceof LaunchRefusalError)) {
 					throw error;
