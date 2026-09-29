@@ -1,6 +1,8 @@
-import { afterEach, describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { createHash } from "node:crypto";
-import { rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { ReplayCliConfig } from "#benchmark/config";
 import { RefusedPreconditionError } from "#benchmark/exit-codes";
 import { failureOf, recordOutput } from "#cli/cli-test-support";
@@ -10,21 +12,59 @@ import {
 	runCompareAttemptsCommand,
 } from "#cli/compare-attempts-command";
 import { writeReplayableRunManifest } from "#cli/replay-test-support";
+import {
+	RecordedArms,
+	RUN as ARMS_RUN,
+	STAGE,
+} from "#benchmark/compare-attempts-test-support";
+import { confirmationGroupPaths } from "#benchmark/run-layout";
 
 const RUN = "any-name-baseline";
+
+/**
+ * Replay fills a knob its flags leave out from these, so the host's values
+ * would decide what a test's baseline replay resolves to.
+ */
+const REPLAY_KNOB_VARIABLES = [
+	"BENCHMARK_MODEL",
+	"BENCHMARK_EFFORT",
+	"BENCHMARK_JUDGE_MODEL",
+	"BENCHMARK_JUDGE_EFFORT",
+	"BENCHMARK_SESSION_BUDGET_USD",
+] as const;
+
+const hostKnobs = new Map<string, string | undefined>();
+
+beforeEach(() => {
+	for (const name of REPLAY_KNOB_VARIABLES) {
+		hostKnobs.set(name, Bun.env[name]);
+		Reflect.deleteProperty(Bun.env, name);
+	}
+});
+
+afterEach(() => {
+	for (const [name, value] of hostKnobs) {
+		if (value === undefined) {
+			Reflect.deleteProperty(Bun.env, name);
+		} else {
+			Bun.env[name] = value;
+		}
+	}
+});
+
 const REPLAYED_STAGE_RUBRIC_SHA256 = createHash("sha256")
 	.update(await Bun.file("cases/audit-log/rubrics/shape.json").text())
 	.digest("hex");
 
+const manifests: string[] = [];
+
+afterEach(async () => {
+	await Promise.all(
+		manifests.splice(0).map((file) => rm(file, { force: true })),
+	);
+});
+
 describe(replayBaselineGroup.name, () => {
-	const manifests: string[] = [];
-
-	afterEach(async () => {
-		await Promise.all(
-			manifests.splice(0).map((file) => rm(file, { force: true })),
-		);
-	});
-
 	it("replays the checkpoint as a confirmation group on the baseline corpus without the stage's own skill and answers with its group id", async () => {
 		manifests.push(await writeReplayableRunManifest(RUN));
 		const configs: ReplayCliConfig[] = [];
@@ -176,7 +216,65 @@ describe(replayBaselineGroup.name, () => {
 		);
 		expect(probed).toBe(false);
 	});
+
+	it("refuses before running a rep when the environment would set an effort arm A ran without", async () => {
+		manifests.push(await writeReplayableRunManifest(RUN));
+		Bun.env["BENCHMARK_EFFORT"] = "low";
+		const { output } = recordOutput();
+		let executed = false;
+
+		const failure = await failureOf(
+			replayBaselineGroup(
+				{ approval: "yes", stdinIsTerminal: false },
+				{
+					output,
+					resolveRunDirectory: () => Promise.resolve(`/runs/${RUN}`),
+					requireSpendCeiling: () => Promise.resolve(100),
+					probeModel: () => Promise.resolve(),
+					execute: () => {
+						executed = true;
+
+						return Promise.reject(new Error("replay must not run"));
+					},
+				},
+			)({
+				run: RUN,
+				stage: "shape",
+				corpusDirectory: "/runs/baseline-corpora/digest",
+				reps: 3,
+				model: "sonnet",
+				effort: undefined,
+				judgeModel: "opus",
+				judgeEffort: undefined,
+				sessionBudgetUsd: 5,
+				rubricSha256: REPLAYED_STAGE_RUBRIC_SHA256,
+			}),
+		);
+
+		expect(failure).toBeInstanceOf(RefusedPreconditionError);
+		expect(failure.message).toBe(
+			"the baseline replay would run effort low where arm A recorded none, so its group could not be compared",
+		);
+		expect(executed).toBe(false);
+	});
 });
+
+const temporaryDirectories: string[] = [];
+
+afterEach(async () => {
+	await Promise.all(
+		temporaryDirectories
+			.splice(0)
+			.map((directory) => rm(directory, { recursive: true, force: true })),
+	);
+});
+
+async function temporaryDirectory(prefix: string): Promise<string> {
+	const directory = await mkdtemp(join(tmpdir(), prefix));
+	temporaryDirectories.push(directory);
+
+	return directory;
+}
 
 describe(runCompareAttemptsCommand.name, () => {
 	const refusingReplay = {
@@ -185,6 +283,92 @@ describe(runCompareAttemptsCommand.name, () => {
 		probeModel: () => Promise.reject(new Error("must not probe")),
 		execute: () => Promise.reject(new Error("replay must not run")),
 	};
+
+	it("replays the baseline group without the stage's own skill and prints the comparison's report", async () => {
+		manifests.push(await writeReplayableRunManifest(ARMS_RUN));
+		const arms = await RecordedArms.create(
+			await temporaryDirectory("rehearse-compare-command-runs-"),
+			await temporaryDirectory("rehearse-compare-command-scratch-"),
+		);
+		const rubric = await Bun.file("cases/audit-log/rubrics/build.json").text();
+		const armA = await arms.recordArm("baseline", {
+			"CLAUDE.md": "global instructions\n",
+			"skills/build/SKILL.md": "build\n",
+		});
+		const armB = await arms.recordArm("candidate", {
+			"CLAUDE.md": "global instructions\n",
+			"skills/build/SKILL.md": "revised build\n",
+		});
+		for (const arm of [armA, armB]) {
+			await arms.readInStage(arm, "skills/build/SKILL.md");
+			await arms.freezeRubric(arm, rubric);
+		}
+		const configs: ReplayCliConfig[] = [];
+		const { output, stdout } = recordOutput();
+
+		await runCompareAttemptsCommand(
+			{
+				runsDirectory: arms.runsDirectory,
+				armA,
+				armB,
+				yes: true,
+				approvedInBrowser: false,
+				json: false,
+				stdinIsTerminal: false,
+			},
+			{
+				output,
+				resolveRunDirectory: () => Promise.resolve(`/runs/${ARMS_RUN}`),
+				requireSpendCeiling: () => Promise.resolve(100),
+				probeModel: () => Promise.resolve(),
+				execute: async (config) => {
+					configs.push(config);
+					const control = await arms.runBaselineGroup({
+						run: config.runName,
+						stage: config.stage,
+						corpusDirectory: config.corpus ?? "",
+						reps: config.confirmation?.reps ?? 0,
+						model: config.model,
+						effort: config.effort,
+						judgeModel: config.judgeModel,
+						judgeEffort: config.judgeEffort,
+						sessionBudgetUsd: config.sessionBudgetUsd,
+						rubricSha256: "",
+					});
+					await arms.freezeRubric(control, rubric);
+
+					return {
+						kind: "confirmation" as const,
+						evidence: {
+							groupRecordFile: confirmationGroupPaths(
+								arms.runsDirectory,
+								control,
+							).groupFile,
+							reportFile: "/unused/report.json",
+							repRecordFiles: [],
+						},
+					};
+				},
+			},
+		);
+
+		expect(
+			configs.map(({ stage, corpus, stageSkill }) => ({
+				stage,
+				corpus,
+				stageSkill,
+			})),
+		).toEqual([
+			{
+				stage: STAGE,
+				corpus: arms.baselineCorpusDirectory(),
+				stageSkill: "absent",
+			},
+		]);
+		expect(stdout.join("")).toStartWith(
+			join(arms.runsDirectory, "comparisons"),
+		);
+	});
 
 	it("asks for both arms by group id", async () => {
 		const { output } = recordOutput();

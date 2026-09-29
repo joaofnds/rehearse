@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { cp, mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { BaselineGroupRequest } from "./compare-attempts";
@@ -136,6 +136,31 @@ export class RecordedArms {
 		await Bun.write(
 			groupFile,
 			`${JSON.stringify({ ...group, inputs: { ...group.inputs, model } }, null, 2)}\n`,
+		);
+	}
+
+	/** Rewrites the rubric a recorded arm froze, as a real rubric file holds it. */
+	public async freezeRubric(groupId: string, content: string): Promise<void> {
+		const { groupFile } = confirmationGroupPaths(this.runsDirectory, groupId);
+		const group = confirmationGroupRecordSchema.parse(
+			JSON.parse(await Bun.file(groupFile).text()),
+		);
+		const files = await Promise.all(
+			group.inputs.files.map(async (file) => {
+				if (file.kind !== "rubric") {
+					return file;
+				}
+				await Bun.write(join(dirname(groupFile), file.path), content);
+
+				return {
+					...file,
+					sha256: createHash("sha256").update(content).digest("hex"),
+				};
+			}),
+		);
+		await Bun.write(
+			groupFile,
+			`${JSON.stringify({ ...group, inputs: { ...group.inputs, files } }, null, 2)}\n`,
 		);
 	}
 

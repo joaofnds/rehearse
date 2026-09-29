@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { mkdtemp, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
+import { z } from "zod";
 import { compareAttempts } from "./compare-attempts";
 import {
 	CASE_ID,
@@ -387,6 +388,40 @@ describe(compareAttempts.name, () => {
 		});
 	});
 
+	describe("when the skill under test is only in arm B", () => {
+		it("runs the baseline group on arm A's corpus unchanged and records that it did", async () => {
+			const arms = await recordedArms();
+			const armA = await arms.recordArm("baseline", SHARED);
+			const armB = await arms.recordArm("candidate", {
+				...SHARED,
+				"skills/build/SKILL.md": "build\n",
+			});
+			await arms.readInStage(armB, "skills/build/SKILL.md");
+
+			const { reportFile } = await compareAttempts(
+				{ runsDirectory: arms.runsDirectory, armA, armB },
+				{ runBaselineGroup: arms.runBaselineGroup },
+			);
+
+			const corpus = await Array.fromAsync(
+				new Glob("**/*").scan({ cwd: arms.baselineCorpusDirectory() }),
+			);
+			expect(corpus.toSorted()).toEqual([
+				"CLAUDE.md",
+				"skills/review/SKILL.md",
+			]);
+			const derivation = z
+				.object({ kind: z.string(), skillUnderTest: z.string() })
+				.parse(
+					await Bun.file(join(dirname(reportFile), "baseline.json")).json(),
+				);
+			expect(derivation).toEqual({
+				kind: "armA",
+				skillUnderTest: "skills/build/",
+			});
+		});
+	});
+
 	describe("when the baseline group has run", () => {
 		it("writes the report of arm A against arm B with the derived baseline, and how it was derived", async () => {
 			const arms = await recordedArms();
@@ -416,6 +451,34 @@ describe(compareAttempts.name, () => {
 					"report.json",
 				),
 			);
+			const manifest = z
+				.object({
+					cases: z.array(
+						z.object({
+							arms: z.object({
+								baseline: z.string(),
+								candidate: z.string(),
+								control: z.string(),
+							}),
+						}),
+					),
+				})
+				.parse(
+					await Bun.file(
+						join(
+							arms.runsDirectory,
+							"comparison-manifests",
+							`${groupIdFor("control")}.json`,
+						),
+					).json(),
+				);
+			expect(manifest.cases.map(({ arms: roles }) => roles)).toEqual([
+				{
+					baseline: `../confirmations/${armA}/group.json`,
+					candidate: `../confirmations/${armB}/group.json`,
+					control: `../confirmations/${groupIdFor("control")}/group.json`,
+				},
+			]);
 			const derivation: unknown = await Bun.file(
 				join(dirname(reportFile), "baseline.json"),
 			).json();
