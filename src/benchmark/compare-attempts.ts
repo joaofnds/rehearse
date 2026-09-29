@@ -1,6 +1,7 @@
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, relative } from "node:path";
+import { z } from "zod";
 import { deriveBaselineCorpus } from "./baseline-corpus";
 import type { BaselineCorpus } from "./baseline-corpus";
 import type { Effort } from "./config";
@@ -13,6 +14,7 @@ import type { ComparisonArm } from "./comparison-record";
 import { executedCorpusFiles } from "./comparison-comparability";
 import { confirmationGroupRecordSchema } from "./confirmation-record";
 import {
+	CorpusVersionError,
 	corpusVersionDigest,
 	readCorpusVersion,
 	readCorpusVersionFile,
@@ -89,24 +91,53 @@ async function replayedCheckpoint(
 
 async function recordedCorpus(
 	runsDirectory: string,
+	groupId: string,
 	digest: string,
 ): Promise<ReadonlyMap<string, string>> {
-	const files = await readCorpusVersion(runsDirectory, digest);
+	try {
+		const files = await readCorpusVersion(runsDirectory, digest);
 
-	return new Map(files.map(({ path, sha256 }) => [path, sha256]));
+		return new Map(files.map(({ path, sha256 }) => [path, sha256]));
+	} catch (error) {
+		if (!(error instanceof CorpusVersionError)) {
+			throw error;
+		}
+		throw new RefusedPreconditionError(
+			`group ${groupId} ran corpus version ${digest}, which cannot be read: ${error.message}`,
+		);
+	}
+}
+
+/** The arm's group record, refusing one that is missing or of another shape. */
+async function recordedGroup(
+	runsDirectory: string,
+	groupId: string,
+): Promise<ConfirmationGroupRecord> {
+	const file = Bun.file(
+		confirmationGroupPaths(runsDirectory, groupId).groupFile,
+	);
+	if (!(await file.exists())) {
+		throw new RefusedPreconditionError(
+			`No recorded confirmation group ${groupId}`,
+		);
+	}
+	try {
+		return confirmationGroupRecordSchema.parse(JSON.parse(await file.text()));
+	} catch (error) {
+		if (!(error instanceof SyntaxError || error instanceof z.ZodError)) {
+			throw error;
+		}
+		throw new RefusedPreconditionError(
+			`group ${groupId} is not a confirmation group record this comparison can read: ${error.message}`,
+		);
+	}
 }
 
 export async function recordedArm(
 	runsDirectory: string,
 	groupId: string,
 ): Promise<RecordedArm> {
-	const group = confirmationGroupRecordSchema.parse(
-		JSON.parse(
-			await Bun.file(
-				confirmationGroupPaths(runsDirectory, groupId).groupFile,
-			).text(),
-		),
-	);
+	const group = await recordedGroup(runsDirectory, groupId);
 
 	if (group.mode !== "stage") {
 		throw new RefusedPreconditionError(
@@ -124,7 +155,7 @@ export async function recordedArm(
 		group,
 		checkpoint: await replayedCheckpoint(runsDirectory, group.caseId, groupId),
 		corpusDigest: version.digest,
-		corpus: await recordedCorpus(runsDirectory, version.digest),
+		corpus: await recordedCorpus(runsDirectory, groupId, version.digest),
 	};
 }
 

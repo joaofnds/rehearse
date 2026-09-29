@@ -139,6 +139,24 @@ export class RecordedArms {
 		);
 	}
 
+	/** Points a recorded arm at a corpus version the store never recorded. */
+	public async useUnrecordedCorpusVersion(groupId: string): Promise<void> {
+		const { groupFile } = confirmationGroupPaths(this.runsDirectory, groupId);
+		const group = confirmationGroupRecordSchema.parse(
+			JSON.parse(await Bun.file(groupFile).text()),
+		);
+		await Bun.write(
+			groupFile,
+			`${JSON.stringify({ ...group, inputs: { ...group.inputs, corpusVersion: { kind: "version", digest: "0".repeat(64) } } }, null, 2)}\n`,
+		);
+	}
+
+	/** Overwrites a recorded arm's group file with a record of another shape. */
+	public async corruptGroup(groupId: string): Promise<void> {
+		const { groupFile } = confirmationGroupPaths(this.runsDirectory, groupId);
+		await Bun.write(groupFile, "{}\n");
+	}
+
 	public readonly runBaselineGroup = async (
 		request: BaselineGroupRequest,
 	): Promise<string> => {

@@ -208,6 +208,60 @@ describe(compareAttempts.name, () => {
 		});
 	});
 
+	describe("when an arm's group cannot be read", () => {
+		it("refuses a group that is not recorded and names it", async () => {
+			const arms = await recordedArms();
+			const armB = await arms.recordArm("candidate", SHARED);
+
+			const refusal = await refusalOf(
+				compareAttempts(
+					{ runsDirectory: arms.runsDirectory, armA: "never-recorded", armB },
+					{ runBaselineGroup: arms.runBaselineGroup },
+				),
+			);
+
+			expect(refusal.message).toBe(
+				"No recorded confirmation group never-recorded",
+			);
+		});
+
+		it("refuses a group file this comparison cannot read and names the group", async () => {
+			const arms = await recordedArms();
+			const armA = await arms.recordArm("baseline", SHARED);
+			const armB = await arms.recordArm("candidate", SHARED);
+			await arms.corruptGroup(armA);
+
+			const refusal = await refusalOf(
+				compareAttempts(
+					{ runsDirectory: arms.runsDirectory, armA, armB },
+					{ runBaselineGroup: arms.runBaselineGroup },
+				),
+			);
+
+			expect(refusal.message).toStartWith(
+				`group ${armA} is not a confirmation group record this comparison can read: `,
+			);
+		});
+
+		it("refuses a group whose corpus version the store does not hold", async () => {
+			const arms = await recordedArms();
+			const armA = await arms.recordArm("baseline", SHARED);
+			const armB = await arms.recordArm("candidate", SHARED);
+			await arms.useUnrecordedCorpusVersion(armA);
+
+			const refusal = await refusalOf(
+				compareAttempts(
+					{ runsDirectory: arms.runsDirectory, armA, armB },
+					{ runBaselineGroup: arms.runBaselineGroup },
+				),
+			);
+
+			expect(refusal.message).toBe(
+				`group ${armA} ran corpus version ${"0".repeat(64)}, which cannot be read: No corpus version ${"0".repeat(64)} is recorded`,
+			);
+		});
+	});
+
 	describe("when arms A and B ran with different controlled inputs", () => {
 		it("refuses and names the differing field before running a baseline group", async () => {
 			const arms = await recordedArms();
