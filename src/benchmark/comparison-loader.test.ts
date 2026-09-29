@@ -95,6 +95,66 @@ describe(loadComparisonEvidence.name, () => {
 		]);
 	});
 
+	it("hashes each judged stage's scorecard as rep evidence", async () => {
+		const evidence = await loadComparisonEvidence(fixture.manifestFile);
+		const [scorecard] = evidence.cases.at(0)?.arms.baseline.reps.at(0)
+			?.scorecards ?? [undefined];
+
+		expect(scorecard?.path).toBe(
+			"groups/case-1-baseline/reps/case-1-baseline-rep-1/stages/build.json",
+		);
+		expect(scorecard?.sha256).toBe(
+			digest(
+				await Bun.file(fixture.scorecardFile("case-1", "baseline", 1)).text(),
+			),
+		);
+		expect(scorecard?.record.grade.hardBlockers).toEqual([
+			{ id: "scope-declared", status: "FAIL" },
+		]);
+	});
+
+	it("records each stage rep's blocker firings, dimension grades and words", async () => {
+		const runsDirectory = join(temporaryDirectory, "grading-output");
+		await mkdir(runsDirectory);
+
+		const reportFile = await writeComparisonReport({
+			manifestPath: fixture.manifestFile,
+			runsDirectory,
+		});
+
+		const report = parseComparisonReport(await Bun.file(reportFile).text());
+		const [rep] = report.cases[0]?.arms.baseline.source.reps ?? [];
+		expect(
+			rep !== undefined && "stageGrading" in rep && rep.stageGrading,
+		).toEqual([
+			{
+				stage: "build",
+				scorecard: {
+					path: "groups/case-1-baseline/reps/case-1-baseline-rep-1/stages/build.json",
+					sha256: digest(
+						await Bun.file(
+							fixture.scorecardFile("case-1", "baseline", 1),
+						).text(),
+					),
+				},
+				hardBlockers: [{ id: "scope-declared", fired: true }],
+				dimensions: [{ id: "clarity", grade: "C" }],
+			},
+		]);
+		expect(rep !== undefined && "words" in rep && rep.words).toEqual({
+			state: "available",
+			words: 3,
+		});
+	});
+
+	it("names a judged stage whose scorecard is missing", async () => {
+		await rm(fixture.scorecardFile("case-1", "control", 2));
+
+		expect(loadComparisonEvidence(fixture.manifestFile)).rejects.toThrow(
+			"case case-1 arm control field repRecords[1].stages[0].evidence.recordFile",
+		);
+	});
+
 	it("names a missing source group before report creation", async () => {
 		await rm(fixture.groupFile("case-1", "control"));
 
@@ -208,6 +268,25 @@ describe(loadComparisonEvidence.name, () => {
 		const evidence = await loadComparisonEvidence(fixture.manifestFile);
 
 		expect(evidence.contract.mode).toBe("pipeline");
+	});
+
+	it("records a pipeline rep's words from its last judged stage", async () => {
+		await fixture.usePipelineCheckpoints();
+		const runsDirectory = join(temporaryDirectory, "pipeline-words-output");
+		await mkdir(runsDirectory);
+
+		const reportFile = await writeComparisonReport({
+			manifestPath: fixture.manifestFile,
+			runsDirectory,
+		});
+
+		const report = parseComparisonReport(await Bun.file(reportFile).text());
+		const [rep] = report.cases[0]?.arms.candidate.source.reps ?? [];
+		expect(report.mode).toBe("pipeline");
+		expect(rep !== undefined && "words" in rep && rep.words).toEqual({
+			state: "available",
+			words: 3,
+		});
 	});
 
 	it("rejects changed workflow state inside a pipeline checkpoint record", async () => {

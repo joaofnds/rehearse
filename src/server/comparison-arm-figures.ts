@@ -88,14 +88,17 @@ function measureFigure(
 	};
 }
 
+export function missingCostReasons(
+	resources: Extract<ReportArm["resources"], { status: "UNAVAILABLE" }>,
+): string[] {
+	return resources.missingEvidence.map(
+		({ repId, missing }) => `${repId} lacks ${missing.join(", ")}`,
+	);
+}
+
 function armCost(resources: ReportArm["resources"]): ArmCost {
 	if (resources.status === "UNAVAILABLE") {
-		return {
-			state: "unavailable",
-			reasons: resources.missingEvidence.map(
-				({ repId, missing }) => `${repId} lacks ${missing.join(", ")}`,
-			),
-		};
+		return { state: "unavailable", reasons: missingCostReasons(resources) };
 	}
 
 	const { values, mean } = resources.total.costUsd;

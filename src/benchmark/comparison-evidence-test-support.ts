@@ -11,6 +11,7 @@ import {
 	parseConfirmationRepRecord,
 } from "./confirmation-record";
 import type { ComparisonArm } from "./comparison-record";
+import type { StageGradingRecord } from "./comparison-stage-grading";
 
 export function digest(content: string): string {
 	return createHash("sha256").update(content).digest("hex");
@@ -42,6 +43,30 @@ export class ComparisonEvidenceFixture {
 			"reps",
 			`${caseId}-${role}-rep-${ordinal}`,
 			"rep.json",
+		);
+	}
+
+	public scorecardFile(
+		caseId: string,
+		role: ComparisonArm,
+		ordinal: number,
+	): string {
+		return join(
+			dirname(this.repFile(caseId, role, ordinal)),
+			"stages",
+			"build.json",
+		);
+	}
+
+	public async writeScorecard(
+		caseId: string,
+		role: ComparisonArm,
+		ordinal: number,
+		scorecard: StageGradingRecord,
+	): Promise<void> {
+		await Bun.write(
+			this.scorecardFile(caseId, role, ordinal),
+			`${JSON.stringify(scorecard, null, 2)}\n`,
 		);
 	}
 
@@ -95,6 +120,30 @@ export class ComparisonEvidenceFixture {
 				await Bun.write(groupFile, `${JSON.stringify(changed, null, 2)}\n`);
 			}
 		}
+	}
+
+	public async addCorpusFile(
+		caseId: string,
+		role: ComparisonArm,
+		path: string,
+		content: string,
+	): Promise<void> {
+		await Bun.write(join(this.groupDirectory(caseId, role), path), content);
+		const groupFile = this.groupFile(caseId, role);
+		const group = confirmationGroupRecordSchema.parse(
+			JSON.parse(await Bun.file(groupFile).text()),
+		);
+		const changed = confirmationGroupRecordSchema.parse({
+			...group,
+			inputs: {
+				...group.inputs,
+				files: [
+					...group.inputs.files,
+					{ kind: "corpus", path, sha256: digest(content) },
+				],
+			},
+		});
+		await Bun.write(groupFile, `${JSON.stringify(changed, null, 2)}\n`);
 	}
 
 	public async useJudgeModel(
@@ -330,6 +379,28 @@ export class ComparisonEvidenceFixture {
 		}));
 	}
 
+	/**
+	 * The build stage's scorecard: the baseline arm, stripped of the skill
+	 * under test, fires the scope blocker that the corpus arms clear.
+	 */
+	public static scorecard(role: ComparisonArm): StageGradingRecord {
+		return {
+			stage: "build",
+			input: { artifact: { path: "plan.md", content: `${role} build plan` } },
+			grade: {
+				hardBlockers: [
+					{
+						id: "scope-declared",
+						status: role === "baseline" ? "FAIL" : "PASS",
+					},
+				],
+				dimensions: [{ id: "clarity", grade: role === "baseline" ? "C" : "A" }],
+				grade: "A",
+				verdict: "CONTINUE",
+			},
+		};
+	}
+
 	private static repRecord(
 		caseId: string,
 		role: ComparisonArm,
@@ -397,6 +468,12 @@ export class ComparisonEvidenceFixture {
 			await Bun.write(
 				recordFile,
 				`${JSON.stringify(ComparisonEvidenceFixture.repRecord(caseId, role, ordinal), null, 2)}\n`,
+			);
+			await this.writeScorecard(
+				caseId,
+				role,
+				ordinal,
+				ComparisonEvidenceFixture.scorecard(role),
 			);
 			repRecords.push({
 				repId: `${groupId}-rep-${ordinal}`,

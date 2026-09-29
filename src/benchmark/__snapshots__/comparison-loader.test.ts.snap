@@ -39,7 +39,32 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                     "grade": "A",
                     "successful": true
                   }
-                ]
+                ],
+                "stageGrading": [
+                  {
+                    "stage": "build",
+                    "scorecard": {
+                      "path": "groups/case-1-baseline/reps/case-1-baseline-rep-1/stages/build.json",
+                      "sha256": "e6a231bc7a35eed13e8377e1e5ffd3d189d6968094a26e4592ae5664310ce1c0"
+                    },
+                    "hardBlockers": [
+                      {
+                        "id": "scope-declared",
+                        "fired": true
+                      }
+                    ],
+                    "dimensions": [
+                      {
+                        "id": "clarity",
+                        "grade": "C"
+                      }
+                    ]
+                  }
+                ],
+                "words": {
+                  "state": "available",
+                  "words": 3
+                }
               },
               {
                 "path": "groups/case-1-baseline/reps/case-1-baseline-rep-2/rep.json",
@@ -53,7 +78,32 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                     "grade": "A",
                     "successful": true
                   }
-                ]
+                ],
+                "stageGrading": [
+                  {
+                    "stage": "build",
+                    "scorecard": {
+                      "path": "groups/case-1-baseline/reps/case-1-baseline-rep-2/stages/build.json",
+                      "sha256": "e6a231bc7a35eed13e8377e1e5ffd3d189d6968094a26e4592ae5664310ce1c0"
+                    },
+                    "hardBlockers": [
+                      {
+                        "id": "scope-declared",
+                        "fired": true
+                      }
+                    ],
+                    "dimensions": [
+                      {
+                        "id": "clarity",
+                        "grade": "C"
+                      }
+                    ]
+                  }
+                ],
+                "words": {
+                  "state": "available",
+                  "words": 3
+                }
               }
             ]
           },
@@ -306,7 +356,32 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                     "grade": "A",
                     "successful": true
                   }
-                ]
+                ],
+                "stageGrading": [
+                  {
+                    "stage": "build",
+                    "scorecard": {
+                      "path": "groups/case-1-candidate/reps/case-1-candidate-rep-1/stages/build.json",
+                      "sha256": "40f3742cb6d7c0c0830c16b246c6ee73872e8e846d3fed45c7e865bd7b8d76b8"
+                    },
+                    "hardBlockers": [
+                      {
+                        "id": "scope-declared",
+                        "fired": false
+                      }
+                    ],
+                    "dimensions": [
+                      {
+                        "id": "clarity",
+                        "grade": "A"
+                      }
+                    ]
+                  }
+                ],
+                "words": {
+                  "state": "available",
+                  "words": 3
+                }
               },
               {
                 "path": "groups/case-1-candidate/reps/case-1-candidate-rep-2/rep.json",
@@ -320,7 +395,32 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                     "grade": "A",
                     "successful": true
                   }
-                ]
+                ],
+                "stageGrading": [
+                  {
+                    "stage": "build",
+                    "scorecard": {
+                      "path": "groups/case-1-candidate/reps/case-1-candidate-rep-2/stages/build.json",
+                      "sha256": "40f3742cb6d7c0c0830c16b246c6ee73872e8e846d3fed45c7e865bd7b8d76b8"
+                    },
+                    "hardBlockers": [
+                      {
+                        "id": "scope-declared",
+                        "fired": false
+                      }
+                    ],
+                    "dimensions": [
+                      {
+                        "id": "clarity",
+                        "grade": "A"
+                      }
+                    ]
+                  }
+                ],
+                "words": {
+                  "state": "available",
+                  "words": 3
+                }
               }
             ]
           },
@@ -573,7 +673,32 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                     "grade": "A",
                     "successful": true
                   }
-                ]
+                ],
+                "stageGrading": [
+                  {
+                    "stage": "build",
+                    "scorecard": {
+                      "path": "groups/case-1-control/reps/case-1-control-rep-1/stages/build.json",
+                      "sha256": "3606752dcd2f6efb758c93341e2c1b3d5ad21c69754665db0265a3147deedc9c"
+                    },
+                    "hardBlockers": [
+                      {
+                        "id": "scope-declared",
+                        "fired": false
+                      }
+                    ],
+                    "dimensions": [
+                      {
+                        "id": "clarity",
+                        "grade": "A"
+                      }
+                    ]
+                  }
+                ],
+                "words": {
+                  "state": "available",
+                  "words": 3
+                }
               },
               {
                 "path": "groups/case-1-control/reps/case-1-control-rep-2/rep.json",
@@ -587,7 +712,32 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                     "grade": "A",
                     "successful": true
                   }
-                ]
+                ],
+                "stageGrading": [
+                  {
+                    "stage": "build",
+                    "scorecard": {
+                      "path": "groups/case-1-control/reps/case-1-control-rep-2/stages/build.json",
+                      "sha256": "3606752dcd2f6efb758c93341e2c1b3d5ad21c69754665db0265a3147deedc9c"
+                    },
+                    "hardBlockers": [
+                      {
+                        "id": "scope-declared",
+                        "fired": false
+                      }
+                    ],
+                    "dimensions": [
+                      {
+                        "id": "clarity",
+                        "grade": "A"
+                      }
+                    ]
+                  }
+                ],
+                "words": {
+                  "state": "available",
+                  "words": 3
+                }
               }
             ]
           },
@@ -845,7 +995,32 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                     "grade": "A",
                     "successful": true
                   }
-                ]
+                ],
+                "stageGrading": [
+                  {
+                    "stage": "build",
+                    "scorecard": {
+                      "path": "groups/case-2-baseline/reps/case-2-baseline-rep-1/stages/build.json",
+                      "sha256": "e6a231bc7a35eed13e8377e1e5ffd3d189d6968094a26e4592ae5664310ce1c0"
+                    },
+                    "hardBlockers": [
+                      {
+                        "id": "scope-declared",
+                        "fired": true
+                      }
+                    ],
+                    "dimensions": [
+                      {
+                        "id": "clarity",
+                        "grade": "C"
+                      }
+                    ]
+                  }
+                ],
+                "words": {
+                  "state": "available",
+                  "words": 3
+                }
               },
               {
                 "path": "groups/case-2-baseline/reps/case-2-baseline-rep-2/rep.json",
@@ -859,7 +1034,32 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                     "grade": "A",
                     "successful": true
                   }
-                ]
+                ],
+                "stageGrading": [
+                  {
+                    "stage": "build",
+                    "scorecard": {
+                      "path": "groups/case-2-baseline/reps/case-2-baseline-rep-2/stages/build.json",
+                      "sha256": "e6a231bc7a35eed13e8377e1e5ffd3d189d6968094a26e4592ae5664310ce1c0"
+                    },
+                    "hardBlockers": [
+                      {
+                        "id": "scope-declared",
+                        "fired": true
+                      }
+                    ],
+                    "dimensions": [
+                      {
+                        "id": "clarity",
+                        "grade": "C"
+                      }
+                    ]
+                  }
+                ],
+                "words": {
+                  "state": "available",
+                  "words": 3
+                }
               }
             ]
           },
@@ -1112,7 +1312,32 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                     "grade": "A",
                     "successful": true
                   }
-                ]
+                ],
+                "stageGrading": [
+                  {
+                    "stage": "build",
+                    "scorecard": {
+                      "path": "groups/case-2-candidate/reps/case-2-candidate-rep-1/stages/build.json",
+                      "sha256": "40f3742cb6d7c0c0830c16b246c6ee73872e8e846d3fed45c7e865bd7b8d76b8"
+                    },
+                    "hardBlockers": [
+                      {
+                        "id": "scope-declared",
+                        "fired": false
+                      }
+                    ],
+                    "dimensions": [
+                      {
+                        "id": "clarity",
+                        "grade": "A"
+                      }
+                    ]
+                  }
+                ],
+                "words": {
+                  "state": "available",
+                  "words": 3
+                }
               },
               {
                 "path": "groups/case-2-candidate/reps/case-2-candidate-rep-2/rep.json",
@@ -1126,7 +1351,32 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                     "grade": "A",
                     "successful": true
                   }
-                ]
+                ],
+                "stageGrading": [
+                  {
+                    "stage": "build",
+                    "scorecard": {
+                      "path": "groups/case-2-candidate/reps/case-2-candidate-rep-2/stages/build.json",
+                      "sha256": "40f3742cb6d7c0c0830c16b246c6ee73872e8e846d3fed45c7e865bd7b8d76b8"
+                    },
+                    "hardBlockers": [
+                      {
+                        "id": "scope-declared",
+                        "fired": false
+                      }
+                    ],
+                    "dimensions": [
+                      {
+                        "id": "clarity",
+                        "grade": "A"
+                      }
+                    ]
+                  }
+                ],
+                "words": {
+                  "state": "available",
+                  "words": 3
+                }
               }
             ]
           },
@@ -1379,7 +1629,32 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                     "grade": "A",
                     "successful": true
                   }
-                ]
+                ],
+                "stageGrading": [
+                  {
+                    "stage": "build",
+                    "scorecard": {
+                      "path": "groups/case-2-control/reps/case-2-control-rep-1/stages/build.json",
+                      "sha256": "3606752dcd2f6efb758c93341e2c1b3d5ad21c69754665db0265a3147deedc9c"
+                    },
+                    "hardBlockers": [
+                      {
+                        "id": "scope-declared",
+                        "fired": false
+                      }
+                    ],
+                    "dimensions": [
+                      {
+                        "id": "clarity",
+                        "grade": "A"
+                      }
+                    ]
+                  }
+                ],
+                "words": {
+                  "state": "available",
+                  "words": 3
+                }
               },
               {
                 "path": "groups/case-2-control/reps/case-2-control-rep-2/rep.json",
@@ -1393,7 +1668,32 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                     "grade": "A",
                     "successful": true
                   }
-                ]
+                ],
+                "stageGrading": [
+                  {
+                    "stage": "build",
+                    "scorecard": {
+                      "path": "groups/case-2-control/reps/case-2-control-rep-2/stages/build.json",
+                      "sha256": "3606752dcd2f6efb758c93341e2c1b3d5ad21c69754665db0265a3147deedc9c"
+                    },
+                    "hardBlockers": [
+                      {
+                        "id": "scope-declared",
+                        "fired": false
+                      }
+                    ],
+                    "dimensions": [
+                      {
+                        "id": "clarity",
+                        "grade": "A"
+                      }
+                    ]
+                  }
+                ],
+                "words": {
+                  "state": "available",
+                  "words": 3
+                }
               }
             ]
           },

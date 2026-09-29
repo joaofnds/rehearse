@@ -1,0 +1,58 @@
+import { describe, expect, it } from "bun:test";
+import { firingsReading, meterReading } from "./comparison-what-moved";
+
+const arms = { minuend: "candidate", subtrahend: "baseline" } as const;
+
+describe(firingsReading.name, () => {
+	it("names the arm that fires less often when the firing intervals are separated", () => {
+		const reading = firingsReading(
+			{ state: "available", fired: 0, of: 12 },
+			{ state: "available", fired: 11, of: 12 },
+			arms,
+		);
+
+		expect(reading.verdict).toEqual({ kind: "separated", arm: "candidate" });
+	});
+
+	it("reads inside rerun noise with no interval for an arm no rep was graded on", () => {
+		const reading = firingsReading(
+			{ state: "unavailable", reasons: ["no rep"] },
+			{ state: "available", fired: 1, of: 2 },
+			arms,
+		);
+
+		expect(reading).toEqual({
+			interval: { minuend: undefined, subtrahend: { low: "9%", high: "91%" } },
+			verdict: { kind: "insideRerunNoise" },
+		});
+	});
+});
+
+describe(meterReading.name, () => {
+	it("names the arm that ran higher and the change when the spreads do not overlap", () => {
+		const reading = meterReading(
+			{ state: "available", mean: 134, low: 120, high: 150, counted: 3 },
+			{ state: "available", mean: 100, low: 90, high: 110, counted: 3 },
+			arms,
+		);
+
+		expect(reading).toEqual({
+			interval: {
+				minuend: { low: 120, high: 150 },
+				subtrahend: { low: 90, high: 110 },
+			},
+			change: "+34%",
+			verdict: { kind: "higher", arm: "candidate" },
+		});
+	});
+
+	it("reads no change against a subtrahend that averaged zero", () => {
+		const reading = meterReading(
+			{ state: "available", mean: 1, low: 1, high: 1, counted: 1 },
+			{ state: "available", mean: 0, low: 0, high: 0, counted: 1 },
+			arms,
+		);
+
+		expect(reading.change).toBeUndefined();
+	});
+});

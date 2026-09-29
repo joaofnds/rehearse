@@ -22,6 +22,11 @@ import {
 	contrastResourcesWithoutElapsed,
 } from "#benchmark/comparison-test-fixtures";
 import { comparisonReportPaths } from "#benchmark/run-layout";
+import { writeComparisonReport } from "#benchmark/comparison-command";
+import {
+	ComparisonEvidenceFixture,
+	digest as sha256Of,
+} from "#benchmark/comparison-evidence-test-support";
 import { NO_RECORDED_WORDS_REASON } from "./comparison-arm-figures";
 import { createApiApp } from "./api";
 
@@ -63,6 +68,10 @@ const comparisonResponseSchema = z.object({
 	qualityReadings: z.record(
 		z.string(),
 		z.record(z.string(), z.record(z.string(), qualityReadingSchema)),
+	),
+	whatMoved: z.record(
+		z.string(),
+		z.array(z.object({ kind: z.string(), name: z.string() }).loose()),
 	),
 });
 
@@ -503,7 +512,7 @@ describe("GET /api/comparisons/:digest", () => {
 			return body.armFigures;
 		}
 
-		it("gives each arm its median and range per stage, its final successes, its cost, and no word count from a report written before them", async () => {
+		it("gives each arm its median and range per stage, its final successes, its cost, and no word count from a report whose reps carry none", async () => {
 			const fixture = await writtenFixture();
 
 			const figures = await armFiguresOf(fixture);
@@ -740,5 +749,155 @@ describe("GET /api/comparisons/:digest", () => {
 		const response = await app.request(`/api/comparisons/${"9".repeat(64)}`);
 
 		expect(response.status).toBe(404);
+	});
+});
+
+describe("What moved", () => {
+	async function oneCheckpointComparison(
+		change?: (fixture: ComparisonEvidenceFixture) => Promise<void>,
+	): Promise<ComparisonResponse> {
+		const root = await mkdtemp(join(tmpdir(), "rehearse-what-moved-"));
+		roots.push(root);
+		const fixture = new ComparisonEvidenceFixture(root, ["build-checkpoint"]);
+		await fixture.write();
+		await change?.(fixture);
+		const runsDirectory = join(root, "runs");
+		await mkdir(runsDirectory);
+		await writeComparisonReport({
+			manifestPath: fixture.manifestFile,
+			runsDirectory,
+		});
+		const app = createApiApp({
+			runsDirectory,
+			liveness: nothingRunning,
+			readCorpusSource: fixedCorpusSource(
+				directorySource(await corpusDirectory()),
+			),
+		});
+
+		const response = await app.request(
+			`/api/comparisons/${sha256Of(await Bun.file(fixture.manifestFile).text())}`,
+		);
+
+		return comparisonResponseFrom(response);
+	}
+
+	async function oneCheckpointRows(): Promise<ComparisonResponse["whatMoved"]> {
+		const comparison = await oneCheckpointComparison();
+
+		return comparison.whatMoved;
+	}
+
+	it("refuses attribution and names every path when the arms differ in more than one", async () => {
+		const { attribution } = await oneCheckpointComparison((fixture) =>
+			fixture.addCorpusFile(
+				"build-checkpoint",
+				"candidate",
+				"inputs/corpus/build/reference.md",
+				"candidate reference\n",
+			),
+		);
+
+		expect(attribution["build-checkpoint"]?.["candidateMinusBaseline"]).toEqual(
+			{
+				claim: "refused",
+				differingPaths: ["SKILL.md", "reference.md"],
+			},
+		);
+	});
+
+	it("rows a one-checkpoint stage comparison by overall, blocker, dimension and meter", async () => {
+		const rows = await oneCheckpointRows();
+
+		expect(
+			rows["build-checkpoint"]?.map(({ kind, name }) => `${kind} ${name}`),
+		).toEqual([
+			"overall build",
+			"hardBlocker scope-declared",
+			"dimension clarity",
+			"meter replyLength",
+			"meter costPerAttempt",
+		]);
+	});
+
+	it("counts a hard blocker's firings of the reps graded on it, with a reading per arm pair", async () => {
+		const rows = await oneCheckpointRows();
+		const blocker = rows["build-checkpoint"]?.find(
+			({ kind }) => kind === "hardBlocker",
+		);
+
+		expect(blocker).toMatchObject({
+			stage: "build",
+			arms: {
+				baseline: { state: "available", fired: 2, of: 2 },
+				candidate: { state: "available", fired: 0, of: 2 },
+			},
+			readings: {
+				candidateMinusBaseline: {
+					interval: {
+						minuend: { low: "0%", high: "66%" },
+						subtrahend: { low: "34%", high: "100%" },
+					},
+					verdict: { kind: "insideRerunNoise" },
+				},
+				candidateMinusControl: { verdict: { kind: "unchangedAlreadyClear" } },
+			},
+		});
+	});
+
+	it("reads a dimension whose letter spans do not overlap as separated", async () => {
+		const rows = await oneCheckpointRows();
+		const dimension = rows["build-checkpoint"]?.find(
+			({ kind }) => kind === "dimension",
+		);
+
+		expect(dimension).toMatchObject({
+			arms: {
+				baseline: { state: "available", median: "C" },
+				candidate: { state: "available", median: "A" },
+			},
+			readings: {
+				candidateMinusBaseline: {
+					interval: {
+						minuend: { low: "A", high: "A" },
+						subtrahend: { low: "C", high: "C" },
+					},
+					verdict: { kind: "separated", arm: "candidate" },
+				},
+			},
+		});
+	});
+
+	it("spreads reply length and cost per attempt across each arm's attempts", async () => {
+		const rows = await oneCheckpointRows();
+		const meter = (
+			name: string,
+		): ComparisonResponse["whatMoved"][string][number] | undefined =>
+			rows["build-checkpoint"]?.find((row) => row.name === name);
+
+		expect(meter("replyLength")).toMatchObject({
+			arms: {
+				baseline: { state: "available", mean: 3, low: 3, high: 3, counted: 2 },
+			},
+			readings: {
+				candidateMinusBaseline: {
+					change: "0%",
+					verdict: { kind: "insideRerunNoise" },
+				},
+			},
+		});
+		expect(meter("costPerAttempt")).toMatchObject({
+			arms: {
+				candidate: { state: "available", mean: 1.5, low: 1, high: 2 },
+			},
+			readings: {
+				candidateMinusBaseline: {
+					interval: {
+						minuend: { low: 1, high: 2 },
+						subtrahend: { low: 1, high: 2 },
+					},
+				},
+			},
+		});
 	});
 });

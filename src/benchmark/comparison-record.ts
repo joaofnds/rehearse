@@ -198,13 +198,6 @@ const repStateScoreSchema = z
 		),
 	})
 	.strict();
-const currentSourceRepSchema = sourceRepSchema
-	.extend({
-		outcomes: z.array(repOutcomeSchema).min(1),
-		checks: repCheckScoreSchema.optional(),
-		stateResults: repStateScoreSchema.optional(),
-	})
-	.strict();
 /**
  * Optional because a report written before word counts carries none, which
  * reads as unavailable rather than as an attempt that wrote nothing.
@@ -220,6 +213,33 @@ const repWordsSchema = z.discriminatedUnion("state", [
 		.object({ state: z.literal("unavailable"), reason: z.string().min(1) })
 		.strict(),
 ]);
+/**
+ * Optional because a report written before stage grading carries none, which
+ * reads as unavailable rather than as a stage no blocker fired on.
+ */
+const repStageGradingSchema = z
+	.object({
+		stage: z.string().min(1),
+		scorecard: digestedPathSchema,
+		hardBlockers: z.array(
+			z.object({ id: z.string().min(1), fired: z.boolean() }).strict(),
+		),
+		dimensions: z.array(
+			z
+				.object({ id: z.string().min(1), grade: stageLetterGradeSchema })
+				.strict(),
+		),
+	})
+	.strict();
+const currentSourceRepSchema = sourceRepSchema
+	.extend({
+		outcomes: z.array(repOutcomeSchema).min(1),
+		checks: repCheckScoreSchema.optional(),
+		stateResults: repStateScoreSchema.optional(),
+		stageGrading: z.array(repStageGradingSchema).optional(),
+		words: repWordsSchema.optional(),
+	})
+	.strict();
 const currentSessionSourceRepSchema = sessionSourceRepSchema
 	.extend({
 		outcomes: z.array(repOutcomeSchema).min(1),

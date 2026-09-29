@@ -7,6 +7,7 @@ import type {
 	ComparisonArmEvidence,
 	ComparisonEvidence,
 	ComparisonProjectionInput,
+	DigestedRecord,
 } from "./comparison-evidence";
 import { COMPARISON_CONTRASTS } from "./comparison-estimator";
 import type { JudgeAgreementReport } from "./judge-agreement";
@@ -36,6 +37,11 @@ import type { Immutable } from "./contracts";
 import type { OutputWords } from "./output-words";
 import { replyWords } from "./output-words";
 import type { SessionAttemptRecord } from "./session-record";
+import { stageGrading } from "./comparison-stage-grading";
+import type {
+	StageGrading,
+	StageGradingRecord,
+} from "./comparison-stage-grading";
 import type { StateResult } from "./session-state-check";
 
 interface RepCheckScore {
@@ -93,6 +99,41 @@ function reportResourceCase(
 	return benchmarkCase;
 }
 
+interface RepStageGrading extends Omit<StageGrading, "words"> {
+	readonly scorecard: { readonly path: string; readonly sha256: string };
+}
+
+/**
+ * A rep's words are its last judged stage's output, the latest thing the arm
+ * wrote. A rep no stage was judged on reads unavailable.
+ */
+interface StageRepGrading {
+	readonly stageGrading: readonly RepStageGrading[];
+	readonly words: OutputWords;
+}
+
+function stageRepGrading(
+	scorecards: readonly DigestedRecord<StageGradingRecord>[],
+): StageRepGrading {
+	const graded = scorecards.map((scorecard) => ({
+		scorecard,
+		grading: stageGrading(scorecard.record),
+	}));
+
+	return {
+		stageGrading: graded.map(
+			({ scorecard, grading: { words: _words, ...grading } }) => ({
+				...grading,
+				scorecard: { path: scorecard.path, sha256: scorecard.sha256 },
+			}),
+		),
+		words: graded.at(-1)?.grading.words ?? {
+			state: "unavailable",
+			reason: "no stage of the attempt was judged",
+		},
+	};
+}
+
 interface BuildReportArmRequest {
 	readonly evidence: ComparisonArmEvidence;
 	readonly contract: ComparisonProjectionInput["contract"];
@@ -116,6 +157,7 @@ interface BuiltReportArm {
 			readonly checks?: RepCheckScore | undefined;
 			readonly stateResults?: RepStateScore | undefined;
 			readonly words?: OutputWords | undefined;
+			readonly stageGrading?: readonly RepStageGrading[] | undefined;
 		}[];
 	};
 	readonly executedCorpus: readonly {
@@ -196,6 +238,9 @@ function buildReportArm(
 					? outcomes
 					: outcomes.slice(0, request.contract.declaredStages.length),
 		};
+		if (rep.scorecards !== undefined) {
+			return { ...source, ...stageRepGrading(rep.scorecards) };
+		}
 		if (rep.attempt === undefined) {
 			return source;
 		}

@@ -7,6 +7,7 @@ import type { SessionCaseDeclaration } from "./case";
 import type { Immutable } from "./contracts";
 import type { ComparisonArm } from "./comparison-record";
 import type { SessionAttemptRecord } from "./session-record";
+import type { StageGradingRecord } from "./comparison-stage-grading";
 import { RefusedPreconditionError } from "./exit-codes";
 
 export type FrozenFile =
@@ -40,6 +41,7 @@ export interface DigestedComparisonRep {
 	readonly record: Immutable<ParsedConfirmationRepRecord>;
 	readonly canonicalPath?: string;
 	readonly attempt?: DigestedRecord<Immutable<SessionAttemptRecord>>;
+	readonly scorecards?: readonly DigestedRecord<StageGradingRecord>[];
 }
 
 export interface LoadedComparisonCaseEvidence {

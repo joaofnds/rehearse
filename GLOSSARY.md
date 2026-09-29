@@ -102,8 +102,9 @@ See [current state](docs/status.md) for implementation coverage and
   record directly.
 - **Comparison** — a deterministic report over completed stage, pipeline, or
   session confirmation evidence, each case carrying baseline, candidate, and
-  control arms. Stage and pipeline comparisons need at least two benchmark
-  cases; a session comparison may cover one. It starts no paid sessions. Session
+  control arms. A pipeline comparison needs at least two benchmark cases; a
+  stage comparison of one replayed checkpoint, or a session comparison, may
+  cover one. It starts no paid sessions. Session
   comparisons read the frozen case's checks and each recorded attempt, and do
   not synthesize a pipeline final outcome. A current report keeps each source
   rep's ordered quality outcomes beside its identity, so a reader can associate
@@ -124,6 +125,15 @@ See [current state](docs/status.md) for implementation coverage and
 - **Comparison arm** — one role in a comparison: baseline, candidate, or the
   mandatory minimal-corpus control. An arm uses the same corpus snapshot across
   every benchmark case; a session control may have an empty declared corpus.
+- **What moved (comparison)**: the per-case rows a comparison answers "did the
+  change help, hurt or do nothing" with, in order: the overall grade, each hard
+  blocker's firings, each quality dimension's letter span, reply length and
+  cost per attempt. A blocker fired when its condition occurred on an attempt;
+  its row reads each arm's firing rate by its 95% Wilson interval and names the
+  arm that fires less only when the intervals separate. Reply length and cost
+  are meters: each arm's mean and low-to-high range over its attempts, with the
+  signed percent change of the means, and a higher arm named only when the
+  ranges do not overlap.
 - **Quality reading (comparison)**: a per-case, per-arm-pair, per-measure
   interpretation of how far repeated attempts spread. A stage grade carries each
   arm's observed low-to-high letter span. A pass/fail measure, a session's

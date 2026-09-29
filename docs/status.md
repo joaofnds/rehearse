@@ -45,9 +45,12 @@ route reads a session's checks and a pipeline's final verdict by each arm's 95%
 Wilson interval on its success rate, printed as percentages, and serves each
 arm's median and range (letters for a stage, successes of attempts for a
 pass/fail measure) with its total and per-attempt cost and, since
-ACT-271.2, its average words; a report written before word counts, and a stage
-report, whose reps carry no word count yet, read unavailable. The page does not show
-those arm figures yet (ACT-257).
+ACT-271.2, its average words; a report written before word counts reads
+unavailable. Since ACT-271.3 a stage comparison may name one replayed checkpoint,
+and the route serves What moved rows for hard-blocker firings, dimension letters,
+reply length and cost per attempt, read from the grading each rep's scorecard
+recorded; these rows are API-verified only. The page does not show those arm
+figures or rows yet (ACT-257).
 
 ## Known limitations
 

@@ -15,6 +15,8 @@ import type {
 } from "./comparison-quality-reading";
 import { qualityReading } from "./comparison-quality-reading";
 import type { ComparisonAttemptHistoryLinks } from "./comparison-history-links";
+import type { WhatMovedRow } from "./comparison-what-moved";
+import { whatMoved } from "./comparison-what-moved";
 
 export interface ComparisonReportWithAttribution {
 	readonly report: ComparisonReport | LegacyComparisonReport;
@@ -29,6 +31,7 @@ export interface ComparisonReportWithAttribution {
 			Readonly<Record<string, Readonly<Record<string, QualityReading>>>>
 		>
 	>;
+	readonly whatMoved: Readonly<Record<string, readonly WhatMovedRow[]>>;
 }
 
 type AnyComparisonReport = ComparisonReport | LegacyComparisonReport;
@@ -99,6 +102,7 @@ export function comparisonReport(
 		Record<string, Record<string, QualityReading>>
 	> = {};
 	const figures: Record<string, CaseArmFigures> = {};
+	const rows: Record<string, readonly WhatMovedRow[]> = {};
 	const measures = [
 		...report.declaredStages,
 		...(report.mode === "pipeline" ? ["final"] : []),
@@ -125,7 +129,14 @@ export function comparisonReport(
 
 		attribution[benchmarkCase.caseId] = byPair;
 		qualityReadings[benchmarkCase.caseId] = qualityByPair;
-		figures[benchmarkCase.caseId] = figuresByArm(report, benchmarkCase);
+		const caseFigures = figuresByArm(report, benchmarkCase);
+		figures[benchmarkCase.caseId] = caseFigures;
+		rows[benchmarkCase.caseId] = whatMoved(
+			benchmarkCase,
+			caseFigures,
+			qualityByPair,
+			measures,
+		);
 	}
 
 	return {
@@ -134,5 +145,6 @@ export function comparisonReport(
 		armFigures: figures,
 		attribution,
 		qualityReadings,
+		whatMoved: rows,
 	};
 }

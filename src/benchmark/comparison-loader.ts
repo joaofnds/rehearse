@@ -25,6 +25,7 @@ import { unhandled } from "./contracts";
 import type {
 	ComparisonEvidence,
 	DigestedComparisonRep,
+	DigestedRecord,
 	FrozenFile,
 	LoadedComparisonArmEvidence,
 	LoadedComparisonCaseEvidence,
@@ -34,6 +35,8 @@ import { ComparisonEvidenceError } from "./comparison-evidence";
 import type { ComparisonArm, ComparisonManifest } from "./comparison-record";
 import { COMPARISON_ARMS, parseComparisonManifest } from "./comparison-record";
 import { parseSessionAttemptRecord } from "./session-record";
+import { stageGradingRecordSchema } from "./comparison-stage-grading";
+import type { StageGradingRecord } from "./comparison-stage-grading";
 import type { SessionAttemptRecord } from "./session-record";
 
 export const REQUIRED_FROZEN_INPUT_KINDS = [
@@ -922,6 +925,55 @@ async function loadSessionRep(
 	};
 }
 
+/**
+ * A judged stage's scorecard holds the blockers and dimensions What moved
+ * reads, so a stage comparison hashes it as source evidence like the rep.
+ */
+async function loadStageScorecards(
+	request: Readonly<LoadArmRequest>,
+	record: Immutable<ParsedConfirmationRepRecord>,
+	repPath: string,
+	field: string,
+): Promise<readonly DigestedRecord<StageGradingRecord>[]> {
+	const scorecards: DigestedRecord<StageGradingRecord>[] = [];
+	for (const [index, stage] of record.stages.entries()) {
+		if (stage.status !== "JUDGED") {
+			continue;
+		}
+
+		const stageField = `${field}.stages[${index}].evidence.recordFile`;
+		const scorecardPath = descendantPath(
+			request,
+			dirname(repPath),
+			stage.evidence.recordFile,
+			stageField,
+		);
+		const scorecardSource = await readEvidenceFile({
+			caseId: request.caseId,
+			arm: request.role,
+			field: stageField,
+			path: scorecardPath,
+		});
+		const parsed = stageGradingRecordSchema.safeParse(
+			JSON.parse(scorecardSource.text),
+		);
+		if (!parsed.success || parsed.data.stage !== stage.stage) {
+			throw evidenceError(
+				{ caseId: request.caseId, arm: request.role, field: stageField },
+				`invalid stage scorecard for ${stage.stage}`,
+			);
+		}
+		scorecards.push({
+			path: relative(request.manifestDirectory, scorecardPath),
+			sha256: scorecardSource.sha256,
+			record: parsed.data,
+			canonicalPath: scorecardSource.canonicalPath,
+		});
+	}
+
+	return scorecards;
+}
+
 async function loadRepRecords(
 	request: Readonly<LoadArmRequest>,
 	groupPath: string,
@@ -1001,12 +1053,20 @@ async function loadRepRecords(
 			record,
 			group,
 		);
-		reps.push({
+		const digested = {
 			path: relative(request.manifestDirectory, path),
 			sha256: source.sha256,
 			record,
 			canonicalPath: source.canonicalPath,
-		});
+		};
+		reps.push(
+			group.mode === "stage" || group.mode === "pipeline"
+				? {
+						...digested,
+						scorecards: await loadStageScorecards(request, record, path, field),
+					}
+				: digested,
+		);
 	}
 
 	return reps;
@@ -1065,12 +1125,17 @@ async function loadArm(
 		frozenFiles: frozen.files,
 		sourcePaths: [
 			source.canonicalPath,
-			...reps.flatMap(({ attempt, canonicalPath, path }) => {
+			...reps.flatMap(({ attempt, scorecards, canonicalPath, path }) => {
 				const paths = [
 					canonicalPath ?? resolve(request.manifestDirectory, path),
 				];
 				if (attempt?.canonicalPath !== undefined) {
 					paths.push(attempt.canonicalPath);
+				}
+				for (const scorecard of scorecards ?? []) {
+					if (scorecard.canonicalPath !== undefined) {
+						paths.push(scorecard.canonicalPath);
+					}
 				}
 
 				return paths;
