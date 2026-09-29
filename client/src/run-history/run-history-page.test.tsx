@@ -58,6 +58,7 @@ function oneStoppedOneComplete(): RunHistoryResponseBody {
 			{
 				kind: "run",
 				...UNREAD_RUN_FIGURES,
+				launchId: undefined,
 				shortId: undefined,
 				checkpoints: [],
 				links: [],
@@ -74,6 +75,7 @@ function oneStoppedOneComplete(): RunHistoryResponseBody {
 			{
 				kind: "run",
 				...UNREAD_RUN_FIGURES,
+				launchId: undefined,
 				shortId: undefined,
 				checkpoints: [],
 				links: [],
@@ -132,6 +134,7 @@ describe(RunHistoryPage.name, () => {
 				{
 					kind: "run",
 					...UNREAD_RUN_FIGURES,
+					launchId: undefined,
 					shortId: undefined,
 					checkpoints: [],
 					links: [],
@@ -172,6 +175,7 @@ describe(RunHistoryPage.name, () => {
 				{
 					kind: "run",
 					...UNREAD_RUN_FIGURES,
+					launchId: undefined,
 					shortId: undefined,
 					checkpoints: [],
 					links: [],
@@ -242,6 +246,7 @@ describe(RunHistoryPage.name, () => {
 				{
 					kind: "run",
 					...UNREAD_RUN_FIGURES,
+					launchId: undefined,
 					shortId: undefined,
 					checkpoints: [],
 					links: [],
@@ -277,6 +282,7 @@ describe(RunHistoryPage.name, () => {
 				{
 					kind: "run",
 					...UNREAD_RUN_FIGURES,
+					launchId: undefined,
 					shortId: undefined,
 					checkpoints: [],
 					links: [],
@@ -555,6 +561,7 @@ describe(RunHistoryPage.name, () => {
 				{
 					kind: "run",
 					...UNREAD_RUN_FIGURES,
+					launchId: undefined,
 					shortId: undefined,
 					checkpoints: [],
 					links: [],
@@ -589,6 +596,7 @@ describe(RunHistoryPage.name, () => {
 				{
 					kind: "run",
 					...UNREAD_RUN_FIGURES,
+					launchId: undefined,
 					shortId: undefined,
 					checkpoints: [],
 					links: [],
@@ -648,6 +656,7 @@ describe(RunHistoryPage.name, () => {
 					{
 						kind: "run",
 						...UNREAD_RUN_FIGURES,
+						launchId: undefined,
 						shortId: undefined,
 						checkpoints: [],
 						links: [],
@@ -667,6 +676,7 @@ describe(RunHistoryPage.name, () => {
 					{
 						kind: "run",
 						...UNREAD_RUN_FIGURES,
+						launchId: undefined,
 						shortId: undefined,
 						checkpoints: [],
 						links: [],
@@ -724,6 +734,7 @@ describe(RunHistoryPage.name, () => {
 			return {
 				kind: "run",
 				...UNREAD_RUN_FIGURES,
+				launchId: undefined,
 				shortId: undefined,
 				checkpoints: [],
 				links: [],
@@ -929,6 +940,7 @@ describe(RunHistoryPage.name, () => {
 					{
 						kind: "run",
 						...UNREAD_RUN_FIGURES,
+						launchId: undefined,
 						shortId: undefined,
 						checkpoints: [],
 						links: [],
@@ -965,6 +977,7 @@ describe(RunHistoryPage.name, () => {
 				{
 					kind: "run",
 					...UNREAD_RUN_FIGURES,
+					launchId: undefined,
 					shortId: undefined,
 					checkpoints: [],
 					links: [],
@@ -1006,6 +1019,7 @@ describe(RunHistoryPage.name, () => {
 				{
 					kind: "run",
 					...UNREAD_RUN_FIGURES,
+					launchId: undefined,
 					shortId: undefined,
 					checkpoints: [],
 					links: [],
@@ -1170,6 +1184,7 @@ describe(RunHistoryPage.name, () => {
 				{
 					kind: "run",
 					...UNREAD_RUN_FIGURES,
+					launchId: undefined,
 					shortId: undefined,
 					checkpoints: [],
 					run: "2026-09-06T21-58-29.508Z",
@@ -1192,6 +1207,7 @@ describe(RunHistoryPage.name, () => {
 				{
 					kind: "run",
 					...UNREAD_RUN_FIGURES,
+					launchId: undefined,
 					shortId: undefined,
 					checkpoints: [],
 					run: "2026-09-17T12-50-49.127Z",
@@ -1437,6 +1453,7 @@ describe(RunHistoryPage.name, () => {
 				{
 					kind: "run",
 					...UNREAD_RUN_FIGURES,
+					launchId: undefined,
 					shortId: "audit-log/r7",
 					checkpoints: [{ stage: "initial", shortId: "audit-log/r7/s0" }],
 					links: [],
@@ -1545,6 +1562,7 @@ describe(RunHistoryPage.name, () => {
 				{
 					kind: "run",
 					...UNREAD_RUN_FIGURES,
+					launchId: undefined,
 					shortId: undefined,
 					checkpoints: [],
 					links: [],

@@ -57,6 +57,7 @@ function runRow(run: string): RunHistoryRow {
 		corpusChangedDuringRun: false,
 		staleness: unversionedStaleness({ stale: false, causes: [] }),
 		progress: { state: "recorded" },
+		launchId: undefined,
 	};
 }
 

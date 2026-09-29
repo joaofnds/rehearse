@@ -130,6 +130,8 @@ export interface PipelineRunRow {
 	readonly finalOutcome: Reading<FinalOutcome>;
 	readonly cost: CostReading;
 	readonly wallTime: WallTimeReading;
+	/** The browser launch whose process holds its target, which a stop names. */
+	readonly launchId: string | undefined;
 }
 
 export const NOT_RUN_REASON = "the run never reached this stage";
@@ -435,6 +437,7 @@ async function rowFor(
 	staleness: Staleness,
 	runEvents: RunEventStore,
 	liveness: RunLiveness,
+	launchByPid: ReadonlyMap<number, string>,
 ): Promise<PipelineRunRow | undefined> {
 	const identity = await statusAndCaseId(
 		runsDirectory,
@@ -457,6 +460,10 @@ async function rowFor(
 	const checkpoints = await checkpointShortIds(runsDirectory, run, shortId);
 	const figures = await runFigures(runsDirectory, run, liveness);
 	const stage = await latestCheckpointStage(runsDirectory, run);
+	const launchId =
+		status === "RUNNING"
+			? await heldBy(runsDirectory, run, liveness, launchByPid)
+			: undefined;
 	if (stage === undefined) {
 		return {
 			kind: "run",
@@ -474,6 +481,7 @@ async function rowFor(
 			progress,
 			links,
 			...figures,
+			launchId,
 		};
 	}
 
@@ -493,6 +501,7 @@ async function rowFor(
 		progress,
 		links,
 		...figures,
+		launchId,
 	};
 }
 
@@ -776,28 +785,21 @@ async function groupRow(
 }
 
 /**
- * The pid holding each RUNNING pipeline run's target, so a launch whose
- * process is that pid is listed once, as the run's own row.
+ * The live browser launch whose process holds a RUNNING run's target, so the
+ * launch is listed once, as the run's own row, and a stop of the run names it.
  */
-async function runningRunPids(
+async function heldBy(
 	runsDirectory: string,
-	rows: readonly RunHistoryRow[],
+	run: string,
 	liveness: RunLiveness,
-): Promise<ReadonlySet<number>> {
-	const pids = new Set<number>();
-	for (const row of rows) {
-		if (row.kind === "run" && row.status === "RUNNING") {
-			const marker = await targetMarker(
-				benchmarkRunPaths(runsDirectory, row.run).manifestFile,
-				liveness,
-			);
-			if (marker !== undefined) {
-				pids.add(marker.pid);
-			}
-		}
-	}
+	launchByPid: ReadonlyMap<number, string>,
+): Promise<string | undefined> {
+	const marker = await targetMarker(
+		benchmarkRunPaths(runsDirectory, run).manifestFile,
+		liveness,
+	);
 
-	return pids;
+	return marker === undefined ? undefined : launchByPid.get(marker.pid);
 }
 
 function launchRow(record: LaunchRecord): LaunchRow {
@@ -815,26 +817,23 @@ function launchRow(record: LaunchRecord): LaunchRow {
 }
 
 /**
- * Each launch whose process is alive and is not already a RUNNING run's own
- * row. A record that does not read is reported beside the rows, like any
- * other.
+ * Each launch whose process is alive. A record that does not read is
+ * reported beside the rows, like any other.
  */
 async function liveLaunches(
 	runsDirectory: string,
-	rows: readonly RunHistoryRow[],
 	liveness: RunLiveness,
 ): Promise<{
-	readonly launches: readonly LaunchRow[];
+	readonly launches: readonly LaunchRecord[];
 	readonly unreadable: readonly UnreadableRecord[];
 }> {
-	const runningPids = await runningRunPids(runsDirectory, rows, liveness);
-	const launches: LaunchRow[] = [];
+	const launches: LaunchRecord[] = [];
 	const unreadable: UnreadableRecord[] = [];
 	for (const id of await launchIds(runsDirectory)) {
 		try {
 			const record = await readLaunchRecord(runsDirectory, id);
-			if (liveness.isAlive(record.pid) && !runningPids.has(record.pid)) {
-				launches.push(launchRow(record));
+			if (liveness.isAlive(record.pid)) {
+				launches.push(record);
 			}
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
@@ -846,12 +845,26 @@ async function liveLaunches(
 		}
 	}
 
-	return {
-		launches: launches.toSorted((left, right) =>
-			right.launchedAt.localeCompare(left.launchedAt),
+	return { launches, unreadable };
+}
+
+/**
+ * The live launches no RUNNING run's row already stands for, newest first.
+ */
+function unheldLaunchRows(
+	launches: readonly LaunchRecord[],
+	rows: readonly RunHistoryRow[],
+): readonly LaunchRow[] {
+	const held = new Set(
+		rows.flatMap((row) =>
+			row.kind === "run" && row.launchId !== undefined ? [row.launchId] : [],
 		),
-		unreadable,
-	};
+	);
+
+	return launches
+		.filter(({ id }) => !held.has(id))
+		.map((record) => launchRow(record))
+		.toSorted((left, right) => right.launchedAt.localeCompare(left.launchedAt));
 }
 
 /**
@@ -1045,6 +1058,13 @@ export async function runHistoryReport(
 		const shortIdEntries = registry.entries;
 		const shortIds = shortIdsOf(shortIdEntries);
 		const attempts = await checkpointAttempts(runsDirectory, shortIdEntries);
+		const live =
+			only === undefined
+				? await liveLaunches(runsDirectory, liveness)
+				: { launches: [], unreadable: [] };
+		const launchByPid = new Map(
+			live.launches.map(({ pid, id }) => [pid, id] as const),
+		);
 		const collect = async <Named>(
 			kind: RunHistoryRow["kind"],
 			named: readonly Named[],
@@ -1083,7 +1103,15 @@ export async function runHistoryReport(
 			[...runs],
 			(run) => formatRecordId({ kind: "run", run }),
 			(run, shortId) =>
-				rowFor(runsDirectory, run, shortId, staleness, runEvents, liveness),
+				rowFor(
+					runsDirectory,
+					run,
+					shortId,
+					staleness,
+					runEvents,
+					liveness,
+					launchByPid,
+				),
 		);
 		await collect(
 			"session-attempt",
@@ -1114,13 +1142,9 @@ export async function runHistoryReport(
 				groupRow(runsDirectory, groupId, shortId, attempts, staleness),
 		);
 
-		const live =
-			only === undefined
-				? await liveLaunches(runsDirectory, rows, liveness)
-				: { launches: [], unreadable: [] };
 		return {
 			rows: newestFirst(rows),
-			launches: live.launches,
+			launches: unheldLaunchRows(live.launches, rows),
 			unreadable: [...unreadable, ...live.unreadable],
 		};
 	} finally {

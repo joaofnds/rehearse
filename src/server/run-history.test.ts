@@ -1709,6 +1709,20 @@ describe(runHistoryReport.name, () => {
 			expect(pipelineRun(rows, fixture.runningRun)?.status).toBe("RUNNING");
 		});
 
+		it("gives the RUNNING run the id of the launch holding its target", async () => {
+			const fixture = await writtenFixture();
+			await fixture.writeRunningRun();
+			await launched(fixture, LIVE_PID);
+
+			const { rows } = await runHistoryReport(
+				fixture.runsDirectory,
+				directorySource(await corpusDirectory("build skill\n")),
+				launchLiveness(LIVE_PID),
+			);
+
+			expect(pipelineRun(rows, fixture.runningRun)?.launchId).toBe(LAUNCH_ID);
+		});
+
 		it("keeps a launch listed while an unrelated pipeline run is RUNNING under another pid", async () => {
 			const fixture = await writtenFixture();
 			await fixture.writeRunningRun();
