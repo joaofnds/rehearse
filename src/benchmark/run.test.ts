@@ -2944,6 +2944,56 @@ describe(buildRunArtifact.name, () => {
 			});
 			expect(artifact).not.toHaveProperty("grade");
 		});
+
+		it("records the ceiling stop and the paid attempt when the ceiling refuses its retry", async () => {
+			const directory = await mkdtemp(join(tmpdir(), "rehearse-final-judge-"));
+			testResources.track(directory);
+			const artifactFile = join(directory, "run.json");
+			const persistence = new ControlledRunArtifactPersistence();
+			const abort = createRunAbort(
+				{
+					killActiveCommands: () => Promise.resolve(),
+					registerSignal: () => undefined,
+					releaseSignal: () => undefined,
+					exit: () => undefined,
+					reportError: () => undefined,
+					persistence,
+				},
+				{ artifactFile, teardown: () => Promise.resolve() },
+			);
+			const pipeline = await loadDefaultPipeline();
+			const baseInputs = artifactBaseInputs(pipeline, AUDIT_LOG_PIPELINE_PATH);
+
+			const rubric = RUBRIC_IDS.map(
+				(id, index) => `${index + 1}. \`${id}\`: ${id} requirement.`,
+			).join("\n");
+
+			const failure = await failureOf(
+				runFinalJudge({
+					artifactInputs: { ...baseInputs, rubric, rubricIds: RUBRIC_IDS },
+					writeFailedArtifact: abort.writeFailedArtifact,
+					spendCeiling: createSpendCeiling({ ceilingUsd: 0.15 }),
+					invoke: () =>
+						Promise.resolve(
+							JSON.stringify({
+								session_id: "judge-session",
+								total_cost_usd: 0.2,
+								structured_output: { not: "a grade" },
+							}),
+						),
+				}),
+			);
+
+			expect(failure).toBeInstanceOf(SpendCeilingReachedError);
+			expect(
+				JSON.parse(persistence.files.get(artifactFile) ?? "{}"),
+			).toMatchObject({
+				status: "FAILED",
+				judgeAttempts: [{ outcome: "REJECTED", costUsd: 0.2 }],
+				judgeCostUsd: 0.2,
+				ceilingStop: { ceilingUsd: 0.15, spentUsd: 0.2 },
+			});
+		});
 	});
 
 	describe(judgeRun.name, () => {

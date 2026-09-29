@@ -63,6 +63,7 @@ import type {
 } from "./contracts";
 import type { JudgeInvoker } from "./judge-attempt";
 import { JudgeOutputValidationError } from "./judge-attempt";
+import { JudgeCeilingStopError } from "./judge-ceiling-stop-error";
 import type {
 	JudgeAgreementCalibration,
 	JudgeAgreementReport,
@@ -296,12 +297,18 @@ interface CompletedRunArtifact {
 
 export function buildFailedJudgeRunArtifact(
 	inputs: RunArtifactBaseInputs,
-	failure: Readonly<JudgeOutputValidationError>,
+	failure:
+		| Readonly<JudgeOutputValidationError>
+		| Readonly<JudgeCeilingStopError>,
 ): FailedJudgeRunArtifact {
 	return {
 		...runArtifactEvidence(inputs, failure),
 		status: "FAILED",
 		failure: failure.message,
+		ceilingStop:
+			failure instanceof JudgeCeilingStopError
+				? { ceilingUsd: failure.ceilingUsd, spentUsd: failure.spentUsd }
+				: undefined,
 	};
 }
 
@@ -338,7 +345,10 @@ export async function runFinalJudge(
 			request.invoke,
 		);
 	} catch (error) {
-		if (error instanceof JudgeOutputValidationError) {
+		if (
+			error instanceof JudgeOutputValidationError ||
+			error instanceof JudgeCeilingStopError
+		) {
 			await request.writeFailedArtifact(
 				buildFailedJudgeRunArtifact(
 					{ ...inputs, elapsedMs: request.elapsedMs?.() },

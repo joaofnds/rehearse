@@ -605,6 +605,10 @@ export interface GradedRunArtifact extends RunArtifactEvidence {
 export interface FailedJudgeRunArtifact extends RunArtifactEvidence {
 	readonly status: "FAILED";
 	readonly failure: string;
+	/** The ceiling that refused the final Judge, when it was the ceiling. */
+	readonly ceilingStop?:
+		| { readonly ceilingUsd: number; readonly spentUsd: number }
+		| undefined;
 }
 
 export type RunArtifact = GradedRunArtifact | FailedJudgeRunArtifact;

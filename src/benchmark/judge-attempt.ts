@@ -4,8 +4,10 @@ import {
 	readClaudeEnvelope,
 } from "./claude";
 import type { ClaudeCallMetrics, ClaudeEnvelope } from "./contracts";
+import { JudgeCeilingStopError } from "./judge-ceiling-stop-error";
 import { JudgeExecutionError } from "./judge-execution-error";
 import type { SpendCeiling } from "./spend-ceiling";
+import { SpendCeilingReachedError } from "./spend-ceiling";
 
 export { JudgeExecutionError } from "./judge-execution-error";
 
@@ -86,7 +88,22 @@ export async function runJudgeAttempts<Value>(
 	const attempts: JudgeAttempt[] = [];
 	let attemptPrompt = prompt;
 	for (let attempt = 1; ; attempt += 1) {
-		const budgetUsd = budget.spendCeiling.budgetFor(budget.sessionBudgetUsd);
+		let budgetUsd;
+		try {
+			budgetUsd = budget.spendCeiling.budgetFor(budget.sessionBudgetUsd);
+		} catch (error) {
+			if (error instanceof SpendCeilingReachedError) {
+				throw new JudgeCeilingStopError({
+					ceilingUsd: error.ceilingUsd,
+					spentUsd: error.spentUsd,
+					prompt,
+					attempts,
+					costUsd,
+				});
+			}
+
+			throw error;
+		}
 		let envelope;
 		try {
 			const output = await invoke(attemptPrompt, budgetUsd);
