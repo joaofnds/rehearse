@@ -102,6 +102,7 @@ describe(replayBaselineGroup.name, () => {
 			judgeEffort: "high",
 			sessionBudgetUsd: 5,
 			rubricSha256: REPLAYED_STAGE_RUBRIC_SHA256,
+			skillUnderTest: "skills/shape/",
 		});
 
 		expect(groupId).toBe("baseline-group");
@@ -168,6 +169,7 @@ describe(replayBaselineGroup.name, () => {
 				judgeEffort: undefined,
 				sessionBudgetUsd: 5,
 				rubricSha256: REPLAYED_STAGE_RUBRIC_SHA256,
+				skillUnderTest: "skills/shape/",
 			}),
 		);
 
@@ -208,12 +210,54 @@ describe(replayBaselineGroup.name, () => {
 				judgeEffort: "high",
 				sessionBudgetUsd: 5,
 				rubricSha256: "0".repeat(64),
+				skillUnderTest: "skills/shape/",
 			}),
 		);
 
 		expect(failure).toBeInstanceOf(RefusedPreconditionError);
 		expect(failure.message).toBe(
 			"the cases/audit-log/rubrics/shape.json rubric changed since arm A was recorded, so a baseline group run now could not be compared with it",
+		);
+		expect(probed).toBe(false);
+	});
+
+	it("refuses before probing the model when the skill under test is not the stage's own", async () => {
+		manifests.push(await writeReplayableRunManifest(RUN));
+		const { output } = recordOutput();
+		let probed = false;
+
+		const failure = await failureOf(
+			replayBaselineGroup(
+				{ approval: "yes", stdinIsTerminal: false },
+				{
+					output,
+					resolveRunDirectory: () => Promise.resolve(`/runs/${RUN}`),
+					requireSpendCeiling: () => Promise.resolve(100),
+					probeModel: () => {
+						probed = true;
+
+						return Promise.resolve();
+					},
+					execute: () => Promise.reject(new Error("replay must not run")),
+				},
+			)({
+				run: RUN,
+				stage: "shape",
+				corpusDirectory: "/runs/baseline-corpora/digest",
+				reps: 3,
+				model: "sonnet",
+				effort: "high",
+				judgeModel: "opus",
+				judgeEffort: "high",
+				sessionBudgetUsd: 5,
+				rubricSha256: REPLAYED_STAGE_RUBRIC_SHA256,
+				skillUnderTest: "skills/review/",
+			}),
+		);
+
+		expect(failure).toBeInstanceOf(RefusedPreconditionError);
+		expect(failure.message).toBe(
+			"skills/review/ is not the shape stage's own skill, which is the only skill a baseline replay can run without",
 		);
 		expect(probed).toBe(false);
 	});
@@ -279,6 +323,7 @@ describe(replayBaselineGroup.name, () => {
 					judgeEffort: undefined,
 					sessionBudgetUsd: 5,
 					rubricSha256: REPLAYED_STAGE_RUBRIC_SHA256,
+					skillUnderTest: "skills/shape/",
 				}),
 			);
 
@@ -319,6 +364,7 @@ describe(replayBaselineGroup.name, () => {
 				judgeEffort: undefined,
 				sessionBudgetUsd: 5,
 				rubricSha256: REPLAYED_STAGE_RUBRIC_SHA256,
+				skillUnderTest: "skills/shape/",
 			}),
 		);
 
@@ -405,6 +451,7 @@ describe(runCompareAttemptsCommand.name, () => {
 						judgeEffort: config.judgeEffort,
 						sessionBudgetUsd: config.sessionBudgetUsd,
 						rubricSha256: "",
+						skillUnderTest: "skills/shape/",
 					});
 					await arms.freezeRubric(control, rubric);
 

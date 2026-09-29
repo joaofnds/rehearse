@@ -96,7 +96,8 @@ function assertRunsArmAInputs(
  * Replay grades the baseline on the stage's rubric as it stands now, so a
  * rubric edited since arm A was recorded would have its group refused by the
  * comparison only after it was paid for. The run's manifest names the rubric
- * replay will load, so the edit is refused before replay starts.
+ * replay will load, so the edit is refused before replay starts. The same
+ * pipeline names the stage's own skill, the only one replay can remove.
  */
 async function assertGradesOnArmARubric(
 	baseline: Readonly<BaselineGroupRequest>,
@@ -110,6 +111,11 @@ async function assertGradesOnArmARubric(
 	if (stage === undefined) {
 		throw new RefusedPreconditionError(
 			`the ${baseline.run} run's pipeline has no ${baseline.stage} stage, so no rubric can grade a baseline group against arm A`,
+		);
+	}
+	if (baseline.skillUnderTest !== `skills/${stage.skill}/`) {
+		throw new RefusedPreconditionError(
+			`${baseline.skillUnderTest} is not the ${stage.name} stage's own skill, which is the only skill a baseline replay can run without`,
 		);
 	}
 

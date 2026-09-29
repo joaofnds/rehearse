@@ -44,6 +44,8 @@ export interface BaselineGroupRequest {
 	readonly sessionBudgetUsd: number;
 	/** The rubric arm A was graded on, which the baseline must be graded on too. */
 	readonly rubricSha256: string;
+	/** The skill arms A and B differ in, which the baseline replays without. */
+	readonly skillUnderTest: string;
 }
 
 export interface CompareAttemptsRequest {
@@ -389,6 +391,7 @@ async function runComparison(
 		judgeEffort: inputs.judgeEffort,
 		sessionBudgetUsd: inputs.sessionBudgetUsd,
 		rubricSha256: frozenRubricSha256(armA),
+		skillUnderTest: baseline.skillUnderTest,
 	});
 
 	const arms = { baseline: request.armA, candidate: request.armB, control };

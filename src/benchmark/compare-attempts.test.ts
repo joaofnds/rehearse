@@ -346,6 +346,7 @@ describe(compareAttempts.name, () => {
 					rubricSha256: createHash("sha256")
 						.update(`${CASE_ID} rubric\n`)
 						.digest("hex"),
+					skillUnderTest: "skills/build/",
 				},
 			]);
 			expect(dirname(corpusDirectory)).toBe(
