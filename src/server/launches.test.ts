@@ -3,11 +3,7 @@ import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
-import {
-	RecordedArms,
-	RUN,
-	STAGE,
-} from "#benchmark/compare-attempts-test-support";
+import { RecordedArms, STAGE } from "#benchmark/compare-attempts-test-support";
 import { readLaunchRecord, writeLaunchRecord } from "#benchmark/launch-record";
 import {
 	directorySource,
@@ -361,39 +357,27 @@ describe(createLaunchApp.name, () => {
 			);
 		}
 
-		it("compares them already approved once the free checks pass", async () => {
+		it("refuses a baseline the replayed stage cannot run without, before starting anything", async () => {
 			const { launcher, post, runsDirectory } = await harness();
 			const arms = await recordedArms(runsDirectory);
-			const armA = await arms.recordArm("baseline", SHARED);
-			const armB = await arms.recordArm("candidate", {
+			const armA = await arms.recordArm("baseline", {
 				...SHARED,
 				"skills/build/SKILL.md": "build\n",
 			});
+			const armB = await arms.recordArm("candidate", {
+				...SHARED,
+				"skills/build/SKILL.md": "revised build\n",
+			});
+			await arms.readInStage(armA, "skills/build/SKILL.md");
+			await arms.readInStage(armB, "skills/build/SKILL.md");
 
 			const response = await post({ kind: "comparison", armA, armB });
-			const { id } = launchedSchema.parse(await response.json());
 
-			expect(response.status).toBe(202);
-			expect(launcher.launches.map(({ argv }) => argv)).toEqual([
-				[
-					"compare",
-					"attempts",
-					"--arm-a",
-					armA,
-					"--arm-b",
-					armB,
-					"--yes",
-					"--approved-in-browser",
-				],
-			]);
-			expect(await readLaunchRecord(runsDirectory, id)).toMatchObject({
-				kind: "comparison",
-				armA,
-				armB,
-				run: RUN,
-				stage: STAGE,
-				attempts: 2,
-			});
+			expect(response.status).toBe(409);
+			expect(refusalSchema.parse(await response.json()).error).toBe(
+				`stage ${STAGE} loads skills/build/, and a stage replay cannot run without it; supply the control through a comparison manifest`,
+			);
+			expect(launcher.launches).toEqual([]);
 		});
 
 		it("refuses arms the comparison would refuse before starting anything", async () => {
