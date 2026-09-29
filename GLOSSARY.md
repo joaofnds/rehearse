@@ -390,6 +390,11 @@ See [current state](docs/status.md) for implementation coverage and
   as `PAUSED:<stage>`. A paused run is not resumed. Continuing it is a replay
   from that checkpoint. Distinct from the review pause, which holds a
   candidate in the target for a human edit.
+- **Operator stop**: a run, replay, group or session attempt the operator
+  ended, by Stop & restore repo in the browser or a signal from a terminal.
+  It kills the commands, restores the target, and records the stop so the
+  run reads `OPERATOR_STOPPED` rather than failed. Distinct from a ceiling
+  stop and from a stop below the minimum grade.
 - **Pipeline** — the ordered stages and their judge attachments, declared as
   data. The UI's design calls this a **task** (see [UI vocabulary](docs/design-handoff/README.md)); the word in code,
   records, and this glossary stays pipeline. Graded as a whole, a pipeline's
@@ -506,6 +511,14 @@ See [current state](docs/status.md) for implementation coverage and
   overrun by the calls in flight when it is reached, one per running session.
   A confirmation group is held to its attempts times the ceiling. Distinct
   from the per-session limit the session knobs set.
+- **Ceiling stop**: the stop a run makes when its spend reaches the spend
+  ceiling. A stage stopped this way writes its stop record with the ceiling
+  and the spend, and a final Judge stopped this way fails the run with both
+  on its failed run record. The target is restored and no later session
+  starts.
+- **Group ceiling**: the spend a confirmation group may reach, its attempts
+  times the spend ceiling. The group stops starting sessions once its spend
+  reaches it.
 - **Stage spend** — what one stage has cost. Every non-terminal run event
   carries a spend figure, and the event's kind decides which stage spend it is:
   `stage-started` reports the stages finished before this one, `turn-completed`
