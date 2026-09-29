@@ -86,13 +86,33 @@ async function putSpendCeiling(usd: number): Promise<SettingsReading> {
 	throw new LaunchRefusedError(await response.text());
 }
 
-/** A ceiling the server would store: a positive number of dollars. */
+/**
+ * A ceiling the CLI would store too: a plain positive decimal, so "0x10" or
+ * "1e3" is refused rather than read as 16 or 1000.
+ */
 function enteredCeilingUsd(entered: string): number | undefined {
+	if (!/^\d+(?:\.\d+)?$/u.test(entered)) {
+		return undefined;
+	}
 	const usd = Number(entered);
 
-	return entered.trim() !== "" && Number.isFinite(usd) && usd > 0
-		? usd
-		: undefined;
+	return usd > 0 ? usd : undefined;
+}
+
+/** An edit that differs from the stored ceiling holds the launch until stored. */
+function holdsUnstoredCeiling(
+	draft: string | undefined,
+	storedUsd: number | undefined,
+): boolean {
+	return draft !== undefined && draft !== shownCeiling(undefined, storedUsd);
+}
+
+/** What the field shows: the operator's edit, or the stored ceiling as stored. */
+function shownCeiling(
+	draft: string | undefined,
+	storedUsd: number | undefined,
+): string {
+	return draft ?? (storedUsd === undefined ? "" : String(storedUsd));
 }
 
 async function fetchCases(): Promise<CasesResponse> {
@@ -150,19 +170,22 @@ function CorpusLine(): React.JSX.Element {
  */
 function SpendCeilingField({
 	storedUsd,
+	draft,
+	onDraft,
 }: {
 	readonly storedUsd: number | undefined;
+	readonly draft: string | undefined;
+	readonly onDraft: (draft: string | undefined) => void;
 }): React.JSX.Element {
 	const queryClient = useQueryClient();
-	const [draft, setDraft] = useState<string>();
 	const store = useMutation({
 		mutationFn: putSpendCeiling,
 		onSuccess: (reading) => {
 			queryClient.setQueryData(["launch-settings"], reading);
-			setDraft(undefined);
+			onDraft(undefined);
 		},
 	});
-	const entered = draft ?? storedUsd?.toFixed(2) ?? "";
+	const entered = shownCeiling(draft, storedUsd);
 	const usd = enteredCeilingUsd(entered);
 
 	return (
@@ -185,7 +208,7 @@ function SpendCeilingField({
 						value={entered}
 						inputMode="decimal"
 						onChange={(event) => {
-							setDraft(event.target.value);
+							onDraft(event.target.value);
 						}}
 						className="w-20 bg-transparent font-mono text-sm"
 					/>
@@ -199,6 +222,11 @@ function SpendCeilingField({
 					Store ceiling
 				</Button>
 			</form>
+			{holdsUnstoredCeiling(draft, storedUsd) ? (
+				<p className="mt-1 text-xs text-dim">
+					Store this ceiling to start, or the launch holds to the stored one.
+				</p>
+			) : null}
 			{store.isError ? (
 				<p role="alert" className="mt-1 text-sm text-secondary-foreground">
 					<span aria-hidden="true">⚠ </span>
@@ -305,6 +333,7 @@ function LaunchForm({
 	const queryClient = useQueryClient();
 	const [attempts, setAttempts] = useState<LaunchAttempts>(1);
 	const [pickedCase, setPickedCase] = useState<string>();
+	const [ceilingDraft, setCeilingDraft] = useState<string>();
 	const settings = useQuery({
 		queryKey: ["launch-settings"],
 		queryFn: fetchSettings,
@@ -329,7 +358,10 @@ function LaunchForm({
 	const request = launchRequest(target, caseId, attempts);
 	const ceilingUsd = settings.data?.spendCeilingUsd ?? undefined;
 	const startable =
-		ceilingUsd !== undefined && request !== undefined && !launch.isPending;
+		ceilingUsd !== undefined &&
+		!holdsUnstoredCeiling(ceilingDraft, ceilingUsd) &&
+		request !== undefined &&
+		!launch.isPending;
 
 	return (
 		<>
@@ -379,7 +411,11 @@ function LaunchForm({
 						<label htmlFor="launch-spend-ceiling">Spend ceiling</label>
 					</dt>
 					<dd className="col-span-3">
-						<SpendCeilingField storedUsd={ceilingUsd} />
+						<SpendCeilingField
+							storedUsd={ceilingUsd}
+							draft={ceilingDraft}
+							onDraft={setCeilingDraft}
+						/>
 					</dd>
 					<dt className="text-muted-foreground">Attempts</dt>
 					<dd

@@ -15,6 +15,25 @@ import { LaunchDialog } from "./launch-dialog";
 
 const SET_COMMAND = "rehearse settings --spend-ceiling-usd <USD>";
 
+interface SettingsReadingBody {
+	readonly spendCeilingUsd: number | null;
+	readonly setCommand: string;
+	readonly recordsDirectory: string;
+	readonly linkedCorpus: { readonly kind: "live"; readonly root: string };
+	readonly overrun: string;
+}
+
+/** The whole reading the server answers, so the stub matches its contract. */
+function settingsReading(spendCeilingUsd: number | null): SettingsReadingBody {
+	return {
+		spendCeilingUsd,
+		setCommand: SET_COMMAND,
+		recordsDirectory: "/records",
+		linkedCorpus: { kind: "live", root: "/home/.claude" },
+		overrun: "The ceiling can be overrun by the calls in flight.",
+	};
+}
+
 const originalFetch = globalThis.fetch;
 
 afterEach(() => {
@@ -25,10 +44,7 @@ function routes(
 	overrides: ReadonlyMap<string, Reply> = new Map(),
 ): ReadonlyMap<string, Reply> {
 	return new Map([
-		[
-			"GET /api/settings",
-			{ status: 200, body: { spendCeilingUsd: 5, setCommand: SET_COMMAND } },
-		],
+		["GET /api/settings", { status: 200, body: settingsReading(5) }],
 		[
 			"GET /api/cases",
 			{
@@ -287,7 +303,7 @@ describe(LaunchDialog.name, () => {
 					"PUT /api/settings/spend-ceiling",
 					{
 						status: 200,
-						body: { spendCeilingUsd: usd, setCommand: SET_COMMAND },
+						body: settingsReading(usd),
 					},
 				],
 			]);
@@ -299,13 +315,46 @@ describe(LaunchDialog.name, () => {
 			const dialog = await openDialog({ kind: "case" });
 
 			await waitFor(() => {
+				expect(within(dialog).getByLabelText("Spend ceiling")).toHaveValue("5");
+			});
+		});
+
+		it("shows a stored ceiling finer than a cent unrounded", async () => {
+			serving(
+				new Map([
+					["GET /api/settings", { status: 200, body: settingsReading(0.125) }],
+				]),
+			);
+
+			const dialog = await openDialog({ kind: "case" });
+
+			await waitFor(() => {
 				expect(within(dialog).getByLabelText("Spend ceiling")).toHaveValue(
-					"5.00",
+					"0.125",
 				);
 			});
 		});
 
-		it("stores the entered ceiling as JSON and launches under it", async () => {
+		it("holds start while the field holds a ceiling not yet stored", async () => {
+			serving();
+			const dialog = await openDialog({ kind: "case" });
+			await startButton();
+
+			fireEvent.change(within(dialog).getByLabelText("Spend ceiling"), {
+				target: { value: "2" },
+			});
+
+			expect(
+				within(dialog).getByRole("button", { name: /^Start/u }),
+			).toBeDisabled();
+			expect(
+				within(dialog).getByText(
+					"Store this ceiling to start, or the launch holds to the stored one.",
+				),
+			).toBeInTheDocument();
+		});
+
+		it("stores the entered ceiling as JSON and states it as the one holding the launch", async () => {
 			const server = serving(storing(2.5));
 			const dialog = await openDialog({ kind: "case" });
 			await startButton();
@@ -328,7 +377,7 @@ describe(LaunchDialog.name, () => {
 			expect(JSON.parse(request?.body ?? "")).toEqual({ usd: 2.5 });
 		});
 
-		it.each(["0", "-1", "five", ""])(
+		it.each(["0", "-1", "five", "", "0x10", "1e3", " 5"])(
 			"offers no store for %p",
 			async (entered) => {
 				serving();
@@ -448,14 +497,14 @@ describe(LaunchDialog.name, () => {
 						"GET /api/settings",
 						{
 							status: 200,
-							body: { spendCeilingUsd: null, setCommand: SET_COMMAND },
+							body: settingsReading(null),
 						},
 					],
 					[
 						"PUT /api/settings/spend-ceiling",
 						{
 							status: 200,
-							body: { spendCeilingUsd: 4, setCommand: SET_COMMAND },
+							body: settingsReading(4),
 						},
 					],
 				]),
@@ -480,7 +529,7 @@ describe(LaunchDialog.name, () => {
 						"GET /api/settings",
 						{
 							status: 200,
-							body: { spendCeilingUsd: null, setCommand: SET_COMMAND },
+							body: settingsReading(null),
 						},
 					],
 				]),
