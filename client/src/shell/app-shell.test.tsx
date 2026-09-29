@@ -502,7 +502,12 @@ describe("the navigation shell", () => {
 				],
 				[
 					`/api/comparisons/${digest}`,
-					{ report: { cases: [] }, attribution: {} },
+					{
+						report: { cases: [] },
+						attribution: {},
+						summary: {},
+						baselineArm: { kind: "supplied" },
+					},
 				],
 			]),
 		);

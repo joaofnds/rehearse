@@ -90,7 +90,12 @@ describe(ComparisonsPage.name, () => {
 				],
 				[
 					`/api/comparisons/${DIGEST}`,
-					{ report: { cases: [] }, attribution: {} },
+					{
+						report: { cases: [] },
+						attribution: {},
+						summary: {},
+						baselineArm: { kind: "supplied" },
+					},
 				],
 			]),
 		);

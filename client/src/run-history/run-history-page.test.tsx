@@ -1836,6 +1836,35 @@ describe(RunHistoryPage.name, () => {
 			);
 		});
 
+		it("names the checkpoint a started extension adds attempts at", async () => {
+			respondingWith({
+				rows: [],
+				launches: [
+					{
+						kind: "launch",
+						id: "5e3f7a9b-0000-4000-8000-000000000000",
+						target: "extension",
+						caseId: undefined,
+						run: "2026-09-06T21-58-29.508Z",
+						stage: "build",
+						attempts: 2,
+						launchedAt,
+						status: "RUNNING",
+					},
+				],
+				unreadable: [],
+			});
+
+			renderPage();
+
+			await waitFor(() => {
+				expect(screen.getByText("launch 5e3f7a9b")).toBeInTheDocument();
+			});
+			expect(cellOf("launch 5e3f7a9b", "Case")).toHaveTextContent(
+				"add attempts to a comparison at build · 2026-09-06T21-58-29.508Z",
+			);
+		});
+
 		it("lists a launch the operator stopped as stopped, with no controls", async () => {
 			respondingWith({
 				rows: [],

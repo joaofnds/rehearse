@@ -327,6 +327,52 @@ describe(LaunchDialog.name, () => {
 		});
 	});
 
+	describe("when adding attempts to a saved comparison", () => {
+		const EXTENSION: LaunchTarget = {
+			kind: "extension",
+			comparison: "a".repeat(64),
+			attempts: 2,
+			usd: 9,
+		};
+
+		it("states what the added attempts cost before anything starts", async () => {
+			serving();
+
+			const dialog = await openDialog(EXTENSION);
+
+			expect(
+				within(dialog).getByText(
+					"about $9.00, at each arm's mean recorded cost per attempt",
+				),
+			).toBeInTheDocument();
+			expect(
+				within(dialog).queryByRole("group", { name: "Attempts" }),
+			).not.toBeInTheDocument();
+			expect(
+				within(dialog).getByRole("button", { name: "Start · 2 attempts" }),
+			).toBeInTheDocument();
+		});
+
+		it("posts the comparison with the cost it stated", async () => {
+			const server = serving();
+			await openDialog(EXTENSION);
+
+			fireEvent.click(await startButton());
+
+			await waitFor(() => {
+				expect(server.posted("/api/launches")).toHaveLength(1);
+			});
+			expect(JSON.parse(server.posted("/api/launches")[0]?.body ?? "")).toEqual(
+				{
+					kind: "extension",
+					comparison: "a".repeat(64),
+					attempts: 2,
+					statedUsd: 9,
+				},
+			);
+		});
+	});
+
 	it("closes once the launch is accepted", async () => {
 		serving();
 		await openDialog({ kind: "case" });

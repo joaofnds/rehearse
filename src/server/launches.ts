@@ -18,7 +18,7 @@ import {
 } from "#benchmark/case";
 import { INITIAL_CHECKPOINT_STAGE } from "#benchmark/checkpoint";
 import { unhandled } from "#benchmark/contracts";
-import { planComparison } from "#benchmark/compare-attempts";
+import { planComparison, planExtension } from "#benchmark/compare-attempts";
 import { isConfirmationIdentity } from "#benchmark/confirmation-record";
 import { liveCorpusSource } from "#benchmark/corpus-file";
 import {
@@ -34,6 +34,7 @@ import { loadRunManifest } from "#benchmark/manifest";
 import {
 	benchmarkRunPaths,
 	checkpointRecorded,
+	comparisonReportPaths,
 	confirmationGroupPaths,
 	launchPaths,
 	recordedRunNames,
@@ -110,6 +111,15 @@ const launchRequestSchema = z.discriminatedUnion("kind", [
 			kind: z.literal("comparison"),
 			armA: z.string().refine(isConfirmationIdentity, "is not a group id"),
 			armB: z.string().refine(isConfirmationIdentity, "is not a group id"),
+		})
+		.strict(),
+	z
+		.object({
+			kind: z.literal("extension"),
+			comparison: z.string().regex(/^[0-9a-f]{64}$/u, "is not a comparison"),
+			attempts: z.number().int().positive(),
+			/** The cost the dialog stated, which the operator's click approved. */
+			statedUsd: z.number().nonnegative(),
 		})
 		.strict(),
 ]);
@@ -274,6 +284,63 @@ async function comparisonLaunch(
 	};
 }
 
+/**
+ * An extension replays a group in every arm, so what it would refuse for free
+ * is refused here, and so is a cost other than the one the operator approved.
+ */
+async function extensionLaunch(
+	request: Readonly<{
+		comparison: string;
+		attempts: number;
+		statedUsd: number;
+	}>,
+	runsDirectory: string,
+): Promise<Launch> {
+	const { reportFile } = comparisonReportPaths(
+		runsDirectory,
+		request.comparison,
+	);
+	if (!(await Bun.file(reportFile).exists())) {
+		throw new LaunchRefusalError(
+			`No saved comparison ${request.comparison}`,
+			404,
+		);
+	}
+	const { cost, armA } = await asLaunchRefusal(() =>
+		planExtension({
+			runsDirectory,
+			comparison: request.comparison,
+			attemptsPerArm: request.attempts,
+		}),
+	);
+	if (cost.usd !== request.statedUsd) {
+		throw new LaunchRefusalError(
+			`Adding ${String(request.attempts)} attempts to each arm now costs about $${cost.usd.toFixed(2)}, not the $${request.statedUsd.toFixed(2)} the dialog stated; reopen it to read the current cost`,
+			409,
+		);
+	}
+
+	return {
+		argv: [
+			"compare",
+			"extend",
+			"--comparison",
+			request.comparison,
+			"--attempts",
+			String(request.attempts),
+			"--yes",
+			"--approved-in-browser",
+		],
+		target: {
+			kind: "extension",
+			comparison: request.comparison,
+			...armA.checkpoint,
+			attempts: request.attempts,
+			usd: cost.usd,
+		},
+	};
+}
+
 /** A precondition the CLI would refuse on refuses the launch, redacted. */
 async function asLaunchRefusal<T>(read: () => Promise<T>): Promise<T> {
 	try {
@@ -400,6 +467,9 @@ async function planLaunch(
 		}
 		case "comparison": {
 			return comparisonLaunch(request, dependencies.runsDirectory);
+		}
+		case "extension": {
+			return extensionLaunch(request, dependencies.runsDirectory);
 		}
 		default: {
 			return unhandled(request, "launch request");

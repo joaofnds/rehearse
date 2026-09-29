@@ -34,6 +34,14 @@ export type LaunchTarget =
 			readonly stage: string;
 			/** Arm A's group size, which the baseline group copies. */
 			readonly reps: number;
+	  }
+	| {
+			readonly kind: "extension";
+			readonly comparison: string;
+			/** How many attempts each arm gains. */
+			readonly attempts: number;
+			/** What they cost at each arm's mean recorded cost per attempt. */
+			readonly usd: number;
 	  };
 
 type CasesResponse = InferResponseType<typeof launchClient.api.cases.$get>;
@@ -338,6 +346,14 @@ function launchRequest(
 		case "comparison": {
 			return { kind: "comparison", armA: target.armA, armB: target.armB };
 		}
+		case "extension": {
+			return {
+				kind: "extension",
+				comparison: target.comparison,
+				attempts: target.attempts,
+				statedUsd: target.usd,
+			};
+		}
 		default: {
 			return target satisfies never;
 		}
@@ -355,6 +371,9 @@ function dialogTitle(target: LaunchTarget): string {
 		case "comparison": {
 			return `Compare two attempts at ${target.stage}`;
 		}
+		case "extension": {
+			return `Add ${plural(target.attempts, "attempt")} to each arm`;
+		}
 		default: {
 			return target satisfies never;
 		}
@@ -371,6 +390,9 @@ function dialogDescription(target: LaunchTarget): string {
 		}
 		case "comparison": {
 			return `Runs a baseline group of ${plural(target.reps, "attempt")} at ${target.stage}, against arm A's corpus without the one skill the arms differ in, under arm A's model, effort, judge and budget, then compares the baseline, arm A and arm B. Arms A and B are not re-run.`;
+		}
+		case "extension": {
+			return `Runs ${plural(target.attempts, "more attempt")} in the baseline, arm A and arm B, each from the checkpoint its arm replayed and against its arm's corpus, then saves a comparison of every attempt each arm holds. The comparison it extends is kept as it was.`;
 		}
 		default: {
 			return target satisfies never;
@@ -447,6 +469,44 @@ function TargetRows({
 				</>
 			);
 		}
+		case "extension": {
+			return (
+				<>
+					<dt className="text-muted-foreground">Comparison</dt>
+					<dd className="col-span-3 min-w-0 font-mono break-all">
+						{target.comparison}
+					</dd>
+					<dt className="text-muted-foreground">Per arm</dt>
+					<dd className="col-span-3">{plural(target.attempts, "attempt")}</dd>
+					<dt className="text-muted-foreground">Cost</dt>
+					<dd className="col-span-3">
+						{`about $${target.usd.toFixed(2)}, at each arm's mean recorded cost per attempt`}
+					</dd>
+				</>
+			);
+		}
+		default: {
+			return target satisfies never;
+		}
+	}
+}
+
+/** How many attempts one group of the launch runs, which its ceiling bounds. */
+function startedAttemptsOf(
+	target: LaunchTarget,
+	attempts: LaunchAttempts,
+): number {
+	switch (target.kind) {
+		case "case":
+		case "replay": {
+			return attempts;
+		}
+		case "comparison": {
+			return target.reps;
+		}
+		case "extension": {
+			return target.attempts;
+		}
 		default: {
 			return target satisfies never;
 		}
@@ -486,7 +546,7 @@ function LaunchForm({
 	const caseId =
 		pickedCase ?? cases.data?.cases.find((listed) => listed.model !== null)?.id;
 	const request = launchRequest(target, caseId, attempts);
-	const startedAttempts = target.kind === "comparison" ? target.reps : attempts;
+	const startedAttempts = startedAttemptsOf(target, attempts);
 	const ceilingUsd = settings.data?.spendCeilingUsd ?? undefined;
 	const startable =
 		ceilingUsd !== undefined &&
@@ -525,7 +585,8 @@ function LaunchForm({
 							onDraft={setCeilingDraft}
 						/>
 					</dd>
-					{target.kind === "comparison" ? null : (
+					{target.kind === "comparison" ||
+					target.kind === "extension" ? null : (
 						<>
 							<dt className="text-muted-foreground">Attempts</dt>
 							<dd

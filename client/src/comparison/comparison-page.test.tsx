@@ -7,7 +7,9 @@ import {
 	within,
 } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ComparisonBaselineArm } from "#benchmark/comparison-baseline-record";
 import type { ComparisonReport } from "#benchmark/comparison-record";
+import type { MoreAttemptsCost } from "#benchmark/more-attempts-cost";
 import type { ComparisonAttribution } from "#server/comparison-attribution";
 import type { QualityReading } from "#server/comparison-quality-reading";
 import { stubFetchByPath } from "#client/test-support/fetch-stub";
@@ -85,6 +87,10 @@ function arm(
 
 interface ComparisonResponseFixture {
 	readonly report: { readonly cases: ComparisonReport["cases"] };
+	readonly baselineArm: ComparisonBaselineArm;
+	readonly summary: Readonly<
+		Record<string, { readonly moreAttempts: MoreAttemptsCost }>
+	>;
 	readonly attemptHistories: Readonly<
 		Record<
 			string,
@@ -122,6 +128,15 @@ interface ComparisonResponseFixture {
 function comparisonResponseBody(): ComparisonResponseFixture {
 	return {
 		attemptHistories: {},
+		baselineArm: { kind: "supplied" },
+		summary: {
+			"case-1": {
+				moreAttempts: { state: "unavailable", reasons: ["rep-1 lacks worker"] },
+			},
+			"case-2": {
+				moreAttempts: { state: "unavailable", reasons: ["rep-1 lacks worker"] },
+			},
+		},
 		report: {
 			cases: [
 				{
@@ -552,5 +567,69 @@ describe(ComparisonPage.name, () => {
 		expect(
 			screen.queryByText(/refuses the attribution claim/iu),
 		).not.toBeInTheDocument();
+	});
+	it("offers no added attempts on a comparison whose arms nothing records how to replay", async () => {
+		renderPage();
+
+		await screen.findByRole("rowheader", { name: "case-1" });
+
+		expect(
+			screen.queryByRole("button", { name: /attempts? to each arm/u }),
+		).not.toBeInTheDocument();
+		expect(screen.queryByText(/cannot be stated/u)).not.toBeInTheDocument();
+	});
+
+	describe("when compare attempts made the comparison", () => {
+		function comparedAttempts(
+			moreAttempts: MoreAttemptsCost,
+		): ComparisonResponseFixture {
+			const body = comparisonResponseBody();
+
+			return {
+				...body,
+				report: { cases: body.report.cases.slice(0, 1) },
+				baselineArm: {
+					kind: "derived",
+					skillUnderTest: "skills/discuss/SKILL.md",
+				},
+				summary: { "case-1": { moreAttempts } },
+			};
+		}
+
+		it("offers arm A's attempt count again in every arm, at its stated cost", async () => {
+			renderPage(
+				comparedAttempts({ state: "available", attemptsPerArm: 4, usd: 18 }),
+			);
+
+			fireEvent.click(
+				await screen.findByRole("button", {
+					name: "Add 4 attempts to each arm",
+				}),
+			);
+
+			expect(
+				await screen.findByText(
+					"about $18.00, at each arm's mean recorded cost per attempt",
+				),
+			).toBeInTheDocument();
+		});
+
+		it("says why more attempts cannot be offered when their cost cannot be stated", async () => {
+			renderPage(
+				comparedAttempts({
+					state: "unavailable",
+					reasons: ["rep-1 lacks worker.costUsd"],
+				}),
+			);
+
+			expect(
+				await screen.findByText(
+					"What more attempts would cost cannot be stated: rep-1 lacks worker.costUsd",
+				),
+			).toBeInTheDocument();
+			expect(
+				screen.queryByRole("button", { name: /attempts? to each arm/u }),
+			).not.toBeInTheDocument();
+		});
 	});
 });

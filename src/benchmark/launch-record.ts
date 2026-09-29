@@ -48,10 +48,24 @@ const comparisonTarget = {
 	attempts: z.number().int().min(2),
 };
 
+/**
+ * Its attempts are the ones added to each arm, and its cost the one the
+ * browser stated and the operator approved before it started.
+ */
+const extensionTarget = {
+	kind: z.literal("extension"),
+	comparison: z.string(),
+	run: z.string(),
+	stage: z.string(),
+	attempts: z.number().int().positive(),
+	usd: z.number().nonnegative(),
+};
+
 const launchTargetSchema = z.discriminatedUnion("kind", [
 	z.object(caseTarget).strict(),
 	z.object(replayTarget).strict(),
 	z.object(comparisonTarget).strict(),
+	z.object(extensionTarget).strict(),
 ]);
 
 /** What a launch runs, apart from the process that runs it. */
@@ -61,6 +75,7 @@ const launchRecordSchema = z.discriminatedUnion("kind", [
 	z.object({ ...launchCommon, ...caseTarget }).strict(),
 	z.object({ ...launchCommon, ...replayTarget }).strict(),
 	z.object({ ...launchCommon, ...comparisonTarget }).strict(),
+	z.object({ ...launchCommon, ...extensionTarget }).strict(),
 ]);
 
 export type LaunchRecord = z.infer<typeof launchRecordSchema>;

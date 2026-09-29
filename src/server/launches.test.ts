@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { z } from "zod";
 import {
 	RecordedArms,
@@ -33,6 +33,7 @@ import {
 	FAKE_LAUNCH_STARTED_AT,
 	FakeLauncher,
 } from "./launch-test-support";
+import { compareAttempts } from "#benchmark/compare-attempts";
 import { createLaunchApp } from "./launches";
 
 const NOTHING_RUNNING: RunLiveness = {
@@ -503,6 +504,142 @@ describe(createLaunchApp.name, () => {
 				kind: "comparison",
 				armA: "../outside",
 				armB: "never-recorded",
+			});
+
+			expect(response.status).toBe(400);
+			expect(launcher.launches).toEqual([]);
+		});
+	});
+
+	describe("when a saved comparison is extended", () => {
+		/** A comparison `compare attempts` saved, named by its manifest digest. */
+		async function savedComparison(runsDirectory: string): Promise<{
+			readonly arms: RecordedArms;
+			readonly comparison: string;
+		}> {
+			const arms = await RecordedArms.create(
+				runsDirectory,
+				await temporaryDirectory("rehearse-launch-extend-"),
+			);
+			const shared = {
+				"CLAUDE.md": "global instructions\n",
+				"skills/review/SKILL.md": "review\n",
+			};
+			const armA = await arms.recordArm("baseline", {
+				...shared,
+				"skills/build/SKILL.md": "build\n",
+			});
+			const armB = await arms.recordArm("candidate", {
+				...shared,
+				"skills/build/SKILL.md": "revised build\n",
+			});
+			await arms.readInStage(armA, "skills/build/SKILL.md");
+			await arms.readInStage(armB, "skills/build/SKILL.md");
+			const { reportFile } = await compareAttempts(
+				{ runsDirectory, armA, armB },
+				{ runBaselineGroup: arms.runBaselineGroup },
+			);
+
+			return { arms, comparison: basename(dirname(reportFile)) };
+		}
+
+		it("extends it already approved at the cost the dialog stated", async () => {
+			const { launcher, post, runsDirectory } = await harness();
+			const { comparison } = await savedComparison(runsDirectory);
+
+			const response = await post({
+				kind: "extension",
+				comparison,
+				attempts: 2,
+				statedUsd: 9,
+			});
+			const { id } = launchedSchema.parse(await response.json());
+
+			expect(response.status).toBe(202);
+			expect(launcher.launches.map(({ argv }) => argv)).toEqual([
+				[
+					"compare",
+					"extend",
+					"--comparison",
+					comparison,
+					"--attempts",
+					"2",
+					"--yes",
+					"--approved-in-browser",
+				],
+			]);
+			expect(await readLaunchRecord(runsDirectory, id)).toMatchObject({
+				kind: "extension",
+				comparison,
+				run: RUN,
+				stage: STAGE,
+				attempts: 2,
+				usd: 9,
+			});
+		});
+
+		it("refuses when the cost differs from the one the dialog stated, before starting anything", async () => {
+			const { launcher, post, runsDirectory } = await harness();
+			const { comparison } = await savedComparison(runsDirectory);
+
+			const response = await post({
+				kind: "extension",
+				comparison,
+				attempts: 2,
+				statedUsd: 4.5,
+			});
+
+			expect(response.status).toBe(409);
+			expect(refusalSchema.parse(await response.json()).error).toBe(
+				"Adding 2 attempts to each arm now costs about $9.00, not the $4.50 the dialog stated; reopen it to read the current cost",
+			);
+			expect(launcher.launches).toEqual([]);
+		});
+
+		it("refuses a comparison the extension would refuse, before starting anything", async () => {
+			const { launcher, post, runsDirectory } = await harness();
+			const { arms, comparison } = await savedComparison(runsDirectory);
+			await arms.nameStageRubric("rubrics/missing.json");
+
+			const response = await post({
+				kind: "extension",
+				comparison,
+				attempts: 2,
+				statedUsd: 9,
+			});
+
+			expect(response.status).toBe(409);
+			expect(refusalSchema.parse(await response.json()).error).toStartWith(
+				"the rubrics/missing.json rubric cannot be read",
+			);
+			expect(launcher.launches).toEqual([]);
+		});
+
+		it("refuses a comparison nothing saved", async () => {
+			const { launcher, post } = await harness();
+
+			const response = await post({
+				kind: "extension",
+				comparison: "0".repeat(64),
+				attempts: 2,
+				statedUsd: 9,
+			});
+
+			expect(response.status).toBe(404);
+			expect(refusalSchema.parse(await response.json()).error).toBe(
+				`No saved comparison ${"0".repeat(64)}`,
+			);
+			expect(launcher.launches).toEqual([]);
+		});
+
+		it("refuses a comparison that could name a path outside the records", async () => {
+			const { launcher, post } = await harness();
+
+			const response = await post({
+				kind: "extension",
+				comparison: "../outside",
+				attempts: 2,
+				statedUsd: 9,
 			});
 
 			expect(response.status).toBe(400);

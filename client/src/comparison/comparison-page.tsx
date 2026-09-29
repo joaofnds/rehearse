@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { ComparisonArm as ComparisonArmRole } from "#benchmark/comparison-record";
 import { apiClient } from "#client/api-client";
 import { RecordNotFoundError } from "#client/record-not-found";
+import { LaunchDialog } from "#client/launch/launch-dialog";
 import { EmptyState } from "#client/system/components/empty-state";
 import { Switcher } from "#client/system/components/switcher";
 import { TableShell } from "#client/system/components/table-shell";
@@ -355,6 +356,53 @@ function AttributionCards({
 	);
 }
 
+/**
+ * Offers arm A's attempt count again in every arm of a comparison that
+ * compare attempts made, whose record says how each arm replays. Its one case
+ * carries the cost, stated before the dialog can start anything.
+ */
+function MoreAttempts({
+	digest,
+	comparison,
+}: {
+	readonly digest: string;
+	readonly comparison: ComparisonResponse;
+}): React.JSX.Element | null {
+	const [benchmarkCase] = comparison.report.cases;
+	if (
+		comparison.baselineArm.kind === "supplied" ||
+		comparison.baselineArm.kind === "unreadable" ||
+		benchmarkCase === undefined
+	) {
+		return null;
+	}
+	const cost = comparison.summary[benchmarkCase.caseId]?.moreAttempts;
+	if (cost === undefined) {
+		return null;
+	}
+	if (cost.state === "unavailable") {
+		return (
+			<p className="text-sm text-muted-foreground">
+				{`What more attempts would cost cannot be stated: ${cost.reasons.join("; ")}`}
+			</p>
+		);
+	}
+
+	return (
+		<div>
+			<LaunchDialog
+				target={{
+					kind: "extension",
+					comparison: digest,
+					attempts: cost.attemptsPerArm,
+					usd: cost.usd,
+				}}
+				triggerLabel={`Add ${plural(cost.attemptsPerArm, "attempt")} to each arm`}
+			/>
+		</div>
+	);
+}
+
 export function ComparisonPage({
 	digest,
 }: {
@@ -405,6 +453,10 @@ export function ComparisonPage({
 						<span aria-hidden="true">⚠ </span>
 						Could not load comparison.
 					</p>
+				) : null}
+
+				{query.isSuccess ? (
+					<MoreAttempts digest={digest} comparison={query.data} />
 				) : null}
 
 				{query.isSuccess && presentation === "Attempt pairs" ? (
