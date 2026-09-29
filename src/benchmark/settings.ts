@@ -10,6 +10,8 @@ const SETTINGS_FILE = "settings.json";
 export const SET_SPEND_CEILING_COMMAND =
 	"rehearse settings --spend-ceiling-usd <USD>";
 
+export const UNLINK_CORPUS_COMMAND = "rehearse settings --unlink-corpus";
+
 /** Loose, so storing a ceiling keeps settings a later version wrote. */
 const settingsSchema = z.looseObject({
 	spendCeilingUsd: z.number().positive().optional(),

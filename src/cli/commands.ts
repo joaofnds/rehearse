@@ -306,12 +306,22 @@ export const COMMANDS: readonly CommandDefinition[] = [
 	{
 		name: "settings",
 		summary:
-			"Show the stored spend ceiling and the records location, or store a new ceiling",
+			"Show the stored spend ceiling, the linked corpus and the records location, or store a new ceiling or link",
 		flags: [
 			{
 				name: "--spend-ceiling-usd",
 				kind: "value",
 				help: "The most a run, replay or session attempt may spend in USD; a confirmation group may spend its attempts times this",
+			},
+			{
+				name: "--link-corpus",
+				kind: "value",
+				help: "Directory in corpus layout that replays and session attempts measure when no --corpus is given",
+			},
+			{
+				name: "--unlink-corpus",
+				kind: "switch",
+				help: "Remove the linked corpus, so the live install is measured again",
 			},
 			jsonFlag,
 		],

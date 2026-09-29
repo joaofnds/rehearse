@@ -1029,6 +1029,59 @@ describe("a paying command given every session knob", () => {
 	);
 });
 
+describe("the linked corpus", () => {
+	let records: string;
+	let corpus: string;
+	let inRecords: ReturnType<typeof environmentWithoutKnobs>;
+
+	beforeEach(async () => {
+		records = await mkdtemp(join(tmpdir(), "rehearse-cli-link-"));
+		corpus = await mkdtemp(join(tmpdir(), "rehearse-cli-corpus-"));
+		await Bun.write(join(corpus, "CLAUDE.md"), "linked\n");
+		inRecords = {
+			...environmentWithoutKnobs(),
+			[RECORDS_DIRECTORY_VARIABLE]: records,
+		};
+	});
+
+	afterEach(async () => {
+		await rm(records, { force: true, recursive: true });
+		await rm(corpus, { force: true, recursive: true });
+	});
+
+	it("is read back by a new process after one links it", async () => {
+		await runCli(["settings", "--link-corpus", corpus], "empty", inRecords);
+
+		const result = await runCli(["settings", "--json"], "empty", inRecords);
+
+		expect(result.exitCode).toBe(EXIT_CODES.completed);
+		expect(JSON.parse(result.stdout)).toEqual({
+			linkedCorpusDirectory: corpus,
+			recordsDirectory: records,
+		});
+	});
+
+	it("is gone for a new process after one unlinks it", async () => {
+		await runCli(["settings", "--link-corpus", corpus], "empty", inRecords);
+		await runCli(["settings", "--unlink-corpus"], "empty", inRecords);
+
+		const result = await runCli(["settings", "--json"], "empty", inRecords);
+
+		expect(JSON.parse(result.stdout)).toEqual({ recordsDirectory: records });
+	});
+
+	it("refuses a directory holding no corpus as a usage error", async () => {
+		const result = await runCli(
+			["settings", "--link-corpus", records],
+			"empty",
+			inRecords,
+		);
+
+		expect(result.exitCode).toBe(EXIT_CODES.usageError);
+		expect(result.stderr).toContain(records);
+	});
+});
+
 describe("the spend ceiling", () => {
 	let records: string;
 	let inRecords: ReturnType<typeof environmentWithoutKnobs>;

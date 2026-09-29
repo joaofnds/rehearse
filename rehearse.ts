@@ -281,6 +281,8 @@ async function dispatch(
 				{
 					runsDirectory,
 					spendCeilingUsd: flagValue(commandLine.flags, "--spend-ceiling-usd"),
+					linkCorpus: flagValue(commandLine.flags, "--link-corpus"),
+					unlinkCorpus: commandLine.flags.includes("--unlink-corpus"),
 					json: commandLine.json,
 				},
 				processOutput,
