@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { failureOf } from "#cli/cli-test-support";
+import { runStreamedSession } from "./claude";
 import { STAGE_SILENCE_LIMIT_MS } from "./config";
 import type { SpendCeiling } from "./spend-ceiling";
 import { createSpendCeiling, SpendCeilingReachedError } from "./spend-ceiling";
@@ -811,6 +812,34 @@ describe("the spend ceiling", () => {
 			);
 
 			expect(spendCeiling.spentUsd()).toBeCloseTo(0.4);
+		});
+
+		it("charges the ceiling a resumed worker turn the CLI halted with a failed exit", async () => {
+			const spendCeiling = createSpendCeiling({ ceilingUsd: 0.5 });
+			const question = JSON.stringify({
+				type: "result",
+				session_id: "worker-session",
+				total_cost_usd: 0.203,
+				structured_output: { status: "QUESTION", message: "Which scope?" },
+			});
+			const halt = [
+				"sh",
+				"-c",
+				`printf '%s\\n' "$0"; exit 1`,
+				budgetHalt(0.578),
+			];
+			const turns = [
+				() => Promise.resolve(question),
+				() => runStreamedSession(halt, process.cwd()),
+			];
+
+			await failureOf(
+				runWorkflowStage(stageRequest(spendCeiling), () =>
+					(turns.shift() ?? (() => Promise.resolve("")))(),
+				),
+			);
+
+			expect(spendCeiling.spentUsd()).toBeCloseTo(0.578);
 		});
 
 		it("charges the ceiling a worker turn whose answer is not a turn", async () => {

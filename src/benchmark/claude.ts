@@ -142,15 +142,37 @@ export async function runStreamedSession(
 		return readStreamResult(await runCommand(command, cwd, options));
 	} catch (error) {
 		if (error instanceof CommandError) {
-			throw new CommandError(
-				error.command,
-				error.exitCode,
-				streamResultLine(error.stdout) ?? "",
-				error.stderr,
+			throw sessionFailure(
+				new CommandError(
+					error.command,
+					error.exitCode,
+					streamResultLine(error.stdout) ?? "",
+					error.stderr,
+				),
 			);
 		}
 		throw error;
 	}
+}
+
+/**
+ * The CLI exits non-zero on a session it halted, a budget halt among them,
+ * and still writes the envelope saying what the session spent. Read as a
+ * bare command failure, that spend is never charged to the ceiling.
+ */
+function sessionFailure(error: Readonly<CommandError>): Error {
+	let output: unknown;
+	try {
+		output = JSON.parse(error.stdout);
+	} catch {
+		return error;
+	}
+
+	const envelope = claudeEnvelopeSchema.safeParse(output);
+
+	return envelope.success && envelope.data.is_error === true
+		? new ClaudeSessionError(envelope.data)
+		: error;
 }
 
 export function readClaudeEnvelope(output: string): ClaudeEnvelope {
