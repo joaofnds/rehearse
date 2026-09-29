@@ -11,7 +11,13 @@ export interface QualityInterval {
 	readonly high: string;
 }
 
+/** An arm that recorded nothing for the measure leaves nothing to compare. */
+export interface UnavailableVerdict {
+	readonly kind: "unavailable";
+}
+
 export type QualityVerdict =
+	| UnavailableVerdict
 	| { readonly kind: "insideRerunNoise" }
 	| { readonly kind: "unchangedAlreadyClear" }
 	| { readonly kind: "separated"; readonly arm: ComparisonArm };
@@ -52,13 +58,9 @@ function letterSpanOf(
 }
 
 function letterSpansOverlap(
-	left: QualityInterval | undefined,
-	right: QualityInterval | undefined,
+	left: QualityInterval,
+	right: QualityInterval,
 ): boolean {
-	if (left === undefined || right === undefined) {
-		return true;
-	}
-
 	const leftLow = LETTER_SCALE.indexOf(left.low);
 	const leftHigh = LETTER_SCALE.indexOf(left.high);
 	const rightLow = LETTER_SCALE.indexOf(right.low);
@@ -145,9 +147,14 @@ export function qualityReading(request: QualityReadingRequest): QualityReading {
 
 	const minuendSpan = letterSpanOf(request.minuend);
 	const subtrahendSpan = letterSpanOf(request.subtrahend);
+	const interval = { minuend: minuendSpan, subtrahend: subtrahendSpan };
+
+	if (minuendSpan === undefined || subtrahendSpan === undefined) {
+		return { interval, verdict: { kind: "unavailable" } };
+	}
 
 	return {
-		interval: { minuend: minuendSpan, subtrahend: subtrahendSpan },
+		interval,
 		verdict: verdictFor(
 			request,
 			letterSpansOverlap(minuendSpan, subtrahendSpan),

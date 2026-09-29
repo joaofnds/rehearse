@@ -19,6 +19,7 @@ import type {
 	QualityInterval,
 	QualityReading,
 	QualityVerdict,
+	UnavailableVerdict,
 } from "./comparison-quality-reading";
 import {
 	letterRange,
@@ -52,15 +53,10 @@ export interface MeterSpread {
 	readonly counted: number;
 }
 
-/** An arm that recorded nothing for the item leaves nothing to compare. */
-interface UnavailableVerdict {
-	readonly kind: "unavailable";
-}
-
 /** A blocker or dimension reading, which one arm's missing grading voids. */
 export interface ItemReading {
 	readonly interval: QualityReading["interval"];
-	readonly verdict: QualityVerdict | UnavailableVerdict;
+	readonly verdict: QualityVerdict;
 }
 
 /**

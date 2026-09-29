@@ -292,7 +292,7 @@ describe(qualityReading.name, () => {
 		expect(reading.verdict).toEqual({ kind: "separated", arm: "candidate" });
 	});
 
-	it("reads inside rerun noise with no interval for an arm that never reached the measure", () => {
+	it("reads unavailable with no interval for an arm that never reached the measure", () => {
 		const minuend = stageSummary({}, 0, 4);
 		const subtrahend = stageSummary(Object.fromEntries([["A", 4]]), 4, 4);
 
@@ -309,11 +309,11 @@ describe(qualityReading.name, () => {
 				minuend: undefined,
 				subtrahend: { low: "A", high: "A" },
 			},
-			verdict: { kind: "insideRerunNoise" },
+			verdict: { kind: "unavailable" },
 		});
 	});
 
-	it("reads inside rerun noise with no interval on either side when neither arm ever reached the measure", () => {
+	it("reads unavailable with no interval on either side when neither arm ever reached the measure", () => {
 		const minuend = stageSummary({}, 0, 4);
 		const subtrahend = stageSummary({}, 0, 4);
 
@@ -327,7 +327,7 @@ describe(qualityReading.name, () => {
 
 		expect(reading).toEqual({
 			interval: { minuend: undefined, subtrahend: undefined },
-			verdict: { kind: "insideRerunNoise" },
+			verdict: { kind: "unavailable" },
 		});
 	});
 });

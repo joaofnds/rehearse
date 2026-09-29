@@ -113,6 +113,15 @@ function QualityVerdict({
 		);
 	}
 
+	if (reading.verdict.kind === "unavailable") {
+		return (
+			<span className="inline-flex items-baseline gap-1.5 text-dim">
+				<span aria-hidden="true">?</span>
+				<span>unavailable</span>
+			</span>
+		);
+	}
+
 	if (reading.verdict.kind === "unchangedAlreadyClear") {
 		return (
 			<span className="inline-flex items-baseline gap-1.5 text-dim">

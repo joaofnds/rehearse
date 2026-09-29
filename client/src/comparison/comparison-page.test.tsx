@@ -211,7 +211,7 @@ function comparisonResponseBody(): ComparisonResponseFixture {
 							minuend: undefined,
 							subtrahend: { low: "D", high: "F" },
 						},
-						verdict: { kind: "insideRerunNoise" },
+						verdict: { kind: "unavailable" },
 					},
 				},
 				candidateMinusControl: {
@@ -382,8 +382,8 @@ describe(ComparisonPage.name, () => {
 			pair: "candidate vs baseline",
 			measure: "checks",
 			intervals: ["candidate not reached", "baseline D to F"],
-			verdict: "inside rerun noise",
-			glyph: "~",
+			verdict: "unavailable",
+			glyph: "?",
 		});
 		expectQualityRow("WHAT MOVED · case-2", {
 			pair: "candidate vs control",
