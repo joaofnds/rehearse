@@ -418,6 +418,10 @@ export async function runReplayConfirmation(
 	const worktreesDirectory = await mkdtemp(
 		join(tmpdir(), `rehearse-${request.groupId}-`),
 	);
+	const release = dependencies.stopOnSignal(async () => {
+		await rm(worktreesDirectory, { force: true, recursive: true });
+		await dependencies.pruneWorktrees(frozen.manifest.sourceRoot);
+	});
 	try {
 		return await runReplayConfirmationBody(
 			dependencies,
@@ -430,6 +434,8 @@ export async function runReplayConfirmation(
 	} catch (error) {
 		await rm(worktreesDirectory, { force: true, recursive: true });
 		throw error;
+	} finally {
+		release();
 	}
 }
 

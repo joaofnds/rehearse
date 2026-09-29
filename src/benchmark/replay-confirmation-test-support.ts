@@ -55,6 +55,7 @@ export class ReplayConfirmationHarness {
 	/** The worktree removal each stop handler runs on a signal. */
 	public readonly stops: (() => Promise<void>)[] = [];
 	public readonly releasedStops = new Set<() => Promise<void>>();
+	public readonly pruned: string[] = [];
 	public readonly installed: string[] = [];
 	public readonly targetChecks: (readonly TargetCheck[])[] = [];
 	public readonly integrityFileSets: (readonly string[])[] = [];
@@ -369,6 +370,11 @@ export class ReplayConfirmationHarness {
 			},
 			removeWorktree: (_root, path) => {
 				this.removed.push(path);
+
+				return Promise.resolve();
+			},
+			pruneWorktrees: (root) => {
+				this.pruned.push(root);
 
 				return Promise.resolve();
 			},

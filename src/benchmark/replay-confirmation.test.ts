@@ -1379,6 +1379,45 @@ describe(runReplayConfirmation.name, () => {
 		);
 	});
 
+	describe("when a signal stops it", () => {
+		it("deletes every rep worktree and prunes them from the target", async () => {
+			const harness = new ReplayConfirmationHarness(testResources);
+			const run = await harness.recordedRun();
+			const corpusRoot = await mkdtemp(join(tmpdir(), "rehearse-corpus-"));
+			testResources.track(corpusRoot);
+			await Bun.write(
+				join(corpusRoot, "skills", "discuss", "SKILL.md"),
+				"discuss corpus\n",
+			);
+			const groupId = "confirmation-stopped";
+			let leftover: readonly string[] = ["the stop never ran"];
+
+			await harness.runConfirmation(
+				{
+					paths: run.paths,
+					corpusRoots: [{ kind: "directory", root: corpusRoot }],
+				},
+				{ groupId, reps: 2 },
+				(defaults) => ({
+					...defaults,
+					runStageJudge: async () => {
+						await harness.stops[0]?.();
+						const entries = await readdir(tmpdir());
+						leftover = entries.filter((entry) =>
+							entry.startsWith(`rehearse-${groupId}-`),
+						);
+						throw new Error("stopped");
+					},
+				}),
+			);
+
+			expect(leftover).toEqual([]);
+			expect(new Set(harness.pruned)).toEqual(
+				new Set([run.manifest.sourceRoot]),
+			);
+		});
+	});
+
 	it("removes its worktrees directory when the confirmation body throws", async () => {
 		const harness = new ReplayConfirmationHarness(testResources);
 		const run = await harness.recordedRun();

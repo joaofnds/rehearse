@@ -36,7 +36,12 @@ import { corpusSourceDirectories, recordStageReads } from "./stage-reads";
 import { chainRubricCauses } from "./staleness-report";
 import { stageRubricSha256 } from "./judge-agreement";
 import type { loadStageRubric, runStageJudge } from "./stage-grading";
-import type { addWorktree, currentSha, removeWorktree } from "./target";
+import type {
+	addWorktree,
+	currentSha,
+	pruneWorktrees,
+	removeWorktree,
+} from "./target";
 import { createSpendCeiling } from "./spend-ceiling";
 import type { createProductOwner } from "./workflow";
 
@@ -134,6 +139,7 @@ export interface ReplayDependencies {
 	readonly loadStageRubric: typeof loadStageRubric;
 	readonly addWorktree: typeof addWorktree;
 	readonly removeWorktree: typeof removeWorktree;
+	readonly pruneWorktrees: typeof pruneWorktrees;
 	/**
 	 * Removes the worktree on a stop signal, once every command is killed,
 	 * until the release it answers is called.

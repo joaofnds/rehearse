@@ -61,6 +61,7 @@ import {
 	changedPathsBetween,
 	currentSha,
 	git,
+	pruneWorktrees,
 	removeWorktree,
 } from "#benchmark/target";
 import { createProductOwner, runWorkflowStage } from "#benchmark/workflow";
@@ -296,6 +297,7 @@ export async function executeReplay(
 		loadStageRubric,
 		addWorktree,
 		removeWorktree,
+		pruneWorktrees,
 		materializeCheckpoint,
 		captureBaselineContext,
 		captureFileHashes,

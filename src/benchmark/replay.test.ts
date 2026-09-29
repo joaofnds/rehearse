@@ -45,7 +45,12 @@ import { failureOf } from "#cli/cli-test-support";
 import { loadStageRubric } from "./stage-grading";
 import { stageRubricSha256 } from "./judge-agreement";
 import { projectSlug } from "./session-capture";
-import { addWorktree, currentSha, removeWorktree } from "./target";
+import {
+	addWorktree,
+	currentSha,
+	pruneWorktrees,
+	removeWorktree,
+} from "./target";
 import {
 	TEST_TARGET,
 	TestResources,
@@ -1260,6 +1265,7 @@ describe(runReplay.name, () => {
 				loadStageRubric,
 				addWorktree,
 				removeWorktree,
+				pruneWorktrees,
 				materializeCheckpoint,
 				captureBaselineContext,
 				captureFileHashes,
