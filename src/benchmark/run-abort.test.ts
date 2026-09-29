@@ -302,6 +302,13 @@ function stageEvidence(
 	return { source, path, claim: "evidence" };
 }
 
+/** An operator stop file in a directory the test owns and removes. */
+async function scratchOperatorStopFile(): Promise<string> {
+	const directory = await mkdtemp(join(tmpdir(), "rehearse-run-signal-"));
+	testResources.track(directory);
+
+	return join(directory, "operator-stop.json");
+}
 describe(writeStageJudgeFailure.name, () => {
 	it("retains the frozen input and both rejected Judge attempts", async () => {
 		const directory = await mkdtemp(join(tmpdir(), "rehearse-stage-failure-"));
@@ -1561,6 +1568,7 @@ describe(createRunAbort.name, () => {
 	});
 
 	it("restores once when cleanup callers overlap", async () => {
+		const operatorStopFile = await scratchOperatorStopFile();
 		const restored = Promise.withResolvers<undefined>();
 		let teardownCalls = 0;
 		const abort = createRunAbort(
@@ -1574,7 +1582,7 @@ describe(createRunAbort.name, () => {
 			},
 			{
 				artifactFile: "/tmp/run.json",
-				operatorStopFile: "/tmp/operator-stop.json",
+				operatorStopFile,
 				teardown: () => {
 					teardownCalls += 1;
 
@@ -1592,6 +1600,7 @@ describe(createRunAbort.name, () => {
 	});
 
 	it("latches repeated signals while recovery is running", async () => {
+		const operatorStopFile = await scratchOperatorStopFile();
 		const cancellation = Promise.withResolvers<undefined>();
 		const exited = Promise.withResolvers<undefined>();
 		const handlers = new Map<
@@ -1621,7 +1630,7 @@ describe(createRunAbort.name, () => {
 			},
 			{
 				artifactFile: "/tmp/run.json",
-				operatorStopFile: "/tmp/operator-stop.json",
+				operatorStopFile,
 				teardown: () => {
 					teardownCalls += 1;
 

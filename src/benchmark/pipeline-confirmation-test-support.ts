@@ -251,9 +251,14 @@ export class PipelineConfirmationHarness {
 				return Promise.resolve();
 			},
 			stopOnSignal: (cleanUp) => {
-				this.stops.push(cleanUp);
+				// A released stop is inert, as the real one is once its signals
+				// return to their default.
+				let released = false;
+				this.stops.push(() => (released ? Promise.resolve() : cleanUp()));
 
-				return () => undefined;
+				return () => {
+					released = true;
+				};
 			},
 			materializeCheckpoint,
 			installStageCorpusSnapshot,

@@ -378,11 +378,17 @@ export class ReplayConfirmationHarness {
 
 				return Promise.resolve();
 			},
-			stopOnSignal: (removeWorktree) => {
-				this.stops.push(removeWorktree);
+			stopOnSignal: (cleanUp) => {
+				// A released stop is inert, as the real one is once its signals
+				// return to their default.
+				let released = false;
+				const stop = (): Promise<void> =>
+					released ? Promise.resolve() : cleanUp();
+				this.stops.push(stop);
 
 				return () => {
-					this.releasedStops.add(removeWorktree);
+					released = true;
+					this.releasedStops.add(stop);
 				};
 			},
 			materializeCheckpoint,
