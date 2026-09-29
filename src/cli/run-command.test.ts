@@ -5,7 +5,8 @@ import { join } from "node:path";
 import type { BenchmarkCase, SessionCase } from "#benchmark/case";
 import { corpusLayoutRoots } from "#benchmark/checkpoint";
 import type { BenchmarkConfig } from "#benchmark/config";
-import { parseArgs } from "#benchmark/config";
+import { parseArgs, recordsDirectory } from "#benchmark/config";
+import { linkCorpus, unlinkCorpus } from "#benchmark/corpus-source";
 import type { PipelineDefinition } from "#benchmark/pipeline";
 import { parseConfirmationGroupRecord } from "#benchmark/confirmation-record";
 import { GroupStoppedError } from "#benchmark/confirmation-evidence";
@@ -189,6 +190,40 @@ describe(runRunCommand.name, () => {
 		expect(failure.message).toContain("terminal");
 		expect(stdout).toEqual([]);
 		expect(stderr).toEqual([]);
+	});
+
+	describe("when a directory corpus is linked", () => {
+		const resources = TestResources.forEachTest();
+
+		afterEach(async () => {
+			await unlinkCorpus(recordsDirectory());
+		});
+
+		it("refuses a pipeline run before any provider call, naming the link", async () => {
+			const corpus = await resources.createControlDirectory();
+			await Bun.write(join(corpus, "CLAUDE.md"), "linked\n");
+			await linkCorpus(recordsDirectory(), corpus);
+
+			const failure = await failureOf(
+				runRunCommand(
+					{ args, json: false, stdinIsTerminal: true },
+					{
+						output: recordOutput().output,
+						requireCase: loadsAuditLog().requireCase,
+						assertPreflight: () =>
+							Promise.reject(new Error("preflight must not run")),
+						requireSpendCeiling: storedCeiling,
+						probeModel: passingProbe,
+						executeSession: neverASession,
+						execute: () => Promise.reject(new Error("run must not start")),
+					},
+				),
+			);
+
+			expect(failure).toBeInstanceOf(RefusedPreconditionError);
+			expect(failure.message).toContain(corpus);
+			expect(failure.message).toContain("rehearse settings --unlink-corpus");
+		});
 	});
 
 	it("starts without --pause when stdin is not a terminal", async () => {
