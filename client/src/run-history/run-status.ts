@@ -1,15 +1,20 @@
 import type { StatusState } from "#client/system/components/status";
-import { isPaused, isStopped } from "#benchmark/stopped-status";
+import {
+	OPERATOR_STOPPED,
+	isPaused,
+	isStopped,
+} from "#benchmark/stopped-status";
 
 /**
  * A run's recorded status, read as the design system's status vocabulary. A
  * stopped run is never rendered as a failure (SPEC.md's third product rule):
  * it maps to `stopped`, the same neutral state the graph and the ledger use
  * for a step that fell below the minimum, not `interrupted` or a red glyph.
+ * A run the operator stopped is not a failure either, and reads the same.
  * An unrecognized status reads as `pending` rather than guessing a glyph.
  */
 export function runStatusState(status: string): StatusState {
-	if (isStopped(status)) {
+	if (isStopped(status) || status === OPERATOR_STOPPED) {
 		return "stopped";
 	}
 	if (isPaused(status)) {

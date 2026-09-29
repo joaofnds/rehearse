@@ -14,7 +14,12 @@ import {
 	stoppedStage,
 	stoppedStageRecordSchema,
 } from "#benchmark/run-outcome";
-import { pausedStatus, stoppedStatus } from "#benchmark/stopped-status";
+import {
+	OPERATOR_STOPPED,
+	pausedStatus,
+	stoppedStatus,
+} from "#benchmark/stopped-status";
+import { operatorStopped } from "#benchmark/operator-stop";
 import { pausedStage } from "#benchmark/run-pause";
 import type { RunLiveness } from "#benchmark/run-liveness";
 
@@ -282,6 +287,10 @@ export async function statusAndCaseId(
 	const paused = await pausedStage(paths);
 	if (paused !== undefined) {
 		return manifestBackedIdentity(paths, pausedStatus(paused));
+	}
+
+	if (await operatorStopped(paths)) {
+		return manifestBackedIdentity(paths, OPERATOR_STOPPED);
 	}
 
 	const latest = runEvents.latestEvent(run);

@@ -896,6 +896,26 @@ describe(runHistoryReport.name, () => {
 		);
 	});
 
+	it("reports a run a signal stopped as OPERATOR_STOPPED rather than a failure", async () => {
+		const fixture = await writtenFixture();
+		await fixture.writeRunningRun();
+		await Bun.write(
+			benchmarkRunPaths(fixture.runsDirectory, fixture.runningRun)
+				.operatorStopFile,
+			JSON.stringify({ status: "OPERATOR_STOPPED", signal: "SIGTERM" }),
+		);
+
+		const { rows } = await runHistoryReport(
+			fixture.runsDirectory,
+			directorySource(await corpusDirectory("build skill\n")),
+			nothingRunning,
+		);
+
+		expect(pipelineRun(rows, fixture.runningRun)?.status).toBe(
+			"OPERATOR_STOPPED",
+		);
+	});
+
 	it("reports a run stopped mid-stage with STOPPED:<stage> and no corpus version when its stage records name none", async () => {
 		const fixture = await writtenFixture();
 		await fixture.writeStoppedRun();
