@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, rmdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, relative } from "node:path";
 import { z } from "zod";
@@ -8,7 +8,10 @@ import type { BaselineCorpus } from "./baseline-corpus";
 import type { Effort } from "./config";
 import type { Immutable } from "./contracts";
 import type { ConfirmationGroupRecord } from "./confirmation-record";
-import { writeComparisonBaselineRecord } from "./comparison-baseline-record";
+import {
+	comparisonBaselineRecordFile,
+	writeComparisonBaselineRecord,
+} from "./comparison-baseline-record";
 import { writeComparisonReport } from "./comparison-command";
 import { loadComparisonEvidence } from "./comparison-loader";
 import type { ComparisonArm, ComparisonManifest } from "./comparison-record";
@@ -405,10 +408,16 @@ async function runComparison(
 		arms,
 		controlCorpus: basename(corpusDirectory),
 	});
-	const reportFile = await writeComparisonReport({
-		manifestPath,
-		runsDirectory: request.runsDirectory,
-	});
+	let reportFile: string;
+	try {
+		reportFile = await writeComparisonReport({
+			manifestPath,
+			runsDirectory: request.runsDirectory,
+		});
+	} catch (error) {
+		await removeBaselineRecord(reportDirectory);
+		throw error;
+	}
 	if (dirname(reportFile) !== reportDirectory) {
 		throw new Error(
 			`The report was written to ${dirname(reportFile)}, not beside its baseline record in ${reportDirectory}`,
@@ -416,4 +425,14 @@ async function runComparison(
 	}
 
 	return { reportFile };
+}
+
+/** Without its report, a baseline record lists as an unreadable comparison. */
+async function removeBaselineRecord(reportDirectory: string): Promise<void> {
+	await rm(comparisonBaselineRecordFile(reportDirectory), { force: true });
+	try {
+		await rmdir(reportDirectory);
+	} catch {
+		// The directory holds another file, which stays.
+	}
 }

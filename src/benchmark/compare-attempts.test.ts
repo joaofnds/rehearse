@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import { Glob } from "bun";
 import { createHash } from "node:crypto";
-import { mkdtemp, rm, stat } from "node:fs/promises";
+import { mkdtemp, readdir, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { z } from "zod";
@@ -423,6 +423,39 @@ describe(compareAttempts.name, () => {
 	});
 
 	describe("when the baseline group has run", () => {
+		it("leaves no comparison behind when the report refuses its arms", async () => {
+			const arms = await recordedArms();
+			const armA = await arms.recordArm("baseline", {
+				...SHARED,
+				"skills/build/SKILL.md": "build\n",
+			});
+			const armB = await arms.recordArm("candidate", {
+				...SHARED,
+				"skills/build/SKILL.md": "revised build\n",
+			});
+			await arms.readInStage(armA, "skills/build/SKILL.md");
+			await arms.readInStage(armB, "skills/build/SKILL.md");
+
+			const failure = await refusalOf(
+				compareAttempts(
+					{ runsDirectory: arms.runsDirectory, armA, armB },
+					{
+						runBaselineGroup: async (request) => {
+							const control = await arms.runBaselineGroup(request);
+							await arms.useModel(control, "haiku");
+
+							return control;
+						},
+					},
+				),
+			);
+
+			expect(failure.message).toContain("inputs.model differs");
+			expect(
+				await readdir(join(arms.runsDirectory, "comparisons")).catch(() => []),
+			).toEqual([]);
+		});
+
 		it("writes the report of arm A against arm B with the derived baseline, and how it was derived", async () => {
 			const arms = await recordedArms();
 			const armA = await arms.recordArm("baseline", {
