@@ -526,8 +526,9 @@ function launchAttemptsLine(attempts: number): string {
 }
 
 /**
- * A launch the browser started, listed until its first record replaces it. It
- * has no record yet, so it has no id, grade or corpus judgment to show.
+ * A launch the browser started, listed until its first record replaces it,
+ * or for good once the operator stopped one that leaves no record. It has no
+ * record, so it has no id, grade or corpus judgment to show.
  */
 function launchCells(launch: LaunchRow): readonly React.JSX.Element[] {
 	const target =
@@ -546,9 +547,15 @@ function launchCells(launch: LaunchRow): readonly React.JSX.Element[] {
 			</span>
 		</span>,
 		<span key="outcome" className="flex flex-col gap-0.5">
-			<Status state="running" />
-			<span className="text-xs text-dim">started from the browser</span>
-			<RunControls launchId={launch.id} run={undefined} />
+			<Status state={runStatusState(launch.status)} />
+			{launch.status === "RUNNING" ? (
+				<>
+					<span className="text-xs text-dim">started from the browser</span>
+					<RunControls launchId={launch.id} run={undefined} />
+				</>
+			) : (
+				<span className="text-xs text-dim">stopped by the operator</span>
+			)}
 		</span>,
 		<span key="progress" />,
 		<span key="grade" />,

@@ -1804,6 +1804,39 @@ describe(RunHistoryPage.name, () => {
 				"replay build · 2026-09-06T21-58-29.508Z",
 			);
 		});
+
+		it("lists a launch the operator stopped as stopped, with no controls", async () => {
+			respondingWith({
+				rows: [],
+				launches: [
+					{
+						kind: "launch",
+						id: "7b0c2d4e-0000-4000-8000-000000000000",
+						target: "case",
+						caseId: "audit-log",
+						run: undefined,
+						stage: undefined,
+						attempts: 3,
+						launchedAt,
+						status: "OPERATOR_STOPPED",
+					},
+				],
+				unreadable: [],
+			});
+
+			renderPage();
+
+			await waitFor(() => {
+				expect(screen.getByText("launch 7b0c2d4e")).toBeInTheDocument();
+			});
+			expect(cellOf("launch 7b0c2d4e", "Outcome")).toHaveTextContent("stopped");
+			expect(cellOf("launch 7b0c2d4e", "Outcome")).toHaveTextContent(
+				"stopped by the operator",
+			);
+			expect(
+				screen.queryByRole("button", { name: "Stop & restore repo" }),
+			).toBeNull();
+		});
 	});
 
 	it("opens the launch dialog from New run", async () => {
