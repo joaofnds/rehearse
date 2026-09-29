@@ -311,6 +311,22 @@ describe(replayCorpus.name, () => {
 		}
 	});
 
+	it("tells the session to prefer the project level for a linked directory nobody named", async () => {
+		const root = await mkdtemp(join(tmpdir(), "rehearse-linked-source-"));
+		const source = { kind: "directory", root } as const;
+		await Bun.write(join(root, "CLAUDE.md"), "linked instructions\n");
+
+		try {
+			const corpus = await replayCorpus(undefined, () =>
+				Promise.resolve(source),
+			);
+
+			expect(corpus.settingSources).toBe("project");
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	it("classifies invalid live corpus configuration as a refused precondition", async () => {
 		const failure = await failureOf(
 			replayCorpus(undefined, () =>

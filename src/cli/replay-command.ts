@@ -357,10 +357,10 @@ export async function executeReplay(
 }
 
 /**
- * A replay exists to iterate on a corpus, so a corpus source it is given is
- * both the instructions the stage reads and the reason the session is told to
- * prefer the project level. The live install needs neither, because a session
- * reads it by default.
+ * A replay exists to iterate on a corpus, so a corpus directory, named or
+ * linked, is both the instructions the stage reads and the reason the session
+ * is told to prefer the project level. The live install needs neither, because
+ * a session reads it by default.
  */
 export async function replayCorpus(
 	corpus: string | undefined,
@@ -373,18 +373,10 @@ export async function replayCorpus(
 	try {
 		const source = await resolveCorpus(corpus);
 
-		if (corpus === undefined) {
-			return {
-				instructions: await readCorpusInstructions(source),
-				source,
-				settingSources: undefined,
-			};
-		}
-
 		return {
 			instructions: await readCorpusInstructions(source),
 			source,
-			settingSources: "project",
+			settingSources: source.kind === "live" ? undefined : "project",
 		};
 	} catch (error) {
 		if (error instanceof Error) {
