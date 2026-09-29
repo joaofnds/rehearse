@@ -491,6 +491,7 @@ export interface SessionRunExecutionDependencies extends SessionExecutionBoundar
 	readonly executeAttempt?: SessionConfirmationDependencies["executeAttempt"];
 	readonly resolveCorpus?: SessionConfirmationDependencies["resolveCorpus"];
 	readonly runsDirectory?: string;
+	readonly stopOnSignal?: (cleanUp: () => Promise<void>) => () => void;
 }
 
 export async function executeSessionRun(
@@ -511,6 +512,12 @@ export async function executeSessionRun(
 	const executeAttempt =
 		dependencies.executeAttempt ?? runPreparedSessionAttempt;
 	const questioner = terminalQuestioner();
+	// A session attempt keeps no worktree, so the stop only kills its commands.
+	const release = (
+		dependencies.stopOnSignal ??
+		((cleanUp) =>
+			stopOnSignal(processSignalStop(diagnosticWriter(output)), cleanUp))
+	)(() => Promise.resolve());
 
 	return runRequestedExecution<RunOutcome>({
 		confirmation: config.confirmation,
@@ -595,5 +602,6 @@ export async function executeSessionRun(
 		},
 	}).finally(() => {
 		questioner.close();
+		release();
 	});
 }
