@@ -155,7 +155,10 @@ exits.
 Every request whose `Host` is not `127.0.0.1:<port>` or `localhost:<port>`
 gets 403. Every request other than GET or HEAD also needs an `Origin` equal to
 the server's own, `Sec-Fetch-Site` `same-origin` when the browser sends it, and
-an `application/json` body, or it gets 403 and starts nothing.
+an `application/json` body, or it gets 403 and starts nothing. Every response
+carries `X-Frame-Options: DENY` and `Content-Security-Policy:
+frame-ancestors 'none'`, so a page on another site cannot frame the client and
+steer a click onto Start.
 
 ### Output and exit codes
 

@@ -128,6 +128,17 @@ describe(createAppServer.name, () => {
 		expect(body).toContain("rehearse");
 	});
 
+	it("forbids every other site from framing the client", async () => {
+		const { app } = await appServer();
+
+		const response = await app.request("/", { headers: LOOPBACK });
+
+		expect(response.headers.get("x-frame-options")).toBe("DENY");
+		expect(response.headers.get("content-security-policy")).toBe(
+			"frame-ancestors 'none'",
+		);
+	});
+
 	describe("when the Host is not the loopback address it serves on", () => {
 		it.each([
 			["a rebound DNS name", `rebound.example:${String(PORT)}`],

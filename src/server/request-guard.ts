@@ -12,7 +12,10 @@ const READ_METHODS = new Set(["GET", "HEAD"]);
  * A request that writes must also come from the client this server serves. A
  * page on another site can post a form to 127.0.0.1 without a preflight, and
  * a form cannot send a JSON content type, so the content type, the exact
- * Origin, and the browser's Sec-Fetch-Site each refuse it.
+ * Origin, and the browser's Sec-Fetch-Site each refuse it. A page on
+ * another site can still frame the client and steer the operator's click
+ * onto Start, and that request is the client's own, so every response
+ * forbids framing.
  */
 export function requestGuard(port: number): MiddlewareHandler {
 	const allowed = new Set([
@@ -21,6 +24,8 @@ export function requestGuard(port: number): MiddlewareHandler {
 	]);
 
 	return (context, next) => {
+		context.header("X-Frame-Options", "DENY");
+		context.header("Content-Security-Policy", "frame-ancestors 'none'");
 		const host = context.req.header("host") ?? "";
 		if (!allowed.has(host)) {
 			return Promise.resolve(
