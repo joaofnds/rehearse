@@ -9,7 +9,18 @@ import {
 
 const CORPUS = "c".repeat(64);
 
-async function reportDirectoryHolding(record: object): Promise<string> {
+interface LegacyBaselineRecord {
+	readonly schemaVersion: 1 | 2;
+	readonly kind: "derived";
+	readonly skillUnderTest: string;
+	readonly arms: Readonly<Record<"baseline" | "candidate" | "control", string>>;
+	readonly controlCorpus?: string;
+	readonly baselineCorpus?: string;
+}
+
+async function reportDirectoryHolding(
+	record: LegacyBaselineRecord,
+): Promise<string> {
 	const directory = await mkdtemp(join(tmpdir(), "baseline-record-"));
 	await Bun.write(
 		comparisonBaselineRecordFile(directory),
@@ -21,14 +32,14 @@ async function reportDirectoryHolding(record: object): Promise<string> {
 
 describe(readComparisonBaselineRecord.name, () => {
 	it.each([
-		{ schemaVersion: 2, corpus: { controlCorpus: CORPUS } },
-		{ schemaVersion: 1, corpus: { baselineCorpus: CORPUS } },
+		{ schemaVersion: 2 as const, corpus: { controlCorpus: CORPUS } },
+		{ schemaVersion: 1 as const, corpus: { baselineCorpus: CORPUS } },
 	])(
 		"reads a version $schemaVersion record's arms as one group each, in their own roles",
 		async ({ schemaVersion, corpus }) => {
 			const directory = await reportDirectoryHolding({
 				schemaVersion,
-				kind: "derived",
+				kind: "derived" as const,
 				skillUnderTest: "build",
 				arms: { baseline: "arm-a", candidate: "arm-b", control: "derived" },
 				...corpus,

@@ -1,5 +1,4 @@
 import { createHash } from "node:crypto";
-import { ZodError } from "zod";
 import { STOPPED_BEFORE_LAST_STAGE_REASON } from "./comparison-report";
 import {
 	chmod,
@@ -13,7 +12,7 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { z } from "zod";
+import { ZodError, z } from "zod";
 import {
 	parseConfirmationGroupRecord,
 	parseConfirmationRepRecord,
@@ -23,6 +22,10 @@ import {
 	ComparisonEvidenceFixture,
 	digest,
 } from "./comparison-evidence-test-support";
+import type {
+	ComparisonReport,
+	LegacyComparisonReport,
+} from "./comparison-record";
 import { COMPARISON_ARMS, parseComparisonReport } from "./comparison-record";
 import { runCommand } from "./command";
 import { CONTROL_DIR, recordsDirectory } from "./config";
@@ -135,13 +138,18 @@ describe(loadComparisonEvidence.name, () => {
 			manifestPath: fixture.manifestFile,
 			runsDirectory,
 		});
-		const written = JSON.parse(await Bun.file(reportFile).text());
-		const { reps } = written.cases[0].arms.candidate.source;
-		written.cases[0].arms.candidate.source.reps = reps.map(
-			(rep: object, index: number) => ({ ...rep, group: groups[index] }),
-		);
+		const written = await Bun.file(reportFile).text();
+		const [head, ...afterEachGroup] = written.split(/"group": \d+/u);
+		const misgrouped = [
+			head,
+			...afterEachGroup.map(
+				(piece, index) =>
+					`"group": ${String(groups[index % groups.length])}${piece}`,
+			),
+		].join("");
 
-		const parse = () => parseComparisonReport(JSON.stringify(written));
+		const parse = (): ComparisonReport | LegacyComparisonReport =>
+			parseComparisonReport(misgrouped);
 
 		expect(parse).toThrow(ZodError);
 	});

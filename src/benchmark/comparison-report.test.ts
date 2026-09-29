@@ -150,7 +150,7 @@ function markFirstOutcomeSuccessful(
 		...arm,
 		source: {
 			...arm.source,
-			reps: Array.from(arm.source.reps, (rep, repIndex) => ({
+			reps: arm.source.reps.map((rep, repIndex) => ({
 				...rep,
 				outcomes: Array.from(rep.outcomes, (outcome) =>
 					repIndex === 0 && outcome.name === name
