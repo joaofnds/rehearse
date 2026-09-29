@@ -2069,6 +2069,45 @@ describe(runSessionAttempt.name, () => {
 		});
 	});
 
+	it.each([
+		[
+			"states no failure",
+			undefined,
+			"Claude session failed (spent $0.01)",
+			0.01,
+		],
+		[
+			"spent too little for exponent-free notation",
+			["Reached maximum budget ($0.0000001)"],
+			"Reached maximum budget ($0.0000001) (spent $0.0000001)",
+			1e-7,
+		],
+	])(
+		"names a failed session's spend when its envelope %s",
+		async (_label, errors, message, spentUsd) => {
+			const failure = await failureOf(
+				runSessionAttempt(
+					request({
+						projectsDirectory: await projectsRoot(),
+						recordDirectory: await recordDirectory(),
+						runClaude: () =>
+							Promise.resolve(
+								JSON.stringify({
+									session_id: "session-1",
+									is_error: true,
+									errors,
+									total_cost_usd: spentUsd,
+								}),
+							),
+					}),
+				),
+			);
+
+			expect(failure).toBeInstanceOf(SessionInvocationError);
+			expect(failure.message).toBe(message);
+		},
+	);
+
 	it("removes the slug directory itself once the attempt's files are gone", async () => {
 		const projects = await projectsRoot();
 

@@ -17,6 +17,7 @@ import {
 	failedCommandEnvelope,
 	parseClaudeEnvelope,
 	readClaudeCallMetrics,
+	spendUsd,
 	statedFailure,
 } from "./claude";
 import type { SessionSettings } from "./claude";
@@ -705,7 +706,7 @@ function providerFailureMessage(
 	const spent =
 		envelope.total_cost_usd === undefined
 			? ""
-			: ` (spent $${String(envelope.total_cost_usd)})`;
+			: ` (spent $${spendUsd(envelope.total_cost_usd)})`;
 	const stated = statedFailure(envelope);
 	if (stated === undefined) {
 		return `${fallback}${spent}`;

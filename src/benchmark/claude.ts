@@ -112,6 +112,17 @@ export class ClaudeSessionError extends Error {
 	}
 }
 
+/**
+ * A provider spend measures in thousandths of a dollar, so it keeps every digit
+ * the provider reported rather than rounding to cents like the rest of this
+ * project's money: `$0.02` against a `$0.10` cap tells the operator nothing
+ * about how close the cap is. Plain interpolation would render a
+ * sub-microdollar spend as `$1e-7`, which is not an amount anyone can read.
+ */
+export function spendUsd(costUsd: number): string {
+	return costUsd.toFixed(8).replace(/0+$/u, "").replace(/\.$/u, "");
+}
+
 export function statedFailure(envelope: ClaudeEnvelope): string | undefined {
 	if (envelope.result !== undefined && envelope.result !== "") {
 		return envelope.result;
@@ -198,7 +209,6 @@ function sessionFailure(
 	error: Readonly<CommandError>,
 ): CommandError | ClaudeSessionError {
 	const envelope = failedCommandEnvelope(error);
-
 	return envelope?.is_error === true
 		? new ClaudeSessionError(envelope, error)
 		: error;

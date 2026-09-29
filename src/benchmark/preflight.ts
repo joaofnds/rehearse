@@ -5,6 +5,7 @@ import {
 	claudeArgs,
 	readClaudeCallMetrics,
 	readClaudeEnvelope,
+	spendUsd,
 } from "./claude";
 import { CommandError, runCommand } from "./command";
 import { CONTROL_DIR } from "./config";
@@ -175,17 +176,6 @@ export async function probeModelAvailable(
 }
 
 const BUDGET_EXHAUSTED_REASON = "budget_exhausted";
-
-/**
- * A probe halt measures in thousandths of a dollar, so the spend keeps every
- * digit the provider reported rather than rounding to cents like the rest of
- * this project's money: `$0.02` against a `$0.10` cap tells the operator
- * nothing about how close the ceiling is. Plain interpolation would render a
- * sub-microdollar spend as `$1e-7`, which is not an amount anyone can read.
- */
-function spendUsd(costUsd: number): string {
-	return costUsd.toFixed(8).replace(/0+$/u, "").replace(/\.$/u, "");
-}
 
 function refusalFor(
 	model: string,
