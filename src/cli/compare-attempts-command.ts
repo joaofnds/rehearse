@@ -75,7 +75,7 @@ const CONTROLLED_KNOBS = [
 	"sessionBudgetUsd",
 ] as const;
 
-/** The arm as the operator named it: the harness's control is the arm. */
+/** The arm as the operator named it: the harness's control is the operator's baseline arm. */
 const ARM_LABELS = {
 	baseline: "arm A",
 	candidate: "arm B",
