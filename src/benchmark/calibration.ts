@@ -1,11 +1,15 @@
 import { CommandError } from "./command";
 import type { Effort, WorkflowStage } from "./config";
-import { readCorpusInstructions, resolveCorpusFile } from "./corpus-file";
+import {
+	liveCorpusSource,
+	readCorpusInstructions,
+	resolveCorpusFile,
+} from "./corpus-file";
+import type { LiveCorpusRoot } from "./corpus-file";
 import type {
 	CorpusSourceResolver,
 	ResolvedCorpusSource,
 } from "./corpus-source";
-import { resolveCorpusSource } from "./corpus-source";
 import type {
 	CalibrationResult,
 	ContextFile,
@@ -453,6 +457,14 @@ async function writeHumanReviewTemplate(path: string): Promise<void> {
 }
 
 /**
+ * A pipeline run measures only the live install, whatever corpus is linked
+ * while it waits for review, so its calibration compares and edits that.
+ */
+function measuredCorpus(): Promise<LiveCorpusRoot> {
+	return Promise.resolve(liveCorpusSource());
+}
+
+/**
  * The interactive loop around the judgment: it prompts, reads the four
  * sources from disk, and asks for the typed confirmation, then hands values
  * to `calibrate`. Every rejection is caught here and re-prompted, which is
@@ -462,9 +474,7 @@ export async function collectCalibration(
 	context: CalibrationContext,
 ): Promise<CalibrationResult> {
 	await writeHumanReviewTemplate(context.reviewFile);
-	const source = await (context.resolveCorpus ?? resolveCorpusSource)(
-		undefined,
-	);
+	const source = await (context.resolveCorpus ?? measuredCorpus)(undefined);
 	const instructionsPath = resolveCorpusFile(source, "CLAUDE.md");
 	const editTargets = context.finalCandidate
 		? `${instructionsPath}, ${context.finalRubricPath}, and/or the relevant file under ${context.rubricsDirectory}`

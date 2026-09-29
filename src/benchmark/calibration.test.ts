@@ -17,6 +17,9 @@ import {
 	TestResources,
 } from "./test-support";
 import { CommandError } from "./command";
+import { recordsDirectory } from "./config";
+import { liveCorpusSource } from "./corpus-file";
+import { linkCorpus, unlinkCorpus } from "./corpus-source";
 import type {
 	HumanReview,
 	JudgeGrade,
@@ -421,6 +424,51 @@ describe(collectCalibration.name, () => {
 
 		expect(prompts).toHaveLength(2);
 		expect(result.humanReview.verdict).toBe("REJECT");
+	});
+
+	it("names the live install's instructions as the edit target while a directory is linked", async () => {
+		const reviewDirectory = await mkdtemp(join(tmpdir(), "rehearse-review-"));
+		testResources.track(reviewDirectory);
+		const linked = await mkdtemp(join(tmpdir(), "rehearse-linked-"));
+		testResources.track(linked);
+		await Bun.write(join(linked, "CLAUDE.md"), "linked instructions\n");
+		const reviewFile = join(reviewDirectory, "review.json");
+		const prompts: string[] = [];
+		await linkCorpus(recordsDirectory(), linked);
+
+		try {
+			await collectCalibration({
+				log: ignoreLog,
+				spendCeiling: ampleSpendCeiling(),
+				rl: {
+					async question(prompt: string) {
+						prompts.push(prompt);
+						await Bun.write(
+							reviewFile,
+							`${JSON.stringify({ verdict: "REJECT", summary: "Reviewed.", findings: [] })}\n`,
+						);
+
+						return "";
+					},
+				},
+				reviewFile,
+				targetDir: reviewDirectory,
+				originalInstructions: "instructions\n",
+				originalRubric: await Bun.file(
+					join(PROJECT_ROOT, AUDIT_LOG_CASE_DIR, "rubric.md"),
+				).text(),
+				finalRubricPath: join(PROJECT_ROOT, AUDIT_LOG_CASE_DIR, "rubric.md"),
+				rubricsDirectory: join(PROJECT_ROOT, AUDIT_LOG_RUBRICS_PATH),
+				stageScorecards: [],
+				judgeModel: "sonnet",
+				sessionBudgetUsd: 5,
+			});
+		} finally {
+			await unlinkCorpus(recordsDirectory());
+		}
+
+		expect(prompts[0]).toContain(join(liveCorpusSource().root, "CLAUDE.md"));
+		expect(prompts[0]).not.toContain(linked);
 	});
 
 	it("records a rubric.md edit during stage-failure calibration without a final rejudge", async () => {
