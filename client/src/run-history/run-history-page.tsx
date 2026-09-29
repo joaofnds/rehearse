@@ -11,6 +11,7 @@ import { Button } from "#client/system/ui/button";
 import { elapsedReading, liveElapsedMs, spendReading } from "./run-progress";
 import type { RunHistoryResponse } from "./run-history-query";
 import { runHistoryQuery } from "./run-history-query";
+import { somethingRuns } from "./run-history-polling";
 import { runStatusState } from "./run-status";
 import {
 	corpusMeasurementReading,
@@ -568,12 +569,7 @@ export function RunHistoryPage(): React.JSX.Element {
 	const query = useQuery({
 		...runHistoryQuery,
 		refetchInterval: ({ state }) =>
-			(state.data?.launches.length ?? 0) > 0 ||
-			pipelineRuns(state.data?.rows ?? []).some(
-				(row) => row.progress.state === "running",
-			)
-				? RUNNING_POLL_MS
-				: false,
+			somethingRuns(state.data) ? RUNNING_POLL_MS : false,
 	});
 
 	const unreadable = query.data?.unreadable ?? [];
