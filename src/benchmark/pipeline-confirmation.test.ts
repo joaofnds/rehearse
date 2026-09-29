@@ -953,42 +953,6 @@ describe(runPipelineConfirmation.name, () => {
 		expect(failed?.workerTrajectorySteps).toBe(CONFIRMATION_METRIC.turns);
 	});
 
-	it("gives the Product Owner a directory that exists when a stage asks it", async () => {
-		const harness = await PipelineConfirmationHarness.setup(testResources);
-		const directoriesAsked: boolean[] = [];
-
-		await harness.run({}, (dependencies) => ({
-			...dependencies,
-			createProductOwner: (configuration) => ({
-				ask: async () => {
-					directoriesAsked.push(
-						await stat(configuration.directory).then(
-							(entry) => entry.isDirectory(),
-							() => false,
-						),
-					);
-
-					return "Use the small scope";
-				},
-				snapshot: () => ({
-					sessionId: "po-session",
-					spentUsd: 0,
-					providerCalls: [],
-				}),
-			}),
-			stageSession: {
-				...dependencies.stageSession,
-				runWorkflowStage: async (request) => {
-					await request.productOwner.ask(request.stage, "Which scope?");
-
-					return dependencies.stageSession.runWorkflowStage(request);
-				},
-			},
-		}));
-
-		expect(directoriesAsked).toEqual([true, true, true, true, true, true]);
-	});
-
 	it("carries Product Owner provider calls into pipeline evidence", async () => {
 		const harness = await PipelineConfirmationHarness.setup(testResources);
 

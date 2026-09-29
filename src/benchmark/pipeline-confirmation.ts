@@ -419,12 +419,9 @@ async function runPipelineRep(
 			frozen.checkpointDirectory,
 			plan.worktreePath,
 		);
-		setupOperation = "Product Owner directory creation";
-		const productOwnerDirectory = join(repPaths.directory, "product-owner");
-		await mkdir(productOwnerDirectory, { recursive: true });
 		setupOperation = undefined;
 		productOwner = dependencies.createProductOwner({
-			directory: productOwnerDirectory,
+			directory: join(repPaths.directory, "product-owner"),
 			model: request.model,
 			effort: request.effort,
 			sessionBudgetUsd: request.sessionBudgetUsd,

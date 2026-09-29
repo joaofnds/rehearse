@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { mkdir } from "node:fs/promises";
 import {
 	claudeArgs,
 	ClaudeSessionError,
@@ -159,6 +160,8 @@ export function createProductOwner(
 			const budgetUsd = configuration.spendCeiling.budgetFor(
 				remainingBudget(configuration.sessionBudgetUsd, spentUsd),
 			);
+			await mkdir(configuration.directory, { recursive: true });
+
 			let envelope;
 			try {
 				const output = await runClaude(

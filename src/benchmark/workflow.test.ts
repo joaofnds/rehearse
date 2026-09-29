@@ -1,10 +1,17 @@
 import { describe, expect, it } from "bun:test";
+import { mkdtemp, stat } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { failureOf } from "#cli/cli-test-support";
 import { runJsonSession, runStreamedSession } from "./claude";
 import { STAGE_SILENCE_LIMIT_MS } from "./config";
 import type { SpendCeiling } from "./spend-ceiling";
 import { createSpendCeiling, SpendCeilingReachedError } from "./spend-ceiling";
-import { budgetHaltEnvelope, haltingCommand } from "./test-support";
+import {
+	budgetHaltEnvelope,
+	haltingCommand,
+	TestResources,
+} from "./test-support";
 import type {
 	ClaudeCommand,
 	ProductOwner,
@@ -15,6 +22,46 @@ import {
 	runWorkflowStage,
 	WorkflowExecutionError,
 } from "./workflow";
+
+const testResources = TestResources.forEachTest();
+
+async function productOwnerParent(): Promise<string> {
+	const directory = await mkdtemp(join(tmpdir(), "rehearse-po-test-"));
+	testResources.track(directory);
+
+	return directory;
+}
+
+describe(createProductOwner.name, () => {
+	it("creates its working directory before it asks its first question", async () => {
+		const directory = join(await productOwnerParent(), "product-owner");
+		const workingDirectories: boolean[] = [];
+		const productOwner = createProductOwner(
+			{
+				directory,
+				model: "sonnet",
+				sessionBudgetUsd: 5,
+				spendCeiling: createSpendCeiling({ ceilingUsd: 100 }),
+				task: "Build it",
+				productBrief: "Keep it small",
+			},
+			async (_command, cwd) => {
+				const workingDirectory = await stat(cwd);
+				workingDirectories.push(workingDirectory.isDirectory());
+
+				return JSON.stringify({
+					session_id: "po-session",
+					total_cost_usd: 0.2,
+					structured_output: { answer: "Use the small scope" },
+				});
+			},
+		);
+
+		await productOwner.ask("shape", "Which scope?");
+
+		expect(workingDirectories).toEqual([true]);
+	});
+});
 
 describe("workflow provider metrics", () => {
 	it("retains Product Owner calls when later metrics are absent", async () => {
@@ -39,7 +86,7 @@ describe("workflow provider metrics", () => {
 		];
 		const productOwner = createProductOwner(
 			{
-				directory: "/target",
+				directory: tmpdir(),
 				model: "sonnet",
 				sessionBudgetUsd: 5,
 				spendCeiling: createSpendCeiling({ ceilingUsd: 100 }),
@@ -96,7 +143,7 @@ describe("workflow provider metrics", () => {
 		];
 		const productOwner = createProductOwner(
 			{
-				directory: "/target",
+				directory: tmpdir(),
 				model: "sonnet",
 				sessionBudgetUsd: 5,
 				spendCeiling: createSpendCeiling({ ceilingUsd: 100 }),
@@ -131,7 +178,7 @@ describe("workflow provider metrics", () => {
 		];
 		const productOwner = createProductOwner(
 			{
-				directory: "/target",
+				directory: tmpdir(),
 				model: "sonnet",
 				sessionBudgetUsd: 5,
 				spendCeiling: createSpendCeiling({ ceilingUsd: 100 }),
@@ -721,7 +768,7 @@ describe("the spend ceiling", () => {
 	): ProductOwner {
 		return createProductOwner(
 			{
-				directory: "/target",
+				directory: tmpdir(),
 				model: "sonnet",
 				sessionBudgetUsd: 5,
 				spendCeiling,

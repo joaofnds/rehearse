@@ -1,5 +1,5 @@
 import type { CorpusRoot } from "./corpus-file";
-import { mkdir, mkdtemp, readdir, realpath, rm } from "node:fs/promises";
+import { mkdtemp, readdir, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type {
@@ -311,7 +311,6 @@ export async function runReplay(
 	);
 	const worktreeDir = join(parent, "worktree");
 	const productOwnerDirectory = join(parent, "product-owner");
-	await mkdir(productOwnerDirectory, { recursive: true });
 	await dependencies.addWorktree(
 		manifest.sourceRoot,
 		plan.consumed.targetSha,
