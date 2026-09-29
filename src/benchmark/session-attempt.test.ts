@@ -2046,6 +2046,36 @@ describe(runSessionAttempt.name, () => {
 		);
 	});
 
+	it("adds the spend once to a failed command that states no failure", async () => {
+		const unstated = JSON.stringify({
+			session_id: "session-1",
+			is_error: true,
+			total_cost_usd: 0.01,
+		});
+		let rejected = new Error("the runner was never called");
+
+		const failure = await failureOf(
+			runSessionAttempt(
+				request({
+					projectsDirectory: await projectsRoot(),
+					recordDirectory: await recordDirectory(),
+					runClaude: (command) => {
+						rejected = new CommandError(
+							command,
+							1,
+							unstated,
+							"socket closed\n",
+						);
+						throw rejected;
+					},
+				}),
+			),
+		);
+
+		expect(failure.message).toBe(`${rejected.message} (spent $0.01)`);
+		expect(failure.message.split("socket closed")).toHaveLength(2);
+	});
+
 	it("names a budget halt's stated error and cost when the command exits 0", async () => {
 		const halt = await budgetHaltEnvelope();
 
