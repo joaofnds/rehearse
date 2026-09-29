@@ -161,6 +161,21 @@ serves its What moved rows. A reply-length or cost row names a higher arm only
 from about four reps an arm, so pass `--reps 4` or more when those rows
 matter.
 
+To compare two attempts at one checkpoint without writing a manifest, replay the
+stage with `--confirm` once per corpus, then name the two groups. Arm A is the
+baseline role and arm B the candidate. The command replays only the baseline
+arm, arm A's corpus without the stage's own skill, so approve that one group's
+cost:
+
+```sh
+mise exec -- bun run rehearse replay --run <run> --stage <stage> --corpus <corpus-a> --confirm --reps 4 --model sonnet
+mise exec -- bun run rehearse replay --run <run> --stage <stage> --corpus <corpus-b> --confirm --reps 4 --model sonnet
+mise exec -- bun run rehearse compare attempts --arm-a <group-a> --arm-b <group-b>
+```
+
+The two corpora must differ in one skill, the one the stage loads, and nothing
+else. Run history's Compare these attempts starts the same command.
+
 ## Inspect staleness
 
 After editing the example style, ask which recorded debug attempts or checkpoints

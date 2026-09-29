@@ -53,10 +53,13 @@ recorded; a meter names a higher arm only past rerun noise, which takes about
 four attempts an arm, and these rows are API-verified only. Since ACT-271.4 the
 route also lists each arm's recorded attempts side by side, unpaired. Run history can
 choose two stage groups at one checkpoint and start `compare attempts` from the
-browser, but it refuses every stage comparison today: a stage replay reads only
-its stage's skills, so a baseline without the differing skill either cannot run
-or reads the same files as arm A (ACT-271.4 holds the open decision). The
-page does not show those arm figures, rows or attempts yet (ACT-257).
+browser. Its baseline arm replays the stage on arm A's corpus without the
+stage's own skill, under an unchanged prompt; it refuses a skill the stage never
+read, since all three arms would read the same files. No real-provider
+comparison of attempts has run yet. A comparison launch that fails after its
+process starts leaves no run history row, and its log is not served; the
+failure is only in `launches/<id>.log`. The page does not show those arm
+figures, rows or attempts yet (ACT-257).
 
 ## Known limitations
 
