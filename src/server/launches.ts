@@ -16,6 +16,7 @@ import {
 	readCaseDeclaration,
 } from "#benchmark/case";
 import { INITIAL_CHECKPOINT_STAGE } from "#benchmark/checkpoint";
+import { refusePipelineUnderLinkedDirectory } from "#benchmark/corpus-source";
 import { loadRunManifest } from "#benchmark/manifest";
 import {
 	benchmarkRunPaths,
@@ -114,8 +115,9 @@ function caseRecorded(caseId: string, casesRoot: string): Promise<boolean> {
 async function caseArguments(
 	caseId: string,
 	attempts: number,
-	casesRoot: string,
+	dependencies: LaunchDependencies,
 ): Promise<readonly string[]> {
+	const { casesRoot } = dependencies;
 	if (!(await caseRecorded(caseId, casesRoot))) {
 		throw new LaunchRefusalError(`Unknown case ${caseId}`, 404);
 	}
@@ -133,6 +135,12 @@ async function caseArguments(
 		throw new LaunchRefusalError(
 			`Case ${caseId} declares no model, and a launch from the browser has no terminal to pick one on. Declare "model" in its case.json.`,
 			409,
+		);
+	}
+
+	if (declaration.kind === "pipeline") {
+		await asLaunchRefusal(() =>
+			refusePipelineUnderLinkedDirectory(dependencies.runsDirectory),
 		);
 	}
 
@@ -196,16 +204,21 @@ async function replayArguments(
 	];
 }
 
-/** An unreadable settings file refuses the launch the way no ceiling does. */
-async function storedSettings(runsDirectory: string): Promise<Settings> {
+/** A precondition the CLI would refuse on refuses the launch, redacted. */
+async function asLaunchRefusal<T>(read: () => Promise<T>): Promise<T> {
 	try {
-		return await readSettings(runsDirectory);
+		return await read();
 	} catch (error) {
 		if (!(error instanceof RefusedPreconditionError)) {
 			throw error;
 		}
 		throw new LaunchRefusalError(redactAbsolutePaths(error.message), 409);
 	}
+}
+
+/** An unreadable settings file refuses the launch the way no ceiling does. */
+function storedSettings(runsDirectory: string): Promise<Settings> {
+	return asLaunchRefusal(() => readSettings(runsDirectory));
 }
 
 /**
@@ -225,7 +238,7 @@ async function launchArguments(
 	}
 
 	return request.kind === "case"
-		? caseArguments(request.caseId, request.attempts, dependencies.casesRoot)
+		? caseArguments(request.caseId, request.attempts, dependencies)
 		: replayArguments(request, dependencies.runsDirectory);
 }
 

@@ -8,9 +8,11 @@ import { RecordedRunsFixture } from "#benchmark/run-records-test-support";
 import { benchmarkRunPaths } from "#benchmark/run-layout";
 import type { RunLiveness } from "#benchmark/run-liveness";
 import { pauseRequested } from "#benchmark/run-pause";
+import { linkCorpus } from "#benchmark/corpus-source";
 import {
 	SET_SPEND_CEILING_COMMAND,
 	storeSpendCeiling,
+	UNLINK_CORPUS_COMMAND,
 } from "#benchmark/settings";
 import {
 	FAKE_LAUNCH_PID,
@@ -479,6 +481,46 @@ describe(createLaunchApp.name, () => {
 			);
 			expect(launcher.launches).toEqual([]);
 		});
+		describe("when a corpus directory is linked", () => {
+			async function linked(): Promise<Harness> {
+				const served = await harness();
+				const corpus = await temporaryDirectory("rehearse-launch-corpus-");
+				await Bun.write(join(corpus, "CLAUDE.md"), "linked\n");
+				await linkCorpus(served.runsDirectory, corpus);
+
+				return served;
+			}
+
+			it("refuses a pipeline case, naming how to unlink", async () => {
+				const { launcher, post } = await linked();
+
+				const response = await post({
+					kind: "case",
+					caseId: "pipe-case",
+					attempts: 1,
+				});
+
+				expect(response.status).toBe(409);
+				expect(refusalSchema.parse(await response.json()).error).toContain(
+					UNLINK_CORPUS_COMMAND,
+				);
+				expect(launcher.launches).toEqual([]);
+			});
+
+			it("launches a session case, which measures the linked corpus", async () => {
+				const { launcher, post } = await linked();
+
+				const response = await post({
+					kind: "case",
+					caseId: "sess-case",
+					attempts: 1,
+				});
+
+				expect(response.status).toBe(202);
+				expect(launcher.launches).toHaveLength(1);
+			});
+		});
+
 		it("refuses while the settings file cannot be read, without the records path", async () => {
 			const { launcher, post, runsDirectory } = await harness("missing");
 			await Bun.write(join(runsDirectory, "settings.json"), "not json");

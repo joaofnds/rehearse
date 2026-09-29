@@ -44,10 +44,8 @@ import {
 } from "#benchmark/corpus-file";
 import {
 	CorpusSourceError,
-	linkedCorpusSource,
+	refusePipelineUnderLinkedDirectory,
 } from "#benchmark/corpus-source";
-import { RefusedPreconditionError } from "#benchmark/exit-codes";
-import { UNLINK_CORPUS_COMMAND } from "#benchmark/settings";
 import {
 	measureCorpusVersion,
 	measuredCorpusFiles,
@@ -194,7 +192,7 @@ export async function runRunCommand(
 	);
 	const spendCeilingUsd =
 		await dependencies.requireSpendCeiling(recordsDirectory());
-	await refuseLinkedDirectoryCorpus(recordsDirectory());
+	await refusePipelineUnderLinkedDirectory(recordsDirectory());
 	const loadedSettings = await dependencies.assertPreflight({
 		sourceDir: config.sourceDir,
 		settingsFilePath: selected.settingsFilePath,
@@ -210,19 +208,6 @@ export async function runRunCommand(
 	);
 
 	await writeRecord(dependencies.output, outcome.recordFile, request.json);
-}
-
-/**
- * A pipeline run measures only the live install, so a linked directory would
- * be silently ignored if the run went ahead.
- */
-async function refuseLinkedDirectoryCorpus(records: string): Promise<void> {
-	const linked = await linkedCorpusSource(records);
-	if (linked.kind === "directory") {
-		throw new RefusedPreconditionError(
-			`The linked corpus is the directory ${linked.root}, and a pipeline run measures only the live install. Replay a stage to measure the linked corpus, or unlink it with: ${UNLINK_CORPUS_COMMAND}`,
-		);
-	}
 }
 
 /**
