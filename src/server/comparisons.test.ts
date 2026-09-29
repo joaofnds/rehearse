@@ -868,6 +868,17 @@ describe("What moved", () => {
 		});
 	});
 
+	it("serves each arm's average words from the words its reps recorded", async () => {
+		const { armFigures } = await oneCheckpointComparison();
+
+		expect(armFigures["build-checkpoint"]?.["candidate"]?.words).toEqual({
+			state: "available",
+			averageWords: 3,
+			counted: 2,
+			attempts: 2,
+		});
+	});
+
 	it("spreads reply length and cost per attempt across each arm's attempts", async () => {
 		const rows = await oneCheckpointRows();
 		const meter = (
