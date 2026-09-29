@@ -14,7 +14,7 @@ import type { CorpusMeasurement } from "#benchmark/corpus-measurement";
 import { readLaunchRecord } from "#benchmark/launch-record";
 import type { LaunchRecord } from "#benchmark/launch-record";
 import { loadRunManifest } from "#benchmark/manifest";
-import { operatorStopped } from "#benchmark/operator-stop";
+import { stoppedBeforeGroupRecord } from "#benchmark/operator-stop";
 import { OPERATOR_STOPPED } from "#benchmark/stopped-status";
 import type { SessionAttemptId, StageAttemptId } from "#benchmark/run-layout";
 import {
@@ -751,12 +751,10 @@ async function groupRow(
 ): Promise<ConfirmationGroupRow | undefined> {
 	const paths = confirmationGroupPaths(runsDirectory, groupId);
 	const { groupFile } = paths;
+	if (await stoppedBeforeGroupRecord(paths)) {
+		return undefined;
+	}
 	if (!(await Bun.file(groupFile).exists())) {
-		// A stopped group writes no group record by design, so its reps stay
-		// on disk as spend evidence without making the group unreadable.
-		if (await operatorStopped(paths)) {
-			return undefined;
-		}
 		throw new Error("incomplete: no group.json recorded");
 	}
 

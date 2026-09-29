@@ -15,7 +15,9 @@ import {
 import {
 	benchmarkRunPaths,
 	comparisonReportPaths,
+	confirmationGroupPaths,
 } from "#benchmark/run-layout";
+import { operatorStopRecord } from "#benchmark/operator-stop";
 import { RecordedRunsFixture } from "#benchmark/run-records-test-support";
 import { failureOf, recordOutput } from "#cli/cli-test-support";
 import { UsageError } from "#cli/commands";
@@ -451,6 +453,26 @@ describe(runList.name, () => {
 		expect(lines(recorder.stdout)).toEqual([
 			`group:${fixture.groupId}\t-\taudit-log\tstage\t2 reps`,
 		]);
+	});
+
+	it("leaves out a group the operator stopped before its group record", async () => {
+		const fixture = await writtenFixture();
+		const recorder = recordOutput();
+		const stopped = confirmationGroupPaths(
+			fixture.runsDirectory,
+			"group-stopped",
+		);
+		await Bun.write(stopped.operatorStopFile, operatorStopRecord("SIGTERM"));
+
+		await runList(
+			{ kind: "groups", runsDirectory: fixture.runsDirectory },
+			recorder.output,
+		);
+
+		expect(lines(recorder.stdout)).toEqual([
+			`group:${fixture.groupId}\t-\taudit-log\tstage\t2 reps`,
+		]);
+		expect(recorder.stderr.join("")).not.toContain("group-stopped");
 	});
 
 	it("prints one line per comparison report with its case and rep counts", async () => {

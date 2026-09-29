@@ -2,6 +2,7 @@ import { readdir } from "node:fs/promises";
 import { listCases } from "#benchmark/case";
 import { CONTROL_DIR } from "#benchmark/config";
 import { parseCheckpointRecord } from "#benchmark/checkpoint";
+import { stoppedBeforeGroupRecord } from "#benchmark/operator-stop";
 import { unhandled } from "#benchmark/contracts";
 import { parseComparisonReport } from "#benchmark/comparison-record";
 import { parseConfirmationGroupRecord } from "#benchmark/confirmation-record";
@@ -259,7 +260,17 @@ async function listCheckpoints(runsDirectory: string): Promise<RecordListing> {
 }
 
 async function listGroups(runsDirectory: string): Promise<RecordListing> {
-	const groupIds = await confirmationGroupIds(runsDirectory);
+	const recordedIds = await confirmationGroupIds(runsDirectory);
+	const listed = await Promise.all(
+		recordedIds.map(async (groupId) =>
+			(await stoppedBeforeGroupRecord(
+				confirmationGroupPaths(runsDirectory, groupId),
+			))
+				? []
+				: [groupId],
+		),
+	);
+	const groupIds = listed.flat();
 
 	return numbered(
 		runsDirectory,

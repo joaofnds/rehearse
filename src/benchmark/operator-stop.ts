@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { BenchmarkRunPaths } from "./run-layout";
+import type { BenchmarkRunPaths, ConfirmationGroupPaths } from "./run-layout";
 import { OPERATOR_STOPPED } from "./stopped-status";
 
 const operatorStopRecordSchema = z.object({
@@ -27,4 +27,20 @@ export async function operatorStopped(
 	operatorStopRecordSchema.parse(JSON.parse(await file.text()));
 
 	return true;
+}
+
+/**
+ * Whether a group ended by a signal before writing its group record. Such a
+ * group writes none by design, so readers leave it out rather than report it
+ * unreadable.
+ */
+export async function stoppedBeforeGroupRecord(
+	paths: Readonly<
+		Pick<ConfirmationGroupPaths, "groupFile" | "operatorStopFile">
+	>,
+): Promise<boolean> {
+	return (
+		!(await Bun.file(paths.groupFile).exists()) &&
+		(await operatorStopped(paths))
+	);
 }
