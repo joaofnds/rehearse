@@ -89,6 +89,11 @@ async function recordedArm(
 		),
 	);
 
+	if (group.mode !== "stage") {
+		throw new RefusedPreconditionError(
+			`group ${groupId} is a ${group.mode} group; only stage groups replay one checkpoint`,
+		);
+	}
 	const version = group.inputs.corpusVersion;
 	if (version?.kind !== "version") {
 		throw new RefusedPreconditionError(

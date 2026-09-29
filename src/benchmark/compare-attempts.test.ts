@@ -6,6 +6,7 @@ import type { BaselineGroupRequest } from "./compare-attempts";
 import { compareAttempts } from "./compare-attempts";
 import { ComparisonEvidenceFixture } from "./comparison-evidence-test-support";
 import type { ComparisonArm } from "./comparison-record";
+import type { ConfirmationMode } from "./confirmation-record";
 import { confirmationGroupRecordSchema } from "./confirmation-record";
 import { measureCorpusVersion } from "./corpus-version";
 import { RefusedPreconditionError } from "./exit-codes";
@@ -75,18 +76,42 @@ class RecordedArms {
 		corpus: CorpusFiles,
 		source: Checkpoint = REPLAYED,
 	): Promise<string> {
-		await this.recordGroup(role, corpus, source);
+		await this.recordGroup(role, { corpus, source });
 
 		return groupIdFor(role);
+	}
+
+	/** Arm A as a group recorded before groups measured their corpus. */
+	public async recordUnversionedArmA(): Promise<string> {
+		await this.recordGroup("baseline", { source: REPLAYED });
+
+		return groupIdFor("baseline");
+	}
+
+	/** Arm A as a group whose claim predates recording its checkpoint. */
+	public async recordUnplacedArmA(corpus: CorpusFiles): Promise<string> {
+		await this.recordGroup("baseline", { corpus });
+
+		return groupIdFor("baseline");
+	}
+
+	/** Arm A as a whole-pipeline group, which replays no single stage. */
+	public async recordPipelineArmA(corpus: CorpusFiles): Promise<string> {
+		await this.recordGroup("baseline", {
+			corpus,
+			source: REPLAYED,
+			mode: "pipeline",
+		});
+
+		return groupIdFor("baseline");
 	}
 
 	public readonly runBaselineGroup = async (
 		request: BaselineGroupRequest,
 	): Promise<string> => {
 		this.baselineRequests.push(request);
-		await this.recordGroup("control", undefined, {
-			run: request.run,
-			stage: request.stage,
+		await this.recordGroup("control", {
+			source: { run: request.run, stage: request.stage },
 		});
 
 		return groupIdFor("control");
@@ -94,8 +119,11 @@ class RecordedArms {
 
 	private async recordGroup(
 		role: ComparisonArm,
-		corpus: CorpusFiles | undefined,
-		source: Checkpoint,
+		recording: {
+			readonly corpus?: CorpusFiles;
+			readonly source?: Checkpoint;
+			readonly mode?: ConfirmationMode;
+		},
 	): Promise<void> {
 		const groupId = groupIdFor(role);
 		const paths = confirmationGroupPaths(this.runsDirectory, groupId);
@@ -103,21 +131,32 @@ class RecordedArms {
 		await cp(dirname(this.fixture.groupFile(CASE_ID, role)), paths.directory, {
 			recursive: true,
 		});
-		if (corpus !== undefined) {
-			const group = confirmationGroupRecordSchema.parse(
-				JSON.parse(await Bun.file(paths.groupFile).text()),
-			);
-			const corpusVersion = await this.measure(corpus);
-			await Bun.write(
-				paths.groupFile,
-				`${JSON.stringify({ ...group, inputs: { ...group.inputs, corpusVersion } }, null, 2)}\n`,
-			);
-		}
-		await claimShortId(this.runsDirectory, CASE_ID, {
-			kind: "group",
-			groupId,
-			source,
-		});
+		const group = confirmationGroupRecordSchema.parse(
+			JSON.parse(await Bun.file(paths.groupFile).text()),
+		);
+		const corpusVersion =
+			recording.corpus === undefined
+				? undefined
+				: await this.measure(recording.corpus);
+		await Bun.write(
+			paths.groupFile,
+			`${JSON.stringify(
+				{
+					...group,
+					mode: recording.mode ?? group.mode,
+					inputs: { ...group.inputs, corpusVersion },
+				},
+				null,
+				2,
+			)}\n`,
+		);
+		await claimShortId(
+			this.runsDirectory,
+			CASE_ID,
+			recording.source === undefined
+				? { kind: "group", groupId }
+				: { kind: "group", groupId, source: recording.source },
+		);
 	}
 
 	private async measure(
@@ -246,6 +285,67 @@ describe(compareAttempts.name, () => {
 				`arms A and B replayed different checkpoints: ${RUN} ${STAGE} and ${RUN} review`,
 			);
 			expect(arms.baselineRequests).toEqual([]);
+		});
+	});
+
+	describe("when an arm records no checkpoint it replayed", () => {
+		it("refuses and names the group", async () => {
+			const arms = await RecordedArms.create();
+			const armA = await arms.recordUnplacedArmA(SHARED);
+			const armB = await arms.recordArm("candidate", {
+				...SHARED,
+				"skills/build/SKILL.md": "build\n",
+			});
+
+			const refusal = await refusalOf(
+				compareAttempts(
+					{ runsDirectory: arms.runsDirectory, armA, armB },
+					{ runBaselineGroup: arms.runBaselineGroup },
+				),
+			);
+
+			expect(refusal.message).toBe(
+				`group ${armA} records no checkpoint it replayed`,
+			);
+		});
+	});
+
+	describe("when an arm records no corpus version", () => {
+		it("refuses and names the group", async () => {
+			const arms = await RecordedArms.create();
+			const armA = await arms.recordUnversionedArmA();
+			const armB = await arms.recordArm("candidate", SHARED);
+
+			const refusal = await refusalOf(
+				compareAttempts(
+					{ runsDirectory: arms.runsDirectory, armA, armB },
+					{ runBaselineGroup: arms.runBaselineGroup },
+				),
+			);
+
+			expect(refusal.message).toBe(`group ${armA} records no corpus version`);
+		});
+	});
+
+	describe("when an arm is not a stage group", () => {
+		it("refuses and names the group and its mode", async () => {
+			const arms = await RecordedArms.create();
+			const armA = await arms.recordPipelineArmA(SHARED);
+			const armB = await arms.recordArm("candidate", {
+				...SHARED,
+				"skills/build/SKILL.md": "build\n",
+			});
+
+			const refusal = await refusalOf(
+				compareAttempts(
+					{ runsDirectory: arms.runsDirectory, armA, armB },
+					{ runBaselineGroup: arms.runBaselineGroup },
+				),
+			);
+
+			expect(refusal.message).toBe(
+				`group ${armA} is a pipeline group; only stage groups replay one checkpoint`,
+			);
 		});
 	});
 });
