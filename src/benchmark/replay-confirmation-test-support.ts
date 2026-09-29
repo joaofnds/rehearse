@@ -233,6 +233,7 @@ export class ReplayConfirmationHarness {
 				totalMaximumUsd: reps * 20,
 			},
 			approvalMethod: "yes",
+			stageSkill: "installed",
 			...requestOverride,
 		};
 

@@ -179,6 +179,11 @@ export const COMMANDS: readonly CommandDefinition[] = [
 			...sessionFlags,
 			corpusFlag,
 			...confirmationFlags,
+			{
+				name: "--without-stage-skill",
+				kind: "switch",
+				help: "Replay the stage on a corpus without its own skill, as a comparison's baseline arm; only with --confirm",
+			},
 			jsonFlag,
 		],
 	},

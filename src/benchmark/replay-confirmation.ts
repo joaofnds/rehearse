@@ -10,11 +10,17 @@ import {
 	deriveStaleness,
 	hashedCorpus,
 	withLoadedFilesNow,
+	captureStageCorpusWithoutSkill,
 	snapshotStageCorpus,
+	snapshotStageCorpusWithoutSkill,
 	installStageCorpusSnapshot,
 	INITIAL_CHECKPOINT_STAGE,
 } from "./checkpoint";
-import type { CheckpointRecord, StageCorpus } from "./checkpoint";
+import type {
+	CheckpointRecord,
+	StageCorpus,
+	StageSkillPresence,
+} from "./checkpoint";
 import type { Immutable, ProviderCall, StageScorecard } from "./contracts";
 import type { ConfirmationCostProjection } from "./confirmation";
 import { runConfirmation } from "./confirmation";
@@ -78,6 +84,11 @@ export interface ReplayConfirmationRequest extends ReplayRequest {
 	readonly corpusRoots: readonly CorpusRoot[];
 	readonly projectedCost: ConfirmationCostProjection;
 	readonly approvalMethod: ApprovalMethod;
+	/**
+	 * Absent for a comparison's baseline arm, which replays the stage on a
+	 * corpus without the stage's own skill.
+	 */
+	readonly stageSkill: StageSkillPresence;
 	readonly now?: (() => number) | undefined;
 }
 
@@ -132,10 +143,15 @@ async function freezeReplayInputs(
 			continue;
 		}
 
+		const snapshot =
+			request.stageSkill === "absent" &&
+			definition.skill === plan.definition.skill
+				? snapshotStageCorpusWithoutSkill
+				: snapshotStageCorpus;
 		corpusByStage.set(
 			definition.name,
 			hashedCorpus(
-				await snapshotStageCorpus(
+				await snapshot(
 					definition.skill,
 					request.instructions,
 					request.corpusRoots,
@@ -529,6 +545,10 @@ async function runReplayConfirmationBody(
 				session = await executeStageSession(
 					{
 						...detachedStageDependencies(dependencies.stageSession),
+						captureStageCorpus:
+							request.stageSkill === "absent"
+								? captureStageCorpusWithoutSkill
+								: dependencies.stageSession.captureStageCorpus,
 						measureCorpus: () => Promise.resolve(frozen.corpusVersion),
 					},
 					{
@@ -567,7 +587,10 @@ async function runReplayConfirmationBody(
 									sessionId: session.transcript.sessionId,
 									projectsDirectory: dependencies.projectsDirectory,
 								},
-					skill: frozen.plan.definition.skill,
+					skill:
+						request.stageSkill === "absent"
+							? undefined
+							: frozen.plan.definition.skill,
 					corpusSources: [],
 					corpusFiles: session.corpusFiles,
 					versionFiles: session.versionFiles,

@@ -1,3 +1,4 @@
+import type { StageSkillPresence } from "./checkpoint";
 import type { CorpusRoot } from "./corpus-file";
 import type { ConfirmationConfig } from "./config";
 import { projectConfirmationCost, runRequestedExecution } from "./confirmation";
@@ -25,7 +26,10 @@ export interface ReplayStageExecutionDependencies<
 }
 
 export function executeReplayStage<DebugEvidence, ConfirmationEvidence>(
-	config: { readonly confirmation?: ConfirmationConfig | undefined },
+	config: {
+		readonly confirmation?: ConfirmationConfig | undefined;
+		readonly stageSkill: StageSkillPresence;
+	},
 	request: ReplayRequest,
 	dependencies: ReplayStageExecutionDependencies<
 		DebugEvidence,
@@ -63,6 +67,7 @@ export function executeReplayStage<DebugEvidence, ConfirmationEvidence>(
 					corpusRoots: dependencies.corpusRoots,
 					projectedCost,
 					approvalMethod: confirmation.approval,
+					stageSkill: config.stageSkill,
 				}),
 			};
 		},

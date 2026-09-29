@@ -1,6 +1,7 @@
 import { isAbsolute, relative, resolve } from "node:path";
 import { z } from "zod";
 import { benchmarkRunsDirectory } from "./run-layout";
+import type { StageSkillPresence } from "./checkpoint";
 
 export const CONTROL_DIR = resolve(import.meta.dir, "../..");
 export const REQUIRED_BUN_VERSION = "1.4.0";
@@ -186,6 +187,7 @@ const SWITCH_FLAGS = new Set([
 	"--yes",
 	"--approved-in-browser",
 	"--pause",
+	"--without-stage-skill",
 ]);
 
 function flagValues(args: readonly string[]): ParsedFlags {
@@ -454,6 +456,25 @@ export interface ReplayCliConfig extends SessionKnobs, CorpusSelection {
 	readonly runName: string;
 	readonly stage: string;
 	readonly confirmation?: ConfirmationConfig | undefined;
+	readonly stageSkill: StageSkillPresence;
+}
+
+/**
+ * A comparison's baseline arm replays the stage without its own skill, and
+ * only a confirmation group can be an arm.
+ */
+function parseStageSkill(
+	flags: ParsedFlags,
+	confirmation: ConfirmationConfig | undefined,
+): StageSkillPresence {
+	if (!flags.switches.has("--without-stage-skill")) {
+		return "installed";
+	}
+	if (confirmation === undefined) {
+		throw new Error("Use --without-stage-skill only with --confirm");
+	}
+
+	return "absent";
 }
 
 /**
@@ -514,6 +535,7 @@ export function parseReplayArgs(
 				runName,
 				stage,
 				...sessionKnobs,
+				stageSkill: parseStageSkill(flags, confirmation),
 			},
 			values.get("--corpus"),
 		),

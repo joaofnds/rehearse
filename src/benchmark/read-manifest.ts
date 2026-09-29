@@ -144,7 +144,8 @@ export function readManifest(
 }
 
 export interface StageReadManifestInputs {
-	readonly skill: string;
+	/** The stage's own skill, absent for a stage that ran without it. */
+	readonly skill: string | undefined;
 	readonly corpusFiles: readonly HashedFile[];
 	readonly versionFiles: readonly HashedFile[];
 	readonly targetFiles: readonly HashedFile[];
@@ -156,11 +157,10 @@ export interface StageReadManifestInputs {
 export function stageReadManifest(
 	inputs: StageReadManifestInputs,
 ): readonly ReadManifestEntry[] {
-	return readManifest({
-		...inputs,
-		declared: [
-			{ path: "CLAUDE.md", half: "corpus" },
-			{ path: stageSkillPath(inputs.skill), half: "corpus" },
-		],
-	});
+	const declared: ManifestEntry[] = [{ path: "CLAUDE.md", half: "corpus" }];
+	if (inputs.skill !== undefined) {
+		declared.push({ path: stageSkillPath(inputs.skill), half: "corpus" });
+	}
+
+	return readManifest({ ...inputs, declared });
 }

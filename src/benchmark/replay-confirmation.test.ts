@@ -1488,4 +1488,77 @@ describe(runReplayConfirmation.name, () => {
 		);
 		expect(leftover).toEqual([]);
 	});
+
+	describe("when the stage runs without its own skill", () => {
+		async function baselineCorpus(): Promise<string> {
+			const corpusRoot = await mkdtemp(join(tmpdir(), "rehearse-corpus-"));
+			testResources.track(corpusRoot);
+			await Bun.write(
+				join(corpusRoot, "agents", "reviewer.md"),
+				"reviewer agent\n",
+			);
+
+			return corpusRoot;
+		}
+
+		it("freezes and replays the stage's corpus with no skill in it", async () => {
+			const harness = new ReplayConfirmationHarness(testResources);
+			const run = await harness.recordedRun();
+
+			const outcome = await harness.runConfirmation(
+				{
+					paths: run.paths,
+					corpusRoots: [{ kind: "directory", root: await baselineCorpus() }],
+				},
+				{ reps: 2, stageSkill: "absent" },
+			);
+
+			const group = parseConfirmationGroupRecord(
+				await Bun.file(outcome.groupRecordFile).text(),
+			);
+			expect(
+				group.inputs.files
+					.filter(({ kind }) => kind === "corpus")
+					.map(({ path }) => path),
+			).toEqual([
+				"inputs/corpus/discuss/CLAUDE.md",
+				"inputs/corpus/discuss/agents/reviewer.md",
+			]);
+			expect(outcome.repRecordFiles).toHaveLength(2);
+		});
+
+		it("declares no read of the skill it ran without", async () => {
+			const harness = new ReplayConfirmationHarness(testResources);
+			const run = await harness.recordedRun();
+
+			const outcome = await harness.runConfirmation(
+				{
+					paths: run.paths,
+					corpusRoots: [{ kind: "directory", root: await baselineCorpus() }],
+				},
+				{ reps: 2, stageSkill: "absent" },
+			);
+
+			const corpusReads = await Promise.all(
+				outcome.repRecordFiles.map(async (recordFile) =>
+					z
+						.object({
+							readManifest: z.array(
+								z.object({ path: z.string(), half: z.string() }).loose(),
+							),
+						})
+						.parse(
+							JSON.parse(
+								await Bun.file(
+									join(dirname(recordFile), "stages", "discuss.json"),
+								).text(),
+							),
+						)
+						.readManifest.filter(({ half }) => half === "corpus")
+						.map(({ path }) => path),
+				),
+			);
+			expect(corpusReads).toEqual([["CLAUDE.md"], ["CLAUDE.md"]]);
+		});
+	});
 });

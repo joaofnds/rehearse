@@ -23,7 +23,7 @@ describe(executeReplayStage.name, () => {
 		};
 
 		const outcome = await executeReplayStage(
-			{ confirmation: undefined },
+			{ confirmation: undefined, stageSkill: "installed" },
 			replayRequest,
 			{
 				approval: {
@@ -68,7 +68,10 @@ describe(executeReplayStage.name, () => {
 			spendCeilingUsd: 100,
 		};
 		const execution = executeReplayStage(
-			{ confirmation: { reps: 3, approval: "interactive" } },
+			{
+				confirmation: { reps: 3, approval: "interactive" },
+				stageSkill: "installed",
+			},
 			replayRequest,
 			{
 				approval: {
@@ -124,6 +127,7 @@ describe(executeReplayStage.name, () => {
 					totalMaximumUsd: 60,
 				},
 				approvalMethod: "interactive",
+				stageSkill: "installed",
 			},
 		]);
 	});

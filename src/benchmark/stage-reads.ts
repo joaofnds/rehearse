@@ -159,7 +159,8 @@ export interface StageReadsRequest {
 	readonly targetDir: string;
 	readonly startSha: string;
 	readonly transcript: StageTranscriptSource | undefined;
-	readonly skill: string;
+	/** The stage's own skill, absent for a stage that ran without it. */
+	readonly skill: string | undefined;
 	/**
 	 * The directories holding the whole corpus source the stage read past its
 	 * own `.claude`. A stage whose corpus was installed into its worktree has

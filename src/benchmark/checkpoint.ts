@@ -551,8 +551,10 @@ async function stageCorpusDirectories(
  */
 interface StageSkill {
 	readonly name: string;
-	readonly presence: "installed" | "absent";
+	readonly presence: StageSkillPresence;
 }
+
+export type StageSkillPresence = "installed" | "absent";
 
 /**
  * A baseline arm whose corpus still holds the skill would read it while its

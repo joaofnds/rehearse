@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { CaseDefaults, Effort } from "./config";
+import type { CaseDefaults, Effort, ReplayCliConfig } from "./config";
 import {
 	CONTROL_DIR,
 	DEFAULT_CASE_ID,
@@ -550,7 +550,48 @@ describe(parseReplayArgs.name, () => {
 			judgeEffort: "high",
 			sessionBudgetUsd: 5,
 			minimumStageGrade: "B",
+			stageSkill: "installed",
 		});
+	});
+
+	it("replays the stage without its own skill for a comparison's baseline arm", () => {
+		const config = parseReplayArgs(
+			[
+				"--run",
+				"run-1",
+				"--stage",
+				"build",
+				"--model",
+				"sonnet",
+				"--session-budget-usd",
+				"5",
+				"--confirm",
+				"--without-stage-skill",
+			],
+			{},
+		);
+
+		expect(config.stageSkill).toBe("absent");
+	});
+
+	it("refuses to replay without the stage's skill outside a confirmation group", () => {
+		const parse = (): ReplayCliConfig =>
+			parseReplayArgs(
+				[
+					"--run",
+					"run-1",
+					"--stage",
+					"build",
+					"--model",
+					"sonnet",
+					"--session-budget-usd",
+					"5",
+					"--without-stage-skill",
+				],
+				{},
+			);
+
+		expect(parse).toThrow("Use --without-stage-skill only with --confirm");
 	});
 
 	it("overrides confirmation reps and accepts noninteractive approval", () => {
