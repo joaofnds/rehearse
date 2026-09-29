@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, it } from "bun:test";
+import { Glob } from "bun";
 import { cp, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import type { BaselineGroupRequest } from "./compare-attempts";
 import { compareAttempts } from "./compare-attempts";
 import { ComparisonEvidenceFixture } from "./comparison-evidence-test-support";
+import { parseComparisonReport } from "./comparison-record";
 import type { ComparisonArm } from "./comparison-record";
 import type { ConfirmationMode } from "./confirmation-record";
 import { confirmationGroupRecordSchema } from "./confirmation-record";
@@ -104,6 +106,15 @@ class RecordedArms {
 		});
 
 		return groupIdFor("baseline");
+	}
+
+	public baselineCorpusDirectory(): string {
+		const [request] = this.baselineRequests;
+		if (request === undefined) {
+			throw new Error("Expected a baseline group to have run");
+		}
+
+		return request.corpusDirectory;
 	}
 
 	/** Rewrites a recorded arm's worker model, a controlled input. */
@@ -382,6 +393,95 @@ describe(compareAttempts.name, () => {
 				`case ${CASE_ID} arms baseline and candidate field inputs.model differs`,
 			);
 			expect(arms.baselineRequests).toEqual([]);
+		});
+	});
+
+	describe("when arms A and B differ in one skill", () => {
+		it("runs the baseline group on arm A without that skill, with arm A's inputs", async () => {
+			const arms = await RecordedArms.create();
+			const armA = await arms.recordArm("baseline", {
+				...SHARED,
+				"skills/build/SKILL.md": "build\n",
+			});
+			const armB = await arms.recordArm("candidate", {
+				...SHARED,
+				"skills/build/SKILL.md": "revised build\n",
+			});
+
+			await compareAttempts(
+				{ runsDirectory: arms.runsDirectory, armA, armB },
+				{ runBaselineGroup: arms.runBaselineGroup },
+			);
+
+			const corpusDirectory = arms.baselineCorpusDirectory();
+			expect(arms.baselineRequests).toEqual([
+				{
+					run: RUN,
+					stage: STAGE,
+					corpusDirectory,
+					reps: 2,
+					model: "sonnet",
+					effort: undefined,
+					judgeModel: "opus",
+					judgeEffort: undefined,
+					sessionBudgetUsd: 5,
+				},
+			]);
+			expect(dirname(corpusDirectory)).toBe(
+				join(arms.runsDirectory, "baseline-corpora"),
+			);
+			const corpus = await Array.fromAsync(
+				new Glob("**/*").scan({ cwd: corpusDirectory }),
+			);
+			expect(corpus.toSorted()).toEqual([
+				"CLAUDE.md",
+				"skills/review/SKILL.md",
+			]);
+			const review = Bun.file(join(corpusDirectory, "skills/review/SKILL.md"));
+			expect(await review.text()).toBe("review\n");
+		});
+	});
+
+	describe("when the baseline group has run", () => {
+		it("writes the report of arm A against arm B with the derived baseline, and how it was derived", async () => {
+			const arms = await RecordedArms.create();
+			const armA = await arms.recordArm("baseline", {
+				...SHARED,
+				"skills/build/SKILL.md": "build\n",
+			});
+			const armB = await arms.recordArm("candidate", {
+				...SHARED,
+				"skills/build/SKILL.md": "revised build\n",
+			});
+
+			const { reportFile } = await compareAttempts(
+				{ runsDirectory: arms.runsDirectory, armA, armB },
+				{ runBaselineGroup: arms.runBaselineGroup },
+			);
+
+			const report = parseComparisonReport(await Bun.file(reportFile).text());
+			expect(reportFile).toBe(
+				join(
+					arms.runsDirectory,
+					"comparisons",
+					report.manifest.sha256,
+					"report.json",
+				),
+			);
+			const derivation: unknown = await Bun.file(
+				join(dirname(reportFile), "baseline.json"),
+			).json();
+			expect(derivation).toEqual({
+				schemaVersion: 1,
+				kind: "derived",
+				skillUnderTest: "skills/build/",
+				arms: {
+					baseline: armA,
+					candidate: armB,
+					control: groupIdFor("control"),
+				},
+				baselineCorpus: basename(arms.baselineCorpusDirectory()),
+			});
 		});
 	});
 });

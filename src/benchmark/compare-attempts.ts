@@ -1,12 +1,18 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, dirname, join, relative } from "node:path";
 import { deriveBaselineCorpus } from "./baseline-corpus";
 import type { Effort } from "./config";
 import type { ConfirmationGroupRecord } from "./confirmation-record";
+import { writeComparisonReport } from "./comparison-command";
 import { loadComparisonEvidence } from "./comparison-loader";
+import type { ComparisonArm } from "./comparison-record";
 import { confirmationGroupRecordSchema } from "./confirmation-record";
-import { readCorpusVersion } from "./corpus-version";
+import {
+	corpusVersionDigest,
+	readCorpusVersion,
+	readCorpusVersionFile,
+} from "./corpus-version";
 import { RefusedPreconditionError } from "./exit-codes";
 import { confirmationGroupPaths } from "./run-layout";
 import { readShortIds } from "./short-id";
@@ -38,6 +44,11 @@ export interface CompareAttemptsDependencies {
 	readonly runBaselineGroup: (request: BaselineGroupRequest) => Promise<string>;
 }
 
+const BASELINE_CORPORA_DIRECTORY = "baseline-corpora";
+const MANIFESTS_DIRECTORY = "comparison-manifests";
+/** Beside a comparison's report, how its baseline arm was derived. */
+const BASELINE_RECORD_FILE = "baseline.json";
+
 interface Checkpoint {
 	readonly run: string;
 	readonly stage: string;
@@ -47,6 +58,7 @@ interface Checkpoint {
 interface RecordedArm {
 	readonly group: ConfirmationGroupRecord;
 	readonly checkpoint: Checkpoint;
+	readonly corpusDigest: string;
 	readonly corpus: ReadonlyMap<string, string>;
 }
 
@@ -108,6 +120,7 @@ async function recordedArm(
 	return {
 		group,
 		checkpoint: await replayedCheckpoint(runsDirectory, group.caseId, groupId),
+		corpusDigest: version.digest,
 		corpus: await recordedCorpus(runsDirectory, version.digest),
 	};
 }
@@ -149,13 +162,82 @@ async function assertComparableArms(
 	}
 }
 
+/**
+ * Writes the baseline corpus out of arm A's recorded version, under the
+ * digest of the files it holds, so a replay can run it as a directory corpus.
+ */
+async function materializeBaselineCorpus(
+	runsDirectory: string,
+	armADigest: string,
+	files: ReadonlyMap<string, string>,
+): Promise<string> {
+	const hashed = [...files].map(([path, sha256]) => ({ path, sha256 }));
+	const directory = join(
+		runsDirectory,
+		BASELINE_CORPORA_DIRECTORY,
+		corpusVersionDigest(hashed),
+	);
+	for (const { path } of hashed) {
+		await Bun.write(
+			join(directory, path),
+			await readCorpusVersionFile(runsDirectory, armADigest, path),
+		);
+	}
+
+	return directory;
+}
+
+/**
+ * The manifest of arm A as the baseline role, arm B as the candidate and the
+ * derived baseline as the control (doc-180 decision 2), named by the control
+ * group, which no other comparison ran.
+ */
+async function writeManifest(
+	runsDirectory: string,
+	caseId: string,
+	arms: Readonly<Record<ComparisonArm, string>>,
+): Promise<string> {
+	const manifestPath = join(
+		runsDirectory,
+		MANIFESTS_DIRECTORY,
+		`${arms.control}.json`,
+	);
+	const groupReference = (groupId: string): string =>
+		relative(
+			dirname(manifestPath),
+			confirmationGroupPaths(runsDirectory, groupId).groupFile,
+		);
+	await Bun.write(
+		manifestPath,
+		`${JSON.stringify(
+			{
+				schemaVersion: 1,
+				cases: [
+					{
+						caseId,
+						arms: {
+							baseline: groupReference(arms.baseline),
+							candidate: groupReference(arms.candidate),
+							control: groupReference(arms.control),
+						},
+					},
+				],
+			},
+			null,
+			2,
+		)}\n`,
+	);
+
+	return manifestPath;
+}
+
 function describeCheckpoint({ run, stage }: Checkpoint): string {
 	return `${run} ${stage}`;
 }
 
 export async function compareAttempts(
 	request: CompareAttemptsRequest,
-	_dependencies: CompareAttemptsDependencies,
+	dependencies: CompareAttemptsDependencies,
 ): Promise<{ readonly reportFile: string }> {
 	const armA = await recordedArm(request.runsDirectory, request.armA);
 	const armB = await recordedArm(request.runsDirectory, request.armB);
@@ -177,5 +259,46 @@ export async function compareAttempts(
 		throw new RefusedPreconditionError(`${baseline.reason}${units}`);
 	}
 
-	throw new Error("not implemented");
+	const { inputs } = armA.group;
+	const corpusDirectory = await materializeBaselineCorpus(
+		request.runsDirectory,
+		armA.corpusDigest,
+		baseline.files,
+	);
+	const control = await dependencies.runBaselineGroup({
+		...armA.checkpoint,
+		corpusDirectory,
+		reps: armA.group.reps,
+		model: inputs.model,
+		effort: inputs.effort,
+		judgeModel: inputs.judgeModel,
+		judgeEffort: inputs.judgeEffort,
+		sessionBudgetUsd: inputs.sessionBudgetUsd,
+	});
+
+	const arms = { baseline: request.armA, candidate: request.armB, control };
+	const reportFile = await writeComparisonReport({
+		manifestPath: await writeManifest(
+			request.runsDirectory,
+			armA.group.caseId,
+			arms,
+		),
+		runsDirectory: request.runsDirectory,
+	});
+	await Bun.write(
+		join(dirname(reportFile), BASELINE_RECORD_FILE),
+		`${JSON.stringify(
+			{
+				schemaVersion: 1,
+				kind: baseline.kind,
+				skillUnderTest: baseline.skillUnderTest,
+				arms,
+				baselineCorpus: basename(corpusDirectory),
+			},
+			null,
+			2,
+		)}\n`,
+	);
+
+	return { reportFile };
 }
