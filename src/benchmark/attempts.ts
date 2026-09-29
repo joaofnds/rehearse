@@ -9,6 +9,8 @@ import type { Effort } from "./config";
 import { effortSchema } from "./config";
 import type { ContextFile, Immutable } from "./contracts";
 import { stageLetterGradeSchema } from "./contracts";
+import type { OutputWords } from "./output-words";
+import { stageOutputWords } from "./output-words";
 import { readReplayRecord } from "./replay";
 import type { BenchmarkRunPaths } from "./run-layout";
 
@@ -45,6 +47,7 @@ export interface Attempt {
 	readonly artifact?: ContextFile | undefined;
 	readonly changedPaths?: readonly string[] | undefined;
 	readonly diff?: string | undefined;
+	readonly words: OutputWords;
 	readonly lineageInputs?: AttemptLineageInputs | undefined;
 }
 
@@ -97,6 +100,7 @@ function attemptFromScorecard(
 		artifact,
 		changedPaths,
 		diff,
+		words: stageOutputWords({ artifact, diff }),
 		lineageInputs,
 	};
 }

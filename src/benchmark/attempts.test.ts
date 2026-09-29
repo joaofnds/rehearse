@@ -3,6 +3,7 @@ import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { diffTexts, loadAttempts, presentAttempts } from "./attempts";
+import { stageOutputWords } from "./output-words";
 import { benchmarkRunPaths } from "./run-layout";
 import { TestResources } from "./test-support";
 
@@ -145,6 +146,22 @@ describe(loadAttempts.name, () => {
 		expect(attempts[1]?.totalCostUsd).toBeCloseTo(1.2);
 	});
 
+	it("counts the words of each attempt's artifact, the original's and each replay's", async () => {
+		const paths = await attemptFixture();
+		await Bun.write(
+			paths.replayRecordFile(LINEAGE, "2026-08-30T11:00:00.000Z"),
+			`${JSON.stringify(replayRecord("2026-08-30T11:00:00.000Z", "a longer new spec\n"), null, 2)}\n`,
+		);
+
+		const attempts = await loadAttempts(paths, "discuss", LINEAGE);
+
+		expect(attempts.map(({ words }) => words)).toEqual([
+			{ state: "available", words: 2 },
+			{ state: "available", words: 2 },
+			{ state: "available", words: 4 },
+		]);
+	});
+
 	it("skips an original stage file that never reached a grade", async () => {
 		const paths = await attemptFixture();
 		await Bun.write(
@@ -259,6 +276,7 @@ describe(presentAttempts.name, () => {
 		dimensions: [{ id: "clarity", grade }],
 		judgeCostUsd: 1.25,
 		artifact: { path: "backlog/docs/D.md", content },
+		words: stageOutputWords({ artifact: { content } }),
 	});
 
 	it("shows grades side by side and diffs the latest attempt against earlier ones", async () => {
