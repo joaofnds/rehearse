@@ -1881,4 +1881,105 @@ describe(RunHistoryPage.name, () => {
 			await screen.findByRole("dialog", { name: "Start a run" }),
 		).toBeInTheDocument();
 	});
+
+	describe("when two recorded attempts are compared", () => {
+		const RUN = "2026-09-06T21-58-29.508Z";
+
+		function stageGroup(
+			groupId: string,
+			checkpoint: { readonly run: string; readonly stage: string } | undefined,
+		): RunHistoryResponseBody["rows"][number] {
+			return {
+				kind: "group",
+				staleness: UNREAD_STALENESS,
+				corpusVersion: undefined,
+				checkpoint,
+				...UNREAD_GROUP_FIGURES,
+				shortId: undefined,
+				groupId,
+				caseId: "audit-log",
+				mode: "stage",
+				reps: 3,
+				repAttempts: [],
+				links: [],
+			};
+		}
+
+		const history: RunHistoryResponseBody = {
+			rows: [
+				stageGroup("group-without-skill", { run: RUN, stage: "build" }),
+				stageGroup("group-with-skill", { run: RUN, stage: "build" }),
+				stageGroup("group-at-shape", { run: RUN, stage: "shape" }),
+				stageGroup("group-unplaced", undefined),
+			],
+			launches: [],
+			unreadable: [],
+		};
+
+		function choice(groupId: string): HTMLElement {
+			return screen.getByRole("checkbox", {
+				name: `Compare ${groupId}`,
+			});
+		}
+
+		it("offers to compare only groups whose checkpoint is recorded", async () => {
+			respondingWith(history);
+
+			await renderPage().findByText("group-unplaced");
+
+			expect(choice("group-without-skill")).toBeInTheDocument();
+			expect(
+				screen.queryByRole("checkbox", { name: "Compare group-unplaced" }),
+			).not.toBeInTheDocument();
+		});
+
+		it("once one is chosen, offers only groups replayed at its checkpoint", async () => {
+			respondingWith(history);
+			await renderPage().findByText("group-unplaced");
+
+			fireEvent.click(choice("group-without-skill"));
+
+			expect(choice("group-with-skill")).toBeEnabled();
+			expect(choice("group-at-shape")).toBeDisabled();
+			expect(
+				screen.queryByRole("button", { name: "Compare these attempts" }),
+			).not.toBeInTheDocument();
+		});
+
+		it("compares the first chosen as arm A and the second as arm B", async () => {
+			stubFetchByPath(
+				new Map<string, unknown>([
+					["/api/runs", history],
+					[
+						"/api/settings",
+						{
+							spendCeilingUsd: 5,
+							setCommand: "rehearse settings --spend-ceiling-usd <USD>",
+							recordsDirectory: "/records",
+							linkedCorpus: { kind: "live", root: "/home/.claude" },
+							overrun: "The ceiling can be overrun by the calls in flight.",
+						},
+					],
+				]),
+			);
+			await renderPage().findByText("group-unplaced");
+
+			fireEvent.click(choice("group-without-skill"));
+			fireEvent.click(choice("group-with-skill"));
+			fireEvent.click(
+				screen.getByRole("button", { name: "Compare these attempts" }),
+			);
+			const dialog = await screen.findByRole("dialog");
+
+			expect(
+				within(dialog).getByText("Arm A").nextElementSibling,
+			).toHaveTextContent("group-without-skill");
+			expect(
+				within(dialog).getByText("Arm B").nextElementSibling,
+			).toHaveTextContent("group-with-skill");
+			expect(
+				within(dialog).getByRole("button", { name: "Start · 3 attempts" }),
+			).toBeInTheDocument();
+		});
+	});
 });

@@ -275,7 +275,63 @@ function statusLine(row: RunHistoryRow): React.JSX.Element {
 	);
 }
 
-function outcomeCell(row: HistoryRow): React.JSX.Element {
+type GroupRow = Extract<HistoryRow, { readonly kind: "group" }>;
+
+/** A stage group chosen as one arm of a comparison, in the order chosen. */
+interface ChosenArm {
+	readonly groupId: string;
+	readonly run: string;
+	readonly stage: string;
+	readonly reps: number;
+}
+
+interface ArmChoice {
+	readonly chosen: readonly ChosenArm[];
+	readonly onToggle: (arm: ChosenArm) => void;
+}
+
+/**
+ * Only a stage group whose claim records the checkpoint it replayed can be
+ * an arm, and a second arm must share the first one's checkpoint.
+ */
+function CompareChoice({
+	row,
+	choice,
+}: {
+	readonly row: GroupRow;
+	readonly choice: ArmChoice;
+}): React.JSX.Element | null {
+	const { checkpoint } = row;
+	if (row.mode !== "stage" || checkpoint === undefined) {
+		return null;
+	}
+	const { chosen, onToggle } = choice;
+	const checked = chosen.some(({ groupId }) => groupId === row.groupId);
+	const [first] = chosen;
+	const offered =
+		checked ||
+		first === undefined ||
+		(chosen.length < 2 &&
+			first.run === checkpoint.run &&
+			first.stage === checkpoint.stage);
+
+	return (
+		<label className="flex min-h-11 items-center gap-2 text-xs text-dim">
+			<input
+				type="checkbox"
+				aria-label={`Compare ${row.groupId}`}
+				checked={checked}
+				disabled={!offered}
+				onChange={() => {
+					onToggle({ groupId: row.groupId, ...checkpoint, reps: row.reps });
+				}}
+			/>
+			compare
+		</label>
+	);
+}
+
+function outcomeCell(row: HistoryRow, choice: ArmChoice): React.JSX.Element {
 	switch (row.kind) {
 		case "run": {
 			return runOutcomeCell(row);
@@ -285,7 +341,12 @@ function outcomeCell(row: HistoryRow): React.JSX.Element {
 			return <span className="font-mono text-xs text-dim">{row.status}</span>;
 		}
 		case "group": {
-			return <span className="text-xs text-dim">per rep</span>;
+			return (
+				<span className="flex flex-col gap-0.5">
+					<span className="text-xs text-dim">per rep</span>
+					<CompareChoice row={row} choice={choice} />
+				</span>
+			);
 		}
 		default: {
 			return row satisfies never;
@@ -579,8 +640,63 @@ function launchCells(launch: LaunchRow): readonly React.JSX.Element[] {
 	];
 }
 
+/**
+ * The arms chosen so far: arm A is the first, so the dialog it opens runs
+ * the baseline from arm A's corpus without the skill arm B differs in.
+ */
+function ComparisonBar({
+	chosen,
+	onClear,
+}: {
+	readonly chosen: readonly ChosenArm[];
+	readonly onClear: () => void;
+}): React.JSX.Element | null {
+	const [armA, armB] = chosen;
+	if (armA === undefined) {
+		return null;
+	}
+
+	return (
+		<div className="flex flex-wrap items-center gap-3 text-sm">
+			<span className="font-mono">{`arm A ${armA.groupId}`}</span>
+			{armB === undefined ? (
+				<span className="text-dim">{`Choose arm B, a group replayed at ${armA.stage} · ${armA.run}`}</span>
+			) : (
+				<>
+					<span className="font-mono">{`arm B ${armB.groupId}`}</span>
+					<LaunchDialog
+						target={{
+							kind: "comparison",
+							armA: armA.groupId,
+							armB: armB.groupId,
+							run: armA.run,
+							stage: armA.stage,
+							reps: armA.reps,
+						}}
+						triggerLabel="Compare these attempts"
+					/>
+				</>
+			)}
+			<Button variant="outline" size="sm" onClick={onClear}>
+				Clear
+			</Button>
+		</div>
+	);
+}
+
 export function RunHistoryPage(): React.JSX.Element {
 	const [filter, setFilter] = useState<Filter>("All");
+	const [chosen, setChosen] = useState<readonly ChosenArm[]>([]);
+	const choice: ArmChoice = {
+		chosen,
+		onToggle: (arm) => {
+			setChosen((current) =>
+				current.some(({ groupId }) => groupId === arm.groupId)
+					? current.filter(({ groupId }) => groupId !== arm.groupId)
+					: [...current, arm],
+			);
+		},
+	};
 	const query = useQuery({
 		...runHistoryQuery,
 		refetchInterval: ({ state }) =>
@@ -646,6 +762,12 @@ export function RunHistoryPage(): React.JSX.Element {
 
 				{rows.length > 0 || launches.length > 0 ? (
 					<>
+						<ComparisonBar
+							chosen={chosen}
+							onClear={() => {
+								setChosen([]);
+							}}
+						/>
 						<TableShell
 							caption="DURABLE RECORDS"
 							columns={[...COLUMNS]}
@@ -654,7 +776,7 @@ export function RunHistoryPage(): React.JSX.Element {
 								...rows.map((row) => [
 									<span key="run">{runCell(row)}</span>,
 									<span key="case">{caseCell(row)}</span>,
-									outcomeCell(row),
+									outcomeCell(row, choice),
 									row.kind === "run" ? progressCell(row, nowMs) : <span />,
 									gradeCell(row),
 									corpusCell(row),
