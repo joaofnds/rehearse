@@ -1,6 +1,5 @@
-import type { StageSkillPresence } from "./checkpoint";
 import type { CorpusRoot } from "./corpus-file";
-import type { ConfirmationConfig } from "./config";
+import type { ConfirmationConfig, StageSkillPresence } from "./config";
 import { projectConfirmationCost, runRequestedExecution } from "./confirmation";
 import type { ReplayRequest } from "./replay";
 import type { ReplayConfirmationRequest } from "./replay-confirmation";

@@ -1,7 +1,6 @@
 import { isAbsolute, relative, resolve } from "node:path";
 import { z } from "zod";
 import { benchmarkRunsDirectory } from "./run-layout";
-import type { StageSkillPresence } from "./checkpoint";
 
 export const CONTROL_DIR = resolve(import.meta.dir, "../..");
 export const REQUIRED_BUN_VERSION = "1.4.0";
@@ -451,6 +450,9 @@ export function parseSessionArgs(
 		parseConfirmation(flags),
 	);
 }
+
+/** Whether a stage replay installs the stage's own skill in its corpus. */
+export type StageSkillPresence = "installed" | "absent";
 
 export interface ReplayCliConfig extends SessionKnobs, CorpusSelection {
 	readonly runName: string;

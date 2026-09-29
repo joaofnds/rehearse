@@ -3,7 +3,7 @@ import type { Stats } from "node:fs";
 import { cp, mkdir, readdir, rm } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, relative, sep } from "node:path";
 import { z } from "zod";
-import type { Effort } from "./config";
+import type { Effort, StageSkillPresence } from "./config";
 import { effortSchema } from "./config";
 import type { CorpusRoot, LiveCorpusRoot } from "./corpus-file";
 import {
@@ -553,8 +553,6 @@ interface StageSkill {
 	readonly name: string;
 	readonly presence: StageSkillPresence;
 }
-
-export type StageSkillPresence = "installed" | "absent";
 
 /**
  * A baseline arm whose corpus still holds the skill would read it while its
