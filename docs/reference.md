@@ -103,9 +103,11 @@ or fails after its spend reached the ceiling, a pipeline run stops in that
 stage, writes the stage's stopped record with `ceilingStop` carrying the
 ceiling and the spend, restores the target, and starts no later session. A
 stage Judge's stopped record keeps the attempts it paid for before the stop.
-A final Judge refused, or halted after its spend reached the ceiling, fails
-the run with a failed run record carrying `ceilingStop` and every Judge call
-it paid for. A refused calibration rejudge fails the run without a
+A final Judge refused, or failing after its spend reached the ceiling, fails
+the run with a failed run record carrying `ceilingStop`, its paid attempts,
+and a Judge cost that also counts the failed call, which has no attempt of
+its own. A final Judge that fails with budget left writes no failed run
+record. A refused calibration rejudge fails the run without a
 `ceilingStop` record. A session
 attempt's budget is clamped to the ceiling, and its record keeps the clamped
 value as `sessionBudgetUsd`.
@@ -188,9 +190,11 @@ A run stopped while a stage is being judged reads `STOPPED:<stage>`, from that
 stage's stop record, and one stopped after its artifact is pending reads
 `FAILED`. A confirmation group records the stop before it kills its commands,
 writing `operator-stop.json` in its group directory, and then writes no
-`group.json` or report, so no stopped rep reads as a failed outcome. Its rep
-records stay on disk as the record of what they spent, and run history lists
-the group directory neither as a row nor as unreadable. A stopped replay or
+`group.json` or report, so no stopped rep reads as a failed outcome. A rep
+that settled before the process exited leaves its rep record, which reads
+failed and names a worktree the stop removed, and a rep killed before it
+settled leaves none. Run history and `rehearse list groups` leave the group
+out rather than list it as unreadable. A stopped replay or
 single session attempt writes no operator stop. A browser launch the operator
 stopped keeps `stopRequestedAt`, and once its process exits its launch row
 stays in run history as `OPERATOR_STOPPED` with no controls. A stopped single

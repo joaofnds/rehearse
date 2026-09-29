@@ -304,8 +304,8 @@ stays disabled without it. The run keeps going if you stop the server, and its
 output goes to `launches/<id>.log` in the records directory. While it runs,
 its row in run history offers Stop & restore repo, which ends it and restores
 the target as Ctrl-C would, also after a server restart. A stopped launch stays
-listed as stopped, and a stopped confirmation group keeps its rep records but
-writes no group record or report. A pipeline run's
+listed as stopped, and a stopped confirmation group writes no group record or
+report. A pipeline run's
 row offers Pause after this step, which ends the run once the stage in progress
 is judged, unless that stage is the last. See
 [browser launches](reference.md#browser-launches).

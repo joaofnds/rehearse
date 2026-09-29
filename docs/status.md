@@ -188,9 +188,10 @@ context, a stage-mode or pipeline-mode rep with no session to show, or a replay
 whose source run manifest is gone. Rows whose records say
 when they ran come first, newest first, followed by session attempts and
 confirmation runs, which record no time. The count, the All filter and the
-rail badge cover every listed record. A running launch is listed under All
-above the records, and is not a record, so the count and the badge leave it
-out. A running pipeline run's row offers Pause after this step, and a row a
+rail badge cover every listed record. A browser launch, running or stopped,
+is listed under All above the records, and is not a record, so the count and
+the badge leave it out. A stopped launch's row stays there, whatever its age,
+and a stopped single pipeline case shows twice, as its launch and as its run. A running pipeline run's row offers Pause after this step, and a row a
 browser launch started offers Stop & restore repo; see
 [browser launches](reference.md#browser-launches). A paused run reads
 `PAUSED:<stage>` and cannot be resumed. A run a signal stopped reads
