@@ -185,6 +185,43 @@ async function rewriteFixtureAsSession(
 	await Bun.write(reportFile, sessionText);
 }
 
+/**
+ * Makes one of the baseline arm's two failed attempts one that was never
+ * reached, so it carries no grade: counted by success it is still a failure,
+ * while a ranking by grade would see three attempts instead of four.
+ */
+async function leaveOneBaselineAttemptUnreached(
+	fixture: RecordedRunsFixture,
+): Promise<void> {
+	const { reportFile } = comparisonReportPaths(
+		fixture.runsDirectory,
+		fixture.comparisonDigest,
+	);
+	const report = parseComparisonReport(await Bun.file(reportFile).text());
+	const [checks] = report.cases[0]?.arms.baseline.quality ?? [];
+	if (
+		checks?.requested !== 4 ||
+		checks.successful !== 2 ||
+		checks.gradeDistribution["D"] !== 2
+	) {
+		throw new Error("expected the fixture's baseline to hold 2 of 4 successes");
+	}
+
+	Object.assign(checks, {
+		attempted: 3,
+		notReached: 1,
+		failed: 2,
+		gradeDistribution: Object.fromEntries([
+			["A", 2],
+			["F", 1],
+		]),
+	});
+	const reportText = `${JSON.stringify(report, null, 2)}\n`;
+
+	parseComparisonReport(reportText);
+	await Bun.write(reportFile, reportText);
+}
+
 async function rewriteFixtureAsLegacyPipeline(
 	fixture: RecordedRunsFixture,
 	version: 1 | 2,
@@ -1151,6 +1188,7 @@ describe("What moved", () => {
 		it("compares a session's successes against its failures over every combination of attempts", async () => {
 			const fixture = await writtenFixture();
 			await rewriteFixtureAsSession(fixture);
+			await leaveOneBaselineAttemptUnreached(fixture);
 			const app = createApiApp({
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
