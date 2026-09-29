@@ -925,6 +925,14 @@ async function loadSessionRep(
 	};
 }
 
+function parsedScorecard(text: string): StageGradingRecord | undefined {
+	try {
+		return stageGradingRecordSchema.parse(JSON.parse(text));
+	} catch {
+		return undefined;
+	}
+}
+
 /**
  * A judged stage's scorecard holds the blockers and dimensions What moved
  * reads, so a stage comparison hashes it as source evidence like the rep.
@@ -954,10 +962,8 @@ async function loadStageScorecards(
 			field: stageField,
 			path: scorecardPath,
 		});
-		const parsed = stageGradingRecordSchema.safeParse(
-			JSON.parse(scorecardSource.text),
-		);
-		if (!parsed.success || parsed.data.stage !== stage.stage) {
+		const parsed = parsedScorecard(scorecardSource.text);
+		if (parsed?.stage !== stage.stage) {
 			throw evidenceError(
 				{ caseId: request.caseId, arm: request.role, field: stageField },
 				`invalid stage scorecard for ${stage.stage}`,
@@ -966,7 +972,7 @@ async function loadStageScorecards(
 		scorecards.push({
 			path: relative(request.manifestDirectory, scorecardPath),
 			sha256: scorecardSource.sha256,
-			record: parsed.data,
+			record: parsed,
 			canonicalPath: scorecardSource.canonicalPath,
 		});
 	}

@@ -873,13 +873,13 @@ describe("What moved", () => {
 
 		expect(armFigures["build-checkpoint"]?.["candidate"]?.words).toEqual({
 			state: "available",
-			averageWords: 3,
+			averageWords: 3.5,
 			counted: 2,
 			attempts: 2,
 		});
 	});
 
-	it("spreads reply length and cost per attempt across each arm's attempts", async () => {
+	it("spreads reply length and cost per attempt across each arm's attempts, reading two apart attempts an arm as rerun noise", async () => {
 		const rows = await oneCheckpointRows();
 		const meter = (
 			name: string,
@@ -888,11 +888,24 @@ describe("What moved", () => {
 
 		expect(meter("replyLength")).toMatchObject({
 			arms: {
-				baseline: { state: "available", mean: 3, low: 3, high: 3, counted: 2 },
+				baseline: {
+					state: "available",
+					mean: 7.5,
+					low: 7,
+					high: 8,
+					counted: 2,
+				},
+				candidate: {
+					state: "available",
+					mean: 3.5,
+					low: 3,
+					high: 4,
+					counted: 2,
+				},
 			},
 			readings: {
 				candidateMinusBaseline: {
-					change: "0%",
+					change: "-53%",
 					verdict: { kind: "insideRerunNoise" },
 				},
 			},

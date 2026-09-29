@@ -115,9 +115,11 @@ See [current state](docs/status.md) for implementation coverage and
 - **Word count** — how many whitespace-separated words an attempt's output
   holds, which is how verbosity gets caught. A session attempt's output is its
   reply. A stage attempt's or replay's output is its artifact, the text the
-  stage judge read; a delivery stage whose only output is a diff has no word
-  count, since code length says nothing about verbosity. The count is read from
-  the output the record holds. An attempt with no output reads unavailable with
+  stage judge read, or, for a stage that wrote no artifact such as a delivery
+  stage, the worker's final reply, never the diff, since code length says
+  nothing about verbosity. A pipeline attempt counts its last declared stage,
+  and one stopped before it reads unavailable. The count is read from the
+  output the record holds. An attempt with no output reads unavailable with
   its reason, never zero words.
 - **Average words (comparison arm)** — the mean word count over an arm's
   attempts that have one, served beside how many attempts it counted and how
@@ -133,7 +135,9 @@ See [current state](docs/status.md) for implementation coverage and
   arm that fires less only when the intervals separate. Reply length and cost
   are meters: each arm's mean and low-to-high range over its attempts, with the
   signed percent change of the means, and a higher arm named only when the
-  ranges do not overlap.
+  ranges do not overlap and that separation would happen by rerun noise at
+  most one time in twenty, which takes about four attempts an arm. A row where
+  an arm recorded nothing reads unavailable, never rerun noise.
 - **Quality reading (comparison)**: a per-case, per-arm-pair, per-measure
   interpretation of how far repeated attempts spread. A stage grade carries each
   arm's observed low-to-high letter span. A pass/fail measure, a session's
@@ -468,7 +472,8 @@ See [current state](docs/status.md) for implementation coverage and
   and its reps' reads, whose states are judged against the linked corpus when
   `show` runs, so that one section follows the corpus and names it; for
   a comparison its per-case paired deltas beside the control arm, or, for a
-  single-case session comparison, its sampling unit, each arm's own interval,
+  single-case comparison, such as a session or a one-checkpoint stage, its
+  sampling unit, each arm's own interval,
   and the unpaired contrasts between them. It is never a second
   record shape: `--json` still prints the strict record's own bytes.
 - **Rep** — one repetition of a run; scores are distributions over reps, never

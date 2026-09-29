@@ -104,32 +104,38 @@ interface RepStageGrading extends Omit<StageGrading, "words"> {
 }
 
 /**
- * A rep's words are its last judged stage's output, the latest thing the arm
- * wrote. A rep no stage was judged on reads unavailable.
+ * A rep's words are its last declared stage's output, so a rep stopped at an
+ * earlier stage reads unavailable rather than counting a different stage's
+ * output into the arm's average.
  */
 interface StageRepGrading {
 	readonly stageGrading: readonly RepStageGrading[];
 	readonly words: OutputWords;
 }
 
+export const STOPPED_BEFORE_LAST_STAGE_REASON =
+	"the attempt was not judged on its last declared stage";
+
 function stageRepGrading(
 	scorecards: readonly DigestedRecord<StageGradingRecord>[],
+	lastStage: string | undefined,
 ): StageRepGrading {
 	const graded = scorecards.map((scorecard) => ({
 		scorecard,
 		grading: stageGrading(scorecard.record),
 	}));
+	const last = graded.find(({ grading }) => grading.stage === lastStage);
 
 	return {
-		stageGrading: graded.map(
-			({ scorecard, grading: { words: _words, ...grading } }) => ({
-				...grading,
-				scorecard: { path: scorecard.path, sha256: scorecard.sha256 },
-			}),
-		),
-		words: graded.at(-1)?.grading.words ?? {
+		stageGrading: graded.map(({ scorecard, grading }) => ({
+			stage: grading.stage,
+			hardBlockers: grading.hardBlockers,
+			dimensions: grading.dimensions,
+			scorecard: { path: scorecard.path, sha256: scorecard.sha256 },
+		})),
+		words: last?.grading.words ?? {
 			state: "unavailable",
-			reason: "no stage of the attempt was judged",
+			reason: STOPPED_BEFORE_LAST_STAGE_REASON,
 		},
 	};
 }
@@ -239,7 +245,13 @@ function buildReportArm(
 					: outcomes.slice(0, request.contract.declaredStages.length),
 		};
 		if (rep.scorecards !== undefined) {
-			return { ...source, ...stageRepGrading(rep.scorecards) };
+			return {
+				...source,
+				...stageRepGrading(
+					rep.scorecards,
+					request.contract.declaredStages.at(-1),
+				),
+			};
 		}
 		if (rep.attempt === undefined) {
 			return source;

@@ -52,10 +52,31 @@ export interface MeterSpread {
 	readonly counted: number;
 }
 
+/** An arm that recorded nothing for the item leaves nothing to compare. */
+interface UnavailableVerdict {
+	readonly kind: "unavailable";
+}
+
+/** A blocker or dimension reading, which one arm's missing grading voids. */
+export interface ItemReading {
+	readonly interval: QualityReading["interval"];
+	readonly verdict: QualityVerdict | UnavailableVerdict;
+}
+
+/**
+ * The largest chance of every attempt of one arm landing above every attempt
+ * of the other by rerun noise alone that still names an arm as higher.
+ */
+const METER_SEPARATION_ALPHA = 0.05;
+
 /**
  * A meter is neither better nor worse higher up, so its verdict names the
- * arm that ran higher rather than the arm that did better. `change` is the
- * minuend's mean against the subtrahend's, as a signed percentage.
+ * arm that ran higher rather than the arm that did better. It does so only
+ * when the arms' ranges are disjoint and that separation is unlikely under
+ * rerun noise: with exchangeable attempts, full separation in either
+ * direction has probability 2 / C(n + m, n), so two attempts an arm never
+ * name one higher. `change` is the minuend's mean against the subtrahend's,
+ * as a signed percentage.
  */
 export interface MeterReading {
 	readonly interval: {
@@ -69,6 +90,7 @@ export interface MeterReading {
 	readonly change: string | undefined;
 	readonly verdict:
 		| { readonly kind: "insideRerunNoise" }
+		| UnavailableVerdict
 		| { readonly kind: "higher"; readonly arm: ComparisonArm };
 }
 
@@ -84,14 +106,14 @@ export type WhatMovedRow =
 			readonly name: string;
 			readonly stage: string;
 			readonly arms: ByArm<Reading<Firings>>;
-			readonly readings: ByPair<QualityReading>;
+			readonly readings: ByPair<ItemReading>;
 	  }
 	| {
 			readonly kind: "dimension";
 			readonly name: string;
 			readonly stage: string;
 			readonly arms: ByArm<Reading<LetterRange>>;
-			readonly readings: ByPair<QualityReading>;
+			readonly readings: ByPair<ItemReading>;
 	  }
 	| {
 			readonly kind: "meter";
@@ -173,14 +195,14 @@ export function firingsReading(
 	minuend: Reading<Firings>,
 	subtrahend: Reading<Firings>,
 	arms: { readonly minuend: ComparisonArm; readonly subtrahend: ComparisonArm },
-): QualityReading {
+): ItemReading {
 	if (minuend.state === "unavailable" || subtrahend.state === "unavailable") {
 		return {
 			interval: {
 				minuend: firingInterval(minuend),
 				subtrahend: firingInterval(subtrahend),
 			},
-			verdict: { kind: "insideRerunNoise" },
+			verdict: { kind: "unavailable" },
 		};
 	}
 
@@ -252,13 +274,13 @@ function dimensionReading(
 	minuend: Reading<LetterRange>,
 	subtrahend: Reading<LetterRange>,
 	arms: { readonly minuend: ComparisonArm; readonly subtrahend: ComparisonArm },
-): QualityReading {
+): ItemReading {
 	const interval = {
 		minuend: letterInterval(minuend),
 		subtrahend: letterInterval(subtrahend),
 	};
 	if (minuend.state === "unavailable" || subtrahend.state === "unavailable") {
-		return { interval, verdict: { kind: "insideRerunNoise" } };
+		return { interval, verdict: { kind: "unavailable" } };
 	}
 	if (minuend.lowest === "A" && subtrahend.lowest === "A") {
 		return { interval, verdict: { kind: "unchangedAlreadyClear" } };
@@ -296,6 +318,16 @@ function signedPercent(change: number): string {
 	return `${rounded > 0 ? "+" : ""}${String(rounded)}%`;
 }
 
+/** 2 / C(n + m, n), the two-sided chance of full separation by noise. */
+function separationChance(left: number, right: number): number {
+	let arrangements = 1;
+	for (let chosen = 1; chosen <= left; chosen += 1) {
+		arrangements = (arrangements * (right + chosen)) / chosen;
+	}
+
+	return Math.min(1, 2 / arrangements);
+}
+
 export function meterReading(
 	minuend: Reading<MeterSpread>,
 	subtrahend: Reading<MeterSpread>,
@@ -312,7 +344,7 @@ export function meterReading(
 		return {
 			interval,
 			change: undefined,
-			verdict: { kind: "insideRerunNoise" },
+			verdict: { kind: "unavailable" },
 		};
 	}
 
@@ -320,7 +352,11 @@ export function meterReading(
 		subtrahend.mean === 0
 			? undefined
 			: signedPercent((minuend.mean - subtrahend.mean) / subtrahend.mean);
-	if (intervalsOverlap(minuend, subtrahend)) {
+	if (
+		intervalsOverlap(minuend, subtrahend) ||
+		separationChance(minuend.counted, subtrahend.counted) >
+			METER_SEPARATION_ALPHA
+	) {
 		return { interval, change, verdict: { kind: "insideRerunNoise" } };
 	}
 

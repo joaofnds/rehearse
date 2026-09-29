@@ -10,7 +10,7 @@ import { effortSchema } from "./config";
 import type { ContextFile, Immutable } from "./contracts";
 import { stageLetterGradeSchema } from "./contracts";
 import type { OutputWords } from "./output-words";
-import { stageOutputWords } from "./output-words";
+import { recordedFinalReplySchema, stageOutputWords } from "./output-words";
 import { readReplayRecord } from "./replay";
 import type { BenchmarkRunPaths } from "./run-layout";
 
@@ -72,6 +72,7 @@ const attemptScorecardSchema = z
 					.optional(),
 				diff: z.string().optional(),
 				changedPaths: z.array(z.string()).optional(),
+				transcript: recordedFinalReplySchema.optional(),
 			})
 			.loose(),
 		corpusFiles: z.array(hashedFileSchema).optional(),
@@ -88,7 +89,7 @@ function attemptFromScorecard(
 	totalCostUsd?: number,
 	lineageInputs?: AttemptLineageInputs,
 ): Attempt {
-	const { artifact, changedPaths, diff } = scorecard.input;
+	const { artifact, changedPaths, diff, transcript } = scorecard.input;
 
 	return {
 		label,
@@ -100,7 +101,7 @@ function attemptFromScorecard(
 		artifact,
 		changedPaths,
 		diff,
-		words: stageOutputWords({ artifact, diff }),
+		words: stageOutputWords({ artifact, transcript }),
 		lineageInputs,
 	};
 }

@@ -2,7 +2,7 @@ import { z } from "zod";
 import { stageLetterGradeSchema } from "./contracts";
 import type { Immutable } from "./contracts";
 import type { OutputWords } from "./output-words";
-import { stageOutputWords } from "./output-words";
+import { recordedFinalReplySchema, stageOutputWords } from "./output-words";
 
 /**
  * Only the parts of a stage scorecard a comparison reads: the blockers that
@@ -13,7 +13,7 @@ export const stageGradingRecordSchema = z.looseObject({
 	stage: z.string().min(1),
 	input: z.looseObject({
 		artifact: z.looseObject({ content: z.string() }).optional(),
-		diff: z.string().optional(),
+		transcript: recordedFinalReplySchema.optional(),
 	}),
 	grade: z.looseObject({
 		hardBlockers: z.array(

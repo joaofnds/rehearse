@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { STOPPED_BEFORE_LAST_STAGE_REASON } from "./comparison-report";
 import {
 	chmod,
 	lstat,
@@ -143,7 +144,7 @@ describe(loadComparisonEvidence.name, () => {
 		]);
 		expect(rep !== undefined && "words" in rep && rep.words).toEqual({
 			state: "available",
-			words: 3,
+			words: 7,
 		});
 	});
 
@@ -152,6 +153,14 @@ describe(loadComparisonEvidence.name, () => {
 
 		expect(loadComparisonEvidence(fixture.manifestFile)).rejects.toThrow(
 			"case case-1 arm control field repRecords[1].stages[0].evidence.recordFile",
+		);
+	});
+
+	it("names a judged stage whose scorecard is not JSON", async () => {
+		await Bun.write(fixture.scorecardFile("case-1", "control", 2), "{");
+
+		expect(loadComparisonEvidence(fixture.manifestFile)).rejects.toThrow(
+			"case case-1 arm control field repRecords[1].stages[0].evidence.recordFile: invalid stage scorecard for build",
 		);
 	});
 
@@ -270,7 +279,7 @@ describe(loadComparisonEvidence.name, () => {
 		expect(evidence.contract.mode).toBe("pipeline");
 	});
 
-	it("records a pipeline rep's words from its last judged stage", async () => {
+	it("records a pipeline rep's words from its last declared stage", async () => {
 		await fixture.usePipelineCheckpoints();
 		const runsDirectory = join(temporaryDirectory, "pipeline-words-output");
 		await mkdir(runsDirectory);
@@ -287,6 +296,28 @@ describe(loadComparisonEvidence.name, () => {
 			state: "available",
 			words: 3,
 		});
+	});
+
+	it("reads a pipeline rep stopped before its last declared stage as unavailable, never its earlier stage's words", async () => {
+		await fixture.usePipelineCheckpoints();
+		await fixture.stopOneRepBeforeItsLastStage({
+			role: "candidate",
+			ordinal: 1,
+		});
+		const runsDirectory = join(temporaryDirectory, "stopped-words-output");
+		await mkdir(runsDirectory);
+
+		const reportFile = await writeComparisonReport({
+			manifestPath: fixture.manifestFile,
+			runsDirectory,
+		});
+
+		const report = parseComparisonReport(await Bun.file(reportFile).text());
+		const reps = report.cases[0]?.arms.candidate.source.reps ?? [];
+		expect(reps.map((rep) => "words" in rep && rep.words)).toEqual([
+			{ state: "unavailable", reason: STOPPED_BEFORE_LAST_STAGE_REASON },
+			{ state: "available", words: 4 },
+		]);
 	});
 
 	it("rejects changed workflow state inside a pipeline checkpoint record", async () => {

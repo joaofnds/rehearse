@@ -22,16 +22,21 @@ describe(stageOutputWords.name, () => {
 		expect(
 			stageOutputWords({
 				artifact: { content: "# Spec\nShip the export" },
-				diff: "+ignored words here",
 			}),
 		).toEqual({ state: "available", words: 5 });
 	});
 
-	it("reads unavailable when a delivery stage's only output is a diff", () => {
-		expect(stageOutputWords({ diff: "+one\n+two" })).toEqual({
-			state: "unavailable",
-			reason: "the stage's only output is a diff",
-		});
+	it("counts the worker's final reply when the stage wrote no artifact, as a delivery stage does", () => {
+		expect(
+			stageOutputWords({
+				transcript: {
+					exchanges: [
+						{ agent: { message: "Which store?" } },
+						{ agent: { message: "Built the export, tests pass" } },
+					],
+				},
+			}),
+		).toEqual({ state: "available", words: 5 });
 	});
 
 	it("reads unavailable when the stage recorded no output", () => {

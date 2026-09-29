@@ -17,6 +17,12 @@ export function digest(content: string): string {
 	return createHash("sha256").update(content).digest("hex");
 }
 
+const ARTIFACT_PADDING = {
+	baseline: 4,
+	candidate: 0,
+	control: 1,
+} as const satisfies Readonly<Record<ComparisonArm, number>>;
+
 export class ComparisonEvidenceFixture {
 	/**
 	 * Comparability requires every arm's group to record the case its manifest
@@ -305,6 +311,89 @@ export class ComparisonEvidenceFixture {
 		}
 	}
 
+	/**
+	 * Puts a judged shape stage before build in every arm, and has one rep's
+	 * judge STOP it at shape, so that rep never reaches its last stage.
+	 */
+	public async stopOneRepBeforeItsLastStage(
+		stopped: Readonly<{ role: ComparisonArm; ordinal: number }>,
+	): Promise<void> {
+		for (const caseId of this.caseIds) {
+			for (const role of ["baseline", "candidate", "control"] as const) {
+				const groupFile = this.groupFile(caseId, role);
+				const group = confirmationGroupRecordSchema.parse(
+					JSON.parse(await Bun.file(groupFile).text()),
+				);
+				await Bun.write(
+					groupFile,
+					`${JSON.stringify({ ...group, declaredStages: ["shape", "build"] }, null, 2)}\n`,
+				);
+
+				for (const ordinal of [1, 2]) {
+					const isStopped =
+						role === stopped.role && ordinal === stopped.ordinal;
+					const repFile = this.repFile(caseId, role, ordinal);
+					const rep = parseConfirmationRepRecord(
+						await Bun.file(repFile).text(),
+					);
+					const firstStage = {
+						stage: "shape",
+						status: "JUDGED",
+						grade: "A",
+						verdict: isStopped ? "STOP" : "CONTINUE",
+						elapsedMs: 10,
+						evidence: {
+							resultSha: "e".repeat(40),
+							recordFile: "stages/shape.json",
+						},
+					};
+					const stoppedFields = {
+						outcome: "UNSUCCESSFUL",
+						stages: [
+							firstStage,
+							{
+								stage: "build",
+								status: "NOT_REACHED",
+								reason: "the judge stopped the attempt at shape",
+							},
+						],
+						finalOutcome: {
+							status: "NOT_REACHED",
+							reason: "the judge stopped the attempt at shape",
+						},
+					};
+					await Bun.write(
+						repFile,
+						`${JSON.stringify(
+							isStopped
+								? { ...rep, ...stoppedFields }
+								: { ...rep, stages: [firstStage, ...rep.stages] },
+							null,
+							2,
+						)}\n`,
+					);
+					await Bun.write(
+						join(dirname(repFile), "stages", "shape.json"),
+						`${JSON.stringify(
+							{
+								...ComparisonEvidenceFixture.scorecard(role, ordinal),
+								stage: "shape",
+								input: {
+									artifact: {
+										path: "shape.md",
+										content: "a shape that runs to seven words",
+									},
+								},
+							},
+							null,
+							2,
+						)}\n`,
+					);
+				}
+			}
+		}
+	}
+
 	private groupDirectory(caseId: string, role: ComparisonArm): string {
 		return join(this.root, "groups", `${caseId}-${role}`);
 	}
@@ -381,12 +470,20 @@ export class ComparisonEvidenceFixture {
 
 	/**
 	 * The build stage's scorecard: the baseline arm, stripped of the skill
-	 * under test, fires the scope blocker that the corpus arms clear.
+	 * under test, fires the scope blocker that the corpus arms clear. Its plan
+	 * runs longest, so a reading that mixed arms up would show.
 	 */
-	public static scorecard(role: ComparisonArm): StageGradingRecord {
+	public static scorecard(
+		role: ComparisonArm,
+		ordinal: number,
+	): StageGradingRecord {
+		const padding = " detail".repeat(ARTIFACT_PADDING[role] + ordinal - 1);
+
 		return {
 			stage: "build",
-			input: { artifact: { path: "plan.md", content: `${role} build plan` } },
+			input: {
+				artifact: { path: "plan.md", content: `${role} build plan${padding}` },
+			},
 			grade: {
 				hardBlockers: [
 					{
@@ -473,7 +570,7 @@ export class ComparisonEvidenceFixture {
 				caseId,
 				role,
 				ordinal,
-				ComparisonEvidenceFixture.scorecard(role),
+				ComparisonEvidenceFixture.scorecard(role, ordinal),
 			);
 			repRecords.push({
 				repId: `${groupId}-rep-${ordinal}`,

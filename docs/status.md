@@ -49,7 +49,8 @@ ACT-271.2, its average words; a report written before word counts reads
 unavailable. Since ACT-271.3 a stage comparison may name one replayed checkpoint,
 and the route serves What moved rows for hard-blocker firings, dimension letters,
 reply length and cost per attempt, read from the grading each rep's scorecard
-recorded; these rows are API-verified only. The page does not show those arm
+recorded; a meter names a higher arm only past rerun noise, which takes about
+four attempts an arm, and these rows are API-verified only. The page does not show those arm
 figures or rows yet (ACT-257).
 
 ## Known limitations

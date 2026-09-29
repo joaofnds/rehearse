@@ -45,7 +45,7 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                     "stage": "build",
                     "scorecard": {
                       "path": "groups/case-1-baseline/reps/case-1-baseline-rep-1/stages/build.json",
-                      "sha256": "e6a231bc7a35eed13e8377e1e5ffd3d189d6968094a26e4592ae5664310ce1c0"
+                      "sha256": "d229c1bb5447287d827ccc090c6be10542d591d09a8ac0d0a1132af9150d2bf9"
                     },
                     "hardBlockers": [
                       {
@@ -63,7 +63,7 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                 ],
                 "words": {
                   "state": "available",
-                  "words": 3
+                  "words": 7
                 }
               },
               {
@@ -84,7 +84,7 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                     "stage": "build",
                     "scorecard": {
                       "path": "groups/case-1-baseline/reps/case-1-baseline-rep-2/stages/build.json",
-                      "sha256": "e6a231bc7a35eed13e8377e1e5ffd3d189d6968094a26e4592ae5664310ce1c0"
+                      "sha256": "7d696f3aa2223a2467693298ffc8b4ab167b6db092de625aa7213dc5efad0f8d"
                     },
                     "hardBlockers": [
                       {
@@ -102,7 +102,7 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                 ],
                 "words": {
                   "state": "available",
-                  "words": 3
+                  "words": 8
                 }
               }
             ]
@@ -401,7 +401,7 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                     "stage": "build",
                     "scorecard": {
                       "path": "groups/case-1-candidate/reps/case-1-candidate-rep-2/stages/build.json",
-                      "sha256": "40f3742cb6d7c0c0830c16b246c6ee73872e8e846d3fed45c7e865bd7b8d76b8"
+                      "sha256": "15b5f928b10ef3e8bd27f5bfedbffb884e1a7bb7f2f83add3fbf3821ee67782e"
                     },
                     "hardBlockers": [
                       {
@@ -419,7 +419,7 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                 ],
                 "words": {
                   "state": "available",
-                  "words": 3
+                  "words": 4
                 }
               }
             ]
@@ -679,7 +679,7 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                     "stage": "build",
                     "scorecard": {
                       "path": "groups/case-1-control/reps/case-1-control-rep-1/stages/build.json",
-                      "sha256": "3606752dcd2f6efb758c93341e2c1b3d5ad21c69754665db0265a3147deedc9c"
+                      "sha256": "b13ac1e7512d07d1ccd0bcafa715d1ba32a038e6c4880638917be06d7f45b102"
                     },
                     "hardBlockers": [
                       {
@@ -697,7 +697,7 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                 ],
                 "words": {
                   "state": "available",
-                  "words": 3
+                  "words": 4
                 }
               },
               {
@@ -718,7 +718,7 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                     "stage": "build",
                     "scorecard": {
                       "path": "groups/case-1-control/reps/case-1-control-rep-2/stages/build.json",
-                      "sha256": "3606752dcd2f6efb758c93341e2c1b3d5ad21c69754665db0265a3147deedc9c"
+                      "sha256": "b39cacd5606e57e2b47364a4535af97f84af139ac34eb83456f1d05e390e525b"
                     },
                     "hardBlockers": [
                       {
@@ -736,7 +736,7 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                 ],
                 "words": {
                   "state": "available",
-                  "words": 3
+                  "words": 5
                 }
               }
             ]
@@ -1001,7 +1001,7 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                     "stage": "build",
                     "scorecard": {
                       "path": "groups/case-2-baseline/reps/case-2-baseline-rep-1/stages/build.json",
-                      "sha256": "e6a231bc7a35eed13e8377e1e5ffd3d189d6968094a26e4592ae5664310ce1c0"
+                      "sha256": "d229c1bb5447287d827ccc090c6be10542d591d09a8ac0d0a1132af9150d2bf9"
                     },
                     "hardBlockers": [
                       {
@@ -1019,7 +1019,7 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                 ],
                 "words": {
                   "state": "available",
-                  "words": 3
+                  "words": 7
                 }
               },
               {
@@ -1040,7 +1040,7 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                     "stage": "build",
                     "scorecard": {
                       "path": "groups/case-2-baseline/reps/case-2-baseline-rep-2/stages/build.json",
-                      "sha256": "e6a231bc7a35eed13e8377e1e5ffd3d189d6968094a26e4592ae5664310ce1c0"
+                      "sha256": "7d696f3aa2223a2467693298ffc8b4ab167b6db092de625aa7213dc5efad0f8d"
                     },
                     "hardBlockers": [
                       {
@@ -1058,7 +1058,7 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                 ],
                 "words": {
                   "state": "available",
-                  "words": 3
+                  "words": 8
                 }
               }
             ]
@@ -1357,7 +1357,7 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                     "stage": "build",
                     "scorecard": {
                       "path": "groups/case-2-candidate/reps/case-2-candidate-rep-2/stages/build.json",
-                      "sha256": "40f3742cb6d7c0c0830c16b246c6ee73872e8e846d3fed45c7e865bd7b8d76b8"
+                      "sha256": "15b5f928b10ef3e8bd27f5bfedbffb884e1a7bb7f2f83add3fbf3821ee67782e"
                     },
                     "hardBlockers": [
                       {
@@ -1375,7 +1375,7 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                 ],
                 "words": {
                   "state": "available",
-                  "words": 3
+                  "words": 4
                 }
               }
             ]
@@ -1635,7 +1635,7 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                     "stage": "build",
                     "scorecard": {
                       "path": "groups/case-2-control/reps/case-2-control-rep-1/stages/build.json",
-                      "sha256": "3606752dcd2f6efb758c93341e2c1b3d5ad21c69754665db0265a3147deedc9c"
+                      "sha256": "b13ac1e7512d07d1ccd0bcafa715d1ba32a038e6c4880638917be06d7f45b102"
                     },
                     "hardBlockers": [
                       {
@@ -1653,7 +1653,7 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                 ],
                 "words": {
                   "state": "available",
-                  "words": 3
+                  "words": 4
                 }
               },
               {
@@ -1674,7 +1674,7 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                     "stage": "build",
                     "scorecard": {
                       "path": "groups/case-2-control/reps/case-2-control-rep-2/stages/build.json",
-                      "sha256": "3606752dcd2f6efb758c93341e2c1b3d5ad21c69754665db0265a3147deedc9c"
+                      "sha256": "b39cacd5606e57e2b47364a4535af97f84af139ac34eb83456f1d05e390e525b"
                     },
                     "hardBlockers": [
                       {
@@ -1692,7 +1692,7 @@ exports[`loadComparisonEvidence serializes a completed comparison fixture byte f
                 ],
                 "words": {
                   "state": "available",
-                  "words": 3
+                  "words": 5
                 }
               }
             ]

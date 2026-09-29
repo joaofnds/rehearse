@@ -1580,9 +1580,12 @@ baseline. Readers continue to accept strict version-1 through version-4 reports
 without adding outcomes or measurements that those records never contained.
 `compare --json` prints the report bytes without starting provider sessions.
 Each current source repetition also records the word count of its output: a
-session repetition's reply, or the artifact of a stage or pipeline repetition's
-last judged stage. A repetition with no such output records `unavailable` with
-its reason. A stage or pipeline repetition records, per judged stage, which hard
+session repetition's reply, or for a stage or pipeline repetition the output
+of its last declared stage: that stage's artifact, or the worker's final reply
+where the stage wrote none, as a delivery stage does. A repetition the judge
+stopped before its last declared stage, or with no such output, records
+`unavailable` with its reason, so an arm's average never mixes an earlier
+stage's output in. A stage or pipeline repetition records, per judged stage, which hard
 blockers fired and each dimension's letter, read at compare time from the stage
 scorecard its evidence names; the scorecard's path and hash join the report's
 provenance, and a missing or malformed scorecard stops `compare` with its field
@@ -1596,7 +1599,10 @@ attempt. A blocker row reads each arm's 95% Wilson interval on its firing rate
 and names the arm that fires less when the intervals separate; a meter row gives
 each arm's mean and low-to-high range over its attempts, the signed percent
 change of the means, and names the higher arm only when the ranges do not
-overlap. A report without recorded grading serves no blocker or dimension rows.
+overlap and full separation has at most a 5% two-sided chance under rerun noise,
+2 / C(n + m, n) for n and m attempts, which takes about four attempts an arm. A
+row where either arm recorded nothing reads verdict `unavailable`. A report
+without recorded grading serves no blocker or dimension rows.
 
 Session resource values are per-repetition worker metrics; group preflight cost
 remains at confirmation-group level, and unavailable metrics stay visible as
