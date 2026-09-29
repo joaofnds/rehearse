@@ -29,6 +29,7 @@ import {
 	statIfExists,
 	SymlinkedEntryError,
 } from "./file-presence";
+import { excludeFromRepository } from "./target";
 import { copyWorkflowState, existingWorkflowEntries } from "./workflow-state";
 
 export interface HashedFile {
@@ -743,6 +744,24 @@ export async function installStageCorpusSnapshot(
 	}
 
 	await copyCorpusFiles({ directories, files, instructions, destination });
+}
+
+/**
+ * The installed layout is harness state, not stage output, so a target that
+ * does not ignore `.claude` must not read as dirty once it is installed. Only
+ * the installed paths are excluded: a file a stage writes elsewhere under
+ * `.claude` still shows in the target's status.
+ */
+export async function excludeInstalledCorpus(
+	targetDirectory: string,
+): Promise<void> {
+	await excludeFromRepository(targetDirectory, [
+		{ path: join(".claude", "CLAUDE.md"), kind: "file" },
+		...CORPUS_LAYOUT_DIRECTORIES.map((kind) => ({
+			path: join(".claude", kind),
+			kind: "directory" as const,
+		})),
+	]);
 }
 
 /**

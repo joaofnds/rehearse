@@ -509,6 +509,7 @@ async function runReplayConfirmationBody(
 					frozen.corpusDirectory,
 					plan.worktreePath,
 				);
+				await dependencies.excludeInstalledCorpus(plan.worktreePath);
 				if (frozen.plan.definition.kind === "delivery") {
 					setupOperation = "dependency installation";
 					await dependencies.installDependencies(plan.worktreePath);

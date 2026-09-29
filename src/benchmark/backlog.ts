@@ -1,6 +1,6 @@
-import { mkdir, mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, dirname, join, relative, resolve, sep } from "node:path";
+import { basename, dirname, join, relative } from "node:path";
 import { z } from "zod";
 import {
 	BacklogConfigurationError,
@@ -14,6 +14,7 @@ import type { ExpectedBranch } from "./target";
 import {
 	assertWorkflowBoardPrivate,
 	capturePlanningAdvance,
+	excludeFromRepository,
 	git,
 } from "./target";
 import { managedWorkflowPaths } from "./workflow-state";
@@ -31,8 +32,6 @@ const taskViewSchema = z
 	.loose();
 
 type TaskView = Immutable<z.infer<typeof taskViewSchema>>;
-
-const GITIGNORE_SPECIAL_CHARACTERS = new Set(["\\", "*", "?", "[", "]"]);
 
 interface TaskSeed {
 	readonly title: string;
@@ -60,56 +59,16 @@ async function boardDirectory(targetDir: string): Promise<string> {
 
 /**
  * The harness owns its board scaffolding but not the target's `.gitignore`.
- * Repository-private excludes keep a previously boardless target clean without
- * changing the files a stage is measured against or depending on global Git
- * configuration.
  */
 async function excludeWorkflowState(targetDir: string): Promise<void> {
-	const commonDirectory = await git(targetDir, "rev-parse", "--git-common-dir");
-	const excludePath = resolve(targetDir, commonDirectory, "info", "exclude");
-	let existing: string;
-	try {
-		existing = await readFile(excludePath, "utf8");
-	} catch (error) {
-		if (
-			!(error instanceof Error && "code" in error && error.code === "ENOENT")
-		) {
-			throw error;
-		}
-		existing = "";
-	}
 	const paths = await managedWorkflowPaths(targetDir);
-	const patterns = [
-		...new Set(
-			paths.map((path) => {
-				const normalized = path.split(sep).join("/");
-				if (normalized.includes("\n") || normalized.includes("\r")) {
-					throw new Error("Backlog directory must fit on one Git exclude line");
-				}
-				let escaped = "";
-				for (const character of normalized) {
-					if (GITIGNORE_SPECIAL_CHARACTERS.has(character)) {
-						escaped += "\\";
-					}
-					escaped += character;
-				}
-				return `/${escaped}${normalized === "backlog.config.yml" ? "" : "/"}`;
-			}),
-		),
-	];
-	const lines = new Set(
-		existing.split("\n").map((line) => line.replace(/\r$/u, "")),
-	);
-	const missing = patterns.filter((path) => !lines.has(path));
-	if (missing.length === 0) {
-		return;
-	}
 
-	await mkdir(dirname(excludePath), { recursive: true });
-	const separator = existing === "" || existing.endsWith("\n") ? "" : "\n";
-	await Bun.write(
-		excludePath,
-		`${existing}${separator}${missing.join("\n")}\n`,
+	await excludeFromRepository(
+		targetDir,
+		paths.map((path) => ({
+			path,
+			kind: path === "backlog.config.yml" ? "file" : "directory",
+		})),
 	);
 }
 

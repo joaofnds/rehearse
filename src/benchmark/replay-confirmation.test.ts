@@ -666,6 +666,30 @@ describe(runReplayConfirmation.name, () => {
 		).toHaveLength(1);
 	});
 
+	it("excludes the installed corpus from every rep's worktree status", async () => {
+		const fake = new ReplayConfirmationHarness(testResources);
+		const recorded = await fake.recordedRun();
+		const corpusRoot = await mkdtemp(join(tmpdir(), "replay-exclude-corpus-"));
+		testResources.track(corpusRoot);
+		await mkdir(join(corpusRoot, "skills", "discuss"), { recursive: true });
+		await Bun.write(
+			join(corpusRoot, "skills", "discuss", "SKILL.md"),
+			"discuss\n",
+		);
+
+		await fake.runConfirmation(
+			{
+				paths: recorded.paths,
+				corpusRoots: [{ kind: "directory", root: corpusRoot }],
+			},
+			{ reps: 2 },
+		);
+
+		expect(fake.corpusExcludes).toEqual(
+			fake.worktrees.map((worktree) => worktree.path),
+		);
+	});
+
 	it("gives the Product Owner a directory that exists when a stage asks it", async () => {
 		const fake = new ReplayConfirmationHarness(testResources);
 		const recorded = await fake.recordedRun();

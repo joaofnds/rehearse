@@ -6,6 +6,7 @@ import type {
 	CheckpointRecord,
 	HashedFile,
 	StageCorpus,
+	excludeInstalledCorpus,
 	installStageCorpusSnapshot,
 	materializeCheckpoint,
 } from "./checkpoint";
@@ -154,6 +155,7 @@ export interface ReplayDependencies {
 	readonly currentSha: typeof currentSha;
 	readonly installDependencies: (worktreeDir: string) => Promise<void>;
 	readonly installStageCorpusSnapshot: typeof installStageCorpusSnapshot;
+	readonly excludeInstalledCorpus: typeof excludeInstalledCorpus;
 	/**
 	 * Where the provider writes session transcripts, read for what the stage
 	 * loaded. Without it the read manifest holds only what the stage declared.
@@ -333,6 +335,7 @@ export async function runReplay(
 				request.corpusSource.root,
 				worktreeDir,
 			);
+			await dependencies.excludeInstalledCorpus(worktreeDir);
 		}
 		const corpusRoots = stageCorpusRoots(
 			request.corpusSource.kind === "directory"

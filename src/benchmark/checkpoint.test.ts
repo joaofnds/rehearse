@@ -23,6 +23,7 @@ import {
 	corpusDifferences,
 	corpusLayoutRoots,
 	deriveStaleness,
+	excludeInstalledCorpus,
 	hashDirectory,
 	hashedCorpus,
 	hashWorkflowState,
@@ -37,6 +38,7 @@ import {
 	snapshotStageCorpusWithoutSkill,
 	stageCorpusRoots,
 } from "./checkpoint";
+import { runCommand } from "./command";
 import type { CorpusRoot } from "./corpus-file";
 import { projectSlug } from "./session-capture";
 import { SymlinkedEntryError } from "./file-presence";
@@ -291,6 +293,53 @@ describe(captureStageCorpus.name, () => {
 		expect(await Bun.file(join(worktree, ".claude", "CLAUDE.md")).text()).toBe(
 			"frozen instructions",
 		);
+	});
+
+	describe(excludeInstalledCorpus.name, () => {
+		async function installedWorktree(): Promise<string> {
+			const roots = await corpusRoots();
+			await installSkill(roots[1], "doctrine", "doctrine skill");
+			await installSkill(roots[1], "discuss", "discuss skill");
+			const parent = await mkdtemp(join(tmpdir(), "rehearse-corpus-exclude-"));
+			testResources.track(parent);
+			const snapshotDirectory = join(parent, "snapshot");
+			const worktree = join(parent, "worktree");
+			await mkdir(worktree, { recursive: true });
+			await runCommand(["git", "init", "-b", "main"], worktree);
+			await snapshotStageCorpus(
+				"discuss",
+				"frozen instructions",
+				corpusSources(roots),
+				snapshotDirectory,
+			);
+			await installStageCorpusSnapshot(snapshotDirectory, worktree);
+
+			return worktree;
+		}
+
+		function untrackedPaths(worktree: string): Promise<string> {
+			return runCommand(
+				["git", "status", "--porcelain=v1", "--untracked-files=all"],
+				worktree,
+			);
+		}
+
+		it("keeps an installed corpus out of a target that does not ignore .claude", async () => {
+			const worktree = await installedWorktree();
+
+			await excludeInstalledCorpus(worktree);
+
+			expect(await untrackedPaths(worktree)).toBe("");
+		});
+
+		it("still reports a file a stage writes beside the installed corpus", async () => {
+			const worktree = await installedWorktree();
+			await excludeInstalledCorpus(worktree);
+
+			await writeFile(join(worktree, ".claude", "settings.json"), "{}");
+
+			expect(await untrackedPaths(worktree)).toBe("?? .claude/settings.json\n");
+		});
 	});
 
 	it("refuses to install a snapshot entry that resolves outside the snapshot directory", async () => {

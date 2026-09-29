@@ -953,6 +953,17 @@ describe(runPipelineConfirmation.name, () => {
 		expect(failed?.workerTrajectorySteps).toBe(CONFIRMATION_METRIC.turns);
 	});
 
+	it("excludes the installed corpus from the target's status", async () => {
+		const harness = await PipelineConfirmationHarness.setup(testResources);
+
+		await harness.run({});
+
+		const excludes = await Bun.file(
+			join(harness.sourceRoot, ".git", "info", "exclude"),
+		).text();
+		expect(excludes.split("\n")).toContain("/.claude/skills/");
+	});
+
 	it("gives the Product Owner a directory that exists when a stage asks it", async () => {
 		const harness = await PipelineConfirmationHarness.setup(testResources);
 		const directoriesAsked: boolean[] = [];

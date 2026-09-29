@@ -14,6 +14,7 @@ import {
 	captureStageCorpus,
 	materializeCheckpoint,
 	stageCorpusRoots,
+	excludeInstalledCorpus,
 	installStageCorpusSnapshot,
 } from "#benchmark/checkpoint";
 import {
@@ -316,6 +317,7 @@ export async function executeReplay(
 			await runCommand(["bun", "install", "--frozen-lockfile"], worktreeDir);
 		},
 		installStageCorpusSnapshot,
+		excludeInstalledCorpus,
 		projectsDirectory: claudeProjectsDirectory(),
 		log: diagnosticWriter(output),
 		stopOnSignal: (cleanUp, recordStop) =>

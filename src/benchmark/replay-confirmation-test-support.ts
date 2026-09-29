@@ -57,6 +57,7 @@ export class ReplayConfirmationHarness {
 	public readonly releasedStops = new Set<() => Promise<void>>();
 	public readonly pruned: string[] = [];
 	public readonly installed: string[] = [];
+	public readonly corpusExcludes: string[] = [];
 	public readonly targetChecks: (readonly TargetCheck[])[] = [];
 	public readonly integrityFileSets: (readonly string[])[] = [];
 	public readonly judged: StageJudgeInput[] = [];
@@ -421,6 +422,11 @@ export class ReplayConfirmationHarness {
 			},
 			installStageCorpusSnapshot: (snapshotDirectory, targetDirectory) => {
 				this.corpusInstalls.push({ snapshotDirectory, targetDirectory });
+
+				return Promise.resolve();
+			},
+			excludeInstalledCorpus: (targetDirectory) => {
+				this.corpusExcludes.push(targetDirectory);
 
 				return Promise.resolve();
 			},

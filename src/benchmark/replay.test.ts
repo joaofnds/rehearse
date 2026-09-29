@@ -447,6 +447,18 @@ describe(runReplay.name, () => {
 		]);
 	});
 
+	it("excludes the installed corpus from the worktree's status", async () => {
+		const run = await recordedRun();
+		const fake = new ReplayConfirmationHarness(testResources);
+
+		await runReplay(fake.dependencies, {
+			...request(run, "build"),
+			corpusSource: { kind: "directory", root: "/frozen/corpus" },
+		});
+
+		expect(fake.corpusExcludes).toEqual([fake.worktrees[0]?.path ?? ""]);
+	});
+
 	it("replays a linked directory variant with the captured paths and hashes", async () => {
 		const sourceRoot = await mkdtemp(join(tmpdir(), "rehearse-variant-"));
 		testResources.track(sourceRoot);
@@ -1273,6 +1285,8 @@ describe(runReplay.name, () => {
 				installDependencies: () =>
 					Promise.reject(new Error("not a delivery stage")),
 				installStageCorpusSnapshot: () =>
+					Promise.reject(new Error("no corpus source")),
+				excludeInstalledCorpus: () =>
 					Promise.reject(new Error("no corpus source")),
 				log: () => undefined,
 				stopOnSignal: () => () => undefined,

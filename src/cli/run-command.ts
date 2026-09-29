@@ -8,6 +8,7 @@ import {
 import { executeBenchmark } from "#benchmark/benchmark-command";
 import {
 	captureStageCorpus,
+	excludeInstalledCorpus,
 	installStageCorpusSnapshot,
 	materializeCheckpoint,
 	recordCheckpoint,
@@ -472,6 +473,7 @@ async function confirmRun(
 				),
 			materializeCheckpoint,
 			installStageCorpusSnapshot,
+			excludeInstalledCorpus,
 			recordCheckpoint,
 			recordRetentionRef,
 			captureBuildCandidate,
