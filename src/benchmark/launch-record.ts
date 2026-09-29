@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, rename, writeFile } from "node:fs/promises";
 import { z } from "zod";
 import { LAUNCH_ATTEMPTS } from "./launch-attempts";
-import { launchIds, launchPaths } from "./run-layout";
+import { launchPaths } from "./run-layout";
 
 export const launchAttemptsSchema = z.union(
 	LAUNCH_ATTEMPTS.map((count) => z.literal(count)),
@@ -53,12 +53,4 @@ export async function readLaunchRecord(
 	const { recordFile } = launchPaths(runsDirectory, id);
 
 	return launchRecordSchema.parse(await Bun.file(recordFile).json());
-}
-
-export async function readLaunchRecords(
-	runsDirectory: string,
-): Promise<readonly LaunchRecord[]> {
-	const ids = await launchIds(runsDirectory);
-
-	return Promise.all(ids.map((id) => readLaunchRecord(runsDirectory, id)));
 }
