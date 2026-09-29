@@ -280,10 +280,7 @@ async function writeOperatorStop(
 	stop: OperatorStop,
 	persistence: RunArtifactPersistence,
 ): Promise<void> {
-	await persistence.write(
-		file,
-		operatorStopRecord(stop.signal),
-	);
+	await persistence.write(file, operatorStopRecord(stop.signal));
 }
 
 export function createRunAbort(

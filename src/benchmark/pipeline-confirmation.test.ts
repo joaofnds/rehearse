@@ -1487,8 +1487,8 @@ describe(runPipelineConfirmation.name, () => {
 			const groupId = "pipeline-stopped-record";
 			const paths = confirmationGroupPaths(harness.runsDirectory, groupId);
 
-			const outcome = await harness
-				.run({ groupId }, (dependencies) => ({
+			const outcome = await failureOf(
+				harness.run({ groupId }, (dependencies) => ({
 					...dependencies,
 					runSetup: async (worktreePath) => {
 						if (!basename(worktreePath).includes("-rep-")) {
@@ -1497,8 +1497,8 @@ describe(runPipelineConfirmation.name, () => {
 						await harness.stops[0]?.();
 						throw new Error("the stop killed this rep's command");
 					},
-				}))
-				.catch((error: unknown) => error);
+				})),
+			);
 
 			expect(outcome).toBeInstanceOf(GroupStoppedError);
 			expect(await operatorStopped(paths)).toBe(true);

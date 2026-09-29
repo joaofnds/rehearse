@@ -1433,8 +1433,8 @@ describe(runReplayConfirmation.name, () => {
 			const groupId = "confirmation-stopped-record";
 			const paths = confirmationGroupPaths(run.paths.runsDirectory, groupId);
 
-			const outcome = await harness
-				.runConfirmation(
+			const outcome = await failureOf(
+				harness.runConfirmation(
 					{
 						paths: run.paths,
 						corpusRoots: [{ kind: "directory", root: corpusRoot }],
@@ -1447,8 +1447,8 @@ describe(runReplayConfirmation.name, () => {
 							throw new Error("the stop killed this rep's judge");
 						},
 					}),
-				)
-				.catch((error: unknown) => error);
+				),
+			);
 
 			expect(outcome).toBeInstanceOf(GroupStoppedError);
 			expect(await operatorStopped(paths)).toBe(true);
