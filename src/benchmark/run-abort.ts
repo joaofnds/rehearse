@@ -116,7 +116,11 @@ export interface RunAbort {
 	readonly release: () => void;
 }
 
-const RUN_SIGNALS: readonly NodeJS.Signals[] = ["SIGINT", "SIGTERM", "SIGHUP"];
+export const RUN_SIGNALS: readonly NodeJS.Signals[] = [
+	"SIGINT",
+	"SIGTERM",
+	"SIGHUP",
+];
 
 /**
  * The event store is derived and disposable (GLOSSARY.md: "the run artifact
@@ -158,7 +162,7 @@ function totalSpentUsd(artifact: RunArtifact): number {
 	);
 }
 
-function signalExitCode(signal: NodeJS.Signals): number {
+export function signalExitCode(signal: NodeJS.Signals): number {
 	if (signal === "SIGTERM") {
 		return 143;
 	}

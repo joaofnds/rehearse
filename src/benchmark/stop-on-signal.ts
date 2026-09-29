@@ -1,0 +1,56 @@
+import { RUN_SIGNALS, signalExitCode } from "./run-abort";
+
+export interface SignalStopDependencies {
+	readonly killActiveCommands: () => Promise<void>;
+	readonly registerSignal: (
+		signal: NodeJS.Signals,
+		handler: (signal: NodeJS.Signals) => void,
+	) => void;
+	readonly releaseSignal: (
+		signal: NodeJS.Signals,
+		handler: (signal: NodeJS.Signals) => void,
+	) => void;
+	readonly exit: (code: number) => void;
+	readonly log: (message: string) => void;
+}
+
+/**
+ * Ends the process on a stop signal once the commands it started are killed
+ * and the worktree is removed. Its commands run in process groups of their
+ * own, so a process that exits without killing them leaves them spending.
+ * Answers the release, which returns the signals to their default.
+ */
+export function stopOnSignal(
+	dependencies: SignalStopDependencies,
+	removeWorktree: () => Promise<void>,
+): () => void {
+	let stopping = false;
+	const stop = async (signal: NodeJS.Signals): Promise<void> => {
+		dependencies.log(`Received ${signal}; stopping and removing the worktree.`);
+		await dependencies.killActiveCommands();
+		try {
+			await removeWorktree();
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			dependencies.log(`Could not remove the worktree: ${message}`);
+		}
+
+		dependencies.exit(signalExitCode(signal));
+	};
+	const handler = (signal: NodeJS.Signals): void => {
+		if (stopping) {
+			return;
+		}
+		stopping = true;
+		void stop(signal);
+	};
+	for (const signal of RUN_SIGNALS) {
+		dependencies.registerSignal(signal, handler);
+	}
+
+	return () => {
+		for (const signal of RUN_SIGNALS) {
+			dependencies.releaseSignal(signal, handler);
+		}
+	};
+}
