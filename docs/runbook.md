@@ -163,9 +163,9 @@ matter.
 
 To compare two attempts at one checkpoint without writing a manifest, replay the
 stage with `--confirm` once per corpus, then name the two groups. Arm A is the
-baseline role and arm B the candidate. The command replays only the baseline
-arm, arm A's corpus without the stage's own skill, so approve that one group's
-cost:
+baseline role and arm B the candidate. The command replays only the control
+group, arm A's corpus without the stage's own skill, so approve that one
+group's cost:
 
 ```sh
 mise exec -- bun run rehearse replay --run <run> --stage <stage> --corpus <corpus-a> --confirm --reps 4 --model sonnet

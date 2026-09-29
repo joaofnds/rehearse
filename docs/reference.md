@@ -15,12 +15,12 @@ for remaining gaps, and the [glossary](../GLOSSARY.md) for domain terms.
 | Session `run --confirm`               | Repeated sessions                                         | Separate attempt directories        | Confirmation group and report        |
 | `replay --confirm`                    | Repeated stage executions                                 | Separate target worktrees           | Confirmation group and report        |
 | `compare <manifest>`                  | Completed stage/pipeline or session confirmation evidence | No execution directory              | Comparison report                    |
-| `compare attempts --arm-a --arm-b`    | Repeated stage executions for the baseline arm only       | Separate target worktrees           | Baseline group and comparison report |
+| `compare attempts --arm-a --arm-b`    | Repeated stage executions for the control group only      | Separate target worktrees           | Baseline group and comparison report |
 
 A debug attempt helps inspect behavior. Confirmation repeats a frozen input set
 and reports reliability and resource use. `compare <manifest>` consumes existing
 evidence and launches no agents. `compare attempts` takes two recorded stage
-groups as arms A and B and replays only the baseline arm's group, so it spends
+groups as arms A and B and replays only the control group, so it spends
 like one `replay --confirm`. Session comparisons use recorded checks and worker
 metrics; they do not load pipeline Judges.
 
@@ -163,9 +163,11 @@ because the browser has no terminal to pick one on. It answers 404 for a case
 with no declaration and for an unknown run or stage, and 400 for a malformed
 body or attempts other than 1, 3, 6 or 12. A pipeline case is refused 409
 while a corpus directory is linked, as `run` refuses it. A comparison launch
-runs every check `compare attempts` makes before it spends and answers 409 with
-the refusal, 404 for a group with no `group.json`, and 400 for a group id that
-is not a confirmation identity. `GET /api/cases` lists
+runs the arm checks `compare attempts` makes before it writes anything and
+answers 409 with the refusal, 404 for a group with no `group.json`, and 400 for a group id that
+is not a confirmation identity. The rubric and knob refusals, the spend
+ceiling and the model probe run later in the started process, so they end the
+launch with the reason only in its log. `GET /api/cases` lists
 the declared cases with their models.
 
 `GET /api/settings` returns the stored ceiling or `null`, the command that
@@ -1595,24 +1597,30 @@ differ in more than one unit, or differ in a unit that is not a skill, naming
 the units. A comparison whose arms differ in something other than one skill
 needs a manifest-supplied control. It also refuses when the replayed stage never
 read the skill under test, since a stage replay freezes only its stage's own
-skill and all three arms would read the same files. A skill the stage read is
-that stage's own skill. Past those checks the command writes arm A's recorded
+skill and all three arms would read the same files. Past those checks the command writes arm A's recorded
 corpus without the skill under test to `baseline-corpora/<corpus-digest>/`, or
 arm A's corpus unchanged when the skill is new in arm B, and replays the
 checkpoint on it with `--confirm --without-stage-skill` and arm A's model,
 effort, Judge, session budget and reps. `--without-stage-skill` freezes the
 stage's corpus without its own skill and refuses a corpus that still holds it;
-the session's prompt is unchanged, so the arms differ only in the skill. It is
-accepted only with `--confirm`. That baseline group is the control role. Its
+the session's prompt is unchanged and still names the stage's skill, so the
+arms differ only in whether the skill is installed. It is accepted only with
+`--confirm`. The group it records takes the control role, which the design
+calls the baseline arm. A skill new in arm B needs an arm A that was itself
+replayed with `--without-stage-skill`, since a plain replay installs the
+stage's own skill. Its
 replay meets the spend ceiling, model probe and cost approval of any replay,
 `--yes` answers the approval, and the replay's own output goes to stderr. Before
 the model probe the command refuses a stage rubric that changed since arm A was
 recorded, since the baseline would be graded on a rubric arm A was not. A replay
 that would resolve a knob, such as a Judge effort, to a value arm A did not
-record is refused before the model probe too. The command then writes the manifest to
+record is refused before the model probe too, and so is a skill under test
+that is not the stage's own skill in the run's pipeline, the only skill the
+replay can remove. The command then writes the manifest to
 `comparison-manifests/<control-group-id>.json`, writes `baseline.json` in the
 report's directory, then the report as `compare` does, and prints the report's
-path. `baseline.json` records how the baseline arm was made: `kind` `derived` or
+path. When the report is refused, for example because the control group
+recorded another model, `baseline.json` is removed again. `baseline.json` records how the control group's corpus was made: `kind` `derived` or
 `armA`, `skillUnderTest`, `arms` naming each role's group id (`baseline` is arm
 A and `control` is the group the command ran), and `controlCorpus`, the digest
 naming that group's corpus directory. Version 1 records called that field
