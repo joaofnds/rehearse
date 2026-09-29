@@ -201,7 +201,8 @@ export async function readComparisonBaselineArm(
 /**
  * Every saved comparison but those an extension replaced, since the
  * extension holds all of their attempts and more. A replaced comparison is
- * kept and still opens by its digest.
+ * kept and still opens by its digest. An extension that stopped before
+ * writing its report replaces nothing, since it holds no attempts to read.
  */
 export async function listedComparisonDigests(
 	runsDirectory: string,
@@ -209,9 +210,14 @@ export async function listedComparisonDigests(
 	const digests = await comparisonDigests(runsDirectory);
 	const extended = new Set<string>();
 	for (const digest of digests) {
-		const recorded = await readComparisonBaselineRecord(
-			comparisonReportPaths(runsDirectory, digest).directory,
+		const { directory, reportFile } = comparisonReportPaths(
+			runsDirectory,
+			digest,
 		);
+		if (!(await Bun.file(reportFile).exists())) {
+			continue;
+		}
+		const recorded = await readComparisonBaselineRecord(directory);
 		if (recorded.kind === "recorded" && recorded.record.extends !== undefined) {
 			extended.add(recorded.record.extends);
 		}

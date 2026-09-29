@@ -803,6 +803,19 @@ describe(listedComparisonDigests.name, () => {
 		]);
 	});
 
+	it("keeps listing a comparison an extension that wrote no report names", async () => {
+		const { arms, comparison } = await savedComparison();
+		const { reportFile } = await extendComparison(
+			{ runsDirectory: arms.runsDirectory, comparison, attemptsPerArm: 2 },
+			{ approve: approveAny, runArmGroup: arms.runMoreGroup },
+		);
+		await rm(reportFile);
+
+		const listed = await listedComparisonDigests(arms.runsDirectory);
+
+		expect(listed).toContain(comparison);
+	});
+
 	it("lists a saved comparison nothing extends", async () => {
 		const { arms, comparison } = await savedComparison();
 
