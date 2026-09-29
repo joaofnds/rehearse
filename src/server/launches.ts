@@ -306,7 +306,7 @@ export const createLaunchApp = (dependencies: LaunchDependencies) => {
 			return context.json({ id }, 202);
 		});
 
-	/** The read API's net: an unanticipated failure reaches the browser redacted. */
+	/** The launch routes' net: an unanticipated failure reaches the browser redacted. */
 	app.onError((caughtError, context) => {
 		const message =
 			caughtError instanceof Error ? caughtError.message : String(caughtError);
