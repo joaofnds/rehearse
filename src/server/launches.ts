@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { isAbsolute } from "node:path";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { LaunchRecord } from "#benchmark/launch-record";
@@ -234,7 +235,10 @@ const spendCeilingRequestSchema = z
 	.object({ usd: z.number().positive() })
 	.strict();
 
-const corpusLinkRequestSchema = z.object({ directory: z.string() }).strict();
+/** Absolute, since a relative path would resolve against the server's directory. */
+const corpusLinkRequestSchema = z
+	.object({ directory: z.string().refine(isAbsolute) })
+	.strict();
 
 /** A directory that is not a corpus is a conflict with what is on disk. */
 async function linkCorpusDirectory(

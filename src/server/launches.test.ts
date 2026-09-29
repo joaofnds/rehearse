@@ -839,6 +839,8 @@ describe(createLaunchApp.name, () => {
 
 			it("refuses a directory holding no corpus and keeps the link", async () => {
 				const { send, get } = await harness();
+				const linked = await corpusDirectory();
+				await send("PUT", "/api/settings/corpus", { directory: linked });
 				const notCorpus = await temporaryDirectory("rehearse-not-corpus-");
 
 				const response = await send("PUT", "/api/settings/corpus", {
@@ -846,6 +848,18 @@ describe(createLaunchApp.name, () => {
 				});
 
 				expect(response.status).toBe(409);
+				const after = await reading(get);
+				expect(after.linkedCorpus.root).toBe(linked);
+			});
+
+			it("refuses a relative directory as a bad request, since the server's working directory is not the browser's", async () => {
+				const { send, get } = await harness();
+
+				const response = await send("PUT", "/api/settings/corpus", {
+					directory: "",
+				});
+
+				expect(response.status).toBe(400);
 				const after = await reading(get);
 				expect(after.linkedCorpus.kind).toBe("live");
 			});
