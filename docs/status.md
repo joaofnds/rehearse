@@ -58,8 +58,15 @@ stage's own skill, under an unchanged prompt that still names that skill; it
 refuses a skill the stage never read, since all three arms would read the same files. No real-provider
 comparison of attempts has run yet. A comparison launch that fails after its
 process starts leaves no run history row, and its log is not served; the
-failure is only in `launches/<id>.log`. The page does not show those arm
-figures, rows or attempts yet (ACT-257).
+failure is only in `launches/<id>.log`. Since ACT-271.5 the route also serves
+a per-case summary of how arm B compares with arm A and each with the baseline
+arm over every combination of their attempts, arm B's reply-length change and
+what adding attempts would cost. `compare extend` adds attempts to every arm of
+a saved comparison of attempts at that stated cost, from the CLI or the
+comparison page, and the comparisons list shows the extension in place of the
+comparison it extends; no extension has run on real provider calls yet
+(ACT-271.6). The page does not show those arm figures, rows, attempts or the
+summary yet (ACT-257).
 
 ## Known limitations
 

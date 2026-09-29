@@ -125,6 +125,13 @@ See [current state](docs/status.md) for implementation coverage and
   side, each with its outcome, the blockers that fired on it and its words.
   Despite the name, no attempt is paired with another: nothing recorded ties
   one arm's attempt to another's, so the list claims no per-pair change.
+- **Attempt combinations (comparison)**: how one arm's attempts compare with
+  another's over every pairing of one attempt from each, n x m for arms of n
+  and m attempts, counted higher, equal and lower. Every combination counts
+  because nothing recorded ties one arm's attempt to another's.
+- **Comparison extension**: a new comparison holding a saved comparison's
+  attempts and n more in every arm, run at the cost stated before it starts.
+  It names the comparison it extends, which is kept but no longer listed.
 - **Average words (comparison arm)** — the mean word count over an arm's
   attempts that have one, served beside how many attempts it counted and how
   many the arm holds. A report written before word counts reads unavailable.

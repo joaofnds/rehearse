@@ -6,16 +6,17 @@ for remaining gaps, and the [glossary](../GLOSSARY.md) for domain terms.
 
 ## Execution modes
 
-| Request                               | Unit of work                                              | Execution directory                 | Result                               |
-| ------------------------------------- | --------------------------------------------------------- | ----------------------------------- | ------------------------------------ |
-| `run --case <pipeline-case>`          | Whole workflow                                            | The target's `main` checkout        | Run artifact or stopped-stage record |
-| `run --case <session-case>`           | One Claude session                                        | A fresh temporary attempt directory | Session attempt record               |
-| `replay --run <name> --stage <stage>` | One pipeline stage                                        | A fresh target worktree             | Replay record                        |
-| Pipeline `run --confirm`              | Repeated whole workflows                                  | Separate target worktrees           | Confirmation group and report        |
-| Session `run --confirm`               | Repeated sessions                                         | Separate attempt directories        | Confirmation group and report        |
-| `replay --confirm`                    | Repeated stage executions                                 | Separate target worktrees           | Confirmation group and report        |
-| `compare <manifest>`                  | Completed stage/pipeline or session confirmation evidence | No execution directory              | Comparison report                    |
-| `compare attempts --arm-a --arm-b`    | Repeated stage executions for the control group only      | Separate target worktrees           | Baseline group and comparison report |
+| Request                                  | Unit of work                                              | Execution directory                 | Result                                 |
+| ---------------------------------------- | --------------------------------------------------------- | ----------------------------------- | -------------------------------------- |
+| `run --case <pipeline-case>`             | Whole workflow                                            | The target's `main` checkout        | Run artifact or stopped-stage record   |
+| `run --case <session-case>`              | One Claude session                                        | A fresh temporary attempt directory | Session attempt record                 |
+| `replay --run <name> --stage <stage>`    | One pipeline stage                                        | A fresh target worktree             | Replay record                          |
+| Pipeline `run --confirm`                 | Repeated whole workflows                                  | Separate target worktrees           | Confirmation group and report          |
+| Session `run --confirm`                  | Repeated sessions                                         | Separate attempt directories        | Confirmation group and report          |
+| `replay --confirm`                       | Repeated stage executions                                 | Separate target worktrees           | Confirmation group and report          |
+| `compare <manifest>`                     | Completed stage/pipeline or session confirmation evidence | No execution directory              | Comparison report                      |
+| `compare attempts --arm-a --arm-b`       | Repeated stage executions for the control group only      | Separate target worktrees           | Baseline group and comparison report   |
+| `compare extend --comparison --attempts` | Repeated stage executions, one new group per arm          | Separate target worktrees           | New groups and a new comparison report |
 
 A debug attempt helps inspect behavior. Confirmation repeats a frozen input set
 and reports reliability and resource use. `compare <manifest>` consumes existing
@@ -150,7 +151,12 @@ Compare these attempts posts `{ "kind": "comparison", "armA": <group-id>,
 "armB": <group-id> }` and runs `compare attempts --arm-a <group-id> --arm-b
 <group-id> --yes --approved-in-browser`. Its launch record holds both group ids,
 the run and stage the arms replayed, and arm A's reps as its attempts, since the
-baseline group copies arm A's size.
+baseline group copies arm A's size. A comparison page's Add attempts button
+posts `{ "kind": "extension", "comparison": <digest>, "attempts": <n>,
+"statedUsd": <usd> }` and runs `compare extend --comparison <digest> --attempts
+<n> --yes --approved-in-browser`, with n arm A's attempt count and the cost the
+comparison's summary states for it. Its launch record holds the comparison, the
+run and stage arm A replayed, the attempts added per arm and that cost.
 
 The route answers 202 with the launch id and writes
 `<records>/launches/<id>.json`, holding the pid, the process's start time, the kind, the case or run and
@@ -165,9 +171,14 @@ body or attempts other than 1, 3, 6 or 12. A pipeline case is refused 409
 while a corpus directory is linked, as `run` refuses it. A comparison launch
 runs the arm checks `compare attempts` makes before it writes anything and
 answers 409 with the refusal, 404 for a group with no `group.json`, and 400 for a group id that
-is not a confirmation identity. The rubric, knob and own-skill refusals, the spend
-ceiling and the model probe run later in the started process, so they end the
-launch with the reason only in its log. `GET /api/cases` lists
+is not a confirmation identity. A stage rubric that changed since arm A was
+recorded and a skill under test that is not the stage's own skill are refused
+409 the same way. An extension launch answers 404 for a digest with no saved
+comparison, 409 with the refusal `compare extend` would give, and 409 when the
+cost it computes now differs from `statedUsd`, so the click approves only the
+cost the dialog showed. The knob refusal, the spend ceiling and the model probe
+run later in the started process, so they end the launch with the reason only
+in its log. `GET /api/cases` lists
 the declared cases with their models.
 
 `GET /api/settings` returns the stored ceiling or `null`, the command that
@@ -1070,7 +1081,9 @@ records rather than failing it.
 `list cases|runs|checkpoints|attempts|groups|comparisons` prints IDs usable by
 `show`. For runs, checkpoints, attempts and groups the second column is the
 short id, or `-` for a record its case's registry does not name; cases and
-comparisons have no short id column. `list` only reads registries, so a case no command
+comparisons have no short id column. `list comparisons` and
+`GET /api/comparisons` leave out a comparison an extension replaced, which
+still opens by its digest. `list` only reads registries, so a case no command
 has claimed in prints `-` throughout. `stale` prints a
 checkpoint's or an attempt's short id the same way. Empty history is valid on a fresh clone. A malformed record is reported
 without hiding readable neighbors. Stopped runs are visible through the same
@@ -1579,6 +1592,11 @@ example:
 }
 ```
 
+An arm may also name a non-empty list of `group.json` paths, which the loader
+reads as one arm with their reps in the order named. It refuses a group named
+twice and a later group whose mode, declared stages, controlled inputs or
+executed corpus differ from the first's.
+
 The loader checks schemas, frozen-file hashes, rep records, controlled inputs,
 mode/stage consistency, and corpus identity across cases before writing a
 report. Within a case the arms must preserve the controlled experiment inputs,
@@ -1623,21 +1641,45 @@ replay can remove. The command then writes the manifest to
 directory, and prints the report's path. Evidence the loader refuses, for
 example a control group that recorded another model, leaves no report
 directory. `baseline.json` records how the control group's corpus was made: `kind` `derived` or
-`armA`, `skillUnderTest`, `arms` naming each role's group id (`baseline` is arm
-A and `control` is the group the command ran), and `controlCorpus`, the digest
-naming that group's corpus directory. Version 1 records called that field
-`baselineCorpus` and are still read.
+`armA`, `skillUnderTest`, `arms` naming each role's groups as a list of group
+ids (`baseline` is arm A and `control` the groups the command ran),
+`controlCorpus`, the digest naming that group's corpus directory, and for an
+extension `extends`, the digest of the comparison it extends. It is schema
+version 3. Version 1 records called `controlCorpus` `baselineCorpus`, and
+versions 1 and 2 name one group id per role; both are still read, as one-group
+lists.
+
+`compare extend --comparison <comparison:digest> --attempts <n>` adds n
+attempts to every arm of a comparison `compare attempts` saved. It prints what
+they cost, n times the sum of each arm's mean recorded cost per attempt, and
+asks once; `--yes` answers instead, and `--approved-in-browser` records the
+approval as the browser's. Before asking it refuses a digest with no saved
+comparison, a comparison with no `baseline.json` (a manifest-supplied one
+records neither the checkpoint nor the corpora its arms would replay), an
+unreadable `baseline.json`, a cost it cannot state because an arm recorded no
+cost for some attempt, and a stage rubric that changed since arm A was
+recorded. Once approved it replays one group of n reps per arm at the
+checkpoint arm A replayed, under arm A's model, effort, Judge and budget: arm A
+on its recorded corpus, arm B on its recorded corpus, and the baseline arm on
+arm A's corpus without the skill under test, derived again, with
+`--without-stage-skill`. Each replay meets the spend ceiling and model probe of
+any replay. It then writes a manifest whose arms list each role's earlier
+groups and the new one, and a new comparison with `extends` naming the one it
+extends, which is kept unchanged. A replay that fails part way leaves the
+earlier arms' new groups recorded with no comparison naming them.
 
 Statistics are recomputed from rep evidence, rather than copied from existing
 confirmation reports. The output at `comparisons/<manifest-sha256>/report.json`
 contains quality/resource contrasts for candidate minus baseline, candidate
 minus control, and baseline minus control, with Judge agreement context. New
-stage, pipeline, and session reports use schema version 5. Each source
+stage, pipeline, and session reports use schema version 6, whose arm source
+lists the arm's groups and numbers each rep by its ordinal within the arm and
+the index of the group it came from. Each source
 repetition retains an ordered outcome for every quality measure, including its
 judged grade and metrics-aware success value or its non-judged status. Pipeline
 outcomes append `final` after the declared stages. Session source repetitions
 also retain their attempt path and hash and carry an empty Judge-agreement
-baseline. Readers continue to accept strict version-1 through version-4 reports
+baseline. Readers continue to accept strict version-1 through version-5 reports
 without adding outcomes or measurements that those records never contained.
 `compare --json` prints the report bytes without starting provider sessions.
 Each current source repetition also records the word count of its output: a
@@ -1674,7 +1716,16 @@ per case and arm, each recorded attempt in the order the arm recorded it, with
 its rep id, ordinal, stage outcomes, the hard blockers that fired and its words;
 a field a report never recorded reads `unavailable` with its reason. Attempts
 carry no pair index or seed, since nothing recorded ties one arm's attempt to
-another's, so ordinal 1 of two arms is not a pair.
+another's, so ordinal 1 of two arms is not a pair. `summary` gives, per case,
+arm B against arm A, arm A against the baseline arm and arm B against the
+baseline arm on every overall measure, each as its quality reading's verdict
+beside how many of the n x m combinations of one attempt from each arm come out
+higher, equal and lower; the reply-length change from arm A to arm B with its
+meter reading; and `moreAttempts`, what as many attempts again as arm A holds
+would cost in every arm, or `unavailable` naming each attempt with no recorded
+cost. The facts to read the summary with care are the response's other fields:
+`attempts` for how many attempts each arm holds, each arm's `executedCorpus`,
+`baselineArm`, and the arm B against arm A attribution.
 
 Session resource values are per-repetition worker metrics; group preflight cost
 remains at confirmation-group level, and unavailable metrics stay visible as
