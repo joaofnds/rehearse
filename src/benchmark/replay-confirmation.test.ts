@@ -1560,5 +1560,59 @@ describe(runReplayConfirmation.name, () => {
 			);
 			expect(corpusReads).toEqual([["CLAUDE.md"], ["CLAUDE.md"]]);
 		});
+
+		it("captures each rep's session corpus without the skill", async () => {
+			const harness = new ReplayConfirmationHarness(testResources);
+			const run = await harness.recordedRun();
+
+			const outcome = await harness.runConfirmation(
+				{
+					paths: run.paths,
+					corpusRoots: [{ kind: "directory", root: await baselineCorpus() }],
+				},
+				{ reps: 2, stageSkill: "absent" },
+				(dependencies) => ({
+					...dependencies,
+					stageSession: { ...dependencies.stageSession, captureStageCorpus },
+				}),
+			);
+
+			const stageRecords = await Promise.all(
+				outcome.repRecordFiles.map((recordFile) =>
+					Bun.file(join(dirname(recordFile), "stages", "discuss.json")).text(),
+				),
+			);
+			expect(stageRecords.filter((text) => text.includes("skills/"))).toEqual(
+				[],
+			);
+		});
+
+		it("keeps an earlier stage's own skill in that stage's corpus", async () => {
+			const harness = new ReplayConfirmationHarness(testResources);
+			const run = await harness.recordedRun();
+			const corpusRoot = await baselineCorpus();
+			await Bun.write(
+				join(corpusRoot, "skills", "discuss", "SKILL.md"),
+				"discuss\n",
+			);
+
+			const outcome = await harness.runConfirmation(
+				{
+					paths: run.paths,
+					corpusRoots: [{ kind: "directory", root: corpusRoot }],
+				},
+				{ reps: 2, stage: "build", stageSkill: "absent" },
+			);
+
+			const group = parseConfirmationGroupRecord(
+				await Bun.file(outcome.groupRecordFile).text(),
+			);
+			expect(
+				group.inputs.files
+					.filter(({ kind }) => kind === "corpus")
+					.map(({ path }) => path),
+			).toContain("inputs/corpus/discuss/skills/discuss/SKILL.md");
+			expect(outcome.repRecordFiles).toHaveLength(2);
+		});
 	});
 });
