@@ -1372,6 +1372,7 @@ describe(createRunAbort.name, () => {
 		expect(JSON.parse(await Bun.file(stageFile).text())).toMatchObject({
 			status: "STAGE_JUDGE_FAILED",
 			error: "run interrupted by SIGTERM",
+			operatorStop: { signal: "SIGTERM" },
 		});
 	});
 

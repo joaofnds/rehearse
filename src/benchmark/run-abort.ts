@@ -36,6 +36,12 @@ export interface PendingStage {
 	readonly scorecard?: StageScorecard | undefined;
 	readonly stopped?: StoppedStageReadings | undefined;
 	readonly ceilingStop?: CeilingStopReadings | undefined;
+	readonly operatorStop?: OperatorStop | undefined;
+}
+
+/** The signal someone ended the run with, as opposed to a ceiling stop. */
+export interface OperatorStop {
+	readonly signal: NodeJS.Signals;
 }
 
 /** The ceiling a run stopped at and the run spend that reached it. */
@@ -230,6 +236,7 @@ export async function writeStageJudgeFailure(
 				...stopped,
 				...pending.failure,
 				ceilingStop: pending.ceilingStop,
+				operatorStop: pending.operatorStop,
 			},
 			null,
 			2,
@@ -470,7 +477,10 @@ export function createRunAbort(
 			pendingArtifact = undefined;
 		});
 	};
-	const markAborted = (reason: string): Promise<void> => {
+	const markAborted = (
+		reason: string,
+		operatorStop?: OperatorStop,
+	): Promise<void> => {
 		if (abortRecorded === undefined) {
 			abortRequested = true;
 			const stageToFail = pendingStage;
@@ -493,7 +503,7 @@ export function createRunAbort(
 				if (stageToFail !== undefined) {
 					try {
 						await writeStageJudgeFailure(
-							stageToFail,
+							{ ...stageToFail, operatorStop },
 							reason,
 							dependencies.persistence,
 						);
@@ -557,7 +567,7 @@ export function createRunAbort(
 		if (teardownStarted === undefined) {
 			await attemptRecovery(dependencies.killActiveCommands);
 		}
-		await markAborted(`run interrupted by ${signal}`);
+		await markAborted(`run interrupted by ${signal}`, { signal });
 		await attemptRecovery(teardown);
 		dependencies.exit(signalExitCode(signal));
 	};
