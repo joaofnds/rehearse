@@ -83,6 +83,7 @@ import {
 	latestCheckpointStage,
 	sourceCaseId,
 	statusAndCaseId,
+	targetMarker,
 } from "./run-status";
 import type { ContextLink, RunProgress } from "./run-status";
 
@@ -786,12 +787,10 @@ async function runningRunPids(
 	const pids = new Set<number>();
 	for (const row of rows) {
 		if (row.kind === "run" && row.status === "RUNNING") {
-			const manifest = await loadRunManifest(
+			const marker = await targetMarker(
 				benchmarkRunPaths(runsDirectory, row.run).manifestFile,
+				liveness,
 			);
-			const marker = await liveness
-				.readMarker(manifest.sourceRoot)
-				.catch(() => undefined);
 			if (marker !== undefined) {
 				pids.add(marker.pid);
 			}

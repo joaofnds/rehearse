@@ -1709,6 +1709,52 @@ describe(runHistoryReport.name, () => {
 			expect(pipelineRun(rows, fixture.runningRun)?.status).toBe("RUNNING");
 		});
 
+		it("keeps a launch listed while an unrelated pipeline run is RUNNING under another pid", async () => {
+			const fixture = await writtenFixture();
+			await fixture.writeRunningRun();
+			await launched(fixture, LIVE_PID);
+			const otherRunPid = 5151;
+
+			const { launches, rows } = await runHistoryReport(
+				fixture.runsDirectory,
+				directorySource(await corpusDirectory("build skill\n")),
+				{
+					readMarker: () => Promise.resolve({ pid: otherRunPid }),
+					isAlive: (pid) => pid === LIVE_PID || pid === otherRunPid,
+				},
+			);
+
+			expect(launches.map(({ id }) => id)).toEqual([LAUNCH_ID]);
+			expect(pipelineRun(rows, fixture.runningRun)?.status).toBe("RUNNING");
+		});
+
+		it("lists the newest launch first", async () => {
+			const fixture = await writtenFixture();
+			const older = "8a1c0000-0000-4000-8000-000000000002";
+			const newer = "8a1c0000-0000-4000-8000-000000000003";
+			for (const [id, launchedAt] of [
+				[older, "2026-09-29T09:00:00.000Z"],
+				[newer, "2026-09-29T11:00:00.000Z"],
+			] as const) {
+				await writeLaunchRecord(fixture.runsDirectory, {
+					id,
+					kind: "case",
+					caseId: "audit-log",
+					attempts: 1,
+					pid: LIVE_PID,
+					launchedAt,
+				});
+			}
+
+			const { launches } = await runHistoryReport(
+				fixture.runsDirectory,
+				directorySource(await corpusDirectory("build skill\n")),
+				launchLiveness(undefined),
+			);
+
+			expect(launches.map(({ id }) => id)).toEqual([newer, older]);
+		});
+
 		it("reports a launch record that does not read beside the rows", async () => {
 			const fixture = await writtenFixture();
 			await mkdir(join(fixture.runsDirectory, "launches"), { recursive: true });

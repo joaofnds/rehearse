@@ -209,16 +209,27 @@ export async function claimsLiveTarget(
 	manifestFile: string,
 	liveness: RunLiveness,
 ): Promise<boolean> {
+	const marker = await targetMarker(manifestFile, liveness);
+
+	return marker !== undefined && liveness.isAlive(marker.pid);
+}
+
+/**
+ * The marker on the target this run claimed, or undefined when the run has no
+ * manifest or its target cannot be asked, for the reasons `claimsLiveTarget`
+ * gives.
+ */
+export async function targetMarker(
+	manifestFile: string,
+	liveness: RunLiveness,
+): Promise<{ readonly pid: number } | undefined> {
 	if (!(await Bun.file(manifestFile).exists())) {
-		return false;
+		return undefined;
 	}
 
 	const manifest = await loadRunManifest(manifestFile);
-	const marker = await liveness
-		.readMarker(manifest.sourceRoot)
-		.catch(() => undefined);
 
-	return marker !== undefined && liveness.isAlive(marker.pid);
+	return liveness.readMarker(manifest.sourceRoot).catch(() => undefined);
 }
 
 /**
