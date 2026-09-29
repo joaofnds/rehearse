@@ -181,6 +181,14 @@ describe(processLauncher.name, () => {
 		expect(await launcher.startedAt(pid)).toBeUndefined();
 	});
 
+	it("reports a stop the system refuses rather than calling it sent", () => {
+		const launcher = processLauncher(["sleep"], {});
+
+		expect(() => {
+			launcher.stop(1);
+		}).toThrow();
+	});
+
 	it("ends a process it is told to stop", async () => {
 		const launcher = processLauncher(["sleep"], {});
 		const pid = await launcher.launch(["5"], await logFile());

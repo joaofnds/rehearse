@@ -68,8 +68,14 @@ export function processLauncher(
 		stop: (pid) => {
 			try {
 				process.kill(pid, "SIGTERM");
-			} catch {
+			} catch (error) {
 				// It ended between the check and the signal, which is the stop.
+				// Any other refusal means nothing was signalled.
+				if (
+					!(error instanceof Error && "code" in error && error.code === "ESRCH")
+				) {
+					throw error;
+				}
 			}
 		},
 	};
