@@ -176,6 +176,18 @@ mise exec -- bun run rehearse compare attempts --arm-a <group-a> --arm-b <group-
 The two corpora must differ in one skill, the one the stage loads, and nothing
 else. Run history's Compare these attempts starts the same command.
 
+A reading that stays inside rerun noise may need more attempts. Add as many to
+every arm of a comparison `compare attempts` saved; the command states the cost
+from each arm's recorded cost per attempt and asks before it replays anything:
+
+```sh
+mise exec -- bun run rehearse compare extend --comparison <comparison-digest> --attempts 4
+```
+
+It writes a new comparison holding every earlier and added attempt, and
+`list comparisons` shows it in place of the one it extends. The comparison
+page's Add attempts button starts the same command.
+
 ## Inspect staleness
 
 After editing the example style, ask which recorded debug attempts or checkpoints
