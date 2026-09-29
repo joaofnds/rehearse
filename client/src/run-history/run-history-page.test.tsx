@@ -1824,18 +1824,17 @@ describe(RunHistoryPage.name, () => {
 				unreadable: [],
 			});
 
-			renderPage();
+			const { queryByRole } = renderPage();
 
 			await waitFor(() => {
 				expect(screen.getByText("launch 7b0c2d4e")).toBeInTheDocument();
 			});
-			expect(cellOf("launch 7b0c2d4e", "Outcome")).toHaveTextContent("stopped");
-			expect(cellOf("launch 7b0c2d4e", "Outcome")).toHaveTextContent(
-				"stopped by the operator",
-			);
+			const outcome = cellOf("launch 7b0c2d4e", "Outcome");
+			expect(outcome).toHaveTextContent("stopped by the operator");
+			expect(outcome).not.toHaveTextContent("running");
 			expect(
-				screen.queryByRole("button", { name: "Stop & restore repo" }),
-			).toBeNull();
+				queryByRole("button", { name: "Stop & restore repo" }),
+			).not.toBeInTheDocument();
 		});
 	});
 
