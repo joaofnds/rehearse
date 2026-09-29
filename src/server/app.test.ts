@@ -5,8 +5,12 @@ import { join } from "node:path";
 import { z } from "zod";
 import {
 	directorySource,
+	fixedCorpusSource,
 	nothingRunning,
 } from "#benchmark/run-records-test-support";
+import { corpusVersionLabel } from "#benchmark/corpus-version-label";
+import { liveCorpusSource } from "#benchmark/corpus-file";
+import { linkedCorpusSource } from "#benchmark/corpus-source";
 import { storeSpendCeiling } from "#benchmark/settings";
 import { createAppServer } from "./app";
 import { FakeLauncher } from "./launch-test-support";
@@ -14,6 +18,11 @@ import { FakeLauncher } from "./launch-test-support";
 const runHistoryResponseSchema = z.object({ rows: z.array(z.unknown()) });
 
 const launchedSchema = z.object({ id: z.string() });
+
+const corpusResponseSchema = z.object({
+	root: z.string(),
+	digest: z.string(),
+});
 
 const PORT = 4173;
 const LOOPBACK = { host: `127.0.0.1:${String(PORT)}` };
@@ -60,14 +69,24 @@ describe(createAppServer.name, () => {
 		readonly launcher: FakeLauncher;
 	}
 
-	async function appServer(): Promise<AppServer> {
+	/**
+	 * A server whose corpus is one fixed directory, or one that reads the
+	 * linked corpus on every request the way the served app does.
+	 */
+	async function appServer(
+		corpus: "fixed" | "linked" = "fixed",
+	): Promise<AppServer> {
 		const records = await runsDirectory();
 		await storeSpendCeiling(records, 5);
 		const launcher = new FakeLauncher();
+		const fixed = directorySource(await corpusDirectory());
 		const app = createAppServer({
 			runsDirectory: records,
 			liveness: nothingRunning,
-			corpusSource: directorySource(await corpusDirectory()),
+			readCorpusSource:
+				corpus === "fixed"
+					? fixedCorpusSource(fixed)
+					: () => linkedCorpusSource(records),
 			clientDistDirectory: await clientDistDirectory(),
 			port: PORT,
 			casesRoot: await casesDirectory(),
@@ -226,6 +245,70 @@ describe(createAppServer.name, () => {
 			});
 
 			expect(response.status).toBe(403);
+		});
+
+		describe("to link a corpus directory", () => {
+			interface LinkedServer {
+				readonly corpusReading: () => Promise<
+					z.infer<typeof corpusResponseSchema>
+				>;
+				readonly changeLink: (
+					method: "PUT" | "DELETE",
+					body: Readonly<Record<string, string>>,
+				) => Promise<Response>;
+			}
+
+			async function linkedServer(): Promise<LinkedServer> {
+				const { app } = await appServer("linked");
+
+				return {
+					corpusReading: async () => {
+						const response = await app.request("/api/corpus", {
+							headers: LOOPBACK,
+						});
+
+						return corpusResponseSchema.parse(await response.json());
+					},
+					changeLink: (method, body) =>
+						Promise.resolve(
+							app.request("/api/settings/corpus", {
+								method,
+								headers: sameOrigin,
+								body: JSON.stringify(body),
+							}),
+						),
+				};
+			}
+
+			it("measures the linked directory from the next read on", async () => {
+				const { corpusReading, changeLink } = await linkedServer();
+				const first = await corpusDirectory();
+				const second = await corpusDirectory();
+				await Bun.write(join(second, "CLAUDE.md"), "other instructions\n");
+				await changeLink("PUT", { directory: first });
+				const before = await corpusReading();
+
+				const linked = await changeLink("PUT", { directory: second });
+				const after = await corpusReading();
+
+				expect(linked.status).toBe(200);
+				expect(before.root).toBe(first);
+				expect(after.root).toBe(second);
+				expect(corpusVersionLabel(after.digest)).not.toBe(
+					corpusVersionLabel(before.digest),
+				);
+			});
+
+			it("returns to the live install once unlinked", async () => {
+				const { corpusReading, changeLink } = await linkedServer();
+				await changeLink("PUT", { directory: await corpusDirectory() });
+
+				const unlinked = await changeLink("DELETE", {});
+				const reading = await corpusReading();
+
+				expect(unlinked.status).toBe(200);
+				expect(reading.root).toBe(liveCorpusSource().root);
+			});
 		});
 
 		describe("to launch a run", () => {

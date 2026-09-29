@@ -7,7 +7,7 @@ import {
 	recordsDirectory,
 } from "#benchmark/config";
 import { assertPinnedBunVersion } from "#benchmark/bun-pin";
-import { liveCorpusSource } from "#benchmark/corpus-file";
+import { linkedCorpusSource } from "#benchmark/corpus-source";
 import { runEventsDatabaseFile } from "#benchmark/run-layout";
 import { openRunEventStore } from "#benchmark/run-events";
 import { liveRunLiveness } from "#benchmark/run-liveness";
@@ -59,7 +59,7 @@ async function main(): Promise<void> {
 	const port = Number(Bun.env["PORT"] ?? DEFAULT_PORT);
 	const app = createAppServer({
 		runsDirectory,
-		corpusSource: liveCorpusSource(),
+		readCorpusSource: () => linkedCorpusSource(runsDirectory),
 		liveness: liveRunLiveness(),
 		clientDistDirectory: join(CONTROL_DIR, "client", "dist"),
 		port,

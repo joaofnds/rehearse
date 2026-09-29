@@ -10,6 +10,7 @@ import { confirmationGroupPaths } from "#benchmark/run-layout";
 import {
 	directorySource,
 	nothingRunning,
+	fixedCorpusSource,
 } from "#benchmark/run-records-test-support";
 import { sessionAttemptRecordSchema } from "#benchmark/session-record";
 import { createApiApp } from "./api";
@@ -143,7 +144,7 @@ describe(comparisonAttemptHistoryLink.name, () => {
 		const response = await createApiApp({
 			runsDirectory,
 			liveness: nothingRunning,
-			corpusSource: directorySource(root),
+			readCorpusSource: fixedCorpusSource(directorySource(root)),
 		}).request("/api/groups/group-a/reps/group-a-rep-1/attempt/history");
 		expect(response.status).toBe(200);
 		const stale = {

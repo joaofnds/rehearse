@@ -17,6 +17,7 @@ import {
 	RECORDED_READINGS,
 	STOPPED_RUN_ERROR,
 	STOPPED_RUN_EVIDENCE,
+	fixedCorpusSource,
 } from "#benchmark/run-records-test-support";
 import { createApiApp } from "./api";
 import {
@@ -113,7 +114,9 @@ describe("/api/runs/:run", () => {
 		const app = createApiApp({
 			runsDirectory: fixture.runsDirectory,
 			liveness,
-			corpusSource: directorySource(fixture.runsDirectory),
+			readCorpusSource: fixedCorpusSource(
+				directorySource(fixture.runsDirectory),
+			),
 		});
 
 		const response = await app.request(`/api/runs/${encodeURIComponent(run)}`);

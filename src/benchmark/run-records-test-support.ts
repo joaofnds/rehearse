@@ -320,6 +320,13 @@ export function directorySource(root: string): CorpusRoot {
 	return { kind: "directory", root };
 }
 
+/** A server's corpus reader that answers one source on every request. */
+export function fixedCorpusSource(
+	source: CorpusRoot,
+): () => Promise<CorpusRoot> {
+	return () => Promise.resolve(source);
+}
+
 export function corpusPath(stage: string): string {
 	return `skills/${stage}/SKILL.md`;
 }

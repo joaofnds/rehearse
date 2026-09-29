@@ -7,6 +7,7 @@ import {
 	directorySource,
 	RecordedRunsFixture,
 	nothingRunning,
+	fixedCorpusSource,
 } from "#benchmark/run-records-test-support";
 import {
 	COMPARISON_ARMS,
@@ -245,7 +246,9 @@ describe("GET /api/comparisons", () => {
 		const app = createApiApp({
 			runsDirectory: fixture.runsDirectory,
 			liveness: nothingRunning,
-			corpusSource: directorySource(await corpusDirectory()),
+			readCorpusSource: fixedCorpusSource(
+				directorySource(await corpusDirectory()),
+			),
 		});
 
 		const response = await app.request("/api/comparisons");
@@ -295,7 +298,9 @@ describe("GET /api/comparisons", () => {
 			const app = createApiApp({
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
-				corpusSource: directorySource(await corpusDirectory()),
+				readCorpusSource: fixedCorpusSource(
+					directorySource(await corpusDirectory()),
+				),
 			});
 
 			const response = await app.request("/api/comparisons");
@@ -320,7 +325,9 @@ describe("GET /api/comparisons", () => {
 			const app = createApiApp({
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
-				corpusSource: directorySource(await corpusDirectory()),
+				readCorpusSource: fixedCorpusSource(
+					directorySource(await corpusDirectory()),
+				),
 			});
 
 			const response = await app.request("/api/comparisons");
@@ -339,7 +346,9 @@ describe("GET /api/comparisons", () => {
 			const app = createApiApp({
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
-				corpusSource: directorySource(await corpusDirectory()),
+				readCorpusSource: fixedCorpusSource(
+					directorySource(await corpusDirectory()),
+				),
 			});
 
 			const response = await app.request("/api/comparisons");
@@ -363,7 +372,9 @@ describe("GET /api/comparisons/:digest", () => {
 		const app = createApiApp({
 			runsDirectory: fixture.runsDirectory,
 			liveness: nothingRunning,
-			corpusSource: directorySource(await corpusDirectory()),
+			readCorpusSource: fixedCorpusSource(
+				directorySource(await corpusDirectory()),
+			),
 		});
 
 		const response = await app.request(
@@ -421,7 +432,9 @@ describe("GET /api/comparisons/:digest", () => {
 		const app = createApiApp({
 			runsDirectory: fixture.runsDirectory,
 			liveness: nothingRunning,
-			corpusSource: directorySource(await corpusDirectory()),
+			readCorpusSource: fixedCorpusSource(
+				directorySource(await corpusDirectory()),
+			),
 		});
 
 		const response = await app.request(
@@ -446,7 +459,9 @@ describe("GET /api/comparisons/:digest", () => {
 			const app = createApiApp({
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
-				corpusSource: directorySource(await corpusDirectory()),
+				readCorpusSource: fixedCorpusSource(
+					directorySource(await corpusDirectory()),
+				),
 			});
 
 			const response = await app.request(
@@ -465,7 +480,9 @@ describe("GET /api/comparisons/:digest", () => {
 		const app = createApiApp({
 			runsDirectory: fixture.runsDirectory,
 			liveness: nothingRunning,
-			corpusSource: directorySource(await corpusDirectory()),
+			readCorpusSource: fixedCorpusSource(
+				directorySource(await corpusDirectory()),
+			),
 		});
 
 		const response = await app.request(
@@ -498,7 +515,9 @@ describe("GET /api/comparisons/:digest", () => {
 		const app = createApiApp({
 			runsDirectory: fixture.runsDirectory,
 			liveness: nothingRunning,
-			corpusSource: directorySource(await corpusDirectory()),
+			readCorpusSource: fixedCorpusSource(
+				directorySource(await corpusDirectory()),
+			),
 		});
 
 		const response = await app.request(
@@ -533,7 +552,9 @@ describe("GET /api/comparisons/:digest", () => {
 		const app = createApiApp({
 			runsDirectory: fixture.runsDirectory,
 			liveness: nothingRunning,
-			corpusSource: directorySource(await corpusDirectory()),
+			readCorpusSource: fixedCorpusSource(
+				directorySource(await corpusDirectory()),
+			),
 		});
 
 		const response = await app.request(
@@ -554,7 +575,9 @@ describe("GET /api/comparisons/:digest", () => {
 		const app = createApiApp({
 			runsDirectory: root,
 			liveness: nothingRunning,
-			corpusSource: directorySource(await corpusDirectory()),
+			readCorpusSource: fixedCorpusSource(
+				directorySource(await corpusDirectory()),
+			),
 		});
 
 		const response = await app.request(
@@ -570,7 +593,9 @@ describe("GET /api/comparisons/:digest", () => {
 		const app = createApiApp({
 			runsDirectory: root,
 			liveness: nothingRunning,
-			corpusSource: directorySource(await corpusDirectory()),
+			readCorpusSource: fixedCorpusSource(
+				directorySource(await corpusDirectory()),
+			),
 		});
 
 		const response = await app.request(`/api/comparisons/${"9".repeat(64)}`);

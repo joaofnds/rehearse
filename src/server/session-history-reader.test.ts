@@ -18,6 +18,7 @@ import {
 	AWAITING_JUDGE_EXCHANGE_TEXT,
 	AWAITING_JUDGE_SESSION_ID,
 	STOPPED_STAGE_SESSION_ID,
+	fixedCorpusSource,
 } from "#benchmark/run-records-test-support";
 import {
 	benchmarkRunPaths,
@@ -307,7 +308,9 @@ describe("saved session history API", () => {
 		const app = createApiApp({
 			runsDirectory: fixture.runsDirectory,
 			liveness: nothingRunning,
-			corpusSource: directorySource(fixture.runsDirectory),
+			readCorpusSource: fixedCorpusSource(
+				directorySource(fixture.runsDirectory),
+			),
 		});
 
 		const summary = await app.request(
@@ -341,7 +344,9 @@ describe("saved session history API", () => {
 		const app = createApiApp({
 			runsDirectory: fixture.runsDirectory,
 			liveness: nothingRunning,
-			corpusSource: directorySource(fixture.runsDirectory),
+			readCorpusSource: fixedCorpusSource(
+				directorySource(fixture.runsDirectory),
+			),
 		});
 
 		const response = await app.request(
@@ -369,7 +374,9 @@ describe("saved session history API", () => {
 		const app = createApiApp({
 			runsDirectory: fixture.runsDirectory,
 			liveness: nothingRunning,
-			corpusSource: directorySource(fixture.runsDirectory),
+			readCorpusSource: fixedCorpusSource(
+				directorySource(fixture.runsDirectory),
+			),
 		});
 
 		const response = await app.request(
@@ -400,7 +407,9 @@ describe("saved session history API", () => {
 		const app = createApiApp({
 			runsDirectory: fixture.runsDirectory,
 			liveness: nothingRunning,
-			corpusSource: directorySource(fixture.runsDirectory),
+			readCorpusSource: fixedCorpusSource(
+				directorySource(fixture.runsDirectory),
+			),
 		});
 		const route = `/api/attempts/session/${fixture.caseId}/${fixture.uuid}/history/requests`;
 
@@ -425,7 +434,9 @@ describe("saved session history API", () => {
 		const app = createApiApp({
 			runsDirectory: fixture.runsDirectory,
 			liveness: nothingRunning,
-			corpusSource: directorySource(fixture.runsDirectory),
+			readCorpusSource: fixedCorpusSource(
+				directorySource(fixture.runsDirectory),
+			),
 		});
 
 		const response = await app.request(
@@ -463,7 +474,9 @@ describe("saved session history API", () => {
 		const app = createApiApp({
 			runsDirectory: fixture.runsDirectory,
 			liveness: nothingRunning,
-			corpusSource: directorySource(fixture.runsDirectory),
+			readCorpusSource: fixedCorpusSource(
+				directorySource(fixture.runsDirectory),
+			),
 		});
 
 		const response = await app.request(
@@ -511,7 +524,9 @@ describe("saved session history API", () => {
 		const app = createApiApp({
 			runsDirectory: fixture.runsDirectory,
 			liveness: nothingRunning,
-			corpusSource: directorySource(fixture.runsDirectory),
+			readCorpusSource: fixedCorpusSource(
+				directorySource(fixture.runsDirectory),
+			),
 		});
 
 		const response = await app.request(
@@ -559,7 +574,9 @@ describe("saved session history API", () => {
 		const app = createApiApp({
 			runsDirectory: fixture.runsDirectory,
 			liveness: nothingRunning,
-			corpusSource: directorySource(fixture.runsDirectory),
+			readCorpusSource: fixedCorpusSource(
+				directorySource(fixture.runsDirectory),
+			),
 		});
 
 		const response = await app.request(
@@ -582,7 +599,9 @@ describe("saved session history API", () => {
 		const app = createApiApp({
 			runsDirectory: fixture.runsDirectory,
 			liveness: nothingRunning,
-			corpusSource: directorySource(fixture.runsDirectory),
+			readCorpusSource: fixedCorpusSource(
+				directorySource(fixture.runsDirectory),
+			),
 		});
 
 		const response = await app.request(
@@ -600,7 +619,9 @@ describe("saved session history API", () => {
 		const app = createApiApp({
 			runsDirectory: fixture.runsDirectory,
 			liveness: nothingRunning,
-			corpusSource: directorySource(fixture.runsDirectory),
+			readCorpusSource: fixedCorpusSource(
+				directorySource(fixture.runsDirectory),
+			),
 		});
 
 		const response = await app.request(
@@ -616,7 +637,9 @@ describe("saved session history API", () => {
 		const app = createApiApp({
 			runsDirectory: fixture.runsDirectory,
 			liveness: nothingRunning,
-			corpusSource: directorySource(fixture.runsDirectory),
+			readCorpusSource: fixedCorpusSource(
+				directorySource(fixture.runsDirectory),
+			),
 		});
 
 		const response = await app.request(
@@ -1735,7 +1758,9 @@ describe("saved stage history API", () => {
 		const app = createApiApp({
 			runsDirectory: fixture.runsDirectory,
 			liveness: nothingRunning,
-			corpusSource: directorySource(fixture.runsDirectory),
+			readCorpusSource: fixedCorpusSource(
+				directorySource(fixture.runsDirectory),
+			),
 		});
 
 		const summary = await app.request(
@@ -1766,7 +1791,9 @@ describe("saved stage history API", () => {
 		const app = createApiApp({
 			runsDirectory: fixture.runsDirectory,
 			liveness: nothingRunning,
-			corpusSource: directorySource(fixture.runsDirectory),
+			readCorpusSource: fixedCorpusSource(
+				directorySource(fixture.runsDirectory),
+			),
 		});
 
 		const response = await app.request(
@@ -1969,7 +1996,9 @@ describe("saved replay history API", () => {
 		const app = createApiApp({
 			runsDirectory: fixture.runsDirectory,
 			liveness: nothingRunning,
-			corpusSource: directorySource(fixture.runsDirectory),
+			readCorpusSource: fixedCorpusSource(
+				directorySource(fixture.runsDirectory),
+			),
 		});
 
 		const response = await app.request(
@@ -1991,7 +2020,9 @@ describe("saved replay history API", () => {
 		const app = createApiApp({
 			runsDirectory: fixture.runsDirectory,
 			liveness: nothingRunning,
-			corpusSource: directorySource(fixture.runsDirectory),
+			readCorpusSource: fixedCorpusSource(
+				directorySource(fixture.runsDirectory),
+			),
 		});
 
 		const response = await app.request(

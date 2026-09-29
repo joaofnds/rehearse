@@ -143,7 +143,11 @@ async function streamRunEvents(
 
 export interface ApiDependencies {
 	readonly runsDirectory: string;
-	readonly corpusSource: CorpusRoot;
+	/**
+	 * Resolved on every request, so linking or unlinking a corpus directory
+	 * changes what the next read measures without a restart.
+	 */
+	readonly readCorpusSource: () => Promise<CorpusRoot>;
 	readonly liveness: RunLiveness;
 }
 
@@ -217,7 +221,7 @@ export const createApiApp = (dependencies: ApiDependencies) => {
 			const ids = context.req.queries("ids");
 			const report = await runHistoryReport(
 				dependencies.runsDirectory,
-				dependencies.corpusSource,
+				await dependencies.readCorpusSource(),
 				dependencies.liveness,
 				ids === undefined
 					? undefined
@@ -228,7 +232,7 @@ export const createApiApp = (dependencies: ApiDependencies) => {
 		})
 		.get("/api/corpus", async (context) => {
 			const report = await corpusReport(
-				dependencies.corpusSource,
+				await dependencies.readCorpusSource(),
 				dependencies.runsDirectory,
 			);
 
@@ -237,7 +241,7 @@ export const createApiApp = (dependencies: ApiDependencies) => {
 		.get("/api/corpus/versions", async (context) => {
 			const log = await corpusVersionLog(
 				dependencies.runsDirectory,
-				dependencies.corpusSource,
+				await dependencies.readCorpusSource(),
 			);
 
 			return context.json({
@@ -601,7 +605,7 @@ export const createApiApp = (dependencies: ApiDependencies) => {
 						dependencies.runsDirectory,
 						id.run,
 						dependencies.liveness,
-						dependencies.corpusSource,
+						await dependencies.readCorpusSource(),
 					),
 				);
 			} catch (error) {
@@ -681,7 +685,7 @@ export const createApiApp = (dependencies: ApiDependencies) => {
 				const reads = await groupRepReads(
 					dependencies.runsDirectory,
 					id.groupId,
-					dependencies.corpusSource,
+					await dependencies.readCorpusSource(),
 				);
 
 				return context.json({

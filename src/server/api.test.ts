@@ -19,6 +19,7 @@ import {
 	liveStageSettings,
 	RecordedRunsFixture,
 	nothingRunning,
+	fixedCorpusSource,
 } from "#benchmark/run-records-test-support";
 import type { RecordedRunsOptions } from "#benchmark/run-records-test-support";
 import { CONTROL_DIR } from "#benchmark/config";
@@ -193,7 +194,7 @@ describe(createApiApp.name, () => {
 			const app = createApiApp({
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
-				corpusSource: directorySource(corpus),
+				readCorpusSource: fixedCorpusSource(directorySource(corpus)),
 			});
 
 			const response = await app.request("/api/runs");
@@ -213,7 +214,7 @@ describe(createApiApp.name, () => {
 			const app = createApiApp({
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
-				corpusSource: directorySource(corpus),
+				readCorpusSource: fixedCorpusSource(directorySource(corpus)),
 			});
 
 			const response = await app.request(
@@ -239,7 +240,7 @@ describe(createApiApp.name, () => {
 			const app = createApiApp({
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
-				corpusSource: directorySource(corpus),
+				readCorpusSource: fixedCorpusSource(directorySource(corpus)),
 			});
 			const corpusResponse = await app.request("/api/corpus");
 			const { lastEdit } = z
@@ -278,7 +279,7 @@ describe(createApiApp.name, () => {
 			const app = createApiApp({
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
-				corpusSource: directorySource(corpus),
+				readCorpusSource: fixedCorpusSource(directorySource(corpus)),
 			});
 
 			const response = await app.request("/api/runs");
@@ -306,7 +307,7 @@ describe(createApiApp.name, () => {
 			const app = createApiApp({
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
-				corpusSource: directorySource(corpus),
+				readCorpusSource: fixedCorpusSource(directorySource(corpus)),
 			});
 
 			const response = await app.request("/api/runs");
@@ -353,7 +354,7 @@ describe(createApiApp.name, () => {
 			const app = createApiApp({
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
-				corpusSource: directorySource(corpus),
+				readCorpusSource: fixedCorpusSource(directorySource(corpus)),
 			});
 
 			const response = await app.request("/api/runs");
@@ -388,7 +389,7 @@ describe(createApiApp.name, () => {
 				const app = createApiApp({
 					runsDirectory: fixture.runsDirectory,
 					liveness: nothingRunning,
-					corpusSource: directorySource(corpus),
+					readCorpusSource: fixedCorpusSource(directorySource(corpus)),
 				});
 				const response = await app.request("/api/runs");
 				const body = runHistoryResponseSchema.parse(await response.json());
@@ -422,7 +423,9 @@ describe(createApiApp.name, () => {
 			const app = createApiApp({
 				runsDirectory: root,
 				liveness: nothingRunning,
-				corpusSource: directorySource(await corpusDirectory()),
+				readCorpusSource: fixedCorpusSource(
+					directorySource(await corpusDirectory()),
+				),
 			});
 
 			const response = await app.request("/api/runs");
@@ -447,7 +450,7 @@ describe(createApiApp.name, () => {
 				const app = createApiApp({
 					runsDirectory: fixture.runsDirectory,
 					liveness: nothingRunning,
-					corpusSource,
+					readCorpusSource: fixedCorpusSource(corpusSource),
 				});
 
 				const response = await app.request("/api/runs");
@@ -525,7 +528,7 @@ describe(createApiApp.name, () => {
 			const app = createApiApp({
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
-				corpusSource: directorySource(corpus),
+				readCorpusSource: fixedCorpusSource(directorySource(corpus)),
 			});
 
 			const firstResponse = await app.request("/api/runs");
@@ -570,7 +573,7 @@ describe(createApiApp.name, () => {
 			const app = createApiApp({
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
-				corpusSource: directorySource(corpus),
+				readCorpusSource: fixedCorpusSource(directorySource(corpus)),
 			});
 			const expected = new Map<string, object>([
 				[`/attempts/session/${caseId}/${uuid}`, { kind: "session", id: uuid }],
@@ -680,7 +683,7 @@ describe(createApiApp.name, () => {
 			const app = createApiApp({
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
-				corpusSource: directorySource(corpus),
+				readCorpusSource: fixedCorpusSource(directorySource(corpus)),
 			});
 
 			const response = await app.request(
@@ -744,7 +747,7 @@ describe(createApiApp.name, () => {
 			const app = createApiApp({
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
-				corpusSource: directorySource(corpus),
+				readCorpusSource: fixedCorpusSource(directorySource(corpus)),
 			});
 
 			const response = await app.request(
@@ -784,7 +787,7 @@ describe(createApiApp.name, () => {
 			const app = createApiApp({
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
-				corpusSource: directorySource(corpus),
+				readCorpusSource: fixedCorpusSource(directorySource(corpus)),
 			});
 
 			const response = await app.request(
@@ -825,7 +828,7 @@ describe(createApiApp.name, () => {
 			const app = createApiApp({
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
-				corpusSource: directorySource(corpus),
+				readCorpusSource: fixedCorpusSource(directorySource(corpus)),
 			});
 
 			const response = await app.request(
@@ -860,7 +863,11 @@ describe(createApiApp.name, () => {
 			const app = createApiApp({
 				runsDirectory: await emptyDirectory("rehearse-api-runs-"),
 				liveness: nothingRunning,
-				corpusSource: { kind: "live", root: corpus, backingRoot },
+				readCorpusSource: fixedCorpusSource({
+					kind: "live",
+					root: corpus,
+					backingRoot,
+				}),
 			});
 
 			const response = await app.request("/api/corpus");
@@ -888,7 +895,7 @@ describe(createApiApp.name, () => {
 			const app = createApiApp({
 				runsDirectory,
 				liveness: nothingRunning,
-				corpusSource: directorySource(corpus),
+				readCorpusSource: fixedCorpusSource(directorySource(corpus)),
 			});
 
 			const response = await app.request("/api/corpus");
@@ -910,7 +917,7 @@ describe(createApiApp.name, () => {
 			const app = createApiApp({
 				runsDirectory: await emptyDirectory("rehearse-api-runs-"),
 				liveness: nothingRunning,
-				corpusSource: directorySource(corpus),
+				readCorpusSource: fixedCorpusSource(directorySource(corpus)),
 			});
 
 			const response = await app.request("/api/corpus");
@@ -937,7 +944,7 @@ describe(createApiApp.name, () => {
 			const app = createApiApp({
 				runsDirectory: await emptyDirectory("rehearse-api-runs-"),
 				liveness: nothingRunning,
-				corpusSource: directorySource(corpus),
+				readCorpusSource: fixedCorpusSource(directorySource(corpus)),
 			});
 
 			const response = await app.request("/api/corpus");
@@ -960,7 +967,7 @@ describe(createApiApp.name, () => {
 			const app = createApiApp({
 				runsDirectory: await emptyDirectory("rehearse-api-runs-"),
 				liveness: nothingRunning,
-				corpusSource: directorySource(corpus),
+				readCorpusSource: fixedCorpusSource(directorySource(corpus)),
 			});
 
 			const response = await app.request("/api/corpus");
@@ -986,7 +993,7 @@ describe(createApiApp.name, () => {
 			const app = createApiApp({
 				runsDirectory: await emptyDirectory("rehearse-api-runs-"),
 				liveness: nothingRunning,
-				corpusSource: directorySource(corpus),
+				readCorpusSource: fixedCorpusSource(directorySource(corpus)),
 			});
 
 			const response = await app.request("/api/corpus");
@@ -1021,7 +1028,7 @@ describe(createApiApp.name, () => {
 				const app = createApiApp({
 					runsDirectory: await emptyDirectory("rehearse-api-runs-"),
 					liveness: nothingRunning,
-					corpusSource: directorySource(corpus),
+					readCorpusSource: fixedCorpusSource(directorySource(corpus)),
 				});
 
 				const response = await app.request("/api/corpus");
@@ -1045,7 +1052,11 @@ describe(createApiApp.name, () => {
 			const app = createApiApp({
 				runsDirectory: await emptyDirectory("rehearse-api-runs-"),
 				liveness: nothingRunning,
-				corpusSource: { kind: "live", root: corpus, backingRoot },
+				readCorpusSource: fixedCorpusSource({
+					kind: "live",
+					root: corpus,
+					backingRoot,
+				}),
 			});
 
 			const response = await app.request("/api/corpus");
@@ -1085,7 +1096,7 @@ describe(createApiApp.name, () => {
 				app: createApiApp({
 					runsDirectory,
 					liveness: nothingRunning,
-					corpusSource: source,
+					readCorpusSource: fixedCorpusSource(source),
 				}),
 				older: older.digest,
 			};
@@ -1179,7 +1190,7 @@ describe(createApiApp.name, () => {
 			const app = createApiApp({
 				runsDirectory,
 				liveness: nothingRunning,
-				corpusSource: source,
+				readCorpusSource: fixedCorpusSource(source),
 			});
 
 			const response = await app.request(
@@ -1230,7 +1241,7 @@ describe(createApiApp.name, () => {
 			const app = createApiApp({
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
-				corpusSource: directorySource(corpus),
+				readCorpusSource: fixedCorpusSource(directorySource(corpus)),
 			});
 
 			const response = await app.request(
@@ -1264,7 +1275,9 @@ describe(createApiApp.name, () => {
 			const app = createApiApp({
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
-				corpusSource: directorySource(await corpusDirectory()),
+				readCorpusSource: fixedCorpusSource(
+					directorySource(await corpusDirectory()),
+				),
 			});
 
 			const response = await app.request(
@@ -1292,7 +1305,7 @@ describe(createApiApp.name, () => {
 			const app = createApiApp({
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
-				corpusSource: directorySource(corpus),
+				readCorpusSource: fixedCorpusSource(directorySource(corpus)),
 			});
 
 			const response = await app.request(
@@ -1314,7 +1327,9 @@ describe(createApiApp.name, () => {
 			const app = createApiApp({
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
-				corpusSource: directorySource(await corpusDirectory()),
+				readCorpusSource: fixedCorpusSource(
+					directorySource(await corpusDirectory()),
+				),
 			});
 
 			const response = await app.request("/api/groups/no-such-group/reads");
@@ -1328,7 +1343,9 @@ describe(createApiApp.name, () => {
 			const app = createApiApp({
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
-				corpusSource: directorySource(await corpusDirectory()),
+				readCorpusSource: fixedCorpusSource(
+					directorySource(await corpusDirectory()),
+				),
 			});
 
 			const response = await app.request("/api/groups/..%2F..%2Fetc/reads");
@@ -1353,7 +1370,9 @@ describe(createApiApp.name, () => {
 			const app = createApiApp({
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
-				corpusSource: directorySource(await corpusDirectory()),
+				readCorpusSource: fixedCorpusSource(
+					directorySource(await corpusDirectory()),
+				),
 			});
 
 			const response = await app.request(
@@ -1378,7 +1397,9 @@ describe(createApiApp.name, () => {
 			const app = createApiApp({
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
-				corpusSource: directorySource(await corpusDirectory()),
+				readCorpusSource: fixedCorpusSource(
+					directorySource(await corpusDirectory()),
+				),
 			});
 
 			const response = await app.request(
@@ -1393,7 +1414,9 @@ describe(createApiApp.name, () => {
 			const app = createApiApp({
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
-				corpusSource: directorySource(await corpusDirectory()),
+				readCorpusSource: fixedCorpusSource(
+					directorySource(await corpusDirectory()),
+				),
 			});
 
 			const response = await app.request(
@@ -1410,7 +1433,9 @@ describe(createApiApp.name, () => {
 			const app = createApiApp({
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
-				corpusSource: directorySource(await corpusDirectory()),
+				readCorpusSource: fixedCorpusSource(
+					directorySource(await corpusDirectory()),
+				),
 			});
 			const id = `checkpoint:${fixture.replayableRun}/no-such-stage`;
 
@@ -1449,7 +1474,9 @@ describe(createApiApp.name, () => {
 			const app = createApiApp({
 				runsDirectory,
 				liveness: nothingRunning,
-				corpusSource: directorySource(await corpusDirectory()),
+				readCorpusSource: fixedCorpusSource(
+					directorySource(await corpusDirectory()),
+				),
 			});
 
 			const response = await app.request("/api/runs/run-1/events");
@@ -1496,7 +1523,9 @@ describe(createApiApp.name, () => {
 			const app = createApiApp({
 				runsDirectory,
 				liveness: nothingRunning,
-				corpusSource: directorySource(await corpusDirectory()),
+				readCorpusSource: fixedCorpusSource(
+					directorySource(await corpusDirectory()),
+				),
 			});
 
 			const response = await app.request("/api/runs/run-1/events");
@@ -1516,7 +1545,9 @@ describe(createApiApp.name, () => {
 			const app = createApiApp({
 				runsDirectory,
 				liveness: nothingRunning,
-				corpusSource: directorySource(await corpusDirectory()),
+				readCorpusSource: fixedCorpusSource(
+					directorySource(await corpusDirectory()),
+				),
 			});
 			const controller = new AbortController();
 
@@ -1548,7 +1579,9 @@ describe(createApiApp.name, () => {
 			const app = createApiApp({
 				runsDirectory,
 				liveness: nothingRunning,
-				corpusSource: directorySource(await corpusDirectory()),
+				readCorpusSource: fixedCorpusSource(
+					directorySource(await corpusDirectory()),
+				),
 			});
 			const controller = new AbortController();
 			const response = await app.request("/api/runs/quiet-run/events", {
@@ -1587,7 +1620,9 @@ describe(createApiApp.name, () => {
 			const app = createApiApp({
 				runsDirectory: root,
 				liveness: nothingRunning,
-				corpusSource: directorySource(await corpusDirectory()),
+				readCorpusSource: fixedCorpusSource(
+					directorySource(await corpusDirectory()),
+				),
 			});
 			app.get("/api/throws", () => {
 				throw new Error(`boom at ${CONTROL_DIR}/secret.json`);
@@ -1608,7 +1643,7 @@ describe(createApiApp.name, () => {
 			const app = createApiApp({
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
-				corpusSource: directorySource(corpus),
+				readCorpusSource: fixedCorpusSource(directorySource(corpus)),
 			});
 
 			const response = await app.request("/api/runs");
@@ -1686,7 +1721,9 @@ describe(createApiApp.name, () => {
 			return createApiApp({
 				runsDirectory,
 				liveness: nothingRunning,
-				corpusSource: directorySource(await corpusDirectory()),
+				readCorpusSource: fixedCorpusSource(
+					directorySource(await corpusDirectory()),
+				),
 			});
 		}
 
