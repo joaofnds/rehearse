@@ -68,7 +68,7 @@ async function logDirectory(
  * torn body. Two writers of one content-addressed path write the same bytes,
  * so whichever rename lands last changes nothing.
  */
-async function writeWhole(
+export async function writeWhole(
 	file: string,
 	contents: string | Readonly<Uint8Array>,
 ): Promise<void> {

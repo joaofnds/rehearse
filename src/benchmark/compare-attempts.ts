@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, relative } from "node:path";
 import { deriveBaselineCorpus } from "./baseline-corpus";
@@ -14,6 +14,7 @@ import {
 	corpusVersionDigest,
 	readCorpusVersion,
 	readCorpusVersionFile,
+	writeWhole,
 } from "./corpus-version";
 import { RefusedPreconditionError } from "./exit-codes";
 import { confirmationGroupPaths } from "./run-layout";
@@ -165,6 +166,8 @@ async function assertComparableArms(
 /**
  * Writes the baseline corpus out of arm A's recorded version, under the
  * digest of the files it holds, so a replay can run it as a directory corpus.
+ * Each file is written whole and owner-only, as the store holds it, since two
+ * comparisons deriving the same baseline share its directory.
  */
 async function materializeBaselineCorpus(
 	runsDirectory: string,
@@ -178,8 +181,10 @@ async function materializeBaselineCorpus(
 		corpusVersionDigest(hashed),
 	);
 	for (const { path } of hashed) {
-		await Bun.write(
-			join(directory, path),
+		const file = join(directory, path);
+		await mkdir(dirname(file), { recursive: true });
+		await writeWhole(
+			file,
 			await readCorpusVersionFile(runsDirectory, armADigest, path),
 		);
 	}

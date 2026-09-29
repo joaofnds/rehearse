@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import { Glob } from "bun";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { compareAttempts } from "./compare-attempts";
@@ -275,6 +275,28 @@ describe(compareAttempts.name, () => {
 			]);
 			const review = Bun.file(join(corpusDirectory, "skills/review/SKILL.md"));
 			expect(await review.text()).toBe("review\n");
+		});
+
+		it("writes the baseline corpus readable by its owner only, as the store keeps it", async () => {
+			const arms = await recordedArms();
+			const armA = await arms.recordArm("baseline", {
+				...SHARED,
+				"skills/build/SKILL.md": "build\n",
+			});
+			const armB = await arms.recordArm("candidate", {
+				...SHARED,
+				"skills/build/SKILL.md": "revised build\n",
+			});
+
+			await compareAttempts(
+				{ runsDirectory: arms.runsDirectory, armA, armB },
+				{ runBaselineGroup: arms.runBaselineGroup },
+			);
+
+			const review = await stat(
+				join(arms.baselineCorpusDirectory(), "skills/review/SKILL.md"),
+			);
+			expect(review.mode % 0o1000).toBe(0o600);
 		});
 	});
 
