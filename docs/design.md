@@ -7,15 +7,15 @@ records the gaps in its implementation.
 
 ## Components
 
-| Location                              | Responsibility                                                                                                                                   |
-| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [`rehearse.ts`](../rehearse.ts)       | Bun version gate and command dispatch                                                                                                            |
-| [`src/cli/`](../src/cli/)             | Command definitions, argument policy, terminal gates, output, and harness wiring                                                                 |
-| [`src/benchmark/`](../src/benchmark/) | Case loading, provider invocation, execution, grading, checkpoints, records, and comparisons                                                     |
-| [`src/server/`](../src/server/)       | Read API, the guarded launch route, derived reports, event streaming, startup reconciliation, target liveness probing, and static client serving |
-| [`client/src/`](../client/src/)       | React routes and shared design system                                                                                                            |
-| [`cases/`](../cases/)                 | Benchmark declarations, fixtures, transcript prefixes, tasks, and rubrics                                                                        |
-| `.benchmark-runs/`                    | Local evidence, confirmation groups, comparisons, launch records, settings, and event database                                                   |
+| Location                              | Responsibility                                                                                                                                                 |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`rehearse.ts`](../rehearse.ts)       | Bun version gate and command dispatch                                                                                                                          |
+| [`src/cli/`](../src/cli/)             | Command definitions, argument policy, terminal gates, output, and harness wiring                                                                               |
+| [`src/benchmark/`](../src/benchmark/) | Case loading, provider invocation, execution, grading, checkpoints, records, and comparisons                                                                   |
+| [`src/server/`](../src/server/)       | Read API, the guarded launch and settings routes, derived reports, event streaming, startup reconciliation, target liveness probing, and static client serving |
+| [`client/src/`](../client/src/)       | React routes and shared design system                                                                                                                          |
+| [`cases/`](../cases/)                 | Benchmark declarations, fixtures, transcript prefixes, tasks, and rubrics                                                                                      |
+| `.benchmark-runs/`                    | Local evidence, confirmation groups, comparisons, launch records, settings, and event database                                                                 |
 
 Zod validates case and record boundaries. Bun's test runner covers the harness
 and server; the client suite uses a DOM environment. The current client uses
@@ -71,7 +71,8 @@ including unsuccessful and execution-failed attempts.
 ## Instruction and evidence identity
 
 The control repository holds the harness and case definitions. The corpus under
-evaluation comes from `~/.claude` or an explicit directory in corpus layout.
+evaluation comes from `~/.claude`, from a directory in corpus layout linked in
+the settings, or from a directory passed with `--corpus`.
 A target's own instructions are separate project inputs.
 
 Checkpoints record source commits, workflow state, artifacts, corpus digests,

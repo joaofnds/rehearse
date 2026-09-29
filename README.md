@@ -76,7 +76,7 @@ mise exec -- bun run build:client
 mise exec -- bun run serve
 ```
 
-A fresh clone has no run history. Available views cover run history, the live
+A fresh clone has no run history. Available views cover run history, the linked
 corpus, saved comparisons, saved session-attempt history, and the design system.
 The run history shows a run that is executing, with its stage, elapsed time, and
 spend. New run on run history and Replay from here on a pipeline stage start a

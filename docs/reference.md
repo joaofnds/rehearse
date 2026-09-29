@@ -165,11 +165,15 @@ ceiling. The records location is read-only there, because
 `PUT /api/settings/spend-ceiling` with `{ "usd": <number> }` stores a positive
 ceiling and answers 400 for anything else. `PUT /api/settings/corpus` with
 `{ "directory": <path> }` links a directory in corpus layout and answers 409
-for one that is not, and `DELETE /api/settings/corpus` unlinks it. These three
-answer the new settings. `POST /api/settings/corpus/rehash` measures the linked
-corpus now, recording its version, and answers `{ label, digest }`, or 409
-naming why the layout cannot be measured. An unreadable settings file makes
-every settings route answer 409.
+for one that is not. The path must be absolute, since the server does not share
+the browser's working directory, and a relative one answers 400.
+`DELETE /api/settings/corpus` unlinks it. These three answer the new settings,
+with the same fields as `GET /api/settings`: `spendCeilingUsd`,
+`setCommand`, `recordsDirectory`, `linkedCorpus` and
+`overrun`. `POST /api/settings/corpus/rehash` measures the linked
+corpus now, or the live install when nothing is linked, recording its version,
+and answers `{ label, digest }`, or 409 naming why the layout cannot be
+measured. An unreadable settings file makes every settings route answer 409.
 
 `/api/runs` lists each launch in `launches`, apart from `rows`, while its pid
 is alive, and leaves it out while a pipeline run shows as running under that
@@ -574,13 +578,27 @@ rulebook/...
 Absent `--corpus`, a command reads the linked corpus. `settings --link-corpus
 <dir>` (or `PUT /api/settings/corpus`) stores a directory in corpus layout as
 `linkedCorpusDirectory` in `settings.json`, and `settings --unlink-corpus` (or
-`DELETE /api/settings/corpus`) removes it. Replay, session attempts, `stale`,
-calibration, the corpus commands and the browser's corpus and run reads then
-treat the linked directory as if it were passed with `--corpus`, re-checking it
-on every read. A pipeline `run` refuses before the model probe while a
-directory is linked, naming the command that unlinks it, because a pipeline run
-measures only the live install. With nothing linked, the corpus is the live
-install.
+`DELETE /api/settings/corpus`) removes it. Replay, session `run` and session
+attempts, `stale`, `show group:<id>`, the corpus commands and the browser's
+corpus and run reads then treat the linked directory as if it were passed with
+`--corpus`, re-checking it on every read. A replay of the linked directory also
+runs with project-level settings preferred, as a replay given `--corpus` does.
+A pipeline `run` refuses before the model probe while a directory is linked,
+naming the command that unlinks it, because a pipeline run measures only the
+live install. For the same reason `calibrate` names the live install's
+instructions as its edit target whether or not a directory is linked. With
+nothing linked, the corpus is the live install.
+
+Linking changes what run history reports as stale, because `stale`, `show` and
+the run list judge recorded reads against the linked directory rather than the
+live install. Unlink to read staleness against the live install again.
+
+A linked directory that is later moved or emptied is not a corpus any more.
+Every command that would read it refuses with exit code 3, and the browser's
+corpus and run reads answer 409, naming the directory and the commands that
+link another or unlink it. `show group:<id>` still lists the reads, unjudged.
+`GET /api/settings` still answers, naming the directory that is linked, so the
+settings routes can recover from it.
 
 The live source permits files under `~/.claude` and one
 external backing tree. `BENCHMARK_LIVE_CORPUS_BACKING_ROOT` selects that tree
@@ -1098,8 +1116,8 @@ missing. A version the store does not hold, or a file the version does not
 hold, answers 404, and an ambiguous prefix answers 409 with its `candidates`.
 `/api/corpus` names the live tree by its full version `digest`, computed
 without writing to the store, and omits it when any entry refused hashing.
-Until a run, replay or session attempt measures that tree, the store does not
-hold its version, so the rail's `corpus@` label can name a version that answers 404.
+Until a run, replay, session attempt or rehash measures that tree, the store
+does not hold its version, so the rail's `corpus@` label can name a version that answers 404.
 
 `corpus invalidation [--corpus <dir>]` prints one line per corpus file,
 `<read-by>\t<invalidated>\t<path>`, then the last edit's line and the id of
@@ -1348,8 +1366,8 @@ empty when every entry was judged. An id that names no group is refused with
 404 and one that escapes the records directory with 400.
 
 `show group:<id>` prints the same reads as a table after the group's cost,
-with the first 12 characters of each file's hash, judged against the live
-install as `stale` judges by default. A line under the table names that
+with the first 12 characters of each file's hash, judged against the linked
+corpus as `stale` judges by default. A line under the table names that
 corpus, because the states follow the corpus as it is when `show` runs and
 the rest of the summary follows the record alone. Each reason prints on its
 own line. A live install that does not resolve lists the reads with no state

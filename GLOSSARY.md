@@ -273,7 +273,8 @@ See [current state](docs/status.md) for implementation coverage and
   `--corpus`: a directory already in corpus layout, and nothing else. A corpus
   that lives somewhere else is rendered to a directory with whatever tool owns
   it, outside Rehearse, and that directory is passed. Absent `--corpus` the
-  source is the live install. Whether bytes are copied and delivered depends on
+  source is the directory linked in the settings, or the live install when
+  none is linked. Whether bytes are copied and delivered depends on
   the execution mode, as described in the reference support matrix.
   The live source's permitted extent is its install root and one backing tree
   declared outside the corpus. A link may resolve within either tree; the
@@ -423,7 +424,7 @@ See [current state](docs/status.md) for implementation coverage and
 - **Record summary** — the short markdown a session pastes onto a card,
   computed as a pure function of one parsed record: for a run its stages,
   grades, verdict, and cost; for a group its reliability summary and cost,
-  and its reps' reads, whose states are judged against the live install when
+  and its reps' reads, whose states are judged against the linked corpus when
   `show` runs, so that one section follows the corpus and names it; for
   a comparison its per-case paired deltas beside the control arm, or, for a
   single-case session comparison, its sampling unit, each arm's own interval,

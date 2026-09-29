@@ -180,7 +180,7 @@ A corpus that cannot supply a file a record hashed, including a missing,
 unreadable, or escaping `CLAUDE.md`, is reported as that record's cause rather
 than refusing the whole report.
 
-## Configure a linked live corpus
+## Configure a symlinked live install
 
 Commands that use the live corpus read instructions from `~/.claude`. If your
 instruction files link into a backing tree other than the default `~/.agents`,
@@ -204,14 +204,23 @@ instead of the live install, link it once. This costs nothing:
 mise exec -- bun run rehearse settings --link-corpus /absolute/path/to/corpus
 ```
 
-`settings` then names the linked directory, and replay, session attempts,
-`stale`, the corpus commands and the browser read it. A pipeline `run` refuses
-while a directory is linked, because it measures only the live install, and
-names the command that returns to the live install:
+`settings` then names the linked directory, and replay, session runs and
+attempts, `stale`, `show group:<id>`, the corpus commands and the browser read
+it. A pipeline `run` refuses while a directory is linked, because it measures
+only the live install, and names the command that returns to the live install:
 
 ```sh
 mise exec -- bun run rehearse settings --unlink-corpus
 ```
+
+Calibration always edits the live install's instructions, since the pipeline
+runs it calibrates measured the live install. Staleness in run history is
+judged against the linked directory while one is linked, so unlink before
+reading staleness against the live install.
+
+If the linked directory is moved or emptied, those commands refuse with exit
+code 3 and the browser's corpus and run pages answer 409, each naming the
+directory. Link another directory, or unlink as above, to recover.
 
 ## Use a pipeline on a prepared target
 
@@ -229,8 +238,8 @@ will need its own case, rubrics, and pipeline.
 The control repository must be committed and clean. The target must be a
 separate clean Git repository root on `main`. The workflow needs the installed
 skills named by the pipeline, the corpus's global instructions, and working
-Backlog.md configuration. For linked instruction files, follow
-[live-corpus setup](#configure-a-linked-live-corpus).
+Backlog.md configuration. For instruction files symlinked into another tree,
+follow [symlinked live install setup](#configure-a-symlinked-live-install).
 
 When a target has no board, the harness initializes one under `backlog/` with
 the pinned Backlog.md CLI and excludes its workflow state through the
@@ -311,7 +320,8 @@ mise exec -- bun run serve
 ```
 
 Open `http://localhost:4173`. `PORT` overrides the server port. The server reads
-local records and the live corpus. It has no authentication and binds to
+local records and the linked corpus, or the live install when nothing is
+linked. It has no authentication and binds to
 `127.0.0.1`; do not forward its port or otherwise expose it as a public service.
 
 New run on the run history page starts a case, and Replay from here on a
@@ -330,14 +340,15 @@ row offers Pause after this step, which ends the run once the stage in progress
 is judged, unless that stage is the last. See
 [browser launches](reference.md#browser-launches).
 
-For linked instruction files, configure the server's shell using
-[live-corpus setup](#configure-a-linked-live-corpus). A layout directory or file
+For instruction files symlinked into another tree, configure the server's
+shell using [symlinked live install setup](#configure-a-symlinked-live-install). A layout directory or file
 entry selected for reading that the harness cannot hash, because it leaves the
 permitted extent, never resolves, cannot be read, or has the wrong file type,
 produces a named refusal and withholds the corpus digest. Healthy layout
 directories remain visible. An unavailable instruction file or a refusal while
 hashing a selected layout directory becomes a staleness cause, so run history
-stays readable.
+stays readable. A linked directory that is no longer a corpus is the exception,
+and run history answers 409 until you link another or unlink it.
 
 See [current UI coverage](status.md#browser-ui) for available routes and planned
 controls. An empty run-history page is expected in a fresh clone.

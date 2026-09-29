@@ -92,7 +92,7 @@ const sessionFlags: readonly FlagDefinition[] = [
 const corpusFlag: FlagDefinition = {
 	name: "--corpus",
 	kind: "value",
-	defaultValue: "the live install",
+	defaultValue: "the linked corpus, or the live install when none is linked",
 	help: "Corpus under test: a directory in corpus layout",
 };
 
@@ -316,7 +316,7 @@ export const COMMANDS: readonly CommandDefinition[] = [
 			{
 				name: "--link-corpus",
 				kind: "value",
-				help: "Directory in corpus layout that replays and session attempts measure when no --corpus is given",
+				help: "Directory in corpus layout that commands measure when no --corpus is given; a pipeline run refuses while one is linked",
 			},
 			{
 				name: "--unlink-corpus",
