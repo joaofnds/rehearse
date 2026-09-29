@@ -14,6 +14,7 @@ import {
 	INITIAL_CHECKPOINT_STAGE,
 	parseCheckpointRecord,
 	snapshotStageCorpus,
+	snapshotStageCorpusWithoutSkill,
 	stageCorpusRoots,
 } from "./checkpoint";
 import { frozenDirectoryFiles, writeFrozenFile } from "./confirmation-evidence";
@@ -1545,9 +1546,13 @@ export class RecordedRunsFixture {
 	/**
 	 * Freezes every stage corpus and the pipeline into the stage group from a
 	 * real corpus, the way confirmation freezes them, and records the version
-	 * it measured.
+	 * it measured. A stage named `withoutSkillOf` is frozen without its own
+	 * skill, as a comparison's control group freezes it.
 	 */
-	public async recordGroupFrom(source: CorpusRoot): Promise<void> {
+	public async recordGroupFrom(
+		source: CorpusRoot,
+		withoutSkillOf?: string,
+	): Promise<void> {
 		const paths = confirmationGroupPaths(this.runsDirectory, this.groupId);
 		const record = group(this.groupId);
 		const { pipeline } = manifest(this.replayableRun, this.sourceRoot);
@@ -1556,7 +1561,11 @@ export class RecordedRunsFixture {
 		).text();
 		const corpusDirectory = join(paths.inputsDirectory, "corpus");
 		for (const stage of pipeline.stages) {
-			await snapshotStageCorpus(
+			const snapshot =
+				stage.name === withoutSkillOf
+					? snapshotStageCorpusWithoutSkill
+					: snapshotStageCorpus;
+			await snapshot(
 				stage.skill,
 				instructions,
 				stageCorpusRoots(source, this.sourceRoot),

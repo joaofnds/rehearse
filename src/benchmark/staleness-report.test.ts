@@ -1372,6 +1372,27 @@ describe(groupStaleness.name, () => {
 		]);
 	});
 
+	it("reports a group frozen without its stage's own skill clean when nothing it froze changed", async () => {
+		const corpus = await stageCorpus();
+		await rm(join(corpus, "skills", "build"), { recursive: true });
+		const fixture = new RecordedRunsFixture(
+			await temporaryDirectory("rehearse-group-staleness-"),
+		);
+		await fixture.write();
+		await fixture.recordGroupFrom(directorySource(corpus), "build");
+		await mkdir(join(corpus, "skills", "build"), { recursive: true });
+		await Bun.write(join(corpus, "skills", "build", "SKILL.md"), "build\n");
+
+		const report = await groupStaleness(
+			fixture.runsDirectory,
+			directorySource(corpus),
+		);
+
+		expect(report.records).toEqual([
+			expect.objectContaining({ stale: false, causes: [] }),
+		]);
+	});
+
 	it("names each frozen session corpus file that changed", async () => {
 		const corpus = await temporaryDirectory("rehearse-group-style-");
 		await mkdir(join(corpus, "output-styles"), { recursive: true });

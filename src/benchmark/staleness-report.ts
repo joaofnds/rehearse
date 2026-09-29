@@ -1335,14 +1335,39 @@ async function frozenStageCorpora(
 			continue;
 		}
 
+		const current = await stageCorpusNow(stage.skill, instructions, source);
 		stages.push({
 			stage,
 			corpusFiles,
-			current: await stageCorpusNow(stage.skill, instructions, source),
+			current: frozeOwnSkill(corpusFiles, stage.skill)
+				? current
+				: withoutSkill(current, stage.skill),
 		});
 	}
 
 	return stages;
+}
+
+/**
+ * A stage replay freezes its own skill unless it ran without it, as a
+ * comparison's control group does, and a group that ran without it is judged
+ * on the rest of the stage's corpus.
+ */
+function frozeOwnSkill(
+	corpusFiles: readonly HashedFile[],
+	skill: string,
+): boolean {
+	return corpusFiles.some(({ path }) => path.startsWith(`skills/${skill}/`));
+}
+
+function withoutSkill(corpus: StageCorpus, skill: string): StageCorpus {
+	if ("refused" in corpus) {
+		return corpus;
+	}
+
+	return hashedCorpus(
+		corpus.hashed.filter(({ path }) => !path.startsWith(`skills/${skill}/`)),
+	);
 }
 
 /**
