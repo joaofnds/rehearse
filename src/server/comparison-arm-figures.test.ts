@@ -29,10 +29,15 @@ describe(armFigures.name, () => {
 				quality: [buildSummary(Object.fromEntries([["C", 4]]))],
 				resources: {
 					status: "UNAVAILABLE",
-					completeReps: 3,
-					missingMetricReps: 1,
+					completeReps: 2,
+					missingMetricReps: 2,
 					missingEvidence: [
 						{ repId: "rep-2", ordinal: 2, missing: ["worker cost"] },
+						{
+							repId: "rep-4",
+							ordinal: 4,
+							missing: ["worker cost", "stage-judge cost"],
+						},
 					],
 				},
 			},
@@ -41,7 +46,42 @@ describe(armFigures.name, () => {
 
 		expect(figures.cost).toEqual({
 			state: "unavailable",
-			reasons: ["rep-2 lacks worker cost"],
+			reasons: [
+				"rep-2 lacks worker cost",
+				"rep-4 lacks worker cost, stage-judge cost",
+			],
+		});
+	});
+
+	it("counts a rep that never reached the measure as a failed attempt", () => {
+		const figures = armFigures(
+			{
+				quality: [
+					{
+						...buildSummary({ PASS: 2, FAIL: 0 }),
+						name: "final",
+						attempted: 2,
+						notReached: 2,
+						failed: 2,
+						successful: 2,
+					},
+				],
+				resources: {
+					status: "UNAVAILABLE",
+					completeReps: 0,
+					missingMetricReps: 4,
+					missingEvidence: [
+						{ repId: "rep-1", ordinal: 1, missing: ["worker cost"] },
+					],
+				},
+			},
+			() => "successRate",
+		);
+
+		expect(figures.measures["final"]).toEqual({
+			scale: "successRate",
+			successful: 2,
+			attempts: 4,
 		});
 	});
 

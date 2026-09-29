@@ -89,6 +89,18 @@ describe(qualityReading.name, () => {
 				subtrahend: { low: "1%", high: "35%" },
 			});
 		});
+
+		it("counts a rep that never reached the measure as a failed attempt", () => {
+			const reading = qualityReading({
+				minuend: { ...sessionSummary(2, 4), attempted: 2, notReached: 2 },
+				subtrahend: sessionSummary(0, 4),
+				minuendArm: "candidate",
+				subtrahendArm: "baseline",
+				scale: "successRate",
+			});
+
+			expect(reading.interval.minuend).toEqual({ low: "15%", high: "85%" });
+		});
 	});
 
 	it("reads inside rerun noise when a declared-stage measure's grade spans overlap", () => {

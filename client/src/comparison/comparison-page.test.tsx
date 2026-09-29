@@ -179,8 +179,8 @@ function comparisonResponseBody(): ComparisonResponseFixture {
 				candidateMinusBaseline: {
 					checks: {
 						interval: {
-							minuend: { low: "A", high: "A" },
-							subtrahend: { low: "A", high: "F" },
+							minuend: { low: "51%", high: "100%" },
+							subtrahend: { low: "15%", high: "85%" },
 						},
 						verdict: { kind: "insideRerunNoise" },
 					},
@@ -188,8 +188,8 @@ function comparisonResponseBody(): ComparisonResponseFixture {
 				candidateMinusControl: {
 					checks: {
 						interval: {
-							minuend: { low: "A", high: "A" },
-							subtrahend: { low: "F", high: "F" },
+							minuend: { low: "51%", high: "100%" },
+							subtrahend: { low: "0%", high: "49%" },
 						},
 						verdict: { kind: "separated", arm: "candidate" },
 					},
@@ -197,8 +197,8 @@ function comparisonResponseBody(): ComparisonResponseFixture {
 				baselineMinusControl: {
 					final: {
 						interval: {
-							minuend: { low: "PASS", high: "PASS" },
-							subtrahend: { low: "PASS", high: "FAIL" },
+							minuend: { low: "51%", high: "100%" },
+							subtrahend: { low: "51%", high: "100%" },
 						},
 						verdict: { kind: "unchangedAlreadyClear" },
 					},
@@ -217,8 +217,8 @@ function comparisonResponseBody(): ComparisonResponseFixture {
 				candidateMinusControl: {
 					checks: {
 						interval: {
-							minuend: { low: "A", high: "F" },
-							subtrahend: { low: "F", high: "F" },
+							minuend: { low: "15%", high: "85%" },
+							subtrahend: { low: "0%", high: "49%" },
 						},
 						verdict: { kind: "insideRerunNoise" },
 					},
@@ -226,8 +226,8 @@ function comparisonResponseBody(): ComparisonResponseFixture {
 				baselineMinusControl: {
 					checks: {
 						interval: {
-							minuend: { low: "A", high: "A" },
-							subtrahend: { low: "F", high: "F" },
+							minuend: { low: "51%", high: "100%" },
+							subtrahend: { low: "0%", high: "49%" },
 						},
 						verdict: { kind: "separated", arm: "baseline" },
 					},
@@ -360,21 +360,21 @@ describe(ComparisonPage.name, () => {
 		expectQualityRow("WHAT MOVED · case-1", {
 			pair: "candidate vs baseline",
 			measure: "checks",
-			intervals: ["candidate A to A", "baseline A to F"],
+			intervals: ["candidate 51% to 100%", "baseline 15% to 85%"],
 			verdict: "inside rerun noise",
 			glyph: "~",
 		});
 		expectQualityRow("WHAT MOVED · case-1", {
 			pair: "candidate vs control",
 			measure: "checks",
-			intervals: ["candidate A to A", "control F to F"],
+			intervals: ["candidate 51% to 100%", "control 0% to 49%"],
 			verdict: "candidate separates",
 			glyph: "↑",
 		});
 		expectQualityRow("WHAT MOVED · case-1", {
 			pair: "baseline vs control",
 			measure: "final",
-			intervals: ["baseline PASS to PASS", "control PASS to FAIL"],
+			intervals: ["baseline 51% to 100%", "control 51% to 100%"],
 			verdict: "unchanged, already clear",
 			glyph: "=",
 		});
@@ -388,14 +388,14 @@ describe(ComparisonPage.name, () => {
 		expectQualityRow("WHAT MOVED · case-2", {
 			pair: "candidate vs control",
 			measure: "checks",
-			intervals: ["candidate A to F", "control F to F"],
+			intervals: ["candidate 15% to 85%", "control 0% to 49%"],
 			verdict: "inside rerun noise",
 			glyph: "~",
 		});
 		expectQualityRow("WHAT MOVED · case-2", {
 			pair: "baseline vs control",
 			measure: "checks",
-			intervals: ["baseline A to A", "control F to F"],
+			intervals: ["baseline 51% to 100%", "control 0% to 49%"],
 			verdict: "baseline separates",
 			glyph: "↑",
 		});
