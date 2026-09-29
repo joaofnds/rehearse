@@ -1232,7 +1232,7 @@ describe(SessionHistoryPage.name, () => {
 		expect(alert).toHaveTextContent("Could not load saved history.");
 	});
 
-	it("opens the replay dialog for the stage from Replay from here", async () => {
+	it("opens the replay dialog for this run's stage from Replay from here", async () => {
 		stubFetchByPath(new Map());
 		const client = new QueryClient({
 			defaultOptions: { queries: { retry: false } },
@@ -1249,11 +1249,10 @@ describe(SessionHistoryPage.name, () => {
 			await screen.findByRole("button", { name: "Replay from here" }),
 		);
 
-		expect(
-			await screen.findByRole("dialog", {
-				name: "Replay shape from checkpoint",
-			}),
-		).toBeInTheDocument();
+		const dialog = await screen.findByRole("dialog", {
+			name: "Replay shape from checkpoint",
+		});
+		expect(within(dialog).getByText("run-1")).toBeInTheDocument();
 	});
 
 	it("offers no replay on a page that is not a stage", () => {
