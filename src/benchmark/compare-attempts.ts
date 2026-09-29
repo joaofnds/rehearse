@@ -1,5 +1,4 @@
-import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, rm, rmdir } from "node:fs/promises";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, relative } from "node:path";
 import { z } from "zod";
@@ -8,10 +7,6 @@ import type { BaselineCorpus } from "./baseline-corpus";
 import type { Effort } from "./config";
 import type { Immutable } from "./contracts";
 import type { ConfirmationGroupRecord } from "./confirmation-record";
-import {
-	comparisonBaselineRecordFile,
-	writeComparisonBaselineRecord,
-} from "./comparison-baseline-record";
 import { writeComparisonReport } from "./comparison-command";
 import { loadComparisonEvidence } from "./comparison-loader";
 import type { ComparisonArm, ComparisonManifest } from "./comparison-record";
@@ -25,7 +20,7 @@ import {
 	writeWhole,
 } from "./corpus-version";
 import { RefusedPreconditionError } from "./exit-codes";
-import { comparisonReportPaths, confirmationGroupPaths } from "./run-layout";
+import { confirmationGroupPaths } from "./run-layout";
 import { readShortIds } from "./short-id";
 
 /**
@@ -270,13 +265,6 @@ async function writeManifest(
 	return manifestPath;
 }
 
-/** The manifest's digest, which names its report directory. */
-async function fileDigest(file: string): Promise<string> {
-	return createHash("sha256")
-		.update(await Bun.file(file).bytes())
-		.digest("hex");
-}
-
 function describeCheckpoint({ run, stage }: Checkpoint): string {
 	return `${run} ${stage}`;
 }
@@ -400,42 +388,17 @@ async function runComparison(
 		armA.group.caseId,
 		arms,
 	);
-	const reportDirectory = comparisonReportPaths(
-		request.runsDirectory,
-		await fileDigest(manifestPath),
-	).directory;
-	await writeComparisonBaselineRecord(reportDirectory, {
-		schemaVersion: 2,
-		kind: baseline.kind,
-		skillUnderTest: baseline.skillUnderTest,
-		arms,
-		controlCorpus: basename(corpusDirectory),
+	const reportFile = await writeComparisonReport({
+		manifestPath,
+		runsDirectory: request.runsDirectory,
+		baselineRecord: {
+			schemaVersion: 2,
+			kind: baseline.kind,
+			skillUnderTest: baseline.skillUnderTest,
+			arms,
+			controlCorpus: basename(corpusDirectory),
+		},
 	});
-	let reportFile: string;
-	try {
-		reportFile = await writeComparisonReport({
-			manifestPath,
-			runsDirectory: request.runsDirectory,
-		});
-	} catch (error) {
-		await removeBaselineRecord(reportDirectory);
-		throw error;
-	}
-	if (dirname(reportFile) !== reportDirectory) {
-		throw new Error(
-			`The report was written to ${dirname(reportFile)}, not beside its baseline record in ${reportDirectory}`,
-		);
-	}
 
 	return { reportFile };
-}
-
-/** Without its report, a baseline record lists as an unreadable comparison. */
-async function removeBaselineRecord(reportDirectory: string): Promise<void> {
-	await rm(comparisonBaselineRecordFile(reportDirectory), { force: true });
-	try {
-		await rmdir(reportDirectory);
-	} catch {
-		// The directory holds another file, which stays.
-	}
 }

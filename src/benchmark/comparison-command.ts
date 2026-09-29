@@ -12,11 +12,15 @@ import {
 	serializeComparisonReport,
 } from "./comparison-record";
 import { RefusedPreconditionError } from "./exit-codes";
+import type { ComparisonBaselineRecord } from "./comparison-baseline-record";
+import { writeComparisonBaselineRecord } from "./comparison-baseline-record";
 import { comparisonReportPaths } from "./run-layout";
 
 export interface WriteComparisonReportRequest {
 	readonly manifestPath: string;
 	readonly runsDirectory: string;
+	/** How `compare attempts` made the control group, written beside the report. */
+	readonly baselineRecord?: ComparisonBaselineRecord | undefined;
 }
 
 async function canonicalExistingPath(
@@ -90,6 +94,12 @@ export async function writeComparisonReport(
 	);
 
 	await mkdir(paths.directory, { recursive: true });
+	if (request.baselineRecord !== undefined) {
+		await writeComparisonBaselineRecord(
+			paths.directory,
+			request.baselineRecord,
+		);
+	}
 	await writeReportAtomically(
 		paths.reportFile,
 		serializeComparisonReport(report),

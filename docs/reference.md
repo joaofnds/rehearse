@@ -1618,10 +1618,11 @@ that would resolve a knob, such as a Judge effort, to a value arm A did not
 record is refused before the model probe too, and so is a skill under test
 that is not the stage's own skill in the run's pipeline, the only skill the
 replay can remove. The command then writes the manifest to
-`comparison-manifests/<control-group-id>.json`, writes `baseline.json` in the
-report's directory, then the report as `compare` does, and prints the report's
-path. When the report is refused, for example because the control group
-recorded another model, `baseline.json` is removed again. `baseline.json` records how the control group's corpus was made: `kind` `derived` or
+`comparison-manifests/<control-group-id>.json`, loads the evidence as
+`compare` does, writes `baseline.json` and then the report into the report's
+directory, and prints the report's path. Evidence the loader refuses, for
+example a control group that recorded another model, leaves no report
+directory. `baseline.json` records how the control group's corpus was made: `kind` `derived` or
 `armA`, `skillUnderTest`, `arms` naming each role's group id (`baseline` is arm
 A and `control` is the group the command ran), and `controlCorpus`, the digest
 naming that group's corpus directory. Version 1 records called that field
