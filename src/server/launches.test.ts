@@ -6,6 +6,8 @@ import { z } from "zod";
 import { readLaunchRecord, writeLaunchRecord } from "#benchmark/launch-record";
 import { RecordedRunsFixture } from "#benchmark/run-records-test-support";
 import { benchmarkRunPaths } from "#benchmark/run-layout";
+import type { RunLiveness } from "#benchmark/run-liveness";
+import { pauseRequested } from "#benchmark/run-pause";
 import {
 	SET_SPEND_CEILING_COMMAND,
 	storeSpendCeiling,
@@ -16,6 +18,11 @@ import {
 	FakeLauncher,
 } from "./launch-test-support";
 import { createLaunchApp } from "./launches";
+
+const NOTHING_RUNNING: RunLiveness = {
+	readMarker: () => Promise.resolve(undefined),
+	isAlive: () => false,
+};
 
 const launchedSchema = z.object({ id: z.string() });
 const refusalSchema = z.object({ error: z.string() });
@@ -97,12 +104,14 @@ describe(createLaunchApp.name, () => {
 		readonly post: (body: LaunchRequestBody) => Promise<Response>;
 		readonly get: (path: string) => Promise<Response>;
 		readonly stop: (id: string) => Promise<Response>;
+		readonly pause: (run: string) => Promise<Response>;
 		/** The same records under a new server and launcher, as after a restart. */
 		readonly restarted: () => Promise<Harness>;
 	}
 
 	async function harness(
 		ceiling: "stored" | "missing" = "stored",
+		liveness: RunLiveness = NOTHING_RUNNING,
 	): Promise<Harness> {
 		const runsDirectory = await temporaryDirectory("rehearse-launch-runs-");
 		if (ceiling === "stored") {
@@ -117,12 +126,22 @@ describe(createLaunchApp.name, () => {
 				UNMODELLED_CASE,
 				BROKEN_CASE,
 			]),
+			liveness,
 		);
 	}
 
-	function serving(runsDirectory: string, cases: string): Harness {
+	function serving(
+		runsDirectory: string,
+		cases: string,
+		liveness: RunLiveness,
+	): Harness {
 		const launcher = new FakeLauncher();
-		const app = createLaunchApp({ runsDirectory, casesRoot: cases, launcher });
+		const app = createLaunchApp({
+			runsDirectory,
+			casesRoot: cases,
+			launcher,
+			liveness,
+		});
 
 		return {
 			launcher,
@@ -144,7 +163,15 @@ describe(createLaunchApp.name, () => {
 						body: "{}",
 					}),
 				),
-			restarted: () => Promise.resolve(serving(runsDirectory, cases)),
+			pause: (run) =>
+				Promise.resolve(
+					app.request(`/api/runs/${run}/pause`, {
+						method: "POST",
+						headers: { "content-type": "application/json" },
+						body: "{}",
+					}),
+				),
+			restarted: () => Promise.resolve(serving(runsDirectory, cases, liveness)),
 		};
 	}
 
@@ -553,6 +580,53 @@ describe(createLaunchApp.name, () => {
 					},
 				],
 			});
+		});
+	});
+
+	describe("when a run is paused", () => {
+		const RUN_PID = 4242;
+		const running: RunLiveness = {
+			readMarker: () => Promise.resolve({ pid: RUN_PID }),
+			isAlive: (pid) => pid === RUN_PID,
+		};
+
+		async function runningRun(runsDirectory: string): Promise<string> {
+			const fixture = new RecordedRunsFixture(runsDirectory);
+			await fixture.writeRunningRun();
+
+			return fixture.runningRun;
+		}
+
+		it("asks a RUNNING run to pause after its stage and answers accepted", async () => {
+			const server = await harness("stored", running);
+			const run = await runningRun(server.runsDirectory);
+
+			const response = await server.pause(run);
+
+			expect(response.status).toBe(202);
+			expect(
+				await pauseRequested(benchmarkRunPaths(server.runsDirectory, run)),
+			).toBe(true);
+		});
+
+		it("refuses a run that is no longer running and asks nothing", async () => {
+			const server = await harness();
+			const run = await runningRun(server.runsDirectory);
+
+			const response = await server.pause(run);
+
+			expect(response.status).toBe(409);
+			expect(
+				await pauseRequested(benchmarkRunPaths(server.runsDirectory, run)),
+			).toBe(false);
+		});
+
+		it("refuses a run it has no record of", async () => {
+			const server = await harness("stored", running);
+
+			const response = await server.pause("2026-01-01T00-00-00.000Z");
+
+			expect(response.status).toBe(404);
 		});
 	});
 

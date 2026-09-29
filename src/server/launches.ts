@@ -22,11 +22,16 @@ import {
 	checkpointRecorded,
 	launchPaths,
 	recordedRunNames,
+	runEventsDatabaseFile,
 } from "#benchmark/run-layout";
+import { openRunEventStore } from "#benchmark/run-events";
+import type { RunLiveness } from "#benchmark/run-liveness";
+import { requestPause } from "#benchmark/run-pause";
 import { RefusedPreconditionError } from "#benchmark/exit-codes";
 import type { Settings } from "#benchmark/settings";
 import { readSettings, SET_SPEND_CEILING_COMMAND } from "#benchmark/settings";
 import { redactAbsolutePaths } from "./redact-path";
+import { runStatus } from "./run-status";
 
 /**
  * Starts the CLI with these arguments and answers with the child's pid, and
@@ -45,6 +50,7 @@ export interface LaunchDependencies {
 	readonly runsDirectory: string;
 	readonly casesRoot: string;
 	readonly launcher: Launcher;
+	readonly liveness: RunLiveness;
 }
 
 /**
@@ -275,6 +281,43 @@ async function runningLaunch(
 }
 
 /**
+ * Asks a recorded pipeline run to pause after its current stage, refusing one
+ * whose history row does not read RUNNING: a finished run has no next stage
+ * to hold back, and a request left beside it would pause nothing.
+ */
+async function pauseRun(
+	run: string,
+	dependencies: LaunchDependencies,
+): Promise<void> {
+	const runs = await recordedRunNames(dependencies.runsDirectory);
+	if (!runs.includes(run)) {
+		throw new LaunchRefusalError(`No recorded run ${run}`, 404);
+	}
+	const runEvents = await openRunEventStore(
+		runEventsDatabaseFile(dependencies.runsDirectory),
+	);
+	let status;
+	try {
+		status = await runStatus(
+			dependencies.runsDirectory,
+			run,
+			runEvents,
+			dependencies.liveness,
+		);
+	} finally {
+		runEvents.close();
+	}
+	if (status !== "RUNNING") {
+		throw new LaunchRefusalError(`Run ${run} is not running`, 409);
+	}
+
+	await requestPause(
+		benchmarkRunPaths(dependencies.runsDirectory, run),
+		new Date().toISOString(),
+	);
+}
+
+/**
  * Chained from `new Hono()` for the RPC type, as `createApiApp` explains.
  */
 // oxlint-disable-next-line typescript/explicit-function-return-type, typescript/explicit-module-boundary-types
@@ -365,6 +408,20 @@ export const createLaunchApp = (dependencies: LaunchDependencies) => {
 			dependencies.launcher.stop(record.pid);
 
 			return context.json({ id: record.id }, 202);
+		})
+		.post("/api/runs/:run/pause", async (context) => {
+			const run = context.req.param("run");
+			try {
+				await pauseRun(run, dependencies);
+			} catch (error) {
+				if (!(error instanceof LaunchRefusalError)) {
+					throw error;
+				}
+
+				return context.json({ error: error.message }, error.status);
+			}
+
+			return context.json({ run }, 202);
 		});
 
 	/** The launch routes' net: an unanticipated failure reaches the browser redacted. */
