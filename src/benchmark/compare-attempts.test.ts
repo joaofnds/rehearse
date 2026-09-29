@@ -106,6 +106,18 @@ class RecordedArms {
 		return groupIdFor("baseline");
 	}
 
+	/** Rewrites a recorded arm's worker model, a controlled input. */
+	public async useModel(groupId: string, model: string): Promise<void> {
+		const { groupFile } = confirmationGroupPaths(this.runsDirectory, groupId);
+		const group = confirmationGroupRecordSchema.parse(
+			JSON.parse(await Bun.file(groupFile).text()),
+		);
+		await Bun.write(
+			groupFile,
+			`${JSON.stringify({ ...group, inputs: { ...group.inputs, model } }, null, 2)}\n`,
+		);
+	}
+
 	public readonly runBaselineGroup = async (
 		request: BaselineGroupRequest,
 	): Promise<string> => {
@@ -346,6 +358,30 @@ describe(compareAttempts.name, () => {
 			expect(refusal.message).toBe(
 				`group ${armA} is a pipeline group; only stage groups replay one checkpoint`,
 			);
+		});
+	});
+
+	describe("when arms A and B ran with different controlled inputs", () => {
+		it("refuses and names the differing field before running a baseline group", async () => {
+			const arms = await RecordedArms.create();
+			const armA = await arms.recordArm("baseline", SHARED);
+			const armB = await arms.recordArm("candidate", {
+				...SHARED,
+				"skills/build/SKILL.md": "build\n",
+			});
+			await arms.useModel(armB, "haiku");
+
+			const refusal = await refusalOf(
+				compareAttempts(
+					{ runsDirectory: arms.runsDirectory, armA, armB },
+					{ runBaselineGroup: arms.runBaselineGroup },
+				),
+			);
+
+			expect(refusal.message).toBe(
+				`case ${CASE_ID} arms baseline and candidate field inputs.model differs`,
+			);
+			expect(arms.baselineRequests).toEqual([]);
 		});
 	});
 });

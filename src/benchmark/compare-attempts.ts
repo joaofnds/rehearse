@@ -1,6 +1,10 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { deriveBaselineCorpus } from "./baseline-corpus";
 import type { Effort } from "./config";
 import type { ConfirmationGroupRecord } from "./confirmation-record";
+import { loadComparisonEvidence } from "./comparison-loader";
 import { confirmationGroupRecordSchema } from "./confirmation-record";
 import { readCorpusVersion } from "./corpus-version";
 import { RefusedPreconditionError } from "./exit-codes";
@@ -108,6 +112,43 @@ async function recordedArm(
 	};
 }
 
+/**
+ * Holds arms A and B to the comparability rules a comparison manifest meets,
+ * with arm A standing in for the baseline arm not yet run, so arms that could
+ * never be compared are refused before any provider call.
+ */
+async function assertComparableArms(
+	runsDirectory: string,
+	caseId: string,
+	arms: { readonly armA: string; readonly armB: string },
+): Promise<void> {
+	const armAFile = confirmationGroupPaths(runsDirectory, arms.armA).groupFile;
+	const directory = await mkdtemp(join(tmpdir(), "rehearse-compare-attempts-"));
+	try {
+		const manifestPath = join(directory, "manifest.json");
+		await Bun.write(
+			manifestPath,
+			JSON.stringify({
+				schemaVersion: 1,
+				cases: [
+					{
+						caseId,
+						arms: {
+							baseline: armAFile,
+							candidate: confirmationGroupPaths(runsDirectory, arms.armB)
+								.groupFile,
+							control: armAFile,
+						},
+					},
+				],
+			}),
+		);
+		await loadComparisonEvidence(manifestPath);
+	} finally {
+		await rm(directory, { recursive: true, force: true });
+	}
+}
+
 function describeCheckpoint({ run, stage }: Checkpoint): string {
 	return `${run} ${stage}`;
 }
@@ -126,6 +167,7 @@ export async function compareAttempts(
 			`arms A and B replayed different checkpoints: ${describeCheckpoint(armA.checkpoint)} and ${describeCheckpoint(armB.checkpoint)}`,
 		);
 	}
+	await assertComparableArms(request.runsDirectory, armA.group.caseId, request);
 	const baseline = deriveBaselineCorpus(armA.corpus, armB.corpus);
 	if (baseline.kind === "refused") {
 		const units =
