@@ -371,7 +371,8 @@ See [current state](docs/status.md) for implementation coverage and
 - **Model family** — a named Claude model line — Opus, Sonnet, or Haiku —
   recognized from either its native alias or a full model ID.
 - **No reply** — the outcome of a session attempt whose envelope carried no
-  result, the provider having stopped at its turn or budget limit. It is not a
+  result and did not mark itself an error. A budget halt is marked one, so it
+  is a failed attempt rather than No reply. It is not a
   reply of zero words: no check is evaluated and none is recorded, so the
   attempt reads as a measurement that did not happen rather than one that
   passed.
@@ -520,10 +521,14 @@ See [current state](docs/status.md) for implementation coverage and
   times the spend ceiling. The group stops starting sessions once its spend
   reaches it.
 - **Budget halt**: the provider ending a session because its spend reached
-  the session budget passed to it. The envelope marks it an error, states the
-  cap in its errors, writes no result and reports what it spent, so the
-  attempt is recorded as failed rather than as No reply. Distinct from a
-  ceiling stop, which the harness makes.
+  the session budget passed to it. What it reports spent can exceed that
+  budget. The envelope marks it an error, writes no result, reports the spend
+  and, in the wording every observed CLI version used, states the cap in its
+  errors, so a session attempt ending this way is recorded as failed rather
+  than as No reply. Distinct from a ceiling stop, which the harness makes,
+  though a session whose budget was the ceiling's remainder can halt this way
+  just before the run stops. Name accepted unattended as unsettled, pending
+  the operator's confirmation (ACT-230).
 - **Stage spend** — what one stage has cost. Every non-terminal run event
   carries a spend figure, and the event's kind decides which stage spend it is:
   `stage-started` reports the stages finished before this one, `turn-completed`

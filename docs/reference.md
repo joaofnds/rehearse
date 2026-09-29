@@ -341,9 +341,11 @@ is refused by name with the failing command's stderr, and the CLI exits 3. A
 | `files-read`        | Require declared paths in transcript `Read` calls                                                                                                                                                                                         |
 
 Checks measure only what the declaration asks. A passing tool-call ceiling does
-not establish implementation correctness. A session that returns no reply at a
-turn or budget limit records `NO_REPLY` without evaluating checks, since the
-reply checks would read a reply that does not exist. Confirmation counts that rep as
+not establish implementation correctness. A session whose envelope carries no reply
+and marks no error records `NO_REPLY` without evaluating checks, since the
+reply checks would read a reply that does not exist. A budget halt marks an
+error, so it records `EXECUTION_FAILED` with the provider's stated error and
+spend. Confirmation counts that rep as
 unsuccessful; it also records execution failures and missing metrics
 explicitly.
 

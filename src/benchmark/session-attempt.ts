@@ -77,10 +77,10 @@ export interface SessionAttemptRequest {
 }
 
 /**
- * A session that terminated without producing a reply (max turns, an exhausted
- * budget) has no reply to check, which is a different fact from a reply that
- * failed one. `reply` is absent exactly when the outcome is `NO_REPLY`, so no
- * value of this type says a check passed over a reply that never arrived.
+ * A session that terminated without producing a reply or marking an error has
+ * no reply to check, which is a different fact from a reply that failed one.
+ * `reply` is absent exactly when the outcome is `NO_REPLY`, so no value of this
+ * type says a check passed over a reply that never arrived.
  */
 export interface SessionAttempt {
 	readonly attemptDirectory: string;
