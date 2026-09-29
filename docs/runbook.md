@@ -153,6 +153,14 @@ mise exec -- bun run rehearse show comparison:<manifest-sha256> --json
 Session reports use the checks row only. A missing or inconsistent attempt is a
 refused comparison, and an empty declared control corpus is valid.
 
+A stage comparison may cover a single case when every arm replays the same
+checkpoint: replay that stage with `--confirm` once per arm, each with its own
+`--corpus`, and name the three groups under one case in the manifest. The
+report then estimates uncertainty over reps, and `GET /api/comparisons/<digest>`
+serves its What moved rows. A reply-length or cost row names a higher arm only
+from about four reps an arm, so pass `--reps 4` or more when those rows
+matter.
+
 ## Inspect staleness
 
 After editing the example style, ask which recorded debug attempts or checkpoints
