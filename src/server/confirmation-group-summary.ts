@@ -23,21 +23,37 @@ export interface UnreadRep {
 /** How many reps fell under each name, a verdict or a recorded status. */
 export type RepCounts = Readonly<Record<string, number>>;
 
-/**
- * What a group's reps scored at one stage. The median of an even count is
- * the lower of the two middle grades, so the summary is always a grade some
- * rep received and never one between two letters.
- */
+/** What a group's reps scored at one stage, its median by `letterRange`. */
 export interface GroupStageSummary {
 	readonly stage: string;
 	readonly graded: number;
 	/** Each rep the stage did not grade, counted under its recorded status. */
 	readonly ungraded: RepCounts;
-	readonly grades: Reading<{
-		readonly median: StageLetterGrade;
-		readonly lowest: StageLetterGrade;
-		readonly highest: StageLetterGrade;
-	}>;
+	readonly grades: Reading<LetterRange>;
+}
+
+export interface LetterRange {
+	readonly median: StageLetterGrade;
+	readonly lowest: StageLetterGrade;
+	readonly highest: StageLetterGrade;
+}
+
+/**
+ * The median of an even count is the lower of the two middle grades, so the
+ * median is always a grade some rep received and never one between two letters.
+ */
+export function letterRange(
+	grades: readonly StageLetterGrade[],
+): LetterRange | undefined {
+	const bestToWorst = bestFirst(grades);
+	const highest = bestToWorst.at(0);
+	const lowest = bestToWorst.at(-1);
+	const median = bestToWorst[Math.floor(bestToWorst.length / 2)];
+	if (highest === undefined || lowest === undefined || median === undefined) {
+		return undefined;
+	}
+
+	return { median, lowest, highest };
 }
 
 /** Best first, so a later index is a lower grade. */
@@ -65,10 +81,8 @@ function stageSummary(
 	const outcomes = reps.flatMap(({ stages }) =>
 		stages.filter((outcome) => outcome.stage === stage),
 	);
-	const grades = bestFirst(
-		outcomes.flatMap((outcome) =>
-			outcome.status === "JUDGED" ? [outcome.grade] : [],
-		),
+	const grades = outcomes.flatMap((outcome) =>
+		outcome.status === "JUDGED" ? [outcome.grade] : [],
 	);
 	const ungraded = tally(
 		outcomes.flatMap(({ status }) => (status === "JUDGED" ? [] : [status])),
@@ -82,10 +96,8 @@ function stageSummary(
 		};
 	}
 
-	const highest = grades.at(0);
-	const lowest = grades.at(-1);
-	const median = grades[Math.floor(grades.length / 2)];
-	if (highest === undefined || lowest === undefined || median === undefined) {
+	const range = letterRange(grades);
+	if (range === undefined) {
 		return {
 			stage,
 			graded: 0,
@@ -98,7 +110,7 @@ function stageSummary(
 		stage,
 		graded: grades.length,
 		ungraded,
-		grades: { state: "available", median, lowest, highest },
+		grades: { state: "available", ...range },
 	};
 }
 

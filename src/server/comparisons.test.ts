@@ -50,8 +50,13 @@ const qualityReadingSchema = z.object({
 		z.object({ kind: z.literal("separated"), arm: z.string() }),
 	]),
 });
+const armFiguresSchema = z.object({
+	measures: z.record(z.string(), z.unknown()),
+	cost: z.unknown(),
+});
 const comparisonResponseSchema = z.object({
 	report: z.unknown(),
+	armFigures: z.record(z.string(), z.record(z.string(), armFiguresSchema)),
 	attribution: z.record(z.string(), z.record(z.string(), attributionSchema)),
 	qualityReadings: z.record(
 		z.string(),
@@ -474,6 +479,105 @@ describe("GET /api/comparisons/:digest", () => {
 			expect(body.report.mode).toBe("pipeline");
 		},
 	);
+
+	describe("arm figures", () => {
+		async function armFiguresOf(
+			fixture: RecordedRunsFixture,
+		): Promise<ComparisonResponse["armFigures"]> {
+			const app = createApiApp({
+				runsDirectory: fixture.runsDirectory,
+				liveness: nothingRunning,
+				readCorpusSource: fixedCorpusSource(
+					directorySource(await corpusDirectory()),
+				),
+			});
+
+			const response = await app.request(
+				`/api/comparisons/${fixture.comparisonDigest}`,
+			);
+
+			const body = await comparisonResponseFrom(response);
+
+			return body.armFigures;
+		}
+
+		it("gives each arm its median and range per stage, its final successes, and its cost", async () => {
+			const fixture = await writtenFixture();
+
+			const figures = await armFiguresOf(fixture);
+
+			expect(figures["case-1"]?.["baseline"]).toEqual({
+				measures: {
+					discuss: {
+						scale: "letters",
+						grades: {
+							state: "available",
+							median: "D",
+							lowest: "D",
+							highest: "A",
+						},
+					},
+					build: {
+						scale: "letters",
+						grades: {
+							state: "available",
+							median: "D",
+							lowest: "D",
+							highest: "A",
+						},
+					},
+					final: { scale: "successRate", successful: 2, attempts: 4 },
+				},
+				cost: { state: "available", totalUsd: 10, perAttemptUsd: 2.5 },
+			});
+		});
+
+		it("gives a session arm its successes of attempts and no letter", async () => {
+			const fixture = await writtenFixture();
+			await rewriteFixtureAsSession(fixture);
+
+			const figures = await armFiguresOf(fixture);
+
+			expect(figures["case-1"]?.["candidate"]?.measures).toEqual({
+				checks: { scale: "successRate", successful: 4, attempts: 4 },
+			});
+		});
+
+		it.each([1, 2] as const)(
+			"reads a version-%i report's arms",
+			async (version) => {
+				const fixture = await writtenFixture();
+				await rewriteFixtureAsLegacyPipeline(fixture, version);
+
+				const figures = await armFiguresOf(fixture);
+
+				expect(figures["case-2"]?.["control"]).toEqual({
+					measures: {
+						discuss: {
+							scale: "letters",
+							grades: {
+								state: "available",
+								median: "D",
+								lowest: "D",
+								highest: "D",
+							},
+						},
+						build: {
+							scale: "letters",
+							grades: {
+								state: "available",
+								median: "D",
+								lowest: "D",
+								highest: "D",
+							},
+						},
+						final: { scale: "successRate", successful: 0, attempts: 4 },
+					},
+					cost: { state: "available", totalUsd: 10, perAttemptUsd: 2.5 },
+				});
+			},
+		);
+	});
 
 	it("renders a quality reading for the discuss measure, per case per contrast", async () => {
 		const fixture = await writtenFixture();

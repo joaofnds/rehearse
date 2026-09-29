@@ -4,6 +4,8 @@ import type {
 	LegacyComparisonReport,
 } from "#benchmark/comparison-record";
 import { reliabilitySummaryNamed } from "#benchmark/confirmation-report";
+import type { ArmFigures, CaseArmFigures } from "./comparison-arm-figures";
+import { armFigures } from "./comparison-arm-figures";
 import { armPairs, pairKey } from "./comparison-arm-pair";
 import type { ComparisonAttribution } from "./comparison-attribution";
 import { comparisonAttribution } from "./comparison-attribution";
@@ -17,6 +19,7 @@ import type { ComparisonAttemptHistoryLinks } from "./comparison-history-links";
 export interface ComparisonReportWithAttribution {
 	readonly report: ComparisonReport | LegacyComparisonReport;
 	readonly attemptHistories: ComparisonAttemptHistoryLinks;
+	readonly armFigures: Readonly<Record<string, CaseArmFigures>>;
 	readonly attribution: Readonly<
 		Record<string, Readonly<Record<string, ComparisonAttribution>>>
 	>;
@@ -63,6 +66,20 @@ function qualityReadingsByMeasure(
 	);
 }
 
+function figuresByArm(
+	report: AnyComparisonReport,
+	benchmarkCase: AnyComparisonReport["cases"][number],
+): CaseArmFigures {
+	const figuresOf = (arm: ComparisonArm): ArmFigures =>
+		armFigures(benchmarkCase.arms[arm], (measure) => scaleFor(report, measure));
+
+	return {
+		baseline: figuresOf("baseline"),
+		candidate: figuresOf("candidate"),
+		control: figuresOf("control"),
+	};
+}
+
 /**
  * One attribution claim per case per arm pair, so the client renders the
  * refusal or the claim without recomputing `corpusDifferences` itself: the
@@ -81,6 +98,7 @@ export function comparisonReport(
 		string,
 		Record<string, Record<string, QualityReading>>
 	> = {};
+	const figures: Record<string, CaseArmFigures> = {};
 	const measures = [
 		...report.declaredStages,
 		...(report.mode === "pipeline" ? ["final"] : []),
@@ -107,7 +125,14 @@ export function comparisonReport(
 
 		attribution[benchmarkCase.caseId] = byPair;
 		qualityReadings[benchmarkCase.caseId] = qualityByPair;
+		figures[benchmarkCase.caseId] = figuresByArm(report, benchmarkCase);
 	}
 
-	return { report, attemptHistories, attribution, qualityReadings };
+	return {
+		report,
+		attemptHistories,
+		armFigures: figures,
+		attribution,
+		qualityReadings,
+	};
 }
