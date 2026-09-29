@@ -7,14 +7,18 @@ class ControlRefusedError extends Error {
 	public override name = "ControlRefusedError";
 }
 
+/** The request guard refuses a write that does not say it is JSON. */
+const AS_JSON = { headers: { "content-type": "application/json" } };
+
 /**
  * A refusal the routes declare arrives as `{ error }`. Anything else, the
  * request guard's plain-text 403 included, is shown as the server sent it.
  */
 async function stopLaunch(id: string): Promise<void> {
-	const response = await launchClient.api.launches[":id"].stop.$post({
-		param: { id },
-	});
+	const response = await launchClient.api.launches[":id"].stop.$post(
+		{ param: { id } },
+		AS_JSON,
+	);
 	if (response.ok) {
 		return;
 	}
@@ -27,9 +31,10 @@ async function stopLaunch(id: string): Promise<void> {
 
 /** Refused the same way as a stop. */
 async function pauseRun(run: string): Promise<void> {
-	const response = await launchClient.api.runs[":run"].pause.$post({
-		param: { run },
-	});
+	const response = await launchClient.api.runs[":run"].pause.$post(
+		{ param: { run } },
+		AS_JSON,
+	);
 	if (response.ok) {
 		return;
 	}

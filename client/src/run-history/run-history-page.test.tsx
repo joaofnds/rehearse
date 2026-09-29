@@ -1009,6 +1009,33 @@ describe(RunHistoryPage.name, () => {
 				});
 			});
 
+			/**
+			 * The request guard refuses a write without a JSON content type, so a
+			 * bodiless post would never reach the route.
+			 */
+			it.each([
+				["Stop & restore repo", `/api/launches/${LAUNCH_ID}/stop`],
+				["Pause after this step", `/api/runs/${RUN}/pause`],
+			])(
+				"sends %s as JSON so the request guard admits it",
+				async (name, path) => {
+					const server = serving({
+						rows: [{ ...runningRow(), launchId: LAUNCH_ID }],
+						launches: [],
+						unreadable: [],
+					});
+					renderPage();
+
+					fireEvent.click(await screen.findByRole("button", { name }));
+
+					await waitFor(() => {
+						expect(server.posted(path)[0]?.contentType).toBe(
+							"application/json",
+						);
+					});
+				},
+			);
+
 			it("asks the run to pause after the step it is running", async () => {
 				const server = serving({
 					rows: [runningRow()],
