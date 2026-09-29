@@ -6,7 +6,9 @@ import {
 	liveCorpusSource,
 } from "./corpus-file";
 import type { DirectoryCorpusRoot, LiveCorpusRoot } from "./corpus-file";
+import { recordsDirectory } from "./config";
 import { pathExists } from "./file-presence";
+import { readSettings, storeLinkedCorpusDirectory } from "./settings";
 
 export class CorpusSourceError extends Error {
 	public override name = "CorpusSourceError";
@@ -119,8 +121,36 @@ export function resolveCorpusSource(
 	source: string | undefined,
 ): Promise<ResolvedCorpusSource> {
 	if (source === undefined) {
-		return Promise.resolve(liveCorpusSource());
+		return linkedCorpusSource(recordsDirectory());
 	}
 
 	return directorySource(source);
+}
+
+/**
+ * The corpus every command measures unless one is named: the linked
+ * directory, or the live install when none is linked.
+ */
+export async function linkedCorpusSource(
+	records: string,
+): Promise<ResolvedCorpusSource> {
+	const { linkedCorpusDirectory } = await readSettings(records);
+
+	return linkedCorpusDirectory === undefined
+		? liveCorpusSource()
+		: directorySource(linkedCorpusDirectory);
+}
+
+export async function linkCorpus(
+	records: string,
+	directory: string,
+): Promise<DirectoryCorpusRoot> {
+	const source = await directorySource(directory);
+	await storeLinkedCorpusDirectory(records, source.root);
+
+	return source;
+}
+
+export function unlinkCorpus(records: string): Promise<void> {
+	return storeLinkedCorpusDirectory(records, undefined);
 }

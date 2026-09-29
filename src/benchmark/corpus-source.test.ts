@@ -1,11 +1,16 @@
-import { describe, expect, it } from "bun:test";
-import { homedir } from "node:os";
+import { afterEach, describe, expect, it } from "bun:test";
+import { mkdtemp } from "node:fs/promises";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
-import { resolveCorpusFile } from "#benchmark/corpus-file";
+import { recordsDirectory } from "#benchmark/config";
+import { liveCorpusSource, resolveCorpusFile } from "#benchmark/corpus-file";
 import {
 	CorpusSourceError,
 	corpusLayoutEntries,
+	linkCorpus,
+	linkedCorpusSource,
 	resolveCorpusSource,
+	unlinkCorpus,
 } from "#benchmark/corpus-source";
 import { TestResources } from "#benchmark/test-support";
 import { failureOf } from "#cli/cli-test-support";
@@ -36,6 +41,71 @@ describe(resolveCorpusSource.name, () => {
 			kind: "live",
 			root: join(homedir(), ".claude"),
 			backingRoot: join(homedir(), ".agents"),
+		});
+	});
+});
+
+describe("resolving the corpus nobody names", () => {
+	afterEach(async () => {
+		await unlinkCorpus(recordsDirectory());
+	});
+
+	it("resolves to the linked directory", async () => {
+		const root = await directoryCorpus();
+		await linkCorpus(recordsDirectory(), root);
+
+		const source = await resolveCorpusSource(undefined);
+
+		expect(source).toEqual({ kind: "directory", root });
+	});
+
+	it("resolves to the live install once the corpus is unlinked", async () => {
+		await linkCorpus(recordsDirectory(), await directoryCorpus());
+
+		await unlinkCorpus(recordsDirectory());
+
+		expect(await resolveCorpusSource(undefined)).toEqual(liveCorpusSource());
+	});
+});
+
+describe(linkCorpus.name, () => {
+	async function records(): Promise<string> {
+		const directory = await mkdtemp(join(tmpdir(), "rehearse-link-"));
+		resources.track(directory);
+
+		return directory;
+	}
+
+	it("stores the directory as the linked corpus", async () => {
+		const directory = await records();
+		const root = await directoryCorpus();
+
+		await linkCorpus(directory, root);
+
+		expect(await linkedCorpusSource(directory)).toEqual({
+			kind: "directory",
+			root,
+		});
+	});
+
+	it("leaves the live install linked in records that never linked one", async () => {
+		expect(await linkedCorpusSource(await records())).toEqual(
+			liveCorpusSource(),
+		);
+	});
+
+	it("refuses a directory holding no corpus and keeps the link it had", async () => {
+		const directory = await records();
+		const root = await directoryCorpus();
+		await linkCorpus(directory, root);
+		const notCorpus = await resources.createControlDirectory();
+
+		const failure = await failureOf(linkCorpus(directory, notCorpus));
+
+		expect(failure).toBeInstanceOf(CorpusSourceError);
+		expect(await linkedCorpusSource(directory)).toEqual({
+			kind: "directory",
+			root,
 		});
 	});
 });

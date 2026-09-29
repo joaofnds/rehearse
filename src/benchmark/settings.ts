@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, rename, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 import { z } from "zod";
 import { RefusedPreconditionError } from "./exit-codes";
 import { textIfPresent } from "./file-presence";
@@ -13,6 +13,7 @@ export const SET_SPEND_CEILING_COMMAND =
 /** Loose, so storing a ceiling keeps settings a later version wrote. */
 const settingsSchema = z.looseObject({
 	spendCeilingUsd: z.number().positive().optional(),
+	linkedCorpusDirectory: z.string().refine(isAbsolute).optional(),
 });
 
 export type Settings = z.infer<typeof settingsSchema>;
@@ -33,7 +34,7 @@ export async function readSettings(
 	const settings = parsedSettings(contents);
 	if (settings === undefined) {
 		throw new RefusedPreconditionError(
-			`The settings file ${file} is not valid settings, so no spend ceiling can be read from it. Correct or delete it, then set the ceiling with: ${SET_SPEND_CEILING_COMMAND}`,
+			`The settings file ${file} is not valid settings, so neither the spend ceiling nor the linked corpus can be read from it. Correct or delete it, then set the ceiling with: ${SET_SPEND_CEILING_COMMAND}`,
 		);
 	}
 
@@ -78,6 +79,18 @@ export async function storeSpendCeiling(
 	await writeSettings(recordsDirectory, {
 		...settings,
 		spendCeilingUsd: ceilingUsd,
+	});
+}
+
+/** Undefined removes the link, which leaves the live install linked. */
+export async function storeLinkedCorpusDirectory(
+	recordsDirectory: string,
+	root: string | undefined,
+): Promise<void> {
+	const settings = await readSettings(recordsDirectory);
+	await writeSettings(recordsDirectory, {
+		...settings,
+		linkedCorpusDirectory: root,
 	});
 }
 
