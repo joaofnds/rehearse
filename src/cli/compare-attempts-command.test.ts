@@ -21,7 +21,7 @@ describe(replayBaselineGroup.name, () => {
 		);
 	});
 
-	it("replays the checkpoint as a confirmation group on the baseline corpus and answers with its group id", async () => {
+	it("replays the checkpoint as a confirmation group on the baseline corpus without the stage's own skill and answers with its group id", async () => {
 		manifests.push(await writeReplayableRunManifest(RUN));
 		const configs: ReplayCliConfig[] = [];
 		const { output, stdout, stderr } = recordOutput();
@@ -70,6 +70,7 @@ describe(replayBaselineGroup.name, () => {
 				judgeEffort: config.judgeEffort,
 				sessionBudgetUsd: config.sessionBudgetUsd,
 				confirmation: config.confirmation,
+				stageSkill: config.stageSkill,
 			})),
 		).toEqual([
 			{
@@ -82,6 +83,7 @@ describe(replayBaselineGroup.name, () => {
 				judgeEffort: "high",
 				sessionBudgetUsd: 5,
 				confirmation: { reps: 3, approval: "browser" },
+				stageSkill: "absent",
 			},
 		]);
 		expect(stdout).toEqual([]);

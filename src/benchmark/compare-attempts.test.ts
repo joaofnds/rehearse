@@ -3,7 +3,7 @@ import { Glob } from "bun";
 import { mkdtemp, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
-import { compareAttempts, runComparison } from "./compare-attempts";
+import { compareAttempts } from "./compare-attempts";
 import {
 	CASE_ID,
 	RecordedArms,
@@ -255,8 +255,8 @@ describe(compareAttempts.name, () => {
 		});
 	});
 
-	describe("when the replayed stage loads the one differing skill", () => {
-		it("refuses before running a baseline group, since the stage cannot replay without it", async () => {
+	describe("when arms A and B differ in one skill", () => {
+		it("runs the baseline group on arm A without that skill, with arm A's inputs, once the replayed stage loads it", async () => {
 			const arms = await recordedArms();
 			const armA = await arms.recordArm("baseline", {
 				...SHARED,
@@ -266,38 +266,12 @@ describe(compareAttempts.name, () => {
 				...SHARED,
 				"skills/build/SKILL.md": "revised build\n",
 			});
+
 			await arms.readInStage(armA, "skills/build/SKILL.md");
 			await arms.readInStage(armB, "skills/build/SKILL.md");
 
-			const refusal = await refusalOf(
-				compareAttempts(
-					{ runsDirectory: arms.runsDirectory, armA, armB },
-					{ runBaselineGroup: arms.runBaselineGroup },
-				),
-			);
-
-			expect(refusal.message).toBe(
-				`stage ${STAGE} loads skills/build/, and a stage replay cannot run without it; supply the control through a comparison manifest`,
-			);
-			expect(arms.baselineRequests).toEqual([]);
-		});
-	});
-
-	describe("when arms A and B differ in one skill", () => {
-		it("runs the baseline group on arm A without that skill, with arm A's inputs", async () => {
-			const arms = await recordedArms();
-			const armA = await arms.recordArm("baseline", {
-				...SHARED,
-				"skills/build/SKILL.md": "build\n",
-			});
-			const armB = await arms.recordArm("candidate", {
-				...SHARED,
-				"skills/build/SKILL.md": "revised build\n",
-			});
-
-			await runComparison(
+			await compareAttempts(
 				{ runsDirectory: arms.runsDirectory, armA, armB },
-				await arms.planPastStageCheck(armA, armB),
 				{ runBaselineGroup: arms.runBaselineGroup },
 			);
 
@@ -340,9 +314,11 @@ describe(compareAttempts.name, () => {
 				"skills/build/SKILL.md": "revised build\n",
 			});
 
-			await runComparison(
+			await arms.readInStage(armA, "skills/build/SKILL.md");
+			await arms.readInStage(armB, "skills/build/SKILL.md");
+
+			await compareAttempts(
 				{ runsDirectory: arms.runsDirectory, armA, armB },
-				await arms.planPastStageCheck(armA, armB),
 				{ runBaselineGroup: arms.runBaselineGroup },
 			);
 
@@ -365,9 +341,11 @@ describe(compareAttempts.name, () => {
 				"skills/build/SKILL.md": "revised build\n",
 			});
 
-			const { reportFile } = await runComparison(
+			await arms.readInStage(armA, "skills/build/SKILL.md");
+			await arms.readInStage(armB, "skills/build/SKILL.md");
+
+			const { reportFile } = await compareAttempts(
 				{ runsDirectory: arms.runsDirectory, armA, armB },
-				await arms.planPastStageCheck(armA, armB),
 				{ runBaselineGroup: arms.runBaselineGroup },
 			);
 

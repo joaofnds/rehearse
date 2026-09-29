@@ -55,6 +55,7 @@ function baselineReplayArguments(
 		"--confirm",
 		"--reps",
 		String(baseline.reps),
+		"--without-stage-skill",
 		...approvalArguments(approval),
 	];
 }

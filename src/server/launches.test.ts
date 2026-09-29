@@ -3,7 +3,11 @@ import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
-import { RecordedArms, STAGE } from "#benchmark/compare-attempts-test-support";
+import {
+	RecordedArms,
+	RUN,
+	STAGE,
+} from "#benchmark/compare-attempts-test-support";
 import { readLaunchRecord, writeLaunchRecord } from "#benchmark/launch-record";
 import {
 	directorySource,
@@ -357,7 +361,7 @@ describe(createLaunchApp.name, () => {
 			);
 		}
 
-		it("refuses a baseline the replayed stage cannot run without, before starting anything", async () => {
+		it("compares them already approved once the free checks pass", async () => {
 			const { launcher, post, runsDirectory } = await harness();
 			const arms = await recordedArms(runsDirectory);
 			const armA = await arms.recordArm("baseline", {
@@ -372,10 +376,45 @@ describe(createLaunchApp.name, () => {
 			await arms.readInStage(armB, "skills/build/SKILL.md");
 
 			const response = await post({ kind: "comparison", armA, armB });
+			const { id } = launchedSchema.parse(await response.json());
+
+			expect(response.status).toBe(202);
+			expect(launcher.launches.map(({ argv }) => argv)).toEqual([
+				[
+					"compare",
+					"attempts",
+					"--arm-a",
+					armA,
+					"--arm-b",
+					armB,
+					"--yes",
+					"--approved-in-browser",
+				],
+			]);
+			expect(await readLaunchRecord(runsDirectory, id)).toMatchObject({
+				kind: "comparison",
+				armA,
+				armB,
+				run: RUN,
+				stage: STAGE,
+				attempts: 2,
+			});
+		});
+
+		it("refuses a skill the replayed stage never reads, before starting anything", async () => {
+			const { launcher, post, runsDirectory } = await harness();
+			const arms = await recordedArms(runsDirectory);
+			const armA = await arms.recordArm("baseline", SHARED);
+			const armB = await arms.recordArm("candidate", {
+				...SHARED,
+				"skills/build/SKILL.md": "build\n",
+			});
+
+			const response = await post({ kind: "comparison", armA, armB });
 
 			expect(response.status).toBe(409);
 			expect(refusalSchema.parse(await response.json()).error).toBe(
-				`stage ${STAGE} loads skills/build/, and a stage replay cannot run without it; supply the control through a comparison manifest`,
+				`stage ${STAGE} reads nothing in skills/build/, so arms A and B ran the same files and nothing is under test`,
 			);
 			expect(launcher.launches).toEqual([]);
 		});

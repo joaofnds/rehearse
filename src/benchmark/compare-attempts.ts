@@ -256,27 +256,23 @@ function stageReadPaths({ group }: RecordedArm): readonly string[] {
 }
 
 /**
- * Refuses a baseline the replayed stage could not tell apart from arm A, or
- * could not run at all. A stage replay loads only its stage's skills, so a
- * skill it never reads leaves all three arms reading the same files, and a
- * skill it reads cannot be removed, since the replay refuses a stage whose
- * skill is missing (doc-180 decision 2 meets stage snapshotting; see ACT-271.4).
+ * A stage replay freezes only its stage's own skill, so a skill under test
+ * the stage never reads leaves all three arms reading the same files. One it
+ * reads is the stage's own, which the baseline replays without.
  */
-function assertStageReadsBaselineDifference(
+function assertStageReadsSkillUnderTest(
 	armA: RecordedArm,
 	armB: RecordedArm,
 	skillUnderTest: string,
 ): void {
-	const { stage } = armA.checkpoint;
 	const reads = [armA, armB].some((arm) =>
 		stageReadPaths(arm).some((path) => path.startsWith(skillUnderTest)),
 	);
-
-	throw new RefusedPreconditionError(
-		reads
-			? `stage ${stage} loads ${skillUnderTest}, and a stage replay cannot run without it; supply the control through a comparison manifest`
-			: `stage ${stage} reads nothing in ${skillUnderTest}, so arms A and B ran the same files and nothing is under test`,
-	);
+	if (!reads) {
+		throw new RefusedPreconditionError(
+			`stage ${armA.checkpoint.stage} reads nothing in ${skillUnderTest}, so arms A and B ran the same files and nothing is under test`,
+		);
+	}
 }
 
 /** What the comparison would run, once every check that costs nothing passed. */
@@ -311,7 +307,7 @@ export async function planComparison(
 				: "";
 		throw new RefusedPreconditionError(`${baseline.reason}${units}`);
 	}
-	assertStageReadsBaselineDifference(armA, armB, baseline.skillUnderTest);
+	assertStageReadsSkillUnderTest(armA, armB, baseline.skillUnderTest);
 
 	return { armA, baseline };
 }
@@ -323,12 +319,8 @@ export async function compareAttempts(
 	return runComparison(request, await planComparison(request), dependencies);
 }
 
-/**
- * Runs the baseline group a plan names and writes the report. No stage plan
- * passes planComparison today, so only its tests reach this until a stage
- * replay can run without the skill under test (ACT-271.4 notes).
- */
-export async function runComparison(
+/** Runs the baseline group a plan names and writes the report. */
+async function runComparison(
 	request: CompareAttemptsRequest,
 	{ armA, baseline }: ComparisonPlan,
 	dependencies: CompareAttemptsDependencies,

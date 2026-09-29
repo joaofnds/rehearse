@@ -1,9 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { cp, mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { deriveBaselineCorpus } from "./baseline-corpus";
-import type { BaselineGroupRequest, ComparisonPlan } from "./compare-attempts";
-import { recordedArm } from "./compare-attempts";
+import type { BaselineGroupRequest } from "./compare-attempts";
 import { ComparisonEvidenceFixture } from "./comparison-evidence-test-support";
 import type { ComparisonArm } from "./comparison-record";
 import type { ConfirmationMode } from "./confirmation-record";
@@ -127,24 +125,6 @@ export class RecordedArms {
 			groupFile,
 			`${JSON.stringify({ ...group, inputs: { ...group.inputs, files: [...group.inputs.files, read] } }, null, 2)}\n`,
 		);
-	}
-
-	/**
-	 * The plan planComparison would return for arms A and B were a stage replay
-	 * able to run without the skill under test, which it refuses today.
-	 */
-	public async planPastStageCheck(
-		armA: string,
-		armB: string,
-	): Promise<ComparisonPlan> {
-		const recordedA = await recordedArm(this.runsDirectory, armA);
-		const recordedB = await recordedArm(this.runsDirectory, armB);
-		const baseline = deriveBaselineCorpus(recordedA.corpus, recordedB.corpus);
-		if (baseline.kind === "refused") {
-			throw new Error(`Expected a baseline corpus: ${baseline.reason}`);
-		}
-
-		return { armA: recordedA, baseline };
 	}
 
 	/** Rewrites a recorded arm's worker model, a controlled input. */
