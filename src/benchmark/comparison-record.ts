@@ -13,7 +13,6 @@ const identitySchema = z
 	.string()
 	.regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/u, "Invalid comparison identity");
 
-/** One confirmation group, or several of the same variant read together. */
 /** One group path, or several read together as one arm, parsed as a list. */
 const manifestArmSchema = z.union([
 	z
