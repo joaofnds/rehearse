@@ -9,7 +9,6 @@ import type { seedTaskBoard } from "./backlog";
 import type {
 	CheckpointRecord,
 	HashedFile,
-	excludeInstalledCorpus,
 	installStageCorpusSnapshot,
 	materializeCheckpoint,
 	recordCheckpoint,
@@ -128,7 +127,6 @@ export interface PipelineConfirmationDependencies {
 	) => () => void;
 	readonly materializeCheckpoint: typeof materializeCheckpoint;
 	readonly installStageCorpusSnapshot: typeof installStageCorpusSnapshot;
-	readonly excludeInstalledCorpus: typeof excludeInstalledCorpus;
 	readonly recordCheckpoint: typeof recordCheckpoint;
 	readonly recordRetentionRef: typeof recordRetentionRef;
 	readonly captureBuildCandidate: typeof captureBuildCandidate;
@@ -444,7 +442,6 @@ async function runPipelineRep(
 				frozen.corpusDirectories[definition.name] ?? "",
 				plan.worktreePath,
 			);
-			await dependencies.excludeInstalledCorpus(plan.worktreePath);
 			setupOperation = undefined;
 			currentSession = await executeStageSession(
 				{

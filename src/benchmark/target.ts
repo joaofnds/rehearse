@@ -1,6 +1,6 @@
-import { mkdir, mkdtemp, readFile, realpath, rm } from "node:fs/promises";
+import { mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join, relative, resolve, sep } from "node:path";
+import { join, relative } from "node:path";
 import { z } from "zod";
 import { existingBacklogLayout } from "./backlog-layout";
 import { captureBoundedContent } from "./checks";
@@ -33,69 +33,6 @@ export async function git(
 ): Promise<string> {
 	const output = await runCommand(["git", ...args], directory);
 	return output.trim();
-}
-
-const GITIGNORE_SPECIAL_CHARACTERS = new Set(["\\", "*", "?", "[", "]"]);
-
-export interface RepositoryExclude {
-	readonly path: string;
-	readonly kind: "file" | "directory";
-}
-
-/**
- * Repository-private excludes keep harness-owned paths out of a target's
- * status without changing the files a stage is measured against or depending
- * on global Git configuration.
- */
-export async function excludeFromRepository(
-	targetDir: string,
-	entries: readonly RepositoryExclude[],
-): Promise<void> {
-	const commonDirectory = await git(targetDir, "rev-parse", "--git-common-dir");
-	const excludePath = resolve(targetDir, commonDirectory, "info", "exclude");
-	let existing: string;
-	try {
-		existing = await readFile(excludePath, "utf8");
-	} catch (error) {
-		if (
-			!(error instanceof Error && "code" in error && error.code === "ENOENT")
-		) {
-			throw error;
-		}
-		existing = "";
-	}
-	const patterns = [
-		...new Set(
-			entries.map(({ path, kind }) => {
-				const normalized = path.split(sep).join("/");
-				if (normalized.includes("\n") || normalized.includes("\r")) {
-					throw new Error(`${path} must fit on one Git exclude line`);
-				}
-				let escaped = "";
-				for (const character of normalized) {
-					if (GITIGNORE_SPECIAL_CHARACTERS.has(character)) {
-						escaped += "\\";
-					}
-					escaped += character;
-				}
-				return `/${escaped}${kind === "directory" ? "/" : ""}`;
-			}),
-		),
-	];
-	const lines = new Set(
-		existing.split("\n").map((line) => line.replace(/\r$/u, "")),
-	);
-	const missing = patterns.filter((path) => !lines.has(path));
-	if (missing.length === 0) {
-		return;
-	}
-
-	await mkdir(dirname(excludePath), { recursive: true });
-	const separator = existing === "" || existing.endsWith("\n") ? "" : "\n";
-	await Bun.write(
-		excludePath,
-		`${existing}${separator}${missing.join("\n")}\n`,
-	);
 }
 
 /**

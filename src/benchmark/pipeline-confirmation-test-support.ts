@@ -3,7 +3,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
 	captureStageCorpus,
-	excludeInstalledCorpus,
 	installStageCorpusSnapshot,
 	materializeCheckpoint,
 	recordCheckpoint,
@@ -269,7 +268,6 @@ export class PipelineConfirmationHarness {
 			},
 			materializeCheckpoint,
 			installStageCorpusSnapshot,
-			excludeInstalledCorpus,
 			recordCheckpoint,
 			recordRetentionRef: (_targetRoot, runName, targetSha) => {
 				this.retained.set(runName, targetSha);

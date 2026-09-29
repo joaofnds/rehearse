@@ -23,7 +23,6 @@ import {
 	corpusDifferences,
 	corpusLayoutRoots,
 	deriveStaleness,
-	excludeInstalledCorpus,
 	hashDirectory,
 	hashedCorpus,
 	hashWorkflowState,
@@ -40,10 +39,11 @@ import {
 } from "./checkpoint";
 import { runCommand } from "./command";
 import type { CorpusRoot } from "./corpus-file";
+import { CorpusFileError } from "./corpus-file";
 import { projectSlug } from "./session-capture";
 import { SymlinkedEntryError } from "./file-presence";
 import { failureOf } from "#cli/cli-test-support";
-import { TestResources } from "./test-support";
+import { commitAll, TestResources } from "./test-support";
 
 const testResources = TestResources.forEachTest();
 
@@ -295,50 +295,150 @@ describe(captureStageCorpus.name, () => {
 		);
 	});
 
-	describe(excludeInstalledCorpus.name, () => {
-		async function installedWorktree(): Promise<string> {
+	describe("when the target does not ignore .claude", () => {
+		async function linkedWorktree(): Promise<{
+			readonly repository: string;
+			readonly worktree: string;
+		}> {
+			const repository = await testResources.createRepository();
+			await Bun.write(
+				join(repository.directory, ".gitignore"),
+				"node_modules/\n",
+			);
+			await commitAll(repository.directory, "chore: drop workflow ignores");
+			const parent = await mkdtemp(join(tmpdir(), "rehearse-corpus-ignore-"));
+			testResources.track(parent);
+			const worktree = join(parent, "worktree");
+			await runCommand(
+				["git", "worktree", "add", "--detach", worktree, "HEAD"],
+				repository.directory,
+			);
+			testResources.trackWorktree(repository.directory, worktree);
+
+			return { repository: repository.directory, worktree };
+		}
+
+		async function snapshotOf(skill: string, body: string): Promise<string> {
 			const roots = await corpusRoots();
 			await installSkill(roots[1], "doctrine", "doctrine skill");
-			await installSkill(roots[1], "discuss", "discuss skill");
-			const parent = await mkdtemp(join(tmpdir(), "rehearse-corpus-exclude-"));
+			await installSkill(roots[1], skill, body);
+			const parent = await mkdtemp(join(tmpdir(), "rehearse-corpus-snapshot-"));
 			testResources.track(parent);
 			const snapshotDirectory = join(parent, "snapshot");
-			const worktree = join(parent, "worktree");
-			await mkdir(worktree, { recursive: true });
-			await runCommand(["git", "init", "-b", "main"], worktree);
 			await snapshotStageCorpus(
-				"discuss",
+				skill,
 				"frozen instructions",
 				corpusSources(roots),
 				snapshotDirectory,
 			);
-			await installStageCorpusSnapshot(snapshotDirectory, worktree);
 
-			return worktree;
+			return snapshotDirectory;
 		}
 
-		function untrackedPaths(worktree: string): Promise<string> {
+		function status(worktree: string): Promise<string> {
 			return runCommand(
 				["git", "status", "--porcelain=v1", "--untracked-files=all"],
 				worktree,
 			);
 		}
 
-		it("keeps an installed corpus out of a target that does not ignore .claude", async () => {
-			const worktree = await installedWorktree();
+		it("leaves the target's status clean", async () => {
+			const { worktree } = await linkedWorktree();
 
-			await excludeInstalledCorpus(worktree);
+			await installStageCorpusSnapshot(
+				await snapshotOf("discuss", "discuss skill"),
+				worktree,
+			);
 
-			expect(await untrackedPaths(worktree)).toBe("");
+			expect(await status(worktree)).toBe("");
 		});
 
 		it("still reports a file a stage writes beside the installed corpus", async () => {
-			const worktree = await installedWorktree();
-			await excludeInstalledCorpus(worktree);
+			const { worktree } = await linkedWorktree();
+			await installStageCorpusSnapshot(
+				await snapshotOf("discuss", "discuss skill"),
+				worktree,
+			);
 
 			await writeFile(join(worktree, ".claude", "settings.json"), "{}");
 
-			expect(await untrackedPaths(worktree)).toBe("?? .claude/settings.json\n");
+			expect(await status(worktree)).toBe("?? .claude/settings.json\n");
+		});
+
+		it("still reports a skill a stage writes into the installed layout", async () => {
+			const { worktree } = await linkedWorktree();
+			await installStageCorpusSnapshot(
+				await snapshotOf("discuss", "discuss skill"),
+				worktree,
+			);
+
+			await mkdir(join(worktree, ".claude", "skills", "authored"));
+			await writeFile(
+				join(worktree, ".claude", "skills", "authored", "SKILL.md"),
+				"authored",
+			);
+
+			expect(await status(worktree)).toBe(
+				"?? .claude/skills/authored/SKILL.md\n",
+			);
+		});
+
+		it("matches an installed file name literally", async () => {
+			const { worktree } = await linkedWorktree();
+			await installStageCorpusSnapshot(
+				await snapshotOf("glob[a]*", "glob skill"),
+				worktree,
+			);
+
+			await mkdir(join(worktree, ".claude", "skills", "globa-b"));
+			await writeFile(
+				join(worktree, ".claude", "skills", "globa-b", "SKILL.md"),
+				"authored",
+			);
+
+			expect(await status(worktree)).toBe(
+				"?? .claude/skills/globa-b/SKILL.md\n",
+			);
+		});
+
+		it("stays clean after a later stage installs a different corpus", async () => {
+			const { worktree } = await linkedWorktree();
+			await installStageCorpusSnapshot(
+				await snapshotOf("discuss", "discuss skill"),
+				worktree,
+			);
+
+			await installStageCorpusSnapshot(
+				await snapshotOf("shape", "shape skill"),
+				worktree,
+			);
+
+			expect(await status(worktree)).toBe("");
+		});
+
+		it("refuses a corpus file whose name the ignore file cannot hold", async () => {
+			const { worktree } = await linkedWorktree();
+			const snapshot = await snapshotOf("discuss", "discuss skill");
+			await writeFile(join(snapshot, "skills", "discuss", "two\nlines.md"), "");
+
+			const failure = await failureOf(
+				installStageCorpusSnapshot(snapshot, worktree),
+			);
+
+			expect(failure).toBeInstanceOf(CorpusFileError);
+		});
+
+		it("leaves the repository's shared excludes untouched", async () => {
+			const { repository, worktree } = await linkedWorktree();
+			const exclude = join(repository, ".git", "info", "exclude");
+			const before = await Bun.file(exclude).text();
+
+			await installStageCorpusSnapshot(
+				await snapshotOf("discuss", "discuss skill"),
+				worktree,
+			);
+
+			expect(await Bun.file(exclude).text()).toBe(before);
 		});
 	});
 

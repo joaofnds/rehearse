@@ -29,7 +29,6 @@ import {
 	statIfExists,
 	SymlinkedEntryError,
 } from "./file-presence";
-import { excludeFromRepository } from "./target";
 import { copyWorkflowState, existingWorkflowEntries } from "./workflow-state";
 
 export interface HashedFile {
@@ -718,6 +717,8 @@ async function refuseUncontainedEntries(
 	}
 }
 
+const INSTALLED_CORPUS_IGNORE = ".gitignore";
+
 export async function installStageCorpusSnapshot(
 	snapshotDirectory: string,
 	targetDirectory: string,
@@ -739,29 +740,41 @@ export async function installStageCorpusSnapshot(
 	await mkdir(destination, { recursive: true });
 
 	// Each stage replaces the installed layout, including kinds it no longer has.
-	for (const kind of [...CORPUS_LAYOUT_DIRECTORIES, "CLAUDE.md"]) {
+	for (const kind of [
+		...CORPUS_LAYOUT_DIRECTORIES,
+		"CLAUDE.md",
+		INSTALLED_CORPUS_IGNORE,
+	]) {
 		await rm(join(destination, kind), { recursive: true, force: true });
 	}
 
 	await copyCorpusFiles({ directories, files, instructions, destination });
+	await Bun.write(
+		join(destination, INSTALLED_CORPUS_IGNORE),
+		installedCorpusIgnore(files.map(({ file }) => file.path)),
+	);
 }
 
 /**
  * The installed layout is harness state, not stage output, so a target that
- * does not ignore `.claude` must not read as dirty once it is installed. Only
- * the installed paths are excluded: a file a stage writes elsewhere under
- * `.claude` still shows in the target's status.
+ * does not ignore `.claude` must not read as dirty once it is installed. The
+ * ignore file lives in the worktree and names each installed file, so it goes
+ * with the worktree and a file a stage writes under `.claude` still shows.
  */
-export async function excludeInstalledCorpus(
-	targetDirectory: string,
-): Promise<void> {
-	await excludeFromRepository(targetDirectory, [
-		{ path: join(".claude", "CLAUDE.md"), kind: "file" },
-		...CORPUS_LAYOUT_DIRECTORIES.map((kind) => ({
-			path: join(".claude", kind),
-			kind: "directory" as const,
-		})),
-	]);
+function installedCorpusIgnore(paths: readonly string[]): string {
+	const patterns = [INSTALLED_CORPUS_IGNORE, "CLAUDE.md", ...paths].map(
+		(path) => {
+			if (path.includes("\n")) {
+				throw new CorpusFileError(
+					`Corpus file ${path} must fit on one ignore line`,
+				);
+			}
+
+			return `/${path.replaceAll(/[\\*?[\] ]/gu, String.raw`\$&`)}`;
+		},
+	);
+
+	return `${patterns.join("\n")}\n`;
 }
 
 /**

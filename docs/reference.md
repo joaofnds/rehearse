@@ -720,10 +720,12 @@ snapshot remains usable after the original trees change or disappear. The
 additional global-skills list is currently empty. Explicit-directory replay and
 stage/pipeline confirmation install snapshots under the worktree's `.claude/`,
 preserving its root project instructions, and use project settings sources.
-The installed `CLAUDE.md` and layout directories are added to the target
-repository's private Git excludes, so a target that does not ignore `.claude`
-stays clean for the stage's checks, while a file the stage writes elsewhere
-under `.claude` still shows.
+The install also writes `.claude/.gitignore`, which names each installed file
+and itself, so a target that does not ignore `.claude` stays clean for the
+stage's checks, while a file the stage writes under `.claude` still shows. The
+file lives in the worktree and goes with it, and the repository's shared Git
+excludes are untouched. A target that tracks files under the installed layout
+still reads as dirty, because an ignore rule does not cover a tracked file.
 Plain live debug replay leaves settings sources unset and does not install a
 snapshot. It uses the live agent environment, as a live debug pipeline does.
 Consequently, corpus hashes alone do not establish equivalence between all
