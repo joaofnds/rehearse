@@ -1,8 +1,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { claudeArgs, readStructuredOutput } from "./claude";
-import { runCommand } from "./command";
+import { claudeArgs, readStructuredOutput, runJsonSession } from "./claude";
 import type { Effort } from "./config";
 import { CLAUDE_TIMEOUT_MS, HARNESS_RUBRIC_IDS } from "./config";
 import type {
@@ -287,7 +286,7 @@ export async function runJudge(
 	const invokeJudge: JudgeInvoker =
 		invoke ??
 		((judgePrompt, budgetUsd) =>
-			runCommand(
+			runJsonSession(
 				claudeArgs({
 					settings: { model, effort, budgetUsd },
 					schema: judgeGradeResponseSchema,

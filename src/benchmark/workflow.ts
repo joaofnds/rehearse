@@ -5,9 +5,9 @@ import {
 	readClaudeCallMetrics,
 	readClaudeEnvelope,
 	readStructuredOutput,
+	runJsonSession,
 	runStreamedSession,
 } from "./claude";
-import { runCommand } from "./command";
 import type { Effort, WorkflowStage } from "./config";
 import {
 	CLAUDE_TIMEOUT_MS,
@@ -144,7 +144,7 @@ function continueStagePrompt(
  */
 export function createProductOwner(
 	configuration: ProductOwnerConfiguration,
-	runClaude: ClaudeCommand = runCommand,
+	runClaude: ClaudeCommand = runJsonSession,
 ): ProductOwner {
 	let sessionId: string = randomUUID();
 	let spentUsd = 0;
@@ -156,29 +156,30 @@ export function createProductOwner(
 			const prompt = started
 				? `The ${stage} session asks:\n\n${question}`
 				: `Feature request:\n\n${configuration.task}\n\nProduct brief:\n\n${configuration.productBrief}\n\nThe ${stage} session asks:\n\n${question}`;
-			const output = await runClaude(
-				[
-					...claudeArgs({
-						settings: {
-							model: configuration.model,
-							effort: configuration.effort,
-							budgetUsd: configuration.spendCeiling.budgetFor(
-								remainingBudget(configuration.sessionBudgetUsd, spentUsd),
-							),
-						},
-						schema: productAnswerSchema,
-						access: "sealed",
-						systemPrompt:
-							"You are the Product Owner for one software feature. Answer the current question directly and make a concrete decision. Keep every answer consistent with prior answers in this session. Prefer the smallest coherent product scope, preserve the task's required behavior, and defer implementation mechanics to the engineering agent. Do not discuss evaluation, grading, or this protocol.",
-						session: { id: sessionId, resume: started },
-					}),
-					prompt,
-				],
-				configuration.directory,
-				{ timeoutMs: CLAUDE_TIMEOUT_MS },
+			const budgetUsd = configuration.spendCeiling.budgetFor(
+				remainingBudget(configuration.sessionBudgetUsd, spentUsd),
 			);
 			let envelope;
 			try {
+				const output = await runClaude(
+					[
+						...claudeArgs({
+							settings: {
+								model: configuration.model,
+								effort: configuration.effort,
+								budgetUsd,
+							},
+							schema: productAnswerSchema,
+							access: "sealed",
+							systemPrompt:
+								"You are the Product Owner for one software feature. Answer the current question directly and make a concrete decision. Keep every answer consistent with prior answers in this session. Prefer the smallest coherent product scope, preserve the task's required behavior, and defer implementation mechanics to the engineering agent. Do not discuss evaluation, grading, or this protocol.",
+							session: { id: sessionId, resume: started },
+						}),
+						prompt,
+					],
+					configuration.directory,
+					{ timeoutMs: CLAUDE_TIMEOUT_MS },
+				);
 				envelope = readClaudeEnvelope(output);
 			} catch (error) {
 				configuration.spendCeiling.charge(

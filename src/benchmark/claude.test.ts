@@ -6,8 +6,10 @@ import {
 	readClaudeEnvelope,
 	readStreamResult,
 	readStructuredOutput,
+	runJsonSession,
 	runStreamedSession,
 } from "./claude";
+import { CommandError } from "./command";
 import type { ClaudeEnvelope } from "./contracts";
 import {
 	claudeJsonSchema,
@@ -878,5 +880,41 @@ describe(runStreamedSession.name, () => {
 		expect(runStreamedSession(printing(3), process.cwd())).rejects.toThrow(
 			/^Command failed \(3\)[^\n]*\n\{"type":"result","is_error":true\}$/u,
 		);
+	});
+});
+
+describe(runJsonSession.name, () => {
+	const printing = (output: string): string[] => [
+		"sh",
+		"-c",
+		`printf '%s' "$0"; exit 1`,
+		output,
+	];
+
+	it("reports a session the CLI halted as a session error carrying its spend", async () => {
+		const halt = JSON.stringify({
+			type: "result",
+			session_id: "halted-session",
+			is_error: true,
+			subtype: "error_max_budget_usd",
+			terminal_reason: "budget_exhausted",
+			total_cost_usd: 0.578,
+		});
+
+		const failure = await runJsonSession(printing(halt), process.cwd()).catch(
+			(error: unknown) => error,
+		);
+
+		expect(failure).toBeInstanceOf(ClaudeSessionError);
+		expect(failure).toMatchObject({
+			terminalReason: "budget_exhausted",
+			costUsd: 0.578,
+		});
+	});
+
+	it("reports a failed command with no envelope as a command failure", () => {
+		expect(
+			runJsonSession(printing("claude: not logged in"), process.cwd()),
+		).rejects.toBeInstanceOf(CommandError);
 	});
 });

@@ -155,6 +155,22 @@ export async function runStreamedSession(
 	}
 }
 
+/** Runs a session whose output is its one json envelope. */
+export async function runJsonSession(
+	command: readonly string[],
+	cwd: string,
+	options: Parameters<typeof runCommand>[2] = {},
+): Promise<string> {
+	try {
+		return await runCommand(command, cwd, options);
+	} catch (error) {
+		if (error instanceof CommandError) {
+			throw sessionFailure(error);
+		}
+		throw error;
+	}
+}
+
 /**
  * The CLI exits non-zero on a session it halted, a budget halt among them,
  * and still writes the envelope saying what the session spent. Read as a

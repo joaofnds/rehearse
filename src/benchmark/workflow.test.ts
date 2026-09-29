@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { failureOf } from "#cli/cli-test-support";
-import { runStreamedSession } from "./claude";
+import { runJsonSession, runStreamedSession } from "./claude";
 import { STAGE_SILENCE_LIMIT_MS } from "./config";
 import type { SpendCeiling } from "./spend-ceiling";
 import { createSpendCeiling, SpendCeilingReachedError } from "./spend-ceiling";
@@ -865,6 +865,18 @@ describe("the spend ceiling", () => {
 			const spendCeiling = createSpendCeiling({ ceilingUsd: 1 });
 			const productOwner = productOwnerFor(spendCeiling, () =>
 				Promise.resolve(budgetHalt(0.25)),
+			);
+
+			await failureOf(productOwner.ask("shape", "Which scope?"));
+
+			expect(spendCeiling.spentUsd()).toBeCloseTo(0.25);
+		});
+
+		it("charges the ceiling a Product Owner call the CLI halted with a failed exit", async () => {
+			const spendCeiling = createSpendCeiling({ ceilingUsd: 1 });
+			const halt = ["sh", "-c", `printf '%s' "$0"; exit 1`, budgetHalt(0.25)];
+			const productOwner = productOwnerFor(spendCeiling, () =>
+				runJsonSession(halt, process.cwd()),
 			);
 
 			await failureOf(productOwner.ask("shape", "Which scope?"));
