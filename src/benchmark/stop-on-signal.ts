@@ -19,7 +19,8 @@ export interface SignalStopDependencies {
  * Ends the process on a stop signal once the commands it started are killed
  * and what it leaves behind is cleaned up. Its commands run in process groups
  * of their own, so a process that exits without killing them leaves them
- * spending. Answers the release, which returns the signals to their default.
+ * spending. Answers the release, which returns the signals to their default
+ * unless a stop has begun.
  */
 export function stopOnSignal(
 	dependencies: SignalStopDependencies,
@@ -50,6 +51,11 @@ export function stopOnSignal(
 	}
 
 	return () => {
+		// A stop under way ends in exit, and a signal left to the default
+		// during its cleanup would kill the process before the cleanup ends.
+		if (stopping) {
+			return;
+		}
 		for (const signal of RUN_SIGNALS) {
 			dependencies.releaseSignal(signal, handler);
 		}

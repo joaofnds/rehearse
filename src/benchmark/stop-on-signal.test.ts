@@ -43,6 +43,10 @@ class FakeProcess implements SignalStopDependencies {
 		};
 	}
 
+	public handles(signal: NodeJS.Signals): boolean {
+		return this.handlers.has(signal);
+	}
+
 	public async receive(signal: NodeJS.Signals): Promise<void> {
 		this.handlers.get(signal)?.(signal);
 		await Bun.sleep(0);
@@ -98,6 +102,20 @@ describe(stopOnSignal.name, () => {
 				"Could not clean up after the stop: worktree busy",
 			);
 			expect(system.exits).toEqual([143]);
+		});
+	});
+
+	describe("when it is released while the stop is cleaning up", () => {
+		it("keeps the signals until the stop exits", async () => {
+			const system = new FakeProcess();
+			const cleanup = Promise.withResolvers<undefined>();
+			const release = stopOnSignal(system, () => cleanup.promise);
+			await system.receive("SIGTERM");
+
+			release();
+
+			expect(system.handles("SIGTERM")).toBe(true);
+			cleanup.resolve(undefined);
 		});
 	});
 
