@@ -527,8 +527,11 @@ async function runReplayConfirmationBody(
 				const baselineContext = await dependencies.captureBaselineContext(
 					plan.worktreePath,
 				);
+				setupOperation = "Product Owner directory creation";
+				const productOwnerDirectory = join(repPaths.directory, "product-owner");
+				await mkdir(productOwnerDirectory, { recursive: true });
 				productOwner = dependencies.createProductOwner({
-					directory: join(repPaths.directory, "product-owner"),
+					directory: productOwnerDirectory,
 					model: request.model,
 					effort: request.effort,
 					sessionBudgetUsd: request.sessionBudgetUsd,

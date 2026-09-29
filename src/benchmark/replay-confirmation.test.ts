@@ -666,6 +666,57 @@ describe(runReplayConfirmation.name, () => {
 		).toHaveLength(1);
 	});
 
+	it("gives the Product Owner a directory that exists when a stage asks it", async () => {
+		const fake = new ReplayConfirmationHarness(testResources);
+		const recorded = await fake.recordedRun();
+		const corpusRoot = await mkdtemp(join(tmpdir(), "replay-po-corpus-"));
+		testResources.track(corpusRoot);
+		await mkdir(join(corpusRoot, "skills", "discuss"), { recursive: true });
+		await Bun.write(
+			join(corpusRoot, "skills", "discuss", "SKILL.md"),
+			"discuss\n",
+		);
+		const directoriesAsked: boolean[] = [];
+
+		await fake.runConfirmation(
+			{
+				paths: recorded.paths,
+				corpusRoots: [{ kind: "directory", root: corpusRoot }],
+			},
+			{ reps: 2 },
+			(dependencies) => ({
+				...dependencies,
+				createProductOwner: (configuration) => ({
+					ask: async () => {
+						directoriesAsked.push(
+							await stat(configuration.directory).then(
+								(entry) => entry.isDirectory(),
+								() => false,
+							),
+						);
+
+						return "Use the small scope";
+					},
+					snapshot: () => ({
+						sessionId: "po-session",
+						spentUsd: 0,
+						providerCalls: [],
+					}),
+				}),
+				stageSession: {
+					...dependencies.stageSession,
+					runWorkflowStage: async (request) => {
+						await request.productOwner.ask(request.stage, "Which scope?");
+
+						return dependencies.stageSession.runWorkflowStage(request);
+					},
+				},
+			}),
+		);
+
+		expect(directoriesAsked).toEqual([true, true]);
+	});
+
 	it("carries Product Owner provider calls into replay evidence", async () => {
 		const metric: ClaudeCallMetrics = {
 			costUsd: 0.25,
