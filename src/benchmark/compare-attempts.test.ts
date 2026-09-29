@@ -165,4 +165,51 @@ describe(compareAttempts.name, () => {
 			expect(arms.baselineRequests).toEqual([]);
 		});
 	});
+
+	describe("when arms A and B differ in more than one corpus unit", () => {
+		it("refuses and names every differing unit", async () => {
+			const arms = await RecordedArms.create();
+			const armA = await arms.recordArm("baseline", SHARED);
+			const armB = await arms.recordArm("candidate", {
+				...SHARED,
+				"agents/helper.md": "helper\n",
+				"skills/build/SKILL.md": "build\n",
+			});
+
+			const refusal = await refusalOf(
+				compareAttempts(
+					{ runsDirectory: arms.runsDirectory, armA, armB },
+					{ runBaselineGroup: arms.runBaselineGroup },
+				),
+			);
+
+			expect(refusal.message).toBe(
+				"arms A and B differ in more than one corpus unit: agents/helper.md, skills/build/",
+			);
+			expect(arms.baselineRequests).toEqual([]);
+		});
+	});
+
+	describe("when arms A and B differ in a unit that is not a skill", () => {
+		it("refuses and points at a manifest-supplied control", async () => {
+			const arms = await RecordedArms.create();
+			const armA = await arms.recordArm("baseline", SHARED);
+			const armB = await arms.recordArm("candidate", {
+				...SHARED,
+				"CLAUDE.md": "revised global instructions\n",
+			});
+
+			const refusal = await refusalOf(
+				compareAttempts(
+					{ runsDirectory: arms.runsDirectory, armA, armB },
+					{ runBaselineGroup: arms.runBaselineGroup },
+				),
+			);
+
+			expect(refusal.message).toBe(
+				"the arms differ in CLAUDE.md, which is not a skill; supply the control through a comparison manifest",
+			);
+			expect(arms.baselineRequests).toEqual([]);
+		});
+	});
 });

@@ -63,7 +63,11 @@ export async function compareAttempts(
 		await recordedCorpus(request.runsDirectory, request.armB),
 	);
 	if (baseline.kind === "refused") {
-		throw new RefusedPreconditionError(baseline.reason);
+		const units =
+			baseline.differingUnits.length > 1
+				? `: ${baseline.differingUnits.join(", ")}`
+				: "";
+		throw new RefusedPreconditionError(`${baseline.reason}${units}`);
 	}
 
 	throw new Error("not implemented");
