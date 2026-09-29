@@ -225,7 +225,7 @@ function CasePicker({
 			onChange={(event) => {
 				onSelect(event.target.value);
 			}}
-			className="h-9 rounded-md border border-strong bg-background px-2 font-mono text-sm"
+			className="h-9 w-full min-w-0 rounded-md border border-strong bg-background px-2 font-mono text-sm"
 		>
 			{cases.map((listed) =>
 				listed.model === null ? (
@@ -355,7 +355,7 @@ function LaunchForm({
 							<dt className="text-muted-foreground">
 								<label htmlFor="launch-case">Case</label>
 							</dt>
-							<dd className="col-span-3">
+							<dd className="col-span-3 min-w-0">
 								<CasePicker
 									cases={cases.data?.cases ?? []}
 									selected={caseId}
