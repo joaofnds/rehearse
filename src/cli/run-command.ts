@@ -71,6 +71,7 @@ import {
 import { runBenchmark } from "#benchmark/run";
 import { createSpendCeiling } from "#benchmark/spend-ceiling";
 import { runStageJudge } from "#benchmark/stage-grading";
+import { processSignalStop, stopOnSignal } from "#benchmark/stop-on-signal";
 import type { LoadedStageSettings } from "#benchmark/stage-settings";
 import {
 	addWorktree,
@@ -79,6 +80,7 @@ import {
 	assertSourceReady,
 	captureBuildCandidate,
 	changedPathsBetween,
+	pruneWorktrees,
 	recordRetentionRef,
 	removeWorktree,
 } from "#benchmark/target";
@@ -455,6 +457,12 @@ async function confirmRun(
 			captureFileHashes,
 			addWorktree,
 			removeWorktree,
+			pruneWorktrees,
+			stopOnSignal: (removeGroupWorktrees) =>
+				stopOnSignal(
+					processSignalStop(diagnosticWriter(output)),
+					removeGroupWorktrees,
+				),
 			materializeCheckpoint,
 			installStageCorpusSnapshot,
 			recordCheckpoint,

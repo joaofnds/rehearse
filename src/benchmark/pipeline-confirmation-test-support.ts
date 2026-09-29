@@ -97,6 +97,8 @@ export class PipelineConfirmationHarness {
 	public readonly corpusRoot: string;
 	public readonly retained = new Map<string, string>();
 	public readonly removed: string[] = [];
+	public readonly stops: (() => Promise<void>)[] = [];
+	public readonly pruned: string[] = [];
 	public readonly logs: string[] = [];
 
 	private constructor(props: PipelineHarnessProps) {
@@ -242,6 +244,16 @@ export class PipelineConfirmationHarness {
 			removeWorktree: async (targetRoot, worktreePath) => {
 				this.removed.push(worktreePath);
 				await removeWorktree(targetRoot, worktreePath);
+			},
+			pruneWorktrees: (root) => {
+				this.pruned.push(root);
+
+				return Promise.resolve();
+			},
+			stopOnSignal: (cleanUp) => {
+				this.stops.push(cleanUp);
+
+				return () => undefined;
 			},
 			materializeCheckpoint,
 			installStageCorpusSnapshot,

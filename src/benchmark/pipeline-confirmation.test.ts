@@ -1456,6 +1456,31 @@ describe(runPipelineConfirmation.name, () => {
 		).toContain("spend ceiling of USD 3");
 	});
 
+	describe("when a signal stops it", () => {
+		it("deletes every rep worktree and prunes them from the target", async () => {
+			const harness = await PipelineConfirmationHarness.setup(testResources);
+			const groupId = "pipeline-stopped";
+			let leftover: readonly string[] = ["the stop never ran"];
+
+			await harness
+				.run({ groupId }, (dependencies) => ({
+					...dependencies,
+					runSetup: async () => {
+						await harness.stops[0]?.();
+						const entries = await readdir(tmpdir());
+						leftover = entries.filter((entry) =>
+							entry.startsWith(`rehearse-${groupId}-`),
+						);
+						throw new Error("stopped");
+					},
+				}))
+				.catch(() => undefined);
+
+			expect(leftover).toEqual([]);
+			expect(new Set(harness.pruned)).toEqual(new Set([harness.sourceRoot]));
+		});
+	});
+
 	it("removes its worktrees directory when the confirmation body throws", async () => {
 		const harness = await PipelineConfirmationHarness.setup(testResources);
 		let worktreesDirectory: string | undefined;
