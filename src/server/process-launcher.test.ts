@@ -97,4 +97,36 @@ describe(processLauncher.name, () => {
 			}),
 		).toBe(true);
 	});
+
+	it("drops every knob a case declares, so a launch runs the case as declared", async () => {
+		const log = await logFile();
+		const launcher = processLauncher(["sh", "-c", "env"], {
+			KEPT: "yes",
+			BENCHMARK_LIVE_CORPUS_BACKING_ROOT: "/backing",
+			BENCHMARK_CASE: "other",
+			BENCHMARK_EFFORT: "max",
+			BENCHMARK_JUDGE_EFFORT: "max",
+			BENCHMARK_JUDGE_MODEL: "opus",
+			BENCHMARK_MINIMUM_GRADE: "A",
+			BENCHMARK_MODEL: "opus",
+			BENCHMARK_PIPELINE: "other",
+			BENCHMARK_SESSION_BUDGET_USD: "50",
+			BENCHMARK_TARGET_DIR: "/some/other/repo",
+		});
+
+		pids.push(await launcher.launch([], log));
+
+		expect(
+			await eventually(async () => {
+				const text = await logText(log);
+
+				return text.includes("KEPT=yes");
+			}),
+		).toBe(true);
+		const text = await logText(log);
+		const passed = text
+			.split("\n")
+			.filter((line) => line.startsWith("BENCHMARK_"));
+		expect(passed).toEqual(["BENCHMARK_LIVE_CORPUS_BACKING_ROOT=/backing"]);
+	});
 });
