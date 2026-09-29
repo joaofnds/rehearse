@@ -11,6 +11,7 @@ import {
 	parseConfirmationRepRecord,
 } from "./confirmation-record";
 import type { ComparisonArm } from "./comparison-record";
+import type { StageLetterGrade } from "./config";
 import type { StageGradingRecord } from "./comparison-stage-grading";
 
 export function digest(content: string): string {
@@ -307,6 +308,39 @@ export class ComparisonEvidenceFixture {
 						)}\n`,
 					);
 				}
+			}
+		}
+	}
+
+	/** Grades each of one arm's reps at build, in ordinal order. */
+	public async gradeBuild(
+		role: ComparisonArm,
+		grades: readonly [StageLetterGrade, StageLetterGrade],
+	): Promise<void> {
+		for (const caseId of this.caseIds) {
+			for (const [index, grade] of grades.entries()) {
+				const ordinal = index + 1;
+				const repFile = this.repFile(caseId, role, ordinal);
+				const rep = parseConfirmationRepRecord(await Bun.file(repFile).text());
+				const [build] = rep.stages;
+				await Bun.write(
+					repFile,
+					`${JSON.stringify(
+						{
+							...rep,
+							outcome:
+								grade === "A" || grade === "B" ? "SUCCESSFUL" : "UNSUCCESSFUL",
+							stages: [{ ...build, grade }],
+						},
+						null,
+						2,
+					)}\n`,
+				);
+				const scorecard = ComparisonEvidenceFixture.scorecard(role, ordinal);
+				await this.writeScorecard(caseId, role, ordinal, {
+					...scorecard,
+					grade: { ...scorecard.grade, grade },
+				});
 			}
 		}
 	}

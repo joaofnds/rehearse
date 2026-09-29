@@ -86,6 +86,7 @@ const comparisonResponseSchema = z.object({
 			control: recordedAttemptsSchema,
 		}),
 	),
+	summary: z.record(z.string(), z.record(z.string(), z.unknown())),
 });
 
 const baselineArmResponseSchema = z.object({
@@ -1057,6 +1058,45 @@ describe("What moved", () => {
 					},
 				},
 			},
+		});
+	});
+
+	describe("summary", () => {
+		it("compares arm B with arm A and each with the baseline arm over every combination of their attempts", async () => {
+			const { summary } = await oneCheckpointComparison(async (fixture) => {
+				await fixture.gradeBuild("baseline", ["C", "B"]);
+				await fixture.gradeBuild("candidate", ["A", "B"]);
+				await fixture.gradeBuild("control", ["D", "D"]);
+			});
+
+			expect(summary["build-checkpoint"]).toMatchObject({
+				contrasts: {
+					candidateMinusBaseline: {
+						build: {
+							verdict: { kind: "insideRerunNoise" },
+							combinations: {
+								state: "available",
+								higher: 3,
+								equal: 1,
+								lower: 0,
+								of: 4,
+							},
+						},
+					},
+					candidateMinusControl: {
+						build: {
+							verdict: { kind: "separated", arm: "candidate" },
+							combinations: { higher: 4, equal: 0, lower: 0, of: 4 },
+						},
+					},
+					baselineMinusControl: {
+						build: {
+							verdict: { kind: "separated", arm: "baseline" },
+							combinations: { higher: 4, equal: 0, lower: 0, of: 4 },
+						},
+					},
+				},
+			});
 		});
 	});
 

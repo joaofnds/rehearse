@@ -17,6 +17,8 @@ import type {
 } from "./comparison-quality-reading";
 import { qualityReading } from "./comparison-quality-reading";
 import type { ComparisonAttemptHistoryLinks } from "./comparison-history-links";
+import type { CaseSummary } from "./comparison-summary";
+import { caseSummary } from "./comparison-summary";
 import type { WhatMovedRow } from "./comparison-what-moved";
 import { whatMoved } from "./comparison-what-moved";
 
@@ -35,6 +37,7 @@ export interface ComparisonReportWithAttribution {
 	>;
 	readonly whatMoved: Readonly<Record<string, readonly WhatMovedRow[]>>;
 	readonly attempts: Readonly<Record<string, CaseAttempts>>;
+	readonly summary: Readonly<Record<string, CaseSummary>>;
 }
 
 type AnyComparisonReport = ComparisonReport | LegacyComparisonReport;
@@ -107,6 +110,7 @@ export function comparisonReport(
 	const figures: Record<string, CaseArmFigures> = {};
 	const rows: Record<string, readonly WhatMovedRow[]> = {};
 	const attempts: Record<string, CaseAttempts> = {};
+	const summary: Record<string, CaseSummary> = {};
 	const measures = [
 		...report.declaredStages,
 		...(report.mode === "pipeline" ? ["final"] : []),
@@ -142,6 +146,11 @@ export function comparisonReport(
 			qualityByPair,
 			measures,
 		);
+		summary[benchmarkCase.caseId] = caseSummary(
+			benchmarkCase,
+			qualityByPair,
+			(measure) => scaleFor(report, measure),
+		);
 	}
 
 	return {
@@ -152,5 +161,6 @@ export function comparisonReport(
 		qualityReadings,
 		whatMoved: rows,
 		attempts,
+		summary,
 	};
 }
