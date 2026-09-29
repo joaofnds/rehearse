@@ -478,39 +478,45 @@ describe("GET /api/comparisons/:digest", () => {
 		},
 	);
 
-	it("serves the report and names a baseline record it cannot read as unreadable", async () => {
-		const fixture = await writtenFixture();
-		await Bun.write(
-			join(
-				comparisonReportPaths(fixture.runsDirectory, fixture.comparisonDigest)
-					.directory,
-				"baseline.json",
-			),
-			"{ torn",
-		);
-		const app = createApiApp({
-			runsDirectory: fixture.runsDirectory,
-			liveness: nothingRunning,
-			readCorpusSource: fixedCorpusSource(
-				directorySource(await corpusDirectory()),
-			),
-		});
+	it.each([
+		{ record: "torn JSON", content: "{ torn" },
+		{ record: "a record of another shape", content: '{"schemaVersion":3}\n' },
+	])(
+		"serves the report and names $record as an unreadable baseline record",
+		async ({ content }) => {
+			const fixture = await writtenFixture();
+			await Bun.write(
+				join(
+					comparisonReportPaths(fixture.runsDirectory, fixture.comparisonDigest)
+						.directory,
+					"baseline.json",
+				),
+				content,
+			);
+			const app = createApiApp({
+				runsDirectory: fixture.runsDirectory,
+				liveness: nothingRunning,
+				readCorpusSource: fixedCorpusSource(
+					directorySource(await corpusDirectory()),
+				),
+			});
 
-		const response = await app.request(
-			`/api/comparisons/${fixture.comparisonDigest}`,
-		);
+			const response = await app.request(
+				`/api/comparisons/${fixture.comparisonDigest}`,
+			);
 
-		const { baselineArm } = z
-			.object({
-				baselineArm: z.object({ kind: z.string(), reason: z.string() }),
-			})
-			.parse(await response.json());
-		expect(response.status).toBe(200);
-		expect(baselineArm.kind).toBe("unreadable");
-		expect(baselineArm.reason).toStartWith(
-			"baseline.json is not a baseline record: ",
-		);
-	});
+			const { baselineArm } = z
+				.object({
+					baselineArm: z.object({ kind: z.string(), reason: z.string() }),
+				})
+				.parse(await response.json());
+			expect(response.status).toBe(200);
+			expect(baselineArm.kind).toBe("unreadable");
+			expect(baselineArm.reason).toStartWith(
+				"baseline.json is not a baseline record: ",
+			);
+		},
+	);
 
 	it("renders the recorded report plus attribution for every case and contrast", async () => {
 		const fixture = await writtenFixture();
