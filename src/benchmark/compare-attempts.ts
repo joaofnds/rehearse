@@ -39,6 +39,8 @@ export interface BaselineGroupRequest {
 	readonly judgeModel: string;
 	readonly judgeEffort: Effort | undefined;
 	readonly sessionBudgetUsd: number;
+	/** The rubric arm A was graded on, which the baseline must be graded on too. */
+	readonly rubricSha256: string;
 }
 
 export interface CompareAttemptsRequest {
@@ -358,6 +360,17 @@ export async function compareAttempts(
 	return runComparison(request, await planComparison(request), dependencies);
 }
 
+function frozenRubricSha256(armA: RecordedArm): string {
+	const rubric = armA.group.inputs.files.find(({ kind }) => kind === "rubric");
+	if (rubric === undefined) {
+		throw new RefusedPreconditionError(
+			`group ${armA.group.groupId} froze no rubric`,
+		);
+	}
+
+	return rubric.sha256;
+}
+
 /** Runs the baseline group a plan names and writes the report. */
 async function runComparison(
 	request: CompareAttemptsRequest,
@@ -379,6 +392,7 @@ async function runComparison(
 		judgeModel: inputs.judgeModel,
 		judgeEffort: inputs.judgeEffort,
 		sessionBudgetUsd: inputs.sessionBudgetUsd,
+		rubricSha256: frozenRubricSha256(armA),
 	});
 
 	const arms = { baseline: request.armA, candidate: request.armB, control };

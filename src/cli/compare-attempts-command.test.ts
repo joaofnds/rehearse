@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "bun:test";
+import { createHash } from "node:crypto";
 import { rm } from "node:fs/promises";
 import type { ReplayCliConfig } from "#benchmark/config";
 import { RefusedPreconditionError } from "#benchmark/exit-codes";
@@ -11,6 +12,9 @@ import {
 import { writeReplayableRunManifest } from "#cli/replay-test-support";
 
 const RUN = "any-name-baseline";
+const REPLAYED_STAGE_RUBRIC_SHA256 = createHash("sha256")
+	.update(await Bun.file("cases/audit-log/rubrics/shape.json").text())
+	.digest("hex");
 
 describe(replayBaselineGroup.name, () => {
 	const manifests: string[] = [];
@@ -56,6 +60,7 @@ describe(replayBaselineGroup.name, () => {
 			judgeModel: "opus",
 			judgeEffort: "high",
 			sessionBudgetUsd: 5,
+			rubricSha256: REPLAYED_STAGE_RUBRIC_SHA256,
 		});
 
 		expect(groupId).toBe("baseline-group");
@@ -121,6 +126,7 @@ describe(replayBaselineGroup.name, () => {
 				judgeModel: "opus",
 				judgeEffort: undefined,
 				sessionBudgetUsd: 5,
+				rubricSha256: REPLAYED_STAGE_RUBRIC_SHA256,
 			}),
 		);
 
@@ -129,6 +135,46 @@ describe(replayBaselineGroup.name, () => {
 			"the baseline replay would run judgeEffort high where arm A recorded none, so its group could not be compared",
 		);
 		expect(executed).toBe(false);
+	});
+
+	it("refuses before probing the model when the stage's rubric changed since arm A was recorded", async () => {
+		manifests.push(await writeReplayableRunManifest(RUN));
+		const { output } = recordOutput();
+		let probed = false;
+
+		const failure = await failureOf(
+			replayBaselineGroup(
+				{ approval: "yes", stdinIsTerminal: false },
+				{
+					output,
+					resolveRunDirectory: () => Promise.resolve(`/runs/${RUN}`),
+					requireSpendCeiling: () => Promise.resolve(100),
+					probeModel: () => {
+						probed = true;
+
+						return Promise.resolve();
+					},
+					execute: () => Promise.reject(new Error("replay must not run")),
+				},
+			)({
+				run: RUN,
+				stage: "shape",
+				corpusDirectory: "/runs/baseline-corpora/digest",
+				reps: 3,
+				model: "sonnet",
+				effort: "high",
+				judgeModel: "opus",
+				judgeEffort: "high",
+				sessionBudgetUsd: 5,
+				rubricSha256: "0".repeat(64),
+			}),
+		);
+
+		expect(failure).toBeInstanceOf(RefusedPreconditionError);
+		expect(failure.message).toBe(
+			"the cases/audit-log/rubrics/shape.json rubric changed since arm A was recorded, so a baseline group run now could not be compared with it",
+		);
+		expect(probed).toBe(false);
 	});
 });
 

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import { Glob } from "bun";
+import { createHash } from "node:crypto";
 import { mkdtemp, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
@@ -341,6 +342,9 @@ describe(compareAttempts.name, () => {
 					judgeModel: "opus",
 					judgeEffort: undefined,
 					sessionBudgetUsd: 5,
+					rubricSha256: createHash("sha256")
+						.update(`${CASE_ID} rubric\n`)
+						.digest("hex"),
 				},
 			]);
 			expect(dirname(corpusDirectory)).toBe(

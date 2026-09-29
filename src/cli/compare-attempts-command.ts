@@ -1,9 +1,14 @@
+import { createHash } from "node:crypto";
 import { basename, dirname } from "node:path";
 import type { BaselineGroupRequest } from "#benchmark/compare-attempts";
 import { compareAttempts } from "#benchmark/compare-attempts";
 import type { ApprovalMethod, ReplayCliConfig } from "#benchmark/config";
+import { recordsDirectory } from "#benchmark/config";
 import { unhandled } from "#benchmark/contracts";
 import { RefusedPreconditionError } from "#benchmark/exit-codes";
+import { loadRunManifest } from "#benchmark/manifest";
+import { benchmarkRunPaths } from "#benchmark/run-layout";
+import { loadStageRubric } from "#benchmark/stage-grading";
 import { UsageError } from "#cli/commands";
 import { writeRecord } from "#cli/output";
 import type { ReplayCommandDependencies } from "#cli/replay-command";
@@ -88,6 +93,34 @@ function assertRunsArmAInputs(
 }
 
 /**
+ * Replay grades the baseline on the stage's rubric as it stands now, so a
+ * rubric edited since arm A was recorded would have its group refused by the
+ * comparison only after it was paid for. The run's manifest names the rubric
+ * replay will load, so the edit is refused before replay starts.
+ */
+async function assertGradesOnArmARubric(
+	baseline: Readonly<BaselineGroupRequest>,
+): Promise<void> {
+	const manifest = await loadRunManifest(
+		benchmarkRunPaths(recordsDirectory(), baseline.run).manifestFile,
+	);
+	const stage = manifest.pipeline.stages.find(
+		({ name }) => name === baseline.stage,
+	);
+	if (stage === undefined) {
+		return;
+	}
+	const { content } = await loadStageRubric(stage);
+	if (
+		createHash("sha256").update(content).digest("hex") !== baseline.rubricSha256
+	) {
+		throw new RefusedPreconditionError(
+			`the ${stage.rubric} rubric changed since arm A was recorded, so a baseline group run now could not be compared with it`,
+		);
+	}
+}
+
+/**
  * Runs a comparison's baseline group through replay itself, so it meets the
  * same spend ceiling, model probe and cost approval as any replay. Replay's
  * record goes to stderr, since the comparison's report owns stdout.
@@ -97,6 +130,8 @@ export function replayBaselineGroup(
 	dependencies: ReplayCommandDependencies,
 ): (baseline: BaselineGroupRequest) => Promise<string> {
 	return async (baseline) => {
+		await dependencies.resolveRunDirectory(baseline.run);
+		await assertGradesOnArmARubric(baseline);
 		let groupRecordFile: string | undefined;
 		await runReplayCommand(
 			{
