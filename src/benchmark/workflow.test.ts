@@ -4,6 +4,7 @@ import { runJsonSession, runStreamedSession } from "./claude";
 import { STAGE_SILENCE_LIMIT_MS } from "./config";
 import type { SpendCeiling } from "./spend-ceiling";
 import { createSpendCeiling, SpendCeilingReachedError } from "./spend-ceiling";
+import { budgetHaltEnvelope, haltingCommand } from "./test-support";
 import type {
 	ClaudeCommand,
 	ProductOwner,
@@ -815,31 +816,26 @@ describe("the spend ceiling", () => {
 		});
 
 		it("charges the ceiling a resumed worker turn the CLI halted with a failed exit", async () => {
-			const spendCeiling = createSpendCeiling({ ceilingUsd: 0.5 });
+			const spendCeiling = createSpendCeiling({ ceilingUsd: 1 });
 			const question = JSON.stringify({
 				type: "result",
 				session_id: "worker-session",
 				total_cost_usd: 0.203,
 				structured_output: { status: "QUESTION", message: "Which scope?" },
 			});
-			const halt = [
-				"sh",
-				"-c",
-				`printf '%s\\n' "$0"; exit 1`,
-				budgetHalt(0.578),
-			];
-			const turns = [
-				() => Promise.resolve(question),
-				() => runStreamedSession(halt, process.cwd()),
-			];
+			const halt = haltingCommand(await budgetHaltEnvelope());
+			let turn = 0;
 
 			await failureOf(
-				runWorkflowStage(stageRequest(spendCeiling), () =>
-					(turns.shift() ?? (() => Promise.resolve("")))(),
-				),
+				runWorkflowStage(stageRequest(spendCeiling), () => {
+					turn += 1;
+					return turn === 1
+						? Promise.resolve(question)
+						: runStreamedSession(halt, process.cwd());
+				}),
 			);
 
-			expect(spendCeiling.spentUsd()).toBeCloseTo(0.578);
+			expect(spendCeiling.spentUsd()).toBeCloseTo(0.5782854);
 		});
 
 		it("charges the ceiling a worker turn whose answer is not a turn", async () => {
@@ -874,14 +870,14 @@ describe("the spend ceiling", () => {
 
 		it("charges the ceiling a Product Owner call the CLI halted with a failed exit", async () => {
 			const spendCeiling = createSpendCeiling({ ceilingUsd: 1 });
-			const halt = ["sh", "-c", `printf '%s' "$0"; exit 1`, budgetHalt(0.25)];
+			const halt = haltingCommand(await budgetHaltEnvelope());
 			const productOwner = productOwnerFor(spendCeiling, () =>
 				runJsonSession(halt, process.cwd()),
 			);
 
 			await failureOf(productOwner.ask("shape", "Which scope?"));
 
-			expect(spendCeiling.spentUsd()).toBeCloseTo(0.25);
+			expect(spendCeiling.spentUsd()).toBeCloseTo(0.5782854);
 		});
 	});
 

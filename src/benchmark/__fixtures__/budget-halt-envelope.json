@@ -1,0 +1,96 @@
+{
+	"duration_api_ms": 109064,
+	"stop_reason": "tool_use",
+	"session_id": "710aef82-de73-493f-854b-4b710403cc68",
+	"total_cost_usd": 0.5782854,
+	"usage": {
+		"input_tokens": 10,
+		"cache_creation_input_tokens": 7727,
+		"cache_read_input_tokens": 200701,
+		"output_tokens": 3105,
+		"output_tokens_details": {
+			"thinking_tokens": 494
+		},
+		"server_tool_use": {
+			"web_search_requests": 0,
+			"web_fetch_requests": 0
+		},
+		"service_tier": "standard",
+		"cache_creation": {
+			"ephemeral_1h_input_tokens": 7727,
+			"ephemeral_5m_input_tokens": 0
+		},
+		"inference_geo": "not_available",
+		"iterations": [],
+		"speed": "standard"
+	},
+	"modelUsage": {
+		"claude-sonnet-5-5": {
+			"inputTokens": 26,
+			"outputTokens": 5085,
+			"thinkingTokens": 1161,
+			"cacheReadInputTokens": 375437,
+			"cacheCreationInputTokens": 44839,
+			"webSearchRequests": 0,
+			"costUSD": 0.3053454,
+			"contextWindow": 1000000,
+			"maxOutputTokens": 128000,
+			"canonicalModel": "claude-sonnet-5-5",
+			"provider": "firstParty",
+			"costBasis": "list"
+		},
+		"claude-opus-5-5": {
+			"inputTokens": 8,
+			"outputTokens": 5718,
+			"cacheReadInputTokens": 42440,
+			"cacheCreationInputTokens": 30012,
+			"webSearchRequests": 0,
+			"costUSD": 0.27293999999999996,
+			"contextWindow": 1000000,
+			"maxOutputTokens": 128000,
+			"thinkingTokens": 2510,
+			"canonicalModel": "claude-opus-5-5",
+			"provider": "firstParty",
+			"costBasis": "list"
+		}
+	},
+	"permission_denials": [],
+	"terminal_reason": "budget_exhausted",
+	"fast_mode_state": "off",
+	"fast_mode_disabled_reason": "sdk_opt_in_required",
+	"subagent_stats": {
+		"spawned": 1,
+		"requested": {
+			"background": 0,
+			"foreground": 1,
+			"unset": 0
+		},
+		"started_in_background": 0,
+		"max_depth": 1,
+		"spawned_by_subagents": 0,
+		"completed": 1,
+		"failed": 0,
+		"killed": {
+			"parent": 0,
+			"user": 0,
+			"system": 0
+		},
+		"refused": {
+			"depth_limit": 0,
+			"concurrency_limit": 0,
+			"budget": 0
+		},
+		"by_type": {
+			"reviewer": 1
+		}
+	},
+	"is_error": true,
+	"num_turns": 11,
+	"subtype": "error_max_budget_usd",
+	"errors": ["Reached maximum budget ($0.2853308)"],
+	"type": "result",
+	"duration_ms": 85820,
+	"uuid": "71ab339a-d0a3-4cc0-b925-63972922290b",
+	"queued_turn_count": 0,
+	"result_index": 0
+}

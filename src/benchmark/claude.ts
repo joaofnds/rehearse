@@ -91,28 +91,35 @@ export function claudeArgs(invocation: ClaudeInvocation): string[] {
  * The provider names why it stopped in `terminal_reason`, and a budget halt
  * reports what it spent getting there while carrying no `result` at all, only
  * its `errors`. Callers that need the cause or the spend narrow on this type
- * rather than reading the message.
+ * rather than reading the message. A halt that states neither keeps the failed
+ * command's message, which carries its exit code and stderr.
  */
 export class ClaudeSessionError extends Error {
 	public readonly terminalReason: string | undefined;
 	public readonly costUsd: number | undefined;
 
-	public constructor(envelope: ClaudeEnvelope) {
-		super(sessionErrorMessage(envelope));
+	public constructor(
+		envelope: ClaudeEnvelope,
+		failure?: Readonly<CommandError>,
+	) {
+		super(
+			statedFailure(envelope) ?? failure?.message ?? "Claude session failed",
+			{ cause: failure },
+		);
 		this.name = "ClaudeSessionError";
 		this.terminalReason = envelope.terminal_reason;
 		this.costUsd = envelope.total_cost_usd;
 	}
 }
 
-function sessionErrorMessage(envelope: ClaudeEnvelope): string {
+function statedFailure(envelope: ClaudeEnvelope): string | undefined {
 	if (envelope.result !== undefined && envelope.result !== "") {
 		return envelope.result;
 	}
 
 	const errors = envelope.errors?.join("; ") ?? "";
 
-	return errors === "" ? "Claude session failed" : errors;
+	return errors === "" ? undefined : errors;
 }
 
 const streamLineSchema = z.looseObject({ type: z.string() });
@@ -200,7 +207,7 @@ function sessionFailure(
 	const envelope = claudeEnvelopeSchema.safeParse(output);
 
 	return envelope.success && envelope.data.is_error === true
-		? new ClaudeSessionError(envelope.data)
+		? new ClaudeSessionError(envelope.data, error)
 		: error;
 }
 

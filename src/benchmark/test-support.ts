@@ -1,5 +1,12 @@
 import { afterEach } from "bun:test";
-import { mkdtemp, readdir, rename, rm, rmdir } from "node:fs/promises";
+import {
+	mkdtemp,
+	readFile,
+	readdir,
+	rename,
+	rm,
+	rmdir,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runCommand } from "./command";
@@ -204,6 +211,24 @@ export function harnessResult(
 /** A ceiling far above anything a test's fake providers report. */
 export function ampleSpendCeiling(): SpendCeiling {
 	return createSpendCeiling({ ceilingUsd: 100 });
+}
+
+/**
+ * The result line `claude -p` wrote when it halted a resumed worker turn at its
+ * budget: USD 0.5782854 spent against a USD 0.2853308 budget.
+ */
+export async function budgetHaltEnvelope(): Promise<string> {
+	const recorded = await readFile(
+		new URL("__fixtures__/budget-halt-envelope.json", import.meta.url),
+		"utf8",
+	);
+
+	return JSON.stringify(JSON.parse(recorded));
+}
+
+/** A command that prints this output and exits 1, as the CLI does on a halt. */
+export function haltingCommand(output: string): string[] {
+	return ["sh", "-c", `printf '%s\\n' "$0"; exit 1`, output];
 }
 
 export function judgeBudget(): JudgeBudget {

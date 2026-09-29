@@ -11,13 +11,13 @@ import {
 	runStreamedSession,
 } from "./claude";
 import { CommandError } from "./command";
-import type { ClaudeEnvelope } from "./contracts";
 import {
 	claudeJsonSchema,
 	judgeGradeSchema,
 	productAnswerSchema,
 	stageTurnSchema,
 } from "./contracts";
+import { budgetHaltEnvelope, haltingCommand } from "./test-support";
 
 describe(readClaudeEnvelope.name, () => {
 	it("returns the parsed session envelope", () => {
@@ -54,6 +54,22 @@ describe(readClaudeEnvelope.name, () => {
 		).toThrow("Reached maximum budget ($0.2853308)");
 	});
 
+	it("reads a halt's spend when its errors are not a list of messages", async () => {
+		const output = JSON.stringify({
+			session_id: "session-1",
+			is_error: true,
+			total_cost_usd: 0.1,
+			errors: [{ code: 1 }],
+		});
+
+		const failure = await failureOf(
+			Promise.resolve(output).then(readClaudeEnvelope),
+		);
+
+		expect(failure).toBeInstanceOf(ClaudeSessionError);
+		expect(failure).toMatchObject({ costUsd: 0.1 });
+	});
+
 	it("throws the session's listed errors when the error envelope's result is empty", () => {
 		expect(() =>
 			readClaudeEnvelope(
@@ -67,19 +83,24 @@ describe(readClaudeEnvelope.name, () => {
 		).toThrow("Reached maximum budget ($0.2853308)");
 	});
 
-	it("carries the halt's reason and cost when the envelope states no result", () => {
-		const read = (): ClaudeEnvelope =>
-			readClaudeEnvelope(
-				JSON.stringify({
-					session_id: "session-1",
-					is_error: true,
-					terminal_reason: "budget_exhausted",
-					total_cost_usd: 0.022268,
-				}),
-			);
+	it("carries the halt's reason and cost when the envelope states no result", async () => {
+		const output = JSON.stringify({
+			session_id: "session-1",
+			is_error: true,
+			terminal_reason: "budget_exhausted",
+			total_cost_usd: 0.022268,
+		});
 
-		expect(read).toThrow("Claude session failed");
-		expect(read).toThrow(ClaudeSessionError);
+		const failure = await failureOf(
+			Promise.resolve(output).then(readClaudeEnvelope),
+		);
+
+		expect(failure).toBeInstanceOf(ClaudeSessionError);
+		expect(failure).toMatchObject({
+			message: "Claude session failed",
+			terminalReason: "budget_exhausted",
+			costUsd: 0.022268,
+		});
 	});
 });
 
@@ -903,45 +924,87 @@ describe(runStreamedSession.name, () => {
 		]);
 	});
 
-	it("reports a failed session with its result line, not the whole stream", () => {
-		expect(runStreamedSession(printing(3), process.cwd())).rejects.toThrow(
+	it("reports a result line that is no session envelope as a command failure carrying that line alone", () => {
+		const notAnEnvelope = JSON.stringify({ type: "result", is_error: true });
+
+		expect(
+			runStreamedSession(
+				["sh", "-c", `printf '%s\\n' "$0" "$1"; exit 3`, init, notAnEnvelope],
+				process.cwd(),
+			),
+		).rejects.toThrow(
 			/^Command failed \(3\)[^\n]*\n\{"type":"result","is_error":true\}$/u,
 		);
+	});
+
+	it("reports a session the CLI halted mid-stream as a session error naming its errors and spend", async () => {
+		const halt = await budgetHaltEnvelope();
+
+		const failure = await failureOf(
+			runStreamedSession(
+				[
+					"sh",
+					"-c",
+					`printf '%s\\n' "$0" "$1" "$2"; exit 1`,
+					init,
+					partial,
+					halt,
+				],
+				process.cwd(),
+			),
+		);
+
+		expect(failure).toBeInstanceOf(ClaudeSessionError);
+		expect(failure).toMatchObject({
+			message: "Reached maximum budget ($0.2853308)",
+			terminalReason: "budget_exhausted",
+			costUsd: 0.5782854,
+		});
 	});
 });
 
 describe(runJsonSession.name, () => {
-	const printing = (output: string): string[] => [
-		"sh",
-		"-c",
-		`printf '%s' "$0"; exit 1`,
-		output,
-	];
-
 	it("reports a session the CLI halted as a session error carrying its spend", async () => {
-		const halt = JSON.stringify({
-			type: "result",
-			session_id: "halted-session",
-			is_error: true,
-			subtype: "error_max_budget_usd",
-			terminal_reason: "budget_exhausted",
-			total_cost_usd: 0.578,
-		});
+		const halt = await budgetHaltEnvelope();
 
 		const failure = await failureOf(
-			runJsonSession(printing(halt), process.cwd()),
+			runJsonSession(haltingCommand(halt), process.cwd()),
 		);
 
 		expect(failure).toBeInstanceOf(ClaudeSessionError);
 		expect(failure).toMatchObject({
 			terminalReason: "budget_exhausted",
-			costUsd: 0.578,
+			costUsd: 0.5782854,
 		});
+	});
+
+	it("keeps the command's diagnostics when a halted session states no errors", async () => {
+		const halt = JSON.stringify({
+			session_id: "halted-session",
+			is_error: true,
+			total_cost_usd: 0.1,
+		});
+
+		const failure = await failureOf(
+			runJsonSession(
+				[
+					"sh",
+					"-c",
+					`printf '%s' "$0"; echo "$1" >&2; exit 1`,
+					halt,
+					"socket closed",
+				],
+				process.cwd(),
+			),
+		);
+
+		expect(failure).toBeInstanceOf(ClaudeSessionError);
+		expect(failure.message).toContain("socket closed");
 	});
 
 	it("reports a failed command with no envelope as a command failure", () => {
 		expect(
-			runJsonSession(printing("claude: not logged in"), process.cwd()),
+			runJsonSession(haltingCommand("claude: not logged in"), process.cwd()),
 		).rejects.toBeInstanceOf(CommandError);
 	});
 });
