@@ -15,7 +15,6 @@ import {
 	listCases,
 	readCaseDeclaration,
 } from "#benchmark/case";
-import type { CaseDeclaration } from "#benchmark/case";
 import { INITIAL_CHECKPOINT_STAGE } from "#benchmark/checkpoint";
 import { loadRunManifest } from "#benchmark/manifest";
 import {
@@ -112,17 +111,11 @@ function caseRecorded(caseId: string, casesRoot: string): Promise<boolean> {
 		: Promise.resolve(false);
 }
 
-interface LaunchArguments {
-	readonly argv: readonly string[];
-	/** Set for a case launch, from its declaration. */
-	readonly caseKind: CaseDeclaration["kind"] | undefined;
-}
-
 async function caseArguments(
 	caseId: string,
 	attempts: number,
 	casesRoot: string,
-): Promise<LaunchArguments> {
+): Promise<readonly string[]> {
 	if (!(await caseRecorded(caseId, casesRoot))) {
 		throw new LaunchRefusalError(`Unknown case ${caseId}`, 404);
 	}
@@ -143,17 +136,14 @@ async function caseArguments(
 		);
 	}
 
-	return {
-		argv: [
-			"run",
-			"--case",
-			declaration.id,
-			"--model",
-			declaration.model,
-			...confirmationArguments(attempts),
-		],
-		caseKind: declaration.kind,
-	};
+	return [
+		"run",
+		"--case",
+		declaration.id,
+		"--model",
+		declaration.model,
+		...confirmationArguments(attempts),
+	];
 }
 
 /**
@@ -163,7 +153,7 @@ async function caseArguments(
 async function replayArguments(
 	request: Readonly<{ run: string; stage: string; attempts: number }>,
 	runsDirectory: string,
-): Promise<LaunchArguments> {
+): Promise<readonly string[]> {
 	const runs = await recordedRunNames(runsDirectory);
 	if (!runs.includes(request.run)) {
 		throw new LaunchRefusalError(`No recorded run ${request.run}`, 404);
@@ -194,19 +184,16 @@ async function replayArguments(
 		);
 	}
 
-	return {
-		argv: [
-			"replay",
-			"--run",
-			request.run,
-			"--stage",
-			request.stage,
-			"--model",
-			manifest.model,
-			...confirmationArguments(request.attempts),
-		],
-		caseKind: undefined,
-	};
+	return [
+		"replay",
+		"--run",
+		request.run,
+		"--stage",
+		request.stage,
+		"--model",
+		manifest.model,
+		...confirmationArguments(request.attempts),
+	];
 }
 
 /** An unreadable settings file refuses the launch the way no ceiling does. */
@@ -228,7 +215,7 @@ async function storedSettings(runsDirectory: string): Promise<Settings> {
 async function launchArguments(
 	request: LaunchRequest,
 	dependencies: LaunchDependencies,
-): Promise<LaunchArguments> {
+): Promise<readonly string[]> {
 	const { spendCeilingUsd } = await storedSettings(dependencies.runsDirectory);
 	if (spendCeilingUsd === undefined) {
 		throw new LaunchRefusalError(
@@ -245,7 +232,6 @@ async function launchArguments(
 function launchRecord(
 	request: LaunchRequest,
 	id: string,
-	caseKind: LaunchArguments["caseKind"],
 	process: { readonly pid: number; readonly startedAt: string | undefined },
 ): LaunchRecord {
 	const common = {
@@ -257,7 +243,7 @@ function launchRecord(
 	};
 
 	return request.kind === "case"
-		? { ...common, kind: "case", caseId: request.caseId, caseKind }
+		? { ...common, kind: "case", caseId: request.caseId }
 		: { ...common, kind: "replay", run: request.run, stage: request.stage };
 }
 
@@ -381,9 +367,9 @@ export const createLaunchApp = (dependencies: LaunchDependencies) => {
 				return context.json({ error: z.prettifyError(parsed.error) }, 400);
 			}
 			const request = parsed.data;
-			let launched;
+			let argv;
 			try {
-				launched = await launchArguments(request, dependencies);
+				argv = await launchArguments(request, dependencies);
 			} catch (error) {
 				if (!(error instanceof LaunchRefusalError)) {
 					throw error;
@@ -393,13 +379,13 @@ export const createLaunchApp = (dependencies: LaunchDependencies) => {
 			}
 			const id = randomUUID();
 			const pid = await dependencies.launcher.launch(
-				launched.argv,
+				argv,
 				launchPaths(dependencies.runsDirectory, id).logFile,
 			);
 			const startedAt = await dependencies.launcher.startedAt(pid);
 			await writeLaunchRecord(
 				dependencies.runsDirectory,
-				launchRecord(request, id, launched.caseKind, { pid, startedAt }),
+				launchRecord(request, id, { pid, startedAt }),
 			);
 
 			return context.json({ id }, 202);

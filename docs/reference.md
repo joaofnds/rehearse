@@ -190,11 +190,12 @@ records stay on disk as the record of what they spent, and run history lists
 the group directory neither as a row nor as unreadable. A stopped replay or
 single session attempt writes no operator stop. A browser launch the operator
 stopped keeps `stopRequestedAt`, and once its process exits its launch row
-stays in run history as `OPERATOR_STOPPED` with no controls. A single pipeline
-case is the exception, since its run's own row reads `OPERATOR_STOPPED`. A case
-launch records its declared case kind to tell the two apart, and a launch
-recorded before the kind was kept is listed. A replay or group stopped from a
-terminal has no launch, so nothing in run history shows its stop.
+stays in run history as `OPERATOR_STOPPED` with no controls. A stopped single
+pipeline case is listed too, beside its run's own `OPERATOR_STOPPED` row when
+the run recorded one, since nothing links the two once the process is gone and
+a case stopped before its run record exists has no other row. A replay or
+group stopped from a terminal has no launch, so nothing in run history shows
+its stop.
 
 The child gets the server's environment without the `BENCHMARK_` knobs a case
 declares (case, pipeline, target, model, effort, session budget, judge model

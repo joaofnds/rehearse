@@ -251,7 +251,7 @@ export interface ConfirmationGroupRow {
  * and which has no RUNNING row of its own yet: a replay and a group never
  * get one, and a pipeline run gets one only once its first stage starts.
  * Once the operator's stop ends the process, it stays listed as
- * OPERATOR_STOPPED unless a single pipeline run's own row shows the stop. It
+ * OPERATOR_STOPPED. It
  * is listed apart from the rows, because it names a process rather than a
  * saved record, so it has no Record ID, short id, staleness or links.
  */
@@ -830,28 +830,12 @@ function launchRow(
 }
 
 /**
- * Whether a launch whose process has exited after an operator's stop left
- * no record that shows the stop. Only a single pipeline case writes a run
- * record, which lists as OPERATOR_STOPPED itself. A record written before
- * the case kind was kept is listed, since a second row for the same stop
- * costs less than none.
- */
-function stopListedByLaunch(record: LaunchRecord): boolean {
-	if (record.stopRequestedAt === undefined) {
-		return false;
-	}
-
-	return !(
-		record.kind === "case" &&
-		record.caseKind === "pipeline" &&
-		record.attempts === 1
-	);
-}
-
-/**
- * Each launch whose process is alive, and each exited one whose stop only
- * its launch record shows. A record that does not read is reported beside
- * the rows, like any other.
+ * Each launch whose process is alive, and each exited one the operator
+ * stopped. A stopped single pipeline case can also have a run row that
+ * reads OPERATOR_STOPPED, but nothing links the two once the process is
+ * gone, and one stopped before its run record exists has no other row, so
+ * every stopped launch is listed. A record that does not read is reported
+ * beside the rows, like any other.
  */
 async function liveLaunches(
 	runsDirectory: string,
@@ -869,7 +853,7 @@ async function liveLaunches(
 			const record = await readLaunchRecord(runsDirectory, id);
 			if (liveness.isAlive(record.pid)) {
 				launches.push(record);
-			} else if (stopListedByLaunch(record)) {
+			} else if (record.stopRequestedAt !== undefined) {
 				stopped.push(record);
 			}
 		} catch (error) {

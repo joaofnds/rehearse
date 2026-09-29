@@ -207,7 +207,6 @@ describe(createLaunchApp.name, () => {
 				id,
 				kind: "case",
 				caseId: "pipe-case",
-				caseKind: "pipeline",
 				attempts: 1,
 				pid: FAKE_LAUNCH_PID,
 				startedAt: FAKE_LAUNCH_STARTED_AT,
@@ -215,20 +214,6 @@ describe(createLaunchApp.name, () => {
 			expect(launcher.launches[0]?.logFile).toBe(
 				join(runsDirectory, "launches", `${id}.log`),
 			);
-		});
-		it("records that a session case's launch runs a session case", async () => {
-			const { post, runsDirectory } = await harness();
-
-			const response = await post({
-				kind: "case",
-				caseId: "sess-case",
-				attempts: 1,
-			});
-			const { id } = launchedSchema.parse(await response.json());
-
-			expect(await readLaunchRecord(runsDirectory, id)).toMatchObject({
-				caseKind: "session",
-			});
 		});
 	});
 

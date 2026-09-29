@@ -1761,9 +1761,8 @@ describe(runHistoryReport.name, () => {
 		});
 
 		it.each([
-			["a confirmation group", { caseKind: "pipeline", attempts: 3 }],
-			["a session case", { caseKind: "session", attempts: 1 }],
-			["a case of unrecorded kind", { attempts: 1 }],
+			["a confirmation group", { attempts: 3 }],
+			["a single case", { attempts: 1 }],
 		] as const)(
 			"lists %s the operator stopped as OPERATOR_STOPPED once its process has exited",
 			async (_target, launch) => {
@@ -1822,28 +1821,6 @@ describe(runHistoryReport.name, () => {
 			expect(launches.map(({ status }) => status)).toEqual([
 				"OPERATOR_STOPPED",
 			]);
-		});
-
-		it("leaves out a stopped single pipeline case, whose run row shows the stop", async () => {
-			const fixture = await writtenFixture();
-			await writeLaunchRecord(fixture.runsDirectory, {
-				id: LAUNCH_ID,
-				kind: "case",
-				caseId: "audit-log",
-				caseKind: "pipeline",
-				attempts: 1,
-				pid: 999_999,
-				launchedAt: "2026-09-29T10:00:00.000Z",
-				stopRequestedAt: "2026-09-29T10:05:00.000Z",
-			});
-
-			const { launches } = await runHistoryReport(
-				fixture.runsDirectory,
-				directorySource(await corpusDirectory("build skill\n")),
-				launchLiveness(undefined),
-			);
-
-			expect(launches).toEqual([]);
 		});
 
 		it("keeps a launch RUNNING while its process outlives the stop request", async () => {
