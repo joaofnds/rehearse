@@ -1567,6 +1567,28 @@ the treatment. Session checks are read from the recorded attempt and must agree
 with the frozen case declaration; no final-outcome row is synthesized. Debug
 attempts cannot substitute for confirmation groups.
 
+`compare attempts --arm-a <group-id> --arm-b <group-id>` compares two stage
+confirmation groups replayed at one checkpoint without a hand-written manifest
+or control corpus. Arm A takes the baseline role and arm B the candidate role.
+Before any rep runs it refuses arms replayed at different checkpoints, groups
+that are not stage groups or record no corpus version, arms whose controlled
+inputs differ, and corpora that are identical, differ in more than one unit,
+or differ in a unit that is not a skill, naming the units. A comparison whose
+arms differ in something other than one skill needs a manifest-supplied
+control. Otherwise the command writes arm A's recorded corpus without the skill
+under test to `baseline-corpora/<corpus-digest>/`, or arm A's corpus unchanged
+when the skill is new in arm B, and replays the checkpoint on it as a
+confirmation group with arm A's model, effort, Judge, session budget and reps.
+That baseline group is the control role. Its replay meets the spend ceiling,
+model probe and cost approval of any replay, `--yes` answers the approval, and
+the replay's own output goes to stderr. A replay that would resolve a knob,
+such as a Judge effort, to a value arm A did not record is refused before its
+first rep. The command then writes the manifest to
+`comparison-manifests/<baseline-group-id>.json`, writes the report as
+`compare` does and prints its path, and records beside the report in
+`baseline.json` how the baseline arm was derived: `derived` or `armA`, the
+skill under test, each role's group id, and the baseline corpus digest.
+
 Statistics are recomputed from rep evidence, rather than copied from existing
 confirmation reports. The output at `comparisons/<manifest-sha256>/report.json`
 contains quality/resource contrasts for candidate minus baseline, candidate

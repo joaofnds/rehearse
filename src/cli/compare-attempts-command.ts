@@ -1,8 +1,11 @@
 import { basename, dirname } from "node:path";
 import type { BaselineGroupRequest } from "#benchmark/compare-attempts";
+import { compareAttempts } from "#benchmark/compare-attempts";
 import type { ApprovalMethod, ReplayCliConfig } from "#benchmark/config";
 import { unhandled } from "#benchmark/contracts";
 import { RefusedPreconditionError } from "#benchmark/exit-codes";
+import { UsageError } from "#cli/commands";
+import { writeRecord } from "#cli/output";
 import type { ReplayCommandDependencies } from "#cli/replay-command";
 import { runReplayCommand } from "#cli/replay-command";
 
@@ -123,4 +126,58 @@ export function replayBaselineGroup(
 
 		return basename(dirname(groupRecordFile));
 	};
+}
+
+export interface CompareAttemptsCommandRequest {
+	readonly runsDirectory: string;
+	readonly armA: string | undefined;
+	readonly armB: string | undefined;
+	readonly yes: boolean;
+	readonly approvedInBrowser: boolean;
+	readonly json: boolean;
+	readonly stdinIsTerminal: boolean;
+}
+
+function approvalMethod(
+	request: Readonly<CompareAttemptsCommandRequest>,
+): ApprovalMethod {
+	if (request.approvedInBrowser) {
+		if (!request.yes) {
+			throw new UsageError("Use --approved-in-browser only with --yes");
+		}
+
+		return "browser";
+	}
+
+	return request.yes ? "yes" : "interactive";
+}
+
+/**
+ * Compares two recorded attempts at one checkpoint as arms A and B, running
+ * only the baseline arm, and prints the comparison's report.
+ */
+export async function runCompareAttemptsCommand(
+	request: CompareAttemptsCommandRequest,
+	dependencies: ReplayCommandDependencies,
+): Promise<void> {
+	const { armA, armB } = request;
+	if (armA === undefined || armB === undefined) {
+		throw new UsageError(
+			"Provide both attempts' confirmation groups: rehearse compare attempts --arm-a <group-id> --arm-b <group-id>",
+		);
+	}
+
+	const approval = approvalMethod(request);
+
+	const { reportFile } = await compareAttempts(
+		{ runsDirectory: request.runsDirectory, armA, armB },
+		{
+			runBaselineGroup: replayBaselineGroup(
+				{ approval, stdinIsTerminal: request.stdinIsTerminal },
+				dependencies,
+			),
+		},
+	);
+
+	await writeRecord(dependencies.output, reportFile, request.json);
 }

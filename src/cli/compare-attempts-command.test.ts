@@ -3,7 +3,11 @@ import { rm } from "node:fs/promises";
 import type { ReplayCliConfig } from "#benchmark/config";
 import { RefusedPreconditionError } from "#benchmark/exit-codes";
 import { failureOf, recordOutput } from "#cli/cli-test-support";
-import { replayBaselineGroup } from "#cli/compare-attempts-command";
+import { UsageError } from "#cli/commands";
+import {
+	replayBaselineGroup,
+	runCompareAttemptsCommand,
+} from "#cli/compare-attempts-command";
 import { writeReplayableRunManifest } from "#cli/replay-test-support";
 
 const RUN = "any-name-baseline";
@@ -123,5 +127,60 @@ describe(replayBaselineGroup.name, () => {
 			"the baseline replay would run judgeEffort high where arm A recorded none, so its group could not be compared",
 		);
 		expect(executed).toBe(false);
+	});
+});
+
+describe(runCompareAttemptsCommand.name, () => {
+	const refusingReplay = {
+		resolveRunDirectory: () => Promise.reject(new Error("must not resolve")),
+		requireSpendCeiling: () => Promise.reject(new Error("must not read")),
+		probeModel: () => Promise.reject(new Error("must not probe")),
+		execute: () => Promise.reject(new Error("replay must not run")),
+	};
+
+	it("asks for both arms by group id", async () => {
+		const { output } = recordOutput();
+
+		const failure = await failureOf(
+			runCompareAttemptsCommand(
+				{
+					runsDirectory: "/runs",
+					armA: "case-g1",
+					armB: undefined,
+					yes: true,
+					approvedInBrowser: false,
+					json: false,
+					stdinIsTerminal: false,
+				},
+				{ ...refusingReplay, output },
+			),
+		);
+
+		expect(failure).toBeInstanceOf(UsageError);
+		expect(failure.message).toBe(
+			"Provide both attempts' confirmation groups: rehearse compare attempts --arm-a <group-id> --arm-b <group-id>",
+		);
+	});
+
+	it("takes a browser approval only with --yes", async () => {
+		const { output } = recordOutput();
+
+		const failure = await failureOf(
+			runCompareAttemptsCommand(
+				{
+					runsDirectory: "/runs",
+					armA: "case-g1",
+					armB: "case-g2",
+					yes: false,
+					approvedInBrowser: true,
+					json: false,
+					stdinIsTerminal: false,
+				},
+				{ ...refusingReplay, output },
+			),
+		);
+
+		expect(failure).toBeInstanceOf(UsageError);
+		expect(failure.message).toBe("Use --approved-in-browser only with --yes");
 	});
 });

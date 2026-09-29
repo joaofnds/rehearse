@@ -231,6 +231,34 @@ export const COMMANDS: readonly CommandDefinition[] = [
 		flags: [jsonFlag],
 	},
 	{
+		name: "compare attempts",
+		summary:
+			"Compare two replay confirmation groups at one checkpoint, running only a baseline arm derived from arm A",
+		flags: [
+			{
+				name: "--arm-a",
+				kind: "value",
+				help: "Group id of the attempt that stands as arm A, the baseline role",
+			},
+			{
+				name: "--arm-b",
+				kind: "value",
+				help: "Group id of the attempt that stands as arm B, the candidate role",
+			},
+			{
+				name: "--yes",
+				kind: "switch",
+				help: "Approve the baseline group's projected cost without a prompt",
+			},
+			{
+				name: "--approved-in-browser",
+				kind: "switch",
+				help: "Record the --yes approval as given in the browser's launch dialog",
+			},
+			jsonFlag,
+		],
+	},
+	{
 		name: "list",
 		summary:
 			"List recorded cases, runs, checkpoints, attempts, groups, or comparisons",

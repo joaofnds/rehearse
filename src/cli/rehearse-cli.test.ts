@@ -941,6 +941,13 @@ const BARE_REFUSALS: ReadonlyMap<string, { code: number; reason: string }> =
 				reason: "Provide the comparison manifest",
 			},
 		],
+		[
+			"compare attempts",
+			{
+				code: EXIT_CODES.usageError,
+				reason: "Provide both attempts' confirmation groups",
+			},
+		],
 		["list", { code: EXIT_CODES.usageError, reason: "is not one of" }],
 		["show", { code: EXIT_CODES.usageError, reason: "Provide the record id" }],
 		[

@@ -9,6 +9,7 @@ import {
 } from "./src/cli/case-command";
 import { claudeProjectsDirectory } from "./src/benchmark/session-capture";
 import { requireSpendCeiling } from "./src/benchmark/settings";
+import { runCompareAttemptsCommand } from "./src/cli/compare-attempts-command";
 import { runCompare } from "./src/cli/compare-command";
 import {
 	runCorpusInvalidation,
@@ -149,6 +150,30 @@ async function dispatch(
 					json: commandLine.json,
 				},
 				processOutput,
+			);
+
+			return EXIT_CODES.completed;
+		}
+		case "compare attempts": {
+			await runCompareAttemptsCommand(
+				{
+					runsDirectory,
+					armA: flagValue(commandLine.flags, "--arm-a"),
+					armB: flagValue(commandLine.flags, "--arm-b"),
+					yes: commandLine.flags.includes("--yes"),
+					approvedInBrowser: commandLine.flags.includes(
+						"--approved-in-browser",
+					),
+					json: commandLine.json,
+					stdinIsTerminal: process.stdin.isTTY,
+				},
+				{
+					output: processOutput,
+					resolveRunDirectory,
+					probeModel: defaultAssertModelAvailable,
+					requireSpendCeiling,
+					execute: executeReplay,
+				},
 			);
 
 			return EXIT_CODES.completed;
