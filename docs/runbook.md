@@ -301,7 +301,11 @@ pipeline stage's page replays that stage. Both cost money. The dialog picks one,
 three, six or twelve attempts and states the stored spend ceiling that will hold
 them; store one first with `settings --spend-ceiling-usd <USD>`, since Start
 stays disabled without it. The run keeps going if you stop the server, and its
-output goes to `launches/<id>.log` in the records directory. See
+output goes to `launches/<id>.log` in the records directory. A launch runs
+against the target the case declares, not one set in the server's environment.
+While it runs, its row in run history offers Stop & restore repo, which ends it
+and restores the target as Ctrl-C would, and Pause after this step, which ends a
+pipeline run once the stage in progress is judged. See
 [browser launches](reference.md#browser-launches).
 
 For linked instruction files, configure the server's shell using

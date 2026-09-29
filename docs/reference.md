@@ -155,6 +155,26 @@ pid. A replay, session attempt or group keeps its launch listed until the
 process exits, and a pipeline run's launch is listed again once the run stops
 showing as running, until its process exits.
 
+A running row in run history offers two controls. Stop & restore repo posts to
+`POST /api/launches/:id/stop`, which records `stopRequestedAt` on the launch and
+sends its process SIGTERM, the same stop a terminal's Ctrl-C makes: the process
+kills its commands, restores the target and removes its worktrees. It answers
+404 for an unknown launch and 409 when the launch's process is no longer the one
+it started. A run started from a terminal has no launch, so its row offers no
+Stop. Pause after this step posts to `POST /api/runs/:run/pause`, which writes
+`pause-request.json` in the run's checkpoints directory and answers 202, or 404
+for an unknown run and 409 for one whose row does not read RUNNING. A pipeline
+run reads that file once each stage is judged and its checkpoint written, then
+ends, restores the target, exits non-zero and writes `paused.json` beside the
+request, and its row reads `PAUSED:<stage>`. The request is not read after the
+last stage, and a stage that fails its judge ends the run as it would without
+one. Nothing resumes a paused run yet.
+
+Every stop signal a pipeline run handles, from the browser or a terminal,
+writes `operator-stop.json` in its checkpoints directory with the signal's
+name, so a run stopped between stages, when no stage record exists to carry the
+stop, reads `OPERATOR_STOPPED` rather than failed.
+
 The child gets the server's environment without the `BENCHMARK_` knobs a case
 declares (case, pipeline, target, model, effort, session budget, judge model
 and effort, minimum grade), so a launch runs the case as declared. No launch

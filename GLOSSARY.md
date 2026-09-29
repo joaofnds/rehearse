@@ -330,8 +330,8 @@ See [current state](docs/status.md) for implementation coverage and
   flags or from a file, and calibration reads it.
 - **Interrupted run** — a run whose process ended (a `kill -9` or a crash)
   without writing a terminal artifact or stop record. A signal the handler
-  catches is not one: it stops the pending stage and writes that stage's stop
-  record on the way out. No file on disk gives such a run a status of its own,
+  catches is not one: it stops the pending stage, writes that stage's stop
+  record, and records an **operator stop**, on the way out. No file on disk gives such a run a status of its own,
   though the stage it died in may be left as a **stage awaiting judgment**.
   The server's startup reconciliation pass finds the run by checking whether
   the pid the run's claimed target recorded is still alive, and if not, marks
@@ -371,12 +371,21 @@ See [current state](docs/status.md) for implementation coverage and
 - **Observed delivery** — saved transcript evidence that a Read result or Skill
   companion placed recorded text into session history. An invocation alone is
   not a delivery, and delivery does not show that the model followed the text.
+- **Operator stop** — a run a stop signal ended, from the browser's Stop &
+  restore repo or a terminal's Ctrl-C, recorded in `operator-stop.json` with the
+  signal's name. Run history reads it as `OPERATOR_STOPPED` when no stage
+  record settles the run, and the Stopped filter does not match it.
 - **Pause** — the interactive stop a run makes with the candidate still in the
   target, asking the reviewer to edit files and press Enter until the
   calibration validates. It is requested by `--pause` and needs a TTY, refused
   before any paid work without one. A run without `--pause` never stops: it
   writes the preliminary artifact, retains the candidate, restores the target,
   and exits, leaving the review and the calibration to their own commands.
+  Not the **pause after this step** the browser asks for.
+- **Pause after this step** — the browser's request that a running pipeline run
+  end once the stage in progress is judged and its checkpoint written. The run
+  restores the target and exits, recording `paused.json`, and run history reads
+  it as `PAUSED:<stage>`. Nothing resumes it yet.
 - **Pipeline** — the ordered stages and their judge attachments, declared as
   data. The UI's design calls this a **task** (see [UI vocabulary](docs/design-handoff/README.md)); the word in code,
   records, and this glossary stays pipeline. Graded as a whole, a pipeline's

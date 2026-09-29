@@ -190,7 +190,11 @@ when they ran come first, newest first, followed by session attempts and
 confirmation runs, which record no time. The count, the All filter and the
 rail badge cover every listed record. A running launch is listed under All
 above the records, and is not a record, so the count and the badge leave it
-out. Stopped matches only pipeline runs
+out. A running row offers Pause after this step, and Stop & restore repo when
+a browser launch started it; see [browser launches](reference.md#browser-launches).
+A paused run reads `PAUSED:<stage>` and cannot be resumed. A run a signal
+stopped reads `OPERATOR_STOPPED`, and a stopped confirmation group still
+records its reps as failed. Stopped matches only pipeline runs
 with a stopped stage. Records that cannot be read are counted by kind in a
 notice above the table, with their ids and reasons behind a toggle. A replay
 keeps no raw transcript, so its page shows an evidence-unavailable summary with

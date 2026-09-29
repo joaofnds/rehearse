@@ -153,13 +153,16 @@ identifiers, retained candidates, and recovery boundaries.
 
 The production server serves `client/dist` and the API from one origin. The API
 reads runs, corpus information, saved comparisons, raw records, and events.
-Current routes are listed in [UI coverage](status.md#browser-ui). The one write
-route, `POST /api/launches` in [`src/server/launches.ts`](../src/server/launches.ts),
-starts a run or replay by spawning the CLI detached, with the server's
+Current routes are listed in [UI coverage](status.md#browser-ui). The write
+routes live in [`src/server/launches.ts`](../src/server/launches.ts).
+`POST /api/launches` starts a run or replay by spawning the CLI detached, with the server's
 environment minus the `BENCHMARK_` knobs a case declares, and records the child's pid under `<records>/launches`. The CLI
 stays the only code that executes a case, so a browser launch writes the same
 records a terminal launch does, and the child keeps running when the server
-stops. A request guard in front of every route admits only a loopback `Host`
+stops. A stop signals the recorded pid, once its start time still matches, and
+leaves the stop to the CLI's own signal handling. A pause writes a request file
+the run reads between stages, so neither control needs the server to hold the
+process. A request guard in front of every route admits only a loopback `Host`
 and, for a write, a same-origin JSON request, since the server has no
 authentication and a page on another origin can otherwise post to it. The
 guard reads headers any local program can set, so it stops other web pages,
