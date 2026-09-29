@@ -129,4 +129,23 @@ describe(processLauncher.name, () => {
 			.filter((line) => line.startsWith("BENCHMARK_"));
 		expect(passed).toEqual(["BENCHMARK_LIVE_CORPUS_BACKING_ROOT=/backing"]);
 	});
+
+	it("reports when the process holding a pid started", async () => {
+		const launcher = processLauncher(["sleep"], {});
+		const pid = await launcher.launch(["5"], await logFile());
+		pids.push(pid);
+
+		const startedAt = await launcher.startedAt(pid);
+
+		const table = await Bun.$`ps -o lstart= -p ${pid}`.text();
+		expect(startedAt).toBe(table.trim());
+	});
+
+	it("reports no start time for a pid no process holds", async () => {
+		const launcher = processLauncher(["true"], {});
+		const pid = await launcher.launch([], await logFile());
+		await eventually(async () => (await launcher.startedAt(pid)) === undefined);
+
+		expect(await launcher.startedAt(pid)).toBeUndefined();
+	});
 });

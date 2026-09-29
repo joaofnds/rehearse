@@ -10,7 +10,11 @@ import {
 	SET_SPEND_CEILING_COMMAND,
 	storeSpendCeiling,
 } from "#benchmark/settings";
-import { FAKE_LAUNCH_PID, FakeLauncher } from "./launch-test-support";
+import {
+	FAKE_LAUNCH_PID,
+	FAKE_LAUNCH_STARTED_AT,
+	FakeLauncher,
+} from "./launch-test-support";
 import { createLaunchApp } from "./launches";
 
 const launchedSchema = z.object({ id: z.string() });
@@ -145,7 +149,7 @@ describe(createLaunchApp.name, () => {
 			]);
 		});
 
-		it("records the launch and its pid in the records directory", async () => {
+		it("records the launch, its pid and when that process started in the records directory", async () => {
 			const { launcher, post, runsDirectory } = await harness();
 
 			const response = await post({
@@ -162,6 +166,7 @@ describe(createLaunchApp.name, () => {
 				caseId: "pipe-case",
 				attempts: 1,
 				pid: FAKE_LAUNCH_PID,
+				startedAt: FAKE_LAUNCH_STARTED_AT,
 			});
 			expect(launcher.launches[0]?.logFile).toBe(
 				join(runsDirectory, "launches", `${id}.log`),

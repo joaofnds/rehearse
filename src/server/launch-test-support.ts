@@ -2,6 +2,8 @@ import type { Launcher } from "./launches";
 
 export const FAKE_LAUNCH_PID = 4242;
 
+export const FAKE_LAUNCH_STARTED_AT = "Tue Sep 29 10:00:00 2026";
+
 export interface Launch {
 	readonly argv: readonly string[];
 	readonly logFile: string;
@@ -15,5 +17,14 @@ export class FakeLauncher implements Launcher {
 		this.launches.push({ argv, logFile });
 
 		return Promise.resolve(FAKE_LAUNCH_PID);
+	}
+
+	/** The process table: each live pid and when its process started. */
+	public readonly processes = new Map([
+		[FAKE_LAUNCH_PID, FAKE_LAUNCH_STARTED_AT],
+	]);
+
+	public startedAt(pid: number): Promise<string | undefined> {
+		return Promise.resolve(this.processes.get(pid));
 	}
 }

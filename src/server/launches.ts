@@ -26,12 +26,16 @@ import type { Settings } from "#benchmark/settings";
 import { readSettings, SET_SPEND_CEILING_COMMAND } from "#benchmark/settings";
 import { redactAbsolutePaths } from "./redact-path";
 
-/** Starts the CLI with these arguments and answers with the child's pid. */
+/**
+ * Starts the CLI with these arguments and answers with the child's pid, and
+ * says when the process holding a pid started, undefined when none does.
+ */
 export interface Launcher {
 	readonly launch: (
 		argv: readonly string[],
 		logFile: string,
 	) => Promise<number>;
+	readonly startedAt: (pid: number) => Promise<string | undefined>;
 }
 
 export interface LaunchDependencies {
@@ -219,12 +223,13 @@ async function launchArguments(
 function launchRecord(
 	request: LaunchRequest,
 	id: string,
-	pid: number,
+	process: { readonly pid: number; readonly startedAt: string | undefined },
 ): LaunchRecord {
 	const common = {
 		id,
 		attempts: request.attempts,
-		pid,
+		pid: process.pid,
+		startedAt: process.startedAt,
 		launchedAt: new Date().toISOString(),
 	};
 
@@ -298,9 +303,10 @@ export const createLaunchApp = (dependencies: LaunchDependencies) => {
 				argv,
 				launchPaths(dependencies.runsDirectory, id).logFile,
 			);
+			const startedAt = await dependencies.launcher.startedAt(pid);
 			await writeLaunchRecord(
 				dependencies.runsDirectory,
-				launchRecord(request, id, pid),
+				launchRecord(request, id, { pid, startedAt }),
 			);
 
 			return context.json({ id }, 202);

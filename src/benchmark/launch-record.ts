@@ -12,6 +12,12 @@ const launchCommon = {
 	id: z.uuid(),
 	attempts: launchAttemptsSchema,
 	pid: z.number().int().positive(),
+	/**
+	 * When the process holding `pid` started, as the process table reports
+	 * it, so a stop can tell the launch's process from a later one given the
+	 * same pid. A record written before it was kept has none.
+	 */
+	startedAt: z.string().optional(),
 	launchedAt: z.iso.datetime(),
 };
 

@@ -55,5 +55,10 @@ export function processLauncher(
 				await log.close();
 			}
 		},
+		startedAt: async (pid) => {
+			const table = await Bun.$`ps -o lstart= -p ${pid}`.quiet().nothrow();
+
+			return table.exitCode === 0 ? table.text().trim() : undefined;
+		},
 	};
 }
