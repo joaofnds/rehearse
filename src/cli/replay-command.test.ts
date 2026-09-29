@@ -2,22 +2,12 @@ import { afterEach, describe, expect, it } from "bun:test";
 import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import {
-	parseArgs,
-	parseReplayArgs,
-	recordsDirectory,
-} from "#benchmark/config";
+import { parseReplayArgs, recordsDirectory } from "#benchmark/config";
 import { corpusLayoutRoots } from "#benchmark/checkpoint";
 import { RefusedPreconditionError } from "#cli/interactive-stdin";
-import { buildRunManifest } from "#benchmark/run";
-import { writeRunManifest } from "#benchmark/manifest";
 import { benchmarkRunPaths } from "#benchmark/run-layout";
-import {
-	AUDIT_LOG_PIPELINE_PATH,
-	AUDIT_LOG_RUBRICS_PATH,
-} from "#benchmark/test-support";
-import { loadPipeline } from "#benchmark/pipeline";
 import { failureOf, recordOutput } from "#cli/cli-test-support";
+import { writeReplayableRunManifest } from "#cli/replay-test-support";
 import type { ReplayCliConfig } from "#benchmark/config";
 import {
 	executeReplay,
@@ -56,39 +46,6 @@ function replayConfigFor(runName: string, corpus: string): ReplayCliConfig {
 		corpus,
 		...sessionArgs,
 	]);
-}
-
-async function writeManifestFor(runName: string): Promise<string> {
-	const paths = benchmarkRunPaths(recordsDirectory(), runName);
-	const config = parseArgs(
-		["--target", "/tmp/target", ...sessionArgs],
-		{},
-		{
-			caseId: "audit-log",
-			pipelinePath: AUDIT_LOG_PIPELINE_PATH,
-			targetPath: "/tmp/target",
-		},
-	);
-	const pipeline = await loadPipeline(
-		AUDIT_LOG_PIPELINE_PATH,
-		AUDIT_LOG_RUBRICS_PATH,
-	);
-	const manifest = buildRunManifest({
-		timestamp: "2026-09-02T00:00:00.000Z",
-		controlSha: "control-sha",
-		source: { root: "/tmp/target", sha: "source-sha" },
-		taskId: "TASK-1",
-		taskSha: "task-sha",
-		task: "Task",
-		productBrief: "Brief",
-		config,
-		pipeline,
-		spendCeilingUsd: 100,
-	});
-
-	await writeRunManifest(paths.manifestFile, manifest);
-
-	return paths.manifestFile;
 }
 
 describe(runReplayCommand.name, () => {
@@ -210,7 +167,7 @@ describe(runReplayCommand.name, () => {
 	it("halts before executing when the declared model is not available", async () => {
 		const executed: string[] = [];
 		const { output } = recordOutput();
-		const manifestFile = await writeManifestFor("any-name-bad-model");
+		const manifestFile = await writeReplayableRunManifest("any-name-bad-model");
 
 		try {
 			const failure = await failureOf(
@@ -256,7 +213,9 @@ describe(runReplayCommand.name, () => {
 		const recordPath = join(directory, "replay.json");
 		const recordText = `${JSON.stringify({ schemaVersion: 1, stage: "shape" }, null, 2)}\n`;
 		await Bun.write(recordPath, recordText);
-		temporaryDirectories.push(await writeManifestFor("any-name-json"));
+		temporaryDirectories.push(
+			await writeReplayableRunManifest("any-name-json"),
+		);
 		const { output, stdout } = recordOutput();
 
 		await runReplayCommand(
@@ -341,7 +300,9 @@ describe(replayCorpus.name, () => {
 
 describe(replayCorpusRoots.name, () => {
 	it("searches the replayed run's own target, not the control repository's", async () => {
-		const manifestFile = await writeManifestFor("any-name-corpus-roots");
+		const manifestFile = await writeReplayableRunManifest(
+			"any-name-corpus-roots",
+		);
 
 		try {
 			expect(
@@ -365,7 +326,9 @@ describe(replayCorpusRoots.name, () => {
 
 describe(replaySettingsFile.name, () => {
 	it("loads the settings file the replayed run's case declares today", async () => {
-		const manifestFile = await writeManifestFor("any-name-settings-file");
+		const manifestFile = await writeReplayableRunManifest(
+			"any-name-settings-file",
+		);
 
 		try {
 			const settingsFile = await replaySettingsFile(manifestFile);
@@ -386,7 +349,7 @@ describe("--corpus on a stage replay", () => {
 	it("carries the corpus source through to the replay", async () => {
 		const corpora: (string | undefined)[] = [];
 		const { output } = recordOutput();
-		const manifestFile = await writeManifestFor("any-name-corpus");
+		const manifestFile = await writeReplayableRunManifest("any-name-corpus");
 
 		try {
 			await runReplayCommand(
@@ -430,7 +393,9 @@ describe("--corpus on a stage replay", () => {
 	it("refuses a corpus whose CLAUDE.md is a symlink out of the root, as a precondition", async () => {
 		const root = await mkdtemp(join(tmpdir(), "rehearse-replay-corpus-"));
 		const outside = await mkdtemp(join(tmpdir(), "rehearse-replay-outside-"));
-		const manifestFile = await writeManifestFor("any-name-corpus-linked");
+		const manifestFile = await writeReplayableRunManifest(
+			"any-name-corpus-linked",
+		);
 
 		try {
 			await mkdir(join(root, "skills"), { recursive: true });
