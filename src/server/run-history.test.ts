@@ -1760,6 +1760,113 @@ describe(runHistoryReport.name, () => {
 			expect(launches).toEqual([]);
 		});
 
+		it.each([
+			["a confirmation group", { caseKind: "pipeline", attempts: 3 }],
+			["a session case", { caseKind: "session", attempts: 1 }],
+			["a case of unrecorded kind", { attempts: 1 }],
+		] as const)(
+			"lists %s the operator stopped as OPERATOR_STOPPED once its process has exited",
+			async (_target, launch) => {
+				const fixture = await writtenFixture();
+				await writeLaunchRecord(fixture.runsDirectory, {
+					id: LAUNCH_ID,
+					kind: "case",
+					caseId: "audit-log",
+					pid: 999_999,
+					launchedAt: "2026-09-29T10:00:00.000Z",
+					stopRequestedAt: "2026-09-29T10:05:00.000Z",
+					...launch,
+				});
+
+				const { launches } = await runHistoryReport(
+					fixture.runsDirectory,
+					directorySource(await corpusDirectory("build skill\n")),
+					launchLiveness(undefined),
+				);
+
+				expect(launches).toEqual([
+					{
+						kind: "launch",
+						id: LAUNCH_ID,
+						target: "case",
+						caseId: "audit-log",
+						run: undefined,
+						stage: undefined,
+						attempts: launch.attempts,
+						launchedAt: "2026-09-29T10:00:00.000Z",
+						status: "OPERATOR_STOPPED",
+					},
+				]);
+			},
+		);
+
+		it("lists a replay the operator stopped as OPERATOR_STOPPED once its process has exited", async () => {
+			const fixture = await writtenFixture();
+			await writeLaunchRecord(fixture.runsDirectory, {
+				id: LAUNCH_ID,
+				kind: "replay",
+				run: fixture.replayableRun,
+				stage: "build",
+				attempts: 1,
+				pid: 999_999,
+				launchedAt: "2026-09-29T10:00:00.000Z",
+				stopRequestedAt: "2026-09-29T10:05:00.000Z",
+			});
+
+			const { launches } = await runHistoryReport(
+				fixture.runsDirectory,
+				directorySource(await corpusDirectory("build skill\n")),
+				launchLiveness(undefined),
+			);
+
+			expect(launches.map(({ status }) => status)).toEqual([
+				"OPERATOR_STOPPED",
+			]);
+		});
+
+		it("leaves out a stopped single pipeline case, whose run row shows the stop", async () => {
+			const fixture = await writtenFixture();
+			await writeLaunchRecord(fixture.runsDirectory, {
+				id: LAUNCH_ID,
+				kind: "case",
+				caseId: "audit-log",
+				caseKind: "pipeline",
+				attempts: 1,
+				pid: 999_999,
+				launchedAt: "2026-09-29T10:00:00.000Z",
+				stopRequestedAt: "2026-09-29T10:05:00.000Z",
+			});
+
+			const { launches } = await runHistoryReport(
+				fixture.runsDirectory,
+				directorySource(await corpusDirectory("build skill\n")),
+				launchLiveness(undefined),
+			);
+
+			expect(launches).toEqual([]);
+		});
+
+		it("keeps a launch RUNNING while its process outlives the stop request", async () => {
+			const fixture = await writtenFixture();
+			await writeLaunchRecord(fixture.runsDirectory, {
+				id: LAUNCH_ID,
+				kind: "case",
+				caseId: "audit-log",
+				attempts: 3,
+				pid: LIVE_PID,
+				launchedAt: "2026-09-29T10:00:00.000Z",
+				stopRequestedAt: "2026-09-29T10:05:00.000Z",
+			});
+
+			const { launches } = await runHistoryReport(
+				fixture.runsDirectory,
+				directorySource(await corpusDirectory("build skill\n")),
+				launchLiveness(undefined),
+			);
+
+			expect(launches.map(({ status }) => status)).toEqual(["RUNNING"]);
+		});
+
 		it("lists a launched pipeline run once, as its own row, when that run is RUNNING", async () => {
 			const fixture = await writtenFixture();
 			await fixture.writeRunningRun();

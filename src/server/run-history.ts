@@ -15,6 +15,7 @@ import { readLaunchRecord } from "#benchmark/launch-record";
 import type { LaunchRecord } from "#benchmark/launch-record";
 import { loadRunManifest } from "#benchmark/manifest";
 import { operatorStopped } from "#benchmark/operator-stop";
+import { OPERATOR_STOPPED } from "#benchmark/stopped-status";
 import type { SessionAttemptId, StageAttemptId } from "#benchmark/run-layout";
 import {
 	benchmarkRunPaths,
@@ -248,7 +249,9 @@ export interface ConfirmationGroupRow {
 /**
  * A run, replay or group the browser started whose process is still alive
  * and which has no RUNNING row of its own yet: a replay and a group never
- * get one, and a pipeline run gets one only once its first stage starts. It
+ * get one, and a pipeline run gets one only once its first stage starts.
+ * Once the operator's stop ends the process, it stays listed as
+ * OPERATOR_STOPPED unless a single pipeline run's own row shows the stop. It
  * is listed apart from the rows, because it names a process rather than a
  * saved record, so it has no Record ID, short id, staleness or links.
  */
@@ -261,7 +264,7 @@ export interface LaunchRow {
 	readonly stage: string | undefined;
 	readonly attempts: number;
 	readonly launchedAt: string;
-	readonly status: "RUNNING";
+	readonly status: "RUNNING" | typeof OPERATOR_STOPPED;
 }
 
 export interface RepAttempt {
@@ -809,7 +812,10 @@ async function heldBy(
 	return marker === undefined ? undefined : launchByPid.get(marker.pid);
 }
 
-function launchRow(record: LaunchRecord): LaunchRow {
+function launchRow(
+	record: LaunchRecord,
+	status: LaunchRow["status"],
+): LaunchRow {
 	return {
 		kind: "launch",
 		id: record.id,
@@ -819,28 +825,52 @@ function launchRow(record: LaunchRecord): LaunchRow {
 		stage: record.kind === "replay" ? record.stage : undefined,
 		attempts: record.attempts,
 		launchedAt: record.launchedAt,
-		status: "RUNNING",
+		status,
 	};
 }
 
 /**
- * Each launch whose process is alive. A record that does not read is
- * reported beside the rows, like any other.
+ * Whether a launch whose process has exited after an operator's stop left
+ * no record that shows the stop. Only a single pipeline case writes a run
+ * record, which lists as OPERATOR_STOPPED itself. A record written before
+ * the case kind was kept is listed, since a second row for the same stop
+ * costs less than none.
+ */
+function stopListedByLaunch(record: LaunchRecord): boolean {
+	if (record.stopRequestedAt === undefined) {
+		return false;
+	}
+
+	return !(
+		record.kind === "case" &&
+		record.caseKind === "pipeline" &&
+		record.attempts === 1
+	);
+}
+
+/**
+ * Each launch whose process is alive, and each exited one whose stop only
+ * its launch record shows. A record that does not read is reported beside
+ * the rows, like any other.
  */
 async function liveLaunches(
 	runsDirectory: string,
 	liveness: RunLiveness,
 ): Promise<{
 	readonly launches: readonly LaunchRecord[];
+	readonly stopped: readonly LaunchRecord[];
 	readonly unreadable: readonly UnreadableRecord[];
 }> {
 	const launches: LaunchRecord[] = [];
+	const stopped: LaunchRecord[] = [];
 	const unreadable: UnreadableRecord[] = [];
 	for (const id of await launchIds(runsDirectory)) {
 		try {
 			const record = await readLaunchRecord(runsDirectory, id);
 			if (liveness.isAlive(record.pid)) {
 				launches.push(record);
+			} else if (stopListedByLaunch(record)) {
+				stopped.push(record);
 			}
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
@@ -852,14 +882,16 @@ async function liveLaunches(
 		}
 	}
 
-	return { launches, unreadable };
+	return { launches, stopped, unreadable };
 }
 
 /**
- * The live launches no RUNNING run's row already stands for, newest first.
+ * The live launches no RUNNING run's row already stands for, and the
+ * stopped ones, newest first.
  */
 function unheldLaunchRows(
 	launches: readonly LaunchRecord[],
+	stopped: readonly LaunchRecord[],
 	rows: readonly RunHistoryRow[],
 ): readonly LaunchRow[] {
 	const held = new Set(
@@ -868,10 +900,12 @@ function unheldLaunchRows(
 		),
 	);
 
-	return launches
-		.filter(({ id }) => !held.has(id))
-		.map((record) => launchRow(record))
-		.toSorted((left, right) => right.launchedAt.localeCompare(left.launchedAt));
+	return [
+		...launches
+			.filter(({ id }) => !held.has(id))
+			.map((record) => launchRow(record, "RUNNING")),
+		...stopped.map((record) => launchRow(record, OPERATOR_STOPPED)),
+	].toSorted((left, right) => right.launchedAt.localeCompare(left.launchedAt));
 }
 
 /**
@@ -1068,7 +1102,7 @@ export async function runHistoryReport(
 		const live =
 			only === undefined
 				? await liveLaunches(runsDirectory, liveness)
-				: { launches: [], unreadable: [] };
+				: { launches: [], stopped: [], unreadable: [] };
 		const launchByPid = new Map(
 			live.launches.map(({ pid, id }) => [pid, id] as const),
 		);
@@ -1151,7 +1185,7 @@ export async function runHistoryReport(
 
 		return {
 			rows: newestFirst(rows),
-			launches: unheldLaunchRows(live.launches, rows),
+			launches: unheldLaunchRows(live.launches, live.stopped, rows),
 			unreadable: [...unreadable, ...live.unreadable],
 		};
 	} finally {
