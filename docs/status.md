@@ -50,8 +50,10 @@ unavailable. Since ACT-271.3 a stage comparison may name one replayed checkpoint
 and the route serves What moved rows for hard-blocker firings, dimension letters,
 reply length and cost per attempt, read from the grading each rep's scorecard
 recorded; a meter names a higher arm only past rerun noise, which takes about
-four attempts an arm, and these rows are API-verified only. The page does not show those arm
-figures or rows yet (ACT-257).
+four attempts an arm, and these rows are API-verified only. Since ACT-271.4 the
+route also lists each arm's recorded attempts side by side, unpaired. Launching a
+comparison with a derived baseline arm from the browser is not built yet. The
+page does not show those arm figures, rows or attempts yet (ACT-257).
 
 ## Known limitations
 

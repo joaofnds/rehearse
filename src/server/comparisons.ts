@@ -7,6 +7,8 @@ import { reliabilitySummaryNamed } from "#benchmark/confirmation-report";
 import type { ArmFigures, CaseArmFigures } from "./comparison-arm-figures";
 import { armFigures } from "./comparison-arm-figures";
 import { armPairs, pairKey } from "./comparison-arm-pair";
+import type { CaseAttempts } from "./comparison-attempts";
+import { comparisonAttempts } from "./comparison-attempts";
 import type { ComparisonAttribution } from "./comparison-attribution";
 import { comparisonAttribution } from "./comparison-attribution";
 import type {
@@ -32,6 +34,7 @@ export interface ComparisonReportWithAttribution {
 		>
 	>;
 	readonly whatMoved: Readonly<Record<string, readonly WhatMovedRow[]>>;
+	readonly attempts: Readonly<Record<string, CaseAttempts>>;
 }
 
 type AnyComparisonReport = ComparisonReport | LegacyComparisonReport;
@@ -103,6 +106,7 @@ export function comparisonReport(
 	> = {};
 	const figures: Record<string, CaseArmFigures> = {};
 	const rows: Record<string, readonly WhatMovedRow[]> = {};
+	const attempts: Record<string, CaseAttempts> = {};
 	const measures = [
 		...report.declaredStages,
 		...(report.mode === "pipeline" ? ["final"] : []),
@@ -131,6 +135,7 @@ export function comparisonReport(
 		qualityReadings[benchmarkCase.caseId] = qualityByPair;
 		const caseFigures = figuresByArm(report, benchmarkCase);
 		figures[benchmarkCase.caseId] = caseFigures;
+		attempts[benchmarkCase.caseId] = comparisonAttempts(benchmarkCase);
 		rows[benchmarkCase.caseId] = whatMoved(
 			benchmarkCase,
 			caseFigures,
@@ -146,5 +151,6 @@ export function comparisonReport(
 		attribution,
 		qualityReadings,
 		whatMoved: rows,
+		attempts,
 	};
 }

@@ -61,6 +61,11 @@ const armFiguresSchema = z.object({
 	cost: z.unknown(),
 	words: z.unknown(),
 });
+const recordedAttemptsSchema = z.array(
+	z
+		.object({ repId: z.string(), ordinal: z.number(), words: z.unknown() })
+		.loose(),
+);
 const comparisonResponseSchema = z.object({
 	report: z.unknown(),
 	armFigures: z.record(z.string(), z.record(z.string(), armFiguresSchema)),
@@ -72,6 +77,14 @@ const comparisonResponseSchema = z.object({
 	whatMoved: z.record(
 		z.string(),
 		z.array(z.object({ kind: z.string(), name: z.string() }).loose()),
+	),
+	attempts: z.record(
+		z.string(),
+		z.object({
+			baseline: recordedAttemptsSchema,
+			candidate: recordedAttemptsSchema,
+			control: recordedAttemptsSchema,
+		}),
 	),
 });
 
@@ -923,5 +936,36 @@ describe("What moved", () => {
 				},
 			},
 		});
+	});
+
+	it("lists each arm's recorded attempts side by side by ordinal, claiming no pairing between arms", async () => {
+		const { attempts } = await oneCheckpointComparison();
+		const byArm = attempts["build-checkpoint"];
+
+		expect(
+			byArm?.candidate.map(({ ordinal, words }) => ({ ordinal, words })),
+		).toEqual([
+			{ ordinal: 1, words: { state: "available", words: 3 } },
+			{ ordinal: 2, words: { state: "available", words: 4 } },
+		]);
+		expect(byArm?.baseline.map(({ repId }) => repId)).toEqual([
+			"build-checkpoint-baseline-rep-1",
+			"build-checkpoint-baseline-rep-2",
+		]);
+		expect(
+			[
+				...(byArm?.baseline ?? []),
+				...(byArm?.candidate ?? []),
+				...(byArm?.control ?? []),
+			].map((attempt) => Object.keys(attempt).toSorted()),
+		).toEqual(
+			Array.from({ length: 6 }, () => [
+				"blockersFired",
+				"ordinal",
+				"outcomes",
+				"repId",
+				"words",
+			]),
+		);
 	});
 });

@@ -121,6 +121,10 @@ See [current state](docs/status.md) for implementation coverage and
   and one stopped before it reads unavailable. The count is read from the
   output the record holds. An attempt with no output reads unavailable with
   its reason, never zero words.
+- **Attempt pairs (comparison)**: each arm's recorded attempts listed side by
+  side, each with its outcome, the blockers that fired on it and its words.
+  Despite the name, no attempt is paired with another: nothing recorded ties
+  one arm's attempt to another's, so the list claims no per-pair change.
 - **Average words (comparison arm)** — the mean word count over an arm's
   attempts that have one, served beside how many attempts it counted and how
   many the arm holds. A report written before word counts reads unavailable.

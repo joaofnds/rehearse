@@ -1602,7 +1602,12 @@ change of the means, and names the higher arm only when the ranges do not
 overlap and full separation has at most a 5% two-sided chance under rerun noise,
 2 / C(n + m, n) for n and m attempts, which takes about four attempts an arm. A
 row where either arm recorded nothing reads verdict `unavailable`. A report
-without recorded grading serves no blocker or dimension rows.
+without recorded grading serves no blocker or dimension rows. `attempts` lists,
+per case and arm, each recorded attempt in the order the arm recorded it, with
+its rep id, ordinal, stage outcomes, the hard blockers that fired and its words;
+a field a report never recorded reads `unavailable` with its reason. Attempts
+carry no pair index or seed, since nothing recorded ties one arm's attempt to
+another's, so ordinal 1 of two arms is not a pair.
 
 Session resource values are per-repetition worker metrics; group preflight cost
 remains at confirmation-group level, and unavailable metrics stay visible as
