@@ -9,7 +9,10 @@ import {
 } from "./src/cli/case-command";
 import { claudeProjectsDirectory } from "./src/benchmark/session-capture";
 import { requireSpendCeiling } from "./src/benchmark/settings";
-import { runCompareAttemptsCommand } from "./src/cli/compare-attempts-command";
+import {
+	runCompareAttemptsCommand,
+	runCompareExtendCommand,
+} from "./src/cli/compare-attempts-command";
 import { runCompare } from "./src/cli/compare-command";
 import {
 	runCorpusInvalidation,
@@ -48,6 +51,7 @@ import { runShow } from "./src/cli/show-command";
 import { runRegrade } from "./src/cli/regrade-command";
 import { runStale } from "./src/cli/stale-command";
 import { processOutput } from "./src/cli/output";
+import { terminalQuestioner } from "./src/cli/questioner";
 
 function main(): Promise<number> {
 	assertPinnedBunVersion();
@@ -173,6 +177,38 @@ async function dispatch(
 					probeModel: defaultAssertModelAvailable,
 					requireSpendCeiling,
 					execute: executeReplay,
+				},
+			);
+
+			return EXIT_CODES.completed;
+		}
+		case "compare extend": {
+			await runCompareExtendCommand(
+				{
+					runsDirectory,
+					comparison: flagValue(commandLine.flags, "--comparison"),
+					attempts: flagValue(commandLine.flags, "--attempts"),
+					yes: commandLine.flags.includes("--yes"),
+					approvedInBrowser: commandLine.flags.includes(
+						"--approved-in-browser",
+					),
+					json: commandLine.json,
+					stdinIsTerminal: process.stdin.isTTY,
+				},
+				{
+					output: processOutput,
+					resolveRunDirectory,
+					probeModel: defaultAssertModelAvailable,
+					requireSpendCeiling,
+					execute: executeReplay,
+					prompt: async (message) => {
+						const questioner = terminalQuestioner();
+						try {
+							return await questioner.question(message);
+						} finally {
+							questioner.close();
+						}
+					},
 				},
 			);
 

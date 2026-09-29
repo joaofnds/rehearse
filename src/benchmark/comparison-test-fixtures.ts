@@ -536,22 +536,22 @@ export function armResourcesWithoutElapsed(
 /** A version-5 arm's source: the one group its attempts all came from. */
 export interface SingleGroupSource<Rep> {
 	readonly group: { readonly path: string; readonly sha256: string };
-	readonly reps: readonly Omit<Immutable<Rep>, "group">[];
+	readonly reps: readonly Omit<Rep, "group">[];
 }
 
 /**
  * What separates a version-5 arm's source from a current one's: version 6
  * names every group the arm's attempts came from, and each attempt its group.
  */
-export function singleGroupSource<Rep extends { readonly group: number }>(
-	source: Immutable<{
+export function singleGroupSource<
+	Source extends {
 		readonly groups: readonly {
 			readonly path: string;
 			readonly sha256: string;
 		}[];
-		readonly reps: readonly Rep[];
-	}>,
-): SingleGroupSource<Rep> {
+		readonly reps: readonly { readonly group: number }[];
+	},
+>(source: Source): SingleGroupSource<Source["reps"][number]> {
 	const [group, ...others] = source.groups;
 	if (group === undefined || others.length > 0) {
 		throw new Error("expected an arm of exactly one group");
@@ -559,8 +559,14 @@ export function singleGroupSource<Rep extends { readonly group: number }>(
 
 	return {
 		group,
-		reps: source.reps.map(({ group: _group, ...rep }) => rep),
+		reps: withoutGroups<Source["reps"][number]>(source.reps),
 	};
+}
+
+function withoutGroups<Rep extends { readonly group: number }>(
+	reps: readonly Rep[],
+): readonly Omit<Rep, "group">[] {
+	return reps.map(({ group: _group, ...rep }) => rep);
 }
 
 export function contrastResourcesWithoutElapsed(

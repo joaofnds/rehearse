@@ -950,6 +950,13 @@ const BARE_REFUSALS: ReadonlyMap<string, { code: number; reason: string }> =
 				reason: "Provide both attempts' confirmation groups",
 			},
 		],
+		[
+			"compare extend",
+			{
+				code: EXIT_CODES.usageError,
+				reason: "Provide the comparison to extend by its manifest digest",
+			},
+		],
 		["list", { code: EXIT_CODES.usageError, reason: "is not one of" }],
 		["show", { code: EXIT_CODES.usageError, reason: "Provide the record id" }],
 		[
@@ -1036,6 +1043,36 @@ describe("a paying command given every session knob", () => {
 			expect(result.stdout).toBe("");
 		},
 	);
+});
+
+describe("compare extend", () => {
+	it("refuses a comparison nothing saved before any provider call", async () => {
+		const records = await mkdtemp(join(tmpdir(), "rehearse-cli-extend-"));
+		try {
+			const result = await runCli(
+				[
+					"compare",
+					"extend",
+					"--comparison",
+					`comparison:${"0".repeat(64)}`,
+					"--attempts",
+					"1",
+					"--yes",
+				],
+				"empty",
+				{
+					...environmentWithoutKnobs(),
+					[RECORDS_DIRECTORY_VARIABLE]: records,
+				},
+			);
+
+			expect(result.exitCode).toBe(EXIT_CODES.refusedPrecondition);
+			expect(result.stderr).toContain(`No saved comparison ${"0".repeat(64)}`);
+			expect(result.stdout).toBe("");
+		} finally {
+			await rm(records, { force: true, recursive: true });
+		}
+	});
 });
 
 describe("the linked corpus", () => {

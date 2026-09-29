@@ -264,6 +264,34 @@ export const COMMANDS: readonly CommandDefinition[] = [
 		],
 	},
 	{
+		name: "compare extend",
+		summary:
+			"Add attempts to every arm of a comparison compare attempts saved, at a stated cost, as a new comparison",
+		flags: [
+			{
+				name: "--comparison",
+				kind: "value",
+				help: "The saved comparison to extend, as `list comparisons` names it or by its manifest digest",
+			},
+			{
+				name: "--attempts",
+				kind: "value",
+				help: "How many attempts to add to each arm",
+			},
+			{
+				name: "--yes",
+				kind: "switch",
+				help: "Approve the stated cost without a prompt",
+			},
+			{
+				name: "--approved-in-browser",
+				kind: "switch",
+				help: "Record the --yes approval as given in the browser's launch dialog",
+			},
+			jsonFlag,
+		],
+	},
+	{
 		name: "list",
 		summary:
 			"List recorded cases, runs, checkpoints, attempts, groups, or comparisons",

@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { cp, mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { writeReplayableRunManifest } from "#cli/replay-test-support";
-import type { BaselineGroupRequest } from "./compare-attempts";
+import type { ArmGroupRequest } from "./compare-attempts";
 import { ComparisonEvidenceFixture } from "./comparison-evidence-test-support";
 import type { ComparisonArm } from "./comparison-record";
 import type { ConfirmationMode } from "./confirmation-record";
@@ -10,6 +10,7 @@ import { confirmationGroupRecordSchema } from "./confirmation-record";
 import { measureCorpusVersion } from "./corpus-version";
 import { benchmarkRunPaths, confirmationGroupPaths } from "./run-layout";
 import { claimShortId } from "./short-id";
+import { z } from "zod";
 
 export const CASE_ID = "build-checkpoint";
 export const RUN = "2026-09-29T10-00-00.000Z";
@@ -31,15 +32,31 @@ export function groupIdFor(role: ComparisonArm): string {
 	return `${CASE_ID}-${role}`;
 }
 
+/** The group an extension adds to the arm, beside the arm's first group. */
+export function moreGroupIdFor(role: ComparisonArm): string {
+	return `${CASE_ID}-${role}-more`;
+}
+
 export type CorpusFiles = Readonly<Record<string, string>>;
+
+interface Recording {
+	readonly corpus?: CorpusFiles;
+	readonly source?: Checkpoint;
+	readonly mode?: ConfirmationMode;
+}
 
 /**
  * Two stage groups replayed at one checkpoint, as arms A and B, each with the
  * corpus version its reps ran against, and a baseline runner that records
- * what it was asked to run and answers with a third recorded group.
+ * what it was asked to run and answers with a third recorded group. An
+ * extension's runner answers each arm with a second group recorded as the
+ * arm's first was, reading in its stage what the first read.
  */
 export class RecordedArms {
-	public readonly baselineRequests: BaselineGroupRequest[] = [];
+	public readonly baselineRequests: ArmGroupRequest[] = [];
+	public readonly moreRequests: ArmGroupRequest[] = [];
+	private readonly recordings = new Map<ComparisonArm, Recording>();
+	private readonly stageReads = new Map<string, string[]>();
 
 	private constructor(
 		public readonly runsDirectory: string,
@@ -114,6 +131,10 @@ export class RecordedArms {
 	 * replay freezes its stage's skills under inputs/corpus/<stage>/.
 	 */
 	public async readInStage(groupId: string, layoutPath: string): Promise<void> {
+		this.stageReads.set(groupId, [
+			...(this.stageReads.get(groupId) ?? []),
+			layoutPath,
+		]);
 		const { groupFile } = confirmationGroupPaths(this.runsDirectory, groupId);
 		const group = confirmationGroupRecordSchema.parse(
 			JSON.parse(await Bun.file(groupFile).text()),
@@ -196,6 +217,36 @@ export class RecordedArms {
 		);
 	}
 
+	/**
+	 * Records that the provider reported no metrics for the arm's first
+	 * attempt, which a successful attempt cannot lack.
+	 */
+	public async loseFirstAttemptMetrics(groupId: string): Promise<void> {
+		const { recordFile } = confirmationGroupPaths(
+			this.runsDirectory,
+			groupId,
+		).rep(`${groupId}-rep-1`);
+		const rep = z
+			.looseObject({})
+			.parse(JSON.parse(await Bun.file(recordFile).text()));
+		await Bun.write(
+			recordFile,
+			`${JSON.stringify(
+				{
+					...rep,
+					outcome: "UNSUCCESSFUL",
+					metrics: {
+						status: "MISSING",
+						calls: [],
+						missing: ["worker.costUsd"],
+					},
+				},
+				null,
+				2,
+			)}\n`,
+		);
+	}
+
 	/** Overwrites a recorded arm's group file with a record of another shape. */
 	public async corruptGroup(groupId: string): Promise<void> {
 		const { groupFile } = confirmationGroupPaths(this.runsDirectory, groupId);
@@ -203,7 +254,7 @@ export class RecordedArms {
 	}
 
 	public readonly runBaselineGroup = async (
-		request: BaselineGroupRequest,
+		request: ArmGroupRequest,
 	): Promise<string> => {
 		this.baselineRequests.push(request);
 		await this.recordGroup("control", {
@@ -213,18 +264,44 @@ export class RecordedArms {
 		return groupIdFor("control");
 	};
 
+	public readonly runMoreGroup = async (
+		request: ArmGroupRequest,
+	): Promise<string> => {
+		this.moreRequests.push(request);
+		const groupId = await this.fixture.addGroup(CASE_ID, request.role);
+		await this.copyGroup(
+			groupId,
+			this.fixture.groupFileOf(groupId),
+			this.recordings.get(request.role) ?? {},
+		);
+		for (const layoutPath of this.stageReads.get(groupIdFor(request.role)) ??
+			[]) {
+			await this.readInStage(groupId, layoutPath);
+		}
+
+		return groupId;
+	};
+
 	private async recordGroup(
 		role: ComparisonArm,
-		recording: {
-			readonly corpus?: CorpusFiles;
-			readonly source?: Checkpoint;
-			readonly mode?: ConfirmationMode;
-		},
+		recording: Recording,
 	): Promise<void> {
-		const groupId = groupIdFor(role);
+		this.recordings.set(role, recording);
+		await this.copyGroup(
+			groupIdFor(role),
+			this.fixture.groupFile(CASE_ID, role),
+			recording,
+		);
+	}
+
+	private async copyGroup(
+		groupId: string,
+		fixtureGroupFile: string,
+		recording: Recording,
+	): Promise<void> {
 		const paths = confirmationGroupPaths(this.runsDirectory, groupId);
 		await mkdir(dirname(paths.directory), { recursive: true });
-		await cp(dirname(this.fixture.groupFile(CASE_ID, role)), paths.directory, {
+		await cp(dirname(fixtureGroupFile), paths.directory, {
 			recursive: true,
 		});
 		const group = confirmationGroupRecordSchema.parse(

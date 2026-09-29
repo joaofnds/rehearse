@@ -5,8 +5,11 @@ import { basename, dirname, join, relative } from "node:path";
 import { z } from "zod";
 import { deriveBaselineCorpus } from "./baseline-corpus";
 import type { BaselineCorpus } from "./baseline-corpus";
+import type { ComparisonBaselineRecord } from "./comparison-baseline-record";
+import { readComparisonBaselineRecord } from "./comparison-baseline-record";
 import type { Effort } from "./config";
 import type { Immutable } from "./contracts";
+import { unhandled } from "./contracts";
 import type { ConfirmationGroupRecord } from "./confirmation-record";
 import { writeComparisonReport } from "./comparison-command";
 import { loadComparisonEvidence } from "./comparison-loader";
@@ -14,6 +17,7 @@ import type {
 	ComparisonArm,
 	ComparisonManifestText,
 } from "./comparison-record";
+import { parseComparisonReport } from "./comparison-record";
 import { executedCorpusFiles } from "./comparison-comparability";
 import { confirmationGroupRecordSchema } from "./confirmation-record";
 import {
@@ -24,16 +28,25 @@ import {
 	writeWhole,
 } from "./corpus-version";
 import { RefusedPreconditionError } from "./exit-codes";
+import type { MoreAttemptsCost } from "./more-attempts-cost";
+import { moreAttemptsCost } from "./more-attempts-cost";
 import { loadRunManifest } from "./manifest";
-import { benchmarkRunPaths, confirmationGroupPaths } from "./run-layout";
+import {
+	benchmarkRunPaths,
+	comparisonReportPaths,
+	confirmationGroupPaths,
+} from "./run-layout";
 import { readShortIds } from "./short-id";
 import { loadStageRubric } from "./stage-grading";
 
 /**
- * The baseline arm's confirmation group, replayed at the checkpoint arms A
- * and B replayed, against a corpus directory, with arm A's controlled inputs.
+ * One arm's confirmation group, replayed at the checkpoint arms A and B
+ * replayed, against a corpus directory, with arm A's controlled inputs. The
+ * baseline arm replays without the stage's own skill.
  */
-export interface BaselineGroupRequest {
+export interface ArmGroupRequest {
+	readonly role: ComparisonArm;
+	readonly withoutStageSkill: boolean;
 	readonly run: string;
 	readonly stage: string;
 	readonly corpusDirectory: string;
@@ -53,7 +66,21 @@ export interface CompareAttemptsRequest {
 
 export interface CompareAttemptsDependencies {
 	/** Runs the baseline group and answers with its group id. */
-	readonly runBaselineGroup: (request: BaselineGroupRequest) => Promise<string>;
+	readonly runBaselineGroup: (request: ArmGroupRequest) => Promise<string>;
+}
+
+export interface ExtendComparisonRequest {
+	readonly runsDirectory: string;
+	/** The manifest digest naming the comparison to extend. */
+	readonly comparison: string;
+	readonly attemptsPerArm: number;
+}
+
+export interface ExtendComparisonDependencies {
+	/** Stops the extension unless its stated cost is approved. */
+	readonly approve: (cost: ExtensionPlan["cost"]) => Promise<void>;
+	/** Runs one arm's added group and answers with its group id. */
+	readonly runArmGroup: (request: ArmGroupRequest) => Promise<string>;
 }
 
 const BASELINE_CORPORA_DIRECTORY = "baseline-corpora";
@@ -164,10 +191,10 @@ export async function recordedArm(
 	};
 }
 
-/** A comparison manifest of one case, each role naming its group file. */
+/** A comparison manifest of one case, each role naming its group files. */
 function singleCaseManifest(
 	caseId: string,
-	groupFiles: Readonly<Record<ComparisonArm, string>>,
+	groupFiles: ComparisonManifestText["cases"][number]["arms"],
 ): ComparisonManifestText {
 	return { schemaVersion: 1, cases: [{ caseId, arms: groupFiles }] };
 }
@@ -203,14 +230,14 @@ async function assertComparableArms(
 }
 
 /**
- * Writes the baseline corpus out of arm A's recorded version, under the
- * digest of the files it holds, so a replay can run it as a directory corpus.
- * Each file is written whole and owner-only, as the store holds it, since two
- * comparisons deriving the same baseline share its directory.
+ * Writes an arm's corpus out of a recorded version, under the digest of the
+ * files it holds, so a replay can run it as a directory corpus. Each file is
+ * written whole and owner-only, as the store holds it, since two comparisons
+ * running the same corpus share its directory.
  */
-async function materializeBaselineCorpus(
+async function materializeCorpus(
 	runsDirectory: string,
-	armADigest: string,
+	versionDigest: string,
 	files: ReadonlyMap<string, string>,
 ): Promise<string> {
 	const hashed = [...files].map(([path, sha256]) => ({ path, sha256 }));
@@ -224,40 +251,53 @@ async function materializeBaselineCorpus(
 		await mkdir(dirname(file), { recursive: true });
 		await writeWhole(
 			file,
-			await readCorpusVersionFile(runsDirectory, armADigest, path),
+			await readCorpusVersionFile(runsDirectory, versionDigest, path),
 		);
 	}
 
 	return directory;
 }
 
+type ArmGroups = ComparisonBaselineRecord["arms"];
+
 /**
  * The manifest of arm A as the baseline role, arm B as the candidate and the
- * derived baseline as the control (doc-180 decision 2), named by the control
- * group, which no other comparison ran.
+ * derived baseline as the control (doc-180 decision 2), named by the last
+ * control group, which no other comparison ran. An arm of one group names
+ * its group file alone, as manifests did before arms held several.
  */
 async function writeManifest(
 	runsDirectory: string,
 	caseId: string,
-	arms: Readonly<Record<ComparisonArm, string>>,
+	arms: ArmGroups,
 ): Promise<string> {
 	const manifestPath = join(
 		runsDirectory,
 		MANIFESTS_DIRECTORY,
-		`${arms.control}.json`,
+		`${arms.control.at(-1) ?? arms.control[0]}.json`,
 	);
 	const groupReference = (groupId: string): string =>
 		relative(
 			dirname(manifestPath),
 			confirmationGroupPaths(runsDirectory, groupId).groupFile,
 		);
+	const armReference = ([
+		first,
+		...rest
+	]: ArmGroups[ComparisonArm]): ComparisonManifestText["cases"][number]["arms"][ComparisonArm] =>
+		rest.length === 0
+			? groupReference(first)
+			: [
+					groupReference(first),
+					...rest.map((groupId) => groupReference(groupId)),
+				];
 	await Bun.write(
 		manifestPath,
 		`${JSON.stringify(
 			singleCaseManifest(caseId, {
-				baseline: groupReference(arms.baseline),
-				candidate: groupReference(arms.candidate),
-				control: groupReference(arms.control),
+				baseline: armReference(arms.baseline),
+				candidate: armReference(arms.candidate),
+				control: armReference(arms.control),
 			}),
 			null,
 			2,
@@ -417,12 +457,14 @@ async function runComparison(
 	dependencies: CompareAttemptsDependencies,
 ): Promise<{ readonly reportFile: string }> {
 	const { inputs } = armA.group;
-	const corpusDirectory = await materializeBaselineCorpus(
+	const corpusDirectory = await materializeCorpus(
 		request.runsDirectory,
 		armA.corpusDigest,
 		baseline.files,
 	);
 	const control = await dependencies.runBaselineGroup({
+		role: "control",
+		withoutStageSkill: true,
 		...armA.checkpoint,
 		corpusDirectory,
 		reps: armA.group.reps,
@@ -433,7 +475,11 @@ async function runComparison(
 		sessionBudgetUsd: inputs.sessionBudgetUsd,
 	});
 
-	const arms = { baseline: request.armA, candidate: request.armB, control };
+	const arms: ArmGroups = {
+		baseline: [request.armA],
+		candidate: [request.armB],
+		control: [control],
+	};
 	const manifestPath = await writeManifest(
 		request.runsDirectory,
 		armA.group.caseId,
@@ -443,12 +489,182 @@ async function runComparison(
 		manifestPath,
 		runsDirectory: request.runsDirectory,
 		baselineRecord: {
-			schemaVersion: 2,
+			schemaVersion: 3,
 			kind: baseline.kind,
 			skillUnderTest: baseline.skillUnderTest,
 			arms,
 			controlCorpus: basename(corpusDirectory),
 		},
+	});
+
+	return { reportFile };
+}
+
+/** What an extension would run, once every check that costs nothing passed. */
+export interface ExtensionPlan {
+	readonly cost: Extract<MoreAttemptsCost, { readonly state: "available" }>;
+	readonly record: ComparisonBaselineRecord;
+	readonly armA: RecordedArm;
+	readonly armB: RecordedArm;
+}
+
+/** How `compare attempts` made the comparison, which says how to replay it. */
+async function extendedRecord(
+	reportDirectory: string,
+	comparison: string,
+): Promise<ComparisonBaselineRecord> {
+	const recorded = await readComparisonBaselineRecord(reportDirectory);
+	switch (recorded.kind) {
+		case "recorded": {
+			return recorded.record;
+		}
+		case "supplied": {
+			throw new RefusedPreconditionError(
+				`comparison ${comparison} was not made by compare attempts, so nothing records the checkpoint and corpora its arms would replay`,
+			);
+		}
+		case "unreadable": {
+			throw new RefusedPreconditionError(
+				`comparison ${comparison} cannot be extended: ${recorded.reason}`,
+			);
+		}
+		default: {
+			return unhandled(recorded, "baseline record");
+		}
+	}
+}
+
+/**
+ * Refuses an extension whose cost cannot be stated, or whose added groups
+ * the comparison would refuse only after they were paid for.
+ */
+export async function planExtension(
+	request: ExtendComparisonRequest,
+): Promise<ExtensionPlan> {
+	const paths = comparisonReportPaths(
+		request.runsDirectory,
+		request.comparison,
+	);
+	const reportFile = Bun.file(paths.reportFile);
+	if (!(await reportFile.exists())) {
+		throw new RefusedPreconditionError(
+			`No saved comparison ${request.comparison}`,
+		);
+	}
+	const record = await extendedRecord(paths.directory, request.comparison);
+	const [benchmarkCase] = parseComparisonReport(await reportFile.text()).cases;
+	if (benchmarkCase === undefined) {
+		throw new Error(`comparison ${request.comparison} holds no case`);
+	}
+	const cost = moreAttemptsCost(
+		{
+			baseline: benchmarkCase.arms.baseline.resources,
+			candidate: benchmarkCase.arms.candidate.resources,
+			control: benchmarkCase.arms.control.resources,
+		},
+		request.attemptsPerArm,
+	);
+	if (cost.state === "unavailable") {
+		throw new RefusedPreconditionError(
+			`what ${request.attemptsPerArm} more attempts per arm would cost cannot be stated: ${cost.reasons.join("; ")}`,
+		);
+	}
+	const armA = await recordedArm(
+		request.runsDirectory,
+		record.arms.baseline[0],
+	);
+	const armB = await recordedArm(
+		request.runsDirectory,
+		record.arms.candidate[0],
+	);
+	await assertBaselineGradesOnArmARubric(
+		request.runsDirectory,
+		armA,
+		record.skillUnderTest,
+	);
+
+	return { cost, record, armA, armB };
+}
+
+export async function extendComparison(
+	request: ExtendComparisonRequest,
+	dependencies: ExtendComparisonDependencies,
+): Promise<{ readonly reportFile: string }> {
+	const plan = await planExtension(request);
+	await dependencies.approve(plan.cost);
+
+	return runExtension(request, plan, dependencies);
+}
+
+/**
+ * Replays the attempts asked for in every arm, each on the corpus it ran,
+ * and writes the comparison of every arm's groups, old and added.
+ */
+async function runExtension(
+	request: ExtendComparisonRequest,
+	{ record, armA, armB }: ExtensionPlan,
+	dependencies: ExtendComparisonDependencies,
+): Promise<{ readonly reportFile: string }> {
+	const { runsDirectory } = request;
+	const baseline = deriveBaselineCorpus(armA.corpus, armB.corpus);
+	if (baseline.kind === "refused") {
+		throw new Error(
+			`the baseline corpus of comparison ${request.comparison} can no longer be derived: ${baseline.reason}`,
+		);
+	}
+	const { inputs } = armA.group;
+	const replay = {
+		...armA.checkpoint,
+		reps: request.attemptsPerArm,
+		model: inputs.model,
+		effort: inputs.effort,
+		judgeModel: inputs.judgeModel,
+		judgeEffort: inputs.judgeEffort,
+		sessionBudgetUsd: inputs.sessionBudgetUsd,
+	};
+
+	const added = {
+		baseline: await dependencies.runArmGroup({
+			...replay,
+			role: "baseline",
+			withoutStageSkill: false,
+			corpusDirectory: await materializeCorpus(
+				runsDirectory,
+				armA.corpusDigest,
+				armA.corpus,
+			),
+		}),
+		candidate: await dependencies.runArmGroup({
+			...replay,
+			role: "candidate",
+			withoutStageSkill: false,
+			corpusDirectory: await materializeCorpus(
+				runsDirectory,
+				armB.corpusDigest,
+				armB.corpus,
+			),
+		}),
+		control: await dependencies.runArmGroup({
+			...replay,
+			role: "control",
+			withoutStageSkill: true,
+			corpusDirectory: await materializeCorpus(
+				runsDirectory,
+				armA.corpusDigest,
+				baseline.files,
+			),
+		}),
+	};
+
+	const arms: ArmGroups = {
+		baseline: [...record.arms.baseline, added.baseline],
+		candidate: [...record.arms.candidate, added.candidate],
+		control: [...record.arms.control, added.control],
+	};
+	const reportFile = await writeComparisonReport({
+		manifestPath: await writeManifest(runsDirectory, armA.group.caseId, arms),
+		runsDirectory,
+		baselineRecord: { ...record, arms, extends: request.comparison },
 	});
 
 	return { reportFile };

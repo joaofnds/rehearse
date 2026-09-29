@@ -1,19 +1,21 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import { Glob } from "bun";
-import { mkdtemp, readdir, rm, stat } from "node:fs/promises";
+import { mkdtemp, readdir, rm, stat, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { z } from "zod";
-import { compareAttempts } from "./compare-attempts";
+import { compareAttempts, extendComparison } from "./compare-attempts";
 import {
 	CASE_ID,
 	RecordedArms,
 	RUN,
 	STAGE,
 	groupIdFor,
+	moreGroupIdFor,
 } from "./compare-attempts-test-support";
 import { parseComparisonReport } from "./comparison-record";
 import { RefusedPreconditionError } from "./exit-codes";
+import { failureOf } from "#cli/cli-test-support";
 
 const temporaryDirectories: string[] = [];
 
@@ -49,6 +51,10 @@ async function refusalOf(attempt: Promise<unknown>): Promise<Error> {
 		throw error;
 	}
 	throw new Error("Expected the comparison to be refused");
+}
+
+async function approveAny(): Promise<void> {
+	// Every stated cost is approved.
 }
 
 const SHARED = {
@@ -391,6 +397,8 @@ describe(compareAttempts.name, () => {
 					judgeModel: "opus",
 					judgeEffort: undefined,
 					sessionBudgetUsd: 5,
+					role: "control",
+					withoutStageSkill: true,
 				},
 			]);
 			expect(dirname(corpusDirectory)).toBe(
@@ -561,16 +569,221 @@ describe(compareAttempts.name, () => {
 				join(dirname(reportFile), "baseline.json"),
 			).json();
 			expect(derivation).toEqual({
-				schemaVersion: 2,
+				schemaVersion: 3,
 				kind: "derived",
 				skillUnderTest: "skills/build/",
 				arms: {
-					baseline: armA,
-					candidate: armB,
-					control: groupIdFor("control"),
+					baseline: [armA],
+					candidate: [armB],
+					control: [groupIdFor("control")],
 				},
 				controlCorpus: basename(arms.baselineCorpusDirectory()),
 			});
+		});
+	});
+});
+
+/** Arms A and B at one checkpoint, differing in the stage's own skill. */
+async function armsDifferingInOneSkill(): Promise<{
+	readonly arms: RecordedArms;
+	readonly armA: string;
+	readonly armB: string;
+}> {
+	const arms = await recordedArms();
+	const armA = await arms.recordArm("baseline", {
+		...SHARED,
+		"skills/build/SKILL.md": "build\n",
+	});
+	const armB = await arms.recordArm("candidate", {
+		...SHARED,
+		"skills/build/SKILL.md": "revised build\n",
+	});
+	await arms.readInStage(armA, "skills/build/SKILL.md");
+	await arms.readInStage(armB, "skills/build/SKILL.md");
+
+	return { arms, armA, armB };
+}
+
+/** A comparison `compare attempts` saved, named by its manifest digest. */
+async function savedComparison(): Promise<{
+	readonly arms: RecordedArms;
+	readonly comparison: string;
+}> {
+	const { arms, armA, armB } = await armsDifferingInOneSkill();
+	const { reportFile } = await compareAttempts(
+		{ runsDirectory: arms.runsDirectory, armA, armB },
+		{ runBaselineGroup: arms.runBaselineGroup },
+	);
+
+	return { arms, comparison: basename(dirname(reportFile)) };
+}
+
+describe(extendComparison.name, () => {
+	it("writes a new comparison holding the added attempts in every arm, which names the comparison it extends", async () => {
+		const { arms, comparison } = await savedComparison();
+
+		const { reportFile } = await extendComparison(
+			{ runsDirectory: arms.runsDirectory, comparison, attemptsPerArm: 2 },
+			{ approve: approveAny, runArmGroup: arms.runMoreGroup },
+		);
+
+		const report = parseComparisonReport(await Bun.file(reportFile).text());
+		expect(report.reps).toBe(4);
+		expect(basename(dirname(reportFile))).not.toBe(comparison);
+		const record: unknown = await Bun.file(
+			join(dirname(reportFile), "baseline.json"),
+		).json();
+		expect(record).toEqual({
+			schemaVersion: 3,
+			kind: "derived",
+			skillUnderTest: "skills/build/",
+			arms: {
+				baseline: [groupIdFor("baseline"), moreGroupIdFor("baseline")],
+				candidate: [groupIdFor("candidate"), moreGroupIdFor("candidate")],
+				control: [groupIdFor("control"), moreGroupIdFor("control")],
+			},
+			controlCorpus: basename(arms.baselineCorpusDirectory()),
+			extends: comparison,
+		});
+	});
+
+	it("runs each arm's added group on the corpus that arm ran, with arm A's inputs, leaving only the baseline without its stage skill", async () => {
+		const { arms, comparison } = await savedComparison();
+
+		await extendComparison(
+			{ runsDirectory: arms.runsDirectory, comparison, attemptsPerArm: 3 },
+			{ approve: approveAny, runArmGroup: arms.runMoreGroup },
+		);
+
+		const inputs = {
+			run: RUN,
+			stage: STAGE,
+			reps: 3,
+			model: "sonnet",
+			effort: undefined,
+			judgeModel: "opus",
+			judgeEffort: undefined,
+			sessionBudgetUsd: 5,
+		};
+		expect(
+			arms.moreRequests.map(
+				({ corpusDirectory: _corpus, ...request }) => request,
+			),
+		).toEqual([
+			{ ...inputs, role: "baseline", withoutStageSkill: false },
+			{ ...inputs, role: "candidate", withoutStageSkill: false },
+			{ ...inputs, role: "control", withoutStageSkill: true },
+		]);
+		const corpora = await Promise.all(
+			arms.moreRequests.map(async ({ corpusDirectory }) => {
+				const skill = Bun.file(join(corpusDirectory, "skills/build/SKILL.md"));
+
+				return (await skill.exists()) ? skill.text() : undefined;
+			}),
+		);
+		expect(corpora).toEqual(["build\n", "revised build\n", undefined]);
+		expect(arms.moreRequests[2]?.corpusDirectory).toBe(
+			arms.baselineCorpusDirectory(),
+		);
+	});
+
+	it("states what the added attempts cost, at each arm's recorded cost per attempt, before running any group", async () => {
+		const { arms, comparison } = await savedComparison();
+		const stated: unknown[] = [];
+
+		const declined = extendComparison(
+			{ runsDirectory: arms.runsDirectory, comparison, attemptsPerArm: 2 },
+			{
+				approve: (cost) => {
+					stated.push(cost);
+
+					return Promise.reject(new Error("declined"));
+				},
+				runArmGroup: arms.runMoreGroup,
+			},
+		);
+
+		const failure = await failureOf(declined);
+		expect(failure.message).toBe("declined");
+		expect(stated).toEqual([{ state: "available", attemptsPerArm: 2, usd: 9 }]);
+		expect(arms.moreRequests).toEqual([]);
+	});
+
+	describe("refuses before running any group", () => {
+		it("when no comparison was saved under that digest", async () => {
+			const arms = await recordedArms();
+
+			const refusal = await refusalOf(
+				extendComparison(
+					{
+						runsDirectory: arms.runsDirectory,
+						comparison: "0".repeat(64),
+						attemptsPerArm: 2,
+					},
+					{ approve: approveAny, runArmGroup: arms.runMoreGroup },
+				),
+			);
+
+			expect(refusal.message).toBe(`No saved comparison ${"0".repeat(64)}`);
+			expect(arms.moreRequests).toEqual([]);
+		});
+
+		it("when the comparison was not made by compare attempts", async () => {
+			const { arms, comparison } = await savedComparison();
+			await unlink(
+				join(arms.runsDirectory, "comparisons", comparison, "baseline.json"),
+			);
+
+			const refusal = await refusalOf(
+				extendComparison(
+					{ runsDirectory: arms.runsDirectory, comparison, attemptsPerArm: 2 },
+					{ approve: approveAny, runArmGroup: arms.runMoreGroup },
+				),
+			);
+
+			expect(refusal.message).toBe(
+				`comparison ${comparison} was not made by compare attempts, so nothing records the checkpoint and corpora its arms would replay`,
+			);
+			expect(arms.moreRequests).toEqual([]);
+		});
+
+		it("when what the added attempts would cost cannot be stated", async () => {
+			const { arms, armA, armB } = await armsDifferingInOneSkill();
+			await arms.loseFirstAttemptMetrics(armA);
+			const { reportFile } = await compareAttempts(
+				{ runsDirectory: arms.runsDirectory, armA, armB },
+				{ runBaselineGroup: arms.runBaselineGroup },
+			);
+			const comparison = basename(dirname(reportFile));
+
+			const refusal = await refusalOf(
+				extendComparison(
+					{ runsDirectory: arms.runsDirectory, comparison, attemptsPerArm: 2 },
+					{ approve: approveAny, runArmGroup: arms.runMoreGroup },
+				),
+			);
+
+			expect(refusal.message).toBe(
+				`what 2 more attempts per arm would cost cannot be stated: ${armA}-rep-1 lacks worker.costUsd`,
+			);
+			expect(arms.moreRequests).toEqual([]);
+		});
+
+		it("when the replayed run can no longer grade the added groups as it graded arm A", async () => {
+			const { arms, comparison } = await savedComparison();
+			await arms.nameStageRubric("rubrics/missing.json");
+
+			const refusal = await refusalOf(
+				extendComparison(
+					{ runsDirectory: arms.runsDirectory, comparison, attemptsPerArm: 2 },
+					{ approve: approveAny, runArmGroup: arms.runMoreGroup },
+				),
+			);
+
+			expect(refusal.message).toStartWith(
+				"the rubrics/missing.json rubric cannot be read",
+			);
+			expect(arms.moreRequests).toEqual([]);
 		});
 	});
 });
