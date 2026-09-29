@@ -16,6 +16,13 @@ const CASE_ID = "build-checkpoint";
 const RUN = "2026-09-29T10-00-00.000Z";
 const STAGE = "build";
 
+interface Checkpoint {
+	readonly run: string;
+	readonly stage: string;
+}
+
+const REPLAYED: Checkpoint = { run: RUN, stage: STAGE };
+
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
@@ -66,8 +73,9 @@ class RecordedArms {
 	public async recordArm(
 		role: "baseline" | "candidate",
 		corpus: CorpusFiles,
+		source: Checkpoint = REPLAYED,
 	): Promise<string> {
-		await this.recordGroup(role, corpus);
+		await this.recordGroup(role, corpus, source);
 
 		return groupIdFor(role);
 	}
@@ -76,7 +84,10 @@ class RecordedArms {
 		request: BaselineGroupRequest,
 	): Promise<string> => {
 		this.baselineRequests.push(request);
-		await this.recordGroup("control", undefined);
+		await this.recordGroup("control", undefined, {
+			run: request.run,
+			stage: request.stage,
+		});
 
 		return groupIdFor("control");
 	};
@@ -84,6 +95,7 @@ class RecordedArms {
 	private async recordGroup(
 		role: ComparisonArm,
 		corpus: CorpusFiles | undefined,
+		source: Checkpoint,
 	): Promise<void> {
 		const groupId = groupIdFor(role);
 		const paths = confirmationGroupPaths(this.runsDirectory, groupId);
@@ -104,7 +116,7 @@ class RecordedArms {
 		await claimShortId(this.runsDirectory, CASE_ID, {
 			kind: "group",
 			groupId,
-			source: { run: RUN, stage: STAGE },
+			source,
 		});
 	}
 
@@ -208,6 +220,30 @@ describe(compareAttempts.name, () => {
 
 			expect(refusal.message).toBe(
 				"the arms differ in CLAUDE.md, which is not a skill; supply the control through a comparison manifest",
+			);
+			expect(arms.baselineRequests).toEqual([]);
+		});
+	});
+
+	describe("when arms A and B replayed different checkpoints", () => {
+		it("refuses and names both checkpoints", async () => {
+			const arms = await RecordedArms.create();
+			const armA = await arms.recordArm("baseline", SHARED);
+			const armB = await arms.recordArm(
+				"candidate",
+				{ ...SHARED, "skills/build/SKILL.md": "build\n" },
+				{ run: RUN, stage: "review" },
+			);
+
+			const refusal = await refusalOf(
+				compareAttempts(
+					{ runsDirectory: arms.runsDirectory, armA, armB },
+					{ runBaselineGroup: arms.runBaselineGroup },
+				),
+			);
+
+			expect(refusal.message).toBe(
+				`arms A and B replayed different checkpoints: ${RUN} ${STAGE} and ${RUN} review`,
 			);
 			expect(arms.baselineRequests).toEqual([]);
 		});
