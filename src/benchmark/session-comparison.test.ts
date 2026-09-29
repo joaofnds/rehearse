@@ -206,6 +206,7 @@ async function writeGroup(
 	role: Role,
 	selectVariant?: AttemptVariantSelector,
 	stateCheck?: Immutable<StateCheck>,
+	groupId = `${caseId}-${role}`,
 ): Promise<string> {
 	const corpus = join(root, "sources", `${caseId}-${role}`);
 	await mkdir(join(corpus, "output-styles"), { recursive: true });
@@ -219,7 +220,7 @@ async function writeGroup(
 	const benchmarkCase = sessionCase(caseId, role, stateCheck);
 	const request: SessionConfirmationRequest = {
 		runsDirectory,
-		groupId: `${caseId}-${role}`,
+		groupId,
 		reps: 2,
 		projectedCost: {
 			reps: 2,
@@ -2286,5 +2287,55 @@ describe(comparisonAttemptHistoryLinks.name, () => {
 			"../confirmations/",
 		);
 		expect(links).toEqual(everyRepAvailable(["case-one", "case-two"]));
+	});
+
+	it("links each attempt of a two-group arm to the group it was recorded in", async () => {
+		const runsDirectory = join(root, "runs");
+		const arms: Partial<Record<Role, readonly string[]>> = {};
+		for (const role of roles) {
+			arms[role] = [
+				await writeGroup(root, runsDirectory, "case-one", role),
+				await writeGroup(
+					root,
+					runsDirectory,
+					"case-one",
+					role,
+					undefined,
+					undefined,
+					`case-one-${role}-again`,
+				),
+			];
+		}
+		const manifestPath = join(root, "comparison.json");
+		await Bun.write(
+			manifestPath,
+			`${JSON.stringify({ schemaVersion: 1, cases: [{ caseId: "case-one", arms }] })}\n`,
+		);
+		const reportFile = await writeComparisonReport({
+			manifestPath,
+			runsDirectory,
+		});
+		const link = (
+			groupId: string,
+			groupOrdinal: number,
+			ordinal: number,
+		): ComparisonAttemptHistoryLink => ({
+			status: "available",
+			repId: `${groupId}-rep-${groupOrdinal}`,
+			ordinal,
+			href: `/groups/${groupId}/reps/${groupId}-rep-${groupOrdinal}/attempt`,
+		});
+
+		const links = await comparisonAttemptHistoryLinks(
+			parseComparisonReport(await Bun.file(reportFile).text()),
+			runsDirectory,
+		);
+
+		expect(links["case-one"]?.baseline).toEqual([
+			link("case-one-baseline", 1, 1),
+			link("case-one-baseline", 2, 2),
+			link("case-one-baseline-again", 1, 3),
+			link("case-one-baseline-again", 2, 4),
+		]);
 	});
 });
