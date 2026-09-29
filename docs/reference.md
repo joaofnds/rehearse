@@ -140,10 +140,12 @@ The route answers 202 with the launch id and writes
 `<records>/launches/<id>.json`, holding the pid, the kind, the case or run and
 stage, the attempts and the launch time, with the child's output in
 `<id>.log` beside it. It answers 409 and starts nothing when no ceiling is
-stored, the settings file cannot be read, or the checkpoint a replayed stage
-starts from is not on disk. It answers 404 for an unknown case, run or stage,
-and 400 for a malformed body or attempts other than 1, 3, 6 or 12. A case that declares no model is refused 409,
-because the browser has no terminal to pick one on. `GET /api/settings` returns
+stored, the settings file does not parse, a recorded case's declaration or a
+recorded run's manifest does not parse, or the checkpoint a replayed stage
+starts from is not on disk. A case that declares no model is refused 409,
+because the browser has no terminal to pick one on. It answers 404 for a case
+with no declaration and for an unknown run or stage, and 400 for a malformed
+body or attempts other than 1, 3, 6 or 12. `GET /api/settings` returns
 the stored ceiling and the command that sets it, and `GET /api/cases` lists the
 declared cases with their models.
 

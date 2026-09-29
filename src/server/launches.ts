@@ -8,6 +8,7 @@ import {
 } from "#benchmark/launch-record";
 import {
 	CaseDeclarationError,
+	caseDeclarationPath,
 	isCaseId,
 	listCases,
 	readCaseDeclaration,
@@ -91,11 +92,21 @@ function confirmationArguments(attempts: number): readonly string[] {
 			];
 }
 
+function caseRecorded(caseId: string, casesRoot: string): Promise<boolean> {
+	return isCaseId(caseId)
+		? Bun.file(caseDeclarationPath(caseId, casesRoot)).exists()
+		: Promise.resolve(false);
+}
+
 async function caseArguments(
 	caseId: string,
 	attempts: number,
 	casesRoot: string,
 ): Promise<readonly string[]> {
+	if (!(await caseRecorded(caseId, casesRoot))) {
+		throw new LaunchRefusalError(`Unknown case ${caseId}`, 404);
+	}
+
 	let declaration;
 	try {
 		declaration = await readCaseDeclaration(caseId, casesRoot);
@@ -103,7 +114,7 @@ async function caseArguments(
 		if (!(error instanceof CaseDeclarationError)) {
 			throw error;
 		}
-		throw new LaunchRefusalError(error.message, 404);
+		throw new LaunchRefusalError(redactAbsolutePaths(error.message), 409);
 	}
 	if (declaration.model === undefined) {
 		throw new LaunchRefusalError(
@@ -135,7 +146,15 @@ async function replayArguments(
 		throw new LaunchRefusalError(`No recorded run ${request.run}`, 404);
 	}
 	const paths = benchmarkRunPaths(runsDirectory, request.run);
-	const manifest = await loadRunManifest(paths.manifestFile);
+	let manifest;
+	try {
+		manifest = await loadRunManifest(paths.manifestFile);
+	} catch (error) {
+		throw new LaunchRefusalError(
+			`Run ${request.run} has a manifest that cannot be read: ${redactAbsolutePaths(error instanceof Error ? error.message : String(error))}`,
+			409,
+		);
+	}
 	const stages = manifest.pipeline.stages.map(({ name }) => name);
 	const index = stages.indexOf(request.stage);
 	if (index === -1) {

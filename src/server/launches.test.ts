@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { z } from "zod";
 import { readLaunchRecord } from "#benchmark/launch-record";
 import { RecordedRunsFixture } from "#benchmark/run-records-test-support";
+import { benchmarkRunPaths } from "#benchmark/run-layout";
 import {
 	SET_SPEND_CEILING_COMMAND,
 	storeSpendCeiling,
@@ -40,6 +41,9 @@ const UNMODELLED_CASE = {
 	corpusFiles: [],
 	checks: [{ kind: "word-band", max: 1 }],
 };
+
+/** Recorded on disk, and its declaration does not parse. */
+const BROKEN_CASE = { id: "broken-case" };
 
 const SESSION_CASE = {
 	id: "sess-case",
@@ -104,6 +108,7 @@ describe(createLaunchApp.name, () => {
 				PIPELINE_CASE,
 				SESSION_CASE,
 				UNMODELLED_CASE,
+				BROKEN_CASE,
 			]),
 			launcher,
 		});
@@ -332,6 +337,41 @@ describe(createLaunchApp.name, () => {
 			expect(launcher.launches).toEqual([]);
 		});
 
+		it("refuses a recorded case whose declaration does not parse as a conflict, not as unknown", async () => {
+			const { launcher, post } = await harness();
+
+			const response = await post({
+				kind: "case",
+				caseId: BROKEN_CASE.id,
+				attempts: 1,
+			});
+
+			expect(response.status).toBe(409);
+			expect(launcher.launches).toEqual([]);
+		});
+
+		it("refuses a recorded run whose manifest does not parse as a conflict", async () => {
+			const { launcher, post, runsDirectory } = await harness();
+			const run = await recordedRun(runsDirectory, "recorded");
+			await Bun.write(
+				benchmarkRunPaths(runsDirectory, run).manifestFile,
+				"not json",
+			);
+
+			const response = await post({
+				kind: "replay",
+				run,
+				stage: "discuss",
+				attempts: 1,
+			});
+
+			expect(response.status).toBe(409);
+			expect(refusalSchema.parse(await response.json()).error).not.toContain(
+				runsDirectory,
+			);
+			expect(launcher.launches).toEqual([]);
+		});
+
 		it("refuses a case that declares no model, since the child cannot ask for one", async () => {
 			const { launcher, post } = await harness();
 
@@ -456,7 +496,13 @@ describe(createLaunchApp.name, () => {
 						model: "haiku",
 					},
 				],
-				unreadable: [],
+				unreadable: [
+					{
+						id: BROKEN_CASE.id,
+						reason:
+							"Case broken-case declaration has an invalid kind: Invalid discriminator value. Expected 'pipeline' | 'session'",
+					},
+				],
 			});
 		});
 	});
