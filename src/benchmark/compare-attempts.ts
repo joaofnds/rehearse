@@ -11,7 +11,7 @@ import type { ConfirmationGroupRecord } from "./confirmation-record";
 import { writeComparisonBaselineRecord } from "./comparison-baseline-record";
 import { writeComparisonReport } from "./comparison-command";
 import { loadComparisonEvidence } from "./comparison-loader";
-import type { ComparisonArm } from "./comparison-record";
+import type { ComparisonArm, ComparisonManifest } from "./comparison-record";
 import { executedCorpusFiles } from "./comparison-comparability";
 import { confirmationGroupRecordSchema } from "./confirmation-record";
 import {
@@ -162,6 +162,14 @@ export async function recordedArm(
 	};
 }
 
+/** A comparison manifest of one case, each role naming its group file. */
+function singleCaseManifest(
+	caseId: string,
+	groupFiles: Readonly<Record<ComparisonArm, string>>,
+): ComparisonManifest {
+	return { schemaVersion: 1, cases: [{ caseId, arms: groupFiles }] };
+}
+
 /**
  * Holds arms A and B to the comparability rules a comparison manifest meets,
  * with arm A standing in for the baseline arm not yet run, so arms that could
@@ -178,20 +186,13 @@ async function assertComparableArms(
 		const manifestPath = join(directory, "manifest.json");
 		await Bun.write(
 			manifestPath,
-			JSON.stringify({
-				schemaVersion: 1,
-				cases: [
-					{
-						caseId,
-						arms: {
-							baseline: armAFile,
-							candidate: confirmationGroupPaths(runsDirectory, arms.armB)
-								.groupFile,
-							control: armAFile,
-						},
-					},
-				],
-			}),
+			JSON.stringify(
+				singleCaseManifest(caseId, {
+					baseline: armAFile,
+					candidate: confirmationGroupPaths(runsDirectory, arms.armB).groupFile,
+					control: armAFile,
+				}),
+			),
 		);
 		await loadComparisonEvidence(manifestPath);
 	} finally {
@@ -251,19 +252,11 @@ async function writeManifest(
 	await Bun.write(
 		manifestPath,
 		`${JSON.stringify(
-			{
-				schemaVersion: 1,
-				cases: [
-					{
-						caseId,
-						arms: {
-							baseline: groupReference(arms.baseline),
-							candidate: groupReference(arms.candidate),
-							control: groupReference(arms.control),
-						},
-					},
-				],
-			},
+			singleCaseManifest(caseId, {
+				baseline: groupReference(arms.baseline),
+				candidate: groupReference(arms.candidate),
+				control: groupReference(arms.control),
+			}),
 			null,
 			2,
 		)}\n`,
