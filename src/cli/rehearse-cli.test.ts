@@ -1056,7 +1056,7 @@ describe("compare extend", () => {
 					"--comparison",
 					`comparison:${"0".repeat(64)}`,
 					"--attempts",
-					"1",
+					"2",
 					"--yes",
 				],
 				"empty",
