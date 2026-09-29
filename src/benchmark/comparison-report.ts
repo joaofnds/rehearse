@@ -33,6 +33,8 @@ import type {
 } from "./comparison-resources";
 import { buildComparisonResources } from "./comparison-resources";
 import type { Immutable } from "./contracts";
+import type { OutputWords } from "./output-words";
+import { replyWords } from "./output-words";
 import type { SessionAttemptRecord } from "./session-record";
 import type { StateResult } from "./session-state-check";
 
@@ -113,6 +115,7 @@ interface BuiltReportArm {
 				| undefined;
 			readonly checks?: RepCheckScore | undefined;
 			readonly stateResults?: RepStateScore | undefined;
+			readonly words?: OutputWords | undefined;
 		}[];
 	};
 	readonly executedCorpus: readonly {
@@ -205,6 +208,7 @@ function buildReportArm(
 			},
 			checks: repCheckScore(rep.attempt.record),
 			...repStateScoreField(rep.attempt.record),
+			words: replyWords(rep.attempt.record.reply),
 		};
 	});
 

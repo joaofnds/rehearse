@@ -111,6 +111,16 @@ See [current state](docs/status.md) for implementation coverage and
   records. Older reports remain readable with the fields they were written
   with, and a measurement a version predates reads as unavailable rather than
   as zero.
+- **Word count** — how many whitespace-separated words an attempt's output
+  holds, which is how verbosity gets caught. A session attempt's output is its
+  reply. A stage attempt's or replay's output is its artifact, the text the
+  stage judge read; a delivery stage whose only output is a diff has no word
+  count, since code length says nothing about verbosity. The count is read from
+  the output the record holds. An attempt with no output reads unavailable with
+  its reason, never zero words.
+- **Average words (comparison arm)** — the mean word count over an arm's
+  attempts that have one, served beside how many attempts it counted and how
+  many the arm holds. A report written before word counts reads unavailable.
 - **Comparison arm** — one role in a comparison: baseline, candidate, or the
   mandatory minimal-corpus control. An arm uses the same corpus snapshot across
   every benchmark case; a session control may have an empty declared corpus.

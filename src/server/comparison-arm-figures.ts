@@ -6,6 +6,7 @@ import type {
 	LegacyComparisonReport,
 } from "#benchmark/comparison-record";
 import type { ReliabilitySummary } from "#benchmark/confirmation-report";
+import type { OutputWords } from "#benchmark/output-words";
 import type { QualityScale } from "./comparison-quality-reading";
 import {
 	letterRange,
@@ -34,10 +35,25 @@ export type ArmCost = Reading<{
 	readonly perAttemptUsd: number;
 }>;
 
+/**
+ * `attempts` beside `counted` because an attempt with no output, a failed
+ * session or a diff-only stage, leaves the average over fewer attempts than
+ * the arm holds.
+ */
+export type ArmWords = Reading<{
+	readonly averageWords: number;
+	readonly counted: number;
+	readonly attempts: number;
+}>;
+
 export interface ArmFigures {
 	readonly measures: Readonly<Record<string, MeasureFigure>>;
 	readonly cost: ArmCost;
+	readonly words: ArmWords;
 }
+
+export const NO_RECORDED_WORDS_REASON =
+	"this report records no word count for its attempts";
 
 function isLetter(grade: string): grade is StageLetterGrade {
 	return STAGE_LETTER_GRADES.some((letter) => letter === grade);
@@ -91,11 +107,46 @@ function armCost(resources: ReportArm["resources"]): ArmCost {
 	};
 }
 
-/** Each arm's figures for one case. */
+type ReportRep = ReportArm["source"]["reps"][number];
+
+function recordedWords(rep: ReportRep): OutputWords | undefined {
+	return "words" in rep ? rep.words : undefined;
+}
+
+function armWords(reps: readonly ReportRep[]): ArmWords {
+	const recorded = reps.flatMap((rep) => {
+		const words = recordedWords(rep);
+
+		return words === undefined ? [] : [{ repId: rep.repId, words }];
+	});
+	if (recorded.length === 0) {
+		return { state: "unavailable", reasons: [NO_RECORDED_WORDS_REASON] };
+	}
+
+	const counts = recorded.flatMap(({ words }) =>
+		words.state === "available" ? [words.words] : [],
+	);
+	if (counts.length === 0) {
+		return {
+			state: "unavailable",
+			reasons: recorded.flatMap(({ repId, words }) =>
+				words.state === "unavailable" ? [`${repId}: ${words.reason}`] : [],
+			),
+		};
+	}
+
+	return {
+		state: "available",
+		averageWords: counts.reduce((sum, count) => sum + count, 0) / counts.length,
+		counted: counts.length,
+		attempts: reps.length,
+	};
+}
+
 export type CaseArmFigures = Readonly<Record<ComparisonArm, ArmFigures>>;
 
 export function armFigures(
-	arm: Pick<ReportArm, "quality" | "resources">,
+	arm: Pick<ReportArm, "quality" | "source" | "resources">,
 	scaleFor: (measure: string) => QualityScale,
 ): ArmFigures {
 	return {
@@ -106,5 +157,6 @@ export function armFigures(
 			]),
 		),
 		cost: armCost(arm.resources),
+		words: armWords(arm.source.reps),
 	};
 }

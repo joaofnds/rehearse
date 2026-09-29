@@ -528,7 +528,7 @@ type MultiCaseArmSource =
 	MultiCaseComparisonReport["cases"][number]["arms"]["baseline"]["source"];
 type MultiCaseRepProvenance = Omit<
 	MultiCaseArmSource["reps"][number],
-	"checks" | "stateResults"
+	"checks" | "stateResults" | "words"
 >;
 interface ArmSourceProvenance {
 	readonly group: MultiCaseArmSource["group"];
@@ -536,13 +536,20 @@ interface ArmSourceProvenance {
 }
 
 /**
- * An arm's source without the per-check tally, which these expectations
- * describe by path and digest rather than by grade.
+ * An arm's source without the per-check tally or word count, which these
+ * expectations describe by path and digest rather than by grade or length.
  */
 function sourceProvenance(source: MultiCaseArmSource): ArmSourceProvenance {
 	return {
 		...source,
-		reps: source.reps.map(({ checks: _checks, ...rep }) => rep),
+		reps: source.reps.map(({ checks: _checks, ...rep }) => {
+			if (!("words" in rep)) {
+				return rep;
+			}
+			const { words: _words, ...provenance } = rep;
+
+			return provenance;
+		}),
 	};
 }
 
@@ -1248,6 +1255,37 @@ Sampling unit: rep. Arms are independent samples; this estimate covers case case
 					detail: `${name} does not hold`,
 				})),
 			},
+		]);
+	});
+
+	it("records each rep's reply word count, and why a rep with no reply has none", async () => {
+		const runsDirectory = join(root, "runs");
+		const manifestPath = await writeManifest(
+			root,
+			runsDirectory,
+			(caseId, role, ordinal) =>
+				caseId === "case-one" && role === "candidate" && ordinal === 1
+					? "no-reply"
+					: undefined,
+		);
+
+		const report = parseComparisonReport(
+			await Bun.file(
+				await writeComparisonReport({ manifestPath, runsDirectory }),
+			).text(),
+		);
+		if (report.schemaVersion !== 5 || report.mode !== "session") {
+			throw new Error("expected a version-5 session comparison report");
+		}
+		const arms = report.cases[0]?.arms;
+
+		expect(arms?.candidate.source.reps.map((rep) => rep.words)).toEqual([
+			{ state: "unavailable", reason: "the attempt recorded no reply" },
+			{ state: "available", words: 1 },
+		]);
+		expect(arms?.control.source.reps.map((rep) => rep.words)).toEqual([
+			{ state: "available", words: 3 },
+			{ state: "available", words: 3 },
 		]);
 	});
 
@@ -2149,6 +2187,7 @@ function asVersionThreeReport(
 										outcomes: _outcomes,
 										checks: _checks,
 										stateResults: _stateResults,
+										words: _words,
 										...rep
 									}) => rep,
 								),

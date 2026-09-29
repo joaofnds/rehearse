@@ -22,6 +22,7 @@ import {
 	contrastResourcesWithoutElapsed,
 } from "#benchmark/comparison-test-fixtures";
 import { comparisonReportPaths } from "#benchmark/run-layout";
+import { NO_RECORDED_WORDS_REASON } from "./comparison-arm-figures";
 import { createApiApp } from "./api";
 
 const attributionSchema = z.discriminatedUnion("claim", [
@@ -53,6 +54,7 @@ const qualityReadingSchema = z.object({
 const armFiguresSchema = z.object({
 	measures: z.record(z.string(), z.unknown()),
 	cost: z.unknown(),
+	words: z.unknown(),
 });
 const comparisonResponseSchema = z.object({
 	report: z.unknown(),
@@ -501,7 +503,7 @@ describe("GET /api/comparisons/:digest", () => {
 			return body.armFigures;
 		}
 
-		it("gives each arm its median and range per stage, its final successes, and its cost", async () => {
+		it("gives each arm its median and range per stage, its final successes, its cost, and no word count from a report written before them", async () => {
 			const fixture = await writtenFixture();
 
 			const figures = await armFiguresOf(fixture);
@@ -529,6 +531,10 @@ describe("GET /api/comparisons/:digest", () => {
 					final: { scale: "successRate", successful: 2, attempts: 4 },
 				},
 				cost: { state: "available", totalUsd: 10, perAttemptUsd: 2.5 },
+				words: {
+					state: "unavailable",
+					reasons: [NO_RECORDED_WORDS_REASON],
+				},
 			});
 		});
 
@@ -574,6 +580,10 @@ describe("GET /api/comparisons/:digest", () => {
 						final: { scale: "successRate", successful: 0, attempts: 4 },
 					},
 					cost: { state: "available", totalUsd: 10, perAttemptUsd: 2.5 },
+					words: {
+						state: "unavailable",
+						reasons: [NO_RECORDED_WORDS_REASON],
+					},
 				});
 			},
 		);

@@ -205,11 +205,27 @@ const currentSourceRepSchema = sourceRepSchema
 		stateResults: repStateScoreSchema.optional(),
 	})
 	.strict();
+/**
+ * Optional because a report written before word counts carries none, which
+ * reads as unavailable rather than as an attempt that wrote nothing.
+ */
+const repWordsSchema = z.discriminatedUnion("state", [
+	z
+		.object({
+			state: z.literal("available"),
+			words: z.number().int().nonnegative(),
+		})
+		.strict(),
+	z
+		.object({ state: z.literal("unavailable"), reason: z.string().min(1) })
+		.strict(),
+]);
 const currentSessionSourceRepSchema = sessionSourceRepSchema
 	.extend({
 		outcomes: z.array(repOutcomeSchema).min(1),
 		checks: repCheckScoreSchema.optional(),
 		stateResults: repStateScoreSchema.optional(),
+		words: repWordsSchema.optional(),
 	})
 	.strict();
 const reliabilitySummarySchema = z
