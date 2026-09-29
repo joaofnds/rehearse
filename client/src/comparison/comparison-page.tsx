@@ -359,7 +359,8 @@ function AttributionCards({
 /**
  * Offers arm A's attempt count again in every arm of a comparison that
  * compare attempts made, whose record says how each arm replays. Its one case
- * carries the cost, stated before the dialog can start anything.
+ * carries the cost, stated on the button and again before the dialog can
+ * start anything.
  */
 function MoreAttempts({
 	digest,
@@ -397,7 +398,7 @@ function MoreAttempts({
 					attempts: cost.attemptsPerArm,
 					usd: cost.usd,
 				}}
-				triggerLabel={`Add ${plural(cost.attemptsPerArm, "attempt")} to each arm`}
+				triggerLabel={`Add ${plural(cost.attemptsPerArm, "attempt")} to each arm · ≈ $${cost.usd.toFixed(2)}`}
 			/>
 		</div>
 	);

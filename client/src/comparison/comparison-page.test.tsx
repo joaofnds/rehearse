@@ -603,7 +603,7 @@ describe(ComparisonPage.name, () => {
 
 			fireEvent.click(
 				await screen.findByRole("button", {
-					name: "Add 4 attempts to each arm",
+					name: "Add 4 attempts to each arm · ≈ $18.00",
 				}),
 			);
 
