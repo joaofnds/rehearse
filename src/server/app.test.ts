@@ -67,11 +67,13 @@ describe(createAppServer.name, () => {
 	interface AppServer {
 		readonly app: ReturnType<typeof createAppServer>;
 		readonly launcher: FakeLauncher;
+		readonly liveRoot: string;
 	}
 
 	/**
 	 * A server whose corpus is one fixed directory, or one that reads the
-	 * linked corpus on every request the way the served app does.
+	 * linked corpus on every request the way the served app does, with a
+	 * temporary directory standing in for the live install.
 	 */
 	async function appServer(
 		corpus: "fixed" | "linked" = "fixed",
@@ -80,20 +82,24 @@ describe(createAppServer.name, () => {
 		await storeSpendCeiling(records, 5);
 		const launcher = new FakeLauncher();
 		const fixed = directorySource(await corpusDirectory());
+		const live = liveCorpusSource({
+			root: await corpusDirectory(),
+			backingRoot: await corpusDirectory(),
+		});
 		const app = createAppServer({
 			runsDirectory: records,
 			liveness: nothingRunning,
 			readCorpusSource:
 				corpus === "fixed"
 					? fixedCorpusSource(fixed)
-					: () => linkedCorpusSource(records),
+					: () => linkedCorpusSource(records, () => live),
 			clientDistDirectory: await clientDistDirectory(),
 			port: PORT,
 			casesRoot: await casesDirectory(),
 			launcher,
 		});
 
-		return { app, launcher };
+		return { app, launcher, liveRoot: live.root };
 	}
 
 	async function casesDirectory(): Promise<string> {
@@ -255,15 +261,21 @@ describe(createAppServer.name, () => {
 				readonly changeLink: (
 					method: "PUT" | "DELETE",
 					body: Readonly<Record<string, string>>,
+					headers?: Readonly<Record<string, string>>,
 				) => Promise<Response>;
 				readonly read: (path: string) => Promise<Response>;
-				readonly store: (body: Readonly<{ usd: number }>) => Promise<Response>;
+				readonly store: (
+					body: Readonly<{ usd: number }>,
+					headers?: Readonly<Record<string, string>>,
+				) => Promise<Response>;
+				readonly liveRoot: string;
 			}
 
 			async function linkedServer(): Promise<LinkedServer> {
-				const { app } = await appServer("linked");
+				const { app, liveRoot } = await appServer("linked");
 
 				return {
+					liveRoot,
 					corpusReading: async () => {
 						const response = await app.request("/api/corpus", {
 							headers: LOOPBACK,
@@ -271,21 +283,21 @@ describe(createAppServer.name, () => {
 
 						return corpusResponseSchema.parse(await response.json());
 					},
-					changeLink: (method, body) =>
+					changeLink: (method, body, headers = sameOrigin) =>
 						Promise.resolve(
 							app.request("/api/settings/corpus", {
 								method,
-								headers: sameOrigin,
+								headers,
 								body: JSON.stringify(body),
 							}),
 						),
 					read: (path) =>
 						Promise.resolve(app.request(path, { headers: LOOPBACK })),
-					store: (body) =>
+					store: (body, headers = sameOrigin) =>
 						Promise.resolve(
 							app.request("/api/settings/spend-ceiling", {
 								method: "PUT",
-								headers: sameOrigin,
+								headers,
 								body: JSON.stringify(body),
 							}),
 						),
@@ -312,14 +324,54 @@ describe(createAppServer.name, () => {
 			});
 
 			it("returns to the live install once unlinked", async () => {
-				const { corpusReading, changeLink } = await linkedServer();
+				const { corpusReading, changeLink, liveRoot } = await linkedServer();
 				await changeLink("PUT", { directory: await corpusDirectory() });
 
 				const unlinked = await changeLink("DELETE", {});
 				const reading = await corpusReading();
 
 				expect(unlinked.status).toBe(200);
-				expect(reading.root).toBe(liveCorpusSource().root);
+				expect(reading.root).toBe(liveRoot);
+			});
+
+			describe("from a foreign Origin", () => {
+				const foreign = { ...sameOrigin, origin: "https://evil.example" };
+
+				it("links nothing", async () => {
+					const { corpusReading, changeLink, liveRoot } = await linkedServer();
+
+					const response = await changeLink(
+						"PUT",
+						{ directory: await corpusDirectory() },
+						foreign,
+					);
+					const reading = await corpusReading();
+
+					expect(response.status).toBe(403);
+					expect(reading.root).toBe(liveRoot);
+				});
+
+				it("unlinks nothing", async () => {
+					const { corpusReading, changeLink } = await linkedServer();
+					const directory = await corpusDirectory();
+					await changeLink("PUT", { directory });
+
+					const response = await changeLink("DELETE", {}, foreign);
+					const reading = await corpusReading();
+
+					expect(response.status).toBe(403);
+					expect(reading.root).toBe(directory);
+				});
+
+				it("stores no ceiling", async () => {
+					const { store, read } = await linkedServer();
+
+					const response = await store({ usd: 9 }, foreign);
+					const reading = await read("/api/settings");
+
+					expect(response.status).toBe(403);
+					expect(await reading.json()).toMatchObject({ spendCeilingUsd: 5 });
+				});
 			});
 
 			describe("once the linked directory is gone", () => {

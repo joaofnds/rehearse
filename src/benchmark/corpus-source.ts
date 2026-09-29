@@ -139,11 +139,12 @@ export function resolveCorpusSource(
  */
 export async function linkedCorpusSource(
 	records: string,
+	live: () => LiveCorpusRoot = liveCorpusSource,
 ): Promise<ResolvedCorpusSource> {
 	const { linkedCorpusDirectory } = await readSettings(records);
 
 	return linkedCorpusDirectory === undefined
-		? liveCorpusSource()
+		? live()
 		: linkedDirectorySource(linkedCorpusDirectory);
 }
 
