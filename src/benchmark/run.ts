@@ -62,7 +62,10 @@ import type {
 	StageTranscript,
 } from "./contracts";
 import type { JudgeInvoker } from "./judge-attempt";
-import { JudgeOutputValidationError } from "./judge-attempt";
+import {
+	JudgeExecutionError,
+	JudgeOutputValidationError,
+} from "./judge-attempt";
 import { JudgeCeilingStopError } from "./judge-ceiling-stop-error";
 import type {
 	JudgeAgreementCalibration,
@@ -297,19 +300,54 @@ interface CompletedRunArtifact {
 
 export function buildFailedJudgeRunArtifact(
 	inputs: RunArtifactBaseInputs,
-	failure:
-		| Readonly<JudgeOutputValidationError>
-		| Readonly<JudgeCeilingStopError>,
+	failure: Readonly<JudgeFailure>,
+	ceilingStop?: CeilingStopReadings,
 ): FailedJudgeRunArtifact {
 	return {
 		...runArtifactEvidence(inputs, failure),
 		status: "FAILED",
 		failure: failure.message,
-		ceilingStop:
-			failure instanceof JudgeCeilingStopError
-				? { ceilingUsd: failure.ceilingUsd, spentUsd: failure.spentUsd }
-				: undefined,
+		ceilingStop,
 	};
+}
+
+type JudgeFailure =
+	| JudgeOutputValidationError
+	| JudgeCeilingStopError
+	| JudgeExecutionError;
+
+interface PaidJudgeFailure {
+	readonly failure: JudgeFailure;
+	readonly ceilingStop: CeilingStopReadings | undefined;
+}
+
+/**
+ * A Judge failure that still carries the attempts it paid for. An execution
+ * failure counts only once the run's spend reached the ceiling, since its
+ * call was then halted at the budget the ceiling had left.
+ */
+function paidJudgeFailure(
+	error: Readonly<Error>,
+	spendCeiling: SpendCeiling,
+): PaidJudgeFailure | undefined {
+	if (error instanceof JudgeOutputValidationError) {
+		return { failure: error, ceilingStop: undefined };
+	}
+	if (error instanceof JudgeCeilingStopError) {
+		return {
+			failure: error,
+			ceilingStop: { ceilingUsd: error.ceilingUsd, spentUsd: error.spentUsd },
+		};
+	}
+	if (error instanceof JudgeExecutionError) {
+		const ceilingStop = ceilingReadings(undefined, spendCeiling);
+
+		return ceilingStop === undefined
+			? undefined
+			: { failure: error, ceilingStop };
+	}
+
+	return undefined;
 }
 
 export interface FinalJudgeRequest {
@@ -345,14 +383,16 @@ export async function runFinalJudge(
 			request.invoke,
 		);
 	} catch (error) {
-		if (
-			error instanceof JudgeOutputValidationError ||
-			error instanceof JudgeCeilingStopError
-		) {
+		const paid =
+			error instanceof Error
+				? paidJudgeFailure(error, request.spendCeiling)
+				: undefined;
+		if (paid !== undefined) {
 			await request.writeFailedArtifact(
 				buildFailedJudgeRunArtifact(
 					{ ...inputs, elapsedMs: request.elapsedMs?.() },
-					error,
+					paid.failure,
+					paid.ceilingStop,
 				),
 			);
 		}
@@ -838,6 +878,31 @@ async function stoppingAtCeiling<Result>(
 	}
 }
 
+/**
+ * Keeps the attempts a failed stage Judge paid for on the stage's pending
+ * record, so the aborted stage artifact shows what the stage cost.
+ */
+function recordPaidStageJudgeFailure(
+	context: Pick<StageContext, "spendCeiling" | "updatePendingStage">,
+	readStage: PendingStage,
+	error: Readonly<Error>,
+): void {
+	const paid = paidJudgeFailure(error, context.spendCeiling);
+	if (paid === undefined) {
+		return;
+	}
+	const { failure, ceilingStop } = paid;
+	context.updatePendingStage({
+		...readStage,
+		failure: {
+			prompt: failure.prompt,
+			attempts: failure.attempts,
+			costUsd: failure.costUsd,
+		},
+		ceilingStop,
+	});
+}
+
 export async function runGradedStages(
 	dependencies: StageDependencies,
 	context: StageContext,
@@ -959,15 +1024,8 @@ export async function runGradedStages(
 				),
 			);
 		} catch (error) {
-			if (error instanceof JudgeOutputValidationError) {
-				context.updatePendingStage({
-					...readStage,
-					failure: {
-						prompt: error.prompt,
-						attempts: error.attempts,
-						costUsd: error.costUsd,
-					},
-				});
+			if (error instanceof Error) {
+				recordPaidStageJudgeFailure(context, readStage, error);
 			}
 
 			throw error;

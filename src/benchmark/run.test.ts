@@ -35,7 +35,12 @@ import type {
 	JudgeAgreementReport,
 } from "./judge-agreement";
 import type { JudgeAttempt, JudgeBudget } from "./judge-attempt";
-import { JudgeOutputValidationError } from "./judge-attempt";
+import {
+	JudgeExecutionError,
+	JudgeOutputValidationError,
+} from "./judge-attempt";
+import { JudgeCeilingStopError } from "./judge-ceiling-stop-error";
+import { ClaudeSessionError } from "./claude";
 import type { PipelineDefinition, PlanningStageDefinition } from "./pipeline";
 import { loadPipeline } from "./pipeline";
 import type {
@@ -1416,6 +1421,53 @@ describe(runGradedStages.name, () => {
 				stage: "build",
 				error: failure.message,
 				ceilingStop: { ceilingUsd: 1, spentUsd: 1.5 },
+			});
+		});
+
+		it("keeps the Judge's paid attempt when the ceiling refuses its retry", async () => {
+			const { dependencies } = fakeStageDependencies();
+			const { persistence, abort } = atCeiling();
+			const context = await ceilingContext(abort);
+			const sessions = {
+				...dependencies,
+				runStageJudge: (
+					_model: string,
+					_effort: undefined | "low" | "medium" | "high" | "xhigh" | "max",
+					budget: JudgeBudget,
+				) => {
+					budget.spendCeiling.charge(1);
+
+					return Promise.reject(
+						new JudgeCeilingStopError({
+							ceilingUsd: 1,
+							spentUsd: 1,
+							prompt: "judge prompt",
+							attempts: [
+								{
+									payload: { not: "a scorecard" },
+									costUsd: 1,
+									outcome: "REJECTED",
+									error: "not a scorecard",
+								},
+							],
+							costUsd: 1,
+						}),
+					);
+				},
+			};
+
+			const failure = await failureOf(runGradedStages(sessions, context));
+			await abort.markAborted(failure.message);
+
+			expect(
+				JSON.parse(persistence.files.get(context.stageFile("shape")) ?? ""),
+			).toMatchObject({
+				status: "STAGE_JUDGE_FAILED",
+				stage: "shape",
+				prompt: "judge prompt",
+				attempts: [{ outcome: "REJECTED", costUsd: 1 }],
+				costUsd: 1,
+				ceilingStop: { ceilingUsd: 1, spentUsd: 1 },
 			});
 		});
 	});
@@ -3007,6 +3059,83 @@ describe(buildRunArtifact.name, () => {
 				judgeCostUsd: 0.2,
 				ceilingStop: { ceilingUsd: 0.15, spentUsd: 0.2 },
 			});
+		});
+		it("records the ceiling stop and every paid call when the retry halts at its clamped budget", async () => {
+			const directory = await mkdtemp(join(tmpdir(), "rehearse-final-judge-"));
+			testResources.track(directory);
+			const artifactFile = join(directory, "run.json");
+			const persistence = new ControlledRunArtifactPersistence();
+			const abort = createRunAbort(
+				{
+					killActiveCommands: () => Promise.resolve(),
+					registerSignal: () => undefined,
+					releaseSignal: () => undefined,
+					exit: () => undefined,
+					reportError: () => undefined,
+					persistence,
+				},
+				{
+					artifactFile,
+					operatorStopFile: "/runs/operator-stop.json",
+					teardown: () => Promise.resolve(),
+				},
+			);
+			const pipeline = await loadDefaultPipeline();
+			const baseInputs = artifactBaseInputs(pipeline, AUDIT_LOG_PIPELINE_PATH);
+			const rubric = RUBRIC_IDS.map(
+				(id, index) => `${index + 1}. \`${id}\`: ${id} requirement.`,
+			).join("\n");
+			const budgets: number[] = [];
+
+			const failure = await failureOf(
+				runFinalJudge({
+					artifactInputs: { ...baseInputs, rubric, rubricIds: RUBRIC_IDS },
+					writeFailedArtifact: abort.writeFailedArtifact,
+					spendCeiling: createSpendCeiling({ ceilingUsd: 0.25 }),
+					invoke: (_prompt, budgetUsd) => {
+						budgets.push(budgetUsd);
+
+						return Promise.resolve(
+							JSON.stringify(
+								budgets.length === 1
+									? {
+											session_id: "judge-session",
+											total_cost_usd: 0.1,
+											structured_output: { not: "a grade" },
+										}
+									: {
+											session_id: "judge-session",
+											is_error: true,
+											subtype: "error_max_budget_usd",
+											total_cost_usd: 0.15,
+										},
+							),
+						);
+					},
+				}),
+			);
+
+			expect(failure).toBeInstanceOf(JudgeExecutionError);
+			expect(failure.cause).toBeInstanceOf(ClaudeSessionError);
+			expect(budgets[1]).toBeCloseTo(0.15);
+			const artifact = z
+				.object({
+					status: z.string(),
+					judgeAttempts: z.array(z.object({ outcome: z.string() })),
+					judgeCostUsd: z.number(),
+					ceilingStop: z.object({
+						ceilingUsd: z.number(),
+						spentUsd: z.number(),
+					}),
+				})
+				.parse(JSON.parse(persistence.files.get(artifactFile) ?? "{}"));
+			expect(artifact).toMatchObject({
+				status: "FAILED",
+				judgeAttempts: [{ outcome: "REJECTED" }],
+				ceilingStop: { ceilingUsd: 0.25 },
+			});
+			expect(artifact.judgeCostUsd).toBeCloseTo(0.25);
+			expect(artifact.ceilingStop.spentUsd).toBeCloseTo(0.25);
 		});
 	});
 
