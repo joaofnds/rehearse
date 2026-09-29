@@ -68,6 +68,24 @@ describe(stopOnSignal.name, () => {
 		expect(system.exits).toEqual([143]);
 	});
 
+	it("records the stop before it kills the commands", async () => {
+		const system = new FakeProcess();
+		stopOnSignal(system, system.cleanup(), (signal) => {
+			system.events.push(`recorded ${signal}`);
+
+			return Promise.resolve();
+		});
+
+		await system.receive("SIGTERM");
+
+		expect(system.events).toEqual([
+			"Received SIGTERM; stopping.",
+			"recorded SIGTERM",
+			"killed commands",
+			"cleaned up",
+		]);
+	});
+
 	it.each([
 		["SIGINT", 130],
 		["SIGHUP", 129],
@@ -87,6 +105,25 @@ describe(stopOnSignal.name, () => {
 
 			await Promise.all([system.receive("SIGTERM"), system.receive("SIGINT")]);
 
+			expect(system.exits).toEqual([143]);
+		});
+	});
+
+	describe("when recording the stop fails", () => {
+		it("still kills the commands and exits with the signal's code", async () => {
+			const system = new FakeProcess();
+			stopOnSignal(system, system.cleanup(), () =>
+				Promise.reject(new Error("disk full")),
+			);
+
+			await system.receive("SIGTERM");
+
+			expect(system.events).toEqual([
+				"Received SIGTERM; stopping.",
+				"Could not record the stop: disk full",
+				"killed commands",
+				"cleaned up",
+			]);
 			expect(system.exits).toEqual([143]);
 		});
 	});

@@ -16,19 +16,29 @@ export interface SignalStopDependencies {
 }
 
 /**
- * Ends the process on a stop signal once the commands it started are killed
- * and what it leaves behind is cleaned up. Its commands run in process groups
- * of their own, so a process that exits without killing them leaves them
- * spending. Answers the release, which returns the signals to their default
- * unless a stop has begun.
+ * Ends the process on a stop signal once the stop is recorded, the commands it
+ * started are killed and what it leaves behind is cleaned up. The record comes
+ * first because a killed command fails whatever awaited it, and that failure
+ * would otherwise be written as the outcome. Its commands run in process
+ * groups of their own, so a process that exits without killing them leaves
+ * them spending. Answers the release, which returns the signals to their
+ * default unless a stop has begun.
  */
 export function stopOnSignal(
 	dependencies: SignalStopDependencies,
 	cleanUp: () => Promise<void>,
+	recordStop: (signal: NodeJS.Signals) => Promise<void> = () =>
+		Promise.resolve(),
 ): () => void {
 	let stopping = false;
 	const stop = async (signal: NodeJS.Signals): Promise<void> => {
 		dependencies.log(`Received ${signal}; stopping.`);
+		try {
+			await recordStop(signal);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			dependencies.log(`Could not record the stop: ${message}`);
+		}
 		await dependencies.killActiveCommands();
 		try {
 			await cleanUp();
