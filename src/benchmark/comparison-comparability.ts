@@ -19,7 +19,7 @@ function sha256(bytes: Readonly<Uint8Array>): string {
 	return createHash("sha256").update(bytes).digest("hex");
 }
 
-function executedCorpusFiles(
+export function executedCorpusFiles(
 	group: Immutable<ParsedConfirmationGroupRecord>,
 ): readonly FrozenFile[] {
 	const corpus = group.inputs.files.filter(({ kind }) => kind === "corpus");

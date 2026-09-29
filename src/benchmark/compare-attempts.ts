@@ -10,6 +10,7 @@ import { writeComparisonBaselineRecord } from "./comparison-baseline-record";
 import { writeComparisonReport } from "./comparison-command";
 import { loadComparisonEvidence } from "./comparison-loader";
 import type { ComparisonArm } from "./comparison-record";
+import { executedCorpusFiles } from "./comparison-comparability";
 import { confirmationGroupRecordSchema } from "./confirmation-record";
 import {
 	corpusVersionDigest,
@@ -247,15 +248,10 @@ function describeCheckpoint({ run, stage }: Checkpoint): string {
  * shared directories, never every skill in the corpus.
  */
 function stageReadPaths({ group }: RecordedArm): readonly string[] {
-	const [stage] = group.declaredStages;
-
-	return group.inputs.files.flatMap(({ kind, path }) => {
+	return executedCorpusFiles(group).map(({ path }) => {
 		const segments = path.replaceAll("\\", "/").split("/");
-		const corpusIndex = segments.lastIndexOf("corpus");
 
-		return kind === "corpus" && segments[corpusIndex + 1] === stage
-			? [segments.slice(corpusIndex + 2).join("/")]
-			: [];
+		return segments.slice(segments.lastIndexOf("corpus") + 2).join("/");
 	});
 }
 
