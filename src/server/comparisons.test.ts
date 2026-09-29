@@ -1111,6 +1111,16 @@ describe("What moved", () => {
 				verdict: { kind: "insideRerunNoise" },
 			});
 		});
+
+		it("states what as many attempts again per arm would cost at each arm's recorded cost per attempt", async () => {
+			const { summary } = await oneCheckpointComparison();
+
+			expect(summary["build-checkpoint"]?.["moreAttempts"]).toEqual({
+				state: "available",
+				attemptsPerArm: 2,
+				usd: 9,
+			});
+		});
 	});
 
 	it("lists each arm's recorded attempts side by side by ordinal, claiming no pairing between arms", async () => {

@@ -6,6 +6,7 @@ import type {
 	LegacyComparisonReport,
 } from "#benchmark/comparison-record";
 import type { ReliabilitySummary } from "#benchmark/confirmation-report";
+import { missingCostReasons } from "#benchmark/more-attempts-cost";
 import type { OutputWords } from "#benchmark/output-words";
 import type { QualityScale } from "./comparison-quality-reading";
 import {
@@ -86,14 +87,6 @@ function measureFigure(
 				? { state: "unavailable", reasons: [NO_GRADED_REP_REASON] }
 				: { state: "available", ...range },
 	};
-}
-
-export function missingCostReasons(
-	resources: Extract<ReportArm["resources"], { status: "UNAVAILABLE" }>,
-): string[] {
-	return resources.missingEvidence.map(
-		({ repId, missing }) => `${repId} lacks ${missing.join(", ")}`,
-	);
 }
 
 function armCost(resources: ReportArm["resources"]): ArmCost {

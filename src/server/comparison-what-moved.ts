@@ -7,13 +7,13 @@ import type {
 	ComparisonReport,
 	LegacyComparisonReport,
 } from "#benchmark/comparison-record";
+import { missingCostReasons } from "#benchmark/more-attempts-cost";
 import type { OutputWords } from "#benchmark/output-words";
 import type {
 	ArmFigures,
 	CaseArmFigures,
 	MeasureFigure,
 } from "./comparison-arm-figures";
-import { missingCostReasons } from "./comparison-arm-figures";
 import { armPairs, pairKey } from "./comparison-arm-pair";
 import type {
 	QualityInterval,

@@ -5,6 +5,8 @@ import type {
 	LegacyComparisonReport,
 } from "#benchmark/comparison-record";
 import type { ReliabilitySummary } from "#benchmark/confirmation-report";
+import type { MoreAttemptsCost } from "#benchmark/more-attempts-cost";
+import { moreAttemptsCost } from "#benchmark/more-attempts-cost";
 import { reliabilitySummaryNamed } from "#benchmark/confirmation-report";
 import { armPairNames } from "./comparison-arm-pair";
 import type {
@@ -42,6 +44,8 @@ export interface CaseSummary {
 	>;
 	/** Arm B's reply length against arm A's. */
 	readonly replyLength: MeterReading;
+	/** What as many attempts again as arm A holds, in every arm, would cost. */
+	readonly moreAttempts: MoreAttemptsCost;
 }
 
 /** Each attempt's standing on the measure, higher for a better attempt. */
@@ -156,5 +160,13 @@ export function caseSummary(
 			]),
 		),
 		replyLength: armBReplyLength(readings.whatMoved),
+		moreAttempts: moreAttemptsCost(
+			{
+				baseline: benchmarkCase.arms.baseline.resources,
+				candidate: benchmarkCase.arms.candidate.resources,
+				control: benchmarkCase.arms.control.resources,
+			},
+			benchmarkCase.arms.baseline.source.reps.length,
+		),
 	};
 }
