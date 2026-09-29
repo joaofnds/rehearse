@@ -11,7 +11,7 @@ import {
 import { corpusVersionLabel } from "#benchmark/corpus-version-label";
 import { liveCorpusSource } from "#benchmark/corpus-file";
 import { linkedCorpusSource } from "#benchmark/corpus-source";
-import { storeSpendCeiling } from "#benchmark/settings";
+import { UNLINK_CORPUS_COMMAND, storeSpendCeiling } from "#benchmark/settings";
 import { createAppServer } from "./app";
 import { FakeLauncher } from "./launch-test-support";
 
@@ -256,6 +256,8 @@ describe(createAppServer.name, () => {
 					method: "PUT" | "DELETE",
 					body: Readonly<Record<string, string>>,
 				) => Promise<Response>;
+				readonly read: (path: string) => Promise<Response>;
+				readonly store: (body: Readonly<{ usd: number }>) => Promise<Response>;
 			}
 
 			async function linkedServer(): Promise<LinkedServer> {
@@ -273,6 +275,16 @@ describe(createAppServer.name, () => {
 						Promise.resolve(
 							app.request("/api/settings/corpus", {
 								method,
+								headers: sameOrigin,
+								body: JSON.stringify(body),
+							}),
+						),
+					read: (path) =>
+						Promise.resolve(app.request(path, { headers: LOOPBACK })),
+					store: (body) =>
+						Promise.resolve(
+							app.request("/api/settings/spend-ceiling", {
+								method: "PUT",
 								headers: sameOrigin,
 								body: JSON.stringify(body),
 							}),
@@ -308,6 +320,52 @@ describe(createAppServer.name, () => {
 
 				expect(unlinked.status).toBe(200);
 				expect(reading.root).toBe(liveCorpusSource().root);
+			});
+
+			describe("once the linked directory is gone", () => {
+				async function vanishedLink(): Promise<{
+					readonly server: LinkedServer;
+					readonly directory: string;
+				}> {
+					const server = await linkedServer();
+					const directory = await corpusDirectory();
+					await server.changeLink("PUT", { directory });
+					await rm(directory, { recursive: true });
+
+					return { server, directory };
+				}
+
+				it.each(["/api/runs", "/api/corpus", "/api/corpus/versions"])(
+					"refuses %s naming the command that unlinks it",
+					async (path) => {
+						const { server } = await vanishedLink();
+
+						const response = await server.read(path);
+
+						expect(response.status).toBe(409);
+						expect(await response.text()).toContain(UNLINK_CORPUS_COMMAND);
+					},
+				);
+
+				it("still reads the settings, naming the directory that is linked", async () => {
+					const { server, directory } = await vanishedLink();
+
+					const response = await server.read("/api/settings");
+
+					expect(response.status).toBe(200);
+					expect(await response.json()).toMatchObject({
+						linkedCorpus: { kind: "directory", root: directory },
+					});
+				});
+
+				it("stores a ceiling and answers that it did", async () => {
+					const { server } = await vanishedLink();
+
+					const response = await server.store({ usd: 3 });
+
+					expect(response.status).toBe(200);
+					expect(await response.json()).toMatchObject({ spendCeilingUsd: 3 });
+				});
 			});
 		});
 

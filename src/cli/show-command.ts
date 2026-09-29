@@ -206,7 +206,7 @@ async function groupSummaryOf(
 
 /**
  * The reps' reads are judged against the corpus `stale` judges them against,
- * the live install, and a corpus that does not resolve leaves them listed
+ * the linked corpus, and a corpus that does not resolve leaves them listed
  * unjudged rather than refusing the rest of the summary.
  */
 async function groupRepReadsOf(
@@ -220,7 +220,8 @@ async function groupRepReadsOf(
 	} catch (error) {
 		if (
 			error instanceof CorpusSourceError ||
-			error instanceof CorpusConfigurationError
+			error instanceof CorpusConfigurationError ||
+			error instanceof RefusedPreconditionError
 		) {
 			const recorded = await recordedRepReads(
 				runsDirectory,

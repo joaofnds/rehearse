@@ -72,6 +72,28 @@ function historyError(error: HistoryErrorView): HistoryErrorResponse {
 	};
 }
 
+/**
+ * A corpus the reads cannot measure, a moved linked directory or an unreadable
+ * settings file, is a conflict with what is on disk rather than a record that
+ * is not there, so it stays apart from the refusals the routes answer 404.
+ */
+class CorpusUnavailableError extends Error {
+	public override name = "CorpusUnavailableError";
+}
+
+async function corpusSource(
+	dependencies: Readonly<ApiDependencies>,
+): Promise<CorpusRoot> {
+	try {
+		return await dependencies.readCorpusSource();
+	} catch (error) {
+		if (!(error instanceof RefusedPreconditionError)) {
+			throw error;
+		}
+		throw new CorpusUnavailableError(error.message);
+	}
+}
+
 /** A malformed argument is 400 and a record that is not there is 404. */
 function commandRefusal(
 	error: Readonly<UsageError> | Readonly<RefusedPreconditionError>,
@@ -221,7 +243,7 @@ export const createApiApp = (dependencies: ApiDependencies) => {
 			const ids = context.req.queries("ids");
 			const report = await runHistoryReport(
 				dependencies.runsDirectory,
-				await dependencies.readCorpusSource(),
+				await corpusSource(dependencies),
 				dependencies.liveness,
 				ids === undefined
 					? undefined
@@ -232,7 +254,7 @@ export const createApiApp = (dependencies: ApiDependencies) => {
 		})
 		.get("/api/corpus", async (context) => {
 			const report = await corpusReport(
-				await dependencies.readCorpusSource(),
+				await corpusSource(dependencies),
 				dependencies.runsDirectory,
 			);
 
@@ -241,7 +263,7 @@ export const createApiApp = (dependencies: ApiDependencies) => {
 		.get("/api/corpus/versions", async (context) => {
 			const log = await corpusVersionLog(
 				dependencies.runsDirectory,
-				await dependencies.readCorpusSource(),
+				await corpusSource(dependencies),
 			);
 
 			return context.json({
@@ -605,7 +627,7 @@ export const createApiApp = (dependencies: ApiDependencies) => {
 						dependencies.runsDirectory,
 						id.run,
 						dependencies.liveness,
-						await dependencies.readCorpusSource(),
+						await corpusSource(dependencies),
 					),
 				);
 			} catch (error) {
@@ -685,7 +707,7 @@ export const createApiApp = (dependencies: ApiDependencies) => {
 				const reads = await groupRepReads(
 					dependencies.runsDirectory,
 					id.groupId,
-					await dependencies.readCorpusSource(),
+					await corpusSource(dependencies),
 				);
 
 				return context.json({
@@ -743,8 +765,9 @@ export const createApiApp = (dependencies: ApiDependencies) => {
 	app.onError((caughtError, context) => {
 		const message =
 			caughtError instanceof Error ? caughtError.message : String(caughtError);
+		const status = caughtError instanceof CorpusUnavailableError ? 409 : 500;
 
-		return context.json({ error: redactAbsolutePaths(message) }, 500);
+		return context.json({ error: redactAbsolutePaths(message) }, status);
 	});
 
 	return app;

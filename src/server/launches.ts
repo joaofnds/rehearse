@@ -16,6 +16,7 @@ import {
 	readCaseDeclaration,
 } from "#benchmark/case";
 import { INITIAL_CHECKPOINT_STAGE } from "#benchmark/checkpoint";
+import { liveCorpusSource } from "#benchmark/corpus-file";
 import {
 	CorpusSourceError,
 	linkCorpus,
@@ -280,15 +281,16 @@ async function settingsReading(dependencies: LaunchDependencies): Promise<{
 	readonly overrun: string;
 }> {
 	const settings = await storedSettings(dependencies.runsDirectory);
-	const linked = await asLaunchRefusal(() =>
-		linkedCorpusSource(dependencies.runsDirectory),
-	);
+	const { linkedCorpusDirectory } = settings;
 
 	return {
 		spendCeilingUsd: settings.spendCeilingUsd ?? null,
 		setCommand: SET_SPEND_CEILING_COMMAND,
 		recordsDirectory: dependencies.runsDirectory,
-		linkedCorpus: { kind: linked.kind, root: linked.root },
+		linkedCorpus:
+			linkedCorpusDirectory === undefined
+				? { kind: "live", root: liveCorpusSource().root }
+				: { kind: "directory", root: linkedCorpusDirectory },
 		overrun: CEILING_OVERRUN_STATEMENT,
 	};
 }

@@ -303,6 +303,27 @@ Reads not judged: the backing root is relative.`,
 		);
 	});
 
+	it("lists a group's rep reads unjudged when the linked corpus is gone", async () => {
+		const fixture = await fixtureWithRepRead();
+
+		const stdout = await printed(
+			`group:${fixture.groupId}`,
+			false,
+			fixture.runsDirectory,
+			{
+				resolveCorpus: () =>
+					Promise.reject(
+						new RefusedPreconditionError("the linked corpus is gone"),
+					),
+			},
+		);
+
+		expect(stdout).toContain(
+			`| stage skill | declared | ${BUILD_SKILL_SHA256.slice(0, 12)} | not judged |
+Reads not judged: the linked corpus is gone.`,
+		);
+	});
+
 	/**
 	 * The production runs directory is under the control root, so a filesystem
 	 * error naming a rep's file there would disclose the home directory on the

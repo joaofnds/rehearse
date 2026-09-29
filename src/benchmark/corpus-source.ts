@@ -12,6 +12,7 @@ import { pathExists } from "./file-presence";
 import {
 	readSettings,
 	storeLinkedCorpusDirectory,
+	LINK_CORPUS_COMMAND,
 	UNLINK_CORPUS_COMMAND,
 } from "./settings";
 
@@ -143,7 +144,26 @@ export async function linkedCorpusSource(
 
 	return linkedCorpusDirectory === undefined
 		? liveCorpusSource()
-		: directorySource(linkedCorpusDirectory);
+		: linkedDirectorySource(linkedCorpusDirectory);
+}
+
+/**
+ * The link was a corpus when it was stored, so one that no longer is has been
+ * moved or emptied since, and the refusal names how to get out of it.
+ */
+async function linkedDirectorySource(
+	directory: string,
+): Promise<DirectoryCorpusRoot> {
+	try {
+		return await directorySource(directory);
+	} catch (error) {
+		if (!(error instanceof CorpusSourceError)) {
+			throw error;
+		}
+		throw new RefusedPreconditionError(
+			`The linked corpus directory ${directory} is no longer a corpus. ${error.message}. Link another with ${LINK_CORPUS_COMMAND}, or unlink it with: ${UNLINK_CORPUS_COMMAND}`,
+		);
+	}
 }
 
 export async function linkCorpus(

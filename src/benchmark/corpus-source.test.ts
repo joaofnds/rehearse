@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { recordsDirectory } from "#benchmark/config";
@@ -12,6 +12,8 @@ import {
 	resolveCorpusSource,
 	unlinkCorpus,
 } from "#benchmark/corpus-source";
+import { RefusedPreconditionError } from "#benchmark/exit-codes";
+import { UNLINK_CORPUS_COMMAND } from "#benchmark/settings";
 import { TestResources } from "#benchmark/test-support";
 import { failureOf } from "#cli/cli-test-support";
 
@@ -65,6 +67,18 @@ describe("resolving the corpus nobody names", () => {
 		await unlinkCorpus(recordsDirectory());
 
 		expect(await resolveCorpusSource(undefined)).toEqual(liveCorpusSource());
+	});
+
+	it("refuses a linked directory that is gone, naming the command that unlinks it", async () => {
+		const root = await directoryCorpus();
+		await linkCorpus(recordsDirectory(), root);
+		await rm(root, { recursive: true });
+
+		const failure = await failureOf(resolveCorpusSource(undefined));
+
+		expect(failure).toBeInstanceOf(RefusedPreconditionError);
+		expect(failure.message).toContain(root);
+		expect(failure.message).toContain(UNLINK_CORPUS_COMMAND);
 	});
 });
 
