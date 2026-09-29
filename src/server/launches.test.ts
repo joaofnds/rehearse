@@ -3,6 +3,11 @@ import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
+import {
+	RecordedArms,
+	RUN,
+	STAGE,
+} from "#benchmark/compare-attempts-test-support";
 import { readLaunchRecord, writeLaunchRecord } from "#benchmark/launch-record";
 import {
 	directorySource,
@@ -340,6 +345,99 @@ describe(createLaunchApp.name, () => {
 				stage: "discuss",
 				attempts: 3,
 			});
+		});
+	});
+
+	describe("when two attempts are compared", () => {
+		const SHARED = {
+			"CLAUDE.md": "global instructions\n",
+			"skills/review/SKILL.md": "review\n",
+		};
+
+		async function recordedArms(runsDirectory: string): Promise<RecordedArms> {
+			return RecordedArms.create(
+				runsDirectory,
+				await temporaryDirectory("rehearse-launch-arms-"),
+			);
+		}
+
+		it("compares them already approved once the free checks pass", async () => {
+			const { launcher, post, runsDirectory } = await harness();
+			const arms = await recordedArms(runsDirectory);
+			const armA = await arms.recordArm("baseline", SHARED);
+			const armB = await arms.recordArm("candidate", {
+				...SHARED,
+				"skills/build/SKILL.md": "build\n",
+			});
+
+			const response = await post({ kind: "comparison", armA, armB });
+			const { id } = launchedSchema.parse(await response.json());
+
+			expect(response.status).toBe(202);
+			expect(launcher.launches.map(({ argv }) => argv)).toEqual([
+				[
+					"compare",
+					"attempts",
+					"--arm-a",
+					armA,
+					"--arm-b",
+					armB,
+					"--yes",
+					"--approved-in-browser",
+				],
+			]);
+			expect(await readLaunchRecord(runsDirectory, id)).toMatchObject({
+				kind: "comparison",
+				armA,
+				armB,
+				run: RUN,
+				stage: STAGE,
+				attempts: 2,
+			});
+		});
+
+		it("refuses arms the comparison would refuse before starting anything", async () => {
+			const { launcher, post, runsDirectory } = await harness();
+			const arms = await recordedArms(runsDirectory);
+			const armA = await arms.recordArm("baseline", SHARED);
+			const armB = await arms.recordArm("candidate", SHARED);
+
+			const response = await post({ kind: "comparison", armA, armB });
+
+			expect(response.status).toBe(409);
+			expect(refusalSchema.parse(await response.json()).error).toBe(
+				"arms A and B hold identical corpora, so nothing is under test",
+			);
+			expect(launcher.launches).toEqual([]);
+		});
+
+		it("refuses a group that is not recorded", async () => {
+			const { launcher, post } = await harness();
+
+			const response = await post({
+				kind: "comparison",
+				armA: "never-recorded",
+				armB: "never-recorded-either",
+			});
+
+			expect(response.status).toBe(404);
+			expect(refusalSchema.parse(await response.json()).error).toBe(
+				"No recorded confirmation group never-recorded",
+			);
+			expect(launcher.launches).toEqual([]);
+		});
+
+		it("refuses a group id that could name a path outside the records", async () => {
+			const { launcher, post } = await harness();
+
+			const response = await post({
+				kind: "comparison",
+				armA: "../outside",
+				armB: "never-recorded",
+			});
+
+			expect(response.status).toBe(400);
+			expect(launcher.launches).toEqual([]);
 		});
 	});
 

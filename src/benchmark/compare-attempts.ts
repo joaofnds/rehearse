@@ -2,6 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, relative } from "node:path";
 import { deriveBaselineCorpus } from "./baseline-corpus";
+import type { BaselineCorpus } from "./baseline-corpus";
 import type { Effort } from "./config";
 import type { ConfirmationGroupRecord } from "./confirmation-record";
 import { writeComparisonBaselineRecord } from "./comparison-baseline-record";
@@ -48,13 +49,13 @@ export interface CompareAttemptsDependencies {
 const BASELINE_CORPORA_DIRECTORY = "baseline-corpora";
 const MANIFESTS_DIRECTORY = "comparison-manifests";
 
-interface Checkpoint {
+export interface Checkpoint {
 	readonly run: string;
 	readonly stage: string;
 }
 
 /** A recorded replay confirmation group offered as arm A or arm B. */
-interface RecordedArm {
+export interface RecordedArm {
 	readonly group: ConfirmationGroupRecord;
 	readonly checkpoint: Checkpoint;
 	readonly corpusDigest: string;
@@ -234,10 +235,19 @@ function describeCheckpoint({ run, stage }: Checkpoint): string {
 	return `${run} ${stage}`;
 }
 
-export async function compareAttempts(
+/** What the comparison would run, once every check that costs nothing passed. */
+export interface ComparisonPlan {
+	readonly armA: RecordedArm;
+	readonly baseline: Exclude<BaselineCorpus, { readonly kind: "refused" }>;
+}
+
+/**
+ * Refuses arms that could never be compared, in the order a reader would fix
+ * them: the checkpoint, then the controlled inputs, then the corpus difference.
+ */
+export async function planComparison(
 	request: CompareAttemptsRequest,
-	dependencies: CompareAttemptsDependencies,
-): Promise<{ readonly reportFile: string }> {
+): Promise<ComparisonPlan> {
 	const armA = await recordedArm(request.runsDirectory, request.armA);
 	const armB = await recordedArm(request.runsDirectory, request.armB);
 	if (
@@ -257,6 +267,15 @@ export async function compareAttempts(
 				: "";
 		throw new RefusedPreconditionError(`${baseline.reason}${units}`);
 	}
+
+	return { armA, baseline };
+}
+
+export async function compareAttempts(
+	request: CompareAttemptsRequest,
+	dependencies: CompareAttemptsDependencies,
+): Promise<{ readonly reportFile: string }> {
+	const { armA, baseline } = await planComparison(request);
 
 	const { inputs } = armA.group;
 	const corpusDirectory = await materializeBaselineCorpus(

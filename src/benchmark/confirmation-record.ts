@@ -16,6 +16,11 @@ export type ConfirmationMode = z.infer<typeof confirmationModeSchema>;
 const identitySchema = z
 	.string()
 	.regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/u, "Invalid confirmation identity");
+/** A group id a caller supplied names a directory under the records, never a path. */
+export function isConfirmationIdentity(value: string): boolean {
+	return identitySchema.safeParse(value).success;
+}
+
 const shaSchema = z.string().regex(/^[0-9a-f]{40}$/u, "Invalid Git SHA");
 const elapsedSchema = z.number().nonnegative();
 

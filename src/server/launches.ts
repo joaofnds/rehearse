@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { isAbsolute } from "node:path";
 import { Hono } from "hono";
 import { z } from "zod";
-import type { LaunchRecord } from "#benchmark/launch-record";
+import type { LaunchRecord, LaunchTarget } from "#benchmark/launch-record";
 import {
 	isLaunchId,
 	launchAttemptsSchema,
@@ -17,6 +17,9 @@ import {
 	readCaseDeclaration,
 } from "#benchmark/case";
 import { INITIAL_CHECKPOINT_STAGE } from "#benchmark/checkpoint";
+import { unhandled } from "#benchmark/contracts";
+import { planComparison } from "#benchmark/compare-attempts";
+import { isConfirmationIdentity } from "#benchmark/confirmation-record";
 import { liveCorpusSource } from "#benchmark/corpus-file";
 import {
 	CorpusSourceError,
@@ -31,6 +34,7 @@ import { loadRunManifest } from "#benchmark/manifest";
 import {
 	benchmarkRunPaths,
 	checkpointRecorded,
+	confirmationGroupPaths,
 	launchPaths,
 	recordedRunNames,
 	runEventsDatabaseFile,
@@ -99,6 +103,13 @@ const launchRequestSchema = z.discriminatedUnion("kind", [
 			run: z.string(),
 			stage: z.string(),
 			attempts: launchAttemptsSchema,
+		})
+		.strict(),
+	z
+		.object({
+			kind: z.literal("comparison"),
+			armA: z.string().refine(isConfirmationIdentity, "is not a group id"),
+			armB: z.string().refine(isConfirmationIdentity, "is not a group id"),
 		})
 		.strict(),
 ]);
@@ -219,6 +230,50 @@ async function replayArguments(
 	];
 }
 
+/**
+ * A comparison runs a baseline group, so arms it would refuse for free are
+ * refused here, before a process is started that would only refuse them.
+ */
+async function comparisonLaunch(
+	arms: Readonly<{ armA: string; armB: string }>,
+	runsDirectory: string,
+): Promise<Launch> {
+	for (const groupId of [arms.armA, arms.armB]) {
+		if (
+			!(await Bun.file(
+				confirmationGroupPaths(runsDirectory, groupId).groupFile,
+			).exists())
+		) {
+			throw new LaunchRefusalError(
+				`No recorded confirmation group ${groupId}`,
+				404,
+			);
+		}
+	}
+	const { armA } = await asLaunchRefusal(() =>
+		planComparison({ runsDirectory, ...arms }),
+	);
+
+	return {
+		argv: [
+			"compare",
+			"attempts",
+			"--arm-a",
+			arms.armA,
+			"--arm-b",
+			arms.armB,
+			"--yes",
+			"--approved-in-browser",
+		],
+		target: {
+			kind: "comparison",
+			...arms,
+			...armA.checkpoint,
+			attempts: armA.group.reps,
+		},
+	};
+}
+
 /** A precondition the CLI would refuse on refuses the launch, redacted. */
 async function asLaunchRefusal<T>(read: () => Promise<T>): Promise<T> {
 	try {
@@ -304,14 +359,20 @@ function storedSettings(runsDirectory: string): Promise<Settings> {
 	return asLaunchRefusal(() => readSettings(runsDirectory));
 }
 
+/** The CLI arguments a launch starts, and what its record says it runs. */
+interface Launch {
+	readonly argv: readonly string[];
+	readonly target: LaunchTarget;
+}
+
 /**
  * The argv is built from the declaration and the run's manifest, and from
  * request strings only once they name a recorded case, run and stage.
  */
-async function launchArguments(
+async function planLaunch(
 	request: LaunchRequest,
 	dependencies: LaunchDependencies,
-): Promise<readonly string[]> {
+): Promise<Launch> {
 	const { spendCeilingUsd } = await storedSettings(dependencies.runsDirectory);
 	if (spendCeilingUsd === undefined) {
 		throw new LaunchRefusalError(
@@ -320,27 +381,44 @@ async function launchArguments(
 		);
 	}
 
-	return request.kind === "case"
-		? caseArguments(request.caseId, request.attempts, dependencies)
-		: replayArguments(request, dependencies.runsDirectory);
+	switch (request.kind) {
+		case "case": {
+			return {
+				argv: await caseArguments(
+					request.caseId,
+					request.attempts,
+					dependencies,
+				),
+				target: request,
+			};
+		}
+		case "replay": {
+			return {
+				argv: await replayArguments(request, dependencies.runsDirectory),
+				target: request,
+			};
+		}
+		case "comparison": {
+			return comparisonLaunch(request, dependencies.runsDirectory);
+		}
+		default: {
+			return unhandled(request, "launch request");
+		}
+	}
 }
 
 function launchRecord(
-	request: LaunchRequest,
+	target: LaunchTarget,
 	id: string,
 	process: { readonly pid: number; readonly startedAt: string | undefined },
 ): LaunchRecord {
-	const common = {
+	return {
+		...target,
 		id,
-		attempts: request.attempts,
 		pid: process.pid,
 		startedAt: process.startedAt,
 		launchedAt: new Date().toISOString(),
 	};
-
-	return request.kind === "case"
-		? { ...common, kind: "case", caseId: request.caseId }
-		: { ...common, kind: "replay", run: request.run, stage: request.stage };
 }
 
 /**
@@ -525,9 +603,9 @@ export const createLaunchApp = (dependencies: LaunchDependencies) => {
 				return context.json({ error: z.prettifyError(parsed.error) }, 400);
 			}
 			const request = parsed.data;
-			let argv;
+			let launch;
 			try {
-				argv = await launchArguments(request, dependencies);
+				launch = await planLaunch(request, dependencies);
 			} catch (error) {
 				if (!(error instanceof LaunchRefusalError)) {
 					throw error;
@@ -537,13 +615,13 @@ export const createLaunchApp = (dependencies: LaunchDependencies) => {
 			}
 			const id = randomUUID();
 			const pid = await dependencies.launcher.launch(
-				argv,
+				launch.argv,
 				launchPaths(dependencies.runsDirectory, id).logFile,
 			);
 			const startedAt = await dependencies.launcher.startedAt(pid);
 			await writeLaunchRecord(
 				dependencies.runsDirectory,
-				launchRecord(request, id, { pid, startedAt }),
+				launchRecord(launch.target, id, { pid, startedAt }),
 			);
 
 			return context.json({ id }, 202);

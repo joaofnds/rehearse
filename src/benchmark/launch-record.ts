@@ -10,7 +10,6 @@ export const launchAttemptsSchema = z.union(
 
 const launchCommon = {
 	id: z.uuid(),
-	attempts: launchAttemptsSchema,
 	pid: z.number().int().positive(),
 	/**
 	 * When the process holding `pid` started, as the process table reports
@@ -23,18 +22,45 @@ const launchCommon = {
 	stopRequestedAt: z.iso.datetime().optional(),
 };
 
+const caseTarget = {
+	kind: z.literal("case"),
+	caseId: z.string(),
+	attempts: launchAttemptsSchema,
+};
+
+const replayTarget = {
+	kind: z.literal("replay"),
+	run: z.string(),
+	stage: z.string(),
+	attempts: launchAttemptsSchema,
+};
+
+/**
+ * Its attempts are the baseline group's reps, which copy arm A's, so they are
+ * any group size a terminal could have recorded rather than one the dialog offers.
+ */
+const comparisonTarget = {
+	kind: z.literal("comparison"),
+	armA: z.string(),
+	armB: z.string(),
+	run: z.string(),
+	stage: z.string(),
+	attempts: z.number().int().min(2),
+};
+
+const launchTargetSchema = z.discriminatedUnion("kind", [
+	z.object(caseTarget).strict(),
+	z.object(replayTarget).strict(),
+	z.object(comparisonTarget).strict(),
+]);
+
+/** What a launch runs, apart from the process that runs it. */
+export type LaunchTarget = z.infer<typeof launchTargetSchema>;
+
 const launchRecordSchema = z.discriminatedUnion("kind", [
-	z
-		.object({ ...launchCommon, kind: z.literal("case"), caseId: z.string() })
-		.strict(),
-	z
-		.object({
-			...launchCommon,
-			kind: z.literal("replay"),
-			run: z.string(),
-			stage: z.string(),
-		})
-		.strict(),
+	z.object({ ...launchCommon, ...caseTarget }).strict(),
+	z.object({ ...launchCommon, ...replayTarget }).strict(),
+	z.object({ ...launchCommon, ...comparisonTarget }).strict(),
 ]);
 
 export type LaunchRecord = z.infer<typeof launchRecordSchema>;
