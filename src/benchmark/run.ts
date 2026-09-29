@@ -839,11 +839,7 @@ function ceilingReadings(
 		return { ceilingUsd: refusal.ceilingUsd, spentUsd: refusal.spentUsd };
 	}
 
-	const spentUsd = spendCeiling.spentUsd();
-
-	return spentUsd >= spendCeiling.ceilingUsd
-		? { ceilingUsd: spendCeiling.ceilingUsd, spentUsd }
-		: undefined;
+	return spendCeiling.reached();
 }
 
 /**

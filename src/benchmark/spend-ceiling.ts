@@ -26,6 +26,16 @@ export interface SpendCeiling {
 	readonly spentUsd: () => number;
 	readonly budgetFor: (sessionBudgetUsd: number) => number;
 	readonly charge: (costUsd: number) => void;
+	/**
+	 * The ceiling the spend has reached, a rep's own or its group's, since a
+	 * rep's call may be halted at the budget its group had left.
+	 */
+	readonly reached: () => CeilingReached | undefined;
+}
+
+export interface CeilingReached {
+	readonly ceilingUsd: number;
+	readonly spentUsd: number;
 }
 
 export function createSpendCeiling(props: {
@@ -52,6 +62,8 @@ export function createSpendCeiling(props: {
 			spentUsd += costUsd;
 			within?.charge(costUsd);
 		},
+		reached: () =>
+			spentUsd >= ceilingUsd ? { ceilingUsd, spentUsd } : within?.reached(),
 	};
 }
 

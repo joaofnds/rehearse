@@ -12,6 +12,7 @@ import type {
 import type { JudgeAttempt } from "./judge-attempt";
 import type { ReadManifestEntry } from "./read-manifest";
 import type { RunEventRecorder } from "./run-events";
+import type { CeilingReached } from "./spend-ceiling";
 import { operatorStopRecord } from "./operator-stop";
 import type { ProductOwnerSnapshot } from "./workflow";
 
@@ -46,10 +47,7 @@ export interface OperatorStop {
 }
 
 /** The ceiling a run stopped at and the run spend that reached it. */
-export interface CeilingStopReadings {
-	readonly ceilingUsd: number;
-	readonly spentUsd: number;
-}
+export type CeilingStopReadings = CeilingReached;
 
 /**
  * A stage the spend ceiling stopped. Its session may have been refused before
