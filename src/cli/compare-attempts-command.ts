@@ -16,7 +16,7 @@ import { writeRecord } from "#cli/output";
 import type { ReplayCommandDependencies } from "#cli/replay-command";
 import { replayConfig, runReplayCommand } from "#cli/replay-command";
 
-export interface BaselineReplayRequest {
+export interface ArmReplayRequest {
 	readonly approval: ApprovalMethod;
 	readonly stdinIsTerminal: boolean;
 }
@@ -39,30 +39,30 @@ function approvalArguments(approval: ApprovalMethod): readonly string[] {
 }
 
 function armReplayArguments(
-	baseline: Readonly<ArmGroupRequest>,
+	arm: Readonly<ArmGroupRequest>,
 	approval: ApprovalMethod,
 ): string[] {
 	return [
 		"--run",
-		baseline.run,
+		arm.run,
 		"--stage",
-		baseline.stage,
+		arm.stage,
 		"--corpus",
-		baseline.corpusDirectory,
+		arm.corpusDirectory,
 		"--model",
-		baseline.model,
-		...(baseline.effort === undefined ? [] : ["--effort", baseline.effort]),
+		arm.model,
+		...(arm.effort === undefined ? [] : ["--effort", arm.effort]),
 		"--judge-model",
-		baseline.judgeModel,
-		...(baseline.judgeEffort === undefined
+		arm.judgeModel,
+		...(arm.judgeEffort === undefined
 			? []
-			: ["--judge-effort", baseline.judgeEffort]),
+			: ["--judge-effort", arm.judgeEffort]),
 		"--session-budget-usd",
-		String(baseline.sessionBudgetUsd),
+		String(arm.sessionBudgetUsd),
 		"--confirm",
 		"--reps",
-		String(baseline.reps),
-		...(baseline.withoutStageSkill ? ["--without-stage-skill"] : []),
+		String(arm.reps),
+		...(arm.withoutStageSkill ? ["--without-stage-skill"] : []),
 		...approvalArguments(approval),
 	];
 }
@@ -75,7 +75,7 @@ const CONTROLLED_KNOBS = [
 	"sessionBudgetUsd",
 ] as const;
 
-/** The arm as the operator named it: the harness's control is the baseline. */
+/** The arm as the operator named it: the harness's control is the arm. */
 const ARM_LABELS = {
 	baseline: "arm A",
 	candidate: "arm B",
@@ -89,13 +89,13 @@ const ARM_LABELS = {
  * was paid for, so the difference is refused before replay probes the model.
  */
 function assertRunsArmAInputs(
-	baseline: Readonly<ArmGroupRequest>,
+	arm: Readonly<ArmGroupRequest>,
 	config: Readonly<ReplayCliConfig>,
 ): void {
 	for (const knob of CONTROLLED_KNOBS) {
-		if (config[knob] !== baseline[knob]) {
+		if (config[knob] !== arm[knob]) {
 			throw new RefusedPreconditionError(
-				`the ${ARM_LABELS[baseline.role]} replay would run ${knob} ${String(config[knob])} where arm A recorded ${String(baseline[knob] ?? "none")}, so its group could not be compared`,
+				`the ${ARM_LABELS[arm.role]} replay would run ${knob} ${String(config[knob])} where arm A recorded ${String(arm[knob] ?? "none")}, so its group could not be compared`,
 			);
 		}
 	}
@@ -107,17 +107,17 @@ function assertRunsArmAInputs(
  * goes to stderr, since the comparison's report owns stdout.
  */
 export function replayArmGroup(
-	request: BaselineReplayRequest,
+	request: ArmReplayRequest,
 	dependencies: ReplayCommandDependencies,
-): (baseline: ArmGroupRequest) => Promise<string> {
-	return async (baseline) => {
-		await dependencies.resolveRunDirectory(baseline.run);
-		const args = armReplayArguments(baseline, request.approval);
+): (arm: ArmGroupRequest) => Promise<string> {
+	return async (arm) => {
+		await dependencies.resolveRunDirectory(arm.run);
+		const args = armReplayArguments(arm, request.approval);
 		assertRunsArmAInputs(
-			baseline,
+			arm,
 			await replayConfig(
 				args,
-				benchmarkRunPaths(recordsDirectory(), baseline.run).manifestFile,
+				benchmarkRunPaths(recordsDirectory(), arm.run).manifestFile,
 			),
 		);
 		let groupRecordFile: string | undefined;
@@ -145,7 +145,7 @@ export function replayArmGroup(
 		);
 		if (groupRecordFile === undefined) {
 			throw new Error(
-				`The ${ARM_LABELS[baseline.role]} replay recorded no confirmation group`,
+				`The ${ARM_LABELS[arm.role]} replay recorded no confirmation group`,
 			);
 		}
 
