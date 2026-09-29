@@ -780,7 +780,7 @@ describe(createRunAbort.name, () => {
 		});
 		const artifact = buildFailedJudgeRunArtifact(
 			artifactBaseInputs(pipeline, AUDIT_LOG_PIPELINE_PATH),
-			judgeFailure,
+			{ failure: judgeFailure, ceilingStop: undefined },
 		);
 		const abort = createRunAbort(
 			{
@@ -1170,7 +1170,7 @@ describe(createRunAbort.name, () => {
 		});
 		const artifact = buildFailedJudgeRunArtifact(
 			artifactBaseInputs(pipeline, AUDIT_LOG_PIPELINE_PATH),
-			judgeFailure,
+			{ failure: judgeFailure, ceilingStop: undefined },
 		);
 		const abort = createRunAbort(
 			{
@@ -1211,7 +1211,7 @@ describe(createRunAbort.name, () => {
 		});
 		const artifact = buildFailedJudgeRunArtifact(
 			artifactBaseInputs(pipeline, AUDIT_LOG_PIPELINE_PATH),
-			judgeFailure,
+			{ failure: judgeFailure, ceilingStop: undefined },
 		);
 		const abort = createRunAbort(
 			{
@@ -1248,7 +1248,7 @@ describe(createRunAbort.name, () => {
 		});
 		const artifact = buildFailedJudgeRunArtifact(
 			artifactBaseInputs(pipeline, AUDIT_LOG_PIPELINE_PATH),
-			judgeFailure,
+			{ failure: judgeFailure, ceilingStop: undefined },
 		);
 		const abort = createRunAbort(
 			{

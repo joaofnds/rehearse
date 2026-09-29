@@ -300,8 +300,7 @@ interface CompletedRunArtifact {
 
 export function buildFailedJudgeRunArtifact(
 	inputs: RunArtifactBaseInputs,
-	failure: Readonly<JudgeFailure>,
-	ceilingStop?: CeilingStopReadings,
+	{ failure, ceilingStop }: Readonly<PaidJudgeFailure>,
 ): FailedJudgeRunArtifact {
 	return {
 		...runArtifactEvidence(inputs, failure),
@@ -316,38 +315,39 @@ type JudgeFailure =
 	| JudgeCeilingStopError
 	| JudgeExecutionError;
 
-interface PaidJudgeFailure {
-	readonly failure: JudgeFailure;
+export interface PaidJudgeFailure {
+	readonly failure: Readonly<JudgeFailure>;
 	readonly ceilingStop: CeilingStopReadings | undefined;
 }
 
 /**
- * A Judge failure that still carries the attempts it paid for. An execution
- * failure counts only once the run's spend reached the ceiling, since its
- * call was then halted at the budget the ceiling had left.
+ * A Judge failure that still carries the attempts it paid for, with the
+ * ceiling stop when the run's spend reached the ceiling. An execution
+ * failure counts only at the ceiling, since its call was then halted at the
+ * budget the ceiling had left.
  */
 function paidJudgeFailure(
 	error: Readonly<Error>,
 	spendCeiling: SpendCeiling,
 ): PaidJudgeFailure | undefined {
-	if (error instanceof JudgeOutputValidationError) {
-		return { failure: error, ceilingStop: undefined };
+	if (
+		!(
+			error instanceof JudgeOutputValidationError ||
+			error instanceof JudgeCeilingStopError ||
+			error instanceof JudgeExecutionError
+		)
+	) {
+		return undefined;
 	}
-	if (error instanceof JudgeCeilingStopError) {
-		return {
-			failure: error,
-			ceilingStop: { ceilingUsd: error.ceilingUsd, spentUsd: error.spentUsd },
-		};
+	const ceilingStop = ceilingReadings(
+		error instanceof JudgeCeilingStopError ? error : undefined,
+		spendCeiling,
+	);
+	if (error instanceof JudgeExecutionError && ceilingStop === undefined) {
+		return undefined;
 	}
-	if (error instanceof JudgeExecutionError) {
-		const ceilingStop = ceilingReadings(undefined, spendCeiling);
 
-		return ceilingStop === undefined
-			? undefined
-			: { failure: error, ceilingStop };
-	}
-
-	return undefined;
+	return { failure: error, ceilingStop };
 }
 
 export interface FinalJudgeRequest {
@@ -391,8 +391,7 @@ export async function runFinalJudge(
 			await request.writeFailedArtifact(
 				buildFailedJudgeRunArtifact(
 					{ ...inputs, elapsedMs: request.elapsedMs?.() },
-					paid.failure,
-					paid.ceilingStop,
+					paid,
 				),
 			);
 		}
@@ -891,6 +890,7 @@ function recordPaidStageJudgeFailure(
 	if (paid === undefined) {
 		return;
 	}
+
 	const { failure, ceilingStop } = paid;
 	context.updatePendingStage({
 		...readStage,
