@@ -103,6 +103,9 @@ describe(createLaunchApp.name, () => {
 		return root;
 	}
 
+	/** A settings write as the client sends it, wrong types included. */
+	type SettingsRequestBody = Readonly<Record<string, string | number>>;
+
 	interface Harness {
 		readonly launcher: FakeLauncher;
 		readonly runsDirectory: string;
@@ -113,7 +116,7 @@ describe(createLaunchApp.name, () => {
 		readonly send: (
 			method: "PUT" | "DELETE" | "POST",
 			path: string,
-			body: unknown,
+			body: SettingsRequestBody,
 		) => Promise<Response>;
 		/** The same records under a new server and launcher, as after a restart. */
 		readonly restarted: () => Promise<Harness>;
@@ -652,6 +655,14 @@ describe(createLaunchApp.name, () => {
 			overrun: z.string(),
 		});
 
+		async function reading(
+			get: Harness["get"],
+		): Promise<z.infer<typeof readingSchema>> {
+			const response = await get("/api/settings");
+
+			return readingSchema.parse(await response.json());
+		}
+
 		async function corpusDirectory(): Promise<string> {
 			const corpus = await temporaryDirectory("rehearse-settings-corpus-");
 			await Bun.write(join(corpus, "CLAUDE.md"), "linked\n");
@@ -676,7 +687,8 @@ describe(createLaunchApp.name, () => {
 			const served = await harness("missing");
 			await served.send("PUT", "/api/settings/spend-ceiling", { usd: 2.5 });
 
-			const response = await (await served.restarted()).get("/api/settings");
+			const restarted = await served.restarted();
+			const response = await restarted.get("/api/settings");
 
 			expect(readingSchema.parse(await response.json()).spendCeilingUsd).toBe(
 				2.5,
@@ -714,10 +726,11 @@ describe(createLaunchApp.name, () => {
 			});
 
 			expect(linked.status).toBe(200);
-			expect(
-				readingSchema.parse(await (await get("/api/settings")).json())
-					.linkedCorpus,
-			).toEqual({ kind: "directory", root: corpus });
+			const after = await reading(get);
+			expect(after.linkedCorpus).toEqual({
+				kind: "directory",
+				root: corpus,
+			});
 		});
 
 		it("unlinks the corpus, leaving the live install linked", async () => {
@@ -729,10 +742,8 @@ describe(createLaunchApp.name, () => {
 			const unlinked = await send("DELETE", "/api/settings/corpus", {});
 
 			expect(unlinked.status).toBe(200);
-			expect(
-				readingSchema.parse(await (await get("/api/settings")).json())
-					.linkedCorpus.kind,
-			).toBe("live");
+			const after = await reading(get);
+			expect(after.linkedCorpus.kind).toBe("live");
 		});
 
 		describe("when the written value is refused", () => {
@@ -744,10 +755,8 @@ describe(createLaunchApp.name, () => {
 				});
 
 				expect(response.status).toBe(400);
-				expect(
-					readingSchema.parse(await (await get("/api/settings")).json())
-						.spendCeilingUsd,
-				).toBe(5);
+				const after = await reading(get);
+				expect(after.spendCeilingUsd).toBe(5);
 			});
 
 			it("refuses a directory holding no corpus and keeps the link", async () => {
@@ -759,10 +768,8 @@ describe(createLaunchApp.name, () => {
 				});
 
 				expect(response.status).toBe(409);
-				expect(
-					readingSchema.parse(await (await get("/api/settings")).json())
-						.linkedCorpus.kind,
-				).toBe("live");
+				const after = await reading(get);
+				expect(after.linkedCorpus.kind).toBe("live");
 			});
 		});
 	});

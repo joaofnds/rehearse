@@ -228,7 +228,7 @@ async function asLaunchRefusal<T>(read: () => Promise<T>): Promise<T> {
 }
 
 const spendCeilingRequestSchema = z
-	.object({ usd: z.number().positive().finite() })
+	.object({ usd: z.number().positive() })
 	.strict();
 
 const corpusLinkRequestSchema = z.object({ directory: z.string() }).strict();
