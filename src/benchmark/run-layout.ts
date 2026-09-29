@@ -46,6 +46,7 @@ export interface ConfirmationRepPaths {
 export interface ConfirmationGroupPaths {
 	readonly directory: string;
 	readonly groupFile: string;
+	readonly operatorStopFile: string;
 	readonly inputsDirectory: string;
 	readonly reportFile: string;
 	readonly repsDirectory: string;
@@ -147,6 +148,7 @@ export function confirmationGroupPaths(
 	return {
 		directory,
 		groupFile: join(directory, "group.json"),
+		operatorStopFile: join(directory, OPERATOR_STOP_FILE),
 		inputsDirectory: join(directory, "inputs"),
 		reportFile: join(directory, "report.json"),
 		repsDirectory,

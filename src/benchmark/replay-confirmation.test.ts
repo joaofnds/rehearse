@@ -29,7 +29,9 @@ import {
 import type { RunManifest } from "./manifest";
 import { writeRunManifest } from "./manifest";
 import { runReplayConfirmation } from "./replay-confirmation";
-import { benchmarkRunPaths } from "./run-layout";
+import { GroupStoppedError } from "./confirmation-evidence";
+import { operatorStopped } from "./operator-stop";
+import { benchmarkRunPaths, confirmationGroupPaths } from "./run-layout";
 import { readShortIds } from "./short-id";
 import type { loadStageRubric } from "./stage-grading";
 import { addWorktree, currentSha, removeWorktree } from "./target";
@@ -1392,29 +1394,66 @@ describe(runReplayConfirmation.name, () => {
 			const groupId = "confirmation-stopped";
 			let leftover: readonly string[] = ["the stop never ran"];
 
-			await harness.runConfirmation(
-				{
-					paths: run.paths,
-					corpusRoots: [{ kind: "directory", root: corpusRoot }],
-				},
-				{ groupId, reps: 2 },
-				(defaults) => ({
-					...defaults,
-					runStageJudge: async () => {
-						await harness.stops[0]?.();
-						const entries = await readdir(tmpdir());
-						leftover = entries.filter((entry) =>
-							entry.startsWith(`rehearse-${groupId}-`),
-						);
-						throw new Error("stopped");
+			await harness
+				.runConfirmation(
+					{
+						paths: run.paths,
+						corpusRoots: [{ kind: "directory", root: corpusRoot }],
 					},
-				}),
-			);
+					{ groupId, reps: 2 },
+					(defaults) => ({
+						...defaults,
+						runStageJudge: async () => {
+							await harness.stops[0]?.();
+							const entries = await readdir(tmpdir());
+							leftover = entries.filter((entry) =>
+								entry.startsWith(`rehearse-${groupId}-`),
+							);
+							throw new Error("stopped");
+						},
+					}),
+				)
+				.catch(() => undefined);
 
 			expect(leftover).toEqual([]);
 			expect(new Set(harness.pruned)).toEqual(
 				new Set([run.manifest.sourceRoot]),
 			);
+		});
+
+		it("records an operator stop and writes no group record or report", async () => {
+			const harness = new ReplayConfirmationHarness(testResources);
+			const run = await harness.recordedRun();
+			const corpusRoot = await mkdtemp(join(tmpdir(), "rehearse-corpus-"));
+			testResources.track(corpusRoot);
+			await Bun.write(
+				join(corpusRoot, "skills", "discuss", "SKILL.md"),
+				"discuss corpus\n",
+			);
+			const groupId = "confirmation-stopped-record";
+			const paths = confirmationGroupPaths(run.paths.runsDirectory, groupId);
+
+			const outcome = await harness
+				.runConfirmation(
+					{
+						paths: run.paths,
+						corpusRoots: [{ kind: "directory", root: corpusRoot }],
+					},
+					{ groupId, reps: 2 },
+					(defaults) => ({
+						...defaults,
+						runStageJudge: async () => {
+							await harness.stops[0]?.();
+							throw new Error("the stop killed this rep's judge");
+						},
+					}),
+				)
+				.catch((error: unknown) => error);
+
+			expect(outcome).toBeInstanceOf(GroupStoppedError);
+			expect(await operatorStopped(paths)).toBe(true);
+			expect(await Bun.file(paths.groupFile).exists()).toBe(false);
+			expect(await Bun.file(paths.reportFile).exists()).toBe(false);
 		});
 	});
 

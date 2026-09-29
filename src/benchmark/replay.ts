@@ -144,7 +144,10 @@ export interface ReplayDependencies {
 	 * Removes the worktree on a stop signal, once every command is killed,
 	 * until the release it answers is called.
 	 */
-	readonly stopOnSignal: (removeWorktree: () => Promise<void>) => () => void;
+	readonly stopOnSignal: (
+		cleanUp: () => Promise<void>,
+		recordStop?: (signal: NodeJS.Signals) => Promise<void>,
+	) => () => void;
 	readonly materializeCheckpoint: typeof materializeCheckpoint;
 	readonly captureBaselineContext: typeof captureBaselineContext;
 	readonly captureFileHashes: typeof captureFileHashes;

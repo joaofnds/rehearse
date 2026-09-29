@@ -378,12 +378,17 @@ export class ReplayConfirmationHarness {
 
 				return Promise.resolve();
 			},
-			stopOnSignal: (cleanUp) => {
+			stopOnSignal: (cleanUp, recordStop) => {
 				// A released stop is inert, as the real one is once its signals
 				// return to their default.
 				let released = false;
-				const stop = (): Promise<void> =>
-					released ? Promise.resolve() : cleanUp();
+				const stop = async (): Promise<void> => {
+					if (released) {
+						return;
+					}
+					await recordStop?.("SIGTERM");
+					await cleanUp();
+				};
 				this.stops.push(stop);
 
 				return () => {

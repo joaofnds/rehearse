@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { operatorStopped } from "./operator-stop";
 import { readdir, rm } from "node:fs/promises";
 import { join, relative } from "node:path";
 import type { ConfirmationCostProjection } from "./confirmation";
@@ -132,6 +133,20 @@ export async function settleDiagnosticConfirmationRep(
 	};
 }
 
+/**
+ * A group the operator stopped has no outcome: its reps failed because the
+ * stop killed their commands, and their evidence went with the worktrees.
+ */
+export class GroupStoppedError extends Error {
+	public override name = "GroupStoppedError";
+
+	public constructor(groupId: string) {
+		super(
+			`Confirmation group ${groupId} was stopped by the operator, so no group record or report was written`,
+		);
+	}
+}
+
 interface ConfirmationGroupFinalizationBase {
 	readonly caseId: string;
 	readonly groupId: string;
@@ -143,6 +158,7 @@ interface ConfirmationGroupFinalizationBase {
 	readonly groupDirectory: string;
 	readonly runsDirectory: string;
 	readonly groupFile: string;
+	readonly operatorStopFile: string;
 	readonly reportFile: string;
 	readonly makespanMs: number;
 }
@@ -205,6 +221,10 @@ export interface ConfirmationGroupOutcome {
 export async function finalizeConfirmationGroup(
 	finalization: Immutable<ConfirmationGroupFinalization>,
 ): Promise<ConfirmationGroupOutcome> {
+	if (await operatorStopped(finalization)) {
+		throw new GroupStoppedError(finalization.groupId);
+	}
+
 	const repRecordFiles = finalization.repResults.map(
 		({ recordFile }) => recordFile,
 	);

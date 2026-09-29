@@ -30,6 +30,8 @@ import {
 	JudgeOutputValidationError,
 } from "./judge-attempt";
 import type { TargetCheck } from "./pipeline";
+import { GroupStoppedError } from "./confirmation-evidence";
+import { operatorStopped } from "./operator-stop";
 import { runPipelineConfirmation } from "./pipeline-confirmation";
 import { projectSlug } from "./session-capture";
 import { readShortIds } from "./short-id";
@@ -1478,6 +1480,30 @@ describe(runPipelineConfirmation.name, () => {
 
 			expect(leftover).toEqual([]);
 			expect(new Set(harness.pruned)).toEqual(new Set([harness.sourceRoot]));
+		});
+
+		it("records an operator stop and writes no group record or report", async () => {
+			const harness = await PipelineConfirmationHarness.setup(testResources);
+			const groupId = "pipeline-stopped-record";
+			const paths = confirmationGroupPaths(harness.runsDirectory, groupId);
+
+			const outcome = await harness
+				.run({ groupId }, (dependencies) => ({
+					...dependencies,
+					runSetup: async (worktreePath) => {
+						if (!basename(worktreePath).includes("-rep-")) {
+							return;
+						}
+						await harness.stops[0]?.();
+						throw new Error("the stop killed this rep's command");
+					},
+				}))
+				.catch((error: unknown) => error);
+
+			expect(outcome).toBeInstanceOf(GroupStoppedError);
+			expect(await operatorStopped(paths)).toBe(true);
+			expect(await Bun.file(paths.groupFile).exists()).toBe(false);
+			expect(await Bun.file(paths.reportFile).exists()).toBe(false);
 		});
 	});
 

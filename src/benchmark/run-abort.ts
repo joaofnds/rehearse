@@ -12,7 +12,7 @@ import type {
 import type { JudgeAttempt } from "./judge-attempt";
 import type { ReadManifestEntry } from "./read-manifest";
 import type { RunEventRecorder } from "./run-events";
-import { OPERATOR_STOPPED } from "./stopped-status";
+import { operatorStopRecord } from "./operator-stop";
 import type { ProductOwnerSnapshot } from "./workflow";
 
 export interface PendingStage {
@@ -282,7 +282,7 @@ async function writeOperatorStop(
 ): Promise<void> {
 	await persistence.write(
 		file,
-		`${JSON.stringify({ status: OPERATOR_STOPPED, signal: stop.signal }, null, 2)}\n`,
+		operatorStopRecord(stop.signal),
 	);
 }
 

@@ -7,9 +7,17 @@ const operatorStopRecordSchema = z.object({
 	signal: z.string().min(1),
 });
 
-/** Whether a signal ended the run, which `run-abort.ts` records on disk. */
+/** The record a signal's stop leaves, for a run or a confirmation group. */
+export function operatorStopRecord(signal: NodeJS.Signals): string {
+	return `${JSON.stringify({ status: OPERATOR_STOPPED, signal }, null, 2)}\n`;
+}
+
+/**
+ * Whether a signal ended the run or group, which `run-abort.ts` and the
+ * group executors record on disk.
+ */
 export async function operatorStopped(
-	paths: Pick<BenchmarkRunPaths, "operatorStopFile">,
+	paths: Readonly<Pick<BenchmarkRunPaths, "operatorStopFile">>,
 ): Promise<boolean> {
 	const file = Bun.file(paths.operatorStopFile);
 	if (!(await file.exists())) {

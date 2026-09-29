@@ -458,10 +458,11 @@ async function confirmRun(
 			addWorktree,
 			removeWorktree,
 			pruneWorktrees,
-			stopOnSignal: (removeGroupWorktrees) =>
+			stopOnSignal: (cleanUp, recordStop) =>
 				stopOnSignal(
 					processSignalStop(diagnosticWriter(output)),
-					removeGroupWorktrees,
+					cleanUp,
+					recordStop,
 				),
 			materializeCheckpoint,
 			installStageCorpusSnapshot,

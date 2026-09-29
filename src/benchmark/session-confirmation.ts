@@ -390,6 +390,7 @@ export async function runSessionConfirmation(
 		groupDirectory: paths.directory,
 		runsDirectory: request.runsDirectory,
 		groupFile: paths.groupFile,
+		operatorStopFile: paths.operatorStopFile,
 		reportFile: paths.reportFile,
 		makespanMs: now() - startedAt,
 	});

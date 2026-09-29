@@ -1,3 +1,4 @@
+import { operatorStopRecord } from "./operator-stop";
 import type { CorpusRoot } from "./corpus-file";
 import type { CorpusMeasurement } from "./corpus-measurement";
 import { mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
@@ -119,7 +120,10 @@ export interface PipelineConfirmationDependencies {
 	readonly addWorktree: typeof addWorktree;
 	readonly removeWorktree: typeof removeWorktree;
 	readonly pruneWorktrees: typeof pruneWorktrees;
-	readonly stopOnSignal: (cleanUp: () => Promise<void>) => () => void;
+	readonly stopOnSignal: (
+		cleanUp: () => Promise<void>,
+		recordStop: (signal: NodeJS.Signals) => Promise<void>,
+	) => () => void;
 	readonly materializeCheckpoint: typeof materializeCheckpoint;
 	readonly installStageCorpusSnapshot: typeof installStageCorpusSnapshot;
 	readonly recordCheckpoint: typeof recordCheckpoint;
@@ -842,10 +846,15 @@ export async function runPipelineConfirmation(
 	const worktreesDirectory = await realpath(
 		await mkdtemp(join(tmpdir(), `rehearse-${request.groupId}-`)),
 	);
-	const release = dependencies.stopOnSignal(async () => {
-		await rm(worktreesDirectory, { force: true, recursive: true });
-		await dependencies.pruneWorktrees(request.source.root);
-	});
+	const release = dependencies.stopOnSignal(
+		async () => {
+			await rm(worktreesDirectory, { force: true, recursive: true });
+			await dependencies.pruneWorktrees(request.source.root);
+		},
+		async (signal) => {
+			await Bun.write(paths.operatorStopFile, operatorStopRecord(signal));
+		},
+	);
 	try {
 		const frozen = await freezePipelineInputs(
 			dependencies,
@@ -915,6 +924,7 @@ export async function runPipelineConfirmation(
 			groupDirectory: paths.directory,
 			runsDirectory: request.runsDirectory,
 			groupFile: paths.groupFile,
+			operatorStopFile: paths.operatorStopFile,
 			reportFile: paths.reportFile,
 			makespanMs,
 		});

@@ -308,10 +308,11 @@ export async function executeReplay(
 		installStageCorpusSnapshot,
 		projectsDirectory: claudeProjectsDirectory(),
 		log: diagnosticWriter(output),
-		stopOnSignal: (removeReplayWorktree) =>
+		stopOnSignal: (cleanUp, recordStop) =>
 			stopOnSignal(
 				processSignalStop(diagnosticWriter(output)),
-				removeReplayWorktree,
+				cleanUp,
+				recordStop,
 			),
 	};
 	const replayRequest: ReplayRequest = {

@@ -1,3 +1,4 @@
+import { operatorStopRecord } from "./operator-stop";
 import type { ApprovalMethod } from "./config";
 import type { CorpusRoot } from "./corpus-file";
 import type { CorpusMeasurement } from "./corpus-measurement";
@@ -418,10 +419,15 @@ export async function runReplayConfirmation(
 	const worktreesDirectory = await mkdtemp(
 		join(tmpdir(), `rehearse-${request.groupId}-`),
 	);
-	const release = dependencies.stopOnSignal(async () => {
-		await rm(worktreesDirectory, { force: true, recursive: true });
-		await dependencies.pruneWorktrees(frozen.manifest.sourceRoot);
-	});
+	const release = dependencies.stopOnSignal(
+		async () => {
+			await rm(worktreesDirectory, { force: true, recursive: true });
+			await dependencies.pruneWorktrees(frozen.manifest.sourceRoot);
+		},
+		async (signal) => {
+			await Bun.write(paths.operatorStopFile, operatorStopRecord(signal));
+		},
+	);
 	try {
 		return await runReplayConfirmationBody(
 			dependencies,
@@ -752,6 +758,7 @@ async function runReplayConfirmationBody(
 		groupDirectory: paths.directory,
 		runsDirectory: request.paths.runsDirectory,
 		groupFile: paths.groupFile,
+		operatorStopFile: paths.operatorStopFile,
 		reportFile: paths.reportFile,
 		makespanMs,
 	});
