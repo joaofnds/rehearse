@@ -519,7 +519,7 @@ const LAYOUT_DIRECTORY_KINDS: readonly string[] = [
  * can invoke either, and both must be frozen along with the skill it invokes.
  */
 async function stageCorpusDirectories(
-	skill: string,
+	skill: StageSkill,
 	roots: readonly CorpusRoot[],
 ): Promise<readonly CorpusDirectory[]> {
 	const directories: CorpusDirectory[] = [];
@@ -530,11 +530,44 @@ async function stageCorpusDirectories(
 		}
 	}
 
-	for (const name of new Set([...GLOBAL_SKILLS, skill])) {
+	if (skill.presence === "absent") {
+		await refuseInstalledSkill(skill.name, roots);
+	}
+	const skills = new Set(GLOBAL_SKILLS);
+	if (skill.presence === "installed") {
+		skills.add(skill.name);
+	}
+	for (const name of skills) {
 		directories.push(await resolveSkill(name, roots));
 	}
 
 	return directories;
+}
+
+/**
+ * A stage's own skill, installed as a run needs it, or absent for a
+ * comparison's baseline arm, which replays the stage without the skill under
+ * test (ACT-271.4).
+ */
+interface StageSkill {
+	readonly name: string;
+	readonly presence: "installed" | "absent";
+}
+
+/**
+ * A baseline arm whose corpus still holds the skill would read it while its
+ * record says it ran without it.
+ */
+async function refuseInstalledSkill(
+	skill: string,
+	roots: readonly CorpusRoot[],
+): Promise<void> {
+	const directory = await resolveLayoutDirectory(join("skills", skill), roots);
+	if (directory !== undefined) {
+		throw new Error(
+			`The ${skill} skill is installed in ${directory.source.root}, but this stage runs without it`,
+		);
+	}
 }
 
 interface CapturedCorpusFile {
@@ -558,8 +591,8 @@ async function captureDirectories(
 	return files;
 }
 
-export async function captureStageCorpus(
-	skill: string,
+async function captureStageSkillCorpus(
+	skill: StageSkill,
 	instructions: string,
 	roots: readonly CorpusRoot[],
 ): Promise<readonly HashedFile[]> {
@@ -570,6 +603,30 @@ export async function captureStageCorpus(
 		{ path: "CLAUDE.md", sha256: sha256(instructions) },
 		...files.map(({ file }) => file),
 	];
+}
+
+export function captureStageCorpus(
+	skill: string,
+	instructions: string,
+	roots: readonly CorpusRoot[],
+): Promise<readonly HashedFile[]> {
+	return captureStageSkillCorpus(
+		{ name: skill, presence: "installed" },
+		instructions,
+		roots,
+	);
+}
+
+export function captureStageCorpusWithoutSkill(
+	skill: string,
+	instructions: string,
+	roots: readonly CorpusRoot[],
+): Promise<readonly HashedFile[]> {
+	return captureStageSkillCorpus(
+		{ name: skill, presence: "absent" },
+		instructions,
+		roots,
+	);
 }
 
 interface CorpusCopy {
@@ -594,8 +651,8 @@ async function copyCorpusFiles(copy: CorpusCopy): Promise<void> {
 	}
 }
 
-export async function snapshotStageCorpus(
-	skill: string,
+async function snapshotStageSkillCorpus(
+	skill: StageSkill,
 	instructions: string,
 	roots: readonly CorpusRoot[],
 	destination: string,
@@ -605,9 +662,37 @@ export async function snapshotStageCorpus(
 
 	await copyCorpusFiles({ directories, files, instructions, destination });
 
-	return captureStageCorpus(skill, instructions, [
+	return captureStageSkillCorpus(skill, instructions, [
 		{ kind: "directory", root: destination },
 	]);
+}
+
+export function snapshotStageCorpus(
+	skill: string,
+	instructions: string,
+	roots: readonly CorpusRoot[],
+	destination: string,
+): Promise<readonly HashedFile[]> {
+	return snapshotStageSkillCorpus(
+		{ name: skill, presence: "installed" },
+		instructions,
+		roots,
+		destination,
+	);
+}
+
+export function snapshotStageCorpusWithoutSkill(
+	skill: string,
+	instructions: string,
+	roots: readonly CorpusRoot[],
+	destination: string,
+): Promise<readonly HashedFile[]> {
+	return snapshotStageSkillCorpus(
+		{ name: skill, presence: "absent" },
+		instructions,
+		roots,
+		destination,
+	);
 }
 
 /**

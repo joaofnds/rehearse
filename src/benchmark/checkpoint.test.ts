@@ -19,6 +19,7 @@ import type {
 } from "./checkpoint";
 import {
 	captureStageCorpus,
+	captureStageCorpusWithoutSkill,
 	corpusDifferences,
 	corpusLayoutRoots,
 	deriveStaleness,
@@ -33,6 +34,7 @@ import {
 	refusedCorpus,
 	rootLineage,
 	snapshotStageCorpus,
+	snapshotStageCorpusWithoutSkill,
 	stageCorpusRoots,
 } from "./checkpoint";
 import type { CorpusRoot } from "./corpus-file";
@@ -459,6 +461,50 @@ describe(captureStageCorpus.name, () => {
 		expect(corpus.some(({ path }) => path.startsWith("output-styles/"))).toBe(
 			false,
 		);
+	});
+
+	describe("when the stage runs without its own skill", () => {
+		it("freezes the rest of the stage's corpus for a baseline arm", async () => {
+			const roots = await corpusRoots();
+			await installAgent(roots[1], "reviewer", "reviewer agent");
+			const destination = join(roots[0], "snapshot");
+
+			const frozen = await snapshotStageCorpusWithoutSkill(
+				"discuss",
+				"instructions",
+				corpusSources(roots),
+				destination,
+			);
+
+			expect(frozen.map(({ path }) => path)).toEqual([
+				"CLAUDE.md",
+				"agents/reviewer.md",
+			]);
+			expect(
+				await captureStageCorpusWithoutSkill(
+					"discuss",
+					"instructions",
+					corpusSources([destination]),
+				),
+			).toEqual(frozen);
+		});
+
+		it("refuses a corpus that holds the skill, since the arm would read it", async () => {
+			const roots = await corpusRoots();
+			await installSkill(roots[1], "discuss", "discuss skill");
+
+			const failure = await failureOf(
+				captureStageCorpusWithoutSkill(
+					"discuss",
+					"instructions",
+					corpusSources(roots),
+				),
+			);
+
+			expect(failure.message).toBe(
+				`The discuss skill is installed in ${roots[1]}, but this stage runs without it`,
+			);
+		});
 	});
 });
 
