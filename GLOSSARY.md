@@ -126,8 +126,9 @@ See [current state](docs/status.md) for implementation coverage and
   Despite the name, no attempt is paired with another: nothing recorded ties
   one arm's attempt to another's, so the list claims no per-pair change.
 - **Attempt combinations (comparison)**: how one arm's attempts compare with
-  another's over every pairing of one attempt from each, n x m for arms of n
-  and m attempts, counted higher, equal and lower. Every combination counts
+  another's over every pairing of one attempt from each, counted higher, equal
+  and lower: n x m for arms of n and m attempts on a pass/fail measure, and
+  over graded attempts only on a graded one. Every combination counts
   because nothing recorded ties one arm's attempt to another's.
 - **Comparison extension**: a new comparison holding a saved comparison's
   attempts and n more in every arm, run at the cost stated before it starts.

@@ -167,7 +167,8 @@ recorded run's manifest does not parse, or the checkpoint a replayed stage
 starts from is not on disk. A case that declares no model is refused 409,
 because the browser has no terminal to pick one on. It answers 404 for a case
 with no declaration and for an unknown run or stage, and 400 for a malformed
-body or attempts other than 1, 3, 6 or 12. A pipeline case is refused 409
+body, attempts other than 1, 3, 6 or 12 for a case or replay, or a comparison
+that is not a 64-character hex digest. A pipeline case is refused 409
 while a corpus directory is linked, as `run` refuses it. A comparison launch
 runs the arm checks `compare attempts` makes before it writes anything and
 answers 409 with the refusal, 404 for a group with no `group.json`, and 400 for a group id that
@@ -1029,7 +1030,7 @@ leaves transcripts and run artifacts where git can see them.
 | `rep:session:<group-id>/<rep-id>`       | `confirmations/<group-id>/reps/<rep-id>/attempt.json`        |
 | `comparison:<digest>`                   | `comparisons/<digest>/report.json`                           |
 
-`compare attempts` also writes the baseline corpus it replays under
+`compare attempts` and `compare extend` also write the baseline corpus they replay under
 `baseline-corpora/<corpus-digest>/`, the manifest it compares under
 `comparison-manifests/<control-group-id>.json`, and `baseline.json` beside the
 report. Browser launches record themselves as `launches/<id>.json` with the
@@ -1653,12 +1654,17 @@ lists.
 attempts to every arm of a comparison `compare attempts` saved. It prints what
 they cost, n times the sum of each arm's mean recorded cost per attempt, and
 asks once; `--yes` answers instead, and `--approved-in-browser` records the
-approval as the browser's. Before asking it refuses a digest with no saved
+approval as the browser's. Each new group records its approval as `yes` even
+when the prompt was answered, since the replays run after the one answer.
+Before asking it refuses fewer than 2 attempts, a digest with no saved
 comparison, a comparison with no `baseline.json` (a manifest-supplied one
 records neither the checkpoint nor the corpora its arms would replay), an
 unreadable `baseline.json`, a cost it cannot state because an arm recorded no
-cost for some attempt, and a stage rubric that changed since arm A was
-recorded. Once approved it replays one group of n reps per arm at the
+cost for some attempt, and every refusal `compare attempts` makes of arm A's
+recorded group: a stage rubric changed since arm A was recorded or unreadable,
+a stage the run no longer has, a skill under test that is not the stage's own,
+and an arm group that is missing, unreadable, or records no checkpoint or
+corpus version. Once approved it replays one group of n reps per arm at the
 checkpoint arm A replayed, under arm A's model, effort, Judge and budget: arm A
 on its recorded corpus, arm B on its recorded corpus, and the baseline arm on
 arm A's corpus without the skill under test, derived again, with
@@ -1719,8 +1725,9 @@ carry no pair index or seed, since nothing recorded ties one arm's attempt to
 another's, so ordinal 1 of two arms is not a pair. `summary` gives, per case,
 arm B against arm A, arm A against the baseline arm and arm B against the
 baseline arm on every overall measure, each as its quality reading's verdict
-beside how many of the n x m combinations of one attempt from each arm come out
-higher, equal and lower; the reply-length change from arm A to arm B with its
+beside how many combinations of one attempt from each arm come out higher,
+equal and lower (a pass/fail measure counts every attempt; a graded one counts
+only graded attempts, and reads `unavailable` when an arm has none); the reply-length change from arm A to arm B with its
 meter reading; and `moreAttempts`, what as many attempts again as arm A holds
 would cost in every arm, or `unavailable` naming each attempt with no recorded
 cost. The facts to read the summary with care are the response's other fields:
