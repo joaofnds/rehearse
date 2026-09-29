@@ -56,7 +56,12 @@ export function processLauncher(
 			}
 		},
 		startedAt: async (pid) => {
-			const table = await Bun.$`ps -o lstart= -p ${pid}`.quiet().nothrow();
+			// Read in one timezone and locale, so a server restarted from another
+			// shell compares the same text the launch recorded.
+			const table = await Bun.$`ps -o lstart= -p ${pid}`
+				.env({ ...Bun.env, TZ: "UTC", LC_ALL: "C" })
+				.quiet()
+				.nothrow();
 
 			return table.exitCode === 0 ? table.text().trim() : undefined;
 		},

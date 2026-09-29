@@ -16,6 +16,15 @@ async function eventually(check: () => Promise<boolean>): Promise<boolean> {
 	return false;
 }
 
+/** Assigning undefined to an environment variable stores the string "undefined". */
+function restoreEnv(name: string, value: string | undefined): void {
+	if (value === undefined) {
+		Reflect.deleteProperty(Bun.env, name);
+	} else {
+		Bun.env[name] = value;
+	}
+}
+
 function logText(log: string): Promise<string> {
 	return Bun.file(log)
 		.text()
@@ -137,8 +146,31 @@ describe(processLauncher.name, () => {
 
 		const startedAt = await launcher.startedAt(pid);
 
-		const table = await Bun.$`ps -o lstart= -p ${pid}`.text();
+		const table = await Bun.$`ps -o lstart= -p ${pid}`
+			.env({ ...Bun.env, TZ: "UTC", LC_ALL: "C" })
+			.text();
 		expect(startedAt).toBe(table.trim());
+	});
+
+	it("reports one start time whatever the server's timezone and locale", async () => {
+		const launcher = processLauncher(["sleep"], {});
+		const pid = await launcher.launch(["5"], await logFile());
+		pids.push(pid);
+		const saved = { tz: Bun.env.TZ, locale: Bun.env["LC_ALL"] };
+
+		try {
+			Bun.env.TZ = "UTC";
+			Bun.env["LC_ALL"] = "C";
+			const inUtc = await launcher.startedAt(pid);
+			Bun.env.TZ = "America/Sao_Paulo";
+			Bun.env["LC_ALL"] = "pt_BR.UTF-8";
+			const elsewhere = await launcher.startedAt(pid);
+
+			expect(elsewhere).toBe(inUtc);
+		} finally {
+			restoreEnv("TZ", saved.tz);
+			restoreEnv("LC_ALL", saved.locale);
+		}
 	});
 
 	it("reports no start time for a pid no process holds", async () => {
