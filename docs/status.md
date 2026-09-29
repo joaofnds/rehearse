@@ -51,8 +51,11 @@ and the route serves What moved rows for hard-blocker firings, dimension letters
 reply length and cost per attempt, read from the grading each rep's scorecard
 recorded; a meter names a higher arm only past rerun noise, which takes about
 four attempts an arm, and these rows are API-verified only. Since ACT-271.4 the
-route also lists each arm's recorded attempts side by side, unpaired. Launching a
-comparison with a derived baseline arm from the browser is not built yet. The
+route also lists each arm's recorded attempts side by side, unpaired. Run history can
+choose two stage groups at one checkpoint and start `compare attempts` from the
+browser, but it refuses every stage comparison today: a stage replay reads only
+its stage's skills, so a baseline without the differing skill either cannot run
+or reads the same files as arm A (ACT-271.4 holds the open decision). The
 page does not show those arm figures, rows or attempts yet (ACT-257).
 
 ## Known limitations
