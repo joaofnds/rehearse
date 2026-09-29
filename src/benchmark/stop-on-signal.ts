@@ -17,23 +17,23 @@ export interface SignalStopDependencies {
 
 /**
  * Ends the process on a stop signal once the commands it started are killed
- * and the worktree is removed. Its commands run in process groups of their
- * own, so a process that exits without killing them leaves them spending.
- * Answers the release, which returns the signals to their default.
+ * and what it leaves behind is cleaned up. Its commands run in process groups
+ * of their own, so a process that exits without killing them leaves them
+ * spending. Answers the release, which returns the signals to their default.
  */
 export function stopOnSignal(
 	dependencies: SignalStopDependencies,
-	removeWorktree: () => Promise<void>,
+	cleanUp: () => Promise<void>,
 ): () => void {
 	let stopping = false;
 	const stop = async (signal: NodeJS.Signals): Promise<void> => {
-		dependencies.log(`Received ${signal}; stopping and removing the worktree.`);
+		dependencies.log(`Received ${signal}; stopping.`);
 		await dependencies.killActiveCommands();
 		try {
-			await removeWorktree();
+			await cleanUp();
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			dependencies.log(`Could not remove the worktree: ${message}`);
+			dependencies.log(`Could not clean up after the stop: ${message}`);
 		}
 
 		dependencies.exit(signalExitCode(signal));

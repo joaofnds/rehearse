@@ -37,7 +37,7 @@ class FakeProcess implements SignalStopDependencies {
 
 	public cleanup(): () => Promise<void> {
 		return () => {
-			this.events.push("removed worktree");
+			this.events.push("cleaned up");
 
 			return Promise.resolve();
 		};
@@ -57,9 +57,9 @@ describe(stopOnSignal.name, () => {
 		await system.receive("SIGTERM");
 
 		expect(system.events).toEqual([
-			"Received SIGTERM; stopping and removing the worktree.",
+			"Received SIGTERM; stopping.",
 			"killed commands",
-			"removed worktree",
+			"cleaned up",
 		]);
 		expect(system.exits).toEqual([143]);
 	});
@@ -95,7 +95,7 @@ describe(stopOnSignal.name, () => {
 			await system.receive("SIGTERM");
 
 			expect(system.events).toContain(
-				"Could not remove the worktree: worktree busy",
+				"Could not clean up after the stop: worktree busy",
 			);
 			expect(system.exits).toEqual([143]);
 		});

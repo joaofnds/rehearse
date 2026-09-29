@@ -564,6 +564,11 @@ export async function removeWorktree(
 	await git(repositoryRoot, "worktree", "remove", "--force", path);
 }
 
+/** Forgets each worktree whose directory no longer exists. */
+export async function pruneWorktrees(repositoryRoot: string): Promise<void> {
+	await git(repositoryRoot, "worktree", "prune");
+}
+
 export async function changedPathsBetween(
 	targetDir: string,
 	fromSha: string,

@@ -17,6 +17,7 @@ import {
 	currentSha,
 	readRunMarker,
 	refExists,
+	pruneWorktrees,
 	removeWorktree,
 	restoreTarget,
 	teardownTarget,
@@ -192,6 +193,25 @@ describe(addWorktree.name, () => {
 		await removeWorktree(source.directory, worktree);
 
 		expect(await Bun.file(join(worktree, "base.txt")).exists()).toBe(false);
+	});
+});
+
+describe(pruneWorktrees.name, () => {
+	it("forgets a worktree whose directory was deleted", async () => {
+		const source = await testResources.createRepository();
+		const parent = await mkdtemp(join(tmpdir(), "rehearse-worktree-"));
+		testResources.track(parent);
+		const worktree = join(parent, "worktree");
+		await addWorktree(source.directory, source.sha, worktree);
+		await rm(parent, { force: true, recursive: true });
+
+		await pruneWorktrees(source.directory);
+
+		const listed = await runCommand(
+			["git", "worktree", "list", "--porcelain"],
+			source.directory,
+		);
+		expect(listed).not.toContain("rehearse-worktree-");
 	});
 });
 
