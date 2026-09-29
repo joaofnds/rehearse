@@ -165,7 +165,7 @@ body or attempts other than 1, 3, 6 or 12. A pipeline case is refused 409
 while a corpus directory is linked, as `run` refuses it. A comparison launch
 runs the arm checks `compare attempts` makes before it writes anything and
 answers 409 with the refusal, 404 for a group with no `group.json`, and 400 for a group id that
-is not a confirmation identity. The rubric and knob refusals, the spend
+is not a confirmation identity. The rubric, knob and own-skill refusals, the spend
 ceiling and the model probe run later in the started process, so they end the
 launch with the reason only in its log. `GET /api/cases` lists
 the declared cases with their models.
@@ -954,7 +954,8 @@ checkpoint it consumed is stale or when a model or effort flag differs from the
 one it ran with. Every confirmation group is judged by the corpus files it
 froze: a stage or pipeline group per stage, against the skill its frozen
 pipeline names, and a session group against the files its case declares. A
-file several stages froze is named once. A group is also stale when a model or
+stage that froze none of its own skill, as a comparison's control group does,
+is judged on the rest of its corpus. A file several stages froze is named once. A group is also stale when a model or
 effort flag differs from the one it froze. A stage or pipeline group froze its
 own checkpoint, so no live checkpoint can stale it. A stage or pipeline group
 that froze no pipeline, and a session group whose case is no longer declared,
