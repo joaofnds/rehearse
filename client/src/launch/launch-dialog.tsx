@@ -151,13 +151,22 @@ function attemptsLabel(attempts: number): string {
  * together under the group ceiling. A call already in flight when the ceiling
  * is reached still lands, which is why the ceiling can be overrun.
  */
-function ceilingReading(ceilingUsd: number, attempts: number): string {
-	const holds =
-		attempts === 1
-			? `Ceiling ${spendReading(ceilingUsd)}`
-			: `Ceiling ${spendReading(ceilingUsd)} per attempt, ${spendReading(groupSpendCeilingUsd({ spendCeilingUsd: ceilingUsd, reps: attempts }))} for the group of ${String(attempts)}`;
+function ceilingReading(ceilingUsd: number, started: StartedGroups): string {
+	return `${ceilingHolds(ceilingUsd, started)} · stops mid-step if reached, and can be overrun by the calls in flight`;
+}
 
-	return `${holds} · stops mid-step if reached, and can be overrun by the calls in flight`;
+function ceilingHolds(
+	ceilingUsd: number,
+	{ groups, attempts }: StartedGroups,
+): string {
+	if (attempts === 1) {
+		return `Ceiling ${spendReading(ceilingUsd)}`;
+	}
+	const perGroup = `Ceiling ${spendReading(ceilingUsd)} per attempt, ${spendReading(groupSpendCeilingUsd({ spendCeilingUsd: ceilingUsd, reps: attempts }))}`;
+
+	return groups === 1
+		? `${perGroup} for the group of ${String(attempts)}`
+		: `${perGroup} for each of the ${String(groups)} groups of ${String(attempts)}`;
 }
 
 function CorpusLine(): React.JSX.Element {
@@ -491,21 +500,29 @@ function TargetRows({
 	}
 }
 
-/** How many attempts one group of the launch runs, which its ceiling bounds. */
-function startedAttemptsOf(
+/**
+ * The groups a launch starts and how many attempts each runs, which each
+ * group's ceiling bounds. An extension starts one group per arm.
+ */
+interface StartedGroups {
+	readonly groups: number;
+	readonly attempts: number;
+}
+
+function startedGroupsOf(
 	target: LaunchTarget,
 	attempts: LaunchAttempts,
-): number {
+): StartedGroups {
 	switch (target.kind) {
 		case "case":
 		case "replay": {
-			return attempts;
+			return { groups: 1, attempts };
 		}
 		case "comparison": {
-			return target.reps;
+			return { groups: 1, attempts: target.reps };
 		}
 		case "extension": {
-			return target.attempts;
+			return { groups: 3, attempts: target.attempts };
 		}
 		default: {
 			return target satisfies never;
@@ -546,7 +563,7 @@ function LaunchForm({
 	const caseId =
 		pickedCase ?? cases.data?.cases.find((listed) => listed.model !== null)?.id;
 	const request = launchRequest(target, caseId, attempts);
-	const startedAttempts = startedAttemptsOf(target, attempts);
+	const started = startedGroupsOf(target, attempts);
 	const ceilingUsd = settings.data?.spendCeilingUsd ?? undefined;
 	const startable =
 		ceilingUsd !== undefined &&
@@ -637,7 +654,7 @@ function LaunchForm({
 			<footer className="flex flex-wrap items-center gap-2.5 border-t border-strong px-4 py-3">
 				{ceilingUsd === undefined ? null : (
 					<span className="text-xs text-dim">
-						{ceilingReading(ceilingUsd, startedAttempts)}
+						{ceilingReading(ceilingUsd, started)}
 					</span>
 				)}
 				<span className="ml-auto flex gap-2">
@@ -652,7 +669,7 @@ function LaunchForm({
 							}
 						}}
 					>
-						{`Start · ${attemptsLabel(startedAttempts)}`}
+						{`Start · ${attemptsLabel(started.groups * started.attempts)}`}
 					</Button>
 				</span>
 			</footer>

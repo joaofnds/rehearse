@@ -349,7 +349,10 @@ describe(LaunchDialog.name, () => {
 				within(dialog).queryByRole("group", { name: "Attempts" }),
 			).not.toBeInTheDocument();
 			expect(
-				within(dialog).getByRole("button", { name: "Start · 2 attempts" }),
+				within(dialog).getByRole("button", { name: "Start · 6 attempts" }),
+			).toBeInTheDocument();
+			expect(
+				within(dialog).getByText(/for each of the 3 groups of 2 ·/u),
 			).toBeInTheDocument();
 		});
 
