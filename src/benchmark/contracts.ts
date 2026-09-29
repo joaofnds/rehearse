@@ -338,6 +338,10 @@ export const claudeEnvelopeSchema = z
 			.optional()
 			.or(z.unknown().transform(() => undefined)),
 		is_error: z.boolean().optional(),
+		errors: z
+			.array(z.string())
+			.optional()
+			.or(z.unknown().transform(() => undefined)),
 		terminal_reason: z.string().optional(),
 		result: z.string().optional(),
 		structured_output: z.unknown().optional(),

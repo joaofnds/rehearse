@@ -99,7 +99,9 @@ export class ClaudeSessionError extends Error {
 	public readonly costUsd: number | undefined;
 
 	public constructor(envelope: ClaudeEnvelope) {
-		super(envelope.result ?? "Claude session failed");
+		super(
+			envelope.result ?? envelope.errors?.join("; ") ?? "Claude session failed",
+		);
 		this.name = "ClaudeSessionError";
 		this.terminalReason = envelope.terminal_reason;
 		this.costUsd = envelope.total_cost_usd;
