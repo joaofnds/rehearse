@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, relative } from "node:path";
@@ -21,7 +22,7 @@ import {
 	writeWhole,
 } from "./corpus-version";
 import { RefusedPreconditionError } from "./exit-codes";
-import { confirmationGroupPaths } from "./run-layout";
+import { comparisonReportPaths, confirmationGroupPaths } from "./run-layout";
 import { readShortIds } from "./short-id";
 
 /**
@@ -269,6 +270,13 @@ async function writeManifest(
 	return manifestPath;
 }
 
+/** The manifest's digest, which names its report directory. */
+async function fileDigest(file: string): Promise<string> {
+	return createHash("sha256")
+		.update(await Bun.file(file).bytes())
+		.digest("hex");
+}
+
 function describeCheckpoint({ run, stage }: Checkpoint): string {
 	return `${run} ${stage}`;
 }
@@ -374,21 +382,31 @@ async function runComparison(
 	});
 
 	const arms = { baseline: request.armA, candidate: request.armB, control };
-	const reportFile = await writeComparisonReport({
-		manifestPath: await writeManifest(
-			request.runsDirectory,
-			armA.group.caseId,
-			arms,
-		),
-		runsDirectory: request.runsDirectory,
-	});
-	await writeComparisonBaselineRecord(dirname(reportFile), {
-		schemaVersion: 1,
+	const manifestPath = await writeManifest(
+		request.runsDirectory,
+		armA.group.caseId,
+		arms,
+	);
+	const reportDirectory = comparisonReportPaths(
+		request.runsDirectory,
+		await fileDigest(manifestPath),
+	).directory;
+	await writeComparisonBaselineRecord(reportDirectory, {
+		schemaVersion: 2,
 		kind: baseline.kind,
 		skillUnderTest: baseline.skillUnderTest,
 		arms,
-		baselineCorpus: basename(corpusDirectory),
+		controlCorpus: basename(corpusDirectory),
 	});
+	const reportFile = await writeComparisonReport({
+		manifestPath,
+		runsDirectory: request.runsDirectory,
+	});
+	if (dirname(reportFile) !== reportDirectory) {
+		throw new Error(
+			`The report was written to ${dirname(reportFile)}, not beside its baseline record in ${reportDirectory}`,
+		);
+	}
 
 	return { reportFile };
 }

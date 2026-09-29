@@ -419,15 +419,24 @@ describe("GET /api/comparisons/:digest", () => {
 		});
 	});
 
-	it("names a baseline arm derived from arm A with the skill under test", async () => {
-		const fixture = await writtenFixture();
-		await Bun.write(
-			join(
-				comparisonReportPaths(fixture.runsDirectory, fixture.comparisonDigest)
-					.directory,
-				"baseline.json",
-			),
-			JSON.stringify({
+	it.each([
+		[
+			"as compare attempts writes it",
+			{
+				schemaVersion: 2,
+				kind: "derived",
+				skillUnderTest: "skills/build/",
+				arms: {
+					baseline: "case-1-a",
+					candidate: "case-1-b",
+					control: "case-1-derived",
+				},
+				controlCorpus: "0".repeat(64),
+			},
+		],
+		[
+			"as compare attempts first wrote it",
+			{
 				schemaVersion: 1,
 				kind: "derived",
 				skillUnderTest: "skills/build/",
@@ -437,7 +446,47 @@ describe("GET /api/comparisons/:digest", () => {
 					control: "case-1-derived",
 				},
 				baselineCorpus: "0".repeat(64),
-			}),
+			},
+		],
+	])(
+		"names a baseline arm derived from arm A with the skill under test, recorded %s",
+		async (_label, record) => {
+			const fixture = await writtenFixture();
+			await Bun.write(
+				join(
+					comparisonReportPaths(fixture.runsDirectory, fixture.comparisonDigest)
+						.directory,
+					"baseline.json",
+				),
+				JSON.stringify(record),
+			);
+			const app = createApiApp({
+				runsDirectory: fixture.runsDirectory,
+				liveness: nothingRunning,
+				readCorpusSource: fixedCorpusSource(
+					directorySource(await corpusDirectory()),
+				),
+			});
+
+			const response = await app.request(
+				`/api/comparisons/${fixture.comparisonDigest}`,
+			);
+
+			expect(baselineArmResponseSchema.parse(await response.json())).toEqual({
+				baselineArm: { kind: "derived", skillUnderTest: "skills/build/" },
+			});
+		},
+	);
+
+	it("serves the report and names a baseline record it cannot read as unreadable", async () => {
+		const fixture = await writtenFixture();
+		await Bun.write(
+			join(
+				comparisonReportPaths(fixture.runsDirectory, fixture.comparisonDigest)
+					.directory,
+				"baseline.json",
+			),
+			"{ torn",
 		);
 		const app = createApiApp({
 			runsDirectory: fixture.runsDirectory,
@@ -451,9 +500,16 @@ describe("GET /api/comparisons/:digest", () => {
 			`/api/comparisons/${fixture.comparisonDigest}`,
 		);
 
-		expect(baselineArmResponseSchema.parse(await response.json())).toEqual({
-			baselineArm: { kind: "derived", skillUnderTest: "skills/build/" },
-		});
+		const { baselineArm } = z
+			.object({
+				baselineArm: z.object({ kind: z.string(), reason: z.string() }),
+			})
+			.parse(await response.json());
+		expect(response.status).toBe(200);
+		expect(baselineArm.kind).toBe("unreadable");
+		expect(baselineArm.reason).toStartWith(
+			"baseline.json is not a baseline record: ",
+		);
 	});
 
 	it("renders the recorded report plus attribution for every case and contrast", async () => {

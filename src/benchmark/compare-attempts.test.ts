@@ -416,7 +416,7 @@ describe(compareAttempts.name, () => {
 				join(dirname(reportFile), "baseline.json"),
 			).json();
 			expect(derivation).toEqual({
-				schemaVersion: 1,
+				schemaVersion: 2,
 				kind: "derived",
 				skillUnderTest: "skills/build/",
 				arms: {
@@ -424,7 +424,7 @@ describe(compareAttempts.name, () => {
 					candidate: armB,
 					control: groupIdFor("control"),
 				},
-				baselineCorpus: basename(arms.baselineCorpusDirectory()),
+				controlCorpus: basename(arms.baselineCorpusDirectory()),
 			});
 		});
 	});
