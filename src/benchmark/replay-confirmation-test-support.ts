@@ -52,6 +52,9 @@ export class ReplayConfirmationHarness {
 	public readonly branchExpectations: (string | null | undefined)[] = [];
 	public readonly worktrees: { root: string; sha: string; path: string }[] = [];
 	public readonly removed: string[] = [];
+	/** The worktree removal each stop handler runs on a signal. */
+	public readonly stops: (() => Promise<void>)[] = [];
+	public readonly releasedStops = new Set<() => Promise<void>>();
 	public readonly installed: string[] = [];
 	public readonly targetChecks: (readonly TargetCheck[])[] = [];
 	public readonly integrityFileSets: (readonly string[])[] = [];
@@ -368,6 +371,13 @@ export class ReplayConfirmationHarness {
 				this.removed.push(path);
 
 				return Promise.resolve();
+			},
+			stopOnSignal: (removeWorktree) => {
+				this.stops.push(removeWorktree);
+
+				return () => {
+					this.releasedStops.add(removeWorktree);
+				};
 			},
 			materializeCheckpoint,
 			captureFileHashes: (targetDir, integrityFiles) => {

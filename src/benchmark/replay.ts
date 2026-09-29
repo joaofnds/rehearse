@@ -134,6 +134,11 @@ export interface ReplayDependencies {
 	readonly loadStageRubric: typeof loadStageRubric;
 	readonly addWorktree: typeof addWorktree;
 	readonly removeWorktree: typeof removeWorktree;
+	/**
+	 * Removes the worktree on a stop signal, once every command is killed,
+	 * until the release it answers is called.
+	 */
+	readonly stopOnSignal: (removeWorktree: () => Promise<void>) => () => void;
 	readonly materializeCheckpoint: typeof materializeCheckpoint;
 	readonly captureBaselineContext: typeof captureBaselineContext;
 	readonly captureFileHashes: typeof captureFileHashes;
@@ -303,6 +308,10 @@ export async function runReplay(
 		plan.consumed.targetSha,
 		worktreeDir,
 	);
+	const release = dependencies.stopOnSignal(async () => {
+		await dependencies.removeWorktree(manifest.sourceRoot, worktreeDir);
+		await rm(parent, { force: true, recursive: true });
+	});
 
 	let outcome: ReplayOutcome;
 	try {
@@ -492,6 +501,8 @@ export async function runReplay(
 	} catch (error) {
 		dependencies.log(`Replay failed; evidence preserved at ${worktreeDir}`);
 		throw error;
+	} finally {
+		release();
 	}
 
 	await dependencies.removeWorktree(manifest.sourceRoot, worktreeDir);

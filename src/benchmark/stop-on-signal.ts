@@ -1,3 +1,4 @@
+import { killActiveCommands } from "./command";
 import { RUN_SIGNALS, signalExitCode } from "./run-abort";
 
 export interface SignalStopDependencies {
@@ -52,5 +53,22 @@ export function stopOnSignal(
 		for (const signal of RUN_SIGNALS) {
 			dependencies.releaseSignal(signal, handler);
 		}
+	};
+}
+
+/** This process's signals, its running commands, and its exit. */
+export function processSignalStop(
+	log: (message: string) => void,
+): SignalStopDependencies {
+	return {
+		killActiveCommands,
+		registerSignal: (signal, handler) => {
+			process.on(signal, handler);
+		},
+		releaseSignal: (signal, handler) => {
+			process.off(signal, handler);
+		},
+		exit: (code) => process.exit(code),
+		log,
 	};
 }

@@ -1,6 +1,13 @@
 import { describe, expect, it } from "bun:test";
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, realpath, rm, symlink } from "node:fs/promises";
+import {
+	access,
+	mkdir,
+	mkdtemp,
+	realpath,
+	rm,
+	symlink,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { loadAttempts, presentAttempts } from "./attempts";
@@ -833,6 +840,38 @@ describe(runReplay.name, () => {
 		testResources.track(dirname(fake.worktrees[0]?.path ?? "missing"));
 	});
 
+	it("returns the stop signals to their default once it finishes", async () => {
+		const run = await recordedRun();
+		const fake = new ReplayConfirmationHarness(testResources);
+
+		await runReplay(fake.dependencies, request(run, "build"));
+
+		expect(fake.stops).toHaveLength(1);
+		expect([...fake.releasedStops]).toEqual(fake.stops);
+	});
+
+	describe("when a signal stops it", () => {
+		it("removes its worktree", async () => {
+			const run = await recordedRun();
+			const fake = new ReplayConfirmationHarness(testResources);
+			const stopped = {
+				...fake.dependencies,
+				runStageJudge: async () => {
+					await fake.stops[0]?.();
+					throw new Error("stopped");
+				},
+			};
+
+			expect(runReplay(stopped, request(run, "build"))).rejects.toThrow(
+				"stopped",
+			);
+
+			const worktree = fake.worktrees[0]?.path ?? "missing";
+			expect(fake.removed).toEqual([worktree]);
+			expect(access(dirname(worktree))).rejects.toThrow("ENOENT");
+		});
+	});
+
 	it("fails loudly when the run predates initial checkpoints", async () => {
 		const run = await recordedRun();
 		await rm(run.paths.checkpointDirectory("initial"), {
@@ -1230,6 +1269,7 @@ describe(runReplay.name, () => {
 				installStageCorpusSnapshot: () =>
 					Promise.reject(new Error("no corpus source")),
 				log: () => undefined,
+				stopOnSignal: () => () => undefined,
 			},
 			{
 				paths,

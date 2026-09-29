@@ -24,6 +24,7 @@ import {
 } from "#benchmark/checks";
 import { CaseDeclarationError, readCaseDeclaration } from "#benchmark/case";
 import { runCommand } from "#benchmark/command";
+import { processSignalStop, stopOnSignal } from "#benchmark/stop-on-signal";
 import type { ReplayCliConfig } from "#benchmark/config";
 import {
 	CONTROL_DIR,
@@ -305,6 +306,11 @@ export async function executeReplay(
 		installStageCorpusSnapshot,
 		projectsDirectory: claudeProjectsDirectory(),
 		log: diagnosticWriter(output),
+		stopOnSignal: (removeReplayWorktree) =>
+			stopOnSignal(
+				processSignalStop(diagnosticWriter(output)),
+				removeReplayWorktree,
+			),
 	};
 	const replayRequest: ReplayRequest = {
 		paths,
