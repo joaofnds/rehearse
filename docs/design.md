@@ -7,15 +7,15 @@ records the gaps in its implementation.
 
 ## Components
 
-| Location                              | Responsibility                                                                                                         |
-| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| [`rehearse.ts`](../rehearse.ts)       | Bun version gate and command dispatch                                                                                  |
-| [`src/cli/`](../src/cli/)             | Command definitions, argument policy, terminal gates, output, and harness wiring                                       |
-| [`src/benchmark/`](../src/benchmark/) | Case loading, provider invocation, execution, grading, checkpoints, records, and comparisons                           |
-| [`src/server/`](../src/server/)       | Read API, derived reports, event streaming, startup reconciliation, target liveness probing, and static client serving |
-| [`client/src/`](../client/src/)       | React routes and shared design system                                                                                  |
-| [`cases/`](../cases/)                 | Benchmark declarations, fixtures, transcript prefixes, tasks, and rubrics                                              |
-| `.benchmark-runs/`                    | Local evidence, confirmation groups, comparisons, and event database                                                   |
+| Location                              | Responsibility                                                                                                                                   |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [`rehearse.ts`](../rehearse.ts)       | Bun version gate and command dispatch                                                                                                            |
+| [`src/cli/`](../src/cli/)             | Command definitions, argument policy, terminal gates, output, and harness wiring                                                                 |
+| [`src/benchmark/`](../src/benchmark/) | Case loading, provider invocation, execution, grading, checkpoints, records, and comparisons                                                     |
+| [`src/server/`](../src/server/)       | Read API, the guarded launch route, derived reports, event streaming, startup reconciliation, target liveness probing, and static client serving |
+| [`client/src/`](../client/src/)       | React routes and shared design system                                                                                                            |
+| [`cases/`](../cases/)                 | Benchmark declarations, fixtures, transcript prefixes, tasks, and rubrics                                                                        |
+| `.benchmark-runs/`                    | Local evidence, confirmation groups, comparisons, launch records, settings, and event database                                                   |
 
 Zod validates case and record boundaries. Bun's test runner covers the harness
 and server; the client suite uses a DOM environment. The current client uses
@@ -34,6 +34,7 @@ CLI → case + flags + preconditions
 compare   → existing stage/pipeline/session groups → validated comparison report
 
 JSON records → Hono read API → React views
+React dialog → guarded launch route → detached CLI → the paths above
 Run events  → SQLite store → SSE endpoint
             → SQLite store → Hono read API → React views
 ```
@@ -155,13 +156,14 @@ reads runs, corpus information, saved comparisons, raw records, and events.
 Current routes are listed in [UI coverage](status.md#browser-ui). The one write
 route, `POST /api/launches` in [`src/server/launches.ts`](../src/server/launches.ts),
 starts a run or replay by spawning the CLI detached, with the server's
-environment, and records the child's pid under `<records>/launches`. The CLI
+environment minus the `BENCHMARK_` knobs a case declares, and records the child's pid under `<records>/launches`. The CLI
 stays the only code that executes a case, so a browser launch writes the same
 records a terminal launch does, and the child keeps running when the server
 stops. A request guard in front of every route admits only a loopback `Host`
 and, for a write, a same-origin JSON request, since the server has no
 authentication and a page on another origin can otherwise post to it. The
-client does not implement the full design prototype.
+guard reads headers any local program can set, so it stops other web pages,
+not other processes on the machine. The client does not implement the full design prototype.
 
 [The design handoff](design-handoff/README.md) governs visual direction. Its
 screen labels map `task` to the harness's `pipeline`, `step` to `stage`, and

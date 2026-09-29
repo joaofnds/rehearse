@@ -30,7 +30,7 @@ still requires environment-specific setup.
 | Provider context normalization | Versioned source bundle, session-scoped request joins, agent lineage, explicit loss states, frozen-rate pricing provenance, and optional attempt persistence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | [Evidence normalization](../src/benchmark/context-evidence.ts)                                                                                                                                                                                                                   |
 | Session transcript diagnostics | Post-cut tool occurrences, explicit tool-result errors, exact repeated Bash inputs, source locators, and evidence completeness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | [Transcript projection](../src/benchmark/transcript.ts)                                                                                                                                                                                                                          |
 | Saved context history          | Read-only four-pane workbench for standalone and confirmation session attempts: sources, events, a per-request token and cost timeline, and bounded saved evidence detail, with comparison provenance links. A pipeline stage opens through the same projection, named by run, stage and lineage, with its declared corpus reconciled against the reads its transcript shows and no request timeline. A stage replay opens under the same stage identity as an evidence-unavailable summary                                                                                                                                                        | [History projection](../src/benchmark/session-history.ts), [instruction loads](../src/benchmark/transcript-instruction-loads.ts), [browser page](../client/src/session-history/session-history-page.tsx), [request timeline](../client/src/session-history/request-timeline.tsx) |
-| Local read UI and event API    | Partial browser views, server-side event streaming, a per-run record API with each stage's cost, tokens, wall time, artifacts in and out, and a stopped stage's letter, the run's minimum grade, wall time and final outcome, run history rows with stage grades, final outcome, cost and wall time, and confirmation group rows with each stage's median, range and graded count, a final outcome tally and the spend their reps recorded, naming each figure no record holds                                                                                                                                                                     | [Router](../client/src/router.tsx), [API](../src/server/api.ts), [Run record](../src/server/run-record.ts), [Run history](../src/server/run-history.ts)                                                                                                                          |
+| Local UI, event and launch API | Partial browser views, a guarded route that launches a case or replay detached, server-side event streaming, a per-run record API with each stage's cost, tokens, wall time, artifacts in and out, and a stopped stage's letter, the run's minimum grade, wall time and final outcome, run history rows with stage grades, final outcome, cost and wall time, and confirmation group rows with each stage's median, range and graded count, a final outcome tally and the spend their reps recorded, naming each figure no record holds                                                                                                            | [Router](../client/src/router.tsx), [API](../src/server/api.ts), [Run record](../src/server/run-record.ts), [Run history](../src/server/run-history.ts)                                                                                                                          |
 
 An implemented path can still have missing real-provider validation. Session
 comparison uses frozen records and a provider-free integration path. Its saved
@@ -188,7 +188,9 @@ context, a stage-mode or pipeline-mode rep with no session to show, or a replay
 whose source run manifest is gone. Rows whose records say
 when they ran come first, newest first, followed by session attempts and
 confirmation runs, which record no time. The count, the All filter and the
-rail badge cover every listed record, and Stopped matches only pipeline runs
+rail badge cover every listed record. A running launch is listed under All
+above the records, and is not a record, so the count and the badge leave it
+out. Stopped matches only pipeline runs
 with a stopped stage. Records that cannot be read are counted by kind in a
 notice above the table, with their ids and reasons behind a toggle. A replay
 keeps no raw transcript, so its page shows an evidence-unavailable summary with
@@ -234,8 +236,13 @@ A monitor carrying the judge's reasoning and per-stage detail remains a design
 target. The server has no
 authentication and binds to IPv4 loopback; use it locally. It answers 403 to a
 non-loopback `Host`, and to a write that is not a same-origin JSON request.
-A launch whose command refuses before writing any record leaves only its log
-under `launches/` once its process exits, with no row in run history. A launch
+The guard reads headers any local program can set, so any process on this
+machine can start a paid launch. A launch runs the case as declared, without
+the `BENCHMARK_` knobs of the shell that started the server, and always
+measures the live corpus. A launch whose command refuses after the 202, for a
+dirty target or a failed probe, leaves its launch record and log under
+`launches/` once its process exits, with no row in run history and no reason
+on any screen. A launch
 row is kept while a process holds its recorded pid, and a reused pid is not
 told apart.
 

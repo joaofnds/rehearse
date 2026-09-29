@@ -150,14 +150,22 @@ the stored ceiling and the command that sets it, and `GET /api/cases` lists the
 declared cases with their models.
 
 `/api/runs` lists each launch in `launches`, apart from `rows`, while its pid
-is alive, and drops it once the pipeline run it started shows as running under
-that pid. A session attempt or group keeps its launch listed until the process
-exits.
+is alive, and leaves it out while a pipeline run shows as running under that
+pid. A replay, session attempt or group keeps its launch listed until the
+process exits, and a pipeline run's launch is listed again once the run stops
+showing as running, until its process exits.
+
+The child gets the server's environment without the `BENCHMARK_` knobs a case
+declares (case, pipeline, target, model, effort, session budget, judge model
+and effort, minimum grade), so a launch runs the case as declared. No launch
+passes `--corpus`, so every launch measures the live corpus.
 
 Every request whose `Host` is not `127.0.0.1:<port>` or `localhost:<port>`
-gets 403. Every request other than GET or HEAD also needs an `Origin` equal to
-the server's own, `Sec-Fetch-Site` `same-origin` when the browser sends it, and
-an `application/json` body, or it gets 403 and starts nothing. Every response
+gets 403. Every request other than GET or HEAD also needs an `Origin` of
+`http://` followed by its own `Host`, `Sec-Fetch-Site` `same-origin` when the
+browser sends it, and a `Content-Type` of `application/json`, or it gets 403
+and starts nothing. These are headers any local program can set, so the guard
+stops other web pages and not other processes on the machine. Every response
 carries `X-Frame-Options: DENY` and `Content-Security-Policy:
 frame-ancestors 'none'`, so a page on another site cannot frame the client and
 steer a click onto Start.
