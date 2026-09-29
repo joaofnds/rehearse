@@ -54,6 +54,19 @@ describe(readClaudeEnvelope.name, () => {
 		).toThrow("Reached maximum budget ($0.2853308)");
 	});
 
+	it("throws the session's listed errors when the error envelope's result is empty", () => {
+		expect(() =>
+			readClaudeEnvelope(
+				JSON.stringify({
+					session_id: "session-1",
+					is_error: true,
+					result: "",
+					errors: ["Reached maximum budget ($0.2853308)"],
+				}),
+			),
+		).toThrow("Reached maximum budget ($0.2853308)");
+	});
+
 	it("carries the halt's reason and cost when the envelope states no result", () => {
 		const read = (): ClaudeEnvelope =>
 			readClaudeEnvelope(

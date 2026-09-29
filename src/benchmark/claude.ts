@@ -89,23 +89,30 @@ export function claudeArgs(invocation: ClaudeInvocation): string[] {
 
 /**
  * The provider names why it stopped in `terminal_reason`, and a budget halt
- * reports what it spent getting there while carrying no `result` at all, so
- * a caller that reads only the message cannot tell that cause from a rejected
- * model. The message stays what it always was; callers that need the cause
- * narrow on this type.
+ * reports what it spent getting there while carrying no `result` at all, only
+ * its `errors`. Callers that need the cause or the spend narrow on this type
+ * rather than reading the message.
  */
 export class ClaudeSessionError extends Error {
 	public readonly terminalReason: string | undefined;
 	public readonly costUsd: number | undefined;
 
 	public constructor(envelope: ClaudeEnvelope) {
-		super(
-			envelope.result ?? envelope.errors?.join("; ") ?? "Claude session failed",
-		);
+		super(sessionErrorMessage(envelope));
 		this.name = "ClaudeSessionError";
 		this.terminalReason = envelope.terminal_reason;
 		this.costUsd = envelope.total_cost_usd;
 	}
+}
+
+function sessionErrorMessage(envelope: ClaudeEnvelope): string {
+	if (envelope.result !== undefined && envelope.result !== "") {
+		return envelope.result;
+	}
+
+	const errors = envelope.errors?.join("; ") ?? "";
+
+	return errors === "" ? "Claude session failed" : errors;
 }
 
 const streamLineSchema = z.looseObject({ type: z.string() });
@@ -153,6 +160,7 @@ export async function runStreamedSession(
 				),
 			);
 		}
+
 		throw error;
 	}
 }
@@ -169,6 +177,7 @@ export async function runJsonSession(
 		if (error instanceof CommandError) {
 			throw sessionFailure(error);
 		}
+
 		throw error;
 	}
 }
@@ -178,7 +187,9 @@ export async function runJsonSession(
  * and still writes the envelope saying what the session spent. Read as a
  * bare command failure, that spend is never charged to the ceiling.
  */
-function sessionFailure(error: Readonly<CommandError>): Error {
+function sessionFailure(
+	error: Readonly<CommandError>,
+): CommandError | ClaudeSessionError {
 	let output: unknown;
 	try {
 		output = JSON.parse(error.stdout);
