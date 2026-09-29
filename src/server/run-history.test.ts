@@ -26,6 +26,7 @@ import type { RunLiveness } from "#benchmark/run-liveness";
 import type { JudgeProgress } from "#benchmark/run-events";
 import { openRunEventStore } from "#benchmark/run-events";
 import { writeLaunchRecord } from "#benchmark/launch-record";
+import { operatorStopRecord } from "#benchmark/operator-stop";
 import { recordPaused } from "#benchmark/run-pause";
 import {
 	benchmarkRunPaths,
@@ -1505,6 +1506,30 @@ describe(runHistoryReport.name, () => {
 				id: "group:group-empty",
 				reason: "incomplete: no group.json recorded",
 			});
+		});
+
+		it("lists a group the operator stopped before its group record neither as a row nor as unreadable", async () => {
+			const fixture = await writtenFixture();
+			const stopped = confirmationGroupPaths(
+				fixture.runsDirectory,
+				"group-stopped",
+			);
+			await Bun.write(stopped.operatorStopFile, operatorStopRecord("SIGTERM"));
+
+			const { rows, unreadable } = await runHistoryReport(
+				fixture.runsDirectory,
+				directorySource(await corpusDirectory("build skill\n")),
+				nothingRunning,
+			);
+
+			expect(
+				rows.filter(
+					(row) => row.kind === "group" && row.groupId === "group-stopped",
+				),
+			).toEqual([]);
+			expect(unreadable.map(({ id }) => id)).not.toContain(
+				"group:group-stopped",
+			);
 		});
 	});
 
