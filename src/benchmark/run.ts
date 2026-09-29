@@ -1154,6 +1154,7 @@ export async function runBenchmark(
 		},
 		{
 			artifactFile: runFiles.artifactFile,
+			operatorStopFile: runFiles.operatorStopFile,
 			teardown: () => teardownTarget(source, workflowBackup, log),
 		},
 	);

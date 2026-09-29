@@ -601,6 +601,7 @@ describe(runGradedStages.name, () => {
 			},
 			{
 				artifactFile: join(stageDirectory, "run.json"),
+				operatorStopFile: join(stageDirectory, "operator-stop.json"),
 				teardown: () => Promise.resolve(),
 			},
 		);
@@ -1085,6 +1086,7 @@ describe(runGradedStages.name, () => {
 			},
 			{
 				artifactFile: "/runs/run.json",
+				operatorStopFile: "/runs/operator-stop.json",
 				teardown: () => Promise.resolve(),
 			},
 		);
@@ -1261,6 +1263,7 @@ describe(runGradedStages.name, () => {
 				},
 				{
 					artifactFile: "/runs/run.json",
+					operatorStopFile: "/runs/operator-stop.json",
 					teardown: () => Promise.resolve(),
 				},
 			);
@@ -1431,6 +1434,7 @@ describe(runGradedStages.name, () => {
 			},
 			{
 				artifactFile: "/runs/run.json",
+				operatorStopFile: "/runs/operator-stop.json",
 				teardown: () => Promise.resolve(),
 			},
 		);
@@ -1495,6 +1499,7 @@ describe(runGradedStages.name, () => {
 			},
 			{
 				artifactFile: "/runs/run.json",
+				operatorStopFile: "/runs/operator-stop.json",
 				teardown: () => Promise.resolve(),
 			},
 		);
@@ -1596,6 +1601,7 @@ describe(runGradedStages.name, () => {
 			},
 			{
 				artifactFile: "/runs/run.json",
+				operatorStopFile: "/runs/operator-stop.json",
 				teardown: () => Promise.resolve(),
 			},
 		);
@@ -1648,6 +1654,7 @@ describe(runGradedStages.name, () => {
 			},
 			{
 				artifactFile: "/runs/run.json",
+				operatorStopFile: "/runs/operator-stop.json",
 				teardown: () => Promise.resolve(),
 			},
 		);
@@ -2389,6 +2396,7 @@ describe(runGradedStages.name, () => {
 			},
 			{
 				artifactFile: "/runs/run.json",
+				operatorStopFile: "/runs/operator-stop.json",
 				teardown: () => Promise.resolve(),
 			},
 		);
@@ -2461,6 +2469,7 @@ describe(runGradedStages.name, () => {
 				},
 				{
 					artifactFile: "/runs/run.json",
+					operatorStopFile: "/runs/operator-stop.json",
 					teardown: () => Promise.resolve(),
 				},
 			);
@@ -2875,6 +2884,7 @@ describe(buildRunArtifact.name, () => {
 				},
 				{
 					artifactFile,
+					operatorStopFile: "/runs/operator-stop.json",
 					teardown: () => Promise.resolve(),
 				},
 			);
@@ -2959,7 +2969,11 @@ describe(buildRunArtifact.name, () => {
 					reportError: () => undefined,
 					persistence,
 				},
-				{ artifactFile, teardown: () => Promise.resolve() },
+				{
+					artifactFile,
+					operatorStopFile: "/runs/operator-stop.json",
+					teardown: () => Promise.resolve(),
+				},
 			);
 			const pipeline = await loadDefaultPipeline();
 			const baseInputs = artifactBaseInputs(pipeline, AUDIT_LOG_PIPELINE_PATH);

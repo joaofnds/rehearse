@@ -31,3 +31,6 @@ export function pausedStatus(stage: string): PausedStatus {
 export function isPaused(status: string): status is PausedStatus {
 	return status.startsWith(PAUSED_PREFIX);
 }
+
+/** A run a signal ended, which the operator's Stop sends. */
+export const OPERATOR_STOPPED = "OPERATOR_STOPPED";

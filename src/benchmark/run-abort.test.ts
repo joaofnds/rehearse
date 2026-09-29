@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { z } from "zod";
 import type {
 	CalibrationResult,
@@ -465,6 +465,7 @@ describe(createRunAbort.name, () => {
 			},
 			{
 				artifactFile: "/runs/run.json",
+				operatorStopFile: "/runs/operator-stop.json",
 				teardown: () => Promise.resolve(),
 			},
 		);
@@ -499,6 +500,7 @@ describe(createRunAbort.name, () => {
 			},
 			{
 				artifactFile: "/runs/run.json",
+				operatorStopFile: "/runs/operator-stop.json",
 				teardown: () => Promise.resolve(),
 			},
 		);
@@ -543,6 +545,7 @@ describe(createRunAbort.name, () => {
 			},
 			{
 				artifactFile: "/runs/run.json",
+				operatorStopFile: "/runs/operator-stop.json",
 				teardown: () => Promise.resolve(),
 			},
 		);
@@ -587,6 +590,7 @@ describe(createRunAbort.name, () => {
 			},
 			{
 				artifactFile: "/runs/run.json",
+				operatorStopFile: "/runs/operator-stop.json",
 				teardown: () => Promise.resolve(),
 			},
 		);
@@ -617,6 +621,7 @@ describe(createRunAbort.name, () => {
 			},
 			{
 				artifactFile: "/runs/run.json",
+				operatorStopFile: "/runs/operator-stop.json",
 				teardown: () => Promise.resolve(),
 			},
 		);
@@ -643,6 +648,7 @@ describe(createRunAbort.name, () => {
 			},
 			{
 				artifactFile: "/runs/run.json",
+				operatorStopFile: "/runs/operator-stop.json",
 				teardown: () => Promise.resolve(),
 			},
 		);
@@ -680,6 +686,7 @@ describe(createRunAbort.name, () => {
 			},
 			{
 				artifactFile: "/runs/run.json",
+				operatorStopFile: "/runs/operator-stop.json",
 				teardown: () => Promise.resolve(),
 			},
 		);
@@ -717,6 +724,7 @@ describe(createRunAbort.name, () => {
 			},
 			{
 				artifactFile,
+				operatorStopFile: join(dirname(artifactFile), "operator-stop.json"),
 				teardown: () => Promise.resolve(),
 			},
 		);
@@ -742,6 +750,7 @@ describe(createRunAbort.name, () => {
 			},
 			{
 				artifactFile: "/runs/run.json",
+				operatorStopFile: "/runs/operator-stop.json",
 				teardown: () => Promise.resolve(),
 			},
 		);
@@ -778,6 +787,7 @@ describe(createRunAbort.name, () => {
 			},
 			{
 				artifactFile,
+				operatorStopFile: join(dirname(artifactFile), "operator-stop.json"),
 				teardown: () => Promise.resolve(),
 			},
 		);
@@ -801,6 +811,7 @@ describe(createRunAbort.name, () => {
 			},
 			{
 				artifactFile: "/runs/run.json",
+				operatorStopFile: "/runs/operator-stop.json",
 				teardown: () => Promise.resolve(),
 			},
 		);
@@ -832,6 +843,7 @@ describe(createRunAbort.name, () => {
 			},
 			{
 				artifactFile: "/runs/run.json",
+				operatorStopFile: "/runs/operator-stop.json",
 				teardown: () => Promise.resolve(),
 			},
 		);
@@ -873,6 +885,7 @@ describe(createRunAbort.name, () => {
 			},
 			{
 				artifactFile: "/runs/run.json",
+				operatorStopFile: "/runs/operator-stop.json",
 				teardown: () => Promise.resolve(),
 			},
 		);
@@ -923,6 +936,7 @@ describe(createRunAbort.name, () => {
 			},
 			{
 				artifactFile,
+				operatorStopFile: join(dirname(artifactFile), "operator-stop.json"),
 				teardown: () => Promise.resolve(),
 			},
 		);
@@ -970,7 +984,11 @@ describe(createRunAbort.name, () => {
 				reportError: () => undefined,
 				persistence: fileRunArtifactPersistence,
 			},
-			{ artifactFile, teardown: () => Promise.resolve() },
+			{
+				artifactFile,
+				operatorStopFile: join(dirname(artifactFile), "operator-stop.json"),
+				teardown: () => Promise.resolve(),
+			},
 		);
 
 		await abort.writePendingArtifact(artifact);
@@ -1010,6 +1028,7 @@ describe(createRunAbort.name, () => {
 			},
 			{
 				artifactFile,
+				operatorStopFile: join(dirname(artifactFile), "operator-stop.json"),
 				teardown: () => Promise.resolve(),
 			},
 		);
@@ -1047,6 +1066,7 @@ describe(createRunAbort.name, () => {
 			},
 			{
 				artifactFile,
+				operatorStopFile: join(dirname(artifactFile), "operator-stop.json"),
 				teardown: () => Promise.resolve(),
 			},
 		);
@@ -1082,6 +1102,7 @@ describe(createRunAbort.name, () => {
 			},
 			{
 				artifactFile,
+				operatorStopFile: join(dirname(artifactFile), "operator-stop.json"),
 				teardown: () => Promise.resolve(),
 			},
 		);
@@ -1114,6 +1135,7 @@ describe(createRunAbort.name, () => {
 			},
 			{
 				artifactFile,
+				operatorStopFile: join(dirname(artifactFile), "operator-stop.json"),
 				teardown: () => Promise.resolve(),
 			},
 		);
@@ -1154,6 +1176,7 @@ describe(createRunAbort.name, () => {
 			},
 			{
 				artifactFile,
+				operatorStopFile: join(dirname(artifactFile), "operator-stop.json"),
 				teardown: () => Promise.resolve(),
 			},
 		);
@@ -1194,6 +1217,7 @@ describe(createRunAbort.name, () => {
 			},
 			{
 				artifactFile,
+				operatorStopFile: join(dirname(artifactFile), "operator-stop.json"),
 				teardown: () => Promise.resolve(),
 			},
 		);
@@ -1231,6 +1255,7 @@ describe(createRunAbort.name, () => {
 			},
 			{
 				artifactFile,
+				operatorStopFile: join(dirname(artifactFile), "operator-stop.json"),
 				teardown: () => Promise.resolve(),
 			},
 		);
@@ -1261,6 +1286,7 @@ describe(createRunAbort.name, () => {
 			},
 			{
 				artifactFile,
+				operatorStopFile: join(dirname(artifactFile), "operator-stop.json"),
 				teardown: () => Promise.resolve(),
 			},
 		);
@@ -1306,6 +1332,7 @@ describe(createRunAbort.name, () => {
 			},
 			{
 				artifactFile: "/tmp/run.json",
+				operatorStopFile: "/tmp/operator-stop.json",
 				teardown: () => Promise.resolve(),
 			},
 		);
@@ -1351,6 +1378,7 @@ describe(createRunAbort.name, () => {
 			},
 			{
 				artifactFile: join(directory, "run.json"),
+				operatorStopFile: join(directory, "operator-stop.json"),
 				teardown: async () => {
 					evidencePresentAtTeardown = await Bun.file(stageFile).exists();
 					effects.push("teardown");
@@ -1373,6 +1401,42 @@ describe(createRunAbort.name, () => {
 			status: "STAGE_JUDGE_FAILED",
 			error: "run interrupted by SIGTERM",
 			operatorStop: { signal: "SIGTERM" },
+		});
+	});
+
+	it("records the operator stop when the signal arrives before any stage is judged", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "rehearse-run-signal-"));
+		testResources.track(directory);
+		const operatorStopFile = join(directory, "operator-stop.json");
+		const handlers = new Map<
+			NodeJS.Signals,
+			(signal: NodeJS.Signals) => void
+		>();
+		const exited = Promise.withResolvers<number>();
+		createRunAbort(
+			{
+				killActiveCommands: () => Promise.resolve(),
+				registerSignal: (signal, handler) => {
+					handlers.set(signal, handler);
+				},
+				releaseSignal: () => undefined,
+				exit: exited.resolve,
+				reportError: () => undefined,
+				persistence: fileRunArtifactPersistence,
+			},
+			{
+				artifactFile: join(directory, "run.json"),
+				operatorStopFile,
+				teardown: () => Promise.resolve(),
+			},
+		);
+
+		handlers.get("SIGINT")?.("SIGINT");
+
+		expect(await exited.promise).toBe(130);
+		expect(JSON.parse(await Bun.file(operatorStopFile).text())).toEqual({
+			status: "OPERATOR_STOPPED",
+			signal: "SIGINT",
 		});
 	});
 
@@ -1399,6 +1463,7 @@ describe(createRunAbort.name, () => {
 			},
 			{
 				artifactFile: join(directory, "run.json"),
+				operatorStopFile: join(directory, "operator-stop.json"),
 				teardown: () => {
 					teardownCalls += 1;
 
@@ -1441,6 +1506,7 @@ describe(createRunAbort.name, () => {
 			},
 			{
 				artifactFile,
+				operatorStopFile: join(dirname(artifactFile), "operator-stop.json"),
 				teardown: () => Promise.resolve(),
 			},
 		);
@@ -1474,6 +1540,7 @@ describe(createRunAbort.name, () => {
 			},
 			{
 				artifactFile: join(directory, "run.json"),
+				operatorStopFile: join(directory, "operator-stop.json"),
 				teardown: () => Promise.resolve(),
 			},
 		);
@@ -1507,6 +1574,7 @@ describe(createRunAbort.name, () => {
 			},
 			{
 				artifactFile: "/tmp/run.json",
+				operatorStopFile: "/tmp/operator-stop.json",
 				teardown: () => {
 					teardownCalls += 1;
 
@@ -1553,6 +1621,7 @@ describe(createRunAbort.name, () => {
 			},
 			{
 				artifactFile: "/tmp/run.json",
+				operatorStopFile: "/tmp/operator-stop.json",
 				teardown: () => {
 					teardownCalls += 1;
 

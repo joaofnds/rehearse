@@ -12,6 +12,7 @@ import type {
 import type { JudgeAttempt } from "./judge-attempt";
 import type { ReadManifestEntry } from "./read-manifest";
 import type { RunEventRecorder } from "./run-events";
+import { OPERATOR_STOPPED } from "./stopped-status";
 import type { ProductOwnerSnapshot } from "./workflow";
 
 export interface PendingStage {
@@ -102,6 +103,7 @@ export interface RunAbortDependencies {
 
 export interface RunAbortRequest {
 	readonly artifactFile: string;
+	readonly operatorStopFile: string;
 	readonly teardown: () => Promise<void>;
 }
 
@@ -265,6 +267,22 @@ async function writeCeilingStop(
 			null,
 			2,
 		)}\n`,
+	);
+}
+
+/**
+ * The run's own record that a signal ended it, written whatever the run was
+ * doing, since a stop during a stage's session has no stage record to carry
+ * it and would otherwise read as a failure.
+ */
+async function writeOperatorStop(
+	file: string,
+	stop: OperatorStop,
+	persistence: RunArtifactPersistence,
+): Promise<void> {
+	await persistence.write(
+		file,
+		`${JSON.stringify({ status: OPERATOR_STOPPED, signal: stop.signal }, null, 2)}\n`,
 	);
 }
 
@@ -487,6 +505,19 @@ export function createRunAbort(
 			const unjudgedCeilingStop = ceilingStop;
 			const artifactToFail = pendingArtifact;
 			abortRecorded = enqueueTransition(async () => {
+				if (operatorStop !== undefined) {
+					try {
+						await writeOperatorStop(
+							request.operatorStopFile,
+							operatorStop,
+							dependencies.persistence,
+						);
+					} catch (error) {
+						dependencies.reportError(
+							`Failed to record the operator stop: ${error instanceof Error ? error.message : String(error)}`,
+						);
+					}
+				}
 				if (!terminalEventRecorded) {
 					recordRunEvent(dependencies.reportError, () => {
 						runEvents.record(
