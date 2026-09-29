@@ -30,7 +30,7 @@ still requires environment-specific setup.
 | Provider context normalization | Versioned source bundle, session-scoped request joins, agent lineage, explicit loss states, frozen-rate pricing provenance, and optional attempt persistence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | [Evidence normalization](../src/benchmark/context-evidence.ts)                                                                                                                                                                                                                   |
 | Session transcript diagnostics | Post-cut tool occurrences, explicit tool-result errors, exact repeated Bash inputs, source locators, and evidence completeness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | [Transcript projection](../src/benchmark/transcript.ts)                                                                                                                                                                                                                          |
 | Saved context history          | Read-only four-pane workbench for standalone and confirmation session attempts: sources, events, a per-request token and cost timeline, and bounded saved evidence detail, with comparison provenance links. A pipeline stage opens through the same projection, named by run, stage and lineage, with its declared corpus reconciled against the reads its transcript shows and no request timeline. A stage replay opens under the same stage identity as an evidence-unavailable summary                                                                                                                                                        | [History projection](../src/benchmark/session-history.ts), [instruction loads](../src/benchmark/transcript-instruction-loads.ts), [browser page](../client/src/session-history/session-history-page.tsx), [request timeline](../client/src/session-history/request-timeline.tsx) |
-| Local UI, event and launch API | Partial browser views, a guarded route that launches a case or replay detached, server-side event streaming, a per-run record API with each stage's cost, tokens, wall time, artifacts in and out, and a stopped stage's letter, the run's minimum grade, wall time and final outcome, run history rows with stage grades, final outcome, cost and wall time, and confirmation group rows with each stage's median, range and graded count, a final outcome tally and the spend their reps recorded, naming each figure no record holds                                                                                                            | [Router](../client/src/router.tsx), [API](../src/server/api.ts), [Run record](../src/server/run-record.ts), [Run history](../src/server/run-history.ts)                                                                                                                          |
+| Local UI, event and launch API | Partial browser views, guarded routes that launch a case or replay detached, stop a launch and pause a run after its stage, server-side event streaming, a per-run record API with each stage's cost, tokens, wall time, artifacts in and out, and a stopped stage's letter, the run's minimum grade, wall time and final outcome, run history rows with stage grades, final outcome, cost and wall time, and confirmation group rows with each stage's median, range and graded count, a final outcome tally and the spend their reps recorded, naming each figure no record holds                                                                | [Router](../client/src/router.tsx), [API](../src/server/api.ts), [Run record](../src/server/run-record.ts), [Run history](../src/server/run-history.ts)                                                                                                                          |
 
 An implemented path can still have missing real-provider validation. Session
 comparison uses frozen records and a provider-free integration path. Its saved
@@ -190,10 +190,12 @@ when they ran come first, newest first, followed by session attempts and
 confirmation runs, which record no time. The count, the All filter and the
 rail badge cover every listed record. A running launch is listed under All
 above the records, and is not a record, so the count and the badge leave it
-out. A running row offers Pause after this step, and Stop & restore repo when
-a browser launch started it; see [browser launches](reference.md#browser-launches).
-A paused run reads `PAUSED:<stage>` and cannot be resumed. A run a signal
-stopped reads `OPERATOR_STOPPED`, and a stopped confirmation group still
+out. A running pipeline run's row offers Pause after this step, and a row a
+browser launch started offers Stop & restore repo; see
+[browser launches](reference.md#browser-launches). A paused run reads
+`PAUSED:<stage>` and cannot be resumed. A run a signal stopped reads
+`OPERATOR_STOPPED`, or `STOPPED:<stage>` when the stage was being judged. A
+stopped replay records no operator stop, and a stopped confirmation group still
 records its reps as failed. Stopped matches only pipeline runs
 with a stopped stage. Records that cannot be read are counted by kind in a
 notice above the table, with their ids and reasons behind a toggle. A replay
@@ -248,7 +250,7 @@ dirty target or a failed probe, leaves its launch record and log under
 `launches/` once its process exits, with no row in run history and no reason
 on any screen. A launch
 row is kept while a process holds its recorded pid, and a reused pid is not
-told apart.
+told apart there, though Stop tells it apart by the process start time.
 
 ## Near-term priorities
 

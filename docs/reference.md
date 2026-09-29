@@ -137,7 +137,7 @@ the run's manifest recorded. Three, six or twelve attempts add
 records `method` `browser`. `--approved-in-browser` is refused without `--yes`.
 
 The route answers 202 with the launch id and writes
-`<records>/launches/<id>.json`, holding the pid, the kind, the case or run and
+`<records>/launches/<id>.json`, holding the pid, the process's start time, the kind, the case or run and
 stage, the attempts and the launch time, with the child's output in
 `<id>.log` beside it. It answers 409 and starts nothing when no ceiling is
 stored, the settings file does not parse, a recorded case's declaration or a
@@ -155,25 +155,35 @@ pid. A replay, session attempt or group keeps its launch listed until the
 process exits, and a pipeline run's launch is listed again once the run stops
 showing as running, until its process exits.
 
-A running row in run history offers two controls. Stop & restore repo posts to
-`POST /api/launches/:id/stop`, which records `stopRequestedAt` on the launch and
-sends its process SIGTERM, the same stop a terminal's Ctrl-C makes: the process
-kills its commands, restores the target and removes its worktrees. It answers
-404 for an unknown launch and 409 when the launch's process is no longer the one
-it started. A run started from a terminal has no launch, so its row offers no
-Stop. Pause after this step posts to `POST /api/runs/:run/pause`, which writes
+A running row in run history offers Stop & restore repo when a browser launch
+started it, and a running pipeline run's row also offers Pause after this step.
+A launch row for a replay, group or session attempt offers Stop only. Stop posts
+to `POST /api/launches/:id/stop`, which records `stopRequestedAt` on the launch
+and sends its process SIGTERM, which the process handles as it handles a
+terminal's Ctrl-C (SIGINT): it kills its commands, restores the target and
+removes its worktrees. The stop reads the pid from disk, so it works after a
+server restart. It answers 404 for an unknown launch, and 409 when the launch's
+process is no longer the one it started, judged by the process start time, or
+when the launch was recorded without a start time, as launches recorded before
+the start time was kept were. A run started from a terminal has no launch, so
+its row offers no Stop. Pause after this step posts to `POST /api/runs/:run/pause`, which writes
 `pause-request.json` in the run's checkpoints directory and answers 202, or 404
 for an unknown run and 409 for one whose row does not read RUNNING. A pipeline
 run reads that file once each stage is judged and its checkpoint written, then
-ends, restores the target, exits non-zero and writes `paused.json` beside the
-request, and its row reads `PAUSED:<stage>`. The request is not read after the
-last stage, and a stage that fails its judge ends the run as it would without
+writes `paused.json` beside the request, restores the target and exits
+non-zero, and its row reads `PAUSED:<stage>`. The request is not read after the
+last stage, so a Pause clicked during the last stage is accepted and has no
+effect, and a stage that fails its judge ends the run as it would without
 one. Nothing resumes a paused run yet.
 
 Every stop signal a pipeline run handles, from the browser or a terminal,
 writes `operator-stop.json` in its checkpoints directory with the signal's
-name, so a run stopped between stages, when no stage record exists to carry the
-stop, reads `OPERATOR_STOPPED` rather than failed.
+name, so a run stopped while no stage record exists to carry the stop, during a
+stage's session or between stages, reads `OPERATOR_STOPPED` rather than failed.
+A run stopped while a stage is being judged reads `STOPPED:<stage>`, from that
+stage's stop record, and one stopped after its artifact is pending reads
+`FAILED`. A stopped replay, group or session attempt writes no operator stop:
+its launch keeps `stopRequestedAt`, and its row leaves run history.
 
 The child gets the server's environment without the `BENCHMARK_` knobs a case
 declares (case, pipeline, target, model, effort, session budget, judge model
@@ -1400,7 +1410,8 @@ substitution the unavailable state prevents for a replay.
 A stage with none of those records still answers 404, which is what separates a
 stage the reader can name from a page that failed. The run history screen shows
 a stopped run as `STOPPED:<stage>`, linked to that stage's context history, and
-links every other stage whose page renders. A run with no artifact takes its
+links every other stage whose page renders. A run with no artifact shows
+`PAUSED:<stage>` or `OPERATOR_STOPPED` from its files, and otherwise takes its
 status from its event stream and shows as `INTERRUPTED` or `FAILED`. A run the
 server did not see end becomes `INTERRUPTED` when the next server start
 reconciles it, and stays out of the list until then. When a failed run's last
