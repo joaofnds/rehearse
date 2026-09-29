@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import { Glob } from "bun";
-import { createHash } from "node:crypto";
 import { mkdtemp, readdir, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
@@ -311,6 +310,55 @@ describe(compareAttempts.name, () => {
 		});
 	});
 
+	describe("when the replayed run can no longer grade a baseline group as it graded arm A", () => {
+		it.each([
+			{
+				name: "the run's pipeline no longer has the stage",
+				stage: "nowhere",
+				rubric: undefined,
+				message: `the ${RUN} run's pipeline has no nowhere stage, so no rubric can grade a baseline group against arm A`,
+			},
+			{
+				name: "the stage's rubric can no longer be read",
+				stage: STAGE,
+				rubric: "rubrics/missing.json",
+				message:
+					"the rubrics/missing.json rubric cannot be read, so a baseline group run now could not be compared with arm A: ",
+			},
+		])(
+			"refuses before running a baseline group when $name",
+			async ({ stage, rubric, message }) => {
+				const arms = await recordedArms();
+				const checkpoint = { run: RUN, stage };
+				const armA = await arms.recordArm(
+					"baseline",
+					{ ...SHARED, "skills/build/SKILL.md": "build\n" },
+					checkpoint,
+				);
+				const armB = await arms.recordArm(
+					"candidate",
+					{ ...SHARED, "skills/build/SKILL.md": "revised build\n" },
+					checkpoint,
+				);
+				await arms.readInStage(armA, "skills/build/SKILL.md");
+				await arms.readInStage(armB, "skills/build/SKILL.md");
+				if (rubric !== undefined) {
+					await arms.nameStageRubric(rubric);
+				}
+
+				const refusal = await refusalOf(
+					compareAttempts(
+						{ runsDirectory: arms.runsDirectory, armA, armB },
+						{ runBaselineGroup: arms.runBaselineGroup },
+					),
+				);
+
+				expect(refusal.message).toStartWith(message);
+				expect(arms.baselineRequests).toEqual([]);
+			},
+		);
+	});
+
 	describe("when arms A and B differ in one skill", () => {
 		it("runs the baseline group on arm A without that skill, with arm A's inputs, once the replayed stage loads it", async () => {
 			const arms = await recordedArms();
@@ -343,10 +391,6 @@ describe(compareAttempts.name, () => {
 					judgeModel: "opus",
 					judgeEffort: undefined,
 					sessionBudgetUsd: 5,
-					rubricSha256: createHash("sha256")
-						.update(`${CASE_ID} rubric\n`)
-						.digest("hex"),
-					skillUnderTest: "skills/build/",
 				},
 			]);
 			expect(dirname(corpusDirectory)).toBe(

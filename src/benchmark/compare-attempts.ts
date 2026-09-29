@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, relative } from "node:path";
@@ -20,8 +21,10 @@ import {
 	writeWhole,
 } from "./corpus-version";
 import { RefusedPreconditionError } from "./exit-codes";
-import { confirmationGroupPaths } from "./run-layout";
+import { loadRunManifest } from "./manifest";
+import { benchmarkRunPaths, confirmationGroupPaths } from "./run-layout";
 import { readShortIds } from "./short-id";
+import { loadStageRubric } from "./stage-grading";
 
 /**
  * The baseline arm's confirmation group, replayed at the checkpoint arms A
@@ -37,10 +40,6 @@ export interface BaselineGroupRequest {
 	readonly judgeModel: string;
 	readonly judgeEffort: Effort | undefined;
 	readonly sessionBudgetUsd: number;
-	/** The rubric arm A was graded on, which the baseline must be graded on too. */
-	readonly rubricSha256: string;
-	/** The skill arms A and B differ in, which the baseline replays without. */
-	readonly skillUnderTest: string;
 }
 
 export interface CompareAttemptsRequest {
@@ -302,6 +301,52 @@ function assertStageReadsSkillUnderTest(
 	}
 }
 
+/**
+ * Replay grades the baseline on the stage's rubric as it stands now, so a
+ * rubric edited since arm A was recorded would have its group refused by the
+ * comparison only after it was paid for. The run's manifest names the rubric
+ * replay will load, so the edit is refused before replay starts. The same
+ * pipeline names the stage's own skill, the only one replay can remove.
+ */
+async function assertBaselineGradesOnArmARubric(
+	runsDirectory: string,
+	armA: RecordedArm,
+	skillUnderTest: string,
+): Promise<void> {
+	const { run, stage: stageName } = armA.checkpoint;
+	const manifest = await loadRunManifest(
+		benchmarkRunPaths(runsDirectory, run).manifestFile,
+	);
+	const stage = manifest.pipeline.stages.find(({ name }) => name === stageName);
+	if (stage === undefined) {
+		throw new RefusedPreconditionError(
+			`the ${run} run's pipeline has no ${stageName} stage, so no rubric can grade a baseline group against arm A`,
+		);
+	}
+	if (skillUnderTest !== `skills/${stage.skill}/`) {
+		throw new RefusedPreconditionError(
+			`${skillUnderTest} is not the ${stage.name} stage's own skill, which is the only skill a baseline replay can run without`,
+		);
+	}
+
+	let content: string;
+	try {
+		({ content } = await loadStageRubric(stage));
+	} catch (error) {
+		throw new RefusedPreconditionError(
+			`the ${stage.rubric} rubric cannot be read, so a baseline group run now could not be compared with arm A: ${error instanceof Error ? error.message : String(error)}`,
+		);
+	}
+	if (
+		createHash("sha256").update(content).digest("hex") !==
+		frozenRubricSha256(armA)
+	) {
+		throw new RefusedPreconditionError(
+			`the ${stage.rubric} rubric changed since arm A was recorded, so a baseline group run now could not be compared with it`,
+		);
+	}
+}
+
 /** What the comparison would run, once every check that costs nothing passed. */
 export interface ComparisonPlan {
 	readonly armA: RecordedArm;
@@ -335,6 +380,11 @@ export async function planComparison(
 		throw new RefusedPreconditionError(`${baseline.reason}${units}`);
 	}
 	assertStageReadsSkillUnderTest(armA, armB, baseline.skillUnderTest);
+	await assertBaselineGradesOnArmARubric(
+		request.runsDirectory,
+		armA,
+		baseline.skillUnderTest,
+	);
 
 	return { armA, baseline };
 }
@@ -378,8 +428,6 @@ async function runComparison(
 		judgeModel: inputs.judgeModel,
 		judgeEffort: inputs.judgeEffort,
 		sessionBudgetUsd: inputs.sessionBudgetUsd,
-		rubricSha256: frozenRubricSha256(armA),
-		skillUnderTest: baseline.skillUnderTest,
 	});
 
 	const arms = { baseline: request.armA, candidate: request.armB, control };

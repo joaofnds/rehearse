@@ -1,11 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { createHash } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ReplayCliConfig } from "#benchmark/config";
 import { RefusedPreconditionError } from "#benchmark/exit-codes";
-import { loadRunManifest } from "#benchmark/manifest";
 import { failureOf, recordOutput } from "#cli/cli-test-support";
 import { UsageError } from "#cli/commands";
 import {
@@ -53,10 +51,6 @@ afterEach(() => {
 	}
 });
 
-const REPLAYED_STAGE_RUBRIC_SHA256 = createHash("sha256")
-	.update(await Bun.file("cases/audit-log/rubrics/shape.json").text())
-	.digest("hex");
-
 const manifests: string[] = [];
 
 afterEach(async () => {
@@ -101,8 +95,6 @@ describe(replayBaselineGroup.name, () => {
 			judgeModel: "opus",
 			judgeEffort: "high",
 			sessionBudgetUsd: 5,
-			rubricSha256: REPLAYED_STAGE_RUBRIC_SHA256,
-			skillUnderTest: "skills/shape/",
 		});
 
 		expect(groupId).toBe("baseline-group");
@@ -168,8 +160,6 @@ describe(replayBaselineGroup.name, () => {
 				judgeModel: "opus",
 				judgeEffort: undefined,
 				sessionBudgetUsd: 5,
-				rubricSha256: REPLAYED_STAGE_RUBRIC_SHA256,
-				skillUnderTest: "skills/shape/",
 			}),
 		);
 
@@ -179,159 +169,6 @@ describe(replayBaselineGroup.name, () => {
 		);
 		expect(executed).toBe(false);
 	});
-
-	it("refuses before probing the model when the stage's rubric changed since arm A was recorded", async () => {
-		manifests.push(await writeReplayableRunManifest(RUN));
-		const { output } = recordOutput();
-		let probed = false;
-
-		const failure = await failureOf(
-			replayBaselineGroup(
-				{ approval: "yes", stdinIsTerminal: false },
-				{
-					output,
-					resolveRunDirectory: () => Promise.resolve(`/runs/${RUN}`),
-					requireSpendCeiling: () => Promise.resolve(100),
-					probeModel: () => {
-						probed = true;
-
-						return Promise.resolve();
-					},
-					execute: () => Promise.reject(new Error("replay must not run")),
-				},
-			)({
-				run: RUN,
-				stage: "shape",
-				corpusDirectory: "/runs/baseline-corpora/digest",
-				reps: 3,
-				model: "sonnet",
-				effort: "high",
-				judgeModel: "opus",
-				judgeEffort: "high",
-				sessionBudgetUsd: 5,
-				rubricSha256: "0".repeat(64),
-				skillUnderTest: "skills/shape/",
-			}),
-		);
-
-		expect(failure).toBeInstanceOf(RefusedPreconditionError);
-		expect(failure.message).toBe(
-			"the cases/audit-log/rubrics/shape.json rubric changed since arm A was recorded, so a baseline group run now could not be compared with it",
-		);
-		expect(probed).toBe(false);
-	});
-
-	it("refuses before probing the model when the skill under test is not the stage's own", async () => {
-		manifests.push(await writeReplayableRunManifest(RUN));
-		const { output } = recordOutput();
-		let probed = false;
-
-		const failure = await failureOf(
-			replayBaselineGroup(
-				{ approval: "yes", stdinIsTerminal: false },
-				{
-					output,
-					resolveRunDirectory: () => Promise.resolve(`/runs/${RUN}`),
-					requireSpendCeiling: () => Promise.resolve(100),
-					probeModel: () => {
-						probed = true;
-
-						return Promise.resolve();
-					},
-					execute: () => Promise.reject(new Error("replay must not run")),
-				},
-			)({
-				run: RUN,
-				stage: "shape",
-				corpusDirectory: "/runs/baseline-corpora/digest",
-				reps: 3,
-				model: "sonnet",
-				effort: "high",
-				judgeModel: "opus",
-				judgeEffort: "high",
-				sessionBudgetUsd: 5,
-				rubricSha256: REPLAYED_STAGE_RUBRIC_SHA256,
-				skillUnderTest: "skills/review/",
-			}),
-		);
-
-		expect(failure).toBeInstanceOf(RefusedPreconditionError);
-		expect(failure.message).toBe(
-			"skills/review/ is not the shape stage's own skill, which is the only skill a baseline replay can run without",
-		);
-		expect(probed).toBe(false);
-	});
-
-	it.each([
-		{
-			name: "the run's pipeline no longer has the stage",
-			stage: "nowhere",
-			rubric: undefined,
-			message: `the ${RUN} run's pipeline has no nowhere stage, so no rubric can grade a baseline group against arm A`,
-		},
-		{
-			name: "the stage's rubric can no longer be read",
-			stage: "shape",
-			rubric: "rubrics/missing.json",
-			message:
-				"the rubrics/missing.json rubric cannot be read, so a baseline group run now could not be compared with arm A: ",
-		},
-	])(
-		"refuses before probing the model when $name",
-		async ({ stage, rubric, message }) => {
-			const manifestFile = await writeReplayableRunManifest(RUN);
-			manifests.push(manifestFile);
-			if (rubric !== undefined) {
-				const manifest = await loadRunManifest(manifestFile);
-				const replayed = manifest.pipeline.stages.find(
-					({ name }) => name === stage,
-				);
-				if (replayed === undefined) {
-					throw new Error(`Expected the manifest to declare ${stage}`);
-				}
-				const text = await Bun.file(manifestFile).text();
-				await Bun.write(
-					manifestFile,
-					text.replaceAll(`"${replayed.rubric}"`, `"${rubric}"`),
-				);
-			}
-			const { output } = recordOutput();
-			let probed = false;
-
-			const failure = await failureOf(
-				replayBaselineGroup(
-					{ approval: "yes", stdinIsTerminal: false },
-					{
-						output,
-						resolveRunDirectory: () => Promise.resolve(`/runs/${RUN}`),
-						requireSpendCeiling: () => Promise.resolve(100),
-						probeModel: () => {
-							probed = true;
-
-							return Promise.resolve();
-						},
-						execute: () => Promise.reject(new Error("replay must not run")),
-					},
-				)({
-					run: RUN,
-					stage,
-					corpusDirectory: "/runs/baseline-corpora/digest",
-					reps: 3,
-					model: "sonnet",
-					effort: undefined,
-					judgeModel: "opus",
-					judgeEffort: undefined,
-					sessionBudgetUsd: 5,
-					rubricSha256: REPLAYED_STAGE_RUBRIC_SHA256,
-					skillUnderTest: "skills/shape/",
-				}),
-			);
-
-			expect(failure).toBeInstanceOf(RefusedPreconditionError);
-			expect(failure.message).toStartWith(message);
-			expect(probed).toBe(false);
-		},
-	);
 
 	it("refuses before probing the model when the environment would set an effort arm A ran without", async () => {
 		manifests.push(await writeReplayableRunManifest(RUN));
@@ -363,8 +200,6 @@ describe(replayBaselineGroup.name, () => {
 				judgeModel: "opus",
 				judgeEffort: undefined,
 				sessionBudgetUsd: 5,
-				rubricSha256: REPLAYED_STAGE_RUBRIC_SHA256,
-				skillUnderTest: "skills/shape/",
 			}),
 		);
 
@@ -407,7 +242,6 @@ describe(runCompareAttemptsCommand.name, () => {
 			await temporaryDirectory("rehearse-compare-command-runs-"),
 			await temporaryDirectory("rehearse-compare-command-scratch-"),
 		);
-		const rubric = await Bun.file("cases/audit-log/rubrics/build.json").text();
 		const armA = await arms.recordArm("baseline", {
 			"CLAUDE.md": "global instructions\n",
 			"skills/build/SKILL.md": "build\n",
@@ -418,7 +252,6 @@ describe(runCompareAttemptsCommand.name, () => {
 		});
 		for (const arm of [armA, armB]) {
 			await arms.readInStage(arm, "skills/build/SKILL.md");
-			await arms.freezeRubric(arm, rubric);
 		}
 		const configs: ReplayCliConfig[] = [];
 		const { output, stdout } = recordOutput();
@@ -450,10 +283,7 @@ describe(runCompareAttemptsCommand.name, () => {
 						judgeModel: config.judgeModel,
 						judgeEffort: config.judgeEffort,
 						sessionBudgetUsd: config.sessionBudgetUsd,
-						rubricSha256: "",
-						skillUnderTest: "skills/shape/",
 					});
-					await arms.freezeRubric(control, rubric);
 
 					return {
 						kind: "confirmation" as const,

@@ -7,6 +7,7 @@ import {
 	RecordedArms,
 	RUN,
 	STAGE,
+	STAGE_RUBRIC,
 } from "#benchmark/compare-attempts-test-support";
 import { readLaunchRecord, writeLaunchRecord } from "#benchmark/launch-record";
 import {
@@ -415,6 +416,51 @@ describe(createLaunchApp.name, () => {
 			expect(response.status).toBe(409);
 			expect(refusalSchema.parse(await response.json()).error).toBe(
 				`stage ${STAGE} reads nothing in skills/build/, so arms A and B ran the same files and nothing is under test`,
+			);
+			expect(launcher.launches).toEqual([]);
+		});
+
+		it("refuses a stage rubric changed since arm A was recorded, before starting anything", async () => {
+			const { launcher, post, runsDirectory } = await harness();
+			const arms = await recordedArms(runsDirectory);
+			const armA = await arms.recordArm("baseline", {
+				...SHARED,
+				"skills/build/SKILL.md": "build\n",
+			});
+			const armB = await arms.recordArm("candidate", {
+				...SHARED,
+				"skills/build/SKILL.md": "revised build\n",
+			});
+			for (const arm of [armA, armB]) {
+				await arms.readInStage(arm, "skills/build/SKILL.md");
+				await arms.freezeRubric(arm, `${STAGE_RUBRIC}\n`);
+			}
+
+			const response = await post({ kind: "comparison", armA, armB });
+
+			expect(response.status).toBe(409);
+			expect(refusalSchema.parse(await response.json()).error).toBe(
+				"the cases/audit-log/rubrics/build.json rubric changed since arm A was recorded, so a baseline group run now could not be compared with it",
+			);
+			expect(launcher.launches).toEqual([]);
+		});
+
+		it("refuses a skill under test that is not the replayed stage's own, before starting anything", async () => {
+			const { launcher, post, runsDirectory } = await harness();
+			const arms = await recordedArms(runsDirectory);
+			const armA = await arms.recordArm("baseline", SHARED);
+			const armB = await arms.recordArm("candidate", {
+				...SHARED,
+				"skills/review/SKILL.md": "revised review\n",
+			});
+			await arms.readInStage(armA, "skills/review/SKILL.md");
+			await arms.readInStage(armB, "skills/review/SKILL.md");
+
+			const response = await post({ kind: "comparison", armA, armB });
+
+			expect(response.status).toBe(409);
+			expect(refusalSchema.parse(await response.json()).error).toBe(
+				`skills/review/ is not the ${STAGE} stage's own skill, which is the only skill a baseline replay can run without`,
 			);
 			expect(launcher.launches).toEqual([]);
 		});

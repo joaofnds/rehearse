@@ -1,13 +1,14 @@
 import { createHash, randomUUID } from "node:crypto";
 import { cp, mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { writeReplayableRunManifest } from "#cli/replay-test-support";
 import type { BaselineGroupRequest } from "./compare-attempts";
 import { ComparisonEvidenceFixture } from "./comparison-evidence-test-support";
 import type { ComparisonArm } from "./comparison-record";
 import type { ConfirmationMode } from "./confirmation-record";
 import { confirmationGroupRecordSchema } from "./confirmation-record";
 import { measureCorpusVersion } from "./corpus-version";
-import { confirmationGroupPaths } from "./run-layout";
+import { benchmarkRunPaths, confirmationGroupPaths } from "./run-layout";
 import { claimShortId } from "./short-id";
 
 export const CASE_ID = "build-checkpoint";
@@ -20,6 +21,11 @@ export interface Checkpoint {
 }
 
 export const REPLAYED: Checkpoint = { run: RUN, stage: STAGE };
+
+const STAGE_RUBRIC_PATH = "cases/audit-log/rubrics/build.json";
+
+/** The rubric the replayed run's pipeline names for its build stage. */
+export const STAGE_RUBRIC = await Bun.file(STAGE_RUBRIC_PATH).text();
 
 export function groupIdFor(role: ComparisonArm): string {
 	return `${CASE_ID}-${role}`;
@@ -41,7 +47,10 @@ export class RecordedArms {
 		private readonly fixture: ComparisonEvidenceFixture,
 	) {}
 
-	/** Records into `runsDirectory`, building its fixtures in `scratchDirectory`. */
+	/**
+	 * Records into `runsDirectory`, beside the manifest of the run its arms
+	 * replayed, building its fixtures in `scratchDirectory`.
+	 */
 	public static async create(
 		runsDirectory: string,
 		scratchDirectory: string,
@@ -51,6 +60,7 @@ export class RecordedArms {
 			[CASE_ID],
 		);
 		await fixture.write();
+		await writeReplayableRunManifest(RUN, runsDirectory);
 
 		return new RecordedArms(runsDirectory, scratchDirectory, fixture);
 	}
@@ -164,6 +174,16 @@ export class RecordedArms {
 		);
 	}
 
+	/** Points the replayed run's pipeline at another rubric for its stage. */
+	public async nameStageRubric(rubric: string): Promise<void> {
+		const { manifestFile } = benchmarkRunPaths(this.runsDirectory, RUN);
+		const manifest = await Bun.file(manifestFile).text();
+		await Bun.write(
+			manifestFile,
+			manifest.replaceAll(`"${STAGE_RUBRIC_PATH}"`, `"${rubric}"`),
+		);
+	}
+
 	/** Points a recorded arm at a corpus version the store never recorded. */
 	public async useUnrecordedCorpusVersion(groupId: string): Promise<void> {
 		const { groupFile } = confirmationGroupPaths(this.runsDirectory, groupId);
@@ -226,6 +246,7 @@ export class RecordedArms {
 				2,
 			)}\n`,
 		);
+		await this.freezeRubric(groupId, STAGE_RUBRIC);
 		await claimShortId(
 			this.runsDirectory,
 			CASE_ID,

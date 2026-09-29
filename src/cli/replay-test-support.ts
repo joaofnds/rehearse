@@ -24,8 +24,9 @@ const sessionArgs = [
  */
 export async function writeReplayableRunManifest(
 	runName: string,
+	runsDirectory: string = recordsDirectory(),
 ): Promise<string> {
-	const paths = benchmarkRunPaths(recordsDirectory(), runName);
+	const paths = benchmarkRunPaths(runsDirectory, runName);
 	const config = parseArgs(
 		["--target", "/tmp/target", ...sessionArgs],
 		{},
