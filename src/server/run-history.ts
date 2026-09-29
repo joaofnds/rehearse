@@ -953,10 +953,6 @@ export interface RunHistoryReport {
 	readonly unreadable: readonly UnreadableRecord[];
 }
 
-/**
- * The registry names rows and nothing else, so a failure to read it leaves
- * every row listed under its Record ID and is reported beside the rows.
- */
 function replayedCheckpoints(
 	entries: readonly ShortIdEntry[],
 ): ReadonlyMap<string, NonNullable<ConfirmationGroupRow["checkpoint"]>> {
@@ -973,6 +969,10 @@ function replayedCheckpoints(
 	return checkpoints;
 }
 
+/**
+ * The registry names rows and nothing else, so a failure to read it leaves
+ * every row listed under its Record ID and is reported beside the rows.
+ */
 async function registryEntries(runsDirectory: string): Promise<{
 	readonly entries: readonly ShortIdEntry[];
 	readonly unreadable: readonly UnreadableRecord[];
