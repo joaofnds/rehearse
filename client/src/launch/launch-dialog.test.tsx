@@ -280,6 +280,96 @@ describe(LaunchDialog.name, () => {
 		);
 	});
 
+	describe("when the spend ceiling is edited", () => {
+		function storing(usd: number): ReadonlyMap<string, Reply> {
+			return new Map([
+				[
+					"PUT /api/settings/spend-ceiling",
+					{
+						status: 200,
+						body: { spendCeilingUsd: usd, setCommand: SET_COMMAND },
+					},
+				],
+			]);
+		}
+
+		it("shows the stored ceiling in the field", async () => {
+			serving();
+
+			const dialog = await openDialog({ kind: "case" });
+
+			await waitFor(() => {
+				expect(within(dialog).getByLabelText("Spend ceiling")).toHaveValue(
+					"5.00",
+				);
+			});
+		});
+
+		it("stores the entered ceiling as JSON and launches under it", async () => {
+			const server = serving(storing(2.5));
+			const dialog = await openDialog({ kind: "case" });
+			await startButton();
+
+			fireEvent.change(within(dialog).getByLabelText("Spend ceiling"), {
+				target: { value: "2.50" },
+			});
+			fireEvent.click(
+				within(dialog).getByRole("button", { name: "Store ceiling" }),
+			);
+
+			expect(
+				await within(dialog).findByText(
+					"Ceiling $2.50 · stops mid-step if reached, and can be overrun by the calls in flight",
+				),
+			).toBeInTheDocument();
+			const request = server.sent.find(({ method }) => method === "PUT");
+			expect(request?.pathname).toBe("/api/settings/spend-ceiling");
+			expect(request?.contentType).toBe("application/json");
+			expect(JSON.parse(request?.body ?? "")).toEqual({ usd: 2.5 });
+		});
+
+		it.each(["0", "-1", "five", ""])(
+			"offers no store for %p",
+			async (entered) => {
+				serving();
+				const dialog = await openDialog({ kind: "case" });
+				await startButton();
+
+				fireEvent.change(within(dialog).getByLabelText("Spend ceiling"), {
+					target: { value: entered },
+				});
+
+				expect(
+					within(dialog).getByRole("button", { name: "Store ceiling" }),
+				).toBeDisabled();
+			},
+		);
+
+		it("shows the refusal when the server does not store it", async () => {
+			serving(
+				new Map([
+					[
+						"PUT /api/settings/spend-ceiling",
+						{ status: 409, body: { error: "The settings file is not JSON" } },
+					],
+				]),
+			);
+			const dialog = await openDialog({ kind: "case" });
+			await startButton();
+
+			fireEvent.change(within(dialog).getByLabelText("Spend ceiling"), {
+				target: { value: "3" },
+			});
+			fireEvent.click(
+				within(dialog).getByRole("button", { name: "Store ceiling" }),
+			);
+
+			expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+				"The settings file is not JSON",
+			);
+		});
+	});
+
 	describe("when a case cannot be read", () => {
 		it("names the case and why it is not offered", async () => {
 			serving(
@@ -351,6 +441,38 @@ describe(LaunchDialog.name, () => {
 	});
 
 	describe("when no spend ceiling is stored", () => {
+		it("starts once a ceiling is entered and stored", async () => {
+			serving(
+				new Map([
+					[
+						"GET /api/settings",
+						{
+							status: 200,
+							body: { spendCeilingUsd: null, setCommand: SET_COMMAND },
+						},
+					],
+					[
+						"PUT /api/settings/spend-ceiling",
+						{
+							status: 200,
+							body: { spendCeilingUsd: 4, setCommand: SET_COMMAND },
+						},
+					],
+				]),
+			);
+			const dialog = await openDialog({ kind: "case" });
+			await within(dialog).findByText(SET_COMMAND);
+
+			fireEvent.change(within(dialog).getByLabelText("Spend ceiling"), {
+				target: { value: "4" },
+			});
+			fireEvent.click(
+				within(dialog).getByRole("button", { name: "Store ceiling" }),
+			);
+
+			expect(await startButton()).toBeEnabled();
+		});
+
 		it("disables start and names the command that sets one", async () => {
 			const server = serving(
 				new Map([

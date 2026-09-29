@@ -54,9 +54,12 @@ async function postLaunch(request: LaunchRequest): Promise<void> {
 	throw new LaunchRefusedError(await response.text());
 }
 
-async function fetchSettings(): Promise<
-	InferResponseType<typeof launchClient.api.settings.$get, 200>
-> {
+type SettingsReading = InferResponseType<
+	typeof launchClient.api.settings.$get,
+	200
+>;
+
+async function fetchSettings(): Promise<SettingsReading> {
 	const response = await launchClient.api.settings.$get();
 	if (response.status === 409) {
 		const refusal = await response.json();
@@ -67,6 +70,29 @@ async function fetchSettings(): Promise<
 	}
 
 	return response.json();
+}
+
+async function putSpendCeiling(usd: number): Promise<SettingsReading> {
+	const response = await launchClient.api.settings["spend-ceiling"].$put({
+		json: { usd },
+	});
+	if (response.status === 200) {
+		return response.json();
+	}
+	if (response.status === 400 || response.status === 409) {
+		const refusal = await response.json();
+		throw new LaunchRefusedError(refusal.error);
+	}
+	throw new LaunchRefusedError(await response.text());
+}
+
+/** A ceiling the server would store: a positive number of dollars. */
+function enteredCeilingUsd(entered: string): number | undefined {
+	const usd = Number(entered);
+
+	return entered.trim() !== "" && Number.isFinite(usd) && usd > 0
+		? usd
+		: undefined;
 }
 
 async function fetchCases(): Promise<CasesResponse> {
@@ -115,6 +141,71 @@ function CorpusLine(): React.JSX.Element {
 		<span className="font-mono text-pale">
 			{corpusVersionLabel(corpus.data.digest)}
 		</span>
+	);
+}
+
+/**
+ * The stored spend ceiling, edited in place: storing it changes the ceiling
+ * every later launch and CLI run holds to, not just this launch.
+ */
+function SpendCeilingField({
+	storedUsd,
+}: {
+	readonly storedUsd: number | undefined;
+}): React.JSX.Element {
+	const queryClient = useQueryClient();
+	const [draft, setDraft] = useState<string>();
+	const store = useMutation({
+		mutationFn: putSpendCeiling,
+		onSuccess: (reading) => {
+			queryClient.setQueryData(["launch-settings"], reading);
+			setDraft(undefined);
+		},
+	});
+	const entered = draft ?? storedUsd?.toFixed(2) ?? "";
+	const usd = enteredCeilingUsd(entered);
+
+	return (
+		<>
+			<form
+				className="flex items-center gap-2"
+				onSubmit={(event) => {
+					event.preventDefault();
+					if (usd !== undefined) {
+						store.mutate(usd);
+					}
+				}}
+			>
+				<span className="flex h-9 items-center gap-1.5 rounded-md border border-strong bg-background px-2">
+					<span aria-hidden="true" className="text-xs text-muted-foreground">
+						USD
+					</span>
+					<input
+						id="launch-spend-ceiling"
+						value={entered}
+						inputMode="decimal"
+						onChange={(event) => {
+							setDraft(event.target.value);
+						}}
+						className="w-20 bg-transparent font-mono text-sm"
+					/>
+				</span>
+				<Button
+					type="submit"
+					variant="outline"
+					size="sm"
+					disabled={usd === undefined || store.isPending}
+				>
+					Store ceiling
+				</Button>
+			</form>
+			{store.isError ? (
+				<p role="alert" className="mt-1 text-sm text-secondary-foreground">
+					<span aria-hidden="true">⚠ </span>
+					{store.error.message}
+				</p>
+			) : null}
+		</>
 	);
 }
 
@@ -284,6 +375,12 @@ function LaunchForm({
 					<dd className="col-span-3">
 						<CorpusLine />
 					</dd>
+					<dt className="text-muted-foreground">
+						<label htmlFor="launch-spend-ceiling">Spend ceiling</label>
+					</dt>
+					<dd className="col-span-3">
+						<SpendCeilingField storedUsd={ceilingUsd} />
+					</dd>
 					<dt className="text-muted-foreground">Attempts</dt>
 					<dd
 						role="group"
@@ -307,7 +404,7 @@ function LaunchForm({
 				<CaseListProblems failure={cases.error?.message} listing={cases.data} />
 				{settings.data !== undefined && ceilingUsd === undefined ? (
 					<Notice
-						message="No spend ceiling is stored, and nothing starts without one. Set it in a terminal with:"
+						message="No spend ceiling is stored, and nothing starts without one. Store one above, or set it in a terminal with:"
 						items={[settings.data.setCommand]}
 					/>
 				) : null}
@@ -361,9 +458,8 @@ function LaunchForm({
 /**
  * The run-launch dialog (SPEC.md:355): starts a declared case, or replays one
  * recorded stage, as one run or a group of attempts under the stored spend
- * ceiling. The ceiling is shown, not edited, because the server launches
- * under the stored one; changing it is `rehearse settings` until ACT-269.4
- * gives it a screen.
+ * ceiling. The spend field edits the stored ceiling itself, not a per-launch
+ * override, so the server and the CLI hold every later run to what it stores.
  */
 export function LaunchDialog({
 	target,
