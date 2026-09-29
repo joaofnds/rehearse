@@ -7,6 +7,7 @@ import { RefusedPreconditionError } from "./exit-codes";
 import {
 	readSettings,
 	requireSpendCeiling,
+	storeLinkedCorpusDirectory,
 	storeSpendCeiling,
 } from "./settings";
 
@@ -86,6 +87,20 @@ describe(storeSpendCeiling.name, () => {
 			expect(await readSettings(recordsDirectory)).toEqual({});
 		},
 	);
+});
+
+describe("storing two settings at once", () => {
+	it("keeps both, since neither write reads settings the other is replacing", async () => {
+		await Promise.all([
+			storeSpendCeiling(recordsDirectory, 3),
+			storeLinkedCorpusDirectory(recordsDirectory, "/corpus"),
+		]);
+
+		expect(await readSettings(recordsDirectory)).toEqual({
+			spendCeilingUsd: 3,
+			linkedCorpusDirectory: "/corpus",
+		});
+	});
 });
 
 describe(requireSpendCeiling.name, () => {

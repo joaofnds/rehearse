@@ -70,6 +70,29 @@ async function writeSettings(
 	await rename(temporary, file);
 }
 
+let pendingChange: Promise<undefined> = Promise.resolve(undefined);
+
+/**
+ * Each change reads settings after the one before it has written, so two
+ * changes in this process never drop each other's field. Another process
+ * writing at the same moment can still.
+ */
+async function changeSettings(
+	recordsDirectory: string,
+	change: (settings: Readonly<Settings>) => Settings,
+): Promise<void> {
+	const previous = pendingChange;
+	const { promise: done, resolve: finish } = Promise.withResolvers<undefined>();
+	pendingChange = done;
+	try {
+		await previous;
+		const settings = await readSettings(recordsDirectory);
+		await writeSettings(recordsDirectory, change(settings));
+	} finally {
+		finish(undefined);
+	}
+}
+
 export async function storeSpendCeiling(
 	recordsDirectory: string,
 	ceilingUsd: number,
@@ -80,11 +103,10 @@ export async function storeSpendCeiling(
 		);
 	}
 
-	const settings = await readSettings(recordsDirectory);
-	await writeSettings(recordsDirectory, {
+	await changeSettings(recordsDirectory, (settings) => ({
 		...settings,
 		spendCeilingUsd: ceilingUsd,
-	});
+	}));
 }
 
 /** Undefined removes the link, which leaves the live install linked. */
@@ -92,11 +114,10 @@ export async function storeLinkedCorpusDirectory(
 	recordsDirectory: string,
 	root: string | undefined,
 ): Promise<void> {
-	const settings = await readSettings(recordsDirectory);
-	await writeSettings(recordsDirectory, {
+	await changeSettings(recordsDirectory, (settings) => ({
 		...settings,
 		linkedCorpusDirectory: root,
-	});
+	}));
 }
 
 /**
