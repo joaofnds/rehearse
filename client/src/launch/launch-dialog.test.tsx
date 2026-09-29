@@ -259,6 +259,74 @@ describe(LaunchDialog.name, () => {
 		});
 	});
 
+	describe("when comparing two recorded attempts", () => {
+		const COMPARISON: LaunchTarget = {
+			kind: "comparison",
+			armA: "build-checkpoint-baseline",
+			armB: "build-checkpoint-candidate",
+			run: "2026-09-06T21-58-29.508Z",
+			stage: "build",
+			reps: 2,
+		};
+
+		it("names both arms and the checkpoint the baseline group replays", async () => {
+			serving();
+
+			const dialog = await openDialog(COMPARISON);
+
+			expect(
+				within(dialog).getByText("build-checkpoint-baseline"),
+			).toBeInTheDocument();
+			expect(
+				within(dialog).getByText("build-checkpoint-candidate"),
+			).toBeInTheDocument();
+			expect(
+				within(dialog).getByText("2026-09-06T21-58-29.508Z"),
+			).toBeInTheDocument();
+			expect(
+				within(dialog).getByText(
+					"arm A's corpus without the one skill that differs",
+				),
+			).toBeInTheDocument();
+		});
+
+		it("states the baseline group's cost at arm A's group size, which it offers no choice of", async () => {
+			serving();
+
+			const dialog = await openDialog(COMPARISON);
+
+			expect(
+				await within(dialog).findByText(
+					"Ceiling $5.00 per attempt, $10.00 for the group of 2 · stops mid-step if reached, and can be overrun by the calls in flight",
+				),
+			).toBeInTheDocument();
+			expect(
+				within(dialog).queryByRole("group", { name: "Attempts" }),
+			).not.toBeInTheDocument();
+			expect(
+				within(dialog).getByRole("button", { name: "Start · 2 attempts" }),
+			).toBeInTheDocument();
+		});
+
+		it("posts the two arms when started", async () => {
+			const server = serving();
+			await openDialog(COMPARISON);
+
+			fireEvent.click(await startButton());
+
+			await waitFor(() => {
+				expect(server.posted("/api/launches")).toHaveLength(1);
+			});
+			expect(JSON.parse(server.posted("/api/launches")[0]?.body ?? "")).toEqual(
+				{
+					kind: "comparison",
+					armA: "build-checkpoint-baseline",
+					armB: "build-checkpoint-candidate",
+				},
+			);
+		});
+	});
+
 	it("closes once the launch is accepted", async () => {
 		serving();
 		await openDialog({ kind: "case" });

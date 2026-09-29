@@ -6,6 +6,7 @@ import type { LaunchAttempts } from "#benchmark/launch-attempts";
 import { LAUNCH_ATTEMPTS } from "#benchmark/launch-attempts";
 import { groupSpendCeilingUsd } from "#benchmark/spend-ceiling";
 import { launchClient } from "#client/api-client";
+import { plural } from "#client/plural";
 import { corpusQuery } from "#client/corpus/corpus-query";
 import { runHistoryQuery } from "#client/run-history/run-history-query";
 import { spendReading } from "#client/run-history/run-progress";
@@ -24,7 +25,16 @@ import type { LaunchRequest } from "#server/launches";
 
 export type LaunchTarget =
 	| { readonly kind: "case" }
-	| { readonly kind: "replay"; readonly run: string; readonly stage: string };
+	| { readonly kind: "replay"; readonly run: string; readonly stage: string }
+	| {
+			readonly kind: "comparison";
+			readonly armA: string;
+			readonly armB: string;
+			readonly run: string;
+			readonly stage: string;
+			/** Arm A's group size, which the baseline group copies. */
+			readonly reps: number;
+	  };
 
 type CasesResponse = InferResponseType<typeof launchClient.api.cases.$get>;
 
@@ -124,7 +134,7 @@ async function fetchCases(): Promise<CasesResponse> {
 	return response.json();
 }
 
-function attemptsLabel(attempts: LaunchAttempts): string {
+function attemptsLabel(attempts: number): string {
 	return attempts === 1 ? "1 attempt" : `${String(attempts)} attempts`;
 }
 
@@ -133,7 +143,7 @@ function attemptsLabel(attempts: LaunchAttempts): string {
  * together under the group ceiling. A call already in flight when the ceiling
  * is reached still lands, which is why the ceiling can be overrun.
  */
-function ceilingReading(ceilingUsd: number, attempts: LaunchAttempts): string {
+function ceilingReading(ceilingUsd: number, attempts: number): string {
 	const holds =
 		attempts === 1
 			? `Ceiling ${spendReading(ceilingUsd)}`
@@ -311,16 +321,136 @@ function launchRequest(
 	caseId: string | undefined,
 	attempts: LaunchAttempts,
 ): LaunchRequest | undefined {
-	if (target.kind === "replay") {
-		return {
-			kind: "replay",
-			run: target.run,
-			stage: target.stage,
-			attempts,
-		};
+	switch (target.kind) {
+		case "case": {
+			return caseId === undefined
+				? undefined
+				: { kind: "case", caseId, attempts };
+		}
+		case "replay": {
+			return {
+				kind: "replay",
+				run: target.run,
+				stage: target.stage,
+				attempts,
+			};
+		}
+		case "comparison": {
+			return { kind: "comparison", armA: target.armA, armB: target.armB };
+		}
+		default: {
+			return target satisfies never;
+		}
 	}
+}
 
-	return caseId === undefined ? undefined : { kind: "case", caseId, attempts };
+function dialogTitle(target: LaunchTarget): string {
+	switch (target.kind) {
+		case "case": {
+			return "Start a run";
+		}
+		case "replay": {
+			return `Replay ${target.stage} from checkpoint`;
+		}
+		case "comparison": {
+			return `Compare two attempts at ${target.stage}`;
+		}
+		default: {
+			return target satisfies never;
+		}
+	}
+}
+
+function dialogDescription(target: LaunchTarget): string {
+	switch (target.kind) {
+		case "case": {
+			return "Runs the case against the current corpus under its declared model, and records each attempt separately.";
+		}
+		case "replay": {
+			return `Replaying restores the checkpoint ${target.stage} starts from, runs ${target.stage} against the current corpus under the run's model, and records each attempt separately. Earlier stages are not re-run.`;
+		}
+		case "comparison": {
+			return `Runs a baseline group of ${plural(target.reps, "attempt")} at ${target.stage}, against arm A's corpus without the one skill the arms differ in, under arm A's model, effort, judge and budget, then compares the baseline, arm A and arm B. Arms A and B are not re-run.`;
+		}
+		default: {
+			return target satisfies never;
+		}
+	}
+}
+
+/** What the launch runs, read from the row it was started on. */
+function TargetRows({
+	target,
+	cases,
+	caseId,
+	onSelectCase,
+}: {
+	readonly target: LaunchTarget;
+	readonly cases: readonly CaseListing[];
+	readonly caseId: string | undefined;
+	readonly onSelectCase: (caseId: string) => void;
+}): React.JSX.Element {
+	switch (target.kind) {
+		case "case": {
+			return (
+				<>
+					<dt className="text-muted-foreground">
+						<label htmlFor="launch-case">Case</label>
+					</dt>
+					<dd className="col-span-3 min-w-0">
+						<CasePicker
+							cases={cases}
+							selected={caseId}
+							onSelect={onSelectCase}
+						/>
+					</dd>
+					<dt className="text-muted-foreground">Corpus</dt>
+					<dd className="col-span-3">
+						<CorpusLine />
+					</dd>
+				</>
+			);
+		}
+		case "replay": {
+			return (
+				<>
+					<dt className="text-muted-foreground">Run</dt>
+					<dd className="col-span-3 font-mono">{target.run}</dd>
+					<dt className="text-muted-foreground">Stage</dt>
+					<dd className="col-span-3 font-mono">{target.stage}</dd>
+					<dt className="text-muted-foreground">Corpus</dt>
+					<dd className="col-span-3">
+						<CorpusLine />
+					</dd>
+				</>
+			);
+		}
+		case "comparison": {
+			return (
+				<>
+					<dt className="text-muted-foreground">Arm A</dt>
+					<dd className="col-span-3 min-w-0 font-mono break-all">
+						{target.armA}
+					</dd>
+					<dt className="text-muted-foreground">Arm B</dt>
+					<dd className="col-span-3 min-w-0 font-mono break-all">
+						{target.armB}
+					</dd>
+					<dt className="text-muted-foreground">Run</dt>
+					<dd className="col-span-3 font-mono">{target.run}</dd>
+					<dt className="text-muted-foreground">Stage</dt>
+					<dd className="col-span-3 font-mono">{target.stage}</dd>
+					<dt className="text-muted-foreground">Baseline corpus</dt>
+					<dd className="col-span-3">
+						arm A&apos;s corpus without the one skill that differs
+					</dd>
+				</>
+			);
+		}
+		default: {
+			return target satisfies never;
+		}
+	}
 }
 
 function LaunchForm({
@@ -356,6 +486,7 @@ function LaunchForm({
 	const caseId =
 		pickedCase ?? cases.data?.cases.find((listed) => listed.model !== null)?.id;
 	const request = launchRequest(target, caseId, attempts);
+	const runs = target.kind === "comparison" ? target.reps : attempts;
 	const ceilingUsd = settings.data?.spendCeilingUsd ?? undefined;
 	const startable =
 		ceilingUsd !== undefined &&
@@ -366,11 +497,7 @@ function LaunchForm({
 	return (
 		<>
 			<header className="flex items-center gap-3 border-b border-strong px-4 py-3">
-				<DialogTitle>
-					{target.kind === "case"
-						? "Start a run"
-						: `Replay ${target.stage} from checkpoint`}
-				</DialogTitle>
+				<DialogTitle>{dialogTitle(target)}</DialogTitle>
 				<span className="ml-auto">
 					<DialogClose asChild>
 						<Button variant="outline" size="sm" aria-label="Close">
@@ -382,31 +509,12 @@ function LaunchForm({
 
 			<div className="flex flex-col gap-3 px-4 py-3.5">
 				<dl className="grid grid-cols-4 items-center gap-x-3 gap-y-2 text-sm">
-					{target.kind === "case" ? (
-						<>
-							<dt className="text-muted-foreground">
-								<label htmlFor="launch-case">Case</label>
-							</dt>
-							<dd className="col-span-3 min-w-0">
-								<CasePicker
-									cases={cases.data?.cases ?? []}
-									selected={caseId}
-									onSelect={setPickedCase}
-								/>
-							</dd>
-						</>
-					) : (
-						<>
-							<dt className="text-muted-foreground">Run</dt>
-							<dd className="col-span-3 font-mono">{target.run}</dd>
-							<dt className="text-muted-foreground">Stage</dt>
-							<dd className="col-span-3 font-mono">{target.stage}</dd>
-						</>
-					)}
-					<dt className="text-muted-foreground">Corpus</dt>
-					<dd className="col-span-3">
-						<CorpusLine />
-					</dd>
+					<TargetRows
+						target={target}
+						cases={cases.data?.cases ?? []}
+						caseId={caseId}
+						onSelectCase={setPickedCase}
+					/>
 					<dt className="text-muted-foreground">
 						<label htmlFor="launch-spend-ceiling">Spend ceiling</label>
 					</dt>
@@ -417,24 +525,28 @@ function LaunchForm({
 							onDraft={setCeilingDraft}
 						/>
 					</dd>
-					<dt className="text-muted-foreground">Attempts</dt>
-					<dd
-						role="group"
-						aria-label="Attempts"
-						className="col-span-3 flex gap-1.5"
-					>
-						{LAUNCH_ATTEMPTS.map((count) => (
-							<FilterPill
-								key={count}
-								pressed={count === attempts}
-								onPress={() => {
-									setAttempts(count);
-								}}
+					{target.kind === "comparison" ? null : (
+						<>
+							<dt className="text-muted-foreground">Attempts</dt>
+							<dd
+								role="group"
+								aria-label="Attempts"
+								className="col-span-3 flex gap-1.5"
 							>
-								{`×${String(count)}`}
-							</FilterPill>
-						))}
-					</dd>
+								{LAUNCH_ATTEMPTS.map((count) => (
+									<FilterPill
+										key={count}
+										pressed={count === attempts}
+										onPress={() => {
+											setAttempts(count);
+										}}
+									>
+										{`×${String(count)}`}
+									</FilterPill>
+								))}
+							</dd>
+						</>
+					)}
 				</dl>
 
 				<CaseListProblems failure={cases.error?.message} listing={cases.data} />
@@ -451,11 +563,7 @@ function LaunchForm({
 					</p>
 				) : null}
 
-				<DialogDescription>
-					{target.kind === "case"
-						? "Runs the case against the current corpus under its declared model, and records each attempt separately."
-						: `Replaying restores the checkpoint ${target.stage} starts from, runs ${target.stage} against the current corpus under the run's model, and records each attempt separately. Earlier stages are not re-run.`}
-				</DialogDescription>
+				<DialogDescription>{dialogDescription(target)}</DialogDescription>
 
 				{launch.isError ? (
 					<p role="alert" className="text-sm text-secondary-foreground">
@@ -468,7 +576,7 @@ function LaunchForm({
 			<footer className="flex flex-wrap items-center gap-2.5 border-t border-strong px-4 py-3">
 				{ceilingUsd === undefined ? null : (
 					<span className="text-xs text-dim">
-						{ceilingReading(ceilingUsd, attempts)}
+						{ceilingReading(ceilingUsd, runs)}
 					</span>
 				)}
 				<span className="ml-auto flex gap-2">
@@ -483,7 +591,7 @@ function LaunchForm({
 							}
 						}}
 					>
-						{`Start · ${attemptsLabel(attempts)}`}
+						{`Start · ${attemptsLabel(runs)}`}
 					</Button>
 				</span>
 			</footer>
