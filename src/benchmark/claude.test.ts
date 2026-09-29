@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import { failureOf } from "#cli/cli-test-support";
 import {
 	ClaudeSessionError,
 	claudeArgs,
@@ -901,8 +902,8 @@ describe(runJsonSession.name, () => {
 			total_cost_usd: 0.578,
 		});
 
-		const failure = await runJsonSession(printing(halt), process.cwd()).catch(
-			(error: unknown) => error,
+		const failure = await failureOf(
+			runJsonSession(printing(halt), process.cwd()),
 		);
 
 		expect(failure).toBeInstanceOf(ClaudeSessionError);
