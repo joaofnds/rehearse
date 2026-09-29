@@ -37,6 +37,7 @@ import {
 import type { ClaimSubject } from "#benchmark/short-id";
 import { bindReplay, claimShortId } from "#benchmark/short-id";
 import type {
+	ConfirmationGroupRow,
 	ContextLink,
 	PipelineRunRow,
 	RowStaleness,
@@ -2190,6 +2191,39 @@ describe(runHistoryReport.name, () => {
 					{ repId: "group-at-build-rep-1", attempt: { position: 3, count: 3 } },
 				],
 			});
+		});
+
+		it("names the checkpoint a stage group replayed, and none for a group whose claim records none", async () => {
+			const fixture = await fixtureWithClaimedRun();
+			await fixture.writeStageGroupWithReps("group-at-build");
+			await claimShortId(fixture.runsDirectory, "audit-log", {
+				kind: "group",
+				groupId: "group-at-build",
+				source: { run: fixture.replayableRun, stage: "build" },
+			});
+			await fixture.writeSessionGroup("group-s");
+
+			const { rows } = await runHistoryReport(
+				fixture.runsDirectory,
+				directorySource(await corpusDirectory("build skill\n")),
+				nothingRunning,
+			);
+			const checkpointOf = (
+				groupId: string,
+			): ConfirmationGroupRow["checkpoint"] | "no row" => {
+				const row = rows.find(
+					(candidate) =>
+						candidate.kind === "group" && candidate.groupId === groupId,
+				);
+
+				return row?.kind === "group" ? row.checkpoint : "no row";
+			};
+
+			expect(checkpointOf("group-at-build")).toEqual({
+				run: fixture.replayableRun,
+				stage: "build",
+			});
+			expect(checkpointOf("group-s")).toBeUndefined();
 		});
 
 		it("names each rep of a session-mode group by its position in the group", async () => {

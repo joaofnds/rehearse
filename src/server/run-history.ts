@@ -231,6 +231,10 @@ export interface ConfirmationGroupRow {
 	readonly shortId: string | undefined;
 	readonly caseId: string;
 	readonly mode: ConfirmationMode;
+	/** The checkpoint a replayed group ran from, which only its claim records. */
+	readonly checkpoint:
+		| { readonly run: string; readonly stage: string }
+		| undefined;
 	readonly reps: number;
 	readonly corpusVersion: CorpusMeasurement | undefined;
 	readonly staleness: RowStaleness;
@@ -746,6 +750,7 @@ async function groupRow(
 	runsDirectory: string,
 	groupId: string,
 	shortId: string | undefined,
+	checkpoint: ConfirmationGroupRow["checkpoint"],
 	attempts: ReadonlyMap<string, AttemptPosition>,
 	staleness: Staleness,
 ): Promise<ConfirmationGroupRow | undefined> {
@@ -773,6 +778,7 @@ async function groupRow(
 		shortId,
 		caseId: record.caseId,
 		mode: record.mode,
+		checkpoint,
 		reps: record.reps,
 		corpusVersion: record.inputs.corpusVersion,
 		staleness: staleness.of(formatRecordId({ kind: "group", groupId })),
@@ -951,6 +957,22 @@ export interface RunHistoryReport {
  * The registry names rows and nothing else, so a failure to read it leaves
  * every row listed under its Record ID and is reported beside the rows.
  */
+function replayedCheckpoints(
+	entries: readonly ShortIdEntry[],
+): ReadonlyMap<string, NonNullable<ConfirmationGroupRow["checkpoint"]>> {
+	const checkpoints = new Map<
+		string,
+		NonNullable<ConfirmationGroupRow["checkpoint"]>
+	>();
+	for (const { record } of entries) {
+		if (record.kind === "group" && record.source !== undefined) {
+			checkpoints.set(record.groupId, record.source);
+		}
+	}
+
+	return checkpoints;
+}
+
 async function registryEntries(runsDirectory: string): Promise<{
 	readonly entries: readonly ShortIdEntry[];
 	readonly unreadable: readonly UnreadableRecord[];
@@ -1080,6 +1102,7 @@ export async function runHistoryReport(
 		unreadable.push(...registry.unreadable);
 		const shortIdEntries = registry.entries;
 		const shortIds = shortIdsOf(shortIdEntries);
+		const groupCheckpoints = replayedCheckpoints(shortIdEntries);
 		const attempts = await checkpointAttempts(runsDirectory, shortIdEntries);
 		const live =
 			only === undefined
@@ -1162,7 +1185,14 @@ export async function runHistoryReport(
 			await confirmationGroupIds(runsDirectory),
 			(groupId) => formatRecordId({ kind: "group", groupId }),
 			(groupId, shortId) =>
-				groupRow(runsDirectory, groupId, shortId, attempts, staleness),
+				groupRow(
+					runsDirectory,
+					groupId,
+					shortId,
+					groupCheckpoints.get(groupId),
+					attempts,
+					staleness,
+				),
 		);
 
 		return {
