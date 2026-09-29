@@ -823,11 +823,30 @@ const currentSingleCaseSessionComparisonReportSchema = z
 	})
 	.strict();
 
+const currentSingleCaseStageComparisonReportSchema = z
+	.object({
+		schemaVersion: z.literal(5),
+		judgeAgreement: judgeAgreementReportSchema,
+		...currentComparisonReportFields,
+		mode: z.literal("stage"),
+		samplingUnit: z.literal("rep"),
+		cases: z.tuple([currentReportCaseSchema]),
+		contrasts: z
+			.object({
+				candidateMinusBaseline: currentSingleCaseReportContrastSchema,
+				candidateMinusControl: currentSingleCaseReportContrastSchema,
+				baselineMinusControl: currentSingleCaseReportContrastSchema,
+			})
+			.strict(),
+	})
+	.strict();
+
 const currentComparisonReportSchema = z.union([
 	currentStageComparisonReportSchema,
 	currentPipelineComparisonReportSchema,
 	currentSessionComparisonReportSchema,
 	currentSingleCaseSessionComparisonReportSchema,
+	currentSingleCaseStageComparisonReportSchema,
 ]);
 
 type CurrentComparisonReport = Immutable<
@@ -1052,7 +1071,8 @@ export type ComparisonReport = Immutable<
 	z.infer<typeof comparisonReportSchema>
 >;
 export type SingleCaseComparisonReport = Immutable<
-	z.infer<typeof currentSingleCaseSessionComparisonReportSchema>
+	| z.infer<typeof currentSingleCaseSessionComparisonReportSchema>
+	| z.infer<typeof currentSingleCaseStageComparisonReportSchema>
 >;
 export type MultiCaseComparisonReport = Immutable<
 	| z.infer<typeof currentStageComparisonReportSchema>

@@ -1525,9 +1525,10 @@ and its reps read as stale provenance.
 ## Comparison manifests
 
 `compare` requires baseline, candidate, and minimal-corpus control arms for
-every case. A stage or pipeline comparison needs at least two distinct cases; a
-session comparison may name one, and its report estimates uncertainty over that
-case's reps rather than across cases. Each path names a completed stage, pipeline, or
+every case. A pipeline comparison needs at least two distinct cases. A stage
+comparison may name one checkpoint replayed in each arm, and a session comparison
+may name one case. Either one-case report estimates uncertainty over that case's
+reps rather than across cases. Each path names a completed stage, pipeline, or
 session confirmation `group.json` and resolves relative to the manifest. Session
 groups must carry one frozen case declaration, their recorded attempt evidence,
 and a corpus inventory matching that declaration. The control corpus may be

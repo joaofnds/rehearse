@@ -316,6 +316,29 @@ describe(loadComparisonEvidence.name, () => {
 		]);
 	});
 
+	it("writes a one-checkpoint stage comparison that estimates over reps", async () => {
+		const oneCheckpointRoot = join(temporaryDirectory, "one-checkpoint");
+		await mkdir(oneCheckpointRoot);
+		const oneCheckpoint = new ComparisonEvidenceFixture(oneCheckpointRoot, [
+			"build-checkpoint",
+		]);
+		await oneCheckpoint.write();
+		const runsDirectory = join(temporaryDirectory, "one-checkpoint-output");
+		await mkdir(runsDirectory);
+
+		const reportFile = await writeComparisonReport({
+			manifestPath: oneCheckpoint.manifestFile,
+			runsDirectory,
+		});
+
+		const report = parseComparisonReport(await Bun.file(reportFile).text());
+		expect(report.mode).toBe("stage");
+		expect(report.cases.map(({ caseId }) => caseId)).toEqual([
+			"build-checkpoint",
+		]);
+		expect("samplingUnit" in report && report.samplingUnit).toBe("rep");
+	});
+
 	it("serializes a completed comparison fixture byte for byte", async () => {
 		const runsDirectory = join(temporaryDirectory, "characterization-output");
 		await mkdir(runsDirectory);

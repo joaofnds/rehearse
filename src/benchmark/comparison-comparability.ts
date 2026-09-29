@@ -380,7 +380,7 @@ export function assertComparableComparison(
 	}
 
 	const referenceArm = firstCase.arms.baseline;
-	if (cases.length < 2 && referenceArm.group.record.mode !== "session") {
+	if (cases.length < 2 && referenceArm.group.record.mode === "pipeline") {
 		throw new ComparisonEvidenceError(
 			`case manifest arm all field cases requires at least two cases in ${referenceArm.group.record.mode} mode`,
 		);

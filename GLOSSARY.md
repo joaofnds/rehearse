@@ -145,11 +145,11 @@ See [current state](docs/status.md) for implementation coverage and
   the quality reading, it is derived from the paired estimate across cases.
 - **Benchmark case** — one frozen task with its source or checkpoint and all
   non-corpus inputs. It is the sampling unit a multi-case comparison pairs its
-  arms on; a single-case session comparison samples reps instead.
+  arms on; a single-case stage or session comparison samples reps instead.
 - **Sampling unit** — the observation a comparison's uncertainty is estimated
   over. A multi-case comparison pairs its arms case by case and reads variation
-  between case means. A single-case session comparison samples the reps of one
-  case, treats the arms as independent samples rather than paired, and prints
+  between case means. A single-case stage or session comparison samples the
+  reps of one case, treats the arms as independent samples rather than paired, and prints
   the unit it used beside the estimate.
 - **Case** (design usage) — the UI design's phrase for a task plus the
   corpus, judges, and thresholds it runs under. It overlaps with this
