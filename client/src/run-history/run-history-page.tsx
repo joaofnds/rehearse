@@ -23,6 +23,7 @@ import { ScreenHeader } from "#client/system/components/screen-header";
 import { SectionLabel } from "#client/system/components/section-label";
 import { Notice } from "#client/system/components/notice";
 import { LaunchDialog } from "#client/launch/launch-dialog";
+import { RunControls } from "./run-controls";
 
 type HistoryRow = RunHistoryResponse["rows"][number];
 type RunHistoryRow = Extract<HistoryRow, { readonly kind: "run" }>;
@@ -296,6 +297,9 @@ function runOutcomeCell(row: RunHistoryRow): React.JSX.Element {
 		<span className="flex flex-col gap-0.5">
 			<Status state={runStatusState(row.status)} />
 			{statusLine(row)}
+			{row.status === "RUNNING" ? (
+				<RunControls launchId={row.launchId} run={row.run} />
+			) : null}
 		</span>
 	);
 }
@@ -544,6 +548,7 @@ function launchCells(launch: LaunchRow): readonly React.JSX.Element[] {
 		<span key="outcome" className="flex flex-col gap-0.5">
 			<Status state="running" />
 			<span className="text-xs text-dim">started from the browser</span>
+			<RunControls launchId={launch.id} run={undefined} />
 		</span>,
 		<span key="progress" />,
 		<span key="grade" />,

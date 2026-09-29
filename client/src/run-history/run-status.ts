@@ -1,5 +1,5 @@
 import type { StatusState } from "#client/system/components/status";
-import { isStopped } from "#benchmark/stopped-status";
+import { isPaused, isStopped } from "#benchmark/stopped-status";
 
 /**
  * A run's recorded status, read as the design system's status vocabulary. A
@@ -11,6 +11,9 @@ import { isStopped } from "#benchmark/stopped-status";
 export function runStatusState(status: string): StatusState {
 	if (isStopped(status)) {
 		return "stopped";
+	}
+	if (isPaused(status)) {
+		return "paused";
 	}
 
 	switch (status) {

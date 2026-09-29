@@ -10,7 +10,12 @@ import {
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { InferResponseType } from "hono/client";
 import type { apiClient } from "#client/api-client";
-import { stubFetch, stubFetchByPath } from "#client/test-support/fetch-stub";
+import type { Reply } from "#client/test-support/fetch-stub";
+import {
+	FakeServer,
+	stubFetch,
+	stubFetchByPath,
+} from "#client/test-support/fetch-stub";
 import {
 	UNREAD_COST_AND_TIME,
 	UNREAD_GROUP_FIGURES,
@@ -968,6 +973,123 @@ describe(RunHistoryPage.name, () => {
 			});
 			expect(screen.queryByText("$0.00")).not.toBeInTheDocument();
 			expect(screen.queryByText("0s")).not.toBeInTheDocument();
+		});
+		describe("when the operator ends it", () => {
+			const LAUNCH_ID = "7b0c2d4e-0000-4000-8000-000000000000";
+			const RUN = "2026-09-07T00-00-00.000Z";
+
+			function serving(
+				body: RunHistoryResponseBody,
+				replies: ReadonlyMap<string, Reply> = new Map(),
+			): FakeServer {
+				const server = new FakeServer(
+					new Map([["GET /api/runs", { status: 200, body }], ...replies]),
+				);
+				server.install();
+
+				return server;
+			}
+
+			it("stops a run the browser launched through its launch", async () => {
+				const server = serving({
+					rows: [{ ...runningRow(), launchId: LAUNCH_ID }],
+					launches: [],
+					unreadable: [],
+				});
+				renderPage();
+
+				fireEvent.click(
+					await screen.findByRole("button", { name: "Stop & restore repo" }),
+				);
+
+				await waitFor(() => {
+					expect(server.posted(`/api/launches/${LAUNCH_ID}/stop`)).toHaveLength(
+						1,
+					);
+				});
+			});
+
+			it("asks the run to pause after the step it is running", async () => {
+				const server = serving({
+					rows: [runningRow()],
+					launches: [],
+					unreadable: [],
+				});
+				renderPage();
+
+				fireEvent.click(
+					await screen.findByRole("button", { name: "Pause after this step" }),
+				);
+
+				await waitFor(() => {
+					expect(server.posted(`/api/runs/${RUN}/pause`)).toHaveLength(1);
+				});
+			});
+
+			it("stops a launch that has no record yet", async () => {
+				const server = serving({
+					rows: [],
+					launches: [
+						{
+							kind: "launch",
+							id: LAUNCH_ID,
+							target: "case",
+							caseId: "audit-log",
+							run: undefined,
+							stage: undefined,
+							attempts: 3,
+							launchedAt: new Date().toISOString(),
+							status: "RUNNING",
+						},
+					],
+					unreadable: [],
+				});
+				renderPage();
+
+				fireEvent.click(
+					await screen.findByRole("button", { name: "Stop & restore repo" }),
+				);
+
+				await waitFor(() => {
+					expect(server.posted(`/api/launches/${LAUNCH_ID}/stop`)).toHaveLength(
+						1,
+					);
+				});
+			});
+
+			it("shows the server's refusal", async () => {
+				serving(
+					{ rows: [runningRow()], launches: [], unreadable: [] },
+					new Map([
+						[
+							`POST /api/runs/${RUN}/pause`,
+							{ status: 409, body: { error: `Run ${RUN} is not running` } },
+						],
+					]),
+				);
+				renderPage();
+
+				fireEvent.click(
+					await screen.findByRole("button", { name: "Pause after this step" }),
+				);
+
+				expect(await screen.findByRole("alert")).toHaveTextContent(
+					`Run ${RUN} is not running`,
+				);
+			});
+
+			describe("when the browser did not launch it", () => {
+				it("offers no stop, since only the terminal that started it can signal it", async () => {
+					serving({ rows: [runningRow()], launches: [], unreadable: [] });
+					const { findByRole, queryByRole } = renderPage();
+
+					await findByRole("button", { name: "Pause after this step" });
+
+					expect(
+						queryByRole("button", { name: "Stop & restore repo" }),
+					).not.toBeInTheDocument();
+				});
+			});
 		});
 	});
 

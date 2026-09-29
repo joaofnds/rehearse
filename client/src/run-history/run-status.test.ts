@@ -10,6 +10,7 @@ describe(runStatusState.name, () => {
 		["AWAITING_HUMAN_REVIEW", "pending"],
 		["STOPPED:build", "stopped"],
 		["STOPPED:shape", "stopped"],
+		["PAUSED:build", "paused"],
 	] as const)("reads %s as %s", (status, expected) => {
 		expect(runStatusState(status)).toBe(expected);
 	});
