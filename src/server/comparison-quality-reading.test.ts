@@ -32,7 +32,65 @@ function finalSummary(
 	};
 }
 
+function sessionSummary(
+	successful: number,
+	requested: number,
+): ReliabilitySummary {
+	return {
+		...stageSummary(
+			Object.fromEntries([
+				["A", successful],
+				["F", requested - successful],
+			]),
+			successful,
+			requested,
+		),
+		name: "checks",
+	};
+}
+
 describe(qualityReading.name, () => {
+	describe("on a session's pass rate", () => {
+		it("names the arm that succeeds more often when the success-rate intervals are separated", () => {
+			const reading = qualityReading({
+				minuend: sessionSummary(11, 12),
+				subtrahend: sessionSummary(1, 12),
+				minuendArm: "candidate",
+				subtrahendArm: "baseline",
+				scale: "successRate",
+			});
+
+			expect(reading.verdict).toEqual({ kind: "separated", arm: "candidate" });
+		});
+
+		it("reads inside rerun noise when the success-rate intervals overlap", () => {
+			const reading = qualityReading({
+				minuend: sessionSummary(5, 6),
+				subtrahend: sessionSummary(1, 6),
+				minuendArm: "candidate",
+				subtrahendArm: "baseline",
+				scale: "successRate",
+			});
+
+			expect(reading.verdict).toEqual({ kind: "insideRerunNoise" });
+		});
+
+		it("reports each arm's 95% success-rate interval", () => {
+			const reading = qualityReading({
+				minuend: sessionSummary(11, 12),
+				subtrahend: sessionSummary(1, 12),
+				minuendArm: "candidate",
+				subtrahendArm: "baseline",
+				scale: "successRate",
+			});
+
+			expect(reading.interval).toEqual({
+				minuend: { low: "65%", high: "99%" },
+				subtrahend: { low: "1%", high: "35%" },
+			});
+		});
+	});
+
 	it("reads inside rerun noise when a declared-stage measure's grade spans overlap", () => {
 		const minuend = stageSummary(
 			Object.fromEntries([
@@ -56,6 +114,7 @@ describe(qualityReading.name, () => {
 			subtrahend,
 			minuendArm: "candidate",
 			subtrahendArm: "baseline",
+			scale: "letters",
 		});
 
 		expect(reading).toEqual({
@@ -83,6 +142,7 @@ describe(qualityReading.name, () => {
 			subtrahend,
 			minuendArm: "candidate",
 			subtrahendArm: "baseline",
+			scale: "letters",
 		});
 
 		expect(reading.verdict).toEqual({ kind: "unchangedAlreadyClear" });
@@ -97,6 +157,7 @@ describe(qualityReading.name, () => {
 			subtrahend,
 			minuendArm: "candidate",
 			subtrahendArm: "baseline",
+			scale: "letters",
 		});
 
 		expect(reading.verdict).toEqual({ kind: "separated", arm: "candidate" });
@@ -111,6 +172,7 @@ describe(qualityReading.name, () => {
 			subtrahend,
 			minuendArm: "candidate",
 			subtrahendArm: "baseline",
+			scale: "letters",
 		});
 
 		expect(reading.verdict).toEqual({ kind: "insideRerunNoise" });
@@ -125,6 +187,7 @@ describe(qualityReading.name, () => {
 			subtrahend,
 			minuendArm: "candidate",
 			subtrahendArm: "baseline",
+			scale: "letters",
 		});
 
 		expect(reading.verdict).toEqual({ kind: "separated", arm: "baseline" });
@@ -146,6 +209,7 @@ describe(qualityReading.name, () => {
 			subtrahend,
 			minuendArm: "candidate",
 			subtrahendArm: "baseline",
+			scale: "letters",
 		});
 
 		expect(reading.verdict).toEqual({ kind: "insideRerunNoise" });
@@ -160,12 +224,13 @@ describe(qualityReading.name, () => {
 			subtrahend,
 			minuendArm: "candidate",
 			subtrahendArm: "baseline",
+			scale: "letters",
 		});
 
 		expect(reading.verdict).toEqual({ kind: "unchangedAlreadyClear" });
 	});
 
-	it("reads the final row's PASS/FAIL axis instead of the five-letter scale", () => {
+	it("reads the final row's pass rate instead of the five-letter scale", () => {
 		const minuend = finalSummary(
 			Object.fromEntries([
 				["PASS", 3],
@@ -188,26 +253,28 @@ describe(qualityReading.name, () => {
 			subtrahend,
 			minuendArm: "candidate",
 			subtrahendArm: "baseline",
+			scale: "successRate",
 		});
 
 		expect(reading).toEqual({
 			interval: {
-				minuend: { low: "PASS", high: "FAIL" },
-				subtrahend: { low: "PASS", high: "FAIL" },
+				minuend: { low: "30%", high: "95%" },
+				subtrahend: { low: "5%", high: "70%" },
 			},
 			verdict: { kind: "insideRerunNoise" },
 		});
 	});
 
-	it("names the higher-succeeding arm on the final row's PASS/FAIL axis when spans do not overlap", () => {
-		const minuend = finalSummary(Object.fromEntries([["PASS", 3]]), 3, 3);
-		const subtrahend = finalSummary(Object.fromEntries([["FAIL", 4]]), 0, 4);
+	it("names the higher-succeeding arm on the final row's pass rate when the intervals are separated", () => {
+		const minuend = finalSummary(Object.fromEntries([["PASS", 8]]), 8, 8);
+		const subtrahend = finalSummary(Object.fromEntries([["FAIL", 8]]), 0, 8);
 
 		const reading = qualityReading({
 			minuend,
 			subtrahend,
 			minuendArm: "candidate",
 			subtrahendArm: "baseline",
+			scale: "successRate",
 		});
 
 		expect(reading.verdict).toEqual({ kind: "separated", arm: "candidate" });
@@ -222,6 +289,7 @@ describe(qualityReading.name, () => {
 			subtrahend,
 			minuendArm: "candidate",
 			subtrahendArm: "baseline",
+			scale: "letters",
 		});
 
 		expect(reading).toEqual({
@@ -242,6 +310,7 @@ describe(qualityReading.name, () => {
 			subtrahend,
 			minuendArm: "candidate",
 			subtrahendArm: "baseline",
+			scale: "letters",
 		});
 
 		expect(reading).toEqual({

@@ -102,7 +102,7 @@ export interface SingleCaseProportionEstimate {
 	readonly standardError: number;
 }
 
-function wilsonInterval(
+export function wilsonInterval(
 	successful: number,
 	requested: number,
 ): ProportionInterval {

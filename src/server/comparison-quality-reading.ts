@@ -1,8 +1,10 @@
 import { STAGE_LETTER_GRADES } from "#benchmark/config";
 import type { ReliabilitySummary } from "#benchmark/confirmation-report";
 import type { ComparisonArm } from "#benchmark/comparison-record";
+import type { ProportionInterval } from "#benchmark/comparison-estimator";
+import { wilsonInterval } from "#benchmark/comparison-estimator";
 
-const FINAL_VERDICT_SCALE = ["PASS", "FAIL"] as const;
+const LETTER_SCALE: readonly string[] = STAGE_LETTER_GRADES;
 
 export interface QualityInterval {
 	readonly low: string;
@@ -27,17 +29,20 @@ interface QualityReadingRequest {
 	readonly subtrahend: ReliabilitySummary;
 	readonly minuendArm: ComparisonArm;
 	readonly subtrahendArm: ComparisonArm;
+	readonly scale: QualityScale;
 }
 
-function scaleFor(summary: ReliabilitySummary): readonly string[] {
-	return summary.name === "final" ? FINAL_VERDICT_SCALE : STAGE_LETTER_GRADES;
-}
+/**
+ * `letters` reads a stage grade's observed letter span. `successRate` reads a
+ * pass/fail measure, a session's checks or a pipeline's final verdict, whose
+ * observed span is the whole scale whenever an arm holds both outcomes.
+ */
+export type QualityScale = "letters" | "successRate";
 
-function spanOf(
+function letterSpanOf(
 	summary: ReliabilitySummary,
-	scale: readonly string[],
 ): QualityInterval | undefined {
-	const observed = scale.filter(
+	const observed = LETTER_SCALE.filter(
 		(grade) => (summary.gradeDistribution[grade] ?? 0) > 0,
 	);
 	const [low] = observed;
@@ -46,8 +51,7 @@ function spanOf(
 	return low === undefined || high === undefined ? undefined : { low, high };
 }
 
-function spansOverlap(
-	scale: readonly string[],
+function letterSpansOverlap(
 	left: QualityInterval | undefined,
 	right: QualityInterval | undefined,
 ): boolean {
@@ -55,12 +59,33 @@ function spansOverlap(
 		return true;
 	}
 
-	const leftLow = scale.indexOf(left.low);
-	const leftHigh = scale.indexOf(left.high);
-	const rightLow = scale.indexOf(right.low);
-	const rightHigh = scale.indexOf(right.high);
+	const leftLow = LETTER_SCALE.indexOf(left.low);
+	const leftHigh = LETTER_SCALE.indexOf(left.high);
+	const rightLow = LETTER_SCALE.indexOf(right.low);
+	const rightHigh = LETTER_SCALE.indexOf(right.high);
 
 	return leftLow <= rightHigh && rightLow <= leftHigh;
+}
+
+function successRateIntervalOf(
+	summary: ReliabilitySummary,
+): ProportionInterval {
+	return wilsonInterval(summary.successful, summary.requested);
+}
+
+function successRateIntervalsOverlap(
+	left: ProportionInterval,
+	right: ProportionInterval,
+): boolean {
+	return left.low <= right.high && right.low <= left.high;
+}
+
+function percent(proportion: number): string {
+	return `${Math.round(proportion * 100)}%`;
+}
+
+function successRateLabel(interval: ProportionInterval): QualityInterval {
+	return { low: percent(interval.low), high: percent(interval.high) };
 }
 
 function atCeiling(summary: ReliabilitySummary): boolean {
@@ -85,14 +110,12 @@ function higherSucceedingArm(
 
 function verdictFor(
 	request: QualityReadingRequest,
-	scale: readonly string[],
-	minuendSpan: QualityInterval | undefined,
-	subtrahendSpan: QualityInterval | undefined,
+	overlapping: boolean,
 ): QualityVerdict {
 	if (atCeiling(request.minuend) && atCeiling(request.subtrahend)) {
 		return { kind: "unchangedAlreadyClear" };
 	}
-	if (spansOverlap(scale, minuendSpan, subtrahendSpan)) {
+	if (overlapping) {
 		return { kind: "insideRerunNoise" };
 	}
 
@@ -104,12 +127,30 @@ function verdictFor(
 }
 
 export function qualityReading(request: QualityReadingRequest): QualityReading {
-	const scale = scaleFor(request.minuend);
-	const minuendSpan = spanOf(request.minuend, scale);
-	const subtrahendSpan = spanOf(request.subtrahend, scale);
+	if (request.scale === "successRate") {
+		const minuend = successRateIntervalOf(request.minuend);
+		const subtrahend = successRateIntervalOf(request.subtrahend);
+
+		return {
+			interval: {
+				minuend: successRateLabel(minuend),
+				subtrahend: successRateLabel(subtrahend),
+			},
+			verdict: verdictFor(
+				request,
+				successRateIntervalsOverlap(minuend, subtrahend),
+			),
+		};
+	}
+
+	const minuendSpan = letterSpanOf(request.minuend);
+	const subtrahendSpan = letterSpanOf(request.subtrahend);
 
 	return {
 		interval: { minuend: minuendSpan, subtrahend: subtrahendSpan },
-		verdict: verdictFor(request, scale, minuendSpan, subtrahendSpan),
+		verdict: verdictFor(
+			request,
+			letterSpansOverlap(minuendSpan, subtrahendSpan),
+		),
 	};
 }

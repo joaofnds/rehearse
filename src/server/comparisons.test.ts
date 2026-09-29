@@ -540,10 +540,35 @@ describe("GET /api/comparisons/:digest", () => {
 		});
 		expect(readings?.["final"]).toEqual({
 			interval: {
-				minuend: { low: "PASS", high: "PASS" },
-				subtrahend: { low: "PASS", high: "FAIL" },
+				minuend: { low: "51%", high: "100%" },
+				subtrahend: { low: "15%", high: "85%" },
 			},
 			verdict: { kind: "insideRerunNoise" },
+		});
+	});
+
+	it("reads a session's checks as success-rate intervals rather than letter spans", async () => {
+		const fixture = await writtenFixture();
+		await rewriteFixtureAsSession(fixture);
+		const app = createApiApp({
+			runsDirectory: fixture.runsDirectory,
+			liveness: nothingRunning,
+			readCorpusSource: fixedCorpusSource(
+				directorySource(await corpusDirectory()),
+			),
+		});
+
+		const response = await app.request(
+			`/api/comparisons/${fixture.comparisonDigest}`,
+		);
+		const body = await comparisonResponseFrom(response);
+
+		expect(
+			body.qualityReadings["case-1"]?.["candidateMinusBaseline"]?.["checks"]
+				?.interval,
+		).toEqual({
+			minuend: { low: "51%", high: "100%" },
+			subtrahend: { low: "15%", high: "85%" },
 		});
 	});
 

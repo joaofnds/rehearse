@@ -115,12 +115,15 @@ See [current state](docs/status.md) for implementation coverage and
   mandatory minimal-corpus control. An arm uses the same corpus snapshot across
   every benchmark case; a session control may have an empty declared corpus.
 - **Quality reading (comparison)**: a per-case, per-arm-pair, per-measure
-  interpretation of the observed spread across repeated attempts. It carries
-  each arm's low-to-high grade or PASS/FAIL interval and one verdict: the spans
-  overlap within rerun noise, both arms already succeed on every requested rep,
-  or the spans are separated and the arm that succeeds more often is named. It
-  is derived from each arm's recorded reliability summary, not from the paired
-  estimate across cases.
+  interpretation of the observed spread across repeated attempts. A stage grade
+  carries each arm's observed low-to-high letter span. A pass/fail measure, a
+  session's checks or a pipeline's final verdict, carries each arm's 95% Wilson
+  interval on its success rate, because an arm holding both outcomes spans the
+  whole pass/fail scale however rarely it fails. The reading gives one verdict:
+  the intervals overlap within rerun noise, both arms already succeed on every
+  requested rep, or the intervals are separated and the arm that succeeds more
+  often is named. It is derived from each arm's recorded reliability summary,
+  not from the paired estimate across cases.
 - **Case disagreement** — the reading a multi-case comparison prints when the
   per-case deltas of one contrast do not share a direction: one case moved up
   and another moved down. It is reported beside the mean because a mean over

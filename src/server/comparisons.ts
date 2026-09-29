@@ -7,7 +7,10 @@ import { reliabilitySummaryNamed } from "#benchmark/confirmation-report";
 import { armPairs, pairKey } from "./comparison-arm-pair";
 import type { ComparisonAttribution } from "./comparison-attribution";
 import { comparisonAttribution } from "./comparison-attribution";
-import type { QualityReading } from "./comparison-quality-reading";
+import type {
+	QualityReading,
+	QualityScale,
+} from "./comparison-quality-reading";
 import { qualityReading } from "./comparison-quality-reading";
 import type { ComparisonAttemptHistoryLinks } from "./comparison-history-links";
 
@@ -25,8 +28,17 @@ export interface ComparisonReportWithAttribution {
 	>;
 }
 
+type AnyComparisonReport = ComparisonReport | LegacyComparisonReport;
+
+function scaleFor(report: AnyComparisonReport, measure: string): QualityScale {
+	return report.mode === "session" || measure === "final"
+		? "successRate"
+		: "letters";
+}
+
 function qualityReadingsByMeasure(
-	benchmarkCase: (ComparisonReport | LegacyComparisonReport)["cases"][number],
+	report: AnyComparisonReport,
+	benchmarkCase: AnyComparisonReport["cases"][number],
 	minuend: ComparisonArm,
 	subtrahend: ComparisonArm,
 	measures: readonly string[],
@@ -45,6 +57,7 @@ function qualityReadingsByMeasure(
 				),
 				minuendArm: minuend,
 				subtrahendArm: subtrahend,
+				scale: scaleFor(report, name),
 			}),
 		]),
 	);
@@ -84,6 +97,7 @@ export function comparisonReport(
 				report.mode,
 			);
 			qualityByPair[pair] = qualityReadingsByMeasure(
+				report,
 				benchmarkCase,
 				minuend,
 				subtrahend,
