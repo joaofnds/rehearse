@@ -1,9 +1,10 @@
 import { describe, expect, it } from "bun:test";
-import { chmod, symlink } from "node:fs/promises";
+import { chmod, mkdir, rm, symlink } from "node:fs/promises";
 import { join } from "node:path";
 import {
 	lstatIfPresent,
 	pathExists,
+	removeUntilAbsent,
 	statIfExists,
 } from "#benchmark/file-presence";
 import { TestResources } from "#benchmark/test-support";
@@ -85,5 +86,45 @@ describe(pathExists.name, () => {
 
 		expect(await pathExists(join(directory, "present.md"))).toBe(true);
 		expect(await pathExists(join(directory, "absent.md"))).toBe(false);
+	});
+});
+
+describe(removeUntilAbsent.name, () => {
+	/**
+	 * Bun's recursive rm can resolve while another rm of the same tree is still
+	 * removing it. A stop that exits once its own rm resolves would then leave
+	 * rep worktrees behind, so each trial races a second remover.
+	 */
+	it("leaves nothing behind when another remover works on the same tree", async () => {
+		const directory = await resources.createControlDirectory();
+		const tree = join(directory, "worktrees");
+		const remaining: number[] = [];
+		for (let trial = 0; trial < 20; trial += 1) {
+			for (const rep of ["rep-1", "rep-2", "rep-3"]) {
+				for (let folder = 0; folder < 10; folder += 1) {
+					await mkdir(join(tree, rep, String(folder)), { recursive: true });
+					for (let file = 0; file < 10; file += 1) {
+						await Bun.write(join(tree, rep, String(folder), String(file)), "x");
+					}
+				}
+			}
+
+			const other = rm(tree, { force: true, recursive: true });
+			await removeUntilAbsent(tree);
+			if (await pathExists(tree)) {
+				remaining.push(trial);
+			}
+			await other;
+		}
+
+		expect(remaining).toEqual([]);
+	});
+
+	it("does nothing for a path that is not there", async () => {
+		const directory = await resources.createControlDirectory();
+
+		await removeUntilAbsent(join(directory, "never-made"));
+
+		expect(await pathExists(join(directory, "never-made"))).toBe(false);
 	});
 });

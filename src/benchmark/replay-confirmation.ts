@@ -3,6 +3,7 @@ import type { ApprovalMethod } from "./config";
 import type { CorpusRoot } from "./corpus-file";
 import type { CorpusMeasurement } from "./corpus-measurement";
 import { cp, mkdir, mkdtemp, rm } from "node:fs/promises";
+import { removeUntilAbsent } from "./file-presence";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import {
@@ -421,7 +422,8 @@ export async function runReplayConfirmation(
 	);
 	const release = dependencies.stopOnSignal(
 		async () => {
-			await rm(worktreesDirectory, { force: true, recursive: true });
+			// The killed reps' own removals may still be at work on this tree.
+			await removeUntilAbsent(worktreesDirectory);
 			await dependencies.pruneWorktrees(frozen.manifest.sourceRoot);
 		},
 		async (signal) => {

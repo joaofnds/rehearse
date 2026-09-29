@@ -2,6 +2,7 @@ import { operatorStopRecord } from "./operator-stop";
 import type { CorpusRoot } from "./corpus-file";
 import type { CorpusMeasurement } from "./corpus-measurement";
 import { mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
+import { removeUntilAbsent } from "./file-presence";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import type { seedTaskBoard } from "./backlog";
@@ -848,7 +849,8 @@ export async function runPipelineConfirmation(
 	);
 	const release = dependencies.stopOnSignal(
 		async () => {
-			await rm(worktreesDirectory, { force: true, recursive: true });
+			// The killed reps' own removals may still be at work on this tree.
+			await removeUntilAbsent(worktreesDirectory);
 			await dependencies.pruneWorktrees(request.source.root);
 		},
 		async (signal) => {

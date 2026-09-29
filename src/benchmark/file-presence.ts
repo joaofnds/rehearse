@@ -1,5 +1,5 @@
 import type { Stats } from "node:fs";
-import { lstat, readdir, stat } from "node:fs/promises";
+import { lstat, readdir, rm, stat } from "node:fs/promises";
 
 /**
  * Only a missing path may read as absent; any other failure (EACCES, EIO) must
@@ -68,6 +68,31 @@ export async function textIfPresent(path: string): Promise<string | undefined> {
 
 export async function pathExists(path: string): Promise<boolean> {
 	return (await statIfExists(path)) !== undefined;
+}
+
+const REMOVAL_PASSES = 10;
+const REMOVAL_BACKOFF_MS = 50;
+
+/**
+ * Removes a tree, and removes again while it is still there. Bun's recursive
+ * rm can resolve while another remover of the same tree is still at work, so
+ * a process that exits once one rm resolves can cut the other short and leave
+ * part of the tree. A pass that runs while the other is still at work
+ * resolves at once too, so each waits longer than the last. The passes are
+ * bounded so a tree that something keeps refilling fails rather than spins.
+ */
+export async function removeUntilAbsent(path: string): Promise<void> {
+	for (let pass = 0; pass < REMOVAL_PASSES; pass += 1) {
+		await rm(path, { force: true, recursive: true });
+		if (!(await pathExists(path))) {
+			return;
+		}
+		await Bun.sleep(REMOVAL_BACKOFF_MS * (pass + 1));
+	}
+
+	throw new Error(
+		`${path} was still there after ${String(REMOVAL_PASSES)} removals`,
+	);
 }
 
 /**
