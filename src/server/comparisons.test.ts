@@ -1147,6 +1147,38 @@ describe("What moved", () => {
 				usd: 9,
 			});
 		});
+
+		it("compares a session's successes against its failures over every combination of attempts", async () => {
+			const fixture = await writtenFixture();
+			await rewriteFixtureAsSession(fixture);
+			const app = createApiApp({
+				runsDirectory: fixture.runsDirectory,
+				liveness: nothingRunning,
+				readCorpusSource: fixedCorpusSource(
+					directorySource(await corpusDirectory()),
+				),
+			});
+
+			const body = await comparisonResponseFrom(
+				await app.request(`/api/comparisons/${fixture.comparisonDigest}`),
+			);
+
+			expect(body.summary["case-1"]).toMatchObject({
+				contrasts: {
+					candidateMinusBaseline: {
+						checks: {
+							combinations: {
+								state: "available",
+								higher: 8,
+								equal: 8,
+								lower: 0,
+								of: 16,
+							},
+						},
+					},
+				},
+			});
+		});
 	});
 
 	it("lists each arm's recorded attempts side by side by ordinal, claiming no pairing between arms", async () => {
