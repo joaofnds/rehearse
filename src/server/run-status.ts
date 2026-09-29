@@ -14,7 +14,8 @@ import {
 	stoppedStage,
 	stoppedStageRecordSchema,
 } from "#benchmark/run-outcome";
-import { stoppedStatus } from "#benchmark/stopped-status";
+import { pausedStatus, stoppedStatus } from "#benchmark/stopped-status";
+import { pausedStage } from "#benchmark/run-pause";
 import type { RunLiveness } from "#benchmark/run-liveness";
 
 /**
@@ -276,6 +277,11 @@ export async function statusAndCaseId(
 	const stopped = await stoppedStage(runsDirectory, run);
 	if (stopped !== undefined) {
 		return manifestBackedIdentity(paths, stoppedStatus(stopped.stage));
+	}
+
+	const paused = await pausedStage(paths);
+	if (paused !== undefined) {
+		return manifestBackedIdentity(paths, pausedStatus(paused));
 	}
 
 	const latest = runEvents.latestEvent(run);

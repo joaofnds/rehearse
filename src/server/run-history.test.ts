@@ -26,6 +26,7 @@ import type { RunLiveness } from "#benchmark/run-liveness";
 import type { JudgeProgress } from "#benchmark/run-events";
 import { openRunEventStore } from "#benchmark/run-events";
 import { writeLaunchRecord } from "#benchmark/launch-record";
+import { recordPaused } from "#benchmark/run-pause";
 import {
 	benchmarkRunPaths,
 	checkpointRecordFile,
@@ -873,6 +874,26 @@ describe(runHistoryReport.name, () => {
 		expect(pipelineRun(rows, fixture.stoppedRun)?.staleness).toMatchObject({
 			state: "unavailable",
 		});
+	});
+
+	it("reports a run the operator paused with PAUSED:<stage> after its process ends", async () => {
+		const fixture = await writtenFixture();
+		await fixture.writeRunningRun();
+		await recordPaused(
+			benchmarkRunPaths(fixture.runsDirectory, fixture.runningRun),
+			"discuss",
+			"2026-09-29T10:05:00.000Z",
+		);
+
+		const { rows } = await runHistoryReport(
+			fixture.runsDirectory,
+			directorySource(await corpusDirectory("build skill\n")),
+			nothingRunning,
+		);
+
+		expect(pipelineRun(rows, fixture.runningRun)?.status).toBe(
+			"PAUSED:discuss",
+		);
 	});
 
 	it("reports a run stopped mid-stage with STOPPED:<stage> and no corpus version when its stage records name none", async () => {

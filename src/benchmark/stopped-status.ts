@@ -18,3 +18,16 @@ export function isStopped(status: string): status is StoppedStatus {
 export function stoppedStageOf(status: StoppedStatus): string {
 	return status.slice(STOPPED_PREFIX.length);
 }
+
+const PAUSED_PREFIX = "PAUSED:";
+
+export type PausedStatus = `${typeof PAUSED_PREFIX}${string}`;
+
+/** A paused run's status, naming the stage it paused after. */
+export function pausedStatus(stage: string): PausedStatus {
+	return `${PAUSED_PREFIX}${stage}`;
+}
+
+export function isPaused(status: string): status is PausedStatus {
+	return status.startsWith(PAUSED_PREFIX);
+}

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "bun:test";
-import { isStopped, stoppedStageOf, stoppedStatus } from "./stopped-status";
+import {
+	isPaused,
+	isStopped,
+	pausedStatus,
+	stoppedStageOf,
+	stoppedStatus,
+} from "./stopped-status";
 
 describe(stoppedStatus.name, () => {
 	it("names the stage a run stopped on after the stopped prefix", () => {
@@ -30,4 +36,11 @@ describe(stoppedStageOf.name, () => {
 			expect(stoppedStageOf(stoppedStatus(stage))).toBe(stage);
 		},
 	);
+});
+
+describe(isPaused.name, () => {
+	it("reads the status pausedStatus writes as paused and a stopped one as not", () => {
+		expect(isPaused(pausedStatus("discuss"))).toBe(true);
+		expect(isPaused(stoppedStatus("discuss"))).toBe(false);
+	});
 });
