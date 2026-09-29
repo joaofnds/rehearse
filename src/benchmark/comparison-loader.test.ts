@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { ZodError } from "zod";
 import { STOPPED_BEFORE_LAST_STAGE_REASON } from "./comparison-report";
 import {
 	chmod,
@@ -117,6 +118,32 @@ describe(loadComparisonEvidence.name, () => {
 			"groups/case-1-candidate-more/reps/case-1-candidate-more-rep-1/rep.json",
 			"groups/case-1-candidate-more/reps/case-1-candidate-more-rep-2/rep.json",
 		]);
+	});
+
+	it.each([
+		{ groups: [1, 1, 0, 0], reading: "out of group order" },
+		{ groups: [0, 0, 1, 2], reading: "naming a group the arm does not list" },
+	])("refuses a report whose arm lists reps $reading", async ({ groups }) => {
+		for (const caseId of fixture.caseIds) {
+			for (const role of COMPARISON_ARMS) {
+				await fixture.addGroup(caseId, role);
+			}
+		}
+		const runsDirectory = join(temporaryDirectory, "misgrouped-output");
+		await mkdir(runsDirectory);
+		const reportFile = await writeComparisonReport({
+			manifestPath: fixture.manifestFile,
+			runsDirectory,
+		});
+		const written = JSON.parse(await Bun.file(reportFile).text());
+		const { reps } = written.cases[0].arms.candidate.source;
+		written.cases[0].arms.candidate.source.reps = reps.map(
+			(rep: object, index: number) => ({ ...rep, group: groups[index] }),
+		);
+
+		const parse = () => parseComparisonReport(JSON.stringify(written));
+
+		expect(parse).toThrow(ZodError);
 	});
 
 	it("reports an arm of two groups as one arm, each attempt numbered within it and naming its group", async () => {
