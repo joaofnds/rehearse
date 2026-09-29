@@ -16,7 +16,13 @@ import {
 	readCaseDeclaration,
 } from "#benchmark/case";
 import { INITIAL_CHECKPOINT_STAGE } from "#benchmark/checkpoint";
-import { refusePipelineUnderLinkedDirectory } from "#benchmark/corpus-source";
+import {
+	CorpusSourceError,
+	linkCorpus,
+	linkedCorpusSource,
+	refusePipelineUnderLinkedDirectory,
+	unlinkCorpus,
+} from "#benchmark/corpus-source";
 import { loadRunManifest } from "#benchmark/manifest";
 import {
 	benchmarkRunPaths,
@@ -30,7 +36,12 @@ import type { RunLiveness } from "#benchmark/run-liveness";
 import { requestPause } from "#benchmark/run-pause";
 import { RefusedPreconditionError } from "#benchmark/exit-codes";
 import type { Settings } from "#benchmark/settings";
-import { readSettings, SET_SPEND_CEILING_COMMAND } from "#benchmark/settings";
+import {
+	readSettings,
+	SET_SPEND_CEILING_COMMAND,
+	storeSpendCeiling,
+} from "#benchmark/settings";
+import { CEILING_OVERRUN_STATEMENT } from "#benchmark/spend-ceiling";
 import { redactAbsolutePaths } from "./redact-path";
 import { runStatus } from "./run-status";
 
@@ -216,6 +227,56 @@ async function asLaunchRefusal<T>(read: () => Promise<T>): Promise<T> {
 	}
 }
 
+const spendCeilingRequestSchema = z
+	.object({ usd: z.number().positive().finite() })
+	.strict();
+
+const corpusLinkRequestSchema = z.object({ directory: z.string() }).strict();
+
+/** A directory that is not a corpus is a conflict with what is on disk. */
+async function linkCorpusDirectory(
+	runsDirectory: string,
+	directory: string,
+): Promise<void> {
+	try {
+		await linkCorpus(runsDirectory, directory);
+	} catch (error) {
+		if (!(error instanceof CorpusSourceError)) {
+			throw error;
+		}
+		throw new LaunchRefusalError(redactAbsolutePaths(error.message), 409);
+	}
+}
+
+/**
+ * What the settings screen and the launch dialog show. The records location
+ * is read, never written: the environment variable that points every command
+ * at it owns it.
+ */
+async function settingsReading(dependencies: LaunchDependencies): Promise<{
+	readonly spendCeilingUsd: number | null;
+	readonly setCommand: string;
+	readonly recordsDirectory: string;
+	readonly linkedCorpus: {
+		readonly kind: "live" | "directory";
+		readonly root: string;
+	};
+	readonly overrun: string;
+}> {
+	const settings = await storedSettings(dependencies.runsDirectory);
+	const linked = await asLaunchRefusal(() =>
+		linkedCorpusSource(dependencies.runsDirectory),
+	);
+
+	return {
+		spendCeilingUsd: settings.spendCeilingUsd ?? null,
+		setCommand: SET_SPEND_CEILING_COMMAND,
+		recordsDirectory: dependencies.runsDirectory,
+		linkedCorpus: { kind: linked.kind, root: linked.root },
+		overrun: CEILING_OVERRUN_STATEMENT,
+	};
+}
+
 /** An unreadable settings file refuses the launch the way no ceiling does. */
 function storedSettings(runsDirectory: string): Promise<Settings> {
 	return asLaunchRefusal(() => readSettings(runsDirectory));
@@ -337,9 +398,8 @@ async function pauseRun(
 export const createLaunchApp = (dependencies: LaunchDependencies) => {
 	const app = new Hono()
 		.get("/api/settings", async (context) => {
-			let settings;
 			try {
-				settings = await storedSettings(dependencies.runsDirectory);
+				return context.json(await settingsReading(dependencies), 200);
 			} catch (error) {
 				if (!(error instanceof LaunchRefusalError)) {
 					throw error;
@@ -347,14 +407,64 @@ export const createLaunchApp = (dependencies: LaunchDependencies) => {
 
 				return context.json({ error: error.message }, error.status);
 			}
-
-			return context.json(
-				{
-					spendCeilingUsd: settings.spendCeilingUsd ?? null,
-					setCommand: SET_SPEND_CEILING_COMMAND,
-				},
-				200,
+		})
+		.put("/api/settings/spend-ceiling", async (context) => {
+			const parsed = spendCeilingRequestSchema.safeParse(
+				await context.req.json().catch(() => undefined),
 			);
+			if (!parsed.success) {
+				return context.json({ error: z.prettifyError(parsed.error) }, 400);
+			}
+			try {
+				await asLaunchRefusal(() =>
+					storeSpendCeiling(dependencies.runsDirectory, parsed.data.usd),
+				);
+
+				return context.json(await settingsReading(dependencies), 200);
+			} catch (error) {
+				if (!(error instanceof LaunchRefusalError)) {
+					throw error;
+				}
+
+				return context.json({ error: error.message }, error.status);
+			}
+		})
+		.put("/api/settings/corpus", async (context) => {
+			const parsed = corpusLinkRequestSchema.safeParse(
+				await context.req.json().catch(() => undefined),
+			);
+			if (!parsed.success) {
+				return context.json({ error: z.prettifyError(parsed.error) }, 400);
+			}
+			try {
+				await asLaunchRefusal(() =>
+					linkCorpusDirectory(
+						dependencies.runsDirectory,
+						parsed.data.directory,
+					),
+				);
+
+				return context.json(await settingsReading(dependencies), 200);
+			} catch (error) {
+				if (!(error instanceof LaunchRefusalError)) {
+					throw error;
+				}
+
+				return context.json({ error: error.message }, error.status);
+			}
+		})
+		.delete("/api/settings/corpus", async (context) => {
+			try {
+				await asLaunchRefusal(() => unlinkCorpus(dependencies.runsDirectory));
+
+				return context.json(await settingsReading(dependencies), 200);
+			} catch (error) {
+				if (!(error instanceof LaunchRefusalError)) {
+					throw error;
+				}
+
+				return context.json({ error: error.message }, error.status);
+			}
 		})
 		.get("/api/cases", async (context) => {
 			const listing = await listCases(dependencies.casesRoot);

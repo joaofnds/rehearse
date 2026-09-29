@@ -8,7 +8,10 @@ import { RecordedRunsFixture } from "#benchmark/run-records-test-support";
 import { benchmarkRunPaths } from "#benchmark/run-layout";
 import type { RunLiveness } from "#benchmark/run-liveness";
 import { pauseRequested } from "#benchmark/run-pause";
+import { CONTROL_DIR, RECORDS_DIRECTORY_VARIABLE } from "#benchmark/config";
+import { liveCorpusSource } from "#benchmark/corpus-file";
 import { linkCorpus } from "#benchmark/corpus-source";
+import { CEILING_OVERRUN_STATEMENT } from "#benchmark/spend-ceiling";
 import {
 	SET_SPEND_CEILING_COMMAND,
 	storeSpendCeiling,
@@ -107,6 +110,11 @@ describe(createLaunchApp.name, () => {
 		readonly get: (path: string) => Promise<Response>;
 		readonly stop: (id: string) => Promise<Response>;
 		readonly pause: (run: string) => Promise<Response>;
+		readonly send: (
+			method: "PUT" | "DELETE" | "POST",
+			path: string,
+			body: unknown,
+		) => Promise<Response>;
 		/** The same records under a new server and launcher, as after a restart. */
 		readonly restarted: () => Promise<Harness>;
 	}
@@ -171,6 +179,14 @@ describe(createLaunchApp.name, () => {
 						method: "POST",
 						headers: { "content-type": "application/json" },
 						body: "{}",
+					}),
+				),
+			send: (method, path, body) =>
+				Promise.resolve(
+					app.request(path, {
+						method,
+						headers: { "content-type": "application/json" },
+						body: JSON.stringify(body),
 					}),
 				),
 			restarted: () => Promise.resolve(serving(runsDirectory, cases, liveness)),
@@ -621,6 +637,132 @@ describe(createLaunchApp.name, () => {
 							"Case broken-case declaration has an invalid kind: Invalid discriminator value. Expected 'pipeline' | 'session'",
 					},
 				],
+			});
+		});
+	});
+
+	describe("when the settings are read and written", () => {
+		const readingSchema = z.object({
+			spendCeilingUsd: z.number().nullable(),
+			recordsDirectory: z.string(),
+			linkedCorpus: z.object({
+				kind: z.enum(["live", "directory"]),
+				root: z.string(),
+			}),
+			overrun: z.string(),
+		});
+
+		async function corpusDirectory(): Promise<string> {
+			const corpus = await temporaryDirectory("rehearse-settings-corpus-");
+			await Bun.write(join(corpus, "CLAUDE.md"), "linked\n");
+
+			return corpus;
+		}
+
+		it("reads the ceiling, the records location, the linked corpus and the overrun", async () => {
+			const { get, runsDirectory } = await harness();
+
+			const response = await get("/api/settings");
+
+			expect(readingSchema.parse(await response.json())).toEqual({
+				spendCeilingUsd: 5,
+				recordsDirectory: runsDirectory,
+				linkedCorpus: { kind: "live", root: liveCorpusSource().root },
+				overrun: CEILING_OVERRUN_STATEMENT,
+			});
+		});
+
+		it("stores a ceiling the server reads back after a restart", async () => {
+			const served = await harness("missing");
+			await served.send("PUT", "/api/settings/spend-ceiling", { usd: 2.5 });
+
+			const response = await (await served.restarted()).get("/api/settings");
+
+			expect(readingSchema.parse(await response.json()).spendCeilingUsd).toBe(
+				2.5,
+			);
+		});
+
+		it("stores a ceiling a new CLI process reads back", async () => {
+			const { send, runsDirectory } = await harness("missing");
+			await send("PUT", "/api/settings/spend-ceiling", { usd: 2.5 });
+
+			const child = Bun.spawn(
+				[
+					process.execPath,
+					join(CONTROL_DIR, "rehearse.ts"),
+					"settings",
+					"--json",
+				],
+				{
+					env: { ...Bun.env, [RECORDS_DIRECTORY_VARIABLE]: runsDirectory },
+					stdout: "pipe",
+				},
+			);
+			const stdout = await new Response(child.stdout).text();
+
+			expect(await child.exited).toBe(0);
+			expect(JSON.parse(stdout)).toMatchObject({ spendCeilingUsd: 2.5 });
+		});
+
+		it("links a corpus directory and reads it back", async () => {
+			const { send, get } = await harness();
+			const corpus = await corpusDirectory();
+
+			const linked = await send("PUT", "/api/settings/corpus", {
+				directory: corpus,
+			});
+
+			expect(linked.status).toBe(200);
+			expect(
+				readingSchema.parse(await (await get("/api/settings")).json())
+					.linkedCorpus,
+			).toEqual({ kind: "directory", root: corpus });
+		});
+
+		it("unlinks the corpus, leaving the live install linked", async () => {
+			const { send, get } = await harness();
+			await send("PUT", "/api/settings/corpus", {
+				directory: await corpusDirectory(),
+			});
+
+			const unlinked = await send("DELETE", "/api/settings/corpus", {});
+
+			expect(unlinked.status).toBe(200);
+			expect(
+				readingSchema.parse(await (await get("/api/settings")).json())
+					.linkedCorpus.kind,
+			).toBe("live");
+		});
+
+		describe("when the written value is refused", () => {
+			it.each([0, -1, "5"])("refuses %p as a ceiling", async (usd) => {
+				const { send, get } = await harness();
+
+				const response = await send("PUT", "/api/settings/spend-ceiling", {
+					usd,
+				});
+
+				expect(response.status).toBe(400);
+				expect(
+					readingSchema.parse(await (await get("/api/settings")).json())
+						.spendCeilingUsd,
+				).toBe(5);
+			});
+
+			it("refuses a directory holding no corpus and keeps the link", async () => {
+				const { send, get } = await harness();
+				const notCorpus = await temporaryDirectory("rehearse-not-corpus-");
+
+				const response = await send("PUT", "/api/settings/corpus", {
+					directory: notCorpus,
+				});
+
+				expect(response.status).toBe(409);
+				expect(
+					readingSchema.parse(await (await get("/api/settings")).json())
+						.linkedCorpus.kind,
+				).toBe("live");
 			});
 		});
 	});

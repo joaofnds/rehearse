@@ -78,3 +78,11 @@ export function repSpendCeilings(props: {
 	return () =>
 		createSpendCeiling({ ceilingUsd: props.spendCeilingUsd, within: group });
 }
+
+/**
+ * The clamp bounds what a session may start, not what a call already in
+ * flight costs when the ceiling is reached, so every surface that states the
+ * ceiling states this beside it.
+ */
+export const CEILING_OVERRUN_STATEMENT =
+	"The ceiling can be overrun by the calls in flight when it is reached: one per running session, so one for a run and one per running attempt for a group.";
