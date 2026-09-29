@@ -204,9 +204,15 @@ async function writeGroup(
 	runsDirectory: string,
 	caseId: string,
 	role: Role,
-	selectVariant?: AttemptVariantSelector,
-	stateCheck?: Immutable<StateCheck>,
-	groupId = `${caseId}-${role}`,
+	{
+		selectVariant,
+		stateCheck,
+		groupId = `${caseId}-${role}`,
+	}: {
+		readonly selectVariant?: AttemptVariantSelector | undefined;
+		readonly stateCheck?: Immutable<StateCheck> | undefined;
+		readonly groupId?: string;
+	} = {},
 ): Promise<string> {
 	const corpus = join(root, "sources", `${caseId}-${role}`);
 	await mkdir(join(corpus, "output-styles"), { recursive: true });
@@ -313,14 +319,10 @@ async function writeManifest(
 			control: "",
 		} satisfies Record<Role, string>;
 		for (const role of roles) {
-			arms[role] = await writeGroup(
-				root,
-				runsDirectory,
-				caseId,
-				role,
+			arms[role] = await writeGroup(root, runsDirectory, caseId, role, {
 				selectVariant,
 				stateCheck,
-			);
+			});
 		}
 		cases.push({ caseId, arms });
 	}
@@ -2295,15 +2297,9 @@ describe(comparisonAttemptHistoryLinks.name, () => {
 		for (const role of roles) {
 			arms[role] = [
 				await writeGroup(root, runsDirectory, "case-one", role),
-				await writeGroup(
-					root,
-					runsDirectory,
-					"case-one",
-					role,
-					undefined,
-					undefined,
-					`case-one-${role}-again`,
-				),
+				await writeGroup(root, runsDirectory, "case-one", role, {
+					groupId: `case-one-${role}-again`,
+				}),
 			];
 		}
 		const manifestPath = join(root, "comparison.json");
