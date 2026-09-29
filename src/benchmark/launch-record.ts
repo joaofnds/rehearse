@@ -25,7 +25,17 @@ const launchCommon = {
 
 const launchRecordSchema = z.discriminatedUnion("kind", [
 	z
-		.object({ ...launchCommon, kind: z.literal("case"), caseId: z.string() })
+		.object({
+			...launchCommon,
+			kind: z.literal("case"),
+			caseId: z.string(),
+			/**
+			 * The declared case's kind, so history can tell whether a stopped
+			 * launch left a run record of its own. A record written before it
+			 * was kept has none.
+			 */
+			caseKind: z.enum(["pipeline", "session"]).optional(),
+		})
 		.strict(),
 	z
 		.object({
