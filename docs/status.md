@@ -195,8 +195,10 @@ browser launch started offers Stop & restore repo; see
 [browser launches](reference.md#browser-launches). A paused run reads
 `PAUSED:<stage>` and cannot be resumed. A run a signal stopped reads
 `OPERATOR_STOPPED`, or `STOPPED:<stage>` when the stage was being judged. A
-stopped replay records no operator stop, and a stopped confirmation group still
-records its reps as failed. Stopped matches only pipeline runs
+stopped confirmation group writes no group record, so its reps never read as
+failed, and a replay, group or session attempt stopped from the browser stays
+listed as an `OPERATOR_STOPPED` launch. One stopped from a terminal leaves no
+row. Stopped matches only pipeline runs
 with a stopped stage. Records that cannot be read are counted by kind in a
 notice above the table, with their ids and reasons behind a toggle. A replay
 keeps no raw transcript, so its page shows an evidence-unavailable summary with

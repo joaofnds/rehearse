@@ -153,7 +153,8 @@ declared cases with their models.
 is alive, and leaves it out while a pipeline run shows as running under that
 pid. A replay, session attempt or group keeps its launch listed until the
 process exits, and a pipeline run's launch is listed again once the run stops
-showing as running, until its process exits.
+showing as running, until its process exits. A launch the operator stopped
+stays listed after its process exits, as described below.
 
 A running row in run history offers Stop & restore repo when a browser launch
 started it, and a running pipeline run's row also offers Pause after this step.
@@ -182,8 +183,18 @@ name, so a run stopped while no stage record exists to carry the stop, during a
 stage's session or between stages, reads `OPERATOR_STOPPED` rather than failed.
 A run stopped while a stage is being judged reads `STOPPED:<stage>`, from that
 stage's stop record, and one stopped after its artifact is pending reads
-`FAILED`. A stopped replay, group or session attempt writes no operator stop:
-its launch keeps `stopRequestedAt`, and its row leaves run history.
+`FAILED`. A confirmation group records the stop before it kills its commands,
+writing `operator-stop.json` in its group directory, and then writes no
+`group.json` or report, so no stopped rep reads as a failed outcome. Its rep
+records stay on disk as the record of what they spent, and run history lists
+the group directory neither as a row nor as unreadable. A stopped replay or
+single session attempt writes no operator stop. A browser launch the operator
+stopped keeps `stopRequestedAt`, and once its process exits its launch row
+stays in run history as `OPERATOR_STOPPED` with no controls. A single pipeline
+case is the exception, since its run's own row reads `OPERATOR_STOPPED`. A case
+launch records its declared case kind to tell the two apart, and a launch
+recorded before the kind was kept is listed. A replay or group stopped from a
+terminal has no launch, so nothing in run history shows its stop.
 
 The child gets the server's environment without the `BENCHMARK_` knobs a case
 declares (case, pipeline, target, model, effort, session budget, judge model
@@ -995,7 +1006,9 @@ attempt that preserved state evidence writes it to `state/` beside that
 Confirmation groups retain frozen inputs, rep records, and `report.json` beside
 `group.json`. Reps run concurrently in separate directories. Reports include
 outcomes, success rates and uncertainty, pass^k, and resource distributions;
-a failed or stopped rep remains part of that evidence. Session reports also
+a failed or stopped rep remains part of that evidence. A group the operator
+stopped writes neither `group.json` nor `report.json`, and keeps its rep
+records; see [browser launches](#browser-launches). Session reports also
 record the model probe and missing provider metrics explicitly.
 
 An attempt's provider metrics retain the CLI's per-model usage block verbatim
