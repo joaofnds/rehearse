@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { z } from "zod";
 import { unhandled } from "./contracts";
 import { writeWhole } from "./corpus-version";
+import { comparisonDigests, comparisonReportPaths } from "./run-layout";
 
 /** Beside a comparison's report, how its baseline arm was derived. */
 const BASELINE_RECORD_FILE = "baseline.json";
@@ -195,4 +196,26 @@ export async function readComparisonBaselineArm(
 		kind: recorded.record.kind,
 		skillUnderTest: recorded.record.skillUnderTest,
 	};
+}
+
+/**
+ * Every saved comparison but those an extension replaced, since the
+ * extension holds all of their attempts and more. A replaced comparison is
+ * kept and still opens by its digest.
+ */
+export async function listedComparisonDigests(
+	runsDirectory: string,
+): Promise<readonly string[]> {
+	const digests = await comparisonDigests(runsDirectory);
+	const extended = new Set<string>();
+	for (const digest of digests) {
+		const recorded = await readComparisonBaselineRecord(
+			comparisonReportPaths(runsDirectory, digest).directory,
+		);
+		if (recorded.kind === "recorded" && recorded.record.extends !== undefined) {
+			extended.add(recorded.record.extends);
+		}
+	}
+
+	return digests.filter((digest) => !extended.has(digest));
 }

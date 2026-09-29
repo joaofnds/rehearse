@@ -13,6 +13,7 @@ import {
 	groupIdFor,
 	moreGroupIdFor,
 } from "./compare-attempts-test-support";
+import { listedComparisonDigests } from "./comparison-baseline-record";
 import { parseComparisonReport } from "./comparison-record";
 import { RefusedPreconditionError } from "./exit-codes";
 import { failureOf } from "#cli/cli-test-support";
@@ -785,5 +786,28 @@ describe(extendComparison.name, () => {
 			);
 			expect(arms.moreRequests).toEqual([]);
 		});
+	});
+});
+
+describe(listedComparisonDigests.name, () => {
+	it("lists an extension in place of the comparison it extends", async () => {
+		const { arms, comparison } = await savedComparison();
+
+		const { reportFile } = await extendComparison(
+			{ runsDirectory: arms.runsDirectory, comparison, attemptsPerArm: 2 },
+			{ approve: approveAny, runArmGroup: arms.runMoreGroup },
+		);
+
+		expect(await listedComparisonDigests(arms.runsDirectory)).toEqual([
+			basename(dirname(reportFile)),
+		]);
+	});
+
+	it("lists a saved comparison nothing extends", async () => {
+		const { arms, comparison } = await savedComparison();
+
+		expect(await listedComparisonDigests(arms.runsDirectory)).toEqual([
+			comparison,
+		]);
 	});
 });

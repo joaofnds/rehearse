@@ -514,6 +514,21 @@ describe(runList.name, () => {
 		]);
 	});
 
+	it("lists an extension in place of the comparison it extends", async () => {
+		const fixture = await writtenFixture();
+		const extension = await fixture.recordExtension();
+		const recorder = recordOutput();
+
+		await runList(
+			{ kind: "comparisons", runsDirectory: fixture.runsDirectory },
+			recorder.output,
+		);
+
+		expect(lines(recorder.stdout)).toEqual([
+			`comparison:${extension}\t2 cases\t4 reps`,
+		]);
+	});
+
 	it.each([1, 2, 3, 4, 5] as const)(
 		"lists and shows a version-%i comparison without changing its bytes",
 		async (version) => {

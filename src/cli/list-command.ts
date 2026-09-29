@@ -8,13 +8,13 @@ import { parseComparisonReport } from "#benchmark/comparison-record";
 import { parseConfirmationGroupRecord } from "#benchmark/confirmation-record";
 import { loadRunManifest } from "#benchmark/manifest";
 import { parseRunSummaryRecord } from "#benchmark/record-summary";
+import { listedComparisonDigests } from "#benchmark/comparison-baseline-record";
 import { readReplayRecord } from "#benchmark/replay";
 import { stoppedStage } from "#benchmark/run-outcome";
 import { stoppedStatus } from "#benchmark/stopped-status";
 import {
 	benchmarkRunPaths,
 	checkpointRecordFile,
-	comparisonDigests,
 	comparisonReportPaths,
 	confirmationGroupIds,
 	confirmationGroupPaths,
@@ -290,7 +290,7 @@ async function listGroups(runsDirectory: string): Promise<RecordListing> {
 }
 
 async function listComparisons(runsDirectory: string): Promise<RecordListing> {
-	const digests = await comparisonDigests(runsDirectory);
+	const digests = await listedComparisonDigests(runsDirectory);
 
 	return collect(
 		digests,

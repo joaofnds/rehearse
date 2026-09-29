@@ -299,6 +299,32 @@ describe("GET /api/comparisons", () => {
 		});
 	});
 
+	it("lists an extension in place of the comparison it extends", async () => {
+		const fixture = await writtenFixture();
+		const extension = await fixture.recordExtension();
+		const app = createApiApp({
+			runsDirectory: fixture.runsDirectory,
+			liveness: nothingRunning,
+			readCorpusSource: fixedCorpusSource(
+				directorySource(await corpusDirectory()),
+			),
+		});
+
+		const response = await app.request("/api/comparisons");
+
+		expect(await response.json()).toEqual({
+			comparisons: [
+				{
+					digest: extension,
+					mode: "pipeline",
+					caseIds: ["case-1", "case-2"],
+					reps: 4,
+				},
+			],
+			unreadable: [],
+		});
+	});
+
 	describe("when a comparison cannot be read", () => {
 		const corruptDigest = "a".repeat(64);
 		const missingReportDigest = "b".repeat(64);

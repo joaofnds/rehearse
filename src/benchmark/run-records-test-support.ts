@@ -51,6 +51,7 @@ import type { SessionAttemptRecord } from "./session-record";
 import { sessionAttemptRecordSchema } from "./session-record";
 import { replayRecordSchema } from "./replay";
 import { CONTROL_DIR } from "./config";
+import { writeComparisonBaselineRecord } from "./comparison-baseline-record";
 import {
 	DEFAULT_STAGE_SETTINGS_FILE,
 	loadStageSettings,
@@ -940,6 +941,35 @@ export class RecordedRunsFixture {
 		);
 
 		return recordFile;
+	}
+
+	/**
+	 * Saves a copy of the comparison as a new one whose baseline record says
+	 * it extends the first, the way `compare extend` names what it replaced.
+	 */
+	public async recordExtension(): Promise<string> {
+		const digest = "e".repeat(64);
+		const extended = comparisonReportPaths(
+			this.runsDirectory,
+			this.comparisonDigest,
+		);
+		const extension = comparisonReportPaths(this.runsDirectory, digest);
+		await mkdir(extension.directory, { recursive: true });
+		await Bun.write(extension.reportFile, Bun.file(extended.reportFile));
+		await writeComparisonBaselineRecord(extension.directory, {
+			schemaVersion: 3,
+			kind: "derived",
+			skillUnderTest: "skills/build/",
+			arms: {
+				baseline: ["group-a", "group-a-more"],
+				candidate: ["group-b", "group-b-more"],
+				control: ["group-c", "group-c-more"],
+			},
+			controlCorpus: "c".repeat(64),
+			extends: this.comparisonDigest,
+		});
+
+		return digest;
 	}
 
 	public async writeGroupReport(groupId: string): Promise<void> {

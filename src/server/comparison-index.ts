@@ -3,10 +3,8 @@ import type {
 	LegacyComparisonReport,
 } from "#benchmark/comparison-record";
 import { parseComparisonReport } from "#benchmark/comparison-record";
-import {
-	comparisonDigests,
-	comparisonReportPaths,
-} from "#benchmark/run-layout";
+import { listedComparisonDigests } from "#benchmark/comparison-baseline-record";
+import { comparisonReportPaths } from "#benchmark/run-layout";
 import { ZodError } from "zod";
 import { redactAbsolutePaths } from "./redact-path";
 
@@ -58,7 +56,7 @@ export async function comparisonIndex(
 	const comparisons: ComparisonIndexEntry[] = [];
 	const unreadable: UnreadableComparison[] = [];
 
-	for (const digest of await comparisonDigests(runsDirectory)) {
+	for (const digest of await listedComparisonDigests(runsDirectory)) {
 		try {
 			comparisons.push(await indexEntry(runsDirectory, digest));
 		} catch (error) {
