@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ReplayCliConfig } from "#benchmark/config";
 import { RefusedPreconditionError } from "#benchmark/exit-codes";
+import { loadRunManifest } from "#benchmark/manifest";
 import { failureOf, recordOutput } from "#cli/cli-test-support";
 import { UsageError } from "#cli/commands";
 import {
@@ -216,6 +217,76 @@ describe(replayBaselineGroup.name, () => {
 		);
 		expect(probed).toBe(false);
 	});
+
+	it.each([
+		{
+			name: "the run's pipeline no longer has the stage",
+			stage: "nowhere",
+			rubric: undefined,
+			message: `the ${RUN} run's pipeline has no nowhere stage, so no rubric can grade a baseline group against arm A`,
+		},
+		{
+			name: "the stage's rubric can no longer be read",
+			stage: "shape",
+			rubric: "rubrics/missing.json",
+			message:
+				"the rubrics/missing.json rubric cannot be read, so a baseline group run now could not be compared with arm A: ",
+		},
+	])(
+		"refuses before probing the model when $name",
+		async ({ stage, rubric, message }) => {
+			const manifestFile = await writeReplayableRunManifest(RUN);
+			manifests.push(manifestFile);
+			if (rubric !== undefined) {
+				const manifest = await loadRunManifest(manifestFile);
+				const replayed = manifest.pipeline.stages.find(
+					({ name }) => name === stage,
+				);
+				if (replayed === undefined) {
+					throw new Error(`Expected the manifest to declare ${stage}`);
+				}
+				const text = await Bun.file(manifestFile).text();
+				await Bun.write(
+					manifestFile,
+					text.replaceAll(`"${replayed.rubric}"`, `"${rubric}"`),
+				);
+			}
+			const { output } = recordOutput();
+			let probed = false;
+
+			const failure = await failureOf(
+				replayBaselineGroup(
+					{ approval: "yes", stdinIsTerminal: false },
+					{
+						output,
+						resolveRunDirectory: () => Promise.resolve(`/runs/${RUN}`),
+						requireSpendCeiling: () => Promise.resolve(100),
+						probeModel: () => {
+							probed = true;
+
+							return Promise.resolve();
+						},
+						execute: () => Promise.reject(new Error("replay must not run")),
+					},
+				)({
+					run: RUN,
+					stage,
+					corpusDirectory: "/runs/baseline-corpora/digest",
+					reps: 3,
+					model: "sonnet",
+					effort: undefined,
+					judgeModel: "opus",
+					judgeEffort: undefined,
+					sessionBudgetUsd: 5,
+					rubricSha256: REPLAYED_STAGE_RUBRIC_SHA256,
+				}),
+			);
+
+			expect(failure).toBeInstanceOf(RefusedPreconditionError);
+			expect(failure.message).toStartWith(message);
+			expect(probed).toBe(false);
+		},
+	);
 
 	it("refuses before probing the model when the environment would set an effort arm A ran without", async () => {
 		manifests.push(await writeReplayableRunManifest(RUN));

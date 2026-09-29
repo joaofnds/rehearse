@@ -108,9 +108,19 @@ async function assertGradesOnArmARubric(
 		({ name }) => name === baseline.stage,
 	);
 	if (stage === undefined) {
-		return;
+		throw new RefusedPreconditionError(
+			`the ${baseline.run} run's pipeline has no ${baseline.stage} stage, so no rubric can grade a baseline group against arm A`,
+		);
 	}
-	const { content } = await loadStageRubric(stage);
+
+	let content: string;
+	try {
+		({ content } = await loadStageRubric(stage));
+	} catch (error) {
+		throw new RefusedPreconditionError(
+			`the ${stage.rubric} rubric cannot be read, so a baseline group run now could not be compared with arm A: ${error instanceof Error ? error.message : String(error)}`,
+		);
+	}
 	if (
 		createHash("sha256").update(content).digest("hex") !== baseline.rubricSha256
 	) {
