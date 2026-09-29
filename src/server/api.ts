@@ -1,8 +1,10 @@
+import { dirname } from "node:path";
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import type { SSEStreamingApi } from "hono/streaming";
 import type { CorpusRoot } from "#benchmark/corpus-file";
 import { displayPath } from "#benchmark/config";
+import { readComparisonBaselineArm } from "#benchmark/comparison-baseline-record";
 import { parseComparisonReport } from "#benchmark/comparison-record";
 import { recordFileFor } from "#cli/show-command";
 import { UsageError } from "#cli/commands";
@@ -343,15 +345,16 @@ export const createApiApp = (dependencies: ApiDependencies) => {
 
 				const report = parseComparisonReport(await Bun.file(file).text());
 
-				return context.json(
-					comparisonReport(
+				return context.json({
+					...comparisonReport(
 						report,
 						await comparisonAttemptHistoryLinks(
 							report,
 							dependencies.runsDirectory,
 						),
 					),
-				);
+					baselineArm: await readComparisonBaselineArm(dirname(file)),
+				});
 			} catch (error) {
 				if (
 					error instanceof UsageError ||

@@ -4,6 +4,7 @@ import { basename, dirname, join, relative } from "node:path";
 import { deriveBaselineCorpus } from "./baseline-corpus";
 import type { Effort } from "./config";
 import type { ConfirmationGroupRecord } from "./confirmation-record";
+import { writeComparisonBaselineRecord } from "./comparison-baseline-record";
 import { writeComparisonReport } from "./comparison-command";
 import { loadComparisonEvidence } from "./comparison-loader";
 import type { ComparisonArm } from "./comparison-record";
@@ -46,8 +47,6 @@ export interface CompareAttemptsDependencies {
 
 const BASELINE_CORPORA_DIRECTORY = "baseline-corpora";
 const MANIFESTS_DIRECTORY = "comparison-manifests";
-/** Beside a comparison's report, how its baseline arm was derived. */
-const BASELINE_RECORD_FILE = "baseline.json";
 
 interface Checkpoint {
 	readonly run: string;
@@ -285,20 +284,13 @@ export async function compareAttempts(
 		),
 		runsDirectory: request.runsDirectory,
 	});
-	await Bun.write(
-		join(dirname(reportFile), BASELINE_RECORD_FILE),
-		`${JSON.stringify(
-			{
-				schemaVersion: 1,
-				kind: baseline.kind,
-				skillUnderTest: baseline.skillUnderTest,
-				arms,
-				baselineCorpus: basename(corpusDirectory),
-			},
-			null,
-			2,
-		)}\n`,
-	);
+	await writeComparisonBaselineRecord(dirname(reportFile), {
+		schemaVersion: 1,
+		kind: baseline.kind,
+		skillUnderTest: baseline.skillUnderTest,
+		arms,
+		baselineCorpus: basename(corpusDirectory),
+	});
 
 	return { reportFile };
 }

@@ -88,6 +88,10 @@ const comparisonResponseSchema = z.object({
 	),
 });
 
+const baselineArmResponseSchema = z.object({
+	baselineArm: z.unknown(),
+});
+
 const comparisonIndexResponseSchema = z.object({
 	comparisons: z.array(z.object({ digest: z.string() })),
 	unreadable: z.array(z.object({ id: z.string(), reason: z.string() })),
@@ -396,6 +400,62 @@ describe("GET /api/comparisons", () => {
 });
 
 describe("GET /api/comparisons/:digest", () => {
+	it("names a manifest-supplied control as supplied, never as the skill under test removed", async () => {
+		const fixture = await writtenFixture();
+		const app = createApiApp({
+			runsDirectory: fixture.runsDirectory,
+			liveness: nothingRunning,
+			readCorpusSource: fixedCorpusSource(
+				directorySource(await corpusDirectory()),
+			),
+		});
+
+		const response = await app.request(
+			`/api/comparisons/${fixture.comparisonDigest}`,
+		);
+
+		expect(baselineArmResponseSchema.parse(await response.json())).toEqual({
+			baselineArm: { kind: "supplied" },
+		});
+	});
+
+	it("names a baseline arm derived from arm A with the skill under test", async () => {
+		const fixture = await writtenFixture();
+		await Bun.write(
+			join(
+				comparisonReportPaths(fixture.runsDirectory, fixture.comparisonDigest)
+					.directory,
+				"baseline.json",
+			),
+			JSON.stringify({
+				schemaVersion: 1,
+				kind: "derived",
+				skillUnderTest: "skills/build/",
+				arms: {
+					baseline: "case-1-a",
+					candidate: "case-1-b",
+					control: "case-1-derived",
+				},
+				baselineCorpus: "0".repeat(64),
+			}),
+		);
+		const app = createApiApp({
+			runsDirectory: fixture.runsDirectory,
+			liveness: nothingRunning,
+			readCorpusSource: fixedCorpusSource(
+				directorySource(await corpusDirectory()),
+			),
+		});
+
+		const response = await app.request(
+			`/api/comparisons/${fixture.comparisonDigest}`,
+		);
+
+		expect(baselineArmResponseSchema.parse(await response.json())).toEqual({
+			baselineArm: { kind: "derived", skillUnderTest: "skills/build/" },
+		});
+	});
+
 	it("renders the recorded report plus attribution for every case and contrast", async () => {
 		const fixture = await writtenFixture();
 		const app = createApiApp({
