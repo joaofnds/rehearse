@@ -110,11 +110,14 @@ describe(removeUntilAbsent.name, () => {
 			}
 
 			const other = rm(tree, { force: true, recursive: true });
-			await removeUntilAbsent(tree);
-			if (await pathExists(tree)) {
-				remaining.push(trial);
+			try {
+				await removeUntilAbsent(tree);
+				if (await pathExists(tree)) {
+					remaining.push(trial);
+				}
+			} finally {
+				await other;
 			}
-			await other;
 		}
 
 		expect(remaining).toEqual([]);
