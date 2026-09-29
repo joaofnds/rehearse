@@ -279,6 +279,11 @@ See [current state](docs/status.md) for implementation coverage and
   The live source's permitted extent is its install root and one backing tree
   declared outside the corpus. A link may resolve within either tree; the
   corpus's own links cannot declare another permitted tree.
+- **Linked corpus**: the corpus source stored in the settings, which every
+  command measures when none is named with `--corpus`. It is either a
+  directory in corpus layout or, when nothing is linked, the live install.
+  A pipeline run reads only the live install and refuses while a directory
+  is linked.
 - **Corpus tier** — stage-local (a skill; testable in stage mode) or global
   (`CLAUDE.md`, doctrine; validated only end-to-end).
 - **Corpus variant** — one corpus a comparison arm runs against, identified by
@@ -373,12 +378,18 @@ See [current state](docs/status.md) for implementation coverage and
 - **Observed delivery** — saved transcript evidence that a Read result or Skill
   companion placed recorded text into session history. An invocation alone is
   not a delivery, and delivery does not show that the model followed the text.
-- **Pause** — the interactive stop a run makes with the candidate still in the
+- **Review pause** — the interactive stop a run makes with the candidate still in the
   target, asking the reviewer to edit files and press Enter until the
   calibration validates. It is requested by `--pause` and needs a TTY, refused
   before any paid work without one. A run without `--pause` never stops: it
   writes the preliminary artifact, retains the candidate, restores the target,
   and exits, leaving the review and the calibration to their own commands.
+- **Pause after step**: the operator's request that a running pipeline run
+  start no further stage once the current one is judged and its checkpoint
+  written. The run then restores the target and ends as **paused**, listed
+  as `PAUSED:<stage>`. A paused run is not resumed. Continuing it is a replay
+  from that checkpoint. Distinct from the review pause, which holds a
+  candidate in the target for a human edit.
 - **Pipeline** — the ordered stages and their judge attachments, declared as
   data. The UI's design calls this a **task** (see [UI vocabulary](docs/design-handoff/README.md)); the word in code,
   records, and this glossary stays pipeline. Graded as a whole, a pipeline's
@@ -488,6 +499,13 @@ See [current state](docs/status.md) for implementation coverage and
   the Product Owner. Only a terminal run event carries it, `run-completed` or a
   `run-failed` with a persisted artifact. Distinct from stage spend and from the
   per-session limit the session knobs set.
+- **Spend ceiling**: the stored USD limit on a run's whole spend, which every
+  paid command requires before it starts. Each session a run starts gets a
+  budget no larger than the ceiling minus the run spend so far, and once the
+  spend reaches it the run stops in the stage where that happened. It can be
+  overrun by the calls in flight when it is reached, one per running session.
+  A confirmation group is held to its attempts times the ceiling. Distinct
+  from the per-session limit the session knobs set.
 - **Stage spend** — what one stage has cost. Every non-terminal run event
   carries a spend figure, and the event's kind decides which stage spend it is:
   `stage-started` reports the stages finished before this one, `turn-completed`
