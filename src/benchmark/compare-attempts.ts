@@ -541,6 +541,12 @@ async function extendedRecord(
 export async function planExtension(
 	request: ExtendComparisonRequest,
 ): Promise<ExtensionPlan> {
+	if (request.attemptsPerArm < 2) {
+		throw new RefusedPreconditionError(
+			"a confirmation group needs at least 2 attempts, so add at least 2 attempts per arm",
+		);
+	}
+
 	const paths = comparisonReportPaths(
 		request.runsDirectory,
 		request.comparison,

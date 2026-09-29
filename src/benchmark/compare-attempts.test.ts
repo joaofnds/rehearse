@@ -748,6 +748,29 @@ describe(extendComparison.name, () => {
 			expect(arms.moreRequests).toEqual([]);
 		});
 
+		it("when one attempt per arm would make groups too small to confirm", async () => {
+			const { arms, comparison } = await savedComparison();
+			const approvals: unknown[] = [];
+
+			const refusal = await refusalOf(
+				extendComparison(
+					{ runsDirectory: arms.runsDirectory, comparison, attemptsPerArm: 1 },
+					{
+						approve: (cost) => {
+							approvals.push(cost);
+							return Promise.resolve();
+						},
+						runArmGroup: arms.runMoreGroup,
+					},
+				),
+			);
+
+			expect(refusal.message).toBe(
+				"a confirmation group needs at least 2 attempts, so add at least 2 attempts per arm",
+			);
+			expect(approvals).toEqual([]);
+		});
+
 		it("when what the added attempts would cost cannot be stated", async () => {
 			const { arms, armA, armB } = await armsDifferingInOneSkill();
 			await arms.loseFirstAttemptMetrics(armA);
