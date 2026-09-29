@@ -19,6 +19,8 @@ const launchCommon = {
 	 */
 	startedAt: z.string().optional(),
 	launchedAt: z.iso.datetime(),
+	/** When the operator asked the launch to stop, recorded before the signal. */
+	stopRequestedAt: z.iso.datetime().optional(),
 };
 
 const launchRecordSchema = z.discriminatedUnion("kind", [
@@ -50,6 +52,10 @@ export async function writeLaunchRecord(
 	await mkdir(directory, { recursive: true });
 	await writeFile(temporary, `${JSON.stringify(record, null, 2)}\n`);
 	await rename(temporary, recordFile);
+}
+
+export function isLaunchId(value: string): boolean {
+	return launchCommon.id.safeParse(value).success;
 }
 
 export async function readLaunchRecord(

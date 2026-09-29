@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
-import { readLaunchRecord } from "#benchmark/launch-record";
+import { readLaunchRecord, writeLaunchRecord } from "#benchmark/launch-record";
 import { RecordedRunsFixture } from "#benchmark/run-records-test-support";
 import { benchmarkRunPaths } from "#benchmark/run-layout";
 import {
@@ -96,6 +96,9 @@ describe(createLaunchApp.name, () => {
 		readonly runsDirectory: string;
 		readonly post: (body: LaunchRequestBody) => Promise<Response>;
 		readonly get: (path: string) => Promise<Response>;
+		readonly stop: (id: string) => Promise<Response>;
+		/** The same records under a new server and launcher, as after a restart. */
+		readonly restarted: () => Promise<Harness>;
 	}
 
 	async function harness(
@@ -105,17 +108,21 @@ describe(createLaunchApp.name, () => {
 		if (ceiling === "stored") {
 			await storeSpendCeiling(runsDirectory, 5);
 		}
-		const launcher = new FakeLauncher();
-		const app = createLaunchApp({
+
+		return serving(
 			runsDirectory,
-			casesRoot: await casesRoot([
+			await casesRoot([
 				PIPELINE_CASE,
 				SESSION_CASE,
 				UNMODELLED_CASE,
 				BROKEN_CASE,
 			]),
-			launcher,
-		});
+		);
+	}
+
+	function serving(runsDirectory: string, cases: string): Harness {
+		const launcher = new FakeLauncher();
+		const app = createLaunchApp({ runsDirectory, casesRoot: cases, launcher });
 
 		return {
 			launcher,
@@ -129,6 +136,15 @@ describe(createLaunchApp.name, () => {
 						body: JSON.stringify(body),
 					}),
 				),
+			stop: (id) =>
+				Promise.resolve(
+					app.request(`/api/launches/${id}/stop`, {
+						method: "POST",
+						headers: { "content-type": "application/json" },
+						body: "{}",
+					}),
+				),
+			restarted: () => Promise.resolve(serving(runsDirectory, cases)),
 		};
 	}
 
@@ -536,6 +552,98 @@ describe(createLaunchApp.name, () => {
 							"Case broken-case declaration has an invalid kind: Invalid discriminator value. Expected 'pipeline' | 'session'",
 					},
 				],
+			});
+		});
+	});
+
+	describe("when a launch is stopped", () => {
+		async function launched(post: Harness["post"]): Promise<string> {
+			const response = await post({
+				kind: "case",
+				caseId: "pipe-case",
+				attempts: 1,
+			});
+
+			return launchedSchema.parse(await response.json()).id;
+		}
+
+		it("signals the launch's process to stop and answers accepted", async () => {
+			const server = await harness();
+			const id = await launched(server.post);
+
+			const response = await server.stop(id);
+
+			expect(response.status).toBe(202);
+			expect(server.launcher.stopped).toEqual([FAKE_LAUNCH_PID]);
+		});
+
+		it("records that the operator asked it to stop", async () => {
+			const server = await harness();
+			const id = await launched(server.post);
+
+			await server.stop(id);
+
+			const record = await readLaunchRecord(server.runsDirectory, id);
+			expect(record.stopRequestedAt).toBeString();
+		});
+
+		it("stops a launch a server started before it restarted", async () => {
+			const server = await harness();
+			const id = await launched(server.post);
+			const restarted = await server.restarted();
+
+			const response = await restarted.stop(id);
+
+			expect(response.status).toBe(202);
+			expect(restarted.launcher.stopped).toEqual([FAKE_LAUNCH_PID]);
+		});
+
+		describe("when its process cannot be told apart from another", () => {
+			it("refuses a launch that was never recorded", async () => {
+				const server = await harness();
+
+				const response = await server.stop(crypto.randomUUID());
+
+				expect(response.status).toBe(404);
+				expect(server.launcher.stopped).toEqual([]);
+			});
+
+			it("refuses a launch whose process has ended", async () => {
+				const server = await harness();
+				const id = await launched(server.post);
+				server.launcher.processes.delete(FAKE_LAUNCH_PID);
+
+				const response = await server.stop(id);
+
+				expect(response.status).toBe(409);
+				expect(server.launcher.stopped).toEqual([]);
+			});
+
+			it("refuses a launch whose pid a later process now holds", async () => {
+				const server = await harness();
+				const id = await launched(server.post);
+				server.launcher.processes.set(
+					FAKE_LAUNCH_PID,
+					"Wed Sep 30 09:00:00 2026",
+				);
+
+				const response = await server.stop(id);
+
+				expect(response.status).toBe(409);
+				expect(server.launcher.stopped).toEqual([]);
+			});
+
+			it("refuses a launch recorded without its start time", async () => {
+				const server = await harness();
+				const id = await launched(server.post);
+				const { startedAt: _startedAt, ...withoutStart } =
+					await readLaunchRecord(server.runsDirectory, id);
+				await writeLaunchRecord(server.runsDirectory, withoutStart);
+
+				const response = await server.stop(id);
+
+				expect(response.status).toBe(409);
+				expect(server.launcher.stopped).toEqual([]);
 			});
 		});
 	});

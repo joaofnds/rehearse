@@ -3,7 +3,9 @@ import { Hono } from "hono";
 import { z } from "zod";
 import type { LaunchRecord } from "#benchmark/launch-record";
 import {
+	isLaunchId,
 	launchAttemptsSchema,
+	readLaunchRecord,
 	writeLaunchRecord,
 } from "#benchmark/launch-record";
 import {
@@ -36,6 +38,7 @@ export interface Launcher {
 		logFile: string,
 	) => Promise<number>;
 	readonly startedAt: (pid: number) => Promise<string | undefined>;
+	readonly stop: (pid: number) => void;
 }
 
 export interface LaunchDependencies {
@@ -239,6 +242,39 @@ function launchRecord(
 }
 
 /**
+ * The launch a stop names, once its process is still the one the launch
+ * started: a pid alone could name a later process the system gave it to.
+ */
+async function runningLaunch(
+	id: string,
+	dependencies: LaunchDependencies,
+): Promise<LaunchRecord> {
+	if (
+		!isLaunchId(id) ||
+		!(await Bun.file(
+			launchPaths(dependencies.runsDirectory, id).recordFile,
+		).exists())
+	) {
+		throw new LaunchRefusalError(`Unknown launch ${id}`, 404);
+	}
+
+	const record = await readLaunchRecord(dependencies.runsDirectory, id);
+	if (record.startedAt === undefined) {
+		throw new LaunchRefusalError(
+			`Launch ${id} was recorded without its process start time, so its pid cannot be told from another process's. Stop it from a terminal.`,
+			409,
+		);
+	}
+	if (
+		(await dependencies.launcher.startedAt(record.pid)) !== record.startedAt
+	) {
+		throw new LaunchRefusalError(`Launch ${id} is no longer running`, 409);
+	}
+
+	return record;
+}
+
+/**
  * Chained from `new Hono()` for the RPC type, as `createApiApp` explains.
  */
 // oxlint-disable-next-line typescript/explicit-function-return-type, typescript/explicit-module-boundary-types
@@ -310,6 +346,25 @@ export const createLaunchApp = (dependencies: LaunchDependencies) => {
 			);
 
 			return context.json({ id }, 202);
+		})
+		.post("/api/launches/:id/stop", async (context) => {
+			let record;
+			try {
+				record = await runningLaunch(context.req.param("id"), dependencies);
+			} catch (error) {
+				if (!(error instanceof LaunchRefusalError)) {
+					throw error;
+				}
+
+				return context.json({ error: error.message }, error.status);
+			}
+			await writeLaunchRecord(dependencies.runsDirectory, {
+				...record,
+				stopRequestedAt: new Date().toISOString(),
+			});
+			dependencies.launcher.stop(record.pid);
+
+			return context.json({ id: record.id }, 202);
 		});
 
 	/** The launch routes' net: an unanticipated failure reaches the browser redacted. */

@@ -13,6 +13,8 @@ import { FakeLauncher } from "./launch-test-support";
 
 const runHistoryResponseSchema = z.object({ rows: z.array(z.unknown()) });
 
+const launchedSchema = z.object({ id: z.string() });
+
 const PORT = 4173;
 const LOOPBACK = { host: `127.0.0.1:${String(PORT)}` };
 
@@ -264,6 +266,25 @@ describe(createAppServer.name, () => {
 
 				expect(response.status).toBe(403);
 				expect(launcher.launches).toEqual([]);
+			});
+
+			it("stops nothing for a foreign Origin", async () => {
+				const { app, launcher } = await appServer();
+				const started = await app.request("/api/launches", {
+					method: "POST",
+					headers: sameOrigin,
+					body: launch,
+				});
+				const { id } = launchedSchema.parse(await started.json());
+
+				const response = await app.request(`/api/launches/${id}/stop`, {
+					method: "POST",
+					headers: { ...sameOrigin, origin: "https://evil.example" },
+					body: "{}",
+				});
+
+				expect(response.status).toBe(403);
+				expect(launcher.stopped).toEqual([]);
 			});
 		});
 	});

@@ -60,5 +60,12 @@ export function processLauncher(
 
 			return table.exitCode === 0 ? table.text().trim() : undefined;
 		},
+		stop: (pid) => {
+			try {
+				process.kill(pid, "SIGTERM");
+			} catch {
+				// It ended between the check and the signal, which is the stop.
+			}
+		},
 	};
 }

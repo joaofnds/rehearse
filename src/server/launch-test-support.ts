@@ -24,7 +24,14 @@ export class FakeLauncher implements Launcher {
 		[FAKE_LAUNCH_PID, FAKE_LAUNCH_STARTED_AT],
 	]);
 
+	/** Each pid signalled to stop, in order. */
+	public readonly stopped: number[] = [];
+
 	public startedAt(pid: number): Promise<string | undefined> {
 		return Promise.resolve(this.processes.get(pid));
+	}
+
+	public stop(pid: number): void {
+		this.stopped.push(pid);
 	}
 }

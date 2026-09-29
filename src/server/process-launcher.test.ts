@@ -148,4 +148,18 @@ describe(processLauncher.name, () => {
 
 		expect(await launcher.startedAt(pid)).toBeUndefined();
 	});
+
+	it("ends a process it is told to stop", async () => {
+		const launcher = processLauncher(["sleep"], {});
+		const pid = await launcher.launch(["5"], await logFile());
+		pids.push(pid);
+
+		launcher.stop(pid);
+
+		expect(
+			await eventually(
+				async () => (await launcher.startedAt(pid)) === undefined,
+			),
+		).toBe(true);
+	});
 });
