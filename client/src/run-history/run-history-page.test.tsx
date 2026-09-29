@@ -10,7 +10,7 @@ import {
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { InferResponseType } from "hono/client";
 import type { apiClient } from "#client/api-client";
-import { stubFetch } from "#client/test-support/fetch-stub";
+import { stubFetch, stubFetchByPath } from "#client/test-support/fetch-stub";
 import {
 	UNREAD_COST_AND_TIME,
 	UNREAD_GROUP_FIGURES,
@@ -1640,7 +1640,9 @@ describe(RunHistoryPage.name, () => {
 	});
 
 	it("opens the launch dialog from New run", async () => {
-		respondingWith({ rows: [], launches: [], unreadable: [] });
+		stubFetchByPath(
+			new Map([["/api/runs", { rows: [], launches: [], unreadable: [] }]]),
+		);
 		renderPage();
 
 		fireEvent.click(await screen.findByRole("button", { name: "New run" }));

@@ -47,6 +47,12 @@ function routes(
 							title: "No model",
 							model: null,
 						},
+						{
+							id: "smoke",
+							kind: "session",
+							title: "Smoke",
+							model: "sonnet",
+						},
 					],
 					unreadable: [],
 				},
@@ -179,7 +185,7 @@ describe(LaunchDialog.name, () => {
 		).toBeInTheDocument();
 	});
 
-	it("posts the chosen case and attempts as JSON when started", async () => {
+	it("posts the first case that declares a model, and the attempts, as JSON when started", async () => {
 		const server = serving();
 		const dialog = await openDialog({ kind: "case" });
 		fireEvent.click(within(dialog).getByRole("button", { name: "×3" }));
@@ -196,6 +202,24 @@ describe(LaunchDialog.name, () => {
 			caseId: "audit-log",
 			attempts: 3,
 		});
+	});
+
+	it("posts the case picked from the list", async () => {
+		const server = serving();
+		const dialog = await openDialog({ kind: "case" });
+		await within(dialog).findByRole("option", { name: "smoke · Smoke" });
+
+		fireEvent.change(within(dialog).getByLabelText("Case"), {
+			target: { value: "smoke" },
+		});
+		fireEvent.click(await startButton());
+
+		await waitFor(() => {
+			expect(server.posted("/api/launches")).toHaveLength(1);
+		});
+		expect(
+			JSON.parse(server.posted("/api/launches")[0]?.body ?? ""),
+		).toMatchObject({ caseId: "smoke" });
 	});
 
 	it("posts the run and stage when replaying a stage", async () => {
@@ -256,6 +280,76 @@ describe(LaunchDialog.name, () => {
 		);
 	});
 
+	describe("when a case cannot be read", () => {
+		it("names the case and why it is not offered", async () => {
+			serving(
+				new Map([
+					[
+						"GET /api/cases",
+						{
+							status: 200,
+							body: {
+								cases: [],
+								unreadable: [
+									{
+										id: "broken-case",
+										reason: "Case broken-case declaration is not valid JSON",
+									},
+								],
+							},
+						},
+					],
+				]),
+			);
+
+			const dialog = await openDialog({ kind: "case" });
+
+			expect(
+				await within(dialog).findByText(
+					"broken-case: Case broken-case declaration is not valid JSON",
+				),
+			).toBeInTheDocument();
+		});
+	});
+
+	describe("when the case list cannot be read", () => {
+		it("says so rather than offering an empty picker", async () => {
+			serving(
+				new Map([
+					[
+						"GET /api/cases",
+						{ status: 500, body: { error: "Cannot list cases" } },
+					],
+				]),
+			);
+
+			const dialog = await openDialog({ kind: "case" });
+
+			expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+				"Cannot list cases",
+			);
+		});
+	});
+
+	describe("when the settings file cannot be read", () => {
+		it("shows the refusal the server gives", async () => {
+			serving(
+				new Map([
+					[
+						"GET /api/settings",
+						{ status: 409, body: { error: "The settings file is not JSON" } },
+					],
+				]),
+			);
+
+			const dialog = await openDialog({ kind: "case" });
+
+			expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+				/^⚠ The settings file is not JSON$/u,
+			);
+		});
+	});
+
 	describe("when no spend ceiling is stored", () => {
 		it("disables start and names the command that sets one", async () => {
 			const server = serving(
@@ -281,6 +375,30 @@ describe(LaunchDialog.name, () => {
 	});
 
 	describe("when the server refuses the launch", () => {
+		it("shows the guard's plain-text refusal as the server sent it", async () => {
+			const server = new FakeServer(routes());
+			server.install();
+			const fakeFetch = globalThis.fetch;
+			globalThis.fetch = Object.assign(
+				(input: string | URL | Request, init?: RequestInit) =>
+					init?.method === "POST"
+						? Promise.resolve(
+								new Response("Forbidden: not a same-origin JSON request", {
+									status: 403,
+								}),
+							)
+						: fakeFetch(input, init),
+				{ preconnect: fetch.preconnect },
+			);
+			const dialog = await openDialog({ kind: "case" });
+
+			fireEvent.click(await startButton());
+
+			expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+				"Forbidden: not a same-origin JSON request",
+			);
+		});
+
 		it("keeps the dialog open and shows the refusal", async () => {
 			serving(
 				new Map([

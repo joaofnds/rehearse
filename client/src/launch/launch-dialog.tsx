@@ -26,9 +26,9 @@ export type LaunchTarget =
 	| { readonly kind: "case" }
 	| { readonly kind: "replay"; readonly run: string; readonly stage: string };
 
-type CaseListing = InferResponseType<
-	typeof launchClient.api.cases.$get
->["cases"][number];
+type CasesResponse = InferResponseType<typeof launchClient.api.cases.$get>;
+
+type CaseListing = CasesResponse["cases"][number];
 
 class LaunchRefusedError extends Error {
 	public override name = "LaunchRefusedError";
@@ -69,11 +69,13 @@ async function fetchSettings(): Promise<
 	return response.json();
 }
 
-async function fetchCases(): Promise<readonly CaseListing[]> {
+async function fetchCases(): Promise<CasesResponse> {
 	const response = await launchClient.api.cases.$get();
-	const listing = await response.json();
+	if (!response.ok) {
+		throw new LaunchRefusedError(await response.text());
+	}
 
-	return listing.cases;
+	return response.json();
 }
 
 function attemptsLabel(attempts: LaunchAttempts): string {
@@ -149,6 +151,42 @@ function CasePicker({
 	);
 }
 
+/** Why the picker offers fewer cases than are declared, if it does. */
+function CaseListProblems({
+	failure,
+	listing,
+}: {
+	readonly failure: string | undefined;
+	readonly listing:
+		| {
+				readonly unreadable: readonly {
+					readonly id: string;
+					readonly reason: string;
+				}[];
+		  }
+		| undefined;
+}): React.JSX.Element | null {
+	if (failure !== undefined) {
+		return (
+			<p role="alert" className="text-sm text-secondary-foreground">
+				<span aria-hidden="true">⚠ </span>
+				{failure}
+			</p>
+		);
+	}
+	const unreadable = listing?.unreadable ?? [];
+	if (unreadable.length === 0) {
+		return null;
+	}
+
+	return (
+		<Notice
+			message="These cases cannot be read, so they are not offered:"
+			items={unreadable.map(({ id, reason }) => `${id}: ${reason}`)}
+		/>
+	);
+}
+
 function launchRequest(
 	target: LaunchTarget,
 	caseId: string | undefined,
@@ -196,7 +234,7 @@ function LaunchForm({
 	});
 
 	const caseId =
-		pickedCase ?? cases.data?.find((listed) => listed.model !== null)?.id;
+		pickedCase ?? cases.data?.cases.find((listed) => listed.model !== null)?.id;
 	const request = launchRequest(target, caseId, attempts);
 	const ceilingUsd = settings.data?.spendCeilingUsd ?? undefined;
 	const startable =
@@ -228,7 +266,7 @@ function LaunchForm({
 							</dt>
 							<dd className="col-span-3">
 								<CasePicker
-									cases={cases.data ?? []}
+									cases={cases.data?.cases ?? []}
 									selected={caseId}
 									onSelect={setPickedCase}
 								/>
@@ -266,6 +304,7 @@ function LaunchForm({
 					</dd>
 				</dl>
 
+				<CaseListProblems failure={cases.error?.message} listing={cases.data} />
 				{settings.data !== undefined && ceilingUsd === undefined ? (
 					<Notice
 						message="No spend ceiling is stored, and nothing starts without one. Set it in a terminal with:"
