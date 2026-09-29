@@ -89,7 +89,10 @@ probe allowance. Calibration rejudges are additional calls.
 ### Spend ceiling
 
 `settings --spend-ceiling-usd <USD>` stores the ceiling in `settings.json` in
-the records directory; `settings` alone shows it and the records location.
+the records directory; `settings` alone shows it, the records location and the
+linked corpus. The browser stores the same ceiling through
+`PUT /api/settings/spend-ceiling` and the launch dialog's spend field, so a
+ceiling written in either place is the one every later command reads.
 Pipeline and session `run`, `replay`, every `--confirm` group, and `calibrate`
 refuse with exit code 3 and name that command when no ceiling is stored. The
 refusal comes after the terminal checks and before the model probe, so it
@@ -150,9 +153,23 @@ recorded run's manifest does not parse, or the checkpoint a replayed stage
 starts from is not on disk. A case that declares no model is refused 409,
 because the browser has no terminal to pick one on. It answers 404 for a case
 with no declaration and for an unknown run or stage, and 400 for a malformed
-body or attempts other than 1, 3, 6 or 12. `GET /api/settings` returns
-the stored ceiling and the command that sets it, and `GET /api/cases` lists the
-declared cases with their models.
+body or attempts other than 1, 3, 6 or 12. A pipeline case is refused 409
+while a corpus directory is linked, as `run` refuses it. `GET /api/cases` lists
+the declared cases with their models.
+
+`GET /api/settings` returns the stored ceiling or `null`, the command that
+sets it, the records location, the linked corpus as `kind` (`live` or
+`directory`) and `root`, and the statement that calls in flight can overrun the
+ceiling. The records location is read-only there, because
+`REHEARSE_RECORDS_DIR` in the server's environment chooses it.
+`PUT /api/settings/spend-ceiling` with `{ "usd": <number> }` stores a positive
+ceiling and answers 400 for anything else. `PUT /api/settings/corpus` with
+`{ "directory": <path> }` links a directory in corpus layout and answers 409
+for one that is not, and `DELETE /api/settings/corpus` unlinks it. These three
+answer the new settings. `POST /api/settings/corpus/rehash` measures the linked
+corpus now, recording its version, and answers `{ label, digest }`, or 409
+naming why the layout cannot be measured. An unreadable settings file makes
+every settings route answer 409.
 
 `/api/runs` lists each launch in `launches`, apart from `rows`, while its pid
 is alive, and leaves it out while a pipeline run shows as running under that
@@ -207,7 +224,7 @@ its stop.
 The child gets the server's environment without the `BENCHMARK_` knobs a case
 declares (case, pipeline, target, model, effort, session budget, judge model
 and effort, minimum grade), so a launch runs the case as declared. No launch
-passes `--corpus`, so every launch measures the live corpus.
+passes `--corpus`, so every launch measures the linked corpus.
 
 Every request whose `Host` is not `127.0.0.1:<port>` or `localhost:<port>`
 gets 403. Every request other than GET or HEAD also needs an `Origin` of
@@ -554,7 +571,18 @@ agents/<name>.md
 rulebook/...
 ```
 
-Absent `--corpus`, the live source permits files under `~/.claude` and one
+Absent `--corpus`, a command reads the linked corpus. `settings --link-corpus
+<dir>` (or `PUT /api/settings/corpus`) stores a directory in corpus layout as
+`linkedCorpusDirectory` in `settings.json`, and `settings --unlink-corpus` (or
+`DELETE /api/settings/corpus`) removes it. Replay, session attempts, `stale`,
+calibration, the corpus commands and the browser's corpus and run reads then
+treat the linked directory as if it were passed with `--corpus`, re-checking it
+on every read. A pipeline `run` refuses before the model probe while a
+directory is linked, naming the command that unlinks it, because a pipeline run
+measures only the live install. With nothing linked, the corpus is the live
+install.
+
+The live source permits files under `~/.claude` and one
 external backing tree. `BENCHMARK_LIVE_CORPUS_BACKING_ROOT` selects that tree
 and defaults to `~/.agents`. An override replaces the default and must be a
 non-empty absolute path without NUL bytes. A missing backing tree grants no

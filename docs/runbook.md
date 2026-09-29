@@ -195,6 +195,24 @@ server. See [corpus sources and delivery](reference.md#corpus-sources-and-delive
 for the permitted paths, supported execution modes, and remaining containment
 limits.
 
+## Measure a corpus directory by default
+
+To have every command that is not given `--corpus` read a corpus directory
+instead of the live install, link it once. This costs nothing:
+
+```sh
+mise exec -- bun run rehearse settings --link-corpus /absolute/path/to/corpus
+```
+
+`settings` then names the linked directory, and replay, session attempts,
+`stale`, the corpus commands and the browser read it. A pipeline `run` refuses
+while a directory is linked, because it measures only the live install, and
+names the command that returns to the live install:
+
+```sh
+mise exec -- bun run rehearse settings --unlink-corpus
+```
+
 ## Use a pipeline on a prepared target
 
 The bundled [audit-log case](../cases/audit-log/case.json) describes a NestJS
@@ -298,9 +316,11 @@ local records and the live corpus. It has no authentication and binds to
 
 New run on the run history page starts a case, and Replay from here on a
 pipeline stage's page replays that stage. Both cost money. The dialog picks one,
-three, six or twelve attempts and states the stored spend ceiling that will hold
-them; store one first with `settings --spend-ceiling-usd <USD>`, since Start
-stays disabled without it. The run keeps going if you stop the server, and its
+three, six or twelve attempts, and its spend field shows the stored spend
+ceiling that will hold them. Start stays disabled until a ceiling is stored, so
+enter one there and press Store ceiling, or store it with
+`settings --spend-ceiling-usd <USD>`. Either way it becomes the ceiling every
+later command reads. The run keeps going if you stop the server, and its
 output goes to `launches/<id>.log` in the records directory. While it runs,
 its row in run history offers Stop & restore repo, which ends it and restores
 the target as Ctrl-C would, also after a server restart. A stopped launch stays

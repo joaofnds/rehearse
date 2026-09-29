@@ -162,7 +162,11 @@ records a terminal launch does, and the child keeps running when the server
 stops. A stop signals the recorded pid, once its start time still matches, and
 leaves the stop to the CLI's own signal handling. A pause writes a request file
 the run reads between stages, so neither control needs the server to hold the
-process. A request guard in front of every route admits only a loopback `Host`
+process. The settings routes write `settings.json` in the records directory,
+the file the CLI reads, so the server holds no settings of its own. The read
+routes resolve the linked corpus on every request rather than once at startup,
+so linking or unlinking a directory changes the next read without a restart.
+A request guard in front of every route admits only a loopback `Host`
 and, for a write, a same-origin JSON request, since the server has no
 authentication and a page on another origin can otherwise post to it. The
 guard reads headers any local program can set, so it stops other web pages,

@@ -121,6 +121,10 @@ case present, but no browser check has been run over it.
   has no judgment.
 - **Pipeline `run --corpus` is refused.** Replay supports explicit corpus
   directories, but the forward pipeline command does not yet use that path.
+  A pipeline `run`, and a pipeline case launched from the browser, is refused
+  the same way while a corpus directory is linked, naming the command that
+  unlinks it, so it never measures the live install in the linked
+  directory's place.
 - **Several cases depend on private inputs.** `brief-reply-*` need transcript
   prefixes that are ignored rather than published; `smoke` and `history-probe`
   need an output style; doctrine examples need installed corpus files. `manifest-probe` carries
@@ -231,8 +235,11 @@ New run on run history and Replay from here on a pipeline stage's page open
 the run-launch dialog, which starts a case or replays a stage as one attempt or
 a group of three, six or twelve under the stored spend ceiling. The launch shows
 in run history as running until its process exits or its pipeline run shows
-as running. The dialog shows the
-ceiling but cannot change it, and it has no projected cost. Full run detail,
+as running. The dialog's spend
+field stores the ceiling itself, which every later launch and CLI command then
+holds to, and the dialog has no projected cost. The settings API reads and
+writes the ceiling and the linked corpus, but no settings screen or first-run
+setup shows them yet. Full run detail,
 task/case management, calibration screens, settings, and first-run setup are
 design targets. The rail marks Live monitor,
 Run detail, Tasks, Cases, Calibration and Settings planned rather
