@@ -102,7 +102,10 @@ next paid call is refused. When a stage's session or stage Judge is refused,
 or fails after its spend reached the ceiling, a pipeline run stops in that
 stage, writes the stage's stopped record with `ceilingStop` carrying the
 ceiling and the spend, restores the target, and starts no later session. A
-refused final Judge or calibration rejudge fails the run without a
+stage Judge's stopped record keeps the attempts it paid for before the stop.
+A final Judge refused, or halted after its spend reached the ceiling, fails
+the run with a failed run record carrying `ceilingStop` and every Judge call
+it paid for. A refused calibration rejudge fails the run without a
 `ceilingStop` record. A session
 attempt's budget is clamped to the ceiling, and its record keeps the clamped
 value as `sessionBudgetUsd`.
