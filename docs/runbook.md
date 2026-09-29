@@ -176,17 +176,22 @@ mise exec -- bun run rehearse compare attempts --arm-a <group-a> --arm-b <group-
 The two corpora must differ in one skill, the one the stage loads, and nothing
 else. Run history's Compare these attempts starts the same command.
 
-A reading that stays inside rerun noise may need more attempts. Add as many to
-every arm of a comparison `compare attempts` saved; the command states the cost
-from each arm's recorded cost per attempt and asks before it replays anything:
+A reading that stays inside rerun noise may need more attempts. Add N attempts,
+at least 2, to every arm of a comparison `compare attempts` saved. Pass the
+comparison as `list comparisons` names it now, since extending one that was
+already extended writes a second extension beside the first, each without the
+other's attempts (ACT-374). The command states the cost from each arm's recorded
+cost per attempt, not counting each replay's model probe, and asks before it
+replays anything:
 
 ```sh
-mise exec -- bun run rehearse compare extend --comparison <comparison-digest> --attempts 4
+mise exec -- bun run rehearse compare extend --comparison comparison:<manifest-sha256> --attempts 4
 ```
 
 It writes a new comparison holding every earlier and added attempt, and
 `list comparisons` shows it in place of the one it extends. The comparison
-page's Add attempts button starts the same command.
+page's Add N attempts to each arm button offers arm A's own attempt count and
+opens a launch dialog that starts the same command.
 
 ## Inspect staleness
 
