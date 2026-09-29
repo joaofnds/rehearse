@@ -519,6 +519,11 @@ See [current state](docs/status.md) for implementation coverage and
 - **Group ceiling**: the spend a confirmation group may reach, its attempts
   times the spend ceiling. The group stops starting sessions once its spend
   reaches it.
+- **Budget halt**: the provider ending a session because its spend reached
+  the session budget passed to it. The envelope marks it an error, states the
+  cap in its errors, writes no result and reports what it spent, so the
+  attempt is recorded as failed rather than as No reply. Distinct from a
+  ceiling stop, which the harness makes.
 - **Stage spend** — what one stage has cost. Every non-terminal run event
   carries a spend figure, and the event's kind decides which stage spend it is:
   `stage-started` reports the stages finished before this one, `turn-completed`
