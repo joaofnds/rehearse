@@ -1426,6 +1426,34 @@ export class RecordedRunsFixture {
 		store.close();
 	}
 
+	/**
+	 * A run in flight whose manifest records the ceiling it started under and
+	 * whose latest event carries the run spend charged so far.
+	 */
+	public async writeRunningRunUnderCeiling(props: {
+		readonly runSpentUsd: number;
+		readonly spendCeilingUsd: number;
+	}): Promise<void> {
+		const paths = benchmarkRunPaths(this.runsDirectory, this.runningRun);
+		await mkdir(paths.checkpointsDirectory, { recursive: true });
+		await writeRunManifest(paths.manifestFile, {
+			...manifest(this.runningRun, this.sourceRoot),
+			spendCeilingUsd: props.spendCeilingUsd,
+		});
+		const store = await openRunEventStore(
+			runEventsDatabaseFile(this.runsDirectory),
+		);
+		store.append({
+			runId: this.runningRun,
+			kind: "turn-completed",
+			stage: "build",
+			spentUsd: 0.9,
+			runSpentUsd: props.runSpentUsd,
+			elapsedMs: 9000,
+		});
+		store.close();
+	}
+
 	/** A progress reading from the running run's stage judge, its latest event. */
 	public async appendRunningJudgeProgress(
 		judge: JudgeProgress,

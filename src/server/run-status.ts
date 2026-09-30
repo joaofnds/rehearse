@@ -59,6 +59,11 @@ type SpendScope = (typeof SPEND_SCOPE)[keyof typeof SPEND_SCOPE];
  * `judge` is the stage judge's latest progress reading, present only while
  * that reading is the run's latest event: how many of each rubric section's
  * items are back, or the attempt it rejected, before the stage grade exists.
+ *
+ * `runSpentUsd` is what the run's ceiling had charged at its latest event,
+ * and `ceilingUsd` the ceiling its manifest says it started under, which a
+ * later change to the stored ceiling does not move. Either is undefined for a
+ * run recorded before it existed.
  */
 export type RunProgress =
 	| { readonly state: "recorded" }
@@ -69,6 +74,8 @@ export type RunProgress =
 			readonly measuredAt: string;
 			readonly spentUsd: number;
 			readonly spendScope: SpendScope;
+			readonly runSpentUsd: number | undefined;
+			readonly ceilingUsd: number | undefined;
 			readonly judge?: JudgeProgress;
 	  };
 
@@ -145,7 +152,10 @@ async function manifestBackedIdentity(
 		status,
 		caseId: manifest.caseId,
 		gradeByStage: new Map(),
-		progress,
+		progress:
+			progress.state === "running"
+				? { ...progress, ceilingUsd: manifest.spendCeilingUsd }
+				: progress,
 		links: [],
 	};
 }
@@ -190,6 +200,8 @@ function runningProgress(
 		measuredAt: latest.recordedAt,
 		spentUsd: latest.spentUsd,
 		spendScope,
+		runSpentUsd: latest.runSpentUsd,
+		ceilingUsd: undefined,
 	};
 	if (latest.kind !== "judge-progress") {
 		return progress;

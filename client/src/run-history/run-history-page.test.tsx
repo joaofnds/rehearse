@@ -758,6 +758,8 @@ describe(RunHistoryPage.name, () => {
 					measuredAt: new Date().toISOString(),
 					spentUsd: 0.9,
 					spendScope: "this stage's session so far",
+					runSpentUsd: undefined,
+					ceilingUsd: undefined,
 				},
 			};
 		}
@@ -849,6 +851,8 @@ describe(RunHistoryPage.name, () => {
 								measuredAt: new Date().toISOString(),
 								spentUsd: 2.5,
 								spendScope: "this stage's session and its judge",
+								runSpentUsd: undefined,
+								ceilingUsd: undefined,
 							},
 						},
 					],
@@ -895,6 +899,8 @@ describe(RunHistoryPage.name, () => {
 							measuredAt: new Date(Date.now() - 52_000).toISOString(),
 							spentUsd: 0.9,
 							spendScope: "this stage's session so far",
+							runSpentUsd: undefined,
+							ceilingUsd: undefined,
 						},
 					},
 				],
@@ -1622,6 +1628,8 @@ describe(RunHistoryPage.name, () => {
 						measuredAt: new Date().toISOString(),
 						spentUsd: 0.9,
 						spendScope: "this stage's session so far",
+						runSpentUsd: undefined,
+						ceilingUsd: undefined,
 					},
 				},
 				{

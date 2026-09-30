@@ -508,6 +508,27 @@ describe(runHistoryReport.name, () => {
 		});
 	});
 
+	it("carries the run spend charged so far against the ceiling the run started under", async () => {
+		const fixture = await writtenFixture();
+		await fixture.writeRunningRunUnderCeiling({
+			runSpentUsd: 2.4,
+			spendCeilingUsd: 10,
+		});
+
+		const { rows } = await runHistoryReport(
+			fixture.runsDirectory,
+			directorySource(await corpusDirectory("build skill\n")),
+			liveness(true),
+		);
+
+		const row = pipelineRun(rows, fixture.runningRun);
+		expect(row?.progress).toMatchObject({
+			state: "running",
+			runSpentUsd: 2.4,
+			ceilingUsd: 10,
+		});
+	});
+
 	it("reports per rubric section how many of a judging stage's items are back, before its grade exists", async () => {
 		const fixture = await writtenFixture();
 		await fixture.writeRunningRun("stage-judging", "build", 0.9, 9000);
