@@ -375,9 +375,13 @@ describe("/monitor stage selection", () => {
 		);
 	}
 
-	it("names the running stage in the session and judge panes when no stage is selected", async () => {
+	it("marks the running stage and names it in the session and judge panes when no stage is selected", async () => {
 		renderMonitor(runRow({ run: RUN, stage: "build" }));
+		const graph = await screen.findByRole("region", { name: "Task graph" });
 
+		expect(
+			within(graph).getByRole("button", { current: "step" }),
+		).toHaveTextContent("build");
 		expect(await paneTitles()).toEqual(["Step 2 · build", "Judge · step 2"]);
 	});
 

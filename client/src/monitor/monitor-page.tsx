@@ -82,7 +82,7 @@ function RunMonitor({ row }: { readonly row: PipelineRow }): React.JSX.Element {
 					<TaskGraph
 						record={query.data}
 						row={row}
-						shown={selected}
+						shown={shown?.stage}
 						onSelect={setSelected}
 					/>
 					{shown === undefined ? null : (
