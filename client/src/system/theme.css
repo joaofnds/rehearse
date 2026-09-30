@@ -77,6 +77,7 @@
 	--color-deep: var(--color-accent-deep);
 	--color-deeper: var(--color-accent-deep-2);
 	--color-selected: var(--color-accent-tint-16);
+	--color-pressed: var(--color-accent-tint-24);
 	--color-raised: var(--color-surface-2);
 	--color-row-hover: var(--color-row-hover);
 	--color-divider: var(--color-border);

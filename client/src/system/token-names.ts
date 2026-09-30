@@ -22,6 +22,7 @@ export const COLOR_TOKENS = [
 	"--color-accent-pale",
 	"--color-accent-deep",
 	"--color-accent-deep-2",
+	"--color-accent-tint-24",
 	"--color-accent-tint-16",
 	"--color-accent-tint-14",
 	"--color-accent-tint-10",

@@ -86,4 +86,15 @@ describe(Button.name, () => {
 		expect(button).toHaveClass("rounded-tight");
 		expect(button).not.toHaveClass("rounded-md");
 	});
+
+	it.each(["default", "outline", "quiet", "strong"] as const)(
+		"tints the %s variant while pressed at the design's pressed tint",
+		(variant) => {
+			render(<Button variant={variant}>replay</Button>);
+
+			expect(screen.getByRole("button", { name: "replay" })).toHaveClass(
+				"active:bg-pressed",
+			);
+		},
+	);
 });

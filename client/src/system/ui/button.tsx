@@ -9,13 +9,13 @@ const buttonVariants = cva(
 	{
 		variants: {
 			variant: {
-				default: "border-primary text-pale hover:bg-accent active:bg-selected",
+				default: "border-primary text-pale hover:bg-accent active:bg-pressed",
 				outline:
-					"border-strong text-foreground hover:border-primary hover:bg-accent active:bg-selected",
+					"border-strong text-foreground hover:border-primary hover:bg-accent active:bg-pressed",
 				quiet:
-					"border-strong text-secondary-foreground hover:border-primary hover:bg-accent active:bg-selected",
+					"border-strong text-secondary-foreground hover:border-primary hover:bg-accent active:bg-pressed",
 				strong:
-					"border-stronger text-bright hover:border-primary hover:bg-accent active:bg-selected",
+					"border-stronger text-bright hover:border-primary hover:bg-accent active:bg-pressed",
 				ghost: "border-transparent hover:bg-accent",
 				link: "border-transparent text-accent-foreground underline-offset-4 hover:underline",
 			},
