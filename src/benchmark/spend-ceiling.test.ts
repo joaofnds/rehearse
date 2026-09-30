@@ -1,9 +1,26 @@
 import { describe, expect, it } from "bun:test";
+import type { ClaudeCallMetrics } from "./contracts";
 import {
 	createSpendCeiling,
 	repSpendCeilings,
 	SpendCeilingReachedError,
 } from "./spend-ceiling";
+
+function callTokens(tokens: {
+	readonly input: number;
+	readonly cacheRead: number;
+	readonly cacheWrite: number;
+	readonly output: number;
+}): ClaudeCallMetrics {
+	return {
+		costUsd: 0,
+		inputTokens: tokens.input,
+		cacheReadTokens: tokens.cacheRead,
+		cacheWriteTokens: tokens.cacheWrite,
+		outputTokens: tokens.output,
+		turns: 1,
+	};
+}
 
 function reachedError(action: () => number): SpendCeilingReachedError {
 	try {
@@ -40,6 +57,22 @@ describe(createSpendCeiling.name, () => {
 		ceiling.charge(0.5);
 
 		expect(ceiling.spentUsd()).toBe(0.75);
+	});
+
+	it("tallies the tokens of the calls it is charged for, cache reads and writes counted in", () => {
+		const ceiling = createSpendCeiling({ ceilingUsd: 1 });
+
+		ceiling.charge(
+			0.25,
+			callTokens({ input: 100, cacheRead: 20, cacheWrite: 3, output: 40 }),
+		);
+		ceiling.charge(
+			0.5,
+			callTokens({ input: 10, cacheRead: 0, cacheWrite: 0, output: 5 }),
+		);
+		ceiling.charge(0.1);
+
+		expect(ceiling.tokens()).toEqual({ input: 133, output: 45 });
 	});
 
 	describe("when the spend has reached the ceiling", () => {

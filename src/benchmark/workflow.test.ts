@@ -727,6 +727,14 @@ describe("the spend ceiling", () => {
 		}),
 	};
 
+	/** 100 input, 20 cache read and 13 cache write tokens in, 45 out. */
+	const CALL_USAGE = {
+		input_tokens: 100,
+		cache_read_input_tokens: 20,
+		cache_creation_input_tokens: 13,
+		output_tokens: 45,
+	};
+
 	function stageResult(totalCostUsd: number): string {
 		return JSON.stringify({
 			type: "result",
@@ -809,6 +817,44 @@ describe("the spend ceiling", () => {
 		);
 
 		expect(spendCeiling.spentUsd()).toBeCloseTo(0.5);
+	});
+
+	it("tallies on the ceiling the tokens each worker turn used", async () => {
+		const spendCeiling = createSpendCeiling({ ceilingUsd: 10 });
+
+		await runWorkflowStage(stageRequest(spendCeiling), () =>
+			Promise.resolve(
+				JSON.stringify({
+					type: "result",
+					session_id: "worker-session",
+					total_cost_usd: 0.3,
+					num_turns: 1,
+					usage: CALL_USAGE,
+					structured_output: { status: "COMPLETE", message: "Shaped" },
+				}),
+			),
+		);
+
+		expect(spendCeiling.tokens()).toEqual({ input: 133, output: 45 });
+	});
+
+	it("tallies on the ceiling the tokens each Product Owner call used", async () => {
+		const spendCeiling = createSpendCeiling({ ceilingUsd: 10 });
+		const productOwner = productOwnerFor(spendCeiling, () =>
+			Promise.resolve(
+				JSON.stringify({
+					session_id: "po-session",
+					total_cost_usd: 0.2,
+					num_turns: 1,
+					usage: CALL_USAGE,
+					structured_output: { answer: "Use the small scope" },
+				}),
+			),
+		);
+
+		await productOwner.ask("shape", "Which scope?");
+
+		expect(spendCeiling.tokens()).toEqual({ input: 133, output: 45 });
 	});
 
 	it("starts a Product Owner call with no more budget than the ceiling left", async () => {

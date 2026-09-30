@@ -1,3 +1,5 @@
+import type { ClaudeCallMetrics } from "./contracts";
+
 export class SpendCeilingReachedError extends Error {
 	public readonly ceilingUsd: number;
 	public readonly spentUsd: number;
@@ -24,13 +26,25 @@ export class SpendCeilingReachedError extends Error {
 export interface SpendCeiling {
 	readonly ceilingUsd: number;
 	readonly spentUsd: () => number;
+	/** The tokens of the calls charged so far, those reporting their usage. */
+	readonly tokens: () => RunTokens;
 	readonly budgetFor: (sessionBudgetUsd: number) => number;
-	readonly charge: (costUsd: number) => void;
+	/** A call that failed before the provider reported its usage brings no tokens. */
+	readonly charge: (costUsd: number, metrics?: ClaudeCallMetrics) => void;
 	/**
 	 * The ceiling the spend has reached, a rep's own or its group's, since a
 	 * rep's call may be halted at the budget its group had left.
 	 */
 	readonly reached: () => CeilingReached | undefined;
+}
+
+/**
+ * The tokens a run's calls have used. Input counts every token the model
+ * read, cache reads and writes included, as a call's total input does.
+ */
+export interface RunTokens {
+	readonly input: number;
+	readonly output: number;
 }
 
 export interface CeilingReached {
@@ -44,10 +58,12 @@ export function createSpendCeiling(props: {
 }): SpendCeiling {
 	const { ceilingUsd, within } = props;
 	let spentUsd = 0;
+	let tokens: RunTokens = { input: 0, output: 0 };
 
 	return {
 		ceilingUsd,
 		spentUsd: () => spentUsd,
+		tokens: () => tokens,
 		budgetFor: (sessionBudgetUsd) => {
 			const leftUsd = ceilingUsd - spentUsd;
 			if (leftUsd <= 0) {
@@ -58,9 +74,19 @@ export function createSpendCeiling(props: {
 
 			return within === undefined ? budgetUsd : within.budgetFor(budgetUsd);
 		},
-		charge: (costUsd) => {
+		charge: (costUsd, metrics) => {
 			spentUsd += costUsd;
-			within?.charge(costUsd);
+			if (metrics !== undefined) {
+				tokens = {
+					input:
+						tokens.input +
+						metrics.inputTokens +
+						metrics.cacheReadTokens +
+						metrics.cacheWriteTokens,
+					output: tokens.output + metrics.outputTokens,
+				};
+			}
+			within?.charge(costUsd, metrics);
 		},
 		reached: () =>
 			spentUsd >= ceilingUsd ? { ceilingUsd, spentUsd } : within?.reached(),

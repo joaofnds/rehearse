@@ -123,7 +123,7 @@ export async function runJudgeAttempts<Value>(
 		const metrics = readClaudeCallMetrics(envelope);
 		const payload = envelope.structured_output ?? envelope.result ?? null;
 		costUsd += attemptCostUsd;
-		budget.spendCeiling.charge(attemptCostUsd);
+		budget.spendCeiling.charge(attemptCostUsd, metrics);
 		try {
 			const value = validate(envelope);
 			attempts.push(

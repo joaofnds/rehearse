@@ -351,6 +351,32 @@ describe(runJudge.name, () => {
 			expect(spendCeiling.spentUsd()).toBeCloseTo(0.1);
 		});
 
+		it("tallies on the ceiling the tokens every attempt used", async () => {
+			const spendCeiling = createSpendCeiling({ ceilingUsd: 10 });
+
+			await gradeWith(
+				() =>
+					Promise.resolve(
+						JSON.stringify({
+							session_id: "judge-session",
+							total_cost_usd: 0.1,
+							num_turns: 1,
+							usage: {
+								input_tokens: 100,
+								cache_read_input_tokens: 20,
+								cache_creation_input_tokens: 13,
+								output_tokens: 45,
+							},
+							structured_output: completeGrade("PASS"),
+						}),
+					),
+				[],
+				spendCeiling,
+			);
+
+			expect(spendCeiling.tokens()).toEqual({ input: 133, output: 45 });
+		});
+
 		it("charges the ceiling an attempt that ends in an error", async () => {
 			const spendCeiling = createSpendCeiling({ ceilingUsd: 1 });
 

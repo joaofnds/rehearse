@@ -196,6 +196,7 @@ export function createProductOwner(
 			providerCalls.push(providerCall(envelope, spentUsd));
 			configuration.spendCeiling.charge(
 				sessionSpendUsd(envelope, spentUsd) - spentUsd,
+				readClaudeCallMetrics(envelope),
 			);
 			spentUsd = sessionSpendUsd(envelope, spentUsd);
 			started = true;
@@ -275,7 +276,10 @@ export async function runWorkflowStage(
 
 		sessionId = envelope.session_id;
 		providerCalls.push(providerCall(envelope, spentUsd));
-		spendCeiling.charge(sessionSpendUsd(envelope, spentUsd) - spentUsd);
+		spendCeiling.charge(
+			sessionSpendUsd(envelope, spentUsd) - spentUsd,
+			readClaudeCallMetrics(envelope),
+		);
 		spentUsd = sessionSpendUsd(envelope, spentUsd);
 		let agent;
 		try {
