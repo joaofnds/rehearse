@@ -95,15 +95,15 @@ export function ControlRequests({
 	return (
 		<>
 			{pauseRequested ? (
-				<span className="text-xs text-dim">
+				<span className="text-11 text-dim">
 					pause requested · ends after this step is judged
 				</span>
 			) : null}
 			{stopRequested ? (
-				<span className="text-xs text-dim">stop requested</span>
+				<span className="text-11 text-dim">stop requested</span>
 			) : null}
 			{refusal === undefined ? null : (
-				<p role="alert" className="text-xs text-secondary-foreground">
+				<p role="alert" className="text-11 text-secondary-foreground">
 					{refusal}
 				</p>
 			)}

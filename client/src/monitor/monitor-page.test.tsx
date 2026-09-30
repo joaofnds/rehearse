@@ -181,6 +181,25 @@ describe("/monitor", () => {
 				),
 			).toBeInTheDocument();
 		});
+
+		it("says the pause was requested at no less than the design's 10px floor", async () => {
+			renderMonitor(
+				runRow({ run: RUN }),
+				new Map([[`/api/runs/${RUN}/pause`, {}]]),
+			);
+
+			fireEvent.click(
+				within(await header()).getByRole("button", {
+					name: "Pause after this step",
+				}),
+			);
+
+			expect(
+				await within(await header()).findByText(
+					"pause requested · ends after this step is judged",
+				),
+			).toHaveClass("text-11");
+		});
 	});
 
 	describe("the spend band", () => {
