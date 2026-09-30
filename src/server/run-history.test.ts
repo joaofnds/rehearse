@@ -1006,6 +1006,39 @@ describe(runHistoryReport.name, () => {
 		);
 	});
 
+	it("names a stage's own corpus version over the one its run recorded at its start", async () => {
+		const fixture = await writtenFixture();
+		const paths = benchmarkRunPaths(
+			fixture.runsDirectory,
+			fixture.replayableRun,
+		);
+		const measured: CorpusMeasurement = {
+			kind: "version",
+			digest: "d".repeat(64),
+		};
+		await recordCorpusVersion(paths.manifestFile, {
+			kind: "version",
+			digest: "c".repeat(64),
+		});
+		for (const stage of fixture.stages) {
+			await recordCorpusVersion(
+				checkpointRecordFile(paths.checkpointDirectory(stage)),
+				measured,
+			);
+		}
+
+		const { rows } = await runHistoryReport(
+			fixture.runsDirectory,
+			directorySource(await corpusDirectory("build skill\n")),
+			nothingRunning,
+		);
+
+		expect(pipelineRun(rows, fixture.replayableRun)).toMatchObject({
+			corpusVersion: measured,
+			corpusChangedDuringRun: false,
+		});
+	});
+
 	it("reports a run stopped mid-stage with STOPPED:<stage> and no corpus version when its stage records name none", async () => {
 		const fixture = await writtenFixture();
 		await fixture.writeStoppedRun();
