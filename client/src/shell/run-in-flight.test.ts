@@ -55,11 +55,32 @@ describe(announcements.name, () => {
 		]);
 	});
 
+	it("announces nothing for a stage graded while the run is still in it", () => {
+		const before = runRow({ grades: [graded("plan", "B+"), notYet("build")] });
+		const after = runRow({
+			grades: [graded("plan", "B+"), graded("build", "D", "STOP")],
+		});
+
+		expect(announcements([before], [after])).toEqual([]);
+	});
+
+	it("announces the last stage accepted when the run completes", () => {
+		const before = runRow({ grades: [graded("plan", "B+"), notYet("build")] });
+		const after = runRow({
+			status: "COMPLETE",
+			grades: [graded("plan", "B+"), graded("build", "A")],
+		});
+
+		expect(announcements([before], [after])).toEqual([
+			"r-0148 step 2 of 2 accepted: build A",
+		]);
+	});
+
 	it("announces a run that stopped at a stage since the last reading", () => {
 		const before = runRow({ grades: [graded("plan", "B+"), notYet("build")] });
 		const after = runRow({
 			status: "STOPPED:build",
-			grades: [graded("plan", "B+"), graded("build", "D", "FAIL")],
+			grades: [graded("plan", "B+"), graded("build", "D", "STOP")],
 		});
 
 		expect(announcements([before], [after])).toEqual([
@@ -93,7 +114,7 @@ describe(announcements.name, () => {
 	it("announces nothing about a run it did not see in flight", () => {
 		const after = runRow({
 			status: "STOPPED:build",
-			grades: [graded("plan", "B+"), graded("build", "D", "FAIL")],
+			grades: [graded("plan", "B+"), graded("build", "D", "STOP")],
 		});
 
 		expect(announcements([], [after])).toEqual([]);

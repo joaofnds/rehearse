@@ -77,6 +77,37 @@ function stepWords(step: Step | undefined): string {
 		: ` step ${String(step.number)} of ${String(step.of)}`;
 }
 
+/**
+ * The graded stages the run has moved past. A stage below the run's minimum
+ * is graded too, and the run stays in it while it stops, so a grade alone
+ * does not say the stage was accepted: a later stage running does, and a run
+ * that finished accepted every graded stage but the one it stopped at.
+ */
+function stagesAccepted(row: PipelineRow): ReadonlySet<string> {
+	if (row.stageGrades.state === "unavailable") {
+		return new Set();
+	}
+
+	const { grades } = row.stageGrades;
+	const { progress } = row;
+	const running =
+		progress.state === "running"
+			? grades.findIndex(({ stage }) => stage === progress.stage)
+			: grades.length;
+	const stoppedAt = isStopped(row.status)
+		? stoppedStageOf(row.status)
+		: undefined;
+
+	return new Set(
+		grades
+			.filter(
+				({ stage, grade }, index) =>
+					grade.state === "available" && index < running && stage !== stoppedAt,
+			)
+			.map(({ stage }) => stage),
+	);
+}
+
 function acceptedStages(
 	before: PipelineRow,
 	after: PipelineRow,
@@ -85,17 +116,12 @@ function acceptedStages(
 		return [];
 	}
 
-	const acceptedBefore = new Set(
-		before.stageGrades.state === "available"
-			? before.stageGrades.grades
-					.filter(({ grade }) => grade.state === "available")
-					.map(({ stage }) => stage)
-			: [],
-	);
+	const acceptedBefore = stagesAccepted(before);
+	const acceptedAfter = stagesAccepted(after);
 
 	return after.stageGrades.grades.flatMap(({ stage, grade }) =>
 		grade.state === "available" &&
-		grade.verdict === "PASS" &&
+		acceptedAfter.has(stage) &&
 		!acceptedBefore.has(stage)
 			? [
 					`${nameOf(after)}${stepWords(stepNamed(after, stage))} accepted: ${stage} ${grade.letter}`,
@@ -182,5 +208,33 @@ export function announcements(
 			...stopWords(row),
 			...ceilingWords(previous, row),
 		];
+	});
+}
+
+/**
+ * The later reading, with the stage grades of each run the later reading could
+ * not read taken from the earlier one, so the next reading is compared with
+ * the last stages known rather than with none.
+ */
+export function withGradesKnownBefore(
+	before: readonly HistoryRow[],
+	after: readonly HistoryRow[],
+): readonly HistoryRow[] {
+	const known = new Map(
+		before.flatMap((row) =>
+			row.kind === "run" && row.stageGrades.state === "available"
+				? [[row.run, row.stageGrades] as const]
+				: [],
+		),
+	);
+
+	return after.map((row) => {
+		if (row.kind !== "run" || row.stageGrades.state === "available") {
+			return row;
+		}
+
+		const stageGrades = known.get(row.run);
+
+		return stageGrades === undefined ? row : { ...row, stageGrades };
 	});
 }

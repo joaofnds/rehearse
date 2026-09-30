@@ -17,6 +17,7 @@ import {
 	gradesSoFar,
 	runsInFlight,
 	stepOf,
+	withGradesKnownBefore,
 } from "./run-in-flight";
 
 type HistoryRow = RunHistoryResponse["rows"][number];
@@ -165,7 +166,7 @@ function RunReadings({
 				<span className="text-dim">grades so far {grades.join(" ")}</span>
 			)}
 			<span className="ml-auto">
-				<StopReading launchId={row.launchId} />
+				<StopReading key={row.run} launchId={row.launchId} />
 			</span>
 		</section>
 	);
@@ -176,12 +177,16 @@ function RunReadings({
  * from the last render rather than an effect, so the message lands in the
  * same render as the readings it speaks of, and a reading that says nothing
  * new leaves the last message in place instead of clearing and repeating it.
+ * A run whose latest reading could not read its stages keeps the stages last
+ * read, so the next readable one does not announce them all again.
  */
 function useAnnouncement(rows: readonly HistoryRow[]): string {
+	const [seen, setSeen] = useState(rows);
 	const [previous, setPrevious] = useState(rows);
 	const [message, setMessage] = useState("");
-	if (previous !== rows) {
-		setPrevious(rows);
+	if (seen !== rows) {
+		setSeen(rows);
+		setPrevious(withGradesKnownBefore(previous, rows));
 		const said = announcements(previous, rows);
 		if (said.length > 0) {
 			setMessage(said.join(". "));

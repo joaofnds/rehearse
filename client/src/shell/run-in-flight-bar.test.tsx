@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import {
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+	within,
+} from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { RunHistoryResponse } from "#client/run-history/run-history-query";
 import { renderAppWithStub } from "#client/test-support/render-app";
@@ -145,6 +151,30 @@ describe("the run in flight on every screen", () => {
 		expect(within(shown).queryByRole("link")).not.toBeInTheDocument();
 	});
 
+	it("offers Stop for the run left in flight after the newest is stopped", async () => {
+		const stub = (): Promise<Response> => Promise.resolve(Response.json({}));
+		stub.preconnect = originalFetch.preconnect;
+		globalThis.fetch = stub;
+		const older = runRow({
+			run: "2026-09-30T09-00-00.000Z",
+			launchId: "launch-b",
+		});
+		const { rerender } = renderRunInFlight([
+			runRow({ run: "2026-09-30T11-00-00.000Z", launchId: "launch-a" }),
+			older,
+		]);
+		fireEvent.click(within(bar()).getByRole("button", { name: "Stop" }));
+		await waitFor(() => {
+			expect(
+				within(bar()).getByRole("button", { name: "Stop" }),
+			).toBeDisabled();
+		});
+
+		rerender([older]);
+
+		expect(within(bar()).getByRole("button", { name: "Stop" })).toBeEnabled();
+	});
+
 	it("ticks the elapsed clock each second between the run's own readings", async () => {
 		renderRunInFlight([
 			runRow({ elapsedMs: 9000, measuredAt: new Date().toISOString() }),
@@ -196,12 +226,45 @@ describe("what a screen reader hears of a run in flight", () => {
 		rerender([
 			runRow({
 				status: "STOPPED:build",
-				grades: [graded("plan", "B+"), graded("build", "D", "FAIL")],
+				grades: [graded("plan", "B+"), graded("build", "D", "STOP")],
 			}),
 		]);
 
 		expect(screen.getByRole("status")).toHaveTextContent(
 			"r-0148 stopped at step 2 of 2: build",
+		);
+	});
+
+	it("announces nothing again for stages accepted before a reading that could not read them", () => {
+		const accepted = [
+			graded("plan", "B+"),
+			graded("design", "A-"),
+			notYet("build"),
+		];
+		const { rerender } = renderRunInFlight([runRow({ grades: accepted })]);
+
+		rerender([runRow({})]);
+		rerender([runRow({ grades: accepted })]);
+
+		expect(screen.getByRole("status")).toBeEmptyDOMElement();
+	});
+
+	it("announces a stage accepted while a reading could not read the stages", () => {
+		const { rerender } = renderRunInFlight([
+			runRow({
+				grades: [graded("plan", "B+"), notYet("design"), notYet("build")],
+			}),
+		]);
+
+		rerender([runRow({})]);
+		rerender([
+			runRow({
+				grades: [graded("plan", "B+"), graded("design", "A-"), notYet("build")],
+			}),
+		]);
+
+		expect(screen.getByRole("status")).toHaveTextContent(
+			"r-0148 step 2 of 3 accepted: design A-",
 		);
 	});
 

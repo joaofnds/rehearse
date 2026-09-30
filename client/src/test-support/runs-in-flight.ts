@@ -13,7 +13,7 @@ const RUN = "2026-09-30T10-00-00.000Z";
 export function graded(
 	stage: string,
 	letter: string,
-	verdict = "PASS",
+	verdict = "CONTINUE",
 ): StageGrade {
 	return {
 		stage,
