@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { screen, within } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 import type { RunHistoryResponse } from "#client/run-history/run-history-query";
 import { renderAppWithStub } from "#client/test-support/render-app";
 import { recordStage, runRecord } from "#client/test-support/run-record";
@@ -17,6 +17,44 @@ afterEach(() => {
 
 function history(rows: readonly HistoryRow[]): RunHistoryResponse {
 	return { rows: [...rows], launches: [], unreadable: [] };
+}
+
+type PipelineRow = Extract<HistoryRow, { readonly kind: "run" }>;
+
+/** The monitor on one run in flight at build, its record served beside it. */
+function renderMonitor(
+	row: PipelineRow,
+	extra: ReadonlyMap<string, unknown> = new Map(),
+): void {
+	renderAppWithStub(
+		"/monitor",
+		new Map<string, unknown>([
+			["/api/runs", history([row])],
+			[
+				`/api/runs/${row.run}`,
+				runRecord({
+					run: row.run,
+					running: "build",
+					stages: [
+						recordStage("plan", { status: "graded" }),
+						recordStage("build"),
+					],
+				}),
+			],
+			...extra,
+		]),
+	);
+}
+
+/** The header the run's title heads, apart from the bar that repeats its readings. */
+async function header(): Promise<HTMLElement> {
+	const title = await screen.findByRole("heading", { level: 1 });
+	const shown = title.closest("header");
+	if (shown === null) {
+		throw new Error("the run's title heads no header");
+	}
+
+	return shown;
 }
 
 describe("/monitor", () => {
@@ -63,5 +101,66 @@ describe("/monitor", () => {
 					within(node).getByText(/accepted|running|queued/u).textContent,
 			),
 		).toEqual(["✓accepted", "●session running", "○queued"]);
+	});
+
+	describe("the identity header", () => {
+		it("names the run, its case, corpus version, target, commit, model and effort", async () => {
+			renderMonitor(
+				runRow({
+					run: RUN,
+					corpusVersion: { kind: "version", digest: "a41c7e99" },
+				}),
+			);
+
+			const shown = await header();
+
+			expect(
+				within(shown).getByRole("heading", { level: 1 }),
+			).toHaveTextContent("Run r-0148 in progress");
+			expect(shown).toHaveTextContent("audit-log");
+			expect(shown).toHaveTextContent("corpus@a41c7e");
+			expect(shown).toHaveTextContent(
+				"target acme-api @ e91f2a · claude-opus-4 · effort high",
+			);
+		});
+
+		it("offers Stop & restore repo for a run the browser launched", async () => {
+			renderMonitor(runRow({ run: RUN, launchId: "launch-1" }));
+
+			expect(
+				within(await header()).getByRole("button", {
+					name: "Stop & restore repo",
+				}),
+			).toBeEnabled();
+		});
+
+		it("says on Stop & restore repo why a run started outside the browser cannot be stopped from it", async () => {
+			renderMonitor(runRow({ run: RUN, launchId: undefined }));
+
+			expect(
+				within(await header()).getByRole("button", {
+					name: "Started outside the browser, so it stops only where it was started",
+				}),
+			).toHaveAttribute("aria-disabled", "true");
+		});
+
+		it("asks the run to pause after the step in flight", async () => {
+			renderMonitor(
+				runRow({ run: RUN }),
+				new Map([[`/api/runs/${RUN}/pause`, {}]]),
+			);
+
+			fireEvent.click(
+				within(await header()).getByRole("button", {
+					name: "Pause after this step",
+				}),
+			);
+
+			expect(
+				await within(await header()).findByText(
+					"pause requested · ends after this step is judged",
+				),
+			).toBeInTheDocument();
+		});
 	});
 });

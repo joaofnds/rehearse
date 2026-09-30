@@ -9,6 +9,7 @@ import { LiveGlyph, STATUS_VOCABULARY } from "#client/system/components/status";
 import type { StatusState } from "#client/system/components/status";
 import type { MonitoredStage, RunRecordResponse } from "./run-record-query";
 import { runRecordQuery } from "./run-record-query";
+import { RunIdentityHeader } from "./run-identity-header";
 
 type HistoryRow = RunHistoryResponse["rows"][number];
 
@@ -153,7 +154,12 @@ function RunMonitor({ row }: { readonly row: PipelineRow }): React.JSX.Element {
 					Could not read this run's stages.
 				</p>
 			) : null}
-			{query.isSuccess ? <TaskGraph record={query.data} row={row} /> : null}
+			{query.isSuccess ? (
+				<>
+					<RunIdentityHeader row={row} identity={query.data.identity} />
+					<TaskGraph record={query.data} row={row} />
+				</>
+			) : null}
 		</div>
 	);
 }

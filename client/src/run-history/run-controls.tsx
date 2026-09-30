@@ -63,6 +63,22 @@ export function useStopLaunch(): UseMutationResult<void, Error, string> {
 	return useMutation({ mutationFn: stopLaunch, onSuccess: refresh });
 }
 
+/** Pauses a pipeline run after the step in flight, then reads the run history again. */
+export function usePauseRun(): UseMutationResult<void, Error, string> {
+	const refresh = useRefreshHistory();
+
+	return useMutation({ mutationFn: pauseRun, onSuccess: refresh });
+}
+
+/**
+ * Stop reaches a run only through the launch that started it. Whether a run
+ * started from a terminal should be stoppable from the browser is doc-186
+ * Decision 9, unsettled, so until it is answered its Stop is disabled and
+ * names why.
+ */
+export const NO_LAUNCH_REASON =
+	"Started outside the browser, so it stops only where it was started";
+
 /**
  * Stop reaches a run only through the launch that started it, since the
  * server signals the process it recorded; a run started from a terminal has
@@ -76,9 +92,8 @@ export function RunControls({
 	readonly launchId: string | undefined;
 	readonly run: string | undefined;
 }): React.JSX.Element {
-	const refresh = useRefreshHistory();
 	const stop = useStopLaunch();
-	const pause = useMutation({ mutationFn: pauseRun, onSuccess: refresh });
+	const pause = usePauseRun();
 	const error = stop.error ?? pause.error;
 
 	return (

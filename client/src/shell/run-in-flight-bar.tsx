@@ -1,7 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { useStopLaunch } from "#client/run-history/run-controls";
+import {
+	NO_LAUNCH_REASON,
+	useStopLaunch,
+} from "#client/run-history/run-controls";
 import { polledRunHistoryQuery } from "#client/run-history/run-history-polling";
 import type { RunHistoryResponse } from "#client/run-history/run-history-query";
 import {
@@ -26,14 +29,6 @@ type HistoryRow = RunHistoryResponse["rows"][number];
 
 /** One array for every render before the history loads, so it reads as unchanged. */
 const NO_ROWS: readonly HistoryRow[] = [];
-
-/**
- * Stop reaches a run only through the launch that started it. Whether a run
- * started from a terminal should be stoppable here is doc-186 Decision 9,
- * unsettled, so until it is answered its Stop is disabled and names why.
- */
-const NO_LAUNCH_REASON =
-	"Started outside the browser, so it stops only where it was started";
 
 function Separator(): React.JSX.Element {
 	return (
