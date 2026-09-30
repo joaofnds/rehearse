@@ -13,7 +13,10 @@ const CHORD_WINDOW_MS = 1500;
  * each destination against the route tree, because a chord bound to a screen
  * that does not exist would navigate to the not-found page.
  */
-export const CHORD_DESTINATIONS = new Map([["r", "/"]]);
+export const CHORD_DESTINATIONS = new Map([
+	["r", "/"],
+	["m", "/monitor"],
+]);
 
 function isTyping(target: EventTarget | null): boolean {
 	if (!(target instanceof HTMLElement)) {

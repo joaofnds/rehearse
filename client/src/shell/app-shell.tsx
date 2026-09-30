@@ -4,6 +4,7 @@ import { comparisonIndexQuery } from "#client/comparison/comparison-index-query"
 import { corpusQuery } from "#client/corpus/corpus-query";
 import { runHistoryQuery } from "#client/run-history/run-history-query";
 import { CorpusCard } from "./corpus-card";
+import { runsInFlight } from "./run-in-flight";
 import { RunInFlightBar } from "./run-in-flight-bar";
 import { useGoToShortcut } from "./use-go-to-shortcut";
 import type { BadgeCounts } from "./nav-items";
@@ -62,6 +63,8 @@ function useBadgeCounts(): BadgeCounts {
 
 	return {
 		runs: runs.data?.rows.length,
+		monitor:
+			runs.data === undefined ? undefined : runsInFlight(runs.data.rows).length,
 		corpus: corpus.data?.files.length,
 		comparisons: comparisons.data?.comparisons.length,
 	};

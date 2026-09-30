@@ -11,7 +11,12 @@ import {
 	unversionedStaleness,
 } from "#client/test-support/run-figures";
 import { createAppRouter } from "#client/router";
-import { renderAppAt, stubFetchFailing } from "#client/test-support/render-app";
+import {
+	renderAppAt,
+	renderAppWithStub,
+	stubFetchFailing,
+} from "#client/test-support/render-app";
+import { runRow as runInFlight } from "#client/test-support/runs-in-flight";
 import { NAV_ITEMS } from "./nav-items";
 import { CHORD_DESTINATIONS } from "./use-go-to-shortcut";
 
@@ -188,7 +193,12 @@ describe("the navigation shell", () => {
 			.getAllByRole("link")
 			.map((link) => within(link).getByText(NAV_LABEL).textContent);
 
-		expect(linked).toEqual(["Run history", "Comparisons", "Corpus"]);
+		expect(linked).toEqual([
+			"Run history",
+			"Live monitor",
+			"Comparisons",
+			"Corpus",
+		]);
 	});
 
 	it("reaches run history from another screen by pressing g then r", async () => {
@@ -207,6 +217,20 @@ describe("the navigation shell", () => {
 			expect(
 				screen.getByRole("heading", { name: "Run history" }),
 			).toBeInTheDocument();
+		});
+	});
+
+	it("reaches the live monitor from another screen by pressing g then m", async () => {
+		renderShellAt("/corpus", { runs: 0, corpusFiles: 137 });
+		await screen.findByRole("heading", { name: "Instruction corpus" });
+
+		fireEvent.keyDown(document, { key: "g" });
+		fireEvent.keyDown(document, { key: "m" });
+
+		await waitFor(() => {
+			expect(
+				screen.getByRole("link", { name: /^Live monitor/u }),
+			).toHaveAttribute("aria-current", "page");
 		});
 	});
 
@@ -385,6 +409,30 @@ describe("the navigation shell", () => {
 		});
 	});
 
+	it("badges the live monitor with the pipeline runs in flight, the runs it can open", async () => {
+		renderAppWithStub(
+			"/corpus",
+			new Map([
+				[
+					"/api/runs",
+					{
+						rows: [
+							runInFlight({ run: "2026-09-30T09-00-00.000Z" }),
+							runInFlight({ run: "2026-09-30T11-00-00.000Z" }),
+							runInFlight({ status: "COMPLETE" }),
+						],
+						launches: [],
+						unreadable: [],
+					},
+				],
+			]),
+		);
+
+		expect(
+			await screen.findByRole("link", { name: "Live monitor 2" }),
+		).toBeInTheDocument();
+	});
+
 	it("navigates between run history and corpus by click", async () => {
 		renderShellAt("/");
 
@@ -456,7 +504,7 @@ describe("the navigation shell", () => {
 
 		const planned = screen.getAllByText("planned");
 
-		expect(planned).toHaveLength(6);
+		expect(planned).toHaveLength(5);
 	});
 
 	it.each(["/", "/corpus", "/system", "/runs/run-a/stages/build", "/tasks"])(

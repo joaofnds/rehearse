@@ -7,6 +7,11 @@ import {
 	within,
 } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+	createMemoryHistory,
+	RouterContextProvider,
+} from "@tanstack/react-router";
+import { createAppRouter } from "#client/router";
 import type { RunHistoryResponse } from "#client/run-history/run-history-query";
 import { renderAppWithStub } from "#client/test-support/render-app";
 import { graded, notYet, runRow } from "#client/test-support/runs-in-flight";
@@ -30,9 +35,14 @@ interface RenderedRunInFlight {
 
 function renderRunInFlight(rows: readonly HistoryRow[]): RenderedRunInFlight {
 	const client = new QueryClient();
+	const router = createAppRouter({
+		history: createMemoryHistory({ initialEntries: ["/corpus"] }),
+	});
 	const view = (next: readonly HistoryRow[]): React.JSX.Element => (
 		<QueryClientProvider client={client}>
-			<RunInFlight rows={next} />
+			<RouterContextProvider router={router}>
+				<RunInFlight rows={next} />
+			</RouterContextProvider>
 		</QueryClientProvider>
 	);
 	const { rerender } = render(view(rows));
@@ -149,7 +159,23 @@ describe("the run in flight on every screen", () => {
 		const shown = await screen.findByRole("region", { name: "Run in flight" });
 		expect(shown).toHaveTextContent("review");
 		expect(shown).not.toHaveTextContent(/\+\d/u);
-		expect(within(shown).queryByRole("link")).not.toBeInTheDocument();
+		expect(
+			within(shown).queryByRole("link", { name: /running/u }),
+		).not.toBeInTheDocument();
+	});
+
+	it("opens the live monitor on the run from any screen", async () => {
+		renderAppWithStub(
+			"/corpus",
+			new Map([["/api/runs", history([runRow({ stage: "build" })])]]),
+		);
+		const shown = await screen.findByRole("region", { name: "Run in flight" });
+
+		fireEvent.click(within(shown).getByRole("link", { name: "Open monitor" }));
+
+		expect(
+			await screen.findByRole("link", { name: /^Live monitor/u }),
+		).toHaveAttribute("aria-current", "page");
 	});
 
 	it("stops the run through the launch that started it", async () => {

@@ -16,7 +16,7 @@ import type { LucideIcon } from "lucide-react";
  * the screen behind the item reads, so a badge cannot disagree with the list
  * it links to (SPEC.md:78).
  */
-export type BadgeSource = "runs" | "corpus" | "comparisons";
+export type BadgeSource = "runs" | "monitor" | "corpus" | "comparisons";
 
 /**
  * One count per badge source, so a source named on a nav item always has a
@@ -42,7 +42,12 @@ export interface NavItem {
  */
 export const NAV_ITEMS: readonly NavItem[] = [
 	{ label: "Run history", icon: List, path: "/", badge: "runs" },
-	{ label: "Live monitor", icon: Activity },
+	{
+		label: "Live monitor",
+		icon: Activity,
+		path: "/monitor",
+		badge: "monitor",
+	},
 	{ label: "Run detail", icon: FileText },
 	{
 		label: "Comparisons",

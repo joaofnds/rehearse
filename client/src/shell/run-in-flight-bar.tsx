@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useStopLaunch } from "#client/run-history/run-controls";
 import { polledRunHistoryQuery } from "#client/run-history/run-history-polling";
@@ -166,7 +167,10 @@ function RunReadings({
 			{grades.length === 0 ? null : (
 				<span className="text-dim">grades so far {grades.join(" ")}</span>
 			)}
-			<span className="ml-auto">
+			<span className="ml-auto inline-flex items-center gap-2.5">
+				<Button asChild size="sm">
+					<Link to="/monitor">Open monitor</Link>
+				</Button>
 				<StopControl key={row.run} launchId={row.launchId} />
 			</span>
 		</section>
