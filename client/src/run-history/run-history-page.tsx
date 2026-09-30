@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Disclosure } from "#client/system/components/disclosure";
 import { EmptyState } from "#client/system/components/empty-state";
 import { FilterPill } from "#client/system/components/filter-pill";
@@ -10,8 +10,8 @@ import { TableShell } from "#client/system/components/table-shell";
 import { Button } from "#client/system/ui/button";
 import { elapsedReading, liveElapsedMs, spendReading } from "./run-progress";
 import type { RunHistoryResponse } from "./run-history-query";
-import { runHistoryQuery } from "./run-history-query";
-import { somethingRuns } from "./run-history-polling";
+import { polledRunHistoryQuery } from "./run-history-polling";
+import { useNow } from "./use-now";
 import { runStatusState } from "./run-status";
 import {
 	corpusMeasurementReading,
@@ -44,51 +44,6 @@ const COLUMNS = [
 	"Grade",
 	"Corpus",
 ] as const;
-
-/**
- * How often the list re-reads itself while a run is in flight. The operator is
- * watching readings move, so the interval has to be shorter than the attention
- * span of someone staring at a screen; the route's cost is reading every saved
- * record under the runs directory, one liveness probe per candidate run, and
- * judging every record's staleness against the corpus under test, about a third
- * of a second for a hundred records. Polling stops when no run is running, so a
- * page left open on finished history costs nothing.
- */
-const RUNNING_POLL_MS = 2000;
-
-/**
- * How often the elapsed readings redraw between the run's own measurements. A
- * run records its elapsed time when it emits an event, once per agent turn and
- * minutes apart, so without this the clock would stop between turns. One
- * second is the unit the reading shows in its first minute.
- */
-const ELAPSED_TICK_MS = 1000;
-
-/**
- * The clock the elapsed readings are drawn against, advancing on its own so a
- * run's reading keeps moving between the sparse events the run itself records.
- * It ticks only while something is running, so a page showing finished history
- * redraws nothing.
- */
-function useNow(running: boolean): number {
-	const [nowMs, setNowMs] = useState(() => Date.now());
-
-	useEffect(() => {
-		if (!running) {
-			return undefined;
-		}
-
-		const timer = setInterval(() => {
-			setNowMs(Date.now());
-		}, ELAPSED_TICK_MS);
-
-		return () => {
-			clearInterval(timer);
-		};
-	}, [running]);
-
-	return nowMs;
-}
 
 const FILTERS = ["All", "Stopped"] as const;
 type Filter = (typeof FILTERS)[number];
@@ -700,11 +655,7 @@ export function RunHistoryPage(): React.JSX.Element {
 			);
 		},
 	};
-	const query = useQuery({
-		...runHistoryQuery,
-		refetchInterval: ({ state }) =>
-			somethingRuns(state.data) ? RUNNING_POLL_MS : false,
-	});
+	const query = useQuery(polledRunHistoryQuery);
 
 	const unreadable = query.data?.unreadable ?? [];
 	const recorded = query.data?.rows ?? [];
