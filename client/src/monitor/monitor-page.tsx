@@ -45,15 +45,14 @@ function shownStage(
 	row: PipelineRow,
 	selected: string | undefined,
 ): { readonly number: number; readonly stage: string } | undefined {
-	const running =
-		row.progress.state === "running" ? row.progress.stage : undefined;
-	const index = record.stages.findIndex(
-		(stage) => stage.stage === (selected ?? running),
-	);
+	const stage =
+		selected ??
+		(row.progress.state === "running" ? row.progress.stage : undefined);
+	const index = record.stages.findIndex((each) => each.stage === stage);
 
-	return index === -1
+	return stage === undefined || index === -1
 		? undefined
-		: { number: index + 1, stage: record.stages[index]?.stage ?? "" };
+		: { number: index + 1, stage };
 }
 
 function RunMonitor({ row }: { readonly row: PipelineRow }): React.JSX.Element {
