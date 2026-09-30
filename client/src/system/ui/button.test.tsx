@@ -78,12 +78,12 @@ describe(Button.name, () => {
 		},
 	);
 
-	it("rounds the xs size at the compact radius in place of the button radius", () => {
+	it("rounds the xs size at the tight radius in place of the button radius", () => {
 		render(<Button size="xs">replay</Button>);
 
 		const button = screen.getByRole("button", { name: "replay" });
 
-		expect(button).toHaveClass("rounded-compact");
+		expect(button).toHaveClass("rounded-tight");
 		expect(button).not.toHaveClass("rounded-md");
 	});
 });

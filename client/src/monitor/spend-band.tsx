@@ -71,10 +71,10 @@ function CeilingMeter({
 			<div
 				role="img"
 				aria-label={`Spent ${runSpentUsd.toFixed(2)} dollars of a ${ceilingUsd.toFixed(2)} dollar ceiling`}
-				className="relative h-2.75 rounded-compact border border-strong bg-background"
+				className="relative h-2.75 rounded-tight border border-strong bg-background"
 			>
 				<div
-					className="absolute inset-y-0 left-0 w-(--spend-share) overflow-hidden rounded-l-compact bg-meter-stripe"
+					className="absolute inset-y-0 left-0 w-(--spend-share) overflow-hidden rounded-l-tight bg-meter-stripe"
 					style={width}
 				/>
 				<div

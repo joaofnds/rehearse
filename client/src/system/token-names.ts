@@ -36,7 +36,7 @@ export const COLOR_TOKENS = [
 export const RADIUS_TOKENS = [
 	"--radius-focus",
 	"--radius-chip",
-	"--radius-small-control",
+	"--radius-small-element",
 	"--radius-button",
 	"--radius-section",
 	"--radius-dialog",

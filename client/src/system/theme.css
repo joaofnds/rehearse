@@ -41,7 +41,7 @@
 
 	--radius-xs: var(--radius-focus);
 	--radius-sm: var(--radius-chip);
-	--radius-compact: var(--radius-small-control);
+	--radius-tight: var(--radius-small-element);
 	--radius-md: var(--radius-button);
 	--radius-lg: var(--radius-section);
 	--radius-xl: var(--radius-dialog);

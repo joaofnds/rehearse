@@ -22,7 +22,7 @@ export const TYPE_STEPS = [
 	"9",
 ] as const;
 
-export const RADIUS_STEPS = ["compact"] as const;
+export const RADIUS_STEPS = ["tight"] as const;
 
 export const TRACKING_STEPS = ["label", "caps", "figure"] as const;
 
