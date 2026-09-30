@@ -1,6 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import type { RunHistoryResponse } from "#client/run-history/run-history-query";
-import { UNREAD_RUN_FIGURES } from "#client/test-support/run-figures";
+import { graded, notYet, runRow } from "#client/test-support/runs-in-flight";
 import {
 	announcements,
 	clockReading,
@@ -8,77 +7,6 @@ import {
 	runsInFlight,
 	stepOf,
 } from "./run-in-flight";
-
-type HistoryRow = RunHistoryResponse["rows"][number];
-type PipelineRow = Extract<HistoryRow, { readonly kind: "run" }>;
-type StageGrade = Extract<
-	PipelineRow["stageGrades"],
-	{ readonly state: "available" }
->["grades"][number];
-
-const RUN = "2026-09-30T10-00-00.000Z";
-
-function graded(stage: string, letter: string, verdict = "PASS"): StageGrade {
-	return {
-		stage,
-		status: "graded",
-		grade: { state: "available", letter, verdict },
-	};
-}
-
-function notYet(stage: string): StageGrade {
-	return {
-		stage,
-		status: "no-record",
-		grade: { state: "unavailable", reasons: ["the stage wrote no record"] },
-	};
-}
-
-function runRow(props: {
-	readonly run?: string;
-	readonly status?: string;
-	readonly stage?: string;
-	readonly grades?: readonly StageGrade[];
-	readonly runSpentUsd?: number;
-	readonly ceilingUsd?: number;
-}): PipelineRow {
-	const status = props.status ?? "RUNNING";
-
-	return {
-		kind: "run",
-		...UNREAD_RUN_FIGURES,
-		stageGrades:
-			props.grades === undefined
-				? UNREAD_RUN_FIGURES.stageGrades
-				: { state: "available", grades: props.grades },
-		launchId: undefined,
-		shortId: "r-0148",
-		checkpoints: [],
-		links: [],
-		run: props.run ?? RUN,
-		caseId: "audit-log",
-		status,
-		stage: undefined,
-		grade: undefined,
-		corpusVersion: undefined,
-		corpusChangedDuringRun: false,
-		staleness: { state: "unavailable", reasons: ["not read by this test"] },
-		progress:
-			status === "RUNNING"
-				? {
-						state: "running",
-						stage: props.stage ?? "build",
-						stageState: "session running",
-						elapsedMs: 9000,
-						measuredAt: "2026-09-30T10:00:09.000Z",
-						spentUsd: 0.9,
-						spendScope: "this stage's session so far",
-						runSpentUsd: props.runSpentUsd,
-						ceilingUsd: props.ceilingUsd,
-					}
-				: { state: "recorded" },
-	};
-}
 
 describe(runsInFlight.name, () => {
 	it("lists the pipeline runs in flight, newest first", () => {

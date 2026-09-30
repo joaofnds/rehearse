@@ -4,6 +4,7 @@ import { comparisonIndexQuery } from "#client/comparison/comparison-index-query"
 import { corpusQuery } from "#client/corpus/corpus-query";
 import { runHistoryQuery } from "#client/run-history/run-history-query";
 import { CorpusCard } from "./corpus-card";
+import { RunInFlightBar } from "./run-in-flight-bar";
 import { useGoToShortcut } from "./use-go-to-shortcut";
 import type { BadgeCounts } from "./nav-items";
 import { NAV_ITEMS } from "./nav-items";
@@ -71,39 +72,42 @@ export function AppShell(): React.JSX.Element {
 	useGoToShortcut();
 
 	return (
-		<div className="flex min-h-screen">
-			{/* Sticky, because the corpus card must stay in view on a page several screens tall. */}
-			<nav
-				aria-label="Sections"
-				className="sticky top-0 flex h-screen w-68 flex-none flex-col gap-4 overflow-y-auto border-r border-divider bg-sidebar px-3 py-4"
-			>
-				<div className="px-2.5 pt-0.5">
-					<span className="text-lg font-medium tracking-tight">Rehearse</span>
-					<CorpusCard />
-				</div>
+		<div className="flex min-h-screen flex-col">
+			<div className="flex flex-1">
+				{/* Sticky, because the corpus card must stay in view on a page several screens tall. */}
+				<nav
+					aria-label="Sections"
+					className="sticky top-0 flex h-screen w-68 flex-none flex-col gap-4 overflow-y-auto border-r border-divider bg-sidebar px-3 py-4"
+				>
+					<div className="px-2.5 pt-0.5">
+						<span className="text-lg font-medium tracking-tight">Rehearse</span>
+						<CorpusCard />
+					</div>
 
-				<ul className="flex flex-col gap-0.5">
-					{NAV_ITEMS.map(({ label, icon: NavIcon, path, badge }) => (
-						<NavEntry
-							key={label}
-							label={label}
-							icon={
-								<NavIcon
-									size={ICON_SIZE}
-									aria-hidden
-									className="flex-none opacity-85"
-								/>
-							}
-							path={path}
-							count={badge === undefined ? undefined : counts[badge]}
-						/>
-					))}
-				</ul>
-			</nav>
+					<ul className="flex flex-col gap-0.5">
+						{NAV_ITEMS.map(({ label, icon: NavIcon, path, badge }) => (
+							<NavEntry
+								key={label}
+								label={label}
+								icon={
+									<NavIcon
+										size={ICON_SIZE}
+										aria-hidden
+										className="flex-none opacity-85"
+									/>
+								}
+								path={path}
+								count={badge === undefined ? undefined : counts[badge]}
+							/>
+						))}
+					</ul>
+				</nav>
 
-			<main className="min-w-0 flex-1">
-				<Outlet />
-			</main>
+				<main className="min-w-0 flex-1">
+					<Outlet />
+				</main>
+			</div>
+			<RunInFlightBar />
 		</div>
 	);
 }
