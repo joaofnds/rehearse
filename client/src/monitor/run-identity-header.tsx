@@ -10,6 +10,7 @@ import { nameOf } from "#client/shell/run-in-flight";
 import { CorpusPill } from "#client/system/components/corpus-pill";
 import { LiveGlyph } from "#client/system/components/status";
 import { Button } from "#client/system/ui/button";
+import { useId } from "react";
 import type { RunRecordResponse } from "./run-record-query";
 
 /** As many of the commit's characters as the design shows. */
@@ -26,6 +27,7 @@ function HeaderControls({
 }): React.JSX.Element {
 	const pause = usePauseRun();
 	const stop = useStopLaunch();
+	const reasonId = useId();
 	const { launchId } = row;
 
 	return (
@@ -44,8 +46,7 @@ function HeaderControls({
 					<Button
 						variant="strong"
 						aria-disabled="true"
-						aria-label={NO_LAUNCH_REASON}
-						title={NO_LAUNCH_REASON}
+						aria-describedby={reasonId}
 					>
 						Stop &amp; restore repo
 					</Button>
@@ -61,6 +62,11 @@ function HeaderControls({
 					</Button>
 				)}
 			</span>
+			{launchId === undefined ? (
+				<span id={reasonId} className="text-11 text-dim">
+					{NO_LAUNCH_REASON}
+				</span>
+			) : null}
 			<ControlRequests
 				pauseRequested={pause.isSuccess}
 				stopRequested={stop.isSuccess}

@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useId, useState } from "react";
 import {
 	NO_LAUNCH_REASON,
 	useStopLaunch,
@@ -86,17 +86,22 @@ function StopControl({
 	readonly launchId: string | undefined;
 }): React.JSX.Element {
 	const stop = useStopLaunch();
+	const reasonId = useId();
 	if (launchId === undefined) {
 		return (
-			<Button
-				variant="quiet"
-				size="compact"
-				aria-disabled="true"
-				aria-label={NO_LAUNCH_REASON}
-				title={NO_LAUNCH_REASON}
-			>
-				Stop
-			</Button>
+			<span className="inline-flex items-center gap-2">
+				<span id={reasonId} className="text-dim">
+					{NO_LAUNCH_REASON}
+				</span>
+				<Button
+					variant="quiet"
+					size="compact"
+					aria-disabled="true"
+					aria-describedby={reasonId}
+				>
+					Stop
+				</Button>
+			</span>
 		);
 	}
 

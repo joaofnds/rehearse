@@ -138,14 +138,19 @@ describe("the run in flight on every screen", () => {
 		).not.toBeInTheDocument();
 	});
 
-	it("says on its Stop why a run started outside the browser cannot be stopped from it", () => {
+	it("shows beside its Stop why a run started outside the browser cannot be stopped from it", () => {
 		renderRunInFlight([runRow({ launchId: undefined })]);
 
+		const stop = within(bar()).getByRole("button", { name: "Stop" });
+		expect(stop).toHaveAttribute("aria-disabled", "true");
+		expect(stop).toHaveAccessibleDescription(
+			"Started outside the browser, so it stops only where it was started",
+		);
 		expect(
-			within(bar()).getByRole("button", {
-				name: "Started outside the browser, so it stops only where it was started",
-			}),
-		).toHaveAttribute("aria-disabled", "true");
+			within(bar()).getByText(
+				"Started outside the browser, so it stops only where it was started",
+			),
+		).toBeVisible();
 	});
 
 	it("shows a dash with its reason rather than a figure it cannot vouch for", () => {

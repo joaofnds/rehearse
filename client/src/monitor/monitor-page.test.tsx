@@ -153,14 +153,21 @@ describe("/monitor", () => {
 			).toBeEnabled();
 		});
 
-		it("says on Stop & restore repo why a run started outside the browser cannot be stopped from it", async () => {
+		it("shows beside Stop & restore repo why a run started outside the browser cannot be stopped from it", async () => {
 			renderMonitor(runRow({ run: RUN, launchId: undefined }));
 
+			const stop = within(await header()).getByRole("button", {
+				name: "Stop & restore repo",
+			});
+			expect(stop).toHaveAttribute("aria-disabled", "true");
+			expect(stop).toHaveAccessibleDescription(
+				"Started outside the browser, so it stops only where it was started",
+			);
 			expect(
-				within(await header()).getByRole("button", {
-					name: "Started outside the browser, so it stops only where it was started",
-				}),
-			).toHaveAttribute("aria-disabled", "true");
+				within(await header()).getByText(
+					"Started outside the browser, so it stops only where it was started",
+				),
+			).toBeVisible();
 		});
 
 		it("asks the run to pause after the step in flight", async () => {
