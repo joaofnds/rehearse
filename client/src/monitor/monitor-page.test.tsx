@@ -346,3 +346,38 @@ describe("/monitor task graph", () => {
 		);
 	});
 });
+
+describe("/monitor stage selection", () => {
+	async function paneTitles(): Promise<readonly string[]> {
+		const session = await screen.findByRole("region", {
+			name: "Live agent session",
+		});
+		const judge = screen.getByRole("region", { name: "Judge" });
+
+		return [session, judge].map(
+			(pane) => within(pane).getByRole("heading", { level: 2 }).textContent,
+		);
+	}
+
+	it("names the running stage in the session and judge panes when no stage is selected", async () => {
+		renderMonitor(runRow({ run: RUN, stage: "build" }));
+
+		expect(await paneTitles()).toEqual(["Step 2 · build", "Judge · step 2"]);
+	});
+
+	it("marks a selected stage and names it in the session and judge panes", async () => {
+		renderMonitor(runRow({ run: RUN, stage: "build" }));
+		const graph = await screen.findByRole("region", { name: "Task graph" });
+
+		fireEvent.click(
+			within(graph).getByRole("button", {
+				name: /^plan(?! has no checkpoint)/u,
+			}),
+		);
+
+		expect(
+			within(graph).getByRole("button", { current: "step" }),
+		).toHaveTextContent("plan");
+		expect(await paneTitles()).toEqual(["Step 1 · plan", "Judge · step 1"]);
+	});
+});

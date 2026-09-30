@@ -173,23 +173,40 @@ function ReplayAction({
 	);
 }
 
+function nodeBorder(selected: boolean, status: NodeStatus): string {
+	if (selected) {
+		return "border-primary bg-selected";
+	}
+
+	return status.state === "running" ? "border-deeper" : "border-border";
+}
+
 function StageNode({
 	stage,
 	number,
 	row,
 	last,
+	selected,
+	onSelect,
 }: {
 	readonly stage: MonitoredStage;
 	readonly number: number;
 	readonly row: PipelineRow;
 	readonly last: boolean;
+	readonly selected: boolean;
+	readonly onSelect: (stage: string) => void;
 }): React.JSX.Element {
 	const status = nodeStatus(stage, row);
 
 	return (
 		<li className="flex items-stretch">
-			<div
-				className={`flex w-77.5 flex-col gap-2 rounded-lg border px-3.75 py-3 text-left ${status.state === "running" ? "border-deeper" : "border-border"}`}
+			<button
+				type="button"
+				aria-current={selected ? "step" : undefined}
+				onClick={() => {
+					onSelect(stage.stage);
+				}}
+				className={`flex w-77.5 flex-col gap-2 rounded-lg border px-3.75 py-3 text-left hover:bg-accent ${nodeBorder(selected, status)}`}
 			>
 				<span className="flex items-center gap-2.5">
 					<span aria-hidden="true" className="font-mono text-xs text-dim">
@@ -218,7 +235,7 @@ function StageNode({
 				<span className="text-sm text-muted-foreground">
 					{notStarted(stage, row) ? "not started" : "contribution pending"}
 				</span>
-			</div>
+			</button>
 			<span className="flex flex-col justify-center gap-1 px-1.5">
 				<ReplayAction run={row.run} stage={stage} />
 			</span>
@@ -267,9 +284,14 @@ function MinimumGradeNote({
 export function TaskGraph({
 	record,
 	row,
+	shown,
+	onSelect,
 }: {
 	readonly record: RunRecordResponse;
 	readonly row: PipelineRow;
+	/** The stage the panes below show, marked when the operator selected it. */
+	readonly shown: string | undefined;
+	readonly onSelect: (stage: string) => void;
 }): React.JSX.Element {
 	return (
 		<section
@@ -281,6 +303,9 @@ export function TaskGraph({
 					Task · {record.caseId} · {String(record.stages.length)} steps, in
 					order
 				</h2>
+				<span className="text-sm text-muted-foreground">
+					click a step to bring its session and judge below
+				</span>
 				<span aria-hidden="true" className="ml-auto text-xs text-dim">
 					✓ accepted · ● running · ○ queued · ◆ checkpoint
 				</span>
@@ -294,6 +319,8 @@ export function TaskGraph({
 							number={index + 1}
 							row={row}
 							last={index === record.stages.length - 1}
+							selected={stage.stage === shown}
+							onSelect={onSelect}
 						/>
 					))}
 				</ol>

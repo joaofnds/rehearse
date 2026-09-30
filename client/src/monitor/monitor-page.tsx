@@ -4,9 +4,11 @@ import { polledRunHistoryQuery } from "#client/run-history/run-history-polling";
 import type { RunHistoryResponse } from "#client/run-history/run-history-query";
 import type { PipelineRow } from "#client/shell/run-in-flight";
 import { runsInFlight } from "#client/shell/run-in-flight";
+import type { RunRecordResponse } from "./run-record-query";
 import { runRecordQuery } from "./run-record-query";
 import { RunIdentityHeader } from "./run-identity-header";
 import { SpendBand } from "./spend-band";
+import { StagePanes } from "./stage-panes";
 import { TaskGraph } from "./task-graph";
 
 type HistoryRow = RunHistoryResponse["rows"][number];
@@ -33,8 +35,33 @@ function useWatchedRun(rows: readonly HistoryRow[]): PipelineRow | undefined {
 	);
 }
 
+/**
+ * The stage the panes follow: the one the operator selected, or with none
+ * selected the running one.
+ */
+function shownStage(
+	record: RunRecordResponse,
+	row: PipelineRow,
+	selected: string | undefined,
+): { readonly number: number; readonly stage: string } | undefined {
+	const running =
+		row.progress.state === "running" ? row.progress.stage : undefined;
+	const index = record.stages.findIndex(
+		(stage) => stage.stage === (selected ?? running),
+	);
+
+	return index === -1
+		? undefined
+		: { number: index + 1, stage: record.stages[index]?.stage ?? "" };
+}
+
 function RunMonitor({ row }: { readonly row: PipelineRow }): React.JSX.Element {
 	const query = useQuery(runRecordQuery(row.run));
+	const [selected, setSelected] = useState<string>();
+	const shown =
+		query.data === undefined
+			? undefined
+			: shownStage(query.data, row, selected);
 
 	return (
 		<div className="flex flex-col">
@@ -50,7 +77,15 @@ function RunMonitor({ row }: { readonly row: PipelineRow }): React.JSX.Element {
 					{row.progress.state === "running" ? (
 						<SpendBand progress={row.progress} />
 					) : null}
-					<TaskGraph record={query.data} row={row} />
+					<TaskGraph
+						record={query.data}
+						row={row}
+						shown={selected}
+						onSelect={setSelected}
+					/>
+					{shown === undefined ? null : (
+						<StagePanes number={shown.number} stage={shown.stage} />
+					)}
 				</>
 			) : null}
 		</div>
