@@ -69,7 +69,7 @@ function SpendReading({
 			</span>
 			<span
 				aria-hidden="true"
-				className="h-1.25 w-19 overflow-hidden rounded-xs border border-strong"
+				className="h-spend-track-height w-spend-track-width overflow-hidden rounded-xs border border-strong"
 			>
 				<span
 					className="block h-full w-(--spend-share) bg-deep"

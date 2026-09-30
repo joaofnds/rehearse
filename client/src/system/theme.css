@@ -39,6 +39,9 @@
 	--font-sans: var(--font-ui);
 	--font-mono: var(--font-mono);
 
+	--spacing-spend-track-width: var(--size-spend-track-width);
+	--spacing-spend-track-height: var(--size-spend-track-height);
+
 	--radius-xs: var(--radius-focus);
 	--radius-sm: var(--radius-chip);
 	--radius-tight: var(--radius-small-element);

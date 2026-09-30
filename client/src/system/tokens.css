@@ -68,6 +68,10 @@
 	--radius-section: 8px;
 	--radius-dialog: 10px;
 
+	/* Spend track, the run in flight bar's spend against its ceiling */
+	--size-spend-track-width: 76px;
+	--size-spend-track-height: 5px;
+
 	/* Shadow */
 	--shadow-dialog: 0 16px 40px rgba(0, 0, 0, 0.65);
 

@@ -94,6 +94,18 @@ describe("the run in flight on every screen", () => {
 		expect(within(bar()).queryByText("running")).not.toBeInTheDocument();
 	});
 
+	it("draws the spend track at the design's 76 by 5px with its 3px radius", () => {
+		renderRunInFlight([runRow({ runSpentUsd: 1.83, ceilingUsd: 20 })]);
+
+		const fill = bar().querySelector("[style*='--spend-share']");
+
+		expect(fill?.parentElement).toHaveClass(
+			"h-spend-track-height",
+			"w-spend-track-width",
+			"rounded-xs",
+		);
+	});
+
 	it("separates its readings where the design does and nowhere else", () => {
 		renderRunInFlight([
 			runRow({
