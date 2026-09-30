@@ -4,7 +4,7 @@ import { createCn } from "cn/config";
  * The design's type scale (SPEC.md:404), with the 16px the prototype draws the
  * monitor's run heading at, as `theme.css` names its steps.
  */
-export const TYPE_STEPS = [
+const TYPE_STEPS = [
 	"30",
 	"26",
 	"24",
@@ -25,9 +25,9 @@ export const TYPE_STEPS = [
 	"9",
 ] as const;
 
-export const RADIUS_STEPS = ["tight"] as const;
+const RADIUS_STEPS = ["tight"] as const;
 
-export const TRACKING_STEPS = ["label", "caps", "figure"] as const;
+const TRACKING_STEPS = ["label", "caps", "figure"] as const;
 
 /**
  * Class merging that knows the theme's own steps. Without them a type step
