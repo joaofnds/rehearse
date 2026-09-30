@@ -257,6 +257,37 @@ describe("/api/runs/:run", () => {
 					],
 				});
 			});
+
+			it("counts the hard blockers a stage's judge found fired", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeStoppedRunWithReadings();
+
+				const response = await runRecord(fixture, fixture.stoppedRun);
+
+				expect(await response.json()).toMatchObject({
+					stages: [
+						{ stage: "discuss" },
+						{
+							stage: "build",
+							blockers: { state: "available", fired: 2, total: 3 },
+						},
+					],
+				});
+			});
+
+			it("reports the fired blockers as unavailable for a stage whose judge failed", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeStoppedRunEvidence();
+
+				const response = await runRecord(fixture, fixture.stoppedRun);
+
+				expect(await response.json()).toMatchObject({
+					stages: [
+						{ stage: "discuss" },
+						{ stage: "build", blockers: { state: "unavailable" } },
+					],
+				});
+			});
 		});
 
 		describe("tokens", () => {

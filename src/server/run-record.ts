@@ -107,6 +107,11 @@ export interface RunRecordStage {
 		readonly letter: string;
 		readonly verdict: string;
 	}>;
+	/** How many of the rubric's hard blockers the stage judge found fired. */
+	readonly blockers: Reading<{
+		readonly fired: number;
+		readonly total: number;
+	}>;
 	readonly wallTime: Reading<{ readonly ms: number }>;
 	readonly sessionCost: Reading<{ readonly usd: number }>;
 	readonly judgeCost: Reading<{ readonly usd: number }>;
@@ -220,7 +225,13 @@ const stageFileSchema = z
 		status: z.string().optional(),
 		costUsd: z.number().optional(),
 		grade: z
-			.object({ grade: z.string(), verdict: z.string() })
+			.object({
+				grade: z.string(),
+				verdict: z.string(),
+				hardBlockers: z
+					.array(z.object({ status: z.enum(["PASS", "FAIL"]) }).loose())
+					.optional(),
+			})
 			.loose()
 			.optional(),
 		attempts: callsSchema.optional(),
@@ -551,6 +562,22 @@ const UNGRADED_REASONS = {
 	graded: "the scorecard holds no letter",
 } as const satisfies Record<StageStatus, string>;
 
+function blockersOf(file: StageFile | undefined): RunRecordStage["blockers"] {
+	const hardBlockers = file?.grade?.hardBlockers;
+	if (hardBlockers === undefined) {
+		return {
+			state: "unavailable",
+			reasons: ["the stage record holds no graded hard blockers"],
+		};
+	}
+
+	return {
+		state: "available",
+		fired: hardBlockers.filter(({ status }) => status === "FAIL").length,
+		total: hardBlockers.length,
+	};
+}
+
 /** The corpus a stage ran under, from its checkpoint or, failing one, its record. */
 function ranUnder({
 	file,
@@ -606,6 +633,7 @@ function stageRecord(
 						letter: file.grade.grade,
 						verdict: file.grade.verdict,
 					},
+		blockers: blockersOf(file),
 		wallTime: wallTime(
 			file?.elapsedMs,
 			stageStatus(file) === "awaiting-judgment"

@@ -14,6 +14,7 @@ export function recordStage(
 		stage,
 		status: "no-record",
 		grade: NOT_READ,
+		blockers: NOT_READ,
 		wallTime: NOT_READ,
 		sessionCost: NOT_READ,
 		judgeCost: NOT_READ,

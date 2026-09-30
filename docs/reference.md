@@ -1208,7 +1208,9 @@ commit, the model, and the effort, absent when the manifest records none.
 
 Each stage, in the manifest's order, reports its status (`graded`, `stopped`,
 `awaiting-judgment` or `no-record`), its grade as the letter and the judge's
-verdict, its checkpoint's short id, its session and judge cost, and its tokens
+verdict, how many of the rubric's hard blockers its judge found fired out of
+how many it checked, unavailable when its record holds no grade, its
+checkpoint's short id, its session and judge cost, and its tokens
 as input, cache read, cache write, output and total input, summed over its
 session calls and judge attempts. Its instruction files are the corpus files
 its checkpoint records, or its stop record's when it saved no checkpoint, each

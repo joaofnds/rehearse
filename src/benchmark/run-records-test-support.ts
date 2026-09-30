@@ -148,7 +148,14 @@ export const RECORDED_READINGS = {
 
 /** The fields a newer harness adds to a record an older one wrote. */
 interface NewerRecordFields {
-	readonly grade?: { readonly grade: string; readonly verdict: string };
+	readonly grade?: {
+		readonly grade: string;
+		readonly verdict: string;
+		readonly hardBlockers?: readonly {
+			readonly id: string;
+			readonly status: "PASS" | "FAIL";
+		}[];
+	};
 	readonly attempts?: readonly unknown[];
 	readonly minimumGrade?: string;
 	readonly elapsedMs?: number;
@@ -1200,7 +1207,15 @@ export class RecordedRunsFixture {
 			elapsedMs: RECORDED_READINGS.stageElapsedMs.discuss,
 		});
 		await mergeIntoRecord(paths.stageFile("build"), {
-			grade: { grade: RECORDED_READINGS.stoppedLetter, verdict: "STOP" },
+			grade: {
+				grade: RECORDED_READINGS.stoppedLetter,
+				verdict: "STOP",
+				hardBlockers: [
+					{ id: "no-secrets-in-diff", status: "FAIL" },
+					{ id: "no-unrelated-refactors", status: "FAIL" },
+					{ id: "tests-pass-before-handoff", status: "PASS" },
+				],
+			},
 			attempts: [
 				{
 					payload: {},
