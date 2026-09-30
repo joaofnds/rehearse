@@ -8,6 +8,7 @@ import { ComparisonPage } from "#client/comparison/comparison-page";
 import { ComparisonsPage } from "#client/comparison/comparisons-page";
 import { CorpusPage } from "#client/corpus/corpus-page";
 import { EvidenceSourcePage } from "#client/evidence/evidence-source-page";
+import { MonitorPage } from "#client/monitor/monitor-page";
 import { RunHistoryPage } from "#client/run-history/run-history-page";
 import { SessionHistoryPage } from "#client/session-history/session-history-page";
 import { AppShell } from "#client/shell/app-shell";
@@ -23,6 +24,12 @@ const runHistoryRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/",
 	component: RunHistoryPage,
+});
+
+const monitorRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/monitor",
+	component: MonitorPage,
 });
 
 const systemRoute = createRoute({
@@ -143,6 +150,7 @@ function ComparisonRoute(): React.JSX.Element {
 
 const routeTree = rootRoute.addChildren([
 	runHistoryRoute,
+	monitorRoute,
 	stageHistoryRoute,
 	stageEvidenceRoute,
 	finalEvidenceRoute,
