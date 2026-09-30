@@ -991,8 +991,7 @@ describe(runHistoryReport.name, () => {
 			digest: "c".repeat(64),
 		};
 		await recordCorpusVersion(
-			benchmarkRunPaths(fixture.runsDirectory, fixture.stoppedRun)
-				.manifestFile,
+			benchmarkRunPaths(fixture.runsDirectory, fixture.stoppedRun).manifestFile,
 			started,
 		);
 
