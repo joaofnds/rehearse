@@ -39,6 +39,7 @@ import type { RunManifest } from "./manifest";
 import { writeRunManifest } from "./manifest";
 import type { RunLiveness } from "./run-liveness";
 import type { JudgeProgress, PlainRunEventKind } from "./run-events";
+import type { RunTokens } from "./spend-ceiling";
 import { openRunEventStore } from "./run-events";
 import type {
 	GroupReportSummaryRecord,
@@ -1428,10 +1429,12 @@ export class RecordedRunsFixture {
 
 	/**
 	 * A run in flight whose manifest records the ceiling it started under and
-	 * whose latest event carries the run spend charged so far.
+	 * whose latest event carries the run spend charged so far and the tokens
+	 * tallied with it.
 	 */
 	public async writeRunningRunUnderCeiling(props: {
 		readonly runSpentUsd: number;
+		readonly runTokens?: RunTokens;
 		readonly spendCeilingUsd: number;
 	}): Promise<void> {
 		const paths = benchmarkRunPaths(this.runsDirectory, this.runningRun);
@@ -1449,6 +1452,7 @@ export class RecordedRunsFixture {
 			stage: "build",
 			spentUsd: 0.9,
 			runSpentUsd: props.runSpentUsd,
+			runTokens: props.runTokens,
 			elapsedMs: 9000,
 		});
 		store.close();

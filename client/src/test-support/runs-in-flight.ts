@@ -36,6 +36,7 @@ export function runRow(props: {
 	readonly stage?: string;
 	readonly grades?: readonly StageGrade[];
 	readonly runSpentUsd?: number;
+	readonly runTokens?: { readonly input: number; readonly output: number };
 	readonly ceilingUsd?: number;
 	readonly launchId?: string | undefined;
 	readonly elapsedMs?: number;
@@ -74,6 +75,7 @@ export function runRow(props: {
 						spentUsd: 0.9,
 						spendScope: "this stage's session so far",
 						runSpentUsd: props.runSpentUsd,
+						runTokens: props.runTokens,
 						ceilingUsd: props.ceilingUsd,
 					}
 				: { state: "recorded" },

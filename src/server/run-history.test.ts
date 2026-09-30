@@ -529,6 +529,27 @@ describe(runHistoryReport.name, () => {
 		});
 	});
 
+	it("carries the run's tokens in and out at its latest event", async () => {
+		const fixture = await writtenFixture();
+		await fixture.writeRunningRunUnderCeiling({
+			runSpentUsd: 2.4,
+			runTokens: { input: 842_000, output: 31_000 },
+			spendCeilingUsd: 10,
+		});
+
+		const { rows } = await runHistoryReport(
+			fixture.runsDirectory,
+			directorySource(await corpusDirectory("build skill\n")),
+			liveness(true),
+		);
+
+		const row = pipelineRun(rows, fixture.runningRun);
+		expect(row?.progress).toMatchObject({
+			state: "running",
+			runTokens: { input: 842_000, output: 31_000 },
+		});
+	});
+
 	it("reports per rubric section how many of a judging stage's items are back, before its grade exists", async () => {
 		const fixture = await writtenFixture();
 		await fixture.writeRunningRun("stage-judging", "build", 0.9, 9000);

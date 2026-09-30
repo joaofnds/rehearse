@@ -96,7 +96,7 @@ describe(reconcileInterruptedRuns.name, () => {
 		store.close();
 	});
 
-	it("carries the run spend of the run's last event onto its interruption", async () => {
+	it("carries the run spend and tokens of the run's last event onto its interruption", async () => {
 		const store = await openRunEventStore(":memory:");
 		store.append({
 			runId: "run-1",
@@ -104,6 +104,7 @@ describe(reconcileInterruptedRuns.name, () => {
 			stage: "build",
 			spentUsd: 1,
 			runSpentUsd: 2.5,
+			runTokens: { input: 300, output: 40 },
 			elapsedMs: 10,
 		});
 		const dependencies = fakeDependencies("/runs", {
@@ -115,7 +116,10 @@ describe(reconcileInterruptedRuns.name, () => {
 
 		await reconcileInterruptedRuns(store, dependencies);
 
-		expect(store.latestEvent("run-1")?.runSpentUsd).toBe(2.5);
+		expect(store.latestEvent("run-1")).toMatchObject({
+			runSpentUsd: 2.5,
+			runTokens: { input: 300, output: 40 },
+		});
 		store.close();
 	});
 

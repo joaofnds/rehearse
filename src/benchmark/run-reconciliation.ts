@@ -59,6 +59,7 @@ export async function reconcileInterruptedRuns(
 				stage: latest.stage,
 				spentUsd: latest.spentUsd,
 				runSpentUsd: latest.runSpentUsd,
+				runTokens: latest.runTokens,
 				elapsedMs: latest.elapsedMs,
 			});
 			reconciled.push(runId);

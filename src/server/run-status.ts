@@ -22,6 +22,7 @@ import {
 import { operatorStopped } from "#benchmark/operator-stop";
 import { pausedStage } from "#benchmark/run-pause";
 import type { RunLiveness } from "#benchmark/run-liveness";
+import type { RunTokens } from "#benchmark/spend-ceiling";
 
 /**
  * What a run's `spentUsd` covers, in words, decided by the event kind that
@@ -73,7 +74,8 @@ type StageState = (typeof STAGE_STATE)[keyof typeof STAGE_STATE];
  *
  * `runSpentUsd` is what the run's ceiling had charged at its latest event,
  * and `ceilingUsd` the ceiling its manifest says it started under, which a
- * later change to the stored ceiling does not move. Either is undefined for a
+ * later change to the stored ceiling does not move. `runTokens` is the
+ * run's tokens in and out tallied with `runSpentUsd`. Each is undefined for a
  * run recorded before it existed.
  */
 export type RunProgress =
@@ -87,6 +89,7 @@ export type RunProgress =
 			readonly spentUsd: number;
 			readonly spendScope: SpendScope;
 			readonly runSpentUsd: number | undefined;
+			readonly runTokens: RunTokens | undefined;
 			readonly ceilingUsd: number | undefined;
 			readonly judge?: JudgeProgress;
 	  };
@@ -214,6 +217,7 @@ function runningProgress(
 		spentUsd: latest.spentUsd,
 		spendScope,
 		runSpentUsd: latest.runSpentUsd,
+		runTokens: latest.runTokens,
 		ceilingUsd: undefined,
 	};
 	if (latest.kind !== "judge-progress") {
