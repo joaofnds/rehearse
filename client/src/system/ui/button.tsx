@@ -12,6 +12,8 @@ const buttonVariants = cva(
 				default: "border-primary text-pale hover:bg-accent active:bg-selected",
 				outline:
 					"border-strong text-foreground hover:border-primary hover:bg-accent active:bg-selected",
+				quiet:
+					"border-strong text-secondary-foreground hover:border-primary hover:bg-accent active:bg-selected",
 				ghost: "border-transparent hover:bg-accent",
 				link: "border-transparent text-accent-foreground underline-offset-4 hover:underline",
 			},
@@ -21,6 +23,7 @@ const buttonVariants = cva(
 				lg: "h-10 px-6",
 				icon: "size-9",
 				"icon-sm": "size-8",
+				xs: "rounded-sm px-1.75 py-1 text-xs",
 			},
 		},
 		defaultVariants: {

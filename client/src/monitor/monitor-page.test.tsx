@@ -235,3 +235,114 @@ describe("/monitor", () => {
 		});
 	});
 });
+
+describe("/monitor task graph", () => {
+	const DIGEST = "a41c7e".padEnd(64, "0");
+
+	function renderGraph(
+		stages: readonly ReturnType<typeof recordStage>[],
+	): void {
+		renderAppWithStub(
+			"/monitor",
+			new Map<string, unknown>([
+				["/api/runs", history([runRow({ run: RUN, stage: "build" })])],
+				[
+					`/api/runs/${RUN}`,
+					{
+						...runRecord({ run: RUN, running: "build", stages }),
+						minimumGrade: { state: "available", letter: "B-" },
+					},
+				],
+			]),
+		);
+	}
+
+	async function node(stage: string): Promise<HTMLElement> {
+		const graph = await screen.findByRole("region", { name: "Task graph" });
+		const shown = within(graph)
+			.getAllByRole("listitem")
+			.find((item) => within(item).queryByText(stage) !== null);
+		if (shown === undefined) {
+			throw new Error(`the graph draws no node for ${stage}`);
+		}
+
+		return shown;
+	}
+
+	it("shows a finished stage's cost, duration, fired blockers, corpus version and checkpoint", async () => {
+		renderGraph([
+			recordStage("plan", {
+				status: "graded",
+				sessionCost: { state: "available", usd: 0.9 },
+				judgeCost: { state: "available", usd: 0.22 },
+				wallTime: { state: "available", ms: 242_000 },
+				blockers: { state: "available", fired: 2, total: 4 },
+				corpusVersion: { kind: "version", digest: DIGEST },
+				checkpoint: "recorded",
+				checkpointShortId: { state: "available", shortId: "ckpt-0148-s1" },
+			}),
+			recordStage("build"),
+		]);
+
+		const shown = await node("plan");
+
+		expect(shown).toHaveTextContent("$1.12");
+		expect(shown).toHaveTextContent("4m02s");
+		expect(shown).toHaveTextContent("2 of 4 fired");
+		expect(shown).toHaveTextContent("a41c7e");
+		expect(shown).toHaveTextContent("◆ckpt-0148-s1");
+		expect(shown).toHaveTextContent("contribution pending");
+	});
+
+	it("shows a stage not started as costing nothing, with no checkpoint yet", async () => {
+		renderGraph([recordStage("build"), recordStage("review")]);
+
+		const shown = await node("review");
+
+		expect(shown).toHaveTextContent("$0.00");
+		expect(shown).toHaveTextContent("◇no checkpoint yet");
+		expect(shown).toHaveTextContent("not started");
+	});
+
+	it("shows the running stage's session spend so far as its cost", async () => {
+		renderGraph([recordStage("build")]);
+
+		expect(await node("build")).toHaveTextContent("$0.90");
+	});
+
+	it("offers replay from a stage's checkpoint", async () => {
+		renderGraph([
+			recordStage("plan", { status: "graded", checkpoint: "recorded" }),
+			recordStage("build"),
+		]);
+
+		expect(
+			within(await node("plan")).getByRole("button", {
+				name: "Replay plan from its checkpoint",
+			}),
+		).not.toHaveAttribute("aria-disabled");
+	});
+
+	it("says on replay why a stage without a checkpoint cannot be replayed", async () => {
+		renderGraph([recordStage("build")]);
+
+		expect(
+			within(await node("build")).getByRole("button", {
+				name: "build has no checkpoint to replay from",
+			}),
+		).toHaveAttribute("aria-disabled", "true");
+	});
+
+	it("names the task and its step count, and what a step below the minimum grade does", async () => {
+		renderGraph([recordStage("plan"), recordStage("build")]);
+
+		const graph = await screen.findByRole("region", { name: "Task graph" });
+
+		expect(within(graph).getByRole("heading", { level: 2 })).toHaveTextContent(
+			"Task · audit-log · 2 steps, in order",
+		);
+		expect(graph).toHaveTextContent(
+			"Minimum grade for every step in this task is B-. A task below it stops the run and restores acme-api to e91f2a.",
+		);
+	});
+});

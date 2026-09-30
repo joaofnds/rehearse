@@ -685,17 +685,21 @@ function LaunchForm({
  */
 export function LaunchDialog({
 	target,
-	triggerLabel,
+	...opener
 }: {
 	readonly target: LaunchTarget;
-	readonly triggerLabel: string;
-}): React.JSX.Element {
+} & (
+	| { readonly triggerLabel: string; readonly trigger?: undefined }
+	| { readonly trigger: React.ReactNode; readonly triggerLabel?: undefined }
+)): React.JSX.Element {
 	const [open, setOpen] = useState(false);
 
 	return (
 		<Dialog open={open} onOpenChange={setOpen}>
 			<DialogTrigger asChild>
-				<Button variant="outline">{triggerLabel}</Button>
+				{opener.trigger ?? (
+					<Button variant="outline">{opener.triggerLabel}</Button>
+				)}
 			</DialogTrigger>
 			<DialogContent>
 				<LaunchForm
