@@ -69,7 +69,7 @@ function SpendReading({
 			</span>
 			<span
 				aria-hidden="true"
-				className="h-1.25 w-19 overflow-hidden rounded-sm border border-strong"
+				className="h-1.25 w-19 overflow-hidden rounded-xs border border-strong"
 			>
 				<span
 					className="block h-full w-(--spend-share) bg-deep"
@@ -89,8 +89,8 @@ function StopControl({
 	if (launchId === undefined) {
 		return (
 			<Button
-				variant="outline"
-				size="sm"
+				variant="quiet"
+				size="compact"
 				aria-disabled="true"
 				aria-label={NO_LAUNCH_REASON}
 				title={NO_LAUNCH_REASON}
@@ -108,8 +108,8 @@ function StopControl({
 				</span>
 			)}
 			<Button
-				variant="outline"
-				size="sm"
+				variant="quiet"
+				size="compact"
 				disabled={stop.isPending || stop.isSuccess}
 				onClick={() => {
 					stop.mutate(launchId);
@@ -139,9 +139,11 @@ function RunReadings({
 	return (
 		<section
 			aria-label="Run in flight"
-			className="flex h-11.75 flex-none items-center gap-4.25 overflow-x-auto border-t border-strong bg-raised px-4 text-xs whitespace-nowrap"
+			className="flex h-11.75 flex-none items-center gap-4.25 overflow-x-auto border-t border-strong bg-raised px-4 text-12 whitespace-nowrap"
 		>
-			<LiveGlyph />
+			<span className="text-10">
+				<LiveGlyph />
+			</span>
 			<span className="font-mono text-pale">{nameOf(row)}</span>
 			<span className="text-secondary-foreground">{row.caseId}</span>
 			<Separator />
@@ -163,7 +165,7 @@ function RunReadings({
 				<span className="text-dim">grades so far {grades.join(" ")}</span>
 			)}
 			<span className="ml-auto inline-flex items-center gap-2.5">
-				<Button asChild size="sm">
+				<Button asChild size="compact">
 					<Link to="/monitor">Open monitor</Link>
 				</Button>
 				<StopControl key={row.run} launchId={row.launchId} />

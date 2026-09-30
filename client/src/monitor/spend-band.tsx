@@ -25,9 +25,7 @@ function Figure({
 }): React.JSX.Element {
 	return (
 		<div className="flex flex-col gap-1">
-			<span className="text-xs tracking-widest text-dim uppercase">
-				{label}
-			</span>
+			<span className="text-10 tracking-label text-dim uppercase">{label}</span>
 			{children}
 		</div>
 	);
@@ -39,7 +37,7 @@ function NotRecorded({
 	readonly reading: string;
 }): React.JSX.Element {
 	return (
-		<span className="font-mono text-lg text-dim">
+		<span className="font-mono text-15 text-dim">
 			—<span className="sr-only"> {reading} not recorded</span>
 		</span>
 	);
@@ -73,10 +71,10 @@ function CeilingMeter({
 			<div
 				role="img"
 				aria-label={`Spent ${runSpentUsd.toFixed(2)} dollars of a ${ceilingUsd.toFixed(2)} dollar ceiling`}
-				className="relative h-2.75 rounded-md border border-strong bg-background"
+				className="relative h-2.75 rounded-compact border border-strong bg-background"
 			>
 				<div
-					className="absolute inset-y-0 left-0 w-(--spend-share) overflow-hidden rounded-l-md bg-meter-stripe"
+					className="absolute inset-y-0 left-0 w-(--spend-share) overflow-hidden rounded-l-compact bg-meter-stripe"
 					style={width}
 				/>
 				<div
@@ -85,7 +83,7 @@ function CeilingMeter({
 					style={width}
 				/>
 			</div>
-			<div className="flex justify-between font-mono text-xs text-dim">
+			<div className="flex justify-between font-mono text-10-5 text-dim">
 				<span>{spendReading(0)}</span>
 				<span>
 					{String(Math.round(share * PERCENT))}% of ceiling used · stops
@@ -122,12 +120,12 @@ export function SpendBand({
 						{runSpentUsd === undefined ? (
 							<NotRecorded reading="run spend" />
 						) : (
-							<span className="font-mono text-3xl font-medium tracking-tight text-foreground">
+							<span className="font-mono text-26 font-medium tracking-figure text-foreground">
 								{spendReading(runSpentUsd)}
 							</span>
 						)}
 						{ceilingUsd === undefined ? null : (
-							<span className="font-mono text-sm text-muted-foreground">
+							<span className="font-mono text-12 text-muted-foreground">
 								of {spendReading(ceilingUsd)} limit
 							</span>
 						)}
@@ -137,14 +135,14 @@ export function SpendBand({
 					{runSpentUsd === undefined ? (
 						<NotRecorded reading="run spend" />
 					) : (
-						<span className="font-mono text-lg">
+						<span className="font-mono text-15">
 							{spendReading(burnPerMinute(runSpentUsd, elapsedMs))}
-							<span className="text-sm text-dim"> /min</span>
+							<span className="text-11 text-dim"> /min</span>
 						</span>
 					)}
 				</Figure>
 				<Figure label="Elapsed">
-					<span className="font-mono text-lg">
+					<span className="font-mono text-15">
 						{clockReading(liveElapsedMs(elapsedMs, measuredAt, nowMs))}
 					</span>
 				</Figure>
@@ -152,7 +150,7 @@ export function SpendBand({
 					{runTokens === undefined ? (
 						<NotRecorded reading="run tokens" />
 					) : (
-						<span className="font-mono text-lg text-secondary-foreground">
+						<span className="font-mono text-15 text-secondary-foreground">
 							{tokenReading(runTokens.input)} / {tokenReading(runTokens.output)}
 						</span>
 					)}

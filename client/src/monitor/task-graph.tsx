@@ -115,7 +115,7 @@ function StatusLine({
 	readonly status: NodeStatus;
 }): React.JSX.Element {
 	return (
-		<span className="flex items-center gap-1.75 text-sm text-secondary-foreground">
+		<span className="flex items-center gap-1.75 text-11-5 text-secondary-foreground">
 			{status.state === "running" ? (
 				<LiveGlyph />
 			) : (
@@ -137,7 +137,7 @@ function CheckpointLine({
 }): React.JSX.Element {
 	if (stage.checkpoint === "missing") {
 		return (
-			<span className="flex items-center gap-1.75 border-t border-dashed border-strong pt-1.75 font-mono text-xs text-dim">
+			<span className="flex items-center gap-1.75 border-t border-dashed border-strong pt-1.75 font-mono text-10-5 text-dim">
 				<span aria-hidden="true">◇</span>
 				no checkpoint yet
 			</span>
@@ -145,7 +145,7 @@ function CheckpointLine({
 	}
 
 	return (
-		<span className="flex items-center gap-1.75 border-t border-dashed border-strong pt-1.75 font-mono text-xs text-secondary-foreground">
+		<span className="flex items-center gap-1.75 border-t border-dashed border-strong pt-1.75 font-mono text-10-5 text-secondary-foreground">
 			<span aria-hidden="true">◆</span>
 			{stage.checkpointShortId.state === "available"
 				? stage.checkpointShortId.shortId
@@ -168,7 +168,7 @@ function InOutLine({
 	const { declared } = stage.artifactsOut;
 
 	return (
-		<span className="grid grid-cols-2 gap-x-3 gap-y-1 font-mono text-xs text-secondary-foreground">
+		<span className="grid grid-cols-2 gap-x-3 gap-y-1 font-mono text-10-5 text-secondary-foreground">
 			<span>
 				↓{" "}
 				{instructionFiles.state === "available"
@@ -268,12 +268,10 @@ function StageNode({
 				className={`flex w-77.5 flex-col gap-2.25 rounded-lg border px-3.75 py-3 text-left hover:bg-accent ${nodeBorder(selected, status)}`}
 			>
 				<span className="flex items-center gap-2.5">
-					<span aria-hidden="true" className="font-mono text-xs text-dim">
+					<span aria-hidden="true" className="font-mono text-10-5 text-dim">
 						{String(number).padStart(2, "0")}
 					</span>
-					<span className="flex-1 text-base text-foreground">
-						{stage.stage}
-					</span>
+					<span className="flex-1 text-13 text-foreground">{stage.stage}</span>
 					<Grade
 						size="node"
 						value={
@@ -284,7 +282,7 @@ function StageNode({
 					/>
 				</span>
 				<StatusLine status={status} />
-				<span className="grid grid-cols-2 gap-x-3 gap-y-1 font-mono text-xs text-muted-foreground">
+				<span className="grid grid-cols-2 gap-x-3 gap-y-1 font-mono text-10-5 text-muted-foreground">
 					<span>{costReading(stage, row)}</span>
 					<span>{durationReading(stage.wallTime)}</span>
 					<span>{blockersReading(stage.blockers)}</span>
@@ -293,7 +291,7 @@ function StageNode({
 					</span>
 				</span>
 				<CheckpointLine stage={stage} />
-				<span className="text-sm text-muted-foreground">
+				<span className="text-11 text-muted-foreground">
 					{notStarted(stage, row) ? "not started" : "contribution pending"}
 				</span>
 				<InOutLine stage={stage} />
@@ -307,7 +305,7 @@ function StageNode({
 					className={`flex items-center gap-1 px-2.5 ${status.state === "accepted" ? "text-deeper" : "text-strong"}`}
 				>
 					<span className="block h-px w-7.5 bg-current" />
-					<span className="text-xs">▶</span>
+					<span className="text-10">▶</span>
 				</span>
 			)}
 		</li>
@@ -328,7 +326,7 @@ function MinimumGradeNote({
 	}
 
 	return (
-		<p className="px-5 pb-3 text-sm text-pretty text-dim">
+		<p className="px-5 pb-3 text-11 text-pretty text-dim">
 			Minimum grade for every step in this task is{" "}
 			<span className="font-mono text-secondary-foreground">
 				{record.minimumGrade.letter}
@@ -361,14 +359,14 @@ export function TaskGraph({
 			className="min-h-66.25 overflow-y-auto border-b border-divider bg-secondary"
 		>
 			<div className="flex items-center gap-3.75 px-5 pt-2.5">
-				<h2 className="text-xs font-medium tracking-widest text-dim uppercase">
+				<h2 className="text-10 font-medium tracking-label text-dim uppercase">
 					Task · {record.caseId} · {String(record.stages.length)} steps, in
 					order
 				</h2>
-				<span className="text-sm text-muted-foreground">
+				<span className="text-11 text-muted-foreground">
 					click a step to bring its session and judge below
 				</span>
-				<span aria-hidden="true" className="ml-auto text-xs text-dim">
+				<span aria-hidden="true" className="ml-auto text-10-5 text-dim">
 					✓ accepted · ● running · ○ queued · ◆ checkpoint
 				</span>
 			</div>

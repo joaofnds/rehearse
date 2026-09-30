@@ -16,7 +16,7 @@ export function StagePanes({
 				className="flex min-h-0 flex-col border-r border-divider"
 			>
 				<div className="flex flex-none items-center gap-3 border-b border-divider px-4.25 py-2.75">
-					<h2 className="text-sm font-medium tracking-wide text-muted-foreground uppercase">
+					<h2 className="text-12 font-medium tracking-caps text-muted-foreground uppercase">
 						Step {String(number)} · {stage}
 					</h2>
 				</div>
@@ -26,7 +26,7 @@ export function StagePanes({
 				className="flex min-h-0 flex-col bg-secondary"
 			>
 				<div className="flex flex-none items-center gap-2.75 border-b border-divider px-4.25 py-2.75">
-					<h2 className="text-sm font-medium tracking-wide text-muted-foreground uppercase">
+					<h2 className="text-12 font-medium tracking-caps text-muted-foreground uppercase">
 						Judge · step {String(number)}
 					</h2>
 				</div>

@@ -11,10 +11,10 @@ export type GradeValue =
 	| { readonly pending: true };
 
 const SIZE_CLASSES = {
-	inline: "font-mono text-base font-bold",
-	node: "font-mono text-2xl leading-none font-bold",
-	card: "font-mono text-3xl font-bold",
-	task: "font-mono text-4xl font-bold",
+	inline: "font-mono text-13 font-bold",
+	node: "font-mono text-19 leading-none font-bold",
+	card: "font-mono text-24 font-bold",
+	task: "font-mono text-30 font-bold",
 } as const satisfies Record<GradeSize, string>;
 
 export function Grade({

@@ -32,7 +32,7 @@ function HeaderControls({
 		<span className="ml-auto flex flex-col items-end gap-1.5">
 			<span className="flex gap-2.5">
 				<Button
-					variant="outline"
+					variant="quiet"
 					disabled={pause.isPending || pause.isSuccess}
 					onClick={() => {
 						pause.mutate(row.run);
@@ -42,7 +42,7 @@ function HeaderControls({
 				</Button>
 				{launchId === undefined ? (
 					<Button
-						variant="outline"
+						variant="strong"
 						aria-disabled="true"
 						aria-label={NO_LAUNCH_REASON}
 						title={NO_LAUNCH_REASON}
@@ -51,7 +51,7 @@ function HeaderControls({
 					</Button>
 				) : (
 					<Button
-						variant="outline"
+						variant="strong"
 						disabled={stop.isPending || stop.isSuccess}
 						onClick={() => {
 							stop.mutate(launchId);
@@ -86,23 +86,23 @@ export function RunIdentityHeader({
 
 	return (
 		<header className="flex flex-none flex-wrap items-center gap-4.25 border-b border-divider px-6 py-3.75">
-			<span className="flex items-center gap-2.75">
+			<span className="flex items-center gap-2.75 text-11">
 				<LiveGlyph />
-				<h1 className="text-xl">
+				<h1 className="text-16">
 					Run <span className="font-mono">{nameOf(row)}</span> in progress
 				</h1>
 			</span>
-			<span className="font-mono text-sm text-secondary-foreground">
+			<span className="font-mono text-11-5 text-muted-foreground">
 				{row.caseId}
 			</span>
 			{corpusVersion?.kind === "version" ? (
 				<CorpusPill hash={corpusVersion.digest} />
 			) : (
-				<span className="text-sm text-muted-foreground">
+				<span className="text-11-5 text-muted-foreground">
 					{corpusMeasurementReading(corpusVersion)}
 				</span>
 			)}
-			<span className="text-sm text-dim">
+			<span className="text-11-5 text-dim">
 				target{" "}
 				<span className="font-mono">
 					{identity.target} @ {shortCommit(identity.commit)}
