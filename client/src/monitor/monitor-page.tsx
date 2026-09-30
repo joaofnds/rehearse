@@ -69,12 +69,16 @@ function RunMonitor({ row }: { readonly row: PipelineRow }): React.JSX.Element {
 }
 
 /**
- * The live monitor (SPEC.md:132): one pipeline run, the newest in flight.
- * The design draws the monitor for a run in flight only, so a run that ends
- * leaves it, and the lines shown with none, or with the runs unread, are
- * stand-ins until the design agent draws those states.
+ * The live monitor (SPEC.md:132): one pipeline run in flight, the one its
+ * address names or else the newest. The design draws the monitor for a run in
+ * flight only, so a run that ends leaves it, and the lines shown with none, or
+ * with the runs unread, follow the design's muted status lines.
  */
-export function MonitorPage(): React.JSX.Element | null {
+export function MonitorPage({
+	run,
+}: {
+	readonly run?: string | undefined;
+}): React.JSX.Element | null {
 	const { data, isError } = useQuery(polledRunHistoryQuery);
 	if (isError) {
 		return (
@@ -88,10 +92,12 @@ export function MonitorPage(): React.JSX.Element | null {
 		return null;
 	}
 
-	const [newest] = runsInFlight(data.rows);
-	if (newest === undefined) {
+	const inFlight = runsInFlight(data.rows);
+	const shown =
+		run === undefined ? inFlight[0] : inFlight.find((row) => row.run === run);
+	if (shown === undefined) {
 		return <p className="px-6 py-4 text-muted-foreground">No run in flight.</p>;
 	}
 
-	return <RunMonitor key={newest.run} row={newest} />;
+	return <RunMonitor key={shown.run} row={shown} />;
 }

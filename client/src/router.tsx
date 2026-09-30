@@ -32,6 +32,18 @@ const monitorRoute = createRoute({
 	component: MonitorPage,
 });
 
+const runMonitorRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/monitor/$run",
+	component: RunMonitorRoute,
+});
+
+function RunMonitorRoute(): React.JSX.Element {
+	const params: { readonly run: string } = runMonitorRoute.useParams();
+
+	return <MonitorPage run={params.run} />;
+}
+
 const systemRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/system",
@@ -151,6 +163,7 @@ function ComparisonRoute(): React.JSX.Element {
 const routeTree = rootRoute.addChildren([
 	runHistoryRoute,
 	monitorRoute,
+	runMonitorRoute,
 	stageHistoryRoute,
 	stageEvidenceRoute,
 	finalEvidenceRoute,

@@ -587,6 +587,19 @@ describe("/monitor across runs", () => {
 		expect(await header()).toHaveTextContent("Run r-0149 in progress");
 	});
 
+	it("shows the run in flight its address names, when another is newer", async () => {
+		renderAppWithStub(
+			`/monitor/${RUN}`,
+			new Map<string, unknown>([
+				...monitorBodies(runRow({ run: RUN })),
+				...monitorBodies(newerRow()),
+				["/api/runs", history([runRow({ run: RUN }), newerRow()])],
+			]),
+		);
+
+		expect(await header()).toHaveTextContent("Run r-0148 in progress");
+	});
+
 	it("names the running stage of the next run, whatever was selected on the one before", async () => {
 		renderMonitor(runRow({ run: RUN, stage: "build" }));
 		const graph = await screen.findByRole("region", { name: "Task graph" });
