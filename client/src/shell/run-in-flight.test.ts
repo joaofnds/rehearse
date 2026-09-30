@@ -2,7 +2,6 @@ import { describe, expect, it } from "bun:test";
 import { graded, notYet, runRow } from "#client/test-support/runs-in-flight";
 import {
 	announcements,
-	clockReading,
 	gradesSoFar,
 	runsInFlight,
 	stepOf,
@@ -41,17 +40,6 @@ describe(gradesSoFar.name, () => {
 		});
 
 		expect(gradesSoFar(row)).toEqual(["A-", "B+"]);
-	});
-});
-
-describe(clockReading.name, () => {
-	it.each([
-		[0, "00:00"],
-		[9999, "00:09"],
-		[372_000, "06:12"],
-		[3_723_000, "1:02:03"],
-	] as const)("reads %d ms as %s", (elapsedMs, reading) => {
-		expect(clockReading(elapsedMs)).toBe(reading);
 	});
 });
 

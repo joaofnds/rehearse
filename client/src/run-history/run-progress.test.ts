@@ -1,5 +1,10 @@
 import { describe, expect, it } from "bun:test";
-import { elapsedReading, liveElapsedMs, spendReading } from "./run-progress";
+import {
+	clockReading,
+	elapsedReading,
+	liveElapsedMs,
+	spendReading,
+} from "./run-progress";
 
 describe(elapsedReading.name, () => {
 	it.each([
@@ -74,5 +79,16 @@ describe(liveElapsedMs.name, () => {
 
 	it("keeps the recorded reading when the measurement time is unreadable", () => {
 		expect(liveElapsedMs(9000, "not a date", Date.now())).toBe(9000);
+	});
+});
+
+describe(clockReading.name, () => {
+	it.each([
+		[0, "00:00"],
+		[9999, "00:09"],
+		[372_000, "06:12"],
+		[3_723_000, "1:02:03"],
+	] as const)("reads %d ms as %s", (elapsedMs, reading) => {
+		expect(clockReading(elapsedMs)).toBe(reading);
 	});
 });

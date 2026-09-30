@@ -25,6 +25,27 @@ export function elapsedReading(elapsedMs: number): string {
 	return `${String(hours)}h ${String(minutes)}m`;
 }
 
+function twoDigits(value: number): string {
+	return String(value).padStart(2, "0");
+}
+
+/**
+ * Elapsed time as a clock, `06:12`, with hours only once there are any. The
+ * seconds are always shown, because the reading ticks every second.
+ */
+export function clockReading(elapsedMs: number): string {
+	const totalSeconds = Math.floor(elapsedMs / MS_PER_SECOND);
+	const seconds = totalSeconds % SECONDS_PER_MINUTE;
+	const totalMinutes = Math.floor(totalSeconds / SECONDS_PER_MINUTE);
+	const minutes = totalMinutes % MINUTES_PER_HOUR;
+	const hours = Math.floor(totalMinutes / MINUTES_PER_HOUR);
+	if (hours === 0) {
+		return `${twoDigits(minutes)}:${twoDigits(seconds)}`;
+	}
+
+	return `${String(hours)}:${twoDigits(minutes)}:${twoDigits(seconds)}`;
+}
+
 /**
  * A recorded elapsed figure carried forward to now. A run measures its own
  * elapsed time only when it emits an event, once per agent turn, so the

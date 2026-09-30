@@ -16,10 +16,6 @@ export type PipelineRow = Extract<HistoryRow, { readonly kind: "run" }>;
  */
 const CEILING_APPROACHED_SHARE = 0.8;
 
-const MS_PER_SECOND = 1000;
-const SECONDS_PER_MINUTE = 60;
-const MINUTES_PER_HOUR = 60;
-
 /** Pipeline runs in flight, newest first, which a run's timestamped id orders. */
 export function runsInFlight(
 	rows: readonly HistoryRow[],
@@ -69,27 +65,6 @@ export function gradesSoFar(row: PipelineRow): readonly string[] {
 	return row.stageGrades.grades.flatMap(({ grade }) =>
 		grade.state === "available" ? [grade.letter] : [],
 	);
-}
-
-function twoDigits(value: number): string {
-	return String(value).padStart(2, "0");
-}
-
-/**
- * Elapsed time as a clock, `06:12`, with hours only once there are any. The
- * seconds are always shown, because the reading ticks every second.
- */
-export function clockReading(elapsedMs: number): string {
-	const totalSeconds = Math.floor(elapsedMs / MS_PER_SECOND);
-	const seconds = totalSeconds % SECONDS_PER_MINUTE;
-	const totalMinutes = Math.floor(totalSeconds / SECONDS_PER_MINUTE);
-	const minutes = totalMinutes % MINUTES_PER_HOUR;
-	const hours = Math.floor(totalMinutes / MINUTES_PER_HOUR);
-	if (hours === 0) {
-		return `${twoDigits(minutes)}:${twoDigits(seconds)}`;
-	}
-
-	return `${String(hours)}:${twoDigits(minutes)}:${twoDigits(seconds)}`;
 }
 
 function nameOf(row: PipelineRow): string {

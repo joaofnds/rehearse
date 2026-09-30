@@ -4,13 +4,16 @@ import { useState } from "react";
 import { RunControls } from "#client/run-history/run-controls";
 import { polledRunHistoryQuery } from "#client/run-history/run-history-polling";
 import type { RunHistoryResponse } from "#client/run-history/run-history-query";
-import { liveElapsedMs, spendReading } from "#client/run-history/run-progress";
+import {
+	clockReading,
+	liveElapsedMs,
+	spendReading,
+} from "#client/run-history/run-progress";
 import { useNow } from "#client/run-history/use-now";
 import { Status } from "#client/system/components/status";
 import type { PipelineRow } from "./run-in-flight";
 import {
 	announcements,
-	clockReading,
 	gradesSoFar,
 	runsInFlight,
 	stepOf,
