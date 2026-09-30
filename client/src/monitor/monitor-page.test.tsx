@@ -213,5 +213,25 @@ describe("/monitor", () => {
 			expect(shown).toHaveTextContent("Burn rate— run spend not recorded");
 			expect(within(shown).queryByRole("img")).not.toBeInTheDocument();
 		});
+
+		it("shows the run's tokens in and out in thousands", async () => {
+			renderMonitor(
+				runRow({ run: RUN, runTokens: { input: 842_300, output: 31_400 } }),
+			);
+
+			const shown = await band();
+
+			expect(shown).toHaveTextContent("Tokens in / out842k / 31k");
+		});
+
+		it("shows a dash with its reason for tokens a run recorded before they existed", async () => {
+			renderMonitor(runRow({ run: RUN }));
+
+			const shown = await band();
+
+			expect(shown).toHaveTextContent(
+				"Tokens in / out— run tokens not recorded",
+			);
+		});
 	});
 });

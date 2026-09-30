@@ -12,6 +12,10 @@ const MS_PER_MINUTE = 60_000;
 
 const PERCENT = 100;
 
+const TOKENS_PER_THOUSAND = 1000;
+
+const thousands = new Intl.NumberFormat("en-US");
+
 function Figure({
 	label,
 	children,
@@ -29,12 +33,20 @@ function Figure({
 	);
 }
 
-function NotRecorded(): React.JSX.Element {
+function NotRecorded({
+	reading,
+}: {
+	readonly reading: string;
+}): React.JSX.Element {
 	return (
 		<span className="font-mono text-lg text-dim">
-			—<span className="sr-only"> run spend not recorded</span>
+			—<span className="sr-only"> {reading} not recorded</span>
 		</span>
 	);
+}
+
+function tokenReading(tokens: number): string {
+	return `${thousands.format(Math.round(tokens / TOKENS_PER_THOUSAND))}k`;
 }
 
 /**
@@ -87,7 +99,7 @@ function CeilingMeter({
 
 /**
  * The monitor's second band (SPEC.md 2b): what the run has spent against the
- * ceiling that stops it, how fast, and for how long. The remaining estimate
+ * ceiling that stops it, how fast, for how long, and the tokens it took. The remaining estimate
  * is ACT-270.5's.
  */
 export function SpendBand({
@@ -96,7 +108,8 @@ export function SpendBand({
 	readonly progress: Progress;
 }): React.JSX.Element {
 	const nowMs = useNow(true);
-	const { runSpentUsd, ceilingUsd, elapsedMs, measuredAt } = progress;
+	const { runSpentUsd, runTokens, ceilingUsd, elapsedMs, measuredAt } =
+		progress;
 
 	return (
 		<section
@@ -107,7 +120,7 @@ export function SpendBand({
 				<Figure label="Spent this run">
 					<span className="flex items-baseline gap-2.5">
 						{runSpentUsd === undefined ? (
-							<NotRecorded />
+							<NotRecorded reading="run spend" />
 						) : (
 							<span className="font-mono text-3xl font-medium tracking-tight text-foreground">
 								{spendReading(runSpentUsd)}
@@ -122,7 +135,7 @@ export function SpendBand({
 				</Figure>
 				<Figure label="Burn rate">
 					{runSpentUsd === undefined ? (
-						<NotRecorded />
+						<NotRecorded reading="run spend" />
 					) : (
 						<span className="font-mono text-lg">
 							{spendReading(burnPerMinute(runSpentUsd, elapsedMs))}
@@ -134,6 +147,15 @@ export function SpendBand({
 					<span className="font-mono text-lg">
 						{clockReading(liveElapsedMs(elapsedMs, measuredAt, nowMs))}
 					</span>
+				</Figure>
+				<Figure label="Tokens in / out">
+					{runTokens === undefined ? (
+						<NotRecorded reading="run tokens" />
+					) : (
+						<span className="font-mono text-lg text-secondary-foreground">
+							{tokenReading(runTokens.input)} / {tokenReading(runTokens.output)}
+						</span>
+					)}
 				</Figure>
 			</div>
 			{runSpentUsd === undefined || ceilingUsd === undefined ? null : (
