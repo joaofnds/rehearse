@@ -163,4 +163,55 @@ describe("/monitor", () => {
 			).toBeInTheDocument();
 		});
 	});
+
+	describe("the spend band", () => {
+		function band(): Promise<HTMLElement> {
+			return screen.findByRole("region", { name: "Spend" });
+		}
+
+		it("shows the run's spend against its ceiling, its burn rate and its elapsed time", async () => {
+			renderMonitor(
+				runRow({
+					run: RUN,
+					runSpentUsd: 1.83,
+					ceilingUsd: 20,
+					elapsedMs: 372_000,
+					measuredAt: new Date().toISOString(),
+				}),
+			);
+
+			const shown = await band();
+
+			expect(shown).toHaveTextContent("Spent this run$1.83of $20.00 limit");
+			expect(shown).toHaveTextContent("Burn rate$0.30 /min");
+			expect(shown).toHaveTextContent("Elapsed06:12");
+		});
+
+		it("states the share of the ceiling used in words and on its meter", async () => {
+			renderMonitor(runRow({ run: RUN, runSpentUsd: 1.83, ceilingUsd: 20 }));
+
+			const shown = await band();
+
+			expect(
+				within(shown).getByRole("img", {
+					name: "Spent 1.83 dollars of a 20.00 dollar ceiling",
+				}),
+			).toBeInTheDocument();
+			expect(shown).toHaveTextContent(
+				"$0.00" +
+					"9% of ceiling used · stops mid-step at the ceiling" +
+					"$20.00",
+			);
+		});
+
+		it("shows a dash with its reason for run spend a run recorded before it existed", async () => {
+			renderMonitor(runRow({ run: RUN, ceilingUsd: 20 }));
+
+			const shown = await band();
+
+			expect(shown).toHaveTextContent("Spent this run— run spend not recorded");
+			expect(shown).toHaveTextContent("Burn rate— run spend not recorded");
+			expect(within(shown).queryByRole("img")).not.toBeInTheDocument();
+		});
+	});
 });

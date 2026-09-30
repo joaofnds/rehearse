@@ -10,6 +10,7 @@ import type { StatusState } from "#client/system/components/status";
 import type { MonitoredStage, RunRecordResponse } from "./run-record-query";
 import { runRecordQuery } from "./run-record-query";
 import { RunIdentityHeader } from "./run-identity-header";
+import { SpendBand } from "./spend-band";
 
 type HistoryRow = RunHistoryResponse["rows"][number];
 
@@ -157,6 +158,9 @@ function RunMonitor({ row }: { readonly row: PipelineRow }): React.JSX.Element {
 			{query.isSuccess ? (
 				<>
 					<RunIdentityHeader row={row} identity={query.data.identity} />
+					{row.progress.state === "running" ? (
+						<SpendBand progress={row.progress} />
+					) : null}
 					<TaskGraph record={query.data} row={row} />
 				</>
 			) : null}

@@ -11,6 +11,14 @@
 
 @custom-variant current (&[aria-current="page"]);
 
+@utility bg-meter-stripe {
+	background-image: repeating-linear-gradient(
+		115deg,
+		var(--color-accent-deep) 0 6px,
+		var(--color-accent-deep-2) 6px 12px
+	);
+}
+
 @layer base {
 	*,
 	::before,
