@@ -79,13 +79,14 @@ hover surface shadcn expects while `--color-accent` is the brand purple, and
 Write `bg-primary` for the brand, and read `theme.css` before trusting a Tailwind
 name to match the token it echoes.
 
-`theme.css` maps colors, fonts, and radii, including the handoff's palette roles
-that shadcn's names lack, such as `text-dim`, `text-pale`, and `border-divider`.
-Spacing and type come from Tailwind's own scales. `globals.css` sets `html` to the
-handoff's 13px base, so `text-base` is 13px and a spacing step is 3.25px.
-`tokens.css` therefore holds no spacing, type size, or letter-spacing scale. It keeps
-the handoff's whole colour palette; outside the palette, add a token only for a value
-a utility or a base style reads.
+`theme.css` also names the handoff's palette roles that shadcn's names lack, such as
+`text-dim`, `text-pale`, and `border-divider`. `globals.css` sets `html` to the
+handoff's 13px base, so `text-base` is 13px and a spacing step is 3.25px. Write type
+with the handoff's own steps, such as `text-11-5`, because Tailwind's `text-xs`
+renders 9.75px, below the handoff's 10px floor. Spacing comes from Tailwind's scale.
+`tokens.css` keeps the handoff's whole colour palette and its type scale. Outside
+those, add a token only for a value a utility or a base style reads, such as the
+bar's spend track size.
 
 Add a primitive with `bunx --bun shadcn@4.21.0 add <name>`, and read the generated
 file before you commit it. Give its props a named type and add that name to the
