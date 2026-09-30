@@ -67,7 +67,8 @@ export function gradesSoFar(row: PipelineRow): readonly string[] {
 	);
 }
 
-function nameOf(row: PipelineRow): string {
+/** The run as the bar and its announcements name it. */
+export function nameOf(row: PipelineRow): string {
 	return row.shortId ?? row.run;
 }
 

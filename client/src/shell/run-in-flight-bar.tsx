@@ -15,6 +15,7 @@ import type { PipelineRow } from "./run-in-flight";
 import {
 	announcements,
 	gradesSoFar,
+	nameOf,
 	runsInFlight,
 	stepOf,
 	withGradesKnownBefore,
@@ -83,7 +84,7 @@ function SpendReading({
 	);
 }
 
-function StopReading({
+function StopControl({
 	launchId,
 }: {
 	readonly launchId: string | undefined;
@@ -145,7 +146,7 @@ function RunReadings({
 			className="flex h-11.75 flex-none items-center gap-4.25 overflow-x-auto border-t border-strong bg-raised px-4 text-xs whitespace-nowrap"
 		>
 			<LiveGlyph />
-			<span className="font-mono text-pale">{row.shortId ?? row.run}</span>
+			<span className="font-mono text-pale">{nameOf(row)}</span>
 			<span className="text-secondary-foreground">{row.caseId}</span>
 			<Separator />
 			<span>
@@ -166,7 +167,7 @@ function RunReadings({
 				<span className="text-dim">grades so far {grades.join(" ")}</span>
 			)}
 			<span className="ml-auto">
-				<StopReading key={row.run} launchId={row.launchId} />
+				<StopControl key={row.run} launchId={row.launchId} />
 			</span>
 		</section>
 	);
