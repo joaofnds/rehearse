@@ -453,3 +453,21 @@ describe("/monitor live updates", () => {
 		});
 	});
 });
+
+describe("/monitor under reduced motion", () => {
+	it("keeps every pulsing glyph static for readers who asked for reduced motion", async () => {
+		renderMonitor(runRow({ run: RUN, stage: "build" }));
+		const graph = await screen.findByRole("region", { name: "Task graph" });
+		const main = graph.closest("main");
+		if (main === null) {
+			throw new Error("the monitor renders outside the main landmark");
+		}
+
+		const pulsing = [...main.querySelectorAll("[class*='animate-live']")];
+
+		expect(pulsing).not.toHaveLength(0);
+		for (const glyph of pulsing) {
+			expect(glyph).toHaveClass("motion-reduce:animate-none");
+		}
+	});
+});
