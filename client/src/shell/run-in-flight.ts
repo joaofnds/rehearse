@@ -212,8 +212,8 @@ export function announcements(
 }
 
 /**
- * The later reading, with the stage grades of each run the later reading could
- * not read taken from the earlier one, so the next reading is compared with
+ * The later reading, with the stage grades of each run in flight the later
+ * reading could not read taken from the earlier one, so the next reading is compared with
  * the last stages known rather than with none.
  */
 export function withGradesKnownBefore(
@@ -221,20 +221,20 @@ export function withGradesKnownBefore(
 	after: readonly HistoryRow[],
 ): readonly HistoryRow[] {
 	const known = new Map(
-		before.flatMap((row) =>
-			row.kind === "run" && row.stageGrades.state === "available"
+		runsInFlight(before).flatMap((row) =>
+			row.stageGrades.state === "available"
 				? [[row.run, row.stageGrades] as const]
 				: [],
 		),
 	);
 
 	return after.map((row) => {
-		if (row.kind !== "run" || row.stageGrades.state === "available") {
-			return row;
-		}
+		const stageGrades = row.kind === "run" ? known.get(row.run) : undefined;
 
-		const stageGrades = known.get(row.run);
-
-		return stageGrades === undefined ? row : { ...row, stageGrades };
+		return stageGrades === undefined ||
+			row.kind !== "run" ||
+			row.stageGrades.state === "available"
+			? row
+			: { ...row, stageGrades };
 	});
 }
