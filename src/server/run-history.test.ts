@@ -553,6 +553,7 @@ describe(runHistoryReport.name, () => {
 		expect(row?.progress).toMatchObject({
 			state: "running",
 			stage: "build",
+			stageState: "judge grading",
 			elapsedMs: 9500,
 			spendScope: "this stage's session",
 			judge,

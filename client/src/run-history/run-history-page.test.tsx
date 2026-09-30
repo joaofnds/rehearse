@@ -919,7 +919,7 @@ describe(RunHistoryPage.name, () => {
 			expect(page.queryByText("9s")).not.toBeInTheDocument();
 		});
 
-		it("stops re-reading the list once no run is in flight", async () => {
+		it("re-reads the list no faster than the idle pace once no run is in flight", async () => {
 			let requests = 0;
 			const stub = (): Promise<Response> => {
 				requests += 1;

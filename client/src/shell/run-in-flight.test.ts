@@ -97,6 +97,24 @@ describe(announcements.name, () => {
 		]);
 	});
 
+	it("announces the ceiling approached when run spend lands exactly on 80% of it", () => {
+		const before = runRow({ runSpentUsd: 7.99, ceilingUsd: 10 });
+		const after = runRow({ runSpentUsd: 8, ceilingUsd: 10 });
+
+		expect(announcements([before], [after])).toEqual([
+			"r-0148 has spent $8.00 of its $10.00 ceiling",
+		]);
+	});
+
+	it("announces a run the operator stopped", () => {
+		const before = runRow({});
+		const after = runRow({ status: "OPERATOR_STOPPED" });
+
+		expect(announcements([before], [after])).toEqual([
+			"r-0148 stopped by the operator",
+		]);
+	});
+
 	it("announces nothing when only the spend moved below the ceiling's 80%", () => {
 		const before = runRow({ runSpentUsd: 1, ceilingUsd: 10 });
 		const after = runRow({ runSpentUsd: 2.5, ceilingUsd: 10 });

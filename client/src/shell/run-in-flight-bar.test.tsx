@@ -148,7 +148,47 @@ describe("the run in flight on every screen", () => {
 
 		const shown = await screen.findByRole("region", { name: "Run in flight" });
 		expect(shown).toHaveTextContent("review");
+		expect(shown).not.toHaveTextContent(/\+\d/);
 		expect(within(shown).queryByRole("link")).not.toBeInTheDocument();
+	});
+
+	it("stops the run through the launch that started it", async () => {
+		const asked: string[] = [];
+		const stub = (input: RequestInfo | URL): Promise<Response> => {
+			asked.push(input instanceof Request ? input.url : String(input));
+
+			return Promise.resolve(Response.json({}));
+		};
+		stub.preconnect = originalFetch.preconnect;
+		globalThis.fetch = stub;
+		renderRunInFlight([runRow({ launchId: "launch-1" })]);
+
+		fireEvent.click(within(bar()).getByRole("button", { name: "Stop" }));
+
+		await waitFor(() => {
+			expect(
+				within(bar()).getByRole("button", { name: "Stop" }),
+			).toBeDisabled();
+		});
+		expect(asked).toEqual([
+			expect.stringContaining("/api/launches/launch-1/stop"),
+		]);
+	});
+
+	it("says why the server refused a stop", async () => {
+		const stub = (): Promise<Response> =>
+			Promise.resolve(
+				Response.json({ error: "launch already ended" }, { status: 409 }),
+			);
+		stub.preconnect = originalFetch.preconnect;
+		globalThis.fetch = stub;
+		renderRunInFlight([runRow({ launchId: "launch-1" })]);
+
+		fireEvent.click(within(bar()).getByRole("button", { name: "Stop" }));
+
+		expect(await within(bar()).findByRole("alert")).toHaveTextContent(
+			"launch already ended",
+		);
 	});
 
 	it("offers Stop for the run left in flight after the newest is stopped", async () => {
