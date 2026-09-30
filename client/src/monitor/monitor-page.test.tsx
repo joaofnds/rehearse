@@ -373,6 +373,16 @@ describe("/monitor task graph", () => {
 		expect(await node("build")).toHaveTextContent("bbbbbb");
 	});
 
+	it("draws the running stage's pulsing glyph in its status line's colour, as the design does", async () => {
+		renderGraph([recordStage("build")]);
+
+		const build = await node("build");
+		const glyph = build.querySelector("[class*='animate-live']");
+
+		expect(glyph).not.toBeNull();
+		expect(glyph).not.toHaveClass("text-accent-foreground");
+	});
+
 	it("reads a stage not started as having no corpus version", async () => {
 		renderGraph([recordStage("build"), recordStage("review")], {
 			kind: "version",

@@ -34,12 +34,20 @@ export const STATUS_VOCABULARY = {
 	"checkpoint-absent": { glyph: "◇", word: "checkpoint absent" },
 } satisfies Record<StatusState, { glyph: string; word: string }>;
 
-/** The running glyph, pulsing unless the reader asked for reduced motion. */
-export function LiveGlyph(): React.JSX.Element {
+/**
+ * The running glyph, pulsing unless the reader asked for reduced motion. It
+ * takes the light accent unless its tone keeps the surrounding text's colour,
+ * as the design's task graph nodes do.
+ */
+export function LiveGlyph({
+	tone = "accent",
+}: {
+	readonly tone?: "accent" | "surrounding";
+}): React.JSX.Element {
 	return (
 		<span
 			aria-hidden="true"
-			className="animate-live text-accent-foreground motion-reduce:animate-none"
+			className={`animate-live motion-reduce:animate-none ${tone === "accent" ? "text-accent-foreground" : ""}`}
 		>
 			{STATUS_VOCABULARY.running.glyph}
 		</span>

@@ -114,7 +114,7 @@ function StatusLine({
 	return (
 		<span className="flex items-center gap-1.75 text-11-5 text-secondary-foreground">
 			{status.state === "running" ? (
-				<LiveGlyph />
+				<LiveGlyph tone="surrounding" />
 			) : (
 				<span aria-hidden="true">{STATUS_VOCABULARY[status.state].glyph}</span>
 			)}
