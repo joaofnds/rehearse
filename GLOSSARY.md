@@ -264,9 +264,9 @@ See [current state](docs/status.md) for implementation coverage and
   install, so an edit to any of them can make a prior attempt stale.
 - **Corpus version**: one state of the whole corpus layout of a corpus source,
   every file the layout holds whether or not a stage reads it, identified by the
-  sha256 of its canonical file list. A pipeline stage, replay and session attempt
-  measure it before their session, and a confirmation group once when it freezes
-  its inputs. The records directory keeps each version openable. A layout that
+  sha256 of its canonical file list. A pipeline run measures it when it starts,
+  a pipeline stage, replay and session attempt before their session, and a
+  confirmation group once when it freezes its inputs. The records directory keeps each version openable. A layout that
   refuses hashing yields a corpus refusal in its place. Name accepted unattended
   as unsettled, pending the operator's confirmation (doc-157, question 6).
 - **`corpus@<hash>`**: the label of a corpus version, `corpus@` and the first

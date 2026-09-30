@@ -1126,8 +1126,9 @@ session, and a confirmation group once when it freezes its inputs, so every rep
 carries the group's version. The measurement lands in the record as
 `corpusVersion`, either `{kind: "version", digest}` or `{kind: "refused",
 refusal}` when the layout refused hashing: on the run manifest, a stage
-checkpoint and the stage's record, including a stop record and one whose judge failed, a replay
-record, a session attempt record and a group's `inputs`. A record written
+checkpoint and the stage's record, including a stop record and one whose
+judge failed, a replay record, a session attempt record and a group's
+`inputs`. A record written
 before versions were measured has no field, which readers report as version
 not recorded.
 
@@ -1205,7 +1206,9 @@ its case id and its status as the run history reports it, and the minimum
 grade the run manifest records, unavailable in a manifest that predates it.
 Its `identity` names what the run ran against and with, from the manifest: the
 target as the source root's directory name, never its absolute path, the
-commit, the model, and the effort, absent when the manifest records none.
+commit, the model, and the effort, absent when the manifest records none,
+and the corpus version the run measured when it started, absent in a manifest
+that predates it.
 
 Each stage, in the manifest's order, reports its status (`graded`, `stopped`,
 `awaiting-judgment` or `no-record`), its grade as the letter and the judge's
@@ -1260,7 +1263,8 @@ each missing part. The Product Owner's cost is also served alone as
 The fields these readings come from are optional, so a record written before
 them still parses and reads each as unavailable:
 
-- the run manifest's `minimumGrade`, the letter every stage had to reach;
+- the run manifest's `minimumGrade`, the letter every stage had to reach, and
+  its `corpusVersion`, the version measured when the run started;
 - each stage record's and the main artifact's `elapsedMs`, and the main
   artifact's `productOwnerProviderCalls`;
 - a stop record's `grade` (letter and verdict), judge `attempts`,
@@ -1369,8 +1373,12 @@ part recorded any spend.
 Every row carries `corpusVersion`, the version its record measured, absent
 when the record predates versions. A pipeline run row shows the version of its
 latest stage that recorded one, from the stage's checkpoint or, when it saved
-none, its stop record, and sets `corpusChangedDuringRun` when its stages
-measured more than one version. A refusal counts toward neither. A session attempt row and a replay row show
+none, its stop record. Until a stage has recorded one, including a run stopped
+or failed in its first stage session, the row shows the version the run's
+manifest recorded at its start. The row sets `corpusChangedDuringRun` when its
+stages measured more than one version, and the start version does not count
+toward that, since no stage ran against it alone. A refusal counts toward
+neither. A session attempt row and a replay row show
 their own record's version, and a confirmation group row shows the version its
 inputs froze.
 
