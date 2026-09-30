@@ -754,6 +754,7 @@ describe(RunHistoryPage.name, () => {
 				progress: {
 					state: "running",
 					stage: "build",
+					stageState: "session running",
 					elapsedMs: 9000,
 					measuredAt: new Date().toISOString(),
 					spentUsd: 0.9,
@@ -847,6 +848,7 @@ describe(RunHistoryPage.name, () => {
 							progress: {
 								state: "running",
 								stage: "review",
+								stageState: "session running",
 								elapsedMs: 74_000,
 								measuredAt: new Date().toISOString(),
 								spentUsd: 2.5,
@@ -895,6 +897,7 @@ describe(RunHistoryPage.name, () => {
 						progress: {
 							state: "running",
 							stage: "build",
+							stageState: "session running",
 							elapsedMs: 9000,
 							measuredAt: new Date(Date.now() - 52_000).toISOString(),
 							spentUsd: 0.9,
@@ -1624,6 +1627,7 @@ describe(RunHistoryPage.name, () => {
 					progress: {
 						state: "running",
 						stage: "build",
+						stageState: "session running",
 						elapsedMs: 9000,
 						measuredAt: new Date().toISOString(),
 						spentUsd: 0.9,

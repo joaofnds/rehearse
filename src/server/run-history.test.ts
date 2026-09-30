@@ -600,6 +600,28 @@ describe(runHistoryReport.name, () => {
 		expect(measuredAt).toBeLessThanOrEqual(Date.now());
 	});
 
+	it.each([
+		["stage-started", "session running"],
+		["turn-completed", "session running"],
+		["stage-judging", "judge grading"],
+		["stage-completed", "judged"],
+	] as const)(
+		"says a stage whose latest event is %s is in the state %s",
+		async (kind, stageState) => {
+			const fixture = await writtenFixture();
+			await fixture.writeRunningRun(kind);
+
+			const { rows } = await runHistoryReport(
+				fixture.runsDirectory,
+				directorySource(await corpusDirectory("build skill\n")),
+				liveness(true),
+			);
+
+			const row = pipelineRun(rows, fixture.runningRun);
+			expect(row?.progress).toMatchObject({ stageState });
+		},
+	);
+
 	/**
 	 * `spentUsd` means a different thing in each event kind, so the figure
 	 * travels with the words describing what it covers. A reader that called

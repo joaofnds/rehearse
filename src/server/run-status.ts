@@ -42,6 +42,17 @@ const SPEND_SCOPE = {
 
 type SpendScope = (typeof SPEND_SCOPE)[keyof typeof SPEND_SCOPE];
 
+/** Where the running stage is, in the design's words, by the latest event's kind. */
+const STAGE_STATE = {
+	"stage-started": "session running",
+	"turn-completed": "session running",
+	"stage-judging": "judge grading",
+	"judge-progress": "judge grading",
+	"stage-completed": "judged",
+} as const satisfies Record<NonTerminalRunEventKind, string>;
+
+type StageState = (typeof STAGE_STATE)[keyof typeof STAGE_STATE];
+
 /**
  * A run's live readings, present together or not at all. A finished run has
  * none of them, and a running one has all of them, so they sit behind one
@@ -70,6 +81,7 @@ export type RunProgress =
 	| {
 			readonly state: "running";
 			readonly stage: string;
+			readonly stageState: StageState;
 			readonly elapsedMs: number;
 			readonly measuredAt: string;
 			readonly spentUsd: number;
@@ -196,6 +208,7 @@ function runningProgress(
 	const progress: RunProgress = {
 		state: "running",
 		stage: latest.stage,
+		stageState: STAGE_STATE[latest.kind],
 		elapsedMs: latest.elapsedMs,
 		measuredAt: latest.recordedAt,
 		spentUsd: latest.spentUsd,
