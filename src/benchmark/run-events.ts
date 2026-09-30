@@ -87,6 +87,13 @@ interface RunEventFields {
 	readonly runId: string;
 	readonly stage: string;
 	readonly spentUsd: number;
+	/**
+	 * What the run's ceiling has charged when the event is recorded, Judges
+	 * and the Product Owner included, unlike `spentUsd`, whose scope depends
+	 * on the kind. Undefined on events recorded before it existed and on those
+	 * reconciliation writes from outside the run.
+	 */
+	readonly runSpentUsd?: number | undefined;
 	readonly elapsedMs: number;
 }
 
@@ -142,10 +149,11 @@ export interface RunEventRecorder {
 export function runEventRecorderFor(
 	store: RunEventStore,
 	runId: string,
+	runSpentUsd: () => number,
 ): RunEventRecorder {
 	const append = (event: NewRunEvent): void => {
 		try {
-			store.append(event);
+			store.append({ ...event, runSpentUsd: runSpentUsd() });
 		} catch {
 			// Best-effort: the event stream can drop an entry without
 			// affecting the run it describes.
@@ -178,20 +186,22 @@ const SCHEMA = `
 		spent_usd REAL NOT NULL,
 		elapsed_ms INTEGER NOT NULL,
 		recorded_at TEXT NOT NULL,
-		judge_progress TEXT
+		judge_progress TEXT,
+		run_spent_usd REAL
 	);
 	CREATE INDEX IF NOT EXISTS run_events_run_id ON run_events(run_id, sequence);
 `;
 
 /**
- * A store created before judge progress has no column for it. Adding a
- * nullable column keeps every row it holds and lets it record progress. The
- * column is added rather than checked for first, so two processes opening the
- * same old store at once cannot both find it missing and one fail to add it.
+ * A store created before a column existed has no room for it. Adding it
+ * nullable keeps every row the store holds and lets it record the new field.
+ * The column is added rather than checked for first, so two processes opening
+ * the same old store at once cannot both find it missing and one fail to add
+ * it.
  */
-function addJudgeProgressColumn(database: Database): void {
+function addNullableColumn(database: Database, definition: string): void {
 	try {
-		database.run("ALTER TABLE run_events ADD COLUMN judge_progress TEXT");
+		database.run(`ALTER TABLE run_events ADD COLUMN ${definition}`);
 	} catch (error) {
 		if (!String(error).includes("duplicate column name")) {
 			throw error;
@@ -208,6 +218,7 @@ interface RunEventRow {
 	readonly elapsed_ms: number;
 	readonly recorded_at: string;
 	readonly judge_progress: string | null;
+	readonly run_spent_usd: number | null;
 }
 
 function toRunEvent(row: RunEventRow): RunEvent {
@@ -216,6 +227,7 @@ function toRunEvent(row: RunEventRow): RunEvent {
 		runId: row.run_id,
 		stage: row.stage,
 		spentUsd: row.spent_usd,
+		runSpentUsd: row.run_spent_usd ?? undefined,
 		elapsedMs: row.elapsed_ms,
 		recordedAt: row.recorded_at,
 	};
@@ -239,17 +251,27 @@ export async function openRunEventStore(path: string): Promise<RunEventStore> {
 	database.run("PRAGMA busy_timeout = 5000");
 	database.run("PRAGMA journal_mode = WAL");
 	database.run(SCHEMA);
-	addJudgeProgressColumn(database);
+	addNullableColumn(database, "judge_progress TEXT");
+	addNullableColumn(database, "run_spent_usd REAL");
 
 	const selectJournalMode = database.query<{ journal_mode: string }, []>(
 		"PRAGMA journal_mode",
 	);
 	const insert = database.query<
 		RunEventRow,
-		[string, RunEventKind, string, number, number, string, string | null]
+		[
+			string,
+			RunEventKind,
+			string,
+			number,
+			number,
+			string,
+			string | null,
+			number | null,
+		]
 	>(
-		`INSERT INTO run_events (run_id, kind, stage, spent_usd, elapsed_ms, recorded_at, judge_progress)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)
+		`INSERT INTO run_events (run_id, kind, stage, spent_usd, elapsed_ms, recorded_at, judge_progress, run_spent_usd)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 		 RETURNING *`,
 	);
 	const selectSince = database.query<RunEventRow, [string, number]>(
@@ -272,6 +294,7 @@ export async function openRunEventStore(path: string): Promise<RunEventStore> {
 				event.elapsedMs,
 				new Date().toISOString(),
 				event.judge === undefined ? null : JSON.stringify(event.judge),
+				event.runSpentUsd ?? null,
 			);
 			if (row === null) {
 				throw new Error("Failed to append run event");

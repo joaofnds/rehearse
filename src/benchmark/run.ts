@@ -1190,7 +1190,11 @@ export async function runBenchmark(
 	);
 	const runStartedAtMs = Date.now();
 	const elapsedMs = (): number => Date.now() - runStartedAtMs;
-	const runEvents = runEventRecorderFor(runEventStore, runFiles.name);
+	const runEvents = runEventRecorderFor(
+		runEventStore,
+		runFiles.name,
+		spendCeiling.spentUsd,
+	);
 	const abort = createRunAbort(
 		{
 			killActiveCommands,

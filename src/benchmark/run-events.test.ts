@@ -9,6 +9,7 @@ import {
 	openRunEventStore,
 	runEventRecorderFor,
 } from "./run-events";
+import { createSpendCeiling } from "./spend-ceiling";
 import { TestResources } from "./test-support";
 
 const testResources = TestResources.forEachTest();
@@ -236,10 +237,53 @@ describe("run event store judge progress", () => {
 	});
 });
 
+describe("run event store run spend", () => {
+	it("opens a store created before run spend, reads its events with none and records it on new ones", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "rehearse-run-events-"));
+		testResources.track(directory);
+		const path = join(directory, "events.sqlite");
+		const old = new Database(path);
+		old.run(`CREATE TABLE run_events (
+			sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+			run_id TEXT NOT NULL,
+			kind TEXT NOT NULL,
+			stage TEXT NOT NULL,
+			spent_usd REAL NOT NULL,
+			elapsed_ms INTEGER NOT NULL,
+			recorded_at TEXT NOT NULL,
+			judge_progress TEXT
+		)`);
+		old.run(
+			"INSERT INTO run_events (run_id, kind, stage, spent_usd, elapsed_ms, recorded_at) VALUES ('run-1', 'stage-started', 'build', 0, 5, '2026-09-30T00:00:00.000Z')",
+		);
+		old.close();
+
+		const store = await openRunEventStore(path);
+		store.append({
+			runId: "run-1",
+			kind: "turn-completed",
+			stage: "build",
+			spentUsd: 1,
+			runSpentUsd: 1.5,
+			elapsedMs: 10,
+		});
+
+		expect(
+			store
+				.eventsSince("run-1", 0)
+				.map(({ kind, runSpentUsd }) => ({ kind, runSpentUsd })),
+		).toEqual([
+			{ kind: "stage-started", runSpentUsd: undefined },
+			{ kind: "turn-completed", runSpentUsd: 1.5 },
+		]);
+		store.close();
+	});
+});
+
 describe(runEventRecorderFor.name, () => {
 	it("appends every recorded call to the store under the fixed run id", async () => {
 		const store = await openRunEventStore(":memory:");
-		const recorder = runEventRecorderFor(store, "run-1");
+		const recorder = runEventRecorderFor(store, "run-1", () => 0);
 
 		recorder.record("stage-started", "shape", 0, 0);
 		recorder.record("stage-completed", "shape", 1, 1000);
@@ -260,6 +304,22 @@ describe(runEventRecorderFor.name, () => {
 		store.close();
 	});
 
+	it("stamps every event with the run spend its ceiling has charged so far", async () => {
+		const store = await openRunEventStore(":memory:");
+		const ceiling = createSpendCeiling({ ceilingUsd: 10 });
+		const recorder = runEventRecorderFor(store, "run-1", ceiling.spentUsd);
+
+		ceiling.charge(1.25);
+		recorder.record("turn-completed", "build", 1.25, 1000);
+		ceiling.charge(0.5);
+		recorder.record("stage-completed", "build", 1.75, 2000);
+
+		expect(
+			store.eventsSince("run-1", 0).map(({ runSpentUsd }) => runSpentUsd),
+		).toEqual([1.25, 1.75]);
+		store.close();
+	});
+
 	const reading = {
 		state: "returning",
 		attempt: 1,
@@ -273,7 +333,7 @@ describe(runEventRecorderFor.name, () => {
 	it("appends a judge progress reading with its counts", async () => {
 		const store = await openRunEventStore(":memory:");
 
-		runEventRecorderFor(store, "run-1").recordJudgeProgress(
+		runEventRecorderFor(store, "run-1", () => 0).recordJudgeProgress(
 			"build",
 			2,
 			3000,
@@ -297,7 +357,7 @@ describe(runEventRecorderFor.name, () => {
 		store.close();
 
 		expect(() => {
-			runEventRecorderFor(store, "run-1").recordJudgeProgress(
+			runEventRecorderFor(store, "run-1", () => 0).recordJudgeProgress(
 				"build",
 				2,
 				3000,
