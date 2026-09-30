@@ -268,7 +268,7 @@ comparison. The settings API reads and
 writes the ceiling and the linked corpus, but no settings screen or first-run
 setup shows them yet. Full run detail,
 task/case management, calibration screens, settings, and first-run setup are
-design targets. The rail marks Live monitor,
+design targets. The rail marks
 Run detail, Tasks, Cases, Calibration and Settings planned rather
 than linking to them. Live monitoring is partly
 delivered: the run list reports a run in flight with its stage, elapsed time and
@@ -283,8 +283,15 @@ newest only, since the design draws one run. A screen reader hears a stage accep
 stopped, and run spend first reaching 80% of its ceiling, a share no source
 sets yet. The run list and the bar
 read the event store through a polled route rather than through the SSE API.
-A monitor carrying the judge's reasoning and per-stage detail remains a design
-target. The server has no
+The Live monitor, opened from the rail, `g m` or the bar, shows the newest
+pipeline run in flight: its identity with Pause and Stop, run spend against
+the ceiling with burn rate, elapsed time and tokens in and out, and the task
+graph with each stage's grade, status, cost, duration, fired hard blockers,
+corpus version and checkpoint, and replay where a checkpoint exists. It
+follows the run's SSE stream, so its readings move as each event lands.
+Selecting a stage names it in the session and judge panes, which show
+nothing yet. Their transcript tail and judge detail, the remaining estimate,
+and a step's instructions in and artifacts out remain design targets. The server has no
 authentication and binds to IPv4 loopback; use it locally. It answers 403 to a
 non-loopback `Host`, and to a write that is not a same-origin JSON request.
 The guard reads headers any local program can set, so any process on this
