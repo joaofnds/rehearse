@@ -7,10 +7,18 @@ import { runHistoryQuery } from "./run-history-query";
  * span of someone staring at a screen; the route's cost is reading every saved
  * record under the runs directory, one liveness probe per candidate run, and
  * judging every record's staleness against the corpus under test, about a third
- * of a second for a hundred records. Polling stops when no run is running, so a
- * page left open on finished history costs nothing.
+ * of a second for a hundred records.
  */
 const RUNNING_POLL_MS = 2000;
+
+/**
+ * How often the list re-reads itself while nothing runs. Every screen shows a
+ * run in flight, including one started from a terminal after the page opened,
+ * and nothing but this read tells the page one has started. Longer than
+ * RUNNING_POLL_MS so a page left open on finished history costs a fifth as
+ * much. No source sets the figure.
+ */
+const IDLE_POLL_MS = 10_000;
 
 /**
  * Whether anything the list shows is still running: a browser launch whose
@@ -29,8 +37,8 @@ export function somethingRuns(
 }
 
 /**
- * The run-history query re-read while anything runs, for every reader that
- * shows readings of a run in flight.
+ * The run-history query, re-read often while anything runs and seldom while
+ * nothing does, for every reader that shows readings of a run in flight.
  */
 export const polledRunHistoryQuery = {
 	...runHistoryQuery,
@@ -38,5 +46,5 @@ export const polledRunHistoryQuery = {
 		state,
 	}: {
 		readonly state: { readonly data?: RunHistoryResponse | undefined };
-	}): number | false => (somethingRuns(state.data) ? RUNNING_POLL_MS : false),
+	}): number => (somethingRuns(state.data) ? RUNNING_POLL_MS : IDLE_POLL_MS),
 };

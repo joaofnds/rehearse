@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import type { RunHistoryResponse } from "./run-history-query";
-import { somethingRuns } from "./run-history-polling";
+import { polledRunHistoryQuery, somethingRuns } from "./run-history-polling";
 
 type LaunchRow = RunHistoryResponse["launches"][number];
 
@@ -33,5 +33,22 @@ describe(somethingRuns.name, () => {
 
 	it("counts nothing before the first response", () => {
 		expect(somethingRuns(undefined)).toBe(false);
+	});
+});
+
+describe("polledRunHistoryQuery", () => {
+	function intervalFor(data: RunHistoryResponse): number | false {
+		return polledRunHistoryQuery.refetchInterval({ state: { data } });
+	}
+
+	it("re-reads the list more often while something runs than while nothing does", () => {
+		const running = intervalFor(response([launch("RUNNING")]));
+		const idle = intervalFor(response([]));
+
+		expect(Number(running)).toBeLessThan(Number(idle));
+	});
+
+	it("keeps re-reading the list while nothing runs, so a run started elsewhere reaches every screen", () => {
+		expect(intervalFor(response([]))).toBeNumber();
 	});
 });
