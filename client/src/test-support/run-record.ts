@@ -49,6 +49,7 @@ export function runRecord(props: {
 			commit: "e91f2a0c",
 			model: "claude-opus-4",
 			effort: "high",
+			corpusVersion: undefined,
 		},
 		status: { state: "available", status: "RUNNING" },
 		minimumGrade: NOT_READ,

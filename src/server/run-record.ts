@@ -199,6 +199,8 @@ export interface RunIdentity {
 	readonly commit: string;
 	readonly model: string;
 	readonly effort: Effort | undefined;
+	/** Measured when the run started, before any stage measured its own. */
+	readonly corpusVersion: CorpusMeasurement | undefined;
 }
 
 export interface RunRecord {
@@ -1058,6 +1060,7 @@ export async function readRunRecord(
 				commit: manifest.sourceSha,
 				model: manifest.model,
 				effort: manifest.effort,
+				corpusVersion: manifest.corpusVersion,
 			},
 			status: await statusReading(runsDirectory, run, runEvents, liveness),
 			minimumGrade:

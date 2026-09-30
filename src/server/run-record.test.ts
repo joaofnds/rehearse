@@ -202,6 +202,29 @@ describe("/api/runs/:run", () => {
 				});
 			});
 
+			it("names the corpus version the run recorded when it started", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeStoppedRunEvidence();
+				const { manifestFile } = benchmarkRunPaths(
+					fixture.runsDirectory,
+					fixture.stoppedRun,
+				);
+				const recorded = z
+					.looseObject({})
+					.parse(await Bun.file(manifestFile).json());
+				const corpusVersion = { kind: "version", digest: "a".repeat(64) };
+				await Bun.write(
+					manifestFile,
+					JSON.stringify({ ...recorded, corpusVersion }),
+				);
+
+				const response = await runRecord(fixture, fixture.stoppedRun);
+
+				expect(await response.json()).toMatchObject({
+					identity: { corpusVersion },
+				});
+			});
+
 			it("reports the short id as unavailable for a run no command claimed one for", async () => {
 				const fixture = await emptyFixture();
 				await fixture.writeStoppedRunEvidence();

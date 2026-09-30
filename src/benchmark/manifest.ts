@@ -3,6 +3,7 @@ import { effortSchema, LEGACY_CASE_ID } from "./config";
 import { pipelineDefinitionSchema } from "./pipeline";
 import type { TargetDefinition } from "./pipeline";
 import { localCheckResultSchema, stageLetterGradeSchema } from "./contracts";
+import { corpusMeasurementSchema } from "./corpus-measurement";
 import type { Immutable } from "./contracts";
 
 const LEGACY_TARGET_DEFINITION = {
@@ -49,6 +50,7 @@ const runManifestSchema = z
 		baselineChecks: localCheckResultSchema.optional(),
 		minimumGrade: stageLetterGradeSchema.optional(),
 		spendCeilingUsd: z.number().positive().optional(),
+		corpusVersion: corpusMeasurementSchema.optional(),
 	})
 	.strict();
 
