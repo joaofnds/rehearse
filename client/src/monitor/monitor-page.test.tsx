@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "bun:test";
+import { afterEach, describe, expect, it, setSystemTime } from "bun:test";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { RunHistoryResponse } from "#client/run-history/run-history-query";
 import { FakeEventSource } from "#client/test-support/event-source";
@@ -185,22 +185,44 @@ describe("/monitor", () => {
 			return screen.findByRole("region", { name: "Spend" });
 		}
 
-		it("shows the run's spend against its ceiling, its burn rate and its elapsed time", async () => {
+		/** The run measured 6m12s at its latest event, a minute before the clock reads. */
+		const MEASURED_AT = "2026-09-30T10:06:12.000Z";
+
+		function renderMeasuredRun(): void {
+			setSystemTime(new Date("2026-09-30T10:07:12.000Z"));
 			renderMonitor(
 				runRow({
 					run: RUN,
 					runSpentUsd: 1.83,
 					ceilingUsd: 20,
 					elapsedMs: 372_000,
-					measuredAt: new Date().toISOString(),
+					measuredAt: MEASURED_AT,
 				}),
 			);
+		}
 
-			const shown = await band();
+		afterEach(() => {
+			setSystemTime();
+		});
 
-			expect(shown).toHaveTextContent("Spent this run$1.83of $20.00 limit");
-			expect(shown).toHaveTextContent("Burn rate$0.30 /min");
-			expect(shown).toHaveTextContent("Elapsed06:12");
+		it("shows the run's spend against its ceiling", async () => {
+			renderMeasuredRun();
+
+			expect(await band()).toHaveTextContent(
+				"Spent this run$1.83of $20.00 limit",
+			);
+		});
+
+		it("shows the burn rate over the elapsed time the run measured with its spend", async () => {
+			renderMeasuredRun();
+
+			expect(await band()).toHaveTextContent("Burn rate$0.30 /min");
+		});
+
+		it("shows the elapsed time advancing from the run's latest measurement", async () => {
+			renderMeasuredRun();
+
+			expect(await band()).toHaveTextContent("Elapsed07:12");
 		});
 
 		it("states the share of the ceiling used in words and on its meter", async () => {
