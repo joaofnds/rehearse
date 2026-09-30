@@ -96,6 +96,29 @@ describe(reconcileInterruptedRuns.name, () => {
 		store.close();
 	});
 
+	it("carries the run spend of the run's last event onto its interruption", async () => {
+		const store = await openRunEventStore(":memory:");
+		store.append({
+			runId: "run-1",
+			kind: "turn-completed",
+			stage: "build",
+			spentUsd: 1,
+			runSpentUsd: 2.5,
+			elapsedMs: 10,
+		});
+		const dependencies = fakeDependencies("/runs", {
+			manifests: new Map([
+				["/runs/run-1.checkpoints/manifest.json", { sourceRoot: "/target" }],
+			]),
+			markers: new Map([["/target", { pid: 4242 }]]),
+		});
+
+		await reconcileInterruptedRuns(store, dependencies);
+
+		expect(store.latestEvent("run-1")?.runSpentUsd).toBe(2.5);
+		store.close();
+	});
+
 	it("leaves a run alone when its claimed target's pid is still alive", async () => {
 		const store = await openRunEventStore(":memory:");
 		store.append({

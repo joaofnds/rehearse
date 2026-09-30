@@ -90,8 +90,9 @@ interface RunEventFields {
 	/**
 	 * What the run's ceiling has charged when the event is recorded, Judges
 	 * and the Product Owner included, unlike `spentUsd`, whose scope depends
-	 * on the kind. Undefined on events recorded before it existed and on those
-	 * reconciliation writes from outside the run.
+	 * on the kind. Undefined on events recorded before it existed. An
+	 * interruption reconciliation writes from outside the run carries the
+	 * figure of the run's last event.
 	 */
 	readonly runSpentUsd?: number | undefined;
 	readonly elapsedMs: number;
