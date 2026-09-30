@@ -1,5 +1,6 @@
 import { corpusMeasurementReading } from "#benchmark/corpus-version-label";
 import {
+	ControlRequests,
 	NO_LAUNCH_REASON,
 	usePauseRun,
 	useStopLaunch,
@@ -14,7 +15,11 @@ import type { RunRecordResponse } from "./run-record-query";
 /** As many of the commit's characters as the design shows. */
 const COMMIT_SHOWN = 6;
 
-function RunControls({
+export function shortCommit(commit: string): string {
+	return commit.slice(0, COMMIT_SHOWN);
+}
+
+function HeaderControls({
 	row,
 }: {
 	readonly row: PipelineRow;
@@ -22,7 +27,6 @@ function RunControls({
 	const pause = usePauseRun();
 	const stop = useStopLaunch();
 	const { launchId } = row;
-	const error = stop.error ?? pause.error;
 
 	return (
 		<span className="ml-auto flex flex-col items-end gap-1.5">
@@ -57,19 +61,11 @@ function RunControls({
 					</Button>
 				)}
 			</span>
-			{pause.isSuccess ? (
-				<span className="text-xs text-dim">
-					pause requested · ends after this step is judged
-				</span>
-			) : null}
-			{stop.isSuccess ? (
-				<span className="text-xs text-dim">stop requested</span>
-			) : null}
-			{error === null ? null : (
-				<p role="alert" className="text-xs text-secondary-foreground">
-					{error.message}
-				</p>
-			)}
+			<ControlRequests
+				pauseRequested={pause.isSuccess}
+				stopRequested={stop.isSuccess}
+				refusal={(stop.error ?? pause.error)?.message}
+			/>
 		</span>
 	);
 }
@@ -109,12 +105,12 @@ export function RunIdentityHeader({
 			<span className="text-sm text-dim">
 				target{" "}
 				<span className="font-mono">
-					{identity.target} @ {identity.commit.slice(0, COMMIT_SHOWN)}
+					{identity.target} @ {shortCommit(identity.commit)}
 				</span>{" "}
 				· {identity.model}
 				{identity.effort === undefined ? null : ` · effort ${identity.effort}`}
 			</span>
-			<RunControls row={row} />
+			<HeaderControls row={row} />
 		</header>
 	);
 }

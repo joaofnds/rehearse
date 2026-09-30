@@ -10,6 +10,7 @@ import { LiveGlyph, STATUS_VOCABULARY } from "#client/system/components/status";
 import type { StatusState } from "#client/system/components/status";
 import { Button } from "#client/system/ui/button";
 import type { MonitoredStage, RunRecordResponse } from "./run-record-query";
+import { shortCommit } from "./run-identity-header";
 
 const MS_PER_SECOND = 1000;
 
@@ -114,20 +115,65 @@ function StatusLine({
 	);
 }
 
+/**
+ * The stage's checkpoint, named by its short id. A run recorded before short
+ * ids still has a checkpoint to replay from, so the line says so.
+ */
 function CheckpointLine({
-	shortId,
+	stage,
 }: {
-	readonly shortId: MonitoredStage["checkpointShortId"];
+	readonly stage: MonitoredStage;
 }): React.JSX.Element {
-	return shortId.state === "available" ? (
+	if (stage.checkpoint === "missing") {
+		return (
+			<span className="flex items-center gap-1.75 border-t border-dashed border-strong pt-1.75 font-mono text-xs text-dim">
+				<span aria-hidden="true">◇</span>
+				no checkpoint yet
+			</span>
+		);
+	}
+
+	return (
 		<span className="flex items-center gap-1.75 border-t border-dashed border-strong pt-1.75 font-mono text-xs text-secondary-foreground">
 			<span aria-hidden="true">◆</span>
-			{shortId.shortId}
+			{stage.checkpointShortId.state === "available"
+				? stage.checkpointShortId.shortId
+				: "checkpoint recorded"}
 		</span>
-	) : (
-		<span className="flex items-center gap-1.75 border-t border-dashed border-strong pt-1.75 font-mono text-xs text-dim">
-			<span aria-hidden="true">◇</span>
-			no checkpoint yet
+	);
+}
+
+function countReading(count: number, noun: string, direction: string): string {
+	return `${String(count)} ${noun}${count === 1 ? "" : "s"} ${direction}`;
+}
+
+/** The instruction files the stage loaded and the artifacts it declared. */
+function InOutLine({
+	stage,
+}: {
+	readonly stage: MonitoredStage;
+}): React.JSX.Element {
+	const { instructionFiles } = stage;
+	const { declared } = stage.artifactsOut;
+
+	return (
+		<span className="grid grid-cols-2 gap-x-3 gap-y-1 font-mono text-xs text-secondary-foreground">
+			<span>
+				↓{" "}
+				{instructionFiles.state === "available"
+					? countReading(
+							instructionFiles.files.length,
+							"instruction file",
+							"in",
+						)
+					: NOT_RECORDED}
+			</span>
+			<span>
+				↑{" "}
+				{declared.state === "available"
+					? countReading(declared.paths.length, "artifact", "out")
+					: NOT_RECORDED}
+			</span>
 		</span>
 	);
 }
@@ -210,7 +256,7 @@ function StageNode({
 			>
 				<span className="flex items-center gap-2.5">
 					<span aria-hidden="true" className="font-mono text-xs text-dim">
-						{String(number)}
+						{String(number).padStart(2, "0")}
 					</span>
 					<span className="flex-1 text-base text-foreground">
 						{stage.stage}
@@ -231,10 +277,11 @@ function StageNode({
 					<span>{blockersReading(stage.blockers)}</span>
 					<span className="truncate">{corpusReading(stage.corpusVersion)}</span>
 				</span>
-				<CheckpointLine shortId={stage.checkpointShortId} />
+				<CheckpointLine stage={stage} />
 				<span className="text-sm text-muted-foreground">
 					{notStarted(stage, row) ? "not started" : "contribution pending"}
 				</span>
+				<InOutLine stage={stage} />
 			</button>
 			<span className="flex flex-col justify-center gap-1.25 px-1.5">
 				<ReplayAction run={row.run} stage={stage} />
@@ -273,7 +320,7 @@ function MinimumGradeNote({
 			</span>
 			. A task below it stops the run and restores{" "}
 			<span className="font-mono">{record.identity.target}</span> to{" "}
-			<span className="font-mono">{record.identity.commit.slice(0, 6)}</span>.
+			<span className="font-mono">{shortCommit(record.identity.commit)}</span>.
 			Contribution is measured against the task's final grade and is provisional
 			until the run ends.
 		</p>

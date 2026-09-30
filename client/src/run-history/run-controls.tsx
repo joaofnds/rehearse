@@ -80,6 +80,38 @@ export const NO_LAUNCH_REASON =
 	"Started outside the browser, so it stops only where it was started";
 
 /**
+ * What the operator asked of a run in flight, acknowledged once the server
+ * takes it, and the server's refusal when it does not.
+ */
+export function ControlRequests({
+	pauseRequested,
+	stopRequested,
+	refusal,
+}: {
+	readonly pauseRequested: boolean;
+	readonly stopRequested: boolean;
+	readonly refusal: string | undefined;
+}): React.JSX.Element {
+	return (
+		<>
+			{pauseRequested ? (
+				<span className="text-xs text-dim">
+					pause requested · ends after this step is judged
+				</span>
+			) : null}
+			{stopRequested ? (
+				<span className="text-xs text-dim">stop requested</span>
+			) : null}
+			{refusal === undefined ? null : (
+				<p role="alert" className="text-xs text-secondary-foreground">
+					{refusal}
+				</p>
+			)}
+		</>
+	);
+}
+
+/**
  * Stop reaches a run only through the launch that started it, since the
  * server signals the process it recorded; a run started from a terminal has
  * no launch, so it offers Pause alone. Pause is a pipeline run's, keyed by
@@ -94,8 +126,6 @@ export function RunControls({
 }): React.JSX.Element {
 	const stop = useStopLaunch();
 	const pause = usePauseRun();
-	const error = stop.error ?? pause.error;
-
 	return (
 		<span className="flex flex-col items-start gap-1.5">
 			<span className="flex flex-wrap gap-2">
@@ -121,19 +151,11 @@ export function RunControls({
 					</Button>
 				)}
 			</span>
-			{pause.isSuccess ? (
-				<span className="text-xs text-dim">
-					pause requested · ends after this step is judged
-				</span>
-			) : null}
-			{stop.isSuccess ? (
-				<span className="text-xs text-dim">stop requested</span>
-			) : null}
-			{error === null ? null : (
-				<p role="alert" className="text-xs text-secondary-foreground">
-					{error.message}
-				</p>
-			)}
+			<ControlRequests
+				pauseRequested={pause.isSuccess}
+				stopRequested={stop.isSuccess}
+				refusal={(stop.error ?? pause.error)?.message}
+			/>
 		</span>
 	);
 }

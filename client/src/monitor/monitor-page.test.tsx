@@ -4,8 +4,10 @@ import type { RunHistoryResponse } from "#client/run-history/run-history-query";
 import { FakeEventSource } from "#client/test-support/event-source";
 import { stubFetchByPath } from "#client/test-support/fetch-stub";
 import {
+	renderAppAt,
 	renderAppWithStub,
 	SHELL_BASELINE,
+	stubFetchFailing,
 } from "#client/test-support/render-app";
 import { recordStage, runRecord } from "#client/test-support/run-record";
 import { graded, notYet, runRow } from "#client/test-support/runs-in-flight";
@@ -348,6 +350,79 @@ describe("/monitor task graph", () => {
 		expect(await node("build")).toHaveTextContent("$0.90");
 	});
 
+	it("shows a graded stage's letter", async () => {
+		renderGraph([
+			recordStage("plan", {
+				status: "graded",
+				grade: { state: "available", letter: "B+", verdict: "PASS" },
+			}),
+			recordStage("build"),
+		]);
+
+		expect(await node("plan")).toHaveTextContent("B+");
+	});
+
+	it("reads a stage its judge stopped the run on as stopped", async () => {
+		renderGraph([
+			recordStage("plan", {
+				status: "graded",
+				grade: { state: "available", letter: "D", verdict: "STOP" },
+			}),
+			recordStage("build"),
+		]);
+
+		expect(await node("plan")).toHaveTextContent("stopped");
+	});
+
+	it("reads a stage waiting on its judge as awaiting judgment", async () => {
+		renderGraph([
+			recordStage("plan", { status: "awaiting-judgment" }),
+			recordStage("build"),
+		]);
+
+		expect(await node("plan")).toHaveTextContent("awaiting judgment");
+	});
+
+	it("shows a checkpoint recorded before short ids as recorded", async () => {
+		renderGraph([
+			recordStage("plan", { status: "graded", checkpoint: "recorded" }),
+			recordStage("build"),
+		]);
+
+		expect(await node("plan")).toHaveTextContent("◆checkpoint recorded");
+	});
+
+	it("counts the instruction files a stage loaded and the artifacts it declared", async () => {
+		renderGraph([
+			recordStage("plan", {
+				status: "graded",
+				instructionFiles: {
+					state: "available",
+					files: ["a.md", "b.md", "c.md"].map((path) => ({
+						path,
+						sha256: "0".repeat(64),
+					})),
+				},
+				artifactsOut: {
+					...recordStage("plan").artifactsOut,
+					declared: { state: "available", paths: ["docs/plan.md"] },
+				},
+			}),
+			recordStage("build"),
+		]);
+
+		const shown = await node("plan");
+
+		expect(shown).toHaveTextContent("↓ 3 instruction files in");
+		expect(shown).toHaveTextContent("↑ 1 artifact out");
+	});
+
+	it("numbers each step in two digits", async () => {
+		renderGraph([recordStage("build")]);
+
+		expect(await node("build")).toHaveTextContent(/^01build/u);
+	});
+
 	it("offers replay from a stage's checkpoint", async () => {
 		renderGraph([
 			recordStage("plan", { status: "graded", checkpoint: "recorded" }),
@@ -424,6 +499,73 @@ describe("/monitor stage selection", () => {
 	});
 });
 
+describe("/monitor across runs", () => {
+	const NEWER = "2026-09-30T11-00-00.000Z";
+
+	function newerRow(): PipelineRow {
+		return { ...runRow({ run: NEWER, stage: "build" }), shortId: "r-0149" };
+	}
+
+	it("shows the newest run in flight", async () => {
+		renderAppWithStub(
+			"/monitor",
+			new Map<string, unknown>([
+				...monitorBodies(runRow({ run: RUN })),
+				...monitorBodies(newerRow()),
+				["/api/runs", history([runRow({ run: RUN }), newerRow()])],
+			]),
+		);
+
+		expect(await header()).toHaveTextContent("Run r-0149 in progress");
+	});
+
+	it("names the running stage of the next run, whatever was selected on the one before", async () => {
+		renderMonitor(runRow({ run: RUN, stage: "build" }));
+		const graph = await screen.findByRole("region", { name: "Task graph" });
+		fireEvent.click(
+			within(graph).getByRole("button", {
+				name: /^plan(?! has no checkpoint)/u,
+			}),
+		);
+		const ended = { ...runRow({ run: RUN }), progress: { state: "recorded" } };
+		stubFetchByPath(
+			new Map<string, unknown>([
+				...SHELL_BASELINE,
+				...monitorBodies(newerRow()),
+				["/api/runs", history([ended, newerRow()])],
+			]),
+		);
+
+		FakeEventSource.openOn(`/api/runs/${RUN}/events`).deliver();
+
+		await screen.findByRole("heading", { level: 1, name: /r-0149/u });
+		expect(
+			within(
+				await screen.findByRole("region", { name: "Task graph" }),
+			).getByRole("button", { current: "step" }),
+		).toHaveTextContent("build");
+	});
+
+	it("leaves a run once it ends, as the design draws only runs in flight", async () => {
+		renderMonitor(runRow({ run: RUN }));
+		await screen.findByRole("region", { name: "Task graph" });
+		serveMonitor({ ...runRow({ run: RUN }), progress: { state: "recorded" } });
+
+		FakeEventSource.openOn(`/api/runs/${RUN}/events`).deliver();
+
+		expect(await screen.findByText("No run in flight.")).toBeInTheDocument();
+	});
+
+	it("says so when the runs in flight cannot be read", async () => {
+		stubFetchFailing("/api/runs");
+		renderAppAt("/monitor");
+
+		expect(
+			await within(await screen.findByRole("main")).findByRole("alert"),
+		).toHaveTextContent("Could not read the runs in flight.");
+	});
+});
+
 describe("/monitor live updates", () => {
 	it("moves the spend band when a run event arrives, without a reload", async () => {
 		renderMonitor(runRow({ run: RUN, runSpentUsd: 1.83, ceilingUsd: 20 }));
@@ -464,6 +606,30 @@ describe("/monitor live updates", () => {
 		FakeEventSource.openOn(`/api/runs/${RUN}/events`).deliver();
 
 		expect(await within(graph).findByText("ckpt-s1")).toBeInTheDocument();
+	});
+
+	it("reads the run once for events replayed while a read is in flight", async () => {
+		renderMonitor(runRow({ run: RUN }));
+		await screen.findByRole("region", { name: "Task graph" });
+		const answer = globalThis.fetch;
+		const reads: string[] = [];
+		const counting = (request: string | URL | Request): Promise<Response> => {
+			reads.push(request instanceof Request ? request.url : request.toString());
+			return answer(request);
+		};
+		counting.preconnect = fetch.preconnect;
+		globalThis.fetch = counting;
+		const stream = FakeEventSource.openOn(`/api/runs/${RUN}/events`);
+
+		stream.deliver();
+		stream.deliver();
+		stream.deliver();
+
+		await waitFor(() => {
+			expect(reads.filter((url) => url.endsWith(`/api/runs/${RUN}`))).toEqual([
+				`/api/runs/${RUN}`,
+			]);
+		});
 	});
 
 	it("closes the run's event stream once the run is no longer in flight", async () => {
