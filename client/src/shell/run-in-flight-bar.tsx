@@ -142,7 +142,7 @@ function RunReadings({
 	return (
 		<section
 			aria-label="Run in flight"
-			className="sticky bottom-0 flex min-h-9.5 flex-wrap items-center gap-x-3 gap-y-1 border-t border-strong bg-raised px-4 py-1.5 text-xs"
+			className="flex h-11.75 flex-none items-center gap-4.25 overflow-x-auto border-t border-strong bg-raised px-4 text-xs whitespace-nowrap"
 		>
 			<LiveGlyph />
 			<span className="font-mono text-pale">{row.shortId ?? row.run}</span>

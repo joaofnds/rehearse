@@ -72,12 +72,12 @@ export function AppShell(): React.JSX.Element {
 	useGoToShortcut();
 
 	return (
-		<div className="flex min-h-screen flex-col">
-			<div className="flex flex-1">
-				{/* Sticky, because the corpus card must stay in view on a page several screens tall. */}
+		<div className="flex h-screen flex-col overflow-hidden">
+			{/* The screen scrolls inside main, so the corpus card and the run in flight stay in view on a page several screens tall. */}
+			<div className="flex min-h-0 flex-1">
 				<nav
 					aria-label="Sections"
-					className="sticky top-0 flex h-screen w-68 flex-none flex-col gap-4 overflow-y-auto border-r border-divider bg-sidebar px-3 py-4"
+					className="flex w-68 flex-none flex-col gap-4 overflow-y-auto border-r border-divider bg-sidebar px-3 py-4"
 				>
 					<div className="px-2.5 pt-0.5">
 						<span className="text-lg font-medium tracking-tight">Rehearse</span>
@@ -103,7 +103,7 @@ export function AppShell(): React.JSX.Element {
 					</ul>
 				</nav>
 
-				<main className="min-w-0 flex-1">
+				<main className="min-w-0 flex-1 overflow-y-auto">
 					<Outlet />
 				</main>
 			</div>
