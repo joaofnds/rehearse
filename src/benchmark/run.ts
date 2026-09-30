@@ -186,6 +186,7 @@ export interface RunManifestInputs {
 	readonly pipeline: PipelineDefinition;
 	readonly baselineChecks?: LocalCheckResult | undefined;
 	readonly spendCeilingUsd: number;
+	readonly corpusVersion: CorpusMeasurement;
 }
 
 export function buildRunManifest(inputs: RunManifestInputs): RunManifest {
@@ -211,6 +212,7 @@ export function buildRunManifest(inputs: RunManifestInputs): RunManifest {
 		baselineChecks: inputs.baselineChecks,
 		minimumGrade: config.minimumStageGrade,
 		spendCeilingUsd: inputs.spendCeilingUsd,
+		corpusVersion: inputs.corpusVersion,
 	};
 }
 
@@ -1248,9 +1250,10 @@ export async function runBenchmark(
 		log(`Short id: ${formatShortId(shortId)}`);
 		const { task, productBrief, finalRubric: rubric } = benchmarkCase;
 		const corpusSource = liveCorpusSource();
-		const [instructions, claudeVersion] = await Promise.all([
+		const [instructions, claudeVersion, corpusVersion] = await Promise.all([
 			readCorpusInstructions(corpusSource),
 			runCommand(["claude", "--version"], CONTROL_DIR),
+			measureCorpusVersion(runFiles.runsDirectory, corpusSource),
 		]);
 		const rubricIds = validateRubricDefinition(rubric);
 		const { taskId, taskSha } = await seedTaskBoard(
@@ -1273,6 +1276,7 @@ export async function runBenchmark(
 				pipeline,
 				baselineChecks,
 				spendCeilingUsd,
+				corpusVersion,
 			}),
 		);
 		const initialCheckpoint = await recordRetainedCheckpoint(

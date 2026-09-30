@@ -1120,12 +1120,13 @@ A corpus version is the whole corpus layout of one source as it stood when it
 was measured: every file the layout holds, whether or not a stage reads it,
 identified by the sha256 of the canonical file list. Its label is `corpus@`
 followed by the first six hex characters. A pipeline run measures its source
-before each stage session, a replay and a session attempt before their
+when it starts, recording the version on its manifest, and again before each
+stage session. A replay and a session attempt measure it before their
 session, and a confirmation group once when it freezes its inputs, so every rep
 carries the group's version. The measurement lands in the record as
 `corpusVersion`, either `{kind: "version", digest}` or `{kind: "refused",
-refusal}` when the layout refused hashing: on a stage checkpoint and the
-stage's record, including a stop record and one whose judge failed, a replay
+refusal}` when the layout refused hashing: on the run manifest, a stage
+checkpoint and the stage's record, including a stop record and one whose judge failed, a replay
 record, a session attempt record and a group's `inputs`. A record written
 before versions were measured has no field, which readers report as version
 not recorded.

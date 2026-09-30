@@ -2851,6 +2851,7 @@ describe(buildRunManifest.name, () => {
 			config,
 			pipeline,
 			spendCeilingUsd: 100,
+			corpusVersion: { kind: "version", digest: "0".repeat(64) },
 		});
 		const artifact = buildRunArtifact({
 			...artifactInputs(pipeline, config.pipelinePath),
@@ -2903,9 +2904,46 @@ describe(buildRunManifest.name, () => {
 			config,
 			pipeline: await loadDefaultPipeline(),
 			spendCeilingUsd: 7.5,
+			corpusVersion: { kind: "version", digest: "0".repeat(64) },
 		});
 
 		expect(manifest.spendCeilingUsd).toBe(7.5);
+	});
+
+	it("records the corpus version the run started under", async () => {
+		const config = parseArgs(
+			[
+				"--target",
+				"/tmp/target",
+				"--model",
+				"sonnet",
+				"--session-budget-usd",
+				"5",
+			],
+			{},
+			{
+				caseId: "audit-log",
+				pipelinePath: AUDIT_LOG_PIPELINE_PATH,
+				targetPath: "/tmp/target",
+			},
+		);
+		const corpusVersion = { kind: "version", digest: "d".repeat(64) } as const;
+
+		const manifest = buildRunManifest({
+			timestamp: "2026-09-02T00:00:00.000Z",
+			controlSha: "control-sha",
+			source: { root: "/tmp/target", sha: "source-sha" },
+			taskId: "TASK-1",
+			taskSha: "task-sha",
+			task: "Task",
+			productBrief: "Brief",
+			config,
+			pipeline: await loadDefaultPipeline(),
+			spendCeilingUsd: 7.5,
+			corpusVersion,
+		});
+
+		expect(manifest.corpusVersion).toEqual(corpusVersion);
 	});
 
 	it("carries the baseline check result a proceeding run captured", async () => {
@@ -2949,6 +2987,7 @@ describe(buildRunManifest.name, () => {
 			pipeline,
 			spendCeilingUsd: 100,
 			baselineChecks,
+			corpusVersion: { kind: "version", digest: "0".repeat(64) },
 		});
 
 		expect(manifest.baselineChecks).toEqual(baselineChecks);
@@ -2985,6 +3024,7 @@ describe(buildRunManifest.name, () => {
 			config,
 			pipeline: await loadDefaultPipeline(),
 			spendCeilingUsd: 100,
+			corpusVersion: { kind: "version", digest: "0".repeat(64) },
 		});
 
 		expect(manifest.minimumGrade).toBe("C");

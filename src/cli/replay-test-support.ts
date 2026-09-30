@@ -51,6 +51,7 @@ export async function writeReplayableRunManifest(
 		config,
 		pipeline,
 		spendCeilingUsd: 100,
+		corpusVersion: { kind: "version", digest: "0".repeat(64) },
 	});
 
 	await writeRunManifest(paths.manifestFile, manifest);
