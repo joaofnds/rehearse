@@ -273,8 +273,16 @@ Run detail, Tasks, Cases, Calibration and Settings planned rather
 than linking to them. Live monitoring is partly
 delivered: the run list reports a run in flight with its stage, elapsed time and
 scoped spend, and the run API also reports how many of a judging stage's
-rubric items are back per section, which no screen shows yet. The run list
-reads the event store through a polled route rather than through the SSE API.
+rubric items are back per section, which no screen shows yet. While a
+pipeline run is in flight, a bar along the bottom of every screen shows its
+short id, case, step and stage state, run spend against the ceiling the run
+started under, a clock ticking each second, and its grades so far, with Stop
+for a run started from the browser and the reason there is none for a run
+started from a terminal. With several runs in flight it shows the newest and
+links the rest to run history. A screen reader hears a stage accepted, a run
+stopped, and run spend first reaching 80% of its ceiling, a share no source
+sets yet. The run list and the bar
+read the event store through a polled route rather than through the SSE API.
 A monitor carrying the judge's reasoning and per-stage detail remains a design
 target. The server has no
 authentication and binds to IPv4 loopback; use it locally. It answers 403 to a

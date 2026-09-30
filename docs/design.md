@@ -112,7 +112,9 @@ Record schemas are versioned where their contracts differ. Readers preserve
 supported historical formats rather than rewriting old evidence.
 
 The SQLite database at `.benchmark-runs/run-events.sqlite` stores progress
-notifications. The server streams those through `/api/runs/:run/events` and
+notifications. Each event also carries the run spend the harness had charged
+against the run's ceiling when it was recorded, Judge and Product Owner calls
+included, in a nullable column that events recorded before it leave empty. The server streams those through `/api/runs/:run/events` and
 reconciles abandoned processes at startup. The stream writes an SSE comment on
 each poll that finds no new event, because Bun.serve closes a connection that
 writes nothing for 10 seconds and a stage can run for many minutes between
