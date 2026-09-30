@@ -361,7 +361,8 @@ async function checkpointShortIds(
 
 /**
  * A run's version is its latest stage's, whether that stage saved a
- * checkpoint or stopped. The corpus changed during the run when its stages
+ * checkpoint or stopped, and the one it recorded at its start until a stage
+ * has measured its own. The corpus changed during the run when its stages
  * measured more than one version. A refusal is not a version, and a record
  * older than versions measured none, so neither counts toward a change.
  */
@@ -378,7 +379,7 @@ function runCorpus(
 	);
 
 	return {
-		corpusVersion: measured.at(-1),
+		corpusVersion: measured.at(-1) ?? record.identity.corpusVersion,
 		corpusChangedDuringRun: digests.size > 1,
 	};
 }
