@@ -6,6 +6,7 @@ import type { PipelineRow } from "#client/shell/run-in-flight";
 import { runsInFlight } from "#client/shell/run-in-flight";
 import type { RunRecordResponse } from "./run-record-query";
 import { runRecordQuery } from "./run-record-query";
+import { useRunEventsStream } from "./run-events-stream";
 import { RunIdentityHeader } from "./run-identity-header";
 import { SpendBand } from "./spend-band";
 import { StagePanes } from "./stage-panes";
@@ -58,6 +59,7 @@ function shownStage(
 function RunMonitor({ row }: { readonly row: PipelineRow }): React.JSX.Element {
 	const query = useQuery(runRecordQuery(row.run));
 	const [selected, setSelected] = useState<string>();
+	useRunEventsStream(row.run, row.progress.state === "running");
 	const shown =
 		query.data === undefined
 			? undefined

@@ -1,7 +1,12 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { fireEvent, screen, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { RunHistoryResponse } from "#client/run-history/run-history-query";
-import { renderAppWithStub } from "#client/test-support/render-app";
+import { FakeEventSource } from "#client/test-support/event-source";
+import { stubFetchByPath } from "#client/test-support/fetch-stub";
+import {
+	renderAppWithStub,
+	SHELL_BASELINE,
+} from "#client/test-support/render-app";
 import { recordStage, runRecord } from "#client/test-support/run-record";
 import { graded, notYet, runRow } from "#client/test-support/runs-in-flight";
 
@@ -21,6 +26,24 @@ function history(rows: readonly HistoryRow[]): RunHistoryResponse {
 
 type PipelineRow = Extract<HistoryRow, { readonly kind: "run" }>;
 
+/** What the server answers for one run in flight at build: its row and its record. */
+function monitorBodies(row: PipelineRow): ReadonlyMap<string, unknown> {
+	return new Map<string, unknown>([
+		["/api/runs", history([row])],
+		[
+			`/api/runs/${row.run}`,
+			runRecord({
+				run: row.run,
+				running: "build",
+				stages: [
+					recordStage("plan", { status: "graded" }),
+					recordStage("build"),
+				],
+			}),
+		],
+	]);
+}
+
 /** The monitor on one run in flight at build, its record served beside it. */
 function renderMonitor(
 	row: PipelineRow,
@@ -28,21 +51,14 @@ function renderMonitor(
 ): void {
 	renderAppWithStub(
 		"/monitor",
-		new Map<string, unknown>([
-			["/api/runs", history([row])],
-			[
-				`/api/runs/${row.run}`,
-				runRecord({
-					run: row.run,
-					running: "build",
-					stages: [
-						recordStage("plan", { status: "graded" }),
-						recordStage("build"),
-					],
-				}),
-			],
-			...extra,
-		]),
+		new Map<string, unknown>([...monitorBodies(row), ...extra]),
+	);
+}
+
+/** The server answering from now on with the run's later readings. */
+function serveMonitor(row: PipelineRow): void {
+	stubFetchByPath(
+		new Map<string, unknown>([...SHELL_BASELINE, ...monitorBodies(row)]),
 	);
 }
 
@@ -379,5 +395,61 @@ describe("/monitor stage selection", () => {
 			within(graph).getByRole("button", { current: "step" }),
 		).toHaveTextContent("plan");
 		expect(await paneTitles()).toEqual(["Step 1 · plan", "Judge · step 1"]);
+	});
+});
+
+describe("/monitor live updates", () => {
+	it("moves the spend band when a run event arrives, without a reload", async () => {
+		renderMonitor(runRow({ run: RUN, runSpentUsd: 1.83, ceilingUsd: 20 }));
+		const band = await screen.findByRole("region", { name: "Spend" });
+		serveMonitor(runRow({ run: RUN, runSpentUsd: 2.4, ceilingUsd: 20 }));
+
+		FakeEventSource.openOn(`/api/runs/${RUN}/events`).deliver();
+
+		expect(await within(band).findByText("$2.40")).toBeInTheDocument();
+	});
+
+	it("moves the task graph when a run event arrives, without a reload", async () => {
+		const row = runRow({ run: RUN });
+		renderMonitor(row);
+		const graph = await screen.findByRole("region", { name: "Task graph" });
+		stubFetchByPath(
+			new Map<string, unknown>([
+				...SHELL_BASELINE,
+				...monitorBodies(row),
+				[
+					`/api/runs/${RUN}`,
+					runRecord({
+						run: RUN,
+						running: "build",
+						stages: [
+							recordStage("plan", {
+								status: "graded",
+								checkpoint: "recorded",
+								checkpointShortId: { state: "available", shortId: "ckpt-s1" },
+							}),
+							recordStage("build"),
+						],
+					}),
+				],
+			]),
+		);
+
+		FakeEventSource.openOn(`/api/runs/${RUN}/events`).deliver();
+
+		expect(await within(graph).findByText("ckpt-s1")).toBeInTheDocument();
+	});
+
+	it("closes the run's event stream once the run is no longer in flight", async () => {
+		renderMonitor(runRow({ run: RUN }));
+		await screen.findByRole("region", { name: "Spend" });
+		const opened = FakeEventSource.openOn(`/api/runs/${RUN}/events`);
+		serveMonitor({ ...runRow({ run: RUN }), progress: { state: "recorded" } });
+
+		opened.deliver();
+
+		await waitFor(() => {
+			expect(opened.closed).toBe(true);
+		});
 	});
 });
