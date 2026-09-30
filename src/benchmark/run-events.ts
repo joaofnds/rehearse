@@ -2,6 +2,7 @@ import { Database } from "bun:sqlite";
 import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 import { z } from "zod";
+import type { RunTokens, SpendCeiling } from "./spend-ceiling";
 
 const runEventKindSchema = z.enum([
 	"stage-started",
@@ -95,6 +96,8 @@ interface RunEventFields {
 	 * figure of the run's last event.
 	 */
 	readonly runSpentUsd?: number | undefined;
+	/** The run's tokens as its ceiling tallies them, with `runSpentUsd`'s reach. */
+	readonly runTokens?: RunTokens | undefined;
 	readonly elapsedMs: number;
 }
 
@@ -150,11 +153,15 @@ export interface RunEventRecorder {
 export function runEventRecorderFor(
 	store: RunEventStore,
 	runId: string,
-	runSpentUsd: () => number,
+	ceiling: Pick<SpendCeiling, "spentUsd" | "tokens">,
 ): RunEventRecorder {
 	const append = (event: NewRunEvent): void => {
 		try {
-			store.append({ ...event, runSpentUsd: runSpentUsd() });
+			store.append({
+				...event,
+				runSpentUsd: ceiling.spentUsd(),
+				runTokens: ceiling.tokens(),
+			});
 		} catch {
 			// Best-effort: the event stream can drop an entry without
 			// affecting the run it describes.
@@ -188,7 +195,9 @@ const SCHEMA = `
 		elapsed_ms INTEGER NOT NULL,
 		recorded_at TEXT NOT NULL,
 		judge_progress TEXT,
-		run_spent_usd REAL
+		run_spent_usd REAL,
+		run_input_tokens INTEGER,
+		run_output_tokens INTEGER
 	);
 	CREATE INDEX IF NOT EXISTS run_events_run_id ON run_events(run_id, sequence);
 `;
@@ -220,6 +229,16 @@ interface RunEventRow {
 	readonly recorded_at: string;
 	readonly judge_progress: string | null;
 	readonly run_spent_usd: number | null;
+	readonly run_input_tokens: number | null;
+	readonly run_output_tokens: number | null;
+}
+
+function runTokensOf(row: RunEventRow): RunTokens | undefined {
+	if (row.run_input_tokens === null || row.run_output_tokens === null) {
+		return undefined;
+	}
+
+	return { input: row.run_input_tokens, output: row.run_output_tokens };
 }
 
 function toRunEvent(row: RunEventRow): RunEvent {
@@ -229,6 +248,7 @@ function toRunEvent(row: RunEventRow): RunEvent {
 		stage: row.stage,
 		spentUsd: row.spent_usd,
 		runSpentUsd: row.run_spent_usd ?? undefined,
+		runTokens: runTokensOf(row),
 		elapsedMs: row.elapsed_ms,
 		recordedAt: row.recorded_at,
 	};
@@ -254,6 +274,8 @@ export async function openRunEventStore(path: string): Promise<RunEventStore> {
 	database.run(SCHEMA);
 	addNullableColumn(database, "judge_progress TEXT");
 	addNullableColumn(database, "run_spent_usd REAL");
+	addNullableColumn(database, "run_input_tokens INTEGER");
+	addNullableColumn(database, "run_output_tokens INTEGER");
 
 	const selectJournalMode = database.query<{ journal_mode: string }, []>(
 		"PRAGMA journal_mode",
@@ -269,10 +291,12 @@ export async function openRunEventStore(path: string): Promise<RunEventStore> {
 			string,
 			string | null,
 			number | null,
+			number | null,
+			number | null,
 		]
 	>(
-		`INSERT INTO run_events (run_id, kind, stage, spent_usd, elapsed_ms, recorded_at, judge_progress, run_spent_usd)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		`INSERT INTO run_events (run_id, kind, stage, spent_usd, elapsed_ms, recorded_at, judge_progress, run_spent_usd, run_input_tokens, run_output_tokens)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 RETURNING *`,
 	);
 	const selectSince = database.query<RunEventRow, [string, number]>(
@@ -296,6 +320,8 @@ export async function openRunEventStore(path: string): Promise<RunEventStore> {
 				new Date().toISOString(),
 				event.judge === undefined ? null : JSON.stringify(event.judge),
 				event.runSpentUsd ?? null,
+				event.runTokens?.input ?? null,
+				event.runTokens?.output ?? null,
 			);
 			if (row === null) {
 				throw new Error("Failed to append run event");

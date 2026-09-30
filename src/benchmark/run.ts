@@ -1193,7 +1193,7 @@ export async function runBenchmark(
 	const runEvents = runEventRecorderFor(
 		runEventStore,
 		runFiles.name,
-		spendCeiling.spentUsd,
+		spendCeiling,
 	);
 	const abort = createRunAbort(
 		{

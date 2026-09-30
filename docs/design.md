@@ -114,7 +114,10 @@ supported historical formats rather than rewriting old evidence.
 The SQLite database at `.benchmark-runs/run-events.sqlite` stores progress
 notifications. Each event also carries the run spend the harness had charged
 against the run's ceiling when it was recorded, Judge and Product Owner calls
-included, in a nullable column that events recorded before it leave empty. The server streams those through `/api/runs/:run/events` and
+included, in a nullable column that events recorded before it leave empty.
+Each event carries the run's input and output tokens the same way, input
+counting cache reads and writes, summed from the calls whose usage the provider
+reported. The server streams those through `/api/runs/:run/events` and
 reconciles abandoned processes at startup. The stream writes an SSE comment on
 each poll that finds no new event, because Bun.serve closes a connection that
 writes nothing for 10 seconds and a stage can run for many minutes between
