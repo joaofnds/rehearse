@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, setSystemTime } from "bun:test";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import type { CorpusMeasurement } from "#benchmark/corpus-measurement";
 import type { RunHistoryResponse } from "#client/run-history/run-history-query";
 import { FakeEventSource } from "#client/test-support/event-source";
 import { stubFetchByPath } from "#client/test-support/fetch-stub";
@@ -281,11 +282,17 @@ describe("/monitor task graph", () => {
 
 	function renderGraph(
 		stages: readonly ReturnType<typeof recordStage>[],
+		runUnder?: CorpusMeasurement,
 	): void {
 		renderAppWithStub(
 			"/monitor",
 			new Map<string, unknown>([
-				["/api/runs", history([runRow({ run: RUN, stage: "build" })])],
+				[
+					"/api/runs",
+					history([
+						runRow({ run: RUN, stage: "build", corpusVersion: runUnder }),
+					]),
+				],
 				[
 					`/api/runs/${RUN}`,
 					{
@@ -350,30 +357,29 @@ describe("/monitor task graph", () => {
 		expect(await node("build")).toHaveTextContent("$0.90");
 	});
 
-	it("shows the corpus version the run started under on the running stage, which has measured none of its own yet", async () => {
-		const record = runRecord({
-			run: RUN,
-			running: "build",
-			stages: [recordStage("build")],
-		});
-		renderAppWithStub(
-			"/monitor",
-			new Map<string, unknown>([
-				["/api/runs", history([runRow({ run: RUN, stage: "build" })])],
-				[
-					`/api/runs/${RUN}`,
-					{
-						...record,
-						identity: {
-							...record.identity,
-							corpusVersion: { kind: "version", digest: DIGEST },
-						},
-					},
-				],
-			]),
+	it("shows on the running stage, which has measured none of its own yet, the corpus version the header names", async () => {
+		const latest: CorpusMeasurement = {
+			kind: "version",
+			digest: "b".repeat(64),
+		};
+		renderGraph(
+			[
+				recordStage("plan", { status: "graded", corpusVersion: latest }),
+				recordStage("build"),
+			],
+			latest,
 		);
 
-		expect(await node("build")).toHaveTextContent("a41c7e");
+		expect(await node("build")).toHaveTextContent("bbbbbb");
+	});
+
+	it("reads a stage not started as having no corpus version", async () => {
+		renderGraph([recordStage("build"), recordStage("review")], {
+			kind: "version",
+			digest: DIGEST,
+		});
+
+		expect(await node("review")).toHaveTextContent("version not recorded");
 	});
 
 	it("shows a graded stage's letter", async () => {

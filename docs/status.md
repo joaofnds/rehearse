@@ -287,9 +287,10 @@ The Live monitor, opened from the rail, `g m` or the bar, shows the newest
 pipeline run in flight: its identity with Pause and Stop, run spend against
 the ceiling with burn rate, elapsed time and tokens in and out, and the task
 graph with each stage's grade, status, cost, duration, fired hard blockers,
-corpus version and checkpoint, and replay where a checkpoint exists. Until a
-stage records its own corpus version, the header and the running stage show
-the version the run measured when it started. It
+corpus version and checkpoint, and replay where a checkpoint exists. The
+header and the running stage show the latest corpus version any stage of the
+run recorded, or while none has, the version the run measured when it started.
+It
 follows the run's SSE stream, so its readings move as each event lands.
 Selecting a stage names it in the session and judge panes, which show
 nothing yet. Their transcript tail and judge detail, the remaining estimate,
