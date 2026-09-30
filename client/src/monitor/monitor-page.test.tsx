@@ -350,6 +350,32 @@ describe("/monitor task graph", () => {
 		expect(await node("build")).toHaveTextContent("$0.90");
 	});
 
+	it("shows the corpus version the run started under on the running stage, which has measured none of its own yet", async () => {
+		const record = runRecord({
+			run: RUN,
+			running: "build",
+			stages: [recordStage("build")],
+		});
+		renderAppWithStub(
+			"/monitor",
+			new Map<string, unknown>([
+				["/api/runs", history([runRow({ run: RUN, stage: "build" })])],
+				[
+					`/api/runs/${RUN}`,
+					{
+						...record,
+						identity: {
+							...record.identity,
+							corpusVersion: { kind: "version", digest: DIGEST },
+						},
+					},
+				],
+			]),
+		);
+
+		expect(await node("build")).toHaveTextContent("a41c7e");
+	});
+
 	it("shows a graded stage's letter", async () => {
 		renderGraph([
 			recordStage("plan", {

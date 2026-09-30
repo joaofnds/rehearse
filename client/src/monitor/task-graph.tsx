@@ -92,7 +92,18 @@ function blockersReading(blockers: MonitoredStage["blockers"]): string {
 		: NOT_RECORDED;
 }
 
-function corpusReading(corpusVersion: MonitoredStage["corpusVersion"]): string {
+/**
+ * The corpus the stage ran against. The running stage has written no record
+ * yet, so it reads the version the run recorded when it started.
+ */
+function corpusReading(
+	stage: MonitoredStage,
+	row: PipelineRow,
+	startedUnder: RunRecordResponse["identity"]["corpusVersion"],
+): string {
+	const corpusVersion =
+		stage.corpusVersion ?? (isRunning(stage, row) ? startedUnder : undefined);
+
 	return corpusVersion?.kind === "version"
 		? corpusVersionHash(corpusVersion.digest)
 		: corpusMeasurementReading(corpusVersion);
@@ -231,6 +242,7 @@ function StageNode({
 	stage,
 	number,
 	row,
+	startedUnder,
 	last,
 	selected,
 	onSelect,
@@ -238,6 +250,7 @@ function StageNode({
 	readonly stage: MonitoredStage;
 	readonly number: number;
 	readonly row: PipelineRow;
+	readonly startedUnder: RunRecordResponse["identity"]["corpusVersion"];
 	readonly last: boolean;
 	readonly selected: boolean;
 	readonly onSelect: (stage: string) => void;
@@ -275,7 +288,9 @@ function StageNode({
 					<span>{costReading(stage, row)}</span>
 					<span>{durationReading(stage.wallTime)}</span>
 					<span>{blockersReading(stage.blockers)}</span>
-					<span className="truncate">{corpusReading(stage.corpusVersion)}</span>
+					<span className="truncate">
+						{corpusReading(stage, row, startedUnder)}
+					</span>
 				</span>
 				<CheckpointLine stage={stage} />
 				<span className="text-sm text-muted-foreground">
@@ -365,6 +380,7 @@ export function TaskGraph({
 							stage={stage}
 							number={index + 1}
 							row={row}
+							startedUnder={record.identity.corpusVersion}
 							last={index === record.stages.length - 1}
 							selected={stage.stage === shown}
 							onSelect={onSelect}
