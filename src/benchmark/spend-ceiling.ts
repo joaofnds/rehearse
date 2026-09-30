@@ -29,7 +29,7 @@ export interface SpendCeiling {
 	/** The tokens of the calls charged so far, those reporting their usage. */
 	readonly tokens: () => RunTokens;
 	readonly budgetFor: (sessionBudgetUsd: number) => number;
-	/** A call that failed before the provider reported its usage brings no tokens. */
+	/** A failed call brings no tokens, as its error keeps only its cost. */
 	readonly charge: (costUsd: number, metrics?: ClaudeCallMetrics) => void;
 	/**
 	 * The ceiling the spend has reached, a rep's own or its group's, since a
