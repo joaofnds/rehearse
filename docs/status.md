@@ -277,9 +277,9 @@ rubric items are back per section, which no screen shows yet. While a
 pipeline run is in flight, a bar along the bottom of every screen shows its
 short id, case, step and stage state, run spend against the ceiling the run
 started under, a clock ticking each second, and its grades so far, with Stop
-for a run started from the browser and the reason there is none for a run
-started from a terminal. With several runs in flight it shows the newest and
-links the rest to run history. A screen reader hears a stage accepted, a run
+for a run started from the browser. A run started from a terminal shows Stop
+disabled, its label naming why. With several runs in flight it shows the
+newest only, since the design draws one run. A screen reader hears a stage accepted, a run
 stopped, and run spend first reaching 80% of its ceiling, a share no source
 sets yet. The run list and the bar
 read the event store through a polled route rather than through the SSE API.

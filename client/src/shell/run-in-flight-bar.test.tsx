@@ -69,14 +69,25 @@ describe("the run in flight on every screen", () => {
 		expect(shown).toHaveTextContent("session running");
 		expect(shown).toHaveTextContent("$1.83 / $20.00");
 		expect(shown).toHaveTextContent("grades so far B+");
-		expect(
-			within(shown).getByRole("meter", {
-				name: "run spend against its ceiling",
+		expect(within(shown).getByRole("button", { name: "Stop" })).toBeEnabled();
+	});
+
+	it("marks the run with the pulsing glyph alone, as the design draws it", () => {
+		renderRunInFlight([runRow({})]);
+
+		expect(within(bar()).queryByText("running")).not.toBeInTheDocument();
+	});
+
+	it("separates its readings where the design does and nowhere else", () => {
+		renderRunInFlight([
+			runRow({
+				grades: [graded("plan", "B+"), notYet("build")],
+				runSpentUsd: 1.83,
+				ceilingUsd: 20,
 			}),
-		).toHaveAttribute("aria-valuenow", "1.83");
-		expect(
-			within(shown).getByRole("button", { name: "Stop & restore repo" }),
-		).toBeInTheDocument();
+		]);
+
+		expect(within(bar()).getAllByText("│")).toHaveLength(3);
 	});
 
 	it("shows nothing on a screen when no run is in flight", async () => {
@@ -99,25 +110,23 @@ describe("the run in flight on every screen", () => {
 		).not.toBeInTheDocument();
 	});
 
-	it("says why a run started outside the browser cannot be stopped from it", () => {
+	it("says on its Stop why a run started outside the browser cannot be stopped from it", () => {
 		renderRunInFlight([runRow({ launchId: undefined })]);
 
 		expect(
-			within(bar()).queryByRole("button", { name: /Stop/v }),
-		).not.toBeInTheDocument();
-		expect(bar()).toHaveTextContent(
-			"started outside the browser, so it stops only where it was started",
-		);
+			within(bar()).getByRole("button", {
+				name: "Started outside the browser, so it stops only where it was started",
+			}),
+		).toHaveAttribute("aria-disabled", "true");
 	});
 
-	it("says what spend it has not read rather than a figure it cannot vouch for", () => {
-		renderRunInFlight([runRow({})]);
+	it("shows a dash with its reason rather than a figure it cannot vouch for", () => {
+		renderRunInFlight([runRow({ ceilingUsd: 20 })]);
 
-		expect(bar()).toHaveTextContent("run spend not recorded");
-		expect(within(bar()).queryByRole("meter")).not.toBeInTheDocument();
+		expect(bar()).toHaveTextContent("— run spend not recorded / $20.00");
 	});
 
-	it("shows the newest run and counts the others in flight", async () => {
+	it("shows the newest run in flight and no count of the others", async () => {
 		renderAppWithStub(
 			"/corpus",
 			new Map([
@@ -133,9 +142,7 @@ describe("the run in flight on every screen", () => {
 
 		const shown = await screen.findByRole("region", { name: "Run in flight" });
 		expect(shown).toHaveTextContent("review");
-		expect(
-			within(shown).getByRole("link", { name: "+1 running" }),
-		).toHaveAttribute("href", "/");
+		expect(within(shown).queryByRole("link")).not.toBeInTheDocument();
 	});
 
 	it("ticks the elapsed clock each second between the run's own readings", async () => {

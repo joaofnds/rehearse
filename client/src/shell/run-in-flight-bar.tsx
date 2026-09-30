@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { RunControls } from "#client/run-history/run-controls";
+import { useStopLaunch } from "#client/run-history/run-controls";
 import { polledRunHistoryQuery } from "#client/run-history/run-history-polling";
 import type { RunHistoryResponse } from "#client/run-history/run-history-query";
 import {
@@ -10,7 +9,8 @@ import {
 	spendReading,
 } from "#client/run-history/run-progress";
 import { useNow } from "#client/run-history/use-now";
-import { Status } from "#client/system/components/status";
+import { LiveGlyph } from "#client/system/components/status";
+import { Button } from "#client/system/ui/button";
 import type { PipelineRow } from "./run-in-flight";
 import {
 	announcements,
@@ -27,10 +27,10 @@ const NO_ROWS: readonly HistoryRow[] = [];
 /**
  * Stop reaches a run only through the launch that started it. Whether a run
  * started from a terminal should be stoppable here is doc-186 Decision 9,
- * unsettled, so until it is answered the bar says why Stop is absent.
+ * unsettled, so until it is answered its Stop is disabled and names why.
  */
 const NO_LAUNCH_REASON =
-	"started outside the browser, so it stops only where it was started";
+	"Started outside the browser, so it stops only where it was started";
 
 function Separator(): React.JSX.Element {
 	return (
@@ -47,26 +47,30 @@ function SpendReading({
 	readonly runSpentUsd: number | undefined;
 	readonly ceilingUsd: number | undefined;
 }): React.JSX.Element {
-	if (runSpentUsd === undefined || ceilingUsd === undefined) {
-		return <span className="text-dim">run spend not recorded</span>;
-	}
-
-	const share = Math.min(1, runSpentUsd / ceilingUsd);
+	const share =
+		runSpentUsd === undefined || ceilingUsd === undefined
+			? 0
+			: Math.min(1, runSpentUsd / ceilingUsd);
 
 	return (
 		<span className="inline-flex items-center gap-2">
 			<span>
-				<span className="font-mono text-foreground">
-					{spendReading(runSpentUsd)}
-				</span>{" "}
-				<span className="text-dim">/ {spendReading(ceilingUsd)}</span>
+				{runSpentUsd === undefined ? (
+					<>
+						<span className="font-mono text-dim">—</span>
+						<span className="sr-only"> run spend not recorded</span>
+					</>
+				) : (
+					<span className="font-mono text-foreground">
+						{spendReading(runSpentUsd)}
+					</span>
+				)}
+				{ceilingUsd === undefined ? null : (
+					<span className="text-dim"> / {spendReading(ceilingUsd)}</span>
+				)}
 			</span>
 			<span
-				role="meter"
-				aria-label="run spend against its ceiling"
-				aria-valuemin={0}
-				aria-valuemax={ceilingUsd}
-				aria-valuenow={runSpentUsd}
+				aria-hidden="true"
 				className="h-1.25 w-19 overflow-hidden rounded-sm border border-strong"
 			>
 				<span
@@ -78,12 +82,51 @@ function SpendReading({
 	);
 }
 
+function StopReading({
+	launchId,
+}: {
+	readonly launchId: string | undefined;
+}): React.JSX.Element {
+	const stop = useStopLaunch();
+	if (launchId === undefined) {
+		return (
+			<Button
+				variant="outline"
+				size="sm"
+				aria-disabled="true"
+				aria-label={NO_LAUNCH_REASON}
+				title={NO_LAUNCH_REASON}
+			>
+				Stop
+			</Button>
+		);
+	}
+
+	return (
+		<span className="inline-flex items-center gap-2">
+			{stop.error === null ? null : (
+				<span role="alert" className="text-secondary-foreground">
+					{stop.error.message}
+				</span>
+			)}
+			<Button
+				variant="outline"
+				size="sm"
+				disabled={stop.isPending || stop.isSuccess}
+				onClick={() => {
+					stop.mutate(launchId);
+				}}
+			>
+				Stop
+			</Button>
+		</span>
+	);
+}
+
 function RunReadings({
 	row,
-	others,
 }: {
 	readonly row: PipelineRow;
-	readonly others: number;
 }): React.JSX.Element | null {
 	const nowMs = useNow(true);
 	if (row.progress.state !== "running") {
@@ -100,9 +143,7 @@ function RunReadings({
 			aria-label="Run in flight"
 			className="sticky bottom-0 flex min-h-9.5 flex-wrap items-center gap-x-3 gap-y-1 border-t border-strong bg-raised px-4 py-1.5 text-xs"
 		>
-			<span className="text-accent-foreground">
-				<Status state="running" />
-			</span>
+			<LiveGlyph />
 			<span className="font-mono text-pale">{row.shortId ?? row.run}</span>
 			<span className="text-secondary-foreground">{row.caseId}</span>
 			<Separator />
@@ -121,22 +162,10 @@ function RunReadings({
 				{clockReading(liveElapsedMs(elapsedMs, measuredAt, nowMs))}
 			</span>
 			{grades.length === 0 ? null : (
-				<>
-					<Separator />
-					<span className="text-dim">grades so far {grades.join(" ")}</span>
-				</>
-			)}
-			{others === 0 ? null : (
-				<Link to="/" className="text-accent-foreground underline">
-					+{others} running
-				</Link>
+				<span className="text-dim">grades so far {grades.join(" ")}</span>
 			)}
 			<span className="ml-auto">
-				{row.launchId === undefined ? (
-					<span className="text-dim">{NO_LAUNCH_REASON}</span>
-				) : (
-					<RunControls launchId={row.launchId} run={undefined} />
-				)}
+				<StopReading launchId={row.launchId} />
 			</span>
 		</section>
 	);
@@ -163,8 +192,8 @@ function useAnnouncement(rows: readonly HistoryRow[]): string {
 }
 
 /**
- * The newest run in flight, with a count of any others linking to the list
- * that shows them all. The live region stays mounted when no run is in
+ * The newest run in flight, as the design draws one run. How the bar shows
+ * several at once waits on a design. The live region stays mounted when no run is in
  * flight, since a stop is announced after the bar that showed the run leaves.
  */
 export function RunInFlight({
@@ -173,13 +202,11 @@ export function RunInFlight({
 	readonly rows: readonly HistoryRow[];
 }): React.JSX.Element {
 	const message = useAnnouncement(rows);
-	const [newest, ...others] = runsInFlight(rows);
+	const [newest] = runsInFlight(rows);
 
 	return (
 		<>
-			{newest === undefined ? null : (
-				<RunReadings row={newest} others={others.length} />
-			)}
+			{newest === undefined ? null : <RunReadings row={newest} />}
 			<p role="status" aria-live="polite" className="sr-only">
 				{message}
 			</p>

@@ -34,6 +34,18 @@ export const STATUS_VOCABULARY = {
 	"checkpoint-absent": { glyph: "◇", word: "checkpoint absent" },
 } satisfies Record<StatusState, { glyph: string; word: string }>;
 
+/** The running glyph, pulsing unless the reader asked for reduced motion. */
+export function LiveGlyph(): React.JSX.Element {
+	return (
+		<span
+			aria-hidden="true"
+			className="animate-live text-accent-foreground motion-reduce:animate-none"
+		>
+			{STATUS_VOCABULARY.running.glyph}
+		</span>
+	);
+}
+
 /**
  * The glyph and its word, at whatever size and colour the surrounding text
  * sets, except that a running glyph takes the light accent and pulses unless
@@ -49,12 +61,7 @@ export function Status({
 	return (
 		<span className="inline-flex items-center gap-1.5">
 			{state === "running" ? (
-				<span
-					aria-hidden="true"
-					className="animate-live text-accent-foreground motion-reduce:animate-none"
-				>
-					{glyph}
-				</span>
+				<LiveGlyph />
 			) : (
 				<span aria-hidden="true">{glyph}</span>
 			)}

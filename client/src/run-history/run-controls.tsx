@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import type { UseMutationResult } from "@tanstack/react-query";
 import { launchClient } from "#client/api-client";
 import { Button } from "#client/system/ui/button";
 import { runHistoryQuery } from "./run-history-query";
@@ -45,6 +46,23 @@ async function pauseRun(run: string): Promise<void> {
 	throw new ControlRefusedError(await response.text());
 }
 
+function useRefreshHistory(): () => Promise<void> {
+	const queryClient = useQueryClient();
+
+	return async () => {
+		await queryClient.invalidateQueries({
+			queryKey: runHistoryQuery.queryKey,
+		});
+	};
+}
+
+/** Stops a launch by its id, then reads the run history again. */
+export function useStopLaunch(): UseMutationResult<void, Error, string> {
+	const refresh = useRefreshHistory();
+
+	return useMutation({ mutationFn: stopLaunch, onSuccess: refresh });
+}
+
 /**
  * Stop reaches a run only through the launch that started it, since the
  * server signals the process it recorded; a run started from a terminal has
@@ -58,13 +76,8 @@ export function RunControls({
 	readonly launchId: string | undefined;
 	readonly run: string | undefined;
 }): React.JSX.Element {
-	const queryClient = useQueryClient();
-	const refresh = async (): Promise<void> => {
-		await queryClient.invalidateQueries({
-			queryKey: runHistoryQuery.queryKey,
-		});
-	};
-	const stop = useMutation({ mutationFn: stopLaunch, onSuccess: refresh });
+	const refresh = useRefreshHistory();
+	const stop = useStopLaunch();
 	const pause = useMutation({ mutationFn: pauseRun, onSuccess: refresh });
 	const error = stop.error ?? pause.error;
 
