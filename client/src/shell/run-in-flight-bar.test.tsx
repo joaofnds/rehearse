@@ -148,7 +148,7 @@ describe("the run in flight on every screen", () => {
 
 		const shown = await screen.findByRole("region", { name: "Run in flight" });
 		expect(shown).toHaveTextContent("review");
-		expect(shown).not.toHaveTextContent(/\+\d/);
+		expect(shown).not.toHaveTextContent(/\+\d/u);
 		expect(within(shown).queryByRole("link")).not.toBeInTheDocument();
 	});
 
@@ -170,9 +170,8 @@ describe("the run in flight on every screen", () => {
 				within(bar()).getByRole("button", { name: "Stop" }),
 			).toBeDisabled();
 		});
-		expect(asked).toEqual([
-			expect.stringContaining("/api/launches/launch-1/stop"),
-		]);
+		expect(asked).toHaveLength(1);
+		expect(asked[0]).toEndWith("/api/launches/launch-1/stop");
 	});
 
 	it("says why the server refused a stop", async () => {
