@@ -43,6 +43,12 @@ export function runRecord(props: {
 		run: props.run,
 		shortId: { state: "available", shortId: "r-0148" },
 		caseId: "audit-log",
+		identity: {
+			target: "acme-api",
+			commit: "e91f2a0c",
+			model: "claude-opus-4",
+			effort: "high",
+		},
 		status: { state: "available", status: "RUNNING" },
 		minimumGrade: NOT_READ,
 		stages: props.stages,

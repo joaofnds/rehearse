@@ -1,3 +1,4 @@
+import { basename } from "node:path";
 import { z } from "zod";
 import {
 	hashedFileSchema,
@@ -5,6 +6,7 @@ import {
 	readCheckpointRecord,
 } from "#benchmark/checkpoint";
 import type { CheckpointRecord, HashedFile } from "#benchmark/checkpoint";
+import type { Effort } from "#benchmark/config";
 import { claudeCallMetricsSchema } from "#benchmark/contracts";
 import { corpusMeasurementSchema } from "#benchmark/corpus-measurement";
 import type { CorpusMeasurement } from "#benchmark/corpus-measurement";
@@ -183,10 +185,22 @@ export interface RunTotals {
 	readonly wallTime: WallTimeReading;
 }
 
+/**
+ * What the run ran against and with. The target is the source root's
+ * directory name, since the absolute path names the operator's machine.
+ */
+export interface RunIdentity {
+	readonly target: string;
+	readonly commit: string;
+	readonly model: string;
+	readonly effort: Effort | undefined;
+}
+
 export interface RunRecord {
 	readonly run: string;
 	readonly shortId: ShortIdReading;
 	readonly caseId: string;
+	readonly identity: RunIdentity;
 	readonly status: Reading<{ readonly status: string }>;
 	readonly minimumGrade: Reading<{ readonly letter: string }>;
 	readonly stages: readonly RunRecordStage[];
@@ -1011,6 +1025,12 @@ export async function readRunRecord(
 			run,
 			shortId,
 			caseId: manifest.caseId,
+			identity: {
+				target: basename(manifest.sourceRoot),
+				commit: manifest.sourceSha,
+				model: manifest.model,
+				effort: manifest.effort,
+			},
 			status: await statusReading(runsDirectory, run, runEvents, liveness),
 			minimumGrade:
 				manifest.minimumGrade === undefined

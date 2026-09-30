@@ -1202,6 +1202,9 @@ whole response with 500.
 The record names the run by its directory name and its short id, and carries
 its case id and its status as the run history reports it, and the minimum
 grade the run manifest records, unavailable in a manifest that predates it.
+Its `identity` names what the run ran against and with, from the manifest: the
+target as the source root's directory name, never its absolute path, the
+commit, the model, and the effort, absent when the manifest records none.
 
 Each stage, in the manifest's order, reports its status (`graded`, `stopped`,
 `awaiting-judgment` or `no-record`), its grade as the letter and the judge's

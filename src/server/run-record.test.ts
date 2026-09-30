@@ -174,6 +174,21 @@ describe("/api/runs/:run", () => {
 				});
 			});
 
+			it("names the run's target by its directory name, its commit, and its model", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeStoppedRunEvidence();
+
+				const response = await runRecord(fixture, fixture.stoppedRun);
+
+				expect(await response.json()).toMatchObject({
+					identity: {
+						target: "template",
+						commit: "2".repeat(40),
+						model: "sonnet",
+					},
+				});
+			});
+
 			it("reports the short id as unavailable for a run no command claimed one for", async () => {
 				const fixture = await emptyFixture();
 				await fixture.writeStoppedRunEvidence();
