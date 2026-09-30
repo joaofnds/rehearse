@@ -821,21 +821,30 @@ describe("the spend ceiling", () => {
 
 	it("tallies on the ceiling the tokens each worker turn used", async () => {
 		const spendCeiling = createSpendCeiling({ ceilingUsd: 10 });
+		const responses = [
+			JSON.stringify({
+				type: "result",
+				session_id: "worker-session",
+				total_cost_usd: 0.3,
+				num_turns: 1,
+				usage: CALL_USAGE,
+				structured_output: { status: "QUESTION", message: "Which scope?" },
+			}),
+			JSON.stringify({
+				type: "result",
+				session_id: "worker-session",
+				total_cost_usd: 0.5,
+				num_turns: 1,
+				usage: CALL_USAGE,
+				structured_output: { status: "COMPLETE", message: "Shaped" },
+			}),
+		];
 
 		await runWorkflowStage(stageRequest(spendCeiling), () =>
-			Promise.resolve(
-				JSON.stringify({
-					type: "result",
-					session_id: "worker-session",
-					total_cost_usd: 0.3,
-					num_turns: 1,
-					usage: CALL_USAGE,
-					structured_output: { status: "COMPLETE", message: "Shaped" },
-				}),
-			),
+			Promise.resolve(responses.shift() ?? ""),
 		);
 
-		expect(spendCeiling.tokens()).toEqual({ input: 133, output: 45 });
+		expect(spendCeiling.tokens()).toEqual({ input: 266, output: 90 });
 	});
 
 	it("tallies on the ceiling the tokens each Product Owner call used", async () => {
