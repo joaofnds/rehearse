@@ -16,7 +16,7 @@ import {
 	requestRowForLine,
 	requestRowId,
 } from "./request-timeline";
-import { cn } from "cn";
+import { cn } from "#client/system/cn";
 import { LaunchDialog } from "#client/launch/launch-dialog";
 import { ScreenHeader } from "#client/system/components/screen-header";
 import { SectionLabel } from "#client/system/components/section-label";

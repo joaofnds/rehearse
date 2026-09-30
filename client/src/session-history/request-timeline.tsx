@@ -9,7 +9,7 @@ import type {
 } from "#benchmark/session-history";
 import type { SessionHistoryRequestCostEntry } from "#server/session-history-reader";
 import type { TranscriptInstructionLoads } from "#benchmark/transcript-instruction-loads";
-import { cn } from "cn";
+import { cn } from "#client/system/cn";
 import { SectionLabel } from "#client/system/components/section-label";
 import { PaneHeading } from "./pane-heading";
 import { selectableRow } from "./selectable-row";

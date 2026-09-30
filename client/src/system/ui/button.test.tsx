@@ -58,4 +58,32 @@ describe(Button.name, () => {
 		).toBeInTheDocument();
 		expect(screen.queryByRole("button")).not.toBeInTheDocument();
 	});
+
+	it.each([
+		["xs", "text-10-5"],
+		["compact", "text-11-5"],
+	] as const)(
+		"keeps the variant's text colour beside the %s size's type step",
+		(size, typeStep) => {
+			render(
+				<Button variant="quiet" size={size}>
+					replay
+				</Button>,
+			);
+
+			expect(screen.getByRole("button", { name: "replay" })).toHaveClass(
+				"text-secondary-foreground",
+				typeStep,
+			);
+		},
+	);
+
+	it("rounds the xs size at the compact radius in place of the button radius", () => {
+		render(<Button size="xs">replay</Button>);
+
+		const button = screen.getByRole("button", { name: "replay" });
+
+		expect(button).toHaveClass("rounded-compact");
+		expect(button).not.toHaveClass("rounded-md");
+	});
 });

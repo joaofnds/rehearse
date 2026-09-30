@@ -1,7 +1,7 @@
 import type { ComponentProps } from "react";
 import { cva } from "class-variance-authority";
 import type { VariantProps } from "class-variance-authority";
-import { cn } from "cn";
+import { cn } from "#client/system/cn";
 import { Slot } from "radix-ui";
 
 const buttonVariants = cva(
@@ -14,6 +14,8 @@ const buttonVariants = cva(
 					"border-strong text-foreground hover:border-primary hover:bg-accent active:bg-selected",
 				quiet:
 					"border-strong text-secondary-foreground hover:border-primary hover:bg-accent active:bg-selected",
+				strong:
+					"border-stronger text-bright hover:border-primary hover:bg-accent active:bg-selected",
 				ghost: "border-transparent hover:bg-accent",
 				link: "border-transparent text-accent-foreground underline-offset-4 hover:underline",
 			},
@@ -23,7 +25,8 @@ const buttonVariants = cva(
 				lg: "h-10 px-6",
 				icon: "size-9",
 				"icon-sm": "size-8",
-				xs: "rounded-sm px-2.25 py-1.25 text-xs",
+				xs: "rounded-compact px-2.25 py-1.25 text-10-5",
+				compact: "px-3 py-1.25 text-11-5",
 			},
 		},
 		defaultVariants: {

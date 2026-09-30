@@ -39,10 +39,35 @@
 	--font-sans: var(--font-ui);
 	--font-mono: var(--font-mono);
 
+	--radius-xs: var(--radius-focus);
 	--radius-sm: var(--radius-chip);
+	--radius-compact: var(--radius-small-control);
 	--radius-md: var(--radius-button);
 	--radius-lg: var(--radius-section);
 	--radius-xl: var(--radius-dialog);
+
+	--text-30: 30px;
+	--text-26: 26px;
+	--text-24: 24px;
+	--text-22: 22px;
+	--text-20: 20px;
+	--text-19: 19px;
+	--text-17: 17px;
+	--text-16: 16px;
+	--text-15: 15px;
+	--text-14: 14px;
+	--text-13: 13px;
+	--text-12-5: 12.5px;
+	--text-12: 12px;
+	--text-11-5: 11.5px;
+	--text-11: 11px;
+	--text-10-5: 10.5px;
+	--text-10: 10px;
+	--text-9: 9px;
+
+	--tracking-label: 0.09em;
+	--tracking-caps: 0.04em;
+	--tracking-figure: -0.02em;
 
 	--color-dim: var(--color-text-dim);
 	--color-faint: var(--color-text-faint);
@@ -56,6 +81,7 @@
 	--color-divider: var(--color-border);
 	--color-subtle: var(--color-border-subtle);
 	--color-strong: var(--color-border-strong);
+	--color-stronger: var(--color-border-strong-2);
 	--color-accent-line: var(--color-accent-border);
 
 	--animate-live: live var(--pulse-duration) ease-in-out infinite;
