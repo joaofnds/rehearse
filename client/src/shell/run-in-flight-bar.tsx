@@ -143,7 +143,7 @@ function RunReadings({
 
 	return (
 		<section
-			aria-label="Run in flight"
+			aria-label={`Run ${nameOf(row)} in flight`}
 			className="flex h-11.75 flex-none items-center gap-4.25 overflow-x-auto border-t border-strong bg-raised px-4 text-12 whitespace-nowrap"
 		>
 			<span className="text-10">
@@ -171,7 +171,9 @@ function RunReadings({
 			)}
 			<span className="ml-auto inline-flex items-center gap-2.5">
 				<Button asChild size="compact">
-					<Link to="/monitor">Open monitor</Link>
+					<Link to="/monitor/$run" params={{ run: row.run }}>
+						Open monitor
+					</Link>
 				</Button>
 				<StopControl key={row.run} launchId={row.launchId} />
 			</span>
@@ -204,9 +206,9 @@ function useAnnouncement(rows: readonly HistoryRow[]): string {
 }
 
 /**
- * The newest run in flight, as the design draws one run. How the bar shows
- * several at once waits on a design. The live region stays mounted when no run is in
- * flight, since a stop is announced after the bar that showed the run leaves.
+ * One bar per run in flight, newest first, each the bar the design draws for
+ * one run. The live region stays mounted when no run is in flight, since a
+ * stop is announced after the bar that showed the run leaves.
  */
 export function RunInFlight({
 	rows,
@@ -214,11 +216,12 @@ export function RunInFlight({
 	readonly rows: readonly HistoryRow[];
 }): React.JSX.Element {
 	const message = useAnnouncement(rows);
-	const [newest] = runsInFlight(rows);
 
 	return (
 		<>
-			{newest === undefined ? null : <RunReadings row={newest} />}
+			{runsInFlight(rows).map((row) => (
+				<RunReadings key={row.run} row={row} />
+			))}
 			<p role="status" aria-live="polite" className="sr-only">
 				{message}
 			</p>

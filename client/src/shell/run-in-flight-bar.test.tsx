@@ -14,10 +14,14 @@ import {
 import { createAppRouter } from "#client/router";
 import type { RunHistoryResponse } from "#client/run-history/run-history-query";
 import { renderAppWithStub } from "#client/test-support/render-app";
+import { recordStage, runRecord } from "#client/test-support/run-record";
 import { graded, notYet, runRow } from "#client/test-support/runs-in-flight";
 import { RunInFlight } from "./run-in-flight-bar";
 
 type HistoryRow = RunHistoryResponse["rows"][number];
+
+const OLDER = "2026-09-30T09-00-00.000Z";
+const NEWER = "2026-09-30T11-00-00.000Z";
 
 const originalFetch = globalThis.fetch;
 
@@ -54,8 +58,10 @@ function renderRunInFlight(rows: readonly HistoryRow[]): RenderedRunInFlight {
 	};
 }
 
+const IN_FLIGHT = /^Run \S+ in flight$/u;
+
 function bar(): HTMLElement {
-	return screen.getByRole("region", { name: "Run in flight" });
+	return screen.getByRole("region", { name: IN_FLIGHT });
 }
 
 describe("the run in flight on every screen", () => {
@@ -78,7 +84,7 @@ describe("the run in flight on every screen", () => {
 			]),
 		);
 
-		const shown = await screen.findByRole("region", { name: "Run in flight" });
+		const shown = await screen.findByRole("region", { name: IN_FLIGHT });
 		expect(shown).toHaveTextContent("r-0148");
 		expect(shown).toHaveTextContent("audit-log");
 		expect(shown).toHaveTextContent("step 2 of 2 · build");
@@ -123,7 +129,7 @@ describe("the run in flight on every screen", () => {
 
 		await screen.findByRole("navigation", { name: "Sections" });
 		expect(
-			screen.queryByRole("region", { name: "Run in flight" }),
+			screen.queryByRole("region", { name: IN_FLIGHT }),
 		).not.toBeInTheDocument();
 	});
 
@@ -134,7 +140,7 @@ describe("the run in flight on every screen", () => {
 		rerender([runRow({ status: "COMPLETE" })]);
 
 		expect(
-			screen.queryByRole("region", { name: "Run in flight" }),
+			screen.queryByRole("region", { name: IN_FLIGHT }),
 		).not.toBeInTheDocument();
 	});
 
@@ -159,39 +165,62 @@ describe("the run in flight on every screen", () => {
 		expect(bar()).toHaveTextContent("— run spend not recorded / $20.00");
 	});
 
-	it("shows the newest run in flight and no count of the others", async () => {
+	it("shows a bar for each run in flight, the newest first", async () => {
 		renderAppWithStub(
 			"/corpus",
 			new Map([
 				[
 					"/api/runs",
 					history([
-						runRow({ run: "2026-09-30T09-00-00.000Z" }),
-						runRow({ run: "2026-09-30T11-00-00.000Z", stage: "review" }),
+						{ ...runRow({ run: OLDER }), shortId: "r-0147" },
+						{ ...runRow({ run: NEWER, stage: "review" }), shortId: "r-0149" },
 					]),
 				],
 			]),
 		);
 
-		const shown = await screen.findByRole("region", { name: "Run in flight" });
-		expect(shown).toHaveTextContent("review");
-		expect(shown).not.toHaveTextContent(/\+\d/u);
+		await screen.findAllByRole("region", { name: IN_FLIGHT });
+
 		expect(
-			within(shown).queryByRole("link", { name: /running/u }),
-		).not.toBeInTheDocument();
+			screen
+				.getAllByRole("region", { name: IN_FLIGHT })
+				.map((shown) => shown.getAttribute("aria-label")),
+		).toEqual(["Run r-0149 in flight", "Run r-0147 in flight"]);
 	});
 
-	it("opens the live monitor on the run from any screen", async () => {
+	it("opens the live monitor on its own run from any screen", async () => {
+		const older = { ...runRow({ run: OLDER }), shortId: "r-0147" };
 		renderAppWithStub(
 			"/corpus",
-			new Map([["/api/runs", history([runRow({ stage: "build" })])]]),
+			new Map<string, unknown>([
+				[
+					"/api/runs",
+					history([older, { ...runRow({ run: NEWER }), shortId: "r-0149" }]),
+				],
+				[
+					`/api/runs/${OLDER}`,
+					runRecord({
+						run: OLDER,
+						running: "build",
+						stages: [recordStage("build")],
+					}),
+				],
+			]),
 		);
-		const shown = await screen.findByRole("region", { name: "Run in flight" });
+		const shown = await screen.findByRole("region", {
+			name: "Run r-0147 in flight",
+		});
 
 		fireEvent.click(within(shown).getByRole("link", { name: "Open monitor" }));
 
 		expect(
-			await screen.findByRole("link", { name: /^Live monitor/u }),
+			await screen.findByRole("heading", {
+				level: 1,
+				name: "Run r-0147 in progress",
+			}),
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("link", { name: /^Live monitor/u }),
 		).toHaveAttribute("aria-current", "page");
 	});
 
@@ -237,18 +266,19 @@ describe("the run in flight on every screen", () => {
 		const stub = (): Promise<Response> => Promise.resolve(Response.json({}));
 		stub.preconnect = originalFetch.preconnect;
 		globalThis.fetch = stub;
-		const older = runRow({
-			run: "2026-09-30T09-00-00.000Z",
-			launchId: "launch-b",
-		});
+		const older = {
+			...runRow({ run: OLDER, launchId: "launch-b" }),
+			shortId: "r-0147",
+		};
 		const { rerender } = renderRunInFlight([
-			runRow({ run: "2026-09-30T11-00-00.000Z", launchId: "launch-a" }),
+			{ ...runRow({ run: NEWER, launchId: "launch-a" }), shortId: "r-0149" },
 			older,
 		]);
-		fireEvent.click(within(bar()).getByRole("button", { name: "Stop" }));
+		const newest = screen.getByRole("region", { name: "Run r-0149 in flight" });
+		fireEvent.click(within(newest).getByRole("button", { name: "Stop" }));
 		await waitFor(() => {
 			expect(
-				within(bar()).getByRole("button", { name: "Stop" }),
+				within(newest).getByRole("button", { name: "Stop" }),
 			).toBeDisabled();
 		});
 
