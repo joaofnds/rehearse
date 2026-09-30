@@ -1,6 +1,9 @@
 import { createCn } from "cn/config";
 
-/** The design's type scale (SPEC.md:404) as `theme.css` names its steps. */
+/**
+ * The design's type scale (SPEC.md:404), with the 16px the prototype draws the
+ * monitor's run heading at, as `theme.css` names its steps.
+ */
 export const TYPE_STEPS = [
 	"30",
 	"26",
