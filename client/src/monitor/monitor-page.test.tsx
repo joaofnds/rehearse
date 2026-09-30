@@ -527,7 +527,10 @@ describe("/monitor across runs", () => {
 				name: /^plan(?! has no checkpoint)/u,
 			}),
 		);
-		const ended = { ...runRow({ run: RUN }), progress: { state: "recorded" } };
+		const ended: PipelineRow = {
+			...runRow({ run: RUN }),
+			progress: { state: "recorded" },
+		};
 		stubFetchByPath(
 			new Map<string, unknown>([
 				...SHELL_BASELINE,

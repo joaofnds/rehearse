@@ -19,6 +19,7 @@ import {
 	STOPPED_RUN_EVIDENCE,
 	fixedCorpusSource,
 } from "#benchmark/run-records-test-support";
+import { benchmarkRunPaths } from "#benchmark/run-layout";
 import { createApiApp } from "./api";
 import {
 	AWAITING_GRADE_REASON,
@@ -174,9 +175,20 @@ describe("/api/runs/:run", () => {
 				});
 			});
 
-			it("names the run's target by its directory name, its commit, and its model", async () => {
+			it("names the run's target by its directory name, its commit, its model and its effort", async () => {
 				const fixture = await emptyFixture();
 				await fixture.writeStoppedRunEvidence();
+				const { manifestFile } = benchmarkRunPaths(
+					fixture.runsDirectory,
+					fixture.stoppedRun,
+				);
+				const recorded = z
+					.looseObject({})
+					.parse(await Bun.file(manifestFile).json());
+				await Bun.write(
+					manifestFile,
+					JSON.stringify({ ...recorded, effort: "high" }),
+				);
 
 				const response = await runRecord(fixture, fixture.stoppedRun);
 
@@ -185,6 +197,7 @@ describe("/api/runs/:run", () => {
 						target: "template",
 						commit: "2".repeat(40),
 						model: "sonnet",
+						effort: "high",
 					},
 				});
 			});
