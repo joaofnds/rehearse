@@ -14,4 +14,22 @@ describe(Grade.name, () => {
 
 		expect(screen.getByText("—")).toBeInTheDocument();
 	});
+
+	it.each([
+		["A−", "text-pale"],
+		["B+", "text-foreground"],
+		["C", "text-secondary-foreground"],
+		["D", "text-bright"],
+		["F", "text-bright"],
+	])("colours a %s as the design colours its letter", (letter, colour) => {
+		render(<Grade value={{ letter }} size="node" />);
+
+		expect(screen.getByText(letter)).toHaveClass(colour);
+	});
+
+	it("colours a pending grade as the design colours a missing one", () => {
+		render(<Grade value={{ pending: true }} size="node" />);
+
+		expect(screen.getByText("—")).toHaveClass("text-subdued");
+	});
 });

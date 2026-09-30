@@ -17,6 +17,19 @@ const SIZE_CLASSES = {
 	task: "font-mono text-30 font-bold",
 } as const satisfies Record<GradeSize, string>;
 
+/** The colours prototype.html's gradeColor gives a letter; D and F are bright. */
+const LETTER_COLOURS = new Map([
+	["A", "text-pale"],
+	["B", "text-foreground"],
+	["C", "text-secondary-foreground"],
+]);
+
+function gradeColour(value: GradeValue): string {
+	return "pending" in value
+		? "text-subdued"
+		: (LETTER_COLOURS.get(value.letter.charAt(0)) ?? "text-bright");
+}
+
 export function Grade({
 	value,
 	size,
@@ -25,7 +38,7 @@ export function Grade({
 	readonly size: GradeSize;
 }): React.JSX.Element {
 	return (
-		<span className={SIZE_CLASSES[size]}>
+		<span className={`${SIZE_CLASSES[size]} ${gradeColour(value)}`}>
 			{"pending" in value ? "—" : value.letter}
 		</span>
 	);

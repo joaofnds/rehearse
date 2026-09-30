@@ -71,6 +71,7 @@
 
 	--color-dim: var(--color-text-dim);
 	--color-faint: var(--color-text-faint);
+	--color-subdued: var(--color-text-faint-2);
 	--color-bright: var(--color-text-bright);
 	--color-pale: var(--color-accent-pale);
 	--color-deep: var(--color-accent-deep);
