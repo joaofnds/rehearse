@@ -103,7 +103,7 @@ function StatusLine({
 	readonly status: NodeStatus;
 }): React.JSX.Element {
 	return (
-		<span className="flex items-center gap-1.5 text-sm text-secondary-foreground">
+		<span className="flex items-center gap-1.75 text-sm text-secondary-foreground">
 			{status.state === "running" ? (
 				<LiveGlyph />
 			) : (
@@ -120,12 +120,12 @@ function CheckpointLine({
 	readonly shortId: MonitoredStage["checkpointShortId"];
 }): React.JSX.Element {
 	return shortId.state === "available" ? (
-		<span className="flex items-center gap-1.5 border-t border-dashed border-strong pt-1.5 font-mono text-xs text-secondary-foreground">
+		<span className="flex items-center gap-1.75 border-t border-dashed border-strong pt-1.75 font-mono text-xs text-secondary-foreground">
 			<span aria-hidden="true">◆</span>
 			{shortId.shortId}
 		</span>
 	) : (
-		<span className="flex items-center gap-1.5 border-t border-dashed border-strong pt-1.5 font-mono text-xs text-dim">
+		<span className="flex items-center gap-1.75 border-t border-dashed border-strong pt-1.75 font-mono text-xs text-dim">
 			<span aria-hidden="true">◇</span>
 			no checkpoint yet
 		</span>
@@ -206,9 +206,9 @@ function StageNode({
 				onClick={() => {
 					onSelect(stage.stage);
 				}}
-				className={`flex w-63 flex-col gap-1.75 rounded-lg border px-3 py-2.5 text-left hover:bg-accent ${nodeBorder(selected, status)}`}
+				className={`flex w-77.5 flex-col gap-2.25 rounded-lg border px-3.75 py-3 text-left hover:bg-accent ${nodeBorder(selected, status)}`}
 			>
-				<span className="flex items-center gap-2">
+				<span className="flex items-center gap-2.5">
 					<span aria-hidden="true" className="font-mono text-xs text-dim">
 						{String(number)}
 					</span>
@@ -225,7 +225,7 @@ function StageNode({
 					/>
 				</span>
 				<StatusLine status={status} />
-				<span className="grid grid-cols-2 gap-x-2.5 gap-y-0.75 font-mono text-xs text-muted-foreground">
+				<span className="grid grid-cols-2 gap-x-3 gap-y-1 font-mono text-xs text-muted-foreground">
 					<span>{costReading(stage, row)}</span>
 					<span>{durationReading(stage.wallTime)}</span>
 					<span>{blockersReading(stage.blockers)}</span>
@@ -236,15 +236,15 @@ function StageNode({
 					{notStarted(stage, row) ? "not started" : "contribution pending"}
 				</span>
 			</button>
-			<span className="flex flex-col justify-center gap-1 px-1.25">
+			<span className="flex flex-col justify-center gap-1.25 px-1.5">
 				<ReplayAction run={row.run} stage={stage} />
 			</span>
 			{last ? null : (
 				<span
 					aria-hidden="true"
-					className={`flex items-center gap-0.75 px-2 ${status.state === "accepted" ? "text-deeper" : "text-strong"}`}
+					className={`flex items-center gap-1 px-2.5 ${status.state === "accepted" ? "text-deeper" : "text-strong"}`}
 				>
-					<span className="block h-px w-6 bg-current" />
+					<span className="block h-px w-7.5 bg-current" />
 					<span className="text-xs">▶</span>
 				</span>
 			)}
@@ -266,7 +266,7 @@ function MinimumGradeNote({
 	}
 
 	return (
-		<p className="px-4 pb-2.5 text-sm text-pretty text-dim">
+		<p className="px-5 pb-3 text-sm text-pretty text-dim">
 			Minimum grade for every step in this task is{" "}
 			<span className="font-mono text-secondary-foreground">
 				{record.minimumGrade.letter}
@@ -296,9 +296,9 @@ export function TaskGraph({
 	return (
 		<section
 			aria-label="Task graph"
-			className="min-h-53.75 overflow-y-auto border-b border-divider bg-secondary"
+			className="min-h-66.25 overflow-y-auto border-b border-divider bg-secondary"
 		>
-			<div className="flex items-center gap-3 px-4 pt-2">
+			<div className="flex items-center gap-3.75 px-5 pt-2.5">
 				<h2 className="text-xs font-medium tracking-widest text-dim uppercase">
 					Task · {record.caseId} · {String(record.stages.length)} steps, in
 					order
@@ -310,7 +310,7 @@ export function TaskGraph({
 					✓ accepted · ● running · ○ queued · ◆ checkpoint
 				</span>
 			</div>
-			<div className="overflow-x-auto px-4 pt-2.5 pb-3">
+			<div className="overflow-x-auto px-5 pt-3 pb-3.75">
 				<ol className="flex min-w-max items-stretch">
 					{record.stages.map((stage, index) => (
 						<StageNode

@@ -10,12 +10,12 @@ export function StagePanes({
 	readonly stage: string;
 }): React.JSX.Element {
 	return (
-		<div className="grid min-h-57.5 flex-1 basis-2/5 grid-cols-monitor-panes overflow-x-auto">
+		<div className="grid min-h-70.75 flex-1 basis-2/5 grid-cols-monitor-panes overflow-x-auto">
 			<section
 				aria-label="Live agent session"
 				className="flex min-h-0 flex-col border-r border-divider"
 			>
-				<div className="flex flex-none items-center gap-2.5 border-b border-divider px-3.5 py-2.25">
+				<div className="flex flex-none items-center gap-3 border-b border-divider px-4.25 py-2.75">
 					<h2 className="text-sm font-medium tracking-wide text-muted-foreground uppercase">
 						Step {String(number)} · {stage}
 					</h2>
@@ -25,7 +25,7 @@ export function StagePanes({
 				aria-label="Judge"
 				className="flex min-h-0 flex-col bg-secondary"
 			>
-				<div className="flex flex-none items-center gap-2.25 border-b border-divider px-3.5 py-2.25">
+				<div className="flex flex-none items-center gap-2.75 border-b border-divider px-4.25 py-2.75">
 					<h2 className="text-sm font-medium tracking-wide text-muted-foreground uppercase">
 						Judge · step {String(number)}
 					</h2>

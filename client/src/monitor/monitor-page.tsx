@@ -66,7 +66,7 @@ function RunMonitor({ row }: { readonly row: PipelineRow }): React.JSX.Element {
 			: shownStage(query.data, row, selected);
 
 	return (
-		<div className="flex flex-col">
+		<div className="flex min-h-full flex-col">
 			{query.isError ? (
 				<p role="alert" className="px-6 py-4 text-muted-foreground">
 					<span aria-hidden="true">⚠ </span>
