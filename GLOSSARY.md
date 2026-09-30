@@ -543,9 +543,11 @@ See [current state](docs/status.md) for implementation coverage and
   answers for the target: a crashed run whose target a later run has claimed can
   still read as in flight.
 - **Run spend** — what a whole run has paid, across worker sessions, Judges, and
-  the Product Owner. Only a terminal run event carries it, `run-completed` or a
-  `run-failed` with a persisted artifact. Distinct from stage spend and from the
-  per-session limit the session knobs set.
+  the Product Owner. Every run event carries what the run has paid so far,
+  except events recorded before run events carried it, and a terminal run
+  event, `run-completed` or a `run-failed` with a persisted artifact, carries
+  the whole. Distinct from stage spend and from the per-session limit the
+  session knobs set.
 - **Spend ceiling**: the stored USD limit on a run's whole spend, which every
   paid command requires before it starts. Each session a run starts gets a
   budget no larger than the ceiling minus the run spend so far, and once the
