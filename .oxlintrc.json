@@ -39,6 +39,17 @@
 		"anti-slop/no-unsafe-dictionary-type": "error",
 		"anti-slop/no-widen-then-assert": "error",
 		"anti-slop/require-safety-comment-for-type-assertion": "error",
+		"eslint/no-restricted-imports": [
+			"error",
+			{
+				"paths": [
+					{
+						"name": "cn",
+						"message": "Import cn from #client/system/cn, which knows the theme's type steps. The bare package reads them as colours and drops the variant's text colour."
+					}
+				]
+			}
+		],
 		"shadcn/no-restyle": "error",
 		"shadcn/no-raw-colors": "error",
 		"shadcn/no-arbitrary-values": "error",

@@ -16,6 +16,6 @@
 		"ui": "#client/system/ui",
 		"lib": "#client/system",
 		"hooks": "#client/system/hooks",
-		"utils": "cn"
+		"utils": "#client/system/cn"
 	}
 }
