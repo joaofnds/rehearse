@@ -10,6 +10,17 @@ export type RunRecordResponse = InferResponseType<
 
 export type MonitoredStage = RunRecordResponse["stages"][number];
 
+/**
+ * How a stage whose record is written ended: stopped by that record, or by a
+ * letter below the run's minimum whatever its judge's verdict, else accepted.
+ */
+export function endedStatus(stage: MonitoredStage): "accepted" | "stopped" {
+	return stage.status === "stopped" ||
+		(stage.grade.state === "available" && !stage.grade.reachesMinimum)
+		? "stopped"
+		: "accepted";
+}
+
 async function fetchRunRecord(run: string): Promise<RunRecordResponse> {
 	const response = await runRecordRoute.$get({ param: { run } });
 	if (!response.ok) {

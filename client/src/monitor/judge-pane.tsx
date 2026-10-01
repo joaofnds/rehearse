@@ -10,9 +10,9 @@ import { LiveGlyph, STATUS_VOCABULARY } from "#client/system/components/status";
 import { PendingLine } from "./pending-line";
 import { rerunSpreadSentence } from "./rerun-spread";
 import type { MonitoredStage } from "./run-record-query";
+import { endedStatus } from "./run-record-query";
 import type { StageJudgeResponse } from "./stage-judge-query";
 import { stageJudgeQuery } from "./stage-judge-query";
-import { endedStatus } from "./task-graph";
 
 type ReturningJudge = Extract<
 	StageJudgeResponse,

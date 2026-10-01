@@ -11,6 +11,7 @@ import { Grade } from "#client/system/components/grade";
 import { LiveGlyph, STATUS_VOCABULARY } from "#client/system/components/status";
 import type { StatusState } from "#client/system/components/status";
 import { Button } from "#client/system/ui/button";
+import { endedStatus } from "./run-record-query";
 import type { MonitoredStage, RunRecordResponse } from "./run-record-query";
 import { shortCommit } from "./run-identity-header";
 import { stageSessionQuery } from "./stage-session-query";
@@ -56,17 +57,6 @@ function isRunning(stage: MonitoredStage, row: PipelineRow): boolean {
 /** A stage the run has not reached: no record, and not the one running. */
 function notStarted(stage: MonitoredStage, row: PipelineRow): boolean {
 	return stage.status === "no-record" && !isRunning(stage, row);
-}
-
-/**
- * How a stage whose record is written ended: stopped by that record, or by a
- * letter below the run's minimum whatever its judge's verdict, else accepted.
- */
-export function endedStatus(stage: MonitoredStage): "accepted" | "stopped" {
-	return stage.status === "stopped" ||
-		(stage.grade.state === "available" && !stage.grade.reachesMinimum)
-		? "stopped"
-		: "accepted";
 }
 
 function nodeStatus(stage: MonitoredStage, row: PipelineRow): NodeStatus {
