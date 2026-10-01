@@ -228,6 +228,111 @@ describe(readStageSession.name, () => {
 	});
 });
 
+describe(`${readStageSession.name} once the stage has closed`, () => {
+	it("answers the spans the judge cites from the transcript and the preserved transcript's place", async () => {
+		const stage = await startedStage();
+		const paths = benchmarkRunPaths(stage.runsDirectory, RUN);
+		await Bun.write(
+			join(paths.checkpointDirectory("build"), "transcript.jsonl"),
+			transcriptOf([{ type: "user" }, { type: "assistant" }, { type: "user" }]),
+		);
+		await Bun.write(
+			paths.stageFile("build"),
+			JSON.stringify({
+				stage: "build",
+				grade: {
+					hardBlockers: [
+						{
+							id: "HB-1",
+							status: "PASS",
+							evidence: [
+								{
+									source: "transcript",
+									path: "transcript",
+									claim: "The agent asked before choosing a scope",
+									quote: "Which scope?",
+									locator: {
+										kind: "exchange",
+										exchange: 0,
+										field: "message",
+										start: 0,
+										end: 12,
+									},
+								},
+							],
+						},
+					],
+					requirements: [
+						{
+							id: "R1",
+							status: "PASS",
+							evidence: [
+								{
+									source: "artifact",
+									path: "backlog/docs/shape.md",
+									claim: "The shape names the scope",
+								},
+								{
+									source: "transcript",
+									path: "transcript",
+									claim: "The owner chose the small scope",
+									quote: "Use the small scope",
+								},
+							],
+						},
+					],
+					dimensions: [],
+				},
+			}),
+		);
+
+		const session = await readStageSession({
+			...stage,
+			run: RUN,
+			stage: "build",
+		});
+
+		expect(session).toEqual({
+			state: "closed",
+			lineCount: 3,
+			transcriptPath: `.benchmark-runs/${RUN}.checkpoints/build/transcript.jsonl`,
+			spans: [
+				{
+					section: "hardBlockers",
+					item: "HB-1",
+					index: 0,
+					claim: "The agent asked before choosing a scope",
+					quote: "Which scope?",
+					label: "exchange 1 message",
+				},
+				{
+					section: "requirements",
+					item: "R1",
+					index: 1,
+					claim: "The owner chose the small scope",
+					quote: "Use the small scope",
+				},
+			],
+		});
+	});
+
+	it("answers a closed stage with no preserved transcript and no grade with neither", async () => {
+		const stage = await startedStage();
+		await Bun.write(
+			benchmarkRunPaths(stage.runsDirectory, RUN).stageFile("build"),
+			JSON.stringify({ stage: "build", error: "Run stopped" }),
+		);
+
+		const session = await readStageSession({
+			...stage,
+			run: RUN,
+			stage: "build",
+		});
+
+		expect(session).toEqual({ state: "closed", spans: [] });
+	});
+});
+
 describe("GET /api/runs/:run/stages/:stage/session", () => {
 	it("answers with the stage's session as the reader shows it", async () => {
 		const stage = await startedStage();

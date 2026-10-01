@@ -1306,7 +1306,7 @@ export async function hashWorkflowState(
  * judge context: materializing it must reproduce exactly the state the next
  * stage consumed (ACT-2 decision 2).
  */
-const TRANSCRIPT_FILE = "transcript.jsonl";
+export const TRANSCRIPT_FILE = "transcript.jsonl";
 
 /** Where the provider wrote a stage session's transcript. */
 export function stageTranscriptFile(

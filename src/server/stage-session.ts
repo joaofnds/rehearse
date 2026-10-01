@@ -1,6 +1,8 @@
-import { dirname } from "node:path";
+import { basename, dirname } from "node:path";
 import { z } from "zod";
-import { stageTranscriptFile } from "#benchmark/checkpoint";
+import { stageTranscriptFile, TRANSCRIPT_FILE } from "#benchmark/checkpoint";
+import type { Immutable, RecordedStageEvidence } from "#benchmark/contracts";
+import { recordedStageEvidenceSchema } from "#benchmark/contracts";
 import { openRunEventStore } from "#benchmark/run-events";
 import {
 	checkpointsEntryForRun,
@@ -10,9 +12,11 @@ import {
 	canonicalRunsRoot,
 	parseIdentity,
 	readVerifiedLines,
+	readVerifiedFile,
 	runManifest,
 	SessionHistoryReaderError,
 	verifiedDirectory,
+	verifiedDirectoryWhenPresent,
 	verifiedFile,
 } from "./session-history-reader";
 
@@ -39,7 +43,29 @@ export interface SessionLine {
 	readonly text: string;
 }
 
+const JUDGED_SECTIONS = ["hardBlockers", "requirements", "dimensions"] as const;
+
+type JudgedSection = (typeof JUDGED_SECTIONS)[number];
+
+/** One piece of evidence the stage judge cited from the session's exchanges. */
+export interface CitedSpan {
+	readonly section: JudgedSection;
+	readonly item: string;
+	/** The evidence's place in its item, as the evidence route numbers it. */
+	readonly index: number;
+	readonly claim: string;
+	readonly quote?: string;
+	readonly label?: string;
+}
+
 export type StageSession =
+	| {
+			readonly state: "closed";
+			readonly spans: readonly CitedSpan[];
+			readonly lineCount?: number;
+			/** The preserved transcript, relative to the runs directory's parent. */
+			readonly transcriptPath?: string;
+	  }
 	| {
 			readonly state: "running";
 			readonly lineCount: number;
@@ -55,6 +81,59 @@ type TranscriptBlock =
 
 function firstLine(text: string): string {
 	return text.trim().split("\n", 1)[0] ?? "";
+}
+
+const judgedItemSchema = z.looseObject({
+	id: z.string(),
+	evidence: z.array(recordedStageEvidenceSchema),
+});
+
+const closedStageRecordSchema = z.looseObject({
+	grade: z
+		.looseObject({
+			hardBlockers: z.array(judgedItemSchema),
+			requirements: z.array(judgedItemSchema),
+			dimensions: z.array(judgedItemSchema),
+		})
+		.optional(),
+});
+
+type JudgedGrade = NonNullable<
+	z.infer<typeof closedStageRecordSchema>["grade"]
+>;
+
+function spanLabel(
+	evidence: Immutable<RecordedStageEvidence>,
+): string | undefined {
+	const { locator } = evidence;
+
+	return locator?.kind === "exchange"
+		? `exchange ${String(locator.exchange + 1)} ${locator.field}`
+		: undefined;
+}
+
+function citedSpans(grade: Immutable<JudgedGrade>): readonly CitedSpan[] {
+	return JUDGED_SECTIONS.flatMap((section) =>
+		grade[section].flatMap(({ id, evidence }) =>
+			evidence.flatMap((cited, index): CitedSpan[] => {
+				if (cited.source !== "transcript") {
+					return [];
+				}
+				const label = spanLabel(cited);
+
+				return [
+					{
+						section,
+						item: id,
+						index,
+						claim: cited.claim,
+						...(cited.quote !== undefined && { quote: cited.quote }),
+						...(label !== undefined && { label }),
+					},
+				];
+			}),
+		),
+	);
 }
 
 const toolUseBlockSchema = z
@@ -185,19 +264,34 @@ function rowsOf(text: string, line: number): readonly SessionLine[] {
 	);
 }
 
-async function transcriptTail(
+interface TranscriptWindow {
+	readonly lineCount: number;
+	readonly window: readonly string[];
+}
+
+async function lastLines(
 	root: string,
 	file: string,
-): Promise<Extract<StageSession, { state: "running" }>> {
+	limit: number,
+): Promise<TranscriptWindow> {
 	const window: string[] = [];
 	let lineCount = 0;
 	for await (const text of readVerifiedLines(root, file)) {
 		lineCount += 1;
 		window.push(text);
-		if (window.length > TAIL_LINES) {
+		if (window.length > limit) {
 			window.shift();
 		}
 	}
+
+	return { lineCount, window };
+}
+
+async function transcriptTail(
+	root: string,
+	file: string,
+): Promise<Extract<StageSession, { state: "running" }>> {
+	const { lineCount, window } = await lastLines(root, file, TAIL_LINES);
 	const firstLineNumber = lineCount - window.length + 1;
 	const lines = window.flatMap((text, index) =>
 		rowsOf(text, firstLineNumber + index),
@@ -207,6 +301,64 @@ async function transcriptTail(
 	return latestToolCall === undefined
 		? { state: "running", lineCount, lines }
 		: { state: "running", lineCount, lines, latestToolCall };
+}
+
+/**
+ * The stage's record is written once its session ends, whether the judge
+ * then graded it, the run stopped on it, or the run died before the judge
+ * finished, so its presence is what closes the session.
+ */
+async function closedStageSession(
+	runsRoot: string,
+	run: string,
+	stage: string,
+): Promise<Extract<StageSession, { state: "closed" }> | undefined> {
+	const recordFile = await verifiedFile(
+		runsRoot,
+		runsRoot,
+		`${run}.${stage}.json`,
+		false,
+	);
+	if (recordFile === undefined) {
+		return undefined;
+	}
+	const record = closedStageRecordSchema.safeParse(
+		JSON.parse(await readVerifiedFile(runsRoot, recordFile)),
+	);
+	const spans =
+		record.success && record.data.grade !== undefined
+			? citedSpans(record.data.grade)
+			: [];
+	const checkpointsEntry = checkpointsEntryForRun(run);
+	const checkpointDirectory = await verifiedDirectoryWhenPresent(runsRoot, [
+		checkpointsEntry,
+		stage,
+	]);
+	const transcriptFile =
+		checkpointDirectory === undefined
+			? undefined
+			: await verifiedFile(
+					runsRoot,
+					checkpointDirectory,
+					TRANSCRIPT_FILE,
+					false,
+				);
+	if (transcriptFile === undefined) {
+		return { state: "closed", spans };
+	}
+	const { lineCount } = await lastLines(runsRoot, transcriptFile, 0);
+
+	return {
+		state: "closed",
+		spans,
+		lineCount,
+		transcriptPath: [
+			basename(runsRoot),
+			checkpointsEntry,
+			stage,
+			TRANSCRIPT_FILE,
+		].join("/"),
+	};
 }
 
 async function canonicalProjectsRoot(
@@ -267,6 +419,11 @@ export async function readStageSession(
 			"not-found",
 			"The run's pipeline has no such stage",
 		);
+	}
+
+	const closed = await closedStageSession(runsRoot, run, stage);
+	if (closed !== undefined) {
+		return closed;
 	}
 
 	const sessionId = await recordedSessionId(request.runsDirectory, run, stage);

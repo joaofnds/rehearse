@@ -158,7 +158,7 @@ export async function verifiedDirectory(
  * symlinked segment, so catching the thrown refusal instead of separating the
  * two would turn a refusal into a read.
  */
-async function verifiedDirectoryWhenPresent(
+export async function verifiedDirectoryWhenPresent(
 	root: string,
 	segments: readonly string[],
 ): Promise<string | undefined> {
