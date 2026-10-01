@@ -408,7 +408,7 @@ describe("/monitor", () => {
 				renderEstimatedRun(100_000);
 
 				expect(await band()).toHaveTextContent(
-					"Remaining steps 2 to 3, at current rate≈ $2.07 · 7m",
+					"Remaining step 3, at current rate≈ $2.07 · 7m",
 				);
 			});
 
@@ -416,7 +416,32 @@ describe("/monitor", () => {
 				renderEstimatedRun(500_000);
 
 				expect(await band()).toHaveTextContent(
-					"Remaining steps 2 to 3, at current rate≈ $0.59 · 2m",
+					"Remaining step 3, at current rate≈ $0.59 · 2m",
+				);
+			});
+
+			it("names the steps after the running one, as the design labels them", async () => {
+				renderMonitor(
+					runRow({ run: RUN }),
+					new Map<string, unknown>([
+						[
+							`/api/runs/${RUN}`,
+							runRecord({
+								run: RUN,
+								running: "build",
+								stages: [
+									recordStage("plan", { status: "graded" }),
+									recordStage("build"),
+									recordStage("review"),
+									recordStage("ship"),
+								],
+							}),
+						],
+					]),
+				);
+
+				expect(await band()).toHaveTextContent(
+					"Remaining steps 3 to 4, at current rate",
 				);
 			});
 
@@ -431,7 +456,7 @@ describe("/monitor", () => {
 					});
 
 					expect(await band()).toHaveTextContent(
-						"Remaining steps 2 to 3, at current rate— no prior run of this case",
+						"Remaining step 3, at current rate— no prior run of this case",
 					);
 				});
 
@@ -446,7 +471,7 @@ describe("/monitor", () => {
 					);
 
 					expect(await band()).toHaveTextContent(
-						"Remaining steps 2 to 3, at current rate— run spend not recorded",
+						"Remaining step 3, at current rate— run spend not recorded",
 					);
 				});
 
@@ -460,7 +485,7 @@ describe("/monitor", () => {
 					);
 
 					expect(await band()).toHaveTextContent(
-						"Remaining steps 2 to 3, at current rate— the running step's start is not recorded",
+						"Remaining step 3, at current rate— the running step's start is not recorded",
 					);
 				});
 

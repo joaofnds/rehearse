@@ -65,10 +65,24 @@ function tokenReading(tokens: number): string {
 	return `${thousands.format(Math.round(tokens / TOKENS_PER_THOUSAND))}k`;
 }
 
-/** The steps a run has not finished, named as the design numbers them: `step 4`, or `steps 2 to 4`. */
-function stepsReading(stages: readonly MonitoredStage[]): string {
-	const numbers = stages.flatMap((stage, index) =>
-		hasEnded(stage) ? [] : [index + 1],
+/**
+ * The steps the estimate covers, numbered as the design labels them: it draws
+ * "Remaining step 4" while step 3 of 4 runs, so the label names the unfinished
+ * steps after the running one, `step 4` or `steps 3 to 4`, and the running
+ * step itself once no step follows it.
+ */
+function stepsReading(
+	stages: readonly MonitoredStage[],
+	running: string,
+): string {
+	const unfinished = stages.flatMap((stage, index) =>
+		hasEnded(stage) ? [] : [{ stage: stage.stage, number: index + 1 }],
+	);
+	const after = unfinished.slice(
+		unfinished.findIndex(({ stage }) => stage === running) + 1,
+	);
+	const numbers = (after.length > 0 ? after : unfinished).map(
+		({ number }) => number,
 	);
 	const first = numbers.at(0);
 	const last = numbers.at(-1);
@@ -132,7 +146,7 @@ function RemainingFigure({
 
 	return (
 		<Figure
-			label={`Remaining${stepsReading(stages)}, at current rate`}
+			label={`Remaining${stepsReading(stages, progress.stage)}, at current rate`}
 			alignEnd
 		>
 			{estimate?.state === "available" ? (
