@@ -46,6 +46,7 @@
 	--radius-sm: var(--radius-chip);
 	--radius-tight: var(--radius-small-element);
 	--radius-md: var(--radius-button);
+	--radius-card: var(--radius-card);
 	--radius-lg: var(--radius-section);
 	--radius-xl: var(--radius-dialog);
 
@@ -73,6 +74,7 @@
 	--tracking-label: 0.09em;
 	--tracking-caps: 0.04em;
 	--tracking-figure: -0.02em;
+	--tracking-bar: 0.12em;
 
 	--color-dim: var(--color-text-dim);
 	--color-faint: var(--color-text-faint);
@@ -81,6 +83,7 @@
 	--color-pale: var(--color-accent-pale);
 	--color-deep: var(--color-accent-deep);
 	--color-deeper: var(--color-accent-deep-2);
+	--color-fired: var(--color-accent-tint-10);
 	--color-selected: var(--color-accent-tint-16);
 	--color-pressed: var(--color-accent-tint-24);
 	--color-raised: var(--color-surface-2);

@@ -1,8 +1,15 @@
 /**
  * The roles docs/design-handoff/SPEC.md gives a grade: inline in a table,
- * on a graph node, on a grade card, and as a task's overall grade.
+ * on a graph node, on the judge pane's verdict card, on a grade card, and as
+ * a task's overall grade.
  */
-export const GRADE_SIZES = ["inline", "node", "card", "task"] as const;
+export const GRADE_SIZES = [
+	"inline",
+	"node",
+	"verdict",
+	"card",
+	"task",
+] as const;
 
 export type GradeSize = (typeof GRADE_SIZES)[number];
 
@@ -13,6 +20,7 @@ export type GradeValue =
 const SIZE_CLASSES = {
 	inline: "font-mono text-13 font-bold",
 	node: "font-mono text-19 leading-none font-bold",
+	verdict: "font-mono text-22 font-bold",
 	card: "font-mono text-24 font-bold",
 	task: "font-mono text-30 font-bold",
 } as const satisfies Record<GradeSize, string>;

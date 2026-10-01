@@ -39,6 +39,7 @@ export const RADIUS_TOKENS = [
 	"--radius-chip",
 	"--radius-small-element",
 	"--radius-button",
+	"--radius-card",
 	"--radius-section",
 	"--radius-dialog",
 ] as const;

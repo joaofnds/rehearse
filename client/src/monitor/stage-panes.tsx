@@ -1,25 +1,10 @@
-import { PendingLine } from "./pending-line";
+import { JudgePane } from "./judge-pane";
 import type { MonitoredStage } from "./run-record-query";
 import { SessionPane } from "./session-pane";
 
-/** What a pane does not show yet. */
-function NotShownYet({
-	words,
-	className,
-}: {
-	readonly words: string;
-	readonly className: string;
-}): React.JSX.Element {
-	return (
-		<div className={className}>
-			<PendingLine words={words} />
-		</div>
-	);
-}
-
 /**
  * The session and judge panes (SPEC.md 2d), named after the stage they
- * follow. The judge pane's contents are ACT-270.4's.
+ * follow.
  */
 export function StagePanes({
 	run,
@@ -33,25 +18,17 @@ export function StagePanes({
 	return (
 		<div className="grid min-h-70.75 flex-1 basis-2/5 grid-cols-monitor-panes overflow-x-auto">
 			<SessionPane
-				key={stage.stage}
+				key={`session ${stage.stage}`}
 				run={run}
 				number={number}
 				figures={stage}
 			/>
-			<section
-				aria-label="Judge"
-				className="flex min-h-0 flex-col bg-secondary"
-			>
-				<div className="flex flex-none items-center gap-2.75 border-b border-divider px-4.25 py-2.75">
-					<h2 className="text-12 font-medium tracking-caps text-muted-foreground uppercase">
-						Judge · step {String(number)}
-					</h2>
-				</div>
-				<NotShownYet
-					words="This pane does not show the judge's verdict yet."
-					className="flex-1 overflow-y-auto px-4.25 pt-3.75 pb-6"
-				/>
-			</section>
+			<JudgePane
+				key={`judge ${stage.stage}`}
+				run={run}
+				number={number}
+				figures={stage}
+			/>
 		</div>
 	);
 }

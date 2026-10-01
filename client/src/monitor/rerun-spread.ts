@@ -1,14 +1,10 @@
-import { STAGE_LETTER_GRADES } from "#benchmark/stage-letter-grades";
+import { gradeStep } from "#benchmark/stage-letter-grades";
 import type { RunHistoryResponse } from "#client/run-history/run-history-query";
 
 type HistoryRow = RunHistoryResponse["rows"][number];
 type PipelineRow = Extract<HistoryRow, { readonly kind: "run" }>;
 
 const STEP_WORDS = ["one", "two", "three", "four"] as const;
-
-const LETTER_STEPS: ReadonlyMap<string, number> = new Map(
-	STAGE_LETTER_GRADES.map((letter, step) => [letter, step]),
-);
 
 function versionDigest(row: PipelineRow): string | undefined {
 	return row.corpusChangedDuringRun || row.corpusVersion?.kind !== "version"
@@ -28,7 +24,7 @@ function letterStep(row: PipelineRow, stage: string): number | undefined {
 		return undefined;
 	}
 
-	return LETTER_STEPS.get(grade.letter);
+	return gradeStep(grade.letter);
 }
 
 /**

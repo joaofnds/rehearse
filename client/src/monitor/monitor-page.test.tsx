@@ -18,6 +18,7 @@ import {
 	stubFetchFailing,
 } from "#client/test-support/render-app";
 import { recordStage, runRecord } from "#client/test-support/run-record";
+import type { StageJudge } from "#server/stage-judge";
 import type { StageSession } from "#server/stage-session";
 import { graded, notYet, runRow } from "#client/test-support/runs-in-flight";
 
@@ -747,16 +748,141 @@ describe("/monitor stage selection", () => {
 	});
 });
 
-describe("/monitor session and judge panes", () => {
-	it("says with the pending glyph what the judge pane does not show yet", async () => {
-		renderMonitor(runRow({ run: RUN }));
-		const words = "This pane does not show the judge's verdict yet.";
+describe("/monitor judge pane", () => {
+	const BUILD_JUDGE = `/api/runs/${RUN}/stages/build/judge`;
 
-		const shown = within(await screen.findByRole("region", { name: "Judge" }));
+	function judgePane(): Promise<HTMLElement> {
+		return screen.findByRole("region", { name: "Judge" });
+	}
 
-		const line = shown.getByText(words).parentElement;
-		expect(line).toHaveTextContent(`◌${words}`);
-		expect(line).toHaveClass("gap-2.25");
+	async function rowCells(
+		list: string,
+	): Promise<readonly (readonly string[])[]> {
+		const rows = await within(await judgePane()).findByRole("list", {
+			name: list,
+		});
+
+		return within(rows)
+			.getAllByRole("listitem")
+			.map((row) => [...row.children].map((cell) => cell.textContent));
+	}
+
+	function renderJudge(judge: StageJudge): void {
+		renderMonitor(
+			runRow({ run: RUN, stage: "build", stageState: "judge grading" }),
+			new Map<string, StageJudge>([[BUILD_JUDGE, judge]]),
+		);
+	}
+
+	describe("while its judge is returning", () => {
+		const RETURNING: StageJudge = {
+			state: "returning",
+			progress: {
+				state: "returning",
+				attempt: 1,
+				sections: {
+					hardBlockers: { returned: 2, total: 3 },
+					requirements: { returned: 0, total: 1 },
+					dimensions: { returned: 1, total: 2 },
+				},
+				items: {
+					hardBlockers: [
+						{ id: "no-unrelated-refactors", status: "FAIL" },
+						{ id: "tests-pass-before-handoff", status: "PASS" },
+						{ id: "no-secrets-in-diff" },
+					],
+					dimensions: [
+						{ id: "scope-discipline", grade: "B" },
+						{ id: "diff-hygiene" },
+					],
+				},
+			},
+			spentUsd: 0.08,
+		};
+
+		it("names the judge grading as an independent session, with what it has cost so far", async () => {
+			renderJudge(RETURNING);
+
+			const pane = await judgePane();
+
+			expect(await within(pane).findByText("grading")).toHaveClass(
+				"text-accent-foreground",
+			);
+			expect(pane).toHaveTextContent("independent session · $0.08 so far");
+		});
+
+		it("shows the verdict and grade pending while the dimensions return", async () => {
+			renderJudge(RETURNING);
+
+			const card = await within(await judgePane()).findByRole("group", {
+				name: "Verdict and grade",
+			});
+
+			expect(card).toHaveTextContent(
+				"Verdict◌pending: dimensions still returning",
+			);
+			expect(card).toHaveTextContent("Grade—");
+		});
+
+		it("lists every hard blocker, each returned one fired or clear and the rest pending, under how many were evaluated", async () => {
+			renderJudge(RETURNING);
+
+			expect(await rowCells("Hard blockers")).toEqual([
+				["✕", "no-unrelated-refactors", "fired", "evidence pending"],
+				["✓", "tests-pass-before-handoff", "clear", "evidence pending"],
+				["◌", "no-secrets-in-diff", "pending", "evidence pending"],
+			]);
+			expect(
+				within(await judgePane()).getByRole("heading", {
+					level: 3,
+					name: /^Hard blockers/u,
+				}),
+			).toHaveTextContent("Hard blockers · 2 of 3 evaluated");
+		});
+
+		it("lists every quality dimension, each returned one with its grade and the rest pending, under how many returned", async () => {
+			renderJudge(RETURNING);
+
+			expect(await rowCells("Quality dimensions")).toEqual([
+				["scope-discipline", "▮▮▮▮▯", "B", "evidence pending"],
+				["diff-hygiene", "▯▯▯▯▯", "—", "evidence pending"],
+			]);
+			expect(
+				within(await judgePane()).getByRole("heading", {
+					level: 3,
+					name: /^Quality dimensions/u,
+				}),
+			).toHaveTextContent("Quality dimensions · 1 of 2 returned");
+		});
+
+		it("offers no evidence until the judge's record holds it", async () => {
+			renderJudge(RETURNING);
+
+			await rowCells("Hard blockers");
+			const toggles = within(await judgePane()).getAllByRole("button", {
+				name: "evidence pending",
+			});
+
+			expect(toggles).toHaveLength(5);
+			for (const toggle of toggles) {
+				expect(toggle).toHaveAttribute("aria-disabled", "true");
+			}
+		});
+
+		it("reads the grade as one attempt, linking to the comparisons", async () => {
+			renderJudge(RETURNING);
+
+			const note = await within(await judgePane()).findByRole("note");
+
+			expect(note).toHaveTextContent(
+				"Read this as one attempt" +
+					"Fewer than two identical reruns of this case have graded this step, so how far its grade varies here is not known yet. " +
+					"A single grade is a data point, not a score. Compare arms to say whether an edit moved anything.",
+			);
+			expect(
+				within(note).getByRole("link", { name: "Compare arms" }),
+			).toHaveAttribute("href", "/comparisons");
+		});
 	});
 });
 

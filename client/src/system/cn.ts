@@ -25,9 +25,9 @@ const TYPE_STEPS = [
 	"9",
 ] as const;
 
-const RADIUS_STEPS = ["tight"] as const;
+const RADIUS_STEPS = ["tight", "card"] as const;
 
-const TRACKING_STEPS = ["label", "caps", "figure"] as const;
+const TRACKING_STEPS = ["label", "caps", "figure", "bar"] as const;
 
 /**
  * Class merging that knows the theme's own steps. Without them a type step

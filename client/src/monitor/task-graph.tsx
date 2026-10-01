@@ -58,18 +58,26 @@ function notStarted(stage: MonitoredStage, row: PipelineRow): boolean {
 	return stage.status === "no-record" && !isRunning(stage, row);
 }
 
+/**
+ * How a stage whose record is written ended: stopped by that record, or by a
+ * letter below the run's minimum whatever its judge's verdict, else accepted.
+ */
+export function endedStatus(stage: MonitoredStage): "accepted" | "stopped" {
+	return stage.status === "stopped" ||
+		(stage.grade.state === "available" && !stage.grade.reachesMinimum)
+		? "stopped"
+		: "accepted";
+}
+
 function nodeStatus(stage: MonitoredStage, row: PipelineRow): NodeStatus {
 	const progress = liveProgress(stage, row);
 	if (progress !== undefined) {
 		return { state: "running", words: progress.stageState };
 	}
-	if (stage.status === "stopped") {
-		return { state: "stopped", words: STATUS_VOCABULARY.stopped.word };
-	}
-	if (stage.status === "graded") {
-		return stage.grade.state === "available" && !stage.grade.reachesMinimum
-			? { state: "stopped", words: STATUS_VOCABULARY.stopped.word }
-			: { state: "accepted", words: STATUS_VOCABULARY.accepted.word };
+	if (stage.status === "stopped" || stage.status === "graded") {
+		const ended = endedStatus(stage);
+
+		return { state: ended, words: STATUS_VOCABULARY[ended].word };
 	}
 	if (stage.status === "awaiting-judgment") {
 		return { state: "pending", words: "awaiting judgment" };
