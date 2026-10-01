@@ -3,6 +3,7 @@ import type { StageTimesResponse } from "./stage-times-query";
 const MS_PER_MINUTE = 60_000;
 
 export const NO_RUN_SPEND_REASON = "run spend not recorded";
+export const NO_STEP_LEFT_REASON = "every step has finished";
 export const NO_STAGE_START_REASON = "the running step's start is not recorded";
 export const UNREAD_EARLIER_RUNS_REASON =
 	"could not read the earlier runs of this case";
@@ -36,6 +37,10 @@ export function remainingEstimate(props: {
 }): RemainingEstimate {
 	if (props.burnPerMinute === undefined) {
 		return { state: "unavailable", reason: NO_RUN_SPEND_REASON };
+	}
+
+	if (props.unfinished.length === 0) {
+		return { state: "unavailable", reason: NO_STEP_LEFT_REASON };
 	}
 
 	let ms = 0;

@@ -489,6 +489,38 @@ describe("/monitor", () => {
 					);
 				});
 
+				it("says every step has finished while the run's final judge returns", async () => {
+					setSystemTime(new Date(MEASURED_AT));
+					renderMonitor(
+						runRow({
+							run: RUN,
+							runSpentUsd: 1.83,
+							elapsedMs: 372_000,
+							stageElapsedMs: 100_000,
+							measuredAt: MEASURED_AT,
+						}),
+						new Map<string, unknown>([
+							[
+								`/api/runs/${RUN}`,
+								runRecord({
+									run: RUN,
+									running: "review",
+									stages: [
+										recordStage("plan", { status: "graded" }),
+										recordStage("build", { status: "graded" }),
+										recordStage("review", { status: "graded" }),
+									],
+								}),
+							],
+							[`/api/runs/${RUN}/stage-times`, EARLIER_TIMES],
+						]),
+					);
+
+					expect(await band()).toHaveTextContent(
+						"Remaining, at current rate— every step has finished",
+					);
+				});
+
 				it("says when it could not read the earlier runs", async () => {
 					renderMonitor(runRow({ run: RUN, runSpentUsd: 1.83 }));
 
