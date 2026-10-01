@@ -104,10 +104,24 @@ interface RunEventFields {
 export type NewRunEvent = RunEventFields &
 	(
 		| {
-				readonly kind: PlainRunEventKind;
+				readonly kind: Exclude<PlainRunEventKind, "stage-started">;
 				readonly judge?: undefined;
+				readonly sessionId?: undefined;
 		  }
-		| { readonly kind: "judge-progress"; readonly judge: JudgeProgress }
+		| {
+				readonly kind: "stage-started";
+				readonly judge?: undefined;
+				/**
+				 * The provider session the stage runs under, which names its
+				 * transcript on disk. Undefined on events recorded before it existed.
+				 */
+				readonly sessionId?: string | undefined;
+		  }
+		| {
+				readonly kind: "judge-progress";
+				readonly judge: JudgeProgress;
+				readonly sessionId?: undefined;
+		  }
 	);
 
 export type RunEvent = NewRunEvent & {
@@ -144,6 +158,12 @@ export interface RunEventRecorder {
 		spentUsd: number,
 		elapsedMs: number,
 		judge: JudgeProgress,
+	) => void;
+	readonly recordStageStarted: (
+		stage: string,
+		spentUsd: number,
+		elapsedMs: number,
+		sessionId: string,
 	) => void;
 }
 
@@ -187,6 +207,16 @@ export function runEventRecorderFor(
 				judge,
 			});
 		},
+		recordStageStarted: (stage, spentUsd, elapsedMs, sessionId) => {
+			append({
+				runId,
+				kind: "stage-started",
+				stage,
+				spentUsd,
+				elapsedMs,
+				sessionId,
+			});
+		},
 	};
 }
 
@@ -202,7 +232,8 @@ const SCHEMA = `
 		judge_progress TEXT,
 		run_spent_usd REAL,
 		run_input_tokens INTEGER,
-		run_output_tokens INTEGER
+		run_output_tokens INTEGER,
+		session_id TEXT
 	);
 	CREATE INDEX IF NOT EXISTS run_events_run_id ON run_events(run_id, sequence);
 `;
@@ -236,6 +267,7 @@ interface RunEventRow {
 	readonly run_spent_usd: number | null;
 	readonly run_input_tokens: number | null;
 	readonly run_output_tokens: number | null;
+	readonly session_id: string | null;
 }
 
 function runTokensOf(row: RunEventRow): RunTokens | undefined {
@@ -265,6 +297,9 @@ function toRunEvent(row: RunEventRow): RunEvent {
 			judge: judgeProgressSchema.parse(JSON.parse(row.judge_progress ?? "")),
 		};
 	}
+	if (kind === "stage-started") {
+		return { ...fields, kind, sessionId: row.session_id ?? undefined };
+	}
 
 	return { ...fields, kind };
 }
@@ -281,6 +316,7 @@ export async function openRunEventStore(path: string): Promise<RunEventStore> {
 	addNullableColumn(database, "run_spent_usd REAL");
 	addNullableColumn(database, "run_input_tokens INTEGER");
 	addNullableColumn(database, "run_output_tokens INTEGER");
+	addNullableColumn(database, "session_id TEXT");
 
 	const selectJournalMode = database.query<{ journal_mode: string }, []>(
 		"PRAGMA journal_mode",
@@ -298,10 +334,11 @@ export async function openRunEventStore(path: string): Promise<RunEventStore> {
 			number | null,
 			number | null,
 			number | null,
+			string | null,
 		]
 	>(
-		`INSERT INTO run_events (run_id, kind, stage, spent_usd, elapsed_ms, recorded_at, judge_progress, run_spent_usd, run_input_tokens, run_output_tokens)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`INSERT INTO run_events (run_id, kind, stage, spent_usd, elapsed_ms, recorded_at, judge_progress, run_spent_usd, run_input_tokens, run_output_tokens, session_id)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 RETURNING *`,
 	);
 	const selectSince = database.query<RunEventRow, [string, number]>(
@@ -330,6 +367,7 @@ export async function openRunEventStore(path: string): Promise<RunEventStore> {
 				event.runSpentUsd ?? null,
 				event.runTokens?.input ?? null,
 				event.runTokens?.output ?? null,
+				event.sessionId ?? null,
 			);
 			if (row === null) {
 				throw new Error("Failed to append run event");

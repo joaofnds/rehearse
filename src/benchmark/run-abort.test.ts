@@ -453,6 +453,9 @@ function fakeRunEventRecorder(): FakeRunEventRecorder {
 		recordJudgeProgress: (stage, spentUsd, elapsedMs) => {
 			events.push({ kind: "judge-progress", stage, spentUsd, elapsedMs });
 		},
+		recordStageStarted: (stage, spentUsd, elapsedMs) => {
+			events.push({ kind: "stage-started", stage, spentUsd, elapsedMs });
+		},
 	};
 }
 

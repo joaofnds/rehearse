@@ -287,7 +287,76 @@ describe("run event store run spend", () => {
 	});
 });
 
+describe("run event store stage session id", () => {
+	it("opens a store created before stage session ids, reads its events with none and records one on a new stage start", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "rehearse-run-events-"));
+		testResources.track(directory);
+		const path = join(directory, "events.sqlite");
+		const old = new Database(path);
+		old.run(`CREATE TABLE run_events (
+			sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+			run_id TEXT NOT NULL,
+			kind TEXT NOT NULL,
+			stage TEXT NOT NULL,
+			spent_usd REAL NOT NULL,
+			elapsed_ms INTEGER NOT NULL,
+			recorded_at TEXT NOT NULL,
+			judge_progress TEXT
+		)`);
+		old.run(
+			"INSERT INTO run_events (run_id, kind, stage, spent_usd, elapsed_ms, recorded_at) VALUES ('run-1', 'stage-started', 'shape', 0, 5, '2026-09-30T00:00:00.000Z')",
+		);
+		old.close();
+
+		const store = await openRunEventStore(path);
+		store.append({
+			runId: "run-1",
+			kind: "stage-started",
+			stage: "build",
+			spentUsd: 1,
+			sessionId: "0b7e8d0c-2f4c-4a54-9a3e-6f1d2c3b4a59",
+			elapsedMs: 10,
+		});
+
+		expect(
+			store.eventsSince("run-1", 0).map(({ stage, sessionId }) => ({
+				stage,
+				sessionId,
+			})),
+		).toEqual([
+			{ stage: "shape", sessionId: undefined },
+			{ stage: "build", sessionId: "0b7e8d0c-2f4c-4a54-9a3e-6f1d2c3b4a59" },
+		]);
+		store.close();
+	});
+});
+
 describe(runEventRecorderFor.name, () => {
+	it("records a stage start with the id of the session the stage runs under", async () => {
+		const store = await openRunEventStore(":memory:");
+
+		runEventRecorderFor(
+			store,
+			"run-1",
+			createSpendCeiling({ ceilingUsd: 10 }),
+		).recordStageStarted(
+			"build",
+			1,
+			2000,
+			"0b7e8d0c-2f4c-4a54-9a3e-6f1d2c3b4a59",
+		);
+
+		expect(
+			store.latestStageStart({ runId: "run-1", stage: "build" }),
+		).toMatchObject({
+			kind: "stage-started",
+			spentUsd: 1,
+			elapsedMs: 2000,
+			sessionId: "0b7e8d0c-2f4c-4a54-9a3e-6f1d2c3b4a59",
+		});
+		store.close();
+	});
+
 	it("appends every recorded call to the store under the fixed run id", async () => {
 		const store = await openRunEventStore(":memory:");
 		const recorder = runEventRecorderFor(

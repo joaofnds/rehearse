@@ -918,6 +918,7 @@ describe(runGradedStages.name, () => {
 					}
 				},
 				recordJudgeProgress: () => undefined,
+				recordStageStarted: () => undefined,
 			},
 			elapsedMs: () => 500,
 		};
@@ -981,6 +982,7 @@ describe(runGradedStages.name, () => {
 				) => {
 					recorded.push({ stage, spentUsd, elapsedMs, judge });
 				},
+				recordStageStarted: () => undefined,
 			},
 			elapsedMs: () => 700,
 		};
