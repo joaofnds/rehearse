@@ -34,6 +34,7 @@ import {
 import { corpusVersionLabel } from "#benchmark/corpus-version-label";
 import { corpusReport } from "./corpus-report";
 import { redactAbsolutePaths, redactedFilePath } from "./redact-path";
+import { readStageSession } from "./stage-session";
 import type { RunLiveness } from "#benchmark/run-liveness";
 import { runHistoryReport } from "./run-history";
 import type { EvidenceRequest, EvidenceSource } from "./evidence-source";
@@ -167,6 +168,8 @@ async function streamRunEvents(
 
 export interface ApiDependencies {
 	readonly runsDirectory: string;
+	/** Where the provider writes each session's transcript. */
+	readonly projectsDirectory: string;
 	/**
 	 * Resolved on every request, so linking or unlinking a corpus directory
 	 * changes what the next read measures without a restart.
@@ -497,6 +500,25 @@ export const createApiApp = (dependencies: ApiDependencies) => {
 				}
 
 				return context.json(detail);
+			} catch (error) {
+				if (!(error instanceof SessionHistoryReaderError)) {
+					throw error;
+				}
+				const response = historyError(error);
+
+				return context.json({ error: response.message }, response.status);
+			}
+		})
+		.get("/api/runs/:run/stages/:stage/session", async (context) => {
+			try {
+				return context.json(
+					await readStageSession({
+						runsDirectory: dependencies.runsDirectory,
+						projectsDirectory: dependencies.projectsDirectory,
+						run: context.req.param("run"),
+						stage: context.req.param("stage"),
+					}),
+				);
 			} catch (error) {
 				if (!(error instanceof SessionHistoryReaderError)) {
 					throw error;

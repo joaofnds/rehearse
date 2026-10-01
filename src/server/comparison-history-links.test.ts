@@ -11,6 +11,7 @@ import {
 	directorySource,
 	nothingRunning,
 	fixedCorpusSource,
+	NO_PROVIDER_PROJECTS,
 } from "#benchmark/run-records-test-support";
 import { sessionAttemptRecordSchema } from "#benchmark/session-record";
 import { createApiApp } from "./api";
@@ -181,6 +182,7 @@ describe(comparisonAttemptHistoryLink.name, () => {
 			href: "/groups/group-a/reps/group-a-rep-1/attempt",
 		});
 		const response = await createApiApp({
+			projectsDirectory: NO_PROVIDER_PROJECTS,
 			runsDirectory,
 			liveness: nothingRunning,
 			readCorpusSource: fixedCorpusSource(directorySource(root)),

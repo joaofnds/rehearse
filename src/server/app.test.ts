@@ -7,6 +7,7 @@ import {
 	directorySource,
 	fixedCorpusSource,
 	nothingRunning,
+	NO_PROVIDER_PROJECTS,
 } from "#benchmark/run-records-test-support";
 import { corpusVersionLabel } from "#benchmark/corpus-version-label";
 import { liveCorpusSource } from "#benchmark/corpus-file";
@@ -87,6 +88,7 @@ describe(createAppServer.name, () => {
 			backingRoot: await corpusDirectory(),
 		});
 		const app = createAppServer({
+			projectsDirectory: NO_PROVIDER_PROJECTS,
 			runsDirectory: records,
 			liveness: nothingRunning,
 			readCorpusSource:

@@ -20,6 +20,7 @@ import {
 	RecordedRunsFixture,
 	nothingRunning,
 	fixedCorpusSource,
+	NO_PROVIDER_PROJECTS,
 } from "#benchmark/run-records-test-support";
 import type { RecordedRunsOptions } from "#benchmark/run-records-test-support";
 import { CONTROL_DIR } from "#benchmark/config";
@@ -192,6 +193,7 @@ describe(createApiApp.name, () => {
 			const corpus = await corpusDirectory();
 			await fixture.recordCorpusFrom(directorySource(corpus));
 			const app = createApiApp({
+				projectsDirectory: NO_PROVIDER_PROJECTS,
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
 				readCorpusSource: fixedCorpusSource(directorySource(corpus)),
@@ -212,6 +214,7 @@ describe(createApiApp.name, () => {
 			const otherRun = "2026-09-12T00-00-00.000Z";
 			await fixture.writePipelineRun(otherRun, "audit-log");
 			const app = createApiApp({
+				projectsDirectory: NO_PROVIDER_PROJECTS,
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
 				readCorpusSource: fixedCorpusSource(directorySource(corpus)),
@@ -238,6 +241,7 @@ describe(createApiApp.name, () => {
 			await fixture.recordStoppedStageFrom(directorySource(corpus));
 			await writeFile(join(corpus, "skills", "build", "SKILL.md"), "edited\n");
 			const app = createApiApp({
+				projectsDirectory: NO_PROVIDER_PROJECTS,
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
 				readCorpusSource: fixedCorpusSource(directorySource(corpus)),
@@ -277,6 +281,7 @@ describe(createApiApp.name, () => {
 				"{ not json",
 			);
 			const app = createApiApp({
+				projectsDirectory: NO_PROVIDER_PROJECTS,
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
 				readCorpusSource: fixedCorpusSource(directorySource(corpus)),
@@ -305,6 +310,7 @@ describe(createApiApp.name, () => {
 				"{ not json",
 			);
 			const app = createApiApp({
+				projectsDirectory: NO_PROVIDER_PROJECTS,
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
 				readCorpusSource: fixedCorpusSource(directorySource(corpus)),
@@ -352,6 +358,7 @@ describe(createApiApp.name, () => {
 			await fixture.recordCorpusFrom(directorySource(corpus));
 			await fixture.recordCorpusFrom(directorySource(corpus), brokenRun);
 			const app = createApiApp({
+				projectsDirectory: NO_PROVIDER_PROJECTS,
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
 				readCorpusSource: fixedCorpusSource(directorySource(corpus)),
@@ -387,6 +394,7 @@ describe(createApiApp.name, () => {
 			};
 			const shortIds = async (): Promise<readonly unknown[]> => {
 				const app = createApiApp({
+					projectsDirectory: NO_PROVIDER_PROJECTS,
 					runsDirectory: fixture.runsDirectory,
 					liveness: nothingRunning,
 					readCorpusSource: fixedCorpusSource(directorySource(corpus)),
@@ -421,6 +429,7 @@ describe(createApiApp.name, () => {
 			const root = await mkdtemp(join(tmpdir(), "rehearse-api-empty-"));
 			roots.push(root);
 			const app = createApiApp({
+				projectsDirectory: NO_PROVIDER_PROJECTS,
 				runsDirectory: root,
 				liveness: nothingRunning,
 				readCorpusSource: fixedCorpusSource(
@@ -448,6 +457,7 @@ describe(createApiApp.name, () => {
 			): Promise<PipelineRunHistory> {
 				const fixture = await fixtureRecordingLiveSettings();
 				const app = createApiApp({
+					projectsDirectory: NO_PROVIDER_PROJECTS,
 					runsDirectory: fixture.runsDirectory,
 					liveness: nothingRunning,
 					readCorpusSource: fixedCorpusSource(corpusSource),
@@ -526,6 +536,7 @@ describe(createApiApp.name, () => {
 			const corpus = await corpusDirectory();
 			await fixture.recordCorpusFrom(directorySource(corpus));
 			const app = createApiApp({
+				projectsDirectory: NO_PROVIDER_PROJECTS,
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
 				readCorpusSource: fixedCorpusSource(directorySource(corpus)),
@@ -571,6 +582,7 @@ describe(createApiApp.name, () => {
 			const secondReplay = "2026-09-03T02-00-00.000Z";
 			await fixture.writeReplayOf(fixture.stoppedRun, secondReplay);
 			const app = createApiApp({
+				projectsDirectory: NO_PROVIDER_PROJECTS,
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
 				readCorpusSource: fixedCorpusSource(directorySource(corpus)),
@@ -681,6 +693,7 @@ describe(createApiApp.name, () => {
 				"build skill, edited\n",
 			);
 			const app = createApiApp({
+				projectsDirectory: NO_PROVIDER_PROJECTS,
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
 				readCorpusSource: fixedCorpusSource(directorySource(corpus)),
@@ -745,6 +758,7 @@ describe(createApiApp.name, () => {
 				"build skill, edited\n",
 			);
 			const app = createApiApp({
+				projectsDirectory: NO_PROVIDER_PROJECTS,
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
 				readCorpusSource: fixedCorpusSource(directorySource(corpus)),
@@ -785,6 +799,7 @@ describe(createApiApp.name, () => {
 			await fixture.recordReadManifest("build", [entry]);
 			await rm(join(corpus, "skills", "build"), { recursive: true });
 			const app = createApiApp({
+				projectsDirectory: NO_PROVIDER_PROJECTS,
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
 				readCorpusSource: fixedCorpusSource(directorySource(corpus)),
@@ -826,6 +841,7 @@ describe(createApiApp.name, () => {
 			);
 			await rm(join(corpus, "skills", "build"), { recursive: true });
 			const app = createApiApp({
+				projectsDirectory: NO_PROVIDER_PROJECTS,
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
 				readCorpusSource: fixedCorpusSource(directorySource(corpus)),
@@ -861,6 +877,7 @@ describe(createApiApp.name, () => {
 			);
 			await symlink(outside, join(corpus, "agents"));
 			const app = createApiApp({
+				projectsDirectory: NO_PROVIDER_PROJECTS,
 				runsDirectory: await emptyDirectory("rehearse-api-runs-"),
 				liveness: nothingRunning,
 				readCorpusSource: fixedCorpusSource({
@@ -893,6 +910,7 @@ describe(createApiApp.name, () => {
 			const runsDirectory = await mkdtemp(join(tmpdir(), "rehearse-api-runs-"));
 			roots.push(runsDirectory);
 			const app = createApiApp({
+				projectsDirectory: NO_PROVIDER_PROJECTS,
 				runsDirectory,
 				liveness: nothingRunning,
 				readCorpusSource: fixedCorpusSource(directorySource(corpus)),
@@ -915,6 +933,7 @@ describe(createApiApp.name, () => {
 				join(corpus, "agents", "escape.md"),
 			);
 			const app = createApiApp({
+				projectsDirectory: NO_PROVIDER_PROJECTS,
 				runsDirectory: await emptyDirectory("rehearse-api-runs-"),
 				liveness: nothingRunning,
 				readCorpusSource: fixedCorpusSource(directorySource(corpus)),
@@ -942,6 +961,7 @@ describe(createApiApp.name, () => {
 			await writeFile(join(outside, "secret.md"), "secret bytes\n");
 			await symlink(join(outside, "secret.md"), join(corpus, "CLAUDE.md"));
 			const app = createApiApp({
+				projectsDirectory: NO_PROVIDER_PROJECTS,
 				runsDirectory: await emptyDirectory("rehearse-api-runs-"),
 				liveness: nothingRunning,
 				readCorpusSource: fixedCorpusSource(directorySource(corpus)),
@@ -965,6 +985,7 @@ describe(createApiApp.name, () => {
 			await writeFile(join(corpus, "agents", "private.md"), "an agent\n");
 			await chmod(join(corpus, "agents", "private.md"), 0o000);
 			const app = createApiApp({
+				projectsDirectory: NO_PROVIDER_PROJECTS,
 				runsDirectory: await emptyDirectory("rehearse-api-runs-"),
 				liveness: nothingRunning,
 				readCorpusSource: fixedCorpusSource(directorySource(corpus)),
@@ -991,6 +1012,7 @@ describe(createApiApp.name, () => {
 				join(corpus, "agents", "loop.md"),
 			);
 			const app = createApiApp({
+				projectsDirectory: NO_PROVIDER_PROJECTS,
 				runsDirectory: await emptyDirectory("rehearse-api-runs-"),
 				liveness: nothingRunning,
 				readCorpusSource: fixedCorpusSource(directorySource(corpus)),
@@ -1026,6 +1048,7 @@ describe(createApiApp.name, () => {
 				const corpus = await corpusDirectory();
 				await plant(join(corpus, "agents"));
 				const app = createApiApp({
+					projectsDirectory: NO_PROVIDER_PROJECTS,
 					runsDirectory: await emptyDirectory("rehearse-api-runs-"),
 					liveness: nothingRunning,
 					readCorpusSource: fixedCorpusSource(directorySource(corpus)),
@@ -1050,6 +1073,7 @@ describe(createApiApp.name, () => {
 			await writeFile(join(outside, "secret.md"), "SECRET BYTES\n");
 			await symlink(join(outside, "secret.md"), join(corpus, "CLAUDE.md"));
 			const app = createApiApp({
+				projectsDirectory: NO_PROVIDER_PROJECTS,
 				runsDirectory: await emptyDirectory("rehearse-api-runs-"),
 				liveness: nothingRunning,
 				readCorpusSource: fixedCorpusSource({
@@ -1094,6 +1118,7 @@ describe(createApiApp.name, () => {
 
 			return {
 				app: createApiApp({
+					projectsDirectory: NO_PROVIDER_PROJECTS,
 					runsDirectory,
 					liveness: nothingRunning,
 					readCorpusSource: fixedCorpusSource(source),
@@ -1188,6 +1213,7 @@ describe(createApiApp.name, () => {
 				throw new Error("the fixture corpus should measure to a version");
 			}
 			const app = createApiApp({
+				projectsDirectory: NO_PROVIDER_PROJECTS,
 				runsDirectory,
 				liveness: nothingRunning,
 				readCorpusSource: fixedCorpusSource(source),
@@ -1239,6 +1265,7 @@ describe(createApiApp.name, () => {
 			await fixture.recordGroupRepReadManifest(repId, "build", [read]);
 			await Bun.write(join(corpus, "skills", "build", "SKILL.md"), "edited\n");
 			const app = createApiApp({
+				projectsDirectory: NO_PROVIDER_PROJECTS,
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
 				readCorpusSource: fixedCorpusSource(directorySource(corpus)),
@@ -1273,6 +1300,7 @@ describe(createApiApp.name, () => {
 			} as const;
 			await fixture.recordGroupRepReadManifest(repId, "build", [read]);
 			const app = createApiApp({
+				projectsDirectory: NO_PROVIDER_PROJECTS,
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
 				readCorpusSource: fixedCorpusSource(
@@ -1303,6 +1331,7 @@ describe(createApiApp.name, () => {
 			);
 			await rm(join(inputsDirectory, "pipeline.json"));
 			const app = createApiApp({
+				projectsDirectory: NO_PROVIDER_PROJECTS,
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
 				readCorpusSource: fixedCorpusSource(directorySource(corpus)),
@@ -1325,6 +1354,7 @@ describe(createApiApp.name, () => {
 		it("refuses a group that was never recorded, naming no absolute path", async () => {
 			const fixture = await writtenFixture();
 			const app = createApiApp({
+				projectsDirectory: NO_PROVIDER_PROJECTS,
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
 				readCorpusSource: fixedCorpusSource(
@@ -1341,6 +1371,7 @@ describe(createApiApp.name, () => {
 		it("refuses a group id that escapes the runs directory, without a 500", async () => {
 			const fixture = await writtenFixture();
 			const app = createApiApp({
+				projectsDirectory: NO_PROVIDER_PROJECTS,
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
 				readCorpusSource: fixedCorpusSource(
@@ -1368,6 +1399,7 @@ describe(createApiApp.name, () => {
 				},
 			]);
 			const app = createApiApp({
+				projectsDirectory: NO_PROVIDER_PROJECTS,
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
 				readCorpusSource: fixedCorpusSource(
@@ -1395,6 +1427,7 @@ describe(createApiApp.name, () => {
 		it("refuses a record id whose segment escapes the runs directory, without a 500", async () => {
 			const fixture = await writtenFixture();
 			const app = createApiApp({
+				projectsDirectory: NO_PROVIDER_PROJECTS,
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
 				readCorpusSource: fixedCorpusSource(
@@ -1412,6 +1445,7 @@ describe(createApiApp.name, () => {
 		it("names no absolute filesystem path in a refusal body", async () => {
 			const fixture = await writtenFixture();
 			const app = createApiApp({
+				projectsDirectory: NO_PROVIDER_PROJECTS,
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
 				readCorpusSource: fixedCorpusSource(
@@ -1431,6 +1465,7 @@ describe(createApiApp.name, () => {
 		it("names no absolute filesystem path when the checkpoint stage in the id was never recorded", async () => {
 			const fixture = await writtenFixture();
 			const app = createApiApp({
+				projectsDirectory: NO_PROVIDER_PROJECTS,
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
 				readCorpusSource: fixedCorpusSource(
@@ -1472,6 +1507,7 @@ describe(createApiApp.name, () => {
 			});
 			store.close();
 			const app = createApiApp({
+				projectsDirectory: NO_PROVIDER_PROJECTS,
 				runsDirectory,
 				liveness: nothingRunning,
 				readCorpusSource: fixedCorpusSource(
@@ -1521,6 +1557,7 @@ describe(createApiApp.name, () => {
 			});
 			store.close();
 			const app = createApiApp({
+				projectsDirectory: NO_PROVIDER_PROJECTS,
 				runsDirectory,
 				liveness: nothingRunning,
 				readCorpusSource: fixedCorpusSource(
@@ -1543,6 +1580,7 @@ describe(createApiApp.name, () => {
 			const runsDirectory = await mkdtemp(join(tmpdir(), "rehearse-api-runs-"));
 			roots.push(runsDirectory);
 			const app = createApiApp({
+				projectsDirectory: NO_PROVIDER_PROJECTS,
 				runsDirectory,
 				liveness: nothingRunning,
 				readCorpusSource: fixedCorpusSource(
@@ -1577,6 +1615,7 @@ describe(createApiApp.name, () => {
 			});
 			store.close();
 			const app = createApiApp({
+				projectsDirectory: NO_PROVIDER_PROJECTS,
 				runsDirectory,
 				liveness: nothingRunning,
 				readCorpusSource: fixedCorpusSource(
@@ -1618,6 +1657,7 @@ describe(createApiApp.name, () => {
 			const root = await mkdtemp(join(tmpdir(), "rehearse-api-throw-"));
 			roots.push(root);
 			const app = createApiApp({
+				projectsDirectory: NO_PROVIDER_PROJECTS,
 				runsDirectory: root,
 				liveness: nothingRunning,
 				readCorpusSource: fixedCorpusSource(
@@ -1641,6 +1681,7 @@ describe(createApiApp.name, () => {
 			await fixture.recordCorpusFrom(directorySource(corpus));
 			await rm(join(corpus, "skills", "build"), { recursive: true });
 			const app = createApiApp({
+				projectsDirectory: NO_PROVIDER_PROJECTS,
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
 				readCorpusSource: fixedCorpusSource(directorySource(corpus)),
@@ -1719,6 +1760,7 @@ describe(createApiApp.name, () => {
 			);
 
 			return createApiApp({
+				projectsDirectory: NO_PROVIDER_PROJECTS,
 				runsDirectory,
 				liveness: nothingRunning,
 				readCorpusSource: fixedCorpusSource(

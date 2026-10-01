@@ -18,6 +18,7 @@ import {
 	RECORDED_READINGS,
 	STOPPED_RUN_ERROR,
 	fixedCorpusSource,
+	NO_PROVIDER_PROJECTS,
 } from "#benchmark/run-records-test-support";
 import { PASS } from "#benchmark/comparison-test-fixtures";
 import { createApiApp } from "./api";
@@ -219,6 +220,7 @@ describe("/api/runs", () => {
 		liveness: RunLiveness = nothingRunning,
 	): Promise<readonly ListedRow[]> {
 		const app = createApiApp({
+			projectsDirectory: NO_PROVIDER_PROJECTS,
 			runsDirectory: fixture.runsDirectory,
 			liveness,
 			readCorpusSource: fixedCorpusSource(

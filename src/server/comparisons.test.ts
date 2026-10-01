@@ -8,6 +8,7 @@ import {
 	RecordedRunsFixture,
 	nothingRunning,
 	fixedCorpusSource,
+	NO_PROVIDER_PROJECTS,
 } from "#benchmark/run-records-test-support";
 import {
 	COMPARISON_ARMS,
@@ -315,6 +316,7 @@ describe("GET /api/comparisons", () => {
 			),
 		);
 		const app = createApiApp({
+			projectsDirectory: NO_PROVIDER_PROJECTS,
 			runsDirectory: fixture.runsDirectory,
 			liveness: nothingRunning,
 			readCorpusSource: fixedCorpusSource(
@@ -340,6 +342,7 @@ describe("GET /api/comparisons", () => {
 		const fixture = await writtenFixture();
 		const extension = await fixture.recordExtension();
 		const app = createApiApp({
+			projectsDirectory: NO_PROVIDER_PROJECTS,
 			runsDirectory: fixture.runsDirectory,
 			liveness: nothingRunning,
 			readCorpusSource: fixedCorpusSource(
@@ -393,6 +396,7 @@ describe("GET /api/comparisons", () => {
 		it("lists it as unreadable while every readable comparison still lists", async () => {
 			const fixture = await fixtureWithUnreadableComparisons();
 			const app = createApiApp({
+				projectsDirectory: NO_PROVIDER_PROJECTS,
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
 				readCorpusSource: fixedCorpusSource(
@@ -420,6 +424,7 @@ describe("GET /api/comparisons", () => {
 		it("gives a reason that names no absolute path", async () => {
 			const fixture = await fixtureWithUnreadableComparisons();
 			const app = createApiApp({
+				projectsDirectory: NO_PROVIDER_PROJECTS,
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
 				readCorpusSource: fixedCorpusSource(
@@ -441,6 +446,7 @@ describe("GET /api/comparisons", () => {
 		it("names a report no known version matches in one short line", async () => {
 			const fixture = await fixtureWithUnreadableComparisons();
 			const app = createApiApp({
+				projectsDirectory: NO_PROVIDER_PROJECTS,
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
 				readCorpusSource: fixedCorpusSource(
@@ -467,6 +473,7 @@ describe("GET /api/comparisons/:digest", () => {
 	it("names a manifest-supplied control as supplied, never as the skill under test removed", async () => {
 		const fixture = await writtenFixture();
 		const app = createApiApp({
+			projectsDirectory: NO_PROVIDER_PROJECTS,
 			runsDirectory: fixture.runsDirectory,
 			liveness: nothingRunning,
 			readCorpusSource: fixedCorpusSource(
@@ -525,6 +532,7 @@ describe("GET /api/comparisons/:digest", () => {
 				JSON.stringify(record),
 			);
 			const app = createApiApp({
+				projectsDirectory: NO_PROVIDER_PROJECTS,
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
 				readCorpusSource: fixedCorpusSource(
@@ -558,6 +566,7 @@ describe("GET /api/comparisons/:digest", () => {
 				content,
 			);
 			const app = createApiApp({
+				projectsDirectory: NO_PROVIDER_PROJECTS,
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
 				readCorpusSource: fixedCorpusSource(
@@ -585,6 +594,7 @@ describe("GET /api/comparisons/:digest", () => {
 	it("renders the recorded report plus attribution for every case and contrast", async () => {
 		const fixture = await writtenFixture();
 		const app = createApiApp({
+			projectsDirectory: NO_PROVIDER_PROJECTS,
 			runsDirectory: fixture.runsDirectory,
 			liveness: nothingRunning,
 			readCorpusSource: fixedCorpusSource(
@@ -645,6 +655,7 @@ describe("GET /api/comparisons/:digest", () => {
 		const fixture = await writtenFixture();
 		await rewriteFixtureAsSession(fixture);
 		const app = createApiApp({
+			projectsDirectory: NO_PROVIDER_PROJECTS,
 			runsDirectory: fixture.runsDirectory,
 			liveness: nothingRunning,
 			readCorpusSource: fixedCorpusSource(
@@ -672,6 +683,7 @@ describe("GET /api/comparisons/:digest", () => {
 			const fixture = await writtenFixture();
 			await rewriteFixtureAsLegacyPipeline(fixture, version);
 			const app = createApiApp({
+				projectsDirectory: NO_PROVIDER_PROJECTS,
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
 				readCorpusSource: fixedCorpusSource(
@@ -695,6 +707,7 @@ describe("GET /api/comparisons/:digest", () => {
 			fixture: RecordedRunsFixture,
 		): Promise<ComparisonResponse["armFigures"]> {
 			const app = createApiApp({
+				projectsDirectory: NO_PROVIDER_PROJECTS,
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
 				readCorpusSource: fixedCorpusSource(
@@ -800,6 +813,7 @@ describe("GET /api/comparisons/:digest", () => {
 	it("renders a quality reading for the discuss measure, per case per contrast", async () => {
 		const fixture = await writtenFixture();
 		const app = createApiApp({
+			projectsDirectory: NO_PROVIDER_PROJECTS,
 			runsDirectory: fixture.runsDirectory,
 			liveness: nothingRunning,
 			readCorpusSource: fixedCorpusSource(
@@ -835,6 +849,7 @@ describe("GET /api/comparisons/:digest", () => {
 	it("renders a quality reading for every declared-stage measure and, in pipeline mode, the final row", async () => {
 		const fixture = await writtenFixture();
 		const app = createApiApp({
+			projectsDirectory: NO_PROVIDER_PROJECTS,
 			runsDirectory: fixture.runsDirectory,
 			liveness: nothingRunning,
 			readCorpusSource: fixedCorpusSource(
@@ -873,6 +888,7 @@ describe("GET /api/comparisons/:digest", () => {
 		const fixture = await writtenFixture();
 		await rewriteFixtureAsSession(fixture);
 		const app = createApiApp({
+			projectsDirectory: NO_PROVIDER_PROJECTS,
 			runsDirectory: fixture.runsDirectory,
 			liveness: nothingRunning,
 			readCorpusSource: fixedCorpusSource(
@@ -897,6 +913,7 @@ describe("GET /api/comparisons/:digest", () => {
 	it("renders exactly the report's three canonical contrasts per case, not all six ordered pairs", async () => {
 		const fixture = await writtenFixture();
 		const app = createApiApp({
+			projectsDirectory: NO_PROVIDER_PROJECTS,
 			runsDirectory: fixture.runsDirectory,
 			liveness: nothingRunning,
 			readCorpusSource: fixedCorpusSource(
@@ -920,6 +937,7 @@ describe("GET /api/comparisons/:digest", () => {
 		const root = await mkdtemp(join(tmpdir(), "rehearse-comparisons-escape-"));
 		roots.push(root);
 		const app = createApiApp({
+			projectsDirectory: NO_PROVIDER_PROJECTS,
 			runsDirectory: root,
 			liveness: nothingRunning,
 			readCorpusSource: fixedCorpusSource(
@@ -938,6 +956,7 @@ describe("GET /api/comparisons/:digest", () => {
 		const root = await mkdtemp(join(tmpdir(), "rehearse-comparisons-empty-"));
 		roots.push(root);
 		const app = createApiApp({
+			projectsDirectory: NO_PROVIDER_PROJECTS,
 			runsDirectory: root,
 			liveness: nothingRunning,
 			readCorpusSource: fixedCorpusSource(
@@ -967,6 +986,7 @@ describe("What moved", () => {
 			runsDirectory,
 		});
 		const app = createApiApp({
+			projectsDirectory: NO_PROVIDER_PROJECTS,
 			runsDirectory,
 			liveness: nothingRunning,
 			readCorpusSource: fixedCorpusSource(
@@ -1190,6 +1210,7 @@ describe("What moved", () => {
 			await rewriteFixtureAsSession(fixture);
 			await leaveOneBaselineAttemptUnreached(fixture);
 			const app = createApiApp({
+				projectsDirectory: NO_PROVIDER_PROJECTS,
 				runsDirectory: fixture.runsDirectory,
 				liveness: nothingRunning,
 				readCorpusSource: fixedCorpusSource(

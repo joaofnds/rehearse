@@ -114,7 +114,7 @@ function realpathWhenPresent(path: string): Promise<string | undefined> {
 	return undefinedWhenMissing(() => realpath(path));
 }
 
-function parseIdentity(value: string): SavedIdentity {
+export function parseIdentity(value: string): SavedIdentity {
 	const parsed = identitySchema.safeParse(value);
 	if (!parsed.success) {
 		throw new SessionHistoryReaderError(
@@ -126,7 +126,9 @@ function parseIdentity(value: string): SavedIdentity {
 	return parsed.data;
 }
 
-async function canonicalRunsRoot(runsDirectory: string): Promise<string> {
+export async function canonicalRunsRoot(
+	runsDirectory: string,
+): Promise<string> {
 	const root = await realpathWhenPresent(runsDirectory);
 	if (root === undefined) {
 		throw new SessionHistoryReaderError("not-found", "No saved run directory");
@@ -135,7 +137,7 @@ async function canonicalRunsRoot(runsDirectory: string): Promise<string> {
 	return root;
 }
 
-async function verifiedDirectory(
+export async function verifiedDirectory(
 	root: string,
 	segments: readonly string[],
 ): Promise<string> {
@@ -187,7 +189,7 @@ async function verifiedDirectoryWhenPresent(
 	return current;
 }
 
-async function verifiedFile(
+export async function verifiedFile(
 	root: string,
 	directory: string,
 	name: string,
@@ -252,7 +254,10 @@ async function openVerifiedFile(
 	}
 }
 
-async function readVerifiedFile(root: string, path: string): Promise<string> {
+export async function readVerifiedFile(
+	root: string,
+	path: string,
+): Promise<string> {
 	const handle = await openVerifiedFile(root, path);
 	try {
 		return await handle.readFile({ encoding: "utf8" });
@@ -261,7 +266,7 @@ async function readVerifiedFile(root: string, path: string): Promise<string> {
 	}
 }
 
-async function* readVerifiedLines(
+export async function* readVerifiedLines(
 	root: string,
 	path: string,
 ): AsyncGenerator<string> {
@@ -517,7 +522,7 @@ async function confirmationInput(
  * The manifest holding a run's case sits inside its checkpoints directory, and
  * it is the only place either a stage or a replay can learn which case it ran.
  */
-async function runManifest(
+export async function runManifest(
 	root: string,
 	checkpointsDirectory: string,
 ): Promise<RunManifest> {

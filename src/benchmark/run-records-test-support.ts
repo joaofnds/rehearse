@@ -57,6 +57,7 @@ import {
 	DEFAULT_STAGE_SETTINGS_FILE,
 	loadStageSettings,
 } from "./stage-settings";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import type { SessionAttemptId, StageAttemptId } from "./run-layout";
 import {
@@ -316,6 +317,15 @@ function manifest(
  * is finished, so nothing should reach a pid probe. A test that wants a run
  * reported as running supplies its own answer instead.
  */
+/**
+ * A provider projects directory no test writes, so a server built for a test
+ * that never reads a session cannot read the developer's own transcripts.
+ */
+export const NO_PROVIDER_PROJECTS = join(
+	tmpdir(),
+	"rehearse-no-provider-projects",
+);
+
 export const nothingRunning: RunLiveness = {
 	readMarker: () => Promise.resolve(undefined),
 	isAlive: () => false,

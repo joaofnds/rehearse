@@ -18,6 +18,7 @@ import {
 	STOPPED_RUN_ERROR,
 	STOPPED_RUN_EVIDENCE,
 	fixedCorpusSource,
+	NO_PROVIDER_PROJECTS,
 } from "#benchmark/run-records-test-support";
 import { benchmarkRunPaths } from "#benchmark/run-layout";
 import { createApiApp } from "./api";
@@ -113,6 +114,7 @@ describe("/api/runs/:run", () => {
 		liveness: RunLiveness = nothingRunning,
 	): Promise<Response> {
 		const app = createApiApp({
+			projectsDirectory: NO_PROVIDER_PROJECTS,
 			runsDirectory: fixture.runsDirectory,
 			liveness,
 			readCorpusSource: fixedCorpusSource(

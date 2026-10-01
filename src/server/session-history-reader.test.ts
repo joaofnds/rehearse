@@ -19,6 +19,7 @@ import {
 	AWAITING_JUDGE_SESSION_ID,
 	STOPPED_STAGE_SESSION_ID,
 	fixedCorpusSource,
+	NO_PROVIDER_PROJECTS,
 } from "#benchmark/run-records-test-support";
 import {
 	benchmarkRunPaths,
@@ -306,6 +307,7 @@ describe("saved session history API", () => {
 	it("serves summary and bounded event detail from the standalone route", async () => {
 		const fixture = await writtenAttempt();
 		const app = createApiApp({
+			projectsDirectory: NO_PROVIDER_PROJECTS,
 			runsDirectory: fixture.runsDirectory,
 			liveness: nothingRunning,
 			readCorpusSource: fixedCorpusSource(
@@ -342,6 +344,7 @@ describe("saved session history API", () => {
 	it("serves the request series, its cost readings and instruction loads", async () => {
 		const fixture = await writtenResumedAttempt();
 		const app = createApiApp({
+			projectsDirectory: NO_PROVIDER_PROJECTS,
 			runsDirectory: fixture.runsDirectory,
 			liveness: nothingRunning,
 			readCorpusSource: fixedCorpusSource(
@@ -372,6 +375,7 @@ describe("saved session history API", () => {
 	it("serves a per-request cost for each attempt-region request", async () => {
 		const fixture = await writtenResumedAttempt();
 		const app = createApiApp({
+			projectsDirectory: NO_PROVIDER_PROJECTS,
 			runsDirectory: fixture.runsDirectory,
 			liveness: nothingRunning,
 			readCorpusSource: fixedCorpusSource(
@@ -405,6 +409,7 @@ describe("saved session history API", () => {
 			);
 		const before = await digests();
 		const app = createApiApp({
+			projectsDirectory: NO_PROVIDER_PROJECTS,
 			runsDirectory: fixture.runsDirectory,
 			liveness: nothingRunning,
 			readCorpusSource: fixedCorpusSource(
@@ -432,6 +437,7 @@ describe("saved session history API", () => {
 		await rm(transcript);
 		await symlink(outside, transcript);
 		const app = createApiApp({
+			projectsDirectory: NO_PROVIDER_PROJECTS,
 			runsDirectory: fixture.runsDirectory,
 			liveness: nothingRunning,
 			readCorpusSource: fixedCorpusSource(
@@ -472,6 +478,7 @@ describe("saved session history API", () => {
 			})}`,
 		);
 		const app = createApiApp({
+			projectsDirectory: NO_PROVIDER_PROJECTS,
 			runsDirectory: fixture.runsDirectory,
 			liveness: nothingRunning,
 			readCorpusSource: fixedCorpusSource(
@@ -522,6 +529,7 @@ describe("saved session history API", () => {
 			})}`,
 		);
 		const app = createApiApp({
+			projectsDirectory: NO_PROVIDER_PROJECTS,
 			runsDirectory: fixture.runsDirectory,
 			liveness: nothingRunning,
 			readCorpusSource: fixedCorpusSource(
@@ -572,6 +580,7 @@ describe("saved session history API", () => {
 			})}`,
 		);
 		const app = createApiApp({
+			projectsDirectory: NO_PROVIDER_PROJECTS,
 			runsDirectory: fixture.runsDirectory,
 			liveness: nothingRunning,
 			readCorpusSource: fixedCorpusSource(
@@ -597,6 +606,7 @@ describe("saved session history API", () => {
 	it("serves the confirmation rep's series through its own route", async () => {
 		const fixture = await writtenConfirmationAttempt();
 		const app = createApiApp({
+			projectsDirectory: NO_PROVIDER_PROJECTS,
 			runsDirectory: fixture.runsDirectory,
 			liveness: nothingRunning,
 			readCorpusSource: fixedCorpusSource(
@@ -617,6 +627,7 @@ describe("saved session history API", () => {
 	it("refuses a confirmation series route whose group does not own the rep", async () => {
 		const fixture = await writtenConfirmationAttempt();
 		const app = createApiApp({
+			projectsDirectory: NO_PROVIDER_PROJECTS,
 			runsDirectory: fixture.runsDirectory,
 			liveness: nothingRunning,
 			readCorpusSource: fixedCorpusSource(
@@ -635,6 +646,7 @@ describe("saved session history API", () => {
 	it("returns a redacted refusal for an invalid route identity", async () => {
 		const fixture = await writtenAttempt();
 		const app = createApiApp({
+			projectsDirectory: NO_PROVIDER_PROJECTS,
 			runsDirectory: fixture.runsDirectory,
 			liveness: nothingRunning,
 			readCorpusSource: fixedCorpusSource(
@@ -1756,6 +1768,7 @@ describe("saved stage history API", () => {
 	it("serves a stage summary, its event detail and its corpus reconciliation", async () => {
 		const fixture = await writtenStage();
 		const app = createApiApp({
+			projectsDirectory: NO_PROVIDER_PROJECTS,
 			runsDirectory: fixture.runsDirectory,
 			liveness: nothingRunning,
 			readCorpusSource: fixedCorpusSource(
@@ -1789,6 +1802,7 @@ describe("saved stage history API", () => {
 	it("refuses a traversing run segment without leaking an absolute path", async () => {
 		const fixture = await writtenStage();
 		const app = createApiApp({
+			projectsDirectory: NO_PROVIDER_PROJECTS,
 			runsDirectory: fixture.runsDirectory,
 			liveness: nothingRunning,
 			readCorpusSource: fixedCorpusSource(
@@ -1994,6 +2008,7 @@ describe("saved replay history API", () => {
 	it("serves a replay's unavailable report", async () => {
 		const fixture = await writtenReplay();
 		const app = createApiApp({
+			projectsDirectory: NO_PROVIDER_PROJECTS,
 			runsDirectory: fixture.runsDirectory,
 			liveness: nothingRunning,
 			readCorpusSource: fixedCorpusSource(
@@ -2018,6 +2033,7 @@ describe("saved replay history API", () => {
 	it("refuses a traversing replay lineage without leaking an absolute path", async () => {
 		const fixture = await writtenReplay();
 		const app = createApiApp({
+			projectsDirectory: NO_PROVIDER_PROJECTS,
 			runsDirectory: fixture.runsDirectory,
 			liveness: nothingRunning,
 			readCorpusSource: fixedCorpusSource(

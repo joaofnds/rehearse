@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+import { claudeProjectsDirectory } from "#benchmark/session-capture";
 import { join } from "node:path";
 import { casesRoot } from "#benchmark/case";
 import {
@@ -59,6 +60,7 @@ async function main(): Promise<void> {
 	const port = Number(Bun.env["PORT"] ?? DEFAULT_PORT);
 	const app = createAppServer({
 		runsDirectory,
+		projectsDirectory: claudeProjectsDirectory(),
 		readCorpusSource: () => linkedCorpusSource(runsDirectory),
 		liveness: liveRunLiveness(),
 		clientDistDirectory: join(CONTROL_DIR, "client", "dist"),
