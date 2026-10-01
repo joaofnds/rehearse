@@ -1063,6 +1063,128 @@ describe("/monitor judge pane", () => {
 			).toBeNull();
 		});
 	});
+
+	describe("when its judge has returned less than every item", () => {
+		function progress(
+			hardBlockers: { readonly returned: number; readonly total: number },
+			dimensions: { readonly returned: number; readonly total: number },
+		): StageJudge {
+			return {
+				state: "returning",
+				progress: {
+					state: "returning",
+					attempt: 1,
+					sections: {
+						hardBlockers,
+						requirements: { returned: 0, total: 1 },
+						dimensions,
+					},
+				},
+			};
+		}
+
+		it.each([
+			[
+				"dimensions still returning",
+				progress({ returned: 3, total: 3 }, { returned: 1, total: 2 }),
+			],
+			[
+				"blockers still returning",
+				progress({ returned: 1, total: 3 }, { returned: 2, total: 2 }),
+			],
+			[
+				"grade not recorded yet",
+				progress({ returned: 3, total: 3 }, { returned: 2, total: 2 }),
+			],
+			["nothing returned yet", { state: "returning" } as const],
+		])("says the verdict is pending: %s", async (words, judge) => {
+			renderJudge(judge);
+
+			const card = await within(await judgePane()).findByRole("group", {
+				name: "Verdict and grade",
+			});
+
+			expect(card).toHaveTextContent(`Verdict◌pending: ${words}`);
+		});
+
+		it("shows progress recorded before per-item results as its counts alone", async () => {
+			renderJudge(
+				progress({ returned: 1, total: 3 }, { returned: 0, total: 2 }),
+			);
+			const pane = await judgePane();
+
+			const headings = await within(pane).findAllByRole("heading", {
+				level: 3,
+			});
+
+			expect(headings.map((heading) => heading.textContent)).toEqual([
+				"Hard blockers · 1 of 3 evaluated",
+				"Quality dimensions · 0 of 2 returned",
+			]);
+			expect(within(pane).queryByRole("list")).toBeNull();
+		});
+
+		it("shows no counts between a rejected attempt and the next one's first reading", async () => {
+			renderJudge({ state: "returning", spentUsd: 0.25 });
+			const pane = await judgePane();
+
+			await within(pane).findByRole("group", { name: "Verdict and grade" });
+
+			expect(within(pane).queryByRole("heading", { level: 3 })).toBeNull();
+			expect(pane).toHaveTextContent("independent session · $0.25 so far");
+		});
+
+		it.each([
+			["no spend is recorded", undefined],
+			["nothing is spent yet", 0],
+		])("says the judge's cost is pending while %s", async (_case, spentUsd) => {
+			renderJudge({
+				...progress({ returned: 0, total: 3 }, { returned: 0, total: 2 }),
+				...(spentUsd !== undefined && { spentUsd }),
+			});
+
+			const pane = await judgePane();
+
+			await waitFor(() => {
+				expect(pane).toHaveTextContent("independent session · cost pending");
+			});
+		});
+	});
+
+	describe("before or without a judged grade", () => {
+		it("says the step's judge has not started", async () => {
+			renderJudge({ state: "waiting" });
+
+			const pane = await judgePane();
+
+			expect(
+				await within(pane).findByText("This step's judge has not started yet."),
+			).toBeInTheDocument();
+			expect(within(pane).queryByRole("note")).toBeNull();
+		});
+
+		it("says a step that ended without a judged grade has no verdict", async () => {
+			renderJudge({ state: "not-judged" });
+
+			const pane = await judgePane();
+
+			expect(
+				await within(pane).findByText(
+					"This step ended without a judged grade, so there is no verdict to show.",
+				),
+			).toBeInTheDocument();
+		});
+
+		it("says when it could not read the step's judge", async () => {
+			renderMonitor(runRow({ run: RUN, stage: "build" }));
+
+			const pane = await judgePane();
+
+			expect(await within(pane).findByRole("alert")).toHaveTextContent(
+				"Could not read this step's judge.",
+			);
+		});
+	});
 });
 
 describe("/monitor session pane", () => {
