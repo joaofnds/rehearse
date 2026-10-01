@@ -187,11 +187,10 @@ summary yet (ACT-257).
   command repetition; they do not attribute phase, tokens, cost, causality, or
   waste. Their evidence state distinguishes a complete observed zero from
   partial or unavailable evidence.
-- **Progress events are not a resource timeline.** They contain no token/load
-  events, and spend changes scope between stage start, worker turns, stage
-  judging, stage completion, and run completion. The run list names what each
-  reading covers rather than resolving the scopes into a running total, which no
-  non-terminal event carries. Aggregate provider usage cannot establish active
+- **Progress events are not a resource timeline.** They carry the run's spend
+  and token totals so far but no instruction-load events, and each event's own
+  `spentUsd` changes scope between stage start, worker turns, stage judging,
+  stage completion, and run completion. Aggregate provider usage cannot establish active
   context size or a file's causal cost. See the
   [context assessment](context-visibility.md) before drawing attribution
   conclusions.

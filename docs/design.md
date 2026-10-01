@@ -97,8 +97,8 @@ and complete context attribution remain unfinished.
 
 The [context assessment](context-visibility.md) describes the planned evidence
 and visualization work. Current provider metrics are CLI-call aggregates, and
-progress events contain neither token readings nor instruction-load events.
-Their spend scope varies by lifecycle event. Neither source alone reconstructs
+progress events carry the run's running token totals but no instruction-load
+events. Their own spend scope varies by lifecycle event. Neither source alone reconstructs
 context at individual model requests or across a worker's nested agents.
 
 ## Persistence and recovery
