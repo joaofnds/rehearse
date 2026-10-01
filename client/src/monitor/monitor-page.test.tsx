@@ -18,6 +18,7 @@ import {
 	stubFetchFailing,
 } from "#client/test-support/render-app";
 import { recordStage, runRecord } from "#client/test-support/run-record";
+import type { MonitoredStage } from "#client/monitor/run-record-query";
 import type { StageJudge } from "#server/stage-judge";
 import type { StageSession } from "#server/stage-session";
 import { graded, notYet, runRow } from "#client/test-support/runs-in-flight";
@@ -882,6 +883,184 @@ describe("/monitor judge pane", () => {
 			expect(
 				within(note).getByRole("link", { name: "Compare arms" }),
 			).toHaveAttribute("href", "/comparisons");
+		});
+	});
+
+	describe("for a judged stage", () => {
+		const PLAN_JUDGE = `/api/runs/${RUN}/stages/plan/judge`;
+
+		const JUDGED: StageJudge = {
+			state: "judged",
+			hardBlockers: [
+				{
+					id: "scope-declared-before-edit",
+					status: "FAIL",
+					evidence: [
+						{
+							source: "transcript",
+							path: "transcript",
+							claim: "The agent chose a scope without asking",
+							quote: "I'll take the small scope",
+							place: "exchange 3 message, characters 0-25",
+						},
+					],
+				},
+				{ id: "no-secrets-in-diff", status: "PASS", evidence: [] },
+				{ id: "tests-pass-before-handoff", status: "FAIL", evidence: [] },
+			],
+			dimensions: [
+				{
+					id: "scope-discipline",
+					grade: "C",
+					evidence: [
+						{
+							source: "diff",
+							path: "src/a.ts",
+							claim: "Names the rule",
+							place: "src/a.ts:3-4",
+						},
+					],
+				},
+			],
+		};
+
+		async function renderJudged(grade: MonitoredStage["grade"]): Promise<void> {
+			renderMonitor(
+				runRow({ run: RUN, stage: "build" }),
+				new Map<string, unknown>([
+					[
+						`/api/runs/${RUN}`,
+						runRecord({
+							run: RUN,
+							running: "build",
+							stages: [
+								recordStage("plan", {
+									status: "graded",
+									grade,
+									judgeCost: { state: "available", usd: 0.22 },
+								}),
+								recordStage("build"),
+							],
+						}),
+					],
+					[PLAN_JUDGE, JUDGED],
+				]),
+			);
+			fireEvent.click(
+				within(await graphNode("plan")).getByRole("button", {
+					name: /^plan(?! has no checkpoint)/u,
+				}),
+			);
+		}
+
+		const ACCEPTED_C: MonitoredStage["grade"] = {
+			state: "available",
+			letter: "C",
+			verdict: "CONTINUE",
+			reachesMinimum: true,
+		};
+
+		it("shows the verdict and grade the run record holds, with the judge's recorded cost", async () => {
+			await renderJudged(ACCEPTED_C);
+
+			const pane = await judgePane();
+			const card = await within(pane).findByRole("group", {
+				name: "Verdict and grade",
+			});
+
+			expect(card).toHaveTextContent("Verdict✓accepted: 2 blockers fired");
+			expect(card).toHaveTextContent("GradeC");
+			expect(pane).toHaveTextContent("independent session · $0.22");
+			expect(within(pane).queryByText("grading")).toBeNull();
+		});
+
+		it("reads a letter below the run's minimum as stopped, as the stage's node does", async () => {
+			await renderJudged({ ...ACCEPTED_C, letter: "D", reachesMinimum: false });
+
+			const card = await within(await judgePane()).findByRole("group", {
+				name: "Verdict and grade",
+			});
+
+			expect(card).toHaveTextContent("Verdict◼stopped: 2 blockers fired");
+		});
+
+		it("lists every judged blocker and dimension with how much evidence each cites", async () => {
+			await renderJudged(ACCEPTED_C);
+
+			expect(await rowCells("Hard blockers")).toEqual([
+				["✕", "scope-declared-before-edit", "fired", "1 cited"],
+				["✓", "no-secrets-in-diff", "clear", "no evidence"],
+				["✕", "tests-pass-before-handoff", "fired", "no evidence"],
+			]);
+			expect(await rowCells("Quality dimensions")).toEqual([
+				["scope-discipline", "▮▮▮▯▯", "C", "1 cited"],
+			]);
+			for (const toggle of within(await judgePane()).getAllByRole("button", {
+				name: "no evidence",
+			})) {
+				expect(toggle).toHaveAttribute("aria-disabled", "true");
+			}
+		});
+
+		it("opens a blocker's evidence with its source, a link to where it is cited, and its quote", async () => {
+			await renderJudged(ACCEPTED_C);
+			const pane = await judgePane();
+			const rows = await within(pane).findByRole("list", {
+				name: "Hard blockers",
+			});
+
+			fireEvent.click(within(rows).getByRole("button", { name: "1 cited" }));
+
+			const toggle = within(pane).getByRole("button", {
+				name: "hide evidence",
+			});
+			const shown = toggle.closest("li")?.nextElementSibling;
+			expect(toggle).toHaveAttribute("aria-expanded", "true");
+			expect(shown).toHaveTextContent(
+				"Cited evidencetranscriptexchange 3 message, characters 0-25I'll take the small scope",
+			);
+			expect(
+				within(pane).getByRole("link", {
+					name: "exchange 3 message, characters 0-25",
+				}),
+			).toHaveAttribute(
+				"href",
+				`/runs/${RUN}/stages/plan/evidence/hardBlockers/scope-declared-before-edit/0`,
+			);
+		});
+
+		it("opens a dimension's evidence, naming the file a citation without a quote points to", async () => {
+			await renderJudged(ACCEPTED_C);
+			const rows = await within(await judgePane()).findByRole("list", {
+				name: "Quality dimensions",
+			});
+
+			fireEvent.click(within(rows).getByRole("button", { name: "1 cited" }));
+
+			expect(
+				within(rows).getByRole("link", { name: "src/a.ts:3-4" }),
+			).toHaveAttribute(
+				"href",
+				`/runs/${RUN}/stages/plan/evidence/dimensions/scope-discipline/0`,
+			);
+			expect(within(rows).queryByRole("blockquote")).toBeNull();
+		});
+
+		it("closes evidence it opened", async () => {
+			await renderJudged(ACCEPTED_C);
+			const pane = await judgePane();
+			const rows = await within(pane).findByRole("list", {
+				name: "Hard blockers",
+			});
+			fireEvent.click(within(rows).getByRole("button", { name: "1 cited" }));
+
+			fireEvent.click(
+				within(pane).getByRole("button", { name: "hide evidence" }),
+			);
+
+			expect(
+				within(pane).queryByRole("link", { name: /exchange 3/u }),
+			).toBeNull();
 		});
 	});
 });
