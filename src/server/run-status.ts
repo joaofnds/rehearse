@@ -66,7 +66,9 @@ type StageState = (typeof STAGE_STATE)[keyof typeof STAGE_STATE];
  * when. A run emits an event once per agent turn, minutes apart, so a reader
  * rendering `elapsedMs` alone would show a clock that stops between turns.
  * The pair lets it keep running without this reader inventing a number the
- * run never recorded.
+ * run never recorded. `stageElapsedMs` is the same figure measured from the
+ * running stage's own start event, and undefined when the stream holds no
+ * start for that stage.
  *
  * `judge` is the stage judge's latest progress reading, present only while
  * that reading is the run's latest event: how many of each rubric section's
@@ -200,11 +202,14 @@ async function eventBackedIdentity(
  * artifact records `run-failed` and writes no artifact file, leaving a
  * finished run whose target still holds the claim it never restored.
  */
-function runningProgress(
-	latest: RunEvent | undefined,
-	stageStarted: RunEvent | undefined,
-): RunProgress | undefined {
-	if (latest === undefined || isTerminalRunEventKind(latest.kind)) {
+function runningProgress({
+	latest,
+	stageStart,
+}: {
+	readonly latest: RunEvent;
+	readonly stageStart: RunEvent | undefined;
+}): RunProgress | undefined {
+	if (isTerminalRunEventKind(latest.kind)) {
 		return undefined;
 	}
 
@@ -216,9 +221,9 @@ function runningProgress(
 		stageState: STAGE_STATE[latest.kind],
 		elapsedMs: latest.elapsedMs,
 		stageElapsedMs:
-			stageStarted === undefined
+			stageStart === undefined
 				? undefined
-				: latest.elapsedMs - stageStarted.elapsedMs,
+				: latest.elapsedMs - stageStart.elapsedMs,
 		measuredAt: latest.recordedAt,
 		spentUsd: latest.spentUsd,
 		spendScope,
@@ -371,12 +376,10 @@ export async function statusAndCaseId(
 		);
 	}
 
-	const progress = runningProgress(
+	const progress = runningProgress({
 		latest,
-		latest === undefined
-			? undefined
-			: runEvents.stageStarted(run, latest.stage),
-	);
+		stageStart: runEvents.latestStageStart({ runId: run, stage: latest.stage }),
+	});
 	if (
 		progress !== undefined &&
 		(await claimsLiveTarget(paths.manifestFile, liveness))

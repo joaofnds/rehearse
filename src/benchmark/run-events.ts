@@ -122,7 +122,11 @@ export interface RunEventStore {
 		sequence: number,
 	) => readonly RunEvent[];
 	readonly latestEvent: (runId: string) => RunEvent | undefined;
-	readonly stageStarted: (runId: string, stage: string) => RunEvent | undefined;
+	/** The newest stage-started event of this stage of this run, if any. */
+	readonly latestStageStart: (stageOfRun: {
+		readonly runId: string;
+		readonly stage: string;
+	}) => RunEvent | undefined;
 	readonly runIds: () => readonly string[];
 	readonly journalMode: () => string;
 	readonly close: () => void;
@@ -306,7 +310,7 @@ export async function openRunEventStore(path: string): Promise<RunEventStore> {
 	const selectLatest = database.query<RunEventRow, [string]>(
 		"SELECT * FROM run_events WHERE run_id = ? ORDER BY sequence DESC LIMIT 1",
 	);
-	const selectStageStarted = database.query<RunEventRow, [string, string]>(
+	const selectLatestStageStart = database.query<RunEventRow, [string, string]>(
 		"SELECT * FROM run_events WHERE run_id = ? AND kind = 'stage-started' AND stage = ? ORDER BY sequence DESC LIMIT 1",
 	);
 	const selectRunIds = database.query<{ run_id: string }, []>(
@@ -340,8 +344,8 @@ export async function openRunEventStore(path: string): Promise<RunEventStore> {
 
 			return row === null ? undefined : toRunEvent(row);
 		},
-		stageStarted: (runId, stage) => {
-			const row = selectStageStarted.get(runId, stage);
+		latestStageStart: ({ runId, stage }) => {
+			const row = selectLatestStageStart.get(runId, stage);
 
 			return row === null ? undefined : toRunEvent(row);
 		},
