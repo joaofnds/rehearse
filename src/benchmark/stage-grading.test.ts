@@ -112,6 +112,15 @@ function passingStageOutput(
 	};
 }
 
+/** The items the judge's latest reading returned, when it was still returning. */
+function latestItems(
+	progress: readonly JudgeProgress[],
+): Extract<JudgeProgress, { state: "returning" }>["items"] {
+	const latest = progress.at(-1);
+
+	return latest?.state === "returning" ? latest.items : undefined;
+}
+
 function stageEvidence(
 	source: StageJudgeOutput["requirements"][number]["evidence"][number]["source"],
 	path: string,
@@ -1247,11 +1256,9 @@ describe(runStageJudge.name, () => {
 				},
 			);
 
-			expect(progress.at(-1)).toMatchObject({
-				items: {
-					hardBlockers: [{ id: "b1" }, { id: "b2", status: "FAIL" }],
-					dimensions: [{ id: "d1" }, { id: "d2" }, { id: "d3" }],
-				},
+			expect(latestItems(progress)).toEqual({
+				hardBlockers: [{ id: "b1" }, { id: "b2", status: "FAIL" }],
+				dimensions: [{ id: "d1" }, { id: "d2" }, { id: "d3" }],
 			});
 		});
 
@@ -1322,10 +1329,12 @@ describe(runStageJudge.name, () => {
 			expect(progress.at(-1)).toMatchObject({
 				attempt: 1,
 				sections: { dimensions: { returned: 1, total: 3 } },
-				items: {
-					dimensions: [{ id: "d1" }, { id: "d2" }, { id: "d3", grade: "A" }],
-				},
 			});
+			expect(latestItems(progress)?.dimensions).toEqual([
+				{ id: "d1" },
+				{ id: "d2" },
+				{ id: "d3", grade: "A" },
+			]);
 		});
 
 		it("streams the Claude CLI's output into progress and grades from its result line", async () => {
