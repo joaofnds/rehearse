@@ -812,6 +812,95 @@ describe("/monitor session pane", () => {
 		);
 	});
 
+	describe("following the tail", () => {
+		async function sessionBody(): Promise<HTMLElement> {
+			const transcript = await within(await sessionPane()).findByRole("list", {
+				name: "Transcript",
+			});
+			const body = transcript.parentElement;
+			if (body === null) {
+				throw new Error("the transcript sits in no scrolling body");
+			}
+
+			return body;
+		}
+
+		function press(key: string): void {
+			fireEvent.keyDown(document.body, { key });
+		}
+
+		it("follows the tail, counting the tool calls it collapsed, until f unfollows it", async () => {
+			renderSession(RUNNING_SESSION);
+			const pane = await sessionPane();
+			await sessionBody();
+
+			expect(pane).toHaveTextContent(
+				"Following tail · j/k to scroll, f to unfollow",
+			);
+			expect(pane).toHaveTextContent("tool calls collapsed (1)");
+
+			press("f");
+
+			expect(pane).toHaveTextContent(
+				"Tail paused · j/k to scroll, f to follow",
+			);
+		});
+
+		it("returns to the tail when f follows it again", async () => {
+			renderSession(RUNNING_SESSION);
+			const body = await sessionBody();
+			Object.defineProperty(body, "scrollHeight", { value: 900 });
+			press("f");
+			body.scrollTop = 0;
+
+			press("f");
+
+			await waitFor(() => {
+				expect(body.scrollTop).toBe(900);
+			});
+		});
+
+		it("scrolls the pane down with j and up with k, and k leaves the tail", async () => {
+			renderSession(RUNNING_SESSION);
+			const body = await sessionBody();
+			press("f");
+			body.scrollTop = 200;
+
+			press("j");
+			const down = body.scrollTop;
+			press("k");
+			press("k");
+
+			expect(down).toBeGreaterThan(200);
+			expect(body.scrollTop).toBeLessThan(200);
+		});
+
+		it("leaves the tail when k scrolls up from it", async () => {
+			renderSession(RUNNING_SESSION);
+			const pane = await sessionPane();
+			await sessionBody();
+
+			press("k");
+
+			expect(pane).toHaveTextContent(
+				"Tail paused · j/k to scroll, f to follow",
+			);
+		});
+
+		it("ignores f, j and k typed into a field", async () => {
+			renderSession(RUNNING_SESSION);
+			const pane = await sessionPane();
+			await sessionBody();
+			const field = document.createElement("input");
+			document.body.append(field);
+
+			fireEvent.keyDown(field, { key: "f" });
+
+			expect(pane).toHaveTextContent("Following tail");
+			field.remove();
+		});
+	});
+
 	describe("for a finished stage", () => {
 		const PLAN_SESSION = `/api/runs/${RUN}/stages/plan/session`;
 

@@ -18,7 +18,8 @@ export const CHORD_DESTINATIONS = new Map([
 	["m", "/monitor"],
 ]);
 
-function isTyping(target: EventTarget | null): boolean {
+/** Whether a keystroke went into a field, where it is text rather than a shortcut. */
+export function isTyping(target: EventTarget | null): boolean {
 	if (!(target instanceof HTMLElement)) {
 		return false;
 	}

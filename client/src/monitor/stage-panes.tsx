@@ -37,7 +37,12 @@ export function StagePanes({
 }): React.JSX.Element {
 	return (
 		<div className="grid min-h-70.75 flex-1 basis-2/5 grid-cols-monitor-panes overflow-x-auto">
-			<SessionPane run={run} number={number} figures={stage} />
+			<SessionPane
+				key={stage.stage}
+				run={run}
+				number={number}
+				figures={stage}
+			/>
 			<section
 				aria-label="Judge"
 				className="flex min-h-0 flex-col bg-secondary"
