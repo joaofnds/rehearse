@@ -1351,25 +1351,36 @@ their own session id and record none.
 
 `/api/runs/<run>/stages/<stage>/session`, implemented in
 [stage-session.ts](../src/server/stage-session.ts), answers one stage's
-session. Once the stage's `<run>.<stage>.json` exists it answers
-`{state: "closed", spans}` with the evidence the stage judge cites from the
-session's exchanges (source `transcript`), each with its section, item,
-index, claim, quote and, where its evidence locates it, the exchange from 1
-and whether it quotes the agent's `message` or the `productOwnerAnswer`, and, where the stage's checkpoint
-preserved a transcript, `lineCount` and `transcriptPath` relative to the runs
-directory's parent. Before then it answers `{state: "running", lineCount,
-lines, latestToolCall}` from the provider's own transcript: the rows of its
-last 200 lines, each a user or assistant message's text, a tool call as its
-name and first target, or a tool result's first line, cut at 1,000
-characters. A record the provider marks as meta, such as a loaded skill body,
-shows no row. A stage with no recorded start answers
-`{state: "not-started"}`, and one started before session ids were recorded
-answers `{state: "untracked"}`. The request names a run and a stage only. The server
-rebuilds the transcript path from the run manifest's source root and the
-recorded session id, answers 400 for a recorded id that is not a uuid, a
-transcript or project directory whose real path leaves the provider's
-projects directory, or a malformed run id, and 404 for a stage the run's
-pipeline does not have.
+session. Once the stage's `<run>.<stage>.json` exists, a record still awaiting
+its judge included, it answers `{state: "closed", spans}` with the evidence
+the stage judge cites from the session's exchanges (source `transcript`), each
+with its section, item, index, claim, quote and, where its evidence locates
+it, the exchange from 1 and whether it quotes the agent's `message` or the
+`productOwnerAnswer`. A graded record keeps the judged items under its grade,
+and the record of the stage that stopped the run keeps them beside it. A
+record that holds neither shape fails the request. Where the stage's
+checkpoint preserved a transcript, the answer adds `lineCount` and
+`transcriptPath`, relative to the parent of the runs directory's real path.
+Before the record exists it answers `{state: "running", lineCount, lines,
+latestToolCall}` from the provider's own transcript. `lines` are the rows of
+its last 200 lines, each with its `line`, a `kind` of `user`, `assistant`,
+`tool` or `result`, and its `text`: a message's text, a tool call as its name
+and the first of its `file_path`, `command`, `pattern`, `url` or
+`description`, or a tool result's first line. Text past 1,000 characters is
+cut and ends in `…`. A record the provider marks as meta, such as a loaded
+skill body, and a record that is neither a user nor an assistant message show
+no row. `latestToolCall` is the last tool call among those rows, absent when
+they hold none. Until the provider writes the transcript the answer is
+`{state: "running", lineCount: 0, lines: []}`. A stage with no recorded start
+answers `{state: "not-started"}`, and one started before session ids were
+recorded answers `{state: "untracked"}`. The request names a run and a stage
+only. The server rebuilds the transcript path from the run manifest's source
+root and the recorded session id. It answers 400 for a malformed run or stage
+name, a recorded id that is not a uuid, a symlinked transcript, or a
+transcript whose real path leaves the provider's projects directory, and 404
+for a stage the run's pipeline does not have or a missing projects directory.
+A stage record that is not valid JSON, such as one read while it is being
+written, answers 500.
 
 ### Run history figures
 

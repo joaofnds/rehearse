@@ -159,6 +159,11 @@ identifiers, retained candidates, and recovery boundaries.
 
 The production server serves `client/dist` and the API from one origin. The API
 reads runs, corpus information, saved comparisons, raw records, and events.
+It also reads one source outside the records directory: a running stage's
+transcript in the provider's projects directory, found from the source root
+the run's manifest names and the session id the stage's start event records.
+That event store drops an entry rather than fail a run, so a stage whose start
+it lost reads as not started until the stage writes its record.
 Current routes are listed in [UI coverage](status.md#browser-ui). The write
 routes live in [`src/server/launches.ts`](../src/server/launches.ts).
 `POST /api/launches` starts a run or replay by spawning the CLI detached, with the server's

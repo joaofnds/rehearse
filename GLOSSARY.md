@@ -621,6 +621,10 @@ See [current state](docs/status.md) for implementation coverage and
 - **Session knobs** — the CLI and environment settings shared by run and replay
   that select the workflow and Judge models and efforts and set the per-session
   budget.
+- **Session tail**: the last lines of a running stage's transcript as the
+  live monitor's session pane shows them, each a user or assistant message, a
+  tool call collapsed to one line, or a tool result. A UI concept only (see
+  screen 2d of the [design spec](docs/design-handoff/SPEC.md)).
 - **Short id**: how the operator and a session name a run, replay, session
   attempt, confirmation run or checkpoint, scoped by its case: `<case>/r<n>`,
   `<case>/g<n>`, `<case>/r<n>/s<k>`. Each case numbers its runs, replays,
@@ -735,11 +739,6 @@ See [current state](docs/status.md) for implementation coverage and
   kept at a stable baseline, that tasks run against.
 - **Target check** — one command declared by the pipeline and run against the
   target repository both at baseline and after delivery.
-- **Session tail** — the live monitor's view of a running stage's session:
-  the last lines of its transcript, each as a user or assistant message, a
-  tool call collapsed to one line, or a tool result, which the pane follows as
-  lines arrive. Once the stage closes, the pane shows instead the spans its
-  judge cites.
 - **Task graph** — the UI's horizontal chain of stage-node cards (grade,
   status, live tool call, checkpoint, contribution phrase, in/out counts of
   instruction files loaded and artifacts produced) shown on the live monitor
