@@ -1367,6 +1367,19 @@ events were recorded before run spend was. A stage without that event answers
 `waiting`. A stage the run's pipeline does not have answers 404, and a stage
 record that does not parse as one fails the request with 500.
 
+### Stage times
+
+`/api/runs/<run>/stage-times`, implemented in
+[stage-times.ts](../src/server/stage-times.ts), answers `{stages}` with one
+entry per stage of the run's pipeline: `{stage, state: "available", medianMs}`,
+the median elapsed time that stage's record kept across the runs of the same
+case whose names sort before this one, or `{stage, state: "unavailable",
+reasons}` when no prior run of the case exists or none recorded that stage's
+time. Run names are start times, so a run started later never counts. A run
+with no manifest answers 404. The live monitor's spend band reads it once per
+run for its remaining estimate: each unfinished stage's median, the running
+stage less its own elapsed time and never below zero, at the run's burn rate.
+
 ### Stage session
 
 A pipeline stage's `stage-started` event carries `sessionId`, the uuid the

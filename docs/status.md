@@ -290,7 +290,9 @@ The Live monitor shows one pipeline run in flight. Opened from the rail or
 `g m` it shows the newest, and opened from a bar it shows that bar's run. It
 shows the run's identity with Pause and Stop & restore repo, which is disabled
 with the reason under it for a run started outside the browser, run spend against
-the ceiling with burn rate, elapsed time and tokens in and out, and the task
+the ceiling with burn rate, elapsed time, tokens in and out, and the time and
+spend the unfinished steps would take at that rate from their median times in
+earlier runs of the case, or why there is no such estimate, and the task
 graph with each stage's grade, status, cost, duration, fired hard blockers,
 corpus version and checkpoint, and replay where a checkpoint exists. The
 running stage's duration counts that stage's own elapsed time each second. The
@@ -323,8 +325,8 @@ grades for the step have varied and links to comparisons. It counts as an
 identical rerun any other run of the same case under the same corpus version,
 whatever model, effort or pipeline it ran with, since the run list it reads
 carries none of them. When the runs in flight cannot be read, the monitor
-says "Could not read the runs in flight." Its remaining estimate and a step's
-instructions in and artifacts out remain design targets. The
+says "Could not read the runs in flight." A step's instructions in and artifacts out
+remain design targets. The
 server has no authentication and binds to IPv4 loopback; use it locally. It answers 403 to a
 non-loopback `Host`, and to a write that is not a same-origin JSON request.
 The guard reads headers any local program can set, so any process on this
