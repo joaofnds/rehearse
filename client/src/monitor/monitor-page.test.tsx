@@ -639,6 +639,27 @@ describe("/monitor stage selection", () => {
 	});
 });
 
+describe("/monitor session and judge panes", () => {
+	it.each([
+		[
+			"Live agent session",
+			"This pane does not show the session's transcript yet.",
+		],
+		["Judge", "This pane does not show the judge's verdict yet."],
+	])(
+		"says with the pending glyph what the %s pane does not show yet",
+		async (pane, words) => {
+			renderMonitor(runRow({ run: RUN }));
+
+			const shown = within(await screen.findByRole("region", { name: pane }));
+
+			expect(shown.getByText(words).parentElement).toHaveTextContent(
+				`◌${words}`,
+			);
+		},
+	);
+});
+
 describe("/monitor across runs", () => {
 	const NEWER = "2026-09-30T11-00-00.000Z";
 

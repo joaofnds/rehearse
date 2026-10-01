@@ -1,3 +1,25 @@
+import { STATUS_VOCABULARY } from "#client/system/components/status";
+
+/** What a pane does not show yet, as the design's pending verdict reads. */
+function NotShownYet({
+	words,
+	className,
+}: {
+	readonly words: string;
+	readonly className: string;
+}): React.JSX.Element {
+	return (
+		<div className={className}>
+			<p className="flex items-center gap-1.75">
+				<span aria-hidden="true" className="text-11 text-dim">
+					{STATUS_VOCABULARY.pending.glyph}
+				</span>
+				<span className="text-13 text-secondary-foreground">{words}</span>
+			</p>
+		</div>
+	);
+}
+
 /**
  * The session and judge panes (SPEC.md 2d), named after the stage they
  * follow. Their contents are ACT-270.3's and ACT-270.4's.
@@ -20,6 +42,10 @@ export function StagePanes({
 						Step {String(number)} · {stage}
 					</h2>
 				</div>
+				<NotShownYet
+					words="This pane does not show the session's transcript yet."
+					className="flex-1 overflow-y-auto px-4.25 py-3"
+				/>
 			</section>
 			<section
 				aria-label="Judge"
@@ -30,6 +56,10 @@ export function StagePanes({
 						Judge · step {String(number)}
 					</h2>
 				</div>
+				<NotShownYet
+					words="This pane does not show the judge's verdict yet."
+					className="flex-1 overflow-y-auto px-4.25 pt-3.75 pb-6"
+				/>
 			</section>
 		</div>
 	);
