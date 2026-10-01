@@ -888,6 +888,44 @@ describe("/monitor judge pane", () => {
 				within(note).getByRole("link", { name: "Compare arms" }),
 			).toHaveAttribute("href", "/comparisons");
 		});
+		it("says how far identical reruns have graded the step apart", async () => {
+			const version = { kind: "version", digest: "a".repeat(64) } as const;
+			const rerun = (run: string, letter: string): PipelineRow =>
+				runRow({
+					run,
+					status: "COMPLETED",
+					corpusVersion: version,
+					grades: [graded("build", letter)],
+				});
+			const watched = runRow({
+				run: RUN,
+				stage: "build",
+				stageState: "judge grading",
+				corpusVersion: version,
+			});
+			renderMonitor(
+				watched,
+				new Map<string, unknown>([
+					[
+						"/api/runs",
+						history([
+							watched,
+							rerun("2026-09-01T10-00-00.000Z", "B"),
+							rerun("2026-09-02T10-00-00.000Z", "C"),
+						]),
+					],
+					[BUILD_JUDGE, RETURNING],
+				]),
+			);
+
+			const note = await within(await judgePane()).findByRole("note");
+
+			await waitFor(() => {
+				expect(note).toHaveTextContent(
+					"Identical reruns of this case have varied by one letter step here.",
+				);
+			});
+		});
 	});
 
 	describe("for a judged stage", () => {
