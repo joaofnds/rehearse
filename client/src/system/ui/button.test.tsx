@@ -46,6 +46,23 @@ describe(Button.name, () => {
 		expect(presses).toBe(0);
 	});
 
+	it.each(["default", "outline", "quiet", "strong", "ghost"] as const)(
+		"keeps a %s button's hover and press fills off while aria-disabled, as the design does",
+		(variant) => {
+			render(
+				<Button variant={variant} aria-disabled="true">
+					Stop
+				</Button>,
+			);
+
+			const fills = [...screen.getByRole("button").classList].filter((name) =>
+				/^(hover|active):/u.test(name),
+			);
+
+			expect(fills).toEqual([]);
+		},
+	);
+
 	it("renders the child element in place of a button when asChild is set", () => {
 		render(
 			<Button asChild>
@@ -93,7 +110,7 @@ describe(Button.name, () => {
 			render(<Button variant={variant}>replay</Button>);
 
 			expect(screen.getByRole("button", { name: "replay" })).toHaveClass(
-				"active:bg-pressed",
+				"not-aria-disabled:active:bg-pressed",
 			);
 		},
 	);
