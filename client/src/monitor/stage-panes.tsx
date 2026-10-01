@@ -1,8 +1,8 @@
-import { STATUS_VOCABULARY } from "#client/system/components/status";
+import { PendingLine } from "./pending-line";
 import type { MonitoredStage } from "./run-record-query";
 import { SessionPane } from "./session-pane";
 
-/** What a pane does not show yet, as the design's pending verdict reads. */
+/** What a pane does not show yet. */
 function NotShownYet({
 	words,
 	className,
@@ -12,12 +12,7 @@ function NotShownYet({
 }): React.JSX.Element {
 	return (
 		<div className={className}>
-			<p className="flex items-center gap-2.25">
-				<span aria-hidden="true" className="text-11 text-dim">
-					{STATUS_VOCABULARY.pending.glyph}
-				</span>
-				<span className="text-13 text-secondary-foreground">{words}</span>
-			</p>
+			<PendingLine words={words} />
 		</div>
 	);
 }

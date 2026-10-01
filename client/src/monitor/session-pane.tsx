@@ -8,6 +8,7 @@ import { LiveGlyph, STATUS_VOCABULARY } from "#client/system/components/status";
 import type { MonitoredStage } from "./run-record-query";
 import type { StageSessionResponse } from "./stage-session-query";
 import { stageSessionQuery } from "./stage-session-query";
+import { PendingLine } from "./pending-line";
 import { minutesAndSeconds } from "./task-graph";
 
 type SessionLine = Extract<
@@ -238,18 +239,6 @@ function TailFooter({
 				tool calls collapsed ({String(toolCalls)})
 			</span>
 		</div>
-	);
-}
-
-/** The pane's words for a session it has nothing of, as the pending verdict reads. */
-function PendingLine({ words }: { readonly words: string }): React.JSX.Element {
-	return (
-		<p className="flex items-center gap-2.25 font-sans">
-			<span aria-hidden="true" className="text-11 text-dim">
-				{STATUS_VOCABULARY.pending.glyph}
-			</span>
-			<span className="text-13 text-secondary-foreground">{words}</span>
-		</p>
 	);
 }
 
