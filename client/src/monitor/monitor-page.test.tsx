@@ -450,6 +450,18 @@ describe("/monitor task graph", () => {
 		expect(glyph).not.toHaveClass("text-accent-foreground");
 	});
 
+	it("draws no hover fill on a node, as the design's node keeps its own background", async () => {
+		renderGraph([recordStage("build"), recordStage("review")]);
+
+		const button = within(await node("review")).getAllByRole("button")[0];
+
+		expect(
+			[...(button?.classList ?? [])].filter((name) =>
+				name.startsWith("hover:"),
+			),
+		).toEqual([]);
+	});
+
 	it("reads a stage not started as having no corpus version", async () => {
 		renderGraph([recordStage("build"), recordStage("review")], {
 			kind: "version",

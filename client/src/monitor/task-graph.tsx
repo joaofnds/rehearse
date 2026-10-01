@@ -268,7 +268,7 @@ function StageNode({
 				onClick={() => {
 					onSelect(stage.stage);
 				}}
-				className={`flex w-77.5 flex-col gap-2.25 rounded-lg border px-3.75 py-3 text-left hover:bg-accent ${nodeBorder(selected, status)}`}
+				className={`flex w-77.5 flex-col gap-2.25 rounded-lg border px-3.75 py-3 text-left ${nodeBorder(selected, status)}`}
 			>
 				<span className="flex items-center gap-2.5">
 					<span aria-hidden="true" className="font-mono text-10-5 text-dim">
