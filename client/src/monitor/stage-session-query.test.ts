@@ -9,10 +9,10 @@ describe(stageSessionQuery.name, () => {
 		});
 	}
 
-	it("re-reads a running stage's session, since a transcript append records no run event", () => {
-		expect(
-			intervalFor({ state: "running", lineCount: 0, lines: [] }),
-		).toBeNumber();
+	it("re-reads a running stage's session every 2 seconds, since a transcript append records no run event", () => {
+		expect(intervalFor({ state: "running", lineCount: 0, lines: [] })).toBe(
+			2000,
+		);
 	});
 
 	it("leaves a closed stage's session alone", () => {

@@ -243,6 +243,78 @@ describe(readStageSession.name, () => {
 		expect(session).toEqual({ state: "running", lineCount: 2, lines: [] });
 	});
 
+	it("cuts a row's text after its first 1,000 characters", async () => {
+		const stage = await startedStage();
+		await Bun.write(
+			stage.transcriptFile,
+			transcriptOf([
+				{
+					type: "assistant",
+					message: { content: [{ type: "text", text: "a".repeat(1001) }] },
+				},
+			]),
+		);
+
+		const session = await readStageSession({
+			...stage,
+			run: RUN,
+			stage: "build",
+		});
+
+		expect(session).toMatchObject({
+			state: "running",
+			lines: [{ text: `${"a".repeat(1000)}…` }],
+		});
+	});
+
+	it("reads a tool result the provider writes as blocks by its first text", async () => {
+		const stage = await startedStage();
+		await Bun.write(
+			stage.transcriptFile,
+			transcriptOf([
+				{
+					type: "user",
+					message: {
+						content: [
+							{
+								type: "tool_result",
+								tool_use_id: "t1",
+								content: [
+									{ type: "image" },
+									{ type: "text", text: "3 files changed\nthe rest" },
+								],
+							},
+						],
+					},
+				},
+			]),
+		);
+
+		const session = await readStageSession({
+			...stage,
+			run: RUN,
+			stage: "build",
+		});
+
+		expect(session).toEqual({
+			state: "running",
+			lineCount: 1,
+			lines: [{ line: 1, kind: "result", text: "3 files changed" }],
+		});
+	});
+
+	it("answers a started stage whose transcript the provider has not written yet as running with no lines", async () => {
+		const stage = await startedStage();
+
+		const session = await readStageSession({
+			...stage,
+			run: RUN,
+			stage: "build",
+		});
+
+		expect(session).toEqual({ state: "running", lineCount: 0, lines: [] });
+	});
+
 	it("answers a stage that has not started yet as not started", async () => {
 		const stage = await queuedStage();
 

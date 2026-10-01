@@ -1,4 +1,11 @@
-import { afterEach, describe, expect, it, setSystemTime } from "bun:test";
+import {
+	afterEach,
+	describe,
+	expect,
+	it,
+	onTestFinished,
+	setSystemTime,
+} from "bun:test";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { CorpusMeasurement } from "#benchmark/corpus-measurement";
 import type { RunHistoryResponse } from "#client/run-history/run-history-query";
@@ -65,6 +72,19 @@ function serveMonitor(row: PipelineRow): void {
 	stubFetchByPath(
 		new Map<string, unknown>([...SHELL_BASELINE, ...monitorBodies(row)]),
 	);
+}
+
+/** The task graph's node for a stage. */
+async function graphNode(stage: string): Promise<HTMLElement> {
+	const graph = await screen.findByRole("region", { name: "Task graph" });
+	const shown = within(graph)
+		.getAllByRole("listitem")
+		.find((item) => within(item).queryByText(stage) !== null);
+	if (shown === undefined) {
+		throw new Error(`the graph draws no node for ${stage}`);
+	}
+
+	return shown;
 }
 
 /** The header the run's title heads, apart from the bar that repeats its readings. */
@@ -369,18 +389,6 @@ describe("/monitor task graph", () => {
 		);
 	}
 
-	async function node(stage: string): Promise<HTMLElement> {
-		const graph = await screen.findByRole("region", { name: "Task graph" });
-		const shown = within(graph)
-			.getAllByRole("listitem")
-			.find((item) => within(item).queryByText(stage) !== null);
-		if (shown === undefined) {
-			throw new Error(`the graph draws no node for ${stage}`);
-		}
-
-		return shown;
-	}
-
 	it("shows a finished stage's cost, duration, fired blockers, corpus version and checkpoint", async () => {
 		renderGraph([
 			recordStage("plan", {
@@ -396,7 +404,7 @@ describe("/monitor task graph", () => {
 			recordStage("build"),
 		]);
 
-		const shown = await node("plan");
+		const shown = await graphNode("plan");
 
 		expect(shown).toHaveTextContent("$1.12");
 		expect(shown).toHaveTextContent("4m02s");
@@ -409,7 +417,7 @@ describe("/monitor task graph", () => {
 	it("shows a stage not started as costing nothing, with no checkpoint yet", async () => {
 		renderGraph([recordStage("build"), recordStage("review")]);
 
-		const shown = await node("review");
+		const shown = await graphNode("review");
 
 		expect(shown).toHaveTextContent("$0.00");
 		expect(shown).toHaveTextContent("◇no checkpoint yet");
@@ -449,14 +457,14 @@ describe("/monitor task graph", () => {
 			]),
 		);
 
-		expect(await node("build")).toHaveTextContent("4m02s");
-		expect(await node("plan")).toHaveTextContent("2m05s");
+		expect(await graphNode("build")).toHaveTextContent("4m02s");
+		expect(await graphNode("plan")).toHaveTextContent("2m05s");
 	});
 
 	it("shows the running stage's session spend so far as its cost", async () => {
 		renderGraph([recordStage("build")]);
 
-		expect(await node("build")).toHaveTextContent("$0.90");
+		expect(await graphNode("build")).toHaveTextContent("$0.90");
 	});
 
 	it("shows on the running stage, which has measured none of its own yet, the corpus version the header names", async () => {
@@ -472,13 +480,13 @@ describe("/monitor task graph", () => {
 			latest,
 		);
 
-		expect(await node("build")).toHaveTextContent("bbbbbb");
+		expect(await graphNode("build")).toHaveTextContent("bbbbbb");
 	});
 
 	it("draws the running stage's pulsing glyph in its status line's colour, as the design does", async () => {
 		renderGraph([recordStage("build")]);
 
-		const build = await node("build");
+		const build = await graphNode("build");
 		const glyph = build.querySelector("[class*='animate-live']");
 
 		expect(glyph).not.toBeNull();
@@ -488,7 +496,7 @@ describe("/monitor task graph", () => {
 	it("draws no hover fill on a node, as the design's node keeps its own background", async () => {
 		renderGraph([recordStage("build"), recordStage("review")]);
 
-		const [button] = within(await node("review")).getAllByRole("button");
+		const [button] = within(await graphNode("review")).getAllByRole("button");
 
 		expect(button?.className).not.toContain("hover:");
 	});
@@ -499,7 +507,7 @@ describe("/monitor task graph", () => {
 			digest: DIGEST,
 		});
 
-		expect(await node("review")).toHaveTextContent("version not recorded");
+		expect(await graphNode("review")).toHaveTextContent("version not recorded");
 	});
 
 	it("shows a graded stage's letter", async () => {
@@ -516,7 +524,7 @@ describe("/monitor task graph", () => {
 			recordStage("build"),
 		]);
 
-		expect(await node("plan")).toHaveTextContent("B+");
+		expect(await graphNode("plan")).toHaveTextContent("B+");
 	});
 
 	it("reads a stage whose letter falls short of the run's minimum as stopped, whatever its judge's verdict", async () => {
@@ -533,7 +541,7 @@ describe("/monitor task graph", () => {
 			recordStage("build"),
 		]);
 
-		expect(await node("plan")).toHaveTextContent("stopped");
+		expect(await graphNode("plan")).toHaveTextContent("stopped");
 	});
 
 	it("reads a judged stage by its record once the record is written, as no longer running", async () => {
@@ -566,7 +574,7 @@ describe("/monitor task graph", () => {
 			]),
 		);
 
-		const plan = await node("plan");
+		const plan = await graphNode("plan");
 
 		expect(plan).toHaveTextContent("✓accepted");
 		expect(plan.querySelector("[class*='animate-live']")).toBeNull();
@@ -608,7 +616,7 @@ describe("/monitor task graph", () => {
 			]),
 		);
 
-		const plan = await node("plan");
+		const plan = await graphNode("plan");
 
 		expect(plan).toHaveTextContent("$1.20");
 		expect(plan).toHaveTextContent("2m05s");
@@ -620,7 +628,7 @@ describe("/monitor task graph", () => {
 			recordStage("build"),
 		]);
 
-		expect(await node("plan")).toHaveTextContent("awaiting judgment");
+		expect(await graphNode("plan")).toHaveTextContent("awaiting judgment");
 	});
 
 	it("shows a checkpoint recorded before short ids as recorded", async () => {
@@ -629,7 +637,7 @@ describe("/monitor task graph", () => {
 			recordStage("build"),
 		]);
 
-		expect(await node("plan")).toHaveTextContent("◆checkpoint recorded");
+		expect(await graphNode("plan")).toHaveTextContent("◆checkpoint recorded");
 	});
 
 	it("counts the instruction files a stage loaded and the artifacts it declared", async () => {
@@ -651,7 +659,7 @@ describe("/monitor task graph", () => {
 			recordStage("build"),
 		]);
 
-		const shown = await node("plan");
+		const shown = await graphNode("plan");
 
 		expect(shown).toHaveTextContent("↓ 3 instruction files in");
 		expect(shown).toHaveTextContent("↑ 1 artifact out");
@@ -660,7 +668,7 @@ describe("/monitor task graph", () => {
 	it("numbers each step in two digits", async () => {
 		renderGraph([recordStage("build")]);
 
-		expect(await node("build")).toHaveTextContent(/^01build/u);
+		expect(await graphNode("build")).toHaveTextContent(/^01build/u);
 	});
 
 	it("offers replay from a stage's checkpoint", async () => {
@@ -670,7 +678,7 @@ describe("/monitor task graph", () => {
 		]);
 
 		expect(
-			within(await node("plan")).getByRole("button", {
+			within(await graphNode("plan")).getByRole("button", {
 				name: "Replay plan from its checkpoint",
 			}),
 		).not.toHaveAttribute("aria-disabled");
@@ -680,7 +688,7 @@ describe("/monitor task graph", () => {
 		renderGraph([recordStage("build")]);
 
 		expect(
-			within(await node("build")).getByRole("button", {
+			within(await graphNode("build")).getByRole("button", {
 				name: "build has no checkpoint to replay from",
 			}),
 		).toHaveAttribute("aria-disabled", "true");
@@ -787,18 +795,6 @@ describe("/monitor session pane", () => {
 		);
 	}
 
-	async function graphNode(stage: string): Promise<HTMLElement> {
-		const graph = await screen.findByRole("region", { name: "Task graph" });
-		const shown = within(graph)
-			.getAllByRole("listitem")
-			.find((item) => within(item).queryByText(stage) !== null);
-		if (shown === undefined) {
-			throw new Error(`the graph draws no node for ${stage}`);
-		}
-
-		return shown;
-	}
-
 	it("shows the running stage's transcript tail, each row with its line, kind and text", async () => {
 		renderSession(RUNNING_SESSION);
 
@@ -881,7 +877,7 @@ describe("/monitor session pane", () => {
 			});
 		});
 
-		it("scrolls the pane down with j and up with k, and k leaves the tail", async () => {
+		it("scrolls the pane down with j and up with k", async () => {
 			renderSession(RUNNING_SESSION);
 			const body = await sessionBody();
 			press("f");
@@ -911,14 +907,62 @@ describe("/monitor session pane", () => {
 		it("ignores f, j and k typed into a field", async () => {
 			renderSession(RUNNING_SESSION);
 			const pane = await sessionPane();
-			await sessionBody();
+			const body = await sessionBody();
 			const field = document.createElement("input");
 			document.body.append(field);
+			onTestFinished(() => {
+				field.remove();
+			});
+			body.scrollTop = 200;
 
-			fireEvent.keyDown(field, { key: "f" });
+			for (const key of ["f", "j", "k"]) {
+				fireEvent.keyDown(field, { key });
+			}
 
 			expect(pane).toHaveTextContent("Following tail");
-			field.remove();
+			expect(body.scrollTop).toBe(200);
+		});
+
+		it("leaves f to the browser when a modifier is held", async () => {
+			renderSession(RUNNING_SESSION);
+			const pane = await sessionPane();
+			await sessionBody();
+
+			fireEvent.keyDown(document.body, { key: "f", metaKey: true });
+			fireEvent.keyDown(document.body, { key: "f", ctrlKey: true });
+			fireEvent.keyDown(document.body, { key: "f", altKey: true });
+
+			expect(pane).toHaveTextContent("Following tail");
+		});
+
+		it("opens the next stage it shows at its tail", async () => {
+			renderMonitor(
+				runRow({ run: RUN, stage: "build" }),
+				new Map<string, unknown>([
+					[
+						`/api/runs/${RUN}`,
+						runRecord({
+							run: RUN,
+							running: "build",
+							stages: [recordStage("plan"), recordStage("build")],
+						}),
+					],
+					[`/api/runs/${RUN}/stages/plan/session`, RUNNING_SESSION],
+					[BUILD_SESSION, RUNNING_SESSION],
+				]),
+			);
+			await sessionBody();
+			press("f");
+
+			fireEvent.click(
+				within(await graphNode("plan")).getByRole("button", {
+					name: /^plan(?! has no checkpoint)/u,
+				}),
+			);
+
+			const pane = await sessionPane();
+			await within(pane).findByText(/^Step 1 · plan$/u);
+			expect(pane).toHaveTextContent("Following tail");
 		});
 	});
 
@@ -1122,7 +1166,25 @@ describe("/monitor session pane", () => {
 		});
 	});
 
-	it("shows the running stage's latest tool call on its node, and none on a finished one", async () => {
+	it("says a step's transcript cannot be found when its start recorded no session id", async () => {
+		renderSession({ state: "untracked" });
+
+		expect(
+			await within(await sessionPane()).findByText(
+				"This step's session id was not recorded, so its transcript cannot be found.",
+			),
+		).toBeInTheDocument();
+	});
+
+	it("says when it could not read the step's session", async () => {
+		renderMonitor(runRow({ run: RUN, stage: "build" }));
+
+		expect(
+			await within(await sessionPane()).findByRole("alert"),
+		).toHaveTextContent("Could not read this step's session.");
+	});
+
+	it("shows the running stage's latest tool call on its node", async () => {
 		renderSession(RUNNING_SESSION);
 
 		const build = await graphNode("build");
@@ -1130,6 +1192,21 @@ describe("/monitor session pane", () => {
 		expect(
 			await within(build).findByText(/^Bash\s+pnpm test auth$/u),
 		).toHaveClass("truncate");
+	});
+
+	it("shows no tool call on a finished stage's node", async () => {
+		renderMonitor(
+			runRow({ run: RUN, stage: "build" }),
+			new Map<string, unknown>([
+				[`/api/runs/${RUN}/stages/plan/session`, RUNNING_SESSION],
+				[BUILD_SESSION, RUNNING_SESSION],
+			]),
+		);
+
+		await within(await graphNode("build")).findByText(
+			/^Bash\s+pnpm test auth$/u,
+		);
+
 		expect(await graphNode("plan")).not.toHaveTextContent("Bash");
 	});
 });

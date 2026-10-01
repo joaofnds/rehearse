@@ -313,11 +313,6 @@ function manifest(
 }
 
 /**
- * The liveness answer for a fixture with no run in flight: every run it writes
- * is finished, so nothing should reach a pid probe. A test that wants a run
- * reported as running supplies its own answer instead.
- */
-/**
  * A provider projects directory no test writes, so a server built for a test
  * that never reads a session cannot read the developer's own transcripts.
  */
@@ -326,6 +321,11 @@ export const NO_PROVIDER_PROJECTS = join(
 	"rehearse-no-provider-projects",
 );
 
+/**
+ * The liveness answer for a fixture with no run in flight: every run it writes
+ * is finished, so nothing should reach a pid probe. A test that wants a run
+ * reported as running supplies its own answer instead.
+ */
 export const nothingRunning: RunLiveness = {
 	readMarker: () => Promise.resolve(undefined),
 	isAlive: () => false,
