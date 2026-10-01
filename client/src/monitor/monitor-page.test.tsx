@@ -752,9 +752,10 @@ describe("/monitor session and judge panes", () => {
 
 			const shown = within(await screen.findByRole("region", { name: pane }));
 
-			expect(shown.getByText(words).parentElement).toHaveTextContent(
-				`◌${words}`,
-			);
+			const line = shown.getByText(words).parentElement;
+
+			expect(line).toHaveTextContent(`◌${words}`);
+			expect(line).toHaveClass("gap-2.25");
 		},
 	);
 });

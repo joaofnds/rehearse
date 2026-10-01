@@ -59,6 +59,9 @@ describe(Button.name, () => {
 				(name) => name.includes("hover:") || name.includes("active:"),
 			);
 
+			expect(screen.getByRole("button")).toHaveClass(
+				"aria-disabled:cursor-not-allowed",
+			);
 			expect(fills.length).toBeGreaterThan(0);
 			expect(
 				fills.filter((name) => !name.startsWith("not-aria-disabled:")),

@@ -10,7 +10,7 @@ function NotShownYet({
 }): React.JSX.Element {
 	return (
 		<div className={className}>
-			<p className="flex items-center gap-1.75">
+			<p className="flex items-center gap-2.25">
 				<span aria-hidden="true" className="text-11 text-dim">
 					{STATUS_VOCABULARY.pending.glyph}
 				</span>
