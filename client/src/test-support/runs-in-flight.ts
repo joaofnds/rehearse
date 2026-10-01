@@ -53,6 +53,8 @@ export function runRow(props: {
 	readonly stageElapsedMs?: number;
 	readonly measuredAt?: string;
 	readonly corpusVersion?: PipelineRow["corpusVersion"];
+	readonly caseId?: string;
+	readonly corpusChangedDuringRun?: boolean;
 }): PipelineRow {
 	const status = props.status ?? "RUNNING";
 
@@ -68,12 +70,12 @@ export function runRow(props: {
 		checkpoints: [],
 		links: [],
 		run: props.run ?? RUN,
-		caseId: "audit-log",
+		caseId: props.caseId ?? "audit-log",
 		status,
 		stage: undefined,
 		grade: undefined,
 		corpusVersion: props.corpusVersion,
-		corpusChangedDuringRun: false,
+		corpusChangedDuringRun: props.corpusChangedDuringRun ?? false,
 		staleness: { state: "unavailable", reasons: ["not read by this test"] },
 		progress:
 			status === "RUNNING"

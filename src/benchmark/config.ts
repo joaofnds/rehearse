@@ -1,6 +1,8 @@
 import { isAbsolute, relative, resolve } from "node:path";
 import { z } from "zod";
 import { benchmarkRunsDirectory } from "./run-layout";
+import type { StageLetterGrade } from "./stage-letter-grades";
+import { STAGE_LETTER_GRADES } from "./stage-letter-grades";
 
 export const CONTROL_DIR = resolve(import.meta.dir, "../..");
 export const REQUIRED_BUN_VERSION = "1.4.0";
@@ -12,15 +14,8 @@ export const HARNESS_RUBRIC_IDS = ["check-integrity", "local-checks"] as const;
 export const MAX_CONTEXT_FILE_BYTES = 256 * 1024;
 export const MAX_CONTEXT_TOTAL_BYTES = 1024 * 1024;
 
-/**
- * The grade letters live here rather than in contracts because contracts
- * imports config, and config imports nothing of this project but run-layout.
- * Contracts re-derives its schema from this list, so the letters have one
- * definition.
- */
-export const STAGE_LETTER_GRADES = ["A", "B", "C", "D", "F"] as const;
-
-export type StageLetterGrade = (typeof STAGE_LETTER_GRADES)[number];
+export { STAGE_LETTER_GRADES } from "./stage-letter-grades";
+export type { StageLetterGrade } from "./stage-letter-grades";
 
 export const DEFAULT_MINIMUM_STAGE_GRADE: StageLetterGrade = "B";
 
