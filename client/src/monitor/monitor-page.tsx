@@ -76,7 +76,7 @@ function RunMonitor({ row }: { readonly row: PipelineRow }): React.JSX.Element {
 export function MonitorPage({
 	run,
 }: {
-	readonly run?: string | undefined;
+	readonly run: string | undefined;
 }): React.JSX.Element | null {
 	const { data, isError } = useQuery(polledRunHistoryQuery);
 	if (isError) {

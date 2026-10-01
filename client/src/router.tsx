@@ -29,8 +29,12 @@ const runHistoryRoute = createRoute({
 const monitorRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/monitor",
-	component: MonitorPage,
+	component: NewestMonitorRoute,
 });
+
+function NewestMonitorRoute(): React.JSX.Element {
+	return <MonitorPage run={undefined} />;
+}
 
 const runMonitorRoute = createRoute({
 	getParentRoute: () => rootRoute,
