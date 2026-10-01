@@ -290,9 +290,11 @@ interface EvidenceOwner {
 function CitedEvidence({
 	owner,
 	evidence,
+	spacing,
 }: {
 	readonly owner: EvidenceOwner;
 	readonly evidence: readonly Evidence[];
+	readonly spacing: string;
 }): React.JSX.Element {
 	return (
 		<>
@@ -300,7 +302,7 @@ function CitedEvidence({
 				<div
 					// The record keeps an item's evidence in the order it was cited.
 					key={String(index)}
-					className={owner.section === "hardBlockers" ? "mt-2.5" : "mb-2.5"}
+					className={spacing}
 				>
 					<div className="flex items-center gap-2.5 font-mono text-10-5 text-muted-foreground">
 						<span className="rounded-sm border border-strong px-1.5 py-0.25">
@@ -399,6 +401,8 @@ function BlockerRows({
 								<CitedEvidence
 									owner={{ run, stage, section: "hardBlockers", item: row.id }}
 									evidence={row.evidence}
+									// Below the label, each citation keeps its distance from the one above.
+									spacing="mt-2.5"
 								/>
 							</div>
 						) : null}
@@ -467,6 +471,7 @@ function DimensionRows({
 								<CitedEvidence
 									owner={{ run, stage, section: "dimensions", item: row.id }}
 									evidence={row.evidence}
+									spacing="mb-2.5"
 								/>
 							</div>
 						) : null}

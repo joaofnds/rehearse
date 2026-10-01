@@ -41,23 +41,26 @@ export function rerunSpreadSentence(
 		(row): row is PipelineRow => row.kind === "run" && row.run === watched.run,
 	);
 	const digest = current === undefined ? undefined : versionDigest(current);
-	const steps = rows.flatMap((row) =>
-		row.kind === "run" &&
-		row.run !== watched.run &&
-		digest !== undefined &&
-		row.caseId === current?.caseId &&
-		versionDigest(row) === digest
-			? (letterStep(row, watched.stage) ?? [])
-			: [],
-	);
+	const steps =
+		current === undefined || digest === undefined
+			? []
+			: rows
+					.filter(
+						(row): row is PipelineRow =>
+							row.kind === "run" &&
+							row.run !== watched.run &&
+							row.caseId === current.caseId &&
+							versionDigest(row) === digest,
+					)
+					.flatMap((row) => letterStep(row, watched.stage) ?? []);
 	if (steps.length < 2) {
 		return "Fewer than two identical reruns of this case have graded this step, so how far its grade varies here is not known yet.";
 	}
 
 	const spread = Math.max(...steps) - Math.min(...steps);
-	const words = STEP_WORDS[spread - 1];
+	if (spread === 0) {
+		return "Identical reruns of this case have not varied here.";
+	}
 
-	return words === undefined
-		? "Identical reruns of this case have not varied here."
-		: `Identical reruns of this case have varied by ${words} letter ${spread === 1 ? "step" : "steps"} here.`;
+	return `Identical reruns of this case have varied by ${STEP_WORDS[spread - 1] ?? String(spread)} letter ${spread === 1 ? "step" : "steps"} here.`;
 }
