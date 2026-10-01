@@ -253,7 +253,7 @@ is reachable only by typing it, because the design's nav does not name it.
 | `/attempts/session/<case>/<uuid>`                                                                           | Saved standalone session context history, with the per-request token and cost timeline                                                                                                                                                                                                                                                                                                                   |
 | `/groups/<group>/reps/<rep>/attempt`                                                                        | Saved confirmation-rep context history, with the per-request token and cost timeline                                                                                                                                                                                                                                                                                                                     |
 | `/runs/<run>/stages/<stage>`                                                                                | Saved pipeline-stage context history and its corpus reconciliation; no request timeline. Missing raw capture names which record state produced it; a stage the run stopped on wrote no checkpoint and reports the stop, its reason and its declared corpus instead of events; a stage whose judging never completed reports that instead, with no stop reason, no lineage and no declared corpus         |
-| `/runs/<run>/stages/<stage>/evidence/<section>/<item>/<index>`, `/runs/<run>/final/evidence/<item>/<index>` | One judge evidence item's cited source as the run record holds it, read-only, with the quoted span marked and scrolled into view and the record file named; a harness result, an absent source, or an item recorded before quoted spans says which. No screen links here yet, so the address is typed                                                                                                    |
+| `/runs/<run>/stages/<stage>/evidence/<section>/<item>/<index>`, `/runs/<run>/final/evidence/<item>/<index>` | One judge evidence item's cited source as the run record holds it, read-only, with the quoted span marked and scrolled into view and the record file named; a harness result, an absent source, or an item recorded before quoted spans says which. The monitor's judge pane links here                                                                                                                  |
 | `/replays/<lineage>/<timestamp>`                                                                            | Saved stage-replay summary, always evidence-unavailable because a replay keeps no raw transcript; no events, per-event detail, request timeline or corpus reconciliation                                                                                                                                                                                                                                 |
 | `/monitor`                                                                                                  | The Live monitor for the newest pipeline run in flight; the "No run in flight" empty state when none is                                                                                                                                                                                                                                                                                                  |
 | `/monitor/<run>`                                                                                            | The Live monitor for the run whose Record ID the address names, as each bar's Open monitor opens it; the "This run is not in flight" empty state once that run stops running, or when no run has that id                                                                                                                                                                                                 |
@@ -306,10 +306,18 @@ stops following. A finished stage's pane shows the spans its judge cites from
 the session rather than the transcript itself, and once the stage's checkpoint
 has preserved the transcript it links to the stage's history page, which
 renders it. A stage not started yet says so, and one started before its
-session id was recorded shows no transcript. The judge pane says it does not
-show its verdict yet. When the runs in flight cannot be read, the monitor says
-"Could not read the runs in flight." Its judge detail, the remaining estimate,
-and a step's instructions in and artifacts out remain design targets. The
+session id was recorded shows no transcript. The judge pane shows the stage's
+verdict and grade card, the judge's cost, and every hard blocker and quality
+dimension under its count of those returned. While the judge is returning,
+each returned blocker reads fired or clear and each returned dimension its
+grade, the rest read pending, and the verdict and grade stay pending until
+the record holds them. A judged stage's items open their evidence, each cited
+source linking to its evidence page. Progress recorded before per-item results
+shows the counts alone. A note under the pane says how far identical reruns'
+grades for the step have varied and links to comparisons. When the runs in flight cannot be read, the monitor says
+"Could not read the runs in flight." Its remaining estimate
+and a step's instructions in and artifacts out remain design targets, and
+evidence for a stage still returning reads pending until its record holds it. The
 server has no authentication and binds to IPv4 loopback; use it locally. It answers 403 to a
 non-loopback `Host`, and to a write that is not a same-origin JSON request.
 The guard reads headers any local program can set, so any process on this
