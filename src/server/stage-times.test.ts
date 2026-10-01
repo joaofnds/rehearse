@@ -185,6 +185,38 @@ describe("/api/runs/:run/stage-times", () => {
 		});
 	});
 
+	it("leaves out an earlier record it cannot read, and counts the rest", async () => {
+		const directory = await runsDirectory();
+		await recordRun(directory, {
+			run: FIRST_EARLIER,
+			stageMs: { discuss: 60_000, build: 300_000 },
+		});
+		await recordRun(directory, {
+			run: SECOND_EARLIER,
+			stageMs: { discuss: 120_000 },
+		});
+		await Bun.write(
+			benchmarkRunPaths(directory, SECOND_EARLIER).stageFile("build"),
+			'{"elapsedMs": 12',
+		);
+		const unreadableRun = "2026-09-30T12-00-00.000Z";
+		await Bun.write(
+			benchmarkRunPaths(directory, unreadableRun).manifestFile,
+			"{ not json",
+		);
+		await recordRun(directory, { run: RUN });
+
+		const response = await stageTimes(directory, RUN);
+
+		expect(await response.json()).toEqual({
+			stages: [
+				{ stage: "discuss", state: "available", medianMs: 90_000 },
+				{ stage: "build", state: "available", medianMs: 300_000 },
+				unrecorded("review"),
+			],
+		});
+	});
+
 	describe("when no earlier run recorded a stage's time", () => {
 		it("says no earlier run of the case exists", async () => {
 			const directory = await runsDirectory();

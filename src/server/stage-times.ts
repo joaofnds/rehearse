@@ -29,6 +29,18 @@ function median(values: readonly number[]): number {
 }
 
 /**
+ * An earlier run's record, or nothing where it does not parse. One unreadable
+ * record never hides the others, and run history lists it with its reason.
+ */
+async function readable<T>(read: () => Promise<T>): Promise<T | undefined> {
+	try {
+		return await read();
+	} catch {
+		return undefined;
+	}
+}
+
+/**
  * The runs of a case recorded before this one. Run names are the times the
  * runs started, so they sort in that order.
  */
@@ -41,8 +53,8 @@ async function earlierRunsOfCase(
 	for (const name of await recordedRunNames(runsDirectory)) {
 		const { manifestFile } = benchmarkRunPaths(runsDirectory, name);
 		if (name < run && (await Bun.file(manifestFile).exists())) {
-			const manifest = await loadRunManifest(manifestFile);
-			if (manifest.caseId === caseId) {
+			const manifest = await readable(() => loadRunManifest(manifestFile));
+			if (manifest?.caseId === caseId) {
 				earlier.push(name);
 			}
 		}
@@ -62,9 +74,8 @@ async function recordedTimes(
 ): Promise<readonly number[]> {
 	const times: number[] = [];
 	for (const run of runs) {
-		const file = await readStageFile(
-			benchmarkRunPaths(runsDirectory, run),
-			stage,
+		const file = await readable(() =>
+			readStageFile(benchmarkRunPaths(runsDirectory, run), stage),
 		);
 		if (stageStatus(file) === "graded" && file?.elapsedMs !== undefined) {
 			times.push(file.elapsedMs);
