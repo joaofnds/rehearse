@@ -706,11 +706,18 @@ describe("/monitor across runs", () => {
 			]),
 		);
 
+		const main = within(await screen.findByRole("main"));
+
 		expect(
-			await within(await screen.findByRole("main")).findByText(
-				"This run is not in flight.",
-			),
+			await main.findByRole("heading", {
+				level: 2,
+				name: "This run is not in flight",
+			}),
 		).toBeInTheDocument();
+		expect(main.getByRole("heading", { level: 1 })).toHaveTextContent(
+			"Live monitor",
+		);
+		expect(main.getByText("1 run in flight")).toBeInTheDocument();
 	});
 
 	it("names the running stage of the next run, whatever was selected on the one before", async () => {
@@ -750,7 +757,12 @@ describe("/monitor across runs", () => {
 
 		FakeEventSource.openOn(`/api/runs/${RUN}/events`).deliver();
 
-		expect(await screen.findByText("No run in flight.")).toBeInTheDocument();
+		expect(
+			await screen.findByRole("heading", {
+				level: 2,
+				name: "No run in flight",
+			}),
+		).toBeInTheDocument();
 	});
 
 	it("says so when the runs in flight cannot be read", async () => {

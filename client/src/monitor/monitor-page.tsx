@@ -1,8 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { plural } from "#client/plural";
 import { polledRunHistoryQuery } from "#client/run-history/run-history-polling";
 import type { PipelineRow } from "#client/shell/run-in-flight";
 import { runsInFlight } from "#client/shell/run-in-flight";
+import { EmptyState } from "#client/system/components/empty-state";
+import { ScreenHeader } from "#client/system/components/screen-header";
 import type { RunRecordResponse } from "./run-record-query";
 import { runRecordQuery } from "./run-record-query";
 import { useRunEventsStream } from "./run-events-stream";
@@ -96,9 +99,27 @@ export function MonitorPage({
 		run === undefined ? inFlight[0] : inFlight.find((row) => row.run === run);
 	if (shown === undefined) {
 		return (
-			<p className="px-6 py-4 text-muted-foreground">
-				{run === undefined ? "No run in flight." : "This run is not in flight."}
-			</p>
+			<div>
+				<ScreenHeader
+					title="Live monitor"
+					subline={`${plural(inFlight.length, "run")} in flight`}
+				/>
+				{run === undefined ? (
+					<EmptyState heading="No run in flight">
+						<p>
+							A pipeline run shows here while it runs, whether the browser or a
+							terminal started it.
+						</p>
+					</EmptyState>
+				) : (
+					<EmptyState heading="This run is not in flight">
+						<p>
+							It is not running, or no run has this id. Run history lists every
+							recorded run.
+						</p>
+					</EmptyState>
+				)}
+			</div>
 		);
 	}
 
