@@ -21,6 +21,7 @@ import { recordStage, runRecord } from "#client/test-support/run-record";
 import type { MonitoredStage } from "#client/monitor/run-record-query";
 import type { StageJudge } from "#server/stage-judge";
 import type { StageSession } from "#server/stage-session";
+import type { StageTimes } from "#server/stage-times";
 import { graded, notYet, runRow } from "#client/test-support/runs-in-flight";
 
 type HistoryRow = RunHistoryResponse["rows"][number];
@@ -360,6 +361,117 @@ describe("/monitor", () => {
 			expect(shown).toHaveTextContent(
 				"Tokens in / out— run tokens not recorded",
 			);
+		});
+
+		describe("the remaining estimate", () => {
+			const THREE_STAGE_RECORD = runRecord({
+				run: RUN,
+				running: "build",
+				stages: [
+					recordStage("plan", { status: "graded" }),
+					recordStage("build"),
+					recordStage("review"),
+				],
+			});
+
+			/** Earlier runs of the case took a median 6m40s in build and 2m in review. */
+			const EARLIER_TIMES: StageTimes = {
+				stages: [
+					{ stage: "plan", state: "available", medianMs: 90_000 },
+					{ stage: "build", state: "available", medianMs: 400_000 },
+					{ stage: "review", state: "available", medianMs: 120_000 },
+				],
+			};
+
+			function renderEstimatedRun(
+				stageElapsedMs: number,
+				times: StageTimes = EARLIER_TIMES,
+			): void {
+				setSystemTime(new Date(MEASURED_AT));
+				renderMonitor(
+					runRow({
+						run: RUN,
+						runSpentUsd: 1.83,
+						ceilingUsd: 20,
+						elapsedMs: 372_000,
+						stageElapsedMs,
+						measuredAt: MEASURED_AT,
+					}),
+					new Map<string, unknown>([
+						[`/api/runs/${RUN}`, THREE_STAGE_RECORD],
+						[`/api/runs/${RUN}/stage-times`, times],
+					]),
+				);
+			}
+
+			it("estimates the steps left from earlier runs of the case, less the running step's time so far, at the burn rate", async () => {
+				renderEstimatedRun(100_000);
+
+				expect(await band()).toHaveTextContent(
+					"Remaining steps 2 to 3, at current rate≈ $2.07 · 7m",
+				);
+			});
+
+			it("counts a running step past its earlier median as nothing left, and still counts the steps after it", async () => {
+				renderEstimatedRun(500_000);
+
+				expect(await band()).toHaveTextContent(
+					"Remaining steps 2 to 3, at current rate≈ $0.59 · 2m",
+				);
+			});
+
+			describe("when it has none", () => {
+				it("says no earlier run of the case exists", async () => {
+					renderEstimatedRun(100_000, {
+						stages: ["plan", "build", "review"].map((stage) => ({
+							stage,
+							state: "unavailable",
+							reasons: ["no earlier run of this case"],
+						})),
+					});
+
+					expect(await band()).toHaveTextContent(
+						"Remaining steps 2 to 3, at current rate— no earlier run of this case",
+					);
+				});
+
+				it("says the run records no run spend to set the rate", async () => {
+					setSystemTime(new Date(MEASURED_AT));
+					renderMonitor(
+						runRow({ run: RUN, stageElapsedMs: 100_000 }),
+						new Map<string, unknown>([
+							[`/api/runs/${RUN}`, THREE_STAGE_RECORD],
+							[`/api/runs/${RUN}/stage-times`, EARLIER_TIMES],
+						]),
+					);
+
+					expect(await band()).toHaveTextContent(
+						"Remaining steps 2 to 3, at current rate— run spend not recorded",
+					);
+				});
+
+				it("says the run recorded no start for the running step", async () => {
+					renderMonitor(
+						runRow({ run: RUN, runSpentUsd: 1.83 }),
+						new Map<string, unknown>([
+							[`/api/runs/${RUN}`, THREE_STAGE_RECORD],
+							[`/api/runs/${RUN}/stage-times`, EARLIER_TIMES],
+						]),
+					);
+
+					expect(await band()).toHaveTextContent(
+						"Remaining steps 2 to 3, at current rate— the running step's start is not recorded",
+					);
+				});
+
+				it("says when it could not read the earlier runs", async () => {
+					renderMonitor(runRow({ run: RUN, runSpentUsd: 1.83 }));
+
+					expect(await band()).toHaveTextContent(
+						"Remaining step 2, at current rate— could not read the earlier runs of this case",
+					);
+				});
+			});
 		});
 	});
 });

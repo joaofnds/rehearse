@@ -53,7 +53,11 @@ function RunMonitor({ row }: { readonly row: PipelineRow }): React.JSX.Element {
 				<>
 					<RunIdentityHeader row={row} identity={query.data.identity} />
 					{row.progress.state === "running" ? (
-						<SpendBand progress={row.progress} />
+						<SpendBand
+							run={row.run}
+							stages={query.data.stages}
+							progress={row.progress}
+						/>
 					) : null}
 					<TaskGraph
 						record={query.data}

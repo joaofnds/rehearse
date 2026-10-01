@@ -1,10 +1,21 @@
+import { useQuery } from "@tanstack/react-query";
 import {
 	clockReading,
+	elapsedReading,
 	liveElapsedMs,
 	spendReading,
 } from "#client/run-history/run-progress";
 import { useNow } from "#client/run-history/use-now";
 import type { PipelineRow } from "#client/shell/run-in-flight";
+import type { RemainingEstimate } from "./remaining-estimate";
+import {
+	remainingEstimate,
+	UNREAD_EARLIER_RUNS_REASON,
+} from "./remaining-estimate";
+import type { MonitoredStage } from "./run-record-query";
+import { hasEnded } from "./run-record-query";
+import type { StageTimesResponse } from "./stage-times-query";
+import { stageTimesQuery } from "./stage-times-query";
 
 type Progress = Extract<PipelineRow["progress"], { readonly state: "running" }>;
 
@@ -18,13 +29,21 @@ const thousands = new Intl.NumberFormat("en-US");
 
 function Figure({
 	label,
+	alignEnd = false,
 	children,
 }: {
 	readonly label: string;
+	readonly alignEnd?: boolean;
 	readonly children: React.ReactNode;
 }): React.JSX.Element {
 	return (
-		<div className="flex flex-col gap-1">
+		<div
+			className={
+				alignEnd
+					? "ml-auto flex flex-col items-end gap-1 text-right"
+					: "flex flex-col gap-1"
+			}
+		>
 			<span className="text-10 tracking-label text-dim uppercase">{label}</span>
 			{children}
 		</div>
@@ -54,6 +73,91 @@ function tokenReading(tokens: number): string {
  */
 function burnPerMinute(runSpentUsd: number, elapsedMs: number): number {
 	return elapsedMs === 0 ? 0 : runSpentUsd / (elapsedMs / MS_PER_MINUTE);
+}
+
+/** The steps a run has not finished, named as the design numbers them: `step 4`, or `steps 2 to 4`. */
+function stepsReading(stages: readonly MonitoredStage[]): string {
+	const numbers = stages.flatMap((stage, index) =>
+		hasEnded(stage) ? [] : [index + 1],
+	);
+	const first = numbers.at(0);
+	const last = numbers.at(-1);
+	if (first === undefined || last === undefined) {
+		return "";
+	}
+
+	return first === last
+		? ` step ${String(first)}`
+		: ` steps ${String(first)} to ${String(last)}`;
+}
+
+/** The estimate as the run's latest readings stand now. */
+function liveEstimate(
+	times: StageTimesResponse,
+	stages: readonly MonitoredStage[],
+	progress: Progress,
+	nowMs: number,
+): RemainingEstimate {
+	const { runSpentUsd, elapsedMs, stageElapsedMs, measuredAt } = progress;
+
+	return remainingEstimate({
+		unfinished: stages
+			.filter((stage) => !hasEnded(stage))
+			.map(({ stage }) => stage),
+		times,
+		running: progress.stage,
+		runningElapsedMs:
+			stageElapsedMs === undefined
+				? undefined
+				: liveElapsedMs(stageElapsedMs, measuredAt, nowMs),
+		burnPerMinute:
+			runSpentUsd === undefined
+				? undefined
+				: burnPerMinute(runSpentUsd, elapsedMs),
+	});
+}
+
+/**
+ * The time and spend the steps left would take at the current rate, or why
+ * there is no estimate, in the drawn figure's place at the band's right.
+ */
+function RemainingFigure({
+	run,
+	stages,
+	progress,
+	nowMs,
+}: {
+	readonly run: string;
+	readonly stages: readonly MonitoredStage[];
+	readonly progress: Progress;
+	readonly nowMs: number;
+}): React.JSX.Element {
+	const query = useQuery(stageTimesQuery(run));
+	let estimate: RemainingEstimate | undefined = undefined;
+	if (query.isError) {
+		estimate = { state: "unavailable", reason: UNREAD_EARLIER_RUNS_REASON };
+	} else if (query.data !== undefined) {
+		estimate = liveEstimate(query.data, stages, progress, nowMs);
+	}
+
+	return (
+		<Figure
+			label={`Remaining${stepsReading(stages)}, at current rate`}
+			alignEnd
+		>
+			{estimate?.state === "available" ? (
+				<span className="font-mono text-15 text-secondary-foreground">
+					≈ {spendReading(estimate.usd)} · {elapsedReading(estimate.ms)}
+				</span>
+			) : null}
+			{estimate?.state === "unavailable" ? (
+				<span>
+					<span className="font-mono text-15 text-dim">—</span>
+					<span className="text-11 text-dim"> {estimate.reason}</span>
+				</span>
+			) : null}
+		</Figure>
+	);
 }
 
 function CeilingMeter({
@@ -97,12 +201,16 @@ function CeilingMeter({
 
 /**
  * The monitor's second band (SPEC.md 2b): what the run has spent against the
- * ceiling that stops it, how fast, for how long, and the tokens it took. The remaining estimate
- * is ACT-270.5's.
+ * ceiling that stops it, how fast, for how long, the tokens it took, and what
+ * the steps left would take at that rate.
  */
 export function SpendBand({
+	run,
+	stages,
 	progress,
 }: {
+	readonly run: string;
+	readonly stages: readonly MonitoredStage[];
 	readonly progress: Progress;
 }): React.JSX.Element {
 	const nowMs = useNow(true);
@@ -155,6 +263,12 @@ export function SpendBand({
 						</span>
 					)}
 				</Figure>
+				<RemainingFigure
+					run={run}
+					stages={stages}
+					progress={progress}
+					nowMs={nowMs}
+				/>
 			</div>
 			{runSpentUsd === undefined || ceilingUsd === undefined ? null : (
 				<CeilingMeter runSpentUsd={runSpentUsd} ceilingUsd={ceilingUsd} />
