@@ -65,7 +65,7 @@ function nodeStatus(stage: MonitoredStage, row: PipelineRow): NodeStatus {
 		return { state: "stopped", words: STATUS_VOCABULARY.stopped.word };
 	}
 	if (stage.status === "graded") {
-		return stage.grade.state === "available" && stage.grade.verdict === "STOP"
+		return stage.grade.state === "available" && !stage.grade.reachesMinimum
 			? { state: "stopped", words: STATUS_VOCABULARY.stopped.word }
 			: { state: "accepted", words: STATUS_VOCABULARY.accepted.word };
 	}

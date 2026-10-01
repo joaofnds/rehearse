@@ -508,7 +508,12 @@ describe("/monitor task graph", () => {
 		renderGraph([
 			recordStage("plan", {
 				status: "graded",
-				grade: { state: "available", letter: "B+", verdict: "PASS" },
+				grade: {
+					state: "available",
+					letter: "B+",
+					verdict: "PASS",
+					reachesMinimum: true,
+				},
 			}),
 			recordStage("build"),
 		]);
@@ -516,11 +521,16 @@ describe("/monitor task graph", () => {
 		expect(await node("plan")).toHaveTextContent("B+");
 	});
 
-	it("reads a stage its judge stopped the run on as stopped", async () => {
+	it("reads a stage whose letter falls short of the run's minimum as stopped, whatever its judge's verdict", async () => {
 		renderGraph([
 			recordStage("plan", {
 				status: "graded",
-				grade: { state: "available", letter: "D", verdict: "STOP" },
+				grade: {
+					state: "available",
+					letter: "B",
+					verdict: "CONTINUE",
+					reachesMinimum: false,
+				},
 			}),
 			recordStage("build"),
 		]);
@@ -544,7 +554,12 @@ describe("/monitor task graph", () => {
 						stages: [
 							recordStage("plan", {
 								status: "graded",
-								grade: { state: "available", letter: "B+", verdict: "PASS" },
+								grade: {
+									state: "available",
+									letter: "B+",
+									verdict: "PASS",
+									reachesMinimum: true,
+								},
 							}),
 							recordStage("build"),
 						],

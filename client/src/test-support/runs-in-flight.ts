@@ -22,7 +22,12 @@ export function graded(
 	return {
 		stage,
 		status: "graded",
-		grade: { state: "available", letter, verdict },
+		grade: {
+			state: "available",
+			letter,
+			verdict,
+			reachesMinimum: verdict !== "STOP",
+		},
 	};
 }
 

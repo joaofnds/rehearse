@@ -1266,6 +1266,18 @@ export class RecordedRunsFixture {
 	}
 
 	/**
+	 * Raises a finished run's minimum grade to A and grades build B, a letter
+	 * its judge's verdict lets through but the run's own gate does not.
+	 */
+	public async gradeBuildBelowRaisedMinimum(run: string): Promise<void> {
+		const paths = benchmarkRunPaths(this.runsDirectory, run);
+		await mergeIntoRecord(paths.manifestFile, { minimumGrade: "A" });
+		await mergeIntoRecord(paths.stageFile("build"), {
+			grade: { grade: "B", verdict: "CONTINUE" },
+		});
+	}
+
+	/**
 	 * Replaces fields of discuss's checkpoint in the stopped run, for a test
 	 * about a checkpoint the evidence fixture does not write.
 	 */

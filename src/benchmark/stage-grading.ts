@@ -593,8 +593,13 @@ export function stageGradePassed(
 	scorecard: StageScorecard,
 	minimumGrade: StageLetterGrade | undefined = DEFAULT_MINIMUM_STAGE_GRADE,
 ): boolean {
-	return (
-		GRADE_ORDER.indexOf(scorecard.grade.grade) <=
-		GRADE_ORDER.indexOf(minimumGrade)
-	);
+	return letterReachesMinimum(scorecard.grade.grade, minimumGrade);
+}
+
+/** Whether a letter reaches the minimum, the test the gate applies. */
+export function letterReachesMinimum(
+	letter: StageLetterGrade,
+	minimumGrade: StageLetterGrade | undefined = DEFAULT_MINIMUM_STAGE_GRADE,
+): boolean {
+	return GRADE_ORDER.indexOf(letter) <= GRADE_ORDER.indexOf(minimumGrade);
 }

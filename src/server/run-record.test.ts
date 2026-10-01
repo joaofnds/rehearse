@@ -899,6 +899,28 @@ describe("/api/runs/:run", () => {
 				});
 			});
 
+			it("says whether each stage's letter reaches the run's minimum grade, as the run's gate decides", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeFinishedRunWithReadings(FINISHED_RUN);
+				await fixture.gradeBuildBelowRaisedMinimum(FINISHED_RUN);
+
+				const response = await runRecord(fixture, FINISHED_RUN);
+
+				expect(await response.json()).toMatchObject({
+					stages: [
+						{ stage: "discuss", grade: { letter: "A", reachesMinimum: true } },
+						{
+							stage: "build",
+							grade: {
+								letter: "B",
+								verdict: "CONTINUE",
+								reachesMinimum: false,
+							},
+						},
+					],
+				});
+			});
+
 			it("sums a stopped run's cost and tokens with the Product Owner's spend up to the stop", async () => {
 				const fixture = await emptyFixture();
 				await fixture.writeStoppedRunWithReadings();

@@ -6,7 +6,8 @@ import {
 	readCheckpointRecord,
 } from "#benchmark/checkpoint";
 import type { CheckpointRecord, HashedFile } from "#benchmark/checkpoint";
-import type { Effort } from "#benchmark/config";
+import { STAGE_LETTER_GRADES } from "#benchmark/config";
+import type { Effort, StageLetterGrade } from "#benchmark/config";
 import { claudeCallMetricsSchema } from "#benchmark/contracts";
 import { corpusMeasurementSchema } from "#benchmark/corpus-measurement";
 import type { CorpusMeasurement } from "#benchmark/corpus-measurement";
@@ -33,6 +34,7 @@ import type { RunEventStore } from "#benchmark/run-events";
 import type { RunLiveness } from "#benchmark/run-liveness";
 import { RefusedPreconditionError } from "#benchmark/exit-codes";
 import { stoppedStage } from "#benchmark/run-outcome";
+import { letterReachesMinimum } from "#benchmark/stage-grading";
 import {
 	checkpointStageNumber,
 	formatCheckpointShortId,
@@ -106,6 +108,13 @@ export interface RunRecordStage {
 	readonly grade: Reading<{
 		readonly letter: string;
 		readonly verdict: string;
+		/**
+		 * Whether the letter reaches the run's minimum grade, as the run's gate
+		 * decides. The verdict is the judge's own, against a fixed line, so a run
+		 * gated higher or lower can stop on a continuing verdict or go on past a
+		 * stopping one.
+		 */
+		readonly reachesMinimum: boolean;
 	}>;
 	/** How many of the rubric's hard blockers the stage judge found fired. */
 	readonly blockers: Reading<{
@@ -612,10 +621,26 @@ function readManifestOf({
 	};
 }
 
+/**
+ * A letter outside the gate's scale has no place against the minimum, so it
+ * falls back to its judge's verdict.
+ */
+function reachesMinimum(
+	grade: { readonly grade: string; readonly verdict: string },
+	minimumGrade: StageLetterGrade | undefined,
+): boolean {
+	const letter = STAGE_LETTER_GRADES.find((each) => each === grade.grade);
+
+	return letter === undefined
+		? grade.verdict !== "STOP"
+		: letterReachesMinimum(letter, minimumGrade);
+}
+
 function stageRecord(
 	recorded: ReachedStage,
 	checkpoints: CheckpointsByLineage,
 	checkpointShortId: ShortIdReading,
+	minimumGrade: StageLetterGrade | undefined,
 ): RunRecordStage {
 	const { file, checkpoint } = recorded;
 	const commitSubjects = file?.input?.commitSubjects;
@@ -634,6 +659,7 @@ function stageRecord(
 						state: "available",
 						letter: file.grade.grade,
 						verdict: file.grade.verdict,
+						reachesMinimum: reachesMinimum(file.grade, minimumGrade),
 					},
 		blockers: blockersOf(file),
 		wallTime: wallTime(
@@ -1048,6 +1074,7 @@ export async function readRunRecord(
 				stage,
 				checkpoints,
 				stageCheckpointShortId(shortId, names, stage),
+				manifest.minimumGrade,
 			),
 		);
 
