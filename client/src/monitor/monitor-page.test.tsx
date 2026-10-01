@@ -418,6 +418,39 @@ describe("/monitor task graph", () => {
 		expect(shown).toHaveTextContent("not started");
 	});
 
+	it("shows the running stage's duration advancing from the run's latest measurement", async () => {
+		setSystemTime(new Date("2026-09-30T10:07:12.000Z"));
+		renderAppWithStub(
+			"/monitor",
+			new Map<string, unknown>([
+				[
+					"/api/runs",
+					history([
+						runRow({
+							run: RUN,
+							stage: "build",
+							stageElapsedMs: 182_000,
+							measuredAt: "2026-09-30T10:06:12.000Z",
+						}),
+					]),
+				],
+				[
+					`/api/runs/${RUN}`,
+					runRecord({
+						run: RUN,
+						running: "build",
+						stages: [recordStage("build")],
+					}),
+				],
+			]),
+		);
+
+		const build = await node("build");
+		setSystemTime();
+
+		expect(build).toHaveTextContent("4m02s");
+	});
+
 	it("shows the running stage's session spend so far as its cost", async () => {
 		renderGraph([recordStage("build")]);
 

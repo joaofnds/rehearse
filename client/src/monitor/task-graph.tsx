@@ -3,7 +3,8 @@ import {
 	corpusVersionHash,
 } from "#benchmark/corpus-version-label";
 import { LaunchDialog } from "#client/launch/launch-dialog";
-import { spendReading } from "#client/run-history/run-progress";
+import { liveElapsedMs, spendReading } from "#client/run-history/run-progress";
+import { useNow } from "#client/run-history/use-now";
 import type { PipelineRow } from "#client/shell/run-in-flight";
 import { Grade } from "#client/system/components/grade";
 import { LiveGlyph, STATUS_VOCABULARY } from "#client/system/components/status";
@@ -82,12 +83,34 @@ function costReading(stage: MonitoredStage, row: PipelineRow): string {
 		: spendReading(parts.reduce((total, usd) => total + usd, 0));
 }
 
-function durationReading(wallTime: MonitoredStage["wallTime"]): string {
-	if (wallTime.state === "unavailable") {
-		return NOT_RECORDED;
+/**
+ * How long the stage has run: the running stage's time since it started,
+ * advancing between the run's measurements (SPEC.md:354), or else the wall
+ * time its record keeps.
+ */
+function durationReading(
+	stage: MonitoredStage,
+	row: PipelineRow,
+	nowMs: number,
+): string {
+	const { progress } = row;
+	if (
+		progress.state === "running" &&
+		progress.stage === stage.stage &&
+		progress.stageElapsedMs !== undefined
+	) {
+		return minutesAndSeconds(
+			liveElapsedMs(progress.stageElapsedMs, progress.measuredAt, nowMs),
+		);
 	}
 
-	const totalSeconds = Math.floor(wallTime.ms / MS_PER_SECOND);
+	return stage.wallTime.state === "available"
+		? minutesAndSeconds(stage.wallTime.ms)
+		: NOT_RECORDED;
+}
+
+function minutesAndSeconds(ms: number): string {
+	const totalSeconds = Math.floor(ms / MS_PER_SECOND);
 	const minutes = Math.floor(totalSeconds / SECONDS_PER_MINUTE);
 	const seconds = totalSeconds % SECONDS_PER_MINUTE;
 
@@ -250,6 +273,7 @@ function StageNode({
 	last,
 	selected,
 	onSelect,
+	nowMs,
 }: {
 	readonly stage: MonitoredStage;
 	readonly number: number;
@@ -257,6 +281,7 @@ function StageNode({
 	readonly last: boolean;
 	readonly selected: boolean;
 	readonly onSelect: (stage: string) => void;
+	readonly nowMs: number;
 }): React.JSX.Element {
 	const status = nodeStatus(stage, row);
 
@@ -287,7 +312,7 @@ function StageNode({
 				<StatusLine status={status} />
 				<span className="grid grid-cols-2 gap-x-3 gap-y-1 font-mono text-10-5 text-muted-foreground">
 					<span>{costReading(stage, row)}</span>
-					<span>{durationReading(stage.wallTime)}</span>
+					<span>{durationReading(stage, row, nowMs)}</span>
 					<span>{blockersReading(stage.blockers)}</span>
 					<span className="truncate">{corpusReading(stage, row)}</span>
 				</span>
@@ -354,6 +379,8 @@ export function TaskGraph({
 	readonly shown: string | undefined;
 	readonly onSelect: (stage: string) => void;
 }): React.JSX.Element {
+	const nowMs = useNow(row.progress.state === "running");
+
 	return (
 		<section
 			aria-label="Task graph"
@@ -382,6 +409,7 @@ export function TaskGraph({
 							last={index === record.stages.length - 1}
 							selected={stage.stage === shown}
 							onSelect={onSelect}
+							nowMs={nowMs}
 						/>
 					))}
 				</ol>
