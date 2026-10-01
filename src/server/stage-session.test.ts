@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { writeRunManifest } from "#benchmark/manifest";
@@ -35,7 +35,9 @@ interface StartedStage {
 	readonly transcriptFile: string;
 }
 
-async function startedStage(): Promise<StartedStage> {
+async function startedStage(
+	sessionId: string = SESSION_ID,
+): Promise<StartedStage> {
 	const root = await mkdtemp(join(tmpdir(), "rehearse-stage-session-"));
 	roots.push(root);
 	const runsDirectory = join(root, ".benchmark-runs");
@@ -75,7 +77,7 @@ async function startedStage(): Promise<StartedStage> {
 		stage: "build",
 		spentUsd: 0,
 		elapsedMs: 0,
-		sessionId: SESSION_ID,
+		sessionId,
 	});
 	store.close();
 	const projectDirectory = join(projectsDirectory, projectSlug(sourceRoot));
@@ -84,7 +86,7 @@ async function startedStage(): Promise<StartedStage> {
 	return {
 		runsDirectory,
 		projectsDirectory,
-		transcriptFile: join(projectDirectory, `${SESSION_ID}.jsonl`),
+		transcriptFile: join(projectDirectory, `${sessionId}.jsonl`),
 	};
 }
 
@@ -254,4 +256,78 @@ describe("GET /api/runs/:run/stages/:stage/session", () => {
 			lines: [{ line: 1, kind: "assistant", text: "Reading the card." }],
 		});
 	});
+});
+
+describe("GET /api/runs/:run/stages/:stage/session refusals", () => {
+	function appFor(stage: StartedStage): ReturnType<typeof createApiApp> {
+		return createApiApp({
+			runsDirectory: stage.runsDirectory,
+			projectsDirectory: stage.projectsDirectory,
+			liveness: nothingRunning,
+			readCorpusSource: fixedCorpusSource(directorySource(stage.runsDirectory)),
+		});
+	}
+
+	it("refuses a recorded session id that is not a uuid", async () => {
+		const stage = await startedStage("not-a-uuid");
+		await Bun.write(stage.transcriptFile, transcriptOf([]));
+
+		const response = await appFor(stage).request(
+			`/api/runs/${RUN}/stages/build/session`,
+		);
+
+		expect(response.status).toBe(400);
+	});
+
+	it("refuses a transcript that links out of the projects directory", async () => {
+		const stage = await startedStage();
+		const outside = join(stage.runsDirectory, "outside.jsonl");
+		await Bun.write(outside, transcriptOf([]));
+		await symlink(outside, stage.transcriptFile);
+
+		const response = await appFor(stage).request(
+			`/api/runs/${RUN}/stages/build/session`,
+		);
+
+		expect(response.status).toBe(400);
+	});
+
+	it("refuses a project directory that links out of the projects directory", async () => {
+		const stage = await startedStage();
+		const outside = join(stage.runsDirectory, "outside-project");
+		await mkdir(outside);
+		await Bun.write(join(outside, `${SESSION_ID}.jsonl`), transcriptOf([]));
+		const projectDirectory = join(stage.transcriptFile, "..");
+		await rm(projectDirectory, { recursive: true });
+		await symlink(outside, projectDirectory);
+
+		const response = await appFor(stage).request(
+			`/api/runs/${RUN}/stages/build/session`,
+		);
+
+		expect(response.status).toBe(400);
+	});
+
+	it("answers 404 for a stage the run's pipeline does not have", async () => {
+		const stage = await startedStage();
+
+		const response = await appFor(stage).request(
+			`/api/runs/${RUN}/stages/deploy/session`,
+		);
+
+		expect(response.status).toBe(404);
+	});
+
+	it.each(["..%2F..%2Fetc", "..%5C..%5Cetc", ".hidden"])(
+		"refuses the traversing run id %s",
+		async (run) => {
+			const stage = await startedStage();
+
+			const response = await appFor(stage).request(
+				`/api/runs/${run}/stages/build/session`,
+			);
+
+			expect(response.status).toBe(400);
+		},
+	);
 });

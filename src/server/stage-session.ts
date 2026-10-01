@@ -273,6 +273,12 @@ export async function readStageSession(
 	if (sessionId === undefined) {
 		return { state: "untracked" };
 	}
+	if (!z.uuid().safeParse(sessionId).success) {
+		throw new SessionHistoryReaderError(
+			"refused",
+			"The stage's recorded session id is not a session id",
+		);
+	}
 	const projectsRoot = await canonicalProjectsRoot(request.projectsDirectory);
 	const recordedFile = stageTranscriptFile(manifest.sourceRoot, {
 		sessionId,
