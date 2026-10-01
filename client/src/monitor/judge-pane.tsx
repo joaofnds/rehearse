@@ -326,28 +326,54 @@ function CitedEvidence({
 	);
 }
 
-/** Which of a list's items show their evidence. */
-interface OpenItems {
-	readonly isOpen: (key: string) => boolean;
-	readonly toggle: (key: string) => void;
-}
+/**
+ * One rubric item: its row, and beneath it inside the same list item the
+ * evidence its toggle opens once the record holds it.
+ */
+function ItemWithEvidence({
+	owner,
+	evidence,
+	rowClassName,
+	panelClassName,
+	label,
+	spacing,
+	children,
+}: {
+	readonly owner: EvidenceOwner;
+	readonly evidence: RowEvidence;
+	readonly rowClassName: string;
+	readonly panelClassName: string;
+	readonly label?: string;
+	readonly spacing: string;
+	readonly children: React.ReactNode;
+}): React.JSX.Element {
+	const [toggled, setToggled] = useState(false);
+	const evidenceId = useId();
+	const cited = toggled && evidence !== "pending" ? evidence : undefined;
 
-function useOpenItems(): OpenItems {
-	const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
-
-	return {
-		isOpen: (key) => open.has(key),
-		toggle: (key) => {
-			setOpen((shown) => {
-				const next = new Set(shown);
-				if (!next.delete(key)) {
-					next.add(key);
-				}
-
-				return next;
-			});
-		},
-	};
+	return (
+		<li>
+			<div className={rowClassName}>
+				{children}
+				<EvidenceToggle
+					evidence={evidence}
+					shown={cited === undefined ? undefined : evidenceId}
+					onToggle={() => {
+						setToggled((shown) => !shown);
+					}}
+				/>
+			</div>
+			{cited === undefined ? null : (
+				<div
+					id={evidenceId}
+					className={`mt-0.5 border-l-2 border-deeper bg-background px-3.5 py-2.75 ${panelClassName}`}
+				>
+					{label === undefined ? null : <Label>{label}</Label>}
+					<CitedEvidence owner={owner} evidence={cited} spacing={spacing} />
+				</div>
+			)}
+		</li>
+	);
 }
 
 function BlockerRows({
@@ -359,54 +385,33 @@ function BlockerRows({
 	readonly stage: string;
 	readonly rows: readonly BlockerRow[];
 }): React.JSX.Element {
-	const { isOpen, toggle } = useOpenItems();
-	const evidenceIds = useId();
-
 	return (
 		<ul aria-label="Hard blockers" className="mt-2.5 flex flex-col gap-px">
 			{rows.map((row) => {
 				const tone = BLOCKER_TONES[row.state];
-				const evidenceId = `${evidenceIds}${row.id}`;
-				const open = isOpen(row.id) && row.evidence !== "pending";
 
 				return (
-					<li key={row.id}>
-						<div
-							className={`flex items-center gap-2.75 rounded-md border px-3 py-2.25 ${tone.row}`}
+					<ItemWithEvidence
+						key={row.id}
+						owner={{ run, stage, section: "hardBlockers", item: row.id }}
+						evidence={row.evidence}
+						rowClassName={`flex items-center gap-2.75 rounded-md border px-3 py-2.25 ${tone.row}`}
+						panelClassName="mb-1.25"
+						label="Cited evidence"
+						// Below the label, each citation keeps its distance from the one above.
+						spacing="mt-2.5"
+					>
+						<span
+							aria-hidden="true"
+							className={`font-mono text-12 ${tone.text}`}
 						>
-							<span
-								aria-hidden="true"
-								className={`font-mono text-12 ${tone.text}`}
-							>
-								{STATUS_VOCABULARY[row.state].glyph}
-							</span>
-							<span className="flex-1 font-mono text-11-5">{row.id}</span>
-							<span className={`text-10 tracking-label uppercase ${tone.text}`}>
-								{STATUS_VOCABULARY[row.state].word}
-							</span>
-							<EvidenceToggle
-								evidence={row.evidence}
-								shown={open ? evidenceId : undefined}
-								onToggle={() => {
-									toggle(row.id);
-								}}
-							/>
-						</div>
-						{open ? (
-							<div
-								id={evidenceId}
-								className="mt-0.5 mb-1.25 border-l-2 border-deeper bg-background px-3.5 py-2.75"
-							>
-								<Label>Cited evidence</Label>
-								<CitedEvidence
-									owner={{ run, stage, section: "hardBlockers", item: row.id }}
-									evidence={row.evidence}
-									// Below the label, each citation keeps its distance from the one above.
-									spacing="mt-2.5"
-								/>
-							</div>
-						) : null}
-					</li>
+							{STATUS_VOCABULARY[row.state].glyph}
+						</span>
+						<span className="flex-1 font-mono text-11-5">{row.id}</span>
+						<span className={`text-10 tracking-label uppercase ${tone.text}`}>
+							{STATUS_VOCABULARY[row.state].word}
+						</span>
+					</ItemWithEvidence>
 				);
 			})}
 		</ul>
@@ -422,62 +427,40 @@ function DimensionRows({
 	readonly stage: string;
 	readonly rows: readonly DimensionRow[];
 }): React.JSX.Element {
-	const { isOpen, toggle } = useOpenItems();
-	const evidenceIds = useId();
-
 	return (
 		<ul aria-label="Quality dimensions" className="mt-2.5 flex flex-col gap-px">
-			{rows.map((row) => {
-				const evidenceId = `${evidenceIds}${row.id}`;
-				const open = isOpen(row.id) && row.evidence !== "pending";
-
-				return (
-					<li key={row.id}>
-						<div className="flex items-center gap-3 border-b border-subtle px-3 py-2.25">
-							<span
-								className={`flex-1 text-11-5 ${row.grade === undefined ? "text-dim" : "text-foreground"}`}
-							>
-								{row.id}
-							</span>
-							<span
-								aria-hidden="true"
-								className="font-mono text-10-5 tracking-bar text-faint"
-							>
-								{gradeBar(row.grade)}
-							</span>
-							<span className="w-8 text-right">
-								<Grade
-									value={
-										row.grade === undefined
-											? { pending: true }
-											: { letter: row.grade }
-									}
-									size="inline"
-								/>
-							</span>
-							<EvidenceToggle
-								evidence={row.evidence}
-								shown={open ? evidenceId : undefined}
-								onToggle={() => {
-									toggle(row.id);
-								}}
-							/>
-						</div>
-						{open ? (
-							<div
-								id={evidenceId}
-								className="mt-0.5 mb-1.75 border-l-2 border-deeper bg-background px-3.5 py-2.75"
-							>
-								<CitedEvidence
-									owner={{ run, stage, section: "dimensions", item: row.id }}
-									evidence={row.evidence}
-									spacing="mb-2.5"
-								/>
-							</div>
-						) : null}
-					</li>
-				);
-			})}
+			{rows.map((row) => (
+				<ItemWithEvidence
+					key={row.id}
+					owner={{ run, stage, section: "dimensions", item: row.id }}
+					evidence={row.evidence}
+					rowClassName="flex items-center gap-3 border-b border-subtle px-3 py-2.25"
+					panelClassName="mb-1.75"
+					spacing="mb-2.5"
+				>
+					<span
+						className={`flex-1 text-11-5 ${row.grade === undefined ? "text-dim" : "text-foreground"}`}
+					>
+						{row.id}
+					</span>
+					<span
+						aria-hidden="true"
+						className="font-mono text-10-5 tracking-bar text-faint"
+					>
+						{gradeBar(row.grade)}
+					</span>
+					<span className="w-8 text-right">
+						<Grade
+							value={
+								row.grade === undefined
+									? { pending: true }
+									: { letter: row.grade }
+							}
+							size="inline"
+						/>
+					</span>
+				</ItemWithEvidence>
+			))}
 		</ul>
 	);
 }
