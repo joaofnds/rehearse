@@ -486,7 +486,7 @@ describe("/monitor task graph", () => {
 	it("draws no hover fill on a node, as the design's node keeps its own background", async () => {
 		renderGraph([recordStage("build"), recordStage("review")]);
 
-		const button = within(await node("review")).getAllByRole("button")[0];
+		const [button] = within(await node("review")).getAllByRole("button");
 
 		expect(
 			[...(button?.classList ?? [])].filter((name) =>

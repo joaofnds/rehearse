@@ -55,8 +55,8 @@ describe(Button.name, () => {
 				</Button>,
 			);
 
-			const fills = [...screen.getByRole("button").classList].filter((name) =>
-				/^(hover|active):/u.test(name),
+			const fills = [...screen.getByRole("button").classList].filter(
+				(name) => name.startsWith("hover:") || name.startsWith("active:"),
 			);
 
 			expect(fills).toEqual([]);
