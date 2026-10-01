@@ -3,6 +3,7 @@ import { describe, expect, it } from "bun:test";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { z } from "zod";
 import type { JudgeProgress } from "./run-events";
 import {
 	isTerminalRunEventKind,
@@ -234,6 +235,98 @@ describe("run event store judge progress", () => {
 			},
 		]);
 		store.close();
+	});
+});
+
+describe("run event store judge progress items", () => {
+	/** The judge progress schema as it stood before per-item results, which a deployed reader may still run. */
+	const sectionCount = z.object({ returned: z.number(), total: z.number() });
+	const progressBeforeItems = z.discriminatedUnion("state", [
+		z.object({
+			state: z.literal("returning"),
+			attempt: z.number(),
+			sections: z.object({
+				hardBlockers: sectionCount,
+				requirements: sectionCount,
+				dimensions: sectionCount,
+			}),
+		}),
+		z.object({
+			state: z.literal("rejected"),
+			attempt: z.number(),
+			reason: z.string(),
+		}),
+	]);
+
+	const withItems: JudgeProgress = {
+		...RETURNING,
+		items: {
+			hardBlockers: [
+				{ id: "no-secrets", status: "FAIL" },
+				{ id: "tests-pass" },
+			],
+			dimensions: [{ id: "scope", grade: "B" }, { id: "hygiene" }],
+		},
+	};
+
+	it("reads progress recorded before per-item results as its counts alone", async () => {
+		const store = await openRunEventStore(":memory:");
+
+		store.append({
+			runId: "run-1",
+			kind: "judge-progress",
+			stage: "build",
+			spentUsd: 1,
+			elapsedMs: 10,
+			judge: RETURNING,
+		});
+
+		expect(store.latestEvent("run-1")?.judge).toEqual(RETURNING);
+		store.close();
+	});
+
+	it("keeps each returned item's result and serves it back", async () => {
+		const store = await openRunEventStore(":memory:");
+
+		store.append({
+			runId: "run-1",
+			kind: "judge-progress",
+			stage: "build",
+			spentUsd: 1,
+			elapsedMs: 10,
+			judge: withItems,
+		});
+
+		expect(store.latestEvent("run-1")?.judge).toEqual(withItems);
+		store.close();
+	});
+
+	it("records progress a reader built before per-item results still reads as counts", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "rehearse-run-events-"));
+		testResources.track(directory);
+		const path = join(directory, "events.sqlite");
+		const store = await openRunEventStore(path);
+		store.append({
+			runId: "run-1",
+			kind: "judge-progress",
+			stage: "build",
+			spentUsd: 1,
+			elapsedMs: 10,
+			judge: withItems,
+		});
+		store.close();
+
+		const database = new Database(path);
+		const row = database
+			.query<{ judge_progress: string }, []>(
+				"SELECT judge_progress FROM run_events",
+			)
+			.get();
+		database.close();
+
+		expect(
+			progressBeforeItems.parse(JSON.parse(row?.judge_progress ?? "")),
+		).toEqual(RETURNING);
 	});
 });
 
