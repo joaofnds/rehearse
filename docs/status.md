@@ -294,11 +294,13 @@ with the reason under it for a run started outside the browser, run spend agains
 the ceiling with burn rate, elapsed time and tokens in and out, and the task
 graph with each stage's grade, status, cost, duration, fired hard blockers,
 corpus version and checkpoint, and replay where a checkpoint exists. The
+running stage's duration counts that stage's own elapsed time each second. The
 header and the running stage show the latest corpus version any stage of the
 run recorded, or while none has, the version the run measured when it started.
 It follows the run's SSE stream, so its readings move as each event lands.
-Selecting a stage names it in the session and judge panes, which say they
-show nothing yet. Their transcript tail and judge detail, the remaining estimate,
+The session and judge panes name the running stage, or the stage selected in
+the graph, and each says what it does not show yet. When the runs in flight
+cannot be read, the monitor says "Could not read the runs in flight." Their transcript tail and judge detail, the remaining estimate,
 and a step's instructions in and artifacts out remain design targets. The server has no
 authentication and binds to IPv4 loopback; use it locally. It answers 403 to a
 non-loopback `Host`, and to a write that is not a same-origin JSON request.
