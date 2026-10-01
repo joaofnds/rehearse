@@ -339,6 +339,23 @@ async function closedStageSession(
 		JSON.parse(await readVerifiedFile(runsRoot, recordFile)),
 	);
 	const spans = grade === undefined ? [] : citedSpans(grade);
+
+	return {
+		state: "closed",
+		spans,
+		...(await preservedTranscript(runsRoot, run, stage)),
+	};
+}
+
+/**
+ * The stage's transcript as its checkpoint preserved it, named relative to the
+ * runs directory's parent, or nothing when the checkpoint kept no copy.
+ */
+async function preservedTranscript(
+	runsRoot: string,
+	run: string,
+	stage: string,
+): Promise<{ lineCount: number; transcriptPath: string } | undefined> {
 	const checkpointsEntry = checkpointsEntryForRun(run);
 	const checkpointDirectory = await verifiedDirectoryWhenPresent(runsRoot, [
 		checkpointsEntry,
@@ -354,14 +371,12 @@ async function closedStageSession(
 					false,
 				);
 	if (transcriptFile === undefined) {
-		return { state: "closed", spans };
+		return undefined;
 	}
 
 	const { lineCount } = await lastLines(runsRoot, transcriptFile, 0);
 
 	return {
-		state: "closed",
-		spans,
 		lineCount,
 		transcriptPath: [
 			basename(runsRoot),
