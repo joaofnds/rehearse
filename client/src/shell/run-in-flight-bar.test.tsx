@@ -152,11 +152,11 @@ describe("the run in flight on every screen", () => {
 		expect(stop).toHaveAccessibleDescription(
 			"Started outside the browser, so it stops only where it was started",
 		);
-		expect(
-			within(bar()).getByText(
-				"Started outside the browser, so it stops only where it was started",
-			),
-		).toBeVisible();
+		const reason = within(bar()).getByText(
+			"Started outside the browser, so it stops only where it was started",
+		);
+		expect(reason).toBeVisible();
+		expect(reason.closest(".sr-only")).toBeNull();
 	});
 
 	it("shows a dash with its reason rather than a figure it cannot vouch for", () => {
@@ -179,13 +179,11 @@ describe("the run in flight on every screen", () => {
 			]),
 		);
 
-		await screen.findAllByRole("region", { name: IN_FLIGHT });
+		const bars = await screen.findAllByRole("region", { name: IN_FLIGHT });
 
-		expect(
-			screen
-				.getAllByRole("region", { name: IN_FLIGHT })
-				.map((shown) => shown.getAttribute("aria-label")),
-		).toEqual(["Run r-0149 in flight", "Run r-0147 in flight"]);
+		expect(bars).toHaveLength(2);
+		expect(bars[0]).toHaveAccessibleName("Run r-0149 in flight");
+		expect(bars[1]).toHaveAccessibleName("Run r-0147 in flight");
 	});
 
 	it("opens the live monitor on its own run from any screen", async () => {
