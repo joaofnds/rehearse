@@ -924,28 +924,33 @@ describe("/monitor session pane", () => {
 
 	describe("for a finished stage", () => {
 		const PLAN_SESSION = `/api/runs/${RUN}/stages/plan/session`;
+		const TRANSCRIPT_PATH = `.benchmark-runs/${RUN}.checkpoints/plan/transcript.jsonl`;
+
+		function closedBodies(session: StageSession): ReadonlyMap<string, unknown> {
+			return new Map<string, unknown>([
+				[
+					`/api/runs/${RUN}`,
+					runRecord({
+						run: RUN,
+						running: "build",
+						stages: [
+							recordStage("plan", {
+								status: "graded",
+								wallTime: { state: "available", ms: 242_000 },
+								sessionCost: { state: "available", usd: 1.12 },
+							}),
+							recordStage("build"),
+						],
+					}),
+				],
+				[PLAN_SESSION, session],
+			]);
+		}
 
 		function renderClosed(session: StageSession): void {
 			renderMonitor(
 				runRow({ run: RUN, stage: "build" }),
-				new Map<string, unknown>([
-					[
-						`/api/runs/${RUN}`,
-						runRecord({
-							run: RUN,
-							running: "build",
-							stages: [
-								recordStage("plan", {
-									status: "graded",
-									wallTime: { state: "available", ms: 242_000 },
-									sessionCost: { state: "available", usd: 1.12 },
-								}),
-								recordStage("build"),
-							],
-						}),
-					],
-					[PLAN_SESSION, session],
-				]),
+				closedBodies(session),
 			);
 		}
 
@@ -961,7 +966,7 @@ describe("/monitor session pane", () => {
 			renderClosed({
 				state: "closed",
 				lineCount: 1284,
-				transcriptPath: `.benchmark-runs/${RUN}.checkpoints/plan/transcript.jsonl`,
+				transcriptPath: TRANSCRIPT_PATH,
 				spans: [
 					{
 						section: "hardBlockers",
@@ -1028,6 +1033,32 @@ describe("/monitor session pane", () => {
 			expect(
 				within(pane).queryByRole("link", { name: "open session.jsonl" }),
 			).not.toBeInTheDocument();
+		});
+
+		it("shows the transcript's copy once a run event arrives after the step checkpoints", async () => {
+			const row = runRow({ run: RUN, stage: "build" });
+			renderClosed({ state: "closed", spans: [] });
+			await selectPlan();
+			const pane = await sessionPane();
+			await within(pane).findByText(/^Session ended\./u);
+			stubFetchByPath(
+				new Map<string, unknown>([
+					...SHELL_BASELINE,
+					...monitorBodies(row),
+					...closedBodies({
+						state: "closed",
+						spans: [],
+						lineCount: 1284,
+						transcriptPath: TRANSCRIPT_PATH,
+					}),
+				]),
+			);
+
+			FakeEventSource.openOn(`/api/runs/${RUN}/events`).deliver();
+
+			expect(
+				await within(pane).findByRole("link", { name: TRANSCRIPT_PATH }),
+			).toBeInTheDocument();
 		});
 	});
 

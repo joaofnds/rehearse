@@ -34,13 +34,23 @@ export interface StageSessionQuery {
 	}) => number | false;
 }
 
-/** One stage's session, re-read while it runs and left alone once it closes. */
+/** The key every stage session of the run shares, to refetch them together. */
+export function stageSessionsQueryKey(
+	run: string,
+): readonly ["stage-session", string] {
+	return ["stage-session", run];
+}
+
+/**
+ * One stage's session, re-read while it runs. Once it stops running only a run
+ * event refetches it.
+ */
 export function stageSessionQuery(
 	run: string,
 	stage: string,
 ): StageSessionQuery {
 	return {
-		queryKey: ["stage-session", run, stage],
+		queryKey: [...stageSessionsQueryKey(run), stage],
 		queryFn: () => fetchStageSession(run, stage),
 		refetchInterval: ({ state }) =>
 			state.data?.state === "running" ? RUNNING_POLL_MS : false,

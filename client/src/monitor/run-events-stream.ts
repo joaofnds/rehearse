@@ -2,11 +2,16 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { runHistoryQuery } from "#client/run-history/run-history-query";
 import { runRecordQuery } from "./run-record-query";
+import { stageSessionsQueryKey } from "./stage-session-query";
 
 /**
- * Each event the run records refetches the run history row and the run
- * record, so the monitor moves when an event lands rather than on the next
- * poll. The server replays the run's every event on connect, so an event
+ * Each event the run records refetches the run history row, the run record
+ * and every stage session the monitor has read, so the monitor moves when an
+ * event lands rather than on the next poll. A stage session that is not
+ * running polls for nothing, yet it still changes: a queued stage starts, and
+ * a closed stage gains its cited spans once its judge finishes and its
+ * transcript's copy once it checkpoints, and the run records an event after
+ * each. The server replays the run's every event on connect, so an event
  * arriving while a refetch is in flight joins it rather than restarting it,
  * and the replay costs one read of each. The monitor unmounts once the row
  * stops reading as running, which closes the stream before a browser
@@ -26,6 +31,10 @@ export function useRunEventsStream(run: string): void {
 			);
 			void client.invalidateQueries(
 				{ queryKey: runRecordQuery(run).queryKey },
+				{ cancelRefetch: false },
+			);
+			void client.invalidateQueries(
+				{ queryKey: stageSessionsQueryKey(run) },
 				{ cancelRefetch: false },
 			);
 		});
