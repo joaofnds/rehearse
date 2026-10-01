@@ -1340,6 +1340,35 @@ existed gains its column on open and keeps its events. Stage replays, replay
 confirmation, calibration, pipeline confirmation and the final judge do not
 record judge progress. No screen shows it yet.
 
+### Stage session
+
+A pipeline stage's `stage-started` event carries `sessionId`, the uuid the
+stage's provider session then runs under, chosen before the session starts so
+its transcript can be found while it is still being written. A run event store
+created before the field gains its column on open, and its older events read
+without one. Stage replays, replay confirmation and pipeline confirmation draw
+their own session id and record none.
+
+`/api/runs/<run>/stages/<stage>/session`, implemented in
+[stage-session.ts](../src/server/stage-session.ts), answers one stage's
+session. Once the stage's `<run>.<stage>.json` exists it answers
+`{state: "closed", spans}` with the evidence the stage judge cites from the
+session's exchanges (source `transcript`), each with its section, item,
+index, claim, quote and exchange label, and, where the stage's checkpoint
+preserved a transcript, `lineCount` and `transcriptPath` relative to the runs
+directory's parent. Before then it answers `{state: "running", lineCount,
+lines, latestToolCall}` from the provider's own transcript: the rows of its
+last 200 lines, each a user or assistant message's text, a tool call as its
+name and first target, or a tool result's first line, cut at 1,000
+characters. A record the provider marks as meta, such as a loaded skill body,
+shows no row. A stage started before session ids were recorded answers
+`{state: "untracked"}`. The request names a run and a stage only. The server
+rebuilds the transcript path from the run manifest's source root and the
+recorded session id, answers 400 for a recorded id that is not a uuid, a
+transcript or project directory whose real path leaves the provider's
+projects directory, or a malformed run id, and 404 for a stage the run's
+pipeline does not have.
+
 ### Run history figures
 
 Every `/api/runs` row carries `cost` and `wallTime`, and a figure its records

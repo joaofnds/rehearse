@@ -615,6 +615,9 @@ See [current state](docs/status.md) for implementation coverage and
   holding it is called, and that is the identity a capture reads and a fork
   rewrites. A preserved attempt's transcript therefore names the session the
   provider ran, not the uuid of the directory it was saved under.
+  A pipeline stage names its session the same way, and its start records the
+  name, so the live monitor can read the transcript while the session writes
+  it.
 - **Session knobs** — the CLI and environment settings shared by run and replay
   that select the workflow and Judge models and efforts and set the per-session
   budget.
@@ -732,6 +735,11 @@ See [current state](docs/status.md) for implementation coverage and
   kept at a stable baseline, that tasks run against.
 - **Target check** — one command declared by the pipeline and run against the
   target repository both at baseline and after delivery.
+- **Session tail** — the live monitor's view of a running stage's session:
+  the last lines of its transcript, each as a user or assistant message, a
+  tool call collapsed to one line, or a tool result, which the pane follows as
+  lines arrive. Once the stage closes, the pane shows instead the spans its
+  judge cites.
 - **Task graph** — the UI's horizontal chain of stage-node cards (grade,
   status, live tool call, checkpoint, contribution phrase, in/out counts of
   instruction files loaded and artifacts produced) shown on the live monitor

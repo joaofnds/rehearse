@@ -299,8 +299,15 @@ header and the running stage show the latest corpus version any stage of the
 run recorded, or while none has, the version the run measured when it started.
 It follows the run's SSE stream, so its readings move as each event lands.
 The session and judge panes name the running stage, or the stage selected in
-the graph, and each says what it does not show yet. When the runs in flight
-cannot be read, the monitor says "Could not read the runs in flight." Their transcript tail and judge detail, the remaining estimate,
+the graph. The running stage's node shows its latest tool call, and the
+session pane shows the tail of its transcript, re-read every 2 seconds, with
+`f` to stop and resume following it and `j` and `k` to scroll. A finished
+stage's pane shows the spans its judge cites from the session and links to
+the stage's history page, which renders the preserved transcript, rather
+than showing the transcript itself. A stage started before its session id was
+recorded shows no transcript. The judge pane says it does not show its
+verdict yet. When the runs in flight
+cannot be read, the monitor says "Could not read the runs in flight." Its judge detail, the remaining estimate,
 and a step's instructions in and artifacts out remain design targets. The server has no
 authentication and binds to IPv4 loopback; use it locally. It answers 403 to a
 non-loopback `Host`, and to a write that is not a same-origin JSON request.
