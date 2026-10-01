@@ -18,7 +18,6 @@ import {
 /** A stage of a recorded run, its names checked and its pipeline holding it. */
 export interface StageOfRun {
 	readonly runsRoot: string;
-	readonly checkpointsDirectory: string;
 	readonly manifest: RunManifest;
 	readonly run: string;
 	readonly stage: string;
@@ -43,7 +42,7 @@ export async function verifiedStageOfRun(request: {
 		);
 	}
 
-	return { runsRoot, checkpointsDirectory, manifest, run, stage };
+	return { runsRoot, manifest, run, stage };
 }
 
 const passFailItemSchema = z.looseObject({
