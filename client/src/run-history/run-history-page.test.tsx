@@ -1136,7 +1136,10 @@ describe(RunHistoryPage.name, () => {
 					await screen.findByRole("button", { name: "Pause after this step" }),
 				);
 
-				expect(await screen.findByRole("alert")).toHaveTextContent(/^⚠/u);
+				const refusal = await screen.findByRole("alert");
+
+				expect(refusal).toHaveTextContent(/^⚠/u);
+				expect(refusal).toHaveClass("text-11-5");
 			});
 
 			describe("when the browser did not launch it", () => {

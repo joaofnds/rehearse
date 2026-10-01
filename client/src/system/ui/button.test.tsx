@@ -56,10 +56,13 @@ describe(Button.name, () => {
 			);
 
 			const fills = [...screen.getByRole("button").classList].filter(
-				(name) => name.startsWith("hover:") || name.startsWith("active:"),
+				(name) => name.includes("hover:") || name.includes("active:"),
 			);
 
-			expect(fills).toEqual([]);
+			expect(fills.length).toBeGreaterThan(0);
+			expect(
+				fills.filter((name) => !name.startsWith("not-aria-disabled:")),
+			).toEqual([]);
 		},
 	);
 

@@ -21,6 +21,7 @@ const originalFetch = globalThis.fetch;
 
 afterEach(() => {
 	globalThis.fetch = originalFetch;
+	setSystemTime();
 });
 
 function history(rows: readonly HistoryRow[]): RunHistoryResponse {
@@ -271,10 +272,6 @@ describe("/monitor", () => {
 			);
 		}
 
-		afterEach(() => {
-			setSystemTime();
-		});
-
 		it("shows the run's spend against its ceiling", async () => {
 			renderMeasuredRun();
 
@@ -418,7 +415,7 @@ describe("/monitor task graph", () => {
 		expect(shown).toHaveTextContent("not started");
 	});
 
-	it("shows the running stage's duration advancing from the run's latest measurement", async () => {
+	it("shows the running stage's duration advancing from the run's latest measurement, and a finished one's as recorded", async () => {
 		setSystemTime(new Date("2026-09-30T10:07:12.000Z"));
 		renderAppWithStub(
 			"/monitor",
@@ -439,16 +436,20 @@ describe("/monitor task graph", () => {
 					runRecord({
 						run: RUN,
 						running: "build",
-						stages: [recordStage("build")],
+						stages: [
+							recordStage("plan", {
+								status: "graded",
+								wallTime: { state: "available", ms: 125_000 },
+							}),
+							recordStage("build"),
+						],
 					}),
 				],
 			]),
 		);
 
-		const build = await node("build");
-		setSystemTime();
-
-		expect(build).toHaveTextContent("4m02s");
+		expect(await node("build")).toHaveTextContent("4m02s");
+		expect(await node("plan")).toHaveTextContent("2m05s");
 	});
 
 	it("shows the running stage's session spend so far as its cost", async () => {
@@ -488,11 +489,7 @@ describe("/monitor task graph", () => {
 
 		const [button] = within(await node("review")).getAllByRole("button");
 
-		expect(
-			[...(button?.classList ?? [])].filter((name) =>
-				name.startsWith("hover:"),
-			),
-		).toEqual([]);
+		expect(button?.className).not.toContain("hover:");
 	});
 
 	it("reads a stage not started as having no corpus version", async () => {
@@ -611,7 +608,6 @@ describe("/monitor task graph", () => {
 		);
 
 		const plan = await node("plan");
-		setSystemTime();
 
 		expect(plan).toHaveTextContent("$1.20");
 		expect(plan).toHaveTextContent("2m05s");
