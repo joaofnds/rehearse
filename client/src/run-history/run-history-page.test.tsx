@@ -1117,6 +1117,25 @@ describe(RunHistoryPage.name, () => {
 				);
 			});
 
+			it("marks the server's refusal with the warning glyph", async () => {
+				serving(
+					{ rows: [runningRow()], launches: [], unreadable: [] },
+					new Map([
+						[
+							`POST /api/runs/${RUN}/pause`,
+							{ status: 409, body: { error: `Run ${RUN} is not running` } },
+						],
+					]),
+				);
+				renderPage();
+
+				fireEvent.click(
+					await screen.findByRole("button", { name: "Pause after this step" }),
+				);
+
+				expect(await screen.findByRole("alert")).toHaveTextContent(/^⚠/u);
+			});
+
 			describe("when the browser did not launch it", () => {
 				it("offers no stop, since only the terminal that started it can signal it", async () => {
 					serving({ rows: [runningRow()], launches: [], unreadable: [] });

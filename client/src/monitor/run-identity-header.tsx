@@ -63,7 +63,7 @@ function HeaderControls({
 				)}
 			</span>
 			{launchId === undefined ? (
-				<span id={reasonId} className="text-11 text-dim">
+				<span id={reasonId} className="text-11-5 text-dim">
 					{NO_LAUNCH_REASON}
 				</span>
 			) : null}

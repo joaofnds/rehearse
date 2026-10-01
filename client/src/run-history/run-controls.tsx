@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { UseMutationResult } from "@tanstack/react-query";
 import { launchClient } from "#client/api-client";
+import { STATUS_VOCABULARY } from "#client/system/components/status";
 import { Button } from "#client/system/ui/button";
 import { runHistoryQuery } from "./run-history-query";
 
@@ -95,15 +96,20 @@ export function ControlRequests({
 	return (
 		<>
 			{pauseRequested ? (
-				<span className="text-11 text-dim">
+				<span className="text-11-5 text-dim">
+					<span aria-hidden="true">{STATUS_VOCABULARY.paused.glyph} </span>
 					pause requested · ends after this step is judged
 				</span>
 			) : null}
 			{stopRequested ? (
-				<span className="text-11 text-dim">stop requested</span>
+				<span className="text-11-5 text-dim">
+					<span aria-hidden="true">{STATUS_VOCABULARY.stopped.glyph} </span>
+					stop requested
+				</span>
 			) : null}
 			{refusal === undefined ? null : (
-				<p role="alert" className="text-11 text-secondary-foreground">
+				<p role="alert" className="text-11-5 text-secondary-foreground">
+					<span aria-hidden="true">⚠ </span>
 					{refusal}
 				</p>
 			)}

@@ -201,7 +201,7 @@ describe("/monitor", () => {
 			).toBeInTheDocument();
 		});
 
-		it("says the pause was requested at no less than the design's 10px floor", async () => {
+		it("acknowledges the pause with the paused glyph at the design's meta size", async () => {
 			renderMonitor(
 				runRow({ run: RUN }),
 				new Map([[`/api/runs/${RUN}/pause`, {}]]),
@@ -213,11 +213,40 @@ describe("/monitor", () => {
 				}),
 			);
 
+			const acknowledged = await within(await header()).findByText(
+				"pause requested · ends after this step is judged",
+			);
+			expect(acknowledged).toHaveTextContent(/^‖/u);
+			expect(acknowledged).toHaveClass("text-11-5");
+		});
+
+		it("acknowledges the stop with the stopped glyph at the design's meta size", async () => {
+			renderMonitor(
+				runRow({ run: RUN, launchId: "launch-1" }),
+				new Map([["/api/launches/launch-1/stop", {}]]),
+			);
+
+			fireEvent.click(
+				within(await header()).getByRole("button", {
+					name: "Stop & restore repo",
+				}),
+			);
+
+			const acknowledged = await within(await header()).findByText(
+				"stop requested",
+			);
+			expect(acknowledged).toHaveTextContent(/^◼/u);
+			expect(acknowledged).toHaveClass("text-11-5");
+		});
+
+		it("sets why Stop & restore repo is unavailable at the design's meta size", async () => {
+			renderMonitor(runRow({ run: RUN, launchId: undefined }));
+
 			expect(
-				await within(await header()).findByText(
-					"pause requested · ends after this step is judged",
+				within(await header()).getByText(
+					"Started outside the browser, so it stops only where it was started",
 				),
-			).toHaveClass("text-11");
+			).toHaveClass("text-11-5");
 		});
 	});
 
