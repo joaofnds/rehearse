@@ -371,7 +371,7 @@ function pathsOf(
 	return { state: "available", paths: files.map(({ path }) => path) };
 }
 
-async function readStageFile(
+export async function readStageFile(
 	paths: BenchmarkRunPaths,
 	stage: string,
 ): Promise<StageFile | undefined> {

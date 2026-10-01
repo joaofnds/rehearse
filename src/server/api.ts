@@ -36,6 +36,7 @@ import { corpusReport } from "./corpus-report";
 import { redactAbsolutePaths, redactedFilePath } from "./redact-path";
 import { readStageJudge } from "./stage-judge";
 import { readStageSession } from "./stage-session";
+import { readStageTimes } from "./stage-times";
 import type { RunLiveness } from "#benchmark/run-liveness";
 import { runHistoryReport } from "./run-history";
 import type { EvidenceRequest, EvidenceSource } from "./evidence-source";
@@ -673,6 +674,25 @@ export const createApiApp = (dependencies: ApiDependencies) => {
 						dependencies.liveness,
 						await corpusSource(dependencies),
 					),
+				);
+			} catch (error) {
+				if (
+					error instanceof UsageError ||
+					error instanceof RefusedPreconditionError
+				) {
+					const refusal = commandRefusal(error);
+					return context.json({ error: refusal.message }, refusal.status);
+				}
+
+				throw error;
+			}
+		})
+		.get("/api/runs/:run/stage-times", async (context) => {
+			try {
+				const id = parseRunRecordId(context.req.param("run"));
+
+				return context.json(
+					await readStageTimes(dependencies.runsDirectory, id.run),
 				);
 			} catch (error) {
 				if (
