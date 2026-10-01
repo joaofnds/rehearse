@@ -833,12 +833,10 @@ describe("/monitor session pane", () => {
 			renderSession(RUNNING_SESSION);
 
 			const body = await sessionBody();
+			const graph = await screen.findByRole("region", { name: "Task graph" });
 
 			expect(body).toHaveClass("overflow-y-auto");
-			expect(
-				(await screen.findByRole("region", { name: "Task graph" }))
-					.parentElement,
-			).toHaveClass("h-full");
+			expect(graph.parentElement).toHaveClass("h-full");
 		});
 
 		it("follows the tail, counting the tool calls it collapsed, until f unfollows it", async () => {
@@ -856,6 +854,17 @@ describe("/monitor session pane", () => {
 			expect(pane).toHaveTextContent(
 				"Tail paused · j/k to scroll, f to follow",
 			);
+		});
+
+		it("toggles the tail once while f is held down", async () => {
+			renderSession(RUNNING_SESSION);
+			const pane = await sessionPane();
+			await sessionBody();
+
+			press("f");
+			fireEvent.keyDown(document.body, { key: "f", repeat: true });
+
+			expect(pane).toHaveTextContent("Tail paused");
 		});
 
 		it("returns to the tail when f follows it again", async () => {

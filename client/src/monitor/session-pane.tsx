@@ -55,6 +55,9 @@ function useTailKeys(
 
 			switch (event.key) {
 				case "f": {
+					if (event.repeat) {
+						break;
+					}
 					setFollowing((following) => !following);
 					break;
 				}
