@@ -426,12 +426,12 @@ describe("/monitor", () => {
 						stages: ["plan", "build", "review"].map((stage) => ({
 							stage,
 							state: "unavailable",
-							reasons: ["no earlier run of this case"],
+							reasons: ["no prior run of this case"],
 						})),
 					});
 
 					expect(await band()).toHaveTextContent(
-						"Remaining steps 2 to 3, at current rate— no earlier run of this case",
+						"Remaining steps 2 to 3, at current rate— no prior run of this case",
 					);
 				});
 

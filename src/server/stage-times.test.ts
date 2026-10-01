@@ -13,7 +13,7 @@ import {
 } from "#benchmark/run-records-test-support";
 import { createApiApp } from "./api";
 import type { StageTime } from "./stage-times";
-import { NO_EARLIER_RUN_REASON, noRecordedTimeReason } from "./stage-times";
+import { NO_PRIOR_RUN_REASON, noRecordedTimeReason } from "./stage-times";
 
 const CASE = "audit-log";
 const STAGES = ["discuss", "build", "review"] as const;
@@ -164,7 +164,7 @@ describe("/api/runs/:run/stage-times", () => {
 				stages: STAGES.map((stage) => ({
 					stage,
 					state: "unavailable",
-					reasons: [NO_EARLIER_RUN_REASON],
+					reasons: [NO_PRIOR_RUN_REASON],
 				})),
 			});
 		});

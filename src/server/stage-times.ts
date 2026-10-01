@@ -4,10 +4,10 @@ import { benchmarkRunPaths, recordedRunNames } from "#benchmark/run-layout";
 import type { Reading } from "./run-record";
 import { readStageFile } from "./run-record";
 
-export const NO_EARLIER_RUN_REASON = "no earlier run of this case";
+export const NO_PRIOR_RUN_REASON = "no prior run of this case";
 
 export function noRecordedTimeReason(stage: string): string {
-	return `no earlier run of this case recorded a time for ${stage}`;
+	return `no prior run of this case recorded a time for ${stage}`;
 }
 
 export type StageTime = { readonly stage: string } & Reading<{
@@ -94,7 +94,7 @@ export async function readStageTimes(
 				state: "unavailable",
 				reasons: [
 					earlier.length === 0
-						? NO_EARLIER_RUN_REASON
+						? NO_PRIOR_RUN_REASON
 						: noRecordedTimeReason(name),
 				],
 			});
