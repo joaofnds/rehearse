@@ -765,7 +765,11 @@ describe("/monitor judge pane", () => {
 
 		return within(rows)
 			.getAllByRole("listitem")
-			.map((row) => [...row.children].map((cell) => cell.textContent));
+			.map((row) =>
+				[...(row.firstElementChild?.children ?? [])].map(
+					(cell) => cell.textContent,
+				),
+			);
 	}
 
 	function renderJudge(judge: StageJudge): void {
@@ -1014,8 +1018,11 @@ describe("/monitor judge pane", () => {
 			const toggle = within(pane).getByRole("button", {
 				name: "hide evidence",
 			});
-			const shown = toggle.closest("li")?.nextElementSibling;
+			const shown = document.querySelector(
+				`#${CSS.escape(toggle.getAttribute("aria-controls") ?? "")}`,
+			);
 			expect(toggle).toHaveAttribute("aria-expanded", "true");
+			expect(rows.children).toHaveLength(3);
 			expect(shown).toHaveTextContent(
 				"Cited evidencetranscriptexchange 3 message, characters 0-25I'll take the small scope",
 			);
