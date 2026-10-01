@@ -325,6 +325,31 @@ describe(readEvidenceSource.name, () => {
 		expect(source.view).toEqual({ kind: "before-quoted-spans" });
 	});
 
+	it("returns the evidence the record of the stage that stopped the run keeps beside its status", async () => {
+		const runsDirectory = await recordedRuns();
+		const { grade, ...unjudged } = STAGE_RECORD;
+		await writeFile(
+			join(runsDirectory, `${RUN}.build.json`),
+			JSON.stringify({
+				...unjudged,
+				...grade,
+				status: "STAGE_JUDGE_FAILED",
+				error: "Stage build graded D below the minimum C",
+			}),
+		);
+
+		const source = await readEvidenceSource({
+			runsDirectory,
+			run: RUN,
+			judge: { kind: "stage", stage: "build" },
+			section: "dimensions",
+			item: "clarity",
+			index: "0",
+		});
+
+		expect(marked(source)).toBe("keep deletes");
+	});
+
 	it("returns the final judge's evidence from the run record", async () => {
 		const runsDirectory = await recordedRuns();
 		const request = {

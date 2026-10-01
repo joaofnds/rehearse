@@ -114,14 +114,22 @@ const judgedItemSchema = z.looseObject({
 	evidence: z.array(recordedStageEvidenceSchema),
 });
 
-const stageRecordSchema = z.looseObject({
-	grade: z.looseObject({
-		hardBlockers: z.array(judgedItemSchema),
-		requirements: z.array(judgedItemSchema),
-		dimensions: z.array(judgedItemSchema),
-	}),
-	input: stageJudgeInputSchema,
+const stageSectionsSchema = z.looseObject({
+	hardBlockers: z.array(judgedItemSchema),
+	requirements: z.array(judgedItemSchema),
+	dimensions: z.array(judgedItemSchema),
 });
+
+/** The record of the stage that stopped the run keeps its judged items beside its status. */
+const stageRecordSchema = z.union([
+	z.looseObject({ grade: stageSectionsSchema, input: stageJudgeInputSchema }),
+	stageSectionsSchema
+		.extend({
+			status: z.literal("STAGE_JUDGE_FAILED"),
+			input: stageJudgeInputSchema,
+		})
+		.transform(({ input, ...grade }) => ({ grade, input })),
+]);
 
 const finalRecordSchema = z.looseObject({
 	grade: z.looseObject({ requirements: z.array(judgedItemSchema) }),
