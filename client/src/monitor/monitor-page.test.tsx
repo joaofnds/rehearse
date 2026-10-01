@@ -1027,7 +1027,7 @@ describe("/monitor session pane", () => {
 			const pane = await sessionPane();
 			expect(
 				await within(pane).findByText(
-					"Session ended. Rehearse kept no copy of its transcript.",
+					"Session ended. Rehearse has no copy of its transcript, which it keeps only once the step checkpoints.",
 				),
 			).toBeInTheDocument();
 			expect(
@@ -1059,6 +1059,66 @@ describe("/monitor session pane", () => {
 			expect(
 				await within(pane).findByRole("link", { name: TRANSCRIPT_PATH }),
 			).toBeInTheDocument();
+		});
+	});
+
+	describe("for a stage not started yet", () => {
+		const REVIEW_SESSION = `/api/runs/${RUN}/stages/review/session`;
+
+		function queuedBodies(session: StageSession): ReadonlyMap<string, unknown> {
+			return new Map<string, unknown>([
+				[
+					`/api/runs/${RUN}`,
+					runRecord({
+						run: RUN,
+						running: "build",
+						stages: [recordStage("build"), recordStage("review")],
+					}),
+				],
+				[REVIEW_SESSION, session],
+			]);
+		}
+
+		async function selectReview(): Promise<void> {
+			fireEvent.click(
+				within(await graphNode("review")).getByRole("button", {
+					name: /^review(?! has no checkpoint)/u,
+				}),
+			);
+		}
+
+		it("says the step has not started", async () => {
+			renderMonitor(
+				runRow({ run: RUN, stage: "build" }),
+				queuedBodies({ state: "not-started" }),
+			);
+
+			await selectReview();
+
+			expect(
+				await within(await sessionPane()).findByText(
+					"This step has not started yet.",
+				),
+			).toBeInTheDocument();
+		});
+
+		it("shows the step's tail once a run event arrives after it starts", async () => {
+			const row = runRow({ run: RUN, stage: "build" });
+			renderMonitor(row, queuedBodies({ state: "not-started" }));
+			await selectReview();
+			const pane = await sessionPane();
+			await within(pane).findByText("This step has not started yet.");
+			stubFetchByPath(
+				new Map<string, unknown>([
+					...SHELL_BASELINE,
+					...monitorBodies(row),
+					...queuedBodies(RUNNING_SESSION),
+				]),
+			);
+
+			FakeEventSource.openOn(`/api/runs/${RUN}/events`).deliver();
+
+			expect(await rowCells()).toHaveLength(3);
 		});
 	});
 

@@ -1362,8 +1362,9 @@ lines, latestToolCall}` from the provider's own transcript: the rows of its
 last 200 lines, each a user or assistant message's text, a tool call as its
 name and first target, or a tool result's first line, cut at 1,000
 characters. A record the provider marks as meta, such as a loaded skill body,
-shows no row. A stage started before session ids were recorded answers
-`{state: "untracked"}`. The request names a run and a stage only. The server
+shows no row. A stage with no recorded start answers
+`{state: "not-started"}`, and one started before session ids were recorded
+answers `{state: "untracked"}`. The request names a run and a stage only. The server
 rebuilds the transcript path from the run manifest's source root and the
 recorded session id, answers 400 for a recorded id that is not a uuid, a
 transcript or project directory whose real path leaves the provider's

@@ -172,7 +172,7 @@ function ClosedNote({
 	return (
 		<p className="mt-3 rounded-md border border-border bg-raised px-3 py-2.5 font-sans text-11-5 text-muted-foreground">
 			{transcriptPath === undefined ? (
-				"Session ended. Rehearse kept no copy of its transcript."
+				"Session ended. Rehearse has no copy of its transcript, which it keeps only once the step checkpoints."
 			) : (
 				<>
 					Session ended. The full transcript is on disk; Rehearse keeps only the
@@ -190,7 +190,7 @@ function sessionMeta(
 	session: StageSessionResponse,
 	figures: MonitoredStage,
 ): string | undefined {
-	if (session.state === "untracked") {
+	if (session.state === "not-started" || session.state === "untracked") {
 		return undefined;
 	}
 	if (session.state === "running") {
@@ -325,6 +325,9 @@ export function SessionPane({
 							transcriptPath={data.transcriptPath}
 						/>
 					</>
+				) : null}
+				{data?.state === "not-started" ? (
+					<PendingLine words="This step has not started yet." />
 				) : null}
 				{data?.state === "untracked" ? (
 					<PendingLine words="This step's session id was not recorded, so its transcript cannot be found." />

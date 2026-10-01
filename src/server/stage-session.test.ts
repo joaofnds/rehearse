@@ -35,7 +35,7 @@ interface StartedStage {
 	readonly transcriptFile: string;
 }
 
-async function startedStage(
+async function queuedStage(
 	sessionId: string = SESSION_ID,
 ): Promise<StartedStage> {
 	const root = await mkdtemp(join(tmpdir(), "rehearse-stage-session-"));
@@ -70,6 +70,20 @@ async function startedStage(
 		},
 		pipelinePath: "pipelines/default.json",
 	});
+	const projectDirectory = join(projectsDirectory, projectSlug(sourceRoot));
+	await mkdir(projectDirectory, { recursive: true });
+
+	return {
+		runsDirectory,
+		projectsDirectory,
+		transcriptFile: join(projectDirectory, `${sessionId}.jsonl`),
+	};
+}
+
+async function recordStart(
+	runsDirectory: string,
+	sessionId: string | undefined,
+): Promise<void> {
 	const store = await openRunEventStore(runEventsDatabaseFile(runsDirectory));
 	store.append({
 		runId: RUN,
@@ -80,14 +94,15 @@ async function startedStage(
 		sessionId,
 	});
 	store.close();
-	const projectDirectory = join(projectsDirectory, projectSlug(sourceRoot));
-	await mkdir(projectDirectory, { recursive: true });
+}
 
-	return {
-		runsDirectory,
-		projectsDirectory,
-		transcriptFile: join(projectDirectory, `${sessionId}.jsonl`),
-	};
+async function startedStage(
+	sessionId: string = SESSION_ID,
+): Promise<StartedStage> {
+	const stage = await queuedStage(sessionId);
+	await recordStart(stage.runsDirectory, sessionId);
+
+	return stage;
 }
 
 function transcriptOf(records: readonly unknown[]): string {
@@ -225,6 +240,31 @@ describe(readStageSession.name, () => {
 		});
 
 		expect(session).toEqual({ state: "running", lineCount: 2, lines: [] });
+	});
+
+	it("answers a stage that has not started yet as not started", async () => {
+		const stage = await queuedStage();
+
+		const session = await readStageSession({
+			...stage,
+			run: RUN,
+			stage: "build",
+		});
+
+		expect(session).toEqual({ state: "not-started" });
+	});
+
+	it("answers a stage whose start carries no session id as untracked", async () => {
+		const stage = await queuedStage();
+		await recordStart(stage.runsDirectory, undefined);
+
+		const session = await readStageSession({
+			...stage,
+			run: RUN,
+			stage: "build",
+		});
+
+		expect(session).toEqual({ state: "untracked" });
 	});
 });
 

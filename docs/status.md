@@ -304,8 +304,8 @@ session pane shows the tail of its transcript, re-read every 2 seconds, with
 `f` to stop and resume following it and `j` and `k` to scroll. A finished
 stage's pane shows the spans its judge cites from the session and links to
 the stage's history page, which renders the preserved transcript, rather
-than showing the transcript itself. A stage started before its session id was
-recorded shows no transcript. The judge pane says it does not show its
+than showing the transcript itself. A stage not started yet says so, and one
+started before its session id was recorded shows no transcript. The judge pane says it does not show its
 verdict yet. When the runs in flight
 cannot be read, the monitor says "Could not read the runs in flight." Its judge detail, the remaining estimate,
 and a step's instructions in and artifacts out remain design targets. The server has no

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { stageTranscriptFile, TRANSCRIPT_FILE } from "#benchmark/checkpoint";
 import type { Immutable, RecordedStageEvidence } from "#benchmark/contracts";
 import { recordedStageEvidenceSchema } from "#benchmark/contracts";
+import type { RunEvent } from "#benchmark/run-events";
 import { openRunEventStore } from "#benchmark/run-events";
 import {
 	checkpointsEntryForRun,
@@ -75,6 +76,7 @@ export type StageSession =
 			readonly lines: readonly SessionLine[];
 			readonly latestToolCall?: string;
 	  }
+	| { readonly state: "not-started" }
 	| { readonly state: "untracked" };
 
 /** What one content block of a transcript message reads as. */
@@ -383,20 +385,18 @@ async function canonicalProjectsRoot(
 	}
 }
 
-function recordedSessionId(
+async function recordedStart(
 	runsDirectory: string,
 	run: string,
 	stage: string,
-): Promise<string | undefined> {
-	return openRunEventStore(runEventsDatabaseFile(runsDirectory)).then(
-		(store) => {
-			try {
-				return store.latestStageStart({ runId: run, stage })?.sessionId;
-			} finally {
-				store.close();
-			}
-		},
-	);
+): Promise<RunEvent | undefined> {
+	const store = await openRunEventStore(runEventsDatabaseFile(runsDirectory));
+
+	try {
+		return store.latestStageStart({ runId: run, stage });
+	} finally {
+		store.close();
+	}
 }
 
 /**
@@ -428,7 +428,12 @@ export async function readStageSession(
 		return closed;
 	}
 
-	const sessionId = await recordedSessionId(request.runsDirectory, run, stage);
+	const start = await recordedStart(request.runsDirectory, run, stage);
+	if (start === undefined) {
+		return { state: "not-started" };
+	}
+
+	const { sessionId } = start;
 	if (sessionId === undefined) {
 		return { state: "untracked" };
 	}
