@@ -13,7 +13,6 @@ import {
 } from "#benchmark/run-records-test-support";
 import { createApiApp } from "./api";
 import type { StageTime } from "./stage-times";
-import { NO_PRIOR_RUN_REASON, noRecordedTimeReason } from "./stage-times";
 
 const CASE = "audit-log";
 const STAGES = ["discuss", "build", "review"] as const;
@@ -89,7 +88,7 @@ function unrecorded(stage: string): StageTime {
 	return {
 		stage,
 		state: "unavailable",
-		reasons: [noRecordedTimeReason(stage)],
+		reasons: [`no prior run of this case recorded a time for ${stage}`],
 	};
 }
 
@@ -129,6 +128,33 @@ describe("/api/runs/:run/stage-times", () => {
 				{ stage: "discuss", state: "available", medianMs: 90_000 },
 				{ stage: "build", state: "available", medianMs: 400_000 },
 				{ stage: "review", state: "available", medianMs: 120_000 },
+			],
+		});
+	});
+
+	it("takes the middle time, not the mean, of an odd count of earlier runs", async () => {
+		const directory = await runsDirectory();
+		await recordRun(directory, {
+			run: "2026-09-28T10-00-00.000Z",
+			stageMs: { build: 500_000 },
+		});
+		await recordRun(directory, {
+			run: FIRST_EARLIER,
+			stageMs: { build: 300_000 },
+		});
+		await recordRun(directory, {
+			run: SECOND_EARLIER,
+			stageMs: { build: 310_000 },
+		});
+		await recordRun(directory, { run: RUN });
+
+		const response = await stageTimes(directory, RUN);
+
+		expect(await response.json()).toEqual({
+			stages: [
+				unrecorded("discuss"),
+				{ stage: "build", state: "available", medianMs: 310_000 },
+				unrecorded("review"),
 			],
 		});
 	});
@@ -228,7 +254,7 @@ describe("/api/runs/:run/stage-times", () => {
 				stages: STAGES.map((stage) => ({
 					stage,
 					state: "unavailable",
-					reasons: [NO_PRIOR_RUN_REASON],
+					reasons: ["no prior run of this case"],
 				})),
 			});
 		});
@@ -251,6 +277,14 @@ describe("/api/runs/:run/stage-times", () => {
 				],
 			});
 		});
+	});
+
+	it("refuses a run name that leaves the runs directory", async () => {
+		const directory = await runsDirectory();
+
+		const response = await stageTimes(directory, "a/b");
+
+		expect(response.status).toBe(400);
 	});
 
 	it("refuses a run that is not recorded", async () => {

@@ -383,11 +383,20 @@ describe("/monitor", () => {
 				],
 			};
 
+			/** Waits for the figure, which reads a second query after the band shows. */
+			async function expectEstimate(text: string): Promise<void> {
+				const shown = await band();
+				await waitFor(() => {
+					expect(shown).toHaveTextContent(text);
+				});
+			}
+
+			/** The clock reads a minute after the run's latest event, as in the band's other tests. */
 			function renderEstimatedRun(
 				stageElapsedMs: number,
 				times: StageTimes = EARLIER_TIMES,
 			): void {
-				setSystemTime(new Date(MEASURED_AT));
+				setSystemTime(new Date("2026-09-30T10:07:12.000Z"));
 				renderMonitor(
 					runRow({
 						run: RUN,
@@ -405,19 +414,15 @@ describe("/monitor", () => {
 			}
 
 			it("estimates the steps left from earlier runs of the case, less the running step's time so far, at the burn rate", async () => {
-				renderEstimatedRun(100_000);
+				renderEstimatedRun(40_000);
 
-				expect(await band()).toHaveTextContent(
-					"Remaining step 3, at current rate≈ $2.07 · 7m",
-				);
+				await expectEstimate("Remaining step 3, at current rate≈ $2.07 · 7m");
 			});
 
 			it("counts a running step past its earlier median as nothing left, and still counts the steps after it", async () => {
-				renderEstimatedRun(500_000);
+				renderEstimatedRun(440_000);
 
-				expect(await band()).toHaveTextContent(
-					"Remaining step 3, at current rate≈ $0.59 · 2m",
-				);
+				await expectEstimate("Remaining step 3, at current rate≈ $0.59 · 2m");
 			});
 
 			it("names the steps after the running one, as the design labels them", async () => {
@@ -440,14 +445,12 @@ describe("/monitor", () => {
 					]),
 				);
 
-				expect(await band()).toHaveTextContent(
-					"Remaining steps 3 to 4, at current rate",
-				);
+				await expectEstimate("Remaining steps 3 to 4, at current rate");
 			});
 
 			describe("when it has none", () => {
 				it("says no earlier run of the case exists", async () => {
-					renderEstimatedRun(100_000, {
+					renderEstimatedRun(40_000, {
 						stages: ["plan", "build", "review"].map((stage) => ({
 							stage,
 							state: "unavailable",
@@ -455,7 +458,7 @@ describe("/monitor", () => {
 						})),
 					});
 
-					expect(await band()).toHaveTextContent(
+					await expectEstimate(
 						"Remaining step 3, at current rate— no prior run of this case",
 					);
 				});
@@ -470,7 +473,7 @@ describe("/monitor", () => {
 						]),
 					);
 
-					expect(await band()).toHaveTextContent(
+					await expectEstimate(
 						"Remaining step 3, at current rate— run spend not recorded",
 					);
 				});
@@ -484,7 +487,7 @@ describe("/monitor", () => {
 						]),
 					);
 
-					expect(await band()).toHaveTextContent(
+					await expectEstimate(
 						"Remaining step 3, at current rate— the running step's start is not recorded",
 					);
 				});
@@ -516,7 +519,7 @@ describe("/monitor", () => {
 						]),
 					);
 
-					expect(await band()).toHaveTextContent(
+					await expectEstimate(
 						"Remaining, at current rate— every step has finished",
 					);
 				});
@@ -524,7 +527,7 @@ describe("/monitor", () => {
 				it("says when it could not read the earlier runs", async () => {
 					renderMonitor(runRow({ run: RUN, runSpentUsd: 1.83 }));
 
-					expect(await band()).toHaveTextContent(
+					await expectEstimate(
 						"Remaining step 2, at current rate— could not read the earlier runs of this case",
 					);
 				});
