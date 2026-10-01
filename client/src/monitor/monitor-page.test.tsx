@@ -1494,6 +1494,26 @@ describe("/monitor live updates", () => {
 		expect(await within(graph).findByText("ckpt-s1")).toBeInTheDocument();
 	});
 
+	it("moves the judge pane when a run event arrives, without a reload", async () => {
+		const row = runRow({ run: RUN, stage: "build" });
+		const judgeAt = `/api/runs/${RUN}/stages/build/judge`;
+		renderMonitor(row, new Map([[judgeAt, { state: "waiting" }]]));
+		const pane = await screen.findByRole("region", { name: "Judge" });
+		await within(pane).findByText("This step's judge has not started yet.");
+		const started: StageJudge = { state: "returning" };
+		stubFetchByPath(
+			new Map<string, unknown>([
+				...SHELL_BASELINE,
+				...monitorBodies(row),
+				[judgeAt, started],
+			]),
+		);
+
+		FakeEventSource.openOn(`/api/runs/${RUN}/events`).deliver();
+
+		expect(await within(pane).findByText("grading")).toBeInTheDocument();
+	});
+
 	it("reads the run once for events replayed while a read is in flight", async () => {
 		renderMonitor(runRow({ run: RUN }));
 		await screen.findByRole("region", { name: "Task graph" });
