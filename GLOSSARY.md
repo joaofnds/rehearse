@@ -549,6 +549,14 @@ See [current state](docs/status.md) for implementation coverage and
   event, `run-completed` or a `run-failed` with a persisted artifact, carries
   the whole. Distinct from stage spend and from the per-session limit the
   session knobs set.
+- **Burn rate**: a run in flight's run spend divided by its elapsed time, as
+  the latest run event measured them, read in dollars per minute.
+- **Remaining estimate**: the time and spend a run in flight is expected to
+  take before its steps finish. The time sums each unfinished step's median
+  graded time in earlier runs of the same case, less what the running step has
+  already run, and the spend is that time at the burn rate. With no earlier
+  graded time, no run spend, or no recorded start of the running step, there
+  is no estimate and the reason is shown instead.
 - **Spend ceiling**: the stored USD limit on a run's whole spend, which every
   paid command requires before it starts. Each session a run starts gets a
   budget no larger than the ceiling minus the run spend so far, and once the
