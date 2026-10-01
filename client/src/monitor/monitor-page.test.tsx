@@ -600,6 +600,26 @@ describe("/monitor across runs", () => {
 		expect(await header()).toHaveTextContent("Run r-0148 in progress");
 	});
 
+	it("says the run its address names is not in flight, while another is", async () => {
+		const ended: PipelineRow = {
+			...runRow({ run: RUN }),
+			progress: { state: "recorded" },
+		};
+		renderAppWithStub(
+			`/monitor/${RUN}`,
+			new Map<string, unknown>([
+				...monitorBodies(newerRow()),
+				["/api/runs", history([ended, newerRow()])],
+			]),
+		);
+
+		expect(
+			await within(await screen.findByRole("main")).findByText(
+				"This run is not in flight.",
+			),
+		).toBeInTheDocument();
+	});
+
 	it("names the running stage of the next run, whatever was selected on the one before", async () => {
 		renderMonitor(runRow({ run: RUN, stage: "build" }));
 		const graph = await screen.findByRole("region", { name: "Task graph" });

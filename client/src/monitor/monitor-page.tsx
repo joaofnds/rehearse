@@ -71,8 +71,9 @@ function RunMonitor({ row }: { readonly row: PipelineRow }): React.JSX.Element {
 /**
  * The live monitor (SPEC.md:132): one pipeline run in flight, the one its
  * address names or else the newest. The design draws the monitor for a run in
- * flight only, so a run that ends leaves it, and the lines shown with none, or
- * with the runs unread, follow the design's muted status lines.
+ * flight only, so a run that ends leaves it, and the lines shown with none, for
+ * a named run not in flight, or with the runs unread, follow the design's muted
+ * status lines.
  */
 export function MonitorPage({
 	run,
@@ -96,7 +97,13 @@ export function MonitorPage({
 	const shown =
 		run === undefined ? inFlight[0] : inFlight.find((row) => row.run === run);
 	if (shown === undefined) {
-		return <p className="px-6 py-4 text-muted-foreground">No run in flight.</p>;
+		return (
+			<p className="px-6 py-4 text-muted-foreground">
+				{run === undefined
+					? "No run in flight."
+					: "This run is not in flight."}
+			</p>
+		);
 	}
 
 	return <RunMonitor key={shown.run} row={shown} />;
