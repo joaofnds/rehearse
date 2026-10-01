@@ -199,11 +199,11 @@ summary yet (ACT-257).
 ## Browser UI
 
 Every screen carries a navigation rail listing the nine sections the design
-enumerates. It links the three that have a screen listing their whole
-collection, run history, the saved comparisons and the corpus, with a badge on
-each counting that collection, and marks the other six planned. The run and
-comparison badges leave out the entries that cannot be read. The rail reaches no
-other address. The comparisons screen links each saved comparison to its own
+enumerates. It links four of them, run history, the Live monitor, the saved
+comparisons and the corpus, with a badge on each counting that collection, the
+monitor's counting the pipeline runs in flight, and marks the other five
+planned. The run and comparison badges leave out the entries that cannot be
+read. The rail reaches no other address. The comparisons screen links each saved comparison to its own
 page, in digest order because no comparison records when it was made, and a
 comparison screen links onward to the attempts it names.
 
@@ -255,6 +255,8 @@ is reachable only by typing it, because the design's nav does not name it.
 | `/runs/<run>/stages/<stage>`                                                                                | Saved pipeline-stage context history and its corpus reconciliation; no request timeline. Missing raw capture names which record state produced it; a stage the run stopped on wrote no checkpoint and reports the stop, its reason and its declared corpus instead of events; a stage whose judging never completed reports that instead, with no stop reason, no lineage and no declared corpus         |
 | `/runs/<run>/stages/<stage>/evidence/<section>/<item>/<index>`, `/runs/<run>/final/evidence/<item>/<index>` | One judge evidence item's cited source as the run record holds it, read-only, with the quoted span marked and scrolled into view and the record file named; a harness result, an absent source, or an item recorded before quoted spans says which. No screen links here yet, so the address is typed                                                                                                    |
 | `/replays/<lineage>/<timestamp>`                                                                            | Saved stage-replay summary, always evidence-unavailable because a replay keeps no raw transcript; no events, per-event detail, request timeline or corpus reconciliation                                                                                                                                                                                                                                 |
+| `/monitor`                                                                                                  | The Live monitor for the newest pipeline run in flight; "No run in flight." when none is                                                                                                                                                                                                                                                                                                                 |
+| `/monitor/<run>`                                                                                            | The Live monitor for the run whose Record ID the address names, as each bar's Open monitor opens it; "This run is not in flight." once that run ends, or when no run has that id                                                                                                                                                                                                                         |
 | `/system`                                                                                                   | Design tokens and reusable component gallery                                                                                                                                                                                                                                                                                                                                                             |
 
 New run on run history and Replay from here on a pipeline stage's page open
@@ -277,14 +279,18 @@ rubric items are back per section, which no screen shows yet. While a
 pipeline run is in flight, a bar along the bottom of every screen shows its
 short id, case, step and stage state, run spend against the ceiling the run
 started under, a clock ticking each second, and its grades so far, with Stop
-for a run started from the browser. A run started from a terminal shows Stop
-disabled with the reason beside it. With several runs in flight each gets its
-own bar, newest first, and its own monitor. A screen reader hears a stage accepted, a run
-stopped, and run spend first reaching 80% of its ceiling, a share no source
-sets yet. The run list and the bar
-read the event store through a polled route rather than through the SSE API.
-The Live monitor, opened from the rail or `g m`, shows the newest pipeline
-run in flight, and opened from a bar, that bar's run: its identity with Pause and Stop, run spend against
+for a run started from the browser. A run started outside the browser, from a
+terminal for instance, shows Stop disabled with the reason beside it. With
+several runs in flight each gets its own bar, newest first. A screen reader
+hears a stage accepted, a run stopped, and run spend first reaching 80% of its
+ceiling, a share no source sets yet. The run list and the bar read the event
+store through a polled route rather than through the SSE API. A crashed run
+whose target a later browser launch has claimed can read as in flight, and its
+row, bar and monitor then offer a Stop that stops that later launch.
+The Live monitor shows one pipeline run in flight. Opened from the rail or
+`g m` it shows the newest, and opened from a bar it shows that bar's run. It
+shows the run's identity with Pause and Stop & restore repo, which is disabled
+with the reason under it for a run started outside the browser, run spend against
 the ceiling with burn rate, elapsed time and tokens in and out, and the task
 graph with each stage's grade, status, cost, duration, fired hard blockers,
 corpus version and checkpoint, and replay where a checkpoint exists. The
