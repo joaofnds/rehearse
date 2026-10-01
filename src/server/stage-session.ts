@@ -2,7 +2,6 @@ import { basename, dirname } from "node:path";
 import { z } from "zod";
 import { stageTranscriptFile, TRANSCRIPT_FILE } from "#benchmark/checkpoint";
 import type { Immutable, RecordedStageEvidence } from "#benchmark/contracts";
-import { recordedStageEvidenceSchema } from "#benchmark/contracts";
 import type { RunEvent } from "#benchmark/run-events";
 import { openRunEventStore } from "#benchmark/run-events";
 import {
@@ -11,15 +10,13 @@ import {
 } from "#benchmark/run-layout";
 import {
 	canonicalRunsRoot,
-	parseIdentity,
 	readVerifiedLines,
-	readVerifiedFile,
-	runManifest,
 	SessionHistoryReaderError,
-	verifiedDirectory,
 	verifiedDirectoryWhenPresent,
 	verifiedFile,
 } from "./session-history-reader";
+import type { JudgedGrade, StageOfRun } from "./stage-record";
+import { readStageRecord, verifiedStageOfRun } from "./stage-record";
 
 /**
  * How many of the transcript's last lines a running stage's pane shows. Every
@@ -87,32 +84,6 @@ type TranscriptBlock =
 function firstLine(text: string): string {
 	return text.trim().split("\n", 1)[0] ?? "";
 }
-
-const judgedItemSchema = z.looseObject({
-	id: z.string(),
-	evidence: z.array(recordedStageEvidenceSchema),
-});
-
-const judgedGradeSchema = z.looseObject({
-	hardBlockers: z.array(judgedItemSchema),
-	requirements: z.array(judgedItemSchema),
-	dimensions: z.array(judgedItemSchema),
-});
-
-type JudgedGrade = z.infer<typeof judgedGradeSchema>;
-
-/** The record of the stage that stopped the run keeps its judged items beside its grade letter. */
-const stopRecordSchema = judgedGradeSchema.extend({
-	status: z.literal("STAGE_JUDGE_FAILED"),
-});
-
-/** A closed stage's judged items, or none where the judge has not graded it. */
-const closedStageRecordSchema = z.union([
-	stopRecordSchema,
-	z
-		.looseObject({ grade: judgedGradeSchema.optional() })
-		.transform(({ grade }) => grade),
-]);
 
 function spanPlace(
 	evidence: Immutable<RecordedStageEvidence>,
@@ -321,28 +292,18 @@ async function transcriptTail(
  * finished, so its presence is what closes the session.
  */
 async function closedStageSession(
-	runsRoot: string,
-	run: string,
-	stage: string,
+	stageOfRun: StageOfRun,
 ): Promise<Extract<StageSession, { state: "closed" }> | undefined> {
-	const recordFile = await verifiedFile(
-		runsRoot,
-		runsRoot,
-		`${run}.${stage}.json`,
-		false,
-	);
-	if (recordFile === undefined) {
+	const record = await readStageRecord(stageOfRun);
+	if (record.state === "absent") {
 		return undefined;
 	}
 
-	const grade = closedStageRecordSchema.parse(
-		JSON.parse(await readVerifiedFile(runsRoot, recordFile)),
-	);
-	const spans = grade === undefined ? [] : citedSpans(grade);
+	const { runsRoot, run, stage } = stageOfRun;
 
 	return {
 		state: "closed",
-		spans,
+		spans: record.state === "judged" ? citedSpans(record.grade) : [],
 		...(await preservedTranscript(runsRoot, run, stage)),
 	};
 }
@@ -431,21 +392,9 @@ async function recordedStart(
 export async function readStageSession(
 	request: Readonly<StageSessionRequest>,
 ): Promise<StageSession> {
-	const run = parseIdentity(request.run);
-	const stage = parseIdentity(request.stage);
-	const runsRoot = await canonicalRunsRoot(request.runsDirectory);
-	const checkpointsDirectory = await verifiedDirectory(runsRoot, [
-		checkpointsEntryForRun(run),
-	]);
-	const manifest = await runManifest(runsRoot, checkpointsDirectory);
-	if (!manifest.pipeline.stages.some(({ name }) => name === stage)) {
-		throw new SessionHistoryReaderError(
-			"not-found",
-			"The run's pipeline has no such stage",
-		);
-	}
-
-	const closed = await closedStageSession(runsRoot, run, stage);
+	const stageOfRun = await verifiedStageOfRun(request);
+	const { run, stage, manifest } = stageOfRun;
+	const closed = await closedStageSession(stageOfRun);
 	if (closed !== undefined) {
 		return closed;
 	}

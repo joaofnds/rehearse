@@ -192,7 +192,7 @@ function evidenceReading(evidence: RecordedStageEvidence): string {
 	return `${cited} Quote "${oneLine(evidence.quote)}" at ${locatorReading(evidence.locator)}.`;
 }
 
-function locatorReading(locator: EvidenceLocator): string {
+export function locatorReading(locator: EvidenceLocator): string {
 	switch (locator.kind) {
 		case "lines": {
 			const lines =

@@ -34,6 +34,7 @@ import {
 import { corpusVersionLabel } from "#benchmark/corpus-version-label";
 import { corpusReport } from "./corpus-report";
 import { redactAbsolutePaths, redactedFilePath } from "./redact-path";
+import { readStageJudge } from "./stage-judge";
 import { readStageSession } from "./stage-session";
 import type { RunLiveness } from "#benchmark/run-liveness";
 import { runHistoryReport } from "./run-history";
@@ -515,6 +516,24 @@ export const createApiApp = (dependencies: ApiDependencies) => {
 					await readStageSession({
 						runsDirectory: dependencies.runsDirectory,
 						projectsDirectory: dependencies.projectsDirectory,
+						run: context.req.param("run"),
+						stage: context.req.param("stage"),
+					}),
+				);
+			} catch (error) {
+				if (!(error instanceof SessionHistoryReaderError)) {
+					throw error;
+				}
+				const response = historyError(error);
+
+				return context.json({ error: response.message }, response.status);
+			}
+		})
+		.get("/api/runs/:run/stages/:stage/judge", async (context) => {
+			try {
+				return context.json(
+					await readStageJudge({
+						runsDirectory: dependencies.runsDirectory,
 						run: context.req.param("run"),
 						stage: context.req.param("stage"),
 					}),
