@@ -454,6 +454,37 @@ describe("/monitor task graph", () => {
 		expect(await node("plan")).toHaveTextContent("stopped");
 	});
 
+	it("reads a judged stage by its record once the record is written, as no longer running", async () => {
+		renderAppWithStub(
+			"/monitor",
+			new Map<string, unknown>([
+				[
+					"/api/runs",
+					history([runRow({ run: RUN, stage: "plan", stageState: "judged" })]),
+				],
+				[
+					`/api/runs/${RUN}`,
+					runRecord({
+						run: RUN,
+						running: "plan",
+						stages: [
+							recordStage("plan", {
+								status: "graded",
+								grade: { state: "available", letter: "B+", verdict: "PASS" },
+							}),
+							recordStage("build"),
+						],
+					}),
+				],
+			]),
+		);
+
+		const plan = await node("plan");
+
+		expect(plan).toHaveTextContent("✓accepted");
+		expect(plan.querySelector("[class*='animate-live']")).toBeNull();
+	});
+
 	it("reads a stage waiting on its judge as awaiting judgment", async () => {
 		renderGraph([
 			recordStage("plan", { status: "awaiting-judgment" }),

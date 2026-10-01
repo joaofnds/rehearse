@@ -32,9 +32,17 @@ function notStarted(stage: MonitoredStage, row: PipelineRow): boolean {
 	return stage.status === "no-record" && !isRunning(stage, row);
 }
 
+/**
+ * A judged stage stays the run's latest until the next one starts, but once
+ * its record is written the record says how it ended.
+ */
 function nodeStatus(stage: MonitoredStage, row: PipelineRow): NodeStatus {
 	const { progress } = row;
-	if (progress.state === "running" && progress.stage === stage.stage) {
+	if (
+		progress.state === "running" &&
+		progress.stage === stage.stage &&
+		stage.status !== "graded"
+	) {
 		return { state: "running", words: progress.stageState };
 	}
 	if (stage.status === "stopped") {

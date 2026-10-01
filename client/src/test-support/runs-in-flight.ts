@@ -3,6 +3,10 @@ import { UNREAD_RUN_FIGURES } from "./run-figures";
 
 type HistoryRow = RunHistoryResponse["rows"][number];
 type PipelineRow = Extract<HistoryRow, { readonly kind: "run" }>;
+type RunningProgress = Extract<
+	PipelineRow["progress"],
+	{ readonly state: "running" }
+>;
 type StageGrade = Extract<
 	PipelineRow["stageGrades"],
 	{ readonly state: "available" }
@@ -34,6 +38,7 @@ export function runRow(props: {
 	readonly run?: string;
 	readonly status?: string;
 	readonly stage?: string;
+	readonly stageState?: RunningProgress["stageState"];
 	readonly grades?: readonly StageGrade[];
 	readonly runSpentUsd?: number;
 	readonly runTokens?: { readonly input: number; readonly output: number };
@@ -69,7 +74,7 @@ export function runRow(props: {
 				? {
 						state: "running",
 						stage: props.stage ?? "build",
-						stageState: "session running",
+						stageState: props.stageState ?? "session running",
 						elapsedMs: props.elapsedMs ?? 9000,
 						measuredAt: props.measuredAt ?? "2026-09-30T10:00:09.000Z",
 						spentUsd: 0.9,
