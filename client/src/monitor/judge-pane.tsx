@@ -1,6 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { gradeStep, STAGE_LETTER_GRADES } from "#benchmark/stage-letter-grades";
 import { plural } from "#client/plural";
 import { polledRunHistoryQuery } from "#client/run-history/run-history-polling";
@@ -10,7 +10,7 @@ import { LiveGlyph, STATUS_VOCABULARY } from "#client/system/components/status";
 import { PendingLine } from "./pending-line";
 import { rerunSpreadSentence } from "./rerun-spread";
 import type { EndedStage, MonitoredStage } from "./run-record-query";
-import { endedStatus, hasEnded } from "./run-record-query";
+import { endedStatus, hasEnded, runRecordQuery } from "./run-record-query";
 import type { StageJudgeResponse } from "./stage-judge-query";
 import { stageJudgeQuery } from "./stage-judge-query";
 
@@ -581,6 +581,15 @@ export function JudgePane({
 	const { stage } = figures;
 	const { data, isError } = useQuery(stageJudgeQuery(run, stage));
 	const meta = data === undefined ? undefined : judgeMeta(data, figures);
+	const client = useQueryClient();
+	const lagging = data?.state === "judged" && !hasEnded(figures);
+	useEffect(() => {
+		// The record the judge read was written with no run event behind it, so
+		// the run record is read again once rather than waiting for one.
+		if (lagging) {
+			void client.invalidateQueries({ queryKey: runRecordQuery(run).queryKey });
+		}
+	}, [client, lagging, run]);
 
 	return (
 		<section aria-label="Judge" className="flex min-h-0 flex-col bg-secondary">

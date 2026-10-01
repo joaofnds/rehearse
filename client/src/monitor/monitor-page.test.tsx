@@ -1042,6 +1042,47 @@ describe("/monitor judge pane", () => {
 			expect(card).toHaveTextContent("Verdict◌pending: grade not recorded yet");
 		});
 
+		it("reads the verdict once the run record catches up with the judge, with no run event between", async () => {
+			const recordWithPlan = (
+				plan: Parameters<typeof recordStage>[1],
+			): ReturnType<typeof runRecord> =>
+				runRecord({
+					run: RUN,
+					running: "build",
+					stages: [recordStage("plan", plan), recordStage("build")],
+				});
+			renderMonitor(
+				runRow({ run: RUN, stage: "build" }),
+				new Map<string, unknown>([
+					[`/api/runs/${RUN}`, recordWithPlan({ status: "awaiting-judgment" })],
+				]),
+			);
+			const plan = await graphNode("plan");
+			stubFetchByPath(
+				new Map<string, unknown>([
+					...SHELL_BASELINE,
+					...monitorBodies(runRow({ run: RUN, stage: "build" })),
+					[
+						`/api/runs/${RUN}`,
+						recordWithPlan({ status: "graded", grade: ACCEPTED_C }),
+					],
+					[PLAN_JUDGE, JUDGED],
+				]),
+			);
+
+			fireEvent.click(
+				within(plan).getByRole("button", {
+					name: /^plan(?! has no checkpoint)/u,
+				}),
+			);
+
+			expect(
+				await within(await judgePane()).findByText(
+					"accepted: 2 blockers fired",
+				),
+			).toBeInTheDocument();
+		});
+
 		it("lists every judged blocker and dimension with how much evidence each cites", async () => {
 			await renderJudged(ACCEPTED_C);
 
