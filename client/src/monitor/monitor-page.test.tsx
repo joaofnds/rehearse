@@ -559,6 +559,49 @@ describe("/monitor task graph", () => {
 		expect(plan.querySelector("[class*='animate-live']")).toBeNull();
 	});
 
+	it("reads a judged stage's cost and duration by its record once the record is written", async () => {
+		setSystemTime(new Date("2026-09-30T10:07:12.000Z"));
+		renderAppWithStub(
+			"/monitor",
+			new Map<string, unknown>([
+				[
+					"/api/runs",
+					history([
+						runRow({
+							run: RUN,
+							stage: "plan",
+							stageState: "judged",
+							stageElapsedMs: 182_000,
+							measuredAt: "2026-09-30T10:06:12.000Z",
+						}),
+					]),
+				],
+				[
+					`/api/runs/${RUN}`,
+					runRecord({
+						run: RUN,
+						running: "plan",
+						stages: [
+							recordStage("plan", {
+								status: "graded",
+								wallTime: { state: "available", ms: 125_000 },
+								sessionCost: { state: "available", usd: 0.9 },
+								judgeCost: { state: "available", usd: 0.3 },
+							}),
+							recordStage("build"),
+						],
+					}),
+				],
+			]),
+		);
+
+		const plan = await node("plan");
+		setSystemTime();
+
+		expect(plan).toHaveTextContent("$1.20");
+		expect(plan).toHaveTextContent("2m05s");
+	});
+
 	it("reads a stage waiting on its judge as awaiting judgment", async () => {
 		renderGraph([
 			recordStage("plan", { status: "awaiting-judgment" }),

@@ -24,8 +24,31 @@ interface NodeStatus {
 	readonly words: string;
 }
 
+type RunningProgress = Extract<
+	PipelineRow["progress"],
+	{ readonly state: "running" }
+>;
+
+/**
+ * The run's progress when it is this stage's to show. A judged stage stays the
+ * run's latest until the next one starts, but once its record is written the
+ * record says how it ended, what it cost and how long it took.
+ */
+function liveProgress(
+	stage: MonitoredStage,
+	row: PipelineRow,
+): RunningProgress | undefined {
+	const { progress } = row;
+
+	return progress.state === "running" &&
+		progress.stage === stage.stage &&
+		stage.status !== "graded"
+		? progress
+		: undefined;
+}
+
 function isRunning(stage: MonitoredStage, row: PipelineRow): boolean {
-	return row.progress.state === "running" && row.progress.stage === stage.stage;
+	return liveProgress(stage, row) !== undefined;
 }
 
 /** A stage the run has not reached: no record, and not the one running. */
@@ -33,17 +56,9 @@ function notStarted(stage: MonitoredStage, row: PipelineRow): boolean {
 	return stage.status === "no-record" && !isRunning(stage, row);
 }
 
-/**
- * A judged stage stays the run's latest until the next one starts, but once
- * its record is written the record says how it ended.
- */
 function nodeStatus(stage: MonitoredStage, row: PipelineRow): NodeStatus {
-	const { progress } = row;
-	if (
-		progress.state === "running" &&
-		progress.stage === stage.stage &&
-		stage.status !== "graded"
-	) {
+	const progress = liveProgress(stage, row);
+	if (progress !== undefined) {
 		return { state: "running", words: progress.stageState };
 	}
 	if (stage.status === "stopped") {
@@ -67,8 +82,9 @@ function nodeStatus(stage: MonitoredStage, row: PipelineRow): NodeStatus {
  * its record keeps them. A stage not started has spent nothing.
  */
 function costReading(stage: MonitoredStage, row: PipelineRow): string {
-	if (row.progress.state === "running" && row.progress.stage === stage.stage) {
-		return spendReading(row.progress.spentUsd);
+	const progress = liveProgress(stage, row);
+	if (progress !== undefined) {
+		return spendReading(progress.spentUsd);
 	}
 	if (notStarted(stage, row)) {
 		return spendReading(0);
@@ -93,12 +109,8 @@ function durationReading(
 	row: PipelineRow,
 	nowMs: number,
 ): string {
-	const { progress } = row;
-	if (
-		progress.state === "running" &&
-		progress.stage === stage.stage &&
-		progress.stageElapsedMs !== undefined
-	) {
+	const progress = liveProgress(stage, row);
+	if (progress?.stageElapsedMs !== undefined) {
 		return minutesAndSeconds(
 			liveElapsedMs(progress.stageElapsedMs, progress.measuredAt, nowMs),
 		);
