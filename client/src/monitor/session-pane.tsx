@@ -1,12 +1,21 @@
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
+import { spendReading } from "#client/run-history/run-progress";
 import { STATUS_VOCABULARY } from "#client/system/components/status";
+import type { MonitoredStage } from "./run-record-query";
 import type { StageSessionResponse } from "./stage-session-query";
 import { stageSessionQuery } from "./stage-session-query";
+import { minutesAndSeconds } from "./task-graph";
 
 type SessionLine = Extract<
 	StageSessionResponse,
 	{ readonly state: "running" }
 >["lines"][number];
+
+type CitedSpan = Extract<
+	StageSessionResponse,
+	{ readonly state: "closed" }
+>["spans"][number];
 
 const TEXT_TONE = {
 	assistant: "text-foreground",
@@ -17,6 +26,29 @@ const TEXT_TONE = {
 
 const lineCountFormat = new Intl.NumberFormat("en-US");
 
+/** One row of the pane, in the design's three columns. */
+function PaneRow({
+	first,
+	kind,
+	text,
+	tone,
+}: {
+	readonly first: string;
+	readonly kind: string;
+	readonly text: string;
+	readonly tone: string;
+}): React.JSX.Element {
+	return (
+		<li className="flex gap-3 py-px">
+			<span className="w-13.5 flex-none text-right text-faint">{first}</span>
+			<span className="w-19.75 flex-none text-dim">{kind}</span>
+			<span className={`flex-1 break-words whitespace-pre-wrap ${tone}`}>
+				{text}
+			</span>
+		</li>
+	);
+}
+
 function TranscriptRows({
 	lines,
 }: {
@@ -25,30 +57,94 @@ function TranscriptRows({
 	return (
 		<ol aria-label="Transcript">
 			{lines.map((row, index) => (
-				<li
+				<PaneRow
 					// A tool call and its text can share a transcript line.
 					key={`${String(row.line)}-${String(index)}`}
-					className="flex gap-3 py-px"
-				>
-					<span className="w-13.5 flex-none text-right text-faint">
-						{String(row.line)}
-					</span>
-					<span className="w-19.75 flex-none text-dim">{row.kind}</span>
-					<span
-						className={`flex-1 break-words whitespace-pre-wrap ${TEXT_TONE[row.kind]}`}
-					>
-						{row.text}
-					</span>
-				</li>
+					first={String(row.line)}
+					kind={row.kind}
+					text={row.text}
+					tone={TEXT_TONE[row.kind]}
+				/>
 			))}
 		</ol>
 	);
 }
 
-function sessionMeta(session: StageSessionResponse): string | undefined {
-	return session.state === "running"
-		? `session running · ${lineCountFormat.format(session.lineCount)} lines`
-		: undefined;
+/**
+ * The spans the stage judge cites from the session, each under the item that
+ * cites it. The judge cites exchanges, not transcript lines, so the first
+ * column names the item rather than a line.
+ */
+function CitedRows({
+	spans,
+}: {
+	readonly spans: readonly CitedSpan[];
+}): React.JSX.Element {
+	return (
+		<ol aria-label="Transcript">
+			{spans.map((span) => (
+				<PaneRow
+					key={`${span.section}-${span.item}-${String(span.index)}`}
+					first={span.item}
+					kind="cited"
+					text={span.quote ?? span.claim}
+					tone={TEXT_TONE.assistant}
+				/>
+			))}
+		</ol>
+	);
+}
+
+/** The closed session's note, linking to the stage's page that renders its transcript. */
+function ClosedNote({
+	run,
+	stage,
+	transcriptPath,
+}: {
+	readonly run: string;
+	readonly stage: string;
+	readonly transcriptPath: string | undefined;
+}): React.JSX.Element {
+	return (
+		<p className="mt-3 rounded-md border border-border bg-raised px-3 py-2.5 font-sans text-11-5 text-muted-foreground">
+			{transcriptPath === undefined ? (
+				"Session ended. Rehearse kept no copy of its transcript."
+			) : (
+				<>
+					Session ended. The full transcript is on disk; Rehearse keeps only the
+					spans the judge cites.{" "}
+					<Link to="/runs/$run/stages/$stage" params={{ run, stage }}>
+						{transcriptPath}
+					</Link>
+				</>
+			)}
+		</p>
+	);
+}
+
+function sessionMeta(
+	session: StageSessionResponse,
+	figures: MonitoredStage,
+): string | undefined {
+	if (session.state === "untracked") {
+		return undefined;
+	}
+	if (session.state === "running") {
+		return `session running · ${lineCountFormat.format(session.lineCount)} lines`;
+	}
+
+	return [
+		"session closed",
+		...(session.lineCount === undefined
+			? []
+			: [`${lineCountFormat.format(session.lineCount)} lines`]),
+		...(figures.wallTime.state === "available"
+			? [minutesAndSeconds(figures.wallTime.ms)]
+			: []),
+		...(figures.sessionCost.state === "available"
+			? [spendReading(figures.sessionCost.usd)]
+			: []),
+	].join(" · ");
 }
 
 /** The pane's words for a session it has nothing of, as the pending verdict reads. */
@@ -65,19 +161,21 @@ function PendingLine({ words }: { readonly words: string }): React.JSX.Element {
 
 /**
  * The session pane (SPEC.md 2d): the stage's transcript as the server reads
- * it, its tail while the session runs.
+ * it, its tail while the session runs and the spans its judge cites once it
+ * closes.
  */
 export function SessionPane({
 	run,
 	number,
-	stage,
+	figures,
 }: {
 	readonly run: string;
 	readonly number: number;
-	readonly stage: string;
+	readonly figures: MonitoredStage;
 }): React.JSX.Element {
+	const { stage } = figures;
 	const { data, isError } = useQuery(stageSessionQuery(run, stage));
-	const meta = data === undefined ? undefined : sessionMeta(data);
+	const meta = data === undefined ? undefined : sessionMeta(data, figures);
 
 	return (
 		<section
@@ -91,6 +189,15 @@ export function SessionPane({
 				{meta === undefined ? null : (
 					<span className="font-mono text-11 text-dim">{meta}</span>
 				)}
+				{data?.state === "closed" && data.transcriptPath !== undefined ? (
+					<Link
+						to="/runs/$run/stages/$stage"
+						params={{ run, stage }}
+						className="ml-auto text-11-5"
+					>
+						open session.jsonl
+					</Link>
+				) : null}
 			</div>
 			<div className="flex-1 overflow-y-auto px-4.25 py-3 font-mono text-11-5 leading-transcript">
 				{isError ? (
@@ -101,6 +208,16 @@ export function SessionPane({
 				) : null}
 				{data?.state === "running" ? (
 					<TranscriptRows lines={data.lines} />
+				) : null}
+				{data?.state === "closed" ? (
+					<>
+						{data.spans.length === 0 ? null : <CitedRows spans={data.spans} />}
+						<ClosedNote
+							run={run}
+							stage={stage}
+							transcriptPath={data.transcriptPath}
+						/>
+					</>
 				) : null}
 				{data?.state === "untracked" ? (
 					<PendingLine words="This step's session id was not recorded, so its transcript cannot be found." />

@@ -1,4 +1,5 @@
 import { STATUS_VOCABULARY } from "#client/system/components/status";
+import type { MonitoredStage } from "./run-record-query";
 import { SessionPane } from "./session-pane";
 
 /** What a pane does not show yet, as the design's pending verdict reads. */
@@ -32,11 +33,11 @@ export function StagePanes({
 }: {
 	readonly run: string;
 	readonly number: number;
-	readonly stage: string;
+	readonly stage: MonitoredStage;
 }): React.JSX.Element {
 	return (
 		<div className="grid min-h-70.75 flex-1 basis-2/5 grid-cols-monitor-panes overflow-x-auto">
-			<SessionPane run={run} number={number} stage={stage} />
+			<SessionPane run={run} number={number} figures={stage} />
 			<section
 				aria-label="Judge"
 				className="flex min-h-0 flex-col bg-secondary"

@@ -6,7 +6,7 @@ import type { PipelineRow } from "#client/shell/run-in-flight";
 import { runsInFlight } from "#client/shell/run-in-flight";
 import { EmptyState } from "#client/system/components/empty-state";
 import { ScreenHeader } from "#client/system/components/screen-header";
-import type { RunRecordResponse } from "./run-record-query";
+import type { MonitoredStage, RunRecordResponse } from "./run-record-query";
 import { runRecordQuery } from "./run-record-query";
 import { useRunEventsStream } from "./run-events-stream";
 import { RunIdentityHeader } from "./run-identity-header";
@@ -22,15 +22,14 @@ function shownStage(
 	record: RunRecordResponse,
 	row: PipelineRow,
 	selected: string | undefined,
-): { readonly number: number; readonly stage: string } | undefined {
-	const stage =
+): { readonly number: number; readonly stage: MonitoredStage } | undefined {
+	const name =
 		selected ??
 		(row.progress.state === "running" ? row.progress.stage : undefined);
-	const index = record.stages.findIndex((each) => each.stage === stage);
+	const index = record.stages.findIndex((each) => each.stage === name);
+	const stage = record.stages.find((each) => each.stage === name);
 
-	return stage === undefined || index === -1
-		? undefined
-		: { number: index + 1, stage };
+	return stage === undefined ? undefined : { number: index + 1, stage };
 }
 
 function RunMonitor({ row }: { readonly row: PipelineRow }): React.JSX.Element {
@@ -59,7 +58,7 @@ function RunMonitor({ row }: { readonly row: PipelineRow }): React.JSX.Element {
 					<TaskGraph
 						record={query.data}
 						row={row}
-						shown={shown?.stage}
+						shown={shown?.stage.stage}
 						onSelect={setSelected}
 					/>
 					{shown === undefined ? null : (

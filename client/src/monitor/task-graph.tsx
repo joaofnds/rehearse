@@ -123,7 +123,7 @@ function durationReading(
 		: NOT_RECORDED;
 }
 
-function minutesAndSeconds(ms: number): string {
+export function minutesAndSeconds(ms: number): string {
 	const totalSeconds = Math.floor(ms / MS_PER_SECOND);
 	const minutes = Math.floor(totalSeconds / SECONDS_PER_MINUTE);
 	const seconds = totalSeconds % SECONDS_PER_MINUTE;

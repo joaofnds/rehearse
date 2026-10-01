@@ -812,6 +812,104 @@ describe("/monitor session pane", () => {
 		);
 	});
 
+	describe("for a finished stage", () => {
+		const PLAN_SESSION = `/api/runs/${RUN}/stages/plan/session`;
+
+		function renderClosed(session: StageSession): void {
+			renderMonitor(
+				runRow({ run: RUN, stage: "build" }),
+				new Map<string, unknown>([
+					[
+						`/api/runs/${RUN}`,
+						runRecord({
+							run: RUN,
+							running: "build",
+							stages: [
+								recordStage("plan", {
+									status: "graded",
+									wallTime: { state: "available", ms: 242_000 },
+									sessionCost: { state: "available", usd: 1.12 },
+								}),
+								recordStage("build"),
+							],
+						}),
+					],
+					[PLAN_SESSION, session],
+				]),
+			);
+		}
+
+		async function selectPlan(): Promise<void> {
+			fireEvent.click(
+				within(await graphNode("plan")).getByRole("button", {
+					name: /^plan(?! has no checkpoint)/u,
+				}),
+			);
+		}
+
+		it("shows the spans its judge cites, the session's figures, and its transcript on disk", async () => {
+			renderClosed({
+				state: "closed",
+				lineCount: 1284,
+				transcriptPath: `.benchmark-runs/${RUN}.checkpoints/plan/transcript.jsonl`,
+				spans: [
+					{
+						section: "hardBlockers",
+						item: "HB-1",
+						index: 0,
+						claim: "The agent asked before choosing a scope",
+						quote: "Which scope?",
+						label: "exchange 1 message",
+					},
+					{
+						section: "requirements",
+						item: "R1",
+						index: 1,
+						claim: "The owner chose the small scope",
+					},
+				],
+			});
+
+			await selectPlan();
+
+			expect(await rowCells()).toEqual([
+				["HB-1", "cited", "Which scope?"],
+				["R1", "cited", "The owner chose the small scope"],
+			]);
+			const pane = await sessionPane();
+			expect(pane).toHaveTextContent(
+				"session closed · 1,284 lines · 4m02s · $1.12",
+			);
+			expect(
+				within(pane).getByRole("link", { name: "open session.jsonl" }),
+			).toHaveAttribute("href", `/runs/${RUN}/stages/plan`);
+			expect(pane).toHaveTextContent(
+				"Session ended. The full transcript is on disk; Rehearse keeps only the spans the judge cites.",
+			);
+			expect(
+				within(pane).getByRole("link", {
+					name: `.benchmark-runs/${RUN}.checkpoints/plan/transcript.jsonl`,
+				}),
+			).toHaveAttribute("href", `/runs/${RUN}/stages/plan`);
+		});
+
+		it("says when the run kept no copy of the stage's transcript", async () => {
+			renderClosed({ state: "closed", spans: [] });
+
+			await selectPlan();
+
+			const pane = await sessionPane();
+			expect(
+				await within(pane).findByText(
+					"Session ended. Rehearse kept no copy of its transcript.",
+				),
+			).toBeInTheDocument();
+			expect(
+				within(pane).queryByRole("link", { name: "open session.jsonl" }),
+			).not.toBeInTheDocument();
+		});
+	});
+
 	it("shows the running stage's latest tool call on its node, and none on a finished one", async () => {
 		renderSession(RUNNING_SESSION);
 
