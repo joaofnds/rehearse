@@ -268,6 +268,7 @@ function rowsOf(text: string, line: number): readonly SessionLine[] {
 	) {
 		return [];
 	}
+
 	const textKind = record.data.type;
 
 	return record.data.message.content.flatMap(
@@ -333,6 +334,7 @@ async function closedStageSession(
 	if (recordFile === undefined) {
 		return undefined;
 	}
+
 	const grade = closedStageRecordSchema.parse(
 		JSON.parse(await readVerifiedFile(runsRoot, recordFile)),
 	);
@@ -354,6 +356,7 @@ async function closedStageSession(
 	if (transcriptFile === undefined) {
 		return { state: "closed", spans };
 	}
+
 	const { lineCount } = await lastLines(runsRoot, transcriptFile, 0);
 
 	return {
@@ -441,12 +444,14 @@ export async function readStageSession(
 	if (sessionId === undefined) {
 		return { state: "untracked" };
 	}
+
 	if (!z.uuid().safeParse(sessionId).success) {
 		throw new SessionHistoryReaderError(
 			"refused",
 			"The stage's recorded session id is not a session id",
 		);
 	}
+
 	const projectsRoot = await canonicalProjectsRoot(request.projectsDirectory);
 	const recordedFile = stageTranscriptFile(manifest.sourceRoot, {
 		sessionId,

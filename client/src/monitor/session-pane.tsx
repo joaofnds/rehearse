@@ -52,6 +52,7 @@ function useTailKeys(
 					if (event.repeat) {
 						break;
 					}
+
 					setFollowing((following) => !following);
 					break;
 				}
@@ -193,6 +194,7 @@ function sessionMeta(
 	if (session.state === "not-started" || session.state === "untracked") {
 		return undefined;
 	}
+
 	if (session.state === "running") {
 		return `session running · ${lineCountFormat.format(session.lineCount)} lines`;
 	}
