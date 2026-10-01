@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import {
 	corpusMeasurementReading,
 	corpusVersionHash,
@@ -12,6 +13,7 @@ import type { StatusState } from "#client/system/components/status";
 import { Button } from "#client/system/ui/button";
 import type { MonitoredStage, RunRecordResponse } from "./run-record-query";
 import { shortCommit } from "./run-identity-header";
+import { stageSessionQuery } from "./stage-session-query";
 
 const MS_PER_SECOND = 1000;
 
@@ -147,6 +149,29 @@ function corpusReading(stage: MonitoredStage, row: PipelineRow): string {
 	return corpusVersion?.kind === "version"
 		? corpusVersionHash(corpusVersion.digest)
 		: corpusMeasurementReading(corpusVersion);
+}
+
+/**
+ * The running stage's latest tool call, as its session pane reads it. A
+ * session with no tool call yet draws no chip.
+ */
+function LiveToolCall({
+	run,
+	stage,
+}: {
+	readonly run: string;
+	readonly stage: string;
+}): React.JSX.Element | null {
+	const { data } = useQuery(stageSessionQuery(run, stage));
+	if (data?.state !== "running" || data.latestToolCall === undefined) {
+		return null;
+	}
+
+	return (
+		<span className="block truncate rounded-tight border border-accent-line bg-raised px-2.25 py-1.25 font-mono text-10-5 text-pale">
+			{data.latestToolCall}
+		</span>
+	);
 }
 
 function StatusLine({
@@ -322,6 +347,9 @@ function StageNode({
 					/>
 				</span>
 				<StatusLine status={status} />
+				{isRunning(stage, row) ? (
+					<LiveToolCall run={row.run} stage={stage.stage} />
+				) : null}
 				<span className="grid grid-cols-2 gap-x-3 gap-y-1 font-mono text-10-5 text-muted-foreground">
 					<span>{costReading(stage, row)}</span>
 					<span>{durationReading(stage, row, nowMs)}</span>

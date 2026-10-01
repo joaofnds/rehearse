@@ -769,25 +769,38 @@ describe("/monitor session pane", () => {
 			.map((row) => [...row.children].map((cell) => cell.textContent));
 	}
 
-	it("shows the running stage's transcript tail, each row with its line, kind and text", async () => {
+	const RUNNING_SESSION: StageSession = {
+		state: "running",
+		lineCount: 1284,
+		lines: [
+			{ line: 1278, kind: "tool", text: "Bash  pnpm test auth" },
+			{ line: 1281, kind: "result", text: "44 passed, 0 failed" },
+			{ line: 1284, kind: "assistant", text: "Tests pass." },
+		],
+		latestToolCall: "Bash  pnpm test auth",
+	};
+
+	function renderSession(session: StageSession): void {
 		renderMonitor(
 			runRow({ run: RUN, stage: "build" }),
-			new Map<string, StageSession>([
-				[
-					BUILD_SESSION,
-					{
-						state: "running",
-						lineCount: 1284,
-						lines: [
-							{ line: 1278, kind: "tool", text: "Bash  pnpm test auth" },
-							{ line: 1281, kind: "result", text: "44 passed, 0 failed" },
-							{ line: 1284, kind: "assistant", text: "Tests pass." },
-						],
-						latestToolCall: "Bash  pnpm test auth",
-					},
-				],
-			]),
+			new Map<string, StageSession>([[BUILD_SESSION, session]]),
 		);
+	}
+
+	async function graphNode(stage: string): Promise<HTMLElement> {
+		const graph = await screen.findByRole("region", { name: "Task graph" });
+		const shown = within(graph)
+			.getAllByRole("listitem")
+			.find((item) => within(item).queryByText(stage) !== null);
+		if (shown === undefined) {
+			throw new Error(`the graph draws no node for ${stage}`);
+		}
+
+		return shown;
+	}
+
+	it("shows the running stage's transcript tail, each row with its line, kind and text", async () => {
+		renderSession(RUNNING_SESSION);
 
 		expect(await rowCells()).toEqual([
 			["1278", "tool", "Bash  pnpm test auth"],
@@ -797,6 +810,17 @@ describe("/monitor session pane", () => {
 		expect(await sessionPane()).toHaveTextContent(
 			"session running · 1,284 lines",
 		);
+	});
+
+	it("shows the running stage's latest tool call on its node, and none on a finished one", async () => {
+		renderSession(RUNNING_SESSION);
+
+		const build = await graphNode("build");
+
+		expect(
+			await within(build).findByText(/^Bash\s+pnpm test auth$/u),
+		).toHaveClass("truncate");
+		expect(await graphNode("plan")).not.toHaveTextContent("Bash");
 	});
 });
 
