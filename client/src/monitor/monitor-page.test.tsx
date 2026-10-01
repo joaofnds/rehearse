@@ -641,6 +641,40 @@ describe("/monitor task graph", () => {
 		expect(await graphNode("build")).toHaveTextContent("$0.90");
 	});
 
+	it("shows a stage that has only just started as costing nothing yet, not what the stages before it spent", async () => {
+		renderAppWithStub(
+			"/monitor",
+			new Map<string, unknown>([
+				[
+					"/api/runs",
+					history([
+						runRow({
+							run: RUN,
+							stage: "build",
+							spend: {
+								spentUsd: 1.1,
+								spendScope: "the stages finished before this one",
+							},
+						}),
+					]),
+				],
+				[
+					`/api/runs/${RUN}`,
+					runRecord({
+						run: RUN,
+						running: "build",
+						stages: [
+							recordStage("plan", { status: "graded" }),
+							recordStage("build"),
+						],
+					}),
+				],
+			]),
+		);
+
+		expect(await graphNode("build")).toHaveTextContent("$0.00");
+	});
+
 	it("shows on the running stage, which has measured none of its own yet, the corpus version the header names", async () => {
 		const latest: CorpusMeasurement = {
 			kind: "version",

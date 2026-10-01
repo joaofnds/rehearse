@@ -44,6 +44,7 @@ export function runRow(props: {
 	readonly status?: string;
 	readonly stage?: string;
 	readonly stageState?: RunningProgress["stageState"];
+	readonly spend?: Pick<RunningProgress, "spentUsd" | "spendScope">;
 	readonly grades?: readonly StageGrade[];
 	readonly runSpentUsd?: number;
 	readonly runTokens?: { readonly input: number; readonly output: number };
@@ -86,8 +87,10 @@ export function runRow(props: {
 						elapsedMs: props.elapsedMs ?? 9000,
 						stageElapsedMs: props.stageElapsedMs,
 						measuredAt: props.measuredAt ?? "2026-09-30T10:00:09.000Z",
-						spentUsd: 0.9,
-						spendScope: "this stage's session so far",
+						...(props.spend ?? {
+							spentUsd: 0.9,
+							spendScope: "this stage's session so far",
+						}),
 						runSpentUsd: props.runSpentUsd,
 						runTokens: props.runTokens,
 						ceilingUsd: props.ceilingUsd,
