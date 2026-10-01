@@ -365,7 +365,7 @@ describe(runEventRecorderFor.name, () => {
 			createSpendCeiling({ ceilingUsd: 10 }),
 		);
 
-		recorder.record("stage-started", "shape", 0, 0);
+		recorder.recordStageStarted("shape", 0, 0, "shape-session");
 		recorder.record("stage-completed", "shape", 1, 1000);
 
 		expect(

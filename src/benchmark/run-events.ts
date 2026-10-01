@@ -148,7 +148,7 @@ export interface RunEventStore {
 
 export interface RunEventRecorder {
 	readonly record: (
-		kind: PlainRunEventKind,
+		kind: Exclude<PlainRunEventKind, "stage-started">,
 		stage: string,
 		spentUsd: number,
 		elapsedMs: number,
