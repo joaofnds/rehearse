@@ -928,7 +928,10 @@ describe("/monitor judge pane", () => {
 			],
 		};
 
-		async function renderJudged(grade: MonitoredStage["grade"]): Promise<void> {
+		async function renderJudged(
+			grade: MonitoredStage["grade"],
+			status: MonitoredStage["status"] = "graded",
+		): Promise<void> {
 			renderMonitor(
 				runRow({ run: RUN, stage: "build" }),
 				new Map<string, unknown>([
@@ -939,7 +942,7 @@ describe("/monitor judge pane", () => {
 							running: "build",
 							stages: [
 								recordStage("plan", {
-									status: "graded",
+									status,
 									grade,
 									judgeCost: { state: "available", usd: 0.22 },
 								}),
@@ -986,6 +989,19 @@ describe("/monitor judge pane", () => {
 			});
 
 			expect(card).toHaveTextContent("Verdict◼stopped: 2 blockers fired");
+		});
+
+		it("keeps the verdict pending until the run record says how the stage ended", async () => {
+			await renderJudged(
+				{ state: "unavailable", reasons: ["awaiting the judge"] },
+				"awaiting-judgment",
+			);
+
+			const card = await within(await judgePane()).findByRole("group", {
+				name: "Verdict and grade",
+			});
+
+			expect(card).toHaveTextContent("Verdict◌pending: grade not recorded yet");
 		});
 
 		it("lists every judged blocker and dimension with how much evidence each cites", async () => {

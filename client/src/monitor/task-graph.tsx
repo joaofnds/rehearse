@@ -11,7 +11,7 @@ import { Grade } from "#client/system/components/grade";
 import { LiveGlyph, STATUS_VOCABULARY } from "#client/system/components/status";
 import type { StatusState } from "#client/system/components/status";
 import { Button } from "#client/system/ui/button";
-import { endedStatus } from "./run-record-query";
+import { endedStatus, hasEnded } from "./run-record-query";
 import type { MonitoredStage, RunRecordResponse } from "./run-record-query";
 import { shortCommit } from "./run-identity-header";
 import { stageSessionQuery } from "./stage-session-query";
@@ -64,7 +64,7 @@ function nodeStatus(stage: MonitoredStage, row: PipelineRow): NodeStatus {
 	if (progress !== undefined) {
 		return { state: "running", words: progress.stageState };
 	}
-	if (stage.status === "stopped" || stage.status === "graded") {
+	if (hasEnded(stage)) {
 		const ended = endedStatus(stage);
 
 		return { state: ended, words: STATUS_VOCABULARY[ended].word };

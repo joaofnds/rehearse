@@ -9,8 +9,8 @@ import { Grade } from "#client/system/components/grade";
 import { LiveGlyph, STATUS_VOCABULARY } from "#client/system/components/status";
 import { PendingLine } from "./pending-line";
 import { rerunSpreadSentence } from "./rerun-spread";
-import type { MonitoredStage } from "./run-record-query";
-import { endedStatus } from "./run-record-query";
+import type { EndedStage, MonitoredStage } from "./run-record-query";
+import { endedStatus, hasEnded } from "./run-record-query";
 import type { StageJudgeResponse } from "./stage-judge-query";
 import { stageJudgeQuery } from "./stage-judge-query";
 
@@ -137,6 +137,8 @@ function judgedItems(judge: JudgedAnswer): JudgedItems {
 	};
 }
 
+const GRADE_NOT_RECORDED = "pending: grade not recorded yet";
+
 /** What the judge still owes while it returns, in the design's pending phrase. */
 function pendingPhrase(progress: JudgeProgress | undefined): string {
 	if (progress === undefined) {
@@ -150,10 +152,18 @@ function pendingPhrase(progress: JudgeProgress | undefined): string {
 		return "pending: blockers still returning";
 	}
 
-	return "pending: grade not recorded yet";
+	return GRADE_NOT_RECORDED;
 }
 
-function judgedVerdict(judge: JudgedAnswer, figures: MonitoredStage): Verdict {
+function pendingVerdict(phrase: string): Verdict {
+	return {
+		glyph: STATUS_VOCABULARY.pending.glyph,
+		phrase,
+		grade: undefined,
+	};
+}
+
+function judgedVerdict(judge: JudgedAnswer, figures: EndedStage): Verdict {
 	const ended = endedStatus(figures);
 	const fired = judge.hardBlockers.filter(
 		({ status }) => status === "FAIL",
@@ -619,11 +629,7 @@ export function JudgePane({
 					<JudgedBody
 						run={run}
 						stage={stage}
-						verdict={{
-							glyph: STATUS_VOCABULARY.pending.glyph,
-							phrase: pendingPhrase(data.progress),
-							grade: undefined,
-						}}
+						verdict={pendingVerdict(pendingPhrase(data.progress))}
 						items={
 							data.progress === undefined
 								? undefined
@@ -635,7 +641,12 @@ export function JudgePane({
 					<JudgedBody
 						run={run}
 						stage={stage}
-						verdict={judgedVerdict(data, figures)}
+						verdict={
+							// The run record can lag the judge's answer by one read.
+							hasEnded(figures)
+								? judgedVerdict(data, figures)
+								: pendingVerdict(GRADE_NOT_RECORDED)
+						}
 						items={judgedItems(data)}
 					/>
 				) : null}

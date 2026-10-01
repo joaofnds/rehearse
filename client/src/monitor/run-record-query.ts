@@ -10,11 +10,20 @@ export type RunRecordResponse = InferResponseType<
 
 export type MonitoredStage = RunRecordResponse["stages"][number];
 
+/** A stage whose record is written: graded, or the one that stopped the run. */
+export type EndedStage = MonitoredStage & {
+	readonly status: "graded" | "stopped";
+};
+
+export function hasEnded(stage: MonitoredStage): stage is EndedStage {
+	return stage.status === "graded" || stage.status === "stopped";
+}
+
 /**
- * How a stage whose record is written ended: stopped by that record, or by a
- * letter below the run's minimum whatever its judge's verdict, else accepted.
+ * How an ended stage ended: stopped by its record, or by a letter below the
+ * run's minimum whatever its judge's verdict, else accepted.
  */
-export function endedStatus(stage: MonitoredStage): "accepted" | "stopped" {
+export function endedStatus(stage: EndedStage): "accepted" | "stopped" {
 	return stage.status === "stopped" ||
 		(stage.grade.state === "available" && !stage.grade.reachesMinimum)
 		? "stopped"
