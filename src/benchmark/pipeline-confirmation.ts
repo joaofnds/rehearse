@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { operatorStopRecord } from "./operator-stop";
 import type { CorpusRoot } from "./corpus-file";
 import type { CorpusMeasurement } from "./corpus-measurement";
@@ -448,6 +449,7 @@ async function runPipelineRep(
 				},
 				{
 					targetDir: plan.worktreePath,
+					sessionId: randomUUID(),
 					model: request.model,
 					effort: request.effort,
 					sessionBudgetUsd: request.sessionBudgetUsd,

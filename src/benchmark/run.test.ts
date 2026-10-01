@@ -913,12 +913,16 @@ describe(runGradedStages.name, () => {
 					elapsedMs: number,
 				) => {
 					recorded.push({ kind, stage, spentUsd, elapsedMs });
-					if (kind === "stage-started") {
-						executedCountAtEachStart.push(executed.length);
-					}
 				},
 				recordJudgeProgress: () => undefined,
-				recordStageStarted: () => undefined,
+				recordStageStarted: (
+					stage: string,
+					spentUsd: number,
+					elapsedMs: number,
+				) => {
+					recorded.push({ kind: "stage-started", stage, spentUsd, elapsedMs });
+					executedCountAtEachStart.push(executed.length);
+				},
 			},
 			elapsedMs: () => 500,
 		};
@@ -930,6 +934,51 @@ describe(runGradedStages.name, () => {
 			{ kind: "stage-started", stage: "build", spentUsd: 0, elapsedMs: 500 },
 		]);
 		expect(executedCountAtEachStart).toEqual([0, 1]);
+	});
+
+	it("records each stage's start with the id of the session the stage then runs under", async () => {
+		const { dependencies } = fakeStageDependencies();
+		const sessionsRun: string[] = [];
+		const startsRecorded: {
+			readonly stage: string;
+			readonly sessionId: string;
+		}[] = [];
+		const context = {
+			...(await stageContext()),
+			runEvents: {
+				record: () => undefined,
+				recordJudgeProgress: () => undefined,
+				recordStageStarted: (
+					stage: string,
+					_spentUsd: number,
+					_elapsedMs: number,
+					sessionId: string,
+				) => {
+					startsRecorded.push({ stage, sessionId });
+				},
+			},
+		};
+
+		await runGradedStages(
+			{
+				...dependencies,
+				runWorkflowStage: (request: WorkflowStageRequest) => {
+					sessionsRun.push(request.sessionId);
+
+					return dependencies.runWorkflowStage(request);
+				},
+			},
+			context,
+		);
+
+		expect(startsRecorded.map(({ stage }) => stage)).toEqual([
+			"shape",
+			"build",
+		]);
+		expect(startsRecorded.map(({ sessionId }) => sessionId)).toEqual(
+			sessionsRun,
+		);
+		expect(new Set(sessionsRun).size).toBe(2);
 	});
 
 	it("records each progress reading its stage judge reports as a run event of that stage", async () => {

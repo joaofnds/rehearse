@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { CorpusRoot } from "./corpus-file";
 import { mkdtemp, readdir, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -398,6 +399,7 @@ export async function runReplay(
 			detachedStageDependencies(dependencies.stageSession),
 			{
 				targetDir: worktreeDir,
+				sessionId: randomUUID(),
 				model: request.model,
 				effort: request.effort,
 				sessionBudgetUsd: request.sessionBudgetUsd,

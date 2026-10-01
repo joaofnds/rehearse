@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { operatorStopRecord } from "./operator-stop";
 import type { ApprovalMethod, StageSkillPresence } from "./config";
 import type { CorpusRoot } from "./corpus-file";
@@ -549,6 +550,7 @@ async function runReplayConfirmationBody(
 					},
 					{
 						targetDir: plan.worktreePath,
+						sessionId: randomUUID(),
 						model: request.model,
 						effort: request.effort,
 						sessionBudgetUsd: request.sessionBudgetUsd,

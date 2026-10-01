@@ -229,6 +229,7 @@ describe("workflow provider metrics", () => {
 		const transcript = await runWorkflowStage(
 			{
 				targetDir: "/target",
+				sessionId: "stage-session",
 				model: "sonnet",
 				effort: undefined,
 				sessionBudgetUsd: 5,
@@ -254,6 +255,50 @@ describe("workflow provider metrics", () => {
 			},
 			{},
 		]);
+	});
+
+	it("starts the stage's session under the id the request names", async () => {
+		const commands: (readonly string[])[] = [];
+		const productOwner: ProductOwner = {
+			ask: () => Promise.resolve("Use the small scope"),
+			snapshot: () => ({
+				sessionId: "po-session",
+				spentUsd: 0,
+				providerCalls: [],
+			}),
+		};
+
+		await runWorkflowStage(
+			{
+				targetDir: "/target",
+				sessionId: "stage-session",
+				model: "sonnet",
+				effort: undefined,
+				sessionBudgetUsd: 5,
+				spendCeiling: createSpendCeiling({ ceilingUsd: 100 }),
+				productOwner,
+				taskId: "ACT-5",
+				stage: "shape",
+				skill: "shape",
+			},
+			(command) => {
+				commands.push(command);
+
+				return Promise.resolve(
+					JSON.stringify({
+						type: "result",
+						session_id: "stage-session",
+						total_cost_usd: 0.1,
+						structured_output: { status: "COMPLETE", message: "Shaped" },
+					}),
+				);
+			},
+		);
+
+		const [first] = commands;
+		expect(first?.[(first?.indexOf("--session-id") ?? 0) + 1]).toBe(
+			"stage-session",
+		);
 	});
 
 	it("charges a resumed worker call only its increase over the session's reported total", async () => {
@@ -297,6 +342,7 @@ describe("workflow provider metrics", () => {
 		const transcript = await runWorkflowStage(
 			{
 				targetDir: "/target",
+				sessionId: "stage-session",
 				model: "sonnet",
 				effort: undefined,
 				sessionBudgetUsd: 15,
@@ -347,6 +393,7 @@ describe("workflow provider metrics", () => {
 		await runWorkflowStage(
 			{
 				targetDir: "/target",
+				sessionId: "stage-session",
 				model: "sonnet",
 				effort: undefined,
 				sessionBudgetUsd: 5,
@@ -390,6 +437,7 @@ describe("workflow provider metrics", () => {
 		const transcript = await runWorkflowStage(
 			{
 				targetDir: "/target",
+				sessionId: "stage-session",
 				model: "sonnet",
 				effort: undefined,
 				sessionBudgetUsd: 5,
@@ -443,6 +491,7 @@ describe("workflow provider metrics", () => {
 		await runWorkflowStage(
 			{
 				targetDir: "/target",
+				sessionId: "stage-session",
 				model: "sonnet",
 				effort: undefined,
 				sessionBudgetUsd: 5,
@@ -483,6 +532,7 @@ describe("workflow provider metrics", () => {
 		await runWorkflowStage(
 			{
 				targetDir: "/target",
+				sessionId: "stage-session",
 				model: "sonnet",
 				effort: undefined,
 				sessionBudgetUsd: 5,
@@ -522,6 +572,7 @@ describe("workflow provider metrics", () => {
 		await runWorkflowStage(
 			{
 				targetDir: "/target",
+				sessionId: "stage-session",
 				model: "sonnet",
 				effort: undefined,
 				sessionBudgetUsd: 5,
@@ -604,6 +655,7 @@ describe("workflow provider metrics", () => {
 			const execution = runWorkflowStage(
 				{
 					targetDir: "/target",
+					sessionId: "stage-session",
 					model: "sonnet",
 					effort: undefined,
 					sessionBudgetUsd: 5,
@@ -661,6 +713,7 @@ describe("workflow provider metrics", () => {
 			await runWorkflowStage(
 				{
 					targetDir: "/target",
+					sessionId: "stage-session",
 					model: "sonnet",
 					effort: undefined,
 					sessionBudgetUsd: 5,
@@ -696,6 +749,7 @@ describe("workflow provider metrics", () => {
 			await runWorkflowStage(
 				{
 					targetDir: "/target",
+					sessionId: "stage-session",
 					model: "sonnet",
 					effort: undefined,
 					sessionBudgetUsd: 5,
@@ -760,6 +814,7 @@ describe("the spend ceiling", () => {
 	function stageRequest(spendCeiling: SpendCeiling): WorkflowStageRequest {
 		return {
 			targetDir: "/target",
+			sessionId: "stage-session",
 			model: "sonnet",
 			effort: undefined,
 			sessionBudgetUsd: 5,

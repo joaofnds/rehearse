@@ -53,6 +53,11 @@ export type ClaudeCommand = (
 
 export interface WorkflowStageRequest {
 	readonly targetDir: string;
+	/**
+	 * The provider session the stage runs under, chosen before it starts so
+	 * the stage's start can name the transcript it is about to write.
+	 */
+	readonly sessionId: string;
 	readonly model: string;
 	readonly effort?: Effort | undefined;
 	readonly sessionBudgetUsd: number;
@@ -230,7 +235,7 @@ export async function runWorkflowStage(
 		runEvents,
 		elapsedMs = () => 0,
 	} = request;
-	let sessionId: string = randomUUID();
+	let { sessionId } = request;
 	let spentUsd = 0;
 	const providerCalls: ProviderCall[] = [];
 	let prompt = stagePrompt(skill, taskId);

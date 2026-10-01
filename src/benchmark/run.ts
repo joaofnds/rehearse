@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { claudeProjectsDirectory } from "./session-capture";
 import { tmpdir } from "node:os";
@@ -644,6 +645,7 @@ export interface StageOutcome {
 
 export interface StageSessionEnvironment {
 	readonly targetDir: string;
+	readonly sessionId: string;
 	readonly model: string;
 	readonly effort?: Effort | undefined;
 	readonly sessionBudgetUsd: number;
@@ -700,6 +702,7 @@ export async function executeStageSession(
 	const versionFiles = await dependencies.corpusVersionFiles(corpusVersion);
 	const transcript = await dependencies.runWorkflowStage({
 		targetDir: environment.targetDir,
+		sessionId: environment.sessionId,
 		model: environment.model,
 		effort: environment.effort,
 		sessionBudgetUsd: environment.sessionBudgetUsd,
@@ -929,14 +932,16 @@ export async function runGradedStages(
 	for (const definition of context.pipeline.stages) {
 		const stage = definition.name;
 		const stageStartedAtMs = context.elapsedMs?.();
-		context.runEvents?.record(
-			"stage-started",
+		const sessionId = randomUUID();
+		context.runEvents?.recordStageStarted(
 			stage,
 			workflow.reduce((total, transcript) => total + transcript.costUsd, 0),
 			stageStartedAtMs ?? 0,
+			sessionId,
 		);
 		const sessionContext = {
 			...context,
+			sessionId,
 			target: context.pipeline.target,
 			corpusRoots,
 			baselineSha,
