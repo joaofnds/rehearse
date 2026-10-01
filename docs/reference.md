@@ -1372,13 +1372,26 @@ record that does not parse as one fails the request with 500.
 `/api/runs/<run>/stage-times`, implemented in
 [stage-times.ts](../src/server/stage-times.ts), answers `{stages}` with one
 entry per stage of the run's pipeline: `{stage, state: "available", medianMs}`,
-the median elapsed time that stage's record kept across the runs of the same
-case whose names sort before this one, or `{stage, state: "unavailable",
-reasons}` when no prior run of the case exists or none recorded that stage's
-time. Run names are start times, so a run started later never counts. A run
-with no manifest answers 404. The live monitor's spend band reads it once per
-run for its remaining estimate: each unfinished stage's median, the running
-stage less its own elapsed time and never below zero, at the run's burn rate.
+the median elapsed time that stage's record kept across the earlier runs of the
+same case where the stage was graded, or `{stage, state: "unavailable",
+reasons}` when no prior run of the case exists or none recorded a graded time
+for that stage. Earlier means the run's name sorts before this one, and run
+names are start times, so a run started later never counts. A stop record is
+left out, since a ceiling or operator stop keeps the time only up to the stop,
+and so is an earlier manifest or stage record that does not parse, which run
+history lists among the records it could not read. A run name outside the runs
+directory answers 400, and a run with no manifest answers 404.
+
+The live monitor's spend band shows the remaining estimate from it, labelled by
+the steps after the running one ("Remaining step 3, at current rate"): the
+time is the sum of each unfinished stage's median, the running stage's median
+less the time it has run so far and never below zero, and the spend is that
+time at the run's burn rate, its run spend divided by its elapsed time as the
+latest run event measured them. Between run events the time counts down while
+the rate holds. With no estimate it shows a dash and the reason: no prior run,
+no graded time for a step, no run spend, no recorded start of the running step,
+every step finished while the final judge returns, or the stage times could not
+be read. No run event refetches the stage times.
 
 ### Stage session
 
