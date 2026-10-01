@@ -12,6 +12,15 @@ export type RemainingEstimate =
 	| { readonly state: "unavailable"; readonly reason: string };
 
 /**
+ * Run spend over run elapsed, both as the run measured them at its latest
+ * event (doc-186 Decision 5). Dividing by the ticking clock instead would
+ * show the rate falling between the run's calls while nothing was spent.
+ */
+export function burnPerMinute(runSpentUsd: number, elapsedMs: number): number {
+	return elapsedMs === 0 ? 0 : runSpentUsd / (elapsedMs / MS_PER_MINUTE);
+}
+
+/**
  * The time and spend left in the steps a run has not finished (doc-186
  * Decision 6): each step's median time in earlier runs of the case, the
  * running one less the time it has run so far and never below zero, so a step

@@ -9,6 +9,7 @@ import { useNow } from "#client/run-history/use-now";
 import type { PipelineRow } from "#client/shell/run-in-flight";
 import type { RemainingEstimate } from "./remaining-estimate";
 import {
+	burnPerMinute,
 	remainingEstimate,
 	UNREAD_EARLIER_RUNS_REASON,
 } from "./remaining-estimate";
@@ -18,8 +19,6 @@ import type { StageTimesResponse } from "./stage-times-query";
 import { stageTimesQuery } from "./stage-times-query";
 
 type Progress = Extract<PipelineRow["progress"], { readonly state: "running" }>;
-
-const MS_PER_MINUTE = 60_000;
 
 const PERCENT = 100;
 
@@ -64,15 +63,6 @@ function NotRecorded({
 
 function tokenReading(tokens: number): string {
 	return `${thousands.format(Math.round(tokens / TOKENS_PER_THOUSAND))}k`;
-}
-
-/**
- * Run spend over run elapsed, both as the run measured them at its latest
- * event (doc-186 Decision 5). Dividing by the ticking clock instead would
- * show the rate falling between the run's calls while nothing was spent.
- */
-function burnPerMinute(runSpentUsd: number, elapsedMs: number): number {
-	return elapsedMs === 0 ? 0 : runSpentUsd / (elapsedMs / MS_PER_MINUTE);
 }
 
 /** The steps a run has not finished, named as the design numbers them: `step 4`, or `steps 2 to 4`. */
