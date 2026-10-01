@@ -2,6 +2,7 @@ import { Database } from "bun:sqlite";
 import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 import { z } from "zod";
+import { stageLetterGradeSchema } from "./contracts";
 import type { RunTokens, SpendCeiling } from "./spend-ceiling";
 
 const runEventKindSchema = z.enum([
@@ -60,9 +61,30 @@ const sectionCountSchema = z.object({
 });
 
 /**
+ * Every rubric item of a section in rubric order, each with its result once
+ * it has returned and nothing while it is pending.
+ */
+const returnedItemsSchema = z.object({
+	hardBlockers: z
+		.array(
+			z.object({
+				id: z.string(),
+				status: z.enum(["PASS", "FAIL"]).optional(),
+			}),
+		)
+		.readonly(),
+	dimensions: z
+		.array(
+			z.object({ id: z.string(), grade: stageLetterGradeSchema.optional() }),
+		)
+		.readonly(),
+});
+
+/**
  * How far a stage judge's output has come back, counted per rubric section
  * from the items that closed and passed their own checks. A rejected attempt
- * withdraws its counts, and the next attempt starts again from none.
+ * withdraws its counts, and the next attempt starts again from none. The
+ * items are undefined on progress recorded before they existed.
  */
 export const judgeProgressSchema = z.discriminatedUnion("state", [
 	z.object({
@@ -73,6 +95,7 @@ export const judgeProgressSchema = z.discriminatedUnion("state", [
 			requirements: sectionCountSchema,
 			dimensions: sectionCountSchema,
 		}),
+		items: returnedItemsSchema.optional(),
 	}),
 	z.object({
 		state: z.literal("rejected"),
@@ -83,6 +106,7 @@ export const judgeProgressSchema = z.discriminatedUnion("state", [
 
 export type JudgeProgress = z.infer<typeof judgeProgressSchema>;
 export type JudgeSectionCount = z.infer<typeof sectionCountSchema>;
+export type ReturnedItems = z.infer<typeof returnedItemsSchema>;
 
 interface RunEventFields {
 	readonly runId: string;

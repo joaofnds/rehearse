@@ -4,7 +4,11 @@ import { stageJudgeResponseSchema } from "./contracts";
 import type { JudgeInvoker } from "./judge-attempt";
 import type { ClosedItem } from "./judge-stream";
 import { StructuredOutputStream } from "./judge-stream";
-import type { JudgeProgress, JudgeSectionCount } from "./run-events";
+import type {
+	JudgeProgress,
+	JudgeSectionCount,
+	ReturnedItems,
+} from "./run-events";
 
 /**
  * Runs the judge with its output streamed, handing each output line to
@@ -24,6 +28,16 @@ const PROGRESS_SECTIONS = [
 type ProgressSection = (typeof PROGRESS_SECTIONS)[number];
 const progressSectionSchema = z.enum(PROGRESS_SECTIONS);
 
+/** What one returned item said: a status for a blocker or requirement, a grade for a dimension. */
+type ItemResult = Pick<ReturnedItems["hardBlockers"][number], "status"> &
+	Pick<ReturnedItems["dimensions"][number], "grade">;
+
+function itemResult(
+	item: StageJudgeResponse[ProgressSection][number],
+): ItemResult {
+	return "grade" in item ? { grade: item.grade } : { status: item.status };
+}
+
 export interface JudgeProgressWatch {
 	readonly invoke: JudgeInvoker;
 	readonly rejected: (reason: string) => void;
@@ -31,7 +45,8 @@ export interface JudgeProgressWatch {
 
 /**
  * Counts the judge's items per rubric section as its streamed output closes
- * each one, reporting the counts before any grade exists. An item counts only
+ * each one, reporting the counts, and each returned blocker's status and
+ * dimension's grade, before any grade exists. An item counts only
  * once it is a rubric id not yet returned and passes `checkItem`, which the
  * caller gives the checks the whole output will face.
  */
@@ -51,7 +66,7 @@ export function watchJudgeProgress(
 		}
 	};
 	let attempt = 0;
-	let returned = new Map<ProgressSection, Set<string>>();
+	let returned = new Map<ProgressSection, Map<string, ItemResult>>();
 
 	const returning = (): JudgeProgress => {
 		const count = (section: ProgressSection): JudgeSectionCount => ({
@@ -67,18 +82,33 @@ export function watchJudgeProgress(
 				requirements: count("requirements"),
 				dimensions: count("dimensions"),
 			},
+			items: {
+				hardBlockers: rubric.hardBlockers.map(({ id }) => {
+					const status = returned.get("hardBlockers")?.get(id)?.status;
+
+					return status === undefined ? { id } : { id, status };
+				}),
+				dimensions: rubric.dimensions.map(({ id }) => {
+					const grade = returned.get("dimensions")?.get(id)?.grade;
+
+					return grade === undefined ? { id } : { id, grade };
+				}),
+			},
 		};
 	};
 	const startOver = (): void => {
 		returned = new Map(
-			PROGRESS_SECTIONS.map((section) => [section, new Set()]),
+			PROGRESS_SECTIONS.map((section) => [
+				section,
+				new Map<string, ItemResult>(),
+			]),
 		);
 		reportSafely(returning());
 	};
 	const passedChecks = (
 		section: ProgressSection,
 		{ item }: ClosedItem,
-	): string | undefined => {
+	): StageJudgeResponse[ProgressSection][number] | undefined => {
 		const partial = stageJudgeResponseSchema.safeParse({
 			hardBlockers: [],
 			requirements: [],
@@ -89,11 +119,11 @@ export function watchJudgeProgress(
 		if (!partial.success) {
 			return undefined;
 		}
-		const id = partial.data[section][0]?.id;
+		const [parsed] = partial.data[section];
 		if (
-			id === undefined ||
-			!rubric[section].some((expected) => expected.id === id) ||
-			returned.get(section)?.has(id) === true
+			parsed === undefined ||
+			!rubric[section].some((expected) => expected.id === parsed.id) ||
+			returned.get(section)?.has(parsed.id) === true
 		) {
 			return undefined;
 		}
@@ -103,16 +133,16 @@ export function watchJudgeProgress(
 			return undefined;
 		}
 
-		return id;
+		return parsed;
 	};
 	const itemClosed = (closed: ClosedItem): void => {
 		const known = progressSectionSchema.safeParse(closed.section);
 		if (!known.success) {
 			return;
 		}
-		const id = passedChecks(known.data, closed);
-		if (id !== undefined) {
-			returned.get(known.data)?.add(id);
+		const parsed = passedChecks(known.data, closed);
+		if (parsed !== undefined) {
+			returned.get(known.data)?.set(parsed.id, itemResult(parsed));
 			reportSafely(returning());
 		}
 	};

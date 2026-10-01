@@ -1199,6 +1199,10 @@ describe(runStageJudge.name, () => {
 					requirements: { returned: 0, total: 1 },
 					dimensions: { returned: 0, total: 3 },
 				},
+				items: {
+					hardBlockers: [{ id: "b1" }, { id: "b2" }],
+					dimensions: [{ id: "d1" }, { id: "d2" }, { id: "d3" }],
+				},
 			});
 			expect(beforeGrade).toEqual({
 				state: "returning",
@@ -1208,8 +1212,47 @@ describe(runStageJudge.name, () => {
 					requirements: { returned: 0, total: 1 },
 					dimensions: { returned: 2, total: 3 },
 				},
+				items: {
+					hardBlockers: [{ id: "b1", status: "PASS" }, { id: "b2" }],
+					dimensions: [
+						{ id: "d1", grade: "A" },
+						{ id: "d2", grade: "A" },
+						{ id: "d3" },
+					],
+				},
 			});
 			expect(scorecard.grade.grade).toBe("A");
+		});
+
+		it("names every blocker and dimension with the result of each one returned", async () => {
+			const progress: JudgeProgress[] = [];
+
+			await runStageJudge(
+				"sonnet",
+				undefined,
+				judgeBudget(),
+				stageJudgeInput("build"),
+				progressRubric,
+				(_prompt, onLine) => {
+					for (const line of streamed({
+						hardBlockers: [{ ...pass("b2"), status: "FAIL" }],
+					})) {
+						onLine(line);
+					}
+
+					return Promise.resolve(envelope(complete));
+				},
+				(reading) => {
+					progress.push(reading);
+				},
+			);
+
+			expect(progress.at(-1)).toMatchObject({
+				items: {
+					hardBlockers: [{ id: "b1" }, { id: "b2", status: "FAIL" }],
+					dimensions: [{ id: "d1" }, { id: "d2" }, { id: "d3" }],
+				},
+			});
 		});
 
 		it("does not count an item that fails its own checks", async () => {
@@ -1279,6 +1322,9 @@ describe(runStageJudge.name, () => {
 			expect(progress.at(-1)).toMatchObject({
 				attempt: 1,
 				sections: { dimensions: { returned: 1, total: 3 } },
+				items: {
+					dimensions: [{ id: "d1" }, { id: "d2" }, { id: "d3", grade: "A" }],
+				},
 			});
 		});
 
