@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import type { Dispatch, RefObject, SetStateAction } from "react";
-import { useEffect, useRef, useState } from "react";
+import type { Dispatch, SetStateAction } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { spendReading } from "#client/run-history/run-progress";
 import { isTyping } from "#client/shell/use-go-to-shortcut";
 import { LiveGlyph, STATUS_VOCABULARY } from "#client/system/components/status";
@@ -38,7 +38,7 @@ const SCROLL_STEP_PX = 40;
  * Scrolling up reads earlier lines, so k leaves the tail as well.
  */
 function useTailKeys(
-	body: RefObject<HTMLDivElement | null>,
+	scrollBy: (top: number) => void,
 	setFollowing: Dispatch<SetStateAction<boolean>>,
 ): void {
 	useEffect(() => {
@@ -59,12 +59,12 @@ function useTailKeys(
 					break;
 				}
 				case "j": {
-					body.current?.scrollBy({ top: SCROLL_STEP_PX });
+					scrollBy(SCROLL_STEP_PX);
 					break;
 				}
 				case "k": {
 					setFollowing(false);
-					body.current?.scrollBy({ top: -SCROLL_STEP_PX });
+					scrollBy(-SCROLL_STEP_PX);
 					break;
 				}
 				default: {
@@ -78,7 +78,7 @@ function useTailKeys(
 		return () => {
 			document.removeEventListener("keydown", listener);
 		};
-	}, [body, setFollowing]);
+	}, [scrollBy, setFollowing]);
 }
 
 /** One row of the pane, in the design's three columns. */
@@ -261,7 +261,10 @@ export function SessionPane({
 	const meta = data === undefined ? undefined : sessionMeta(data, figures);
 	const body = useRef<HTMLDivElement>(null);
 	const [following, setFollowing] = useState(true);
-	useTailKeys(body, setFollowing);
+	const scrollBy = useCallback((top: number) => {
+		body.current?.scrollBy({ top });
+	}, []);
+	useTailKeys(scrollBy, setFollowing);
 
 	useEffect(() => {
 		if (following && body.current !== null) {
