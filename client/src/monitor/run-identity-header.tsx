@@ -1,3 +1,4 @@
+import { useId } from "react";
 import { corpusMeasurementReading } from "#benchmark/corpus-version-label";
 import {
 	ControlRequests,
@@ -10,7 +11,6 @@ import { nameOf } from "#client/shell/run-in-flight";
 import { CorpusPill } from "#client/system/components/corpus-pill";
 import { LiveGlyph } from "#client/system/components/status";
 import { Button } from "#client/system/ui/button";
-import { useId } from "react";
 import type { RunRecordResponse } from "./run-record-query";
 
 /** As many of the commit's characters as the design shows. */

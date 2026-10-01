@@ -206,9 +206,9 @@ function useAnnouncement(rows: readonly HistoryRow[]): string {
 }
 
 /**
- * One bar per run in flight, newest first, each the bar the design draws for
- * one run. The live region stays mounted when no run is in flight, since a
- * stop is announced after the bar that showed the run leaves.
+ * One bar per run in flight, newest first. The live region stays mounted when
+ * no run is in flight, since a stop is announced after the bar that showed the
+ * run leaves.
  */
 export function RunInFlight({
 	rows,
@@ -229,7 +229,7 @@ export function RunInFlight({
 	);
 }
 
-/** The run in flight, read from the run history every screen shares. */
+/** The runs in flight, read from the run history every screen shares. */
 export function RunInFlightBar(): React.JSX.Element {
 	const { data } = useQuery(polledRunHistoryQuery);
 
