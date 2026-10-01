@@ -829,6 +829,18 @@ describe("/monitor session pane", () => {
 			fireEvent.keyDown(document.body, { key });
 		}
 
+		it("holds the monitor to the screen's height, so the pane scrolls its own transcript", async () => {
+			renderSession(RUNNING_SESSION);
+
+			const body = await sessionBody();
+
+			expect(body).toHaveClass("overflow-y-auto");
+			expect(
+				(await screen.findByRole("region", { name: "Task graph" }))
+					.parentElement,
+			).toHaveClass("h-full");
+		});
+
 		it("follows the tail, counting the tool calls it collapsed, until f unfollows it", async () => {
 			renderSession(RUNNING_SESSION);
 			const pane = await sessionPane();
