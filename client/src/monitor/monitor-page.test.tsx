@@ -11,6 +11,7 @@ import {
 	stubFetchFailing,
 } from "#client/test-support/render-app";
 import { recordStage, runRecord } from "#client/test-support/run-record";
+import type { StageSession } from "#server/stage-session";
 import { graded, notYet, runRow } from "#client/test-support/runs-in-flight";
 
 type HistoryRow = RunHistoryResponse["rows"][number];
@@ -739,25 +740,64 @@ describe("/monitor stage selection", () => {
 });
 
 describe("/monitor session and judge panes", () => {
-	it.each([
-		[
-			"Live agent session",
-			"This pane does not show the session's transcript yet.",
-		],
-		["Judge", "This pane does not show the judge's verdict yet."],
-	])(
-		"says with the pending glyph what the %s pane does not show yet",
-		async (pane, words) => {
-			renderMonitor(runRow({ run: RUN }));
+	it("says with the pending glyph what the judge pane does not show yet", async () => {
+		renderMonitor(runRow({ run: RUN }));
+		const words = "This pane does not show the judge's verdict yet.";
 
-			const shown = within(await screen.findByRole("region", { name: pane }));
+		const shown = within(await screen.findByRole("region", { name: "Judge" }));
 
-			const line = shown.getByText(words).parentElement;
+		const line = shown.getByText(words).parentElement;
+		expect(line).toHaveTextContent(`◌${words}`);
+		expect(line).toHaveClass("gap-2.25");
+	});
+});
 
-			expect(line).toHaveTextContent(`◌${words}`);
-			expect(line).toHaveClass("gap-2.25");
-		},
-	);
+describe("/monitor session pane", () => {
+	const BUILD_SESSION = `/api/runs/${RUN}/stages/build/session`;
+
+	function sessionPane(): Promise<HTMLElement> {
+		return screen.findByRole("region", { name: "Live agent session" });
+	}
+
+	async function rowCells(): Promise<readonly (readonly string[])[]> {
+		const transcript = await within(await sessionPane()).findByRole("list", {
+			name: "Transcript",
+		});
+
+		return within(transcript)
+			.getAllByRole("listitem")
+			.map((row) => [...row.children].map((cell) => cell.textContent));
+	}
+
+	it("shows the running stage's transcript tail, each row with its line, kind and text", async () => {
+		renderMonitor(
+			runRow({ run: RUN, stage: "build" }),
+			new Map<string, StageSession>([
+				[
+					BUILD_SESSION,
+					{
+						state: "running",
+						lineCount: 1284,
+						lines: [
+							{ line: 1278, kind: "tool", text: "Bash  pnpm test auth" },
+							{ line: 1281, kind: "result", text: "44 passed, 0 failed" },
+							{ line: 1284, kind: "assistant", text: "Tests pass." },
+						],
+						latestToolCall: "Bash  pnpm test auth",
+					},
+				],
+			]),
+		);
+
+		expect(await rowCells()).toEqual([
+			["1278", "tool", "Bash  pnpm test auth"],
+			["1281", "result", "44 passed, 0 failed"],
+			["1284", "assistant", "Tests pass."],
+		]);
+		expect(await sessionPane()).toHaveTextContent(
+			"session running · 1,284 lines",
+		);
+	});
 });
 
 describe("/monitor across runs", () => {

@@ -68,6 +68,8 @@
 	--text-10: var(--font-size-10);
 	--text-9: var(--font-size-9);
 
+	--leading-transcript: var(--line-height-transcript);
+
 	--tracking-label: 0.09em;
 	--tracking-caps: 0.04em;
 	--tracking-figure: -0.02em;

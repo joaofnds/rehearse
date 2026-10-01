@@ -63,7 +63,11 @@ function RunMonitor({ row }: { readonly row: PipelineRow }): React.JSX.Element {
 						onSelect={setSelected}
 					/>
 					{shown === undefined ? null : (
-						<StagePanes number={shown.number} stage={shown.stage} />
+						<StagePanes
+							run={row.run}
+							number={shown.number}
+							stage={shown.stage}
+						/>
 					)}
 				</>
 			) : null}
