@@ -1297,9 +1297,9 @@ harness result the locator names, `absent`, or `before-quoted-spans` for an
 item recorded before quoted spans. Every text comes from the run's record, so
 a path a judge wrote never reaches the filesystem. The stage is matched against
 the stage records the run wrote, including the record of a stage whose grade
-fell below its minimum, which keeps its judged items beside its status. A missing item, section, index or stage,
-including `..` and a name holding a slash, answers 404, and a run id with a
-traversing segment answers 400.
+fell below its minimum, which keeps its judged items beside its status. A
+missing item, section, index or stage, including `..` and a name holding a
+slash, answers 404, and a run id with a traversing segment answers 400.
 
 The browser opens the same item at `/runs/<run>/stages/<stage>/evidence/...`
 and `/runs/<run>/final/evidence/<item>/<index>`, showing the recorded text
@@ -1347,14 +1347,16 @@ existed gains its column on open and keeps its events. Stage replays, replay
 confirmation, calibration, pipeline confirmation and the final judge do not
 record judge progress.
 
+### Stage judge
+
 `/api/runs/<run>/stages/<stage>/judge` answers one stage's judge as the live
 monitor's judge pane reads it, implemented in
 [stage-judge.ts](../src/server/stage-judge.ts). Once the stage's record holds
 a grade, including the record of a stage that stopped the run below its
 minimum, it answers `{state: "judged", hardBlockers, dimensions}` with each
 blocker's `status` and each dimension's `grade`, and each item's `evidence`
-as `source`, `path`, `claim`, `quote` where the judge quoted, and `place`, the
-cited locator read as a phrase. A record its judge never graded answers
+as `source`, `path`, `claim`, `quote` where the judge quoted, and `place`
+where the judge recorded a locator, that locator read as a phrase. A record its judge never graded answers
 `not-judged`. Otherwise, including while the stage's record awaits its judge,
 a stage with a `stage-judging` event answers `{state: "returning", progress,
 spentUsd}` from the run's events, where `progress` is the latest returning
@@ -1362,7 +1364,8 @@ spentUsd}` from the run's events, where `progress` is the latest returning
 after a rejected attempt until the next attempt reports, and `spentUsd` is
 what the run's spend has grown by since judging began, absent where those
 events were recorded before run spend was. A stage without that event answers
-`waiting`. A stage the run's pipeline does not have answers 404.
+`waiting`. A stage the run's pipeline does not have answers 404, and a stage
+record that does not parse as one fails the request with 500.
 
 ### Stage session
 

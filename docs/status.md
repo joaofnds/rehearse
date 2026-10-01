@@ -275,7 +275,7 @@ Run detail, Tasks, Cases, Calibration and Settings planned rather
 than linking to them. Live monitoring is partly
 delivered: the run list reports a run in flight with its stage, elapsed time and
 scoped spend, and the run API also reports how many of a judging stage's
-rubric items are back per section, which no screen shows yet. While a
+rubric items are back per section, which the monitor's judge pane shows. While a
 pipeline run is in flight, a bar along the bottom of every screen shows its
 short id, case, step and stage state, run spend against the ceiling the run
 started under, a clock ticking each second, and its grades so far, with Stop
@@ -310,14 +310,22 @@ session id was recorded shows no transcript. The judge pane shows the stage's
 verdict and grade card, the judge's cost, and every hard blocker and quality
 dimension under its count of those returned. While the judge is returning,
 each returned blocker reads fired or clear and each returned dimension its
-grade, the rest read pending, and the verdict and grade stay pending until
-the record holds them. A judged stage's items open their evidence, each cited
-source linking to its evidence page. Progress recorded before per-item results
-shows the counts alone. A note under the pane says how far identical reruns'
-grades for the step have varied and links to comparisons. When the runs in flight cannot be read, the monitor says
-"Could not read the runs in flight." Its remaining estimate
-and a step's instructions in and artifacts out remain design targets, and
-evidence for a stage still returning reads pending until its record holds it. The
+grade, the rest read pending, the verdict and grade stay pending until the
+record holds them, and the pane re-reads the judge every 2 seconds. Each item
+reads evidence pending until the record holds the item's evidence, and a
+judged stage's items open it, each cited source linking to its evidence page.
+The judge's cost reads pending during its first attempt, and after a rejected
+attempt it reads what the judge has cost so far. Between a rejected attempt
+and the next one's first reading, and before the first, the pane lists no
+items. Progress recorded before per-item results shows the counts alone. A
+stage whose judge has not started, or which ended without a judged grade,
+says so in one line. A note inside the pane says how far identical reruns'
+grades for the step have varied and links to comparisons. It counts as an
+identical rerun any other run of the same case under the same corpus version,
+whatever model, effort or pipeline it ran with, since the run list it reads
+carries none of them. When the runs in flight cannot be read, the monitor
+says "Could not read the runs in flight." Its remaining estimate and a step's
+instructions in and artifacts out remain design targets. The
 server has no authentication and binds to IPv4 loopback; use it locally. It answers 403 to a
 non-loopback `Host`, and to a write that is not a same-origin JSON request.
 The guard reads headers any local program can set, so any process on this
