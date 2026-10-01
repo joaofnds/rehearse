@@ -303,7 +303,8 @@ describe(`${readStageSession.name} once the stage has closed`, () => {
 					index: 0,
 					claim: "The agent asked before choosing a scope",
 					quote: "Which scope?",
-					label: "exchange 1 message",
+					exchange: 1,
+					field: "message",
 				},
 				{
 					section: "requirements",

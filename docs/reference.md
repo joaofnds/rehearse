@@ -1354,7 +1354,8 @@ their own session id and record none.
 session. Once the stage's `<run>.<stage>.json` exists it answers
 `{state: "closed", spans}` with the evidence the stage judge cites from the
 session's exchanges (source `transcript`), each with its section, item,
-index, claim, quote and exchange label, and, where the stage's checkpoint
+index, claim, quote and, where its evidence locates it, the exchange from 1
+and whether it quotes the agent's `message` or the `productOwnerAnswer`, and, where the stage's checkpoint
 preserved a transcript, `lineCount` and `transcriptPath` relative to the runs
 directory's parent. Before then it answers `{state: "running", lineCount,
 lines, latestToolCall}` from the provider's own transcript: the rows of its

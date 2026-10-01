@@ -55,7 +55,10 @@ export interface CitedSpan {
 	readonly index: number;
 	readonly claim: string;
 	readonly quote?: string;
-	readonly label?: string;
+	/** The exchange the span sits in, from 1, where the evidence locates it. */
+	readonly exchange?: number;
+	/** Whose words in that exchange: the agent's message or the Product Owner's answer. */
+	readonly field?: "message" | "productOwnerAnswer";
 }
 
 export type StageSession =
@@ -102,14 +105,14 @@ type JudgedGrade = NonNullable<
 	z.infer<typeof closedStageRecordSchema>["grade"]
 >;
 
-function spanLabel(
+function spanPlace(
 	evidence: Immutable<RecordedStageEvidence>,
-): string | undefined {
+): Pick<CitedSpan, "exchange" | "field"> {
 	const { locator } = evidence;
 
 	return locator?.kind === "exchange"
-		? `exchange ${String(locator.exchange + 1)} ${locator.field}`
-		: undefined;
+		? { exchange: locator.exchange + 1, field: locator.field }
+		: {};
 }
 
 function citedSpans(grade: Immutable<JudgedGrade>): readonly CitedSpan[] {
@@ -119,7 +122,6 @@ function citedSpans(grade: Immutable<JudgedGrade>): readonly CitedSpan[] {
 				if (cited.source !== "transcript") {
 					return [];
 				}
-				const label = spanLabel(cited);
 
 				return [
 					{
@@ -128,7 +130,7 @@ function citedSpans(grade: Immutable<JudgedGrade>): readonly CitedSpan[] {
 						index,
 						claim: cited.claim,
 						...(cited.quote !== undefined && { quote: cited.quote }),
-						...(label !== undefined && { label }),
+						...spanPlace(cited),
 					},
 				];
 			}),

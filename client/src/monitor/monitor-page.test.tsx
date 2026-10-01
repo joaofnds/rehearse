@@ -948,7 +948,17 @@ describe("/monitor session pane", () => {
 						index: 0,
 						claim: "The agent asked before choosing a scope",
 						quote: "Which scope?",
-						label: "exchange 1 message",
+						exchange: 1,
+						field: "message",
+					},
+					{
+						section: "requirements",
+						item: "R1",
+						index: 0,
+						claim: "The owner answered with the scope",
+						quote: "Use the small scope",
+						exchange: 1,
+						field: "productOwnerAnswer",
 					},
 					{
 						section: "requirements",
@@ -962,8 +972,9 @@ describe("/monitor session pane", () => {
 			await selectPlan();
 
 			expect(await rowCells()).toEqual([
-				["HB-1", "cited", "Which scope?"],
-				["R1", "cited", "The owner chose the small scope"],
+				["ex 1", "assistant", "Which scope?"],
+				["ex 1", "user", "Use the small scope"],
+				["", "cited", "The owner chose the small scope"],
 			]);
 			const pane = await sessionPane();
 			expect(pane).toHaveTextContent(

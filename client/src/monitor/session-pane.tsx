@@ -125,10 +125,16 @@ function TranscriptRows({
 	);
 }
 
+const SPEAKER = {
+	message: "assistant",
+	productOwnerAnswer: "user",
+} satisfies Record<NonNullable<CitedSpan["field"]>, SessionLine["kind"]>;
+
 /**
- * The spans the stage judge cites from the session, each under the item that
- * cites it. The judge cites exchanges, not transcript lines, so the first
- * column names the item rather than a line.
+ * The spans the stage judge cites from the session. The judge cites the
+ * session's exchanges, not transcript lines, so a span is numbered by its
+ * exchange and named by whose words it quotes, and a span the evidence does
+ * not locate reads as cited.
  */
 function CitedRows({
 	spans,
@@ -137,15 +143,21 @@ function CitedRows({
 }): React.JSX.Element {
 	return (
 		<ol aria-label="Transcript">
-			{spans.map((span) => (
-				<PaneRow
-					key={`${span.section}-${span.item}-${String(span.index)}`}
-					first={span.item}
-					kind="cited"
-					text={span.quote ?? span.claim}
-					tone={TEXT_TONE.assistant}
-				/>
-			))}
+			{spans.map((span) => {
+				const kind = span.field === undefined ? undefined : SPEAKER[span.field];
+
+				return (
+					<PaneRow
+						key={`${span.section}-${span.item}-${String(span.index)}`}
+						first={
+							span.exchange === undefined ? "" : `ex ${String(span.exchange)}`
+						}
+						kind={kind ?? "cited"}
+						text={span.quote ?? span.claim}
+						tone={TEXT_TONE[kind ?? "assistant"]}
+					/>
+				);
+			})}
 		</ol>
 	);
 }
