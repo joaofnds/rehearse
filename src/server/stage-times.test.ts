@@ -44,6 +44,7 @@ async function recordRun(
 		readonly run: string;
 		readonly caseId?: string;
 		readonly stageMs?: Readonly<Partial<Record<string, number>>>;
+		readonly stoppedIn?: string;
 	},
 ): Promise<void> {
 	const paths = benchmarkRunPaths(directory, props.run);
@@ -73,7 +74,14 @@ async function recordRun(
 		pipelinePath: "pipelines/default.json",
 	});
 	for (const [stage, elapsedMs] of Object.entries(props.stageMs ?? {})) {
-		await Bun.write(paths.stageFile(stage), JSON.stringify({ elapsedMs }));
+		await Bun.write(
+			paths.stageFile(stage),
+			JSON.stringify(
+				stage === props.stoppedIn
+					? { status: "STAGE_JUDGE_FAILED", elapsedMs }
+					: { elapsedMs },
+			),
+		);
 	}
 }
 
@@ -141,6 +149,30 @@ describe("/api/runs/:run/stage-times", () => {
 			run: "2026-10-02T10-00-00.000Z",
 			stageMs: { discuss: 999_000 },
 		});
+
+		const response = await stageTimes(directory, RUN);
+
+		expect(await response.json()).toEqual({
+			stages: [
+				{ stage: "discuss", state: "available", medianMs: 60_000 },
+				unrecorded("build"),
+				unrecorded("review"),
+			],
+		});
+	});
+
+	it("leaves out the time of a stage that stopped its run before it finished", async () => {
+		const directory = await runsDirectory();
+		await recordRun(directory, {
+			run: FIRST_EARLIER,
+			stageMs: { discuss: 60_000 },
+		});
+		await recordRun(directory, {
+			run: SECOND_EARLIER,
+			stageMs: { discuss: 5000 },
+			stoppedIn: "discuss",
+		});
+		await recordRun(directory, { run: RUN });
 
 		const response = await stageTimes(directory, RUN);
 

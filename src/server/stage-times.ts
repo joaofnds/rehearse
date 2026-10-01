@@ -2,7 +2,7 @@ import { RefusedPreconditionError } from "#benchmark/exit-codes";
 import { loadRunManifest } from "#benchmark/manifest";
 import { benchmarkRunPaths, recordedRunNames } from "#benchmark/run-layout";
 import type { Reading } from "./run-record";
-import { readStageFile } from "./run-record";
+import { readStageFile, stageStatus } from "./run-record";
 
 export const NO_PRIOR_RUN_REASON = "no prior run of this case";
 
@@ -51,6 +51,10 @@ async function earlierRunsOfCase(
 	return earlier;
 }
 
+/**
+ * The times a stage took where it finished. A stop record keeps the time up to
+ * a ceiling or operator stop, which would read as the stage being quick.
+ */
 async function recordedTimes(
 	runsDirectory: string,
 	runs: readonly string[],
@@ -62,7 +66,7 @@ async function recordedTimes(
 			benchmarkRunPaths(runsDirectory, run),
 			stage,
 		);
-		if (file?.elapsedMs !== undefined) {
+		if (stageStatus(file) === "graded" && file?.elapsedMs !== undefined) {
 			times.push(file.elapsedMs);
 		}
 	}

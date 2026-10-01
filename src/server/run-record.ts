@@ -552,7 +552,7 @@ function workflowStateChanges(
 	return { state: "available", changes };
 }
 
-function stageStatus(file: StageFile | undefined): StageStatus {
+export function stageStatus(file: StageFile | undefined): StageStatus {
 	if (file === undefined) {
 		return "no-record";
 	}
