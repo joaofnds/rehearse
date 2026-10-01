@@ -327,12 +327,16 @@ describe(readEvidenceSource.name, () => {
 
 	it("returns the evidence the record of the stage that stopped the run keeps beside its status", async () => {
 		const runsDirectory = await recordedRuns();
-		const { grade, ...unjudged } = STAGE_RECORD;
+		const {
+			grade: { grade: letter, verdict, ...judged },
+			...unjudged
+		} = STAGE_RECORD;
 		await writeFile(
 			join(runsDirectory, `${RUN}.build.json`),
 			JSON.stringify({
 				...unjudged,
-				...grade,
+				...judged,
+				grade: { grade: letter, verdict },
 				status: "STAGE_JUDGE_FAILED",
 				error: "Stage build graded D below the minimum C",
 			}),

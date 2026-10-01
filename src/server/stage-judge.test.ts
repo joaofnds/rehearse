@@ -258,6 +258,37 @@ describe(readStageJudge.name, () => {
 		});
 	});
 
+	it("answers from the stage's own events, whatever another stage's judge has recorded", async () => {
+		const runsDirectory = await queuedRun();
+		await recordEvents(runsDirectory, [
+			{ ...stageEvent("stage-judging", 1), stage: "plan" },
+			{ ...progressEvent(NOTHING_RETURNED, 1), stage: "plan" },
+			stageEvent("stage-started", 2),
+		]);
+
+		const judge = await judgeOf(runsDirectory);
+
+		expect(judge).toEqual({ state: "waiting" });
+	});
+
+	it("answers from the stage's latest judging when it was judged again", async () => {
+		const runsDirectory = await queuedRun();
+		await recordEvents(runsDirectory, [
+			stageEvent("stage-judging", 1),
+			progressEvent(NOTHING_RETURNED, 1.5),
+			stageEvent("stage-judging", 3),
+			progressEvent(NOTHING_RETURNED, 3.25),
+		]);
+
+		const judge = await judgeOf(runsDirectory);
+
+		expect(judge).toEqual({
+			state: "returning",
+			progress: NOTHING_RETURNED,
+			spentUsd: 0.25,
+		});
+	});
+
 	it("answers each judged blocker and dimension with its result and evidence once the record holds the grade", async () => {
 		const runsDirectory = await queuedRun();
 		await recordEvents(runsDirectory, [stageEvent("stage-judging")]);
@@ -282,7 +313,7 @@ describe(`${readStageJudge.name} when the record or the stream is older or parti
 				stage: "build",
 				error: "Stage build graded D below the minimum C",
 				...JUDGED_ITEMS,
-				grade: "D",
+				grade: { grade: "D", verdict: "CONTINUE" },
 			}),
 		);
 
