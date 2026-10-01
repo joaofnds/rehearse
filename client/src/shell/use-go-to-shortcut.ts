@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useNavigate } from "@tanstack/react-router";
+import { isShortcutKey } from "./shortcut-key";
 
 /**
  * How long the `g` prefix waits for its second key before the chord lapses, so
@@ -18,20 +19,6 @@ export const CHORD_DESTINATIONS = new Map([
 	["m", "/monitor"],
 ]);
 
-/** Whether a keystroke went into a field, where it is text rather than a shortcut. */
-export function isTyping(target: EventTarget | null): boolean {
-	if (!(target instanceof HTMLElement)) {
-		return false;
-	}
-
-	return (
-		target.isContentEditable ||
-		target instanceof HTMLInputElement ||
-		target instanceof HTMLTextAreaElement ||
-		target instanceof HTMLSelectElement
-	);
-}
-
 /**
  * The design's `g` chords (SPEC.md:356), which belong to the chrome because
  * they reach screens from anywhere. The listener is on the document rather
@@ -43,12 +30,8 @@ export function useGoToShortcut(): void {
 	const pendingSince = useRef<number | undefined>(undefined);
 
 	useEffect(() => {
-		function goTo(
-			key: string,
-			modified: boolean,
-			target: EventTarget | null,
-		): void {
-			if (modified || isTyping(target)) {
+		function goTo(key: string, shortcut: boolean): void {
+			if (!shortcut) {
 				pendingSince.current = undefined;
 
 				return;
@@ -67,11 +50,7 @@ export function useGoToShortcut(): void {
 
 		const listener: EventListener = (event) => {
 			if (event instanceof KeyboardEvent) {
-				goTo(
-					event.key,
-					event.metaKey || event.ctrlKey || event.altKey,
-					event.target,
-				);
+				goTo(event.key, isShortcutKey(event));
 			}
 		};
 

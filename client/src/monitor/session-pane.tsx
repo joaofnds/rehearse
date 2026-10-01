@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router";
 import type { Dispatch, SetStateAction } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { spendReading } from "#client/run-history/run-progress";
-import { isTyping } from "#client/shell/use-go-to-shortcut";
+import { isShortcutKey } from "#client/shell/shortcut-key";
 import { LiveGlyph, STATUS_VOCABULARY } from "#client/system/components/status";
 import type { MonitoredStage } from "./run-record-query";
 import type { StageSessionResponse } from "./stage-session-query";
@@ -43,13 +43,7 @@ function useTailKeys(
 ): void {
 	useEffect(() => {
 		const listener: EventListener = (event) => {
-			if (
-				!(event instanceof KeyboardEvent) ||
-				event.metaKey ||
-				event.ctrlKey ||
-				event.altKey ||
-				isTyping(event.target)
-			) {
+			if (!(event instanceof KeyboardEvent) || !isShortcutKey(event)) {
 				return;
 			}
 
