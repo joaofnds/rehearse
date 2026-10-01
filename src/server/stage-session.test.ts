@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "bun:test";
 import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { z } from "zod";
 import { writeRunManifest } from "#benchmark/manifest";
 import { openRunEventStore } from "#benchmark/run-events";
 import {
@@ -371,6 +372,64 @@ describe(`${readStageSession.name} once the stage has closed`, () => {
 		});
 
 		expect(session).toEqual({ state: "closed", spans: [] });
+	});
+
+	it("fails on a record whose grade does not hold the judged items", async () => {
+		const stage = await startedStage();
+		await Bun.write(
+			benchmarkRunPaths(stage.runsDirectory, RUN).stageFile("build"),
+			JSON.stringify({ stage: "build", grade: { hardBlockers: "none" } }),
+		);
+
+		const session = readStageSession({ ...stage, run: RUN, stage: "build" });
+
+		expect(session).rejects.toThrow(z.ZodError);
+	});
+
+	it("answers the spans a stage judge cites in the record of the stage that stopped the run", async () => {
+		const stage = await startedStage();
+		await Bun.write(
+			benchmarkRunPaths(stage.runsDirectory, RUN).stageFile("build"),
+			JSON.stringify({
+				status: "STAGE_JUDGE_FAILED",
+				stage: "build",
+				error: "Stage build graded D below the minimum C",
+				hardBlockers: [
+					{
+						id: "HB-1",
+						status: "FAIL",
+						evidence: [
+							{
+								source: "transcript",
+								path: "transcript",
+								claim: "The agent chose a scope without asking",
+							},
+						],
+					},
+				],
+				requirements: [],
+				dimensions: [],
+				grade: { grade: "D", verdict: "Below the bar" },
+			}),
+		);
+
+		const session = await readStageSession({
+			...stage,
+			run: RUN,
+			stage: "build",
+		});
+
+		expect(session).toEqual({
+			state: "closed",
+			spans: [
+				{
+					section: "hardBlockers",
+					item: "HB-1",
+					index: 0,
+					claim: "The agent chose a scope without asking",
+				},
+			],
+		});
 	});
 });
 

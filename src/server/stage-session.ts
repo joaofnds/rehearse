@@ -93,19 +93,26 @@ const judgedItemSchema = z.looseObject({
 	evidence: z.array(recordedStageEvidenceSchema),
 });
 
-const closedStageRecordSchema = z.looseObject({
-	grade: z
-		.looseObject({
-			hardBlockers: z.array(judgedItemSchema),
-			requirements: z.array(judgedItemSchema),
-			dimensions: z.array(judgedItemSchema),
-		})
-		.optional(),
+const judgedGradeSchema = z.looseObject({
+	hardBlockers: z.array(judgedItemSchema),
+	requirements: z.array(judgedItemSchema),
+	dimensions: z.array(judgedItemSchema),
 });
 
-type JudgedGrade = NonNullable<
-	z.infer<typeof closedStageRecordSchema>["grade"]
->;
+type JudgedGrade = z.infer<typeof judgedGradeSchema>;
+
+/** The record of the stage that stopped the run keeps its judged items beside its grade letter. */
+const stopRecordSchema = judgedGradeSchema.extend({
+	status: z.literal("STAGE_JUDGE_FAILED"),
+});
+
+/** A closed stage's judged items, or none where the judge has not graded it. */
+const closedStageRecordSchema = z.union([
+	stopRecordSchema,
+	z
+		.looseObject({ grade: judgedGradeSchema.optional() })
+		.transform(({ grade }) => grade),
+]);
 
 function spanPlace(
 	evidence: Immutable<RecordedStageEvidence>,
@@ -326,13 +333,10 @@ async function closedStageSession(
 	if (recordFile === undefined) {
 		return undefined;
 	}
-	const record = closedStageRecordSchema.safeParse(
+	const grade = closedStageRecordSchema.parse(
 		JSON.parse(await readVerifiedFile(runsRoot, recordFile)),
 	);
-	const spans =
-		record.success && record.data.grade !== undefined
-			? citedSpans(record.data.grade)
-			: [];
+	const spans = grade === undefined ? [] : citedSpans(grade);
 	const checkpointsEntry = checkpointsEntryForRun(run);
 	const checkpointDirectory = await verifiedDirectoryWhenPresent(runsRoot, [
 		checkpointsEntry,
