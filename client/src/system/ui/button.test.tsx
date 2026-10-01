@@ -46,7 +46,7 @@ describe(Button.name, () => {
 		expect(presses).toBe(0);
 	});
 
-	it.each(["default", "outline", "quiet", "strong", "ghost"] as const)(
+	it.each(["default", "outline", "quiet", "strong", "ghost", "link"] as const)(
 		"keeps a %s button's hover and press fills off while aria-disabled, as the design does",
 		(variant) => {
 			render(

@@ -18,7 +18,7 @@ const buttonVariants = cva(
 				strong:
 					"border-stronger text-bright not-aria-disabled:hover:border-primary not-aria-disabled:hover:bg-accent not-aria-disabled:active:bg-pressed",
 				ghost: "border-transparent not-aria-disabled:hover:bg-accent",
-				link: "border-transparent text-accent-foreground underline-offset-4 hover:underline",
+				link: "border-transparent text-accent-foreground underline-offset-4 not-aria-disabled:hover:underline",
 			},
 			size: {
 				default: "h-9 px-4",
