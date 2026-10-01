@@ -622,6 +622,25 @@ describe(runHistoryReport.name, () => {
 		expect(measuredAt).toBeLessThanOrEqual(Date.now());
 	});
 
+	it("measures the running stage's elapsed time from that stage's own start", async () => {
+		const fixture = await writtenFixture();
+		await fixture.writeRunningRun("stage-completed", "plan", 0.5, 4000);
+		await fixture.appendRunningEvent("stage-started", "build", 4000);
+		await fixture.appendRunningEvent("turn-completed", "build", 9000);
+
+		const { rows } = await runHistoryReport(
+			fixture.runsDirectory,
+			directorySource(await corpusDirectory("build skill\n")),
+			liveness(true),
+		);
+
+		expect(pipelineRun(rows, fixture.runningRun)?.progress).toMatchObject({
+			stage: "build",
+			elapsedMs: 9000,
+			stageElapsedMs: 5000,
+		});
+	});
+
 	it.each([
 		["stage-started", "session running"],
 		["turn-completed", "session running"],

@@ -85,6 +85,7 @@ export type RunProgress =
 			readonly stage: string;
 			readonly stageState: StageState;
 			readonly elapsedMs: number;
+			readonly stageElapsedMs: number | undefined;
 			readonly measuredAt: string;
 			readonly spentUsd: number;
 			readonly spendScope: SpendScope;
@@ -201,6 +202,7 @@ async function eventBackedIdentity(
  */
 function runningProgress(
 	latest: RunEvent | undefined,
+	stageStarted: RunEvent | undefined,
 ): RunProgress | undefined {
 	if (latest === undefined || isTerminalRunEventKind(latest.kind)) {
 		return undefined;
@@ -213,6 +215,10 @@ function runningProgress(
 		stage: latest.stage,
 		stageState: STAGE_STATE[latest.kind],
 		elapsedMs: latest.elapsedMs,
+		stageElapsedMs:
+			stageStarted === undefined
+				? undefined
+				: latest.elapsedMs - stageStarted.elapsedMs,
 		measuredAt: latest.recordedAt,
 		spentUsd: latest.spentUsd,
 		spendScope,
@@ -365,7 +371,12 @@ export async function statusAndCaseId(
 		);
 	}
 
-	const progress = runningProgress(latest);
+	const progress = runningProgress(
+		latest,
+		latest === undefined
+			? undefined
+			: runEvents.stageStarted(run, latest.stage),
+	);
 	if (
 		progress !== undefined &&
 		(await claimsLiveTarget(paths.manifestFile, liveness))

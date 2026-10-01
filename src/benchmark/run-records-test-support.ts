@@ -1473,6 +1473,25 @@ export class RecordedRunsFixture {
 		store.close();
 	}
 
+	/** A later event on the running run, its latest from then on. */
+	public async appendRunningEvent(
+		kind: PlainRunEventKind,
+		stage: string,
+		elapsedMs: number,
+	): Promise<void> {
+		const store = await openRunEventStore(
+			runEventsDatabaseFile(this.runsDirectory),
+		);
+		store.append({
+			runId: this.runningRun,
+			kind,
+			stage,
+			spentUsd: 0.4,
+			elapsedMs,
+		});
+		store.close();
+	}
+
 	/** A progress reading from the running run's stage judge, its latest event. */
 	public async appendRunningJudgeProgress(
 		judge: JudgeProgress,

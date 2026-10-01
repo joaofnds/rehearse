@@ -45,6 +45,7 @@ export function runRow(props: {
 	readonly ceilingUsd?: number;
 	readonly launchId?: string | undefined;
 	readonly elapsedMs?: number;
+	readonly stageElapsedMs?: number;
 	readonly measuredAt?: string;
 	readonly corpusVersion?: PipelineRow["corpusVersion"];
 }): PipelineRow {
@@ -76,6 +77,7 @@ export function runRow(props: {
 						stage: props.stage ?? "build",
 						stageState: props.stageState ?? "session running",
 						elapsedMs: props.elapsedMs ?? 9000,
+						stageElapsedMs: props.stageElapsedMs,
 						measuredAt: props.measuredAt ?? "2026-09-30T10:00:09.000Z",
 						spentUsd: 0.9,
 						spendScope: "this stage's session so far",
