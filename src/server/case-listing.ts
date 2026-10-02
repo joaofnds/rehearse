@@ -113,7 +113,7 @@ function pipelineFigures(runs: readonly CaseRun[]): PipelineCaseFigures {
 		return figures;
 	}
 
-	return { ...figures, median: medianVerdict(figures.passed, figures.judged) };
+	return { ...figures, median: medianVerdict(figures) };
 }
 
 function latestMinimumGrade(
@@ -167,11 +167,15 @@ function listedSessionCase(
  * Every declared case with what defines it and its figures over its
  * recorded runs (doc-193 decisions 3 and 4).
  */
-export async function caseListing(
-	casesRoot: string,
-	runsDirectory: string,
-	liveness: RunLiveness,
-): Promise<CaseListing> {
+export async function caseListing({
+	casesRoot,
+	runsDirectory,
+	liveness,
+}: {
+	readonly casesRoot: string;
+	readonly runsDirectory: string;
+	readonly liveness: RunLiveness;
+}): Promise<CaseListing> {
 	const [listing, recorded] = await Promise.all([
 		listCases(casesRoot),
 		readCaseRuns(runsDirectory, liveness),

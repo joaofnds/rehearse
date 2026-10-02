@@ -78,10 +78,13 @@ export function caseFigures(runs: readonly CaseRun[]): CaseFigures {
  * even count it is the lower of the two middle verdicts, as a group's median
  * grade is, so it is always a verdict some run received.
  */
-export function medianVerdict(
-	passed: number,
-	judged: number,
-): "PASS" | "FAIL" | null {
+export function medianVerdict({
+	passed,
+	judged,
+}: {
+	readonly passed: number;
+	readonly judged: number;
+}): "PASS" | "FAIL" | null {
 	if (judged === 0) {
 		return null;
 	}

@@ -90,11 +90,11 @@ describe("medianVerdict", () => {
 	] as const)(
 		"reads $median for $passed of $judged passed, the lower middle on an even count",
 		({ passed, judged, median }) => {
-			expect(medianVerdict(passed, judged)).toBe(median);
+			expect(medianVerdict({ passed, judged })).toBe(median);
 		},
 	);
 
 	it("reads no verdict when nothing was judged", () => {
-		expect(medianVerdict(0, 0)).toBeNull();
+		expect(medianVerdict({ passed: 0, judged: 0 })).toBeNull();
 	});
 });

@@ -55,8 +55,11 @@ function digestOf(
 	return measurement?.kind === "version" ? measurement.digest : undefined;
 }
 
-function unreadableRecord(id: string, message: string): UnreadableCaseRecord {
-	return { id, reason: redactAbsolutePaths(message) };
+function unreadableRecord({
+	id,
+	reason,
+}: UnreadableCaseRecord): UnreadableCaseRecord {
+	return { id, reason: redactAbsolutePaths(reason) };
 }
 
 function pipelineRun(record: RunRecord): CaseRunOf {
@@ -159,7 +162,7 @@ async function pipelineRuns(
 			);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			unreadable.push(unreadableRecord(name, message));
+			unreadable.push(unreadableRecord({ id: name, reason: message }));
 		}
 	}
 
@@ -185,7 +188,10 @@ async function sessionAttempts(runsDirectory: string): Promise<Found> {
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			unreadable.push(
-				unreadableRecord(`${attempt.caseId}/${attempt.uuid}`, message),
+				unreadableRecord({
+					id: `${attempt.caseId}/${attempt.uuid}`,
+					reason: message,
+				}),
 			);
 		}
 	}
@@ -257,7 +263,10 @@ async function groupReps(runsDirectory: string): Promise<Found> {
 				const reading = await readRep(paths.rep(repId), corpusDigest);
 				if (reading.state === "unreadable") {
 					unreadable.push(
-						unreadableRecord(`${groupId}/${repId}`, reading.reason),
+						unreadableRecord({
+							id: `${groupId}/${repId}`,
+							reason: reading.reason,
+						}),
 					);
 				}
 
@@ -271,7 +280,7 @@ async function groupReps(runsDirectory: string): Promise<Found> {
 			}
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			unreadable.push(unreadableRecord(groupId, message));
+			unreadable.push(unreadableRecord({ id: groupId, reason: message }));
 		}
 	}
 

@@ -652,11 +652,11 @@ export const createLaunchApp = (dependencies: LaunchDependencies) => {
 		})
 		.get("/api/cases", async (context) =>
 			context.json(
-				await caseListing(
-					dependencies.casesRoot,
-					dependencies.runsDirectory,
-					dependencies.liveness,
-				),
+				await caseListing({
+					casesRoot: dependencies.casesRoot,
+					runsDirectory: dependencies.runsDirectory,
+					liveness: dependencies.liveness,
+				}),
 			),
 		)
 		.get("/api/pipelines", async (context) =>
