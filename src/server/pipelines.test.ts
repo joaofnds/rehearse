@@ -41,6 +41,10 @@ const SESSION_CASE = {
 	checks: [{ kind: "word-band", max: 1 }],
 };
 
+function rubricPath(stage: string): string {
+	return `cases/pipe-case/rubrics/${stage}.json`;
+}
+
 function pipelineDefinition(stages: readonly string[]): PipelineDefinition {
 	return {
 		statuses: ["To Do", "Done"],
@@ -48,12 +52,17 @@ function pipelineDefinition(stages: readonly string[]): PipelineDefinition {
 			checks: [{ command: ["bun", "run", "typecheck"] }],
 			integrityFiles: ["package.json"],
 		},
-		stages: stages.map((name) => ({
-			name,
-			kind: "delivery",
-			skill: name,
-			rubric: `${name}.json`,
-		})),
+		stages: stages.map((name, index) =>
+			index === stages.length - 1
+				? { name, kind: "delivery", skill: name, rubric: rubricPath(name) }
+				: {
+						name,
+						kind: "planning",
+						skill: name,
+						rubric: rubricPath(name),
+						requiresAcceptanceCriteria: false,
+					},
+		),
 	};
 }
 
@@ -120,6 +129,12 @@ describe("/api/pipelines", () => {
 			join(root, "pipe-case", "pipeline.json"),
 			JSON.stringify(pipelineDefinition(["discuss", "build"])),
 		);
+		for (const stage of ["discuss", "build"]) {
+			await Bun.write(
+				join(root, "pipe-case", "rubrics", `${stage}.json`),
+				"{}",
+			);
+		}
 
 		return root;
 	}
@@ -362,6 +377,20 @@ describe("/api/pipelines", () => {
 
 			expect(pipelines.map(({ path }) => path)).toEqual([OVERRIDE_PIPELINE]);
 			expect(unreadable.map(({ id }) => id)).toEqual([DECLARED_PIPELINE]);
+		});
+
+		it("reports a declared pipeline the harness would refuse to run", async () => {
+			const { list, cases } = await serving([]);
+			await Bun.write(
+				join(cases, "pipe-case", "pipeline.json"),
+				JSON.stringify(pipelineDefinition(["build", "build"])),
+			);
+
+			const { pipelines, unreadable } = await list();
+
+			expect(pipelines).toEqual([]);
+			expect(unreadable.map(({ id }) => id)).toEqual([DECLARED_PIPELINE]);
+			expect(unreadable[0]?.reason).toContain("duplicate name");
 		});
 
 		it("reports a run manifest that does not parse and lists the rest", async () => {

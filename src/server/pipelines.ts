@@ -1,11 +1,11 @@
+import { readdir } from "node:fs/promises";
 import { join, relative } from "node:path";
-import { z } from "zod";
 import { caseRelative, CaseDeclarationError, listCases } from "#benchmark/case";
 import type { PipelineCaseDeclaration } from "#benchmark/case";
 import { CONTROL_DIR } from "#benchmark/config";
 import { loadRunManifest } from "#benchmark/manifest";
 import type { RunManifest } from "#benchmark/manifest";
-import { pipelineDefinitionSchema } from "#benchmark/pipeline";
+import { parsePipeline, PipelineDefinitionError } from "#benchmark/pipeline";
 import type { StageDefinition } from "#benchmark/pipeline";
 import { benchmarkRunPaths, recordedRunNames } from "#benchmark/run-layout";
 import { redactAbsolutePaths } from "./redact-path";
@@ -127,22 +127,42 @@ async function declaredPipelines(
 	return { found, unreadable };
 }
 
-/** The stages of a declared pipeline no run recorded, read from its file. */
+/**
+ * The stages of a declared pipeline no run recorded, read from its file
+ * through the harness's own parse, so a file the harness would refuse to run
+ * is reported rather than listed. Its rubrics are named control-relative, as
+ * the stages name them.
+ */
 async function declaredStages(
 	casesRoot: string,
 	declaration: PipelineCaseDeclaration,
 ): Promise<readonly StageDefinition[]> {
-	const file = Bun.file(join(casesRoot, declaration.id, declaration.pipeline));
-	const parsed = pipelineDefinitionSchema.safeParse(
-		JSON.parse(await file.text()),
-	);
-	if (!parsed.success) {
-		throw new Error(
-			`Pipeline definition is invalid: ${z.prettifyError(parsed.error)}`,
+	const caseDirectory = join(casesRoot, declaration.id);
+	const file = Bun.file(join(caseDirectory, declaration.pipeline));
+	if (!(await file.exists())) {
+		throw new PipelineDefinitionError(
+			`Pipeline definition not found: ${declaration.pipeline}`,
 		);
 	}
 
-	return parsed.data.stages;
+	const rubricsDirectory = join(caseDirectory, declaration.rubrics);
+	let rubricEntries: readonly string[];
+	try {
+		rubricEntries = await readdir(rubricsDirectory);
+	} catch {
+		throw new PipelineDefinitionError(
+			`Rubrics directory cannot be read: ${declaration.rubrics}`,
+		);
+	}
+
+	const availableRubrics = rubricEntries.map((entry) =>
+		relative(
+			CONTROL_DIR,
+			caseRelative(declaration, join(declaration.rubrics, entry)),
+		),
+	);
+
+	return parsePipeline(await file.text(), availableRubrics).stages;
 }
 
 function figuresOf(runs: readonly RecordedRun[]): PipelineFigures {
@@ -251,8 +271,14 @@ export async function pipelineReport(
 				),
 			);
 		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			unreadable.push({ id: path, reason: redactAbsolutePaths(message) });
+			if (
+				!(error instanceof PipelineDefinitionError) &&
+				!(error instanceof CaseDeclarationError)
+			) {
+				throw error;
+			}
+
+			unreadable.push({ id: path, reason: redactAbsolutePaths(error.message) });
 		}
 	}
 
