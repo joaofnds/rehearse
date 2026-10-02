@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { Disclosure } from "#client/system/components/disclosure";
 import { EmptyState } from "#client/system/components/empty-state";
@@ -711,7 +712,7 @@ export function RunHistoryPage(): React.JSX.Element {
 							then run it. Every attempt lands here as a durable record.
 						</p>
 						<Button asChild>
-							<a href="/cases">Declare a case</a>
+							<Link to="/cases">Declare a case</Link>
 						</Button>
 					</EmptyState>
 				) : null}

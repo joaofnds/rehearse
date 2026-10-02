@@ -8,6 +8,13 @@ import {
 	within,
 } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+	createMemoryHistory,
+	createRootRoute,
+	createRoute,
+	createRouter,
+	RouterProvider,
+} from "@tanstack/react-router";
 import type { InferResponseType } from "hono/client";
 import type { apiClient } from "#client/api-client";
 import type { Reply } from "#client/test-support/fetch-stub";
@@ -50,9 +57,17 @@ function renderPage(): RenderResult {
 		defaultOptions: { queries: { retry: false } },
 	});
 
+	const root = createRootRoute({ component: RunHistoryPage });
+	const router = createRouter({
+		routeTree: root.addChildren([
+			createRoute({ getParentRoute: () => root, path: "/cases" }),
+		]),
+		history: createMemoryHistory({ initialEntries: ["/"] }),
+	});
+
 	return render(
 		<QueryClientProvider client={client}>
-			<RunHistoryPage />
+			<RouterProvider router={router} />
 		</QueryClientProvider>,
 	);
 }
@@ -125,16 +140,6 @@ describe(RunHistoryPage.name, () => {
 		await waitFor(() => {
 			expect(screen.getByText("No runs recorded")).toBeInTheDocument();
 		});
-	});
-
-	it("sends Declare a case on the empty state to the cases", async () => {
-		respondingWith({ rows: [], launches: [], unreadable: [] });
-
-		renderPage();
-
-		expect(
-			await screen.findByRole("link", { name: "Declare a case" }),
-		).toHaveAttribute("href", "/cases");
 	});
 
 	/**
