@@ -28,7 +28,7 @@ function pipelineCase(overrides: Partial<PipelineCase> = {}): PipelineCase {
 		title: "Asynchronous audit log module against the NestJS template",
 		model: "sonnet",
 		target: "../../../nest/template",
-		steps: {
+		pipeline: {
 			state: "available",
 			stages: [
 				{ name: "shape", rubric: "cases/audit-log/rubrics/shape.json" },
@@ -281,7 +281,7 @@ describe(CasesPage.name, () => {
 		it("says why its steps cannot be shown", async () => {
 			renderCasesAt("/cases", [
 				pipelineCase({
-					steps: {
+					pipeline: {
 						state: "unavailable",
 						reason: "Pipeline stage build names a missing rubric: x.json",
 					},

@@ -210,7 +210,7 @@ describe("/api/cases", () => {
 			title: PIPELINE_CASE.title,
 			model: null,
 			target: "/sources/template",
-			steps: {
+			pipeline: {
 				state: "available",
 				stages: [
 					{ name: "discuss", rubric: "cases/audit-log/rubrics/discuss.json" },
@@ -323,7 +323,7 @@ describe("/api/cases", () => {
 			const { listed } = await serving();
 
 			expect(await listed(UNRUNNABLE_CASE.id)).toMatchObject({
-				steps: {
+				pipeline: {
 					state: "unavailable",
 					reason: `Pipeline stage build names a missing rubric: cases/${UNRUNNABLE_CASE.id}/rubrics/missing.json`,
 				},
@@ -336,7 +336,7 @@ describe("/api/cases", () => {
 			const { listed } = await serving();
 
 			expect(await listed(UNFIT_RUBRIC_CASE.id)).toMatchObject({
-				steps: {
+				pipeline: {
 					state: "unavailable",
 					reason: expect.stringMatching(
 						/^Pipeline stage build names a rubric it cannot use:/u,
@@ -362,7 +362,7 @@ describe("/api/cases", () => {
 				const { listed } = await serving();
 
 				expect(await listed(declaration.id)).toMatchObject({
-					steps: {
+					pipeline: {
 						state: "unavailable",
 						reason: `Case ${declaration.id} names a path outside its case directory: ${path}`,
 					},

@@ -96,14 +96,14 @@ function Definition({
 		);
 	}
 
-	if (listed.steps.state === "unavailable") {
+	if (listed.pipeline.state === "unavailable") {
 		return (
 			<>
 				<span className="text-xs tracking-widest text-dim uppercase">
 					Steps
 				</span>
 				<span className="text-11-5 text-muted-foreground">
-					{listed.steps.reason}
+					{listed.pipeline.reason}
 				</span>
 			</>
 		);
@@ -113,11 +113,11 @@ function Definition({
 		<>
 			<span className="text-xs tracking-widest text-dim uppercase">Steps</span>
 			<span className="font-mono text-11-5">
-				{listed.steps.stages.map(({ name }) => name).join(" → ")}
+				{listed.pipeline.stages.map(({ name }) => name).join(" → ")}
 			</span>
 			<span className="text-xs tracking-widest text-dim uppercase">Judges</span>
 			<span className="font-mono text-11-5">
-				{`${plural(listed.steps.stages.length, "step rubric")} + ${listed.finalRubric}`}
+				{`${plural(listed.pipeline.stages.length, "step rubric")} + ${listed.finalRubric}`}
 			</span>
 		</>
 	);

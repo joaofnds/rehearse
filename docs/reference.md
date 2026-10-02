@@ -181,9 +181,9 @@ cost the dialog showed. The knob refusal, the spend ceiling and the model probe
 run later in the started process, so they end the launch with the reason only
 in its log. `GET /api/cases` lists
 every declared case with its kind, title and model. A pipeline case also
-carries its `target`, its `steps` (each stage with its rubric, read from its
-pipeline file through the harness's pipeline checks, or `unavailable` with the
-reason the harness would refuse the file), its `finalRubric`, and
+carries its `target`, its `pipeline` (each stage with its rubric, read from its
+pipeline file through the harness's pipeline and stage rubric checks, or
+`unavailable` with the reason the harness would refuse the file), its `finalRubric`, and
 `latestMinimumGrade`: the minimum grade the newest pipeline run recorded,
 `not-recorded` where that run or every run of the case lacks one, and `null`
 for a case nothing ran. Group records hold no minimum grade, so a case only

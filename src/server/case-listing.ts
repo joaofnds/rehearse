@@ -12,13 +12,13 @@ import type { RecordedCase, UnreadableCaseRecord } from "./case-runs";
 import { readDeclaredPipeline } from "./pipelines";
 import { redactAbsolutePaths } from "./redact-path";
 
-export interface ListedStep {
+export interface ListedStage {
 	readonly name: string;
 	readonly rubric: string;
 }
 
-export type StepsReading =
-	| { readonly state: "available"; readonly stages: readonly ListedStep[] }
+export type PipelineReading =
+	| { readonly state: "available"; readonly stages: readonly ListedStage[] }
 	| { readonly state: "unavailable"; readonly reason: string };
 
 /** A pipeline case's figures add the median of its final Judge's verdicts. */
@@ -47,7 +47,7 @@ interface ListedCaseIdentity {
 export interface ListedPipelineCase extends ListedCaseIdentity {
 	readonly kind: "pipeline";
 	readonly target: string;
-	readonly steps: StepsReading;
+	readonly pipeline: PipelineReading;
 	readonly finalRubric: string;
 	readonly figures: PipelineCaseFigures;
 	readonly latestMinimumGrade: LatestMinimumGrade;
@@ -81,10 +81,10 @@ export interface CaseListing {
 
 const NO_RUNS: readonly CaseRun[] = [];
 
-async function steps(
+async function pipelineReading(
 	casesRoot: string,
 	declaration: PipelineCaseDeclaration,
-): Promise<StepsReading> {
+): Promise<PipelineReading> {
 	try {
 		const pipeline = await readDeclaredPipeline(casesRoot, declaration);
 
@@ -141,7 +141,7 @@ async function listedPipelineCase(
 		title: declaration.title,
 		model: declaration.model ?? null,
 		target: declaration.target.path,
-		steps: await steps(casesRoot, declaration),
+		pipeline: await pipelineReading(casesRoot, declaration),
 		finalRubric: declaration.finalRubric,
 		figures: pipelineFigures(recorded?.runs ?? NO_RUNS),
 		latestMinimumGrade: latestMinimumGrade(recorded),
