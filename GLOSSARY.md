@@ -550,13 +550,20 @@ See [current state](docs/status.md) for implementation coverage and
   the whole. Distinct from stage spend and from the per-session limit the
   session knobs set.
 - **Burn rate**: a run in flight's run spend divided by its elapsed time, as
-  the latest run event measured them, read in dollars per minute.
+  the latest run event measured them, read in dollars per minute. A UI concept
+  only: the live monitor computes it and the harness stores none (see screen
+  2b of the [design spec](docs/design-handoff/SPEC.md)). Name accepted
+  unattended as unsettled, pending the operator's confirmation (ACT-270).
 - **Remaining estimate**: the time and spend a run in flight is expected to
   take before its steps finish. The time sums each unfinished step's median
-  graded time in earlier runs of the same case, less what the running step has
-  already run, and the spend is that time at the burn rate. With no earlier
-  graded time, no run spend, or no recorded start of the running step, there
-  is no estimate and the reason is shown instead.
+  graded time in earlier runs of the same case, the running step's less what
+  it has already run and never below zero, and the spend is that time at the
+  burn rate. When a figure it needs is missing there is no estimate, and the
+  reason is shown instead, from the list under
+  [Stage times](docs/reference.md#stage-times) in the reference. A UI concept
+  only: the harness serves the median times and the live monitor
+  computes the estimate. Name accepted unattended as unsettled, pending the
+  operator's confirmation (ACT-270).
 - **Spend ceiling**: the stored USD limit on a run's whole spend, which every
   paid command requires before it starts. Each session a run starts gets a
   budget no larger than the ceiling minus the run spend so far, and once the
