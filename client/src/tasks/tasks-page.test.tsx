@@ -104,7 +104,7 @@ describe(TasksPage.name, () => {
 			const control = await screen.findByRole("button", { name });
 
 			expect(control).toHaveAttribute("aria-disabled", "true");
-			expect(control).toHaveAccessibleDescription("Not wired in v0.6");
+			expect(control).toHaveAccessibleDescription("Not wired yet");
 		},
 	);
 
@@ -141,7 +141,7 @@ describe(TasksPage.name, () => {
 		const edit = within(card).getByRole("button", { name: "Edit steps" });
 
 		expect(edit).toHaveAttribute("aria-disabled", "true");
-		expect(edit).toHaveAccessibleDescription("Not wired in v0.6");
+		expect(edit).toHaveAccessibleDescription("Not wired yet");
 	});
 
 	it("opens the live monitor on the newest of its runs in flight", async () => {

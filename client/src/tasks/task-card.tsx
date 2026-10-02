@@ -7,7 +7,7 @@ import type { PipelinesResponse } from "./pipelines-query";
 
 export type ListedTask = PipelinesResponse["pipelines"][number];
 
-export const NOT_WIRED_REASON = "Not wired in v0.6";
+export const NOT_WIRED_REASON = "Not wired yet";
 
 function runsCounted({ runs, figures }: ListedTask): string {
 	if (runs.length === 0) {
