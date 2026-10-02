@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
 import { PASS } from "#benchmark/comparison-test-fixtures";
+import { CONTROL_DIR } from "#benchmark/config";
 import {
 	CASE_ID,
 	nothingRunning,
@@ -47,6 +48,12 @@ const UNRUNNABLE_CASE = {
 	title: "A case whose pipeline names a missing rubric",
 };
 
+const UNFIT_RUBRIC_CASE = {
+	...PIPELINE_CASE,
+	id: "unfit-rubric",
+	title: "A case whose build rubric does not fit its stage",
+};
+
 const ESCAPING_PIPELINE_CASE = {
 	...PIPELINE_CASE,
 	id: "escaping-pipeline",
@@ -60,6 +67,9 @@ const ESCAPING_RUBRICS_CASE = {
 	title: "A case whose rubrics path leaves its directory",
 	rubrics: `../${CASE_ID}/rubrics`,
 };
+
+const PLANNING_RUBRIC = join(CONTROL_DIR, "cases/audit-log/rubrics/shape.json");
+const DELIVERY_RUBRIC = join(CONTROL_DIR, "cases/audit-log/rubrics/build.json");
 
 function pipelineFile(caseId: string, rubrics: readonly string[]): string {
 	return JSON.stringify({
@@ -118,6 +128,7 @@ describe("/api/cases", () => {
 			PIPELINE_CASE,
 			SESSION_CASE,
 			UNRUNNABLE_CASE,
+			UNFIT_RUBRIC_CASE,
 			ESCAPING_PIPELINE_CASE,
 			ESCAPING_RUBRICS_CASE,
 		]) {
@@ -128,13 +139,21 @@ describe("/api/cases", () => {
 			);
 			await Bun.write(
 				join(root, declaration.id, "rubrics", "discuss.json"),
-				"{}",
+				await Bun.file(PLANNING_RUBRIC).text(),
 			);
 			await Bun.write(
 				join(root, declaration.id, "rubrics", "build.json"),
-				"{}",
+				await Bun.file(DELIVERY_RUBRIC).text(),
 			);
 		}
+		await Bun.write(
+			join(root, UNFIT_RUBRIC_CASE.id, "rubrics", "build.json"),
+			"{}",
+		);
+		await Bun.write(
+			join(root, UNFIT_RUBRIC_CASE.id, "pipeline.json"),
+			pipelineFile(UNFIT_RUBRIC_CASE.id, ["discuss.json", "build.json"]),
+		);
 		await Bun.write(
 			join(root, CASE_ID, "pipeline.json"),
 			pipelineFile(CASE_ID, ["discuss.json", "build.json"]),
@@ -285,6 +304,21 @@ describe("/api/cases", () => {
 				steps: {
 					state: "unavailable",
 					reason: `Pipeline stage build names a missing rubric: cases/${UNRUNNABLE_CASE.id}/rubrics/missing.json`,
+				},
+			});
+		});
+	});
+
+	describe("when a case's stage rubric does not fit its stage", () => {
+		it("lists the case with its steps unavailable, as the harness refuses it", async () => {
+			const { listed } = await serving();
+
+			expect(await listed(UNFIT_RUBRIC_CASE.id)).toMatchObject({
+				steps: {
+					state: "unavailable",
+					reason: expect.stringMatching(
+						/^Pipeline stage build names a rubric it cannot use:/u,
+					),
 				},
 			});
 		});

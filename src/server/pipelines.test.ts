@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
+import { CONTROL_DIR } from "#benchmark/config";
 import { confirmationGroupRecordSchema } from "#benchmark/confirmation-record";
 import {
 	benchmarkRunPaths,
@@ -143,10 +144,15 @@ describe("/api/pipelines", () => {
 			join(root, "pipe-case", "pipeline.json"),
 			JSON.stringify(pipelineDefinition(["discuss", "build"])),
 		);
-		for (const stage of ["discuss", "build"]) {
+		for (const [stage, fitting] of [
+			["discuss", "shape.json"],
+			["build", "build.json"],
+		] as const) {
 			await Bun.write(
 				join(root, "pipe-case", "rubrics", `${stage}.json`),
-				"{}",
+				await Bun.file(
+					join(CONTROL_DIR, "cases/audit-log/rubrics", fitting),
+				).text(),
 			);
 		}
 

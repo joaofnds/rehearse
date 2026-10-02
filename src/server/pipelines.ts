@@ -1,5 +1,5 @@
 import { readdir } from "node:fs/promises";
-import { join, relative } from "node:path";
+import { basename, join, relative } from "node:path";
 import { caseRelative, CaseDeclarationError, listCases } from "#benchmark/case";
 import type { PipelineCaseDeclaration } from "#benchmark/case";
 import { CONTROL_DIR } from "#benchmark/config";
@@ -15,6 +15,7 @@ import {
 	recordedRunNames,
 } from "#benchmark/run-layout";
 import { atLatestCorpusVersion } from "./latest-corpus-version";
+import { parseStageRubric } from "#benchmark/stage-grading";
 import { redactAbsolutePaths } from "./redact-path";
 
 /** The case whose declaration names a pipeline as its default. */
@@ -210,7 +211,8 @@ async function declaredPipelines(casesRoot: string): Promise<DeclaredCases> {
 
 /**
  * A case's declared pipeline, read from its file through the harness's own
- * parse, so a file the harness would refuse to run throws rather than reads,
+ * parse and rubric fit, so a file the harness would refuse to run throws
+ * rather than reads,
  * and a path outside the case directory throws before anything opens it.
  * Its rubrics are named control-relative, as the stages name them.
  */
@@ -248,7 +250,25 @@ export async function readDeclaredPipeline(
 		),
 	);
 
-	return parsePipeline(await file.text(), availableRubrics);
+	const pipeline = parsePipeline(await file.text(), availableRubrics);
+	for (const stage of pipeline.stages) {
+		const rubric = Bun.file(
+			caseRelative(
+				declaration,
+				join(declaration.rubrics, basename(stage.rubric)),
+				casesRoot,
+			),
+		);
+		try {
+			parseStageRubric(await rubric.text(), stage.kind);
+		} catch (error) {
+			throw new PipelineDefinitionError(
+				`Pipeline stage ${stage.name} names a rubric it cannot use: ${error instanceof Error ? error.message : String(error)}`,
+			);
+		}
+	}
+
+	return pipeline;
 }
 
 function stageNames(pipeline: PipelineDefinition): readonly string[] {
