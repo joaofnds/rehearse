@@ -414,7 +414,7 @@ describe("/api/pipelines", () => {
 		]);
 	});
 
-	it("counts only the runs at the latest corpus version and names the runs it left out", async () => {
+	it("counts only the runs at the latest corpus version and counts the runs it left out", async () => {
 		const { list, names } = await serving([
 			{
 				timestamp: "2026-09-01T10:00:00.000Z",
