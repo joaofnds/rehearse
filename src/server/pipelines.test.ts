@@ -393,6 +393,16 @@ describe("/api/pipelines", () => {
 			expect(unreadable[0]?.reason).toContain("duplicate name");
 		});
 
+		it("reports a case declaration that does not parse, since it may declare a task", async () => {
+			const { list, cases } = await serving([]);
+			await mkdir(join(cases, "broken-case"));
+			await Bun.write(join(cases, "broken-case", "case.json"), "{");
+
+			const { unreadable } = await list();
+
+			expect(unreadable.map(({ id }) => id)).toEqual(["broken-case"]);
+		});
+
 		it("reports a run manifest that does not parse and lists the rest", async () => {
 			const { list, names, runsDirectory } = await serving([
 				{

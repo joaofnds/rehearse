@@ -100,7 +100,11 @@ async function declaredPipelines(
 ): Promise<Reading<DeclaredPipeline>> {
 	const listing = await listCases(casesRoot);
 	const found: DeclaredPipeline[] = [];
-	const unreadable: UnreadablePipelineRecord[] = [];
+	const unreadable = listing.unreadable.map(({ id, reason }) => ({
+		id,
+		reason: redactAbsolutePaths(reason),
+	}));
+
 	for (const declaration of listing.declarations) {
 		if (declaration.kind !== "pipeline") {
 			continue;
