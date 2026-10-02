@@ -1,8 +1,10 @@
+import { useQuery } from "@tanstack/react-query";
 import { useId } from "react";
+import { Notice } from "#client/system/components/notice";
 import { ScreenHeader } from "#client/system/components/screen-header";
 import { Button } from "#client/system/ui/button";
-
-const NOT_WIRED_REASON = "Not wired in v0.6";
+import { pipelinesQuery } from "./pipelines-query";
+import { NOT_WIRED_REASON, TaskCard } from "./task-card";
 
 function HeaderControls(): React.JSX.Element {
 	const reasonId = useId();
@@ -33,6 +35,10 @@ function HeaderControls(): React.JSX.Element {
 }
 
 export function TasksPage(): React.JSX.Element {
+	const query = useQuery(pipelinesQuery);
+	const tasks = query.data?.pipelines ?? [];
+	const unreadable = query.data?.unreadable ?? [];
+
 	return (
 		<div>
 			<ScreenHeader
@@ -48,6 +54,27 @@ export function TasksPage(): React.JSX.Element {
 					work as four steps and as one step produce comparable task grades.
 					Import and export are drawn but not wired in v0.6.
 				</p>
+
+				{query.isLoading ? (
+					<p className="text-muted-foreground">Loading…</p>
+				) : null}
+				{query.isError ? (
+					<p role="alert" className="text-muted-foreground">
+						<span aria-hidden="true">⚠ </span>
+						Could not load the tasks.
+					</p>
+				) : null}
+
+				{unreadable.length > 0 ? (
+					<Notice
+						message="These records could not be read, so no card shows what they hold:"
+						items={unreadable.map(({ id, reason }) => `${id}: ${reason}`)}
+					/>
+				) : null}
+
+				{tasks.map((task) => (
+					<TaskCard key={task.path} task={task} />
+				))}
 			</div>
 		</div>
 	);

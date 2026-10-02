@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 import type { PipelinesResponse } from "./pipelines-query";
 import { TasksPage } from "./tasks-page";
 import { renderAppWithStub } from "#client/test-support/render-app";
@@ -35,13 +35,27 @@ function declaredTask(): ListedPipeline {
 	};
 }
 
+function overrideTask(): ListedPipeline {
+	return {
+		path: "cases/audit-log/pipelines/build-only.json",
+		stages: ["build"],
+		stageJudges: 1,
+		taskJudges: 0,
+		declaredBy: null,
+		cases: ["audit-log"],
+		runs: [NEWER_RUN],
+		figures: { counted: 1, corpusVersion: null, leftOut: 0 },
+	};
+}
+
 function renderTasksAt(
 	path: string,
 	pipelines: readonly ListedPipeline[],
+	unreadable: PipelinesResponse["unreadable"] = [],
 ): void {
 	const response: PipelinesResponse = {
 		pipelines: [...pipelines],
-		unreadable: [],
+		unreadable,
 	};
 	renderAppWithStub(path, new Map([["/api/pipelines", response]]));
 }
@@ -71,4 +85,100 @@ describe(TasksPage.name, () => {
 			expect(control).toHaveAccessibleDescription("Not wired in v0.6");
 		},
 	);
+
+	it("shows a task's id, target, figures, description and steps on its card", async () => {
+		renderTasksAt("/tasks", [declaredTask()]);
+
+		const card = await screen.findByRole("article", { name: TASK_PATH });
+
+		expect(
+			within(card).getByText("../../../nest/template"),
+		).toBeInTheDocument();
+		expect(
+			within(card).getByText(
+				"14 runs at corpus@e73e56 · 1 case · 2 step judges + 1 task judge",
+			),
+		).toBeInTheDocument();
+		expect(
+			within(card).getByText(
+				"12 runs left out, at another corpus version or none recorded",
+			),
+		).toBeInTheDocument();
+		expect(
+			within(card).getByText(
+				"Asynchronous audit log module against the NestJS template",
+			),
+		).toBeInTheDocument();
+		expect(within(card).getByText("shape → build")).toBeInTheDocument();
+	});
+
+	it("draws Edit steps on each card but says it is not wired yet", async () => {
+		renderTasksAt("/tasks", [declaredTask()]);
+
+		const card = await screen.findByRole("article", { name: TASK_PATH });
+		const edit = within(card).getByRole("button", { name: "Edit steps" });
+
+		expect(edit).toHaveAttribute("aria-disabled", "true");
+		expect(edit).toHaveAccessibleDescription("Not wired in v0.6");
+	});
+
+	describe("when only a run's override chose the task", () => {
+		it("says no case declares it and that its runs recorded no corpus version", async () => {
+			const task = overrideTask();
+			renderTasksAt("/tasks", [task]);
+
+			const card = await screen.findByRole("article", { name: task.path });
+
+			expect(
+				within(card).getByText("No case declares it as its default"),
+			).toBeInTheDocument();
+			expect(
+				within(card).getByText(
+					"1 run, corpus version not recorded · 1 case · 1 step judge + no task judge",
+				),
+			).toBeInTheDocument();
+			expect(
+				within(card).getByText(
+					"A run chose this pipeline over its case's default, so no case's final rubric judges it as a task.",
+				),
+			).toBeInTheDocument();
+		});
+	});
+
+	describe("when no run has recorded the task", () => {
+		it("says it has no runs yet", async () => {
+			renderTasksAt("/tasks", [
+				{
+					...declaredTask(),
+					runs: [],
+					figures: { counted: 0, corpusVersion: null, leftOut: 0 },
+				},
+			]);
+
+			const card = await screen.findByRole("article", { name: TASK_PATH });
+
+			expect(
+				within(card).getByText(
+					"No runs yet · 1 case · 2 step judges + 1 task judge",
+				),
+			).toBeInTheDocument();
+		});
+	});
+
+	describe("when a record cannot be read", () => {
+		it("names it beside the tasks it could read", async () => {
+			renderTasksAt(
+				"/tasks",
+				[declaredTask()],
+				[{ id: OLDER_RUN, reason: "JSON Parse error" }],
+			);
+
+			const notice = await screen.findByText(`${OLDER_RUN}: JSON Parse error`);
+
+			expect(notice).toBeInTheDocument();
+			expect(
+				screen.getByRole("article", { name: TASK_PATH }),
+			).toBeInTheDocument();
+		});
+	});
 });
