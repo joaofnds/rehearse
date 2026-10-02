@@ -77,7 +77,9 @@ mise exec -- bun run serve
 ```
 
 A fresh clone has no run history. Available views cover run history, the linked
-corpus, saved comparisons, saved session-attempt history, and the design system.
+corpus, saved comparisons, saved session-attempt history, the tasks and cases
+the checkout declares, and the design system. Declare a case on the Cases view
+writes an uncommitted `cases/<id>/case.json` into the checkout.
 The run history shows a run that is executing, with its stage, elapsed time, and
 spend, and the Live monitor follows it live. New run on run history and Replay
 from here on a pipeline stage start a run or replay under the stored spend
