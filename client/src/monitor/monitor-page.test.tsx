@@ -641,40 +641,6 @@ describe("/monitor task graph", () => {
 		expect(await graphNode("build")).toHaveTextContent("$0.90");
 	});
 
-	it("shows a stage that has only just started as costing nothing yet, not what the stages before it spent", async () => {
-		renderAppWithStub(
-			"/monitor",
-			new Map<string, unknown>([
-				[
-					"/api/runs",
-					history([
-						runRow({
-							run: RUN,
-							stage: "build",
-							spend: {
-								spentUsd: 1.1,
-								spendScope: "the stages finished before this one",
-							},
-						}),
-					]),
-				],
-				[
-					`/api/runs/${RUN}`,
-					runRecord({
-						run: RUN,
-						running: "build",
-						stages: [
-							recordStage("plan", { status: "graded" }),
-							recordStage("build"),
-						],
-					}),
-				],
-			]),
-		);
-
-		expect(await graphNode("build")).toHaveTextContent("$0.00");
-	});
-
 	it("shows on the running stage, which has measured none of its own yet, the corpus version the header names", async () => {
 		const latest: CorpusMeasurement = {
 			kind: "version",
@@ -913,6 +879,52 @@ describe("/monitor task graph", () => {
 		expect(graph).toHaveTextContent(
 			"Minimum grade for every step in this task is B-. A task below it stops the run and restores acme-api to e91f2a.",
 		);
+	});
+
+	describe("when the running stage's latest event is not one of its session's turns", () => {
+		it("shows a stage that has only just started as costing nothing yet, not what the stages before it spent", async () => {
+			renderMonitor(
+				runRow({
+					run: RUN,
+					stage: "build",
+					spend: {
+						spentUsd: 1.1,
+						spendScope: "the stages finished before this one",
+					},
+				}),
+			);
+
+			expect(await graphNode("build")).toHaveTextContent("$0.00");
+		});
+
+		it("shows a stage whose judge is grading as costing its whole session", async () => {
+			renderMonitor(
+				runRow({
+					run: RUN,
+					stage: "build",
+					stageState: "judge grading",
+					spend: { spentUsd: 1.4, spendScope: "this stage's session" },
+				}),
+			);
+
+			expect(await graphNode("build")).toHaveTextContent("$1.40");
+		});
+
+		it("shows a judged stage whose record is not written yet as costing its session and its judge", async () => {
+			renderMonitor(
+				runRow({
+					run: RUN,
+					stage: "build",
+					stageState: "judged",
+					spend: {
+						spentUsd: 1.9,
+						spendScope: "this stage's session and its judge",
+					},
+				}),
+			);
+
+			expect(await graphNode("build")).toHaveTextContent("$1.90");
+		});
 	});
 });
 
