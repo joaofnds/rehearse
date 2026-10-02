@@ -3,6 +3,10 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { FAIL, PASS } from "#benchmark/comparison-test-fixtures";
+import { parseConfirmationRepRecord } from "#benchmark/confirmation-record";
+import type { ParsedConfirmationRepRecord } from "#benchmark/confirmation-record";
+import type { Immutable } from "#benchmark/contracts";
+import { confirmationGroupPaths } from "#benchmark/run-layout";
 import {
 	CASE_ID,
 	nothingRunning,
@@ -25,6 +29,14 @@ beforeEach(async () => {
 afterEach(async () => {
 	await rm(root, { recursive: true, force: true });
 });
+
+async function rewriteRep(
+	file: string,
+	changes: Immutable<Partial<ParsedConfirmationRepRecord>>,
+): Promise<void> {
+	const record = parseConfirmationRepRecord(await Bun.file(file).text());
+	await Bun.write(file, JSON.stringify({ ...record, ...changes }));
+}
 
 describe("readCaseRuns", () => {
 	it("reads a pipeline case's runs newest first with their verdicts and whole costs", async () => {
@@ -87,6 +99,56 @@ describe("readCaseRuns", () => {
 			],
 			minimumGrade: undefined,
 		});
+	});
+
+	it("reads a session rep whose checks ran by its outcome, taking it from its attempt when its metrics went missing", async () => {
+		const [checked, unmeasured] = await fixture.writeSessionGroup("group-s", 2);
+		const paths = confirmationGroupPaths(root, "group-s");
+		await rewriteRep(paths.rep(checked).recordFile, {
+			outcome: "UNSUCCESSFUL",
+			stages: [
+				{
+					stage: "checks",
+					status: "JUDGED",
+					grade: "F",
+					verdict: "STOP",
+					elapsedMs: 1,
+					evidence: { recordFile: "attempt.json" },
+				},
+			],
+		});
+		await rewriteRep(paths.rep(unmeasured).recordFile, {
+			outcome: "UNSUCCESSFUL",
+			stages: [
+				{
+					stage: "checks",
+					status: "METRICS_MISSING",
+					elapsedMs: 1,
+					error: "Worker call metrics are missing",
+					evidence: { recordFile: "attempt.json" },
+				},
+			],
+		});
+
+		const { cases } = await readCaseRuns(root, nothingRunning);
+
+		expect(cases.get(SESSION_CASE)?.runs.map(({ passed }) => passed)).toEqual([
+			false,
+			true,
+		]);
+	});
+
+	it("reports a rep record it cannot read and still counts the rep", async () => {
+		const [rep] = await fixture.writeSessionGroup("group-s");
+		await Bun.write(
+			confirmationGroupPaths(root, "group-s").rep(rep).recordFile,
+			"{ not json",
+		);
+
+		const { cases, unreadable } = await readCaseRuns(root, nothingRunning);
+
+		expect(cases.get(SESSION_CASE)?.runs).toHaveLength(2);
+		expect(unreadable.map(({ id }) => id)).toEqual([`group-s/${rep}`]);
 	});
 
 	it("leaves stage-mode groups and stage replays out of every case", async () => {

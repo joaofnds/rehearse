@@ -95,44 +95,48 @@ function sessionAttemptRun(record: Immutable<SessionAttemptRecord>): CaseRun {
 }
 
 /**
- * A pipeline rep passes on the final Judge's PASS and a session rep on its
- * checks passing. A rep whose metrics are missing lacks its whole cost.
+ * A pipeline rep passes on the final Judge's PASS and a session rep on the
+ * outcome of an attempt whose checks ran. A rep record holds no successful
+ * outcome without metrics, so a rep whose metrics went missing takes the
+ * outcome its own attempt record kept, as a lone attempt would read.
  */
-function repPassed(
+async function repPassed(
 	rep: Immutable<ParsedConfirmationRepRecord>,
-): boolean | undefined {
-	if (rep.mode === "session") {
-		const [checks] = rep.stages;
-
-		return checks?.status === "JUDGED"
-			? checks.verdict === "CONTINUE" && checks.grade === "A"
+	attemptFile: string,
+): Promise<boolean | undefined> {
+	if (rep.mode === "pipeline") {
+		return rep.finalOutcome.status === "JUDGED"
+			? rep.finalOutcome.verdict === "PASS"
 			: undefined;
 	}
 
-	return rep.finalOutcome.status === "JUDGED"
-		? rep.finalOutcome.verdict === "PASS"
-		: undefined;
-}
-
-function repRun(
-	rep: Immutable<ParsedConfirmationRepRecord> | undefined,
-	corpusDigest: string | undefined,
-): CaseRun {
-	if (rep === undefined) {
-		return { corpusDigest, passed: undefined, costUsd: undefined };
+	const [checks] = rep.stages;
+	if (checks?.status === "JUDGED") {
+		return rep.outcome === "SUCCESSFUL";
 	}
 
-	return {
-		corpusDigest,
-		passed: repPassed(rep),
-		costUsd:
-			rep.metrics.status === "COMPLETE"
-				? rep.metrics.calls.reduce(
-						(total, { metrics }) => total + metrics.costUsd,
-						0,
-					)
-				: undefined,
-	};
+	if (checks?.status !== "METRICS_MISSING") {
+		return undefined;
+	}
+
+	const attempt = Bun.file(attemptFile);
+	if (!(await attempt.exists())) {
+		return undefined;
+	}
+
+	return sessionAttemptRun(parseSessionAttemptRecord(await attempt.text()))
+		.passed;
+}
+
+function repCost(
+	rep: Immutable<ParsedConfirmationRepRecord>,
+): number | undefined {
+	return rep.metrics.status === "COMPLETE"
+		? rep.metrics.calls.reduce(
+				(total, { metrics }) => total + metrics.costUsd,
+				0,
+			)
+		: undefined;
 }
 
 async function pipelineRuns(
@@ -189,21 +193,44 @@ async function sessionAttempts(runsDirectory: string): Promise<Found> {
 	return { found, unreadable };
 }
 
+type RepReading =
+	| { readonly state: "read"; readonly run: CaseRun }
+	| { readonly state: "not-recorded" }
+	| { readonly state: "unreadable"; readonly reason: string };
+
 async function readRep(
-	file: string,
-): Promise<ParsedConfirmationRepRecord | undefined> {
+	paths: Immutable<{ recordFile: string; attemptFile: string }>,
+	corpusDigest: string | undefined,
+): Promise<RepReading> {
+	const file = Bun.file(paths.recordFile);
+	if (!(await file.exists())) {
+		return { state: "not-recorded" };
+	}
+
 	try {
-		return parseConfirmationRepRecord(await Bun.file(file).text());
-	} catch {
-		return undefined;
+		const rep = parseConfirmationRepRecord(await file.text());
+
+		return {
+			state: "read",
+			run: {
+				corpusDigest,
+				passed: await repPassed(rep, paths.attemptFile),
+				costUsd: repCost(rep),
+			},
+		};
+	} catch (error) {
+		const reason = error instanceof Error ? error.message : String(error);
+
+		return { state: "unreadable", reason };
 	}
 }
 
 /**
  * Pipeline and session groups' reps, each a run, in group id order since
  * group records carry no time. A rep that recorded nothing readable still
- * counts, unjudged and uncosted. Stage-mode groups rerun one stage, not a
- * case, so they are left out.
+ * counts, unjudged and uncosted, and a rep record that cannot be parsed is
+ * reported besides. Stage-mode groups rerun one stage, not a case, so they
+ * are left out.
  */
 async function groupReps(runsDirectory: string): Promise<Found> {
 	const found: CaseRunOf[] = [];
@@ -227,9 +254,19 @@ async function groupReps(runsDirectory: string): Promise<Found> {
 
 			const corpusDigest = digestOf(record.inputs.corpusVersion);
 			for (const { repId } of record.repRecords) {
+				const reading = await readRep(paths.rep(repId), corpusDigest);
+				if (reading.state === "unreadable") {
+					unreadable.push(
+						unreadableRecord(`${groupId}/${repId}`, reading.reason),
+					);
+				}
+
 				found.push({
 					caseId: record.caseId,
-					run: repRun(await readRep(paths.rep(repId).recordFile), corpusDigest),
+					run:
+						reading.state === "read"
+							? reading.run
+							: { corpusDigest, passed: undefined, costUsd: undefined },
 				});
 			}
 		} catch (error) {
