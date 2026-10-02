@@ -1,63 +1,76 @@
 import { mkdir, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, posix } from "node:path";
 import { z } from "zod";
-import type { CaseDeclaration } from "#benchmark/case";
 import {
 	CASES_DIRECTORY,
 	CaseDeclarationError,
 	caseDeclarationPath,
+	caseDeclarationSchema,
 	parseCaseDeclaration,
+	sessionCaseDeclarationSchema,
 } from "#benchmark/case";
+import type { Immutable } from "#benchmark/contracts";
 import type { CorpusRoot } from "#benchmark/corpus-file";
 import { CorpusFileError, resolveCorpusFile } from "#benchmark/corpus-file";
 import { DECLARED_BY_HAND_REASON } from "./declared-by-hand";
 import { redactAbsolutePaths } from "./redact-path";
 
-const DECLARABLE_FIELDS = [
-	"id",
-	"kind",
-	"title",
-	"prompt",
-	"tools",
-	"corpusFiles",
-	"checks",
-	"model",
-	"sessionBudgetUsd",
-] as const;
+const CASE_FIELDS = new Set<string>(
+	caseDeclarationSchema.options.flatMap((option) => option.keyof().options),
+);
 
 /**
  * The fields the browser may set are the ones that run no command, so a
- * declaration that needs any other is edited by hand. Their values are the
- * case parser's to judge, the same parser a run loads the file with.
+ * declaration that needs any other is edited by hand. Each is judged by the
+ * session case's own schema, without the defaults it fills in, so the
+ * request written is the file a run reads. The claude CLI takes the prompt
+ * where it still reads options, so a prompt that starts with a dash would set
+ * a flag the browser may not set.
  */
-export const declareCaseRequestSchema = z.strictObject(
-	{
-		id: z.string(),
+export const declareCaseRequestSchema = sessionCaseDeclarationSchema
+	.pick({
+		id: true,
+		title: true,
+		tools: true,
+		corpusFiles: true,
+		checks: true,
+		sessionBudgetUsd: true,
+	})
+	.extend({
 		kind: z.literal("session", {
 			error: (issue) =>
 				issue.input === "pipeline" ? DECLARED_BY_HAND_REASON : undefined,
 		}),
-		title: z.unknown().optional(),
-		prompt: z.unknown().optional(),
-		tools: z.unknown().optional(),
-		corpusFiles: z.unknown().optional(),
-		checks: z.unknown().optional(),
+		prompt: z
+			.string()
+			.min(1)
+			.refine(
+				(prompt) => !prompt.startsWith("-"),
+				"A prompt cannot start with -, which the claude CLI would read as an option",
+			),
 		model: z.string().min(1),
-		sessionBudgetUsd: z.unknown().optional(),
-	},
-	{
-		error: (issue) =>
-			issue.code === "unrecognized_keys"
-				? `${issue.keys.join(", ")} is declared by hand in case.json: the browser sets only ${DECLARABLE_FIELDS.join(", ")}`
-				: undefined,
-	},
-);
+	})
+	.strict();
+
+function refusedFieldReason(field: string): string {
+	if (!CASE_FIELDS.has(field)) {
+		return `${field} is not a case.json field`;
+	}
+
+	return `${field} is declared by hand in case.json: the browser sets only ${declareCaseRequestSchema.keyof().options.join(", ")}`;
+}
+
+/** Names a field the browser may not set with why it may not. */
+export const refusedFieldMessages: z.core.$ZodErrorMap = (issue) =>
+	issue.code === "unrecognized_keys"
+		? issue.keys.map(refusedFieldReason).join("; ")
+		: undefined;
 
 export type DeclareCaseRequest = z.infer<typeof declareCaseRequestSchema>;
 
 export interface DeclaredCase {
 	/** The declaration as written, without the defaults the parser fills in. */
-	readonly declaration: DeclareCaseRequest;
+	readonly declaration: Immutable<DeclareCaseRequest>;
 	/** Relative to the control repository, where the file is uncommitted. */
 	readonly path: string;
 }
@@ -77,9 +90,10 @@ export class DeclarationRefusalError extends Error {
 	}
 }
 
-function parsedDeclaration(id: string, text: string): CaseDeclaration {
+/** The file is read back as a run reads it, so it is refused as a run would. */
+function refuseUnreadable(id: string, text: string): void {
 	try {
-		return parseCaseDeclaration(id, text);
+		parseCaseDeclaration(id, text);
 	} catch (error) {
 		if (!(error instanceof CaseDeclarationError)) {
 			throw error;
@@ -91,13 +105,22 @@ function parsedDeclaration(id: string, text: string): CaseDeclaration {
 /**
  * The corpus files are resolved against the corpus a run would read, which
  * refuses a path outside the layout and one that climbs out of the install.
- * Whether each file exists is left to the run, as for a hand-written case.
+ * It checks the layout before resolving `..`, so a path with a `.` or `..`
+ * segment is refused first. Whether each file exists is left to the run, as
+ * for a hand-written case.
  */
 function refuseCorpusFiles(
 	corpusFiles: readonly string[],
 	corpus: CorpusRoot,
 ): void {
 	for (const layoutPath of corpusFiles) {
+		if (posix.normalize(layoutPath) !== layoutPath) {
+			throw new DeclarationRefusalError(
+				`Corpus file ${layoutPath} must be a layout path with no . or .. segment`,
+				400,
+			);
+		}
+
 		try {
 			resolveCorpusFile(corpus, layoutPath);
 		} catch (error) {
@@ -129,7 +152,10 @@ async function claimCaseDirectory(
 		) {
 			throw error;
 		}
-		throw new DeclarationRefusalError(`Case ${id} is already declared`, 409);
+		throw new DeclarationRefusalError(
+			`Case ${id} already has a directory under ${CASES_DIRECTORY}/`,
+			409,
+		);
 	}
 }
 
@@ -138,29 +164,25 @@ async function claimCaseDirectory(
  * the parser fills in never reaches the file.
  */
 export async function declareCase(
-	request: DeclareCaseRequest,
+	request: Immutable<DeclareCaseRequest>,
 	casesRoot: string,
 	corpus: CorpusRoot,
 ): Promise<DeclaredCase> {
 	const text = `${JSON.stringify(request, null, "\t")}\n`;
-	const declaration = parsedDeclaration(request.id, text);
-	if (declaration.kind === "session") {
-		refuseCorpusFiles(declaration.corpusFiles, corpus);
-	}
+	refuseUnreadable(request.id, text);
+	refuseCorpusFiles(request.corpusFiles, corpus);
 
-	const directory = join(casesRoot, declaration.id);
-	await claimCaseDirectory(directory, declaration.id);
+	const file = caseDeclarationPath(request.id, casesRoot);
+	await claimCaseDirectory(dirname(file), request.id);
 	try {
-		await writeFile(caseDeclarationPath(declaration.id, casesRoot), text, {
-			flag: "wx",
-		});
+		await writeFile(file, text, { flag: "wx" });
 	} catch (error) {
-		await rm(directory, { force: true, recursive: true });
+		await rm(dirname(file), { force: true, recursive: true });
 		throw error;
 	}
 
 	return {
 		declaration: request,
-		path: join(CASES_DIRECTORY, declaration.id, "case.json"),
+		path: caseDeclarationPath(request.id, CASES_DIRECTORY),
 	};
 }

@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useId, useState } from "react";
+import type { Immutable } from "#benchmark/contracts";
 import type { Check } from "#benchmark/session-check";
 import { launchClient } from "#client/api-client";
 import { Button } from "#client/system/ui/button";
@@ -160,7 +161,9 @@ function declarationRequest(draft: Draft): DeclareCaseRequest {
  * A refusal the route declares arrives as `{ error }`. Anything else, the
  * request guard's plain-text 403 included, is shown as the server sent it.
  */
-async function postDeclaration(request: DeclareCaseRequest): Promise<string> {
+async function postDeclaration(
+	request: Immutable<DeclareCaseRequest>,
+): Promise<string> {
 	const response = await launchClient.api.cases.$post({ json: request });
 	if (response.status === 201) {
 		const declared = await response.json();

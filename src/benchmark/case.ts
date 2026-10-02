@@ -63,6 +63,26 @@ export type TranscriptPrefix = z.infer<typeof transcriptPrefixSchema>;
 const declaredModelSchema = z.string().min(1).optional();
 const declaredSessionBudgetUsdSchema = z.number().positive().optional();
 
+export const sessionCaseDeclarationSchema = z
+	.object({
+		id: caseIdSchema,
+		kind: z.literal("session"),
+		title: z.string().min(1),
+		fixture: caseRelativePathSchema.optional(),
+		prompt: z.string().min(1),
+		transcript: transcriptPrefixSchema.optional(),
+		tools: z.array(z.string().min(1)),
+		settings: jsonObjectSchema.optional(),
+		agents: jsonObjectSchema.optional(),
+		corpusFiles: z.array(z.string().min(1)),
+		projectFiles: z.array(z.string().min(1)).default([]),
+		checks: z.array(checkSchema).min(1),
+		stateCheck: stateCheckSchema.optional(),
+		model: declaredModelSchema,
+		sessionBudgetUsd: declaredSessionBudgetUsdSchema,
+	})
+	.strict();
+
 export const caseDeclarationSchema = z.discriminatedUnion("kind", [
 	z
 		.object({
@@ -80,25 +100,7 @@ export const caseDeclarationSchema = z.discriminatedUnion("kind", [
 			sessionBudgetUsd: declaredSessionBudgetUsdSchema,
 		})
 		.strict(),
-	z
-		.object({
-			id: caseIdSchema,
-			kind: z.literal("session"),
-			title: z.string().min(1),
-			fixture: caseRelativePathSchema.optional(),
-			prompt: z.string().min(1),
-			transcript: transcriptPrefixSchema.optional(),
-			tools: z.array(z.string().min(1)),
-			settings: jsonObjectSchema.optional(),
-			agents: jsonObjectSchema.optional(),
-			corpusFiles: z.array(z.string().min(1)),
-			projectFiles: z.array(z.string().min(1)).default([]),
-			checks: z.array(checkSchema).min(1),
-			stateCheck: stateCheckSchema.optional(),
-			model: declaredModelSchema,
-			sessionBudgetUsd: declaredSessionBudgetUsdSchema,
-		})
-		.strict(),
+	sessionCaseDeclarationSchema,
 ]);
 
 export type CaseDeclaration = Immutable<z.infer<typeof caseDeclarationSchema>>;

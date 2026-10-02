@@ -54,6 +54,7 @@ import {
 	DeclarationRefusalError,
 	declareCase,
 	declareCaseRequestSchema,
+	refusedFieldMessages,
 } from "./case-declaration";
 import { caseListing } from "./case-listing";
 import { pipelineReport } from "./pipelines";
@@ -667,6 +668,7 @@ export const createLaunchApp = (dependencies: LaunchDependencies) => {
 		.post("/api/cases", async (context) => {
 			const parsed = declareCaseRequestSchema.safeParse(
 				await context.req.json().catch(() => undefined),
+				{ error: refusedFieldMessages },
 			);
 			if (!parsed.success) {
 				return context.json({ error: z.prettifyError(parsed.error) }, 400);

@@ -1083,7 +1083,7 @@ describe(createLaunchApp.name, () => {
 				[
 					"an id that is not a case id",
 					{ ...DECLARED_CASE, id: "../escape" },
-					"invalid id",
+					"lowercase letters, digits, or dashes",
 				],
 				["no prompt", { ...DECLARED_CASE, prompt: "" }, "prompt"],
 				[
@@ -1095,6 +1095,21 @@ describe(createLaunchApp.name, () => {
 					"a corpus file that climbs out of the corpus install",
 					{ ...DECLARED_CASE, corpusFiles: ["skills/../../.ssh/id_rsa"] },
 					"skills/../../.ssh/id_rsa",
+				],
+				[
+					"a corpus file that climbs out of the corpus layout",
+					{ ...DECLARED_CASE, corpusFiles: ["skills/../settings.json"] },
+					"skills/../settings.json",
+				],
+				[
+					"a prompt the claude CLI would read as an option",
+					{ ...DECLARED_CASE, prompt: "--version" },
+					"prompt",
+				],
+				[
+					"a field no case declares",
+					{ ...DECLARED_CASE, titel: "A declared case" },
+					"titel is not a case.json field",
 				],
 			])(
 				"refuses %s with the reason and writes no case directory",
