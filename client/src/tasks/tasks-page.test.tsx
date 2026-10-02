@@ -59,4 +59,16 @@ describe(TasksPage.name, () => {
 			screen.getByText(/declared as the pipeline file a case names/u),
 		).toBeInTheDocument();
 	});
+
+	it.each(["Import a task", "Export with judges"])(
+		"draws %s but says it is not wired yet",
+		async (name) => {
+			renderTasksAt("/tasks", [declaredTask()]);
+
+			const control = await screen.findByRole("button", { name });
+
+			expect(control).toHaveAttribute("aria-disabled", "true");
+			expect(control).toHaveAccessibleDescription("Not wired in v0.6");
+		},
+	);
 });
