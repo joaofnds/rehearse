@@ -8,6 +8,7 @@ import {
 	renderAppAt,
 	renderAppWithStub,
 	SHELL_BASELINE,
+	stubFetchFailing,
 } from "#client/test-support/render-app";
 import { runRow } from "#client/test-support/runs-in-flight";
 
@@ -302,6 +303,32 @@ describe(TasksPage.name, () => {
 					"3 runs at corpus@e73e56 · 1 case · 2 step judges + 1 task judge",
 				),
 			).toBeInTheDocument();
+		});
+	});
+
+	describe("when every run is at the latest corpus version", () => {
+		it("says no run was left out", async () => {
+			renderTasksAt("/tasks", [
+				{
+					...declaredTask(),
+					figures: { counted: 2, corpusVersion: DIGEST, leftOut: 0 },
+				},
+			]);
+
+			const card = await screen.findByRole("article", { name: TASK_PATH });
+
+			expect(within(card).queryByText(/left out/u)).not.toBeInTheDocument();
+		});
+	});
+
+	describe("when the tasks cannot be read", () => {
+		it("says so", async () => {
+			stubFetchFailing("/api/pipelines");
+			renderAppAt("/tasks");
+
+			expect(await screen.findByRole("alert")).toHaveTextContent(
+				"Could not load the tasks.",
+			);
 		});
 	});
 

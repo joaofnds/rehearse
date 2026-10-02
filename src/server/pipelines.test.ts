@@ -349,9 +349,27 @@ describe("/api/pipelines", () => {
 			{
 				path: DECLARED_PIPELINE,
 				stages: ["discuss", "build"],
+				cases: ["pipe-case"],
 				runs: [],
 				figures: { counted: 0, corpusVersion: null, leftOut: 0 },
 			},
+		]);
+	});
+
+	it("names every case that ran a task beside the case that declares it", async () => {
+		const { list } = await serving([
+			{
+				timestamp: "2026-09-01T10:00:00.000Z",
+				caseId: "retired-case",
+				pipelinePath: DECLARED_PIPELINE,
+				stages: ["discuss", "build"],
+			},
+		]);
+
+		const { pipelines } = await list();
+
+		expect(pipelines).toMatchObject([
+			{ cases: ["pipe-case", "retired-case"], targets: ["/target"] },
 		]);
 	});
 
@@ -367,6 +385,7 @@ describe("/api/pipelines", () => {
 
 		const { pipelines } = await list();
 
+		expect(pipelines.map(({ path }) => path)).toEqual([DECLARED_PIPELINE]);
 		expect(pipelines.flatMap(({ cases }) => cases)).not.toContain(
 			SESSION_CASE.id,
 		);
