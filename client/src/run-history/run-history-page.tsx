@@ -710,7 +710,9 @@ export function RunHistoryPage(): React.JSX.Element {
 							The corpus is linked and a spend limit is set. Declare a case,
 							then run it. Every attempt lands here as a durable record.
 						</p>
-						<Button disabled>Declare a case</Button>
+						<Button asChild>
+							<a href="/cases">Declare a case</a>
+						</Button>
 					</EmptyState>
 				) : null}
 

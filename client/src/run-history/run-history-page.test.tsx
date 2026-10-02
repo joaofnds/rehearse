@@ -127,6 +127,16 @@ describe(RunHistoryPage.name, () => {
 		});
 	});
 
+	it("sends Declare a case on the empty state to the cases", async () => {
+		respondingWith({ rows: [], launches: [], unreadable: [] });
+
+		renderPage();
+
+		expect(
+			await screen.findByRole("link", { name: "Declare a case" }),
+		).toHaveAttribute("href", "/cases");
+	});
+
 	/**
 	 * The corpus state that used to fail `/api/runs` outright, which this screen
 	 * could only render as its query error: the refusal now arrives as a row's
