@@ -15,15 +15,7 @@ import type { DeclareCaseRequest } from "#server/case-declaration";
 import { DECLARED_BY_HAND_REASON } from "#server/declared-by-hand";
 import { casesQuery } from "./cases-query";
 
-const CHECK_KINDS = [
-	"word-band",
-	"forbidden-text",
-	"forbidden-pattern",
-	"tool-calls",
-	"files-read",
-] as const satisfies readonly Check["kind"][];
-
-type CheckKind = (typeof CHECK_KINDS)[number];
+type CheckKind = Check["kind"];
 
 type CheckField =
 	| "min"
@@ -43,6 +35,10 @@ const CHECK_FIELDS = {
 	"tool-calls": ["min", "max", "names"],
 	"files-read": ["paths"],
 } as const satisfies Record<CheckKind, readonly CheckField[]>;
+
+const CHECK_KINDS: readonly CheckKind[] = Object.keys(CHECK_FIELDS).filter(
+	(kind): kind is CheckKind => kind in CHECK_FIELDS,
+);
 
 const MULTILINE_FIELDS: ReadonlySet<CheckField> = new Set(["strings", "paths"]);
 
