@@ -180,7 +180,32 @@ cost it computes now differs from `statedUsd`, so the click approves only the
 cost the dialog showed. The knob refusal, the spend ceiling and the model probe
 run later in the started process, so they end the launch with the reason only
 in its log. `GET /api/cases` lists
-the declared cases with their models.
+every declared case with its kind, title and model. A pipeline case also
+carries its `target`, its `steps` (each stage with its rubric, read from its
+pipeline file through the harness's pipeline checks, or `unavailable` with the
+reason the harness would refuse the file), its `finalRubric`, and
+`latestMinimumGrade`: the minimum grade the newest pipeline run recorded,
+`not-recorded` where that run or every run of the case lacks one, and `null`
+for a case nothing ran. Group records hold no minimum grade, so a case only
+groups ran reads `not-recorded`. A session case carries `target: null` and
+the kinds of its declared `checks`, which are its judges. Each case's
+`figures` are `no-runs` for a case nothing ran, else the runs counted at the
+latest corpus version any of them recorded, that version, how many runs it
+left out, how many counted runs were judged and passed, and `costPerRun`: the
+mean over counted runs whose whole cost is recorded, with how many were
+costed and how many lack a cost. A run is a pipeline run, a session attempt,
+or one rep of a pipeline or session confirmation group. Stage replays and
+stage-mode groups rerun one stage rather than the case and are not counted. A
+pipeline run is judged when its final Judge recorded PASS or FAIL, and a
+pipeline case's `figures` add `median`, the median of those verdicts with FAIL
+ranked below PASS and the lower middle taken on an even count. A session run
+is judged when its checks ran, it passes when they all pass, and a session
+case has no median, since its records hold no letter. The latest version is
+the first one recorded reading pipeline runs newest first, then session
+attempts, then groups in id order, so for a case only session runs ran it
+need not be the newest. Declarations that do not parse are named in
+`unreadable`, and run records the figures could not read in
+`unreadableRecords`.
 
 `GET /api/pipelines` lists every pipeline a pipeline case declares as its
 default and every `pipelinePath` a run manifest or pipeline confirmation group
