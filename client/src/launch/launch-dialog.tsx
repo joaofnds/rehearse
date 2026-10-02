@@ -24,7 +24,13 @@ import {
 import type { LaunchRequest } from "#server/launches";
 
 export type LaunchTarget =
-	| { readonly kind: "case" }
+	| {
+			readonly kind: "case";
+			/** The case the dialog opens on, else the first that declares a model. */
+			readonly caseId?: string;
+			/** The attempts the dialog opens on, else one. */
+			readonly attempts?: LaunchAttempts;
+	  }
 	| { readonly kind: "replay"; readonly run: string; readonly stage: string }
 	| {
 			readonly kind: "comparison";
@@ -530,6 +536,16 @@ function startedGroupsOf(
 	}
 }
 
+/** The case and attempts the form opens on. */
+function openingChoice(target: LaunchTarget): {
+	readonly caseId: string | undefined;
+	readonly attempts: LaunchAttempts;
+} {
+	return target.kind === "case"
+		? { caseId: target.caseId, attempts: target.attempts ?? 1 }
+		: { caseId: undefined, attempts: 1 };
+}
+
 function LaunchForm({
 	target,
 	onLaunched,
@@ -538,8 +554,9 @@ function LaunchForm({
 	readonly onLaunched: () => void;
 }): React.JSX.Element {
 	const queryClient = useQueryClient();
-	const [attempts, setAttempts] = useState<LaunchAttempts>(1);
-	const [pickedCase, setPickedCase] = useState<string>();
+	const opensOn = openingChoice(target);
+	const [attempts, setAttempts] = useState(opensOn.attempts);
+	const [pickedCase, setPickedCase] = useState(opensOn.caseId);
 	const [ceilingDraft, setCeilingDraft] = useState<string>();
 	const settings = useQuery({
 		queryKey: ["launch-settings"],

@@ -238,6 +238,38 @@ describe(LaunchDialog.name, () => {
 		).toMatchObject({ caseId: "smoke" });
 	});
 
+	describe("when opened on a case with its attempts chosen", () => {
+		it("posts that case and that many attempts", async () => {
+			const server = serving();
+			await openDialog({ kind: "case", caseId: "smoke", attempts: 3 });
+			await screen.findByRole("option", { name: "smoke · Smoke" });
+
+			fireEvent.click(await startButton());
+
+			await waitFor(() => {
+				expect(server.posted("/api/launches")).toHaveLength(1);
+			});
+			expect(JSON.parse(server.posted("/api/launches")[0]?.body ?? "")).toEqual(
+				{ kind: "case", caseId: "smoke", attempts: 3 },
+			);
+		});
+
+		it("shows that case picked and that attempt count pressed", async () => {
+			serving();
+			const dialog = await openDialog({
+				kind: "case",
+				caseId: "smoke",
+				attempts: 3,
+			});
+			await within(dialog).findByRole("option", { name: "smoke · Smoke" });
+
+			expect(within(dialog).getByLabelText("Case")).toHaveValue("smoke");
+			expect(
+				within(dialog).getByRole("button", { name: "×3" }),
+			).toHaveAttribute("aria-pressed", "true");
+		});
+	});
+
 	it("posts the run and stage when replaying a stage", async () => {
 		const server = serving();
 		await openDialog({
