@@ -5,8 +5,7 @@ import { ScreenHeader } from "#client/system/components/screen-header";
 import { Button } from "#client/system/ui/button";
 import { CaseCard } from "./case-card";
 import { casesQuery } from "./cases-query";
-
-const NOT_WIRED_REASON = "Not wired yet";
+import { NOT_WIRED_REASON } from "#client/not-wired";
 
 function DeclareCase(): React.JSX.Element {
 	const reasonId = useId();

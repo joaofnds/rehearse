@@ -1,23 +1,19 @@
 import { Link } from "@tanstack/react-router";
 import { useId } from "react";
-import {
-	runsCounted as runsCountedAt,
-	runsLeftOut,
-} from "#client/latest-version-runs";
+import { NO_RUNS, runsCounted, runsLeftOut } from "#client/latest-version-runs";
+import { NOT_WIRED_REASON } from "#client/not-wired";
 import { plural } from "#client/plural";
 import { Button } from "#client/system/ui/button";
 import type { PipelinesResponse } from "./pipelines-query";
 
 export type ListedTask = PipelinesResponse["pipelines"][number];
 
-export const NOT_WIRED_REASON = "Not wired yet";
-
-function runsCounted({ figures }: ListedTask): string {
+function runsLine({ figures }: ListedTask): string {
 	if (figures.counted + figures.leftOut === 0) {
-		return "No runs yet";
+		return NO_RUNS;
 	}
 
-	return runsCountedAt(figures.counted, figures.corpusVersion);
+	return runsCounted(figures.counted, figures.corpusVersion);
 }
 
 function targetOf({ declaredBy, targets }: ListedTask): string {
@@ -36,7 +32,7 @@ function figuresLine(task: ListedTask): string {
 	const taskJudge = task.taskJudges === 0 ? "no task judge" : "1 task judge";
 	const judges = `${plural(task.stageJudges, "step judge")} + ${taskJudge}`;
 
-	return [runsCounted(task), plural(task.cases.length, "case"), judges].join(
+	return [runsLine(task), plural(task.cases.length, "case"), judges].join(
 		" · ",
 	);
 }

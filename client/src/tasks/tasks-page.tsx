@@ -6,7 +6,8 @@ import { Notice } from "#client/system/components/notice";
 import { ScreenHeader } from "#client/system/components/screen-header";
 import { Button } from "#client/system/ui/button";
 import { pipelinesQuery } from "./pipelines-query";
-import { NOT_WIRED_REASON, TaskCard } from "./task-card";
+import { NOT_WIRED_REASON } from "#client/not-wired";
+import { TaskCard } from "./task-card";
 
 function HeaderControls(): React.JSX.Element {
 	const reasonId = useId();

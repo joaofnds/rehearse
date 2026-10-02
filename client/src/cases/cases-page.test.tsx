@@ -207,7 +207,7 @@ describe(CasesPage.name, () => {
 
 			const pipeline = await card("audit-log");
 
-			expect(within(pipeline).getByText("No runs")).toBeInTheDocument();
+			expect(within(pipeline).getByText("No runs yet")).toBeInTheDocument();
 			expect(
 				within(pipeline).queryByText(/Minimum grade/u),
 			).not.toBeInTheDocument();

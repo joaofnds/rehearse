@@ -1,6 +1,6 @@
 import { useId } from "react";
 import type { LaunchAttempts } from "#benchmark/launch-attempts";
-import { runsCounted, runsLeftOut } from "#client/latest-version-runs";
+import { NO_RUNS, runsCounted, runsLeftOut } from "#client/latest-version-runs";
 import { LaunchDialog } from "#client/launch/launch-dialog";
 import { plural } from "#client/plural";
 import { Button } from "#client/system/ui/button";
@@ -58,7 +58,7 @@ function costPerRun({ costPerRun: cost }: MeasuredFigures): string {
 function figuresLine(listed: ListedCase): string {
 	const { figures } = listed;
 	if (figures.state === "no-runs") {
-		return "No runs";
+		return NO_RUNS;
 	}
 
 	return [

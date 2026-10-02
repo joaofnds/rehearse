@@ -1,6 +1,9 @@
 import { corpusVersionLabel } from "#benchmark/corpus-version-label";
 import { plural } from "#client/plural";
 
+/** What a card reads for a case or task no run has recorded. */
+export const NO_RUNS = "No runs yet";
+
 /**
  * How many runs a figure counts, taken at the latest corpus version any of
  * them ran under, and the version itself.

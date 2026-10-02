@@ -307,8 +307,9 @@ export async function readCaseRuns(
 	for (const [id, ofCase] of Map.groupBy(runs, ({ caseId }) => caseId)) {
 		cases.set(id, {
 			runs: ofCase.map(({ run }) => run),
-			minimumGrade: ofCase.find(({ minimumGrade }) => minimumGrade)
-				?.minimumGrade,
+			minimumGrade: ofCase.find(
+				({ minimumGrade }) => minimumGrade !== undefined,
+			)?.minimumGrade,
 		});
 	}
 
