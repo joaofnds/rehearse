@@ -474,7 +474,8 @@ function DeclareForm({
 
 				<DialogDescription>
 					Writes cases/&lt;id&gt;/case.json in the control repository. The file
-					is left uncommitted, for you to review and commit.
+					is left uncommitted and unformatted, for you to format, review and
+					commit.
 				</DialogDescription>
 
 				{declare.isError ? (

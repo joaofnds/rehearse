@@ -33,7 +33,7 @@ export function CasesPage(): React.JSX.Element {
 
 				{declaredPath === undefined ? null : (
 					<p role="status" className="text-sm text-secondary-foreground">
-						{`Declared ${declaredPath}. The file is uncommitted: commit it to keep the case.`}
+						{`Declared ${declaredPath}. The file is uncommitted and unformatted: run bun run fmt, then commit it to keep the case.`}
 					</p>
 				)}
 

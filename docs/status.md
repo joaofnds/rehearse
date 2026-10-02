@@ -238,7 +238,7 @@ without a cost. Run once and Run group
 open the launch dialog on that case with one or three attempts, and are
 disabled for a case that declares no model. Declare a case opens a form
 that writes a session case's `case.json` and lists the case without a reload,
-saying the file is uncommitted. The form sets only the id, title, prompt,
+saying the file is uncommitted and needs `bun run fmt` before its commit. The form sets only the id, title, prompt,
 tools, corpus files, checks, model and session budget; a pipeline case, and
 any other session field, is still declared by hand. The empty run
 history's Declare a case opens the Cases screen.

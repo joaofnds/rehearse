@@ -456,7 +456,7 @@ describe(CasesPage.name, () => {
 			expect(JSON.parse(posted?.body ?? "null")).toEqual(DECLARED);
 		});
 
-		it("shows the declared case and names its file as uncommitted", async () => {
+		it("shows the declared case and says its file needs formatting and a commit", async () => {
 			servingDeclaration(DECLARED_REPLY);
 			const form = await openDeclareForm();
 			fillDeclared();
@@ -466,7 +466,7 @@ describe(CasesPage.name, () => {
 			expect(await card(DECLARED.id)).toBeInTheDocument();
 			expect(
 				await screen.findByText(
-					"Declared cases/declared/case.json. The file is uncommitted: commit it to keep the case.",
+					"Declared cases/declared/case.json. The file is uncommitted and unformatted: run bun run fmt, then commit it to keep the case.",
 				),
 			).toHaveAttribute("role", "status");
 		});

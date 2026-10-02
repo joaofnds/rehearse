@@ -215,7 +215,8 @@ without a cost.
 
 `POST /api/cases` declares a session case and answers 201 with the
 declaration as written and its path, `cases/<id>/case.json`, which it leaves
-uncommitted. The body may hold only `id`, `kind` (`session`), `title`,
+uncommitted and, like `case capture`, in tab-indented JSON that `bun run fmt`
+must collapse before the commit. The body may hold only `id`, `kind` (`session`), `title`,
 `prompt`, `tools`, `corpusFiles`, `checks`, `model` and `sessionBudgetUsd`, and
 is written as sent, so a default the case parser fills in never reaches the
 file. It answers 400 for any other field, for a `pipeline` kind, for a
