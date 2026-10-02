@@ -1,6 +1,6 @@
 import { useId } from "react";
-import { corpusVersionLabel } from "#benchmark/corpus-version-label";
 import type { LaunchAttempts } from "#benchmark/launch-attempts";
+import { runsCounted, runsLeftOut } from "#client/latest-version-runs";
 import { LaunchDialog } from "#client/launch/launch-dialog";
 import { plural } from "#client/plural";
 import { Button } from "#client/system/ui/button";
@@ -21,14 +21,6 @@ const KIND_LABEL = {
 	pipeline: "task · target repo",
 	session: "single session · deterministic checks",
 } as const satisfies Record<ListedCase["kind"], string>;
-
-function runsCounted(figures: MeasuredFigures): string {
-	if (figures.corpusVersion === null) {
-		return `${plural(figures.counted, "run")}, corpus version not recorded`;
-	}
-
-	return `${plural(figures.counted, "run")} at ${corpusVersionLabel(figures.corpusVersion)}`;
-}
 
 /**
  * A pipeline case's median is the final Judge's verdict. A session case
@@ -67,9 +59,11 @@ function figuresLine(listed: ListedCase): string {
 		return "No runs";
 	}
 
-	return [runsCounted(figures), verdicts(listed), costPerRun(figures)].join(
-		" · ",
-	);
+	return [
+		runsCounted(figures.counted, figures.corpusVersion),
+		verdicts(listed),
+		costPerRun(figures),
+	].join(" · ");
 }
 
 function minimumGradeLine({
@@ -202,7 +196,7 @@ export function CaseCard({
 			</div>
 			{listed.figures.state === "measured" && listed.figures.leftOut > 0 ? (
 				<p className="mt-1 text-right font-mono text-11 text-dim">
-					{`${plural(listed.figures.leftOut, "run")} left out, at another corpus version or none recorded`}
+					{runsLeftOut(listed.figures.leftOut)}
 				</p>
 			) : null}
 			{minimumGrade === undefined ? null : (

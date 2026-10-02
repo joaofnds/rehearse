@@ -1,6 +1,9 @@
 import { Link } from "@tanstack/react-router";
 import { useId } from "react";
-import { corpusVersionLabel } from "#benchmark/corpus-version-label";
+import {
+	runsCounted as runsCountedAt,
+	runsLeftOut,
+} from "#client/latest-version-runs";
 import { plural } from "#client/plural";
 import { Button } from "#client/system/ui/button";
 import type { PipelinesResponse } from "./pipelines-query";
@@ -14,11 +17,7 @@ function runsCounted({ figures }: ListedTask): string {
 		return "No runs yet";
 	}
 
-	if (figures.corpusVersion === null) {
-		return `${plural(figures.counted, "run")}, corpus version not recorded`;
-	}
-
-	return `${plural(figures.counted, "run")} at ${corpusVersionLabel(figures.corpusVersion)}`;
+	return runsCountedAt(figures.counted, figures.corpusVersion);
 }
 
 function targetOf({ declaredBy, targets }: ListedTask): string {
@@ -107,7 +106,7 @@ export function TaskCard({
 			</div>
 			{task.figures.leftOut > 0 ? (
 				<p className="mt-1 text-right font-mono text-11 text-dim">
-					{`${plural(task.figures.leftOut, "run")} left out, at another corpus version or none recorded`}
+					{runsLeftOut(task.figures.leftOut)}
 				</p>
 			) : null}
 			<p className="mt-2 max-w-prose text-sm">
