@@ -13,6 +13,7 @@ function runsCounted({ figures }: ListedTask): string {
 	if (figures.counted + figures.leftOut === 0) {
 		return "No runs yet";
 	}
+
 	if (figures.corpusVersion === null) {
 		return `${plural(figures.counted, "run")}, corpus version not recorded`;
 	}
@@ -24,6 +25,7 @@ function targetOf({ declaredBy, targets }: ListedTask): string {
 	if (declaredBy !== null) {
 		return declaredBy.target;
 	}
+
 	if (targets.length === 0) {
 		return "No declared case names its target";
 	}

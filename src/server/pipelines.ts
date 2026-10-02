@@ -104,6 +104,7 @@ async function recordedRuns(
 		if (!(await Bun.file(manifestFile).exists())) {
 			continue;
 		}
+
 		try {
 			found.push({ name, manifest: await loadRunManifest(manifestFile) });
 		} catch (error) {
@@ -135,6 +136,7 @@ async function recordedGroups(
 		if (!(await file.exists())) {
 			continue;
 		}
+
 		try {
 			const record = parseConfirmationGroupRecord(await file.text());
 			if (record.mode !== "pipeline") {
@@ -193,6 +195,7 @@ async function declaredPipelines(casesRoot: string): Promise<DeclaredCases> {
 			if (!(error instanceof CaseDeclarationError)) {
 				throw error;
 			}
+
 			unreadable.push({
 				id: declaration.id,
 				reason: redactAbsolutePaths(error.message),
@@ -293,6 +296,7 @@ function listedPipeline(
 	if (declared !== undefined) {
 		cases.add(declared.declaration.id);
 	}
+
 	const sortedCases = [...cases].toSorted((left, right) =>
 		left.localeCompare(right),
 	);
@@ -385,9 +389,11 @@ export async function pipelineReport(
 
 			continue;
 		}
+
 		if (declaration === undefined) {
 			continue;
 		}
+
 		try {
 			pipelines.push(
 				listedPipeline(

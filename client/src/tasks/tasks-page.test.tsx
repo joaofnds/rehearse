@@ -123,6 +123,7 @@ function renderTasksBeforeTheirRunWasRecorded(run: string): void {
 				Response.json(pipelineReads === 1 ? before : after),
 			);
 		}
+
 		if (pathname === "/api/runs") {
 			return Promise.resolve(Response.json(history));
 		}
