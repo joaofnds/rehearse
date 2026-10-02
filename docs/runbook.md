@@ -361,7 +361,8 @@ mise exec -- bun run serve
 
 Open `http://localhost:4173`. `PORT` overrides the server port. The server reads
 local records and the linked corpus, or the live install when nothing is
-linked. It has no authentication and binds to
+linked. It writes a case declared from the Cases screen to
+`cases/<id>/case.json` in this checkout and leaves it uncommitted. It has no authentication and binds to
 `127.0.0.1`; do not forward its port or otherwise expose it as a public service.
 
 New run on the run history page starts a case, and Replay from here on a
