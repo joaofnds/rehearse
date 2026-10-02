@@ -184,7 +184,7 @@ See [current state](docs/status.md) for implementation coverage and
   pipeline, and target, but has no case-level `corpus` field (corpus is
   chosen per run by `--corpus`) and no case-level threshold field (a minimum
   grade is a run setting, not part of the case declaration) (see [UI vocabulary](docs/design-handoff/README.md)).
-- **Case declaration** — the committed `case.json` that states a benchmark case
+- **Case declaration** — the `case.json`, committed or not, that states a benchmark case
   as data: its id, kind, title, and the case-relative inputs the kind needs. It
   is parsed at the boundary. Case input paths stay within the case directory,
   while a pipeline target may point to an external repository.

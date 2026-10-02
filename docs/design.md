@@ -166,6 +166,8 @@ That event store drops an entry rather than fail a run, so a stage whose start
 it lost reads as not started until the stage writes its record.
 Current routes are listed in [UI coverage](status.md#browser-ui). The write
 routes live in [`src/server/launches.ts`](../src/server/launches.ts).
+`POST /api/cases` writes a session case's `case.json` through the same parser
+the CLI loads it with, and leaves committing it to the operator.
 `POST /api/launches` starts a run or replay by spawning the CLI detached, with the server's
 environment minus the `BENCHMARK_` knobs a case declares, and records the child's pid under `<records>/launches`. The CLI
 stays the only code that executes a case, so a browser launch writes the same

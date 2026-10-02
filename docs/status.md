@@ -236,8 +236,11 @@ not parse is named in a notice: an unreadable pipeline run or session attempt
 is left out, and an unreadable group rep is still counted, unjudged and
 without a cost. Run once and Run group
 open the launch dialog on that case with one or three attempts, and are
-disabled for a case that declares no model. Declare a case is drawn disabled
-because declaring a case from the browser is not built. The empty run
+disabled for a case that declares no model. Declare a case opens a form
+that writes a session case's `case.json` and lists the case without a reload,
+saying the file is uncommitted. The form sets only the id, title, prompt,
+tools, corpus files, checks, model and session budget; a pipeline case, and
+any other session field, is still declared by hand. The empty run
 history's Declare a case opens the Cases screen.
 
 Run history lists every saved record kind in one table: pipeline runs, standalone

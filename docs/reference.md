@@ -213,6 +213,16 @@ are named in `unreadable`, and run records that do not parse in
 of the figures, and an unreadable group rep is still counted, unjudged and
 without a cost.
 
+`POST /api/cases` declares a session case and answers 201 with the
+declaration as written and its path, `cases/<id>/case.json`, which it leaves
+uncommitted. The body may hold only `id`, `kind` (`session`), `title`,
+`prompt`, `tools`, `corpusFiles`, `checks`, `model` and `sessionBudgetUsd`, and
+is written as sent, so a default the case parser fills in never reaches the
+file. It answers 400 for any other field, for a `pipeline` kind, for a
+declaration the case parser refuses, and for a corpus file outside the layout
+or one that climbs out of the linked corpus, and 409 for an id already on
+disk. A refused declaration leaves no directory behind.
+
 `GET /api/pipelines` lists every pipeline a pipeline case declares as its
 default and every `pipelinePath` a run manifest or pipeline confirmation group
 recorded, so a pipeline a run chose with `--pipeline` or `BENCHMARK_PIPELINE`
