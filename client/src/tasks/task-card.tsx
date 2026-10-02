@@ -41,7 +41,7 @@ function figuresLine(task: ListedTask): string {
 }
 
 const OVERRIDE_DESCRIPTION =
-	"A run chose this pipeline over its case's default, so no case's final rubric judges it as a task.";
+	"A run chose this pipeline over its case's default. No case declares it, so it has no task judge of its own.";
 
 function OpenGraph({
 	runInFlight,
