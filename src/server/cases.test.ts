@@ -339,14 +339,15 @@ describe("/api/cases", () => {
 			const { casesDirectory, listed } = await serving();
 			await chmod(join(casesDirectory, CASE_ID, "pipeline.json"), 0o000);
 
-			expect(await listed(CASE_ID)).toMatchObject({
-				pipeline: {
-					state: "unavailable",
-					reason: expect.stringMatching(
-						/^Pipeline definition cannot be read: pipeline\.json/u,
-					),
-				},
-			});
+			const reading = await listed(CASE_ID);
+
+			expect(reading).toHaveProperty("pipeline.state", "unavailable");
+			expect(reading).toHaveProperty(
+				"pipeline.reason",
+				expect.stringMatching(
+					/^Pipeline definition cannot be read: pipeline\.json/u,
+				),
+			);
 		});
 	});
 
@@ -354,14 +355,15 @@ describe("/api/cases", () => {
 		it("lists the case with its steps unavailable, as the harness refuses it", async () => {
 			const { listed } = await serving();
 
-			expect(await listed(UNFIT_RUBRIC_CASE.id)).toMatchObject({
-				pipeline: {
-					state: "unavailable",
-					reason: expect.stringMatching(
-						/^Pipeline stage build names a rubric it cannot use:/u,
-					),
-				},
-			});
+			const reading = await listed(UNFIT_RUBRIC_CASE.id);
+
+			expect(reading).toHaveProperty("pipeline.state", "unavailable");
+			expect(reading).toHaveProperty(
+				"pipeline.reason",
+				expect.stringMatching(
+					/^Pipeline stage build names a rubric it cannot use:/u,
+				),
+			);
 		});
 	});
 

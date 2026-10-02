@@ -2,8 +2,12 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { z } from "zod";
 import { FAIL, PASS } from "#benchmark/comparison-test-fixtures";
-import { parseConfirmationRepRecord } from "#benchmark/confirmation-record";
+import {
+	confirmationGroupRecordSchema,
+	parseConfirmationRepRecord,
+} from "#benchmark/confirmation-record";
 import type { ParsedConfirmationRepRecord } from "#benchmark/confirmation-record";
 import type { Immutable } from "#benchmark/contracts";
 import {
@@ -38,8 +42,11 @@ async function mergeJson(
 	file: string,
 	changes: Immutable<{ corpusVersion: unknown }>,
 ): Promise<void> {
-	const record: unknown = JSON.parse(await Bun.file(file).text());
-	await Bun.write(file, JSON.stringify({ ...Object(record), ...changes }));
+	const record = z
+		.object({})
+		.loose()
+		.parse(JSON.parse(await Bun.file(file).text()));
+	await Bun.write(file, JSON.stringify({ ...record, ...changes }));
 }
 
 async function rewriteRep(
@@ -85,9 +92,19 @@ describe("readCaseRuns", () => {
 		});
 		await fixture.writePipelineGroup("group-p", [PASS, PASS]);
 		const { groupFile } = confirmationGroupPaths(root, "group-p");
-		const group = JSON.parse(await Bun.file(groupFile).text());
-		group.inputs.corpusVersion = { kind: "version", digest: groupDigest };
-		await Bun.write(groupFile, JSON.stringify(group));
+		const group = confirmationGroupRecordSchema.parse(
+			JSON.parse(await Bun.file(groupFile).text()),
+		);
+		await Bun.write(
+			groupFile,
+			JSON.stringify({
+				...group,
+				inputs: {
+					...group.inputs,
+					corpusVersion: { kind: "version", digest: groupDigest },
+				},
+			}),
+		);
 
 		const { cases } = await readCaseRuns(root, nothingRunning);
 
