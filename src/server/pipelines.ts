@@ -7,6 +7,7 @@ import { parseConfirmationGroupRecord } from "#benchmark/confirmation-record";
 import { loadRunManifest } from "#benchmark/manifest";
 import type { RunManifest } from "#benchmark/manifest";
 import { parsePipeline, PipelineDefinitionError } from "#benchmark/pipeline";
+import type { PipelineDefinition } from "#benchmark/pipeline";
 import {
 	benchmarkRunPaths,
 	confirmationGroupIds,
@@ -208,15 +209,14 @@ async function declaredPipelines(casesRoot: string): Promise<DeclaredCases> {
 }
 
 /**
- * The stages of a declared pipeline no run recorded, read from its file
- * through the harness's own parse, so a file the harness would refuse to run
- * is reported rather than listed. Its rubrics are named control-relative, as
- * the stages name them.
+ * A case's declared pipeline, read from its file through the harness's own
+ * parse, so a file the harness would refuse to run throws rather than reads.
+ * Its rubrics are named control-relative, as the stages name them.
  */
-async function declaredStages(
+export async function readDeclaredPipeline(
 	casesRoot: string,
 	declaration: PipelineCaseDeclaration,
-): Promise<readonly string[]> {
+): Promise<PipelineDefinition> {
 	const caseDirectory = join(casesRoot, declaration.id);
 	const file = Bun.file(join(caseDirectory, declaration.pipeline));
 	if (!(await file.exists())) {
@@ -242,9 +242,11 @@ async function declaredStages(
 		),
 	);
 
-	return parsePipeline(await file.text(), availableRubrics).stages.map(
-		({ name }) => name,
-	);
+	return parsePipeline(await file.text(), availableRubrics);
+}
+
+function stageNames(pipeline: PipelineDefinition): readonly string[] {
+	return pipeline.stages.map(({ name }) => name);
 }
 
 /** The digest of each run, newest first, with a group's reps after the runs. */
@@ -393,7 +395,9 @@ export async function pipelineReport(
 			pipelines.push(
 				listedPipeline(
 					path,
-					await declaredStages(casesRoot, declaration.declaration),
+					stageNames(
+						await readDeclaredPipeline(casesRoot, declaration.declaration),
+					),
 					declaration,
 					ran,
 					declared.targets,
