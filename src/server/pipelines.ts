@@ -48,6 +48,11 @@ export interface ListedPipeline {
 	/** Null for a pipeline only a run's override named. */
 	readonly declaredBy: DeclaringCase | null;
 	readonly cases: readonly string[];
+	/**
+	 * The targets of those cases that are still declared, so a pipeline only
+	 * an override chose still names what it ran against.
+	 */
+	readonly targets: readonly string[];
 	/** Every run that recorded this pipeline, newest first. */
 	readonly runs: readonly string[];
 	readonly figures: PipelineFigures;
@@ -157,11 +162,14 @@ interface DeclaredPipeline {
 	readonly declaration: PipelineCaseDeclaration;
 }
 
-async function declaredPipelines(
-	casesRoot: string,
-): Promise<Reading<DeclaredPipeline>> {
+interface DeclaredCases extends Reading<DeclaredPipeline> {
+	readonly targets: ReadonlyMap<string, string>;
+}
+
+async function declaredPipelines(casesRoot: string): Promise<DeclaredCases> {
 	const listing = await listCases(casesRoot);
 	const found: DeclaredPipeline[] = [];
+	const targets = new Map<string, string>();
 	const unreadable = listing.unreadable.map(({ id, reason }) => ({
 		id,
 		reason: redactAbsolutePaths(reason),
@@ -171,6 +179,8 @@ async function declaredPipelines(
 		if (declaration.kind !== "pipeline") {
 			continue;
 		}
+
+		targets.set(declaration.id, declaration.target.path);
 		try {
 			found.push({
 				path: relative(
@@ -190,7 +200,7 @@ async function declaredPipelines(
 		}
 	}
 
-	return { found, unreadable };
+	return { found, unreadable, targets };
 }
 
 /**
@@ -274,6 +284,7 @@ function listedPipeline(
 	stages: readonly string[],
 	declared: DeclaredPipeline | undefined,
 	{ runs, groups }: Ran,
+	caseTargets: ReadonlyMap<string, string>,
 ): ListedPipeline {
 	const cases = new Set([
 		...runs.map(({ manifest }) => manifest.caseId),
@@ -282,6 +293,12 @@ function listedPipeline(
 	if (declared !== undefined) {
 		cases.add(declared.declaration.id);
 	}
+	const sortedCases = [...cases].toSorted((left, right) =>
+		left.localeCompare(right),
+	);
+	const targets = new Set(
+		sortedCases.flatMap((id) => caseTargets.get(id) ?? []),
+	);
 
 	return {
 		path,
@@ -296,7 +313,8 @@ function listedPipeline(
 						title: declared.declaration.title,
 						target: declared.declaration.target.path,
 					},
-		cases: [...cases].toSorted((left, right) => left.localeCompare(right)),
+		cases: sortedCases,
+		targets: [...targets],
 		runs: runs.map(({ name }) => name),
 		figures: figuresOf(digestsOf(runs, groups)),
 	};
@@ -355,7 +373,15 @@ export async function pipelineReport(
 			newestRun?.manifest.pipeline.stages.map(({ name }) => name) ??
 			firstGroup?.stages;
 		if (recordedStages !== undefined) {
-			pipelines.push(listedPipeline(path, recordedStages, declaration, ran));
+			pipelines.push(
+				listedPipeline(
+					path,
+					recordedStages,
+					declaration,
+					ran,
+					declared.targets,
+				),
+			);
 
 			continue;
 		}
@@ -369,6 +395,7 @@ export async function pipelineReport(
 					await declaredStages(casesRoot, declaration.declaration),
 					declaration,
 					ran,
+					declared.targets,
 				),
 			);
 		} catch (error) {

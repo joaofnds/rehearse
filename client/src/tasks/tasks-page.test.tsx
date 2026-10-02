@@ -33,6 +33,7 @@ function declaredTask(): ListedPipeline {
 			target: "../../../nest/template",
 		},
 		cases: ["audit-log"],
+		targets: ["../../../nest/template"],
 		runs: [NEWER_RUN, OLDER_RUN],
 		figures: { counted: 14, corpusVersion: DIGEST, leftOut: 12 },
 	};
@@ -46,6 +47,7 @@ function overrideTask(): ListedPipeline {
 		taskJudges: 0,
 		declaredBy: null,
 		cases: ["audit-log"],
+		targets: ["../../../nest/template"],
 		runs: [NEWER_RUN],
 		figures: { counted: 1, corpusVersion: null, leftOut: 0 },
 	};
@@ -169,14 +171,14 @@ describe(TasksPage.name, () => {
 	});
 
 	describe("when only a run's override chose the task", () => {
-		it("says no case declares it and that its runs recorded no corpus version", async () => {
+		it("names the target its cases ran it against and that its runs recorded no corpus version", async () => {
 			const task = overrideTask();
 			renderTasksAt("/tasks", [task]);
 
 			const card = await screen.findByRole("article", { name: task.path });
 
 			expect(
-				within(card).getByText("No case declares it as its default"),
+				within(card).getByText("../../../nest/template"),
 			).toBeInTheDocument();
 			expect(
 				within(card).getByText(
@@ -187,6 +189,19 @@ describe(TasksPage.name, () => {
 				within(card).getByText(
 					"A run chose this pipeline over its case's default, so no case's final rubric judges it as a task.",
 				),
+			).toBeInTheDocument();
+		});
+	});
+
+	describe("when no case that ran it is declared any more", () => {
+		it("says no declared case names its target", async () => {
+			const task = { ...overrideTask(), targets: [] };
+			renderTasksAt("/tasks", [task]);
+
+			const card = await screen.findByRole("article", { name: task.path });
+
+			expect(
+				within(card).getByText("No declared case names its target"),
 			).toBeInTheDocument();
 		});
 	});

@@ -20,6 +20,17 @@ function runsCounted({ figures }: ListedTask): string {
 	return `${plural(figures.counted, "run")} at ${corpusVersionLabel(figures.corpusVersion)}`;
 }
 
+function targetOf({ declaredBy, targets }: ListedTask): string {
+	if (declaredBy !== null) {
+		return declaredBy.target;
+	}
+	if (targets.length === 0) {
+		return "No declared case names its target";
+	}
+
+	return targets.join(", ");
+}
+
 function figuresLine(task: ListedTask): string {
 	const taskJudge = task.taskJudges === 0 ? "no task judge" : "1 task judge";
 	const judges = `${plural(task.stageJudges, "step judge")} + ${taskJudge}`;
@@ -86,7 +97,7 @@ export function TaskCard({
 					{task.path}
 				</h2>
 				<span className="text-11-5 text-muted-foreground">
-					{task.declaredBy?.target ?? "No case declares it as its default"}
+					{targetOf(task)}
 				</span>
 				<span className="ml-auto font-mono text-11 text-dim">
 					{figuresLine(task)}
