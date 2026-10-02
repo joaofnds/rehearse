@@ -14,6 +14,7 @@ import {
 } from "#client/system/ui/dialog";
 import type { DeclareCaseRequest } from "#server/case-declaration";
 import { DECLARED_BY_HAND_REASON } from "#server/declared-by-hand";
+import { LAUNCH_CASES_QUERY_KEY } from "#client/launch/launch-dialog";
 import { casesQuery } from "./cases-query";
 
 type CheckKind = Check["kind"];
@@ -357,7 +358,7 @@ function DeclareForm({
 			onDeclared(path);
 			await Promise.all([
 				queryClient.invalidateQueries({ queryKey: casesQuery.queryKey }),
-				queryClient.invalidateQueries({ queryKey: ["launch-cases"] }),
+				queryClient.invalidateQueries({ queryKey: LAUNCH_CASES_QUERY_KEY }),
 			]);
 		},
 	});
@@ -419,7 +420,7 @@ function DeclareForm({
 					<Field
 						label="Corpus files"
 						multiline
-						hint="One layout path per line, read from the linked corpus"
+						hint="One layout path per line, read from the corpus a run reads"
 						value={draft.corpusFiles}
 						onChange={(corpusFiles) => {
 							edit({ corpusFiles });

@@ -23,6 +23,9 @@ import {
 } from "#client/system/ui/dialog";
 import type { LaunchRequest } from "#server/launches";
 
+/** The launch dialog's case list, which a newly declared case makes stale. */
+export const LAUNCH_CASES_QUERY_KEY = ["launch-cases"] as const;
+
 export type LaunchTarget =
 	| {
 			readonly kind: "case";
@@ -563,7 +566,7 @@ function LaunchForm({
 		queryFn: fetchSettings,
 	});
 	const cases = useQuery({
-		queryKey: ["launch-cases"],
+		queryKey: LAUNCH_CASES_QUERY_KEY,
 		queryFn: fetchCases,
 		enabled: target.kind === "case",
 	});
