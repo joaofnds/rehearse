@@ -1012,6 +1012,20 @@ describe(createLaunchApp.name, () => {
 			expect(written).toEqual(DECLARED_CASE);
 		});
 
+		it("writes the fields in the order a case.json declares them", async () => {
+			const { declare, casesDirectory } = await harness();
+
+			await declare(DECLARED_CASE);
+
+			const written = await Bun.file(
+				join(casesDirectory, DECLARED_CASE.id, "case.json"),
+			).text();
+			const fields = [...written.matchAll(/^\t"(?<field>\w+)":/gmu)].map(
+				(match) => match.groups?.["field"],
+			);
+			expect(fields).toEqual(Object.keys(DECLARED_CASE));
+		});
+
 		it("writes a declaration the case reader a run uses parses", async () => {
 			const { declare, casesDirectory } = await harness();
 

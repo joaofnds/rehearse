@@ -216,10 +216,10 @@ without a cost.
 `POST /api/cases` declares a session case and answers 201 with the
 declaration as written and its path, `cases/<id>/case.json`, which it leaves
 uncommitted and, like `case capture`, in JSON whose short arrays `bun run fmt`
-must collapse before the commit. The body must hold `id`, `kind` (`session`)
-and `model`, since the launch dialog cannot start a case with no model, and may
-add only `title`, `prompt`, `tools`, `corpusFiles`, `checks` and
-`sessionBudgetUsd`. Only those fields are written, so a default the case parser
+must collapse before the commit. The body must hold `id`, `kind` (`session`),
+`title`, `prompt`, `tools`, `corpusFiles`, at least one of `checks`, and
+`model`, which the case parser leaves optional but the launch dialog needs to
+start the case, and may add only `sessionBudgetUsd`. Only those fields are written, so a default the case parser
 fills in never reaches the file. It answers 400 for any other field, naming a
 field `case.json` does not have apart from one declared by hand, for a
 `pipeline` kind, for a missing `model`, for a prompt that starts with `-`,

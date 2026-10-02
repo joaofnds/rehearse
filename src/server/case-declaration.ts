@@ -30,10 +30,13 @@ const CASE_FIELDS = new Set<string>(
 export const declareCaseRequestSchema = sessionCaseDeclarationSchema
 	.pick({
 		id: true,
+		kind: true,
 		title: true,
+		prompt: true,
 		tools: true,
 		corpusFiles: true,
 		checks: true,
+		model: true,
 		sessionBudgetUsd: true,
 	})
 	.extend({
