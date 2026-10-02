@@ -219,15 +219,22 @@ are drawn disabled because they are not wired.
 
 The Cases screen lists one card per declared case with its kind, its target or
 no repository for a session case, its title, its steps and judges or its
-checks, and figures over its runs at the latest corpus version any of them ran
-under: the run count, a count of the runs left out, a pipeline case's median
+checks, and figures over its runs at one corpus version: the run count, a count of the runs left out, a pipeline case's median
 final verdict and how many runs were graded or a session case's count of runs
 that passed their checks, and the mean cost per run with how many runs lack a
-cost. A case nothing ran reads No runs. A pipeline case also shows the
-minimum grade its newest pipeline run recorded, which reads not recorded for a
-case only confirmation groups ran, since groups record none. For a session
-case the version counted is the first recorded reading session attempts and
-then groups in id order, so it need not be the newest. Run once and Run group
+cost. A case nothing ran, or whose every run record is unreadable, reads No
+runs yet. A pipeline case also shows the minimum grade its newest pipeline run
+recorded, which reads not recorded for a case only confirmation groups ran,
+since groups record none, even when a group ran after that pipeline run. The
+version counted is the first recorded reading pipeline runs newest first, then
+session attempts, then groups in id order. Group ids are random and groups
+record no time, so the version need not be the newest for any case: a pipeline
+run outranks a later group, and a case only groups ran takes an arbitrary
+group's version. A group counts once it finishes, and a pipeline run counts as
+soon as its manifest is written, unjudged while it runs. A run record that does
+not parse is named in a notice: an unreadable pipeline run or session attempt
+is left out, and an unreadable group rep is still counted, unjudged and
+without a cost. Run once and Run group
 open the launch dialog on that case with one or three attempts, and are
 disabled for a case that declares no model. Declare a case is drawn disabled
 because declaring a case from the browser is not built. The empty run

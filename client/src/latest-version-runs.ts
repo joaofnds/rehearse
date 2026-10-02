@@ -5,8 +5,8 @@ import { plural } from "#client/plural";
 export const NO_RUNS = "No runs yet";
 
 /**
- * How many runs a figure counts, taken at the latest corpus version any of
- * them ran under, and the version itself.
+ * How many runs a figure counts, taken at the one corpus version its rule
+ * picked, and the version itself.
  */
 export function runsCounted(
 	counted: number,

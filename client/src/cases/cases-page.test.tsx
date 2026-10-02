@@ -160,7 +160,9 @@ describe(CasesPage.name, () => {
 			),
 		).toBeInTheDocument();
 		expect(
-			within(pipeline).getByText("Minimum grade B, as the latest run set it"),
+			within(pipeline).getByText(
+				"Minimum grade B, as the newest pipeline run set it",
+			),
 		).toBeInTheDocument();
 		expect(
 			within(pipeline).getByText(
@@ -214,16 +216,14 @@ describe(CasesPage.name, () => {
 		});
 	});
 
-	describe("when the latest run recorded no minimum grade", () => {
+	describe("when the newest pipeline run recorded no minimum grade", () => {
 		it("says it is not recorded", async () => {
 			renderCasesAt("/cases", [
 				pipelineCase({ latestMinimumGrade: { state: "not-recorded" } }),
 			]);
 
 			expect(
-				within(await card("audit-log")).getByText(
-					"Minimum grade not recorded by the latest run",
-				),
+				within(await card("audit-log")).getByText("Minimum grade not recorded"),
 			).toBeInTheDocument();
 		});
 	});

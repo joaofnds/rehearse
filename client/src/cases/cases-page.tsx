@@ -38,9 +38,12 @@ export function CasesPage(): React.JSX.Element {
 
 			<div className="flex max-w-7xl flex-col gap-6 px-6 pt-4 pb-12">
 				<p className="max-w-prose text-sm text-muted-foreground">
-					Each case's figures are taken over its runs at the latest corpus
-					version any of them ran under. A run is a pipeline run, a session
-					attempt, or one attempt of a group. Stage replays are not counted.
+					Each case's figures are taken over its runs at one corpus version, the
+					first recorded reading pipeline runs newest first, then session
+					attempts, then finished groups. Groups record no time, so it need not
+					be the newest. A run is a pipeline run, a session attempt, or one
+					attempt of a group run on the whole case. Stage replays and stage-mode
+					groups are not counted.
 				</p>
 
 				{query.isLoading ? (
@@ -61,7 +64,7 @@ export function CasesPage(): React.JSX.Element {
 				) : null}
 				{unreadableRecords.length > 0 ? (
 					<Notice
-						message="These records could not be read, so no figure counts them:"
+						message="These run records could not be read, so their verdicts and costs are missing from the figures:"
 						items={unreadableRecords.map(
 							({ id, reason }) => `${id}: ${reason}`,
 						)}

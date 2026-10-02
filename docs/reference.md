@@ -189,8 +189,9 @@ pipeline file through the harness's pipeline and stage rubric checks, or
 for a case nothing ran. Group records hold no minimum grade, so a case only
 groups ran reads `not-recorded`. A session case carries `target: null` and
 the kinds of its declared `checks`, which are its judges. Each case's
-`figures` are `no-runs` for a case nothing ran, else the runs counted at the
-latest corpus version any of them recorded, that version, how many runs it
+`figures` are `no-runs` for a case nothing ran or whose every run record is
+unreadable, else the runs counted at one corpus version, that version (`null`
+when no run recorded one, and then every run is counted), how many runs it
 left out, how many counted runs were judged and passed, and `costPerRun`: the
 mean over counted runs whose whole cost is recorded, with how many were
 costed and how many lack a cost. A run is a pipeline run, a session attempt,
@@ -198,14 +199,19 @@ or one rep of a pipeline or session confirmation group. Stage replays and
 stage-mode groups rerun one stage rather than the case and are not counted. A
 pipeline run is judged when its final Judge recorded PASS or FAIL, and a
 pipeline case's `figures` add `median`, the median of those verdicts with FAIL
-ranked below PASS and the lower middle taken on an even count. A session run
-is judged when its checks ran, it passes when they all pass, and a session
-case has no median, since its records hold no letter. The latest version is
-the first one recorded reading pipeline runs newest first, then session
-attempts, then groups in id order, so for a case only session runs ran it
-need not be the newest. Declarations that do not parse are named in
-`unreadable`, and run records the figures could not read in
-`unreadableRecords`.
+ranked below PASS and the lower middle taken on an even count, `null` when no
+counted run was judged. A session run is judged when its checks ran, it passes
+when they all pass (a rep whose metrics went missing takes the outcome its own
+attempt record kept), and a session
+case has no median, since its records hold no letter. The version is the first
+one recorded reading pipeline runs newest first, then session attempts, then
+finished groups in id order. Group ids are random, so the version need not be
+the newest for any case: a pipeline run outranks a later group, and a case only
+groups ran takes an arbitrary group's version. Declarations that do not parse
+are named in `unreadable`, and run records that do not parse in
+`unreadableRecords`. An unreadable pipeline run or session attempt is left out
+of the figures, and an unreadable group rep is still counted, unjudged and
+without a cost.
 
 `GET /api/pipelines` lists every pipeline a pipeline case declares as its
 default and every `pipelinePath` a run manifest or pipeline confirmation group

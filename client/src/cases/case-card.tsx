@@ -76,8 +76,8 @@ function minimumGradeLine({
 	}
 
 	return latestMinimumGrade.state === "recorded"
-		? `Minimum grade ${latestMinimumGrade.letter}, as the latest run set it`
-		: "Minimum grade not recorded by the latest run";
+		? `Minimum grade ${latestMinimumGrade.letter}, as the newest pipeline run set it`
+		: "Minimum grade not recorded";
 }
 
 function Definition({
