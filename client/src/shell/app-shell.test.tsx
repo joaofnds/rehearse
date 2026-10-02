@@ -279,7 +279,7 @@ describe("the navigation shell", () => {
 	});
 
 	it("answers an unknown address inside the shell, naming it", async () => {
-		renderShellAt("/cases", { runs: 0, corpusFiles: 137 });
+		renderShellAt("/no-such-screen", { runs: 0, corpusFiles: 137 });
 
 		await waitFor(() => {
 			expect(
@@ -290,7 +290,7 @@ describe("the navigation shell", () => {
 		expect(
 			screen.getByRole("region", { name: "Corpus under test" }),
 		).toBeInTheDocument();
-		expect(screen.getByText(/\/cases/u)).toBeInTheDocument();
+		expect(screen.getByText(/\/no-such-screen/u)).toBeInTheDocument();
 		expect(screen.queryByText("Not Found")).not.toBeInTheDocument();
 		expect(
 			screen.getByRole("link", { name: /Back to run history/u }),
@@ -520,18 +520,22 @@ describe("the navigation shell", () => {
 		expect(planned).toHaveLength(4);
 	});
 
-	it.each(["/", "/corpus", "/system", "/runs/run-a/stages/build", "/tasks"])(
-		"gives %s one main landmark, the shell's own",
-		async (path) => {
-			renderShellAt(path, { runs: 0, corpusFiles: 137 });
+	it.each([
+		"/",
+		"/corpus",
+		"/system",
+		"/runs/run-a/stages/build",
+		"/tasks",
+		"/no-such-screen",
+	])("gives %s one main landmark, the shell's own", async (path) => {
+		renderShellAt(path, { runs: 0, corpusFiles: 137 });
 
-			await screen.findByRole("navigation", { name: "Sections" });
+		await screen.findByRole("navigation", { name: "Sections" });
 
-			await waitFor(() => {
-				expect(screen.getAllByRole("main")).toHaveLength(1);
-			});
-		},
-	);
+		await waitFor(() => {
+			expect(screen.getAllByRole("main")).toHaveLength(1);
+		});
+	});
 
 	it("sends every live nav item and chord to a route the router serves", () => {
 		const served = new Set<string>(
