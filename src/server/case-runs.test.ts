@@ -6,7 +6,10 @@ import { FAIL, PASS } from "#benchmark/comparison-test-fixtures";
 import { parseConfirmationRepRecord } from "#benchmark/confirmation-record";
 import type { ParsedConfirmationRepRecord } from "#benchmark/confirmation-record";
 import type { Immutable } from "#benchmark/contracts";
-import { confirmationGroupPaths } from "#benchmark/run-layout";
+import {
+	benchmarkRunPaths,
+	confirmationGroupPaths,
+} from "#benchmark/run-layout";
 import { parseSessionAttemptRecord } from "#benchmark/session-record";
 import {
 	CASE_ID,
@@ -30,6 +33,14 @@ beforeEach(async () => {
 afterEach(async () => {
 	await rm(root, { recursive: true, force: true });
 });
+
+async function mergeJson(
+	file: string,
+	changes: Immutable<{ corpusVersion: unknown }>,
+): Promise<void> {
+	const record: unknown = JSON.parse(await Bun.file(file).text());
+	await Bun.write(file, JSON.stringify({ ...Object(record), ...changes }));
+}
 
 async function rewriteRep(
 	file: string,
@@ -63,6 +74,26 @@ describe("readCaseRuns", () => {
 			state: "available",
 			letter: "A",
 		});
+	});
+
+	it("reads the corpus version a pipeline run's manifest and a group's inputs recorded", async () => {
+		const runDigest = "a".repeat(64);
+		const groupDigest = "b".repeat(64);
+		await fixture.writeFinishedRunEvidence(OLDER_RUN);
+		await mergeJson(benchmarkRunPaths(root, OLDER_RUN).manifestFile, {
+			corpusVersion: { kind: "version", digest: runDigest },
+		});
+		await fixture.writePipelineGroup("group-p", [PASS, PASS]);
+		const { groupFile } = confirmationGroupPaths(root, "group-p");
+		const group = JSON.parse(await Bun.file(groupFile).text());
+		group.inputs.corpusVersion = { kind: "version", digest: groupDigest };
+		await Bun.write(groupFile, JSON.stringify(group));
+
+		const { cases } = await readCaseRuns(root, nothingRunning);
+
+		expect(
+			cases.get(CASE_ID)?.runs.map(({ corpusDigest }) => corpusDigest),
+		).toEqual([runDigest, groupDigest, groupDigest]);
 	});
 
 	it("counts each rep of a pipeline group after the case's runs", async () => {

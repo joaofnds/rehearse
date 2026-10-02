@@ -320,18 +320,21 @@ describe(CasesPage.name, () => {
 	);
 
 	describe("when a case declares no model", () => {
-		it("draws its run buttons disabled and says why", async () => {
-			renderCasesAt("/cases", [pipelineCase({ model: null })]);
+		it.each(["Run once", "Run group"])(
+			"draws %s disabled and says why",
+			async (name) => {
+				renderCasesAt("/cases", [pipelineCase({ model: null })]);
 
-			const runOnce = within(await card("audit-log")).getByRole("button", {
-				name: "Run once",
-			});
+				const run = within(await card("audit-log")).getByRole("button", {
+					name,
+				});
 
-			expect(runOnce).toHaveAttribute("aria-disabled", "true");
-			expect(runOnce).toHaveAccessibleDescription(
-				"Declares no model, so it cannot start",
-			);
-		});
+				expect(run).toHaveAttribute("aria-disabled", "true");
+				expect(run).toHaveAccessibleDescription(
+					"Declares no model, so it cannot start",
+				);
+			},
+		);
 	});
 
 	describe("when a declaration or a run record cannot be read", () => {
