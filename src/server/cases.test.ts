@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
@@ -171,6 +171,7 @@ describe("/api/cases", () => {
 	}
 
 	interface Serving {
+		readonly casesDirectory: string;
 		readonly fixture: RecordedRunsFixture;
 		readonly list: () => Promise<Listing>;
 		readonly listed: (id: string) => Promise<Listed | undefined>;
@@ -178,9 +179,10 @@ describe("/api/cases", () => {
 
 	async function serving(): Promise<Serving> {
 		const runsDirectory = await temporaryDirectory("rehearse-cases-runs-");
+		const casesDirectory = await casesRoot();
 		const app = createLaunchApp({
 			runsDirectory,
-			casesRoot: await casesRoot(),
+			casesRoot: casesDirectory,
 			launcher: new FakeLauncher(),
 			liveness: nothingRunning,
 		});
@@ -191,6 +193,7 @@ describe("/api/cases", () => {
 		};
 
 		return {
+			casesDirectory,
 			fixture: new RecordedRunsFixture(runsDirectory),
 			list,
 			listed: async (id) => {
@@ -326,6 +329,22 @@ describe("/api/cases", () => {
 				pipeline: {
 					state: "unavailable",
 					reason: `Pipeline stage build names a missing rubric: cases/${UNRUNNABLE_CASE.id}/rubrics/missing.json`,
+				},
+			});
+		});
+	});
+
+	describe("when a case's pipeline file cannot be opened", () => {
+		it("lists the case with its steps unavailable rather than failing the listing", async () => {
+			const { casesDirectory, listed } = await serving();
+			await chmod(join(casesDirectory, CASE_ID, "pipeline.json"), 0o000);
+
+			expect(await listed(CASE_ID)).toMatchObject({
+				pipeline: {
+					state: "unavailable",
+					reason: expect.stringMatching(
+						/^Pipeline definition cannot be read: pipeline\.json/u,
+					),
 				},
 			});
 		});

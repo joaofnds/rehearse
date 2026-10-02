@@ -250,7 +250,16 @@ export async function readDeclaredPipeline(
 		),
 	);
 
-	const pipeline = parsePipeline(await file.text(), availableRubrics);
+	let text: string;
+	try {
+		text = await file.text();
+	} catch (error) {
+		throw new PipelineDefinitionError(
+			`Pipeline definition cannot be read: ${declaration.pipeline}: ${error instanceof Error ? error.message : String(error)}`,
+		);
+	}
+
+	const pipeline = parsePipeline(text, availableRubrics);
 	for (const stage of pipeline.stages) {
 		const rubric = Bun.file(
 			caseRelative(
