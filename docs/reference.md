@@ -220,10 +220,12 @@ must collapse before the commit. The body must hold `id`, `kind` (`session`)
 and `model`, since the launch dialog cannot start a case with no model, and may
 add only `title`, `prompt`, `tools`, `corpusFiles`, `checks` and
 `sessionBudgetUsd`. Only those fields are written, so a default the case parser
-fills in never reaches the file. It answers 400 for any other field, for a
-`pipeline` kind, for a missing `model`, for a declaration the case parser
-refuses, and for a corpus file outside the layout or one whose path climbs out
-of the linked corpus. Whether each corpus file exists is checked when the case
+fills in never reaches the file. It answers 400 for any other field, naming a
+field `case.json` does not have apart from one declared by hand, for a
+`pipeline` kind, for a missing `model`, for a prompt that starts with `-`,
+which the claude CLI would read as an option, for a declaration the case parser
+refuses, and for a corpus file outside the layout, one with a `.` or `..`
+segment, or one whose path climbs out of the linked corpus. Whether each corpus file exists is checked when the case
 runs, not here. It answers 409 for an id already on disk, and for a linked
 corpus directory that is no longer a corpus. A refused declaration leaves no
 directory behind. The body sets no `settings`, so a case that edits files or
