@@ -51,6 +51,7 @@ import {
 	storeSpendCeiling,
 } from "#benchmark/settings";
 import { CEILING_OVERRUN_STATEMENT } from "#benchmark/spend-ceiling";
+import { pipelineReport } from "./pipelines";
 import { redactAbsolutePaths } from "./redact-path";
 import { runStatus } from "./run-status";
 
@@ -665,6 +666,14 @@ export const createLaunchApp = (dependencies: LaunchDependencies) => {
 				})),
 			});
 		})
+		.get("/api/pipelines", async (context) =>
+			context.json(
+				await pipelineReport(
+					dependencies.casesRoot,
+					dependencies.runsDirectory,
+				),
+			),
+		)
 		.post("/api/launches", async (context) => {
 			const parsed = launchRequestSchema.safeParse(
 				await context.req.json().catch(() => undefined),
