@@ -452,6 +452,7 @@ describe(createAppServer.name, () => {
 
 			it("writes no case directory for a foreign Origin", async () => {
 				const { app, casesRoot } = await appServer();
+				const before = await readdir(casesRoot);
 
 				const response = await app.request("/api/cases", {
 					method: "POST",
@@ -460,7 +461,7 @@ describe(createAppServer.name, () => {
 				});
 
 				expect(response.status).toBe(403);
-				expect(await readdir(casesRoot)).toEqual(["smoke"]);
+				expect(await readdir(casesRoot)).toEqual(before);
 			});
 		});
 

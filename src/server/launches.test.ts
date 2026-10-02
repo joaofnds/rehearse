@@ -1047,7 +1047,7 @@ describe(createLaunchApp.name, () => {
 			});
 
 			it("declares one of two requests that race for one id and refuses the other", async () => {
-				const { declare } = await harness();
+				const { declare, casesDirectory } = await harness();
 
 				const responses = await Promise.all([
 					declare(DECLARED_CASE),
@@ -1059,6 +1059,23 @@ describe(createLaunchApp.name, () => {
 						.map(({ status }) => status)
 						.toSorted((left, right) => left - right),
 				).toEqual([201, 409]);
+				expect(
+					await readCaseDeclaration(DECLARED_CASE.id, casesDirectory),
+				).toMatchObject({ id: DECLARED_CASE.id });
+			});
+
+			it("refuses while the settings file cannot be read, writing no case directory", async () => {
+				const { declare, casesDirectory, runsDirectory } = await harness();
+				await Bun.write(join(runsDirectory, "settings.json"), "not json");
+				const before = await caseDirectories(casesDirectory);
+
+				const response = await declare(DECLARED_CASE);
+
+				expect(response.status).toBe(409);
+				expect(refusalSchema.parse(await response.json()).error).toContain(
+					SET_SPEND_CEILING_COMMAND,
+				);
+				expect(await caseDirectories(casesDirectory)).toEqual(before);
 			});
 
 			it.each([
@@ -1066,7 +1083,7 @@ describe(createLaunchApp.name, () => {
 				[
 					"an id that is not a case id",
 					{ ...DECLARED_CASE, id: "../escape" },
-					"id",
+					"invalid id",
 				],
 				["no prompt", { ...DECLARED_CASE, prompt: "" }, "prompt"],
 				[

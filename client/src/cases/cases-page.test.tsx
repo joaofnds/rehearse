@@ -456,7 +456,7 @@ describe(CasesPage.name, () => {
 			expect(JSON.parse(posted?.body ?? "null")).toEqual(DECLARED);
 		});
 
-		it("shows the declared case and says its file needs formatting and a commit", async () => {
+		it("lists the declared case", async () => {
 			servingDeclaration(DECLARED_REPLY);
 			const form = await openDeclareForm();
 			fillDeclared();
@@ -464,6 +464,15 @@ describe(CasesPage.name, () => {
 			fireEvent.click(within(form).getByRole("button", { name: "Declare" }));
 
 			expect(await card(DECLARED.id)).toBeInTheDocument();
+		});
+
+		it("names the written file and says it needs formatting and a commit", async () => {
+			servingDeclaration(DECLARED_REPLY);
+			const form = await openDeclareForm();
+			fillDeclared();
+
+			fireEvent.click(within(form).getByRole("button", { name: "Declare" }));
+
 			expect(
 				await screen.findByText(
 					"Declared cases/declared/case.json. The file is uncommitted and unformatted: run bun run fmt, then commit it to keep the case.",
@@ -516,7 +525,8 @@ describe(CasesPage.name, () => {
 					expect(server.posted("/api/cases")).toHaveLength(1);
 				});
 				const [posted] = server.posted("/api/cases");
-				expect(JSON.parse(posted?.body ?? "null")).toMatchObject({
+				expect(JSON.parse(posted?.body ?? "null")).toEqual({
+					...DECLARED,
 					checks: [check],
 				});
 			},
@@ -538,7 +548,8 @@ describe(CasesPage.name, () => {
 				expect(server.posted("/api/cases")).toHaveLength(1);
 			});
 			const [posted] = server.posted("/api/cases");
-			expect(JSON.parse(posted?.body ?? "null")).toMatchObject({
+			expect(JSON.parse(posted?.body ?? "null")).toEqual({
+				...DECLARED,
 				checks: [
 					{ kind: "word-band", max: 3 },
 					{ kind: "files-read", paths: ["README.md"] },
