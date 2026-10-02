@@ -2,9 +2,13 @@ import { afterEach, describe, expect, it } from "bun:test";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { CasesResponse } from "./cases-query";
 import { CasesPage } from "./cases-page";
+import type { Reply } from "#client/test-support/fetch-stub";
+import { FakeServer } from "#client/test-support/fetch-stub";
+import { LiveReply } from "#client/test-support/live-reply";
 import {
 	renderAppAt,
 	renderAppWithStub,
+	SHELL_BASELINE,
 	stubFetchFailing,
 } from "#client/test-support/render-app";
 
@@ -101,6 +105,90 @@ function card(id: string): Promise<HTMLElement> {
 	return screen.findByRole("article", { name: id });
 }
 
+const DECLARED = {
+	id: "declared",
+	kind: "session",
+	title: "A declared case",
+	prompt: "Reply OK.",
+	tools: ["Read", "Grep"],
+	corpusFiles: ["skills/build/SKILL.md", "CLAUDE.md"],
+	checks: [{ kind: "word-band", max: 3 }],
+	model: "sonnet",
+	sessionBudgetUsd: 0.5,
+};
+
+function listing(cases: readonly ListedCase[]): Reply {
+	const body: CasesResponse = {
+		cases: [...cases],
+		unreadable: [],
+		unreadableRecords: [],
+	};
+
+	return { status: 200, body };
+}
+
+/**
+ * The Cases screen over a server that lists the declared case once the form
+ * has posted it, as the real route does on its next read.
+ */
+function servingDeclaration(declared: Reply): FakeServer {
+	const baseline = [...SHELL_BASELINE].map(([path, body]): [string, Reply] => [
+		`GET ${path}`,
+		{ status: 200, body },
+	]);
+	const server: FakeServer = new FakeServer(
+		new Map<string, Reply | LiveReply>([
+			...baseline,
+			[
+				"GET /api/cases",
+				new LiveReply(() =>
+					server.posted("/api/cases").length === 0 || declared.status !== 201
+						? listing([pipelineCase()])
+						: listing([
+								pipelineCase(),
+								sessionCase({ id: DECLARED.id, title: DECLARED.title }),
+							]),
+				),
+			],
+			["POST /api/cases", declared],
+		]),
+	);
+	server.install();
+	renderAppAt("/cases");
+
+	return server;
+}
+
+const DECLARED_REPLY: Reply = {
+	status: 201,
+	body: { declaration: DECLARED, path: "cases/declared/case.json" },
+};
+
+async function openDeclareForm(): Promise<HTMLElement> {
+	fireEvent.click(
+		await screen.findByRole("button", { name: "Declare a case" }),
+	);
+
+	return screen.findByRole("dialog", { name: "Declare a case" });
+}
+
+function fill(label: string, value: string): void {
+	fireEvent.change(screen.getByLabelText(label), {
+		target: { value },
+	});
+}
+
+function fillDeclared(): void {
+	fill("Id", DECLARED.id);
+	fill("Title", DECLARED.title);
+	fill("Prompt", DECLARED.prompt);
+	fill("Tools", "Read, Grep");
+	fill("Corpus files", "skills/build/SKILL.md\nCLAUDE.md");
+	fill("Check 1 max", "3");
+	fill("Model", DECLARED.model);
+	fill("Session budget", "0.5");
+}
+
 describe(CasesPage.name, () => {
 	it("opens from the Cases nav item under its header naming where cases are declared", async () => {
 		renderCasesAt("/", [pipelineCase()]);
@@ -125,17 +213,6 @@ describe(CasesPage.name, () => {
 		expect(
 			await screen.findByRole("heading", { level: 1, name: "Cases" }),
 		).toBeInTheDocument();
-	});
-
-	it("draws Declare a case but says it is not wired yet", async () => {
-		renderCasesAt("/cases", [pipelineCase()]);
-
-		const declare = await screen.findByRole("button", {
-			name: "Declare a case",
-		});
-
-		expect(declare).toHaveAttribute("aria-disabled", "true");
-		expect(declare).toHaveAccessibleDescription("Not wired yet");
 	});
 
 	it("shows a pipeline case's kind, target, figures, minimum grade, title and steps on its card", async () => {
@@ -361,6 +438,141 @@ describe(CasesPage.name, () => {
 
 			expect(await screen.findByRole("alert")).toHaveTextContent(
 				"Could not load the cases.",
+			);
+		});
+	});
+	describe("when a case is declared", () => {
+		it("posts the session declaration the form sets", async () => {
+			const server = servingDeclaration(DECLARED_REPLY);
+			const form = await openDeclareForm();
+			fillDeclared();
+
+			fireEvent.click(within(form).getByRole("button", { name: "Declare" }));
+
+			await waitFor(() => {
+				expect(server.posted("/api/cases")).toHaveLength(1);
+			});
+			const [posted] = server.posted("/api/cases");
+			expect(JSON.parse(posted?.body ?? "null")).toEqual(DECLARED);
+		});
+
+		it("shows the declared case and names its file as uncommitted", async () => {
+			servingDeclaration(DECLARED_REPLY);
+			const form = await openDeclareForm();
+			fillDeclared();
+
+			fireEvent.click(within(form).getByRole("button", { name: "Declare" }));
+
+			expect(await card(DECLARED.id)).toBeInTheDocument();
+			expect(
+				await screen.findByText(
+					"Declared cases/declared/case.json. The file is uncommitted: commit it to keep the case.",
+				),
+			).toHaveAttribute("role", "status");
+		});
+
+		it.each([
+			[
+				"forbidden-text",
+				{ "Check 1 strings": "TODO\nFIXME" },
+				{ kind: "forbidden-text", strings: ["TODO", "FIXME"] },
+			],
+			[
+				"forbidden-pattern",
+				{
+					"Check 1 name": "apology",
+					"Check 1 regex": "sorry",
+					"Check 1 flags": "i",
+				},
+				{
+					kind: "forbidden-pattern",
+					patterns: [{ name: "apology", regex: "sorry", flags: "i" }],
+				},
+			],
+			[
+				"tool-calls",
+				{ "Check 1 min": "1", "Check 1 names": "Read, Grep" },
+				{ kind: "tool-calls", min: 1, names: ["Read", "Grep"] },
+			],
+			[
+				"files-read",
+				{ "Check 1 paths": "README.md" },
+				{ kind: "files-read", paths: ["README.md"] },
+			],
+		])(
+			"posts a %s check built from its fields",
+			async (kind, fields, check) => {
+				const server = servingDeclaration(DECLARED_REPLY);
+				const form = await openDeclareForm();
+				fillDeclared();
+				fill("Check 1 kind", kind);
+				for (const [label, value] of Object.entries(fields)) {
+					fill(label, value);
+				}
+
+				fireEvent.click(within(form).getByRole("button", { name: "Declare" }));
+
+				await waitFor(() => {
+					expect(server.posted("/api/cases")).toHaveLength(1);
+				});
+				const [posted] = server.posted("/api/cases");
+				expect(JSON.parse(posted?.body ?? "null")).toMatchObject({
+					checks: [check],
+				});
+			},
+		);
+
+		it("posts every check the form adds", async () => {
+			const server = servingDeclaration(DECLARED_REPLY);
+			const form = await openDeclareForm();
+			fillDeclared();
+			fireEvent.click(
+				within(form).getByRole("button", { name: "Add a check" }),
+			);
+			fill("Check 2 kind", "files-read");
+			fill("Check 2 paths", "README.md");
+
+			fireEvent.click(within(form).getByRole("button", { name: "Declare" }));
+
+			await waitFor(() => {
+				expect(server.posted("/api/cases")).toHaveLength(1);
+			});
+			const [posted] = server.posted("/api/cases");
+			expect(JSON.parse(posted?.body ?? "null")).toMatchObject({
+				checks: [
+					{ kind: "word-band", max: 3 },
+					{ kind: "files-read", paths: ["README.md"] },
+				],
+			});
+		});
+
+		it("shows the pipeline kind disabled, saying it is declared by hand", async () => {
+			servingDeclaration(DECLARED_REPLY);
+
+			const form = await openDeclareForm();
+
+			const pipeline = within(form).getByRole("radio", { name: "Pipeline" });
+			expect(pipeline).toBeDisabled();
+			expect(pipeline).toHaveAccessibleDescription(
+				"A pipeline case needs a target repository and its own task files, so it is declared by hand in its case.json",
+			);
+			expect(
+				within(form).getByRole("radio", { name: "Session" }),
+			).toBeChecked();
+		});
+
+		it("shows the server's refusal and keeps the form open", async () => {
+			servingDeclaration({
+				status: 409,
+				body: { error: "Case declared is already declared" },
+			});
+			const form = await openDeclareForm();
+			fillDeclared();
+
+			fireEvent.click(within(form).getByRole("button", { name: "Declare" }));
+
+			expect(await within(form).findByRole("alert")).toHaveTextContent(
+				"Case declared is already declared",
 			);
 		});
 	});

@@ -1,29 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
-import { useId } from "react";
+import { useState } from "react";
 import { Notice } from "#client/system/components/notice";
 import { ScreenHeader } from "#client/system/components/screen-header";
-import { Button } from "#client/system/ui/button";
 import { CaseCard } from "./case-card";
 import { casesQuery } from "./cases-query";
-import { NOT_WIRED_REASON } from "#client/not-wired";
-
-function DeclareCase(): React.JSX.Element {
-	const reasonId = useId();
-
-	return (
-		<span className="flex flex-col items-end gap-1.5">
-			<Button variant="quiet" aria-disabled="true" aria-describedby={reasonId}>
-				Declare a case
-			</Button>
-			<span id={reasonId} className="text-11-5 text-dim">
-				{NOT_WIRED_REASON}
-			</span>
-		</span>
-	);
-}
+import { DeclareCaseDialog } from "./declare-case-dialog";
 
 export function CasesPage(): React.JSX.Element {
 	const query = useQuery(casesQuery);
+	const [declaredPath, setDeclaredPath] = useState<string>();
 	const cases = query.data?.cases ?? [];
 	const unreadable = query.data?.unreadable ?? [];
 	const unreadableRecords = query.data?.unreadableRecords ?? [];
@@ -33,7 +18,7 @@ export function CasesPage(): React.JSX.Element {
 			<ScreenHeader
 				title="Cases"
 				subline="Declared as data on disk · cases/*/case.json"
-				aside={<DeclareCase />}
+				aside={<DeclareCaseDialog onDeclared={setDeclaredPath} />}
 			/>
 
 			<div className="flex max-w-7xl flex-col gap-6 px-6 pt-4 pb-12">
@@ -45,6 +30,12 @@ export function CasesPage(): React.JSX.Element {
 					attempt of a group run on the whole case. Stage replays and stage-mode
 					groups are not counted.
 				</p>
+
+				{declaredPath === undefined ? null : (
+					<p role="status" className="text-sm text-secondary-foreground">
+						{`Declared ${declaredPath}. The file is uncommitted: commit it to keep the case.`}
+					</p>
+				)}
 
 				{query.isLoading ? (
 					<p className="text-muted-foreground">Loading…</p>

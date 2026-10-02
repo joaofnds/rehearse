@@ -1,5 +1,6 @@
 import type { InferResponseType } from "hono/client";
 import type { apiClient } from "#client/api-client";
+import { LiveReply } from "./live-reply";
 
 type RunHistoryResponseBody = InferResponseType<typeof apiClient.api.runs.$get>;
 
@@ -65,7 +66,9 @@ export interface Reply {
 export class FakeServer {
 	public readonly sent: SentRequest[] = [];
 
-	public constructor(private readonly routes: ReadonlyMap<string, Reply>) {}
+	public constructor(
+		private readonly routes: ReadonlyMap<string, Reply | LiveReply>,
+	) {}
 
 	public install(): void {
 		const stub = Object.assign(
@@ -84,10 +87,11 @@ export class FakeServer {
 					contentType: request.headers.get("content-type"),
 					body: await request.text(),
 				});
-				const reply = this.routes.get(`${request.method} ${url.pathname}`) ?? {
+				const route = this.routes.get(`${request.method} ${url.pathname}`) ?? {
 					status: 404,
 					body: { error: "not found" },
 				};
+				const reply = route instanceof LiveReply ? route.current() : route;
 
 				return Response.json(reply.body, { status: reply.status });
 			},

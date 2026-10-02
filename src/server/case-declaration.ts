@@ -10,10 +10,8 @@ import {
 } from "#benchmark/case";
 import type { CorpusRoot } from "#benchmark/corpus-file";
 import { CorpusFileError, resolveCorpusFile } from "#benchmark/corpus-file";
+import { DECLARED_BY_HAND_REASON } from "./declared-by-hand";
 import { redactAbsolutePaths } from "./redact-path";
-
-export const DECLARED_BY_HAND_REASON =
-	"A pipeline case needs a target repository and its own task files, so it is declared by hand in its case.json";
 
 const DECLARABLE_FIELDS = [
 	"id",
