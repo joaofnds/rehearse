@@ -211,6 +211,26 @@ describe(TasksPage.name, () => {
 		});
 	});
 
+	describe("when only a confirmation group's reps ran the task", () => {
+		it("counts the reps as its runs", async () => {
+			renderTasksAt("/tasks", [
+				{
+					...declaredTask(),
+					runs: [],
+					figures: { counted: 3, corpusVersion: DIGEST, leftOut: 0 },
+				},
+			]);
+
+			const card = await screen.findByRole("article", { name: TASK_PATH });
+
+			expect(
+				within(card).getByText(
+					"3 runs at corpus@e73e56 · 1 case · 2 step judges + 1 task judge",
+				),
+			).toBeInTheDocument();
+		});
+	});
+
 	describe("when a record cannot be read", () => {
 		it("names it beside the tasks it could read", async () => {
 			renderTasksAt(

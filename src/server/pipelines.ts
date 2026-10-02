@@ -3,11 +3,16 @@ import { join, relative } from "node:path";
 import { caseRelative, CaseDeclarationError, listCases } from "#benchmark/case";
 import type { PipelineCaseDeclaration } from "#benchmark/case";
 import { CONTROL_DIR } from "#benchmark/config";
+import { parseConfirmationGroupRecord } from "#benchmark/confirmation-record";
 import { loadRunManifest } from "#benchmark/manifest";
 import type { RunManifest } from "#benchmark/manifest";
 import { parsePipeline, PipelineDefinitionError } from "#benchmark/pipeline";
-import type { StageDefinition } from "#benchmark/pipeline";
-import { benchmarkRunPaths, recordedRunNames } from "#benchmark/run-layout";
+import {
+	benchmarkRunPaths,
+	confirmationGroupIds,
+	confirmationGroupPaths,
+	recordedRunNames,
+} from "#benchmark/run-layout";
 import { redactAbsolutePaths } from "./redact-path";
 
 /** The case whose declaration names a pipeline as its default. */
@@ -20,8 +25,9 @@ export interface DeclaringCase {
 /**
  * A task's runs as one corpus version produced them (doc-193 decision 4):
  * the runs at the latest version any of them recorded, and how many ran
- * under another version or recorded none. When no run recorded a version,
- * every run is counted and the version is null.
+ * under another version or recorded none. A pipeline confirmation group's
+ * reps count as runs each. When no run recorded a version, every run is
+ * counted and the version is null.
  */
 export interface PipelineFigures {
 	readonly counted: number;
@@ -62,6 +68,20 @@ interface RecordedRun {
 	readonly manifest: RunManifest;
 }
 
+type CorpusMeasurement = RunManifest["corpusVersion"];
+
+/**
+ * A pipeline confirmation group: reps that each ran the whole pipeline at the
+ * corpus version the group froze.
+ */
+interface RecordedGroup {
+	readonly caseId: string;
+	readonly pipelinePath: string;
+	readonly stages: readonly string[];
+	readonly reps: number;
+	readonly corpusVersion: CorpusMeasurement;
+}
+
 interface Reading<T> {
 	readonly found: readonly T[];
 	readonly unreadable: readonly UnreadablePipelineRecord[];
@@ -84,6 +104,48 @@ async function recordedRuns(
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			unreadable.push({ id: name, reason: redactAbsolutePaths(message) });
+		}
+	}
+
+	return { found, unreadable };
+}
+
+/**
+ * Group and rep records carry no time, so groups cannot be placed among runs
+ * by when they ran. They read after every run, in group id order, as the run
+ * history orders its untimed groups, and file times are not trusted for it.
+ */
+async function recordedGroups(
+	runsDirectory: string,
+): Promise<Reading<RecordedGroup>> {
+	const found: RecordedGroup[] = [];
+	const unreadable: UnreadablePipelineRecord[] = [];
+	const recorded = await confirmationGroupIds(runsDirectory);
+	for (const groupId of recorded.toSorted((left, right) =>
+		left.localeCompare(right),
+	)) {
+		const file = Bun.file(
+			confirmationGroupPaths(runsDirectory, groupId).groupFile,
+		);
+		if (!(await file.exists())) {
+			continue;
+		}
+		try {
+			const record = parseConfirmationGroupRecord(await file.text());
+			if (record.mode !== "pipeline") {
+				continue;
+			}
+
+			found.push({
+				caseId: record.caseId,
+				pipelinePath: record.inputs.pipelinePath,
+				stages: record.declaredStages,
+				reps: record.reps,
+				corpusVersion: record.inputs.corpusVersion,
+			});
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			unreadable.push({ id: groupId, reason: redactAbsolutePaths(message) });
 		}
 	}
 
@@ -140,7 +202,7 @@ async function declaredPipelines(
 async function declaredStages(
 	casesRoot: string,
 	declaration: PipelineCaseDeclaration,
-): Promise<readonly StageDefinition[]> {
+): Promise<readonly string[]> {
 	const caseDirectory = join(casesRoot, declaration.id);
 	const file = Bun.file(join(caseDirectory, declaration.pipeline));
 	if (!(await file.exists())) {
@@ -166,44 +228,64 @@ async function declaredStages(
 		),
 	);
 
-	return parsePipeline(await file.text(), availableRubrics).stages;
+	return parsePipeline(await file.text(), availableRubrics).stages.map(
+		({ name }) => name,
+	);
 }
 
-function figuresOf(runs: readonly RecordedRun[]): PipelineFigures {
-	const latest = runs
-		.map(({ manifest }) => manifest.corpusVersion)
-		.find((measurement) => measurement?.kind === "version");
-	if (latest?.kind !== "version") {
-		return { counted: runs.length, corpusVersion: null, leftOut: 0 };
+/** The digest of each run, newest first, with a group's reps after the runs. */
+function digestsOf(
+	runs: readonly RecordedRun[],
+	groups: readonly RecordedGroup[],
+): readonly (string | undefined)[] {
+	const digest = (measurement: CorpusMeasurement): string | undefined =>
+		measurement?.kind === "version" ? measurement.digest : undefined;
+
+	return [
+		...runs.map(({ manifest }) => digest(manifest.corpusVersion)),
+		...groups.flatMap(({ reps, corpusVersion }) =>
+			Array.from({ length: reps }, () => digest(corpusVersion)),
+		),
+	];
+}
+
+function figuresOf(digests: readonly (string | undefined)[]): PipelineFigures {
+	const latest = digests.find((digest) => digest !== undefined);
+	if (latest === undefined) {
+		return { counted: digests.length, corpusVersion: null, leftOut: 0 };
 	}
 
-	const counted = runs.filter(
-		({ manifest }) =>
-			manifest.corpusVersion?.kind === "version" &&
-			manifest.corpusVersion.digest === latest.digest,
-	).length;
+	const counted = digests.filter((digest) => digest === latest).length;
 
 	return {
 		counted,
-		corpusVersion: latest.digest,
-		leftOut: runs.length - counted,
+		corpusVersion: latest,
+		leftOut: digests.length - counted,
 	};
+}
+
+interface Ran {
+	readonly runs: readonly RecordedRun[];
+	readonly groups: readonly RecordedGroup[];
 }
 
 function listedPipeline(
 	path: string,
-	stages: readonly StageDefinition[],
+	stages: readonly string[],
 	declared: DeclaredPipeline | undefined,
-	runs: readonly RecordedRun[],
+	{ runs, groups }: Ran,
 ): ListedPipeline {
-	const cases = new Set(runs.map(({ manifest }) => manifest.caseId));
+	const cases = new Set([
+		...runs.map(({ manifest }) => manifest.caseId),
+		...groups.map(({ caseId }) => caseId),
+	]);
 	if (declared !== undefined) {
 		cases.add(declared.declaration.id);
 	}
 
 	return {
 		path,
-		stages: stages.map(({ name }) => name),
+		stages,
 		stageJudges: stages.length,
 		taskJudges: declared === undefined ? 0 : 1,
 		declaredBy:
@@ -216,23 +298,25 @@ function listedPipeline(
 					},
 		cases: [...cases].toSorted((left, right) => left.localeCompare(right)),
 		runs: runs.map(({ name }) => name),
-		figures: figuresOf(runs),
+		figures: figuresOf(digestsOf(runs, groups)),
 	};
 }
 
 /**
  * Every pipeline a pipeline case declares as its default and every pipeline a
- * run manifest recorded, since a run may override its case's default
- * (doc-193 decision 1). A recorded pipeline reads as its newest run ran it,
- * so a file changed or deleted since does not rewrite what ran.
+ * run manifest or pipeline confirmation group recorded, since a run may
+ * override its case's default (doc-193 decision 1). A recorded pipeline reads
+ * as its newest run ran it, else as its first group declared it, so a file
+ * changed or deleted since does not rewrite what ran.
  */
 export async function pipelineReport(
 	casesRoot: string,
 	runsDirectory: string,
 ): Promise<PipelineReport> {
-	const [declared, recorded] = await Promise.all([
+	const [declared, recorded, grouped] = await Promise.all([
 		declaredPipelines(casesRoot),
 		recordedRuns(runsDirectory),
+		recordedGroups(runsDirectory),
 	]);
 	const declaredByPath = new Map(
 		declared.found.map((pipeline) => [pipeline.path, pipeline]),
@@ -241,25 +325,38 @@ export async function pipelineReport(
 		recorded.found,
 		({ manifest }) => manifest.pipelinePath,
 	);
-	const paths = new Set([...declaredByPath.keys(), ...runsByPath.keys()]);
+	const groupsByPath = Map.groupBy(
+		grouped.found,
+		({ pipelinePath }) => pipelinePath,
+	);
+	const paths = new Set([
+		...declaredByPath.keys(),
+		...runsByPath.keys(),
+		...groupsByPath.keys(),
+	]);
 
 	const pipelines: ListedPipeline[] = [];
-	const unreadable = [...declared.unreadable, ...recorded.unreadable];
+	const unreadable = [
+		...declared.unreadable,
+		...recorded.unreadable,
+		...grouped.unreadable,
+	];
 	for (const path of [...paths].toSorted((left, right) =>
 		left.localeCompare(right),
 	)) {
-		const runs = runsByPath.get(path) ?? [];
+		const ran = {
+			runs: runsByPath.get(path) ?? [],
+			groups: groupsByPath.get(path) ?? [],
+		};
 		const declaration = declaredByPath.get(path);
-		const [newest] = runs;
-		if (newest !== undefined) {
-			pipelines.push(
-				listedPipeline(
-					path,
-					newest.manifest.pipeline.stages,
-					declaration,
-					runs,
-				),
-			);
+		const [newestRun] = ran.runs;
+		const [firstGroup] = ran.groups;
+		const recordedStages =
+			newestRun?.manifest.pipeline.stages.map(({ name }) => name) ??
+			firstGroup?.stages;
+		if (recordedStages !== undefined) {
+			pipelines.push(listedPipeline(path, recordedStages, declaration, ran));
+
 			continue;
 		}
 		if (declaration === undefined) {
@@ -271,7 +368,7 @@ export async function pipelineReport(
 					path,
 					await declaredStages(casesRoot, declaration.declaration),
 					declaration,
-					runs,
+					ran,
 				),
 			);
 		} catch (error) {

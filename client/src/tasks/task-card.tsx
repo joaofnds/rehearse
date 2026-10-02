@@ -9,8 +9,8 @@ export type ListedTask = PipelinesResponse["pipelines"][number];
 
 export const NOT_WIRED_REASON = "Not wired yet";
 
-function runsCounted({ runs, figures }: ListedTask): string {
-	if (runs.length === 0) {
+function runsCounted({ figures }: ListedTask): string {
+	if (figures.counted + figures.leftOut === 0) {
 		return "No runs yet";
 	}
 	if (figures.corpusVersion === null) {

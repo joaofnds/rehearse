@@ -3,7 +3,12 @@ import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
-import { benchmarkRunPaths, runNameFromTimestamp } from "#benchmark/run-layout";
+import { confirmationGroupRecordSchema } from "#benchmark/confirmation-record";
+import {
+	benchmarkRunPaths,
+	confirmationGroupPaths,
+	runNameFromTimestamp,
+} from "#benchmark/run-layout";
 import type { RunLiveness } from "#benchmark/run-liveness";
 import { writeRunManifest } from "#benchmark/manifest";
 import type { RunManifest } from "#benchmark/manifest";
@@ -98,6 +103,15 @@ interface RecordedRun {
 	readonly corpusDigest?: string;
 }
 
+interface RecordedGroup {
+	readonly groupId: string;
+	readonly caseId: string;
+	readonly pipelinePath: string;
+	readonly stages: readonly string[];
+	readonly reps: number;
+	readonly corpusDigest?: string;
+}
+
 describe("/api/pipelines", () => {
 	const roots: string[] = [];
 
@@ -178,6 +192,58 @@ describe("/api/pipelines", () => {
 		return name;
 	}
 
+	async function recordGroup(
+		runsDirectory: string,
+		group: RecordedGroup,
+	): Promise<void> {
+		const paths = confirmationGroupPaths(runsDirectory, group.groupId);
+		const ordinals = Array.from(
+			{ length: group.reps },
+			(_slot, index) => index + 1,
+		);
+		const record = confirmationGroupRecordSchema.parse({
+			schemaVersion: 1,
+			caseId: group.caseId,
+			groupId: group.groupId,
+			mode: "pipeline",
+			reps: group.reps,
+			declaredStages: group.stages,
+			inputs: {
+				lineage: { kind: "SOURCE", sha: "2".repeat(40) },
+				files: [
+					{
+						kind: "corpus",
+						path: "inputs/corpus/SKILL.md",
+						sha256: "c".repeat(64),
+					},
+				],
+				model: "sonnet",
+				judgeModel: "opus",
+				sessionBudgetUsd: 5,
+				pipelinePath: group.pipelinePath,
+				corpusVersion:
+					group.corpusDigest === undefined
+						? undefined
+						: { kind: "version", digest: group.corpusDigest },
+			},
+			projectedCost: {
+				reps: group.reps,
+				perRepMaximumUsd: 5,
+				totalMaximumUsd: 5 * group.reps,
+			},
+			approval: { method: "yes", approved: true },
+			repRecords: ordinals.map((ordinal) => ({
+				repId: `${group.groupId}-rep-${ordinal}`,
+				ordinal,
+				path: `reps/${group.groupId}-rep-${ordinal}/rep.json`,
+			})),
+			reportFile: "report.json",
+			makespanMs: 200,
+		});
+		await mkdir(paths.directory, { recursive: true });
+		await Bun.write(paths.groupFile, JSON.stringify(record));
+	}
+
 	interface Serving {
 		readonly get: () => Promise<Response>;
 		readonly list: () => Promise<PipelinesResponse>;
@@ -186,11 +252,17 @@ describe("/api/pipelines", () => {
 		readonly cases: string;
 	}
 
-	async function serving(runs: readonly RecordedRun[]): Promise<Serving> {
+	async function serving(
+		runs: readonly RecordedRun[],
+		groups: readonly RecordedGroup[] = [],
+	): Promise<Serving> {
 		const runsDirectory = await temporaryDirectory("rehearse-pipeline-runs-");
 		const names: string[] = [];
 		for (const run of runs) {
 			names.push(await recordRun(runsDirectory, run));
+		}
+		for (const group of groups) {
+			await recordGroup(runsDirectory, group);
 		}
 		const cases = await casesRoot([PIPELINE_CASE, SESSION_CASE]);
 		const app = createLaunchApp({
@@ -359,6 +431,69 @@ describe("/api/pipelines", () => {
 				figures: { counted: 1, corpusVersion: NEWER_DIGEST, leftOut: 3 },
 			},
 		]);
+	});
+
+	describe("when a pipeline confirmation group ran the task", () => {
+		it("counts each of the group's reps as a run at the version it froze", async () => {
+			const { list, names } = await serving(
+				[
+					{
+						timestamp: "2026-09-01T10:00:00.000Z",
+						caseId: "pipe-case",
+						pipelinePath: DECLARED_PIPELINE,
+						stages: ["discuss", "build"],
+						corpusDigest: NEWER_DIGEST,
+					},
+				],
+				[
+					{
+						groupId: "group-a",
+						caseId: "pipe-case",
+						pipelinePath: DECLARED_PIPELINE,
+						stages: ["discuss", "build"],
+						reps: 3,
+						corpusDigest: NEWER_DIGEST,
+					},
+				],
+			);
+
+			const { pipelines } = await list();
+
+			expect(pipelines).toMatchObject([
+				{
+					runs: names,
+					figures: { counted: 4, corpusVersion: NEWER_DIGEST, leftOut: 0 },
+				},
+			]);
+		});
+
+		it("lists a pipeline only a group ran with the stages the group declared", async () => {
+			const { list } = await serving(
+				[],
+				[
+					{
+						groupId: "group-a",
+						caseId: "pipe-case",
+						pipelinePath: OVERRIDE_PIPELINE,
+						stages: ["build"],
+						reps: 2,
+					},
+				],
+			);
+
+			const { pipelines } = await list();
+
+			expect(pipelines).toMatchObject([
+				{
+					path: OVERRIDE_PIPELINE,
+					stages: ["build"],
+					cases: ["pipe-case"],
+					runs: [],
+					figures: { counted: 2, corpusVersion: null, leftOut: 0 },
+				},
+				{ path: DECLARED_PIPELINE },
+			]);
+		});
 	});
 
 	describe("when a record cannot be read", () => {
