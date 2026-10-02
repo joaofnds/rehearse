@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import { useId } from "react";
 import { corpusVersionLabel } from "#benchmark/corpus-version-label";
 import { plural } from "#client/plural";
@@ -31,10 +32,46 @@ function figuresLine(task: ListedTask): string {
 const OVERRIDE_DESCRIPTION =
 	"A run chose this pipeline over its case's default, so no case's final rubric judges it as a task.";
 
+function OpenGraph({
+	runInFlight,
+}: {
+	readonly runInFlight: string | undefined;
+}): React.JSX.Element {
+	const reasonId = useId();
+
+	if (runInFlight !== undefined) {
+		return (
+			<Button asChild variant="quiet">
+				<Link to="/monitor/$run" params={{ run: runInFlight }}>
+					Open graph
+				</Link>
+			</Button>
+		);
+	}
+
+	return (
+		<>
+			<span id={reasonId} className="text-11-5 text-dim">
+				None of this task's runs is in flight
+			</span>
+			<Button variant="quiet" aria-disabled="true" aria-describedby={reasonId}>
+				Open graph
+			</Button>
+		</>
+	);
+}
+
+/**
+ * Open graph goes to the monitor for the task's newest run in flight. The
+ * bare monitor would show whichever run is newest, which may belong to
+ * another task, so with none of this task's runs in flight it is disabled.
+ */
 export function TaskCard({
 	task,
+	runInFlight,
 }: {
 	readonly task: ListedTask;
+	readonly runInFlight: string | undefined;
 }): React.JSX.Element {
 	const headingId = useId();
 	const reasonId = useId();
@@ -69,6 +106,7 @@ export function TaskCard({
 				</span>
 				<span className="font-mono text-11-5">{task.stages.join(" → ")}</span>
 				<span className="ml-auto flex items-center gap-2">
+					<OpenGraph runInFlight={runInFlight} />
 					<span id={reasonId} className="text-11-5 text-dim">
 						{NOT_WIRED_REASON}
 					</span>

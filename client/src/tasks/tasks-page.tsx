@@ -1,5 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useId } from "react";
+import { polledRunHistoryQuery } from "#client/run-history/run-history-polling";
+import { runsInFlight } from "#client/shell/run-in-flight";
 import { Notice } from "#client/system/components/notice";
 import { ScreenHeader } from "#client/system/components/screen-header";
 import { Button } from "#client/system/ui/button";
@@ -38,6 +40,8 @@ export function TasksPage(): React.JSX.Element {
 	const query = useQuery(pipelinesQuery);
 	const tasks = query.data?.pipelines ?? [];
 	const unreadable = query.data?.unreadable ?? [];
+	const history = useQuery(polledRunHistoryQuery);
+	const inFlight = runsInFlight(history.data?.rows ?? []);
 
 	return (
 		<div>
@@ -73,7 +77,13 @@ export function TasksPage(): React.JSX.Element {
 				) : null}
 
 				{tasks.map((task) => (
-					<TaskCard key={task.path} task={task} />
+					<TaskCard
+						key={task.path}
+						task={task}
+						runInFlight={
+							inFlight.find(({ run }) => task.runs.includes(run))?.run
+						}
+					/>
 				))}
 			</div>
 		</div>

@@ -2,7 +2,9 @@ import { afterEach, describe, expect, it } from "bun:test";
 import { fireEvent, screen, within } from "@testing-library/react";
 import type { PipelinesResponse } from "./pipelines-query";
 import { TasksPage } from "./tasks-page";
+import type { RunHistoryResponse } from "#client/run-history/run-history-query";
 import { renderAppWithStub } from "#client/test-support/render-app";
+import { runRow } from "#client/test-support/runs-in-flight";
 
 const originalFetch = globalThis.fetch;
 
@@ -13,6 +15,7 @@ afterEach(() => {
 const TASK_PATH = "cases/audit-log/pipelines/default.json";
 const OLDER_RUN = "2026-09-28T10-03-07.498Z";
 const NEWER_RUN = "2026-10-01T22-07-54.847Z";
+const OTHER_TASK_RUN = "2026-10-02T09-00-00.000Z";
 const DIGEST =
 	"e73e56621fca244376a085a27f68834c9e15038e7f53966ff1aff9b199891922";
 
@@ -58,6 +61,25 @@ function renderTasksAt(
 		unreadable,
 	};
 	renderAppWithStub(path, new Map([["/api/pipelines", response]]));
+}
+
+function renderTasksWhileRunning(inFlight: readonly string[]): void {
+	const history: RunHistoryResponse = {
+		rows: inFlight.map((run) => runRow({ run })),
+		launches: [],
+		unreadable: [],
+	};
+	const response: PipelinesResponse = {
+		pipelines: [declaredTask()],
+		unreadable: [],
+	};
+	renderAppWithStub(
+		"/tasks",
+		new Map<string, unknown>([
+			["/api/pipelines", response],
+			["/api/runs", history],
+		]),
+	);
 }
 
 describe(TasksPage.name, () => {
@@ -120,6 +142,30 @@ describe(TasksPage.name, () => {
 
 		expect(edit).toHaveAttribute("aria-disabled", "true");
 		expect(edit).toHaveAccessibleDescription("Not wired in v0.6");
+	});
+
+	it("opens the live monitor on the newest of its runs in flight", async () => {
+		renderTasksWhileRunning([OLDER_RUN, NEWER_RUN, OTHER_TASK_RUN]);
+
+		const card = await screen.findByRole("article", { name: TASK_PATH });
+
+		expect(
+			await within(card).findByRole("link", { name: "Open graph" }),
+		).toHaveAttribute("href", `/monitor/${NEWER_RUN}`);
+	});
+
+	describe("when none of its runs is in flight", () => {
+		it("draws Open graph disabled and says why", async () => {
+			renderTasksWhileRunning([OTHER_TASK_RUN]);
+
+			const card = await screen.findByRole("article", { name: TASK_PATH });
+			const open = within(card).getByRole("button", { name: "Open graph" });
+
+			expect(open).toHaveAttribute("aria-disabled", "true");
+			expect(open).toHaveAccessibleDescription(
+				"None of this task's runs is in flight",
+			);
+		});
 	});
 
 	describe("when only a run's override chose the task", () => {
