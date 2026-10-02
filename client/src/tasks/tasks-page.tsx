@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useId } from "react";
+import { useEffect, useId } from "react";
 import { polledRunHistoryQuery } from "#client/run-history/run-history-polling";
 import { runsInFlight } from "#client/shell/run-in-flight";
 import { Notice } from "#client/system/components/notice";
@@ -36,12 +36,28 @@ function HeaderControls(): React.JSX.Element {
 	);
 }
 
+/**
+ * The tasks are read once, and a run started after that is on no card until
+ * they are read again. They are re-read each time the polled history still
+ * shows a run in flight that no card holds, so Open graph reaches it once its
+ * manifest names its pipeline.
+ */
 export function TasksPage(): React.JSX.Element {
 	const query = useQuery(pipelinesQuery);
 	const tasks = query.data?.pipelines ?? [];
 	const unreadable = query.data?.unreadable ?? [];
 	const history = useQuery(polledRunHistoryQuery);
 	const inFlight = runsInFlight(history.data?.rows ?? []);
+	const onNoCard =
+		query.isSuccess &&
+		inFlight.some(({ run }) => !tasks.some((task) => task.runs.includes(run)));
+	const { refetch } = query;
+
+	useEffect(() => {
+		if (onNoCard) {
+			void refetch();
+		}
+	}, [onNoCard, refetch, history.dataUpdatedAt]);
 
 	return (
 		<div>

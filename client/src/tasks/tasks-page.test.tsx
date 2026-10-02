@@ -3,7 +3,12 @@ import { fireEvent, screen, within } from "@testing-library/react";
 import type { PipelinesResponse } from "./pipelines-query";
 import { TasksPage } from "./tasks-page";
 import type { RunHistoryResponse } from "#client/run-history/run-history-query";
-import { renderAppWithStub } from "#client/test-support/render-app";
+import { stubFetchByPath } from "#client/test-support/fetch-stub";
+import {
+	renderAppAt,
+	renderAppWithStub,
+	SHELL_BASELINE,
+} from "#client/test-support/render-app";
 import { runRow } from "#client/test-support/runs-in-flight";
 
 const originalFetch = globalThis.fetch;
@@ -84,6 +89,50 @@ function renderTasksWhileRunning(inFlight: readonly string[]): void {
 	);
 }
 
+/**
+ * Serves the tasks as they read before a run started, then as they read once
+ * its manifest names its pipeline, with that run in flight throughout.
+ */
+function renderTasksBeforeTheirRunWasRecorded(run: string): void {
+	stubFetchByPath(SHELL_BASELINE);
+	const answerBaseline = globalThis.fetch;
+	const before: PipelinesResponse = {
+		pipelines: [{ ...declaredTask(), runs: [OLDER_RUN] }],
+		unreadable: [],
+	};
+	const after: PipelinesResponse = {
+		pipelines: [{ ...declaredTask(), runs: [run, OLDER_RUN] }],
+		unreadable: [],
+	};
+	const history: RunHistoryResponse = {
+		rows: [runRow({ run })],
+		launches: [],
+		unreadable: [],
+	};
+	let pipelineReads = 0;
+	const stub = (request: string | URL | Request): Promise<Response> => {
+		const { pathname } = new URL(
+			request instanceof Request ? request.url : request,
+			"http://localhost",
+		);
+		if (pathname === "/api/pipelines") {
+			pipelineReads += 1;
+
+			return Promise.resolve(
+				Response.json(pipelineReads === 1 ? before : after),
+			);
+		}
+		if (pathname === "/api/runs") {
+			return Promise.resolve(Response.json(history));
+		}
+
+		return answerBaseline(request);
+	};
+	stub.preconnect = answerBaseline.preconnect;
+	globalThis.fetch = stub;
+	renderAppAt("/tasks");
+}
+
 describe(TasksPage.name, () => {
 	it("opens from the Tasks nav item under its header", async () => {
 		renderTasksAt("/", [declaredTask()]);
@@ -148,6 +197,16 @@ describe(TasksPage.name, () => {
 
 	it("opens the live monitor on the newest of its runs in flight", async () => {
 		renderTasksWhileRunning([OLDER_RUN, NEWER_RUN, OTHER_TASK_RUN]);
+
+		const card = await screen.findByRole("article", { name: TASK_PATH });
+
+		expect(
+			await within(card).findByRole("link", { name: "Open graph" }),
+		).toHaveAttribute("href", `/monitor/${NEWER_RUN}`);
+	});
+
+	it("opens a run started after the page read its tasks once the run is recorded", async () => {
+		renderTasksBeforeTheirRunWasRecorded(NEWER_RUN);
 
 		const card = await screen.findByRole("article", { name: TASK_PATH });
 
