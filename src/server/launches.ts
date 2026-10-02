@@ -50,6 +50,7 @@ import {
 	storeSpendCeiling,
 } from "#benchmark/settings";
 import { CEILING_OVERRUN_STATEMENT } from "#benchmark/spend-ceiling";
+import { declareCase, declareCaseRequestSchema } from "./case-declaration";
 import { caseListing } from "./case-listing";
 import { pipelineReport } from "./pipelines";
 import { redactAbsolutePaths } from "./redact-path";
@@ -659,6 +660,17 @@ export const createLaunchApp = (dependencies: LaunchDependencies) => {
 				}),
 			),
 		)
+		.post("/api/cases", async (context) => {
+			const parsed = declareCaseRequestSchema.safeParse(
+				await context.req.json().catch(() => undefined),
+			);
+			if (!parsed.success) {
+				return context.json({ error: z.prettifyError(parsed.error) }, 400);
+			}
+			const declared = await declareCase(parsed.data, dependencies.casesRoot);
+
+			return context.json(declared, 201);
+		})
 		.get("/api/pipelines", async (context) =>
 			context.json(
 				await pipelineReport(

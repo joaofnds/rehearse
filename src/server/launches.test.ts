@@ -17,6 +17,7 @@ import {
 import { benchmarkRunPaths } from "#benchmark/run-layout";
 import type { RunLiveness } from "#benchmark/run-liveness";
 import { pauseRequested } from "#benchmark/run-pause";
+import type { JsonValue } from "#benchmark/json-value";
 import { CONTROL_DIR, RECORDS_DIRECTORY_VARIABLE } from "#benchmark/config";
 import { liveCorpusSource } from "#benchmark/corpus-file";
 import { linkCorpus } from "#benchmark/corpus-source";
@@ -130,6 +131,9 @@ describe(createLaunchApp.name, () => {
 			path: string,
 			body: SettingsRequestBody,
 		) => Promise<Response>;
+		/** Posts a case declaration as the Declare a case form does. */
+		readonly declare: (body: JsonValue) => Promise<Response>;
+		readonly casesRoot: string;
 		/** The same records under a new server and launcher, as after a restart. */
 		readonly restarted: () => Promise<Harness>;
 	}
@@ -204,6 +208,15 @@ describe(createLaunchApp.name, () => {
 						body: JSON.stringify(body),
 					}),
 				),
+			declare: (body) =>
+				Promise.resolve(
+					app.request("/api/cases", {
+						method: "POST",
+						headers: { "content-type": "application/json" },
+						body: JSON.stringify(body),
+					}),
+				),
+			casesRoot: cases,
 			restarted: () => Promise.resolve(serving(runsDirectory, cases, liveness)),
 		};
 	}
@@ -950,6 +963,41 @@ describe(createLaunchApp.name, () => {
 					},
 				],
 			});
+		});
+	});
+
+	describe("when a case is declared", () => {
+		const DECLARED_CASE = {
+			id: "declared",
+			kind: "session",
+			title: "A declared case",
+			prompt: "Reply OK.",
+			tools: [],
+			corpusFiles: ["skills/build/SKILL.md"],
+			checks: [{ kind: "word-band", max: 1 }],
+			model: "sonnet",
+		};
+		const declaredSchema = z.object({
+			declaration: z.unknown(),
+			path: z.string(),
+		});
+		const listedIdsSchema = z.object({
+			cases: z.array(z.object({ id: z.string() })),
+		});
+
+		it("answers the declaration and the file it wrote, and lists the case", async () => {
+			const { declare, get } = await harness();
+
+			const response = await declare(DECLARED_CASE);
+
+			expect(response.status).toBe(201);
+			expect(declaredSchema.parse(await response.json())).toEqual({
+				declaration: DECLARED_CASE,
+				path: "cases/declared/case.json",
+			});
+			const listing = await get("/api/cases");
+			const { cases } = listedIdsSchema.parse(await listing.json());
+			expect(cases.map(({ id }) => id)).toContain(DECLARED_CASE.id);
 		});
 	});
 
