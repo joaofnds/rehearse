@@ -210,22 +210,28 @@ async function declaredPipelines(casesRoot: string): Promise<DeclaredCases> {
 
 /**
  * A case's declared pipeline, read from its file through the harness's own
- * parse, so a file the harness would refuse to run throws rather than reads.
+ * parse, so a file the harness would refuse to run throws rather than reads,
+ * and a path outside the case directory throws before anything opens it.
  * Its rubrics are named control-relative, as the stages name them.
  */
 export async function readDeclaredPipeline(
 	casesRoot: string,
 	declaration: PipelineCaseDeclaration,
 ): Promise<PipelineDefinition> {
-	const caseDirectory = join(casesRoot, declaration.id);
-	const file = Bun.file(join(caseDirectory, declaration.pipeline));
+	const file = Bun.file(
+		caseRelative(declaration, declaration.pipeline, casesRoot),
+	);
 	if (!(await file.exists())) {
 		throw new PipelineDefinitionError(
 			`Pipeline definition not found: ${declaration.pipeline}`,
 		);
 	}
 
-	const rubricsDirectory = join(caseDirectory, declaration.rubrics);
+	const rubricsDirectory = caseRelative(
+		declaration,
+		declaration.rubrics,
+		casesRoot,
+	);
 	let rubricEntries: readonly string[];
 	try {
 		rubricEntries = await readdir(rubricsDirectory);

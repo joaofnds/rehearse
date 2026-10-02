@@ -47,6 +47,20 @@ const UNRUNNABLE_CASE = {
 	title: "A case whose pipeline names a missing rubric",
 };
 
+const ESCAPING_PIPELINE_CASE = {
+	...PIPELINE_CASE,
+	id: "escaping-pipeline",
+	title: "A case whose pipeline path leaves its directory",
+	pipeline: `../${CASE_ID}/pipeline.json`,
+};
+
+const ESCAPING_RUBRICS_CASE = {
+	...PIPELINE_CASE,
+	id: "escaping-rubrics",
+	title: "A case whose rubrics path leaves its directory",
+	rubrics: `../${CASE_ID}/rubrics`,
+};
+
 function pipelineFile(caseId: string, rubrics: readonly string[]): string {
 	return JSON.stringify({
 		statuses: ["To Do", "Done"],
@@ -100,7 +114,13 @@ describe("/api/cases", () => {
 
 	async function casesRoot(): Promise<string> {
 		const root = await temporaryDirectory("rehearse-cases-");
-		for (const declaration of [PIPELINE_CASE, SESSION_CASE, UNRUNNABLE_CASE]) {
+		for (const declaration of [
+			PIPELINE_CASE,
+			SESSION_CASE,
+			UNRUNNABLE_CASE,
+			ESCAPING_PIPELINE_CASE,
+			ESCAPING_RUBRICS_CASE,
+		]) {
 			await mkdir(join(root, declaration.id, "rubrics"), { recursive: true });
 			await Bun.write(
 				join(root, declaration.id, "case.json"),
@@ -118,6 +138,10 @@ describe("/api/cases", () => {
 		await Bun.write(
 			join(root, CASE_ID, "pipeline.json"),
 			pipelineFile(CASE_ID, ["discuss.json", "build.json"]),
+		);
+		await Bun.write(
+			join(root, ESCAPING_RUBRICS_CASE.id, "pipeline.json"),
+			pipelineFile(ESCAPING_RUBRICS_CASE.id, ["discuss.json", "build.json"]),
 		);
 		await Bun.write(
 			join(root, UNRUNNABLE_CASE.id, "pipeline.json"),
@@ -264,6 +288,31 @@ describe("/api/cases", () => {
 				},
 			});
 		});
+	});
+
+	describe("when a case's pipeline or rubrics path leaves its case directory", () => {
+		it.each([
+			{
+				declaration: ESCAPING_PIPELINE_CASE,
+				path: ESCAPING_PIPELINE_CASE.pipeline,
+			},
+			{
+				declaration: ESCAPING_RUBRICS_CASE,
+				path: ESCAPING_RUBRICS_CASE.rubrics,
+			},
+		])(
+			"refuses to read $path, as the harness does",
+			async ({ declaration, path }) => {
+				const { listed } = await serving();
+
+				expect(await listed(declaration.id)).toMatchObject({
+					steps: {
+						state: "unavailable",
+						reason: `Case ${declaration.id} names a path outside its case directory: ${path}`,
+					},
+				});
+			},
+		);
 	});
 
 	it("reports a run record it cannot read apart from the declarations it cannot parse", async () => {

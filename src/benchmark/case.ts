@@ -166,9 +166,10 @@ function confinedTo(directory: string, path: string, refusal: string): string {
 export function caseRelative(
 	declaration: CaseDeclaration,
 	path: string,
+	root: string = casesRoot(),
 ): string {
 	return confinedTo(
-		caseDirectory(declaration.id),
+		caseDirectory(declaration.id, root),
 		path,
 		`Case ${declaration.id} names a path outside its case directory: ${path}`,
 	);
