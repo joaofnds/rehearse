@@ -76,19 +76,25 @@ function nodeStatus(stage: MonitoredStage, row: PipelineRow): NodeStatus {
 	return { state: "queued", words: STATUS_VOCABULARY.queued.word };
 }
 
+/** Whether a running stage's spend figure, by its scope, is the stage's own. */
+const SCOPE_IS_OWN_SPEND = {
+	"the stages finished before this one": false,
+	"this stage's session so far": true,
+	"this stage's session": true,
+	"this stage's session and its judge": true,
+} as const satisfies Record<RunningProgress["spendScope"], boolean>;
+
 /**
- * What the stage has cost: the running stage's session spend so far, as the
- * run measured it at its latest event, or else its session and judge cost as
- * its record keeps them. A stage not started has spent nothing, and neither
- * has one whose latest event is its start, which measures the stages before it.
+ * What the stage has cost: the running stage's own spend, as the run measured
+ * it at its latest event, or else its session and judge cost as its record
+ * keeps them. A stage not started has spent nothing.
  */
 function costReading(stage: MonitoredStage, row: PipelineRow): string {
 	const progress = liveProgress(stage, row);
-	if (progress?.spendScope === "the stages finished before this one") {
-		return spendReading(0);
-	}
 	if (progress !== undefined) {
-		return spendReading(progress.spentUsd);
+		return spendReading(
+			SCOPE_IS_OWN_SPEND[progress.spendScope] ? progress.spentUsd : 0,
+		);
 	}
 	if (notStarted(stage, row)) {
 		return spendReading(0);
