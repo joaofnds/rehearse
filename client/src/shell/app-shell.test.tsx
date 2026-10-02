@@ -198,6 +198,7 @@ describe("the navigation shell", () => {
 			"Live monitor",
 			"Comparisons",
 			"Corpus",
+			"Tasks",
 		]);
 	});
 
@@ -278,7 +279,7 @@ describe("the navigation shell", () => {
 	});
 
 	it("answers an unknown address inside the shell, naming it", async () => {
-		renderShellAt("/tasks", { runs: 0, corpusFiles: 137 });
+		renderShellAt("/cases", { runs: 0, corpusFiles: 137 });
 
 		await waitFor(() => {
 			expect(
@@ -289,7 +290,7 @@ describe("the navigation shell", () => {
 		expect(
 			screen.getByRole("region", { name: "Corpus under test" }),
 		).toBeInTheDocument();
-		expect(screen.getByText(/\/tasks/u)).toBeInTheDocument();
+		expect(screen.getByText(/\/cases/u)).toBeInTheDocument();
 		expect(screen.queryByText("Not Found")).not.toBeInTheDocument();
 		expect(
 			screen.getByRole("link", { name: /Back to run history/u }),
@@ -516,7 +517,7 @@ describe("the navigation shell", () => {
 
 		const planned = screen.getAllByText("planned");
 
-		expect(planned).toHaveLength(5);
+		expect(planned).toHaveLength(4);
 	});
 
 	it.each(["/", "/corpus", "/system", "/runs/run-a/stages/build", "/tasks"])(

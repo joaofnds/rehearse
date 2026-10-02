@@ -14,6 +14,7 @@ import { SessionHistoryPage } from "#client/session-history/session-history-page
 import { AppShell } from "#client/shell/app-shell";
 import { NotFoundPage } from "#client/shell/not-found-page";
 import { SystemPage } from "#client/system/system-page";
+import { TasksPage } from "#client/tasks/tasks-page";
 
 const rootRoute = createRootRoute({
 	component: AppShell,
@@ -64,6 +65,12 @@ const comparisonsRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/comparisons",
 	component: ComparisonsPage,
+});
+
+const tasksRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/tasks",
+	component: TasksPage,
 });
 
 const comparisonRoute = createRoute({
@@ -176,6 +183,7 @@ const routeTree = rootRoute.addChildren([
 	corpusRoute,
 	comparisonsRoute,
 	comparisonRoute,
+	tasksRoute,
 	sessionAttemptRoute,
 	confirmationAttemptRoute,
 ]);
