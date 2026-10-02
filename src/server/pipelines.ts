@@ -13,6 +13,7 @@ import {
 	confirmationGroupPaths,
 	recordedRunNames,
 } from "#benchmark/run-layout";
+import { atLatestCorpusVersion } from "./latest-corpus-version";
 import { redactAbsolutePaths } from "./redact-path";
 
 /** The case whose declaration names a pipeline as its default. */
@@ -263,18 +264,12 @@ function digestsOf(
 }
 
 function figuresOf(digests: readonly (string | undefined)[]): PipelineFigures {
-	const latest = digests.find((digest) => digest !== undefined);
-	if (latest === undefined) {
-		return { counted: digests.length, corpusVersion: null, leftOut: 0 };
-	}
+	const { counted, corpusVersion, leftOut } = atLatestCorpusVersion(
+		digests,
+		(digest) => digest,
+	);
 
-	const counted = digests.filter((digest) => digest === latest).length;
-
-	return {
-		counted,
-		corpusVersion: latest,
-		leftOut: digests.length - counted,
-	};
+	return { counted: counted.length, corpusVersion, leftOut };
 }
 
 interface Ran {
