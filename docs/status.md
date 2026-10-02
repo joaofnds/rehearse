@@ -198,13 +198,19 @@ summary yet (ACT-257).
 ## Browser UI
 
 Every screen carries a navigation rail listing the nine sections the design
-enumerates. It links four of them, run history, the Live monitor, the saved
-comparisons and the corpus, with a badge on each counting that collection, the
-monitor's counting the pipeline runs in flight, and marks the other five
-planned. The run and comparison badges leave out the entries that cannot be
+enumerates. It links five of them, run history, the Live monitor, the saved
+comparisons, the corpus and Tasks, with a badge on each of the first four
+counting that collection, the monitor's counting the pipeline runs in flight,
+and marks the other four planned. The run and comparison badges leave out the entries that cannot be
 read. The rail reaches no other address. The comparisons screen links each saved comparison to its own
 page, in digest order because no comparison records when it was made, and a
-comparison screen links onward to the attempts it names.
+comparison screen links onward to the attempts it names. The Tasks screen lists
+one card per pipeline a case declares as its default or a run recorded, with
+its steps, its step and task judges, its cases, and a run count over the runs
+at the latest corpus version it ran under, naming the runs it left out. Open
+graph goes to the monitor for the task's newest run in flight and is disabled
+with the reason while none is. Import a task, Export with judges and Edit steps
+are drawn disabled because they are not wired.
 
 Run history lists every saved record kind in one table: pipeline runs, standalone
 session attempts, confirmation runs and stage replays, including a run that
@@ -268,9 +274,9 @@ holds to, and the dialog projects no cost except for adding attempts to a
 comparison. The settings API reads and
 writes the ceiling and the linked corpus, but no settings screen or first-run
 setup shows them yet. Full run detail,
-task/case management, calibration screens, settings, and first-run setup are
-design targets. The rail marks
-Run detail, Tasks, Cases, Calibration and Settings planned rather
+case management, task import, export and editing, calibration screens,
+settings, and first-run setup are design targets. The rail marks
+Run detail, Cases, Calibration and Settings planned rather
 than linking to them. Live monitoring is partly
 delivered: the run list reports a run in flight with its stage, elapsed time and
 scoped spend, and the run API also reports how many of a judging stage's

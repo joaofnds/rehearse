@@ -182,6 +182,20 @@ run later in the started process, so they end the launch with the reason only
 in its log. `GET /api/cases` lists
 the declared cases with their models.
 
+`GET /api/pipelines` lists every pipeline a pipeline case declares as its
+default and every `pipelinePath` a run manifest recorded, so a pipeline a run
+chose with `--pipeline` or `BENCHMARK_PIPELINE` is listed too. Each entry names
+the pipeline by its control-relative path and carries its stage names, as the
+newest run that recorded it ran them or as its file declares them when no run
+has, its stage and task judge counts (a pipeline no case declares has no task
+judge), the declaring case, the cases that declare or ran it, its runs newest
+first, and `figures`: the runs counted at the latest corpus version any of its
+runs recorded, that version, and how many runs it left out at another version
+or none. When no run recorded a version every run is counted and the version
+is `null`. A pipeline file or run manifest that does not parse is named in
+`unreadable` and the rest are still listed. Session cases have no pipeline and
+never appear.
+
 `GET /api/settings` returns the stored ceiling or `null`, the command that
 sets it, the records location, the linked corpus as `kind` (`live` or
 `directory`) and `root`, and the statement that calls in flight can overrun the
