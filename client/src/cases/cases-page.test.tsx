@@ -241,6 +241,30 @@ describe(CasesPage.name, () => {
 		});
 	});
 
+	describe("when no counted session run had its checks run", () => {
+		it("says no run was checked rather than none of none passed", async () => {
+			renderCasesAt("/cases", [
+				sessionCase({
+					figures: {
+						state: "measured",
+						corpusVersion: DIGEST,
+						counted: 1,
+						leftOut: 0,
+						judged: 0,
+						passed: 0,
+						costPerRun: { meanUsd: 0.5, costed: 1, lacking: 0 },
+					},
+				}),
+			]);
+
+			expect(
+				within(await card("brief-reply")).getByText(
+					"1 run at corpus@e73e56 · no run checked · $0.50/run",
+				),
+			).toBeInTheDocument();
+		});
+	});
+
 	describe("when the harness would refuse a case's pipeline", () => {
 		it("says why its steps cannot be shown", async () => {
 			renderCasesAt("/cases", [

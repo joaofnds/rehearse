@@ -33,7 +33,9 @@ function verdicts(listed: ListedCase): string | undefined {
 	}
 
 	if (listed.kind === "session") {
-		return `${String(figures.passed)} of ${String(figures.judged)} passed their checks`;
+		return figures.judged === 0
+			? "no run checked"
+			: `${String(figures.passed)} of ${String(figures.judged)} passed their checks`;
 	}
 
 	return listed.figures.state === "measured" && listed.figures.median !== null
