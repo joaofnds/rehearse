@@ -7,6 +7,7 @@ import { parseConfirmationRepRecord } from "#benchmark/confirmation-record";
 import type { ParsedConfirmationRepRecord } from "#benchmark/confirmation-record";
 import type { Immutable } from "#benchmark/contracts";
 import { confirmationGroupPaths } from "#benchmark/run-layout";
+import { parseSessionAttemptRecord } from "#benchmark/session-record";
 import {
 	CASE_ID,
 	nothingRunning,
@@ -100,6 +101,41 @@ describe("readCaseRuns", () => {
 			minimumGrade: undefined,
 		});
 	});
+
+	it.each([
+		{
+			outcome: "UNSUCCESSFUL",
+			changes: {
+				outcome: "UNSUCCESSFUL",
+				checks: [{ kind: "word-band", status: "FAIL", detail: "too long" }],
+			},
+			passed: false,
+		},
+		{
+			outcome: "NO_REPLY",
+			changes: { outcome: "NO_REPLY", reply: undefined, checks: [] },
+			passed: undefined,
+		},
+	])(
+		"reads a session attempt recorded $outcome as passed $passed",
+		async ({ changes, passed }) => {
+			const file = await fixture.writeAttemptAt(
+				"0f6b6f2a-0000-4000-8000-00000000000b",
+				join(import.meta.dir, "..", ".."),
+				SESSION_CASE,
+				[],
+			);
+			const record = parseSessionAttemptRecord(await Bun.file(file).text());
+			await Bun.write(file, JSON.stringify({ ...record, ...changes }));
+
+			const { cases, unreadable } = await readCaseRuns(root, nothingRunning);
+
+			expect(unreadable).toEqual([]);
+			expect(cases.get(SESSION_CASE)?.runs).toEqual([
+				{ corpusDigest: undefined, passed, costUsd: 0.5 },
+			]);
+		},
+	);
 
 	it("reads a session rep whose checks ran by its outcome, taking it from its attempt when its metrics went missing", async () => {
 		const [checked, unmeasured] = await fixture.writeSessionGroup("group-s", 2);

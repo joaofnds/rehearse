@@ -268,6 +268,28 @@ describe("/api/cases", () => {
 				latestMinimumGrade: { state: "not-recorded" },
 			});
 		});
+
+		it("reads it as not recorded even when an older run recorded one", async () => {
+			const { fixture, listed } = await serving();
+			await fixture.writeFinishedRunEvidence(OLDER_RUN);
+			await fixture.gradeBuildBelowRaisedMinimum(OLDER_RUN);
+			await fixture.writeFinishedRunEvidence(NEWER_RUN);
+
+			expect(await listed(CASE_ID)).toMatchObject({
+				latestMinimumGrade: { state: "not-recorded" },
+			});
+		});
+	});
+
+	describe("when only a group ran a pipeline case", () => {
+		it("reads its minimum grade as not recorded, since a group records none", async () => {
+			const { fixture, listed } = await serving();
+			await fixture.writePipelineGroup("group-p", [PASS, PASS]);
+
+			expect(await listed(CASE_ID)).toMatchObject({
+				latestMinimumGrade: { state: "not-recorded" },
+			});
+		});
 	});
 
 	it("counts a session case's attempts and group reps at the latest corpus version, with no letter", async () => {
