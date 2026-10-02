@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "bun:test";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { z } from "zod";
 import { benchmarkRunPaths, runNameFromTimestamp } from "#benchmark/run-layout";
 import type { RunLiveness } from "#benchmark/run-liveness";
 import { writeRunManifest } from "#benchmark/manifest";
@@ -55,6 +56,30 @@ function pipelineDefinition(stages: readonly string[]): PipelineDefinition {
 		})),
 	};
 }
+
+const pipelinesResponseSchema = z.object({
+	pipelines: z.array(
+		z
+			.object({
+				path: z.string(),
+				stages: z.array(z.string()),
+				cases: z.array(z.string()),
+				runs: z.array(z.string()),
+				figures: z.object({
+					counted: z.number(),
+					corpusVersion: z.string().nullable(),
+					leftOut: z.number(),
+				}),
+			})
+			.loose(),
+	),
+	unreadable: z.array(z.object({ id: z.string(), reason: z.string() })),
+});
+
+type PipelinesResponse = z.infer<typeof pipelinesResponseSchema>;
+
+const OLDER_DIGEST = "a".repeat(64);
+const NEWER_DIGEST = "b".repeat(64);
 
 interface RecordedRun {
 	readonly timestamp: string;
@@ -138,24 +163,40 @@ describe("/api/pipelines", () => {
 		return name;
 	}
 
-	async function serving(
-		runs: readonly RecordedRun[],
-	): Promise<{ readonly get: () => Promise<Response>; names: string[] }> {
+	interface Serving {
+		readonly get: () => Promise<Response>;
+		readonly list: () => Promise<PipelinesResponse>;
+		readonly names: readonly string[];
+		readonly runsDirectory: string;
+		readonly cases: string;
+	}
+
+	async function serving(runs: readonly RecordedRun[]): Promise<Serving> {
 		const runsDirectory = await temporaryDirectory("rehearse-pipeline-runs-");
 		const names: string[] = [];
 		for (const run of runs) {
 			names.push(await recordRun(runsDirectory, run));
 		}
+		const cases = await casesRoot([PIPELINE_CASE, SESSION_CASE]);
 		const app = createLaunchApp({
 			runsDirectory,
-			casesRoot: await casesRoot([PIPELINE_CASE, SESSION_CASE]),
+			casesRoot: cases,
 			launcher: new FakeLauncher(),
 			liveness: NOTHING_RUNNING,
 		});
+		const get = (): Promise<Response> =>
+			Promise.resolve(app.request("/api/pipelines"));
 
 		return {
-			get: () => Promise.resolve(app.request("/api/pipelines")),
+			get,
+			list: async () => {
+				const response = await get();
+
+				return pipelinesResponseSchema.parse(await response.json());
+			},
 			names,
+			runsDirectory,
+			cases,
 		};
 	}
 
@@ -207,6 +248,138 @@ describe("/api/pipelines", () => {
 				},
 			],
 			unreadable: [],
+		});
+	});
+
+	it("reads a declared pipeline no run recorded from its file", async () => {
+		const { list } = await serving([]);
+
+		const { pipelines } = await list();
+
+		expect(pipelines).toMatchObject([
+			{
+				path: DECLARED_PIPELINE,
+				stages: ["discuss", "build"],
+				runs: [],
+				figures: { counted: 0, corpusVersion: null, leftOut: 0 },
+			},
+		]);
+	});
+
+	it("never lists a session case as a task", async () => {
+		const { list } = await serving([
+			{
+				timestamp: "2026-09-01T10:00:00.000Z",
+				caseId: "pipe-case",
+				pipelinePath: DECLARED_PIPELINE,
+				stages: ["discuss", "build"],
+			},
+		]);
+
+		const { pipelines } = await list();
+
+		expect(pipelines.flatMap(({ cases }) => cases)).not.toContain(
+			SESSION_CASE.id,
+		);
+	});
+
+	it("reads a recorded pipeline's stages as its newest run ran them", async () => {
+		const { list } = await serving([
+			{
+				timestamp: "2026-09-01T10:00:00.000Z",
+				caseId: "pipe-case",
+				pipelinePath: DECLARED_PIPELINE,
+				stages: ["discuss", "build"],
+			},
+			{
+				timestamp: "2026-09-02T10:00:00.000Z",
+				caseId: "pipe-case",
+				pipelinePath: DECLARED_PIPELINE,
+				stages: ["shape", "build", "review"],
+			},
+		]);
+
+		const { pipelines } = await list();
+
+		expect(pipelines.map(({ stages }) => stages)).toEqual([
+			["shape", "build", "review"],
+		]);
+	});
+
+	it("counts only the runs at the latest corpus version and names the runs it left out", async () => {
+		const { list, names } = await serving([
+			{
+				timestamp: "2026-09-01T10:00:00.000Z",
+				caseId: "pipe-case",
+				pipelinePath: DECLARED_PIPELINE,
+				stages: ["discuss", "build"],
+			},
+			{
+				timestamp: "2026-09-02T10:00:00.000Z",
+				caseId: "pipe-case",
+				pipelinePath: DECLARED_PIPELINE,
+				stages: ["discuss", "build"],
+				corpusDigest: OLDER_DIGEST,
+			},
+			{
+				timestamp: "2026-09-03T10:00:00.000Z",
+				caseId: "pipe-case",
+				pipelinePath: DECLARED_PIPELINE,
+				stages: ["discuss", "build"],
+				corpusDigest: NEWER_DIGEST,
+			},
+			{
+				timestamp: "2026-09-04T10:00:00.000Z",
+				caseId: "pipe-case",
+				pipelinePath: DECLARED_PIPELINE,
+				stages: ["discuss", "build"],
+			},
+		]);
+
+		const { pipelines } = await list();
+
+		expect(pipelines).toMatchObject([
+			{
+				runs: names.toReversed(),
+				figures: { counted: 1, corpusVersion: NEWER_DIGEST, leftOut: 3 },
+			},
+		]);
+	});
+
+	describe("when a record cannot be read", () => {
+		it("reports a declared pipeline file that does not parse and lists the rest", async () => {
+			const { list, cases } = await serving([
+				{
+					timestamp: "2026-09-01T10:00:00.000Z",
+					caseId: "pipe-case",
+					pipelinePath: OVERRIDE_PIPELINE,
+					stages: ["build"],
+				},
+			]);
+			await Bun.write(join(cases, "pipe-case", "pipeline.json"), "{}");
+
+			const { pipelines, unreadable } = await list();
+
+			expect(pipelines.map(({ path }) => path)).toEqual([OVERRIDE_PIPELINE]);
+			expect(unreadable.map(({ id }) => id)).toEqual([DECLARED_PIPELINE]);
+		});
+
+		it("reports a run manifest that does not parse and lists the rest", async () => {
+			const { list, names, runsDirectory } = await serving([
+				{
+					timestamp: "2026-09-01T10:00:00.000Z",
+					caseId: "pipe-case",
+					pipelinePath: OVERRIDE_PIPELINE,
+					stages: ["build"],
+				},
+			]);
+			const [run = ""] = names;
+			await Bun.write(benchmarkRunPaths(runsDirectory, run).manifestFile, "{}");
+
+			const { pipelines, unreadable } = await list();
+
+			expect(pipelines.map(({ path }) => path)).toEqual([DECLARED_PIPELINE]);
+			expect(unreadable.map(({ id }) => id)).toEqual([run]);
 		});
 	});
 });
