@@ -13,7 +13,6 @@ import {
 	CaseDeclarationError,
 	caseDeclarationPath,
 	isCaseId,
-	listCases,
 	readCaseDeclaration,
 } from "#benchmark/case";
 import { INITIAL_CHECKPOINT_STAGE } from "#benchmark/checkpoint";
@@ -51,6 +50,7 @@ import {
 	storeSpendCeiling,
 } from "#benchmark/settings";
 import { CEILING_OVERRUN_STATEMENT } from "#benchmark/spend-ceiling";
+import { caseListing } from "./case-listing";
 import { pipelineReport } from "./pipelines";
 import { redactAbsolutePaths } from "./redact-path";
 import { runStatus } from "./run-status";
@@ -650,22 +650,15 @@ export const createLaunchApp = (dependencies: LaunchDependencies) => {
 				return context.json({ error: error.message }, error.status);
 			}
 		})
-		.get("/api/cases", async (context) => {
-			const listing = await listCases(dependencies.casesRoot);
-
-			return context.json({
-				cases: listing.declarations.map((declaration) => ({
-					id: declaration.id,
-					kind: declaration.kind,
-					title: declaration.title,
-					model: declaration.model ?? null,
-				})),
-				unreadable: listing.unreadable.map(({ id, reason }) => ({
-					id,
-					reason: redactAbsolutePaths(reason),
-				})),
-			});
-		})
+		.get("/api/cases", async (context) =>
+			context.json(
+				await caseListing(
+					dependencies.casesRoot,
+					dependencies.runsDirectory,
+					dependencies.liveness,
+				),
+			),
+		)
 		.get("/api/pipelines", async (context) =>
 			context.json(
 				await pipelineReport(
