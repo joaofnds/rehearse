@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { z } from "zod";
@@ -14,6 +14,7 @@ import {
 	directorySource,
 	RecordedRunsFixture,
 } from "#benchmark/run-records-test-support";
+import { readCaseDeclaration } from "#benchmark/case";
 import { benchmarkRunPaths } from "#benchmark/run-layout";
 import type { RunLiveness } from "#benchmark/run-liveness";
 import { pauseRequested } from "#benchmark/run-pause";
@@ -133,7 +134,7 @@ describe(createLaunchApp.name, () => {
 		) => Promise<Response>;
 		/** Posts a case declaration as the Declare a case form does. */
 		readonly declare: (body: JsonValue) => Promise<Response>;
-		readonly casesRoot: string;
+		readonly casesDirectory: string;
 		/** The same records under a new server and launcher, as after a restart. */
 		readonly restarted: () => Promise<Harness>;
 	}
@@ -216,7 +217,7 @@ describe(createLaunchApp.name, () => {
 						body: JSON.stringify(body),
 					}),
 				),
-			casesRoot: cases,
+			casesDirectory: cases,
 			restarted: () => Promise.resolve(serving(runsDirectory, cases, liveness)),
 		};
 	}
@@ -998,6 +999,138 @@ describe(createLaunchApp.name, () => {
 			const listing = await get("/api/cases");
 			const { cases } = listedIdsSchema.parse(await listing.json());
 			expect(cases.map(({ id }) => id)).toContain(DECLARED_CASE.id);
+		});
+
+		it("writes the declaration as typed, without the defaults the parser fills in", async () => {
+			const { declare, casesDirectory } = await harness();
+
+			await declare(DECLARED_CASE);
+
+			const written: unknown = await Bun.file(
+				join(casesDirectory, DECLARED_CASE.id, "case.json"),
+			).json();
+			expect(written).toEqual(DECLARED_CASE);
+		});
+
+		it("writes a declaration the case reader a run uses parses", async () => {
+			const { declare, casesDirectory } = await harness();
+
+			await declare(DECLARED_CASE);
+
+			expect(
+				await readCaseDeclaration(DECLARED_CASE.id, casesDirectory),
+			).toMatchObject(DECLARED_CASE);
+		});
+
+		describe("when the declaration is refused", () => {
+			async function caseDirectories(root: string): Promise<string[]> {
+				const entries = await readdir(root);
+
+				return entries.toSorted((left, right) => left.localeCompare(right));
+			}
+
+			it("refuses an id that is already declared, keeping its declaration", async () => {
+				const { declare, casesDirectory } = await harness();
+
+				const response = await declare({
+					...DECLARED_CASE,
+					id: SESSION_CASE.id,
+				});
+
+				expect(response.status).toBe(409);
+				expect(refusalSchema.parse(await response.json()).error).toContain(
+					SESSION_CASE.id,
+				);
+				expect(
+					await readCaseDeclaration(SESSION_CASE.id, casesDirectory),
+				).toMatchObject(SESSION_CASE);
+			});
+
+			it("declares one of two requests that race for one id and refuses the other", async () => {
+				const { declare } = await harness();
+
+				const responses = await Promise.all([
+					declare(DECLARED_CASE),
+					declare({ ...DECLARED_CASE, title: "The other" }),
+				]);
+
+				expect(
+					responses
+						.map(({ status }) => status)
+						.toSorted((left, right) => left - right),
+				).toEqual([201, 409]);
+			});
+
+			it.each([
+				["no check", { ...DECLARED_CASE, checks: [] }, "checks"],
+				[
+					"an id that is not a case id",
+					{ ...DECLARED_CASE, id: "../escape" },
+					"id",
+				],
+				["no prompt", { ...DECLARED_CASE, prompt: "" }, "prompt"],
+				[
+					"a corpus file outside the corpus layout",
+					{ ...DECLARED_CASE, corpusFiles: ["notes/plan.md"] },
+					"notes/plan.md",
+				],
+				[
+					"a corpus file that climbs out of the corpus install",
+					{ ...DECLARED_CASE, corpusFiles: ["skills/../../.ssh/id_rsa"] },
+					"skills/../../.ssh/id_rsa",
+				],
+			])(
+				"refuses %s with the reason and writes no case directory",
+				async (_label, body, named) => {
+					const { declare, casesDirectory } = await harness();
+					const before = await caseDirectories(casesDirectory);
+
+					const response = await declare(body);
+
+					expect(response.status).toBe(400);
+					expect(refusalSchema.parse(await response.json()).error).toContain(
+						named,
+					);
+					expect(await caseDirectories(casesDirectory)).toEqual(before);
+				},
+			);
+
+			it.each([
+				["target", { path: "/target" }],
+				["stateCheck", { kind: "file-exists", path: "x" }],
+				["settings", { permissions: { allow: ["Bash"] } }],
+				["agents", { helper: {} }],
+				["fixture", "fixture"],
+				["transcript", { file: "prefix.jsonl" }],
+				["projectFiles", ["CLAUDE.md"]],
+			])(
+				"refuses a declaration that sets %s, which is declared by hand",
+				async (field, value) => {
+					const { declare, casesDirectory } = await harness();
+					const before = await caseDirectories(casesDirectory);
+
+					const response = await declare({ ...DECLARED_CASE, [field]: value });
+
+					expect(response.status).toBe(400);
+					const { error } = refusalSchema.parse(await response.json());
+					expect(error).toContain(field);
+					expect(error).toContain("by hand");
+					expect(await caseDirectories(casesDirectory)).toEqual(before);
+				},
+			);
+
+			it("refuses a pipeline case, which needs a target repository and its own task files", async () => {
+				const { declare, casesDirectory } = await harness();
+				const before = await caseDirectories(casesDirectory);
+
+				const response = await declare({ ...DECLARED_CASE, kind: "pipeline" });
+
+				expect(response.status).toBe(400);
+				expect(refusalSchema.parse(await response.json()).error).toContain(
+					"target repository",
+				);
+				expect(await caseDirectories(casesDirectory)).toEqual(before);
+			});
 		});
 	});
 

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
@@ -69,6 +69,7 @@ describe(createAppServer.name, () => {
 		readonly app: ReturnType<typeof createAppServer>;
 		readonly launcher: FakeLauncher;
 		readonly liveRoot: string;
+		readonly casesRoot: string;
 	}
 
 	/**
@@ -87,6 +88,7 @@ describe(createAppServer.name, () => {
 			root: await corpusDirectory(),
 			backingRoot: await corpusDirectory(),
 		});
+		const cases = await casesDirectory();
 		const app = createAppServer({
 			projectsDirectory: NO_PROVIDER_PROJECTS,
 			runsDirectory: records,
@@ -97,11 +99,11 @@ describe(createAppServer.name, () => {
 					: () => linkedCorpusSource(records, () => live),
 			clientDistDirectory: await clientDistDirectory(),
 			port: PORT,
-			casesRoot: await casesDirectory(),
+			casesRoot: cases,
 			launcher,
 		});
 
-		return { app, launcher, liveRoot: live.root };
+		return { app, launcher, liveRoot: live.root, casesRoot: cases };
 	}
 
 	async function casesDirectory(): Promise<string> {
@@ -420,6 +422,45 @@ describe(createAppServer.name, () => {
 					expect(response.status).toBe(200);
 					expect(await response.json()).toMatchObject({ spendCeilingUsd: 3 });
 				});
+			});
+		});
+
+		describe("to declare a case", () => {
+			const declaration = JSON.stringify({
+				id: "declared",
+				kind: "session",
+				title: "Declared",
+				prompt: "Reply OK.",
+				tools: [],
+				corpusFiles: [],
+				checks: [{ kind: "word-band", max: 1 }],
+				model: "sonnet",
+			});
+
+			it("declares the case a same-origin JSON request asks for", async () => {
+				const { app, casesRoot } = await appServer();
+
+				const response = await app.request("/api/cases", {
+					method: "POST",
+					headers: sameOrigin,
+					body: declaration,
+				});
+
+				expect(response.status).toBe(201);
+				expect(await readdir(casesRoot)).toContain("declared");
+			});
+
+			it("writes no case directory for a foreign Origin", async () => {
+				const { app, casesRoot } = await appServer();
+
+				const response = await app.request("/api/cases", {
+					method: "POST",
+					headers: { ...sameOrigin, origin: "https://evil.example" },
+					body: declaration,
+				});
+
+				expect(response.status).toBe(403);
+				expect(await readdir(casesRoot)).toEqual(["smoke"]);
 			});
 		});
 

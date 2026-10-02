@@ -50,7 +50,11 @@ import {
 	storeSpendCeiling,
 } from "#benchmark/settings";
 import { CEILING_OVERRUN_STATEMENT } from "#benchmark/spend-ceiling";
-import { declareCase, declareCaseRequestSchema } from "./case-declaration";
+import {
+	DeclarationRefusalError,
+	declareCase,
+	declareCaseRequestSchema,
+} from "./case-declaration";
 import { caseListing } from "./case-listing";
 import { pipelineReport } from "./pipelines";
 import { redactAbsolutePaths } from "./redact-path";
@@ -667,9 +671,25 @@ export const createLaunchApp = (dependencies: LaunchDependencies) => {
 			if (!parsed.success) {
 				return context.json({ error: z.prettifyError(parsed.error) }, 400);
 			}
-			const declared = await declareCase(parsed.data, dependencies.casesRoot);
+			try {
+				const corpus = await asLaunchRefusal(() =>
+					linkedCorpusSource(dependencies.runsDirectory),
+				);
 
-			return context.json(declared, 201);
+				return context.json(
+					await declareCase(parsed.data, dependencies.casesRoot, corpus),
+					201,
+				);
+			} catch (error) {
+				if (
+					!(error instanceof DeclarationRefusalError) &&
+					!(error instanceof LaunchRefusalError)
+				) {
+					throw error;
+				}
+
+				return context.json({ error: error.message }, error.status);
+			}
 		})
 		.get("/api/pipelines", async (context) =>
 			context.json(
