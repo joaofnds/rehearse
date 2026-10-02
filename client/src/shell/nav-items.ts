@@ -57,7 +57,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
 	},
 	{ label: "Corpus", icon: Scroll, path: "/corpus", badge: "corpus" },
 	{ label: "Tasks", icon: Workflow, path: "/tasks" },
-	{ label: "Cases", icon: Box },
+	{ label: "Cases", icon: Box, path: "/cases" },
 	{ label: "Calibration", icon: Scale },
 	{ label: "Settings", icon: SlidersHorizontal },
 ];
