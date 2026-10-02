@@ -115,6 +115,18 @@ describe(CasesPage.name, () => {
 		).toBeInTheDocument();
 	});
 
+	it("opens from Declare a case on the run history's empty state", async () => {
+		renderCasesAt("/", [pipelineCase()]);
+
+		fireEvent.click(
+			await screen.findByRole("link", { name: "Declare a case" }),
+		);
+
+		expect(
+			await screen.findByRole("heading", { level: 1, name: "Cases" }),
+		).toBeInTheDocument();
+	});
+
 	it("draws Declare a case but says it is not wired yet", async () => {
 		renderCasesAt("/cases", [pipelineCase()]);
 
