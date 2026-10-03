@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { StageLetterGrade } from "#benchmark/contracts";
-import type { JsonObject } from "#benchmark/json-value";
+import type { JsonObject, JsonValue } from "#benchmark/json-value";
 import type { OperatorGrade } from "#benchmark/operator-grade";
 import {
 	benchmarkRunPaths,
@@ -81,6 +81,7 @@ interface JudgedStage {
 	readonly stage?: string;
 	readonly judgeModel?: string;
 	readonly dimensions: readonly [StageLetterGrade, StageLetterGrade];
+	readonly input?: Readonly<Record<string, JsonValue>>;
 }
 
 /** A pipeline stage's scorecard as the harness writes it once its Judge graded every criterion PASS. */
@@ -97,6 +98,7 @@ async function writeJudgedStage(
 			stage,
 			judgeModel: judged.judgeModel ?? "opus",
 			...scorecard(stage, judged.dimensions),
+			input: judged.input ?? { ...INPUT, stage },
 		}),
 	);
 }
@@ -302,6 +304,29 @@ describe("/api/calibration", () => {
 		expect(body).not.toContain(JUDGE_CLAIM);
 		expect(body).not.toContain("PASS");
 		expect(body).not.toContain('"D"');
+	});
+
+	it("serves each input field the Judge read as text, a structured one as indented JSON", async () => {
+		const runsDirectory = await recordsDirectory();
+		await writeJudgedStage(runsDirectory, {
+			run: FIRST_RUN,
+			dimensions: ["B", "D"],
+			input: {
+				task: "Implement the audit log",
+				baselineContext: [{ path: "AGENTS.md" }],
+			},
+		});
+
+		const response = await appFor(runsDirectory).request(
+			`/api/calibration/runs/${FIRST_RUN}/stages/shape`,
+		);
+
+		expect(await response.json()).toMatchObject({
+			input: {
+				task: "Implement the audit log",
+				baselineContext: '[\n  {\n    "path": "AGENTS.md"\n  }\n]',
+			},
+		});
 	});
 
 	it("returns the Judge's grade for the same stage once the operator's is recorded", async () => {

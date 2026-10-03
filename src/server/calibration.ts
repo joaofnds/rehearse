@@ -7,8 +7,7 @@ import {
 	stageRubricSchema,
 	unhandled,
 } from "#benchmark/contracts";
-import type { JsonValue } from "#benchmark/json-value";
-import { jsonObjectSchema } from "#benchmark/json-value";
+import { jsonValueSchema } from "#benchmark/json-value";
 import { stageRubricSha256 } from "#benchmark/judge-agreement";
 import type { GradedStageRef, OperatorGrade } from "#benchmark/operator-grade";
 import {
@@ -60,10 +59,19 @@ const judgeGradeSchema = judgedGradeSchema.extend({
 
 type JudgeGrade = Immutable<z.infer<typeof judgeGradeSchema>>;
 
+/** Each input field as the operator reads it: a string as recorded, anything else as indented JSON. */
+const inputTextSchema = z.record(
+	z.string(),
+	z.union([
+		z.string(),
+		jsonValueSchema.transform((value) => JSON.stringify(value, null, 2)),
+	]),
+);
+
 const scorecardSchema = z.looseObject({
 	judgeModel: z.string().min(1).optional(),
 	rubric: stageRubricSchema,
-	input: jsonObjectSchema,
+	input: inputTextSchema,
 	grade: judgeGradeSchema,
 });
 
@@ -71,7 +79,7 @@ const scorecardSchema = z.looseObject({
 const stopRecordSchema = judgedGradeSchema.extend({
 	status: z.literal("STAGE_JUDGE_FAILED"),
 	judgeModel: z.string().min(1).optional(),
-	input: jsonObjectSchema,
+	input: inputTextSchema,
 	summary: z.string(),
 	grade: z.looseObject({ grade: stageLetterGradeSchema }),
 });
@@ -105,7 +113,7 @@ interface JudgedStage {
 	readonly judgeModel: string | undefined;
 	readonly rubricSha256: string | undefined;
 	readonly criteria: StageCriteria;
-	readonly input: Readonly<Record<string, JsonValue>>;
+	readonly input: Readonly<Record<string, string>>;
 	readonly judgeGrade: JudgeGrade;
 }
 
@@ -513,7 +521,7 @@ async function stageReview(
 	readonly stageName: string;
 	readonly judgeModel: string | null;
 	readonly criteria: StageCriteria;
-	readonly input: Readonly<Record<string, JsonValue>>;
+	readonly input: Readonly<Record<string, string>>;
 	readonly operatorGrade?: ReturnType<typeof gradedLetter>;
 	readonly judgeGrade?: JudgeGrade;
 }> {

@@ -958,7 +958,8 @@ Changing the model or rubric starts a distinct agreement baseline.
 `serve` lets the operator grade, blind, any stage whose record carries a Judge
 letter: a pipeline run's scorecard or stop record, a confirmation rep's stage, or
 a replay's scorecard. Before the operator grades, the review shows only the
-frozen input the Judge read and the stage's criteria. A stop record keeps no
+frozen input the Judge read, each field as text with a structured one as
+indented JSON, and the stage's criteria. A stop record keeps no
 rubric, so its criteria are the ids the Judge graded. Once the grade is
 recorded, the review adds the Judge's grade for the same stage.
 
@@ -987,6 +988,12 @@ Judge grades more generously. A stop record's group has no rubric contract.
 
 Operator grades never change a Judge grade or any existing record. Each is its
 own file under `operator-grades/`, listed under Record locations.
+
+In the browser, the Calibration screen at `/calibration` shows the agreement
+rows, the drift by group and a link to the oldest ungraded stage. Each review
+opens at its API path without the `/api` prefix, as a form with one choice per
+criterion and an optional note. The Judge's grade appears beside the
+operator's only after the operator's is recorded.
 
 ## Target restoration
 

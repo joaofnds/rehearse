@@ -5,6 +5,7 @@ import {
 } from "@tanstack/react-router";
 import type { RouterHistory } from "@tanstack/react-router";
 import { CalibrationPage } from "#client/calibration/calibration-page";
+import { StageReviewPage } from "#client/calibration/stage-review-page";
 import { CasesPage } from "#client/cases/cases-page";
 import { ComparisonPage } from "#client/comparison/comparison-page";
 import { ComparisonsPage } from "#client/comparison/comparisons-page";
@@ -86,6 +87,48 @@ const calibrationRoute = createRoute({
 	path: "/calibration",
 	component: CalibrationPage,
 });
+
+const runStageReviewRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/calibration/runs/$run/stages/$stage",
+	component: RunStageReviewRoute,
+});
+
+function RunStageReviewRoute(): React.JSX.Element {
+	const params: { readonly run: string; readonly stage: string } =
+		runStageReviewRoute.useParams();
+
+	return <StageReviewPage stage={{ kind: "run", ...params }} />;
+}
+
+const repStageReviewRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/calibration/groups/$groupId/reps/$repId/stages/$stage",
+	component: RepStageReviewRoute,
+});
+
+function RepStageReviewRoute(): React.JSX.Element {
+	const params: {
+		readonly groupId: string;
+		readonly repId: string;
+		readonly stage: string;
+	} = repStageReviewRoute.useParams();
+
+	return <StageReviewPage stage={{ kind: "rep", ...params }} />;
+}
+
+const replayStageReviewRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/calibration/replays/$lineage/$timestamp",
+	component: ReplayStageReviewRoute,
+});
+
+function ReplayStageReviewRoute(): React.JSX.Element {
+	const params: { readonly lineage: string; readonly timestamp: string } =
+		replayStageReviewRoute.useParams();
+
+	return <StageReviewPage stage={{ kind: "replay", ...params }} />;
+}
 
 const comparisonRoute = createRoute({
 	getParentRoute: () => rootRoute,
@@ -200,6 +243,9 @@ const routeTree = rootRoute.addChildren([
 	tasksRoute,
 	casesRoute,
 	calibrationRoute,
+	runStageReviewRoute,
+	repStageReviewRoute,
+	replayStageReviewRoute,
 	sessionAttemptRoute,
 	confirmationAttemptRoute,
 ]);
