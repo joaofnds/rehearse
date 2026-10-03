@@ -621,7 +621,7 @@ describe("/api/calibration", () => {
 			`/api/runs/${fixture.replayableRun}/stages/discuss/judge`,
 			`/api/runs/${fixture.stoppedRun}/stages/build/judge`,
 		];
-		async function responses(): Promise<readonly string[]> {
+		function responses(): Promise<readonly string[]> {
 			return Promise.all(
 				paths.map(async (path) => {
 					const response = await api.request(path);
