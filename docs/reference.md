@@ -140,8 +140,8 @@ the records directory; `settings` alone shows it, the records location and the
 linked corpus. The browser stores the same ceiling through
 `PUT /api/settings/spend-ceiling` and the launch dialog's spend field, so a
 ceiling written in either place is the one every later command reads.
-Pipeline and session `run`, `replay`, every `--confirm` group, and `calibrate`
-refuse with exit code 3 and name that command when no ceiling is stored. The
+Pipeline and session `run`, `replay`, every `--confirm` group, `calibrate` and
+`analyze` refuse with exit code 3 and name that command when no ceiling is stored. The
 refusal comes after the terminal checks and before the model probe, so it
 spends nothing.
 
@@ -1038,6 +1038,34 @@ opens at its API path without the `/api` prefix, as a form with one choice per
 criterion and an optional note. The Judge's grade appears beside the
 operator's only after the operator's is recorded.
 
+### Culprit analysis
+
+`analyze <run> --model <model>` asks one sealed session which corpus file an
+ended run's outcome most plausibly traces to, and records its answer. The
+session gets no tools, no project settings and no commands. It reads a bundle
+of the run: the manifest's task and brief, each step's grade or stop, commit
+subjects and changed paths, the run's outcome, and the bodies of the corpus
+files each step read, taken from the corpus version the step recorded. Prompts,
+transcripts and diffs stay out of the bundle.
+
+A run has ended when its final record, a stage stop or an operator stop exists,
+or when its process died with no outcome, in which case it is analyzed as it
+stands. A paused run, a run whose process still holds its target, and a run
+with no records are refused with exit code 3 before any call.
+
+`--budget-usd` caps the call and defaults to 1. The cap is held under the
+stored spend ceiling, and the command states the cap on stderr before the call.
+It runs no model probe, so an unavailable model ends in a failed record rather
+than a second paid call.
+
+The harness checks the answer before keeping it: it reads exactly the steps
+that ran, at most one step is the primary culprit and it is the step the
+culprit names, and the culprit file is one that step read. An answer that
+breaks a rule, or a session that returns none, is kept as a failed record with
+its reason, its cost and whatever the session returned, and the command exits
+1 after printing its path. A declared step that never ran is recorded as
+`never ran`.
+
 ## Target restoration
 
 Normal direct-target cleanup force-switches to `main`, resets to the original
@@ -1196,7 +1224,9 @@ leaves transcripts and run artifacts where git can see them.
 `baseline-corpora/<corpus-digest>/`, the manifest it compares under
 `comparison-manifests/<control-group-id>.json`, and `baseline.json` beside the
 report. Browser launches record themselves as `launches/<id>.json` with the
-child's output in `launches/<id>.log`. Operator grades live at
+child's output in `launches/<id>.log`. A culprit analysis lives at
+`analyses/<run>/<started-at>.json`, created once, so a second analysis of the
+same run sits beside the first. Operator grades live at
 `operator-grades/run/<run>/<stage>.json`,
 `operator-grades/rep/<group-id>/<rep-id>/<stage>.json` and
 `operator-grades/replay/<lineage>/<timestamp>.json`, each created once and
