@@ -249,6 +249,35 @@ describe("/api/calibration", () => {
 		});
 	});
 
+	it("carries the operator's note and each criterion they graded apart into the agreement row", async () => {
+		const runsDirectory = await recordsDirectory();
+		await writeJudgedStage(runsDirectory, {
+			run: FIRST_RUN,
+			dimensions: ["B", "D"],
+		});
+		await postGrade(
+			runsDirectory,
+			`/api/calibration/runs/${FIRST_RUN}/stages/shape`,
+			JSON.stringify({
+				...operatorGrade(["B", "B"]),
+				note: "judge accepted an unverified claim",
+			}),
+		);
+
+		const response = await appFor(runsDirectory).request("/api/calibration");
+
+		expect(await response.json()).toMatchObject({
+			rows: [
+				{
+					note: "judge accepted an unverified claim",
+					differences: [
+						{ criterion: "decision-quality", judge: "D", operator: "B" },
+					],
+				},
+			],
+		});
+	});
+
 	it("serves the frozen input and the rubric before grading, and nothing the Judge returned", async () => {
 		const runsDirectory = await recordsDirectory();
 		await writeJudgedStage(runsDirectory, {

@@ -352,6 +352,7 @@ interface AgreementRow {
 	readonly operatorGrade: StageLetterGrade;
 	readonly stepsApart: number;
 	readonly differences: readonly CriterionDifference[];
+	readonly note: string | null;
 }
 
 function agreementRow(graded: GradedStage): AgreementRow {
@@ -367,6 +368,7 @@ function agreementRow(graded: GradedStage): AgreementRow {
 		operatorGrade: operatorLetter,
 		stepsApart: stepsApart(judgeLetter, operatorLetter),
 		differences: differences(graded),
+		note: operatorGrade.note ?? null,
 	};
 }
 
