@@ -12,9 +12,9 @@ import {
 import { CLAUDE_TIMEOUT_MS } from "./config";
 import type { ClaudeEnvelope, Immutable } from "./contracts";
 import { RefusedPreconditionError } from "./exit-codes";
-import { loadRunManifest } from "./manifest";
 import { operatorStopped } from "./operator-stop";
 import type { RunLiveness } from "./run-liveness";
+import { claimsLiveTarget } from "./run-liveness";
 import {
 	benchmarkRunPaths,
 	culpritAnalysesDirectory,
@@ -190,8 +190,7 @@ export async function analyzeRun(
 		throw new RefusedPreconditionError(`No run ${request.run} is recorded`);
 	}
 
-	const manifest = await loadRunManifest(paths.manifestFile);
-	await refuseUnended(request, manifest.sourceRoot, dependencies.liveness);
+	await refuseUnended(request, dependencies.liveness);
 	const ceiling = createSpendCeiling({
 		ceilingUsd: await dependencies.requireSpendCeiling(request.runsDirectory),
 	});
@@ -251,7 +250,6 @@ export async function analyzeRun(
  */
 async function refuseUnended(
 	request: AnalysisRequest,
-	sourceRoot: string,
 	liveness: RunLiveness,
 ): Promise<void> {
 	const paths = benchmarkRunPaths(request.runsDirectory, request.run);
@@ -269,8 +267,7 @@ async function refuseUnended(
 		);
 	}
 
-	const marker = await liveness.readMarker(sourceRoot).catch(() => undefined);
-	if (marker !== undefined && liveness.isAlive(marker.pid)) {
+	if (await claimsLiveTarget(paths.manifestFile, liveness)) {
 		throw new RefusedPreconditionError(
 			`Run ${request.run} is still in flight, so it has no outcome to analyze`,
 		);

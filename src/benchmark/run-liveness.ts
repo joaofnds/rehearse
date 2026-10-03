@@ -1,3 +1,4 @@
+import { loadRunManifest } from "./manifest";
 import { readRunMarker } from "./target";
 
 /**
@@ -33,4 +34,44 @@ export function liveRunLiveness(): RunLiveness {
 			}
 		},
 	};
+}
+
+/**
+ * Whether the target this run claimed is still held by a live process. The pid
+ * is what keeps the badge honest: reconciliation runs only at server startup,
+ * so without this probe a run killed while the server stayed up would read as
+ * RUNNING forever.
+ *
+ * Every way of failing to reach an answer is "not running". Reading the marker
+ * shells out to git in the target, so a target that was deleted or is no
+ * longer a checkout throws rather than returning nothing. Letting that throw
+ * escape would move the run from silently absent, which is where it sat before
+ * this branch existed, to an unreadable entry blaming git on every page load,
+ * for a run that is simply not executing.
+ */
+export async function claimsLiveTarget(
+	manifestFile: string,
+	liveness: RunLiveness,
+): Promise<boolean> {
+	const marker = await targetMarker(manifestFile, liveness);
+
+	return marker !== undefined && liveness.isAlive(marker.pid);
+}
+
+/**
+ * The marker on the target this run claimed, or undefined when the run has no
+ * manifest or its target cannot be asked, for the reasons `claimsLiveTarget`
+ * gives.
+ */
+export async function targetMarker(
+	manifestFile: string,
+	liveness: RunLiveness,
+): Promise<{ readonly pid: number } | undefined> {
+	if (!(await Bun.file(manifestFile).exists())) {
+		return undefined;
+	}
+
+	const manifest = await loadRunManifest(manifestFile);
+
+	return liveness.readMarker(manifest.sourceRoot).catch(() => undefined);
 }

@@ -85,8 +85,8 @@ import {
 	latestCheckpointStage,
 	sourceCaseId,
 	statusAndCaseId,
-	targetMarker,
 } from "./run-status";
+import { targetMarker } from "#benchmark/run-liveness";
 import type { ContextLink, RunProgress } from "./run-status";
 
 export type { ContextLink, RunProgress } from "./run-status";
