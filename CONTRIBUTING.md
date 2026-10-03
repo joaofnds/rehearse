@@ -34,22 +34,29 @@ Run the gate before every commit:
 bun run check
 ```
 
-It runs every check below, fastest first, and stops at the first one that fails,
-so a lint error reports in seconds and the full test suite runs last. Run it even
+It runs every check below and stops at the first one that fails. The checks
+before the tests take seconds, and the full test suite runs last. Run it even
 when the tests for the files you changed pass. A change can break a test in a
-file it never touched, and only the full suite catches that.
+file it never touched, and only the full suite catches that. The gate checks the
+working tree, so a file it passes can import one you have not added.
 
-An opt-in pre-commit hook refuses a commit whose staged files carry an oxlint
-error or are not formatted. It lints without type information and runs no tests,
-so it takes under a second and does not replace `bun run check`. Enable it in
-your clone:
+An opt-in pre-commit hook refuses a commit when the working-tree copy of a staged
+file carries an oxlint error or is not formatted, and when a staged file is
+missing from the working tree. A file staged with only some of its edits is
+checked with all of them, so an error in the staged copy that the working tree
+has since fixed goes unreported. Some lint rules read other files, such as the
+Tailwind theme and the modules a file imports, so an unstaged edit to one of
+those can refuse a commit that does not touch it. The hook lints without type information and
+runs no tests, so it takes under a second and does not replace `bun run check`.
+It runs `bunx`, so commit from a shell where mise is active, or with
+`mise exec -- git commit`. Enable it in your clone:
 
 ```sh
 git config core.hooksPath .githooks
 ```
 
-The hook reads each staged file from the working tree, so a file staged with
-only some of its edits is checked with all of them.
+Setting `core.hooksPath` stops git from running the hooks in `.git/hooks`.
+`git config --unset core.hooksPath` turns the hook off.
 
 Each check also runs on its own:
 
