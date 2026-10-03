@@ -49,7 +49,7 @@ export interface SentRequest {
 	readonly method: string;
 	readonly pathname: string;
 	readonly contentType: string | null;
-	readonly body: string;
+	body: string;
 }
 
 export interface Reply {
@@ -81,12 +81,16 @@ export class FakeServer {
 					"http://localhost",
 				);
 				const request = new Request(url, init);
-				this.sent.push({
+				// Kept before the first await, so a request is in `sent` the
+				// moment the page makes it; its body is filled in once read.
+				const sent = {
 					method: request.method,
 					pathname: url.pathname,
 					contentType: request.headers.get("content-type"),
-					body: await request.text(),
-				});
+					body: "",
+				};
+				this.sent.push(sent);
+				sent.body = await request.text();
 				const route = this.routes.get(`${request.method} ${url.pathname}`) ?? {
 					status: 404,
 					body: { error: "not found" },

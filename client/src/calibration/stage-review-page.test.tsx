@@ -2,7 +2,12 @@ import { afterEach, describe, expect, it } from "bun:test";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { Reply } from "#client/test-support/fetch-stub";
 import { FakeServer } from "#client/test-support/fetch-stub";
-import { renderAppAt, SHELL_BASELINE } from "#client/test-support/render-app";
+import { LiveReply } from "#client/test-support/live-reply";
+import {
+	NO_GRADES,
+	renderAppAt,
+	SHELL_BASELINE,
+} from "#client/test-support/render-app";
 import { RecordNotFoundError } from "#client/record-not-found";
 import { StageReviewPage } from "./stage-review-page";
 import type { GradeRecorded, StageReview } from "./stage-review-query";
@@ -68,14 +73,17 @@ const RECORDED: GradeRecorded = {
 	judgeGrade: JUDGE_GRADE,
 };
 
-function serving(review: StageReview): FakeServer {
-	const routes = new Map<string, Reply>([
+function serving(
+	review: StageReview,
+	reviewPath: string = REVIEW_PATH,
+): FakeServer {
+	const routes = new Map<string, Reply | LiveReply>([
 		...[...SHELL_BASELINE].map(([path, body]): [string, Reply] => [
 			`GET ${path}`,
 			{ status: 200, body },
 		]),
-		[`GET ${REVIEW_PATH}`, { status: 200, body: review }],
-		[`POST ${REVIEW_PATH}/grade`, { status: 201, body: RECORDED }],
+		[`GET ${reviewPath}`, { status: 200, body: review }],
+		[`POST ${reviewPath}/grade`, { status: 201, body: RECORDED }],
 	]);
 	const server = new FakeServer(routes);
 	server.install();
@@ -169,6 +177,91 @@ describe(StageReviewPage.name, () => {
 		expect(screen.getByText(JUDGE_SUMMARY)).toBeInTheDocument();
 	});
 
+	it("loads nothing the Judge returned while the operator fills in the form", async () => {
+		const server = serving(BLIND_REVIEW);
+		renderAppAt(`/calibration/runs/${RUN}/stages/shape`);
+		await screen.findByRole("region", { name: "What the judge read" });
+
+		choose("invalid-stage-delivery", "PASS");
+		choose("goal-stated", "PASS");
+		choose("decision-quality", "B");
+		fireEvent.change(screen.getByLabelText("Where you differed (optional)"), {
+			target: { value: "the order is implied by the slices" },
+		});
+
+		expect(
+			new Set(
+				server.sent.map(({ method, pathname }) => `${method} ${pathname}`),
+			),
+		).toEqual(
+			new Set([
+				...[...SHELL_BASELINE.keys()].map((path) => `GET ${path}`),
+				`GET ${REVIEW_PATH}`,
+			]),
+		);
+	});
+
+	it("counts the recorded grade on the Calibration nav item", async () => {
+		const routes = new Map<string, Reply | LiveReply>([
+			...[...SHELL_BASELINE].map(([path, body]): [string, Reply] => [
+				`GET ${path}`,
+				{ status: 200, body },
+			]),
+			[`GET ${REVIEW_PATH}`, { status: 200, body: BLIND_REVIEW }],
+			[`POST ${REVIEW_PATH}/grade`, { status: 201, body: RECORDED }],
+		]);
+		const server = new FakeServer(routes);
+		routes.set(
+			"GET /api/calibration",
+			new LiveReply(() => ({
+				status: 200,
+				body: {
+					...NO_GRADES,
+					reviews: server.posted(`${REVIEW_PATH}/grade`).length,
+				},
+			})),
+		);
+		server.install();
+		renderAppAt(`/calibration/runs/${RUN}/stages/shape`);
+		await screen.findByRole("link", { name: "Calibration 0" });
+
+		choose("invalid-stage-delivery", "PASS");
+		choose("goal-stated", "PASS");
+		choose("decision-quality", "B");
+		fireEvent.click(screen.getByRole("button", { name: "Record my grade" }));
+
+		expect(
+			await screen.findByRole("link", { name: "Calibration 1" }),
+		).toHaveAttribute("href", "/calibration");
+	});
+
+	it.each([
+		[
+			"a confirmation rep",
+			"/calibration/groups/group-1/reps/rep-2/stages/shape",
+			"/api/calibration/groups/group-1/reps/rep-2/stages/shape",
+		],
+		[
+			"a replay",
+			`/calibration/replays/lineage-1/${RUN}`,
+			`/api/calibration/replays/lineage-1/${RUN}`,
+		],
+	])("opens and records %s the link names", async (_kind, page, reviewPath) => {
+		const server = serving(BLIND_REVIEW, reviewPath);
+		renderAppAt(page);
+		await screen.findByRole("region", { name: "What the judge read" });
+
+		choose("invalid-stage-delivery", "PASS");
+		choose("goal-stated", "PASS");
+		choose("decision-quality", "B");
+		fireEvent.click(screen.getByRole("button", { name: "Record my grade" }));
+		await screen.findByRole("table", {
+			name: "Your grade against the judge's",
+		});
+
+		expect(server.posted(`${reviewPath}/grade`)).toHaveLength(1);
+	});
+
 	it("asks for the stage the link names, a slash in it escaped rather than followed", async () => {
 		const server = serving(BLIND_REVIEW);
 		renderAppAt("/calibration/runs/a%2F..%2F..%2Freplays%2Fx/stages/shape");
@@ -209,7 +302,7 @@ describe(StageReviewPage.name, () => {
 	});
 
 	describe("when the link names no stage the Judge graded", () => {
-		it("answers that the record is not there, which the app does not retry", async () => {
+		it("answers that the record is not there, which the app does not retry", () => {
 			serving(BLIND_REVIEW);
 
 			const loaded = stageReviewQuery({
@@ -218,7 +311,7 @@ describe(StageReviewPage.name, () => {
 				stage: "unjudged",
 			}).queryFn();
 
-			await expect(loaded).rejects.toBeInstanceOf(RecordNotFoundError);
+			expect(loaded).rejects.toBeInstanceOf(RecordNotFoundError);
 		});
 	});
 

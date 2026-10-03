@@ -314,6 +314,24 @@ describe(CalibrationPage.name, () => {
 		);
 	});
 
+	it("opens a replay's step from Review next unjudged step", async () => {
+		renderCalibration(
+			reportWith({
+				ungraded: 1,
+				next: { kind: "replay", lineage: "lineage-1", timestamp: RUN },
+			}),
+		);
+
+		const review = await screen.findByRole("link", {
+			name: "Review next unjudged step",
+		});
+
+		expect(review).toHaveAttribute(
+			"href",
+			`/calibration/replays/lineage-1/${RUN}`,
+		);
+	});
+
 	describe("when no operator grade is recorded", () => {
 		it("reads zero reviews without an agreement figure and still opens a step", async () => {
 			renderCalibration(

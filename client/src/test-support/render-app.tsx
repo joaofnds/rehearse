@@ -22,7 +22,7 @@ const EMPTY_CORPUS: CorpusResponse = {
 	},
 };
 
-const NO_GRADES: CalibrationResponse = {
+export const NO_GRADES: CalibrationResponse = {
 	reviews: 0,
 	withinOneStep: 0,
 	ungraded: 0,
