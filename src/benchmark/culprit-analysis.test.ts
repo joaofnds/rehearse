@@ -4,12 +4,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AnalysisDependencies, AnalysisInvoker } from "./culprit-analysis";
 import { analyzeRun } from "./culprit-analysis";
+import { ClaudeSessionError, parseClaudeEnvelope } from "./claude";
 import type { ClaudeEnvelope } from "./contracts";
 import type { RunManifest } from "./manifest";
 import { writeRunManifest } from "./manifest";
 import type { ReadManifestEntry } from "./read-manifest";
 import { benchmarkRunPaths } from "./run-layout";
 import { nothingRunning } from "./run-records-test-support";
+import { budgetHaltEnvelope } from "./test-support";
 
 const RUN = "2026-10-04T10-00-00.000Z";
 const SOURCE_ROOT = "/fixture/target";
@@ -144,23 +146,39 @@ const ANSWER = {
 	],
 } as const;
 
-/** Answers every call with one envelope and keeps the budgets it was given. */
-class FakeAnalysisProvider {
-	public readonly budgets: number[] = [];
-	private envelope: ClaudeEnvelope = {
+function answering(
+	structuredOutput: ClaudeEnvelope["structured_output"],
+): ClaudeEnvelope {
+	return {
 		session_id: "analysis-session",
 		total_cost_usd: 0.24,
-		structured_output: ANSWER,
+		structured_output: structuredOutput,
 	};
+}
+
+/**
+ * Answers every call with one envelope, or fails it the way the session
+ * runner does, and keeps the budgets it was given.
+ */
+class FakeAnalysisProvider {
+	public readonly budgets: number[] = [];
+	private reply: ClaudeEnvelope | Error = answering(ANSWER);
 
 	public answer(envelope: ClaudeEnvelope): void {
-		this.envelope = envelope;
+		this.reply = envelope;
+	}
+
+	public fail(error: Readonly<Error>): void {
+		this.reply = error;
 	}
 
 	public readonly invoke: AnalysisInvoker = (_prompt, budgetUsd) => {
 		this.budgets.push(budgetUsd);
+		if (this.reply instanceof Error) {
+			return Promise.reject(this.reply);
+		}
 
-		return Promise.resolve(JSON.stringify(this.envelope));
+		return Promise.resolve(JSON.stringify(this.reply));
 	};
 }
 
@@ -195,11 +213,13 @@ describe(analyzeRun.name, () => {
 			dependencies(new FakeAnalysisProvider().invoke),
 		);
 
-		expect(record.steps).toEqual([
-			{ ...ANSWER.steps[0], step: "shape" },
-			{ ...ANSWER.steps[1], step: "build" },
-			{ step: "review", role: "never ran" },
-		]);
+		expect(record).toMatchObject({
+			steps: [
+				ANSWER.steps[0],
+				ANSWER.steps[1],
+				{ step: "review", role: "never ran" },
+			],
+		});
 	});
 
 	it("keeps the answer with its cost, duration and start in its own file", async () => {
@@ -227,5 +247,97 @@ describe(analyzeRun.name, () => {
 		expect(file).toBe(
 			join(directory, "analyses", RUN, "2026-10-04T12-00-00.000Z.json"),
 		);
+	});
+
+	describe("when the answer breaks a rule of the analysis", () => {
+		it.each([
+			[
+				"names a culprit file the culprit step never read",
+				{
+					...ANSWER,
+					culprit: { step: "build", file: "skills/shape/SKILL.md" },
+				},
+			],
+			[
+				"names a culprit step that never ran",
+				{ ...ANSWER, culprit: { step: "review", file: "CLAUDE.md" } },
+			],
+			[
+				"names two primary culprits",
+				{
+					...ANSWER,
+					steps: [
+						{ ...ANSWER.steps[0], role: "primary culprit" },
+						ANSWER.steps[1],
+					],
+				},
+			],
+			[
+				"names a culprit whose step is not the primary culprit",
+				{
+					...ANSWER,
+					steps: [
+						ANSWER.steps[0],
+						{ ...ANSWER.steps[1], role: "contributing" },
+					],
+				},
+			],
+			[
+				"names a primary culprit without a culprit",
+				{ ...ANSWER, culprit: null },
+			],
+			["leaves out a step that ran", { ...ANSWER, steps: [ANSWER.steps[1]] }],
+			[
+				"reads a step that never ran",
+				{
+					...ANSWER,
+					steps: [...ANSWER.steps, { ...ANSWER.steps[0], step: "review" }],
+				},
+			],
+			["answers outside the analysis shape", { ...ANSWER, narrative: "" }],
+		])(
+			"records the failure with its cost when it %s",
+			async (_case, answer) => {
+				const directory = await runsDirectory();
+				await runStoppedAtBuild(directory);
+				const provider = new FakeAnalysisProvider();
+				provider.answer(answering(answer));
+
+				const { file, record } = await analyzeRun(
+					{ runsDirectory: directory, run: RUN, model: "sonnet", capUsd: 1 },
+					dependencies(provider.invoke),
+				);
+
+				expect(record).toMatchObject({
+					outcome: "failed",
+					costUsd: 0.24,
+					payload: answer,
+				});
+				expect(await Bun.file(file).json()).toEqual(record);
+			},
+		);
+	});
+
+	describe("when the provider halts the session", () => {
+		it("records the failure with what the session spent", async () => {
+			const directory = await runsDirectory();
+			await runStoppedAtBuild(directory);
+			const halt = new ClaudeSessionError(
+				parseClaudeEnvelope(await budgetHaltEnvelope()),
+			);
+			const provider = new FakeAnalysisProvider();
+			provider.fail(halt);
+
+			const { record } = await analyzeRun(
+				{ runsDirectory: directory, run: RUN, model: "sonnet", capUsd: 1 },
+				dependencies(provider.invoke),
+			);
+
+			expect(record).toMatchObject({
+				outcome: "failed",
+				reason: halt.message,
+				costUsd: halt.costUsd,
+			});
+		});
 	});
 });
