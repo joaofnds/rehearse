@@ -525,9 +525,8 @@ async function requiredStage(
 	runsDirectory: string,
 	ref: GradedStageRef,
 ): Promise<GradeableStage> {
-	const listed = (await stageRefs(runsDirectory)).some((each) =>
-		sameRef(each, ref),
-	);
+	const refs = await stageRefs(runsDirectory);
+	const listed = refs.some((each) => sameRef(each, ref));
 	const stage = listed
 		? await readGradeableStage(runsDirectory, ref)
 		: undefined;
