@@ -23,7 +23,7 @@ import {
 import { stoppedStage } from "./run-outcome";
 import { pausedStage } from "./run-pause";
 import { createSpendCeiling } from "./spend-ceiling";
-import type { BundleStep } from "./culprit-bundle";
+import type { CulpritBundle } from "./culprit-bundle";
 import { assembleCulpritBundle } from "./culprit-bundle";
 
 export type AnalysisInvoker = (
@@ -216,7 +216,7 @@ export async function analyzeRun(
 		schemaVersion: 1,
 		run: request.run,
 		model: request.model,
-		capUsd: request.capUsd,
+		capUsd: budgetUsd,
 		startedAt: started.toISOString(),
 		durationMs: finished.getTime() - started.getTime(),
 		bundleDigest: new Bun.CryptoHasher("sha256")
@@ -228,7 +228,7 @@ export async function analyzeRun(
 	if (reading.kind === "failed") {
 		record = failedRecord(base, reading);
 	} else {
-		const violation = answerViolation(reading.answer, bundle.steps);
+		const violation = answerViolation(reading.answer, bundle);
 		record =
 			violation === undefined
 				? recordedAnalysis(base, reading.answer, bundle.declaredSteps)
@@ -335,12 +335,14 @@ async function readSession(
 /**
  * The rules an answer must keep to be recorded: it reads exactly the steps
  * that ran, at most one of them is the primary culprit and it is the step the
- * culprit names, and the culprit file is one that step read.
+ * culprit names, the culprit file is one that step read, and a line range
+ * lies within that file as the step read it.
  */
 function answerViolation(
 	answer: AnalysisAnswer,
-	ran: readonly BundleStep[],
+	bundle: CulpritBundle,
 ): string | undefined {
+	const ran = bundle.steps;
 	const answered = answer.steps.map(({ step }) => step).toSorted();
 	const expected = ran.map(({ step }) => step).toSorted();
 	if (answered.join("\n") !== expected.join("\n")) {
@@ -364,6 +366,30 @@ function answerViolation(
 	const culpritStep = ran.find((candidate) => candidate.step === step);
 	if (culpritStep === undefined || !culpritStep.corpusReads.includes(file)) {
 		return `The culprit file ${file} is not a corpus file the ${step} step read`;
+	}
+
+	return lineRangeViolation(answer.culprit, bundle.corpusFiles);
+}
+
+function lineRangeViolation(
+	culprit: NonNullable<AnalysisAnswer["culprit"]>,
+	corpusFiles: CulpritBundle["corpusFiles"],
+): string | undefined {
+	const { step, file, lines } = culprit;
+	if (lines === undefined) {
+		return undefined;
+	}
+
+	const read = corpusFiles.find(
+		(candidate) => candidate.path === file && candidate.readBy.includes(step),
+	);
+	if (read === undefined) {
+		return `The answer gives a line range in ${file}, but the run kept no body of it as the ${step} step read it`;
+	}
+
+	const lineCount = read.body.replace(/\n$/u, "").split("\n").length;
+	if (lines.start > lines.end || lines.end > lineCount) {
+		return `The line range ${lines.start}-${lines.end} is not within the ${lineCount} lines of ${file} as the ${step} step read it`;
 	}
 
 	return undefined;

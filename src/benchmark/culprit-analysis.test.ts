@@ -14,6 +14,8 @@ import {
 	RUN,
 	runStoppedAtBuild,
 	runWithOneGradedStep,
+	stoppedStage,
+	writeStage,
 } from "./culprit-analysis-test-support";
 import { benchmarkRunPaths } from "./run-layout";
 import { nothingRunning } from "./run-records-test-support";
@@ -39,7 +41,7 @@ const ANSWER = {
 	culprit: {
 		step: "build",
 		file: "skills/build/SKILL.md",
-		lines: { start: 3, end: 5 },
+		lines: { start: 2, end: 3 },
 	},
 	narrative: "the build skill never asks for a direct run",
 	pairedRerun: "replay build with the run step restored",
@@ -196,20 +198,23 @@ describe(analyzeRun.name, () => {
 					...ANSWER,
 					culprit: { step: "build", file: "skills/shape/SKILL.md" },
 				},
+				"The culprit file skills/shape/SKILL.md is not a corpus file the build step read",
 			],
 			[
 				"names a culprit step that never ran",
 				{ ...ANSWER, culprit: { step: "review", file: "CLAUDE.md" } },
+				"The answer names review as the culprit step, so review and no other step must be the primary culprit",
 			],
 			[
 				"names two primary culprits",
 				{
 					...ANSWER,
 					steps: [
-						{ ...ANSWER.steps[0], role: "primary culprit" },
 						ANSWER.steps[1],
+						{ ...ANSWER.steps[0], role: "primary culprit" },
 					],
 				},
+				"The answer names build as the culprit step, so build and no other step must be the primary culprit",
 			],
 			[
 				"names a culprit whose step is not the primary culprit",
@@ -220,23 +225,50 @@ describe(analyzeRun.name, () => {
 						{ ...ANSWER.steps[1], role: "contributing" },
 					],
 				},
+				"The answer names build as the culprit step, so build and no other step must be the primary culprit",
 			],
 			[
 				"names a primary culprit without a culprit",
 				{ ...ANSWER, culprit: null },
+				"The answer names a primary culprit step without a culprit",
 			],
-			["leaves out a step that ran", { ...ANSWER, steps: [ANSWER.steps[1]] }],
+			[
+				"leaves out a step that ran",
+				{ ...ANSWER, steps: [ANSWER.steps[1]] },
+				"The answer reads steps build, but the steps that ran are build, shape",
+			],
 			[
 				"reads a step that never ran",
 				{
 					...ANSWER,
 					steps: [...ANSWER.steps, { ...ANSWER.steps[0], step: "review" }],
 				},
+				"The answer reads steps build, review, shape, but the steps that ran are build, shape",
 			],
-			["answers outside the analysis shape", { ...ANSWER, narrative: "" }],
+			[
+				"gives a line range that ends before it starts",
+				{
+					...ANSWER,
+					culprit: { ...ANSWER.culprit, lines: { start: 3, end: 2 } },
+				},
+				"The line range 3-2 is not within the 3 lines of skills/build/SKILL.md as the build step read it",
+			],
+			[
+				"gives a line range past the end of the file",
+				{
+					...ANSWER,
+					culprit: { ...ANSWER.culprit, lines: { start: 2, end: 9 } },
+				},
+				"The line range 2-9 is not within the 3 lines of skills/build/SKILL.md as the build step read it",
+			],
+			[
+				"answers outside the analysis shape",
+				{ ...ANSWER, narrative: "" },
+				"✖ Too small: expected string to have >=1 characters\n  → at narrative",
+			],
 		])(
-			"records the failure with its cost when it %s",
-			async (_case, answer) => {
+			"records the failure, its reason and its cost when it %s",
+			async (_case, answer, reason) => {
 				const directory = await runsDirectory();
 				await runStoppedAtBuild(directory);
 				const provider = new FakeAnalysisProvider();
@@ -249,12 +281,39 @@ describe(analyzeRun.name, () => {
 
 				expect(record).toMatchObject({
 					outcome: "failed",
+					reason,
 					costUsd: 0.24,
 					payload: answer,
 				});
 				expect(await Bun.file(file).json()).toEqual(record);
 			},
 		);
+	});
+
+	describe("when the run kept no body of the culprit file", () => {
+		it("records a line range in it as a failure", async () => {
+			const directory = await runsDirectory();
+			await runWithOneGradedStep(directory);
+			await writeStage(
+				directory,
+				stoppedStage("build", ["CLAUDE.md", "skills/build/SKILL.md"], {
+					kind: "refused",
+					refusal: "the layout held a symlink",
+				}),
+			);
+			const provider = new FakeAnalysisProvider();
+
+			const { record } = await analyzeRun(
+				{ runsDirectory: directory, run: RUN, model: "sonnet", capUsd: 1 },
+				dependencies(provider.invoke),
+			);
+
+			expect(record).toMatchObject({
+				outcome: "failed",
+				reason:
+					"The answer gives a line range in skills/build/SKILL.md, but the run kept no body of it as the build step read it",
+			});
+		});
 	});
 
 	describe("when the provider halts the session", () => {
@@ -306,7 +365,7 @@ describe(analyzeRun.name, () => {
 		await runStoppedAtBuild(directory);
 		const provider = new FakeAnalysisProvider();
 
-		await analyzeRun(
+		const { record } = await analyzeRun(
 			{ runsDirectory: directory, run: RUN, model: "sonnet", capUsd },
 			{
 				...dependencies(provider.invoke),
@@ -315,6 +374,7 @@ describe(analyzeRun.name, () => {
 		);
 
 		expect(provider.budgets).toEqual([budgetUsd]);
+		expect(record.capUsd).toBe(budgetUsd);
 	});
 
 	it("states the most it can spend before the call", async () => {
@@ -402,6 +462,7 @@ describe(analyzeRun.name, () => {
 			);
 
 			expect(failure).toBeInstanceOf(RefusedPreconditionError);
+			expect(failure.message).toBe(`No run ${RUN} is recorded`);
 			expect(provider.budgets).toEqual([]);
 		});
 
@@ -418,6 +479,9 @@ describe(analyzeRun.name, () => {
 			);
 
 			expect(failure).toBeInstanceOf(RefusedPreconditionError);
+			expect(failure.message).toBe(
+				`Run ${RUN} is still in flight, so it has no outcome to analyze`,
+			);
 			expect(provider.budgets).toEqual([]);
 		});
 
@@ -439,6 +503,9 @@ describe(analyzeRun.name, () => {
 			);
 
 			expect(failure).toBeInstanceOf(RefusedPreconditionError);
+			expect(failure.message).toBe(
+				`Run ${RUN} is paused and can still resume, so it has no outcome to analyze`,
+			);
 			expect(provider.budgets).toEqual([]);
 		});
 
@@ -459,6 +526,7 @@ describe(analyzeRun.name, () => {
 			);
 
 			expect(failure).toBeInstanceOf(RefusedPreconditionError);
+			expect(failure.message).toBe("no ceiling");
 			expect(provider.budgets).toEqual([]);
 		});
 	});
