@@ -124,6 +124,36 @@ describe(assembleCulpritBundle.name, () => {
 		expect(bundle.outcome).toEqual({ status: "OPERATOR_STOPPED" });
 	});
 
+	it("tells a run whose process died before an outcome from a stopped run", async () => {
+		const directory = await runsDirectory();
+		await runWithOneGradedStep(directory);
+
+		const bundle = await assembleCulpritBundle(directory, RUN);
+
+		expect(bundle.outcome).toEqual({ status: "NO_OUTCOME_RECORDED" });
+	});
+
+	describe("when the spend ceiling refused a step before its session", () => {
+		it("leaves that step out of the steps that ran", async () => {
+			const directory = await runsDirectory();
+			await runWithOneGradedStep(directory);
+			await Bun.write(
+				benchmarkRunPaths(directory, RUN).stageFile("build"),
+				JSON.stringify({
+					status: "STAGE_JUDGE_FAILED",
+					stage: "build",
+					error: "spend ceiling reached",
+					ceilingStop: { ceilingUsd: 30, spentUsd: 30 },
+				}),
+			);
+
+			const bundle = await assembleCulpritBundle(directory, RUN);
+
+			expect(bundle.steps.map(({ step }) => step)).toEqual(["shape"]);
+			expect(bundle.outcome).toMatchObject({ stage: "build" });
+		});
+	});
+
 	describe("when a step read a corpus file its corpus version does not hold", () => {
 		it("names the read and carries no body for it", async () => {
 			const directory = await runsDirectory();

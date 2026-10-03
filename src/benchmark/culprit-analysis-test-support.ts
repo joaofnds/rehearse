@@ -56,7 +56,7 @@ export interface StageFixture {
 	readonly grade: {
 		readonly grade: string;
 		readonly verdict: string;
-		readonly summary: string;
+		readonly summary?: string;
 	};
 	readonly input: {
 		readonly commitSubjects: readonly string[];
@@ -64,6 +64,7 @@ export interface StageFixture {
 		readonly diff: string;
 	};
 	readonly prompt: string;
+	readonly summary?: string;
 	readonly corpusVersion?: CorpusMeasurement;
 	readonly readManifest?: readonly ReadManifestEntry[];
 	readonly corpusFiles?: readonly {
@@ -111,6 +112,10 @@ export function gradedStage(
 	};
 }
 
+/**
+ * A stage the Judge stopped, in the layout the harness writes: the findings
+ * sit beside the grade, and the grade holds only the letter and the verdict.
+ */
 export function stoppedStage(
 	stage: string,
 	reads: readonly string[],
@@ -120,7 +125,8 @@ export function stoppedStage(
 		...gradedStage(stage, reads, corpusVersion),
 		status: "STAGE_JUDGE_FAILED",
 		error: `${stage} stage graded D; minimum grade is B`,
-		grade: { grade: "D", verdict: "STOP", summary: `${stage} missed` },
+		summary: `${stage} missed`,
+		grade: { grade: "D", verdict: "STOP" },
 	};
 }
 

@@ -21,6 +21,10 @@ const stageRecordSchema = z
 		status: z.string().optional(),
 		error: z.string().optional(),
 		grade: gradeSchema.nullable().optional(),
+		hardBlockers: z.unknown().optional(),
+		requirements: z.unknown().optional(),
+		dimensions: z.unknown().optional(),
+		summary: z.unknown().optional(),
 		input: z
 			.object({
 				commitSubjects: z.array(z.string()).optional(),
@@ -108,6 +112,12 @@ export async function assembleCulpritBundle(
 		}
 
 		const record = stageRecordSchema.parse(await file.json());
+		// A stage the spend ceiling refused has a stop record and no input,
+		// because no session ran in it.
+		if (record.input === undefined) {
+			continue;
+		}
+
 		steps.push(bundleStep(step, record));
 		for (const body of await corpusBodies(runsDirectory, record)) {
 			const key = `${body.path}\n${body.sha256}`;
@@ -142,10 +152,29 @@ function corpusReads(record: StageRecord): readonly string[] {
 	return record.corpusFiles?.map(({ path }) => path) ?? [];
 }
 
+/**
+ * A stop record keeps the Judge's findings beside its grade, which holds only
+ * the letter and the verdict, so the findings are gathered back into it.
+ */
+function stepGrade(record: StageRecord): BundleStep["grade"] {
+	if (record.grade === undefined || record.grade === null) {
+		return null;
+	}
+
+	const { hardBlockers, requirements, dimensions, summary } = record;
+	const findings = Object.fromEntries(
+		Object.entries({ hardBlockers, requirements, dimensions, summary }).filter(
+			([, value]) => value !== undefined,
+		),
+	);
+
+	return { ...findings, ...record.grade };
+}
+
 function bundleStep(step: string, record: StageRecord): BundleStep {
 	return {
 		step,
-		grade: record.grade ?? null,
+		grade: stepGrade(record),
 		stopped:
 			record.status === "STAGE_JUDGE_FAILED" ? (record.error ?? null) : null,
 		commitSubjects: record.input?.commitSubjects ?? [],
