@@ -3,8 +3,10 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { Reply } from "#client/test-support/fetch-stub";
 import { FakeServer } from "#client/test-support/fetch-stub";
 import { renderAppAt, SHELL_BASELINE } from "#client/test-support/render-app";
+import { RecordNotFoundError } from "#client/record-not-found";
 import { StageReviewPage } from "./stage-review-page";
 import type { GradeRecorded, StageReview } from "./stage-review-query";
+import { stageReviewQuery } from "./stage-review-query";
 
 const originalFetch = globalThis.fetch;
 
@@ -203,6 +205,52 @@ describe(StageReviewPage.name, () => {
 			expect(
 				screen.queryByRole("button", { name: "Record my grade" }),
 			).not.toBeInTheDocument();
+		});
+	});
+
+	describe("when the link names no stage the Judge graded", () => {
+		it("answers that the record is not there, which the app does not retry", async () => {
+			serving(BLIND_REVIEW);
+
+			const loaded = stageReviewQuery({
+				kind: "run",
+				run: RUN,
+				stage: "unjudged",
+			}).queryFn();
+
+			await expect(loaded).rejects.toBeInstanceOf(RecordNotFoundError);
+		});
+	});
+
+	describe("when something other than the route refuses the grade", () => {
+		it("shows what it sent back", async () => {
+			const server = new FakeServer(
+				new Map<string, Reply>([
+					...[...SHELL_BASELINE].map(([path, body]): [string, Reply] => [
+						`GET ${path}`,
+						{ status: 200, body },
+					]),
+					[`GET ${REVIEW_PATH}`, { status: 200, body: BLIND_REVIEW }],
+					[
+						`POST ${REVIEW_PATH}/grade`,
+						{ status: 403, body: "Cross-origin request refused" },
+					],
+				]),
+			);
+			server.install();
+			renderAppAt(`/calibration/runs/${RUN}/stages/shape`);
+			await screen.findByRole("region", { name: "What the judge read" });
+
+			choose("invalid-stage-delivery", "PASS");
+			choose("goal-stated", "PASS");
+			choose("decision-quality", "B");
+			fireEvent.click(screen.getByRole("button", { name: "Record my grade" }));
+
+			await waitFor(() => {
+				expect(screen.getByRole("alert")).toHaveTextContent(
+					"Cross-origin request refused",
+				);
+			});
 		});
 	});
 

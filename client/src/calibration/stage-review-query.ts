@@ -2,6 +2,7 @@ import type { InferResponseType } from "hono/client";
 import type { Immutable } from "#benchmark/contracts";
 import type { GradedStageRef, OperatorGrade } from "#benchmark/operator-grade";
 import { calibrationClient } from "#client/api-client";
+import { RecordNotFoundError } from "#client/record-not-found";
 
 const runStage =
 	calibrationClient.api.calibration.runs[":run"].stages[":stage"];
@@ -65,6 +66,12 @@ function reviewResponse(
 
 async function fetchStageReview(stage: GradedStageRef): Promise<StageReview> {
 	const response = await reviewResponse(stage);
+	// A refused name names no record either, and asking again changes nothing.
+	if (response.status === 404 || response.status === 400) {
+		throw new RecordNotFoundError(
+			"No stage the Judge graded is recorded there",
+		);
+	}
 	if (response.status !== 200) {
 		throw new Error("Could not load this judged step");
 	}
@@ -129,7 +136,11 @@ function gradeResponse(
 	}
 }
 
-/** A refusal the route declares arrives as `{ error }`, which the operator reads as the reason. */
+/**
+ * A refusal the route declares arrives as `{ error }`, which the operator reads
+ * as the reason. Anything else, the request guard's plain-text 403 included,
+ * is shown as the server sent it.
+ */
 export async function recordGrade(
 	stage: GradedStageRef,
 	grade: OperatorGrade,
@@ -138,7 +149,14 @@ export async function recordGrade(
 	if (response.status === 201) {
 		return response.json();
 	}
+	if (
+		response.status === 400 ||
+		response.status === 404 ||
+		response.status === 409
+	) {
+		const refusal = await response.json();
+		throw new GradeRefusedError(refusal.error);
+	}
 
-	const refusal = await response.json();
-	throw new GradeRefusedError(refusal.error);
+	throw new GradeRefusedError(await response.text());
 }
