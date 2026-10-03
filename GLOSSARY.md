@@ -64,7 +64,9 @@ See [current state](docs/status.md) for implementation coverage and
   the live target, so it can run long after the target was restored. It is one
   function of the review, the frozen evidence, and the current rubrics and
   instructions, whether a paused run calls it in a retry loop or the
-  `calibrate` command calls it once.
+  `calibrate` command calls it once. The browser's Judge calibration screen is a
+  different reading, grade agreement and Judge drift over operator grades, and
+  changes no grade.
 - **Checkpoint** — frozen input state that can start a stage, containing target
   SHA, workflow state, artifacts, and lineage. A run records an initial
   checkpoint after task setup and further checkpoints after accepted stages.
@@ -389,6 +391,17 @@ See [current state](docs/status.md) for implementation coverage and
 - **Judge agreement baseline** — accumulated binary Judge and human decisions
   for one exact Judge model and frozen rubric contract, summarized separately
   for each rubric criterion.
+- **Grade agreement**: how many places apart the operator's and the Judge's
+  letters for one stage sit on the scale A, B, C, D, F, which has no E. The
+  design calls a place a letter step. Zero is exact, and "within one step"
+  counts exact matches too. Distinct from the Judge agreement baseline, which
+  counts binary decisions per rubric criterion. Name accepted unattended as
+  unsettled, pending the operator's confirmation (ACT-273).
+- **Judge drift**: for one rubric dimension under one Judge model and rubric,
+  the mean of the operator's letter place minus the Judge's over every stage
+  the operator graded. Positive means the Judge grades more generously. Name
+  accepted unattended as unsettled, pending the operator's confirmation
+  (ACT-273).
 - **Judge attempt** — one Judge call against frozen evidence and a rubric,
   recording its returned payload, call cost, and whether harness validation
   accepted or rejected it.
@@ -437,6 +450,13 @@ See [current state](docs/status.md) for implementation coverage and
   It kills the commands, restores the target, and records the stop so the
   run reads `OPERATOR_STOPPED` rather than failed. Distinct from a ceiling
   stop and from a stop below the minimum grade.
+- **Operator grade**: the operator's own judgment of one stage the Judge graded,
+  given per rubric criterion, as the Judge grades, before anything the Judge
+  returned is shown: PASS or FAIL for each hard blocker and requirement, a letter
+  for each dimension, and an optional note. Its stage letter is derived by the same rule as the Judge's. It
+  changes no grade, and calibration does not read it. Distinct from a human
+  review, which classifies findings against a run's Judge result. Name accepted
+  unattended as unsettled, pending the operator's confirmation (ACT-273).
 - **Pipeline** — the ordered stages and their judge attachments, declared as
   data. The UI's design calls this a **task** (see [UI vocabulary](docs/design-handoff/README.md)); the word in code,
   records, and this glossary stays pipeline. Graded as a whole, a pipeline's
