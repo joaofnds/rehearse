@@ -51,6 +51,9 @@ import {
 } from "./src/benchmark/preflight";
 import { runList } from "./src/cli/list-command";
 import { judgesFor, runCalibrate } from "./src/cli/calibrate-command";
+import { runAnalyze } from "./src/cli/analyze-command";
+import { sealedAnalysisInvoker } from "./src/benchmark/culprit-analysis";
+import { liveRunLiveness } from "./src/benchmark/run-liveness";
 import { runReview } from "./src/cli/review-command";
 import { runSettings } from "./src/cli/settings-command";
 import { runShow } from "./src/cli/show-command";
@@ -138,6 +141,26 @@ async function dispatch(
 					findings: repeatedFlagValues(commandLine.flags, "--finding"),
 				},
 				processOutput,
+			);
+
+			return EXIT_CODES.completed;
+		}
+		case "analyze": {
+			await runAnalyze(
+				{
+					id: commandLine.argument,
+					runsDirectory,
+					model: flagValue(commandLine.flags, "--model"),
+					budgetUsd: flagValue(commandLine.flags, "--budget-usd"),
+					json: commandLine.json,
+				},
+				{
+					output: processOutput,
+					invokerFor: sealedAnalysisInvoker,
+					now: () => new Date(),
+					liveness: liveRunLiveness(),
+					requireSpendCeiling,
+				},
 			);
 
 			return EXIT_CODES.completed;

@@ -227,6 +227,27 @@ export const COMMANDS: readonly CommandDefinition[] = [
 		],
 	},
 	{
+		name: "analyze",
+		confinement: "never",
+		summary:
+			"Ask one sealed session which corpus file an ended run's outcome traces to, and record its answer",
+		argument: "run",
+		flags: [
+			{
+				name: "--model",
+				kind: "value",
+				help: "Model the analysis session uses; required",
+			},
+			{
+				name: "--budget-usd",
+				kind: "value",
+				defaultValue: "1",
+				help: "Most the analysis call may spend, held under the stored spend ceiling",
+			},
+			jsonFlag,
+		],
+	},
+	{
 		name: "calibrate",
 		confinement: "never",
 		summary:

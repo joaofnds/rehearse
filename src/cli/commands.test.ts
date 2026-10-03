@@ -59,11 +59,12 @@ describe(topLevelHelp.name, () => {
 });
 
 describe("declared commands", () => {
-	it("declares run, replay, compare, the record readers, and the case verbs", () => {
+	it("declares run, replay, compare, analyze, the record readers, and the case verbs", () => {
 		expect(COMMANDS.map((command) => command.name)).toEqual([
 			"run",
 			"replay",
 			"review",
+			"analyze",
 			"calibrate",
 			"compare",
 			"compare attempts",
@@ -280,6 +281,7 @@ describe("the confinement each command declares", () => {
 			run: "by case",
 			replay: "always",
 			review: "never",
+			analyze: "never",
 			calibrate: "never",
 			compare: "never",
 			"compare attempts": "always",

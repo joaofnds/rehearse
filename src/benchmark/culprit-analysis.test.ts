@@ -3,7 +3,7 @@ import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AnalysisDependencies, AnalysisInvoker } from "./culprit-analysis";
-import { analyzeRun } from "./culprit-analysis";
+import { analysisSessionArgs, analyzeRun } from "./culprit-analysis";
 import { assembleCulpritBundle } from "./culprit-bundle";
 import { ClaudeSessionError, parseClaudeEnvelope } from "./claude";
 import { RefusedPreconditionError } from "./exit-codes";
@@ -461,5 +461,26 @@ describe(analyzeRun.name, () => {
 			expect(failure).toBeInstanceOf(RefusedPreconditionError);
 			expect(provider.budgets).toEqual([]);
 		});
+	});
+});
+
+describe(analysisSessionArgs.name, () => {
+	it("runs the session sealed, under the model and the budget it is given", () => {
+		const args = analysisSessionArgs("sonnet", 1);
+
+		expect(args).toContain("--safe-mode");
+		expect(
+			args.slice(args.indexOf("--tools"), args.indexOf("--tools") + 2),
+		).toEqual(["--tools", ""]);
+		expect(
+			args.slice(args.indexOf("--model"), args.indexOf("--model") + 2),
+		).toEqual(["--model", "sonnet"]);
+		expect(
+			args.slice(
+				args.indexOf("--max-budget-usd"),
+				args.indexOf("--max-budget-usd") + 2,
+			),
+		).toEqual(["--max-budget-usd", "1"]);
+		expect(args).not.toContain("--dangerously-skip-permissions");
 	});
 });
