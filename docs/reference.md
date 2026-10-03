@@ -142,8 +142,8 @@ linked corpus. The browser stores the same ceiling through
 ceiling written in either place is the one every later command reads.
 Pipeline and session `run`, `replay`, every `--confirm` group, `calibrate` and
 `analyze` refuse with exit code 3 and name that command when no ceiling is stored. The
-refusal comes after the terminal checks and before the model probe, so it
-spends nothing.
+refusal comes before any paid call, after the terminal checks and before the
+model probe for the commands that make them.
 
 The ceiling holds a run's whole spend: every workflow, PO and Judge session,
 and every Judge retry, is started with a budget no larger than the ceiling
@@ -1040,31 +1040,56 @@ operator's only after the operator's is recorded.
 
 ### Culprit analysis
 
-`analyze <run> --model <model>` asks one sealed session which corpus file an
-ended run's outcome most plausibly traces to, and records its answer. The
-session gets no tools, no project settings and no commands. It reads a bundle
-of the run: the manifest's task and brief, each step's grade or stop, commit
-subjects and changed paths, the run's outcome, and the bodies of the corpus
-files each step read, taken from the corpus version the step recorded. Prompts,
-transcripts and diffs stay out of the bundle.
+No real-provider analysis has run, so this section describes the command as
+built and tested against a fake provider.
+
+`analyze <run> --model <model>` asks one sealed session which corpus file, if
+any, an ended run's outcome most plausibly traces to, and records its answer.
+`<run>` is a pipeline run's name or `run:<name>`. Replays, groups and session
+attempts are refused. The session gets no tools, no project settings and no
+commands. It reads a bundle of the run: the manifest's task and brief, each
+step's grade or stop with the Judge's findings, commit subjects and changed
+paths, the run's outcome, and the bodies of the corpus files each step read,
+taken from the corpus version the step recorded. Prompts, whole transcripts and
+diffs stay out of the bundle, but a Judge finding quotes its evidence, so
+excerpts of both reach the session through the grades. A step written before
+read manifests were kept names the corpus files it was given in place of what it
+read, and a step written before corpus versions were kept, or a read its version
+does not hold, carries no body. A stage the spend ceiling refused before its
+session counts as a step that never ran.
 
 A run has ended when its final record, a stage stop or an operator stop exists,
 or when its process died with no outcome, in which case it is analyzed as it
-stands. A paused run, a run whose process still holds its target, and a run
-with no records are refused with exit code 3 before any call.
+stands. A run with no manifest, a paused run, and a run whose target's marker
+names a live process are refused with exit code 3 before any call. The marker
+belongs to the target and not to the run, so a dead run whose target a later
+run now holds is refused as in flight until that run ends.
 
-`--budget-usd` caps the call and defaults to 1. The cap is held under the
-stored spend ceiling, and the command states the cap on stderr before the call.
-It runs no model probe, so an unavailable model ends in a failed record rather
-than a second paid call.
+`--budget-usd` sets the session budget and defaults to 1. The command lowers it
+to the stored spend ceiling when it is higher and states it on stderr before
+the call. Like any session budget it is not a cap, since Claude Code stops a
+session only after the call that crosses it. The analysis is not charged to the
+run it reads, so its cost sits outside that run's ceiling. The command runs no
+model probe, so an unavailable model ends in a failed record rather than a
+second paid call.
 
-The harness checks the answer before keeping it: it reads exactly the steps
+The harness checks the answer before keeping it. It reads exactly the steps
 that ran, at most one step is the primary culprit and it is the step the
-culprit names, and the culprit file is one that step read. An answer that
-breaks a rule, or a session that returns none, is kept as a failed record with
-its reason, its cost and whatever the session returned, and the command exits
-1 after printing its path. A declared step that never ran is recorded as
-`never ran`.
+culprit names, the culprit file is one that step read, and a line range lies
+within that file's body as the step read it. A step's role is `not
+implicated`, `contributing` or `primary culprit`, and a declared step that
+never ran is recorded as `never ran`.
+
+The record, with `schemaVersion: 1`, holds the run, the model, `capUsd` (the
+budget the call ran under), `startedAt`, `durationMs`, the bundle's digest and
+size, and `costUsd` when the provider reported one. A kept answer adds
+`outcome: "recorded"`, the `culprit` (step, file and optional `lines`, or null),
+the `narrative`, the `pairedRerun` that would confirm the reading, and each
+step's role with a `note` and a `contribution`. An answer that breaks a rule, or
+a session that returns none, is kept with `outcome: "failed"`, its `reason` and
+whatever the session returned, and the command exits 1. Either way the command
+prints the record's path, or the record itself with `--json`. `show` does not
+open analysis records.
 
 ## Target restoration
 
@@ -1225,7 +1250,8 @@ leaves transcripts and run artifacts where git can see them.
 `comparison-manifests/<control-group-id>.json`, and `baseline.json` beside the
 report. Browser launches record themselves as `launches/<id>.json` with the
 child's output in `launches/<id>.log`. A culprit analysis lives at
-`analyses/<run>/<started-at>.json`, created once, so a second analysis of the
+`analyses/<run>/<started-at>.json`, named by its start time with `:` written
+as `-` and created once, so a second analysis of the
 same run sits beside the first. Operator grades live at
 `operator-grades/run/<run>/<stage>.json`,
 `operator-grades/rep/<group-id>/<rep-id>/<stage>.json` and
