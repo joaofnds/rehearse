@@ -39,6 +39,18 @@ so a lint error reports in seconds and the full test suite runs last. Run it eve
 when the tests for the files you changed pass. A change can break a test in a
 file it never touched, and only the full suite catches that.
 
+An opt-in pre-commit hook refuses a commit whose staged files carry an oxlint
+error or are not formatted. It lints without type information and runs no tests,
+so it takes under a second and does not replace `bun run check`. Enable it in
+your clone:
+
+```sh
+git config core.hooksPath .githooks
+```
+
+The hook reads each staged file from the working tree, so a file staged with
+only some of its edits is checked with all of them.
+
 Each check also runs on its own:
 
 ```sh

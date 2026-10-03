@@ -1,0 +1,17 @@
+#!/bin/sh
+
+if git diff --cached --quiet --diff-filter=ACMR; then
+	exit 0
+fi
+
+status=0
+
+git diff --cached --name-only --diff-filter=ACMR -z |
+	xargs -0 bunx --no-install oxlint --no-error-on-unmatched-pattern ||
+	status=1
+
+git diff --cached --name-only --diff-filter=ACMR -z |
+	xargs -0 bunx --no-install oxfmt --check --no-error-on-unmatched-pattern ||
+	status=1
+
+exit "$status"
