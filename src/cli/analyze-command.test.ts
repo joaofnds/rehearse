@@ -16,18 +16,18 @@ import type { OutputRecorder } from "#cli/cli-test-support";
 import { UsageError } from "#cli/commands";
 
 const ANSWER = {
-	culprit: { step: "build", file: "skills/build/SKILL.md" },
+	culprit: { stage: "build", file: "skills/build/SKILL.md" },
 	narrative: "the build skill never asks for a direct run",
 	pairedRerun: "replay build with the run step restored",
-	steps: [
+	stages: [
 		{
-			step: "shape",
+			stage: "shape",
 			role: "not implicated",
 			note: "the card was complete",
 			contribution: "left the grade where it was",
 		},
 		{
-			step: "build",
+			stage: "build",
 			role: "primary culprit",
 			note: "no direct run was recorded",
 			contribution: "cost the observed-result requirement",
@@ -145,14 +145,14 @@ describe(runAnalyze.name, () => {
 			const error = await failureOf(
 				runAnalyze(
 					request(directory),
-					dependencies(recorder, answering({ ...ANSWER, steps: [] })),
+					dependencies(recorder, answering({ ...ANSWER, stages: [] })),
 				),
 			);
 
 			expect(recorder.stdout).toHaveLength(1);
 			expect(error).not.toBeInstanceOf(UsageError);
 			expect(error.message).toStartWith(
-				"The culprit analysis failed: The answer reads steps",
+				"The culprit analysis failed: The answer reads stages",
 			);
 		});
 	});

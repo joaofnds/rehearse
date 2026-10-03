@@ -1048,15 +1048,15 @@ any, an ended run's outcome most plausibly traces to, and records its answer.
 `<run>` is a pipeline run's name or `run:<name>`. Replays, groups and session
 attempts are refused. The session gets no tools, no project settings and no
 commands. It reads a bundle of the run: the manifest's task and brief, each
-step's grade or stop with the Judge's findings, commit subjects and changed
-paths, the run's outcome, and the bodies of the corpus files each step read,
-taken from the corpus version the step recorded. Prompts, whole transcripts and
+stage's grade or stop with the Judge's findings, commit subjects and changed
+paths, the run's outcome, and the bodies of the corpus files each stage read,
+taken from the corpus version the stage recorded. Prompts, whole transcripts and
 diffs stay out of the bundle, but a Judge finding quotes its evidence, so
-excerpts of both reach the session through the grades. A step written before
+excerpts of both reach the session through the grades. A stage written before
 read manifests were kept names the corpus files it was given in place of what it
-read, and a step written before corpus versions were kept, or a read its version
+read, and a stage written before corpus versions were kept, or a read its version
 does not hold, carries no body. A stage the spend ceiling refused before its
-session counts as a step that never ran.
+session counts as a stage that never ran.
 
 A run has ended when its final record, a stage stop or an operator stop exists,
 or when its process died with no outcome, in which case it is analyzed as it
@@ -1073,19 +1073,19 @@ run it reads, so its cost sits outside that run's ceiling. The command runs no
 model probe, so an unavailable model ends in a failed record rather than a
 second paid call.
 
-The harness checks the answer before keeping it. It reads exactly the steps
-that ran, at most one step is the primary culprit and it is the step the
-culprit names, the culprit file is one that step read, and a line range lies
-within that file's body as the step read it. A step's role is `not
-implicated`, `contributing` or `primary culprit`, and a declared step that
+The harness checks the answer before keeping it. It reads exactly the stages
+that ran, at most one stage is the primary culprit and it is the stage the
+culprit names, the culprit file is one that stage read, and a line range lies
+within that file's body as the stage read it. A stage's role is `not
+implicated`, `contributing` or `primary culprit`, and a declared stage that
 never ran is recorded as `never ran`.
 
 The record, with `schemaVersion: 1`, holds the run, the model, `capUsd` (the
 budget the call ran under), `startedAt`, `durationMs`, the bundle's digest and
 size, and `costUsd` when the provider reported one. A kept answer adds
-`outcome: "recorded"`, the `culprit` (step, file and optional `lines`, or null),
-the `narrative`, the `pairedRerun` that would confirm the reading, and each
-step's role with a `note` and a `contribution`. An answer that breaks a rule, or
+`outcome: "recorded"`, the `culprit` (`stage`, `file` and optional `lines`, or null),
+the `narrative`, the `pairedRerun` that would confirm the reading, and `stages`,
+each stage's role with a `note` and a `contribution`. An answer that breaks a rule, or
 a session that returns none, is kept with `outcome: "failed"`, its `reason` and
 whatever the session returned, and the command exits 1. Either way the command
 prints the record's path, or the record itself with `--json`. `show` does not

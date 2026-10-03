@@ -53,8 +53,8 @@ const finalRecordSchema = z
 
 type StageRecord = Immutable<z.infer<typeof stageRecordSchema>>;
 
-export type BundleStep = Immutable<{
-	step: string;
+export type BundleStage = Immutable<{
+	stage: string;
 	grade: z.infer<typeof gradeSchema> | null;
 	stopped: string | null;
 	commitSubjects: string[];
@@ -70,7 +70,7 @@ export type BundleOutcome = Immutable<{
 	error?: string;
 }>;
 
-/** One version of a corpus file, with the steps that read that version. */
+/** One version of a corpus file, with the stages that read that version. */
 export type BundleCorpusFile = Immutable<{
 	path: string;
 	sha256: string;
@@ -84,16 +84,16 @@ export type CulpritBundle = Immutable<{
 	caseId: string;
 	task: string;
 	productBrief: string;
-	declaredSteps: string[];
-	steps: BundleStep[];
+	declaredStages: string[];
+	stages: BundleStage[];
 	outcome: BundleOutcome;
 	corpusFiles: BundleCorpusFile[];
 }>;
 
 /**
- * Assembles the run's manifest, each step's grade or stop, the run's outcome
- * and the bodies of the corpus files each step read, taken from the corpus
- * version the step recorded rather than the corpus as it is now.
+ * Assembles the run's manifest, each stage's grade or stop, the run's outcome
+ * and the bodies of the corpus files each stage read, taken from the corpus
+ * version the stage recorded rather than the corpus as it is now.
  */
 export async function assembleCulpritBundle(
 	runsDirectory: string,
@@ -101,12 +101,12 @@ export async function assembleCulpritBundle(
 ): Promise<CulpritBundle> {
 	const paths = benchmarkRunPaths(runsDirectory, run);
 	const manifest = await loadRunManifest(paths.manifestFile);
-	const declaredSteps = manifest.pipeline.stages.map(({ name }) => name);
+	const declaredStages = manifest.pipeline.stages.map(({ name }) => name);
 
-	const steps: BundleStep[] = [];
+	const stages: BundleStage[] = [];
 	const corpusFiles = new Map<string, BundleCorpusFile>();
-	for (const step of declaredSteps) {
-		const file = Bun.file(paths.stageFile(step));
+	for (const stage of declaredStages) {
+		const file = Bun.file(paths.stageFile(stage));
 		if (!(await file.exists())) {
 			continue;
 		}
@@ -118,11 +118,11 @@ export async function assembleCulpritBundle(
 			continue;
 		}
 
-		steps.push(bundleStep(step, record));
+		stages.push(bundleStage(stage, record));
 		for (const body of await corpusBodies(runsDirectory, record)) {
 			const key = `${body.path}\n${body.sha256}`;
 			const readBy = corpusFiles.get(key)?.readBy ?? [];
-			corpusFiles.set(key, { ...body, readBy: [...readBy, step] });
+			corpusFiles.set(key, { ...body, readBy: [...readBy, stage] });
 		}
 	}
 
@@ -131,8 +131,8 @@ export async function assembleCulpritBundle(
 		caseId: manifest.caseId,
 		task: manifest.task,
 		productBrief: manifest.productBrief,
-		declaredSteps,
-		steps,
+		declaredStages,
+		stages,
 		outcome: await runOutcome(runsDirectory, run),
 		corpusFiles: [...corpusFiles.values()],
 	};
@@ -140,7 +140,7 @@ export async function assembleCulpritBundle(
 
 /**
  * A record written before the harness kept a read manifest names only the
- * corpus files the step was given, so those stand in for what it read.
+ * corpus files the stage was given, so those stand in for what it read.
  */
 function corpusReads(record: StageRecord): readonly string[] {
 	if (record.readManifest !== undefined) {
@@ -156,7 +156,7 @@ function corpusReads(record: StageRecord): readonly string[] {
  * A stop record keeps the Judge's findings beside its grade, which holds only
  * the letter and the verdict, so the findings are gathered back into it.
  */
-function stepGrade(record: StageRecord): BundleStep["grade"] {
+function stageGrade(record: StageRecord): BundleStage["grade"] {
 	if (record.grade === undefined || record.grade === null) {
 		return null;
 	}
@@ -171,10 +171,10 @@ function stepGrade(record: StageRecord): BundleStep["grade"] {
 	return { ...findings, ...record.grade };
 }
 
-function bundleStep(step: string, record: StageRecord): BundleStep {
+function bundleStage(stage: string, record: StageRecord): BundleStage {
 	return {
-		step,
-		grade: stepGrade(record),
+		stage,
+		grade: stageGrade(record),
 		stopped:
 			record.status === "STAGE_JUDGE_FAILED" ? (record.error ?? null) : null,
 		commitSubjects: record.input?.commitSubjects ?? [],

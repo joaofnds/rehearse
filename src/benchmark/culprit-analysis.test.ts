@@ -13,7 +13,7 @@ import type { ClaudeEnvelope } from "./contracts";
 import {
 	RUN,
 	runStoppedAtBuild,
-	runWithOneGradedStep,
+	runWithOneGradedStage,
 	stoppedStage,
 	writeStage,
 } from "./culprit-analysis-test-support";
@@ -39,21 +39,21 @@ async function runsDirectory(): Promise<string> {
 
 const ANSWER = {
 	culprit: {
-		step: "build",
+		stage: "build",
 		file: "skills/build/SKILL.md",
 		lines: { start: 2, end: 3 },
 	},
 	narrative: "the build skill never asks for a direct run",
 	pairedRerun: "replay build with the run step restored",
-	steps: [
+	stages: [
 		{
-			step: "shape",
+			stage: "shape",
 			role: "not implicated",
 			note: "the card was complete",
 			contribution: "left the grade where it was",
 		},
 		{
-			step: "build",
+			stage: "build",
 			role: "primary culprit",
 			note: "no direct run was recorded",
 			contribution: "cost the observed-result requirement",
@@ -145,7 +145,7 @@ function dependencies(invoke: AnalysisInvoker): AnalysisDependencies {
 }
 
 describe(analyzeRun.name, () => {
-	it("gives a step that never ran the role never ran", async () => {
+	it("gives a stage that never ran the role never ran", async () => {
 		const directory = await runsDirectory();
 		await runStoppedAtBuild(directory);
 
@@ -155,10 +155,10 @@ describe(analyzeRun.name, () => {
 		);
 
 		expect(record).toMatchObject({
-			steps: [
-				ANSWER.steps[0],
-				ANSWER.steps[1],
-				{ step: "review", role: "never ran" },
+			stages: [
+				ANSWER.stages[0],
+				ANSWER.stages[1],
+				{ stage: "review", role: "never ran" },
 			],
 		});
 	});
@@ -193,57 +193,57 @@ describe(analyzeRun.name, () => {
 	describe("when the answer breaks a rule of the analysis", () => {
 		it.each([
 			[
-				"names a culprit file the culprit step never read",
+				"names a culprit file the culprit stage never read",
 				{
 					...ANSWER,
-					culprit: { step: "build", file: "skills/shape/SKILL.md" },
+					culprit: { stage: "build", file: "skills/shape/SKILL.md" },
 				},
-				"The culprit file skills/shape/SKILL.md is not a corpus file the build step read",
+				"The culprit file skills/shape/SKILL.md is not a corpus file the build stage read",
 			],
 			[
-				"names a culprit step that never ran",
-				{ ...ANSWER, culprit: { step: "review", file: "CLAUDE.md" } },
-				"The answer names review as the culprit step, so review and no other step must be the primary culprit",
+				"names a culprit stage that never ran",
+				{ ...ANSWER, culprit: { stage: "review", file: "CLAUDE.md" } },
+				"The answer names review as the culprit stage, so review and no other stage must be the primary culprit",
 			],
 			[
 				"names two primary culprits",
 				{
 					...ANSWER,
-					steps: [
-						ANSWER.steps[1],
-						{ ...ANSWER.steps[0], role: "primary culprit" },
+					stages: [
+						ANSWER.stages[1],
+						{ ...ANSWER.stages[0], role: "primary culprit" },
 					],
 				},
-				"The answer names build as the culprit step, so build and no other step must be the primary culprit",
+				"The answer names build as the culprit stage, so build and no other stage must be the primary culprit",
 			],
 			[
-				"names a culprit whose step is not the primary culprit",
+				"names a culprit whose stage is not the primary culprit",
 				{
 					...ANSWER,
-					steps: [
-						ANSWER.steps[0],
-						{ ...ANSWER.steps[1], role: "contributing" },
+					stages: [
+						ANSWER.stages[0],
+						{ ...ANSWER.stages[1], role: "contributing" },
 					],
 				},
-				"The answer names build as the culprit step, so build and no other step must be the primary culprit",
+				"The answer names build as the culprit stage, so build and no other stage must be the primary culprit",
 			],
 			[
 				"names a primary culprit without a culprit",
 				{ ...ANSWER, culprit: null },
-				"The answer names a primary culprit step without a culprit",
+				"The answer names a primary culprit stage without a culprit",
 			],
 			[
-				"leaves out a step that ran",
-				{ ...ANSWER, steps: [ANSWER.steps[1]] },
-				"The answer reads steps build, but the steps that ran are build, shape",
+				"leaves out a stage that ran",
+				{ ...ANSWER, stages: [ANSWER.stages[1]] },
+				"The answer reads stages build, but the stages that ran are build, shape",
 			],
 			[
-				"reads a step that never ran",
+				"reads a stage that never ran",
 				{
 					...ANSWER,
-					steps: [...ANSWER.steps, { ...ANSWER.steps[0], step: "review" }],
+					stages: [...ANSWER.stages, { ...ANSWER.stages[0], stage: "review" }],
 				},
-				"The answer reads steps build, review, shape, but the steps that ran are build, shape",
+				"The answer reads stages build, review, shape, but the stages that ran are build, shape",
 			],
 			[
 				"gives a line range that ends before it starts",
@@ -251,7 +251,7 @@ describe(analyzeRun.name, () => {
 					...ANSWER,
 					culprit: { ...ANSWER.culprit, lines: { start: 3, end: 2 } },
 				},
-				"The line range 3-2 is not within the 3 lines of skills/build/SKILL.md as the build step read it",
+				"The line range 3-2 is not within the 3 lines of skills/build/SKILL.md as the build stage read it",
 			],
 			[
 				"gives a line range past the end of the file",
@@ -259,7 +259,7 @@ describe(analyzeRun.name, () => {
 					...ANSWER,
 					culprit: { ...ANSWER.culprit, lines: { start: 2, end: 9 } },
 				},
-				"The line range 2-9 is not within the 3 lines of skills/build/SKILL.md as the build step read it",
+				"The line range 2-9 is not within the 3 lines of skills/build/SKILL.md as the build stage read it",
 			],
 			[
 				"answers outside the analysis shape",
@@ -293,7 +293,7 @@ describe(analyzeRun.name, () => {
 	describe("when the run kept no body of the culprit file", () => {
 		it("records a line range in it as a failure", async () => {
 			const directory = await runsDirectory();
-			await runWithOneGradedStep(directory);
+			await runWithOneGradedStage(directory);
 			await writeStage(
 				directory,
 				stoppedStage("build", ["CLAUDE.md", "skills/build/SKILL.md"], {
@@ -311,7 +311,7 @@ describe(analyzeRun.name, () => {
 			expect(record).toMatchObject({
 				outcome: "failed",
 				reason:
-					"The answer gives a line range in skills/build/SKILL.md, but the run kept no body of it as the build step read it",
+					"The answer gives a line range in skills/build/SKILL.md, but the run kept no body of it as the build stage read it",
 			});
 		});
 	});
@@ -457,10 +457,10 @@ describe(analyzeRun.name, () => {
 
 	it("analyzes a run whose process died before it had an outcome", async () => {
 		const directory = await runsDirectory();
-		await runWithOneGradedStep(directory);
+		await runWithOneGradedStage(directory);
 		const provider = new FakeAnalysisProvider();
 		provider.answer(
-			answering({ ...ANSWER, culprit: null, steps: [ANSWER.steps[0]] }),
+			answering({ ...ANSWER, culprit: null, stages: [ANSWER.stages[0]] }),
 		);
 
 		const { record } = await analyzeRun(
@@ -471,10 +471,10 @@ describe(analyzeRun.name, () => {
 		expect(record).toMatchObject({
 			outcome: "recorded",
 			culprit: null,
-			steps: [
-				ANSWER.steps[0],
-				{ step: "build", role: "never ran" },
-				{ step: "review", role: "never ran" },
+			stages: [
+				ANSWER.stages[0],
+				{ stage: "build", role: "never ran" },
+				{ stage: "review", role: "never ran" },
 			],
 		});
 	});
@@ -498,7 +498,7 @@ describe(analyzeRun.name, () => {
 
 		it("refuses a run still in flight before any call", async () => {
 			const directory = await runsDirectory();
-			await runWithOneGradedStep(directory);
+			await runWithOneGradedStage(directory);
 			const provider = new FakeAnalysisProvider();
 
 			const failure = await failureOf(
@@ -517,7 +517,7 @@ describe(analyzeRun.name, () => {
 
 		it("refuses a paused run before any call", async () => {
 			const directory = await runsDirectory();
-			await runWithOneGradedStep(directory);
+			await runWithOneGradedStage(directory);
 			await recordPaused(
 				benchmarkRunPaths(directory, RUN),
 				"shape",

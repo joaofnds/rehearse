@@ -48,7 +48,7 @@ export interface AnalysisDependencies {
 	readonly progress: (message: string) => void;
 }
 
-const AGENT_STEP_ROLES = [
+const AGENT_STAGE_ROLES = [
 	"not implicated",
 	"contributing",
 	"primary culprit",
@@ -58,7 +58,7 @@ const answerSchema = z
 	.object({
 		culprit: z
 			.object({
-				step: z.string().min(1),
+				stage: z.string().min(1),
 				file: z.string().min(1),
 				lines: z
 					.object({
@@ -72,11 +72,11 @@ const answerSchema = z
 			.nullable(),
 		narrative: z.string().min(1),
 		pairedRerun: z.string().min(1),
-		steps: z.array(
+		stages: z.array(
 			z
 				.object({
-					step: z.string().min(1),
-					role: z.enum(AGENT_STEP_ROLES),
+					stage: z.string().min(1),
+					role: z.enum(AGENT_STAGE_ROLES),
 					note: z.string().min(1),
 					contribution: z.string().min(1),
 				})
@@ -87,9 +87,9 @@ const answerSchema = z
 
 type AnalysisAnswer = Immutable<z.infer<typeof answerSchema>>;
 
-export type StepReading =
-	| AnalysisAnswer["steps"][number]
-	| { readonly step: string; readonly role: "never ran" };
+export type StageReading =
+	| AnalysisAnswer["stages"][number]
+	| { readonly stage: string; readonly role: "never ran" };
 
 interface AnalysisBase {
 	readonly schemaVersion: 1;
@@ -108,7 +108,7 @@ export interface RecordedAnalysis extends AnalysisBase {
 	readonly culprit: AnalysisAnswer["culprit"];
 	readonly narrative: string;
 	readonly pairedRerun: string;
-	readonly steps: readonly StepReading[];
+	readonly stages: readonly StageReading[];
 }
 
 /**
@@ -232,7 +232,7 @@ export async function analyzeRun(
 		const violation = answerViolation(reading.answer, bundle);
 		record =
 			violation === undefined
-				? recordedAnalysis(base, reading.answer, bundle.declaredSteps)
+				? recordedAnalysis(base, reading.answer, bundle.declaredStages)
 				: failedRecord(base, { ...reading, kind: "failed", reason: violation });
 	}
 
@@ -291,11 +291,11 @@ function analysisPrompt(bundleText: string): string {
 	return [
 		"Say which corpus file, if any, the outcome of the run below most plausibly traces to. Give a null `culprit` when the records do not point at one file. On a run that passed, a culprit is a file that cost the run a requirement or a grade dimension it would otherwise have met.",
 		"The harness refuses an answer that breaks rule 1, 2 or 3:",
-		"1. `steps` holds each step in the run's `steps` exactly once. A step in `declaredSteps` that is missing from the run's `steps` never ran, so leave it out.",
-		'2. When `culprit` names a step and a corpus file from that step\'s `corpusReads`, that step and no other is "primary culprit". When `culprit` is null, no step is.',
-		"3. Give `culprit.lines` only when `corpusFiles` holds the file's body with the culprit step in its `readBy`. The range is 1-based and inclusive, and lies within that body.",
-		"4. `note` is one sentence on what that step's record shows. `contribution` is a short phrase saying how the step moved the run's `outcome`.",
-		"5. `narrative` says how the outcome traces to the culprit, or why no corpus file explains it. `pairedRerun` names the rerun that would confirm the reading: the culprit step replayed with only the named line range, or the whole file, changed. When `culprit` is null, it names the rerun that would show no corpus file is at fault.",
+		"1. `stages` holds each stage in the run's `stages` exactly once. A stage in `declaredStages` that is missing from the run's `stages` never ran, so leave it out.",
+		'2. When `culprit` names a stage and a corpus file from that stage\'s `corpusReads`, that stage and no other is "primary culprit". When `culprit` is null, no stage is.',
+		"3. Give `culprit.lines` only when `corpusFiles` holds the file's body with the culprit stage in its `readBy`. The range is 1-based and inclusive, and lies within that body.",
+		"4. `note` is one sentence on what that stage's record shows. `contribution` is a short phrase saying how the stage moved the run's `outcome`.",
+		"5. `narrative` says how the outcome traces to the culprit, or why no corpus file explains it. `pairedRerun` names the rerun that would confirm the reading: the culprit stage replayed with only the named line range, or the whole file, changed. When `culprit` is null, it names the rerun that would show no corpus file is at fault.",
 		"BEGIN RUN",
 		bundleText,
 		"END RUN",
@@ -339,39 +339,39 @@ async function readSession(
 }
 
 /**
- * The rules an answer must keep to be recorded: it reads exactly the steps
- * that ran, at most one of them is the primary culprit and it is the step the
- * culprit names, the culprit file is one that step read, and a line range
- * lies within that file as the step read it.
+ * The rules an answer must keep to be recorded: it reads exactly the stages
+ * that ran, at most one of them is the primary culprit and it is the stage the
+ * culprit names, the culprit file is one that stage read, and a line range
+ * lies within that file as the stage read it.
  */
 function answerViolation(
 	answer: AnalysisAnswer,
 	bundle: CulpritBundle,
 ): string | undefined {
-	const ran = bundle.steps;
-	const answered = answer.steps.map(({ step }) => step).toSorted();
-	const expected = ran.map(({ step }) => step).toSorted();
+	const ran = bundle.stages;
+	const answered = answer.stages.map(({ stage }) => stage).toSorted();
+	const expected = ran.map(({ stage }) => stage).toSorted();
 	if (answered.join("\n") !== expected.join("\n")) {
-		return `The answer reads steps ${answered.join(", ")}, but the steps that ran are ${expected.join(", ")}`;
+		return `The answer reads stages ${answered.join(", ")}, but the stages that ran are ${expected.join(", ")}`;
 	}
 
-	const primaries = answer.steps.filter(
+	const primaries = answer.stages.filter(
 		({ role }) => role === "primary culprit",
 	);
 	if (answer.culprit === null) {
 		return primaries.length === 0
 			? undefined
-			: "The answer names a primary culprit step without a culprit";
+			: "The answer names a primary culprit stage without a culprit";
 	}
 
-	const { step, file } = answer.culprit;
-	if (primaries.length !== 1 || primaries[0]?.step !== step) {
-		return `The answer names ${step} as the culprit step, so ${step} and no other step must be the primary culprit`;
+	const { stage, file } = answer.culprit;
+	if (primaries.length !== 1 || primaries[0]?.stage !== stage) {
+		return `The answer names ${stage} as the culprit stage, so ${stage} and no other stage must be the primary culprit`;
 	}
 
-	const culpritStep = ran.find((candidate) => candidate.step === step);
-	if (culpritStep === undefined || !culpritStep.corpusReads.includes(file)) {
-		return `The culprit file ${file} is not a corpus file the ${step} step read`;
+	const culpritStage = ran.find((candidate) => candidate.stage === stage);
+	if (culpritStage === undefined || !culpritStage.corpusReads.includes(file)) {
+		return `The culprit file ${file} is not a corpus file the ${stage} stage read`;
 	}
 
 	return lineRangeViolation(answer.culprit, bundle.corpusFiles);
@@ -381,21 +381,21 @@ function lineRangeViolation(
 	culprit: NonNullable<AnalysisAnswer["culprit"]>,
 	corpusFiles: CulpritBundle["corpusFiles"],
 ): string | undefined {
-	const { step, file, lines } = culprit;
+	const { stage, file, lines } = culprit;
 	if (lines === undefined) {
 		return undefined;
 	}
 
 	const read = corpusFiles.find(
-		(candidate) => candidate.path === file && candidate.readBy.includes(step),
+		(candidate) => candidate.path === file && candidate.readBy.includes(stage),
 	);
 	if (read === undefined) {
-		return `The answer gives a line range in ${file}, but the run kept no body of it as the ${step} step read it`;
+		return `The answer gives a line range in ${file}, but the run kept no body of it as the ${stage} stage read it`;
 	}
 
 	const lineCount = read.body.replace(/\n$/u, "").split("\n").length;
 	if (lines.start > lines.end || lines.end > lineCount) {
-		return `The line range ${lines.start}-${lines.end} is not within the ${lineCount} lines of ${file} as the ${step} step read it`;
+		return `The line range ${lines.start}-${lines.end} is not within the ${lineCount} lines of ${file} as the ${stage} stage read it`;
 	}
 
 	return undefined;
@@ -404,7 +404,7 @@ function lineRangeViolation(
 function recordedAnalysis(
 	base: Omit<AnalysisBase, "costUsd">,
 	answer: AnalysisAnswer,
-	steps: readonly string[],
+	stages: readonly string[],
 ): RecordedAnalysis {
 	return {
 		...base,
@@ -412,10 +412,10 @@ function recordedAnalysis(
 		culprit: answer.culprit,
 		narrative: answer.narrative,
 		pairedRerun: answer.pairedRerun,
-		steps: steps.map(
-			(step) =>
-				answer.steps.find((reading) => reading.step === step) ?? {
-					step,
+		stages: stages.map(
+			(stage) =>
+				answer.stages.find((reading) => reading.stage === stage) ?? {
+					stage,
 					role: "never ran",
 				},
 		),

@@ -6,7 +6,7 @@ import {
 	CORPUS_BODIES,
 	RUN,
 	runStoppedAtBuild,
-	runWithOneGradedStep,
+	runWithOneGradedStage,
 	stoppedStage,
 	writeStage,
 } from "./culprit-analysis-test-support";
@@ -47,7 +47,7 @@ function corpusFile(
 }
 
 describe(assembleCulpritBundle.name, () => {
-	it("holds each step's grade, the outcome and the corpus each step read", async () => {
+	it("holds each stage's grade, the outcome and the corpus each stage read", async () => {
 		const directory = await runsDirectory();
 		await runStoppedAtBuild(directory);
 
@@ -58,10 +58,10 @@ describe(assembleCulpritBundle.name, () => {
 			caseId: "audit-log",
 			task: "add an audit log module",
 			productBrief: "the brief",
-			declaredSteps: ["shape", "build", "review"],
-			steps: [
+			declaredStages: ["shape", "build", "review"],
+			stages: [
 				{
-					step: "shape",
+					stage: "shape",
 					grade: { grade: "B", verdict: "CONTINUE", summary: "shape held" },
 					stopped: null,
 					commitSubjects: ["feat: shape the audit log"],
@@ -69,7 +69,7 @@ describe(assembleCulpritBundle.name, () => {
 					corpusReads: ["CLAUDE.md", "skills/shape/SKILL.md"],
 				},
 				{
-					step: "build",
+					stage: "build",
 					grade: { grade: "D", verdict: "STOP", summary: "build missed" },
 					stopped: "build stage graded D; minimum grade is B",
 					commitSubjects: ["feat: build the audit log"],
@@ -113,7 +113,7 @@ describe(assembleCulpritBundle.name, () => {
 
 	it("takes the outcome of a run the operator stopped from its stop record", async () => {
 		const directory = await runsDirectory();
-		await runWithOneGradedStep(directory);
+		await runWithOneGradedStage(directory);
 		await Bun.write(
 			benchmarkRunPaths(directory, RUN).operatorStopFile,
 			operatorStopRecord("SIGINT"),
@@ -126,17 +126,17 @@ describe(assembleCulpritBundle.name, () => {
 
 	it("tells a run whose process died before an outcome from a stopped run", async () => {
 		const directory = await runsDirectory();
-		await runWithOneGradedStep(directory);
+		await runWithOneGradedStage(directory);
 
 		const bundle = await assembleCulpritBundle(directory, RUN);
 
 		expect(bundle.outcome).toEqual({ status: "NO_OUTCOME_RECORDED" });
 	});
 
-	describe("when the spend ceiling refused a step before its session", () => {
-		it("leaves that step out of the steps that ran", async () => {
+	describe("when the spend ceiling refused a stage before its session", () => {
+		it("leaves that stage out of the stages that ran", async () => {
 			const directory = await runsDirectory();
-			await runWithOneGradedStep(directory);
+			await runWithOneGradedStage(directory);
 			await Bun.write(
 				benchmarkRunPaths(directory, RUN).stageFile("build"),
 				JSON.stringify({
@@ -149,15 +149,15 @@ describe(assembleCulpritBundle.name, () => {
 
 			const bundle = await assembleCulpritBundle(directory, RUN);
 
-			expect(bundle.steps.map(({ step }) => step)).toEqual(["shape"]);
+			expect(bundle.stages.map(({ stage }) => stage)).toEqual(["shape"]);
 			expect(bundle.outcome).toMatchObject({ stage: "build" });
 		});
 	});
 
-	describe("when a step read a corpus file its corpus version does not hold", () => {
+	describe("when a stage read a corpus file its corpus version does not hold", () => {
 		it("names the read and carries no body for it", async () => {
 			const directory = await runsDirectory();
-			const corpusVersion = await runWithOneGradedStep(directory);
+			const corpusVersion = await runWithOneGradedStage(directory);
 			await writeStage(
 				directory,
 				stoppedStage(
@@ -169,7 +169,7 @@ describe(assembleCulpritBundle.name, () => {
 
 			const bundle = await assembleCulpritBundle(directory, RUN);
 
-			expect(bundle.steps[1]?.corpusReads).toEqual([
+			expect(bundle.stages[1]?.corpusReads).toEqual([
 				"CLAUDE.md",
 				"output-styles/Explanatory.md",
 			]);
@@ -180,10 +180,10 @@ describe(assembleCulpritBundle.name, () => {
 		});
 	});
 
-	describe("when a step's record predates the read manifest", () => {
-		it("reads the corpus files the step was given, without their bodies", async () => {
+	describe("when a stage's record predates the read manifest", () => {
+		it("reads the corpus files the stage was given, without their bodies", async () => {
 			const directory = await runsDirectory();
-			await runWithOneGradedStep(directory);
+			await runWithOneGradedStage(directory);
 			await writeStage(directory, {
 				stage: "build",
 				grade: { grade: "C", verdict: "STOP", summary: "build missed" },
@@ -198,8 +198,8 @@ describe(assembleCulpritBundle.name, () => {
 
 			const bundle = await assembleCulpritBundle(directory, RUN);
 
-			expect(bundle.steps[1]).toMatchObject({
-				step: "build",
+			expect(bundle.stages[1]).toMatchObject({
+				stage: "build",
 				corpusReads: ["CLAUDE.md"],
 			});
 			expect(bundle.corpusFiles.map(({ path }) => path)).toEqual([

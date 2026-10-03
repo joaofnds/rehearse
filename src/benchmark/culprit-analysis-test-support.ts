@@ -153,8 +153,8 @@ export async function measuredCorpus(
 	return measureCorpusVersion(directory, { kind: "directory", root });
 }
 
-/** A run of shape, build and review whose shape step was graded. */
-export async function runWithOneGradedStep(
+/** A run of shape, build and review whose shape stage was graded. */
+export async function runWithOneGradedStage(
 	directory: string,
 ): Promise<CorpusMeasurement> {
 	const corpusVersion = await measuredCorpus(directory);
@@ -174,7 +174,7 @@ export async function runWithOneGradedStep(
 export async function runStoppedAtBuild(
 	directory: string,
 ): Promise<CorpusMeasurement> {
-	const corpusVersion = await runWithOneGradedStep(directory);
+	const corpusVersion = await runWithOneGradedStage(directory);
 	await writeStage(
 		directory,
 		stoppedStage(
