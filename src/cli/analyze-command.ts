@@ -1,13 +1,13 @@
 import type { AnalysisInvoker } from "#benchmark/culprit-analysis";
-import { analyzeRun } from "#benchmark/culprit-analysis";
+import {
+	analyzeRun,
+	DEFAULT_ANALYSIS_BUDGET_USD,
+} from "#benchmark/culprit-analysis";
 import type { RunLiveness } from "#benchmark/run-liveness";
 import { UsageError } from "#cli/commands";
 import type { CommandOutput } from "#cli/output";
 import { diagnosticWriter, writeRecord } from "#cli/output";
 import { parseRunRecordId } from "#cli/record-id";
-
-/** What one analysis may spend when the caller names no budget. */
-const DEFAULT_BUDGET_USD = 1;
 
 export interface AnalyzeRequest {
 	readonly id: string | undefined;
@@ -69,7 +69,7 @@ export async function runAnalyze(
 /** Only a plain decimal above zero is a budget, so "0x10" is not read as 16. */
 function budgetUsd(text: string | undefined): number {
 	if (text === undefined) {
-		return DEFAULT_BUDGET_USD;
+		return DEFAULT_ANALYSIS_BUDGET_USD;
 	}
 	if (!/^\d+(?:\.\d+)?$/u.test(text) || Number(text) <= 0) {
 		throw new UsageError(

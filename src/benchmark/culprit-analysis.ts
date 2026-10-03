@@ -38,6 +38,9 @@ export interface AnalysisRequest {
 	readonly capUsd: number;
 }
 
+/** What one analysis may spend when the caller names no budget. */
+export const DEFAULT_ANALYSIS_BUDGET_USD = 1;
+
 export interface AnalysisDependencies {
 	readonly invoke: AnalysisInvoker;
 	readonly now: () => Date;

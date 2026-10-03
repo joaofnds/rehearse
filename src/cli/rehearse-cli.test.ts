@@ -29,6 +29,10 @@ import {
 } from "#benchmark/settings";
 import { liveRunLiveness } from "#benchmark/run-liveness";
 import { PROJECT_ROOT } from "#benchmark/test-support";
+import {
+	RUN as CULPRIT_RUN,
+	runStoppedAtBuild,
+} from "#benchmark/culprit-analysis-test-support";
 import type { Launcher } from "#server/launches";
 import { processLauncher } from "#server/process-launcher";
 
@@ -1264,6 +1268,54 @@ describe("the spend ceiling", () => {
 				expect(await providerCallsIn(fixture.binDirectory)).toBe(false);
 			},
 		);
+	});
+
+	describe("when an ended run is analyzed", () => {
+		let binDirectory: string;
+		let shimmed: ReturnType<typeof environmentWithoutKnobs>;
+
+		beforeEach(async () => {
+			await runStoppedAtBuild(records);
+			binDirectory = await providerShim(records);
+			shimmed = {
+				...inRecords,
+				PATH: `${binDirectory}:${Bun.env["PATH"] ?? ""}`,
+			};
+		});
+
+		it("refuses before any provider call when no ceiling is stored", async () => {
+			const result = await runCli(
+				["analyze", CULPRIT_RUN, "--model", "sonnet"],
+				"empty",
+				shimmed,
+			);
+
+			expect(result.exitCode).toBe(EXIT_CODES.refusedPrecondition);
+			expect(result.stderr).toContain(SET_SPEND_CEILING_COMMAND);
+			expect(await providerCallsIn(binDirectory)).toBe(false);
+		});
+
+		it("makes one sealed call capped at the budget", async () => {
+			await runCli(
+				["settings", "--spend-ceiling-usd", "30"],
+				"empty",
+				inRecords,
+			);
+
+			await runCli(
+				["analyze", CULPRIT_RUN, "--model", "sonnet"],
+				"empty",
+				shimmed,
+			);
+
+			const calls = await Bun.file(
+				join(binDirectory, PROVIDER_CALLS_LOG),
+			).text();
+			expect(calls.trim().split("\n")).toHaveLength(1);
+			expect(calls).toContain("--max-budget-usd 1");
+			expect(calls).toContain("--safe-mode");
+			expect(calls).toContain("--model sonnet");
+		});
 	});
 
 	describe("when a run's spend reaches it", () => {

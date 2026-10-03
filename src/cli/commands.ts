@@ -1,3 +1,4 @@
+import { DEFAULT_ANALYSIS_BUDGET_USD } from "#benchmark/culprit-analysis";
 import { DEFAULT_CASE_ID } from "#benchmark/config";
 import type { CommandFailure } from "#benchmark/exit-codes";
 import { EXIT_CODES } from "#benchmark/exit-codes";
@@ -241,7 +242,7 @@ export const COMMANDS: readonly CommandDefinition[] = [
 			{
 				name: "--budget-usd",
 				kind: "value",
-				defaultValue: "1",
+				defaultValue: String(DEFAULT_ANALYSIS_BUDGET_USD),
 				help: "Most the analysis call may spend, held under the stored spend ceiling",
 			},
 			jsonFlag,

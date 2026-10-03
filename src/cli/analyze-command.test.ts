@@ -159,27 +159,35 @@ describe(runAnalyze.name, () => {
 
 	describe("when the command line is incomplete", () => {
 		it.each([
-			[{ id: undefined }, "Provide the run: rehearse analyze <run>"],
-			[{ model: undefined }, "Provide the model: --model <model>"],
-			[{ budgetUsd: "0" }, 'The budget is a positive number of USD, not "0"'],
+			["no run", { id: undefined }, "Provide the run: rehearse analyze <run>"],
+			["no model", { model: undefined }, "Provide the model: --model <model>"],
 			[
+				"a zero budget",
+				{ budgetUsd: "0" },
+				'The budget is a positive number of USD, not "0"',
+			],
+			[
+				"a hexadecimal budget",
 				{ budgetUsd: "0x10" },
 				'The budget is a positive number of USD, not "0x10"',
 			],
-		] as const)("refuses %o without a call", async (overrides, message) => {
-			const directory = await endedRun();
-			const requests = new InvokerRequests();
+		] as const)(
+			"refuses %s without a call",
+			async (_case, overrides, message) => {
+				const directory = await endedRun();
+				const requests = new InvokerRequests();
 
-			const error = await failureOf(
-				runAnalyze(
-					request(directory, overrides),
-					dependencies(recordOutput(), answering(ANSWER), requests),
-				),
-			);
+				const error = await failureOf(
+					runAnalyze(
+						request(directory, overrides),
+						dependencies(recordOutput(), answering(ANSWER), requests),
+					),
+				);
 
-			expect(error).toBeInstanceOf(UsageError);
-			expect(error.message).toBe(message);
-			expect(requests.models).toEqual([]);
-		});
+				expect(error).toBeInstanceOf(UsageError);
+				expect(error.message).toBe(message);
+				expect(requests.models).toEqual([]);
+			},
+		);
 	});
 });
