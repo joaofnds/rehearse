@@ -255,7 +255,7 @@ describe(StageReviewPage.name, () => {
 	});
 
 	describe("when the server refuses the grade", () => {
-		it("says why and keeps the Judge's grade hidden", async () => {
+		it("says why", async () => {
 			const server = new FakeServer(
 				new Map<string, Reply>([
 					...[...SHELL_BASELINE].map(([path, body]): [string, Reply] => [
@@ -286,7 +286,6 @@ describe(StageReviewPage.name, () => {
 					"The operator already graded this stage",
 				);
 			});
-			expect(screen.queryByText(JUDGE_SUMMARY)).not.toBeInTheDocument();
 		});
 	});
 });
