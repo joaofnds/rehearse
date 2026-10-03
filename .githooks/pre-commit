@@ -1,17 +1,27 @@
 #!/bin/sh
 
-if git diff --cached --quiet --diff-filter=ACMR; then
-	exit 0
+staged_paths() {
+	git diff --cached --name-only --diff-filter=d -z
+}
+
+missing=$(staged_paths | xargs -0 -r sh -c '
+	for path; do
+		[ -e "$path" ] || [ -L "$path" ] || printf "%s\n" "$path"
+	done
+' sh)
+if [ -n "$missing" ]; then
+	printf "Staged but missing from the working tree, so not checked:\n%s\n" "$missing" >&2
+	exit 1
 fi
 
 status=0
 
-git diff --cached --name-only --diff-filter=ACMR -z |
-	xargs -0 bunx --no-install oxlint --no-error-on-unmatched-pattern ||
+staged_paths |
+	xargs -0 -r bunx --no-install oxlint --no-error-on-unmatched-pattern -- ||
 	status=1
 
-git diff --cached --name-only --diff-filter=ACMR -z |
-	xargs -0 bunx --no-install oxfmt --check --no-error-on-unmatched-pattern ||
+staged_paths |
+	xargs -0 -r bunx --no-install oxfmt --check --no-error-on-unmatched-pattern -- ||
 	status=1
 
 exit "$status"
