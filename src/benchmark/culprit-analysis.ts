@@ -39,6 +39,8 @@ export interface AnalysisDependencies {
 	readonly now: () => Date;
 	readonly liveness: RunLiveness;
 	readonly requireSpendCeiling: (recordsDirectory: string) => Promise<number>;
+	/** Told what the call can spend before it is made. */
+	readonly progress: (message: string) => void;
 }
 
 const AGENT_STEP_ROLES = [
@@ -161,12 +163,16 @@ export async function analyzeRun(
 		request.run,
 	);
 	const bundleText = JSON.stringify(bundle);
+	const budgetUsd = ceiling.budgetFor(request.capUsd);
+	dependencies.progress(
+		`Analyzing run ${request.run} with ${request.model}; the call spends at most $${budgetUsd}.`,
+	);
 
 	const started = dependencies.now();
 	const reading = await readSession(
 		dependencies.invoke,
 		analysisPrompt(bundleText),
-		ceiling.budgetFor(request.capUsd),
+		budgetUsd,
 	);
 	const finished = dependencies.now();
 

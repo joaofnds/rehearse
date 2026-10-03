@@ -138,6 +138,7 @@ function dependencies(invoke: AnalysisInvoker): AnalysisDependencies {
 		now: steppingClock(),
 		liveness: nothingRunning,
 		requireSpendCeiling: () => Promise.resolve(30),
+		progress: () => undefined,
 	};
 }
 
@@ -314,6 +315,33 @@ describe(analyzeRun.name, () => {
 		);
 
 		expect(provider.budgets).toEqual([budgetUsd]);
+	});
+
+	it("states the most it can spend before the call", async () => {
+		const directory = await runsDirectory();
+		await runStoppedAtBuild(directory);
+		const events: string[] = [];
+		const provider = new FakeAnalysisProvider();
+
+		await analyzeRun(
+			{ runsDirectory: directory, run: RUN, model: "sonnet", capUsd: 5 },
+			{
+				...dependencies((prompt, budgetUsd) => {
+					events.push("call");
+
+					return provider.invoke(prompt, budgetUsd);
+				}),
+				requireSpendCeiling: () => Promise.resolve(2),
+				progress: (message) => {
+					events.push(message);
+				},
+			},
+		);
+
+		expect(events).toEqual([
+			`Analyzing run ${RUN} with sonnet; the call spends at most $2.`,
+			"call",
+		]);
 	});
 
 	it("keeps a second analysis beside the first and changes nothing else", async () => {
