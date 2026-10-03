@@ -21,6 +21,7 @@ import {
 	comparisonReportPaths,
 } from "#benchmark/run-layout";
 import { COMMANDS } from "#cli/commands";
+import { CONFINED_VARIABLE } from "#cli/confinement";
 import { EXIT_CODES } from "#benchmark/exit-codes";
 import {
 	SET_SPEND_CEILING_COMMAND,
@@ -42,13 +43,17 @@ interface CliResult {
 /**
  * The session knobs read an environment fallback, so a `BENCHMARK_MODEL` set on
  * the machine running the suite would change which refusal a command makes.
- * The child gets an environment with none of them, so every assertion below is
- * about the code rather than about this shell.
+ * The child gets an environment with none of them, nor the marker of a
+ * confined process, so every assertion below is about the code rather than
+ * about this shell.
  */
 function environmentWithoutKnobs(): Record<string, string> {
 	return Object.fromEntries(
 		Object.entries(Bun.env)
-			.filter(([name]) => !name.startsWith("BENCHMARK_"))
+			.filter(
+				([name]) =>
+					!name.startsWith("BENCHMARK_") && name !== CONFINED_VARIABLE,
+			)
 			.map(([name, value]) => [name, value ?? ""]),
 	);
 }
@@ -1427,25 +1432,50 @@ describe("reading the records", () => {
  * What each provider call tried to signal, one line per attempt: the process
  * the test started outside the run, and a process an earlier call of the same
  * run started. A call with no earlier process of its own starts one, so the
- * second call is the first that can try to stop it.
+ * second call is the first that can try to stop it. Each attempt sends SIGTERM
+ * and tells a refusal from a process already gone by kill's own message.
  */
 const SIGNALS_LOG = "signals.log";
+
+/** Every process a provider call started, so a test can stop what its run left behind. */
+const STARTED_PIDS = "started.pids";
+
+function terminate(pid: string, subject: string, log: string): string {
+	return [
+		`if out="$(kill -TERM ${pid} 2>&1)"; then echo ${subject}-stopped >> '${log}'`,
+		`elif printf '%s' "$out" | grep -q 'not permitted'; then echo ${subject}-refused >> '${log}'`,
+		`else echo ${subject}-gone >> '${log}'; fi`,
+	].join("; ");
+}
 
 function signallingCall(directory: string, outsidePid: number): string[] {
 	const log = join(directory, SIGNALS_LOG);
 	const own = join(directory, "own.pid");
 
 	return [
-		`if kill -0 ${outsidePid} 2>/dev/null; then echo outside-allowed >> '${log}'; else echo outside-refused >> '${log}'; fi`,
+		terminate(String(outsidePid), "outside", log),
 		`if [ -f '${own}' ]; then`,
 		`\tpid="$(cat '${own}')"; rm '${own}'`,
-		`\tif ! kill -0 "$pid" 2>/dev/null && ! ps -p "$pid" >/dev/null 2>&1; then echo own-gone >> '${log}'`,
-		`\telif kill "$pid" 2>/dev/null; then echo own-stopped >> '${log}'`,
-		`\telse echo own-refused >> '${log}'; fi`,
+		`\t${terminate('"$pid"', "own", log)}`,
 		"else",
-		`\tsleep 300 </dev/null >/dev/null 2>&1 & echo $! > '${own}'`,
+		`\tsleep 300 </dev/null >/dev/null 2>&1 & echo $! > '${own}'; echo $! >> '${join(directory, STARTED_PIDS)}'`,
 		"fi",
 	];
+}
+
+async function stopStartedProcesses(directory: string): Promise<void> {
+	const started = Bun.file(join(directory, STARTED_PIDS));
+	if (!(await started.exists())) {
+		return;
+	}
+	const pids = await started.text();
+	for (const pid of pids.trim().split("\n")) {
+		try {
+			process.kill(Number(pid), "SIGKILL");
+		} catch {
+			// The run already stopped it.
+		}
+	}
 }
 
 async function signalsIn(directory: string): Promise<readonly string[]> {
@@ -1475,9 +1505,10 @@ describe("a run's sessions", () => {
 	afterEach(async () => {
 		outside.kill("SIGKILL");
 		await Promise.all(
-			temporaryDirectories
-				.splice(0)
-				.map((directory) => rm(directory, { force: true, recursive: true })),
+			temporaryDirectories.splice(0).map(async (directory) => {
+				await stopStartedProcesses(directory);
+				await rm(directory, { force: true, recursive: true });
+			}),
 		);
 	});
 
@@ -1552,7 +1583,7 @@ describe("a run's sessions", () => {
 
 		const signals = await signalsIn(directory);
 		expect(signals.length).toBeGreaterThan(1);
-		expect(signals).not.toContain("outside-allowed");
+		expect(signals).not.toContain("outside-stopped");
 		expect(isRunning(outside.pid)).toBe(true);
 	});
 
@@ -1566,7 +1597,7 @@ describe("a run's sessions", () => {
 		);
 
 		expect(await signalsIn(directory)).toContain("outside-refused");
-		expect(await signalsIn(directory)).not.toContain("outside-allowed");
+		expect(await signalsIn(directory)).not.toContain("outside-stopped");
 		expect(isRunning(outside.pid)).toBe(true);
 	});
 
@@ -1594,7 +1625,7 @@ describe("a run's sessions", () => {
 		temporaryDirectories.push(...preservedEvidenceIn(result.stderr));
 
 		expect(await signalsIn(directory)).toContain("outside-refused");
-		expect(await signalsIn(directory)).not.toContain("outside-allowed");
+		expect(await signalsIn(directory)).not.toContain("outside-stopped");
 		expect(isRunning(outside.pid)).toBe(true);
 	});
 
@@ -1608,7 +1639,7 @@ describe("a run's sessions", () => {
 		);
 
 		expect(await signalsIn(directory)).toContain("outside-refused");
-		expect(await signalsIn(directory)).not.toContain("outside-allowed");
+		expect(await signalsIn(directory)).not.toContain("outside-stopped");
 		expect(isRunning(outside.pid)).toBe(true);
 	});
 
@@ -1635,7 +1666,7 @@ describe("a run's sessions", () => {
 		);
 
 		expect(await signalsIn(directory)).toContain("outside-refused");
-		expect(await signalsIn(directory)).not.toContain("outside-allowed");
+		expect(await signalsIn(directory)).not.toContain("outside-stopped");
 		expect(isRunning(outside.pid)).toBe(true);
 	});
 
@@ -1648,7 +1679,7 @@ describe("a run's sessions", () => {
 			binDirectory,
 		);
 
-		expect(await signalsIn(directory)).toContain("outside-allowed");
+		expect(await signalsIn(directory)).toContain("outside-stopped");
 	});
 
 	it("stops in a later call a process an earlier call of the run started", async () => {
@@ -1664,6 +1695,7 @@ describe("a run's sessions", () => {
 		const signals = await signalsIn(directory);
 		expect(signals).toContain("own-stopped");
 		expect(signals).not.toContain("own-refused");
+		expect(signals).not.toContain("own-gone");
 	});
 
 	describe("in a run launched as the browser launches one", () => {
@@ -1708,7 +1740,7 @@ describe("a run's sessions", () => {
 
 			return [
 				'case " $* " in *" --dangerously-skip-permissions "*)',
-				`\tif kill -0 ${outsidePid} 2>/dev/null; then echo outside-allowed >> '${log}'; else echo outside-refused >> '${log}'; fi`,
+				`\t${terminate(String(outsidePid), "outside", log)}`,
 				`\techo $$ > '${pidFile}.partial'; mv '${pidFile}.partial' '${pidFile}'`,
 				"\texec sleep 300 ;;",
 				"esac",
