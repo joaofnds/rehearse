@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { link, mkdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { z } from "zod";
 import type { Immutable } from "./contracts";
@@ -89,7 +89,9 @@ export function operatorGradeFile(
 /**
  * Created exclusively: a second grade for a stage is given after the Judge's
  * grade was shown, so it is no longer blind, and two tabs cannot both write
- * one.
+ * one. The grade is written whole beside its place and then linked into it,
+ * so an interrupted write leaves no partial grade that would refuse every
+ * later one.
  */
 export async function writeOperatorGrade(
 	runsDirectory: string,
@@ -97,14 +99,16 @@ export async function writeOperatorGrade(
 	grade: OperatorGrade,
 ): Promise<void> {
 	const file = operatorGradeFile(runsDirectory, ref);
+	const written = `${file}.${crypto.randomUUID()}.partial`;
 	await mkdir(dirname(file), { recursive: true });
+	await writeFile(
+		written,
+		`${JSON.stringify({ schemaVersion: 1, ...grade }, null, 2)}\n`,
+		{ flag: "wx" },
+	);
 
 	try {
-		await writeFile(
-			file,
-			`${JSON.stringify({ schemaVersion: 1, ...grade }, null, 2)}\n`,
-			{ flag: "wx" },
-		);
+		await link(written, file);
 	} catch (error) {
 		if (error instanceof Error && "code" in error && error.code === "EEXIST") {
 			throw new OperatorGradeExistsError(
@@ -113,6 +117,8 @@ export async function writeOperatorGrade(
 		}
 
 		throw error;
+	} finally {
+		await rm(written, { force: true });
 	}
 }
 
