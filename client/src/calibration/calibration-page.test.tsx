@@ -330,6 +330,24 @@ describe(CalibrationPage.name, () => {
 		});
 	});
 
+	describe("when no step the Judge graded is recorded", () => {
+		it("says so rather than calling every step graded", async () => {
+			renderCalibration(reportWith({ reviews: 0, ungraded: 0, next: null }));
+
+			const button = await screen.findByRole("button", {
+				name: "Review next unjudged step",
+			});
+
+			expect(button).toBeDisabled();
+			expect(
+				screen.getByText("No step the judge graded is recorded yet."),
+			).toBeInTheDocument();
+			expect(
+				screen.queryByText("Every judged step is graded."),
+			).not.toBeInTheDocument();
+		});
+	});
+
 	describe("when every judged step is graded", () => {
 		it("offers no step to review", async () => {
 			renderCalibration(reportWith({ reviews: 1, withinOneStep: 1 }));

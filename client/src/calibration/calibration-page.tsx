@@ -207,13 +207,19 @@ function DriftAside({
 
 function ReviewNext({
 	next,
+	reviews,
 }: {
 	readonly next: CalibrationResponse["next"];
+	readonly reviews: number;
 }): React.JSX.Element {
 	if (next === null) {
 		return (
 			<div className="flex items-center gap-3">
-				<span className="text-11-5 text-dim">Every judged step is graded.</span>
+				<span className="text-11-5 text-dim">
+					{reviews === 0
+						? "No step the judge graded is recorded yet."
+						: "Every judged step is graded."}
+				</span>
 				<Button size="compact" disabled>
 					Review next unjudged step
 				</Button>
@@ -245,7 +251,9 @@ export function CalibrationPage(): React.JSX.Element {
 					)
 				}
 				aside={
-					report === undefined ? undefined : <ReviewNext next={report.next} />
+					report === undefined ? undefined : (
+						<ReviewNext next={report.next} reviews={report.reviews} />
+					)
 				}
 			/>
 
