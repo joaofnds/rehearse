@@ -10,9 +10,17 @@ export interface FlagDefinition {
 	readonly help: string;
 }
 
+/**
+ * Whether a command's process runs inside the sandbox that keeps its sessions
+ * from signalling the operator's other processes: always, never, or as the
+ * case it runs decides, for `run`, whose session cases may hold no tool.
+ */
+export type Confinement = "always" | "never" | "by case";
+
 export interface CommandDefinition {
 	readonly name: string;
 	readonly summary: string;
+	readonly confinement: Confinement;
 	readonly argument?: string | undefined;
 	readonly flags: readonly FlagDefinition[];
 }
@@ -129,6 +137,7 @@ const jsonFlag: FlagDefinition = {
 export const COMMANDS: readonly CommandDefinition[] = [
 	{
 		name: "run",
+		confinement: "by case",
 		summary: "Run the pipeline against the target repository and grade it",
 		flags: [
 			{
@@ -164,6 +173,7 @@ export const COMMANDS: readonly CommandDefinition[] = [
 	},
 	{
 		name: "replay",
+		confinement: "always",
 		summary: "Replay one stage of a recorded run against the current corpus",
 		flags: [
 			{
@@ -189,6 +199,7 @@ export const COMMANDS: readonly CommandDefinition[] = [
 	},
 	{
 		name: "review",
+		confinement: "never",
 		summary: "Record the human or agent review of a run's Judge result",
 		argument: "run",
 		flags: [
@@ -217,6 +228,7 @@ export const COMMANDS: readonly CommandDefinition[] = [
 	},
 	{
 		name: "calibrate",
+		confinement: "never",
 		summary:
 			"Rejudge a run's frozen evidence with the current rubrics and record the result",
 		argument: "run",
@@ -231,12 +243,14 @@ export const COMMANDS: readonly CommandDefinition[] = [
 	},
 	{
 		name: "compare",
+		confinement: "never",
 		summary: "Report over completed confirmation evidence; runs no session",
 		argument: "comparison-manifest.json",
 		flags: [jsonFlag],
 	},
 	{
 		name: "compare attempts",
+		confinement: "always",
 		summary:
 			"Compare two replay confirmation groups at one checkpoint, running only a baseline arm derived from arm A",
 		flags: [
@@ -265,6 +279,7 @@ export const COMMANDS: readonly CommandDefinition[] = [
 	},
 	{
 		name: "compare extend",
+		confinement: "always",
 		summary:
 			"Add attempts to every arm of a comparison compare attempts saved, at a stated cost, as a new comparison",
 		flags: [
@@ -293,6 +308,7 @@ export const COMMANDS: readonly CommandDefinition[] = [
 	},
 	{
 		name: "list",
+		confinement: "never",
 		summary:
 			"List recorded cases, runs, checkpoints, attempts, groups, or comparisons",
 		argument: "cases|runs|checkpoints|attempts|groups|comparisons",
@@ -300,6 +316,7 @@ export const COMMANDS: readonly CommandDefinition[] = [
 	},
 	{
 		name: "show",
+		confinement: "never",
 		summary: "Print one record by its id, as its bytes or as a card summary",
 		argument: "record-id",
 		flags: [
@@ -313,6 +330,7 @@ export const COMMANDS: readonly CommandDefinition[] = [
 	},
 	{
 		name: "regrade",
+		confinement: "never",
 		summary:
 			"Re-evaluate a saved attempt's evidence against its case as it stands now; runs no session",
 		argument: "record-id",
@@ -320,6 +338,7 @@ export const COMMANDS: readonly CommandDefinition[] = [
 	},
 	{
 		name: "stale",
+		confinement: "never",
 		summary:
 			"List the checkpoints, stopped stages, session attempts, stage replays and confirmation groups an edit invalidated",
 		flags: [
@@ -342,17 +361,20 @@ export const COMMANDS: readonly CommandDefinition[] = [
 	},
 	{
 		name: "corpus versions",
+		confinement: "never",
 		summary: "List the versions a corpus source was measured at, oldest first",
 		flags: [corpusFlag],
 	},
 	{
 		name: "corpus invalidation",
+		confinement: "never",
 		summary:
 			"Count the run-history rows that read each corpus file, and list the rows the last edit invalidated",
 		flags: [corpusFlag],
 	},
 	{
 		name: "corpus show",
+		confinement: "never",
 		summary:
 			"Print a recorded corpus version's files, or one file as that version held it",
 		argument: "corpus-version",
@@ -366,6 +388,7 @@ export const COMMANDS: readonly CommandDefinition[] = [
 	},
 	{
 		name: "settings",
+		confinement: "never",
 		summary:
 			"Show the stored spend ceiling, the linked corpus and the records location, or store a new ceiling or link",
 		flags: [
@@ -389,17 +412,20 @@ export const COMMANDS: readonly CommandDefinition[] = [
 	},
 	{
 		name: "case list",
+		confinement: "never",
 		summary: "List every declared benchmark case under cases/",
 		flags: [jsonFlag],
 	},
 	{
 		name: "case show",
+		confinement: "never",
 		summary: "Print one declared benchmark case's declaration",
 		argument: "case-id",
 		flags: [jsonFlag],
 	},
 	{
 		name: "case capture",
+		confinement: "never",
 		summary:
 			"Capture a session file truncated at a cut as a case's transcript prefix",
 		argument: "case-id",

@@ -9,6 +9,8 @@ import {
 	parseComparisonReport,
 } from "#benchmark/comparison-record";
 import { runCommand } from "#benchmark/command";
+import { compareAttempts } from "#benchmark/compare-attempts";
+import { RecordedArms } from "#benchmark/compare-attempts-test-support";
 import {
 	RECORDS_DIRECTORY_VARIABLE,
 	recordsDirectory,
@@ -203,6 +205,7 @@ function providerCallsIn(binDirectory: string): Promise<boolean> {
 async function providerShim(
 	directory: string,
 	callCostUsd = 0,
+	onCall: readonly string[] = [],
 ): Promise<string> {
 	const binDirectory = join(directory, "bin");
 	await mkdir(binDirectory, { recursive: true });
@@ -235,6 +238,7 @@ async function providerShim(
 			"\tesac",
 			"done",
 			`printf '%s\\n' "$*" >> '${join(binDirectory, PROVIDER_CALLS_LOG)}'`,
+			...onCall,
 			"cat >/dev/null",
 			`cat <<'ENVELOPE'`,
 			envelope,
@@ -1413,5 +1417,249 @@ describe("reading the records", () => {
 		expect(result.exitCode).toBe(3);
 		expect(result.stdout).toBe("");
 		expect(result.stderr).toContain("/nonexistent-corpus-probe");
+	});
+});
+
+/**
+ * What each provider call tried to signal, one line per attempt: the process
+ * the test started outside the run, and a process an earlier call of the same
+ * run started. A call with no earlier process of its own starts one, so the
+ * second call is the first that can try to stop it.
+ */
+const SIGNALS_LOG = "signals.log";
+
+function signallingCall(directory: string, outsidePid: number): string[] {
+	const log = join(directory, SIGNALS_LOG);
+	const own = join(directory, "own.pid");
+
+	return [
+		`if kill -0 ${outsidePid} 2>/dev/null; then echo outside-allowed >> '${log}'; else echo outside-refused >> '${log}'; fi`,
+		`if [ -f '${own}' ]; then`,
+		`\tpid="$(cat '${own}')"; rm '${own}'`,
+		`\tif ! kill -0 "$pid" 2>/dev/null && ! ps -p "$pid" >/dev/null 2>&1; then echo own-gone >> '${log}'`,
+		`\telif kill "$pid" 2>/dev/null; then echo own-stopped >> '${log}'`,
+		`\telse echo own-refused >> '${log}'; fi`,
+		"else",
+		`\tsleep 300 </dev/null >/dev/null 2>&1 & echo $! > '${own}'`,
+		"fi",
+	];
+}
+
+async function signalsIn(directory: string): Promise<readonly string[]> {
+	const text = await Bun.file(join(directory, SIGNALS_LOG)).text();
+
+	return text.trimEnd().split("\n");
+}
+
+function isRunning(pid: number): boolean {
+	try {
+		process.kill(pid, 0);
+
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+describe("a run's sessions", () => {
+	const temporaryDirectories: string[] = [];
+	let outside: ReturnType<typeof Bun.spawn>;
+
+	beforeEach(() => {
+		outside = Bun.spawn(["sleep", "300"]);
+	});
+
+	afterEach(async () => {
+		outside.kill("SIGKILL");
+		await Promise.all(
+			temporaryDirectories
+				.splice(0)
+				.map((directory) => rm(directory, { force: true, recursive: true })),
+		);
+	});
+
+	async function signallingFixture(): Promise<
+		PipelineFixture & { directory: string }
+	> {
+		const directory = await mkdtemp(join(tmpdir(), "rehearse-confined-"));
+		temporaryDirectories.push(directory);
+		const [control, binDirectory, target] = await Promise.all([
+			controlCopy(directory),
+			providerShim(directory, 0, signallingCall(directory, outside.pid)),
+			passingTarget(directory),
+		]);
+		await storeSpendCeiling(benchmarkRunsDirectory(control), 100);
+
+		return { directory, control, binDirectory, target };
+	}
+
+	/**
+	 * Two stage groups replayed at one checkpoint and differing in one skill,
+	 * recorded straight into a records directory, so a compare command plans
+	 * them and reaches its first provider call, the model probe.
+	 */
+	async function signallingArms(): Promise<{
+		readonly directory: string;
+		readonly records: string;
+		readonly environment: Readonly<Record<string, string>>;
+		readonly arms: RecordedArms;
+		readonly armA: string;
+		readonly armB: string;
+	}> {
+		const directory = await mkdtemp(join(tmpdir(), "rehearse-confined-"));
+		temporaryDirectories.push(directory);
+		const records = join(directory, "records");
+		const binDirectory = await providerShim(
+			directory,
+			0,
+			signallingCall(directory, outside.pid),
+		);
+		const arms = await RecordedArms.create(records, join(directory, "scratch"));
+		const shared = { "CLAUDE.md": "global instructions\n" };
+		const armA = await arms.recordArm("baseline", {
+			...shared,
+			"skills/build/SKILL.md": "build\n",
+		});
+		const armB = await arms.recordArm("candidate", {
+			...shared,
+			"skills/build/SKILL.md": "revised build\n",
+		});
+		await arms.readInStage(armA, "skills/build/SKILL.md");
+		await arms.readInStage(armB, "skills/build/SKILL.md");
+		await storeSpendCeiling(records, 100);
+
+		const environment = {
+			...environmentWithoutKnobs(),
+			[RECORDS_DIRECTORY_VARIABLE]: records,
+			PATH: `${binDirectory}:${Bun.env["PATH"] ?? ""}`,
+		};
+
+		return { directory, records, environment, arms, armA, armB };
+	}
+
+	it("cannot signal a process outside a pipeline run, which keeps running", async () => {
+		const { directory, control, binDirectory, target } =
+			await signallingFixture();
+
+		await runPipelineCli(
+			["run", "--case", "audit-log", "--model", "sonnet", "--target", target],
+			control,
+			binDirectory,
+		);
+
+		const signals = await signalsIn(directory);
+		expect(signals.length).toBeGreaterThan(1);
+		expect(signals).not.toContain("outside-allowed");
+		expect(isRunning(outside.pid)).toBe(true);
+	});
+
+	it("cannot signal a process outside a session attempt whose case allows Bash", async () => {
+		const { directory, control, binDirectory } = await signallingFixture();
+
+		await runPipelineCli(
+			["run", "--case", "state-probe", "--model", "sonnet"],
+			control,
+			binDirectory,
+		);
+
+		expect(await signalsIn(directory)).toContain("outside-refused");
+		expect(await signalsIn(directory)).not.toContain("outside-allowed");
+		expect(isRunning(outside.pid)).toBe(true);
+	});
+
+	it("cannot signal a process outside a replay", async () => {
+		const { directory, control, binDirectory, target } =
+			await signallingFixture();
+		const recorded = await recordRunFor(control, binDirectory, target);
+		await rm(join(directory, SIGNALS_LOG));
+
+		const result = await runPipelineCli(
+			[
+				"replay",
+				"--run",
+				recorded,
+				"--stage",
+				"shape",
+				"--model",
+				"sonnet",
+				"--session-budget-usd",
+				"1",
+			],
+			control,
+			binDirectory,
+		);
+		temporaryDirectories.push(...preservedEvidenceIn(result.stderr));
+
+		expect(await signalsIn(directory)).toContain("outside-refused");
+		expect(await signalsIn(directory)).not.toContain("outside-allowed");
+		expect(isRunning(outside.pid)).toBe(true);
+	});
+
+	it("cannot signal a process outside compare attempts", async () => {
+		const { directory, environment, armA, armB } = await signallingArms();
+
+		await runCli(
+			["compare", "attempts", "--arm-a", armA, "--arm-b", armB, "--yes"],
+			"empty",
+			environment,
+		);
+
+		expect(await signalsIn(directory)).toContain("outside-refused");
+		expect(await signalsIn(directory)).not.toContain("outside-allowed");
+		expect(isRunning(outside.pid)).toBe(true);
+	});
+
+	it("cannot signal a process outside compare extend", async () => {
+		const { directory, records, environment, arms, armA, armB } =
+			await signallingArms();
+		const { reportFile } = await compareAttempts(
+			{ runsDirectory: records, armA, armB },
+			{ runBaselineGroup: arms.runBaselineGroup },
+		);
+
+		await runCli(
+			[
+				"compare",
+				"extend",
+				"--comparison",
+				basename(dirname(reportFile)),
+				"--attempts",
+				"2",
+				"--yes",
+			],
+			"empty",
+			environment,
+		);
+
+		expect(await signalsIn(directory)).toContain("outside-refused");
+		expect(await signalsIn(directory)).not.toContain("outside-allowed");
+		expect(isRunning(outside.pid)).toBe(true);
+	});
+
+	it("signals freely from a session attempt whose case allows no tool", async () => {
+		const { directory, control, binDirectory } = await signallingFixture();
+
+		await runPipelineCli(
+			["run", "--case", "smoke", "--model", "sonnet"],
+			control,
+			binDirectory,
+		);
+
+		expect(await signalsIn(directory)).toContain("outside-allowed");
+	});
+
+	it("stops in a later call a process an earlier call of the run started", async () => {
+		const { directory, control, binDirectory, target } =
+			await signallingFixture();
+
+		await runPipelineCli(
+			["run", "--case", "audit-log", "--model", "sonnet", "--target", target],
+			control,
+			binDirectory,
+		);
+
+		const signals = await signalsIn(directory);
+		expect(signals).toContain("own-stopped");
+		expect(signals).not.toContain("own-refused");
 	});
 });

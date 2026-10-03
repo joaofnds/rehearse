@@ -1,5 +1,9 @@
 #!/usr/bin/env bun
-import { parseStaleArgs, recordsDirectory } from "./src/benchmark/config";
+import {
+	parseCaseId,
+	parseStaleArgs,
+	recordsDirectory,
+} from "./src/benchmark/config";
 import { assertPinnedBunVersion } from "./src/benchmark/bun-pin";
 import {
 	requireCase,
@@ -29,6 +33,7 @@ import {
 	executeSessionRun,
 	runRunCommand,
 } from "./src/cli/run-command";
+import type { LoadedCase } from "./src/benchmark/case";
 import type { CommandLine } from "./src/cli/commands";
 import {
 	asUsageError,
@@ -37,6 +42,12 @@ import {
 	parseCommandLine,
 	topLevelHelp,
 } from "./src/cli/commands";
+import {
+	confinesItself,
+	enterConfinement,
+	isConfined,
+	liveConfinementHost,
+} from "./src/cli/confinement";
 import { EXIT_CODES, exitCodeFor } from "./src/benchmark/exit-codes";
 import {
 	assertPipelinePreflight,
@@ -53,7 +64,7 @@ import { runStale } from "./src/cli/stale-command";
 import { processOutput } from "./src/cli/output";
 import { terminalQuestioner } from "./src/cli/questioner";
 
-function main(): Promise<number> {
+async function main(): Promise<number> {
 	assertPinnedBunVersion();
 
 	const argv = Bun.argv.slice(2);
@@ -61,12 +72,12 @@ function main(): Promise<number> {
 	if (name === "--help") {
 		processOutput.stdout(topLevelHelp());
 
-		return Promise.resolve(EXIT_CODES.completed);
+		return EXIT_CODES.completed;
 	}
 	if (name === undefined) {
 		processOutput.stderr(topLevelHelp());
 
-		return Promise.resolve(EXIT_CODES.usageError);
+		return EXIT_CODES.usageError;
 	}
 
 	const { command, args } = findCommand(argv);
@@ -74,7 +85,16 @@ function main(): Promise<number> {
 	if (commandLine.helpRequested) {
 		processOutput.stdout(commandHelp(command));
 
-		return Promise.resolve(EXIT_CODES.completed);
+		return EXIT_CODES.completed;
+	}
+
+	const loadRunCase = (): Promise<LoadedCase> =>
+		requireCase(asUsageError(() => parseCaseId(commandLine.flags)));
+	if (
+		!isConfined(Bun.env) &&
+		(await confinesItself(command.confinement, loadRunCase))
+	) {
+		await enterConfinement(liveConfinementHost());
 	}
 
 	return dispatch(command.name, commandLine);

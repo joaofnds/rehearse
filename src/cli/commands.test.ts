@@ -13,6 +13,7 @@ import {
 const exampleCommand: CommandDefinition = {
 	name: "example",
 	summary: "Demonstrate the flag table",
+	confinement: "never",
 	flags: [
 		{
 			name: "--model",
@@ -105,6 +106,7 @@ describe("declared commands", () => {
 		const help = commandHelp({
 			name: "list",
 			summary: "List the records",
+			confinement: "never",
 			argument: "kind",
 			flags: [],
 		});
@@ -265,5 +267,34 @@ describe("the corpus source flag", () => {
 
 		expect(declarations.length).toBeGreaterThan(1);
 		expect(new Set(declarations).size).toBe(1);
+	});
+});
+
+describe("the confinement each command declares", () => {
+	it("confines the commands whose sessions run commands, and run by its case", () => {
+		const declared = Object.fromEntries(
+			COMMANDS.map((command) => [command.name, command.confinement]),
+		);
+
+		expect(declared).toEqual({
+			run: "by case",
+			replay: "always",
+			review: "never",
+			calibrate: "never",
+			compare: "never",
+			"compare attempts": "always",
+			"compare extend": "always",
+			list: "never",
+			show: "never",
+			regrade: "never",
+			stale: "never",
+			"corpus versions": "never",
+			"corpus invalidation": "never",
+			"corpus show": "never",
+			settings: "never",
+			"case list": "never",
+			"case show": "never",
+			"case capture": "never",
+		});
 	});
 });
