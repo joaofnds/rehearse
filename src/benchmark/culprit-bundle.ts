@@ -222,6 +222,21 @@ async function runOutcome(
 	runsDirectory: string,
 	run: string,
 ): Promise<BundleOutcome> {
+	return (
+		(await recordedOutcome(runsDirectory, run)) ?? {
+			status: "NO_OUTCOME_RECORDED",
+		}
+	);
+}
+
+/**
+ * The outcome a run's records hold: its final record, a stage stop or an
+ * operator stop. A run with none of them has not ended, or died first.
+ */
+export async function recordedOutcome(
+	runsDirectory: string,
+	run: string,
+): Promise<BundleOutcome | undefined> {
 	const paths = benchmarkRunPaths(runsDirectory, run);
 	const finalFile = Bun.file(paths.artifactFile);
 	if (await finalFile.exists()) {
@@ -250,5 +265,5 @@ async function runOutcome(
 		return { status: OPERATOR_STOPPED };
 	}
 
-	return { status: "NO_OUTCOME_RECORDED" };
+	return undefined;
 }

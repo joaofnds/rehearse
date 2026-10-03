@@ -12,7 +12,6 @@ import {
 import { CLAUDE_TIMEOUT_MS } from "./config";
 import type { ClaudeEnvelope, Immutable } from "./contracts";
 import { RefusedPreconditionError } from "./exit-codes";
-import { operatorStopped } from "./operator-stop";
 import type { RunLiveness } from "./run-liveness";
 import { claimsLiveTarget } from "./run-liveness";
 import {
@@ -20,11 +19,10 @@ import {
 	culpritAnalysesDirectory,
 	runNameFromTimestamp,
 } from "./run-layout";
-import { stoppedStage } from "./run-outcome";
 import { pausedStage } from "./run-pause";
 import { createSpendCeiling } from "./spend-ceiling";
 import type { CulpritBundle } from "./culprit-bundle";
-import { assembleCulpritBundle } from "./culprit-bundle";
+import { assembleCulpritBundle, recordedOutcome } from "./culprit-bundle";
 
 export type AnalysisInvoker = (
 	prompt: string,
@@ -255,15 +253,13 @@ async function refuseUnended(
 	request: AnalysisRequest,
 	liveness: RunLiveness,
 ): Promise<void> {
-	const paths = benchmarkRunPaths(request.runsDirectory, request.run);
 	if (
-		(await Bun.file(paths.artifactFile).exists()) ||
-		(await stoppedStage(request.runsDirectory, request.run)) !== undefined ||
-		(await operatorStopped(paths))
+		(await recordedOutcome(request.runsDirectory, request.run)) !== undefined
 	) {
 		return;
 	}
 
+	const paths = benchmarkRunPaths(request.runsDirectory, request.run);
 	if ((await pausedStage(paths)) !== undefined) {
 		throw new RefusedPreconditionError(
 			`Run ${request.run} is paused and can still resume, so it has no outcome to analyze`,
