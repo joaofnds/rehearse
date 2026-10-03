@@ -9,7 +9,7 @@ records the gaps in its implementation.
 
 | Location                              | Responsibility                                                                                                                                                 |
 | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`rehearse.ts`](../rehearse.ts)       | Bun version gate and command dispatch                                                                                                                          |
+| [`rehearse.ts`](../rehearse.ts)       | Bun version gate, signal confinement and command dispatch                                                                                                      |
 | [`src/cli/`](../src/cli/)             | Command definitions, argument policy, terminal gates, output, and harness wiring                                                                               |
 | [`src/benchmark/`](../src/benchmark/) | Case loading, provider invocation, execution, grading, checkpoints, records, and comparisons                                                                   |
 | [`src/server/`](../src/server/)       | Read API, the guarded launch and settings routes, derived reports, event streaming, startup reconciliation, target liveness probing, and static client serving |
@@ -61,10 +61,11 @@ from the original checkout. They are not sandboxes for arbitrary host actions.
 
 A command whose sessions can run commands re-executes itself in place under
 `sandbox-exec` with a profile that denies signals to any process outside the
-sandbox, so the run and everything it starts share one sandbox and keep the
-pid the launcher recorded. A run's sessions therefore cannot directly signal a
-process outside the run, and they can still stop what the run started.
-Setuid programs cannot run inside it. Files, network, the harness, other
+sandbox, so the run and every process it starts itself share one sandbox and
+keep the pid the launcher recorded. A run's sessions therefore cannot directly
+signal a process outside the run, and they can still stop what the run started
+itself. Setuid programs and a nested `sandbox-exec` with another profile cannot
+run inside it. Files, network, the harness, other
 sessions of the same run, and signals sent through a process outside the
 sandbox are not confined, so host execution is still not a sandbox
 ([reference](reference.md#signal-confinement)).

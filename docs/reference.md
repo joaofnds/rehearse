@@ -72,41 +72,6 @@ rewrite the Judge's grade or make a low grade a reliability success.
 - `calibrate --confirm-rejudge` approves revised Judge conclusions. Calibration
   can invoke paid Judges even when the target was restored long ago.
 
-### Signal confinement
-
-A session that can run a command runs as you and with your permissions, so a
-`pkill -f` it issues could stop any of your processes whose command line
-matches. `run` of a pipeline, `run` of a session case whose `tools` list is
-non-empty, whose `settings` declare `hooks`, or whose fixture carries a
-`.claude` directory, `replay`, `compare attempts` and `compare extend` therefore
-replace their own process, keeping its pid, with
-`/usr/bin/sandbox-exec -p '(version 1)(allow default)(deny signal)(allow signal (target same-sandbox))'`
-running the same command. Everything the command starts shares that one
-sandbox for the command's whole life:
-
-- A session's attempt to signal a process started outside the run fails with
-  `Operation not permitted`, and that process keeps running.
-- A session can stop a process the same run started, in that call or an
-  earlier one.
-- Stop in the browser, Ctrl-C and SIGHUP still end the run and its sessions,
-  and the launch record and run marker keep naming the run's pid.
-
-The confined command marks its environment with `REHEARSE_CONFINED=1` so it
-does not confine itself twice. A shell that exports that variable runs these
-commands unconfined.
-
-On a host without `/usr/bin/sandbox-exec` those commands stop with exit code 3
-before any provider call, naming the missing program. Every other command, and
-a session case with no tool, no hooks and no fixture `.claude` directory, runs
-unconfined on any host. `serve` stays unconfined, and a run it launches
-confines itself.
-
-The sandbox confines signals only. It does not limit files, network, the
-harness itself, or other sessions of the same run, and a signal sent on a
-session's behalf by a process outside the sandbox, such as a terminal
-multiplexer's server, still arrives. A setuid program such as `ps` or `sudo`
-cannot start inside it.
-
 Model availability is checked with a paid probe whose budget is $0.10.
 For pipeline `run`, repository and settings preconditions precede the probe,
 but baseline target checks happen afterward. Session execution also probes
@@ -124,6 +89,48 @@ allowance in its projection. A projection is a sum of budgets, not a cap:
 Claude Code stops a session only after the call that crosses its budget, and
 that call is charged in full. Stage/pipeline projections do not include that
 probe allowance. Calibration rejudges are additional calls.
+
+### Signal confinement
+
+A session that can run a command runs as you and with your permissions, so a
+`pkill -f` it issues could stop any of your processes whose command line
+matches. `run` of a pipeline, `run` of a session case whose `tools` list is
+non-empty, whose `settings` declare `hooks`, or whose fixture carries a
+`.claude` directory, `replay`, `compare attempts` and `compare extend` therefore
+replace their own process, keeping its pid, with
+`/usr/bin/sandbox-exec -p '(version 1)(allow default)(deny signal)(allow signal (target same-sandbox))'`
+running the same command. Every process the command starts itself shares that
+one sandbox for the command's whole life:
+
+- A session's attempt to signal a process started outside the run fails with
+  `Operation not permitted`, and that process keeps running.
+- A session can stop a process the same run started, in that call or an
+  earlier one. A process started through a server outside the sandbox, such
+  as an already running tmux server, lives outside it, and the session
+  cannot signal it directly.
+- Stop in the browser, Ctrl-C and SIGHUP still end the run and its sessions,
+  and the launch record and run marker keep naming the run's pid.
+
+The confined command marks its environment with `REHEARSE_CONFINED=1` so it
+does not confine itself twice. A shell that exports that variable runs these
+commands unconfined.
+
+On a host without `/usr/bin/sandbox-exec` those commands stop with exit code 3
+before any provider call, naming the missing program. Every other command, and
+a session case with no tool, no hooks and no fixture `.claude` directory, runs
+unconfined on any host. `serve` stays unconfined, and a run it launches
+confines itself.
+
+The sandbox confines signals only. It does not limit files, network, the
+harness itself, or other sessions of the same run, and a signal sent on a
+session's behalf by a process outside the sandbox, such as a terminal
+multiplexer's server, still arrives. A setuid program such as `ps` or `sudo`
+cannot start inside it, and in a pipeline such as `ps aux | grep` that failure
+leaves the pipeline's status at 0, so the search finds nothing without failing.
+A second `sandbox-exec` with a different profile cannot start inside it either,
+so a tool that sandboxes itself with it fails there. The same failure, exit code
+71 from `sandbox-exec`, ends a confining command started from inside another
+sandbox. macOS marks `sandbox-exec` deprecated, and it still ships.
 
 ### Spend ceiling
 

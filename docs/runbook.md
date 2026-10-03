@@ -24,7 +24,8 @@ experiment. Rehearse invokes that installed CLI with your credentials.
 A command whose sessions can run commands needs macOS, since it confines those
 sessions with `/usr/bin/sandbox-exec` and refuses with exit code 3 where that
 is missing. That covers `run` of a pipeline, `run` of a session case that
-declares a tool or hooks, `replay`, `compare attempts` and `compare extend`.
+declares a tool or hooks or whose fixture carries a `.claude` directory,
+`replay`, `compare attempts` and `compare extend`.
 The smoke case declares no tool, so its attempt runs anywhere. See
 [signal confinement](reference.md#signal-confinement).
 

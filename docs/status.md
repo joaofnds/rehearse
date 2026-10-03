@@ -1,6 +1,6 @@
 # Current state and priorities
 
-Reviewed against the code and project board on **2026-10-02**. This is the public
+Reviewed against the code and project board on **2026-10-03**. This is the public
 feature inventory, not a release guarantee. The [vision](vision.md) describes the
 longer-term goal; the [runbook](runbook.md) describes the supported first steps.
 
@@ -113,10 +113,11 @@ summary yet (ACT-257).
   are denied at runtime even when the operator's own settings would allow them.
   See the [support matrix](reference.md#corpus-sources-and-delivery).
 - **Only signals are confined.** Commands whose sessions can run commands keep
-  those sessions from directly signalling a process outside the run, which
-  makes them macOS-only, and setuid programs such as `ps` cannot run inside
-  them. Files, network, the harness, other sessions of the same run, and
-  signals sent through a process outside the sandbox are not confined. See
+  those sessions from directly signalling a process outside the run with a
+  `sandbox-exec` sandbox, which makes them macOS-only, and setuid programs such
+  as `ps` cannot run inside it. Files, network, the harness, other sessions of
+  the same run, and signals sent through a process outside the sandbox are not
+  confined. See
   [signal confinement](reference.md#signal-confinement).
 - **Corpus containment is a read boundary.** Declared inputs, stage capture,
   `stale`, and the corpus API check layout roots and entries against their
