@@ -70,6 +70,7 @@ describe(createAppServer.name, () => {
 		readonly launcher: FakeLauncher;
 		readonly liveRoot: string;
 		readonly casesRoot: string;
+		readonly runsRoot: string;
 	}
 
 	/**
@@ -103,7 +104,13 @@ describe(createAppServer.name, () => {
 			launcher,
 		});
 
-		return { app, launcher, liveRoot: live.root, casesRoot: cases };
+		return {
+			app,
+			launcher,
+			liveRoot: live.root,
+			casesRoot: cases,
+			runsRoot: records,
+		};
 	}
 
 	async function casesDirectory(): Promise<string> {
@@ -462,6 +469,32 @@ describe(createAppServer.name, () => {
 
 				expect(response.status).toBe(403);
 				expect(await readdir(casesRoot)).toEqual(before);
+			});
+		});
+
+		describe("to grade a step blind", () => {
+			const grade = JSON.stringify({
+				hardBlockers: [],
+				requirements: [],
+				dimensions: [],
+				note: null,
+			});
+
+			it("writes no grade for a foreign Origin", async () => {
+				const { app, runsRoot } = await appServer();
+				const before = await readdir(runsRoot, { recursive: true });
+
+				const response = await app.request(
+					"/api/calibration/runs/2026-10-01T10-00-00.000Z/stages/shape/grade",
+					{
+						method: "POST",
+						headers: { ...sameOrigin, origin: "https://evil.example" },
+						body: grade,
+					},
+				);
+
+				expect(response.status).toBe(403);
+				expect(await readdir(runsRoot, { recursive: true })).toEqual(before);
 			});
 		});
 
