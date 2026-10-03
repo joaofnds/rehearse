@@ -16,7 +16,12 @@ import type { LucideIcon } from "lucide-react";
  * the screen behind the item reads, so a badge cannot disagree with the list
  * it links to (SPEC.md:78).
  */
-export type BadgeSource = "runs" | "monitor" | "corpus" | "comparisons";
+export type BadgeSource =
+	| "runs"
+	| "monitor"
+	| "corpus"
+	| "comparisons"
+	| "calibration";
 
 /**
  * One count per badge source, so a source named on a nav item always has a
@@ -58,6 +63,11 @@ export const NAV_ITEMS: readonly NavItem[] = [
 	{ label: "Corpus", icon: Scroll, path: "/corpus", badge: "corpus" },
 	{ label: "Tasks", icon: Workflow, path: "/tasks" },
 	{ label: "Cases", icon: Box, path: "/cases" },
-	{ label: "Calibration", icon: Scale },
+	{
+		label: "Calibration",
+		icon: Scale,
+		path: "/calibration",
+		badge: "calibration",
+	},
 	{ label: "Settings", icon: SlidersHorizontal },
 ];

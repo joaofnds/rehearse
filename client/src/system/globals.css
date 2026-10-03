@@ -23,6 +23,10 @@
 	grid-template-columns: minmax(380px, 1fr) minmax(320px, 0.8fr);
 }
 
+@utility grid-cols-calibration {
+	grid-template-columns: minmax(0, 1fr) 280px;
+}
+
 @layer base {
 	*,
 	::before,

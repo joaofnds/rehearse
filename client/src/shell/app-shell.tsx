@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { calibrationQuery } from "#client/calibration/calibration-query";
 import { Link, Outlet } from "@tanstack/react-router";
 import { comparisonIndexQuery } from "#client/comparison/comparison-index-query";
 import { corpusQuery } from "#client/corpus/corpus-query";
@@ -60,6 +61,7 @@ function useBadgeCounts(): BadgeCounts {
 	const runs = useQuery(runHistoryQuery);
 	const corpus = useQuery(corpusQuery);
 	const comparisons = useQuery(comparisonIndexQuery);
+	const calibration = useQuery(calibrationQuery);
 
 	return {
 		runs: runs.data?.rows.length,
@@ -67,6 +69,7 @@ function useBadgeCounts(): BadgeCounts {
 			runs.data === undefined ? undefined : runsInFlight(runs.data.rows).length,
 		corpus: corpus.data?.files.length,
 		comparisons: comparisons.data?.comparisons.length,
+		calibration: calibration.data?.reviews,
 	};
 }
 

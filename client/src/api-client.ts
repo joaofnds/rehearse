@@ -1,5 +1,6 @@
 import { hc } from "hono/client";
 import type { ApiRoutes } from "#server/api";
+import type { CalibrationRoutes } from "#server/calibration";
 import type { LaunchRoutes } from "#server/launches";
 
 /**
@@ -12,3 +13,6 @@ export const apiClient = hc<ApiRoutes>("");
 
 /** The launch routes' client, typed from `LaunchRoutes` for the same reason. */
 export const launchClient = hc<LaunchRoutes>("");
+
+/** The calibration routes' client, typed from `CalibrationRoutes` for the same reason. */
+export const calibrationClient = hc<CalibrationRoutes>("");

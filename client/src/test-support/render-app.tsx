@@ -1,6 +1,7 @@
 import { render } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
+import type { CalibrationResponse } from "#client/calibration/calibration-query";
 import type { ComparisonIndexResponse } from "#client/comparison/comparison-index-query";
 import type { CorpusResponse } from "#client/corpus/corpus-query";
 import { createAppRouter } from "#client/router";
@@ -21,6 +22,15 @@ const EMPTY_CORPUS: CorpusResponse = {
 	},
 };
 
+const NO_GRADES: CalibrationResponse = {
+	reviews: 0,
+	withinOneStep: 0,
+	ungraded: 0,
+	next: null,
+	rows: [],
+	groups: [],
+};
+
 const NO_COMPARISONS: ComparisonIndexResponse = {
 	comparisons: [],
 	unreadable: [],
@@ -37,6 +47,7 @@ export const SHELL_BASELINE: ReadonlyMap<string, unknown> = new Map<
 	["/api/runs", NO_RUNS],
 	["/api/corpus", EMPTY_CORPUS],
 	["/api/comparisons", NO_COMPARISONS],
+	["/api/calibration", NO_GRADES],
 ]);
 
 export function renderAppAt(path: string): void {

@@ -4,6 +4,7 @@ import {
 	createRouter,
 } from "@tanstack/react-router";
 import type { RouterHistory } from "@tanstack/react-router";
+import { CalibrationPage } from "#client/calibration/calibration-page";
 import { CasesPage } from "#client/cases/cases-page";
 import { ComparisonPage } from "#client/comparison/comparison-page";
 import { ComparisonsPage } from "#client/comparison/comparisons-page";
@@ -78,6 +79,12 @@ const casesRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/cases",
 	component: CasesPage,
+});
+
+const calibrationRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/calibration",
+	component: CalibrationPage,
 });
 
 const comparisonRoute = createRoute({
@@ -192,6 +199,7 @@ const routeTree = rootRoute.addChildren([
 	comparisonRoute,
 	tasksRoute,
 	casesRoute,
+	calibrationRoute,
 	sessionAttemptRoute,
 	confirmationAttemptRoute,
 ]);

@@ -200,6 +200,7 @@ describe("the navigation shell", () => {
 			"Corpus",
 			"Tasks",
 			"Cases",
+			"Calibration",
 		]);
 	});
 
@@ -518,7 +519,7 @@ describe("the navigation shell", () => {
 
 		const planned = screen.getAllByText("planned");
 
-		expect(planned).toHaveLength(3);
+		expect(planned).toHaveLength(2);
 	});
 
 	it.each([
