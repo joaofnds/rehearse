@@ -114,6 +114,14 @@ function groupLine(group: DriftGroup): string {
 	].join(" · ");
 }
 
+/**
+ * What a group is, apart from how it reads: the line carries the review
+ * count, which changes when a grade lands and would lose the choice.
+ */
+function groupKey(group: DriftGroup): string {
+	return JSON.stringify([group.judgeModel, group.stage, group.rubricSha256]);
+}
+
 function DriftList({
 	group,
 }: {
@@ -158,8 +166,7 @@ function DriftAside({
 	const headingId = useId();
 	const selectId = useId();
 	const [chosen, setChosen] = useState<string | undefined>(undefined);
-	const shown =
-		groups.find((group) => groupLine(group) === chosen) ?? groups[0];
+	const shown = groups.find((group) => groupKey(group) === chosen) ?? groups[0];
 
 	return (
 		<aside
@@ -176,14 +183,14 @@ function DriftAside({
 					</label>
 					<select
 						id={selectId}
-						value={groupLine(shown)}
+						value={groupKey(shown)}
 						onChange={(event) => {
 							setChosen(event.target.value);
 						}}
 						className="min-h-11 rounded-md border border-strong bg-background px-2 text-11-5"
 					>
 						{groups.map((group) => (
-							<option key={groupLine(group)} value={groupLine(group)}>
+							<option key={groupKey(group)} value={groupKey(group)}>
 								{groupLine(group)}
 							</option>
 						))}

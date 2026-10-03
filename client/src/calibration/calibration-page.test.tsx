@@ -271,14 +271,12 @@ describe(CalibrationPage.name, () => {
 				name: "Where the judge drifts",
 			});
 
+			const other = within(aside).getByRole<HTMLOptionElement>("option", {
+				name: "Judge model not recorded · build · rubric not recorded · 1 review",
+			});
 			fireEvent.change(
 				within(aside).getByRole("combobox", { name: "Judge group" }),
-				{
-					target: {
-						value:
-							"Judge model not recorded · build · rubric not recorded · 1 review",
-					},
-				},
+				{ target: { value: other.value } },
 			);
 
 			expect(
