@@ -71,6 +71,14 @@ export function runEventsDatabaseFile(runsDirectory: string): string {
 	return join(runsDirectory, "run-events.sqlite");
 }
 
+/**
+ * Operator grades sit in a directory of their own, so no reader that lists a
+ * run's `<run>.*.json` files takes one for a stage record.
+ */
+export function operatorGradesDirectory(runsDirectory: string): string {
+	return join(runsDirectory, "operator-grades");
+}
+
 export function runNameFromTimestamp(timestamp: string): string {
 	return timestamp.replaceAll(":", "-");
 }

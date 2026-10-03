@@ -51,7 +51,7 @@ const passFailItemSchema = z.looseObject({
 	evidence: z.array(recordedStageEvidenceSchema).readonly(),
 });
 
-const judgedGradeSchema = z.looseObject({
+export const judgedGradeSchema = z.looseObject({
 	hardBlockers: z.array(passFailItemSchema).readonly(),
 	requirements: z.array(passFailItemSchema).readonly(),
 	dimensions: z
