@@ -1,10 +1,17 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { mkdir, mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { StageLetterGrade } from "#benchmark/contracts";
+import type { JsonObject } from "#benchmark/json-value";
 import type { OperatorGrade } from "#benchmark/operator-grade";
-import { benchmarkRunPaths } from "#benchmark/run-layout";
+import {
+	benchmarkRunPaths,
+	confirmationGroupPaths,
+	operatorGradesDirectory,
+	replayRecordFile,
+} from "#benchmark/run-layout";
 import { createCalibrationApp } from "./calibration";
 
 const RUBRIC = {
@@ -42,6 +49,7 @@ const INPUT = {
 };
 
 const JUDGE_SUMMARY = "Judge summary: clarity and decision quality both read";
+const JUDGE_CLAIM = "Judge claim: the task state is valid";
 
 const roots: string[] = [];
 
@@ -73,36 +81,70 @@ async function writeJudgedStage(
 	const stage = judged.stage ?? "shape";
 	const paths = benchmarkRunPaths(runsDirectory, judged.run);
 	await mkdir(paths.checkpointsDirectory, { recursive: true });
-	const [clarity, decisionQuality] = judged.dimensions;
-	const worst = clarity > decisionQuality ? clarity : decisionQuality;
 	await Bun.write(
 		paths.stageFile(stage),
 		JSON.stringify({
 			stage,
 			judgeModel: judged.judgeModel ?? "opus",
-			rubric: RUBRIC,
-			input: { ...INPUT, stage },
-			grade: {
-				hardBlockers: [
-					{
-						id: "invalid-stage-delivery",
-						status: "PASS",
-						evidence: [
-							{ source: "task-state", path: "task", claim: "Judge claim" },
-						],
-					},
-				],
-				requirements: [{ id: "goal-stated", status: "PASS", evidence: [] }],
-				dimensions: [
-					{ id: "clarity", grade: clarity, evidence: [] },
-					{ id: "decision-quality", grade: decisionQuality, evidence: [] },
-				],
-				summary: JUDGE_SUMMARY,
-				grade: worst,
-				verdict: "CONTINUE",
-			},
+			...scorecard(stage, judged.dimensions),
 		}),
 	);
+}
+
+function scorecard(
+	stage: string,
+	dimensions: readonly [StageLetterGrade, StageLetterGrade],
+): JsonObject {
+	const [clarity, decisionQuality] = dimensions;
+
+	return {
+		rubric: RUBRIC,
+		input: { ...INPUT, stage },
+		grade: {
+			...judgedItems(dimensions),
+			summary: JUDGE_SUMMARY,
+			grade: clarity > decisionQuality ? clarity : decisionQuality,
+			verdict: "CONTINUE",
+		},
+	};
+}
+
+function judgedItems(
+	dimensions: readonly [StageLetterGrade, StageLetterGrade],
+): JsonObject {
+	return {
+		hardBlockers: [
+			{
+				id: "invalid-stage-delivery",
+				status: "PASS",
+				evidence: [{ source: "task-state", path: "task", claim: JUDGE_CLAIM }],
+			},
+		],
+		requirements: [{ id: "goal-stated", status: "PASS", evidence: [] }],
+		dimensions: [
+			{ id: "clarity", grade: dimensions[0], evidence: [] },
+			{ id: "decision-quality", grade: dimensions[1], evidence: [] },
+		],
+	};
+}
+
+/** Every file under the records directory with its sha256, so a test sees any byte a request changed. */
+async function fileDigests(
+	runsDirectory: string,
+): Promise<Readonly<Record<string, string>>> {
+	const files = await readdir(runsDirectory, {
+		recursive: true,
+		withFileTypes: true,
+	});
+	const digests: Record<string, string> = {};
+	for (const file of files.filter((entry) => entry.isFile())) {
+		const path = join(file.parentPath, file.name);
+		digests[path] = createHash("sha256")
+			.update(await readFile(path))
+			.digest("hex");
+	}
+
+	return digests;
 }
 
 function operatorGrade(
@@ -195,5 +237,356 @@ describe("/api/calibration", () => {
 				},
 			],
 		});
+	});
+
+	it("serves the frozen input and the rubric before grading, and nothing the Judge returned", async () => {
+		const runsDirectory = await recordsDirectory();
+		await writeJudgedStage(runsDirectory, {
+			run: FIRST_RUN,
+			dimensions: ["B", "D"],
+		});
+
+		const response = await appFor(runsDirectory).request(
+			`/api/calibration/runs/${FIRST_RUN}/stages/shape`,
+		);
+
+		expect(response.status).toBe(200);
+		const body = await response.text();
+		expect(JSON.parse(body)).toEqual({
+			stage: { kind: "run", run: FIRST_RUN, stage: "shape" },
+			stageName: "shape",
+			judgeModel: "opus",
+			criteria: RUBRIC,
+			input: INPUT,
+		});
+		expect(body).not.toContain(JUDGE_SUMMARY);
+		expect(body).not.toContain(JUDGE_CLAIM);
+		expect(body).not.toContain("PASS");
+		expect(body).not.toContain('"D"');
+	});
+
+	it("returns the Judge's grade for the same stage once the operator's is recorded", async () => {
+		const runsDirectory = await recordsDirectory();
+		await writeJudgedStage(runsDirectory, {
+			run: FIRST_RUN,
+			dimensions: ["B", "D"],
+		});
+		const path = `/api/calibration/runs/${FIRST_RUN}/stages/shape`;
+
+		const recorded = await postGrade(
+			runsDirectory,
+			path,
+			JSON.stringify(operatorGrade(["A", "B"])),
+		);
+		const review = await appFor(runsDirectory).request(path);
+
+		expect(recorded.status).toBe(201);
+		expect(await recorded.json()).toMatchObject({
+			operatorGrade: { grade: "B" },
+			judgeGrade: { grade: "D", summary: JUDGE_SUMMARY },
+		});
+		expect(await review.json()).toMatchObject({
+			input: INPUT,
+			operatorGrade: { grade: "B" },
+			judgeGrade: {
+				grade: "D",
+				summary: JUDGE_SUMMARY,
+				hardBlockers: [{ evidence: [{ claim: JUDGE_CLAIM }] }],
+			},
+		});
+	});
+
+	it.each([
+		[
+			"an unknown stage",
+			`/api/calibration/runs/${FIRST_RUN}/stages/build`,
+			404,
+		],
+		[
+			"an unknown run",
+			"/api/calibration/runs/2026-01-01T00-00-00.000Z/stages/shape",
+			404,
+		],
+		[
+			"a traversing segment, resolved away before any route matches",
+			`/api/calibration/runs/${FIRST_RUN}/stages/..`,
+			404,
+		],
+		[
+			"an encoded slash",
+			`/api/calibration/runs/${FIRST_RUN}/stages/a%2Fb`,
+			400,
+		],
+		[
+			"an encoded traversal, resolved away before any route matches",
+			"/api/calibration/runs/%2E%2E/stages/shape",
+			404,
+		],
+	])("refuses %s and writes nothing", async (_case, path, status) => {
+		const runsDirectory = await recordsDirectory();
+		await writeJudgedStage(runsDirectory, {
+			run: FIRST_RUN,
+			dimensions: ["B", "B"],
+		});
+		const before = await fileDigests(runsDirectory);
+
+		const response = await postGrade(
+			runsDirectory,
+			path,
+			JSON.stringify(operatorGrade(["B", "B"])),
+		);
+
+		expect(response.status).toBe(status);
+		expect(await fileDigests(runsDirectory)).toEqual(before);
+	});
+
+	it.each([
+		[
+			"a letter outside A to F",
+			{
+				...operatorGrade(["B", "B"]),
+				dimensions: [
+					{ id: "clarity", grade: "E" },
+					{ id: "decision-quality", grade: "B" },
+				],
+			},
+		],
+		[
+			"a status outside PASS and FAIL",
+			{
+				...operatorGrade(["B", "B"]),
+				requirements: [{ id: "goal-stated", status: "PARTIAL" }],
+			},
+		],
+		[
+			"a missing criterion",
+			{
+				...operatorGrade(["B", "B"]),
+				dimensions: [{ id: "clarity", grade: "B" }],
+			},
+		],
+		[
+			"an extra criterion",
+			{
+				...operatorGrade(["B", "B"]),
+				requirements: [
+					{ id: "goal-stated", status: "PASS" },
+					{ id: "tests-named", status: "PASS" },
+				],
+			},
+		],
+		[
+			"a repeated criterion",
+			{
+				...operatorGrade(["B", "B"]),
+				dimensions: [
+					{ id: "clarity", grade: "B" },
+					{ id: "clarity", grade: "B" },
+				],
+			},
+		],
+		[
+			"a field the grade does not have",
+			{ ...operatorGrade(["B", "B"]), grade: "A" },
+		],
+	])("refuses %s and writes nothing", async (_case, grade) => {
+		const runsDirectory = await recordsDirectory();
+		await writeJudgedStage(runsDirectory, {
+			run: FIRST_RUN,
+			dimensions: ["B", "B"],
+		});
+		const before = await fileDigests(runsDirectory);
+
+		const response = await postGrade(
+			runsDirectory,
+			`/api/calibration/runs/${FIRST_RUN}/stages/shape`,
+			JSON.stringify(grade),
+		);
+
+		expect(response.status).toBe(400);
+		expect(await fileDigests(runsDirectory)).toEqual(before);
+	});
+
+	it("refuses a second grade for a stage already graded and keeps the first", async () => {
+		const runsDirectory = await recordsDirectory();
+		await writeJudgedStage(runsDirectory, {
+			run: FIRST_RUN,
+			dimensions: ["B", "B"],
+		});
+		const path = `/api/calibration/runs/${FIRST_RUN}/stages/shape`;
+		await postGrade(
+			runsDirectory,
+			path,
+			JSON.stringify(operatorGrade(["B", "B"])),
+		);
+		const before = await fileDigests(runsDirectory);
+
+		const second = await postGrade(
+			runsDirectory,
+			path,
+			JSON.stringify(operatorGrade(["A", "A"])),
+		);
+
+		expect(second.status).toBe(409);
+		expect(await fileDigests(runsDirectory)).toEqual(before);
+	});
+
+	it("derives the operator's letter by the Judge's rule: a failed requirement caps A, A at C", async () => {
+		const runsDirectory = await recordsDirectory();
+		await writeJudgedStage(runsDirectory, {
+			run: FIRST_RUN,
+			dimensions: ["A", "A"],
+		});
+
+		const response = await postGrade(
+			runsDirectory,
+			`/api/calibration/runs/${FIRST_RUN}/stages/shape`,
+			JSON.stringify({
+				...operatorGrade(["A", "A"]),
+				requirements: [{ id: "goal-stated", status: "FAIL" }],
+			}),
+		);
+
+		expect(await response.json()).toMatchObject({
+			operatorGrade: { grade: "C" },
+		});
+	});
+
+	it("keeps each Judge model's drift apart", async () => {
+		const runsDirectory = await recordsDirectory();
+		await writeJudgedStage(runsDirectory, {
+			run: FIRST_RUN,
+			judgeModel: "opus",
+			dimensions: ["A", "A"],
+		});
+		await writeJudgedStage(runsDirectory, {
+			run: SECOND_RUN,
+			judgeModel: "sonnet",
+			dimensions: ["D", "D"],
+		});
+		for (const run of [FIRST_RUN, SECOND_RUN]) {
+			await postGrade(
+				runsDirectory,
+				`/api/calibration/runs/${run}/stages/shape`,
+				JSON.stringify(operatorGrade(["B", "B"])),
+			);
+		}
+
+		const response = await appFor(runsDirectory).request("/api/calibration");
+
+		expect(await response.json()).toMatchObject({
+			groups: [
+				{ judgeModel: "opus", drift: [{ steps: 1 }, { steps: 1 }] },
+				{ judgeModel: "sonnet", drift: [{ steps: -2 }, { steps: -2 }] },
+			],
+		});
+	});
+
+	it("lists rep stages, replays and stopped stages as gradeable, oldest first, reps last", async () => {
+		const runsDirectory = await recordsDirectory();
+		const group = confirmationGroupPaths(runsDirectory, "group-1");
+		await Bun.write(
+			group.groupFile,
+			JSON.stringify({ inputs: { judgeModel: "sonnet" } }),
+		);
+		await Bun.write(
+			group.rep("rep-1").stageFile("shape"),
+			JSON.stringify({ stage: "shape", ...scorecard("shape", ["C", "C"]) }),
+		);
+		await Bun.write(
+			replayRecordFile(runsDirectory, "lineage-1", "2026-09-30T10:00:00.000Z"),
+			JSON.stringify({
+				judgeModel: "haiku",
+				stage: "decompose",
+				scorecard: scorecard("decompose", ["B", "C"]),
+			}),
+		);
+		const run = benchmarkRunPaths(runsDirectory, FIRST_RUN);
+		await mkdir(run.checkpointsDirectory, { recursive: true });
+		await Bun.write(
+			run.stageFile("shape"),
+			JSON.stringify({
+				stage: "shape",
+				status: "STAGE_JUDGE_FAILED",
+				judgeModel: "opus",
+				input: INPUT,
+				...judgedItems(["F", "B"]),
+				summary: JUDGE_SUMMARY,
+				grade: { grade: "F", verdict: "STOP" },
+			}),
+		);
+		await Bun.write(run.stageFile("decompose"), "not json");
+
+		const before = await appFor(runsDirectory).request("/api/calibration");
+		const stopReview = await appFor(runsDirectory).request(
+			`/api/calibration/runs/${FIRST_RUN}/stages/shape`,
+		);
+		const repGrade = await postGrade(
+			runsDirectory,
+			"/api/calibration/groups/group-1/reps/rep-1/stages/shape",
+			JSON.stringify(operatorGrade(["C", "C"])),
+		);
+		const replayGrade = await postGrade(
+			runsDirectory,
+			"/api/calibration/replays/lineage-1/2026-09-30T10-00-00.000Z",
+			JSON.stringify(operatorGrade(["B", "C"])),
+		);
+		const after = await appFor(runsDirectory).request("/api/calibration");
+
+		expect(await before.json()).toMatchObject({
+			ungraded: 3,
+			next: {
+				kind: "replay",
+				lineage: "lineage-1",
+				timestamp: "2026-09-30T10-00-00.000Z",
+			},
+		});
+		expect(await stopReview.json()).toMatchObject({
+			criteria: {
+				hardBlockers: [{ id: "invalid-stage-delivery" }],
+				requirements: [{ id: "goal-stated" }],
+				dimensions: [{ id: "clarity" }, { id: "decision-quality" }],
+			},
+		});
+		expect(repGrade.status).toBe(201);
+		expect(replayGrade.status).toBe(201);
+		expect(await after.json()).toMatchObject({
+			ungraded: 1,
+			next: { kind: "run", run: FIRST_RUN, stage: "shape" },
+			rows: [
+				{ stageName: "decompose", judgeModel: "haiku", stepsApart: 0 },
+				{ stageName: "shape", judgeModel: "sonnet", stepsApart: 0 },
+			],
+		});
+	});
+
+	it("leaves every record that existed byte-identical when a grade is recorded", async () => {
+		const runsDirectory = await recordsDirectory();
+		await writeJudgedStage(runsDirectory, {
+			run: FIRST_RUN,
+			dimensions: ["B", "D"],
+		});
+		const before = await fileDigests(runsDirectory);
+
+		const response = await postGrade(
+			runsDirectory,
+			`/api/calibration/runs/${FIRST_RUN}/stages/shape`,
+			JSON.stringify(operatorGrade(["B", "B"])),
+		);
+		const after = await fileDigests(runsDirectory);
+
+		expect(response.status).toBe(201);
+		expect(Object.keys(before).length).toBeGreaterThan(0);
+		for (const [path, digest] of Object.entries(before)) {
+			expect(after[path]).toBe(digest);
+		}
+		expect(Object.keys(after).filter((path) => !(path in before))).toEqual([
+			join(
+				operatorGradesDirectory(runsDirectory),
+				"run",
+				FIRST_RUN,
+				"shape.json",
+			),
+		]);
 	});
 });
