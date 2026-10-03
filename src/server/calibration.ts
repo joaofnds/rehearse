@@ -329,19 +329,35 @@ interface CriterionDifference {
 	readonly operator: string;
 }
 
-function differences(graded: GradedStage): readonly CriterionDifference[] {
-	const judge = graded.stage.judgeGrade;
-	const operator = graded.operatorGrade;
-	const operatorValues = new Map<string, string>([
-		...operator.hardBlockers.map(({ id, status }) => [id, status] as const),
-		...operator.requirements.map(({ id, status }) => [id, status] as const),
-		...operator.dimensions.map(({ id, grade }) => [id, grade] as const),
-	]);
-	const judgeValues: readonly (readonly [string, string])[] = [
-		...judge.hardBlockers.map(({ id, status }) => [id, status] as const),
-		...judge.requirements.map(({ id, status }) => [id, status] as const),
-		...judge.dimensions.map(({ id, grade }) => [id, grade] as const),
+interface CriterionGrades {
+	readonly hardBlockers: readonly {
+		readonly id: string;
+		readonly status: string;
+	}[];
+	readonly requirements: readonly {
+		readonly id: string;
+		readonly status: string;
+	}[];
+	readonly dimensions: readonly {
+		readonly id: string;
+		readonly grade: string;
+	}[];
+}
+
+/** Each criterion's id with its status or letter, in rubric order. */
+function criterionValues(
+	grades: CriterionGrades,
+): readonly (readonly [string, string])[] {
+	return [
+		...grades.hardBlockers.map(({ id, status }) => [id, status] as const),
+		...grades.requirements.map(({ id, status }) => [id, status] as const),
+		...grades.dimensions.map(({ id, grade }) => [id, grade] as const),
 	];
+}
+
+function differences(graded: GradedStage): readonly CriterionDifference[] {
+	const operatorValues = new Map(criterionValues(graded.operatorGrade));
+	const judgeValues = criterionValues(graded.stage.judgeGrade);
 
 	return judgeValues.flatMap(([criterion, judgeValue]) => {
 		const operatorValue = operatorValues.get(criterion);

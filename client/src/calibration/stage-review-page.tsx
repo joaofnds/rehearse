@@ -29,6 +29,32 @@ const EMPTY_DRAFT: Draft = { statuses: {}, letters: {}, note: "" };
 
 type Criteria = StageReview["criteria"];
 
+interface CriterionGrades {
+	readonly hardBlockers: readonly {
+		readonly id: string;
+		readonly status: string;
+	}[];
+	readonly requirements: readonly {
+		readonly id: string;
+		readonly status: string;
+	}[];
+	readonly dimensions: readonly {
+		readonly id: string;
+		readonly grade: string;
+	}[];
+}
+
+/** Each criterion's id with its status or letter, in rubric order. */
+function criterionValues(
+	grades: CriterionGrades,
+): readonly (readonly [string, string])[] {
+	return [
+		...grades.hardBlockers.map(({ id, status }) => [id, status] as const),
+		...grades.requirements.map(({ id, status }) => [id, status] as const),
+		...grades.dimensions.map(({ id, grade }) => [id, grade] as const),
+	];
+}
+
 /** The grade the draft makes, or nothing while any criterion is ungraded. */
 function completeGrade(
 	criteria: Criteria,
@@ -262,18 +288,8 @@ function Comparison({
 	readonly recorded: GradeRecorded;
 }): React.JSX.Element {
 	const { operatorGrade, judgeGrade } = recorded;
-	const operatorItems = [
-		...operatorGrade.hardBlockers.map(({ id, status }) => [id, status]),
-		...operatorGrade.requirements.map(({ id, status }) => [id, status]),
-		...operatorGrade.dimensions.map(({ id, grade }) => [id, grade]),
-	];
-	const judgeItems = [
-		...judgeGrade.hardBlockers.map(({ id, status }) => [id, status]),
-		...judgeGrade.requirements.map(({ id, status }) => [id, status]),
-		...judgeGrade.dimensions.map(({ id, grade }) => [id, grade]),
-	];
-	const yours = new Map(operatorItems.map(([id, value]) => [id, value]));
-	const judges = new Map(judgeItems.map(([id, value]) => [id, value]));
+	const yours = new Map(criterionValues(operatorGrade));
+	const judges = new Map(criterionValues(judgeGrade));
 	const ids = [
 		...criteria.hardBlockers,
 		...criteria.requirements,
