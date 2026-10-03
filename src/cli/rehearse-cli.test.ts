@@ -27,6 +27,8 @@ import {
 	storeSpendCeiling,
 } from "#benchmark/settings";
 import { PROJECT_ROOT } from "#benchmark/test-support";
+import type { Launcher } from "#server/launches";
+import { processLauncher } from "#server/process-launcher";
 
 const PIPE_BUFFER_BYTES = 131_072;
 
@@ -1661,5 +1663,128 @@ describe("a run's sessions", () => {
 		const signals = await signalsIn(directory);
 		expect(signals).toContain("own-stopped");
 		expect(signals).not.toContain("own-refused");
+	});
+
+	describe("in a run launched as the browser launches one", () => {
+		/** Copying the control and seeding the target take seconds before the run reaches its first stage. */
+		const RUN_TO_SESSION_TIMEOUT_MS = 30_000;
+		/** Each launched run and session leads a process group of its own, which a failed stop would leave running. */
+		const processGroups: number[] = [];
+
+		afterEach(() => {
+			for (const leader of processGroups.splice(0)) {
+				try {
+					process.kill(-leader, "SIGKILL");
+				} catch {
+					// The group already ended, which is the stop working.
+				}
+			}
+		});
+
+		/** Polls, because the detached run reaches its session on its own schedule. */
+		async function eventually(check: () => Promise<boolean>): Promise<boolean> {
+			for (let tries = 0; tries < 1000; tries += 1) {
+				if (await check()) {
+					return true;
+				}
+				await Bun.sleep(20);
+			}
+
+			return false;
+		}
+
+		/**
+		 * A stage session that checks the outside process, records its pid with a
+		 * rename so a reader never sees the file half written, and then works until
+		 * it is stopped.
+		 */
+		function blockingStageCall(
+			directory: string,
+			outsidePid: number,
+		): string[] {
+			const log = join(directory, SIGNALS_LOG);
+			const pidFile = join(directory, "session.pid");
+
+			return [
+				'case " $* " in *" --dangerously-skip-permissions "*)',
+				`\tif kill -0 ${outsidePid} 2>/dev/null; then echo outside-allowed >> '${log}'; else echo outside-refused >> '${log}'; fi`,
+				`\techo $$ > '${pidFile}.partial'; mv '${pidFile}.partial' '${pidFile}'`,
+				"\texec sleep 300 ;;",
+				"esac",
+			];
+		}
+
+		it.each([
+			{
+				name: "Stop",
+				stop: (launcher: Launcher, pid: number): void => {
+					launcher.stop(pid);
+				},
+			},
+			{
+				name: "Ctrl-C",
+				stop: (_launcher: Launcher, pid: number): void => {
+					process.kill(pid, "SIGINT");
+				},
+			},
+			{
+				name: "SIGHUP",
+				stop: (_launcher: Launcher, pid: number): void => {
+					process.kill(pid, "SIGHUP");
+				},
+			},
+		])(
+			"ends the confined run and its session on $name, which stays available",
+			async ({ stop }) => {
+				const directory = await mkdtemp(join(tmpdir(), "rehearse-confined-"));
+				temporaryDirectories.push(directory);
+				const [control, binDirectory, target] = await Promise.all([
+					controlCopy(directory),
+					providerShim(directory, 0, blockingStageCall(directory, outside.pid)),
+					passingTarget(directory),
+				]);
+				await storeSpendCeiling(benchmarkRunsDirectory(control), 100);
+				const launcher = processLauncher(
+					[process.execPath, join(control, "rehearse.ts")],
+					{
+						...environmentWithoutRecordsLocation(),
+						PATH: `${binDirectory}:${Bun.env["PATH"] ?? ""}`,
+					},
+				);
+				const pid = await launcher.launch(
+					[
+						"run",
+						"--case",
+						"audit-log",
+						"--model",
+						"sonnet",
+						"--target",
+						target,
+					],
+					join(directory, "launch.log"),
+				);
+				processGroups.push(pid);
+				const launchedAt = await launcher.startedAt(pid);
+				const sessionPidPath = join(directory, "session.pid");
+				await eventually(() => Bun.file(sessionPidPath).exists());
+				const sessionPidText = await Bun.file(sessionPidPath).text();
+				const session = Number(sessionPidText.trim());
+
+				processGroups.push(session);
+
+				expect(session).toBeGreaterThan(0);
+				expect(await signalsIn(directory)).toEqual(["outside-refused"]);
+				expect(await launcher.startedAt(pid)).toBe(launchedAt);
+
+				stop(launcher, pid);
+
+				expect(
+					await eventually(() =>
+						Promise.resolve(!isRunning(pid) && !isRunning(session)),
+					),
+				).toBe(true);
+			},
+			RUN_TO_SESSION_TIMEOUT_MS,
+		);
 	});
 });
