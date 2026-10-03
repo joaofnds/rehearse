@@ -20,6 +20,13 @@ export type GradeRecorded = Immutable<
 	InferResponseType<typeof runStage.grade.$post, 201>
 >;
 
+/**
+ * The Hono RPC client writes each path param into the URL as given, so a `/`
+ * or `..` the router decoded from the link would move the request to another
+ * stage unless it is escaped here, as the evidence source query does.
+ */
+const escaped = encodeURIComponent;
+
 export class GradeRefusedError extends Error {
 	public override name = "GradeRefusedError";
 }
@@ -29,20 +36,25 @@ function reviewResponse(
 ): Promise<Awaited<ReturnType<typeof runStage.$get>>> {
 	switch (stage.kind) {
 		case "run": {
-			return runStage.$get({ param: { run: stage.run, stage: stage.stage } });
+			return runStage.$get({
+				param: { run: escaped(stage.run), stage: escaped(stage.stage) },
+			});
 		}
 		case "rep": {
 			return repStage.$get({
 				param: {
-					groupId: stage.groupId,
-					repId: stage.repId,
-					stage: stage.stage,
+					groupId: escaped(stage.groupId),
+					repId: escaped(stage.repId),
+					stage: escaped(stage.stage),
 				},
 			});
 		}
 		case "replay": {
 			return replayStage.$get({
-				param: { lineage: stage.lineage, timestamp: stage.timestamp },
+				param: {
+					lineage: escaped(stage.lineage),
+					timestamp: escaped(stage.timestamp),
+				},
 			});
 		}
 		default: {
@@ -84,7 +96,7 @@ function gradeResponse(
 	switch (stage.kind) {
 		case "run": {
 			return runStage.grade.$post(
-				{ param: { run: stage.run, stage: stage.stage } },
+				{ param: { run: escaped(stage.run), stage: escaped(stage.stage) } },
 				options,
 			);
 		}
@@ -92,9 +104,9 @@ function gradeResponse(
 			return repStage.grade.$post(
 				{
 					param: {
-						groupId: stage.groupId,
-						repId: stage.repId,
-						stage: stage.stage,
+						groupId: escaped(stage.groupId),
+						repId: escaped(stage.repId),
+						stage: escaped(stage.stage),
 					},
 				},
 				options,
@@ -102,7 +114,12 @@ function gradeResponse(
 		}
 		case "replay": {
 			return replayStage.grade.$post(
-				{ param: { lineage: stage.lineage, timestamp: stage.timestamp } },
+				{
+					param: {
+						lineage: escaped(stage.lineage),
+						timestamp: escaped(stage.timestamp),
+					},
+				},
 				options,
 			);
 		}

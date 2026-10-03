@@ -167,6 +167,25 @@ describe(StageReviewPage.name, () => {
 		expect(screen.getByText(JUDGE_SUMMARY)).toBeInTheDocument();
 	});
 
+	it("asks for the stage the link names, a slash in it escaped rather than followed", async () => {
+		const server = serving(BLIND_REVIEW);
+		renderAppAt("/calibration/runs/a%2F..%2F..%2Freplays%2Fx/stages/shape");
+
+		await waitFor(() => {
+			expect(
+				server.sent.some(({ pathname }) =>
+					pathname.startsWith("/api/calibration/runs/a"),
+				),
+			).toBe(true);
+		});
+
+		expect(
+			server.sent
+				.map(({ pathname }) => pathname)
+				.filter((pathname) => pathname.startsWith("/api/calibration/r")),
+		).toEqual(["/api/calibration/runs/a%2F..%2F..%2Freplays%2Fx/stages/shape"]);
+	});
+
 	describe("when the operator already graded the step", () => {
 		it("shows both grades without offering the form again", async () => {
 			serving({
