@@ -487,11 +487,50 @@ function confined(value: string): string {
 	}
 }
 
+function sameRef(left: GradedStageRef, right: GradedStageRef): boolean {
+	switch (left.kind) {
+		case "run": {
+			return (
+				right.kind === "run" &&
+				right.run === left.run &&
+				right.stage === left.stage
+			);
+		}
+		case "rep": {
+			return (
+				right.kind === "rep" &&
+				right.groupId === left.groupId &&
+				right.repId === left.repId &&
+				right.stage === left.stage
+			);
+		}
+		case "replay": {
+			return (
+				right.kind === "replay" &&
+				right.lineage === left.lineage &&
+				right.timestamp === left.timestamp
+			);
+		}
+		default: {
+			return unhandled(left, "graded stage kind");
+		}
+	}
+}
+
+/**
+ * Only a stage the records list: a run name holds a dot, so a run and stage
+ * split at another dot would read the same record and key a second grade.
+ */
 async function requiredStage(
 	runsDirectory: string,
 	ref: GradedStageRef,
 ): Promise<GradeableStage> {
-	const stage = await readGradeableStage(runsDirectory, ref);
+	const listed = (await stageRefs(runsDirectory)).some((each) =>
+		sameRef(each, ref),
+	);
+	const stage = listed
+		? await readGradeableStage(runsDirectory, ref)
+		: undefined;
 	if (stage === undefined) {
 		throw new CalibrationRefusalError(
 			404,

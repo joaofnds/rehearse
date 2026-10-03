@@ -495,6 +495,25 @@ describe("/api/calibration", () => {
 		expect(await fileDigests(runsDirectory)).toEqual(before);
 	});
 
+	it("refuses a run and stage split at another dot of the same record and writes nothing", async () => {
+		const runsDirectory = await recordsDirectory();
+		await writeJudgedStage(runsDirectory, {
+			run: FIRST_RUN,
+			dimensions: ["B", "B"],
+		});
+		const before = await fileDigests(runsDirectory);
+		const [run, milliseconds] = FIRST_RUN.split(".");
+
+		const response = await postGrade(
+			runsDirectory,
+			`/api/calibration/runs/${run}/stages/${milliseconds}.shape`,
+			JSON.stringify(operatorGrade(["B", "B"])),
+		);
+
+		expect(response.status).toBe(404);
+		expect(await fileDigests(runsDirectory)).toEqual(before);
+	});
+
 	it("derives the operator's letter by the Judge's rule: a failed requirement caps A, A at C", async () => {
 		const runsDirectory = await recordsDirectory();
 		await writeJudgedStage(runsDirectory, {
