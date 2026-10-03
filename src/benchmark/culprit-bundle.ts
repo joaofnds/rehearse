@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { Immutable } from "./contracts";
 import { corpusMeasurementSchema } from "./corpus-measurement";
-import { readCorpusVersionFile } from "./corpus-version";
+import { readCorpusVersion, readCorpusVersionFile } from "./corpus-version";
 import { loadRunManifest } from "./manifest";
 import { operatorStopped } from "./operator-stop";
 import { readManifestSchema } from "./read-manifest";
@@ -66,10 +66,12 @@ export type BundleOutcome = Immutable<{
 	error?: string;
 }>;
 
+/** One version of a corpus file, with the steps that read that version. */
 export type BundleCorpusFile = Immutable<{
 	path: string;
 	sha256: string;
 	body: string;
+	readBy: string[];
 }>;
 
 /** Everything the analysis session reads about one run, and nothing else. */
@@ -108,7 +110,9 @@ export async function assembleCulpritBundle(
 		const record = stageRecordSchema.parse(await file.json());
 		steps.push(bundleStep(step, record));
 		for (const body of await corpusBodies(runsDirectory, record)) {
-			corpusFiles.set(`${body.path}\n${body.sha256}`, body);
+			const key = `${body.path}\n${body.sha256}`;
+			const readBy = corpusFiles.get(key)?.readBy ?? [];
+			corpusFiles.set(key, { ...body, readBy: [...readBy, step] });
 		}
 	}
 
@@ -152,18 +156,24 @@ function bundleStep(step: string, record: StageRecord): BundleStep {
 
 /**
  * A record from before corpus versions were kept has no bodies to read, so
- * the bundle names its files and carries none of them.
+ * the bundle names its files and carries none of them. A read the version
+ * does not hold, such as a built-in output style, is named the same way.
  */
 async function corpusBodies(
 	runsDirectory: string,
 	record: StageRecord,
-): Promise<readonly BundleCorpusFile[]> {
+): Promise<readonly Omit<BundleCorpusFile, "readBy">[]> {
 	if (record.corpusVersion?.kind !== "version") {
 		return [];
 	}
 
-	const bodies: BundleCorpusFile[] = [];
-	for (const path of corpusReads(record)) {
+	const version = await readCorpusVersion(
+		runsDirectory,
+		record.corpusVersion.digest,
+	);
+	const held = new Set(version.map(({ path }) => path));
+	const bodies: Omit<BundleCorpusFile, "readBy">[] = [];
+	for (const path of corpusReads(record).filter((read) => held.has(read))) {
 		const bytes = await readCorpusVersionFile(
 			runsDirectory,
 			record.corpusVersion.digest,

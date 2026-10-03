@@ -7,6 +7,7 @@ import {
 	RUN,
 	runStoppedAtBuild,
 	runWithOneGradedStep,
+	stoppedStage,
 	writeStage,
 } from "./culprit-analysis-test-support";
 import type { BundleCorpusFile } from "./culprit-bundle";
@@ -33,11 +34,15 @@ function sha256(text: string): string {
 	return new Bun.CryptoHasher("sha256").update(text).digest("hex");
 }
 
-function corpusFile(path: keyof typeof CORPUS_BODIES): BundleCorpusFile {
+function corpusFile(
+	path: keyof typeof CORPUS_BODIES,
+	readBy: readonly string[],
+): BundleCorpusFile {
 	return {
 		path,
 		sha256: sha256(CORPUS_BODIES[path]),
 		body: CORPUS_BODIES[path],
+		readBy,
 	};
 }
 
@@ -78,9 +83,9 @@ describe(assembleCulpritBundle.name, () => {
 				error: "build stage graded D; minimum grade is B",
 			},
 			corpusFiles: [
-				corpusFile("CLAUDE.md"),
-				corpusFile("skills/shape/SKILL.md"),
-				corpusFile("skills/build/SKILL.md"),
+				corpusFile("CLAUDE.md", ["shape", "build"]),
+				corpusFile("skills/shape/SKILL.md", ["shape"]),
+				corpusFile("skills/build/SKILL.md", ["build"]),
 			],
 		});
 	});
@@ -117,6 +122,32 @@ describe(assembleCulpritBundle.name, () => {
 		const bundle = await assembleCulpritBundle(directory, RUN);
 
 		expect(bundle.outcome).toEqual({ status: "OPERATOR_STOPPED" });
+	});
+
+	describe("when a step read a corpus file its corpus version does not hold", () => {
+		it("names the read and carries no body for it", async () => {
+			const directory = await runsDirectory();
+			const corpusVersion = await runWithOneGradedStep(directory);
+			await writeStage(
+				directory,
+				stoppedStage(
+					"build",
+					["CLAUDE.md", "output-styles/Explanatory.md"],
+					corpusVersion,
+				),
+			);
+
+			const bundle = await assembleCulpritBundle(directory, RUN);
+
+			expect(bundle.steps[1]?.corpusReads).toEqual([
+				"CLAUDE.md",
+				"output-styles/Explanatory.md",
+			]);
+			expect(bundle.corpusFiles.map(({ path }) => path)).toEqual([
+				"CLAUDE.md",
+				"skills/shape/SKILL.md",
+			]);
+		});
 	});
 
 	describe("when a step's record predates the read manifest", () => {
