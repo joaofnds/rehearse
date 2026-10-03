@@ -141,6 +141,8 @@ describe(CalibrationPage.name, () => {
 							{ dimension: "verbosity-control", steps: 0.5 },
 							{ dimension: "scope-discipline", steps: 0.04 },
 							{ dimension: "diff-hygiene", steps: -1 / 3 },
+							{ dimension: "clarity", steps: 2 },
+							{ dimension: "goal-stated", steps: 0.36 },
 						],
 					},
 				],
@@ -159,6 +161,8 @@ describe(CalibrationPage.name, () => {
 			"verbosity-controljudge +0.5 steps▮▮▮▯▯▯▯",
 			"scope-disciplineagrees▮▯▯▯▯▯▯",
 			"diff-hygienejudge −0.3 steps▮▮▯▯▯▯▯",
+			"clarityjudge +2.0 steps▮▮▮▮▮▮▮",
+			"goal-statedjudge +0.4 steps▮▮▯▯▯▯▯",
 		]);
 		expect(aside).toHaveTextContent(
 			"Calibration does not change a grade. It tells you how much to trust one.",

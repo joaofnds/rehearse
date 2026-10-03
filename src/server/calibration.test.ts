@@ -280,6 +280,40 @@ describe("/api/calibration", () => {
 		});
 	});
 
+	it("counts a grade one letter step from the Judge's as agreeing, and names a requirement graded apart", async () => {
+		const runsDirectory = await recordsDirectory();
+		await writeJudgedStage(runsDirectory, {
+			run: FIRST_RUN,
+			dimensions: ["B", "D"],
+		});
+		await postGrade(
+			runsDirectory,
+			`/api/calibration/runs/${FIRST_RUN}/stages/shape`,
+			JSON.stringify({
+				...operatorGrade(["B", "B"]),
+				requirements: [{ id: "goal-stated", status: "FAIL" }],
+			}),
+		);
+
+		const response = await appFor(runsDirectory).request("/api/calibration");
+
+		expect(await response.json()).toMatchObject({
+			reviews: 1,
+			withinOneStep: 1,
+			rows: [
+				{
+					judgeGrade: "D",
+					operatorGrade: "C",
+					stepsApart: 1,
+					differences: [
+						{ criterion: "goal-stated", judge: "PASS", operator: "FAIL" },
+						{ criterion: "decision-quality", judge: "D", operator: "B" },
+					],
+				},
+			],
+		});
+	});
+
 	it("serves the frozen input and the rubric before grading, and nothing the Judge returned", async () => {
 		const runsDirectory = await recordsDirectory();
 		await writeJudgedStage(runsDirectory, {
