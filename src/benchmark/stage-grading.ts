@@ -90,6 +90,31 @@ export function parseStageRubric(
 	return rubric;
 }
 
+/** The items a stage letter is derived from, whoever graded them. */
+export interface StageLetterItems {
+	readonly hardBlockers: readonly { readonly status: "PASS" | "FAIL" }[];
+	readonly requirements: readonly { readonly status: "PASS" | "FAIL" }[];
+	readonly dimensions: readonly { readonly grade: StageLetterGrade }[];
+}
+
+/**
+ * F when any hard blocker fails, otherwise the worst dimension letter, capped
+ * at C when any requirement fails.
+ */
+export function deriveStageLetter(items: StageLetterItems): StageLetterGrade {
+	if (items.hardBlockers.some(({ status }) => status === "FAIL")) {
+		return "F";
+	}
+
+	const dimensionGrades = items.dimensions.map(({ grade }) => grade);
+
+	return worstGrade(
+		items.requirements.some(({ status }) => status === "FAIL")
+			? ["C", ...dimensionGrades]
+			: dimensionGrades,
+	);
+}
+
 export function deriveStageGrade(
 	output: StageJudgeOutput,
 	rubric: StageRubric,
@@ -110,19 +135,7 @@ export function deriveStageGrade(
 		"quality dimensions",
 	);
 
-	let grade: StageLetterGrade;
-	if (output.hardBlockers.some(({ status }) => status === "FAIL")) {
-		grade = "F";
-	} else {
-		const dimensionGrades = output.dimensions.map(
-			(dimension) => dimension.grade,
-		);
-		grade = worstGrade(
-			output.requirements.some(({ status }) => status === "FAIL")
-				? ["C", ...dimensionGrades]
-				: dimensionGrades,
-		);
-	}
+	const grade = deriveStageLetter(output);
 
 	return {
 		...output,
