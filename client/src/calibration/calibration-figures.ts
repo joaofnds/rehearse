@@ -41,7 +41,9 @@ export interface DriftReading {
  * unrounded value, one cell for agreement and one more per quarter step.
  */
 export function driftReading(steps: number): DriftReading {
-	const tenths = Math.round(steps * 10);
+	// Math.round takes a half toward +∞, so the magnitude is rounded and the
+	// sign put back, keeping a drift and its mirror the same size.
+	const tenths = Math.sign(steps) * Math.round(Math.abs(steps) * 10);
 	const filled = Math.min(DRIFT_CELLS, 1 + Math.round(4 * Math.abs(steps)));
 	const bar = `${"▮".repeat(filled)}${"▯".repeat(DRIFT_CELLS - filled)}`;
 	if (tenths === 0) {

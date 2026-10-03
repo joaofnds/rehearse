@@ -165,6 +165,44 @@ describe(CalibrationPage.name, () => {
 		);
 	});
 
+	it("rounds a drift and its mirror to the same size, half a tenth away from agreement", async () => {
+		renderCalibration(
+			reportWith({
+				reviews: 4,
+				withinOneStep: 4,
+				groups: [
+					{
+						judgeModel: "opus",
+						stage: "shape",
+						rubricSha256: "a".repeat(64),
+						reviews: 4,
+						drift: [
+							{ dimension: "evidence-quality", steps: 0.25 },
+							{ dimension: "verbosity-control", steps: -0.25 },
+							{ dimension: "scope-discipline", steps: 0.05 },
+							{ dimension: "diff-hygiene", steps: -0.05 },
+						],
+					},
+				],
+			}),
+		);
+
+		const aside = await screen.findByRole("complementary", {
+			name: "Where the judge drifts",
+		});
+
+		expect(
+			within(aside)
+				.getAllByRole("listitem")
+				.map((item) => item.textContent),
+		).toEqual([
+			"evidence-qualityjudge +0.3 steps▮▮▯▯▯▯▯",
+			"verbosity-controljudge −0.3 steps▮▮▯▯▯▯▯",
+			"scope-disciplinejudge +0.1 steps▮▯▯▯▯▯▯",
+			"diff-hygienejudge −0.1 steps▮▯▯▯▯▯▯",
+		]);
+	});
+
 	it("names the Judge model, step and rubric each drift figure belongs to", async () => {
 		renderCalibration(
 			reportWith({
