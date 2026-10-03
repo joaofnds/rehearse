@@ -12,7 +12,7 @@
 		"#client/*": "./client/src/*"
 	},
 	"scripts": {
-		"check": "bun run typecheck && bun run lint && bun run lint:css && bun run fmt:check && bun run build:client && bun run test",
+		"check": "$npm_execpath run typecheck && $npm_execpath run lint && $npm_execpath run lint:css && $npm_execpath run fmt:check && $npm_execpath run build:client && $npm_execpath run test",
 		"fmt": "oxfmt",
 		"fmt:check": "oxfmt --check",
 		"lint": "oxlint --type-aware",
