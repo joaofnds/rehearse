@@ -28,13 +28,26 @@ activate mise in your shell so `bun` resolves to it. The other checks here run
 oxlint, tsc, oxfmt, stylelint, and Vite as child processes, so they pass under
 any Bun and report no mismatch.
 
+Run the gate before every commit:
+
+```sh
+bun run check
+```
+
+It runs every check below, fastest first, and stops at the first one that fails,
+so a lint error reports in seconds and the full test suite runs last. Run it even
+when the tests for the files you changed pass. A change can break a test in a
+file it never touched, and only the full suite catches that.
+
+Each check also runs on its own:
+
 ```sh
 bun run typecheck
 bun run lint
 bun run lint:css
 bun run fmt:check
-bun run test
 bun run build:client
+bun run test
 ```
 
 `bun run test` runs the backend suite and then the client's DOM suite. A bare
