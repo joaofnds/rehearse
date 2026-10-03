@@ -2,7 +2,7 @@ import { join } from "node:path";
 import type { LoadedCase, SessionCase } from "#benchmark/case";
 import { unhandled } from "#benchmark/contracts";
 import { RefusedPreconditionError } from "#benchmark/exit-codes";
-import { statIfExists } from "#benchmark/file-presence";
+import { pathExists } from "#benchmark/file-presence";
 import type { Confinement } from "#cli/commands";
 
 export const SANDBOX_EXEC = "/usr/bin/sandbox-exec";
@@ -21,18 +21,18 @@ export const CONFINED_VARIABLE = "REHEARSE_CONFINED";
  * run commands whatever the tools are, so any tool, any declared hook, or
  * project settings the fixture brings in count.
  */
-export async function sessionCanRunCommands(
+export function sessionCanRunCommands(
 	sessionCase: SessionCase,
 ): Promise<boolean> {
 	const { fixturePath, settings, tools } = sessionCase;
 	if (tools.length > 0 || settings?.["hooks"] !== undefined) {
-		return true;
+		return Promise.resolve(true);
 	}
 	if (fixturePath === undefined) {
-		return false;
+		return Promise.resolve(false);
 	}
 
-	return (await statIfExists(join(fixturePath, ".claude"))) !== undefined;
+	return pathExists(join(fixturePath, ".claude"));
 }
 
 export async function confinesItself(
@@ -70,7 +70,7 @@ export interface ConfinementHost {
 	) => void;
 }
 
-export function isConfined(
+function isConfined(
 	env: Readonly<Record<string, string | undefined>>,
 ): boolean {
 	return env[CONFINED_VARIABLE] === "1";
@@ -82,9 +82,6 @@ export function isConfined(
  * process to forward them.
  */
 export async function enterConfinement(host: ConfinementHost): Promise<void> {
-	if (isConfined(host.env)) {
-		return;
-	}
 	if (!(await host.sandboxExecExists())) {
 		throw new RefusedPreconditionError(
 			`This command confines its sessions with ${SANDBOX_EXEC}, which this host lacks, so it runs only on macOS`,
@@ -96,6 +93,7 @@ export async function enterConfinement(host: ConfinementHost): Promise<void> {
 			(entry): entry is [string, string] => entry[1] !== undefined,
 		),
 	);
+
 	host.replaceProcess(
 		SANDBOX_EXEC,
 		["sandbox-exec", "-p", CONFINEMENT_PROFILE, ...host.argv],
@@ -103,15 +101,35 @@ export async function enterConfinement(host: ConfinementHost): Promise<void> {
 	);
 }
 
+/**
+ * Confines the process when its command's sessions can run commands and the
+ * sandbox does not already hold it.
+ */
+export async function confineIfNeeded(
+	confinement: Confinement,
+	loadRunCase: () => Promise<LoadedCase>,
+	host: ConfinementHost,
+): Promise<void> {
+	if (
+		isConfined(host.env) ||
+		!(await confinesItself(confinement, loadRunCase))
+	) {
+		return;
+	}
+
+	await enterConfinement(host);
+}
+
 export function liveConfinementHost(): ConfinementHost {
 	return {
 		env: Bun.env,
-		argv: [process.execPath, ...process.argv.slice(1)],
-		sandboxExecExists: async () =>
-			(await statIfExists(SANDBOX_EXEC)) !== undefined,
+		argv: [process.execPath, ...process.execArgv, ...process.argv.slice(1)],
+		sandboxExecExists: () => pathExists(SANDBOX_EXEC),
 		replaceProcess: (path, args, env) => {
 			if (process.execve === undefined) {
-				throw new Error("This Bun cannot replace its own process");
+				throw new RefusedPreconditionError(
+					"This command confines its sessions by replacing its own process, which this Bun cannot do",
+				);
 			}
 			process.execve(path, args, env);
 		},

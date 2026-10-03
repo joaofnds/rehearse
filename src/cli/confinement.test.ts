@@ -1,15 +1,17 @@
-import { describe, expect, it } from "bun:test";
+import { afterEach, describe, expect, it } from "bun:test";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { SessionCase } from "#benchmark/case";
 import { RefusedPreconditionError } from "#benchmark/exit-codes";
 import type { Immutable } from "#benchmark/contracts";
+import { requireCase } from "#cli/case-command";
 import { failureOf } from "#cli/cli-test-support";
 import type { ConfinementHost } from "#cli/confinement";
 import {
 	CONFINED_VARIABLE,
 	CONFINEMENT_PROFILE,
+	confineIfNeeded,
 	confinesItself,
 	enterConfinement,
 	SANDBOX_EXEC,
@@ -79,6 +81,23 @@ class FakeConfinementHost implements ConfinementHost {
 }
 
 describe(sessionCanRunCommands.name, () => {
+	const fixtures: string[] = [];
+
+	afterEach(async () => {
+		await Promise.all(
+			fixtures
+				.splice(0)
+				.map((fixture) => rm(fixture, { force: true, recursive: true })),
+		);
+	});
+
+	async function emptyFixture(): Promise<string> {
+		const fixture = await mkdtemp(join(tmpdir(), "rehearse-confinement-"));
+		fixtures.push(fixture);
+
+		return fixture;
+	}
+
 	it("holds for a case that declares a tool", async () => {
 		const withRead = sessionCase({ tools: ["Read"] });
 
@@ -98,16 +117,20 @@ describe(sessionCanRunCommands.name, () => {
 	});
 
 	it("holds for a case whose fixture carries project settings", async () => {
-		const fixture = await mkdtemp(join(tmpdir(), "rehearse-confinement-"));
-		try {
-			await mkdir(join(fixture, ".claude"));
+		const fixture = await emptyFixture();
+		await mkdir(join(fixture, ".claude"));
 
-			const withProjectSettings = sessionCase({ fixturePath: fixture });
+		const withProjectSettings = sessionCase({ fixturePath: fixture });
 
-			expect(await sessionCanRunCommands(withProjectSettings)).toBe(true);
-		} finally {
-			await rm(fixture, { force: true, recursive: true });
-		}
+		expect(await sessionCanRunCommands(withProjectSettings)).toBe(true);
+	});
+
+	it("does not hold for a case whose fixture brings no project settings", async () => {
+		const withoutProjectSettings = sessionCase({
+			fixturePath: await emptyFixture(),
+		});
+
+		expect(await sessionCanRunCommands(withoutProjectSettings)).toBe(false);
 	});
 });
 
@@ -119,13 +142,19 @@ describe(confinesItself.name, () => {
 		{ confinement: "always", confined: true },
 		{ confinement: "never", confined: false },
 	] as const)(
-		"confines a command declared $confinement without reading a case",
+		"decides a command declared $confinement without reading a case",
 		async ({ confinement, confined }) => {
 			expect(await confinesItself(confinement, unloadable)).toBe(confined);
 		},
 	);
 
 	describe("when the command follows its case", () => {
+		it("confines a pipeline case", async () => {
+			expect(
+				await confinesItself("by case", () => requireCase("audit-log")),
+			).toBe(true);
+		});
+
 		it("confines a session case that can run commands", async () => {
 			const withBash = sessionCase({ tools: ["Bash"] });
 
@@ -159,14 +188,6 @@ describe(enterConfinement.name, () => {
 		]);
 	});
 
-	it("leaves a process the sandbox already holds as it is", async () => {
-		const host = new FakeConfinementHost({ [CONFINED_VARIABLE]: "1" }, true);
-
-		await enterConfinement(host);
-
-		expect(host.replacements).toEqual([]);
-	});
-
 	describe("when the host has no sandbox-exec", () => {
 		it("refuses by naming the missing mechanism, without replacing the process", async () => {
 			const host = new FakeConfinementHost({}, false);
@@ -177,5 +198,44 @@ describe(enterConfinement.name, () => {
 			expect(refusal.message).toContain(SANDBOX_EXEC);
 			expect(host.replacements).toEqual([]);
 		});
+	});
+});
+
+describe(confineIfNeeded.name, () => {
+	const unloadable = (): Promise<never> =>
+		Promise.reject(new Error("no case for this command"));
+
+	it("confines a command whose sessions can run commands", async () => {
+		const host = new FakeConfinementHost({}, true);
+
+		await confineIfNeeded("always", unloadable, host);
+
+		expect(host.replacements).toHaveLength(1);
+	});
+
+	it("leaves a command whose sessions cannot run commands as it is", async () => {
+		const host = new FakeConfinementHost({}, true);
+
+		await confineIfNeeded("never", unloadable, host);
+
+		expect(host.replacements).toEqual([]);
+	});
+
+	it("leaves a process the sandbox already holds as it is", async () => {
+		const host = new FakeConfinementHost({ [CONFINED_VARIABLE]: "1" }, true);
+
+		await confineIfNeeded("always", unloadable, host);
+
+		expect(host.replacements).toEqual([]);
+	});
+
+	it("refuses a command whose sessions can run commands on a host without sandbox-exec", async () => {
+		const host = new FakeConfinementHost({}, false);
+
+		const refusal = await failureOf(
+			confineIfNeeded("always", unloadable, host),
+		);
+
+		expect(refusal).toBeInstanceOf(RefusedPreconditionError);
 	});
 });

@@ -42,12 +42,7 @@ import {
 	parseCommandLine,
 	topLevelHelp,
 } from "./src/cli/commands";
-import {
-	confinesItself,
-	enterConfinement,
-	isConfined,
-	liveConfinementHost,
-} from "./src/cli/confinement";
+import { confineIfNeeded, liveConfinementHost } from "./src/cli/confinement";
 import { EXIT_CODES, exitCodeFor } from "./src/benchmark/exit-codes";
 import {
 	assertPipelinePreflight,
@@ -90,12 +85,11 @@ async function main(): Promise<number> {
 
 	const loadRunCase = (): Promise<LoadedCase> =>
 		requireCase(asUsageError(() => parseCaseId(commandLine.flags)));
-	if (
-		!isConfined(Bun.env) &&
-		(await confinesItself(command.confinement, loadRunCase))
-	) {
-		await enterConfinement(liveConfinementHost());
-	}
+	await confineIfNeeded(
+		command.confinement,
+		loadRunCase,
+		liveConfinementHost(),
+	);
 
 	return dispatch(command.name, commandLine);
 }
