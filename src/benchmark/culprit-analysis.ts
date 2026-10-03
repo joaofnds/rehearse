@@ -7,7 +7,9 @@ import {
 	readStructuredOutput,
 } from "./claude";
 import type { ClaudeEnvelope, Immutable } from "./contracts";
+import { RefusedPreconditionError } from "./exit-codes";
 import { loadRunManifest } from "./manifest";
+import { operatorStopped } from "./operator-stop";
 import { readManifestSchema } from "./read-manifest";
 import type { RunLiveness } from "./run-liveness";
 import {
@@ -15,6 +17,9 @@ import {
 	culpritAnalysesDirectory,
 	runNameFromTimestamp,
 } from "./run-layout";
+import { stoppedStage } from "./run-outcome";
+import { pausedStage } from "./run-pause";
+import { createSpendCeiling } from "./spend-ceiling";
 
 export type AnalysisInvoker = (
 	prompt: string,
@@ -154,7 +159,15 @@ export async function analyzeRun(
 	dependencies: AnalysisDependencies,
 ): Promise<AnalysisResult> {
 	const paths = benchmarkRunPaths(request.runsDirectory, request.run);
+	if (!(await Bun.file(paths.manifestFile).exists())) {
+		throw new RefusedPreconditionError(`No run ${request.run} is recorded`);
+	}
+
 	const manifest = await loadRunManifest(paths.manifestFile);
+	await refuseUnended(request, manifest.sourceRoot, dependencies.liveness);
+	const ceiling = createSpendCeiling({
+		ceilingUsd: await dependencies.requireSpendCeiling(request.runsDirectory),
+	});
 	const steps = manifest.pipeline.stages.map(({ name }) => name);
 	const ran = await stepsThatRan(steps, paths.stageFile);
 
@@ -162,7 +175,7 @@ export async function analyzeRun(
 	const reading = await readSession(
 		dependencies.invoke,
 		JSON.stringify({ steps: ran }),
-		request.capUsd,
+		ceiling.budgetFor(request.capUsd),
 	);
 	const finished = dependencies.now();
 
@@ -189,6 +202,41 @@ export async function analyzeRun(
 		request.runsDirectory,
 		withCost(record, reading.costUsd),
 	);
+}
+
+/**
+ * An analysis reads an outcome, so the run must have one: completed, stopped
+ * by a stage, or stopped by the operator. A paused run can still resume, and
+ * a run whose process still holds its target is still writing records. A run
+ * whose process died without an outcome has none coming, so it is analyzed
+ * as it stands.
+ */
+async function refuseUnended(
+	request: AnalysisRequest,
+	sourceRoot: string,
+	liveness: RunLiveness,
+): Promise<void> {
+	const paths = benchmarkRunPaths(request.runsDirectory, request.run);
+	if (
+		(await Bun.file(paths.artifactFile).exists()) ||
+		(await stoppedStage(request.runsDirectory, request.run)) !== undefined ||
+		(await operatorStopped(paths))
+	) {
+		return;
+	}
+
+	if ((await pausedStage(paths)) !== undefined) {
+		throw new RefusedPreconditionError(
+			`Run ${request.run} is paused and can still resume, so it has no outcome to analyze`,
+		);
+	}
+
+	const marker = await liveness.readMarker(sourceRoot).catch(() => undefined);
+	if (marker !== undefined && liveness.isAlive(marker.pid)) {
+		throw new RefusedPreconditionError(
+			`Run ${request.run} is still in flight, so it has no outcome to analyze`,
+		);
+	}
 }
 
 async function readSession(

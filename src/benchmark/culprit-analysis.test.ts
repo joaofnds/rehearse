@@ -1,10 +1,13 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AnalysisDependencies, AnalysisInvoker } from "./culprit-analysis";
 import { analyzeRun } from "./culprit-analysis";
 import { ClaudeSessionError, parseClaudeEnvelope } from "./claude";
+import { RefusedPreconditionError } from "./exit-codes";
+import { recordPaused } from "./run-pause";
+import type { RunLiveness } from "./run-liveness";
 import type { ClaudeEnvelope } from "./contracts";
 import type { RunManifest } from "./manifest";
 import { writeRunManifest } from "./manifest";
@@ -12,6 +15,7 @@ import type { ReadManifestEntry } from "./read-manifest";
 import { benchmarkRunPaths } from "./run-layout";
 import { nothingRunning } from "./run-records-test-support";
 import { budgetHaltEnvelope } from "./test-support";
+import { failureOf } from "#cli/cli-test-support";
 
 const RUN = "2026-10-04T10-00-00.000Z";
 const SOURCE_ROOT = "/fixture/target";
@@ -105,8 +109,8 @@ async function writeStage(file: string, record: StageFixture): Promise<void> {
 	await Bun.write(file, `${JSON.stringify(record, null, 2)}\n`);
 }
 
-/** A run of shape, build and review that stopped at build. */
-async function runStoppedAtBuild(directory: string): Promise<void> {
+/** A run of shape, build and review whose shape step was graded. */
+async function runWithOneGradedStep(directory: string): Promise<void> {
 	const paths = benchmarkRunPaths(directory, RUN);
 	await writeRunManifest(
 		paths.manifestFile,
@@ -116,6 +120,12 @@ async function runStoppedAtBuild(directory: string): Promise<void> {
 		paths.stageFile("shape"),
 		gradedStage("shape", ["CLAUDE.md", "skills/shape/SKILL.md"]),
 	);
+}
+
+/** A run of shape, build and review that stopped at build. */
+async function runStoppedAtBuild(directory: string): Promise<void> {
+	const paths = benchmarkRunPaths(directory, RUN);
+	await runWithOneGradedStep(directory);
 	await writeStage(
 		paths.stageFile("build"),
 		stoppedStage("build", ["CLAUDE.md", "skills/build/SKILL.md"]),
@@ -180,6 +190,29 @@ class FakeAnalysisProvider {
 
 		return Promise.resolve(JSON.stringify(this.reply));
 	};
+}
+
+const RUNNING_PID = 4242;
+
+const stillRunning: RunLiveness = {
+	readMarker: () => Promise.resolve({ pid: RUNNING_PID }),
+	isAlive: (pid) => pid === RUNNING_PID,
+};
+
+/** Every file under `root`, by its path below it, with its bytes. */
+async function snapshot(root: string): Promise<Map<string, string>> {
+	const files = new Map<string, string>();
+	for (const entry of await readdir(root, {
+		recursive: true,
+		withFileTypes: true,
+	})) {
+		if (entry.isFile()) {
+			const path = join(entry.parentPath, entry.name);
+			files.set(path.slice(root.length), await Bun.file(path).text());
+		}
+	}
+
+	return files;
 }
 
 /** Each read moves four seconds on from the last. */
@@ -338,6 +371,144 @@ describe(analyzeRun.name, () => {
 				reason: halt.message,
 				costUsd: halt.costUsd,
 			});
+		});
+	});
+
+	it.each([
+		["spends at most the cap when the ceiling is higher", 1, 30, 1],
+		["spends at most the ceiling when the cap is higher", 5, 2, 2],
+	])("%s", async (_case, capUsd, ceilingUsd, budgetUsd) => {
+		const directory = await runsDirectory();
+		await runStoppedAtBuild(directory);
+		const provider = new FakeAnalysisProvider();
+
+		await analyzeRun(
+			{ runsDirectory: directory, run: RUN, model: "sonnet", capUsd },
+			{
+				...dependencies(provider.invoke),
+				requireSpendCeiling: () => Promise.resolve(ceilingUsd),
+			},
+		);
+
+		expect(provider.budgets).toEqual([budgetUsd]);
+	});
+
+	it("keeps a second analysis beside the first and changes nothing else", async () => {
+		const directory = await runsDirectory();
+		await runStoppedAtBuild(directory);
+		const analyses = dependencies(new FakeAnalysisProvider().invoke);
+		const first = await analyzeRun(
+			{ runsDirectory: directory, run: RUN, model: "sonnet", capUsd: 1 },
+			analyses,
+		);
+		const before = await snapshot(directory);
+
+		const second = await analyzeRun(
+			{ runsDirectory: directory, run: RUN, model: "sonnet", capUsd: 1 },
+			analyses,
+		);
+
+		const after = await snapshot(directory);
+		after.delete(second.file.slice(directory.length));
+		expect(second.file).not.toBe(first.file);
+		expect(after).toEqual(before);
+	});
+
+	it("analyzes a run whose process died before it had an outcome", async () => {
+		const directory = await runsDirectory();
+		await runWithOneGradedStep(directory);
+		const provider = new FakeAnalysisProvider();
+		provider.answer(
+			answering({ ...ANSWER, culprit: null, steps: [ANSWER.steps[0]] }),
+		);
+
+		const { record } = await analyzeRun(
+			{ runsDirectory: directory, run: RUN, model: "sonnet", capUsd: 1 },
+			dependencies(provider.invoke),
+		);
+
+		expect(record).toMatchObject({
+			outcome: "recorded",
+			culprit: null,
+			steps: [
+				ANSWER.steps[0],
+				{ step: "build", role: "never ran" },
+				{ step: "review", role: "never ran" },
+			],
+		});
+	});
+
+	describe("when the run cannot be analyzed", () => {
+		it("refuses a run with no records before any call", async () => {
+			const directory = await runsDirectory();
+			const provider = new FakeAnalysisProvider();
+
+			const failure = await failureOf(
+				analyzeRun(
+					{ runsDirectory: directory, run: RUN, model: "sonnet", capUsd: 1 },
+					dependencies(provider.invoke),
+				),
+			);
+
+			expect(failure).toBeInstanceOf(RefusedPreconditionError);
+			expect(provider.budgets).toEqual([]);
+		});
+
+		it("refuses a run still in flight before any call", async () => {
+			const directory = await runsDirectory();
+			await runWithOneGradedStep(directory);
+			const provider = new FakeAnalysisProvider();
+
+			const failure = await failureOf(
+				analyzeRun(
+					{ runsDirectory: directory, run: RUN, model: "sonnet", capUsd: 1 },
+					{ ...dependencies(provider.invoke), liveness: stillRunning },
+				),
+			);
+
+			expect(failure).toBeInstanceOf(RefusedPreconditionError);
+			expect(provider.budgets).toEqual([]);
+		});
+
+		it("refuses a paused run before any call", async () => {
+			const directory = await runsDirectory();
+			await runWithOneGradedStep(directory);
+			await recordPaused(
+				benchmarkRunPaths(directory, RUN),
+				"shape",
+				"2026-10-04T11:00:00.000Z",
+			);
+			const provider = new FakeAnalysisProvider();
+
+			const failure = await failureOf(
+				analyzeRun(
+					{ runsDirectory: directory, run: RUN, model: "sonnet", capUsd: 1 },
+					dependencies(provider.invoke),
+				),
+			);
+
+			expect(failure).toBeInstanceOf(RefusedPreconditionError);
+			expect(provider.budgets).toEqual([]);
+		});
+
+		it("refuses when no spend ceiling is stored before any call", async () => {
+			const directory = await runsDirectory();
+			await runStoppedAtBuild(directory);
+			const provider = new FakeAnalysisProvider();
+
+			const failure = await failureOf(
+				analyzeRun(
+					{ runsDirectory: directory, run: RUN, model: "sonnet", capUsd: 1 },
+					{
+						...dependencies(provider.invoke),
+						requireSpendCeiling: () =>
+							Promise.reject(new RefusedPreconditionError("no ceiling")),
+					},
+				),
+			);
+
+			expect(failure).toBeInstanceOf(RefusedPreconditionError);
+			expect(provider.budgets).toEqual([]);
 		});
 	});
 });
