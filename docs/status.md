@@ -112,6 +112,12 @@ summary yet (ACT-257).
   `permissions.allow` block in its declared settings; without one those tools
   are denied at runtime even when the operator's own settings would allow them.
   See the [support matrix](reference.md#corpus-sources-and-delivery).
+- **Only signals are confined.** Commands whose sessions can run commands keep
+  those sessions from directly signalling a process outside the run, which
+  makes them macOS-only, and setuid programs such as `ps` cannot run inside
+  them. Files, network, the harness, other sessions of the same run, and
+  signals sent through a process outside the sandbox are not confined. See
+  [signal confinement](reference.md#signal-confinement).
 - **Corpus containment is a read boundary.** Declared inputs, stage capture,
   `stale`, and the corpus API check layout roots and entries against their
   source extent. Live sources allow the install and configured backing tree;

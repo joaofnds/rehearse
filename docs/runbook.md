@@ -21,6 +21,13 @@ Mise pins Bun and Backlog.md. Follow the [Claude Code quickstart](https://code.c
 to install and authenticate the CLI separately, and make sure `claude` is on the command's `PATH` before running an
 experiment. Rehearse invokes that installed CLI with your credentials.
 
+A command whose sessions can run commands needs macOS, since it confines those
+sessions with `/usr/bin/sandbox-exec` and refuses with exit code 3 where that
+is missing. That covers `run` of a pipeline, `run` of a session case that
+declares a tool or hooks, `replay`, `compare attempts` and `compare extend`.
+The smoke case declares no tool, so its attempt runs anywhere. See
+[signal confinement](reference.md#signal-confinement).
+
 `case list` discovers declarations present in your checkout. `case show` prints
 the declaration's path by default and its JSON with `--json`. A declaration can
 exist even when its external inputs are missing; listing it is not a readiness check.

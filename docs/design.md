@@ -59,6 +59,16 @@ confirmation use separate worktrees for repetitions. Host worktrees retain real
 agent CLI behavior but use different paths, so path-dependent state can differ
 from the original checkout. They are not sandboxes for arbitrary host actions.
 
+A command whose sessions can run commands re-executes itself in place under
+`sandbox-exec` with a profile that denies signals to any process outside the
+sandbox, so the run and everything it starts share one sandbox and keep the
+pid the launcher recorded. A run's sessions therefore cannot directly signal a
+process outside the run, and they can still stop what the run started.
+Setuid programs cannot run inside it. Files, network, the harness, other
+sessions of the same run, and signals sent through a process outside the
+sandbox are not confined, so host execution is still not a sandbox
+([reference](reference.md#signal-confinement)).
+
 Session cases use temporary directories seeded with optional fixture files and
 conversation prefixes. Their checks consume replies and tool calls, and a case
 may also declare a scorer over the files and git state the session leaves. That
