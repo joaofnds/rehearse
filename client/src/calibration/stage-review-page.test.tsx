@@ -91,7 +91,7 @@ function choose(group: string, value: string): void {
 
 describe(StageReviewPage.name, () => {
 	it("shows the input the Judge read and every criterion to grade, and nothing the Judge returned", async () => {
-		serving(BLIND_REVIEW);
+		const server = serving(BLIND_REVIEW);
 		renderAppAt(`/calibration/runs/${RUN}/stages/shape`);
 
 		const input = await screen.findByRole("region", {
@@ -114,6 +114,16 @@ describe(StageReviewPage.name, () => {
 		expect(
 			screen.getByRole("button", { name: "Record my grade" }),
 		).toBeDisabled();
+		expect(
+			new Set(
+				server.sent.map(({ method, pathname }) => `${method} ${pathname}`),
+			),
+		).toEqual(
+			new Set([
+				...[...SHELL_BASELINE.keys()].map((path) => `GET ${path}`),
+				`GET ${REVIEW_PATH}`,
+			]),
+		);
 	});
 
 	it("records the operator's grade and then shows the Judge's beside it", async () => {
