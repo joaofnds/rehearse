@@ -1,4 +1,4 @@
-import { useId } from "react";
+import { useId, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { plural } from "#client/plural";
@@ -114,12 +114,52 @@ function groupLine(group: DriftGroup): string {
 	].join(" · ");
 }
 
+function DriftList({
+	group,
+}: {
+	readonly group: DriftGroup;
+}): React.JSX.Element {
+	return (
+		<ul className="mt-2 flex flex-col gap-2">
+			{group.drift.map(({ dimension, steps }) => {
+				const reading = driftReading(steps);
+
+				return (
+					<li key={dimension}>
+						<div className="flex items-baseline gap-2">
+							<span className="flex-1 text-12">{dimension}</span>
+							<span className="font-mono text-11-5 text-secondary-foreground">
+								{reading.value}
+							</span>
+						</div>
+						<div
+							aria-hidden="true"
+							className="font-mono text-10 tracking-widest text-deep"
+						>
+							{reading.bar}
+						</div>
+					</li>
+				);
+			})}
+		</ul>
+	);
+}
+
+/**
+ * One group at a time, the one with the most operator grades first as the
+ * server orders them, since a figure that blends two Judges or two rubrics
+ * says how far to trust neither.
+ */
 function DriftAside({
 	groups,
 }: {
 	readonly groups: readonly DriftGroup[];
 }): React.JSX.Element {
 	const headingId = useId();
+	const selectId = useId();
+	const [chosen, setChosen] = useState<string | undefined>(undefined);
+	const shown =
+		groups.find((group) => groupLine(group) === chosen) ?? groups[0];
 
 	return (
 		<aside
@@ -129,33 +169,35 @@ function DriftAside({
 			<h2 id={headingId}>
 				<SectionLabel>Where the judge drifts</SectionLabel>
 			</h2>
-			{groups.map((group) => (
-				<section key={groupLine(group)} className="mt-2">
-					<p className="text-11 text-dim">{groupLine(group)}</p>
-					<ul className="mt-2 flex flex-col gap-2">
-						{group.drift.map(({ dimension, steps }) => {
-							const reading = driftReading(steps);
-
-							return (
-								<li key={dimension}>
-									<div className="flex items-baseline gap-2">
-										<span className="flex-1 text-12">{dimension}</span>
-										<span className="font-mono text-11-5 text-secondary-foreground">
-											{reading.value}
-										</span>
-									</div>
-									<div
-										aria-hidden="true"
-										className="font-mono text-10 tracking-widest text-deep"
-									>
-										{reading.bar}
-									</div>
-								</li>
-							);
-						})}
-					</ul>
+			{groups.length > 1 && shown !== undefined ? (
+				<div className="mt-2 flex flex-col gap-1">
+					<label htmlFor={selectId} className="text-11 text-dim">
+						Judge group
+					</label>
+					<select
+						id={selectId}
+						value={groupLine(shown)}
+						onChange={(event) => {
+							setChosen(event.target.value);
+						}}
+						className="min-h-11 rounded-md border border-strong bg-background px-2 text-11-5"
+					>
+						{groups.map((group) => (
+							<option key={groupLine(group)} value={groupLine(group)}>
+								{groupLine(group)}
+							</option>
+						))}
+					</select>
+				</div>
+			) : null}
+			{shown === undefined ? null : (
+				<section className="mt-2">
+					{groups.length > 1 ? null : (
+						<p className="text-11 text-dim">{groupLine(shown)}</p>
+					)}
+					<DriftList group={shown} />
 				</section>
-			))}
+			)}
 			<p className="mt-3 text-11-5 text-pretty text-muted-foreground">
 				Calibration does not change a grade. It tells you how much to trust one.
 			</p>

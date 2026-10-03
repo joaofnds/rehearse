@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { screen, within } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 import { renderAppWithStub } from "#client/test-support/render-app";
 import { CalibrationPage } from "./calibration-page";
 import type { CalibrationResponse } from "./calibration-query";
@@ -168,8 +168,8 @@ describe(CalibrationPage.name, () => {
 	it("names the Judge model, step and rubric each drift figure belongs to", async () => {
 		renderCalibration(
 			reportWith({
-				reviews: 2,
-				withinOneStep: 2,
+				reviews: 1,
+				withinOneStep: 1,
 				groups: [
 					{
 						judgeModel: "opus",
@@ -177,13 +177,6 @@ describe(CalibrationPage.name, () => {
 						rubricSha256: "abc123def456".padEnd(64, "0"),
 						reviews: 1,
 						drift: [{ dimension: "clarity", steps: 1 }],
-					},
-					{
-						judgeModel: null,
-						stage: "build",
-						rubricSha256: null,
-						reviews: 1,
-						drift: [{ dimension: "clarity", steps: -1 }],
 					},
 				],
 			}),
@@ -196,9 +189,66 @@ describe(CalibrationPage.name, () => {
 		expect(aside).toHaveTextContent(
 			"opus · shape · rubric abc123def456 · 1 review",
 		);
-		expect(aside).toHaveTextContent(
-			"Judge model not recorded · build · rubric not recorded · 1 review",
-		);
+		expect(within(aside).queryByRole("combobox")).not.toBeInTheDocument();
+	});
+
+	describe("when grades span more than one Judge model or rubric", () => {
+		const groups: CalibrationResponse["groups"] = [
+			{
+				judgeModel: "opus",
+				stage: "shape",
+				rubricSha256: "abc123def456".padEnd(64, "0"),
+				reviews: 2,
+				drift: [{ dimension: "clarity", steps: 1 }],
+			},
+			{
+				judgeModel: null,
+				stage: "build",
+				rubricSha256: null,
+				reviews: 1,
+				drift: [{ dimension: "diff-hygiene", steps: -1 }],
+			},
+		];
+
+		it("shows the group with the most operator grades first, never a mean across groups", async () => {
+			renderCalibration(reportWith({ reviews: 3, withinOneStep: 3, groups }));
+
+			const aside = await screen.findByRole("complementary", {
+				name: "Where the judge drifts",
+			});
+
+			expect(
+				within(aside)
+					.getAllByRole("listitem")
+					.map((item) => item.textContent),
+			).toEqual(["clarityjudge +1.0 steps▮▮▮▮▮▯▯"]);
+			expect(
+				within(aside).getByRole("combobox", { name: "Judge group" }),
+			).toHaveDisplayValue("opus · shape · rubric abc123def456 · 2 reviews");
+		});
+
+		it("switches to another group's drift", async () => {
+			renderCalibration(reportWith({ reviews: 3, withinOneStep: 3, groups }));
+			const aside = await screen.findByRole("complementary", {
+				name: "Where the judge drifts",
+			});
+
+			fireEvent.change(
+				within(aside).getByRole("combobox", { name: "Judge group" }),
+				{
+					target: {
+						value:
+							"Judge model not recorded · build · rubric not recorded · 1 review",
+					},
+				},
+			);
+
+			expect(
+				within(aside)
+					.getAllByRole("listitem")
+					.map((item) => item.textContent),
+			).toEqual(["diff-hygienejudge −1.0 steps▮▮▮▮▮▯▯"]);
+		});
 	});
 
 	it("opens the oldest ungraded step from Review next unjudged step", async () => {
