@@ -26,6 +26,7 @@ import {
 	SET_SPEND_CEILING_COMMAND,
 	storeSpendCeiling,
 } from "#benchmark/settings";
+import { liveRunLiveness } from "#benchmark/run-liveness";
 import { PROJECT_ROOT } from "#benchmark/test-support";
 import type { Launcher } from "#server/launches";
 import { processLauncher } from "#server/process-launcher";
@@ -1775,6 +1776,9 @@ describe("a run's sessions", () => {
 				expect(session).toBeGreaterThan(0);
 				expect(await signalsIn(directory)).toEqual(["outside-refused"]);
 				expect(await launcher.startedAt(pid)).toBe(launchedAt);
+				expect(await liveRunLiveness().readMarker(target)).toMatchObject({
+					pid,
+				});
 
 				stop(launcher, pid);
 
