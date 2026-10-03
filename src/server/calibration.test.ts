@@ -12,6 +12,16 @@ import {
 	operatorGradesDirectory,
 	replayRecordFile,
 } from "#benchmark/run-layout";
+import { loadJudgeAgreementReport } from "#benchmark/judge-agreement";
+import { writeOperatorGrade } from "#benchmark/operator-grade";
+import {
+	directorySource,
+	fixedCorpusSource,
+	NO_PROVIDER_PROJECTS,
+	nothingRunning,
+	RecordedRunsFixture,
+} from "#benchmark/run-records-test-support";
+import { createApiApp } from "./api";
 import { createCalibrationApp } from "./calibration";
 
 const RUBRIC = {
@@ -588,5 +598,80 @@ describe("/api/calibration", () => {
 				"shape.json",
 			),
 		]);
+	});
+
+	it("leaves run history, run detail and the judge agreement report as they were with grades on disk", async () => {
+		const root = await mkdtemp(join(tmpdir(), "rehearse-calibration-"));
+		roots.push(root);
+		const fixture = new RecordedRunsFixture(root);
+		await fixture.write();
+		await fixture.writeGradedStoppedRun();
+		const api = createApiApp({
+			projectsDirectory: NO_PROVIDER_PROJECTS,
+			runsDirectory: fixture.runsDirectory,
+			liveness: nothingRunning,
+			readCorpusSource: fixedCorpusSource(
+				directorySource(fixture.runsDirectory),
+			),
+		});
+		const paths = [
+			"/api/runs",
+			`/api/runs/${fixture.replayableRun}`,
+			`/api/runs/${fixture.stoppedRun}`,
+			`/api/runs/${fixture.replayableRun}/stages/discuss/judge`,
+			`/api/runs/${fixture.stoppedRun}/stages/build/judge`,
+		];
+		async function responses(): Promise<readonly string[]> {
+			return Promise.all(
+				paths.map(async (path) => {
+					const response = await api.request(path);
+
+					return `${response.status} ${await response.text()}`;
+				}),
+			);
+		}
+		const before = await responses();
+		const agreementBefore = await loadJudgeAgreementReport(
+			fixture.runsDirectory,
+		);
+
+		const grade = operatorGrade(["B", "B"]);
+		await writeOperatorGrade(
+			fixture.runsDirectory,
+			{ kind: "run", run: fixture.stoppedRun, stage: "build" },
+			grade,
+		);
+		await writeOperatorGrade(
+			fixture.runsDirectory,
+			{ kind: "run", run: fixture.replayableRun, stage: "discuss" },
+			grade,
+		);
+		await writeOperatorGrade(
+			fixture.runsDirectory,
+			{
+				kind: "rep",
+				groupId: fixture.groupId,
+				repId: "rep-1",
+				stage: "discuss",
+			},
+			grade,
+		);
+		await writeOperatorGrade(
+			fixture.runsDirectory,
+			{ kind: "replay", ...fixture.stageAttempt },
+			grade,
+		);
+
+		expect(before.map((response) => response.slice(0, 3))).toEqual([
+			"200",
+			"200",
+			"200",
+			"200",
+			"200",
+		]);
+		expect(await responses()).toEqual(before);
+		expect(await loadJudgeAgreementReport(fixture.runsDirectory)).toEqual(
+			agreementBefore,
+		);
 	});
 });
