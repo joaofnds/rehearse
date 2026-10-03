@@ -4,21 +4,21 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AnalysisDependencies, AnalysisInvoker } from "./culprit-analysis";
 import { analyzeRun } from "./culprit-analysis";
+import { assembleCulpritBundle } from "./culprit-bundle";
 import { ClaudeSessionError, parseClaudeEnvelope } from "./claude";
 import { RefusedPreconditionError } from "./exit-codes";
 import { recordPaused } from "./run-pause";
 import type { RunLiveness } from "./run-liveness";
 import type { ClaudeEnvelope } from "./contracts";
-import type { RunManifest } from "./manifest";
-import { writeRunManifest } from "./manifest";
-import type { ReadManifestEntry } from "./read-manifest";
+import {
+	RUN,
+	runStoppedAtBuild,
+	runWithOneGradedStep,
+} from "./culprit-analysis-test-support";
 import { benchmarkRunPaths } from "./run-layout";
 import { nothingRunning } from "./run-records-test-support";
 import { budgetHaltEnvelope } from "./test-support";
 import { failureOf } from "#cli/cli-test-support";
-
-const RUN = "2026-10-04T10-00-00.000Z";
-const SOURCE_ROOT = "/fixture/target";
 
 const roots: string[] = [];
 
@@ -33,103 +33,6 @@ async function runsDirectory(): Promise<string> {
 	roots.push(root);
 
 	return root;
-}
-
-function manifest(stages: readonly string[]): RunManifest {
-	return {
-		caseId: "audit-log",
-		timestamp: "2026-10-04T10:00:00.000Z",
-		controlSha: "1".repeat(40),
-		sourceRoot: SOURCE_ROOT,
-		sourceSha: "2".repeat(40),
-		taskId: "ACT-1",
-		taskSha: "3".repeat(40),
-		task: "add an audit log module",
-		productBrief: "the brief",
-		model: "sonnet",
-		judgeModel: "opus",
-		sessionBudgetUsd: 5,
-		pipelinePath: "cases/audit-log/pipelines/default.json",
-		pipeline: {
-			statuses: ["To Do", "Build", "Done"],
-			target: {
-				checks: [{ command: ["bun", "run", "typecheck"] }],
-				integrityFiles: ["package.json"],
-			},
-			stages: stages.map((name) => ({
-				name,
-				kind: "delivery",
-				skill: name,
-				rubric: `${name}.json`,
-			})),
-		},
-	};
-}
-
-interface StageFixture {
-	readonly stage: string;
-	readonly status?: "STAGE_JUDGE_FAILED";
-	readonly error?: string;
-	readonly grade: {
-		readonly grade: string;
-		readonly verdict: string;
-		readonly summary: string;
-	};
-	readonly readManifest: readonly ReadManifestEntry[];
-}
-
-function readEntry(path: string): ReadManifestEntry {
-	return {
-		path,
-		half: "corpus",
-		role: "read for context",
-		evidence: "declared and observed",
-	};
-}
-
-function gradedStage(stage: string, reads: readonly string[]): StageFixture {
-	return {
-		stage,
-		grade: { grade: "B", verdict: "CONTINUE", summary: `${stage} held` },
-		readManifest: reads.map((path) => readEntry(path)),
-	};
-}
-
-function stoppedStage(stage: string, reads: readonly string[]): StageFixture {
-	return {
-		status: "STAGE_JUDGE_FAILED",
-		stage,
-		error: `${stage} stage graded D; minimum grade is B`,
-		grade: { grade: "D", verdict: "STOP", summary: `${stage} missed` },
-		readManifest: reads.map((path) => readEntry(path)),
-	};
-}
-
-async function writeStage(file: string, record: StageFixture): Promise<void> {
-	await Bun.write(file, `${JSON.stringify(record, null, 2)}\n`);
-}
-
-/** A run of shape, build and review whose shape step was graded. */
-async function runWithOneGradedStep(directory: string): Promise<void> {
-	const paths = benchmarkRunPaths(directory, RUN);
-	await writeRunManifest(
-		paths.manifestFile,
-		manifest(["shape", "build", "review"]),
-	);
-	await writeStage(
-		paths.stageFile("shape"),
-		gradedStage("shape", ["CLAUDE.md", "skills/shape/SKILL.md"]),
-	);
-}
-
-/** A run of shape, build and review that stopped at build. */
-async function runStoppedAtBuild(directory: string): Promise<void> {
-	const paths = benchmarkRunPaths(directory, RUN);
-	await runWithOneGradedStep(directory);
-	await writeStage(
-		paths.stageFile("build"),
-		stoppedStage("build", ["CLAUDE.md", "skills/build/SKILL.md"]),
-	);
 }
 
 const ANSWER = {
@@ -172,6 +75,7 @@ function answering(
  */
 class FakeAnalysisProvider {
 	public readonly budgets: number[] = [];
+	public readonly prompts: string[] = [];
 	private reply: ClaudeEnvelope | Error = answering(ANSWER);
 
 	public answer(envelope: ClaudeEnvelope): void {
@@ -182,7 +86,8 @@ class FakeAnalysisProvider {
 		this.reply = error;
 	}
 
-	public readonly invoke: AnalysisInvoker = (_prompt, budgetUsd) => {
+	public readonly invoke: AnalysisInvoker = (prompt, budgetUsd) => {
+		this.prompts.push(prompt);
 		this.budgets.push(budgetUsd);
 		if (this.reply instanceof Error) {
 			return Promise.reject(this.reply);
@@ -371,6 +276,24 @@ describe(analyzeRun.name, () => {
 				reason: halt.message,
 				costUsd: halt.costUsd,
 			});
+		});
+	});
+
+	it("records the digest and size of the bundle the session read", async () => {
+		const directory = await runsDirectory();
+		await runStoppedAtBuild(directory);
+		const bundle = JSON.stringify(await assembleCulpritBundle(directory, RUN));
+		const provider = new FakeAnalysisProvider();
+
+		const { record } = await analyzeRun(
+			{ runsDirectory: directory, run: RUN, model: "sonnet", capUsd: 1 },
+			dependencies(provider.invoke),
+		);
+
+		expect(provider.prompts[0]).toContain(bundle);
+		expect(record).toMatchObject({
+			bundleDigest: new Bun.CryptoHasher("sha256").update(bundle).digest("hex"),
+			bundleBytes: Buffer.byteLength(bundle),
 		});
 	});
 
