@@ -4,15 +4,7 @@ import { unhandled } from "#benchmark/contracts";
 import { RefusedPreconditionError } from "#benchmark/exit-codes";
 import { pathExists } from "#benchmark/file-presence";
 import type { Confinement } from "#cli/commands";
-
-export const SANDBOX_EXEC = "/usr/bin/sandbox-exec";
-
-/**
- * Denies every signal except to a process inside the same sandbox, so a
- * session can stop what its run started, in any turn, and nothing else.
- */
-export const CONFINEMENT_PROFILE =
-	"(version 1)(allow default)(deny signal)(allow signal (target same-sandbox))";
+import { sandboxFor } from "#cli/sandbox";
 
 export const CONFINED_VARIABLE = "REHEARSE_CONFINED";
 
@@ -59,13 +51,29 @@ export async function confinesItself(
 	}
 }
 
+export interface ProcessImage {
+	readonly path: string;
+	readonly args: readonly string[];
+}
+
+export type Confined =
+	| { readonly kind: "confined"; readonly image: ProcessImage }
+	| { readonly kind: "refused"; readonly reason: string };
+
+/**
+ * One operating system's way to hold a process, and every process it starts,
+ * so that none of them can signal a process outside it.
+ */
+export interface Sandbox {
+	readonly confine: (argv: readonly string[]) => Promise<Confined>;
+}
+
 export interface ConfinementHost {
 	readonly env: Readonly<Record<string, string | undefined>>;
 	readonly argv: readonly string[];
-	readonly sandboxExecExists: () => Promise<boolean>;
+	readonly sandbox: Sandbox;
 	readonly replaceProcess: (
-		path: string,
-		args: readonly string[],
+		image: ProcessImage,
 		env: Readonly<Record<string, string>>,
 	) => void;
 }
@@ -82,10 +90,9 @@ function isConfined(
  * process to forward them.
  */
 export async function enterConfinement(host: ConfinementHost): Promise<void> {
-	if (!(await host.sandboxExecExists())) {
-		throw new RefusedPreconditionError(
-			`This command confines its sessions with ${SANDBOX_EXEC}, which this host lacks, so it runs only on macOS`,
-		);
+	const confined = await host.sandbox.confine(host.argv);
+	if (confined.kind === "refused") {
+		throw new RefusedPreconditionError(confined.reason);
 	}
 
 	const env = Object.fromEntries(
@@ -94,11 +101,10 @@ export async function enterConfinement(host: ConfinementHost): Promise<void> {
 		),
 	);
 
-	host.replaceProcess(
-		SANDBOX_EXEC,
-		["sandbox-exec", "-p", CONFINEMENT_PROFILE, ...host.argv],
-		{ ...env, [CONFINED_VARIABLE]: "1" },
-	);
+	host.replaceProcess(confined.image, {
+		...env,
+		[CONFINED_VARIABLE]: "1",
+	});
 }
 
 /**
@@ -124,14 +130,14 @@ export function liveConfinementHost(): ConfinementHost {
 	return {
 		env: Bun.env,
 		argv: [process.execPath, ...process.execArgv, ...process.argv.slice(1)],
-		sandboxExecExists: () => pathExists(SANDBOX_EXEC),
-		replaceProcess: (path, args, env) => {
+		sandbox: sandboxFor(process.platform, pathExists),
+		replaceProcess: (image, env) => {
 			if (process.execve === undefined) {
 				throw new RefusedPreconditionError(
 					"This command confines its sessions by replacing its own process, which this Bun cannot do",
 				);
 			}
-			process.execve(path, args, env);
+			process.execve(image.path, image.args, env);
 		},
 	};
 }

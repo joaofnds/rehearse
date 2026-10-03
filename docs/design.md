@@ -70,6 +70,14 @@ sessions of the same run, and signals sent through a process outside the
 sandbox are not confined, so host execution is still not a sandbox
 ([reference](reference.md#signal-confinement)).
 
+Which commands confine, and the in-place re-execution, name no operating
+system ([`confinement.ts`](../src/cli/confinement.ts)). What holds the process
+is a `Sandbox`, chosen by operating system in
+[`sandbox.ts`](../src/cli/sandbox.ts). It answers with the program to
+re-execute as, or with the reason it refuses, which stops the command with exit
+code 3. macOS has the only one, and every other system gets one that refuses,
+so supporting another system means writing its `Sandbox` and selecting it there.
+
 Session cases use temporary directories seeded with optional fixture files and
 conversation prefixes. Their checks consume replies and tool calls, and a case
 may also declare a scorer over the files and git state the session leaves. That

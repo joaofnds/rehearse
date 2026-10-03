@@ -7,14 +7,17 @@ import { RefusedPreconditionError } from "#benchmark/exit-codes";
 import type { Immutable } from "#benchmark/contracts";
 import { requireCase } from "#cli/case-command";
 import { failureOf } from "#cli/cli-test-support";
-import type { ConfinementHost } from "#cli/confinement";
+import type {
+	Confined,
+	ConfinementHost,
+	ProcessImage,
+	Sandbox,
+} from "#cli/confinement";
 import {
 	CONFINED_VARIABLE,
-	CONFINEMENT_PROFILE,
 	confineIfNeeded,
 	confinesItself,
 	enterConfinement,
-	SANDBOX_EXEC,
 	sessionCanRunCommands,
 } from "#cli/confinement";
 
@@ -47,9 +50,29 @@ function sessionCase(
 }
 
 interface ProcessReplacement {
-	readonly path: string;
-	readonly args: readonly string[];
+	readonly image: ProcessImage;
 	readonly env: Readonly<Record<string, string>>;
+}
+
+function stubSandbox(available: boolean): Sandbox {
+	return {
+		confine: (argv): Promise<Confined> => {
+			if (!available) {
+				return Promise.resolve({
+					kind: "refused",
+					reason: "no sandbox on this host",
+				});
+			}
+
+			return Promise.resolve({
+				kind: "confined",
+				image: {
+					path: "/usr/bin/fake-sandbox",
+					args: ["fake-sandbox", ...argv],
+				},
+			});
+		},
+	};
 }
 
 class FakeConfinementHost implements ConfinementHost {
@@ -62,21 +85,20 @@ class FakeConfinementHost implements ConfinementHost {
 		"smoke",
 	];
 
+	public readonly sandbox: Sandbox;
+
 	public constructor(
 		public readonly env: Readonly<Record<string, string | undefined>>,
-		private readonly hasSandboxExec: boolean,
-	) {}
-
-	public sandboxExecExists(): Promise<boolean> {
-		return Promise.resolve(this.hasSandboxExec);
+		hasSandbox: boolean,
+	) {
+		this.sandbox = stubSandbox(hasSandbox);
 	}
 
 	public replaceProcess(
-		path: string,
-		args: readonly string[],
+		image: ProcessImage,
 		env: Readonly<Record<string, string>>,
 	): void {
-		this.replacements.push({ path, args, env });
+		this.replacements.push({ image, env });
 	}
 }
 
@@ -181,21 +203,23 @@ describe(enterConfinement.name, () => {
 
 		expect(host.replacements).toEqual([
 			{
-				path: SANDBOX_EXEC,
-				args: ["sandbox-exec", "-p", CONFINEMENT_PROFILE, ...host.argv],
+				image: {
+					path: "/usr/bin/fake-sandbox",
+					args: ["fake-sandbox", ...host.argv],
+				},
 				env: { HOME: "/home/op", [CONFINED_VARIABLE]: "1" },
 			},
 		]);
 	});
 
-	describe("when the host has no sandbox-exec", () => {
-		it("refuses by naming the missing mechanism, without replacing the process", async () => {
+	describe("when the host cannot provide the sandbox", () => {
+		it("refuses with the sandbox's reason without replacing the process", async () => {
 			const host = new FakeConfinementHost({}, false);
 
 			const refusal = await failureOf(enterConfinement(host));
 
 			expect(refusal).toBeInstanceOf(RefusedPreconditionError);
-			expect(refusal.message).toContain(SANDBOX_EXEC);
+			expect(refusal.message).toBe("no sandbox on this host");
 			expect(host.replacements).toEqual([]);
 		});
 	});
@@ -229,7 +253,7 @@ describe(confineIfNeeded.name, () => {
 		expect(host.replacements).toEqual([]);
 	});
 
-	it("refuses a command whose sessions can run commands on a host without sandbox-exec", async () => {
+	it("refuses a command whose sessions can run commands on a host without a sandbox", async () => {
 		const host = new FakeConfinementHost({}, false);
 
 		const refusal = await failureOf(

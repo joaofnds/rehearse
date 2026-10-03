@@ -115,8 +115,9 @@ The confined command marks its environment with `REHEARSE_CONFINED=1` so it
 does not confine itself twice. A shell that exports that variable runs these
 commands unconfined.
 
-On a host without `/usr/bin/sandbox-exec` those commands stop with exit code 3
-before any provider call, naming the missing program. Every other command, and
+On macOS without `/usr/bin/sandbox-exec` those commands stop with exit code 3
+before any provider call, naming the missing program. On any other operating
+system they stop the same way, naming that system. Every other command, and
 a session case with no tool, no hooks and no fixture `.claude` directory, runs
 unconfined on any host. `serve` stays unconfined, and a run it launches
 confines itself.
