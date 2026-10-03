@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import type { StageLetterGrade } from "#benchmark/contracts";
 import type { GradedStageRef, OperatorGrade } from "#benchmark/operator-grade";
+import { STAGE_LETTER_GRADES } from "#benchmark/stage-letter-grades";
 import { ScreenHeader } from "#client/system/components/screen-header";
 import { SectionLabel } from "#client/system/components/section-label";
 import { TableShell } from "#client/system/components/table-shell";
@@ -15,8 +16,6 @@ import { recordGrade, stageReviewQuery } from "./stage-review-query";
 type PassFail = "PASS" | "FAIL";
 
 const PASS_FAIL: readonly PassFail[] = ["PASS", "FAIL"];
-
-const LETTERS: readonly StageLetterGrade[] = ["A", "B", "C", "D", "F"];
 
 const COMPARISON_COLUMNS = ["Criterion", "You", "Judge"] as const;
 
@@ -214,7 +213,7 @@ function GradeForm({
 						id={dimension.id}
 						description={dimension.description}
 						hints={dimensionHints(dimension)}
-						values={LETTERS}
+						values={STAGE_LETTER_GRADES}
 						chosen={draft.letters[dimension.id]}
 						onChoose={(letter) => {
 							setDraft({
