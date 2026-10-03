@@ -953,6 +953,41 @@ Judge model, stage, frozen rubric contract, and criterion. Reports include
 observed agreement and Cohen's kappa; kappa is null when its denominator is zero.
 Changing the model or rubric starts a distinct agreement baseline.
 
+### Operator grades
+
+`serve` lets the operator grade, blind, any stage whose record carries a Judge
+letter: a pipeline run's scorecard or stop record, a confirmation rep's stage, or
+a replay's scorecard. Before the operator grades, the review shows only the
+frozen input the Judge read and the stage's criteria. A stop record keeps no
+rubric, so its criteria are the ids the Judge graded. Once the grade is
+recorded, the review adds the Judge's grade for the same stage.
+
+The operator grades every criterion the way the Judge does: PASS or FAIL for
+each hard blocker and requirement, and a letter from A to F for each dimension.
+The stage letter is derived by the Judge's own rule. A grade with an id missing
+from or extra to the stage's criteria, a value outside those scales, or an id
+segment that is not a letter or digit followed by letters, digits, `.`, `_` or `-`, is refused and writes nothing. A stage takes
+one grade. A second one is refused, since it would be given after the Judge's
+grade was shown.
+
+The calibration report lists each graded stage with both letters and how many
+steps apart they are, the count of reviews within one step, the stages still
+ungraded and the oldest of them, and each dimension's drift. Drift is the
+operator's letter place minus the Judge's, averaged per dimension within one
+Judge model, stage name and rubric contract, so a positive figure means the
+Judge grades more generously. A stop record's group has no rubric contract.
+
+| Route                                                                 | Use                         |
+| --------------------------------------------------------------------- | --------------------------- |
+| `GET /api/calibration`                                                | Agreement rows and drift    |
+| `GET /api/calibration/runs/<run>/stages/<stage>`                      | Review of a run stage       |
+| `GET /api/calibration/groups/<group-id>/reps/<rep-id>/stages/<stage>` | Review of a rep stage       |
+| `GET /api/calibration/replays/<lineage>/<timestamp>`                  | Review of a replay          |
+| `POST <review route>/grade`                                           | Record the operator's grade |
+
+Operator grades never change a Judge grade or any existing record. Each is its
+own file under `operator-grades/`, listed under Record locations.
+
 ## Target restoration
 
 Normal direct-target cleanup force-switches to `main`, resets to the original
@@ -1111,7 +1146,11 @@ leaves transcripts and run artifacts where git can see them.
 `baseline-corpora/<corpus-digest>/`, the manifest it compares under
 `comparison-manifests/<control-group-id>.json`, and `baseline.json` beside the
 report. Browser launches record themselves as `launches/<id>.json` with the
-child's output in `launches/<id>.log`.
+child's output in `launches/<id>.log`. Operator grades live at
+`operator-grades/run/<run>/<stage>.json`,
+`operator-grades/rep/<group-id>/<rep-id>/<stage>.json` and
+`operator-grades/replay/<lineage>/<timestamp>.json`, each created once and
+carrying `schemaVersion: 1`.
 
 `show` also accepts a short id, an alias scoped by case: `<case>/r<n>` names
 a run, replay or session attempt, `<case>/g<n>` a confirmation group, and
