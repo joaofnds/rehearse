@@ -461,7 +461,8 @@ See [current state](docs/status.md) for implementation coverage and
   the stage has finished: what the stage's record says it produced, as counts of
   its commits, changed files and workflow-state changes, derived with no model
   call. Where the run has a root-cause analysis, the newest one's phrase for the
-  stage replaces it. A UI concept; nothing stores it.
+  stage replaces it. Until a stage has either, its node reads "contribution
+  pending". A UI concept; nothing stores it.
 - **Pipeline** — the ordered stages and their judge attachments, declared as
   data. The UI's design calls this a **task** (see [UI vocabulary](docs/design-handoff/README.md)); the word in code,
   records, and this glossary stays pipeline. Graded as a whole, a pipeline's
@@ -539,13 +540,15 @@ See [current state](docs/status.md) for implementation coverage and
   its own beside the run's records. It is an opinion read from recorded
   evidence, never a measurement, and a run can hold several. It gives each
   declared stage one role:
-  - **Root cause**: the one stage whose corpus file the analysis names as what
-    the outcome traces to. No stage has this role when the analysis names no file.
+  - **Root cause**: the corpus file the analysis names as what the outcome
+    traces to, and the role of the one stage that read it. No stage has this
+    role when the analysis names no file.
   - **Contributing factor**: a stage the analysis reads as having moved the
     outcome without being its root cause.
   - **Not a factor**: a stage that ran and that the analysis reads as not
     having moved the outcome.
-  - **Never ran**: a declared stage the run never reached, recorded by the
+  - **Never ran**: a declared stage whose agent session never started, because
+    the run stopped before it or the spend ceiling refused it, recorded by the
     harness rather than read by the agent.
 - **Rubric** — the frozen grading contract a Judge applies; per-stage under the
   case's `rubrics/`, final in the case's `rubric.md`.
