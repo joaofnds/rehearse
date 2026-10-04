@@ -62,14 +62,17 @@ async function analysisRequestTerms(
 			refusal: null,
 		};
 	} catch (error) {
-		if (!(error instanceof RefusedPreconditionError)) {
-			throw error;
-		}
+		// A settings file the system will not open is refused like one that
+		// does not parse, since the launch would fail on it the same way.
+		const refusal =
+			error instanceof RefusedPreconditionError
+				? error.message
+				: `The settings file cannot be opened, so nothing spends until it can: ${error instanceof Error ? error.message : String(error)}`;
 
 		return {
 			model: BROWSER_ANALYSIS_MODEL,
 			capUsd: null,
-			refusal: redactAbsolutePaths(error.message),
+			refusal: redactAbsolutePaths(refusal),
 		};
 	}
 }

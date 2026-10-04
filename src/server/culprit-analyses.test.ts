@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { z } from "zod";
@@ -179,6 +179,25 @@ describe("GET /api/runs/:run/analyses", () => {
 			expect(reading.newest).toEqual(newest.record);
 			expect(reading.request.capUsd).toBeNull();
 			expect(reading.request.refusal).toContain(SET_SPEND_CEILING_COMMAND);
+			expect(reading.request.refusal).not.toContain(directory);
+		});
+	});
+
+	describe("when the settings file exists but cannot be opened", () => {
+		it("still serves the analyses, and states the refusal", async () => {
+			const directory = await recordedRun();
+			const newest = await recordAnalysis(
+				directory,
+				"2026-10-04T12:00:00.000Z",
+			);
+			await mkdir(join(directory, "settings.json"));
+
+			const response = await analysesOf(directory, RUN);
+			const reading = readingSchema.parse(await response.json());
+
+			expect(response.status).toBe(200);
+			expect(reading.newest).toEqual(newest.record);
+			expect(reading.request.capUsd).toBeNull();
 			expect(reading.request.refusal).not.toContain(directory);
 		});
 	});
