@@ -445,7 +445,7 @@ function answerViolation(
 	if (answer.rootCause === null) {
 		return stagesMarkedRootCause.length === 0
 			? undefined
-			: "The answer names a root-cause stage without a root cause";
+			: "The answer gives a stage the root-cause role but names no root-cause file";
 	}
 
 	const { stage, file } = answer.rootCause;

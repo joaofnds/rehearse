@@ -206,7 +206,7 @@ describe(analyzeRun.name, () => {
 			[
 				"gives a stage the root-cause role with a null rootCause",
 				{ ...ANSWER, rootCause: null },
-				"The answer names a root-cause stage without a root cause",
+				"The answer gives a stage the root-cause role but names no root-cause file",
 			],
 			[
 				"leaves out a stage that ran",
