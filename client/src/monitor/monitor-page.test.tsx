@@ -18,7 +18,10 @@ import {
 	stubFetchFailing,
 } from "#client/test-support/render-app";
 import { recordStage, runRecord } from "#client/test-support/run-record";
-import type { MonitoredStage } from "#client/monitor/run-record-query";
+import type {
+	MonitoredStage,
+	RunRecordResponse,
+} from "#client/monitor/run-record-query";
 import type { AnalysisReading } from "#server/culprit-analyses";
 import type { StageJudge } from "#server/stage-judge";
 import type { StageSession } from "#server/stage-session";
@@ -546,7 +549,13 @@ describe("/monitor", () => {
 });
 
 describe("/monitor task graph", () => {
+	const PRODUCED_NOTE =
+		"A step shows what its record says it produced until an analysis of the ended run gives one agent's reading of its contribution to the task's final grade.";
 	const DIGEST = "a41c7e".padEnd(64, "0");
+	const MINIMUM_B_MINUS: RunRecordResponse["minimumGrade"] = {
+		state: "available",
+		letter: "B-",
+	};
 
 	function renderGraph(
 		stages: readonly ReturnType<typeof recordStage>[],
@@ -563,6 +572,7 @@ describe("/monitor task graph", () => {
 				},
 			],
 		]),
+		minimumGrade: RunRecordResponse["minimumGrade"] = MINIMUM_B_MINUS,
 	): void {
 		renderAppWithStub(
 			"/monitor",
@@ -578,7 +588,7 @@ describe("/monitor task graph", () => {
 					`/api/runs/${RUN}`,
 					{
 						...runRecord({ run: RUN, running: "build", stages }),
-						minimumGrade: { state: "available", letter: "B-" },
+						minimumGrade,
 					},
 				],
 			]),
@@ -633,6 +643,46 @@ describe("/monitor task graph", () => {
 
 		expect(plan).toHaveTextContent("produced 1 commit, 2 files changed");
 		expect(plan).not.toHaveTextContent("contribution pending");
+	});
+
+	it("shows the workflow-state changes a finished planning stage produced", async () => {
+		renderGraph([
+			recordStage("plan", {
+				status: "graded",
+				artifactsOut: {
+					...recordStage("plan").artifactsOut,
+					workflowState: {
+						state: "available",
+						changes: [
+							{ path: "backlog/drafts/draft-1.md", change: "added" },
+							{ path: "backlog/tasks/task-1.md", change: "modified" },
+						],
+					},
+				},
+			}),
+			recordStage("build"),
+		]);
+
+		expect(await graphNode("plan")).toHaveTextContent(
+			"produced 2 workflow-state changes",
+		);
+	});
+
+	it("shows the files a finished stage changed when its record holds no commit subjects", async () => {
+		renderGraph([
+			recordStage("plan", {
+				status: "graded",
+				artifactsOut: {
+					...recordStage("plan").artifactsOut,
+					changedPaths: { state: "available", paths: ["src/audit.ts"] },
+				},
+			}),
+			recordStage("build"),
+		]);
+
+		expect(await graphNode("plan")).toHaveTextContent(
+			"produced 1 file changed",
+		);
 	});
 
 	it("shows the newest analysis's phrase toward the task grade on a step that ran, over what it produced", async () => {
@@ -1000,14 +1050,25 @@ describe("/monitor task graph", () => {
 		);
 	});
 
-	it("says a step shows what it produced until an analysis of the ended run measures its contribution", async () => {
+	it("says what a step shows when the record holds no minimum grade", async () => {
+		renderGraph(
+			[recordStage("plan"), recordStage("build")],
+			undefined,
+			undefined,
+			{ state: "unavailable", reasons: ["no stage graded"] },
+		);
+
+		const graph = await screen.findByRole("region", { name: "Task graph" });
+
+		expect(graph).toHaveTextContent(PRODUCED_NOTE);
+	});
+
+	it("says a step shows what its record says it produced until an analysis gives one agent's reading of its contribution", async () => {
 		renderGraph([recordStage("plan"), recordStage("build")]);
 
 		const graph = await screen.findByRole("region", { name: "Task graph" });
 
-		expect(graph).toHaveTextContent(
-			"Until an analysis of the ended run measures each step against the task's final grade, a step shows what its record says it produced.",
-		);
+		expect(graph).toHaveTextContent(PRODUCED_NOTE);
 	});
 
 	describe("when the running stage's latest event is not one of its session's turns", () => {

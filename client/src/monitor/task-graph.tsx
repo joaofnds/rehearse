@@ -243,18 +243,24 @@ function countReading(count: number, noun: string, direction: string): string {
 
 /**
  * What a stage's record says it produced, which stands in for its contribution
- * until an analysis of the run gives one. No model call writes it.
+ * until an analysis of the run gives one. A reading the record lacks, or one
+ * that counts nothing, adds no part.
  */
 function producedReading(stage: MonitoredStage): string | undefined {
-	const { commitSubjects, changedPaths } = stage.artifactsOut;
-	if (
-		commitSubjects.state !== "available" ||
-		changedPaths.state !== "available"
-	) {
-		return undefined;
-	}
+	const { commitSubjects, changedPaths, workflowState } = stage.artifactsOut;
+	const parts = [
+		commitSubjects.state === "available" &&
+			commitSubjects.subjects.length > 0 &&
+			counted(commitSubjects.subjects.length, "commit"),
+		changedPaths.state === "available" &&
+			changedPaths.paths.length > 0 &&
+			countReading(changedPaths.paths.length, "file", "changed"),
+		workflowState.state === "available" &&
+			workflowState.changes.length > 0 &&
+			counted(workflowState.changes.length, "workflow-state change"),
+	].filter((part) => part !== false);
 
-	return `produced ${counted(commitSubjects.subjects.length, "commit")}, ${countReading(changedPaths.paths.length, "file", "changed")}`;
+	return parts.length === 0 ? undefined : `produced ${parts.join(", ")}`;
 }
 
 /** The instruction files the stage loaded and the artifacts it declared. */
@@ -445,8 +451,6 @@ function MinimumGradeNote({
 			. A task below it stops the run and restores{" "}
 			<span className="font-mono">{record.identity.target}</span> to{" "}
 			<span className="font-mono">{shortCommit(record.identity.commit)}</span>.
-			Until an analysis of the ended run measures each step against the task's
-			final grade, a step shows what its record says it produced.
 		</p>
 	);
 }
@@ -512,6 +516,11 @@ export function TaskGraph({
 				</ol>
 			</div>
 			<MinimumGradeNote record={record} />
+			<p className="px-5 pb-3 text-11 text-pretty text-dim">
+				A step shows what its record says it produced until an analysis of the
+				ended run gives one agent's reading of its contribution to the task's
+				final grade.
+			</p>
 		</section>
 	);
 }
