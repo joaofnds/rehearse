@@ -273,15 +273,16 @@ export function RunDetailPage({
 			queryKey: analysesQuery(run).queryKey,
 		});
 	});
-	if (history.isError || record.isError) {
-		return (
-			<p role="alert" className="px-6 py-4 text-muted-foreground">
-				<span aria-hidden="true">⚠ </span>
-				Could not read run {run}.
-			</p>
-		);
+	const unreadable = (
+		<p role="alert" className="px-6 py-4 text-muted-foreground">
+			<span aria-hidden="true">⚠ </span>
+			Could not read run {run}.
+		</p>
+	);
+	if (history.isError) {
+		return unreadable;
 	}
-	if (history.data === undefined || record.data === undefined) {
+	if (history.data === undefined) {
 		return null;
 	}
 
@@ -295,6 +296,12 @@ export function RunDetailPage({
 				<p>Run history lists every recorded run.</p>
 			</EmptyState>
 		);
+	}
+	if (record.isError) {
+		return unreadable;
+	}
+	if (record.data === undefined) {
+		return null;
 	}
 
 	return (

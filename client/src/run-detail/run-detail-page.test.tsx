@@ -1,6 +1,13 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import { screen, within } from "@testing-library/react";
-import { CORPUS, judgedRow, renderRunDetail } from "./run-detail-fixtures";
+import { renderAppWithStub } from "#client/test-support/render-app";
+import {
+	CORPUS,
+	history,
+	judgedRow,
+	renderRunDetail,
+	stoppedRow,
+} from "./run-detail-fixtures";
 
 const originalFetch = globalThis.fetch;
 
@@ -102,5 +109,18 @@ describe("/runs/$run", () => {
 		expect(last).toHaveTextContent(
 			"No other run of this case has a task grade yet.",
 		);
+	});
+
+	it("says no recorded run has an id that run history does not list", async () => {
+		renderAppWithStub(
+			"/runs/2026-01-01T00-00-00.000Z",
+			new Map([["/api/runs", history([stoppedRow()])]]),
+		);
+
+		expect(
+			await screen.findByRole("heading", {
+				name: "No recorded run has this id",
+			}),
+		).toBeInTheDocument();
 	});
 });
