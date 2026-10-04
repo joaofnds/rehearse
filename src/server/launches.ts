@@ -588,11 +588,16 @@ async function startLaunch(
 		launch.argv,
 		launchPaths(dependencies.runsDirectory, id).logFile,
 	);
-	const startedAt = await dependencies.launcher.startedAt(pid);
-	await writeLaunchRecord(
-		dependencies.runsDirectory,
-		launchRecord(launch.target, id, { pid, startedAt }),
-	);
+	try {
+		const startedAt = await dependencies.launcher.startedAt(pid);
+		await writeLaunchRecord(
+			dependencies.runsDirectory,
+			launchRecord(launch.target, id, { pid, startedAt }),
+		);
+	} catch (error) {
+		dependencies.launcher.stop(pid);
+		throw error;
+	}
 
 	return id;
 }

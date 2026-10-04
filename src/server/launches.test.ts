@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { mkdir, mkdtemp, readdir, rm, symlink } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readdir, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { z } from "zod";
@@ -946,6 +946,26 @@ describe(createLaunchApp.name, () => {
 					`An analysis of run ${ANALYZED_RUN} is already in flight; read its result when it ends`,
 				);
 				expect(launcher.launches).toHaveLength(1);
+			});
+		});
+
+		describe("when an analysis's launch cannot be recorded", () => {
+			it("stops its process, so no analysis runs that nothing can see", async () => {
+				const { launcher, post, runsDirectory } = await harness();
+				await runStoppedAtBuild(runsDirectory);
+				const launches = dirname(launchPaths(runsDirectory, "any").recordFile);
+				await mkdir(launches, { recursive: true });
+				await chmod(launches, 0o555);
+
+				const response = await post({
+					kind: "analysis",
+					run: ANALYZED_RUN,
+					statedUsd: 1,
+				});
+				await chmod(launches, 0o755);
+
+				expect(response.status).toBe(500);
+				expect(launcher.stopped).toEqual([FAKE_LAUNCH_PID]);
 			});
 		});
 
