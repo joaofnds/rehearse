@@ -18,6 +18,8 @@ import type { RunRecord } from "#server/run-record";
 
 export type HistoryRow = RunHistoryResponse["rows"][number];
 
+type PipelineRow = Extract<HistoryRow, { readonly kind: "run" }>;
+
 export const RUN = "2026-09-28T10-03-07.498Z";
 
 export const ANALYSES = `/api/runs/${RUN}/analyses`;
@@ -65,7 +67,7 @@ export function stoppedAtBuild(
 	};
 }
 
-export function stoppedRow(): HistoryRow {
+export function stoppedRow(): PipelineRow {
 	return {
 		...runRow({
 			run: RUN,
@@ -96,7 +98,7 @@ export function judgedRow(
 	verdict: "PASS" | "FAIL",
 	digest: string,
 	staleness: HistoryRow["staleness"] = judgedStaleness(false),
-): HistoryRow {
+): PipelineRow {
 	return {
 		...runRow({
 			run,

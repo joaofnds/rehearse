@@ -45,7 +45,7 @@ describe("/runs/$run", () => {
 					running: "build",
 					stages: [
 						recordStage("shape", { status: "graded" }),
-						recordStage("build", { status: "running" }),
+						recordStage("build"),
 						recordStage("verify"),
 					],
 				}),
@@ -58,7 +58,7 @@ describe("/runs/$run", () => {
 					stages: [
 						recordStage("shape", { status: "graded" }),
 						recordStage("build", { status: "graded" }),
-						recordStage("verify", { status: "running" }),
+						recordStage("verify"),
 					],
 				}),
 			],
@@ -80,14 +80,14 @@ describe("/runs/$run", () => {
 		);
 
 		expect(
-			await screen.findByRole("button", { name: /^Replay step 2/u }),
+			await screen.findByRole("button", { name: /^Replay step 1/u }),
 		).toBeInTheDocument();
 		running = "verify";
 
 		expect(
 			await screen.findByRole(
 				"button",
-				{ name: /^Replay step 3/u },
+				{ name: /^Replay step 2/u },
 				{ timeout: 5000 },
 			),
 		).toBeInTheDocument();
@@ -171,7 +171,7 @@ describe("/runs/$run", () => {
 		renderAppWithStub(
 			`/runs/${RUN}`,
 			new Map<string, unknown>([
-				["/api/runs", history([{ ...stoppedRow(), status: "COMPLETED" }])],
+				["/api/runs", history([{ ...stoppedRow(), status: "SUCCESSFUL" }])],
 				[`/api/runs/${RUN}`, stoppedAtBuild()],
 			]),
 		);
