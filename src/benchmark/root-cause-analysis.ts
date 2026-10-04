@@ -69,23 +69,22 @@ const answeredStageSchema = z
 	})
 	.strict();
 
-const rootCauseSchema = z
-	.object({
-		stage: z.string().min(1),
-		file: z.string().min(1),
-		lines: z
-			.object({
-				start: z.int().positive(),
-				end: z.int().positive(),
-			})
-			.strict()
-			.optional(),
-	})
-	.strict();
-
 const answerSchema = z
 	.object({
-		rootCause: rootCauseSchema.nullable(),
+		rootCause: z
+			.object({
+				stage: z.string().min(1),
+				file: z.string().min(1),
+				lines: z
+					.object({
+						start: z.int().positive(),
+						end: z.int().positive(),
+					})
+					.strict()
+					.optional(),
+			})
+			.strict()
+			.nullable(),
 		narrative: z.string().min(1),
 		pairedRerun: z.string().min(1),
 		stages: z.array(answeredStageSchema),
@@ -106,15 +105,18 @@ const recordBase = {
 	costUsd: z.number().nonnegative().optional(),
 };
 
-const neverRanStageSchema = z
-	.object({ stage: z.string().min(1), role: z.literal("never ran") })
-	.strict();
-
 const recordedAnalysisSchema = answerSchema
 	.extend({
 		...recordBase,
 		outcome: z.literal("recorded"),
-		stages: z.array(z.union([answeredStageSchema, neverRanStageSchema])),
+		stages: z.array(
+			z.union([
+				answeredStageSchema,
+				z
+					.object({ stage: z.string().min(1), role: z.literal("never ran") })
+					.strict(),
+			]),
+		),
 	})
 	.strict();
 
@@ -143,40 +145,78 @@ const VERSION_ONE_ROLES = {
 	"primary culprit": "root cause",
 } as const;
 
+const versionOneBase = {
+	schemaVersion: z.literal(1),
+	run: z.string().min(1),
+	model: z.string().min(1),
+	capUsd: z.number().positive(),
+	startedAt: z.iso.datetime(),
+	durationMs: z.number().nonnegative(),
+	bundleDigest: z.string().regex(/^[0-9a-f]{64}$/u),
+	bundleBytes: z.int().nonnegative(),
+	costUsd: z.number().nonnegative().optional(),
+};
+
 /**
  * Version 1 is the analysis before it was renamed root-cause analysis. Its
- * records are experiment evidence, so they stay on disk as written and read
- * under the new names.
+ * shape is frozen apart from version 2's, so a change to the current record
+ * cannot make a version-1 file unreadable.
  */
 const versionOneRecordSchema = z.discriminatedUnion("outcome", [
 	z
 		.object({
-			...recordBase,
-			schemaVersion: z.literal(1),
+			...versionOneBase,
 			outcome: z.literal("recorded"),
-			culprit: rootCauseSchema.nullable(),
+			culprit: z
+				.object({
+					stage: z.string().min(1),
+					file: z.string().min(1),
+					lines: z
+						.object({
+							start: z.int().positive(),
+							end: z.int().positive(),
+						})
+						.strict()
+						.optional(),
+				})
+				.strict()
+				.nullable(),
 			narrative: z.string().min(1),
 			pairedRerun: z.string().min(1),
 			stages: z.array(
 				z.union([
-					answeredStageSchema.extend({
-						role: z.enum(["not implicated", "contributing", "primary culprit"]),
-					}),
-					neverRanStageSchema,
+					z
+						.object({
+							stage: z.string().min(1),
+							role: z.enum([
+								"not implicated",
+								"contributing",
+								"primary culprit",
+							]),
+							note: z.string().min(1),
+							contribution: z.string().min(1),
+						})
+						.strict(),
+					z
+						.object({ stage: z.string().min(1), role: z.literal("never ran") })
+						.strict(),
 				]),
 			),
 		})
-		.strict()
-		.transform(({ culprit, stages, ...record }) => ({
-			...record,
-			rootCause: culprit,
-			stages: stages.map((stage) =>
-				stage.role === "never ran"
-					? stage
-					: { ...stage, role: VERSION_ONE_ROLES[stage.role] },
-			),
-		})),
-	failedAnalysisSchema.extend({ schemaVersion: z.literal(1) }),
+		.strict(),
+	z
+		.object({
+			...versionOneBase,
+			outcome: z.literal("failed"),
+			reason: z.string().min(1),
+			payload: z.unknown().optional(),
+		})
+		.strict(),
+]);
+
+const storedAnalysisSchema = z.discriminatedUnion("schemaVersion", [
+	rootCauseAnalysisRecordSchema,
+	versionOneRecordSchema,
 ]);
 
 export type RecordedAnalysis = Immutable<
@@ -186,11 +226,6 @@ export type RecordedAnalysis = Immutable<
 export type FailedAnalysis = Immutable<z.infer<typeof failedAnalysisSchema>>;
 
 export type RootCauseAnalysisRecord = RecordedAnalysis | FailedAnalysis;
-
-/** A record as read, in the names of the version that wrote it or later. */
-export type ReadRootCauseAnalysis =
-	| RootCauseAnalysisRecord
-	| Immutable<z.output<typeof versionOneRecordSchema>>;
 
 type AnalysisBase = Omit<FailedAnalysis, "outcome" | "reason" | "payload">;
 
@@ -375,21 +410,23 @@ export async function readRootCauseAnalyses({
 	runsDirectory,
 	run,
 }: AnalyzedRun): Promise<{
-	readonly records: readonly ReadRootCauseAnalysis[];
+	readonly records: readonly RootCauseAnalysisRecord[];
 	readonly unreadable: readonly UnreadableAnalysis[];
 }> {
 	const directory = join(rootCauseAnalysesDirectory(runsDirectory), run);
 	const names = (await readdirIfPresent(directory)) ?? [];
 	const recordFiles = names.filter((name) => name.endsWith(".json")).toSorted();
 
-	const records: ReadRootCauseAnalysis[] = [];
+	const records: RootCauseAnalysisRecord[] = [];
 	const unreadable: UnreadableAnalysis[] = [];
 	for (const file of recordFiles) {
 		try {
 			records.push(
-				z
-					.union([rootCauseAnalysisRecordSchema, versionOneRecordSchema])
-					.parse(await Bun.file(join(directory, file)).json()),
+				currentRecord(
+					storedAnalysisSchema.parse(
+						await Bun.file(join(directory, file)).json(),
+					),
+				),
 			);
 		} catch (error) {
 			unreadable.push({
@@ -400,6 +437,37 @@ export async function readRootCauseAnalyses({
 	}
 
 	return { records, unreadable };
+}
+
+/** A stored record in the names of the current version. */
+function currentRecord(
+	record: Immutable<z.infer<typeof storedAnalysisSchema>>,
+): RootCauseAnalysisRecord {
+	if (record.schemaVersion === 2) {
+		return record;
+	}
+
+	if (record.outcome === "failed") {
+		return { ...record, schemaVersion: 2 };
+	}
+
+	const { culprit, stages, ...fields } = record;
+
+	return {
+		...fields,
+		schemaVersion: 2,
+		rootCause: culprit,
+		stages: stages.map((stage) =>
+			stage.role === "never ran"
+				? stage
+				: {
+						stage: stage.stage,
+						role: VERSION_ONE_ROLES[stage.role],
+						note: stage.note,
+						contribution: stage.contribution,
+					},
+		),
+	};
 }
 
 /**

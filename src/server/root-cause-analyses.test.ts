@@ -103,6 +103,56 @@ describe("GET /api/runs/:run/analyses", () => {
 		});
 	});
 
+	describe("when the newest analysis predates the rename to root-cause analysis", () => {
+		it("serves it under the new names", async () => {
+			const directory = await recordedRun();
+			const earlier = await recordAnalysis(
+				directory,
+				"2026-10-04T12:00:00.000Z",
+			);
+			const { run, model, capUsd, durationMs, bundleDigest, bundleBytes } =
+				earlier.record;
+			await Bun.write(
+				join(dirname(earlier.file), "2026-10-04T13-00-00.000Z.json"),
+				JSON.stringify({
+					schemaVersion: 1,
+					run,
+					model,
+					capUsd,
+					durationMs,
+					bundleDigest,
+					bundleBytes,
+					startedAt: "2026-10-04T13:00:00.000Z",
+					outcome: "recorded",
+					culprit: null,
+					narrative: "No corpus file explains the outcome.",
+					pairedRerun: "Rerun build with the location stated in the task.",
+					stages: [
+						{
+							stage: "build",
+							role: "not implicated",
+							note: "No corpus file build read names a directory.",
+							contribution: "placed code at a path the rubric rejected",
+						},
+					],
+				}),
+			);
+
+			const response = await analysesOf(directory, RUN);
+
+			expect(await response.json()).toMatchObject({
+				newest: {
+					schemaVersion: 2,
+					startedAt: "2026-10-04T13:00:00.000Z",
+					rootCause: null,
+					stages: [{ stage: "build", role: "not a factor" }],
+				},
+				earlierCount: 1,
+				unreadable: [],
+			});
+		});
+	});
+
 	describe("when an analysis record cannot be read", () => {
 		it("lists it apart and still serves the readable ones", async () => {
 			const directory = await recordedRun();

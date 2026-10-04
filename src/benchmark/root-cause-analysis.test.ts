@@ -644,7 +644,7 @@ async function writeAnalysisFile(
 
 describe(readRootCauseAnalyses.name, () => {
 	describe("when a record predates the rename to root-cause analysis", () => {
-		it("reads its stages under the new role names", async () => {
+		it("reads it at the current version, its stages under the new role names", async () => {
 			const directory = await runsDirectory();
 			await writeAnalysisFile(directory, JSON.stringify(VERSION_ONE_RECORD));
 
@@ -656,7 +656,7 @@ describe(readRootCauseAnalyses.name, () => {
 			expect(reading).toEqual({
 				records: [
 					{
-						schemaVersion: 1,
+						schemaVersion: 2,
 						run: RUN,
 						model: "sonnet",
 						capUsd: 1,
@@ -726,7 +726,7 @@ describe(readRootCauseAnalyses.name, () => {
 			]);
 		});
 
-		it("reads a failed record as it was written", async () => {
+		it("reads a failed record as it was written, at the current version", async () => {
 			const directory = await runsDirectory();
 			const failed = {
 				schemaVersion: 1,
@@ -747,7 +747,10 @@ describe(readRootCauseAnalyses.name, () => {
 				run: RUN,
 			});
 
-			expect(reading).toEqual({ records: [failed], unreadable: [] });
+			expect(reading).toEqual({
+				records: [{ ...failed, schemaVersion: 2 }],
+				unreadable: [],
+			});
 		});
 	});
 });
