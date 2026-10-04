@@ -11,6 +11,8 @@ import { recordPaused } from "./run-pause";
 import type { RunLiveness } from "./run-liveness";
 import type { ClaudeEnvelope } from "./contracts";
 import {
+	ANSWER,
+	answering,
 	RUN,
 	runStoppedAtBuild,
 	runWithOneGradedStage,
@@ -35,40 +37,6 @@ async function runsDirectory(): Promise<string> {
 	roots.push(root);
 
 	return root;
-}
-
-const ANSWER = {
-	culprit: {
-		stage: "build",
-		file: "skills/build/SKILL.md",
-		lines: { start: 2, end: 3 },
-	},
-	narrative: "the build skill never asks for a direct run",
-	pairedRerun: "replay build with the run step restored",
-	stages: [
-		{
-			stage: "shape",
-			role: "not implicated",
-			note: "the card was complete",
-			contribution: "left the grade where it was",
-		},
-		{
-			stage: "build",
-			role: "primary culprit",
-			note: "no direct run was recorded",
-			contribution: "cost the observed-result requirement",
-		},
-	],
-} as const;
-
-function answering(
-	structuredOutput: ClaudeEnvelope["structured_output"],
-): ClaudeEnvelope {
-	return {
-		session_id: "analysis-session",
-		total_cost_usd: 0.24,
-		structured_output: structuredOutput,
-	};
 }
 
 /**

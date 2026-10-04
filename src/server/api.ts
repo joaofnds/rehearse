@@ -9,6 +9,10 @@ import { parseComparisonReport } from "#benchmark/comparison-record";
 import { recordFileFor } from "#cli/show-command";
 import { UsageError } from "#cli/commands";
 import { RefusedPreconditionError } from "#benchmark/exit-codes";
+import {
+	AnalysisTermsUnreadableError,
+	readAnalysisReading,
+} from "./culprit-analyses";
 import { parseRecordId, parseRunRecordId } from "#cli/record-id";
 import {
 	confirmationGroupPaths,
@@ -676,6 +680,31 @@ export const createApiApp = (dependencies: ApiDependencies) => {
 					),
 				);
 			} catch (error) {
+				if (
+					error instanceof UsageError ||
+					error instanceof RefusedPreconditionError
+				) {
+					const refusal = commandRefusal(error);
+					return context.json({ error: refusal.message }, refusal.status);
+				}
+
+				throw error;
+			}
+		})
+		.get("/api/runs/:run/analyses", async (context) => {
+			try {
+				const id = parseRunRecordId(context.req.param("run"));
+
+				return context.json(
+					await readAnalysisReading(dependencies.runsDirectory, id.run),
+				);
+			} catch (error) {
+				if (error instanceof AnalysisTermsUnreadableError) {
+					return context.json(
+						{ error: redactAbsolutePaths(error.message) },
+						409,
+					);
+				}
 				if (
 					error instanceof UsageError ||
 					error instanceof RefusedPreconditionError

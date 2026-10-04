@@ -12,6 +12,7 @@ import {
 import { CLAUDE_TIMEOUT_MS } from "./config";
 import type { ClaudeEnvelope, Immutable } from "./contracts";
 import { RefusedPreconditionError } from "./exit-codes";
+import { readdirIfPresent } from "./file-presence";
 import type { RunLiveness } from "./run-liveness";
 import { claimsLiveTarget } from "./run-liveness";
 import {
@@ -54,6 +55,15 @@ const AGENT_STAGE_ROLES = [
 	"primary culprit",
 ] as const;
 
+const answeredStageSchema = z
+	.object({
+		stage: z.string().min(1),
+		role: z.enum(AGENT_STAGE_ROLES),
+		note: z.string().min(1),
+		contribution: z.string().min(1),
+	})
+	.strict();
+
 const answerSchema = z
 	.object({
 		culprit: z
@@ -72,57 +82,69 @@ const answerSchema = z
 			.nullable(),
 		narrative: z.string().min(1),
 		pairedRerun: z.string().min(1),
-		stages: z.array(
-			z
-				.object({
-					stage: z.string().min(1),
-					role: z.enum(AGENT_STAGE_ROLES),
-					note: z.string().min(1),
-					contribution: z.string().min(1),
-				})
-				.strict(),
-		),
+		stages: z.array(answeredStageSchema),
 	})
 	.strict();
 
 type AnalysisAnswer = Immutable<z.infer<typeof answerSchema>>;
 
-export type StageReading =
-	| AnalysisAnswer["stages"][number]
-	| { readonly stage: string; readonly role: "never ran" };
+const recordBase = {
+	schemaVersion: z.literal(1),
+	run: z.string().min(1),
+	model: z.string().min(1),
+	capUsd: z.number().positive(),
+	startedAt: z.iso.datetime(),
+	durationMs: z.number().nonnegative(),
+	bundleDigest: z.string().regex(/^[0-9a-f]{64}$/u),
+	bundleBytes: z.int().nonnegative(),
+	costUsd: z.number().nonnegative().optional(),
+};
 
-interface AnalysisBase {
-	readonly schemaVersion: 1;
-	readonly run: string;
-	readonly model: string;
-	readonly capUsd: number;
-	readonly startedAt: string;
-	readonly durationMs: number;
-	readonly bundleDigest: string;
-	readonly bundleBytes: number;
-	readonly costUsd?: number;
-}
-
-export interface RecordedAnalysis extends AnalysisBase {
-	readonly outcome: "recorded";
-	readonly culprit: AnalysisAnswer["culprit"];
-	readonly narrative: string;
-	readonly pairedRerun: string;
-	readonly stages: readonly StageReading[];
-}
+const recordedAnalysisSchema = answerSchema
+	.extend({
+		...recordBase,
+		outcome: z.literal("recorded"),
+		stages: z.array(
+			z.union([
+				answeredStageSchema,
+				z
+					.object({ stage: z.string().min(1), role: z.literal("never ran") })
+					.strict(),
+			]),
+		),
+	})
+	.strict();
 
 /**
  * An answer the harness refused, or a session that gave none, is still a
  * paid call: the record keeps why it failed, what it cost and whatever the
  * session returned.
  */
-export interface FailedAnalysis extends AnalysisBase {
-	readonly outcome: "failed";
-	readonly reason: string;
-	readonly payload?: unknown;
-}
+const failedAnalysisSchema = z
+	.object({
+		...recordBase,
+		outcome: z.literal("failed"),
+		reason: z.string().min(1),
+		payload: z.unknown().optional(),
+	})
+	.strict();
+
+const culpritAnalysisRecordSchema = z.discriminatedUnion("outcome", [
+	recordedAnalysisSchema,
+	failedAnalysisSchema,
+]);
+
+export type RecordedAnalysis = Immutable<
+	z.infer<typeof recordedAnalysisSchema>
+>;
+
+export type StageReading = RecordedAnalysis["stages"][number];
+
+export type FailedAnalysis = Immutable<z.infer<typeof failedAnalysisSchema>>;
 
 export type CulpritAnalysisRecord = RecordedAnalysis | FailedAnalysis;
+
+type AnalysisBase = Omit<FailedAnalysis, "outcome" | "reason" | "payload">;
 
 export interface AnalysisResult {
 	readonly file: string;
@@ -186,21 +208,20 @@ export async function analyzeRun(
 	request: AnalysisRequest,
 	dependencies: AnalysisDependencies,
 ): Promise<AnalysisResult> {
-	const paths = benchmarkRunPaths(request.runsDirectory, request.run);
-	if (!(await Bun.file(paths.manifestFile).exists())) {
-		throw new RefusedPreconditionError(`No run ${request.run} is recorded`);
-	}
-
-	await refuseUnended(request, dependencies.liveness);
-	const ceiling = createSpendCeiling({
+	await refuseUnanalyzable(
+		request.runsDirectory,
+		request.run,
+		dependencies.liveness,
+	);
+	const budgetUsd = analysisBudgetUsd({
 		ceilingUsd: await dependencies.requireSpendCeiling(request.runsDirectory),
+		capUsd: request.capUsd,
 	});
 	const bundle = await assembleCulpritBundle(
 		request.runsDirectory,
 		request.run,
 	);
 	const bundleText = promptSafeJson(bundle);
-	const budgetUsd = ceiling.budgetFor(request.capUsd);
 	dependencies.progress(
 		`Analyzing run ${request.run} with ${request.model}; the call spends at most $${budgetUsd}.`,
 	);
@@ -243,34 +264,78 @@ export async function analyzeRun(
 }
 
 /**
+ * What one analysis may spend: the budget asked for, lowered to the stored
+ * ceiling when that is lower. The analysis is not charged to the run it reads.
+ */
+export function analysisBudgetUsd(
+	limits: Readonly<{ ceilingUsd: number; capUsd: number }>,
+): number {
+	return createSpendCeiling({ ceilingUsd: limits.ceilingUsd }).budgetFor(
+		limits.capUsd,
+	);
+}
+
+export async function requireRecordedRun(
+	runsDirectory: string,
+	run: string,
+): Promise<void> {
+	const paths = benchmarkRunPaths(runsDirectory, run);
+	if (!(await Bun.file(paths.manifestFile).exists())) {
+		throw new RefusedPreconditionError(`No run ${run} is recorded`);
+	}
+}
+
+/**
  * An analysis reads an outcome, so the run must have one: completed, stopped
  * by a stage, or stopped by the operator. A paused run can still resume, and
  * a run whose process still holds its target is still writing records. A run
  * whose process died without an outcome has none coming, so it is analyzed
  * as it stands.
  */
-async function refuseUnended(
-	request: AnalysisRequest,
+export async function refuseUnanalyzable(
+	runsDirectory: string,
+	run: string,
 	liveness: RunLiveness,
 ): Promise<void> {
-	if (
-		(await recordedOutcome(request.runsDirectory, request.run)) !== undefined
-	) {
+	await requireRecordedRun(runsDirectory, run);
+	if ((await recordedOutcome(runsDirectory, run)) !== undefined) {
 		return;
 	}
 
-	const paths = benchmarkRunPaths(request.runsDirectory, request.run);
+	const paths = benchmarkRunPaths(runsDirectory, run);
 	if ((await pausedStage(paths)) !== undefined) {
 		throw new RefusedPreconditionError(
-			`Run ${request.run} is paused and can still resume, so it has no outcome to analyze`,
+			`Run ${run} is paused and can still resume, so it has no outcome to analyze`,
 		);
 	}
 
 	if (await claimsLiveTarget(paths.manifestFile, liveness)) {
 		throw new RefusedPreconditionError(
-			`Run ${request.run} is still in flight, so it has no outcome to analyze`,
+			`Run ${run} is still in flight, so it has no outcome to analyze`,
 		);
 	}
+}
+
+/** A run's analyses, oldest first. */
+export async function readCulpritAnalyses(
+	runsDirectory: string,
+	run: string,
+): Promise<readonly CulpritAnalysisRecord[]> {
+	const directory = join(culpritAnalysesDirectory(runsDirectory), run);
+	const names = (await readdirIfPresent(directory)) ?? [];
+
+	const records: CulpritAnalysisRecord[] = [];
+	for (const name of names
+		.filter((entry) => entry.endsWith(".json"))
+		.toSorted()) {
+		records.push(
+			culpritAnalysisRecordSchema.parse(
+				await Bun.file(join(directory, name)).json(),
+			),
+		);
+	}
+
+	return records;
 }
 
 /**

@@ -1,11 +1,15 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import type { ClaudeEnvelope } from "./contracts";
 import type { CorpusMeasurement } from "./corpus-measurement";
+import type { AnalysisResult } from "./culprit-analysis";
+import { analyzeRun } from "./culprit-analysis";
 import { measureCorpusVersion } from "./corpus-version";
 import type { RunManifest } from "./manifest";
 import { writeRunManifest } from "./manifest";
 import type { ReadManifestEntry } from "./read-manifest";
 import { benchmarkRunPaths } from "./run-layout";
+import { nothingRunning } from "./run-records-test-support";
 
 export const RUN = "2026-10-04T10-00-00.000Z";
 
@@ -185,4 +189,55 @@ export async function runStoppedAtBuild(
 	);
 
 	return corpusVersion;
+}
+
+export const ANSWER = {
+	culprit: {
+		stage: "build",
+		file: "skills/build/SKILL.md",
+		lines: { start: 2, end: 3 },
+	},
+	narrative: "the build skill never asks for a direct run",
+	pairedRerun: "replay build with the run step restored",
+	stages: [
+		{
+			stage: "shape",
+			role: "not implicated",
+			note: "the card was complete",
+			contribution: "left the grade where it was",
+		},
+		{
+			stage: "build",
+			role: "primary culprit",
+			note: "no direct run was recorded",
+			contribution: "cost the observed-result requirement",
+		},
+	],
+} as const;
+
+export function answering(
+	structuredOutput: ClaudeEnvelope["structured_output"],
+): ClaudeEnvelope {
+	return {
+		session_id: "analysis-session",
+		total_cost_usd: 0.24,
+		structured_output: structuredOutput,
+	};
+}
+
+/** Records one analysis of the fixture run, started at the ISO `startedAt`. */
+export function recordAnalysis(
+	directory: string,
+	startedAt: string,
+): Promise<AnalysisResult> {
+	return analyzeRun(
+		{ runsDirectory: directory, run: RUN, model: "sonnet", capUsd: 1 },
+		{
+			invoke: () => Promise.resolve(JSON.stringify(answering(ANSWER))),
+			now: () => new Date(startedAt),
+			liveness: nothingRunning,
+			requireSpendCeiling: () => Promise.resolve(30),
+			progress: () => undefined,
+		},
+	);
 }
