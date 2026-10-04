@@ -577,6 +577,49 @@ async function planLaunch(
 	}
 }
 
+/** Plans the launch, starts its process and records it, answering its id. */
+async function startLaunch(
+	request: LaunchRequest,
+	dependencies: LaunchDependencies,
+): Promise<string> {
+	const launch = await planLaunch(request, dependencies);
+	const id = randomUUID();
+	const pid = await dependencies.launcher.launch(
+		launch.argv,
+		launchPaths(dependencies.runsDirectory, id).logFile,
+	);
+	const startedAt = await dependencies.launcher.startedAt(pid);
+	await writeLaunchRecord(
+		dependencies.runsDirectory,
+		launchRecord(launch.target, id, { pid, startedAt }),
+	);
+
+	return id;
+}
+
+/**
+ * Starts an analysis of a run only while no other analysis of it is starting
+ * in this server. An analysis has no launch record until its process is
+ * started, so without this two requests arriving together would both pass
+ * the record check and start two paid calls. The run is freed however the
+ * start ends, so a refused or failed request does not hold it.
+ */
+async function startAlone<T>(
+	startingAnalyses: Set<string>,
+	run: string,
+	start: () => Promise<T>,
+): Promise<T> {
+	if (startingAnalyses.has(run)) {
+		throw new LaunchRefusalError(analysisInFlightRefusal(run), 409);
+	}
+	startingAnalyses.add(run);
+	try {
+		return await start();
+	} finally {
+		startingAnalyses.delete(run);
+	}
+}
+
 function launchRecord(
 	target: LaunchTarget,
 	id: string,
@@ -674,6 +717,7 @@ async function pauseRun(
  */
 // oxlint-disable-next-line typescript/explicit-function-return-type, typescript/explicit-module-boundary-types
 export const createLaunchApp = (dependencies: LaunchDependencies) => {
+	const startingAnalyses = new Set<string>();
 	const app = new Hono()
 		.get("/api/settings", async (context) => {
 			try {
@@ -810,9 +854,14 @@ export const createLaunchApp = (dependencies: LaunchDependencies) => {
 				return context.json({ error: z.prettifyError(parsed.error) }, 400);
 			}
 			const request = parsed.data;
-			let launch;
+			const start = (): Promise<string> => startLaunch(request, dependencies);
 			try {
-				launch = await planLaunch(request, dependencies);
+				const id =
+					request.kind === "analysis"
+						? await startAlone(startingAnalyses, request.run, start)
+						: await start();
+
+				return context.json({ id }, 202);
 			} catch (error) {
 				if (!(error instanceof LaunchRefusalError)) {
 					throw error;
@@ -820,18 +869,6 @@ export const createLaunchApp = (dependencies: LaunchDependencies) => {
 
 				return context.json({ error: error.message }, error.status);
 			}
-			const id = randomUUID();
-			const pid = await dependencies.launcher.launch(
-				launch.argv,
-				launchPaths(dependencies.runsDirectory, id).logFile,
-			);
-			const startedAt = await dependencies.launcher.startedAt(pid);
-			await writeLaunchRecord(
-				dependencies.runsDirectory,
-				launchRecord(launch.target, id, { pid, startedAt }),
-			);
-
-			return context.json({ id }, 202);
 		})
 		.post("/api/launches/:id/stop", async (context) => {
 			let record;

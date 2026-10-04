@@ -1,3 +1,4 @@
+import { HeldLaunch } from "./held-launch-test-support";
 import type { Launcher } from "./launches";
 
 export const FAKE_LAUNCH_PID = 4242;
@@ -13,10 +14,31 @@ export interface Launch {
 export class FakeLauncher implements Launcher {
 	public readonly launches: Launch[] = [];
 
-	public launch(argv: readonly string[], logFile: string): Promise<number> {
-		this.launches.push({ argv, logFile });
+	#held: HeldLaunch | undefined;
 
-		return Promise.resolve(FAKE_LAUNCH_PID);
+	public async launch(
+		argv: readonly string[],
+		logFile: string,
+	): Promise<number> {
+		this.launches.push({ argv, logFile });
+		const held = this.#held;
+		this.#held = undefined;
+		if (held !== undefined) {
+			await held.hold();
+		}
+
+		return FAKE_LAUNCH_PID;
+	}
+
+	/**
+	 * Holds the next launch until it is released, so a test can send a
+	 * request while an earlier one is still starting.
+	 */
+	public holdNextLaunch(): HeldLaunch {
+		const held = new HeldLaunch();
+		this.#held = held;
+
+		return held;
 	}
 
 	/** The process table: each live pid and when its process started. */

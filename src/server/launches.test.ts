@@ -879,6 +879,32 @@ describe(createLaunchApp.name, () => {
 				expect(response.status).toBe(202);
 			});
 		});
+
+		describe("when another analysis of the run is still starting", () => {
+			it("refuses the later request, so one process starts", async () => {
+				const { launcher, post, runsDirectory } = await harness();
+				await runStoppedAtBuild(runsDirectory);
+				const held = launcher.holdNextLaunch();
+				const request = {
+					kind: "analysis",
+					run: ANALYZED_RUN,
+					statedUsd: 1,
+				};
+
+				const pending = post(request);
+				await held.reached;
+				const second = await post(request);
+				held.release();
+				const first = await pending;
+
+				expect(first.status).toBe(202);
+				expect(second.status).toBe(409);
+				expect(refusalSchema.parse(await second.json()).error).toBe(
+					`An analysis of run ${ANALYZED_RUN} is already in flight; read its result when it ends`,
+				);
+				expect(launcher.launches).toHaveLength(1);
+			});
+		});
 	});
 
 	describe("when the launch cannot be started as asked", () => {
