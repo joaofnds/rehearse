@@ -1,5 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
+import { useEffect, useRef } from "react";
 import { corpusMeasurementReading } from "#benchmark/corpus-version-label";
 import {
 	isPaused,
@@ -34,6 +35,20 @@ const LAYOUTS = ["Contribution"] as const;
 const LAYOUT_NOTE = "Layout C · task grade first, then the culprit pass";
 
 const NOT_RECORDED = "—";
+
+/**
+ * An analysis writes its record as its process ends, which the polled run
+ * history shows as its launch leaving the list: read the analyses again then.
+ */
+function useWhenEnded(inFlight: boolean, onEnded: () => void): void {
+	const wasInFlight = useRef(inFlight);
+	useEffect(() => {
+		if (wasInFlight.current && !inFlight) {
+			onEnded();
+		}
+		wasInFlight.current = inFlight;
+	}, [inFlight, onEnded]);
+}
 
 /** A run is named by the time it started, with dashes where the clock has colons. */
 function startedAt(run: string): string {
@@ -245,7 +260,19 @@ export function RunDetailPage({
 }): React.JSX.Element | null {
 	const history = useQuery(polledRunHistoryQuery);
 	const record = useQuery(runRecordQuery(run));
+	const analysisInFlight = (history.data?.launches ?? []).some(
+		(launch) =>
+			launch.target === "analysis" &&
+			launch.run === run &&
+			launch.status === "RUNNING",
+	);
 	const analyses = useQuery(analysesQuery(run));
+	const queryClient = useQueryClient();
+	useWhenEnded(analysisInFlight, () => {
+		void queryClient.invalidateQueries({
+			queryKey: analysesQuery(run).queryKey,
+		});
+	});
 	if (history.isError || record.isError) {
 		return (
 			<p role="alert" className="px-6 py-4 text-muted-foreground">
@@ -285,7 +312,8 @@ export function RunDetailPage({
 					<CulpritAnalysisSection
 						run={run}
 						record={record.data}
-						reading={analyses.data}
+						reading={analyses.isError ? "unreadable" : analyses.data}
+						inFlight={analysisInFlight}
 					/>
 				</div>
 			</div>

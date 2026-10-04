@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import type { ReactNode } from "react";
 import type { RunRecordResponse } from "#client/monitor/run-record-query";
 import { plural } from "#client/plural";
 import { elapsedReading, spendReading } from "#client/run-history/run-progress";
@@ -9,6 +10,7 @@ import type {
 	AnalyzedStage,
 	RecordedAnalysis,
 } from "./analysis-query";
+import { RequestAnalysisButton, requestWords } from "./analysis-request";
 import { RoleMark } from "./analysis-role";
 import { ReplayButton } from "./replay-button";
 
@@ -111,11 +113,13 @@ function RecordedReading({
 	record,
 	analysis,
 	earlierCount,
+	rerun,
 }: {
 	readonly run: string;
 	readonly record: RunRecordResponse;
 	readonly analysis: RecordedAnalysis;
 	readonly earlierCount: number;
+	readonly rerun: ReactNode;
 }): React.JSX.Element {
 	const { culprit } = analysis;
 	const analysed = new Map(analysis.stages.map((each) => [each.stage, each]));
@@ -160,9 +164,7 @@ function RecordedReading({
 				<Button asChild variant="outline" size="compact">
 					<Link to="/corpus">Open the block it names</Link>
 				</Button>
-				<Button variant="outline" size="compact">
-					Re-run the analysis
-				</Button>
+				{rerun}
 			</div>
 			<ol aria-label="Steps as the analysis read them" className="mt-4">
 				{record.stages.map((stage, index) => (
@@ -187,13 +189,13 @@ export function CulpritAnalysisSection({
 	run,
 	record,
 	reading,
+	inFlight,
 }: {
 	readonly run: string;
 	readonly record: RunRecordResponse;
-	readonly reading: AnalysisReadingResponse | undefined;
+	readonly reading: AnalysisReadingResponse | "unreadable" | undefined;
+	readonly inFlight: boolean;
 }): React.JSX.Element {
-	const newest = reading?.newest;
-
 	return (
 		<section
 			aria-labelledby="culprit-analysis-heading"
@@ -202,26 +204,104 @@ export function CulpritAnalysisSection({
 			<h2 id="culprit-analysis-heading" className="text-14 font-semibold">
 				Culprit analysis
 			</h2>
-			{reading === undefined || reading.unreadable.length === 0 ? null : (
-				<Notice
-					message="Some analysis records could not be read"
-					items={reading.unreadable.map(
-						({ file, reason }) => `${file}: ${reason}`,
-					)}
-				/>
-			)}
-			{newest?.outcome === "recorded" ? (
-				<RecordedReading
+			{reading === "unreadable" ? (
+				<p role="alert" className="mt-2 text-12 text-muted-foreground">
+					<span aria-hidden="true">⚠ </span>
+					Could not read the culprit analyses of this run.
+				</p>
+			) : null}
+			{reading === undefined || reading === "unreadable" ? null : (
+				<AnalysisReading
 					run={run}
 					record={record}
-					analysis={newest}
-					earlierCount={reading?.earlierCount ?? 0}
+					reading={reading}
+					inFlight={inFlight}
 				/>
-			) : (
-				<p className="mt-2 text-12 text-muted-foreground">
-					No culprit analysis is recorded for this run.
-				</p>
 			)}
 		</section>
+	);
+}
+
+function AnalysisReading({
+	run,
+	record,
+	reading,
+	inFlight,
+}: {
+	readonly run: string;
+	readonly record: RunRecordResponse;
+	readonly reading: AnalysisReadingResponse;
+	readonly inFlight: boolean;
+}): React.JSX.Element {
+	const { newest, request, unreadable } = reading;
+	const rerun = (
+		<RequestAnalysisButton
+			run={run}
+			request={request}
+			inFlight={inFlight}
+			label="Re-run the analysis"
+		/>
+	);
+
+	function newestReading(): React.JSX.Element {
+		if (newest === null) {
+			return (
+				<div className="mt-2 flex flex-col gap-2 text-12">
+					<p className="text-muted-foreground">
+						No culprit analysis is recorded for this run.
+					</p>
+					{requestWords(request) === undefined ? null : (
+						<p className="text-secondary-foreground">{requestWords(request)}</p>
+					)}
+					<div>
+						<RequestAnalysisButton
+							run={run}
+							request={request}
+							inFlight={inFlight}
+							label="Request a culprit analysis"
+						/>
+					</div>
+				</div>
+			);
+		}
+		if (newest.outcome === "failed") {
+			return (
+				<div className="mt-2 flex flex-col gap-2 text-12">
+					<p className="text-secondary-foreground">
+						The newest analysis failed: {newest.reason}
+					</p>
+					{newest.payload === undefined ? null : (
+						<pre className="max-h-60 overflow-auto rounded-md bg-raised p-2.5 font-mono text-11-5 whitespace-pre-wrap">
+							{JSON.stringify(newest.payload, null, 2)}
+						</pre>
+					)}
+					<div>{rerun}</div>
+				</div>
+			);
+		}
+
+		return (
+			<RecordedReading
+				run={run}
+				record={record}
+				analysis={newest}
+				earlierCount={reading.earlierCount}
+				rerun={rerun}
+			/>
+		);
+	}
+
+	return (
+		<>
+			{unreadable.length === 0 ? null : (
+				<div className="mt-2">
+					<Notice
+						message="Some analysis records could not be read"
+						items={unreadable.map(({ file, reason }) => `${file}: ${reason}`)}
+					/>
+				</div>
+			)}
+			{newestReading()}
+		</>
 	);
 }

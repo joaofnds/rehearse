@@ -88,7 +88,9 @@ describe("the Culprit analysis section", () => {
 			within(section).getByRole("link", { name: "Open the block it names" }),
 		).toHaveAttribute("href", "/corpus");
 		expect(
-			within(section).getByRole("button", { name: "Re-run the analysis" }),
+			within(section).getByRole("button", {
+				name: "Re-run the analysis · at most $1.00",
+			}),
 		).toBeInTheDocument();
 	});
 
@@ -111,6 +113,58 @@ describe("the Culprit analysis section", () => {
 		).toHaveAttribute("href", `/runs/${RUN}/stages/build`);
 		expect(within(rows).getByText("verify").closest("li")).toHaveTextContent(
 			"○ never ran",
+		);
+	});
+
+	it("shows why the newest analysis failed, what it returned, and offers a re-run", async () => {
+		const { newest, ...reading } = recordedAnalysis();
+		if (newest === null) {
+			throw new Error("the fixture records an analysis");
+		}
+		renderRunDetail(
+			new Map([
+				[
+					ANALYSES,
+					{
+						...reading,
+						newest: {
+							schemaVersion: newest.schemaVersion,
+							run: newest.run,
+							model: newest.model,
+							capUsd: newest.capUsd,
+							startedAt: newest.startedAt,
+							durationMs: newest.durationMs,
+							bundleDigest: newest.bundleDigest,
+							bundleBytes: newest.bundleBytes,
+							outcome: "failed",
+							reason: "the answer named a stage the run does not declare",
+							payload: { culprit: { stage: "deploy" } },
+						},
+						unreadable: [
+							{ file: "2026-09-28T10-40-00.000Z.json", reason: "not JSON" },
+						],
+					},
+				],
+			]),
+		);
+
+		const section = await screen.findByRole("region", {
+			name: "Culprit analysis",
+		});
+
+		expect(
+			await within(section).findByText(
+				"The newest analysis failed: the answer named a stage the run does not declare",
+			),
+		).toBeInTheDocument();
+		expect(section).toHaveTextContent('"stage": "deploy"');
+		expect(
+			within(section).getByRole("button", {
+				name: "Re-run the analysis · at most $1.00",
+			}),
+		).toBeEnabled();
+		expect(within(section).getByRole("alert")).toHaveTextContent(
+			"2026-09-28T10-40-00.000Z.json: not JSON",
 		);
 	});
 });

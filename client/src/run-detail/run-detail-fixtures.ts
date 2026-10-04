@@ -3,7 +3,14 @@
  * history row that lists it, and the culprit analysis an agent recorded of it.
  */
 import type { RunHistoryResponse } from "#client/run-history/run-history-query";
-import { renderAppWithStub } from "#client/test-support/render-app";
+import type { Reply } from "#client/test-support/fetch-stub";
+import { FakeServer } from "#client/test-support/fetch-stub";
+import type { LiveReply } from "#client/test-support/live-reply";
+import {
+	renderAppAt,
+	renderAppWithStub,
+	SHELL_BASELINE,
+} from "#client/test-support/render-app";
 import { recordStage, runRecord } from "#client/test-support/run-record";
 import { runRow } from "#client/test-support/runs-in-flight";
 import type { AnalysisReading } from "#server/culprit-analyses";
@@ -144,3 +151,42 @@ export function recordedAnalysis(): AnalysisReading {
 }
 
 export const ANALYSES = `/api/runs/${RUN}/analyses`;
+
+/** No analysis recorded yet, with a request allowed up to a one-dollar cap. */
+const ONE_DOLLAR_REQUEST: AnalysisReading["request"] = {
+	model: "sonnet",
+	capUsd: 1,
+	refusal: null,
+};
+
+export function noAnalysis(
+	request: AnalysisReading["request"] = ONE_DOLLAR_REQUEST,
+): AnalysisReading {
+	return { run: RUN, newest: null, earlierCount: 0, unreadable: [], request };
+}
+
+/**
+ * Serves run detail for the stopped run from a Fake that records what the
+ * page posts, with `routes` added or replacing the defaults.
+ */
+export function serveRunDetail(
+	routes: ReadonlyMap<string, Reply | LiveReply>,
+	historyBody: RunHistoryResponse = history([stoppedRow()]),
+): FakeServer {
+	const server = new FakeServer(
+		new Map<string, Reply | LiveReply>([
+			...[...SHELL_BASELINE].map(([path, body]): [string, Reply] => [
+				`GET ${path}`,
+				{ status: 200, body },
+			]),
+			["GET /api/runs", { status: 200, body: historyBody }],
+			[`GET /api/runs/${RUN}`, { status: 200, body: stoppedAtBuild() }],
+			[`GET ${ANALYSES}`, { status: 200, body: noAnalysis() }],
+			...routes,
+		]),
+	);
+	server.install();
+	renderAppAt(`/runs/${RUN}`);
+
+	return server;
+}

@@ -13,6 +13,8 @@ import { spendReading } from "#client/run-history/run-progress";
 import { FilterPill } from "#client/system/components/filter-pill";
 import { Notice } from "#client/system/components/notice";
 import { Button } from "#client/system/ui/button";
+import type { LaunchRequest } from "#server/launches";
+import { LaunchRefusedError, postLaunch } from "./post-launch";
 import {
 	Dialog,
 	DialogClose,
@@ -21,7 +23,6 @@ import {
 	DialogTitle,
 	DialogTrigger,
 } from "#client/system/ui/dialog";
-import type { LaunchRequest } from "#server/launches";
 
 /** The launch dialog's case list, which a newly declared case makes stale. */
 export const LAUNCH_CASES_QUERY_KEY = ["launch-cases"] as const;
@@ -56,30 +57,6 @@ export type LaunchTarget =
 type CasesResponse = InferResponseType<typeof launchClient.api.cases.$get>;
 
 type CaseListing = CasesResponse["cases"][number];
-
-class LaunchRefusedError extends Error {
-	public override name = "LaunchRefusedError";
-}
-
-/**
- * A refusal the launch routes declare arrives as `{ error }`. Anything else,
- * the request guard's plain-text 403 included, is shown as the server sent it.
- */
-async function postLaunch(request: LaunchRequest): Promise<void> {
-	const response = await launchClient.api.launches.$post({ json: request });
-	if (response.ok) {
-		return;
-	}
-	if (
-		response.status === 400 ||
-		response.status === 404 ||
-		response.status === 409
-	) {
-		const refusal = await response.json();
-		throw new LaunchRefusedError(refusal.error);
-	}
-	throw new LaunchRefusedError(await response.text());
-}
 
 type SettingsReading = InferResponseType<
 	typeof launchClient.api.settings.$get,
