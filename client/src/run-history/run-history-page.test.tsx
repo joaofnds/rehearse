@@ -1497,20 +1497,33 @@ describe(RunHistoryPage.name, () => {
 			unreadable: [],
 		};
 
-		it("lists each record other than a pipeline run by its own identity, unlinked, with its outcome", async () => {
+		it.each([
+			["replay", "2026-09-06T22-33-15.057Z"],
+			["session attempt", "0f6b6f2a-0000-4000-8000-000000000001"],
+		])("leaves a %s's own identity unlinked", async (_kind, identity) => {
 			respondingWith(everyKind);
 
 			await renderPage().findByText("group-a");
 
-			for (const [identity, outcome] of [
-				["2026-09-06T22-33-15.057Z", "STOP"],
-				["0f6b6f2a-0000-4000-8000-000000000001", "UNSUCCESSFUL"],
-			] as const) {
-				expect(
-					within(cellOf(identity, "Run")).queryByRole("link"),
-				).not.toBeInTheDocument();
-				expect(cellOf(identity, "Outcome")).toHaveTextContent(outcome);
-			}
+			expect(
+				within(cellOf(identity, "Run")).queryByRole("link"),
+			).not.toBeInTheDocument();
+		});
+
+		it.each([
+			["replay", "2026-09-06T22-33-15.057Z", "STOP"],
+			[
+				"session attempt",
+				"0f6b6f2a-0000-4000-8000-000000000001",
+				"UNSUCCESSFUL",
+			],
+			["pipeline run", "2026-09-17T12-50-49.127Z", "FAILED"],
+		])("shows a %s's outcome", async (_kind, identity, outcome) => {
+			respondingWith(everyKind);
+
+			await renderPage().findByText("group-a");
+
+			expect(cellOf(identity, "Outcome")).toHaveTextContent(outcome);
 		});
 
 		it("names on every kind of row the corpus version its record measured, the refusal, or that none was recorded", async () => {
@@ -1741,9 +1754,12 @@ describe(RunHistoryPage.name, () => {
 			).toHaveAttribute("href", "/runs/2026-09-07T00-00-00.000Z");
 		});
 
-		it.each(["2026-09-06T22-33-15.057Z", "group-a"])(
-			"leaves the id of %s unlinked, since only a pipeline run has a run detail",
-			async (identity) => {
+		it.each([
+			["replay", "2026-09-06T22-33-15.057Z"],
+			["confirmation run", "group-a"],
+		])(
+			"leaves a %s's id unlinked, since only a pipeline run has a run detail",
+			async (_kind, identity) => {
 				respondingWith(named);
 
 				await renderPage().findByText("group-a");

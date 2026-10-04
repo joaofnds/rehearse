@@ -167,7 +167,7 @@ function recordName(row: HistoryRow, name: string): React.JSX.Element {
 		<Link
 			to="/runs/$run"
 			params={{ run: row.run }}
-			className="inline-flex min-h-14 items-center self-start font-mono text-sm text-accent-foreground underline decoration-deeper underline-offset-4 hover:text-pale"
+			className="inline-flex min-h-14 items-start self-start font-mono text-sm text-accent-foreground underline decoration-deeper underline-offset-4 hover:text-pale"
 		>
 			{name}
 		</Link>
