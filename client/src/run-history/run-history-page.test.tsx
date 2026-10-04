@@ -1922,7 +1922,7 @@ describe(RunHistoryPage.name, () => {
 			);
 		});
 
-		it("names the run a started culprit analysis reads", async () => {
+		it("names the run a started culprit analysis reads, as one call it cannot stop", async () => {
 			respondingWith({
 				rows: [],
 				launches: [
@@ -1941,14 +1941,20 @@ describe(RunHistoryPage.name, () => {
 				unreadable: [],
 			});
 
-			renderPage();
+			const { queryByRole } = renderPage();
 
 			await waitFor(() => {
 				expect(screen.getByText("launch 6c4d8e0f")).toBeInTheDocument();
 			});
-			expect(cellOf("launch 6c4d8e0f", "Case")).toHaveTextContent(
+			const target = cellOf("launch 6c4d8e0f", "Case");
+			expect(target).toHaveTextContent(
 				"culprit analysis of 2026-09-06T21-58-29.508Z",
 			);
+			expect(target).toHaveTextContent("one call");
+			expect(target).not.toHaveTextContent("one run");
+			expect(
+				queryByRole("button", { name: "Stop & restore repo" }),
+			).not.toBeInTheDocument();
 		});
 
 		it("lists a launch the operator stopped as stopped, with no controls", async () => {

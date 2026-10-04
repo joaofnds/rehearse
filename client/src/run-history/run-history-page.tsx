@@ -539,8 +539,14 @@ function FilterBar({
 	);
 }
 
-function launchAttemptsLine(attempts: number): string {
-	return attempts === 1 ? "one run" : `group · ${String(attempts)} attempts`;
+function launchAttemptsLine(launch: LaunchRow): string {
+	if (launch.target === "analysis") {
+		return "one call";
+	}
+
+	return launch.attempts === 1
+		? "one run"
+		: `group · ${String(launch.attempts)} attempts`;
 }
 
 function launchTarget(launch: LaunchRow): string {
@@ -581,16 +587,17 @@ function launchCells(launch: LaunchRow): readonly React.JSX.Element[] {
 		</span>,
 		<span key="case" className="flex flex-col items-start gap-0.5">
 			<span className="font-mono text-sm">{target}</span>
-			<span className="text-xs text-dim">
-				{launchAttemptsLine(launch.attempts)}
-			</span>
+			<span className="text-xs text-dim">{launchAttemptsLine(launch)}</span>
 		</span>,
 		<span key="outcome" className="flex flex-col gap-0.5">
 			<Status state={runStatusState(launch.status)} />
 			{launch.status === "RUNNING" ? (
 				<>
 					<span className="text-xs text-dim">started from the browser</span>
-					<RunControls launchId={launch.id} run={undefined} />
+					{/* An analysis is one capped call the server refuses to stop. */}
+					{launch.target === "analysis" ? undefined : (
+						<RunControls launchId={launch.id} run={undefined} />
+					)}
 				</>
 			) : (
 				<span className="text-xs text-dim">stopped by the operator</span>

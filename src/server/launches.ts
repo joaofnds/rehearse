@@ -571,6 +571,14 @@ async function runningLaunch(
 	}
 
 	const record = await readLaunchRecord(dependencies.runsDirectory, id);
+	// The analyze command installs no signal handling, so a stopped call could
+	// spend and leave no record of it.
+	if (record.kind === "analysis") {
+		throw new LaunchRefusalError(
+			`Launch ${id} is a culprit analysis, one call capped at the cost it stated, which records what it spent when it ends; it cannot be stopped`,
+			409,
+		);
+	}
 	if (record.startedAt === undefined) {
 		throw new LaunchRefusalError(
 			`Launch ${id} was recorded without its process start time, so its pid cannot be told from another process's. Stop it from a terminal.`,

@@ -730,6 +730,20 @@ describe(createLaunchApp.name, () => {
 			expect(launcher.launches).toEqual([]);
 		});
 
+		it("refuses a stated cost below what it can now spend", async () => {
+			const { launcher, post, runsDirectory } = await harness();
+			await runStoppedAtBuild(runsDirectory);
+
+			const response = await post({
+				kind: "analysis",
+				run: ANALYZED_RUN,
+				statedUsd: 0.5,
+			});
+
+			expect(response.status).toBe(409);
+			expect(launcher.launches).toEqual([]);
+		});
+
 		it("refuses a run still in flight, before starting anything", async () => {
 			const { launcher, post, runsDirectory } = await harness(
 				"stored",
@@ -1604,6 +1618,29 @@ describe(createLaunchApp.name, () => {
 
 			expect(response.status).toBe(202);
 			expect(restarted.launcher.stopped).toEqual([FAKE_LAUNCH_PID]);
+		});
+
+		describe("when it is a culprit analysis", () => {
+			it("refuses, leaving the one capped call to end and record what it spent", async () => {
+				const server = await harness();
+				await runStoppedAtBuild(server.runsDirectory);
+				const response = await server.post({
+					kind: "analysis",
+					run: ANALYZED_RUN,
+					statedUsd: 1,
+				});
+				const { id } = launchedSchema.parse(await response.json());
+
+				const stop = await server.stop(id);
+
+				expect(stop.status).toBe(409);
+				expect(refusalSchema.parse(await stop.json()).error).toBe(
+					`Launch ${id} is a culprit analysis, one call capped at the cost it stated, which records what it spent when it ends; it cannot be stopped`,
+				);
+				expect(server.launcher.stopped).toEqual([]);
+				const record = await readLaunchRecord(server.runsDirectory, id);
+				expect(record.stopRequestedAt).toBeUndefined();
+			});
 		});
 
 		describe("when its process cannot be told apart from another", () => {
