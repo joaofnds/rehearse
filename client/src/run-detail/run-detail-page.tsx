@@ -28,6 +28,7 @@ import { Button } from "#client/system/ui/button";
 import { analysesQuery, rolesOf } from "./analysis-query";
 import { analysisWait } from "./analysis-request";
 import { CulpritAnalysisSection } from "./culprit-analysis-section";
+import { momentReading } from "./moment-reading";
 import { ReplayButton } from "./replay-button";
 import { StepMap } from "./step-map";
 import { TaskGradeCard } from "./task-grade-card";
@@ -79,12 +80,7 @@ function startedAt(run: string): string {
 
 	return Number.isNaN(started.getTime())
 		? NOT_RECORDED
-		: started.toLocaleString(undefined, {
-				day: "2-digit",
-				month: "short",
-				hour: "2-digit",
-				minute: "2-digit",
-			});
+		: momentReading(started.getTime());
 }
 
 function stepNumber(record: RunRecordResponse, stage: string): number {

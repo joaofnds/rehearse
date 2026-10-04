@@ -16,19 +16,11 @@ import type {
 } from "./analysis-query";
 import { RequestAnalysisButton, requestWords } from "./analysis-request";
 import { RoleMark } from "./analysis-role";
+import { momentReading } from "./moment-reading";
 import { ReplayButton } from "./replay-button";
 
 const DISCLAIMER =
 	"This is one agent's reading of the evidence, not a measurement. The way to confirm it is a paired rerun with that block changed and nothing else.";
-
-function analysedAt(startedAt: string): string {
-	return new Date(startedAt).toLocaleString(undefined, {
-		day: "2-digit",
-		month: "short",
-		hour: "2-digit",
-		minute: "2-digit",
-	});
-}
 
 function provenance(analysis: RecordedAnalysis): string {
 	return [
@@ -37,7 +29,7 @@ function provenance(analysis: RecordedAnalysis): string {
 			? "cost not recorded"
 			: spendReading(analysis.costUsd),
 		elapsedReading(analysis.durationMs),
-		analysedAt(analysis.startedAt),
+		momentReading(Date.parse(analysis.startedAt)),
 	].join(" · ");
 }
 
