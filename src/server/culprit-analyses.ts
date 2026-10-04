@@ -49,6 +49,14 @@ async function storedCeilingUsd(
 	}
 }
 
+/** The most a browser-requested analysis may spend under the stored ceiling. */
+export function browserAnalysisCapUsd(ceilingUsd: number): number {
+	return analysisBudgetUsd({
+		ceilingUsd,
+		capUsd: DEFAULT_ANALYSIS_BUDGET_USD,
+	});
+}
+
 export async function analysisRequestTerms(
 	runsDirectory: string,
 ): Promise<AnalysisRequestTerms> {
@@ -59,10 +67,7 @@ export async function analysisRequestTerms(
 		capUsd:
 			spendCeilingUsd === undefined
 				? null
-				: analysisBudgetUsd({
-						ceilingUsd: spendCeilingUsd,
-						capUsd: DEFAULT_ANALYSIS_BUDGET_USD,
-					}),
+				: browserAnalysisCapUsd(spendCeilingUsd),
 	};
 }
 

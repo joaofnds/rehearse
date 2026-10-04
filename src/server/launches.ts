@@ -17,11 +17,7 @@ import {
 } from "#benchmark/case";
 import { INITIAL_CHECKPOINT_STAGE } from "#benchmark/checkpoint";
 import { unhandled } from "#benchmark/contracts";
-import {
-	analysisBudgetUsd,
-	DEFAULT_ANALYSIS_BUDGET_USD,
-	refuseUnanalyzable,
-} from "#benchmark/culprit-analysis";
+import { refuseUnanalyzable } from "#benchmark/culprit-analysis";
 import { planComparison, planExtension } from "#benchmark/compare-attempts";
 import { isConfirmationIdentity } from "#benchmark/confirmation-record";
 import { liveCorpusSource } from "#benchmark/corpus-file";
@@ -62,7 +58,10 @@ import {
 	refusedFieldMessages,
 } from "./case-declaration";
 import { caseListing } from "./case-listing";
-import { BROWSER_ANALYSIS_MODEL } from "./culprit-analyses";
+import {
+	BROWSER_ANALYSIS_MODEL,
+	browserAnalysisCapUsd,
+} from "./culprit-analyses";
 import { pipelineReport } from "./pipelines";
 import { redactAbsolutePaths } from "./redact-path";
 import { runStatus } from "./run-status";
@@ -380,10 +379,7 @@ async function analysisLaunch(
 	await asLaunchRefusal(() =>
 		refuseUnanalyzable(runsDirectory, request.run, dependencies.liveness),
 	);
-	const capUsd = analysisBudgetUsd({
-		ceilingUsd,
-		capUsd: DEFAULT_ANALYSIS_BUDGET_USD,
-	});
+	const capUsd = browserAnalysisCapUsd(ceilingUsd);
 	if (capUsd !== request.statedUsd) {
 		throw new LaunchRefusalError(
 			`An analysis can now spend at most $${capUsd.toFixed(2)}, not the $${request.statedUsd.toFixed(2)} the dialog stated; reopen it to read the current cost`,
