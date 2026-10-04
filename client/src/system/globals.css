@@ -23,8 +23,12 @@
 	grid-template-columns: minmax(380px, 1fr) minmax(320px, 0.8fr);
 }
 
-@utility grid-cols-calibration {
+@utility grid-cols-main-aside {
 	grid-template-columns: minmax(0, 1fr) 280px;
+}
+
+@utility grid-cols-culprit-rows {
+	grid-template-columns: 150px 92px 128px minmax(0, 1fr) 92px;
 }
 
 @layer base {

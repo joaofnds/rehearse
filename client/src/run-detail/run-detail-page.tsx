@@ -24,6 +24,7 @@ import { EmptyState } from "#client/system/components/empty-state";
 import { STATUS_VOCABULARY } from "#client/system/components/status";
 import { Switcher } from "#client/system/components/switcher";
 import { Button } from "#client/system/ui/button";
+import { TaskGradeCard } from "./task-grade-card";
 
 const LAYOUTS = ["Contribution"] as const;
 
@@ -303,9 +304,10 @@ export function RunDetailPage({
 		return null;
 	}
 
-	const row = history.data.rows.find(
-		(each): each is PipelineRow => each.kind === "run" && each.run === run,
+	const rows = history.data.rows.filter(
+		(each): each is PipelineRow => each.kind === "run",
 	);
+	const row = rows.find((each) => each.run === run);
 	if (row === undefined) {
 		return (
 			<EmptyState heading="No recorded run has this id">
@@ -318,6 +320,15 @@ export function RunDetailPage({
 		<div className="flex h-full flex-col">
 			<RunDetailHeader row={row} record={record.data} />
 			<RestoreBanner row={row} record={record.data} />
+			<div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+				<div className="mx-auto flex max-w-250 flex-col gap-4.5">
+					<TaskGradeCard
+						row={row}
+						rows={rows}
+						outcome={record.data.finalOutcome}
+					/>
+				</div>
+			</div>
 		</div>
 	);
 }

@@ -276,7 +276,7 @@ export function CalibrationPage(): React.JSX.Element {
 				) : null}
 
 				{report === undefined ? null : (
-					<div className="grid max-w-250 grid-cols-1 gap-4.5 lg:grid-cols-calibration">
+					<div className="grid max-w-250 grid-cols-1 gap-4.5 lg:grid-cols-main-aside">
 						<div className="min-w-0 self-start overflow-x-auto">
 							<TableShell
 								caption="Your grade against the judge's, same evidence"
