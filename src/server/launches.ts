@@ -36,7 +36,6 @@ import {
 	checkpointRecorded,
 	comparisonReportPaths,
 	confirmationGroupPaths,
-	launchIds,
 	launchPaths,
 	recordedRunNames,
 	runEventsDatabaseFile,
@@ -65,6 +64,7 @@ import {
 } from "./root-cause-analyses";
 import { pipelineReport } from "./pipelines";
 import { redactAbsolutePaths } from "./redact-path";
+import { liveLaunches } from "./run-history";
 import { runStatus } from "./run-status";
 
 /**
@@ -409,29 +409,19 @@ async function analysisLaunch(
 }
 
 /**
- * Whether a launch record holds an analysis of this run whose process is
- * alive, the same test run history lists a launch as running by. A record
- * that does not read is skipped, as run history reports it beside the rows,
- * so one corrupt file cannot block every analysis.
+ * Whether an analysis of this run is among the launches run history lists as
+ * running, so the refusal and the screen agree. A record that does not read
+ * refuses nothing, so one corrupt file cannot block every analysis.
  */
 async function analysisInFlight(
 	run: string,
 	{ runsDirectory, liveness }: Readonly<LaunchDependencies>,
 ): Promise<boolean> {
-	for (const id of await launchIds(runsDirectory)) {
-		const record = await readLaunchRecord(runsDirectory, id).catch(
-			() => undefined,
-		);
-		if (
-			record?.kind === "analysis" &&
-			record.run === run &&
-			liveness.isAlive(record.pid)
-		) {
-			return true;
-		}
-	}
+	const { launches } = await liveLaunches(runsDirectory, liveness);
 
-	return false;
+	return launches.some(
+		(launch) => launch.kind === "analysis" && launch.run === run,
+	);
 }
 
 function analysisInFlightRefusal(run: string): string {

@@ -845,7 +845,7 @@ function launchRow(
  * every stopped launch is listed. A record that does not read is reported
  * beside the rows, like any other.
  */
-async function liveLaunches(
+export async function liveLaunches(
 	runsDirectory: string,
 	liveness: RunLiveness,
 ): Promise<{
