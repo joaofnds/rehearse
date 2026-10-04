@@ -134,6 +134,56 @@ describe("/runs/$run", () => {
 		expect(within(card).queryByText(/^[A-F][+-]?$/u)).not.toBeInTheDocument();
 	});
 
+	it.each([
+		[{ status: "JUDGED", verdict: "PASS" }, "PASS", "graded independently"],
+		[
+			{ status: "JUDGING_FAILED", reason: "the judge timed out" },
+			"—",
+			"judging failed · the judge timed out",
+		],
+		[
+			{ status: "PENDING", stage: "verify" },
+			"—",
+			"pending · the run is at verify",
+		],
+		[
+			{ status: "NOT_REACHED", stage: "verify", reason: "the run stopped" },
+			"—",
+			"not reached · the run stopped",
+		],
+	] as const)(
+		"reads a %o final outcome as its verdict or a dash with the reason",
+		async (finalOutcome, value, note) => {
+			renderRunDetail(
+				new Map([[`/api/runs/${RUN}`, { ...stoppedAtBuild(), finalOutcome }]]),
+			);
+
+			const card = await screen.findByRole("region", {
+				name: "Task grade · graded on its own",
+			});
+
+			expect(within(card).getByText(value)).toBeInTheDocument();
+			expect(within(card).getByText(note)).toBeInTheDocument();
+		},
+	);
+
+	it("shows no restore line for a run that completed", async () => {
+		renderAppWithStub(
+			`/runs/${RUN}`,
+			new Map<string, unknown>([
+				["/api/runs", history([{ ...stoppedRow(), status: "COMPLETED" }])],
+				[`/api/runs/${RUN}`, stoppedAtBuild()],
+			]),
+		);
+
+		expect(
+			await screen.findByText(
+				"Layout C · task grade first, then the culprit pass",
+			),
+		).toBeInTheDocument();
+		expect(screen.queryByText(/Repository restored/u)).not.toBeInTheDocument();
+	});
+
 	it("shows the last task grade recorded for the same case, with its staleness and why it is not comparable", async () => {
 		renderRunDetail(new Map(), [
 			judgedRow(

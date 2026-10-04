@@ -7,6 +7,7 @@ import {
 	recordedAnalysis,
 	recordedAnalysisWith,
 	renderRunDetail,
+	serveRunDetail,
 	stoppedAtBuild,
 } from "./run-detail-fixtures";
 
@@ -137,6 +138,22 @@ describe("the Culprit analysis section", () => {
 				name: "Re-run the analysis · at most $1.00",
 			}),
 		).toBeEnabled();
+	});
+
+	it("says when the server could not read the run's analyses", async () => {
+		serveRunDetail(
+			new Map([[`GET ${ANALYSES}`, { status: 500, body: { error: "disk" } }]]),
+		);
+
+		const section = await screen.findByRole("region", {
+			name: "Culprit analysis",
+		});
+
+		expect(
+			await within(section).findByText(
+				"Could not read the culprit analyses of this run.",
+			),
+		).toBeInTheDocument();
 	});
 
 	it("lists the analysis records it could not read", async () => {

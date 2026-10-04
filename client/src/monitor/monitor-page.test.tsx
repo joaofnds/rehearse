@@ -543,7 +543,18 @@ describe("/monitor task graph", () => {
 	function renderGraph(
 		stages: readonly ReturnType<typeof recordStage>[],
 		runUnder?: CorpusMeasurement,
-		analyses: ReadonlyMap<string, AnalysisReading> = new Map(),
+		analyses: ReadonlyMap<string, AnalysisReading> = new Map([
+			[
+				`/api/runs/${RUN}/analyses`,
+				{
+					run: RUN,
+					newest: null,
+					earlierCount: 0,
+					unreadable: [],
+					request: { model: "sonnet", capUsd: 1, refusal: null },
+				},
+			],
+		]),
 	): void {
 		renderAppWithStub(
 			"/monitor",

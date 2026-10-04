@@ -20,6 +20,8 @@ export type HistoryRow = RunHistoryResponse["rows"][number];
 
 export const RUN = "2026-09-28T10-03-07.498Z";
 
+export const ANALYSES = `/api/runs/${RUN}/analyses`;
+
 export const CORPUS = "a41c7e".padEnd(64, "0");
 
 export function history(rows: readonly HistoryRow[]): RunHistoryResponse {
@@ -116,6 +118,7 @@ export function renderRunDetail(
 		new Map<string, unknown>([
 			["/api/runs", history([stoppedRow(), ...otherRows])],
 			[`/api/runs/${RUN}`, stoppedAtBuild()],
+			[ANALYSES, noAnalysis()],
 			...extra,
 		]),
 	);
@@ -166,8 +169,6 @@ export function recordedAnalysis(): AnalysisReading {
 		request: { model: "sonnet", capUsd: 1, refusal: null },
 	};
 }
-
-export const ANALYSES = `/api/runs/${RUN}/analyses`;
 
 /** No analysis recorded yet, with a request allowed up to a one-dollar cap. */
 type RecordedAnalysis = Extract<
