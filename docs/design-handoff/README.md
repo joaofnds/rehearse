@@ -4,6 +4,9 @@
 produced on 2026-09-04 from the [original brief](../ui-design-prompt.md). They
 describe intended visual structure and interactions beyond the implemented app.
 Use [current state](../status.md#browser-ui) to find what is available today.
+Where SPEC.md and the prototype differ, SPEC.md wins: SPEC.md has been amended
+since the handoff, such as the monitor's contribution phrase and graph footer,
+and the prototype has not.
 
 Open the prototype from a local checkout to inspect the intended appearance.
 [support.js](support.js) expands the design environment's custom markup. It is

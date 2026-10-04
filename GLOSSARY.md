@@ -205,7 +205,7 @@ See [current state](docs/status.md) for implementation coverage and
   outcome on its own, from recorded evidence, then has an agent (not a
   deterministic computation) name a likely culprit stage among those that
   ran. The agent's reading is disclosed as an opinion, never as a
-  measurement, and is provisional until the run ends. It is not an ablation:
+  measurement, and is read only once the run has ended. It is not an ablation:
   ablation needs a rerun per node and is a separate planned feature
   (see [UI vocabulary](docs/design-handoff/README.md)).
 - **Culprit analysis**: one sealed agent session's reading of which corpus file
