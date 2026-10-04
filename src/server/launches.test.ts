@@ -850,6 +850,34 @@ describe(createLaunchApp.name, () => {
 				expect(await launchIds(runsDirectory)).toHaveLength(1);
 				expect(launcher.launches).toEqual([]);
 			});
+
+			it("starts an analysis of a run while another run's analysis is alive", async () => {
+				const { post, runsDirectory } = await harness("stored", analysisAlive);
+				await runStoppedAtBuild(runsDirectory);
+				await analysisLaunched(runsDirectory, "another-run");
+
+				const response = await post({
+					kind: "analysis",
+					run: ANALYZED_RUN,
+					statedUsd: 1,
+				});
+
+				expect(response.status).toBe(202);
+			});
+
+			it("starts another analysis of a run once the earlier one's process has exited", async () => {
+				const { post, runsDirectory } = await harness();
+				await runStoppedAtBuild(runsDirectory);
+				await analysisLaunched(runsDirectory, ANALYZED_RUN);
+
+				const response = await post({
+					kind: "analysis",
+					run: ANALYZED_RUN,
+					statedUsd: 1,
+				});
+
+				expect(response.status).toBe(202);
+			});
 		});
 	});
 
