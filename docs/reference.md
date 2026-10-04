@@ -203,9 +203,9 @@ run and stage arm A replayed, the attempts added per arm and that cost.
 A culprit analysis request posts `{ "kind": "analysis", "run": <run>,
 "statedUsd": <usd> }` and runs `analyze <run> --model sonnet --budget-usd
 <usd>`, with `<usd>` the cap `GET /api/runs/<run>/analyses` states. Its launch
-record holds the run and that cap, with no stage or attempts. No screen posts
-this request yet, so only a same-origin client that passes the request guard
-starts one, and `run` takes the bare run name, not `run:<name>`.
+record holds the run and that cap, with no stage or attempts. Run detail posts
+this request, only a same-origin client that passes the request guard starts
+one, and `run` takes the bare run name, not `run:<name>`.
 
 The route answers 202 with the launch id and writes
 `<records>/launches/<id>.json`, holding the pid, the process's start time, the
