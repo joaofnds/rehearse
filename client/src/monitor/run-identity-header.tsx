@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import { useId } from "react";
 import { corpusMeasurementReading } from "#benchmark/corpus-version-label";
 import {
@@ -95,7 +96,15 @@ export function RunIdentityHeader({
 			<span className="flex items-center gap-2.75 text-11">
 				<LiveGlyph />
 				<h1 className="text-16">
-					Run <span className="font-mono">{nameOf(row)}</span> in progress
+					Run{" "}
+					<Link
+						to="/runs/$run"
+						params={{ run: row.run }}
+						className="font-mono underline-offset-2 hover:underline"
+					>
+						{nameOf(row)}
+					</Link>{" "}
+					in progress
 				</h1>
 			</span>
 			<span className="font-mono text-11-5 text-muted-foreground">

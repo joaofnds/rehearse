@@ -169,6 +169,14 @@ describe("/monitor", () => {
 			);
 		});
 
+		it("links the run's name to its run detail", async () => {
+			renderMonitor(runRow({ run: RUN }));
+
+			expect(
+				within(await header()).getByRole("link", { name: "r-0148" }),
+			).toHaveAttribute("href", `/runs/${RUN}`);
+		});
+
 		it("offers Stop & restore repo for a run the browser launched", async () => {
 			renderMonitor(runRow({ run: RUN, launchId: "launch-1" }));
 
