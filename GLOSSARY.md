@@ -538,8 +538,10 @@ See [current state](docs/status.md) for implementation coverage and
 - **Root-cause analysis**: one sealed agent session's reading of which corpus
   file, if any, an ended pipeline run's outcome traces to, kept as a record of
   its own beside the run's records. It is an opinion read from recorded
-  evidence, never a measurement, and a run can hold several. It gives each
-  declared stage one role:
+  evidence, never a measurement, and a run can hold several. An analysis is
+  **in flight** while its session is still running, and the browser starts no
+  analysis of a run while one it started is in flight, so one question is not
+  paid for twice. It gives each declared stage one role:
   - **Root cause**: the corpus file the analysis names as what the outcome
     traces to, and the role of the one stage that read it. No stage has this
     role when the analysis names no file.
