@@ -448,7 +448,7 @@ function MinimumGradeNote({
 			<span className="font-mono text-secondary-foreground">
 				{record.minimumGrade.letter}
 			</span>
-			. A task below it stops the run and restores{" "}
+			. A step below it stops the run and restores{" "}
 			<span className="font-mono">{record.identity.target}</span> to{" "}
 			<span className="font-mono">{shortCommit(record.identity.commit)}</span>.
 		</p>
