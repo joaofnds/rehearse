@@ -16,11 +16,19 @@ export class FakeLauncher implements Launcher {
 
 	#held: HeldLaunch | undefined;
 
+	#failure: string | undefined;
+
 	public async launch(
 		argv: readonly string[],
 		logFile: string,
 	): Promise<number> {
 		this.launches.push({ argv, logFile });
+		const failure = this.#failure;
+		this.#failure = undefined;
+		if (failure !== undefined) {
+			throw new Error(failure);
+		}
+
 		const held = this.#held;
 		this.#held = undefined;
 		if (held !== undefined) {
@@ -39,6 +47,11 @@ export class FakeLauncher implements Launcher {
 		this.#held = held;
 
 		return held;
+	}
+
+	/** Fails the next launch with this reason, as a spawn that cannot start. */
+	public failNextLaunch(reason: string): void {
+		this.#failure = reason;
 	}
 
 	/** The process table: each live pid and when its process started. */

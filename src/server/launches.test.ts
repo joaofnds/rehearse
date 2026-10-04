@@ -905,6 +905,37 @@ describe(createLaunchApp.name, () => {
 				expect(launcher.launches).toHaveLength(1);
 			});
 		});
+
+		describe("when an earlier analysis of the run did not start", () => {
+			it("starts the next one after the earlier was refused", async () => {
+				const { post, runsDirectory } = await harness();
+				await runStoppedAtBuild(runsDirectory);
+				await post({ kind: "analysis", run: ANALYZED_RUN, statedUsd: 0.5 });
+
+				const response = await post({
+					kind: "analysis",
+					run: ANALYZED_RUN,
+					statedUsd: 1,
+				});
+
+				expect(response.status).toBe(202);
+			});
+
+			it("starts the next one after the earlier's process failed to start", async () => {
+				const { launcher, post, runsDirectory } = await harness();
+				await runStoppedAtBuild(runsDirectory);
+				launcher.failNextLaunch("spawn failed");
+				await post({ kind: "analysis", run: ANALYZED_RUN, statedUsd: 1 });
+
+				const response = await post({
+					kind: "analysis",
+					run: ANALYZED_RUN,
+					statedUsd: 1,
+				});
+
+				expect(response.status).toBe(202);
+			});
+		});
 	});
 
 	describe("when the launch cannot be started as asked", () => {
