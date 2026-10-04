@@ -66,12 +66,15 @@ export async function runAnalyze(
 	}
 }
 
-/** Only a plain decimal above zero is a budget, so "0x10" is not read as 16. */
+/**
+ * Only a decimal above zero is a budget, so "0x10" is not read as 16. The
+ * exponent form is the one a launch from the browser prints a tiny cap in.
+ */
 function budgetUsd(text: string | undefined): number {
 	if (text === undefined) {
 		return DEFAULT_ANALYSIS_BUDGET_USD;
 	}
-	if (!/^\d+(?:\.\d+)?$/u.test(text) || Number(text) <= 0) {
+	if (!/^\d+(?:\.\d+)?(?:e-?\d+)?$/u.test(text) || Number(text) <= 0) {
 		throw new UsageError(
 			`The budget is a positive number of USD, not ${JSON.stringify(text)}`,
 		);

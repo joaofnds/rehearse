@@ -112,6 +112,20 @@ describe(runAnalyze.name, () => {
 		]);
 	});
 
+	it("reads a budget in the exponent form a tiny number prints in", async () => {
+		const directory = await endedRun();
+		const recorder = recordOutput();
+
+		await runAnalyze(
+			request(directory, { id: `run:${RUN}`, budgetUsd: String(5e-7) }),
+			dependencies(recorder, answeringWith(ANSWER)),
+		);
+
+		expect(recorder.stderr).toEqual([
+			`Analyzing run ${RUN} with sonnet; the call spends at most $5e-7.\n`,
+		]);
+	});
+
 	describe("when the session's answer is refused", () => {
 		it("prints the failed record and fails", async () => {
 			const directory = await endedRun();
