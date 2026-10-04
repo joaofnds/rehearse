@@ -233,8 +233,28 @@ function CheckpointLine({
 	);
 }
 
+function counted(count: number, noun: string): string {
+	return `${String(count)} ${noun}${count === 1 ? "" : "s"}`;
+}
+
 function countReading(count: number, noun: string, direction: string): string {
-	return `${String(count)} ${noun}${count === 1 ? "" : "s"} ${direction}`;
+	return `${counted(count, noun)} ${direction}`;
+}
+
+/**
+ * What a stage's record says it produced, which stands in for its contribution
+ * until an analysis of the run gives one. No model call writes it.
+ */
+function producedReading(stage: MonitoredStage): string | undefined {
+	const { commitSubjects, changedPaths } = stage.artifactsOut;
+	if (
+		commitSubjects.state !== "available" ||
+		changedPaths.state !== "available"
+	) {
+		return undefined;
+	}
+
+	return `produced ${counted(commitSubjects.subjects.length, "commit")}, ${countReading(changedPaths.paths.length, "file", "changed")}`;
 }
 
 /** The instruction files the stage loaded and the artifacts it declared. */
@@ -381,7 +401,9 @@ function StageNode({
 				<span className="text-11 text-muted-foreground">
 					{notStarted(stage, row)
 						? "not started"
-						: (contribution ?? "contribution pending")}
+						: (contribution ??
+							producedReading(stage) ??
+							"contribution pending")}
 				</span>
 				<InOutLine stage={stage} />
 			</button>
@@ -423,8 +445,8 @@ function MinimumGradeNote({
 			. A task below it stops the run and restores{" "}
 			<span className="font-mono">{record.identity.target}</span> to{" "}
 			<span className="font-mono">{shortCommit(record.identity.commit)}</span>.
-			Contribution is measured against the task's final grade and is provisional
-			until the run ends.
+			Until an analysis of the ended run measures each step against the task's
+			final grade, a step shows what its record says it produced.
 		</p>
 	);
 }

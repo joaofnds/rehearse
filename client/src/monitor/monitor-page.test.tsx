@@ -610,10 +610,43 @@ describe("/monitor task graph", () => {
 		expect(shown).toHaveTextContent("contribution pending");
 	});
 
-	it("shows the newest analysis's phrase toward the task grade on a step that ran", async () => {
+	it("shows what a finished stage produced, from its record, until an analysis exists", async () => {
+		renderGraph([
+			recordStage("plan", {
+				status: "graded",
+				artifactsOut: {
+					...recordStage("plan").artifactsOut,
+					commitSubjects: {
+						state: "available",
+						subjects: ["docs: add project glossary"],
+					},
+					changedPaths: {
+						state: "available",
+						paths: ["GLOSSARY.md", "AGENTS.md"],
+					},
+				},
+			}),
+			recordStage("build"),
+		]);
+
+		const plan = await graphNode("plan");
+
+		expect(plan).toHaveTextContent("produced 1 commit, 2 files changed");
+		expect(plan).not.toHaveTextContent("contribution pending");
+	});
+
+	it("shows the newest analysis's phrase toward the task grade on a step that ran, over what it produced", async () => {
 		renderGraph(
 			[
-				recordStage("plan", { status: "graded", checkpoint: "recorded" }),
+				recordStage("plan", {
+					status: "graded",
+					checkpoint: "recorded",
+					artifactsOut: {
+						...recordStage("plan").artifactsOut,
+						commitSubjects: { state: "available", subjects: [] },
+						changedPaths: { state: "available", paths: [] },
+					},
+				}),
 				recordStage("build"),
 			],
 			undefined,
@@ -658,7 +691,7 @@ describe("/monitor task graph", () => {
 		expect(
 			await within(plan).findByText("left the scope the judge read open"),
 		).toBeInTheDocument();
-		expect(plan).not.toHaveTextContent("contribution pending");
+		expect(plan).not.toHaveTextContent("produced");
 	});
 
 	it("shows a stage not started as costing nothing, with no checkpoint yet", async () => {
@@ -964,6 +997,16 @@ describe("/monitor task graph", () => {
 		);
 		expect(graph).toHaveTextContent(
 			"Minimum grade for every step in this task is B-. A task below it stops the run and restores acme-api to e91f2a.",
+		);
+	});
+
+	it("says a step shows what it produced until an analysis of the ended run measures its contribution", async () => {
+		renderGraph([recordStage("plan"), recordStage("build")]);
+
+		const graph = await screen.findByRole("region", { name: "Task graph" });
+
+		expect(graph).toHaveTextContent(
+			"Until an analysis of the ended run measures each step against the task's final grade, a step shows what its record says it produced.",
 		);
 	});
 
