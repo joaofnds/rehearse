@@ -1,4 +1,5 @@
 import type {
+	AnalyzedRun,
 	CulpritAnalysisRecord,
 	UnreadableAnalysis,
 } from "#benchmark/culprit-analysis";
@@ -78,11 +79,11 @@ async function analysisRequestTerms(
  * is stated beside them rather than failing the reading.
  */
 export async function readAnalysisReading(
-	runsDirectory: string,
-	run: string,
+	analyzed: AnalyzedRun,
 ): Promise<AnalysisReading> {
-	await requireRecordedRun(runsDirectory, run);
-	const { records, unreadable } = await readCulpritAnalyses(runsDirectory, run);
+	await requireRecordedRun(analyzed);
+	const { records, unreadable } = await readCulpritAnalyses(analyzed);
+	const { runsDirectory, run } = analyzed;
 
 	return {
 		run,

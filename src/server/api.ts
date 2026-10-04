@@ -693,7 +693,10 @@ export const createApiApp = (dependencies: ApiDependencies) => {
 				const id = parseRunRecordId(context.req.param("run"));
 
 				return context.json(
-					await readAnalysisReading(dependencies.runsDirectory, id.run),
+					await readAnalysisReading({
+						runsDirectory: dependencies.runsDirectory,
+						run: id.run,
+					}),
 				);
 			} catch (error) {
 				if (

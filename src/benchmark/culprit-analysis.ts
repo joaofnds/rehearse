@@ -31,9 +31,13 @@ export type AnalysisInvoker = (
 	budgetUsd: number,
 ) => Promise<string>;
 
-export interface AnalysisRequest {
+/** A recorded run, named apart from the records directory it lives in. */
+export interface AnalyzedRun {
 	readonly runsDirectory: string;
 	readonly run: string;
+}
+
+export interface AnalysisRequest extends AnalyzedRun {
 	readonly model: string;
 	readonly capUsd: number;
 }
@@ -209,11 +213,7 @@ export async function analyzeRun(
 	request: AnalysisRequest,
 	dependencies: AnalysisDependencies,
 ): Promise<AnalysisResult> {
-	await refuseUnanalyzable(
-		request.runsDirectory,
-		request.run,
-		dependencies.liveness,
-	);
+	await refuseUnanalyzable(request, dependencies.liveness);
 	const budgetUsd = analysisBudgetUsd({
 		ceilingUsd: await dependencies.requireSpendCeiling(request.runsDirectory),
 		capUsd: request.capUsd,
@@ -276,10 +276,10 @@ export function analysisBudgetUsd(
 	);
 }
 
-export async function requireRecordedRun(
-	runsDirectory: string,
-	run: string,
-): Promise<void> {
+export async function requireRecordedRun({
+	runsDirectory,
+	run,
+}: AnalyzedRun): Promise<void> {
 	const paths = benchmarkRunPaths(runsDirectory, run);
 	if (!(await Bun.file(paths.manifestFile).exists())) {
 		throw new RefusedPreconditionError(`No run ${run} is recorded`);
@@ -294,11 +294,11 @@ export async function requireRecordedRun(
  * as it stands.
  */
 export async function refuseUnanalyzable(
-	runsDirectory: string,
-	run: string,
+	analyzed: AnalyzedRun,
 	liveness: RunLiveness,
 ): Promise<void> {
-	await requireRecordedRun(runsDirectory, run);
+	await requireRecordedRun(analyzed);
+	const { runsDirectory, run } = analyzed;
 	if ((await recordedOutcome(runsDirectory, run)) !== undefined) {
 		return;
 	}
@@ -327,10 +327,10 @@ export interface UnreadableAnalysis {
  * A run's analyses, oldest first, with each file that does not read listed
  * apart, so one bad file never hides the others.
  */
-export async function readCulpritAnalyses(
-	runsDirectory: string,
-	run: string,
-): Promise<{
+export async function readCulpritAnalyses({
+	runsDirectory,
+	run,
+}: AnalyzedRun): Promise<{
 	readonly records: readonly CulpritAnalysisRecord[];
 	readonly unreadable: readonly UnreadableAnalysis[];
 }> {

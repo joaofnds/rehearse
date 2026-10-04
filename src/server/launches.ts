@@ -377,7 +377,10 @@ async function analysisLaunch(
 		throw new LaunchRefusalError(`No recorded run ${request.run}`, 404);
 	}
 	await asLaunchRefusal(() =>
-		refuseUnanalyzable(runsDirectory, request.run, dependencies.liveness),
+		refuseUnanalyzable(
+			{ runsDirectory, run: request.run },
+			dependencies.liveness,
+		),
 	);
 	const capUsd = browserAnalysisCapUsd(ceilingUsd);
 	if (capUsd !== request.statedUsd) {
