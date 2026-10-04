@@ -12,6 +12,7 @@ import { ComparisonsPage } from "#client/comparison/comparisons-page";
 import { CorpusPage } from "#client/corpus/corpus-page";
 import { EvidenceSourcePage } from "#client/evidence/evidence-source-page";
 import { MonitorPage } from "#client/monitor/monitor-page";
+import { RunDetailPage } from "#client/run-detail/run-detail-page";
 import { RunHistoryPage } from "#client/run-history/run-history-page";
 import { SessionHistoryPage } from "#client/session-history/session-history-page";
 import { AppShell } from "#client/shell/app-shell";
@@ -162,6 +163,18 @@ function ConfirmationAttemptRoute(): React.JSX.Element {
 	return <SessionHistoryPage identity={{ kind: "confirmation", ...params }} />;
 }
 
+const runDetailRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/runs/$run",
+	component: RunDetailRoute,
+});
+
+function RunDetailRoute(): React.JSX.Element {
+	const params: { readonly run: string } = runDetailRoute.useParams();
+
+	return <RunDetailPage run={params.run} />;
+}
+
 const stageHistoryRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/runs/$run/stages/$stage",
@@ -232,6 +245,7 @@ const routeTree = rootRoute.addChildren([
 	runHistoryRoute,
 	monitorRoute,
 	runMonitorRoute,
+	runDetailRoute,
 	stageHistoryRoute,
 	stageEvidenceRoute,
 	finalEvidenceRoute,
