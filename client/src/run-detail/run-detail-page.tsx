@@ -7,7 +7,6 @@ import {
 	OPERATOR_STOPPED,
 	stoppedStageOf,
 } from "#benchmark/stopped-status";
-import { LaunchDialog } from "#client/launch/launch-dialog";
 import { minutesAndSeconds } from "#client/monitor/task-graph";
 import { shortCommit } from "#client/monitor/run-identity-header";
 import type {
@@ -24,6 +23,10 @@ import { EmptyState } from "#client/system/components/empty-state";
 import { STATUS_VOCABULARY } from "#client/system/components/status";
 import { Switcher } from "#client/system/components/switcher";
 import { Button } from "#client/system/ui/button";
+import { analysesQuery, rolesOf } from "./analysis-query";
+import { CulpritAnalysisSection } from "./culprit-analysis-section";
+import { ReplayButton } from "./replay-button";
+import { StepMap } from "./step-map";
 import { TaskGradeCard } from "./task-grade-card";
 
 const LAYOUTS = ["Contribution"] as const;
@@ -104,56 +107,6 @@ function replayedStage(
 	}
 
 	return record.stages.findLast((each) => each.status !== "no-record");
-}
-
-/**
- * A replay starts from the checkpoint the stage before it saved, so a stage
- * whose predecessor saved none has nothing to replay from. The first stage
- * starts from the run's initial checkpoint, which the launch checks.
- */
-export function consumedCheckpointMissing(
-	record: RunRecordResponse,
-	stage: string,
-): boolean {
-	const index = record.stages.findIndex((each) => each.stage === stage);
-
-	return index > 0 && record.stages[index - 1]?.checkpoint === "missing";
-}
-
-export function ReplayButton({
-	run,
-	record,
-	stage,
-	label,
-}: {
-	readonly run: string;
-	readonly record: RunRecordResponse;
-	readonly stage: string;
-	readonly label: string;
-}): React.JSX.Element {
-	if (consumedCheckpointMissing(record, stage)) {
-		return (
-			<Button
-				variant="default"
-				size="compact"
-				aria-disabled="true"
-				aria-label={`${label}: ${stage} has no checkpoint to replay from`}
-			>
-				{label}
-			</Button>
-		);
-	}
-
-	return (
-		<LaunchDialog
-			target={{ kind: "replay", run, stage }}
-			trigger={
-				<Button variant="default" size="compact">
-					{label}
-				</Button>
-			}
-		/>
-	);
 }
 
 function metaLine(row: PipelineRow, record: RunRecordResponse): string {
@@ -292,6 +245,7 @@ export function RunDetailPage({
 }): React.JSX.Element | null {
 	const history = useQuery(polledRunHistoryQuery);
 	const record = useQuery(runRecordQuery(run));
+	const analyses = useQuery(analysesQuery(run));
 	if (history.isError || record.isError) {
 		return (
 			<p role="alert" className="px-6 py-4 text-muted-foreground">
@@ -326,6 +280,12 @@ export function RunDetailPage({
 						row={row}
 						rows={rows}
 						outcome={record.data.finalOutcome}
+					/>
+					<StepMap record={record.data} roles={rolesOf(analyses.data)} />
+					<CulpritAnalysisSection
+						run={run}
+						record={record.data}
+						reading={analyses.data}
 					/>
 				</div>
 			</div>
