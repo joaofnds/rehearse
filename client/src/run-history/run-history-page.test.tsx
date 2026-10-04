@@ -250,14 +250,14 @@ describe(RunHistoryPage.name, () => {
 		expect(within(outcome).queryByRole("link")).not.toBeInTheDocument();
 	});
 
-	it("leaves the run id unlinked, since it belongs to Run detail rather than a stage page", async () => {
+	it("links a pipeline run's id to its run detail", async () => {
 		respondingWith(oneStoppedOneComplete());
 
-		await renderPage().findByText("2026-09-06T21-58-29.508Z");
+		const page = renderPage();
 
 		expect(
-			within(cellOf("2026-09-06T21-58-29.508Z", "Run")).queryByRole("link"),
-		).not.toBeInTheDocument();
+			await page.findByRole("link", { name: "2026-09-06T21-58-29.508Z" }),
+		).toHaveAttribute("href", "/runs/2026-09-06T21-58-29.508Z");
 	});
 
 	it("names the records table once, so the caption is not doubled by a heading", async () => {
@@ -1497,13 +1497,12 @@ describe(RunHistoryPage.name, () => {
 			unreadable: [],
 		};
 
-		it("lists each record by its own identity, unlinked, with its outcome", async () => {
+		it("lists each record other than a pipeline run by its own identity, unlinked, with its outcome", async () => {
 			respondingWith(everyKind);
 
 			await renderPage().findByText("group-a");
 
 			for (const [identity, outcome] of [
-				["2026-09-17T12-50-49.127Z", "FAILED"],
 				["2026-09-06T22-33-15.057Z", "STOP"],
 				["0f6b6f2a-0000-4000-8000-000000000001", "UNSUCCESSFUL"],
 			] as const) {
@@ -1731,6 +1730,29 @@ describe(RunHistoryPage.name, () => {
 				);
 			}
 		});
+
+		it("links a pipeline run's short id to its run detail", async () => {
+			respondingWith(named);
+
+			const page = renderPage();
+
+			expect(
+				await page.findByRole("link", { name: "audit-log/r7" }),
+			).toHaveAttribute("href", "/runs/2026-09-07T00-00-00.000Z");
+		});
+
+		it.each(["2026-09-06T22-33-15.057Z", "group-a"])(
+			"leaves the id of %s unlinked, since only a pipeline run has a run detail",
+			async (identity) => {
+				respondingWith(named);
+
+				await renderPage().findByText("group-a");
+
+				expect(
+					within(cellOf(identity, "Run")).queryByRole("link"),
+				).not.toBeInTheDocument();
+			},
+		);
 
 		it("names the checkpoint a replay started from and which attempt there it is", async () => {
 			respondingWith(named);

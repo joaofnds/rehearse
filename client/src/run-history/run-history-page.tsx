@@ -102,9 +102,7 @@ function UnreadableRecords({
 }
 
 /**
- * The name a record is filed under, the last part of its CLI record id. It
- * stays plain text: the links in the case cell say which page each
- * opens, where a linked name would leave that to guesswork.
+ * The name a record is filed under, the last part of its CLI record id.
  */
 function identityOf(row: HistoryRow): string {
 	switch (row.kind) {
@@ -159,15 +157,32 @@ function kindLine(row: HistoryRow): string {
 	}
 }
 
+/** A pipeline run's name opens its run detail, which no other record has. */
+function recordName(row: HistoryRow, name: string): React.JSX.Element {
+	if (row.kind !== "run") {
+		return <span className="font-mono text-sm">{name}</span>;
+	}
+
+	return (
+		<Link
+			to="/runs/$run"
+			params={{ run: row.run }}
+			className="inline-flex min-h-14 items-center self-start font-mono text-sm text-accent-foreground underline decoration-deeper underline-offset-4 hover:text-pale"
+		>
+			{name}
+		</Link>
+	);
+}
+
 /** The record's short id, with the identity it is filed under beneath. */
 function runCell(row: HistoryRow): React.JSX.Element {
 	if (row.shortId === undefined) {
-		return <span className="font-mono text-sm">{identityOf(row)}</span>;
+		return recordName(row, identityOf(row));
 	}
 
 	return (
 		<span className="flex flex-col gap-0.5">
-			<span className="font-mono text-sm">{row.shortId}</span>
+			{recordName(row, row.shortId)}
 			<span className="font-mono text-xs text-dim">{identityOf(row)}</span>
 		</span>
 	);
