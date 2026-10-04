@@ -20,7 +20,11 @@ import {
 	RecordedRunsFixture,
 } from "#benchmark/run-records-test-support";
 import { readCaseDeclaration } from "#benchmark/case";
-import { benchmarkRunPaths, launchIds } from "#benchmark/run-layout";
+import {
+	benchmarkRunPaths,
+	launchIds,
+	launchPaths,
+} from "#benchmark/run-layout";
 import type { RunLiveness } from "#benchmark/run-liveness";
 import { pauseRequested } from "#benchmark/run-pause";
 import type { JsonValue } from "#benchmark/json-value";
@@ -855,6 +859,23 @@ describe(createLaunchApp.name, () => {
 				const { post, runsDirectory } = await harness("stored", analysisAlive);
 				await runStoppedAtBuild(runsDirectory);
 				await analysisLaunched(runsDirectory, "another-run");
+
+				const response = await post({
+					kind: "analysis",
+					run: ANALYZED_RUN,
+					statedUsd: 1,
+				});
+
+				expect(response.status).toBe(202);
+			});
+
+			it("starts an analysis beside a launch record that does not read", async () => {
+				const { post, runsDirectory } = await harness("stored", analysisAlive);
+				await runStoppedAtBuild(runsDirectory);
+				await Bun.write(
+					launchPaths(runsDirectory, crypto.randomUUID()).recordFile,
+					"not json",
+				);
 
 				const response = await post({
 					kind: "analysis",
