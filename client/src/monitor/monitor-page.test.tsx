@@ -19,6 +19,7 @@ import {
 } from "#client/test-support/render-app";
 import { recordStage, runRecord } from "#client/test-support/run-record";
 import type { MonitoredStage } from "#client/monitor/run-record-query";
+import type { AnalysisReading } from "#server/culprit-analyses";
 import type { StageJudge } from "#server/stage-judge";
 import type { StageSession } from "#server/stage-session";
 import type { StageTimes } from "#server/stage-times";
@@ -542,10 +543,12 @@ describe("/monitor task graph", () => {
 	function renderGraph(
 		stages: readonly ReturnType<typeof recordStage>[],
 		runUnder?: CorpusMeasurement,
+		analyses: ReadonlyMap<string, AnalysisReading> = new Map(),
 	): void {
 		renderAppWithStub(
 			"/monitor",
 			new Map<string, unknown>([
+				...analyses,
 				[
 					"/api/runs",
 					history([
@@ -586,6 +589,57 @@ describe("/monitor task graph", () => {
 		expect(shown).toHaveTextContent("a41c7e");
 		expect(shown).toHaveTextContent("◆ckpt-0148-s1");
 		expect(shown).toHaveTextContent("contribution pending");
+	});
+
+	it("shows the newest analysis's phrase toward the task grade on a step that ran", async () => {
+		renderGraph(
+			[
+				recordStage("plan", { status: "graded", checkpoint: "recorded" }),
+				recordStage("build"),
+			],
+			undefined,
+			new Map([
+				[
+					`/api/runs/${RUN}/analyses`,
+					{
+						run: RUN,
+						newest: {
+							schemaVersion: 1,
+							run: RUN,
+							model: "sonnet",
+							capUsd: 1,
+							startedAt: "2026-09-30T10:30:00.000Z",
+							durationMs: 41_000,
+							bundleDigest: "b".repeat(64),
+							bundleBytes: 1200,
+							outcome: "recorded",
+							culprit: null,
+							narrative: "No step stands out.",
+							pairedRerun: "None needed.",
+							stages: [
+								{
+									stage: "plan",
+									role: "contributing",
+									note: "Plan left the scope open.",
+									contribution: "left the scope the judge read open",
+								},
+								{ stage: "build", role: "never ran" },
+							],
+						},
+						earlierCount: 0,
+						unreadable: [],
+						request: { model: "sonnet", capUsd: 1, refusal: null },
+					},
+				],
+			]),
+		);
+
+		const plan = await graphNode("plan");
+
+		expect(
+			await within(plan).findByText("left the scope the judge read open"),
+		).toBeInTheDocument();
+		expect(plan).not.toHaveTextContent("contribution pending");
 	});
 
 	it("shows a stage not started as costing nothing, with no checkpoint yet", async () => {

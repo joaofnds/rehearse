@@ -4,6 +4,8 @@ import {
 	corpusVersionHash,
 } from "#benchmark/corpus-version-label";
 import { LaunchDialog } from "#client/launch/launch-dialog";
+import type { AnalyzedStage } from "#client/run-detail/analysis-query";
+import { analysesQuery, rolesOf } from "#client/run-detail/analysis-query";
 import { liveElapsedMs, spendReading } from "#client/run-history/run-progress";
 import { useNow } from "#client/run-history/use-now";
 import type { PipelineRow } from "#client/shell/run-in-flight";
@@ -319,6 +321,7 @@ function StageNode({
 	selected,
 	onSelect,
 	nowMs,
+	contribution,
 }: {
 	readonly stage: MonitoredStage;
 	readonly number: number;
@@ -327,6 +330,8 @@ function StageNode({
 	readonly selected: boolean;
 	readonly onSelect: (stage: string) => void;
 	readonly nowMs: number;
+	/** The newest analysis's phrase for the step toward the task grade. */
+	readonly contribution: string | undefined;
 }): React.JSX.Element {
 	const status = nodeStatus(stage, row);
 
@@ -366,7 +371,9 @@ function StageNode({
 				</span>
 				<CheckpointLine stage={stage} />
 				<span className="text-11 text-muted-foreground">
-					{notStarted(stage, row) ? "not started" : "contribution pending"}
+					{notStarted(stage, row)
+						? "not started"
+						: (contribution ?? "contribution pending")}
 				</span>
 				<InOutLine stage={stage} />
 			</button>
@@ -414,6 +421,14 @@ function MinimumGradeNote({
 	);
 }
 
+function contributionOf(
+	analysed: AnalyzedStage | undefined,
+): string | undefined {
+	return analysed !== undefined && "contribution" in analysed
+		? analysed.contribution
+		: undefined;
+}
+
 /** The monitor's task graph (SPEC.md 2c): the run's stages as a chain of node cards. */
 export function TaskGraph({
 	record,
@@ -428,6 +443,8 @@ export function TaskGraph({
 	readonly onSelect: (stage: string) => void;
 }): React.JSX.Element {
 	const nowMs = useNow(row.progress.state === "running");
+	const analyses = useQuery(analysesQuery(row.run));
+	const roles = rolesOf(analyses.data);
 
 	return (
 		<section
@@ -458,6 +475,7 @@ export function TaskGraph({
 							selected={stage.stage === shown}
 							onSelect={onSelect}
 							nowMs={nowMs}
+							contribution={contributionOf(roles.get(stage.stage))}
 						/>
 					))}
 				</ol>
