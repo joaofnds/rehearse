@@ -1,4 +1,8 @@
 import { afterEach, describe, expect, it } from "bun:test";
+import {
+	RUN as ANALYZED_RUN,
+	runStoppedAtBuild,
+} from "#benchmark/culprit-analysis-test-support";
 import { mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -495,6 +499,53 @@ describe(createAppServer.name, () => {
 
 				expect(response.status).toBe(403);
 				expect(await readdir(runsRoot, { recursive: true })).toEqual(before);
+			});
+		});
+
+		describe("to request a culprit analysis", () => {
+			const analysis = JSON.stringify({
+				kind: "analysis",
+				run: ANALYZED_RUN,
+				statedUsd: 1,
+			});
+
+			it("starts the analysis a same-origin JSON request asks for", async () => {
+				const { app, launcher, runsRoot } = await appServer();
+				await runStoppedAtBuild(runsRoot);
+
+				const response = await app.request("/api/launches", {
+					method: "POST",
+					headers: sameOrigin,
+					body: analysis,
+				});
+
+				expect(response.status).toBe(202);
+				expect(launcher.launches).toHaveLength(1);
+			});
+
+			it.each([
+				["a foreign Origin", { ...sameOrigin, origin: "https://evil.example" }],
+				[
+					"a cross-site fetch",
+					{ ...sameOrigin, "sec-fetch-site": "cross-site" },
+				],
+				[
+					"a rebound Host",
+					{ ...sameOrigin, host: `rebound.example:${String(PORT)}` },
+				],
+				["a form body", { ...sameOrigin, "content-type": "text/plain" }],
+			])("starts nothing for %s", async (_label, headers) => {
+				const { app, launcher, runsRoot } = await appServer();
+				await runStoppedAtBuild(runsRoot);
+
+				const response = await app.request("/api/launches", {
+					method: "POST",
+					headers,
+					body: analysis,
+				});
+
+				expect(response.status).toBe(403);
+				expect(launcher.launches).toEqual([]);
 			});
 		});
 

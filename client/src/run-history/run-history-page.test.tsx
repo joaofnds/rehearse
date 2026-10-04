@@ -1922,6 +1922,35 @@ describe(RunHistoryPage.name, () => {
 			);
 		});
 
+		it("names the run a started culprit analysis reads", async () => {
+			respondingWith({
+				rows: [],
+				launches: [
+					{
+						kind: "launch",
+						id: "6c4d8e0f-0000-4000-8000-000000000000",
+						target: "analysis",
+						caseId: undefined,
+						run: "2026-09-06T21-58-29.508Z",
+						stage: undefined,
+						attempts: 1,
+						launchedAt,
+						status: "RUNNING",
+					},
+				],
+				unreadable: [],
+			});
+
+			renderPage();
+
+			await waitFor(() => {
+				expect(screen.getByText("launch 6c4d8e0f")).toBeInTheDocument();
+			});
+			expect(cellOf("launch 6c4d8e0f", "Case")).toHaveTextContent(
+				"culprit analysis of 2026-09-06T21-58-29.508Z",
+			);
+		});
+
 		it("lists a launch the operator stopped as stopped, with no controls", async () => {
 			respondingWith({
 				rows: [],

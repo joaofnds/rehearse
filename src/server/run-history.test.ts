@@ -1917,6 +1917,32 @@ describe(runHistoryReport.name, () => {
 			});
 		});
 
+		it("lists a culprit analysis launch as one call on the run it reads", async () => {
+			const fixture = await writtenFixture();
+			await writeLaunchRecord(fixture.runsDirectory, {
+				id: LAUNCH_ID,
+				kind: "analysis",
+				run: fixture.replayableRun,
+				usd: 1,
+				pid: LIVE_PID,
+				launchedAt: "2026-09-29T10:00:00.000Z",
+			});
+
+			const { launches } = await runHistoryReport(
+				fixture.runsDirectory,
+				directorySource(await corpusDirectory("build skill\n")),
+				launchLiveness(undefined),
+			);
+
+			expect(launches[0]).toMatchObject({
+				target: "analysis",
+				caseId: undefined,
+				run: fixture.replayableRun,
+				stage: undefined,
+				attempts: 1,
+			});
+		});
+
 		it("drops the launch once its process has exited", async () => {
 			const fixture = await writtenFixture();
 			await launched(fixture, 999_999);

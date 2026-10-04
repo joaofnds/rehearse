@@ -61,11 +61,19 @@ const extensionTarget = {
 	usd: z.number().nonnegative(),
 };
 
+/** Its cost is the most the call may spend, as the operator approved it. */
+const analysisTarget = {
+	kind: z.literal("analysis"),
+	run: z.string(),
+	usd: z.number().nonnegative(),
+};
+
 const launchTargetSchema = z.discriminatedUnion("kind", [
 	z.object(caseTarget).strict(),
 	z.object(replayTarget).strict(),
 	z.object(comparisonTarget).strict(),
 	z.object(extensionTarget).strict(),
+	z.object(analysisTarget).strict(),
 ]);
 
 /** What a launch runs, apart from the process that runs it. */
@@ -76,6 +84,7 @@ const launchRecordSchema = z.discriminatedUnion("kind", [
 	z.object({ ...launchCommon, ...replayTarget }).strict(),
 	z.object({ ...launchCommon, ...comparisonTarget }).strict(),
 	z.object({ ...launchCommon, ...extensionTarget }).strict(),
+	z.object({ ...launchCommon, ...analysisTarget }).strict(),
 ]);
 
 export type LaunchRecord = z.infer<typeof launchRecordSchema>;

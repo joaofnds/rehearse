@@ -558,6 +558,9 @@ function launchTarget(launch: LaunchRow): string {
 		case "extension": {
 			return `add attempts to a comparison at ${checkpoint}`;
 		}
+		case "analysis": {
+			return `culprit analysis of ${launch.run ?? ""}`;
+		}
 		default: {
 			return launch.target satisfies never;
 		}

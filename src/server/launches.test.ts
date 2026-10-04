@@ -9,6 +9,11 @@ import {
 	STAGE,
 	STAGE_RUBRIC,
 } from "#benchmark/compare-attempts-test-support";
+import {
+	RUN as ANALYZED_RUN,
+	runStoppedAtBuild,
+	runWithOneGradedStage,
+} from "#benchmark/culprit-analysis-test-support";
 import { readLaunchRecord, writeLaunchRecord } from "#benchmark/launch-record";
 import {
 	directorySource,
@@ -657,6 +662,121 @@ describe(createLaunchApp.name, () => {
 			});
 
 			expect(response.status).toBe(400);
+			expect(launcher.launches).toEqual([]);
+		});
+	});
+
+	describe("when a culprit analysis is requested", () => {
+		const RUNNING_PID = 4242;
+		const stillRunning: RunLiveness = {
+			readMarker: () => Promise.resolve({ pid: RUNNING_PID }),
+			isAlive: (pid) => pid === RUNNING_PID,
+		};
+
+		it("starts it under sonnet, capped at the cost the dialog stated", async () => {
+			const { launcher, post, runsDirectory } = await harness();
+			await runStoppedAtBuild(runsDirectory);
+
+			const response = await post({
+				kind: "analysis",
+				run: ANALYZED_RUN,
+				statedUsd: 1,
+			});
+			const { id } = launchedSchema.parse(await response.json());
+
+			expect(response.status).toBe(202);
+			expect(launcher.launches.map(({ argv }) => argv)).toEqual([
+				["analyze", ANALYZED_RUN, "--model", "sonnet", "--budget-usd", "1"],
+			]);
+			expect(await readLaunchRecord(runsDirectory, id)).toMatchObject({
+				kind: "analysis",
+				run: ANALYZED_RUN,
+				usd: 1,
+			});
+		});
+
+		it("caps it at a stored ceiling below the analysis budget", async () => {
+			const { launcher, post, runsDirectory } = await harness();
+			await runStoppedAtBuild(runsDirectory);
+			await storeSpendCeiling(runsDirectory, 0.5);
+
+			const response = await post({
+				kind: "analysis",
+				run: ANALYZED_RUN,
+				statedUsd: 0.5,
+			});
+
+			expect(response.status).toBe(202);
+			expect(launcher.launches.map(({ argv }) => argv)).toEqual([
+				["analyze", ANALYZED_RUN, "--model", "sonnet", "--budget-usd", "0.5"],
+			]);
+		});
+
+		it("refuses when the most it can spend differs from what the dialog stated, before starting anything", async () => {
+			const { launcher, post, runsDirectory } = await harness();
+			await runStoppedAtBuild(runsDirectory);
+			await storeSpendCeiling(runsDirectory, 0.5);
+
+			const response = await post({
+				kind: "analysis",
+				run: ANALYZED_RUN,
+				statedUsd: 1,
+			});
+
+			expect(response.status).toBe(409);
+			expect(refusalSchema.parse(await response.json()).error).toBe(
+				"An analysis can now spend at most $0.50, not the $1.00 the dialog stated; reopen it to read the current cost",
+			);
+			expect(launcher.launches).toEqual([]);
+		});
+
+		it("refuses a run still in flight, before starting anything", async () => {
+			const { launcher, post, runsDirectory } = await harness(
+				"stored",
+				stillRunning,
+			);
+			await runWithOneGradedStage(runsDirectory);
+
+			const response = await post({
+				kind: "analysis",
+				run: ANALYZED_RUN,
+				statedUsd: 1,
+			});
+
+			expect(response.status).toBe(409);
+			expect(refusalSchema.parse(await response.json()).error).toBe(
+				`Run ${ANALYZED_RUN} is still in flight, so it has no outcome to analyze`,
+			);
+			expect(launcher.launches).toEqual([]);
+		});
+
+		it("refuses a run nothing recorded", async () => {
+			const { launcher, post } = await harness();
+
+			const response = await post({
+				kind: "analysis",
+				run: "../outside",
+				statedUsd: 1,
+			});
+
+			expect(response.status).toBe(404);
+			expect(refusalSchema.parse(await response.json()).error).toBe(
+				"No recorded run ../outside",
+			);
+			expect(launcher.launches).toEqual([]);
+		});
+
+		it("refuses with no spend ceiling stored, before starting anything", async () => {
+			const { launcher, post, runsDirectory } = await harness("missing");
+			await runStoppedAtBuild(runsDirectory);
+
+			const response = await post({
+				kind: "analysis",
+				run: ANALYZED_RUN,
+				statedUsd: 1,
+			});
+
+			expect(response.status).toBe(409);
 			expect(launcher.launches).toEqual([]);
 		});
 	});

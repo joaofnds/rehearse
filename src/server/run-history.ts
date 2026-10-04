@@ -827,8 +827,11 @@ function launchRow(
 		target: record.kind,
 		caseId: record.kind === "case" ? record.caseId : undefined,
 		run: record.kind === "case" ? undefined : record.run,
-		stage: record.kind === "case" ? undefined : record.stage,
-		attempts: record.attempts,
+		stage:
+			record.kind === "case" || record.kind === "analysis"
+				? undefined
+				: record.stage,
+		attempts: record.kind === "analysis" ? 1 : record.attempts,
 		launchedAt: record.launchedAt,
 		status,
 	};

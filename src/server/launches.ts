@@ -17,6 +17,11 @@ import {
 } from "#benchmark/case";
 import { INITIAL_CHECKPOINT_STAGE } from "#benchmark/checkpoint";
 import { unhandled } from "#benchmark/contracts";
+import {
+	analysisBudgetUsd,
+	DEFAULT_ANALYSIS_BUDGET_USD,
+	refuseUnanalyzable,
+} from "#benchmark/culprit-analysis";
 import { planComparison, planExtension } from "#benchmark/compare-attempts";
 import { isConfirmationIdentity } from "#benchmark/confirmation-record";
 import { liveCorpusSource } from "#benchmark/corpus-file";
@@ -57,6 +62,7 @@ import {
 	refusedFieldMessages,
 } from "./case-declaration";
 import { caseListing } from "./case-listing";
+import { BROWSER_ANALYSIS_MODEL } from "./culprit-analyses";
 import { pipelineReport } from "./pipelines";
 import { redactAbsolutePaths } from "./redact-path";
 import { runStatus } from "./run-status";
@@ -126,6 +132,14 @@ const launchRequestSchema = z.discriminatedUnion("kind", [
 			comparison: z.string().regex(/^[0-9a-f]{64}$/u, "is not a comparison"),
 			attempts: z.number().int().positive(),
 			/** The cost the dialog stated, which the operator's click approved. */
+			statedUsd: z.number().nonnegative(),
+		})
+		.strict(),
+	z
+		.object({
+			kind: z.literal("analysis"),
+			run: z.string(),
+			/** The most the dialog stated the call could spend. */
 			statedUsd: z.number().nonnegative(),
 		})
 		.strict(),
@@ -348,6 +362,48 @@ async function extensionLaunch(
 	};
 }
 
+/**
+ * An analysis is one paid call capped under the stored ceiling, so a run the
+ * CLI would refuse is refused here, and so is a cap other than the one the
+ * operator approved.
+ */
+async function analysisLaunch(
+	request: Readonly<{ run: string; statedUsd: number }>,
+	dependencies: Readonly<LaunchDependencies>,
+	ceilingUsd: number,
+): Promise<Launch> {
+	const { runsDirectory } = dependencies;
+	const runs = await recordedRunNames(runsDirectory);
+	if (!runs.includes(request.run)) {
+		throw new LaunchRefusalError(`No recorded run ${request.run}`, 404);
+	}
+	await asLaunchRefusal(() =>
+		refuseUnanalyzable(runsDirectory, request.run, dependencies.liveness),
+	);
+	const capUsd = analysisBudgetUsd({
+		ceilingUsd,
+		capUsd: DEFAULT_ANALYSIS_BUDGET_USD,
+	});
+	if (capUsd !== request.statedUsd) {
+		throw new LaunchRefusalError(
+			`An analysis can now spend at most $${capUsd.toFixed(2)}, not the $${request.statedUsd.toFixed(2)} the dialog stated; reopen it to read the current cost`,
+			409,
+		);
+	}
+
+	return {
+		argv: [
+			"analyze",
+			request.run,
+			"--model",
+			BROWSER_ANALYSIS_MODEL,
+			"--budget-usd",
+			String(capUsd),
+		],
+		target: { kind: "analysis", run: request.run, usd: capUsd },
+	};
+}
+
 /** A precondition the CLI would refuse on refuses the launch, redacted. */
 async function asLaunchRefusal<T>(read: () => Promise<T>): Promise<T> {
 	try {
@@ -477,6 +533,9 @@ async function planLaunch(
 		}
 		case "extension": {
 			return extensionLaunch(request, dependencies.runsDirectory);
+		}
+		case "analysis": {
+			return analysisLaunch(request, dependencies, spendCeilingUsd);
 		}
 		default: {
 			return unhandled(request, "launch request");
