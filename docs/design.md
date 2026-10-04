@@ -197,10 +197,13 @@ stops. A stop signals the recorded pid, once its start time still matches, and
 leaves the stop to the CLI's own signal handling. A pause writes a request file
 the run reads between stages, so neither control needs the server to hold the
 process. An analysis launch is refused while a launch record holds an
-analysis of the same run whose process is alive, and while another request for
-that run is still between its checks and its record write, which the server
-holds in memory, so a second server on the same records directory does not see
-it. The settings routes write `settings.json` in the records directory,
+analysis of the same run whose process is alive, the same test run history
+lists a launch as running by, and while another request for that run is still
+starting, from before its checks until its record is written. That hold lives
+in the server's memory, so a second server on the same records directory sees
+the records but not the hold. A launch whose process starts but whose record
+cannot be written has its process stopped, since without the record nothing
+could see or stop it. The settings routes write `settings.json` in the records directory,
 the file the CLI reads, so the server holds no settings of its own. The read
 routes resolve the linked corpus on every request rather than once at startup,
 so linking or unlinking a directory changes the next read without a restart.

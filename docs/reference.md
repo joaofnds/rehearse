@@ -228,10 +228,15 @@ comparison, 409 with the refusal `compare extend` would give, and 409 when the
 cost it computes now differs from `statedUsd`, so the click approves only the
 cost the dialog showed. An analysis launch answers 404 for a run with no run
 directory, 409 for a run `diagnose` would refuse (no manifest, paused, or in
-flight), 409 when the cap it computes now differs from `statedUsd`, and 409
-while another analysis of the same run that the browser started is in flight,
-so one question never starts two paid calls. An analysis started with
-`diagnose` from a terminal writes no launch record and does not refuse one.
+flight), 409 when the cap it computes now differs from `statedUsd`, 409 while
+a launch record holds an analysis of the same run whose process is alive, and
+409 while another request of this server is still starting an analysis of that
+run, from before its checks until its record is written. A launch record that
+does not read refuses nothing. An analysis started with `diagnose` from a
+terminal writes no launch record, and a second server on the same records
+directory does not see a request this one is still starting, so neither is
+refused. Any launch whose process starts but whose record cannot be written has
+its process stopped and answers 500.
 The knob refusal, the spend ceiling and the model probe
 run later in the started process, so they end the launch with the reason only
 in its log. `GET /api/cases` lists
