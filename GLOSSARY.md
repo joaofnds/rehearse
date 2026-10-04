@@ -208,6 +208,10 @@ See [current state](docs/status.md) for implementation coverage and
   measurement, and is provisional until the run ends. It is not an ablation:
   ablation needs a rerun per node and is a separate planned feature
   (see [UI vocabulary](docs/design-handoff/README.md)).
+- **Culprit analysis**: one sealed agent session's reading of which corpus file
+  an ended pipeline run's outcome traces to, with each stage's role, kept as a
+  record of its own beside the run's records. It is an opinion read from
+  recorded evidence, never a measurement, and a run can hold several.
 - **Context manifest** — the transcript-observed instruction/context paths for
   a session attempt, classified as corpus or project inputs and reconciled
   against declarations. Observed entries are name-only; declared corpus hashes

@@ -203,11 +203,13 @@ run and stage arm A replayed, the attempts added per arm and that cost.
 A culprit analysis request posts `{ "kind": "analysis", "run": <run>,
 "statedUsd": <usd> }` and runs `analyze <run> --model sonnet --budget-usd
 <usd>`, with `<usd>` the cap `GET /api/runs/<run>/analyses` states. Its launch
-record holds the run and that cap.
+record holds the run and that cap, with no stage or attempts. No screen posts
+this request yet, so only a same-origin client that passes the request guard
+starts one, and `run` takes the bare run name, not `run:<name>`.
 
 The route answers 202 with the launch id and writes
-`<records>/launches/<id>.json`, holding the pid, the process's start time, the kind, the case or run and
-stage, the attempts and the launch time, with the child's output in
+`<records>/launches/<id>.json`, holding the pid, the process's start time, the
+kind, the launch time and the target the kind names above, with the child's output in
 `<id>.log` beside it. It answers 409 and starts nothing when no ceiling is
 stored, the settings file does not parse, a recorded case's declaration or a
 recorded run's manifest does not parse, or the checkpoint a replayed stage
@@ -324,7 +326,8 @@ measured. An unreadable settings file makes every settings route answer 409.
 is alive, and leaves it out while a pipeline run shows as running under that
 pid. A replay, session attempt or group keeps its launch listed until the
 process exits, and a pipeline run's launch is listed again once the run stops
-showing as running, until its process exits. A launch the operator stopped
+showing as running, until its process exits. A culprit analysis launch is
+listed while its process is alive, under its run, and is never stopped. A launch the operator stopped
 stays listed after its process exits, as described below.
 
 A running row in run history offers Stop & restore repo when a browser launch
@@ -332,8 +335,9 @@ started it, and a running pipeline run's row also offers Pause after this step.
 A launch row for a replay, group or session attempt offers Stop only. A
 culprit analysis launch row reads "one call" and offers no Stop, and the stop
 route refuses one with 409: `analyze` installs no signal handling, so a
-stopped call could spend and leave no record, and the call ends on its own
-within the cap it stated. Stop posts
+stopped call could spend and leave no record. The call ends on its own, and
+like any session budget its cap can be overrun by the call that crosses it.
+Stop posts
 to `POST /api/launches/:id/stop`, which records `stopRequestedAt` on the launch
 and sends its process SIGTERM, which the process handles as it handles a
 terminal's Ctrl-C (SIGINT): it kills its commands, restores the target and
@@ -1105,12 +1109,12 @@ Records live at `<records>/analyses/<run>/<startedAt>.json`, with each `:` in
 the time replaced by `-`. `GET /api/runs/<run>/analyses`, implemented in
 [culprit-analyses.ts](../src/server/culprit-analyses.ts), answers `{run, newest,
 earlierCount, unreadable, request}`: the newest record or `null`, how many older ones the run
-holds, `unreadable`, each file in the run's directory that does not match the
-schema with its reason, and `request`, the `model` (`sonnet`, the model recorded
+holds, `unreadable`, each `.json` file in the run's directory that does not
+parse or match the schema with its reason, and `request`, the `model` (`sonnet`, the model recorded
 runs are compared under), the `capUsd` a browser request would run under and a
 `refusal`. `capUsd` is the 1-dollar default lowered to the stored spend ceiling.
-When no ceiling is stored or the settings file cannot be read, `capUsd` is
-`null` and `refusal` names the fix, since nothing spends without a ceiling, and
+When no ceiling is stored or the settings file cannot be opened or parsed,
+`capUsd` is `null` and `refusal` names the fix, since nothing spends without a ceiling, and
 the analyses are still served. A record is written whole to a temporary file and
 linked into place, so the route never reads half of one. It answers 400 for a
 malformed run name and 404 for a run with no manifest.
