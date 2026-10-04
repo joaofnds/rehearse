@@ -167,14 +167,14 @@ The chain is an `<ol>`, `display:flex`, `min-width: max-content`, inside a horiz
 3. **Live tool call**, only while running: a full-width chip, 1px `#423a6a`, radius 5px, bg `#1c1e2b`, mono 10.5px `#d2cefd`, `white-space:nowrap; overflow:hidden; text-overflow:ellipsis` — e.g. `judge: reading cited spans`
 4. 2×2 mono 10.5px `#9397ab` grid: cost · duration · `2 of 4 fired` · corpus hash
 5. Checkpoint line above a 1px dashed `#3f424d` top border: `◆ ckpt-0148-s1` (`#b2b6ca`) or `◇ no checkpoint yet` (`#75798c`)
-6. Contribution phrase (11px `#9397ab`) — `brief the later steps read`, `named 2 files to touch`, `contribution pending`, `not started`
+6. Contribution phrase (11px `#9397ab`): what the step's record says it produced, such as `produced 1 commit, 2 files changed`, until an analysis of the ended run gives one agent's reading of the step; `contribution pending` while the step has neither, `not started`
 7. In/out counts (mono 10.5px `#b2b6ca`, two columns): `↓ 5 instruction files in` · `↑ 2 artifacts out`
 
 **Action stack** beside each card (vertical, 4px gap, centered): **in / out ▸** (opens the step modal, `aria-label="Implement — instructions in, artifacts out"`) and **replay** (`aria-disabled="true"` with `aria-label="Verify has no checkpoint to replay from"` when there is no checkpoint).
 
 **Connector**: 24px × 1px line + a small `▶`, colored `#5d5294` when the upstream step was accepted and `#3f424d` otherwise, `aria-hidden` (order is conveyed by the `<ol>` and the step numbers).
 
-Graph footer prose (11px `#75798c`): "Minimum grade for every step in this task is **B−**. A step below it stops the run and restores **omelette-web** to **main…e91f2a**. Contribution is measured against the task's final grade and is provisional until the run ends."
+Graph footer prose (11px `#75798c`): "Minimum grade for every step in this task is **B−**. A step below it stops the run and restores **omelette-web** to **main…e91f2a**. A step shows what its record says it produced until an analysis of the ended run gives one agent's reading of its contribution to the task's final grade."
 
 #### 2d. Session pane + judge pane — `grid-template-columns: minmax(380px,1fr) minmax(320px,.8fr)`, container `min-height: 230px`, horizontal scroll if narrower
 

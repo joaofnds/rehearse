@@ -17,6 +17,6 @@ prices, identifiers, and controls are illustrative rather than release data.
 
 The design calls a pipeline a **task**, a stage a **step**, and a confirmation
 run a **group**. Code and records keep the harness terms; the [glossary](../../GLOSSARY.md)
-records their meaning. Features such as contribution opinions, instruction
-editing, and several complete screens remain planned. Do not infer an API or
+records their meaning. Features such as instruction editing and several
+complete screens remain planned. Do not infer an API or
 record field merely because the prototype displays one.
