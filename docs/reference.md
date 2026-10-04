@@ -1110,8 +1110,8 @@ renamed root-cause analysis. It stays on disk as written and is read under the
 new names: its `culprit` as the `rootCause`, and its roles `not implicated`,
 `contributing` and `primary culprit` as `not a factor`, `contributing factor`
 and `root cause`. The reader and the API give it as a version-2 record. A
-failed record's `payload` is what the session returned, so it keeps the old
-names.
+failed record's `reason` and `payload` stay as they were written, so they can
+still carry the old names.
 
 Records live at `<records>/analyses/<run>/<startedAt>.json`, with each `:` in
 the time replaced by `-`. `GET /api/runs/<run>/analyses`, implemented in
