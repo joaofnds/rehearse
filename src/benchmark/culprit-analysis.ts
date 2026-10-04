@@ -1,4 +1,5 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { link, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { z } from "zod";
@@ -316,26 +317,45 @@ export async function refuseUnanalyzable(
 	}
 }
 
-/** A run's analyses, oldest first. */
+/** An analysis file in a run's directory that does not parse as a record. */
+export interface UnreadableAnalysis {
+	readonly file: string;
+	readonly reason: string;
+}
+
+/**
+ * A run's analyses, oldest first, with each file that does not read listed
+ * apart, so one bad file never hides the others.
+ */
 export async function readCulpritAnalyses(
 	runsDirectory: string,
 	run: string,
-): Promise<readonly CulpritAnalysisRecord[]> {
+): Promise<{
+	readonly records: readonly CulpritAnalysisRecord[];
+	readonly unreadable: readonly UnreadableAnalysis[];
+}> {
 	const directory = join(culpritAnalysesDirectory(runsDirectory), run);
 	const names = (await readdirIfPresent(directory)) ?? [];
+	const recordFiles = names.filter((name) => name.endsWith(".json")).toSorted();
 
 	const records: CulpritAnalysisRecord[] = [];
-	for (const name of names
-		.filter((entry) => entry.endsWith(".json"))
-		.toSorted()) {
-		records.push(
-			culpritAnalysisRecordSchema.parse(
-				await Bun.file(join(directory, name)).json(),
-			),
-		);
+	const unreadable: UnreadableAnalysis[] = [];
+	for (const file of recordFiles) {
+		try {
+			records.push(
+				culpritAnalysisRecordSchema.parse(
+					await Bun.file(join(directory, file)).json(),
+				),
+			);
+		} catch (error) {
+			unreadable.push({
+				file,
+				reason: error instanceof Error ? error.message : String(error),
+			});
+		}
 	}
 
-	return records;
+	return { records, unreadable };
 }
 
 /**
@@ -517,9 +537,15 @@ async function writeAnalysis(
 		`${runNameFromTimestamp(record.startedAt)}.json`,
 	);
 	await mkdir(dirname(file), { recursive: true });
-	await writeFile(file, `${JSON.stringify(record, null, 2)}\n`, {
-		flag: "wx",
-	});
+	// Linked into place from a whole temporary file, so a reader listing the
+	// run's analyses never sees half a record, and an existing one is kept.
+	const temporary = `${file}.${randomUUID()}.tmp`;
+	await writeFile(temporary, `${JSON.stringify(record, null, 2)}\n`);
+	try {
+		await link(temporary, file);
+	} finally {
+		await rm(temporary, { force: true });
+	}
 
 	return { file, record };
 }

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { z } from "zod";
 import {
 	RUN,
@@ -21,6 +21,14 @@ import {
 import { createApiApp } from "./api";
 
 const refusalSchema = z.object({ error: z.string() });
+const readingSchema = z.object({
+	newest: z.unknown(),
+	unreadable: z.array(z.object({ file: z.string(), reason: z.string() })),
+	request: z.object({
+		capUsd: z.number().nullable(),
+		refusal: z.string().nullable(),
+	}),
+});
 
 describe("GET /api/runs/:run/analyses", () => {
 	const roots: string[] = [];
@@ -52,15 +60,17 @@ describe("GET /api/runs/:run/analyses", () => {
 
 	it("serves the run's newest analysis and how many earlier ones it holds", async () => {
 		const directory = await recordedRun();
-		await recordAnalysis(directory, "2026-10-04T12:00:00.000Z");
 		const newest = await recordAnalysis(directory, "2026-10-04T13:00:00.000Z");
+		await recordAnalysis(directory, "2026-10-04T12:00:00.000Z");
 
 		const response = await analysesOf(directory, RUN);
 
 		expect(response.status).toBe(200);
 		expect(await response.json()).toMatchObject({
+			run: RUN,
 			newest: newest.record,
-			earlier: 1,
+			earlierCount: 1,
+			unreadable: [],
 		});
 	});
 
@@ -69,7 +79,52 @@ describe("GET /api/runs/:run/analyses", () => {
 
 		const response = await analysesOf(directory, RUN);
 
-		expect(await response.json()).toMatchObject({ newest: null, earlier: 0 });
+		expect(response.status).toBe(200);
+		expect(await response.json()).toMatchObject({
+			run: RUN,
+			newest: null,
+			earlierCount: 0,
+		});
+	});
+
+	it("serves a failed analysis as the newest when it came last", async () => {
+		const directory = await recordedRun();
+		await recordAnalysis(directory, "2026-10-04T12:00:00.000Z");
+		const failed = await recordAnalysis(directory, "2026-10-04T13:00:00.000Z", {
+			culprit: null,
+		});
+
+		const response = await analysesOf(directory, RUN);
+
+		expect(failed.record.outcome).toBe("failed");
+		expect(await response.json()).toMatchObject({
+			newest: failed.record,
+			earlierCount: 1,
+		});
+	});
+
+	describe("when an analysis record cannot be read", () => {
+		it("lists it apart and still serves the readable ones", async () => {
+			const directory = await recordedRun();
+			const readable = await recordAnalysis(
+				directory,
+				"2026-10-04T12:00:00.000Z",
+			);
+			await Bun.write(
+				join(dirname(readable.file), "2026-10-04T13-00-00.000Z.json"),
+				'{"schemaVersion":1,',
+			);
+
+			const response = await analysesOf(directory, RUN);
+			const reading = readingSchema.parse(await response.json());
+
+			expect(response.status).toBe(200);
+			expect(reading.newest).toEqual(readable.record);
+			expect(reading.unreadable.map(({ file }) => file)).toEqual([
+				"2026-10-04T13-00-00.000Z.json",
+			]);
+			expect(reading.unreadable[0]?.reason).not.toContain(directory);
+		});
 	});
 
 	it("states what a requested analysis may spend and the model it runs under", async () => {
@@ -79,7 +134,7 @@ describe("GET /api/runs/:run/analyses", () => {
 		const response = await analysesOf(directory, RUN);
 
 		expect(await response.json()).toMatchObject({
-			request: { model: "sonnet", capUsd: 1 },
+			request: { model: "sonnet", capUsd: 1, refusal: null },
 		});
 	});
 
@@ -91,34 +146,40 @@ describe("GET /api/runs/:run/analyses", () => {
 			const response = await analysesOf(directory, RUN);
 
 			expect(await response.json()).toMatchObject({
-				request: { model: "sonnet", capUsd: 0.5 },
+				request: { model: "sonnet", capUsd: 0.5, refusal: null },
 			});
 		});
 	});
 
 	describe("when no spend ceiling is stored", () => {
-		it("states that a request can spend nothing", async () => {
+		it("states that a request would be refused, and how to allow one", async () => {
 			const directory = await recordedRun();
 
 			const response = await analysesOf(directory, RUN);
+			const { request } = readingSchema.parse(await response.json());
 
-			expect(await response.json()).toMatchObject({
-				request: { model: "sonnet", capUsd: null },
-			});
+			expect(request.capUsd).toBeNull();
+			expect(request.refusal).toContain(SET_SPEND_CEILING_COMMAND);
 		});
 	});
 
 	describe("when the settings file cannot be read", () => {
-		it("answers a conflict naming the fix, without the records path", async () => {
+		it("still serves the analyses, and states the refusal without the records path", async () => {
 			const directory = await recordedRun();
+			const newest = await recordAnalysis(
+				directory,
+				"2026-10-04T12:00:00.000Z",
+			);
 			await Bun.write(join(directory, "settings.json"), "not json");
 
 			const response = await analysesOf(directory, RUN);
-			const { error } = refusalSchema.parse(await response.json());
+			const reading = readingSchema.parse(await response.json());
 
-			expect(response.status).toBe(409);
-			expect(error).toContain(SET_SPEND_CEILING_COMMAND);
-			expect(error).not.toContain(directory);
+			expect(response.status).toBe(200);
+			expect(reading.newest).toEqual(newest.record);
+			expect(reading.request.capUsd).toBeNull();
+			expect(reading.request.refusal).toContain(SET_SPEND_CEILING_COMMAND);
+			expect(reading.request.refusal).not.toContain(directory);
 		});
 	});
 

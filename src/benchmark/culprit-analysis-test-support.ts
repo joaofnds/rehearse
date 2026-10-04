@@ -225,15 +225,19 @@ export function answering(
 	};
 }
 
-/** Records one analysis of the fixture run, started at the ISO `startedAt`. */
+/**
+ * Records one analysis of the fixture run, started at the ISO `startedAt`. An
+ * answer the harness refuses records a failed analysis.
+ */
 export function recordAnalysis(
 	directory: string,
 	startedAt: string,
+	answer: ClaudeEnvelope["structured_output"] = ANSWER,
 ): Promise<AnalysisResult> {
 	return analyzeRun(
 		{ runsDirectory: directory, run: RUN, model: "sonnet", capUsd: 1 },
 		{
-			invoke: () => Promise.resolve(JSON.stringify(answering(ANSWER))),
+			invoke: () => Promise.resolve(JSON.stringify(answering(answer))),
 			now: () => new Date(startedAt),
 			liveness: nothingRunning,
 			requireSpendCeiling: () => Promise.resolve(30),
