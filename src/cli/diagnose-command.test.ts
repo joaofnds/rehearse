@@ -29,7 +29,7 @@ afterEach(async () => {
 });
 
 async function endedRun(): Promise<string> {
-	const root = await mkdtemp(join(tmpdir(), "rehearse-analyze-"));
+	const root = await mkdtemp(join(tmpdir(), "rehearse-diagnose-"));
 	roots.push(root);
 	await runStoppedAtBuild(root);
 

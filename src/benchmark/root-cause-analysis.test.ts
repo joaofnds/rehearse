@@ -193,7 +193,7 @@ describe(analyzeRun.name, () => {
 				"The answer names build as the root-cause stage, so build and no other stage must be the root cause",
 			],
 			[
-				"names a root cause whose stage is not the root cause",
+				"names a root cause whose stage has another role",
 				{
 					...ANSWER,
 					stages: [
@@ -204,7 +204,7 @@ describe(analyzeRun.name, () => {
 				"The answer names build as the root-cause stage, so build and no other stage must be the root cause",
 			],
 			[
-				"names a root cause without a root cause",
+				"gives a stage the root-cause role with a null rootCause",
 				{ ...ANSWER, rootCause: null },
 				"The answer names a root-cause stage without a root cause",
 			],

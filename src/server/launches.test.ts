@@ -30,6 +30,7 @@ import { linkCorpus } from "#benchmark/corpus-source";
 import { corpusVersionLog } from "#benchmark/corpus-version";
 import { corpusVersionLabel } from "#benchmark/corpus-version-label";
 import { CEILING_OVERRUN_STATEMENT } from "#benchmark/spend-ceiling";
+import { findCommand, parseCommandLine } from "#cli/commands";
 import {
 	SET_SPEND_CEILING_COMMAND,
 	storeSpendCeiling,
@@ -693,6 +694,18 @@ describe(createLaunchApp.name, () => {
 				run: ANALYZED_RUN,
 				usd: 1,
 			});
+		});
+
+		it("starts a command line the CLI accepts", async () => {
+			const { launcher, post, runsDirectory } = await harness();
+			await runStoppedAtBuild(runsDirectory);
+
+			await post({ kind: "analysis", run: ANALYZED_RUN, statedUsd: 1 });
+			const [launch] = launcher.launches;
+			const { command, args } = findCommand(launch?.argv ?? []);
+
+			expect(command.name).toBe("diagnose");
+			expect(parseCommandLine(command, args).argument).toBe(ANALYZED_RUN);
 		});
 
 		it("caps it at a stored ceiling below the analysis budget", async () => {

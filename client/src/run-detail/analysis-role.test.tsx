@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { render } from "@testing-library/react";
 import { RoleMark } from "./analysis-role";
 
-describe("RoleMark", () => {
+describe(RoleMark.name, () => {
 	it.each([
 		["root cause", "✕ root cause"],
 		["contributing factor", "~ contributing factor"],

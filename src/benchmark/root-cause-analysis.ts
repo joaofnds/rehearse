@@ -439,17 +439,20 @@ function answerViolation(
 		return `The answer reads stages ${answered.join(", ")}, but the stages that ran are ${expected.join(", ")}`;
 	}
 
-	const rootCauseRoles = answer.stages.filter(
+	const stagesMarkedRootCause = answer.stages.filter(
 		({ role }) => role === "root cause",
 	);
 	if (answer.rootCause === null) {
-		return rootCauseRoles.length === 0
+		return stagesMarkedRootCause.length === 0
 			? undefined
 			: "The answer names a root-cause stage without a root cause";
 	}
 
 	const { stage, file } = answer.rootCause;
-	if (rootCauseRoles.length !== 1 || rootCauseRoles[0]?.stage !== stage) {
+	if (
+		stagesMarkedRootCause.length !== 1 ||
+		stagesMarkedRootCause[0]?.stage !== stage
+	) {
 		return `The answer names ${stage} as the root-cause stage, so ${stage} and no other stage must be the root cause`;
 	}
 
