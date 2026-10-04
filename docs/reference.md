@@ -329,7 +329,11 @@ stays listed after its process exits, as described below.
 
 A running row in run history offers Stop & restore repo when a browser launch
 started it, and a running pipeline run's row also offers Pause after this step.
-A launch row for a replay, group or session attempt offers Stop only. Stop posts
+A launch row for a replay, group or session attempt offers Stop only. A
+culprit analysis launch row reads "one call" and offers no Stop, and the stop
+route refuses one with 409: `analyze` installs no signal handling, so a
+stopped call could spend and leave no record, and the call ends on its own
+within the cap it stated. Stop posts
 to `POST /api/launches/:id/stop`, which records `stopRequestedAt` on the launch
 and sends its process SIGTERM, which the process handles as it handles a
 terminal's Ctrl-C (SIGINT): it kills its commands, restores the target and
@@ -1100,13 +1104,16 @@ open analysis records.
 Records live at `<records>/analyses/<run>/<startedAt>.json`, with each `:` in
 the time replaced by `-`. `GET /api/runs/<run>/analyses`, implemented in
 [culprit-analyses.ts](../src/server/culprit-analyses.ts), answers `{run, newest,
-earlier, request}`: the newest record or `null`, how many older ones the run
-holds, and `request`, the `model` (`sonnet`, the model recorded runs are compared
-under) and `capUsd` a browser request would run under. `capUsd` is the 1-dollar
-default lowered to the stored spend ceiling, or `null` when no ceiling is stored,
-since nothing spends without one. A record that does not match the schema fails
-the route. It answers 400 for a malformed run name, 404 for a run with no
-manifest, and 409 naming the fix when the settings file cannot be read.
+earlierCount, unreadable, request}`: the newest record or `null`, how many older ones the run
+holds, `unreadable`, each file in the run's directory that does not match the
+schema with its reason, and `request`, the `model` (`sonnet`, the model recorded
+runs are compared under), the `capUsd` a browser request would run under and a
+`refusal`. `capUsd` is the 1-dollar default lowered to the stored spend ceiling.
+When no ceiling is stored or the settings file cannot be read, `capUsd` is
+`null` and `refusal` names the fix, since nothing spends without a ceiling, and
+the analyses are still served. A record is written whole to a temporary file and
+linked into place, so the route never reads half of one. It answers 400 for a
+malformed run name and 404 for a run with no manifest.
 
 ## Target restoration
 
