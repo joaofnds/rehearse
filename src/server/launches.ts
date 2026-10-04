@@ -376,6 +376,7 @@ async function analysisLaunch(
 	if (!runs.includes(request.run)) {
 		throw new LaunchRefusalError(`No recorded run ${request.run}`, 404);
 	}
+
 	await asLaunchRefusal(() =>
 		refuseUnanalyzable(
 			{ runsDirectory, run: request.run },

@@ -5,6 +5,8 @@ import { join } from "node:path";
 import type { ClaudeEnvelope } from "#benchmark/contracts";
 import type { AnalysisInvoker } from "#benchmark/culprit-analysis";
 import {
+	ANSWER,
+	answering,
 	RUN,
 	runStoppedAtBuild,
 } from "#benchmark/culprit-analysis-test-support";
@@ -14,26 +16,6 @@ import { runAnalyze } from "#cli/analyze-command";
 import { failureOf, recordOutput } from "#cli/cli-test-support";
 import type { OutputRecorder } from "#cli/cli-test-support";
 import { UsageError } from "#cli/commands";
-
-const ANSWER = {
-	culprit: { stage: "build", file: "skills/build/SKILL.md" },
-	narrative: "the build skill never asks for a direct run",
-	pairedRerun: "replay build with the run step restored",
-	stages: [
-		{
-			stage: "shape",
-			role: "not implicated",
-			note: "the card was complete",
-			contribution: "left the grade where it was",
-		},
-		{
-			stage: "build",
-			role: "primary culprit",
-			note: "no direct run was recorded",
-			contribution: "cost the observed-result requirement",
-		},
-	],
-} as const;
 
 const roots: string[] = [];
 
@@ -51,17 +33,10 @@ async function endedRun(): Promise<string> {
 	return root;
 }
 
-function answering(
+function answeringWith(
 	structuredOutput: ClaudeEnvelope["structured_output"],
 ): AnalysisInvoker {
-	return () =>
-		Promise.resolve(
-			JSON.stringify({
-				session_id: "analysis-session",
-				total_cost_usd: 0.24,
-				structured_output: structuredOutput,
-			}),
-		);
+	return () => Promise.resolve(JSON.stringify(answering(structuredOutput)));
 }
 
 function request(
@@ -111,7 +86,7 @@ describe(runAnalyze.name, () => {
 
 		await runAnalyze(
 			request(directory),
-			dependencies(recorder, answering(ANSWER), requests),
+			dependencies(recorder, answeringWith(ANSWER), requests),
 		);
 
 		expect(requests.models).toEqual(["sonnet"]);
@@ -129,7 +104,7 @@ describe(runAnalyze.name, () => {
 
 		await runAnalyze(
 			request(directory, { id: `run:${RUN}`, budgetUsd: "2.5" }),
-			dependencies(recorder, answering(ANSWER)),
+			dependencies(recorder, answeringWith(ANSWER)),
 		);
 
 		expect(recorder.stderr).toEqual([
@@ -145,7 +120,7 @@ describe(runAnalyze.name, () => {
 			const error = await failureOf(
 				runAnalyze(
 					request(directory),
-					dependencies(recorder, answering({ ...ANSWER, stages: [] })),
+					dependencies(recorder, answeringWith({ ...ANSWER, stages: [] })),
 				),
 			);
 
@@ -180,7 +155,7 @@ describe(runAnalyze.name, () => {
 				const error = await failureOf(
 					runAnalyze(
 						request(directory, overrides),
-						dependencies(recordOutput(), answering(ANSWER), requests),
+						dependencies(recordOutput(), answeringWith(ANSWER), requests),
 					),
 				);
 
