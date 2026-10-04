@@ -943,7 +943,7 @@ describe(createLaunchApp.name, () => {
 				expect(first.status).toBe(202);
 				expect(second.status).toBe(409);
 				expect(refusalSchema.parse(await second.json()).error).toBe(
-					`An analysis of run ${ANALYZED_RUN} is already in flight; read its result when it ends`,
+					`An analysis of run ${ANALYZED_RUN} is already starting; try again in a moment`,
 				);
 				expect(launcher.launches).toHaveLength(1);
 			});

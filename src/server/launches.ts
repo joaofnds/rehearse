@@ -385,8 +385,12 @@ async function analysisLaunch(
 		),
 	);
 	if (await analysisInFlight(request.run, dependencies)) {
-		throw new LaunchRefusalError(analysisInFlightRefusal(request.run), 409);
+		throw new LaunchRefusalError(
+			`An analysis of run ${request.run} is already in flight; read its result when it ends`,
+			409,
+		);
 	}
+
 	const capUsd = browserAnalysisCapUsd(ceilingUsd);
 	if (capUsd !== request.statedUsd) {
 		throw new LaunchRefusalError(
@@ -422,10 +426,6 @@ async function analysisInFlight(
 	return launches.some(
 		(launch) => launch.kind === "analysis" && launch.run === run,
 	);
-}
-
-function analysisInFlightRefusal(run: string): string {
-	return `An analysis of run ${run} is already in flight; read its result when it ends`;
 }
 
 /** A precondition the CLI would refuse on refuses the launch, redacted. */
@@ -567,7 +567,6 @@ async function planLaunch(
 	}
 }
 
-/** Plans the launch, starts its process and records it, answering its id. */
 async function startLaunch(
 	request: LaunchRequest,
 	dependencies: LaunchDependencies,
@@ -596,22 +595,25 @@ async function startLaunch(
  * Starts an analysis of a run only while no other analysis of it is starting
  * in this server. An analysis has no launch record until its process is
  * started, so without this two requests arriving together would both pass
- * the record check and start two paid calls. The run is freed however the
- * start ends, so a refused or failed request does not hold it.
+ * the record check and start two paid calls.
  */
-async function startAlone<T>(
-	startingAnalyses: Set<string>,
+async function startSoleAnalysisOf(
 	run: string,
-	start: () => Promise<T>,
-): Promise<T> {
-	if (startingAnalyses.has(run)) {
-		throw new LaunchRefusalError(analysisInFlightRefusal(run), 409);
+	runsStartingAnalysis: Set<string>,
+	start: () => Promise<string>,
+): Promise<string> {
+	if (runsStartingAnalysis.has(run)) {
+		throw new LaunchRefusalError(
+			`An analysis of run ${run} is already starting; try again in a moment`,
+			409,
+		);
 	}
-	startingAnalyses.add(run);
+
+	runsStartingAnalysis.add(run);
 	try {
 		return await start();
 	} finally {
-		startingAnalyses.delete(run);
+		runsStartingAnalysis.delete(run);
 	}
 }
 
@@ -712,7 +714,7 @@ async function pauseRun(
  */
 // oxlint-disable-next-line typescript/explicit-function-return-type, typescript/explicit-module-boundary-types
 export const createLaunchApp = (dependencies: LaunchDependencies) => {
-	const startingAnalyses = new Set<string>();
+	const runsStartingAnalysis = new Set<string>();
 	const app = new Hono()
 		.get("/api/settings", async (context) => {
 			try {
@@ -853,7 +855,11 @@ export const createLaunchApp = (dependencies: LaunchDependencies) => {
 			try {
 				const id =
 					request.kind === "analysis"
-						? await startAlone(startingAnalyses, request.run, start)
+						? await startSoleAnalysisOf(
+								request.run,
+								runsStartingAnalysis,
+								start,
+							)
 						: await start();
 
 				return context.json({ id }, 202);
