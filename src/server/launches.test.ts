@@ -869,6 +869,28 @@ describe(createLaunchApp.name, () => {
 				expect(response.status).toBe(202);
 			});
 
+			it("starts an analysis of a run while a replay of it is alive", async () => {
+				const { post, runsDirectory } = await harness("stored", analysisAlive);
+				await runStoppedAtBuild(runsDirectory);
+				await writeLaunchRecord(runsDirectory, {
+					kind: "replay",
+					run: ANALYZED_RUN,
+					stage: "build",
+					attempts: 1,
+					id: crypto.randomUUID(),
+					pid: ANALYSIS_PID,
+					launchedAt: new Date().toISOString(),
+				});
+
+				const response = await post({
+					kind: "analysis",
+					run: ANALYZED_RUN,
+					statedUsd: 1,
+				});
+
+				expect(response.status).toBe(202);
+			});
+
 			it("starts an analysis beside a launch record that does not read", async () => {
 				const { post, runsDirectory } = await harness("stored", analysisAlive);
 				await runStoppedAtBuild(runsDirectory);
