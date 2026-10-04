@@ -35,7 +35,9 @@ const graded = (letter: string) =>
 	}) as const;
 
 /** A three-stage run that stopped at build, below its minimum of B. */
-export function stoppedAtBuild(): RunRecord {
+export function stoppedAtBuild(
+	firstStepCheckpoint: "recorded" | "missing" = "recorded",
+): RunRecord {
 	return {
 		...runRecord({
 			run: RUN,
@@ -44,7 +46,7 @@ export function stoppedAtBuild(): RunRecord {
 				recordStage("shape", {
 					status: "graded",
 					grade: graded("A-"),
-					checkpoint: "recorded",
+					checkpoint: firstStepCheckpoint,
 				}),
 				recordStage("build", { status: "stopped", grade: graded("D") }),
 				recordStage("verify"),
@@ -168,6 +170,61 @@ export function recordedAnalysis(): AnalysisReading {
 export const ANALYSES = `/api/runs/${RUN}/analyses`;
 
 /** No analysis recorded yet, with a request allowed up to a one-dollar cap. */
+type RecordedAnalysis = Extract<
+	NonNullable<AnalysisReading["newest"]>,
+	{ readonly outcome: "recorded" }
+>;
+
+function recordedNewest(): RecordedAnalysis {
+	const { newest } = recordedAnalysis();
+	if (newest?.outcome !== "recorded") {
+		throw new Error("the fixture records an analysis");
+	}
+
+	return newest;
+}
+
+/** The recorded analysis with some of its answer changed. */
+export function recordedAnalysisWith(
+	change: Partial<RecordedAnalysis>,
+): AnalysisReading {
+	return {
+		...recordedAnalysis(),
+		newest: { ...recordedNewest(), ...change },
+	};
+}
+
+/** An analysis whose answer broke a rule, stored with its reason and payload. */
+export function failedAnalysis(): AnalysisReading {
+	const {
+		schemaVersion,
+		run,
+		model,
+		capUsd,
+		startedAt,
+		durationMs,
+		bundleDigest,
+		bundleBytes,
+	} = recordedNewest();
+
+	return {
+		...recordedAnalysis(),
+		newest: {
+			schemaVersion,
+			run,
+			model,
+			capUsd,
+			startedAt,
+			durationMs,
+			bundleDigest,
+			bundleBytes,
+			outcome: "failed",
+			reason: "the answer named a stage the run does not declare",
+			payload: { culprit: { stage: "deploy" } },
+		},
+	};
+}
+
 const ONE_DOLLAR_REQUEST: AnalysisReading["request"] = {
 	model: "sonnet",
 	capUsd: 1,

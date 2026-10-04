@@ -108,6 +108,8 @@ function StepRow({
 	);
 }
 
+const NO_CULPRIT = "the analysis named no culprit";
+
 function RecordedReading({
 	run,
 	record,
@@ -145,25 +147,37 @@ function RecordedReading({
 			)}
 			<div className="mt-3 flex flex-wrap gap-2">
 				{culprit === null ? (
-					<Button
-						variant="default"
-						size="compact"
-						aria-disabled="true"
-						aria-label="Set up the paired rerun: the analysis named no culprit"
-					>
-						Set up the paired rerun
-					</Button>
+					<>
+						<Button
+							variant="default"
+							size="compact"
+							aria-disabled="true"
+							aria-label={`Set up the paired rerun: ${NO_CULPRIT}`}
+						>
+							Set up the paired rerun
+						</Button>
+						<Button
+							variant="outline"
+							size="compact"
+							aria-disabled="true"
+							aria-label={`Open the block it names: ${NO_CULPRIT}`}
+						>
+							Open the block it names
+						</Button>
+					</>
 				) : (
-					<ReplayButton
-						run={run}
-						record={record}
-						stage={culprit.stage}
-						label="Set up the paired rerun"
-					/>
+					<>
+						<ReplayButton
+							run={run}
+							record={record}
+							stage={culprit.stage}
+							label="Set up the paired rerun"
+						/>
+						<Button asChild variant="outline" size="compact">
+							<Link to="/corpus">Open the block it names</Link>
+						</Button>
+					</>
 				)}
-				<Button asChild variant="outline" size="compact">
-					<Link to="/corpus">Open the block it names</Link>
-				</Button>
 				{rerun}
 			</div>
 			<ol aria-label="Steps as the analysis read them" className="mt-4">

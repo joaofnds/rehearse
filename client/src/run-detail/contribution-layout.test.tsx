@@ -2,9 +2,12 @@ import { afterEach, describe, expect, it } from "bun:test";
 import { screen, within } from "@testing-library/react";
 import {
 	ANALYSES,
+	failedAnalysis,
 	RUN,
 	recordedAnalysis,
+	recordedAnalysisWith,
 	renderRunDetail,
+	stoppedAtBuild,
 } from "./run-detail-fixtures";
 
 const originalFetch = globalThis.fetch;
@@ -117,36 +120,7 @@ describe("the Culprit analysis section", () => {
 	});
 
 	it("shows why the newest analysis failed, what it returned, and offers a re-run", async () => {
-		const { newest, ...reading } = recordedAnalysis();
-		if (newest === null) {
-			throw new Error("the fixture records an analysis");
-		}
-		renderRunDetail(
-			new Map([
-				[
-					ANALYSES,
-					{
-						...reading,
-						newest: {
-							schemaVersion: newest.schemaVersion,
-							run: newest.run,
-							model: newest.model,
-							capUsd: newest.capUsd,
-							startedAt: newest.startedAt,
-							durationMs: newest.durationMs,
-							bundleDigest: newest.bundleDigest,
-							bundleBytes: newest.bundleBytes,
-							outcome: "failed",
-							reason: "the answer named a stage the run does not declare",
-							payload: { culprit: { stage: "deploy" } },
-						},
-						unreadable: [
-							{ file: "2026-09-28T10-40-00.000Z.json", reason: "not JSON" },
-						],
-					},
-				],
-			]),
-		);
+		renderRunDetail(new Map([[ANALYSES, failedAnalysis()]]));
 
 		const section = await screen.findByRole("region", {
 			name: "Culprit analysis",
@@ -163,8 +137,75 @@ describe("the Culprit analysis section", () => {
 				name: "Re-run the analysis · at most $1.00",
 			}),
 		).toBeEnabled();
-		expect(within(section).getByRole("alert")).toHaveTextContent(
+	});
+
+	it("lists the analysis records it could not read", async () => {
+		renderRunDetail(
+			new Map([
+				[
+					ANALYSES,
+					{
+						...recordedAnalysis(),
+						unreadable: [
+							{ file: "2026-09-28T10-40-00.000Z.json", reason: "not JSON" },
+						],
+					},
+				],
+			]),
+		);
+
+		const section = await screen.findByRole("region", {
+			name: "Culprit analysis",
+		});
+
+		expect(await within(section).findByRole("alert")).toHaveTextContent(
 			"2026-09-28T10-40-00.000Z.json: not JSON",
 		);
+	});
+
+	it("disables the paired rerun, saying why, when the checkpoint the culprit step starts from is missing", async () => {
+		renderRunDetail(
+			new Map<string, unknown>([
+				[ANALYSES, recordedAnalysis()],
+				[`/api/runs/${RUN}`, stoppedAtBuild("missing")],
+			]),
+		);
+
+		const section = await screen.findByRole("region", {
+			name: "Culprit analysis",
+		});
+
+		expect(
+			await within(section).findByRole("button", {
+				name: "Set up the paired rerun: build has no checkpoint to replay from",
+			}),
+		).toHaveAttribute("aria-disabled", "true");
+	});
+
+	it("disables the paired rerun and the block link when the analysis named no culprit", async () => {
+		renderRunDetail(
+			new Map([[ANALYSES, recordedAnalysisWith({ culprit: null })]]),
+		);
+
+		const section = await screen.findByRole("region", {
+			name: "Culprit analysis",
+		});
+
+		expect(
+			await within(section).findByText("no culprit named"),
+		).toBeInTheDocument();
+		expect(
+			within(section).getByRole("button", {
+				name: "Set up the paired rerun: the analysis named no culprit",
+			}),
+		).toHaveAttribute("aria-disabled", "true");
+		expect(
+			within(section).getByRole("button", {
+				name: "Open the block it names: the analysis named no culprit",
+			}),
+		).toHaveAttribute("aria-disabled", "true");
+		expect(
+			within(section).queryByRole("link", { name: "Open the block it names" }),
+		).not.toBeInTheDocument();
 	});
 });
