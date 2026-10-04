@@ -47,7 +47,7 @@ export function stoppedAtBuild(
 			stages: [
 				recordStage("shape", {
 					status: "graded",
-					grade: graded("A-"),
+					grade: graded("A"),
 					checkpoint: firstStepCheckpoint,
 				}),
 				recordStage("build", { status: "stopped", grade: graded("D") }),

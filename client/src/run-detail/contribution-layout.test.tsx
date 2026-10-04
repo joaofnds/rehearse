@@ -30,7 +30,7 @@ describe("the Contribution layout's map", () => {
 		const chips = within(map).getAllByRole("listitem");
 
 		expect(chips.map((chip) => chip.textContent)).toEqual([
-			"1shapeA-·not implicated",
+			"1shapeA·not implicated",
 			"2buildD✕primary culprit",
 			"3verify—○never ran",
 		]);
@@ -45,7 +45,7 @@ describe("the Contribution layout's map", () => {
 			within(map)
 				.getAllByRole("listitem")
 				.map((chip) => chip.textContent),
-		).toEqual(["1shapeA-", "2buildD", "3verify—"]);
+		).toEqual(["1shapeA", "2buildD", "3verify—"]);
 	});
 });
 
@@ -110,6 +110,9 @@ describe("the Culprit analysis section", () => {
 		}
 
 		expect(build).toHaveTextContent("▯▯▯▮▯");
+		expect(within(rows).getByText("shape").closest("li")).toHaveTextContent(
+			"A ▮▯▯▯▯",
+		);
 		expect(build).toHaveTextContent("✕ primary culprit");
 		expect(build).toHaveTextContent("Build ignored the declared scope.");
 		expect(

@@ -1,6 +1,10 @@
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-import type { RunRecordResponse } from "#client/monitor/run-record-query";
+import { STAGE_LETTER_GRADES } from "#benchmark/stage-letter-grades";
+import type {
+	MonitoredStage,
+	RunRecordResponse,
+} from "#client/monitor/run-record-query";
 import { plural } from "#client/plural";
 import { elapsedReading, spendReading } from "#client/run-history/run-progress";
 import { Notice } from "#client/system/components/notice";
@@ -14,12 +18,8 @@ import { RequestAnalysisButton, requestWords } from "./analysis-request";
 import { RoleMark } from "./analysis-role";
 import { ReplayButton } from "./replay-button";
 
-type MonitoredStage = RunRecordResponse["stages"][number];
-
 const DISCLAIMER =
 	"This is one agent's reading of the evidence, not a measurement. The way to confirm it is a paired rerun with that block changed and nothing else.";
-
-const GRADE_AXIS = ["A", "B", "C", "D", "F"] as const;
 
 function analysedAt(startedAt: string): string {
 	return new Date(startedAt).toLocaleString(undefined, {
@@ -51,11 +51,13 @@ function culpritWords(culprit: RecordedAnalysis["culprit"]): string {
 		: `culprit: ${culprit.file} · lines ${String(culprit.lines.start)}–${String(culprit.lines.end)}`;
 }
 
-/** Where a letter sits on the A to F axis, as a row of five cells. */
+/** Where a letter sits on the harness's grade scale, as a row of cells. */
 function gradeTrack({ grade }: MonitoredStage): string {
-	const letter = grade.state === "available" ? grade.letter.charAt(0) : "";
+	const letter = grade.state === "available" ? grade.letter : undefined;
 
-	return GRADE_AXIS.map((axis) => (axis === letter ? "▮" : "▯")).join("");
+	return STAGE_LETTER_GRADES.map((axis) => (axis === letter ? "▮" : "▯")).join(
+		"",
+	);
 }
 
 function StepRow({
@@ -83,7 +85,7 @@ function StepRow({
 					</span>
 				</span>
 				<span aria-hidden="true" className="text-9 text-faint">
-					{GRADE_AXIS.join(" ")}
+					{STAGE_LETTER_GRADES.join(" ")}
 				</span>
 			</span>
 			<span>
@@ -94,7 +96,9 @@ function StepRow({
 				)}
 			</span>
 			<span className="text-secondary-foreground">
-				{analysed !== undefined && "note" in analysed ? analysed.note : null}
+				{analysed === undefined || analysed.role === "never ran"
+					? null
+					: analysed.note}
 			</span>
 			<Button asChild variant="outline" size="xs">
 				<Link
@@ -180,7 +184,10 @@ function RecordedReading({
 				)}
 				{rerun}
 			</div>
-			<ol aria-label="Steps as the analysis read them" className="mt-4">
+			<ol
+				aria-label="Steps as the analysis read them"
+				className="mt-4 overflow-x-auto"
+			>
 				{record.stages.map((stage, index) => (
 					<StepRow
 						key={stage.stage}
@@ -259,13 +266,15 @@ function AnalysisReading({
 
 	function newestReading(): React.JSX.Element {
 		if (newest === null) {
+			const offered = requestWords(request);
+
 			return (
 				<div className="mt-2 flex flex-col gap-2 text-12">
 					<p className="text-muted-foreground">
 						No culprit analysis is recorded for this run.
 					</p>
-					{requestWords(request) === undefined ? null : (
-						<p className="text-secondary-foreground">{requestWords(request)}</p>
+					{offered === undefined ? null : (
+						<p className="text-secondary-foreground">{offered}</p>
 					)}
 					<div>
 						<RequestAnalysisButton

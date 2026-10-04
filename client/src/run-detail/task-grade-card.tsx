@@ -173,7 +173,7 @@ export function TaskGradeCard({
 	const { value, note } = outcomeReading(outcome);
 
 	return (
-		<div className="grid grid-cols-main-aside gap-6 rounded-lg border border-border bg-card p-4.5">
+		<div className="grid grid-cols-1 gap-6 rounded-lg lg:grid-cols-main-aside border border-border bg-card p-4.5">
 			<section aria-labelledby="task-grade-label">
 				<h2 id="task-grade-label">
 					<SectionLabel>Task grade · graded on its own</SectionLabel>
@@ -186,7 +186,7 @@ export function TaskGradeCard({
 			</section>
 			<section
 				aria-labelledby="last-task-grade-label"
-				className="border-l border-divider pl-5"
+				className="border-t border-divider pt-4 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-5"
 			>
 				<h2 id="last-task-grade-label">
 					<SectionLabel>Last task grade for this case</SectionLabel>

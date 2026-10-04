@@ -432,9 +432,9 @@ function MinimumGradeNote({
 function contributionOf(
 	analysed: AnalyzedStage | undefined,
 ): string | undefined {
-	return analysed !== undefined && "contribution" in analysed
-		? analysed.contribution
-		: undefined;
+	return analysed === undefined || analysed.role === "never ran"
+		? undefined
+		: analysed.contribution;
 }
 
 /** The monitor's task graph (SPEC.md 2c): the run's stages as a chain of node cards. */
