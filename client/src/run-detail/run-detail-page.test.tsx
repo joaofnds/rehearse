@@ -5,7 +5,10 @@ import {
 	CORPUS,
 	history,
 	judgedRow,
+	judgedStaleness,
+	RUN,
 	renderRunDetail,
+	stoppedAtBuild,
 	stoppedRow,
 } from "./run-detail-fixtures";
 
@@ -69,7 +72,7 @@ describe("/runs/$run", () => {
 		expect(within(card).queryByText(/^[A-F][+-]?$/u)).not.toBeInTheDocument();
 	});
 
-	it("shows the last task grade recorded for the same case, stale when its corpus differs", async () => {
+	it("shows the last task grade recorded for the same case, with its staleness and why it is not comparable", async () => {
 		renderRunDetail(new Map(), [
 			judgedRow(
 				"2026-09-20T09-00-00.000Z",
@@ -82,6 +85,7 @@ describe("/runs/$run", () => {
 				"r-0144",
 				"PASS",
 				"9f30d1".padEnd(64, "0"),
+				judgedStaleness(true),
 			),
 			{
 				...judgedRow("2026-09-26T09-00-00.000Z", "r-0145", "PASS", CORPUS),
@@ -99,8 +103,91 @@ describe("/runs/$run", () => {
 		expect(last).toHaveTextContent("Not comparable to a corpus@a41c7e result.");
 	});
 
+	it("reads a last task grade on another corpus as clean when the server judged it so", async () => {
+		renderRunDetail(new Map(), [
+			judgedRow(
+				"2026-09-30T09-00-00.000Z",
+				"r-0150",
+				"PASS",
+				"9f30d1".padEnd(64, "0"),
+			),
+		]);
+
+		const last = await screen.findByRole("region", {
+			name: "Last task grade for this case",
+		});
+
+		expect(last).toHaveTextContent("clean · corpus@9f30d1");
+		expect(last).not.toHaveTextContent("stale");
+		expect(last).toHaveTextContent("Not comparable to a corpus@a41c7e result.");
+	});
+
+	it("says a last task grade on this run's corpus is comparable", async () => {
+		renderRunDetail(new Map(), [
+			judgedRow("2026-09-30T09-00-00.000Z", "r-0150", "FAIL", CORPUS),
+		]);
+
+		const last = await screen.findByRole("region", {
+			name: "Last task grade for this case",
+		});
+
+		expect(last).toHaveTextContent("clean · corpus@a41c7e");
+		expect(last).toHaveTextContent("same corpus as this run");
+		expect(last).not.toHaveTextContent("Not comparable");
+	});
+
+	it("says the server did not judge a last task grade's staleness, with its reason", async () => {
+		renderRunDetail(new Map(), [
+			judgedRow("2026-09-30T09-00-00.000Z", "r-0150", "FAIL", CORPUS, {
+				state: "unavailable",
+				reasons: ["the corpus could not be read"],
+			}),
+		]);
+
+		const last = await screen.findByRole("region", {
+			name: "Last task grade for this case",
+		});
+
+		expect(last).toHaveTextContent(
+			"corpus@a41c7e · staleness not judged: the corpus could not be read",
+		);
+		expect(last).not.toHaveTextContent("stale ·");
+	});
+
 	it("says when no other run of the case has a task grade", async () => {
 		renderRunDetail();
+
+		const last = await screen.findByRole("region", {
+			name: "Last task grade for this case",
+		});
+
+		expect(last).toHaveTextContent(
+			"No other run of this case has a task grade yet.",
+		);
+	});
+
+	it("matches no other run as the same case when neither recorded a case", async () => {
+		renderAppWithStub(
+			`/runs/${RUN}`,
+			new Map<string, unknown>([
+				[
+					"/api/runs",
+					history([
+						{ ...stoppedRow(), caseId: undefined },
+						{
+							...judgedRow(
+								"2026-09-30T09-00-00.000Z",
+								"r-0150",
+								"PASS",
+								CORPUS,
+							),
+							caseId: undefined,
+						},
+					]),
+				],
+				[`/api/runs/${RUN}`, stoppedAtBuild()],
+			]),
+		);
 
 		const last = await screen.findByRole("region", {
 			name: "Last task grade for this case",

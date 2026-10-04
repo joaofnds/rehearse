@@ -5,6 +5,7 @@ import {
 import type { RunRecordResponse } from "#client/monitor/run-record-query";
 import type { PipelineRow } from "#client/shell/run-in-flight";
 import { SectionLabel } from "#client/system/components/section-label";
+import { Status } from "#client/system/components/status";
 
 type FinalOutcome = RunRecordResponse["finalOutcome"];
 
@@ -72,7 +73,10 @@ export function lastTaskGrade(
 	return rows
 		.filter(
 			(other): other is JudgedRow =>
-				other.caseId === row.caseId && other.run !== row.run && isJudged(other),
+				other.caseId !== undefined &&
+				other.caseId === row.caseId &&
+				other.run !== row.run &&
+				isJudged(other),
 		)
 		.toSorted((left, right) => right.run.localeCompare(left.run))[0];
 }
@@ -116,22 +120,43 @@ function LastTaskGrade({
 				</span>
 				<span className="font-mono text-12">{last.shortId ?? last.run}</span>
 			</p>
-			{comparable ? (
-				<p className="mt-1 text-11-5 text-dim">
-					same corpus · {corpusWords(last.corpusVersion)}
-				</p>
-			) : (
-				<>
-					<p className="mt-1 text-11-5 text-bright">
-						<span aria-hidden="true">⚠ </span>
-						stale · {corpusWords(last.corpusVersion)}
-					</p>
-					<p className="mt-1 text-11-5 text-dim">
-						Not comparable to a {corpusWords(row.corpusVersion)} result.
-					</p>
-				</>
-			)}
+			<StalenessReading last={last} />
+			<p className="mt-1 text-11-5 text-dim">
+				{comparable
+					? "same corpus as this run"
+					: `Not comparable to a ${corpusWords(row.corpusVersion)} result.`}
+			</p>
 		</>
+	);
+}
+
+/**
+ * Whether the last task grade still measures the corpus under test, as the
+ * server judged its record for run history.
+ */
+function StalenessReading({
+	last,
+}: {
+	readonly last: JudgedRow;
+}): React.JSX.Element {
+	const { staleness } = last;
+	const corpus = corpusWords(last.corpusVersion);
+	if (staleness.state === "unavailable") {
+		return (
+			<p className="mt-1 text-11-5 text-dim">
+				{corpus} · staleness not judged: {staleness.reasons.join("; ")}
+			</p>
+		);
+	}
+
+	return staleness.stale ? (
+		<p className="mt-1 text-11-5 text-bright">
+			<Status state="stale" /> · {corpus}
+		</p>
+	) : (
+		<p className="mt-1 text-11-5 text-dim">
+			<Status state="clean" /> · {corpus}
+		</p>
 	);
 }
 

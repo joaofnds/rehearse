@@ -72,12 +72,26 @@ export function stoppedRow(): HistoryRow {
 	};
 }
 
+/** How the server judged a record against the corpus under test. */
+export function judgedStaleness(stale: boolean): HistoryRow["staleness"] {
+	return {
+		state: "available",
+		stale,
+		causes: stale ? ["skills/implement.md changed"] : [],
+		changedFiles: [],
+		onlyCorpusFiles: stale,
+		distance: { kind: "measured", versions: stale ? 1 : 0 },
+		readManifest: [],
+	};
+}
+
 /** An earlier run of the same case whose final judge returned a verdict. */
 export function judgedRow(
 	run: string,
 	shortId: string,
 	verdict: "PASS" | "FAIL",
 	digest: string,
+	staleness: HistoryRow["staleness"] = judgedStaleness(false),
 ): HistoryRow {
 	return {
 		...runRow({
@@ -87,6 +101,7 @@ export function judgedRow(
 		}),
 		shortId,
 		finalOutcome: { state: "available", status: "JUDGED", verdict },
+		staleness,
 	};
 }
 
