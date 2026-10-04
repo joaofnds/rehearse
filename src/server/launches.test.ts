@@ -20,7 +20,7 @@ import {
 	RecordedRunsFixture,
 } from "#benchmark/run-records-test-support";
 import { readCaseDeclaration } from "#benchmark/case";
-import { benchmarkRunPaths } from "#benchmark/run-layout";
+import { benchmarkRunPaths, launchIds } from "#benchmark/run-layout";
 import type { RunLiveness } from "#benchmark/run-liveness";
 import { pauseRequested } from "#benchmark/run-pause";
 import type { JsonValue } from "#benchmark/json-value";
@@ -805,6 +805,51 @@ describe(createLaunchApp.name, () => {
 
 			expect(response.status).toBe(409);
 			expect(launcher.launches).toEqual([]);
+		});
+
+		describe("when an analysis launch is already recorded", () => {
+			const ANALYSIS_PID = 5151;
+			const analysisAlive: RunLiveness = {
+				readMarker: () => Promise.resolve(undefined),
+				isAlive: (pid) => pid === ANALYSIS_PID,
+			};
+
+			async function analysisLaunched(
+				runsDirectory: string,
+				run: string,
+			): Promise<void> {
+				await writeLaunchRecord(runsDirectory, {
+					kind: "analysis",
+					run,
+					usd: 1,
+					id: crypto.randomUUID(),
+					pid: ANALYSIS_PID,
+					startedAt: FAKE_LAUNCH_STARTED_AT,
+					launchedAt: new Date().toISOString(),
+				});
+			}
+
+			it("refuses a second analysis of a run while its process is alive, before starting or recording anything", async () => {
+				const { launcher, post, runsDirectory } = await harness(
+					"stored",
+					analysisAlive,
+				);
+				await runStoppedAtBuild(runsDirectory);
+				await analysisLaunched(runsDirectory, ANALYZED_RUN);
+
+				const response = await post({
+					kind: "analysis",
+					run: ANALYZED_RUN,
+					statedUsd: 1,
+				});
+
+				expect(response.status).toBe(409);
+				expect(refusalSchema.parse(await response.json()).error).toBe(
+					`An analysis of run ${ANALYZED_RUN} is already in flight; read its result when it ends`,
+				);
+				expect(await launchIds(runsDirectory)).toHaveLength(1);
+				expect(launcher.launches).toEqual([]);
+			});
 		});
 	});
 

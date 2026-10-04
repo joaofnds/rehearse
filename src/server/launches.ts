@@ -36,6 +36,7 @@ import {
 	checkpointRecorded,
 	comparisonReportPaths,
 	confirmationGroupPaths,
+	launchIds,
 	launchPaths,
 	recordedRunNames,
 	runEventsDatabaseFile,
@@ -383,6 +384,9 @@ async function analysisLaunch(
 			dependencies.liveness,
 		),
 	);
+	if (await analysisInFlight(request.run, dependencies)) {
+		throw new LaunchRefusalError(analysisInFlightRefusal(request.run), 409);
+	}
 	const capUsd = browserAnalysisCapUsd(ceilingUsd);
 	if (capUsd !== request.statedUsd) {
 		throw new LaunchRefusalError(
@@ -402,6 +406,36 @@ async function analysisLaunch(
 		],
 		target: { kind: "analysis", run: request.run, usd: capUsd },
 	};
+}
+
+/**
+ * Whether a launch record holds an analysis of this run whose process is
+ * alive, the same test run history lists a launch as running by. A record
+ * that does not read is skipped, as run history reports it beside the rows,
+ * so one corrupt file cannot block every analysis.
+ */
+async function analysisInFlight(
+	run: string,
+	{ runsDirectory, liveness }: Readonly<LaunchDependencies>,
+): Promise<boolean> {
+	for (const id of await launchIds(runsDirectory)) {
+		const record = await readLaunchRecord(runsDirectory, id).catch(
+			() => undefined,
+		);
+		if (
+			record?.kind === "analysis" &&
+			record.run === run &&
+			liveness.isAlive(record.pid)
+		) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+function analysisInFlightRefusal(run: string): string {
+	return `An analysis of run ${run} is already in flight; read its result when it ends`;
 }
 
 /** A precondition the CLI would refuse on refuses the launch, redacted. */
