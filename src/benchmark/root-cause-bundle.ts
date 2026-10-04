@@ -79,7 +79,7 @@ export type BundleCorpusFile = Immutable<{
 }>;
 
 /** Everything the analysis session reads about one run, and nothing else. */
-export type CulpritBundle = Immutable<{
+export type RootCauseBundle = Immutable<{
 	run: string;
 	caseId: string;
 	task: string;
@@ -95,10 +95,10 @@ export type CulpritBundle = Immutable<{
  * and the bodies of the corpus files each stage read, taken from the corpus
  * version the stage recorded rather than the corpus as it is now.
  */
-export async function assembleCulpritBundle(
+export async function assembleRootCauseBundle(
 	runsDirectory: string,
 	run: string,
-): Promise<CulpritBundle> {
+): Promise<RootCauseBundle> {
 	const paths = benchmarkRunPaths(runsDirectory, run);
 	const manifest = await loadRunManifest(paths.manifestFile);
 	const declaredStages = manifest.pipeline.stages.map(({ name }) => name);

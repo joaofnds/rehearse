@@ -160,7 +160,7 @@ function StalenessReading({
 	);
 }
 
-/** SPEC.md 4c item 1: the outcome graded on its own, before any culprit. */
+/** SPEC.md 4c item 1: the outcome graded on its own, before any root cause. */
 export function TaskGradeCard({
 	row,
 	rows,

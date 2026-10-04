@@ -7,7 +7,7 @@ import {
 	RUN,
 	recordAnalysis,
 	runStoppedAtBuild,
-} from "#benchmark/culprit-analysis-test-support";
+} from "#benchmark/root-cause-analysis-test-support";
 import {
 	fixedCorpusSource,
 	directorySource,
@@ -91,7 +91,7 @@ describe("GET /api/runs/:run/analyses", () => {
 		const directory = await recordedRun();
 		await recordAnalysis(directory, "2026-10-04T12:00:00.000Z");
 		const failed = await recordAnalysis(directory, "2026-10-04T13:00:00.000Z", {
-			culprit: null,
+			rootCause: null,
 		});
 
 		const response = await analysesOf(directory, RUN);
@@ -112,7 +112,7 @@ describe("GET /api/runs/:run/analyses", () => {
 			);
 			await Bun.write(
 				join(dirname(readable.file), "2026-10-04T13-00-00.000Z.json"),
-				'{"schemaVersion":1,',
+				'{"schemaVersion":2,',
 			);
 
 			const response = await analysesOf(directory, RUN);

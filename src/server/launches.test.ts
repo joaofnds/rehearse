@@ -13,7 +13,7 @@ import {
 	RUN as ANALYZED_RUN,
 	runStoppedAtBuild,
 	runWithOneGradedStage,
-} from "#benchmark/culprit-analysis-test-support";
+} from "#benchmark/root-cause-analysis-test-support";
 import { readLaunchRecord, writeLaunchRecord } from "#benchmark/launch-record";
 import {
 	directorySource,
@@ -666,7 +666,7 @@ describe(createLaunchApp.name, () => {
 		});
 	});
 
-	describe("when a culprit analysis is requested", () => {
+	describe("when a root-cause analysis is requested", () => {
 		const RUNNING_PID = 4242;
 		const stillRunning: RunLiveness = {
 			readMarker: () => Promise.resolve({ pid: RUNNING_PID }),
@@ -1620,7 +1620,7 @@ describe(createLaunchApp.name, () => {
 			expect(restarted.launcher.stopped).toEqual([FAKE_LAUNCH_PID]);
 		});
 
-		describe("when it is a culprit analysis", () => {
+		describe("when it is a root-cause analysis", () => {
 			it("refuses, leaving the one capped call to end and record what it spent", async () => {
 				const server = await harness();
 				await runStoppedAtBuild(server.runsDirectory);
@@ -1635,7 +1635,7 @@ describe(createLaunchApp.name, () => {
 
 				expect(stop.status).toBe(409);
 				expect(refusalSchema.parse(await stop.json()).error).toBe(
-					`Launch ${id} is a culprit analysis, one call capped at the cost it stated, which records what it spent when it ends; it cannot be stopped`,
+					`Launch ${id} is a root-cause analysis, one call capped at the cost it stated, which records what it spent when it ends; it cannot be stopped`,
 				);
 				expect(server.launcher.stopped).toEqual([]);
 				const record = await readLaunchRecord(server.runsDirectory, id);

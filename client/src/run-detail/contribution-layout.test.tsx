@@ -26,12 +26,12 @@ describe("the Contribution layout's map", () => {
 		renderWithAnalysis();
 
 		const map = await screen.findByRole("list", { name: "Step map" });
-		await within(map).findByText("primary culprit");
+		await within(map).findByText("root cause");
 		const chips = within(map).getAllByRole("listitem");
 
 		expect(chips.map((chip) => chip.textContent)).toEqual([
-			"1shapeA·not implicated",
-			"2buildD✕primary culprit",
+			"1shapeA·not a factor",
+			"2buildD✕root cause",
 			"3verify—○never ran",
 		]);
 	});
@@ -49,12 +49,12 @@ describe("the Contribution layout's map", () => {
 	});
 });
 
-describe("the Culprit analysis section", () => {
-	it("discloses a recorded analysis as one agent's reading, with its provenance and culprit", async () => {
+describe("the Root-cause analysis section", () => {
+	it("discloses a recorded analysis as one agent's reading, with its provenance and root cause", async () => {
 		renderWithAnalysis();
 
 		const section = await screen.findByRole("region", {
-			name: "Culprit analysis",
+			name: "Root-cause analysis",
 		});
 		await within(section).findByText(/an agent read the recorded steps/u);
 
@@ -62,7 +62,7 @@ describe("the Culprit analysis section", () => {
 			"an agent read the recorded steps · $0.24 · 41s",
 		);
 		expect(section).toHaveTextContent(
-			"culprit: skills/implement.md · lines 12–30",
+			"root cause: skills/implement.md · lines 12–30",
 		);
 		expect(section).toHaveTextContent(
 			"Build skipped the scope declaration the shape step asked for.",
@@ -80,7 +80,7 @@ describe("the Culprit analysis section", () => {
 		renderWithAnalysis();
 
 		const section = await screen.findByRole("region", {
-			name: "Culprit analysis",
+			name: "Root-cause analysis",
 		});
 
 		expect(
@@ -113,7 +113,7 @@ describe("the Culprit analysis section", () => {
 		expect(within(rows).getByText("shape").closest("li")).toHaveTextContent(
 			"A ▮▯▯▯▯",
 		);
-		expect(build).toHaveTextContent("✕ primary culprit");
+		expect(build).toHaveTextContent("✕ root cause");
 		expect(build).toHaveTextContent("Build ignored the declared scope.");
 		expect(
 			within(build).getByRole("link", { name: "Step report" }),
@@ -127,7 +127,7 @@ describe("the Culprit analysis section", () => {
 		renderRunDetail(new Map([[ANALYSES, failedAnalysis()]]));
 
 		const section = await screen.findByRole("region", {
-			name: "Culprit analysis",
+			name: "Root-cause analysis",
 		});
 
 		expect(
@@ -149,12 +149,12 @@ describe("the Culprit analysis section", () => {
 		);
 
 		const section = await screen.findByRole("region", {
-			name: "Culprit analysis",
+			name: "Root-cause analysis",
 		});
 
 		expect(
 			await within(section).findByText(
-				"Could not read the culprit analyses of this run.",
+				"Could not read the root-cause analyses of this run.",
 			),
 		).toBeInTheDocument();
 	});
@@ -175,7 +175,7 @@ describe("the Culprit analysis section", () => {
 		);
 
 		const section = await screen.findByRole("region", {
-			name: "Culprit analysis",
+			name: "Root-cause analysis",
 		});
 
 		expect(await within(section).findByRole("alert")).toHaveTextContent(
@@ -183,7 +183,7 @@ describe("the Culprit analysis section", () => {
 		);
 	});
 
-	it("disables the paired rerun, saying why, when the checkpoint the culprit step starts from is missing", async () => {
+	it("disables the paired rerun, saying why, when the checkpoint the root-cause step starts from is missing", async () => {
 		renderRunDetail(
 			new Map<string, unknown>([
 				[ANALYSES, recordedAnalysis()],
@@ -192,7 +192,7 @@ describe("the Culprit analysis section", () => {
 		);
 
 		const section = await screen.findByRole("region", {
-			name: "Culprit analysis",
+			name: "Root-cause analysis",
 		});
 
 		expect(
@@ -202,26 +202,26 @@ describe("the Culprit analysis section", () => {
 		).toHaveAttribute("aria-disabled", "true");
 	});
 
-	it("disables the paired rerun and the block link when the analysis named no culprit", async () => {
+	it("disables the paired rerun and the block link when the analysis named no root cause", async () => {
 		renderRunDetail(
-			new Map([[ANALYSES, recordedAnalysisWith({ culprit: null })]]),
+			new Map([[ANALYSES, recordedAnalysisWith({ rootCause: null })]]),
 		);
 
 		const section = await screen.findByRole("region", {
-			name: "Culprit analysis",
+			name: "Root-cause analysis",
 		});
 
 		expect(
-			await within(section).findByText("no culprit named"),
+			await within(section).findByText("no root cause named"),
 		).toBeInTheDocument();
 		expect(
 			within(section).getByRole("button", {
-				name: "Set up the paired rerun: the analysis named no culprit",
+				name: "Set up the paired rerun: the analysis named no root cause",
 			}),
 		).toHaveAttribute("aria-disabled", "true");
 		expect(
 			within(section).getByRole("button", {
-				name: "Open the block it names: the analysis named no culprit",
+				name: "Open the block it names: the analysis named no root cause",
 			}),
 		).toHaveAttribute("aria-disabled", "true");
 		expect(

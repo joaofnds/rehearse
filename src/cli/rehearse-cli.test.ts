@@ -30,9 +30,9 @@ import {
 import { liveRunLiveness } from "#benchmark/run-liveness";
 import { PROJECT_ROOT } from "#benchmark/test-support";
 import {
-	RUN as CULPRIT_RUN,
+	RUN as DIAGNOSED_RUN,
 	runStoppedAtBuild,
-} from "#benchmark/culprit-analysis-test-support";
+} from "#benchmark/root-cause-analysis-test-support";
 import type { Launcher } from "#server/launches";
 import { processLauncher } from "#server/process-launcher";
 
@@ -1285,7 +1285,7 @@ describe("the spend ceiling", () => {
 
 		it("refuses before any provider call when no ceiling is stored", async () => {
 			const result = await runCli(
-				["diagnose", CULPRIT_RUN, "--model", "sonnet"],
+				["diagnose", DIAGNOSED_RUN, "--model", "sonnet"],
 				"empty",
 				shimmed,
 			);
@@ -1303,7 +1303,7 @@ describe("the spend ceiling", () => {
 			);
 
 			await runCli(
-				["diagnose", CULPRIT_RUN, "--model", "sonnet"],
+				["diagnose", DIAGNOSED_RUN, "--model", "sonnet"],
 				"empty",
 				shimmed,
 			);

@@ -2,13 +2,16 @@ import { afterEach, describe, expect, it } from "bun:test";
 import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { AnalysisDependencies, AnalysisInvoker } from "./culprit-analysis";
+import type {
+	AnalysisDependencies,
+	AnalysisInvoker,
+} from "./root-cause-analysis";
 import {
 	analysisSessionArgs,
 	analyzeRun,
-	readCulpritAnalyses,
-} from "./culprit-analysis";
-import { assembleCulpritBundle } from "./culprit-bundle";
+	readRootCauseAnalyses,
+} from "./root-cause-analysis";
+import { assembleRootCauseBundle } from "./root-cause-bundle";
 import { ClaudeSessionError, parseClaudeEnvelope } from "./claude";
 import { RefusedPreconditionError } from "./exit-codes";
 import { recordPaused } from "./run-pause";
@@ -22,7 +25,7 @@ import {
 	runWithOneGradedStage,
 	stoppedStage,
 	writeStage,
-} from "./culprit-analysis-test-support";
+} from "./root-cause-analysis-test-support";
 import { benchmarkRunPaths } from "./run-layout";
 import { nothingRunning } from "./run-records-test-support";
 import { budgetHaltEnvelope } from "./test-support";
@@ -37,7 +40,7 @@ afterEach(async () => {
 });
 
 async function runsDirectory(): Promise<string> {
-	const root = await mkdtemp(join(tmpdir(), "rehearse-culprit-"));
+	const root = await mkdtemp(join(tmpdir(), "rehearse-root-cause-"));
 	roots.push(root);
 
 	return root;
@@ -145,6 +148,7 @@ describe(analyzeRun.name, () => {
 		);
 
 		expect(record).toMatchObject({
+			schemaVersion: 2,
 			outcome: "recorded",
 			run: RUN,
 			model: "sonnet",
@@ -152,7 +156,7 @@ describe(analyzeRun.name, () => {
 			startedAt: "2026-10-04T12:00:00.000Z",
 			durationMs: 4000,
 			costUsd: 0.24,
-			culprit: ANSWER.culprit,
+			rootCause: ANSWER.rootCause,
 			narrative: ANSWER.narrative,
 			pairedRerun: ANSWER.pairedRerun,
 		});
@@ -165,44 +169,44 @@ describe(analyzeRun.name, () => {
 	describe("when the answer breaks a rule of the analysis", () => {
 		it.each([
 			[
-				"names a culprit file the culprit stage never read",
+				"names a root-cause file the root-cause stage never read",
 				{
 					...ANSWER,
-					culprit: { stage: "build", file: "skills/shape/SKILL.md" },
+					rootCause: { stage: "build", file: "skills/shape/SKILL.md" },
 				},
-				"The culprit file skills/shape/SKILL.md is not a corpus file the build stage read",
+				"The root-cause file skills/shape/SKILL.md is not a corpus file the build stage read",
 			],
 			[
-				"names a culprit stage that never ran",
-				{ ...ANSWER, culprit: { stage: "review", file: "CLAUDE.md" } },
-				"The answer names review as the culprit stage, so review and no other stage must be the primary culprit",
+				"names a root-cause stage that never ran",
+				{ ...ANSWER, rootCause: { stage: "review", file: "CLAUDE.md" } },
+				"The answer names review as the root-cause stage, so review and no other stage must be the root cause",
 			],
 			[
-				"names two primary culprits",
+				"names two root causes",
 				{
 					...ANSWER,
 					stages: [
 						ANSWER.stages[1],
-						{ ...ANSWER.stages[0], role: "primary culprit" },
+						{ ...ANSWER.stages[0], role: "root cause" },
 					],
 				},
-				"The answer names build as the culprit stage, so build and no other stage must be the primary culprit",
+				"The answer names build as the root-cause stage, so build and no other stage must be the root cause",
 			],
 			[
-				"names a culprit whose stage is not the primary culprit",
+				"names a root cause whose stage is not the root cause",
 				{
 					...ANSWER,
 					stages: [
 						ANSWER.stages[0],
-						{ ...ANSWER.stages[1], role: "contributing" },
+						{ ...ANSWER.stages[1], role: "contributing factor" },
 					],
 				},
-				"The answer names build as the culprit stage, so build and no other stage must be the primary culprit",
+				"The answer names build as the root-cause stage, so build and no other stage must be the root cause",
 			],
 			[
-				"names a primary culprit without a culprit",
-				{ ...ANSWER, culprit: null },
-				"The answer names a primary culprit stage without a culprit",
+				"names a root cause without a root cause",
+				{ ...ANSWER, rootCause: null },
+				"The answer names a root-cause stage without a root cause",
 			],
 			[
 				"leaves out a stage that ran",
@@ -221,7 +225,7 @@ describe(analyzeRun.name, () => {
 				"gives a line range that ends before it starts",
 				{
 					...ANSWER,
-					culprit: { ...ANSWER.culprit, lines: { start: 3, end: 2 } },
+					rootCause: { ...ANSWER.rootCause, lines: { start: 3, end: 2 } },
 				},
 				"The line range 3-2 is not within the 3 lines of skills/build/SKILL.md as the build stage read it",
 			],
@@ -229,7 +233,7 @@ describe(analyzeRun.name, () => {
 				"gives a line range past the end of the file",
 				{
 					...ANSWER,
-					culprit: { ...ANSWER.culprit, lines: { start: 2, end: 9 } },
+					rootCause: { ...ANSWER.rootCause, lines: { start: 2, end: 9 } },
 				},
 				"The line range 2-9 is not within the 3 lines of skills/build/SKILL.md as the build stage read it",
 			],
@@ -262,7 +266,7 @@ describe(analyzeRun.name, () => {
 		);
 	});
 
-	describe("when the run kept no body of the culprit file", () => {
+	describe("when the run kept no body of the root-cause file", () => {
 		it("records a line range in it as a failure", async () => {
 			const directory = await runsDirectory();
 			await runWithOneGradedStage(directory);
@@ -333,7 +337,7 @@ describe(analyzeRun.name, () => {
 				},
 			);
 
-			const { records, unreadable } = await readCulpritAnalyses({
+			const { records, unreadable } = await readRootCauseAnalyses({
 				runsDirectory: directory,
 				run: RUN,
 			});
@@ -351,7 +355,9 @@ describe(analyzeRun.name, () => {
 	it("records the digest and size of the bundle the session read", async () => {
 		const directory = await runsDirectory();
 		await runStoppedAtBuild(directory);
-		const bundle = JSON.stringify(await assembleCulpritBundle(directory, RUN));
+		const bundle = JSON.stringify(
+			await assembleRootCauseBundle(directory, RUN),
+		);
 		const provider = new FakeAnalysisProvider();
 
 		const { record } = await analyzeRun(
@@ -469,7 +475,7 @@ describe(analyzeRun.name, () => {
 		await runWithOneGradedStage(directory);
 		const provider = new FakeAnalysisProvider();
 		provider.answer(
-			answering({ ...ANSWER, culprit: null, stages: [ANSWER.stages[0]] }),
+			answering({ ...ANSWER, rootCause: null, stages: [ANSWER.stages[0]] }),
 		);
 
 		const { record } = await analyzeRun(
@@ -479,7 +485,7 @@ describe(analyzeRun.name, () => {
 
 		expect(record).toMatchObject({
 			outcome: "recorded",
-			culprit: null,
+			rootCause: null,
 			stages: [
 				ANSWER.stages[0],
 				{ stage: "build", role: "never ran" },

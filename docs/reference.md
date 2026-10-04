@@ -200,7 +200,7 @@ posts `{ "kind": "extension", "comparison": <digest>, "attempts": <n>,
 <n> --yes --approved-in-browser`, with n arm A's attempt count and the cost the
 comparison's summary states for it. Its launch record holds the comparison, the
 run and stage arm A replayed, the attempts added per arm and that cost.
-A culprit analysis request posts `{ "kind": "analysis", "run": <run>,
+A root-cause analysis request posts `{ "kind": "analysis", "run": <run>,
 "statedUsd": <usd> }` and runs `diagnose <run> --model sonnet --budget-usd
 <usd>`, with `<usd>` the cap `GET /api/runs/<run>/analyses` states. Its launch
 record holds the run and that cap, with no stage or attempts. Run detail posts
@@ -326,14 +326,14 @@ measured. An unreadable settings file makes every settings route answer 409.
 is alive, and leaves it out while a pipeline run shows as running under that
 pid. A replay, session attempt or group keeps its launch listed until the
 process exits, and a pipeline run's launch is listed again once the run stops
-showing as running, until its process exits. A culprit analysis launch is
+showing as running, until its process exits. A root-cause analysis launch is
 listed while its process is alive, under its run, and is never stopped. A launch the operator stopped
 stays listed after its process exits, as described below.
 
 A running row in run history offers Stop & restore repo when a browser launch
 started it, and a running pipeline run's row also offers Pause after this step.
 A launch row for a replay, group or session attempt offers Stop only. A
-culprit analysis launch row reads "one call" and offers no Stop, and the stop
+root-cause analysis launch row reads "one call" and offers no Stop, and the stop
 route refuses one with 409: `diagnose` installs no signal handling, so a
 stopped call could spend and leave no record. The call ends on its own, and
 like any session budget its cap can be overrun by the call that crosses it.
@@ -1052,10 +1052,10 @@ opens at its API path without the `/api` prefix, as a form with one choice per
 criterion and an optional note. The Judge's grade appears beside the
 operator's only after the operator's is recorded.
 
-### Culprit analysis
+### Root-cause analysis
 
-No real-provider analysis has run, so this section describes the command as
-built and tested against a fake provider.
+One real-provider analysis has run, and it named no root cause, so the checks
+on a named root cause below are tested only against a fake provider.
 
 `diagnose <run> --model <model>` asks one sealed session which corpus file, if
 any, an ended run's outcome most plausibly traces to, and records its answer.
@@ -1088,16 +1088,16 @@ model probe, so an unavailable model ends in a failed record rather than a
 second paid call.
 
 The harness checks the answer before keeping it. It reads exactly the stages
-that ran, at most one stage is the primary culprit and it is the stage the
-culprit names, the culprit file is one that stage read, and a line range lies
+that ran, at most one stage is the root cause and it is the stage the
+root cause names, the root-cause file is one that stage read, and a line range lies
 within that file's body as the stage read it. A stage's role is `not
-implicated`, `contributing` or `primary culprit`, and a declared stage that
+a factor`, `contributing factor` or `root cause`, and a declared stage that
 never ran is recorded as `never ran`.
 
-The record, with `schemaVersion: 1`, holds the run, the model, `capUsd` (the
+The record, with `schemaVersion: 2`, holds the run, the model, `capUsd` (the
 budget the call ran under), `startedAt`, `durationMs`, the bundle's digest and
 size, and `costUsd` when the provider reported one. A kept answer adds
-`outcome: "recorded"`, the `culprit` (`stage`, `file` and optional `lines`, or null),
+`outcome: "recorded"`, the `rootCause` (`stage`, `file` and optional `lines`, or null),
 the `narrative`, the `pairedRerun` that would confirm the reading, and `stages`,
 each stage's role with a `note` and a `contribution`. An answer that breaks a rule, or
 a session that returns none, is kept with `outcome: "failed"`, its `reason` and
@@ -1107,7 +1107,7 @@ open analysis records.
 
 Records live at `<records>/analyses/<run>/<startedAt>.json`, with each `:` in
 the time replaced by `-`. `GET /api/runs/<run>/analyses`, implemented in
-[culprit-analyses.ts](../src/server/culprit-analyses.ts), answers `{run, newest,
+[root-cause-analyses.ts](../src/server/root-cause-analyses.ts), answers `{run, newest,
 earlierCount, unreadable, request}`: the newest record or `null`, how many older ones the run
 holds, `unreadable`, each `.json` file in the run's directory that does not
 parse or match the schema with its reason, and `request`, the `model` (`sonnet`, the model recorded
@@ -1277,7 +1277,7 @@ leaves transcripts and run artifacts where git can see them.
 `baseline-corpora/<corpus-digest>/`, the manifest it compares under
 `comparison-manifests/<control-group-id>.json`, and `baseline.json` beside the
 report. Browser launches record themselves as `launches/<id>.json` with the
-child's output in `launches/<id>.log`. A culprit analysis lives at
+child's output in `launches/<id>.log`. A root-cause analysis lives at
 `analyses/<run>/<started-at>.json`, named by its start time with `:` written
 as `-` and created once, so a second analysis of the
 same run sits beside the first. Operator grades live at

@@ -80,10 +80,10 @@ export function operatorGradesDirectory(runsDirectory: string): string {
 }
 
 /**
- * Culprit analyses sit in a directory of their own for the same reason as
+ * Root-cause analyses sit in a directory of their own for the same reason as
  * operator grades: a `<run>.*.json` file beside the run reads as a stage.
  */
-export function culpritAnalysesDirectory(runsDirectory: string): string {
+export function rootCauseAnalysesDirectory(runsDirectory: string): string {
 	return join(runsDirectory, "analyses");
 }
 

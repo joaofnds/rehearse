@@ -47,7 +47,7 @@ function refusalOf(
 }
 
 /**
- * Requests one culprit analysis of `run`, stating the cap it posts on the
+ * Requests one root-cause analysis of `run`, stating the cap it posts on the
  * button itself: the server refuses a stated figure other than its cap, so
  * the click is the operator's agreement to that figure.
  */

@@ -22,7 +22,7 @@ import type {
 	MonitoredStage,
 	RunRecordResponse,
 } from "#client/monitor/run-record-query";
-import type { AnalysisReading } from "#server/culprit-analyses";
+import type { AnalysisReading } from "#server/root-cause-analyses";
 import type { StageJudge } from "#server/stage-judge";
 import type { StageSession } from "#server/stage-session";
 import type { StageTimes } from "#server/stage-times";
@@ -706,7 +706,7 @@ describe("/monitor task graph", () => {
 					{
 						run: RUN,
 						newest: {
-							schemaVersion: 1,
+							schemaVersion: 2,
 							run: RUN,
 							model: "sonnet",
 							capUsd: 1,
@@ -715,13 +715,13 @@ describe("/monitor task graph", () => {
 							bundleDigest: "b".repeat(64),
 							bundleBytes: 1200,
 							outcome: "recorded",
-							culprit: null,
+							rootCause: null,
 							narrative: "No step stands out.",
 							pairedRerun: "None needed.",
 							stages: [
 								{
 									stage: "plan",
-									role: "contributing",
+									role: "contributing factor",
 									note: "Plan left the scope open.",
 									contribution: "left the scope the judge read open",
 								},

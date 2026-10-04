@@ -1,14 +1,14 @@
 import type {
 	AnalyzedRun,
-	CulpritAnalysisRecord,
+	RootCauseAnalysisRecord,
 	UnreadableAnalysis,
-} from "#benchmark/culprit-analysis";
+} from "#benchmark/root-cause-analysis";
 import {
 	analysisBudgetUsd,
 	DEFAULT_ANALYSIS_BUDGET_USD,
-	readCulpritAnalyses,
+	readRootCauseAnalyses,
 	requireRecordedRun,
-} from "#benchmark/culprit-analysis";
+} from "#benchmark/root-cause-analysis";
 import { RefusedPreconditionError } from "#benchmark/exit-codes";
 import { requireSpendCeiling } from "#benchmark/settings";
 import { redactAbsolutePaths } from "./redact-path";
@@ -37,7 +37,7 @@ export type AnalysisRequestTerms =
 
 export interface AnalysisReading {
 	readonly run: string;
-	readonly newest: CulpritAnalysisRecord | null;
+	readonly newest: RootCauseAnalysisRecord | null;
 	readonly earlierCount: number;
 	readonly unreadable: readonly UnreadableAnalysis[];
 	readonly request: AnalysisRequestTerms;
@@ -85,7 +85,7 @@ export async function readAnalysisReading(
 	analyzed: AnalyzedRun,
 ): Promise<AnalysisReading> {
 	await requireRecordedRun(analyzed);
-	const { records, unreadable } = await readCulpritAnalyses(analyzed);
+	const { records, unreadable } = await readRootCauseAnalyses(analyzed);
 	const { runsDirectory, run } = analyzed;
 
 	return {

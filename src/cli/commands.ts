@@ -1,4 +1,4 @@
-import { DEFAULT_ANALYSIS_BUDGET_USD } from "#benchmark/culprit-analysis";
+import { DEFAULT_ANALYSIS_BUDGET_USD } from "#benchmark/root-cause-analysis";
 import { DEFAULT_CASE_ID } from "#benchmark/config";
 import type { CommandFailure } from "#benchmark/exit-codes";
 import { EXIT_CODES } from "#benchmark/exit-codes";

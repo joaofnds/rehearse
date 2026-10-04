@@ -2,16 +2,16 @@ import type { AnalysisRole } from "./analysis-query";
 
 /** SPEC.md 4c item 3: the glyph each role an analysis gives a step carries. */
 export const ROLE_GLYPHS = {
-	"not implicated": "·",
-	contributing: "~",
-	"primary culprit": "✕",
+	"not a factor": "·",
+	"contributing factor": "~",
+	"root cause": "✕",
 	"never ran": "○",
 } as const satisfies Record<AnalysisRole, string>;
 
 const ROLE_COLOURS = {
-	"not implicated": "text-dim",
-	contributing: "text-secondary-foreground",
-	"primary culprit": "text-bright",
+	"not a factor": "text-dim",
+	"contributing factor": "text-secondary-foreground",
+	"root cause": "text-bright",
 	"never ran": "text-subdued",
 } as const satisfies Record<AnalysisRole, string>;
 

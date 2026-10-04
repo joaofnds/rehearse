@@ -1,6 +1,6 @@
 /**
  * Records for run detail tests: a three-stage run that stopped at build, the
- * history row that lists it, and the culprit analysis an agent recorded of it.
+ * history row that lists it, and the root-cause analysis an agent recorded of it.
  */
 import type { RunHistoryResponse } from "#client/run-history/run-history-query";
 import type { Reply } from "#client/test-support/fetch-stub";
@@ -13,7 +13,7 @@ import {
 } from "#client/test-support/render-app";
 import { recordStage, runRecord } from "#client/test-support/run-record";
 import { runRow } from "#client/test-support/runs-in-flight";
-import type { AnalysisReading } from "#server/culprit-analyses";
+import type { AnalysisReading } from "#server/root-cause-analyses";
 import type { RunRecord } from "#server/run-record";
 
 export type HistoryRow = RunHistoryResponse["rows"][number];
@@ -126,12 +126,12 @@ export function renderRunDetail(
 	);
 }
 
-/** An analysis that names build's scope block as the culprit. */
+/** An analysis that names build's scope block as the root cause. */
 export function recordedAnalysis(): AnalysisReading {
 	return {
 		run: RUN,
 		newest: {
-			schemaVersion: 1,
+			schemaVersion: 2,
 			run: RUN,
 			model: "sonnet",
 			capUsd: 1,
@@ -141,7 +141,7 @@ export function recordedAnalysis(): AnalysisReading {
 			bundleBytes: 1200,
 			costUsd: 0.24,
 			outcome: "recorded",
-			culprit: {
+			rootCause: {
 				stage: "build",
 				file: "skills/implement.md",
 				lines: { start: 12, end: 30 },
@@ -153,13 +153,13 @@ export function recordedAnalysis(): AnalysisReading {
 			stages: [
 				{
 					stage: "shape",
-					role: "not implicated",
+					role: "not a factor",
 					note: "Shape named the scope.",
 					contribution: "set up the scope the judge read",
 				},
 				{
 					stage: "build",
-					role: "primary culprit",
+					role: "root cause",
 					note: "Build ignored the declared scope.",
 					contribution: "dropped the declared scope",
 				},
@@ -223,7 +223,7 @@ export function failedAnalysis(): AnalysisReading {
 			bundleBytes,
 			outcome: "failed",
 			reason: "the answer named a stage the run does not declare",
-			payload: { culprit: { stage: "deploy" } },
+			payload: { rootCause: { stage: "deploy" } },
 		},
 	};
 }

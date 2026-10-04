@@ -2,8 +2,8 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { ClaudeEnvelope } from "./contracts";
 import type { CorpusMeasurement } from "./corpus-measurement";
-import type { AnalysisResult } from "./culprit-analysis";
-import { analyzeRun } from "./culprit-analysis";
+import type { AnalysisResult } from "./root-cause-analysis";
+import { analyzeRun } from "./root-cause-analysis";
 import { measureCorpusVersion } from "./corpus-version";
 import type { RunManifest } from "./manifest";
 import { writeRunManifest } from "./manifest";
@@ -192,7 +192,7 @@ export async function runStoppedAtBuild(
 }
 
 export const ANSWER = {
-	culprit: {
+	rootCause: {
 		stage: "build",
 		file: "skills/build/SKILL.md",
 		lines: { start: 2, end: 3 },
@@ -202,13 +202,13 @@ export const ANSWER = {
 	stages: [
 		{
 			stage: "shape",
-			role: "not implicated",
+			role: "not a factor",
 			note: "the card was complete",
 			contribution: "left the grade where it was",
 		},
 		{
 			stage: "build",
-			role: "primary culprit",
+			role: "root cause",
 			note: "no direct run was recorded",
 			contribution: "cost the observed-result requirement",
 		},

@@ -18,13 +18,13 @@ import type { RunLiveness } from "./run-liveness";
 import { claimsLiveTarget } from "./run-liveness";
 import {
 	benchmarkRunPaths,
-	culpritAnalysesDirectory,
+	rootCauseAnalysesDirectory,
 	runNameFromTimestamp,
 } from "./run-layout";
 import { pausedStage } from "./run-pause";
 import { createSpendCeiling } from "./spend-ceiling";
-import type { CulpritBundle } from "./culprit-bundle";
-import { assembleCulpritBundle, recordedOutcome } from "./culprit-bundle";
+import type { RootCauseBundle } from "./root-cause-bundle";
+import { assembleRootCauseBundle, recordedOutcome } from "./root-cause-bundle";
 
 export type AnalysisInvoker = (
 	prompt: string,
@@ -55,9 +55,9 @@ export interface AnalysisDependencies {
 }
 
 const AGENT_STAGE_ROLES = [
-	"not implicated",
-	"contributing",
-	"primary culprit",
+	"not a factor",
+	"contributing factor",
+	"root cause",
 ] as const;
 
 const answeredStageSchema = z
@@ -71,7 +71,7 @@ const answeredStageSchema = z
 
 const answerSchema = z
 	.object({
-		culprit: z
+		rootCause: z
 			.object({
 				stage: z.string().min(1),
 				file: z.string().min(1),
@@ -94,7 +94,7 @@ const answerSchema = z
 type AnalysisAnswer = Immutable<z.infer<typeof answerSchema>>;
 
 const recordBase = {
-	schemaVersion: z.literal(1),
+	schemaVersion: z.literal(2),
 	run: z.string().min(1),
 	model: z.string().min(1),
 	capUsd: z.number().positive(),
@@ -134,7 +134,7 @@ const failedAnalysisSchema = z
 	})
 	.strict();
 
-const culpritAnalysisRecordSchema = z.discriminatedUnion("outcome", [
+const rootCauseAnalysisRecordSchema = z.discriminatedUnion("outcome", [
 	recordedAnalysisSchema,
 	failedAnalysisSchema,
 ]);
@@ -145,13 +145,13 @@ export type RecordedAnalysis = Immutable<
 
 export type FailedAnalysis = Immutable<z.infer<typeof failedAnalysisSchema>>;
 
-export type CulpritAnalysisRecord = RecordedAnalysis | FailedAnalysis;
+export type RootCauseAnalysisRecord = RecordedAnalysis | FailedAnalysis;
 
 type AnalysisBase = Omit<FailedAnalysis, "outcome" | "reason" | "payload">;
 
 export interface AnalysisResult {
 	readonly file: string;
-	readonly record: CulpritAnalysisRecord;
+	readonly record: RootCauseAnalysisRecord;
 }
 
 interface FailedReading {
@@ -216,7 +216,7 @@ export async function analyzeRun(
 		ceilingUsd: await dependencies.requireSpendCeiling(request.runsDirectory),
 		capUsd: request.capUsd,
 	});
-	const bundle = await assembleCulpritBundle(
+	const bundle = await assembleRootCauseBundle(
 		request.runsDirectory,
 		request.run,
 	);
@@ -234,7 +234,7 @@ export async function analyzeRun(
 	const finished = dependencies.now();
 
 	const base = {
-		schemaVersion: 1,
+		schemaVersion: 2,
 		run: request.run,
 		model: request.model,
 		capUsd: budgetUsd,
@@ -246,7 +246,7 @@ export async function analyzeRun(
 			.digest("hex"),
 		bundleBytes: Buffer.byteLength(bundleText),
 	} as const;
-	let record: CulpritAnalysisRecord;
+	let record: RootCauseAnalysisRecord;
 	if (reading.kind === "failed") {
 		record = failedRecord(base, reading);
 	} else {
@@ -326,23 +326,23 @@ export interface UnreadableAnalysis {
  * A run's analyses, oldest first, with each file that does not read listed
  * apart, so one bad file never hides the others.
  */
-export async function readCulpritAnalyses({
+export async function readRootCauseAnalyses({
 	runsDirectory,
 	run,
 }: AnalyzedRun): Promise<{
-	readonly records: readonly CulpritAnalysisRecord[];
+	readonly records: readonly RootCauseAnalysisRecord[];
 	readonly unreadable: readonly UnreadableAnalysis[];
 }> {
-	const directory = join(culpritAnalysesDirectory(runsDirectory), run);
+	const directory = join(rootCauseAnalysesDirectory(runsDirectory), run);
 	const names = (await readdirIfPresent(directory)) ?? [];
 	const recordFiles = names.filter((name) => name.endsWith(".json")).toSorted();
 
-	const records: CulpritAnalysisRecord[] = [];
+	const records: RootCauseAnalysisRecord[] = [];
 	const unreadable: UnreadableAnalysis[] = [];
 	for (const file of recordFiles) {
 		try {
 			records.push(
-				culpritAnalysisRecordSchema.parse(
+				rootCauseAnalysisRecordSchema.parse(
 					await Bun.file(join(directory, file)).json(),
 				),
 			);
@@ -361,7 +361,7 @@ export async function readCulpritAnalyses({
  * JSON leaves U+2028 and U+2029 raw, and a reader may take either as a line
  * break, so record text could otherwise end the fenced run early.
  */
-function promptSafeJson(bundle: CulpritBundle): string {
+function promptSafeJson(bundle: RootCauseBundle): string {
 	return JSON.stringify(bundle)
 		.replaceAll("\u2028", String.raw`\u2028`)
 		.replaceAll("\u2029", String.raw`\u2029`);
@@ -373,13 +373,13 @@ function promptSafeJson(bundle: CulpritBundle): string {
  */
 function analysisPrompt(bundleText: string): string {
 	return [
-		"Say which corpus file, if any, the outcome of the run below most plausibly traces to. Give a null `culprit` when the records do not point at one file. On a run that passed, a culprit is a file that cost the run a requirement or a grade dimension it would otherwise have met.",
+		"Say which corpus file, if any, the outcome of the run below most plausibly traces to. Give a null `rootCause` when the records do not point at one file. On a run that passed, a root cause is a file that cost the run a requirement or a grade dimension it would otherwise have met.",
 		"The harness refuses an answer that breaks rule 1, 2 or 3:",
 		"1. `stages` holds each stage in the run's `stages` exactly once. A stage in `declaredStages` that is missing from the run's `stages` never ran, so leave it out.",
-		'2. When `culprit` names a stage and a corpus file from that stage\'s `corpusReads`, that stage and no other is "primary culprit". When `culprit` is null, no stage is.',
-		"3. Give `culprit.lines` only when `corpusFiles` holds the file's body with the culprit stage in its `readBy`. The range is 1-based and inclusive, and lies within that body.",
+		'2. When `rootCause` names a stage and a corpus file from that stage\'s `corpusReads`, that stage and no other has the role "root cause". When `rootCause` is null, no stage has it.',
+		"3. Give `rootCause.lines` only when `corpusFiles` holds the file's body with the root-cause stage in its `readBy`. The range is 1-based and inclusive, and lies within that body.",
 		"4. `note` is one sentence on what that stage's record shows. `contribution` is a short phrase saying how the stage moved the run's `outcome`.",
-		"5. `narrative` says how the outcome traces to the culprit, or why no corpus file explains it. `pairedRerun` names the rerun that would confirm the reading: the culprit stage replayed with only the named line range, or the whole file, changed. When `culprit` is null, it names the rerun that would show no corpus file is at fault.",
+		"5. `narrative` says how the outcome traces to the root cause, or why no corpus file explains it. `pairedRerun` names the rerun that would confirm the reading: the root-cause stage replayed with only the named line range, or the whole file, changed. When `rootCause` is null, it names the rerun that would show no corpus file is at fault.",
 		"BEGIN RUN",
 		bundleText,
 		"END RUN",
@@ -424,13 +424,13 @@ async function readSession(
 
 /**
  * The rules an answer must keep to be recorded: it reads exactly the stages
- * that ran, at most one of them is the primary culprit and it is the stage the
- * culprit names, the culprit file is one that stage read, and a line range
+ * that ran, at most one of them is the root cause and it is the stage the
+ * root cause names, the root-cause file is one that stage read, and a line range
  * lies within that file as the stage read it.
  */
 function answerViolation(
 	answer: AnalysisAnswer,
-	bundle: CulpritBundle,
+	bundle: RootCauseBundle,
 ): string | undefined {
 	const ran = bundle.stages;
 	const answered = answer.stages.map(({ stage }) => stage).toSorted();
@@ -439,33 +439,36 @@ function answerViolation(
 		return `The answer reads stages ${answered.join(", ")}, but the stages that ran are ${expected.join(", ")}`;
 	}
 
-	const primaries = answer.stages.filter(
-		({ role }) => role === "primary culprit",
+	const rootCauseRoles = answer.stages.filter(
+		({ role }) => role === "root cause",
 	);
-	if (answer.culprit === null) {
-		return primaries.length === 0
+	if (answer.rootCause === null) {
+		return rootCauseRoles.length === 0
 			? undefined
-			: "The answer names a primary culprit stage without a culprit";
+			: "The answer names a root-cause stage without a root cause";
 	}
 
-	const { stage, file } = answer.culprit;
-	if (primaries.length !== 1 || primaries[0]?.stage !== stage) {
-		return `The answer names ${stage} as the culprit stage, so ${stage} and no other stage must be the primary culprit`;
+	const { stage, file } = answer.rootCause;
+	if (rootCauseRoles.length !== 1 || rootCauseRoles[0]?.stage !== stage) {
+		return `The answer names ${stage} as the root-cause stage, so ${stage} and no other stage must be the root cause`;
 	}
 
-	const culpritStage = ran.find((candidate) => candidate.stage === stage);
-	if (culpritStage === undefined || !culpritStage.corpusReads.includes(file)) {
-		return `The culprit file ${file} is not a corpus file the ${stage} stage read`;
+	const rootCauseStage = ran.find((candidate) => candidate.stage === stage);
+	if (
+		rootCauseStage === undefined ||
+		!rootCauseStage.corpusReads.includes(file)
+	) {
+		return `The root-cause file ${file} is not a corpus file the ${stage} stage read`;
 	}
 
-	return lineRangeViolation(answer.culprit, bundle.corpusFiles);
+	return lineRangeViolation(answer.rootCause, bundle.corpusFiles);
 }
 
 function lineRangeViolation(
-	culprit: NonNullable<AnalysisAnswer["culprit"]>,
-	corpusFiles: CulpritBundle["corpusFiles"],
+	rootCause: NonNullable<AnalysisAnswer["rootCause"]>,
+	corpusFiles: RootCauseBundle["corpusFiles"],
 ): string | undefined {
-	const { stage, file, lines } = culprit;
+	const { stage, file, lines } = rootCause;
 	if (lines === undefined) {
 		return undefined;
 	}
@@ -493,7 +496,7 @@ function recordedAnalysis(
 	return {
 		...base,
 		outcome: "recorded",
-		culprit: answer.culprit,
+		rootCause: answer.rootCause,
 		narrative: answer.narrative,
 		pairedRerun: answer.pairedRerun,
 		stages: stages.map(
@@ -528,10 +531,10 @@ function failedRecord(
  */
 async function writeAnalysis(
 	runsDirectory: string,
-	record: CulpritAnalysisRecord,
+	record: RootCauseAnalysisRecord,
 ): Promise<AnalysisResult> {
 	const file = join(
-		culpritAnalysesDirectory(runsDirectory),
+		rootCauseAnalysesDirectory(runsDirectory),
 		record.run,
 		`${runNameFromTimestamp(record.startedAt)}.json`,
 	);
@@ -551,9 +554,9 @@ async function writeAnalysis(
 
 /** A provider that reports no spend leaves the record without one. */
 function withCost(
-	record: CulpritAnalysisRecord,
+	record: RootCauseAnalysisRecord,
 	costUsd: number | undefined,
-): CulpritAnalysisRecord {
+): RootCauseAnalysisRecord {
 	if (costUsd === undefined) {
 		return record;
 	}

@@ -9,7 +9,7 @@ import { parseComparisonReport } from "#benchmark/comparison-record";
 import { recordFileFor } from "#cli/show-command";
 import { UsageError } from "#cli/commands";
 import { RefusedPreconditionError } from "#benchmark/exit-codes";
-import { readAnalysisReading } from "./culprit-analyses";
+import { readAnalysisReading } from "./root-cause-analyses";
 import { parseRecordId, parseRunRecordId } from "#cli/record-id";
 import {
 	confirmationGroupPaths,

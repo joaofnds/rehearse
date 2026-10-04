@@ -3,13 +3,13 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ClaudeEnvelope } from "#benchmark/contracts";
-import type { AnalysisInvoker } from "#benchmark/culprit-analysis";
+import type { AnalysisInvoker } from "#benchmark/root-cause-analysis";
 import {
 	ANSWER,
 	answering,
 	RUN,
 	runStoppedAtBuild,
-} from "#benchmark/culprit-analysis-test-support";
+} from "#benchmark/root-cause-analysis-test-support";
 import { nothingRunning } from "#benchmark/run-records-test-support";
 import type {
 	DiagnoseDependencies,
@@ -144,7 +144,7 @@ describe(runDiagnose.name, () => {
 			expect(recorder.stdout).toHaveLength(1);
 			expect(error).not.toBeInstanceOf(UsageError);
 			expect(error.message).toStartWith(
-				"The culprit analysis failed: The answer reads stages",
+				"The root-cause analysis failed: The answer reads stages",
 			);
 		});
 	});

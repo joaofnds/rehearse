@@ -9,9 +9,9 @@ import {
 	runWithOneGradedStage,
 	stoppedStage,
 	writeStage,
-} from "./culprit-analysis-test-support";
-import type { BundleCorpusFile } from "./culprit-bundle";
-import { assembleCulpritBundle } from "./culprit-bundle";
+} from "./root-cause-analysis-test-support";
+import type { BundleCorpusFile } from "./root-cause-bundle";
+import { assembleRootCauseBundle } from "./root-cause-bundle";
 import { operatorStopRecord } from "./operator-stop";
 import { benchmarkRunPaths } from "./run-layout";
 
@@ -24,7 +24,7 @@ afterEach(async () => {
 });
 
 async function runsDirectory(): Promise<string> {
-	const root = await mkdtemp(join(tmpdir(), "rehearse-culprit-bundle-"));
+	const root = await mkdtemp(join(tmpdir(), "rehearse-root-cause-bundle-"));
 	roots.push(root);
 
 	return root;
@@ -46,12 +46,12 @@ function corpusFile(
 	};
 }
 
-describe(assembleCulpritBundle.name, () => {
+describe(assembleRootCauseBundle.name, () => {
 	it("holds each stage's grade, the outcome and the corpus each stage read", async () => {
 		const directory = await runsDirectory();
 		await runStoppedAtBuild(directory);
 
-		const bundle = await assembleCulpritBundle(directory, RUN);
+		const bundle = await assembleRootCauseBundle(directory, RUN);
 
 		expect(bundle).toEqual({
 			run: RUN,
@@ -102,7 +102,7 @@ describe(assembleCulpritBundle.name, () => {
 			}),
 		);
 
-		const bundle = await assembleCulpritBundle(directory, RUN);
+		const bundle = await assembleRootCauseBundle(directory, RUN);
 
 		expect(bundle.outcome).toEqual({
 			status: "AWAITING_HUMAN_REVIEW",
@@ -119,7 +119,7 @@ describe(assembleCulpritBundle.name, () => {
 			operatorStopRecord("SIGINT"),
 		);
 
-		const bundle = await assembleCulpritBundle(directory, RUN);
+		const bundle = await assembleRootCauseBundle(directory, RUN);
 
 		expect(bundle.outcome).toEqual({ status: "OPERATOR_STOPPED" });
 	});
@@ -128,7 +128,7 @@ describe(assembleCulpritBundle.name, () => {
 		const directory = await runsDirectory();
 		await runWithOneGradedStage(directory);
 
-		const bundle = await assembleCulpritBundle(directory, RUN);
+		const bundle = await assembleRootCauseBundle(directory, RUN);
 
 		expect(bundle.outcome).toEqual({ status: "NO_OUTCOME_RECORDED" });
 	});
@@ -147,7 +147,7 @@ describe(assembleCulpritBundle.name, () => {
 				}),
 			);
 
-			const bundle = await assembleCulpritBundle(directory, RUN);
+			const bundle = await assembleRootCauseBundle(directory, RUN);
 
 			expect(bundle.stages.map(({ stage }) => stage)).toEqual(["shape"]);
 			expect(bundle.outcome).toMatchObject({ stage: "build" });
@@ -167,7 +167,7 @@ describe(assembleCulpritBundle.name, () => {
 				),
 			);
 
-			const bundle = await assembleCulpritBundle(directory, RUN);
+			const bundle = await assembleRootCauseBundle(directory, RUN);
 
 			expect(bundle.stages[1]?.corpusReads).toEqual([
 				"CLAUDE.md",
@@ -196,7 +196,7 @@ describe(assembleCulpritBundle.name, () => {
 				corpusFiles: [{ path: "CLAUDE.md", sha256: "e".repeat(64) }],
 			});
 
-			const bundle = await assembleCulpritBundle(directory, RUN);
+			const bundle = await assembleRootCauseBundle(directory, RUN);
 
 			expect(bundle.stages[1]).toMatchObject({
 				stage: "build",

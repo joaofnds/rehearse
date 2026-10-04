@@ -17,7 +17,7 @@ import {
 } from "#benchmark/case";
 import { INITIAL_CHECKPOINT_STAGE } from "#benchmark/checkpoint";
 import { unhandled } from "#benchmark/contracts";
-import { refuseUnanalyzable } from "#benchmark/culprit-analysis";
+import { refuseUnanalyzable } from "#benchmark/root-cause-analysis";
 import { planComparison, planExtension } from "#benchmark/compare-attempts";
 import { isConfirmationIdentity } from "#benchmark/confirmation-record";
 import { liveCorpusSource } from "#benchmark/corpus-file";
@@ -61,7 +61,7 @@ import { caseListing } from "./case-listing";
 import {
 	BROWSER_ANALYSIS_MODEL,
 	browserAnalysisCapUsd,
-} from "./culprit-analyses";
+} from "./root-cause-analyses";
 import { pipelineReport } from "./pipelines";
 import { redactAbsolutePaths } from "./redact-path";
 import { runStatus } from "./run-status";
@@ -579,7 +579,7 @@ async function runningLaunch(
 	// spend and leave no record of it.
 	if (record.kind === "analysis") {
 		throw new LaunchRefusalError(
-			`Launch ${id} is a culprit analysis, one call capped at the cost it stated, which records what it spent when it ends; it cannot be stopped`,
+			`Launch ${id} is a root-cause analysis, one call capped at the cost it stated, which records what it spent when it ends; it cannot be stopped`,
 			409,
 		);
 	}

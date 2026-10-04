@@ -22,21 +22,21 @@ export type AnalysisRole = AnalyzedStage["role"];
 async function fetchAnalyses(run: string): Promise<AnalysisReadingResponse> {
 	const response = await analysesRoute.$get({ param: { run } });
 	if (!response.ok) {
-		throw new Error(`Could not read the culprit analyses of run ${run}`);
+		throw new Error(`Could not read the root-cause analyses of run ${run}`);
 	}
 
 	return response.json();
 }
 
 export interface AnalysesQuery {
-	readonly queryKey: readonly ["culprit-analyses", string];
+	readonly queryKey: readonly ["root-cause-analyses", string];
 	readonly queryFn: () => Promise<AnalysisReadingResponse>;
 }
 
-/** The culprit analyses recorded of one pipeline run, newest first. */
+/** The root-cause analyses recorded of one pipeline run, newest first. */
 export function analysesQuery(run: string): AnalysesQuery {
 	return {
-		queryKey: ["culprit-analyses", run],
+		queryKey: ["root-cause-analyses", run],
 		queryFn: () => fetchAnalyses(run),
 	};
 }

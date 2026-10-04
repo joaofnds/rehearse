@@ -1960,7 +1960,7 @@ describe(RunHistoryPage.name, () => {
 			);
 		});
 
-		it("names the run a started culprit analysis reads, as one call it cannot stop", async () => {
+		it("names the run a started root-cause analysis reads, as one call it cannot stop", async () => {
 			respondingWith({
 				rows: [],
 				launches: [
@@ -1986,7 +1986,7 @@ describe(RunHistoryPage.name, () => {
 			});
 			const target = cellOf("launch 6c4d8e0f", "Case");
 			expect(target).toHaveTextContent(
-				"culprit analysis of 2026-09-06T21-58-29.508Z",
+				"root-cause analysis of 2026-09-06T21-58-29.508Z",
 			);
 			expect(target).toHaveTextContent("one call");
 			expect(target).not.toHaveTextContent("one run");

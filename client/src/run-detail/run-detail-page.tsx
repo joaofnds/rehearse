@@ -27,7 +27,7 @@ import { Switcher } from "#client/system/components/switcher";
 import { Button } from "#client/system/ui/button";
 import { analysesQuery, rolesOf } from "./analysis-query";
 import { analysisWait } from "./analysis-request";
-import { CulpritAnalysisSection } from "./culprit-analysis-section";
+import { RootCauseAnalysisSection } from "./root-cause-analysis-section";
 import { momentReading } from "./moment-reading";
 import { ReplayButton } from "./replay-button";
 import { StepMap } from "./step-map";
@@ -35,7 +35,7 @@ import { TaskGradeCard } from "./task-grade-card";
 
 const LAYOUTS = ["Contribution"] as const;
 
-const LAYOUT_NOTE = "Layout C · task grade first, then the culprit pass";
+const LAYOUT_NOTE = "Layout C · task grade first, then the root-cause pass";
 
 const NOT_RECORDED = "—";
 
@@ -342,7 +342,7 @@ export function RunDetailPage({
 						outcome={record.data.finalOutcome}
 					/>
 					<StepMap record={record.data} roles={rolesOf(analyses.data)} />
-					<CulpritAnalysisSection
+					<RootCauseAnalysisSection
 						run={run}
 						record={record.data}
 						reading={analyses.isError ? "unreadable" : analyses.data}

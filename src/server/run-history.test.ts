@@ -1917,7 +1917,7 @@ describe(runHistoryReport.name, () => {
 			});
 		});
 
-		it("lists a culprit analysis launch as one call on the run it reads", async () => {
+		it("lists a root-cause analysis launch as one call on the run it reads", async () => {
 			const fixture = await writtenFixture();
 			await writeLaunchRecord(fixture.runsDirectory, {
 				id: LAUNCH_ID,

@@ -52,7 +52,7 @@ import {
 import { runList } from "./src/cli/list-command";
 import { judgesFor, runCalibrate } from "./src/cli/calibrate-command";
 import { runDiagnose } from "./src/cli/diagnose-command";
-import { sealedAnalysisInvoker } from "./src/benchmark/culprit-analysis";
+import { sealedAnalysisInvoker } from "./src/benchmark/root-cause-analysis";
 import { liveRunLiveness } from "./src/benchmark/run-liveness";
 import { runReview } from "./src/cli/review-command";
 import { runSettings } from "./src/cli/settings-command";

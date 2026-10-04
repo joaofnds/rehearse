@@ -33,14 +33,14 @@ function provenance(analysis: RecordedAnalysis): string {
 	].join(" · ");
 }
 
-function culpritWords(culprit: RecordedAnalysis["culprit"]): string {
-	if (culprit === null) {
-		return "no culprit named";
+function rootCauseWords(rootCause: RecordedAnalysis["rootCause"]): string {
+	if (rootCause === null) {
+		return "no root cause named";
 	}
 
-	return culprit.lines === undefined
-		? `culprit: ${culprit.file}`
-		: `culprit: ${culprit.file} · lines ${String(culprit.lines.start)}–${String(culprit.lines.end)}`;
+	return rootCause.lines === undefined
+		? `root cause: ${rootCause.file}`
+		: `root cause: ${rootCause.file} · lines ${String(rootCause.lines.start)}–${String(rootCause.lines.end)}`;
 }
 
 /** Where a letter sits on the harness's grade scale, as a row of cells. */
@@ -64,7 +64,7 @@ function StepRow({
 	readonly analysed: AnalyzedStage | undefined;
 }): React.JSX.Element {
 	return (
-		<li className="grid grid-cols-culprit-rows items-center gap-3 border-t border-divider py-2.5 text-12">
+		<li className="grid grid-cols-analysis-rows items-center gap-3 border-t border-divider py-2.5 text-12">
 			<span>
 				<span className="font-mono text-dim">{index + 1} </span>
 				<span>{stage.stage}</span>
@@ -104,7 +104,7 @@ function StepRow({
 	);
 }
 
-const NO_CULPRIT = "the analysis named no culprit";
+const NO_ROOT_CAUSE = "the analysis named no root cause";
 
 function RecordedReading({
 	run,
@@ -119,14 +119,14 @@ function RecordedReading({
 	readonly earlierCount: number;
 	readonly rerun: ReactNode;
 }): React.JSX.Element {
-	const { culprit } = analysis;
+	const { rootCause } = analysis;
 	const analysed = new Map(analysis.stages.map((each) => [each.stage, each]));
 
 	return (
 		<>
 			<p className="mt-1 text-11-5 text-dim">{provenance(analysis)}</p>
 			<p className="mt-1 font-mono text-11-5 text-pale">
-				{culpritWords(culprit)}
+				{rootCauseWords(rootCause)}
 			</p>
 			<p className="mt-3 max-w-prose text-13">{analysis.narrative}</p>
 			<p className="mt-2 max-w-prose text-12 text-secondary-foreground">
@@ -142,13 +142,13 @@ function RecordedReading({
 				</p>
 			)}
 			<div className="mt-3 flex flex-wrap gap-2">
-				{culprit === null ? (
+				{rootCause === null ? (
 					<>
 						<Button
 							variant="default"
 							size="compact"
 							aria-disabled="true"
-							aria-label={`Set up the paired rerun: ${NO_CULPRIT}`}
+							aria-label={`Set up the paired rerun: ${NO_ROOT_CAUSE}`}
 						>
 							Set up the paired rerun
 						</Button>
@@ -156,7 +156,7 @@ function RecordedReading({
 							variant="outline"
 							size="compact"
 							aria-disabled="true"
-							aria-label={`Open the block it names: ${NO_CULPRIT}`}
+							aria-label={`Open the block it names: ${NO_ROOT_CAUSE}`}
 						>
 							Open the block it names
 						</Button>
@@ -166,7 +166,7 @@ function RecordedReading({
 						<ReplayButton
 							run={run}
 							record={record}
-							stage={culprit.stage}
+							stage={rootCause.stage}
 							label="Set up the paired rerun"
 						/>
 						<Button asChild variant="outline" size="compact">
@@ -195,10 +195,10 @@ function RecordedReading({
 }
 
 /**
- * SPEC.md 4c item 3: the newest culprit analysis, disclosed as one agent's
+ * SPEC.md 4c item 3: the newest root-cause analysis, disclosed as one agent's
  * reading of the recorded steps rather than a measurement.
  */
-export function CulpritAnalysisSection({
+export function RootCauseAnalysisSection({
 	run,
 	record,
 	reading,
@@ -211,16 +211,16 @@ export function CulpritAnalysisSection({
 }): React.JSX.Element {
 	return (
 		<section
-			aria-labelledby="culprit-analysis-heading"
+			aria-labelledby="root-cause-analysis-heading"
 			className="rounded-lg border border-accent-line bg-card p-4.5"
 		>
-			<h2 id="culprit-analysis-heading" className="text-14 font-semibold">
-				Culprit analysis
+			<h2 id="root-cause-analysis-heading" className="text-14 font-semibold">
+				Root-cause analysis
 			</h2>
 			{reading === "unreadable" ? (
 				<p role="alert" className="mt-2 text-12 text-muted-foreground">
 					<span aria-hidden="true">⚠ </span>
-					Could not read the culprit analyses of this run.
+					Could not read the root-cause analyses of this run.
 				</p>
 			) : null}
 			{reading === undefined || reading === "unreadable" ? null : (
@@ -263,7 +263,7 @@ function AnalysisReading({
 			return (
 				<div className="mt-2 flex flex-col gap-2 text-12">
 					<p className="text-muted-foreground">
-						No culprit analysis is recorded for this run.
+						No root-cause analysis is recorded for this run.
 					</p>
 					{offered === undefined ? null : (
 						<p className="text-secondary-foreground">{offered}</p>
@@ -273,7 +273,7 @@ function AnalysisReading({
 							run={run}
 							request={request}
 							wait={wait}
-							label="Request a culprit analysis"
+							label="Request a root-cause analysis"
 						/>
 					</div>
 				</div>

@@ -19,19 +19,19 @@ afterEach(() => {
 	globalThis.fetch = originalFetch;
 });
 
-function culpritSection(): Promise<HTMLElement> {
-	return screen.findByRole("region", { name: "Culprit analysis" });
+function rootCauseSection(): Promise<HTMLElement> {
+	return screen.findByRole("region", { name: "Root-cause analysis" });
 }
 
-describe("requesting a culprit analysis", () => {
+describe("requesting a root-cause analysis", () => {
 	it("says no analysis is recorded and states the most a request can spend before the click", async () => {
 		serveRunDetail(new Map());
 
-		const section = await culpritSection();
+		const section = await rootCauseSection();
 
 		expect(
 			await within(section).findByText(
-				"No culprit analysis is recorded for this run.",
+				"No root-cause analysis is recorded for this run.",
 			),
 		).toBeInTheDocument();
 		expect(section).toHaveTextContent(
@@ -39,7 +39,7 @@ describe("requesting a culprit analysis", () => {
 		);
 		expect(
 			within(section).getByRole("button", {
-				name: "Request a culprit analysis · at most $1.00",
+				name: "Request a root-cause analysis · at most $1.00",
 			}),
 		).toBeEnabled();
 	});
@@ -50,8 +50,8 @@ describe("requesting a culprit analysis", () => {
 		);
 
 		fireEvent.click(
-			await within(await culpritSection()).findByRole("button", {
-				name: "Request a culprit analysis · at most $1.00",
+			await within(await rootCauseSection()).findByRole("button", {
+				name: "Request a root-cause analysis · at most $1.00",
 			}),
 		);
 
@@ -83,8 +83,8 @@ describe("requesting a culprit analysis", () => {
 		);
 
 		fireEvent.click(
-			await within(await culpritSection()).findByRole("button", {
-				name: "Request a culprit analysis · at most $1.00",
+			await within(await rootCauseSection()).findByRole("button", {
+				name: "Request a root-cause analysis · at most $1.00",
 			}),
 		);
 
@@ -110,7 +110,7 @@ describe("requesting a culprit analysis", () => {
 			]),
 		);
 
-		const section = await culpritSection();
+		const section = await rootCauseSection();
 
 		expect(
 			await within(section).findByText(
@@ -119,7 +119,7 @@ describe("requesting a culprit analysis", () => {
 		).toBeInTheDocument();
 		expect(
 			within(section).getByRole("button", {
-				name: /^Request a culprit analysis/u,
+				name: /^Request a root-cause analysis/u,
 			}),
 		).toHaveAttribute("aria-disabled", "true");
 	});
@@ -139,7 +139,7 @@ describe("requesting a culprit analysis", () => {
 			]),
 		);
 
-		const section = await culpritSection();
+		const section = await rootCauseSection();
 
 		expect(
 			await within(section).findByText(
@@ -148,7 +148,7 @@ describe("requesting a culprit analysis", () => {
 		).toBeInTheDocument();
 		expect(
 			within(section).getByRole("button", {
-				name: /^Request a culprit analysis/u,
+				name: /^Request a root-cause analysis/u,
 			}),
 		).toHaveAttribute("aria-disabled", "true");
 	});
@@ -171,14 +171,14 @@ describe("requesting a culprit analysis", () => {
 			],
 		});
 
-		const section = await culpritSection();
+		const section = await rootCauseSection();
 
 		expect(
 			await within(section).findByText("An analysis of this run is in flight."),
 		).toBeInTheDocument();
 		expect(
 			within(section).getByRole("button", {
-				name: /^Request a culprit analysis/u,
+				name: /^Request a root-cause analysis/u,
 			}),
 		).toHaveAttribute("aria-disabled", "true");
 	});
@@ -220,13 +220,13 @@ describe("requesting a culprit analysis", () => {
 			]),
 		);
 
-		await within(await culpritSection()).findByText(
+		await within(await rootCauseSection()).findByText(
 			"An analysis of this run is in flight.",
 		);
 		recorded = true;
 
 		expect(
-			await within(await culpritSection()).findByText(
+			await within(await rootCauseSection()).findByText(
 				"Build skipped the scope declaration the shape step asked for.",
 				undefined,
 				{ timeout: 5000 },
@@ -252,7 +252,7 @@ describe("requesting a culprit analysis", () => {
 		);
 
 		fireEvent.click(
-			await within(await culpritSection()).findByRole("button", {
+			await within(await rootCauseSection()).findByRole("button", {
 				name: "Re-run the analysis · at most $2.00",
 			}),
 		);

@@ -1,8 +1,8 @@
-import type { AnalysisInvoker } from "#benchmark/culprit-analysis";
+import type { AnalysisInvoker } from "#benchmark/root-cause-analysis";
 import {
 	analyzeRun,
 	DEFAULT_ANALYSIS_BUDGET_USD,
-} from "#benchmark/culprit-analysis";
+} from "#benchmark/root-cause-analysis";
 import type { RunLiveness } from "#benchmark/run-liveness";
 import { UsageError } from "#cli/commands";
 import type { CommandOutput } from "#cli/output";
@@ -62,7 +62,7 @@ export async function runDiagnose(
 
 	await writeRecord(dependencies.output, file, request.json);
 	if (record.outcome === "failed") {
-		throw new Error(`The culprit analysis failed: ${record.reason}`);
+		throw new Error(`The root-cause analysis failed: ${record.reason}`);
 	}
 }
 

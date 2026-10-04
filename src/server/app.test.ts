@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "bun:test";
 import {
 	RUN as ANALYZED_RUN,
 	runStoppedAtBuild,
-} from "#benchmark/culprit-analysis-test-support";
+} from "#benchmark/root-cause-analysis-test-support";
 import { mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -502,7 +502,7 @@ describe(createAppServer.name, () => {
 			});
 		});
 
-		describe("to request a culprit analysis", () => {
+		describe("to request a root-cause analysis", () => {
 			const analysis = JSON.stringify({
 				kind: "analysis",
 				run: ANALYZED_RUN,

@@ -178,7 +178,7 @@ describe("/runs/$run", () => {
 
 		expect(
 			await screen.findByText(
-				"Layout C · task grade first, then the culprit pass",
+				"Layout C · task grade first, then the root-cause pass",
 			),
 		).toBeInTheDocument();
 		expect(screen.queryByText(/Repository restored/u)).not.toBeInTheDocument();
