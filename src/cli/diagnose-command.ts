@@ -9,7 +9,7 @@ import type { CommandOutput } from "#cli/output";
 import { diagnosticWriter, writeRecord } from "#cli/output";
 import { parseRunRecordId } from "#cli/record-id";
 
-export interface AnalyzeRequest {
+export interface DiagnoseRequest {
 	readonly id: string | undefined;
 	readonly runsDirectory: string;
 	readonly model: string | undefined;
@@ -17,7 +17,7 @@ export interface AnalyzeRequest {
 	readonly json: boolean;
 }
 
-export interface AnalyzeDependencies {
+export interface DiagnoseDependencies {
 	readonly output: CommandOutput;
 	readonly invokerFor: (model: string) => AnalysisInvoker;
 	readonly now: () => Date;
@@ -26,18 +26,18 @@ export interface AnalyzeDependencies {
 }
 
 /**
- * The `analyze` command: one sealed session reads an ended run and names the
+ * The `diagnose` command: one sealed session reads an ended run and names the
  * corpus file its outcome traces to. It makes no model probe first, because
  * the probe is a paid call of its own and the analysis is meant to be the
  * one call the operator approved. An unavailable model ends in a failed
  * record instead.
  */
-export async function runAnalyze(
-	request: AnalyzeRequest,
-	dependencies: AnalyzeDependencies,
+export async function runDiagnose(
+	request: DiagnoseRequest,
+	dependencies: DiagnoseDependencies,
 ): Promise<void> {
 	if (request.id === undefined) {
-		throw new UsageError("Provide the run: rehearse analyze <run>");
+		throw new UsageError("Provide the run: rehearse diagnose <run>");
 	}
 	if (request.model === undefined) {
 		throw new UsageError("Provide the model: --model <model>");

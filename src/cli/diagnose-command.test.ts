@@ -11,8 +11,11 @@ import {
 	runStoppedAtBuild,
 } from "#benchmark/culprit-analysis-test-support";
 import { nothingRunning } from "#benchmark/run-records-test-support";
-import type { AnalyzeDependencies, AnalyzeRequest } from "#cli/analyze-command";
-import { runAnalyze } from "#cli/analyze-command";
+import type {
+	DiagnoseDependencies,
+	DiagnoseRequest,
+} from "#cli/diagnose-command";
+import { runDiagnose } from "#cli/diagnose-command";
 import { failureOf, recordOutput } from "#cli/cli-test-support";
 import type { OutputRecorder } from "#cli/cli-test-support";
 import { UsageError } from "#cli/commands";
@@ -41,8 +44,8 @@ function answeringWith(
 
 function request(
 	runsDirectory: string,
-	overrides: Partial<AnalyzeRequest> = {},
-): AnalyzeRequest {
+	overrides: Partial<DiagnoseRequest> = {},
+): DiagnoseRequest {
 	return {
 		id: RUN,
 		runsDirectory,
@@ -62,7 +65,7 @@ function dependencies(
 	recorder: OutputRecorder,
 	invoke: AnalysisInvoker,
 	requests = new InvokerRequests(),
-): AnalyzeDependencies {
+): DiagnoseDependencies {
 	const { models } = requests;
 
 	return {
@@ -78,13 +81,13 @@ function dependencies(
 	};
 }
 
-describe(runAnalyze.name, () => {
+describe(runDiagnose.name, () => {
 	it("prints the record it wrote, after stating what the call could spend", async () => {
 		const directory = await endedRun();
 		const recorder = recordOutput();
 		const requests = new InvokerRequests();
 
-		await runAnalyze(
+		await runDiagnose(
 			request(directory),
 			dependencies(recorder, answeringWith(ANSWER), requests),
 		);
@@ -102,7 +105,7 @@ describe(runAnalyze.name, () => {
 		const directory = await endedRun();
 		const recorder = recordOutput();
 
-		await runAnalyze(
+		await runDiagnose(
 			request(directory, { id: `run:${RUN}`, budgetUsd: "2.5" }),
 			dependencies(recorder, answeringWith(ANSWER)),
 		);
@@ -116,7 +119,7 @@ describe(runAnalyze.name, () => {
 		const directory = await endedRun();
 		const recorder = recordOutput();
 
-		await runAnalyze(
+		await runDiagnose(
 			request(directory, { id: `run:${RUN}`, budgetUsd: String(5e-7) }),
 			dependencies(recorder, answeringWith(ANSWER)),
 		);
@@ -132,7 +135,7 @@ describe(runAnalyze.name, () => {
 			const recorder = recordOutput();
 
 			const error = await failureOf(
-				runAnalyze(
+				runDiagnose(
 					request(directory),
 					dependencies(recorder, answeringWith({ ...ANSWER, stages: [] })),
 				),
@@ -148,7 +151,7 @@ describe(runAnalyze.name, () => {
 
 	describe("when the command line is incomplete", () => {
 		it.each([
-			["no run", { id: undefined }, "Provide the run: rehearse analyze <run>"],
+			["no run", { id: undefined }, "Provide the run: rehearse diagnose <run>"],
 			["no model", { model: undefined }, "Provide the model: --model <model>"],
 			[
 				"a zero budget",
@@ -167,7 +170,7 @@ describe(runAnalyze.name, () => {
 				const requests = new InvokerRequests();
 
 				const error = await failureOf(
-					runAnalyze(
+					runDiagnose(
 						request(directory, overrides),
 						dependencies(recordOutput(), answeringWith(ANSWER), requests),
 					),

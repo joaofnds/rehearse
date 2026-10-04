@@ -951,7 +951,7 @@ const BARE_REFUSALS: ReadonlyMap<string, { code: number; reason: string }> =
 		],
 		["replay", { code: EXIT_CODES.usageError, reason: "Provide --run" }],
 		["review", { code: EXIT_CODES.usageError, reason: "Provide the run" }],
-		["analyze", { code: EXIT_CODES.usageError, reason: "Provide the run" }],
+		["diagnose", { code: EXIT_CODES.usageError, reason: "Provide the run" }],
 		["calibrate", { code: EXIT_CODES.usageError, reason: "Provide the run" }],
 		[
 			"compare",
@@ -1285,7 +1285,7 @@ describe("the spend ceiling", () => {
 
 		it("refuses before any provider call when no ceiling is stored", async () => {
 			const result = await runCli(
-				["analyze", CULPRIT_RUN, "--model", "sonnet"],
+				["diagnose", CULPRIT_RUN, "--model", "sonnet"],
 				"empty",
 				shimmed,
 			);
@@ -1303,7 +1303,7 @@ describe("the spend ceiling", () => {
 			);
 
 			await runCli(
-				["analyze", CULPRIT_RUN, "--model", "sonnet"],
+				["diagnose", CULPRIT_RUN, "--model", "sonnet"],
 				"empty",
 				shimmed,
 			);

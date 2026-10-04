@@ -228,7 +228,7 @@ export const COMMANDS: readonly CommandDefinition[] = [
 		],
 	},
 	{
-		name: "analyze",
+		name: "diagnose",
 		confinement: "never",
 		summary:
 			"Ask one sealed session which corpus file an ended run's outcome traces to, and record its answer",

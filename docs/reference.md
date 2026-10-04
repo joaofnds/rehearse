@@ -141,7 +141,7 @@ linked corpus. The browser stores the same ceiling through
 `PUT /api/settings/spend-ceiling` and the launch dialog's spend field, so a
 ceiling written in either place is the one every later command reads.
 Pipeline and session `run`, `replay`, every `--confirm` group, `calibrate` and
-`analyze` refuse with exit code 3 and name that command when no ceiling is stored. The
+`diagnose` refuse with exit code 3 and name that command when no ceiling is stored. The
 refusal comes before any paid call, after the terminal checks and before the
 model probe for the commands that make them.
 
@@ -201,7 +201,7 @@ posts `{ "kind": "extension", "comparison": <digest>, "attempts": <n>,
 comparison's summary states for it. Its launch record holds the comparison, the
 run and stage arm A replayed, the attempts added per arm and that cost.
 A culprit analysis request posts `{ "kind": "analysis", "run": <run>,
-"statedUsd": <usd> }` and runs `analyze <run> --model sonnet --budget-usd
+"statedUsd": <usd> }` and runs `diagnose <run> --model sonnet --budget-usd
 <usd>`, with `<usd>` the cap `GET /api/runs/<run>/analyses` states. Its launch
 record holds the run and that cap, with no stage or attempts. Run detail posts
 this request, only a same-origin client that passes the request guard starts
@@ -227,7 +227,7 @@ recorded and a skill under test that is not the stage's own skill are refused
 comparison, 409 with the refusal `compare extend` would give, and 409 when the
 cost it computes now differs from `statedUsd`, so the click approves only the
 cost the dialog showed. An analysis launch answers 404 for a run with no run
-directory, 409 for a run `analyze` would refuse (no manifest, paused, or in
+directory, 409 for a run `diagnose` would refuse (no manifest, paused, or in
 flight), and 409 when the cap it computes now differs from `statedUsd`. The knob refusal, the spend ceiling and the model probe
 run later in the started process, so they end the launch with the reason only
 in its log. `GET /api/cases` lists
@@ -334,7 +334,7 @@ A running row in run history offers Stop & restore repo when a browser launch
 started it, and a running pipeline run's row also offers Pause after this step.
 A launch row for a replay, group or session attempt offers Stop only. A
 culprit analysis launch row reads "one call" and offers no Stop, and the stop
-route refuses one with 409: `analyze` installs no signal handling, so a
+route refuses one with 409: `diagnose` installs no signal handling, so a
 stopped call could spend and leave no record. The call ends on its own, and
 like any session budget its cap can be overrun by the call that crosses it.
 Stop posts
@@ -1057,7 +1057,7 @@ operator's only after the operator's is recorded.
 No real-provider analysis has run, so this section describes the command as
 built and tested against a fake provider.
 
-`analyze <run> --model <model>` asks one sealed session which corpus file, if
+`diagnose <run> --model <model>` asks one sealed session which corpus file, if
 any, an ended run's outcome most plausibly traces to, and records its answer.
 `<run>` is a pipeline run's name or `run:<name>`. Replays, groups and session
 attempts are refused. The session gets no tools, no project settings and no

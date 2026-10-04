@@ -51,7 +51,7 @@ import {
 } from "./src/benchmark/preflight";
 import { runList } from "./src/cli/list-command";
 import { judgesFor, runCalibrate } from "./src/cli/calibrate-command";
-import { runAnalyze } from "./src/cli/analyze-command";
+import { runDiagnose } from "./src/cli/diagnose-command";
 import { sealedAnalysisInvoker } from "./src/benchmark/culprit-analysis";
 import { liveRunLiveness } from "./src/benchmark/run-liveness";
 import { runReview } from "./src/cli/review-command";
@@ -145,8 +145,8 @@ async function dispatch(
 
 			return EXIT_CODES.completed;
 		}
-		case "analyze": {
-			await runAnalyze(
+		case "diagnose": {
+			await runDiagnose(
 				{
 					id: commandLine.argument,
 					runsDirectory,

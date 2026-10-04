@@ -393,7 +393,7 @@ async function analysisLaunch(
 
 	return {
 		argv: [
-			"analyze",
+			"diagnose",
 			request.run,
 			"--model",
 			BROWSER_ANALYSIS_MODEL,
@@ -575,7 +575,7 @@ async function runningLaunch(
 	}
 
 	const record = await readLaunchRecord(dependencies.runsDirectory, id);
-	// The analyze command installs no signal handling, so a stopped call could
+	// The diagnose command installs no signal handling, so a stopped call could
 	// spend and leave no record of it.
 	if (record.kind === "analysis") {
 		throw new LaunchRefusalError(

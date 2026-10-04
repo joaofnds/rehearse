@@ -686,7 +686,7 @@ describe(createLaunchApp.name, () => {
 
 			expect(response.status).toBe(202);
 			expect(launcher.launches.map(({ argv }) => argv)).toEqual([
-				["analyze", ANALYZED_RUN, "--model", "sonnet", "--budget-usd", "1"],
+				["diagnose", ANALYZED_RUN, "--model", "sonnet", "--budget-usd", "1"],
 			]);
 			expect(await readLaunchRecord(runsDirectory, id)).toMatchObject({
 				kind: "analysis",
@@ -708,7 +708,7 @@ describe(createLaunchApp.name, () => {
 
 			expect(response.status).toBe(202);
 			expect(launcher.launches.map(({ argv }) => argv)).toEqual([
-				["analyze", ANALYZED_RUN, "--model", "sonnet", "--budget-usd", "0.5"],
+				["diagnose", ANALYZED_RUN, "--model", "sonnet", "--budget-usd", "0.5"],
 			]);
 		});
 
