@@ -234,22 +234,36 @@ describe("requesting a culprit analysis", () => {
 		).toBeInTheDocument();
 	});
 
-	it("offers a re-run of a recorded analysis at the same stated cap", async () => {
+	it("re-runs a recorded analysis at the cap a request may spend now, not the one it ran under", async () => {
 		const server = serveRunDetail(
 			new Map([
-				[`GET ${ANALYSES}`, { status: 200, body: recordedAnalysis() }],
+				[
+					`GET ${ANALYSES}`,
+					{
+						status: 200,
+						body: {
+							...recordedAnalysis(),
+							request: { model: "sonnet", capUsd: 2, refusal: null },
+						},
+					},
+				],
 				["POST /api/launches", { status: 201, body: { id: "l-1" } }],
 			]),
 		);
 
 		fireEvent.click(
 			await within(await culpritSection()).findByRole("button", {
-				name: "Re-run the analysis · at most $1.00",
+				name: "Re-run the analysis · at most $2.00",
 			}),
 		);
 
 		await waitFor(() => {
 			expect(server.posted("/api/launches")).toHaveLength(1);
+		});
+		expect(JSON.parse(server.posted("/api/launches")[0]?.body ?? "")).toEqual({
+			kind: "analysis",
+			run: RUN,
+			statedUsd: 2,
 		});
 	});
 });
