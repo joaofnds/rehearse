@@ -899,11 +899,21 @@ describe("/monitor task graph", () => {
 		expect(await graphNode("build")).toHaveTextContent(/^01build/u);
 	});
 
-	it("offers replay from a stage's checkpoint", async () => {
+	it("offers replay of a stage from the checkpoint the stage before it saved", async () => {
 		renderGraph([
 			recordStage("plan", { status: "graded", checkpoint: "recorded" }),
 			recordStage("build"),
 		]);
+
+		expect(
+			within(await graphNode("build")).getByRole("button", {
+				name: "Replay build from its checkpoint",
+			}),
+		).not.toHaveAttribute("aria-disabled");
+	});
+
+	it("offers replay of the first stage, which starts from the run's initial checkpoint", async () => {
+		renderGraph([recordStage("plan"), recordStage("build")]);
 
 		expect(
 			within(await graphNode("plan")).getByRole("button", {
@@ -912,8 +922,11 @@ describe("/monitor task graph", () => {
 		).not.toHaveAttribute("aria-disabled");
 	});
 
-	it("says on replay why a stage without a checkpoint cannot be replayed", async () => {
-		renderGraph([recordStage("build")]);
+	it("says on replay why a stage whose predecessor saved no checkpoint cannot be replayed", async () => {
+		renderGraph([
+			recordStage("plan"),
+			recordStage("build", { status: "graded", checkpoint: "recorded" }),
+		]);
 
 		expect(
 			within(await graphNode("build")).getByRole("button", {

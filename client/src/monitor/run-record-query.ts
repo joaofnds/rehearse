@@ -30,6 +30,20 @@ export function endedStatus(stage: EndedStage): "accepted" | "stopped" {
 		: "accepted";
 }
 
+/**
+ * A replay starts from the checkpoint the stage before it saved, so a stage
+ * whose predecessor saved none has nothing to replay from. The first stage
+ * starts from the run's initial checkpoint, which the launch checks.
+ */
+export function consumedCheckpointMissing(
+	record: RunRecordResponse,
+	stage: string,
+): boolean {
+	const index = record.stages.findIndex((each) => each.stage === stage);
+
+	return index > 0 && record.stages[index - 1]?.checkpoint === "missing";
+}
+
 async function fetchRunRecord(run: string): Promise<RunRecordResponse> {
 	const response = await runRecordRoute.$get({ param: { run } });
 	if (!response.ok) {

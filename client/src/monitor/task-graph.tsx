@@ -13,7 +13,11 @@ import { Grade } from "#client/system/components/grade";
 import { LiveGlyph, STATUS_VOCABULARY } from "#client/system/components/status";
 import type { StatusState } from "#client/system/components/status";
 import { Button } from "#client/system/ui/button";
-import { endedStatus, hasEnded } from "./run-record-query";
+import {
+	consumedCheckpointMissing,
+	endedStatus,
+	hasEnded,
+} from "./run-record-query";
 import type { MonitoredStage, RunRecordResponse } from "./run-record-query";
 import { shortCommit } from "./run-identity-header";
 import { stageSessionQuery } from "./stage-session-query";
@@ -265,18 +269,20 @@ function InOutLine({
 }
 
 /**
- * Replay opens the launch dialog on the stage's checkpoint. A stage without
- * one keeps the action in its place, disabled with the reason, as the design
- * draws it.
+ * Replay opens the launch dialog on the checkpoint the stage starts from. A
+ * stage without one keeps the action in its place, disabled with the reason,
+ * as the design draws it.
  */
 function ReplayAction({
 	run,
+	record,
 	stage,
 }: {
 	readonly run: string;
+	readonly record: RunRecordResponse;
 	readonly stage: MonitoredStage;
 }): React.JSX.Element {
-	if (stage.checkpoint === "missing") {
+	if (consumedCheckpointMissing(record, stage.stage)) {
 		return (
 			<Button
 				variant="quiet"
@@ -316,6 +322,7 @@ function nodeBorder(selected: boolean, status: NodeStatus): string {
 function StageNode({
 	stage,
 	number,
+	record,
 	row,
 	last,
 	selected,
@@ -325,6 +332,7 @@ function StageNode({
 }: {
 	readonly stage: MonitoredStage;
 	readonly number: number;
+	readonly record: RunRecordResponse;
 	readonly row: PipelineRow;
 	readonly last: boolean;
 	readonly selected: boolean;
@@ -378,7 +386,7 @@ function StageNode({
 				<InOutLine stage={stage} />
 			</button>
 			<span className="flex flex-col justify-center gap-1.25 px-1.5">
-				<ReplayAction run={row.run} stage={stage} />
+				<ReplayAction run={row.run} record={record} stage={stage} />
 			</span>
 			{last ? null : (
 				<span
@@ -470,6 +478,7 @@ export function TaskGraph({
 							key={stage.stage}
 							stage={stage}
 							number={index + 1}
+							record={record}
 							row={row}
 							last={index === record.stages.length - 1}
 							selected={stage.stage === shown}
