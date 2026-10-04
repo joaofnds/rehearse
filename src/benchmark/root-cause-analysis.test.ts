@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { mkdtemp, readdir, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type {
@@ -26,7 +26,7 @@ import {
 	stoppedStage,
 	writeStage,
 } from "./root-cause-analysis-test-support";
-import { benchmarkRunPaths } from "./run-layout";
+import { benchmarkRunPaths, rootCauseAnalysesDirectory } from "./run-layout";
 import { nothingRunning } from "./run-records-test-support";
 import { budgetHaltEnvelope } from "./test-support";
 import { failureOf } from "#cli/cli-test-support";
@@ -595,5 +595,159 @@ describe(analysisSessionArgs.name, () => {
 			),
 		).toEqual(["--max-budget-usd", "1"]);
 		expect(args).not.toContain("--dangerously-skip-permissions");
+	});
+});
+
+/**
+ * The shape of the analysis recorded on 2026-10-04, before the culprit
+ * analysis was renamed root-cause analysis.
+ */
+const VERSION_ONE_RECORD = {
+	schemaVersion: 1,
+	run: RUN,
+	model: "sonnet",
+	capUsd: 1,
+	startedAt: "2026-10-04T13:12:13.567Z",
+	durationMs: 9810,
+	bundleDigest:
+		"ea4dac10a1fcc7e4e8f42c1a2ebb1dd40ff480508d0971c67ea8c37360e90995",
+	bundleBytes: 187_449,
+	outcome: "recorded",
+	culprit: null,
+	narrative: "No corpus file explains the outcome.",
+	pairedRerun: "Rerun build with the location stated in the task.",
+	stages: [
+		{
+			stage: "shape",
+			role: "not implicated",
+			note: "Shape never chose a directory.",
+			contribution: "no effect on the location failure",
+		},
+		{
+			stage: "build",
+			role: "not implicated",
+			note: "No corpus file build read names a directory.",
+			contribution: "placed code at a path the rubric rejected",
+		},
+	],
+	costUsd: 0.284394,
+};
+
+async function writeAnalysisFile(
+	directory: string,
+	text: string,
+): Promise<void> {
+	const runAnalyses = join(rootCauseAnalysesDirectory(directory), RUN);
+	await mkdir(runAnalyses, { recursive: true });
+	await Bun.write(join(runAnalyses, "2026-10-04T13-12-13.567Z.json"), text);
+}
+
+describe(readRootCauseAnalyses.name, () => {
+	describe("when a record predates the rename to root-cause analysis", () => {
+		it("reads its stages under the new role names", async () => {
+			const directory = await runsDirectory();
+			await writeAnalysisFile(directory, JSON.stringify(VERSION_ONE_RECORD));
+
+			const reading = await readRootCauseAnalyses({
+				runsDirectory: directory,
+				run: RUN,
+			});
+
+			expect(reading).toEqual({
+				records: [
+					{
+						schemaVersion: 1,
+						run: RUN,
+						model: "sonnet",
+						capUsd: 1,
+						startedAt: "2026-10-04T13:12:13.567Z",
+						durationMs: 9810,
+						bundleDigest: VERSION_ONE_RECORD.bundleDigest,
+						bundleBytes: 187_449,
+						outcome: "recorded",
+						rootCause: null,
+						narrative: VERSION_ONE_RECORD.narrative,
+						pairedRerun: VERSION_ONE_RECORD.pairedRerun,
+						stages: [
+							{
+								stage: "shape",
+								role: "not a factor",
+								note: "Shape never chose a directory.",
+								contribution: "no effect on the location failure",
+							},
+							{
+								stage: "build",
+								role: "not a factor",
+								note: "No corpus file build read names a directory.",
+								contribution: "placed code at a path the rubric rejected",
+							},
+						],
+						costUsd: 0.284394,
+					},
+				],
+				unreadable: [],
+			});
+		});
+
+		it("reads its culprit as the root cause and each old role as its new name", async () => {
+			const directory = await runsDirectory();
+			const culprit = {
+				stage: "build",
+				file: "CLAUDE.md",
+				lines: { start: 3, end: 5 },
+			};
+			await writeAnalysisFile(
+				directory,
+				JSON.stringify({
+					...VERSION_ONE_RECORD,
+					culprit,
+					stages: [
+						{ ...VERSION_ONE_RECORD.stages[0], role: "contributing" },
+						{ ...VERSION_ONE_RECORD.stages[1], role: "primary culprit" },
+						{ stage: "verify", role: "never ran" },
+					],
+				}),
+			);
+
+			const { records } = await readRootCauseAnalyses({
+				runsDirectory: directory,
+				run: RUN,
+			});
+
+			expect(records).toMatchObject([
+				{
+					rootCause: culprit,
+					stages: [
+						{ stage: "shape", role: "contributing factor" },
+						{ stage: "build", role: "root cause" },
+						{ stage: "verify", role: "never ran" },
+					],
+				},
+			]);
+		});
+
+		it("reads a failed record as it was written", async () => {
+			const directory = await runsDirectory();
+			const failed = {
+				schemaVersion: 1,
+				run: RUN,
+				model: "sonnet",
+				capUsd: 1,
+				startedAt: "2026-10-04T13:12:13.567Z",
+				durationMs: 9810,
+				bundleDigest: VERSION_ONE_RECORD.bundleDigest,
+				bundleBytes: 187_449,
+				outcome: "failed",
+				reason: "The analysis call failed with no message",
+			} as const;
+			await writeAnalysisFile(directory, JSON.stringify(failed));
+
+			const reading = await readRootCauseAnalyses({
+				runsDirectory: directory,
+				run: RUN,
+			});
+
+			expect(reading).toEqual({ records: [failed], unreadable: [] });
+		});
 	});
 });

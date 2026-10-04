@@ -69,22 +69,23 @@ const answeredStageSchema = z
 	})
 	.strict();
 
-const answerSchema = z
+const rootCauseSchema = z
 	.object({
-		rootCause: z
+		stage: z.string().min(1),
+		file: z.string().min(1),
+		lines: z
 			.object({
-				stage: z.string().min(1),
-				file: z.string().min(1),
-				lines: z
-					.object({
-						start: z.int().positive(),
-						end: z.int().positive(),
-					})
-					.strict()
-					.optional(),
+				start: z.int().positive(),
+				end: z.int().positive(),
 			})
 			.strict()
-			.nullable(),
+			.optional(),
+	})
+	.strict();
+
+const answerSchema = z
+	.object({
+		rootCause: rootCauseSchema.nullable(),
 		narrative: z.string().min(1),
 		pairedRerun: z.string().min(1),
 		stages: z.array(answeredStageSchema),
@@ -105,18 +106,15 @@ const recordBase = {
 	costUsd: z.number().nonnegative().optional(),
 };
 
+const neverRanStageSchema = z
+	.object({ stage: z.string().min(1), role: z.literal("never ran") })
+	.strict();
+
 const recordedAnalysisSchema = answerSchema
 	.extend({
 		...recordBase,
 		outcome: z.literal("recorded"),
-		stages: z.array(
-			z.union([
-				answeredStageSchema,
-				z
-					.object({ stage: z.string().min(1), role: z.literal("never ran") })
-					.strict(),
-			]),
-		),
+		stages: z.array(z.union([answeredStageSchema, neverRanStageSchema])),
 	})
 	.strict();
 
@@ -139,6 +137,48 @@ const rootCauseAnalysisRecordSchema = z.discriminatedUnion("outcome", [
 	failedAnalysisSchema,
 ]);
 
+const VERSION_ONE_ROLES = {
+	"not implicated": "not a factor",
+	contributing: "contributing factor",
+	"primary culprit": "root cause",
+} as const;
+
+/**
+ * Version 1 is the analysis before it was renamed root-cause analysis. Its
+ * records are experiment evidence, so they stay on disk as written and read
+ * under the new names.
+ */
+const versionOneRecordSchema = z.discriminatedUnion("outcome", [
+	z
+		.object({
+			...recordBase,
+			schemaVersion: z.literal(1),
+			outcome: z.literal("recorded"),
+			culprit: rootCauseSchema.nullable(),
+			narrative: z.string().min(1),
+			pairedRerun: z.string().min(1),
+			stages: z.array(
+				z.union([
+					answeredStageSchema.extend({
+						role: z.enum(["not implicated", "contributing", "primary culprit"]),
+					}),
+					neverRanStageSchema,
+				]),
+			),
+		})
+		.strict()
+		.transform(({ culprit, stages, ...record }) => ({
+			...record,
+			rootCause: culprit,
+			stages: stages.map((stage) =>
+				stage.role === "never ran"
+					? stage
+					: { ...stage, role: VERSION_ONE_ROLES[stage.role] },
+			),
+		})),
+	failedAnalysisSchema.extend({ schemaVersion: z.literal(1) }),
+]);
+
 export type RecordedAnalysis = Immutable<
 	z.infer<typeof recordedAnalysisSchema>
 >;
@@ -146,6 +186,11 @@ export type RecordedAnalysis = Immutable<
 export type FailedAnalysis = Immutable<z.infer<typeof failedAnalysisSchema>>;
 
 export type RootCauseAnalysisRecord = RecordedAnalysis | FailedAnalysis;
+
+/** A record as read, in the names of the version that wrote it or later. */
+export type ReadRootCauseAnalysis =
+	| RootCauseAnalysisRecord
+	| Immutable<z.output<typeof versionOneRecordSchema>>;
 
 type AnalysisBase = Omit<FailedAnalysis, "outcome" | "reason" | "payload">;
 
@@ -330,21 +375,21 @@ export async function readRootCauseAnalyses({
 	runsDirectory,
 	run,
 }: AnalyzedRun): Promise<{
-	readonly records: readonly RootCauseAnalysisRecord[];
+	readonly records: readonly ReadRootCauseAnalysis[];
 	readonly unreadable: readonly UnreadableAnalysis[];
 }> {
 	const directory = join(rootCauseAnalysesDirectory(runsDirectory), run);
 	const names = (await readdirIfPresent(directory)) ?? [];
 	const recordFiles = names.filter((name) => name.endsWith(".json")).toSorted();
 
-	const records: RootCauseAnalysisRecord[] = [];
+	const records: ReadRootCauseAnalysis[] = [];
 	const unreadable: UnreadableAnalysis[] = [];
 	for (const file of recordFiles) {
 		try {
 			records.push(
-				rootCauseAnalysisRecordSchema.parse(
-					await Bun.file(join(directory, file)).json(),
-				),
+				z
+					.union([rootCauseAnalysisRecordSchema, versionOneRecordSchema])
+					.parse(await Bun.file(join(directory, file)).json()),
 			);
 		} catch (error) {
 			unreadable.push({

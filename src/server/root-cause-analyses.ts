@@ -1,6 +1,6 @@
 import type {
 	AnalyzedRun,
-	RootCauseAnalysisRecord,
+	ReadRootCauseAnalysis,
 	UnreadableAnalysis,
 } from "#benchmark/root-cause-analysis";
 import {
@@ -37,7 +37,7 @@ export type AnalysisRequestTerms =
 
 export interface AnalysisReading {
 	readonly run: string;
-	readonly newest: RootCauseAnalysisRecord | null;
+	readonly newest: ReadRootCauseAnalysis | null;
 	readonly earlierCount: number;
 	readonly unreadable: readonly UnreadableAnalysis[];
 	readonly request: AnalysisRequestTerms;

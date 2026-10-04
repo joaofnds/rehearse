@@ -1105,6 +1105,12 @@ whatever the session returned, and the command exits 1. Either way the command
 prints the record's path, or the record itself with `--json`. `show` does not
 open analysis records.
 
+A record with `schemaVersion: 1` was written before the culprit analysis was
+renamed root-cause analysis. It stays on disk as written and is read under the
+new names: its `culprit` as the `rootCause`, and its roles `not implicated`,
+`contributing` and `primary culprit` as `not a factor`, `contributing factor`
+and `root cause`. The API serves it with its `schemaVersion: 1`.
+
 Records live at `<records>/analyses/<run>/<startedAt>.json`, with each `:` in
 the time replaced by `-`. `GET /api/runs/<run>/analyses`, implemented in
 [root-cause-analyses.ts](../src/server/root-cause-analyses.ts), answers `{run, newest,
