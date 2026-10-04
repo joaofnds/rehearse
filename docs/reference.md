@@ -200,6 +200,10 @@ posts `{ "kind": "extension", "comparison": <digest>, "attempts": <n>,
 <n> --yes --approved-in-browser`, with n arm A's attempt count and the cost the
 comparison's summary states for it. Its launch record holds the comparison, the
 run and stage arm A replayed, the attempts added per arm and that cost.
+A culprit analysis request posts `{ "kind": "analysis", "run": <run>,
+"statedUsd": <usd> }` and runs `analyze <run> --model sonnet --budget-usd
+<usd>`, with `<usd>` the cap `GET /api/runs/<run>/analyses` states. Its launch
+record holds the run and that cap.
 
 The route answers 202 with the launch id and writes
 `<records>/launches/<id>.json`, holding the pid, the process's start time, the kind, the case or run and
@@ -220,7 +224,9 @@ recorded and a skill under test that is not the stage's own skill are refused
 409 the same way. An extension launch answers 404 for a digest with no saved
 comparison, 409 with the refusal `compare extend` would give, and 409 when the
 cost it computes now differs from `statedUsd`, so the click approves only the
-cost the dialog showed. The knob refusal, the spend ceiling and the model probe
+cost the dialog showed. An analysis launch answers 404 for a run with no run
+directory, 409 for a run `analyze` would refuse (no manifest, paused, or in
+flight), and 409 when the cap it computes now differs from `statedUsd`. The knob refusal, the spend ceiling and the model probe
 run later in the started process, so they end the launch with the reason only
 in its log. `GET /api/cases` lists
 every declared case with its kind, title and model. A pipeline case also
@@ -1090,6 +1096,17 @@ a session that returns none, is kept with `outcome: "failed"`, its `reason` and
 whatever the session returned, and the command exits 1. Either way the command
 prints the record's path, or the record itself with `--json`. `show` does not
 open analysis records.
+
+Records live at `<records>/analyses/<run>/<startedAt>.json`, with each `:` in
+the time replaced by `-`. `GET /api/runs/<run>/analyses`, implemented in
+[culprit-analyses.ts](../src/server/culprit-analyses.ts), answers `{run, newest,
+earlier, request}`: the newest record or `null`, how many older ones the run
+holds, and `request`, the `model` (`sonnet`, the model recorded runs are compared
+under) and `capUsd` a browser request would run under. `capUsd` is the 1-dollar
+default lowered to the stored spend ceiling, or `null` when no ceiling is stored,
+since nothing spends without one. A record that does not match the schema fails
+the route. It answers 400 for a malformed run name, 404 for a run with no
+manifest, and 409 naming the fix when the settings file cannot be read.
 
 ## Target restoration
 
