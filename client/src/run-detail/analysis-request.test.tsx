@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { LiveReply } from "#client/test-support/live-reply";
+import { runRow } from "#client/test-support/runs-in-flight";
 import {
 	ANALYSES,
+	CORPUS,
 	history,
 	noAnalysis,
 	RUN,
@@ -113,6 +115,35 @@ describe("requesting a culprit analysis", () => {
 		expect(
 			await within(section).findByText(
 				"Set a spend limit before requesting an analysis.",
+			),
+		).toBeInTheDocument();
+		expect(
+			within(section).getByRole("button", {
+				name: /^Request a culprit analysis/u,
+			}),
+		).toHaveAttribute("aria-disabled", "true");
+	});
+
+	it("refuses before the click while the run itself has not ended", async () => {
+		serveRunDetail(
+			new Map(),
+			history([
+				{
+					...runRow({
+						run: RUN,
+						status: "RUNNING",
+						corpusVersion: { kind: "version", digest: CORPUS },
+					}),
+					shortId: "r-0147",
+				},
+			]),
+		);
+
+		const section = await culpritSection();
+
+		expect(
+			await within(section).findByText(
+				"An analysis reads an ended run, and this one has not ended.",
 			),
 		).toBeInTheDocument();
 		expect(

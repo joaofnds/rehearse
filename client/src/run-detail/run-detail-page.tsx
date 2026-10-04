@@ -25,6 +25,7 @@ import { STATUS_VOCABULARY } from "#client/system/components/status";
 import { Switcher } from "#client/system/components/switcher";
 import { Button } from "#client/system/ui/button";
 import { analysesQuery, rolesOf } from "./analysis-query";
+import { analysisWait } from "./analysis-request";
 import { CulpritAnalysisSection } from "./culprit-analysis-section";
 import { ReplayButton } from "./replay-button";
 import { StepMap } from "./step-map";
@@ -105,6 +106,11 @@ function endingWords(row: PipelineRow, record: RunRecordResponse): string {
 	}
 
 	return status.toLowerCase().replaceAll("_", " ");
+}
+
+/** Whether the run has ended, as the server judges it before an analysis. */
+function hasRunEnded({ status, progress }: PipelineRow): boolean {
+	return progress.state !== "running" && !isPaused(status);
 }
 
 /**
@@ -320,7 +326,10 @@ export function RunDetailPage({
 						run={run}
 						record={record.data}
 						reading={analyses.isError ? "unreadable" : analyses.data}
-						inFlight={analysisInFlight}
+						wait={analysisWait({
+							runEnded: hasRunEnded(row),
+							analysisInFlight,
+						})}
 					/>
 				</div>
 			</div>

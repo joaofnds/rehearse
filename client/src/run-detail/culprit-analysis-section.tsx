@@ -189,12 +189,12 @@ export function CulpritAnalysisSection({
 	run,
 	record,
 	reading,
-	inFlight,
+	wait,
 }: {
 	readonly run: string;
 	readonly record: RunRecordResponse;
 	readonly reading: AnalysisReadingResponse | "unreadable" | undefined;
-	readonly inFlight: boolean;
+	readonly wait: string | null;
 }): React.JSX.Element {
 	return (
 		<section
@@ -215,7 +215,7 @@ export function CulpritAnalysisSection({
 					run={run}
 					record={record}
 					reading={reading}
-					inFlight={inFlight}
+					wait={wait}
 				/>
 			)}
 		</section>
@@ -226,19 +226,19 @@ function AnalysisReading({
 	run,
 	record,
 	reading,
-	inFlight,
+	wait,
 }: {
 	readonly run: string;
 	readonly record: RunRecordResponse;
 	readonly reading: AnalysisReadingResponse;
-	readonly inFlight: boolean;
+	readonly wait: string | null;
 }): React.JSX.Element {
 	const { newest, request, unreadable } = reading;
 	const rerun = (
 		<RequestAnalysisButton
 			run={run}
 			request={request}
-			inFlight={inFlight}
+			wait={wait}
 			label="Re-run the analysis"
 		/>
 	);
@@ -257,7 +257,7 @@ function AnalysisReading({
 						<RequestAnalysisButton
 							run={run}
 							request={request}
-							inFlight={inFlight}
+							wait={wait}
 							label="Request a culprit analysis"
 						/>
 					</div>

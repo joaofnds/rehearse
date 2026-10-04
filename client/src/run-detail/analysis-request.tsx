@@ -6,7 +6,28 @@ import { Button } from "#client/system/ui/button";
 import type { AnalysisReadingResponse } from "./analysis-query";
 import { analysesQuery } from "./analysis-query";
 
-export const ANALYSIS_IN_FLIGHT = "An analysis of this run is in flight.";
+const ANALYSIS_IN_FLIGHT = "An analysis of this run is in flight.";
+
+const RUN_NOT_ENDED =
+	"An analysis reads an ended run, and this one has not ended.";
+
+/**
+ * Why the run's own state holds a request back: the server refuses a run in
+ * flight or paused, and a second analysis while one runs would spend twice.
+ */
+export function analysisWait({
+	runEnded,
+	analysisInFlight,
+}: {
+	readonly runEnded: boolean;
+	readonly analysisInFlight: boolean;
+}): string | null {
+	if (!runEnded) {
+		return RUN_NOT_ENDED;
+	}
+
+	return analysisInFlight ? ANALYSIS_IN_FLIGHT : null;
+}
 
 /** The words a request states before the click: the call and its cap. */
 export function requestWords(
@@ -20,13 +41,9 @@ export function requestWords(
 /** Why a request cannot be made now, or null when it can. */
 function refusalOf(
 	request: AnalysisReadingResponse["request"],
-	inFlight: boolean,
+	wait: string | null,
 ): string | null {
-	if (request.capUsd === null) {
-		return request.refusal;
-	}
-
-	return inFlight ? ANALYSIS_IN_FLIGHT : null;
+	return request.capUsd === null ? request.refusal : wait;
 }
 
 /**
@@ -37,12 +54,12 @@ function refusalOf(
 export function RequestAnalysisButton({
 	run,
 	request,
-	inFlight,
+	wait,
 	label,
 }: {
 	readonly run: string;
 	readonly request: AnalysisReadingResponse["request"];
-	readonly inFlight: boolean;
+	readonly wait: string | null;
 	readonly label: string;
 }): React.JSX.Element {
 	const queryClient = useQueryClient();
@@ -58,7 +75,7 @@ export function RequestAnalysisButton({
 		},
 	});
 	const { capUsd } = request;
-	const refused = refusalOf(request, inFlight);
+	const refused = refusalOf(request, wait);
 
 	return (
 		<span className="flex flex-col gap-1.5">
