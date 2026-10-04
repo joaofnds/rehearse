@@ -22,13 +22,13 @@ export class FakeLauncher implements Launcher {
 		argv: readonly string[],
 		logFile: string,
 	): Promise<number> {
-		this.launches.push({ argv, logFile });
 		const failure = this.#failure;
 		this.#failure = undefined;
 		if (failure !== undefined) {
 			throw new Error(failure);
 		}
 
+		this.launches.push({ argv, logFile });
 		const held = this.#held;
 		this.#held = undefined;
 		if (held !== undefined) {

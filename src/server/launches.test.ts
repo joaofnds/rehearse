@@ -891,13 +891,13 @@ describe(createLaunchApp.name, () => {
 				expect(response.status).toBe(202);
 			});
 
-			it("starts an analysis beside a launch record that does not read", async () => {
-				const { post, runsDirectory } = await harness("stored", analysisAlive);
-				await runStoppedAtBuild(runsDirectory);
-				await Bun.write(
-					launchPaths(runsDirectory, crypto.randomUUID()).recordFile,
-					"not json",
+			it("starts another analysis of a run once the earlier one's process has exited", async () => {
+				const { post, runsDirectory } = await harness(
+					"stored",
+					NOTHING_RUNNING,
 				);
+				await runStoppedAtBuild(runsDirectory);
+				await analysisLaunched(runsDirectory, ANALYZED_RUN);
 
 				const response = await post({
 					kind: "analysis",
@@ -907,11 +907,16 @@ describe(createLaunchApp.name, () => {
 
 				expect(response.status).toBe(202);
 			});
+		});
 
-			it("starts another analysis of a run once the earlier one's process has exited", async () => {
+		describe("when a launch record does not read", () => {
+			it("starts an analysis beside it", async () => {
 				const { post, runsDirectory } = await harness();
 				await runStoppedAtBuild(runsDirectory);
-				await analysisLaunched(runsDirectory, ANALYZED_RUN);
+				await Bun.write(
+					launchPaths(runsDirectory, crypto.randomUUID()).recordFile,
+					"not json",
+				);
 
 				const response = await post({
 					kind: "analysis",
@@ -970,8 +975,13 @@ describe(createLaunchApp.name, () => {
 		});
 
 		describe("when an earlier analysis of the run did not start", () => {
+			const launchedAlive: RunLiveness = {
+				readMarker: () => Promise.resolve(undefined),
+				isAlive: (pid) => pid === FAKE_LAUNCH_PID,
+			};
+
 			it("starts the next one after the earlier was refused", async () => {
-				const { post, runsDirectory } = await harness();
+				const { post, runsDirectory } = await harness("stored", launchedAlive);
 				await runStoppedAtBuild(runsDirectory);
 				await post({ kind: "analysis", run: ANALYZED_RUN, statedUsd: 0.5 });
 
@@ -985,7 +995,10 @@ describe(createLaunchApp.name, () => {
 			});
 
 			it("starts the next one after the earlier's process failed to start", async () => {
-				const { launcher, post, runsDirectory } = await harness();
+				const { launcher, post, runsDirectory } = await harness(
+					"stored",
+					launchedAlive,
+				);
 				await runStoppedAtBuild(runsDirectory);
 				launcher.failNextLaunch("spawn failed");
 				await post({ kind: "analysis", run: ANALYZED_RUN, statedUsd: 1 });
