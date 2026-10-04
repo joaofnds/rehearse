@@ -203,15 +203,11 @@ See [current state](docs/status.md) for implementation coverage and
   evaluation.
 - **Contribution** — one of the three run-detail UI layouts. It grades a run's
   outcome on its own, from recorded evidence, then has an agent (not a
-  deterministic computation) name a likely culprit stage among those that
+  deterministic computation) name a likely root-cause stage among those that
   ran. The agent's reading is disclosed as an opinion, never as a
   measurement, and is read only once the run has ended. It is not an ablation:
   ablation needs a rerun per node and is a separate planned feature
   (see [UI vocabulary](docs/design-handoff/README.md)).
-- **Culprit analysis**: one sealed agent session's reading of which corpus file
-  an ended pipeline run's outcome traces to, with each stage's role, kept as a
-  record of its own beside the run's records. It is an opinion read from
-  recorded evidence, never a measurement, and a run can hold several.
 - **Context manifest** — the transcript-observed instruction/context paths for
   a session attempt, classified as corpus or project inputs and reconciled
   against declarations. Observed entries are name-only; declared corpus hashes
@@ -461,6 +457,11 @@ See [current state](docs/status.md) for implementation coverage and
   changes no grade, and calibration does not read it. Distinct from a human
   review, which classifies findings against a run's Judge result. Name accepted
   unattended as unsettled, pending the operator's confirmation (ACT-273).
+- **Output summary**: the phrase a stage's node on the live monitor shows once
+  the stage has finished: what the stage's record says it produced, as counts of
+  its commits, changed files and workflow-state changes, derived with no model
+  call. Where the run has a root-cause analysis, the newest one's phrase for the
+  stage replaces it. A UI concept; nothing stores it.
 - **Pipeline** — the ordered stages and their judge attachments, declared as
   data. The UI's design calls this a **task** (see [UI vocabulary](docs/design-handoff/README.md)); the word in code,
   records, and this glossary stays pipeline. Graded as a whole, a pipeline's
@@ -533,6 +534,19 @@ See [current state](docs/status.md) for implementation coverage and
   `show run:<name> --checkout <dir>` materializes it as a detached worktree.
   It is the same ref a checkpoint is pinned under, named by the run rather than
   by a stage.
+- **Root-cause analysis**: one sealed agent session's reading of which corpus
+  file, if any, an ended pipeline run's outcome traces to, kept as a record of
+  its own beside the run's records. It is an opinion read from recorded
+  evidence, never a measurement, and a run can hold several. It gives each
+  declared stage one role:
+  - **Root cause**: the one stage whose corpus file the analysis names as what
+    the outcome traces to. No stage has this role when the analysis names no file.
+  - **Contributing factor**: a stage the analysis reads as having moved the
+    outcome without being its root cause.
+  - **Not a factor**: a stage that ran and that the analysis reads as not
+    having moved the outcome.
+  - **Never ran**: a declared stage the run never reached, recorded by the
+    harness rather than read by the agent.
 - **Rubric** — the frozen grading contract a Judge applies; per-stage under the
   case's `rubrics/`, final in the case's `rubric.md`.
 - **Rubric criterion** — one identified hard blocker, requirement, or quality
@@ -780,7 +794,7 @@ See [current state](docs/status.md) for implementation coverage and
 - **Target check** — one command declared by the pipeline and run against the
   target repository both at baseline and after delivery.
 - **Task graph** — the UI's horizontal chain of stage-node cards (grade,
-  status, live tool call, checkpoint, contribution phrase, in/out counts of
+  status, live tool call, checkpoint, output summary, in/out counts of
   instruction files loaded and artifacts produced) shown on the live monitor
   and, in reduced form, as "the map" on the run-detail Contribution layout.
   A UI concept only; nothing in the harness computes or stores a graph

@@ -167,7 +167,7 @@ The chain is an `<ol>`, `display:flex`, `min-width: max-content`, inside a horiz
 3. **Live tool call**, only while running: a full-width chip, 1px `#423a6a`, radius 5px, bg `#1c1e2b`, mono 10.5px `#d2cefd`, `white-space:nowrap; overflow:hidden; text-overflow:ellipsis` — e.g. `judge: reading cited spans`
 4. 2×2 mono 10.5px `#9397ab` grid: cost · duration · `2 of 4 fired` · corpus hash
 5. Checkpoint line above a 1px dashed `#3f424d` top border: `◆ ckpt-0148-s1` (`#b2b6ca`) or `◇ no checkpoint yet` (`#75798c`)
-6. Contribution phrase (11px `#9397ab`): what the step's record says it produced, such as `produced 1 commit, 2 files changed`, until an analysis of the ended run gives one agent's reading of the step; `contribution pending` while the step has neither, `not started`
+6. Output summary (11px `#9397ab`): what the step's record says it produced, such as `produced 1 commit, 2 files changed`, until an analysis of the ended run gives one agent's reading of the step; `contribution pending` while the step has neither, `not started`
 7. In/out counts (mono 10.5px `#b2b6ca`, two columns): `↓ 5 instruction files in` · `↑ 2 artifacts out`
 
 **Action stack** beside each card (vertical, 4px gap, centered): **in / out ▸** (opens the step modal, `aria-label="Implement — instructions in, artifacts out"`) and **replay** (`aria-disabled="true"` with `aria-label="Verify has no checkpoint to replay from"` when there is no checkpoint).
@@ -245,12 +245,12 @@ Expanded evidence here uses a wider treatment: `grid-template-columns: 180px min
 After the last card, a dashed note for the step that never ran: "Step 4 · Verify never ran. The run stopped after step 3 fell below the minimum and the target repository was restored. This is a recorded outcome for corpus@a41c7e, not a failed execution."
 
 #### 4c. Contribution (single column, max-width 1000px)
-Answers "trace the final result back to each step," in the two-phase form the owner specified: **grade the outcome on its own first, then have an agent look for a culprit.**
+Answers "trace the final result back to each step," in the two-phase form the owner specified: **grade the outcome on its own first, then have an agent look for a root cause.**
 
 1. **Task grade card** (`grid-template-columns: minmax(0,1fr) 280px`). Left: "TASK GRADE · GRADED ON ITS OWN" + mono 30px/700 value (`—` in `#595d6c` here) + "not gradable · the task produced no final artifact", then: "The task judge sees only what went in at step 1 and what came out of the last step. It does not read the intermediate steps, so it cannot grade a run that stopped early. Step grades below are unaffected." Right: "LAST TASK GRADE FOR THIS CASE" — `B` + `r-0144` + `⚠ stale · corpus@9f30d1` + "Not comparable to a corpus@a41c7e result."
 2. **The map** — a compact horizontal chain of small step chips (number · name · grade · role glyph) with `▶` connectors. The graph as a map, not a second graph.
-3. **Culprit analysis** (1px `#5d5294`, radius 8px). Header: `h2` "Culprit analysis" + provenance `an agent read the recorded steps · $0.24 · 41s · 04 Sep 09:48` + right-aligned `culprit: skills/implement.md · scope-declaration block`. Then the narrative paragraph, then this disclaimer, verbatim in spirit: "This is one agent's reading of the evidence, not a measurement. The way to confirm it is a paired rerun with that block changed and nothing else." Actions: **Set up the paired rerun** (accent), **Open the block it names**, **Re-run the analysis**.
-   Then one row per step: `grid-template-columns: 150px 92px 128px minmax(0,1fr) 92px` — step id/name · grade with a mono `▯ ▮ ▯ ▯ ▯` position track over an `A B C D F` axis label (9px `#4a4d5c`) · role (`· not implicated`, `~ contributing`, `✕ primary culprit`, `○ never ran`) · the agent's note · **Step report** button.
+3. **Root-cause analysis** (1px `#5d5294`, radius 8px). Header: `h2` "Root-cause analysis" + provenance `an agent read the recorded steps · $0.24 · 41s · 04 Sep 09:48` + right-aligned `root cause: skills/implement.md · scope-declaration block`. Then the narrative paragraph, then this disclaimer, verbatim in spirit: "This is one agent's reading of the evidence, not a measurement. The way to confirm it is a paired rerun with that block changed and nothing else." Actions: **Set up the paired rerun** (accent), **Open the block it names**, **Re-run the analysis**.
+   Then one row per step: `grid-template-columns: 150px 92px 128px minmax(0,1fr) 92px` — step id/name · grade with a mono `▯ ▮ ▯ ▯ ▯` position track over an `A B C D F` axis label (9px `#4a4d5c`) · role (`· not a factor`, `~ contributing factor`, `✕ root cause`, `○ never ran`) · the agent's note · **Step report** button.
 
 Do **not** invent edge weights or per-node ablation deltas here. Ablation requires a rerun per node; that is a separate planned feature. This view uses only recorded evidence plus one explicitly-labeled agent opinion.
 
