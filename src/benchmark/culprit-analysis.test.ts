@@ -3,7 +3,11 @@ import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AnalysisDependencies, AnalysisInvoker } from "./culprit-analysis";
-import { analysisSessionArgs, analyzeRun } from "./culprit-analysis";
+import {
+	analysisSessionArgs,
+	analyzeRun,
+	readCulpritAnalyses,
+} from "./culprit-analysis";
 import { assembleCulpritBundle } from "./culprit-bundle";
 import { ClaudeSessionError, parseClaudeEnvelope } from "./claude";
 import { RefusedPreconditionError } from "./exit-codes";
@@ -304,6 +308,43 @@ describe(analyzeRun.name, () => {
 				reason: halt.message,
 				costUsd: halt.costUsd,
 			});
+		});
+	});
+
+	describe("when the call fails in a way the record schema would refuse", () => {
+		it("still writes a record its reader accepts", async () => {
+			const directory = await runsDirectory();
+			await runStoppedAtBuild(directory);
+			const provider = new FakeAnalysisProvider();
+			// A provider client can reject with an error that carries no message.
+			const silent = new Error("cleared below");
+			silent.message = "";
+			provider.fail(silent);
+			const clockSteppedBack = [
+				new Date("2026-10-04T12:00:05.000Z"),
+				new Date("2026-10-04T12:00:00.000Z"),
+			];
+
+			await analyzeRun(
+				{ runsDirectory: directory, run: RUN, model: "sonnet", capUsd: 1 },
+				{
+					...dependencies(provider.invoke),
+					now: () => clockSteppedBack.shift() ?? new Date(),
+				},
+			);
+
+			const { records, unreadable } = await readCulpritAnalyses({
+				runsDirectory: directory,
+				run: RUN,
+			});
+			expect(unreadable).toEqual([]);
+			expect(records).toMatchObject([
+				{
+					outcome: "failed",
+					reason: "The analysis call failed with no message",
+					durationMs: 0,
+				},
+			]);
 		});
 	});
 

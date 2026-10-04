@@ -143,8 +143,6 @@ export type RecordedAnalysis = Immutable<
 	z.infer<typeof recordedAnalysisSchema>
 >;
 
-export type StageReading = RecordedAnalysis["stages"][number];
-
 export type FailedAnalysis = Immutable<z.infer<typeof failedAnalysisSchema>>;
 
 export type CulpritAnalysisRecord = RecordedAnalysis | FailedAnalysis;
@@ -241,7 +239,8 @@ export async function analyzeRun(
 		model: request.model,
 		capUsd: budgetUsd,
 		startedAt: started.toISOString(),
-		durationMs: finished.getTime() - started.getTime(),
+		// A clock stepped back during the call reads as no time, not negative time.
+		durationMs: Math.max(finished.getTime() - started.getTime(), 0),
 		bundleDigest: new Bun.CryptoHasher("sha256")
 			.update(bundleText)
 			.digest("hex"),
@@ -507,20 +506,20 @@ function recordedAnalysis(
 	};
 }
 
+/** A failure always says something, as the record's reader requires. */
 function failedRecord(
 	base: Omit<AnalysisBase, "costUsd">,
 	reading: FailedReading,
 ): FailedAnalysis {
+	const reason =
+		reading.reason === ""
+			? "The analysis call failed with no message"
+			: reading.reason;
 	if (reading.payload === undefined) {
-		return { ...base, outcome: "failed", reason: reading.reason };
+		return { ...base, outcome: "failed", reason };
 	}
 
-	return {
-		...base,
-		outcome: "failed",
-		reason: reading.reason,
-		payload: reading.payload,
-	};
+	return { ...base, outcome: "failed", reason, payload: reading.payload };
 }
 
 /**
