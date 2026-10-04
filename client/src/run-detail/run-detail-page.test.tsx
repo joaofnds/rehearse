@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import { screen, within } from "@testing-library/react";
+import { LiveReply } from "#client/test-support/live-reply";
 import { renderAppWithStub } from "#client/test-support/render-app";
+import { recordStage, runRecord } from "#client/test-support/run-record";
+import { runRow } from "#client/test-support/runs-in-flight";
 import {
 	CORPUS,
 	history,
@@ -8,6 +11,7 @@ import {
 	judgedStaleness,
 	RUN,
 	renderRunDetail,
+	serveRunDetail,
 	stoppedAtBuild,
 	stoppedRow,
 } from "./run-detail-fixtures";
@@ -29,6 +33,64 @@ describe("/runs/$run", () => {
 		expect(heading).toHaveTextContent("audit-log");
 		expect(header).toHaveTextContent("stopped at step 2 · below minimum B");
 		expect(header).toHaveTextContent("corpus@a41c7e");
+	});
+
+	it("reads the run record again when a live run moves to its next step", async () => {
+		let running = "build";
+		const records = new Map([
+			[
+				"build",
+				runRecord({
+					run: RUN,
+					running: "build",
+					stages: [
+						recordStage("shape", { status: "graded" }),
+						recordStage("build", { status: "running" }),
+						recordStage("verify"),
+					],
+				}),
+			],
+			[
+				"verify",
+				runRecord({
+					run: RUN,
+					running: "verify",
+					stages: [
+						recordStage("shape", { status: "graded" }),
+						recordStage("build", { status: "graded" }),
+						recordStage("verify", { status: "running" }),
+					],
+				}),
+			],
+		]);
+		serveRunDetail(
+			new Map([
+				[
+					"GET /api/runs",
+					new LiveReply(() => ({
+						status: 200,
+						body: history([runRow({ run: RUN, stage: running })]),
+					})),
+				],
+				[
+					`GET /api/runs/${RUN}`,
+					new LiveReply(() => ({ status: 200, body: records.get(running) })),
+				],
+			]),
+		);
+
+		expect(
+			await screen.findByRole("button", { name: /^Replay step 2/u }),
+		).toBeInTheDocument();
+		running = "verify";
+
+		expect(
+			await screen.findByRole(
+				"button",
+				{ name: /^Replay step 3/u },
+				{ timeout: 5000 },
+			),
+		).toBeInTheDocument();
 	});
 
 	it("offers the Contribution layout, pressed, and a replay of the step it stopped at", async () => {

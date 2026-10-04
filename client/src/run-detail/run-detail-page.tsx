@@ -18,6 +18,7 @@ import { runRecordQuery } from "#client/monitor/run-record-query";
 import { polledRunHistoryQuery } from "#client/run-history/run-history-polling";
 import { spendReading } from "#client/run-history/run-progress";
 import { runStatusState } from "#client/run-history/run-status";
+import type { RunHistoryResponse } from "#client/run-history/run-history-query";
 import type { PipelineRow } from "#client/shell/run-in-flight";
 import { CorpusPill } from "#client/system/components/corpus-pill";
 import { EmptyState } from "#client/system/components/empty-state";
@@ -37,18 +38,34 @@ const LAYOUT_NOTE = "Layout C · task grade first, then the culprit pass";
 
 const NOT_RECORDED = "—";
 
-/**
- * An analysis writes its record as its process ends, which the polled run
- * history shows as its launch leaving the list: read the analyses again then.
- */
-function useWhenEnded(inFlight: boolean, onEnded: () => void): void {
-	const wasInFlight = useRef(inFlight);
+type HistoryRow = RunHistoryResponse["rows"][number];
+
+/** Calls back when the reading differs from the one before it. */
+function useWhenChanged(reading: string, onChanged: () => void): void {
+	const previous = useRef(reading);
 	useEffect(() => {
-		if (wasInFlight.current && !inFlight) {
-			onEnded();
+		if (previous.current !== reading) {
+			onChanged();
 		}
-		wasInFlight.current = inFlight;
-	}, [inFlight, onEnded]);
+		previous.current = reading;
+	}, [reading, onChanged]);
+}
+
+/**
+ * Where the polled run history says the run is. A live run's record changes
+ * as it moves from one step to the next and as it ends.
+ */
+function phaseOf(rows: readonly HistoryRow[], run: string): string {
+	const row = rows.find(
+		(each): each is PipelineRow => each.kind === "run" && each.run === run,
+	);
+	if (row === undefined) {
+		return "unlisted";
+	}
+
+	return row.progress.state === "running"
+		? `${row.status} at ${row.progress.stage}`
+		: row.status;
 }
 
 /** A run is named by the time it started, with dashes where the clock has colons. */
@@ -274,9 +291,16 @@ export function RunDetailPage({
 	);
 	const analyses = useQuery(analysesQuery(run));
 	const queryClient = useQueryClient();
-	useWhenEnded(analysisInFlight, () => {
+	// An analysis writes its record as its process ends, which the polled run
+	// history shows as its launch leaving the list.
+	useWhenChanged(String(analysisInFlight), () => {
 		void queryClient.invalidateQueries({
 			queryKey: analysesQuery(run).queryKey,
+		});
+	});
+	useWhenChanged(phaseOf(history.data?.rows ?? [], run), () => {
+		void queryClient.invalidateQueries({
+			queryKey: runRecordQuery(run).queryKey,
 		});
 	});
 	const unreadable = (
