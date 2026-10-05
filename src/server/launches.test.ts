@@ -1669,9 +1669,10 @@ describe(createLaunchApp.name, () => {
 				).toEqual([measured.digest]);
 			});
 
-			it("refuses a corpus it cannot measure, naming why", async () => {
+			it("refuses a corpus it can no longer measure, naming why", async () => {
 				const { send } = await harness();
 				const corpus = await corpusDirectory();
+				await send("PUT", "/api/settings/corpus", { directory: corpus });
 				const outside = await temporaryDirectory("rehearse-outside-");
 				await Bun.write(join(outside, "secret.md"), "outside\n");
 				await mkdir(join(corpus, "skills", "leak"), { recursive: true });
@@ -1679,7 +1680,6 @@ describe(createLaunchApp.name, () => {
 					join(outside, "secret.md"),
 					join(corpus, "skills", "leak", "SKILL.md"),
 				);
-				await send("PUT", "/api/settings/corpus", { directory: corpus });
 
 				const response = await send("POST", "/api/settings/corpus/rehash", {});
 				const refused = z
@@ -1745,6 +1745,30 @@ describe(createLaunchApp.name, () => {
 				});
 
 				expect(response.status).toBe(409);
+				const after = await reading(get);
+				expect(after.linkedCorpus.root).toBe(linked);
+			});
+
+			it("refuses a directory whose files resolve outside it, naming why, and keeps the link", async () => {
+				const { send, get } = await harness();
+				const linked = await corpusDirectory();
+				await send("PUT", "/api/settings/corpus", { directory: linked });
+				const outside = await temporaryDirectory("rehearse-outside-");
+				await Bun.write(join(outside, "AGENTS.md"), "outside\n");
+				const unmeasurable = await temporaryDirectory("rehearse-symlinked-");
+				await symlink(
+					join(outside, "AGENTS.md"),
+					join(unmeasurable, "CLAUDE.md"),
+				);
+
+				const response = await send("PUT", "/api/settings/corpus", {
+					directory: unmeasurable,
+				});
+
+				expect(response.status).toBe(409);
+				expect(refusalSchema.parse(await response.json()).error).toContain(
+					"Corpus file CLAUDE.md resolves outside the corpus source",
+				);
 				const after = await reading(get);
 				expect(after.linkedCorpus.root).toBe(linked);
 			});

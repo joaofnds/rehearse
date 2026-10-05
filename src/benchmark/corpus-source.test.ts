@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, symlink } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { recordsDirectory } from "#benchmark/config";
@@ -117,6 +117,29 @@ describe(linkCorpus.name, () => {
 		const failure = await failureOf(linkCorpus(directory, notCorpus));
 
 		expect(failure).toBeInstanceOf(CorpusSourceError);
+		expect(await linkedCorpusSource(directory)).toEqual({
+			kind: "directory",
+			root,
+		});
+	});
+	it("refuses a directory whose files resolve outside it, naming why, and keeps the link it had", async () => {
+		const directory = await records();
+		const root = await directoryCorpus();
+		await linkCorpus(directory, root);
+		const elsewhere = await resources.createControlDirectory();
+		await Bun.write(join(elsewhere, "AGENTS.md"), "instructions\n");
+		const unmeasurable = await resources.createControlDirectory();
+		await symlink(
+			join(elsewhere, "AGENTS.md"),
+			join(unmeasurable, "CLAUDE.md"),
+		);
+
+		const failure = await failureOf(linkCorpus(directory, unmeasurable));
+
+		expect(failure).toBeInstanceOf(CorpusSourceError);
+		expect(failure.message).toContain(
+			"Corpus file CLAUDE.md resolves outside the corpus source",
+		);
 		expect(await linkedCorpusSource(directory)).toEqual({
 			kind: "directory",
 			root,

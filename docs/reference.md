@@ -743,7 +743,10 @@ rulebook/...
 
 Absent `--corpus`, a command reads the linked corpus. `settings --link-corpus
 <dir>` (or `PUT /api/settings/corpus`) stores a directory in corpus layout as
-`linkedCorpusDirectory` in `settings.json`, and `settings --unlink-corpus` (or
+`linkedCorpusDirectory` in `settings.json`. It refuses a directory whose layout
+cannot be hashed, such as one holding a file that resolves outside it through a
+symlink, naming each refused entry and keeping the link it had, because such a
+corpus has no version to replay or rehash against. `settings --unlink-corpus` (or
 `DELETE /api/settings/corpus`) removes it. Replay, session `run` and session
 attempts, `stale`, `show group:<id>`, the corpus commands and the browser's
 corpus and run reads then treat the linked directory as if it were passed with

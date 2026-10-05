@@ -7,6 +7,7 @@ import {
 } from "./corpus-file";
 import type { DirectoryCorpusRoot, LiveCorpusRoot } from "./corpus-file";
 import { recordsDirectory } from "./config";
+import { hashCorpusLayout } from "./corpus-layout";
 import { RefusedPreconditionError } from "./exit-codes";
 import { pathExists } from "./file-presence";
 import {
@@ -167,11 +168,23 @@ async function linkedDirectorySource(
 	}
 }
 
+/**
+ * A corpus whose layout cannot be hashed has no version, so every replay and
+ * rehash against it would refuse. Linking refuses it first, with the same
+ * reasons, and keeps the link it had.
+ */
 export async function linkCorpus(
 	records: string,
 	directory: string,
 ): Promise<DirectoryCorpusRoot> {
 	const source = await directorySource(directory);
+	const { refusals } = await hashCorpusLayout(source);
+	if (refusals.length > 0) {
+		throw new CorpusSourceError(
+			`Corpus source ${source.root} cannot be measured: ${refusals.join("; ")}`,
+		);
+	}
+
 	await storeLinkedCorpusDirectory(records, source.root);
 
 	return source;
