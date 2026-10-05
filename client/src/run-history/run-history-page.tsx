@@ -59,22 +59,26 @@ function matchesFilter(row: HistoryRow, filter: Filter): boolean {
 }
 
 const UNREADABLE_NOUNS = {
-	run: "run",
-	"session-attempt": "session attempt",
-	replay: "replay",
-	group: "confirmation run",
-	launch: "launch",
-	"short-ids": "short id registry",
-} as const satisfies Readonly<Record<UnreadableRecord["kind"], string>>;
+	run: ["run", "runs"],
+	"session-attempt": ["session attempt", "session attempts"],
+	replay: ["replay", "replays"],
+	group: ["confirmation run", "confirmation runs"],
+	launch: ["launch", "launches"],
+	"short-ids": ["short id registry", "short id registries"],
+} as const satisfies Readonly<
+	Record<UnreadableRecord["kind"], readonly [string, string]>
+>;
 
 function unreadableSummary(
 	records: readonly UnreadableRecord[],
 ): readonly string[] {
-	return Object.entries(UNREADABLE_NOUNS).flatMap(([kind, noun]) => {
-		const count = records.filter((record) => record.kind === kind).length;
+	return Object.entries(UNREADABLE_NOUNS).flatMap(
+		([kind, [noun, nounPlural]]) => {
+			const count = records.filter((record) => record.kind === kind).length;
 
-		return count === 0 ? [] : [plural(count, noun)];
-	});
+			return count === 0 ? [] : [plural(count, noun, nounPlural)];
+		},
+	);
 }
 
 function UnreadableRecords({

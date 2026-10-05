@@ -9,4 +9,8 @@ describe(plural.name, () => {
 	it.each([0, 2, 137])("counts %i of a noun in the plural", (count) => {
 		expect(plural(count, "file")).toBe(`${count} files`);
 	});
+
+	it("counts a noun with an irregular plural in its given form", () => {
+		expect(plural(2, "registry", "registries")).toBe("2 registries");
+	});
 });

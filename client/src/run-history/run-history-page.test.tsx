@@ -1313,6 +1313,31 @@ describe(RunHistoryPage.name, () => {
 			);
 		});
 
+		it("counts two unreadable short id registries in the plural", async () => {
+			respondingWith({
+				...unreadableReport,
+				launches: [],
+				unreadable: [
+					{
+						kind: "short-ids",
+						id: "short-ids/audit-log",
+						reason: "Directories cannot be read like files",
+					},
+					{
+						kind: "short-ids",
+						id: "short-ids/smoke",
+						reason: "Directories cannot be read like files",
+					},
+				],
+			});
+
+			renderPage();
+
+			expect(await screen.findByRole("alert")).toHaveTextContent(
+				"2 short id registries",
+			);
+		});
+
 		it("names every unreadable record by id and reason once the list is opened", async () => {
 			respondingWith(unreadableReport);
 
