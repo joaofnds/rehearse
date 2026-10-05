@@ -138,8 +138,9 @@ sandbox. macOS marks `sandbox-exec` deprecated, and it still ships.
 `settings --spend-ceiling-usd <USD>` stores the ceiling in `settings.json` in
 the records directory; `settings` alone shows it, the records location and the
 linked corpus. The browser stores the same ceiling through
-`PUT /api/settings/spend-ceiling` and the launch dialog's spend field, so a
-ceiling written in either place is the one every later command reads.
+`PUT /api/settings/spend-ceiling`, from the launch dialog's spend field or the
+settings screen's Spend limit card, so a ceiling written in any of these places
+is the one every later command reads.
 Pipeline and session `run`, `replay`, every `--confirm` group, `calibrate` and
 `diagnose` refuse with exit code 3 and name that command when no ceiling is stored. The
 refusal comes before any paid call, after the terminal checks and before the
@@ -328,8 +329,9 @@ directory it cannot read answers 409 naming the entry.
 `PUT /api/settings/spend-ceiling` with `{ "usd": <number> }` stores a positive
 ceiling and answers 400 for anything else. `PUT /api/settings/corpus` with
 `{ "directory": <path> }` links a directory in corpus layout and answers 409
-for one that is not. The path must be absolute or start with `~/`, which names
-the home directory of the user the server runs as, since the server does not
+for one that is not, or whose files cannot be measured, such as one that
+resolves outside the directory. The path must be absolute or start with `~/`,
+which names the server process's `HOME`, since the server does not
 share the browser's working directory. Any other relative path answers 400,
 naming that rule.
 `DELETE /api/settings/corpus` unlinks it. These three answer the new settings,
@@ -338,7 +340,8 @@ with the same fields as `GET /api/settings`: `spendCeilingUsd`,
 `linkCommand`. `POST /api/settings/corpus/rehash` measures the linked
 corpus now, or the live install when nothing is linked, recording its version,
 and answers `{ label, digest }`, or 409 naming why the layout cannot be
-measured. An unreadable settings file makes every settings route answer 409.
+measured. An unreadable settings file makes every settings route but
+`GET /api/settings/records` answer 409, since that route reads no setting.
 
 `/api/runs` lists each launch in `launches`, apart from `rows`, while its pid
 is alive, and leaves it out while a pipeline run shows as running under that

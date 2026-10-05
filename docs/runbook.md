@@ -252,6 +252,9 @@ instead of the live install, link it once. This costs nothing:
 mise exec -- bun run rehearse settings --link-corpus /absolute/path/to/corpus
 ```
 
+The settings screen in the browser does the same: type the directory's path,
+absolute or starting with `~/`, into its Corpus card and press Link.
+
 `settings` then names the linked directory, and replay, session runs and
 attempts, `stale`, `show group:<id>`, the corpus commands and the browser read
 it. A pipeline `run` refuses while a directory is linked, because it measures
@@ -381,8 +384,8 @@ New run on the run history page starts a case, and Replay from here on a
 pipeline stage's page replays that stage. Both cost money. The dialog picks one,
 three, six or twelve attempts, and its spend field shows the stored spend
 ceiling that will hold them. Start stays disabled until a ceiling is stored, so
-enter one there and press Store ceiling, or store it with
-`settings --spend-ceiling-usd <USD>`. Either way it becomes the ceiling every
+enter one there and press Store ceiling, store it on the settings screen's
+Spend limit card, or store it with `settings --spend-ceiling-usd <USD>`. Any way it becomes the ceiling every
 later command reads. The run keeps going if you stop the server, and its
 output goes to `launches/<id>.log` in the records directory. While it runs,
 its row in run history offers Stop & restore repo, which ends it and restores
