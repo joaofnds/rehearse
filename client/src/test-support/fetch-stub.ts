@@ -60,12 +60,22 @@ export interface Reply {
 	readonly headers?: Readonly<Record<string, string>>;
 }
 
+const READ_METHODS = new Set(["GET", "HEAD"]);
+
+function isJson(contentType: string | null): boolean {
+	return (
+		contentType?.split(";")[0]?.trim().toLowerCase() === "application/json"
+	);
+}
+
 /**
  * A `fetch` Fake for a page that writes as well as reads: each route, keyed
  * `"METHOD /path"`, answers with its status and body, sent as JSON unless it
  * is bytes, and every request is
  * kept in `sent` so a test can read what the page posted. An unmapped route
- * answers 404, as `stubFetchByPath` does.
+ * answers 404, as `stubFetchByPath` does. A write that is not JSON answers
+ * the server's request guard's 403, so a request the guard would refuse
+ * fails here too.
  */
 export class FakeServer {
 	public readonly sent: SentRequest[] = [];
@@ -96,6 +106,11 @@ export class FakeServer {
 				};
 				this.sent.push(sent);
 				sent.body = await request.text();
+				if (!READ_METHODS.has(request.method) && !isJson(sent.contentType)) {
+					return new Response("Forbidden: not a same-origin JSON request", {
+						status: 403,
+					});
+				}
 				const route = this.routes.get(`${request.method} ${url.pathname}`) ?? {
 					status: 404,
 					body: { error: "not found" },

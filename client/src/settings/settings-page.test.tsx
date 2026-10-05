@@ -135,6 +135,26 @@ describe(SettingsPage.name, () => {
 	});
 
 	describe("when the records size cannot be read", () => {
+		it("shows an answer the route does not declare as the server sent it", async () => {
+			serving(
+				new Map([
+					[
+						"GET /api/settings/records",
+						{
+							status: 500,
+							body: new TextEncoder().encode("Internal Server Error"),
+						},
+					],
+				]),
+			);
+
+			expect(
+				await screen.findByText(
+					subline(`${RECORDS_AT} · 2 records · Internal Server Error`),
+				),
+			).toBeInTheDocument();
+		});
+
 		it("says why beside the location", async () => {
 			serving(
 				new Map([
@@ -495,6 +515,33 @@ describe(SettingsPage.name, () => {
 					expect(within(corpusCard).getByText(LIVE_ROOT)).toBeInTheDocument();
 				},
 			);
+
+			it("shows a refusal the server sends as plain text as it was sent", async () => {
+				linkable(
+					"directory",
+					new Map([
+						[
+							"DELETE /api/settings/corpus",
+							{
+								status: 403,
+								body: new TextEncoder().encode(
+									"Forbidden: not a loopback host",
+								),
+							},
+						],
+					]),
+				);
+				const corpusCard = await card();
+				await within(corpusCard).findByText("corpus@b52d8f");
+
+				fireEvent.click(
+					within(corpusCard).getByRole("button", { name: "Unlink corpus" }),
+				);
+
+				expect(
+					await within(corpusCard).findByText("Forbidden: not a loopback host"),
+				).toBeInTheDocument();
+			});
 
 			it("shows a rehash refusal naming how to link another or unlink", async () => {
 				const refusal =
