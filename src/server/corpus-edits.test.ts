@@ -95,11 +95,13 @@ const PORT = 4174;
 class CorpusEditDriver {
 	public constructor(private readonly send: Send) {}
 
+	public openRaw(path: string): Promise<Response> {
+		return this.send(`/api/corpus/file?path=${encodeURIComponent(path)}`);
+	}
+
 	/** The version the corpus held when the screen opened the file. */
 	public async opened(path: string): Promise<string> {
-		const response = await this.send(
-			`/api/corpus/file?path=${encodeURIComponent(path)}`,
-		);
+		const response = await this.openRaw(path);
 		expect(response.status).toBe(200);
 
 		return z.string().parse(response.headers.get(CORPUS_VERSION_HEADER));
@@ -784,6 +786,14 @@ describe("/api/corpus/edits", () => {
 
 			return served;
 		}
+
+		it("refuses to open a file", async () => {
+			const { driver } = await servingEmptied();
+
+			const response = await driver.openRaw("CLAUDE.md");
+
+			expect(response.status).toBe(409);
+		});
 
 		it("refuses the review", async () => {
 			const { driver } = await servingEmptied();
