@@ -23,9 +23,6 @@ export const recordsSizeQuery = {
 	queryFn: fetchRecordsSize,
 } as const;
 
-/** The request guard refuses a write that is not JSON, body or none. */
-const AS_JSON = { headers: { "content-type": "application/json" } };
-
 /**
  * A refusal the routes declare arrives as `{ error }`. Anything else, the
  * request guard's plain-text 403 included, is shown as the server sent it.
@@ -47,7 +44,7 @@ export async function linkCorpusDirectory(
 }
 
 export async function unlinkCorpusDirectory(): Promise<SettingsReading> {
-	const response = await launchClient.api.settings.corpus.$delete({}, AS_JSON);
+	const response = await launchClient.api.settings.corpus.$delete();
 	if (response.status === 200) {
 		return response.json();
 	}
@@ -60,10 +57,7 @@ export async function unlinkCorpusDirectory(): Promise<SettingsReading> {
 
 /** Records a version of the linked corpus now, answering its label. */
 export async function rehashCorpus(): Promise<string> {
-	const response = await launchClient.api.settings.corpus.rehash.$post(
-		{},
-		AS_JSON,
-	);
+	const response = await launchClient.api.settings.corpus.rehash.$post();
 	if (response.status === 200) {
 		const { label } = await response.json();
 

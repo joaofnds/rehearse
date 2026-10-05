@@ -11,8 +11,14 @@ import type { LaunchRoutes } from "#server/launches";
  */
 export const apiClient = hc<ApiRoutes>("");
 
-/** The launch routes' client, typed from `LaunchRoutes` for the same reason. */
-export const launchClient = hc<LaunchRoutes>("");
+/**
+ * The launch routes' client, typed from `LaunchRoutes` for the same reason.
+ * The server's request guard refuses a write that is not JSON even when it
+ * carries no body, such as a stop or an unlink, so every request says JSON.
+ */
+export const launchClient = hc<LaunchRoutes>("", {
+	headers: { "content-type": "application/json" },
+});
 
 /** The calibration routes' client, typed from `CalibrationRoutes` for the same reason. */
 export const calibrationClient = hc<CalibrationRoutes>("");
