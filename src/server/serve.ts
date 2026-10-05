@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import { claudeProjectsDirectory } from "#benchmark/session-capture";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { casesRoot } from "#benchmark/case";
 import {
@@ -68,6 +69,7 @@ async function main(): Promise<void> {
 		port,
 		casesRoot: casesRoot(),
 		liveCorpus: () => liveCorpusSource(),
+		home: homedir(),
 		launcher: processLauncher(
 			[process.execPath, join(CONTROL_DIR, "rehearse.ts")],
 			{ ...Bun.env, [RECORDS_DIRECTORY_VARIABLE]: runsDirectory },

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { isAbsolute } from "node:path";
+import { isAbsolute, join } from "node:path";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { LaunchRecord, LaunchTarget } from "#benchmark/launch-record";
@@ -99,6 +99,8 @@ export interface LaunchDependencies {
 	readonly liveness: RunLiveness;
 	/** The live install, which no instruction edit writes under. */
 	readonly liveCorpus: () => LiveCorpusRoot;
+	/** The operator's home, which a corpus path starting with `~/` names. */
+	readonly home: string;
 }
 
 /**
@@ -515,10 +517,27 @@ const spendCeilingRequestSchema = z
 	.object({ usd: z.number().positive() })
 	.strict();
 
-/** Absolute, since a relative path would resolve against the server's directory. */
+/**
+ * Absolute, since a relative path would resolve against the server's
+ * directory. A path from `~/` is the operator's home, as the server runs on
+ * the operator's machine.
+ */
 const corpusLinkRequestSchema = z
-	.object({ directory: z.string().refine(isAbsolute) })
+	.object({
+		directory: z
+			.string()
+			.refine(
+				(directory) => isAbsolute(directory) || directory.startsWith("~/"),
+				"Link a corpus directory by its absolute path, or one starting with ~/ for your home directory, because the server does not share the browser's working directory",
+			),
+	})
 	.strict();
+
+function expandHome(directory: string, home: string): string {
+	return directory.startsWith("~/")
+		? join(home, directory.slice("~/".length))
+		: directory;
+}
 
 /** An edit, carrying the version it was opened or reviewed against. */
 const corpusEditRequestSchema = z
@@ -838,7 +857,7 @@ export const createLaunchApp = (dependencies: LaunchDependencies) => {
 				await asLaunchRefusal(() =>
 					linkCorpusDirectory(
 						dependencies.runsDirectory,
-						parsed.data.directory,
+						expandHome(parsed.data.directory, dependencies.home),
 					),
 				);
 

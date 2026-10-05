@@ -135,6 +135,8 @@ describe(createLaunchApp.name, () => {
 	interface Harness {
 		readonly launcher: FakeLauncher;
 		readonly runsDirectory: string;
+		/** The home directory the server expands a `~/` path against. */
+		readonly home: string;
 		readonly post: (body: LaunchRequestBody) => Promise<Response>;
 		readonly get: (path: string) => Promise<Response>;
 		readonly stop: (id: string) => Promise<Response>;
@@ -178,17 +180,20 @@ describe(createLaunchApp.name, () => {
 		liveness: RunLiveness,
 	): Harness {
 		const launcher = new FakeLauncher();
+		const home = join(runsDirectory, "operator-home");
 		const app = createLaunchApp({
 			runsDirectory,
 			casesRoot: cases,
 			launcher,
 			liveness,
 			liveCorpus: () => directoryLiveCorpus(runsDirectory),
+			home,
 		});
 
 		return {
 			launcher,
 			runsDirectory,
+			home,
 			get: (path) => Promise.resolve(app.request(path)),
 			post: (body) =>
 				Promise.resolve(
@@ -1635,6 +1640,20 @@ describe(createLaunchApp.name, () => {
 			});
 		});
 
+		it("links a directory written from the operator's home with ~/", async () => {
+			const { send, get, home } = await harness();
+			const corpus = join(home, "code", "omelette", ".claude");
+			await Bun.write(join(corpus, "CLAUDE.md"), "linked\n");
+
+			const linked = await send("PUT", "/api/settings/corpus", {
+				directory: "~/code/omelette/.claude",
+			});
+
+			expect(linked.status).toBe(200);
+			const after = await reading(get);
+			expect(after.linkedCorpus).toEqual({ kind: "directory", root: corpus });
+		});
+
 		it("unlinks the corpus, leaving the live install linked", async () => {
 			const { send, get } = await harness();
 			await send("PUT", "/api/settings/corpus", {
@@ -1773,17 +1792,23 @@ describe(createLaunchApp.name, () => {
 				expect(after.linkedCorpus.root).toBe(linked);
 			});
 
-			it("refuses a relative directory as a bad request, since the server's working directory is not the browser's", async () => {
-				const { send, get } = await harness();
+			it.each(["", "corpus", "./corpus", "~operator/corpus"])(
+				"refuses %p as a bad request naming the absolute-path rule, since the server's working directory is not the browser's",
+				async (directory) => {
+					const { send, get } = await harness();
 
-				const response = await send("PUT", "/api/settings/corpus", {
-					directory: "",
-				});
+					const response = await send("PUT", "/api/settings/corpus", {
+						directory,
+					});
 
-				expect(response.status).toBe(400);
-				const after = await reading(get);
-				expect(after.linkedCorpus.kind).toBe("live");
-			});
+					expect(response.status).toBe(400);
+					expect(refusalSchema.parse(await response.json()).error).toContain(
+						"absolute path, or one starting with ~/",
+					);
+					const after = await reading(get);
+					expect(after.linkedCorpus.kind).toBe("live");
+				},
+			);
 		});
 	});
 

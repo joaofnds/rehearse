@@ -107,6 +107,7 @@ describe(createAppServer.name, () => {
 			casesRoot: cases,
 			launcher,
 			liveCorpus: () => live,
+			home: records,
 		});
 
 		return {

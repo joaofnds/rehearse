@@ -259,6 +259,7 @@ describe("/api/corpus/edits", () => {
 			casesRoot: await temporaryDirectory("rehearse-corpus-edit-cases-"),
 			launcher,
 			liveCorpus: () => live,
+			home: runsDirectory,
 			clientDistDirectory: await temporaryDirectory(
 				"rehearse-corpus-edit-dist-",
 			),

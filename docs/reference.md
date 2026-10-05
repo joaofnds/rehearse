@@ -323,8 +323,10 @@ the corpus screen names while the live install is linked. The records location i
 `PUT /api/settings/spend-ceiling` with `{ "usd": <number> }` stores a positive
 ceiling and answers 400 for anything else. `PUT /api/settings/corpus` with
 `{ "directory": <path> }` links a directory in corpus layout and answers 409
-for one that is not. The path must be absolute, since the server does not share
-the browser's working directory, and a relative one answers 400.
+for one that is not. The path must be absolute or start with `~/`, which names
+the home directory of the user the server runs as, since the server does not
+share the browser's working directory. Any other relative path answers 400,
+naming that rule.
 `DELETE /api/settings/corpus` unlinks it. These three answer the new settings,
 with the same fields as `GET /api/settings`: `spendCeilingUsd`,
 `setCommand`, `recordsDirectory`, `linkedCorpus`, `overrun` and

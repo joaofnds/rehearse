@@ -277,6 +277,7 @@ describe("/api/pipelines", () => {
 			launcher: new FakeLauncher(),
 			liveness: NOTHING_RUNNING,
 			liveCorpus: () => directoryLiveCorpus(runsDirectory),
+			home: runsDirectory,
 		});
 		const get = (): Promise<Response> =>
 			Promise.resolve(app.request("/api/pipelines"));

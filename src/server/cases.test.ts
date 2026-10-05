@@ -186,6 +186,7 @@ describe("/api/cases", () => {
 			launcher: new FakeLauncher(),
 			liveness: nothingRunning,
 			liveCorpus: () => directoryLiveCorpus(runsDirectory),
+			home: runsDirectory,
 		});
 		const list = async (): Promise<Listing> => {
 			const response = await app.request("/api/cases");
