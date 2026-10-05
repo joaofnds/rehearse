@@ -477,24 +477,52 @@ describe(runList.name, () => {
 		});
 
 		describe("when the cases' short id registries cannot be listed", () => {
+			async function unlistableFixture(): Promise<RecordedRunsFixture> {
+				const root = await mkdtemp(join(CONTROL_DIR, "rehearse-list-test-"));
+				roots.push(root);
+				const fixture = new RecordedRunsFixture(root);
+				await fixture.write();
+				await Bun.write(join(root, "short-ids"), "");
+
+				return fixture;
+			}
+
+			it("prints every record without a short id", async () => {
+				const fixture = await unlistableFixture();
+				const { runsDirectory, replayableRun, unreplayableRun } = fixture;
+				const { lineage, timestamp } = fixture.stageAttempt;
+				const { caseId, uuid } = fixture.sessionAttempt;
+
+				expect(await listed("runs", runsDirectory)).toEqual([
+					`run:${unreplayableRun}\t-`,
+					`run:${replayableRun}\t-`,
+				]);
+				expect(await listed("checkpoints", runsDirectory)).toEqual([
+					`checkpoint:${replayableRun}/build\t-`,
+					`checkpoint:${replayableRun}/discuss\t-`,
+				]);
+				expect(await listed("attempts", runsDirectory)).toEqual([
+					`attempt:session:${caseId}/${uuid}\t-`,
+					`attempt:stage:${lineage}/${timestamp}\t-`,
+				]);
+				expect(await listed("groups", runsDirectory)).toEqual([
+					`group:${fixture.groupId}\t-`,
+				]);
+			});
+
 			it.each(["runs", "checkpoints", "attempts", "groups"] as const)(
-				"prints every %s record without a short id and names the registries once on stderr",
+				"names the registries once on stderr for %s",
 				async (kind) => {
-					const root = await mkdtemp(join(CONTROL_DIR, "rehearse-list-test-"));
-					roots.push(root);
-					const fixture = new RecordedRunsFixture(root);
-					await fixture.write();
-					await Bun.write(join(root, "short-ids"), "");
+					const fixture = await unlistableFixture();
 					const recorder = recordOutput();
 
-					await runList({ kind, runsDirectory: root }, recorder.output);
+					await runList(
+						{ kind, runsDirectory: fixture.runsDirectory },
+						recorder.output,
+					);
 
-					expect(
-						lines(recorder.stdout).map((line) => line.split("\t")[1]),
-					).toEqual(lines(recorder.stdout).map(() => "-"));
-					expect(lines(recorder.stdout)).not.toEqual([]);
 					expect(lines(recorder.stderr)).toEqual([
-						`short-ids: ENOTDIR: not a directory, scandir '${basename(root)}/short-ids'`,
+						`short-ids: ENOTDIR: not a directory, scandir '${basename(fixture.runsDirectory)}/short-ids'`,
 					]);
 				},
 			);

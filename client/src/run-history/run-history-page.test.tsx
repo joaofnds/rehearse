@@ -1313,30 +1313,30 @@ describe(RunHistoryPage.name, () => {
 			);
 		});
 
-		it("counts two unreadable short id registries in the plural", async () => {
-			respondingWith({
-				...unreadableReport,
-				launches: [],
-				unreadable: [
-					{
-						kind: "short-ids",
-						id: "short-ids/audit-log",
-						reason: "Directories cannot be read like files",
-					},
-					{
-						kind: "short-ids",
-						id: "short-ids/smoke",
-						reason: "Directories cannot be read like files",
-					},
-				],
-			});
+		it.each([
+			{ kind: "run", expected: "2 runs" },
+			{ kind: "session-attempt", expected: "2 session attempts" },
+			{ kind: "replay", expected: "2 replays" },
+			{ kind: "group", expected: "2 confirmation runs" },
+			{ kind: "launch", expected: "2 launches" },
+			{ kind: "short-ids", expected: "2 short id registries" },
+		] as const)(
+			"counts two unreadable records of kind $kind as $expected",
+			async ({ kind, expected }) => {
+				respondingWith({
+					...unreadableReport,
+					launches: [],
+					unreadable: [
+						{ kind, id: `${kind}-first`, reason: "unreadable" },
+						{ kind, id: `${kind}-second`, reason: "unreadable" },
+					],
+				});
 
-			renderPage();
+				renderPage();
 
-			expect(await screen.findByRole("alert")).toHaveTextContent(
-				"2 short id registries",
-			);
-		});
+				expect(await screen.findByRole("alert")).toHaveTextContent(expected);
+			},
+		);
 
 		it("names every unreadable record by id and reason once the list is opened", async () => {
 			respondingWith(unreadableReport);

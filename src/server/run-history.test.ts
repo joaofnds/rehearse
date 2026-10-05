@@ -2495,13 +2495,15 @@ describe(runHistoryReport.name, () => {
 			);
 
 			expect(
-				rows.map((row) => ({ caseId: row.caseId, shortId: row.shortId })),
-			).toEqual(
-				rows.map((row) => ({
-					caseId: row.caseId,
-					shortId: row.caseId === "smoke" ? "smoke/r1" : undefined,
-				})),
-			);
+				rows.map(({ kind, caseId, shortId }) => ({ kind, caseId, shortId })),
+			).toEqual([
+				{ kind: "run", caseId: "audit-log", shortId: undefined },
+				{ kind: "replay", caseId: "audit-log", shortId: undefined },
+				{ kind: "run", caseId: "audit-log", shortId: undefined },
+				{ kind: "run", caseId: "audit-log", shortId: undefined },
+				{ kind: "session-attempt", caseId: "smoke", shortId: "smoke/r1" },
+				{ kind: "group", caseId: "audit-log", shortId: undefined },
+			]);
 			expect(unreadable.map(({ kind, id }) => ({ kind, id }))).toEqual([
 				{ kind: "short-ids", id: "short-ids/audit-log" },
 			]);
@@ -2558,6 +2560,7 @@ describe(runHistoryReport.name, () => {
 			expect(unreadable.map(({ kind, id }) => ({ kind, id }))).toEqual([
 				{ kind: "short-ids", id: "short-ids" },
 			]);
+			expect(unreadable[0]?.reason).not.toContain(fixture.runsDirectory);
 		});
 
 		it("names no short id for a record no claim names in a claimed case", async () => {
