@@ -28,7 +28,7 @@ export function SpendLimitCard(): React.JSX.Element {
 	});
 	const entered = draft ?? storedEntry(settings.data?.spendCeilingUsd);
 	const usd = enteredCeilingUsd(entered);
-	const refused = entered !== "" && usd === undefined;
+	const invalidEntry = entered !== "" && usd === undefined;
 
 	return (
 		<SettingsCard title="Spend limit">
@@ -74,7 +74,7 @@ export function SpendLimitCard(): React.JSX.Element {
 					Group ceiling: attempts × per-run
 				</span>
 			</form>
-			{refused ? (
+			{invalidEntry ? (
 				<p role="alert" className="mt-1.5 text-12 text-secondary-foreground">
 					A spend limit is a positive amount in US dollars, such as 2.50, so
 					this one is not stored.

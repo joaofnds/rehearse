@@ -108,6 +108,28 @@ describe(SettingsPage.name, () => {
 		).toBeInTheDocument();
 	});
 
+	it("says the records could not be counted when the run history is refused", async () => {
+		serving(
+			new Map([
+				[
+					"GET /api/runs",
+					{
+						status: 409,
+						body: {
+							error: "The linked corpus directory is no longer a corpus",
+						},
+					},
+				],
+			]),
+		);
+
+		expect(
+			await screen.findByText(
+				subline(`${RECORDS_AT} · records not counted · 612 MB`),
+			),
+		).toBeInTheDocument();
+	});
+
 	it("offers no control that edits the records location", async () => {
 		serving();
 
@@ -581,7 +603,7 @@ describe(SettingsPage.name, () => {
 				);
 
 				expect(
-					await within(corpusCard).findByText("⚠ corpus unreadable"),
+					await within(corpusCard).findByText("corpus unreadable"),
 				).toBeInTheDocument();
 				expect(within(corpusCard).queryByText("corpus@b52d8f")).toBeNull();
 			});

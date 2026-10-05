@@ -36,6 +36,7 @@ function RecordsReading(): React.ReactNode {
 	if (settings.isError) {
 		return `Could not read the settings: ${settings.error.message}`;
 	}
+
 	if (settings.data === undefined) {
 		return undefined;
 	}
@@ -47,7 +48,10 @@ function RecordsReading(): React.ReactNode {
 			{runs.data === undefined
 				? null
 				: ` · ${plural(runs.data.rows.length, "record")}`}
-			{size.data === undefined ? null : `, ${sizeReading(size.data)}`}
+			{runs.isError ? " · records not counted" : null}
+			{size.data === undefined
+				? null
+				: `${runs.data === undefined ? " · " : ", "}${sizeReading(size.data)}`}
 			{size.isError ? ` · ${size.error.message}` : null}
 		</>
 	);

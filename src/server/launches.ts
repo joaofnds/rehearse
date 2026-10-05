@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
 import { isAbsolute, join } from "node:path";
-import { RecordsSizeError, recordsSize } from "./records-size";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { LaunchRecord, LaunchTarget } from "#benchmark/launch-record";
@@ -74,6 +73,7 @@ import {
 	browserAnalysisCapUsd,
 } from "./root-cause-analyses";
 import { pipelineReport } from "./pipelines";
+import { RecordsSizeError, recordsSize } from "./records-size";
 import { redactAbsolutePaths } from "./redact-path";
 import { CorpusEditBusyError } from "./corpus-edit-busy-error";
 import { CorpusEditGate } from "./corpus-edit-gate";

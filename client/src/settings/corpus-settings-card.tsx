@@ -17,17 +17,28 @@ import {
 function VersionLabel(): React.JSX.Element | null {
 	const corpus = useQuery(corpusQuery);
 	if (corpus.isError) {
-		return <span className="text-pale">⚠ corpus unreadable</span>;
+		return (
+			<span className="text-pale">
+				<span aria-hidden="true">⚠ </span>
+				corpus unreadable
+			</span>
+		);
 	}
+
 	if (corpus.data === undefined) {
 		return null;
 	}
 
 	return (
 		<span className="text-pale">
-			{corpus.data.digest === undefined
-				? "⚠ digest withheld"
-				: corpusVersionLabel(corpus.data.digest)}
+			{corpus.data.digest === undefined ? (
+				<>
+					<span aria-hidden="true">⚠ </span>
+					digest withheld
+				</>
+			) : (
+				corpusVersionLabel(corpus.data.digest)
+			)}
 		</span>
 	);
 }
@@ -43,8 +54,8 @@ export function CorpusSettingsCard(): React.JSX.Element {
 	const [directory, setDirectory] = useState("");
 	const [outcome, setOutcome] = useState<Outcome>({ kind: "none" });
 
-	/** What a link or unlink changes: the corpus read, and staleness with it. */
-	async function linkChanged(reading: SettingsReading): Promise<void> {
+	/** The run history reads each run's staleness against the linked corpus. */
+	async function showLinkedCorpus(reading: SettingsReading): Promise<void> {
 		queryClient.setQueryData(launchSettingsQuery.queryKey, reading);
 		setOutcome({ kind: "none" });
 		await Promise.all([
@@ -61,13 +72,13 @@ export function CorpusSettingsCard(): React.JSX.Element {
 		mutationFn: linkCorpusDirectory,
 		onSuccess: async (reading) => {
 			setDirectory("");
-			await linkChanged(reading);
+			await showLinkedCorpus(reading);
 		},
 		onError: refused,
 	});
 	const unlink = useMutation({
 		mutationFn: unlinkCorpusDirectory,
-		onSuccess: linkChanged,
+		onSuccess: showLinkedCorpus,
 		onError: refused,
 	});
 	const rehash = useMutation({

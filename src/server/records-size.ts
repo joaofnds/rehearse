@@ -13,6 +13,7 @@ async function unlessRemoved(size: Promise<number>): Promise<number> {
 		if (error instanceof Error && "code" in error && error.code === "ENOENT") {
 			return 0;
 		}
+
 		throw error;
 	}
 }
@@ -57,6 +58,7 @@ export async function recordsSize(directory: string): Promise<number> {
 		if (!(error instanceof Error && "code" in error && "path" in error)) {
 			throw error;
 		}
+
 		const path = String(error.path);
 		const code = String(error.code);
 		if (code === "ENOENT" && path === directory) {
