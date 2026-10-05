@@ -320,6 +320,11 @@ sets it, the records location, the linked corpus as `kind` (`live` or
 ceiling, and `linkCommand`, the command that links a corpus directory, which
 the corpus screen names while the live install is linked. The records location is read-only there, because
 `REHEARSE_RECORDS_DIR` in the server's environment chooses it.
+`GET /api/settings/records` returns `bytes`, the total size of the regular files
+under the records location, without following symlinks, and 0 when the
+directory does not exist yet. It walks the whole tree on every request, which
+is why `GET /api/settings`, read by every launch dialog, leaves it out. A
+directory it cannot read answers 409 naming the entry.
 `PUT /api/settings/spend-ceiling` with `{ "usd": <number> }` stores a positive
 ceiling and answers 400 for anything else. `PUT /api/settings/corpus` with
 `{ "directory": <path> }` links a directory in corpus layout and answers 409

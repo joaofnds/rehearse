@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { isAbsolute, join } from "node:path";
+import { RecordsSizeError, recordsSize } from "./records-size";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { LaunchRecord, LaunchTarget } from "#benchmark/launch-record";
@@ -823,6 +824,20 @@ export const createLaunchApp = (dependencies: LaunchDependencies) => {
 				}
 
 				return context.json({ error: error.message }, error.status);
+			}
+		})
+		.get("/api/settings/records", async (context) => {
+			try {
+				return context.json(
+					{ bytes: await recordsSize(dependencies.runsDirectory) },
+					200,
+				);
+			} catch (error) {
+				if (!(error instanceof RecordsSizeError)) {
+					throw error;
+				}
+
+				return context.json({ error: redactAbsolutePaths(error.message) }, 409);
 			}
 		})
 		.put("/api/settings/spend-ceiling", async (context) => {

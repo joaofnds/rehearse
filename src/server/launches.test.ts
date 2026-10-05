@@ -1812,6 +1812,60 @@ describe(createLaunchApp.name, () => {
 		});
 	});
 
+	describe("GET /api/settings/records", () => {
+		const sizeSchema = z.object({ bytes: z.number() });
+
+		it("sums the bytes of the regular files under the records directory", async () => {
+			const runsDirectory = await temporaryDirectory("rehearse-sized-runs-");
+			await Bun.write(join(runsDirectory, "settings.json"), "123");
+			await Bun.write(
+				join(runsDirectory, "runs", "a", "manifest.json"),
+				"12345",
+			);
+			const outside = await temporaryDirectory("rehearse-sized-outside-");
+			await Bun.write(join(outside, "large.bin"), "x".repeat(1000));
+			await symlink(join(outside, "large.bin"), join(runsDirectory, "link"));
+			const { get } = serving(runsDirectory, outside, NOTHING_RUNNING);
+
+			const response = await get("/api/settings/records");
+
+			expect(response.status).toBe(200);
+			expect(sizeSchema.parse(await response.json())).toEqual({ bytes: 8 });
+		});
+
+		it("reads a records directory that does not exist yet as empty", async () => {
+			const absent = join(
+				await temporaryDirectory("rehearse-sized-parent-"),
+				"runs",
+			);
+			const { get } = serving(absent, absent, NOTHING_RUNNING);
+
+			const response = await get("/api/settings/records");
+
+			expect(response.status).toBe(200);
+			expect(sizeSchema.parse(await response.json())).toEqual({ bytes: 0 });
+		});
+
+		it("refuses a records directory it cannot read, naming the directory", async () => {
+			const runsDirectory = await temporaryDirectory("rehearse-sized-runs-");
+			const locked = join(runsDirectory, "locked");
+			await mkdir(locked);
+			await chmod(locked, 0o000);
+			const { get } = serving(runsDirectory, runsDirectory, NOTHING_RUNNING);
+
+			try {
+				const response = await get("/api/settings/records");
+
+				expect(response.status).toBe(409);
+				expect(refusalSchema.parse(await response.json()).error).toContain(
+					"locked",
+				);
+			} finally {
+				await chmod(locked, 0o700);
+			}
+		});
+	});
+
 	describe("when a run is paused", () => {
 		const RUN_PID = 4242;
 		const running: RunLiveness = {
