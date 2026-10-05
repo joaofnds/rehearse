@@ -1,5 +1,8 @@
 import { describe, expect, it } from "bun:test";
-import { deriveBaselineCorpus } from "./baseline-corpus";
+import {
+	deriveBaselineCorpus,
+	needsComparisonManifest,
+} from "./baseline-corpus";
 
 const shared = {
 	"CLAUDE.md": "c".repeat(64),
@@ -84,5 +87,16 @@ describe(deriveBaselineCorpus.name, () => {
 				"the arms differ in CLAUDE.md, which is not a skill; supply the control through a comparison manifest",
 			differingUnits: ["CLAUDE.md"],
 		});
+	});
+});
+
+describe(needsComparisonManifest.name, () => {
+	it.each([
+		["CLAUDE.md", true],
+		["agents/reviewer.md", true],
+		["skills/build/SKILL.md", false],
+		["skills/build/reference.md", false],
+	])("says an edit to %s needs a comparison manifest: %p", (path, needed) => {
+		expect(needsComparisonManifest(path)).toBe(needed);
 	});
 });

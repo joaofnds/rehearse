@@ -709,6 +709,10 @@ describe("/api/corpus/edits", () => {
 		it.each([
 			["a file the report does not list", "notes.md"],
 			["a path outside the corpus", "../escape.md"],
+			[
+				"a path that climbs back to a listed file",
+				"skills/build/../../CLAUDE.md",
+			],
 			["a layout directory", "skills"],
 		])(
 			"refuses the review and the apply of %s, writing nothing and logging no version",

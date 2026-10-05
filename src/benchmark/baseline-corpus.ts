@@ -36,7 +36,7 @@ function unitOf(path: string): string {
  * unit the browser can pair arms on.
  */
 export function needsComparisonManifest(path: string): boolean {
-	return !SKILL_UNIT.test(unitOf(path));
+	return !SKILL_UNIT.test(path);
 }
 
 function differingUnits(armA: CorpusFiles, armB: CorpusFiles): string[] {
