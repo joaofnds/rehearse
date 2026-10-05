@@ -576,6 +576,36 @@ describe(SettingsPage.name, () => {
 				expect(within(corpusCard).queryByText("corpus@b52d8f")).toBeNull();
 			});
 
+			it("shows the reason of an error the route does not declare", async () => {
+				linkable(
+					"live",
+					new Map([
+						[
+							"PUT /api/settings/corpus",
+							{
+								status: 500,
+								body: { error: "EACCES: permission denied, open '<path>'" },
+							},
+						],
+					]),
+				);
+				const corpusCard = await card();
+
+				fireEvent.change(
+					within(corpusCard).getByLabelText("Corpus directory to link"),
+					{ target: { value: "/work/corpus" } },
+				);
+				fireEvent.click(
+					within(corpusCard).getByRole("button", { name: "Link" }),
+				);
+
+				expect(
+					await within(corpusCard).findByText(
+						"EACCES: permission denied, open '<path>'",
+					),
+				).toBeInTheDocument();
+			});
+
 			it("shows a refusal the server sends as plain text as it was sent", async () => {
 				linkable(
 					"directory",

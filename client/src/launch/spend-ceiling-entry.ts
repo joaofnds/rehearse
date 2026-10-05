@@ -1,19 +1,17 @@
 import { launchClient } from "#client/api-client";
-import { LaunchRefusedError } from "./post-launch";
+import { refusalReason } from "#client/refusal-reason";
+import { SettingsRefusedError } from "./settings-query";
 import type { SettingsReading } from "./settings-query";
 
 export async function putSpendCeiling(usd: number): Promise<SettingsReading> {
 	const response = await launchClient.api.settings["spend-ceiling"].$put({
 		json: { usd },
 	});
-	if (response.status === 200) {
-		return response.json();
+	if (response.status !== 200) {
+		throw new SettingsRefusedError(await refusalReason(response));
 	}
-	if (response.status === 400 || response.status === 409) {
-		const refusal = await response.json();
-		throw new LaunchRefusedError(refusal.error);
-	}
-	throw new LaunchRefusedError(await response.text());
+
+	return response.json();
 }
 
 /**

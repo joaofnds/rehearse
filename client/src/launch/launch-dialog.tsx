@@ -7,6 +7,7 @@ import { LAUNCH_ATTEMPTS } from "#benchmark/launch-attempts";
 import { groupSpendCeilingUsd } from "#benchmark/spend-ceiling";
 import { launchClient } from "#client/api-client";
 import { plural } from "#client/plural";
+import { refusalReason } from "#client/refusal-reason";
 import { corpusQuery } from "#client/corpus/corpus-query";
 import { runHistoryQuery } from "#client/run-history/run-history-query";
 import { spendReading } from "#client/run-history/run-progress";
@@ -98,7 +99,7 @@ function shownCeiling(
 async function fetchCases(): Promise<CasesResponse> {
 	const response = await launchClient.api.cases.$get();
 	if (!response.ok) {
-		throw new LaunchRefusedError(await response.text());
+		throw new LaunchRefusedError(await refusalReason(response));
 	}
 
 	return response.json();

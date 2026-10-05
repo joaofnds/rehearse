@@ -1,6 +1,6 @@
 import type { InferResponseType } from "hono/client";
-import { z } from "zod";
 import { apiClient, launchClient } from "#client/api-client";
+import { refusalReason } from "#client/refusal-reason";
 import { CORPUS_VERSION_HEADER } from "#server/corpus-version-header";
 
 export type CorpusEditReview = InferResponseType<
@@ -18,28 +18,10 @@ export class CorpusEditRefusedError extends Error {
 	public override name = "CorpusEditRefusedError";
 }
 
-const refusalBodySchema = z.object({ error: z.string() });
-
-/** The `{ error }` a refusal declares, or nothing for any other body. */
-function declaredError(text: string): string | undefined {
-	try {
-		const body = refusalBodySchema.safeParse(JSON.parse(text));
-
-		return body.success ? body.data.error : undefined;
-	} catch {
-		return undefined;
-	}
-}
-
-/**
- * A refusal the edit routes declare arrives as `{ error }`. Anything else,
- * the request guard's plain-text 403 included, is shown as the server sent it.
- */
 async function refusal(
 	response: Readonly<{ text: () => Promise<string> }>,
 ): Promise<CorpusEditRefusedError> {
-	const text = await response.text();
-	return new CorpusEditRefusedError(declaredError(text) ?? text);
+	return new CorpusEditRefusedError(await refusalReason(response));
 }
 
 /** A file's text and the corpus version it was read at, which an edit starts from. */

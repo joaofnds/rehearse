@@ -1,20 +1,17 @@
 import { launchClient } from "#client/api-client";
-import { LaunchRefusedError } from "#client/launch/post-launch";
+import { SettingsRefusedError } from "#client/launch/settings-query";
 import type { SettingsReading } from "#client/launch/settings-query";
+import { refusalReason } from "#client/refusal-reason";
 
 async function fetchRecordsSize(): Promise<number> {
 	const response = await launchClient.api.settings.records.$get();
-	if (response.status === 200) {
-		const { bytes } = await response.json();
+	if (response.status !== 200) {
+		throw new SettingsRefusedError(await refusalReason(response));
+	}
 
-		return bytes;
-	}
-	const contentType = response.headers.get("content-type") ?? "";
-	if (!contentType.startsWith("application/json")) {
-		throw new LaunchRefusedError(await response.text());
-	}
-	const refusal = await response.json();
-	throw new LaunchRefusedError(refusal.error);
+	const { bytes } = await response.json();
+
+	return bytes;
 }
 
 /** Read apart from the settings, because it walks the whole records tree. */
@@ -23,49 +20,36 @@ export const recordsSizeQuery = {
 	queryFn: fetchRecordsSize,
 } as const;
 
-/**
- * A refusal the routes declare arrives as `{ error }`. Anything else, the
- * request guard's plain-text 403 included, is shown as the server sent it.
- */
 export async function linkCorpusDirectory(
 	directory: string,
 ): Promise<SettingsReading> {
 	const response = await launchClient.api.settings.corpus.$put({
 		json: { directory },
 	});
-	if (response.status === 200) {
-		return response.json();
+	if (response.status !== 200) {
+		throw new SettingsRefusedError(await refusalReason(response));
 	}
-	if (response.status === 400 || response.status === 409) {
-		const refusal = await response.json();
-		throw new LaunchRefusedError(refusal.error);
-	}
-	throw new LaunchRefusedError(await response.text());
+
+	return response.json();
 }
 
 export async function unlinkCorpusDirectory(): Promise<SettingsReading> {
 	const response = await launchClient.api.settings.corpus.$delete();
-	if (response.status === 200) {
-		return response.json();
+	if (response.status !== 200) {
+		throw new SettingsRefusedError(await refusalReason(response));
 	}
-	if (response.status === 409) {
-		const refusal = await response.json();
-		throw new LaunchRefusedError(refusal.error);
-	}
-	throw new LaunchRefusedError(await response.text());
+
+	return response.json();
 }
 
 /** Records a version of the linked corpus now, answering its label. */
 export async function rehashCorpus(): Promise<string> {
 	const response = await launchClient.api.settings.corpus.rehash.$post();
-	if (response.status === 200) {
-		const { label } = await response.json();
+	if (response.status !== 200) {
+		throw new SettingsRefusedError(await refusalReason(response));
+	}
 
-		return label;
-	}
-	if (response.status === 409) {
-		const refusal = await response.json();
-		throw new LaunchRefusedError(refusal.error);
-	}
-	throw new LaunchRefusedError(await response.text());
+	const { label } = await response.json();
+
+	return label;
 }

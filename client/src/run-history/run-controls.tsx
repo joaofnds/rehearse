@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { UseMutationResult } from "@tanstack/react-query";
 import { launchClient } from "#client/api-client";
+import { refusalReason } from "#client/refusal-reason";
 import { STATUS_VOCABULARY } from "#client/system/components/status";
 import { Button } from "#client/system/ui/button";
 import { runHistoryQuery } from "./run-history-query";
@@ -9,22 +10,13 @@ class ControlRefusedError extends Error {
 	public override name = "ControlRefusedError";
 }
 
-/**
- * A refusal the routes declare arrives as `{ error }`. Anything else, the
- * request guard's plain-text 403 included, is shown as the server sent it.
- */
 async function stopLaunch(id: string): Promise<void> {
 	const response = await launchClient.api.launches[":id"].stop.$post({
 		param: { id },
 	});
-	if (response.ok) {
-		return;
+	if (!response.ok) {
+		throw new ControlRefusedError(await refusalReason(response));
 	}
-	if (response.status === 404 || response.status === 409) {
-		const refused = await response.json();
-		throw new ControlRefusedError(refused.error);
-	}
-	throw new ControlRefusedError(await response.text());
 }
 
 /** Refused the same way as a stop. */
@@ -32,14 +24,9 @@ async function pauseRun(run: string): Promise<void> {
 	const response = await launchClient.api.runs[":run"].pause.$post({
 		param: { run },
 	});
-	if (response.ok) {
-		return;
+	if (!response.ok) {
+		throw new ControlRefusedError(await refusalReason(response));
 	}
-	if (response.status === 404 || response.status === 409) {
-		const refused = await response.json();
-		throw new ControlRefusedError(refused.error);
-	}
-	throw new ControlRefusedError(await response.text());
 }
 
 function useRefreshHistory(): () => Promise<void> {
