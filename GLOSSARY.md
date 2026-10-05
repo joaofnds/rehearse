@@ -179,6 +179,17 @@ See [current state](docs/status.md) for implementation coverage and
   between case means. A single-case stage or session comparison samples the
   reps of one case, treats the arms as independent samples rather than paired, and prints
   the unit it used beside the estimate.
+- **Minimum detectable effect**: the smallest true difference a comparison of a
+  given size and spread would detect at a stated confidence and power. A
+  comparison that finds no difference supports "no effect" only down to this
+  size. Rehearse does not compute it.
+- **A/A check**: a comparison whose arms run identical inputs, so its interval
+  should contain zero. It tests whether the comparison's uncertainty is honest.
+  Rehearse has no A/A mode, and its baseline derivation and stage replays refuse
+  arms with identical inputs.
+- **Positive control**: a comparison against a change known to matter, such as
+  deleting the instruction a case exercises, which a working comparison must
+  detect before its null readings are trusted. Rehearse does not run one.
 - **Case** (design usage) — the UI design's phrase for a task plus the
   corpus, judges, and thresholds it runs under. It overlaps with this
   glossary's benchmark case without matching field for field: the case
@@ -862,6 +873,10 @@ See [current state](docs/status.md) for implementation coverage and
   that cost was priced on. The harness retains it verbatim on an attempt's
   metrics. A call made by a CLI that reports no such block records its absence,
   which is not the same as a call that used no model.
+- **Served model**: the model that actually answered a call, as distinct from
+  the model the call requested. The two can differ, for example after a
+  provider's safety-classifier retry. The per-model usage block names it;
+  Rehearse records that block but does not read the served model from it.
 - **Rate catalog** — the per-model, per-category prices a request's cost is
   calculated from, carrying the source and version they came from. A saved
   calculation persists the catalog that priced it, so a later catalog changes
