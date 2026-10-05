@@ -505,4 +505,31 @@ describe(SettingsPage.name, () => {
 			});
 		});
 	});
+
+	describe("the Keyboard card", () => {
+		function shortcuts(): Promise<readonly string[]> {
+			return screen
+				.findByRole("region", { name: "Keyboard" })
+				.then((keyboard) =>
+					within(keyboard)
+						.getAllByRole("listitem")
+						.map((item) => item.textContent),
+				);
+		}
+
+		it("lists the design's eight shortcuts in its order, marking the unbound ones planned", async () => {
+			serving();
+
+			expect(await shortcuts()).toEqual([
+				"g rrun history",
+				"g mlive monitor",
+				"nnew run planned",
+				"rreplay a step planned",
+				"eexpand cited evidence planned",
+				"j / kmove through rows",
+				"ffollow / unfollow the tail",
+				"Escclose dialog",
+			]);
+		});
+	});
 });

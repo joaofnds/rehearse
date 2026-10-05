@@ -4,6 +4,7 @@ import { plural } from "#client/plural";
 import { runHistoryQuery } from "#client/run-history/run-history-query";
 import { ScreenHeader } from "#client/system/components/screen-header";
 import { CorpusSettingsCard } from "./corpus-settings-card";
+import { KeyboardCard } from "./keyboard-card";
 import { recordsSizeQuery } from "./settings-requests";
 import { SpendLimitCard } from "./spend-limit-card";
 
@@ -53,6 +54,7 @@ export function SettingsPage(): React.JSX.Element {
 			<div className="flex max-w-197 flex-col gap-3 px-6 pt-4 pb-12">
 				<SpendLimitCard />
 				<CorpusSettingsCard />
+				<KeyboardCard />
 			</div>
 		</div>
 	);
