@@ -280,6 +280,18 @@ describe(CorpusPage.name, () => {
 			expect(server.posted("/api/corpus/edits/apply")).toEqual([]);
 		});
 
+		it("says Apply waits for the launches it started, never for a replay started from a terminal", async () => {
+			serving();
+
+			await reviewed();
+
+			expect(
+				screen.getByText(
+					"Apply refuses while a launch from this screen runs. A replay started from a terminal is not seen, so an apply during one records a version its session did not read.",
+				),
+			).toBeInTheDocument();
+		});
+
 		it("asks for a new review once the text changes after one", async () => {
 			serving();
 			await reviewed();

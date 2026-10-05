@@ -112,6 +112,11 @@ function ReviewSummary({
 				</li>
 				<li>Offers the paired rerun that would settle it</li>
 			</ul>
+			<p className="mt-2 text-xs text-muted-foreground">
+				Apply refuses while a launch from this screen runs. A replay started
+				from a terminal is not seen, so an apply during one records a version
+				its session did not read.
+			</p>
 			{review.applyRefusal === null ? null : (
 				<Refusal reason={review.applyRefusal} />
 			)}
