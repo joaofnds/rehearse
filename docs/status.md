@@ -1,6 +1,6 @@
 # Current state and priorities
 
-Reviewed against the code and project board on **2026-10-05**. This is the public
+Reviewed against the code and project board on **2026-10-06**. This is the public
 feature inventory, not a release guarantee. The [vision](vision.md) describes the
 longer-term goal; the [runbook](runbook.md) describes the supported first steps.
 
@@ -319,6 +319,7 @@ is reachable only by typing it, because the design's nav does not name it.
 | `/monitor`                                                                                                                                      | The Live monitor for the newest pipeline run in flight; the "No run in flight" empty state when none is                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | `/monitor/<run>`                                                                                                                                | The Live monitor for the run whose Record ID the address names, as each bar's Open monitor opens it; the "This run is not in flight" empty state once that run stops running, or when no run has that id                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `/system`                                                                                                                                       | Design tokens and reusable component gallery                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `/settings`                                                                                                                                     | The records location, record count and size, the Spend limit card that stores the ceiling, the Corpus card that links a directory, rehashes the linked corpus and unlinks it, and the Keyboard card                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
 New run on run history and Replay from here on a pipeline stage's page open
 the run-launch dialog, which starts a case or replays a stage as one attempt or
@@ -327,13 +328,14 @@ in run history as running until its process exits or its pipeline run shows
 as running. The dialog's spend
 field stores the ceiling itself, which every later launch and CLI command then
 holds to, and the dialog projects no cost except for adding attempts to a
-comparison. The settings API reads and
-writes the ceiling and the linked corpus, but no settings screen or first-run
-setup shows them yet. Run detail's Step rail and Record ledger layouts,
-declaring a pipeline case, editing a case, task import, export and editing,
-settings, and first-run setup are design targets. The rail marks
-Run detail and Settings planned rather
-than linking to them. Live monitoring is partly
+comparison. The settings screen shows where records go, how many there are
+and their size, stores the same ceiling, and links a corpus directory by an
+absolute path or one starting with `~/`, rehashes the linked corpus and
+unlinks it. Its Keyboard card lists n, r and e as planned, since nothing binds
+them yet. Run detail's Step rail and Record ledger layouts, declaring a
+pipeline case, editing a case, task import, export and editing, and first-run
+setup are design targets. The rail marks Run detail planned rather than
+linking to it. Live monitoring is partly
 delivered: the run list reports a run in flight with its stage, elapsed time and
 scoped spend, and the run API also reports how many of a judging stage's
 rubric items are back per section, which the monitor's judge pane shows. While a
