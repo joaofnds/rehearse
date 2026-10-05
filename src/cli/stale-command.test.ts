@@ -343,6 +343,85 @@ describe(runStale.name, () => {
 		});
 	});
 
+	describe("when short id registries cannot be read", () => {
+		async function staleInEveryCase(): Promise<{
+			readonly fixture: RecordedRunsFixture;
+			readonly corpus: string;
+		}> {
+			const fixture = await fixtureRecordedAgainst(
+				await corpusDirectory("build skill\n"),
+			);
+			await fixture.claim("audit-log", fixture.auditLogClaims);
+			await fixture.claim("smoke", fixture.smokeClaims);
+			const corpus = await corpusDirectory("build skill, edited\n");
+			await Bun.write(
+				join(corpus, "output-styles", "brief.md"),
+				"brief style, edited\n",
+			);
+
+			return { fixture, corpus };
+		}
+
+		it("prints the other case's short ids and none for the damaged case's record", async () => {
+			const { fixture, corpus } = await staleInEveryCase();
+			await mkdir(
+				join(fixture.runsDirectory, "short-ids", "smoke", "claims", "99"),
+			);
+			const recorder = recordOutput();
+
+			await runStale(
+				{ corpus, runsDirectory: fixture.runsDirectory },
+				{ output: recorder.output },
+			);
+
+			expect(
+				recorder.stdout
+					.join("")
+					.trimEnd()
+					.split("\n")
+					.map((printed) => printed.split("\t").slice(0, 2).join("\t")),
+			).toEqual([
+				`checkpoint:${fixture.replayableRun}/discuss\taudit-log/r2/s1`,
+				`checkpoint:${fixture.replayableRun}/build\taudit-log/r2/s2`,
+				`${SMOKE_ATTEMPT}\t-`,
+				`${REPLAY_ATTEMPT}\taudit-log/r3`,
+				`${GROUP}\taudit-log/g4`,
+			]);
+			expect(recorder.stderr).toEqual([
+				"short-ids/smoke: Directories cannot be read like files\n",
+			]);
+		});
+
+		it("prints every stale record without a short id when the registries cannot be listed", async () => {
+			const { fixture, corpus } = await staleInEveryCase();
+			await rm(join(fixture.runsDirectory, "short-ids"), { recursive: true });
+			await Bun.write(join(fixture.runsDirectory, "short-ids"), "");
+			const recorder = recordOutput();
+
+			await runStale(
+				{ corpus, runsDirectory: fixture.runsDirectory },
+				{ output: recorder.output },
+			);
+
+			expect(
+				recorder.stdout
+					.join("")
+					.trimEnd()
+					.split("\n")
+					.map((printed) => printed.split("\t").slice(0, 2).join("\t")),
+			).toEqual([
+				`checkpoint:${fixture.replayableRun}/discuss\t-`,
+				`checkpoint:${fixture.replayableRun}/build\t-`,
+				`${SMOKE_ATTEMPT}\t-`,
+				`${REPLAY_ATTEMPT}\t-`,
+				`${GROUP}\t-`,
+			]);
+			expect(recorder.stderr).toEqual([
+				expect.stringMatching(/^short-ids: ENOTDIR: not a directory/u),
+			]);
+		});
+	});
+
 	describe("when another run's manifest does not parse", () => {
 		it("still prints the stale records and names the run on stderr", async () => {
 			const fixture = await fixtureRecordedAgainst(

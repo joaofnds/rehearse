@@ -974,29 +974,23 @@ function replayedCheckpoints(
 }
 
 /**
- * The registry names rows and nothing else, so a failure to read it leaves
- * every row listed under its Record ID and is reported beside the rows.
+ * The registry names rows and nothing else, so a registry that cannot be read
+ * leaves its rows listed under their Record IDs and is reported beside them.
  */
 async function registryEntries(runsDirectory: string): Promise<{
 	readonly entries: readonly ShortIdEntry[];
 	readonly unreadable: readonly UnreadableRecord[];
 }> {
-	try {
-		return { entries: await readAllShortIds(runsDirectory), unreadable: [] };
-	} catch (error) {
-		const message = error instanceof Error ? error.message : String(error);
+	const { entries, unreadable } = await readAllShortIds(runsDirectory);
 
-		return {
-			entries: [],
-			unreadable: [
-				{
-					kind: "short-ids",
-					id: "short-ids",
-					reason: redactAbsolutePaths(message),
-				},
-			],
-		};
-	}
+	return {
+		entries,
+		unreadable: unreadable.map(({ registry, reason }) => ({
+			kind: "short-ids",
+			id: registry,
+			reason: redactAbsolutePaths(reason),
+		})),
+	};
 }
 
 interface Staleness {

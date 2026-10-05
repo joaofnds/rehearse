@@ -38,8 +38,8 @@ import { z } from "zod";
 import { addWorktree, refExists } from "#benchmark/target";
 import { UsageError } from "#cli/commands";
 import { RefusedPreconditionError } from "#cli/interactive-stdin";
-import { controlRelative } from "#cli/list-command";
 import type { CommandOutput } from "#cli/output";
+import { controlRelative } from "#cli/output";
 import type { RecordId, RunRecordId, ShortIdReference } from "#cli/record-id";
 import { frozenStages } from "#cli/short-id-column";
 import {

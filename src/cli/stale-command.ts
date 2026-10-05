@@ -139,13 +139,17 @@ async function report(
 		...groups.records.filter((record) => record.stale),
 	];
 
+	const { shortIds, unreadable } = await shortIdsByRecordId(
+		request.runsDirectory,
+	);
+
 	writeUnreadable(output, [
 		...checkpoints.unreadable,
 		...attempts.unreadable,
 		...replays.unreadable,
 		...groups.unreadable,
+		...unreadable,
 	]);
-	const shortIds = await shortIdsByRecordId(request.runsDirectory);
 	for (const record of stale) {
 		output.stdout(
 			line(record, await shortIdOf(record, request.runsDirectory, shortIds)),

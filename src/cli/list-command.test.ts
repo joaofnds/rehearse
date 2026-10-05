@@ -420,6 +420,86 @@ describe(runList.name, () => {
 			});
 		});
 
+		describe("when one case's short id registry cannot be read", () => {
+			async function damagedFixture(): Promise<RecordedRunsFixture> {
+				const root = await mkdtemp(join(CONTROL_DIR, "rehearse-list-test-"));
+				roots.push(root);
+				const fixture = new RecordedRunsFixture(root);
+				await fixture.write();
+				await fixture.claim("audit-log", fixture.auditLogClaims);
+				await fixture.claim("smoke", fixture.smokeClaims);
+				const claims = join(root, "short-ids", "smoke", "claims");
+				await rm(claims, { recursive: true });
+				await Bun.write(claims, "");
+
+				return fixture;
+			}
+
+			it("prints the other case's short ids and none for the damaged case's records", async () => {
+				const fixture = await damagedFixture();
+				const { runsDirectory, replayableRun, unreplayableRun } = fixture;
+				const { lineage, timestamp } = fixture.stageAttempt;
+				const { caseId, uuid } = fixture.sessionAttempt;
+
+				expect(await listed("runs", runsDirectory)).toEqual([
+					`run:${unreplayableRun}\taudit-log/r1`,
+					`run:${replayableRun}\taudit-log/r2`,
+				]);
+				expect(await listed("checkpoints", runsDirectory)).toEqual([
+					`checkpoint:${replayableRun}/build\taudit-log/r2/s2`,
+					`checkpoint:${replayableRun}/discuss\taudit-log/r2/s1`,
+				]);
+				expect(await listed("attempts", runsDirectory)).toEqual([
+					`attempt:session:${caseId}/${uuid}\t-`,
+					`attempt:stage:${lineage}/${timestamp}\taudit-log/r3`,
+				]);
+				expect(await listed("groups", runsDirectory)).toEqual([
+					`group:${fixture.groupId}\taudit-log/g4`,
+				]);
+			});
+
+			it.each(["runs", "checkpoints", "attempts", "groups"] as const)(
+				"names the damaged case's registry once on stderr for %s",
+				async (kind) => {
+					const fixture = await damagedFixture();
+					const recorder = recordOutput();
+
+					await runList(
+						{ kind, runsDirectory: fixture.runsDirectory },
+						recorder.output,
+					);
+
+					expect(lines(recorder.stderr)).toEqual([
+						`short-ids/smoke: ENOTDIR: not a directory, scandir '${basename(fixture.runsDirectory)}/short-ids/smoke/claims'`,
+					]);
+				},
+			);
+		});
+
+		describe("when the cases' short id registries cannot be listed", () => {
+			it.each(["runs", "checkpoints", "attempts", "groups"] as const)(
+				"prints every %s record without a short id and names the registries once on stderr",
+				async (kind) => {
+					const root = await mkdtemp(join(CONTROL_DIR, "rehearse-list-test-"));
+					roots.push(root);
+					const fixture = new RecordedRunsFixture(root);
+					await fixture.write();
+					await Bun.write(join(root, "short-ids"), "");
+					const recorder = recordOutput();
+
+					await runList({ kind, runsDirectory: root }, recorder.output);
+
+					expect(
+						lines(recorder.stdout).map((line) => line.split("\t")[1]),
+					).toEqual(lines(recorder.stdout).map(() => "-"));
+					expect(lines(recorder.stdout)).not.toEqual([]);
+					expect(lines(recorder.stderr)).toEqual([
+						`short-ids: ENOTDIR: not a directory, scandir '${basename(root)}/short-ids'`,
+					]);
+				},
+			);
+		});
+
 		it("labels the checkpoint taken after task setup s0", async () => {
 			const fixture = await numberedFixture();
 			await fixture.writeInitialCheckpoint();

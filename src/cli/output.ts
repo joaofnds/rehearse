@@ -1,3 +1,5 @@
+import { CONTROL_DIR } from "#benchmark/config";
+
 export interface CommandOutput {
 	readonly stdout: (text: string) => void;
 	readonly stderr: (text: string) => void;
@@ -51,12 +53,24 @@ export function writeDiagnostic(
 
 /**
  * A record a command could not read, named by the id `show` accepts back and
- * by the reason. Every listing collects these rather than throwing, because one
- * half-written record must not hide the ones beside it.
+ * by the reason. A short id registry is named by its directory instead, such
+ * as `short-ids/<case>`, which `show` does not accept. Every listing collects
+ * these rather than throwing, because one half-written record must not hide
+ * the ones beside it.
  */
 export interface UnreadableRecord {
 	readonly id: string;
 	readonly reason: string;
+}
+
+/**
+ * A reason is printed for a person, and the README tells a session to paste it
+ * onto a card others read: a filesystem error names an absolute path, and
+ * under the control root that discloses the home directory while naming the
+ * same file the control-relative path names.
+ */
+export function controlRelative(reason: string): string {
+	return reason.replaceAll(`${CONTROL_DIR}/`, "");
 }
 
 /**

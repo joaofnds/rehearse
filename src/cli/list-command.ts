@@ -1,6 +1,5 @@
 import { readdir } from "node:fs/promises";
 import { listCases } from "#benchmark/case";
-import { CONTROL_DIR } from "#benchmark/config";
 import { parseCheckpointRecord } from "#benchmark/checkpoint";
 import { stoppedBeforeGroupRecord } from "#benchmark/operator-stop";
 import { unhandled } from "#benchmark/contracts";
@@ -27,7 +26,7 @@ import {
 import { parseSessionAttemptRecord } from "#benchmark/session-record";
 import { UsageError } from "#cli/commands";
 import type { CommandOutput, UnreadableRecord } from "#cli/output";
-import { writeUnreadable } from "#cli/output";
+import { controlRelative, writeUnreadable } from "#cli/output";
 import type { RecordId } from "#cli/record-id";
 import { formatRecordId } from "#cli/record-id";
 import {
@@ -97,16 +96,6 @@ async function collect<Named>(
 }
 
 /**
- * A reason is printed for a person, and the README tells a session to paste it
- * onto a card others read: a filesystem error names an absolute path, and
- * under the control root that discloses the home directory while naming the
- * same file the control-relative path names.
- */
-export function controlRelative(reason: string): string {
-	return reason.replaceAll(`${CONTROL_DIR}/`, "");
-}
-
-/**
  * The short id goes second, beside the Record ID it abbreviates, so a reader
  * finds both ids of a record in the first two columns whatever its kind.
  */
@@ -127,7 +116,15 @@ async function numbered(
 	runsDirectory: string,
 	listing: RecordListing,
 ): Promise<RecordListing> {
-	return withShortIds(listing, await shortIdsByRecordId(runsDirectory));
+	const { shortIds, unreadable } = await shortIdsByRecordId(runsDirectory);
+
+	return withShortIds(
+		{
+			entries: listing.entries,
+			unreadable: [...listing.unreadable, ...unreadable],
+		},
+		shortIds,
+	);
 }
 
 async function listDeclaredCases(): Promise<RecordListing> {
@@ -231,7 +228,7 @@ async function stageDirectories(
 
 async function listCheckpoints(runsDirectory: string): Promise<RecordListing> {
 	const checkpoints = await recordedCheckpoints(runsDirectory);
-	const shortIds = await shortIdsByRecordId(runsDirectory);
+	const { shortIds, unreadable } = await shortIdsByRecordId(runsDirectory);
 	const labelled = new Map<string, string>();
 	for (const { run, stage } of checkpoints) {
 		const label = await checkpointShortId(runsDirectory, shortIds, run, stage);
@@ -256,7 +253,13 @@ async function listCheckpoints(runsDirectory: string): Promise<RecordListing> {
 		},
 	);
 
-	return withShortIds(listing, labelled);
+	return withShortIds(
+		{
+			entries: listing.entries,
+			unreadable: [...listing.unreadable, ...unreadable],
+		},
+		labelled,
+	);
 }
 
 async function listGroups(runsDirectory: string): Promise<RecordListing> {

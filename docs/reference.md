@@ -1344,9 +1344,12 @@ and then by rep order. The count grows with every later attempt, and a replay
 claimed after a group moves back once that group's reps are judged, so an
 attempt is a position label rather than a name. A session-mode rep's attempt is
 its position among the reps its group declared. A pipeline-mode rep, and a rep
-of a group whose claim names no checkpoint, has no attempt. A registry that cannot be read leaves every row
-without a short id and adds a `short-ids` entry to the response's unreadable
-records rather than failing it.
+of a group whose claim names no checkpoint, has no attempt. A case's registry
+that cannot be read leaves only that case's rows without a short id and adds a
+`short-ids` entry with the id `short-ids/<case>` to the response's unreadable
+records, while every other case keeps its short ids. When `short-ids/` itself
+cannot be listed, every row is left without a short id and one entry with the
+id `short-ids` is added. Neither fails the response.
 
 `list cases|runs|checkpoints|attempts|groups|comparisons` prints IDs usable by
 `show`. For runs, checkpoints, attempts and groups the second column is the
@@ -1354,8 +1357,12 @@ short id, or `-` for a record its case's registry does not name; cases and
 comparisons have no short id column. `list comparisons` and
 `GET /api/comparisons` leave out a comparison an extension replaced, which
 still opens by its digest. `list` only reads registries, so a case no command
-has claimed in prints `-` throughout. `stale` prints a
-checkpoint's or an attempt's short id the same way. Empty history is valid on a fresh clone. A malformed record is reported
+has claimed in prints `-` throughout. A case's registry that cannot be read
+prints `-` for that case's records only and writes one stderr line,
+`short-ids/<case>: <reason>`, and a `short-ids/` that cannot be listed prints
+`-` throughout with one `short-ids: <reason>` line. Either way the command
+still lists every record and exits 0. `stale` prints a checkpoint's or an
+attempt's short id, and reports an unreadable registry, the same way. Empty history is valid on a fresh clone. A malformed record is reported
 without hiding readable neighbors. Stopped runs are visible through the same
 commands as completed runs. `list attempts` validates attempt diagnostics, and
 `show attempt:session:<case>/<uuid> --json` exposes the recorded projection. An

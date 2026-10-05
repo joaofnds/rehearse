@@ -244,21 +244,55 @@ export async function readShortIds(
 }
 
 /**
+ * A registry that could not be read, named by its directory under the runs
+ * directory: `short-ids/<case>` for one case's, or `short-ids` when the
+ * cases cannot be listed at all.
+ */
+export interface UnreadableRegistry {
+	readonly registry: string;
+	readonly reason: string;
+}
+
+export interface ShortIdRegistries {
+	readonly entries: readonly ShortIdEntry[];
+	readonly unreadable: readonly UnreadableRegistry[];
+}
+
+/**
  * Every short id claimed in any case, for a listing that prints them beside
  * Record IDs. It reads registries and builds none, so listing stays read-only
- * and a case no command has claimed in prints no short ids.
+ * and a case no command has claimed in prints no short ids. A case whose
+ * registry cannot be read is reported rather than thrown, so it hides only
+ * its own short ids.
  */
 export async function readAllShortIds(
 	runsDirectory: string,
-): Promise<readonly ShortIdEntry[]> {
-	const cases =
-		(await readdirIfPresent(join(runsDirectory, REGISTRY_DIRECTORY))) ?? [];
-	const entries: ShortIdEntry[] = [];
-	for (const caseId of cases.filter((name) => isCaseId(name))) {
-		entries.push(...(await readShortIds(runsDirectory, caseId)));
+): Promise<ShortIdRegistries> {
+	let cases: readonly string[];
+	try {
+		cases =
+			(await readdirIfPresent(join(runsDirectory, REGISTRY_DIRECTORY))) ?? [];
+	} catch (error) {
+		const reason = error instanceof Error ? error.message : String(error);
+
+		return {
+			entries: [],
+			unreadable: [{ registry: REGISTRY_DIRECTORY, reason }],
+		};
 	}
 
-	return entries;
+	const entries: ShortIdEntry[] = [];
+	const unreadable: UnreadableRegistry[] = [];
+	for (const caseId of cases.filter((name) => isCaseId(name)).toSorted()) {
+		try {
+			entries.push(...(await readShortIds(runsDirectory, caseId)));
+		} catch (error) {
+			const reason = error instanceof Error ? error.message : String(error);
+			unreadable.push({ registry: `${REGISTRY_DIRECTORY}/${caseId}`, reason });
+		}
+	}
+
+	return { entries, unreadable };
 }
 
 /**

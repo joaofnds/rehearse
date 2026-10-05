@@ -6,6 +6,8 @@ import {
 	readAllShortIds,
 } from "#benchmark/short-id";
 import type { ShortIdEntry } from "#benchmark/short-id";
+import { controlRelative } from "#cli/output";
+import type { UnreadableRecord } from "#cli/output";
 import { formatRecordId } from "#cli/record-id";
 
 /** What a listing prints in the short id column for a record with none. */
@@ -19,10 +21,28 @@ export function shortIdsOf(
 	);
 }
 
+export interface ShortIdColumn {
+	readonly shortIds: ReadonlyMap<string, string>;
+	readonly unreadable: readonly UnreadableRecord[];
+}
+
+/**
+ * A case registry that cannot be read leaves its own records without short
+ * ids and is reported by its directory, so the listing beside it still
+ * prints every other case's.
+ */
 export async function shortIdsByRecordId(
 	runsDirectory: string,
-): Promise<ReadonlyMap<string, string>> {
-	return shortIdsOf(await readAllShortIds(runsDirectory));
+): Promise<ShortIdColumn> {
+	const { entries, unreadable } = await readAllShortIds(runsDirectory);
+
+	return {
+		shortIds: shortIdsOf(entries),
+		unreadable: unreadable.map(({ registry, reason }) => ({
+			id: registry,
+			reason: controlRelative(reason),
+		})),
+	};
 }
 
 /**

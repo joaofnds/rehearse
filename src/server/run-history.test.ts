@@ -2478,7 +2478,62 @@ describe(runHistoryReport.name, () => {
 			).toMatchObject({ attempt: { position: 1, count: 1 } });
 		});
 
-		it("lists every record without short ids when the short id registry cannot be read", async () => {
+		it("keeps the short ids of every case whose registry reads when one case's registry cannot be read", async () => {
+			const fixture = await fixtureWithClaimedRun();
+			await claimShortId(fixture.runsDirectory, "smoke", {
+				kind: "attempt:session",
+				...fixture.sessionAttempt,
+			});
+			await mkdir(
+				join(fixture.runsDirectory, "short-ids", "audit-log", "claims", "99"),
+			);
+
+			const { rows, unreadable } = await runHistoryReport(
+				fixture.runsDirectory,
+				directorySource(await corpusDirectory("build skill\n")),
+				nothingRunning,
+			);
+
+			expect(
+				rows.map((row) => ({ caseId: row.caseId, shortId: row.shortId })),
+			).toEqual(
+				rows.map((row) => ({
+					caseId: row.caseId,
+					shortId: row.caseId === "smoke" ? "smoke/r1" : undefined,
+				})),
+			);
+			expect(unreadable.map(({ kind, id }) => ({ kind, id }))).toEqual([
+				{ kind: "short-ids", id: "short-ids/audit-log" },
+			]);
+			expect(unreadable[0]?.reason).toContain("Directories cannot be read");
+		});
+
+		it("reports each case whose registry cannot be read under its own id", async () => {
+			const fixture = await fixtureWithClaimedRun();
+			await claimShortId(fixture.runsDirectory, "smoke", {
+				kind: "attempt:session",
+				...fixture.sessionAttempt,
+			});
+			await mkdir(
+				join(fixture.runsDirectory, "short-ids", "audit-log", "claims", "99"),
+			);
+			await mkdir(
+				join(fixture.runsDirectory, "short-ids", "smoke", "claims", "99"),
+			);
+
+			const { unreadable } = await runHistoryReport(
+				fixture.runsDirectory,
+				directorySource(await corpusDirectory("build skill\n")),
+				nothingRunning,
+			);
+
+			expect(unreadable.map(({ kind, id }) => ({ kind, id }))).toEqual([
+				{ kind: "short-ids", id: "short-ids/audit-log" },
+				{ kind: "short-ids", id: "short-ids/smoke" },
+			]);
+		});
+
+		it("lists every record without short ids when the cases' registries cannot be listed", async () => {
 			const fixture = await fixtureWithClaimedRun();
 			const source = directorySource(await corpusDirectory("build skill\n"));
 			const intact = await runHistoryReport(
@@ -2486,9 +2541,8 @@ describe(runHistoryReport.name, () => {
 				source,
 				nothingRunning,
 			);
-			await mkdir(
-				join(fixture.runsDirectory, "short-ids", "audit-log", "claims", "99"),
-			);
+			await rm(join(fixture.runsDirectory, "short-ids"), { recursive: true });
+			await writeFile(join(fixture.runsDirectory, "short-ids"), "");
 
 			const { rows, unreadable } = await runHistoryReport(
 				fixture.runsDirectory,
@@ -2504,7 +2558,6 @@ describe(runHistoryReport.name, () => {
 			expect(unreadable.map(({ kind, id }) => ({ kind, id }))).toEqual([
 				{ kind: "short-ids", id: "short-ids" },
 			]);
-			expect(unreadable[0]?.reason).toContain("Directories cannot be read");
 		});
 
 		it("names no short id for a record no claim names in a claimed case", async () => {
