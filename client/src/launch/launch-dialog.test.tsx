@@ -291,6 +291,27 @@ describe(LaunchDialog.name, () => {
 		});
 	});
 
+	describe("when opened on a stage replay with its attempts chosen", () => {
+		it("posts that many attempts", async () => {
+			const server = serving();
+			await openDialog({
+				kind: "replay",
+				run: "2026-09-06T21-58-29.508Z",
+				stage: "build",
+				attempts: 3,
+			});
+
+			fireEvent.click(await startButton());
+
+			await waitFor(() => {
+				expect(server.posted("/api/launches")).toHaveLength(1);
+			});
+			expect(
+				JSON.parse(server.posted("/api/launches")[0]?.body ?? ""),
+			).toMatchObject({ kind: "replay", attempts: 3 });
+		});
+	});
+
 	describe("when comparing two recorded attempts", () => {
 		const COMPARISON: LaunchTarget = {
 			kind: "comparison",

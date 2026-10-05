@@ -35,7 +35,13 @@ export type LaunchTarget =
 			/** The attempts the dialog opens on, else one. */
 			readonly attempts?: LaunchAttempts;
 	  }
-	| { readonly kind: "replay"; readonly run: string; readonly stage: string }
+	| {
+			readonly kind: "replay";
+			readonly run: string;
+			readonly stage: string;
+			/** The attempts the dialog opens on, else one. */
+			readonly attempts?: LaunchAttempts;
+	  }
 	| {
 			readonly kind: "comparison";
 			readonly armA: string;
@@ -521,9 +527,17 @@ function openingChoice(target: LaunchTarget): {
 	readonly caseId: string | undefined;
 	readonly attempts: LaunchAttempts;
 } {
-	return target.kind === "case"
-		? { caseId: target.caseId, attempts: target.attempts ?? 1 }
-		: { caseId: undefined, attempts: 1 };
+	switch (target.kind) {
+		case "case": {
+			return { caseId: target.caseId, attempts: target.attempts ?? 1 };
+		}
+		case "replay": {
+			return { caseId: undefined, attempts: target.attempts ?? 1 };
+		}
+		default: {
+			return { caseId: undefined, attempts: 1 };
+		}
+	}
 }
 
 function LaunchForm({
