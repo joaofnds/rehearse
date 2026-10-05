@@ -75,7 +75,14 @@ function holdsUnstoredCeiling(
 	draft: string | undefined,
 	storedUsd: number | undefined,
 ): boolean {
-	return draft !== undefined && draft !== shownCeiling(undefined, storedUsd);
+	if (draft === undefined) {
+		return false;
+	}
+	const usd = enteredCeilingUsd(draft);
+
+	return usd === undefined
+		? draft !== shownCeiling(undefined, storedUsd)
+		: usd !== storedUsd;
 }
 
 /** What the field shows: the operator's edit, or the stored ceiling as stored. */

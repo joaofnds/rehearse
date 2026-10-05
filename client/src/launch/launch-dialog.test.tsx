@@ -526,6 +526,25 @@ describe(LaunchDialog.name, () => {
 			).toBeInTheDocument();
 		});
 
+		it("starts with the stored ceiling retyped in another form", async () => {
+			serving();
+			const dialog = await openDialog({ kind: "case" });
+			await startButton();
+
+			fireEvent.change(within(dialog).getByLabelText("Spend ceiling"), {
+				target: { value: "5" },
+			});
+
+			expect(
+				within(dialog).getByRole("button", { name: /^Start/u }),
+			).toBeEnabled();
+			expect(
+				within(dialog).queryByText(
+					"Store this ceiling to start, or the launch holds to the stored one.",
+				),
+			).toBeNull();
+		});
+
 		it("stores the entered ceiling as JSON and states it as the one holding the launch", async () => {
 			const server = serving(storing(2.5));
 			const dialog = await openDialog({ kind: "case" });
