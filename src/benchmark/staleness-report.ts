@@ -406,7 +406,7 @@ async function currentStageCorpus(
 /** A link of a run's chain with the corpus version its stage measured. */
 type JudgedLink = StalenessLink & Pick<CheckpointRecord, "corpusVersion">;
 
-const stopRecordReadsSchema = z.object({
+export const stopRecordReadsSchema = z.object({
 	corpusFiles: z.array(hashedFileSchema).optional(),
 	corpusVersion: corpusMeasurementSchema.optional(),
 	readManifest: readManifestSchema.optional(),

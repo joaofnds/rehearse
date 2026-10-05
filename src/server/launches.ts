@@ -15,7 +15,7 @@ import {
 	isCaseId,
 	readCaseDeclaration,
 } from "#benchmark/case";
-import { INITIAL_CHECKPOINT_STAGE } from "#benchmark/checkpoint";
+import { consumedCheckpointStage } from "#benchmark/checkpoint";
 import { unhandled } from "#benchmark/contracts";
 import { refuseUnanalyzable } from "#benchmark/root-cause-analysis";
 import { planComparison, planExtension } from "#benchmark/compare-attempts";
@@ -38,7 +38,7 @@ import {
 import { measureCorpusVersion } from "#benchmark/corpus-version";
 import { corpusVersionLabel } from "#benchmark/corpus-version-label";
 import { loadRunManifest } from "#benchmark/manifest";
-import { pairedRerun } from "#benchmark/paired-rerun";
+import { pairedRerun } from "#server/paired-rerun";
 import { needsComparisonManifest } from "#benchmark/baseline-corpus";
 import {
 	benchmarkRunPaths,
@@ -255,7 +255,7 @@ async function replayArguments(
 			404,
 		);
 	}
-	const consumed = stages[index - 1] ?? INITIAL_CHECKPOINT_STAGE;
+	const consumed = consumedCheckpointStage(stages, index);
 	if (!(await checkpointRecorded(paths, consumed))) {
 		throw new LaunchRefusalError(
 			`Run ${request.run} recorded no ${consumed} checkpoint, which replaying ${request.stage} starts from`,

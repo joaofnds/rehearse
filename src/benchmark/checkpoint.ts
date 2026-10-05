@@ -785,6 +785,14 @@ function installedCorpusIgnore(paths: readonly string[]): string {
  */
 export const INITIAL_CHECKPOINT_STAGE = "initial";
 
+/** The checkpoint a replay of the stage at `index` in pipeline order starts from. */
+export function consumedCheckpointStage(
+	stages: readonly string[],
+	index: number,
+): string {
+	return stages[index - 1] ?? INITIAL_CHECKPOINT_STAGE;
+}
+
 /**
  * The initial checkpoint consumes no corpus: no skill ran to produce it. Its
  * upstream is the root lineage, so the chain starts at the initial state the

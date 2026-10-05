@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import {
 	chmod,
+	cp,
 	lstat,
 	mkdir,
 	mkdtemp,
@@ -475,6 +476,50 @@ describe("/api/corpus/edits", () => {
 			});
 		});
 
+		it("replays the stage a newer run stopped at, read from its stop record", async () => {
+			const served = await serving();
+			await served.fixture.recordReplayFrom(directorySource(served.corpus));
+			await served.fixture.writeStoppedRun();
+			await served.fixture.recordStoppedStageFrom(
+				directorySource(served.corpus),
+			);
+			await cp(
+				join(
+					served.runsDirectory,
+					`${served.fixture.stoppedRun}.checkpoints`,
+					"initial",
+				),
+				join(
+					served.runsDirectory,
+					`${served.fixture.stoppedRun}.checkpoints`,
+					"discuss",
+				),
+				{ recursive: true },
+			);
+
+			const { rerun } = await applied(served, {
+				path: "CLAUDE.md",
+				text: "instructions, edited\n",
+			});
+
+			expect(rerun).toEqual({
+				kind: "offered",
+				run: served.fixture.stoppedRun,
+				stage: "build",
+			});
+		});
+
+		it("starts nothing, leaving the replay to the person who applied", async () => {
+			const served = await serving();
+
+			await applied(served, {
+				path: "CLAUDE.md",
+				text: "instructions, edited\n",
+			});
+
+			expect(served.launcher.launches).toEqual([]);
+		});
+
 		it.each([
 			["CLAUDE.md", true],
 			["skills/build/SKILL.md", false],
@@ -532,7 +577,11 @@ describe("/api/corpus/edits", () => {
 				});
 
 				expect(invalidated).toBe(1);
-				expect(rerun).toMatchObject({ kind: "none" });
+				expect(rerun).toEqual({
+					kind: "none",
+					reason:
+						"No result this edit marked stale holds a recorded checkpoint to replay a stage that read CLAUDE.md from",
+				});
 			});
 		});
 	});
