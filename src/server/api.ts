@@ -34,6 +34,10 @@ import {
 } from "#benchmark/corpus-version";
 import { corpusVersionLabel } from "#benchmark/corpus-version-label";
 import { corpusReport } from "./corpus-report";
+import {
+	readListedCorpusFile,
+	UnlistedCorpusFileError,
+} from "#benchmark/corpus-edit";
 import { redactAbsolutePaths, redactedFilePath } from "./redact-path";
 import { readStageJudge } from "./stage-judge";
 import { readStageSession } from "./stage-session";
@@ -267,6 +271,29 @@ export const createApiApp = (dependencies: ApiDependencies) => {
 			);
 
 			return context.json(report);
+		})
+		.get("/api/corpus/file", async (context) => {
+			const path = context.req.query("path");
+			if (path === undefined) {
+				return context.json({ error: "Name the file with ?path=" }, 400);
+			}
+
+			try {
+				const bytes = await readListedCorpusFile(
+					await corpusSource(dependencies),
+					path,
+				);
+
+				return context.body(new Uint8Array(bytes), 200, {
+					"content-type": "application/octet-stream",
+				});
+			} catch (error) {
+				if (error instanceof UnlistedCorpusFileError) {
+					return context.json({ error: error.message }, 404);
+				}
+
+				throw error;
+			}
 		})
 		.get("/api/corpus/versions", async (context) => {
 			const log = await corpusVersionLog(

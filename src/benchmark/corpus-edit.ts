@@ -153,6 +153,22 @@ async function liveInstallRefusal(
 		: null;
 }
 
+/** A listed file's bytes as the corpus under test holds them, which an edit starts from. */
+export async function readListedCorpusFile(
+	source: CorpusRoot,
+	path: string,
+): Promise<Uint8Array> {
+	const layout = await hashCorpusLayout(source);
+	const listed = layout.files.find((file) => file.path === path);
+	if (listed === undefined) {
+		throw new UnlistedCorpusFileError(
+			`The corpus report lists no file ${path}`,
+		);
+	}
+
+	return readFile(join(source.root, listed.path));
+}
+
 export async function reviewCorpusEdit(
 	recordsDirectory: string,
 	corpus: EditedCorpus,

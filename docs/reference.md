@@ -1453,6 +1453,10 @@ error, rather than failing either.
 every `ids` parameter given, so the last edit's rows list as run history. An
 empty `ids=` names no record and returns no row.
 
+`GET /api/corpus/file?path=<path>` serves the bytes one file the corpus report
+lists holds now, which an edit starts from, measured into the version store or
+not. A path the report does not list answers 404.
+
 `POST /api/corpus/edits/review` with `{path, text}` reads what writing `text`
 over one file of the linked corpus would do, writing nothing:
 `{startsFrom, invalidated, applyRefusal}`, where `startsFrom` is the full

@@ -1249,6 +1249,56 @@ describe(createApiApp.name, () => {
 		});
 	});
 
+	describe("GET /api/corpus/file", () => {
+		async function serving(): Promise<{
+			readonly app: ReturnType<typeof createApiApp>;
+			readonly corpus: string;
+		}> {
+			const corpus = await corpusDirectory();
+
+			return {
+				app: createApiApp({
+					projectsDirectory: NO_PROVIDER_PROJECTS,
+					runsDirectory: await emptyDirectory("rehearse-api-runs-"),
+					liveness: nothingRunning,
+					readCorpusSource: fixedCorpusSource(directorySource(corpus)),
+				}),
+				corpus,
+			};
+		}
+
+		it("serves a listed file's bytes as the corpus under test holds them, measured or not", async () => {
+			const { app, corpus } = await serving();
+			await Bun.write(join(corpus, "CLAUDE.md"), "edited on disk\n");
+
+			const response = await app.request("/api/corpus/file?path=CLAUDE.md");
+
+			expect(response.status).toBe(200);
+			expect(await response.text()).toBe("edited on disk\n");
+		});
+
+		it("answers a request that names no path as a bad request", async () => {
+			const { app } = await serving();
+
+			const response = await app.request("/api/corpus/file");
+
+			expect(response.status).toBe(400);
+		});
+
+		it.each(["agents/none.md", "../CLAUDE.md", "skills/build"])(
+			"refuses %s, which the corpus report does not list",
+			async (path) => {
+				const { app } = await serving();
+
+				const response = await app.request(
+					`/api/corpus/file?path=${encodeURIComponent(path)}`,
+				);
+
+				expect(response.status).toBe(404);
+			},
+		);
+	});
+
 	describe("GET /api/groups/:groupId/reads", () => {
 		it("serves each rep stage's reads with whether each file changed since", async () => {
 			const corpus = await corpusDirectory();
