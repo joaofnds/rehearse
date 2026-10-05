@@ -30,6 +30,15 @@ function unitOf(path: string): string {
 	return SKILL_UNIT.exec(path)?.[0] ?? path;
 }
 
+/**
+ * Whether a browser comparison of an edit to this path needs its control
+ * supplied through a comparison manifest, since only a skill's directory is a
+ * unit the browser can pair arms on.
+ */
+export function needsComparisonManifest(path: string): boolean {
+	return !SKILL_UNIT.test(unitOf(path));
+}
+
 function differingUnits(armA: CorpusFiles, armB: CorpusFiles): string[] {
 	const paths = new Set([...armA.keys(), ...armB.keys()]);
 	const units = new Set(

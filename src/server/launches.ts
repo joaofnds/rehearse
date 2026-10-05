@@ -38,6 +38,8 @@ import {
 import { measureCorpusVersion } from "#benchmark/corpus-version";
 import { corpusVersionLabel } from "#benchmark/corpus-version-label";
 import { loadRunManifest } from "#benchmark/manifest";
+import { pairedRerun } from "#benchmark/paired-rerun";
+import { needsComparisonManifest } from "#benchmark/baseline-corpus";
 import {
 	benchmarkRunPaths,
 	checkpointRecorded,
@@ -932,6 +934,12 @@ export const createLaunchApp = (dependencies: LaunchDependencies) => {
 						previous: applied.previous,
 						version: applied.version,
 						invalidated: applied.invalidated.length,
+						rerun: await pairedRerun(
+							dependencies.runsDirectory,
+							applied.invalidated,
+							parsed.data.path,
+						),
+						needsComparisonManifest: needsComparisonManifest(parsed.data.path),
 					},
 					200,
 				);

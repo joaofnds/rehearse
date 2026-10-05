@@ -48,6 +48,15 @@ const appliedSchema = z.object({
 	previous: z.string(),
 	version: z.string(),
 	invalidated: z.number(),
+	rerun: z.discriminatedUnion("kind", [
+		z.object({
+			kind: z.literal("offered"),
+			run: z.string(),
+			stage: z.string(),
+		}),
+		z.object({ kind: z.literal("none"), reason: z.string() }),
+	]),
+	needsComparisonManifest: z.boolean(),
 });
 
 const corpusSchema = z.object({
@@ -408,6 +417,120 @@ describe("/api/corpus/edits", () => {
 		expect(
 			await Bun.file(join(corpus, "skills", "shared", "SKILL.md")).text(),
 		).toBe("shared, edited\n");
+	});
+
+	describe("the paired rerun it offers", () => {
+		async function applied(
+			served: Pick<Served, "driver">,
+			edit: EditRequest,
+		): Promise<z.infer<typeof appliedSchema>> {
+			const review = await served.driver.review(edit);
+
+			return served.driver.apply({ ...edit, startsFrom: review.startsFrom });
+		}
+
+		it("replays the first stage, in pipeline order, of the invalidated run that read the edited file", async () => {
+			const served = await serving();
+
+			const { rerun } = await applied(served, {
+				path: "CLAUDE.md",
+				text: "instructions, edited\n",
+			});
+
+			expect(rerun).toEqual({
+				kind: "offered",
+				run: served.fixture.replayableRun,
+				stage: "discuss",
+			});
+		});
+
+		it("replays the stage whose skill was edited", async () => {
+			const served = await serving();
+
+			const { rerun } = await applied(served, {
+				path: "skills/build/SKILL.md",
+				text: "build skill, edited\n",
+			});
+
+			expect(rerun).toEqual({
+				kind: "offered",
+				run: served.fixture.replayableRun,
+				stage: "build",
+			});
+		});
+
+		it("replays the stage of the newest invalidated result, a stage replay recorded after its run", async () => {
+			const served = await serving();
+			await served.fixture.recordReplayFrom(directorySource(served.corpus));
+
+			const { rerun } = await applied(served, {
+				path: "CLAUDE.md",
+				text: "instructions, edited\n",
+			});
+
+			expect(rerun).toEqual({
+				kind: "offered",
+				run: served.fixture.replayableRun,
+				stage: "build",
+			});
+		});
+
+		it.each([
+			["CLAUDE.md", true],
+			["skills/build/SKILL.md", false],
+		] as const)(
+			"says whether a browser comparison of an edit to %s needs a comparison manifest",
+			async (path, needed) => {
+				const served = await serving();
+
+				const { needsComparisonManifest } = await applied(served, {
+					path,
+					text: "edited\n",
+				});
+
+				expect(needsComparisonManifest).toBe(needed);
+			},
+		);
+
+		describe("when the edit marks no recorded result stale", () => {
+			it("offers none and says why", async () => {
+				const served = await serving();
+				await mkdir(join(served.corpus, "skills", "unused"));
+				await writeFile(
+					join(served.corpus, "skills", "unused", "SKILL.md"),
+					"unused\n",
+				);
+
+				const { rerun } = await applied(served, {
+					path: "skills/unused/SKILL.md",
+					text: "unused, edited\n",
+				});
+
+				expect(rerun).toMatchObject({ kind: "none" });
+			});
+		});
+
+		describe("when the checkpoint the stage would replay from is gone", () => {
+			it("offers none", async () => {
+				const served = await serving();
+				await rm(
+					join(
+						served.runsDirectory,
+						`${served.fixture.replayableRun}.checkpoints`,
+						"initial",
+					),
+					{ recursive: true },
+				);
+
+				const { invalidated, rerun } = await applied(served, {
+					path: "CLAUDE.md",
+					text: "instructions, edited\n",
+				});
+
+				expect(invalidated).toBe(1);
+				expect(rerun).toMatchObject({ kind: "none" });
+			});
+		});
 	});
 
 	interface Untouched {

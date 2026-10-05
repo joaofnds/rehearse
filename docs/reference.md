@@ -1467,7 +1467,15 @@ for writing under the live install, or `null`. `POST /api/corpus/edits/apply`
 with `{path, text, startsFrom}` measures the tree, so the store logs the
 starting version, renames a copy holding `text` over the file's real path with
 the file's mode, and measures again, answering `{previous, version,
-invalidated}`. With no record written in between, `/api/corpus`'s `lastEdit`
+invalidated, rerun, needsComparisonManifest}`. `rerun` is the paired rerun the
+edit asks for and starts nothing: `{kind: "offered", run, stage}`, the stage
+of the newest invalidated pipeline run or stage replay that read the edited
+file, the first such stage in pipeline order for a run, when the checkpoint it
+would replay from is recorded, or `{kind: "none", reason}`. Session attempts
+and confirmation groups replay no single stage and offer none.
+`needsComparisonManifest` is true for a file outside a skill directory, whose
+browser comparison needs its control supplied through a comparison manifest.
+With no record written in between, `/api/corpus`'s `lastEdit`
 then names `previous` and carries `invalidated` as its count. A `path` the
 corpus report does not list answers 404 on either route. Either route answers
 409 when the linked directory is no longer a corpus or its layout refuses an
