@@ -7,6 +7,9 @@ export type CorpusResponse = InferResponseType<
 
 async function fetchCorpusReport(): Promise<CorpusResponse> {
 	const response = await apiClient.api.corpus.$get();
+	if (!response.ok) {
+		throw new Error("Could not read the corpus");
+	}
 
 	return response.json();
 }

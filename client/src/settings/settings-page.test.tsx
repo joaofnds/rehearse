@@ -539,8 +539,11 @@ describe(SettingsPage.name, () => {
 							new LiveReply(() =>
 								rehashed
 									? {
-											status: 500,
-											body: new TextEncoder().encode("Internal Server Error"),
+											status: 409,
+											body: {
+												error:
+													"The linked corpus directory <path> is no longer a corpus",
+											},
 										}
 									: {
 											status: 200,
