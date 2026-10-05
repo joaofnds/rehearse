@@ -5,18 +5,44 @@ export class RecordsSizeError extends Error {
 	public override name = "RecordsSizeError";
 }
 
-/** A run writing beside the walk can remove a file the walk listed. */
-async function fileSize(path: string): Promise<number> {
+/** A run writing beside the walk can remove an entry the walk listed. */
+async function unlessRemoved(size: Promise<number>): Promise<number> {
 	try {
-		const stats = await lstat(path);
-
-		return stats.size;
+		return await size;
 	} catch (error) {
 		if (error instanceof Error && "code" in error && error.code === "ENOENT") {
 			return 0;
 		}
 		throw error;
 	}
+}
+
+async function fileSize(path: string): Promise<number> {
+	const stats = await lstat(path);
+
+	return stats.size;
+}
+
+/**
+ * The regular files' bytes under a directory, descending only into real
+ * directories, since a recursive readdir follows a symlinked one.
+ */
+async function treeSize(directory: string): Promise<number> {
+	const entries = await readdir(directory, { withFileTypes: true });
+	const sizes = await Promise.all(
+		entries.map((entry) => {
+			const path = join(directory, entry.name);
+			if (entry.isDirectory()) {
+				return unlessRemoved(treeSize(path));
+			}
+
+			return entry.isFile()
+				? unlessRemoved(fileSize(path))
+				: Promise.resolve(0);
+		}),
+	);
+
+	return sizes.reduce((total, size) => total + size, 0);
 }
 
 /**
@@ -26,17 +52,7 @@ async function fileSize(path: string): Promise<number> {
  */
 export async function recordsSize(directory: string): Promise<number> {
 	try {
-		const entries = await readdir(directory, {
-			withFileTypes: true,
-			recursive: true,
-		});
-		const sizes = await Promise.all(
-			entries
-				.filter((entry) => entry.isFile())
-				.map((entry) => fileSize(join(entry.parentPath, entry.name))),
-		);
-
-		return sizes.reduce((total, size) => total + size, 0);
+		return await treeSize(directory);
 	} catch (error) {
 		if (!(error instanceof Error && "code" in error && "path" in error)) {
 			throw error;

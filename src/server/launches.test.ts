@@ -1825,6 +1825,7 @@ describe(createLaunchApp.name, () => {
 			const outside = await temporaryDirectory("rehearse-sized-outside-");
 			await Bun.write(join(outside, "large.bin"), "x".repeat(1000));
 			await symlink(join(outside, "large.bin"), join(runsDirectory, "link"));
+			await symlink(outside, join(runsDirectory, "runs", "linked-directory"));
 			const { get } = serving(runsDirectory, outside, NOTHING_RUNNING);
 
 			const response = await get("/api/settings/records");
