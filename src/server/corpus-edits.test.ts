@@ -506,7 +506,11 @@ describe("/api/corpus/edits", () => {
 					text: "unused, edited\n",
 				});
 
-				expect(rerun).toMatchObject({ kind: "none" });
+				expect(rerun).toEqual({
+					kind: "none",
+					reason:
+						"The edit marked no recorded result stale, so no replay can show what it changed",
+				});
 			});
 		});
 

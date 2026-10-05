@@ -116,6 +116,13 @@ export async function pairedRerun(
 	invalidated: readonly string[],
 	path: string,
 ): Promise<PairedRerun> {
+	if (invalidated.length === 0) {
+		return {
+			kind: "none",
+			reason:
+				"The edit marked no recorded result stale, so no replay can show what it changed",
+		};
+	}
 	const candidates = await Promise.all(
 		invalidated.map((row) =>
 			candidateOf(runsDirectory, row, path).catch(() => undefined),
