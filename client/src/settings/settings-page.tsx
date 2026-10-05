@@ -14,9 +14,15 @@ const SIZE_UNITS = [
 	["kB", 1000],
 ] as const;
 
-/** In decimal units rounded to whole numbers, as the design writes 612 MB. */
+/**
+ * In decimal units rounded to whole numbers, as the design writes 612 MB.
+ * A unit is used from the amount that would round to 1000 of the one below,
+ * so 999,600 bytes is 1 MB rather than 1000 kB.
+ */
 function sizeReading(bytes: number): string {
-	const unit = SIZE_UNITS.find(([, size]) => bytes >= size);
+	const unit = SIZE_UNITS.find(
+		([, size]) => Math.round((bytes * 1000) / size) >= 1000,
+	);
 
 	return unit === undefined
 		? `${String(bytes)} B`

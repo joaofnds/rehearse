@@ -120,7 +120,9 @@ describe(SettingsPage.name, () => {
 		[0, "0 B"],
 		[999, "999 B"],
 		[1499, "1 kB"],
+		[999_600, "1 MB"],
 		[2_500_000, "3 MB"],
+		[999_600_000, "1 GB"],
 		[1_200_000_000, "1 GB"],
 	])("sizes %p bytes as %p", async (bytes, shown) => {
 		serving(
