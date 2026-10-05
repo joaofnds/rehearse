@@ -13,8 +13,13 @@ import {
 	unlinkCorpusDirectory,
 } from "./settings-requests";
 
-/** The label the corpus screen shows for the corpus under test. */
-function VersionLabel(): React.JSX.Element | null {
+/**
+ * The label the corpus screen shows for the corpus under test, once the
+ * corpus read is of the root linked now rather than the one linked before.
+ */
+function VersionLabel({
+	root,
+}: Readonly<{ root: string }>): React.JSX.Element | null {
 	const corpus = useQuery(corpusQuery);
 	if (corpus.isError) {
 		return (
@@ -25,7 +30,7 @@ function VersionLabel(): React.JSX.Element | null {
 		);
 	}
 
-	if (corpus.data === undefined) {
+	if (corpus.data?.root !== root) {
 		return null;
 	}
 
@@ -106,7 +111,7 @@ export function CorpusSettingsCard(): React.JSX.Element {
 					<span className="flex-1 break-all">
 						{settings.data.linkedCorpus.root}
 					</span>
-					<VersionLabel />
+					<VersionLabel root={settings.data.linkedCorpus.root} />
 				</div>
 			)}
 			<div className="mt-2 flex gap-2">

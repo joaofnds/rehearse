@@ -484,6 +484,27 @@ describe(SettingsPage.name, () => {
 			).toEqual([JSON.stringify({ directory: "~/code/omelette/.claude" })]);
 		});
 
+		it("shows no version beside a newly linked root until its corpus is read", async () => {
+			linkable(
+				"live",
+				new Map([
+					[
+						"GET /api/corpus",
+						{ status: 200, body: corpus(`a41c7e${"0".repeat(58)}`) },
+					],
+				]),
+			);
+			const corpusCard = await card();
+			await within(corpusCard).findByText("corpus@a41c7e");
+
+			linkDirectory("~/code/omelette/.claude");
+
+			expect(
+				await within(corpusCard).findByText(LINKED_ROOT),
+			).toBeInTheDocument();
+			expect(within(corpusCard).queryByText("corpus@a41c7e")).toBeNull();
+		});
+
 		it("unlinks a linked directory, returning the card to the live install", async () => {
 			linkable("directory");
 			const corpusCard = await card();
