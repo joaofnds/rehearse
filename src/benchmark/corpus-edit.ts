@@ -35,12 +35,12 @@ export interface CorpusEdit {
 	readonly text: string;
 }
 
-/** What applying an edit would do, read before anything is written. */
 /** An edit, carrying the version its review read. */
 export interface ReviewedCorpusEdit extends CorpusEdit {
 	readonly startsFrom: string;
 }
 
+/** What applying an edit would do, read before anything is written. */
 export interface CorpusEditReview {
 	/** The version of the corpus under test the edit starts from. */
 	readonly startsFrom: string;
