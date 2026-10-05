@@ -62,10 +62,8 @@ interface EditedLayout {
 	readonly bytes: Readonly<Uint8Array>;
 }
 
-async function editedLayout(
-	source: CorpusRoot,
-	edit: CorpusEdit,
-): Promise<EditedLayout> {
+/** The layout of a corpus that measures, refusing one that does not. */
+async function measuredLayout(source: CorpusRoot): Promise<HashedLayout> {
 	const layout = await hashCorpusLayout(source);
 	if (layout.refusals.length > 0) {
 		throw new RefusedPreconditionError(
@@ -73,11 +71,23 @@ async function editedLayout(
 		);
 	}
 
-	if (!layout.files.some(({ path }) => path === edit.path)) {
+	return layout;
+}
+
+function refuseUnlisted(layout: HashedLayout, path: string): void {
+	if (!layout.files.some((file) => file.path === path)) {
 		throw new UnlistedCorpusFileError(
-			`The corpus report lists no file ${edit.path}`,
+			`The corpus report lists no file ${path}`,
 		);
 	}
+}
+
+async function editedLayout(
+	source: CorpusRoot,
+	edit: CorpusEdit,
+): Promise<EditedLayout> {
+	const layout = await measuredLayout(source);
+	refuseUnlisted(layout, edit.path);
 
 	return {
 		layout,
@@ -153,29 +163,42 @@ async function liveInstallRefusal(
 		: null;
 }
 
-/** A listed file's bytes as the corpus under test holds them, which an edit starts from. */
+/** A listed file as the corpus under test holds it, which an edit starts from. */
+export interface OpenedCorpusFile {
+	readonly bytes: Uint8Array;
+	/** The version the corpus held when the file was read. */
+	readonly version: string;
+}
+
 export async function readListedCorpusFile(
 	source: CorpusRoot,
 	path: string,
-): Promise<Uint8Array> {
-	const layout = await hashCorpusLayout(source);
-	const listed = layout.files.find((file) => file.path === path);
-	if (listed === undefined) {
-		throw new UnlistedCorpusFileError(
-			`The corpus report lists no file ${path}`,
-		);
-	}
+): Promise<OpenedCorpusFile> {
+	const layout = await measuredLayout(source);
+	refuseUnlisted(layout, path);
 
-	return readFile(join(source.root, listed.path));
+	return {
+		bytes: await readFile(join(source.root, path)),
+		version: corpusVersionDigest(layout.files),
+	};
 }
 
+/**
+ * Refuses an edit whose file changed after it was opened, since its text
+ * would overwrite the change without the editor having seen it.
+ */
 export async function reviewCorpusEdit(
 	recordsDirectory: string,
 	corpus: EditedCorpus,
-	edit: CorpusEdit,
+	edit: ReviewedCorpusEdit,
 ): Promise<CorpusEditReview> {
 	const { source, live } = corpus;
 	const edited = await editedLayout(source, edit);
+	if (edited.startsFrom !== edit.startsFrom) {
+		throw new RefusedPreconditionError(
+			`The linked directory changed after ${edit.path} was opened: it held version ${edit.startsFrom} and now holds ${edited.startsFrom}. Open the file again, since this edit would overwrite the change.`,
+		);
+	}
 
 	return {
 		startsFrom: edited.startsFrom,

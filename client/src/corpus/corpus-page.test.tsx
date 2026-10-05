@@ -13,6 +13,7 @@ import type { AppliedCorpusEdit } from "./corpus-edit-requests";
 import type { Reply } from "#client/test-support/fetch-stub";
 import { FakeServer, stubFetchByPath } from "#client/test-support/fetch-stub";
 import { CorpusPage } from "./corpus-page";
+import { CORPUS_VERSION_HEADER } from "#server/corpus-version-header";
 
 const originalFetch = globalThis.fetch;
 
@@ -105,6 +106,7 @@ describe(CorpusPage.name, () => {
 
 	describe("when editing a file of a linked directory", () => {
 		const LINK_COMMAND = "rehearse settings --link-corpus <directory>";
+		const OPENED_AT = `c63e9a${"0".repeat(58)}`;
 		const STARTS_FROM = `a41c7e${"0".repeat(58)}`;
 		const NEW_VERSION = `b52d8f${"0".repeat(58)}`;
 		const RUN = "2026-09-03T00-00-00.000Z";
@@ -137,6 +139,14 @@ describe(CorpusPage.name, () => {
 			};
 		}
 
+		function opened(bytes: Readonly<Uint8Array>): Reply {
+			return {
+				status: 200,
+				body: Uint8Array.from(bytes),
+				headers: { [CORPUS_VERSION_HEADER]: OPENED_AT },
+			};
+		}
+
 		function serving(
 			overrides: ReadonlyMap<string, Reply> = new Map(),
 		): FakeServer {
@@ -149,10 +159,7 @@ describe(CorpusPage.name, () => {
 					],
 					[
 						"GET /api/corpus/file",
-						{
-							status: 200,
-							body: new TextEncoder().encode("instructions\nkeep\n"),
-						},
+						opened(new TextEncoder().encode("instructions\nkeep\n")),
 					],
 					[
 						"POST /api/corpus/edits/review",
@@ -221,8 +228,63 @@ describe(CorpusPage.name, () => {
 				expect(textbox).toHaveValue("instructions\nkeep\n");
 			});
 			expect(
-				server.sent.find(({ pathname }) => pathname === "/api/corpus/file"),
-			).toBeDefined();
+				server.sent.find(({ pathname }) => pathname === "/api/corpus/file")
+					?.search,
+			).toBe("?path=CLAUDE.md");
+		});
+
+		it("keeps a byte order mark, so an apply writes it back", async () => {
+			serving(
+				new Map([
+					[
+						"GET /api/corpus/file",
+						// TextEncoder writes U+FEFF as the three bytes of a UTF-8 mark.
+						opened(new TextEncoder().encode("\uFEFFa\n")),
+					],
+				]),
+			);
+
+			const textbox = await editor();
+
+			await waitFor(() => {
+				expect(textbox).toHaveValue("\uFEFFa\n");
+			});
+		});
+
+		it("refuses to open a file with carriage returns, since the text box would drop them", async () => {
+			serving(
+				new Map([
+					[
+						"GET /api/corpus/file",
+						opened(new TextEncoder().encode("a\r\nb\r\n")),
+					],
+				]),
+			);
+
+			fireEvent.click(
+				await screen.findByRole("button", { name: "Edit CLAUDE.md" }),
+			);
+
+			expect(await screen.findByRole("alert")).toHaveTextContent(
+				"Could not read CLAUDE.md: CLAUDE.md has carriage returns",
+			);
+		});
+
+		it("says a file holding too many lines cannot be diffed here", async () => {
+			serving(
+				new Map([
+					[
+						"GET /api/corpus/file",
+						opened(new TextEncoder().encode("line\n".repeat(2001))),
+					],
+				]),
+			);
+
+			await editor();
+
+			expect(
+				await screen.findByText("CLAUDE.md holds too many lines to diff here."),
+			).toBeInTheDocument();
 		});
 
 		it("refuses to open a file whose bytes are not UTF-8 text, since saving it would rewrite them", async () => {
@@ -231,7 +293,7 @@ describe(CorpusPage.name, () => {
 					[
 						"GET /api/corpus/file",
 						// "i", a byte no UTF-8 sequence holds, and a newline.
-						{ status: 200, body: Uint8Array.of(105, 255, 10) },
+						opened(Uint8Array.of(105, 255, 10)),
 					],
 				]),
 			);
@@ -276,7 +338,11 @@ describe(CorpusPage.name, () => {
 			).toBeInTheDocument();
 			expect(
 				JSON.parse(server.posted("/api/corpus/edits/review")[0]?.body ?? ""),
-			).toEqual({ path: "CLAUDE.md", text: "instructions, edited\nkeep\n" });
+			).toEqual({
+				path: "CLAUDE.md",
+				text: "instructions, edited\nkeep\n",
+				startsFrom: OPENED_AT,
+			});
 			expect(server.posted("/api/corpus/edits/apply")).toEqual([]);
 		});
 
@@ -287,7 +353,7 @@ describe(CorpusPage.name, () => {
 
 			expect(
 				screen.getByText(
-					"Apply refuses while a launch from this screen runs. A replay started from a terminal is not seen, so an apply during one records a version its session did not read.",
+					"Apply refuses while a launch this server started runs. A replay started from a terminal is not seen, so an apply during one records a version its session did not read.",
 				),
 			).toBeInTheDocument();
 		});
@@ -335,6 +401,40 @@ describe(CorpusPage.name, () => {
 			).toBeInTheDocument();
 			expect(screen.getByText(RUN, { exact: false })).toBeInTheDocument();
 			expect(server.posted("/api/launches")).toEqual([]);
+		});
+
+		it("starts the offered replay with three attempts only when asked", async () => {
+			const server = serving(
+				new Map([
+					[
+						"GET /api/cases",
+						{ status: 200, body: { cases: [], unreadable: [] } },
+					],
+					["POST /api/launches", { status: 202, body: { id: "launch-1" } }],
+				]),
+			);
+			await appliedEdit();
+
+			fireEvent.click(
+				screen.getByRole("button", { name: "Replay discuss · 3 attempts" }),
+			);
+			const start = await screen.findByRole("button", { name: /^Start · /u });
+			await waitFor(() => {
+				expect(start).toBeEnabled();
+			});
+			fireEvent.click(start);
+
+			await waitFor(() => {
+				expect(server.posted("/api/launches")).toHaveLength(1);
+			});
+			expect(JSON.parse(server.posted("/api/launches")[0]?.body ?? "")).toEqual(
+				{
+					kind: "replay",
+					run: RUN,
+					stage: "discuss",
+					attempts: 3,
+				},
+			);
 		});
 
 		it("says why it offers no replay when none can settle the edit", async () => {
@@ -400,6 +500,44 @@ describe(CorpusPage.name, () => {
 			expect(
 				screen.getByRole("textbox", { name: "Text of CLAUDE.md" }),
 			).toHaveValue("instructions, edited\nkeep\n");
+			expect(screen.queryByRole("button", { name: "Apply" })).toBeNull();
+			expect(
+				screen.getByRole("button", { name: "Review" }),
+			).toBeInTheDocument();
+		});
+
+		it("reads the file again after a refused review, keeping the edit", async () => {
+			const server = serving(
+				new Map([
+					[
+						"POST /api/corpus/edits/review",
+						{
+							status: 409,
+							body: {
+								error:
+									"The linked directory changed after CLAUDE.md was opened",
+							},
+						},
+					],
+				]),
+			);
+			await edited();
+
+			fireEvent.click(screen.getByRole("button", { name: "Review" }));
+
+			expect(
+				await screen.findByText(
+					"The linked directory changed after CLAUDE.md was opened",
+				),
+			).toBeInTheDocument();
+			await waitFor(() => {
+				expect(
+					server.sent.filter(({ pathname }) => pathname === "/api/corpus/file"),
+				).toHaveLength(2);
+			});
+			expect(
+				screen.getByRole("textbox", { name: "Text of CLAUDE.md" }),
+			).toHaveValue("instructions, edited\nkeep\n");
 		});
 
 		it("shows a review's apply refusal and offers no Apply", async () => {
@@ -440,14 +578,6 @@ describe(CorpusPage.name, () => {
 				screen.queryByRole("textbox", { name: "Text of CLAUDE.md" }),
 			).toBeNull();
 			expect(server.posted("/api/corpus/edits/apply")).toEqual([]);
-		});
-
-		it("shows each file's invalidated results", async () => {
-			serving();
-
-			await screen.findByRole("button", { name: "Edit CLAUDE.md" });
-
-			expect(screen.getByText("0 results")).toBeInTheDocument();
 		});
 
 		describe("when the live install is linked", () => {

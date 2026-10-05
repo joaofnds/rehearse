@@ -9,28 +9,13 @@ import { corpusQuery } from "./corpus-query";
 import { plural } from "#client/plural";
 import { ScreenHeader } from "#client/system/components/screen-header";
 import { Notice } from "#client/system/components/notice";
-import { launchSettingsQuery } from "#client/launch/launch-dialog";
+import { launchSettingsQuery } from "#client/launch/settings-query";
 import type { AppliedCorpusEdit } from "./corpus-edit-requests";
 import { AppliedEdit, CorpusEditor } from "./corpus-edit";
 
 type CorpusFile = CorpusResponse["files"][number];
 
-const COLUMNS = [
-	"Path",
-	"Hash",
-	"Last edited",
-	"Read by",
-	"Invalidated",
-] as const;
-
-function invalidatedCell(count: number): React.JSX.Element {
-	return (
-		<span className="inline-flex items-center gap-1.5 text-sm">
-			<span aria-hidden="true">{count === 0 ? "✓" : "⚠"}</span>
-			{plural(count, "result")}
-		</span>
-	);
-}
+const COLUMNS = ["Path", "Hash", "Last edited", "Read by"] as const;
 
 function rowFor(
 	file: CorpusFile,
@@ -49,7 +34,6 @@ function rowFor(
 		<span key="read-by" className="font-mono text-sm">
 			{file.readBy}
 		</span>,
-		invalidatedCell(file.invalidated),
 		...(onEdit === undefined
 			? []
 			: [
@@ -228,7 +212,7 @@ export function CorpusPage(): React.JSX.Element {
 					<TableShell
 						caption="Corpus files"
 						columns={onEdit === undefined ? [...COLUMNS] : [...COLUMNS, "Edit"]}
-						numeric={["Read by", "Invalidated"]}
+						numeric={["Read by"]}
 						rows={query.data.files.map((file) => rowFor(file, onEdit))}
 					/>
 				) : null}

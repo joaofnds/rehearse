@@ -48,6 +48,8 @@ export function stubFetchByPath(byPath: ReadonlyMap<string, unknown>): void {
 export interface SentRequest {
 	readonly method: string;
 	readonly pathname: string;
+	/** The query string, with its leading `?`, or empty. */
+	readonly search: string;
 	readonly contentType: string | null;
 	body: string;
 }
@@ -55,6 +57,7 @@ export interface SentRequest {
 export interface Reply {
 	readonly status: number;
 	readonly body: unknown;
+	readonly headers?: Readonly<Record<string, string>>;
 }
 
 /**
@@ -87,6 +90,7 @@ export class FakeServer {
 				const sent = {
 					method: request.method,
 					pathname: url.pathname,
+					search: url.search,
 					contentType: request.headers.get("content-type"),
 					body: "",
 				};
@@ -98,9 +102,11 @@ export class FakeServer {
 				};
 				const reply = route instanceof LiveReply ? route.current() : route;
 
+				const options = { status: reply.status, headers: reply.headers ?? {} };
+
 				return reply.body instanceof Uint8Array
-					? new Response(Uint8Array.from(reply.body), { status: reply.status })
-					: Response.json(reply.body, { status: reply.status });
+					? new Response(Uint8Array.from(reply.body), options)
+					: Response.json(reply.body, options);
 			},
 			{ preconnect: fetch.preconnect },
 		);

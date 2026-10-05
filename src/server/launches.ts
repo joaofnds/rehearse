@@ -520,12 +520,9 @@ const corpusLinkRequestSchema = z
 	.object({ directory: z.string().refine(isAbsolute) })
 	.strict();
 
+/** An edit, carrying the version it was opened or reviewed against. */
 const corpusEditRequestSchema = z
-	.object({ path: z.string(), text: z.string() })
-	.strict();
-
-const corpusEditApplyRequestSchema = corpusEditRequestSchema
-	.extend({ startsFrom: z.string() })
+	.object({ path: z.string(), text: z.string(), startsFrom: z.string() })
 	.strict();
 
 /** A directory that is not a corpus is a conflict with what is on disk. */
@@ -913,7 +910,7 @@ export const createLaunchApp = (dependencies: LaunchDependencies) => {
 			}
 		})
 		.post("/api/corpus/edits/apply", async (context) => {
-			const parsed = corpusEditApplyRequestSchema.safeParse(
+			const parsed = corpusEditRequestSchema.safeParse(
 				await context.req.json().catch(() => undefined),
 			);
 			if (!parsed.success) {

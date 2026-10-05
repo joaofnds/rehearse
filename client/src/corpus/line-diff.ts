@@ -61,10 +61,25 @@ class CommonSuffixLengths {
 	}
 }
 
-/** A line diff of two texts, a changed line shown removed then added. */
-export function lineDiff(beforeText: string, afterText: string): DiffLine[] {
+/**
+ * The most line pairs a diff compares, since it holds a table cell for each,
+ * four bytes apiece, and is recomputed on every keystroke.
+ */
+const MAX_COMPARED_PAIRS = 4_000_000;
+
+/**
+ * A line diff of two texts, a changed line shown removed then added, or
+ * undefined when they hold too many lines to compare here.
+ */
+export function lineDiff(
+	beforeText: string,
+	afterText: string,
+): DiffLine[] | undefined {
 	const before = linesOf(beforeText);
 	const after = linesOf(afterText);
+	if (before.length * after.length > MAX_COMPARED_PAIRS) {
+		return undefined;
+	}
 	const lengths = new CommonSuffixLengths(before, after);
 	const diff: DiffLine[] = [];
 	let row = 0;

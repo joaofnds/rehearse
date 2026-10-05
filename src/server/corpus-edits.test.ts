@@ -32,6 +32,7 @@ import {
 } from "#benchmark/run-records-test-support";
 import type { RunLiveness } from "#benchmark/run-liveness";
 import { createAppServer } from "./app";
+import { CORPUS_VERSION_HEADER } from "./corpus-version-header";
 import {
 	directoryLiveCorpus,
 	FAKE_LAUNCH_PID,
@@ -70,7 +71,8 @@ interface EditRequest {
 	readonly text: string;
 }
 
-interface ApplyRequest extends EditRequest {
+/** An edit, carrying the version it was opened or reviewed against. */
+interface ReviewedRequest extends EditRequest {
 	readonly startsFrom: string;
 }
 
@@ -93,25 +95,39 @@ const PORT = 4174;
 class CorpusEditDriver {
 	public constructor(private readonly send: Send) {}
 
-	public reviewRaw(edit: EditRequest): Promise<Response> {
+	/** The version the corpus held when the screen opened the file. */
+	public async opened(path: string): Promise<string> {
+		const response = await this.send(
+			`/api/corpus/file?path=${encodeURIComponent(path)}`,
+		);
+		expect(response.status).toBe(200);
+
+		return z.string().parse(response.headers.get(CORPUS_VERSION_HEADER));
+	}
+
+	public reviewRaw(edit: ReviewedRequest): Promise<Response> {
 		return this.send("/api/corpus/edits/review", JSON.stringify(edit));
 	}
 
+	/** Opens the file, as the screen does, and reviews the edit against it. */
 	public async review(
 		edit: EditRequest,
 	): Promise<z.infer<typeof reviewSchema>> {
-		const response = await this.reviewRaw(edit);
+		const response = await this.reviewRaw({
+			...edit,
+			startsFrom: await this.opened(edit.path),
+		});
 		expect(response.status).toBe(200);
 
 		return reviewSchema.parse(await response.json());
 	}
 
-	public applyRaw(edit: ApplyRequest): Promise<Response> {
+	public applyRaw(edit: ReviewedRequest): Promise<Response> {
 		return this.send("/api/corpus/edits/apply", JSON.stringify(edit));
 	}
 
 	public async apply(
-		edit: ApplyRequest,
+		edit: ReviewedRequest,
 	): Promise<z.infer<typeof appliedSchema>> {
 		const response = await this.applyRaw(edit);
 		expect(response.status).toBe(200);
@@ -700,7 +716,10 @@ describe("/api/corpus/edits", () => {
 				const served = await serving();
 				await writeFile(join(served.corpus, "notes.md"), "notes\n");
 				const edit = { path, text: "written from the browser\n" };
-				const review = await served.driver.reviewRaw(edit);
+				const review = await served.driver.reviewRaw({
+					...edit,
+					startsFrom: NO_VERSION,
+				});
 				const before = await untouched(served);
 
 				const response = await served.driver.applyRaw({
@@ -733,6 +752,7 @@ describe("/api/corpus/edits", () => {
 			const response = await driver.reviewRaw({
 				path: "CLAUDE.md",
 				text: "instructions, edited\n",
+				startsFrom: NO_VERSION,
 			});
 
 			expect(response.status).toBe(409);
@@ -767,6 +787,7 @@ describe("/api/corpus/edits", () => {
 			const response = await driver.reviewRaw({
 				path: "CLAUDE.md",
 				text: "instructions, edited\n",
+				startsFrom: NO_VERSION,
 			});
 
 			expect(response.status).toBe(409);
@@ -782,6 +803,26 @@ describe("/api/corpus/edits", () => {
 			});
 
 			expect(response.status).toBe(409);
+		});
+	});
+
+	describe("when the linked directory changed after the file was opened", () => {
+		it("refuses the review, since the edit would overwrite the change unseen", async () => {
+			const served = await serving();
+			const opened = await served.driver.opened("CLAUDE.md");
+			await writeFile(
+				join(served.corpus, "CLAUDE.md"),
+				"changed in another editor\n",
+			);
+
+			const response = await served.driver.reviewRaw({
+				path: "CLAUDE.md",
+				text: "instructions, edited\n",
+				startsFrom: opened,
+			});
+
+			expect(response.status).toBe(409);
+			expect(await response.text()).toContain("Open the file again");
 		});
 	});
 

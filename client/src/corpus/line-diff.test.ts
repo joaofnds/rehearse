@@ -39,4 +39,10 @@ describe("lineDiff", () => {
 			{ kind: "removed", text: "b", before: 2 },
 		]);
 	});
+
+	it("compares no texts holding more line pairs than it can hold", () => {
+		const text = "line\n".repeat(2001);
+
+		expect(lineDiff(text, text)).toBeUndefined();
+	});
 });

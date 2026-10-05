@@ -38,6 +38,7 @@ import {
 	readListedCorpusFile,
 	UnlistedCorpusFileError,
 } from "#benchmark/corpus-edit";
+import { CORPUS_VERSION_HEADER } from "./corpus-version-header";
 import { redactAbsolutePaths, redactedFilePath } from "./redact-path";
 import { readStageJudge } from "./stage-judge";
 import { readStageSession } from "./stage-session";
@@ -279,17 +280,24 @@ export const createApiApp = (dependencies: ApiDependencies) => {
 			}
 
 			try {
-				const bytes = await readListedCorpusFile(
+				const opened = await readListedCorpusFile(
 					await corpusSource(dependencies),
 					path,
 				);
 
-				return context.body(new Uint8Array(bytes), 200, {
+				return context.body(new Uint8Array(opened.bytes), 200, {
 					"content-type": "application/octet-stream",
+					[CORPUS_VERSION_HEADER]: opened.version,
 				});
 			} catch (error) {
 				if (error instanceof UnlistedCorpusFileError) {
 					return context.json({ error: error.message }, 404);
+				}
+				if (error instanceof RefusedPreconditionError) {
+					return context.json(
+						{ error: redactAbsolutePaths(error.message) },
+						409,
+					);
 				}
 
 				throw error;

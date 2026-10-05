@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { corpusVersionLabel } from "#benchmark/corpus-version-label";
 import { LaunchDialog } from "#client/launch/launch-dialog";
 import { plural } from "#client/plural";
@@ -11,7 +11,7 @@ import type {
 } from "./corpus-edit-requests";
 import {
 	applyCorpusEdit,
-	fetchCorpusFileText,
+	fetchCorpusFile,
 	reviewCorpusEdit,
 } from "./corpus-edit-requests";
 import { corpusQuery } from "./corpus-query";
@@ -50,6 +50,13 @@ function DiffPreview({
 	readonly text: string;
 }): React.JSX.Element {
 	const lines = lineDiff(original, text);
+	if (lines === undefined) {
+		return (
+			<p className="text-sm text-muted-foreground">
+				{`${path} holds too many lines to diff here.`}
+			</p>
+		);
+	}
 	if (lines.every(({ kind }) => kind === "same")) {
 		return (
 			<p className="text-sm text-muted-foreground">
@@ -113,7 +120,7 @@ function ReviewSummary({
 				<li>Offers the paired rerun that would settle it</li>
 			</ul>
 			<p className="mt-2 text-xs text-muted-foreground">
-				Apply refuses while a launch from this screen runs. A replay started
+				Apply refuses while a launch this server started runs. A replay started
 				from a terminal is not seen, so an apply during one records a version
 				its session did not read.
 			</p>
@@ -143,20 +150,34 @@ export function CorpusEditor({
 	readonly onApplied: (applied: AppliedCorpusEdit) => void;
 }): React.JSX.Element {
 	const queryClient = useQueryClient();
+	const textId = useId();
 	const file = useQuery({
 		queryKey: ["corpus-file", path],
-		queryFn: () => fetchCorpusFileText(path),
+		queryFn: () => fetchCorpusFile(path),
 		gcTime: 0,
 	});
 	const [draft, setDraft] = useState<string>();
 	const [reviewed, setReviewed] = useState<Reviewed>();
-	const review = useMutation({ mutationFn: reviewCorpusEdit });
+	/**
+	 * A refusal can mean the file changed since it was opened, so it is read
+	 * again, the diff shows the edit against what the directory now holds, and
+	 * the edit waits for a new review.
+	 */
+	const reopen = (): void => {
+		setReviewed(undefined);
+		void file.refetch();
+	};
+	const review = useMutation({
+		mutationFn: reviewCorpusEdit,
+		onError: reopen,
+	});
 	const apply = useMutation({
 		mutationFn: applyCorpusEdit,
 		onSuccess: async (applied) => {
 			await queryClient.invalidateQueries({ queryKey: corpusQuery.queryKey });
 			onApplied(applied);
 		},
+		onError: reopen,
 	});
 
 	if (!file.isSuccess) {
@@ -172,14 +193,18 @@ export function CorpusEditor({
 		);
 	}
 
-	const text = draft ?? file.data;
+	const text = draft ?? file.data.text;
 	const current = reviewed?.text === text ? reviewed.review : undefined;
 
 	return (
 		<div className="grid gap-4 md:grid-cols-3">
 			<div className="flex min-w-0 flex-col gap-3 md:col-span-2">
+				<label htmlFor={textId} className="text-sm">
+					{"Text of "}
+					<span className="font-mono">{path}</span>
+				</label>
 				<textarea
-					aria-label={`Text of ${path}`}
+					id={textId}
 					value={text}
 					rows={Math.min(24, Math.max(6, text.split("\n").length + 1))}
 					spellCheck={false}
@@ -189,7 +214,7 @@ export function CorpusEditor({
 					}}
 					className="w-full rounded-md border border-strong bg-background px-2 py-1.5 font-mono text-11-5"
 				/>
-				<DiffPreview path={path} original={file.data} text={text} />
+				<DiffPreview path={path} original={file.data.text} text={text} />
 			</div>
 			<div>
 				<h3>
@@ -204,8 +229,9 @@ export function CorpusEditor({
 							size="sm"
 							disabled={review.isPending}
 							onClick={() => {
+								apply.reset();
 								review.mutate(
-									{ path, text },
+									{ path, text, startsFrom: file.data.version },
 									{
 										onSuccess: (answer) => {
 											setReviewed({ text, review: answer });

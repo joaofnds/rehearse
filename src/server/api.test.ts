@@ -35,6 +35,7 @@ import { openRunEventStore } from "#benchmark/run-events";
 import { claimShortId } from "#benchmark/short-id";
 import { measureCorpusVersion } from "#benchmark/corpus-version";
 import { createApiApp } from "./api";
+import { CORPUS_VERSION_HEADER } from "./corpus-version-header";
 
 function sha256Hex(text: string): string {
 	return createHash("sha256").update(text).digest("hex");
@@ -1275,6 +1276,18 @@ describe(createApiApp.name, () => {
 
 			expect(response.status).toBe(200);
 			expect(await response.text()).toBe("edited on disk\n");
+		});
+
+		it("names the version the corpus holds, which the corpus report shows", async () => {
+			const { app } = await serving();
+			const reported = await app.request("/api/corpus");
+			const report = z
+				.object({ digest: z.string() })
+				.parse(await reported.json());
+
+			const response = await app.request("/api/corpus/file?path=CLAUDE.md");
+
+			expect(response.headers.get(CORPUS_VERSION_HEADER)).toBe(report.digest);
 		});
 
 		it("answers a request that names no path as a bad request", async () => {

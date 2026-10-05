@@ -15,6 +15,8 @@ import { Notice } from "#client/system/components/notice";
 import { Button } from "#client/system/ui/button";
 import type { LaunchRequest } from "#server/launches";
 import { LaunchRefusedError, postLaunch } from "./post-launch";
+import type { SettingsReading } from "./settings-query";
+import { launchSettingsQuery } from "./settings-query";
 import {
 	Dialog,
 	DialogClose,
@@ -63,33 +65,6 @@ export type LaunchTarget =
 type CasesResponse = InferResponseType<typeof launchClient.api.cases.$get>;
 
 type CaseListing = CasesResponse["cases"][number];
-
-type SettingsReading = InferResponseType<
-	typeof launchClient.api.settings.$get,
-	200
->;
-
-async function fetchSettings(): Promise<SettingsReading> {
-	const response = await launchClient.api.settings.$get();
-	if (response.status === 409) {
-		const refusal = await response.json();
-		throw new LaunchRefusedError(refusal.error);
-	}
-	if (!response.ok) {
-		throw new LaunchRefusedError(await response.text());
-	}
-
-	return response.json();
-}
-
-/**
- * The stored settings, shared by the launch dialog and the corpus screen,
- * which reads from them which corpus is linked.
- */
-export const launchSettingsQuery = {
-	queryKey: ["launch-settings"],
-	queryFn: fetchSettings,
-} as const;
 
 async function putSpendCeiling(usd: number): Promise<SettingsReading> {
 	const response = await launchClient.api.settings["spend-ceiling"].$put({
