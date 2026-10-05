@@ -1,4 +1,6 @@
+import { TAIL_KEYS } from "#client/monitor/session-pane";
 import { CHORD_DESTINATIONS } from "#client/shell/use-go-to-shortcut";
+import { cn } from "#client/system/cn";
 import { SettingsCard } from "./settings-card";
 
 interface Shortcut {
@@ -8,11 +10,9 @@ interface Shortcut {
 }
 
 /**
- * The design's eight shortcuts, in its order and wording
- * (prototype.html:1694-1699). A `g` chord is live while the shell binds it;
- * j / k and f are the monitor's tail keys, and Esc closes every dialog. The
- * design's rule is that a planned control never shows as live (SPEC.md:293),
- * so n, r and e stay planned until something binds them.
+ * The design's eight shortcuts in its order and wording. A key is live while
+ * the code binding it does, so a planned key never shows as live; Esc is the
+ * dialog library's own close key, which nothing here binds.
  */
 const SHORTCUTS: readonly Shortcut[] = [
 	{ key: "g r", does: "run history", bound: CHORD_DESTINATIONS.has("r") },
@@ -20,8 +20,16 @@ const SHORTCUTS: readonly Shortcut[] = [
 	{ key: "n", does: "new run", bound: false },
 	{ key: "r", does: "replay a step", bound: false },
 	{ key: "e", does: "expand cited evidence", bound: false },
-	{ key: "j / k", does: "move through rows", bound: true },
-	{ key: "f", does: "follow / unfollow the tail", bound: true },
+	{
+		key: "j / k",
+		does: "move through rows",
+		bound: TAIL_KEYS.has("j") && TAIL_KEYS.has("k"),
+	},
+	{
+		key: "f",
+		does: "follow / unfollow the tail",
+		bound: TAIL_KEYS.has("f"),
+	},
 	{ key: "Esc", does: "close dialog", bound: true },
 ];
 
@@ -32,7 +40,10 @@ export function KeyboardCard(): React.JSX.Element {
 				{SHORTCUTS.map(({ key, does, bound }) => (
 					<li
 						key={key}
-						className={`flex items-baseline gap-2.5${bound ? "" : " opacity-60"}`}
+						className={cn(
+							"flex items-baseline gap-2.5",
+							!bound && "opacity-60",
+						)}
 					>
 						<span className="rounded-sm border border-strong px-1.5 py-px font-mono text-11 text-pale">
 							{key}

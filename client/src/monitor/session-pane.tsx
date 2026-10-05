@@ -33,10 +33,47 @@ const lineCountFormat = new Intl.NumberFormat("en-US");
 /** How far j and k move the pane: about two rows at its type size. */
 const SCROLL_STEP_PX = 40;
 
+interface TailControls {
+	readonly scrollBy: (top: number) => void;
+	readonly setFollowing: Dispatch<SetStateAction<boolean>>;
+	/** Whether the key is held down, which f ignores so a held key toggles once. */
+	readonly repeat: boolean;
+}
+
 /**
- * The design's tail keys (SPEC.md 2d), on the document for the reason the
- * `g` chords are: they have to work when nothing on the page holds focus.
- * Scrolling up reads earlier lines, so k leaves the tail as well.
+ * The design's tail keys (SPEC.md 2d). Scrolling up reads earlier lines, so
+ * k leaves the tail as well.
+ */
+const TAIL_KEY_ACTIONS = new Map([
+	[
+		"f",
+		({ setFollowing, repeat }: Readonly<TailControls>) => {
+			if (!repeat) {
+				setFollowing((following) => !following);
+			}
+		},
+	],
+	[
+		"j",
+		({ scrollBy }: Readonly<TailControls>) => {
+			scrollBy(SCROLL_STEP_PX);
+		},
+	],
+	[
+		"k",
+		({ scrollBy, setFollowing }: Readonly<TailControls>) => {
+			setFollowing(false);
+			scrollBy(-SCROLL_STEP_PX);
+		},
+	],
+]);
+
+/** The keys the monitor binds, which the settings screen lists as live. */
+export const TAIL_KEYS: ReadonlySet<string> = new Set(TAIL_KEY_ACTIONS.keys());
+
+/**
+ * Bound on the document for the reason the `g` chords are: they have to work
+ * when nothing on the page holds focus.
  */
 function useTailKeys(
 	scrollBy: (top: number) => void,
@@ -48,28 +85,11 @@ function useTailKeys(
 				return;
 			}
 
-			switch (event.key) {
-				case "f": {
-					if (event.repeat) {
-						break;
-					}
-
-					setFollowing((following) => !following);
-					break;
-				}
-				case "j": {
-					scrollBy(SCROLL_STEP_PX);
-					break;
-				}
-				case "k": {
-					setFollowing(false);
-					scrollBy(-SCROLL_STEP_PX);
-					break;
-				}
-				default: {
-					break;
-				}
-			}
+			TAIL_KEY_ACTIONS.get(event.key)?.({
+				scrollBy,
+				setFollowing,
+				repeat: event.repeat,
+			});
 		};
 
 		document.addEventListener("keydown", listener);
