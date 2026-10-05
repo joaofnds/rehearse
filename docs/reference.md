@@ -1453,6 +1453,29 @@ error, rather than failing either.
 every `ids` parameter given, so the last edit's rows list as run history. An
 empty `ids=` names no record and returns no row.
 
+`POST /api/corpus/edits/review` with `{path, text}` reads what writing `text`
+over one file of the linked corpus would do, writing nothing:
+`{startsFrom, invalidated, applyRefusal}`, where `startsFrom` is the full
+version the linked directory holds now, `invalidated` counts the run-history
+rows fresh against the tree now and stale against it with the edit, judged as
+the last edit's rows are, and `applyRefusal` is why an apply would be refused
+for writing under the live install, or `null`. `POST /api/corpus/edits/apply`
+with `{path, text, startsFrom}` measures the tree, so the store logs the
+starting version, renames a copy holding `text` over the file's real path with
+the file's mode, and measures again, answering `{previous, version,
+invalidated}`. With no record written in between, `/api/corpus`'s `lastEdit`
+then names `previous` and carries `invalidated` as its count. A `path` the
+corpus report does not list answers 404 on either route. The apply answers
+409, writing nothing and logging no version, when the linked corpus is the
+live install, when the linked directory or the file resolves into the live
+install or its backing tree by real path, when the directory no longer holds
+`startsFrom`, when `text` leaves the file's bytes as they are, when a launch
+the server started is live, and while a launch start or another apply is under
+way in the server. A launch start answers 409 while an apply is under way. A
+launch record that does not read refuses nothing. The tree is hashed again
+just before the rename, and a change since `startsFrom` refuses the write
+after the starting version is logged.
+
 ### Pipeline run record
 
 `/api/runs/<run>` reads one pipeline run across the files it wrote, its
