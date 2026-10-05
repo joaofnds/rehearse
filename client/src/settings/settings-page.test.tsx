@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import type { MatcherFunction } from "@testing-library/react";
-import { render, screen } from "@testing-library/react";
+import {
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+	within,
+} from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { CorpusResponse } from "#client/corpus/corpus-query";
 import type { SettingsReading } from "#client/launch/settings-query";
@@ -151,6 +157,135 @@ describe(SettingsPage.name, () => {
 					),
 				),
 			).toBeInTheDocument();
+		});
+	});
+
+	describe("the Spend limit card", () => {
+		function card(): Promise<HTMLElement> {
+			return screen.findByRole("region", { name: "Spend limit" });
+		}
+
+		const STORED: SettingsReading = { ...LIVE_SETTINGS, spendCeilingUsd: 2.5 };
+
+		it("leaves the limit empty while no ceiling is stored", async () => {
+			serving();
+
+			expect(
+				within(await card()).getByLabelText("Spend limit per run"),
+			).toHaveValue("");
+		});
+
+		it("shows a stored ceiling to the cent", async () => {
+			serving(new Map([["GET /api/settings", { status: 200, body: STORED }]]));
+			const limit = within(await card()).getByLabelText("Spend limit per run");
+
+			await waitFor(() => {
+				expect(limit).toHaveValue("2.50");
+			});
+		});
+
+		it("stores the entered limit and shows it as stored", async () => {
+			const server = serving(
+				new Map([
+					["PUT /api/settings/spend-ceiling", { status: 200, body: STORED }],
+				]),
+			);
+			const spendLimit = await card();
+			const limit = within(spendLimit).getByLabelText("Spend limit per run");
+
+			fireEvent.change(limit, { target: { value: "2.50" } });
+			fireEvent.click(
+				within(spendLimit).getByRole("button", { name: "Store limit" }),
+			);
+
+			await waitFor(() => {
+				expect(
+					server.sent
+						.filter((request) => request.method === "PUT")
+						.map((request) => [request.pathname, request.body]),
+				).toEqual([
+					["/api/settings/spend-ceiling", JSON.stringify({ usd: 2.5 })],
+				]);
+			});
+			await waitFor(() => {
+				expect(limit).toHaveValue("2.50");
+			});
+		});
+
+		it("carries the design's copy, the group ceiling and the overrun statement", async () => {
+			serving();
+			const spendLimit = await card();
+
+			expect(
+				within(spendLimit).getByText(
+					"Enforced per run and per group. A run cannot start without one and stops mid-step when reached.",
+				),
+			).toBeInTheDocument();
+			expect(within(spendLimit).getByText("USD per run")).toBeInTheDocument();
+			expect(
+				within(spendLimit).getByText("Group ceiling: attempts × per-run"),
+			).toBeInTheDocument();
+			expect(
+				await within(spendLimit).findByText(LIVE_SETTINGS.overrun),
+			).toBeInTheDocument();
+		});
+
+		describe("when the entry is not a positive amount", () => {
+			it.each(["0", "abc", "1e3", "-2"])(
+				"stores nothing for %p and says why",
+				async (entered) => {
+					const server = serving();
+					const spendLimit = await card();
+
+					fireEvent.change(
+						within(spendLimit).getByLabelText("Spend limit per run"),
+						{ target: { value: entered } },
+					);
+					fireEvent.click(
+						within(spendLimit).getByRole("button", { name: "Store limit" }),
+					);
+
+					expect(
+						within(spendLimit).getByText(
+							"A spend limit is a positive amount in US dollars, such as 2.50, so this one is not stored.",
+						),
+					).toBeInTheDocument();
+					expect(
+						server.sent.filter((request) => request.method === "PUT"),
+					).toEqual([]);
+				},
+			);
+		});
+
+		describe("when the server refuses the limit", () => {
+			it("shows the refusal", async () => {
+				serving(
+					new Map([
+						[
+							"PUT /api/settings/spend-ceiling",
+							{
+								status: 409,
+								body: { error: "The settings file is unreadable" },
+							},
+						],
+					]),
+				);
+				const spendLimit = await card();
+
+				fireEvent.change(
+					within(spendLimit).getByLabelText("Spend limit per run"),
+					{ target: { value: "3" } },
+				);
+				fireEvent.click(
+					within(spendLimit).getByRole("button", { name: "Store limit" }),
+				);
+
+				expect(
+					await within(spendLimit).findByText(
+						"The settings file is unreadable",
+					),
+				).toBeInTheDocument();
+			});
 		});
 	});
 });

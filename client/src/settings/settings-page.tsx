@@ -4,6 +4,7 @@ import { plural } from "#client/plural";
 import { runHistoryQuery } from "#client/run-history/run-history-query";
 import { ScreenHeader } from "#client/system/components/screen-header";
 import { recordsSizeQuery } from "./settings-requests";
+import { SpendLimitCard } from "./spend-limit-card";
 
 const SIZE_UNITS = [
 	["GB", 1_000_000_000],
@@ -48,6 +49,9 @@ export function SettingsPage(): React.JSX.Element {
 	return (
 		<div>
 			<ScreenHeader title="Settings" subline={<RecordsReading />} />
+			<div className="flex max-w-197 flex-col gap-3 px-6 pt-4 pb-12">
+				<SpendLimitCard />
+			</div>
 		</div>
 	);
 }
