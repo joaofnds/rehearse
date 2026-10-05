@@ -20,7 +20,11 @@ import { unhandled } from "#benchmark/contracts";
 import { refuseUnanalyzable } from "#benchmark/root-cause-analysis";
 import { planComparison, planExtension } from "#benchmark/compare-attempts";
 import { isConfirmationIdentity } from "#benchmark/confirmation-record";
-import { applyCorpusEdit, reviewCorpusEdit } from "#benchmark/corpus-edit";
+import {
+	applyCorpusEdit,
+	reviewCorpusEdit,
+	UnlistedCorpusFileError,
+} from "#benchmark/corpus-edit";
 import type { LiveCorpusRoot } from "#benchmark/corpus-file";
 import { liveCorpusSource } from "#benchmark/corpus-file";
 import {
@@ -66,6 +70,8 @@ import {
 } from "./root-cause-analyses";
 import { pipelineReport } from "./pipelines";
 import { redactAbsolutePaths } from "./redact-path";
+import { CorpusEditBusyError } from "./corpus-edit-busy-error";
+import { CorpusEditGate } from "./corpus-edit-gate";
 import { liveLaunches } from "./run-history";
 import { runStatus } from "./run-status";
 
@@ -432,6 +438,42 @@ async function analysisInFlight(
 	);
 }
 
+/**
+ * A launch that is running reads the linked corpus as its stages go, so an
+ * edit under it would change what they measure. A record that does not read
+ * refuses nothing, as in `analysisInFlight`.
+ */
+async function refuseEditUnderLiveLaunch({
+	runsDirectory,
+	liveness,
+}: Readonly<LaunchDependencies>): Promise<void> {
+	const { launches } = await liveLaunches(runsDirectory, liveness);
+	if (launches.length > 0) {
+		throw new LaunchRefusalError(
+			`Launch ${launches.map(({ id }) => id).join(", ")} is running against the linked corpus; apply the edit once it ends`,
+			409,
+		);
+	}
+}
+
+/**
+ * An edit to a file the report does not list is 404, a busy gate 409, and a
+ * precondition the edit cannot meet 409, as `asLaunchRefusal` maps it.
+ */
+async function asCorpusEditRefusal<T>(read: () => Promise<T>): Promise<T> {
+	try {
+		return await asLaunchRefusal(read);
+	} catch (error) {
+		if (error instanceof UnlistedCorpusFileError) {
+			throw new LaunchRefusalError(redactAbsolutePaths(error.message), 404);
+		}
+		if (error instanceof CorpusEditBusyError) {
+			throw new LaunchRefusalError(error.message, 409);
+		}
+		throw error;
+	}
+}
+
 /** A precondition the CLI would refuse on refuses the launch, redacted. */
 async function asLaunchRefusal<T>(read: () => Promise<T>): Promise<T> {
 	try {
@@ -727,6 +769,7 @@ async function pauseRun(
 // oxlint-disable-next-line typescript/explicit-function-return-type, typescript/explicit-module-boundary-types
 export const createLaunchApp = (dependencies: LaunchDependencies) => {
 	const runsStartingAnalysis = new Set<string>();
+	const corpusEditGate = new CorpusEditGate();
 	const app = new Hono()
 		.get("/api/settings", async (context) => {
 			try {
@@ -817,24 +860,34 @@ export const createLaunchApp = (dependencies: LaunchDependencies) => {
 			if (!parsed.success) {
 				return context.json({ error: z.prettifyError(parsed.error) }, 400);
 			}
-			const source = await linkedCorpusSource(
-				dependencies.runsDirectory,
-				dependencies.liveCorpus,
-			);
-			const review = await reviewCorpusEdit(
-				dependencies.runsDirectory,
-				{ source, live: dependencies.liveCorpus() },
-				parsed.data,
-			);
+			try {
+				const source = await linkedCorpusSource(
+					dependencies.runsDirectory,
+					dependencies.liveCorpus,
+				);
+				const review = await asCorpusEditRefusal(() =>
+					reviewCorpusEdit(
+						dependencies.runsDirectory,
+						{ source, live: dependencies.liveCorpus() },
+						parsed.data,
+					),
+				);
 
-			return context.json(
-				{
-					startsFrom: review.startsFrom,
-					invalidated: review.invalidated.length,
-					applyRefusal: review.applyRefusal,
-				},
-				200,
-			);
+				return context.json(
+					{
+						startsFrom: review.startsFrom,
+						invalidated: review.invalidated.length,
+						applyRefusal: review.applyRefusal,
+					},
+					200,
+				);
+			} catch (error) {
+				if (!(error instanceof LaunchRefusalError)) {
+					throw error;
+				}
+
+				return context.json({ error: error.message }, error.status);
+			}
 		})
 		.post("/api/corpus/edits/apply", async (context) => {
 			const parsed = corpusEditApplyRequestSchema.safeParse(
@@ -843,17 +896,21 @@ export const createLaunchApp = (dependencies: LaunchDependencies) => {
 			if (!parsed.success) {
 				return context.json({ error: z.prettifyError(parsed.error) }, 400);
 			}
-			const source = await linkedCorpusSource(
-				dependencies.runsDirectory,
-				dependencies.liveCorpus,
-			);
 			try {
-				const applied = await asLaunchRefusal(() =>
-					applyCorpusEdit(
-						dependencies.runsDirectory,
-						{ source, live: dependencies.liveCorpus() },
-						parsed.data,
-					),
+				const source = await linkedCorpusSource(
+					dependencies.runsDirectory,
+					dependencies.liveCorpus,
+				);
+				const applied = await asCorpusEditRefusal(() =>
+					corpusEditGate.applying(async () => {
+						await refuseEditUnderLiveLaunch(dependencies);
+
+						return applyCorpusEdit(
+							dependencies.runsDirectory,
+							{ source, live: dependencies.liveCorpus() },
+							parsed.data,
+						);
+					}),
 				);
 
 				return context.json(
@@ -925,7 +982,10 @@ export const createLaunchApp = (dependencies: LaunchDependencies) => {
 				return context.json({ error: z.prettifyError(parsed.error) }, 400);
 			}
 			const request = parsed.data;
-			const start = (): Promise<string> => startLaunch(request, dependencies);
+			const start = (): Promise<string> =>
+				asCorpusEditRefusal(() =>
+					corpusEditGate.starting(() => startLaunch(request, dependencies)),
+				);
 			try {
 				const id =
 					request.kind === "analysis"

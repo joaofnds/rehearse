@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import {
+	chmod,
+	lstat,
 	mkdir,
 	mkdtemp,
 	readdir,
@@ -17,6 +19,9 @@ import {
 	linkedCorpusSource,
 	unlinkCorpus,
 } from "#benchmark/corpus-source";
+import { corpusVersionLog } from "#benchmark/corpus-version";
+import { writeLaunchRecord } from "#benchmark/launch-record";
+import { storeSpendCeiling } from "#benchmark/settings";
 import {
 	directorySource,
 	liveStageSettings,
@@ -26,7 +31,12 @@ import {
 } from "#benchmark/run-records-test-support";
 import type { RunLiveness } from "#benchmark/run-liveness";
 import { createApiApp } from "./api";
-import { directoryLiveCorpus, FakeLauncher } from "./launch-test-support";
+import {
+	directoryLiveCorpus,
+	FAKE_LAUNCH_PID,
+	FAKE_LAUNCH_STARTED_AT,
+	FakeLauncher,
+} from "./launch-test-support";
 import { createLaunchApp } from "./launches";
 
 const reviewSchema = z.object({
@@ -53,6 +63,13 @@ interface EditRequest {
 
 interface ApplyRequest extends EditRequest {
 	readonly startsFrom: string;
+}
+
+interface ReplayRequest {
+	readonly kind: "replay";
+	readonly run: string;
+	readonly stage: string;
+	readonly attempts: number;
 }
 
 type Read = (path: string) => Promise<Response>;
@@ -90,6 +107,14 @@ class CorpusEditDriver {
 		expect(response.status).toBe(200);
 
 		return appliedSchema.parse(await response.json());
+	}
+
+	public version(digest: string): Promise<Response> {
+		return this.read(`/api/corpus/versions/${digest}`);
+	}
+
+	public launch(request: ReplayRequest): Promise<Response> {
+		return this.write("/api/launches", JSON.stringify(request));
 	}
 
 	public async corpus(): Promise<z.infer<typeof corpusSchema>> {
@@ -135,6 +160,7 @@ describe("/api/corpus/edits", () => {
 		readonly corpus: string;
 		readonly runsDirectory: string;
 		readonly fixture: RecordedRunsFixture;
+		readonly launcher: FakeLauncher;
 		/** Holds the live install and its backing tree, each a corpus. */
 		readonly liveDirectory: string;
 		readonly live: LiveCorpusRoot;
@@ -165,7 +191,9 @@ describe("/api/corpus/edits", () => {
 		await fixture.write();
 		await fixture.recordCorpusFrom(directorySource(corpus));
 		await fixture.recordVersionFrom(directorySource(corpus));
+		await fixture.writeInitialCheckpoint();
 		await linkCorpus(runsDirectory, corpus);
+		const launcher = new FakeLauncher();
 		const api = createApiApp({
 			runsDirectory,
 			projectsDirectory: NO_PROVIDER_PROJECTS,
@@ -175,7 +203,7 @@ describe("/api/corpus/edits", () => {
 		const launches = createLaunchApp({
 			runsDirectory,
 			casesRoot: await temporaryDirectory("rehearse-corpus-edit-cases-"),
-			launcher: new FakeLauncher(),
+			launcher,
 			liveness,
 			liveCorpus: () => live,
 		});
@@ -195,6 +223,7 @@ describe("/api/corpus/edits", () => {
 			corpus,
 			runsDirectory,
 			fixture,
+			launcher,
 			liveDirectory,
 			live,
 		};
@@ -277,5 +306,192 @@ describe("/api/corpus/edits", () => {
 				expect(await treeOf(liveDirectory)).toEqual(before);
 			},
 		);
+	});
+
+	it("writes the edited bytes over the file with its mode, keeping the version it started from and every record", async () => {
+		const { driver, corpus, runsDirectory } = await serving();
+		const file = join(corpus, "skills", "build", "SKILL.md");
+		await chmod(file, 0o751);
+		const recordsBefore = await treeOf(runsDirectory);
+		const edit = { path: "skills/build/SKILL.md", text: "build, edited\n" };
+		const review = await driver.review(edit);
+
+		const applied = await driver.apply({
+			...edit,
+			startsFrom: review.startsFrom,
+		});
+
+		const recordsAfter = await treeOf(runsDirectory);
+		const { mode } = await stat(file);
+		const startingVersion = await driver.version(review.startsFrom);
+		const corpusTree = await treeOf(corpus);
+		expect(await Bun.file(file).text()).toBe("build, edited\n");
+		expect(mode.toString(8).slice(-3)).toBe("751");
+		expect(applied.version).not.toBe(review.startsFrom);
+		expect(startingVersion.status).toBe(200);
+		expect(
+			[...recordsBefore.keys()].filter((path) => !recordsAfter.has(path)),
+		).toEqual([]);
+		expect([...corpusTree.keys()].toSorted()).toEqual([
+			"CLAUDE.md",
+			join("skills", "build", "SKILL.md"),
+			join("skills", "discuss", "SKILL.md"),
+		]);
+	});
+
+	it("replaces a file that is a link where it lives, leaving the link in place", async () => {
+		const { driver, corpus } = await serving();
+		await mkdir(join(corpus, "skills", "shared"));
+		await writeFile(join(corpus, "skills", "shared", "SKILL.md"), "shared\n");
+		const linked = join(corpus, "skills", "discuss", "SKILL.md");
+		await rm(linked);
+		await symlink(join("..", "shared", "SKILL.md"), linked);
+		const edit = { path: "skills/discuss/SKILL.md", text: "shared, edited\n" };
+		const review = await driver.review(edit);
+
+		await driver.apply({ ...edit, startsFrom: review.startsFrom });
+
+		const link = await lstat(linked);
+		expect(link.isSymbolicLink()).toBe(true);
+		expect(
+			await Bun.file(join(corpus, "skills", "shared", "SKILL.md")).text(),
+		).toBe("shared, edited\n");
+	});
+
+	describe("refuses the apply, writing nothing and logging no version,", () => {
+		interface Untouched {
+			readonly tree: ReadonlyMap<string, string>;
+			readonly log: readonly string[];
+		}
+
+		type Paths = Readonly<Pick<Served, "corpus" | "runsDirectory">>;
+
+		async function untouched(served: Paths): Promise<Untouched> {
+			return {
+				tree: await treeOf(served.corpus),
+				log: await corpusVersionLog(
+					served.runsDirectory,
+					directorySource(served.corpus),
+				),
+			};
+		}
+
+		async function expectUntouched(
+			served: Paths,
+			before: Untouched,
+		): Promise<void> {
+			expect(await untouched(served)).toEqual(before);
+		}
+
+		it("when the linked directory no longer holds the version the edit started from", async () => {
+			const served = await serving();
+			const edit = { path: "CLAUDE.md", text: "instructions, edited\n" };
+			const review = await served.driver.review(edit);
+			await writeFile(
+				join(served.corpus, "skills", "discuss", "SKILL.md"),
+				"discuss, edited elsewhere\n",
+			);
+			const before = await untouched(served);
+
+			const response = await served.driver.applyRaw({
+				...edit,
+				startsFrom: review.startsFrom,
+			});
+
+			expect(response.status).toBe(409);
+			expect(await response.text()).toContain(review.startsFrom);
+			await expectUntouched(served, before);
+		});
+
+		it.each([
+			["a file the report does not list", "notes.md"],
+			["a path outside the corpus", "../escape.md"],
+			["a layout directory", "skills"],
+		])("when the path is %s", async (_situation, path) => {
+			const served = await serving();
+			await writeFile(join(served.corpus, "notes.md"), "notes\n");
+			const edit = { path, text: "written from the browser\n" };
+			const review = await served.driver.reviewRaw(edit);
+			const before = await untouched(served);
+
+			const response = await served.driver.applyRaw({
+				...edit,
+				startsFrom: "0".repeat(64),
+			});
+
+			expect(review.status).toBe(404);
+			expect(response.status).toBe(404);
+			await expectUntouched(served, before);
+		});
+
+		it("when the edit leaves the file's bytes unchanged", async () => {
+			const served = await serving();
+			const edit = { path: "CLAUDE.md", text: "instructions\n" };
+			const review = await served.driver.review(edit);
+			const before = await untouched(served);
+
+			const response = await served.driver.applyRaw({
+				...edit,
+				startsFrom: review.startsFrom,
+			});
+
+			expect(response.status).toBe(409);
+			await expectUntouched(served, before);
+		});
+
+		it("when a launch this server started is live", async () => {
+			const served = await serving({
+				readMarker: () => Promise.resolve(undefined),
+				isAlive: (pid) => pid === FAKE_LAUNCH_PID,
+			});
+			const edit = { path: "CLAUDE.md", text: "instructions, edited\n" };
+			const review = await served.driver.review(edit);
+			await writeLaunchRecord(served.runsDirectory, {
+				kind: "replay",
+				run: served.fixture.replayableRun,
+				stage: "build",
+				attempts: 1,
+				id: crypto.randomUUID(),
+				pid: FAKE_LAUNCH_PID,
+				startedAt: FAKE_LAUNCH_STARTED_AT,
+				launchedAt: new Date().toISOString(),
+			});
+			const before = await untouched(served);
+
+			const response = await served.driver.applyRaw({
+				...edit,
+				startsFrom: review.startsFrom,
+			});
+
+			expect(response.status).toBe(409);
+			await expectUntouched(served, before);
+		});
+
+		it("when a launch this server is starting has not started yet", async () => {
+			const served = await serving();
+			const edit = { path: "CLAUDE.md", text: "instructions, edited\n" };
+			const review = await served.driver.review(edit);
+			await storeSpendCeiling(served.runsDirectory, 5);
+			const held = served.launcher.holdNextLaunch();
+			const launching = served.driver.launch({
+				kind: "replay",
+				run: served.fixture.replayableRun,
+				stage: "build",
+				attempts: 1,
+			});
+			await held.reached;
+			const before = await untouched(served);
+
+			const response = await served.driver.applyRaw({
+				...edit,
+				startsFrom: review.startsFrom,
+			});
+			held.release();
+			const launched = await launching;
+
+			expect(response.status).toBe(409);
+			expect(launched.status).toBe(202);
+			await expectUntouched(served, before);
+		});
 	});
 });
