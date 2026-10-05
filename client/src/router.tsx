@@ -14,6 +14,7 @@ import { EvidenceSourcePage } from "#client/evidence/evidence-source-page";
 import { MonitorPage } from "#client/monitor/monitor-page";
 import { RunDetailPage } from "#client/run-detail/run-detail-page";
 import { RunHistoryPage } from "#client/run-history/run-history-page";
+import { SettingsPage } from "#client/settings/settings-page";
 import { SessionHistoryPage } from "#client/session-history/session-history-page";
 import { AppShell } from "#client/shell/app-shell";
 import { NotFoundPage } from "#client/shell/not-found-page";
@@ -63,6 +64,12 @@ const corpusRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/corpus",
 	component: CorpusPage,
+});
+
+const settingsRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/settings",
+	component: SettingsPage,
 });
 
 const comparisonsRoute = createRoute({
@@ -257,6 +264,7 @@ const routeTree = rootRoute.addChildren([
 	tasksRoute,
 	casesRoute,
 	calibrationRoute,
+	settingsRoute,
 	runStageReviewRoute,
 	repStageReviewRoute,
 	replayStageReviewRoute,

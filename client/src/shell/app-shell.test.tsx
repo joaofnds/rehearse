@@ -201,7 +201,19 @@ describe("the navigation shell", () => {
 			"Tasks",
 			"Cases",
 			"Calibration",
+			"Settings",
 		]);
+	});
+
+	it("reaches the settings screen from the rail", async () => {
+		renderShellAt("/");
+		const nav = await screen.findByRole("navigation", { name: "Sections" });
+
+		fireEvent.click(within(nav).getByRole("link", { name: /^Settings/u }));
+
+		expect(
+			await screen.findByRole("heading", { name: "Settings" }),
+		).toBeInTheDocument();
 	});
 
 	it("reaches run history from another screen by pressing g then r", async () => {
@@ -519,7 +531,7 @@ describe("the navigation shell", () => {
 
 		const planned = screen.getAllByText("planned");
 
-		expect(planned).toHaveLength(2);
+		expect(planned).toHaveLength(1);
 	});
 
 	it.each([

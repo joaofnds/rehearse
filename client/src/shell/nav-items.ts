@@ -69,5 +69,5 @@ export const NAV_ITEMS: readonly NavItem[] = [
 		path: "/calibration",
 		badge: "calibration",
 	},
-	{ label: "Settings", icon: SlidersHorizontal },
+	{ label: "Settings", icon: SlidersHorizontal, path: "/settings" },
 ];
