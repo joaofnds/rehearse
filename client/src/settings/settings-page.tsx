@@ -58,7 +58,7 @@ export function SettingsPage(): React.JSX.Element {
 		<div>
 			<ScreenHeader title="Settings" subline={<RecordsReading />} />
 			<div className="px-6 pt-4 pb-12">
-				<div className="flex max-w-197 flex-col gap-3">
+				<div className="flex max-w-196 flex-col gap-3">
 					<SpendLimitCard />
 					<CorpusSettingsCard />
 					<KeyboardCard />
