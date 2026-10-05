@@ -519,25 +519,28 @@ const spendCeilingRequestSchema = z
 	.strict();
 
 /**
- * Absolute, since a relative path would resolve against the server's
- * directory. A path from `~/` is the operator's home, as the server runs on
- * the operator's machine.
+ * Parsed into an absolute directory, since a relative path would resolve
+ * against the server's directory. A path from `~/` is the operator's home,
+ * as the server runs on the operator's machine.
  */
-const corpusLinkRequestSchema = z
-	.object({
-		directory: z
-			.string()
-			.refine(
-				(directory) => isAbsolute(directory) || directory.startsWith("~/"),
-				"Link a corpus directory by its absolute path, or one starting with ~/ for your home directory, because the server does not share the browser's working directory",
-			),
-	})
-	.strict();
-
-function expandHome(directory: string, home: string): string {
-	return directory.startsWith("~/")
-		? join(home, directory.slice("~/".length))
-		: directory;
+function corpusLinkRequestSchema(
+	home: string,
+): z.ZodType<{ directory: string }> {
+	return z
+		.object({
+			directory: z
+				.string()
+				.transform((directory) =>
+					directory.startsWith("~/")
+						? join(home, directory.slice("~/".length))
+						: directory,
+				)
+				.refine(
+					isAbsolute,
+					"Link a corpus directory by its absolute path, or one starting with ~/ for your home directory, because the server does not share the browser's working directory",
+				),
+		})
+		.strict();
 }
 
 /** An edit, carrying the version it was opened or reviewed against. */
@@ -862,7 +865,7 @@ export const createLaunchApp = (dependencies: LaunchDependencies) => {
 			}
 		})
 		.put("/api/settings/corpus", async (context) => {
-			const parsed = corpusLinkRequestSchema.safeParse(
+			const parsed = corpusLinkRequestSchema(dependencies.home).safeParse(
 				await context.req.json().catch(() => undefined),
 			);
 			if (!parsed.success) {
@@ -877,7 +880,7 @@ export const createLaunchApp = (dependencies: LaunchDependencies) => {
 				await asLaunchRefusal(() =>
 					linkCorpusDirectory(
 						dependencies.runsDirectory,
-						expandHome(parsed.data.directory, dependencies.home),
+						parsed.data.directory,
 					),
 				);
 
