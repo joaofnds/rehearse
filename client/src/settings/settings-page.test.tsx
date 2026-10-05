@@ -240,7 +240,7 @@ describe(SettingsPage.name, () => {
 			const spendLimit = await card();
 			const limit = within(spendLimit).getByLabelText("Spend limit per run");
 
-			fireEvent.change(limit, { target: { value: "2.50" } });
+			fireEvent.change(limit, { target: { value: "2.5" } });
 			fireEvent.click(
 				within(spendLimit).getByRole("button", { name: "Store limit" }),
 			);
@@ -284,22 +284,32 @@ describe(SettingsPage.name, () => {
 					const server = serving();
 					const spendLimit = await card();
 
-					fireEvent.change(
-						within(spendLimit).getByLabelText("Spend limit per run"),
-						{ target: { value: entered } },
+					const limit = within(spendLimit).getByLabelText(
+						"Spend limit per run",
 					);
-					fireEvent.click(
-						within(spendLimit).getByRole("button", { name: "Store limit" }),
-					);
+					const store = within(spendLimit).getByRole("button", {
+						name: "Store limit",
+					});
 
+					fireEvent.change(limit, { target: { value: entered } });
+					fireEvent.submit(store);
+
+					expect(store).toBeDisabled();
 					expect(
 						within(spendLimit).getByText(
 							"A spend limit is a positive amount in US dollars, such as 2.50, so this one is not stored.",
 						),
 					).toBeInTheDocument();
-					expect(
-						server.sent.filter((request) => request.method === "PUT"),
-					).toEqual([]);
+					// A store the bad entry started would be sent before this one.
+					fireEvent.change(limit, { target: { value: "3" } });
+					fireEvent.submit(store);
+					await waitFor(() => {
+						expect(
+							server.sent
+								.filter((request) => request.method === "PUT")
+								.map((request) => request.body),
+						).toEqual([JSON.stringify({ usd: 3 })]);
+					});
 				},
 			);
 		});
