@@ -13,6 +13,9 @@ export type RunHistoryResponse = InferResponseType<
 
 async function fetchRunHistoryReport(): Promise<RunHistoryResponse> {
 	const response = await apiClient.api.runs.$get();
+	if (!response.ok) {
+		throw new Error("Could not load run history");
+	}
 
 	return response.json();
 }

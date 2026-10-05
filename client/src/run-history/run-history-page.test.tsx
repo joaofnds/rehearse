@@ -189,6 +189,29 @@ describe(RunHistoryPage.name, () => {
 		).not.toBeInTheDocument();
 	});
 
+	it("says the history could not load when the server refuses it with an error body", async () => {
+		new FakeServer(
+			new Map([
+				[
+					"GET /api/runs",
+					{
+						status: 409,
+						body: {
+							error:
+								"The linked corpus directory <path> is no longer a corpus",
+						},
+					},
+				],
+			]),
+		).install();
+
+		renderPage();
+
+		expect(
+			await screen.findByText("Could not load run history."),
+		).toBeInTheDocument();
+	});
+
 	it("renders a row for every recorded run, status and corpus as design-system components", async () => {
 		respondingWith({
 			rows: [
