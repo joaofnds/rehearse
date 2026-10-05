@@ -23,6 +23,12 @@ export class UnlistedCorpusFileError extends Error {
 	public override name = "UnlistedCorpusFileError";
 }
 
+/** The linked corpus an edit writes to, and the live install it never may. */
+export interface EditedCorpus {
+	readonly source: CorpusRoot;
+	readonly live: LiveCorpusRoot;
+}
+
 /** New text for one file the corpus report lists. */
 export interface CorpusEdit {
 	readonly path: string;
@@ -120,7 +126,7 @@ async function liveInstallRefusal(
 
 export async function reviewCorpusEdit(
 	recordsDirectory: string,
-	corpus: { readonly source: CorpusRoot; readonly live: LiveCorpusRoot },
+	corpus: EditedCorpus,
 	edit: CorpusEdit,
 ): Promise<CorpusEditReview> {
 	const { source, live } = corpus;
@@ -175,7 +181,7 @@ async function bytesUnchanged(
  * longer holds, or that would leave the file as it is and log no new version.
  */
 async function refuseUnappliable(
-	corpus: { readonly source: CorpusRoot; readonly live: LiveCorpusRoot },
+	corpus: EditedCorpus,
 	edit: CorpusEdit & { readonly startsFrom: string },
 	edited: EditedLayout,
 ): Promise<void> {
@@ -203,7 +209,7 @@ async function refuseUnappliable(
  */
 export async function applyCorpusEdit(
 	recordsDirectory: string,
-	corpus: { readonly source: CorpusRoot; readonly live: LiveCorpusRoot },
+	corpus: EditedCorpus,
 	edit: CorpusEdit & { readonly startsFrom: string },
 ): Promise<AppliedCorpusEdit> {
 	const { source } = corpus;
