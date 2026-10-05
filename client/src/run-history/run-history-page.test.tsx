@@ -197,8 +197,7 @@ describe(RunHistoryPage.name, () => {
 					{
 						status: 409,
 						body: {
-							error:
-								"The linked corpus directory <path> is no longer a corpus",
+							error: "The linked corpus directory <path> is no longer a corpus",
 						},
 					},
 				],
