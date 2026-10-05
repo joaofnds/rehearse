@@ -112,7 +112,7 @@ async function realOrResolved(path: string): Promise<string> {
 	}
 }
 
-const LIVE_INSTALL_REFUSAL = `The linked corpus directory resolves into the live install, which no edit from here changes. Link a copy to edit with: ${LINK_CORPUS_COMMAND}`;
+const LIVE_INSTALL_REFUSAL = `The linked corpus directory resolves into the live install, which every agent session on this machine loads as instructions, so edits to it belong where it is produced. Link a copy to edit with: ${LINK_CORPUS_COMMAND}`;
 
 /** Whether any of the real paths lies under the live install's real roots. */
 async function reachesLiveInstall(
@@ -139,7 +139,7 @@ async function liveInstallRefusal(
 	path: string,
 ): Promise<string | null> {
 	if (source.kind === "live") {
-		return `The linked corpus is the live install, which no edit from here changes. Link a copy to edit with: ${LINK_CORPUS_COMMAND}`;
+		return `The linked corpus is the live install, which every agent session on this machine loads as instructions, so edits to it belong where it is produced. Link a copy to edit with: ${LINK_CORPUS_COMMAND}`;
 	}
 
 	const written = await Promise.all(
