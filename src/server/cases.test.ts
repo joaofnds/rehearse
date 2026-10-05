@@ -10,7 +10,7 @@ import {
 	nothingRunning,
 	RecordedRunsFixture,
 } from "#benchmark/run-records-test-support";
-import { FakeLauncher } from "./launch-test-support";
+import { directoryLiveCorpus, FakeLauncher } from "./launch-test-support";
 import { createLaunchApp } from "./launches";
 
 const OLDER_RUN = "2026-09-02T00-00-00.000Z";
@@ -185,6 +185,7 @@ describe("/api/cases", () => {
 			casesRoot: casesDirectory,
 			launcher: new FakeLauncher(),
 			liveness: nothingRunning,
+			liveCorpus: () => directoryLiveCorpus(runsDirectory),
 		});
 		const list = async (): Promise<Listing> => {
 			const response = await app.request("/api/cases");

@@ -20,6 +20,8 @@ import { unhandled } from "#benchmark/contracts";
 import { refuseUnanalyzable } from "#benchmark/root-cause-analysis";
 import { planComparison, planExtension } from "#benchmark/compare-attempts";
 import { isConfirmationIdentity } from "#benchmark/confirmation-record";
+import { applyCorpusEdit, reviewCorpusEdit } from "#benchmark/corpus-edit";
+import type { LiveCorpusRoot } from "#benchmark/corpus-file";
 import { liveCorpusSource } from "#benchmark/corpus-file";
 import {
 	CorpusSourceError,
@@ -85,6 +87,8 @@ export interface LaunchDependencies {
 	readonly casesRoot: string;
 	readonly launcher: Launcher;
 	readonly liveness: RunLiveness;
+	/** The live install, which no instruction edit writes under. */
+	readonly liveCorpus: () => LiveCorpusRoot;
 }
 
 /**
@@ -449,6 +453,14 @@ const corpusLinkRequestSchema = z
 	.object({ directory: z.string().refine(isAbsolute) })
 	.strict();
 
+const corpusEditRequestSchema = z
+	.object({ path: z.string(), text: z.string() })
+	.strict();
+
+const corpusEditApplyRequestSchema = corpusEditRequestSchema
+	.extend({ startsFrom: z.string() })
+	.strict();
+
 /** A directory that is not a corpus is a conflict with what is on disk. */
 async function linkCorpusDirectory(
 	runsDirectory: string,
@@ -790,6 +802,68 @@ export const createLaunchApp = (dependencies: LaunchDependencies) => {
 				await asLaunchRefusal(() => unlinkCorpus(dependencies.runsDirectory));
 
 				return context.json(await settingsReading(dependencies), 200);
+			} catch (error) {
+				if (!(error instanceof LaunchRefusalError)) {
+					throw error;
+				}
+
+				return context.json({ error: error.message }, error.status);
+			}
+		})
+		.post("/api/corpus/edits/review", async (context) => {
+			const parsed = corpusEditRequestSchema.safeParse(
+				await context.req.json().catch(() => undefined),
+			);
+			if (!parsed.success) {
+				return context.json({ error: z.prettifyError(parsed.error) }, 400);
+			}
+			const source = await linkedCorpusSource(
+				dependencies.runsDirectory,
+				dependencies.liveCorpus,
+			);
+			const review = await reviewCorpusEdit(
+				dependencies.runsDirectory,
+				{ source, live: dependencies.liveCorpus() },
+				parsed.data,
+			);
+
+			return context.json(
+				{
+					startsFrom: review.startsFrom,
+					invalidated: review.invalidated.length,
+					applyRefusal: review.applyRefusal,
+				},
+				200,
+			);
+		})
+		.post("/api/corpus/edits/apply", async (context) => {
+			const parsed = corpusEditApplyRequestSchema.safeParse(
+				await context.req.json().catch(() => undefined),
+			);
+			if (!parsed.success) {
+				return context.json({ error: z.prettifyError(parsed.error) }, 400);
+			}
+			const source = await linkedCorpusSource(
+				dependencies.runsDirectory,
+				dependencies.liveCorpus,
+			);
+			try {
+				const applied = await asLaunchRefusal(() =>
+					applyCorpusEdit(
+						dependencies.runsDirectory,
+						{ source, live: dependencies.liveCorpus() },
+						parsed.data,
+					),
+				);
+
+				return context.json(
+					{
+						previous: applied.previous,
+						version: applied.version,
+						invalidated: applied.invalidated.length,
+					},
+					200,
+				);
 			} catch (error) {
 				if (!(error instanceof LaunchRefusalError)) {
 					throw error;

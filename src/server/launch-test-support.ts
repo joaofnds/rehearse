@@ -1,7 +1,21 @@
+import { join } from "node:path";
+import type { LiveCorpusRoot } from "#benchmark/corpus-file";
 import { HeldLaunch } from "./held-launch-test-support";
 import type { Launcher } from "./launches";
 
 export const FAKE_LAUNCH_PID = 4242;
+
+/**
+ * A live install under a test's own directory, so a server under test never
+ * reaches the operator's real one.
+ */
+export function directoryLiveCorpus(directory: string): LiveCorpusRoot {
+	return {
+		kind: "live",
+		root: join(directory, "live", ".claude"),
+		backingRoot: join(directory, "live", ".agents"),
+	};
+}
 
 export const FAKE_LAUNCH_STARTED_AT = "Tue Sep 29 10:00:00 2026";
 

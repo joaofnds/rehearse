@@ -106,36 +106,84 @@ async function rowReadings(
 	return [...runs, ...reports.flatMap(({ records }) => records)];
 }
 
+/** One file of a corpus written to a scratch directory, read when it is written. */
+interface ScratchFile {
+	readonly path: string;
+	readonly bytes: () => Promise<Readonly<Uint8Array>>;
+}
+
 /**
- * The ids of the rows judged fresh against a stored version, judged as
- * `stale` judges the live corpus: the version's files are written to a
- * scratch directory and judged as a corpus source.
+ * The rows judged against a corpus that exists only as files, judged as
+ * `stale` judges the live corpus: the files are written to a scratch
+ * directory and judged as a corpus source.
  */
+async function rowsJudgedAgainst(
+	runsDirectory: string,
+	files: readonly ScratchFile[],
+): Promise<readonly RowReading[]> {
+	const root = await mkdtemp(join(tmpdir(), "rehearse-corpus-version-"));
+	try {
+		for (const { path, bytes } of files) {
+			const file = join(root, path);
+			await mkdir(dirname(file), { recursive: true });
+			await Bun.write(file, await bytes());
+		}
+
+		return await rowReadings(runsDirectory, { kind: "directory", root });
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+}
+
+/** The ids of the rows judged fresh against a stored version. */
 async function freshAgainst(
 	runsDirectory: string,
 	version: string,
 ): Promise<ReadonlySet<string>> {
-	const root = await mkdtemp(join(tmpdir(), "rehearse-corpus-version-"));
-	try {
-		for (const { path } of await readCorpusVersion(runsDirectory, version)) {
-			const file = join(root, path);
-			await mkdir(dirname(file), { recursive: true });
-			await Bun.write(
-				file,
-				await readCorpusVersionFile(runsDirectory, version, path),
-			);
-		}
-		const rows = await rowReadings(runsDirectory, {
-			kind: "directory",
-			root,
-		});
+	const files = await readCorpusVersion(runsDirectory, version);
+	const rows = await rowsJudgedAgainst(
+		runsDirectory,
+		files.map(({ path }) => ({
+			path,
+			bytes: () => readCorpusVersionFile(runsDirectory, version, path),
+		})),
+	);
 
-		return new Set(
-			rows.filter(({ stale }) => stale === false).map(({ id }) => id),
-		);
-	} finally {
-		await rm(root, { recursive: true, force: true });
-	}
+	return new Set(
+		rows.filter(({ stale }) => stale === false).map(({ id }) => id),
+	);
+}
+
+/**
+ * The rows an edit of one file would invalidate, judged as the last edit is
+ * once it is applied: fresh against the corpus under test, and stale against
+ * the same files with the edited one holding its new bytes.
+ */
+export async function rowsAnEditInvalidates(
+	runsDirectory: string,
+	source: CorpusRoot,
+	layoutPaths: readonly string[],
+	edit: { readonly path: string; readonly bytes: Readonly<Uint8Array> },
+): Promise<readonly string[]> {
+	const before = await rowReadings(runsDirectory, source);
+	const after = await rowsJudgedAgainst(
+		runsDirectory,
+		layoutPaths.map((path) => ({
+			path,
+			bytes: () =>
+				path === edit.path
+					? Promise.resolve(edit.bytes)
+					: Bun.file(join(source.root, path)).bytes(),
+		})),
+	);
+	const staleAfter = new Set(
+		after.filter(({ stale }) => stale === true).map(({ id }) => id),
+	);
+
+	return before
+		.filter(({ id, stale }) => stale === false && staleAfter.has(id))
+		.map(({ id }) => id)
+		.toSorted();
 }
 
 /**

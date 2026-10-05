@@ -43,6 +43,7 @@ import {
 import {
 	FAKE_LAUNCH_PID,
 	FAKE_LAUNCH_STARTED_AT,
+	directoryLiveCorpus,
 	FakeLauncher,
 } from "./launch-test-support";
 import { compareAttempts } from "#benchmark/compare-attempts";
@@ -181,6 +182,7 @@ describe(createLaunchApp.name, () => {
 			casesRoot: cases,
 			launcher,
 			liveness,
+			liveCorpus: () => directoryLiveCorpus(runsDirectory),
 		});
 
 		return {

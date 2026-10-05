@@ -8,6 +8,7 @@ import {
 	recordsDirectory,
 } from "#benchmark/config";
 import { assertPinnedBunVersion } from "#benchmark/bun-pin";
+import { liveCorpusSource } from "#benchmark/corpus-file";
 import { linkedCorpusSource } from "#benchmark/corpus-source";
 import { runEventsDatabaseFile } from "#benchmark/run-layout";
 import { openRunEventStore } from "#benchmark/run-events";
@@ -66,6 +67,7 @@ async function main(): Promise<void> {
 		clientDistDirectory: join(CONTROL_DIR, "client", "dist"),
 		port,
 		casesRoot: casesRoot(),
+		liveCorpus: () => liveCorpusSource(),
 		launcher: processLauncher(
 			[process.execPath, join(CONTROL_DIR, "rehearse.ts")],
 			{ ...Bun.env, [RECORDS_DIRECTORY_VARIABLE]: runsDirectory },

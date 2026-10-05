@@ -106,6 +106,7 @@ describe(createAppServer.name, () => {
 			port: PORT,
 			casesRoot: cases,
 			launcher,
+			liveCorpus: () => live,
 		});
 
 		return {

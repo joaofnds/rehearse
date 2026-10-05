@@ -14,7 +14,7 @@ import type { RunLiveness } from "#benchmark/run-liveness";
 import { writeRunManifest } from "#benchmark/manifest";
 import type { RunManifest } from "#benchmark/manifest";
 import type { PipelineDefinition } from "#benchmark/pipeline";
-import { FakeLauncher } from "./launch-test-support";
+import { directoryLiveCorpus, FakeLauncher } from "./launch-test-support";
 import { createLaunchApp } from "./launches";
 
 const NOTHING_RUNNING: RunLiveness = {
@@ -276,6 +276,7 @@ describe("/api/pipelines", () => {
 			casesRoot: cases,
 			launcher: new FakeLauncher(),
 			liveness: NOTHING_RUNNING,
+			liveCorpus: () => directoryLiveCorpus(runsDirectory),
 		});
 		const get = (): Promise<Response> =>
 			Promise.resolve(app.request("/api/pipelines"));
