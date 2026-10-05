@@ -1,9 +1,17 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import {
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+	within,
+} from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { InferResponseType } from "hono/client";
-import type { apiClient } from "#client/api-client";
-import { stubFetchByPath } from "#client/test-support/fetch-stub";
+import type { apiClient, launchClient } from "#client/api-client";
+import type { AppliedCorpusEdit } from "./corpus-edit-requests";
+import type { Reply } from "#client/test-support/fetch-stub";
+import { FakeServer, stubFetchByPath } from "#client/test-support/fetch-stub";
 import { CorpusPage } from "./corpus-page";
 
 const originalFetch = globalThis.fetch;
@@ -13,6 +21,11 @@ afterEach(() => {
 });
 
 type CorpusResponse = InferResponseType<typeof apiClient.api.corpus.$get>;
+
+type SettingsReading = InferResponseType<
+	typeof launchClient.api.settings.$get,
+	200
+>;
 
 function corpusResponseBody(): CorpusResponse {
 	return {
@@ -36,8 +49,23 @@ function corpusResponseBody(): CorpusResponse {
 	};
 }
 
+/** The settings the screen reads to learn which corpus is linked. */
+const LIVE_SETTINGS = {
+	spendCeilingUsd: 5,
+	setCommand: "rehearse settings --spend-ceiling-usd <USD>",
+	recordsDirectory: "/records",
+	linkedCorpus: { kind: "live", root: "/home/user/.claude" },
+	overrun: "The ceiling can be overrun by the calls in flight.",
+	linkCommand: "rehearse settings --link-corpus <directory>",
+};
+
 function renderPage(): void {
-	stubFetchByPath(new Map([["/api/corpus", corpusResponseBody()]]));
+	stubFetchByPath(
+		new Map<string, unknown>([
+			["/api/corpus", corpusResponseBody()],
+			["/api/settings", LIVE_SETTINGS],
+		]),
+	);
 	const client = new QueryClient({
 		defaultOptions: { queries: { retry: false } },
 	});
@@ -75,13 +103,356 @@ describe(CorpusPage.name, () => {
 		expect(screen.getByText("23")).toBeInTheDocument();
 	});
 
-	it("renders the planned-feature block for the disabled edit-instruction workflow", async () => {
-		renderPage();
+	describe("when editing a file of a linked directory", () => {
+		const LINK_COMMAND = "rehearse settings --link-corpus <directory>";
+		const STARTS_FROM = `a41c7e${"0".repeat(58)}`;
+		const NEW_VERSION = `b52d8f${"0".repeat(58)}`;
+		const RUN = "2026-09-03T00-00-00.000Z";
 
-		await waitFor(() => {
-			expect(screen.getByText("CLAUDE.md")).toBeInTheDocument();
+		function settingsReading(kind: "live" | "directory"): SettingsReading {
+			return {
+				spendCeilingUsd: 5,
+				setCommand: "rehearse settings --spend-ceiling-usd <USD>",
+				recordsDirectory: "/records",
+				linkedCorpus: {
+					kind,
+					root: kind === "live" ? "/home/user/.claude" : "/tmp/corpus-copy",
+				},
+				overrun: "The ceiling can be overrun by the calls in flight.",
+				linkCommand: LINK_COMMAND,
+			};
+		}
+
+		function applied(overrides: Partial<AppliedCorpusEdit> = {}): Reply {
+			return {
+				status: 200,
+				body: {
+					previous: STARTS_FROM,
+					version: NEW_VERSION,
+					invalidated: 3,
+					rerun: { kind: "offered", run: RUN, stage: "discuss" },
+					needsComparisonManifest: false,
+					...overrides,
+				},
+			};
+		}
+
+		function serving(
+			overrides: ReadonlyMap<string, Reply> = new Map(),
+		): FakeServer {
+			const server = new FakeServer(
+				new Map([
+					["GET /api/corpus", { status: 200, body: corpusResponseBody() }],
+					[
+						"GET /api/settings",
+						{ status: 200, body: settingsReading("directory") },
+					],
+					[
+						"GET /api/corpus/file",
+						{
+							status: 200,
+							body: new TextEncoder().encode("instructions\nkeep\n"),
+						},
+					],
+					[
+						"POST /api/corpus/edits/review",
+						{
+							status: 200,
+							body: {
+								startsFrom: STARTS_FROM,
+								invalidated: 3,
+								applyRefusal: null,
+							},
+						},
+					],
+					["POST /api/corpus/edits/apply", applied()],
+					...overrides,
+				]),
+			);
+			server.install();
+			const client = new QueryClient({
+				defaultOptions: { queries: { retry: false } },
+			});
+			render(
+				<QueryClientProvider client={client}>
+					<CorpusPage />
+				</QueryClientProvider>,
+			);
+
+			return server;
+		}
+
+		async function editor(): Promise<HTMLElement> {
+			fireEvent.click(
+				await screen.findByRole("button", { name: "Edit CLAUDE.md" }),
+			);
+
+			return screen.findByRole("textbox", { name: "Text of CLAUDE.md" });
+		}
+
+		async function edited(
+			text = "instructions, edited\nkeep\n",
+		): Promise<void> {
+			const textbox = await editor();
+			await waitFor(() => {
+				expect(textbox).toHaveValue("instructions\nkeep\n");
+			});
+			fireEvent.change(textbox, { target: { value: text } });
+		}
+
+		async function reviewed(): Promise<void> {
+			await edited();
+			fireEvent.click(screen.getByRole("button", { name: "Review" }));
+			await screen.findByText("Marks 3 recorded results stale, none deleted");
+		}
+
+		async function appliedEdit(): Promise<void> {
+			await reviewed();
+			fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+			await screen.findByText(/Applied CLAUDE\.md/u);
+		}
+
+		it("opens the file's text as the corpus under test holds it", async () => {
+			const server = serving();
+
+			const textbox = await editor();
+
+			await waitFor(() => {
+				expect(textbox).toHaveValue("instructions\nkeep\n");
+			});
+			expect(
+				server.sent.find(({ pathname }) => pathname === "/api/corpus/file"),
+			).toBeDefined();
 		});
-		expect(screen.getByText("PLANNED")).toBeInTheDocument();
+
+		it("refuses to open a file whose bytes are not UTF-8 text, since saving it would rewrite them", async () => {
+			serving(
+				new Map([
+					[
+						"GET /api/corpus/file",
+						// "i", a byte no UTF-8 sequence holds, and a newline.
+						{ status: 200, body: Uint8Array.of(105, 255, 10) },
+					],
+				]),
+			);
+
+			fireEvent.click(
+				await screen.findByRole("button", { name: "Edit CLAUDE.md" }),
+			);
+
+			expect(await screen.findByRole("alert")).toHaveTextContent(
+				/Could not read CLAUDE\.md/u,
+			);
+			expect(
+				screen.queryByRole("textbox", { name: "Text of CLAUDE.md" }),
+			).toBeNull();
+		});
+
+		it("shows a line diff of the change against the file's bytes", async () => {
+			serving();
+
+			await edited();
+
+			const diff = await screen.findByRole("list", {
+				name: "Changes to CLAUDE.md",
+			});
+			expect(
+				within(diff)
+					.getAllByRole("listitem")
+					.map((line) => line.textContent),
+			).toEqual(["1− instructions", "1+ instructions, edited", "2  keep"]);
+		});
+
+		it("names the starting version and how many recorded results it would mark stale before applying", async () => {
+			const server = serving();
+
+			await reviewed();
+
+			expect(screen.getByText(/^Starts from/u)).toHaveTextContent(
+				"Starts from corpus@a41c7e",
+			);
+			expect(
+				screen.getByText("Marks 3 recorded results stale, none deleted"),
+			).toBeInTheDocument();
+			expect(
+				JSON.parse(server.posted("/api/corpus/edits/review")[0]?.body ?? ""),
+			).toEqual({ path: "CLAUDE.md", text: "instructions, edited\nkeep\n" });
+			expect(server.posted("/api/corpus/edits/apply")).toEqual([]);
+		});
+
+		it("asks for a new review once the text changes after one", async () => {
+			serving();
+			await reviewed();
+
+			fireEvent.change(
+				screen.getByRole("textbox", { name: "Text of CLAUDE.md" }),
+				{ target: { value: "instructions, again\nkeep\n" } },
+			);
+
+			expect(screen.queryByRole("button", { name: "Apply" })).toBeNull();
+			expect(
+				screen.getByRole("button", { name: "Review" }),
+			).toBeInTheDocument();
+		});
+
+		it("applies the reviewed text from the reviewed version and shows the new version", async () => {
+			const server = serving();
+
+			await appliedEdit();
+
+			expect(
+				JSON.parse(server.posted("/api/corpus/edits/apply")[0]?.body ?? ""),
+			).toEqual({
+				path: "CLAUDE.md",
+				text: "instructions, edited\nkeep\n",
+				startsFrom: STARTS_FROM,
+			});
+			expect(screen.getByText("corpus@b52d8f")).toBeInTheDocument();
+			expect(
+				screen.getByText("Marked 3 recorded results stale, none deleted"),
+			).toBeInTheDocument();
+		});
+
+		it("offers a replay of the stage that read the file, starting nothing", async () => {
+			const server = serving();
+
+			await appliedEdit();
+
+			expect(
+				screen.getByRole("button", { name: "Replay discuss · 3 attempts" }),
+			).toBeInTheDocument();
+			expect(screen.getByText(RUN, { exact: false })).toBeInTheDocument();
+			expect(server.posted("/api/launches")).toEqual([]);
+		});
+
+		it("says why it offers no replay when none can settle the edit", async () => {
+			serving(
+				new Map([
+					[
+						"POST /api/corpus/edits/apply",
+						applied({
+							rerun: { kind: "none", reason: "No result read CLAUDE.md" },
+						}),
+					],
+				]),
+			);
+
+			await appliedEdit();
+
+			expect(screen.getByText("No result read CLAUDE.md")).toBeInTheDocument();
+			expect(screen.queryByRole("button", { name: /Replay/u })).toBeNull();
+		});
+
+		it.each([
+			[true, 1],
+			[false, 0],
+		])(
+			"says a browser comparison will need a comparison manifest only when the server says so (%p)",
+			async (needed, shown) => {
+				serving(
+					new Map([
+						[
+							"POST /api/corpus/edits/apply",
+							applied({ needsComparisonManifest: needed }),
+						],
+					]),
+				);
+
+				await appliedEdit();
+
+				expect(screen.queryAllByText(/comparison manifest/u)).toHaveLength(
+					shown,
+				);
+			},
+		);
+
+		it("shows a refused apply's reason and keeps the edit open", async () => {
+			serving(
+				new Map([
+					[
+						"POST /api/corpus/edits/apply",
+						{
+							status: 409,
+							body: { error: "The edit leaves CLAUDE.md unchanged" },
+						},
+					],
+				]),
+			);
+			await reviewed();
+
+			fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+
+			expect(
+				await screen.findByText("The edit leaves CLAUDE.md unchanged"),
+			).toBeInTheDocument();
+			expect(
+				screen.getByRole("textbox", { name: "Text of CLAUDE.md" }),
+			).toHaveValue("instructions, edited\nkeep\n");
+		});
+
+		it("shows a review's apply refusal and offers no Apply", async () => {
+			serving(
+				new Map([
+					[
+						"POST /api/corpus/edits/review",
+						{
+							status: 200,
+							body: {
+								startsFrom: STARTS_FROM,
+								invalidated: 3,
+								applyRefusal:
+									"The linked corpus directory resolves into the live install",
+							},
+						},
+					],
+				]),
+			);
+
+			await reviewed();
+
+			expect(
+				screen.getByText(
+					"The linked corpus directory resolves into the live install",
+				),
+			).toBeInTheDocument();
+			expect(screen.getByRole("button", { name: "Apply" })).toBeDisabled();
+		});
+
+		it("closes the edit on Discard and writes nothing", async () => {
+			const server = serving();
+			await reviewed();
+
+			fireEvent.click(screen.getByRole("button", { name: "Discard" }));
+
+			expect(
+				screen.queryByRole("textbox", { name: "Text of CLAUDE.md" }),
+			).toBeNull();
+			expect(server.posted("/api/corpus/edits/apply")).toEqual([]);
+		});
+
+		it("shows each file's invalidated results", async () => {
+			serving();
+
+			await screen.findByRole("button", { name: "Edit CLAUDE.md" });
+
+			expect(screen.getByText("0 results")).toBeInTheDocument();
+		});
+
+		describe("when the live install is linked", () => {
+			it("offers no Edit and names the command that links a copy", async () => {
+				serving(
+					new Map([
+						[
+							"GET /api/settings",
+							{ status: 200, body: settingsReading("live") },
+						],
+					]),
+				);
+
+				expect(await screen.findByText(LINK_COMMAND)).toBeInTheDocument();
+				expect(screen.queryByRole("button", { name: /^Edit/u })).toBeNull();
+			});
+		});
 	});
 
 	describe("when the report carries a refusal", () => {
@@ -102,7 +473,12 @@ describe(CorpusPage.name, () => {
 						"the corpus under test has no earlier version in its log to compare against",
 				},
 			};
-			stubFetchByPath(new Map([["/api/corpus", body]]));
+			stubFetchByPath(
+				new Map<string, unknown>([
+					["/api/corpus", body],
+					["/api/settings", LIVE_SETTINGS],
+				]),
+			);
 			const client = new QueryClient({
 				defaultOptions: { queries: { retry: false } },
 			});

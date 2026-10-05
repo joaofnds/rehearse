@@ -82,6 +82,15 @@ async function fetchSettings(): Promise<SettingsReading> {
 	return response.json();
 }
 
+/**
+ * The stored settings, shared by the launch dialog and the corpus screen,
+ * which reads from them which corpus is linked.
+ */
+export const launchSettingsQuery = {
+	queryKey: ["launch-settings"],
+	queryFn: fetchSettings,
+} as const;
+
 async function putSpendCeiling(usd: number): Promise<SettingsReading> {
 	const response = await launchClient.api.settings["spend-ceiling"].$put({
 		json: { usd },
@@ -200,7 +209,7 @@ function SpendCeilingField({
 	const store = useMutation({
 		mutationFn: putSpendCeiling,
 		onSuccess: (reading) => {
-			queryClient.setQueryData(["launch-settings"], reading);
+			queryClient.setQueryData(launchSettingsQuery.queryKey, reading);
 			onDraft(undefined);
 		},
 	});
@@ -523,10 +532,12 @@ function startedGroupsOf(
 }
 
 /** The case and attempts the form opens on. */
-function openingChoice(target: LaunchTarget): {
+interface OpeningChoice {
 	readonly caseId: string | undefined;
 	readonly attempts: LaunchAttempts;
-} {
+}
+
+function openingChoice(target: LaunchTarget): OpeningChoice {
 	switch (target.kind) {
 		case "case": {
 			return { caseId: target.caseId, attempts: target.attempts ?? 1 };
@@ -534,8 +545,12 @@ function openingChoice(target: LaunchTarget): {
 		case "replay": {
 			return { caseId: undefined, attempts: target.attempts ?? 1 };
 		}
-		default: {
+		case "comparison":
+		case "extension": {
 			return { caseId: undefined, attempts: 1 };
+		}
+		default: {
+			return target satisfies never;
 		}
 	}
 }
@@ -552,10 +567,7 @@ function LaunchForm({
 	const [attempts, setAttempts] = useState(opensOn.attempts);
 	const [pickedCase, setPickedCase] = useState(opensOn.caseId);
 	const [ceilingDraft, setCeilingDraft] = useState<string>();
-	const settings = useQuery({
-		queryKey: ["launch-settings"],
-		queryFn: fetchSettings,
-	});
+	const settings = useQuery(launchSettingsQuery);
 	const cases = useQuery({
 		queryKey: LAUNCH_CASES_QUERY_KEY,
 		queryFn: fetchCases,

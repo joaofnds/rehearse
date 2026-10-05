@@ -59,7 +59,8 @@ export interface Reply {
 
 /**
  * A `fetch` Fake for a page that writes as well as reads: each route, keyed
- * `"METHOD /path"`, answers with its status and body, and every request is
+ * `"METHOD /path"`, answers with its status and body, sent as JSON unless it
+ * is bytes, and every request is
  * kept in `sent` so a test can read what the page posted. An unmapped route
  * answers 404, as `stubFetchByPath` does.
  */
@@ -97,7 +98,9 @@ export class FakeServer {
 				};
 				const reply = route instanceof LiveReply ? route.current() : route;
 
-				return Response.json(reply.body, { status: reply.status });
+				return reply.body instanceof Uint8Array
+					? new Response(Uint8Array.from(reply.body), { status: reply.status })
+					: Response.json(reply.body, { status: reply.status });
 			},
 			{ preconnect: fetch.preconnect },
 		);

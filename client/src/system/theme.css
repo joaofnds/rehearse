@@ -93,6 +93,8 @@
 	--color-strong: var(--color-border-strong);
 	--color-stronger: var(--color-border-strong-2);
 	--color-accent-line: var(--color-accent-border);
+	--color-diff-added: var(--color-diff-add);
+	--color-diff-removed: var(--color-diff-remove);
 
 	--animate-live: live var(--pulse-duration) ease-in-out infinite;
 
