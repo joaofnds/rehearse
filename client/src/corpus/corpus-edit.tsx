@@ -85,16 +85,20 @@ function DiffPreview({
 	);
 }
 
-function ReviewPanel({
+function Refusal({ reason }: { readonly reason: string }): React.JSX.Element {
+	return (
+		<p role="alert" className="mt-2 text-sm text-secondary-foreground">
+			<span aria-hidden="true">⚠ </span>
+			{reason}
+		</p>
+	);
+}
+
+/** What applying would do, read before anything is written. */
+function ReviewSummary({
 	review,
-	applyError,
-	applying,
-	onApply,
 }: {
 	readonly review: CorpusEditReview;
-	readonly applyError: string | undefined;
-	readonly applying: boolean;
-	readonly onApply: () => void;
 }): React.JSX.Element {
 	return (
 		<>
@@ -109,26 +113,8 @@ function ReviewPanel({
 				<li>Offers the paired rerun that would settle it</li>
 			</ul>
 			{review.applyRefusal === null ? null : (
-				<p role="alert" className="mt-2 text-sm text-secondary-foreground">
-					<span aria-hidden="true">⚠ </span>
-					{review.applyRefusal}
-				</p>
+				<Refusal reason={review.applyRefusal} />
 			)}
-			{applyError === undefined ? null : (
-				<p role="alert" className="mt-2 text-sm text-secondary-foreground">
-					<span aria-hidden="true">⚠ </span>
-					{applyError}
-				</p>
-			)}
-			<div className="mt-3 flex gap-2">
-				<Button
-					size="sm"
-					disabled={review.applyRefusal !== null || applying}
-					onClick={onApply}
-				>
-					Apply
-				</Button>
-			</div>
 		</>
 	);
 }
@@ -204,47 +190,38 @@ export function CorpusEditor({
 				<h3>
 					<SectionLabel>Review before apply</SectionLabel>
 				</h3>
-				{current === undefined ? (
-					<>
-						{review.isError ? (
-							<p
-								role="alert"
-								className="mt-2 text-sm text-secondary-foreground"
-							>
-								<span aria-hidden="true">⚠ </span>
-								{review.error.message}
-							</p>
-						) : null}
-						<div className="mt-3 flex gap-2">
-							<Button
-								size="sm"
-								disabled={review.isPending}
-								onClick={() => {
-									review.mutate(
-										{ path, text },
-										{
-											onSuccess: (answer) => {
-												setReviewed({ text, review: answer });
-											},
+				{current === undefined ? null : <ReviewSummary review={current} />}
+				{review.isError ? <Refusal reason={review.error.message} /> : null}
+				{apply.isError ? <Refusal reason={apply.error.message} /> : null}
+				<div className="mt-3 flex gap-2">
+					{current === undefined ? (
+						<Button
+							size="sm"
+							disabled={review.isPending}
+							onClick={() => {
+								review.mutate(
+									{ path, text },
+									{
+										onSuccess: (answer) => {
+											setReviewed({ text, review: answer });
 										},
-									);
-								}}
-							>
-								Review
-							</Button>
-						</div>
-					</>
-				) : (
-					<ReviewPanel
-						review={current}
-						applyError={apply.isError ? apply.error.message : undefined}
-						applying={apply.isPending}
-						onApply={() => {
-							apply.mutate({ path, text, startsFrom: current.startsFrom });
-						}}
-					/>
-				)}
-				<div className="mt-2 flex gap-2">
+									},
+								);
+							}}
+						>
+							Review
+						</Button>
+					) : (
+						<Button
+							size="sm"
+							disabled={current.applyRefusal !== null || apply.isPending}
+							onClick={() => {
+								apply.mutate({ path, text, startsFrom: current.startsFrom });
+							}}
+						>
+							Apply
+						</Button>
+					)}
 					<Button size="sm" variant="outline" onClick={onDiscard}>
 						Discard
 					</Button>
