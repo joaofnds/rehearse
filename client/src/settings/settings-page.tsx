@@ -3,6 +3,7 @@ import { launchSettingsQuery } from "#client/launch/settings-query";
 import { plural } from "#client/plural";
 import { runHistoryQuery } from "#client/run-history/run-history-query";
 import { ScreenHeader } from "#client/system/components/screen-header";
+import { CorpusSettingsCard } from "./corpus-settings-card";
 import { recordsSizeQuery } from "./settings-requests";
 import { SpendLimitCard } from "./spend-limit-card";
 
@@ -51,6 +52,7 @@ export function SettingsPage(): React.JSX.Element {
 			<ScreenHeader title="Settings" subline={<RecordsReading />} />
 			<div className="flex max-w-197 flex-col gap-3 px-6 pt-4 pb-12">
 				<SpendLimitCard />
+				<CorpusSettingsCard />
 			</div>
 		</div>
 	);

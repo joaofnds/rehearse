@@ -1802,8 +1802,8 @@ describe(createLaunchApp.name, () => {
 					});
 
 					expect(response.status).toBe(400);
-					expect(refusalSchema.parse(await response.json()).error).toContain(
-						"absolute path, or one starting with ~/",
+					expect(refusalSchema.parse(await response.json()).error).toBe(
+						"Link a corpus directory by its absolute path, or one starting with ~/ for your home directory, because the server does not share the browser's working directory",
 					);
 					const after = await reading(get);
 					expect(after.linkedCorpus.kind).toBe("live");

@@ -13,6 +13,7 @@ import type { SettingsReading } from "#client/launch/settings-query";
 import type { RunHistoryResponse } from "#client/run-history/run-history-query";
 import type { Reply } from "#client/test-support/fetch-stub";
 import { FakeServer } from "#client/test-support/fetch-stub";
+import { LiveReply } from "#client/test-support/live-reply";
 import { runRow } from "#client/test-support/runs-in-flight";
 import { SettingsPage } from "./settings-page";
 
@@ -67,7 +68,7 @@ function subline(text: string): MatcherFunction {
 const RECORDS_AT = "Local install · records at /home/operator/.rehearse/runs";
 
 function serving(
-	overrides: ReadonlyMap<string, Reply> = new Map(),
+	overrides: ReadonlyMap<string, Reply | LiveReply> = new Map(),
 ): FakeServer {
 	const server = new FakeServer(
 		new Map([
@@ -284,6 +285,222 @@ describe(SettingsPage.name, () => {
 					await within(spendLimit).findByText(
 						"The settings file is unreadable",
 					),
+				).toBeInTheDocument();
+			});
+		});
+	});
+
+	describe("the Corpus card", () => {
+		const LINKED_ROOT = "/home/operator/code/omelette/.claude";
+		const LINKED_DIGEST = `b52d8f${"0".repeat(58)}`;
+		const LINKED_SETTINGS: SettingsReading = {
+			...LIVE_SETTINGS,
+			linkedCorpus: { kind: "directory", root: LINKED_ROOT },
+		};
+
+		function card(): Promise<HTMLElement> {
+			return screen.findByRole("region", { name: "Corpus" });
+		}
+
+		/**
+		 * A server whose settings and corpus follow the link and unlink it
+		 * answers, as the real routes do.
+		 */
+		function linkable(
+			initially: "live" | "directory",
+			overrides: ReadonlyMap<string, Reply | LiveReply> = new Map(),
+		): FakeServer {
+			let linked = initially === "directory";
+			const settings = (): SettingsReading =>
+				linked ? LINKED_SETTINGS : LIVE_SETTINGS;
+
+			return serving(
+				new Map<string, Reply | LiveReply>([
+					[
+						"GET /api/settings",
+						new LiveReply(() => ({ status: 200, body: settings() })),
+					],
+					[
+						"GET /api/corpus",
+						new LiveReply(() => ({
+							status: 200,
+							body: linked
+								? { ...corpus(LINKED_DIGEST), root: LINKED_ROOT }
+								: corpus(`a41c7e${"0".repeat(58)}`),
+						})),
+					],
+					[
+						"PUT /api/settings/corpus",
+						new LiveReply(() => {
+							linked = true;
+
+							return { status: 200, body: settings() };
+						}),
+					],
+					[
+						"DELETE /api/settings/corpus",
+						new LiveReply(() => {
+							linked = false;
+
+							return { status: 200, body: settings() };
+						}),
+					],
+					...overrides,
+				]),
+			);
+		}
+
+		function linkDirectory(directory: string): void {
+			const corpusCard = screen.getByRole("region", { name: "Corpus" });
+			fireEvent.change(
+				within(corpusCard).getByLabelText("Corpus directory to link"),
+				{ target: { value: directory } },
+			);
+			fireEvent.click(within(corpusCard).getByRole("button", { name: "Link" }));
+		}
+
+		describe("when the live install is linked", () => {
+			it("shows the live install's root and version, with Rehash now and a link control", async () => {
+				linkable("live");
+				const corpusCard = await card();
+
+				expect(
+					await within(corpusCard).findByText("corpus@a41c7e"),
+				).toBeInTheDocument();
+				expect(within(corpusCard).getByText(LIVE_ROOT)).toBeInTheDocument();
+				expect(
+					within(corpusCard).getByRole("button", { name: "Rehash now" }),
+				).toBeInTheDocument();
+				expect(
+					within(corpusCard).getByLabelText("Corpus directory to link"),
+				).toBeInTheDocument();
+			});
+
+			it("offers no Unlink corpus", async () => {
+				linkable("live");
+				const corpusCard = await card();
+
+				await within(corpusCard).findByText("corpus@a41c7e");
+
+				expect(
+					within(corpusCard).queryByRole("button", { name: "Unlink corpus" }),
+				).toBeNull();
+			});
+		});
+
+		it("links a directory by its path and shows its root and version", async () => {
+			const server = linkable("live");
+			const corpusCard = await card();
+			await within(corpusCard).findByText("corpus@a41c7e");
+
+			linkDirectory("~/code/omelette/.claude");
+
+			expect(
+				await within(corpusCard).findByText("corpus@b52d8f"),
+			).toBeInTheDocument();
+			expect(within(corpusCard).getByText(LINKED_ROOT)).toBeInTheDocument();
+			expect(
+				server.sent
+					.filter((request) => request.method === "PUT")
+					.map((request) => request.body),
+			).toEqual([JSON.stringify({ directory: "~/code/omelette/.claude" })]);
+		});
+
+		it("unlinks a linked directory, returning the card to the live install", async () => {
+			linkable("directory");
+			const corpusCard = await card();
+			await within(corpusCard).findByText("corpus@b52d8f");
+
+			fireEvent.click(
+				within(corpusCard).getByRole("button", { name: "Unlink corpus" }),
+			);
+
+			expect(
+				await within(corpusCard).findByText("corpus@a41c7e"),
+			).toBeInTheDocument();
+			expect(within(corpusCard).getByText(LIVE_ROOT)).toBeInTheDocument();
+			expect(
+				within(corpusCard).queryByRole("button", { name: "Unlink corpus" }),
+			).toBeNull();
+		});
+
+		it("shows the version label the rehash answers", async () => {
+			linkable(
+				"directory",
+				new Map([
+					[
+						"POST /api/settings/corpus/rehash",
+						{
+							status: 200,
+							body: {
+								label: "corpus@c63e90",
+								digest: `c63e90${"0".repeat(58)}`,
+							},
+						},
+					],
+				]),
+			);
+			const corpusCard = await card();
+			await within(corpusCard).findByText("corpus@b52d8f");
+
+			fireEvent.click(
+				within(corpusCard).getByRole("button", { name: "Rehash now" }),
+			);
+
+			expect(
+				await within(corpusCard).findByText("Rehashed as corpus@c63e90"),
+			).toBeInTheDocument();
+		});
+
+		describe("when a write is refused", () => {
+			it.each([
+				[409, "Corpus source <path>/notes holds no corpus layout entry"],
+				[
+					400,
+					"Link a corpus directory by its absolute path, or one starting with ~/ for your home directory, because the server does not share the browser's working directory",
+				],
+			])(
+				"shows a %p link refusal and keeps the live install",
+				async (status, error) => {
+					linkable(
+						"live",
+						new Map([
+							["PUT /api/settings/corpus", { status, body: { error } }],
+						]),
+					);
+					const corpusCard = await card();
+					await within(corpusCard).findByText("corpus@a41c7e");
+
+					linkDirectory("notes");
+
+					expect(
+						await within(corpusCard).findByText(error),
+					).toBeInTheDocument();
+					expect(within(corpusCard).getByText(LIVE_ROOT)).toBeInTheDocument();
+				},
+			);
+
+			it("shows a rehash refusal naming how to link another or unlink", async () => {
+				const refusal =
+					"The linked corpus directory <path>/.claude is no longer a corpus. Link another with rehearse settings --link-corpus <directory>, or unlink it with: rehearse settings --unlink-corpus";
+				linkable(
+					"directory",
+					new Map([
+						[
+							"POST /api/settings/corpus/rehash",
+							{ status: 409, body: { error: refusal } },
+						],
+					]),
+				);
+				const corpusCard = await card();
+				await within(corpusCard).findByText("corpus@b52d8f");
+
+				fireEvent.click(
+					within(corpusCard).getByRole("button", { name: "Rehash now" }),
+				);
+
+				expect(
+					await within(corpusCard).findByText(refusal),
 				).toBeInTheDocument();
 			});
 		});

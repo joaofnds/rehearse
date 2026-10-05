@@ -866,7 +866,12 @@ export const createLaunchApp = (dependencies: LaunchDependencies) => {
 				await context.req.json().catch(() => undefined),
 			);
 			if (!parsed.success) {
-				return context.json({ error: z.prettifyError(parsed.error) }, 400);
+				return context.json(
+					{
+						error: parsed.error.issues.map((issue) => issue.message).join("; "),
+					},
+					400,
+				);
 			}
 			try {
 				await asLaunchRefusal(() =>
