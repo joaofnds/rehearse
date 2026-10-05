@@ -182,7 +182,8 @@ The model probe runs before the run's spend is counted and is outside it.
 
 ### Browser launches
 
-The browser's New run and Replay from here buttons post to `POST /api/launches`,
+The browser's New run and Replay from here buttons, and the corpus screen's
+offer of a paired rerun after an edit, post to `POST /api/launches`,
 which starts the same CLI command a terminal would, detached from the server so
 the run outlives a server restart. A case launch runs
 `run --case <id> --model <model>` under the case's declared model, and a replay
@@ -315,8 +316,9 @@ never appear.
 
 `GET /api/settings` returns the stored ceiling or `null`, the command that
 sets it, the records location, the linked corpus as `kind` (`live` or
-`directory`) and `root`, and the statement that calls in flight can overrun the
-ceiling. The records location is read-only there, because
+`directory`) and `root`, the statement that calls in flight can overrun the
+ceiling, and `linkCommand`, the command that links a corpus directory, which
+the corpus screen names while the live install is linked. The records location is read-only there, because
 `REHEARSE_RECORDS_DIR` in the server's environment chooses it.
 `PUT /api/settings/spend-ceiling` with `{ "usd": <number> }` stores a positive
 ceiling and answers 400 for anything else. `PUT /api/settings/corpus` with
@@ -326,8 +328,7 @@ the browser's working directory, and a relative one answers 400.
 `DELETE /api/settings/corpus` unlinks it. These three answer the new settings,
 with the same fields as `GET /api/settings`: `spendCeilingUsd`,
 `setCommand`, `recordsDirectory`, `linkedCorpus`, `overrun` and
-`linkCommand`, the command that links a corpus directory, which the corpus
-screen names while the live install is linked. `POST /api/settings/corpus/rehash` measures the linked
+`linkCommand`. `POST /api/settings/corpus/rehash` measures the linked
 corpus now, or the live install when nothing is linked, recording its version,
 and answers `{ label, digest }`, or 409 naming why the layout cannot be
 measured. An unreadable settings file makes every settings route answer 409.
@@ -1454,12 +1455,19 @@ error, rather than failing either.
 every `ids` parameter given, so the last edit's rows list as run history. An
 empty `ids=` names no record and returns no row.
 
-`GET /api/corpus/file?path=<path>` serves the bytes one file the corpus report
-lists holds now, which an edit starts from, measured into the version store or
-not. A path the report does not list answers 404.
+`GET /api/corpus/file?path=<path>` serves the bytes a file the corpus report
+lists holds now, which an edit starts from, whether or not the version store
+has measured them. The `x-corpus-version` header names the full version the
+corpus held when the file was read. A request with no `path` answers 400, a
+path the report does not list answers 404, and a corpus that is no longer a
+directory of instructions or whose layout refuses an entry answers 409.
 
-`POST /api/corpus/edits/review` with `{path, text}` reads what writing `text`
-over one file of the linked corpus would do, writing nothing:
+`POST /api/corpus/edits/review` with `{path, text, startsFrom}`, where
+`startsFrom` is the version the file route named when the file was opened,
+reads what writing `text` over one file of the linked corpus would do, writing
+nothing. It answers 409 when the linked directory no longer holds
+`startsFrom`, since the edit would overwrite a change its editor never saw.
+Otherwise it answers
 `{startsFrom, invalidated, applyRefusal}`, where `startsFrom` is the full
 version the linked directory holds now, `invalidated` counts the run-history
 rows fresh against the tree now and stale against it with the edit, judged as
@@ -1472,10 +1480,14 @@ invalidated, rerun, needsComparisonManifest}`. `rerun` is the paired rerun the
 edit asks for and starts nothing: `{kind: "offered", run, stage}`, the stage
 of the newest invalidated pipeline run or stage replay that read the edited
 file, the first such stage in pipeline order for a run, when the checkpoint it
-would replay from is recorded, or `{kind: "none", reason}`. Session attempts
-and confirmation groups replay no single stage and offer none.
+would replay from is recorded, or `{kind: "none", reason}`. A run that stopped
+at a stage offers that stage from the reads its stop record keeps. Session
+attempts and confirmation groups are not offered yet, stage groups included,
+and the reason names any invalidated row whose records could not be read.
 `needsComparisonManifest` is true for a file outside a skill directory, whose
 browser comparison needs its control supplied through a comparison manifest.
+That comparison also needs two stage groups at one checkpoint, as
+`compare attempts` does, which a single replay is not.
 With no record written in between, `/api/corpus`'s `lastEdit`
 then names `previous` and carries `invalidated` as its count. A `path` the
 corpus report does not list answers 404 on either route. Either route answers

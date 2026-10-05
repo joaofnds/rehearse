@@ -528,6 +528,10 @@ See [current state](docs/status.md) for implementation coverage and
   grade. Lowering a continuation threshold does not redefine success.
 - **Replay** — re-running one stage from a checkpoint with the current corpus,
   in a fresh worktree.
+- **Paired rerun** — the replay an instruction edit asks for so its effect can
+  be read: the stage that read the edited file, replayed from the checkpoint
+  it started from against the edited corpus, to set beside the result the edit
+  made stale. Offering it starts nothing.
 - **Retained candidate** — the run's final result commit, pinned in the target
   repository under `refs/rehearse/<run>` before the target is restored, so the
   candidate outlives the run that produced it. Restoring makes the commit

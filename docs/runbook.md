@@ -270,6 +270,10 @@ If the linked directory is moved or emptied, those commands refuse with exit
 code 3 and the browser's corpus and run pages answer 409, each naming the
 directory. Link another directory, or unlink as above, to recover.
 
+While a directory is linked, the browser's corpus screen edits its files one
+at a time and offers the paired rerun of each edit. It edits nothing while the
+live install is linked.
+
 ## Use a pipeline on a prepared target
 
 The bundled [audit-log case](../cases/audit-log/case.json) describes a NestJS
