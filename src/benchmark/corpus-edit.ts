@@ -8,7 +8,7 @@ import {
 	stat,
 	writeFile,
 } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import type { CorpusRoot, LiveCorpusRoot } from "./corpus-file";
 import { rowsAnEditInvalidates } from "./corpus-invalidation";
 import { hashCorpusLayout } from "./corpus-layout";
@@ -36,6 +36,11 @@ export interface CorpusEdit {
 }
 
 /** What applying an edit would do, read before anything is written. */
+/** An edit, carrying the version its review read. */
+export interface ReviewedCorpusEdit extends CorpusEdit {
+	readonly startsFrom: string;
+}
+
 export interface CorpusEditReview {
 	/** The version of the corpus under test the edit starts from. */
 	readonly startsFrom: string;
@@ -62,6 +67,12 @@ async function editedLayout(
 	edit: CorpusEdit,
 ): Promise<EditedLayout> {
 	const layout = await hashCorpusLayout(source);
+	if (layout.refusals.length > 0) {
+		throw new RefusedPreconditionError(
+			`The linked corpus does not measure: ${layout.refusals.join("; ")}`,
+		);
+	}
+
 	if (!layout.files.some(({ path }) => path === edit.path)) {
 		throw new UnlistedCorpusFileError(
 			`The corpus report lists no file ${edit.path}`,
@@ -90,8 +101,31 @@ function invalidatedBy(
 }
 
 /** The real path, or the resolved one for a path that does not exist yet. */
-function realOrResolved(path: string): Promise<string> {
-	return realpath(path).catch(() => resolve(path));
+async function realOrResolved(path: string): Promise<string> {
+	try {
+		return await realpath(path);
+	} catch (error) {
+		if (error instanceof Error && "code" in error && error.code === "ENOENT") {
+			return resolve(path);
+		}
+		throw error;
+	}
+}
+
+const LIVE_INSTALL_REFUSAL = `The linked corpus directory resolves into the live install, which no edit from here changes. Link a copy to edit with: ${LINK_CORPUS_COMMAND}`;
+
+/** Whether any of the real paths lies under the live install's real roots. */
+async function reachesLiveInstall(
+	live: LiveCorpusRoot,
+	written: readonly string[],
+): Promise<boolean> {
+	const protectedRoots = await Promise.all(
+		[live.root, live.backingRoot].map((root) => realOrResolved(root)),
+	);
+
+	return written.some((target) =>
+		protectedRoots.some((root) => pathIsWithin(target, root)),
+	);
 }
 
 /**
@@ -107,20 +141,15 @@ async function liveInstallRefusal(
 	if (source.kind === "live") {
 		return `The linked corpus is the live install, which no edit from here changes. Link a copy to edit with: ${LINK_CORPUS_COMMAND}`;
 	}
+
 	const written = await Promise.all(
 		[source.root, join(source.root, path)].map((candidate) =>
 			realOrResolved(candidate),
 		),
 	);
-	const protectedRoots = await Promise.all(
-		[live.root, live.backingRoot].map((root) => realOrResolved(root)),
-	);
-	const reachesLive = written.some((target) =>
-		protectedRoots.some((root) => pathIsWithin(target, root)),
-	);
 
-	return reachesLive
-		? `The linked corpus directory resolves into the live install, which no edit from here changes. Link a copy to edit with: ${LINK_CORPUS_COMMAND}`
+	return (await reachesLiveInstall(live, written))
+		? LIVE_INSTALL_REFUSAL
 		: null;
 }
 
@@ -142,25 +171,32 @@ export async function reviewCorpusEdit(
 /**
  * Written to a temporary file and renamed over the file's real path, so no
  * reader sees a torn body and a linked file is replaced where it lives rather
- * than unlinked. The temporary file sits at the corpus root, outside every
- * layout directory a measurement walks, unless the file resolves outside that
- * root, where a rename across filesystems could fail. The file keeps its mode,
- * which the version digest does not hold.
+ * than unlinked. The real path is checked again here, since the file can
+ * become a link to elsewhere after the layout listed it. The temporary file
+ * sits at the corpus root, outside every layout directory a measurement
+ * walks. The file keeps its mode, which the version digest does not hold.
  */
 async function replaceFile(
-	root: string,
-	file: string,
+	corpus: EditedCorpus,
+	path: string,
 	bytes: Readonly<Uint8Array>,
 ): Promise<void> {
-	const target = await realpath(file);
-	const realRoot = await realpath(root);
+	const target = await realpath(join(corpus.source.root, path));
+	const realRoot = await realpath(corpus.source.root);
+	if (!pathIsWithin(target, realRoot)) {
+		throw new RefusedPreconditionError(
+			`${path} resolves outside the linked corpus directory, so it was not written. Review the edit again.`,
+		);
+	}
+
+	if (await reachesLiveInstall(corpus.live, [target])) {
+		throw new RefusedPreconditionError(LIVE_INSTALL_REFUSAL);
+	}
+
 	const { mode } = await stat(target);
-	const temporary = join(
-		pathIsWithin(target, realRoot) ? realRoot : dirname(target),
-		`.rehearse-edit-${randomUUID()}.tmp`,
-	);
+	const temporary = join(realRoot, `.rehearse-edit-${randomUUID()}.tmp`);
 	try {
-		await writeFile(temporary, bytes);
+		await writeFile(temporary, bytes, { mode });
 		await chmod(temporary, mode);
 		await rename(temporary, target);
 	} finally {
@@ -182,7 +218,7 @@ async function bytesUnchanged(
  */
 async function refuseUnappliable(
 	corpus: EditedCorpus,
-	edit: CorpusEdit & { readonly startsFrom: string },
+	edit: ReviewedCorpusEdit,
 	edited: EditedLayout,
 ): Promise<void> {
 	const { source, live } = corpus;
@@ -190,11 +226,13 @@ async function refuseUnappliable(
 	if (refusal !== null) {
 		throw new RefusedPreconditionError(refusal);
 	}
+
 	if (edited.startsFrom !== edit.startsFrom) {
 		throw new RefusedPreconditionError(
 			`The linked directory no longer holds version ${edit.startsFrom}, which the edit was reviewed against; it holds ${edited.startsFrom}. Review the edit again.`,
 		);
 	}
+
 	if (await bytesUnchanged(join(source.root, edit.path), edited.bytes)) {
 		throw new RefusedPreconditionError(
 			`The edit leaves ${edit.path} unchanged, so it would make no new version`,
@@ -210,7 +248,7 @@ async function refuseUnappliable(
 export async function applyCorpusEdit(
 	recordsDirectory: string,
 	corpus: EditedCorpus,
-	edit: CorpusEdit & { readonly startsFrom: string },
+	edit: ReviewedCorpusEdit,
 ): Promise<AppliedCorpusEdit> {
 	const { source } = corpus;
 	const edited = await editedLayout(source, edit);
@@ -234,7 +272,7 @@ export async function applyCorpusEdit(
 		);
 	}
 
-	await replaceFile(source.root, join(source.root, edit.path), edited.bytes);
+	await replaceFile(corpus, edit.path, edited.bytes);
 
 	const measured = await measureCorpusVersion(recordsDirectory, source);
 	if (measured.kind === "refused") {

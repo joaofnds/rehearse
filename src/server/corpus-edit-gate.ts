@@ -32,6 +32,7 @@ export class CorpusEditGate {
 				"Another instruction edit is being applied; review the edit again once it lands",
 			);
 		}
+
 		if (this.#starting > 0) {
 			throw new CorpusEditBusyError(
 				"A launch is starting; apply the edit again once it has started",

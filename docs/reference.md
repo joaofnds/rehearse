@@ -1465,7 +1465,9 @@ starting version, renames a copy holding `text` over the file's real path with
 the file's mode, and measures again, answering `{previous, version,
 invalidated}`. With no record written in between, `/api/corpus`'s `lastEdit`
 then names `previous` and carries `invalidated` as its count. A `path` the
-corpus report does not list answers 404 on either route. The apply answers
+corpus report does not list answers 404 on either route. Either route answers
+409 when the linked directory is no longer a corpus or its layout refuses an
+entry, since such a tree has no version to start from. The apply answers
 409, writing nothing and logging no version, when the linked corpus is the
 live install, when the linked directory or the file resolves into the live
 install or its backing tree by real path, when the directory no longer holds
@@ -1474,7 +1476,8 @@ the server started is live, and while a launch start or another apply is under
 way in the server. A launch start answers 409 while an apply is under way. A
 launch record that does not read refuses nothing. The tree is hashed again
 just before the rename, and a change since `startsFrom` refuses the write
-after the starting version is logged.
+after the starting version is logged, and so does a file whose real path now
+lies outside the linked directory or under the live install.
 
 ### Pipeline run record
 

@@ -25,6 +25,7 @@ import {
 	reviewCorpusEdit,
 	UnlistedCorpusFileError,
 } from "#benchmark/corpus-edit";
+import type { EditedCorpus } from "#benchmark/corpus-edit";
 import type { LiveCorpusRoot } from "#benchmark/corpus-file";
 import { liveCorpusSource } from "#benchmark/corpus-file";
 import {
@@ -456,19 +457,40 @@ async function refuseEditUnderLiveLaunch({
 	}
 }
 
+async function editedCorpus(
+	dependencies: LaunchDependencies,
+): Promise<EditedCorpus> {
+	return {
+		source: await linkedCorpusSource(
+			dependencies.runsDirectory,
+			dependencies.liveCorpus,
+		),
+		live: dependencies.liveCorpus(),
+	};
+}
+
+/** The corpus edit gate refusing the work is 409, as a precondition is. */
+async function asBusyRefusal<T>(work: () => Promise<T>): Promise<T> {
+	try {
+		return await work();
+	} catch (error) {
+		if (error instanceof CorpusEditBusyError) {
+			throw new LaunchRefusalError(error.message, 409);
+		}
+		throw error;
+	}
+}
+
 /**
  * An edit to a file the report does not list is 404, a busy gate 409, and a
  * precondition the edit cannot meet 409, as `asLaunchRefusal` maps it.
  */
 async function asCorpusEditRefusal<T>(read: () => Promise<T>): Promise<T> {
 	try {
-		return await asLaunchRefusal(read);
+		return await asBusyRefusal(() => asLaunchRefusal(read));
 	} catch (error) {
 		if (error instanceof UnlistedCorpusFileError) {
 			throw new LaunchRefusalError(redactAbsolutePaths(error.message), 404);
-		}
-		if (error instanceof CorpusEditBusyError) {
-			throw new LaunchRefusalError(error.message, 409);
 		}
 		throw error;
 	}
@@ -861,14 +883,10 @@ export const createLaunchApp = (dependencies: LaunchDependencies) => {
 				return context.json({ error: z.prettifyError(parsed.error) }, 400);
 			}
 			try {
-				const source = await linkedCorpusSource(
-					dependencies.runsDirectory,
-					dependencies.liveCorpus,
-				);
-				const review = await asCorpusEditRefusal(() =>
+				const review = await asCorpusEditRefusal(async () =>
 					reviewCorpusEdit(
 						dependencies.runsDirectory,
-						{ source, live: dependencies.liveCorpus() },
+						await editedCorpus(dependencies),
 						parsed.data,
 					),
 				);
@@ -897,17 +915,13 @@ export const createLaunchApp = (dependencies: LaunchDependencies) => {
 				return context.json({ error: z.prettifyError(parsed.error) }, 400);
 			}
 			try {
-				const source = await linkedCorpusSource(
-					dependencies.runsDirectory,
-					dependencies.liveCorpus,
-				);
 				const applied = await asCorpusEditRefusal(() =>
 					corpusEditGate.applying(async () => {
 						await refuseEditUnderLiveLaunch(dependencies);
 
 						return applyCorpusEdit(
 							dependencies.runsDirectory,
-							{ source, live: dependencies.liveCorpus() },
+							await editedCorpus(dependencies),
 							parsed.data,
 						);
 					}),
@@ -983,7 +997,7 @@ export const createLaunchApp = (dependencies: LaunchDependencies) => {
 			}
 			const request = parsed.data;
 			const start = (): Promise<string> =>
-				asCorpusEditRefusal(() =>
+				asBusyRefusal(() =>
 					corpusEditGate.starting(() => startLaunch(request, dependencies)),
 				);
 			try {

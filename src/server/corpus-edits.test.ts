@@ -11,7 +11,7 @@ import {
 	writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { z } from "zod";
 import type { LiveCorpusRoot } from "#benchmark/corpus-file";
 import {
@@ -30,14 +30,13 @@ import {
 	RecordedRunsFixture,
 } from "#benchmark/run-records-test-support";
 import type { RunLiveness } from "#benchmark/run-liveness";
-import { createApiApp } from "./api";
+import { createAppServer } from "./app";
 import {
 	directoryLiveCorpus,
 	FAKE_LAUNCH_PID,
 	FAKE_LAUNCH_STARTED_AT,
 	FakeLauncher,
 } from "./launch-test-support";
-import { createLaunchApp } from "./launches";
 
 const reviewSchema = z.object({
 	startsFrom: z.string(),
@@ -72,19 +71,20 @@ interface ReplayRequest {
 	readonly attempts: number;
 }
 
-type Read = (path: string) => Promise<Response>;
+/** A read, or a same-origin JSON write when it carries a body. */
+type Send = (path: string, body?: string) => Promise<Response>;
 
-type Write = (path: string, body: string) => Promise<Response>;
+/** A version digest no linked directory holds. */
+const NO_VERSION = "0".repeat(64);
+
+const PORT = 4174;
 
 /** The corpus screen's view of the server: its reads and its edit writes. */
 class CorpusEditDriver {
-	public constructor(
-		private readonly read: Read,
-		private readonly write: Write,
-	) {}
+	public constructor(private readonly send: Send) {}
 
 	public reviewRaw(edit: EditRequest): Promise<Response> {
-		return this.write("/api/corpus/edits/review", JSON.stringify(edit));
+		return this.send("/api/corpus/edits/review", JSON.stringify(edit));
 	}
 
 	public async review(
@@ -97,7 +97,7 @@ class CorpusEditDriver {
 	}
 
 	public applyRaw(edit: ApplyRequest): Promise<Response> {
-		return this.write("/api/corpus/edits/apply", JSON.stringify(edit));
+		return this.send("/api/corpus/edits/apply", JSON.stringify(edit));
 	}
 
 	public async apply(
@@ -110,15 +110,15 @@ class CorpusEditDriver {
 	}
 
 	public version(digest: string): Promise<Response> {
-		return this.read(`/api/corpus/versions/${digest}`);
+		return this.send(`/api/corpus/versions/${digest}`);
 	}
 
 	public launch(request: ReplayRequest): Promise<Response> {
-		return this.write("/api/launches", JSON.stringify(request));
+		return this.send("/api/launches", JSON.stringify(request));
 	}
 
 	public async corpus(): Promise<z.infer<typeof corpusSchema>> {
-		const response = await this.read("/api/corpus");
+		const response = await this.send("/api/corpus");
 		expect(response.status).toBe(200);
 
 		return corpusSchema.parse(await response.json());
@@ -155,20 +155,53 @@ describe("/api/corpus/edits", () => {
 		return root;
 	}
 
+	/** The directories the live install's roots link to. */
+	interface Installed {
+		readonly root: string;
+		readonly backingRoot: string;
+	}
+
+	/**
+	 * A live install whose roots are links into a directory of its own, as
+	 * the live instructions are on an operator's machine, so only a guard
+	 * that resolves the live roots sees a write that reaches them.
+	 */
+	async function liveInstall(
+		directory: string,
+	): Promise<readonly [LiveCorpusRoot, Installed]> {
+		const live = directoryLiveCorpus(directory);
+		const installed = {
+			root: join(directory, "installed", ".claude"),
+			backingRoot: join(directory, "installed", ".agents"),
+		};
+		await mkdir(dirname(live.root), { recursive: true });
+		for (const [root, target] of [
+			[live.root, installed.root],
+			[live.backingRoot, installed.backingRoot],
+		] as const) {
+			await mkdir(target, { recursive: true });
+			await writeFile(join(target, "CLAUDE.md"), "live instructions\n");
+			await symlink(target, root);
+		}
+
+		return [live, installed];
+	}
+
 	interface Served {
 		readonly driver: CorpusEditDriver;
 		readonly corpus: string;
 		readonly runsDirectory: string;
 		readonly fixture: RecordedRunsFixture;
 		readonly launcher: FakeLauncher;
-		/** Holds the live install and its backing tree, each a corpus. */
+		/** Holds the live install and the directories its roots link to. */
 		readonly liveDirectory: string;
-		readonly live: LiveCorpusRoot;
+		readonly installed: Installed;
 	}
 
 	/**
-	 * A linked directory, a run whose stages read it at a logged version, and
-	 * a live install of its own, so no test reaches the real one.
+	 * The served app over a linked directory, a run whose stages read it at a
+	 * logged version, and a live install of its own, so no test reaches the
+	 * real one.
 	 */
 	async function serving(
 		liveness: RunLiveness = nothingRunning,
@@ -180,11 +213,7 @@ describe("/api/corpus/edits", () => {
 		const liveDirectory = await temporaryDirectory(
 			"rehearse-corpus-edit-live-",
 		);
-		const live = directoryLiveCorpus(liveDirectory);
-		for (const root of [live.root, live.backingRoot]) {
-			await mkdir(root, { recursive: true });
-			await writeFile(join(root, "CLAUDE.md"), "live instructions\n");
-		}
+		const [live, installed] = await liveInstall(liveDirectory);
 		const fixture = new RecordedRunsFixture(runsDirectory, {
 			settingsFile: await liveStageSettings(),
 		});
@@ -194,38 +223,44 @@ describe("/api/corpus/edits", () => {
 		await fixture.writeInitialCheckpoint();
 		await linkCorpus(runsDirectory, corpus);
 		const launcher = new FakeLauncher();
-		const api = createApiApp({
+		const app = createAppServer({
 			runsDirectory,
 			projectsDirectory: NO_PROVIDER_PROJECTS,
 			readCorpusSource: () => linkedCorpusSource(runsDirectory, () => live),
 			liveness,
-		});
-		const launches = createLaunchApp({
-			runsDirectory,
 			casesRoot: await temporaryDirectory("rehearse-corpus-edit-cases-"),
 			launcher,
-			liveness,
 			liveCorpus: () => live,
+			clientDistDirectory: await temporaryDirectory(
+				"rehearse-corpus-edit-dist-",
+			),
+			port: PORT,
 		});
+		const host = `127.0.0.1:${String(PORT)}`;
 
 		return {
-			driver: new CorpusEditDriver(
-				(path) => Promise.resolve(api.request(path)),
-				(path, body) =>
-					Promise.resolve(
-						launches.request(path, {
-							method: "POST",
-							headers: { "content-type": "application/json" },
-							body,
-						}),
-					),
+			driver: new CorpusEditDriver((path, body) =>
+				Promise.resolve(
+					body === undefined
+						? app.request(path, { headers: { host } })
+						: app.request(path, {
+								method: "POST",
+								headers: {
+									host,
+									origin: `http://${host}`,
+									"content-type": "application/json",
+									"sec-fetch-site": "same-origin",
+								},
+								body,
+							}),
+				),
 			),
 			corpus,
 			runsDirectory,
 			fixture,
 			launcher,
 			liveDirectory,
-			live,
+			installed,
 		};
 	}
 
@@ -243,6 +278,15 @@ describe("/api/corpus/edits", () => {
 
 		return tree;
 	}
+
+	async function editedFromDisk(served: Paths): Promise<void> {
+		await writeFile(
+			join(served.corpus, "skills", "discuss", "SKILL.md"),
+			"discuss, edited elsewhere\n",
+		);
+	}
+
+	type Paths = Readonly<Pick<Served, "corpus" | "runsDirectory">>;
 
 	it("applies the reviewed edit as a new version whose last edit names the version it started from and the count it reported", async () => {
 		const { driver } = await serving();
@@ -262,77 +306,85 @@ describe("/api/corpus/edits", () => {
 		expect(corpus.lastEdit).toMatchObject({
 			kind: "measured",
 			previous: review.startsFrom,
-			count: applied.invalidated,
+			count: review.invalidated,
 		});
 	});
 
-	describe("when the edit would write under the live install", () => {
-		it.each([
-			["the live install is linked", (): undefined => undefined],
-			[
-				"the linked directory is a link to the live install",
-				(live: LiveCorpusRoot): string => live.root,
-			],
-			[
-				"the linked directory is a link to the live install's backing tree",
-				(live: LiveCorpusRoot): string => live.backingRoot,
-			],
-		] as const)(
-			"refuses the apply when %s, and the review says so",
-			async (_situation, target) => {
-				const { driver, runsDirectory, live, liveDirectory } = await serving();
-				const linked = target(live);
-				if (linked === undefined) {
-					await unlinkCorpus(runsDirectory);
-				} else {
-					const link = join(
-						await temporaryDirectory("rehearse-corpus-edit-link-"),
-						"corpus",
-					);
-					await symlink(linked, link);
-					await linkCorpus(runsDirectory, link);
-				}
-				const before = await treeOf(liveDirectory);
-				const edit = { path: "CLAUDE.md", text: "edited from the browser\n" };
-				const review = await driver.review(edit);
+	it("counts no stale row for an edit to a file no judged stage read", async () => {
+		const { driver, corpus } = await serving();
+		await mkdir(join(corpus, "skills", "unused"));
+		await writeFile(join(corpus, "skills", "unused", "SKILL.md"), "unused\n");
 
-				const response = await driver.applyRaw({
-					...edit,
-					startsFrom: review.startsFrom,
-				});
+		const review = await driver.review({
+			path: "skills/unused/SKILL.md",
+			text: "unused, edited\n",
+		});
 
-				expect(review.applyRefusal).toContain("live install");
-				expect(response.status).toBe(409);
-				expect(await treeOf(liveDirectory)).toEqual(before);
-			},
-		);
+		expect(review.invalidated).toBe(0);
 	});
 
-	it("writes the edited bytes over the file with its mode, keeping the version it started from and every record", async () => {
-		const { driver, corpus, runsDirectory } = await serving();
+	it("reports no apply refusal for a linked directory outside the live install", async () => {
+		const { driver } = await serving();
+
+		const review = await driver.review({
+			path: "CLAUDE.md",
+			text: "instructions, edited\n",
+		});
+
+		expect(review.applyRefusal).toBeNull();
+	});
+
+	it("writes the edited bytes over the file with its mode", async () => {
+		const { driver, corpus } = await serving();
 		const file = join(corpus, "skills", "build", "SKILL.md");
 		await chmod(file, 0o751);
-		const recordsBefore = await treeOf(runsDirectory);
 		const edit = { path: "skills/build/SKILL.md", text: "build, edited\n" };
 		const review = await driver.review(edit);
 
-		const applied = await driver.apply({
-			...edit,
-			startsFrom: review.startsFrom,
-		});
+		await driver.apply({ ...edit, startsFrom: review.startsFrom });
 
-		const recordsAfter = await treeOf(runsDirectory);
 		const { mode } = await stat(file);
-		const startingVersion = await driver.version(review.startsFrom);
-		const corpusTree = await treeOf(corpus);
 		expect(await Bun.file(file).text()).toBe("build, edited\n");
 		expect(mode.toString(8).slice(-3)).toBe("751");
-		expect(applied.version).not.toBe(review.startsFrom);
+	});
+
+	it("keeps a starting version no measurement logged, naming it in the last edit", async () => {
+		const served = await serving();
+		await editedFromDisk(served);
+		const edit = { path: "CLAUDE.md", text: "instructions, edited\n" };
+		const review = await served.driver.review(edit);
+
+		await served.driver.apply({ ...edit, startsFrom: review.startsFrom });
+
+		const startingVersion = await served.driver.version(review.startsFrom);
+		const corpus = await served.driver.corpus();
 		expect(startingVersion.status).toBe(200);
+		expect(corpus.lastEdit).toMatchObject({ previous: review.startsFrom });
+	});
+
+	it("removes no record", async () => {
+		const { driver, runsDirectory } = await serving();
+		const recordsBefore = await treeOf(runsDirectory);
+		const edit = { path: "CLAUDE.md", text: "instructions, edited\n" };
+		const review = await driver.review(edit);
+
+		await driver.apply({ ...edit, startsFrom: review.startsFrom });
+
+		const recordsAfter = await treeOf(runsDirectory);
 		expect(
 			[...recordsBefore.keys()].filter((path) => !recordsAfter.has(path)),
 		).toEqual([]);
-		expect([...corpusTree.keys()].toSorted()).toEqual([
+	});
+
+	it("leaves no file in the linked directory beside the ones it held", async () => {
+		const { driver, corpus } = await serving();
+		const edit = { path: "CLAUDE.md", text: "instructions, edited\n" };
+		const review = await driver.review(edit);
+
+		await driver.apply({ ...edit, startsFrom: review.startsFrom });
+
+		const tree = await treeOf(corpus);
+		expect([...tree.keys()].toSorted()).toEqual([
 			"CLAUDE.md",
 			join("skills", "build", "SKILL.md"),
 			join("skills", "discuss", "SKILL.md"),
@@ -358,39 +410,96 @@ describe("/api/corpus/edits", () => {
 		).toBe("shared, edited\n");
 	});
 
-	describe("refuses the apply, writing nothing and logging no version,", () => {
-		interface Untouched {
-			readonly tree: ReadonlyMap<string, string>;
-			readonly log: readonly string[];
-		}
+	interface Untouched {
+		readonly tree: ReadonlyMap<string, string>;
+		readonly log: readonly string[];
+	}
 
-		type Paths = Readonly<Pick<Served, "corpus" | "runsDirectory">>;
+	async function untouched(served: Paths): Promise<Untouched> {
+		return {
+			tree: await treeOf(served.corpus),
+			log: await corpusVersionLog(
+				served.runsDirectory,
+				directorySource(served.corpus),
+			),
+		};
+	}
 
-		async function untouched(served: Paths): Promise<Untouched> {
-			return {
-				tree: await treeOf(served.corpus),
-				log: await corpusVersionLog(
-					served.runsDirectory,
-					directorySource(served.corpus),
-				),
-			};
-		}
+	async function expectUntouched(
+		served: Paths,
+		before: Untouched,
+	): Promise<void> {
+		expect(await untouched(served)).toEqual(before);
+	}
 
-		async function expectUntouched(
-			served: Paths,
-			before: Untouched,
-		): Promise<void> {
-			expect(await untouched(served)).toEqual(before);
-		}
+	type LiveSetup = Readonly<
+		Pick<Served, "runsDirectory" | "liveDirectory" | "installed">
+	>;
 
-		it("when the linked directory no longer holds the version the edit started from", async () => {
+	/** Links a directory reached through a link to the given target. */
+	async function linkThrough(served: LiveSetup, target: string): Promise<void> {
+		const link = join(
+			await temporaryDirectory("rehearse-corpus-edit-link-"),
+			"corpus",
+		);
+		await symlink(target, link);
+		await linkCorpus(served.runsDirectory, link);
+	}
+
+	describe("when the edit would write under the live install", () => {
+		it.each([
+			[
+				"with the live install linked",
+				(served: LiveSetup): Promise<void> =>
+					unlinkCorpus(served.runsDirectory),
+			],
+			[
+				"with a link to the live install's directory linked",
+				(served: LiveSetup): Promise<void> =>
+					linkThrough(served, served.installed.root),
+			],
+			[
+				"with a link to the live install's backing directory linked",
+				(served: LiveSetup): Promise<void> =>
+					linkThrough(served, served.installed.backingRoot),
+			],
+			[
+				"with a linked directory holding the live install, whose listed file links into it",
+				async (served: LiveSetup): Promise<void> => {
+					await symlink(
+						join("installed", ".claude", "CLAUDE.md"),
+						join(served.liveDirectory, "CLAUDE.md"),
+					);
+					await linkCorpus(served.runsDirectory, served.liveDirectory);
+				},
+			],
+		] as const)(
+			"refuses the apply and says so in the review, %s",
+			async (_situation, arrange) => {
+				const served = await serving();
+				await arrange(served);
+				const before = await treeOf(served.installed.root);
+				const edit = { path: "CLAUDE.md", text: "edited from the browser\n" };
+				const review = await served.driver.review(edit);
+
+				const response = await served.driver.applyRaw({
+					...edit,
+					startsFrom: review.startsFrom,
+				});
+
+				expect(review.applyRefusal).toContain("live install");
+				expect(response.status).toBe(409);
+				expect(await treeOf(served.installed.root)).toEqual(before);
+			},
+		);
+	});
+
+	describe("when the linked directory no longer holds the version the edit started from", () => {
+		it("refuses the apply, writing nothing and logging no version", async () => {
 			const served = await serving();
 			const edit = { path: "CLAUDE.md", text: "instructions, edited\n" };
 			const review = await served.driver.review(edit);
-			await writeFile(
-				join(served.corpus, "skills", "discuss", "SKILL.md"),
-				"discuss, edited elsewhere\n",
-			);
+			await editedFromDisk(served);
 			const before = await untouched(served);
 
 			const response = await served.driver.applyRaw({
@@ -402,29 +511,106 @@ describe("/api/corpus/edits", () => {
 			expect(await response.text()).toContain(review.startsFrom);
 			await expectUntouched(served, before);
 		});
+	});
 
+	describe("when the path is not a file the corpus report lists", () => {
 		it.each([
 			["a file the report does not list", "notes.md"],
 			["a path outside the corpus", "../escape.md"],
 			["a layout directory", "skills"],
-		])("when the path is %s", async (_situation, path) => {
+		])(
+			"refuses the review and the apply of %s, writing nothing and logging no version",
+			async (_situation, path) => {
+				const served = await serving();
+				await writeFile(join(served.corpus, "notes.md"), "notes\n");
+				const edit = { path, text: "written from the browser\n" };
+				const review = await served.driver.reviewRaw(edit);
+				const before = await untouched(served);
+
+				const response = await served.driver.applyRaw({
+					...edit,
+					startsFrom: NO_VERSION,
+				});
+
+				expect(review.status).toBe(404);
+				expect(response.status).toBe(404);
+				await expectUntouched(served, before);
+			},
+		);
+	});
+
+	describe("when a layout directory holds a link that leaves the linked directory", () => {
+		async function servingEscape(): Promise<Served> {
 			const served = await serving();
-			await writeFile(join(served.corpus, "notes.md"), "notes\n");
-			const edit = { path, text: "written from the browser\n" };
-			const review = await served.driver.reviewRaw(edit);
+			await mkdir(join(served.corpus, "agents"));
+			await symlink(
+				join(served.installed.root, "CLAUDE.md"),
+				join(served.corpus, "agents", "escape.md"),
+			);
+
+			return served;
+		}
+
+		it("refuses the review", async () => {
+			const { driver } = await servingEscape();
+
+			const response = await driver.reviewRaw({
+				path: "CLAUDE.md",
+				text: "instructions, edited\n",
+			});
+
+			expect(response.status).toBe(409);
+		});
+
+		it("refuses the apply, writing nothing and logging no version", async () => {
+			const served = await servingEscape();
 			const before = await untouched(served);
 
 			const response = await served.driver.applyRaw({
-				...edit,
-				startsFrom: "0".repeat(64),
+				path: "CLAUDE.md",
+				text: "instructions, edited\n",
+				startsFrom: NO_VERSION,
 			});
 
-			expect(review.status).toBe(404);
-			expect(response.status).toBe(404);
+			expect(response.status).toBe(409);
 			await expectUntouched(served, before);
 		});
+	});
 
-		it("when the edit leaves the file's bytes unchanged", async () => {
+	describe("when the linked directory is no longer a corpus", () => {
+		async function servingEmptied(): Promise<Served> {
+			const served = await serving();
+			await rm(served.corpus, { recursive: true });
+
+			return served;
+		}
+
+		it("refuses the review", async () => {
+			const { driver } = await servingEmptied();
+
+			const response = await driver.reviewRaw({
+				path: "CLAUDE.md",
+				text: "instructions, edited\n",
+			});
+
+			expect(response.status).toBe(409);
+		});
+
+		it("refuses the apply", async () => {
+			const { driver } = await servingEmptied();
+
+			const response = await driver.applyRaw({
+				path: "CLAUDE.md",
+				text: "instructions, edited\n",
+				startsFrom: NO_VERSION,
+			});
+
+			expect(response.status).toBe(409);
+		});
+	});
+
+	describe("when the edit leaves the file's bytes unchanged", () => {
+		it("refuses the apply, writing nothing and logging no version", async () => {
 			const served = await serving();
 			const edit = { path: "CLAUDE.md", text: "instructions\n" };
 			const review = await served.driver.review(edit);
@@ -438,8 +624,10 @@ describe("/api/corpus/edits", () => {
 			expect(response.status).toBe(409);
 			await expectUntouched(served, before);
 		});
+	});
 
-		it("when a launch this server started is live", async () => {
+	describe("when a launch this server started is live", () => {
+		it("refuses the apply, writing nothing and logging no version", async () => {
 			const served = await serving({
 				readMarker: () => Promise.resolve(undefined),
 				isAlive: (pid) => pid === FAKE_LAUNCH_PID,
@@ -466,8 +654,10 @@ describe("/api/corpus/edits", () => {
 			expect(response.status).toBe(409);
 			await expectUntouched(served, before);
 		});
+	});
 
-		it("when a launch this server is starting has not started yet", async () => {
+	describe("when a launch this server is starting has not started yet", () => {
+		it("refuses the apply, writing nothing and logging no version", async () => {
 			const served = await serving();
 			const edit = { path: "CLAUDE.md", text: "instructions, edited\n" };
 			const review = await served.driver.review(edit);
