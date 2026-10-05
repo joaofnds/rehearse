@@ -138,7 +138,8 @@ function RecordedReading({
 			</p>
 			{earlierCount === 0 ? null : (
 				<p className="mt-1 text-11-5 text-dim">
-					{plural(earlierCount, "earlier analysis")} recorded
+					{plural(earlierCount, "earlier analysis", "earlier analyses")}{" "}
+					recorded
 				</p>
 			)}
 			<div className="mt-3 flex flex-wrap gap-2">

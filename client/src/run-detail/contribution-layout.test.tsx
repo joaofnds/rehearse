@@ -76,6 +76,18 @@ describe("the Root-cause analysis section", () => {
 		expect(section).toHaveTextContent("1 earlier analysis");
 	});
 
+	it("counts two earlier analyses in the plural", async () => {
+		renderRunDetail(
+			new Map([[ANALYSES, { ...recordedAnalysis(), earlierCount: 2 }]]),
+		);
+
+		const section = await screen.findByRole("region", {
+			name: "Root-cause analysis",
+		});
+
+		expect(section).toHaveTextContent("2 earlier analyses recorded");
+	});
+
 	it("offers the paired rerun, the block it names and a re-run of the analysis", async () => {
 		renderWithAnalysis();
 
