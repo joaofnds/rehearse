@@ -16,6 +16,9 @@ import {
 /** The label the corpus screen shows for the corpus under test. */
 function VersionLabel(): React.JSX.Element | null {
 	const corpus = useQuery(corpusQuery);
+	if (corpus.isError) {
+		return <span className="text-pale">⚠ corpus unreadable</span>;
+	}
 	if (corpus.data === undefined) {
 		return null;
 	}
@@ -69,11 +72,13 @@ export function CorpusSettingsCard(): React.JSX.Element {
 	});
 	const rehash = useMutation({
 		mutationFn: rehashCorpus,
-		onSuccess: async (label) => {
+		onSuccess: (label) => {
 			setOutcome({ kind: "rehashed", label });
-			await queryClient.invalidateQueries({ queryKey: corpusQuery.queryKey });
 		},
 		onError: refused,
+		onSettled: async () => {
+			await queryClient.invalidateQueries({ queryKey: corpusQuery.queryKey });
+		},
 	});
 	const writing = link.isPending || unlink.isPending || rehash.isPending;
 

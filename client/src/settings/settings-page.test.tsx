@@ -516,6 +516,53 @@ describe(SettingsPage.name, () => {
 				},
 			);
 
+			it("drops the version label once the corpus can no longer be read after a refused rehash", async () => {
+				let rehashed = false;
+				linkable(
+					"directory",
+					new Map<string, Reply | LiveReply>([
+						[
+							"POST /api/settings/corpus/rehash",
+							new LiveReply(() => {
+								rehashed = true;
+
+								return {
+									status: 409,
+									body: {
+										error: "The linked corpus directory is no longer a corpus",
+									},
+								};
+							}),
+						],
+						[
+							"GET /api/corpus",
+							new LiveReply(() =>
+								rehashed
+									? {
+											status: 500,
+											body: new TextEncoder().encode("Internal Server Error"),
+										}
+									: {
+											status: 200,
+											body: { ...corpus(LINKED_DIGEST), root: LINKED_ROOT },
+										},
+							),
+						],
+					]),
+				);
+				const corpusCard = await card();
+				await within(corpusCard).findByText("corpus@b52d8f");
+
+				fireEvent.click(
+					within(corpusCard).getByRole("button", { name: "Rehash now" }),
+				);
+
+				expect(
+					await within(corpusCard).findByText("⚠ corpus unreadable"),
+				).toBeInTheDocument();
+				expect(within(corpusCard).queryByText("corpus@b52d8f")).toBeNull();
+			});
+
 			it("shows a refusal the server sends as plain text as it was sent", async () => {
 				linkable(
 					"directory",
