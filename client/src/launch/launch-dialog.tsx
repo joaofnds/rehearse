@@ -15,8 +15,8 @@ import { Notice } from "#client/system/components/notice";
 import { Button } from "#client/system/ui/button";
 import type { LaunchRequest } from "#server/launches";
 import { LaunchRefusedError, postLaunch } from "./post-launch";
-import type { SettingsReading } from "./settings-query";
 import { launchSettingsQuery } from "./settings-query";
+import { enteredCeilingUsd, putSpendCeiling } from "./spend-ceiling-entry";
 import {
 	Dialog,
 	DialogClose,
@@ -65,33 +65,6 @@ export type LaunchTarget =
 type CasesResponse = InferResponseType<typeof launchClient.api.cases.$get>;
 
 type CaseListing = CasesResponse["cases"][number];
-
-async function putSpendCeiling(usd: number): Promise<SettingsReading> {
-	const response = await launchClient.api.settings["spend-ceiling"].$put({
-		json: { usd },
-	});
-	if (response.status === 200) {
-		return response.json();
-	}
-	if (response.status === 400 || response.status === 409) {
-		const refusal = await response.json();
-		throw new LaunchRefusedError(refusal.error);
-	}
-	throw new LaunchRefusedError(await response.text());
-}
-
-/**
- * A ceiling the CLI would store too: a plain positive decimal, so "0x10" or
- * "1e3" is refused rather than read as 16 or 1000.
- */
-function enteredCeilingUsd(entered: string): number | undefined {
-	if (!/^\d+(?:\.\d+)?$/u.test(entered)) {
-		return undefined;
-	}
-	const usd = Number(entered);
-
-	return usd > 0 ? usd : undefined;
-}
 
 /** An edit that differs from the stored ceiling holds the launch until stored. */
 function holdsUnstoredCeiling(
