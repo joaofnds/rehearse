@@ -1345,7 +1345,8 @@ claimed after a group moves back once that group's reps are judged, so an
 attempt is a position label rather than a name. A session-mode rep's attempt is
 its position among the reps its group declared. A pipeline-mode rep, and a rep
 of a group whose claim names no checkpoint, has no attempt. A case's registry
-that cannot be read leaves only that case's rows without a short id and adds a
+that cannot be read leaves only that case's rows without a short id, and
+without the checkpoint and attempt it would have supplied, and adds a
 `short-ids` entry with the id `short-ids/<case>` to the response's unreadable
 records, while every other case keeps its short ids. When `short-ids/` itself
 cannot be listed, every row is left without a short id and one entry with the

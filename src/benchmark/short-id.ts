@@ -274,7 +274,6 @@ export async function readAllShortIds(
 			(await readdirIfPresent(join(runsDirectory, REGISTRY_DIRECTORY))) ?? [];
 	} catch (error) {
 		const reason = error instanceof Error ? error.message : String(error);
-
 		return {
 			entries: [],
 			unreadable: [{ registry: REGISTRY_DIRECTORY, reason }],

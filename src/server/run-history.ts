@@ -942,7 +942,7 @@ function newestFirst(rows: readonly RunHistoryRow[]): RunHistoryRow[] {
 
 /**
  * A saved record that failed to read, with the row kind it would have been,
- * or the short id registry, whose failure leaves every row unnamed.
+ * or a short id registry, whose failure leaves only its own case's rows unnamed.
  */
 export interface UnreadableRecord {
 	readonly kind: RunHistoryRow["kind"] | "launch" | "short-ids";

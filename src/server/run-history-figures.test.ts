@@ -303,7 +303,7 @@ describe("/api/runs", () => {
 				});
 			});
 
-			it("keeps its figures when the short id registry cannot be read", async () => {
+			it("keeps its figures when its case's short id registry cannot be read", async () => {
 				const fixture = await emptyFixture();
 				await fixture.writeStoppedRun();
 				await mkdir(
