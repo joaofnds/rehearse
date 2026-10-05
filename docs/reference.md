@@ -325,8 +325,9 @@ for one that is not. The path must be absolute, since the server does not share
 the browser's working directory, and a relative one answers 400.
 `DELETE /api/settings/corpus` unlinks it. These three answer the new settings,
 with the same fields as `GET /api/settings`: `spendCeilingUsd`,
-`setCommand`, `recordsDirectory`, `linkedCorpus` and
-`overrun`. `POST /api/settings/corpus/rehash` measures the linked
+`setCommand`, `recordsDirectory`, `linkedCorpus`, `overrun` and
+`linkCommand`, the command that links a corpus directory, which the corpus
+screen names while the live install is linked. `POST /api/settings/corpus/rehash` measures the linked
 corpus now, or the live install when nothing is linked, recording its version,
 and answers `{ label, digest }`, or 409 naming why the layout cannot be
 measured. An unreadable settings file makes every settings route answer 409.

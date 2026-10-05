@@ -36,6 +36,7 @@ import { corpusVersionLabel } from "#benchmark/corpus-version-label";
 import { CEILING_OVERRUN_STATEMENT } from "#benchmark/spend-ceiling";
 import { findCommand, parseCommandLine } from "#cli/commands";
 import {
+	LINK_CORPUS_COMMAND,
 	SET_SPEND_CEILING_COMMAND,
 	storeSpendCeiling,
 	UNLINK_CORPUS_COMMAND,
@@ -1261,6 +1262,16 @@ describe(createLaunchApp.name, () => {
 				spendCeilingUsd: 5,
 				setCommand: SET_SPEND_CEILING_COMMAND,
 			});
+		});
+
+		it("reads the command that links a corpus directory to edit", async () => {
+			const { get } = await harness();
+
+			const response = await get("/api/settings");
+
+			expect(
+				z.object({ linkCommand: z.string() }).parse(await response.json()),
+			).toEqual({ linkCommand: LINK_CORPUS_COMMAND });
 		});
 
 		it("reads no ceiling when none is stored", async () => {

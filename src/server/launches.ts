@@ -55,6 +55,7 @@ import { requestPause } from "#benchmark/run-pause";
 import { RefusedPreconditionError } from "#benchmark/exit-codes";
 import type { Settings } from "#benchmark/settings";
 import {
+	LINK_CORPUS_COMMAND,
 	readSettings,
 	SET_SPEND_CEILING_COMMAND,
 	storeSpendCeiling,
@@ -570,6 +571,7 @@ async function settingsReading(dependencies: LaunchDependencies): Promise<{
 		readonly root: string;
 	};
 	readonly overrun: string;
+	readonly linkCommand: string;
 }> {
 	const settings = await storedSettings(dependencies.runsDirectory);
 	const { linkedCorpusDirectory } = settings;
@@ -583,6 +585,7 @@ async function settingsReading(dependencies: LaunchDependencies): Promise<{
 				? { kind: "live", root: liveCorpusSource().root }
 				: { kind: "directory", root: linkedCorpusDirectory },
 		overrun: CEILING_OVERRUN_STATEMENT,
+		linkCommand: LINK_CORPUS_COMMAND,
 	};
 }
 
