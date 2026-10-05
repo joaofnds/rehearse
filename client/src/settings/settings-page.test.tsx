@@ -185,6 +185,22 @@ describe(SettingsPage.name, () => {
 			});
 		});
 
+		it("shows a stored ceiling finer than a cent unrounded", async () => {
+			serving(
+				new Map([
+					[
+						"GET /api/settings",
+						{ status: 200, body: { ...LIVE_SETTINGS, spendCeilingUsd: 0.125 } },
+					],
+				]),
+			);
+			const limit = within(await card()).getByLabelText("Spend limit per run");
+
+			await waitFor(() => {
+				expect(limit).toHaveValue("0.125");
+			});
+		});
+
 		it("stores the entered limit and shows it as stored", async () => {
 			const server = serving(
 				new Map([

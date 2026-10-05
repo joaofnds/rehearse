@@ -28,3 +28,14 @@ export function enteredCeilingUsd(entered: string): number | undefined {
 
 	return usd > 0 ? usd : undefined;
 }
+
+/**
+ * A stored ceiling as the field shows it: to the cent, as an amount is
+ * written, and never rounded, since a ceiling stored from the CLI can be
+ * finer than a cent and the field would then misstate it.
+ */
+export function storedCeilingEntry(usd: number): string {
+	const cents = usd.toFixed(2);
+
+	return Number(cents) === usd ? cents : String(usd);
+}

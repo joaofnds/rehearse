@@ -4,15 +4,15 @@ import { launchSettingsQuery } from "#client/launch/settings-query";
 import {
 	enteredCeilingUsd,
 	putSpendCeiling,
+	storedCeilingEntry,
 } from "#client/launch/spend-ceiling-entry";
 import { Button } from "#client/system/ui/button";
 import { SettingsCard } from "./settings-card";
 
-/** The stored ceiling as the operator types one, to the cent. */
 function storedEntry(spendCeilingUsd: number | null | undefined): string {
 	return spendCeilingUsd === null || spendCeilingUsd === undefined
 		? ""
-		: spendCeilingUsd.toFixed(2);
+		: storedCeilingEntry(spendCeilingUsd);
 }
 
 export function SpendLimitCard(): React.JSX.Element {

@@ -16,7 +16,11 @@ import { Button } from "#client/system/ui/button";
 import type { LaunchRequest } from "#server/launches";
 import { LaunchRefusedError, postLaunch } from "./post-launch";
 import { launchSettingsQuery } from "./settings-query";
-import { enteredCeilingUsd, putSpendCeiling } from "./spend-ceiling-entry";
+import {
+	enteredCeilingUsd,
+	putSpendCeiling,
+	storedCeilingEntry,
+} from "./spend-ceiling-entry";
 import {
 	Dialog,
 	DialogClose,
@@ -79,7 +83,9 @@ function shownCeiling(
 	draft: string | undefined,
 	storedUsd: number | undefined,
 ): string {
-	return draft ?? (storedUsd === undefined ? "" : String(storedUsd));
+	return (
+		draft ?? (storedUsd === undefined ? "" : storedCeilingEntry(storedUsd))
+	);
 }
 
 async function fetchCases(): Promise<CasesResponse> {

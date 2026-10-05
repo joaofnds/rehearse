@@ -479,13 +479,15 @@ describe(LaunchDialog.name, () => {
 			]);
 		}
 
-		it("shows the stored ceiling in the field", async () => {
+		it("shows the stored ceiling in the field to the cent", async () => {
 			serving();
 
 			const dialog = await openDialog({ kind: "case" });
 
 			await waitFor(() => {
-				expect(within(dialog).getByLabelText("Spend ceiling")).toHaveValue("5");
+				expect(within(dialog).getByLabelText("Spend ceiling")).toHaveValue(
+					"5.00",
+				);
 			});
 		});
 
