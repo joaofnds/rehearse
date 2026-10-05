@@ -34,6 +34,7 @@ import {
 	NO_SHORT_ID,
 	shortIdsByRecordId,
 } from "#cli/short-id-column";
+import type { ShortIdColumn } from "#cli/short-id-column";
 
 export const LIST_KINDS = [
 	"cases",
@@ -101,14 +102,14 @@ async function collect<Named>(
  */
 function withShortIds(
 	listing: RecordListing,
-	shortIds: ReadonlyMap<string, string>,
+	{ shortIds, unreadable }: ShortIdColumn,
 ): RecordListing {
 	return {
 		entries: listing.entries.map(({ id, fields }) => ({
 			id,
 			fields: [shortIds.get(id) ?? NO_SHORT_ID, ...fields],
 		})),
-		unreadable: listing.unreadable,
+		unreadable: [...listing.unreadable, ...unreadable],
 	};
 }
 
@@ -116,15 +117,7 @@ async function numbered(
 	runsDirectory: string,
 	listing: RecordListing,
 ): Promise<RecordListing> {
-	const { shortIds, unreadable } = await shortIdsByRecordId(runsDirectory);
-
-	return withShortIds(
-		{
-			entries: listing.entries,
-			unreadable: [...listing.unreadable, ...unreadable],
-		},
-		shortIds,
-	);
+	return withShortIds(listing, await shortIdsByRecordId(runsDirectory));
 }
 
 async function listDeclaredCases(): Promise<RecordListing> {
@@ -253,13 +246,7 @@ async function listCheckpoints(runsDirectory: string): Promise<RecordListing> {
 		},
 	);
 
-	return withShortIds(
-		{
-			entries: listing.entries,
-			unreadable: [...listing.unreadable, ...unreadable],
-		},
-		labelled,
-	);
+	return withShortIds(listing, { shortIds: labelled, unreadable });
 }
 
 async function listGroups(runsDirectory: string): Promise<RecordListing> {
