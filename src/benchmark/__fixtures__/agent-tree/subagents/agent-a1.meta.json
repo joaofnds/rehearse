@@ -1,0 +1,8 @@
+{
+	"agentType": "reviewer",
+	"description": "Review the code",
+	"toolUseId": "toolu_a1",
+	"spawnDepth": 1,
+	"requestShape": "foreground",
+	"stoppedByUser": true
+}

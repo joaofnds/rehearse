@@ -1,0 +1,7 @@
+{
+	"agentType": "reviewer",
+	"description": "Review the docs",
+	"toolUseId": "toolu_a2",
+	"spawnDepth": 1,
+	"requestShape": "background"
+}

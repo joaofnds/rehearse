@@ -1,0 +1,7 @@
+{
+	"agentType": "reviewer",
+	"description": "Earlier review",
+	"toolUseId": "toolu_p0",
+	"spawnDepth": 1,
+	"requestShape": "foreground"
+}

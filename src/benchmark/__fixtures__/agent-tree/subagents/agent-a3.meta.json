@@ -1,0 +1,8 @@
+{
+	"agentType": "Explore",
+	"description": "Find the docs",
+	"toolUseId": "toolu_a3",
+	"parentAgentId": "a2",
+	"spawnDepth": 2,
+	"requestShape": "foreground"
+}

@@ -1,0 +1,2 @@
+{"type":"user","message":{"role":"user","content":"run the code-review skill"},"parentUuid":null,"isSidechain":true,"cwd":"/work"}
+{"type":"assistant","requestId":"req-a5-1","message":{"model":"claude-sonnet-5","role":"assistant","stop_reason":"end_turn","content":[{"type":"text","text":"review done"}],"usage":{"input_tokens":3,"output_tokens":65,"cache_read_input_tokens":0,"cache_creation_input_tokens":900,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":900}}},"cwd":"/work"}
