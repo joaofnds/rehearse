@@ -9,12 +9,13 @@ export const SUBAGENTS_DIRECTORY = "subagents";
 const SUBAGENT_FILE = /^agent-[a-z0-9]+\.(?:jsonl|meta\.json)$/u;
 
 /**
- * The provider writes each sub-agent's transcript and meta file under
- * `<sessionId>/subagents/` beside the session's own file, outside the directory
- * the session ran in, so they survive only if the record copies them.
+ * The provider writes each sub-agent's transcript and meta file under a
+ * directory named for the session, beside the session's own `<sessionId>.jsonl`
+ * and outside the directory the session ran in, so they survive only if the
+ * record copies them.
  */
-export function sessionSubagentsDirectory(sessionDirectory: string): string {
-	return join(sessionDirectory, SUBAGENTS_DIRECTORY);
+export function providerSessionDirectory(sessionTranscript: string): string {
+	return sessionTranscript.replace(/\.jsonl$/u, "");
 }
 
 /**
@@ -23,10 +24,13 @@ export function sessionSubagentsDirectory(sessionDirectory: string): string {
  * symlink there would copy whatever it points at into the record.
  */
 export async function preserveSubagentFiles(
-	sessionDirectory: string,
+	sessionTranscript: string,
 	recordDirectory: string,
 ): Promise<void> {
-	const source = sessionSubagentsDirectory(sessionDirectory);
+	const source = join(
+		providerSessionDirectory(sessionTranscript),
+		SUBAGENTS_DIRECTORY,
+	);
 	const names = await readdir(source).catch(() => []);
 	const destination = join(recordDirectory, SUBAGENTS_DIRECTORY);
 

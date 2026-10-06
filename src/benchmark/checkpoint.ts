@@ -1355,10 +1355,7 @@ async function preserveStageTranscript(
 
 	await mkdir(directory, { recursive: true });
 	await Bun.write(join(directory, TRANSCRIPT_FILE), written);
-	await preserveSubagentFiles(
-		join(dirname(transcriptPath), source.sessionId),
-		directory,
-	);
+	await preserveSubagentFiles(transcriptPath, directory);
 
 	return {
 		status: "AVAILABLE",

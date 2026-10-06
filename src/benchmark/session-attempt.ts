@@ -53,6 +53,7 @@ import { normalizeContextEvidence } from "./context-evidence";
 import { STORED_GIT_DIRECTORY } from "./git-directory-name";
 import {
 	preserveSubagentFiles,
+	providerSessionDirectory,
 	unavailableSubagents,
 } from "./subagent-evidence";
 import { preserveStateEvidence } from "./session-state-evidence";
@@ -647,10 +648,7 @@ async function preservedTranscript(
 	const transcriptFile = join(recordDirectory, "transcript.jsonl");
 	await mkdir(recordDirectory, { recursive: true });
 	await Bun.write(transcriptFile, sourceAvailable ? written : "");
-	await preserveSubagentFiles(
-		sessionDirectoryOf(writtenTranscript),
-		recordDirectory,
-	);
+	await preserveSubagentFiles(writtenTranscript, recordDirectory);
 
 	const lines = await parseTranscriptFile(transcriptFile);
 
@@ -663,10 +661,6 @@ async function preservedTranscript(
 			recordDirectory,
 		),
 	};
-}
-
-function sessionDirectoryOf(transcriptPath: string): string {
-	return transcriptPath.replace(/\.jsonl$/u, "");
 }
 
 /** What an attempt records of its transcript, whether or not the call failed. */
@@ -909,7 +903,7 @@ async function removeAttemptFiles(
 	transcriptPath: string,
 ): Promise<void> {
 	await rm(transcriptPath, { force: true });
-	await rm(sessionDirectoryOf(transcriptPath), {
+	await rm(providerSessionDirectory(transcriptPath), {
 		force: true,
 		recursive: true,
 	});
