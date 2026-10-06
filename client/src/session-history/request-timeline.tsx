@@ -84,7 +84,7 @@ function requestCostLabel(
 		: `? Unpriced · ${cost.reason}`;
 }
 
-function costLabel(reading: SessionHistoryCostReading): string {
+export function costLabel(reading: SessionHistoryCostReading): string {
 	if (reading.state === "unavailable") {
 		return `? Unavailable · ${reading.reasons.join(", ")}`;
 	}
@@ -160,7 +160,7 @@ function categoryLabel(entry: SessionHistoryRequestEntry): string {
 	return categories(entry.usage);
 }
 
-function categories(usage: SessionHistoryRequestUsage): string {
+export function categories(usage: SessionHistoryRequestUsage): string {
 	return [
 		`in ${tokens.format(usage.inputTokens)}`,
 		`out ${tokens.format(usage.outputTokens)}`,

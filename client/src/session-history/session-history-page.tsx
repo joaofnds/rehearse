@@ -20,6 +20,8 @@ import { cn } from "#client/system/cn";
 import { LaunchDialog } from "#client/launch/launch-dialog";
 import { ScreenHeader } from "#client/system/components/screen-header";
 import { SectionLabel } from "#client/system/components/section-label";
+import { AgentTreePane } from "./agent-tree-pane";
+import type { AgentsResponse, ExcerptRequest } from "./agent-tree-pane";
 import { PaneHeading } from "./pane-heading";
 import { selectableRow } from "./selectable-row";
 import { attemptLabel } from "#client/attempt-label";
@@ -386,6 +388,78 @@ async function fetchRequestSeries(
 	}
 
 	return response.json();
+}
+
+async function fetchAgents(
+	identity: SessionHistoryIdentity,
+): Promise<AgentsResponse> {
+	if (identity.kind === "stage" || identity.kind === "replay") {
+		throw new Error("Only a saved session attempt keeps its agents");
+	}
+	const response =
+		identity.kind === "standalone"
+			? await apiClient.api.attempts.session[":caseId"][
+					":uuid"
+				].history.agents.$get({
+					param: { caseId: identity.caseId, uuid: identity.uuid },
+				})
+			: await apiClient.api.groups[":groupId"].reps[
+					":repId"
+				].attempt.history.agents.$get({
+					param: { groupId: identity.groupId, repId: identity.repId },
+				});
+	if (!response.ok) {
+		throw new Error(`Request failed with ${response.status}`);
+	}
+
+	return response.json();
+}
+
+async function fetchAgentDetail(
+	identity: SessionHistoryIdentity,
+	agentId: string,
+	eventId: string,
+): Promise<SessionHistoryDetail> {
+	if (identity.kind === "stage" || identity.kind === "replay") {
+		throw new Error("Only a saved session attempt keeps its agents");
+	}
+	const response =
+		identity.kind === "standalone"
+			? await apiClient.api.attempts.session[":caseId"][":uuid"].history.agents[
+					":agentId"
+				][":eventId"].$get({
+					param: {
+						caseId: identity.caseId,
+						uuid: identity.uuid,
+						agentId,
+						eventId,
+					},
+				})
+			: await apiClient.api.groups[":groupId"].reps[
+					":repId"
+				].attempt.history.agents[":agentId"][":eventId"].$get({
+					param: {
+						groupId: identity.groupId,
+						repId: identity.repId,
+						agentId,
+						eventId,
+					},
+				});
+	if (!response.ok) {
+		throw new Error(`Request failed with ${response.status}`);
+	}
+
+	return response.json();
+}
+
+/** The root's events open through the attempt's own route. */
+function fetchExcerpt(
+	identity: SessionHistoryIdentity,
+	request: ExcerptRequest,
+): Promise<SessionHistoryDetail> {
+	return request.agentId === undefined
+		? fetchDetail(identity, request.eventId)
+		: fetchAgentDetail(identity, request.agentId, request.eventId);
 }
 
 type StageCorpusResponse = InferResponseType<
@@ -991,6 +1065,103 @@ function RequestTimelinePane({
 	);
 }
 
+function AgentExcerpt({
+	identity,
+	path,
+	request,
+}: {
+	readonly identity: SessionHistoryIdentity;
+	readonly path: string;
+	readonly request: ExcerptRequest | undefined;
+}): React.JSX.Element | null {
+	const excerpt = useQuery({
+		queryKey: [
+			"session-history-excerpt",
+			path,
+			request?.agentId,
+			request?.eventId,
+		],
+		queryFn: () =>
+			request === undefined
+				? Promise.reject(new Error("No excerpt was asked for"))
+				: fetchExcerpt(identity, request),
+		enabled: request !== undefined,
+	});
+	if (request === undefined) {
+		return (
+			<p className="px-3 py-2.5 text-11-5 text-dim">
+				Open a delivery's excerpt to read the text the agent received.
+			</p>
+		);
+	}
+
+	return (
+		<EvidenceDetail
+			served
+			loading={excerpt.isLoading}
+			failed={excerpt.isError}
+			detail={excerpt.data}
+		/>
+	);
+}
+
+/** Only a saved session attempt keeps its agents; a stage or replay shows none. */
+function AgentsSection({
+	identity,
+	path,
+	recorded,
+	sourceId,
+}: {
+	readonly identity: SessionHistoryIdentity;
+	readonly path: string;
+	readonly recorded: boolean;
+	readonly sourceId: string | undefined;
+}): React.JSX.Element | null {
+	const agents = useQuery({
+		queryKey: ["session-history-agents", path],
+		queryFn: () => fetchAgents(identity),
+		enabled: recorded,
+	});
+	const [excerptRequest, setExcerptRequest] = useState<ExcerptRequest>();
+	if (!recorded) {
+		return null;
+	}
+	if (agents.data === undefined) {
+		return (
+			<p
+				className="text-12 text-dim"
+				role={agents.isError ? "alert" : undefined}
+			>
+				{agents.isError
+					? "Could not load the attempt's agents."
+					: "Loading agents…"}
+			</p>
+		);
+	}
+	if (agents.data.state === "unavailable") {
+		return (
+			<p className="text-12 text-dim">
+				? Agents unavailable · {agents.data.reason}
+			</p>
+		);
+	}
+
+	return (
+		<AgentTreePane
+			agents={agents.data}
+			sourceId={sourceId}
+			excerpt={
+				<AgentExcerpt
+					identity={identity}
+					path={path}
+					request={excerptRequest}
+				/>
+			}
+			onOpenExcerpt={setExcerptRequest}
+		/>
+	);
+}
+
 /** A stage page also offers its stage for replay (SPEC.md:355). */
 function PageLead({
 	identity,
@@ -1266,6 +1437,12 @@ export function SessionHistoryPage({
 								</aside>
 							</div>
 						</div>
+						<AgentsSection
+							identity={identity}
+							path={path}
+							recorded={recordsRequestSeries}
+							sourceId={sourceId}
+						/>
 					</>
 				)}
 			</div>

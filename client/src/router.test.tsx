@@ -139,6 +139,13 @@ describe(createAppRouter.name, () => {
 					"/api/attempts/session/case-a/attempt-a/history/requests",
 					emptyRequestSeries(),
 				],
+				[
+					"/api/attempts/session/case-a/attempt-a/history/agents",
+					{
+						state: "unavailable",
+						reason: "the attempt has no saved transcript",
+					},
+				],
 			]),
 		);
 
@@ -346,6 +353,13 @@ describe(createAppRouter.name, () => {
 				[
 					"/api/groups/group-a/reps/group-a-rep-1/attempt/history/requests",
 					emptyRequestSeries(),
+				],
+				[
+					"/api/groups/group-a/reps/group-a-rep-1/attempt/history/agents",
+					{
+						state: "unavailable",
+						reason: "the attempt has no saved transcript",
+					},
 				],
 			]),
 		);
