@@ -88,6 +88,19 @@ describe(meterReading.name, () => {
 		});
 	});
 
+	it("reads unavailable with the reason the subtracted arm recorded nothing to measure", () => {
+		const reading = meterReading(
+			{ state: "available", mean: 100, low: 90, high: 110, counted: 4 },
+			{ state: "unavailable", reasons: ["no words"] },
+			arms,
+		);
+
+		expect(reading.verdict).toEqual({
+			kind: "unavailable",
+			reasons: ["no words"],
+		});
+	});
+
 	it("states a reason both arms share once", () => {
 		const reading = meterReading(
 			{ state: "unavailable", reasons: ["no words"] },
