@@ -35,6 +35,22 @@ async function fetchComparison(digest: string): Promise<ComparisonResponse> {
 	return response.json();
 }
 
+interface AttemptsPerArm {
+	readonly control: number;
+	readonly baseline: number;
+	readonly candidate: number;
+}
+
+function attemptsPerArm(
+	attempts: ComparisonResponse["attempts"][string],
+): AttemptsPerArm {
+	return {
+		control: attempts.control.length,
+		baseline: attempts.baseline.length,
+		candidate: attempts.candidate.length,
+	};
+}
+
 function WhatMovedPresentation({
 	digest,
 	caseId,
@@ -66,11 +82,7 @@ function WhatMovedPresentation({
 			<WhatMoved
 				caseId={caseId}
 				rows={rows}
-				attemptsPerArm={{
-					control: attempts.control.length,
-					baseline: attempts.baseline.length,
-					candidate: attempts.candidate.length,
-				}}
+				attemptsPerArm={attemptsPerArm(attempts)}
 			/>
 			<AttributionCard
 				digest={digest}
@@ -121,11 +133,7 @@ function AttemptPairsPresentation({
 				<WhatThePairingSays mode={comparison.report.mode} summary={summary} />
 				<ReadWithCare
 					digest={digest}
-					attemptsPerArm={{
-						control: attempts.control.length,
-						baseline: attempts.baseline.length,
-						candidate: attempts.candidate.length,
-					}}
+					attemptsPerArm={attemptsPerArm(attempts)}
 					corpusVersions={corpusVersions}
 					baselineArm={comparison.baselineArm}
 					attribution={attribution}
