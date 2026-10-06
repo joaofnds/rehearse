@@ -1116,11 +1116,13 @@ function AgentsSection({
 	path,
 	recorded,
 	sourceId,
+	onSelectSource,
 }: {
 	readonly identity: SessionHistoryIdentity;
 	readonly path: string;
 	readonly recorded: boolean;
 	readonly sourceId: string | undefined;
+	readonly onSelectSource: (sourceId: string) => void;
 }): React.JSX.Element | null {
 	const agents = useQuery({
 		queryKey: ["session-history-agents", path],
@@ -1163,6 +1165,7 @@ function AgentsSection({
 				/>
 			}
 			onOpenExcerpt={setExcerptRequest}
+			onSelectSource={onSelectSource}
 		/>
 	);
 }
@@ -1447,6 +1450,7 @@ export function SessionHistoryPage({
 							path={path}
 							recorded={recordsRequestSeries}
 							sourceId={sourceId}
+							onSelectSource={setSourceId}
 						/>
 					</>
 				)}

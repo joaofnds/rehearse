@@ -242,8 +242,10 @@ describe("agent tree in the saved-attempt workbench", () => {
 		expect(detail).toHaveTextContent(
 			"in 5 · out 320 · read 1,500 · write 1,540",
 		);
-		expect(detail).toHaveTextContent(
-			"every attempt request in the agent's own transcript",
+		expect(
+			within(detail).getByRole("definition", { name: "Own cost" }),
+		).toHaveTextContent(
+			"✓ Complete · $0.00967 · basis: every attempt request in the agent's own transcript",
 		);
 		expect(detail).toHaveTextContent(
 			"own cost plus each descendant's total; never added into the attempt total",
@@ -258,13 +260,18 @@ describe("agent tree in the saved-attempt workbench", () => {
 		expect(
 			within(detail).getByRole("definition", { name: "Own cost" }),
 		).toHaveTextContent(
-			"until the next skill delivery, user prompt or interruption",
+			"$0.003108 over 2 requests · basis: from the skill's delivery until the next skill delivery, user prompt or interruption",
 		);
 		expect(
 			within(detail).getByRole("definition", {
 				name: "Including descendants",
 			}),
-		).toHaveTextContent("a1");
+		).toHaveTextContent("◐ Incomplete · $0.042064 over 7 of 8 requests");
+		expect(
+			within(detail).getByRole("definition", {
+				name: "Including descendants",
+			}),
+		).toHaveTextContent("sub-agents a1, a2");
 	});
 
 	it("reads each agent's peak from its own lane only", async () => {
@@ -279,7 +286,12 @@ describe("agent tree in the saved-attempt workbench", () => {
 			{ name: "Context peak" },
 		).textContent;
 
-		expect(rootPeak).not.toBe(a2Peak);
+		expect(rootPeak).toStartWith(
+			"1,652 total input tokens over the attempt's requests",
+		);
+		expect(a2Peak).toStartWith(
+			"1,803 total input tokens over the attempt's requests",
+		);
 		expect(a2Peak).toContain("this agent's own window");
 	});
 
@@ -316,6 +328,71 @@ describe("agent tree in the saved-attempt workbench", () => {
 		);
 	});
 
+	it("labels the root's inherited-prefix requests and keeps them out of its peak", async () => {
+		await renderFixturePage();
+
+		const detail = await select("Session root");
+
+		expect(
+			within(detail).getByRole("list", { name: "Context history" }),
+		).toHaveTextContent("line 2 · inherited prefix");
+		expect(
+			within(detail).getByRole("definition", { name: "Context peak" }),
+		).toHaveTextContent("over the attempt's requests");
+	});
+
+	it("reads an inherited agent's tokens and cost as outside the attempt", async () => {
+		await renderFixturePage();
+
+		const detail = await select("a0 ");
+
+		expect(
+			within(detail).getByRole("definition", { name: "Token categories" }),
+		).toHaveTextContent("Not part of the attempt");
+		expect(
+			within(detail).getByRole("definition", { name: "Cost" }),
+		).toHaveTextContent("ran in the inherited prefix, before the attempt");
+		expect(
+			within(detail).getByRole("definition", { name: "Cost" }),
+		).not.toHaveTextContent("unavailable");
+	});
+
+	it("names the skills a shared remainder holds and the skill a forked agent ran", async () => {
+		await renderFixturePage();
+
+		const detail = await select("Session root");
+
+		expect(
+			within(detail).getByRole("definition", { name: "Shared remainder" }),
+		).toHaveTextContent("skills review-docs, verify");
+		expect(
+			within(await agentTreeNav()).getByRole("button", {
+				name: /^a5 · advisor · skill code-review/u,
+			}),
+		).toBeInTheDocument();
+	});
+
+	it("opens the receiving agents of a source only sub-agents received", async () => {
+		await renderFixturePage();
+
+		const detail = await select("a1 · reviewer");
+		fireEvent.click(
+			within(detail).getByRole("button", {
+				name: "Show the agents that received CLAUDE.md",
+			}),
+		);
+
+		const receiving = await screen.findByRole("region", {
+			name: "Receiving agents",
+		});
+		expect(
+			within(receiving).getByRole("listitem", { name: /^a1/u }),
+		).toHaveTextContent("1 delivery");
+		expect(
+			within(receiving).getByRole("listitem", { name: /^a0/u }),
+		).toHaveTextContent("a0 · inherited · 1 delivery");
+	});
+
 	it("lists an agent whose recorded parent is not in the tree", async () => {
 		await renderFixturePage("orphaned");
 
@@ -346,6 +423,9 @@ describe("agent tree in the saved-attempt workbench", () => {
 		).toHaveTextContent("1 delivery");
 		const a1 = within(receiving).getByRole("listitem", { name: /^a1/u });
 		expect(a1).toHaveTextContent("2 deliveries · repeated");
+		expect(a1).toHaveTextContent(
+			"delivery 2 · event 9:1 · 15 recorded text characters, not tokens and not cost",
+		);
 		expect(receiving).toHaveTextContent(
 			"recorded text characters, not tokens and not cost",
 		);

@@ -2,7 +2,6 @@ import { useId, useState } from "react";
 import type { ReactNode } from "react";
 import type { InferResponseType } from "hono/client";
 import type {
-	SessionHistoryCostReading,
 	SessionHistoryRequestEntry,
 	TextMeasurement,
 } from "#benchmark/session-history";
@@ -62,7 +61,7 @@ export function agentName(agentId: string | undefined): string {
 	return agentId ?? ROOT_NAME;
 }
 
-function agentLabel(agent: SubAgent): string {
+function agentLabel(agent: SubAgent, forkedSkill?: string): string {
 	const inherited = agent.context === "inherited" ? "inherited" : undefined;
 	if (agent.evidence === "unavailable") {
 		return [agent.agentId, "evidence unavailable", inherited]
@@ -73,6 +72,7 @@ function agentLabel(agent: SubAgent): string {
 	return [
 		agent.agentId,
 		agent.agentType,
+		forkedSkill === undefined ? undefined : `skill ${forkedSkill}`,
 		agent.description,
 		inherited,
 		agent.stopped === true ? "stopped" : undefined,
@@ -94,13 +94,28 @@ function costOf(
 		: allocation.agents.find((each) => each.agentId === agentId);
 }
 
-function readingOf(reading: SessionHistoryCostReading): string {
-	return costLabel(reading);
+function forkedSkillOf(
+	allocation: Allocation,
+	agentId: string,
+): string | undefined {
+	return allocation.state === "available"
+		? allocation.agents.find((each) => each.agentId === agentId)?.forkedSkill
+		: undefined;
 }
 
+/**
+ * An agent's peak over the attempt's requests, or over its inherited-prefix
+ * requests when it ran only there.
+ */
 function peakLabel(entries: readonly SessionHistoryRequestEntry[]): string {
+	const attempt = entries.filter(({ region }) => region !== "starting-context");
+	const counted = attempt.length === 0 ? entries : attempt;
+	const scope =
+		attempt.length === 0
+			? "over its inherited-prefix requests"
+			: "over the attempt's requests";
 	let peak: number | undefined;
-	for (const entry of entries) {
+	for (const entry of counted) {
 		if (entry.usageState === "complete") {
 			peak = Math.max(peak ?? 0, entry.totalInputTokens);
 		}
@@ -108,7 +123,7 @@ function peakLabel(entries: readonly SessionHistoryRequestEntry[]): string {
 
 	return peak === undefined
 		? "? Unavailable · no request in this agent carries settled usage"
-		: `${tokens.format(peak)} total input tokens · the peak of this agent's own window, never summed with another agent's`;
+		: `${tokens.format(peak)} total input tokens ${scope} · the peak of this agent's own window, never summed with another agent's`;
 }
 
 function totalsLabel(readings: Readings): string {
@@ -131,10 +146,13 @@ function requestLabel(entry: SessionHistoryRequestEntry): string {
 
 	return [
 		`line ${entry.line}`,
+		entry.region === "starting-context" ? "inherited prefix" : undefined,
 		entry.requestId ?? "no request id",
 		size,
 		entry.model ?? "? Unavailable model",
-	].join(" · ");
+	]
+		.filter((part) => part !== undefined)
+		.join(" · ");
 }
 
 function Reading({
@@ -163,14 +181,17 @@ function Reading({
 
 function CostReadings({
 	cost,
+	allocation,
 }: {
 	readonly cost: AgentCost | undefined;
+	readonly allocation: Allocation;
 }): React.JSX.Element {
 	if (cost === undefined) {
 		return (
 			<Reading term="Cost">
-				Not part of the attempt's cost: this agent ran in the inherited prefix,
-				before the attempt, or the attempt's cost is unavailable.
+				{allocation.state === "available"
+					? "Not part of the attempt's cost: this agent ran in the inherited prefix, before the attempt."
+					: `? Unavailable · ${allocation.reasons.join(", ")}`}
 			</Reading>
 		);
 	}
@@ -178,20 +199,24 @@ function CostReadings({
 	return (
 		<>
 			<Reading term="Own cost">
-				{readingOf(cost.own.cost)} · basis: {cost.own.basis}
+				{costLabel(cost.own.cost)} · basis: {cost.own.basis}
 			</Reading>
 			<Reading term="Including descendants">
-				{readingOf(cost.includingDescendants.cost)} · basis:{" "}
+				{costLabel(cost.includingDescendants.cost)} · basis:{" "}
 				{cost.includingDescendants.basis}
 				{cost.includingDescendants.childAgentIds.length === 0
 					? ""
 					: ` · children ${cost.includingDescendants.childAgentIds.join(", ")}`}
 			</Reading>
 			<Reading term="Shared remainder">
-				{readingOf(cost.shared.cost)} · basis: {cost.shared.basis}
+				{costLabel(cost.shared.cost)}
+				{cost.shared.skills.length === 0
+					? ""
+					: ` · skills ${cost.shared.skills.join(", ")}`}{" "}
+				· basis: {cost.shared.basis}
 			</Reading>
 			<Reading term="Unattributed remainder">
-				{readingOf(cost.unattributed.cost)} · basis: {cost.unattributed.basis}
+				{costLabel(cost.unattributed.cost)} · basis: {cost.unattributed.basis}
 			</Reading>
 			<Reading term="Provider count">
 				{cost.provider.state === "reported"
@@ -278,10 +303,12 @@ function LoadEvidence({
 	agentId,
 	readings,
 	onOpenExcerpt,
+	onSelectSource,
 }: {
 	readonly agentId: string | undefined;
 	readonly readings: Readings;
 	readonly onOpenExcerpt: (request: ExcerptRequest) => void;
+	readonly onSelectSource: (sourceId: string) => void;
 }): React.JSX.Element {
 	const names = new Map(
 		readings.deliveries.map(({ id, name }) => [id, name] as const),
@@ -292,9 +319,18 @@ function LoadEvidence({
 			{readings.deliveryEvents.map(
 				({ sourceId, eventId, ordinal, measurement }) => (
 					<li key={eventId} className="flex flex-col gap-0.5">
-						<span className="text-12">
-							{names.get(sourceId) ?? sourceId} · delivery {ordinal} · event{" "}
-							{eventId}
+						<span className="font-mono text-12">
+							<button
+								type="button"
+								aria-label={`Show the agents that received ${names.get(sourceId) ?? sourceId}`}
+								className="underline hover:text-foreground"
+								onClick={() => {
+									onSelectSource(sourceId);
+								}}
+							>
+								{names.get(sourceId) ?? sourceId}
+							</button>{" "}
+							· delivery {ordinal} · event {eventId}
 						</span>
 						<small className="text-11-5 text-dim">
 							{sizeLabel(measurement)}
@@ -345,11 +381,13 @@ function AgentDetail({
 	allocation,
 	agentId,
 	onOpenExcerpt,
+	onSelectSource,
 }: {
 	readonly tree: Tree;
 	readonly allocation: Allocation;
 	readonly agentId: string | undefined;
 	readonly onOpenExcerpt: (request: ExcerptRequest) => void;
+	readonly onSelectSource: (sourceId: string) => void;
 }): React.JSX.Element {
 	const agent = tree.agents.find((each) => each.agentId === agentId);
 	if (agent?.evidence === "unavailable") {
@@ -395,11 +433,18 @@ function AgentDetail({
 						? "? Unavailable model"
 						: readings.models.join(", ")}
 				</Reading>
-				<Reading term="Token categories">{totalsLabel(readings)}</Reading>
+				<Reading term="Token categories">
+					{agent?.context === "inherited"
+						? "Not part of the attempt: this agent's requests ran in the inherited prefix"
+						: totalsLabel(readings)}
+				</Reading>
 				<Reading term="Context peak">
 					{peakLabel(readings.series.entries)}
 				</Reading>
-				<CostReadings cost={costOf(allocation, agentId)} />
+				<CostReadings
+					cost={costOf(allocation, agentId)}
+					allocation={allocation}
+				/>
 			</dl>
 			<section className="flex flex-col gap-1.5">
 				<h3>
@@ -418,6 +463,7 @@ function AgentDetail({
 					agentId={agentId}
 					readings={readings}
 					onOpenExcerpt={onOpenExcerpt}
+					onSelectSource={onSelectSource}
 				/>
 			</section>
 		</div>
@@ -439,11 +485,11 @@ function SkillDetail({
 				{skill.deliveryLine}
 			</Reading>
 			<Reading term="Own cost">
-				{readingOf(skill.own.cost)} over {skill.own.requestLines.length}{" "}
+				{costLabel(skill.own.cost)} over {skill.own.requestLines.length}{" "}
 				requests · basis: {skill.own.basis}
 			</Reading>
 			<Reading term="Including descendants">
-				{readingOf(skill.includingDescendants.cost)}
+				{costLabel(skill.includingDescendants.cost)}
 				{skill.includingDescendants.childAgentIds.length === 0
 					? " · no sub-agent"
 					: ` · sub-agents ${skill.includingDescendants.childAgentIds.join(", ")}`}{" "}
@@ -466,7 +512,10 @@ function TreeButton({
 		<button
 			type="button"
 			aria-pressed={pressed}
-			className={cn(selectableRow({ markedBy: "pressed" }), "text-12")}
+			className={cn(
+				selectableRow({ markedBy: "pressed" }),
+				"font-mono text-12",
+			)}
 			onClick={onSelect}
 		>
 			{label}
@@ -495,7 +544,7 @@ function SkillButtons({
 			{skills.map((skill) => (
 				<li key={skill.deliveryLine}>
 					<TreeButton
-						label={`Skill ${skill.skill} · own ${readingOf(skill.own.cost)}`}
+						label={`Skill ${skill.skill} · own ${costLabel(skill.own.cost)}`}
 						pressed={
 							selection.kind === "skill" &&
 							selection.agentId === agentId &&
@@ -571,7 +620,7 @@ function AgentBranch({
 	const label =
 		agent === undefined
 			? `${ROOT_NAME} · ${tree.root.models.join(", ")}`
-			: agentLabel(agent);
+			: agentLabel(agent, forkedSkillOf(allocation, agent.agentId));
 
 	return (
 		<li aria-label={agentName(agentId)}>
@@ -631,6 +680,7 @@ function ReceivingAgents({
 	]
 		.map(({ agentId, readings }) => ({
 			agentId,
+			inherited: "context" in readings && readings.context === "inherited",
 			deliveries: readings.deliveryEvents.filter(
 				(delivery) => delivery.sourceId === sourceId,
 			),
@@ -650,21 +700,22 @@ function ReceivingAgents({
 				read per agent and skill below.
 			</p>
 			<ul className="flex flex-col gap-2">
-				{receivers.map(({ agentId, deliveries }) => (
+				{receivers.map(({ agentId, inherited, deliveries }) => (
 					<li
 						key={agentName(agentId)}
 						aria-label={agentName(agentId)}
 						className="flex flex-col gap-1"
 					>
-						<span className="text-12">
-							{agentName(agentId)} · {deliveries.length}{" "}
+						<span className="font-mono text-12">
+							{agentName(agentId)}
+							{inherited ? " · inherited" : ""} · {deliveries.length}{" "}
 							{deliveries.length === 1 ? "delivery" : "deliveries"}
 							{deliveries.length > 1 ? " · repeated" : ""}
 						</span>
 						<ul className="flex flex-col gap-1 pl-4">
 							{deliveries.map(({ eventId, ordinal, measurement }) => (
 								<li key={eventId} className="flex flex-col gap-0.5">
-									<small className="text-11-5 text-dim">
+									<small className="font-mono text-11-5 text-dim">
 										delivery {ordinal} · event {eventId} ·{" "}
 										{sizeLabel(measurement)}
 									</small>
@@ -696,11 +747,13 @@ function SelectedDetail({
 	allocation,
 	selection,
 	onOpenExcerpt,
+	onSelectSource,
 }: {
 	readonly tree: Tree;
 	readonly allocation: Allocation;
 	readonly selection: Selection;
 	readonly onOpenExcerpt: (request: ExcerptRequest) => void;
+	readonly onSelectSource: (sourceId: string) => void;
 }): React.JSX.Element {
 	if (selection.kind === "skill") {
 		const skill = costOf(allocation, selection.agentId)?.skills.find(
@@ -720,6 +773,7 @@ function SelectedDetail({
 			allocation={allocation}
 			agentId={selection.agentId}
 			onOpenExcerpt={onOpenExcerpt}
+			onSelectSource={onSelectSource}
 		/>
 	);
 }
@@ -734,11 +788,13 @@ export function AgentTreePane({
 	sourceId,
 	excerpt,
 	onOpenExcerpt,
+	onSelectSource,
 }: {
 	readonly agents: AvailableAgents;
 	readonly sourceId: string | undefined;
 	readonly excerpt: ReactNode;
 	readonly onOpenExcerpt: (request: ExcerptRequest) => void;
+	readonly onSelectSource: (sourceId: string) => void;
 }): React.JSX.Element {
 	const [selection, setSelection] = useState<Selection>({
 		kind: "agent",
@@ -768,7 +824,7 @@ export function AgentTreePane({
 				>
 					Calculated attempt total, each request once:{" "}
 					{cost.state === "available"
-						? readingOf(cost.calculated)
+						? costLabel(cost.calculated)
 						: `? Unavailable · ${cost.reasons.join(", ")}`}
 				</p>
 			</div>
@@ -814,6 +870,7 @@ export function AgentTreePane({
 						allocation={cost}
 						selection={selection}
 						onOpenExcerpt={onOpenExcerpt}
+						onSelectSource={onSelectSource}
 					/>
 				</section>
 				<section aria-label="Delivery excerpt" className="min-w-80 flex-7">
