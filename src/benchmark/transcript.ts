@@ -33,16 +33,17 @@ const transcriptRecordSchema = z.looseObject({
 
 const assistantRecordSchema = z.looseObject({
 	type: z.literal("assistant"),
-	requestId: z.string().min(1).nullish(),
 	message: z.looseObject({ content: z.array(z.unknown()) }),
 });
 
+/**
+ * Read apart from the record schemas, so a drifted id loses only itself and
+ * never the row's tool calls.
+ */
+const providerIdSchema = z.string().min(1);
+
 const userRecordSchema = z.looseObject({
 	type: z.literal("user"),
-	parentUuid: z.string().nullish(),
-	isMeta: z.boolean().optional(),
-	isCompactSummary: z.boolean().optional(),
-	sourceToolUseID: z.string().min(1).optional(),
 	message: z.looseObject({
 		content: z.union([z.string(), z.array(z.unknown())]),
 	}),
@@ -397,15 +398,20 @@ function readUserTurn(
 	record: Immutable<UserRecord>,
 	blocks: readonly unknown[],
 ): UserTurn | undefined {
-	if (record.isMeta === true) {
+	if (record["isMeta"] === true) {
 		return undefined;
 	}
 
-	if (record.isCompactSummary === true) {
+	if (record["isCompactSummary"] === true) {
 		return "compaction summary";
 	}
 
-	if (blocks.some((block) => toolResultSchema.safeParse(block).success)) {
+	if (
+		blocks.some(
+			(block) =>
+				contentBlockSchema.safeParse(block).data?.type === "tool_result",
+		)
+	) {
 		return undefined;
 	}
 
@@ -437,8 +443,11 @@ function readUserFields(
 	return {
 		userTurn: readUserTurn(record, blocks),
 		startsWithoutParent:
-			record.parentUuid === null || record.parentUuid === undefined,
-		metaFor: record.isMeta === true ? record.sourceToolUseID : undefined,
+			record["parentUuid"] === null || record["parentUuid"] === undefined,
+		metaFor:
+			record["isMeta"] === true
+				? providerIdSchema.safeParse(record["sourceToolUseID"]).data
+				: undefined,
 	};
 }
 
@@ -470,13 +479,13 @@ function readLine(line: string, lineNumber: number): TranscriptLine {
 
 	let blocks: readonly unknown[] = [];
 	let user: UserRecord | undefined;
-	let requestId: string | null | undefined;
+	let requestId: string | undefined;
 	if (record.data.type === "assistant") {
 		const assistant = assistantRecordSchema.safeParse(parsed);
 		if (!assistant.success) {
 			return emptyTranscriptLine(lineNumber, "invalid-message-content");
 		}
-		({ requestId } = assistant.data);
+		requestId = providerIdSchema.safeParse(assistant.data["requestId"]).data;
 		blocks = assistant.data.message.content;
 	} else if (record.data.type === "user") {
 		const userRecord = userRecordSchema.safeParse(parsed);
@@ -553,7 +562,7 @@ function readLine(line: string, lineNumber: number): TranscriptLine {
 		diagnosticIssues,
 		namedAgent: readNamedAgent(parsed),
 		...readUserFields(user, blocks),
-		requestId: requestId ?? undefined,
+		requestId,
 	};
 }
 
