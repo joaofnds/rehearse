@@ -1625,6 +1625,10 @@ export type SessionHistoryRequestEntry = {
 			readonly cacheWriteSplit: SessionHistoryCacheWriteSplit;
 	  }
 	| { readonly usageState: "conflict" }
+	| {
+			readonly usageState: "incomplete";
+			readonly lowerBound: SessionHistoryRequestUsage;
+	  }
 );
 
 export type SessionHistoryAttemptTotals =
@@ -1658,6 +1662,8 @@ export interface SessionHistoryRequestSeries {
 const BOUNDARY_ABSENT = "the transcript carries no attempt boundary";
 const NO_CATALOG = "no rate catalog was supplied";
 const TRANSCRIPT_ABSENT = "the attempt has no saved transcript";
+const USAGE_INCOMPLETE =
+	"usage is incomplete: no row of the request carries a stop reason";
 
 function attemptTotals(
 	entries: readonly SessionHistoryRequestEntry[],
@@ -1731,6 +1737,7 @@ const requestRowSchema = z.looseObject({
 	requestId: z.string().min(1).nullish(),
 	message: z.looseObject({
 		model: z.string().min(1).optional(),
+		stop_reason: z.string().nullable().optional(),
 		usage: requestUsageSchema,
 	}),
 });
@@ -1758,6 +1765,7 @@ interface ParsedRequestRow {
 	readonly requestId: string | undefined;
 	readonly line: number;
 	readonly model: string | undefined;
+	readonly final: boolean;
 	readonly usage: SessionHistoryRequestUsage;
 	readonly cacheWriteSplit: SessionHistoryCacheWriteSplit;
 }
@@ -1814,6 +1822,7 @@ function parsedRequestRow(
 		requestId: row.data.requestId ?? undefined,
 		line,
 		model: row.data.message.model,
+		final: row.data.message.stop_reason !== null,
 		usage: {
 			inputTokens: usage.input_tokens,
 			outputTokens: usage.output_tokens,
@@ -1881,36 +1890,75 @@ function sameUsage(
 	);
 }
 
-interface RequestDisagreements {
-	readonly usage: ReadonlySet<string>;
-	readonly model: ReadonlySet<string>;
-	readonly firstRowByRequestId: ReadonlyMap<string, Readonly<ParsedRequestRow>>;
+/**
+ * What the rows sharing one requestId say about that request. The provider
+ * writes a row per streamed content block, and only a row carrying a stop
+ * reason holds the request's final usage, so the earlier rows' climbing counts
+ * are partial readings rather than disagreements. A row that carries no
+ * stop_reason field at all says nothing about being partial and counts as
+ * final, which keeps every transcript that never wrote the field reading as it
+ * did.
+ */
+interface RequestRows {
+	readonly first: Readonly<ParsedRequestRow>;
+	readonly finalRow: Readonly<ParsedRequestRow> | undefined;
+	readonly last: Readonly<ParsedRequestRow>;
+	readonly usageConflict: boolean;
+	readonly modelConflict: boolean;
 }
 
-function requestDisagreements(
+function requestRows(
 	rows: readonly Readonly<ParsedRequestRow>[],
-): RequestDisagreements {
-	const usage = new Set<string>();
-	const model = new Set<string>();
+): ReadonlyMap<Readonly<ParsedRequestRow>, RequestRows> {
 	const firstRowByRequestId = new Map<string, Readonly<ParsedRequestRow>>();
+	const byFirstRow = new Map<Readonly<ParsedRequestRow>, RequestRows>();
 	for (const row of rows) {
-		if (row.requestId === undefined) {
+		const first =
+			row.requestId === undefined
+				? undefined
+				: firstRowByRequestId.get(row.requestId);
+		const seen = first === undefined ? undefined : byFirstRow.get(first);
+		if (seen === undefined) {
+			if (row.requestId !== undefined) {
+				firstRowByRequestId.set(row.requestId, row);
+			}
+			byFirstRow.set(row, openedRequest(row));
 			continue;
 		}
-		const first = firstRowByRequestId.get(row.requestId);
-		if (first === undefined) {
-			firstRowByRequestId.set(row.requestId, row);
-			continue;
-		}
-		if (!sameUsage(first.usage, row.usage)) {
-			usage.add(row.requestId);
-		}
-		if (first.model !== row.model) {
-			model.add(row.requestId);
-		}
+
+		byFirstRow.set(seen.first, withRow(seen, row));
 	}
 
-	return { usage, model, firstRowByRequestId };
+	return byFirstRow;
+}
+
+function openedRequest(row: Readonly<ParsedRequestRow>): RequestRows {
+	return {
+		first: row,
+		finalRow: row.final ? row : undefined,
+		last: row,
+		usageConflict: false,
+		modelConflict: false,
+	};
+}
+
+function withRow(
+	request: Readonly<RequestRows>,
+	row: Readonly<ParsedRequestRow>,
+): RequestRows {
+	const finalRow = request.finalRow ?? (row.final ? row : undefined);
+	const disagrees =
+		row.final &&
+		finalRow !== undefined &&
+		!sameUsage(finalRow.usage, row.usage);
+
+	return {
+		first: request.first,
+		finalRow,
+		last: row,
+		usageConflict: request.usageConflict || disagrees,
+		modelConflict: request.modelConflict || request.first.model !== row.model,
+	};
 }
 
 type CompleteUsageEntry = Extract<
@@ -1920,33 +1968,39 @@ type CompleteUsageEntry = Extract<
 
 type UnaccumulatedEntry =
 	| Omit<CompleteUsageEntry, "cumulativeTotalInputTokens">
-	| Extract<SessionHistoryRequestEntry, { usageState: "conflict" }>;
+	| Extract<SessionHistoryRequestEntry, { usageState: "conflict" }>
+	| Extract<SessionHistoryRequestEntry, { usageState: "incomplete" }>;
 
 function collapsedEntry(
-	row: Readonly<ParsedRequestRow>,
-	disagreements: Readonly<RequestDisagreements>,
+	request: Readonly<RequestRows>,
 	prefixLinesExcluded: number | undefined,
 ): UnaccumulatedEntry {
-	const modelDisagrees =
-		row.requestId !== undefined && disagreements.model.has(row.requestId);
+	const { first, finalRow } = request;
 	const identity = {
-		requestId: row.requestId,
-		line: row.line,
-		region: regionFor(row.line, prefixLinesExcluded),
-		...(modelDisagrees
+		requestId: first.requestId,
+		line: first.line,
+		region: regionFor(first.line, prefixLinesExcluded),
+		...(request.modelConflict
 			? { model: undefined, modelState: "conflict" as const }
-			: { model: row.model }),
+			: { model: first.model }),
 	};
-	if (row.requestId !== undefined && disagreements.usage.has(row.requestId)) {
+	if (request.usageConflict) {
 		return { ...identity, usageState: "conflict" };
+	}
+	if (finalRow === undefined) {
+		return {
+			...identity,
+			usageState: "incomplete",
+			lowerBound: request.last.usage,
+		};
 	}
 
 	return {
 		...identity,
 		usageState: "complete",
-		usage: row.usage,
-		totalInputTokens: totalInputTokens(row.usage),
-		cacheWriteSplit: row.cacheWriteSplit,
+		usage: finalRow.usage,
+		totalInputTokens: totalInputTokens(finalRow.usage),
+		cacheWriteSplit: finalRow.cacheWriteSplit,
 	};
 }
 
@@ -1959,17 +2013,15 @@ function collapsedEntries(
 	rows: readonly Readonly<ParsedRequestRow>[],
 	prefixLinesExcluded: number | undefined,
 ): readonly SessionHistoryRequestEntry[] {
-	const disagreements = requestDisagreements(rows);
+	const requests = requestRows(rows);
 	const entries: SessionHistoryRequestEntry[] = [];
 	let cumulative = 0;
 	for (const row of rows) {
-		if (
-			row.requestId !== undefined &&
-			disagreements.firstRowByRequestId.get(row.requestId) !== row
-		) {
+		const request = requests.get(row);
+		if (request === undefined) {
 			continue;
 		}
-		const entry = collapsedEntry(row, disagreements, prefixLinesExcluded);
+		const entry = collapsedEntry(request, prefixLinesExcluded);
 		if (entry.usageState !== "complete") {
 			entries.push(entry);
 			continue;
@@ -2115,6 +2167,9 @@ function pricedRequest(
 	entry: SessionHistoryRequestEntry,
 	rates: ContextRateCatalog,
 ): PricedRequest {
+	if (entry.usageState === "incomplete") {
+		return { state: "unpriced", reason: USAGE_INCOMPLETE };
+	}
 	if (entry.usageState !== "complete") {
 		return { state: "unpriced", reason: UNPRICED_REASONS["usage-conflict"] };
 	}

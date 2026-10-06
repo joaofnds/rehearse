@@ -6,7 +6,10 @@ import { join } from "node:path";
 import { UNPRICED_REASONS } from "#benchmark/context-evidence-contract";
 import type { JsonValue } from "#benchmark/json-value";
 import { syntheticRateProvenance } from "#benchmark/rate-catalog-test-support";
-import type { SessionHistoryRequestSeries } from "#benchmark/session-history";
+import type {
+	SessionHistoryRequestEntry,
+	SessionHistoryRequestSeries,
+} from "#benchmark/session-history";
 import {
 	MAX_EVENT_DETAIL_BYTES,
 	sessionHistoryAttemptCost,
@@ -1458,6 +1461,114 @@ describe(sessionHistoryRequestSeries.name, () => {
 		expect(series.measuresActiveContextWindow).toBe(false);
 	});
 
+	describe("when rows stream partial usage", () => {
+		function streamedRow(
+			requestId: string,
+			output: number,
+			stopReason: string | null,
+		): string {
+			return row({
+				type: "assistant",
+				requestId,
+				message: {
+					model: "claude-opus-5",
+					stop_reason: stopReason,
+					usage: {
+						input_tokens: 2,
+						output_tokens: output,
+						cache_read_input_tokens: 100,
+						cache_creation_input_tokens: 0,
+					},
+				},
+			});
+		}
+
+		function usageOf(
+			transcript: readonly string[],
+		): SessionHistoryRequestEntry | undefined {
+			const [entry] = sessionHistoryRequestSeries({
+				transcript: transcript.join("\n"),
+				prefixLinesExcluded: 0,
+			}).entries;
+
+			return entry;
+		}
+
+		it("takes the usage of the row carrying a stop reason", () => {
+			const entry = usageOf([
+				streamedRow("req-a", 8, null),
+				streamedRow("req-a", 8, null),
+				streamedRow("req-a", 581, "tool_use"),
+			]);
+
+			expect(entry).toMatchObject({
+				line: 1,
+				usageState: "complete",
+				usage: { outputTokens: 581 },
+			});
+		});
+
+		it("takes the usage of two final rows that agree", () => {
+			const entry = usageOf([
+				streamedRow("req-a", 8, null),
+				streamedRow("req-a", 581, "tool_use"),
+				streamedRow("req-a", 581, "tool_use"),
+			]);
+
+			expect(entry).toMatchObject({
+				usageState: "complete",
+				usage: { outputTokens: 581 },
+			});
+		});
+
+		it("reads final rows that disagree as a conflict", () => {
+			const entry = usageOf([
+				streamedRow("req-a", 581, "tool_use"),
+				streamedRow("req-a", 590, "tool_use"),
+			]);
+
+			expect(entry?.usageState).toBe("conflict");
+		});
+
+		it("reads a request with no final row as incomplete with its last row as a lower bound", () => {
+			const entry = usageOf([
+				streamedRow("req-a", 8, null),
+				streamedRow("req-a", 40, null),
+			]);
+
+			expect(entry).toEqual({
+				requestId: "req-a",
+				line: 1,
+				region: "attempt",
+				model: "claude-opus-5",
+				usageState: "incomplete",
+				lowerBound: {
+					inputTokens: 2,
+					outputTokens: 40,
+					cacheReadTokens: 100,
+					cacheWriteTokens: 0,
+				},
+			});
+		});
+
+		it("leaves a request with no final row out of the attempt totals", () => {
+			const series = sessionHistoryRequestSeries({
+				transcript: [
+					streamedRow("req-a", 581, "end_turn"),
+					streamedRow("req-b", 40, null),
+				].join("\n"),
+				prefixLinesExcluded: 0,
+			});
+
+			expect(series.attemptTotals).toMatchObject({
+				state: "incomplete",
+				requestCount: 2,
+				countedRequestCount: 1,
+				usage: { outputTokens: 581 },
+			});
+		});
+	});
+
 	describe("when the transcript arrives as lines", () => {
 		const openHandles: FileHandle[] = [];
 		const roots: string[] = [];
@@ -2052,6 +2163,46 @@ describe(sessionHistoryAttemptCost.name, () => {
 			reasons: [
 				"a reading it is drawn from is incomplete",
 				"usage is in conflict",
+			],
+		});
+	});
+
+	it("refuses to price a request whose rows never settled", () => {
+		const transcript = row({
+			type: "assistant",
+			requestId: "req-streaming",
+			message: {
+				model: "claude-sonnet-5",
+				stop_reason: null,
+				usage: {
+					input_tokens: 2,
+					output_tokens: 8,
+					cache_read_input_tokens: 0,
+					cache_creation_input_tokens: 0,
+					cache_creation: {
+						ephemeral_1h_input_tokens: 0,
+						ephemeral_5m_input_tokens: 0,
+					},
+				},
+			},
+		});
+
+		const cost = sessionHistoryAttemptCost({
+			series: sessionHistoryRequestSeries({
+				transcript,
+				prefixLinesExcluded: 0,
+			}),
+			reportedCostUsd: undefined,
+			rates,
+		});
+
+		expect(cost.calculated).toEqual({
+			state: "incomplete",
+			costUsd: 0,
+			pricedRequestCount: 0,
+			requestCount: 1,
+			reasons: [
+				"usage is incomplete: no row of the request carries a stop reason",
 			],
 		});
 	});

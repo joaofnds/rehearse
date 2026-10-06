@@ -6,6 +6,7 @@ import type {
 	SessionHistoryRequestCost,
 	SessionHistoryRequestEntry,
 	SessionHistoryRequestSeries,
+	SessionHistoryRequestUsage,
 } from "#benchmark/session-history";
 import type { SessionHistoryRequestCostEntry } from "#server/session-history-reader";
 import type { TranscriptInstructionLoads } from "#benchmark/transcript-instruction-loads";
@@ -139,12 +140,26 @@ function widestTotal(entries: readonly SessionHistoryRequestEntry[]): number {
 	return widest;
 }
 
+function totalLabel(entry: SessionHistoryRequestEntry): string {
+	if (entry.usageState === "complete") {
+		return tokens.format(entry.totalInputTokens);
+	}
+
+	return entry.usageState;
+}
+
 function categoryLabel(entry: SessionHistoryRequestEntry): string {
-	if (entry.usageState !== "complete") {
+	if (entry.usageState === "conflict") {
 		return "usage conflict";
 	}
-	const { usage } = entry;
+	if (entry.usageState === "incomplete") {
+		return `at least ${categories(entry.lowerBound)}`;
+	}
 
+	return categories(entry.usage);
+}
+
+function categories(usage: SessionHistoryRequestUsage): string {
 	return [
 		`in ${tokens.format(usage.inputTokens)}`,
 		`out ${tokens.format(usage.outputTokens)}`,
@@ -270,11 +285,7 @@ export function RequestTimeline({
 							className="block h-1 w-(--bar-width) min-w-0.5 bg-primary"
 							style={{ "--bar-width": barWidth(entry, widest) }}
 						/>
-						<strong className="font-mono text-sm">
-							{entry.usageState === "complete"
-								? tokens.format(entry.totalInputTokens)
-								: "conflict"}
-						</strong>
+						<strong className="font-mono text-sm">{totalLabel(entry)}</strong>
 						<small className="text-xs text-dim">{categoryLabel(entry)}</small>
 						<small className="text-xs text-dim">{modelLabel(entry)}</small>
 						<small className="text-xs text-dim">
