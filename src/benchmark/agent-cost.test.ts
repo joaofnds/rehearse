@@ -281,6 +281,33 @@ describe(agentCostAllocation.name, () => {
 		});
 	});
 
+	describe("when an interruption follows a skill's delivery", () => {
+		it("closes the skill's window at the interruption", async () => {
+			const interruption = JSON.stringify({
+				type: "user",
+				message: {
+					role: "user",
+					content: [{ type: "text", text: "[Request interrupted by user]" }],
+				},
+				cwd: "/work",
+			});
+
+			const allocation = available(
+				await fixtureAllocation({
+					transcript: (lines) => [
+						...lines.slice(0, LINES_BEFORE_SECOND_SKILL_REQUEST),
+						interruption,
+						...lines.slice(LINES_BEFORE_SECOND_SKILL_REQUEST),
+					],
+				}),
+			);
+
+			expect(skillNamed(allocation.root, "review").own.requestLines).toEqual([
+				8,
+			]);
+		});
+	});
+
 	describe("when a compaction follows a skill's delivery", () => {
 		it("keeps the skill's window open", async () => {
 			const compaction = [
