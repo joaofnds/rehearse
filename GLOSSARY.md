@@ -141,6 +141,14 @@ See [current state](docs/status.md) for implementation coverage and
 - **Comparison arm** — one role in a comparison: baseline, candidate, or the
   mandatory minimal-corpus control. An arm uses the same corpus snapshot across
   every benchmark case; a session control may have an empty declared corpus.
+- **Baseline arm, arm A and arm B (comparison screen)** — the names the
+  comparison screen gives the three comparison arms: the baseline arm is the
+  control, arm A is the baseline role, the corpus before the edit, and arm B is
+  the candidate role, the corpus after it. A baseline arm `compare attempts`
+  derived is arm A's corpus with the skill under test removed; one the
+  manifest's author supplied is a minimal corpus.
+- **Skill under test** — the one corpus unit that differs between arms A and B,
+  which a derived baseline arm removes to show the corpus does work at all.
 - **What moved (comparison)**: the per-case rows a comparison answers "did the
   change help, hurt or do nothing" with, in order: the overall grade, each hard
   blocker's firings, each quality dimension's letter span, reply length and
