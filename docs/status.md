@@ -68,10 +68,11 @@ comparison page, and the comparisons list shows the extension in place of the
 comparison it extends; no extension has run on real provider calls yet
 (ACT-271.6). The page shows each case's arm figures on its arm cards and, under
 Attempt pairs, each arm's attempts with their outcomes, fired blockers, words
-and history links, what the pairing says, and what to read with care beside the
+and history links, or "history stale" where saved provenance no longer
+matches, what the pairing says, and what to read with care beside the
 offer to add attempts or why none can be added. A stage or pipeline comparison
 links no attempt history, since its attempts record no session. Its What moved
-view does not read the served rows yet (ACT-257).
+view does not read the served `whatMoved` rows yet (ACT-257).
 
 ## Known limitations
 
