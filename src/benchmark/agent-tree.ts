@@ -4,6 +4,8 @@ import {
 	sessionHistoryReport,
 	sessionHistoryRequestSeries,
 } from "./session-history";
+import { parseTranscript } from "./transcript";
+import type { TranscriptLine } from "./transcript";
 import type {
 	CorpusFileLocation,
 	SessionHistoryAttemptIdentity,
@@ -144,26 +146,9 @@ interface AgentMeta {
 	readonly stoppedByUser?: boolean | undefined;
 }
 
-const toolUseSchema = z.looseObject({
-	type: z.literal("tool_use"),
-	id: z.string().min(1),
-	name: z.string().min(1),
-});
-
-const assistantRowSchema = z.looseObject({
-	type: z.literal("assistant"),
-	message: z.looseObject({ content: z.array(z.unknown()) }),
-});
-
 const toolResultBlockSchema = z.looseObject({
 	type: z.literal("tool_result"),
 	tool_use_id: z.string().min(1),
-});
-
-const namedAgentRowSchema = z.looseObject({
-	type: z.literal("user"),
-	toolUseResult: z.looseObject({ agentId: z.string().min(1) }),
-	message: z.looseObject({ content: z.array(z.unknown()) }),
 });
 
 const userRowSchema = z.looseObject({
@@ -234,46 +219,29 @@ function decodedRows(
 	return rows;
 }
 
-function toolUses(
-	blocks: readonly unknown[],
-): readonly z.infer<typeof toolUseSchema>[] {
-	return blocks.flatMap((block) => {
-		const call = toolUseSchema.safeParse(block);
-
-		return call.success ? [call.data] : [];
-	});
-}
-
-interface OwnedRow extends Located {
-	readonly value: unknown;
+interface OwnedLine {
+	readonly owner: Owner;
+	readonly parsed: TranscriptLine;
 }
 
 function launchIndex(transcripts: ReadonlyMap<Owner, string>): LaunchIndex {
 	const calls = new Map<string, LaunchCall>();
 	const results = new Map<string, NamingResult>();
-	const rows: readonly OwnedRow[] = [...transcripts].flatMap(
-		([owner, transcript]) =>
-			decodedRows(transcript).map(([line, value]) => ({ owner, line, value })),
+	const lines = [...transcripts].flatMap(([owner, transcript]) =>
+		parseTranscript(transcript).map((parsed): OwnedLine => ({ owner, parsed })),
 	);
-	for (const { owner, line, value } of rows) {
-		const assistant = assistantRowSchema.safeParse(value);
-		if (assistant.success) {
-			for (const call of toolUses(assistant.data.message.content)) {
-				if (!calls.has(call.id)) {
-					calls.set(call.id, { owner, line, name: call.name });
-				}
+	for (const { owner, parsed } of lines) {
+		for (const { use, toolUseId } of parsed.locatedToolUses) {
+			if (toolUseId !== undefined && !calls.has(toolUseId)) {
+				calls.set(toolUseId, { owner, line: parsed.line, name: use.name });
 			}
-			continue;
 		}
-		const named = namedAgentRowSchema.safeParse(value);
-		if (named.success && !results.has(named.data.toolUseResult.agentId)) {
-			const answered = named.data.message.content
-				.map((block) => toolResultBlockSchema.safeParse(block))
-				.find((block) => block.success);
-			results.set(named.data.toolUseResult.agentId, {
+		const agentId = parsed.namedAgent;
+		if (agentId !== undefined && !results.has(agentId)) {
+			results.set(agentId, {
 				owner,
-				line,
-				toolUseId: answered?.data?.tool_use_id,
+				line: parsed.line,
+				toolUseId: parsed.locatedToolResults[0]?.toolUseId,
 			});
 		}
 	}
