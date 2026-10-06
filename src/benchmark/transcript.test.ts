@@ -157,7 +157,7 @@ describe(parseTranscript.name, () => {
 			);
 
 			expect(row?.locatedToolResults).toHaveLength(1);
-			expect(row?.metaFor).toBeUndefined();
+			expect(row?.sourceToolUseId).toBeUndefined();
 		});
 	});
 

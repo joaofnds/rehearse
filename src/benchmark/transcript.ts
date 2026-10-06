@@ -371,7 +371,7 @@ export interface TranscriptLine {
 	/** The provider's id for the request an assistant row belongs to. */
 	readonly requestId: string | undefined;
 	/** The tool call whose output a meta row carries, such as a skill's body. */
-	readonly metaFor: string | undefined;
+	readonly sourceToolUseId: string | undefined;
 }
 
 function readNamedAgent(record: JsonValue): string | undefined {
@@ -445,12 +445,15 @@ function readUserTurn(
 function readUserFields(
 	record: Immutable<UserRecord> | undefined,
 	blocks: readonly unknown[],
-): Pick<TranscriptLine, "userTurn" | "startsWithoutParent" | "metaFor"> {
+): Pick<
+	TranscriptLine,
+	"userTurn" | "startsWithoutParent" | "sourceToolUseId"
+> {
 	if (record === undefined) {
 		return {
 			userTurn: undefined,
 			startsWithoutParent: false,
-			metaFor: undefined,
+			sourceToolUseId: undefined,
 		};
 	}
 
@@ -458,7 +461,7 @@ function readUserFields(
 		userTurn: readUserTurn(record, blocks),
 		startsWithoutParent:
 			record["parentUuid"] === null || record["parentUuid"] === undefined,
-		metaFor:
+		sourceToolUseId:
 			record["isMeta"] === true
 				? providerIdSchema.safeParse(record["sourceToolUseID"]).data
 				: undefined,
@@ -597,7 +600,7 @@ function emptyTranscriptLine(
 		userTurn: undefined,
 		startsWithoutParent: false,
 		requestId: undefined,
-		metaFor: undefined,
+		sourceToolUseId: undefined,
 	};
 }
 

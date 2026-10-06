@@ -247,16 +247,16 @@ function deliveryAt(
 	row: Immutable<TranscriptLine>,
 	calls: ReadonlyMap<string, SkillCall>,
 ): Delivery | undefined {
-	const { line, metaFor, skillDirectories } = row;
-	if (metaFor !== undefined) {
-		const call = calls.get(metaFor);
+	const { line, sourceToolUseId, skillDirectories } = row;
+	if (sourceToolUseId !== undefined) {
+		const call = calls.get(sourceToolUseId);
 
 		return call === undefined
 			? undefined
 			: {
 					invocation: {
 						skill: call.skill,
-						invokedBy: { by: "Skill call", toolUseId: metaFor },
+						invokedBy: { by: "Skill call", toolUseId: sourceToolUseId },
 						deliveryLine: line,
 					},
 					request: call.request,
