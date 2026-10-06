@@ -234,7 +234,8 @@ function parentFor(
 				basis: "parent agent id",
 			},
 			launch: result,
-			callLine: answered?.line,
+			callLine:
+				answered?.owner === meta.parentAgentId ? answered.line : undefined,
 		};
 	}
 

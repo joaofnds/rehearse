@@ -325,6 +325,27 @@ describe(agentTree.name, () => {
 		});
 	});
 
+	describe("when a meta file names a parent that did not make the launching call", () => {
+		it("records no launching line for the agent", async () => {
+			const tree = await fixtureTree({
+				subagents: (recorded) =>
+					recorded.map((each) =>
+						each.agentId === "a3"
+							? {
+									agentId: each.agentId,
+									transcript: each.transcript,
+									meta: JSON.stringify({ parentAgentId: "a1" }),
+								}
+							: each,
+					),
+			});
+
+			expect(
+				tree.agents.find(({ agentId }) => agentId === "a3")?.launchCallLine,
+			).toBeUndefined();
+		});
+	});
+
 	describe("when an inherited agent left no transcript", () => {
 		it("keeps coverage complete", async () => {
 			const tree = await fixtureTree({
