@@ -582,7 +582,10 @@ describe("the navigation shell", () => {
 				[
 					`/api/comparisons/${digest}`,
 					{
-						report: { cases: [] },
+						report: { mode: "session", cases: [] },
+						checkpoint: { state: "unavailable", reasons: ["no checkpoint"] },
+						corpusVersions: {},
+						armFigures: {},
 						attribution: {},
 						summary: {},
 						baselineArm: { kind: "supplied" },

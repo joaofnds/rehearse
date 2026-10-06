@@ -91,7 +91,10 @@ describe(ComparisonsPage.name, () => {
 				[
 					`/api/comparisons/${DIGEST}`,
 					{
-						report: { cases: [] },
+						report: { mode: "session", cases: [] },
+						checkpoint: { state: "unavailable", reasons: ["no checkpoint"] },
+						corpusVersions: {},
+						armFigures: {},
 						attribution: {},
 						summary: {},
 						baselineArm: { kind: "supplied" },
@@ -105,7 +108,10 @@ describe(ComparisonsPage.name, () => {
 		);
 
 		expect(
-			await screen.findByText(/baseline, candidate and control arms/u),
+			await screen.findByRole("heading", {
+				level: 1,
+				name: /^Comparison · session/u,
+			}),
 		).toBeInTheDocument();
 	});
 

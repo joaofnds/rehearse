@@ -10,7 +10,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ComparisonBaselineArm } from "#benchmark/comparison-baseline-record";
 import type { ComparisonReport } from "#benchmark/comparison-record";
 import type { MoreAttemptsCost } from "#benchmark/more-attempts-cost";
+import type { ArmFigures } from "#server/comparison-arm-figures";
 import type { ComparisonAttribution } from "#server/comparison-attribution";
+import type { ComparisonProvenance } from "#server/comparison-provenance";
 import type { QualityReading } from "#server/comparison-quality-reading";
 import { stubFetchByPath } from "#client/test-support/fetch-stub";
 import { ComparisonPage } from "./comparison-page";
@@ -85,8 +87,14 @@ function arm(
 	};
 }
 
-interface ComparisonResponseFixture {
-	readonly report: { readonly cases: ComparisonReport["cases"] };
+interface ComparisonResponseFixture extends ComparisonProvenance {
+	readonly report: {
+		readonly mode: ComparisonReport["mode"];
+		readonly cases: ComparisonReport["cases"];
+	};
+	readonly armFigures: Readonly<
+		Record<string, Readonly<Record<ReportArm["role"], ArmFigures>>>
+	>;
 	readonly baselineArm: ComparisonBaselineArm;
 	readonly summary: Readonly<
 		Record<string, { readonly moreAttempts: MoreAttemptsCost }>
@@ -125,8 +133,36 @@ interface ComparisonResponseFixture {
 	>;
 }
 
+const PASSED_EVERY_ATTEMPT: ArmFigures = {
+	measures: { final: { scale: "successRate", successful: 4, attempts: 4 } },
+	cost: { state: "available", totalUsd: 2, perAttemptUsd: 0.5 },
+	words: { state: "unavailable", reasons: ["no words recorded"] },
+};
+
+const NOT_RECORDED = {
+	state: "unavailable",
+	reasons: ["version not recorded"],
+} as const;
+
 function comparisonResponseBody(): ComparisonResponseFixture {
+	const caseFigures = {
+		baseline: PASSED_EVERY_ATTEMPT,
+		candidate: PASSED_EVERY_ATTEMPT,
+		control: PASSED_EVERY_ATTEMPT,
+	};
+	const caseVersions = {
+		baseline: NOT_RECORDED,
+		candidate: NOT_RECORDED,
+		control: NOT_RECORDED,
+	};
+
 	return {
+		checkpoint: {
+			state: "unavailable",
+			reasons: ["a session comparison replays no single checkpoint"],
+		},
+		corpusVersions: { "case-1": caseVersions, "case-2": caseVersions },
+		armFigures: { "case-1": caseFigures, "case-2": caseFigures },
 		attemptHistories: {},
 		baselineArm: { kind: "supplied" },
 		summary: {
@@ -138,6 +174,7 @@ function comparisonResponseBody(): ComparisonResponseFixture {
 			},
 		},
 		report: {
+			mode: "session",
 			cases: [
 				{
 					caseId: "case-1",
@@ -320,10 +357,92 @@ describe(ComparisonPage.name, () => {
 		expect(within(table).getAllByRole("row")).toHaveLength(3);
 	});
 
-	it("names how many cases the comparison covers", async () => {
-		renderPage();
+	describe("header", () => {
+		const CHECKPOINT_RUN = "2026-09-28T10-03-07.498Z";
 
-		expect(await screen.findByText(/· 2 cases ·/u)).toBeInTheDocument();
+		function oneCheckpointStageComparison(): ComparisonResponseFixture {
+			const body = comparisonResponseBody();
+
+			return {
+				...body,
+				report: { mode: "stage", cases: body.report.cases.slice(0, 1) },
+				armFigures: {
+					"case-1": {
+						baseline: PASSED_EVERY_ATTEMPT,
+						candidate: PASSED_EVERY_ATTEMPT,
+						control: PASSED_EVERY_ATTEMPT,
+					},
+				},
+				checkpoint: { state: "available", run: CHECKPOINT_RUN, stage: "shape" },
+			};
+		}
+
+		it("names the step and checkpoint of a one-checkpoint stage comparison", async () => {
+			renderPage(oneCheckpointStageComparison());
+
+			expect(
+				await screen.findByRole("heading", {
+					level: 1,
+					name: `Comparison · shape replay from run ${CHECKPOINT_RUN}`,
+				}),
+			).toBeInTheDocument();
+		});
+
+		it("names the mode and cases of a comparison that replays no single checkpoint", async () => {
+			renderPage();
+
+			expect(
+				await screen.findByRole("heading", {
+					level: 1,
+					name: "Comparison · session · case-1, case-2",
+				}),
+			).toBeInTheDocument();
+		});
+
+		it("states the attempts per arm, what the arms share and their summed cost", async () => {
+			renderPage(oneCheckpointStageComparison());
+
+			expect(
+				await screen.findByText(
+					"1 attempt per arm · same checkpoint, same case · $6.00 total",
+				),
+			).toBeInTheDocument();
+		});
+
+		it("shares only the cases between arms that replayed no single checkpoint", async () => {
+			renderPage();
+
+			expect(
+				await screen.findByText(
+					"1 attempt per arm · same cases · $12.00 total",
+				),
+			).toBeInTheDocument();
+		});
+
+		it("counts the arms that recorded no cost rather than adding a zero", async () => {
+			const body = comparisonResponseBody();
+			const unrecorded: ArmFigures = {
+				...PASSED_EVERY_ATTEMPT,
+				cost: { state: "unavailable", reasons: ["rep-1 lacks worker cost"] },
+			};
+			renderPage({
+				...body,
+				armFigures: {
+					...body.armFigures,
+					"case-2": {
+						baseline: PASSED_EVERY_ATTEMPT,
+						candidate: PASSED_EVERY_ATTEMPT,
+						control: unrecorded,
+					},
+				},
+			});
+
+			expect(
+				await screen.findByText(
+					"1 attempt per arm · same cases · $10.00 recorded · cost not recorded for 1 arm",
+				),
+			).toBeInTheDocument();
+		});
 	});
 
 	it("renders each arm's grade distribution as counts, never a synthesized median", async () => {
@@ -587,7 +706,7 @@ describe(ComparisonPage.name, () => {
 
 			return {
 				...body,
-				report: { cases: body.report.cases.slice(0, 1) },
+				report: { ...body.report, cases: body.report.cases.slice(0, 1) },
 				baselineArm: {
 					kind: "derived",
 					skillUnderTest: "skills/discuss/SKILL.md",

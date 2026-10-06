@@ -1,5 +1,4 @@
 import { useQuery } from "@tanstack/react-query";
-import type { InferResponseType } from "hono/client";
 import { useState } from "react";
 import type { ComparisonArm as ComparisonArmRole } from "#benchmark/comparison-record";
 import { apiClient } from "#client/api-client";
@@ -13,14 +12,12 @@ import type { ComparisonAttribution } from "#server/comparison-attribution";
 import { plural } from "#client/plural";
 import { ScreenHeader } from "#client/system/components/screen-header";
 import { SectionLabel } from "#client/system/components/section-label";
+import { comparisonSubline, comparisonTitle } from "./comparison-header";
+import type { ComparisonResponse } from "./comparison-response";
 
 const PRESENTATIONS = ["Attempt pairs", "What moved"] as const;
 type Presentation = (typeof PRESENTATIONS)[number];
 
-type ComparisonResponse = InferResponseType<
-	(typeof apiClient.api.comparisons)[":digest"]["$get"],
-	200
->;
 type ComparisonReport = ComparisonResponse["report"];
 type ComparisonCase = ComparisonReport["cases"][number];
 type ComparisonArmReport = ComparisonCase["arms"]["baseline"];
@@ -419,15 +416,8 @@ export function ComparisonPage({
 	return (
 		<div>
 			<ScreenHeader
-				title="Comparison"
-				subline={
-					query.isSuccess ? (
-						<>
-							<span className="font-mono">{digest.slice(0, 12)}</span>
-							{` · ${plural(query.data.report.cases.length, "case")} · baseline, candidate and control arms`}
-						</>
-					) : undefined
-				}
+				title={query.isSuccess ? comparisonTitle(query.data) : "Comparison"}
+				subline={query.isSuccess ? comparisonSubline(query.data) : undefined}
 				aside={
 					query.isSuccess ? (
 						<Switcher
