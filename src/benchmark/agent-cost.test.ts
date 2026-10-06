@@ -120,6 +120,72 @@ function skillNamed(each: AgentCost, skill: string): SkillInvocationCost {
 	return found;
 }
 
+/** A Skill call's request, its result and the skill body it delivered. */
+function skillDelivery(call: {
+	readonly requestId: string;
+	readonly model: string;
+	readonly toolUseId: string;
+	readonly skill: string;
+}): readonly string[] {
+	return [
+		{
+			type: "assistant",
+			requestId: call.requestId,
+			message: {
+				model: call.model,
+				role: "assistant",
+				stop_reason: "tool_use",
+				content: [
+					{
+						type: "tool_use",
+						id: call.toolUseId,
+						name: "Skill",
+						input: { skill: call.skill },
+					},
+				],
+				usage: {
+					input_tokens: 2,
+					output_tokens: 30,
+					cache_read_input_tokens: 900,
+					cache_creation_input_tokens: 200,
+					cache_creation: {
+						ephemeral_5m_input_tokens: 0,
+						ephemeral_1h_input_tokens: 200,
+					},
+				},
+			},
+		},
+		{
+			type: "user",
+			message: {
+				role: "user",
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: call.toolUseId,
+						content: `Launching skill: ${call.skill}`,
+						is_error: false,
+					},
+				],
+			},
+		},
+		{
+			type: "user",
+			isMeta: true,
+			sourceToolUseID: call.toolUseId,
+			message: {
+				role: "user",
+				content: [
+					{
+						type: "text",
+						text: `Base directory for this skill: /skills/${call.skill}`,
+					},
+				],
+			},
+		},
+	].map((row) => JSON.stringify(row));
+}
+
 describe(agentCostAllocation.name, () => {
 	it("totals the attempt as every agent's skills, shared and unattributed costs", async () => {
 		const allocation = available(await fixtureAllocation());
@@ -129,7 +195,7 @@ describe(agentCostAllocation.name, () => {
 			0,
 		);
 
-		expect(costOf(allocation.calculated)).toBeCloseTo(parts, 2);
+		expect(costOf(allocation.calculated)).toBeCloseTo(parts, 10);
 	});
 
 	it("prices each attempt request once and none from the inherited prefix", async () => {
@@ -337,6 +403,70 @@ describe(agentCostAllocation.name, () => {
 			expect(skillNamed(allocation.root, "review").own.requestLines).toEqual([
 				8, 14,
 			]);
+		});
+	});
+
+	describe("when a sub-agent delivers a skill", () => {
+		it("charges the sub-agent's skill the requests inside its window", async () => {
+			const delivery = skillDelivery({
+				requestId: "req-a2-s",
+				model: "claude-opus-5",
+				toolUseId: "toolu_a2s",
+				skill: "review-docs",
+			});
+
+			const allocation = available(
+				await fixtureAllocation({
+					subagents: (recorded) =>
+						recorded.map((each) => {
+							if (each.agentId !== "a2") {
+								return each;
+							}
+
+							const lines = each.transcript.split("\n");
+							return {
+								...each,
+								transcript: [
+									...lines.slice(0, 7),
+									...delivery,
+									...lines.slice(7),
+								].join("\n"),
+							};
+						}),
+				}),
+			);
+
+			const a2 = agent(allocation, "a2");
+			expect(skillNamed(a2, "review-docs").own.requestLines).toEqual([11]);
+			expect(a2.unattributed.requestLines).toEqual([2, 6, 8]);
+		});
+	});
+
+	describe("when the inherited prefix delivered a skill", () => {
+		it("opens no window for it in the attempt", async () => {
+			const delivery = skillDelivery({
+				requestId: "req-p2",
+				model: "claude-sonnet-5",
+				toolUseId: "toolu_p9",
+				skill: "brief",
+			});
+			const linesAfterPrompt = INHERITED_PREFIX_LINES + 1;
+
+			const allocation = available(
+				await fixtureAllocation({
+					prefixLinesExcluded: INHERITED_PREFIX_LINES + delivery.length,
+					transcript: (lines) => [
+						...lines.slice(0, INHERITED_PREFIX_LINES),
+						...delivery,
+						...lines.slice(linesAfterPrompt),
+					],
+				}),
+			);
+
+			expect(allocation.root.skills.map(({ skill }) => skill)).toEqual([
+				"review",
+			]);
+			expect(allocation.root.unattributed.requestLines).toEqual([7]);
 		});
 	});
 
