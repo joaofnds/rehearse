@@ -641,6 +641,32 @@ describe(agentCostAllocation.name, () => {
 			});
 		});
 
+		describe("when a model is named like a built-in object property", () => {
+			it("finds no provider count for it", async () => {
+				const allocation = await fixtureAllocation({
+					...withoutA4,
+					subagents: (recorded) =>
+						withoutA4.subagents(recorded).map((each) =>
+							each.agentId === "a2"
+								? {
+										agentId: each.agentId,
+										transcript: each.transcript.replaceAll(
+											"claude-opus-5",
+											"constructor",
+										),
+										meta: each.meta,
+									}
+								: each,
+						),
+				});
+
+				expect(agent(allocation, "a2").provider).toEqual({
+					state: "not separable",
+					reason: "the record carries no provider count for constructor",
+				});
+			});
+		});
+
 		describe("when an inherited agent left no transcript", () => {
 			it("separates no agent's provider count", async () => {
 				const allocation = await fixtureAllocation(withPrefix);

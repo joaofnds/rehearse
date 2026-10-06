@@ -157,16 +157,20 @@ interface Allocation {
 	readonly windows: readonly SkillWindow[];
 	readonly requestOf: RequestLocator;
 	readonly costs: ReadonlyMap<number, SessionHistoryRequestCost>;
+	readonly attemptEntries: readonly SessionHistoryRequestEntry[];
+	/** Undefined among them for a request that names no model. */
+	readonly models: ReadonlySet<string | undefined>;
 }
+
+type ReportedUsage = NonNullable<ClaudeCallMetrics["modelUsage"]>[string];
 
 interface Ledger {
 	readonly agents: readonly SubAgent[];
 	readonly allocations: ReadonlyMap<Owner, Allocation>;
-	readonly modelsByOwner: ReadonlyMap<Owner, ReadonlySet<string>>;
 	/** Absent when a prefix request's model is unknown. */
 	readonly modelsBeforeAttempt: ReadonlySet<string> | undefined;
 	readonly unmodeled: boolean;
-	readonly modelUsage: ClaudeCallMetrics["modelUsage"];
+	readonly modelUsage: ReadonlyMap<string, ReportedUsage>;
 	readonly coverageComplete: boolean;
 	readonly totals: ReadonlyMap<string, Tally>;
 }
@@ -298,6 +302,7 @@ function allocate(
 	const requestOf = requestLocator(participant.series, participant.lines);
 	const windows = skillWindows(participant, requestOf);
 	const costs = sessionHistoryRequestCosts(participant.series, rates);
+	const entries = attemptEntries(participant.series);
 
 	return {
 		windowByRequest: new Map(
@@ -306,6 +311,8 @@ function allocate(
 		windows,
 		requestOf,
 		costs,
+		attemptEntries: entries,
+		models: spentModels(entries),
 	};
 }
 
@@ -414,7 +421,7 @@ function spentModels(
 
 function attemptEntries(
 	series: Immutable<SessionHistoryRequestSeries>,
-): Immutable<readonly SessionHistoryRequestEntry[]> {
+): readonly SessionHistoryRequestEntry[] {
 	return series.entries.filter(({ region }) => region === "attempt");
 }
 
@@ -531,6 +538,7 @@ function descendantTotals(
 
 function providerCost(
 	owner: Owner,
+	allocation: Readonly<Allocation>,
 	ledger: Readonly<Ledger>,
 ): ProviderAgentCost {
 	if (!ledger.coverageComplete) {
@@ -545,7 +553,7 @@ function providerCost(
 		return { state: "not separable", reason: PREFIX_UNKNOWN_MODEL };
 	}
 
-	const models = [...(ledger.modelsByOwner.get(owner) ?? [])].toSorted();
+	const models = [...known(allocation.models)].toSorted();
 	if (models.length === 0) {
 		return {
 			state: "not separable",
@@ -562,8 +570,8 @@ function providerCost(
 			};
 		}
 
-		const shared = [...ledger.modelsByOwner].some(
-			([other, used]) => other !== owner && used.has(model),
+		const shared = [...ledger.allocations].some(
+			([other, { models: used }]) => other !== owner && used.has(model),
 		);
 		if (shared) {
 			return {
@@ -572,7 +580,7 @@ function providerCost(
 			};
 		}
 
-		const usage = ledger.modelUsage?.[model];
+		const usage = ledger.modelUsage.get(model);
 		if (usage === undefined) {
 			return {
 				state: "not separable",
@@ -655,7 +663,7 @@ function agentCost(owner: Owner, ledger: Readonly<Ledger>): AgentCost {
 			basis: UNATTRIBUTED_BASIS,
 		},
 		includingDescendants: descendantTotal(own, children, ledger.totals),
-		provider: providerCost(owner, ledger),
+		provider: providerCost(owner, allocation, ledger),
 	};
 }
 
@@ -677,26 +685,25 @@ function forkedSkillOf(
 }
 
 function modelCosts(
-	participants: ReadonlyMap<Owner, Participant>,
 	ledger: Readonly<Ledger>,
 	missing: readonly string[],
 ): readonly ModelCost[] {
-	const models = new Set(Object.keys(ledger.modelUsage ?? {}));
-	for (const used of ledger.modelsByOwner.values()) {
-		for (const model of used) {
+	const models = new Set(ledger.modelUsage.keys());
+	for (const allocation of ledger.allocations.values()) {
+		for (const model of known(allocation.models)) {
 			models.add(model);
 		}
 	}
 
 	return [...models].toSorted().map((model): ModelCost => {
-		const parts = [...participants].map(([owner, { series }]) => {
-			const lines = series.entries
-				.filter((entry) => entry.region === "attempt" && entry.model === model)
+		const parts = [...ledger.allocations.values()].map((allocation) => {
+			const lines = allocation.attemptEntries
+				.filter((entry) => entry.model === model)
 				.map(({ line }) => line);
 
-			return tally(lines, ledger.allocations.get(owner)?.costs ?? new Map());
+			return tally(lines, allocation.costs);
 		});
-		const usage = ledger.modelUsage?.[model];
+		const usage = ledger.modelUsage.get(model);
 
 		return {
 			model,
@@ -782,17 +789,11 @@ export function agentCostAllocation(
 	const ledger: Ledger = {
 		agents: tree.agents,
 		allocations,
-		modelsByOwner: new Map<Owner, ReadonlySet<string>>(
-			[...participants].map(([owner, { series }]) => [
-				owner,
-				known(spentModels(attemptEntries(series))),
-			]),
-		),
 		modelsBeforeAttempt: modelsBeforeAttempt(tree),
-		unmodeled: [...participants.values()].some(({ series }) =>
-			spentModels(attemptEntries(series)).has(undefined),
+		unmodeled: [...allocations.values()].some(({ models }) =>
+			models.has(undefined),
 		),
-		modelUsage: input.modelUsage,
+		modelUsage: new Map(Object.entries(input.modelUsage ?? {})),
 		coverageComplete: tree.coverage.state === "complete",
 		totals: descendantTotals(tree.agents, allocations),
 	};
@@ -822,6 +823,6 @@ export function agentCostAllocation(
 		),
 		root: agentCost(ROOT, ledger),
 		agents,
-		byModel: modelCosts(participants, ledger, missing),
+		byModel: modelCosts(ledger, missing),
 	};
 }
