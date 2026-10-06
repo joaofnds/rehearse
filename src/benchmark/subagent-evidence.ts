@@ -4,8 +4,11 @@ import type { Immutable } from "./contracts";
 import { lstatIfPresent, readdirIfPresent } from "./file-presence";
 import type { TranscriptLine } from "./transcript";
 
-/** Where a record keeps its session's sub-agent files, beside its transcript. */
-export const SUBAGENTS_DIRECTORY = "subagents";
+/**
+ * The provider's name for a session's sub-agent directory, which the record
+ * keeps under the same name beside its transcript.
+ */
+const SUBAGENTS_DIRECTORY = "subagents";
 
 /** The ids the provider gives its agents, and so the names their files carry. */
 const PROVIDER_AGENT_ID = "[a-z0-9]+";
