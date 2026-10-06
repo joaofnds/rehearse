@@ -539,10 +539,12 @@ function FilterBar({
 	active,
 	total,
 	onSelect,
+	onLeaveInvalidated,
 }: {
 	readonly active: Filter | "Invalidated";
 	readonly total: number | undefined;
 	readonly onSelect: (filter: Filter) => void;
+	readonly onLeaveInvalidated: () => void;
 }): React.JSX.Element {
 	return (
 		<div className="flex flex-wrap items-center gap-2 border-b border-divider px-6 py-2.5">
@@ -561,7 +563,7 @@ function FilterBar({
 				</FilterPill>
 			))}
 			{active === "Invalidated" ? (
-				<FilterPill pressed onPress={() => undefined}>
+				<FilterPill pressed onPress={onLeaveInvalidated}>
 					Invalidated by the last edit
 				</FilterPill>
 			) : null}
@@ -759,6 +761,9 @@ export function RunHistoryPage({
 				total={query.isSuccess ? recorded.length : undefined}
 				onSelect={(picked) => {
 					setFilter(picked);
+					void navigate({ to: "/", search: {} });
+				}}
+				onLeaveInvalidated={() => {
 					void navigate({ to: "/", search: {} });
 				}}
 			/>

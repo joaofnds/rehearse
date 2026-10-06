@@ -210,6 +210,22 @@ describe("/?invalidatedBy", () => {
 		expect(screen.queryByText(/invalidated by the edit from/u)).toBeNull();
 	});
 
+	it("returns to every record when its own pressed filter is pressed again", async () => {
+		serving(`/?invalidatedBy=${PREVIOUS}..${CURRENT}`);
+		await durableRecords();
+
+		fireEvent.click(
+			screen.getByRole("button", { name: "Invalidated by the last edit" }),
+		);
+
+		await waitFor(() => {
+			expect(screen.getByText(RUN_B)).toBeInTheDocument();
+		});
+		expect(
+			screen.queryByRole("button", { name: "Invalidated by the last edit" }),
+		).toBeNull();
+	});
+
 	it("names an invalidated result that has no readable row, with the reason it could not be read", async () => {
 		serving(`/?invalidatedBy=${PREVIOUS}..${CURRENT}`, {
 			corpus: corpus({
