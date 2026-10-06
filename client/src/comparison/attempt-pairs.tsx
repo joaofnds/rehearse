@@ -156,7 +156,11 @@ function attemptRow(
 				role={role}
 				position={position}
 				attempt={attempt}
-				link={histories?.[arm].find(({ repId }) => repId === attempt?.repId)}
+				link={
+					attempt === undefined
+						? undefined
+						: histories?.[arm].find(({ repId }) => repId === attempt.repId)
+				}
 			/>
 		);
 
@@ -195,16 +199,29 @@ export function AttemptPairs({
 	return (
 		<div className="flex max-w-283 flex-col gap-2">
 			<TableShell
-				caption={`Attempt pairs · ${caseId}`}
+				caption={
+					<>
+						{"Attempt pairs · "}
+						<span className="font-mono tracking-normal normal-case">
+							{caseId}
+						</span>
+					</>
+				}
 				columns={["Attempt", ...DESIGN_ARMS.map(({ role }) => role)]}
 				rows={positions.map((position) =>
 					attemptRow(position, attempts, histories),
 				)}
 			/>
 			<div className="flex flex-col gap-1 text-11 text-muted-foreground">
-				{histories === undefined ? (
+				{mode === "session" ? null : (
 					<p>{`No attempt history to open: a ${mode} comparison's attempts record no session.`}</p>
-				) : null}
+				)}
+				<Note
+					label="Outcomes not recorded"
+					reasons={unrecordedReasons(attempts, ({ outcomes }) =>
+						outcomes.state === "unavailable" ? outcomes.reason : undefined,
+					)}
+				/>
 				<Note
 					label="Words not recorded"
 					reasons={unrecordedReasons(attempts, ({ words }) =>

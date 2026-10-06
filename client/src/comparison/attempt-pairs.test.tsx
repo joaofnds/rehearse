@@ -42,6 +42,7 @@ const ATTEMPTS: CaseAttempts = {
 
 function renderPairs(
 	overrides: Readonly<{
+		mode?: "stage" | "session";
 		attempts?: CaseAttempts;
 		histories?: CaseHistories;
 	}> = {},
@@ -49,7 +50,7 @@ function renderPairs(
 	render(
 		<AttemptPairs
 			caseId="audit-log"
-			mode="stage"
+			mode={overrides.mode ?? "stage"}
 			attempts={overrides.attempts ?? ATTEMPTS}
 			histories={overrides.histories}
 		/>,
@@ -162,9 +163,31 @@ describe(AttemptPairs.name, () => {
 		).toBeInTheDocument();
 	});
 
+	it("states once why outcomes were not recorded", () => {
+		const unrecorded: ComparisonAttempt = {
+			...graded(1, "B", 10),
+			outcomes: { state: "unavailable", reason: "no per-attempt outcomes" },
+		};
+		renderPairs({
+			attempts: {
+				control: [unrecorded],
+				baseline: [unrecorded],
+				candidate: [unrecorded],
+			},
+		});
+
+		expect(cell("Attempt 1", "Arm A")).toHaveTextContent(
+			"outcome not recorded",
+		);
+		expect(
+			screen.getByText("Outcomes not recorded: no per-attempt outcomes."),
+		).toBeInTheDocument();
+	});
+
 	describe("attempt history", () => {
 		it("links each attempt whose saved history the comparison still vouches for, and marks the rest stale", () => {
 			renderPairs({
+				mode: "session",
 				histories: {
 					control: [{ status: "stale", repId: "rep-1", ordinal: 1 }],
 					baseline: [
@@ -196,6 +219,14 @@ describe(AttemptPairs.name, () => {
 					"No attempt history to open: a stage comparison's attempts record no session.",
 				),
 			).toBeInTheDocument();
+		});
+
+		it("claims no missing session for a session comparison that links no attempt", () => {
+			renderPairs({ mode: "session" });
+
+			expect(
+				screen.queryByText(/No attempt history to open/u),
+			).not.toBeInTheDocument();
 		});
 	});
 });
