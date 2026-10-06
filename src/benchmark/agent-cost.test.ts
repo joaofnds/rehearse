@@ -512,6 +512,29 @@ describe(agentCostAllocation.name, () => {
 		});
 	});
 
+	describe("when a sub-agent's parent links loop back to it", () => {
+		it("reads its total including descendants as its own cost, incomplete", async () => {
+			const allocation = await fixtureAllocation({
+				subagents: (recorded) =>
+					recorded.map((each) =>
+						each.agentId === "a1"
+							? {
+									agentId: each.agentId,
+									transcript: each.transcript,
+									meta: JSON.stringify({ parentAgentId: "a1" }),
+								}
+							: each,
+					),
+			});
+
+			const a1 = agent(allocation, "a1");
+			expect(costOf(a1.includingDescendants.cost)).toBe(costOf(a1.own.cost));
+			expect(reasonsOf(a1.includingDescendants.cost)).toEqual([
+				"the parent links of sub-agent a1 loop back to it",
+			]);
+		});
+	});
+
 	describe("when the inherited prefix delivered a skill", () => {
 		it("opens no window for it in the attempt", async () => {
 			const delivery = skillDelivery({

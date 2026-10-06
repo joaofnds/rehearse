@@ -172,7 +172,7 @@ interface Ledger {
 	readonly unmodeled: boolean;
 	readonly modelUsage: ReadonlyMap<string, ReportedUsage>;
 	readonly coverageComplete: boolean;
-	readonly totals: ReadonlyMap<string, Tally>;
+	readonly totals: ReadonlyMap<Owner, Tally>;
 }
 
 const skillInputSchema = z.looseObject({ skill: z.string().min(1) });
@@ -474,7 +474,7 @@ function childrenOf(
 function descendantTally(
 	own: Immutable<Tally>,
 	children: Immutable<readonly SubAgent[]>,
-	totals: ReadonlyMap<string, Tally>,
+	totals: ReadonlyMap<Owner, Tally>,
 ): Tally {
 	const parts: Tally[] = [own];
 	const missing: string[] = [];
@@ -491,46 +491,73 @@ function descendantTally(
 }
 
 function descendantTotal(
-	own: Immutable<Tally>,
+	total: Immutable<Tally>,
 	children: Immutable<readonly SubAgent[]>,
-	totals: ReadonlyMap<string, Tally>,
 ): DescendantTotal {
 	return {
-		cost: readingOf(descendantTally(own, children, totals)),
+		cost: readingOf(total),
 		childAgentIds: children.map(({ agentId }) => agentId),
 		basis: DESCENDANTS_BASIS,
 	};
 }
 
+function loopsBack(
+	agentId: string,
+	agents: Immutable<readonly SubAgent[]>,
+): boolean {
+	const parents = new Map(
+		agents.map(({ agentId: id, parent }) => [id, parent]),
+	);
+	const seen = new Set<string>();
+	let parent = parents.get(agentId);
+	while (parent?.state === "agent") {
+		if (seen.has(parent.agentId)) {
+			return true;
+		}
+
+		seen.add(parent.agentId);
+		parent = parents.get(parent.agentId);
+	}
+
+	return false;
+}
+
 /**
  * Each agent's total including descendants, children before parents. An
- * agent reached twice down one chain, which only a hostile parent link could
- * produce, is read once and not again.
+ * agent whose parent links loop, which only a hostile meta file could
+ * produce, has no descendants to sum and reads its own cost, incomplete.
+ * Every descendant of an agent outside a loop is outside it too.
  */
 function descendantTotals(
 	agents: Immutable<readonly SubAgent[]>,
 	allocations: ReadonlyMap<Owner, Allocation>,
-): ReadonlyMap<string, Tally> {
-	const totals = new Map<string, Tally>();
-	const visit = (agentId: string, seen: ReadonlySet<string>): void => {
-		const allocation = allocations.get(agentId);
-		if (totals.has(agentId) || seen.has(agentId) || allocation === undefined) {
+): ReadonlyMap<Owner, Tally> {
+	const totals = new Map<Owner, Tally>();
+	const visit = (owner: Owner): void => {
+		const allocation = allocations.get(owner);
+		if (totals.has(owner) || allocation === undefined) {
 			return;
 		}
 
-		const children = childrenOf(agentId, agents);
-		for (const child of children) {
-			visit(child.agentId, new Set([...seen, agentId]));
+		if (owner !== ROOT && loopsBack(owner, agents)) {
+			totals.set(
+				owner,
+				summed(
+					[ownTally(allocation)],
+					[`the parent links of sub-agent ${owner} loop back to it`],
+				),
+			);
+			return;
 		}
-		totals.set(
-			agentId,
-			descendantTally(ownTally(allocation), children, totals),
-		);
+
+		const children = childrenOf(owner, agents);
+		for (const child of children) {
+			visit(child.agentId);
+		}
+		totals.set(owner, descendantTally(ownTally(allocation), children, totals));
 	};
 	for (const owner of allocations.keys()) {
-		if (owner !== ROOT) {
-			visit(owner, new Set());
-		}
+		visit(owner);
 	}
 
 	return totals;
@@ -597,7 +624,7 @@ function providerCost(
 function skillCosts(
 	allocation: Readonly<Allocation>,
 	children: Immutable<readonly SubAgent[]>,
-	totals: ReadonlyMap<string, Tally>,
+	totals: ReadonlyMap<Owner, Tally>,
 ): readonly SkillInvocationCost[] {
 	return allocation.windows
 		.filter(({ invocations }) => invocations.length === 1)
@@ -621,15 +648,21 @@ function skillCosts(
 				toolUseId: invocation.toolUseId,
 				deliveryLine: invocation.deliveryLine,
 				own: { cost: readingOf(own), requestLines, basis: SKILL_WINDOW_BASIS },
-				includingDescendants: descendantTotal(own, launched, totals),
+				includingDescendants: descendantTotal(
+					descendantTally(own, launched, totals),
+					launched,
+				),
 			}));
 		});
 }
 
 function agentCost(owner: Owner, ledger: Readonly<Ledger>): AgentCost {
 	const allocation = ledger.allocations.get(owner);
-	if (allocation === undefined) {
-		throw new Error("every agent with a transcript has an allocation");
+	const total = ledger.totals.get(owner);
+	if (allocation === undefined || total === undefined) {
+		throw new Error(
+			"every agent with a transcript has an allocation and a total",
+		);
 	}
 
 	const children = childrenOf(owner, ledger.agents);
@@ -662,7 +695,7 @@ function agentCost(owner: Owner, ledger: Readonly<Ledger>): AgentCost {
 			requestLines: unattributedLines,
 			basis: UNATTRIBUTED_BASIS,
 		},
-		includingDescendants: descendantTotal(own, children, ledger.totals),
+		includingDescendants: descendantTotal(total, children),
 		provider: providerCost(owner, allocation, ledger),
 	};
 }
