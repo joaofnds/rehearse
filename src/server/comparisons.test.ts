@@ -738,6 +738,7 @@ describe("GET /api/comparisons/:digest", () => {
 							median: "D",
 							lowest: "D",
 							highest: "A",
+							graded: 4,
 						},
 					},
 					build: {
@@ -747,6 +748,7 @@ describe("GET /api/comparisons/:digest", () => {
 							median: "D",
 							lowest: "D",
 							highest: "A",
+							graded: 4,
 						},
 					},
 					final: { scale: "successRate", successful: 2, attempts: 4 },
@@ -787,6 +789,7 @@ describe("GET /api/comparisons/:digest", () => {
 								median: "D",
 								lowest: "D",
 								highest: "D",
+								graded: 4,
 							},
 						},
 						build: {
@@ -796,6 +799,7 @@ describe("GET /api/comparisons/:digest", () => {
 								median: "D",
 								lowest: "D",
 								highest: "D",
+								graded: 4,
 							},
 						},
 						final: { scale: "successRate", successful: 0, attempts: 4 },

@@ -131,6 +131,35 @@ describe(armFigures.name, () => {
 		});
 	});
 
+	it("counts the graded attempts its median is taken over", () => {
+		const figures = armFigures(
+			{
+				quality: [
+					buildSummary(
+						Object.fromEntries([
+							["B", 2],
+							["C", 1],
+						]),
+					),
+				],
+				source: sourceOf([]),
+				resources: unavailableCost,
+			},
+			lettersEverywhere,
+		);
+
+		expect(figures.measures["build"]).toEqual({
+			scale: "letters",
+			grades: {
+				state: "available",
+				median: "B",
+				lowest: "C",
+				highest: "B",
+				graded: 3,
+			},
+		});
+	});
+
 	it("reads a stage no rep was graded at as unavailable rather than a letter", () => {
 		const figures = armFigures(
 			{

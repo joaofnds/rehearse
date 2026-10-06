@@ -22,9 +22,14 @@ type ReportArm = AnyComparisonReport["cases"][number]["arms"][ComparisonArm];
 /**
  * A stage arm reads as letters. A pass/fail measure, a session's checks or a
  * pipeline's final verdict, carries no letter and reads as successes.
+ * `graded` counts the attempts the median is taken over, which leaves out
+ * an attempt that never reached the measure.
  */
 export type MeasureFigure =
-	| { readonly scale: "letters"; readonly grades: Reading<LetterRange> }
+	| {
+			readonly scale: "letters";
+			readonly grades: Reading<LetterRange & { readonly graded: number }>;
+	  }
 	| {
 			readonly scale: "successRate";
 			readonly successful: number;
@@ -78,14 +83,15 @@ function measureFigure(
 		};
 	}
 
-	const range = letterRange(gradesOf(summary));
+	const grades = gradesOf(summary);
+	const range = letterRange(grades);
 
 	return {
 		scale,
 		grades:
 			range === undefined
 				? { state: "unavailable", reasons: [NO_GRADED_REP_REASON] }
-				: { state: "available", ...range },
+				: { state: "available", ...range, graded: grades.length },
 	};
 }
 

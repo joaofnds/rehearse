@@ -2181,8 +2181,8 @@ provenance, and a missing or malformed scorecard stops `compare` with its field
 named. Reports written before these fields read unavailable.
 
 `GET /api/comparisons/<digest>` serves, beside the report and its attribution,
-`qualityReadings`, `armFigures` (each arm's median and range, cost and average
-words) and `whatMoved`: per case, ordered rows for the overall measure, each
+`qualityReadings`, `armFigures` (each arm's median and range with the count of
+graded attempts, cost and average words) and `whatMoved`: per case, ordered rows for the overall measure, each
 hard blocker's firings, each dimension's letter span, reply length and cost per
 attempt. A blocker row reads each arm's 95% Wilson interval on its firing rate
 and names the arm that fires less when the intervals separate; a meter row gives
@@ -2196,7 +2196,15 @@ quality reading in `qualityReadings` where either arm reached no grade.
 `armA` with `skillUnderTest` when `compare attempts` made it, `supplied` when
 the report has no `baseline.json` and the manifest's author supplied the
 control, and `unreadable` with its `reason` when that file does not parse, in
-which case the report is still served. A report
+which case the report is still served. Every letter span and rate interval
+reads from the bottom of its own scale to the top, `low` the worse letter and
+the lower percent. `checkpoint` names the `run` and `stage` every arm of a
+stage comparison replayed, read from each group's short-id claim, and reads
+`unavailable` with its reasons for a session or pipeline comparison or when the
+arms replayed more than one. `corpusVersions` gives, per case and arm, the
+`digest` of the corpus version every group of the arm ran, or `unavailable`
+with each group's reading, such as `version not recorded` for a group written
+before versions. A report
 without recorded grading serves no blocker or dimension rows. `attempts` lists,
 per case and arm, each recorded attempt in the order the arm recorded it, with
 its rep id, ordinal, stage outcomes, the hard blockers that fired and its words;

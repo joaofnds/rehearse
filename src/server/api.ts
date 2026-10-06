@@ -21,6 +21,7 @@ import {
 	isTerminalRunEventKind,
 	openRunEventStore,
 } from "#benchmark/run-events";
+import { comparisonProvenance } from "./comparison-provenance";
 import { comparisonReport } from "./comparisons";
 import { comparisonIndex } from "./comparison-index";
 import { comparisonAttemptHistoryLinks } from "./comparison-history-links";
@@ -394,6 +395,7 @@ export const createApiApp = (dependencies: ApiDependencies) => {
 							dependencies.runsDirectory,
 						),
 					),
+					...(await comparisonProvenance(report, dependencies.runsDirectory)),
 					baselineArm: await readComparisonBaselineArm(dirname(file)),
 				});
 			} catch (error) {
