@@ -262,13 +262,25 @@ describe("/?invalidatedBy", () => {
 	describe("when the address cannot be answered", () => {
 		const NAMED = `/?invalidatedBy=${PREVIOUS}..${CURRENT}`;
 
-		it.each([
-			[
-				"the address names no edit",
-				"/?invalidatedBy=nonsense",
+		type Case = readonly [
+			string,
+			string,
+			Parameters<typeof serving>[1],
+			string,
+		];
+		const cases: readonly Case[] = [
+			...[
+				"nonsense",
+				"foo..bar",
+				"e73e56..a41c7e",
+				`${PREVIOUS}..${CURRENT}..${LATER}`,
+				`..${CURRENT}`,
+			].map((value): Case => [
+				`the address names no edit (${value.slice(0, 20)})`,
+				`/?invalidatedBy=${value}`,
 				{},
 				"The address names no edit, so no result is listed as invalidated by it.",
-			],
+			]),
 			[
 				"the last edit is not recorded",
 				NAMED,
@@ -304,7 +316,9 @@ describe("/?invalidatedBy", () => {
 				{ pending: "/api/runs" },
 				"Reading run history…",
 			],
-		])(
+		];
+
+		it.each(cases)(
 			"lists no rows when %s and says why",
 			async (_case, path, served, reason) => {
 				serving(path, served);

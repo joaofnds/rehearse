@@ -13,17 +13,17 @@ export function invalidatedByValue({
 }: EditVersions): string {
 	return `${previous}${SEPARATOR}${current}`;
 }
-/** The edit an `invalidatedBy` value names, undefined when it names none. */
+
+/** Two full corpus versions, each a layout's SHA-256 in lowercase hex. */
+const EDIT = /^(?<previous>[0-9a-f]{64})\.\.(?<current>[0-9a-f]{64})$/u;
+
+/**
+ * The edit an `invalidatedBy` value names, undefined when it names none, as
+ * a short version label or anything but two full versions does.
+ */
 export function editNamedBy(value: string): EditVersions | undefined {
-	const parts = value.split(SEPARATOR);
-	const [previous, current] = parts;
-	if (
-		parts.length !== 2 ||
-		previous === undefined ||
-		previous === "" ||
-		current === undefined ||
-		current === ""
-	) {
+	const { previous, current } = EDIT.exec(value)?.groups ?? {};
+	if (previous === undefined || current === undefined) {
 		return undefined;
 	}
 
