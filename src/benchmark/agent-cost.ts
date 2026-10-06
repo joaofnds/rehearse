@@ -15,7 +15,7 @@ import { parseTranscript } from "./transcript";
 import type { ToolUse, TranscriptLine } from "./transcript";
 
 const SKILL_WINDOW_BASIS =
-	"delivery-to-next-boundary window; the transcript records no skill end.";
+	"from the skill's delivery until the next skill delivery, user prompt or interruption, or the transcript's end; the transcript records no skill end.";
 const OWN_BASIS = "every attempt request in the agent's own transcript";
 const SHARED_BASIS =
 	"requests after one request delivered more than one skill; not split between them";

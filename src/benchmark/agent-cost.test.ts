@@ -295,7 +295,7 @@ describe(agentCostAllocation.name, () => {
 			unattributed: allocation.root.unattributed.basis,
 		}).toEqual({
 			skill:
-				"delivery-to-next-boundary window; the transcript records no skill end.",
+				"from the skill's delivery until the next skill delivery, user prompt or interruption, or the transcript's end; the transcript records no skill end.",
 			includingDescendants:
 				"own cost plus each descendant's total; never added into the attempt total",
 			shared:
