@@ -237,20 +237,20 @@ const sessionAttemptRecordFields = {
 };
 
 /**
+ * Agents the session named after its prefix whose transcript the record does
+ * not hold. Only v2 and v3 carry it: a record written before sub-agent files
+ * were kept checked none, which is a different fact from one that found every
+ * file.
+ */
+const unavailableSubagentsSchema = z.array(z.string().min(1)).optional();
+
+/**
  * A state grade is either the results the scorer reported or the reason it
  * could not grade, never both: a broken scorer says nothing about the session
  * and must not read as a corpus that got worse. Only v3 carries them, because
  * a record written before this field existed graded no state, which is a
  * different fact from a scorer that reported nothing.
  */
-/**
- * Agents the session named after its prefix whose transcript the provider did
- * not leave. Only v2 and v3 carry it: a record written before sub-agent files
- * were kept checked none, which is a different fact from one that found every
- * file.
- */
-const unavailableSubagentsSchema = z.array(z.string().min(1)).optional();
-
 const stateGradeFields = {
 	stateResults: z.array(stateResultSchema).optional(),
 	stateGradingError: z.string().min(1).optional(),

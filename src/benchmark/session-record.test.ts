@@ -1030,6 +1030,17 @@ describe("the sub-agent evidence a session attempt record carries", () => {
 		});
 	});
 
+	it("reopens an attempt that found every named agent's transcript as an empty list", () => {
+		const saved = built({ unavailableSubagents: [] });
+
+		const reopened = parseSessionAttemptRecord(JSON.stringify(saved));
+
+		expect(reopened).toMatchObject({
+			schemaVersion: 3,
+			unavailableSubagents: [],
+		});
+	});
+
 	it("reopens them on an attempt whose provider command failed", () => {
 		const saved = built(
 			{
