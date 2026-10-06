@@ -811,6 +811,54 @@ describe(sessionHistoryReport.name, () => {
 			{ missingOccurrences: 1, unavailableOccurrences: 0 },
 		]);
 	});
+
+	it("counts a skill body a slash command loaded as a delivery of that skill", () => {
+		const transcript = [
+			row({
+				type: "user",
+				isMeta: true,
+				message: {
+					content: [
+						{
+							type: "text",
+							text: "Base directory for this skill: /home/me/.claude/skills/build\n\n# Build",
+						},
+					],
+				},
+			}),
+			row(call("skill-again", "Skill", { skill: "build" })),
+			row(result("skill-again", "loading build")),
+			row({
+				type: "user",
+				sourceToolUseID: "skill-again",
+				message: { content: "build instructions" },
+			}),
+		].join("\n");
+
+		const report = sessionHistoryReport({
+			attempt: {
+				kind: "session",
+				caseId: "case-a",
+				id: "attempt-a",
+				model: "sonnet",
+				outcome: "SUCCESSFUL",
+				corpusFiles: [],
+			},
+			resolvedCorpusFiles: [],
+			transcript,
+			prefixLinesExcluded: 0,
+		});
+
+		expect(report.attemptEvents[0]).toMatchObject({
+			kind: "instruction-delivery",
+			state: "delivered",
+			label: "Skill delivered · first",
+			sourceId: "skill:skills/build/SKILL.md",
+		});
+		expect(
+			report.sources.find(({ name }) => name === "skills/build/SKILL.md"),
+		).toMatchObject({ observedDeliveryCount: 2, repeatDeliveryCount: 1 });
+	});
 });
 
 describe(sessionHistoryDetail.name, () => {

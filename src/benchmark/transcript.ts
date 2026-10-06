@@ -94,6 +94,11 @@ const textBlockSchema = z.looseObject({
 const SKILL_BODY_OPENING =
 	/^Base directory for this skill: (?<directory>[^\n]+)/u;
 
+/** The skill directory a loaded skill's body opens with, if the text is one. */
+export function skillBodyDirectory(text: string): string | undefined {
+	return SKILL_BODY_OPENING.exec(text)?.groups?.["directory"];
+}
+
 const INTERRUPTION_MARKER = "[Request interrupted by user";
 
 /**
@@ -397,10 +402,7 @@ function readSkillDirectories(blocks: readonly unknown[]): readonly string[] {
 	return blocks
 		.map((block) => textBlockSchema.safeParse(block))
 		.filter((parsed) => parsed.success)
-		.map(
-			(parsed) =>
-				SKILL_BODY_OPENING.exec(parsed.data.text)?.groups?.["directory"],
-		)
+		.map((parsed) => skillBodyDirectory(parsed.data.text))
 		.filter((directory) => directory !== undefined);
 }
 
