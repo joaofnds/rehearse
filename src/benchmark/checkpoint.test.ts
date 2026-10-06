@@ -757,6 +757,36 @@ describe(recordCheckpoint.name, () => {
 		);
 	});
 
+	it("leaves the stage session's provider files in the target repository's slug", async () => {
+		const { targetDir, checkpointDir } = await checkpointFixture();
+		const projectsDirectory = await mkdtemp(
+			join(tmpdir(), "rehearse-projects-"),
+		);
+		testResources.track(projectsDirectory);
+		const sessionId = "0f9a2c1e-1111-4222-8333-444455556666";
+		const slug = join(projectsDirectory, projectSlug(targetDir));
+		const subagents = join(slug, sessionId, "subagents");
+		await mkdir(subagents, { recursive: true });
+		await Bun.write(join(slug, `${sessionId}.jsonl`), `{"type":"user"}\n`);
+		await Bun.write(
+			join(subagents, "agent-a1.jsonl"),
+			`{"type":"assistant"}\n`,
+		);
+
+		await recordCheckpoint(targetDir, checkpointDir, {
+			...checkpointInputs,
+			transcript: { sessionId, projectsDirectory },
+		});
+
+		const left = await readdir(slug, { recursive: true });
+		expect(left.toSorted()).toEqual([
+			sessionId,
+			`${sessionId}.jsonl`,
+			join(sessionId, "subagents"),
+			join(sessionId, "subagents", "agent-a1.jsonl"),
+		]);
+	});
+
 	it("records an absent stage transcript as unavailable", async () => {
 		const { targetDir, checkpointDir } = await checkpointFixture();
 		const projectsDirectory = await mkdtemp(
