@@ -194,7 +194,10 @@ export async function unavailableSubagents(
 /**
  * The sub-agent files a record kept, one per transcript, with the agent's meta
  * file where the record holds one. A record written before sub-agent files
- * were kept reads as holding none.
+ * were kept reads as holding none. Only regular files are read, as when they
+ * were copied in, so an entry that is not one reads as absent and its agent as
+ * unavailable rather than failing the read or following a link out of the
+ * record.
  */
 export async function recordedSubagents(
 	recordDirectory: string,
@@ -205,14 +208,25 @@ export async function recordedSubagents(
 		.map((name) => SUBAGENT_TRANSCRIPT.exec(name)?.[1])
 		.filter((agentId) => agentId !== undefined)
 		.toSorted();
-
-	return Promise.all(
+	const subagents = await Promise.all(
 		agentIds.map(async (agentId) => ({
 			agentId,
-			transcript: await Bun.file(
+			transcript: await regularFileText(
 				join(directory, `agent-${agentId}.jsonl`),
-			).text(),
-			meta: await textIfPresent(join(directory, `agent-${agentId}.meta.json`)),
+			),
+			meta: await regularFileText(
+				join(directory, `agent-${agentId}.meta.json`),
+			),
 		})),
 	);
+
+	return subagents.filter(
+		(each): each is SubagentEvidence => each.transcript !== undefined,
+	);
+}
+
+async function regularFileText(path: string): Promise<string | undefined> {
+	const entry = await lstatIfPresent(path);
+
+	return entry?.isFile() === true ? textIfPresent(path) : undefined;
 }
