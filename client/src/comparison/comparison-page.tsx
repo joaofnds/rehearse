@@ -439,7 +439,7 @@ export function ComparisonPage({
 	});
 
 	return (
-		<div>
+		<div className="flex h-full flex-col">
 			<ScreenHeader
 				title={query.isSuccess ? comparisonTitle(query.data) : "Comparison"}
 				subline={query.isSuccess ? comparisonSubline(query.data) : undefined}
@@ -461,7 +461,7 @@ export function ComparisonPage({
 					))
 				: null}
 
-			<div className="flex flex-col gap-8 px-6 pt-4 pb-12">
+			<div className="flex min-h-0 flex-1 flex-col gap-8 overflow-y-auto px-6 pt-4 pb-12">
 				{query.isLoading ? (
 					<p className="text-muted-foreground">Loading…</p>
 				) : null}

@@ -25,24 +25,40 @@ const CARDS = [
 }[];
 
 function baselineDescription(baselineArm: BaselineArm): string {
-	if (baselineArm.kind === "supplied") {
-		return "minimal corpus";
+	switch (baselineArm.kind) {
+		case "derived": {
+			return `skill under test removed · ${baselineArm.skillUnderTest}`;
+		}
+		case "armA": {
+			return "arm A run unchanged";
+		}
+		case "supplied": {
+			return "minimal corpus";
+		}
+		case "unreadable": {
+			return baselineArm.reason;
+		}
+		default: {
+			return baselineArm satisfies never;
+		}
 	}
-	if (baselineArm.kind === "unreadable") {
-		return baselineArm.reason;
-	}
-
-	return baselineArm.kind === "derived"
-		? `skill under test removed · ${baselineArm.skillUnderTest}`
-		: "arm A run unchanged";
 }
 
-function description(arm: ComparisonArm, baselineArm: BaselineArm): string {
-	if (arm === "control") {
-		return baselineDescription(baselineArm);
+function armDescription(arm: ComparisonArm, baselineArm: BaselineArm): string {
+	switch (arm) {
+		case "control": {
+			return baselineDescription(baselineArm);
+		}
+		case "baseline": {
+			return "before the edit";
+		}
+		case "candidate": {
+			return "after the edit";
+		}
+		default: {
+			return arm satisfies never;
+		}
 	}
-
-	return arm === "baseline" ? "before the edit" : "after the edit";
 }
 
 function versionLabel(version: ArmCorpusVersion): string {
@@ -112,13 +128,13 @@ function ArmCard({
 	role,
 	border,
 	version,
-	summary,
+	description,
 	figures,
 }: {
 	readonly role: string;
 	readonly border: string;
 	readonly version: ArmCorpusVersion;
-	readonly summary: string;
+	readonly description: string;
 	readonly figures: ArmFigures;
 }): React.JSX.Element {
 	const measures = Object.entries(figures.measures);
@@ -136,7 +152,7 @@ function ArmCard({
 					{versionLabel(version)}
 				</span>
 			</div>
-			<div className="mt-1 text-12-5">{summary}</div>
+			<div className="mt-1 text-12-5">{description}</div>
 			{measures.map(([name, figure]) => (
 				<MeasureReading
 					key={name}
@@ -185,7 +201,7 @@ export function ArmCardsBand({
 						role={role}
 						border={border}
 						version={corpusVersions[arm]}
-						summary={description(arm, baselineArm)}
+						description={armDescription(arm, baselineArm)}
 						figures={figures[arm]}
 					/>
 				))}

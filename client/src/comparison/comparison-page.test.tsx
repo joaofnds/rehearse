@@ -371,6 +371,39 @@ describe(ComparisonPage.name, () => {
 		).toBeInTheDocument();
 	});
 
+	it("draws each case's arm cards from that case's own records", async () => {
+		const body = comparisonResponseBody();
+		const caseTwo = body.armFigures["case-2"];
+		if (caseTwo === undefined) {
+			throw new Error("Expected the fixture to hold case-2's figures");
+		}
+		renderPage({
+			...body,
+			armFigures: {
+				...body.armFigures,
+				"case-2": {
+					...caseTwo,
+					candidate: {
+						...PASSED_EVERY_ATTEMPT,
+						cost: { state: "available", totalUsd: 7, perAttemptUsd: 7 },
+					},
+				},
+			},
+		});
+
+		const caseTwoBand = await screen.findByRole("region", {
+			name: "Arms · case-2",
+		});
+		const caseOneBand = screen.getByRole("region", { name: "Arms · case-1" });
+
+		expect(
+			within(caseTwoBand).getByRole("article", { name: "ARM B" }),
+		).toHaveTextContent("$7.00");
+		expect(
+			within(caseOneBand).getByRole("article", { name: "ARM B" }),
+		).toHaveTextContent("$2.00");
+	});
+
 	describe("header", () => {
 		const CHECKPOINT_RUN = "2026-09-28T10-03-07.498Z";
 
@@ -433,6 +466,47 @@ describe(ComparisonPage.name, () => {
 			).toBeInTheDocument();
 		});
 
+		it("states the fewest and most attempts when the arms hold different numbers", async () => {
+			const body = comparisonResponseBody();
+			const [caseOne, caseTwo] = body.report.cases;
+			if (caseOne === undefined || caseTwo === undefined) {
+				throw new Error("Expected the fixture to hold two cases");
+			}
+			const { candidate } = caseTwo.arms;
+			const [rep] = candidate.source.reps;
+			if (rep === undefined) {
+				throw new Error("Expected the fixture's arm to hold an attempt");
+			}
+			renderPage({
+				...body,
+				report: {
+					...body.report,
+					cases: [
+						caseOne,
+						{
+							...caseTwo,
+							arms: {
+								...caseTwo.arms,
+								candidate: {
+									...candidate,
+									source: {
+										...candidate.source,
+										reps: [rep, { ...rep, repId: "rep-2", ordinal: 2 }],
+									},
+								},
+							},
+						},
+					],
+				},
+			});
+
+			expect(
+				await screen.findByText(
+					"1 to 2 attempts per arm · same cases · $12.00 total",
+				),
+			).toBeInTheDocument();
+		});
+
 		it("counts the arms that recorded no cost rather than adding a zero", async () => {
 			const body = comparisonResponseBody();
 			const unrecorded: ArmFigures = {
@@ -459,17 +533,14 @@ describe(ComparisonPage.name, () => {
 		});
 	});
 
-	it("renders each arm's grade distribution as counts, never a synthesized median", async () => {
+	it("renders each arm's grade distribution in the attempt pairs table as counts, never a synthesized median", async () => {
 		renderPage();
 
-		await waitFor(() => {
-			expect(
-				screen.getByRole("rowheader", { name: "case-1" }),
-			).toBeInTheDocument();
-		});
-		expect(screen.getAllByText("A×3").length).toBeGreaterThan(0);
-		expect(screen.getAllByText("D×1").length).toBeGreaterThan(0);
-		expect(screen.queryByText(/range/iu)).not.toBeInTheDocument();
+		const table = await screen.findByRole("table");
+
+		expect(within(table).getAllByText("A×3").length).toBeGreaterThan(0);
+		expect(within(table).getAllByText("D×1").length).toBeGreaterThan(0);
+		expect(within(table).queryByText(/median|range/iu)).not.toBeInTheDocument();
 	});
 
 	it("shows the attempt-pairs table by default, with both switcher options offered", async () => {
