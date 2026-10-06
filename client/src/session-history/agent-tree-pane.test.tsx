@@ -159,6 +159,12 @@ async function renderFixturePage(variant: Variant = "recorded"): Promise<void> {
 			eventId,
 		),
 	]);
+	const rootExcerpts = tree.root.deliveryEvents.map(
+		({ eventId }): [string, unknown] => [
+			`${HISTORY}/${eventId}`,
+			sessionHistoryDetail(input, eventId),
+		],
+	);
 	stubFetchByPath(
 		new Map<string, unknown>([
 			[HISTORY, sessionHistoryReport(input)],
@@ -175,6 +181,7 @@ async function renderFixturePage(variant: Variant = "recorded"): Promise<void> {
 				},
 			],
 			...excerpts,
+			...rootExcerpts,
 		]),
 	);
 	const client = new QueryClient({
@@ -350,6 +357,9 @@ describe("agent tree in the saved-attempt workbench", () => {
 			within(detail).getByRole("definition", { name: "Token categories" }),
 		).toHaveTextContent("Not part of the attempt");
 		expect(
+			within(detail).getByRole("list", { name: "Load evidence" }),
+		).toHaveTextContent("CLAUDE.md · delivery 1 · event 3:1");
+		expect(
 			within(detail).getByRole("definition", { name: "Cost" }),
 		).toHaveTextContent("ran in the inherited prefix, before the attempt");
 		expect(
@@ -400,9 +410,38 @@ describe("agent tree in the saved-attempt workbench", () => {
 
 		expect(
 			within(nav).getByRole("button", {
-				name: /^a3 · Explore · Find the docs · parent zz9 not in the tree/u,
+				name: /^a3 · Explore · Find the docs · parent zz9 not linked to the root/u,
 			}),
 		).toBeInTheDocument();
+	});
+
+	it("opens the root's own delivery excerpt", async () => {
+		await renderFixturePage("repeated");
+		const sources = await screen.findByRole("navigation", {
+			name: "Loaded sources",
+		});
+		fireEvent.click(
+			within(sources).getByRole("button", { name: /CLAUDE\.md/u }),
+		);
+
+		const receiving = await screen.findByRole("region", {
+			name: "Receiving agents",
+		});
+
+		fireEvent.click(
+			within(receiving).getByRole("button", {
+				name: "Open excerpt of Session root's delivery 1 · event 24:1",
+			}),
+		);
+
+		await waitFor(() => {
+			expect(
+				screen.getByRole("region", { name: "Delivery excerpt" }),
+			).toHaveTextContent("Received by Session root · event 24:1");
+		});
+		expect(
+			screen.getByRole("region", { name: "Delivery excerpt" }),
+		).toHaveTextContent("project rules");
 	});
 
 	it("lists the agents a source reached and each delivery with its excerpt", async () => {

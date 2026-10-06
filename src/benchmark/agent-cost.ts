@@ -862,7 +862,7 @@ function participantsOf(
  * and gives each skill and agent a total including its descendants. The
  * provider's per-model count is shown beside the calculated one, and reaches
  * an agent only where it ran alone on its models. A caller that already
- * built the input's tree passes it, so the transcripts are read once.
+ * built the input's tree passes it, so the tree is not built twice.
  */
 export function agentCostAllocation(
 	input: Immutable<AgentCostInput>,

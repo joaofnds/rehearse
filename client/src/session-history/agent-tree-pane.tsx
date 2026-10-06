@@ -9,7 +9,7 @@ import type { apiClient } from "#client/api-client";
 import { cn } from "#client/system/cn";
 import { SectionLabel } from "#client/system/components/section-label";
 import { PaneHeading } from "./pane-heading";
-import { categories, costLabel } from "./request-timeline";
+import { categories, costLabel, usd } from "./request-timeline";
 import { selectableRow } from "./selectable-row";
 
 export type AgentsResponse = InferResponseType<
@@ -132,7 +132,7 @@ function totalsLabel(readings: Readings): string {
 		return `? Unavailable · ${totals.reasons.join(", ")}`;
 	}
 	if (totals.state === "incomplete") {
-		return `◐ Incomplete · ${categories(totals.usage)} over ${totals.countedRequestCount} of ${totals.requestCount} requests`;
+		return `◐ Incomplete · ${categories(totals.usage)} over ${totals.countedRequestCount} of ${totals.requestCount} requests · ${totals.reasons.join(", ")}`;
 	}
 
 	return categories(totals.usage);
@@ -220,7 +220,7 @@ function CostReadings({
 			</Reading>
 			<Reading term="Provider count">
 				{cost.provider.state === "reported"
-					? `$${cost.provider.costUsd} on ${cost.provider.models.join(", ")} · basis: ${cost.provider.basis}`
+					? `${usd.format(cost.provider.costUsd)} on ${cost.provider.models.join(", ")} · basis: ${cost.provider.basis}`
 					: `Not separable · ${cost.provider.reason}`}
 			</Reading>
 		</>
@@ -596,7 +596,7 @@ function detachedLabel(agent: SubAgent): string {
 
 	return parentId === undefined
 		? `${agentLabel(agent)} · unlinked`
-		: `${agentLabel(agent)} · parent ${parentId} not in the tree`;
+		: `${agentLabel(agent)} · parent ${parentId} not linked to the root`;
 }
 
 function AgentBranch({

@@ -16,7 +16,7 @@ import { PaneHeading } from "./pane-heading";
 import { selectableRow } from "./selectable-row";
 
 const tokens = new Intl.NumberFormat("en-US");
-const usd = new Intl.NumberFormat("en-US", {
+export const usd = new Intl.NumberFormat("en-US", {
 	style: "currency",
 	currency: "USD",
 	minimumFractionDigits: 2,
