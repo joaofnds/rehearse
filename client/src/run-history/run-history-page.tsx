@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { Disclosure } from "#client/system/components/disclosure";
 import { EmptyState } from "#client/system/components/empty-state";
@@ -26,6 +26,11 @@ import { SectionLabel } from "#client/system/components/section-label";
 import { Notice } from "#client/system/components/notice";
 import { LaunchDialog } from "#client/launch/launch-dialog";
 import { RunControls } from "./run-controls";
+import { corpusQuery } from "#client/corpus/corpus-query";
+import type { CorpusResponse } from "#client/corpus/corpus-query";
+import { invalidatedByValue } from "./invalidated-by";
+import type { InvalidatedSelection, Read } from "./invalidated-selection";
+import { invalidatedSelection } from "./invalidated-selection";
 
 type HistoryRow = RunHistoryResponse["rows"][number];
 type RunHistoryRow = Extract<HistoryRow, { readonly kind: "run" }>;
@@ -534,7 +539,7 @@ function FilterBar({
 	total,
 	onSelect,
 }: {
-	readonly active: Filter;
+	readonly active: Filter | "Invalidated";
 	readonly total: number | undefined;
 	readonly onSelect: (filter: Filter) => void;
 }): React.JSX.Element {
@@ -554,6 +559,11 @@ function FilterBar({
 					{filterLabel(filter, total)}
 				</FilterPill>
 			))}
+			{active === "Invalidated" ? (
+				<FilterPill pressed onPress={() => undefined}>
+					Invalidated by the last edit
+				</FilterPill>
+			) : null}
 		</div>
 	);
 }
@@ -672,7 +682,130 @@ function ComparisonBar({
 	);
 }
 
-export function RunHistoryPage(): React.JSX.Element {
+function readOf<Body>(query: {
+	readonly isError: boolean;
+	readonly isSuccess: boolean;
+	readonly data: Body | undefined;
+}): Read<Body> {
+	if (query.isError) {
+		return { state: "failed" };
+	}
+	if (query.isSuccess && query.data !== undefined) {
+		return { state: "loaded", body: query.data };
+	}
+
+	return { state: "loading" };
+}
+
+function InvalidatedNotice({
+	selection,
+}: {
+	readonly selection: InvalidatedSelection;
+}): React.JSX.Element {
+	switch (selection.kind) {
+		case "unanswered": {
+			return <p className="text-muted-foreground">{selection.reason}</p>;
+		}
+		case "moved-on": {
+			return (
+				<p className="text-muted-foreground">
+					{
+						"The edit this address names is no longer the last edit, and no list of its results is kept, so none is listed. "
+					}
+					<Link
+						to="/"
+						search={{ invalidatedBy: invalidatedByValue(selection.last) }}
+						className="text-accent-foreground underline decoration-deeper underline-offset-4 hover:text-pale"
+					>
+						review the last edit's results
+					</Link>
+				</p>
+			);
+		}
+		case "listed": {
+			const { edit, count, missing } = selection;
+
+			return (
+				<>
+					<p className="text-secondary-foreground">
+						{`${plural(count, "recorded result")} invalidated by the edit from ${corpusVersionLabel(edit.previous)} to ${corpusVersionLabel(edit.current)}`}
+					</p>
+					{missing.length > 0 ? (
+						<Notice
+							message="These invalidated results have no readable row, so they are missing from the table below:"
+							items={missing.map(
+								({ id, reason }) =>
+									`${id}: ${reason ?? "no row in run history"}`,
+							)}
+						/>
+					) : null}
+				</>
+			);
+		}
+		default: {
+			return selection satisfies never;
+		}
+	}
+}
+
+/** The records the table lists. */
+interface ListedRecords {
+	readonly rows: readonly HistoryRow[];
+	readonly launches: readonly LaunchRow[];
+}
+
+/**
+ * The ones the last edit invalidated when the address names it, otherwise
+ * those the chosen filter matches.
+ */
+function listedRecords(
+	selection: InvalidatedSelection | undefined,
+	report: RunHistoryResponse | undefined,
+	filter: Filter,
+): ListedRecords {
+	if (selection !== undefined) {
+		return {
+			rows: selection.kind === "listed" ? selection.rows : [],
+			launches: [],
+		};
+	}
+
+	return {
+		rows: (report?.rows ?? []).filter((row) => matchesFilter(row, filter)),
+		launches: filter === "All" ? (report?.launches ?? []) : [],
+	};
+}
+
+/**
+ * The cached corpus report can name an edit that is no longer the last, and
+ * it does not poll, so the filtered view reads it again on mount and waits.
+ */
+function useInvalidatedSelection(
+	invalidatedBy: string | undefined,
+	runs: Read<RunHistoryResponse>,
+): InvalidatedSelection | undefined {
+	const corpus = useQuery({
+		...corpusQuery,
+		enabled: invalidatedBy !== undefined,
+		refetchOnMount: "always",
+	});
+	if (invalidatedBy === undefined) {
+		return undefined;
+	}
+
+	const corpusRead: Read<CorpusResponse> = corpus.isFetching
+		? { state: "loading" }
+		: readOf(corpus);
+
+	return invalidatedSelection(invalidatedBy, corpusRead, runs);
+}
+
+export function RunHistoryPage({
+	invalidatedBy,
+}: {
+	readonly invalidatedBy: string | undefined;
+}): React.JSX.Element {
+	const navigate = useNavigate();
 	const [filter, setFilter] = useState<Filter>("All");
 	const [chosen, setChosen] = useState<readonly ChosenArm[]>([]);
 	const choice: ArmChoice = {
@@ -686,11 +819,11 @@ export function RunHistoryPage(): React.JSX.Element {
 		},
 	};
 	const query = useQuery(polledRunHistoryQuery);
+	const selection = useInvalidatedSelection(invalidatedBy, readOf(query));
 
 	const unreadable = query.data?.unreadable ?? [];
 	const recorded = query.data?.rows ?? [];
-	const rows = recorded.filter((row) => matchesFilter(row, filter));
-	const launches = filter === "All" ? (query.data?.launches ?? []) : [];
+	const { rows, launches } = listedRecords(selection, query.data, filter);
 	const onlyUnreadableRecords = recorded.length === 0 && unreadable.length > 0;
 	const nowMs = useNow(
 		pipelineRuns(recorded).some((row) => row.progress.state === "running"),
@@ -711,9 +844,12 @@ export function RunHistoryPage(): React.JSX.Element {
 			/>
 
 			<FilterBar
-				active={filter}
+				active={selection === undefined ? filter : "Invalidated"}
 				total={query.isSuccess ? recorded.length : undefined}
-				onSelect={setFilter}
+				onSelect={(picked) => {
+					setFilter(picked);
+					void navigate({ to: "/", search: {} });
+				}}
 			/>
 
 			<div className="flex flex-col gap-4 px-6 pt-3 pb-12">
@@ -727,11 +863,16 @@ export function RunHistoryPage(): React.JSX.Element {
 					</p>
 				) : null}
 
+				{selection === undefined ? null : (
+					<InvalidatedNotice selection={selection} />
+				)}
+
 				{unreadable.length > 0 ? (
 					<UnreadableRecords records={unreadable} />
 				) : null}
 
-				{query.isSuccess &&
+				{selection === undefined &&
+				query.isSuccess &&
 				rows.length === 0 &&
 				launches.length === 0 &&
 				!onlyUnreadableRecords ? (

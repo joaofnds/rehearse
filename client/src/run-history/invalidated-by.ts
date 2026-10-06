@@ -13,3 +13,19 @@ export function invalidatedByValue({
 }: EditVersions): string {
 	return `${previous}${SEPARATOR}${current}`;
 }
+/** The edit an `invalidatedBy` value names, undefined when it names none. */
+export function editNamedBy(value: string): EditVersions | undefined {
+	const parts = value.split(SEPARATOR);
+	const [previous, current] = parts;
+	if (
+		parts.length !== 2 ||
+		previous === undefined ||
+		previous === "" ||
+		current === undefined ||
+		current === ""
+	) {
+		return undefined;
+	}
+
+	return { previous, current };
+}

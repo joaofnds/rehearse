@@ -302,6 +302,11 @@ See [current state](docs/status.md) for implementation coverage and
   six hex characters of its digest. Run history, the navigation rail's corpus
   card and the corpus screen all show it, and a command that opens a version
   accepts any unambiguous prefix of the digest, with or without `corpus@`.
+- **Last edit**: the change from the corpus under test's predecessor in its
+  version log to the corpus under test. A result the last edit invalidated was
+  fresh against the predecessor and is stale now. The corpus screen's
+  "Invalidated by the last edit" card counts those results, and its link opens
+  them in run history.
 - **Cut** — the 0-based line index of the first session-file record a transcript
   prefix drops. A cut of N keeps lines [0, N).
 - **Corpus layout** — the directory shape a corpus takes once resolved, and the

@@ -1511,6 +1511,16 @@ Every `/api/runs` row names its record id as `recordId`, spelled as
 every `ids` parameter given, so the last edit's rows list as run history. An
 empty `ids=` names no record and returns no row.
 
+The browser's run history opens the last edit's rows at
+`/?invalidatedBy=<previous>..<current>`, naming the edit by both full
+versions, which the corpus screen's "review them" link fills from `lastEdit`.
+The address stays the same length however many rows the edit invalidated. The
+screen reads the corpus report again on arrival and lists the run-history rows
+whose `recordId` is among `lastEdit.rows`, naming each id it has no row for.
+When `lastEdit` names a different pair, it lists none and links to the current
+last edit's address instead, since the server keeps no list for an earlier
+edit.
+
 `GET /api/corpus/file?path=<path>` serves the bytes a file the corpus report
 lists holds now, which an edit starts from, whether or not the version store
 has measured them. The `x-corpus-version` header names the full version the

@@ -42,6 +42,10 @@ afterEach(() => {
 	globalThis.fetch = originalFetch;
 });
 
+function AllRecords(): React.JSX.Element {
+	return <RunHistoryPage invalidatedBy={undefined} />;
+}
+
 function respondingWith(body: RunHistoryResponseBody): void {
 	stubFetch(body);
 }
@@ -57,7 +61,7 @@ function renderPage(): RenderResult {
 		defaultOptions: { queries: { retry: false } },
 	});
 
-	const root = createRootRoute({ component: RunHistoryPage });
+	const root = createRootRoute({ component: AllRecords });
 	const router = createRouter({
 		routeTree: root.addChildren([
 			createRoute({ getParentRoute: () => root, path: "/cases" }),
