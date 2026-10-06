@@ -2,16 +2,16 @@ import type { ComparisonArm } from "#benchmark/comparison-record";
 import { plural } from "#client/plural";
 import type { ComparisonResponse } from "./comparison-response";
 
-type HeaderFacts = Pick<
-	ComparisonResponse,
-	"report" | "checkpoint" | "armFigures"
->;
-
-const ARMS = [
+const COMPARISON_ARMS = [
 	"baseline",
 	"candidate",
 	"control",
 ] as const satisfies readonly ComparisonArm[];
+
+type HeaderFacts = Pick<
+	ComparisonResponse,
+	"report" | "checkpoint" | "armFigures"
+>;
 
 export function comparisonTitle(facts: HeaderFacts): string {
 	if (facts.checkpoint.state === "available") {
@@ -25,7 +25,7 @@ export function comparisonTitle(facts: HeaderFacts): string {
 
 function attemptsPerArm(report: HeaderFacts["report"]): string {
 	const counts = report.cases.flatMap(({ arms }) =>
-		ARMS.map((arm) => arms[arm].source.reps.length),
+		COMPARISON_ARMS.map((arm) => arms[arm].source.reps.length),
 	);
 	const fewest = Math.min(...counts);
 	const most = Math.max(...counts);
@@ -49,7 +49,7 @@ function dollars(usd: number): string {
 
 function recordedCost(armFigures: HeaderFacts["armFigures"]): string {
 	const costs = Object.values(armFigures).flatMap((figures) =>
-		ARMS.map((arm) => figures[arm].cost),
+		COMPARISON_ARMS.map((arm) => figures[arm].cost),
 	);
 	let total = 0;
 	let unrecorded = 0;

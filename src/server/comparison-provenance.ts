@@ -1,5 +1,6 @@
 import { ZodError } from "zod";
 import type { Checkpoint } from "#benchmark/compare-attempts";
+import { COMPARISON_ARMS } from "#benchmark/comparison-record";
 import type {
 	ComparisonArm,
 	ComparisonReport,
@@ -8,7 +9,7 @@ import type {
 import { parseConfirmationGroupRecord } from "#benchmark/confirmation-record";
 import type { CorpusMeasurement } from "#benchmark/corpus-measurement";
 import { corpusMeasurementReading } from "#benchmark/corpus-version-label";
-import { readShortIds } from "#benchmark/short-id";
+import { claimedReplaySource, readShortIds } from "#benchmark/short-id";
 import type { Reading } from "./run-record";
 import {
 	readRecordedEvidenceFile,
@@ -28,12 +29,6 @@ export interface ComparisonProvenance {
 		Record<string, Readonly<Record<ComparisonArm, ArmCorpusVersion>>>
 	>;
 }
-
-const ARMS = [
-	"baseline",
-	"candidate",
-	"control",
-] as const satisfies readonly ComparisonArm[];
 
 interface RecordedGroup {
 	readonly groupId: string;
@@ -108,10 +103,6 @@ function checkpointKey(checkpoint: Checkpoint): string {
 	return `${checkpoint.stage} ${checkpoint.run}`;
 }
 
-/**
- * A replayed group's checkpoint lives only in its short-id claim, since the
- * group record carries a lineage two runs can share.
- */
 async function comparedCheckpoint(
 	runsDirectory: string,
 	report: AnyComparisonReport,
@@ -128,29 +119,23 @@ async function comparedCheckpoint(
 	const reasons: string[] = [];
 	for (const { caseId, arms } of cases) {
 		const claims = await readShortIds(runsDirectory, caseId);
-		for (const arm of ARMS) {
+		for (const arm of COMPARISON_ARMS) {
 			const groups = arms[arm];
 			if (groups.state === "unavailable") {
 				reasons.push(...groups.reasons);
 				continue;
 			}
 			for (const group of groups.groups) {
-				const claim = claims.find(
-					({ record }) =>
-						record.kind === "group" && record.groupId === group.groupId,
-				);
-				if (
-					claim?.record.kind !== "group" ||
-					claim.record.source === undefined
-				) {
+				const source = claimedReplaySource(claims, group.groupId);
+				if (source === undefined) {
 					reasons.push(
 						`group ${group.groupId} records no checkpoint it replayed`,
 					);
 					continue;
 				}
-				checkpoints.set(checkpointKey(claim.record.source), {
-					run: claim.record.source.run,
-					stage: claim.record.source.stage,
+				checkpoints.set(checkpointKey(source), {
+					run: source.run,
+					stage: source.stage,
 				});
 			}
 		}

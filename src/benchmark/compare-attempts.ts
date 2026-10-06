@@ -36,7 +36,7 @@ import {
 	comparisonReportPaths,
 	confirmationGroupPaths,
 } from "./run-layout";
-import { readShortIds } from "./short-id";
+import { claimedReplaySource, readShortIds } from "./short-id";
 import { loadStageRubric } from "./stage-grading";
 
 /**
@@ -99,26 +99,22 @@ export interface RecordedArm {
 	readonly corpus: ReadonlyMap<string, string>;
 }
 
-/**
- * The checkpoint a group replayed, which only its short-id claim records,
- * since the group record carries a lineage two runs can share.
- */
 async function replayedCheckpoint(
 	runsDirectory: string,
 	caseId: string,
 	groupId: string,
 ): Promise<Checkpoint> {
-	const entries = await readShortIds(runsDirectory, caseId);
-	const claim = entries.find(
-		({ record }) => record.kind === "group" && record.groupId === groupId,
+	const source = claimedReplaySource(
+		await readShortIds(runsDirectory, caseId),
+		groupId,
 	);
-	if (claim?.record.kind !== "group" || claim.record.source === undefined) {
+	if (source === undefined) {
 		throw new RefusedPreconditionError(
 			`group ${groupId} records no checkpoint it replayed`,
 		);
 	}
 
-	return claim.record.source;
+	return source;
 }
 
 async function recordedCorpus(

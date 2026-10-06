@@ -87,6 +87,21 @@ export interface ShortIdEntry {
 	readonly record: NamedRecord;
 }
 
+/**
+ * The checkpoint a group replayed, which only its short-id claim records,
+ * since the group record carries a lineage two runs can share.
+ */
+export function claimedReplaySource(
+	entries: readonly ShortIdEntry[],
+	groupId: string,
+): { readonly run: string; readonly stage: string } | undefined {
+	const claim = entries.find(
+		({ record }) => record.kind === "group" && record.groupId === groupId,
+	);
+
+	return claim?.record.kind === "group" ? claim.record.source : undefined;
+}
+
 export function formatShortId(id: ShortId): string {
 	const letter = id.kind === "group" ? "g" : "r";
 
