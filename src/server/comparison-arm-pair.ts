@@ -29,12 +29,6 @@ export function armPairNames(pair: string): ArmPairNames {
 	return names;
 }
 
-export function armPairLabel(pair: string): string {
-	const names = armPairNames(pair);
-
-	return `${names.minuend} vs ${names.subtrahend}`;
-}
-
 /**
  * The report's own three canonical contrasts (`comparison-record.ts`'s
  * `contrasts` field: `candidateMinusBaseline`, `candidateMinusControl`,

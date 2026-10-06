@@ -1,24 +1,9 @@
 import { describe, expect, it } from "bun:test";
-import {
-	armPairLabel,
-	armPairNames,
-	armPairs,
-	pairKey,
-} from "./comparison-arm-pair";
+import { armPairNames, armPairs, pairKey } from "./comparison-arm-pair";
 
 describe(pairKey.name, () => {
 	it("builds a PascalCase-subtrahend key from two arm names", () => {
 		expect(pairKey("candidate", "baseline")).toBe("candidateMinusBaseline");
-	});
-});
-
-describe(armPairLabel.name, () => {
-	it.each([
-		["candidateMinusBaseline", "candidate vs baseline"],
-		["baselineMinusControl", "baseline vs control"],
-		["candidateMinusControl", "candidate vs control"],
-	])("decodes %s into %s", (pair, label) => {
-		expect(armPairLabel(pair)).toBe(label);
 	});
 });
 

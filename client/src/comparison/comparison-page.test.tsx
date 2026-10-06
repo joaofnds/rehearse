@@ -14,8 +14,8 @@ import type { ArmFigures } from "#server/comparison-arm-figures";
 import type { CaseAttempts } from "#server/comparison-attempts";
 import type { ComparisonAttribution } from "#server/comparison-attribution";
 import type { ComparisonProvenance } from "#server/comparison-provenance";
-import type { QualityReading } from "#server/comparison-quality-reading";
 import type { CaseSummary } from "#server/comparison-summary";
+import type { WhatMovedRow } from "#server/comparison-what-moved";
 import { stubFetchByPath } from "#client/test-support/fetch-stub";
 import { ComparisonPage } from "./comparison-page";
 
@@ -126,12 +126,7 @@ interface ComparisonResponseFixture extends ComparisonProvenance {
 	readonly attribution: Readonly<
 		Record<string, Readonly<Record<string, ComparisonAttribution>>>
 	>;
-	readonly qualityReadings: Readonly<
-		Record<
-			string,
-			Readonly<Record<string, Readonly<Record<string, QualityReading>>>>
-		>
-	>;
+	readonly whatMoved: Readonly<Record<string, readonly WhatMovedRow[]>>;
 }
 
 const PASSED_EVERY_ATTEMPT: ArmFigures = {
@@ -182,6 +177,44 @@ const NOT_RECORDED = {
 	state: "unavailable",
 	reasons: ["version not recorded"],
 } as const;
+
+const FINAL_ROW: WhatMovedRow = {
+	kind: "overall",
+	name: "final",
+	arms: {
+		control: { scale: "successRate", successful: 1, attempts: 1 },
+		baseline: { scale: "successRate", successful: 1, attempts: 1 },
+		candidate: { scale: "successRate", successful: 1, attempts: 1 },
+	},
+	readings: {
+		candidateMinusBaseline: {
+			interval: {
+				minuend: { low: "21%", high: "100%" },
+				subtrahend: { low: "21%", high: "100%" },
+			},
+			verdict: { kind: "insideRerunNoise" },
+		},
+	},
+};
+
+const NO_WORDS = "this report records no word count for its attempts";
+
+const UNRECORDED_LENGTH_ROW: WhatMovedRow = {
+	kind: "meter",
+	name: "replyLength",
+	arms: {
+		control: { state: "unavailable", reasons: [NO_WORDS] },
+		baseline: { state: "unavailable", reasons: [NO_WORDS] },
+		candidate: { state: "unavailable", reasons: [NO_WORDS] },
+	},
+	readings: {
+		candidateMinusBaseline: {
+			interval: { minuend: undefined, subtrahend: undefined },
+			change: undefined,
+			verdict: { kind: "unavailable", reasons: [NO_WORDS] },
+		},
+	},
+};
 
 function comparisonResponseBody(): ComparisonResponseFixture {
 	const caseFigures = {
@@ -269,66 +302,7 @@ function comparisonResponseBody(): ComparisonResponseFixture {
 				},
 			},
 		},
-		qualityReadings: {
-			"case-1": {
-				candidateMinusBaseline: {
-					checks: {
-						interval: {
-							minuend: { low: "51%", high: "100%" },
-							subtrahend: { low: "15%", high: "85%" },
-						},
-						verdict: { kind: "insideRerunNoise" },
-					},
-				},
-				candidateMinusControl: {
-					checks: {
-						interval: {
-							minuend: { low: "51%", high: "100%" },
-							subtrahend: { low: "0%", high: "49%" },
-						},
-						verdict: { kind: "separated", arm: "candidate" },
-					},
-				},
-				baselineMinusControl: {
-					final: {
-						interval: {
-							minuend: { low: "51%", high: "100%" },
-							subtrahend: { low: "51%", high: "100%" },
-						},
-						verdict: { kind: "unchangedAlreadyClear" },
-					},
-				},
-			},
-			"case-2": {
-				candidateMinusBaseline: {
-					checks: {
-						interval: {
-							minuend: undefined,
-							subtrahend: { low: "F", high: "D" },
-						},
-						verdict: { kind: "unavailable" },
-					},
-				},
-				candidateMinusControl: {
-					checks: {
-						interval: {
-							minuend: { low: "15%", high: "85%" },
-							subtrahend: { low: "0%", high: "49%" },
-						},
-						verdict: { kind: "insideRerunNoise" },
-					},
-				},
-				baselineMinusControl: {
-					checks: {
-						interval: {
-							minuend: { low: "51%", high: "100%" },
-							subtrahend: { low: "0%", high: "49%" },
-						},
-						verdict: { kind: "separated", arm: "baseline" },
-					},
-				},
-			},
-		},
+		whatMoved: { "case-1": [FINAL_ROW], "case-2": [UNRECORDED_LENGTH_ROW] },
 	};
 }
 
@@ -344,48 +318,6 @@ function renderPage(
 			<ComparisonPage digest={DIGEST} />
 		</QueryClientProvider>,
 	);
-}
-
-function qualityRow(
-	tableName: string,
-	pair: string,
-	measure: string,
-): HTMLElement {
-	const table = screen.getByRole("table", { name: tableName });
-	const row = within(table)
-		.getAllByRole("row")
-		.slice(1)
-		.find(
-			(candidate) =>
-				within(candidate).queryByRole("rowheader", { name: pair }) !== null &&
-				within(candidate).queryByRole("cell", { name: measure }) !== null,
-		);
-
-	if (row === undefined) {
-		throw new Error(`Missing quality row for ${pair} and ${measure}`);
-	}
-
-	return row;
-}
-
-function expectQualityRow(
-	tableName: string,
-	expected: Readonly<{
-		readonly pair: string;
-		readonly measure: string;
-		readonly intervals: readonly [string, string];
-		readonly verdict: string;
-		readonly glyph: string;
-	}>,
-): void {
-	const row = qualityRow(tableName, expected.pair, expected.measure);
-	for (const interval of expected.intervals) {
-		expect(within(row).getByText(interval)).toBeInTheDocument();
-	}
-	const verdictCell = within(row).getByRole("cell", {
-		name: expected.verdict,
-	});
-	expect(verdictCell).toHaveTextContent(`${expected.glyph}${expected.verdict}`);
 }
 
 describe(ComparisonPage.name, () => {
@@ -668,117 +600,48 @@ describe(ComparisonPage.name, () => {
 		).toBeInTheDocument();
 	});
 
-	it("renders every served quality reading grouped by case", async () => {
+	it("draws each case's What moved rows from that case's own served rows", async () => {
 		renderPage();
 
 		fireEvent.click(await screen.findByRole("button", { name: "What moved" }));
 
-		const caseOne = screen.getByRole("table", {
-			name: "WHAT MOVED · case-1",
-		});
-		const caseTwo = screen.getByRole("table", {
-			name: "WHAT MOVED · case-2",
-		});
-		expect(within(caseOne).getAllByRole("row")).toHaveLength(4);
-		expect(within(caseTwo).getAllByRole("row")).toHaveLength(4);
-		expectQualityRow("WHAT MOVED · case-1", {
-			pair: "candidate vs baseline",
-			measure: "checks",
-			intervals: ["candidate 51% to 100%", "baseline 15% to 85%"],
-			verdict: "inside rerun noise",
-			glyph: "~",
-		});
-		expectQualityRow("WHAT MOVED · case-1", {
-			pair: "candidate vs control",
-			measure: "checks",
-			intervals: ["candidate 51% to 100%", "control 0% to 49%"],
-			verdict: "candidate separates",
-			glyph: "↑",
-		});
-		expectQualityRow("WHAT MOVED · case-1", {
-			pair: "baseline vs control",
-			measure: "final",
-			intervals: ["baseline 51% to 100%", "control 51% to 100%"],
-			verdict: "unchanged, already clear",
-			glyph: "=",
-		});
-		expectQualityRow("WHAT MOVED · case-2", {
-			pair: "candidate vs baseline",
-			measure: "checks",
-			intervals: ["candidate not reached", "baseline F to D"],
-			verdict: "unavailable",
-			glyph: "?",
-		});
-		expectQualityRow("WHAT MOVED · case-2", {
-			pair: "candidate vs control",
-			measure: "checks",
-			intervals: ["candidate 15% to 85%", "control 0% to 49%"],
-			verdict: "inside rerun noise",
-			glyph: "~",
-		});
-		expectQualityRow("WHAT MOVED · case-2", {
-			pair: "baseline vs control",
-			measure: "checks",
-			intervals: ["baseline 51% to 100%", "control 0% to 49%"],
-			verdict: "baseline separates",
-			glyph: "↑",
-		});
-		expect(screen.queryByText("PLANNED")).not.toBeInTheDocument();
+		const caseOne = screen.getByRole("table", { name: "What moved · case-1" });
+		const caseTwo = screen.getByRole("table", { name: "What moved · case-2" });
 		expect(
-			screen.queryByText(/needs a per-measure interval/iu),
-		).not.toBeInTheDocument();
+			within(caseOne)
+				.getAllByRole("rowheader")
+				.map((header) => header.textContent),
+		).toEqual(["finaloverall"]);
+		expect(within(caseOne).getByText("inside rerun noise")).toBeInTheDocument();
+		expect(
+			within(caseTwo)
+				.getAllByRole("rowheader")
+				.map((header) => header.textContent),
+		).toEqual(["reply lengthmeter"]);
+		expect(within(caseTwo).getByText("unavailable")).toBeInTheDocument();
 	});
 
-	it("associates each case with its own attribution reading under What moved", async () => {
+	it("states only arm A against arm B's attribution for each case under What moved", async () => {
 		renderPage();
 
 		fireEvent.click(await screen.findByRole("button", { name: "What moved" }));
+
 		const caseOne = screen.getByRole("region", {
 			name: "Attribution · case-1",
 		});
 		const caseTwo = screen.getByRole("region", {
 			name: "Attribution · case-2",
 		});
-		const attributableCopy =
-			"The only corpus difference between these arms is output-styles/brief.md. A movement between them is attributable to that file.";
-		expect(
-			within(caseOne).getAllByText(
-				(_content, element) => element?.textContent === attributableCopy,
-			),
-		).toHaveLength(3);
-		expect(within(caseOne).getAllByText("output-styles/brief.md")).toHaveLength(
-			3,
+		expect(caseOne).toHaveTextContent(
+			"The only difference between arms A and B is output-styles/brief.md.",
 		);
-		for (const pair of [
-			"candidate vs baseline",
-			"candidate vs control",
-			"baseline vs control",
-		]) {
-			expect(within(caseOne).getByText(pair)).toBeInTheDocument();
-			expect(within(caseTwo).getByText(pair)).toBeInTheDocument();
-		}
-		expect(
-			within(caseTwo).getAllByText(/refuses the attribution claim/iu),
-		).toHaveLength(3);
-		expect(within(caseTwo).getAllByText("CLAUDE.md")).toHaveLength(3);
-		expect(
-			within(caseTwo).getAllByText("skills/discuss/SKILL.md"),
-		).toHaveLength(3);
-		expect(
-			within(caseTwo).queryByText("output-styles/brief.md"),
-		).not.toBeInTheDocument();
-	});
-
-	it("labels the arm pair lowercase, not 'candidate vs Baseline'", async () => {
-		renderPage();
-
-		fireEvent.click(await screen.findByRole("button", { name: "What moved" }));
-		const caseOne = screen.getByRole("region", {
-			name: "Attribution · case-1",
-		});
-		expect(
-			within(caseOne).getByText("candidate vs baseline"),
-		).toBeInTheDocument();
+		expect(within(caseOne).getAllByText("output-styles/brief.md")).toHaveLength(
+			1,
+		);
+		expect(caseTwo).toHaveTextContent(
+			"2 files differ between arms A and B, so no movement between them is attributed to one file.",
+		);
+		expect(screen.queryByText(/vs control/u)).not.toBeInTheDocument();
 	});
 
 	it("links only comparison reps whose saved provenance is still valid", async () => {
@@ -830,39 +693,27 @@ describe(ComparisonPage.name, () => {
 		expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 	});
 
-	it("reports no corpus difference, never a false attribution, when the two arms' corpora are identical", async () => {
-		stubFetchByPath(
-			new Map([
-				[
-					`/api/comparisons/${DIGEST}`,
-					{
-						...comparisonResponseBody(),
-						attribution: {
-							"case-1": {
-								candidateMinusBaseline: { claim: "identical" },
-							},
-						},
-					},
-				],
-			]),
-		);
-		const client = new QueryClient({
-			defaultOptions: { queries: { retry: false } },
+	it("says no file explains a movement, never a false attribution, when arms A and B ran identical corpora", async () => {
+		renderPage({
+			...comparisonResponseBody(),
+			attribution: {
+				"case-1": { candidateMinusBaseline: { claim: "identical" } },
+				"case-2": { candidateMinusBaseline: { claim: "identical" } },
+			},
 		});
-		render(
-			<QueryClientProvider client={client}>
-				<ComparisonPage digest={DIGEST} />
-			</QueryClientProvider>,
-		);
 
 		fireEvent.click(await screen.findByRole("button", { name: "What moved" }));
+
 		expect(
-			screen.getByText(/no corpus difference between these arms/iu),
-		).toBeInTheDocument();
+			screen.getByRole("region", { name: "Attribution · case-1" }),
+		).toHaveTextContent(
+			"Arms A and B ran identical corpora, so no file explains a movement between them.",
+		);
 		expect(
-			screen.queryByText(/refuses the attribution claim/iu),
+			screen.queryByText(/attributable to that file/u),
 		).not.toBeInTheDocument();
 	});
+
 	it("says why a comparison whose author supplied the baseline arm cannot take more attempts", async () => {
 		renderPage();
 
