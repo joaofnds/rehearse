@@ -1,3 +1,4 @@
+import { basename } from "node:path";
 import { z } from "zod";
 import { agentTree } from "./agent-tree";
 import type { AgentTree, AgentTreeInput, SubAgent } from "./agent-tree";
@@ -51,9 +52,14 @@ export interface DescendantTotal {
 	readonly basis: string;
 }
 
+/** A slash command loads a skill's body with no tool call behind it. */
+export type SkillInvoker =
+	| { readonly by: "Skill call"; readonly toolUseId: string }
+	| { readonly by: "slash command" };
+
 export interface SkillInvocationCost {
 	readonly skill: string;
-	readonly toolUseId: string;
+	readonly invokedBy: SkillInvoker;
 	readonly deliveryLine: number;
 	readonly own: CostScope;
 	readonly includingDescendants: DescendantTotal;
@@ -121,8 +127,13 @@ type Owner = typeof ROOT | string;
 
 interface Invocation {
 	readonly skill: string;
-	readonly toolUseId: string;
+	readonly invokedBy: SkillInvoker;
 	readonly deliveryLine: number;
+}
+
+interface Delivery {
+	readonly invocation: Invocation;
+	readonly request: number | undefined;
 }
 
 /**
@@ -227,6 +238,45 @@ function requestLocator(
 }
 
 /**
+ * A skill body answering a Skill call names the call. One loaded by a slash
+ * command names none, and the skill is the directory the body opens with.
+ */
+function deliveryAt(
+	row: Immutable<TranscriptLine>,
+	calls: ReadonlyMap<string, SkillCall>,
+): Delivery | undefined {
+	const { line, metaFor, skillDirectories } = row;
+	if (metaFor !== undefined) {
+		const call = calls.get(metaFor);
+
+		return call === undefined
+			? undefined
+			: {
+					invocation: {
+						skill: call.skill,
+						invokedBy: { by: "Skill call", toolUseId: metaFor },
+						deliveryLine: line,
+					},
+					request: call.request,
+				};
+	}
+
+	const [directory] = skillDirectories;
+	if (directory === undefined) {
+		return undefined;
+	}
+
+	return {
+		invocation: {
+			skill: basename(directory),
+			invokedBy: { by: "slash command" },
+			deliveryLine: line,
+		},
+		request: undefined,
+	};
+}
+
+/**
  * A window opens at a skill's observed delivery and closes at the next
  * delivery from another request, the next prompt, or the end of the
  * transcript. A compaction does not close it: nothing recorded shows that a
@@ -245,25 +295,25 @@ function skillWindows(
 		}
 		current = undefined;
 	};
-	for (const { line, metaFor, userTurn } of participant.lines) {
+	for (const row of participant.lines) {
+		const { line, userTurn } = row;
 		if (line <= participant.attemptStart) {
 			continue;
 		}
 
-		const call = metaFor === undefined ? undefined : calls.get(metaFor);
-		if (call === undefined || metaFor === undefined) {
+		const delivery = deliveryAt(row, calls);
+		if (delivery === undefined) {
 			if (userTurn === "prompt" || userTurn === "interruption") {
 				close(line);
 			}
 			continue;
 		}
 
-		const invocation = {
-			skill: call.skill,
-			toolUseId: metaFor,
-			deliveryLine: line,
-		};
-		if (current?.request !== undefined && current.request === call.request) {
+		const { invocation } = delivery;
+		if (
+			current?.request !== undefined &&
+			current.request === delivery.request
+		) {
 			current = {
 				...current,
 				invocations: [...current.invocations, invocation],
@@ -275,7 +325,7 @@ function skillWindows(
 		current = {
 			open: line,
 			close: undefined,
-			request: call.request,
+			request: delivery.request,
 			invocations: [invocation],
 		};
 	}
@@ -645,7 +695,7 @@ function skillCosts(
 
 			return window.invocations.map((invocation): SkillInvocationCost => ({
 				skill: invocation.skill,
-				toolUseId: invocation.toolUseId,
+				invokedBy: invocation.invokedBy,
 				deliveryLine: invocation.deliveryLine,
 				own: { cost: readingOf(own), requestLines, basis: SKILL_WINDOW_BASIS },
 				includingDescendants: descendantTotal(

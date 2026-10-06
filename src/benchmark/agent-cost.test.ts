@@ -22,6 +22,8 @@ const INHERITED_PREFIX_LINES = 3;
 const LINES_BEFORE_A4_LAUNCH = 19;
 /** The fixture transcript up to, and not including, review-docs' request. */
 const LINES_BEFORE_SECOND_SKILL_REQUEST = 11;
+/** The fixture transcript up to, and not including, the forked skill's request. */
+const LINES_BEFORE_FORKED_SKILL_REQUEST = 17;
 const PROVIDER_BASIS =
 	"the provider's session count for models no other agent ran on";
 const UNMODELED_REQUEST =
@@ -375,6 +377,75 @@ describe(agentCostAllocation.name, () => {
 			expect(skillNamed(allocation.root, "review").own.requestLines).toEqual([
 				8,
 			]);
+		});
+	});
+
+	describe("when a background agent's notification follows a skill's delivery", () => {
+		it("keeps the skill's window open", async () => {
+			const notification = JSON.stringify({
+				type: "user",
+				origin: { kind: "task-notification" },
+				message: {
+					role: "user",
+					content: "<task-notification>\n<status>completed</status>",
+				},
+			});
+
+			const allocation = available(
+				await fixtureAllocation({
+					transcript: (lines) => [
+						...lines.slice(0, LINES_BEFORE_SECOND_SKILL_REQUEST),
+						notification,
+						...lines.slice(LINES_BEFORE_SECOND_SKILL_REQUEST),
+					],
+				}),
+			);
+
+			expect(skillNamed(allocation.root, "review").own.requestLines).toEqual([
+				8, 13,
+			]);
+		});
+	});
+
+	describe("when a slash command loads a skill", () => {
+		it("opens the skill's window at its body", async () => {
+			const command = [
+				{
+					type: "user",
+					message: {
+						role: "user",
+						content:
+							"<command-message>brief</command-message>\n<command-name>/brief</command-name>",
+					},
+				},
+				{
+					type: "user",
+					isMeta: true,
+					message: {
+						role: "user",
+						content: [
+							{
+								type: "text",
+								text: "Base directory for this skill: /skills/brief\n\n# Brief",
+							},
+						],
+					},
+				},
+			].map((row) => JSON.stringify(row));
+
+			const allocation = available(
+				await fixtureAllocation({
+					transcript: (lines) => [
+						...lines.slice(0, LINES_BEFORE_FORKED_SKILL_REQUEST),
+						...command,
+						...lines.slice(LINES_BEFORE_FORKED_SKILL_REQUEST),
+					],
+				}),
+			);
+
+			const brief = skillNamed(allocation.root, "brief");
+			expect(brief.invokedBy).toEqual({ by: "slash command" });
+			expect(brief.own.requestLines).toEqual([20, 22, 24]);
 		});
 	});
 

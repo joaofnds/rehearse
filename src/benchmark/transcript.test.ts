@@ -114,6 +114,11 @@ describe(parseTranscript.name, () => {
 					message: { content: "This session is being continued." },
 				}),
 				line({ type: "user", message: { content: [toolResult("toolu_1")] } }),
+				line({
+					type: "user",
+					origin: { kind: "task-notification" },
+					message: { content: "<task-notification>" },
+				}),
 			].join("\n"),
 		);
 
@@ -122,6 +127,7 @@ describe(parseTranscript.name, () => {
 			"interruption",
 			"compaction summary",
 			undefined,
+			"task notification",
 		]);
 	});
 

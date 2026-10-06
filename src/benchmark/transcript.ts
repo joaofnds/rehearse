@@ -98,9 +98,19 @@ const INTERRUPTION_MARKER = "[Request interrupted by user";
 
 /**
  * What a user row is, beyond a tool result or a meta row the harness wrote: a
- * compaction summary, an interruption marker, or a prompt.
+ * compaction summary, an interruption marker, a background agent's
+ * notification, or a prompt.
  */
-export type UserTurn = "compaction summary" | "interruption" | "prompt";
+export type UserTurn =
+	| "compaction summary"
+	| "interruption"
+	| "prompt"
+	| "task notification";
+
+/** The provider's mark on a row reporting that a background agent finished. */
+const taskNotificationSchema = z.looseObject({
+	origin: z.looseObject({ kind: z.literal("task-notification") }),
+});
 
 export type ToolUse = z.infer<typeof toolUseSchema>;
 
@@ -404,6 +414,10 @@ function readUserTurn(
 
 	if (record["isCompactSummary"] === true) {
 		return "compaction summary";
+	}
+
+	if (taskNotificationSchema.safeParse(record).success) {
+		return "task notification";
 	}
 
 	if (
