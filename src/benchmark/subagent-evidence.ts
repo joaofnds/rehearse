@@ -13,7 +13,7 @@ import type { TranscriptLine } from "./transcript";
  * The provider's name for a session's sub-agent directory, which the record
  * keeps under the same name beside its transcript.
  */
-const SUBAGENTS_DIRECTORY = "subagents";
+export const SUBAGENTS_DIRECTORY = "subagents";
 
 /** The ids the provider gives its agents, and so the names their files carry. */
 const PROVIDER_AGENT_ID = "[a-z0-9]+";
@@ -205,7 +205,7 @@ export async function recordedSubagents(
 	const directory = join(recordDirectory, SUBAGENTS_DIRECTORY);
 	const names = (await readdirIfPresent(directory)) ?? [];
 	const agentIds = names
-		.map((name) => SUBAGENT_TRANSCRIPT.exec(name)?.[1])
+		.map((name) => subagentTranscriptAgentId(name))
 		.filter((agentId) => agentId !== undefined)
 		.toSorted();
 	const subagents = await Promise.all(
@@ -223,6 +223,11 @@ export async function recordedSubagents(
 	return subagents.filter(
 		(each): each is SubagentEvidence => each.transcript !== undefined,
 	);
+}
+
+/** The agent a sub-agent transcript's file name names, if it names one. */
+export function subagentTranscriptAgentId(name: string): string | undefined {
+	return SUBAGENT_TRANSCRIPT.exec(name)?.[1];
 }
 
 async function regularFileText(path: string): Promise<string | undefined> {
