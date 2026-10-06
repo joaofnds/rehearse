@@ -7,7 +7,7 @@ import { recordedSubagents } from "#benchmark/subagent-evidence";
 const FIXTURE = join(import.meta.dir, "__fixtures__", "agent-tree");
 const INHERITED_PREFIX_LINES = 3;
 /** The fixture transcript up to, and not including, a4's launch. */
-const LINES_BEFORE_A4_LAUNCH = 16;
+const LINES_BEFORE_A4_LAUNCH = 19;
 
 interface FixtureOverrides {
 	readonly prefixLinesExcluded?: number | undefined;
@@ -62,6 +62,19 @@ describe(agentTree.name, () => {
 		});
 	});
 
+	it("records the line of the parent's call that launched each agent", async () => {
+		const tree = await fixtureTree();
+
+		expect(
+			Object.fromEntries(
+				tree.agents.map(({ agentId, launchCallLine }) => [
+					agentId,
+					launchCallLine,
+				]),
+			),
+		).toEqual({ a0: 2, a1: 8, a2: 9, a3: 2, a4: 20, a5: 18, a6: 4 });
+	});
+
 	it("reads each agent's models from its own requests", async () => {
 		const tree = await fixtureTree();
 
@@ -87,6 +100,7 @@ describe(agentTree.name, () => {
 			"req-p1",
 			"req-r1",
 			"req-r2",
+			"req-r2b",
 			"req-r3",
 			"req-r4",
 			"req-r5",
@@ -163,6 +177,7 @@ describe(agentTree.name, () => {
 		expect(tree.root.deliveries.map(({ name }) => name)).toEqual([
 			"skills/review/SKILL.md",
 			"skills/review-docs/SKILL.md",
+			"skills/verify/SKILL.md",
 		]);
 	});
 

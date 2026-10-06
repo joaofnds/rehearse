@@ -81,6 +81,8 @@ const RESUME_NOT_RECORDED = "not recorded";
 interface SubagentIdentity {
 	readonly agentId: string;
 	readonly parent: AgentParent;
+	/** The line of the parent's transcript holding the call that launched it. */
+	readonly launchCallLine: number | undefined;
 	readonly context: AgentContextKind;
 	readonly resume: typeof RESUME_NOT_RECORDED;
 }
@@ -169,10 +171,14 @@ interface NamingResult extends Located {
 	readonly toolUseId: string | undefined;
 }
 
-/** An agent's parent, and the place its launch was recorded, if any was. */
+/**
+ * An agent's parent, the place its launch was recorded, if any was, and the
+ * launching call's line where the call itself was found.
+ */
 interface AgentLink {
 	readonly parent: AgentParent;
 	readonly launch: Located | undefined;
+	readonly callLine: number | undefined;
 }
 
 interface LaunchIndex {
@@ -215,6 +221,11 @@ function parentFor(
 	meta: Readonly<AgentMeta>,
 	index: LaunchIndex,
 ): AgentLink {
+	const result = index.results.get(agentId);
+	const answered =
+		result?.toolUseId === undefined
+			? undefined
+			: index.calls.get(result.toolUseId);
 	if (meta.parentAgentId !== undefined) {
 		return {
 			parent: {
@@ -222,27 +233,36 @@ function parentFor(
 				agentId: meta.parentAgentId,
 				basis: "parent agent id",
 			},
-			launch: index.results.get(agentId),
+			launch: result,
+			callLine: answered?.line,
 		};
 	}
+
 	const call =
 		meta.toolUseId === undefined ? undefined : index.calls.get(meta.toolUseId);
 	if (call !== undefined) {
-		return { parent: linkTo(call.owner, "launch call"), launch: call };
+		return {
+			parent: linkTo(call.owner, "launch call"),
+			launch: call,
+			callLine: call.line,
+		};
 	}
 
-	const result = index.results.get(agentId);
 	if (result === undefined) {
-		return { parent: { state: "unlinked" }, launch: undefined };
+		return {
+			parent: { state: "unlinked" },
+			launch: undefined,
+			callLine: undefined,
+		};
 	}
 
-	const answered =
-		result.toolUseId === undefined
-			? undefined
-			: index.calls.get(result.toolUseId);
 	const basis = answered?.name === "Skill" ? "skill result" : "agent result";
 
-	return { parent: linkTo(result.owner, basis), launch: result };
+	return {
+		parent: linkTo(result.owner, basis),
+		launch: result,
+		callLine: answered?.line,
+	};
 }
 
 function linkTo(owner: Owner, basis: AgentLinkBasis): AgentParent {
@@ -389,7 +409,7 @@ function childPrefixLinesExcluded(
 function availableAgent(
 	input: Immutable<AgentTreeInput>,
 	file: Immutable<SubagentEvidence>,
-	parent: AgentParent,
+	link: Immutable<AgentLink>,
 	inherited: boolean,
 ): SubAgent {
 	const meta = readMeta(file.meta);
@@ -409,7 +429,8 @@ function availableAgent(
 
 	return {
 		agentId: file.agentId,
-		parent,
+		parent: link.parent,
+		launchCallLine: link.callLine,
 		context,
 		resume: RESUME_NOT_RECORDED,
 		evidence: "available",
@@ -455,19 +476,24 @@ export function agentTree(input: Immutable<AgentTreeInput>): AgentTree {
 
 	const agents = agentIds.map((agentId): SubAgent => {
 		const file = files.get(agentId);
-		const parent = links.get(agentId)?.parent ?? { state: "unlinked" };
+		const link = links.get(agentId) ?? {
+			parent: { state: "unlinked" },
+			launch: undefined,
+			callLine: undefined,
+		};
 		const inherited = isInherited(agentId, links, input.prefixLinesExcluded);
 		if (file === undefined) {
 			return {
 				agentId,
-				parent,
+				parent: link.parent,
+				launchCallLine: link.callLine,
 				context: inherited ? "inherited" : "not recorded",
 				resume: RESUME_NOT_RECORDED,
 				evidence: "unavailable",
 			};
 		}
 
-		return availableAgent(input, file, parent, inherited);
+		return availableAgent(input, file, link, inherited);
 	});
 	const unavailableAgentIds = agents
 		.filter(
