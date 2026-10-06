@@ -19,7 +19,6 @@ import type {
 	QualityInterval,
 	QualityReading,
 	QualityVerdict,
-	UnavailableVerdict,
 } from "./comparison-quality-reading";
 import {
 	letterRange,
@@ -86,7 +85,7 @@ export interface MeterReading {
 	readonly change: string | undefined;
 	readonly verdict:
 		| { readonly kind: "insideRerunNoise" }
-		| UnavailableVerdict
+		| { readonly kind: "unavailable"; readonly reasons: readonly string[] }
 		| { readonly kind: "higher"; readonly arm: ComparisonArm };
 }
 
@@ -336,10 +335,14 @@ export function meterReading(
 			: undefined;
 	const interval = { minuend: spanOf(minuend), subtrahend: spanOf(subtrahend) };
 	if (minuend.state === "unavailable" || subtrahend.state === "unavailable") {
+		const reasons = [minuend, subtrahend].flatMap((spread) =>
+			spread.state === "unavailable" ? spread.reasons : [],
+		);
+
 		return {
 			interval,
 			change: undefined,
-			verdict: { kind: "unavailable" },
+			verdict: { kind: "unavailable", reasons: [...new Set(reasons)] },
 		};
 	}
 

@@ -2192,7 +2192,8 @@ low-to-high range over its attempts, the signed percent change of the means,
 and names the higher arm only when the ranges do not overlap and full
 separation has at most a 5% two-sided chance under rerun noise, 2 / C(n + m, n)
 for n and m attempts, which takes about four attempts an arm. A row where
-either arm recorded nothing reads verdict `unavailable`, and so does a quality
+either arm recorded nothing reads verdict `unavailable`, a meter row's with the
+`reasons` that arm recorded nothing, and so does a quality
 reading in `qualityReadings` where either arm reached no grade. A report
 without recorded grading serves no blocker or dimension rows. Every letter span
 and rate interval reads from the bottom of its own scale to the top, `low` the

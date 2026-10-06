@@ -75,14 +75,30 @@ describe(meterReading.name, () => {
 		expect(reading.verdict).toEqual({ kind: "insideRerunNoise" });
 	});
 
-	it("reads unavailable when an arm recorded nothing to measure", () => {
+	it("reads unavailable with the reason an arm recorded nothing to measure", () => {
 		const reading = meterReading(
 			{ state: "unavailable", reasons: ["no words"] },
 			{ state: "available", mean: 100, low: 90, high: 110, counted: 4 },
 			arms,
 		);
 
-		expect(reading.verdict).toEqual({ kind: "unavailable" });
+		expect(reading.verdict).toEqual({
+			kind: "unavailable",
+			reasons: ["no words"],
+		});
+	});
+
+	it("states a reason both arms share once", () => {
+		const reading = meterReading(
+			{ state: "unavailable", reasons: ["no words"] },
+			{ state: "unavailable", reasons: ["no words"] },
+			arms,
+		);
+
+		expect(reading.verdict).toEqual({
+			kind: "unavailable",
+			reasons: ["no words"],
+		});
 	});
 
 	it("reads no change against a subtrahend that averaged zero", () => {
