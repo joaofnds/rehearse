@@ -54,6 +54,7 @@ import { STORED_GIT_DIRECTORY } from "./git-directory-name";
 import {
 	preserveSubagentFiles,
 	providerSessionDirectory,
+	subagentFilesRetained,
 	unavailableSubagents,
 } from "./subagent-evidence";
 import { preserveStateEvidence } from "./session-state-evidence";
@@ -616,7 +617,12 @@ export async function runSessionAttempt(
 				],
 			};
 		} finally {
-			await removeAttemptFiles(attemptDirectory, slug, transcriptPath);
+			await removeAttemptFiles(
+				attemptDirectory,
+				slug,
+				transcriptPath,
+				request.recordDirectory,
+			);
 		}
 	} catch (error) {
 		await rm(attemptDirectory, { force: true, recursive: true });
@@ -896,20 +902,25 @@ async function recordAttempt(
  * it only when it is empty: a file the attempt cannot account for keeps its
  * directory rather than being deleted with it. Cleanup runs whether the call
  * returned or threw, so a provider that wrote its transcript and then failed
- * leaves nothing behind. A sub-agent directory it cannot remove stays where it
- * is: the record already holds its files, and a failure here would replace the
- * attempt's own result or error with the cleanup's.
+ * leaves nothing behind. The sub-agent directory goes only once the record
+ * holds every file in it: a copy the recording could not finish leaves the
+ * provider's files as the only evidence of what those agents did. A removal
+ * that fails after the copy finished loses nothing, so it leaves the directory
+ * rather than replacing the attempt's own result or error with the cleanup's.
  */
 async function removeAttemptFiles(
 	attemptDirectory: string,
 	slug: string,
 	transcriptPath: string,
+	recordDirectory: string,
 ): Promise<void> {
 	await rm(transcriptPath, { force: true });
-	await rm(providerSessionDirectory(transcriptPath), {
-		force: true,
-		recursive: true,
-	}).catch(() => undefined);
+	if (await subagentFilesRetained(transcriptPath, recordDirectory)) {
+		await rm(providerSessionDirectory(transcriptPath), {
+			force: true,
+			recursive: true,
+		}).catch(() => undefined);
+	}
 	await rmdir(slug).catch(() => undefined);
 
 	await rm(attemptDirectory, { force: true, recursive: true });

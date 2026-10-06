@@ -681,10 +681,13 @@ sub-agent's transcript and meta file, `agent-<id>.jsonl` and
 session's own file. Recording copies them into `subagents/` beside
 `transcript.jsonl`, for a handled invocation failure as well, and cleanup then
 removes that directory with the session's file. Only regular files with those
-two name shapes are copied, so a symlink or any other entry the session left
-there stays out of the record. `unavailableSubagents` lists each agent that an
-Agent result, or a Skill result that ran the skill in its own context, names at
-or after the cut and whose transcript was not there to copy. An agent named in
+two name shapes, in a real directory, are copied, so a symlink or any other
+entry the session left there stays out of the record. A file or directory the
+copy cannot read stays out of the record without failing it, and cleanup then
+leaves the provider's directory in place, since it holds the only copy.
+`unavailableSubagents` lists each agent that an Agent result, or a Skill result
+that ran the skill in its own context, names at or after the cut and whose
+transcript the record does not hold. An agent named in
 the inherited prefix ran before the attempt and is not listed. Records written
 before this omit the field and keep no `subagents/`; omission means the files
 were not checked, not that the session ran no sub-agent.
@@ -1192,8 +1195,8 @@ record says so with an explicit unavailable status instead of omitting the
 evidence. The stage session's sub-agent transcripts and meta files are copied
 into `subagents/` beside it the same way. The stage ran in the target
 repository, so the provider's files there are left in place. Checkpoints
-written before this carry no transcript field and remain readable. A stage checkpoint, a replay record and a session attempt record
-also carry `readManifest`, the files the record declared or its transcript
+written before this carry no transcript field and remain readable. A stage
+checkpoint, a replay record and a session attempt record also carry `readManifest`, the files the record declared or its transcript
 shows it loading. A stage record carries `readManifest` too, which is the only
 copy for a stage its judge stopped, since that stage saves no checkpoint, and so
 does each stage file of a confirmation rep, stopped or not. A corpus entry is

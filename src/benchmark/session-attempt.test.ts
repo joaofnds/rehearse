@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { describe, expect, it } from "bun:test";
+import { afterEach, describe, expect, it } from "bun:test";
 import {
 	chmod,
 	mkdir,
@@ -2711,6 +2711,33 @@ describe("the sub-agent evidence a session attempt retains", () => {
 		expect(attempt.unavailableSubagents).toEqual([]);
 	});
 
+	it("does not count an agent named in the inherited prefix as unavailable when the provider command failed", async () => {
+		const prefix = await writtenPrefix(
+			`${agentResultLine(SOURCE_SESSION, "a0")}\n`,
+		);
+		const projects = await projectsRoot();
+		const session = appendingClaude(projects, "OK");
+
+		const failure = await failureOf(
+			runSessionAttempt(
+				request({
+					sessionCase: resumingCase(prefix.path, prefix.sha256),
+					projectsDirectory: projects,
+					recordDirectory: await recordDirectory(),
+					runClaude: async (command, cwd) => {
+						await session(command, cwd);
+
+						throw new Error("claude exited 1");
+					},
+				}),
+			),
+		);
+
+		expect(failure).toMatchObject({
+			attempt: { outcome: "EXECUTION_FAILED", unavailableSubagents: [] },
+		});
+	});
+
 	describe("when the session's sub-agent directory holds more than the provider's files", () => {
 		it("copies neither a symlink nor a file under another name", async () => {
 			const projects = await projectsRoot();
@@ -2725,6 +2752,8 @@ describe("the sub-agent evidence a session attempt retains", () => {
 						await symlink("/etc/hosts", join(subagents, "agent-a2.jsonl"));
 						await writeFile(join(subagents, "notes.txt"), "planted\n");
 						await writeFile(join(subagents, "agent-a3.json"), "{}\n");
+						await writeFile(join(subagents, "agent-a4.jsonl.tmp"), "{}\n");
+						await writeFile(join(subagents, "xagent-a5.jsonl"), "{}\n");
 					}),
 				}),
 			);
@@ -2733,27 +2762,107 @@ describe("the sub-agent evidence a session attempt retains", () => {
 		});
 	});
 
-	describe("when the session's sub-agent directory cannot be read", () => {
-		it("fails the recording rather than reading the directory as empty", async () => {
-			const projects = await projectsRoot();
-			let locked = "";
+	describe("when the session's sub-agent files cannot be read", () => {
+		const locked: string[] = [];
+		afterEach(async () => {
+			await Promise.all(locked.splice(0).map((path) => chmod(path, 0o755)));
+		});
 
-			const failure = await failureOf(
-				runSessionAttempt(
-					request({
-						projectsDirectory: projects,
-						recordDirectory: await recordDirectory(),
-						runClaude: claudeWithSubagents(projects, async (subagents) => {
+		it("keeps the record, names the agents it could not copy, and leaves the provider's files in place", async () => {
+			const projects = await projectsRoot();
+			let subagentDirectory = "";
+
+			const attempt = await runSessionAttempt(
+				request({
+					projectsDirectory: projects,
+					recordDirectory: await recordDirectory(),
+					runClaude: claudeWithSubagents(
+						projects,
+						async (subagents) => {
 							await writeSubagentFiles(subagents);
 							await chmod(subagents, 0o000);
-							locked = subagents;
-						}),
-					}),
-				),
+							locked.push(subagents);
+							subagentDirectory = subagents;
+						},
+						claudeWriting(
+							projects,
+							(sessionId) => [agentResultLine(sessionId, "a1")],
+							"OK",
+						),
+					),
+				}),
 			);
-			await chmod(locked, 0o755);
 
-			expect(failure).toMatchObject({ code: "EACCES" });
+			expect(attempt.unavailableSubagents).toEqual(["a1"]);
+			await chmod(subagentDirectory, 0o755);
+			const left = await readdir(subagentDirectory);
+			expect(left.toSorted()).toEqual(Object.keys(SUB_AGENT_FILES));
+		});
+
+		it("copies the files it can read and leaves the provider's files in place", async () => {
+			const projects = await projectsRoot();
+			const records = await recordDirectory();
+			let unreadable = "";
+
+			const attempt = await runSessionAttempt(
+				request({
+					projectsDirectory: projects,
+					recordDirectory: records,
+					runClaude: claudeWithSubagents(
+						projects,
+						async (subagents) => {
+							await writeSubagentFiles(subagents);
+							unreadable = join(subagents, "agent-a1.jsonl");
+							await chmod(unreadable, 0o000);
+							locked.push(unreadable);
+						},
+						claudeWriting(
+							projects,
+							(sessionId) => [agentResultLine(sessionId, "a1")],
+							"OK",
+						),
+					),
+				}),
+			);
+
+			expect(attempt.unavailableSubagents).toEqual(["a1"]);
+			expect(await retainedSubagentFiles(records)).toEqual({
+				"agent-a1.meta.json": SUB_AGENT_FILES["agent-a1.meta.json"],
+			});
+			expect(await Bun.file(unreadable).exists()).toBe(true);
+		});
+	});
+
+	describe("when the session's sub-agent directory is a symlink", () => {
+		it("copies nothing through it and leaves what it points at in place", async () => {
+			const projects = await projectsRoot();
+			const records = await recordDirectory();
+			const elsewhere = await recordDirectory();
+			await writeSubagentFiles(elsewhere);
+
+			const attempt = await runSessionAttempt(
+				request({
+					projectsDirectory: projects,
+					recordDirectory: records,
+					runClaude: claudeWithSubagents(
+						projects,
+						async (subagents) => {
+							await rm(subagents, { recursive: true });
+							await symlink(elsewhere, subagents);
+						},
+						claudeWriting(
+							projects,
+							(sessionId) => [agentResultLine(sessionId, "a1")],
+							"OK",
+						),
+					),
+				}),
+			);
+
+			expect(attempt.unavailableSubagents).toEqual(["a1"]);
+			expect(await Bun.file(join(records, "subagents")).exists()).toBe(false);
+			const pointedAt = await readdir(elsewhere);
+			expect(pointedAt.toSorted()).toEqual(Object.keys(SUB_AGENT_FILES));
 		});
 	});
 });
