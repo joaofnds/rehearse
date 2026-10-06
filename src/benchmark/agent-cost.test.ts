@@ -471,9 +471,8 @@ describe(agentCostAllocation.name, () => {
 				}),
 			);
 
-			expect(allocation.root.shared.skills).toEqual(
-				expect.arrayContaining(["brief", "plan"]),
-			);
+			expect(allocation.root.shared.skills).toContain("brief");
+			expect(allocation.root.shared.skills).toContain("plan");
 		});
 	});
 
