@@ -58,20 +58,23 @@ function sizeLabel(measurement: TextMeasurement): string {
 	return `? Unavailable size · ${measurement.reasons.join(", ")}`;
 }
 
-function agentName(agentId: string | undefined): string {
+export function agentName(agentId: string | undefined): string {
 	return agentId ?? ROOT_NAME;
 }
 
 function agentLabel(agent: SubAgent): string {
+	const inherited = agent.context === "inherited" ? "inherited" : undefined;
 	if (agent.evidence === "unavailable") {
-		return `${agent.agentId} · evidence unavailable`;
+		return [agent.agentId, "evidence unavailable", inherited]
+			.filter((part) => part !== undefined)
+			.join(" · ");
 	}
 
 	return [
 		agent.agentId,
 		agent.agentType,
 		agent.description,
-		agent.context === "inherited" ? "inherited" : undefined,
+		inherited,
 		agent.stopped === true ? "stopped" : undefined,
 	]
 		.filter((part) => part !== undefined)

@@ -237,7 +237,9 @@ describe("agent tree in the saved-attempt workbench", () => {
 
 		expect(
 			within(detail).getByRole("definition", { name: "Own cost" }),
-		).toHaveTextContent("delivery-to-next-boundary window");
+		).toHaveTextContent(
+			"until the next skill delivery, user prompt or interruption",
+		);
 		expect(
 			within(detail).getByRole("definition", {
 				name: "Including descendants",
@@ -268,6 +270,11 @@ describe("agent tree in the saved-attempt workbench", () => {
 
 		expect(
 			within(nav).getByRole("button", { name: /^a4 · evidence unavailable/u }),
+		).toBeInTheDocument();
+		expect(
+			within(nav).getByRole("button", {
+				name: "a6 · evidence unavailable · inherited",
+			}),
 		).toBeInTheDocument();
 		expect(
 			screen.getByRole("status", { name: "Agent coverage" }),
@@ -312,5 +319,8 @@ describe("agent tree in the saved-attempt workbench", () => {
 				screen.getByRole("region", { name: "Delivery excerpt" }),
 			).toHaveTextContent("project rules");
 		});
+		expect(
+			screen.getByRole("region", { name: "Delivery excerpt" }),
+		).toHaveTextContent("Received by a1 · event 9:1");
 	});
 });

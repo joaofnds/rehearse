@@ -20,7 +20,7 @@ import { cn } from "#client/system/cn";
 import { LaunchDialog } from "#client/launch/launch-dialog";
 import { ScreenHeader } from "#client/system/components/screen-header";
 import { SectionLabel } from "#client/system/components/section-label";
-import { AgentTreePane } from "./agent-tree-pane";
+import { AgentTreePane, agentName } from "./agent-tree-pane";
 import type { AgentsResponse, ExcerptRequest } from "./agent-tree-pane";
 import { PaneHeading } from "./pane-heading";
 import { selectableRow } from "./selectable-row";
@@ -1096,12 +1096,17 @@ function AgentExcerpt({
 	}
 
 	return (
-		<EvidenceDetail
-			served
-			loading={excerpt.isLoading}
-			failed={excerpt.isError}
-			detail={excerpt.data}
-		/>
+		<>
+			<p className="px-3 pt-2.5 text-11-5 text-dim">
+				Received by {agentName(request.agentId)} · event {request.eventId}
+			</p>
+			<EvidenceDetail
+				served
+				loading={excerpt.isLoading}
+				failed={excerpt.isError}
+				detail={excerpt.data}
+			/>
+		</>
 	);
 }
 
