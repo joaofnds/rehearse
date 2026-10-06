@@ -11,9 +11,11 @@ import type { ComparisonBaselineArm } from "#benchmark/comparison-baseline-recor
 import type { ComparisonReport } from "#benchmark/comparison-record";
 import type { MoreAttemptsCost } from "#benchmark/more-attempts-cost";
 import type { ArmFigures } from "#server/comparison-arm-figures";
+import type { CaseAttempts } from "#server/comparison-attempts";
 import type { ComparisonAttribution } from "#server/comparison-attribution";
 import type { ComparisonProvenance } from "#server/comparison-provenance";
 import type { QualityReading } from "#server/comparison-quality-reading";
+import type { CaseSummary } from "#server/comparison-summary";
 import { stubFetchByPath } from "#client/test-support/fetch-stub";
 import { ComparisonPage } from "./comparison-page";
 
@@ -96,9 +98,8 @@ interface ComparisonResponseFixture extends ComparisonProvenance {
 		Record<string, Readonly<Record<ReportArm["role"], ArmFigures>>>
 	>;
 	readonly baselineArm: ComparisonBaselineArm;
-	readonly summary: Readonly<
-		Record<string, { readonly moreAttempts: MoreAttemptsCost }>
-	>;
+	readonly attempts: Readonly<Record<string, CaseAttempts>>;
+	readonly summary: Readonly<Record<string, CaseSummary>>;
 	readonly attemptHistories: Readonly<
 		Record<
 			string,
@@ -139,6 +140,50 @@ const PASSED_EVERY_ATTEMPT: ArmFigures = {
 	words: { state: "unavailable", reasons: ["no words recorded"] },
 };
 
+const PASSED: CaseAttempts["baseline"][number] = {
+	repId: "rep-1",
+	ordinal: 1,
+	outcomes: {
+		state: "available",
+		outcomes: [
+			{ name: "final", status: "JUDGED", grade: "PASS", successful: true },
+		],
+	},
+	blockersFired: { state: "unavailable", reason: "no blocker grading" },
+	words: { state: "unavailable", reason: "no word count" },
+};
+
+const ONE_ATTEMPT_EACH: CaseAttempts = {
+	baseline: [PASSED],
+	candidate: [PASSED],
+	control: [PASSED],
+};
+
+function caseSummary(moreAttempts: MoreAttemptsCost): CaseSummary {
+	return {
+		contrasts: {
+			candidateMinusBaseline: {
+				final: {
+					verdict: { kind: "insideRerunNoise" },
+					combinations: {
+						state: "available",
+						higher: 0,
+						equal: 1,
+						lower: 0,
+						of: 1,
+					},
+				},
+			},
+		},
+		replyLength: {
+			interval: { minuend: undefined, subtrahend: undefined },
+			change: undefined,
+			verdict: { kind: "unavailable", reasons: ["no word count"] },
+		},
+		moreAttempts,
+	};
+}
+
 const NOT_RECORDED = {
 	state: "unavailable",
 	reasons: ["version not recorded"],
@@ -165,13 +210,16 @@ function comparisonResponseBody(): ComparisonResponseFixture {
 		armFigures: { "case-1": caseFigures, "case-2": caseFigures },
 		attemptHistories: {},
 		baselineArm: { kind: "supplied" },
+		attempts: { "case-1": ONE_ATTEMPT_EACH, "case-2": ONE_ATTEMPT_EACH },
 		summary: {
-			"case-1": {
-				moreAttempts: { state: "unavailable", reasons: ["rep-1 lacks worker"] },
-			},
-			"case-2": {
-				moreAttempts: { state: "unavailable", reasons: ["rep-1 lacks worker"] },
-			},
+			"case-1": caseSummary({
+				state: "unavailable",
+				reasons: ["rep-1 lacks worker"],
+			}),
+			"case-2": caseSummary({
+				state: "unavailable",
+				reasons: ["rep-1 lacks worker"],
+			}),
 		},
 		report: {
 			mode: "session",
@@ -347,14 +395,25 @@ function expectQualityRow(
 }
 
 describe(ComparisonPage.name, () => {
-	it("renders one row per case, not per attempt pair", async () => {
+	it("draws each case's attempts with what the pairing says and why to read it with care", async () => {
 		renderPage();
 
-		const table = await screen.findByRole("table");
+		const caseTwo = await screen.findByRole("region", {
+			name: "Attempt pairs · case-2",
+		});
 
-		expect(within(table).getByText("case-1")).toBeInTheDocument();
-		expect(within(table).getByText("case-2")).toBeInTheDocument();
-		expect(within(table).getAllByRole("row")).toHaveLength(3);
+		expect(
+			within(caseTwo).getByRole("table", { name: "Attempt pairs · case-2" }),
+		).toBeInTheDocument();
+		expect(
+			within(caseTwo).getByRole("region", { name: "What the pairing says" }),
+		).toBeInTheDocument();
+		expect(
+			within(caseTwo).getByRole("region", { name: "Read with care" }),
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("region", { name: "Attempt pairs · case-1" }),
+		).toBeInTheDocument();
 	});
 
 	it("keeps each case's arm cards in view in both presentations", async () => {
@@ -553,24 +612,10 @@ describe(ComparisonPage.name, () => {
 		});
 	});
 
-	it("renders each arm's grade distribution in the attempt pairs table as counts, never a synthesized median", async () => {
-		renderPage();
-
-		const table = await screen.findByRole("table");
-
-		expect(within(table).getAllByText("A×3").length).toBeGreaterThan(0);
-		expect(within(table).getAllByText("D×1").length).toBeGreaterThan(0);
-		expect(within(table).queryByText(/median|range/iu)).not.toBeInTheDocument();
-	});
-
 	it("shows the attempt-pairs table by default, with both switcher options offered", async () => {
 		renderPage();
 
-		await waitFor(() => {
-			expect(
-				screen.getByRole("rowheader", { name: "case-1" }),
-			).toBeInTheDocument();
-		});
+		await screen.findByRole("region", { name: "Attempt pairs · case-1" });
 		expect(
 			screen.getByRole("button", { name: "Attempt pairs", pressed: true }),
 		).toBeInTheDocument();
@@ -582,11 +627,7 @@ describe(ComparisonPage.name, () => {
 	it("renders every served quality reading grouped by case", async () => {
 		renderPage();
 
-		await waitFor(() => {
-			expect(
-				screen.getByRole("rowheader", { name: "case-1" }),
-			).toBeInTheDocument();
-		});
+		await screen.findByRole("region", { name: "Attempt pairs · case-1" });
 		fireEvent.click(screen.getByRole("button", { name: "What moved" }));
 
 		const caseOne = screen.getByRole("table", {
@@ -645,14 +686,11 @@ describe(ComparisonPage.name, () => {
 		).not.toBeInTheDocument();
 	});
 
-	it("associates each case with its own attribution reading", async () => {
+	it("associates each case with its own attribution reading under What moved", async () => {
 		renderPage();
 
-		await waitFor(() => {
-			expect(
-				screen.getByRole("rowheader", { name: "case-1" }),
-			).toBeInTheDocument();
-		});
+		await screen.findByRole("region", { name: "Attempt pairs · case-1" });
+		fireEvent.click(screen.getByRole("button", { name: "What moved" }));
 		const caseOne = screen.getByRole("region", {
 			name: "Attribution · case-1",
 		});
@@ -692,11 +730,8 @@ describe(ComparisonPage.name, () => {
 	it("labels the arm pair lowercase, not 'candidate vs Baseline'", async () => {
 		renderPage();
 
-		await waitFor(() => {
-			expect(
-				screen.getByRole("rowheader", { name: "case-1" }),
-			).toBeInTheDocument();
-		});
+		await screen.findByRole("region", { name: "Attempt pairs · case-1" });
+		fireEvent.click(screen.getByRole("button", { name: "What moved" }));
 		const caseOne = screen.getByRole("region", {
 			name: "Attribution · case-1",
 		});
@@ -714,25 +749,24 @@ describe(ComparisonPage.name, () => {
 					baseline: [
 						{
 							status: "available",
-							repId: "group-a-rep-1",
+							repId: "rep-1",
 							ordinal: 1,
-							href: "/groups/group-a/reps/group-a-rep-1/attempt",
+							href: "/groups/group-a/reps/rep-1/attempt",
 						},
 					],
 					candidate: [],
-					control: [{ status: "stale", repId: "group-c-rep-1", ordinal: 1 }],
+					control: [{ status: "stale", repId: "rep-1", ordinal: 1 }],
 				},
 			},
 		});
 
-		const region = await screen.findByRole("region", {
-			name: "Inspect saved attempt history",
+		const table = await screen.findByRole("table", {
+			name: "Attempt pairs · case-1",
 		});
-		expect(within(region).getByRole("link", { name: "Rep 1" })).toHaveAttribute(
-			"href",
-			"/groups/group-a/reps/group-a-rep-1/attempt",
-		);
-		expect(within(region).getByText("Rep 1 · stale")).toBeInTheDocument();
+		expect(
+			within(table).getByRole("link", { name: "Arm A attempt 1 history" }),
+		).toHaveAttribute("href", "/groups/group-a/reps/rep-1/attempt");
+		expect(within(table).getByText("history stale")).toBeInTheDocument();
 	});
 
 	it("renders the empty state, not a generic error, when no comparison is recorded for the digest", async () => {
@@ -780,11 +814,8 @@ describe(ComparisonPage.name, () => {
 			</QueryClientProvider>,
 		);
 
-		await waitFor(() => {
-			expect(
-				screen.getByRole("rowheader", { name: "case-1" }),
-			).toBeInTheDocument();
-		});
+		await screen.findByRole("region", { name: "Attempt pairs · case-1" });
+		fireEvent.click(screen.getByRole("button", { name: "What moved" }));
 		expect(
 			screen.getByText(/no corpus difference between these arms/iu),
 		).toBeInTheDocument();
@@ -792,15 +823,21 @@ describe(ComparisonPage.name, () => {
 			screen.queryByText(/refuses the attribution claim/iu),
 		).not.toBeInTheDocument();
 	});
-	it("offers no added attempts on a comparison whose arms nothing records how to replay", async () => {
+	it("says why a comparison whose author supplied the baseline arm cannot take more attempts", async () => {
 		renderPage();
 
-		await screen.findByRole("rowheader", { name: "case-1" });
+		const caseOne = await screen.findByRole("region", {
+			name: "Attempt pairs · case-1",
+		});
 
+		expect(
+			within(caseOne).getByText(
+				/^More attempts cannot be added: this comparison was not made by compare attempts/u,
+			),
+		).toBeInTheDocument();
 		expect(
 			screen.queryByRole("button", { name: /attempts? to each arm/u }),
 		).not.toBeInTheDocument();
-		expect(screen.queryByText(/cannot be stated/u)).not.toBeInTheDocument();
 	});
 
 	describe("when compare attempts made the comparison", () => {
@@ -816,7 +853,7 @@ describe(ComparisonPage.name, () => {
 					kind: "derived",
 					skillUnderTest: "skills/discuss/SKILL.md",
 				},
-				summary: { "case-1": { moreAttempts } },
+				summary: { "case-1": caseSummary(moreAttempts) },
 			};
 		}
 
@@ -848,7 +885,7 @@ describe(ComparisonPage.name, () => {
 
 			expect(
 				await screen.findByText(
-					"What more attempts would cost cannot be stated: rep-1 lacks worker.costUsd",
+					"What more attempts would cost cannot be stated: rep-1 lacks worker.costUsd.",
 				),
 			).toBeInTheDocument();
 			expect(

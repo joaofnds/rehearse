@@ -2,6 +2,7 @@ import type { ComparisonArm } from "#benchmark/comparison-record";
 import { corpusVersionLabel } from "#benchmark/corpus-version-label";
 import { SectionLabel } from "#client/system/components/section-label";
 import type { ComparisonResponse } from "./comparison-response";
+import { DESIGN_ARMS } from "./design-arms";
 
 type CaseArmFigures = ComparisonResponse["armFigures"][string];
 type ArmFigures = CaseArmFigures[ComparisonArm];
@@ -10,19 +11,11 @@ type ArmCorpusVersions = ComparisonResponse["corpusVersions"][string];
 type ArmCorpusVersion = ArmCorpusVersions[ComparisonArm];
 type BaselineArm = ComparisonResponse["baselineArm"];
 
-/**
- * The design's arm roles: its baseline arm is the harness's control, and its
- * arms A and B are the harness's baseline and candidate.
- */
-const CARDS = [
-	{ arm: "control", role: "BASELINE", border: "border-border" },
-	{ arm: "baseline", role: "ARM A", border: "border-strong" },
-	{ arm: "candidate", role: "ARM B", border: "border-deeper" },
-] as const satisfies readonly {
-	readonly arm: ComparisonArm;
-	readonly role: string;
-	readonly border: string;
-}[];
+const BORDERS = {
+	control: "border-border",
+	baseline: "border-strong",
+	candidate: "border-deeper",
+} as const satisfies Readonly<Record<ComparisonArm, string>>;
 
 function baselineDescription(baselineArm: BaselineArm): string {
 	switch (baselineArm.kind) {
@@ -195,11 +188,11 @@ export function ArmCardsBand({
 				</SectionLabel>
 			) : null}
 			<div className="grid grid-cols-3 gap-3">
-				{CARDS.map(({ arm, role, border }) => (
+				{DESIGN_ARMS.map(({ arm, role }) => (
 					<ArmCard
 						key={arm}
-						role={role}
-						border={border}
+						role={role.toUpperCase()}
+						border={BORDERS[arm]}
 						version={corpusVersions[arm]}
 						description={armDescription(arm, baselineArm)}
 						figures={figures[arm]}

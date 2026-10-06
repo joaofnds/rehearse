@@ -66,8 +66,12 @@ what adding attempts would cost. `compare extend` adds attempts to every arm of
 a saved comparison of attempts at that stated cost, from the CLI or the
 comparison page, and the comparisons list shows the extension in place of the
 comparison it extends; no extension has run on real provider calls yet
-(ACT-271.6). The page shows each case's arm figures on its arm cards but not
-those rows, attempts or the summary yet (ACT-257).
+(ACT-271.6). The page shows each case's arm figures on its arm cards and, under
+Attempt pairs, each arm's attempts with their outcomes, fired blockers, words
+and history links, what the pairing says, and what to read with care beside the
+offer to add attempts or why none can be added. A stage or pipeline comparison
+links no attempt history, since its attempts record no session. Its What moved
+view does not read the served rows yet (ACT-257).
 
 ## Known limitations
 

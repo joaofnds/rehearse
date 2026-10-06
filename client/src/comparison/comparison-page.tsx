@@ -3,27 +3,23 @@ import { useState } from "react";
 import type { ComparisonArm as ComparisonArmRole } from "#benchmark/comparison-record";
 import { apiClient } from "#client/api-client";
 import { RecordNotFoundError } from "#client/record-not-found";
-import { LaunchDialog } from "#client/launch/launch-dialog";
 import { EmptyState } from "#client/system/components/empty-state";
 import { Switcher } from "#client/system/components/switcher";
 import { TableShell } from "#client/system/components/table-shell";
 import { armPairLabel, armPairNames } from "#server/comparison-arm-pair";
 import type { ComparisonAttribution } from "#server/comparison-attribution";
-import { plural } from "#client/plural";
 import { ScreenHeader } from "#client/system/components/screen-header";
 import { SectionLabel } from "#client/system/components/section-label";
 import { ArmCardsBand } from "./arm-cards-band";
+import { AttemptPairs } from "./attempt-pairs";
 import { comparisonSubline, comparisonTitle } from "./comparison-header";
 import type { ComparisonResponse } from "./comparison-response";
+import { ReadWithCare, WhatThePairingSays } from "./pairing-cards";
 
 const PRESENTATIONS = ["Attempt pairs", "What moved"] as const;
 type Presentation = (typeof PRESENTATIONS)[number];
 
-type ComparisonReport = ComparisonResponse["report"];
-type ComparisonCase = ComparisonReport["cases"][number];
-type ComparisonArmReport = ComparisonCase["arms"]["baseline"];
 type QualityReadings = ComparisonResponse["qualityReadings"];
-type AttemptHistories = ComparisonResponse["attemptHistories"];
 type CaseQualityReadings = QualityReadings[string];
 type QualityReading = CaseQualityReadings[string][string];
 
@@ -45,47 +41,12 @@ async function fetchComparison(digest: string): Promise<ComparisonResponse> {
 	return response.json();
 }
 
-function GradeDistribution({
-	arm,
-}: {
-	readonly arm: ComparisonArmReport;
-}): React.JSX.Element {
-	return (
-		<div className="flex flex-col gap-1">
-			{arm.quality.map((measure) => (
-				<div key={measure.name} className="flex items-baseline gap-2.5">
-					<span className="text-xs text-dim">{measure.name}</span>
-					{Object.entries(measure.gradeDistribution).map(([grade, count]) => (
-						<span key={grade} className="font-mono font-bold">
-							{grade}×{count}
-						</span>
-					))}
-				</div>
-			))}
-		</div>
-	);
-}
-
-const COLUMNS = ["Case", "Baseline", "Candidate", "Control"] as const;
 const QUALITY_COLUMNS = [
 	"Comparison",
 	"Measure",
 	"Intervals",
 	"Reading",
 ] as const;
-
-function rowFor(benchmarkCase: ComparisonCase): readonly React.ReactNode[] {
-	return [
-		<span key="case" className="font-mono text-sm">
-			{benchmarkCase.caseId}
-		</span>,
-		<span key="baseline" className="text-muted-foreground">
-			<GradeDistribution arm={benchmarkCase.arms.baseline} />
-		</span>,
-		<GradeDistribution key="candidate" arm={benchmarkCase.arms.candidate} />,
-		<GradeDistribution key="control" arm={benchmarkCase.arms.control} />,
-	];
-}
 
 function intervalLabel(
 	armName: ComparisonArmRole,
@@ -208,63 +169,6 @@ function QualityReadingTables({
 	);
 }
 
-function AttemptHistoryLinks({
-	histories,
-}: {
-	readonly histories: AttemptHistories;
-}): React.JSX.Element | null {
-	if (Object.keys(histories).length === 0) {
-		return null;
-	}
-
-	return (
-		<section
-			aria-labelledby="attempt-histories-heading"
-			className="flex max-w-6xl flex-col gap-2"
-		>
-			<h2 id="attempt-histories-heading">
-				<SectionLabel>Inspect saved attempt history</SectionLabel>
-			</h2>
-			{Object.entries(histories).map(([caseId, arms]) => (
-				<div
-					key={caseId}
-					className="flex flex-col rounded-lg border bg-card px-4 py-3"
-				>
-					<strong className="font-mono text-sm font-normal">{caseId}</strong>
-					{Object.entries(arms).map(([arm, links]) => (
-						<div
-							key={arm}
-							className="flex min-h-14 items-center gap-4 font-mono text-sm text-dim"
-						>
-							<span className="w-24">
-								<SectionLabel>{arm}</SectionLabel>
-							</span>
-							{links.map((link) =>
-								link.status === "available" ? (
-									<a
-										key={link.repId}
-										href={link.href}
-										className="inline-flex min-h-14 items-center text-accent-foreground underline decoration-deeper underline-offset-4 hover:text-pale"
-									>
-										Rep {link.ordinal}
-									</a>
-								) : (
-									<span
-										key={link.repId}
-										title="Saved provenance no longer matches"
-									>
-										Rep {link.ordinal} · stale
-									</span>
-								),
-							)}
-						</div>
-					))}
-				</div>
-			))}
-		</section>
-	);
-}
-
 function AttributionCard({
 	pairKey,
 	attribution,
@@ -354,51 +258,56 @@ function AttributionCards({
 	);
 }
 
-/**
- * Offers arm A's attempt count again in every arm of a comparison that
- * compare attempts made, whose record says how each arm replays. Its one case
- * carries the cost, stated on the button and again before the dialog can
- * start anything.
- */
-function MoreAttempts({
+function AttemptPairsPresentation({
 	digest,
+	caseId,
 	comparison,
 }: {
 	readonly digest: string;
+	readonly caseId: string;
 	readonly comparison: ComparisonResponse;
 }): React.JSX.Element | null {
-	const [benchmarkCase] = comparison.report.cases;
+	const attempts = comparison.attempts[caseId];
+	const summary = comparison.summary[caseId];
+	const corpusVersions = comparison.corpusVersions[caseId];
+	const attribution =
+		comparison.attribution[caseId]?.["candidateMinusBaseline"];
 	if (
-		comparison.baselineArm.kind === "supplied" ||
-		comparison.baselineArm.kind === "unreadable" ||
-		benchmarkCase === undefined
+		attempts === undefined ||
+		summary === undefined ||
+		corpusVersions === undefined ||
+		attribution === undefined
 	) {
 		return null;
 	}
-	const cost = comparison.summary[benchmarkCase.caseId]?.moreAttempts;
-	if (cost === undefined) {
-		return null;
-	}
-	if (cost.state === "unavailable") {
-		return (
-			<p className="text-sm text-muted-foreground">
-				{`What more attempts would cost cannot be stated: ${cost.reasons.join("; ")}`}
-			</p>
-		);
-	}
 
 	return (
-		<div>
-			<LaunchDialog
-				target={{
-					kind: "extension",
-					comparison: digest,
-					attempts: cost.attemptsPerArm,
-					usd: cost.usd,
-				}}
-				triggerLabel={`Add ${plural(cost.attemptsPerArm, "attempt")} to each arm · ≈ $${cost.usd.toFixed(2)}`}
+		<section
+			aria-label={`Attempt pairs · ${caseId}`}
+			className="flex flex-col gap-4"
+		>
+			<AttemptPairs
+				caseId={caseId}
+				mode={comparison.report.mode}
+				attempts={attempts}
+				histories={comparison.attemptHistories[caseId]}
 			/>
-		</div>
+			<div className="grid max-w-283 grid-cols-2 gap-3">
+				<WhatThePairingSays mode={comparison.report.mode} summary={summary} />
+				<ReadWithCare
+					digest={digest}
+					attemptsPerArm={{
+						control: attempts.control.length,
+						baseline: attempts.baseline.length,
+						candidate: attempts.candidate.length,
+					}}
+					corpusVersions={corpusVersions}
+					baselineArm={comparison.baselineArm}
+					attribution={attribution}
+					moreAttempts={summary.moreAttempts}
+				/>
+			</div>
+		</section>
 	);
 }
 
@@ -477,24 +386,20 @@ export function ComparisonPage({
 					</p>
 				) : null}
 
-				{query.isSuccess ? (
-					<MoreAttempts digest={digest} comparison={query.data} />
-				) : null}
-
-				{query.isSuccess && presentation === "Attempt pairs" ? (
-					<>
-						<div className="max-w-6xl">
-							<TableShell
-								caption="ATTEMPT PAIRS"
-								columns={[...COLUMNS]}
-								rows={query.data.report.cases.map((benchmarkCase) =>
-									rowFor(benchmarkCase),
-								)}
+				{query.isSuccess && presentation === "Attempt pairs"
+					? query.data.report.cases.map(({ caseId }) => (
+							<AttemptPairsPresentation
+								key={caseId}
+								digest={digest}
+								caseId={caseId}
+								comparison={query.data}
 							/>
-						</div>
-						<AttemptHistoryLinks
-							histories={query.data.attemptHistories ?? {}}
-						/>
+						))
+					: null}
+
+				{query.isSuccess && presentation === "What moved" ? (
+					<>
+						<QualityReadingTables readings={query.data.qualityReadings} />
 						{query.data.report.cases.map((benchmarkCase) => (
 							<AttributionCards
 								key={benchmarkCase.caseId}
@@ -503,10 +408,6 @@ export function ComparisonPage({
 							/>
 						))}
 					</>
-				) : null}
-
-				{query.isSuccess && presentation === "What moved" ? (
-					<QualityReadingTables readings={query.data.qualityReadings} />
 				) : null}
 			</div>
 		</div>
