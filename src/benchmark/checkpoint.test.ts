@@ -727,6 +727,36 @@ describe(recordCheckpoint.name, () => {
 		);
 	});
 
+	it("preserves the stage session's sub-agent transcripts and meta files beside its transcript", async () => {
+		const { targetDir, checkpointDir } = await checkpointFixture();
+		const projectsDirectory = await mkdtemp(
+			join(tmpdir(), "rehearse-projects-"),
+		);
+		testResources.track(projectsDirectory);
+		const sessionId = "0f9a2c1e-1111-4222-8333-444455556666";
+		const slug = join(projectsDirectory, projectSlug(targetDir));
+		const subagents = join(slug, sessionId, "subagents");
+		await mkdir(subagents, { recursive: true });
+		await Bun.write(join(slug, `${sessionId}.jsonl`), `{"type":"user"}\n`);
+		const child = `{"type":"assistant"}\n`;
+		const meta = `{"agentType":"reviewer","spawnDepth":1}\n`;
+		await Bun.write(join(subagents, "agent-a1.jsonl"), child);
+		await Bun.write(join(subagents, "agent-a1.meta.json"), meta);
+
+		await recordCheckpoint(targetDir, checkpointDir, {
+			...checkpointInputs,
+			transcript: { sessionId, projectsDirectory },
+		});
+
+		const retained = join(checkpointDir, "subagents");
+		const names = await readdir(retained);
+		expect(names.toSorted()).toEqual(["agent-a1.jsonl", "agent-a1.meta.json"]);
+		expect(await Bun.file(join(retained, "agent-a1.jsonl")).text()).toBe(child);
+		expect(await Bun.file(join(retained, "agent-a1.meta.json")).text()).toBe(
+			meta,
+		);
+	});
+
 	it("records an absent stage transcript as unavailable", async () => {
 		const { targetDir, checkpointDir } = await checkpointFixture();
 		const projectsDirectory = await mkdtemp(

@@ -22,6 +22,7 @@ import { corpusMeasurementSchema } from "./corpus-measurement";
 import { readManifestSchema } from "./read-manifest";
 import type { ReadManifestEntry } from "./read-manifest";
 import { projectSlug } from "./session-capture";
+import { preserveSubagentFiles } from "./subagent-evidence";
 import {
 	classifyEntry,
 	lstatIfPresent,
@@ -1329,10 +1330,13 @@ export function stageTranscriptFile(
 }
 
 /**
- * Copies the provider's transcript beside the checkpoint so it survives the
- * working directory it was written under. The bytes are copied rather than the
- * path recorded: the source lives in the operator's own projects directory and
- * a later read of an absolute path there has already broken once.
+ * Copies the provider's transcript, and its sub-agents' transcripts and meta
+ * files, beside the checkpoint so they survive the working directory they were
+ * written under. The bytes are copied rather than the path recorded: the
+ * source lives in the operator's own projects directory and a later read of an
+ * absolute path there has already broken once. The session ran in the target
+ * repository, so its files there are left in place, as the operator's own
+ * sessions in that repository are.
  */
 async function preserveStageTranscript(
 	targetDir: string,
@@ -1343,13 +1347,18 @@ async function preserveStageTranscript(
 		return undefined;
 	}
 
-	const written = Bun.file(stageTranscriptFile(targetDir, source));
+	const transcriptPath = stageTranscriptFile(targetDir, source);
+	const written = Bun.file(transcriptPath);
 	if (!(await written.exists())) {
 		return { status: "UNAVAILABLE", sessionId: source.sessionId };
 	}
 
 	await mkdir(directory, { recursive: true });
 	await Bun.write(join(directory, TRANSCRIPT_FILE), written);
+	await preserveSubagentFiles(
+		join(dirname(transcriptPath), source.sessionId),
+		directory,
+	);
 
 	return {
 		status: "AVAILABLE",
