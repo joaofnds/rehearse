@@ -10,6 +10,7 @@ import type { CorpusMeasurement } from "#benchmark/corpus-measurement";
 import { corpusMeasurementReading } from "#benchmark/corpus-version-label";
 import { claimedReplaySource, readShortIds } from "#benchmark/short-id";
 import type { ShortIdEntry } from "#benchmark/short-id";
+import { checkpointShortId, shortIdsOf } from "#cli/short-id-column";
 import { redactAbsolutePaths } from "./redact-path";
 import type { Reading } from "./run-record";
 import { readRecordedEvidenceFile } from "./session-history-reader";
@@ -20,9 +21,12 @@ type ArmSource = ReportCase["arms"][ComparisonArm]["source"];
 
 export type ArmCorpusVersion = Reading<{ readonly digest: string }>;
 
+/** The checkpoint every arm replayed, with its short id once its run holds one. */
+export type ComparedCheckpoint = Checkpoint & { readonly shortId?: string };
+
 /** Where a comparison's arms came from, which its report does not carry. */
 export interface ComparisonProvenance {
-	readonly checkpoint: Reading<Checkpoint>;
+	readonly checkpoint: Reading<ComparedCheckpoint>;
 	readonly corpusVersions: Readonly<
 		Record<string, Readonly<Record<ComparisonArm, ArmCorpusVersion>>>
 	>;
@@ -125,7 +129,7 @@ async function comparedCheckpoint(
 	runsDirectory: string,
 	report: AnyComparisonReport,
 	cases: readonly CaseGroups[],
-): Promise<Reading<Checkpoint>> {
+): Promise<Reading<ComparedCheckpoint>> {
 	if (report.mode !== "stage") {
 		return {
 			state: "unavailable",
@@ -134,6 +138,7 @@ async function comparedCheckpoint(
 	}
 
 	const checkpoints = new Map<string, Checkpoint>();
+	const claimed: ShortIdEntry[] = [];
 	const reasons: string[] = [];
 	for (const { caseId, arms } of cases) {
 		const registry = await readCaseClaims(runsDirectory, caseId);
@@ -142,6 +147,7 @@ async function comparedCheckpoint(
 			continue;
 		}
 		const { claims } = registry;
+		claimed.push(...claims);
 		for (const arm of COMPARISON_ARMS) {
 			const groups = arms[arm];
 			if (groups.state === "unavailable") {
@@ -175,7 +181,16 @@ async function comparedCheckpoint(
 		};
 	}
 
-	return { state: "available", ...only };
+	const shortId = await checkpointShortId(
+		runsDirectory,
+		shortIdsOf(claimed),
+		only.run,
+		only.stage,
+	);
+
+	return shortId === undefined
+		? { state: "available", ...only }
+		: { state: "available", ...only, shortId };
 }
 
 /**

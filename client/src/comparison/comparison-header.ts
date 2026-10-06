@@ -15,7 +15,11 @@ type HeaderFacts = Pick<
 
 export function comparisonTitle(facts: HeaderFacts): string {
 	if (facts.checkpoint.state === "available") {
-		return `Comparison · ${facts.checkpoint.stage} replay from run ${facts.checkpoint.run}`;
+		const { stage, run, shortId } = facts.checkpoint;
+
+		return shortId === undefined
+			? `Comparison · ${stage} replay from run ${run}`
+			: `Comparison · ${stage} replay at ${shortId}`;
 	}
 
 	const cases = facts.report.cases.map(({ caseId }) => caseId).join(", ");

@@ -435,6 +435,26 @@ describe(ComparisonPage.name, () => {
 			).toBeInTheDocument();
 		});
 
+		it("names the checkpoint by its short id once its run holds one", async () => {
+			const body = oneCheckpointStageComparison();
+			renderPage({
+				...body,
+				checkpoint: {
+					state: "available",
+					run: CHECKPOINT_RUN,
+					stage: "shape",
+					shortId: "case-1/r4/s1",
+				},
+			});
+
+			expect(
+				await screen.findByRole("heading", {
+					level: 1,
+					name: "Comparison · shape replay at case-1/r4/s1",
+				}),
+			).toBeInTheDocument();
+		});
+
 		it("names the mode and cases of a comparison that replays no single checkpoint", async () => {
 			renderPage();
 

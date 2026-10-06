@@ -12,6 +12,7 @@ import {
 } from "#benchmark/compare-attempts-test-support";
 import { confirmationGroupRecordSchema } from "#benchmark/confirmation-record";
 import { confirmationGroupPaths } from "#benchmark/run-layout";
+import { claimShortId, formatShortId } from "#benchmark/short-id";
 import {
 	directorySource,
 	fixedCorpusSource,
@@ -133,6 +134,22 @@ describe("GET /api/comparisons/:digest", () => {
 		const { checkpoint } = await provenanceOf(runsDirectory, digest);
 
 		expect(checkpoint).toEqual({ state: "available", ...REPLAYED });
+	});
+
+	it("names that checkpoint by its short id once its run holds one", async () => {
+		const { runsDirectory, digest } = await comparedArms();
+		const run = await claimShortId(runsDirectory, CASE_ID, {
+			kind: "run",
+			run: REPLAYED.run,
+		});
+
+		const { checkpoint } = await provenanceOf(runsDirectory, digest);
+
+		expect(checkpoint).toEqual({
+			state: "available",
+			...REPLAYED,
+			shortId: `${formatShortId(run)}/s2`,
+		});
 	});
 
 	it("serves the corpus version each arm's groups recorded", async () => {
