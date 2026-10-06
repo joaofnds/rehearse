@@ -204,7 +204,9 @@ describe(agentTree.name, () => {
 
 		expect(
 			tree.agents
-				.filter((agent) => agent.evidence === "available" && agent.stopped)
+				.filter(
+					(agent) => agent.evidence === "available" && agent.stopped === true,
+				)
 				.map(({ agentId }) => agentId),
 		).toEqual(["a1"]);
 	});
@@ -349,6 +351,75 @@ describe(agentTree.name, () => {
 
 			expect(tree.agents.find(({ agentId }) => agentId === "a9")?.context).toBe(
 				"not recorded",
+			);
+		});
+	});
+
+	describe("when an agent's meta file is missing or unreadable", () => {
+		const withMeta =
+			(meta: string | undefined) => (recorded: readonly SubagentEvidence[]) =>
+				recorded.map((each) =>
+					each.agentId === "a1" ? { ...each, meta } : each,
+				);
+
+		it("reads whether it was stopped as not recorded when the file is missing", async () => {
+			const tree = await fixtureTree({ subagents: withMeta(undefined) });
+
+			expect(tree.agents.find(({ agentId }) => agentId === "a1")).toMatchObject(
+				{
+					meta: "not recorded",
+					stopped: "not recorded",
+				},
+			);
+		});
+
+		it("reads the file as unreadable rather than absent when it does not parse", async () => {
+			const tree = await fixtureTree({
+				subagents: withMeta(
+					'{"agentType":"reviewer","spawnDepth":1.5,"stoppedByUser":true}',
+				),
+			});
+
+			expect(tree.agents.find(({ agentId }) => agentId === "a1")).toMatchObject(
+				{
+					meta: "unreadable",
+					stopped: "not recorded",
+				},
+			);
+		});
+	});
+
+	describe("when a child's tool result names no tool call", () => {
+		it("reads the row as a tool result and not a later prompt", async () => {
+			const child: SubagentEvidence = {
+				agentId: "a9",
+				meta: "{}",
+				transcript: [
+					{
+						type: "user",
+						message: { role: "user", content: "look" },
+						parentUuid: null,
+					},
+					{
+						type: "user",
+						message: {
+							role: "user",
+							content: [{ type: "tool_result", content: "found" }],
+						},
+					},
+				]
+					.map((row) => JSON.stringify(row))
+					.join("\n"),
+			};
+
+			const tree = await fixtureTree({
+				subagents: (recorded) => [...recorded, child],
+			});
+
+			expect(tree.agents.find(({ agentId }) => agentId === "a9")).toMatchObject(
+				{
+					laterTurns: [],
+				},
 			);
 		});
 	});

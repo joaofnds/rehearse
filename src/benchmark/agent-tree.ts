@@ -95,7 +95,8 @@ export type SubAgent = SubagentIdentity &
 				readonly description: string | undefined;
 				readonly launchMode: string | undefined;
 				readonly spawnDepth: number | undefined;
-				readonly stopped: boolean;
+				readonly meta: AgentMetaState;
+				readonly stopped: boolean | "not recorded";
 				readonly laterTurns: readonly AgentTurn[];
 		  } & AgentReadings)
 		| { readonly evidence: "unavailable" }
@@ -136,7 +137,14 @@ const metaSchema = z.looseObject({
 	stoppedByUser: z.boolean().optional(),
 });
 
+/**
+ * Whether the agent's meta file was read. An unreadable one is kept apart from
+ * a missing one, since provider drift in one field fails the whole file.
+ */
+export type AgentMetaState = "recorded" | "not recorded" | "unreadable";
+
 interface AgentMeta {
+	readonly state: AgentMetaState;
 	readonly agentType?: string | undefined;
 	readonly description?: string | undefined;
 	readonly toolUseId?: string | undefined;
@@ -148,7 +156,6 @@ interface AgentMeta {
 
 const toolResultBlockSchema = z.looseObject({
 	type: z.literal("tool_result"),
-	tool_use_id: z.string().min(1),
 });
 
 const userRowSchema = z.looseObject({
@@ -290,20 +297,22 @@ function linkTo(owner: Owner, basis: AgentLinkBasis): AgentParent {
 
 function readMeta(text: string | undefined): AgentMeta {
 	if (text === undefined) {
-		return {};
+		return { state: "not recorded" };
 	}
+
 	let parsed: unknown;
 	try {
 		parsed = JSON.parse(text);
 	} catch {
-		return {};
+		return { state: "unreadable" };
 	}
 	const meta = metaSchema.safeParse(parsed);
 	if (!meta.success) {
-		return {};
+		return { state: "unreadable" };
 	}
 
 	return {
+		state: "recorded",
 		agentType: meta.data.agentType,
 		description: meta.data.description,
 		toolUseId: meta.data.toolUseId,
@@ -454,7 +463,9 @@ function availableAgent(
 		description: meta.description,
 		launchMode: meta.launchMode,
 		spawnDepth: meta.spawnDepth,
-		stopped: meta.stoppedByUser === true,
+		meta: meta.state,
+		stopped:
+			meta.state === "recorded" ? meta.stoppedByUser === true : "not recorded",
 		laterTurns: laterTurns(file.transcript),
 		models,
 		series,
