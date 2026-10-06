@@ -7,7 +7,15 @@ import type { TranscriptLine } from "./transcript";
 /** Where a record keeps its session's sub-agent files, beside its transcript. */
 export const SUBAGENTS_DIRECTORY = "subagents";
 
-const SUBAGENT_FILE = /^agent-[a-z0-9]+\.(?:jsonl|meta\.json)$/u;
+/** The ids the provider gives its agents, and so the names their files carry. */
+const PROVIDER_AGENT_ID = "[a-z0-9]+";
+
+const AGENT_ID = new RegExp(`^${PROVIDER_AGENT_ID}$`, "u");
+
+const SUBAGENT_FILE = new RegExp(
+	`^agent-${PROVIDER_AGENT_ID}\\.(?:jsonl|meta\\.json)$`,
+	"u",
+);
 
 const UNREADABLE = Symbol("unreadable");
 
@@ -143,6 +151,8 @@ export async function subagentFilesRetained(
 
 /**
  * The agents the session's lines name that left no transcript in the record.
+ * The session wrote those names, so one outside the provider's id shape names
+ * no file the record could hold and is never joined into a path.
  * Saying so lets a reader mark the session's sub-agent coverage incomplete,
  * where silence would read as an agent that ran nothing and cost nothing.
  */
@@ -160,7 +170,7 @@ export async function unavailableSubagents(
 			SUBAGENTS_DIRECTORY,
 			`agent-${agentId}.jsonl`,
 		);
-		if (!(await Bun.file(transcript).exists())) {
+		if (!AGENT_ID.test(agentId) || !(await Bun.file(transcript).exists())) {
 			unavailable.push(agentId);
 		}
 	}

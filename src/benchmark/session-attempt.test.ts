@@ -2666,6 +2666,32 @@ describe("the sub-agent evidence a session attempt retains", () => {
 		expect(attempt.unavailableSubagents).toEqual(["a4", "a5"]);
 	});
 
+	it("records an agent whose id could not name a file as unavailable without looking outside the record", async () => {
+		const projects = await projectsRoot();
+		const records = await recordDirectory();
+		await writeFile(join(records, "escaped.jsonl"), "{}\n");
+
+		const attempt = await runSessionAttempt(
+			request({
+				projectsDirectory: projects,
+				recordDirectory: records,
+				runClaude: claudeWithSubagents(
+					projects,
+					async (subagents) => {
+						await mkdir(join(subagents, "agent-x"));
+					},
+					claudeWriting(
+						projects,
+						(sessionId) => [agentResultLine(sessionId, "x/../../escaped")],
+						"OK",
+					),
+				),
+			}),
+		);
+
+		expect(attempt.unavailableSubagents).toEqual(["x/../../escaped"]);
+	});
+
 	it("records the unavailable agents of a session whose provider command failed", async () => {
 		const projects = await projectsRoot();
 		const session = claudeWriting(
