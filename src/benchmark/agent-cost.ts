@@ -672,7 +672,7 @@ function forkedSkillOf(
 	participants: ReadonlyMap<Owner, Participant>,
 ): string | undefined {
 	const { parent, launchCallLine } = agent;
-	if (parent.state === "unlinked" || parent.basis !== "skill result") {
+	if (parent.state === "unlinked") {
 		return undefined;
 	}
 

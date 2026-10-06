@@ -446,6 +446,72 @@ describe(agentCostAllocation.name, () => {
 		});
 	});
 
+	describe("when a sub-agent's Skill call forks into an agent", () => {
+		it("shows that agent as the forked skill", async () => {
+			const fork = [
+				{
+					type: "assistant",
+					requestId: "req-a2-f",
+					message: {
+						model: "claude-opus-5",
+						role: "assistant",
+						stop_reason: "tool_use",
+						content: [
+							{
+								type: "tool_use",
+								id: "toolu_a2f",
+								name: "Skill",
+								input: { skill: "code-review" },
+							},
+						],
+					},
+				},
+				{
+					type: "user",
+					message: {
+						role: "user",
+						content: [
+							{
+								type: "tool_result",
+								tool_use_id: "toolu_a2f",
+								content: "Skill ran in its own context",
+								is_error: false,
+							},
+						],
+					},
+					toolUseResult: {
+						commandName: "code-review",
+						status: "forked",
+						agentId: "a7",
+					},
+				},
+			].map((row) => JSON.stringify(row));
+
+			const allocation = await fixtureAllocation({
+				subagents: (recorded) => [
+					...recorded.map((each) =>
+						each.agentId === "a2"
+							? {
+									agentId: each.agentId,
+									transcript: [each.transcript, ...fork].join("\n"),
+									meta: each.meta,
+								}
+							: each,
+					),
+					{
+						agentId: "a7",
+						transcript:
+							recorded.find(({ agentId }) => agentId === "a5")?.transcript ??
+							"",
+						meta: JSON.stringify({ parentAgentId: "a2", spawnDepth: 2 }),
+					},
+				],
+			});
+
+			expect(agent(allocation, "a7").forkedSkill).toBe("code-review");
+		});
+	});
+
 	describe("when the inherited prefix delivered a skill", () => {
 		it("opens no window for it in the attempt", async () => {
 			const delivery = skillDelivery({
