@@ -1,8 +1,7 @@
 import type { ComparisonArm } from "#benchmark/comparison-record";
-import { corpusVersionLabel } from "#benchmark/corpus-version-label";
 import { SectionLabel } from "#client/system/components/section-label";
 import type { ComparisonResponse } from "./comparison-response";
-import { DESIGN_ARMS } from "./design-arms";
+import { corpusVersionText, DESIGN_ARMS } from "./design-arms";
 
 type CaseArmFigures = ComparisonResponse["armFigures"][string];
 type ArmFigures = CaseArmFigures[ComparisonArm];
@@ -52,12 +51,6 @@ function armDescription(arm: ComparisonArm, baselineArm: BaselineArm): string {
 			return arm satisfies never;
 		}
 	}
-}
-
-function versionLabel(version: ArmCorpusVersion): string {
-	return version.state === "available"
-		? corpusVersionLabel(version.digest)
-		: version.reasons.join("; ");
 }
 
 function MeasureReading({
@@ -142,7 +135,7 @@ function ArmCard({
 					{role}
 				</span>
 				<span className="ml-auto font-mono text-11 text-pale">
-					{versionLabel(version)}
+					{corpusVersionText(version)}
 				</span>
 			</div>
 			<div className="mt-1 text-12-5">{description}</div>

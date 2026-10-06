@@ -1,12 +1,11 @@
 import type { ComparisonArm } from "#benchmark/comparison-record";
-import { corpusVersionLabel } from "#benchmark/corpus-version-label";
 import { LaunchDialog } from "#client/launch/launch-dialog";
 import { plural } from "#client/plural";
 import { SectionLabel } from "#client/system/components/section-label";
-import { armPairNames } from "#server/comparison-arm-pair";
+import { armPairs, pairKey } from "#server/comparison-arm-pair";
 import type { ComparisonAttribution } from "#server/comparison-attribution";
 import type { ComparisonResponse } from "./comparison-response";
-import { armProse } from "./design-arms";
+import { armProse, armRole, corpusVersionText } from "./design-arms";
 
 type CaseSummary = ComparisonResponse["summary"][string];
 type MeasureContrast = CaseSummary["contrasts"][string][string];
@@ -17,14 +16,11 @@ type ArmCorpusVersion =
 type BaselineArm = ComparisonResponse["baselineArm"];
 type ComparisonMode = ComparisonResponse["report"]["mode"];
 
-/** Arm B against arm A first, since that is the edit the comparison reads. */
-const PAIR_ORDER = [
-	"candidateMinusBaseline",
-	"candidateMinusControl",
-	"baselineMinusControl",
-] as const;
+const ARM_A = armProse("baseline");
+const ARM_B = armProse("candidate");
+const BASELINE_ARM = armProse("control");
 
-function sentence(text: string): string {
+function capitalized(text: string): string {
 	return `${text.charAt(0).toUpperCase()}${text.slice(1)}`;
 }
 
@@ -59,17 +55,15 @@ function combinationsText(
 }
 
 function contrastText(
-	pair: string,
+	arms: { readonly minuend: ComparisonArm; readonly subtrahend: ComparisonArm },
 	measure: string,
 	contrast: MeasureContrast,
 ): string {
-	const names = armPairNames(pair);
-
-	return `${sentence(armProse(names.minuend))} against ${armProse(names.subtrahend)} on ${measure}: ${verdictPhrase(contrast.verdict)}. ${combinationsText(contrast.combinations)}`;
+	return `${capitalized(armProse(arms.minuend))} against ${armProse(arms.subtrahend)} on ${measure}: ${verdictPhrase(contrast.verdict)}. ${combinationsText(contrast.combinations)}`;
 }
 
 function replyLengthText(replyLength: ReplyLength): string {
-	const subject = "Arm B's reply length against arm A's";
+	const subject = `${capitalized(ARM_B)}'s reply length against ${ARM_A}'s`;
 	switch (replyLength.verdict.kind) {
 		case "unavailable": {
 			return `${subject} is unavailable: ${replyLength.verdict.reasons.join("; ")}.`;
@@ -115,10 +109,6 @@ function Card({
 	);
 }
 
-/**
- * How arm B compares with arm A and each with the baseline arm on the
- * comparison's overall measure, then arm B's reply length against arm A's.
- */
 export function WhatThePairingSays({
 	mode,
 	summary,
@@ -126,15 +116,16 @@ export function WhatThePairingSays({
 	readonly mode: ComparisonMode;
 	readonly summary: CaseSummary;
 }): React.JSX.Element {
-	const lines = PAIR_ORDER.flatMap((pair) => {
-		const byMeasure = summary.contrasts[pair] ?? {};
+	const lines = armPairs().flatMap((arms) => {
+		const byMeasure =
+			summary.contrasts[pairKey(arms.minuend, arms.subtrahend)] ?? {};
 
 		return overallMeasures(mode, Object.keys(byMeasure)).flatMap((measure) => {
 			const contrast = byMeasure[measure];
 
 			return contrast === undefined
 				? []
-				: [contrastText(pair, measure, contrast)];
+				: [contrastText(arms, measure, contrast)];
 		});
 	});
 
@@ -155,36 +146,30 @@ function attemptsText(
 	const counted =
 		control === baseline && baseline === candidate
 			? `${plural(control, "attempt")} per arm.`
-			: `Baseline ${String(control)}, arm A ${String(baseline)} and arm B ${String(candidate)} attempts.`;
+			: `${armRole("control")} ${String(control)}, ${ARM_A} ${String(baseline)} and ${ARM_B} ${String(candidate)} attempts.`;
 
 	return `${counted} Rehearse does not compute the smallest shift these attempts could detect, so a reading inside rerun noise does not show the edit changed nothing.`;
-}
-
-function versionText(version: ArmCorpusVersion): string {
-	return version.state === "available"
-		? corpusVersionLabel(version.digest)
-		: version.reasons.join("; ");
 }
 
 function versionsText(
 	versions: Readonly<Record<ComparisonArm, ArmCorpusVersion>>,
 ): string {
-	return `Each grade came from its arm's corpus: baseline ${versionText(versions.control)}, arm A ${versionText(versions.baseline)}, arm B ${versionText(versions.candidate)}.`;
+	return `Each grade came from its arm's corpus: ${armRole("control").toLowerCase()} ${corpusVersionText(versions.control)}, ${ARM_A} ${corpusVersionText(versions.baseline)}, ${ARM_B} ${corpusVersionText(versions.candidate)}.`;
 }
 
 function baselineArmText(baselineArm: BaselineArm): string {
 	switch (baselineArm.kind) {
 		case "derived": {
-			return `The baseline arm is arm A's corpus with ${baselineArm.skillUnderTest} removed and everything else kept.`;
+			return `${capitalized(BASELINE_ARM)} is ${ARM_A}'s corpus with ${baselineArm.skillUnderTest} removed and everything else kept.`;
 		}
 		case "armA": {
-			return `The baseline arm is arm A run again, since arm A holds nothing under ${baselineArm.skillUnderTest}.`;
+			return `${capitalized(BASELINE_ARM)} is ${ARM_A} run again, since ${ARM_A} holds nothing under ${baselineArm.skillUnderTest}.`;
 		}
 		case "supplied": {
-			return "The baseline arm is a minimal corpus the comparison's author supplied, so nothing records how it was made.";
+			return `${capitalized(BASELINE_ARM)} is a minimal corpus the comparison's author supplied, so nothing records how it was made.`;
 		}
 		case "unreadable": {
-			return `How the baseline arm was made cannot be read: ${baselineArm.reason}.`;
+			return `How ${BASELINE_ARM} was made cannot be read: ${baselineArm.reason}.`;
 		}
 		default: {
 			return baselineArm satisfies never;
@@ -222,18 +207,36 @@ function MoreAttempts({
 	readonly baselineArm: BaselineArm;
 	readonly cost: MoreAttemptsCost;
 }): React.JSX.Element {
-	if (baselineArm.kind === "supplied") {
-		return (
-			<p>
-				More attempts cannot be added: this comparison was not made by compare
-				attempts, so nothing records the checkpoint and corpora its arms would
-				replay.
-			</p>
-		);
+	switch (baselineArm.kind) {
+		case "supplied": {
+			return (
+				<p>
+					More attempts cannot be added: this comparison was not made by compare
+					attempts, so nothing records the checkpoint and corpora its arms would
+					replay.
+				</p>
+			);
+		}
+		case "unreadable": {
+			return <p>{`More attempts cannot be added: ${baselineArm.reason}.`}</p>;
+		}
+		case "derived":
+		case "armA": {
+			return <ExtensionOffer digest={digest} cost={cost} />;
+		}
+		default: {
+			return baselineArm satisfies never;
+		}
 	}
-	if (baselineArm.kind === "unreadable") {
-		return <p>{`More attempts cannot be added: ${baselineArm.reason}.`}</p>;
-	}
+}
+
+function ExtensionOffer({
+	digest,
+	cost,
+}: {
+	readonly digest: string;
+	readonly cost: MoreAttemptsCost;
+}): React.JSX.Element {
 	if (cost.state === "unavailable") {
 		return (
 			<p>
@@ -257,7 +260,6 @@ function MoreAttempts({
 	);
 }
 
-/** What limits the reading: its attempts, its corpora and its attribution. */
 export function ReadWithCare({
 	digest,
 	attemptsPerArm,

@@ -9,20 +9,14 @@ import type { ArmCorpusVersion } from "#server/comparison-provenance";
 import type { CaseSummary } from "#server/comparison-summary";
 import { ReadWithCare, WhatThePairingSays } from "./pairing-cards";
 
+const INSIDE_NOISE: CaseSummary["contrasts"][string][string] = {
+	verdict: { kind: "insideRerunNoise" },
+	combinations: { state: "available", higher: 0, equal: 2, lower: 2, of: 4 },
+};
+
 const SUMMARY: CaseSummary = {
 	contrasts: {
-		candidateMinusBaseline: {
-			build: {
-				verdict: { kind: "insideRerunNoise" },
-				combinations: {
-					state: "available",
-					higher: 0,
-					equal: 2,
-					lower: 2,
-					of: 4,
-				},
-			},
-		},
+		candidateMinusBaseline: { build: INSIDE_NOISE },
 		candidateMinusControl: {
 			build: {
 				verdict: { kind: "separated", arm: "candidate" },
@@ -85,15 +79,11 @@ describe(WhatThePairingSays.name, () => {
 	});
 
 	it("reads a pipeline comparison on its final verdict alone", () => {
-		const reading = SUMMARY.contrasts["candidateMinusBaseline"]?.["build"];
-		if (reading === undefined) {
-			throw new Error("fixture lacks the build reading");
-		}
 		renderSays(
 			{
 				...SUMMARY,
 				contrasts: {
-					candidateMinusBaseline: { review: reading, final: reading },
+					candidateMinusBaseline: { review: INSIDE_NOISE, final: INSIDE_NOISE },
 				},
 			},
 			"pipeline",
@@ -226,24 +216,28 @@ describe(ReadWithCare.name, () => {
 
 	it.each([
 		[
+			"derived",
 			{ kind: "derived", skillUnderTest: "skills/shape/" },
 			"The baseline arm is arm A's corpus with skills/shape/ removed and everything else kept.",
 		],
 		[
+			"armA",
 			{ kind: "armA", skillUnderTest: "skills/shape/" },
 			"The baseline arm is arm A run again, since arm A holds nothing under skills/shape/.",
 		],
 		[
+			"supplied",
 			{ kind: "supplied" },
 			"The baseline arm is a minimal corpus the comparison's author supplied, so nothing records how it was made.",
 		],
 		[
+			"unreadable",
 			{ kind: "unreadable", reason: "baseline.json does not parse" },
 			"How the baseline arm was made cannot be read: baseline.json does not parse.",
 		],
-	] satisfies readonly (readonly [ComparisonBaselineArm, string])[])(
-		"says how the %o baseline arm was made",
-		(baselineArm, expected) => {
+	] satisfies readonly (readonly [string, ComparisonBaselineArm, string])[])(
+		"says how the %s baseline arm was made",
+		(_kind, baselineArm, expected) => {
 			renderCare({ baselineArm });
 
 			expect(bullets()).toContain(expected);
@@ -252,20 +246,23 @@ describe(ReadWithCare.name, () => {
 
 	it.each([
 		[
+			"attributable",
 			ATTRIBUTABLE,
 			"Only skills/shape/SKILL.md differs between arms A and B, so a movement between them is attributable to it.",
 		],
 		[
+			"identical",
 			{ claim: "identical" },
 			"Arms A and B ran identical corpora, so no file explains a movement between them.",
 		],
 		[
+			"refused",
 			{ claim: "refused", differingPaths: ["CLAUDE.md", "skills/a.md"] },
 			"2 files differ between arms A and B, so no movement between them is attributed to one of them.",
 		],
-	] satisfies readonly (readonly [ComparisonAttribution, string])[])(
-		"states the A to B attribution claim %o",
-		(attribution, expected) => {
+	] satisfies readonly (readonly [string, ComparisonAttribution, string])[])(
+		"states the A to B attribution claim %s",
+		(_claim, attribution, expected) => {
 			renderCare({ attribution });
 
 			expect(bullets()).toContain(expected);
@@ -284,27 +281,31 @@ describe(ReadWithCare.name, () => {
 
 	it.each([
 		[
+			"supplied baseline arm",
 			{ kind: "supplied" },
 			SUMMARY.moreAttempts,
 			"More attempts cannot be added: this comparison was not made by compare attempts, so nothing records the checkpoint and corpora its arms would replay.",
 		],
 		[
+			"unreadable baseline arm",
 			{ kind: "unreadable", reason: "baseline.json does not parse" },
 			SUMMARY.moreAttempts,
 			"More attempts cannot be added: baseline.json does not parse.",
 		],
 		[
+			"cost unstated",
 			{ kind: "derived", skillUnderTest: "skills/shape/" },
 			{ state: "unavailable", reasons: ["rep-1 lacks worker.costUsd"] },
 			"What more attempts would cost cannot be stated: rep-1 lacks worker.costUsd.",
 		],
 	] satisfies readonly (readonly [
+		string,
 		ComparisonBaselineArm,
 		MoreAttemptsCost,
 		string,
 	])[])(
-		"states why a %o comparison cannot offer more attempts",
-		(baselineArm, moreAttempts, expected) => {
+		"states why a comparison with a %s cannot offer more attempts",
+		(_situation, baselineArm, moreAttempts, expected) => {
 			renderCare({ baselineArm, moreAttempts });
 
 			expect(card("Read with care")).toHaveTextContent(expected);

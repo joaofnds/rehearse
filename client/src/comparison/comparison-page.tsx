@@ -6,7 +6,11 @@ import { RecordNotFoundError } from "#client/record-not-found";
 import { EmptyState } from "#client/system/components/empty-state";
 import { Switcher } from "#client/system/components/switcher";
 import { TableShell } from "#client/system/components/table-shell";
-import { armPairLabel, armPairNames } from "#server/comparison-arm-pair";
+import {
+	armPairLabel,
+	armPairNames,
+	pairKey as armPairKey,
+} from "#server/comparison-arm-pair";
 import type { ComparisonAttribution } from "#server/comparison-attribution";
 import { ScreenHeader } from "#client/system/components/screen-header";
 import { SectionLabel } from "#client/system/components/section-label";
@@ -271,7 +275,7 @@ function AttemptPairsPresentation({
 	const summary = comparison.summary[caseId];
 	const corpusVersions = comparison.corpusVersions[caseId];
 	const attribution =
-		comparison.attribution[caseId]?.["candidateMinusBaseline"];
+		comparison.attribution[caseId]?.[armPairKey("candidate", "baseline")];
 	if (
 		attempts === undefined ||
 		summary === undefined ||
