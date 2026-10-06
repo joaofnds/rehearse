@@ -859,6 +859,39 @@ describe(sessionHistoryReport.name, () => {
 			report.sources.find(({ name }) => name === "skills/build/SKILL.md"),
 		).toMatchObject({ observedDeliveryCount: 2, repeatDeliveryCount: 1 });
 	});
+
+	it("does not count a prompt that quotes a skill body's opening as a delivery", () => {
+		const transcript = row({
+			type: "user",
+			message: {
+				content: [
+					{
+						type: "text",
+						text: "Base directory for this skill: /home/me/.claude/skills/build\n\nwhy did this load?",
+					},
+				],
+			},
+		});
+
+		const report = sessionHistoryReport({
+			attempt: {
+				kind: "session",
+				caseId: "case-a",
+				id: "attempt-a",
+				model: "sonnet",
+				outcome: "SUCCESSFUL",
+				corpusFiles: [],
+			},
+			resolvedCorpusFiles: [],
+			transcript,
+			prefixLinesExcluded: 0,
+		});
+
+		expect(report.attemptEvents[0]?.kind).toBe("unclassified");
+		expect(
+			report.sources.find(({ name }) => name === "skills/build/SKILL.md"),
+		).toBeUndefined();
+	});
 });
 
 describe(sessionHistoryDetail.name, () => {

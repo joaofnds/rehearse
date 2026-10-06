@@ -275,6 +275,8 @@ const historyContentSchema = z.union([z.string(), z.array(jsonValueSchema)]);
 const historyRecordSchema = z.looseObject({
 	timestamp: z.string().min(1).optional(),
 	cwd: z.string().min(1).optional(),
+	type: z.string().optional(),
+	isMeta: z.boolean().optional(),
 	sourceToolUseID: z.string().min(1).optional(),
 	message: z.looseObject({ content: historyContentSchema }).optional(),
 	toolUseResult: z
@@ -690,14 +692,18 @@ type CommonEvent = Pick<
 function contentBlockEvent(
 	common: Immutable<CommonEvent>,
 	value: JsonValue | undefined,
-	companionId: string | undefined,
+	row: Immutable<HistoryRecord> | undefined,
 	retainBodies: boolean,
 ): MutableEvent {
+	const companionId = row?.sourceToolUseID;
 	const text = historyTextBlockSchema.safeParse(value);
 	const measured = measureContent(text.success ? text.data.text : value);
 	const content = retainBodies ? measured.text : undefined;
 	const slashSkill =
-		companionId === undefined && text.success
+		companionId === undefined &&
+		row?.type === "user" &&
+		row.isMeta === true &&
+		text.success
 			? skillBodyDirectory(text.data.text)
 			: undefined;
 	if (slashSkill !== undefined) {
@@ -809,12 +815,7 @@ function parseRowEvents(
 			continue;
 		}
 
-		const event = contentBlockEvent(
-			common,
-			value,
-			row.value?.sourceToolUseID,
-			retainBodies,
-		);
+		const event = contentBlockEvent(common, value, row.value, retainBodies);
 		events.push(event);
 		if (event.measurement.state !== "complete") {
 			issues.push(`unsupported content at ${common.id}`);
