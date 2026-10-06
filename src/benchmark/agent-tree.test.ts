@@ -10,6 +10,7 @@ const INHERITED_PREFIX_LINES = 3;
 const LINES_BEFORE_A4_LAUNCH = 16;
 
 interface FixtureOverrides {
+	readonly prefixLinesExcluded?: number | undefined;
 	readonly transcript?: (lines: readonly string[]) => readonly string[];
 	readonly subagents?: (
 		recorded: readonly SubagentEvidence[],
@@ -34,7 +35,10 @@ async function fixtureTree(
 		},
 		resolvedCorpusFiles: [],
 		transcript: (overrides.transcript?.(lines) ?? lines).join("\n"),
-		prefixLinesExcluded: INHERITED_PREFIX_LINES,
+		prefixLinesExcluded:
+			"prefixLinesExcluded" in overrides
+				? overrides.prefixLinesExcluded
+				: INHERITED_PREFIX_LINES,
 		subagents: overrides.subagents?.(recorded) ?? recorded,
 	});
 }
@@ -421,6 +425,32 @@ describe(agentTree.name, () => {
 					laterTurns: [],
 				},
 			);
+		});
+	});
+
+	describe("when the attempt's boundary is unknown", () => {
+		it("lists the root's deliveries with their counts unknown", async () => {
+			const tree = await fixtureTree({ prefixLinesExcluded: undefined });
+
+			expect(
+				tree.root.deliveries.map(({ name, observedDeliveryCount }) => ({
+					name,
+					observedDeliveryCount,
+				})),
+			).toContainEqual({
+				name: "skills/review/SKILL.md",
+				observedDeliveryCount: undefined,
+			});
+		});
+
+		it("totals no agent's requests into the attempt", async () => {
+			const tree = await fixtureTree({ prefixLinesExcluded: undefined });
+
+			expect(
+				tree.agents
+					.filter((agent) => agent.evidence === "available")
+					.map(({ series }) => [series.boundary, series.attemptTotals.state]),
+			).toEqual(Array.from({ length: 5 }, () => ["unknown", "unavailable"]));
 		});
 	});
 });

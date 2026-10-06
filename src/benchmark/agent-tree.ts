@@ -354,7 +354,7 @@ function readings(
 		models: [...models],
 		series,
 		deliveries: sources.filter(
-			({ observedDeliveryCount }) => (observedDeliveryCount ?? 0) > 0,
+			({ observedDeliveryCount }) => observedDeliveryCount !== 0,
 		),
 	};
 }
@@ -433,6 +433,23 @@ function isInherited(
 	);
 }
 
+/**
+ * A child's transcript holds no attempt boundary of its own. An inherited
+ * child ran wholly before the attempt and a later one wholly inside it, and
+ * where the attempt's own boundary is unknown, so is the child's.
+ */
+function childPrefixLinesExcluded(
+	input: Immutable<AgentTreeInput>,
+	file: Immutable<SubagentEvidence>,
+	inherited: boolean,
+): number | undefined {
+	if (input.prefixLinesExcluded === undefined) {
+		return undefined;
+	}
+
+	return inherited ? lineCount(file.transcript) : 0;
+}
+
 function availableAgent(
 	input: Immutable<AgentTreeInput>,
 	file: Immutable<SubagentEvidence>,
@@ -449,7 +466,7 @@ function availableAgent(
 	const { models, series, deliveries } = readings(
 		input,
 		file.transcript,
-		inherited ? lineCount(file.transcript) : 0,
+		childPrefixLinesExcluded(input, file, inherited),
 		inherited,
 	);
 
