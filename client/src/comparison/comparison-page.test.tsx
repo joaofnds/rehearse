@@ -225,7 +225,7 @@ function comparisonResponseBody(): ComparisonResponseFixture {
 					checks: {
 						interval: {
 							minuend: undefined,
-							subtrahend: { low: "D", high: "F" },
+							subtrahend: { low: "F", high: "D" },
 						},
 						verdict: { kind: "unavailable" },
 					},
@@ -397,7 +397,7 @@ describe(ComparisonPage.name, () => {
 		expectQualityRow("WHAT MOVED · case-2", {
 			pair: "candidate vs baseline",
 			measure: "checks",
-			intervals: ["candidate not reached", "baseline D to F"],
+			intervals: ["candidate not reached", "baseline F to D"],
 			verdict: "unavailable",
 			glyph: "?",
 		});

@@ -831,7 +831,7 @@ describe("GET /api/comparisons/:digest", () => {
 		).toEqual({
 			interval: {
 				minuend: { low: "A", high: "A" },
-				subtrahend: { low: "A", high: "D" },
+				subtrahend: { low: "D", high: "A" },
 			},
 			verdict: { kind: "insideRerunNoise" },
 		});
@@ -871,7 +871,7 @@ describe("GET /api/comparisons/:digest", () => {
 		expect(readings?.["build"]).toEqual({
 			interval: {
 				minuend: { low: "A", high: "A" },
-				subtrahend: { low: "A", high: "D" },
+				subtrahend: { low: "D", high: "A" },
 			},
 			verdict: { kind: "insideRerunNoise" },
 		});

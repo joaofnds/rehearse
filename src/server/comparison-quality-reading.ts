@@ -51,8 +51,8 @@ function letterSpanOf(
 	const observed = LETTER_SCALE.filter(
 		(grade) => (summary.gradeDistribution[grade] ?? 0) > 0,
 	);
-	const [low] = observed;
-	const high = observed.at(-1);
+	const [high] = observed;
+	const low = observed.at(-1);
 
 	return low === undefined || high === undefined ? undefined : { low, high };
 }
@@ -61,12 +61,12 @@ function letterSpansOverlap(
 	left: QualityInterval,
 	right: QualityInterval,
 ): boolean {
-	const leftLow = LETTER_SCALE.indexOf(left.low);
-	const leftHigh = LETTER_SCALE.indexOf(left.high);
-	const rightLow = LETTER_SCALE.indexOf(right.low);
-	const rightHigh = LETTER_SCALE.indexOf(right.high);
+	const leftBest = LETTER_SCALE.indexOf(left.high);
+	const leftWorst = LETTER_SCALE.indexOf(left.low);
+	const rightBest = LETTER_SCALE.indexOf(right.high);
+	const rightWorst = LETTER_SCALE.indexOf(right.low);
 
-	return leftLow <= rightHigh && rightLow <= leftHigh;
+	return leftBest <= rightWorst && rightBest <= leftWorst;
 }
 
 function successRateIntervalOf(

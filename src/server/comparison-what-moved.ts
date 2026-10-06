@@ -257,16 +257,15 @@ function letterIndex(grade: StageLetterGrade): number {
 	return STAGE_LETTER_GRADES.indexOf(grade);
 }
 
-/** Best first, as a stage measure's letter span reads. */
 function letterInterval(
 	range: Reading<LetterRange>,
 ): QualityReading["interval"]["minuend"] {
 	return range.state === "available"
-		? { low: range.highest, high: range.lowest }
+		? { low: range.lowest, high: range.highest }
 		: undefined;
 }
 
-function dimensionReading(
+export function dimensionReading(
 	minuend: Reading<LetterRange>,
 	subtrahend: Reading<LetterRange>,
 	arms: { readonly minuend: ComparisonArm; readonly subtrahend: ComparisonArm },

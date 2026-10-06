@@ -1,5 +1,9 @@
 import { describe, expect, it } from "bun:test";
-import { firingsReading, meterReading } from "./comparison-what-moved";
+import {
+	dimensionReading,
+	firingsReading,
+	meterReading,
+} from "./comparison-what-moved";
 
 const arms = { minuend: "candidate", subtrahend: "baseline" } as const;
 
@@ -24,6 +28,21 @@ describe(firingsReading.name, () => {
 		expect(reading).toEqual({
 			interval: { minuend: undefined, subtrahend: { low: "9%", high: "91%" } },
 			verdict: { kind: "unavailable" },
+		});
+	});
+});
+
+describe(dimensionReading.name, () => {
+	it("reads each arm's letter span from the bottom of the scale to the top", () => {
+		const reading = dimensionReading(
+			{ state: "available", median: "B", lowest: "C", highest: "A" },
+			{ state: "available", median: "D", lowest: "F", highest: "D" },
+			arms,
+		);
+
+		expect(reading.interval).toEqual({
+			minuend: { low: "C", high: "A" },
+			subtrahend: { low: "F", high: "D" },
 		});
 	});
 });

@@ -103,6 +103,29 @@ describe(qualityReading.name, () => {
 		});
 	});
 
+	it("reads a letter span from the bottom of the scale to the top", () => {
+		const minuend = stageSummary(
+			Object.fromEntries([
+				["A", 1],
+				["B", 1],
+				["C", 1],
+			]),
+			2,
+			3,
+		);
+		const subtrahend = stageSummary(Object.fromEntries([["B", 3]]), 3, 3);
+
+		const reading = qualityReading({
+			minuend,
+			subtrahend,
+			minuendArm: "candidate",
+			subtrahendArm: "baseline",
+			scale: "letters",
+		});
+
+		expect(reading.interval.minuend).toEqual({ low: "C", high: "A" });
+	});
+
 	it("reads inside rerun noise when a declared-stage measure's grade spans overlap", () => {
 		const minuend = stageSummary(
 			Object.fromEntries([
@@ -131,8 +154,8 @@ describe(qualityReading.name, () => {
 
 		expect(reading).toEqual({
 			interval: {
-				minuend: { low: "B", high: "C" },
-				subtrahend: { low: "B", high: "C" },
+				minuend: { low: "C", high: "B" },
+				subtrahend: { low: "C", high: "B" },
 			},
 			verdict: { kind: "insideRerunNoise" },
 		});
