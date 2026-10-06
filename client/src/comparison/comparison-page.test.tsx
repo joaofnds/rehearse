@@ -357,6 +357,20 @@ describe(ComparisonPage.name, () => {
 		expect(within(table).getAllByRole("row")).toHaveLength(3);
 	});
 
+	it("keeps each case's arm cards in view in both presentations", async () => {
+		renderPage();
+		await screen.findByRole("region", { name: "Arms · case-1" });
+
+		fireEvent.click(screen.getByRole("button", { name: "What moved" }));
+
+		expect(
+			screen.getByRole("region", { name: "Arms · case-1" }),
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("region", { name: "Arms · case-2" }),
+		).toBeInTheDocument();
+	});
+
 	describe("header", () => {
 		const CHECKPOINT_RUN = "2026-09-28T10-03-07.498Z";
 

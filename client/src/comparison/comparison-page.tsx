@@ -12,6 +12,7 @@ import type { ComparisonAttribution } from "#server/comparison-attribution";
 import { plural } from "#client/plural";
 import { ScreenHeader } from "#client/system/components/screen-header";
 import { SectionLabel } from "#client/system/components/section-label";
+import { ArmCardsBand } from "./arm-cards-band";
 import { comparisonSubline, comparisonTitle } from "./comparison-header";
 import type { ComparisonResponse } from "./comparison-response";
 
@@ -401,6 +402,30 @@ function MoreAttempts({
 	);
 }
 
+function ArmCards({
+	caseId,
+	comparison,
+}: {
+	readonly caseId: string;
+	readonly comparison: ComparisonResponse;
+}): React.JSX.Element | null {
+	const figures = comparison.armFigures[caseId];
+	const corpusVersions = comparison.corpusVersions[caseId];
+	if (figures === undefined || corpusVersions === undefined) {
+		return null;
+	}
+
+	return (
+		<ArmCardsBand
+			caseId={caseId}
+			showCase={comparison.report.cases.length > 1}
+			figures={figures}
+			corpusVersions={corpusVersions}
+			baselineArm={comparison.baselineArm}
+		/>
+	);
+}
+
 export function ComparisonPage({
 	digest,
 }: {
@@ -429,6 +454,12 @@ export function ComparisonPage({
 					) : undefined
 				}
 			/>
+
+			{query.isSuccess
+				? query.data.report.cases.map(({ caseId }) => (
+						<ArmCards key={caseId} caseId={caseId} comparison={query.data} />
+					))
+				: null}
 
 			<div className="flex flex-col gap-8 px-6 pt-4 pb-12">
 				{query.isLoading ? (
