@@ -6,6 +6,7 @@ import { armPairs, pairKey } from "#server/comparison-arm-pair";
 import type { ComparisonAttribution } from "#server/comparison-attribution";
 import type { ComparisonResponse } from "./comparison-response";
 import { armProse, armRole, corpusVersionText } from "./design-arms";
+import { qualityReadingText } from "./reading-text";
 
 type CaseSummary = ComparisonResponse["summary"][string];
 type MeasureContrast = CaseSummary["contrasts"][string][string];
@@ -24,26 +25,6 @@ function capitalized(text: string): string {
 	return `${text.charAt(0).toUpperCase()}${text.slice(1)}`;
 }
 
-function verdictPhrase(verdict: MeasureContrast["verdict"]): string {
-	switch (verdict.kind) {
-		case "insideRerunNoise": {
-			return "inside rerun noise";
-		}
-		case "unchangedAlreadyClear": {
-			return "unchanged, already clear";
-		}
-		case "separated": {
-			return `${armProse(verdict.arm)} separates`;
-		}
-		case "unavailable": {
-			return "unavailable";
-		}
-		default: {
-			return verdict satisfies never;
-		}
-	}
-}
-
 function combinationsText(
 	combinations: MeasureContrast["combinations"],
 ): string {
@@ -59,7 +40,7 @@ function contrastText(
 	measure: string,
 	contrast: MeasureContrast,
 ): string {
-	return `${capitalized(armProse(arms.minuend))} against ${armProse(arms.subtrahend)} on ${measure}: ${verdictPhrase(contrast.verdict)}. ${combinationsText(contrast.combinations)}`;
+	return `${capitalized(armProse(arms.minuend))} against ${armProse(arms.subtrahend)} on ${measure}: ${qualityReadingText(contrast.verdict).phrase}. ${combinationsText(contrast.combinations)}`;
 }
 
 function replyLengthText(replyLength: ReplyLength): string {
