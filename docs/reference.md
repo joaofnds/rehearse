@@ -2231,6 +2231,14 @@ cost. The facts to read the summary with care are the response's other fields:
 `attempts` for how many attempts each arm holds, each arm's `executedCorpus`,
 `baselineArm`, and the arm B against arm A attribution.
 
+`GET /api/comparisons/<digest>/arm-diff` serves, per case, each file that
+differs between arms A and B, by its corpus-layout `path`, with the text each
+arm ran: `available` with its `text`, read from the copy the arm's group froze
+under `inputs/corpus/` and checked against the digest the report recorded;
+`absent` when that arm ran no such file; or `unavailable` with its `reasons`
+when the frozen copy is missing, unreadable or no longer matches that digest.
+A case whose arms ran identical corpora lists no file.
+
 Session resource values are per-repetition worker metrics; group preflight cost
 remains at confirmation-group level, and unavailable metrics stay visible as
 unavailable.

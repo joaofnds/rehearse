@@ -36,7 +36,7 @@ type ComparisonMode = (ComparisonReport | LegacyComparisonReport)["mode"];
  * count one file once per stage; dropping a segment from a session path can
  * collapse distinct layout files that share a basename.
  */
-function layoutPath(path: string, mode: ComparisonMode): string {
+export function layoutPath(path: string, mode: ComparisonMode): string {
 	const segments = path.split("/");
 	if (segments[0] !== "inputs" || segments[1] !== "corpus") {
 		return path;

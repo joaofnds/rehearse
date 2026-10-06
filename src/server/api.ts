@@ -21,6 +21,7 @@ import {
 	isTerminalRunEventKind,
 	openRunEventStore,
 } from "#benchmark/run-events";
+import { comparisonArmDiff } from "./comparison-arm-diff";
 import { comparisonProvenance } from "./comparison-provenance";
 import { comparisonReport } from "./comparisons";
 import { comparisonIndex } from "./comparison-index";
@@ -215,6 +216,26 @@ function versionRefusal(
 	};
 }
 
+async function recordedComparison(
+	digest: string,
+	runsDirectory: string,
+): Promise<{
+	readonly file: string;
+	readonly report: ReturnType<typeof parseComparisonReport>;
+}> {
+	const file = await recordFileFor(
+		parseRecordId(`comparison:${digest}`),
+		runsDirectory,
+	);
+	if (!(await Bun.file(file).exists())) {
+		throw new RefusedPreconditionError(
+			`No record comparison:${digest} at ${displayPath(file)}`,
+		);
+	}
+
+	return { file, report: parseComparisonReport(await Bun.file(file).text()) };
+}
+
 type EvidenceSourceAnswer =
 	| { readonly found: true; readonly source: EvidenceSource }
 	| { readonly found: false; readonly error: HistoryErrorResponse };
@@ -377,15 +398,10 @@ export const createApiApp = (dependencies: ApiDependencies) => {
 		)
 		.get("/api/comparisons/:digest", async (context) => {
 			try {
-				const id = parseRecordId(`comparison:${context.req.param("digest")}`);
-				const file = await recordFileFor(id, dependencies.runsDirectory);
-				if (!(await Bun.file(file).exists())) {
-					throw new RefusedPreconditionError(
-						`No record comparison:${context.req.param("digest")} at ${displayPath(file)}`,
-					);
-				}
-
-				const report = parseComparisonReport(await Bun.file(file).text());
+				const { file, report } = await recordedComparison(
+					context.req.param("digest"),
+					dependencies.runsDirectory,
+				);
 
 				return context.json({
 					...comparisonReport(
@@ -398,6 +414,28 @@ export const createApiApp = (dependencies: ApiDependencies) => {
 					...(await comparisonProvenance(report, dependencies.runsDirectory)),
 					baselineArm: await readComparisonBaselineArm(dirname(file)),
 				});
+			} catch (error) {
+				if (
+					error instanceof UsageError ||
+					error instanceof RefusedPreconditionError
+				) {
+					const refusal = commandRefusal(error);
+					return context.json({ error: refusal.message }, refusal.status);
+				}
+
+				throw error;
+			}
+		})
+		.get("/api/comparisons/:digest/arm-diff", async (context) => {
+			try {
+				const { report } = await recordedComparison(
+					context.req.param("digest"),
+					dependencies.runsDirectory,
+				);
+
+				return context.json(
+					await comparisonArmDiff(report, dependencies.runsDirectory),
+				);
 			} catch (error) {
 				if (
 					error instanceof UsageError ||
