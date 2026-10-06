@@ -859,12 +859,13 @@ function participantsOf(
  * it, to one skill window, the shared remainder or the unattributed remainder,
  * and gives each skill and agent a total including its descendants. The
  * provider's per-model count is shown beside the calculated one, and reaches
- * an agent only where it ran alone on its models.
+ * an agent only where it ran alone on its models. A caller that already
+ * built the input's tree passes it, so the transcripts are read once.
  */
 export function agentCostAllocation(
 	input: Immutable<AgentCostInput>,
+	tree: Immutable<AgentTree> = agentTree(input),
 ): AttemptCostAllocation {
-	const tree = agentTree(input);
 	if (tree.root.series.boundary === "unknown") {
 		return { state: "unavailable", reasons: [BOUNDARY_ABSENT] };
 	}

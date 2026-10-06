@@ -1111,14 +1111,15 @@ async function agentsFor(
 		subagents: await verifiedSubagents(input.root, input.directory),
 	};
 
+	const tree = agentTree(agentInput);
+
 	return {
 		state: "available",
-		tree: agentTree(agentInput),
-		cost: agentCostAllocation({
-			...agentInput,
-			rates,
-			modelUsage: input.modelUsage,
-		}),
+		tree,
+		cost: agentCostAllocation(
+			{ ...agentInput, rates, modelUsage: input.modelUsage },
+			tree,
+		),
 	};
 }
 
