@@ -201,6 +201,7 @@ function skillCalls(
 	requestOf: RequestLocator,
 ): ReadonlyMap<string, SkillCall> {
 	const calls = new Map<string, SkillCall>();
+
 	for (const { line, locatedToolUses } of lines) {
 		for (const { use, toolUseId } of locatedToolUses) {
 			if (use.name === "Skill" && toolUseId !== undefined) {
@@ -226,6 +227,7 @@ function requestLocator(
 			firstLineById.set(requestId, line);
 		}
 	}
+
 	const requestIdByLine = new Map(
 		lines.map(({ line, requestId }) => [line, requestId]),
 	);
@@ -295,6 +297,7 @@ function skillWindows(
 		}
 		current = undefined;
 	};
+
 	for (const row of participant.lines) {
 		const { line, userTurn } = row;
 		if (line <= participant.attemptStart) {
@@ -329,6 +332,7 @@ function skillWindows(
 			invocations: [invocation],
 		};
 	}
+
 	if (current !== undefined) {
 		windows.push(current);
 	}
@@ -393,6 +397,7 @@ function tally(
 	let costUsd = 0;
 	let priced = 0;
 	const reasons = new Set<string>();
+
 	for (const line of lines) {
 		const cost = costs.get(line);
 		if (cost?.state === "priced") {
@@ -528,6 +533,7 @@ function descendantTally(
 ): Tally {
 	const parts: Tally[] = [own];
 	const missing: string[] = [];
+
 	for (const { agentId, evidence } of children) {
 		const total = totals.get(agentId);
 		if (evidence === "available" && total !== undefined) {
@@ -827,6 +833,7 @@ function participantsOf(
 			},
 		],
 	]);
+
 	for (const agent of tree.agents) {
 		const transcript = transcripts.get(agent.agentId);
 		if (
