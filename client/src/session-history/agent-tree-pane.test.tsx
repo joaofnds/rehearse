@@ -304,6 +304,18 @@ describe("agent tree in the saved-attempt workbench", () => {
 		).toHaveTextContent("Incomplete");
 	});
 
+	it("reads an inherited agent's missing transcript as outside coverage", async () => {
+		await renderFixturePage();
+
+		const detail = await select("a6 ");
+
+		expect(
+			within(detail).getByRole("definition", { name: "Evidence" }),
+		).toHaveTextContent(
+			"ran in the inherited prefix, so coverage and the attempt's totals leave it out",
+		);
+	});
+
 	it("lists an agent whose recorded parent is not in the tree", async () => {
 		await renderFixturePage("orphaned");
 
@@ -337,15 +349,11 @@ describe("agent tree in the saved-attempt workbench", () => {
 		expect(receiving).toHaveTextContent(
 			"recorded text characters, not tokens and not cost",
 		);
-		const [second] = within(a1)
-			.getAllByRole("button", {
-				name: "Open excerpt",
-			})
-			.slice(1);
-		if (second === undefined) {
-			throw new Error("a1 lists one excerpt");
-		}
-		fireEvent.click(second);
+		fireEvent.click(
+			within(a1).getByRole("button", {
+				name: "Open excerpt of a1's delivery 2 · event 9:1",
+			}),
+		);
 		await waitFor(() => {
 			expect(
 				screen.getByRole("region", { name: "Delivery excerpt" }),

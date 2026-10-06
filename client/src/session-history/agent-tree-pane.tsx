@@ -300,6 +300,9 @@ function LoadEvidence({
 							{sizeLabel(measurement)}
 						</small>
 						<ExcerptButton
+							agentId={agentId}
+							ordinal={ordinal}
+							eventId={eventId}
 							onOpen={() => {
 								onOpenExcerpt({ agentId, eventId });
 							}}
@@ -315,13 +318,20 @@ function LoadEvidence({
 }
 
 function ExcerptButton({
+	agentId,
+	ordinal,
+	eventId,
 	onOpen,
 }: {
+	readonly agentId: string | undefined;
+	readonly ordinal: number;
+	readonly eventId: string;
 	readonly onOpen: () => void;
 }): React.JSX.Element {
 	return (
 		<button
 			type="button"
+			aria-label={`Open excerpt of ${agentName(agentId)}'s delivery ${ordinal} · event ${eventId}`}
 			className="self-start text-11-5 text-accent-foreground underline hover:text-foreground"
 			onClick={onOpen}
 		>
@@ -348,8 +358,9 @@ function AgentDetail({
 				<Reading term="Agent">{agent.agentId}</Reading>
 				<Reading term="Parent">{parentLabel(agent)}</Reading>
 				<Reading term="Evidence">
-					? Unavailable · the record holds no transcript for this agent, so
-					coverage and every total including it read incomplete
+					{agent.context === "inherited"
+						? "? Unavailable · the record holds no transcript for this agent, which ran in the inherited prefix, so coverage and the attempt's totals leave it out"
+						: "? Unavailable · the record holds no transcript for this agent, so coverage and every total including it read incomplete"}
 				</Reading>
 			</dl>
 		);
@@ -658,6 +669,9 @@ function ReceivingAgents({
 										{sizeLabel(measurement)}
 									</small>
 									<ExcerptButton
+										agentId={agentId}
+										ordinal={ordinal}
+										eventId={eventId}
 										onOpen={() => {
 											onOpenExcerpt({ agentId, eventId });
 										}}
