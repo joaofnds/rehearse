@@ -675,6 +675,20 @@ did not exist and carries no numeric observations. Historical attempt records
 may omit `transcriptDiagnostics`; omission means not recorded, and readers do
 not recompute it from the current case cut.
 
+A session attempt also keeps its sub-agents' evidence. The provider writes each
+sub-agent's transcript and meta file, `agent-<id>.jsonl` and
+`agent-<id>.meta.json`, under a directory named for the session beside the
+session's own file. Recording copies them into `subagents/` beside
+`transcript.jsonl`, for a handled invocation failure as well, and cleanup then
+removes that directory with the session's file. Only regular files with those
+two name shapes are copied, so a symlink or any other entry the session left
+there stays out of the record. `unavailableSubagents` lists each agent that an
+Agent result, or a Skill result that ran the skill in its own context, names at
+or after the cut and whose transcript was not there to copy. An agent named in
+the inherited prefix ran before the attempt and is not listed. Records written
+before this omit the field and keep no `subagents/`; omission means the files
+were not checked, not that the session ran no sub-agent.
+
 An attempt record may also carry `contextEvidence` when its caller supplies a
 captured provider bundle. The version-1 evidence stores the source bundle
 unchanged beside a normalized projection of agents, parentage, requests,
@@ -1175,8 +1189,10 @@ stage's raw session transcript as `transcript.jsonl` beside the record, so a
 later reader can observe what the stage actually loaded rather than inferring
 it from the parsed exchanges. Where the provider wrote no transcript, the
 record says so with an explicit unavailable status instead of omitting the
-evidence. Checkpoints written before this carry no transcript field and remain
-readable. A stage checkpoint, a replay record and a session attempt record
+evidence. The stage session's sub-agent transcripts and meta files are copied
+into `subagents/` beside it the same way. The stage ran in the target
+repository, so the provider's files there are left in place. Checkpoints
+written before this carry no transcript field and remain readable. A stage checkpoint, a replay record and a session attempt record
 also carry `readManifest`, the files the record declared or its transcript
 shows it loading. A stage record carries `readManifest` too, which is the only
 copy for a stage its judge stopped, since that stage saves no checkpoint, and so
