@@ -833,7 +833,7 @@ describe(CorpusPage.name, () => {
 			});
 
 			expect(card).toHaveTextContent(
-				"No recorded result, since the edit from corpus@e73e56",
+				"No recorded result invalidated by the edit from corpus@e73e56",
 			);
 			expect(within(card).queryByRole("link")).toBeNull();
 		});

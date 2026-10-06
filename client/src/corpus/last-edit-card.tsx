@@ -17,7 +17,7 @@ function reading(lastEdit: LastEdit): React.JSX.Element {
 		return (
 			<span>
 				<span aria-hidden="true">✓ </span>
-				{`No recorded result, since the edit from ${corpusVersionLabel(lastEdit.previous)}`}
+				{`No recorded result invalidated by the edit from ${corpusVersionLabel(lastEdit.previous)}`}
 			</span>
 		);
 	}
