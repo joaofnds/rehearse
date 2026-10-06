@@ -159,21 +159,15 @@ const ONE_ATTEMPT_EACH: CaseAttempts = {
 	control: [PASSED],
 };
 
+const ONE_EQUAL_COMBINATION: CaseSummary["contrasts"][string][string] = {
+	verdict: { kind: "insideRerunNoise" },
+	combinations: { state: "available", higher: 0, equal: 1, lower: 0, of: 1 },
+};
+
 function caseSummary(moreAttempts: MoreAttemptsCost): CaseSummary {
 	return {
 		contrasts: {
-			candidateMinusBaseline: {
-				final: {
-					verdict: { kind: "insideRerunNoise" },
-					combinations: {
-						state: "available",
-						higher: 0,
-						equal: 1,
-						lower: 0,
-						of: 1,
-					},
-				},
-			},
+			candidateMinusBaseline: { checks: ONE_EQUAL_COMBINATION },
 		},
 		replyLength: {
 			interval: { minuend: undefined, subtrahend: undefined },
@@ -416,6 +410,56 @@ describe(ComparisonPage.name, () => {
 		).toBeInTheDocument();
 	});
 
+	it("feeds each case's cards that case's mode, attempts and A to B attribution", async () => {
+		const body = comparisonResponseBody();
+		renderPage({
+			...body,
+			report: { ...body.report, mode: "pipeline" },
+			attempts: {
+				...body.attempts,
+				"case-1": {
+					control: [PASSED],
+					baseline: [PASSED, PASSED],
+					candidate: [PASSED, PASSED, PASSED],
+				},
+			},
+			summary: {
+				...body.summary,
+				"case-1": {
+					...caseSummary({ state: "unavailable", reasons: ["no cost"] }),
+					contrasts: {
+						candidateMinusBaseline: {
+							review: ONE_EQUAL_COMBINATION,
+							final: ONE_EQUAL_COMBINATION,
+						},
+					},
+				},
+			},
+		});
+
+		const caseOne = await screen.findByRole("region", {
+			name: "Attempt pairs · case-1",
+		});
+		const says = within(caseOne).getByRole("region", {
+			name: "What the pairing says",
+		});
+		const care = within(caseOne).getByRole("region", {
+			name: "Read with care",
+		});
+
+		expect(says).toHaveTextContent("Arm B against arm A on final");
+		expect(says).not.toHaveTextContent("on review");
+		expect(care).toHaveTextContent("Baseline 1, arm A 2 and arm B 3 attempts.");
+		expect(care).toHaveTextContent(
+			"Only output-styles/brief.md differs between arms A and B",
+		);
+		expect(
+			within(caseOne).getByText(
+				"No attempt history to open: a pipeline comparison's attempts record no session.",
+			),
+		).toBeInTheDocument();
+	});
+
 	it("keeps each case's arm cards in view in both presentations", async () => {
 		renderPage();
 		await screen.findByRole("region", { name: "Arms · case-1" });
@@ -627,8 +671,7 @@ describe(ComparisonPage.name, () => {
 	it("renders every served quality reading grouped by case", async () => {
 		renderPage();
 
-		await screen.findByRole("region", { name: "Attempt pairs · case-1" });
-		fireEvent.click(screen.getByRole("button", { name: "What moved" }));
+		fireEvent.click(await screen.findByRole("button", { name: "What moved" }));
 
 		const caseOne = screen.getByRole("table", {
 			name: "WHAT MOVED · case-1",
@@ -689,8 +732,7 @@ describe(ComparisonPage.name, () => {
 	it("associates each case with its own attribution reading under What moved", async () => {
 		renderPage();
 
-		await screen.findByRole("region", { name: "Attempt pairs · case-1" });
-		fireEvent.click(screen.getByRole("button", { name: "What moved" }));
+		fireEvent.click(await screen.findByRole("button", { name: "What moved" }));
 		const caseOne = screen.getByRole("region", {
 			name: "Attribution · case-1",
 		});
@@ -730,8 +772,7 @@ describe(ComparisonPage.name, () => {
 	it("labels the arm pair lowercase, not 'candidate vs Baseline'", async () => {
 		renderPage();
 
-		await screen.findByRole("region", { name: "Attempt pairs · case-1" });
-		fireEvent.click(screen.getByRole("button", { name: "What moved" }));
+		fireEvent.click(await screen.findByRole("button", { name: "What moved" }));
 		const caseOne = screen.getByRole("region", {
 			name: "Attribution · case-1",
 		});
@@ -814,8 +855,7 @@ describe(ComparisonPage.name, () => {
 			</QueryClientProvider>,
 		);
 
-		await screen.findByRole("region", { name: "Attempt pairs · case-1" });
-		fireEvent.click(screen.getByRole("button", { name: "What moved" }));
+		fireEvent.click(await screen.findByRole("button", { name: "What moved" }));
 		expect(
 			screen.getByText(/no corpus difference between these arms/iu),
 		).toBeInTheDocument();
