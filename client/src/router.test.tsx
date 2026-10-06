@@ -113,7 +113,10 @@ describe(createAppRouter.name, () => {
 				[
 					`/api/comparisons/${digest}`,
 					{
-						report: { cases: [] },
+						report: { mode: "session", cases: [] },
+						checkpoint: { state: "unavailable", reasons: ["no checkpoint"] },
+						corpusVersions: {},
+						armFigures: {},
 						attribution: {},
 						summary: {},
 						baselineArm: { kind: "supplied" },
@@ -122,9 +125,12 @@ describe(createAppRouter.name, () => {
 			]),
 		);
 
-		await waitFor(() => {
-			expect(screen.getByText("Comparison")).toBeInTheDocument();
-		});
+		expect(
+			await screen.findByRole("heading", {
+				level: 1,
+				name: /^Comparison · session/u,
+			}),
+		).toBeInTheDocument();
 	});
 
 	it("renders standalone saved session history", async () => {
