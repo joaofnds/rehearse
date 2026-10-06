@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { z } from "zod";
 import { createHash } from "node:crypto";
 import type { JsonValue } from "#benchmark/json-value";
 import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
@@ -2249,29 +2248,12 @@ describe("saved session agents API", () => {
 		const fixture = await writtenAgentTreeAttempt();
 		const app = appFor(fixture.runsDirectory);
 		const base = `/api/attempts/session/${fixture.caseId}/${fixture.uuid}/history/agents`;
-		const listed = await app.request(base);
-		const agents = z
-			.object({
-				tree: z.object({
-					agents: z.array(
-						z.object({
-							agentId: z.string(),
-							deliveryEvents: z
-								.array(z.object({ eventId: z.string() }))
-								.optional(),
-						}),
-					),
-				}),
-			})
-			.parse(await listed.json());
-		const eventId = agents.tree.agents.find(({ agentId }) => agentId === "a1")
-			?.deliveryEvents?.[0]?.eventId;
 
-		const response = await app.request(`${base}/a1/${eventId ?? ""}`);
+		const response = await app.request(`${base}/a1/4:1`);
 
 		expect(response.status).toBe(200);
 		expect(await response.json()).toMatchObject({
-			eventId,
+			eventId: "4:1",
 			kind: "result",
 			state: "delivered",
 		});
@@ -2285,6 +2267,44 @@ describe("saved session agents API", () => {
 		);
 
 		expect(response.status).toBe(404);
+	});
+
+	it("answers not found for a file whose name is not a provider agent id", async () => {
+		const fixture = await writtenAgentTreeAttempt();
+		await Bun.write(
+			join(fixture.directory, "subagents", "agent-a1.x.jsonl"),
+			Bun.file(join(AGENT_TREE_FIXTURE, "subagents", "agent-a1.jsonl")),
+		);
+
+		const response = await appFor(fixture.runsDirectory).request(
+			`/api/attempts/session/${fixture.caseId}/${fixture.uuid}/history/agents/a1.x/4:1`,
+		);
+
+		expect(response.status).toBe(404);
+	});
+
+	it("reads a confirmation rep's agents and excerpts from the rep's own directory", async () => {
+		const fixture = await writtenConfirmationAttempt();
+		for (const name of ["agent-a1.jsonl", "agent-a1.meta.json"]) {
+			await Bun.write(
+				join(fixture.paths.rep(fixture.repId).directory, "subagents", name),
+				Bun.file(join(AGENT_TREE_FIXTURE, "subagents", name)),
+			);
+		}
+		const app = appFor(fixture.runsDirectory);
+		const route = `/api/groups/${fixture.groupId}/reps/${fixture.repId}/attempt/history/agents`;
+
+		const agents = await app.request(route);
+		const excerpt = await app.request(`${route}/a1/4:1`);
+
+		expect(await agents.json()).toMatchObject({
+			tree: { agents: [{ agentId: "a1", evidence: "available" }] },
+		});
+		expect(excerpt.status).toBe(200);
+		expect(await excerpt.json()).toMatchObject({
+			eventId: "4:1",
+			state: "delivered",
+		});
 	});
 
 	it("serves a confirmation rep's agents through its own route", async () => {

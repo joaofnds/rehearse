@@ -1150,14 +1150,11 @@ async function agentDetailFor(
 	const directory = await verifiedDirectoryWhenPresent(input.directory, [
 		SUBAGENTS_DIRECTORY,
 	]);
+	const name = `agent-${agentId}.jsonl`;
 	const transcript =
-		directory === undefined
+		directory === undefined || subagentTranscriptAgentId(name) === undefined
 			? undefined
-			: await guardedText(
-					input.root,
-					directory,
-					`agent-${parseIdentity(agentId)}.jsonl`,
-				);
+			: await guardedText(input.root, directory, name);
 	if (transcript === undefined) {
 		return undefined;
 	}
