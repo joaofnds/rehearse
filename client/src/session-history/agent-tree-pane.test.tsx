@@ -17,6 +17,7 @@ import {
 	sessionHistoryReport,
 } from "#benchmark/session-history";
 import { recordedSubagents } from "#benchmark/subagent-evidence";
+import type { ClaudeCallMetrics } from "#benchmark/contracts";
 import { z } from "zod";
 import { stubFetchByPath } from "#client/test-support/fetch-stub";
 import { SessionHistoryPage } from "./session-history-page";
@@ -152,7 +153,10 @@ async function fixtureInput(variant: Variant): Promise<AgentTreeInput> {
 	};
 }
 
-async function renderFixturePage(variant: Variant = "recorded"): Promise<void> {
+async function renderFixturePage(
+	variant: Variant = "recorded",
+	modelUsage?: ClaudeCallMetrics["modelUsage"],
+): Promise<void> {
 	const input = await fixtureInput(variant);
 	const a1 = input.subagents.find(({ agentId }) => agentId === "a1");
 	const tree = agentTree(input);
@@ -188,7 +192,7 @@ async function renderFixturePage(variant: Variant = "recorded"): Promise<void> {
 					cost: agentCostAllocation({
 						...input,
 						rates: committedRateCatalog,
-						modelUsage: undefined,
+						modelUsage,
 					}),
 				},
 			],
@@ -278,6 +282,30 @@ describe("agent tree in the saved-attempt workbench", () => {
 
 		expect(detail).toHaveTextContent(
 			"Review agent · agent type reviewer-medium",
+		);
+	});
+
+	it("shows the provider's count beside the calculated cost for each model", async () => {
+		await renderFixturePage("recorded", {
+			"claude-opus-5": {
+				inputTokens: 0,
+				outputTokens: 0,
+				cacheReadInputTokens: 0,
+				cacheCreationInputTokens: 0,
+				costUSD: 0.5,
+				contextWindow: 0,
+				maxOutputTokens: 0,
+			},
+		});
+
+		const byModel = await screen.findByRole("list", {
+			name: "Cost by model",
+		});
+
+		expect(
+			within(byModel).getByRole("listitem", { name: "claude-opus-5" }),
+		).toHaveTextContent(
+			"claude-opus-5 · provider count ✓ Complete · $0.50 · basis: the provider's running count for the session, inherited prefix included · calculated",
 		);
 	});
 

@@ -835,6 +835,20 @@ export function AgentTreePane({
 						? costLabel(cost.calculated)
 						: `? Unavailable · ${cost.reasons.join(", ")}`}
 				</p>
+				{cost.state === "available" ? (
+					<ul
+						aria-label="Cost by model"
+						className="font-mono text-11-5 text-secondary-foreground"
+					>
+						{cost.byModel.map((model) => (
+							<li key={model.model} aria-label={model.model}>
+								{model.model} · provider count {costLabel(model.reported)} ·
+								basis: {model.reportedBasis} · calculated{" "}
+								{costLabel(model.calculated)}
+							</li>
+						))}
+					</ul>
+				) : null}
 			</div>
 			{sourceId === undefined ? null : (
 				<ReceivingAgents
