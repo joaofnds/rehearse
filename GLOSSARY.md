@@ -139,16 +139,21 @@ See [current state](docs/status.md) for implementation coverage and
   attempts that have one, served beside how many attempts it counted and how
   many the arm holds. A report written before word counts reads unavailable.
 - **Comparison arm** — one role in a comparison: baseline, candidate, or the
-  mandatory minimal-corpus control. An arm uses the same corpus snapshot across
-  every benchmark case; a session control may have an empty declared corpus.
-- **Baseline arm, arm A and arm B (comparison screen)** — the names the
-  comparison screen gives the three comparison arms: the baseline arm is the
+  mandatory control. An arm uses the same corpus snapshot across every
+  benchmark case; a session control may have an empty declared corpus.
+- **Baseline arm, arm A and arm B**: the names the comparison screen and
+  `compare attempts` give the three comparison arms. The baseline arm is the
   control, arm A is the baseline role, the corpus before the edit, and arm B is
   the candidate role, the corpus after it. A baseline arm `compare attempts`
-  derived is arm A's corpus with the skill under test removed; one the
-  manifest's author supplied is a minimal corpus.
-- **Skill under test** — the one corpus unit that differs between arms A and B,
-  which a derived baseline arm removes to show the corpus does work at all.
+  derived is arm A's corpus with the skill under test removed, one it took
+  unchanged is arm A run again, and one a manifest supplied is described as a
+  minimal corpus. Name accepted unattended as unsettled, pending the
+  operator's confirmation (ACT-257, doc-229).
+- **Skill under test**: the one corpus unit that differs between arms A and B
+  of a `compare attempts` comparison, which a derived baseline arm removes to
+  show the corpus does work at all. A manifest comparison names none. Name
+  accepted unattended as unsettled, pending the operator's confirmation
+  (ACT-257, doc-229).
 - **What moved (comparison)**: the per-case rows a comparison answers "did the
   change help, hurt or do nothing" with, in order: the overall grade, each hard
   blocker's firings, each quality dimension's letter span, reply length and
