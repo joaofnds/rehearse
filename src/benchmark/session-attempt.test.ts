@@ -2510,3 +2510,119 @@ describe("the state evidence a session attempt preserves", () => {
 		expect(failure.attempt.stateResults).toBeUndefined();
 	});
 });
+
+const SUB_AGENT_FILES = {
+	"agent-a1.jsonl": `${transcriptLine("a1-session", "child reply")}\n`,
+	"agent-a1.meta.json": `${JSON.stringify({ agentType: "reviewer", toolUseId: "toolu_1", spawnDepth: 1 })}\n`,
+};
+
+/**
+ * The provider writes each sub-agent's transcript and meta file under a
+ * directory named for the session, beside the session's own file, so the fake
+ * writes there after the session it wraps has written its transcript.
+ */
+function claudeWithSubagents(
+	projects: string,
+	arrange: (subagents: string) => Promise<void>,
+	session: SessionAttemptRequest["runClaude"] = new FakeClaude(projects, "OK")
+		.run,
+): SessionAttemptRequest["runClaude"] {
+	return async (command, cwd) => {
+		const output = await session(command, cwd);
+		const subagents = join(
+			projects,
+			projectSlug(await realpath(cwd)),
+			namedSession(command),
+			"subagents",
+		);
+		await mkdir(subagents, { recursive: true });
+		await arrange(subagents);
+
+		return output;
+	};
+}
+
+async function writeSubagentFiles(subagents: string): Promise<void> {
+	for (const [name, text] of Object.entries(SUB_AGENT_FILES)) {
+		await writeFile(join(subagents, name), text);
+	}
+}
+
+async function retainedSubagentFiles(
+	records: string,
+): Promise<Record<string, string>> {
+	const directory = join(records, "subagents");
+	const retained: Record<string, string> = {};
+	for (const name of await readdir(directory)) {
+		retained[name] = await Bun.file(join(directory, name)).text();
+	}
+
+	return retained;
+}
+
+describe("the sub-agent evidence a session attempt retains", () => {
+	it("copies each sub-agent's transcript and meta file beside the attempt's transcript and leaves the projects slug empty", async () => {
+		const projects = await projectsRoot();
+		const records = await recordDirectory();
+
+		const attempt = await runSessionAttempt(
+			request({
+				projectsDirectory: projects,
+				recordDirectory: records,
+				runClaude: claudeWithSubagents(projects, writeSubagentFiles),
+			}),
+		);
+
+		expect(await retainedSubagentFiles(records)).toEqual(SUB_AGENT_FILES);
+		const slug = join(projects, projectSlug(attempt.attemptDirectory));
+		expect(await readdir(slug).catch(() => [])).toEqual([]);
+	});
+
+	it("copies the sub-agent files of a session whose provider command failed and leaves the projects slug empty", async () => {
+		const projects = await projectsRoot();
+		const records = await recordDirectory();
+		const session = claudeWithSubagents(projects, writeSubagentFiles);
+		let slug = "";
+
+		const failure = await failureOf(
+			runSessionAttempt(
+				request({
+					projectsDirectory: projects,
+					recordDirectory: records,
+					runClaude: async (command, cwd) => {
+						slug = join(projects, projectSlug(await realpath(cwd)));
+						await session(command, cwd);
+
+						throw new Error("claude exited 1");
+					},
+				}),
+			),
+		);
+
+		expect(failure).toBeInstanceOf(SessionInvocationError);
+		expect(await retainedSubagentFiles(records)).toEqual(SUB_AGENT_FILES);
+		expect(await readdir(slug).catch(() => [])).toEqual([]);
+	});
+
+	describe("when the session's sub-agent directory holds more than the provider's files", () => {
+		it("copies neither a symlink nor a file under another name", async () => {
+			const projects = await projectsRoot();
+			const records = await recordDirectory();
+
+			await runSessionAttempt(
+				request({
+					projectsDirectory: projects,
+					recordDirectory: records,
+					runClaude: claudeWithSubagents(projects, async (subagents) => {
+						await writeSubagentFiles(subagents);
+						await symlink("/etc/hosts", join(subagents, "agent-a2.jsonl"));
+						await writeFile(join(subagents, "notes.txt"), "planted\n");
+						await writeFile(join(subagents, "agent-a3.json"), "{}\n");
+					}),
+				}),
+			);
+
+			expect(await retainedSubagentFiles(records)).toEqual(SUB_AGENT_FILES);
+		});
+	});
+});

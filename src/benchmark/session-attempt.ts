@@ -51,6 +51,7 @@ import {
 import { liveCorpusSource } from "./corpus-file";
 import { normalizeContextEvidence } from "./context-evidence";
 import { STORED_GIT_DIRECTORY } from "./git-directory-name";
+import { preserveSubagentFiles } from "./subagent-evidence";
 import { preserveStateEvidence } from "./session-state-evidence";
 import type { StateResult } from "./session-state-check";
 import { gradeCaseState } from "./session-state-check";
@@ -635,12 +636,20 @@ async function preservedTranscript(
 	const transcriptFile = join(recordDirectory, "transcript.jsonl");
 	await mkdir(recordDirectory, { recursive: true });
 	await Bun.write(transcriptFile, sourceAvailable ? written : "");
+	await preserveSubagentFiles(
+		sessionDirectoryOf(writtenTranscript),
+		recordDirectory,
+	);
 
 	return {
 		file: transcriptFile,
 		sourceAvailable,
 		lines: await parseTranscriptFile(transcriptFile),
 	};
+}
+
+function sessionDirectoryOf(transcriptPath: string): string {
+	return transcriptPath.replace(/\.jsonl$/u, "");
 }
 
 function diagnosticsFor(
@@ -871,8 +880,9 @@ async function recordAttempt(
 
 /**
  * The projects directory holds live sessions of João's, and one has appeared in
- * a slug directory mid-run, so the only entry removed is the one the attempt
- * named itself. The slug goes with `rmdir`, which removes it only when it is
+ * a slug directory mid-run, so the only entries removed are the ones the attempt
+ * named itself: its session's file and the directory the provider keeps that
+ * session's sub-agents in. The slug goes with `rmdir`, which removes it only when it is
  * empty: a file the attempt cannot account for keeps its directory rather than
  * being deleted with it. Cleanup runs whether the call returned or threw, so a
  * provider that wrote its transcript and then failed leaves nothing behind.
@@ -883,6 +893,10 @@ async function removeAttemptFiles(
 	transcriptPath: string,
 ): Promise<void> {
 	await rm(transcriptPath, { force: true });
+	await rm(sessionDirectoryOf(transcriptPath), {
+		force: true,
+		recursive: true,
+	});
 	await rmdir(slug).catch(() => undefined);
 
 	await rm(attemptDirectory, { force: true, recursive: true });
