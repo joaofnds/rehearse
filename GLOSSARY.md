@@ -306,7 +306,8 @@ See [current state](docs/status.md) for implementation coverage and
   version log to the corpus under test. A result the last edit invalidated was
   fresh against the predecessor and is stale now. The corpus screen's
   "Invalidated by the last edit" card counts those results, and its link opens
-  them in run history.
+  them in run history. Wording accepted unattended as unsettled, pending the
+  operator's confirmation (ACT-258).
 - **Cut** — the 0-based line index of the first session-file record a transcript
   prefix drops. A cut of N keeps lines [0, N).
 - **Corpus layout** — the directory shape a corpus takes once resolved, and the

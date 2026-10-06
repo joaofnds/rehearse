@@ -1508,14 +1508,17 @@ error, rather than failing either.
 Every `/api/runs` row names its record id as `recordId`, spelled as
 `lastEdit.rows` spells it, such as `run:<run>` or `group:<group-id>`.
 `/api/runs?ids=<id>,<id>` returns only the rows with those record ids, taking
-every `ids` parameter given, so the last edit's rows list as run history. An
-empty `ids=` names no record and returns no row.
+every `ids` parameter given, so a client can list the last edit's rows as run
+history; the browser does not call it, filtering the rows it already holds
+instead. An empty `ids=` names no record and returns no row.
 
 The browser's run history opens the last edit's rows at
 `/?invalidatedBy=<previous>..<current>`, naming the edit by both full
 versions, which the corpus screen's "review them" link fills from `lastEdit`.
+An address holding anything else names no edit and lists no row.
 The address stays the same length however many rows the edit invalidated. The
-screen reads the corpus report again on arrival and lists the run-history rows
+screen reads the corpus report again on arrival, listing nothing until it
+answers, and lists the run-history rows
 whose `recordId` is among `lastEdit.rows`, naming each id it has no row for.
 When `lastEdit` names a different pair, it lists none and links to the current
 last edit's address instead, since the server keeps no list for an earlier
@@ -1555,7 +1558,8 @@ browser comparison needs its control supplied through a comparison manifest.
 That comparison also needs two stage groups at one checkpoint, as
 `compare attempts` does, which a single replay is not.
 With no record written in between, `/api/corpus`'s `lastEdit`
-then names `previous` and carries `invalidated` as its count. A `path` the
+then names `previous`, names the applied `version` as `current`, and carries
+`invalidated` as its count. A `path` the
 corpus report does not list answers 404 on either route. Either route answers
 409 when the linked directory is no longer a corpus or its layout refuses an
 entry, since such a tree has no version to start from. The apply answers
