@@ -447,6 +447,34 @@ describe(agentCostAllocation.name, () => {
 			expect(brief.invokedBy).toEqual({ by: "slash command" });
 			expect(brief.own.requestLines).toEqual([20, 22, 24]);
 		});
+
+		it("shares the window between two skill bodies one row carries", async () => {
+			const body = JSON.stringify({
+				type: "user",
+				isMeta: true,
+				message: {
+					role: "user",
+					content: ["brief", "plan"].map((skill) => ({
+						type: "text",
+						text: `Base directory for this skill: /skills/${skill}\n\n# ${skill}`,
+					})),
+				},
+			});
+
+			const allocation = available(
+				await fixtureAllocation({
+					transcript: (lines) => [
+						...lines.slice(0, LINES_BEFORE_FORKED_SKILL_REQUEST),
+						body,
+						...lines.slice(LINES_BEFORE_FORKED_SKILL_REQUEST),
+					],
+				}),
+			);
+
+			expect(allocation.root.shared.skills).toEqual(
+				expect.arrayContaining(["brief", "plan"]),
+			);
+		});
 	});
 
 	describe("when a compaction follows a skill's delivery", () => {

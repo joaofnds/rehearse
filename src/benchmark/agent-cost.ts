@@ -132,7 +132,7 @@ interface Invocation {
 }
 
 interface Delivery {
-	readonly invocation: Invocation;
+	readonly invocations: readonly Invocation[];
 	readonly request: number | undefined;
 }
 
@@ -241,7 +241,8 @@ function requestLocator(
 
 /**
  * A skill body answering a Skill call names the call. One loaded by a slash
- * command names none, and the skill is the directory the body opens with.
+ * command names none, and the skill is the directory the body opens with; a
+ * row carrying several such bodies delivers each of them.
  */
 function deliveryAt(
 	row: Immutable<TranscriptLine>,
@@ -254,26 +255,27 @@ function deliveryAt(
 		return call === undefined
 			? undefined
 			: {
-					invocation: {
-						skill: call.skill,
-						invokedBy: { by: "Skill call", toolUseId: sourceToolUseId },
-						deliveryLine: line,
-					},
+					invocations: [
+						{
+							skill: call.skill,
+							invokedBy: { by: "Skill call", toolUseId: sourceToolUseId },
+							deliveryLine: line,
+						},
+					],
 					request: call.request,
 				};
 	}
 
-	const [directory] = skillDirectories;
-	if (directory === undefined) {
+	if (skillDirectories.length === 0) {
 		return undefined;
 	}
 
 	return {
-		invocation: {
+		invocations: skillDirectories.map((directory) => ({
 			skill: basename(directory),
 			invokedBy: { by: "slash command" },
 			deliveryLine: line,
-		},
+		})),
 		request: undefined,
 	};
 }
@@ -312,14 +314,14 @@ function skillWindows(
 			continue;
 		}
 
-		const { invocation } = delivery;
+		const { invocations } = delivery;
 		if (
 			current?.request !== undefined &&
 			current.request === delivery.request
 		) {
 			current = {
 				...current,
-				invocations: [...current.invocations, invocation],
+				invocations: [...current.invocations, ...invocations],
 			};
 			continue;
 		}
@@ -329,7 +331,7 @@ function skillWindows(
 			open: line,
 			close: undefined,
 			request: delivery.request,
-			invocations: [invocation],
+			invocations,
 		};
 	}
 
