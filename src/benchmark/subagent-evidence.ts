@@ -1,6 +1,7 @@
-import { lstat, mkdir, readdir } from "node:fs/promises";
+import { lstat, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import type { Immutable } from "./contracts";
+import { readdirIfPresent } from "./file-presence";
 import type { TranscriptLine } from "./transcript";
 
 /** Where a record keeps its session's sub-agent files, beside its transcript. */
@@ -31,7 +32,7 @@ export async function preserveSubagentFiles(
 		providerSessionDirectory(sessionTranscript),
 		SUBAGENTS_DIRECTORY,
 	);
-	const names = await readdir(source).catch(() => []);
+	const names = (await readdirIfPresent(source)) ?? [];
 	const destination = join(recordDirectory, SUBAGENTS_DIRECTORY);
 
 	for (const name of names.filter((each) => SUBAGENT_FILE.test(each))) {

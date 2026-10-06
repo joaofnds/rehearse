@@ -894,8 +894,11 @@ async function recordAttempt(
  * attempt named itself: its session's file and the directory the provider
  * keeps that session's sub-agents in. The slug goes with `rmdir`, which removes
  * it only when it is empty: a file the attempt cannot account for keeps its
- * directory rather than being deleted with it. Cleanup runs whether the call returned or threw, so a
- * provider that wrote its transcript and then failed leaves nothing behind.
+ * directory rather than being deleted with it. Cleanup runs whether the call
+ * returned or threw, so a provider that wrote its transcript and then failed
+ * leaves nothing behind. A sub-agent directory it cannot remove stays where it
+ * is: the record already holds its files, and a failure here would replace the
+ * attempt's own result or error with the cleanup's.
  */
 async function removeAttemptFiles(
 	attemptDirectory: string,
@@ -906,7 +909,7 @@ async function removeAttemptFiles(
 	await rm(providerSessionDirectory(transcriptPath), {
 		force: true,
 		recursive: true,
-	});
+	}).catch(() => undefined);
 	await rmdir(slug).catch(() => undefined);
 
 	await rm(attemptDirectory, { force: true, recursive: true });

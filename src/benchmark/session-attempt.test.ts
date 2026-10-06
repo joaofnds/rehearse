@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "bun:test";
 import {
+	chmod,
 	mkdir,
 	mkdtemp,
 	readdir,
@@ -2729,6 +2730,30 @@ describe("the sub-agent evidence a session attempt retains", () => {
 			);
 
 			expect(await retainedSubagentFiles(records)).toEqual(SUB_AGENT_FILES);
+		});
+	});
+
+	describe("when the session's sub-agent directory cannot be read", () => {
+		it("fails the recording rather than reading the directory as empty", async () => {
+			const projects = await projectsRoot();
+			let locked = "";
+
+			const failure = await failureOf(
+				runSessionAttempt(
+					request({
+						projectsDirectory: projects,
+						recordDirectory: await recordDirectory(),
+						runClaude: claudeWithSubagents(projects, async (subagents) => {
+							await writeSubagentFiles(subagents);
+							await chmod(subagents, 0o000);
+							locked = subagents;
+						}),
+					}),
+				),
+			);
+			await chmod(locked, 0o755);
+
+			expect(failure).toMatchObject({ code: "EACCES" });
 		});
 	});
 });
