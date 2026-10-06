@@ -49,6 +49,7 @@ type SavedComparison = ComparisonIndexResponse["comparisons"][number];
 function runRow(run: string): RunHistoryRow {
 	return {
 		kind: "run",
+		recordId: `run:${run}`,
 		...UNREAD_RUN_FIGURES,
 		shortId: undefined,
 		checkpoints: [],
@@ -69,6 +70,7 @@ function runRow(run: string): RunHistoryRow {
 function sessionAttemptRow(uuid: string): RunHistoryRow {
 	return {
 		kind: "session-attempt",
+		recordId: `attempt:session:brief-reply/${uuid}`,
 		staleness: UNREAD_STALENESS,
 		corpusVersion: undefined,
 		...UNREAD_COST_AND_TIME,

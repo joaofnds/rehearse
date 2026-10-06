@@ -1505,6 +1505,8 @@ longer holds that version's files, or the corpus under test refused hashing. A r
 a run whose manifest or checkpoints do not parse is named unreadable by its
 run id in `stale`, and its run-history row reads unavailable with the parse
 error, rather than failing either.
+Every `/api/runs` row names its record id as `recordId`, spelled as
+`lastEdit.rows` spells it, such as `run:<run>` or `group:<group-id>`.
 `/api/runs?ids=<id>,<id>` returns only the rows with those record ids, taking
 every `ids` parameter given, so the last edit's rows list as run history. An
 empty `ids=` names no record and returns no row.

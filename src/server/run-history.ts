@@ -109,6 +109,8 @@ export const UNJUDGED_REASON =
  * written: the event table has no case column.
  */
 export interface PipelineRunRow {
+	/** The id `lastEdit.rows` and the `ids` filter name the record by. */
+	readonly recordId: string;
 	readonly kind: "run";
 	readonly run: string;
 	readonly shortId: string | undefined;
@@ -176,6 +178,8 @@ function stageGrades(record: RunRecord): readonly ListedStageGrade[] {
 }
 
 export interface SessionAttemptRow {
+	/** The id `lastEdit.rows` and the `ids` filter name the record by. */
+	readonly recordId: string;
 	readonly kind: "session-attempt";
 	readonly caseId: string;
 	readonly uuid: string;
@@ -195,6 +199,8 @@ export interface SessionAttemptRow {
  * replay history reader accepts for it.
  */
 export interface ReplayRow {
+	/** The id `lastEdit.rows` and the `ids` filter name the record by. */
+	readonly recordId: string;
 	readonly kind: "replay";
 	readonly lineage: string;
 	readonly timestamp: string;
@@ -226,6 +232,8 @@ export interface NotApplicable {
  * links, since a rep is evidence of the group rather than a run of its own.
  */
 export interface ConfirmationGroupRow {
+	/** The id `lastEdit.rows` and the `ids` filter name the record by. */
+	readonly recordId: string;
 	readonly kind: "group";
 	readonly groupId: string;
 	readonly shortId: string | undefined;
@@ -473,9 +481,11 @@ async function rowFor(
 		status === "RUNNING"
 			? await heldBy(runsDirectory, run, liveness, launchByPid)
 			: undefined;
+	const recordId = formatRecordId({ kind: "run", run });
 	if (stage === undefined) {
 		return {
 			kind: "run",
+			recordId,
 			run,
 			shortId,
 			checkpoints,
@@ -496,6 +506,7 @@ async function rowFor(
 
 	return {
 		kind: "run",
+		recordId,
 		run,
 		shortId,
 		checkpoints,
@@ -526,17 +537,17 @@ async function sessionAttemptRow(
 	}
 
 	const record = parseSessionAttemptRecord(await Bun.file(recordFile).text());
+	const recordId = formatRecordId({ kind: "attempt:session", ...attempt });
 
 	return {
 		kind: "session-attempt",
+		recordId,
 		caseId: attempt.caseId,
 		uuid: attempt.uuid,
 		shortId,
 		status: record.outcome,
 		corpusVersion: record.corpusVersion,
-		staleness: staleness.of(
-			formatRecordId({ kind: "attempt:session", ...attempt }),
-		),
+		staleness: staleness.of(recordId),
 		links: [
 			{
 				state: "available",
@@ -572,9 +583,11 @@ async function replayRow(
 	const caseId = (await Bun.file(manifestFile).exists())
 		? await sourceCaseId(manifestFile)
 		: undefined;
+	const recordId = formatRecordId({ kind: "attempt:stage", ...attempt });
 
 	return {
 		kind: "replay",
+		recordId,
 		lineage: attempt.lineage,
 		timestamp: attempt.timestamp,
 		shortId,
@@ -584,17 +597,13 @@ async function replayRow(
 			record.runName,
 			record.consumed.stage,
 		),
-		attempt: attempts.get(
-			formatRecordId({ kind: "attempt:stage", ...attempt }),
-		),
+		attempt: attempts.get(recordId),
 		caseId,
 		stage: record.stage,
 		grade: record.scorecard.grade.grade,
 		status: record.scorecard.grade.verdict,
 		corpusVersion: record.corpusVersion,
-		staleness: staleness.of(
-			formatRecordId({ kind: "attempt:stage", ...attempt }),
-		),
+		staleness: staleness.of(recordId),
 		links: [replayLink(attempt, record.consumed.lineage, caseId)],
 		cost: replayCost(record),
 		finalOutcome: {
@@ -772,9 +781,11 @@ async function groupRow(
 	);
 	const reps = await groupReps(runsDirectory, record);
 	const recorded = reps.filter((rep) => "metrics" in rep);
+	const recordId = formatRecordId({ kind: "group", groupId });
 
 	return {
 		kind: "group",
+		recordId,
 		groupId,
 		shortId,
 		caseId: record.caseId,
@@ -782,7 +793,7 @@ async function groupRow(
 		checkpoint,
 		reps: record.reps,
 		corpusVersion: record.inputs.corpusVersion,
-		staleness: staleness.of(formatRecordId({ kind: "group", groupId })),
+		staleness: staleness.of(recordId),
 		repAttempts: repAttempts(record, attempts),
 		links,
 		stageSummaries: stageSummaries(

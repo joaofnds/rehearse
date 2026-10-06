@@ -166,6 +166,34 @@ describe(runHistoryReport.name, () => {
 		});
 	});
 
+	it("names every kind of row by the record id that selects it alone", async () => {
+		const fixture = await writtenFixture();
+		const source = directorySource(await corpusDirectory("build skill\n"));
+		const { rows } = await runHistoryReport(
+			fixture.runsDirectory,
+			source,
+			nothingRunning,
+		);
+
+		const selected = await Promise.all(
+			rows.map(async ({ recordId }) => {
+				const report = await runHistoryReport(
+					fixture.runsDirectory,
+					source,
+					nothingRunning,
+					new Set([recordId]),
+				);
+
+				return report.rows;
+			}),
+		);
+
+		expect(new Set(rows.map(({ kind }) => kind))).toEqual(
+			new Set(["run", "session-attempt", "replay", "group"]),
+		);
+		expect(selected).toEqual(rows.map((row) => [row]));
+	});
+
 	it("names on every kind of row the corpus version its record measured, and reads an older record as not recorded", async () => {
 		const fixture = await writtenFixture();
 		const version: CorpusMeasurement = {

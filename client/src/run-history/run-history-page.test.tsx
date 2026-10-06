@@ -77,6 +77,7 @@ function oneStoppedOneComplete(): RunHistoryResponseBody {
 		rows: [
 			{
 				kind: "run",
+				recordId: "run:2026-09-06T21-58-29.508Z",
 				...UNREAD_RUN_FIGURES,
 				launchId: undefined,
 				shortId: undefined,
@@ -94,6 +95,7 @@ function oneStoppedOneComplete(): RunHistoryResponseBody {
 			},
 			{
 				kind: "run",
+				recordId: "run:2026-09-03T00-00-00.000Z",
 				...UNREAD_RUN_FIGURES,
 				launchId: undefined,
 				shortId: undefined,
@@ -153,6 +155,7 @@ describe(RunHistoryPage.name, () => {
 			rows: [
 				{
 					kind: "run",
+					recordId: "run:2026-09-06T21-58-29.508Z",
 					...UNREAD_RUN_FIGURES,
 					launchId: undefined,
 					shortId: undefined,
@@ -216,6 +219,7 @@ describe(RunHistoryPage.name, () => {
 			rows: [
 				{
 					kind: "run",
+					recordId: "run:2026-09-06T21-58-29.508Z",
 					...UNREAD_RUN_FIGURES,
 					launchId: undefined,
 					shortId: undefined,
@@ -287,6 +291,7 @@ describe(RunHistoryPage.name, () => {
 			rows: [
 				{
 					kind: "run",
+					recordId: "run:2026-09-06T21-58-29.508Z",
 					...UNREAD_RUN_FIGURES,
 					launchId: undefined,
 					shortId: undefined,
@@ -323,6 +328,7 @@ describe(RunHistoryPage.name, () => {
 			rows: [
 				{
 					kind: "run",
+					recordId: "run:2026-09-04T00-00-00.000Z",
 					...UNREAD_RUN_FIGURES,
 					launchId: undefined,
 					shortId: undefined,
@@ -425,6 +431,7 @@ describe(RunHistoryPage.name, () => {
 			return {
 				rows: rows.map(({ name, staleness }) => ({
 					kind: "replay",
+					recordId: `attempt:stage:60758c/${name}`,
 					staleness,
 					corpusVersion: undefined,
 					...UNREAD_REPLAY_FIGURES,
@@ -602,6 +609,7 @@ describe(RunHistoryPage.name, () => {
 			rows: [
 				{
 					kind: "run",
+					recordId: "run:2026-09-06T21-58-29.508Z",
 					...UNREAD_RUN_FIGURES,
 					launchId: undefined,
 					shortId: undefined,
@@ -637,6 +645,7 @@ describe(RunHistoryPage.name, () => {
 			rows: [
 				{
 					kind: "run",
+					recordId: "run:2026-09-06T21-58-29.508Z",
 					...UNREAD_RUN_FIGURES,
 					launchId: undefined,
 					shortId: undefined,
@@ -697,6 +706,7 @@ describe(RunHistoryPage.name, () => {
 				rows: [
 					{
 						kind: "run",
+						recordId: "run:2026-09-06T00-00-00.000Z",
 						...UNREAD_RUN_FIGURES,
 						launchId: undefined,
 						shortId: undefined,
@@ -717,6 +727,7 @@ describe(RunHistoryPage.name, () => {
 					},
 					{
 						kind: "run",
+						recordId: "run:2026-09-05T00-00-00.000Z",
 						...UNREAD_RUN_FIGURES,
 						launchId: undefined,
 						shortId: undefined,
@@ -775,6 +786,7 @@ describe(RunHistoryPage.name, () => {
 		> {
 			return {
 				kind: "run",
+				recordId: "run:2026-09-07T00-00-00.000Z",
 				...UNREAD_RUN_FIGURES,
 				launchId: undefined,
 				shortId: undefined,
@@ -996,6 +1008,7 @@ describe(RunHistoryPage.name, () => {
 				rows: [
 					{
 						kind: "run",
+						recordId: "run:2026-09-06T00-00-00.000Z",
 						...UNREAD_RUN_FIGURES,
 						launchId: undefined,
 						shortId: undefined,
@@ -1199,6 +1212,7 @@ describe(RunHistoryPage.name, () => {
 			rows: [
 				{
 					kind: "run",
+					recordId: "run:2026-09-05T00-00-00.000Z",
 					...UNREAD_RUN_FIGURES,
 					launchId: undefined,
 					shortId: undefined,
@@ -1241,6 +1255,7 @@ describe(RunHistoryPage.name, () => {
 			rows: [
 				{
 					kind: "run",
+					recordId: "run:2026-09-06T21-58-29.508Z",
 					...UNREAD_RUN_FIGURES,
 					launchId: undefined,
 					shortId: undefined,
@@ -1431,6 +1446,7 @@ describe(RunHistoryPage.name, () => {
 			rows: [
 				{
 					kind: "run",
+					recordId: "run:2026-09-06T21-58-29.508Z",
 					...UNREAD_RUN_FIGURES,
 					launchId: undefined,
 					shortId: undefined,
@@ -1454,6 +1470,7 @@ describe(RunHistoryPage.name, () => {
 				},
 				{
 					kind: "run",
+					recordId: "run:2026-09-17T12-50-49.127Z",
 					...UNREAD_RUN_FIGURES,
 					launchId: undefined,
 					shortId: undefined,
@@ -1477,6 +1494,7 @@ describe(RunHistoryPage.name, () => {
 				},
 				{
 					kind: "replay",
+					recordId: "attempt:stage:60758c/2026-09-06T22-33-15.057Z",
 					staleness: UNREAD_STALENESS,
 					corpusVersion: undefined,
 					...UNREAD_REPLAY_FIGURES,
@@ -1499,6 +1517,8 @@ describe(RunHistoryPage.name, () => {
 				},
 				{
 					kind: "session-attempt",
+					recordId:
+						"attempt:session:brief-reply/0f6b6f2a-0000-4000-8000-000000000001",
 					staleness: UNREAD_STALENESS,
 					corpusVersion: undefined,
 					...UNREAD_COST_AND_TIME,
@@ -1516,6 +1536,7 @@ describe(RunHistoryPage.name, () => {
 				},
 				{
 					kind: "group",
+					recordId: "group:group-a",
 					staleness: UNREAD_STALENESS,
 					corpusVersion: undefined,
 					checkpoint: undefined,
@@ -1713,6 +1734,7 @@ describe(RunHistoryPage.name, () => {
 			rows: [
 				{
 					kind: "run",
+					recordId: "run:2026-09-07T00-00-00.000Z",
 					...UNREAD_RUN_FIGURES,
 					launchId: undefined,
 					shortId: "audit-log/r7",
@@ -1742,6 +1764,7 @@ describe(RunHistoryPage.name, () => {
 				},
 				{
 					kind: "replay",
+					recordId: "attempt:stage:60758c/2026-09-06T22-33-15.057Z",
 					staleness: UNREAD_STALENESS,
 					corpusVersion: undefined,
 					...UNREAD_REPLAY_FIGURES,
@@ -1758,6 +1781,7 @@ describe(RunHistoryPage.name, () => {
 				},
 				{
 					kind: "group",
+					recordId: "group:group-a",
 					staleness: UNREAD_STALENESS,
 					corpusVersion: undefined,
 					checkpoint: undefined,
@@ -1854,6 +1878,7 @@ describe(RunHistoryPage.name, () => {
 			rows: [
 				{
 					kind: "run",
+					recordId: "run:2026-09-05T00-00-00.000Z",
 					...UNREAD_RUN_FIGURES,
 					launchId: undefined,
 					shortId: undefined,
@@ -2097,6 +2122,7 @@ describe(RunHistoryPage.name, () => {
 		): RunHistoryResponseBody["rows"][number] {
 			return {
 				kind: "group",
+				recordId: `group:${groupId}`,
 				staleness: UNREAD_STALENESS,
 				corpusVersion: undefined,
 				checkpoint,
