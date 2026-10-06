@@ -253,6 +253,12 @@ describe("/?invalidatedBy", () => {
 				{ pending: "/api/corpus" },
 				"Reading the last edit…",
 			],
+			[
+				"run history is loading",
+				NAMED,
+				{ pending: "/api/runs" },
+				"Reading run history…",
+			],
 		])(
 			"lists no rows when %s and says why",
 			async (_case, path, served, reason) => {
