@@ -7,6 +7,7 @@ import { sessionHistoryRequestCosts } from "./session-history";
 import type {
 	SessionHistoryCostReading,
 	SessionHistoryRequestCost,
+	SessionHistoryRequestEntry,
 	SessionHistoryRequestSeries,
 } from "./session-history";
 import { parseTranscript } from "./transcript";
@@ -23,6 +24,14 @@ const DESCENDANTS_BASIS =
 const BOUNDARY_ABSENT = "the transcript carries no attempt boundary";
 const COVERAGE_UNKNOWN_MODEL =
 	"an agent without a kept transcript may have run on the same model";
+const PREFIX_UNKNOWN_MODEL =
+	"the inherited prefix holds a request on an unknown model";
+const UNMODELED_REQUEST =
+	"an attempt request names no model and may have run on any of them";
+const PROVIDER_BASIS =
+	"the provider's session count for models no other agent ran on";
+const REPORTED_BASIS =
+	"the provider's running count for the session, inherited prefix included";
 
 /** A set of requests, what they cost, and the rule that put them together. */
 export interface CostScope {
@@ -59,6 +68,7 @@ export type ProviderAgentCost =
 			readonly state: "reported";
 			readonly costUsd: number;
 			readonly models: readonly string[];
+			readonly basis: string;
 	  }
 	| { readonly state: "not separable"; readonly reason: string };
 
@@ -81,6 +91,7 @@ export interface SubAgentCost extends AgentCost {
 export interface ModelCost {
 	readonly model: string;
 	readonly reported: SessionHistoryCostReading;
+	readonly reportedBasis: string;
 	readonly calculated: SessionHistoryCostReading;
 }
 
@@ -152,6 +163,9 @@ interface Ledger {
 	readonly agents: readonly SubAgent[];
 	readonly allocations: ReadonlyMap<Owner, Allocation>;
 	readonly modelsByOwner: ReadonlyMap<Owner, ReadonlySet<string>>;
+	/** Absent when a prefix request's model is unknown. */
+	readonly modelsBeforeAttempt: ReadonlySet<string> | undefined;
+	readonly unmodeled: boolean;
 	readonly modelUsage: ClaudeCallMetrics["modelUsage"];
 	readonly coverageComplete: boolean;
 	readonly totals: ReadonlyMap<string, Tally>;
@@ -379,24 +393,56 @@ function unavailableAgentReason(agentId: string): string {
 }
 
 /**
- * The models an agent spent on in the attempt. A request that carried no
- * usage spent nothing, so the provider counts nothing for its model, as for
- * the rows it writes under the model name "<synthetic>".
+ * The models requests spent on, with undefined for a request that names none.
+ * A request that carried no usage spent nothing, so the provider counts
+ * nothing for its model, as for the rows it writes under the model name
+ * "<synthetic>".
  */
-function attemptModels(
-	series: Immutable<SessionHistoryRequestSeries>,
-): ReadonlySet<string> {
+function spentModels(
+	entries: Immutable<readonly SessionHistoryRequestEntry[]>,
+): ReadonlySet<string | undefined> {
 	return new Set(
-		series.entries
-			.filter(({ region }) => region === "attempt")
+		entries
 			.filter(
 				(entry) =>
 					entry.usageState !== "complete" ||
 					entry.totalInputTokens + entry.usage.outputTokens > 0,
 			)
-			.map(({ model }) => model)
-			.filter((model) => model !== undefined),
+			.map(({ model }) => model),
 	);
+}
+
+function attemptEntries(
+	series: Immutable<SessionHistoryRequestSeries>,
+): Immutable<readonly SessionHistoryRequestEntry[]> {
+	return series.entries.filter(({ region }) => region === "attempt");
+}
+
+function known(models: ReadonlySet<string | undefined>): ReadonlySet<string> {
+	return new Set([...models].filter((model) => model !== undefined));
+}
+
+/** The root's prefix requests and every inherited agent's. */
+function modelsBeforeAttempt(
+	tree: Immutable<AgentTree>,
+): ReadonlySet<string> | undefined {
+	const entries = tree.root.series.entries.filter(
+		({ region }) => region !== "attempt",
+	);
+	for (const agent of tree.agents) {
+		if (agent.context !== "inherited") {
+			continue;
+		}
+
+		if (agent.evidence !== "available") {
+			return undefined;
+		}
+
+		entries.push(...agent.series.entries);
+	}
+	const models = spentModels(entries);
+
+	return models.has(undefined) ? undefined : known(models);
 }
 
 function ownTally(allocation: Readonly<Allocation>): Tally {
@@ -491,6 +537,14 @@ function providerCost(
 		return { state: "not separable", reason: COVERAGE_UNKNOWN_MODEL };
 	}
 
+	if (ledger.unmodeled) {
+		return { state: "not separable", reason: UNMODELED_REQUEST };
+	}
+
+	if (ledger.modelsBeforeAttempt === undefined) {
+		return { state: "not separable", reason: PREFIX_UNKNOWN_MODEL };
+	}
+
 	const models = [...(ledger.modelsByOwner.get(owner) ?? [])].toSorted();
 	if (models.length === 0) {
 		return {
@@ -501,6 +555,13 @@ function providerCost(
 
 	let costUsd = 0;
 	for (const model of models) {
+		if (ledger.modelsBeforeAttempt.has(model)) {
+			return {
+				state: "not separable",
+				reason: `the inherited prefix also ran on ${model}`,
+			};
+		}
+
 		const shared = [...ledger.modelsByOwner].some(
 			([other, used]) => other !== owner && used.has(model),
 		);
@@ -522,7 +583,7 @@ function providerCost(
 		costUsd += usage.costUSD;
 	}
 
-	return { state: "reported", costUsd, models };
+	return { state: "reported", costUsd, models, basis: PROVIDER_BASIS };
 }
 
 function skillCosts(
@@ -646,7 +707,13 @@ function modelCosts(
 							reasons: ["the record carries no provider count for this model"],
 						}
 					: { state: "complete", costUsd: usage.costUSD },
-			calculated: readingOf(summed(parts, missing)),
+			reportedBasis: REPORTED_BASIS,
+			calculated: readingOf(
+				summed(
+					parts,
+					ledger.unmodeled ? [...missing, UNMODELED_REQUEST] : missing,
+				),
+			),
 		};
 	});
 }
@@ -718,8 +785,12 @@ export function agentCostAllocation(
 		modelsByOwner: new Map<Owner, ReadonlySet<string>>(
 			[...participants].map(([owner, { series }]) => [
 				owner,
-				attemptModels(series),
+				known(spentModels(attemptEntries(series))),
 			]),
+		),
+		modelsBeforeAttempt: modelsBeforeAttempt(tree),
+		unmodeled: [...participants.values()].some(({ series }) =>
+			spentModels(attemptEntries(series)).has(undefined),
 		),
 		modelUsage: input.modelUsage,
 		coverageComplete: tree.coverage.state === "complete",

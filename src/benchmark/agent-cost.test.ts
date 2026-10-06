@@ -22,6 +22,10 @@ const INHERITED_PREFIX_LINES = 3;
 const LINES_BEFORE_A4_LAUNCH = 19;
 /** The fixture transcript up to, and not including, review-docs' request. */
 const LINES_BEFORE_SECOND_SKILL_REQUEST = 11;
+const PROVIDER_BASIS =
+	"the provider's session count for models no other agent ran on";
+const UNMODELED_REQUEST =
+	"an attempt request names no model and may have run on any of them";
 
 interface FixtureOverrides {
 	readonly prefixLinesExcluded?: number | undefined;
@@ -509,12 +513,22 @@ describe(agentCostAllocation.name, () => {
 
 	describe("when every agent's transcript was kept", () => {
 		const withoutA4 = {
+			prefixLinesExcluded: 0,
 			transcript: (lines: readonly string[]) =>
-				lines.slice(0, LINES_BEFORE_A4_LAUNCH),
+				lines.slice(INHERITED_PREFIX_LINES, LINES_BEFORE_A4_LAUNCH),
+			subagents: (recorded: readonly SubagentEvidence[]) =>
+				recorded.filter(({ agentId }) => agentId !== "a0"),
 			modelUsage: {
 				"claude-sonnet-5": modelUsage(0.04),
 				"claude-opus-5": modelUsage(0.03),
 			},
+		};
+		const withPrefix = {
+			...withoutA4,
+			prefixLinesExcluded: INHERITED_PREFIX_LINES,
+			transcript: (lines: readonly string[]) =>
+				lines.slice(0, LINES_BEFORE_A4_LAUNCH),
+			subagents: (recorded: readonly SubagentEvidence[]) => recorded,
 		};
 
 		it("shows the provider's cost per model beside the calculated one", async () => {
@@ -547,6 +561,7 @@ describe(agentCostAllocation.name, () => {
 				state: "reported",
 				costUsd: 0.03,
 				models: ["claude-opus-5"],
+				basis: PROVIDER_BASIS,
 			});
 		});
 
@@ -575,9 +590,13 @@ describe(agentCostAllocation.name, () => {
 			const allocation = await fixtureAllocation({
 				...withoutA4,
 				subagents: (recorded) =>
-					recorded.map((each) =>
+					withoutA4.subagents(recorded).map((each) =>
 						each.agentId === "a2"
-							? { ...each, transcript: `${each.transcript}\n${synthetic}` }
+							? {
+									agentId: each.agentId,
+									transcript: `${each.transcript}\n${synthetic}`,
+									meta: each.meta,
+								}
 							: each,
 					),
 			});
@@ -586,6 +605,7 @@ describe(agentCostAllocation.name, () => {
 				state: "reported",
 				costUsd: 0.03,
 				models: ["claude-opus-5"],
+				basis: PROVIDER_BASIS,
 			});
 		});
 
@@ -596,6 +616,73 @@ describe(agentCostAllocation.name, () => {
 				available(allocation).root.provider.state,
 				agent(allocation, "a1").provider.state,
 			]).toEqual(["not separable", "not separable"]);
+		});
+
+		describe("when the inherited prefix ran on an agent's model", () => {
+			it("leaves that model's provider count unseparated", async () => {
+				const allocation = await fixtureAllocation({
+					...withPrefix,
+					subagents: (recorded) => [
+						...recorded,
+						{
+							agentId: "a6",
+							transcript:
+								recorded.find(({ agentId }) => agentId === "a3")?.transcript ??
+								"",
+							meta: undefined,
+						},
+					],
+				});
+
+				expect(agent(allocation, "a2").provider).toEqual({
+					state: "not separable",
+					reason: "the inherited prefix also ran on claude-opus-5",
+				});
+			});
+		});
+
+		describe("when an inherited agent left no transcript", () => {
+			it("separates no agent's provider count", async () => {
+				const allocation = await fixtureAllocation(withPrefix);
+
+				expect(agent(allocation, "a2").provider).toEqual({
+					state: "not separable",
+					reason: "the inherited prefix holds a request on an unknown model",
+				});
+			});
+		});
+
+		describe("when an attempt request names no model", () => {
+			const unmodeled = {
+				...withoutA4,
+				transcript: (lines: readonly string[]) =>
+					withoutA4
+						.transcript(lines)
+						.map((row) =>
+							row.includes('"requestId":"req-r1"')
+								? row.replace('"model":"claude-sonnet-5",', "")
+								: row,
+						),
+			};
+
+			it("reads every model's calculated cost incomplete", async () => {
+				const allocation = available(await fixtureAllocation(unmodeled));
+
+				expect(
+					allocation.byModel.map(({ calculated }) =>
+						reasonsOf(calculated).includes(UNMODELED_REQUEST),
+					),
+				).toEqual([true, true]);
+			});
+
+			it("separates no agent's provider count", async () => {
+				const allocation = await fixtureAllocation(unmodeled);
+
+				expect(agent(allocation, "a2").provider).toEqual({
+					state: "not separable",
+					reason: UNMODELED_REQUEST,
+				});
+			});
 		});
 	});
 
