@@ -87,14 +87,18 @@ function readRows(id: string, requestId: string): readonly string[] {
 /**
  * The doc-225 first fixture. Repeated: the root also reads CLAUDE.md and
  * review agent a1 reads it a second time. Orphaned: a3's meta file names a
- * parent agent the tree does not hold.
+ * parent agent the tree does not hold. Effort-tiered: a2 runs as the
+ * reviewer-medium agent type.
  */
-type Variant = "recorded" | "repeated" | "orphaned";
+type Variant = "recorded" | "repeated" | "orphaned" | "effort-tiered";
 
-function withParent(meta: string | undefined, parentAgentId: string): string {
+function withMeta(
+	meta: string | undefined,
+	fields: Readonly<Record<string, string>>,
+): string {
 	return JSON.stringify({
 		...z.record(z.string(), z.unknown()).parse(JSON.parse(meta ?? "{}")),
-		parentAgentId,
+		...fields,
 	});
 }
 
@@ -121,7 +125,15 @@ async function fixtureInput(variant: Variant): Promise<AgentTreeInput> {
 			if (variant === "orphaned" && each.agentId === "a3") {
 				return {
 					agentId: each.agentId,
-					meta: withParent(each.meta, "zz9"),
+					meta: withMeta(each.meta, { parentAgentId: "zz9" }),
+					transcript: each.transcript,
+				};
+			}
+
+			if (variant === "effort-tiered" && each.agentId === "a2") {
+				return {
+					agentId: each.agentId,
+					meta: withMeta(each.meta, { agentType: "reviewer-medium" }),
 					transcript: each.transcript,
 				};
 			}
@@ -256,6 +268,16 @@ describe("agent tree in the saved-attempt workbench", () => {
 		);
 		expect(detail).toHaveTextContent(
 			"own cost plus each descendant's total; never added into the attempt total",
+		);
+	});
+
+	it("reads an effort-tiered reviewer as a review agent", async () => {
+		await renderFixturePage("effort-tiered");
+
+		const detail = await select("a2 · reviewer-medium");
+
+		expect(detail).toHaveTextContent(
+			"Review agent · agent type reviewer-medium",
 		);
 	});
 

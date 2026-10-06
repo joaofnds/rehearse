@@ -228,9 +228,17 @@ function CostReadings({
 }
 
 function roleLabel(agent: AvailableSubAgent): string {
-	const kind = agent.agentType === "reviewer" ? "Review agent" : "Sub-agent";
+	const kind = isReviewAgentType(agent.agentType)
+		? "Review agent"
+		: "Sub-agent";
 
 	return `${kind} · agent type ${agent.agentType ?? "not recorded"} · not a harness role (worker, Product Owner or Judge)`;
+}
+
+function isReviewAgentType(agentType: string | undefined): boolean {
+	return (
+		agentType === "reviewer" || agentType?.startsWith("reviewer-") === true
+	);
 }
 
 function stoppedLabel(agent: AvailableSubAgent): string {
