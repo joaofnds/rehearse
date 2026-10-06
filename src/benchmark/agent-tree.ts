@@ -11,6 +11,7 @@ import type {
 	SessionHistoryAttemptIdentity,
 	SessionHistoryRequestSeries,
 	SessionHistorySource,
+	TextMeasurement,
 } from "./session-history";
 
 /** One sub-agent's files as the record holds them. */
@@ -62,10 +63,19 @@ export interface AgentTurn {
 	readonly kind: UserTurn;
 }
 
+/** One observed delivery of a source into an agent's context. */
+export interface AgentDelivery {
+	readonly sourceId: string;
+	readonly eventId: string;
+	readonly ordinal: number;
+	readonly measurement: TextMeasurement;
+}
+
 interface AgentReadings {
 	readonly models: readonly string[];
 	readonly series: SessionHistoryRequestSeries;
 	readonly deliveries: readonly SessionHistorySource[];
+	readonly deliveryEvents: readonly AgentDelivery[];
 }
 
 export type RootAgent = AgentReadings;
@@ -322,6 +332,7 @@ function readings(
 		prefixLinesExcluded,
 	});
 	const sources = inherited ? report.startingSources : report.sources;
+	const events = inherited ? report.startingContext : report.attemptEvents;
 	const models = new Set(
 		series.entries
 			.map(({ model }) => model)
@@ -333,6 +344,12 @@ function readings(
 		series,
 		deliveries: sources.filter(
 			({ observedDeliveryCount }) => observedDeliveryCount !== 0,
+		),
+		deliveryEvents: events.flatMap(
+			({ id, sourceId, deliveryOrdinal, measurement }): AgentDelivery[] =>
+				sourceId === undefined || deliveryOrdinal === undefined
+					? []
+					: [{ sourceId, eventId: id, ordinal: deliveryOrdinal, measurement }],
 		),
 	};
 }
@@ -421,7 +438,7 @@ function availableAgent(
 	} else if (firstRowIsFresh(lines)) {
 		context = "fresh";
 	}
-	const { models, series, deliveries } = readings(
+	const { models, series, deliveries, deliveryEvents } = readings(
 		input,
 		file.transcript,
 		childPrefixLinesExcluded(input, file, inherited),
@@ -446,6 +463,7 @@ function availableAgent(
 		models,
 		series,
 		deliveries,
+		deliveryEvents,
 	};
 }
 

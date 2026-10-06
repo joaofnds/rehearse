@@ -171,6 +171,31 @@ describe(agentTree.name, () => {
 		});
 	});
 
+	it("lists each delivery an agent received with its own event and size", async () => {
+		const tree = await fixtureTree();
+
+		expect(tree.agents.find(({ agentId }) => agentId === "a1")).toMatchObject({
+			deliveryEvents: [
+				{
+					sourceId: "project:CLAUDE.md",
+					eventId: "4:1",
+					ordinal: 1,
+					measurement: { state: "complete" },
+				},
+			],
+		});
+		expect(
+			tree.root.deliveryEvents.map(({ sourceId, ordinal }) => ({
+				sourceId,
+				ordinal,
+			})),
+		).toEqual([
+			{ sourceId: "skill:skills/review/SKILL.md", ordinal: 1 },
+			{ sourceId: "skill:skills/review-docs/SKILL.md", ordinal: 1 },
+			{ sourceId: "skill:skills/verify/SKILL.md", ordinal: 1 },
+		]);
+	});
+
 	it("lists the root's own deliveries and none of its children's", async () => {
 		const tree = await fixtureTree();
 
