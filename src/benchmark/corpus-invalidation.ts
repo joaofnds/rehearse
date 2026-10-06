@@ -7,6 +7,7 @@ import { hashCorpusLayout } from "./corpus-layout";
 import { corpusVersionLabel } from "./corpus-version-label";
 import {
 	CorpusVersionError,
+	corpusVersionDigest,
 	readCorpusUnderTest,
 	readCorpusVersion,
 	readCorpusVersionFile,
@@ -31,6 +32,8 @@ export type LastEdit =
 			readonly kind: "measured";
 			/** The version the last edit started from. */
 			readonly previous: string;
+			/** The version the last edit went to, the corpus under test. */
+			readonly current: string;
 			readonly count: number;
 			readonly rows: readonly string[];
 	  }
@@ -246,6 +249,17 @@ export async function corpusInvalidation(
 		]),
 	);
 
+	if (layout.refusals.length > 0) {
+		return {
+			readBy,
+			invalidated: new Map(),
+			lastEdit: {
+				kind: "not-recorded",
+				reason:
+					"the corpus under test refused hashing, so it has no place in its log",
+			},
+		};
+	}
 	if (underTest.previousVersion === undefined) {
 		return {
 			readBy,
@@ -253,9 +267,7 @@ export async function corpusInvalidation(
 			lastEdit: {
 				kind: "not-recorded",
 				reason:
-					layout.refusals.length > 0
-						? "the corpus under test refused hashing, so it has no place in its log"
-						: "the corpus under test has no earlier version in its log to compare against",
+					"the corpus under test has no earlier version in its log to compare against",
 			},
 		};
 	}
@@ -300,6 +312,7 @@ export async function corpusInvalidation(
 		lastEdit: {
 			kind: "measured",
 			previous: underTest.previousVersion,
+			current: corpusVersionDigest(layout.files),
 			count: invalidatedRows.length,
 			rows: invalidatedRows,
 		},

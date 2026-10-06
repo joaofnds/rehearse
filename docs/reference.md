@@ -1498,7 +1498,8 @@ judged, and otherwise by its latest checkpoint directory in pipeline order, as
 the run history judges it, so a run whose latest directory holds no record, or
 whose stopped stage cannot be read, has no judgment and is not among them
 either. `lastEdit`
-answers `{kind: "measured", previous, count, rows}`, or `{kind:
+answers `{kind: "measured", previous, current, count, rows}`, where `previous`
+and `current` are the full versions the edit went from and to, or `{kind:
 "not-recorded", reason}` when the log holds no earlier version, the store no
 longer holds that version's files, or the corpus under test refused hashing. A record that cannot be read counts nowhere, and
 a run whose manifest or checkpoints do not parse is named unreadable by its
