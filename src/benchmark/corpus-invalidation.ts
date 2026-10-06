@@ -7,7 +7,6 @@ import { hashCorpusLayout } from "./corpus-layout";
 import { corpusVersionLabel } from "./corpus-version-label";
 import {
 	CorpusVersionError,
-	corpusVersionDigest,
 	readCorpusUnderTest,
 	readCorpusVersion,
 	readCorpusVersionFile,
@@ -249,7 +248,7 @@ export async function corpusInvalidation(
 		]),
 	);
 
-	if (layout.refusals.length > 0) {
+	if (underTest.version === undefined) {
 		return {
 			readBy,
 			invalidated: new Map(),
@@ -312,7 +311,7 @@ export async function corpusInvalidation(
 		lastEdit: {
 			kind: "measured",
 			previous: underTest.previousVersion,
-			current: corpusVersionDigest(layout.files),
+			current: underTest.version,
 			count: invalidatedRows.length,
 			rows: invalidatedRows,
 		},

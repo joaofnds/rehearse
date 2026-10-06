@@ -384,6 +384,15 @@ describe(readCorpusUnderTest.name, () => {
 		});
 	});
 
+	it("names the version it hashed the corpus under test as, measured or not", async () => {
+		await measureWith("brief\n");
+		await writeFile(join(source.root, "output-styles", "brief.md"), "edited\n");
+
+		const underTest = await readCorpusUnderTest(recordsDirectory, source);
+
+		expect(underTest.version).toBe(await measureWith("edited\n"));
+	});
+
 	it("counts measured versions between the record's and the corpus under test", async () => {
 		const first = await measureWith("brief\n");
 		await measureWith("second\n");
