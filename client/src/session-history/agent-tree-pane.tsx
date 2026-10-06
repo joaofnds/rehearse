@@ -508,6 +508,37 @@ function parentIdOf(agent: SubAgent): string | undefined {
 	return agent.parent.state === "agent" ? agent.parent.agentId : undefined;
 }
 
+/**
+ * The agents no chain of parents links to the root: unlinked ones, and ones
+ * whose recorded parent is missing from the tree or loops back on itself.
+ */
+function detachedAgents(tree: Tree): readonly SubAgent[] {
+	const reached = new Set<string | undefined>([undefined]);
+	let grew = true;
+	while (grew) {
+		const next = tree.agents.filter(
+			(agent) =>
+				!reached.has(agent.agentId) &&
+				agent.parent.state !== "unlinked" &&
+				reached.has(parentIdOf(agent)),
+		);
+		for (const agent of next) {
+			reached.add(agent.agentId);
+		}
+		grew = next.length > 0;
+	}
+
+	return tree.agents.filter((agent) => !reached.has(agent.agentId));
+}
+
+function detachedLabel(agent: SubAgent): string {
+	const parentId = parentIdOf(agent);
+
+	return parentId === undefined
+		? `${agentLabel(agent)} · unlinked`
+		: `${agentLabel(agent)} · parent ${parentId} not in the tree`;
+}
+
 function AgentBranch({
 	tree,
 	allocation,
@@ -700,9 +731,7 @@ export function AgentTreePane({
 		agentId: undefined,
 	});
 	const { tree, cost } = agents;
-	const unlinked = tree.agents.filter(
-		(agent) => agent.parent.state === "unlinked",
-	);
+	const detached = detachedAgents(tree);
 
 	return (
 		<section
@@ -746,10 +775,10 @@ export function AgentTreePane({
 							selection={selection}
 							onSelect={setSelection}
 						/>
-						{unlinked.map((agent) => (
+						{detached.map((agent) => (
 							<li key={agent.agentId} aria-label={agent.agentId}>
 								<TreeButton
-									label={`${agentLabel(agent)} · unlinked`}
+									label={detachedLabel(agent)}
 									pressed={
 										selection.kind === "agent" &&
 										selection.agentId === agent.agentId

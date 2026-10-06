@@ -17,6 +17,7 @@ import {
 	sessionHistoryReport,
 } from "#benchmark/session-history";
 import { recordedSubagents } from "#benchmark/subagent-evidence";
+import { z } from "zod";
 import { stubFetchByPath } from "#client/test-support/fetch-stub";
 import { SessionHistoryPage } from "./session-history-page";
 
@@ -84,10 +85,21 @@ function readRows(id: string, requestId: string): readonly string[] {
 }
 
 /**
- * The doc-225 first fixture, where the root may also read CLAUDE.md and
- * review agent a1 may read it a second time.
+ * The doc-225 first fixture. Repeated: the root also reads CLAUDE.md and
+ * review agent a1 reads it a second time. Orphaned: a3's meta file names a
+ * parent agent the tree does not hold.
  */
-async function fixtureInput(repeated: boolean): Promise<AgentTreeInput> {
+type Variant = "recorded" | "repeated" | "orphaned";
+
+function withParent(meta: string | undefined, parentAgentId: string): string {
+	return JSON.stringify({
+		...z.record(z.string(), z.unknown()).parse(JSON.parse(meta ?? "{}")),
+		parentAgentId,
+	});
+}
+
+async function fixtureInput(variant: Variant): Promise<AgentTreeInput> {
+	const repeated = variant === "repeated";
 	const transcript = await Bun.file(join(FIXTURE, "transcript.jsonl")).text();
 	const subagents = await recordedSubagents(FIXTURE);
 
@@ -105,8 +117,16 @@ async function fixtureInput(repeated: boolean): Promise<AgentTreeInput> {
 			? [transcript.trimEnd(), ...readRows("toolu_rr", "req-rr")].join("\n")
 			: transcript,
 		prefixLinesExcluded: INHERITED_PREFIX_LINES,
-		subagents: subagents.map((each) =>
-			repeated && each.agentId === "a1"
+		subagents: subagents.map((each) => {
+			if (variant === "orphaned" && each.agentId === "a3") {
+				return {
+					agentId: each.agentId,
+					meta: withParent(each.meta, "zz9"),
+					transcript: each.transcript,
+				};
+			}
+
+			return repeated && each.agentId === "a1"
 				? {
 						agentId: each.agentId,
 						meta: each.meta,
@@ -115,13 +135,13 @@ async function fixtureInput(repeated: boolean): Promise<AgentTreeInput> {
 							...readRows("toolu_a1r2", "req-a1-3"),
 						].join("\n"),
 					}
-				: each,
-		),
+				: each;
+		}),
 	};
 }
 
-async function renderFixturePage(repeated = false): Promise<void> {
-	const input = await fixtureInput(repeated);
+async function renderFixturePage(variant: Variant = "recorded"): Promise<void> {
+	const input = await fixtureInput(variant);
 	const a1 = input.subagents.find(({ agentId }) => agentId === "a1");
 	const tree = agentTree(input);
 	const a1Agent = tree.agents.find(({ agentId }) => agentId === "a1");
@@ -284,8 +304,20 @@ describe("agent tree in the saved-attempt workbench", () => {
 		).toHaveTextContent("Incomplete");
 	});
 
+	it("lists an agent whose recorded parent is not in the tree", async () => {
+		await renderFixturePage("orphaned");
+
+		const nav = await agentTreeNav();
+
+		expect(
+			within(nav).getByRole("button", {
+				name: /^a3 · Explore · Find the docs · parent zz9 not in the tree/u,
+			}),
+		).toBeInTheDocument();
+	});
+
 	it("lists the agents a source reached and each delivery with its excerpt", async () => {
-		await renderFixturePage(true);
+		await renderFixturePage("repeated");
 		const sources = await screen.findByRole("navigation", {
 			name: "Loaded sources",
 		});
