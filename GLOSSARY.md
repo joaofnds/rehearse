@@ -58,6 +58,22 @@ See [current state](docs/status.md) for implementation coverage and
   path means the corpora are identical; exactly one means a movement can be
   attributed to that path; more than one refuses attribution and names every
   differing path.
+- **Attribution (cost)** — the rule that charges each request of an attempt to
+  exactly one agent, and within that agent to one skill's window or to a
+  remainder, so every request counts once toward the attempt's total. A skill's
+  window runs from its delivery to the next skill delivery, user prompt or
+  interruption, or the transcript's end, because the transcript records no
+  skill end, so work done after a skill's job ends is still charged to it.
+  Skills do not nest: a skill delivered inside another's window closes that
+  window. Each reading shows the basis it was built on.
+- **Own cost**: the requests a scope is directly charged with, an agent's own
+  transcript requests or a skill's window, excluding its sub-agents.
+- **Including descendants**: a scope's own cost plus the total of every
+  sub-agent below it. It is shown beside the own cost and never added into the
+  attempt's total, which already holds those requests once.
+- **Shared remainder**: an agent's requests after one request delivered more
+  than one skill, kept together rather than split between those skills.
+- **Unattributed remainder**: an agent's requests outside every skill window.
 - **Calibration** — the step that validates a Judge result against a human
   review and turns findings into rubric or instruction changes. It reads the
   frozen evidence a run recorded and the corpus files as they stand now, never
@@ -810,6 +826,18 @@ See [current state](docs/status.md) for implementation coverage and
   was. It writes no checkpoint, so it has no lineage placing it among the run's
   other stages; its stop record names it by run and stage instead. The run list
   shows the run as `STOPPED:<stage>`, linked to that stage's context history.
+- **Sub-agent** — an agent a session launches with the Agent tool, or a skill
+  the provider runs in its own context. It has its own context window and
+  transcript, is linked to its parent by the call that launched it, and is
+  distinct from the harness roles worker, Product Owner and Judge. Two
+  sub-agents' context windows are never summed into one active-context reading.
+- **Review agent**: a sub-agent whose agent type is a reviewer type, such as
+  `reviewer` or `reviewer-medium`. It is not the reviewer of a **Human
+  review**, who records a verdict against a Judge result.
+- **Inherited agent**: a sub-agent named in an attempt's inherited prefix. It
+  ran before the attempt began, so it counts toward neither the attempt's
+  coverage nor its spend. The word "fork" is kept for copying a transcript
+  prefix.
 - **Target repository (template project)** — the real application repository,
   kept at a stable baseline, that tasks run against.
 - **Target check** — one command declared by the pipeline and run against the
