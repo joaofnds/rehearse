@@ -276,10 +276,12 @@ function parentFor(
 	if (call !== undefined) {
 		return { parent: linkTo(call.owner, "launch call"), launch: call };
 	}
+
 	const result = index.results.get(agentId);
 	if (result === undefined) {
 		return { parent: { state: "unlinked" }, launch: undefined };
 	}
+
 	const answered =
 		result.toolUseId === undefined
 			? undefined
@@ -306,6 +308,7 @@ function readMeta(text: string | undefined): AgentMeta {
 	} catch {
 		return { state: "unreadable" };
 	}
+
 	const meta = metaSchema.safeParse(parsed);
 	if (!meta.success) {
 		return { state: "unreadable" };
@@ -374,13 +377,16 @@ function turnKind(row: Immutable<UserRow>): AgentTurnKind | undefined {
 	if (row.isMeta === true) {
 		return undefined;
 	}
+
 	if (row.isCompactSummary === true) {
 		return "compaction summary";
 	}
+
 	const blocks = row.message.content;
 	if (blocks.some((block) => toolResultBlockSchema.safeParse(block).success)) {
 		return undefined;
 	}
+
 	const interrupted = blocks.some((block) => {
 		const text = textBlockSchema.safeParse(block);
 
@@ -413,6 +419,7 @@ function isInherited(
 	if (link === undefined || seen.has(agentId)) {
 		return false;
 	}
+
 	const { launch, parent } = link;
 	if (
 		launch?.owner === ROOT &&

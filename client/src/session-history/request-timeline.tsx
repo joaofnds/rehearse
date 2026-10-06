@@ -152,6 +152,7 @@ function categoryLabel(entry: SessionHistoryRequestEntry): string {
 	if (entry.usageState === "conflict") {
 		return "usage conflict";
 	}
+
 	if (entry.usageState === "incomplete") {
 		return `at least ${categories(entry.lowerBound)}`;
 	}
