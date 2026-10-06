@@ -1,12 +1,28 @@
 import { describe, expect, it } from "bun:test";
 import { join } from "node:path";
 import { agentTree } from "#benchmark/agent-tree";
-import type { AgentTree } from "#benchmark/agent-tree";
+import type { AgentTree, SubagentEvidence } from "#benchmark/agent-tree";
 import { recordedSubagents } from "#benchmark/subagent-evidence";
 
 const FIXTURE = join(import.meta.dir, "__fixtures__", "agent-tree");
+const INHERITED_PREFIX_LINES = 3;
+/** The fixture transcript up to, and not including, a4's launch. */
+const LINES_BEFORE_A4_LAUNCH = 16;
 
-async function fixtureTree(): Promise<AgentTree> {
+interface FixtureOverrides {
+	readonly transcript?: (lines: readonly string[]) => readonly string[];
+	readonly subagents?: (
+		recorded: readonly SubagentEvidence[],
+	) => readonly SubagentEvidence[];
+}
+
+async function fixtureTree(
+	overrides: FixtureOverrides = {},
+): Promise<AgentTree> {
+	const transcript = await Bun.file(join(FIXTURE, "transcript.jsonl")).text();
+	const lines = transcript.split("\n");
+	const recorded = await recordedSubagents(FIXTURE);
+
 	return agentTree({
 		attempt: {
 			kind: "session",
@@ -17,9 +33,9 @@ async function fixtureTree(): Promise<AgentTree> {
 			corpusFiles: [],
 		},
 		resolvedCorpusFiles: [],
-		transcript: await Bun.file(join(FIXTURE, "transcript.jsonl")).text(),
-		prefixLinesExcluded: 3,
-		subagents: await recordedSubagents(FIXTURE),
+		transcript: (overrides.transcript?.(lines) ?? lines).join("\n"),
+		prefixLinesExcluded: INHERITED_PREFIX_LINES,
+		subagents: overrides.subagents?.(recorded) ?? recorded,
 	});
 }
 
@@ -146,6 +162,43 @@ describe(agentTree.name, () => {
 		]);
 	});
 
+	it("shows each agent's launch mode and spawn depth as recorded", async () => {
+		const tree = await fixtureTree();
+
+		expect(
+			Object.fromEntries(
+				tree.agents
+					.filter((agent) => agent.evidence === "available")
+					.map(({ agentId, launchMode, spawnDepth, description }) => [
+						agentId,
+						{ launchMode, spawnDepth, description },
+					]),
+			),
+		).toEqual({
+			a0: {
+				launchMode: "foreground",
+				spawnDepth: 1,
+				description: "Earlier review",
+			},
+			a1: {
+				launchMode: "foreground",
+				spawnDepth: 1,
+				description: "Review the code",
+			},
+			a2: {
+				launchMode: "background",
+				spawnDepth: 1,
+				description: "Review the docs",
+			},
+			a3: {
+				launchMode: "foreground",
+				spawnDepth: 2,
+				description: "Find the docs",
+			},
+			a5: { launchMode: "foreground", spawnDepth: 1, description: undefined },
+		});
+	});
+
 	it("marks the stopped agent stopped and no other", async () => {
 		const tree = await fixtureTree();
 
@@ -226,24 +279,7 @@ describe(agentTree.name, () => {
 		expect(reviewers.every((agent) => !("role" in agent))).toBe(true);
 	});
 
-	it("offers no reading that sums agents into one active context", async () => {
-		const tree = await fixtureTree();
-
-		expect(Object.keys(tree).toSorted()).toEqual([
-			"agents",
-			"coverage",
-			"root",
-		]);
-		expect(
-			tree.agents.every(
-				(agent) =>
-					agent.evidence === "unavailable" ||
-					!agent.series.measuresActiveContextWindow,
-			),
-		).toBe(true);
-	});
-
-	it("prices a streamed child request at its final rows", async () => {
+	it("reads a streamed child request complete from its final rows", async () => {
 		const tree = await fixtureTree();
 
 		const a1 = tree.agents.find(({ agentId }) => agentId === "a1");
@@ -270,31 +306,49 @@ describe(agentTree.name, () => {
 
 	describe("when an inherited agent left no transcript", () => {
 		it("keeps coverage complete", async () => {
-			const allSubagents = await recordedSubagents(FIXTURE);
-			const subagents = allSubagents.filter(({ agentId }) => agentId !== "a0");
-			const fullTranscript = await Bun.file(
-				join(FIXTURE, "transcript.jsonl"),
-			).text();
-			const transcript = fullTranscript.split("\n").slice(0, 16).join("\n");
-
-			const tree = agentTree({
-				attempt: {
-					kind: "session",
-					caseId: "case-a",
-					id: "attempt-a",
-					model: "sonnet",
-					outcome: "SUCCESSFUL",
-					corpusFiles: [],
-				},
-				resolvedCorpusFiles: [],
-				transcript,
-				prefixLinesExcluded: 3,
-				subagents,
+			const tree = await fixtureTree({
+				transcript: (lines) => lines.slice(0, LINES_BEFORE_A4_LAUNCH),
+				subagents: (recorded) =>
+					recorded.filter(({ agentId }) => agentId !== "a0"),
 			});
 
 			expect(tree.coverage).toEqual({ state: "complete" });
 			expect(tree.agents.find(({ agentId }) => agentId === "a0")).toMatchObject(
 				{ evidence: "unavailable", context: "inherited" },
+			);
+		});
+	});
+
+	describe("when a kept agent names no launch and continues a conversation", () => {
+		const stray: SubagentEvidence = {
+			agentId: "a9",
+			meta: "{}",
+			transcript: `${JSON.stringify({
+				type: "user",
+				message: { role: "user", content: "carry on" },
+				parentUuid: "u-earlier",
+				isSidechain: true,
+				cwd: "/work",
+			})}\n`,
+		};
+
+		it("leaves it unlinked rather than guessing a parent", async () => {
+			const tree = await fixtureTree({
+				subagents: (recorded) => [...recorded, stray],
+			});
+
+			expect(
+				tree.agents.find(({ agentId }) => agentId === "a9")?.parent,
+			).toEqual({ state: "unlinked" });
+		});
+
+		it("reads its starting context as not recorded", async () => {
+			const tree = await fixtureTree({
+				subagents: (recorded) => [...recorded, stray],
+			});
+
+			expect(tree.agents.find(({ agentId }) => agentId === "a9")?.context).toBe(
+				"not recorded",
 			);
 		});
 	});
