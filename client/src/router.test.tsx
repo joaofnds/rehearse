@@ -4,6 +4,7 @@ import type { SessionHistoryReport } from "#benchmark/session-history";
 import type { SessionHistoryAttemptSeries } from "#server/session-history-reader";
 import { renderAppWithStub } from "#client/test-support/render-app";
 import { unversionedStaleness } from "#client/test-support/run-figures";
+import type { CorpusResponse } from "#client/corpus/corpus-query";
 import { createAppRouter } from "./router";
 
 const originalFetch = globalThis.fetch;
@@ -95,7 +96,13 @@ describe(createAppRouter.name, () => {
 			new Map([
 				[
 					"/api/corpus",
-					{ root: "/corpus", digest: "a", files: [], refusals: [] },
+					{
+						root: "/corpus",
+						digest: "a",
+						files: [],
+						refusals: [],
+						lastEdit: { kind: "not-recorded", reason: "no earlier version" },
+					} satisfies CorpusResponse,
 				],
 			]),
 		);

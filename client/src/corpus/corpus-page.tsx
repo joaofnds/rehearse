@@ -12,13 +12,41 @@ import { Notice } from "#client/system/components/notice";
 import { launchSettingsQuery } from "#client/launch/settings-query";
 import type { AppliedCorpusEdit } from "./corpus-edit-requests";
 import { AppliedEdit, CorpusEditor } from "./corpus-edit";
+import { LastEditCard } from "./last-edit-card";
 
 type CorpusFile = CorpusResponse["files"][number];
 
-const COLUMNS = ["Path", "Hash", "Last edited", "Read by"] as const;
+const COLUMNS = [
+	"Path",
+	"Hash",
+	"Last edited",
+	"Read by",
+	"Invalidated",
+] as const;
+
+/**
+ * A file's count is measured only against a measured last edit. Without one
+ * the server serves 0 for every file, which no measurement made.
+ */
+function invalidatedReading(
+	file: CorpusFile,
+	lastEdit: CorpusResponse["lastEdit"],
+): React.JSX.Element {
+	if (lastEdit.kind === "not-recorded") {
+		return <span className="text-sm text-dim">not recorded</span>;
+	}
+
+	return (
+		<span className="font-mono text-sm">
+			<span aria-hidden="true">{file.invalidated === 0 ? "✓ " : "⚠ "}</span>
+			{plural(file.invalidated, "result")}
+		</span>
+	);
+}
 
 function rowFor(
 	file: CorpusFile,
+	lastEdit: CorpusResponse["lastEdit"],
 	onEdit: ((path: string) => void) | undefined,
 ): readonly React.ReactNode[] {
 	return [
@@ -34,6 +62,7 @@ function rowFor(
 		<span key="read-by" className="font-mono text-sm">
 			{file.readBy}
 		</span>,
+		<span key="invalidated">{invalidatedReading(file, lastEdit)}</span>,
 		...(onEdit === undefined
 			? []
 			: [
@@ -176,6 +205,11 @@ export function CorpusPage(): React.JSX.Element {
 						</>
 					) : undefined
 				}
+				aside={
+					query.isSuccess ? (
+						<LastEditCard lastEdit={query.data.lastEdit} />
+					) : undefined
+				}
 			/>
 
 			<div className="flex max-w-7xl flex-col gap-6 px-6 pt-4 pb-12">
@@ -212,8 +246,10 @@ export function CorpusPage(): React.JSX.Element {
 					<TableShell
 						caption="Corpus files"
 						columns={onEdit === undefined ? [...COLUMNS] : [...COLUMNS, "Edit"]}
-						numeric={["Read by"]}
-						rows={query.data.files.map((file) => rowFor(file, onEdit))}
+						numeric={["Read by", "Invalidated"]}
+						rows={query.data.files.map((file) =>
+							rowFor(file, query.data.lastEdit, onEdit),
+						)}
 					/>
 				) : null}
 

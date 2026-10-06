@@ -138,7 +138,8 @@ function renderShellAt(
 						corpusFile(`file-${index}.md`),
 					),
 					refusals: [],
-				},
+					lastEdit: { kind: "not-recorded", reason: "no earlier version" },
+				} satisfies CorpusResponse,
 			],
 			[
 				"/api/comparisons",
@@ -579,7 +580,13 @@ describe("the navigation shell", () => {
 				["/api/runs", { rows: [], launches: [], unreadable: [] }],
 				[
 					"/api/corpus",
-					{ root: "/corpus", digest: "ffd58d", files: [], refusals: [] },
+					{
+						root: "/corpus",
+						digest: "ffd58d",
+						files: [],
+						refusals: [],
+						lastEdit: { kind: "not-recorded", reason: "no earlier version" },
+					} satisfies CorpusResponse,
 				],
 				[
 					`/api/comparisons/${digest}`,
