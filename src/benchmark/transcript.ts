@@ -38,10 +38,15 @@ const assistantRecordSchema = z.looseObject({
 
 const userRecordSchema = z.looseObject({
 	type: z.literal("user"),
+	parentUuid: z.string().nullish(),
+	isMeta: z.boolean().optional(),
+	isCompactSummary: z.boolean().optional(),
 	message: z.looseObject({
 		content: z.union([z.string(), z.array(z.unknown())]),
 	}),
 });
+
+type UserRecord = z.infer<typeof userRecordSchema>;
 
 /**
  * An Agent call's result, and a Skill call's that forked into its own context,
@@ -85,6 +90,14 @@ const textBlockSchema = z.looseObject({
  */
 const SKILL_BODY_OPENING =
 	/^Base directory for this skill: (?<directory>[^\n]+)/u;
+
+const INTERRUPTION_MARKER = "[Request interrupted by user";
+
+/**
+ * What a user row is, beyond a tool result or a meta row the harness wrote: a
+ * compaction summary, an interruption marker, or a prompt.
+ */
+export type UserTurn = "compaction summary" | "interruption" | "prompt";
 
 export type ToolUse = z.infer<typeof toolUseSchema>;
 
@@ -339,6 +352,9 @@ export interface TranscriptLine {
 	readonly locatedToolResults: readonly LocatedToolResult[];
 	readonly diagnosticIssues: readonly LocatedDiagnosticIssue[];
 	readonly namedAgent: string | undefined;
+	readonly userTurn: UserTurn | undefined;
+	/** A user row that names no parent row, as a conversation's first does. */
+	readonly startsWithoutParent: boolean;
 }
 
 function readNamedAgent(record: JsonValue): string | undefined {
@@ -371,6 +387,50 @@ function readSkillDirectories(blocks: readonly unknown[]): readonly string[] {
 		.filter((directory) => directory !== undefined);
 }
 
+function readUserTurn(
+	record: Immutable<UserRecord>,
+	blocks: readonly unknown[],
+): UserTurn | undefined {
+	if (record.isMeta === true) {
+		return undefined;
+	}
+
+	if (record.isCompactSummary === true) {
+		return "compaction summary";
+	}
+
+	if (blocks.some((block) => toolResultSchema.safeParse(block).success)) {
+		return undefined;
+	}
+
+	const plain = z.string().safeParse(record.message.content);
+	const texts = plain.success
+		? [plain.data]
+		: blocks
+				.map((block) => textBlockSchema.safeParse(block))
+				.filter((parsed) => parsed.success)
+				.map((parsed) => parsed.data.text);
+
+	return texts.some((text) => text.startsWith(INTERRUPTION_MARKER))
+		? "interruption"
+		: "prompt";
+}
+
+function readUserFields(
+	record: Immutable<UserRecord> | undefined,
+	blocks: readonly unknown[],
+): Pick<TranscriptLine, "userTurn" | "startsWithoutParent"> {
+	if (record === undefined) {
+		return { userTurn: undefined, startsWithoutParent: false };
+	}
+
+	return {
+		userTurn: readUserTurn(record, blocks),
+		startsWithoutParent:
+			record.parentUuid === null || record.parentUuid === undefined,
+	};
+}
+
 function readInstructionFiles(record: JsonValue): readonly string[] {
 	const instructions = instructionsAttachmentSchema.safeParse(record);
 
@@ -398,6 +458,7 @@ function readLine(line: string, lineNumber: number): TranscriptLine {
 	}
 
 	let blocks: readonly unknown[] = [];
+	let user: UserRecord | undefined;
 	if (record.data.type === "assistant") {
 		const assistant = assistantRecordSchema.safeParse(parsed);
 		if (!assistant.success) {
@@ -405,13 +466,12 @@ function readLine(line: string, lineNumber: number): TranscriptLine {
 		}
 		blocks = assistant.data.message.content;
 	} else if (record.data.type === "user") {
-		const user = userRecordSchema.safeParse(parsed);
-		if (!user.success) {
+		const userRecord = userRecordSchema.safeParse(parsed);
+		if (!userRecord.success) {
 			return emptyTranscriptLine(lineNumber, "invalid-message-content");
 		}
-		blocks = Array.isArray(user.data.message.content)
-			? user.data.message.content
-			: [];
+		user = userRecord.data;
+		blocks = Array.isArray(user.message.content) ? user.message.content : [];
 	} else if (record.data.message !== undefined) {
 		return emptyTranscriptLine(lineNumber, "invalid-message-content");
 	}
@@ -479,6 +539,7 @@ function readLine(line: string, lineNumber: number): TranscriptLine {
 		locatedToolResults,
 		diagnosticIssues,
 		namedAgent: readNamedAgent(parsed),
+		...readUserFields(user, blocks),
 	};
 }
 
@@ -496,6 +557,8 @@ function emptyTranscriptLine(
 		locatedToolResults: [],
 		diagnosticIssues: [{ kind, location: { line, block: 1 } }],
 		namedAgent: undefined,
+		userTurn: undefined,
+		startsWithoutParent: false,
 	};
 }
 

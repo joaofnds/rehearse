@@ -5,7 +5,7 @@ import {
 	sessionHistoryRequestSeries,
 } from "./session-history";
 import { parseTranscript } from "./transcript";
-import type { TranscriptLine } from "./transcript";
+import type { TranscriptLine, UserTurn } from "./transcript";
 import type {
 	CorpusFileLocation,
 	SessionHistoryAttemptIdentity,
@@ -56,12 +56,10 @@ export type AgentParent =
  */
 export type AgentContextKind = "fresh" | "inherited" | "not recorded";
 
-export type AgentTurnKind = "compaction summary" | "interruption" | "prompt";
-
 /** A user row after the agent's launching prompt, named for what it is. */
 export interface AgentTurn {
 	readonly line: number;
-	readonly kind: AgentTurnKind;
+	readonly kind: UserTurn;
 }
 
 interface AgentReadings {
@@ -154,32 +152,6 @@ interface AgentMeta {
 	readonly stoppedByUser?: boolean | undefined;
 }
 
-const toolResultBlockSchema = z.looseObject({
-	type: z.literal("tool_result"),
-});
-
-const userRowSchema = z.looseObject({
-	type: z.literal("user"),
-	parentUuid: z.string().nullish(),
-	isMeta: z.boolean().optional(),
-	isCompactSummary: z.boolean().optional(),
-	message: z.looseObject({
-		content: z.union([
-			z.string().transform((text) => [{ type: "text", text }]),
-			z.array(z.unknown()),
-		]),
-	}),
-});
-
-type UserRow = z.infer<typeof userRowSchema>;
-
-const textBlockSchema = z.looseObject({
-	type: z.literal("text"),
-	text: z.string(),
-});
-
-const INTERRUPTION_MARKER = "[Request interrupted by user";
-
 const ROOT = Symbol("root");
 
 type Owner = typeof ROOT | string;
@@ -206,24 +178,6 @@ interface AgentLink {
 interface LaunchIndex {
 	readonly calls: ReadonlyMap<string, LaunchCall>;
 	readonly results: ReadonlyMap<string, NamingResult>;
-}
-
-function decodedRows(
-	transcript: string,
-): readonly (readonly [number, unknown])[] {
-	const rows: [number, unknown][] = [];
-	for (const [index, text] of transcript.split("\n").entries()) {
-		if (text.trim() === "") {
-			continue;
-		}
-		try {
-			rows.push([index + 1, JSON.parse(text)]);
-		} catch {
-			continue;
-		}
-	}
-
-	return rows;
 }
 
 interface OwnedLine {
@@ -362,47 +316,22 @@ function readings(
 	};
 }
 
-function firstRowIsFresh(transcript: string): boolean {
-	const [first] = decodedRows(transcript);
-	const row =
-		first === undefined ? undefined : userRowSchema.safeParse(first[1]);
-
-	return (
-		row?.success === true &&
-		(row.data.parentUuid === null || row.data.parentUuid === undefined)
+function firstRowIsFresh(lines: Immutable<readonly TranscriptLine[]>): boolean {
+	const first = lines.find(
+		({ diagnosticIssues }) =>
+			!diagnosticIssues.some(({ kind }) => kind === "invalid-json"),
 	);
+
+	return first?.startsWithoutParent === true;
 }
 
-function turnKind(row: Immutable<UserRow>): AgentTurnKind | undefined {
-	if (row.isMeta === true) {
-		return undefined;
-	}
-
-	if (row.isCompactSummary === true) {
-		return "compaction summary";
-	}
-
-	const blocks = row.message.content;
-	if (blocks.some((block) => toolResultBlockSchema.safeParse(block).success)) {
-		return undefined;
-	}
-
-	const interrupted = blocks.some((block) => {
-		const text = textBlockSchema.safeParse(block);
-
-		return text.success && text.data.text.startsWith(INTERRUPTION_MARKER);
-	});
-
-	return interrupted ? "interruption" : "prompt";
-}
-
-function laterTurns(transcript: string): readonly AgentTurn[] {
+function laterTurns(
+	lines: Immutable<readonly TranscriptLine[]>,
+): readonly AgentTurn[] {
 	const turns: AgentTurn[] = [];
-	for (const [line, value] of decodedRows(transcript)) {
-		const row = userRowSchema.safeParse(value);
-		const kind = row.success ? turnKind(row.data) : undefined;
-		if (kind !== undefined) {
-			turns.push({ line, kind });
+	for (const { line, userTurn } of lines) {
+		if (userTurn !== undefined) {
+			turns.push({ line, kind: userTurn });
 		}
 	}
 
@@ -464,10 +393,11 @@ function availableAgent(
 	inherited: boolean,
 ): SubAgent {
 	const meta = readMeta(file.meta);
+	const lines = parseTranscript(file.transcript);
 	let context: AgentContextKind = "not recorded";
 	if (inherited) {
 		context = "inherited";
-	} else if (firstRowIsFresh(file.transcript)) {
+	} else if (firstRowIsFresh(lines)) {
 		context = "fresh";
 	}
 	const { models, series, deliveries } = readings(
@@ -490,7 +420,7 @@ function availableAgent(
 		meta: meta.state,
 		stopped:
 			meta.state === "recorded" ? meta.stoppedByUser === true : "not recorded",
-		laterTurns: laterTurns(file.transcript),
+		laterTurns: laterTurns(lines),
 		models,
 		series,
 		deliveries,
