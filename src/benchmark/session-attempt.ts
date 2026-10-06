@@ -51,7 +51,10 @@ import {
 import { liveCorpusSource } from "./corpus-file";
 import { normalizeContextEvidence } from "./context-evidence";
 import { STORED_GIT_DIRECTORY } from "./git-directory-name";
-import { preserveSubagentFiles } from "./subagent-evidence";
+import {
+	preserveSubagentFiles,
+	unavailableSubagents,
+} from "./subagent-evidence";
 import { preserveStateEvidence } from "./session-state-evidence";
 import type { StateResult } from "./session-state-check";
 import { gradeCaseState } from "./session-state-check";
@@ -103,6 +106,12 @@ export interface SessionAttempt {
 	/** Project instructions the session loaded, by their path in the target. */
 	readonly loadedProjectInstructions?: readonly string[] | undefined;
 	readonly transcriptDiagnostics: Immutable<TranscriptDiagnostics>;
+	/**
+	 * Agents an Agent or forked Skill result after the prefix names, whose
+	 * transcript the provider did not leave. Absent on attempts recorded before
+	 * sub-agent files were kept, which say nothing either way.
+	 */
+	readonly unavailableSubagents?: readonly string[] | undefined;
 	readonly contextEvidence?: ContextEvidence | undefined;
 	readonly stateEvidenceDirectory?: string | undefined;
 	readonly stateResults?: readonly StateResult[] | undefined;
@@ -625,11 +634,13 @@ interface PreservedTranscript {
 	readonly file: string;
 	readonly sourceAvailable: boolean;
 	readonly lines: Immutable<readonly TranscriptLine[]>;
+	readonly unavailableSubagents: readonly string[];
 }
 
 async function preservedTranscript(
 	recordDirectory: string,
 	writtenTranscript: string,
+	cut: number,
 ): Promise<PreservedTranscript> {
 	const written = Bun.file(writtenTranscript);
 	const sourceAvailable = await written.exists();
@@ -641,10 +652,16 @@ async function preservedTranscript(
 		recordDirectory,
 	);
 
+	const lines = await parseTranscriptFile(transcriptFile);
+
 	return {
 		file: transcriptFile,
 		sourceAvailable,
-		lines: await parseTranscriptFile(transcriptFile),
+		lines,
+		unavailableSubagents: await unavailableSubagents(
+			lines.slice(cut),
+			recordDirectory,
+		),
 	};
 }
 
@@ -652,15 +669,26 @@ function sessionDirectoryOf(transcriptPath: string): string {
 	return transcriptPath.replace(/\.jsonl$/u, "");
 }
 
-function diagnosticsFor(
+/** What an attempt records of its transcript, whether or not the call failed. */
+interface TranscriptRecord {
+	readonly transcriptFile: string;
+	readonly transcriptDiagnostics: Immutable<TranscriptDiagnostics>;
+	readonly unavailableSubagents: readonly string[];
+}
+
+function transcriptRecord(
 	prefixLinesExcluded: number,
 	transcript: Readonly<PreservedTranscript>,
-): TranscriptDiagnostics {
-	return transcriptDiagnostics({
-		lines: transcript.lines,
-		prefixLinesExcluded,
-		sourceAvailable: transcript.sourceAvailable,
-	});
+): TranscriptRecord {
+	return {
+		transcriptFile: transcript.file,
+		transcriptDiagnostics: transcriptDiagnostics({
+			lines: transcript.lines,
+			prefixLinesExcluded,
+			sourceAvailable: transcript.sourceAvailable,
+		}),
+		unavailableSubagents: transcript.unavailableSubagents,
+	};
 }
 
 async function failedInvocation(
@@ -670,13 +698,10 @@ async function failedInvocation(
 	error: Readonly<Error>,
 	contextEvidence: ContextEvidence | undefined,
 ): Promise<SessionInvocationError> {
-	const transcript = await preservedTranscript(
-		request.recordDirectory,
-		writtenTranscript,
-	);
-	const diagnostics = diagnosticsFor(
-		request.sessionCase.declaration.transcript?.cut ?? 0,
-		transcript,
+	const cut = request.sessionCase.declaration.transcript?.cut ?? 0;
+	const recorded = transcriptRecord(
+		cut,
+		await preservedTranscript(request.recordDirectory, writtenTranscript, cut),
 	);
 
 	if (error instanceof CommandError) {
@@ -685,8 +710,7 @@ async function failedInvocation(
 			return invocationError(
 				providerFailureMessage(envelope, error.message, error.stderr),
 				attemptDirectory,
-				transcript.file,
-				diagnostics,
+				recorded,
 				readClaudeCallMetrics(envelope),
 				contextEvidence,
 			);
@@ -696,8 +720,7 @@ async function failedInvocation(
 	return invocationError(
 		error.message,
 		attemptDirectory,
-		transcript.file,
-		diagnostics,
+		recorded,
 		undefined,
 		contextEvidence,
 	);
@@ -729,8 +752,7 @@ function providerFailureMessage(
 function invocationError(
 	message: string,
 	attemptDirectory: string,
-	transcriptFile: string,
-	diagnostics: Immutable<TranscriptDiagnostics>,
+	recorded: TranscriptRecord,
 	metrics?: ClaudeCallMetrics,
 	contextEvidence?: ContextEvidence,
 ): SessionInvocationError {
@@ -740,12 +762,11 @@ function invocationError(
 			{
 				attemptDirectory,
 				reply: undefined,
-				transcriptFile,
+				...recorded,
 				metrics,
 				outcome: "EXECUTION_FAILED",
 				checks: [],
 				contextManifest: undefined,
-				transcriptDiagnostics: diagnostics,
 			},
 			contextEvidence,
 		),
@@ -793,14 +814,13 @@ async function recordAttempt(
 	attemptDirectory: string,
 	attempt: AttemptOutput,
 ): Promise<SessionAttempt> {
+	const cut = request.sessionCase.declaration.transcript?.cut ?? 0;
 	const transcript = await preservedTranscript(
 		request.recordDirectory,
 		attempt.writtenTranscript,
+		cut,
 	);
-	const diagnostics = diagnosticsFor(
-		request.sessionCase.declaration.transcript?.cut ?? 0,
-		transcript,
-	);
+	const recorded = transcriptRecord(cut, transcript);
 
 	const envelope = parseClaudeEnvelope(attempt.output);
 	const metrics = readClaudeCallMetrics(envelope);
@@ -808,8 +828,7 @@ async function recordAttempt(
 		throw invocationError(
 			providerFailureMessage(envelope, "Claude session failed"),
 			attemptDirectory,
-			transcript.file,
-			diagnostics,
+			recorded,
 			metrics,
 			attempt.contextEvidence,
 		);
@@ -829,12 +848,11 @@ async function recordAttempt(
 			{
 				attemptDirectory,
 				reply,
-				transcriptFile: transcript.file,
+				...recorded,
 				metrics,
 				outcome: "NO_REPLY",
 				checks: [],
 				contextManifest: undefined,
-				transcriptDiagnostics: diagnostics,
 				stateEvidenceDirectory,
 				...stateGrade,
 			},
@@ -842,7 +860,6 @@ async function recordAttempt(
 		);
 	}
 
-	const cut = request.sessionCase.declaration.transcript?.cut ?? 0;
 	const turn = transcript.lines.slice(cut);
 	const result = evaluateChecks(request.sessionCase.checks, {
 		reply,
@@ -853,7 +870,7 @@ async function recordAttempt(
 		{
 			attemptDirectory,
 			reply,
-			transcriptFile: transcript.file,
+			...recorded,
 			metrics,
 			outcome: result.outcome,
 			checks: result.results,
@@ -870,7 +887,6 @@ async function recordAttempt(
 				turn,
 				attemptDirectory,
 			),
-			transcriptDiagnostics: diagnostics,
 			stateEvidenceDirectory,
 			...stateGrade,
 		},
@@ -880,11 +896,11 @@ async function recordAttempt(
 
 /**
  * The projects directory holds live sessions of João's, and one has appeared in
- * a slug directory mid-run, so the only entries removed are the ones the attempt
- * named itself: its session's file and the directory the provider keeps that
- * session's sub-agents in. The slug goes with `rmdir`, which removes it only when it is
- * empty: a file the attempt cannot account for keeps its directory rather than
- * being deleted with it. Cleanup runs whether the call returned or threw, so a
+ * a slug directory mid-run, so the only entries removed are the ones the
+ * attempt named itself: its session's file and the directory the provider
+ * keeps that session's sub-agents in. The slug goes with `rmdir`, which removes
+ * it only when it is empty: a file the attempt cannot account for keeps its
+ * directory rather than being deleted with it. Cleanup runs whether the call returned or threw, so a
  * provider that wrote its transcript and then failed leaves nothing behind.
  */
 async function removeAttemptFiles(

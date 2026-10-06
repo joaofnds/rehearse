@@ -998,3 +998,55 @@ describe("the state grades a session attempt record carries", () => {
 		expect(sessionAttemptRecordSchema.safeParse(both).success).toBe(false);
 	});
 });
+
+describe("the sub-agent evidence a session attempt record carries", () => {
+	function built(
+		attempt: Immutable<Partial<SessionAttempt>>,
+		error?: string,
+	): SessionAttemptRecord {
+		return buildSessionAttemptRecord({
+			spendCeilingUsd: 7.5,
+			corpusVersion: MEASURED_VERSION,
+			versionFiles: [],
+			sessionCase: smokeCase(),
+			settings: { model: "haiku", effort: "low", budgetUsd: 0.2 },
+			lineage: "b".repeat(64),
+			corpusFiles: [],
+			corpusOrigin: { kind: "live" },
+			attempt: { ...smokeAttempt(), ...attempt },
+			error,
+			elapsedMs: 123,
+		});
+	}
+
+	it("reopens the agents whose transcript the provider did not leave", () => {
+		const saved = built({ unavailableSubagents: ["a4", "a5"] });
+
+		const reopened = parseSessionAttemptRecord(JSON.stringify(saved));
+
+		expect(reopened).toMatchObject({
+			schemaVersion: 3,
+			unavailableSubagents: ["a4", "a5"],
+		});
+	});
+
+	it("reopens them on an attempt whose provider command failed", () => {
+		const saved = built(
+			{
+				reply: undefined,
+				outcome: "EXECUTION_FAILED",
+				checks: [],
+				contextManifest: undefined,
+				unavailableSubagents: ["a4"],
+			},
+			"claude exited 1",
+		);
+
+		const reopened = parseSessionAttemptRecord(JSON.stringify(saved));
+
+		expect(reopened).toMatchObject({
+			schemaVersion: 2,
+			unavailableSubagents: ["a4"],
+		});
+	});
+});

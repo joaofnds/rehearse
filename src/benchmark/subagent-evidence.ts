@@ -1,5 +1,7 @@
 import { lstat, mkdir, readdir } from "node:fs/promises";
 import { join } from "node:path";
+import type { Immutable } from "./contracts";
+import type { TranscriptLine } from "./transcript";
 
 /** Where a record keeps its session's sub-agent files, beside its transcript. */
 export const SUBAGENTS_DIRECTORY = "subagents";
@@ -36,4 +38,31 @@ export async function preserveSubagentFiles(
 			await Bun.write(join(destination, name), Bun.file(path));
 		}
 	}
+}
+
+/**
+ * The agents the session's lines name that left no transcript in the record.
+ * Saying so lets a reader mark the session's sub-agent coverage incomplete,
+ * where silence would read as an agent that ran nothing and cost nothing.
+ */
+export async function unavailableSubagents(
+	lines: Immutable<readonly TranscriptLine[]>,
+	recordDirectory: string,
+): Promise<readonly string[]> {
+	const named = new Set(
+		lines.map((line) => line.namedAgent).filter((id) => id !== undefined),
+	);
+	const unavailable: string[] = [];
+	for (const agentId of named) {
+		const transcript = join(
+			recordDirectory,
+			SUBAGENTS_DIRECTORY,
+			`agent-${agentId}.jsonl`,
+		);
+		if (!(await Bun.file(transcript).exists())) {
+			unavailable.push(agentId);
+		}
+	}
+
+	return unavailable;
 }

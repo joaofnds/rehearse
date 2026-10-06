@@ -43,6 +43,15 @@ const userRecordSchema = z.looseObject({
 	}),
 });
 
+/**
+ * An Agent call's result, and a Skill call's that forked into its own context,
+ * name the sub-agent the provider ran on the record's `toolUseResult`.
+ */
+const namedAgentRecordSchema = z.looseObject({
+	type: z.literal("user"),
+	toolUseResult: z.looseObject({ agentId: z.string().min(1) }),
+});
+
 const toolResultSchema = z.looseObject({
 	type: z.literal("tool_result"),
 	tool_use_id: z.string().min(1).optional(),
@@ -329,6 +338,13 @@ export interface TranscriptLine {
 	readonly locatedToolUses: readonly LocatedToolUse[];
 	readonly locatedToolResults: readonly LocatedToolResult[];
 	readonly diagnosticIssues: readonly LocatedDiagnosticIssue[];
+	readonly namedAgent: string | undefined;
+}
+
+function readNamedAgent(record: JsonValue): string | undefined {
+	const named = namedAgentRecordSchema.safeParse(record);
+
+	return named.success ? named.data.toolUseResult.agentId : undefined;
 }
 
 function readOutputStyle(record: JsonValue): string | undefined {
@@ -462,6 +478,7 @@ function readLine(line: string, lineNumber: number): TranscriptLine {
 		locatedToolUses,
 		locatedToolResults,
 		diagnosticIssues,
+		namedAgent: readNamedAgent(parsed),
 	};
 }
 
@@ -478,6 +495,7 @@ function emptyTranscriptLine(
 		locatedToolUses: [],
 		locatedToolResults: [],
 		diagnosticIssues: [{ kind, location: { line, block: 1 } }],
+		namedAgent: undefined,
 	};
 }
 

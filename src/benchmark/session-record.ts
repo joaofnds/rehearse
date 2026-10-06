@@ -243,6 +243,14 @@ const sessionAttemptRecordFields = {
  * a record written before this field existed graded no state, which is a
  * different fact from a scorer that reported nothing.
  */
+/**
+ * Agents the session named after its prefix whose transcript the provider did
+ * not leave. Only v2 and v3 carry it: a record written before sub-agent files
+ * were kept checked none, which is a different fact from one that found every
+ * file.
+ */
+const unavailableSubagentsSchema = z.array(z.string().min(1)).optional();
+
 const stateGradeFields = {
 	stateResults: z.array(stateResultSchema).optional(),
 	stateGradingError: z.string().min(1).optional(),
@@ -292,6 +300,7 @@ export const executionFailedSessionAttemptRecordSchema = z
 		error: z.string().min(1),
 		transcriptFile: z.string().min(1),
 		transcriptDiagnostics: transcriptDiagnosticsSchema.optional(),
+		unavailableSubagents: unavailableSubagentsSchema,
 		contextEvidence: contextEvidenceSchema.optional(),
 		metrics: claudeCallMetricsSchema.optional(),
 		outcome: z.literal("EXECUTION_FAILED"),
@@ -305,6 +314,7 @@ export const sessionAttemptRecordV3Schema = z
 		schemaVersion: z.literal(3),
 		...sessionAttemptRecordFields,
 		...stateGradeFields,
+		unavailableSubagents: unavailableSubagentsSchema,
 		contextManifest: contextManifestSchema.optional(),
 		divergences: z.array(manifestDivergenceSchema).optional(),
 		readManifest: readManifestSchema.optional(),
@@ -383,6 +393,7 @@ interface MutableSessionAttemptRecord {
 	error?: string;
 	transcriptFile: string;
 	transcriptDiagnostics: SessionAttempt["transcriptDiagnostics"];
+	unavailableSubagents?: string[];
 	contextEvidence?: SessionAttempt["contextEvidence"];
 	metrics?: SessionAttempt["metrics"];
 	outcome: SessionAttempt["outcome"];
@@ -453,6 +464,9 @@ export function buildSessionAttemptRecord(
 	}
 	if (attempt.stateResults !== undefined) {
 		record.stateResults = attempt.stateResults.map((result) => ({ ...result }));
+	}
+	if (attempt.unavailableSubagents !== undefined) {
+		record.unavailableSubagents = [...attempt.unavailableSubagents];
 	}
 	if (attempt.stateGradingError !== undefined) {
 		record.stateGradingError = attempt.stateGradingError;

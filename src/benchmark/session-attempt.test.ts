@@ -2560,6 +2560,41 @@ async function retainedSubagentFiles(
 	return retained;
 }
 
+/**
+ * The provider records the agent an Agent call launched, or a skill it forked
+ * into its own context, on the tool result's `toolUseResult`.
+ */
+function agentResultLine(sessionId: string, agentId: string): string {
+	return JSON.stringify({
+		type: "user",
+		sessionId,
+		message: {
+			content: [
+				{ type: "tool_result", tool_use_id: `toolu_${agentId}`, content: "" },
+			],
+		},
+		toolUseResult: { agentId, status: "async_launched", isAsync: true },
+	});
+}
+
+function forkedSkillResultLine(sessionId: string, agentId: string): string {
+	return JSON.stringify({
+		type: "user",
+		sessionId,
+		message: {
+			content: [
+				{ type: "tool_result", tool_use_id: `toolu_${agentId}`, content: "" },
+			],
+		},
+		toolUseResult: {
+			success: true,
+			commandName: "code-review",
+			status: "forked",
+			agentId,
+		},
+	});
+}
+
 describe("the sub-agent evidence a session attempt retains", () => {
 	it("copies each sub-agent's transcript and meta file beside the attempt's transcript and leaves the projects slug empty", async () => {
 		const projects = await projectsRoot();
@@ -2602,6 +2637,77 @@ describe("the sub-agent evidence a session attempt retains", () => {
 		expect(failure).toBeInstanceOf(SessionInvocationError);
 		expect(await retainedSubagentFiles(records)).toEqual(SUB_AGENT_FILES);
 		expect(await readdir(slug).catch(() => [])).toEqual([]);
+	});
+
+	it("records each agent an Agent or forked Skill result names without a transcript as unavailable", async () => {
+		const projects = await projectsRoot();
+
+		const attempt = await runSessionAttempt(
+			request({
+				projectsDirectory: projects,
+				recordDirectory: await recordDirectory(),
+				runClaude: claudeWithSubagents(
+					projects,
+					writeSubagentFiles,
+					claudeWriting(
+						projects,
+						(sessionId) => [
+							agentResultLine(sessionId, "a1"),
+							agentResultLine(sessionId, "a4"),
+							forkedSkillResultLine(sessionId, "a5"),
+						],
+						"OK",
+					),
+				),
+			}),
+		);
+
+		expect(attempt.unavailableSubagents).toEqual(["a4", "a5"]);
+	});
+
+	it("records the unavailable agents of a session whose provider command failed", async () => {
+		const projects = await projectsRoot();
+		const session = claudeWriting(
+			projects,
+			(sessionId) => [agentResultLine(sessionId, "a4")],
+			"OK",
+		);
+
+		const failure = await failureOf(
+			runSessionAttempt(
+				request({
+					projectsDirectory: projects,
+					recordDirectory: await recordDirectory(),
+					runClaude: async (command, cwd) => {
+						await session(command, cwd);
+
+						throw new Error("claude exited 1");
+					},
+				}),
+			),
+		);
+
+		expect(failure).toMatchObject({
+			attempt: { outcome: "EXECUTION_FAILED", unavailableSubagents: ["a4"] },
+		});
+	});
+
+	it("does not count an agent named in the inherited prefix as unavailable", async () => {
+		const prefix = await writtenPrefix(
+			`${agentResultLine(SOURCE_SESSION, "a0")}\n`,
+		);
+		const projects = await projectsRoot();
+
+		const attempt = await runSessionAttempt(
+			request({
+				sessionCase: resumingCase(prefix.path, prefix.sha256),
+				projectsDirectory: projects,
+				recordDirectory: await recordDirectory(),
+				runClaude: appendingClaude(projects, "OK"),
+			}),
+		);
+
+		expect(attempt.unavailableSubagents).toEqual([]);
 	});
 
 	describe("when the session's sub-agent directory holds more than the provider's files", () => {
