@@ -441,8 +441,9 @@ See [current state](docs/status.md) for implementation coverage and
   reply of zero words: no check is evaluated and none is recorded, so the
   attempt reads as a measurement that did not happen rather than one that
   passed.
-- **Observed delivery** — saved transcript evidence that a Read result or Skill
-  companion placed recorded text into session history. An invocation alone is
+- **Observed delivery** — saved transcript evidence that a Read result, a Skill
+  companion, or a skill body a slash command loaded placed recorded text into
+  session history. An invocation alone is
   not a delivery, and delivery does not show that the model followed the text.
 - **Review pause** — the interactive stop a run makes with the candidate still in the
   target, asking the reviewer to edit files and press Enter until the
