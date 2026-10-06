@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { chmod, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { z } from "zod";
@@ -34,8 +34,10 @@ const provenanceSchema = z.object({
 });
 
 const roots: string[] = [];
+const lockedPaths: string[] = [];
 
 afterEach(async () => {
+	await Promise.all(lockedPaths.splice(0).map((path) => chmod(path, 0o755)));
 	await Promise.all(
 		roots.splice(0).map((root) => rm(root, { force: true, recursive: true })),
 	);
@@ -113,8 +115,15 @@ async function provenanceOf(
 	});
 
 	const response = await app.request(`/api/comparisons/${digest}`);
+	expect(response.status).toBe(200);
 
 	return provenanceSchema.parse(await response.json());
+}
+
+/** Takes every permission from a recorded path until the test ends. */
+async function lock(path: string): Promise<void> {
+	lockedPaths.push(path);
+	await chmod(path, 0o000);
 }
 
 describe("GET /api/comparisons/:digest", () => {
@@ -131,23 +140,22 @@ describe("GET /api/comparisons/:digest", () => {
 
 		const { corpusVersions } = await provenanceOf(runsDirectory, digest);
 
-		expect(corpusVersions[CASE_ID]?.["candidate"]).toEqual({
-			state: "available",
-			digest: await recordedVersionDigest(
-				runsDirectory,
-				groupIdFor("candidate"),
-			),
-		});
-	});
-
-	it("reads a group recorded before versions as version not recorded", async () => {
-		const { runsDirectory, digest } = await comparedArms();
-
-		const { corpusVersions } = await provenanceOf(runsDirectory, digest);
-
-		expect(corpusVersions[CASE_ID]?.["control"]).toEqual({
-			state: "unavailable",
-			reasons: ["version not recorded"],
+		expect(corpusVersions[CASE_ID]).toEqual({
+			baseline: {
+				state: "available",
+				digest: await recordedVersionDigest(
+					runsDirectory,
+					groupIdFor("baseline"),
+				),
+			},
+			candidate: {
+				state: "available",
+				digest: await recordedVersionDigest(
+					runsDirectory,
+					groupIdFor("candidate"),
+				),
+			},
+			control: { state: "unavailable", reasons: ["version not recorded"] },
 		});
 	});
 
@@ -165,6 +173,51 @@ describe("GET /api/comparisons/:digest", () => {
 		expect(checkpoint).toEqual({
 			state: "unavailable",
 			reasons: ["a pipeline comparison replays no single checkpoint"],
+		});
+	});
+
+	describe("when an arm's records cannot be read", () => {
+		it("names no checkpoint when a group record no longer parses", async () => {
+			const { runsDirectory, digest } = await comparedArms();
+			await Bun.write(
+				confirmationGroupPaths(runsDirectory, groupIdFor("baseline")).groupFile,
+				"{}\n",
+			);
+
+			const { checkpoint } = await provenanceOf(runsDirectory, digest);
+
+			expect(checkpoint.state).toBe("unavailable");
+		});
+
+		it("serves the comparison with the checkpoint unavailable when the case's claims cannot be listed", async () => {
+			const { runsDirectory, digest } = await comparedArms();
+			await lock(join(runsDirectory, "short-ids", CASE_ID, "claims"));
+
+			const { checkpoint } = await provenanceOf(runsDirectory, digest);
+
+			expect(checkpoint).toEqual({
+				state: "unavailable",
+				reasons: [
+					`the short ids of ${CASE_ID} could not be read: EACCES: permission denied, scandir '<path>'`,
+				],
+			});
+		});
+
+		it("serves the comparison with an arm's version unavailable when its group record cannot be opened", async () => {
+			const { runsDirectory, digest } = await comparedArms();
+			await lock(
+				confirmationGroupPaths(runsDirectory, groupIdFor("candidate"))
+					.groupFile,
+			);
+
+			const { corpusVersions } = await provenanceOf(runsDirectory, digest);
+
+			expect(corpusVersions[CASE_ID]?.["candidate"]).toEqual({
+				state: "unavailable",
+				reasons: [
+					"a group record could not be read: EACCES: permission denied, lstat '<path>'",
+				],
+			});
 		});
 	});
 });

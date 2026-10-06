@@ -1,4 +1,3 @@
-import { ZodError } from "zod";
 import type { Checkpoint } from "#benchmark/compare-attempts";
 import { COMPARISON_ARMS } from "#benchmark/comparison-record";
 import type {
@@ -10,11 +9,10 @@ import { parseConfirmationGroupRecord } from "#benchmark/confirmation-record";
 import type { CorpusMeasurement } from "#benchmark/corpus-measurement";
 import { corpusMeasurementReading } from "#benchmark/corpus-version-label";
 import { claimedReplaySource, readShortIds } from "#benchmark/short-id";
+import type { ShortIdEntry } from "#benchmark/short-id";
+import { redactAbsolutePaths } from "./redact-path";
 import type { Reading } from "./run-record";
-import {
-	readRecordedEvidenceFile,
-	SessionHistoryReaderError,
-} from "./session-history-reader";
+import { readRecordedEvidenceFile } from "./session-history-reader";
 
 type AnyComparisonReport = ComparisonReport | LegacyComparisonReport;
 type ReportCase = AnyComparisonReport["cases"][number];
@@ -48,6 +46,7 @@ function groupPaths(source: ArmSource): readonly string[] {
 		: source.groups.map(({ path }) => path);
 }
 
+/** A record that cannot be read costs its arm a header fact, never the page. */
 async function readArmGroups(
 	runsDirectory: string,
 	source: ArmSource,
@@ -67,17 +66,14 @@ async function readArmGroups(
 
 		return { state: "available", groups };
 	} catch (error) {
-		if (
-			!(error instanceof SessionHistoryReaderError) &&
-			!(error instanceof ZodError) &&
-			!(error instanceof SyntaxError)
-		) {
-			throw error;
-		}
+		const message =
+			error instanceof Error
+				? redactAbsolutePaths(error.message)
+				: String(error);
 
 		return {
 			state: "unavailable",
-			reasons: [`a group record could not be read: ${error.message}`],
+			reasons: [`a group record could not be read: ${message}`],
 		};
 	}
 }
@@ -99,6 +95,28 @@ async function readCaseGroups(
 	};
 }
 
+async function readCaseClaims(
+	runsDirectory: string,
+	caseId: string,
+): Promise<Reading<{ readonly claims: readonly ShortIdEntry[] }>> {
+	try {
+		return {
+			state: "available",
+			claims: await readShortIds(runsDirectory, caseId),
+		};
+	} catch (error) {
+		const message =
+			error instanceof Error
+				? redactAbsolutePaths(error.message)
+				: String(error);
+
+		return {
+			state: "unavailable",
+			reasons: [`the short ids of ${caseId} could not be read: ${message}`],
+		};
+	}
+}
+
 function checkpointKey(checkpoint: Checkpoint): string {
 	return `${checkpoint.stage} ${checkpoint.run}`;
 }
@@ -118,7 +136,12 @@ async function comparedCheckpoint(
 	const checkpoints = new Map<string, Checkpoint>();
 	const reasons: string[] = [];
 	for (const { caseId, arms } of cases) {
-		const claims = await readShortIds(runsDirectory, caseId);
+		const registry = await readCaseClaims(runsDirectory, caseId);
+		if (registry.state === "unavailable") {
+			reasons.push(...registry.reasons);
+			continue;
+		}
+		const { claims } = registry;
 		for (const arm of COMPARISON_ARMS) {
 			const groups = arms[arm];
 			if (groups.state === "unavailable") {
@@ -141,10 +164,10 @@ async function comparedCheckpoint(
 		}
 	}
 
-	const [only, ...others] = [...checkpoints.values()];
 	if (reasons.length > 0) {
 		return { state: "unavailable", reasons };
 	}
+	const [only, ...others] = [...checkpoints.values()];
 	if (only === undefined || others.length > 0) {
 		return {
 			state: "unavailable",
@@ -168,15 +191,28 @@ function armCorpusVersion(armGroups: ArmGroups): ArmCorpusVersion {
 		({ corpusVersion }) => corpusVersion,
 	);
 	const [first] = measurements;
+	if (
+		first?.kind === "version" &&
+		measurements.every(
+			(measurement) =>
+				measurement?.kind === "version" && measurement.digest === first.digest,
+		)
+	) {
+		return { state: "available", digest: first.digest };
+	}
 	const readings = [
 		...new Set(
 			measurements.map((measurement) => corpusMeasurementReading(measurement)),
 		),
 	];
 
-	return first?.kind === "version" && readings.length === 1
-		? { state: "available", digest: first.digest }
-		: { state: "unavailable", reasons: readings };
+	return {
+		state: "unavailable",
+		reasons:
+			readings.length === 1
+				? readings
+				: [`the arm's groups ran ${readings.join(", ")}`],
+	};
 }
 
 export async function comparisonProvenance(
