@@ -79,6 +79,7 @@ export function InvalidatedNotice({
 /**
  * The cached corpus report can name an edit that is no longer the last, and
  * it does not poll, so the filtered view reads it again on mount and waits.
+ * A later read keeps the rows listed until it answers.
  */
 export function useInvalidatedSelection(
 	invalidatedBy: string | undefined,
@@ -93,9 +94,9 @@ export function useInvalidatedSelection(
 		return undefined;
 	}
 
-	const corpusRead: Read<CorpusResponse> = corpus.isFetching
-		? { state: "loading" }
-		: readOf(corpus);
+	const corpusRead: Read<CorpusResponse> = corpus.isFetchedAfterMount
+		? readOf(corpus)
+		: { state: "loading" };
 
 	return invalidatedSelection(invalidatedBy, corpusRead, runs);
 }

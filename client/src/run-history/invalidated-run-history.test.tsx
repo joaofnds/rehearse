@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "bun:test";
+import { focusManager } from "@tanstack/react-query";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { CorpusResponse } from "#client/corpus/corpus-query";
 import { stubFetchByPath } from "#client/test-support/fetch-stub";
@@ -10,6 +11,7 @@ const originalFetch = globalThis.fetch;
 
 afterEach(() => {
 	globalThis.fetch = originalFetch;
+	focusManager.setFocused(undefined);
 });
 
 const PREVIOUS = `e73e56${"0".repeat(58)}`;
@@ -60,11 +62,19 @@ function corpus(lastEdit: CorpusResponse["lastEdit"]): CorpusResponse {
 	};
 }
 
+interface Served {
+	/** Bodies by path; a body set later answers the requests that follow. */
+	readonly answers: Map<string, unknown>;
+	/** Leaves the requests that follow to `path` unanswered. */
+	readonly hold: (path: string) => void;
+	/** How many requests were left unanswered. */
+	readonly held: () => number;
+}
+
 /**
  * Serves the screen's reads, answering `failing` with a 404 and leaving
  * `pending` unanswered, so the screen's loading and failed reads are
- * observed against real requests. A body set on the returned map later
- * answers the requests that follow.
+ * observed against real requests.
  */
 function serving(
 	path: string,
@@ -74,7 +84,7 @@ function serving(
 		readonly failing?: string;
 		readonly pending?: string;
 	} = {},
-): Map<string, unknown> {
+): Served {
 	const byPath = new Map<string, unknown>([
 		...SHELL_BASELINE,
 		["/api/runs", served.runs ?? history()],
@@ -84,6 +94,8 @@ function serving(
 	if (served.failing !== undefined) {
 		byPath.delete(served.failing);
 	}
+	const holding = new Set(served.pending === undefined ? [] : [served.pending]);
+	let held = 0;
 	stubFetchByPath(byPath);
 	const answer = globalThis.fetch;
 	const stub = (request: string | URL | Request): Promise<Response> => {
@@ -91,16 +103,24 @@ function serving(
 			request instanceof Request ? request.url : request,
 			"http://localhost",
 		);
+		if (!holding.has(pathname)) {
+			return answer(request);
+		}
+		held += 1;
 
-		return pathname === served.pending
-			? Promise.withResolvers<Response>().promise
-			: answer(request);
+		return Promise.withResolvers<Response>().promise;
 	};
 	stub.preconnect = fetch.preconnect;
 	globalThis.fetch = stub;
 	renderAppAt(path);
 
-	return byPath;
+	return {
+		answers: byPath,
+		hold: (heldPath) => {
+			holding.add(heldPath);
+		},
+		held: () => held,
+	};
 }
 
 function durableRecords(): Promise<HTMLElement> {
@@ -120,9 +140,9 @@ describe("/?invalidatedBy", () => {
 	});
 
 	it("reads the last edit again on arrival, so an edit made after the corpus screen loaded is not taken for the one the link names", async () => {
-		const byPath = serving("/corpus");
+		const { answers } = serving("/corpus");
 		const link = await screen.findByRole("link", { name: "review them" });
-		byPath.set(
+		answers.set(
 			"/api/corpus",
 			corpus({
 				kind: "measured",
@@ -139,6 +159,31 @@ describe("/?invalidatedBy", () => {
 			/The edit this address names is no longer the last edit/u,
 		);
 		expect(screen.queryByText(RUN_B)).toBeNull();
+	});
+
+	it("lists no rows from the corpus report read before arrival while it is read again", async () => {
+		const { hold } = serving("/corpus");
+		const link = await screen.findByRole("link", { name: "review them" });
+		hold("/api/corpus");
+
+		fireEvent.click(link);
+
+		await screen.findByText("Reading the last edit…");
+		expect(screen.queryByRole("table")).toBeNull();
+	});
+
+	it("keeps listing the rows while the corpus report is read again on returning to the window", async () => {
+		const { hold, held } = serving(`/?invalidatedBy=${PREVIOUS}..${CURRENT}`);
+		await durableRecords();
+		hold("/api/corpus");
+
+		focusManager.setFocused(false);
+		focusManager.setFocused(true);
+
+		await waitFor(() => {
+			expect(held()).toBe(1);
+		});
+		expect(screen.getByText(RUN_A)).toBeInTheDocument();
 	});
 
 	it("names the corpus versions the edit went from and to", async () => {
