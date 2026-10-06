@@ -33,6 +33,7 @@ const transcriptRecordSchema = z.looseObject({
 
 const assistantRecordSchema = z.looseObject({
 	type: z.literal("assistant"),
+	requestId: z.string().min(1).nullish(),
 	message: z.looseObject({ content: z.array(z.unknown()) }),
 });
 
@@ -41,6 +42,7 @@ const userRecordSchema = z.looseObject({
 	parentUuid: z.string().nullish(),
 	isMeta: z.boolean().optional(),
 	isCompactSummary: z.boolean().optional(),
+	sourceToolUseID: z.string().min(1).optional(),
 	message: z.looseObject({
 		content: z.union([z.string(), z.array(z.unknown())]),
 	}),
@@ -355,6 +357,10 @@ export interface TranscriptLine {
 	readonly userTurn: UserTurn | undefined;
 	/** A user row that names no parent row, as a conversation's first does. */
 	readonly startsWithoutParent: boolean;
+	/** The provider's id for the request an assistant row belongs to. */
+	readonly requestId: string | undefined;
+	/** The tool call whose output a meta row carries, such as a skill's body. */
+	readonly metaFor: string | undefined;
 }
 
 function readNamedAgent(record: JsonValue): string | undefined {
@@ -419,15 +425,20 @@ function readUserTurn(
 function readUserFields(
 	record: Immutable<UserRecord> | undefined,
 	blocks: readonly unknown[],
-): Pick<TranscriptLine, "userTurn" | "startsWithoutParent"> {
+): Pick<TranscriptLine, "userTurn" | "startsWithoutParent" | "metaFor"> {
 	if (record === undefined) {
-		return { userTurn: undefined, startsWithoutParent: false };
+		return {
+			userTurn: undefined,
+			startsWithoutParent: false,
+			metaFor: undefined,
+		};
 	}
 
 	return {
 		userTurn: readUserTurn(record, blocks),
 		startsWithoutParent:
 			record.parentUuid === null || record.parentUuid === undefined,
+		metaFor: record.isMeta === true ? record.sourceToolUseID : undefined,
 	};
 }
 
@@ -459,11 +470,13 @@ function readLine(line: string, lineNumber: number): TranscriptLine {
 
 	let blocks: readonly unknown[] = [];
 	let user: UserRecord | undefined;
+	let requestId: string | null | undefined;
 	if (record.data.type === "assistant") {
 		const assistant = assistantRecordSchema.safeParse(parsed);
 		if (!assistant.success) {
 			return emptyTranscriptLine(lineNumber, "invalid-message-content");
 		}
+		({ requestId } = assistant.data);
 		blocks = assistant.data.message.content;
 	} else if (record.data.type === "user") {
 		const userRecord = userRecordSchema.safeParse(parsed);
@@ -540,6 +553,7 @@ function readLine(line: string, lineNumber: number): TranscriptLine {
 		diagnosticIssues,
 		namedAgent: readNamedAgent(parsed),
 		...readUserFields(user, blocks),
+		requestId: requestId ?? undefined,
 	};
 }
 
@@ -559,6 +573,8 @@ function emptyTranscriptLine(
 		namedAgent: undefined,
 		userTurn: undefined,
 		startsWithoutParent: false,
+		requestId: undefined,
+		metaFor: undefined,
 	};
 }
 
