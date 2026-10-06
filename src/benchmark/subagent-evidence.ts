@@ -1,7 +1,12 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
+import type { SubagentEvidence } from "./agent-tree";
 import type { Immutable } from "./contracts";
-import { lstatIfPresent, readdirIfPresent } from "./file-presence";
+import {
+	lstatIfPresent,
+	readdirIfPresent,
+	textIfPresent,
+} from "./file-presence";
 import type { TranscriptLine } from "./transcript";
 
 /**
@@ -14,6 +19,11 @@ const SUBAGENTS_DIRECTORY = "subagents";
 const PROVIDER_AGENT_ID = "[a-z0-9]+";
 
 const AGENT_ID = new RegExp(`^${PROVIDER_AGENT_ID}$`, "u");
+
+const SUBAGENT_TRANSCRIPT = new RegExp(
+	`^agent-(${PROVIDER_AGENT_ID})\\.jsonl$`,
+	"u",
+);
 
 const SUBAGENT_FILE = new RegExp(
 	`^agent-${PROVIDER_AGENT_ID}\\.(?:jsonl|meta\\.json)$`,
@@ -179,4 +189,30 @@ export async function unavailableSubagents(
 	}
 
 	return unavailable;
+}
+
+/**
+ * The sub-agent files a record kept, one per transcript, with the agent's meta
+ * file where the record holds one. A record written before sub-agent files
+ * were kept reads as holding none.
+ */
+export async function recordedSubagents(
+	recordDirectory: string,
+): Promise<readonly SubagentEvidence[]> {
+	const directory = join(recordDirectory, SUBAGENTS_DIRECTORY);
+	const names = (await readdirIfPresent(directory)) ?? [];
+	const agentIds = names
+		.map((name) => SUBAGENT_TRANSCRIPT.exec(name)?.[1])
+		.filter((agentId) => agentId !== undefined)
+		.toSorted();
+
+	return Promise.all(
+		agentIds.map(async (agentId) => ({
+			agentId,
+			transcript: await Bun.file(
+				join(directory, `agent-${agentId}.jsonl`),
+			).text(),
+			meta: await textIfPresent(join(directory, `agent-${agentId}.meta.json`)),
+		})),
+	);
 }

@@ -1,30 +1,10 @@
 import { describe, expect, it } from "bun:test";
-import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { agentTree } from "#benchmark/agent-tree";
-import type { AgentTree, SubagentEvidence } from "#benchmark/agent-tree";
+import type { AgentTree } from "#benchmark/agent-tree";
+import { recordedSubagents } from "#benchmark/subagent-evidence";
 
 const FIXTURE = join(import.meta.dir, "__fixtures__", "agent-tree");
-
-async function fixtureSubagents(): Promise<readonly SubagentEvidence[]> {
-	const directory = join(FIXTURE, "subagents");
-	const names = await readdir(directory);
-	const ids = names
-		.filter((name) => name.endsWith(".jsonl"))
-		.map((name) => name.replace(/^agent-/u, "").replace(/\.jsonl$/u, ""));
-
-	return Promise.all(
-		ids.map(async (agentId) => ({
-			agentId,
-			transcript: await Bun.file(
-				join(directory, `agent-${agentId}.jsonl`),
-			).text(),
-			meta: await Bun.file(
-				join(directory, `agent-${agentId}.meta.json`),
-			).text(),
-		})),
-	);
-}
 
 async function fixtureTree(): Promise<AgentTree> {
 	return agentTree({
@@ -39,7 +19,7 @@ async function fixtureTree(): Promise<AgentTree> {
 		resolvedCorpusFiles: [],
 		transcript: await Bun.file(join(FIXTURE, "transcript.jsonl")).text(),
 		prefixLinesExcluded: 3,
-		subagents: await fixtureSubagents(),
+		subagents: await recordedSubagents(FIXTURE),
 	});
 }
 
@@ -290,7 +270,7 @@ describe(agentTree.name, () => {
 
 	describe("when an inherited agent left no transcript", () => {
 		it("keeps coverage complete", async () => {
-			const allSubagents = await fixtureSubagents();
+			const allSubagents = await recordedSubagents(FIXTURE);
 			const subagents = allSubagents.filter(({ agentId }) => agentId !== "a0");
 			const fullTranscript = await Bun.file(
 				join(FIXTURE, "transcript.jsonl"),
