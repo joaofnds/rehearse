@@ -37,11 +37,13 @@ An implemented path can still have missing real-provider validation. Session
 comparison uses frozen records and a provider-free integration path. Its saved
 Attempt-pairs view has been verified through the built browser route: each case
 shows the recorded arm distributions, and corpus attribution distinguishes zero,
-one, and multiple differing layout paths. Its What moved view groups the served
-per-measure quality readings by case, including both arm intervals and the reading
-verdict. That browser verification covers the multi-case shape; a single-case
-session report reaches the same server route and its report is served with the
-case present, but no browser check has been run over it. Since ACT-271.1 the
+one, and multiple differing layout paths. Its What moved view draws each case's
+served rows, one per measure, with every arm's figure, the spread of arms A and B
+and arm B's reading against arm A, beside arm A against arm B's attribution and,
+on request, the diff between the files the two arms ran. That browser
+verification covers the multi-case shape; a single-case session report reaches
+the same server route and its report is served with the case present, but no
+browser check has been run over it. Since ACT-271.1 the
 route reads a session's checks and a pipeline's final verdict by each arm's 95%
 Wilson interval on its success rate, printed as percentages, and serves each
 arm's median and range (letters for a stage, successes of attempts for a
@@ -51,9 +53,10 @@ unavailable. Since ACT-271.3 a stage comparison may name one replayed checkpoint
 and the route serves What moved rows for hard-blocker firings, dimension letters,
 reply length and cost per attempt, read from the grading each rep's scorecard
 recorded; a meter names a higher arm only past rerun noise, which takes about
-four attempts an arm, and these rows are API-verified only. Since ACT-271.4 the
-route also lists each arm's recorded attempts side by side, unpaired. Run history can
-choose two stage groups at one checkpoint and start `compare attempts` from the
+four attempts an arm. The browser has drawn these rows for one real stage
+comparison. Since ACT-271.4 the route also lists each arm's recorded attempts
+side by side, unpaired. Run history can choose two stage groups at one
+checkpoint and start `compare attempts` from the
 browser. Its control group replays the stage on arm A's corpus without the
 stage's own skill, under an unchanged prompt that still names that skill; it
 refuses a skill the stage never read, since all three arms would read the same files. No real-provider
@@ -71,8 +74,7 @@ Attempt pairs, each arm's attempts with their outcomes, fired blockers, words
 and history links, or "history stale" where saved provenance no longer
 matches, what the pairing says, and what to read with care beside the
 offer to add attempts or why none can be added. A stage or pipeline comparison
-links no attempt history, since its attempts record no session. Its What moved
-view does not read the served `whatMoved` rows yet (ACT-257).
+links no attempt history, since its attempts record no session.
 
 ## Known limitations
 
