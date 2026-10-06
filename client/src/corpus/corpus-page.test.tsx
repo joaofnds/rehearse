@@ -454,6 +454,7 @@ describe(CorpusPage.name, () => {
 				expect(card).toHaveTextContent("3 recorded results · review them");
 			});
 			const row = screen.getByText("CLAUDE.md").closest("tr");
+			expect(row).not.toBeNull();
 			expect(
 				within(row ?? document.body)
 					.getAllByRole("cell")
