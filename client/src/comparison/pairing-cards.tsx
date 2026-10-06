@@ -179,7 +179,7 @@ function attributionText(attribution: ComparisonAttribution): string {
  * Offers as many attempts again as arm A holds, in every arm, on a comparison
  * whose record says how each arm replays, with the cost on the button.
  */
-function MoreAttempts({
+export function MoreAttempts({
 	digest,
 	baselineArm,
 	cost,
