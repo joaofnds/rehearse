@@ -12,6 +12,7 @@ import {
 import type { PipelineRow } from "#client/shell/run-in-flight";
 import { Grade } from "#client/system/components/grade";
 import { LiveGlyph, STATUS_VOCABULARY } from "#client/system/components/status";
+import { CheckpointAttempts } from "./checkpoint-attempts";
 import { StepReport } from "./step-report";
 
 /** How a stage reads in the rail: as the task graph reads it, unless the run ended before it. */
@@ -95,8 +96,9 @@ function StepButton({
 }
 
 /**
- * Step rail (SPEC.md 4a): the run's stages down the left, and the selected
- * stage's report beside them.
+ * Step rail (SPEC.md 4a): the run's stages down the left with the attempts at
+ * the selected stage's checkpoint under them, and that stage's report beside
+ * them.
  */
 export function StepRail({
 	row,
@@ -130,6 +132,7 @@ export function StepRail({
 						/>
 					))}
 				</ul>
+				<CheckpointAttempts run={row.run} stage={selected} />
 			</section>
 			<StepReport
 				run={row.run}

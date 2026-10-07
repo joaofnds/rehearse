@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { StageJudge } from "#server/stage-judge";
+import type { StageAttempts } from "#server/stage-attempts";
 import type { StageSession } from "#server/stage-session";
 import type { RunRecord, RunRecordStage } from "#server/run-record";
 import { RUN, renderRunDetail, stoppedAtBuild } from "./run-detail-fixtures";
@@ -352,6 +353,104 @@ describe("Step rail", () => {
 					'[class*="destructive"], [class*="danger"], [role="alert"]',
 				),
 			).toHaveLength(0);
+		});
+	});
+
+	describe("attempts at the checkpoint", () => {
+		const BUILD_ATTEMPTS = `/api/runs/${RUN}/stages/build/attempts`;
+		const DIGEST = "c0ffee".padEnd(64, "0");
+
+		/** A replay and a confirmation rep at build's checkpoint beside the original run. */
+		function attemptsAtBuild(): StageAttempts {
+			return {
+				checkpoint: "audit-log/r2/s1",
+				attempts: [
+					{
+						kind: "original",
+						id: "audit-log/r2",
+						staleness: {
+							state: "available",
+							stale: true,
+							causes: ["skills/build/SKILL.md changed"],
+							changedFiles: [
+								{ path: "skills/build/SKILL.md", change: "changed" },
+							],
+							onlyCorpusFiles: true,
+							readManifest: [],
+							distance: { kind: "measured", versions: 1 },
+						},
+					},
+					{
+						kind: "replay",
+						id: "audit-log/r3",
+						grade: "B",
+						corpusVersion: { kind: "version", digest: DIGEST },
+						staleness: {
+							state: "available",
+							stale: false,
+							causes: [],
+							changedFiles: [],
+							onlyCorpusFiles: true,
+							readManifest: [],
+							distance: { kind: "measured", versions: 0 },
+						},
+					},
+					{
+						kind: "rep",
+						id: "group-at-build-rep-1",
+						grade: "A",
+						corpusVersion: undefined,
+						staleness: {
+							state: "unavailable",
+							reasons: [
+								"the group froze no pipeline to hash its stages against",
+							],
+						},
+					},
+				],
+			};
+		}
+
+		it("lists the original run, a replay and a rep at the checkpoint the selected step started from", async () => {
+			renderRunDetail(new Map([[BUILD_ATTEMPTS, attemptsAtBuild()]]));
+
+			const list = await screen.findByRole("list", {
+				name: "Attempts at audit-log/r2/s1",
+			});
+			const items = within(list).getAllByRole("listitem");
+
+			expect(
+				screen.getByRole("heading", { name: "Attempts at audit-log/r2/s1" }),
+			).toBeInTheDocument();
+			expect(items.map((item) => item.textContent)).toEqual([
+				"audit-log/r2Doriginal run · version not recorded⚠ stale · skills/build/SKILL.md changed",
+				"audit-log/r3Breplay · corpus@c0ffee✓ current corpus",
+				"group-at-build-rep-1Aconfirmation rep · version not recordedstaleness not known: the group froze no pipeline to hash its stages against",
+			]);
+			expect(
+				screen.getByRole("link", { name: "Compare these attempts" }),
+			).toHaveAttribute("href", "/comparisons");
+		});
+
+		it("reads the attempts of the step chosen in the rail", async () => {
+			renderRunDetail(
+				new Map([
+					[BUILD_ATTEMPTS, attemptsAtBuild()],
+					[
+						`/api/runs/${RUN}/stages/shape/attempts`,
+						{ checkpoint: "audit-log/r2/s0", attempts: [] },
+					],
+				]),
+			);
+			await screen.findByRole("list", { name: "Attempts at audit-log/r2/s1" });
+
+			fireEvent.click(screen.getByRole("button", { name: /shape/u }));
+
+			expect(
+				await screen.findByRole("list", {
+					name: "Attempts at audit-log/r2/s0",
+				}),
+			).toBeInTheDocument();
 		});
 	});
 });
