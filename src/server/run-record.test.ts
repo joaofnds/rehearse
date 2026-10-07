@@ -23,6 +23,7 @@ import {
 import { benchmarkRunPaths } from "#benchmark/run-layout";
 import { createApiApp } from "./api";
 import {
+	artifactsIn,
 	AWAITING_GRADE_REASON,
 	AWAITING_JUDGMENT_REASON,
 	INTERRUPTED_REASON,
@@ -36,6 +37,7 @@ import {
 	UNRECORDED_STAGE_REASON,
 	WALL_TIME_REASON,
 } from "./run-record";
+import type { WorkflowStateChange } from "./run-record";
 
 const FINISHED_RUN = "2026-09-11T00-00-00.000Z";
 const ASKED_RUN = "2026-09-12T00-00-00.000Z";
@@ -603,6 +605,51 @@ describe("/api/runs/:run", () => {
 						},
 					],
 				});
+			});
+
+			it("names each workflow-state file by the latest earlier stage that changed it, leaving out one an earlier stage removed", () => {
+				const upstream = {
+					target: "template",
+					upstream: "review",
+					checkpointShortId: { state: "unavailable", reasons: [] },
+				} as const;
+				const changed = (
+					stage: string,
+					changes: readonly WorkflowStateChange[],
+				): Parameters<typeof artifactsIn>[2][number] =>
+					({
+						stage,
+						artifactsOut: { workflowState: { state: "available", changes } },
+					}) as const;
+
+				const inputs = artifactsIn("ACT-1", upstream, [
+					changed("discuss", [
+						{ path: "plan.md", change: "added" },
+						{ path: "notes.md", change: "added" },
+					]),
+					changed("plan", [
+						{ path: "plan.md", change: "modified" },
+						{ path: "notes.md", change: "removed" },
+					]),
+					changed("review", [{ path: taskCard, change: "modified" }]),
+				]);
+
+				expect(inputs.entries).toEqual([
+					{ from: "task declaration", taskId: "ACT-1" },
+					{ from: "upstream checkpoint", ...upstream },
+					{
+						from: "earlier stage",
+						path: "plan.md",
+						change: "modified",
+						stage: "plan",
+					},
+					{
+						from: "earlier stage",
+						path: taskCard,
+						change: "modified",
+						stage: "review",
+					},
+				]);
 			});
 
 			it("serves the read manifest a stage's checkpoint recorded", async () => {

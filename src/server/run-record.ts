@@ -188,7 +188,7 @@ export type ArtifactIn =
 	| {
 			readonly from: "earlier stage";
 			readonly path: string;
-			readonly change: WorkflowStateChange["change"];
+			readonly change: Exclude<WorkflowStateChange["change"], "removed">;
 			readonly stage: string;
 	  };
 
@@ -758,18 +758,24 @@ interface Upstream {
 	readonly checkpointShortId: ShortIdReading;
 }
 
+/** The part of an earlier stage's record its later stages start from. */
+interface EarlierStage {
+	readonly stage: string;
+	readonly artifactsOut: Pick<ArtifactsOut, "workflowState">;
+}
+
 /**
  * What a stage's session started from: the task card the case names, the
  * target at the checkpoint before it, and each workflow-state file an earlier
- * stage changed, named by that stage. Earlier stages'
- * declared artifacts reach only the stage judge, so they are not inputs.
+ * stage changed, named by the latest stage that changed it. A file an earlier
+ * stage removed is not there to start from.
  */
-function artifactsIn(
+export function artifactsIn(
 	taskId: string,
 	upstream: Upstream,
-	earlier: readonly RunRecordStage[],
+	earlier: readonly EarlierStage[],
 ): ArtifactsIn {
-	const changed: ArtifactIn[] = [];
+	const latest = new Map<string, ArtifactIn>();
 	const missing: MissingPart[] = [];
 	for (const { stage, artifactsOut } of earlier) {
 		const { workflowState } = artifactsOut;
@@ -778,7 +784,10 @@ function artifactsIn(
 			continue;
 		}
 		for (const { path, change } of workflowState.changes) {
-			changed.push({ from: "earlier stage", path, change, stage });
+			latest.delete(path);
+			if (change !== "removed") {
+				latest.set(path, { from: "earlier stage", path, change, stage });
+			}
 		}
 	}
 
@@ -786,7 +795,7 @@ function artifactsIn(
 		entries: [
 			{ from: "task declaration", taskId },
 			{ from: "upstream checkpoint", ...upstream },
-			...changed,
+			...latest.values(),
 		],
 		missing,
 	};
