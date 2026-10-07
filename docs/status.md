@@ -297,12 +297,15 @@ stopped confirmation group writes no group record, so its reps never read as
 failed, and a replay, group or session attempt stopped from the browser stays
 listed as an `OPERATOR_STOPPED` launch. One stopped from a terminal leaves no
 row. Stopped matches only pipeline runs
-with a stopped stage, Running the runs in flight, Replays and Groups their
+with a stopped stage, Running the pipeline runs in flight and every running
+launch, Replays and Groups their
 kinds, and Clean corpus only the rows whose Corpus cell reads clean. The search
 narrows the selected filter's rows, ignoring case, to those whose case id,
 `corpus@` version or the id of a hard blocker that fired on a run's stage, a
-replay or a group's rep contains the text. When records exist and none
-matches, the page says so rather than showing the empty install's state. Records that cannot be read are counted by kind in a
+replay or a group's rep contains the text. A run or group whose fired blockers
+could not be read, because a stage record does not parse, is found by its case
+id and version only. When records or launches exist and none matches, the page
+says so rather than showing the empty install's state. Records that cannot be read are counted by kind in a
 notice above the table, with their ids and reasons behind a toggle. A replay
 keeps no raw transcript, so its page shows an evidence-unavailable summary with
 no events, per-event detail, request series or corpus reconciliation. A run

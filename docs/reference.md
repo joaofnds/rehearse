@@ -1578,8 +1578,8 @@ that predates it.
 Each stage, in the manifest's order, reports its status (`graded`, `stopped`,
 `awaiting-judgment` or `no-record`), its grade as the letter and the judge's
 verdict, how many of the rubric's hard blockers its judge found fired out of
-how many it checked with the fired ones' ids, unavailable when its record
-holds no grade, its
+how many it checked, with the fired ones' ids, unavailable when its record
+holds no graded hard blockers, its
 checkpoint's short id, its session and judge cost, and its tokens
 as input, cache read, cache write, output and total input, summed over its
 session calls and judge attempts. Its instruction files are the corpus files
@@ -1816,7 +1816,8 @@ finished reached every stage. The design labels these the step grades and the ta
 grade, and those names stay in the client.
 `finalOutcome` is the run record's `finalOutcome`, and `cost` and `wallTime` are the
 run's totals. A run that wrote no manifest, or one of whose stage records does
-not parse, keeps its row with those four figures unavailable and the reason,
+not parse, keeps its row with those four figures, its `minimumGrade` and its
+`firedBlockers` unavailable and the reason,
 where the pipeline run record's route answers 404 or 500 for the same run. A
 main record that does not parse still moves the run to `unreadable`.
 
@@ -1928,7 +1929,7 @@ matches. A run's come from its graded stage records, a replay's from its stage
 grade, and a group's from each rep's stage record rather than its judge
 attempts, whose payload a retried attempt can leave disagreeing with the grade
 the rep kept. The list is unavailable with the reason when no stage record
-holds graded hard blockers, a group's is unavailable naming each rep stage
+holds graded hard blockers or the run's record cannot be read, a group's is unavailable naming each rep stage
 record that does not parse, since that record could hold a fired blocker, and
 a session group's always is, since checks grade its reps.
 
