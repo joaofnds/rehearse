@@ -57,6 +57,25 @@ function verdictReading(stage: MonitoredStage): string {
 		: STATUS_VOCABULARY.pending.word;
 }
 
+/** The stage's grade as a letter, or why the header has none to show. */
+function GradeReading({
+	stage,
+}: {
+	readonly stage: MonitoredStage;
+}): React.JSX.Element {
+	if (stage.grade.state === "available") {
+		return <Grade size="node" value={{ letter: stage.grade.letter }} />;
+	}
+
+	return (
+		<span className="text-11-5 text-secondary-foreground">
+			{hasEnded(stage)
+				? notRecorded("grade", stage.grade.reasons)
+				: "grade pending"}
+		</span>
+	);
+}
+
 function ModalHeader({
 	stage,
 	number,
@@ -77,14 +96,7 @@ function ModalHeader({
 				<span className="text-11-5 text-secondary-foreground">
 					verdict {verdictReading(stage)}
 				</span>{" "}
-				<Grade
-					size="node"
-					value={
-						stage.grade.state === "available"
-							? { letter: stage.grade.letter }
-							: { pending: true }
-					}
-				/>
+				<GradeReading stage={stage} />
 				<DialogClose asChild>
 					<Button variant="outline" size="sm" aria-label="Close">
 						Esc
@@ -336,9 +348,9 @@ function ArtifactsOut({
 		<>
 			<SectionTitle id={headingId}>Artifacts out</SectionTitle>
 			<ul aria-labelledby={headingId} className="mt-2 flex flex-col gap-1">
-				{rows.map(({ name, detail }) => (
+				{rows.map(({ name, detail }, index) => (
 					<li
-						key={`${detail}:${name}`}
+						key={`${detail}:${name}:${index}`}
 						className="flex items-center gap-2.25 rounded-md border border-deeper bg-selected px-2.5 py-1.5"
 					>
 						<span aria-hidden="true" className="text-muted-foreground">
@@ -393,6 +405,13 @@ function SessionLink({
 	readonly stage: string;
 }): React.JSX.Element | null {
 	const session = useQuery(stageSessionQuery(run, stage));
+	if (session.isError) {
+		return (
+			<span className="self-center text-11-5 text-muted-foreground">
+				Could not read this step's session.
+			</span>
+		);
+	}
 	if (session.data === undefined) {
 		return null;
 	}
@@ -510,8 +529,8 @@ function OperateOnStep({
 				<Button variant="outline" size="sm" aria-disabled="true">
 					Edit this step
 				</Button>
-				<Button variant="outline" size="sm" aria-disabled="true">
-					Edit its skill
+				<Button variant="outline" size="sm" asChild>
+					<Link to="/corpus">Edit its skill</Link>
 				</Button>
 			</div>
 			<p className="mt-2 text-11 text-pretty text-dim">

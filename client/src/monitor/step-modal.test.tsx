@@ -163,9 +163,14 @@ describe("/monitor step modal", () => {
 			recordStage("plan", { status: "graded" }),
 			recordStage("build"),
 		]);
-		fireEvent.click(await inOutAction("plan"));
-
+		const action = await inOutAction("plan");
+		fireEvent.click(action);
 		const dialog = await screen.findByRole("dialog", { name: /plan/u });
+		await waitFor(() => {
+			expect(dialog.contains(document.activeElement)).toBe(true);
+		});
+
+		action.focus();
 
 		await waitFor(() => {
 			expect(dialog.contains(document.activeElement)).toBe(true);
@@ -189,7 +194,7 @@ describe("/monitor step modal", () => {
 			const dialog = await openModal("build");
 
 			expect(within(dialog).getByRole("banner")).toHaveTextContent(
-				"Step 02buildskill pending · wall time pending · cost pendingverdict pending —Esc",
+				"Step 02buildskill pending · wall time pending · cost pendingverdict pending grade pendingEsc",
 			);
 		});
 
@@ -203,6 +208,9 @@ describe("/monitor step modal", () => {
 
 			expect(within(dialog).getByRole("banner")).toHaveTextContent(
 				"skill not recorded: not read by this test · wall time not recorded: not read by this test · session cost not recorded: not read by this test · judge cost not recorded: not read by this test",
+			);
+			expect(within(dialog).getByRole("banner")).toHaveTextContent(
+				"grade not recorded: not read by this test",
 			);
 		});
 	});
@@ -297,6 +305,19 @@ describe("/monitor step modal", () => {
 				"↓acme-api at r-0148/s1step 01 checkpoint",
 				`↓${TASK_CARD}step 01 · plan · modified`,
 			]);
+		});
+
+		it("reads a stopped step's instructions its record lacks as not recorded", async () => {
+			renderMonitor([
+				recordStage("plan", { status: "stopped" }),
+				recordStage("build"),
+			]);
+
+			const dialog = await openModal("plan");
+
+			expect(dialog).toHaveTextContent(
+				"Instructions not recorded: not read by this test",
+			);
 		});
 
 		it("says which earlier step's changes a running step's inputs cannot read, and that its instructions are pending", async () => {
@@ -405,6 +426,7 @@ describe("/monitor step modal", () => {
 							hardBlockers: [
 								{ id: "scope-declared", status: "FAIL", evidence: [] },
 								{ id: "no-secrets", status: "PASS", evidence: [] },
+								{ id: "tests-pass", status: "PASS", evidence: [] },
 							],
 							dimensions: [
 								{ id: "scope-discipline", grade: "C", evidence: [] },
@@ -418,7 +440,7 @@ describe("/monitor step modal", () => {
 
 			expect(
 				await within(dialog).findByText(
-					"1 of 2 blockers fired · 1 dimension returned",
+					"1 of 3 blockers fired · 1 dimension returned",
 				),
 			).toBeInTheDocument();
 		});
@@ -505,6 +527,15 @@ describe("/monitor step modal", () => {
 				),
 			).toBeInTheDocument();
 		});
+		it("says when the step's session cannot be read", async () => {
+			renderMonitor([recordStage("plan", FINISHED_PLAN), recordStage("build")]);
+
+			const dialog = await openModal("plan");
+
+			expect(
+				await within(dialog).findByText("Could not read this step's session."),
+			).toBeInTheDocument();
+		});
 	});
 
 	describe("operating on the step", () => {
@@ -531,7 +562,7 @@ describe("/monitor step modal", () => {
 			);
 		});
 
-		it("draws step and skill editing disabled, naming as planned only step editing", async () => {
+		it("draws step editing disabled as planned and opens skill editing on the Corpus screen", async () => {
 			renderMonitor([recordStage("plan", FINISHED_PLAN), recordStage("build")]);
 
 			const dialog = await openModal("plan");
@@ -540,8 +571,8 @@ describe("/monitor step modal", () => {
 				within(dialog).getByRole("button", { name: "Edit this step" }),
 			).toHaveAttribute("aria-disabled", "true");
 			expect(
-				within(dialog).getByRole("button", { name: "Edit its skill" }),
-			).toHaveAttribute("aria-disabled", "true");
+				within(dialog).getByRole("link", { name: "Edit its skill" }),
+			).toHaveAttribute("href", "/corpus");
 			expect(dialog).toHaveTextContent(
 				"Editing a step is planned for a later version. Its skill and the other instruction files are edited on the Corpus screen, which writes a new corpus version.",
 			);
