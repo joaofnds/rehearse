@@ -11,12 +11,12 @@ type FinalOutcome = RunRecordResponse["finalOutcome"];
 
 type CorpusMeasurement = PipelineRow["corpusVersion"];
 
-const NOT_RETURNED = "—";
+export const NOT_RETURNED = "—";
 
 const JUDGE_SCOPE =
 	"The task judge sees only what went in at step 1 and what came out of the last step. It does not read the intermediate steps, so it cannot grade a run that stopped early. Step grades below are unaffected.";
 
-interface OutcomeReading {
+export interface OutcomeReading {
 	readonly value: string;
 	readonly note: string;
 }
@@ -25,7 +25,7 @@ interface OutcomeReading {
  * The final judge returns PASS or FAIL and no letter (decision-5), so the
  * value is its verdict or a dash with the reason it has none.
  */
-function outcomeReading(outcome: FinalOutcome): OutcomeReading {
+export function outcomeReading(outcome: FinalOutcome): OutcomeReading {
 	switch (outcome.status) {
 		case "JUDGED": {
 			return { value: outcome.verdict, note: "graded independently" };

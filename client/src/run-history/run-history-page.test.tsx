@@ -2134,6 +2134,70 @@ describe(RunHistoryPage.name, () => {
 
 			expect(cellOf(RUN, "Step grades")).toHaveTextContent("A− B+ D ·");
 		});
+
+		it("says why its step grades could not be read", async () => {
+			respondingWith(
+				runWith({
+					...UNREAD_RUN_FIGURES,
+					stageGrades: {
+						state: "unavailable",
+						reasons: ["the run wrote no manifest, which names its stages"],
+					},
+				}),
+			);
+
+			await renderPage().findByText(RUN);
+
+			expect(cellOf(RUN, "Step grades")).toHaveTextContent(
+				"the run wrote no manifest, which names its stages",
+			);
+		});
+
+		it.each([
+			[
+				"the final judge's verdict",
+				{ state: "available", status: "JUDGED", verdict: "PASS" },
+				"PASSgraded independently",
+			],
+			[
+				"a dash while the run is pending",
+				{ state: "available", status: "PENDING", stage: "build" },
+				"—pending · the run is at build",
+			],
+			[
+				"a dash with why the final judge was not reached",
+				{
+					state: "available",
+					status: "NOT_REACHED",
+					stage: "build",
+					reason: "the run stopped at build",
+				},
+				"—not reached · the run stopped at build",
+			],
+			[
+				"a dash with why judging failed",
+				{
+					state: "available",
+					status: "JUDGING_FAILED",
+					reason: "the judge returned no verdict",
+				},
+				"—judging failed · the judge returned no verdict",
+			],
+			[
+				"a dash with why the outcome could not be read",
+				{ state: "unavailable", reasons: ["the artifact does not parse"] },
+				"—the artifact does not parse",
+			],
+		] as const)(
+			"reads as its task grade %s",
+			async (_reading, finalOutcome, text) => {
+				respondingWith(runWith({ ...UNREAD_RUN_FIGURES, finalOutcome }));
+
+				await renderPage().findByText(RUN);
+
+				expect(cellOf(RUN, "Task grade")).toHaveTextContent(text);
+			},
+		);
 	});
 
 	describe("when two recorded attempts are compared", () => {

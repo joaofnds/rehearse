@@ -24,6 +24,11 @@ import { ScreenHeader } from "#client/system/components/screen-header";
 import { SectionLabel } from "#client/system/components/section-label";
 import { Notice } from "#client/system/components/notice";
 import { LaunchDialog } from "#client/launch/launch-dialog";
+import {
+	NOT_RETURNED,
+	outcomeReading,
+} from "#client/run-detail/task-grade-card";
+import type { OutcomeReading } from "#client/run-detail/task-grade-card";
 import { RunControls } from "./run-controls";
 
 type HistoryRow = RunHistoryResponse["rows"][number];
@@ -548,8 +553,40 @@ function stepGradesCell(row: HistoryRow): React.JSX.Element {
 	}
 }
 
-function taskGradeCell(_row: HistoryRow): React.JSX.Element {
-	return <span />;
+/** A task grade's value, with what it means or why it is missing beneath. */
+function taskGrade({ value, note }: OutcomeReading): React.JSX.Element {
+	return (
+		<span className="flex flex-col gap-0.5">
+			<span className="font-mono text-13 font-bold">{value}</span>
+			<span className="text-11 text-dim">{note}</span>
+		</span>
+	);
+}
+
+function runTaskGrade(
+	finalOutcome: RunHistoryRow["finalOutcome"],
+): OutcomeReading {
+	if (finalOutcome.state === "unavailable") {
+		return { value: NOT_RETURNED, note: finalOutcome.reasons.join("; ") };
+	}
+
+	return outcomeReading(finalOutcome);
+}
+
+function taskGradeCell(row: HistoryRow): React.JSX.Element {
+	switch (row.kind) {
+		case "run": {
+			return taskGrade(runTaskGrade(row.finalOutcome));
+		}
+		case "replay":
+		case "session-attempt":
+		case "group": {
+			return <span />;
+		}
+		default: {
+			return row satisfies never;
+		}
+	}
 }
 
 function filterLabel(filter: Filter, total: number | undefined): string {
