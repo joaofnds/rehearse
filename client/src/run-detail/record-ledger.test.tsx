@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { screen, within } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 import type { RunRecord, RunRecordStage } from "#server/run-record";
 import type { StageJudge } from "#server/stage-judge";
 import type { StageSession } from "#server/stage-session";
@@ -53,6 +53,8 @@ function closedSession(lineCount: number): StageSession {
 	};
 }
 
+const STOPPED_STEP_SESSION = `/api/runs/${RUN}/stages/build/session`;
+
 const STOPPED_STEP_JUDGE = `/api/runs/${RUN}/stages/build/judge`;
 
 function judged(): StageJudge {
@@ -91,17 +93,30 @@ function judged(): StageJudge {
 	};
 }
 
-function renderLedger(routes: ReadonlyMap<string, unknown> = new Map()): void {
+function renderLedger(
+	routes: ReadonlyMap<string, unknown> = new Map(),
+	record: RunRecord = stoppedWithFigures(),
+): void {
 	renderRunDetail(
-		new Map<string, unknown>([
-			[`/api/runs/${RUN}`, stoppedWithFigures()],
-			...routes,
-		]),
+		new Map<string, unknown>([[`/api/runs/${RUN}`, record], ...routes]),
 		[],
 		LEDGER,
 	);
 }
 
+/** Each ledger card's footer, in the cards' order. */
+async function ledgerFooters(): Promise<readonly HTMLElement[]> {
+	const cards = await ledgerCards();
+
+	return cards.map((card) => {
+		const footer = card.querySelector("footer");
+		if (!(footer instanceof HTMLElement)) {
+			throw new Error(`${card.getAttribute("aria-label")} has no footer`);
+		}
+
+		return footer;
+	});
+}
 async function ledgerCards(): Promise<readonly HTMLElement[]> {
 	const ledger = await screen.findByRole("region", { name: "Record ledger" });
 
@@ -171,5 +186,131 @@ describe("Record ledger", () => {
 		expect(blockers.parentElement?.nextElementSibling).toContainElement(
 			dimensions,
 		);
+	});
+
+	it("states whether each stage kept its checkpoint or the repository was restored", async () => {
+		renderLedger();
+
+		const [firstStep, stoppedStep] = await ledgerFooters();
+
+		expect(
+			within(firstStep ?? document.body).getByText(
+				"c-0147-1 · frozen state retained",
+			),
+		).toBeInTheDocument();
+		expect(
+			within(stoppedStep ?? document.body).getByText(
+				"no checkpoint saved · repository restored",
+			),
+		).toBeInTheDocument();
+	});
+
+	it("offers a replay from each stage", async () => {
+		renderLedger();
+
+		const footers = await ledgerFooters();
+
+		expect(
+			footers.map((footer) =>
+				within(footer)
+					.getByRole("button", { name: /^Replay from here/u })
+					.getAttribute("aria-disabled"),
+			),
+		).toEqual([null, null]);
+	});
+
+	it("disables the replay with its reason when the checkpoint the stage started from is missing", async () => {
+		renderLedger(new Map(), stoppedAtBuild("missing"));
+
+		const [, stoppedStep] = await ledgerFooters();
+
+		expect(
+			within(stoppedStep ?? document.body).getByRole("button", {
+				name: "Replay from here: build has no checkpoint to replay from",
+			}),
+		).toHaveAttribute("aria-disabled", "true");
+	});
+
+	it("counts the stage's cited evidence on its toggle", async () => {
+		renderLedger(new Map([[STOPPED_STEP_JUDGE, judged()]]));
+
+		const [, stoppedStep] = await ledgerFooters();
+
+		expect(
+			await within(stoppedStep ?? document.body).findByRole("button", {
+				name: "2 cited",
+			}),
+		).toHaveAttribute("aria-expanded", "false");
+	});
+
+	describe("expanded evidence", () => {
+		async function openEvidence(session: StageSession): Promise<HTMLElement> {
+			renderLedger(
+				new Map<string, unknown>([
+					[STOPPED_STEP_JUDGE, judged()],
+					[STOPPED_STEP_SESSION, session],
+				]),
+			);
+			const [, stoppedStep] = await ledgerCards();
+			const card = stoppedStep ?? document.body;
+
+			fireEvent.click(
+				await within(card).findByRole("button", { name: "2 cited" }),
+			);
+
+			return within(card).getByRole("region", { name: "Cited evidence" });
+		}
+
+		it("lays each item out with its source, locator and what it supports beside its quote", async () => {
+			const evidence = await openEvidence(closedSession(1284));
+
+			const items = within(evidence).getAllByRole("listitem");
+
+			expect(items.map((item) => item.textContent)).toEqual([
+				"transcriptexchange 3 message, characters 0-25supports scope-declared-before-editI'll take the small scope",
+				"diffsrc/a.tssupports scope-discipline",
+			]);
+			expect(items[0]?.firstElementChild?.parentElement).toHaveClass(
+				"grid-cols-ledger-evidence",
+			);
+			expect(
+				within(evidence).getByRole("link", {
+					name: "exchange 3 message, characters 0-25",
+				}),
+			).toHaveAttribute(
+				"href",
+				`/runs/${RUN}/stages/build/evidence/hardBlockers/scope-declared-before-edit/0`,
+			);
+			expect(
+				within(evidence).getByRole("link", { name: "src/a.ts" }),
+			).toHaveAttribute(
+				"href",
+				`/runs/${RUN}/stages/build/evidence/dimensions/scope-discipline/0`,
+			);
+		});
+
+		it("closes with a link to the session on disk", async () => {
+			const evidence = await openEvidence(closedSession(1284));
+
+			expect(evidence).toHaveTextContent(
+				/Uncited spans are not stored here\. Open the full session on disk$/u,
+			);
+			expect(
+				within(evidence).getByRole("link", {
+					name: "Open the full session on disk",
+				}),
+			).toHaveAttribute("href", `/runs/${RUN}/stages/build`);
+		});
+
+		it("says why there is no session to open when no transcript was kept", async () => {
+			const evidence = await openEvidence({
+				state: "closed",
+				spans: [],
+			});
+
+			expect(evidence).toHaveTextContent(
+				"Uncited spans are not stored here. The full session is not recorded: Rehearse kept no copy of this step's session",
+			);
+		});
 	});
 });

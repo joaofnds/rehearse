@@ -84,7 +84,7 @@ function closedToggleWords(evidence: RowEvidence): string {
 		: `${String(evidence.length)} cited`;
 }
 
-function EvidenceToggle({
+export function EvidenceToggle({
 	evidence,
 	shown,
 	onToggle,
@@ -109,11 +109,43 @@ function EvidenceToggle({
 	);
 }
 
-interface EvidenceOwner {
+export interface EvidenceOwner {
 	readonly run: string;
 	readonly stage: string;
 	readonly section: "hardBlockers" | "dimensions";
 	readonly item: string;
+}
+
+export function SourceChip({
+	cited,
+}: {
+	readonly cited: Evidence;
+}): React.JSX.Element {
+	return (
+		<span className="rounded-sm border border-strong px-1.5 py-0.25">
+			{cited.source}
+		</span>
+	);
+}
+
+/** The cited item's locator, or else its path, opening the evidence page. */
+export function EvidenceLink({
+	owner,
+	index,
+	cited,
+}: {
+	readonly owner: EvidenceOwner;
+	readonly index: number;
+	readonly cited: Evidence;
+}): React.JSX.Element {
+	return (
+		<Link
+			to="/runs/$run/stages/$stage/evidence/$section/$item/$index"
+			params={{ ...owner, index: String(index) }}
+		>
+			{cited.place ?? cited.path}
+		</Link>
+	);
 }
 
 function CitedEvidence({
@@ -134,15 +166,8 @@ function CitedEvidence({
 					className={spacing}
 				>
 					<div className="flex items-center gap-2.5 font-mono text-10-5 text-muted-foreground">
-						<span className="rounded-sm border border-strong px-1.5 py-0.25">
-							{cited.source}
-						</span>
-						<Link
-							to="/runs/$run/stages/$stage/evidence/$section/$item/$index"
-							params={{ ...owner, index: String(index) }}
-						>
-							{cited.place ?? cited.path}
-						</Link>
+						<SourceChip cited={cited} />
+						<EvidenceLink owner={owner} index={index} cited={cited} />
 					</div>
 					{cited.quote === undefined ? null : (
 						<blockquote className="mt-1.5 border-l border-strong px-2.75 py-1.75 font-mono text-11-5 whitespace-pre-wrap text-bright">

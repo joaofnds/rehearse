@@ -31,6 +31,10 @@
 	grid-template-columns: 300px minmax(0, 1fr);
 }
 
+@utility grid-cols-ledger-evidence {
+	grid-template-columns: 180px minmax(0, 1fr);
+}
+
 @utility max-w-note {
 	max-width: 38ch;
 }
