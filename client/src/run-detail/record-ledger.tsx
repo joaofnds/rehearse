@@ -12,6 +12,7 @@ import type {
 	MonitoredStage,
 	RunRecordResponse,
 } from "#client/monitor/run-record-query";
+import { missedMinimum } from "#client/monitor/run-record-query";
 import {
 	BlockerLine,
 	blockerState,
@@ -83,20 +84,12 @@ function cardStatus(
 	record: RunRecordResponse,
 ): NodeStatus {
 	const status = nodeStatus(stage, row);
-	const { minimumGrade } = record;
-	if (
-		status.state !== "stopped" ||
-		minimumGrade.state === "unavailable" ||
-		stage.grade.state === "unavailable" ||
-		stage.grade.reachesMinimum
-	) {
+	const minimum = missedMinimum(record, stage);
+	if (status.state !== "stopped" || minimum === undefined) {
 		return status;
 	}
 
-	return {
-		state: "stopped",
-		words: `below minimum ${minimumGrade.letter} · run stopped`,
-	};
+	return { state: "stopped", words: `below minimum ${minimum} · run stopped` };
 }
 
 function StatusWords({
@@ -500,25 +493,48 @@ function runCorpus(row: PipelineRow): string {
 }
 
 /**
- * Why a stopped run never reached a stage: the stage it stopped after, below
- * the minimum where its letter fell there, which is an outcome the run
- * records for its corpus rather than a failure (SPEC.md product rule 3).
+ * A stop record also ends a run the spend ceiling, a signal or a failed judge
+ * stopped, so only a letter below the minimum or a judge's STOP is an
+ * outcome the run records for its corpus.
+ */
+function judgedStop(stage: MonitoredStage | undefined): boolean {
+	const grade = stage?.grade;
+
+	return (
+		grade?.state === "available" &&
+		(!grade.reachesMinimum || grade.verdict === "STOP")
+	);
+}
+
+/**
+ * Why a run its judged stop ended never reached a stage: the stage it stopped
+ * after, below the minimum where its letter fell there, which is an outcome
+ * rather than a failure (SPEC.md product rule 3).
  */
 function neverRanWords(
 	unreached: Unreached,
-	status: StoppedStatus,
+	stopped: { readonly stage: MonitoredStage; readonly number: number },
 	row: PipelineRow,
 	record: RunRecordResponse,
 ): string {
+	const below =
+		missedMinimum(record, stopped.stage) === undefined
+			? ""
+			: " fell below the minimum";
+
+	return `${stepName(unreached)} never ran. The run stopped after step ${String(stopped.number)}${below} and the target repository was restored. This is a recorded outcome for ${runCorpus(row)}, not a failed execution.`;
+}
+
+/** The stage a stopped run stopped at, with its step number. */
+function stoppedStep(
+	status: StoppedStatus,
+	record: RunRecordResponse,
+): { readonly stage: MonitoredStage; readonly number: number } | undefined {
 	const stoppedAt = stoppedStageOf(status);
 	const index = record.stages.findIndex(({ stage }) => stage === stoppedAt);
-	const grade = record.stages[index]?.grade;
-	const below =
-		grade?.state === "available" && !grade.reachesMinimum
-			? " fell below the minimum"
-			: "";
+	const stage = record.stages[index];
 
-	return `${stepName(unreached)} never ran. The run stopped after step ${String(index + 1)}${below} and the target repository was restored. This is a recorded outcome for ${runCorpus(row)}, not a failed execution.`;
+	return stage === undefined ? undefined : { stage, number: index + 1 };
 }
 
 /**
@@ -552,10 +568,13 @@ function UnreachedStage({
 	readonly record: RunRecordResponse;
 }): React.JSX.Element {
 	const ending = endingWords(unreached, record);
-	if (hasRunEnded(row) && isStopped(row.status)) {
+	const stopped = isStopped(row.status)
+		? stoppedStep(row.status, record)
+		: undefined;
+	if (hasRunEnded(row) && stopped !== undefined && judgedStop(stopped.stage)) {
 		return (
 			<li className="rounded-card border border-dashed border-strong px-3.5 py-3 text-11-5 text-pretty text-muted-foreground">
-				{neverRanWords(unreached, row.status, row, record)}
+				{neverRanWords(unreached, stopped, row, record)}
 			</li>
 		);
 	}

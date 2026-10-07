@@ -30,6 +30,20 @@ export function endedStatus(stage: EndedStage): "accepted" | "stopped" {
 		: "accepted";
 }
 
+/** The run's minimum letter that a stage's letter fell below, where both are known. */
+export function missedMinimum(
+	record: RunRecordResponse,
+	stage: MonitoredStage,
+): string | undefined {
+	const { minimumGrade } = record;
+
+	return minimumGrade.state === "available" &&
+		stage.grade.state === "available" &&
+		!stage.grade.reachesMinimum
+		? minimumGrade.letter
+		: undefined;
+}
+
 /**
  * A replay starts from the checkpoint the stage before it saved, so a stage
  * whose predecessor saved none has nothing to replay from. The first stage

@@ -14,7 +14,10 @@ import type {
 	MonitoredStage,
 	RunRecordResponse,
 } from "#client/monitor/run-record-query";
-import { runRecordQuery } from "#client/monitor/run-record-query";
+import {
+	missedMinimum,
+	runRecordQuery,
+} from "#client/monitor/run-record-query";
 import { polledRunHistoryQuery } from "#client/run-history/run-history-polling";
 import { spendReading } from "#client/run-history/run-progress";
 import { hasRunEnded, runStatusState } from "#client/run-history/run-status";
@@ -94,15 +97,10 @@ function stepNumber(record: RunRecordResponse, stage: string): number {
 
 function belowMinimum(record: RunRecordResponse, stage: string): string {
 	const stopped = record.stages.find((each) => each.stage === stage);
-	if (
-		record.minimumGrade.state === "unavailable" ||
-		stopped?.grade.state !== "available" ||
-		stopped.grade.reachesMinimum
-	) {
-		return "";
-	}
+	const minimum =
+		stopped === undefined ? undefined : missedMinimum(record, stopped);
 
-	return ` · below minimum ${record.minimumGrade.letter}`;
+	return minimum === undefined ? "" : ` · below minimum ${minimum}`;
 }
 
 /** How the run ended, or where it is, in the header's words. */

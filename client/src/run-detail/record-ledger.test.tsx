@@ -441,6 +441,44 @@ describe("Record ledger", () => {
 			);
 		});
 
+		it.each([
+			[
+				"its ceiling refused the stage's session",
+				{ state: "unavailable", reasons: ["the stage stopped the run"] },
+			],
+			[
+				"it stopped after the stage passed its judge",
+				{
+					state: "available",
+					letter: "A",
+					verdict: "CONTINUE",
+					reachesMinimum: true,
+				},
+			],
+		] as const)(
+			"states the run's own reason when %s",
+			async (_cause, grade) => {
+				const record = stoppedWithFigures();
+				const [first, second, ...later] = record.stages;
+				const reason = "Reached maximum budget ($0.004872600000000116)";
+				renderLedger(new Map(), {
+					...record,
+					stages:
+						first === undefined || second === undefined
+							? []
+							: [first, { ...second, grade }, ...later],
+					finalOutcome: { status: "NOT_REACHED", stage: "build", reason },
+				});
+
+				const note = within(await unreached()).getByRole("listitem");
+
+				expect(note).toHaveTextContent(
+					`Step 3 · verify did not run: ${reason}.`,
+				);
+				expect(note).not.toHaveClass("border-dashed");
+			},
+		);
+
 		it("shows them as queued while the run is in flight", async () => {
 			renderReachedFirstStep("RUNNING", { status: "PENDING", stage: "build" });
 
