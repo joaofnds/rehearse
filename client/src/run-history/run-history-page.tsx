@@ -576,7 +576,7 @@ function sessionOutcome(row: SessionAttemptRow): OutcomePhrase {
 		reason:
 			failed === 0
 				? "all checks passed"
-				: `${String(failed)} of ${String(checks.declared)} checks failed`,
+				: `${String(failed)} of ${plural(checks.declared, "check")} failed`,
 	};
 }
 

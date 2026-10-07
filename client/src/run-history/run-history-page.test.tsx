@@ -3317,6 +3317,11 @@ describe(RunHistoryPage.name, () => {
 					{ passed: 1, declared: 3 },
 					"◼unsuccessful2 of 3 checks failed",
 				],
+				[
+					"UNSUCCESSFUL",
+					{ passed: 0, declared: 1 },
+					"◼unsuccessful1 of 1 check failed",
+				],
 			] as const)(
 				"reads a %s attempt's outcome with its checks",
 				async (status, checks, expected) => {
