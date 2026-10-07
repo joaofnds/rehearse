@@ -1204,11 +1204,14 @@ session attempt's. A checkpoint keeps no list of unavailable sub-agents, so a
 checkpoint without `subagents/` does not show that no sub-agent ran. The stage
 ran in the target repository, so the provider's files in that repository's
 projects slug are left in place. Checkpoints written before this carry no
-transcript field and remain readable. A stage whose grade stopped the run saves
-no checkpoint, so its transcript and sub-agent files are copied by the same
-rules into `<run>.<stage>.session/` in the runs directory, beside its stop
-record. A stop recorded before this keeps no transcript. A stage checkpoint, a replay record and a
-session attempt record also carry `readManifest`, the files the record declared
+transcript field and remain readable. A stage that stopped the run, by its
+grade or by its judging failing, saves no checkpoint, so its transcript and
+sub-agent files are copied by the same rules into `<run>.<stage>.session/` in
+the runs directory, beside its stop record. No reader requires the copy: a
+copy that fails is reported on stderr and the run ends as it would have
+without it. A stop recorded before this keeps no transcript. A stage
+checkpoint, a replay record and a session attempt record also carry
+`readManifest`, the files the record declared
 or its transcript shows it loading. A stage record carries `readManifest` too,
 which is the only copy for a stage its judge stopped, since that stage saves no
 checkpoint, and so does each stage file of a confirmation rep, stopped or not. A corpus entry is
@@ -1781,8 +1784,11 @@ it, the exchange from 1 and whether it quotes the agent's `message` or the
 `productOwnerAnswer`. A graded record keeps the judged items under its grade,
 and the record of the stage that stopped the run keeps them beside it. A
 record that holds neither shape fails the request. Where the stage's
-checkpoint preserved a transcript, the answer adds `lineCount` and
+checkpoint preserved a transcript, or for a stage that stopped the run its
+`<run>.<stage>.session/` copy, the answer adds `lineCount` and
 `transcriptPath`, relative to the parent of the runs directory's real path.
+The saved stage history at `/runs/<run>/stages/<stage>` reads the same copy
+for a stopped stage.
 Before the record exists it answers `{state: "running", lineCount, lines,
 latestToolCall}` from the provider's own transcript. `lines` are the rows of
 its last 200 lines, each with its `line`, a `kind` of `user`, `assistant`,
@@ -1803,6 +1809,20 @@ transcript whose real path leaves the provider's projects directory, and 404
 for a stage the run's pipeline does not have or a missing projects directory.
 A stage record that is not valid JSON, such as one read while it is being
 written, answers 500.
+
+`/api/runs/<run>/stages/<stage>/attempts`, implemented in
+[stage-attempts.ts](../src/server/stage-attempts.ts), answers the attempts at
+the checkpoint the stage started from: the previous stage's, or the run's
+initial checkpoint for the first stage. It answers `{checkpoint, attempts}`,
+`checkpoint` being that checkpoint's short id or else its Record ID. The
+attempts are in claim order. The original run counts when it recorded a
+checkpoint or a grade for the stage, a stop below the minimum included, and
+carries its short id and staleness, its grade and corpus version being the
+run record's. A stage replay and a stage-mode confirmation rep from that
+checkpoint each carry their id, grade, corpus version and staleness, a rep
+named `<group short id> rep <n>`. Staleness is judged as run history judges
+it, and the original attempt at a stage that stopped the run is judged under
+the run's own id. It answers 404 for a stage the run's pipeline does not have.
 
 ### Run history figures
 
