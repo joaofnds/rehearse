@@ -147,8 +147,7 @@ See [current state](docs/status.md) for implementation coverage and
   the candidate role, the corpus after it. A baseline arm `compare attempts`
   derived is arm A's corpus with the skill under test removed, one it took
   unchanged is arm A run again, and one a manifest supplied is described as a
-  minimal corpus. Name accepted unattended as unsettled, pending the
-  operator's confirmation (ACT-257, doc-229).
+  minimal corpus.
 - **Skill under test**: the one corpus unit that differs between arms A and B
   of a `compare attempts` comparison, which a derived baseline arm removes to
   show the corpus does work at all. A manifest comparison names none. Name
