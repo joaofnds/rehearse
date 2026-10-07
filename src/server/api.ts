@@ -51,6 +51,7 @@ import { readStageSession } from "./stage-session";
 import { readStageTimes } from "./stage-times";
 import type { RunLiveness } from "#benchmark/run-liveness";
 import { runHistoryReport } from "./run-history";
+import { readStageAttempts } from "./stage-attempts";
 import type { EvidenceRequest, EvidenceSource } from "./evidence-source";
 import { EvidenceSourceError, readEvidenceSource } from "./evidence-source";
 import { readJudgedRunRecord } from "./run-record";
@@ -617,6 +618,25 @@ export const createApiApp = (dependencies: ApiDependencies) => {
 						runsDirectory: dependencies.runsDirectory,
 						run: context.req.param("run"),
 						stage: context.req.param("stage"),
+					}),
+				);
+			} catch (error) {
+				if (!(error instanceof SessionHistoryReaderError)) {
+					throw error;
+				}
+				const response = historyError(error);
+
+				return context.json({ error: response.message }, response.status);
+			}
+		})
+		.get("/api/runs/:run/stages/:stage/attempts", async (context) => {
+			try {
+				return context.json(
+					await readStageAttempts({
+						runsDirectory: dependencies.runsDirectory,
+						run: context.req.param("run"),
+						stage: context.req.param("stage"),
+						source: await corpusSource(dependencies),
 					}),
 				);
 			} catch (error) {

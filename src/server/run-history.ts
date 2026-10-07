@@ -1266,7 +1266,7 @@ async function registryEntries(runsDirectory: string): Promise<{
 	};
 }
 
-interface Staleness {
+export interface Staleness {
 	readonly of: (recordId: string) => RowStaleness;
 	/**
 	 * A run row's staleness: the judgment of the stage its judge stopped, which
@@ -1285,7 +1285,7 @@ interface Staleness {
  * is unavailable too, since reading it as clean would claim a judgment nobody
  * made.
  */
-async function recordStaleness(
+export async function recordStaleness(
 	runsDirectory: string,
 	source: CorpusRoot,
 ): Promise<Staleness> {

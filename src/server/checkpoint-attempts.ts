@@ -2,6 +2,7 @@ import {
 	parseConfirmationGroupRecord,
 	parseConfirmationRepRecord,
 } from "#benchmark/confirmation-record";
+import { unhandled } from "#benchmark/contracts";
 import { parseRunSummaryRecord } from "#benchmark/record-summary";
 import { stoppedStageRecordSchema } from "#benchmark/run-outcome";
 import { readReplayRecord } from "#benchmark/replay";
@@ -21,13 +22,22 @@ export interface AttemptPosition {
 	readonly count: number;
 }
 
+/** Which record an attempt at a checkpoint is. */
+export type CheckpointAttempt =
+	| { readonly kind: "original" }
+	| {
+			readonly kind: "replay";
+			readonly lineage: string;
+			readonly timestamp: string;
+	  }
+	| { readonly kind: "rep"; readonly groupId: string; readonly repId: string };
+
 /**
  * One run of a stage from the checkpoint before it, ordered by claim number
- * and, inside a confirmation group, by the rep's position in it. The original
- * run's stage is counted and named by nothing.
+ * and, inside a confirmation group, by the rep's position in it.
  */
-interface Attempt {
-	readonly id: string | undefined;
+interface ClaimedAttempt {
+	readonly attempt: CheckpointAttempt;
 	readonly claim: number;
 	readonly ordinal: number;
 }
@@ -116,25 +126,60 @@ async function judgedStageReps(
 	return judged;
 }
 
+/** The id an attempt is looked up by; the original run's stage has none. */
+function attemptId(attempt: CheckpointAttempt): string | undefined {
+	switch (attempt.kind) {
+		case "original": {
+			return undefined;
+		}
+		case "replay": {
+			return formatRecordId({
+				kind: "attempt:stage",
+				lineage: attempt.lineage,
+				timestamp: attempt.timestamp,
+			});
+		}
+		case "rep": {
+			return repAttemptId(attempt.groupId, attempt.repId);
+		}
+		default: {
+			return unhandled(attempt, "checkpoint attempt");
+		}
+	}
+}
+
+function checkpointKey(run: string, stage: string): string {
+	return JSON.stringify([run, stage]);
+}
+
+interface ClaimedAttempts {
+	readonly runClaims: ReadonlyMap<string, number>;
+	readonly byCheckpoint: ReadonlyMap<
+		string,
+		{
+			readonly run: string;
+			readonly stage: string;
+			readonly attempts: readonly ClaimedAttempt[];
+		}
+	>;
+}
+
 /**
- * Each claimed replay's attempt at the checkpoint it started from, by its
- * Record ID, and each judged rep's, by its rep attempt id. The count takes
- * every attempt there that recorded a result: the original run's stage,
- * replays, and judged reps of stage-mode groups whose claim names the run and
- * stage. A group claimed before claims recorded their source cannot be placed
- * and is left out.
+ * Each claimed replay and judged rep of a stage-mode group, by the checkpoint
+ * it started from. A group claimed before claims recorded their source cannot
+ * be placed and is left out.
  */
-export async function checkpointAttempts(
+async function claimedAttempts(
 	runsDirectory: string,
 	entries: readonly ShortIdEntry[],
-): Promise<ReadonlyMap<string, AttemptPosition>> {
+): Promise<ClaimedAttempts> {
 	const runClaims = new Map<string, number>();
 	const byCheckpoint = new Map<
 		string,
-		{ run: string; stage: string; attempts: Attempt[] }
+		{ run: string; stage: string; attempts: ClaimedAttempt[] }
 	>();
-	const add = (run: string, stage: string, attempt: Attempt): void => {
-		const key = JSON.stringify([run, stage]);
+	const add = (run: string, stage: string, attempt: ClaimedAttempt): void => {
+		const key = checkpointKey(run, stage);
 		const found = byCheckpoint.get(key) ?? { run, stage, attempts: [] };
 		found.attempts.push(attempt);
 		byCheckpoint.set(key, found);
@@ -152,7 +197,11 @@ export async function checkpointAttempts(
 			);
 			if (replay !== undefined) {
 				add(replay.runName, replay.stage, {
-					id: formatRecordId(record),
+					attempt: {
+						kind: "replay",
+						lineage: record.lineage,
+						timestamp: record.timestamp,
+					},
 					claim,
 					ordinal: 0,
 				});
@@ -165,7 +214,7 @@ export async function checkpointAttempts(
 				record.groupId,
 			)) {
 				add(run, stage, {
-					id: repAttemptId(record.groupId, repId),
+					attempt: { kind: "rep", groupId: record.groupId, repId },
 					claim,
 					ordinal,
 				});
@@ -173,23 +222,74 @@ export async function checkpointAttempts(
 		}
 	}
 
-	const positions = new Map<string, AttemptPosition>();
-	for (const { run, stage, attempts } of byCheckpoint.values()) {
-		const counted = (await originalRecorded(runsDirectory, run, stage))
-			? [
-					...attempts,
-					{ id: undefined, claim: runClaims.get(run) ?? -1, ordinal: 0 },
-				]
-			: attempts;
-		const ordered = counted.toSorted(
+	return { runClaims, byCheckpoint };
+}
+
+/**
+ * Every attempt at the checkpoint before a stage that recorded a result, in
+ * claim order: the original run's stage, when it recorded one, among the
+ * replays and judged reps claimed there.
+ */
+async function orderedAttempts(
+	runsDirectory: string,
+	claimed: ClaimedAttempts,
+	run: string,
+	stage: string,
+): Promise<readonly CheckpointAttempt[]> {
+	const attempts =
+		claimed.byCheckpoint.get(checkpointKey(run, stage))?.attempts ?? [];
+	const counted = (await originalRecorded(runsDirectory, run, stage))
+		? [
+				...attempts,
+				{
+					attempt: { kind: "original" } as const,
+					claim: claimed.runClaims.get(run) ?? -1,
+					ordinal: 0,
+				},
+			]
+		: attempts;
+
+	return counted
+		.toSorted(
 			(left, right) => left.claim - right.claim || left.ordinal - right.ordinal,
-		);
-		for (const [index, { id }] of ordered.entries()) {
+		)
+		.map(({ attempt }) => attempt);
+}
+
+/** Every attempt at the checkpoint a run's stage started from, in claim order. */
+export async function attemptsAtCheckpoint(
+	runsDirectory: string,
+	entries: readonly ShortIdEntry[],
+	run: string,
+	stage: string,
+): Promise<readonly CheckpointAttempt[]> {
+	return orderedAttempts(
+		runsDirectory,
+		await claimedAttempts(runsDirectory, entries),
+		run,
+		stage,
+	);
+}
+
+/**
+ * Each claimed replay's attempt at the checkpoint it started from, by its
+ * Record ID, and each judged rep's, by its rep attempt id. The count takes
+ * every attempt there that recorded a result: the original run's stage,
+ * replays, and judged reps of stage-mode groups whose claim names the run and
+ * stage.
+ */
+export async function checkpointAttempts(
+	runsDirectory: string,
+	entries: readonly ShortIdEntry[],
+): Promise<ReadonlyMap<string, AttemptPosition>> {
+	const claimed = await claimedAttempts(runsDirectory, entries);
+	const positions = new Map<string, AttemptPosition>();
+	for (const { run, stage } of claimed.byCheckpoint.values()) {
+		const ordered = await orderedAttempts(runsDirectory, claimed, run, stage);
+		for (const [index, attempt] of ordered.entries()) {
+			const id = attemptId(attempt);
 			if (id !== undefined) {
-				positions.set(id, {
-					position: index + 1,
-					count: ordered.length,
-				});
+				positions.set(id, { position: index + 1, count: ordered.length });
 			}
 		}
 	}
