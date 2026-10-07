@@ -307,9 +307,27 @@ describe(WhatMoved.name, () => {
 			"arm A 510 to 537 words · arm B 396 to 468 words · -17%",
 		);
 		expect(cell("cost per attempt", "Arm B")).toHaveTextContent("$2.40");
+	});
+
+	it("points a meter's reading down when arm B ran higher, since more cost or words reads worse", () => {
+		renderWhatMoved([COST]);
+
 		expect(cell("cost per attempt", "Reading")).toHaveTextContent(
-			"↑arm B ran higher",
+			"↓arm B ran higher",
 		);
+	});
+
+	it.each([
+		["scope-declared", BLOCKER, "├┼┼┼┼┼┼┼───┤"],
+		["reply length", REPLY_LENGTH, "├───── ──┤"],
+	])("draws the %s spread on its own axis", (measure, row, drawing) => {
+		renderWhatMoved([row]);
+
+		expect(
+			within(cell(measure, "Spread across 2 attempts")).getByText(drawing, {
+				normalizer: getDefaultNormalizer({ collapseWhitespace: false }),
+			}),
+		).toBeInTheDocument();
 	});
 
 	it("counts only arms A and B in the spread's heading, since only they are drawn", () => {

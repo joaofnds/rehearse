@@ -9,8 +9,12 @@ export interface ReadingText {
 	readonly phrase: string;
 }
 
-function directionGlyph(arm: ComparisonArm): string {
+function separatesGlyph(arm: ComparisonArm): string {
 	return arm === "candidate" ? "↑" : "↓";
+}
+
+function ranHigherGlyph(arm: ComparisonArm): string {
+	return arm === "candidate" ? "↓" : "↑";
 }
 
 export function qualityReadingText(verdict: QualityVerdict): ReadingText {
@@ -23,7 +27,7 @@ export function qualityReadingText(verdict: QualityVerdict): ReadingText {
 		}
 		case "separated": {
 			return {
-				glyph: directionGlyph(verdict.arm),
+				glyph: separatesGlyph(verdict.arm),
 				phrase: `${armProse(verdict.arm)} separates`,
 			};
 		}
@@ -45,7 +49,7 @@ export function meterReadingText(
 		}
 		case "higher": {
 			return {
-				glyph: directionGlyph(verdict.arm),
+				glyph: ranHigherGlyph(verdict.arm),
 				phrase: `${armProse(verdict.arm)} ran higher`,
 			};
 		}
