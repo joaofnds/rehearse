@@ -1,4 +1,11 @@
-import { afterEach, describe, expect, it } from "bun:test";
+import {
+	afterEach,
+	beforeEach,
+	describe,
+	expect,
+	it,
+	setSystemTime,
+} from "bun:test";
 import type { RenderResult } from "@testing-library/react";
 import {
 	fireEvent,
@@ -743,11 +750,16 @@ describe(RunHistoryPage.name, () => {
 
 	describe("when a run is in flight", () => {
 		const RUNNING_RUN = "2026-09-07T00-00-00.000Z";
+		const NOW = new Date("2026-09-07T00:10:00.000Z");
 
-		/**
-		 * Measured when the test reads it, so the elapsed reading does not
-		 * depend on how long the tests before it took.
-		 */
+		beforeEach(() => {
+			setSystemTime(NOW);
+		});
+
+		afterEach(() => {
+			setSystemTime();
+		});
+
 		function runningRow(): Extract<
 			RunHistoryResponseBody["rows"][number],
 			{ readonly kind: "run" }
@@ -789,7 +801,7 @@ describe(RunHistoryPage.name, () => {
 				stageState: "session running",
 				elapsedMs: 9000,
 				stageElapsedMs: undefined,
-				measuredAt: new Date().toISOString(),
+				measuredAt: NOW.toISOString(),
 				spentUsd: 0.9,
 				spendScope: "this stage's session so far",
 				runSpentUsd: 1.2,
@@ -904,7 +916,6 @@ describe(RunHistoryPage.name, () => {
 								...liveProgress(),
 								stage: "review",
 								elapsedMs: 74_000,
-								measuredAt: new Date().toISOString(),
 								runSpentUsd: 2.5,
 							},
 						},
@@ -928,7 +939,7 @@ describe(RunHistoryPage.name, () => {
 				},
 				{ timeout: 5000 },
 			);
-			expect(cellOf(RUNNING_RUN, "Wall").textContent).toMatch(/^01:1[4-9]$/u);
+			expect(cellOf(RUNNING_RUN, "Wall").textContent).toBe("01:14");
 			expect(cellOf(RUNNING_RUN, "Cost").textContent).toBe("$2.50so far");
 		});
 
@@ -936,6 +947,7 @@ describe(RunHistoryPage.name, () => {
 			respondingWith({ rows: [runningRow()], launches: [], unreadable: [] });
 
 			await renderPage().findByText(RUNNING_RUN);
+			setSystemTime(new Date(NOW.getTime() + 1000));
 
 			await waitFor(
 				() => {
@@ -957,7 +969,7 @@ describe(RunHistoryPage.name, () => {
 						...runningRow(),
 						progress: {
 							...liveProgress(),
-							measuredAt: new Date(Date.now() - 52_000).toISOString(),
+							measuredAt: new Date(NOW.getTime() - 52_000).toISOString(),
 						},
 					},
 				],
