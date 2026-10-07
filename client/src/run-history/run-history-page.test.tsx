@@ -2695,4 +2695,170 @@ describe(RunHistoryPage.name, () => {
 			).toBeInTheDocument();
 		});
 	});
+
+	describe("the cost and wall time of a record", () => {
+		const RUN = "2026-09-20T10-00-00.000Z";
+		const ATTEMPT = "0f6b6f2a-0000-4000-8000-000000000009";
+		const REPLAY = "2026-09-21T09-20-00.000Z";
+		const GROUP = "group-0143";
+		const SPENT: PipelineRunRow["cost"] = {
+			state: "available",
+			usd: 2.41,
+			parts: [{ part: "build session", usd: 2.41 }],
+			missing: [],
+		};
+		const SIX_TWELVE: PipelineRunRow["wallTime"] = {
+			state: "available",
+			ms: 372_000,
+		};
+
+		type CostAndTime = Pick<PipelineRunRow, "cost" | "wallTime">;
+
+		/** One record of each kind, each carrying the same cost and wall time. */
+		function everyKindWith(figures: CostAndTime): RunHistoryResponseBody {
+			const record = {
+				...figures,
+				staleness: UNREAD_STALENESS,
+				corpusVersion: undefined,
+				shortId: undefined,
+				caseId: "audit-log",
+				links: [],
+			};
+
+			return {
+				rows: [
+					{
+						kind: "run",
+						...UNREAD_RUN_FIGURES,
+						...record,
+						launchId: undefined,
+						checkpoints: [],
+						run: RUN,
+						status: "COMPLETE",
+						stage: "review",
+						grade: undefined,
+						corpusChangedDuringRun: false,
+						progress: { state: "recorded" },
+					},
+					{
+						kind: "session-attempt",
+						...UNREAD_SESSION_ATTEMPT_FIGURES,
+						...record,
+						uuid: ATTEMPT,
+						status: "SUCCESSFUL",
+					},
+					{
+						kind: "replay",
+						...UNREAD_REPLAY_FIGURES,
+						...record,
+						lineage: "60758c",
+						timestamp: REPLAY,
+						checkpointShortId: undefined,
+						attempt: undefined,
+						stage: "build",
+						grade: "B+",
+						status: "CONTINUE",
+					},
+					{
+						kind: "group",
+						...UNREAD_GROUP_FIGURES,
+						...record,
+						groupId: GROUP,
+						mode: "stage",
+						checkpoint: undefined,
+						reps: 3,
+						repAttempts: [],
+					},
+				],
+				launches: [],
+				unreadable: [],
+			};
+		}
+
+		const KINDS = [
+			["pipeline run", RUN],
+			["session attempt", ATTEMPT],
+			["replay", REPLAY],
+			["confirmation group", GROUP],
+		] as const;
+
+		it.each(KINDS)(
+			"reads a %s's recorded cost in dollars",
+			async (_kind, identity) => {
+				respondingWith(everyKindWith({ cost: SPENT, wallTime: SIX_TWELVE }));
+
+				await renderPage().findByText(identity);
+
+				expect(cellOf(identity, "Cost").textContent).toBe("$2.41");
+			},
+		);
+
+		it.each(KINDS)(
+			"reads a %s's wall time as minutes and seconds",
+			async (_kind, identity) => {
+				respondingWith(everyKindWith({ cost: SPENT, wallTime: SIX_TWELVE }));
+
+				await renderPage().findByText(identity);
+
+				expect(cellOf(identity, "Wall").textContent).toBe("06:12");
+			},
+		);
+
+		it("aligns the cost and wall time on the cell's right edge", async () => {
+			respondingWith(everyKindWith({ cost: SPENT, wallTime: SIX_TWELVE }));
+
+			await renderPage().findByText(RUN);
+
+			expect(cellOf(RUN, "Cost")).toHaveAttribute("data-numeric");
+			expect(cellOf(RUN, "Wall")).toHaveAttribute("data-numeric");
+		});
+
+		/** A sum that lacks a part would otherwise be read as the whole spend. */
+		it("says the cost is partial and names each part the sum lacks", async () => {
+			respondingWith(
+				everyKindWith({
+					cost: {
+						...SPENT,
+						missing: [
+							{ part: "Product Owner", reason: "no main artifact" },
+							{ part: "rep-2", reason: "no metrics" },
+						],
+					},
+					wallTime: SIX_TWELVE,
+				}),
+			);
+
+			await renderPage().findByText(RUN);
+
+			expect(cellOf(RUN, "Cost").textContent).toBe(
+				"$2.41partial · lacks Product Owner: no main artifact; rep-2: no metrics",
+			);
+		});
+
+		it("reads an unavailable cost as unrecorded with its reason", async () => {
+			respondingWith(
+				everyKindWith({
+					cost: { state: "unavailable", reasons: ["no call metrics"] },
+					wallTime: SIX_TWELVE,
+				}),
+			);
+
+			await renderPage().findByText(RUN);
+
+			expect(cellOf(RUN, "Cost").textContent).toBe("unrecordedno call metrics");
+		});
+
+		it("reads an unavailable wall time as unrecorded with its reason", async () => {
+			respondingWith(
+				everyKindWith({
+					cost: SPENT,
+					wallTime: { state: "unavailable", reasons: ["no run events"] },
+				}),
+			);
+
+			await renderPage().findByText(RUN);
+
+			expect(cellOf(RUN, "Wall").textContent).toBe("unrecordedno run events");
+		});
+	});
 });

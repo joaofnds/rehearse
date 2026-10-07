@@ -7,7 +7,12 @@ import { FilterPill } from "#client/system/components/filter-pill";
 import { Status } from "#client/system/components/status";
 import { TableShell } from "#client/system/components/table-shell";
 import { Button } from "#client/system/ui/button";
-import { elapsedReading, liveElapsedMs, spendReading } from "./run-progress";
+import {
+	clockReading,
+	elapsedReading,
+	liveElapsedMs,
+	spendReading,
+} from "./run-progress";
 import type { RunHistoryResponse } from "./run-history-query";
 import { polledRunHistoryQuery } from "./run-history-polling";
 import { useNow } from "./use-now";
@@ -50,7 +55,11 @@ const COLUMNS = [
 	"Step grades",
 	"Task grade",
 	"Corpus",
+	"Cost",
+	"Wall",
 ] as const;
+
+const NUMERIC_COLUMNS = ["Cost", "Wall"] as const;
 
 const FILTERS = ["All", "Stopped"] as const;
 type Filter = (typeof FILTERS)[number];
@@ -732,6 +741,52 @@ function taskGradeCell(row: HistoryRow): React.JSX.Element {
 	}
 }
 
+const UNRECORDED = "unrecorded";
+
+/** A figure a record does not hold, saying so with why rather than blank. */
+function unrecorded(reasons: readonly string[]): React.JSX.Element {
+	return (
+		<span className="flex flex-col gap-0.5">
+			<span className="text-xs text-dim">{UNRECORDED}</span>
+			{reasonsLine(reasons)}
+		</span>
+	);
+}
+
+function figure(text: string): React.JSX.Element {
+	return <span className="font-mono text-12">{text}</span>;
+}
+
+/**
+ * A sum that lacks a part is labelled partial and names each part it lacks,
+ * so it is never read as the whole spend.
+ */
+function costCell(cost: HistoryRow["cost"]): React.JSX.Element {
+	if (cost.state === "unavailable") {
+		return unrecorded(cost.reasons);
+	}
+	if (cost.missing.length === 0) {
+		return figure(spendReading(cost.usd));
+	}
+
+	return (
+		<span className="flex flex-col gap-0.5">
+			{figure(spendReading(cost.usd))}
+			{reasonsLine([
+				`partial · lacks ${cost.missing.map(({ part, reason }) => `${part}: ${reason}`).join("; ")}`,
+			])}
+		</span>
+	);
+}
+
+function wallCell(wallTime: HistoryRow["wallTime"]): React.JSX.Element {
+	if (wallTime.state === "unavailable") {
+		return unrecorded(wallTime.reasons);
+	}
+
+	return figure(clockReading(wallTime.ms));
+}
+
 function filterLabel(filter: Filter, total: number | undefined): string {
 	return filter === "All" && total !== undefined ? `All ${total}` : filter;
 }
@@ -833,6 +888,8 @@ function launchCells(launch: LaunchRow): readonly React.JSX.Element[] {
 		<span key="step-grades" />,
 		<span key="task-grade" />,
 		<span key="corpus" />,
+		<span key="cost" />,
+		<span key="wall" />,
 	];
 }
 
@@ -965,6 +1022,7 @@ export function RunHistoryPage(): React.JSX.Element {
 						<TableShell
 							caption="DURABLE RECORDS"
 							columns={[...COLUMNS]}
+							numeric={[...NUMERIC_COLUMNS]}
 							rows={[
 								...launches.map((launch) => launchCells(launch)),
 								...rows.map((row) => [
@@ -975,6 +1033,8 @@ export function RunHistoryPage(): React.JSX.Element {
 									stepGradesCell(row),
 									taskGradeCell(row),
 									corpusCell(row),
+									costCell(row.cost),
+									wallCell(row.wallTime),
 								]),
 							]}
 						/>
