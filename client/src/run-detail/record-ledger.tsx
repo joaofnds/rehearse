@@ -41,7 +41,10 @@ import {
 	durationReading,
 	nodeStatus,
 } from "#client/monitor/task-graph";
-import { hasRunEnded } from "#client/run-history/run-status";
+import {
+	hasRunEnded,
+	restoredRepository,
+} from "#client/run-history/run-status";
 import { useNow } from "#client/run-history/use-now";
 import type { PipelineRow } from "#client/shell/run-in-flight";
 import { CorpusPill } from "#client/system/components/corpus-pill";
@@ -203,7 +206,7 @@ function checkpointWords(stage: MonitoredStage, row: PipelineRow): string {
 		return `${name} · frozen state retained`;
 	}
 
-	return isStopped(row.status)
+	return restoredRepository(row.status)
 		? "no checkpoint saved · repository restored"
 		: "no checkpoint saved";
 }

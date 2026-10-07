@@ -49,3 +49,8 @@ export function hasRunEnded({
 }: Pick<PipelineRow, "status" | "progress">): boolean {
 	return progress.state !== "running" && !isPaused(status);
 }
+
+/** Whether the run's stop restored the target repository: a stop record's or the operator's. */
+export function restoredRepository(status: string): boolean {
+	return isStopped(status) || status === OPERATOR_STOPPED;
+}

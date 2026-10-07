@@ -212,6 +212,35 @@ describe("Record ledger", () => {
 		).toBeInTheDocument();
 	});
 
+	it.each([
+		["OPERATOR_STOPPED", "no checkpoint saved · repository restored"],
+		["INTERRUPTED", "no checkpoint saved"],
+	])(
+		"says on an %s run whether a stage that kept no checkpoint had its repository restored",
+		async (status, words) => {
+			renderAppWithStub(
+				LEDGER,
+				new Map<string, unknown>([
+					["/api/runs", history([runRow({ run: RUN, status })])],
+					[
+						`/api/runs/${RUN}`,
+						{
+							...stoppedAtBuild("missing"),
+							status: { state: "available", status },
+						},
+					],
+					[ANALYSES, noAnalysis()],
+				]),
+			);
+
+			const [firstStep] = await ledgerFooters();
+
+			expect(
+				within(firstStep ?? document.body).getByText(words),
+			).toBeInTheDocument();
+		},
+	);
+
 	it("offers a replay from each stage", async () => {
 		renderLedger();
 

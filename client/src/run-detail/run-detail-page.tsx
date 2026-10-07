@@ -20,7 +20,11 @@ import {
 } from "#client/monitor/run-record-query";
 import { polledRunHistoryQuery } from "#client/run-history/run-history-polling";
 import { spendReading } from "#client/run-history/run-progress";
-import { hasRunEnded, runStatusState } from "#client/run-history/run-status";
+import {
+	hasRunEnded,
+	restoredRepository,
+	runStatusState,
+} from "#client/run-history/run-status";
 import type { RunHistoryResponse } from "#client/run-history/run-history-query";
 import type { PipelineRow } from "#client/shell/run-in-flight";
 import { CorpusPill } from "#client/system/components/corpus-pill";
@@ -258,7 +262,7 @@ function RestoreBanner({
 	readonly record: RunRecordResponse;
 	readonly layout: RunDetailLayout;
 }): React.JSX.Element {
-	const stopped = isStopped(row.status) || row.status === OPERATOR_STOPPED;
+	const stopped = restoredRepository(row.status);
 
 	return (
 		<div className="flex flex-none items-center gap-2.25 border-b border-divider bg-secondary px-6 py-2 text-11-5 text-secondary-foreground">
