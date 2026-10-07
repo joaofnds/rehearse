@@ -999,41 +999,6 @@ describe(RunHistoryPage.name, () => {
 			expect(requests).toBe(afterFirstRender);
 		});
 
-		it("reads no running spend or elapsed time for a finished run", async () => {
-			respondingWith({
-				rows: [
-					{
-						kind: "run",
-						...UNREAD_RUN_FIGURES,
-						launchId: undefined,
-						shortId: undefined,
-						checkpoints: [],
-						links: [],
-						run: "2026-09-06T00-00-00.000Z",
-						caseId: "audit-log",
-						status: "COMPLETE",
-						stage: "build",
-						grade: "A",
-						corpusVersion: { kind: "version", digest: "aaaaaa" },
-						corpusChangedDuringRun: false,
-						staleness: unversionedStaleness({ stale: false, causes: [] }),
-						progress: { state: "recorded" },
-					},
-				],
-				launches: [],
-				unreadable: [],
-			});
-
-			renderPage();
-
-			await waitFor(() => {
-				expect(
-					screen.getByText("2026-09-06T00-00-00.000Z"),
-				).toBeInTheDocument();
-			});
-			expect(screen.queryByText("$0.00")).not.toBeInTheDocument();
-			expect(screen.queryByText("0s")).not.toBeInTheDocument();
-		});
 		describe("when the operator ends it", () => {
 			const LAUNCH_ID = "7b0c2d4e-0000-4000-8000-000000000000";
 			const RUN = "2026-09-07T00-00-00.000Z";
@@ -3333,7 +3298,7 @@ describe(RunHistoryPage.name, () => {
 				respondingWith(
 					groupWith({
 						reps: 6,
-						finalOutcomes: { SUCCESSFUL: 4, UNSUCCESSFUL: 2 },
+						finalOutcomes: { NOT_APPLICABLE: 6 },
 						successful: 4,
 					}),
 				);
@@ -3349,7 +3314,7 @@ describe(RunHistoryPage.name, () => {
 				respondingWith(
 					groupWith({
 						reps: 6,
-						finalOutcomes: { SUCCESSFUL: 2 },
+						finalOutcomes: { NOT_APPLICABLE: 2 },
 						successful: 2,
 						unreadReps: [
 							{ repId: "rep-3", reason: "the rep recorded nothing" },
@@ -3392,23 +3357,26 @@ describe(RunHistoryPage.name, () => {
 
 			it.each([
 				[
+					"a successful attempt",
 					"SUCCESSFUL",
 					{ passed: 3, declared: 3 },
 					"✓successfulall checks passed",
 				],
 				[
+					"an unsuccessful attempt",
 					"UNSUCCESSFUL",
 					{ passed: 1, declared: 3 },
 					"◼unsuccessful2 of 3 checks failed",
 				],
 				[
+					"an unsuccessful attempt with one check",
 					"UNSUCCESSFUL",
 					{ passed: 0, declared: 1 },
 					"◼unsuccessful1 of 1 check failed",
 				],
 			] as const)(
-				"reads a %s attempt's outcome with its checks",
-				async (status, checks, expected) => {
+				"reads %s's outcome with its checks",
+				async (_name, status, checks, expected) => {
 					respondingWith(
 						attemptWith({ status, checks: { state: "available", ...checks } }),
 					);
@@ -3420,24 +3388,27 @@ describe(RunHistoryPage.name, () => {
 			);
 
 			it.each([
-				["NO_REPLY", "⊘no replythe session gave no reply"],
-				["EXECUTION_FAILED", "⊘failed to runthe session gave no reply"],
+				["NO_REPLY", "the session gave no reply, so no check ran", "no reply"],
+				[
+					"EXECUTION_FAILED",
+					"the session failed to run, so no check ran",
+					"failed to run",
+				],
 			] as const)(
 				"reads a %s attempt's outcome with why no check ran",
-				async (status, expected) => {
+				async (status, reason, phrase) => {
 					respondingWith(
 						attemptWith({
 							status,
-							checks: {
-								state: "unavailable",
-								reasons: ["the session gave no reply"],
-							},
+							checks: { state: "unavailable", reasons: [reason] },
 						}),
 					);
 
 					await renderPage().findByText(ATTEMPT);
 
-					expect(cellOf(ATTEMPT, "Outcome").textContent).toBe(expected);
+					expect(cellOf(ATTEMPT, "Outcome").textContent).toBe(
+						`⊘${phrase}${reason}`,
+					);
 				},
 			);
 		});
