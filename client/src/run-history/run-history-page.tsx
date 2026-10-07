@@ -73,9 +73,10 @@ const FILTERS = [
 type Filter = (typeof FILTERS)[number];
 
 /**
- * Stopped names a pipeline run whose stage fell below the minimum. A replay's
- * STOP verdict grades one stage in isolation and stops nothing, so it does not
- * match.
+ * Running names a pipeline run in flight, Stopped one whose stage fell below
+ * the minimum, and Clean corpus only a row whose Corpus cell reads clean. A
+ * replay's STOP verdict grades one stage in isolation and stops nothing, so it
+ * is not Stopped.
  */
 function matchesFilter(row: HistoryRow, filter: Filter): boolean {
 	switch (filter) {
