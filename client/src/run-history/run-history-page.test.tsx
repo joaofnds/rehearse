@@ -3304,7 +3304,8 @@ describe(RunHistoryPage.name, () => {
 				figures: Pick<
 					ConfirmationGroupRow,
 					"reps" | "finalOutcomes" | "successful"
-				>,
+				> &
+					Partial<Pick<ConfirmationGroupRow, "unreadReps">>,
 			): RunHistoryResponseBody {
 				return {
 					rows: [
@@ -3344,19 +3345,22 @@ describe(RunHistoryPage.name, () => {
 				);
 			});
 
-			it("marks a group that recorded fewer reps than it requested as pending", async () => {
+			it("marks a group that recorded fewer reps than it requested as cut short, naming the reps it could not read", async () => {
 				respondingWith(
 					groupWith({
 						reps: 6,
 						finalOutcomes: { SUCCESSFUL: 2 },
 						successful: 2,
+						unreadReps: [
+							{ repId: "rep-3", reason: "the rep recorded nothing" },
+						],
 					}),
 				);
 
 				await renderPage().findByText(GROUP);
 
 				expect(cellOf(GROUP, "Outcome").textContent).toBe(
-					"◌2 of 6 recorded2 successful",
+					"⊘2 of 6 recorded2 successful · rep-3: the rep recorded nothing",
 				);
 			});
 		});

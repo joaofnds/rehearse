@@ -571,13 +571,20 @@ function replayOutcome(row: ReplayRow): OutcomePhrase {
 	};
 }
 
+/**
+ * A group row is written only once the group finishes, so a shortfall in
+ * its recorded reps is a group cut short, never one still running.
+ */
 function groupOutcome(row: GroupRow): OutcomePhrase {
 	const recorded = recordedReps(row);
+	const unread = row.unreadReps.map(
+		({ repId, reason }) => `${repId}: ${reason}`,
+	);
 
 	return {
-		state: recorded === row.reps ? "accepted" : "pending",
+		state: recorded === row.reps ? "accepted" : "interrupted",
 		phrase: `${String(recorded)} of ${String(row.reps)} recorded`,
-		reason: `${String(row.successful)} successful`,
+		reason: [`${String(row.successful)} successful`, ...unread].join(" · "),
 	};
 }
 
