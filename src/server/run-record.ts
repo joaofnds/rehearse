@@ -1224,7 +1224,7 @@ export async function readRunRecord(
 /**
  * The run's record with each checkpoint's read manifest judged against the
  * corpus under test, as the run's page shows it. The run history reads the
- * withoutInputs record, since it judges each row once for itself. A corpus under
+ * unjudged record, since it judges each row once for itself. A corpus under
  * test that cannot judge the run leaves its entries without a state, since
  * the record stands on its own and the run history names why the run is
  * unreadable.
@@ -1262,7 +1262,7 @@ export async function readJudgedRunRecord(
 
 /**
  * A stage that saved no checkpoint keeps its reads on its stage record, so
- * they are judged from there, and left withoutInputs where the corpus under test
+ * they are judged from there, and left unjudged where the corpus under test
  * cannot judge them.
  */
 async function stoppedStageReads(
