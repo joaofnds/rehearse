@@ -1,4 +1,3 @@
-import { z } from "zod";
 import { unhandled } from "#benchmark/contracts";
 import type { Immutable } from "#benchmark/contracts";
 import {
@@ -73,7 +72,12 @@ import type {
 	UnreadRep,
 } from "./confirmation-group-summary";
 import { redactAbsolutePaths } from "./redact-path";
-import { firedBlockerIds, readRunRecord, wallTime } from "./run-record";
+import {
+	firedBlockerIds,
+	readRunRecord,
+	readStageFile,
+	wallTime,
+} from "./run-record";
 import type {
 	CostReading,
 	FinalOutcome,
@@ -930,27 +934,16 @@ async function groupPipelineStages(
 	}
 }
 
-/** A rep's stage record, read only as far as the blockers its judge graded. */
-const repStageGradeSchema = z.looseObject({
-	grade: z
-		.looseObject({
-			hardBlockers: z
-				.array(
-					z.looseObject({
-						id: z.string(),
-						status: z.enum(["PASS", "FAIL"]),
-					}),
-				)
-				.optional(),
-		})
-		.optional(),
-});
+type RepStageReading =
+	| { readonly state: "read"; readonly fired: FiredBlockers }
+	| { readonly state: "unreadable"; readonly reason: string };
 
 /**
  * The blockers each rep's stage judges fired, from the stage records rather
  * than the judge attempts, since a retried attempt's payload can disagree
- * with the grade the rep kept. A stage record missing or unreadable adds
- * nothing, as the rep's other figures already name what it lacks.
+ * with the grade the rep kept. A stage the rep never reached wrote no record
+ * and adds nothing. An unreadable record could hide a fired blocker, so the
+ * group names none rather than an incomplete set.
  */
 async function groupFiredBlockers(
 	runsDirectory: string,
@@ -961,26 +954,35 @@ async function groupFiredBlockers(
 	}
 
 	const paths = confirmationGroupPaths(runsDirectory, record.groupId);
-	const stageFiles = record.repRecords.flatMap(({ repId }) =>
-		record.declaredStages.map((stage) => paths.rep(repId).stageFile(stage)),
+	const stages = record.repRecords.flatMap(({ repId }) =>
+		record.declaredStages.map((stage) => ({ repId, stage })),
 	);
-	const grades = await Promise.all(
-		stageFiles.map(async (stageFile) => {
-			const file = Bun.file(stageFile);
-			if (!(await file.exists())) {
-				return undefined;
+	const readings = await Promise.all(
+		stages.map(async ({ repId, stage }): Promise<RepStageReading> => {
+			try {
+				const file = await readStageFile(paths.rep(repId), stage);
+
+				return { state: "read", fired: firedIdsOf(file?.grade?.hardBlockers) };
+			} catch {
+				return {
+					state: "unreadable",
+					reason: `the ${stage} stage record of ${repId} is unreadable`,
+				};
 			}
-
-			const parsed = repStageGradeSchema.safeParse(
-				await file.json().catch(() => undefined),
-			);
-
-			return parsed.success ? parsed.data.grade?.hardBlockers : undefined;
 		}),
 	);
 
+	const unreadable = readings.flatMap((reading) =>
+		reading.state === "unreadable" ? [reading.reason] : [],
+	);
+	if (unreadable.length > 0) {
+		return { state: "unavailable", reasons: unreadable };
+	}
+
 	return firedBlockersOf(
-		grades.map((hardBlockers) => firedIdsOf(hardBlockers)),
+		readings.flatMap((reading) =>
+			reading.state === "read" ? [reading.fired] : [],
+		),
 	);
 }
 

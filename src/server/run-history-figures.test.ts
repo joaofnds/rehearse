@@ -564,6 +564,42 @@ describe("/api/runs", () => {
 				});
 			});
 
+			it("names a blocker two of its stages fired once", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeStoppedRunWithReadings();
+				const discuss = benchmarkRunPaths(
+					fixture.runsDirectory,
+					fixture.stoppedRun,
+				).stageFile("discuss");
+				await Bun.write(
+					discuss,
+					JSON.stringify({
+						...(await Bun.file(discuss).json()),
+						grade: {
+							grade: "C",
+							verdict: "CONTINUE",
+							hardBlockers: [
+								{ id: "scope-declared", status: "FAIL" },
+								{ id: "no-secrets-in-diff", status: "FAIL" },
+							],
+						},
+					}),
+				);
+
+				const row = await runRow(fixture, fixture.stoppedRun);
+
+				expect(row).toMatchObject({
+					firedBlockers: {
+						state: "available",
+						ids: [
+							"scope-declared",
+							"no-secrets-in-diff",
+							"no-unrelated-refactors",
+						],
+					},
+				});
+			});
+
 			it("carries its fired blockers as not recorded when no stage record graded them", async () => {
 				const fixture = await emptyFixture();
 				await fixture.writeStoppedRun();
@@ -1195,6 +1231,79 @@ describe("/api/runs", () => {
 					firedBlockers: {
 						state: "available",
 						ids: ["invalid-stage-delivery", "material-decision-open"],
+					},
+				});
+			});
+
+			it("takes no id from a rejected rep stage whose judge attempt fired one", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writePipelineGroup("pipeline-group", [
+					{ discussion: "A", build: "B", final: "pass" },
+					{ discussion: "A", build: "B", final: "pass" },
+				]);
+				const paths = confirmationGroupPaths(
+					fixture.runsDirectory,
+					"pipeline-group",
+				);
+				await Bun.write(
+					paths.rep("pipeline-group-rep-1").stageFile("build"),
+					JSON.stringify({
+						stage: "build",
+						status: "REJECTED",
+						attempts: [
+							{
+								payload: {
+									hardBlockers: [
+										{ id: "invalid-stage-delivery", status: "FAIL" },
+									],
+								},
+							},
+						],
+						error: "the judge rejected the stage",
+					}),
+				);
+				await gradeRepStage(
+					paths.rep("pipeline-group-rep-2").stageFile("discuss"),
+					[{ id: "material-decision-open", status: "FAIL" }],
+				);
+
+				const row = await onlyRowOfKind(fixture, "group");
+
+				expect(row).toMatchObject({
+					firedBlockers: {
+						state: "available",
+						ids: ["material-decision-open"],
+					},
+				});
+			});
+
+			it("carries its fired blockers as unavailable when a rep's stage record is unreadable", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writePipelineGroup("pipeline-group", [
+					{ discussion: "A", build: "B", final: "pass" },
+					{ discussion: "A", build: "B", final: "pass" },
+				]);
+				const paths = confirmationGroupPaths(
+					fixture.runsDirectory,
+					"pipeline-group",
+				);
+				await Bun.write(
+					paths.rep("pipeline-group-rep-1").stageFile("build"),
+					"{ not json",
+				);
+				await gradeRepStage(
+					paths.rep("pipeline-group-rep-2").stageFile("discuss"),
+					[{ id: "material-decision-open", status: "FAIL" }],
+				);
+
+				const row = await onlyRowOfKind(fixture, "group");
+
+				expect(row).toMatchObject({
+					firedBlockers: {
+						state: "unavailable",
+						reasons: [
+							"the build stage record of pipeline-group-rep-1 is unreadable",
+						],
 					},
 				});
 			});

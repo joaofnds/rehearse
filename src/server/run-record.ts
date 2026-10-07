@@ -379,7 +379,7 @@ function pathsOf(
 }
 
 export async function readStageFile(
-	paths: BenchmarkRunPaths,
+	paths: Pick<BenchmarkRunPaths, "stageFile">,
 	stage: string,
 ): Promise<StageFile | undefined> {
 	const file = Bun.file(paths.stageFile(stage));
