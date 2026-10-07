@@ -222,7 +222,10 @@ describe("Step rail", () => {
 			await screen.findByRole("heading", { level: 2, name: "Step 1 · shape" }),
 		).toBeInTheDocument();
 		await waitFor(() => {
-			expect(router.state.location.search).toEqual({ step: "shape" });
+			expect(router.state.location.search).toEqual({
+				layout: "rail",
+				step: "shape",
+			});
 		});
 	});
 

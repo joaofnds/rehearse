@@ -17,7 +17,7 @@ import type {
 import { runRecordQuery } from "#client/monitor/run-record-query";
 import { polledRunHistoryQuery } from "#client/run-history/run-history-polling";
 import { spendReading } from "#client/run-history/run-progress";
-import { runStatusState } from "#client/run-history/run-status";
+import { hasRunEnded, runStatusState } from "#client/run-history/run-status";
 import type { RunHistoryResponse } from "#client/run-history/run-history-query";
 import type { PipelineRow } from "#client/shell/run-in-flight";
 import { CorpusPill } from "#client/system/components/corpus-pill";
@@ -125,10 +125,6 @@ function endingWords(row: PipelineRow, record: RunRecordResponse): string {
 }
 
 /** Whether the run has ended, as the server judges it before an analysis. */
-function hasRunEnded({ status, progress }: PipelineRow): boolean {
-	return progress.state !== "running" && !isPaused(status);
-}
-
 /**
  * The stage the header replays: the one the run stopped at, or else the last
  * one that left a record.
@@ -373,7 +369,7 @@ export function RunDetailPage({
 				record={record.data}
 				layout={layout}
 				onLayout={(chosen) => {
-					choose({ ...search, layout: chosen });
+					choose({ layout: chosen, step: selected?.stage });
 				}}
 			/>
 			<RestoreBanner row={row} record={record.data} layout={layout} />
@@ -383,7 +379,7 @@ export function RunDetailPage({
 					record={record.data}
 					selected={selected}
 					onSelect={(stage) => {
-						choose({ ...search, step: stage });
+						choose({ layout, step: stage });
 					}}
 				/>
 			) : null}

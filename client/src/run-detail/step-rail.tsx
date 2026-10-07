@@ -1,4 +1,3 @@
-import { isPaused } from "#benchmark/stopped-status";
 import type {
 	MonitoredStage,
 	RunRecordResponse,
@@ -9,29 +8,28 @@ import {
 	durationReading,
 	nodeStatus,
 } from "#client/monitor/task-graph";
+import { hasRunEnded } from "#client/run-history/run-status";
+import { useNow } from "#client/run-history/use-now";
 import type { PipelineRow } from "#client/shell/run-in-flight";
 import { Grade } from "#client/system/components/grade";
 import { LiveGlyph, STATUS_VOCABULARY } from "#client/system/components/status";
 import { CheckpointAttempts } from "./checkpoint-attempts";
 import { StepReport } from "./step-report";
 
-/** How a stage reads in the rail: as the task graph reads it, unless the run ended before it. */
-function railStatus(stage: MonitoredStage, row: PipelineRow): NodeStatus {
-	const ended = row.progress.state !== "running" && !isPaused(row.status);
-	if (ended && stage.status === "no-record") {
-		return { state: "queued", words: "never ran" };
-	}
-
-	return nodeStatus(stage, row);
-}
+/** How a stage the run ended before reads in the rail. */
+const NEVER_RAN: NodeStatus = { state: "queued", words: "never ran" };
 
 /** The checkpoint the stage saved, its wall time and its cost. */
-function railMeta(stage: MonitoredStage, row: PipelineRow): string {
+function railMeta(
+	stage: MonitoredStage,
+	row: PipelineRow,
+	nowMs: number,
+): string {
 	return [
 		...(stage.checkpointShortId.state === "available"
 			? [stage.checkpointShortId.shortId]
 			: []),
-		durationReading(stage, row, Date.now()),
+		durationReading(stage, row, nowMs),
 		costReading(stage, row),
 	].join(" · ");
 }
@@ -41,15 +39,18 @@ function StepButton({
 	number,
 	row,
 	selected,
+	nowMs,
 	onSelect,
 }: {
 	readonly stage: MonitoredStage;
 	readonly number: number;
 	readonly row: PipelineRow;
 	readonly selected: boolean;
+	readonly nowMs: number;
 	readonly onSelect: (stage: string) => void;
 }): React.JSX.Element {
-	const status = railStatus(stage, row);
+	const neverRan = hasRunEnded(row) && stage.status === "no-record";
+	const status = neverRan ? NEVER_RAN : nodeStatus(stage, row);
 
 	return (
 		<li>
@@ -85,9 +86,9 @@ function StepButton({
 					)}
 					{status.words}
 				</span>
-				{status.words === "never ran" ? null : (
+				{neverRan ? null : (
 					<span className="mt-0.75 block font-mono text-10-5 text-dim">
-						{railMeta(stage, row)}
+						{railMeta(stage, row, nowMs)}
 					</span>
 				)}
 			</button>
@@ -111,6 +112,8 @@ export function StepRail({
 	readonly selected: MonitoredStage;
 	readonly onSelect: (stage: string) => void;
 }): React.JSX.Element {
+	const nowMs = useNow(row.progress.state === "running");
+
 	return (
 		<div className="grid min-h-0 flex-1 grid-cols-step-rail">
 			<section
@@ -128,6 +131,7 @@ export function StepRail({
 							number={index + 1}
 							row={row}
 							selected={stage.stage === selected.stage}
+							nowMs={nowMs}
 							onSelect={onSelect}
 						/>
 					))}

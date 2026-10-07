@@ -159,6 +159,21 @@ describe("/runs/$run", () => {
 		});
 	});
 
+	it("writes the layout chosen with the step it shows", async () => {
+		const router = renderRunDetail();
+
+		fireEvent.click(
+			await screen.findByRole("button", { name: "Contribution" }),
+		);
+
+		await waitFor(() => {
+			expect(router.state.location.search).toEqual({
+				layout: "trace",
+				step: "build",
+			});
+		});
+	});
+
 	it("falls back to Step rail on the stopped step for a layout or step it does not know", async () => {
 		renderRunDetail(new Map(), [], `/runs/${RUN}?layout=matrix&step=deploy`);
 
@@ -243,6 +258,16 @@ describe("/runs/$run", () => {
 			expect(within(card).getByText(note)).toBeInTheDocument();
 		},
 	);
+
+	it.each([
+		["rail", "Layout A · one step at a time, attempts alongside"],
+		["ledger", "Layout B · the whole record top to bottom"],
+		["trace", "Layout C · task grade first, then the root-cause pass"],
+	])("notes the %s layout in the restore banner", async (layout, note) => {
+		renderRunDetail(new Map(), [], `/runs/${RUN}?layout=${layout}`);
+
+		expect(await screen.findByText(note)).toBeInTheDocument();
+	});
 
 	it("shows no restore line for a run that completed", async () => {
 		renderAppWithStub(

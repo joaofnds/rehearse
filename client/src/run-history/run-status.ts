@@ -1,3 +1,4 @@
+import type { PipelineRow } from "#client/shell/run-in-flight";
 import type { StatusState } from "#client/system/components/status";
 import {
 	OPERATOR_STOPPED,
@@ -39,4 +40,12 @@ export function runStatusState(status: string): StatusState {
 			return "pending";
 		}
 	}
+}
+
+/** Whether the run is over: neither running nor paused to resume later. */
+export function hasRunEnded({
+	status,
+	progress,
+}: Pick<PipelineRow, "status" | "progress">): boolean {
+	return progress.state !== "running" && !isPaused(status);
 }
