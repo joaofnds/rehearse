@@ -4,15 +4,15 @@ import { useState } from "react";
 import { Disclosure } from "#client/system/components/disclosure";
 import { EmptyState } from "#client/system/components/empty-state";
 import { FilterPill } from "#client/system/components/filter-pill";
-import { Status } from "#client/system/components/status";
+import {
+	LiveGlyph,
+	STATUS_VOCABULARY,
+	Status,
+} from "#client/system/components/status";
+import type { StatusState } from "#client/system/components/status";
 import { TableShell } from "#client/system/components/table-shell";
 import { Button } from "#client/system/ui/button";
-import {
-	clockReading,
-	elapsedReading,
-	liveElapsedMs,
-	spendReading,
-} from "./run-progress";
+import { clockReading, liveElapsedMs, spendReading } from "./run-progress";
 import type { RunHistoryResponse } from "./run-history-query";
 import { polledRunHistoryQuery } from "./run-history-polling";
 import { useNow } from "./use-now";
@@ -39,6 +39,10 @@ import { RunControls } from "./run-controls";
 
 type HistoryRow = RunHistoryResponse["rows"][number];
 type RunHistoryRow = Extract<HistoryRow, { readonly kind: "run" }>;
+type RunningProgress = Extract<
+	RunHistoryRow["progress"],
+	{ readonly state: "running" }
+>;
 type ContextLink = HistoryRow["links"][number];
 
 function pipelineRuns(rows: readonly HistoryRow[]): readonly RunHistoryRow[] {
@@ -51,7 +55,6 @@ const COLUMNS = [
 	"Run",
 	"Case",
 	"Outcome",
-	"Progress",
 	"Step grades",
 	"Task grade",
 	"Corpus",
@@ -345,6 +348,19 @@ function outcomeCell(row: HistoryRow, choice: ArmChoice): React.JSX.Element {
 }
 
 function runOutcomeCell(row: RunHistoryRow): React.JSX.Element {
+	if (row.progress.state === "running") {
+		return (
+			<span className="flex flex-col gap-0.5">
+				{outcome(
+					"running",
+					runningPhrase(row.progress.stage, row.stageGrades),
+					`${row.progress.stage} · ${row.progress.stageState}`,
+				)}
+				<RunControls launchId={row.launchId} run={row.run} />
+			</span>
+		);
+	}
+
 	return (
 		<span className="flex flex-col gap-0.5">
 			<Status state={runStatusState(row.status)} />
@@ -356,29 +372,65 @@ function runOutcomeCell(row: RunHistoryRow): React.JSX.Element {
 	);
 }
 
-/**
- * What a run in flight is doing, blank for a run that has finished. The spend
- * carries the words the server sends for what it covers, because the figure
- * is not the run's total: each event kind scopes it differently, and one
- * scoped to a single stage falls when the next stage starts.
- */
-function progressCell(row: RunHistoryRow, nowMs: number): React.JSX.Element {
-	if (row.progress.state === "recorded") {
-		return <span />;
+/** The status glyph with a phrase in place of its word, and why beneath. */
+function outcome(
+	state: StatusState,
+	phrase: string,
+	reason: React.ReactNode,
+): React.JSX.Element {
+	return (
+		<>
+			<span className="inline-flex items-center gap-1.5">
+				{state === "running" ? (
+					<LiveGlyph />
+				) : (
+					<span aria-hidden="true">{STATUS_VOCABULARY[state].glyph}</span>
+				)}
+				<span>{phrase}</span>
+			</span>
+			<span className="text-xs text-dim">{reason}</span>
+		</>
+	);
+}
+
+/** Where a stage sits in its pipeline, counting from one. */
+function stepOf(
+	stage: string,
+	stageGrades: StageGrades,
+): { readonly step: number; readonly of: number } | undefined {
+	if (stageGrades.state === "unavailable") {
+		return undefined;
 	}
 
-	const { stage, elapsedMs, measuredAt, spentUsd, spendScope } = row.progress;
+	const index = stageGrades.grades.findIndex((each) => each.stage === stage);
+
+	return index === -1
+		? undefined
+		: { step: index + 1, of: stageGrades.grades.length };
+}
+
+function runningPhrase(stage: string, stageGrades: StageGrades): string {
+	const place = stepOf(stage, stageGrades);
+
+	return place === undefined
+		? "running"
+		: `running · step ${String(place.step)} of ${String(place.of)}`;
+}
+
+/**
+ * What a run in flight has spent. Its own running total where its events
+ * carry one, or else the latest event's figure with the words the server
+ * sends for what it covers, since that figure is not the run's total: each
+ * event kind scopes it differently, and one scoped to a single stage falls
+ * when the next stage starts.
+ */
+function runningCost(progress: RunningProgress): React.JSX.Element {
+	const { runSpentUsd, spentUsd, spendScope } = progress;
 
 	return (
 		<span className="flex flex-col gap-0.5">
-			<span>{stage}</span>
-			<span className="flex gap-2.5 font-mono text-sm">
-				<span>
-					{elapsedReading(liveElapsedMs(elapsedMs, measuredAt, nowMs))}
-				</span>
-				<span>{spendReading(spentUsd)}</span>
-			</span>
-			<span className="text-xs text-dim">{spendScope}</span>
+			{figure(spendReading(runSpentUsd ?? spentUsd))}
+			{reasonsLine([runSpentUsd === undefined ? spendScope : "so far"])}
 		</span>
 	);
 }
@@ -761,7 +813,7 @@ function figure(text: string): React.JSX.Element {
  * A sum that lacks a part is labelled partial and names each part it lacks,
  * so it is never read as the whole spend.
  */
-function costCell(cost: HistoryRow["cost"]): React.JSX.Element {
+function recordedCost(cost: HistoryRow["cost"]): React.JSX.Element {
 	if (cost.state === "unavailable") {
 		return unrecorded(cost.reasons);
 	}
@@ -779,7 +831,26 @@ function costCell(cost: HistoryRow["cost"]): React.JSX.Element {
 	);
 }
 
-function wallCell(wallTime: HistoryRow["wallTime"]): React.JSX.Element {
+function costCell(row: HistoryRow): React.JSX.Element {
+	if (row.kind === "run" && row.progress.state === "running") {
+		return runningCost(row.progress);
+	}
+
+	return recordedCost(row.cost);
+}
+
+/** A run in flight's wall time moves with the clock between its events. */
+function wallCell(row: HistoryRow, nowMs: number): React.JSX.Element {
+	if (row.kind === "run" && row.progress.state === "running") {
+		const { elapsedMs, measuredAt } = row.progress;
+
+		return figure(clockReading(liveElapsedMs(elapsedMs, measuredAt, nowMs)));
+	}
+
+	return recordedWall(row.wallTime);
+}
+
+function recordedWall(wallTime: HistoryRow["wallTime"]): React.JSX.Element {
 	if (wallTime.state === "unavailable") {
 		return unrecorded(wallTime.reasons);
 	}
@@ -884,7 +955,6 @@ function launchCells(launch: LaunchRow): readonly React.JSX.Element[] {
 				<span className="text-xs text-dim">stopped by the operator</span>
 			)}
 		</span>,
-		<span key="progress" />,
 		<span key="step-grades" />,
 		<span key="task-grade" />,
 		<span key="corpus" />,
@@ -1029,12 +1099,11 @@ export function RunHistoryPage(): React.JSX.Element {
 									<span key="run">{runCell(row)}</span>,
 									<span key="case">{caseCell(row)}</span>,
 									outcomeCell(row, choice),
-									row.kind === "run" ? progressCell(row, nowMs) : <span />,
 									stepGradesCell(row),
 									taskGradeCell(row),
 									corpusCell(row),
-									costCell(row.cost),
-									wallCell(row.wallTime),
+									costCell(row),
+									wallCell(row, nowMs),
 								]),
 							]}
 						/>

@@ -740,6 +740,8 @@ describe(RunHistoryPage.name, () => {
 	});
 
 	describe("when a run is in flight", () => {
+		const RUNNING_RUN = "2026-09-07T00-00-00.000Z";
+
 		/**
 		 * Measured when the test reads it, so the elapsed reading does not
 		 * depend on how long the tests before it took.
@@ -755,7 +757,7 @@ describe(RunHistoryPage.name, () => {
 				shortId: undefined,
 				checkpoints: [],
 				links: [],
-				run: "2026-09-07T00-00-00.000Z",
+				run: RUNNING_RUN,
 				caseId: "audit-log",
 				status: "RUNNING",
 				stage: undefined,
@@ -763,19 +765,34 @@ describe(RunHistoryPage.name, () => {
 				corpusVersion: undefined,
 				corpusChangedDuringRun: false,
 				staleness: unversionedStaleness({ stale: false, causes: [] }),
-				progress: {
-					state: "running",
-					stage: "build",
-					stageState: "session running",
-					elapsedMs: 9000,
-					stageElapsedMs: undefined,
-					measuredAt: new Date().toISOString(),
-					spentUsd: 0.9,
-					spendScope: "this stage's session so far",
-					runSpentUsd: undefined,
-					runTokens: undefined,
-					ceilingUsd: undefined,
+				stageGrades: {
+					state: "available",
+					grades: ["shape", "build", "review"].map((stage) => ({
+						stage,
+						status: "no-record",
+						grade: { state: "unavailable", reasons: ["not graded yet"] },
+					})),
 				},
+				progress: liveProgress(),
+			};
+		}
+
+		function liveProgress(): Extract<
+			PipelineRunRow["progress"],
+			{ readonly state: "running" }
+		> {
+			return {
+				state: "running",
+				stage: "build",
+				stageState: "session running",
+				elapsedMs: 9000,
+				stageElapsedMs: undefined,
+				measuredAt: new Date().toISOString(),
+				spentUsd: 0.9,
+				spendScope: "this stage's session so far",
+				runSpentUsd: 1.2,
+				runTokens: undefined,
+				ceilingUsd: undefined,
 			};
 		}
 
@@ -789,19 +806,43 @@ describe(RunHistoryPage.name, () => {
 					screen.getByText("2026-09-07T00-00-00.000Z"),
 				).toBeInTheDocument();
 			});
-			expect(screen.getByText("running")).toBeInTheDocument();
+			expect(cellOf(RUNNING_RUN, "Outcome")).toHaveTextContent("running");
 		});
 
-		it("reads out the stage the run is in, how long it has run, and what it has spent", async () => {
+		it("names the step it is in, its place in the pipeline and that step's state as its outcome", async () => {
 			respondingWith({ rows: [runningRow()], launches: [], unreadable: [] });
 
-			renderPage();
+			await renderPage().findByText(RUNNING_RUN);
 
-			await waitFor(() => {
-				expect(screen.getByText("build")).toBeInTheDocument();
-			});
-			expect(screen.getByText("9s")).toBeInTheDocument();
-			expect(screen.getByText("$0.90")).toBeInTheDocument();
+			expect(cellOf(RUNNING_RUN, "Outcome")).toHaveTextContent(
+				"running · step 2 of 3build · session running",
+			);
+		});
+
+		it("reads what the run has spent so far as its cost", async () => {
+			respondingWith({ rows: [runningRow()], launches: [], unreadable: [] });
+
+			await renderPage().findByText(RUNNING_RUN);
+
+			expect(cellOf(RUNNING_RUN, "Cost").textContent).toBe("$1.20so far");
+		});
+
+		it("reads how long the run has gone as its wall time", async () => {
+			respondingWith({ rows: [runningRow()], launches: [], unreadable: [] });
+
+			await renderPage().findByText(RUNNING_RUN);
+
+			expect(cellOf(RUNNING_RUN, "Wall").textContent).toBe("00:09");
+		});
+
+		it("has no Progress column, since the outcome, cost and wall cells carry it", async () => {
+			respondingWith({ rows: [runningRow()], launches: [], unreadable: [] });
+
+			await renderPage().findByText(RUNNING_RUN);
+
+			expect(
+				screen.getAllByRole("columnheader").map((header) => header.textContent),
+			).not.toContain("Progress");
 		});
 
 		/**
@@ -809,18 +850,23 @@ describe(RunHistoryPage.name, () => {
 		 * every event kind scopes its spend differently, and one scoped to a
 		 * single stage falls when the next stage begins.
 		 */
-		it("says what the spend figure covers rather than presenting it as the run total", async () => {
-			respondingWith({ rows: [runningRow()], launches: [], unreadable: [] });
-
-			renderPage();
-
-			await waitFor(() => {
-				expect(screen.getByText("$0.90")).toBeInTheDocument();
+		it("says what the spend figure covers where the run's own spend is not recorded", async () => {
+			respondingWith({
+				rows: [
+					{
+						...runningRow(),
+						progress: { ...liveProgress(), runSpentUsd: undefined },
+					},
+				],
+				launches: [],
+				unreadable: [],
 			});
-			expect(
-				screen.getByText("this stage's session so far"),
-			).toBeInTheDocument();
-			expect(screen.queryByText(/spent this run/iu)).not.toBeInTheDocument();
+
+			await renderPage().findByText(RUNNING_RUN);
+
+			expect(cellOf(RUNNING_RUN, "Cost").textContent).toBe(
+				"$0.90this stage's session so far",
+			);
 		});
 
 		/**
@@ -831,19 +877,12 @@ describe(RunHistoryPage.name, () => {
 		it("shows no spend ceiling or limit beside the figure", async () => {
 			respondingWith({ rows: [runningRow()], launches: [], unreadable: [] });
 
-			renderPage();
+			await renderPage().findByText(RUNNING_RUN);
 
-			await waitFor(() => {
-				expect(screen.getByText("$0.90")).toBeInTheDocument();
-			});
-			const cell = screen.getByText("$0.90").closest("td");
-			if (cell === null) {
-				throw new Error("the spend figure is not inside a table cell");
-			}
-			const progress = within(cell);
-			expect(progress.queryByText(/\/\s*\$/u)).not.toBeInTheDocument();
+			const cost = within(cellOf(RUNNING_RUN, "Cost"));
+			expect(cost.queryByText(/\/\s*\$/u)).not.toBeInTheDocument();
 			expect(
-				progress.queryByText(/limit|ceiling|budget/iu),
+				cost.queryByText(/limit|ceiling|budget/iu),
 			).not.toBeInTheDocument();
 		});
 
@@ -852,7 +891,7 @@ describe(RunHistoryPage.name, () => {
 		 * operator is watching a row, not reloading a page, so a reading that
 		 * only moves on refresh is the same as no reading at all.
 		 */
-		it("moves the stage, elapsed and spend readings with no page reload", async () => {
+		it("moves the step, wall time and cost with no page reload", async () => {
 			const bodies: RunHistoryResponseBody[] = [
 				{ rows: [runningRow()], launches: [], unreadable: [] },
 				{
@@ -860,17 +899,11 @@ describe(RunHistoryPage.name, () => {
 						{
 							...runningRow(),
 							progress: {
-								state: "running",
+								...liveProgress(),
 								stage: "review",
-								stageState: "session running",
 								elapsedMs: 74_000,
-								stageElapsedMs: undefined,
 								measuredAt: new Date().toISOString(),
-								spentUsd: 2.5,
-								spendScope: "this stage's session and its judge",
-								runSpentUsd: undefined,
-								runTokens: undefined,
-								ceilingUsd: undefined,
+								runSpentUsd: 2.5,
 							},
 						},
 					],
@@ -883,21 +916,31 @@ describe(RunHistoryPage.name, () => {
 			stub.preconnect = fetch.preconnect;
 			globalThis.fetch = stub;
 
-			renderPage();
-
-			await waitFor(() => {
-				expect(screen.getByText("build")).toBeInTheDocument();
-			});
-			expect(screen.getByText("9s")).toBeInTheDocument();
+			await renderPage().findByText(RUNNING_RUN);
 
 			await waitFor(
 				() => {
-					expect(screen.getByText("review")).toBeInTheDocument();
+					expect(cellOf(RUNNING_RUN, "Outcome")).toHaveTextContent(
+						"running · step 3 of 3review · session running",
+					);
 				},
 				{ timeout: 5000 },
 			);
-			expect(screen.getByText("1m")).toBeInTheDocument();
-			expect(screen.getByText("$2.50")).toBeInTheDocument();
+			expect(cellOf(RUNNING_RUN, "Wall").textContent).toMatch(/^01:1[4-9]$/u);
+			expect(cellOf(RUNNING_RUN, "Cost").textContent).toBe("$2.50so far");
+		});
+
+		it("advances the wall time every second", async () => {
+			respondingWith({ rows: [runningRow()], launches: [], unreadable: [] });
+
+			await renderPage().findByText(RUNNING_RUN);
+
+			await waitFor(
+				() => {
+					expect(cellOf(RUNNING_RUN, "Wall").textContent).toBe("00:10");
+				},
+				{ timeout: 2500 },
+			);
 		});
 
 		/**
@@ -905,23 +948,14 @@ describe(RunHistoryPage.name, () => {
 		 * row showing only the recorded figure would sit frozen between turns
 		 * while the run is plainly still going.
 		 */
-		it("keeps the elapsed reading moving between the run's own measurements", async () => {
+		it("carries the wall time forward from the run's last measurement", async () => {
 			respondingWith({
 				rows: [
 					{
 						...runningRow(),
 						progress: {
-							state: "running",
-							stage: "build",
-							stageState: "session running",
-							elapsedMs: 9000,
-							stageElapsedMs: undefined,
+							...liveProgress(),
 							measuredAt: new Date(Date.now() - 52_000).toISOString(),
-							spentUsd: 0.9,
-							spendScope: "this stage's session so far",
-							runSpentUsd: undefined,
-							runTokens: undefined,
-							ceilingUsd: undefined,
 						},
 					},
 				],
@@ -929,12 +963,9 @@ describe(RunHistoryPage.name, () => {
 				unreadable: [],
 			});
 
-			const page = renderPage();
+			await renderPage().findByText(RUNNING_RUN);
 
-			await waitFor(() => {
-				expect(page.getByText("1m")).toBeInTheDocument();
-			});
-			expect(page.queryByText("9s")).not.toBeInTheDocument();
+			expect(cellOf(RUNNING_RUN, "Wall").textContent).toBe("01:01");
 		});
 
 		it("re-reads the list no faster than the idle pace once no run is in flight", async () => {
@@ -966,7 +997,7 @@ describe(RunHistoryPage.name, () => {
 			expect(requests).toBe(afterFirstRender);
 		});
 
-		it("leaves the finished rows' readings blank rather than showing a zero", async () => {
+		it("reads no running spend or elapsed time for a finished run", async () => {
 			respondingWith({
 				rows: [
 					{
