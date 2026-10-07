@@ -28,6 +28,7 @@ export const UNREAD_REPLAY_FIGURES = {
 		state: "unavailable",
 		reasons: ["not read by this test"],
 	},
+	firedBlockers: { state: "unavailable", reasons: ["not read by this test"] },
 } as const;
 
 /**

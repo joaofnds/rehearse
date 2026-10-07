@@ -102,6 +102,16 @@ export const replayRecordSchema = z
 					.object({
 						grade: stageLetterGradeSchema,
 						verdict: z.enum(["CONTINUE", "STOP"]),
+						hardBlockers: z
+							.array(
+								z
+									.object({
+										id: z.string().min(1),
+										status: z.enum(["PASS", "FAIL"]),
+									})
+									.loose(),
+							)
+							.optional(),
 					})
 					.loose(),
 			})

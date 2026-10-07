@@ -294,6 +294,7 @@ export interface ReplayRow {
 	readonly wallTime: WallTimeReading;
 	/** The source run's stages, among which `stage` is placed. */
 	readonly pipelineStages: PipelineStages;
+	readonly firedBlockers: FiredBlockers;
 }
 
 /** A figure that has no meaning for a row's kind, rather than one not recorded. */
@@ -535,6 +536,24 @@ function firedBlockersOf(
 	return { state: "available", ids: [...new Set(graded.flat())] };
 }
 
+/** The ids one stage grade found fired, where the grade recorded its blockers. */
+function firedIdsOf(
+	hardBlockers:
+		| readonly { readonly id: string; readonly status: "PASS" | "FAIL" }[]
+		| undefined,
+): FiredBlockers {
+	if (hardBlockers === undefined) {
+		return { state: "unavailable", reasons: [NO_GRADED_BLOCKERS_REASON] };
+	}
+
+	return {
+		state: "available",
+		ids: hardBlockers
+			.filter(({ status }) => status === "FAIL")
+			.map(({ id }) => id),
+	};
+}
+
 function unavailableFigures(reasons: readonly string[]): RunFigures {
 	return {
 		stageGrades: { state: "unavailable", reasons },
@@ -714,6 +733,7 @@ async function replayRow(
 			reason: REPLAY_FINAL_OUTCOME_REASON,
 		},
 		wallTime: wallTime(record.elapsedMs, REPLAY_WALL_TIME_REASON),
+		firedBlockers: firedIdsOf(record.scorecard.grade.hardBlockers),
 		pipelineStages:
 			manifest === undefined
 				? { state: "unavailable", reasons: [SOURCE_MANIFEST_REASON] }

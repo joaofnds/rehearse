@@ -73,6 +73,11 @@ const sessionRecordSchema = z.looseObject({ metrics: z.unknown() });
 /** A replay record, read loosely so a test can rename the stage it replayed. */
 const replayStageSchema = z.looseObject({ stage: z.string() });
 
+/** A replay record, read loosely so a test can add to its stage grade. */
+const replayGradeSchema = z.looseObject({
+	scorecard: z.looseObject({ grade: z.looseObject({}) }),
+});
+
 /** A rep record, read loosely so a test can mark its metrics incomplete. */
 const repRecordSchema = z.looseObject({ metrics: z.looseObject({}) });
 
@@ -721,6 +726,52 @@ describe("/api/runs", () => {
 					wallTime: {
 						state: "unavailable",
 						reasons: [REPLAY_WALL_TIME_REASON],
+					},
+				});
+			});
+
+			it("carries the ids of the hard blockers its stage judge found fired", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeReplayOf(
+					fixture.replayableRun,
+					fixture.stageAttempt.timestamp,
+				);
+				const file = Bun.file(fixture.stageAttemptFile);
+				const record = replayGradeSchema.parse(await file.json());
+				await Bun.write(
+					file,
+					JSON.stringify({
+						...record,
+						scorecard: {
+							...record.scorecard,
+							grade: {
+								...record.scorecard.grade,
+								hardBlockers: [
+									{ id: "invalid-stage-delivery", status: "FAIL" },
+									{ id: "invented-scope", status: "PASS" },
+								],
+							},
+						},
+					}),
+				);
+
+				const row = await onlyRowOfKind(fixture, "replay");
+
+				expect(row).toMatchObject({
+					firedBlockers: {
+						state: "available",
+						ids: ["invalid-stage-delivery"],
+					},
+				});
+			});
+
+			it("carries its fired blockers as not recorded when its grade holds none", async () => {
+				const row = await replayRow();
+
+				expect(row).toMatchObject({
+					firedBlockers: {
+						state: "unavailable",
+						reasons: [NO_GRADED_BLOCKERS_REASON],
 					},
 				});
 			});
