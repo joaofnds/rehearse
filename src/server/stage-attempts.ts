@@ -108,12 +108,16 @@ async function replayAttempt(
 	};
 }
 
-/** A rep is judged as part of its group, so its corpus and staleness are the group's. */
+/**
+ * A rep is named by its group and its place in it, and is judged as part of
+ * its group, so its corpus and staleness are the group's.
+ */
 async function repAttempt(
 	lookup: Lookup,
-	groupId: string,
-	repId: string,
+	attempt: Extract<CheckpointAttempt, { readonly kind: "rep" }>,
 ): Promise<RecordedAttempt> {
+	const { groupId, repId, ordinal } = attempt;
+	const groupRecordId = formatRecordId({ kind: "group", groupId });
 	const paths = confirmationGroupPaths(lookup.runsDirectory, groupId);
 	const group = parseConfirmationGroupRecord(
 		await Bun.file(paths.groupFile).text(),
@@ -125,10 +129,10 @@ async function repAttempt(
 
 	return {
 		kind: "rep",
-		id: repId,
+		id: `${claimedId(lookup, groupRecordId)} rep ${String(ordinal)}`,
 		grade: judged?.status === "JUDGED" ? judged.grade : undefined,
 		corpusVersion: group.inputs.corpusVersion,
-		staleness: lookup.staleness.of(formatRecordId({ kind: "group", groupId })),
+		staleness: lookup.staleness.of(groupRecordId),
 	};
 }
 
@@ -144,7 +148,7 @@ function attemptOf(
 			return replayAttempt(lookup, attempt.lineage, attempt.timestamp);
 		}
 		case "rep": {
-			return repAttempt(lookup, attempt.groupId, attempt.repId);
+			return repAttempt(lookup, attempt);
 		}
 		default: {
 			return unhandled(attempt, "checkpoint attempt");

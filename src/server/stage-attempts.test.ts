@@ -96,7 +96,7 @@ describe(readStageAttempts.name, () => {
 		expect(attempts.attempts.map(({ kind, id }) => ({ kind, id }))).toEqual([
 			{ kind: "original", id: "audit-log/r2" },
 			{ kind: "replay", id: "audit-log/r3" },
-			{ kind: "rep", id: "group-at-build-rep-1" },
+			{ kind: "rep", id: "audit-log/g5 rep 1" },
 		]);
 		expect(attempts.attempts.map(attemptReading)).toEqual([
 			{ grade: "run record", stale: true },

@@ -30,7 +30,12 @@ export type CheckpointAttempt =
 			readonly lineage: string;
 			readonly timestamp: string;
 	  }
-	| { readonly kind: "rep"; readonly groupId: string; readonly repId: string };
+	| {
+			readonly kind: "rep";
+			readonly groupId: string;
+			readonly repId: string;
+			readonly ordinal: number;
+	  };
 
 /**
  * One run of a stage from the checkpoint before it, ordered by claim number
@@ -214,7 +219,7 @@ async function claimedAttempts(
 				record.groupId,
 			)) {
 				add(run, stage, {
-					attempt: { kind: "rep", groupId: record.groupId, repId },
+					attempt: { kind: "rep", groupId: record.groupId, repId, ordinal },
 					claim,
 					ordinal,
 				});

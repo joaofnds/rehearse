@@ -397,7 +397,7 @@ describe("Step rail", () => {
 					},
 					{
 						kind: "rep",
-						id: "group-at-build-rep-1",
+						id: "audit-log/g5 rep 1",
 						grade: "A",
 						corpusVersion: undefined,
 						staleness: {
@@ -425,7 +425,7 @@ describe("Step rail", () => {
 			expect(items.map((item) => item.textContent)).toEqual([
 				"audit-log/r2Doriginal run · version not recorded⚠ stale · skills/build/SKILL.md changed",
 				"audit-log/r3Breplay · corpus@c0ffee✓ current corpus",
-				"group-at-build-rep-1Aconfirmation rep · version not recordedstaleness not known: the group froze no pipeline to hash its stages against",
+				"audit-log/g5 rep 1Aconfirmation rep · version not recordedstaleness not known: the group froze no pipeline to hash its stages against",
 			]);
 			expect(
 				screen.getByRole("link", { name: "Compare these attempts" }),
