@@ -29,7 +29,8 @@ export type ReadEntry = Extract<
 
 const LINE_COUNT = new Intl.NumberFormat("en-US");
 
-const HASH_SHOWN = 6;
+/** How many characters of a file's sha256 a reading shows. */
+export const HASH_SHOWN = 6;
 
 export function notRecorded(
 	figure: string,
@@ -81,15 +82,14 @@ export function stageCostReading(stage: MonitoredStage): string {
 	);
 }
 
-const NO_KEPT_TRANSCRIPT = "Rehearse kept no copy of this step's session";
+export const NO_KEPT_TRANSCRIPT =
+	"Rehearse kept no copy of this step's session";
 
 /** How long the session's transcript runs, or why there is no count. */
 function transcriptReading(session: StageSessionResponse): string {
 	if (session.state === "closed" || session.state === "running") {
 		return session.lineCount === undefined
-			? notRecorded("transcript", [
-					"Rehearse kept no copy of this step's session",
-				])
+			? notRecorded("transcript", [NO_KEPT_TRANSCRIPT])
 			: `${LINE_COUNT.format(session.lineCount)} transcript lines`;
 	}
 

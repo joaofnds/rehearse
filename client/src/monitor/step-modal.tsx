@@ -4,6 +4,8 @@ import { useId } from "react";
 import { LaunchDialog } from "#client/launch/launch-dialog";
 import { plural } from "#client/plural";
 import {
+	HASH_SHOWN,
+	NO_KEPT_TRANSCRIPT,
 	notRecorded,
 	ReadState,
 	skillReading,
@@ -94,8 +96,6 @@ function ModalHeader({
 }
 
 type ArtifactIn = MonitoredStage["artifactsIn"]["entries"][number];
-
-const HASH_SHOWN = 6;
 
 function stepName(record: RunRecordResponse, stage: string): string {
 	const index = record.stages.findIndex((each) => each.stage === stage);
@@ -383,8 +383,6 @@ function judgeLine(
 
 	return "judge pending";
 }
-
-const NO_KEPT_TRANSCRIPT = "Rehearse kept no copy of this step's session";
 
 /** Where the stage's transcript is kept, linked to its session page. */
 function SessionLink({
