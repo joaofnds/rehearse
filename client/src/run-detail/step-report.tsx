@@ -54,21 +54,31 @@ function wallTimeReading(stage: MonitoredStage): string {
 		: notRecorded("wall time", stage.wallTime.reasons);
 }
 
-/** The stage's session and judge spend together, as its record keeps them. */
+type RecordedCost = MonitoredStage["sessionCost"];
+
+function costPart(name: string, cost: RecordedCost): string {
+	return cost.state === "available"
+		? `${name} ${spendReading(cost.usd)}`
+		: notRecorded(`${name} cost`, cost.reasons);
+}
+
+/**
+ * The stage's session and judge spend together, as its record keeps them, or
+ * each part apart when the record lacks one, so a part is never read as the
+ * whole.
+ */
 function stageCostReading(stage: MonitoredStage): string {
 	const { sessionCost, judgeCost } = stage;
-	const parts = [sessionCost, judgeCost].flatMap((part) =>
-		part.state === "available" ? [part.usd] : [],
-	);
-	if (parts.length > 0) {
-		return spendReading(parts.reduce((total, usd) => total + usd, 0));
+	if (sessionCost.state === "available" && judgeCost.state === "available") {
+		return spendReading(sessionCost.usd + judgeCost.usd);
 	}
 
-	return notRecorded(
-		"cost",
-		sessionCost.state === "unavailable" ? sessionCost.reasons : [],
+	return [costPart("session", sessionCost), costPart("judge", judgeCost)].join(
+		" · ",
 	);
 }
+
+const NO_KEPT_TRANSCRIPT = "Rehearse kept no copy of this step's session";
 
 /** How long the session's transcript runs, or why there is no count. */
 function transcriptReading(session: StageSessionResponse): string {
@@ -87,16 +97,58 @@ function transcriptReading(session: StageSessionResponse): string {
 	]);
 }
 
-function metaLine(
-	stage: MonitoredStage,
-	session: StageSessionResponse | undefined,
-): string {
+/** The session as the page read it: its answer, still loading, or unreadable. */
+type SessionRead = StageSessionResponse | "loading" | "unreadable";
+
+function metaLine(stage: MonitoredStage, session: SessionRead): string {
 	return [
 		skillReading(stage),
 		wallTimeReading(stage),
 		stageCostReading(stage),
-		...(session === undefined ? [] : [transcriptReading(session)]),
+		...(session === "loading"
+			? []
+			: [
+					session === "unreadable"
+						? "transcript not read: could not read this step's session"
+						: transcriptReading(session),
+				]),
 	].join(" · ");
+}
+
+/** Where the stage's kept transcript is, linked to its session page. */
+function SessionOnDisk({
+	run,
+	stage,
+	session,
+}: {
+	readonly run: string;
+	readonly stage: string;
+	readonly session: SessionRead;
+}): React.JSX.Element | null {
+	if (
+		session === "loading" ||
+		session === "unreadable" ||
+		session.state !== "closed"
+	) {
+		return null;
+	}
+
+	return (
+		<p className="mt-1 text-11-5 text-muted-foreground">
+			Session on disk:{" "}
+			{session.transcriptPath === undefined ? (
+				`not recorded: ${NO_KEPT_TRANSCRIPT}`
+			) : (
+				<Link
+					to="/runs/$run/stages/$stage"
+					params={{ run, stage }}
+					className="font-mono"
+				>
+					{session.transcriptPath}
+				</Link>
+			)}
+		</p>
+	);
 }
 
 function StatCard({
@@ -221,10 +273,17 @@ function JudgedSections({
 }: {
 	readonly run: string;
 	readonly stage: string;
-	readonly judge: StageJudgeResponse | undefined;
+	readonly judge: StageJudgeResponse | "unreadable" | undefined;
 }): React.JSX.Element | null {
 	if (judge === undefined) {
 		return null;
+	}
+	if (judge === "unreadable") {
+		return (
+			<p className="mt-4.5 text-12 text-muted-foreground">
+				Could not read this step's judge.
+			</p>
+		);
 	}
 	if (judge.state !== "judged") {
 		return (
@@ -317,7 +376,10 @@ function InstructionsRead({
 					</thead>
 					<tbody>
 						{readManifest.entries.map((entry) => (
-							<tr key={entry.path} className="border-b border-subtle">
+							<tr
+								key={`${entry.half}:${entry.path}`}
+								className="border-b border-subtle"
+							>
 								<td className="px-2.75 py-1.5">{entry.path}</td>
 								<td className="px-2.75 py-1.5 text-dim">
 									{entry.sha256?.slice(0, HASH_SHOWN) ?? "no hash"}
@@ -354,8 +416,9 @@ export function StepReport({
 }): React.JSX.Element {
 	const judge = useQuery(stageJudgeQuery(run, stage.stage));
 	const session = useQuery(stageSessionQuery(run, stage.stage));
-	const transcriptPath =
-		session.data?.state === "closed" ? session.data.transcriptPath : undefined;
+	const sessionRead: SessionRead = session.isError
+		? "unreadable"
+		: (session.data ?? "loading");
 
 	return (
 		<section
@@ -368,27 +431,20 @@ export function StepReport({
 						Step {String(number)} · {stage.stage}
 					</h2>
 					<p className="mt-1 font-mono text-11-5 text-dim">
-						{metaLine(stage, session.data)}
+						{metaLine(stage, sessionRead)}
 					</p>
-					{transcriptPath === undefined ? null : (
-						<p className="mt-1 text-11-5 text-muted-foreground">
-							Session on disk:{" "}
-							<Link
-								to="/runs/$run/stages/$stage"
-								params={{ run, stage: stage.stage }}
-								className="font-mono"
-							>
-								{transcriptPath}
-							</Link>
-						</p>
-					)}
+					<SessionOnDisk run={run} stage={stage.stage} session={sessionRead} />
 				</div>
 				<div className="ml-auto flex gap-2.5">
 					<GradeStat stage={stage} record={record} />
 					<VerdictStat stage={stage} judge={judge.data} />
 				</div>
 			</div>
-			<JudgedSections run={run} stage={stage.stage} judge={judge.data} />
+			<JudgedSections
+				run={run}
+				stage={stage.stage}
+				judge={judge.isError ? "unreadable" : judge.data}
+			/>
 			<InstructionsRead stage={stage} />
 		</section>
 	);

@@ -71,6 +71,19 @@ function stoppedWithBuildFigures(
 					evidence: "observed",
 					sha256: "77aa01".padEnd(64, "0"),
 				},
+				{
+					path: "CLAUDE.md",
+					half: "corpus",
+					role: "global instructions",
+					evidence: "declared",
+				},
+				{
+					path: "skills/plan/SKILL.md",
+					half: "corpus",
+					role: "read for context",
+					evidence: "observed",
+					sha256: "5be0c2".padEnd(64, "0"),
+				},
 			],
 		},
 		...figures,
@@ -283,7 +296,28 @@ describe("Step rail", () => {
 				"skills/implement/SKILL.mda41c7e✓unchanged",
 				"skills/review/SKILL.md9f30d1⚠changed since this run",
 				"CLAUDE.md77aa01not compared · a project file is not part of the corpus",
+				"CLAUDE.mdno hashnot compared · no hash was recorded",
+				"skills/plan/SKILL.md5be0c2not compared · the corpus under test cannot compare it",
 			]);
+		});
+
+		it("reads the instructions a stage read as not recorded when its reads are unavailable", async () => {
+			renderBuildReport(
+				stoppedWithBuildFigures({
+					readManifest: {
+						state: "unavailable",
+						reasons: ["the stage recorded no reads"],
+					},
+				}),
+			);
+
+			const report = await stepReport();
+
+			expect(
+				await within(report).findByText(
+					"Instructions read not recorded: the stage recorded no reads",
+				),
+			).toBeInTheDocument();
 		});
 
 		it("reads a figure the records lack as not recorded with its reason", async () => {
@@ -304,6 +338,63 @@ describe("Step rail", () => {
 					"skills/implement/SKILL.md · wall time not recorded: the stage record has no elapsed time · $1.12 · transcript not recorded: Rehearse kept no copy of this step's session",
 				),
 			).toBeInTheDocument();
+		});
+
+		it("reads the cost a record lacks part of as each part, not a partial sum", async () => {
+			renderBuildReport(
+				stoppedWithBuildFigures({
+					sessionCost: {
+						state: "unavailable",
+						reasons: ["the provider reported no session cost"],
+					},
+				}),
+			);
+
+			const report = await stepReport();
+
+			expect(
+				await within(report).findByText(
+					/session cost not recorded: the provider reported no session cost · judge \$0\.12/u,
+				),
+			).toBeInTheDocument();
+		});
+
+		it("reads an old stop's transcript link as not recorded", async () => {
+			renderBuildReport(stoppedWithBuildFigures(), {
+				state: "closed",
+				spans: [],
+			});
+
+			const report = await stepReport();
+
+			expect(
+				await within(report).findByText(
+					"Session on disk: not recorded: Rehearse kept no copy of this step's session",
+				),
+			).toBeInTheDocument();
+			expect(within(report).queryByRole("link")).toBeNull();
+		});
+
+		it("says a judge or session it could not read, without an alert", async () => {
+			renderRunDetail(
+				new Map<string, unknown>([
+					[`/api/runs/${RUN}`, stoppedWithBuildFigures()],
+				]),
+			);
+
+			const report = await screen.findByRole("region", {
+				name: "Step report",
+			});
+
+			expect(
+				await within(report).findByText("Could not read this step's judge."),
+			).toBeInTheDocument();
+			expect(
+				await within(report).findByText(
+					/transcript not read: could not read this step's session/u,
+				),
+			).toBeInTheDocument();
+			expect(within(report).queryByRole("alert")).toBeNull();
 		});
 
 		it("links the stage's transcript on disk", async () => {
