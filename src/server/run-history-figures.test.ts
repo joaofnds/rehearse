@@ -33,6 +33,8 @@ import {
 	REPLAY_FINAL_OUTCOME_REASON,
 	REPLAY_WALL_TIME_REASON,
 	SESSION_COST_REASON,
+	SOURCE_MANIFEST_REASON,
+	UNLISTED_STAGE_REASON,
 } from "./run-history";
 import {
 	INTERRUPTED_REASON,
@@ -57,6 +59,9 @@ const runHistorySchema = z.object({
 
 /** A session attempt record, read loosely so a test can drop one field. */
 const sessionRecordSchema = z.looseObject({ metrics: z.unknown() });
+
+/** A replay record, read loosely so a test can rename the stage it replayed. */
+const replayStageSchema = z.looseObject({ stage: z.string() });
 
 /** A rep record, read loosely so a test can mark its metrics incomplete. */
 const repRecordSchema = z.looseObject({ metrics: z.looseObject({}) });
@@ -522,6 +527,53 @@ describe("/api/runs", () => {
 						state: "available",
 						status: "NOT_APPLICABLE",
 						reason: REPLAY_FINAL_OUTCOME_REASON,
+					},
+				});
+			});
+
+			it("carries its source pipeline's stages in order", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writePipelineRun(fixture.replayableRun, "audit-log");
+				await fixture.writeReplayOf(
+					fixture.replayableRun,
+					fixture.stageAttempt.timestamp,
+				);
+
+				const row = await onlyRowOfKind(fixture, "replay");
+
+				expect(row).toMatchObject({
+					pipelineStages: { state: "available", stages: ["discuss", "build"] },
+				});
+			});
+
+			it("carries its source pipeline's stages as unavailable when the source run's manifest is gone", async () => {
+				const row = await replayRow();
+
+				expect(row).toMatchObject({
+					pipelineStages: {
+						state: "unavailable",
+						reasons: [SOURCE_MANIFEST_REASON],
+					},
+				});
+			});
+
+			it("carries its source pipeline's stages as unavailable when they do not list the stage it replayed", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writePipelineRun(fixture.replayableRun, "audit-log");
+				await fixture.writeReplayOf(
+					fixture.replayableRun,
+					fixture.stageAttempt.timestamp,
+				);
+				const file = Bun.file(fixture.stageAttemptFile);
+				const record = replayStageSchema.parse(await file.json());
+				await Bun.write(file, JSON.stringify({ ...record, stage: "review" }));
+
+				const row = await onlyRowOfKind(fixture, "replay");
+
+				expect(row).toMatchObject({
+					pipelineStages: {
+						state: "unavailable",
+						reasons: [UNLISTED_STAGE_REASON],
 					},
 				});
 			});

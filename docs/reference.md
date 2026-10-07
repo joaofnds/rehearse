@@ -1822,7 +1822,10 @@ main record that does not parse still moves the run to `unreadable`.
 A replay row sums its session, Product Owner and judge cost and lacks no part.
 Its `finalOutcome` is `NOT_APPLICABLE` with the reason, since only a whole run
 reaches the final judge, and its wall time is the elapsed time its record
-keeps, unavailable in a replay record that predates it. A session attempt row's cost is its call
+keeps, unavailable in a replay record that predates it. Its `pipelineStages`
+lists the source run's stages in its manifest's order, so the step grades
+column can place the replayed stage among them, and is unavailable with the
+reason when that manifest is gone or does not list the stage. A session attempt row's cost is its call
 metrics' cost, unavailable when the attempt kept none, and its wall time is the
 elapsed time it recorded. A confirmation group row's wall time is its makespan.
 Its cost sums a session group's preflight call and each rep's recorded calls,

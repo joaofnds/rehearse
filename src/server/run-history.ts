@@ -83,7 +83,6 @@ import type {
 import {
 	checkpointlessStageRecorded,
 	latestCheckpointStage,
-	sourceCaseId,
 	statusAndCaseId,
 } from "./run-status";
 import { targetMarker } from "#benchmark/run-liveness";
@@ -144,6 +143,28 @@ export const REPLAY_WALL_TIME_REASON =
 export const SESSION_COST_REASON = "the attempt recorded no call metrics";
 export const NO_MANIFEST_REASON =
 	"the run wrote no manifest, which names its stages";
+export const SOURCE_MANIFEST_REASON =
+	"the source run's manifest, which names its stages, is not recorded";
+export const UNLISTED_STAGE_REASON =
+	"the source pipeline does not list the stage replayed";
+
+/** A pipeline's stage names in order, where a record names them. */
+export type PipelineStages = Reading<{ readonly stages: readonly string[] }>;
+
+/**
+ * The stages a record's single replayed stage sits among, refused when they
+ * do not list it, since the stage could then be placed nowhere among them.
+ */
+function stagesAround(
+	stage: string,
+	stages: readonly string[],
+): PipelineStages {
+	if (!stages.includes(stage)) {
+		return { state: "unavailable", reasons: [UNLISTED_STAGE_REASON] };
+	}
+
+	return { state: "available", stages };
+}
 
 /** A stage's grade as the run's step grades column shows it. */
 export interface ListedStageGrade {
@@ -212,6 +233,8 @@ export interface ReplayRow {
 	readonly cost: CostReading;
 	readonly finalOutcome: NotApplicable;
 	readonly wallTime: WallTimeReading;
+	/** The source run's stages, among which `stage` is placed. */
+	readonly pipelineStages: PipelineStages;
 }
 
 /** A figure that has no meaning for a row's kind, rather than one not recorded. */
@@ -569,9 +592,10 @@ async function replayRow(
 		replayRecordFile(runsDirectory, attempt.lineage, attempt.timestamp),
 	);
 	const { manifestFile } = benchmarkRunPaths(runsDirectory, record.runName);
-	const caseId = (await Bun.file(manifestFile).exists())
-		? await sourceCaseId(manifestFile)
+	const manifest = (await Bun.file(manifestFile).exists())
+		? await loadRunManifest(manifestFile)
 		: undefined;
+	const caseId = manifest?.caseId;
 
 	return {
 		kind: "replay",
@@ -603,6 +627,13 @@ async function replayRow(
 			reason: REPLAY_FINAL_OUTCOME_REASON,
 		},
 		wallTime: wallTime(record.elapsedMs, REPLAY_WALL_TIME_REASON),
+		pipelineStages:
+			manifest === undefined
+				? { state: "unavailable", reasons: [SOURCE_MANIFEST_REASON] }
+				: stagesAround(
+						record.stage,
+						manifest.pipeline.stages.map(({ name }) => name),
+					),
 	};
 }
 

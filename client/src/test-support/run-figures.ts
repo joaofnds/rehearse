@@ -22,6 +22,10 @@ export const UNREAD_REPLAY_FIGURES = {
 		reason: "not read by this test",
 	},
 	wallTime: { state: "unavailable", reasons: ["not read by this test"] },
+	pipelineStages: {
+		state: "unavailable",
+		reasons: ["not read by this test"],
+	},
 } as const;
 
 /**
