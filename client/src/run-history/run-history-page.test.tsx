@@ -31,7 +31,11 @@ import {
 	UNREAD_STALENESS,
 	unversionedStaleness,
 } from "#client/test-support/run-figures";
-import type { RowStaleness } from "#server/run-history";
+import type {
+	ListedStageGrade,
+	PipelineRunRow,
+	RowStaleness,
+} from "#server/run-history";
 import { RunHistoryPage } from "./run-history-page";
 
 type RunHistoryResponseBody = InferResponseType<typeof apiClient.api.runs.$get>;
@@ -248,7 +252,6 @@ describe(RunHistoryPage.name, () => {
 		expect(screen.getByText("stopped")).toBeInTheDocument();
 		expect(screen.getByText("corpus@a3a62f")).toBeInTheDocument();
 		expect(screen.getByText("stale")).toBeInTheDocument();
-		expect(screen.getByText("B")).toBeInTheDocument();
 	});
 
 	it("links a stopped run to the stage it stopped on, not its last checkpoint", async () => {
@@ -316,39 +319,6 @@ describe(RunHistoryPage.name, () => {
 			expect(screen.getByRole("table")).toHaveAccessibleName("DURABLE RECORDS");
 		});
 		expect(screen.getAllByText("DURABLE RECORDS")).toHaveLength(1);
-	});
-
-	it("renders a pending grade cell for a row with no recorded grade", async () => {
-		respondingWith({
-			rows: [
-				{
-					kind: "run",
-					...UNREAD_RUN_FIGURES,
-					launchId: undefined,
-					shortId: undefined,
-					checkpoints: [],
-					links: [],
-					run: "2026-09-04T00-00-00.000Z",
-					caseId: "audit-log",
-					status: "STOPPED:discuss",
-					stage: undefined,
-					grade: undefined,
-					corpusVersion: { kind: "version", digest: "a3a62f" },
-					corpusChangedDuringRun: false,
-					staleness: unversionedStaleness({ stale: false, causes: [] }),
-					progress: { state: "recorded" },
-				},
-			],
-			launches: [],
-			unreadable: [],
-		});
-
-		renderPage();
-
-		await waitFor(() => {
-			expect(screen.getByText("2026-09-04T00-00-00.000Z")).toBeInTheDocument();
-		});
-		expect(cellOf("2026-09-04T00-00-00.000Z", "Grade")).toHaveTextContent("—");
 	});
 
 	it("renders a filter bar built from FilterPill, all pressed by default", async () => {
@@ -2086,6 +2056,84 @@ describe(RunHistoryPage.name, () => {
 		expect(
 			await screen.findByRole("dialog", { name: "Start a run" }),
 		).toBeInTheDocument();
+	});
+
+	describe("the step grades and task grade of a pipeline run", () => {
+		const RUN = "2026-09-20T10-00-00.000Z";
+
+		function graded(stage: string, letter: string): ListedStageGrade {
+			return {
+				stage,
+				status: "graded",
+				grade: {
+					state: "available",
+					letter,
+					verdict: "CONTINUE",
+					reachesMinimum: true,
+				},
+			};
+		}
+
+		function ungraded(
+			stage: string,
+			status: ListedStageGrade["status"],
+		): ListedStageGrade {
+			return {
+				stage,
+				status,
+				grade: { state: "unavailable", reasons: ["no grade recorded"] },
+			};
+		}
+
+		function runWith(
+			figures: Pick<PipelineRunRow, "stageGrades" | "finalOutcome">,
+		): RunHistoryResponseBody {
+			return {
+				rows: [
+					{
+						kind: "run",
+						...UNREAD_RUN_FIGURES,
+						...figures,
+						launchId: undefined,
+						shortId: undefined,
+						checkpoints: [],
+						links: [],
+						run: RUN,
+						caseId: "audit-log",
+						status: "COMPLETE",
+						stage: "review",
+						grade: undefined,
+						corpusVersion: undefined,
+						corpusChangedDuringRun: false,
+						staleness: UNREAD_STALENESS,
+						progress: { state: "recorded" },
+					},
+				],
+				launches: [],
+				unreadable: [],
+			};
+		}
+
+		it("reads one token per stage in pipeline order, a letter where graded and · where not", async () => {
+			respondingWith(
+				runWith({
+					...UNREAD_RUN_FIGURES,
+					stageGrades: {
+						state: "available",
+						grades: [
+							graded("shape", "A−"),
+							graded("plan", "B+"),
+							{ ...graded("build", "D"), status: "stopped" },
+							ungraded("review", "not-run"),
+						],
+					},
+				}),
+			);
+
+			await renderPage().findByText(RUN);
+
+			expect(cellOf(RUN, "Step grades")).toHaveTextContent("A− B+ D ·");
+		});
 	});
 
 	describe("when two recorded attempts are compared", () => {

@@ -3,7 +3,10 @@ import { cleanup, screen, waitFor } from "@testing-library/react";
 import type { SessionHistoryReport } from "#benchmark/session-history";
 import type { SessionHistoryAttemptSeries } from "#server/session-history-reader";
 import { renderAppWithStub } from "#client/test-support/render-app";
-import { unversionedStaleness } from "#client/test-support/run-figures";
+import {
+	UNREAD_RUN_FIGURES,
+	unversionedStaleness,
+} from "#client/test-support/run-figures";
 import { createAppRouter } from "./router";
 
 const originalFetch = globalThis.fetch;
@@ -246,6 +249,7 @@ describe(createAppRouter.name, () => {
 						rows: [
 							{
 								kind: "run",
+								...UNREAD_RUN_FIGURES,
 								links: [],
 								run: "2026-09-06T21-58-29.508Z",
 								caseId: "audit-log",

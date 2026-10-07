@@ -4,7 +4,6 @@ import { useState } from "react";
 import { Disclosure } from "#client/system/components/disclosure";
 import { EmptyState } from "#client/system/components/empty-state";
 import { FilterPill } from "#client/system/components/filter-pill";
-import type { GradeValue } from "#client/system/components/grade";
 import { Grade } from "#client/system/components/grade";
 import { Status } from "#client/system/components/status";
 import { TableShell } from "#client/system/components/table-shell";
@@ -42,7 +41,8 @@ const COLUMNS = [
 	"Case",
 	"Outcome",
 	"Progress",
-	"Grade",
+	"Step grades",
+	"Task grade",
 	"Corpus",
 ] as const;
 
@@ -504,13 +504,36 @@ function judgment(staleness: JudgedStaleness): React.JSX.Element {
 	);
 }
 
-function gradeCell(row: HistoryRow): React.JSX.Element {
+const NO_GRADE = "·";
+
+type StageGrades = RunHistoryRow["stageGrades"];
+
+/** A reading a record cannot supply, its reasons in place of the figure. */
+function reasonsLine(reasons: readonly string[]): React.JSX.Element {
+	return <span className="text-xs text-dim">{reasons.join("; ")}</span>;
+}
+
+/** One token per stage, in pipeline order: its letter, or · where it has none. */
+function runStepGrades(stageGrades: StageGrades): React.JSX.Element {
+	if (stageGrades.state === "unavailable") {
+		return reasonsLine(stageGrades.reasons);
+	}
+
+	return (
+		<span className="font-mono text-12 tracking-caps">
+			{stageGrades.grades
+				.map(({ grade }) =>
+					grade.state === "available" ? grade.letter : NO_GRADE,
+				)
+				.join(" ")}
+		</span>
+	);
+}
+
+function stepGradesCell(row: HistoryRow): React.JSX.Element {
 	switch (row.kind) {
 		case "run": {
-			const value: GradeValue =
-				row.grade === undefined ? { pending: true } : { letter: row.grade };
-
-			return <Grade value={value} size="inline" />;
+			return runStepGrades(row.stageGrades);
 		}
 		case "replay": {
 			return <Grade value={{ letter: row.grade }} size="inline" />;
@@ -523,6 +546,10 @@ function gradeCell(row: HistoryRow): React.JSX.Element {
 			return row satisfies never;
 		}
 	}
+}
+
+function taskGradeCell(_row: HistoryRow): React.JSX.Element {
+	return <span />;
 }
 
 function filterLabel(filter: Filter, total: number | undefined): string {
@@ -623,7 +650,8 @@ function launchCells(launch: LaunchRow): readonly React.JSX.Element[] {
 			)}
 		</span>,
 		<span key="progress" />,
-		<span key="grade" />,
+		<span key="step-grades" />,
+		<span key="task-grade" />,
 		<span key="corpus" />,
 	];
 }
@@ -764,7 +792,8 @@ export function RunHistoryPage(): React.JSX.Element {
 									<span key="case">{caseCell(row)}</span>,
 									outcomeCell(row, choice),
 									row.kind === "run" ? progressCell(row, nowMs) : <span />,
-									gradeCell(row),
+									stepGradesCell(row),
+									taskGradeCell(row),
 									corpusCell(row),
 								]),
 							]}
