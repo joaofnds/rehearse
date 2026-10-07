@@ -6,6 +6,7 @@ import { z } from "zod";
 import {
 	directorySource,
 	fixedCorpusSource,
+	liveStageSettings,
 	NO_PROVIDER_PROJECTS,
 	nothingRunning,
 	RecordedRunsFixture,
@@ -65,20 +66,16 @@ async function fixtureWithReplayAndRep(): Promise<RecordedRunsFixture> {
 	return fixture;
 }
 
-/** What the list shows of an attempt's grade and staleness. */
-interface AttemptReading {
-	readonly grade: string | undefined;
-	readonly stale: boolean | readonly string[];
+/** What the list shows of an attempt's staleness. */
+function staleReading(attempt: StageAttempt): boolean | readonly string[] {
+	return attempt.staleness.state === "available"
+		? attempt.staleness.stale
+		: attempt.staleness.reasons;
 }
 
-function attemptReading(attempt: StageAttempt): AttemptReading {
-	return {
-		grade: attempt.kind === "original" ? "run record" : attempt.grade,
-		stale:
-			attempt.staleness.state === "available"
-				? attempt.staleness.stale
-				: attempt.staleness.reasons,
-	};
+/** The grade an attempt's own record carries; the original's is the run record's. */
+function recordedGrade(attempt: StageAttempt): string | undefined {
+	return "grade" in attempt ? attempt.grade : undefined;
 }
 
 describe(readStageAttempts.name, () => {
@@ -98,13 +95,11 @@ describe(readStageAttempts.name, () => {
 			{ kind: "replay", id: "audit-log/r3" },
 			{ kind: "rep", id: "audit-log/g5 rep 1" },
 		]);
-		expect(attempts.attempts.map(attemptReading)).toEqual([
-			{ grade: "run record", stale: true },
-			{ grade: "A", stale: true },
-			{
-				grade: "A",
-				stale: ["the group froze no pipeline to hash its stages against"],
-			},
+		expect(attempts.attempts.map(recordedGrade)).toEqual([undefined, "A", "A"]);
+		expect(attempts.attempts.map(staleReading)).toEqual([
+			true,
+			true,
+			["the group froze no pipeline to hash its stages against"],
 		]);
 	});
 
@@ -124,6 +119,31 @@ describe(readStageAttempts.name, () => {
 		]);
 	});
 
+	it("judges the original attempt at a stage that stopped the run under the run's own id", async () => {
+		const fixture = new RecordedRunsFixture(
+			await temporaryRoot("rehearse-stage-attempts-"),
+			{ settingsFile: await liveStageSettings() },
+		);
+		await fixture.writeGradedStoppedRun();
+		const corpus = await corpusDirectory();
+		await fixture.recordStoppedStageFrom(directorySource(corpus));
+		await Bun.write(join(corpus, "skills", "build", "SKILL.md"), "edited\n");
+
+		const attempts = await readStageAttempts({
+			runsDirectory: fixture.runsDirectory,
+			run: fixture.stoppedRun,
+			stage: "build",
+			source: directorySource(corpus),
+		});
+
+		expect(attempts.attempts.map(({ kind }) => kind)).toEqual(["original"]);
+		expect(attempts.attempts[0]?.staleness).toMatchObject({
+			state: "available",
+			stale: true,
+			causes: ["skills/build/SKILL.md changed"],
+		});
+	});
+
 	it("refuses a stage the run's pipeline does not hold", async () => {
 		const fixture = await fixtureWithReplayAndRep();
 
@@ -136,29 +156,46 @@ describe(readStageAttempts.name, () => {
 
 		expect(attempts).rejects.toThrow(SessionHistoryReaderError);
 	});
+});
 
-	it("answers over the API, and 404 for a stage the run's pipeline does not hold", async () => {
+describe("GET /api/runs/:run/stages/:stage/attempts", () => {
+	async function attemptsApi(): Promise<{
+		readonly api: ReturnType<typeof createApiApp>;
+		readonly run: string;
+	}> {
 		const fixture = await fixtureWithReplayAndRep();
-		const api = createApiApp({
-			projectsDirectory: NO_PROVIDER_PROJECTS,
-			runsDirectory: fixture.runsDirectory,
-			liveness: nothingRunning,
-			readCorpusSource: fixedCorpusSource(
-				directorySource(await corpusDirectory()),
-			),
-		});
 
-		const found = await api.request(
-			`/api/runs/${fixture.replayableRun}/stages/build/attempts`,
-		);
-		const missing = await api.request(
-			`/api/runs/${fixture.replayableRun}/stages/deploy/attempts`,
-		);
+		return {
+			api: createApiApp({
+				projectsDirectory: NO_PROVIDER_PROJECTS,
+				runsDirectory: fixture.runsDirectory,
+				liveness: nothingRunning,
+				readCorpusSource: fixedCorpusSource(
+					directorySource(await corpusDirectory()),
+				),
+			}),
+			run: fixture.replayableRun,
+		};
+	}
+
+	it("answers the checkpoint a stage started from and its attempts", async () => {
+		const { api, run } = await attemptsApi();
+
+		const found = await api.request(`/api/runs/${run}/stages/build/attempts`);
 
 		expect(found.status).toBe(200);
 		expect(
 			z.object({ checkpoint: z.string() }).parse(await found.json()),
 		).toEqual({ checkpoint: "audit-log/r2/s1" });
+	});
+
+	it("answers 404 for a stage the run's pipeline does not hold", async () => {
+		const { api, run } = await attemptsApi();
+
+		const missing = await api.request(
+			`/api/runs/${run}/stages/deploy/attempts`,
+		);
+
 		expect(missing.status).toBe(404);
 	});
 });

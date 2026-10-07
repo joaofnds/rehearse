@@ -1,6 +1,6 @@
 import type { CorpusRoot } from "#benchmark/corpus-file";
 import type { CorpusMeasurement } from "#benchmark/corpus-measurement";
-import { INITIAL_CHECKPOINT_STAGE } from "#benchmark/checkpoint";
+import { consumedCheckpointStage } from "#benchmark/checkpoint";
 import {
 	parseConfirmationGroupRecord,
 	parseConfirmationRepRecord,
@@ -165,8 +165,7 @@ export async function readStageAttempts(request: {
 	const { runsDirectory, source } = request;
 	const { manifest, run, stage } = await verifiedStageOfRun(request);
 	const stages = manifest.pipeline.stages.map(({ name }) => name);
-	const startedFrom =
-		stages[stages.indexOf(stage) - 1] ?? INITIAL_CHECKPOINT_STAGE;
+	const startedFrom = consumedCheckpointStage(stages, stages.indexOf(stage));
 	const { entries } = await readAllShortIds(runsDirectory);
 	const shortIds = shortIdsOf(entries);
 	const lookup: Lookup = {
