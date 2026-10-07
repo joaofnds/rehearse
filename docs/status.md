@@ -355,7 +355,7 @@ comparison. The settings screen shows where records go, how many there are
 and their size, stores the same ceiling, and links a corpus directory by an
 absolute path or one starting with `~/`, rehashes the linked corpus and
 unlinks it. Its Keyboard card lists n, r and e as planned, since nothing binds
-them yet. Run detail's Record ledger layout and the step modal, declaring a
+them yet. Run detail's Record ledger layout, declaring a
 pipeline case, editing a case, task import, export and editing, and first-run
 setup are design targets. Live monitoring is partly
 delivered: the run list reports a run in flight with its stage, elapsed time and
@@ -379,15 +379,18 @@ with the reason under it for a run started outside the browser, run spend agains
 the ceiling with burn rate, elapsed time, tokens in and out, a remaining
 estimate of time and spend from the median times of the unfinished steps in
 earlier runs of the case or the reason it has none, and the task graph with each stage's grade, status, cost, duration, fired hard blockers,
-corpus version and checkpoint, and replay where a checkpoint exists. Each
-node's `in / out` action opens the stage's step modal: the instruction files
-the stage loaded with whether each changed since, the artifacts it started
-from with where each came from, the artifacts its record says it produced,
-the judge's fired blockers and returned dimensions in one line, Full step
-report into Step rail, a link to the kept transcript's session page, and
-Replay from checkpoint. Edit this step and Edit its skill are drawn disabled.
-A figure a running or queued stage has not produced reads pending. The
-running stage's duration counts that stage's own elapsed time each second. The
+corpus version and checkpoint, and replay where a checkpoint exists. The
+running stage's duration counts that stage's own elapsed time each second.
+Each node's `in / out` action opens the stage's step modal: the read manifest
+of the instruction files the stage loaded with whether each changed since, the
+artifacts it started from with where each came from, the artifacts its record
+says it produced, the judge's fired blockers and returned dimensions in one
+line, Full step report into Step rail, a link to the kept transcript's session
+page, Replay from checkpoint, disabled with its reason where that checkpoint
+is missing, and Edit its skill, which opens the Corpus screen. Edit this step
+is drawn disabled. In the modal a figure a running or queued stage has not
+produced reads pending, and one an ended stage's record lacks reads not
+recorded with the reason. The
 header and the running stage show the latest corpus version any stage of the
 run recorded, or while none has, the version the run measured when it started.
 It follows the run's SSE stream, so its readings move as each event lands.

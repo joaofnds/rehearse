@@ -1600,14 +1600,16 @@ entry is served without a state rather than failing the response. It is unavaila
 predates read manifests. As artifacts out it lists its declared artifact, the
 workflow-state files it added, modified or removed against the checkpoint it
 continued from, and the commit subjects and changed paths its record carries.
-As artifacts in it lists what its session started from: the task card the case
-names, the target at the checkpoint before it, which for the first stage is the
-initial checkpoint, with that checkpoint's short id, and each workflow-state
-change an earlier stage made, named by that stage. An earlier stage whose
-changes cannot be read is listed under `missing` with the reason. Earlier
-stages' declared artifacts reach only the stage judge, so they are not inputs.
-It says whether its checkpoint is `recorded` or `missing`, since a stopped
-stage saves none.
+As `artifactsIn` it lists what its session started from: the task card the run
+seeded, by the task id its manifest records, the target at the checkpoint
+before it, which for the first stage is the initial checkpoint, with that
+checkpoint's short id, and each workflow-state file an earlier stage added or
+modified, once, named by the latest stage that changed it. A file whose latest
+change removed it is left out, and an earlier stage's declared artifact is
+listed as the workflow-state file it is. An earlier stage whose changes cannot
+be read is listed under `artifactsIn.missing` with the reason. The stage's
+record also says whether its checkpoint is `recorded` or `missing`, since a
+stopped stage saves none.
 
 Each stage also reports its wall time, the elapsed time its record keeps, and
 the run reports its own. A stage's elapsed time runs from its stage-started
