@@ -586,6 +586,31 @@ function groupStepGrades(row: GroupRow): React.JSX.Element {
 	return placedGrades(row.pipelineStages, groupMedians(row));
 }
 
+type SessionAttemptRow = Extract<
+	HistoryRow,
+	{ readonly kind: "session-attempt" }
+>;
+
+/**
+ * A session attempt is graded by its checks, so its grade is the count
+ * passed, or its outcome where its session left nothing to check.
+ */
+function sessionStepGrades(row: SessionAttemptRow): React.JSX.Element {
+	const { checks } = row;
+	if (checks.state === "unavailable") {
+		return (
+			<span className="flex flex-col gap-0.5">
+				<span className="font-mono text-xs text-dim">{row.status}</span>
+				{reasonsLine(checks.reasons)}
+			</span>
+		);
+	}
+
+	return gradeTokens(
+		`${String(checks.passed)} of ${plural(checks.declared, "check")} passed`,
+	);
+}
+
 function stepGradesCell(row: HistoryRow): React.JSX.Element {
 	switch (row.kind) {
 		case "run": {
@@ -601,7 +626,7 @@ function stepGradesCell(row: HistoryRow): React.JSX.Element {
 			return groupStepGrades(row);
 		}
 		case "session-attempt": {
-			return <span />;
+			return sessionStepGrades(row);
 		}
 		default: {
 			return row satisfies never;
@@ -670,7 +695,7 @@ function taskGradeCell(row: HistoryRow): React.JSX.Element {
 			return taskGrade(groupTaskGrade(row));
 		}
 		case "session-attempt": {
-			return <span />;
+			return taskGrade({ value: NOT_APPLICABLE, note: SESSION_GRADE_REASON });
 		}
 		default: {
 			return row satisfies never;

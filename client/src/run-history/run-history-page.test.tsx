@@ -39,6 +39,7 @@ import type {
 	PipelineRunRow,
 	ReplayRow,
 	RowStaleness,
+	SessionAttemptRow,
 } from "#server/run-history";
 import { RunHistoryPage } from "./run-history-page";
 
@@ -1894,6 +1895,33 @@ describe(RunHistoryPage.name, () => {
 			expect(screen.queryByText("No runs recorded")).not.toBeInTheDocument();
 		});
 
+		it.each(["Step grades", "Task grade"])(
+			"leaves its %s cell empty, since it has no record to grade",
+			async (column) => {
+				respondingWith({
+					rows: [],
+					launches: [
+						{
+							kind: "launch",
+							id: "7b0c2d4e-0000-4000-8000-000000000000",
+							target: "case",
+							caseId: "audit-log",
+							run: undefined,
+							stage: undefined,
+							attempts: 1,
+							launchedAt,
+							status: "RUNNING",
+						},
+					],
+					unreadable: [],
+				});
+
+				await renderPage().findByText("launch 7b0c2d4e");
+
+				expect(cellOf("launch 7b0c2d4e", column).textContent).toBe("");
+			},
+		);
+
 		it("names the stage and run a started replay replays", async () => {
 			respondingWith({
 				rows: [],
@@ -2437,6 +2465,80 @@ describe(RunHistoryPage.name, () => {
 					`n/a${SESSION_GRADE_REASON}`,
 				);
 			});
+		});
+	});
+
+	describe("the step grades and task grade of a session attempt", () => {
+		const ATTEMPT = "0f6b6f2a-0000-4000-8000-000000000009";
+
+		function attemptWith(
+			figures: Pick<SessionAttemptRow, "status" | "checks">,
+		): RunHistoryResponseBody {
+			return {
+				rows: [
+					{
+						kind: "session-attempt",
+						...UNREAD_SESSION_ATTEMPT_FIGURES,
+						...figures,
+						staleness: UNREAD_STALENESS,
+						corpusVersion: undefined,
+						shortId: undefined,
+						caseId: "brief-reply",
+						uuid: ATTEMPT,
+						links: [],
+					},
+				],
+				launches: [],
+				unreadable: [],
+			};
+		}
+
+		it("reads how many of its checks passed as its step grades", async () => {
+			respondingWith(
+				attemptWith({
+					status: "UNSUCCESSFUL",
+					checks: { state: "available", passed: 2, declared: 3 },
+				}),
+			);
+
+			await renderPage().findByText(ATTEMPT);
+
+			expect(cellOf(ATTEMPT, "Step grades")).toHaveTextContent(
+				"2 of 3 checks passed",
+			);
+		});
+
+		it("reads its outcome with why no check ran when it recorded none", async () => {
+			respondingWith(
+				attemptWith({
+					status: "NO_REPLY",
+					checks: {
+						state: "unavailable",
+						reasons: ["the session gave no reply, so no check ran"],
+					},
+				}),
+			);
+
+			await renderPage().findByText(ATTEMPT);
+
+			expect(cellOf(ATTEMPT, "Step grades")).toHaveTextContent(
+				"NO_REPLYthe session gave no reply, so no check ran",
+			);
+		});
+
+		it("reads n/a with why a session has no letter as its task grade", async () => {
+			respondingWith(
+				attemptWith({
+					status: "SUCCESSFUL",
+					checks: { state: "available", passed: 1, declared: 1 },
+				}),
+			);
+
+			await renderPage().findByText(ATTEMPT);
+
+			expect(cellOf(ATTEMPT, "Task grade")).toHaveTextContent(
+				`n/a${SESSION_GRADE_REASON}`,
+			);
 		});
 	});
 
