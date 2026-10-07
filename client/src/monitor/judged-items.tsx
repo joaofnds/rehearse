@@ -205,6 +205,63 @@ function ItemWithEvidence({
 	);
 }
 
+/** A hard blocker's glyph, id and state word, as each list of blockers draws it. */
+export function BlockerLine({
+	row,
+}: {
+	readonly row: Omit<BlockerRow, "evidence">;
+}): React.JSX.Element {
+	const tone = BLOCKER_TONES[row.state];
+
+	return (
+		<>
+			<span aria-hidden="true" className={`font-mono text-12 ${tone.text}`}>
+				{STATUS_VOCABULARY[row.state].glyph}
+			</span>
+			<span className="flex-1 font-mono text-11-5">{row.id}</span>
+			<span className={`text-10 tracking-label uppercase ${tone.text}`}>
+				{STATUS_VOCABULARY[row.state].word}
+			</span>
+		</>
+	);
+}
+
+/** A quality dimension's name, note where shown, bar and grade. */
+export function DimensionLine({
+	row,
+}: {
+	readonly row: Omit<DimensionRow, "evidence">;
+}): React.JSX.Element {
+	return (
+		<>
+			<span
+				className={`flex-1 text-11-5 ${row.grade === undefined ? "text-dim" : "text-foreground"}`}
+			>
+				{row.id}
+			</span>
+			{row.note === undefined ? null : (
+				<span className="max-w-note text-11-5 text-muted-foreground">
+					{row.note}
+				</span>
+			)}
+			<span
+				aria-hidden="true"
+				className="font-mono text-10-5 tracking-bar text-faint"
+			>
+				{gradeBar(row.grade)}
+			</span>
+			<span className="w-8 text-right">
+				<Grade
+					value={
+						row.grade === undefined ? { pending: true } : { letter: row.grade }
+					}
+					size="inline"
+				/>
+			</span>
+		</>
+	);
+}
+
 export function BlockerRows({
 	run,
 	stage,
@@ -230,16 +287,7 @@ export function BlockerRows({
 						// Below the label, each citation keeps its distance from the one above.
 						spacing="mt-2.5"
 					>
-						<span
-							aria-hidden="true"
-							className={`font-mono text-12 ${tone.text}`}
-						>
-							{STATUS_VOCABULARY[row.state].glyph}
-						</span>
-						<span className="flex-1 font-mono text-11-5">{row.id}</span>
-						<span className={`text-10 tracking-label uppercase ${tone.text}`}>
-							{STATUS_VOCABULARY[row.state].word}
-						</span>
+						<BlockerLine row={row} />
 					</ItemWithEvidence>
 				);
 			})}
@@ -267,32 +315,7 @@ export function DimensionRows({
 					panelClassName="mb-1.75"
 					spacing="mb-2.5"
 				>
-					<span
-						className={`flex-1 text-11-5 ${row.grade === undefined ? "text-dim" : "text-foreground"}`}
-					>
-						{row.id}
-					</span>
-					{row.note === undefined ? null : (
-						<span className="max-w-note text-11-5 text-muted-foreground">
-							{row.note}
-						</span>
-					)}
-					<span
-						aria-hidden="true"
-						className="font-mono text-10-5 tracking-bar text-faint"
-					>
-						{gradeBar(row.grade)}
-					</span>
-					<span className="w-8 text-right">
-						<Grade
-							value={
-								row.grade === undefined
-									? { pending: true }
-									: { letter: row.grade }
-							}
-							size="inline"
-						/>
-					</span>
+					<DimensionLine row={row} />
 				</ItemWithEvidence>
 			))}
 		</ul>
