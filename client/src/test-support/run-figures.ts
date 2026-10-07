@@ -57,6 +57,7 @@ export const UNREAD_GROUP_FIGURES = {
 		state: "unavailable",
 		reasons: ["not read by this test"],
 	},
+	firedBlockers: { state: "unavailable", reasons: ["not read by this test"] },
 } as const;
 
 /** A row's staleness, reported unavailable, for a test whose subject is another column. */

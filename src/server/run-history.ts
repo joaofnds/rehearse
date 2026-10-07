@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { unhandled } from "#benchmark/contracts";
 import type { Immutable } from "#benchmark/contracts";
 import {
@@ -147,6 +148,9 @@ export type FiredBlockers = Reading<{ readonly ids: readonly string[] }>;
 
 export const NO_GRADED_BLOCKERS_REASON =
 	"no stage record holds graded hard blockers";
+
+export const SESSION_BLOCKERS_REASON =
+	"a session rep is graded by its checks, which name no hard blockers";
 
 export const NOT_RUN_REASON = "the run never reached this stage";
 export const REPLAY_FINAL_OUTCOME_REASON =
@@ -333,6 +337,7 @@ export interface ConfirmationGroupRow {
 	readonly wallTime: WallTimeReading;
 	/** The stages of the pipeline its declared stages sit among. */
 	readonly pipelineStages: PipelineStages;
+	readonly firedBlockers: FiredBlockers;
 }
 
 /**
@@ -508,7 +513,11 @@ async function runFigures(
 			wallTime: record.totals.wallTime,
 			minimumGrade: record.minimumGrade,
 			firedBlockers: firedBlockersOf(
-				record.stages.map(({ blockers }) => blockers),
+				record.stages.map(({ blockers }) =>
+					blockers.state === "available"
+						? { state: "available", ids: blockers.firedIds }
+						: blockers,
+				),
 			),
 			...runCorpus(record),
 		};
@@ -523,11 +532,9 @@ async function runFigures(
  * Every id the graded stages found fired, once each. A stage its judge never
  * graded fired none the record can name, so it adds nothing.
  */
-function firedBlockersOf(
-	stages: readonly RunRecordStage["blockers"][],
-): FiredBlockers {
+function firedBlockersOf(stages: readonly FiredBlockers[]): FiredBlockers {
 	const graded = stages.flatMap((blockers) =>
-		blockers.state === "available" ? [blockers.firedIds] : [],
+		blockers.state === "available" ? [blockers.ids] : [],
 	);
 	if (graded.length === 0) {
 		return { state: "unavailable", reasons: [NO_GRADED_BLOCKERS_REASON] };
@@ -928,6 +935,60 @@ async function groupPipelineStages(
 	}
 }
 
+/** A rep's stage record, read only as far as the blockers its judge graded. */
+const repStageGradeSchema = z.looseObject({
+	grade: z
+		.looseObject({
+			hardBlockers: z
+				.array(
+					z.looseObject({
+						id: z.string(),
+						status: z.enum(["PASS", "FAIL"]),
+					}),
+				)
+				.optional(),
+		})
+		.optional(),
+});
+
+/**
+ * The blockers each rep's stage judges fired, from the stage records rather
+ * than the judge attempts, since a retried attempt's payload can disagree
+ * with the grade the rep kept. A stage record missing or unreadable adds
+ * nothing, as the rep's other figures already name what it lacks.
+ */
+async function groupFiredBlockers(
+	runsDirectory: string,
+	record: Immutable<ParsedConfirmationGroupRecord>,
+): Promise<FiredBlockers> {
+	if (record.mode === "session") {
+		return { state: "unavailable", reasons: [SESSION_BLOCKERS_REASON] };
+	}
+
+	const paths = confirmationGroupPaths(runsDirectory, record.groupId);
+	const stageFiles = record.repRecords.flatMap(({ repId }) =>
+		record.declaredStages.map((stage) => paths.rep(repId).stageFile(stage)),
+	);
+	const grades = await Promise.all(
+		stageFiles.map(async (stageFile) => {
+			const file = Bun.file(stageFile);
+			if (!(await file.exists())) {
+				return undefined;
+			}
+
+			const parsed = repStageGradeSchema.safeParse(
+				await file.json().catch(() => undefined),
+			);
+
+			return parsed.success ? parsed.data.grade?.hardBlockers : undefined;
+		}),
+	);
+
+	return firedBlockersOf(
+		grades.map((hardBlockers) => firedIdsOf(hardBlockers)),
+	);
+}
+
 async function groupRow(
 	runsDirectory: string,
 	groupId: string,
@@ -978,6 +1039,7 @@ async function groupRow(
 		cost: groupCost(record, reps),
 		wallTime: { state: "available", ms: record.makespanMs },
 		pipelineStages: await groupPipelineStages(runsDirectory, record),
+		firedBlockers: await groupFiredBlockers(runsDirectory, record),
 	};
 }
 

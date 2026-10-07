@@ -39,6 +39,7 @@ import {
 	EXECUTION_FAILED_CHECKS_REASON,
 	NO_REPLY_CHECKS_REASON,
 	SESSION_COST_REASON,
+	SESSION_BLOCKERS_REASON,
 	SESSION_PIPELINE_REASON,
 	SOURCE_MANIFEST_REASON,
 	UNLISTED_STAGE_REASON,
@@ -108,6 +109,22 @@ async function rewriteSessionAttempt(
 	const file = Bun.file(fixture.sessionAttemptFile);
 	const record = sessionRecordSchema.parse(await file.json());
 	await Bun.write(file, JSON.stringify({ ...record, ...changes }));
+}
+
+/** Writes the stage record a rep's stage judge leaves, with its hard blockers. */
+async function gradeRepStage(
+	stageFile: string,
+	hardBlockers: readonly {
+		readonly id: string;
+		readonly status: "PASS" | "FAIL";
+	}[],
+): Promise<void> {
+	await Bun.write(
+		stageFile,
+		JSON.stringify({
+			grade: { grade: "B", verdict: "CONTINUE", hardBlockers },
+		}),
+	);
 }
 
 /** A pipeline definition running the named delivery stages in order. */
@@ -1146,6 +1163,69 @@ describe("/api/runs", () => {
 					pipelineStages: {
 						state: "unavailable",
 						reasons: [SESSION_PIPELINE_REASON],
+					},
+				});
+			});
+
+			it("carries the ids of the hard blockers its reps' stage judges found fired", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writePipelineGroup("pipeline-group", [
+					{ discussion: "A", build: "B", final: "pass" },
+					{ discussion: "A", build: "B", final: "pass" },
+				]);
+				const paths = confirmationGroupPaths(
+					fixture.runsDirectory,
+					"pipeline-group",
+				);
+				await gradeRepStage(
+					paths.rep("pipeline-group-rep-1").stageFile("build"),
+					[
+						{ id: "invalid-stage-delivery", status: "FAIL" },
+						{ id: "invented-scope", status: "PASS" },
+					],
+				);
+				await gradeRepStage(
+					paths.rep("pipeline-group-rep-2").stageFile("discuss"),
+					[{ id: "material-decision-open", status: "FAIL" }],
+				);
+
+				const row = await onlyRowOfKind(fixture, "group");
+
+				expect(row).toMatchObject({
+					firedBlockers: {
+						state: "available",
+						ids: ["invalid-stage-delivery", "material-decision-open"],
+					},
+				});
+			});
+
+			it("carries its fired blockers as not recorded when no rep's stage record graded them", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writePipelineGroup("pipeline-group", [
+					{ discussion: "A", build: "B", final: "pass" },
+					{ discussion: "A", build: "B", final: "pass" },
+				]);
+
+				const row = await onlyRowOfKind(fixture, "group");
+
+				expect(row).toMatchObject({
+					firedBlockers: {
+						state: "unavailable",
+						reasons: [NO_GRADED_BLOCKERS_REASON],
+					},
+				});
+			});
+
+			it("carries a session group's fired blockers as unavailable, since checks grade its reps", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeSessionGroup("session-group", 1);
+
+				const row = await onlyRowOfKind(fixture, "group");
+
+				expect(row).toMatchObject({
+					firedBlockers: {
+						state: "unavailable",
+						reasons: [SESSION_BLOCKERS_REASON],
 					},
 				});
 			});
