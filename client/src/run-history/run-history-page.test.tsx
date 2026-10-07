@@ -3024,6 +3024,41 @@ describe(RunHistoryPage.name, () => {
 			).toHaveAttribute("href", `/runs/${RUN}/stages/implement`);
 		});
 
+		it("names the recorded cause of a stop no grade below the minimum made", async () => {
+			respondingWith(
+				runWith({
+					status: "STOPPED:plan",
+					stageGrades: {
+						state: "available",
+						grades: [
+							stage("shape", "A−", true),
+							{
+								stage: "plan",
+								status: "stopped",
+								grade: {
+									state: "unavailable",
+									reasons: ["the stop record keeps no letter"],
+								},
+							},
+						],
+					},
+					finalOutcome: {
+						state: "available",
+						status: "NOT_REACHED",
+						stage: "plan",
+						reason: "spend ceiling reached",
+					},
+					minimumGrade: MINIMUM_B,
+				}),
+			);
+
+			await renderPage().findByText(RUN);
+
+			expect(cellOf(RUN, "Outcome").textContent).toBe(
+				"◼stopped at step 2plan · spend ceiling reached",
+			);
+		});
+
 		it("names why a stopped run's grade or minimum is missing", async () => {
 			respondingWith(
 				runWith({

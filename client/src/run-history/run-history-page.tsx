@@ -438,11 +438,16 @@ function atStep(lead: string, stage: string, stageGrades: StageGrades): string {
 		: `${lead} step ${String(place.step)}`;
 }
 
-function stoppedGrade(stage: string, stageGrades: StageGrades): string {
-	const grade =
-		stageGrades.state === "available"
-			? stageGrades.grades.find((each) => each.stage === stage)?.grade
-			: undefined;
+function gradeOf(
+	stage: string,
+	stageGrades: StageGrades,
+): StageGrade | undefined {
+	return stageGrades.state === "available"
+		? stageGrades.grades.find((each) => each.stage === stage)?.grade
+		: undefined;
+}
+
+function stoppedGrade(stage: string, grade: StageGrade | undefined): string {
 	if (grade === undefined) {
 		return stage;
 	}
@@ -472,10 +477,29 @@ function stoppedOutcome(row: RunHistoryRow, stage: string): OutcomePhrase {
 				href={`/runs/${encodeURIComponent(row.run)}/stages/${encodeURIComponent(stage)}`}
 				className="inline-flex min-h-14 items-start self-start text-accent-foreground underline decoration-deeper underline-offset-4 hover:text-pale"
 			>
-				{`${stoppedGrade(stage, row.stageGrades)} · ${minimumReading(row.minimumGrade)}`}
+				{stopReason(row, stage)}
 			</a>
 		),
 	};
+}
+
+/**
+ * A stop record also ends a run the spend ceiling or a signal stopped, so
+ * only a grade below the minimum reads as one; any other stop names the
+ * cause its record keeps.
+ */
+function stopReason(row: RunHistoryRow, stage: string): string {
+	const grade = gradeOf(stage, row.stageGrades);
+	const fellBelow = grade?.state === "available" && !grade.reachesMinimum;
+	if (
+		!fellBelow &&
+		row.finalOutcome.state === "available" &&
+		row.finalOutcome.status === "NOT_REACHED"
+	) {
+		return `${stage} · ${row.finalOutcome.reason}`;
+	}
+
+	return `${stoppedGrade(stage, grade)} · ${minimumReading(row.minimumGrade)}`;
 }
 
 function completedOutcome(stageGrades: StageGrades): OutcomePhrase {
@@ -739,6 +763,10 @@ const NOT_APPLICABLE = "n/a";
 const STEP_REPLAY_ONLY = "step replay only";
 
 type StageGrades = RunHistoryRow["stageGrades"];
+type StageGrade = Extract<
+	StageGrades,
+	{ readonly state: "available" }
+>["grades"][number]["grade"];
 type ReplayRow = Extract<HistoryRow, { readonly kind: "replay" }>;
 type PipelineStages = ReplayRow["pipelineStages"];
 
