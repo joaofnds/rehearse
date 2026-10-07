@@ -1674,6 +1674,38 @@ describe(runHistoryReport.name, () => {
 		});
 	});
 
+	describe("replayable stages on a pipeline run", () => {
+		it("names each stage whose starting checkpoint is recorded, in pipeline order, though the run claimed no short id", async () => {
+			const fixture = await writtenFixture();
+			await fixture.writeInitialCheckpoint();
+
+			const { rows } = await runHistoryReport(
+				fixture.runsDirectory,
+				directorySource(await corpusDirectory("build skill\n")),
+				nothingRunning,
+			);
+
+			expect(pipelineRun(rows, fixture.replayableRun)).toMatchObject({
+				shortId: undefined,
+				replayableStages: ["discuss", "build"],
+			});
+		});
+
+		it("leaves out the first stage while the initial checkpoint is not recorded", async () => {
+			const fixture = await writtenFixture();
+
+			const { rows } = await runHistoryReport(
+				fixture.runsDirectory,
+				directorySource(await corpusDirectory("build skill\n")),
+				nothingRunning,
+			);
+
+			expect(
+				pipelineRun(rows, fixture.replayableRun)?.replayableStages,
+			).toEqual(["build"]);
+		});
+	});
+
 	describe("stage links on a pipeline run", () => {
 		function stageLink(run: string, stage: string): ContextLink {
 			return {

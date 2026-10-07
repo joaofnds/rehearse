@@ -13,6 +13,7 @@ import type { CorpusRoot } from "#benchmark/corpus-file";
 import type { CorpusMeasurement } from "#benchmark/corpus-measurement";
 import { readLaunchRecord } from "#benchmark/launch-record";
 import type { LaunchRecord } from "#benchmark/launch-record";
+import { consumedCheckpointStage } from "#benchmark/checkpoint";
 import { loadRunManifest } from "#benchmark/manifest";
 import { stoppedBeforeGroupRecord } from "#benchmark/operator-stop";
 import { OPERATOR_STOPPED } from "#benchmark/stopped-status";
@@ -119,6 +120,8 @@ export interface PipelineRunRow {
 	readonly shortId: string | undefined;
 	/** The short id of each checkpoint the run recorded, earliest first. */
 	readonly checkpoints: readonly CheckpointShortId[];
+	/** The stages a replay can start, in pipeline order, by the launch's own rule. */
+	readonly replayableStages: readonly string[];
 	readonly caseId: string | undefined;
 	readonly status: string;
 	readonly stage: string | undefined;
@@ -416,6 +419,34 @@ async function stageLinks(
 	return links;
 }
 
+/**
+ * The stages whose starting checkpoint is recorded, which is all a replay
+ * launch checks, so a run with no short id offers its stages too. A run with
+ * no manifest names no stages.
+ */
+async function replayableStages(
+	runsDirectory: string,
+	run: string,
+): Promise<readonly string[]> {
+	const paths = benchmarkRunPaths(runsDirectory, run);
+	if (!(await Bun.file(paths.manifestFile).exists())) {
+		return [];
+	}
+
+	const manifest = await loadRunManifest(paths.manifestFile);
+	const stages = manifest.pipeline.stages.map(({ name }) => name);
+	const replayable: string[] = [];
+	for (const [index, stage] of stages.entries()) {
+		if (
+			await checkpointRecorded(paths, consumedCheckpointStage(stages, index))
+		) {
+			replayable.push(stage);
+		}
+	}
+
+	return replayable;
+}
+
 export interface CheckpointShortId {
 	readonly stage: string;
 	readonly shortId: string;
@@ -599,6 +630,7 @@ async function rowFor(
 		),
 	];
 	const checkpoints = await checkpointShortIds(runsDirectory, run, shortId);
+	const replayable = await replayableStages(runsDirectory, run);
 	const figures = await runFigures(runsDirectory, run, liveness);
 	const stage = await latestCheckpointStage(runsDirectory, run);
 	const launchId =
@@ -611,6 +643,7 @@ async function rowFor(
 			run,
 			shortId,
 			checkpoints,
+			replayableStages: replayable,
 			status,
 			caseId,
 			stage: undefined,
@@ -631,6 +664,7 @@ async function rowFor(
 		run,
 		shortId,
 		checkpoints,
+		replayableStages: replayable,
 		status,
 		caseId,
 		stage,

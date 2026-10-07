@@ -1,7 +1,7 @@
 import type { RowStaleness } from "#server/run-history";
 
 /**
- * The figures a pipeline run row carries, each reported unavailable, for a
+ * The figures a pipeline run row carries, each reported unavailable or empty, for a
  * test whose subject is another column: it spreads these into a row it
  * builds by hand so the row matches the served shape without spelling out
  * figures the test does not read.
@@ -13,6 +13,7 @@ export const UNREAD_RUN_FIGURES = {
 	wallTime: { state: "unavailable", reasons: ["not read by this test"] },
 	minimumGrade: { state: "unavailable", reasons: ["not read by this test"] },
 	firedBlockers: { state: "unavailable", reasons: ["not read by this test"] },
+	replayableStages: [],
 } as const;
 
 /** A replay row's figures, for a test whose subject is another column. */
