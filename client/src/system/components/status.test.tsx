@@ -20,4 +20,16 @@ describe(Status.name, () => {
 		const glyph = screen.getByText(STATUS_VOCABULARY.accepted.glyph);
 		expect(glyph).toHaveAttribute("aria-hidden", "true");
 	});
+
+	it("puts a phrase in the word's place, keeping the state's glyph", () => {
+		render(<Status state="stopped" label="stopped at step 3" />);
+
+		expect(screen.getByText("stopped at step 3")).toBeInTheDocument();
+		expect(
+			screen.queryByText(STATUS_VOCABULARY.stopped.word),
+		).not.toBeInTheDocument();
+		expect(
+			screen.getByText(STATUS_VOCABULARY.stopped.glyph),
+		).toBeInTheDocument();
+	});
 });

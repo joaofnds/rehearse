@@ -57,12 +57,15 @@ export function LiveGlyph({
 /**
  * The glyph and its word, at whatever size and colour the surrounding text
  * sets, except that a running glyph takes the light accent and pulses unless
- * the reader asked for reduced motion.
+ * the reader asked for reduced motion. A label puts a phrase in the word's
+ * place, as a record's outcome does.
  */
 export function Status({
 	state,
+	label,
 }: {
 	readonly state: StatusState;
+	readonly label?: string;
 }): React.JSX.Element {
 	const { glyph, word } = STATUS_VOCABULARY[state];
 
@@ -73,7 +76,7 @@ export function Status({
 			) : (
 				<span aria-hidden="true">{glyph}</span>
 			)}
-			<span>{word}</span>
+			<span>{label ?? word}</span>
 		</span>
 	);
 }

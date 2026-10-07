@@ -4,11 +4,7 @@ import { useState } from "react";
 import { Disclosure } from "#client/system/components/disclosure";
 import { EmptyState } from "#client/system/components/empty-state";
 import { FilterPill } from "#client/system/components/filter-pill";
-import {
-	LiveGlyph,
-	STATUS_VOCABULARY,
-	Status,
-} from "#client/system/components/status";
+import { Status } from "#client/system/components/status";
 import type { StatusState } from "#client/system/components/status";
 import { TableShell } from "#client/system/components/table-shell";
 import { Button } from "#client/system/ui/button";
@@ -403,14 +399,7 @@ function outcomeOf(reading: OutcomePhrase): React.JSX.Element {
 function outcome({ state, phrase, reason }: OutcomePhrase): React.JSX.Element {
 	return (
 		<>
-			<span className="inline-flex items-center gap-1.5">
-				{state === "running" ? (
-					<LiveGlyph />
-				) : (
-					<span aria-hidden="true">{STATUS_VOCABULARY[state].glyph}</span>
-				)}
-				<span>{phrase}</span>
-			</span>
+			<Status state={state} label={phrase} />
 			<span className="text-xs text-dim">{reason}</span>
 		</>
 	);
