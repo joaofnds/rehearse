@@ -267,16 +267,25 @@ function notedDimensions(judge: JudgedAnswer): readonly DimensionRow[] {
 	}));
 }
 
+/** Whether the run is over, so a judge it left waiting will never return. */
+export function hasRecordEnded(record: RunRecordResponse): boolean {
+	return record.finalOutcome.status !== "PENDING";
+}
+
 /** Why a step shows no blockers or dimensions. */
 export function unjudgedReading(
 	judge: Exclude<StageJudgeResponse, JudgedAnswer> | "unreadable",
+	runEnded: boolean,
 ): string {
 	if (judge === "unreadable") {
 		return "Could not read this step's judge.";
 	}
+	if (judge.state === "not-judged") {
+		return "This step ended without a judged grade, so there are no blockers or dimensions to show.";
+	}
 
-	return judge.state === "not-judged"
-		? "This step ended without a judged grade, so there are no blockers or dimensions to show."
+	return runEnded
+		? "This step's judge never returned: the run ended while this stage awaited judgment."
 		: "This step's judge has not returned its blockers and dimensions yet.";
 }
 
@@ -284,10 +293,12 @@ function JudgedSections({
 	run,
 	stage,
 	judge,
+	runEnded,
 }: {
 	readonly run: string;
 	readonly stage: string;
 	readonly judge: StageJudgeResponse | "unreadable" | undefined;
+	readonly runEnded: boolean;
 }): React.JSX.Element | null {
 	if (judge === undefined) {
 		return null;
@@ -295,7 +306,7 @@ function JudgedSections({
 	if (judge === "unreadable" || judge.state !== "judged") {
 		return (
 			<p className="mt-4.5 text-12 text-muted-foreground">
-				{unjudgedReading(judge)}
+				{unjudgedReading(judge, runEnded)}
 			</p>
 		);
 	}
@@ -449,6 +460,7 @@ export function StepReport({
 				run={run}
 				stage={stage.stage}
 				judge={judge.isError ? "unreadable" : judge.data}
+				runEnded={hasRecordEnded(record)}
 			/>
 			<InstructionsRead stage={stage} />
 		</section>

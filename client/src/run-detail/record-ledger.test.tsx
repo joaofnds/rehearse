@@ -358,6 +358,50 @@ describe("Record ledger", () => {
 			);
 		}
 
+		it("says the judge of a stage left awaiting judgment never returned once the run ended", async () => {
+			const record = stoppedAtBuild();
+			renderAppWithStub(
+				LEDGER,
+				new Map<string, unknown>([
+					["/api/runs", history([runRow({ run: RUN, status: "INTERRUPTED" })])],
+					[
+						`/api/runs/${RUN}`,
+						{
+							...record,
+							status: { state: "available", status: "INTERRUPTED" },
+							finalOutcome: {
+								status: "NOT_REACHED",
+								stage: "shape",
+								reason: INTERRUPTED_REASON,
+							},
+							stages: record.stages.map((stage) =>
+								recordStage(
+									stage.stage,
+									stage.stage === "shape"
+										? { status: "awaiting-judgment" }
+										: {},
+								),
+							),
+						},
+					],
+					[`/api/runs/${RUN}/stages/shape/judge`, { state: "waiting" }],
+					[ANALYSES, noAnalysis()],
+				]),
+			);
+
+			const [firstStep] = await ledgerCards();
+			const card = firstStep ?? document.body;
+
+			expect(
+				await within(card).findByText(
+					"This step's judge never returned: the run ended while this stage awaited judgment.",
+				),
+			).toBeInTheDocument();
+			expect(
+				within(card).getByRole("button", { name: "no evidence" }),
+			).toBeInTheDocument();
+		});
+
 		function unreached(): Promise<HTMLElement> {
 			return screen.findByRole("list", { name: "Stages without a record" });
 		}

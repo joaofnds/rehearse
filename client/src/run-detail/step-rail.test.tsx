@@ -230,6 +230,39 @@ describe("Step rail", () => {
 	});
 
 	describe("step report", () => {
+		it.each([
+			[
+				"an ended run",
+				{
+					status: "NOT_REACHED",
+					stage: "build",
+					reason: "the run was interrupted before its final judge",
+				},
+				"This step's judge never returned: the run ended while this stage awaited judgment.",
+			],
+			[
+				"a run in flight",
+				{ status: "PENDING", stage: "build" },
+				"This step's judge has not returned its blockers and dimensions yet.",
+			],
+		] as const)(
+			"says on %s whether a waiting judge can still return",
+			async (_run, finalOutcome, words) => {
+				renderRunDetail(
+					new Map<string, unknown>([
+						[`/api/runs/${RUN}`, { ...stoppedAtBuild(), finalOutcome }],
+						[BUILD_JUDGE, { state: "waiting" }],
+					]),
+				);
+
+				const report = await screen.findByRole("region", {
+					name: "Step report",
+				});
+
+				expect(await within(report).findByText(words)).toBeInTheDocument();
+			},
+		);
+
 		it("titles the report with the stage's skill, wall time, cost and transcript lines", async () => {
 			renderBuildReport();
 

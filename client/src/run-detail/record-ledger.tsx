@@ -44,7 +44,11 @@ import { CorpusPill } from "#client/system/components/corpus-pill";
 import { Grade } from "#client/system/components/grade";
 import { LiveGlyph, STATUS_VOCABULARY } from "#client/system/components/status";
 import { ReplayButton } from "./replay-button";
-import { NO_KEPT_TRANSCRIPT, unjudgedReading } from "./step-report";
+import {
+	hasRecordEnded,
+	NO_KEPT_TRANSCRIPT,
+	unjudgedReading,
+} from "./step-report";
 
 const LINE_COUNT = new Intl.NumberFormat("en-US");
 
@@ -172,8 +176,10 @@ function JudgedColumns({
 /** The card's body: the judge's blockers and dimensions, or why there are none. */
 function CardBody({
 	judge,
+	runEnded,
 }: {
 	readonly judge: JudgeRead;
+	readonly runEnded: boolean;
 }): React.JSX.Element | null {
 	if (judge === undefined) {
 		return null;
@@ -184,7 +190,7 @@ function CardBody({
 
 	return (
 		<p className="px-3.5 py-2.75 text-11-5 text-muted-foreground">
-			{unjudgedReading(judge)}
+			{unjudgedReading(judge, runEnded)}
 		</p>
 	);
 }
@@ -205,8 +211,11 @@ function checkpointWords(stage: MonitoredStage, row: PipelineRow): string {
 		: "no checkpoint saved";
 }
 
-/** Every item the judge cited for the stage, or pending until it answers. */
-function cardEvidence(judge: JudgeRead): RowEvidence {
+/**
+ * Every item the judge cited for the stage, or pending until it answers, which
+ * a judge the ended run left waiting never will.
+ */
+function cardEvidence(judge: JudgeRead, runEnded: boolean): RowEvidence {
 	if (judge === undefined) {
 		return "pending";
 	}
@@ -219,7 +228,7 @@ function cardEvidence(judge: JudgeRead): RowEvidence {
 		);
 	}
 
-	return judge.state === "not-judged" ? [] : "pending";
+	return judge.state === "not-judged" || runEnded ? [] : "pending";
 }
 
 function CardFooter({
@@ -444,12 +453,12 @@ function LedgerCard({
 			className={`overflow-hidden rounded-card border bg-card ${status.state === "stopped" ? "border-deeper" : "border-border"}`}
 		>
 			<CardHeader stage={stage} number={number} status={status} meta={meta} />
-			<CardBody judge={judgeRead} />
+			<CardBody judge={judgeRead} runEnded={hasRecordEnded(record)} />
 			<CardFooter
 				row={row}
 				record={record}
 				stage={stage}
-				evidence={cardEvidence(judgeRead)}
+				evidence={cardEvidence(judgeRead, hasRecordEnded(record))}
 				shown={expanded ? evidenceId : undefined}
 				onToggle={() => {
 					setExpanded((open) => !open);
