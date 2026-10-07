@@ -5,6 +5,12 @@ const Dialog = DialogPrimitive.Root;
 const DialogTrigger = DialogPrimitive.Trigger;
 const DialogClose = DialogPrimitive.Close;
 
+/** A form's width, or the step modal's two columns (SPEC.md 3). */
+const DIALOG_WIDTHS = {
+	form: "max-w-xl",
+	wide: "flex max-h-(--size-dialog-max-height) max-w-264.5 flex-col",
+} as const;
+
 /**
  * The modal surface SPEC.md:353 asks of every dialog: Radix traps focus while
  * it is open, closes it on Esc, and returns focus to the trigger that opened
@@ -12,8 +18,10 @@ const DialogClose = DialogPrimitive.Close;
  */
 function DialogContent({
 	children,
+	width = "form",
 }: {
 	readonly children: ReactNode;
+	readonly width?: keyof typeof DIALOG_WIDTHS;
 }): React.JSX.Element {
 	return (
 		<DialogPrimitive.Portal>
@@ -23,7 +31,8 @@ function DialogContent({
 			>
 				<DialogPrimitive.Content
 					data-slot="dialog-content"
-					className="w-full max-w-xl overflow-hidden rounded-xl border border-strong bg-raised shadow-(--shadow-dialog) outline-none"
+					aria-modal="true"
+					className={`w-full ${DIALOG_WIDTHS[width]} overflow-hidden rounded-xl border border-strong bg-raised shadow-(--shadow-dialog) outline-none`}
 				>
 					{children}
 				</DialogPrimitive.Content>

@@ -77,6 +77,9 @@
 	/* Shadow */
 	--shadow-dialog: 0 16px 40px rgba(0, 0, 0, 0.65);
 
+	/* Step modal, the tallest a dialog grows before its body scrolls */
+	--size-dialog-max-height: 86vh;
+
 	/* Scrollbar */
 	--scrollbar-size: 11px;
 	--scrollbar-thumb: #3f424d;

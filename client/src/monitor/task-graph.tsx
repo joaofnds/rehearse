@@ -21,6 +21,7 @@ import {
 import type { MonitoredStage, RunRecordResponse } from "./run-record-query";
 import { shortCommit } from "./run-identity-header";
 import { stageSessionQuery } from "./stage-session-query";
+import { StepModalAction } from "./step-modal";
 
 const MS_PER_SECOND = 1000;
 
@@ -417,6 +418,12 @@ function StageNode({
 				<InOutLine stage={stage} />
 			</button>
 			<span className="flex flex-col justify-center gap-1.25 px-1.5">
+				<StepModalAction
+					run={row.run}
+					record={record}
+					stage={stage}
+					number={number}
+				/>
 				<ReplayAction run={row.run} record={record} stage={stage} />
 			</span>
 			{last ? null : (

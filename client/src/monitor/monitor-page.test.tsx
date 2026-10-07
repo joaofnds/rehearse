@@ -1151,7 +1151,7 @@ describe("/monitor stage selection", () => {
 
 		fireEvent.click(
 			within(graph).getByRole("button", {
-				name: /^plan(?! has no checkpoint)/u,
+				name: /^plan(?! has no checkpoint| — instructions in)/u,
 			}),
 		);
 
@@ -1406,7 +1406,7 @@ describe("/monitor judge pane", () => {
 			);
 			fireEvent.click(
 				within(await graphNode("plan")).getByRole("button", {
-					name: /^plan(?! has no checkpoint)/u,
+					name: /^plan(?! has no checkpoint| — instructions in)/u,
 				}),
 			);
 		}
@@ -1485,7 +1485,7 @@ describe("/monitor judge pane", () => {
 
 			fireEvent.click(
 				within(plan).getByRole("button", {
-					name: /^plan(?! has no checkpoint)/u,
+					name: /^plan(?! has no checkpoint| — instructions in)/u,
 				}),
 			);
 
@@ -1898,7 +1898,7 @@ describe("/monitor session pane", () => {
 
 			fireEvent.click(
 				within(await graphNode("plan")).getByRole("button", {
-					name: /^plan(?! has no checkpoint)/u,
+					name: /^plan(?! has no checkpoint| — instructions in)/u,
 				}),
 			);
 
@@ -1943,7 +1943,7 @@ describe("/monitor session pane", () => {
 		async function selectPlan(): Promise<void> {
 			fireEvent.click(
 				within(await graphNode("plan")).getByRole("button", {
-					name: /^plan(?! has no checkpoint)/u,
+					name: /^plan(?! has no checkpoint| — instructions in)/u,
 				}),
 			);
 		}
@@ -2068,7 +2068,7 @@ describe("/monitor session pane", () => {
 		async function selectReview(): Promise<void> {
 			fireEvent.click(
 				within(await graphNode("review")).getByRole("button", {
-					name: /^review(?! has no checkpoint)/u,
+					name: /^review(?! has no checkpoint| — instructions in)/u,
 				}),
 			);
 		}
@@ -2218,7 +2218,7 @@ describe("/monitor across runs", () => {
 		const graph = await screen.findByRole("region", { name: "Task graph" });
 		fireEvent.click(
 			within(graph).getByRole("button", {
-				name: /^plan(?! has no checkpoint)/u,
+				name: /^plan(?! has no checkpoint| — instructions in)/u,
 			}),
 		);
 		const ended: PipelineRow = {
