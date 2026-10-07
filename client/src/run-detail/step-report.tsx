@@ -22,7 +22,7 @@ import { spendReading } from "#client/run-history/run-progress";
 import { Grade } from "#client/system/components/grade";
 import { STATUS_VOCABULARY } from "#client/system/components/status";
 
-type ReadEntry = Extract<
+export type ReadEntry = Extract<
 	MonitoredStage["readManifest"],
 	{ readonly state: "available" }
 >["entries"][number];
@@ -328,7 +328,7 @@ function notComparedReason(entry: ReadEntry): string {
 	return "the corpus under test cannot compare it";
 }
 
-function ReadState({
+export function ReadState({
 	entry,
 }: {
 	readonly entry: ReadEntry;

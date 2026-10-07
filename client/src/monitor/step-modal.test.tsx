@@ -206,4 +206,142 @@ describe("/monitor step modal", () => {
 			);
 		});
 	});
+
+	describe("what went in", () => {
+		const TASK_CARD = ".boris/backlog/tasks/task-1 - Add-an-audit-log.md";
+
+		it("lists each instruction file the step loaded with its hash, role and changed state", async () => {
+			renderMonitor([recordStage("plan", FINISHED_PLAN), recordStage("build")]);
+
+			const dialog = await openModal("plan");
+
+			expect(
+				within(dialog).getByRole("list", {
+					name: "Instructions this step loaded",
+				}),
+			).toHaveTextContent(`${SKILL_PATH}sha 88b0d2stage skill✓unchanged`);
+		});
+
+		it("names a finished first step's artifacts in by where each came from", async () => {
+			renderMonitor([
+				recordStage("plan", {
+					...FINISHED_PLAN,
+					artifactsIn: {
+						entries: [
+							{ from: "task declaration", taskId: "ACT-1" },
+							{
+								from: "upstream checkpoint",
+								target: "acme-api",
+								upstream: "initial",
+								checkpointShortId: {
+									state: "available",
+									shortId: "r-0148/s0",
+								},
+							},
+						],
+						missing: [],
+					},
+				}),
+				recordStage("build"),
+			]);
+
+			const dialog = await openModal("plan");
+
+			expect(
+				within(within(dialog).getByRole("list", { name: "Artifacts in" }))
+					.getAllByRole("listitem")
+					.map(({ textContent }) => textContent),
+			).toEqual([
+				"↓ACT-1task declaration",
+				"↓acme-api at r-0148/s0initial checkpoint",
+			]);
+		});
+
+		it("names a stopped step's upstream as the step before it and each workflow-state file an earlier step changed", async () => {
+			renderMonitor([
+				recordStage("plan", FINISHED_PLAN),
+				recordStage("build", {
+					status: "stopped",
+					artifactsIn: {
+						entries: [
+							{ from: "task declaration", taskId: "ACT-1" },
+							{
+								from: "upstream checkpoint",
+								target: "acme-api",
+								upstream: "plan",
+								checkpointShortId: {
+									state: "available",
+									shortId: "r-0148/s1",
+								},
+							},
+							{
+								from: "earlier stage",
+								path: TASK_CARD,
+								change: "modified",
+								stage: "plan",
+							},
+						],
+						missing: [],
+					},
+				}),
+			]);
+
+			const dialog = await openModal("build");
+
+			expect(
+				within(within(dialog).getByRole("list", { name: "Artifacts in" }))
+					.getAllByRole("listitem")
+					.map(({ textContent }) => textContent),
+			).toEqual([
+				"↓ACT-1task declaration",
+				"↓acme-api at r-0148/s1step 01 checkpoint",
+				`↓${TASK_CARD}step 01 · plan · modified`,
+			]);
+		});
+
+		it("says which earlier step's changes a running step's inputs cannot read, and that its instructions are pending", async () => {
+			renderMonitor([
+				recordStage("plan", { status: "graded" }),
+				recordStage("build", {
+					artifactsIn: {
+						entries: [
+							{ from: "task declaration", taskId: "ACT-1" },
+							{
+								from: "upstream checkpoint",
+								target: "acme-api",
+								upstream: "plan",
+								checkpointShortId: {
+									state: "unavailable",
+									reasons: ["the stage saved no checkpoint"],
+								},
+							},
+						],
+						missing: [
+							{
+								part: "plan",
+								reason: "the stage saved no checkpoint to compare",
+							},
+						],
+					},
+				}),
+			]);
+
+			const dialog = await openModal("build");
+
+			expect(dialog).toHaveTextContent(
+				"Instructions pending: the step has not ended",
+			);
+			expect(
+				within(within(dialog).getByRole("list", { name: "Artifacts in" }))
+					.getAllByRole("listitem")
+					.map(({ textContent }) => textContent),
+			).toEqual([
+				"↓ACT-1task declaration",
+				"↓acme-api at plan's checkpointstep 01 checkpoint",
+			]);
+			expect(dialog).toHaveTextContent(
+				"Not read: the workflow-state changes of step 01 · plan, as the stage saved no checkpoint to compare",
+			);
+		});
+	});
 });
