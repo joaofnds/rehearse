@@ -1,5 +1,10 @@
 import { describe, expect, it } from "bun:test";
-import { render, screen, within } from "@testing-library/react";
+import {
+	getDefaultNormalizer,
+	render,
+	screen,
+	within,
+} from "@testing-library/react";
 import type { WhatMovedRow } from "#server/comparison-what-moved";
 import { WhatMoved } from "./what-moved";
 
@@ -256,11 +261,35 @@ describe(WhatMoved.name, () => {
 		);
 	});
 
+	it("leaves a gap in the drawing between spreads that do not meet", () => {
+		renderWhatMoved([
+			{
+				...DIMENSION,
+				readings: {
+					candidateMinusBaseline: {
+						interval: {
+							minuend: { low: "A", high: "A" },
+							subtrahend: { low: "F", high: "D" },
+						},
+						verdict: { kind: "separated", arm: "candidate" },
+					},
+				},
+			},
+		]);
+
+		expect(
+			within(cell("observability", "Spread across 2 attempts")).getByText(
+				"├──  ─┤",
+				{ normalizer: getDefaultNormalizer({ collapseWhitespace: false }) },
+			),
+		).toBeInTheDocument();
+	});
+
 	it("counts a hard blocker's firings per arm rather than grading them", () => {
 		renderWhatMoved([BLOCKER]);
 
 		expect(cell("scope-declared", "Measure")).toHaveTextContent(
-			"scope-declaredhard blocker",
+			"scope-declaredbuild · hard blocker",
 		);
 		expect(cell("scope-declared", "Baseline")).toHaveTextContent("2/2 fired");
 		expect(cell("scope-declared", "Arm A")).toHaveTextContent("1/2 fired");
@@ -283,7 +312,17 @@ describe(WhatMoved.name, () => {
 		);
 	});
 
-	it("names the spread across attempts without a count when the arms hold different numbers", () => {
+	it("counts only arms A and B in the spread's heading, since only they are drawn", () => {
+		renderWhatMoved([OVERALL], { control: 2, baseline: 3, candidate: 3 });
+
+		expect(
+			within(table()).getByRole("columnheader", {
+				name: "Spread across 3 attempts",
+			}),
+		).toBeInTheDocument();
+	});
+
+	it("names the spread across attempts without a count when arms A and B hold different numbers", () => {
 		renderWhatMoved([OVERALL], { control: 2, baseline: 3, candidate: 2 });
 
 		expect(

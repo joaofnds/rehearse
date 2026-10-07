@@ -1,6 +1,11 @@
 import type { ComparisonArm } from "#benchmark/comparison-record";
+import { STAGE_LETTER_GRADES } from "#benchmark/stage-letter-grades";
 import { TableShell } from "#client/system/components/table-shell";
-import type { WhatMovedRow } from "#server/comparison-what-moved";
+import type {
+	QualityInterval,
+	QualityReading,
+} from "#server/comparison-quality-reading";
+import type { MeterReading, WhatMovedRow } from "#server/comparison-what-moved";
 import { pairKey } from "#server/comparison-arm-pair";
 import { armProse, DESIGN_ARMS } from "./design-arms";
 import { meterReadingText, qualityReadingText } from "./reading-text";
@@ -8,10 +13,11 @@ import type { ReadingText } from "./reading-text";
 
 type OverallRow = Extract<WhatMovedRow, { readonly kind: "overall" }>;
 type MeterRow = Extract<WhatMovedRow, { readonly kind: "meter" }>;
-type QualityReading = OverallRow["readings"][string];
-type MeterReading = MeterRow["readings"][string];
-type LabelInterval = NonNullable<QualityReading["interval"]["minuend"]>;
-type NumberInterval = NonNullable<MeterReading["interval"]["minuend"]>;
+
+interface MeterInterval {
+	readonly low: number;
+	readonly high: number;
+}
 
 /** Positions on a measure's own axis, from the bottom of its scale up. */
 interface Span {
@@ -19,7 +25,7 @@ interface Span {
 	readonly high: number;
 }
 
-const LETTERS_UP = ["F", "D", "C", "B", "A"];
+const LETTERS_UP: readonly string[] = STAGE_LETTER_GRADES.toReversed();
 const METER_CELLS = 8;
 const B_AGAINST_A = pairKey("candidate", "baseline");
 const KIND_LABELS = {
@@ -33,7 +39,7 @@ const METER_NAMES = {
 	costPerAttempt: "cost per attempt",
 } as const satisfies Readonly<Record<MeterRow["name"], string>>;
 
-function letterSpan(interval: LabelInterval): Span {
+function letterSpan(interval: QualityInterval): Span {
 	return {
 		low: LETTERS_UP.indexOf(interval.low),
 		high: LETTERS_UP.indexOf(interval.high),
@@ -44,7 +50,7 @@ function percentOf(label: string): number {
 	return Number(label.replace("%", ""));
 }
 
-function percentSpan(interval: LabelInterval): Span {
+function percentSpan(interval: QualityInterval): Span {
 	return {
 		low: Math.floor(percentOf(interval.low) / 10),
 		high: Math.floor(percentOf(interval.high) / 10),
@@ -52,7 +58,7 @@ function percentSpan(interval: LabelInterval): Span {
 }
 
 function meterSpans(
-	intervals: readonly (NumberInterval | undefined)[],
+	intervals: readonly (MeterInterval | undefined)[],
 ): readonly (Span | undefined)[] {
 	const recorded = intervals.filter((interval) => interval !== undefined);
 	const bottom = Math.min(...recorded.map(({ low }) => low));
@@ -71,19 +77,24 @@ function meterSpans(
 
 /**
  * Arms A and B across the positions either covers, `┼` where both arms'
- * attempts reach and `─` where only one arm's do.
+ * attempts reach, `─` where only one arm's do and a space where neither does.
  */
 function spreadDrawing(spans: readonly (Span | undefined)[]): string {
 	const recorded = spans.filter((span) => span !== undefined);
 	if (recorded.length === 0) {
 		return "";
 	}
+
 	const bottom = Math.min(...recorded.map(({ low }) => low));
 	const top = Math.max(...recorded.map(({ high }) => high));
 	const cells = Array.from({ length: top - bottom + 1 }, (_empty, offset) => {
 		const reached = recorded.filter(
 			({ low, high }) => low <= bottom + offset && bottom + offset <= high,
 		);
+
+		if (reached.length === 0) {
+			return " ";
+		}
 
 		return reached.length > 1 ? "┼" : "─";
 	});
@@ -108,7 +119,7 @@ function meterValue(name: MeterRow["name"], value: number): string {
 
 function meterRange(
 	name: MeterRow["name"],
-	interval: NumberInterval | undefined,
+	interval: MeterInterval | undefined,
 ): { readonly low: string; readonly high: string } | undefined {
 	if (interval === undefined) {
 		return undefined;
@@ -158,7 +169,7 @@ interface Spread {
 
 function labelSpread(
 	reading: QualityReading,
-	toSpan: (interval: LabelInterval) => Span,
+	toSpan: (interval: QualityInterval) => Span,
 ): Spread {
 	const { minuend, subtrahend } = reading.interval;
 
@@ -183,7 +194,7 @@ function meterSpread(row: MeterRow, reading: MeterReading): Spread {
 	};
 }
 
-function overallSpan(row: OverallRow): (interval: LabelInterval) => Span {
+function overallSpan(row: OverallRow): (interval: QualityInterval) => Span {
 	return row.arms.baseline?.scale === "successRate" ? percentSpan : letterSpan;
 }
 
@@ -224,6 +235,7 @@ function readingOf(row: WhatMovedRow): ReadingText | undefined {
 			? undefined
 			: meterReadingText(reading.verdict);
 	}
+
 	const reading = row.readings[B_AGAINST_A];
 
 	return reading === undefined
@@ -241,6 +253,7 @@ function armFigure(row: WhatMovedRow, arm: ComparisonArm): string {
 			if (figure.scale === "successRate") {
 				return `${String(figure.successful)}/${String(figure.attempts)} passed`;
 			}
+
 			return figure.grades.state === "available"
 				? figure.grades.median
 				: "not recorded";
@@ -271,6 +284,12 @@ function measureName(row: WhatMovedRow): string {
 	return row.kind === "meter" ? METER_NAMES[row.name] : row.name;
 }
 
+function measureKind(row: WhatMovedRow): string {
+	return row.kind === "hardBlocker" || row.kind === "dimension"
+		? `${row.stage} · ${KIND_LABELS[row.kind]}`
+		: KIND_LABELS[row.kind];
+}
+
 function SpreadCell({
 	row,
 }: {
@@ -283,7 +302,7 @@ function SpreadCell({
 		<div className="flex flex-col gap-0.5">
 			<span
 				aria-hidden="true"
-				className="font-mono text-11 tracking-widest text-deep"
+				className="font-mono text-11 tracking-widest whitespace-pre text-deep"
 			>
 				{spread?.drawing}
 			</span>
@@ -330,9 +349,7 @@ function whatMovedRow(row: WhatMovedRow): readonly React.ReactNode[] {
 	return [
 		<span key="measure" className="flex flex-col">
 			<span>{measureName(row)}</span>
-			<span className="text-11 font-normal text-dim">
-				{KIND_LABELS[row.kind]}
-			</span>
+			<span className="text-11 font-normal text-dim">{measureKind(row)}</span>
 		</span>,
 		...cells,
 		<SpreadCell key="spread" row={row} />,
@@ -343,7 +360,7 @@ function whatMovedRow(row: WhatMovedRow): readonly React.ReactNode[] {
 function spreadColumn(
 	attemptsPerArm: Readonly<Record<ComparisonArm, number>>,
 ): string {
-	const counts = new Set(Object.values(attemptsPerArm));
+	const counts = new Set([attemptsPerArm.baseline, attemptsPerArm.candidate]);
 	const [only] = counts;
 
 	return counts.size === 1 && only !== undefined

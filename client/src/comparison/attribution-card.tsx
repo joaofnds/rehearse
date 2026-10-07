@@ -6,8 +6,10 @@ import { plural } from "#client/plural";
 import { DiffPreview } from "#client/corpus/diff-preview";
 import { SectionLabel } from "#client/system/components/section-label";
 import { Button } from "#client/system/ui/button";
+import type { ComparisonArm } from "#benchmark/comparison-record";
 import type { ComparisonAttribution } from "#server/comparison-attribution";
 import type { ComparisonResponse } from "./comparison-response";
+import { armRole } from "./design-arms";
 import { MoreAttempts } from "./pairing-cards";
 
 type ArmDiffResponse = InferResponseType<
@@ -77,7 +79,7 @@ function Claim({
 }
 
 function unshownText(
-	role: string,
+	arm: ComparisonArm,
 	path: string,
 	text: ArmFileText,
 ): string | undefined {
@@ -86,10 +88,10 @@ function unshownText(
 			return undefined;
 		}
 		case "absent": {
-			return `${role} ran no ${path}.`;
+			return `${armRole(arm)} ran no ${path}.`;
 		}
 		case "unavailable": {
-			return `${role}'s ${path} cannot be shown: ${text.reasons.join("; ")}.`;
+			return `${armRole(arm)}'s ${path} cannot be shown: ${text.reasons.join("; ")}.`;
 		}
 		default: {
 			return text satisfies never;
@@ -116,8 +118,8 @@ function textOf(text: ArmFileText): string | undefined {
 
 function FileDiff({ file }: { readonly file: ArmFileDiff }): React.JSX.Element {
 	const notes = [
-		unshownText("Arm A", file.path, file.baseline),
-		unshownText("Arm B", file.path, file.candidate),
+		unshownText("baseline", file.path, file.baseline),
+		unshownText("candidate", file.path, file.candidate),
 	].filter((note) => note !== undefined);
 	const before = textOf(file.baseline);
 	const after = textOf(file.candidate);

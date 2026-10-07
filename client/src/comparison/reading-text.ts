@@ -1,11 +1,7 @@
 import type { ComparisonArm } from "#benchmark/comparison-record";
-import type { MeterReading, WhatMovedRow } from "#server/comparison-what-moved";
+import type { QualityVerdict } from "#server/comparison-quality-reading";
+import type { MeterReading } from "#server/comparison-what-moved";
 import { armProse } from "./design-arms";
-
-type QualityVerdict = Extract<
-	WhatMovedRow,
-	{ readonly kind: "overall" }
->["readings"][string]["verdict"];
 
 /** A served verdict as the glyph and phrase every comparison reading prints. */
 export interface ReadingText {
