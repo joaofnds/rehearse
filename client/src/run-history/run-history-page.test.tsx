@@ -1686,6 +1686,18 @@ describe(RunHistoryPage.name, () => {
 			).toBeInTheDocument();
 		});
 
+		it("states product rules 2 and 3 under the table in the design's words", async () => {
+			respondingWith(everyKind);
+
+			await renderPage().findByText("group-a");
+
+			expect(
+				screen.getByText(
+					"A stopped run is a recorded outcome, not an error: the step that fell below the minimum is the finding. Runs marked stale were produced by a corpus version that has since changed. Their grades are kept as history.",
+				),
+			).toBeInTheDocument();
+		});
+
 		it("keeps Stopped meaning a pipeline run with a stopped stage, so a STOP verdict does not match", async () => {
 			respondingWith(everyKind);
 			await renderPage().findByText("group-a");

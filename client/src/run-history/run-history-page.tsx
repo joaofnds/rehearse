@@ -1509,8 +1509,8 @@ export function RunHistoryPage(): React.JSX.Element {
 						<p className="max-w-prose text-sm text-dim">
 							A stopped run is a recorded outcome, not an error: the step that
 							fell below the minimum is the finding. Runs marked stale were
-							produced by a corpus version that has since changed, and their
-							grades are kept as history.
+							produced by a corpus version that has since changed. Their grades
+							are kept as history.
 						</p>
 					</>
 				) : null}
