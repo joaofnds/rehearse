@@ -322,6 +322,28 @@ describe("Step rail", () => {
 			).toHaveTextContent("Verdict◼stopped2 blockers fired");
 		});
 
+		it("reads an unrecorded grade's reason apart from the run's minimum", async () => {
+			renderBuildReport(
+				stoppedWithBuildFigures({
+					grade: {
+						state: "unavailable",
+						reasons: ["the stage wrote no record"],
+					},
+				}),
+			);
+
+			const grade = within(await stepReport()).getByRole("group", {
+				name: "Grade",
+			});
+
+			expect(
+				within(grade).getByText(
+					"grade not recorded: the stage wrote no record",
+				),
+			).toBeInTheDocument();
+			expect(within(grade).getByText("min B")).toBeInTheDocument();
+		});
+
 		it("lists each hard blocker as fired or clear", async () => {
 			renderBuildReport();
 

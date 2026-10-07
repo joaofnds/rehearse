@@ -197,12 +197,14 @@ function GradeStat({
 				}
 			/>
 			<div className="text-10-5 text-muted-foreground">
-				{grade.state === "unavailable"
-					? notRecorded("grade", grade.reasons)
-					: null}
-				{record.minimumGrade.state === "available"
-					? `min ${record.minimumGrade.letter}`
-					: notRecorded("minimum", record.minimumGrade.reasons)}
+				{grade.state === "unavailable" ? (
+					<div>{notRecorded("grade", grade.reasons)}</div>
+				) : null}
+				<div>
+					{record.minimumGrade.state === "available"
+						? `min ${record.minimumGrade.letter}`
+						: notRecorded("minimum", record.minimumGrade.reasons)}
+				</div>
 			</div>
 		</StatCard>
 	);
