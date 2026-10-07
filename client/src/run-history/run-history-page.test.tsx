@@ -3185,6 +3185,51 @@ describe(RunHistoryPage.name, () => {
 			},
 		);
 
+		it("reads a run that ended with no recorded step as interrupted, naming the cause", async () => {
+			respondingWith(
+				runWith({
+					status: "INTERRUPTED",
+					stageGrades: { state: "available", grades: [] },
+					finalOutcome: {
+						state: "available",
+						status: "NOT_REACHED",
+						reason: "the run ended without recording how it ended",
+					},
+					minimumGrade: MINIMUM_B,
+				}),
+			);
+
+			await renderPage().findByText(RUN);
+
+			expect(cellOf(RUN, "Outcome").textContent).toBe(
+				"⊘interruptedthe run ended without recording how it ended",
+			);
+		});
+
+		it("reads a run whose final judge failed as such, naming the failure", async () => {
+			respondingWith(
+				runWith({
+					status: "FAILED",
+					stageGrades: {
+						state: "available",
+						grades: [stage("shape", "B", true), stage("plan", "B", true)],
+					},
+					finalOutcome: {
+						state: "available",
+						status: "JUDGING_FAILED",
+						reason: "the final judge returned no valid grade",
+					},
+					minimumGrade: MINIMUM_B,
+				}),
+			);
+
+			await renderPage().findByText(RUN);
+
+			expect(cellOf(RUN, "Outcome").textContent).toBe(
+				"⊘final judge failedthe final judge returned no valid grade",
+			);
+		});
+
 		describe("of a replay", () => {
 			const REPLAY = "2026-09-21T09-20-00.000Z";
 

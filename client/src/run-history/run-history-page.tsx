@@ -526,7 +526,7 @@ function completedOutcome(stageGrades: StageGrades): OutcomePhrase {
 	};
 }
 
-/** An interrupted or failed run names the step it ended in and why. */
+/** An interrupted or failed run names the step it ended in and why, or the final judge's failure. */
 function interruptedOutcome(row: RunHistoryRow): OutcomePhrase {
 	const { finalOutcome } = row;
 	if (finalOutcome.state === "unavailable") {
@@ -534,6 +534,13 @@ function interruptedOutcome(row: RunHistoryRow): OutcomePhrase {
 			state: "interrupted",
 			phrase: "interrupted",
 			reason: finalOutcome.reasons.join("; "),
+		};
+	}
+	if (finalOutcome.status === "JUDGING_FAILED") {
+		return {
+			state: "interrupted",
+			phrase: "final judge failed",
+			reason: finalOutcome.reason,
 		};
 	}
 	if (finalOutcome.status !== "NOT_REACHED") {
