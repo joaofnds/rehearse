@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
+import { Search } from "lucide-react";
 import { useState } from "react";
 import { Disclosure } from "#client/system/components/disclosure";
 import { EmptyState } from "#client/system/components/empty-state";
@@ -14,6 +15,7 @@ import { polledRunHistoryQuery } from "./run-history-polling";
 import { useNow } from "./use-now";
 import { runStatusState } from "./run-status";
 import {
+	CORPUS_VERSION_LABEL,
 	corpusMeasurementReading,
 	corpusVersionLabel,
 } from "#benchmark/corpus-version-label";
@@ -60,7 +62,14 @@ const COLUMNS = [
 
 const NUMERIC_COLUMNS = ["Cost", "Wall"] as const;
 
-const FILTERS = ["All", "Stopped"] as const;
+const FILTERS = [
+	"All",
+	"Running",
+	"Stopped",
+	"Replays",
+	"Groups",
+	"Clean corpus only",
+] as const;
 type Filter = (typeof FILTERS)[number];
 
 /**
@@ -69,7 +78,59 @@ type Filter = (typeof FILTERS)[number];
  * match.
  */
 function matchesFilter(row: HistoryRow, filter: Filter): boolean {
-	return filter === "All" || (row.kind === "run" && isStopped(row.status));
+	switch (filter) {
+		case "All": {
+			return true;
+		}
+		case "Running": {
+			return row.kind === "run" && row.progress.state === "running";
+		}
+		case "Stopped": {
+			return row.kind === "run" && isStopped(row.status);
+		}
+		case "Replays": {
+			return row.kind === "replay";
+		}
+		case "Groups": {
+			return row.kind === "group";
+		}
+		case "Clean corpus only": {
+			return row.staleness.state === "available" && isClean(row.staleness);
+		}
+		default: {
+			return filter satisfies never;
+		}
+	}
+}
+
+/** A launch has no record, so only Running, of the narrower filters, names one. */
+function launchMatchesFilter(launch: LaunchRow, filter: Filter): boolean {
+	return (
+		filter === "All" || (filter === "Running" && launch.status === "RUNNING")
+	);
+}
+
+/**
+ * The texts a search looks in: the case, the corpus version under its label
+ * so the label's characters match too, and each hard blocker that fired.
+ */
+function searchedTexts(row: HistoryRow): readonly string[] {
+	const corpus =
+		row.corpusVersion?.kind === "version"
+			? [`${CORPUS_VERSION_LABEL}${row.corpusVersion.digest}`]
+			: [];
+	const blockers =
+		row.kind !== "session-attempt" && row.firedBlockers.state === "available"
+			? row.firedBlockers.ids
+			: [];
+
+	return [row.caseId ?? "", ...corpus, ...blockers];
+}
+
+function matchesSearch(texts: readonly string[], search: string): boolean {
+	const needle = search.trim().toLowerCase();
+
+	return texts.some((text) => text.toLowerCase().includes(needle));
 }
 
 const UNREADABLE_NOUNS = {
@@ -709,6 +770,15 @@ function corpusState(
 	);
 }
 
+/** Judged against the version under test, with nothing changed since. */
+function isClean(staleness: JudgedStaleness): boolean {
+	return (
+		staleness.distance.kind === "measured" &&
+		!staleness.stale &&
+		staleness.distance.versions === 0
+	);
+}
+
 /**
  * The prototype's three readings, for a record judged against a version it
  * can count back to: clean at the version under test, and stale or
@@ -720,11 +790,7 @@ function corpusState(
 function judgment(staleness: JudgedStaleness): React.JSX.Element {
 	const { distance, onlyCorpusFiles } = staleness;
 
-	if (
-		distance.kind === "measured" &&
-		!staleness.stale &&
-		distance.versions === 0
-	) {
+	if (isClean(staleness)) {
 		return (
 			<span className="text-xs text-muted-foreground">
 				<Status state="clean" />
@@ -1081,10 +1147,14 @@ function FilterBar({
 	active,
 	total,
 	onSelect,
+	search,
+	onSearch,
 }: {
 	readonly active: Filter;
 	readonly total: number | undefined;
 	readonly onSelect: (filter: Filter) => void;
+	readonly search: string;
+	readonly onSearch: (search: string) => void;
 }): React.JSX.Element {
 	return (
 		<div className="flex flex-wrap items-center gap-2 border-b border-divider px-6 py-2.5">
@@ -1102,6 +1172,19 @@ function FilterBar({
 					{filterLabel(filter, total)}
 				</FilterPill>
 			))}
+			<label className="ml-auto flex items-center gap-2 rounded-md border border-strong bg-card px-3 py-1">
+				<Search aria-hidden="true" className="size-3.5 text-dim" />
+				<input
+					type="search"
+					value={search}
+					aria-label="Search runs"
+					placeholder="case, corpus hash, blocker id"
+					onChange={(event) => {
+						onSearch(event.target.value);
+					}}
+					className="w-52 bg-transparent text-12 outline-none"
+				/>
+			</label>
 		</div>
 	);
 }
@@ -1222,8 +1305,63 @@ function ComparisonBar({
 	);
 }
 
+/**
+ * Why the table is empty: no record yet, or records the filter and search
+ * hide. Unreadable records alone leave it to their notice to say.
+ */
+function NothingListed({
+	listable,
+	unreadable,
+}: {
+	readonly listable: boolean;
+	readonly unreadable: boolean;
+}): React.JSX.Element | null {
+	if (listable) {
+		return (
+			<p className="text-muted-foreground">
+				No record matches this filter and search.
+			</p>
+		);
+	}
+	if (unreadable) {
+		return null;
+	}
+
+	return (
+		<EmptyState heading="No runs recorded">
+			<p>
+				The corpus is linked and a spend limit is set. Declare a case, then run
+				it. Every attempt lands here as a durable record.
+			</p>
+			<Button asChild>
+				<Link to="/cases">Declare a case</Link>
+			</Button>
+		</EmptyState>
+	);
+}
+
+/** The records the selected filter and the search both let through. */
+function listedRecords(
+	records: Pick<RunHistoryResponse, "rows" | "launches">,
+	filter: Filter,
+	search: string,
+): Pick<RunHistoryResponse, "rows" | "launches"> {
+	return {
+		rows: records.rows.filter(
+			(row) =>
+				matchesFilter(row, filter) && matchesSearch(searchedTexts(row), search),
+		),
+		launches: records.launches.filter(
+			(launch) =>
+				launchMatchesFilter(launch, filter) &&
+				matchesSearch([launch.caseId ?? ""], search),
+		),
+	};
+}
+
 export function RunHistoryPage(): React.JSX.Element {
 	const [filter, setFilter] = useState<Filter>("All");
+	const [search, setSearch] = useState("");
 	const [chosen, setChosen] = useState<readonly ChosenArm[]>([]);
 	const choice: ArmChoice = {
 		chosen,
@@ -1239,9 +1377,15 @@ export function RunHistoryPage(): React.JSX.Element {
 
 	const unreadable = query.data?.unreadable ?? [];
 	const recorded = query.data?.rows ?? [];
-	const rows = recorded.filter((row) => matchesFilter(row, filter));
-	const launches = filter === "All" ? (query.data?.launches ?? []) : [];
-	const onlyUnreadableRecords = recorded.length === 0 && unreadable.length > 0;
+	const allLaunches = query.data?.launches ?? [];
+	const { rows, launches } = listedRecords(
+		{ rows: recorded, launches: allLaunches },
+		filter,
+		search,
+	);
+	const listable = recorded.length + allLaunches.length > 0;
+	const nothingListed =
+		query.isSuccess && rows.length === 0 && launches.length === 0;
 	const nowMs = useNow(
 		pipelineRuns(recorded).some((row) => row.progress.state === "running"),
 	);
@@ -1264,6 +1408,8 @@ export function RunHistoryPage(): React.JSX.Element {
 				active={filter}
 				total={query.isSuccess ? recorded.length : undefined}
 				onSelect={setFilter}
+				search={search}
+				onSearch={setSearch}
 			/>
 
 			<div className="flex flex-col gap-4 px-6 pt-3 pb-12">
@@ -1281,19 +1427,11 @@ export function RunHistoryPage(): React.JSX.Element {
 					<UnreadableRecords records={unreadable} />
 				) : null}
 
-				{query.isSuccess &&
-				rows.length === 0 &&
-				launches.length === 0 &&
-				!onlyUnreadableRecords ? (
-					<EmptyState heading="No runs recorded">
-						<p>
-							The corpus is linked and a spend limit is set. Declare a case,
-							then run it. Every attempt lands here as a durable record.
-						</p>
-						<Button asChild>
-							<Link to="/cases">Declare a case</Link>
-						</Button>
-					</EmptyState>
+				{nothingListed ? (
+					<NothingListed
+						listable={listable}
+						unreadable={unreadable.length > 0}
+					/>
 				) : null}
 
 				{rows.length > 0 || launches.length > 0 ? (
