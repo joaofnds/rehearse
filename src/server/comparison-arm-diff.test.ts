@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { z } from "zod";
@@ -185,6 +185,36 @@ describe("GET /api/comparisons/:digest/arm-diff", () => {
 		expect(skill?.candidate).toEqual({
 			state: "unavailable",
 			reasons: [MISMATCHED_FROZEN_COPY_REASON],
+		});
+	});
+
+	it("says why an arm's text is unavailable when its frozen copy is gone", async () => {
+		const { runsDirectory, digest } = await comparedArms(
+			{ [SKILL]: "build\n" },
+			{ [SKILL]: "revised build\n" },
+		);
+		await unlink(await frozenCopy(runsDirectory, "candidate", SKILL));
+
+		const response = await armDiffOf(runsDirectory, digest);
+
+		const files = await differingFiles(response);
+		const skill = files.find(({ path }) => path === SKILL);
+		const { reasons } = z
+			.object({
+				state: z.literal("unavailable"),
+				reasons: z.tuple([z.string()]),
+			})
+			.parse(skill?.candidate);
+		expect(reasons[0]).toMatch(/^its frozen copy cannot be read: /u);
+	});
+
+	describe("when no comparison is recorded for the digest", () => {
+		it("refuses with 404", async () => {
+			const runsDirectory = await temporaryDirectory("rehearse-arm-diff-runs-");
+
+			const response = await armDiffOf(runsDirectory, "e".repeat(64));
+
+			expect(response.status).toBe(404);
 		});
 	});
 });

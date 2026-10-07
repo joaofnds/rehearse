@@ -34,9 +34,20 @@ const AFFORDABLE: MoreAttemptsCost = {
 	usd: 9.28,
 };
 
+const OTHER_CASE_FILE: ArmFileDiff = {
+	path: "skills/other/SKILL.md",
+	baseline: { state: "available", text: "other\n" },
+	candidate: { state: "available", text: "other, revised\n" },
+};
+
 function stubArmDiff(files: readonly ArmFileDiff[]): void {
 	stubFetchByPath(
-		new Map([[`/api/comparisons/${DIGEST}/arm-diff`, { "audit-log": files }]]),
+		new Map([
+			[
+				`/api/comparisons/${DIGEST}/arm-diff`,
+				{ "audit-log": files, "other-case": [OTHER_CASE_FILE] },
+			],
+		]),
 	);
 }
 
@@ -115,6 +126,22 @@ describe(AttributionCard.name, () => {
 		).toBeInTheDocument();
 	});
 
+	it("says why more attempts cannot be offered when their cost cannot be stated", () => {
+		renderCard({
+			moreAttempts: {
+				state: "unavailable",
+				reasons: ["rep-1 lacks worker.costUsd"],
+			},
+		});
+
+		expect(card()).toHaveTextContent(
+			"What more attempts would cost cannot be stated: rep-1 lacks worker.costUsd.",
+		);
+		expect(
+			screen.queryByRole("button", { name: /to each arm/u }),
+		).not.toBeInTheDocument();
+	});
+
 	it("says why a comparison whose author supplied the baseline arm cannot take more attempts", () => {
 		renderCard({ baselineArm: { kind: "supplied" } });
 
@@ -149,6 +176,11 @@ describe(AttributionCard.name, () => {
 					.getAllByRole("listitem")
 					.map((line) => line.textContent),
 			).toEqual(["1  keep", "2− old line", "2+ new line"]);
+			expect(
+				screen.queryByRole("list", {
+					name: `Changes to ${OTHER_CASE_FILE.path}`,
+				}),
+			).not.toBeInTheDocument();
 		});
 
 		it("says which arm ran no such file", async () => {
