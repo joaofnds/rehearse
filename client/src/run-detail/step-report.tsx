@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import type { DimensionRow } from "#client/monitor/judged-items";
+import type { DimensionRow, JudgedAnswer } from "#client/monitor/judged-items";
 import {
 	BlockerRows,
 	blockerState,
@@ -258,15 +258,26 @@ function SectionTitle({
 }
 
 /** Each dimension with the judge's first recorded claim as its note. */
-function notedDimensions(
-	judge: Extract<StageJudgeResponse, { readonly state: "judged" }>,
-): readonly DimensionRow[] {
+function notedDimensions(judge: JudgedAnswer): readonly DimensionRow[] {
 	return judge.dimensions.map(({ id, grade, evidence }) => ({
 		id,
 		grade,
 		evidence,
 		note: evidence[0]?.claim,
 	}));
+}
+
+/** Why a step shows no blockers or dimensions. */
+export function unjudgedReading(
+	judge: Exclude<StageJudgeResponse, JudgedAnswer> | "unreadable",
+): string {
+	if (judge === "unreadable") {
+		return "Could not read this step's judge.";
+	}
+
+	return judge.state === "not-judged"
+		? "This step ended without a judged grade, so there are no blockers or dimensions to show."
+		: "This step's judge has not returned its blockers and dimensions yet.";
 }
 
 function JudgedSections({
@@ -281,19 +292,10 @@ function JudgedSections({
 	if (judge === undefined) {
 		return null;
 	}
-	if (judge === "unreadable") {
+	if (judge === "unreadable" || judge.state !== "judged") {
 		return (
 			<p className="mt-4.5 text-12 text-muted-foreground">
-				Could not read this step's judge.
-			</p>
-		);
-	}
-	if (judge.state !== "judged") {
-		return (
-			<p className="mt-4.5 text-12 text-muted-foreground">
-				{judge.state === "not-judged"
-					? "This step ended without a judged grade, so there are no blockers or dimensions to show."
-					: "This step's judge has not returned its blockers and dimensions yet."}
+				{unjudgedReading(judge)}
 			</p>
 		);
 	}

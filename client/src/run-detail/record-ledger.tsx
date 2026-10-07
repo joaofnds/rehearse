@@ -4,6 +4,15 @@ import type {
 	MonitoredStage,
 	RunRecordResponse,
 } from "#client/monitor/run-record-query";
+import {
+	BlockerLine,
+	blockerState,
+	DimensionLine,
+	Label,
+} from "#client/monitor/judged-items";
+import type { JudgedAnswer } from "#client/monitor/judged-items";
+import type { StageJudgeResponse } from "#client/monitor/stage-judge-query";
+import { stageJudgeQuery } from "#client/monitor/stage-judge-query";
 import type { StageSessionResponse } from "#client/monitor/stage-session-query";
 import { stageSessionQuery } from "#client/monitor/stage-session-query";
 import type { NodeStatus } from "#client/monitor/task-graph";
@@ -17,6 +26,7 @@ import type { PipelineRow } from "#client/shell/run-in-flight";
 import { CorpusPill } from "#client/system/components/corpus-pill";
 import { Grade } from "#client/system/components/grade";
 import { LiveGlyph, STATUS_VOCABULARY } from "#client/system/components/status";
+import { unjudgedReading } from "./step-report";
 
 const LINE_COUNT = new Intl.NumberFormat("en-US");
 
@@ -101,6 +111,63 @@ function CorpusReading({
 	);
 }
 
+function JudgedColumns({
+	judge,
+}: {
+	readonly judge: JudgedAnswer;
+}): React.JSX.Element {
+	return (
+		<div className="grid grid-cols-2 gap-4.5 px-3.5 py-2.75">
+			<div>
+				<Label>Blockers</Label>
+				<ul
+					aria-label="Hard blockers"
+					className="mt-1.5 flex flex-col gap-0.75"
+				>
+					{judge.hardBlockers.map(({ id, status }) => (
+						<li key={id} className="flex items-center gap-2">
+							<BlockerLine row={{ id, state: blockerState(status) }} />
+						</li>
+					))}
+				</ul>
+			</div>
+			<div>
+				<Label>Dimensions</Label>
+				<ul
+					aria-label="Quality dimensions"
+					className="mt-1.5 flex flex-col gap-0.75"
+				>
+					{judge.dimensions.map(({ id, grade }) => (
+						<li key={id} className="flex items-center gap-2.5">
+							<DimensionLine row={{ id, grade }} />
+						</li>
+					))}
+				</ul>
+			</div>
+		</div>
+	);
+}
+
+/** The card's body: the judge's blockers and dimensions, or why there are none. */
+function CardBody({
+	judge,
+}: {
+	readonly judge: StageJudgeResponse | "unreadable" | undefined;
+}): React.JSX.Element | null {
+	if (judge === undefined) {
+		return null;
+	}
+	if (judge !== "unreadable" && judge.state === "judged") {
+		return <JudgedColumns judge={judge} />;
+	}
+
+	return (
+		<p className="px-3.5 py-2.75 text-11-5 text-muted-foreground">
+			{unjudgedReading(judge)}
+		</p>
+	);
+}
+
 function LedgerCard({
 	row,
 	record,
@@ -117,6 +184,7 @@ function LedgerCard({
 	const status = cardStatus(stage, row, record);
 	const stopped = status.state === "stopped";
 	const session = useQuery(stageSessionQuery(row.run, stage.stage));
+	const judge = useQuery(stageJudgeQuery(row.run, stage.stage));
 	const meta = [
 		durationReading(stage, row, nowMs),
 		costReading(stage, row),
@@ -149,6 +217,7 @@ function LedgerCard({
 					/>
 				</span>
 			</div>
+			<CardBody judge={judge.isError ? "unreadable" : judge.data} />
 		</article>
 	);
 }

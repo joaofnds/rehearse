@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import { screen, within } from "@testing-library/react";
 import type { RunRecord, RunRecordStage } from "#server/run-record";
+import type { StageJudge } from "#server/stage-judge";
 import type { StageSession } from "#server/stage-session";
 import {
 	CORPUS,
@@ -49,6 +50,44 @@ function closedSession(lineCount: number): StageSession {
 		spans: [],
 		lineCount,
 		transcriptPath: `.benchmark-runs/${RUN}.shape.session/transcript.jsonl`,
+	};
+}
+
+const STOPPED_STEP_JUDGE = `/api/runs/${RUN}/stages/build/judge`;
+
+function judged(): StageJudge {
+	return {
+		state: "judged",
+		hardBlockers: [
+			{
+				id: "scope-declared-before-edit",
+				status: "FAIL",
+				evidence: [
+					{
+						source: "transcript",
+						path: "transcript",
+						claim: "The agent chose a scope without asking",
+						quote: "I'll take the small scope",
+						place: "exchange 3 message, characters 0-25",
+					},
+				],
+			},
+			{ id: "no-secrets-in-diff", status: "PASS", evidence: [] },
+		],
+		dimensions: [
+			{
+				id: "scope-discipline",
+				grade: "C",
+				evidence: [
+					{
+						source: "diff",
+						path: "src/a.ts",
+						claim: "Edits files outside the declared scope",
+					},
+				],
+			},
+			{ id: "test-quality", grade: "B", evidence: [] },
+		],
 	};
 }
 
@@ -104,5 +143,33 @@ describe("Record ledger", () => {
 		expect(stoppedStep).toHaveTextContent("◼below minimum B · run stopped");
 		expect(stoppedStep?.outerHTML).not.toMatch(/destructive|danger|red-/u);
 		expect(firstStep).not.toHaveClass("border-deeper");
+	});
+
+	it("lays the stage's hard blockers on the left and its dimensions on the right", async () => {
+		renderLedger(new Map([[STOPPED_STEP_JUDGE, judged()]]));
+
+		const [, stoppedStep] = await ledgerCards();
+		const blockers = await within(stoppedStep ?? document.body).findByRole(
+			"list",
+			{ name: "Hard blockers" },
+		);
+		const dimensions = within(stoppedStep ?? document.body).getByRole("list", {
+			name: "Quality dimensions",
+		});
+
+		expect(
+			within(blockers)
+				.getAllByRole("listitem")
+				.map((item) => item.textContent),
+		).toEqual(["✕scope-declared-before-editfired", "✓no-secrets-in-diffclear"]);
+		expect(
+			within(dimensions)
+				.getAllByRole("listitem")
+				.map((item) => item.textContent),
+		).toEqual(["scope-discipline▮▮▮▯▯C", "test-quality▮▮▮▮▯B"]);
+		expect(blockers.parentElement?.parentElement).toHaveClass("grid-cols-2");
+		expect(blockers.parentElement?.nextElementSibling).toContainElement(
+			dimensions,
+		);
 	});
 });
