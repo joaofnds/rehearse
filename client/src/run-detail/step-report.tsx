@@ -16,7 +16,7 @@ import type { StageJudgeResponse } from "#client/monitor/stage-judge-query";
 import { stageJudgeQuery } from "#client/monitor/stage-judge-query";
 import type { StageSessionResponse } from "#client/monitor/stage-session-query";
 import { stageSessionQuery } from "#client/monitor/stage-session-query";
-import { minutesAndSeconds } from "#client/monitor/task-graph";
+import { minutesAndSeconds } from "#client/monitor/minutes-and-seconds";
 import { plural } from "#client/plural";
 import { spendReading } from "#client/run-history/run-progress";
 import { Grade } from "#client/system/components/grade";

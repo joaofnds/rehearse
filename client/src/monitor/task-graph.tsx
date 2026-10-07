@@ -20,12 +20,9 @@ import {
 } from "./run-record-query";
 import type { MonitoredStage, RunRecordResponse } from "./run-record-query";
 import { shortCommit } from "./run-identity-header";
+import { minutesAndSeconds } from "./minutes-and-seconds";
 import { stageSessionQuery } from "./stage-session-query";
 import { StepModalAction } from "./step-modal";
-
-const MS_PER_SECOND = 1000;
-
-const SECONDS_PER_MINUTE = 60;
 
 const NOT_RECORDED = "—";
 
@@ -139,14 +136,6 @@ export function durationReading(
 	return stage.wallTime.state === "available"
 		? minutesAndSeconds(stage.wallTime.ms)
 		: NOT_RECORDED;
-}
-
-export function minutesAndSeconds(ms: number): string {
-	const totalSeconds = Math.floor(ms / MS_PER_SECOND);
-	const minutes = Math.floor(totalSeconds / SECONDS_PER_MINUTE);
-	const seconds = totalSeconds % SECONDS_PER_MINUTE;
-
-	return `${String(minutes)}m${String(seconds).padStart(2, "0")}s`;
 }
 
 function blockersReading(blockers: MonitoredStage["blockers"]): string {

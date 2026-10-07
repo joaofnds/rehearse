@@ -9,7 +9,7 @@ import type { MonitoredStage } from "./run-record-query";
 import type { StageSessionResponse } from "./stage-session-query";
 import { stageSessionQuery } from "./stage-session-query";
 import { PendingLine } from "./pending-line";
-import { minutesAndSeconds } from "./task-graph";
+import { minutesAndSeconds } from "./minutes-and-seconds";
 
 type SessionLine = Extract<
 	StageSessionResponse,

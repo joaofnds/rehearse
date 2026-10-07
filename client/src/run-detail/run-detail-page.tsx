@@ -8,7 +8,7 @@ import {
 	OPERATOR_STOPPED,
 	stoppedStageOf,
 } from "#benchmark/stopped-status";
-import { minutesAndSeconds } from "#client/monitor/task-graph";
+import { minutesAndSeconds } from "#client/monitor/minutes-and-seconds";
 import { shortCommit } from "#client/monitor/run-identity-header";
 import type {
 	MonitoredStage,
