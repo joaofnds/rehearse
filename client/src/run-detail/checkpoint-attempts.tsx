@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { corpusMeasurementReading } from "#benchmark/corpus-version-label";
 import type { MonitoredStage } from "#client/monitor/run-record-query";
+import { plural } from "#client/plural";
 import { Grade } from "#client/system/components/grade";
 import type { StageAttemptsResponse } from "./stage-attempts-query";
 import { stageAttemptsQuery } from "./stage-attempts-query";
@@ -14,15 +15,27 @@ const KIND_WORDS = {
 	rep: "confirmation rep",
 } as const satisfies Record<StageAttempt["kind"], string>;
 
-/** Whether the attempt still measures the corpus under test, and why not. */
+/**
+ * Whether the attempt still measures the corpus under test, and why not. As
+ * in run history, only an attempt recorded at the version under test with
+ * nothing changed reads as current; one whose reads are unchanged under a
+ * later version is clear.
+ */
 function stalenessReading(staleness: StageAttempt["staleness"]): string {
 	if (staleness.state === "unavailable") {
 		return `staleness not known: ${staleness.reasons.join("; ")}`;
 	}
+	if (staleness.stale) {
+		return `⚠ stale · ${staleness.causes.join("; ")}`;
+	}
+	const { distance } = staleness;
+	if (distance.kind === "not-recorded") {
+		return `✓ clear · nothing it read changed; ${distance.reason}`;
+	}
 
-	return staleness.stale
-		? `⚠ stale · ${staleness.causes.join("; ")}`
-		: "✓ current corpus";
+	return distance.versions === 0
+		? "✓ current corpus"
+		: `✓ clear · nothing it read changed in the ${plural(distance.versions, "corpus version")} since`;
 }
 
 /** What the list shows of an attempt's grade and corpus. */
