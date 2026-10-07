@@ -521,14 +521,25 @@ function neverRanWords(
 	return `${stepName(unreached)} never ran. The run stopped after step ${String(index + 1)}${below} and the target repository was restored. This is a recorded outcome for ${runCorpus(row)}, not a failed execution.`;
 }
 
-/** The ending the run recorded, where it says why later stages did not run. */
-function endingReason(record: RunRecordResponse): string | undefined {
+/**
+ * How an ended run's ending reads for a stage it left without a record: the
+ * stage it ended in started and left none, and every later one did not run.
+ */
+function endingWords(
+	unreached: Unreached,
+	record: RunRecordResponse,
+): string | undefined {
 	const { finalOutcome } = record;
+	if (finalOutcome.status === "JUDGING_FAILED") {
+		return `${stepName(unreached)} did not run: ${finalOutcome.reason}.`;
+	}
+	if (finalOutcome.status !== "NOT_REACHED") {
+		return undefined;
+	}
 
-	return finalOutcome.status === "NOT_REACHED" ||
-		finalOutcome.status === "JUDGING_FAILED"
-		? finalOutcome.reason
-		: undefined;
+	return finalOutcome.stage === unreached.stage.stage
+		? `${stepName(unreached)} ended without a record: ${finalOutcome.reason}.`
+		: `${stepName(unreached)} did not run: ${finalOutcome.reason}.`;
 }
 
 function UnreachedStage({
@@ -540,7 +551,7 @@ function UnreachedStage({
 	readonly row: PipelineRow;
 	readonly record: RunRecordResponse;
 }): React.JSX.Element {
-	const reason = endingReason(record);
+	const ending = endingWords(unreached, record);
 	if (hasRunEnded(row) && isStopped(row.status)) {
 		return (
 			<li className="rounded-card border border-dashed border-strong px-3.5 py-3 text-11-5 text-pretty text-muted-foreground">
@@ -548,11 +559,9 @@ function UnreachedStage({
 			</li>
 		);
 	}
-	if (hasRunEnded(row) && reason !== undefined) {
+	if (hasRunEnded(row) && ending !== undefined) {
 		return (
-			<li className="px-3.5 py-1 text-11-5 text-muted-foreground">
-				{stepName(unreached)} did not run: {reason}.
-			</li>
+			<li className="px-3.5 py-1 text-11-5 text-muted-foreground">{ending}</li>
 		);
 	}
 

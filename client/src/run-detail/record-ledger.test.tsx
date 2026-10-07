@@ -467,7 +467,7 @@ describe("Record ledger", () => {
 				const items = within(await unreached()).getAllByRole("listitem");
 
 				expect(items.map((item) => item.textContent)).toEqual([
-					`Step 2 · build did not run: ${reason}.`,
+					`Step 2 · build ended without a record: ${reason}.`,
 					`Step 3 · verify did not run: ${reason}.`,
 				]);
 				expect(items[0]).not.toHaveClass("border-dashed");
