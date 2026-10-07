@@ -37,6 +37,7 @@ import {
 	RUN_DETAIL_LAYOUTS,
 } from "./run-detail-search";
 import { StepMap } from "./step-map";
+import { STAGE_ATTEMPTS_KEY } from "./stage-attempts-query";
 import { StepRail } from "./step-rail";
 import { TaskGradeCard } from "./task-grade-card";
 
@@ -327,6 +328,10 @@ export function RunDetailPage({
 	useWhenChanged(phaseOf(history.data?.rows ?? [], run), () => {
 		void queryClient.invalidateQueries({
 			queryKey: runRecordQuery(run).queryKey,
+		});
+		// A stage the run finishes becomes an attempt at its checkpoint.
+		void queryClient.invalidateQueries({
+			queryKey: [STAGE_ATTEMPTS_KEY, run],
 		});
 	});
 	const unreadable = (

@@ -20,8 +20,11 @@ async function fetchStageAttempts(
 	return response.json();
 }
 
+/** The key every stage's attempts query starts with, to refresh a run's at once. */
+export const STAGE_ATTEMPTS_KEY = "stage-attempts";
+
 export interface StageAttemptsQuery {
-	readonly queryKey: readonly ["stage-attempts", string, string];
+	readonly queryKey: readonly [typeof STAGE_ATTEMPTS_KEY, string, string];
 	readonly queryFn: () => Promise<StageAttemptsResponse>;
 }
 
@@ -31,7 +34,7 @@ export function stageAttemptsQuery(
 	stage: string,
 ): StageAttemptsQuery {
 	return {
-		queryKey: ["stage-attempts", run, stage],
+		queryKey: [STAGE_ATTEMPTS_KEY, run, stage],
 		queryFn: () => fetchStageAttempts(run, stage),
 	};
 }

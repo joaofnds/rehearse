@@ -96,6 +96,69 @@ describe("/runs/$run", () => {
 		).toBeInTheDocument();
 	});
 
+	it("reads the attempts at the selected step's checkpoint again when a live run moves on", async () => {
+		let running = "build";
+		const record = runRecord({
+			run: RUN,
+			running: "build",
+			stages: [
+				recordStage("shape", { status: "graded" }),
+				recordStage("build"),
+				recordStage("verify"),
+			],
+		});
+		const attempts = new Map([
+			["build", { checkpoint: "c-0147-1", attempts: [] }],
+			[
+				"verify",
+				{
+					checkpoint: "c-0147-1",
+					attempts: [
+						{
+							kind: "original",
+							id: "r-0147",
+							staleness: judgedStaleness(false),
+						},
+					],
+				},
+			],
+		]);
+		serveRunDetail(
+			new Map([
+				[
+					"GET /api/runs",
+					new LiveReply(() => ({
+						status: 200,
+						body: history([runRow({ run: RUN, stage: running })]),
+					})),
+				],
+				[
+					`GET /api/runs/${RUN}`,
+					new LiveReply(() => ({ status: 200, body: record })),
+				],
+				[
+					`GET /api/runs/${RUN}/stages/build/attempts`,
+					new LiveReply(() => ({
+						status: 200,
+						body: attempts.get(running),
+					})),
+				],
+			]),
+			undefined,
+			`/runs/${RUN}?step=build`,
+		);
+
+		const list = await screen.findByRole("list", {
+			name: "Attempts at c-0147-1",
+		});
+		expect(within(list).queryAllByRole("listitem")).toHaveLength(0);
+		running = "verify";
+
+		expect(
+			await within(list).findByText("r-0147", {}, { timeout: 5000 }),
+		).toBeInTheDocument();
+	});
+
 	it("opens Step rail on the step it stopped at, among the three layouts, with a replay of that step", async () => {
 		renderRunDetail();
 
