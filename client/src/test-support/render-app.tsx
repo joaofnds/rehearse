@@ -50,7 +50,10 @@ export const SHELL_BASELINE: ReadonlyMap<string, unknown> = new Map<
 	["/api/calibration", NO_GRADES],
 ]);
 
-export function renderAppAt(path: string): void {
+export type AppRouter = ReturnType<typeof createAppRouter>;
+
+/** Renders the app at `path`, returning its router so a test can read where it went. */
+export function renderAppAt(path: string): AppRouter {
 	const client = new QueryClient({
 		defaultOptions: { queries: { retry: false } },
 	});
@@ -63,6 +66,8 @@ export function renderAppAt(path: string): void {
 			<RouterProvider router={router} />
 		</QueryClientProvider>,
 	);
+
+	return router;
 }
 
 /**
@@ -72,9 +77,10 @@ export function renderAppAt(path: string): void {
 export function renderAppWithStub(
 	path: string,
 	byPath: ReadonlyMap<string, unknown>,
-): void {
+): AppRouter {
 	stubFetchByPath(new Map<string, unknown>([...SHELL_BASELINE, ...byPath]));
-	renderAppAt(path);
+
+	return renderAppAt(path);
 }
 
 /**

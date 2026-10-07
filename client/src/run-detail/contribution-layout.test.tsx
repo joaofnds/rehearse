@@ -6,8 +6,8 @@ import {
 	RUN,
 	recordedAnalysis,
 	recordedAnalysisWith,
-	renderRunDetail,
-	serveRunDetail,
+	renderContribution,
+	serveContribution,
 	stoppedAtBuild,
 } from "./run-detail-fixtures";
 
@@ -18,7 +18,7 @@ afterEach(() => {
 });
 
 function renderWithAnalysis(): void {
-	renderRunDetail(new Map([[ANALYSES, recordedAnalysis()]]));
+	renderContribution(new Map([[ANALYSES, recordedAnalysis()]]));
 }
 
 describe("the Contribution layout's map", () => {
@@ -37,7 +37,7 @@ describe("the Contribution layout's map", () => {
 	});
 
 	it("leaves the role off each chip while no analysis is recorded", async () => {
-		renderRunDetail();
+		renderContribution();
 
 		const map = await screen.findByRole("list", { name: "Step map" });
 
@@ -77,7 +77,7 @@ describe("the Root-cause analysis section", () => {
 	});
 
 	it("counts two earlier analyses in the plural", async () => {
-		renderRunDetail(
+		renderContribution(
 			new Map([[ANALYSES, { ...recordedAnalysis(), earlierCount: 2 }]]),
 		);
 
@@ -136,7 +136,7 @@ describe("the Root-cause analysis section", () => {
 	});
 
 	it("shows why the newest analysis failed, what it returned, and offers a re-run", async () => {
-		renderRunDetail(new Map([[ANALYSES, failedAnalysis()]]));
+		renderContribution(new Map([[ANALYSES, failedAnalysis()]]));
 
 		const section = await screen.findByRole("region", {
 			name: "Root-cause analysis",
@@ -156,7 +156,7 @@ describe("the Root-cause analysis section", () => {
 	});
 
 	it("says when the server could not read the run's analyses", async () => {
-		serveRunDetail(
+		serveContribution(
 			new Map([[`GET ${ANALYSES}`, { status: 500, body: { error: "disk" } }]]),
 		);
 
@@ -172,7 +172,7 @@ describe("the Root-cause analysis section", () => {
 	});
 
 	it("lists the analysis records it could not read", async () => {
-		renderRunDetail(
+		renderContribution(
 			new Map([
 				[
 					ANALYSES,
@@ -196,7 +196,7 @@ describe("the Root-cause analysis section", () => {
 	});
 
 	it("disables the paired rerun, saying why, when the checkpoint the root-cause step starts from is missing", async () => {
-		renderRunDetail(
+		renderContribution(
 			new Map<string, unknown>([
 				[ANALYSES, recordedAnalysis()],
 				[`/api/runs/${RUN}`, stoppedAtBuild("missing")],
@@ -215,7 +215,7 @@ describe("the Root-cause analysis section", () => {
 	});
 
 	it("disables the paired rerun and the block link when the analysis named no root cause", async () => {
-		renderRunDetail(
+		renderContribution(
 			new Map([[ANALYSES, recordedAnalysisWith({ rootCause: null })]]),
 		);
 

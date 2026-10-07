@@ -6,6 +6,7 @@ import type { RunHistoryResponse } from "#client/run-history/run-history-query";
 import type { Reply } from "#client/test-support/fetch-stub";
 import { FakeServer } from "#client/test-support/fetch-stub";
 import type { LiveReply } from "#client/test-support/live-reply";
+import type { AppRouter } from "#client/test-support/render-app";
 import {
 	renderAppAt,
 	renderAppWithStub,
@@ -25,6 +26,8 @@ export const RUN = "2026-09-28T10-03-07.498Z";
 export const ANALYSES = `/api/runs/${RUN}/analyses`;
 
 export const CORPUS = "a41c7e".padEnd(64, "0");
+
+const CONTRIBUTION = `/runs/${RUN}?layout=trace`;
 
 export function history(rows: readonly HistoryRow[]): RunHistoryResponse {
 	return { rows: [...rows], launches: [], unreadable: [] };
@@ -114,9 +117,10 @@ export function judgedRow(
 export function renderRunDetail(
 	extra: ReadonlyMap<string, unknown> = new Map(),
 	otherRows: readonly HistoryRow[] = [],
-): void {
-	renderAppWithStub(
-		`/runs/${RUN}`,
+	page = `/runs/${RUN}`,
+): AppRouter {
+	return renderAppWithStub(
+		page,
 		new Map<string, unknown>([
 			["/api/runs", history([stoppedRow(), ...otherRows])],
 			[`/api/runs/${RUN}`, stoppedAtBuild()],
@@ -247,6 +251,7 @@ export function noAnalysis(
 export function serveRunDetail(
 	routes: ReadonlyMap<string, Reply | LiveReply>,
 	historyBody: RunHistoryResponse = history([stoppedRow()]),
+	page = `/runs/${RUN}`,
 ): FakeServer {
 	const server = new FakeServer(
 		new Map<string, Reply | LiveReply>([
@@ -261,7 +266,23 @@ export function serveRunDetail(
 		]),
 	);
 	server.install();
-	renderAppAt(`/runs/${RUN}`);
+	renderAppAt(page);
 
 	return server;
+}
+
+/** Renders the run's page in its Contribution layout, as `renderRunDetail` does. */
+export function renderContribution(
+	extra: ReadonlyMap<string, unknown> = new Map(),
+	otherRows: readonly HistoryRow[] = [],
+): void {
+	renderRunDetail(extra, otherRows, CONTRIBUTION);
+}
+
+/** Serves the run's page in its Contribution layout, as `serveRunDetail` does. */
+export function serveContribution(
+	routes: ReadonlyMap<string, Reply | LiveReply>,
+	historyBody: RunHistoryResponse = history([stoppedRow()]),
+): FakeServer {
+	return serveRunDetail(routes, historyBody, CONTRIBUTION);
 }

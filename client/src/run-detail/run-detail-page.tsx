@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 import { corpusMeasurementReading } from "#benchmark/corpus-version-label";
 import {
@@ -30,12 +30,15 @@ import { analysisWait } from "./analysis-request";
 import { RootCauseAnalysisSection } from "./root-cause-analysis-section";
 import { momentReading } from "./moment-reading";
 import { ReplayButton } from "./replay-button";
+import type { RunDetailLayout, RunDetailSearch } from "./run-detail-search";
+import {
+	LAYOUT_LABELS,
+	LAYOUT_NOTES,
+	RUN_DETAIL_LAYOUTS,
+} from "./run-detail-search";
 import { StepMap } from "./step-map";
+import { StepRail } from "./step-rail";
 import { TaskGradeCard } from "./task-grade-card";
-
-const LAYOUTS = ["Contribution"] as const;
-
-const LAYOUT_NOTE = "Layout C · task grade first, then the root-cause pass";
 
 const NOT_RECORDED = "—";
 
@@ -161,9 +164,13 @@ function metaLine(row: PipelineRow, record: RunRecordResponse): string {
 function RunDetailHeader({
 	row,
 	record,
+	layout,
+	onLayout,
 }: {
 	readonly row: PipelineRow;
 	readonly record: RunRecordResponse;
+	readonly layout: RunDetailLayout;
+	readonly onLayout: (layout: RunDetailLayout) => void;
 }): React.JSX.Element {
 	const replayed = replayedStage(row, record);
 	const { corpusVersion } = row;
@@ -201,9 +208,10 @@ function RunDetailHeader({
 				)}
 				<Switcher
 					label="Run detail layout"
-					options={LAYOUTS}
-					selected="Contribution"
-					onSelect={() => undefined}
+					options={RUN_DETAIL_LAYOUTS}
+					selected={layout}
+					onSelect={onLayout}
+					optionLabel={(option) => LAYOUT_LABELS[option]}
 				/>
 				{replayed === undefined ? null : (
 					<ReplayButton
@@ -248,9 +256,11 @@ function restoreWords(record: RunRecordResponse): string {
 function RestoreBanner({
 	row,
 	record,
+	layout,
 }: {
 	readonly row: PipelineRow;
 	readonly record: RunRecordResponse;
+	readonly layout: RunDetailLayout;
 }): React.JSX.Element {
 	const stopped = isStopped(row.status) || row.status === OPERATOR_STOPPED;
 
@@ -262,21 +272,45 @@ function RestoreBanner({
 					{restoreWords(record)}
 				</p>
 			) : null}
-			<span className="ml-auto text-dim">{LAYOUT_NOTE}</span>
+			<span className="ml-auto text-dim">{LAYOUT_NOTES[layout]}</span>
 		</div>
 	);
 }
 
 /**
+ * The stage whose report Step rail shows: the one the URL names, or else the
+ * one the run stopped at, or else the last one that left a record, or else
+ * the first.
+ */
+function selectedStage(
+	row: PipelineRow,
+	record: RunRecordResponse,
+	step: string | undefined,
+): MonitoredStage | undefined {
+	return (
+		record.stages.find((each) => each.stage === step) ??
+		replayedStage(row, record) ??
+		record.stages[0]
+	);
+}
+
+/**
  * Run detail (SPEC.md 4): one recorded pipeline run, read in the layout the
- * operator picks. Only Contribution exists until ACT-250 adds Step rail and
- * Record ledger.
+ * operator picks, Step rail unless the URL names another. Record ledger is
+ * offered and not yet drawn.
  */
 export function RunDetailPage({
 	run,
+	search,
 }: {
 	readonly run: string;
+	readonly search: RunDetailSearch;
 }): React.JSX.Element | null {
+	const navigate = useNavigate();
+	const layout = search.layout ?? "rail";
+	const choose = (next: RunDetailSearch): void => {
+		void navigate({ to: "/runs/$run", params: { run }, search: next });
+	};
 	const history = useQuery(polledRunHistoryQuery);
 	const record = useQuery(runRecordQuery(run));
 	const analysisInFlight = (history.data?.launches ?? []).some(
@@ -330,29 +364,55 @@ export function RunDetailPage({
 		return null;
 	}
 
+	const selected = selectedStage(row, record.data, search.step);
+
 	return (
 		<div className="flex h-full flex-col">
-			<RunDetailHeader row={row} record={record.data} />
-			<RestoreBanner row={row} record={record.data} />
-			<div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
-				<div className="mx-auto flex max-w-250 flex-col gap-4.5">
-					<TaskGradeCard
-						row={row}
-						rows={rows}
-						outcome={record.data.finalOutcome}
-					/>
-					<StepMap record={record.data} roles={rolesOf(analyses.data)} />
-					<RootCauseAnalysisSection
-						run={run}
-						record={record.data}
-						reading={analyses.isError ? "unreadable" : analyses.data}
-						wait={analysisWait({
-							runEnded: hasRunEnded(row),
-							analysisInFlight,
-						})}
-					/>
+			<RunDetailHeader
+				row={row}
+				record={record.data}
+				layout={layout}
+				onLayout={(chosen) => {
+					choose({ ...search, layout: chosen });
+				}}
+			/>
+			<RestoreBanner row={row} record={record.data} layout={layout} />
+			{layout === "rail" && selected !== undefined ? (
+				<StepRail
+					run={run}
+					record={record.data}
+					selected={selected.stage}
+					onSelect={(stage) => {
+						choose({ ...search, step: stage });
+					}}
+				/>
+			) : null}
+			{layout === "ledger" ? (
+				<EmptyState heading="Record ledger is not drawn yet">
+					<p>Step rail and Contribution read this run today.</p>
+				</EmptyState>
+			) : null}
+			{layout === "trace" ? (
+				<div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+					<div className="mx-auto flex max-w-250 flex-col gap-4.5">
+						<TaskGradeCard
+							row={row}
+							rows={rows}
+							outcome={record.data.finalOutcome}
+						/>
+						<StepMap record={record.data} roles={rolesOf(analyses.data)} />
+						<RootCauseAnalysisSection
+							run={run}
+							record={record.data}
+							reading={analyses.isError ? "unreadable" : analyses.data}
+							wait={analysisWait({
+								runEnded: hasRunEnded(row),
+								analysisInFlight,
+							})}
+						/>
+					</div>
 				</div>
-			</div>
+			) : null}
 		</div>
 	);
 }

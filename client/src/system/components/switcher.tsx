@@ -3,11 +3,14 @@ export function Switcher<Option extends string>({
 	options,
 	selected,
 	onSelect,
+	optionLabel = (option) => option,
 }: {
 	readonly label: string;
 	readonly options: readonly Option[];
 	readonly selected: Option;
 	readonly onSelect: (option: Option) => void;
+	/** The words an option shows, when they differ from its value. */
+	readonly optionLabel?: (option: Option) => string;
 }): React.JSX.Element {
 	return (
 		<div
@@ -25,7 +28,7 @@ export function Switcher<Option extends string>({
 						onSelect(option);
 					}}
 				>
-					{option}
+					{optionLabel(option)}
 				</button>
 			))}
 		</div>

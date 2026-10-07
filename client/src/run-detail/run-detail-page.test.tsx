@@ -1,15 +1,18 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { screen, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { LiveReply } from "#client/test-support/live-reply";
 import { renderAppWithStub } from "#client/test-support/render-app";
 import { recordStage, runRecord } from "#client/test-support/run-record";
 import { runRow } from "#client/test-support/runs-in-flight";
 import {
+	ANALYSES,
 	CORPUS,
 	history,
 	judgedRow,
 	judgedStaleness,
+	noAnalysis,
 	RUN,
+	renderContribution,
 	renderRunDetail,
 	serveRunDetail,
 	stoppedAtBuild,
@@ -93,7 +96,7 @@ describe("/runs/$run", () => {
 		).toBeInTheDocument();
 	});
 
-	it("offers the Contribution layout, pressed, and a replay of the step it stopped at", async () => {
+	it("opens Step rail on the step it stopped at, among the three layouts, with a replay of that step", async () => {
 		renderRunDetail();
 
 		const switcher = await screen.findByRole("group", {
@@ -101,10 +104,84 @@ describe("/runs/$run", () => {
 		});
 
 		expect(
-			within(switcher).getByRole("button", { name: "Contribution" }),
-		).toHaveAttribute("aria-pressed", "true");
+			within(switcher)
+				.getAllByRole("button")
+				.map((option) => [
+					option.textContent,
+					option.getAttribute("aria-pressed"),
+				]),
+		).toEqual([
+			["Step rail", "true"],
+			["Record ledger", "false"],
+			["Contribution", "false"],
+		]);
+		expect(
+			screen.getByText("Layout A · one step at a time, attempts alongside"),
+		).toBeInTheDocument();
+		expect(
+			within(screen.getByRole("region", { name: "Step report" })).getByRole(
+				"heading",
+				{ level: 2, name: "Step 2 · build" },
+			),
+		).toBeInTheDocument();
 		expect(
 			screen.getByRole("button", { name: "Replay step 2" }),
+		).toBeInTheDocument();
+	});
+
+	it("restores the layout and step the URL names", async () => {
+		renderRunDetail(new Map(), [], `/runs/${RUN}?layout=rail&step=shape`);
+
+		expect(
+			await screen.findByRole("heading", { level: 2, name: "Step 1 · shape" }),
+		).toBeInTheDocument();
+	});
+
+	it("writes the chosen layout to the URL", async () => {
+		const router = renderRunDetail(
+			new Map([[ANALYSES, noAnalysis()]]),
+			[],
+			`/runs/${RUN}?step=shape`,
+		);
+
+		fireEvent.click(
+			await screen.findByRole("button", { name: "Contribution" }),
+		);
+
+		await waitFor(() => {
+			expect(
+				screen.getByRole("button", { name: "Contribution" }),
+			).toHaveAttribute("aria-pressed", "true");
+		});
+		expect(router.state.location.search).toEqual({
+			layout: "trace",
+			step: "shape",
+		});
+	});
+
+	it("falls back to Step rail on the stopped step for a layout or step it does not know", async () => {
+		renderRunDetail(new Map(), [], `/runs/${RUN}?layout=matrix&step=deploy`);
+
+		expect(
+			await screen.findByRole("heading", { level: 2, name: "Step 2 · build" }),
+		).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Step rail" })).toHaveAttribute(
+			"aria-pressed",
+			"true",
+		);
+	});
+
+	it("opens a run that did not stop on the last step with a record", async () => {
+		renderAppWithStub(
+			`/runs/${RUN}`,
+			new Map<string, unknown>([
+				["/api/runs", history([{ ...stoppedRow(), status: "SUCCESSFUL" }])],
+				[`/api/runs/${RUN}`, stoppedAtBuild()],
+			]),
+		);
+
+		expect(
+			await screen.findByRole("heading", { level: 2, name: "Step 2 · build" }),
 		).toBeInTheDocument();
 	});
 
@@ -119,7 +196,7 @@ describe("/runs/$run", () => {
 	});
 
 	it("grades the task on its own and never shows a letter the final judge did not return", async () => {
-		renderRunDetail();
+		renderContribution();
 
 		const card = await screen.findByRole("region", {
 			name: "Task grade · graded on its own",
@@ -154,7 +231,7 @@ describe("/runs/$run", () => {
 	] as const)(
 		"reads a %o final outcome as its verdict or a dash with the reason",
 		async (finalOutcome, value, note) => {
-			renderRunDetail(
+			renderContribution(
 				new Map([[`/api/runs/${RUN}`, { ...stoppedAtBuild(), finalOutcome }]]),
 			);
 
@@ -178,14 +255,14 @@ describe("/runs/$run", () => {
 
 		expect(
 			await screen.findByText(
-				"Layout C · task grade first, then the root-cause pass",
+				"Layout A · one step at a time, attempts alongside",
 			),
 		).toBeInTheDocument();
 		expect(screen.queryByText(/Repository restored/u)).not.toBeInTheDocument();
 	});
 
 	it("shows the last task grade recorded for the same case, with its staleness and why it is not comparable", async () => {
-		renderRunDetail(new Map(), [
+		renderContribution(new Map(), [
 			judgedRow(
 				"2026-09-20T09-00-00.000Z",
 				"r-0141",
@@ -216,7 +293,7 @@ describe("/runs/$run", () => {
 	});
 
 	it("reads a last task grade on another corpus as clean when the server judged it so", async () => {
-		renderRunDetail(new Map(), [
+		renderContribution(new Map(), [
 			judgedRow(
 				"2026-09-30T09-00-00.000Z",
 				"r-0150",
@@ -235,7 +312,7 @@ describe("/runs/$run", () => {
 	});
 
 	it("says a last task grade on this run's corpus is comparable", async () => {
-		renderRunDetail(new Map(), [
+		renderContribution(new Map(), [
 			judgedRow("2026-09-30T09-00-00.000Z", "r-0150", "FAIL", CORPUS),
 		]);
 
@@ -249,7 +326,7 @@ describe("/runs/$run", () => {
 	});
 
 	it("says the server did not judge a last task grade's staleness, with its reason", async () => {
-		renderRunDetail(new Map(), [
+		renderContribution(new Map(), [
 			judgedRow("2026-09-30T09-00-00.000Z", "r-0150", "FAIL", CORPUS, {
 				state: "unavailable",
 				reasons: ["the corpus could not be read"],
@@ -267,7 +344,7 @@ describe("/runs/$run", () => {
 	});
 
 	it("says when no other run of the case has a task grade", async () => {
-		renderRunDetail();
+		renderContribution();
 
 		const last = await screen.findByRole("region", {
 			name: "Last task grade for this case",
@@ -280,7 +357,7 @@ describe("/runs/$run", () => {
 
 	it("matches no other run as the same case when neither recorded a case", async () => {
 		renderAppWithStub(
-			`/runs/${RUN}`,
+			`/runs/${RUN}?layout=trace`,
 			new Map<string, unknown>([
 				[
 					"/api/runs",

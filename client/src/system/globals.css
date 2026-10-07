@@ -27,6 +27,10 @@
 	grid-template-columns: minmax(0, 1fr) 280px;
 }
 
+@utility grid-cols-step-rail {
+	grid-template-columns: 300px minmax(0, 1fr);
+}
+
 @utility grid-cols-analysis-rows {
 	grid-template-columns: 150px 92px 128px minmax(180px, 1fr) 92px;
 }

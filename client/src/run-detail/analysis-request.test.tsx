@@ -9,7 +9,7 @@ import {
 	noAnalysis,
 	RUN,
 	recordedAnalysis,
-	serveRunDetail,
+	serveContribution,
 	stoppedRow,
 } from "./run-detail-fixtures";
 
@@ -25,7 +25,7 @@ function rootCauseSection(): Promise<HTMLElement> {
 
 describe("requesting a root-cause analysis", () => {
 	it("says no analysis is recorded and states the most a request can spend before the click", async () => {
-		serveRunDetail(new Map());
+		serveContribution(new Map());
 
 		const section = await rootCauseSection();
 
@@ -45,7 +45,7 @@ describe("requesting a root-cause analysis", () => {
 	});
 
 	it("posts the run and the stated cap, then reads the analyses again", async () => {
-		const server = serveRunDetail(
+		const server = serveContribution(
 			new Map([["POST /api/launches", { status: 201, body: { id: "l-1" } }]]),
 		);
 
@@ -73,7 +73,7 @@ describe("requesting a root-cause analysis", () => {
 	});
 
 	it("shows the server's refusal", async () => {
-		serveRunDetail(
+		serveContribution(
 			new Map([
 				[
 					"POST /api/launches",
@@ -94,7 +94,7 @@ describe("requesting a root-cause analysis", () => {
 	});
 
 	it("refuses before the click when no spend limit allows a request", async () => {
-		serveRunDetail(
+		serveContribution(
 			new Map([
 				[
 					`GET ${ANALYSES}`,
@@ -125,7 +125,7 @@ describe("requesting a root-cause analysis", () => {
 	});
 
 	it("refuses before the click while the run itself has not ended", async () => {
-		serveRunDetail(
+		serveContribution(
 			new Map(),
 			history([
 				{
@@ -154,7 +154,7 @@ describe("requesting a root-cause analysis", () => {
 	});
 
 	it("waits while an analysis of this run is in flight", async () => {
-		serveRunDetail(new Map(), {
+		serveContribution(new Map(), {
 			...history([stoppedRow()]),
 			launches: [
 				{
@@ -201,7 +201,7 @@ describe("requesting a root-cause analysis", () => {
 				} as const,
 			],
 		};
-		serveRunDetail(
+		serveContribution(
 			new Map([
 				[
 					"GET /api/runs",
@@ -235,7 +235,7 @@ describe("requesting a root-cause analysis", () => {
 	});
 
 	it("re-runs a recorded analysis at the cap a request may spend now, not the one it ran under", async () => {
-		const server = serveRunDetail(
+		const server = serveContribution(
 			new Map([
 				[
 					`GET ${ANALYSES}`,
