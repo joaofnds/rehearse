@@ -691,7 +691,57 @@ describe(runGradedStages.name, () => {
 		).toBe(raw);
 	});
 
-	it("keeps the transcript of a stage whose grade stopped the run beside its stop record", async () => {
+	for (const [stoppedBy, judge] of [
+		[
+			"its grade",
+			(scorecard: StageScorecard): Promise<StageScorecard> =>
+				Promise.resolve(scorecard),
+		],
+		[
+			"its judge failing",
+			(): Promise<StageScorecard> =>
+				Promise.reject(new Error("the judge returned no valid grade")),
+		],
+	] as const) {
+		it(`keeps the transcript of a stage stopped by ${stoppedBy} beside its stop record`, async () => {
+			const { dependencies, scorecardFor } = fakeStageDependencies();
+			const context = await stageContext();
+			const projectsDirectory = await mkdtemp(
+				join(tmpdir(), "rehearse-projects-"),
+			);
+			testResources.track(projectsDirectory);
+			const slug = join(projectsDirectory, projectSlug(context.targetDir));
+			await mkdir(slug, { recursive: true });
+			const raw = `{"type":"user"}\n{"type":"assistant"}\n`;
+			await Bun.write(join(slug, "session.jsonl"), raw);
+			const stopping = {
+				...dependencies,
+				runStageJudge: (
+					_model: string,
+					_effort: undefined | "low" | "medium" | "high" | "xhigh" | "max",
+					_budget: JudgeBudget,
+					input: StageJudgeInput,
+				) => judge(scorecardFor(input, "STOP")),
+			};
+
+			const stopped = runGradedStages(stopping, {
+				...context,
+				projectsDirectory,
+				calibrateStageFailure: (): Promise<CalibrationResult | undefined> =>
+					Promise.resolve(undefined),
+			});
+
+			expect(stopped).rejects.toBeInstanceOf(Error);
+			await Promise.allSettled([stopped]);
+			expect(
+				await Bun.file(
+					join(context.stoppedSessionDirectory("shape"), "transcript.jsonl"),
+				).text(),
+			).toBe(raw);
+		});
+	}
+
+	it("ends a graded stop below the minimum as one when its transcript cannot be kept", async () => {
 		const { dependencies, scorecardFor } = fakeStageDependencies();
 		const context = await stageContext();
 		const projectsDirectory = await mkdtemp(
@@ -700,8 +750,9 @@ describe(runGradedStages.name, () => {
 		testResources.track(projectsDirectory);
 		const slug = join(projectsDirectory, projectSlug(context.targetDir));
 		await mkdir(slug, { recursive: true });
-		const raw = `{"type":"user"}\n{"type":"assistant"}\n`;
-		await Bun.write(join(slug, "session.jsonl"), raw);
+		await Bun.write(join(slug, "session.jsonl"), `{"type":"user"}\n`);
+		const blocked = join(projectsDirectory, "blocked-file");
+		await Bun.write(blocked, "");
 		const stopping = {
 			...dependencies,
 			runStageJudge: (
@@ -715,17 +766,12 @@ describe(runGradedStages.name, () => {
 		const stopped = runGradedStages(stopping, {
 			...context,
 			projectsDirectory,
+			stoppedSessionDirectory: (stage: string) => join(blocked, stage),
 			calibrateStageFailure: (): Promise<CalibrationResult | undefined> =>
 				Promise.resolve(undefined),
 		});
-		await stopped.catch(() => undefined);
 
 		expect(stopped).rejects.toBeInstanceOf(StageQualityError);
-		expect(
-			await Bun.file(
-				join(context.stoppedSessionDirectory("shape"), "transcript.jsonl"),
-			).text(),
-		).toBe(raw);
 	});
 
 	it("records in a stage's checkpoint what it declared and loaded, hashed as a later staleness check reads it", async () => {

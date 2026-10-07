@@ -17,6 +17,7 @@ import type {
 	CheckpointRecord,
 	HashedFile,
 	RootLineageInputs,
+	StageTranscriptSource,
 } from "./checkpoint";
 import {
 	captureStageCorpus,
@@ -906,6 +907,29 @@ function recordPaidStageJudgeFailure(
 	});
 }
 
+/**
+ * Copies the transcript of a stage that stopped the run beside its stop record.
+ * No reader requires the copy, so a failed copy is reported and the stop ends
+ * as it would have without it.
+ */
+async function keepStoppedTranscript(
+	context: Readonly<StageContext>,
+	stage: WorkflowStage,
+	transcript: StageTranscriptSource | undefined,
+): Promise<void> {
+	try {
+		await preserveStageTranscript(
+			context.targetDir,
+			context.stoppedSessionDirectory(stage),
+			transcript,
+		);
+	} catch (error) {
+		console.error(
+			`Could not keep the ${stage} stage's transcript beside its stop record: ${error instanceof Error ? error.message : String(error)}`,
+		);
+	}
+}
+
 export async function runGradedStages(
 	dependencies: StageDependencies,
 	context: StageContext,
@@ -1032,6 +1056,7 @@ export async function runGradedStages(
 			if (error instanceof Error) {
 				recordPaidStageJudgeFailure(context, readStage, error);
 			}
+			await keepStoppedTranscript(context, stage, stageTranscript);
 
 			throw error;
 		}
@@ -1055,11 +1080,6 @@ export async function runGradedStages(
 			: context.completeStage;
 		await writeStageRecord(stageRecord);
 		if (stops) {
-			await preserveStageTranscript(
-				context.targetDir,
-				context.stoppedSessionDirectory(stage),
-				stageTranscript,
-			);
 			context.updatePendingStage({
 				...readStage,
 				scorecard,
@@ -1086,6 +1106,7 @@ export async function runGradedStages(
 					judgeAgreement,
 				});
 			}
+			await keepStoppedTranscript(context, stage, stageTranscript);
 		}
 		assertStageGradePassed(scorecard, context.minimumStageGrade);
 
