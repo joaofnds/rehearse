@@ -25,6 +25,7 @@ import {
 	hashWorkflowState,
 	INITIAL_CHECKPOINT_STAGE,
 	initialCheckpointInputs,
+	preserveStageTranscript,
 	recordCheckpoint,
 	resolveSkillDirectory,
 	stageCorpusRoots,
@@ -594,6 +595,7 @@ export interface StageContext {
 	readonly loadedSettings: LoadedStageSettings;
 	readonly stageFile: (stage: WorkflowStage) => string;
 	readonly checkpointDirectory: (stage: WorkflowStage) => string;
+	readonly stoppedSessionDirectory: (stage: WorkflowStage) => string;
 	/**
 	 * Where the provider writes session transcripts. Injected rather than read
 	 * from the environment so a test can point it at a fixture, and optional so
@@ -1053,6 +1055,11 @@ export async function runGradedStages(
 			: context.completeStage;
 		await writeStageRecord(stageRecord);
 		if (stops) {
+			await preserveStageTranscript(
+				context.targetDir,
+				context.stoppedSessionDirectory(stage),
+				stageTranscript,
+			);
 			context.updatePendingStage({
 				...readStage,
 				scorecard,
@@ -1353,6 +1360,7 @@ export async function runBenchmark(
 					loadedSettings,
 					stageFile: runFiles.stageFile,
 					checkpointDirectory: runFiles.checkpointDirectory,
+					stoppedSessionDirectory: runFiles.stoppedSessionDirectory,
 					projectsDirectory: claudeProjectsDirectory(),
 					writePendingStage: abort.writePendingStage,
 					updatePendingStage: abort.updatePendingStage,

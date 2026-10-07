@@ -7,6 +7,7 @@ import { openRunEventStore } from "#benchmark/run-events";
 import {
 	checkpointsEntryForRun,
 	runEventsDatabaseFile,
+	stoppedSessionEntry,
 } from "#benchmark/run-layout";
 import {
 	canonicalRunsRoot,
@@ -309,43 +310,43 @@ async function closedStageSession(
 }
 
 /**
- * The stage's transcript as its checkpoint preserved it, named relative to the
- * runs directory's parent, or nothing when the checkpoint kept no copy.
+ * The stage's transcript as its checkpoint preserved it, or as a stopped stage
+ * kept it beside its stop record, named relative to the runs directory's
+ * parent, or nothing when neither kept a copy.
  */
 async function preservedTranscript(
 	runsRoot: string,
 	run: string,
 	stage: string,
 ): Promise<{ lineCount: number; transcriptPath: string } | undefined> {
-	const checkpointsEntry = checkpointsEntryForRun(run);
-	const checkpointDirectory = await verifiedDirectoryWhenPresent(runsRoot, [
-		checkpointsEntry,
-		stage,
-	]);
-	const transcriptFile =
-		checkpointDirectory === undefined
-			? undefined
-			: await verifiedFile(
-					runsRoot,
-					checkpointDirectory,
-					TRANSCRIPT_FILE,
-					false,
-				);
-	if (transcriptFile === undefined) {
+	const kept =
+		(await keptTranscript(runsRoot, [checkpointsEntryForRun(run), stage])) ??
+		(await keptTranscript(runsRoot, [stoppedSessionEntry(run, stage)]));
+	if (kept === undefined) {
 		return undefined;
 	}
 
-	const { lineCount } = await lastLines(runsRoot, transcriptFile, 0);
+	const { lineCount } = await lastLines(runsRoot, kept.file, 0);
 
 	return {
 		lineCount,
-		transcriptPath: [
-			basename(runsRoot),
-			checkpointsEntry,
-			stage,
-			TRANSCRIPT_FILE,
-		].join("/"),
+		transcriptPath: [basename(runsRoot), ...kept.entries, TRANSCRIPT_FILE].join(
+			"/",
+		),
 	};
+}
+
+async function keptTranscript(
+	runsRoot: string,
+	entries: readonly string[],
+): Promise<{ file: string; entries: readonly string[] } | undefined> {
+	const directory = await verifiedDirectoryWhenPresent(runsRoot, entries);
+	const file =
+		directory === undefined
+			? undefined
+			: await verifiedFile(runsRoot, directory, TRANSCRIPT_FILE, false);
+
+	return file === undefined ? undefined : { file, entries };
 }
 
 async function canonicalProjectsRoot(

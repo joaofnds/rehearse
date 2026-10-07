@@ -1331,14 +1331,15 @@ export function stageTranscriptFile(
 
 /**
  * Copies the provider's transcript, and its sub-agents' transcripts and meta
- * files, beside the checkpoint so they survive the working directory they were
- * written under. The bytes are copied rather than the path recorded: the
- * source lives in the operator's own projects directory and a later read of an
- * absolute path there has already broken once. The session ran in the target
+ * files, into `directory`, beside the checkpoint or a stopped stage's stop
+ * record, so they survive the working directory they were written under. The
+ * bytes are copied rather than the path recorded: the source lives in the
+ * operator's own projects directory and a later read of an absolute path
+ * there has already broken once. The session ran in the target
  * repository, so its files there are left in place, as the operator's own
  * sessions in that repository are.
  */
-async function preserveStageTranscript(
+export async function preserveStageTranscript(
 	targetDir: string,
 	directory: string,
 	source: StageTranscriptSource | undefined,

@@ -645,6 +645,8 @@ describe(runGradedStages.name, () => {
 			stageFile: (stage: string) => join(stageDirectory, `${stage}.json`),
 			checkpointDirectory: (stage: string) =>
 				join(stageDirectory, "checkpoints", stage),
+			stoppedSessionDirectory: (stage: string) =>
+				join(stageDirectory, "stopped", stage),
 			writePendingStage: transitions.writePendingStage,
 			updatePendingStage: transitions.updatePendingStage,
 			writeStageProgress: transitions.writeStageProgress,
@@ -685,6 +687,43 @@ describe(runGradedStages.name, () => {
 		expect(
 			await Bun.file(
 				join(context.checkpointDirectory("shape"), "transcript.jsonl"),
+			).text(),
+		).toBe(raw);
+	});
+
+	it("keeps the transcript of a stage whose grade stopped the run beside its stop record", async () => {
+		const { dependencies, scorecardFor } = fakeStageDependencies();
+		const context = await stageContext();
+		const projectsDirectory = await mkdtemp(
+			join(tmpdir(), "rehearse-projects-"),
+		);
+		testResources.track(projectsDirectory);
+		const slug = join(projectsDirectory, projectSlug(context.targetDir));
+		await mkdir(slug, { recursive: true });
+		const raw = `{"type":"user"}\n{"type":"assistant"}\n`;
+		await Bun.write(join(slug, "session.jsonl"), raw);
+		const stopping = {
+			...dependencies,
+			runStageJudge: (
+				_model: string,
+				_effort: undefined | "low" | "medium" | "high" | "xhigh" | "max",
+				_budget: JudgeBudget,
+				input: StageJudgeInput,
+			) => Promise.resolve(scorecardFor(input, "STOP")),
+		};
+
+		const stopped = runGradedStages(stopping, {
+			...context,
+			projectsDirectory,
+			calibrateStageFailure: (): Promise<CalibrationResult | undefined> =>
+				Promise.resolve(undefined),
+		});
+		await stopped.catch(() => undefined);
+
+		expect(stopped).rejects.toBeInstanceOf(StageQualityError);
+		expect(
+			await Bun.file(
+				join(context.stoppedSessionDirectory("shape"), "transcript.jsonl"),
 			).text(),
 		).toBe(raw);
 	});

@@ -3,6 +3,7 @@ import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 
 const CHECKPOINTS_SUFFIX = ".checkpoints";
+const STOPPED_SESSION_SUFFIX = ".session";
 const MANIFEST_FILE = "manifest.json";
 const PAUSE_REQUEST_FILE = "pause-request.json";
 const PAUSED_FILE = "paused.json";
@@ -27,6 +28,13 @@ export interface BenchmarkRunPaths {
 	readonly replaysDirectory: string;
 	readonly stageFile: (stage: string) => string;
 	readonly checkpointDirectory: (stage: string) => string;
+	/**
+	 * Where a stage whose grade stopped the run keeps its session, since it
+	 * saves no checkpoint to keep it in. Beside the stop record and outside the
+	 * checkpoints directory, where a stage directory without a checkpoint
+	 * would read as a broken checkpoint.
+	 */
+	readonly stoppedSessionDirectory: (stage: string) => string;
 	readonly replayDirectory: (lineage: string) => string;
 	readonly replayRecordFile: (lineage: string, timestamp: string) => string;
 }
@@ -100,6 +108,11 @@ export function checkpointsEntryForRun(name: string): string {
 	return `${name}${CHECKPOINTS_SUFFIX}`;
 }
 
+/** The runs directory entry holding a stopped stage's session. */
+export function stoppedSessionEntry(name: string, stage: string): string {
+	return `${name}.${stage}${STOPPED_SESSION_SUFFIX}`;
+}
+
 export function runNameFromCheckpointsEntry(entry: string): string | undefined {
 	if (!entry.endsWith(CHECKPOINTS_SUFFIX)) {
 		return undefined;
@@ -148,6 +161,8 @@ export function benchmarkRunPaths(
 		replaysDirectory,
 		stageFile: (stage) => join(runsDirectory, `${name}.${stage}.json`),
 		checkpointDirectory: (stage) => join(checkpointsDirectory, stage),
+		stoppedSessionDirectory: (stage) =>
+			join(runsDirectory, stoppedSessionEntry(name, stage)),
 		replayDirectory: (lineage) => join(replaysDirectory, lineage),
 		replayRecordFile: (lineage, timestamp) =>
 			replayRecordFile(runsDirectory, lineage, timestamp),

@@ -8,6 +8,7 @@ import { openRunEventStore } from "#benchmark/run-events";
 import {
 	benchmarkRunPaths,
 	runEventsDatabaseFile,
+	stoppedSessionEntry,
 } from "#benchmark/run-layout";
 import { projectSlug } from "#benchmark/session-capture";
 import { TEST_TARGET } from "#benchmark/test-support";
@@ -444,6 +445,43 @@ describe(`${readStageSession.name} once the stage has closed`, () => {
 		});
 
 		expect(session).toEqual({ state: "closed", spans: [] });
+	});
+
+	it("answers the transcript a stopped stage kept beside its stop record", async () => {
+		const stage = await startedStage();
+		await Bun.write(
+			join(
+				stage.runsDirectory,
+				stoppedSessionEntry(RUN, "build"),
+				"transcript.jsonl",
+			),
+			transcriptOf([{ type: "user" }, { type: "assistant" }]),
+		);
+		await Bun.write(
+			benchmarkRunPaths(stage.runsDirectory, RUN).stageFile("build"),
+			JSON.stringify({
+				status: "STAGE_JUDGE_FAILED",
+				stage: "build",
+				error: "Stage build graded D below the minimum C",
+				hardBlockers: [],
+				requirements: [],
+				dimensions: [],
+				grade: { grade: "D", verdict: "Below the bar" },
+			}),
+		);
+
+		const session = await readStageSession({
+			...stage,
+			run: RUN,
+			stage: "build",
+		});
+
+		expect(session).toEqual({
+			state: "closed",
+			lineCount: 2,
+			transcriptPath: `.benchmark-runs/${RUN}.build.session/transcript.jsonl`,
+			spans: [],
+		});
 	});
 
 	it("fails on a record whose grade does not hold the judged items", async () => {
