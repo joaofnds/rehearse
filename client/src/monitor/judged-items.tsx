@@ -26,6 +26,8 @@ export interface DimensionRow {
 	readonly id: string;
 	readonly grade: string | undefined;
 	readonly evidence: RowEvidence;
+	/** A line of the judge's reasoning beside the grade, where the reader shows one. */
+	readonly note?: string | undefined;
 }
 
 const BLOCKER_TONES = {
@@ -270,6 +272,11 @@ export function DimensionRows({
 					>
 						{row.id}
 					</span>
+					{row.note === undefined ? null : (
+						<span className="max-w-note text-11-5 text-muted-foreground">
+							{row.note}
+						</span>
+					)}
 					<span
 						aria-hidden="true"
 						className="font-mono text-10-5 tracking-bar text-faint"

@@ -12,6 +12,7 @@ import {
 import type { PipelineRow } from "#client/shell/run-in-flight";
 import { Grade } from "#client/system/components/grade";
 import { LiveGlyph, STATUS_VOCABULARY } from "#client/system/components/status";
+import { StepReport } from "./step-report";
 
 /** How a stage reads in the rail: as the task graph reads it, unless the run ended before it. */
 function railStatus(stage: MonitoredStage, row: PipelineRow): NodeStatus {
@@ -105,11 +106,9 @@ export function StepRail({
 }: {
 	readonly row: PipelineRow;
 	readonly record: RunRecordResponse;
-	readonly selected: string;
+	readonly selected: MonitoredStage;
 	readonly onSelect: (stage: string) => void;
 }): React.JSX.Element {
-	const number = record.stages.findIndex((each) => each.stage === selected) + 1;
-
 	return (
 		<div className="grid min-h-0 flex-1 grid-cols-step-rail">
 			<section
@@ -126,20 +125,18 @@ export function StepRail({
 							stage={stage}
 							number={index + 1}
 							row={row}
-							selected={stage.stage === selected}
+							selected={stage.stage === selected.stage}
 							onSelect={onSelect}
 						/>
 					))}
 				</ul>
 			</section>
-			<section
-				aria-label="Step report"
-				className="overflow-y-auto px-5 pt-4 pb-8"
-			>
-				<h2 className="text-15">
-					Step {String(number)} · {selected}
-				</h2>
-			</section>
+			<StepReport
+				run={row.run}
+				record={record}
+				stage={selected}
+				number={record.stages.indexOf(selected) + 1}
+			/>
 		</div>
 	);
 }

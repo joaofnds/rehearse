@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import type { StageJudge } from "#server/stage-judge";
+import type { StageSession } from "#server/stage-session";
 import type { RunRecord, RunRecordStage } from "#server/run-record";
 import { RUN, renderRunDetail, stoppedAtBuild } from "./run-detail-fixtures";
 
@@ -25,6 +27,144 @@ function stoppedWithFigures(): RunRecord {
 		...record,
 		stages: first === undefined ? [] : [{ ...first, ...figures }, ...later],
 	};
+}
+
+const BUILD_JUDGE = `/api/runs/${RUN}/stages/build/judge`;
+
+const BUILD_SESSION = `/api/runs/${RUN}/stages/build/session`;
+
+const SKILL_HASH = "a41c7e".padEnd(64, "0");
+
+/** The stopped run with build's figures and reads recorded. */
+function stoppedWithBuildFigures(
+	figures: Partial<RunRecordStage> = {},
+): RunRecord {
+	const record = stoppedAtBuild();
+	const recorded: Partial<RunRecordStage> = {
+		wallTime: { state: "available", ms: 242_000 },
+		sessionCost: { state: "available", usd: 1 },
+		judgeCost: { state: "available", usd: 0.12 },
+		readManifest: {
+			state: "available",
+			entries: [
+				{
+					path: "skills/implement/SKILL.md",
+					half: "corpus",
+					role: "stage skill",
+					evidence: "declared and observed",
+					sha256: SKILL_HASH,
+					state: "unchanged",
+				},
+				{
+					path: "skills/review/SKILL.md",
+					half: "corpus",
+					role: "read for context",
+					evidence: "observed",
+					sha256: "9f30d1".padEnd(64, "0"),
+					state: "changed",
+				},
+				{
+					path: "CLAUDE.md",
+					half: "project",
+					role: "project instructions",
+					evidence: "observed",
+					sha256: "77aa01".padEnd(64, "0"),
+				},
+			],
+		},
+		...figures,
+	};
+	const [first, second, ...later] = record.stages;
+
+	return {
+		...record,
+		stages:
+			first === undefined || second === undefined
+				? []
+				: [first, { ...second, ...recorded }, ...later],
+	};
+}
+
+function buildJudged(): StageJudge {
+	return {
+		state: "judged",
+		hardBlockers: [
+			{
+				id: "scope-declared-before-edit",
+				status: "FAIL",
+				evidence: [
+					{
+						source: "transcript",
+						path: "transcript",
+						claim: "The agent chose a scope without asking",
+						quote: "I'll take the small scope",
+						place: "exchange 3 message, characters 0-25",
+					},
+				],
+			},
+			{ id: "no-secrets-in-diff", status: "PASS", evidence: [] },
+			{
+				id: "tests-pass-before-handoff",
+				status: "FAIL",
+				evidence: [
+					{
+						source: "diff",
+						path: "src/auth/tokens.ts",
+						claim: "The handoff left a failing test",
+					},
+				],
+			},
+		],
+		dimensions: [
+			{
+				id: "scope-discipline",
+				grade: "C",
+				evidence: [
+					{
+						source: "diff",
+						path: "src/a.ts",
+						claim: "Edits files outside the declared scope",
+						place: "src/a.ts:3-4",
+					},
+					{
+						source: "transcript",
+						path: "transcript",
+						claim: "Never restates the scope",
+					},
+				],
+			},
+			{ id: "test-quality", grade: "B", evidence: [] },
+		],
+	};
+}
+
+function closedSession(): StageSession {
+	return {
+		state: "closed",
+		spans: [],
+		lineCount: 1284,
+		transcriptPath: `.benchmark-runs/${RUN}.build.session/transcript.jsonl`,
+	};
+}
+
+function renderBuildReport(
+	record: RunRecord = stoppedWithBuildFigures(),
+	session: StageSession = closedSession(),
+): void {
+	renderRunDetail(
+		new Map<string, unknown>([
+			[`/api/runs/${RUN}`, record],
+			[BUILD_JUDGE, buildJudged()],
+			[BUILD_SESSION, session],
+		]),
+	);
+}
+
+async function stepReport(): Promise<HTMLElement> {
+	const report = await screen.findByRole("region", { name: "Step report" });
+	await within(report).findByRole("list", { name: "Hard blockers" });
+
+	return report;
 }
 
 async function stepButtons(): Promise<readonly HTMLElement[]> {
@@ -69,6 +209,149 @@ describe("Step rail", () => {
 		).toBeInTheDocument();
 		await waitFor(() => {
 			expect(router.state.location.search).toEqual({ step: "shape" });
+		});
+	});
+
+	describe("step report", () => {
+		it("titles the report with the stage's skill, wall time, cost and transcript lines", async () => {
+			renderBuildReport();
+
+			const report = await stepReport();
+
+			expect(
+				await within(report).findByText(
+					"skills/implement/SKILL.md · 4m02s · $1.12 · 1,284 transcript lines",
+				),
+			).toBeInTheDocument();
+		});
+
+		it("states the grade against the run's minimum and counts the blockers that fired", async () => {
+			renderBuildReport();
+
+			const report = await stepReport();
+
+			expect(
+				within(report).getByRole("group", { name: "Grade" }),
+			).toHaveTextContent("GradeDmin B");
+			expect(
+				within(report).getByRole("group", { name: "Verdict" }),
+			).toHaveTextContent("Verdict◼stopped2 blockers fired");
+		});
+
+		it("lists each hard blocker as fired or clear", async () => {
+			renderBuildReport();
+
+			const report = await stepReport();
+			const rows = within(
+				within(report).getByRole("list", { name: "Hard blockers" }),
+			).getAllByRole("listitem");
+
+			expect(rows.map((row) => row.textContent)).toEqual([
+				"✕scope-declared-before-editfired1 cited",
+				"✓no-secrets-in-diffclearno evidence",
+				"✕tests-pass-before-handofffired1 cited",
+			]);
+		});
+
+		it("lists each quality dimension with its grade and the judge's first claim as its note", async () => {
+			renderBuildReport();
+
+			const report = await stepReport();
+			const rows = within(
+				within(report).getByRole("list", { name: "Quality dimensions" }),
+			).getAllByRole("listitem");
+
+			expect(rows.map((row) => row.textContent)).toEqual([
+				"scope-disciplineEdits files outside the declared scope▮▮▮▯▯C2 cited",
+				"test-quality▮▮▮▮▯Bno evidence",
+			]);
+		});
+
+		it("reads each instruction file the stage read with its hash and whether it changed since the run", async () => {
+			renderBuildReport();
+
+			const report = await stepReport();
+			const rows = within(
+				within(report).getByRole("table", {
+					name: "Instructions this step read",
+				}),
+			).getAllByRole("row");
+
+			expect(rows.map((row) => row.textContent)).toEqual([
+				"PathHashSince this run",
+				"skills/implement/SKILL.mda41c7e✓unchanged",
+				"skills/review/SKILL.md9f30d1⚠changed since this run",
+				"CLAUDE.md77aa01not compared · a project file is not part of the corpus",
+			]);
+		});
+
+		it("reads a figure the records lack as not recorded with its reason", async () => {
+			renderBuildReport(
+				stoppedWithBuildFigures({
+					wallTime: {
+						state: "unavailable",
+						reasons: ["the stage record has no elapsed time"],
+					},
+				}),
+				{ state: "closed", spans: [] },
+			);
+
+			const report = await stepReport();
+
+			expect(
+				await within(report).findByText(
+					"skills/implement/SKILL.md · wall time not recorded: the stage record has no elapsed time · $1.12 · transcript not recorded: Rehearse kept no copy of this step's session",
+				),
+			).toBeInTheDocument();
+		});
+
+		it("links the stage's transcript on disk", async () => {
+			renderBuildReport();
+
+			const report = await stepReport();
+
+			expect(
+				await within(report).findByRole("link", {
+					name: `.benchmark-runs/${RUN}.build.session/transcript.jsonl`,
+				}),
+			).toHaveAttribute("href", `/runs/${RUN}/stages/build`);
+		});
+
+		it("opens several rows' evidence at once, each item with its source, place or path, and quote", async () => {
+			renderBuildReport();
+
+			const report = await stepReport();
+			for (const toggle of within(report).getAllByRole("button", {
+				name: "1 cited",
+			})) {
+				fireEvent.click(toggle);
+			}
+
+			const open = within(report).getAllByRole("button", {
+				name: "hide evidence",
+			});
+			expect(open).toHaveLength(2);
+			expect(open[0]).toHaveAttribute("aria-expanded", "true");
+			expect(report).toHaveTextContent(
+				"transcriptexchange 3 message, characters 0-25I'll take the small scope",
+			);
+			expect(report).toHaveTextContent("diffsrc/auth/tokens.ts");
+			expect(
+				within(report).getAllByRole("button", { name: "no evidence" })[0],
+			).toHaveAttribute("aria-disabled", "true");
+		});
+
+		it("styles nothing on a stopped run as an error", async () => {
+			renderBuildReport();
+
+			await stepReport();
+			const rail = screen.getByRole("region", { name: "Steps" }).parentElement;
+
+			expect(
+				rail?.querySelectorAll(
+					'[class*="destructive"], [class*="danger"], [role="alert"]',
+				),
+			).toHaveLength(0);
 		});
 	});
 });

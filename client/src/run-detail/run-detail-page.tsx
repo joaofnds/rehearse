@@ -381,7 +381,7 @@ export function RunDetailPage({
 				<StepRail
 					row={row}
 					record={record.data}
-					selected={selected.stage}
+					selected={selected}
 					onSelect={(stage) => {
 						choose({ ...search, step: stage });
 					}}
