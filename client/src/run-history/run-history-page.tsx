@@ -778,7 +778,10 @@ type StageGrade = Extract<
 type ReplayRow = Extract<HistoryRow, { readonly kind: "replay" }>;
 type PipelineStages = ReplayRow["pipelineStages"];
 
-/** A reading a record cannot supply, its reasons in place of the figure. */
+/**
+ * The dim line beneath a figure: the reasons a record cannot supply it, or
+ * what a figure it does supply covers and lacks.
+ */
 function reasonsLine(reasons: readonly string[]): React.JSX.Element {
 	return <span className="text-xs text-dim">{reasons.join("; ")}</span>;
 }
