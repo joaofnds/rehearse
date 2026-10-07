@@ -49,6 +49,28 @@ function stoppedWithFigures(): RunRecord {
 	};
 }
 
+/** The stopped run with build stopped by its judge's verdict at a letter that reaches the minimum. */
+function stoppedByVerdict(): RunRecord {
+	const record = stoppedWithFigures();
+	const [first, second, ...later] = record.stages;
+	const verdict: Partial<RunRecordStage> = {
+		grade: {
+			state: "available",
+			letter: "B",
+			verdict: "STOP",
+			reachesMinimum: true,
+		},
+	};
+
+	return {
+		...record,
+		stages:
+			first === undefined || second === undefined
+				? []
+				: [first, { ...second, ...verdict }, ...later],
+	};
+}
+
 const FIRST_STEP_SESSION = `/api/runs/${RUN}/stages/shape/session`;
 
 function closedSession(lineCount: number): StageSession {
@@ -165,6 +187,17 @@ describe("Record ledger", () => {
 		expect(stoppedStep).toHaveTextContent("◼below minimum B · run stopped");
 		expect(stoppedStep?.outerHTML).not.toMatch(/destructive|danger|red-/u);
 		expect(firstStep).not.toHaveClass("border-deeper");
+	});
+
+	it("heads a stage its judge stopped above the minimum as stopped alone", async () => {
+		renderLedger(new Map(), stoppedByVerdict());
+
+		const [, stoppedStep] = await ledgerCards();
+
+		expect(
+			within(stoppedStep ?? document.body).getByRole("heading", { level: 2 })
+				.parentElement,
+		).toHaveTextContent(/^02build◼stopped— · /u);
 	});
 
 	it("lays the stage's hard blockers on the left and its dimensions on the right", async () => {
@@ -364,6 +397,90 @@ describe("Record ledger", () => {
 		});
 	});
 
+	describe("a stage awaiting judgment", () => {
+		/** The run, ended or in flight, with shape's record awaiting its judge. */
+		function renderAwaitingFirstStep(
+			status: string,
+			finalOutcome: RunRecord["finalOutcome"],
+		): void {
+			const record = stoppedAtBuild();
+			renderAppWithStub(
+				LEDGER,
+				new Map<string, unknown>([
+					[
+						"/api/runs",
+						history([runRow({ run: RUN, status, stage: "shape" })]),
+					],
+					[
+						`/api/runs/${RUN}`,
+						{
+							...record,
+							status: { state: "available", status },
+							finalOutcome,
+							stages: record.stages.map((stage) =>
+								recordStage(
+									stage.stage,
+									stage.stage === "shape"
+										? { status: "awaiting-judgment" }
+										: {},
+								),
+							),
+						},
+					],
+					[`/api/runs/${RUN}/stages/shape/judge`, { state: "waiting" }],
+					[ANALYSES, noAnalysis()],
+				]),
+			);
+		}
+
+		const ENDED: RunRecord["finalOutcome"] = {
+			status: "NOT_REACHED",
+			stage: "shape",
+			reason: INTERRUPTED_REASON,
+		};
+
+		it.each([
+			[
+				"once the run ended",
+				"INTERRUPTED",
+				ENDED,
+				"This step's judge never returned: the run ended while this stage awaited judgment.",
+				"no evidence",
+			],
+			[
+				"while the run is in flight",
+				"RUNNING",
+				{ status: "PENDING", stage: "shape" },
+				"This step's judge has not returned its blockers and dimensions yet.",
+				"evidence pending",
+			],
+		] as const)(
+			"says %s whether its judge can still return",
+			async (_when, status, finalOutcome, body, toggle) => {
+				renderAwaitingFirstStep(status, finalOutcome);
+
+				const [firstStep] = await ledgerCards();
+				const card = firstStep ?? document.body;
+
+				expect(await within(card).findByText(body)).toBeInTheDocument();
+				expect(
+					within(card).getByRole("button", { name: toggle }),
+				).toBeInTheDocument();
+			},
+		);
+
+		it("heads the stage of an ended run as its judge never returning", async () => {
+			renderAwaitingFirstStep("INTERRUPTED", ENDED);
+
+			const [firstStep] = await ledgerCards();
+
+			expect(
+				within(firstStep ?? document.body).getByRole("heading", { level: 2 })
+					.parentElement,
+			).toHaveTextContent("⊘judge never returned");
+		});
+	});
+
 	describe("stages the run never reached", () => {
 		/** The run ended or in flight at build, with shape's record alone. */
 		function renderReachedFirstStep(
@@ -401,53 +518,6 @@ describe("Record ledger", () => {
 			);
 		}
 
-		it("says the judge of a stage left awaiting judgment never returned once the run ended", async () => {
-			const record = stoppedAtBuild();
-			renderAppWithStub(
-				LEDGER,
-				new Map<string, unknown>([
-					["/api/runs", history([runRow({ run: RUN, status: "INTERRUPTED" })])],
-					[
-						`/api/runs/${RUN}`,
-						{
-							...record,
-							status: { state: "available", status: "INTERRUPTED" },
-							finalOutcome: {
-								status: "NOT_REACHED",
-								stage: "shape",
-								reason: INTERRUPTED_REASON,
-							},
-							stages: record.stages.map((stage) =>
-								recordStage(
-									stage.stage,
-									stage.stage === "shape"
-										? { status: "awaiting-judgment" }
-										: {},
-								),
-							),
-						},
-					],
-					[`/api/runs/${RUN}/stages/shape/judge`, { state: "waiting" }],
-					[ANALYSES, noAnalysis()],
-				]),
-			);
-
-			const [firstStep] = await ledgerCards();
-			const card = firstStep ?? document.body;
-
-			expect(
-				await within(card).findByText(
-					"This step's judge never returned: the run ended while this stage awaited judgment.",
-				),
-			).toBeInTheDocument();
-			expect(
-				within(card).getByRole("button", { name: "no evidence" }),
-			).toBeInTheDocument();
-			expect(
-				within(card).getByRole("heading", { level: 2 }).parentElement,
-			).toHaveTextContent("⊘judge never returned");
-		});
-
 		function unreached(): Promise<HTMLElement> {
 			return screen.findByRole("list", { name: "Stages without a record" });
 		}
@@ -464,23 +534,7 @@ describe("Record ledger", () => {
 		});
 
 		it("names a stop its judge made without the minimum", async () => {
-			const record = stoppedWithFigures();
-			const [first, second, ...later] = record.stages;
-			const stoppedByVerdict: Partial<RunRecordStage> = {
-				grade: {
-					state: "available",
-					letter: "B",
-					verdict: "STOP",
-					reachesMinimum: true,
-				},
-			};
-			renderLedger(new Map(), {
-				...record,
-				stages:
-					first === undefined || second === undefined
-						? []
-						: [first, { ...second, ...stoppedByVerdict }, ...later],
-			});
+			renderLedger(new Map(), stoppedByVerdict());
 
 			expect(await unreached()).toHaveTextContent(
 				"Step 3 · verify never ran. The run stopped after step 2 and the target repository was restored. This is a recorded outcome for corpus@a41c7e, not a failed execution.",
