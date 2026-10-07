@@ -34,6 +34,8 @@ import {
 import type { OutcomeReading } from "#client/run-detail/task-grade-card";
 import { SESSION_GRADE_REASON } from "#server/session-grade-reason";
 import { RunControls } from "./run-controls";
+import { replayChoices } from "./replay-choices";
+import type { ReplayChoices } from "./replay-choices";
 
 type HistoryRow = RunHistoryResponse["rows"][number];
 type RunHistoryRow = Extract<HistoryRow, { readonly kind: "run" }>;
@@ -1360,6 +1362,41 @@ function listedRecords(
 	};
 }
 
+/**
+ * Replays a step of a recorded run, chosen in the dialog. Until the history
+ * reads there is nothing to choose from, and a history with no replayable
+ * step says so beside the action, since a disabled button explains nothing.
+ */
+function ReplayAStep({
+	choices,
+}: {
+	readonly choices: ReplayChoices | undefined;
+}): React.JSX.Element {
+	if (choices?.state !== "available") {
+		return (
+			<>
+				{choices === undefined ? null : (
+					<span className="text-11-5 text-dim">{choices.reason}</span>
+				)}
+				<Button variant="outline" disabled>
+					Replay a step
+				</Button>
+			</>
+		);
+	}
+
+	return (
+		<LaunchDialog
+			target={{
+				kind: "chosen-replay",
+				runs: choices.runs,
+				opensOn: choices.opensOn,
+			}}
+			triggerLabel="Replay a step"
+		/>
+	);
+}
+
 export function RunHistoryPage(): React.JSX.Element {
 	const [filter, setFilter] = useState<Filter>("All");
 	const [search, setSearch] = useState("");
@@ -1401,7 +1438,12 @@ export function RunHistoryPage(): React.JSX.Element {
 						: undefined
 				}
 				aside={
-					<LaunchDialog target={{ kind: "case" }} triggerLabel="New run" />
+					<span className="flex flex-wrap items-center justify-end gap-2">
+						<ReplayAStep
+							choices={query.isSuccess ? replayChoices(recorded) : undefined}
+						/>
+						<LaunchDialog target={{ kind: "case" }} triggerLabel="New run" />
+					</span>
 				}
 			/>
 

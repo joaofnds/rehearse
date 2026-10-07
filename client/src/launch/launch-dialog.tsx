@@ -9,6 +9,10 @@ import { launchClient } from "#client/api-client";
 import { plural } from "#client/plural";
 import { refusalReason } from "#client/refusal-reason";
 import { corpusQuery } from "#client/corpus/corpus-query";
+import type {
+	ReplayableRun,
+	ReplayChoice,
+} from "#client/run-history/replay-choices";
 import { runHistoryQuery } from "#client/run-history/run-history-query";
 import { spendReading } from "#client/run-history/run-progress";
 import { FilterPill } from "#client/system/components/filter-pill";
@@ -50,6 +54,13 @@ export type LaunchTarget =
 			readonly attempts?: LaunchAttempts;
 	  }
 	| {
+			/** A stage replay whose run and step the operator chooses in the dialog. */
+			readonly kind: "chosen-replay";
+			/** Newest first. */
+			readonly runs: readonly ReplayableRun[];
+			readonly opensOn: ReplayChoice;
+	  }
+	| {
 			readonly kind: "comparison";
 			readonly armA: string;
 			readonly armB: string;
@@ -66,6 +77,9 @@ export type LaunchTarget =
 			/** What they cost at each arm's mean recorded cost per attempt. */
 			readonly usd: number;
 	  };
+
+/** A launch target with its run and step settled. */
+type SettledTarget = Exclude<LaunchTarget, { readonly kind: "chosen-replay" }>;
 
 type CasesResponse = InferResponseType<typeof launchClient.api.cases.$get>;
 
@@ -297,7 +311,7 @@ function CaseListProblems({
 }
 
 function launchRequest(
-	target: LaunchTarget,
+	target: SettledTarget,
 	caseId: string | undefined,
 	attempts: LaunchAttempts,
 ): LaunchRequest | undefined {
@@ -332,7 +346,7 @@ function launchRequest(
 	}
 }
 
-function dialogTitle(target: LaunchTarget): string {
+function dialogTitle(target: SettledTarget): string {
 	switch (target.kind) {
 		case "case": {
 			return "Start a run";
@@ -352,7 +366,7 @@ function dialogTitle(target: LaunchTarget): string {
 	}
 }
 
-function dialogDescription(target: LaunchTarget): string {
+function dialogDescription(target: SettledTarget): string {
 	switch (target.kind) {
 		case "case": {
 			return "Runs the case against the current corpus under its declared model, and records each attempt separately.";
@@ -379,7 +393,7 @@ function TargetRows({
 	caseId,
 	onSelectCase,
 }: {
-	readonly target: LaunchTarget;
+	readonly target: SettledTarget;
 	readonly cases: readonly CaseListing[];
 	readonly caseId: string | undefined;
 	readonly onSelectCase: (caseId: string) => void;
@@ -473,7 +487,7 @@ interface StartedGroups {
 }
 
 function startedGroupsOf(
-	target: LaunchTarget,
+	target: SettledTarget,
 	attempts: LaunchAttempts,
 ): StartedGroups {
 	switch (target.kind) {
@@ -499,7 +513,7 @@ interface OpeningChoice {
 	readonly attempts: LaunchAttempts;
 }
 
-function openingChoice(target: LaunchTarget): OpeningChoice {
+function openingChoice(target: SettledTarget): OpeningChoice {
 	switch (target.kind) {
 		case "case": {
 			return { caseId: target.caseId, attempts: target.attempts ?? 1 };
@@ -517,6 +531,116 @@ function openingChoice(target: LaunchTarget): OpeningChoice {
 	}
 }
 
+function settledTarget(
+	target: LaunchTarget,
+	replayChoice: ReplayChoice | undefined,
+): SettledTarget {
+	if (target.kind !== "chosen-replay") {
+		return target;
+	}
+	const { run, stage } = replayChoice ?? target.opensOn;
+
+	return { kind: "replay", run, stage };
+}
+
+function ReplayChoiceRows({
+	runs,
+	chosen,
+	onChoose,
+}: {
+	readonly runs: readonly ReplayableRun[];
+	readonly chosen: ReplayChoice;
+	readonly onChoose: (choice: ReplayChoice) => void;
+}): React.JSX.Element {
+	const stages = runs.find(({ run }) => run === chosen.run)?.stages ?? [];
+
+	return (
+		<>
+			<dt className="text-muted-foreground">
+				<label htmlFor="launch-replay-run">Run</label>
+			</dt>
+			<dd className="col-span-3 min-w-0">
+				<select
+					id="launch-replay-run"
+					value={chosen.run}
+					onChange={(event) => {
+						const picked = runs.find(({ run }) => run === event.target.value);
+						if (picked !== undefined) {
+							onChoose({ run: picked.run, stage: picked.opensOn });
+						}
+					}}
+					className="h-9 w-full min-w-0 rounded-md border border-strong bg-background px-2 font-mono text-sm"
+				>
+					{runs.map(({ run, caseId }) => (
+						<option key={run} value={run}>
+							{caseId === undefined ? run : `${run} · ${caseId}`}
+						</option>
+					))}
+				</select>
+			</dd>
+			<dt className="text-muted-foreground">
+				<label htmlFor="launch-replay-stage">Step</label>
+			</dt>
+			<dd className="col-span-3 min-w-0">
+				<select
+					id="launch-replay-stage"
+					value={chosen.stage}
+					onChange={(event) => {
+						onChoose({ run: chosen.run, stage: event.target.value });
+					}}
+					className="h-9 w-full min-w-0 rounded-md border border-strong bg-background px-2 font-mono text-sm"
+				>
+					{stages.map((stage) => (
+						<option key={stage} value={stage}>
+							{stage}
+						</option>
+					))}
+				</select>
+			</dd>
+			<dt className="text-muted-foreground">Corpus</dt>
+			<dd className="col-span-3">
+				<CorpusLine />
+			</dd>
+		</>
+	);
+}
+
+/** The rows naming what the launch runs, where a chosen replay is picked. */
+function FormTargetRows({
+	target,
+	settled,
+	onChooseReplay,
+	cases,
+	caseId,
+	onSelectCase,
+}: {
+	readonly target: LaunchTarget;
+	readonly settled: SettledTarget;
+	readonly onChooseReplay: (choice: ReplayChoice) => void;
+	readonly cases: readonly CaseListing[];
+	readonly caseId: string | undefined;
+	readonly onSelectCase: (caseId: string) => void;
+}): React.JSX.Element {
+	if (target.kind === "chosen-replay" && settled.kind === "replay") {
+		return (
+			<ReplayChoiceRows
+				runs={target.runs}
+				chosen={settled}
+				onChoose={onChooseReplay}
+			/>
+		);
+	}
+
+	return (
+		<TargetRows
+			target={settled}
+			cases={cases}
+			caseId={caseId}
+			onSelectCase={onSelectCase}
+		/>
+	);
+}
+
 function LaunchForm({
 	target,
 	onLaunched,
@@ -525,7 +649,11 @@ function LaunchForm({
 	readonly onLaunched: () => void;
 }): React.JSX.Element {
 	const queryClient = useQueryClient();
-	const opensOn = openingChoice(target);
+	const [replayChoice, setReplayChoice] = useState(
+		target.kind === "chosen-replay" ? target.opensOn : undefined,
+	);
+	const settled = settledTarget(target, replayChoice);
+	const opensOn = openingChoice(settled);
 	const [attempts, setAttempts] = useState(opensOn.attempts);
 	const [pickedCase, setPickedCase] = useState(opensOn.caseId);
 	const [ceilingDraft, setCeilingDraft] = useState<string>();
@@ -547,8 +675,8 @@ function LaunchForm({
 
 	const caseId =
 		pickedCase ?? cases.data?.cases.find((listed) => listed.model !== null)?.id;
-	const request = launchRequest(target, caseId, attempts);
-	const started = startedGroupsOf(target, attempts);
+	const request = launchRequest(settled, caseId, attempts);
+	const started = startedGroupsOf(settled, attempts);
 	const ceilingUsd = settings.data?.spendCeilingUsd ?? undefined;
 	const startable =
 		ceilingUsd !== undefined &&
@@ -559,7 +687,7 @@ function LaunchForm({
 	return (
 		<>
 			<header className="flex items-center gap-3 border-b border-strong px-4 py-3">
-				<DialogTitle>{dialogTitle(target)}</DialogTitle>
+				<DialogTitle>{dialogTitle(settled)}</DialogTitle>
 				<span className="ml-auto">
 					<DialogClose asChild>
 						<Button variant="outline" size="sm" aria-label="Close">
@@ -571,8 +699,10 @@ function LaunchForm({
 
 			<div className="flex flex-col gap-3 px-4 py-3.5">
 				<dl className="grid grid-cols-4 items-center gap-x-3 gap-y-2 text-sm">
-					<TargetRows
+					<FormTargetRows
 						target={target}
+						settled={settled}
+						onChooseReplay={setReplayChoice}
 						cases={cases.data?.cases ?? []}
 						caseId={caseId}
 						onSelectCase={setPickedCase}
@@ -587,8 +717,8 @@ function LaunchForm({
 							onDraft={setCeilingDraft}
 						/>
 					</dd>
-					{target.kind === "comparison" ||
-					target.kind === "extension" ? null : (
+					{settled.kind === "comparison" ||
+					settled.kind === "extension" ? null : (
 						<>
 							<dt className="text-muted-foreground">Attempts</dt>
 							<dd
@@ -626,7 +756,7 @@ function LaunchForm({
 					</p>
 				) : null}
 
-				<DialogDescription>{dialogDescription(target)}</DialogDescription>
+				<DialogDescription>{dialogDescription(settled)}</DialogDescription>
 
 				{launch.isError ? (
 					<p role="alert" className="text-sm text-secondary-foreground">

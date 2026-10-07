@@ -340,7 +340,13 @@ is reachable only by typing it, because the design's nav does not name it.
 
 New run on run history and Replay from here on a pipeline stage's page open
 the run-launch dialog, which starts a case or replays a stage as one attempt or
-a group of three, six or twelve under the stored spend ceiling. The launch shows
+a group of three, six or twelve under the stored spend ceiling. Replay a step on
+run history opens the same dialog on a pipeline run and step to choose: it
+offers each step whose starting checkpoint is recorded, opens on the newest
+stopped run's stopped step, else the newest run's last offered step, and is
+disabled with the reason beside it when no run offers one. A run with no short
+id lists no checkpoints, so it offers no step there, though Replay from here
+on its stage page still replays it. The launch shows
 in run history as running until its process exits or its pipeline run shows
 as running. The dialog's spend
 field stores the ceiling itself, which every later launch and CLI command then

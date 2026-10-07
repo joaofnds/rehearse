@@ -25,6 +25,7 @@ import {
 import type { InferResponseType } from "hono/client";
 import type { apiClient } from "#client/api-client";
 import type { Reply } from "#client/test-support/fetch-stub";
+import { LiveReply } from "#client/test-support/live-reply";
 import {
 	FakeServer,
 	stubFetch,
@@ -3799,6 +3800,246 @@ describe(RunHistoryPage.name, () => {
 					page.getByText("No record matches this filter and search."),
 				).toBeInTheDocument();
 				expect(page.queryByText("No runs recorded")).not.toBeInTheDocument();
+			});
+		});
+	});
+	describe("Replay a step", () => {
+		const STOPPED = "2026-09-20T10-00-00.000Z";
+		const FINISHED = "2026-09-21T10-00-00.000Z";
+		const LAUNCH_ID = "9c1d2e3f-0000-4000-8000-000000000000";
+
+		function replayableRun(
+			run: string,
+			status: string,
+			recorded: readonly string[],
+		): PipelineRunRow {
+			return {
+				kind: "run",
+				...UNREAD_RUN_FIGURES,
+				stageGrades: {
+					state: "available",
+					grades: ["plan", "build", "review"].map((stage) => ({
+						stage,
+						status: "graded",
+						grade: { state: "unavailable", reasons: ["not read by this test"] },
+					})),
+				},
+				launchId: undefined,
+				shortId: "r1",
+				checkpoints: recorded.map((stage) => ({
+					stage,
+					shortId: `r1/${stage}`,
+				})),
+				links: [],
+				run,
+				caseId: "audit-log",
+				status,
+				stage: undefined,
+				grade: undefined,
+				corpusVersion: undefined,
+				corpusChangedDuringRun: false,
+				staleness: unversionedStaleness({ stale: false, causes: [] }),
+				progress: { state: "recorded" },
+			};
+		}
+
+		function history(): RunHistoryResponseBody {
+			return {
+				rows: [
+					replayableRun(FINISHED, "COMPLETE", ["initial", "plan", "build"]),
+					replayableRun(STOPPED, "STOPPED:build", ["initial", "plan"]),
+				],
+				launches: [],
+				unreadable: [],
+			};
+		}
+
+		function serving(
+			body: RunHistoryResponseBody = history(),
+			replies: ReadonlyMap<string, Reply | LiveReply> = new Map(),
+		): FakeServer {
+			const server = new FakeServer(
+				new Map<string, Reply | LiveReply>([
+					["GET /api/runs", { status: 200, body }],
+					[
+						"GET /api/settings",
+						{
+							status: 200,
+							body: {
+								spendCeilingUsd: 5,
+								setCommand: "rehearse settings --spend-ceiling-usd <USD>",
+								recordsDirectory: "/records",
+								linkedCorpus: { kind: "live", root: "/home/.claude" },
+								overrun: "The ceiling can be overrun by the calls in flight.",
+							},
+						},
+					],
+					["POST /api/launches", { status: 202, body: { id: LAUNCH_ID } }],
+					...replies,
+				]),
+			);
+			server.install();
+
+			return server;
+		}
+
+		interface RenderedHistory {
+			readonly page: RenderResult;
+			/** The action once the history has read, before which it is disabled. */
+			readonly replayAction: () => Promise<HTMLElement>;
+			readonly openReplay: () => Promise<HTMLElement>;
+		}
+
+		function renderHistory(): RenderedHistory {
+			const page = renderPage();
+			const replayAction = (): Promise<HTMLElement> =>
+				waitFor(() => {
+					const action = page.getByRole("button", { name: "Replay a step" });
+					expect(action).toBeEnabled();
+
+					return action;
+				});
+
+			return {
+				page,
+				replayAction,
+				openReplay: async () => {
+					fireEvent.click(await replayAction());
+
+					return page.findByRole("dialog");
+				},
+			};
+		}
+
+		it("sits beside New run in the header", async () => {
+			serving();
+			const { page, replayAction } = renderHistory();
+
+			const replay = await replayAction();
+
+			expect(replay.parentElement).toContainElement(
+				page.getByRole("button", { name: "New run" }),
+			);
+		});
+
+		it("opens on the newest stopped run's stopped step", async () => {
+			serving();
+			const { openReplay } = renderHistory();
+
+			const dialog = await openReplay();
+
+			expect(within(dialog).getByLabelText("Run")).toHaveValue(STOPPED);
+			expect(within(dialog).getByLabelText("Step")).toHaveValue("build");
+		});
+
+		it("offers only the chosen run's steps whose starting checkpoint is recorded", async () => {
+			serving();
+			const { openReplay } = renderHistory();
+			const dialog = await openReplay();
+
+			const steps = within(within(dialog).getByLabelText("Step"))
+				.getAllByRole("option")
+				.map((option) => option.textContent);
+
+			expect(steps).toEqual(["plan", "build"]);
+		});
+
+		it("replays the run and step the operator changes to", async () => {
+			const server = serving();
+			const { openReplay } = renderHistory();
+			const dialog = await openReplay();
+
+			fireEvent.change(within(dialog).getByLabelText("Run"), {
+				target: { value: FINISHED },
+			});
+			fireEvent.change(within(dialog).getByLabelText("Step"), {
+				target: { value: "plan" },
+			});
+			fireEvent.click(
+				await within(dialog).findByRole("button", {
+					name: "Start · 1 attempt",
+				}),
+			);
+
+			await waitFor(() => {
+				expect(server.posted("/api/launches")).toHaveLength(1);
+			});
+			expect(JSON.parse(server.posted("/api/launches")[0]?.body ?? "")).toEqual(
+				{
+					kind: "replay",
+					run: FINISHED,
+					stage: "plan",
+					attempts: 1,
+				},
+			);
+		});
+
+		it("lists the launch it started", async () => {
+			let launched = false;
+			const server = serving(
+				history(),
+				new Map([
+					[
+						"GET /api/runs",
+						new LiveReply(() => ({
+							status: 200,
+							body: {
+								...history(),
+								launches: launched
+									? [
+											{
+												kind: "launch",
+												id: LAUNCH_ID,
+												target: "replay",
+												caseId: "audit-log",
+												run: STOPPED,
+												stage: "build",
+												attempts: 1,
+												launchedAt: new Date().toISOString(),
+												status: "RUNNING",
+											},
+										]
+									: [],
+							},
+						})),
+					],
+				]),
+			);
+			const { page, openReplay } = renderHistory();
+			const dialog = await openReplay();
+
+			launched = true;
+			fireEvent.click(
+				await within(dialog).findByRole("button", {
+					name: "Start · 1 attempt",
+				}),
+			);
+
+			expect(await page.findByText("launch 9c1d2e3f")).toBeInTheDocument();
+			expect(
+				JSON.parse(server.posted("/api/launches")[0]?.body ?? ""),
+			).toMatchObject({
+				run: STOPPED,
+				stage: "build",
+			});
+		});
+
+		describe("when no recorded run offers a step", () => {
+			it("is disabled and says why in text", async () => {
+				serving({
+					...history(),
+					rows: [replayableRun(FINISHED, "COMPLETE", [])],
+				});
+				const page = renderPage();
+
+				const reason = await page.findByText(
+					"No recorded run has a step whose starting checkpoint is recorded",
+				);
+
+				expect(reason).toBeVisible();
+				expect(
+					page.getByRole("button", { name: "Replay a step" }),
+				).toBeDisabled();
 			});
 		});
 	});

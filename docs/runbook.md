@@ -381,7 +381,9 @@ linked. It writes a case declared from the Cases screen to
 `127.0.0.1`; do not forward its port or otherwise expose it as a public service.
 
 New run on the run history page starts a case, and Replay from here on a
-pipeline stage's page replays that stage. Both cost money. The dialog picks one,
+pipeline stage's page replays that stage. Replay a step on the run history page
+replays a step of the run you choose in its dialog, from the checkpoint the step
+starts from. All three cost money. The dialog picks one,
 three, six or twelve attempts, and its spend field shows the stored spend
 ceiling that will hold them. Start stays disabled until a ceiling is stored, so
 enter one there and press Store ceiling, store it on the settings screen's

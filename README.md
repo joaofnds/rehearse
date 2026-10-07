@@ -88,7 +88,7 @@ corpus, saved comparisons, saved session-attempt history, the tasks and cases
 the checkout declares, the settings, and the design system. Declare a case on the Cases view
 writes an uncommitted `cases/<id>/case.json` into the checkout.
 The run history shows a run that is executing, with its stage, elapsed time, and
-spend, and the Live monitor follows it live. New run on run history and Replay
+spend, and the Live monitor follows it live. New run and Replay a step on run history and Replay
 from here on a pipeline stage start a run or replay under the stored spend
 ceiling, which spends provider money. Several prototype screens are still
 planned.

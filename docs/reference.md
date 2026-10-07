@@ -183,7 +183,7 @@ The model probe runs before the run's spend is counted and is outside it.
 
 ### Browser launches
 
-The browser's New run and Replay from here buttons, and the corpus screen's
+The browser's New run, Replay a step and Replay from here buttons, and the corpus screen's
 offer of a paired rerun after an edit, post to `POST /api/launches`,
 which starts the same CLI command a terminal would, detached from the server so
 the run outlives a server restart. A case launch runs
