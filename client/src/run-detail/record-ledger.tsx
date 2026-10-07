@@ -286,8 +286,7 @@ interface CitedItem {
 
 /** Each item the judge cited, with the blocker or dimension it supports. */
 function citedItems(
-	run: string,
-	stage: string,
+	{ run, stage }: { readonly run: string; readonly stage: string },
 	judge: JudgedAnswer,
 ): readonly CitedItem[] {
 	const sections = [
@@ -478,7 +477,7 @@ function LedgerCard({
 			{expanded && judged !== undefined ? (
 				<WideEvidence
 					id={evidenceId}
-					items={citedItems(row.run, stage.stage, judged)}
+					items={citedItems({ run: row.run, stage: stage.stage }, judged)}
 					fullSession={
 						<FullSession
 							run={row.run}
