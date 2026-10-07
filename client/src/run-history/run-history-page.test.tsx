@@ -2857,6 +2857,59 @@ describe(RunHistoryPage.name, () => {
 			);
 		});
 
+		it("does not carry one row's open cost reasons onto another when the filter changes the rows", async () => {
+			function partialRun(
+				run: string,
+				status: string,
+				part: string,
+			): RunHistoryResponseBody["rows"][number] {
+				return {
+					kind: "run",
+					...UNREAD_RUN_FIGURES,
+					cost: {
+						state: "available",
+						usd: 2.41,
+						parts: [{ part: "build session", usd: 2.41 }],
+						missing: [{ part, reason: "no metrics" }],
+					},
+					launchId: undefined,
+					shortId: undefined,
+					checkpoints: [],
+					links: [],
+					run,
+					caseId: "audit-log",
+					status,
+					stage: "build",
+					grade: undefined,
+					corpusVersion: undefined,
+					corpusChangedDuringRun: false,
+					staleness: UNREAD_STALENESS,
+					progress: { state: "recorded" },
+				};
+			}
+			const STOPPED_RUN = "2026-09-05T00-00-00.000Z";
+			respondingWith({
+				rows: [
+					partialRun(RUN, "COMPLETE", "Product Owner"),
+					partialRun(STOPPED_RUN, "STOPPED:build", "rep-2"),
+				],
+				launches: [],
+				unreadable: [],
+			});
+			await renderPage().findByText(RUN);
+
+			fireEvent.click(
+				within(cellOf(RUN, "Cost")).getByRole("button", { name: "why" }),
+			);
+			fireEvent.click(screen.getByRole("button", { name: "Stopped" }));
+
+			expect(
+				within(cellOf(STOPPED_RUN, "Cost")).getByRole("button", {
+					name: "why",
+				}),
+			).toHaveAttribute("aria-expanded", "false");
+		});
+
 		it("reads an unavailable cost as unrecorded with its reason", async () => {
 			respondingWith(
 				everyKindWith({
