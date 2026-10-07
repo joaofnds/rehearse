@@ -24,7 +24,7 @@ import {
 	stubFetchByPath,
 } from "#client/test-support/fetch-stub";
 import {
-	UNREAD_COST_AND_TIME,
+	UNREAD_SESSION_ATTEMPT_FIGURES,
 	UNREAD_GROUP_FIGURES,
 	UNREAD_REPLAY_FIGURES,
 	UNREAD_RUN_FIGURES,
@@ -1471,7 +1471,7 @@ describe(RunHistoryPage.name, () => {
 					kind: "session-attempt",
 					staleness: UNREAD_STALENESS,
 					corpusVersion: undefined,
-					...UNREAD_COST_AND_TIME,
+					...UNREAD_SESSION_ATTEMPT_FIGURES,
 					shortId: undefined,
 					caseId: "brief-reply",
 					uuid: "0f6b6f2a-0000-4000-8000-000000000001",

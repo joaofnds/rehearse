@@ -148,6 +148,11 @@ export const SOURCE_MANIFEST_REASON =
 	"the source run's manifest, which names its stages, is not recorded";
 export const UNLISTED_STAGE_REASON =
 	"the source pipeline does not list the stage replayed";
+export const NO_REPLY_CHECKS_REASON =
+	"the session gave no reply, so no check ran";
+export const EXECUTION_FAILED_CHECKS_REASON =
+	"the session failed to run, so no check ran";
+export const UNCHECKED_REASON = "the attempt recorded no check results";
 export const SESSION_PIPELINE_REASON =
 	"a session group repeats one session and runs no pipeline";
 
@@ -210,6 +215,49 @@ export interface SessionAttemptRow {
 	readonly links: readonly ContextLink[];
 	readonly cost: CostReading;
 	readonly wallTime: WallTimeReading;
+	/** Of the checks its case declared, how many passed: its grade. */
+	readonly checks: Reading<{
+		readonly passed: number;
+		readonly declared: number;
+	}>;
+}
+
+/**
+ * A checked attempt records one result per declared check, so an attempt
+ * with none is one whose session left nothing to check.
+ */
+function sessionChecks(
+	record: Immutable<SessionAttemptRecord>,
+): SessionAttemptRow["checks"] {
+	if (record.checks.length > 0) {
+		return {
+			state: "available",
+			passed: record.checks.filter(({ status }) => status === "PASS").length,
+			declared: record.checks.length,
+		};
+	}
+
+	switch (record.outcome) {
+		case "NO_REPLY": {
+			return { state: "unavailable", reasons: [NO_REPLY_CHECKS_REASON] };
+		}
+		case "EXECUTION_FAILED": {
+			return {
+				state: "unavailable",
+				reasons: [
+					EXECUTION_FAILED_CHECKS_REASON,
+					redactAbsolutePaths(record.error),
+				],
+			};
+		}
+		case "SUCCESSFUL":
+		case "UNSUCCESSFUL": {
+			return { state: "unavailable", reasons: [UNCHECKED_REASON] };
+		}
+		default: {
+			return unhandled(record, "session attempt outcome");
+		}
+	}
 }
 
 /**
@@ -582,6 +630,7 @@ async function sessionAttemptRow(
 						missing: [],
 					},
 		wallTime: { state: "available", ms: record.elapsedMs },
+		checks: sessionChecks(record),
 	};
 }
 

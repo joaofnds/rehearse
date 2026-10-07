@@ -5,7 +5,7 @@ import type { CorpusResponse } from "#client/corpus/corpus-query";
 import type { RunHistoryResponse } from "#client/run-history/run-history-query";
 import { stubFetchByPath } from "#client/test-support/fetch-stub";
 import {
-	UNREAD_COST_AND_TIME,
+	UNREAD_SESSION_ATTEMPT_FIGURES,
 	UNREAD_RUN_FIGURES,
 	UNREAD_STALENESS,
 	unversionedStaleness,
@@ -71,7 +71,7 @@ function sessionAttemptRow(uuid: string): RunHistoryRow {
 		kind: "session-attempt",
 		staleness: UNREAD_STALENESS,
 		corpusVersion: undefined,
-		...UNREAD_COST_AND_TIME,
+		...UNREAD_SESSION_ATTEMPT_FIGURES,
 		shortId: undefined,
 		caseId: "brief-reply",
 		uuid,

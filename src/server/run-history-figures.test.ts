@@ -11,6 +11,8 @@ import {
 	runEventsDatabaseFile,
 } from "#benchmark/run-layout";
 import { openRunEventStore } from "#benchmark/run-events";
+import type { Immutable } from "#benchmark/contracts";
+import type { SessionAttemptRecord } from "#benchmark/session-record";
 import type { RunLiveness } from "#benchmark/run-liveness";
 import {
 	directorySource,
@@ -34,6 +36,8 @@ import {
 	NOT_RUN_REASON,
 	REPLAY_FINAL_OUTCOME_REASON,
 	REPLAY_WALL_TIME_REASON,
+	EXECUTION_FAILED_CHECKS_REASON,
+	NO_REPLY_CHECKS_REASON,
 	SESSION_COST_REASON,
 	SESSION_PIPELINE_REASON,
 	SOURCE_MANIFEST_REASON,
@@ -89,6 +93,16 @@ const frozenInputsSchema = z.looseObject({
 });
 
 type ListedRow = z.infer<typeof runHistorySchema>["rows"][number];
+
+/** Replaces fields of the fixture's session attempt record, as its writer would have. */
+async function rewriteSessionAttempt(
+	fixture: RecordedRunsFixture,
+	changes: Immutable<Partial<SessionAttemptRecord>>,
+): Promise<void> {
+	const file = Bun.file(fixture.sessionAttemptFile);
+	const record = sessionRecordSchema.parse(await file.json());
+	await Bun.write(file, JSON.stringify({ ...record, ...changes }));
+}
 
 /**
  * Freezes the audit-log case's pipeline into a group's inputs, as a stage
@@ -654,6 +668,69 @@ describe("/api/runs", () => {
 						missing: [],
 					},
 					wallTime: { state: "available", ms: 1000 },
+				});
+			});
+
+			it("carries how many of the checks it declared passed", async () => {
+				const fixture = await emptyFixture();
+				await fixture.write();
+				await rewriteSessionAttempt(fixture, {
+					outcome: "UNSUCCESSFUL",
+					checks: [
+						{ kind: "word-band", status: "PASS", detail: "120 words" },
+						{
+							kind: "forbidden-text",
+							status: "FAIL",
+							detail: 'says "Great question"',
+						},
+					],
+				});
+
+				const row = await onlyRowOfKind(fixture, "session-attempt");
+
+				expect(row).toMatchObject({
+					checks: { state: "available", passed: 1, declared: 2 },
+				});
+			});
+
+			it("carries its checks as unavailable when the session gave no reply to check", async () => {
+				const fixture = await emptyFixture();
+				await fixture.write();
+				await rewriteSessionAttempt(fixture, {
+					outcome: "NO_REPLY",
+					reply: undefined,
+					checks: [],
+				});
+
+				const row = await onlyRowOfKind(fixture, "session-attempt");
+
+				expect(row).toMatchObject({
+					checks: { state: "unavailable", reasons: [NO_REPLY_CHECKS_REASON] },
+				});
+			});
+
+			it("carries its checks as unavailable with the error when the session failed to run", async () => {
+				const fixture = await emptyFixture();
+				await fixture.write();
+				await rewriteSessionAttempt(fixture, {
+					schemaVersion: 2,
+					outcome: "EXECUTION_FAILED",
+					reply: undefined,
+					error: "claude exited with code 1",
+					unavailableSubagents: [],
+					checks: [],
+				});
+
+				const row = await onlyRowOfKind(fixture, "session-attempt");
+
+				expect(row).toMatchObject({
+					checks: {
+						state: "unavailable",
+						reasons: [
+							EXECUTION_FAILED_CHECKS_REASON,
+							"claude exited with code 1",
+						],
+					},
 				});
 			});
 

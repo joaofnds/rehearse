@@ -37,6 +37,12 @@ export const UNREAD_COST_AND_TIME = {
 	wallTime: { state: "unavailable", reasons: ["not read by this test"] },
 } as const;
 
+/** A session attempt row's figures, for a test whose subject is another column. */
+export const UNREAD_SESSION_ATTEMPT_FIGURES = {
+	...UNREAD_COST_AND_TIME,
+	checks: { state: "unavailable", reasons: ["not read by this test"] },
+} as const;
+
 /** A confirmation group row's figures, for a test whose subject is another column. */
 export const UNREAD_GROUP_FIGURES = {
 	...UNREAD_COST_AND_TIME,
