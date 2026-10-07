@@ -685,7 +685,8 @@ function stageRecord(
 	checkpoints: CheckpointsByLineage,
 	checkpointShortId: ShortIdReading,
 	minimumGrade: StageLetterGrade | undefined,
-): Omit<RunRecordStage, "artifactsIn"> {
+	inputs: ArtifactsIn,
+): RunRecordStage {
 	const { file, checkpoint } = recorded;
 	const commitSubjects = file?.input?.commitSubjects;
 	const changedPaths = file?.input?.changedPaths;
@@ -725,6 +726,7 @@ function stageRecord(
 		checkpointShortId,
 		...ranUnder(recorded),
 		readManifest: readManifestOf(recorded),
+		artifactsIn: inputs,
 		artifactsOut: {
 			declared: pathsOf(
 				checkpoint?.artifacts,
@@ -765,7 +767,7 @@ interface Upstream {
 function artifactsIn(
 	taskId: string,
 	upstream: Upstream,
-	earlier: readonly Omit<RunRecordStage, "artifactsIn">[],
+	earlier: readonly RunRecordStage[],
 ): ArtifactsIn {
 	const changed: ArtifactIn[] = [];
 	const missing: MissingPart[] = [];
@@ -1160,16 +1162,9 @@ export async function readRunRecord(
 			file: undefined,
 			checkpoint: initial,
 		});
-		const withoutInputs = reached.map((stage) =>
-			stageRecord(
-				stage,
-				checkpoints,
-				stageCheckpointShortId(shortId, names, stage),
-				manifest.minimumGrade,
-			),
-		);
-		const records = withoutInputs.map((record, index): RunRecordStage => {
-			const previous = withoutInputs[index - 1];
+		const records: RunRecordStage[] = [];
+		for (const stage of reached) {
+			const previous = records.at(-1);
 			const upstream: Upstream =
 				previous === undefined
 					? {
@@ -1182,16 +1177,16 @@ export async function readRunRecord(
 							upstream: previous.stage,
 							checkpointShortId: previous.checkpointShortId,
 						};
-
-			return {
-				...record,
-				artifactsIn: artifactsIn(
-					manifest.taskId,
-					upstream,
-					withoutInputs.slice(0, index),
+			records.push(
+				stageRecord(
+					stage,
+					checkpoints,
+					stageCheckpointShortId(shortId, names, stage),
+					manifest.minimumGrade,
+					artifactsIn(manifest.taskId, upstream, records),
 				),
-			};
-		});
+			);
+		}
 
 		return {
 			run,
