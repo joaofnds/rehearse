@@ -3494,6 +3494,7 @@ describe(RunHistoryPage.name, () => {
 		const ATTEMPT = "0f6b6f2a-0000-4000-8000-000000000002";
 		const RUNNING_LAUNCH = "1aaaaaaa-0000-4000-8000-000000000000";
 		const STOPPED_LAUNCH = "2bbbbbbb-0000-4000-8000-000000000000";
+		const READ_AT = "2026-10-05T12:00:00.000Z";
 		const EVERY_RECORD = [
 			FINISHED,
 			IN_FLIGHT,
@@ -3517,6 +3518,7 @@ describe(RunHistoryPage.name, () => {
 
 		function pipelineRun(
 			run: string,
+			digest: string,
 			fields: Pick<
 				PipelineRunRow,
 				"caseId" | "status" | "staleness" | "progress" | "firedBlockers"
@@ -3532,7 +3534,7 @@ describe(RunHistoryPage.name, () => {
 				run,
 				stage: undefined,
 				grade: undefined,
-				corpusVersion: { kind: "version", digest: `${run.slice(8, 10)}c0ffee` },
+				corpusVersion: { kind: "version", digest },
 				corpusChangedDuringRun: false,
 				...fields,
 			};
@@ -3541,7 +3543,7 @@ describe(RunHistoryPage.name, () => {
 		function history(): RunHistoryResponseBody {
 			return {
 				rows: [
-					pipelineRun(FINISHED, {
+					pipelineRun(FINISHED, "a1c0ffee", {
 						caseId: "audit-log",
 						status: "COMPLETE",
 						staleness: clean,
@@ -3551,7 +3553,7 @@ describe(RunHistoryPage.name, () => {
 							ids: ["invalid-stage-delivery"],
 						},
 					}),
-					pipelineRun(IN_FLIGHT, {
+					pipelineRun(IN_FLIGHT, "b2c0ffee", {
 						caseId: "payments",
 						status: "RUNNING",
 						staleness: unversionedStaleness({ stale: false, causes: [] }),
@@ -3561,7 +3563,7 @@ describe(RunHistoryPage.name, () => {
 							stageState: "session running",
 							elapsedMs: 9000,
 							stageElapsedMs: undefined,
-							measuredAt: new Date().toISOString(),
+							measuredAt: READ_AT,
 							spentUsd: 0.9,
 							spendScope: "this stage's session so far",
 							runSpentUsd: 1.2,
@@ -3573,7 +3575,7 @@ describe(RunHistoryPage.name, () => {
 							reasons: ["no stage record holds graded hard blockers"],
 						},
 					}),
-					pipelineRun(STOPPED, {
+					pipelineRun(STOPPED, "c3c0ffee", {
 						caseId: "audit-log",
 						status: "STOPPED:build",
 						staleness: unversionedStaleness({ stale: true, causes: [] }),
@@ -3607,9 +3609,13 @@ describe(RunHistoryPage.name, () => {
 						checkpoint: undefined,
 						...UNREAD_GROUP_FIGURES,
 						shortId: undefined,
+						firedBlockers: {
+							state: "available",
+							ids: ["material-decision-open"],
+						},
 						groupId: GROUP,
 						caseId: "brief-reply",
-						mode: "session",
+						mode: "pipeline",
 						reps: 2,
 						repAttempts: [],
 						links: [],
@@ -3635,7 +3641,7 @@ describe(RunHistoryPage.name, () => {
 						run: undefined,
 						stage: undefined,
 						attempts: 1,
-						launchedAt: new Date().toISOString(),
+						launchedAt: READ_AT,
 						status: "RUNNING",
 					},
 					{
@@ -3646,7 +3652,7 @@ describe(RunHistoryPage.name, () => {
 						run: undefined,
 						stage: undefined,
 						attempts: 1,
-						launchedAt: new Date().toISOString(),
+						launchedAt: READ_AT,
 						status: "OPERATOR_STOPPED",
 					},
 				],
@@ -3655,19 +3661,26 @@ describe(RunHistoryPage.name, () => {
 		}
 
 		/** The page over every kind of record, read as the names it lists. */
-		async function renderHistory(): Promise<{
+		async function renderHistory(
+			body: RunHistoryResponseBody = history(),
+		): Promise<{
 			readonly page: RenderResult;
 			readonly listed: () => readonly string[];
+			readonly pressed: () => readonly (string | null)[];
 			readonly search: (text: string) => void;
 		}> {
-			respondingWith(history());
+			respondingWith(body);
 			const page = renderPage();
-			await page.findByText(FINISHED);
+			await page.findByRole("button", { name: /^All/u });
 
 			return {
 				page,
 				listed: () =>
 					EVERY_RECORD.filter((name) => page.queryByText(name) !== null),
+				pressed: () =>
+					within(page.container)
+						.getAllByRole("button", { pressed: true })
+						.map((pill) => pill.textContent),
 				search: (text) => {
 					fireEvent.change(
 						page.getByRole("searchbox", { name: "Search runs" }),
@@ -3678,7 +3691,7 @@ describe(RunHistoryPage.name, () => {
 		}
 
 		it("offers All with the record count and five narrower filters, All pressed", async () => {
-			const { page } = await renderHistory();
+			const { page, pressed } = await renderHistory();
 
 			const pills = within(page.container)
 				.getAllByRole("button")
@@ -3692,11 +3705,19 @@ describe(RunHistoryPage.name, () => {
 				"Groups",
 				"Clean corpus only",
 			]);
-			expect(page.getByRole("button", { name: "All 6" })).toHaveAttribute(
-				"aria-pressed",
-				"true",
-			);
+			expect(pressed()).toEqual(["All 6"]);
 		});
+
+		it.each(["Running", "Stopped", "Replays", "Groups", "Clean corpus only"])(
+			"presses %s alone once it is selected",
+			async (filter) => {
+				const { page, pressed } = await renderHistory();
+
+				fireEvent.click(page.getByRole("button", { name: filter }));
+
+				expect(pressed()).toEqual([filter]);
+			},
+		);
 
 		it.each([
 			["Running", [IN_FLIGHT, `launch ${RUNNING_LAUNCH.slice(0, 8)}`]],
@@ -3710,10 +3731,6 @@ describe(RunHistoryPage.name, () => {
 			fireEvent.click(page.getByRole("button", { name: filter }));
 
 			expect(listed()).toEqual(expected);
-			expect(page.getByRole("button", { name: filter })).toHaveAttribute(
-				"aria-pressed",
-				"true",
-			);
 		});
 
 		it("labels the search field and hints at what it matches", async () => {
@@ -3727,14 +3744,15 @@ describe(RunHistoryPage.name, () => {
 		it.each([
 			["a case id", "payments", [IN_FLIGHT]],
 			[
-				"part of a case id in another case",
+				"part of a case id typed in capitals",
 				"AUDIT",
 				[FINISHED, STOPPED, REPLAY],
 			],
-			["a corpus digest", "02c0ff", [IN_FLIGHT]],
-			["a corpus digest with its label", "corpus@03c0", [STOPPED]],
+			["a corpus digest", "b2c0ff", [IN_FLIGHT]],
+			["a corpus digest with its label", "corpus@C3C0", [STOPPED]],
 			["a fired blocker's id", "invalid-stage", [FINISHED]],
 			["a replay's fired blocker id", "Contradicts", [REPLAY]],
+			["a group's fired blocker id", "material-decision", [GROUP]],
 			["a launch's case", "new-case", [`launch ${RUNNING_LAUNCH.slice(0, 8)}`]],
 		])(
 			"lists by %s only the records it matches",
@@ -3747,13 +3765,13 @@ describe(RunHistoryPage.name, () => {
 			},
 		);
 
-		it("narrows the selected filter's records by the search", async () => {
+		it("lists only the records both the selected filter and the search match", async () => {
 			const { page, listed, search } = await renderHistory();
-			fireEvent.click(page.getByRole("button", { name: "Replays" }));
+			fireEvent.click(page.getByRole("button", { name: "Running" }));
 
-			search("audit-log");
+			search("c0ffee");
 
-			expect(listed()).toEqual([REPLAY]);
+			expect(listed()).toEqual([IN_FLIGHT]);
 		});
 
 		describe("when no record matches", () => {
@@ -3763,6 +3781,20 @@ describe(RunHistoryPage.name, () => {
 				search("no-such-blocker");
 
 				expect(listed()).toEqual([]);
+				expect(
+					page.getByText("No record matches this filter and search."),
+				).toBeInTheDocument();
+				expect(page.queryByText("No runs recorded")).not.toBeInTheDocument();
+			});
+
+			it("counts a launch as a record the filter can hide", async () => {
+				const { page } = await renderHistory({
+					...history(),
+					rows: [],
+				});
+
+				fireEvent.click(page.getByRole("button", { name: "Stopped" }));
+
 				expect(
 					page.getByText("No record matches this filter and search."),
 				).toBeInTheDocument();
