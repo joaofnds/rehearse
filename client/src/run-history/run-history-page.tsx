@@ -476,7 +476,9 @@ function stoppedOutcome(row: RunHistoryRow, stage: string): RunPhrase {
 				href={`/runs/${encodeURIComponent(row.run)}/stages/${encodeURIComponent(stage)}`}
 				className="inline-flex min-h-14 items-start self-start text-accent-foreground underline decoration-deeper underline-offset-4 hover:text-pale"
 			>
-				{stopReason(row, stage)}
+				<span className="line-clamp-2 break-words">
+					{stopReason(row, stage)}
+				</span>
 			</a>
 		),
 	};
