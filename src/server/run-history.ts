@@ -152,7 +152,10 @@ export const NO_REPLY_CHECKS_REASON =
 	"the session gave no reply, so no check ran";
 export const EXECUTION_FAILED_CHECKS_REASON =
 	"the session failed to run, so no check ran";
-export const UNCHECKED_REASON = "the attempt recorded no check results";
+export const NO_FROZEN_PIPELINE_REASON =
+	"the group froze no pipeline, which names its stages";
+export const UNREADABLE_FROZEN_PIPELINE_REASON =
+	"the pipeline the group froze is missing or unreadable";
 export const SESSION_PIPELINE_REASON =
 	"a session group repeats one session and runs no pipeline";
 
@@ -229,14 +232,6 @@ export interface SessionAttemptRow {
 function sessionChecks(
 	record: Immutable<SessionAttemptRecord>,
 ): SessionAttemptRow["checks"] {
-	if (record.checks.length > 0) {
-		return {
-			state: "available",
-			passed: record.checks.filter(({ status }) => status === "PASS").length,
-			declared: record.checks.length,
-		};
-	}
-
 	switch (record.outcome) {
 		case "NO_REPLY": {
 			return { state: "unavailable", reasons: [NO_REPLY_CHECKS_REASON] };
@@ -249,7 +244,11 @@ function sessionChecks(
 		}
 		case "SUCCESSFUL":
 		case "UNSUCCESSFUL": {
-			return { state: "unavailable", reasons: [UNCHECKED_REASON] };
+			return {
+				state: "available",
+				passed: record.checks.filter(({ status }) => status === "PASS").length,
+				declared: record.checks.length,
+			};
 		}
 		default: {
 			return unhandled(record, "session attempt outcome");
@@ -846,24 +845,25 @@ async function groupPipelineStages(
 			return { state: "unavailable", reasons: [SESSION_PIPELINE_REASON] };
 		}
 		case "stage": {
-			try {
-				const pipeline = await frozenPipeline(
-					confirmationGroupPaths(runsDirectory, record.groupId).directory,
-					record.inputs.files,
-				);
+			if (!record.inputs.files.some(({ kind }) => kind === "pipeline")) {
+				return { state: "unavailable", reasons: [NO_FROZEN_PIPELINE_REASON] };
+			}
 
-				return stagesAround(
-					record.declaredStages,
-					pipeline.stages.map(({ name }) => name),
-				);
-			} catch (error) {
-				const message = error instanceof Error ? error.message : String(error);
-
+			const pipeline = await frozenPipeline(
+				confirmationGroupPaths(runsDirectory, record.groupId).directory,
+				record.inputs.files,
+			).catch(() => undefined);
+			if (pipeline === undefined) {
 				return {
 					state: "unavailable",
-					reasons: [redactAbsolutePaths(message)],
+					reasons: [UNREADABLE_FROZEN_PIPELINE_REASON],
 				};
 			}
+
+			return stagesAround(
+				record.declaredStages,
+				pipeline.stages.map(({ name }) => name),
+			);
 		}
 		default: {
 			return unhandled(record, "confirmation mode");

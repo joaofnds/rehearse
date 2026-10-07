@@ -13,6 +13,8 @@ type CorpusMeasurement = PipelineRow["corpusVersion"];
 
 export const NOT_RETURNED = "—";
 
+export const JUDGED_NOTE = "graded independently";
+
 const JUDGE_SCOPE =
 	"The task judge sees only what went in at step 1 and what came out of the last step. It does not read the intermediate steps, so it cannot grade a run that stopped early. Step grades below are unaffected.";
 
@@ -28,7 +30,7 @@ export interface OutcomeReading {
 export function outcomeReading(outcome: FinalOutcome): OutcomeReading {
 	switch (outcome.status) {
 		case "JUDGED": {
-			return { value: outcome.verdict, note: "graded independently" };
+			return { value: outcome.verdict, note: JUDGED_NOTE };
 		}
 		case "JUDGING_FAILED": {
 			return {

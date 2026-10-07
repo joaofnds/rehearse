@@ -1822,20 +1822,25 @@ main record that does not parse still moves the run to `unreadable`.
 A replay row sums its session, Product Owner and judge cost and lacks no part.
 Its `finalOutcome` is `NOT_APPLICABLE` with the reason, since only a whole run
 reaches the final judge, and its wall time is the elapsed time its record
-keeps, unavailable in a replay record that predates it. Its `pipelineStages`
-lists the source run's stages in its manifest's order, so the step grades
-column can place the replayed stage among them, and is unavailable with the
-reason when that manifest is gone or does not list the stage. A session attempt row's cost is its call
-metrics' cost, unavailable when the attempt kept none, and its wall time is the
-elapsed time it recorded. Its `checks` count how many of the case's declared
-checks `passed` of those `declared`, and are unavailable with the reason when
-the attempt recorded none: the session gave no reply, or failed to run. The
-failed session's error stays on its attempt record, since it can carry the
-whole command line and the provider's reply. A confirmation group row's wall time is its makespan.
+keeps, unavailable in a replay record that predates it. A session attempt
+row's cost is its call metrics' cost, unavailable when the attempt kept none,
+and its wall time is the elapsed time it recorded. A confirmation group row's
+wall time is its makespan.
 Its cost sums a session group's preflight call and each rep's recorded calls,
 named by rep id. A rep whose record is absent or does not parse, or whose
 metrics are incomplete, is named under `missing`, and under `reasons` when no
 part recorded any spend.
+
+The step grades column places each grade among its pipeline's stages, so the
+rows that do not carry `stageGrades` carry the stage order or count it needs. A
+replay row's `pipelineStages` lists the source run's stages in its manifest's
+order, and is unavailable with the reason when that manifest is gone or does
+not list the stage replayed. A session attempt row's `checks` count how many of
+the checks the attempt ran `passed` of the `declared` it recorded, and are
+unavailable with the reason when it ran none: the session gave no reply, or
+failed to run. The failed session's error is left out of that reason, since it
+can carry the whole command line and the provider's reply, and
+`show attempt:session:<case>/<uuid>` reads it from the attempt record.
 
 Every row carries `corpusVersion`, the version its record measured, absent
 when the record predates versions. A pipeline run row shows the version of its
@@ -1909,11 +1914,12 @@ counts the successful reps of the `reps` requested, and `unreadReps` names each
 rep whose record is absent or does not parse, with the reason, so one damaged
 rep never hides the row. A session group's `checks` summary counts its reps but
 serves no letter, since its reps pass or fail on checks and no judge grades
-them, and its `finalOutcomes` are all `NOT_APPLICABLE`. Its `pipelineStages`
-are a pipeline group's declared stages, and a stage group's come from the
-pipeline its inputs froze, unavailable with the reason when it froze none,
-that file is missing, or it does not list the stage. A session group runs no
-pipeline, so its `pipelineStages` are unavailable.
+them, and its `finalOutcomes` are all `NOT_APPLICABLE`. A pipeline group's
+`pipelineStages` are its declared stages. A stage group's come from the
+pipeline its inputs froze, and are unavailable with the reason when it froze
+none, when that file is missing or does not parse, or when it does not list
+the stage. A session group runs no pipeline, so its `pipelineStages` are
+unavailable.
 
 ### Saved session context history
 

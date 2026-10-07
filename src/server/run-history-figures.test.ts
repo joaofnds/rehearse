@@ -4,7 +4,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
 
-import { CONTROL_DIR } from "#benchmark/config";
 import {
 	benchmarkRunPaths,
 	confirmationGroupPaths,
@@ -42,6 +41,8 @@ import {
 	SESSION_PIPELINE_REASON,
 	SOURCE_MANIFEST_REASON,
 	UNLISTED_STAGE_REASON,
+	NO_FROZEN_PIPELINE_REASON,
+	UNREADABLE_FROZEN_PIPELINE_REASON,
 } from "./run-history";
 import {
 	INTERRUPTED_REASON,
@@ -85,8 +86,6 @@ const unreadRepsSchema = z.looseObject({
 	unreadReps: z.array(z.object({ repId: z.string(), reason: z.string() })),
 });
 
-const pipelineStagesSchema = z.looseObject({ pipelineStages: z.unknown() });
-
 /** A group record, read loosely so a test can add a frozen file to its inputs. */
 const frozenInputsSchema = z.looseObject({
 	inputs: z.looseObject({ files: z.array(z.unknown()) }),
@@ -104,18 +103,27 @@ async function rewriteSessionAttempt(
 	await Bun.write(file, JSON.stringify({ ...record, ...changes }));
 }
 
-/**
- * Freezes the audit-log case's pipeline into a group's inputs, as a stage
- * group recorded since frozen pipelines does.
- */
-async function freezeCasePipeline(
+/** A pipeline definition running the named delivery stages in order. */
+function pipelineOf(stages: readonly string[]): string {
+	return JSON.stringify({
+		statuses: ["Build"],
+		target: { checks: [{ command: ["true"] }], integrityFiles: ["README.md"] },
+		stages: stages.map((name) => ({
+			name,
+			kind: "delivery",
+			skill: name,
+			rubric: `${name}.json`,
+		})),
+	});
+}
+
+/** Freezes a pipeline file into a group's inputs, as a stage group records it. */
+async function freezePipeline(
 	fixture: RecordedRunsFixture,
 	groupId: string,
+	content: string,
 ): Promise<void> {
 	const paths = confirmationGroupPaths(fixture.runsDirectory, groupId);
-	const content = await Bun.file(
-		join(CONTROL_DIR, "cases/audit-log/pipelines/default.json"),
-	).text();
 	await Bun.write(join(paths.inputsDirectory, "pipeline.json"), content);
 	const group = frozenInputsSchema.parse(
 		await Bun.file(paths.groupFile).json(),
@@ -931,12 +939,19 @@ describe("/api/runs", () => {
 			it("carries a stage group's stages from the pipeline it froze", async () => {
 				const fixture = await emptyFixture();
 				await fixture.writeStageGroupWithReps("stage-group");
-				await freezeCasePipeline(fixture, "stage-group");
+				await freezePipeline(
+					fixture,
+					"stage-group",
+					pipelineOf(["discuss", "build", "verify"]),
+				);
 
 				const row = await onlyRowOfKind(fixture, "group");
 
 				expect(row).toMatchObject({
-					pipelineStages: { state: "available", stages: ["shape", "build"] },
+					pipelineStages: {
+						state: "available",
+						stages: ["discuss", "build", "verify"],
+					},
 				});
 			});
 
@@ -946,9 +961,61 @@ describe("/api/runs", () => {
 
 				const row = await onlyRowOfKind(fixture, "group");
 
-				expect(pipelineStagesSchema.parse(row).pipelineStages).toEqual({
-					state: "unavailable",
-					reasons: [expect.stringContaining("froze no pipeline")],
+				expect(row).toMatchObject({
+					pipelineStages: {
+						state: "unavailable",
+						reasons: [NO_FROZEN_PIPELINE_REASON],
+					},
+				});
+			});
+
+			it("carries a stage group's stages as unavailable when the pipeline it froze does not list its stage", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeStageGroupWithReps("stage-group");
+				await freezePipeline(fixture, "stage-group", pipelineOf(["discuss"]));
+
+				const row = await onlyRowOfKind(fixture, "group");
+
+				expect(row).toMatchObject({
+					pipelineStages: {
+						state: "unavailable",
+						reasons: [UNLISTED_STAGE_REASON],
+					},
+				});
+			});
+
+			it("carries a stage group's stages as unavailable when the pipeline it froze is missing", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeStageGroupWithReps("stage-group");
+				await freezePipeline(fixture, "stage-group", pipelineOf(["build"]));
+				const { inputsDirectory } = confirmationGroupPaths(
+					fixture.runsDirectory,
+					"stage-group",
+				);
+				await rm(join(inputsDirectory, "pipeline.json"));
+
+				const row = await onlyRowOfKind(fixture, "group");
+
+				expect(row).toMatchObject({
+					pipelineStages: {
+						state: "unavailable",
+						reasons: [UNREADABLE_FROZEN_PIPELINE_REASON],
+					},
+				});
+			});
+
+			it("carries a stage group's stages as unavailable when the pipeline it froze does not parse", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeStageGroupWithReps("stage-group");
+				await freezePipeline(fixture, "stage-group", '{"stages":[{"name":1}]}');
+
+				const row = await onlyRowOfKind(fixture, "group");
+
+				expect(row).toMatchObject({
+					pipelineStages: {
+						state: "unavailable",
+						reasons: [UNREADABLE_FROZEN_PIPELINE_REASON],
+					},
 				});
 			});
 

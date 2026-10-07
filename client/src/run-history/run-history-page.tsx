@@ -24,6 +24,7 @@ import { SectionLabel } from "#client/system/components/section-label";
 import { Notice } from "#client/system/components/notice";
 import { LaunchDialog } from "#client/launch/launch-dialog";
 import {
+	JUDGED_NOTE,
 	NOT_RETURNED,
 	outcomeReading,
 } from "#client/run-detail/task-grade-card";
@@ -575,11 +576,35 @@ function groupMedians(row: GroupRow): ReadonlyMap<string, string> {
 	);
 }
 
-/** A session group is graded by its reps' checks, so its grade is the count passed. */
+/** How many of the group's reps left a readable record. */
+function recordedReps(row: GroupRow): number {
+	return Object.values(row.finalOutcomes).reduce(
+		(sum, count) => sum + count,
+		0,
+	);
+}
+
+/**
+ * A session group is graded by its reps' checks, so its grade is the count
+ * passed among the reps it recorded, naming the reps it could not count.
+ */
 function groupStepGrades(row: GroupRow): React.JSX.Element {
 	if (row.mode === "session") {
-		return gradeTokens(
-			`${String(row.successful)} of ${plural(row.reps, "rep")} passed`,
+		const recorded = recordedReps(row);
+		const passed = gradeTokens(
+			`${String(row.successful)} of ${plural(recorded, "rep")} passed`,
+		);
+		if (recorded === row.reps) {
+			return passed;
+		}
+
+		return (
+			<span className="flex flex-col gap-0.5">
+				{passed}
+				{reasonsLine([
+					`${String(row.reps - recorded)} of ${plural(row.reps, "rep")} not recorded`,
+				])}
+			</span>
 		);
 	}
 
@@ -656,19 +681,23 @@ function runTaskGrade(
 
 /**
  * Only a pipeline group's reps reach the final judge, so only its task grade
- * counts their verdicts, over every rep whose outcome was recorded.
+ * counts their verdicts, over the reps the judge graded, naming the reps it
+ * did not.
  */
 function groupTaskGrade(row: GroupRow): OutcomeReading {
 	switch (row.mode) {
 		case "pipeline": {
-			const recorded = Object.values(row.finalOutcomes).reduce(
-				(sum, count) => sum + count,
-				0,
-			);
+			const passed = row.finalOutcomes["PASS"] ?? 0;
+			const judged = passed + (row.finalOutcomes["FAIL"] ?? 0);
+			const unjudged = `${String(row.reps - judged)} of ${plural(row.reps, "rep")} not judged`;
+			if (judged === 0) {
+				return { value: NOT_RETURNED, note: `not reached · ${unjudged}` };
+			}
 
 			return {
-				value: `${String(row.finalOutcomes["PASS"] ?? 0)} of ${String(recorded)} PASS`,
-				note: "graded independently",
+				value: `${String(passed)} of ${String(judged)} PASS`,
+				note:
+					judged === row.reps ? JUDGED_NOTE : `${JUDGED_NOTE} · ${unjudged}`,
 			};
 		}
 		case "stage": {

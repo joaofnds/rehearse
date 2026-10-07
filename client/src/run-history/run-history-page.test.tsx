@@ -2164,7 +2164,7 @@ describe(RunHistoryPage.name, () => {
 
 			await renderPage().findByText(RUN);
 
-			expect(cellOf(RUN, "Step grades")).toHaveTextContent("A− B+ D ·");
+			expect(cellOf(RUN, "Step grades").textContent).toBe("A− B+ D ·");
 		});
 
 		it("says why its step grades could not be read", async () => {
@@ -2187,9 +2187,14 @@ describe(RunHistoryPage.name, () => {
 
 		it.each([
 			[
-				"the final judge's verdict",
+				"the final judge's passing verdict",
 				{ state: "available", status: "JUDGED", verdict: "PASS" },
 				"PASSgraded independently",
+			],
+			[
+				"the final judge's failing verdict",
+				{ state: "available", status: "JUDGED", verdict: "FAIL" },
+				"FAILgraded independently",
 			],
 			[
 				"a dash while the run is pending",
@@ -2227,7 +2232,7 @@ describe(RunHistoryPage.name, () => {
 
 				await renderPage().findByText(RUN);
 
-				expect(cellOf(RUN, "Task grade")).toHaveTextContent(text);
+				expect(cellOf(RUN, "Task grade").textContent).toBe(text);
 			},
 		);
 	});
@@ -2273,7 +2278,7 @@ describe(RunHistoryPage.name, () => {
 
 			await renderPage().findByText(REPLAY);
 
-			expect(cellOf(REPLAY, "Step grades")).toHaveTextContent("· · B+ ·");
+			expect(cellOf(REPLAY, "Step grades").textContent).toBe("· · B+ ·");
 		});
 
 		it("shows the letter with why its pipeline's stages could not be read", async () => {
@@ -2324,17 +2329,17 @@ describe(RunHistoryPage.name, () => {
 			};
 		}
 
-		function groupWith(
-			figures: Pick<
-				ConfirmationGroupRow,
-				| "mode"
-				| "reps"
-				| "pipelineStages"
-				| "stageSummaries"
-				| "finalOutcomes"
-				| "successful"
-			>,
-		): RunHistoryResponseBody {
+		type GroupFigures = Pick<
+			ConfirmationGroupRow,
+			| "mode"
+			| "reps"
+			| "pipelineStages"
+			| "stageSummaries"
+			| "finalOutcomes"
+			| "successful"
+		>;
+
+		function groupWith(figures: GroupFigures): RunHistoryResponseBody {
 			return {
 				rows: [
 					{
@@ -2357,7 +2362,7 @@ describe(RunHistoryPage.name, () => {
 		}
 
 		describe("in pipeline mode", () => {
-			const pipelineGroup = groupWith({
+			const pipelineFigures: GroupFigures = {
 				mode: "pipeline",
 				reps: 6,
 				pipelineStages: {
@@ -2371,25 +2376,57 @@ describe(RunHistoryPage.name, () => {
 				],
 				finalOutcomes: { PASS: 4, FAIL: 1, NOT_REACHED: 1 },
 				successful: 4,
-			});
+			};
+			const pipelineGroup = groupWith(pipelineFigures);
 
 			it("reads each stage's median with the reps it covers, and · for a stage no rep graded", async () => {
 				respondingWith(pipelineGroup);
 
 				await renderPage().findByText(GROUP);
 
-				expect(cellOf(GROUP, "Step grades")).toHaveTextContent(
+				expect(cellOf(GROUP, "Step grades").textContent).toBe(
 					"A (n=6) B (n=5) ·",
 				);
 			});
 
-			it("reads how many reps the final judge passed as its task grade", async () => {
+			it("reads how many of the reps the final judge graded it passed, naming the reps it did not grade", async () => {
 				respondingWith(pipelineGroup);
 
 				await renderPage().findByText(GROUP);
 
-				expect(cellOf(GROUP, "Task grade")).toHaveTextContent(
+				expect(cellOf(GROUP, "Task grade").textContent).toBe(
+					"4 of 5 PASSgraded independently · 1 of 6 reps not judged",
+				);
+			});
+
+			it("reads only that it was graded independently when the final judge graded every rep", async () => {
+				respondingWith(
+					groupWith({
+						...pipelineFigures,
+						finalOutcomes: { PASS: 4, FAIL: 2 },
+					}),
+				);
+
+				await renderPage().findByText(GROUP);
+
+				expect(cellOf(GROUP, "Task grade").textContent).toBe(
 					"4 of 6 PASSgraded independently",
+				);
+			});
+
+			it("reads — with the reps not judged when the final judge graded none", async () => {
+				respondingWith(
+					groupWith({
+						...pipelineFigures,
+						finalOutcomes: { NOT_REACHED: 6 },
+						successful: 0,
+					}),
+				);
+
+				await renderPage().findByText(GROUP);
+
+				expect(cellOf(GROUP, "Task grade").textContent).toBe(
+					"—not reached · 6 of 6 reps not judged",
 				);
 			});
 		});
@@ -2412,7 +2449,7 @@ describe(RunHistoryPage.name, () => {
 
 				await renderPage().findByText(GROUP);
 
-				expect(cellOf(GROUP, "Step grades")).toHaveTextContent("· B (n=3) ·");
+				expect(cellOf(GROUP, "Step grades").textContent).toBe("· B (n=3) ·");
 			});
 
 			it("reads n/a as its task grade", async () => {
@@ -2427,7 +2464,7 @@ describe(RunHistoryPage.name, () => {
 		});
 
 		describe("in session mode", () => {
-			const sessionGroup = groupWith({
+			const sessionFigures: GroupFigures = {
 				mode: "session",
 				reps: 6,
 				pipelineStages: {
@@ -2444,15 +2481,31 @@ describe(RunHistoryPage.name, () => {
 				],
 				finalOutcomes: { NOT_APPLICABLE: 6 },
 				successful: 4,
-			});
+			};
+			const sessionGroup = groupWith(sessionFigures);
 
 			it("reads how many reps passed their checks as its step grades", async () => {
 				respondingWith(sessionGroup);
 
 				await renderPage().findByText(GROUP);
 
-				expect(cellOf(GROUP, "Step grades")).toHaveTextContent(
+				expect(cellOf(GROUP, "Step grades").textContent).toBe(
 					"4 of 6 reps passed",
+				);
+			});
+
+			it("counts only the reps it recorded, naming the reps it could not", async () => {
+				respondingWith(
+					groupWith({
+						...sessionFigures,
+						finalOutcomes: { NOT_APPLICABLE: 5 },
+					}),
+				);
+
+				await renderPage().findByText(GROUP);
+
+				expect(cellOf(GROUP, "Step grades").textContent).toBe(
+					"4 of 5 reps passed1 of 6 reps not recorded",
 				);
 			});
 
