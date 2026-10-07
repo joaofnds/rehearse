@@ -11,6 +11,7 @@ export const UNREAD_RUN_FIGURES = {
 	finalOutcome: { state: "unavailable", reasons: ["not read by this test"] },
 	cost: { state: "unavailable", reasons: ["not read by this test"] },
 	wallTime: { state: "unavailable", reasons: ["not read by this test"] },
+	minimumGrade: { state: "unavailable", reasons: ["not read by this test"] },
 } as const;
 
 /** A replay row's figures, for a test whose subject is another column. */

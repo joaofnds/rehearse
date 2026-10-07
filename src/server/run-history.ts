@@ -132,6 +132,8 @@ export interface PipelineRunRow {
 	readonly finalOutcome: Reading<FinalOutcome>;
 	readonly cost: CostReading;
 	readonly wallTime: WallTimeReading;
+	/** The grade a stage had to reach for the run to go on past it. */
+	readonly minimumGrade: Reading<{ readonly letter: string }>;
 	/** The browser launch whose process holds its target, which a stop names. */
 	readonly launchId: string | undefined;
 }
@@ -461,6 +463,7 @@ interface RunFigures {
 	readonly finalOutcome: PipelineRunRow["finalOutcome"];
 	readonly cost: PipelineRunRow["cost"];
 	readonly wallTime: PipelineRunRow["wallTime"];
+	readonly minimumGrade: PipelineRunRow["minimumGrade"];
 	readonly corpusVersion: PipelineRunRow["corpusVersion"];
 	readonly corpusChangedDuringRun: boolean;
 }
@@ -491,6 +494,7 @@ async function runFigures(
 			finalOutcome: { state: "available", ...record.finalOutcome },
 			cost: record.totals.cost,
 			wallTime: record.totals.wallTime,
+			minimumGrade: record.minimumGrade,
 			...runCorpus(record),
 		};
 	} catch (error) {
@@ -506,6 +510,7 @@ function unavailableFigures(reasons: readonly string[]): RunFigures {
 		finalOutcome: { state: "unavailable", reasons },
 		cost: { state: "unavailable", reasons },
 		wallTime: { state: "unavailable", reasons },
+		minimumGrade: { state: "unavailable", reasons },
 		corpusVersion: undefined,
 		corpusChangedDuringRun: false,
 	};

@@ -46,6 +46,7 @@ import {
 } from "./run-history";
 import {
 	INTERRUPTED_REASON,
+	MINIMUM_GRADE_REASON,
 	PRODUCT_OWNER_COST_REASON,
 	RUN_FAILED_REASON,
 	RUN_WALL_TIME_REASON,
@@ -498,6 +499,34 @@ describe("/api/runs", () => {
 				});
 			});
 
+			it("carries the minimum grade its manifest set", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeStoppedRunWithReadings();
+
+				const row = await runRow(fixture, fixture.stoppedRun);
+
+				expect(row).toMatchObject({
+					minimumGrade: {
+						state: "available",
+						letter: RECORDED_READINGS.minimumGrade,
+					},
+				});
+			});
+
+			it("carries its minimum grade as not recorded when its manifest predates it", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeStoppedRun();
+
+				const row = await runRow(fixture, fixture.stoppedRun);
+
+				expect(row).toMatchObject({
+					minimumGrade: {
+						state: "unavailable",
+						reasons: [MINIMUM_GRADE_REASON],
+					},
+				});
+			});
+
 			describe("when the run wrote no manifest", () => {
 				it("keeps the row with each figure unavailable for that reason", async () => {
 					const fixture = await emptyFixture();
@@ -520,6 +549,10 @@ describe("/api/runs", () => {
 						},
 						cost: { state: "unavailable", reasons: [NO_MANIFEST_REASON] },
 						wallTime: { state: "unavailable", reasons: [NO_MANIFEST_REASON] },
+						minimumGrade: {
+							state: "unavailable",
+							reasons: [NO_MANIFEST_REASON],
+						},
 					});
 				});
 			});
