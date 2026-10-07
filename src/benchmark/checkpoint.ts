@@ -5,7 +5,6 @@ import { basename, dirname, isAbsolute, join, relative, sep } from "node:path";
 import { z } from "zod";
 import type { Effort, StageSkillPresence } from "./config";
 import { effortSchema } from "./config";
-import { INITIAL_CHECKPOINT_STAGE } from "./consumed-checkpoint";
 import type { CorpusRoot, LiveCorpusRoot } from "./corpus-file";
 import {
 	CORPUS_LAYOUT_DIRECTORIES,
@@ -779,10 +778,21 @@ function installedCorpusIgnore(paths: readonly string[]): string {
 	return `${patterns.join("\n")}\n`;
 }
 
-export {
-	consumedCheckpointStage,
-	INITIAL_CHECKPOINT_STAGE,
-} from "./consumed-checkpoint";
+/**
+ * The checkpoint recorded at run start, before any stage runs, so the first
+ * stage replays from a checkpoint like every other stage. The name is
+ * reserved in pipeline definitions; a stage of the same name would claim the
+ * same checkpoint directory.
+ */
+export const INITIAL_CHECKPOINT_STAGE = "initial";
+
+/** The checkpoint a replay of the stage at `index` in pipeline order starts from. */
+export function consumedCheckpointStage(
+	stages: readonly string[],
+	index: number,
+): string {
+	return stages[index - 1] ?? INITIAL_CHECKPOINT_STAGE;
+}
 
 /**
  * The initial checkpoint consumes no corpus: no skill ran to produce it. Its
