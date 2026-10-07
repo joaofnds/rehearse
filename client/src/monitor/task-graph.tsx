@@ -28,7 +28,7 @@ const SECONDS_PER_MINUTE = 60;
 
 const NOT_RECORDED = "—";
 
-interface NodeStatus {
+export interface NodeStatus {
 	readonly state: StatusState;
 	readonly words: string;
 }
@@ -65,7 +65,10 @@ function notStarted(stage: MonitoredStage, row: PipelineRow): boolean {
 	return stage.status === "no-record" && !isRunning(stage, row);
 }
 
-function nodeStatus(stage: MonitoredStage, row: PipelineRow): NodeStatus {
+export function nodeStatus(
+	stage: MonitoredStage,
+	row: PipelineRow,
+): NodeStatus {
 	const progress = liveProgress(stage, row);
 	if (progress !== undefined) {
 		return { state: "running", words: progress.stageState };
@@ -95,7 +98,7 @@ const SCOPE_IS_OWN_SPEND = {
  * it at its latest event, or else its session and judge cost as its record
  * keeps them. A stage not started has spent nothing.
  */
-function costReading(stage: MonitoredStage, row: PipelineRow): string {
+export function costReading(stage: MonitoredStage, row: PipelineRow): string {
 	const progress = liveProgress(stage, row);
 	if (progress !== undefined) {
 		return spendReading(
@@ -120,7 +123,7 @@ function costReading(stage: MonitoredStage, row: PipelineRow): string {
  * advancing between the run's measurements (SPEC.md:354), or else the wall
  * time its record keeps.
  */
-function durationReading(
+export function durationReading(
 	stage: MonitoredStage,
 	row: PipelineRow,
 	nowMs: number,

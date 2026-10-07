@@ -379,7 +379,7 @@ export function RunDetailPage({
 			<RestoreBanner row={row} record={record.data} layout={layout} />
 			{layout === "rail" && selected !== undefined ? (
 				<StepRail
-					run={run}
+					row={row}
 					record={record.data}
 					selected={selected.stage}
 					onSelect={(stage) => {
