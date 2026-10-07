@@ -220,6 +220,7 @@ export async function runSessionDebugAttempt(
 			corpusVersion,
 			versionFiles,
 			attempt,
+			startedAt: new Date(startedAt).toISOString(),
 			elapsedMs: Date.now() - startedAt,
 			error,
 		});

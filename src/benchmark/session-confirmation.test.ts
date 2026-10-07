@@ -389,6 +389,79 @@ describe(runSessionConfirmation.name, () => {
 		]);
 	});
 
+	it("records on the group and every rep's attempt the instant each started", async () => {
+		const root = await mkdtemp(join(tmpdir(), "rehearse-session-start-"));
+		temporaryDirectories.push(root);
+		const corpusRoot = join(root, "source-corpus");
+		await Bun.write(join(corpusRoot, "CLAUDE.md"), "instructions\n");
+		const started = Date.UTC(2026, 9, 8, 10, 15);
+
+		const outcome = await runSessionConfirmation(
+			{
+				now: () => started,
+				executeAttempt: async (plan) => {
+					const transcriptFile = join(plan.recordDirectory, "transcript.jsonl");
+					await Bun.write(transcriptFile, `rep ${plan.ordinal}\n`);
+
+					return {
+						attemptDirectory: join(plan.recordDirectory, "execution"),
+						reply: "OK",
+						transcriptFile,
+						metrics,
+						outcome: "SUCCESSFUL" as const,
+						checks: [
+							{
+								kind: "word-band" as const,
+								status: "PASS" as const,
+								detail: "1 word",
+							},
+						],
+						contextManifest: undefined,
+						transcriptDiagnostics: unavailableTranscriptDiagnostics,
+					};
+				},
+			},
+			{
+				runsDirectory: join(root, "runs"),
+				groupId: "start-group",
+				reps: 2,
+				projectedCost: {
+					reps: 2,
+					perRepMaximumUsd: 0.2,
+					preflightMaximumUsd: 0.1,
+					totalMaximumUsd: 0.5,
+				},
+				approvalMethod: "yes",
+				sessionCase: simpleSessionCase("start-group"),
+				corpus: corpusRoot,
+				model: "sonnet",
+				sessionBudgetUsd: 0.2,
+				spendCeilingUsd: 12,
+				preflight: { status: "COMPLETE", call: { metrics } },
+			},
+		);
+		const groupDirectory = dirname(outcome.groupRecordFile);
+		const group = parseConfirmationGroupRecord(
+			await Bun.file(outcome.groupRecordFile).text(),
+		);
+		const attemptFiles = await Array.fromAsync(
+			new Bun.Glob("reps/*/attempt.json").scan(groupDirectory),
+		);
+		const attempts = await Promise.all(
+			attemptFiles.map(async (file) =>
+				parseSessionAttemptRecord(
+					await Bun.file(join(groupDirectory, file)).text(),
+				),
+			),
+		);
+
+		expect(group.startedAt).toBe("2026-10-08T10:15:00.000Z");
+		expect(attempts).toMatchObject([
+			{ startedAt: "2026-10-08T10:15:00.000Z" },
+			{ startedAt: "2026-10-08T10:15:00.000Z" },
+		]);
+	});
+
 	it("runs every rep from one frozen input set and records a provider failure", async () => {
 		const root = await mkdtemp(join(tmpdir(), "rehearse-session-group-"));
 		temporaryDirectories.push(root);

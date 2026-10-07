@@ -16,9 +16,9 @@ import type {
 	SessionConfirmationGroupRecord,
 } from "./confirmation-record";
 import {
-	confirmationGroupRecordSchema,
 	parseConfirmationRepRecord,
-	sessionConfirmationGroupRecordSchema,
+	writableConfirmationGroupRecordSchema,
+	writableSessionConfirmationGroupRecordSchema,
 } from "./confirmation-record";
 import {
 	buildReliabilityReport,
@@ -160,6 +160,8 @@ interface ConfirmationGroupFinalizationBase {
 	readonly groupFile: string;
 	readonly operatorStopFile: string;
 	readonly reportFile: string;
+	/** The ISO instant the group's makespan starts, read from the wall clock. */
+	readonly startedAt: string;
 	readonly makespanMs: number;
 }
 
@@ -312,16 +314,17 @@ export async function finalizeConfirmationGroup(
 		})),
 		reportFile: relative(finalization.groupDirectory, finalization.reportFile),
 		makespanMs: finalization.makespanMs,
+		startedAt: finalization.startedAt,
 	};
 	const group =
 		finalization.mode === "session"
-			? sessionConfirmationGroupRecordSchema.parse({
+			? writableSessionConfirmationGroupRecordSchema.parse({
 					schemaVersion: 2,
 					mode: "session",
 					preflight: finalization.preflight,
 					...sharedGroup,
 				})
-			: confirmationGroupRecordSchema.parse({
+			: writableConfirmationGroupRecordSchema.parse({
 					schemaVersion: 1,
 					mode: finalization.mode,
 					...sharedGroup,

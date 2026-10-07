@@ -128,6 +128,19 @@ describe(runPipelineConfirmation.name, () => {
 		expect(group.inputs.spendCeilingUsd).toBe(12);
 	});
 
+	it("records on the group the instant its reps started", async () => {
+		const harness = await PipelineConfirmationHarness.setup(testResources);
+		const before = Date.now();
+
+		const outcome = await harness.run({});
+
+		const after = Date.now();
+		const group = parseConfirmationGroupRecord(
+			await Bun.file(outcome.groupRecordFile).text(),
+		);
+		expect(Date.parse(group.startedAt ?? "")).toBeWithin(before, after + 1);
+	});
+
 	it("names the case its group and rep records ran", async () => {
 		const harness = await PipelineConfirmationHarness.setup(testResources);
 

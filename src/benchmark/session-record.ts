@@ -279,47 +279,61 @@ export const legacyTaggedSessionAttemptRecordSchema = z
 export const legacySessionAttemptRecordSchema =
 	legacyTaggedSessionAttemptRecordSchema;
 
+const executionFailedSessionAttemptRecordFields = {
+	schemaVersion: z.literal(2),
+	caseId: z.string().min(1),
+	lineage: z.string().min(1),
+	model: z.string().min(1),
+	effort: effortSchema.optional(),
+	sessionBudgetUsd: z.number().positive(),
+	spendCeilingUsd: z.number().positive().optional(),
+	corpusFiles: z.array(corpusFileSchema),
+	corpusOrigin: corpusSnapshotOriginSchema.optional(),
+	corpusVersion: corpusMeasurementSchema.optional(),
+	settingsDigest: sha256Schema.optional(),
+	contextManifest: z.undefined().optional(),
+	readManifest: readManifestSchema.optional(),
+	divergences: z.undefined().optional(),
+	prompt: z.string().min(1),
+	reply: z.undefined().optional(),
+	error: z.string().min(1),
+	transcriptFile: z.string().min(1),
+	transcriptDiagnostics: transcriptDiagnosticsSchema.optional(),
+	unavailableSubagents: unavailableSubagentsSchema,
+	contextEvidence: contextEvidenceSchema.optional(),
+	metrics: claudeCallMetricsSchema.optional(),
+	outcome: z.literal("EXECUTION_FAILED"),
+	checks: z.array(checkResultSchema).length(0),
+	elapsedMs: z.number().nonnegative(),
+};
+
+/**
+ * When the attempt started. A record written before attempts recorded it
+ * carries none, so reads take it as optional and writes require it.
+ */
+const startedAtSchema = z.iso.datetime();
+
 export const executionFailedSessionAttemptRecordSchema = z
 	.object({
-		schemaVersion: z.literal(2),
-		caseId: z.string().min(1),
-		lineage: z.string().min(1),
-		model: z.string().min(1),
-		effort: effortSchema.optional(),
-		sessionBudgetUsd: z.number().positive(),
-		spendCeilingUsd: z.number().positive().optional(),
-		corpusFiles: z.array(corpusFileSchema),
-		corpusOrigin: corpusSnapshotOriginSchema.optional(),
-		corpusVersion: corpusMeasurementSchema.optional(),
-		settingsDigest: sha256Schema.optional(),
-		contextManifest: z.undefined().optional(),
-		readManifest: readManifestSchema.optional(),
-		divergences: z.undefined().optional(),
-		prompt: z.string().min(1),
-		reply: z.undefined().optional(),
-		error: z.string().min(1),
-		transcriptFile: z.string().min(1),
-		transcriptDiagnostics: transcriptDiagnosticsSchema.optional(),
-		unavailableSubagents: unavailableSubagentsSchema,
-		contextEvidence: contextEvidenceSchema.optional(),
-		metrics: claudeCallMetricsSchema.optional(),
-		outcome: z.literal("EXECUTION_FAILED"),
-		checks: z.array(checkResultSchema).length(0),
-		elapsedMs: z.number().nonnegative(),
-		startedAt: z.iso.datetime().optional(),
+		...executionFailedSessionAttemptRecordFields,
+		startedAt: startedAtSchema.optional(),
 	})
 	.strict();
 
+const sessionAttemptRecordV3Fields = {
+	schemaVersion: z.literal(3),
+	...sessionAttemptRecordFields,
+	...stateGradeFields,
+	unavailableSubagents: unavailableSubagentsSchema,
+	contextManifest: contextManifestSchema.optional(),
+	divergences: z.array(manifestDivergenceSchema).optional(),
+	readManifest: readManifestSchema.optional(),
+};
+
 export const sessionAttemptRecordV3Schema = z
 	.object({
-		schemaVersion: z.literal(3),
-		...sessionAttemptRecordFields,
-		...stateGradeFields,
-		startedAt: z.iso.datetime().optional(),
-		unavailableSubagents: unavailableSubagentsSchema,
-		contextManifest: contextManifestSchema.optional(),
-		divergences: z.array(manifestDivergenceSchema).optional(),
-		readManifest: readManifestSchema.optional(),
+		...sessionAttemptRecordV3Fields,
+		startedAt: startedAtSchema.optional(),
 	})
 	.strict()
 	.superRefine(refineSessionAttemptRecord);
@@ -327,11 +341,19 @@ export const sessionAttemptRecordV3Schema = z
 /**
  * The shapes a writer may produce today. Reads accept every historical shape;
  * writes are held to the current contract so a regression in the builder
- * cannot silently emit a legacy record.
+ * cannot silently emit a legacy record or one without its start time.
  */
 const writableSessionAttemptRecordSchema = z.union([
-	executionFailedSessionAttemptRecordSchema,
-	sessionAttemptRecordV3Schema,
+	z
+		.object({
+			...executionFailedSessionAttemptRecordFields,
+			startedAt: startedAtSchema,
+		})
+		.strict(),
+	z
+		.object({ ...sessionAttemptRecordV3Fields, startedAt: startedAtSchema })
+		.strict()
+		.superRefine(refineSessionAttemptRecord),
 ]);
 
 export const sessionAttemptRecordSchema = z.union([
@@ -371,6 +393,8 @@ export interface SessionAttemptRecordInputs {
 	/** The files `corpusVersion` holds. */
 	readonly versionFiles: readonly HashedFile[];
 	readonly attempt: SessionAttempt;
+	/** The ISO instant the attempt's elapsed time starts, read from the wall clock. */
+	readonly startedAt: string;
 	readonly elapsedMs: number;
 	readonly error?: string | undefined;
 }
@@ -402,6 +426,7 @@ interface MutableSessionAttemptRecord {
 	checks: SessionAttempt["checks"];
 	stateResults?: SessionAttempt["stateResults"];
 	stateGradingError?: string;
+	startedAt: string;
 	elapsedMs: number;
 }
 
@@ -429,6 +454,7 @@ export function buildSessionAttemptRecord(
 		),
 		outcome: attempt.outcome,
 		checks: attempt.checks.map((check) => ({ ...check })),
+		startedAt: inputs.startedAt,
 		elapsedMs: inputs.elapsedMs,
 		corpusVersion: { ...inputs.corpusVersion },
 		readManifest: [

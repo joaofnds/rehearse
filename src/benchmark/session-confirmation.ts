@@ -258,6 +258,7 @@ function repRecord(
 interface ExecutedRep {
 	readonly attempt: SessionAttempt;
 	readonly error: string | undefined;
+	readonly startedAt: string;
 	readonly elapsedMs: number;
 }
 
@@ -302,6 +303,7 @@ export async function runSessionConfirmation(
 						lineage: inputs.lineage,
 					}),
 					error: undefined,
+					startedAt: new Date(repStartedAt).toISOString(),
 					elapsedMs: now() - repStartedAt,
 				};
 			} catch (error) {
@@ -312,6 +314,7 @@ export async function runSessionConfirmation(
 				return {
 					attempt: error.attempt,
 					error: error.message,
+					startedAt: new Date(repStartedAt).toISOString(),
 					elapsedMs: now() - repStartedAt,
 				};
 			}
@@ -342,6 +345,7 @@ export async function runSessionConfirmation(
 					versionFiles: inputs.versionFiles,
 					attempt: executed.attempt,
 					error: executed.error,
+					startedAt: executed.startedAt,
 					elapsedMs: executed.elapsedMs,
 				}),
 				null,
@@ -392,6 +396,7 @@ export async function runSessionConfirmation(
 		groupFile: paths.groupFile,
 		operatorStopFile: paths.operatorStopFile,
 		reportFile: paths.reportFile,
+		startedAt: new Date(startedAt).toISOString(),
 		makespanMs: now() - startedAt,
 	});
 }

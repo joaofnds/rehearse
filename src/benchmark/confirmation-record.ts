@@ -434,127 +434,175 @@ const repRecordReferenceSchema = z
 	})
 	.strict();
 
+const legacyConfirmationGroupRecordFields = {
+	schemaVersion: z.literal(1),
+	caseId: legacyCaseIdSchema,
+	groupId: identitySchema,
+	mode: confirmationModeSchema,
+	reps: z.number().int().min(2),
+	declaredStages: z.array(z.string().min(1)).min(1),
+	inputs: frozenInputsSchema,
+	projectedCost: projectedCostSchema,
+	approval: z
+		.object({
+			method: z.enum(APPROVAL_METHODS),
+			approved: z.literal(true),
+		})
+		.strict(),
+	repRecords: z.array(repRecordReferenceSchema),
+	reportFile: z.string().min(1),
+	makespanMs: elapsedSchema,
+};
+
+interface RecordedGroup {
+	readonly groupId: string;
+	readonly reps: number;
+	readonly repRecords: readonly {
+		readonly repId: string;
+		readonly ordinal: number;
+	}[];
+	readonly projectedCost: { readonly reps: number };
+}
+
+interface GroupRefinementContext {
+	readonly addIssue: z.RefinementCtx["addIssue"];
+}
+
+function refineGroupRecord(
+	record: RecordedGroup,
+	context: Readonly<GroupRefinementContext>,
+): void {
+	const referencesEveryRep =
+		record.repRecords.length === record.reps &&
+		record.repRecords.every(
+			(reference, index) =>
+				reference.ordinal === index + 1 &&
+				reference.repId === `${record.groupId}-rep-${index + 1}`,
+		);
+	if (!referencesEveryRep) {
+		context.addIssue({
+			code: "custom",
+			message: "Group must reference every requested rep exactly once",
+			path: ["repRecords"],
+		});
+	}
+	if (record.projectedCost.reps !== record.reps) {
+		context.addIssue({
+			code: "custom",
+			message: "Projected cost rep count must match the group",
+			path: ["projectedCost", "reps"],
+		});
+	}
+}
+
+interface RecordedSessionGroup extends RecordedGroup {
+	readonly projectedCost: {
+		readonly reps: number;
+		readonly preflightMaximumUsd: number;
+		readonly perRepMaximumUsd: number;
+		readonly totalMaximumUsd: number;
+	};
+}
+
+function refineSessionGroupRecord(
+	record: RecordedSessionGroup,
+	context: Readonly<GroupRefinementContext>,
+): void {
+	refineGroupRecord(record, context);
+	const expectedTotal = Number(
+		(
+			record.projectedCost.preflightMaximumUsd +
+			record.reps * record.projectedCost.perRepMaximumUsd
+		).toPrecision(15),
+	);
+	if (record.projectedCost.totalMaximumUsd !== expectedTotal) {
+		context.addIssue({
+			code: "custom",
+			message:
+				"Session projected total must equal preflight plus every rep maximum",
+			path: ["projectedCost", "totalMaximumUsd"],
+		});
+	}
+}
+
+/**
+ * When the group's reps started. A record written before groups recorded it
+ * carries none, so reads take it as optional and writes require it.
+ */
+const startedAtSchema = z.iso.datetime();
+
 const legacyConfirmationGroupRecordSchema = z
 	.object({
-		schemaVersion: z.literal(1),
-		caseId: legacyCaseIdSchema,
-		groupId: identitySchema,
-		mode: confirmationModeSchema,
-		reps: z.number().int().min(2),
-		declaredStages: z.array(z.string().min(1)).min(1),
-		inputs: frozenInputsSchema,
-		projectedCost: projectedCostSchema,
-		approval: z
-			.object({
-				method: z.enum(APPROVAL_METHODS),
-				approved: z.literal(true),
-			})
-			.strict(),
-		repRecords: z.array(repRecordReferenceSchema),
-		reportFile: z.string().min(1),
-		makespanMs: elapsedSchema,
-		startedAt: z.iso.datetime().optional(),
+		...legacyConfirmationGroupRecordFields,
+		startedAt: startedAtSchema.optional(),
 	})
 	.strict()
-	.superRefine((record, context) => {
-		const referencesEveryRep =
-			record.repRecords.length === record.reps &&
-			record.repRecords.every(
-				(reference, index) =>
-					reference.ordinal === index + 1 &&
-					reference.repId === `${record.groupId}-rep-${index + 1}`,
-			);
-		if (!referencesEveryRep) {
-			context.addIssue({
-				code: "custom",
-				message: "Group must reference every requested rep exactly once",
-				path: ["repRecords"],
-			});
-		}
-		if (record.projectedCost.reps !== record.reps) {
-			context.addIssue({
-				code: "custom",
-				message: "Projected cost rep count must match the group",
-				path: ["projectedCost", "reps"],
-			});
-		}
-	});
+	.superRefine(refineGroupRecord);
+
+const sessionConfirmationGroupRecordFields = {
+	schemaVersion: z.literal(2),
+	caseId: identitySchema,
+	groupId: identitySchema,
+	mode: z.literal("session"),
+	reps: z.number().int().min(2),
+	declaredStages: z.tuple([z.literal("checks")]),
+	inputs: z
+		.object({
+			lineage: z
+				.object({ kind: z.literal("SESSION"), lineage: z.string().min(1) })
+				.strict(),
+			files: z.array(sessionFrozenFileSchema).min(1),
+			model: z.string().min(1),
+			effort: effortSchema.optional(),
+			judgeModel: z.never().optional(),
+			judgeEffort: z.never().optional(),
+			sessionBudgetUsd: z.number().positive(),
+			spendCeilingUsd: z.number().positive().optional(),
+			pipelinePath: z.never().optional(),
+			corpusVersion: corpusMeasurementSchema.optional(),
+		})
+		.strict(),
+	projectedCost: sessionProjectedCostSchema,
+	preflight: preflightEvidenceSchema,
+	approval: z
+		.object({
+			method: z.enum(APPROVAL_METHODS),
+			approved: z.literal(true),
+		})
+		.strict(),
+	repRecords: z.array(repRecordReferenceSchema),
+	reportFile: z.string().min(1),
+	makespanMs: elapsedSchema,
+};
 
 export const sessionConfirmationGroupRecordSchema = z
 	.object({
-		schemaVersion: z.literal(2),
-		caseId: identitySchema,
-		groupId: identitySchema,
-		mode: z.literal("session"),
-		reps: z.number().int().min(2),
-		declaredStages: z.tuple([z.literal("checks")]),
-		inputs: z
-			.object({
-				lineage: z
-					.object({ kind: z.literal("SESSION"), lineage: z.string().min(1) })
-					.strict(),
-				files: z.array(sessionFrozenFileSchema).min(1),
-				model: z.string().min(1),
-				effort: effortSchema.optional(),
-				judgeModel: z.never().optional(),
-				judgeEffort: z.never().optional(),
-				sessionBudgetUsd: z.number().positive(),
-				spendCeilingUsd: z.number().positive().optional(),
-				pipelinePath: z.never().optional(),
-				corpusVersion: corpusMeasurementSchema.optional(),
-			})
-			.strict(),
-		projectedCost: sessionProjectedCostSchema,
-		preflight: preflightEvidenceSchema,
-		approval: z
-			.object({
-				method: z.enum(APPROVAL_METHODS),
-				approved: z.literal(true),
-			})
-			.strict(),
-		repRecords: z.array(repRecordReferenceSchema),
-		reportFile: z.string().min(1),
-		makespanMs: elapsedSchema,
-		startedAt: z.iso.datetime().optional(),
+		...sessionConfirmationGroupRecordFields,
+		startedAt: startedAtSchema.optional(),
 	})
 	.strict()
-	.superRefine((record, context) => {
-		const referencesEveryRep =
-			record.repRecords.length === record.reps &&
-			record.repRecords.every(
-				(reference, index) =>
-					reference.ordinal === index + 1 &&
-					reference.repId === `${record.groupId}-rep-${index + 1}`,
-			);
-		if (!referencesEveryRep) {
-			context.addIssue({
-				code: "custom",
-				message: "Group must reference every requested rep exactly once",
-				path: ["repRecords"],
-			});
-		}
-		if (record.projectedCost.reps !== record.reps) {
-			context.addIssue({
-				code: "custom",
-				message: "Projected cost rep count must match the group",
-				path: ["projectedCost", "reps"],
-			});
-		}
-		const expectedTotal = Number(
-			(
-				record.projectedCost.preflightMaximumUsd +
-				record.reps * record.projectedCost.perRepMaximumUsd
-			).toPrecision(15),
-		);
-		if (record.projectedCost.totalMaximumUsd !== expectedTotal) {
-			context.addIssue({
-				code: "custom",
-				message:
-					"Session projected total must equal preflight plus every rep maximum",
-				path: ["projectedCost", "totalMaximumUsd"],
-			});
-		}
-	});
+	.superRefine(refineSessionGroupRecord);
+
+/**
+ * The group shapes a writer may produce today, which hold the start time the
+ * read schemas leave optional, so a writer that forgets it is refused rather
+ * than leaving a group untimed.
+ */
+export const writableConfirmationGroupRecordSchema = z
+	.object({
+		...legacyConfirmationGroupRecordFields,
+		startedAt: startedAtSchema,
+	})
+	.strict()
+	.superRefine(refineGroupRecord);
+
+export const writableSessionConfirmationGroupRecordSchema = z
+	.object({
+		...sessionConfirmationGroupRecordFields,
+		startedAt: startedAtSchema,
+	})
+	.strict()
+	.superRefine(refineSessionGroupRecord);
 
 const parsedConfirmationGroupRecordSchema = z.union([
 	legacyConfirmationGroupRecordSchema,

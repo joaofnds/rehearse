@@ -9,6 +9,7 @@ import {
 } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
+import { z } from "zod";
 import type { SessionCase } from "#benchmark/case";
 import type { Immutable } from "#benchmark/contracts";
 import type { SessionRunConfig } from "#benchmark/config";
@@ -315,6 +316,27 @@ describe(runSessionDebugAttempt.name, () => {
 			await Bun.file(outcome.recordFile).text(),
 		);
 		expect(written).toEqual(outcome.record);
+	});
+
+	it("writes the instant the attempt started to its record file", async () => {
+		const runs = await temporary("rehearse-runs-");
+		const projects = await temporary("rehearse-projects-");
+		const before = Date.now();
+
+		const outcome = await runSessionDebugAttempt({
+			sessionCase: sessionCase(),
+			config,
+			runsDirectory: runs,
+			spendCeilingUsd: 100,
+			runClaude: fakeClaude(projects, "OK"),
+			projectsDirectory: projects,
+		});
+
+		const after = Date.now();
+		const written = z
+			.object({ startedAt: z.iso.datetime() })
+			.parse(JSON.parse(await Bun.file(outcome.recordFile).text()));
+		expect(Date.parse(written.startedAt)).toBeWithin(before, after + 1);
 	});
 
 	it("persists provider context evidence through the saved attempt boundary", async () => {

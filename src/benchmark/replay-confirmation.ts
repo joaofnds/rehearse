@@ -468,6 +468,7 @@ async function runReplayConfirmationBody(
 	worktreesDirectory: string,
 	now: () => number,
 ): Promise<ReplayConfirmationOutcome> {
+	const startedAt = new Date().toISOString();
 	const makespanStart = now();
 	const repSpendCeiling = repSpendCeilings({
 		spendCeilingUsd: request.spendCeilingUsd,
@@ -783,6 +784,7 @@ async function runReplayConfirmationBody(
 		groupFile: paths.groupFile,
 		operatorStopFile: paths.operatorStopFile,
 		reportFile: paths.reportFile,
+		startedAt,
 		makespanMs,
 	});
 }

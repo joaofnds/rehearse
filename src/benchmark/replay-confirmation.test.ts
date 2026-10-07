@@ -103,6 +103,34 @@ describe(runReplayConfirmation.name, () => {
 		expect(group.inputs.spendCeilingUsd).toBe(12);
 	});
 
+	it("records on the group the instant its reps started", async () => {
+		const harness = new ReplayConfirmationHarness(testResources);
+		const run = await harness.recordedRun();
+		const corpusRoot = await mkdtemp(join(tmpdir(), "rehearse-corpus-"));
+		testResources.track(corpusRoot);
+		for (const skill of ["discuss", "build", "doctrine"]) {
+			await Bun.write(
+				join(corpusRoot, "skills", skill, "SKILL.md"),
+				`${skill}\n`,
+			);
+		}
+		const before = Date.now();
+
+		const outcome = await harness.runConfirmation(
+			{
+				paths: run.paths,
+				corpusRoots: [{ kind: "directory", root: corpusRoot }],
+			},
+			{ reps: 2 },
+		);
+
+		const after = Date.now();
+		const group = parseConfirmationGroupRecord(
+			await Bun.file(outcome.groupRecordFile).text(),
+		);
+		expect(Date.parse(group.startedAt ?? "")).toBeWithin(before, after + 1);
+	});
+
 	it("claims the group a short id in its source run's case", async () => {
 		const harness = new ReplayConfirmationHarness(testResources);
 		const run = await harness.recordedRun();

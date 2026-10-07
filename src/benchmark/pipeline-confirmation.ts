@@ -871,6 +871,7 @@ export async function runPipelineConfirmation(
 			kind: "group",
 			groupId: request.groupId,
 		});
+		const startedAt = new Date().toISOString();
 		const makespanStart = now();
 		const repSpendCeiling = repSpendCeilings({
 			spendCeilingUsd: request.spendCeilingUsd,
@@ -930,6 +931,7 @@ export async function runPipelineConfirmation(
 			groupFile: paths.groupFile,
 			operatorStopFile: paths.operatorStopFile,
 			reportFile: paths.reportFile,
+			startedAt,
 			makespanMs,
 		});
 	} catch (error) {

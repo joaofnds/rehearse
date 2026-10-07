@@ -26,6 +26,8 @@ const MEASURED_VERSION = {
 	digest: "a".repeat(64),
 } as const;
 
+const STARTED_AT = "2026-10-08T10:15:00.000Z";
+
 function record(
 	overrides: Immutable<Partial<LegacySessionAttemptRecord>> = {},
 ): Immutable<LegacySessionAttemptRecord> {
@@ -530,6 +532,7 @@ describe("sessionAttemptRecordSchema", () => {
 			corpusFiles: sampleCorpusFiles,
 			corpusOrigin: sampleOrigin,
 			attempt: sampleAttempt,
+			startedAt: STARTED_AT,
 			elapsedMs: 123,
 		});
 
@@ -625,6 +628,7 @@ describe("sessionAttemptRecordSchema", () => {
 			],
 			corpusOrigin: { kind: "live" },
 			attempt,
+			startedAt: STARTED_AT,
 			elapsedMs: 1,
 		});
 
@@ -717,6 +721,7 @@ describe("sessionAttemptRecordSchema", () => {
 			corpusFiles: [],
 			corpusOrigin: { kind: "live" },
 			attempt: smokeAttempt(),
+			startedAt: STARTED_AT,
 			elapsedMs: 1,
 		});
 		const withVerbose = buildSessionAttemptRecord({
@@ -729,6 +734,7 @@ describe("sessionAttemptRecordSchema", () => {
 			corpusFiles: [],
 			corpusOrigin: { kind: "live" },
 			attempt: smokeAttempt(),
+			startedAt: STARTED_AT,
 			elapsedMs: 1,
 		});
 		const withNone = buildSessionAttemptRecord({
@@ -741,6 +747,7 @@ describe("sessionAttemptRecordSchema", () => {
 			corpusFiles: [],
 			corpusOrigin: { kind: "live" },
 			attempt: smokeAttempt(),
+			startedAt: STARTED_AT,
 			elapsedMs: 1,
 		});
 
@@ -770,6 +777,7 @@ describe("sessionAttemptRecordSchema", () => {
 				corpusFiles: [],
 				corpusOrigin: { kind: "live" },
 				attempt: smokeAttempt(),
+				startedAt: STARTED_AT,
 				elapsedMs: 1,
 			}).settingsDigest;
 		}
@@ -835,6 +843,7 @@ describe("sessionAttemptRecordSchema", () => {
 					},
 				},
 			},
+			startedAt: STARTED_AT,
 			elapsedMs: 123,
 		});
 
@@ -924,9 +933,49 @@ describe("sessionAttemptRecordSchema", () => {
 				corpusOrigin: { kind: "live" },
 				// oxlint-disable-next-line anti-slop/no-chained-type-assertions, typescript/no-unsafe-type-assertion
 				attempt: sampleAttempt as unknown as SessionAttempt,
+				startedAt: STARTED_AT,
 				elapsedMs: 123,
 			}),
 		).toThrow(/expected object, received string/u);
+	});
+});
+
+describe("the start time a session attempt record carries", () => {
+	function built(attempt: Immutable<SessionAttempt>): SessionAttemptRecord {
+		return buildSessionAttemptRecord({
+			spendCeilingUsd: 7.5,
+			corpusVersion: MEASURED_VERSION,
+			versionFiles: [],
+			sessionCase: smokeCase(),
+			settings: { model: "haiku", effort: "low", budgetUsd: 0.2 },
+			lineage: "b".repeat(64),
+			corpusFiles: [],
+			corpusOrigin: { kind: "live" },
+			attempt,
+			error:
+				attempt.outcome === "EXECUTION_FAILED" ? "claude exited 1" : undefined,
+			startedAt: "2026-10-08T10:15:00.000Z",
+			elapsedMs: 123,
+		});
+	}
+
+	it.each([
+		{ outcome: "a checked attempt", attempt: smokeAttempt() },
+		{
+			outcome: "an attempt whose provider command failed",
+			attempt: {
+				...smokeAttempt(),
+				reply: undefined,
+				outcome: "EXECUTION_FAILED",
+				checks: [],
+			} satisfies SessionAttempt,
+		},
+	])("reopens the instant $outcome started", ({ attempt }) => {
+		const saved = built(attempt);
+
+		const reopened = parseSessionAttemptRecord(JSON.stringify(saved));
+
+		expect(reopened).toMatchObject({ startedAt: "2026-10-08T10:15:00.000Z" });
 	});
 });
 
@@ -957,6 +1006,7 @@ describe("the state grades a session attempt record carries", () => {
 			corpusFiles: [],
 			corpusOrigin: { kind: "live" },
 			attempt: noReplyAttempt(grade),
+			startedAt: STARTED_AT,
 			elapsedMs: 123,
 		});
 	}
@@ -1015,6 +1065,7 @@ describe("the sub-agent evidence a session attempt record carries", () => {
 			corpusOrigin: { kind: "live" },
 			attempt: { ...smokeAttempt(), ...attempt },
 			error,
+			startedAt: STARTED_AT,
 			elapsedMs: 123,
 		});
 	}
