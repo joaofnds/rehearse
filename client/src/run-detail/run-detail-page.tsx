@@ -29,6 +29,7 @@ import { analysesQuery, rolesOf } from "./analysis-query";
 import { analysisWait } from "./analysis-request";
 import { RootCauseAnalysisSection } from "./root-cause-analysis-section";
 import { momentReading } from "./moment-reading";
+import { RecordLedger } from "./record-ledger";
 import { ReplayButton } from "./replay-button";
 import type { RunDetailLayout, RunDetailSearch } from "./run-detail-search";
 import {
@@ -293,8 +294,7 @@ function selectedStage(
 
 /**
  * Run detail (SPEC.md 4): one recorded pipeline run, read in the layout the
- * operator picks, Step rail unless the URL names another. Record ledger is
- * offered and not yet drawn.
+ * operator picks, Step rail unless the URL names another.
  */
 export function RunDetailPage({
 	run,
@@ -389,9 +389,7 @@ export function RunDetailPage({
 				/>
 			) : null}
 			{layout === "ledger" ? (
-				<EmptyState heading="Record ledger is not drawn yet">
-					<p>Step rail and Contribution read this run today.</p>
-				</EmptyState>
+				<RecordLedger row={row} record={record.data} />
 			) : null}
 			{layout === "trace" ? (
 				<div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
