@@ -208,16 +208,21 @@ function identityOf(row: HistoryRow): string {
 }
 
 /**
- * What kind of record the row is, and where its record holds no time, that
+ * When an attempt or group started, or, where its record holds no time, that
  * the newest-first order could not place it.
  */
+function startLabel(startedAt: string | undefined): string {
+	return startedAt === undefined ? "time not recorded" : `started ${startedAt}`;
+}
+
+/** What kind of record the row is, and when it started where that is not its name. */
 function kindLine(row: HistoryRow): string {
 	switch (row.kind) {
 		case "run": {
 			return "pipeline run";
 		}
 		case "session-attempt": {
-			return "session attempt · time not recorded";
+			return `session attempt · ${startLabel(row.startedAt)}`;
 		}
 		case "replay": {
 			return [
@@ -232,7 +237,7 @@ function kindLine(row: HistoryRow): string {
 				.join(" · ");
 		}
 		case "group": {
-			return `confirmation run · ${row.mode} · ${plural(row.reps, "rep")} · time not recorded`;
+			return `confirmation run · ${row.mode} · ${plural(row.reps, "rep")} · ${startLabel(row.startedAt)}`;
 		}
 		default: {
 			return row satisfies never;

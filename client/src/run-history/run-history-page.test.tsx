@@ -1671,6 +1671,29 @@ describe(RunHistoryPage.name, () => {
 			);
 		});
 
+		it("names when a session attempt or group started where its record holds the time", async () => {
+			respondingWith({
+				...everyKind,
+				rows: everyKind.rows.map((row) =>
+					row.kind === "session-attempt" || row.kind === "group"
+						? { ...row, startedAt: "2026-10-08T10:15:00.000Z" }
+						: row,
+				),
+			});
+
+			await renderPage().findByText("group-a");
+
+			expect(
+				cellOf("0f6b6f2a-0000-4000-8000-000000000001", "Case"),
+			).toHaveTextContent("session attempt · started 2026-10-08T10:15:00.000Z");
+			expect(cellOf("group-a", "Case")).toHaveTextContent(
+				/· started 2026-10-08T10:15:00\.000Z/u,
+			);
+			expect(cellOf("group-a", "Case")).not.toHaveTextContent(
+				"time not recorded",
+			);
+		});
+
 		it("counts every listed record on the All pill and the subline", async () => {
 			respondingWith(everyKind);
 
