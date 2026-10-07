@@ -4,8 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
 
+import { CONTROL_DIR } from "#benchmark/config";
 import {
 	benchmarkRunPaths,
+	confirmationGroupPaths,
 	runEventsDatabaseFile,
 } from "#benchmark/run-layout";
 import { openRunEventStore } from "#benchmark/run-events";
@@ -33,6 +35,7 @@ import {
 	REPLAY_FINAL_OUTCOME_REASON,
 	REPLAY_WALL_TIME_REASON,
 	SESSION_COST_REASON,
+	SESSION_PIPELINE_REASON,
 	SOURCE_MANIFEST_REASON,
 	UNLISTED_STAGE_REASON,
 } from "./run-history";
@@ -78,7 +81,44 @@ const unreadRepsSchema = z.looseObject({
 	unreadReps: z.array(z.object({ repId: z.string(), reason: z.string() })),
 });
 
+const pipelineStagesSchema = z.looseObject({ pipelineStages: z.unknown() });
+
+/** A group record, read loosely so a test can add a frozen file to its inputs. */
+const frozenInputsSchema = z.looseObject({
+	inputs: z.looseObject({ files: z.array(z.unknown()) }),
+});
+
 type ListedRow = z.infer<typeof runHistorySchema>["rows"][number];
+
+/**
+ * Freezes the audit-log case's pipeline into a group's inputs, as a stage
+ * group recorded since frozen pipelines does.
+ */
+async function freezeCasePipeline(
+	fixture: RecordedRunsFixture,
+	groupId: string,
+): Promise<void> {
+	const paths = confirmationGroupPaths(fixture.runsDirectory, groupId);
+	const content = await Bun.file(
+		join(CONTROL_DIR, "cases/audit-log/pipelines/default.json"),
+	).text();
+	await Bun.write(join(paths.inputsDirectory, "pipeline.json"), content);
+	const group = frozenInputsSchema.parse(
+		await Bun.file(paths.groupFile).json(),
+	);
+	const frozen = {
+		kind: "pipeline",
+		path: "inputs/pipeline.json",
+		sha256: new Bun.CryptoHasher("sha256").update(content).digest("hex"),
+	};
+	await Bun.write(
+		paths.groupFile,
+		JSON.stringify({
+			...group,
+			inputs: { ...group.inputs, files: [...group.inputs.files, frozen] },
+		}),
+	);
+}
 
 const liveRun: RunLiveness = {
 	readMarker: () => Promise.resolve({ pid: 1 }),
@@ -800,6 +840,55 @@ describe("/api/runs", () => {
 					unreadReps: [
 						{ repId: "session-group-rep-2", reason: UNRECORDED_REP_REASON },
 					],
+				});
+			});
+
+			it("carries a pipeline group's declared stages as its pipeline's stages", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writePipelineGroup("pipeline-group", [PASS, PASS]);
+
+				const row = await onlyRowOfKind(fixture, "group");
+
+				expect(row).toMatchObject({
+					pipelineStages: { state: "available", stages: ["discuss", "build"] },
+				});
+			});
+
+			it("carries a stage group's stages from the pipeline it froze", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeStageGroupWithReps("stage-group");
+				await freezeCasePipeline(fixture, "stage-group");
+
+				const row = await onlyRowOfKind(fixture, "group");
+
+				expect(row).toMatchObject({
+					pipelineStages: { state: "available", stages: ["shape", "build"] },
+				});
+			});
+
+			it("carries a stage group's stages as unavailable when it froze no pipeline", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeStageGroupWithReps("stage-group");
+
+				const row = await onlyRowOfKind(fixture, "group");
+
+				expect(pipelineStagesSchema.parse(row).pipelineStages).toEqual({
+					state: "unavailable",
+					reasons: [expect.stringContaining("froze no pipeline")],
+				});
+			});
+
+			it("carries a session group's pipeline stages as unavailable, since it runs none", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeSessionGroup("session-group", 1);
+
+				const row = await onlyRowOfKind(fixture, "group");
+
+				expect(row).toMatchObject({
+					pipelineStages: {
+						state: "unavailable",
+						reasons: [SESSION_PIPELINE_REASON],
+					},
 				});
 			});
 

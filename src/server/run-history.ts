@@ -51,6 +51,7 @@ import {
 import type { ShortIdEntry } from "#benchmark/short-id";
 import {
 	checkpointStaleness,
+	frozenPipeline,
 	groupStaleness,
 	replayAttemptStaleness,
 	sessionAttemptStaleness,
@@ -147,19 +148,21 @@ export const SOURCE_MANIFEST_REASON =
 	"the source run's manifest, which names its stages, is not recorded";
 export const UNLISTED_STAGE_REASON =
 	"the source pipeline does not list the stage replayed";
+export const SESSION_PIPELINE_REASON =
+	"a session group repeats one session and runs no pipeline";
 
 /** A pipeline's stage names in order, where a record names them. */
 export type PipelineStages = Reading<{ readonly stages: readonly string[] }>;
 
 /**
- * The stages a record's single replayed stage sits among, refused when they
- * do not list it, since the stage could then be placed nowhere among them.
+ * The stages a record's replayed stages sit among, refused when they do not
+ * list one, since that stage could then be placed nowhere among them.
  */
 function stagesAround(
-	stage: string,
+	replayed: readonly string[],
 	stages: readonly string[],
 ): PipelineStages {
-	if (!stages.includes(stage)) {
+	if (!replayed.every((stage) => stages.includes(stage))) {
 		return { state: "unavailable", reasons: [UNLISTED_STAGE_REASON] };
 	}
 
@@ -271,6 +274,8 @@ export interface ConfirmationGroupRow {
 	readonly unreadReps: readonly UnreadRep[];
 	readonly cost: CostReading;
 	readonly wallTime: WallTimeReading;
+	/** The stages of the pipeline its declared stages sit among. */
+	readonly pipelineStages: PipelineStages;
 }
 
 /**
@@ -631,7 +636,7 @@ async function replayRow(
 			manifest === undefined
 				? { state: "unavailable", reasons: [SOURCE_MANIFEST_REASON] }
 				: stagesAround(
-						record.stage,
+						[record.stage],
 						manifest.pipeline.stages.map(({ name }) => name),
 					),
 	};
@@ -778,6 +783,48 @@ function groupReps(
 	);
 }
 
+/**
+ * A pipeline group repeats its whole pipeline, so its declared stages are
+ * that pipeline's. A stage group's sit among the stages of the pipeline it
+ * froze, read from its own inputs rather than the case's current pipeline.
+ */
+async function groupPipelineStages(
+	runsDirectory: string,
+	record: Immutable<ParsedConfirmationGroupRecord>,
+): Promise<PipelineStages> {
+	switch (record.mode) {
+		case "pipeline": {
+			return { state: "available", stages: record.declaredStages };
+		}
+		case "session": {
+			return { state: "unavailable", reasons: [SESSION_PIPELINE_REASON] };
+		}
+		case "stage": {
+			try {
+				const pipeline = await frozenPipeline(
+					confirmationGroupPaths(runsDirectory, record.groupId).directory,
+					record.inputs.files,
+				);
+
+				return stagesAround(
+					record.declaredStages,
+					pipeline.stages.map(({ name }) => name),
+				);
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+
+				return {
+					state: "unavailable",
+					reasons: [redactAbsolutePaths(message)],
+				};
+			}
+		}
+		default: {
+			return unhandled(record, "confirmation mode");
+		}
+	}
+}
+
 async function groupRow(
 	runsDirectory: string,
 	groupId: string,
@@ -827,6 +874,7 @@ async function groupRow(
 		unreadReps: reps.filter((rep) => "reason" in rep),
 		cost: groupCost(record, reps),
 		wallTime: { state: "available", ms: record.makespanMs },
+		pipelineStages: await groupPipelineStages(runsDirectory, record),
 	};
 }
 

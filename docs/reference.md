@@ -1905,7 +1905,11 @@ counts the successful reps of the `reps` requested, and `unreadReps` names each
 rep whose record is absent or does not parse, with the reason, so one damaged
 rep never hides the row. A session group's `checks` summary counts its reps but
 serves no letter, since its reps pass or fail on checks and no judge grades
-them, and its `finalOutcomes` are all `NOT_APPLICABLE`.
+them, and its `finalOutcomes` are all `NOT_APPLICABLE`. Its `pipelineStages`
+are a pipeline group's declared stages, and a stage group's come from the
+pipeline its inputs froze, unavailable with the reason when it froze none,
+that file is missing, or it does not list the stage. A session group runs no
+pipeline, so its `pipelineStages` are unavailable.
 
 ### Saved session context history
 

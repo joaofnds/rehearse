@@ -1006,7 +1006,7 @@ function mergedChanges(changes: readonly CorpusChanges[]): CorpusChanges {
 	};
 }
 
-async function frozenPipeline(
+export async function frozenPipeline(
 	groupDirectory: string,
 	files: readonly FrozenGroupFile[],
 ): Promise<PipelineDefinition> {

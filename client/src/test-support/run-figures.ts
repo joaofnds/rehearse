@@ -44,6 +44,10 @@ export const UNREAD_GROUP_FIGURES = {
 	finalOutcomes: {},
 	successful: 0,
 	unreadReps: [],
+	pipelineStages: {
+		state: "unavailable",
+		reasons: ["not read by this test"],
+	},
 } as const;
 
 /** A row's staleness, reported unavailable, for a test whose subject is another column. */
