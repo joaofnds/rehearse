@@ -33,6 +33,7 @@ import {
 } from "#client/run-detail/task-grade-card";
 import type { OutcomeReading } from "#client/run-detail/task-grade-card";
 import { SESSION_GRADE_REASON } from "#server/session-grade-reason";
+import { isClean } from "./clean-record";
 import { RunControls } from "./run-controls";
 import { replayOffer } from "./replay-choices";
 import type { ReplayOffer } from "./replay-choices";
@@ -770,15 +771,6 @@ function corpusState(
 			{judgment(staleness)}
 			{causesFor(row, staleness.causes)}
 		</>
-	);
-}
-
-/** Judged against the version under test, with nothing changed since. */
-function isClean(staleness: JudgedStaleness): boolean {
-	return (
-		staleness.distance.kind === "measured" &&
-		!staleness.stale &&
-		staleness.distance.versions === 0
 	);
 }
 

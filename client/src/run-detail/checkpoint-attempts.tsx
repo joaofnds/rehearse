@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { corpusMeasurementReading } from "#benchmark/corpus-version-label";
 import type { MonitoredStage } from "#client/monitor/run-record-query";
 import { plural } from "#client/plural";
+import { isClean } from "#client/run-history/clean-record";
 import { Grade } from "#client/system/components/grade";
 import type { StageAttemptsResponse } from "./stage-attempts-query";
 import { stageAttemptsQuery } from "./stage-attempts-query";
@@ -28,13 +29,13 @@ function stalenessReading(staleness: StageAttempt["staleness"]): string {
 	if (staleness.stale) {
 		return `⚠ stale · ${staleness.causes.join("; ")}`;
 	}
-	const { distance } = staleness;
-	if (distance.kind === "not-recorded") {
-		return `✓ clear · nothing it read changed; ${distance.reason}`;
+	if (isClean(staleness)) {
+		return "✓ current corpus";
 	}
+	const { distance } = staleness;
 
-	return distance.versions === 0
-		? "✓ current corpus"
+	return distance.kind === "not-recorded"
+		? `✓ clear · nothing it read changed; ${distance.reason}`
 		: `✓ clear · nothing it read changed across ${plural(distance.versions, "later corpus version")}`;
 }
 
