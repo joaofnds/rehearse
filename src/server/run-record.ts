@@ -580,6 +580,18 @@ const UNGRADED_REASONS = {
 	graded: "the scorecard holds no letter",
 } as const satisfies Record<StageStatus, string>;
 
+/** A hard blocker fired when its judge found it FAIL. */
+export function firedBlockerIds(
+	hardBlockers: readonly {
+		readonly id: string;
+		readonly status: "PASS" | "FAIL";
+	}[],
+): readonly string[] {
+	return hardBlockers
+		.filter(({ status }) => status === "FAIL")
+		.map(({ id }) => id);
+}
+
 function blockersOf(file: StageFile | undefined): RunRecordStage["blockers"] {
 	const hardBlockers = file?.grade?.hardBlockers;
 	if (hardBlockers === undefined) {
@@ -589,9 +601,7 @@ function blockersOf(file: StageFile | undefined): RunRecordStage["blockers"] {
 		};
 	}
 
-	const firedIds = hardBlockers
-		.filter(({ status }) => status === "FAIL")
-		.map(({ id }) => id);
+	const firedIds = firedBlockerIds(hardBlockers);
 
 	return {
 		state: "available",

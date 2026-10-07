@@ -73,7 +73,7 @@ import type {
 	UnreadRep,
 } from "./confirmation-group-summary";
 import { redactAbsolutePaths } from "./redact-path";
-import { readRunRecord, wallTime } from "./run-record";
+import { firedBlockerIds, readRunRecord, wallTime } from "./run-record";
 import type {
 	CostReading,
 	FinalOutcome,
@@ -553,12 +553,7 @@ function firedIdsOf(
 		return { state: "unavailable", reasons: [NO_GRADED_BLOCKERS_REASON] };
 	}
 
-	return {
-		state: "available",
-		ids: hardBlockers
-			.filter(({ status }) => status === "FAIL")
-			.map(({ id }) => id),
-	};
+	return { state: "available", ids: firedBlockerIds(hardBlockers) };
 }
 
 function unavailableFigures(reasons: readonly string[]): RunFigures {
