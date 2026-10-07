@@ -28,9 +28,9 @@ import { PASS } from "#benchmark/comparison-test-fixtures";
 import { createApiApp } from "./api";
 import {
 	NO_GRADED_REP_REASON,
-	SESSION_GRADE_REASON,
 	UNRECORDED_REP_REASON,
 } from "./confirmation-group-summary";
+import { SESSION_GRADE_REASON } from "./session-grade-reason";
 import {
 	NO_MANIFEST_REASON,
 	NOT_RUN_REASON,

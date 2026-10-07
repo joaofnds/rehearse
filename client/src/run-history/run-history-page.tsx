@@ -28,6 +28,7 @@ import {
 	outcomeReading,
 } from "#client/run-detail/task-grade-card";
 import type { OutcomeReading } from "#client/run-detail/task-grade-card";
+import { SESSION_GRADE_REASON } from "#server/session-grade-reason";
 import { RunControls } from "./run-controls";
 
 type HistoryRow = RunHistoryResponse["rows"][number];
@@ -563,6 +564,28 @@ function placedGrades(
 	);
 }
 
+/** Each stage some rep graded, as its median and how many reps it covers. */
+function groupMedians(row: GroupRow): ReadonlyMap<string, string> {
+	return new Map(
+		row.stageSummaries.flatMap(({ stage, graded, grades }) =>
+			grades.state === "available"
+				? [[stage, `${grades.median} (n=${String(graded)})`] as const]
+				: [],
+		),
+	);
+}
+
+/** A session group is graded by its reps' checks, so its grade is the count passed. */
+function groupStepGrades(row: GroupRow): React.JSX.Element {
+	if (row.mode === "session") {
+		return gradeTokens(
+			`${String(row.successful)} of ${plural(row.reps, "rep")} passed`,
+		);
+	}
+
+	return placedGrades(row.pipelineStages, groupMedians(row));
+}
+
 function stepGradesCell(row: HistoryRow): React.JSX.Element {
 	switch (row.kind) {
 		case "run": {
@@ -574,8 +597,10 @@ function stepGradesCell(row: HistoryRow): React.JSX.Element {
 				new Map([[row.stage, row.grade]]),
 			);
 		}
-		case "session-attempt":
 		case "group": {
+			return groupStepGrades(row);
+		}
+		case "session-attempt": {
 			return <span />;
 		}
 		default: {
@@ -604,6 +629,35 @@ function runTaskGrade(
 	return outcomeReading(finalOutcome);
 }
 
+/**
+ * Only a pipeline group's reps reach the final judge, so only its task grade
+ * counts their verdicts, over every rep whose outcome was recorded.
+ */
+function groupTaskGrade(row: GroupRow): OutcomeReading {
+	switch (row.mode) {
+		case "pipeline": {
+			const recorded = Object.values(row.finalOutcomes).reduce(
+				(sum, count) => sum + count,
+				0,
+			);
+
+			return {
+				value: `${String(row.finalOutcomes["PASS"] ?? 0)} of ${String(recorded)} PASS`,
+				note: "graded independently",
+			};
+		}
+		case "stage": {
+			return { value: NOT_APPLICABLE, note: STEP_REPLAY_ONLY };
+		}
+		case "session": {
+			return { value: NOT_APPLICABLE, note: SESSION_GRADE_REASON };
+		}
+		default: {
+			return row.mode satisfies never;
+		}
+	}
+}
+
 function taskGradeCell(row: HistoryRow): React.JSX.Element {
 	switch (row.kind) {
 		case "run": {
@@ -612,8 +666,10 @@ function taskGradeCell(row: HistoryRow): React.JSX.Element {
 		case "replay": {
 			return taskGrade({ value: NOT_APPLICABLE, note: STEP_REPLAY_ONLY });
 		}
-		case "session-attempt":
 		case "group": {
+			return taskGrade(groupTaskGrade(row));
+		}
+		case "session-attempt": {
 			return <span />;
 		}
 		default: {

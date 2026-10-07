@@ -7,12 +7,11 @@ import type {
 	ParsedConfirmationRepRecord,
 } from "#benchmark/confirmation-record";
 import { costReading } from "./run-record";
+import { SESSION_GRADE_REASON } from "./session-grade-reason";
 import type { CostPart, CostReading, MissingPart, Reading } from "./run-record";
 
 export const NO_GRADED_REP_REASON = "no rep was graded at this stage";
 export const UNRECORDED_REP_REASON = "the rep recorded nothing";
-export const SESSION_GRADE_REASON =
-	"a session rep is graded by its checks passing, not by a letter";
 
 /** A rep whose record the group lists but the server could not read. */
 export interface UnreadRep {

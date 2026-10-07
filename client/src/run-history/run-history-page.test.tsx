@@ -31,7 +31,10 @@ import {
 	UNREAD_STALENESS,
 	unversionedStaleness,
 } from "#client/test-support/run-figures";
+import type { GroupStageSummary } from "#server/confirmation-group-summary";
+import { SESSION_GRADE_REASON } from "#server/session-grade-reason";
 import type {
+	ConfirmationGroupRow,
 	ListedStageGrade,
 	PipelineRunRow,
 	ReplayRow,
@@ -2268,6 +2271,172 @@ describe(RunHistoryPage.name, () => {
 			expect(cellOf(REPLAY, "Task grade")).toHaveTextContent(
 				"n/astep replay only",
 			);
+		});
+	});
+
+	describe("the step grades and task grade of a confirmation group", () => {
+		const GROUP = "group-0143";
+
+		function summary(
+			stage: string,
+			median: "A" | "B" | undefined,
+			graded: number,
+		): GroupStageSummary {
+			return {
+				stage,
+				graded,
+				ungraded: {},
+				grades:
+					median === undefined
+						? {
+								state: "unavailable",
+								reasons: ["no rep was graded at this stage"],
+							}
+						: { state: "available", median, lowest: "C", highest: "A" },
+			};
+		}
+
+		function groupWith(
+			figures: Pick<
+				ConfirmationGroupRow,
+				| "mode"
+				| "reps"
+				| "pipelineStages"
+				| "stageSummaries"
+				| "finalOutcomes"
+				| "successful"
+			>,
+		): RunHistoryResponseBody {
+			return {
+				rows: [
+					{
+						kind: "group",
+						...UNREAD_GROUP_FIGURES,
+						...figures,
+						staleness: UNREAD_STALENESS,
+						corpusVersion: undefined,
+						checkpoint: undefined,
+						shortId: undefined,
+						groupId: GROUP,
+						caseId: "audit-log",
+						repAttempts: [],
+						links: [],
+					},
+				],
+				launches: [],
+				unreadable: [],
+			};
+		}
+
+		describe("in pipeline mode", () => {
+			const pipelineGroup = groupWith({
+				mode: "pipeline",
+				reps: 6,
+				pipelineStages: {
+					state: "available",
+					stages: ["shape", "build", "review"],
+				},
+				stageSummaries: [
+					summary("shape", "A", 6),
+					summary("build", "B", 5),
+					summary("review", undefined, 0),
+				],
+				finalOutcomes: { PASS: 4, FAIL: 1, NOT_REACHED: 1 },
+				successful: 4,
+			});
+
+			it("reads each stage's median with the reps it covers, and · for a stage no rep graded", async () => {
+				respondingWith(pipelineGroup);
+
+				await renderPage().findByText(GROUP);
+
+				expect(cellOf(GROUP, "Step grades")).toHaveTextContent(
+					"A (n=6) B (n=5) ·",
+				);
+			});
+
+			it("reads how many reps the final judge passed as its task grade", async () => {
+				respondingWith(pipelineGroup);
+
+				await renderPage().findByText(GROUP);
+
+				expect(cellOf(GROUP, "Task grade")).toHaveTextContent(
+					"4 of 6 PASSgraded independently",
+				);
+			});
+		});
+
+		describe("in stage mode", () => {
+			const stageGroup = groupWith({
+				mode: "stage",
+				reps: 3,
+				pipelineStages: {
+					state: "available",
+					stages: ["shape", "build", "review"],
+				},
+				stageSummaries: [summary("build", "B", 3)],
+				finalOutcomes: { NOT_APPLICABLE: 3 },
+				successful: 3,
+			});
+
+			it("places its stage's median at the stage's position", async () => {
+				respondingWith(stageGroup);
+
+				await renderPage().findByText(GROUP);
+
+				expect(cellOf(GROUP, "Step grades")).toHaveTextContent("· B (n=3) ·");
+			});
+
+			it("reads n/a as its task grade", async () => {
+				respondingWith(stageGroup);
+
+				await renderPage().findByText(GROUP);
+
+				expect(cellOf(GROUP, "Task grade")).toHaveTextContent(
+					"n/astep replay only",
+				);
+			});
+		});
+
+		describe("in session mode", () => {
+			const sessionGroup = groupWith({
+				mode: "session",
+				reps: 6,
+				pipelineStages: {
+					state: "unavailable",
+					reasons: ["a session group repeats one session and runs no pipeline"],
+				},
+				stageSummaries: [
+					{
+						stage: "checks",
+						graded: 0,
+						ungraded: {},
+						grades: { state: "unavailable", reasons: [SESSION_GRADE_REASON] },
+					},
+				],
+				finalOutcomes: { NOT_APPLICABLE: 6 },
+				successful: 4,
+			});
+
+			it("reads how many reps passed their checks as its step grades", async () => {
+				respondingWith(sessionGroup);
+
+				await renderPage().findByText(GROUP);
+
+				expect(cellOf(GROUP, "Step grades")).toHaveTextContent(
+					"4 of 6 reps passed",
+				);
+			});
+
+			it("reads n/a with why a session has no letter as its task grade", async () => {
+				respondingWith(sessionGroup);
+
+				await renderPage().findByText(GROUP);
+
+				expect(cellOf(GROUP, "Task grade")).toHaveTextContent(
+					`n/a${SESSION_GRADE_REASON}`,
+				);
+			});
 		});
 	});
 
