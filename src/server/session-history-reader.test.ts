@@ -1478,6 +1478,30 @@ describe(readStageHistory.name, () => {
 		});
 	});
 
+	it("reads the transcript the harness kept beside a stopped stage's record", async () => {
+		const fixture = await writtenStoppedRun();
+		const kept = benchmarkRunPaths(
+			fixture.runsDirectory,
+			fixture.run,
+		).stoppedSessionDirectory("build");
+		await mkdir(kept, { recursive: true });
+		await Bun.write(
+			join(kept, "transcript.jsonl"),
+			`${JSON.stringify({
+				type: "user",
+				uuid: "kept-1",
+				message: { role: "user", content: "Build the audit log." },
+			})}\n`,
+		);
+
+		const report = await readStageHistory(fixture);
+
+		expect(report.evidence).toEqual({ state: "complete" });
+		expect(report.attemptEvents.map(({ locator }) => locator.line)).toEqual([
+			1,
+		]);
+	});
+
 	it("keeps a stopped stage's parsed exchanges out of every event ledger", async () => {
 		const fixture = await writtenStoppedRun();
 

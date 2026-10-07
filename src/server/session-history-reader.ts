@@ -3,14 +3,17 @@ import { lstat, open, realpath } from "node:fs/promises";
 import type { FileHandle } from "node:fs/promises";
 import { z } from "zod";
 import { basename, isAbsolute, relative, resolve } from "node:path";
-import { parseCheckpointRecord } from "#benchmark/checkpoint";
+import { parseCheckpointRecord, TRANSCRIPT_FILE } from "#benchmark/checkpoint";
 import {
 	parseConfirmationGroupRecord,
 	parseConfirmationRepRecord,
 } from "#benchmark/confirmation-record";
 import { parseRunManifest } from "#benchmark/manifest";
 import type { RunManifest } from "#benchmark/manifest";
-import { checkpointsEntryForRun } from "#benchmark/run-layout";
+import {
+	checkpointsEntryForRun,
+	stoppedSessionEntry,
+} from "#benchmark/run-layout";
 import { pathIsWithin } from "#benchmark/path-containment";
 import { replayRecordSchema } from "#benchmark/replay";
 import {
@@ -626,7 +629,9 @@ async function stageInput(
  * judging completing. Neither record identifies the stage among the run's
  * others, so the case and the model come from the run manifest and no lineage
  * is reported at all. Each record's own parsed transcript stays out of the
- * report, which is what the unavailable state is for.
+ * report. A stopped stage's raw transcript, which the harness copies beside
+ * its record, is read when present, and the unavailable state stands for a
+ * stage without one.
  */
 async function checkpointlessStageInput(
 	root: string,
@@ -677,6 +682,14 @@ async function checkpointlessStageInput(
 		model: declared.model ?? manifest.model,
 		corpusFiles: declared.corpusFiles ?? [],
 	};
+	const transcriptFile = stopped.success
+		? await verifiedFile(
+				root,
+				resolve(root, stoppedSessionEntry(identity.run, recordedStage)),
+				TRANSCRIPT_FILE,
+				false,
+			)
+		: undefined;
 
 	return {
 		root,
@@ -688,7 +701,7 @@ async function checkpointlessStageInput(
 			prefixLinesExcluded: 0,
 		},
 		reportedCostUsd: undefined,
-		transcriptFile: undefined,
+		transcriptFile,
 	};
 }
 

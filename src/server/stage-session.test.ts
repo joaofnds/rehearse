@@ -8,7 +8,6 @@ import { openRunEventStore } from "#benchmark/run-events";
 import {
 	benchmarkRunPaths,
 	runEventsDatabaseFile,
-	stoppedSessionEntry,
 } from "#benchmark/run-layout";
 import { projectSlug } from "#benchmark/session-capture";
 import { TEST_TARGET } from "#benchmark/test-support";
@@ -451,8 +450,9 @@ describe(`${readStageSession.name} once the stage has closed`, () => {
 		const stage = await startedStage();
 		await Bun.write(
 			join(
-				stage.runsDirectory,
-				stoppedSessionEntry(RUN, "build"),
+				benchmarkRunPaths(stage.runsDirectory, RUN).stoppedSessionDirectory(
+					"build",
+				),
 				"transcript.jsonl",
 			),
 			transcriptOf([{ type: "user" }, { type: "assistant" }]),
