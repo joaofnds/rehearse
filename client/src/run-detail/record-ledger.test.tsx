@@ -4,7 +4,11 @@ import { renderAppWithStub } from "#client/test-support/render-app";
 import { recordStage } from "#client/test-support/run-record";
 import { runRow } from "#client/test-support/runs-in-flight";
 import type { RunRecord, RunRecordStage } from "#server/run-record";
-import { INTERRUPTED_REASON, RUN_FAILED_REASON } from "#server/run-record";
+import {
+	INTERRUPTED_REASON,
+	RUN_FAILED_REASON,
+	UNEXPLAINED_END_REASON,
+} from "#server/run-record";
 import type { StageJudge } from "#server/stage-judge";
 import type { StageSession } from "#server/stage-session";
 import {
@@ -579,7 +583,22 @@ describe("Record ledger", () => {
 			},
 		);
 
-		it("shows them as queued while the run is in flight", async () => {
+		it("states the ending a paused run recorded rather than showing them queued", async () => {
+			renderReachedFirstStep("PAUSED:shape", {
+				status: "NOT_REACHED",
+				stage: "shape",
+				reason: UNEXPLAINED_END_REASON,
+			});
+
+			const items = within(await unreached()).getAllByRole("listitem");
+
+			expect(items.map((item) => item.textContent)).toEqual([
+				`Step 2 · build did not run: ${UNEXPLAINED_END_REASON}.`,
+				`Step 3 · verify did not run: ${UNEXPLAINED_END_REASON}.`,
+			]);
+		});
+
+		it("shows them as running or queued while the run is in flight", async () => {
 			renderReachedFirstStep("RUNNING", { status: "PENDING", stage: "build" });
 
 			const items = within(await unreached()).getAllByRole("listitem");

@@ -41,10 +41,7 @@ import {
 	durationReading,
 	nodeStatus,
 } from "#client/monitor/task-graph";
-import {
-	hasRunEnded,
-	restoredRepository,
-} from "#client/run-history/run-status";
+import { restoredRepository } from "#client/run-history/run-status";
 import { useNow } from "#client/run-history/use-now";
 import type { PipelineRow } from "#client/shell/run-in-flight";
 import { CorpusPill } from "#client/system/components/corpus-pill";
@@ -584,18 +581,19 @@ function UnreachedStage({
 	readonly row: PipelineRow;
 	readonly record: RunRecordResponse;
 }): React.JSX.Element {
+	const ended = record.finalOutcome.status !== "PENDING";
 	const ending = endingWords(unreached, record);
 	const stopped = isStopped(row.status)
 		? stoppedStep(row.status, record)
 		: undefined;
-	if (hasRunEnded(row) && stopped !== undefined && judgedStop(stopped.stage)) {
+	if (ended && stopped !== undefined && judgedStop(stopped.stage)) {
 		return (
 			<li className="rounded-card border border-dashed border-strong px-3.5 py-3 text-11-5 text-pretty text-muted-foreground">
 				{neverRanWords(unreached, stopped, row, record)}
 			</li>
 		);
 	}
-	if (hasRunEnded(row) && ending !== undefined) {
+	if (ending !== undefined) {
 		return (
 			<li className="px-3.5 py-1 text-11-5 text-muted-foreground">{ending}</li>
 		);
