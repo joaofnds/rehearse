@@ -453,6 +453,7 @@ const legacyConfirmationGroupRecordSchema = z
 		repRecords: z.array(repRecordReferenceSchema),
 		reportFile: z.string().min(1),
 		makespanMs: elapsedSchema,
+		startedAt: z.iso.datetime().optional(),
 	})
 	.strict()
 	.superRefine((record, context) => {
@@ -514,6 +515,7 @@ export const sessionConfirmationGroupRecordSchema = z
 		repRecords: z.array(repRecordReferenceSchema),
 		reportFile: z.string().min(1),
 		makespanMs: elapsedSchema,
+		startedAt: z.iso.datetime().optional(),
 	})
 	.strict()
 	.superRefine((record, context) => {

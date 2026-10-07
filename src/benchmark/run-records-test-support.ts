@@ -928,6 +928,27 @@ export class RecordedRunsFixture {
 		);
 	}
 
+	/** Records when the session attempt started, as a v3 attempt does. */
+	public async recordAttemptStartedAt(startedAt: string): Promise<void> {
+		const { recordFile } = sessionAttemptPaths(
+			this.runsDirectory,
+			this.sessionAttempt,
+		);
+		const record = sessionAttemptRecordSchema.parse(
+			JSON.parse(await Bun.file(recordFile).text()),
+		);
+		await Bun.write(
+			recordFile,
+			serialize(
+				sessionAttemptRecordSchema.parse({
+					...record,
+					schemaVersion: 3,
+					startedAt,
+				}),
+			),
+		);
+	}
+
 	/**
 	 * One attempt under a uuid the caller names, so a test can put two attempts
 	 * for one case on disk, each measured at its own version.

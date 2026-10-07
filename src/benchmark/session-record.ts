@@ -306,6 +306,7 @@ export const executionFailedSessionAttemptRecordSchema = z
 		outcome: z.literal("EXECUTION_FAILED"),
 		checks: z.array(checkResultSchema).length(0),
 		elapsedMs: z.number().nonnegative(),
+		startedAt: z.iso.datetime().optional(),
 	})
 	.strict();
 
@@ -314,6 +315,7 @@ export const sessionAttemptRecordV3Schema = z
 		schemaVersion: z.literal(3),
 		...sessionAttemptRecordFields,
 		...stateGradeFields,
+		startedAt: z.iso.datetime().optional(),
 		unavailableSubagents: unavailableSubagentsSchema,
 		contextManifest: contextManifestSchema.optional(),
 		divergences: z.array(manifestDivergenceSchema).optional(),

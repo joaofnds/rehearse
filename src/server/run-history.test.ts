@@ -92,6 +92,36 @@ async function recordGroupCorpusVersion(
 	);
 }
 
+/** Adds the start time a newer writer records to a record on disk. */
+async function recordStartedAt(file: string, startedAt: string): Promise<void> {
+	const recorded = z
+		.object({})
+		.loose()
+		.parse(JSON.parse(await Bun.file(file).text()));
+	await Bun.write(file, `${JSON.stringify({ ...recorded, startedAt })}\n`);
+}
+
+/** A row by its kind and the identity that kind lists it under. */
+function rowName(row: RunHistoryRow): string {
+	switch (row.kind) {
+		case "run": {
+			return `run ${row.run}`;
+		}
+		case "replay": {
+			return `replay ${row.timestamp}`;
+		}
+		case "session-attempt": {
+			return `attempt ${row.uuid}`;
+		}
+		case "group": {
+			return `group ${row.groupId}`;
+		}
+		default: {
+			return unhandled(row, "run history row kind");
+		}
+	}
+}
+
 function pipelineRun(
 	rows: readonly RunHistoryRow[],
 	run: string,
@@ -1811,33 +1841,56 @@ describe(runHistoryReport.name, () => {
 			nothingRunning,
 		);
 
-		expect(
-			rows.map((row) => {
-				switch (row.kind) {
-					case "run": {
-						return `run ${row.run}`;
-					}
-					case "replay": {
-						return `replay ${row.timestamp}`;
-					}
-					case "session-attempt": {
-						return `attempt ${row.uuid}`;
-					}
-					case "group": {
-						return `group ${row.groupId}`;
-					}
-					default: {
-						return unhandled(row, "run history row kind");
-					}
-				}
-			}),
-		).toEqual([
+		expect(rows.map((row) => rowName(row))).toEqual([
 			`run ${fixture.stoppedRun}`,
 			`replay ${fixture.stageAttempt.timestamp}`,
 			`run ${fixture.replayableRun}`,
 			`run ${fixture.unreplayableRun}`,
 			`attempt ${fixture.sessionAttempt.uuid}`,
 			`group ${fixture.groupId}`,
+		]);
+	});
+
+	it("lists a session attempt that records its start time among the runs by that time", async () => {
+		const fixture = await writtenFixture();
+		await fixture.writeStoppedRun();
+		await fixture.recordAttemptStartedAt("2026-09-02T12:00:00.000Z");
+
+		const { rows } = await runHistoryReport(
+			fixture.runsDirectory,
+			directorySource(await corpusDirectory("build skill\n")),
+			nothingRunning,
+		);
+
+		expect(rows.map((row) => rowName(row))).toEqual([
+			`run ${fixture.stoppedRun}`,
+			`replay ${fixture.stageAttempt.timestamp}`,
+			`run ${fixture.replayableRun}`,
+			`attempt ${fixture.sessionAttempt.uuid}`,
+			`run ${fixture.unreplayableRun}`,
+			`group ${fixture.groupId}`,
+		]);
+	});
+
+	it("lists a confirmation group that records its start time among the runs and replays by that time", async () => {
+		const fixture = await writtenFixture();
+		await recordStartedAt(
+			confirmationGroupPaths(fixture.runsDirectory, fixture.groupId).groupFile,
+			"2026-09-03T00:30:00.000Z",
+		);
+
+		const { rows } = await runHistoryReport(
+			fixture.runsDirectory,
+			directorySource(await corpusDirectory("build skill\n")),
+			nothingRunning,
+		);
+
+		expect(rows.map((row) => rowName(row))).toEqual([
+			`replay ${fixture.stageAttempt.timestamp}`,
+			`group ${fixture.groupId}`,
+			`run ${fixture.replayableRun}`,
+			`run ${fixture.unreplayableRun}`,
+			`attempt ${fixture.sessionAttempt.uuid}`,
 		]);
 	});
 

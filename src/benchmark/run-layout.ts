@@ -99,6 +99,28 @@ export function runNameFromTimestamp(timestamp: string): string {
 	return timestamp.replaceAll(":", "-");
 }
 
+const RECORDED_TIME =
+	/^(?<date>\d{4}-\d{2}-\d{2})T(?<hours>\d{2})(?<separator>[-:])(?<minutes>\d{2})\k<separator>(?<seconds>\d{2}(?:\.\d+)?)Z$/u;
+
+/**
+ * The instant a run name, a replay timestamp or a recorded start time names,
+ * or undefined when the text names none, as a run directory may carry any
+ * name. Records compare by this rather than as text: a run name replaces the
+ * colons a start time keeps, so text order misplaces them within an hour.
+ */
+export function recordedInstant(time: string): number | undefined {
+	const parts = RECORDED_TIME.exec(time)?.groups;
+	if (parts === undefined) {
+		return undefined;
+	}
+
+	const instant = Date.parse(
+		`${parts["date"]}T${parts["hours"]}:${parts["minutes"]}:${parts["seconds"]}Z`,
+	);
+
+	return Number.isNaN(instant) ? undefined : instant;
+}
+
 /**
  * The directory entry holding a run's checkpoints. A reader that walks the
  * runs directory one segment at a time needs the entry name rather than the

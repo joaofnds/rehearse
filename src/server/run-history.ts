@@ -25,6 +25,7 @@ import {
 	confirmationGroupIds,
 	confirmationGroupPaths,
 	launchIds,
+	recordedInstant,
 	recordedRunNames,
 	replayAttemptIds,
 	replayRecordFile,
@@ -236,6 +237,8 @@ export interface SessionAttemptRow {
 	readonly uuid: string;
 	readonly shortId: string | undefined;
 	readonly status: SessionAttemptRecord["outcome"];
+	/** When the attempt started; undefined for a record written before attempts recorded it. */
+	readonly startedAt: string | undefined;
 	readonly corpusVersion: CorpusMeasurement | undefined;
 	readonly staleness: RowStaleness;
 	readonly links: readonly ContextLink[];
@@ -325,6 +328,8 @@ export interface ConfirmationGroupRow {
 	readonly shortId: string | undefined;
 	readonly caseId: string;
 	readonly mode: ConfirmationMode;
+	/** When the group started; undefined for a record written before groups recorded it. */
+	readonly startedAt: string | undefined;
 	/** The checkpoint a replayed group ran from, which only its claim records. */
 	readonly checkpoint:
 		| { readonly run: string; readonly stage: string }
@@ -699,6 +704,7 @@ async function sessionAttemptRow(
 		uuid: attempt.uuid,
 		shortId,
 		status: record.outcome,
+		startedAt: "startedAt" in record ? record.startedAt : undefined,
 		corpusVersion: record.corpusVersion,
 		staleness: staleness.of(
 			formatRecordId({ kind: "attempt:session", ...attempt }),
@@ -1050,6 +1056,7 @@ async function groupRow(
 		shortId,
 		caseId: record.caseId,
 		mode: record.mode,
+		startedAt: record.startedAt,
 		checkpoint,
 		reps: record.reps,
 		corpusVersion: record.inputs.corpusVersion,
@@ -1174,9 +1181,9 @@ function unheldLaunchRows(
 }
 
 /**
- * The time a row's own identity records, or undefined when its record holds
- * none. A run name and a replay file name are both the run's timestamp with
- * colons replaced, so they sort as text.
+ * The time a row's record says it ran, or undefined when its record holds
+ * none: a run's name, a replay's timestamp, or the start time an attempt or
+ * group recorded.
  */
 function recordedTime(row: RunHistoryRow): string | undefined {
 	switch (row.kind) {
@@ -1188,12 +1195,18 @@ function recordedTime(row: RunHistoryRow): string | undefined {
 		}
 		case "session-attempt":
 		case "group": {
-			return undefined;
+			return row.startedAt;
 		}
 		default: {
 			return unhandled(row, "run history row kind");
 		}
 	}
+}
+
+function rowInstant(row: RunHistoryRow): number | undefined {
+	const time = recordedTime(row);
+
+	return time === undefined ? undefined : recordedInstant(time);
 }
 
 /**
@@ -1202,13 +1215,17 @@ function recordedTime(row: RunHistoryRow): string | undefined {
  * the records never held: most attempt files share one modification second.
  */
 function newestFirst(rows: readonly RunHistoryRow[]): RunHistoryRow[] {
-	const timed = rows.filter((row) => recordedTime(row) !== undefined);
-	const untimed = rows.filter((row) => recordedTime(row) === undefined);
+	const timed = rows.flatMap((row) => {
+		const instant = rowInstant(row);
+
+		return instant === undefined ? [] : [{ row, instant }];
+	});
+	const untimed = rows.filter((row) => rowInstant(row) === undefined);
 
 	return [
-		...timed.toSorted((left, right) =>
-			(recordedTime(right) ?? "").localeCompare(recordedTime(left) ?? ""),
-		),
+		...timed
+			.toSorted((left, right) => right.instant - left.instant)
+			.map(({ row }) => row),
 		...untimed,
 	];
 }

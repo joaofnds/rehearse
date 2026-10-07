@@ -45,6 +45,7 @@ export const UNREAD_COST_AND_TIME = {
 export const UNREAD_SESSION_ATTEMPT_FIGURES = {
 	...UNREAD_COST_AND_TIME,
 	checks: { state: "unavailable", reasons: ["not read by this test"] },
+	startedAt: undefined,
 } as const;
 
 /** A confirmation group row's figures, for a test whose subject is another column. */
@@ -59,6 +60,7 @@ export const UNREAD_GROUP_FIGURES = {
 		reasons: ["not read by this test"],
 	},
 	firedBlockers: { state: "unavailable", reasons: ["not read by this test"] },
+	startedAt: undefined,
 } as const;
 
 /** A row's staleness, reported unavailable, for a test whose subject is another column. */
