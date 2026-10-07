@@ -1173,7 +1173,7 @@ function FilterBar({
 				</FilterPill>
 			))}
 			<label className="ml-auto flex items-center gap-2 rounded-md border border-strong bg-card px-3 py-1">
-				<Search aria-hidden="true" className="size-3.5 text-dim" />
+				<Search aria-hidden="true" className="size-4 text-dim" />
 				<input
 					type="search"
 					value={search}
@@ -1182,7 +1182,7 @@ function FilterBar({
 					onChange={(event) => {
 						onSearch(event.target.value);
 					}}
-					className="w-52 bg-transparent text-12 outline-none"
+					className="w-65 bg-transparent text-12"
 				/>
 			</label>
 		</div>
