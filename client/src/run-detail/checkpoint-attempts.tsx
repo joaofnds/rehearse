@@ -35,7 +35,7 @@ function stalenessReading(staleness: StageAttempt["staleness"]): string {
 
 	return distance.versions === 0
 		? "✓ current corpus"
-		: `✓ clear · nothing it read changed in the ${plural(distance.versions, "corpus version")} since`;
+		: `✓ clear · nothing it read changed across ${plural(distance.versions, "later corpus version")}`;
 }
 
 /** What the list shows of an attempt's grade and corpus. */

@@ -440,7 +440,7 @@ describe("Step rail", () => {
 			expect(items.map((item) => item.textContent)).toEqual([
 				"audit-log/r2Doriginal run · version not recorded⚠ stale · skills/build/SKILL.md changed",
 				"audit-log/r3Breplay · corpus@c0ffee✓ current corpus",
-				"audit-log/r4Creplay · corpus@c0ffee✓ clear · nothing it read changed in the 2 corpus versions since",
+				"audit-log/r4Creplay · corpus@c0ffee✓ clear · nothing it read changed across 2 later corpus versions",
 				"audit-log/g5 rep 1Aconfirmation rep · version not recordedstaleness not known: the group froze no pipeline to hash its stages against",
 			]);
 			expect(
