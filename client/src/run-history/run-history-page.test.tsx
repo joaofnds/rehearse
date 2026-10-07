@@ -2864,7 +2864,31 @@ describe(RunHistoryPage.name, () => {
 			await renderPage().findByText(RUN);
 
 			expect(cellOf(RUN, "Cost").textContent).toBe(
-				"$2.41partial · lacks Product Owner: no main artifact; rep-2: no metrics",
+				"$2.41partial · lacks Product Owner, rep-2why",
+			);
+		});
+
+		it("shows why each part the cost lacks is missing on request", async () => {
+			respondingWith(
+				everyKindWith({
+					cost: {
+						...SPENT,
+						missing: [
+							{ part: "Product Owner", reason: "no main artifact" },
+							{ part: "rep-2", reason: "no metrics" },
+						],
+					},
+					wallTime: SIX_TWELVE,
+				}),
+			);
+			await renderPage().findByText(RUN);
+
+			fireEvent.click(
+				within(cellOf(RUN, "Cost")).getByRole("button", { name: "why" }),
+			);
+
+			expect(cellOf(RUN, "Cost").textContent).toBe(
+				"$2.41partial · lacks Product Owner, rep-2hideProduct Owner: no main artifactrep-2: no metrics",
 			);
 		});
 

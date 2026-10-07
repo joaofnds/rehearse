@@ -974,9 +974,11 @@ function figure(text: string): React.JSX.Element {
 
 /**
  * A sum that lacks a part is labelled partial and names each part it lacks,
- * so it is never read as the whole spend.
+ * so it is never read as the whole spend. Why each is missing is long and
+ * repeats down the table, so it opens on request.
  */
-function recordedCost(cost: HistoryRow["cost"]): React.JSX.Element {
+function recordedCost(row: HistoryRow): React.JSX.Element {
+	const { cost } = row;
 	if (cost.state === "unavailable") {
 		return unrecorded(cost.reasons);
 	}
@@ -985,11 +987,20 @@ function recordedCost(cost: HistoryRow["cost"]): React.JSX.Element {
 	}
 
 	return (
-		<span className="flex flex-col gap-0.5">
+		<span className="flex flex-col items-end gap-0.5">
 			{figure(spendReading(cost.usd))}
 			{reasonsLine([
-				`partial · lacks ${cost.missing.map(({ part, reason }) => `${part}: ${reason}`).join("; ")}`,
+				`partial · lacks ${cost.missing.map(({ part }) => part).join(", ")}`,
 			])}
+			<Disclosure
+				key={`${row.kind}:${identityOf(row)}`}
+				collapsedLabel="why"
+				expandedLabel="hide"
+			>
+				{causeList(
+					cost.missing.map(({ part, reason }) => `${part}: ${reason}`),
+				)}
+			</Disclosure>
 		</span>
 	);
 }
@@ -999,7 +1010,7 @@ function costCell(row: HistoryRow): React.JSX.Element {
 		return runningCost(row.progress);
 	}
 
-	return recordedCost(row.cost);
+	return recordedCost(row);
 }
 
 /** A run in flight's wall time moves with the clock between its events. */
