@@ -17,7 +17,7 @@ import {
 	nothingRunning,
 } from "#benchmark/run-records-test-support";
 import { createApiApp } from "./api";
-import { STALE_FROZEN_COPY_REASON } from "./comparison-arm-diff";
+import { MISMATCHED_FROZEN_COPY_REASON } from "./comparison-arm-diff";
 
 const roots: string[] = [];
 
@@ -184,7 +184,7 @@ describe("GET /api/comparisons/:digest/arm-diff", () => {
 		const skill = files.find(({ path }) => path === SKILL);
 		expect(skill?.candidate).toEqual({
 			state: "unavailable",
-			reasons: [STALE_FROZEN_COPY_REASON],
+			reasons: [MISMATCHED_FROZEN_COPY_REASON],
 		});
 	});
 });

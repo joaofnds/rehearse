@@ -27,8 +27,8 @@ export interface ArmFileDiff {
 	readonly candidate: ArmFileText;
 }
 
-export const STALE_FROZEN_COPY_REASON =
-	"its frozen copy no longer matches the digest the comparison recorded";
+export const MISMATCHED_FROZEN_COPY_REASON =
+	"its frozen copy no longer matches the digest the comparison recorded, or is not UTF-8 text";
 
 function sha256(text: string): string {
 	return new Bun.CryptoHasher("sha256").update(text).digest("hex");
@@ -53,7 +53,7 @@ async function frozenText(
 
 		return sha256(text) === file.sha256
 			? { state: "available", text }
-			: { state: "unavailable", reasons: [STALE_FROZEN_COPY_REASON] };
+			: { state: "unavailable", reasons: [MISMATCHED_FROZEN_COPY_REASON] };
 	} catch (error) {
 		if (!(error instanceof SessionHistoryReaderError)) {
 			throw error;

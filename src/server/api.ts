@@ -5,6 +5,10 @@ import type { SSEStreamingApi } from "hono/streaming";
 import type { CorpusRoot } from "#benchmark/corpus-file";
 import { displayPath } from "#benchmark/config";
 import { readComparisonBaselineArm } from "#benchmark/comparison-baseline-record";
+import type {
+	ComparisonReport,
+	LegacyComparisonReport,
+} from "#benchmark/comparison-record";
 import { parseComparisonReport } from "#benchmark/comparison-record";
 import { recordFileFor } from "#cli/show-command";
 import { UsageError } from "#cli/commands";
@@ -221,7 +225,7 @@ async function recordedComparison(
 	runsDirectory: string,
 ): Promise<{
 	readonly file: string;
-	readonly report: ReturnType<typeof parseComparisonReport>;
+	readonly report: ComparisonReport | LegacyComparisonReport;
 }> {
 	const file = await recordFileFor(
 		parseRecordId(`comparison:${digest}`),
