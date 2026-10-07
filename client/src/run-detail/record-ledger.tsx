@@ -2,8 +2,12 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { GitCommitHorizontal, RotateCcw } from "lucide-react";
 import { useId, useState } from "react";
-import { isStopped } from "#benchmark/stopped-status";
-import { corpusMeasurementReading } from "#benchmark/corpus-version-label";
+import { isStopped, stoppedStageOf } from "#benchmark/stopped-status";
+import type { StoppedStatus } from "#benchmark/stopped-status";
+import {
+	corpusMeasurementReading,
+	corpusVersionLabel,
+} from "#benchmark/corpus-version-label";
 import type {
 	MonitoredStage,
 	RunRecordResponse,
@@ -33,6 +37,7 @@ import {
 	durationReading,
 	nodeStatus,
 } from "#client/monitor/task-graph";
+import { hasRunEnded } from "#client/run-history/run-status";
 import { useNow } from "#client/run-history/use-now";
 import type { PipelineRow } from "#client/shell/run-in-flight";
 import { CorpusPill } from "#client/system/components/corpus-pill";
@@ -467,6 +472,89 @@ function LedgerCard({
 	);
 }
 
+interface Unreached {
+	readonly stage: MonitoredStage;
+	readonly number: number;
+}
+
+function stepName({ stage, number }: Unreached): string {
+	return `Step ${String(number)} · ${stage.stage}`;
+}
+
+/** The corpus a stopped run's outcome is recorded for, as every surface names it. */
+function runCorpus(row: PipelineRow): string {
+	const { corpusVersion } = row;
+
+	return corpusVersion?.kind === "version"
+		? corpusVersionLabel(corpusVersion.digest)
+		: `this run's corpus, ${corpusMeasurementReading(corpusVersion)}`;
+}
+
+/**
+ * Why a stopped run never reached a stage: the stage it stopped after, below
+ * the minimum where its letter fell there, which is an outcome the run
+ * records for its corpus rather than a failure (SPEC.md product rule 3).
+ */
+function neverRanWords(
+	unreached: Unreached,
+	status: StoppedStatus,
+	row: PipelineRow,
+	record: RunRecordResponse,
+): string {
+	const stoppedAt = stoppedStageOf(status);
+	const index = record.stages.findIndex(({ stage }) => stage === stoppedAt);
+	const grade = record.stages[index]?.grade;
+	const below =
+		grade?.state === "available" && !grade.reachesMinimum
+			? " fell below the minimum"
+			: "";
+
+	return `${stepName(unreached)} never ran. The run stopped after step ${String(index + 1)}${below} and the target repository was restored. This is a recorded outcome for ${runCorpus(row)}, not a failed execution.`;
+}
+
+/** The ending the run recorded, where it says why later stages did not run. */
+function endingReason(record: RunRecordResponse): string | undefined {
+	const { finalOutcome } = record;
+
+	return finalOutcome.status === "NOT_REACHED" ||
+		finalOutcome.status === "JUDGING_FAILED"
+		? finalOutcome.reason
+		: undefined;
+}
+
+function UnreachedStage({
+	unreached,
+	row,
+	record,
+}: {
+	readonly unreached: Unreached;
+	readonly row: PipelineRow;
+	readonly record: RunRecordResponse;
+}): React.JSX.Element {
+	const reason = endingReason(record);
+	if (hasRunEnded(row) && isStopped(row.status)) {
+		return (
+			<li className="rounded-card border border-dashed border-strong px-3.5 py-3 text-11-5 text-pretty text-muted-foreground">
+				{neverRanWords(unreached, row.status, row, record)}
+			</li>
+		);
+	}
+	if (hasRunEnded(row) && reason !== undefined) {
+		return (
+			<li className="px-3.5 py-1 text-11-5 text-muted-foreground">
+				{stepName(unreached)} did not run: {reason}.
+			</li>
+		);
+	}
+
+	return (
+		<li className="flex items-center gap-3 px-3.5 py-1 text-11-5">
+			{stepName(unreached)}
+			<StatusWords status={nodeStatus(unreached.stage, row)} />
+		</li>
+	);
+}
+
 /**
  * Record ledger (SPEC.md 4b): every stage's durable record top to bottom, one
  * card per stage that left one.
@@ -479,6 +567,9 @@ export function RecordLedger({
 	readonly record: RunRecordResponse;
 }): React.JSX.Element {
 	const nowMs = useNow(row.progress.state === "running");
+	const unreached = record.stages.flatMap((stage, index) =>
+		stage.status === "no-record" ? [{ stage, number: index + 1 }] : [],
+	);
 
 	return (
 		<section
@@ -497,6 +588,21 @@ export function RecordLedger({
 							nowMs={nowMs}
 						/>
 					),
+				)}
+				{unreached.length === 0 ? null : (
+					<ul
+						aria-label="Stages without a record"
+						className="flex flex-col gap-2"
+					>
+						{unreached.map((each) => (
+							<UnreachedStage
+								key={each.stage.stage}
+								unreached={each}
+								row={row}
+								record={record}
+							/>
+						))}
+					</ul>
 				)}
 			</div>
 		</section>

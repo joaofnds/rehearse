@@ -1,10 +1,17 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import { fireEvent, screen, within } from "@testing-library/react";
+import { renderAppWithStub } from "#client/test-support/render-app";
+import { recordStage } from "#client/test-support/run-record";
+import { runRow } from "#client/test-support/runs-in-flight";
 import type { RunRecord, RunRecordStage } from "#server/run-record";
+import { INTERRUPTED_REASON, RUN_FAILED_REASON } from "#server/run-record";
 import type { StageJudge } from "#server/stage-judge";
 import type { StageSession } from "#server/stage-session";
 import {
+	ANALYSES,
 	CORPUS,
+	history,
+	noAnalysis,
 	RUN,
 	renderRunDetail,
 	stoppedAtBuild,
@@ -312,5 +319,115 @@ describe("Record ledger", () => {
 				"Uncited spans are not stored here. The full session is not recorded: Rehearse kept no copy of this step's session",
 			);
 		});
+	});
+
+	describe("stages the run never reached", () => {
+		/** The run ended or in flight at build, with shape's record alone. */
+		function renderReachedFirstStep(
+			status: string,
+			finalOutcome: RunRecord["finalOutcome"],
+		): void {
+			const record = stoppedAtBuild();
+			renderAppWithStub(
+				LEDGER,
+				new Map<string, unknown>([
+					[
+						"/api/runs",
+						history([
+							runRow({
+								run: RUN,
+								status,
+								stage: "build",
+								corpusVersion: { kind: "version", digest: CORPUS },
+							}),
+						]),
+					],
+					[
+						`/api/runs/${RUN}`,
+						{
+							...record,
+							status: { state: "available", status },
+							finalOutcome,
+							stages: record.stages.map((stage) =>
+								stage.stage === "shape" ? stage : recordStage(stage.stage),
+							),
+						},
+					],
+					[ANALYSES, noAnalysis()],
+				]),
+			);
+		}
+
+		function unreached(): Promise<HTMLElement> {
+			return screen.findByRole("list", { name: "Stages without a record" });
+		}
+
+		it("notes on a stopped run that each one never ran, as a recorded outcome", async () => {
+			renderLedger();
+
+			const note = within(await unreached()).getByRole("listitem");
+
+			expect(note).toHaveTextContent(
+				"Step 3 · verify never ran. The run stopped after step 2 fell below the minimum and the target repository was restored. This is a recorded outcome for corpus@a41c7e, not a failed execution.",
+			);
+			expect(note).toHaveClass("border-dashed");
+		});
+
+		it("names a stop its judge made without the minimum", async () => {
+			const record = stoppedWithFigures();
+			const [first, second, ...later] = record.stages;
+			const stoppedByVerdict: Partial<RunRecordStage> = {
+				grade: {
+					state: "available",
+					letter: "B",
+					verdict: "STOP",
+					reachesMinimum: true,
+				},
+			};
+			renderLedger(new Map(), {
+				...record,
+				stages:
+					first === undefined || second === undefined
+						? []
+						: [first, { ...second, ...stoppedByVerdict }, ...later],
+			});
+
+			expect(await unreached()).toHaveTextContent(
+				"Step 3 · verify never ran. The run stopped after step 2 and the target repository was restored. This is a recorded outcome for corpus@a41c7e, not a failed execution.",
+			);
+		});
+
+		it("shows them as queued while the run is in flight", async () => {
+			renderReachedFirstStep("RUNNING", { status: "PENDING", stage: "build" });
+
+			const items = within(await unreached()).getAllByRole("listitem");
+
+			expect(items.map((item) => item.textContent)).toEqual([
+				"Step 2 · build●session running",
+				"Step 3 · verify○queued",
+			]);
+		});
+
+		it.each([
+			["FAILED", RUN_FAILED_REASON],
+			["INTERRUPTED", INTERRUPTED_REASON],
+		])(
+			"states a %s run's own reason and no recorded outcome",
+			async (status, reason) => {
+				renderReachedFirstStep(status, {
+					status: "NOT_REACHED",
+					stage: "build",
+					reason,
+				});
+
+				const items = within(await unreached()).getAllByRole("listitem");
+
+				expect(items.map((item) => item.textContent)).toEqual([
+					`Step 2 · build did not run: ${reason}.`,
+					`Step 3 · verify did not run: ${reason}.`,
+				]);
+				expect(items[0]).not.toHaveClass("border-dashed");
+			},
+		);
 	});
 });
