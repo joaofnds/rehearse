@@ -4,7 +4,7 @@ import { hashedFileSchema } from "./checkpoint";
 import type { Effort } from "./config";
 import { effortSchema } from "./config";
 import type { StageScorecard } from "./contracts";
-import { stageLetterGradeSchema } from "./contracts";
+import { gradedHardBlockersSchema, stageLetterGradeSchema } from "./contracts";
 import type { CorpusMeasurement } from "./corpus-measurement";
 import { corpusMeasurementSchema } from "./corpus-measurement";
 import type { ReadManifestEntry } from "./read-manifest";
@@ -102,16 +102,7 @@ export const replayRecordSchema = z
 					.object({
 						grade: stageLetterGradeSchema,
 						verdict: z.enum(["CONTINUE", "STOP"]),
-						hardBlockers: z
-							.array(
-								z
-									.object({
-										id: z.string().min(1),
-										status: z.enum(["PASS", "FAIL"]),
-									})
-									.loose(),
-							)
-							.optional(),
+						hardBlockers: gradedHardBlockersSchema.optional(),
 					})
 					.loose(),
 			})

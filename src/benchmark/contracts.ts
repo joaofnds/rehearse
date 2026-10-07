@@ -157,6 +157,14 @@ const passFailFields = {
 	id: z.string().min(1),
 	status: z.enum(["PASS", "FAIL"]),
 };
+/** The hard blockers a stage grade recorded, read as far as which one fired. */
+export const gradedHardBlockersSchema = z.array(
+	z.object(passFailFields).loose(),
+);
+export type GradedHardBlockers = Immutable<
+	z.infer<typeof gradedHardBlockersSchema>
+>;
+
 const dimensionFields = {
 	id: z.string().min(1),
 	grade: stageLetterGradeSchema,

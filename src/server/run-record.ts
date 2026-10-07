@@ -8,10 +8,17 @@ import {
 import type { CheckpointRecord, HashedFile } from "#benchmark/checkpoint";
 import { STAGE_LETTER_GRADES } from "#benchmark/config";
 import type { Effort, StageLetterGrade } from "#benchmark/config";
-import { claudeCallMetricsSchema } from "#benchmark/contracts";
+import {
+	claudeCallMetricsSchema,
+	gradedHardBlockersSchema,
+} from "#benchmark/contracts";
 import { corpusMeasurementSchema } from "#benchmark/corpus-measurement";
 import type { CorpusMeasurement } from "#benchmark/corpus-measurement";
-import type { ClaudeCallMetrics, Immutable } from "#benchmark/contracts";
+import type {
+	ClaudeCallMetrics,
+	GradedHardBlockers,
+	Immutable,
+} from "#benchmark/contracts";
 import { loadRunManifest } from "#benchmark/manifest";
 import { readManifestSchema } from "#benchmark/read-manifest";
 import type { CorpusRoot } from "#benchmark/corpus-file";
@@ -242,13 +249,7 @@ const stageFileSchema = z
 			.object({
 				grade: z.string(),
 				verdict: z.string(),
-				hardBlockers: z
-					.array(
-						z
-							.object({ id: z.string(), status: z.enum(["PASS", "FAIL"]) })
-							.loose(),
-					)
-					.optional(),
+				hardBlockers: gradedHardBlockersSchema.optional(),
 			})
 			.loose()
 			.optional(),
@@ -582,10 +583,7 @@ const UNGRADED_REASONS = {
 
 /** A hard blocker fired when its judge found it FAIL. */
 export function firedBlockerIds(
-	hardBlockers: readonly {
-		readonly id: string;
-		readonly status: "PASS" | "FAIL";
-	}[],
+	hardBlockers: GradedHardBlockers,
 ): readonly string[] {
 	return hardBlockers
 		.filter(({ status }) => status === "FAIL")

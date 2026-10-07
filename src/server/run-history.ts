@@ -1,5 +1,5 @@
 import { unhandled } from "#benchmark/contracts";
-import type { Immutable } from "#benchmark/contracts";
+import type { GradedHardBlockers, Immutable } from "#benchmark/contracts";
 import {
 	parseConfirmationGroupRecord,
 	parseConfirmationRepRecord,
@@ -549,9 +549,7 @@ function firedBlockersOf(stages: readonly FiredBlockers[]): FiredBlockers {
 
 /** The ids one stage grade found fired, where the grade recorded its blockers. */
 function firedIdsOf(
-	hardBlockers:
-		| readonly { readonly id: string; readonly status: "PASS" | "FAIL" }[]
-		| undefined,
+	hardBlockers: GradedHardBlockers | undefined,
 ): FiredBlockers {
 	if (hardBlockers === undefined) {
 		return { state: "unavailable", reasons: [NO_GRADED_BLOCKERS_REASON] };
