@@ -151,6 +151,7 @@ export interface RunRecordStage {
 	readonly readManifest: Reading<{
 		readonly entries: readonly JudgedReadEntry[];
 	}>;
+	readonly artifactsIn: ArtifactsIn;
 	readonly artifactsOut: ArtifactsOut;
 }
 
@@ -172,6 +173,29 @@ export interface ArtifactsOut {
 	}>;
 	readonly commitSubjects: Reading<{ readonly subjects: readonly string[] }>;
 	readonly changedPaths: PathsReading;
+}
+
+/** Something a stage's session started from, and where it came from. */
+export type ArtifactIn =
+	| { readonly from: "task declaration"; readonly taskId: string }
+	| {
+			readonly from: "upstream checkpoint";
+			readonly target: string;
+			/** The stage whose checkpoint it is, or the initial checkpoint's name. */
+			readonly upstream: string;
+			readonly checkpointShortId: ShortIdReading;
+	  }
+	| {
+			readonly from: "earlier stage";
+			readonly path: string;
+			readonly change: WorkflowStateChange["change"];
+			readonly stage: string;
+	  };
+
+/** What a stage started from, naming each earlier stage whose changes it cannot read. */
+export interface ArtifactsIn {
+	readonly entries: readonly ArtifactIn[];
+	readonly missing: readonly MissingPart[];
 }
 
 /**
@@ -661,7 +685,7 @@ function stageRecord(
 	checkpoints: CheckpointsByLineage,
 	checkpointShortId: ShortIdReading,
 	minimumGrade: StageLetterGrade | undefined,
-): RunRecordStage {
+): Omit<RunRecordStage, "artifactsIn"> {
 	const { file, checkpoint } = recorded;
 	const commitSubjects = file?.input?.commitSubjects;
 	const changedPaths = file?.input?.changedPaths;
@@ -722,6 +746,47 @@ function stageRecord(
 						}
 					: { state: "available", paths: changedPaths },
 		},
+	};
+}
+
+/** Where a stage's session started: the target at the checkpoint before it. */
+interface Upstream {
+	readonly target: string;
+	readonly upstream: string;
+	readonly checkpointShortId: ShortIdReading;
+}
+
+/**
+ * What a stage's session started from: the task card the case names, the
+ * target at the checkpoint before it, and each workflow-state file an earlier
+ * stage changed, named by that stage. Earlier stages'
+ * declared artifacts reach only the stage judge, so they are not inputs.
+ */
+function artifactsIn(
+	taskId: string,
+	upstream: Upstream,
+	earlier: readonly Omit<RunRecordStage, "artifactsIn">[],
+): ArtifactsIn {
+	const changed: ArtifactIn[] = [];
+	const missing: MissingPart[] = [];
+	for (const { stage, artifactsOut } of earlier) {
+		const { workflowState } = artifactsOut;
+		if (workflowState.state === "unavailable") {
+			missing.push({ part: stage, reason: workflowState.reasons.join("; ") });
+			continue;
+		}
+		for (const { path, change } of workflowState.changes) {
+			changed.push({ from: "earlier stage", path, change, stage });
+		}
+	}
+
+	return {
+		entries: [
+			{ from: "task declaration", taskId },
+			{ from: "upstream checkpoint", ...upstream },
+			...changed,
+		],
+		missing,
 	};
 }
 
@@ -1089,7 +1154,13 @@ export async function readRunRecord(
 			reached: stage === reachedStage,
 		}));
 		const names = stages.map(({ stage }) => stage);
-		const records = reached.map((stage) =>
+		const target = basename(manifest.sourceRoot);
+		const initialShortId = stageCheckpointShortId(shortId, names, {
+			stage: INITIAL_CHECKPOINT_STAGE,
+			file: undefined,
+			checkpoint: initial,
+		});
+		const withoutInputs = reached.map((stage) =>
 			stageRecord(
 				stage,
 				checkpoints,
@@ -1097,13 +1168,37 @@ export async function readRunRecord(
 				manifest.minimumGrade,
 			),
 		);
+		const records = withoutInputs.map((record, index): RunRecordStage => {
+			const previous = withoutInputs[index - 1];
+			const upstream: Upstream =
+				previous === undefined
+					? {
+							target,
+							upstream: INITIAL_CHECKPOINT_STAGE,
+							checkpointShortId: initialShortId,
+						}
+					: {
+							target,
+							upstream: previous.stage,
+							checkpointShortId: previous.checkpointShortId,
+						};
+
+			return {
+				...record,
+				artifactsIn: artifactsIn(
+					manifest.taskId,
+					upstream,
+					withoutInputs.slice(0, index),
+				),
+			};
+		});
 
 		return {
 			run,
 			shortId,
 			caseId: manifest.caseId,
 			identity: {
-				target: basename(manifest.sourceRoot),
+				target,
 				commit: manifest.sourceSha,
 				model: manifest.model,
 				effort: manifest.effort,
@@ -1134,7 +1229,7 @@ export async function readRunRecord(
 /**
  * The run's record with each checkpoint's read manifest judged against the
  * corpus under test, as the run's page shows it. The run history reads the
- * unjudged record, since it judges each row once for itself. A corpus under
+ * withoutInputs record, since it judges each row once for itself. A corpus under
  * test that cannot judge the run leaves its entries without a state, since
  * the record stands on its own and the run history names why the run is
  * unreadable.
@@ -1172,7 +1267,7 @@ export async function readJudgedRunRecord(
 
 /**
  * A stage that saved no checkpoint keeps its reads on its stage record, so
- * they are judged from there, and left unjudged where the corpus under test
+ * they are judged from there, and left withoutInputs where the corpus under test
  * cannot judge them.
  */
 async function stoppedStageReads(

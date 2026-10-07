@@ -24,6 +24,7 @@ export function recordStage(
 		instructionFiles: NOT_READ,
 		corpusVersion: undefined,
 		readManifest: NOT_READ,
+		artifactsIn: { entries: [], missing: [] },
 		artifactsOut: {
 			declared: NOT_READ,
 			workflowState: NOT_READ,

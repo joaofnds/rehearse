@@ -1600,6 +1600,12 @@ entry is served without a state rather than failing the response. It is unavaila
 predates read manifests. As artifacts out it lists its declared artifact, the
 workflow-state files it added, modified or removed against the checkpoint it
 continued from, and the commit subjects and changed paths its record carries.
+As artifacts in it lists what its session started from: the task card the case
+names, the target at the checkpoint before it, which for the first stage is the
+initial checkpoint, with that checkpoint's short id, and each workflow-state
+change an earlier stage made, named by that stage. An earlier stage whose
+changes cannot be read is listed under `missing` with the reason. Earlier
+stages' declared artifacts reach only the stage judge, so they are not inputs.
 It says whether its checkpoint is `recorded` or `missing`, since a stopped
 stage saves none.
 

@@ -499,6 +499,112 @@ describe("/api/runs/:run", () => {
 				});
 			});
 
+			it("names the task declaration and the target at the initial checkpoint as a first stage's artifacts in", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeStoppedRunEvidence();
+				await fixture.claim(CASE_ID, [
+					{ kind: "run", run: fixture.stoppedRun },
+				]);
+
+				const response = await runRecord(fixture, fixture.stoppedRun);
+
+				expect(await response.json()).toMatchObject({
+					stages: [
+						{
+							stage: "discuss",
+							artifactsIn: {
+								entries: [
+									{ from: "task declaration", taskId: "ACT-1" },
+									{
+										from: "upstream checkpoint",
+										target: "template",
+										upstream: "initial",
+										checkpointShortId: {
+											state: "available",
+											shortId: `${CASE_ID}/r1/s0`,
+										},
+									},
+								],
+								missing: [],
+							},
+						},
+						{ stage: "build" },
+					],
+				});
+			});
+
+			it("names a stopped stage's upstream as the stage before it and each workflow-state file an earlier stage changed", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeStoppedRunEvidence();
+				await fixture.claim(CASE_ID, [
+					{ kind: "run", run: fixture.stoppedRun },
+				]);
+
+				const response = await runRecord(fixture, fixture.stoppedRun);
+
+				expect(await response.json()).toMatchObject({
+					stages: [
+						{ stage: "discuss" },
+						{
+							stage: "build",
+							artifactsIn: {
+								entries: [
+									{ from: "task declaration", taskId: "ACT-1" },
+									{
+										from: "upstream checkpoint",
+										target: "template",
+										upstream: "discuss",
+										checkpointShortId: {
+											state: "available",
+											shortId: `${CASE_ID}/r1/s1`,
+										},
+									},
+									{
+										from: "earlier stage",
+										path: taskCard,
+										change: "modified",
+										stage: "discuss",
+									},
+								],
+								missing: [],
+							},
+						},
+					],
+				});
+			});
+
+			it("names each earlier stage whose workflow-state changes a running stage's inputs cannot read", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeRunningRun();
+
+				const response = await runRecord(fixture, fixture.runningRun, liveRun);
+
+				expect(await response.json()).toMatchObject({
+					stages: [
+						{ stage: "discuss" },
+						{
+							stage: "build",
+							artifactsIn: {
+								entries: [
+									{ from: "task declaration", taskId: "ACT-1" },
+									{
+										from: "upstream checkpoint",
+										upstream: "discuss",
+										checkpointShortId: { state: "unavailable" },
+									},
+								],
+								missing: [
+									{
+										part: "discuss",
+										reason: "the stage saved no checkpoint to compare",
+									},
+								],
+							},
+						},
+					],
+				});
+			});
+
 			it("serves the read manifest a stage's checkpoint recorded", async () => {
 				const fixture = await emptyFixture();
 				await fixture.writeStoppedRunEvidence();
