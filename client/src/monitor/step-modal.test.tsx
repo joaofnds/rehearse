@@ -405,6 +405,27 @@ describe("/monitor step modal", () => {
 			]);
 		});
 
+		it("names each part of artifacts out an ended step's record cannot read", async () => {
+			renderMonitor([
+				recordStage("plan", {
+					status: "stopped",
+					artifactsOut: {
+						declared: { state: "available", paths: [] },
+						workflowState: { state: "unavailable", reasons: ["no checkpoint"] },
+						commitSubjects: { state: "available", subjects: ["wip"] },
+						changedPaths: { state: "unavailable", reasons: ["no paths kept"] },
+					},
+				}),
+				recordStage("build"),
+			]);
+
+			const dialog = await openModal("plan");
+
+			expect(dialog).toHaveTextContent(
+				"↑wipcommitNot read: the workflow-state changes, as no checkpointNot read: the changed paths, as no paths kept",
+			);
+		});
+
 		it("omits artifacts out for a step that has produced none", async () => {
 			renderMonitor([recordStage("plan", FINISHED_PLAN), recordStage("build")]);
 

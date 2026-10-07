@@ -109,6 +109,8 @@ function ModalHeader({
 
 type ArtifactIn = MonitoredStage["artifactsIn"]["entries"][number];
 
+type MissingPart = MonitoredStage["artifactsIn"]["missing"][number];
+
 function stepName(record: RunRecordResponse, stage: string): string {
 	const index = record.stages.findIndex((each) => each.stage === stage);
 
@@ -333,6 +335,30 @@ function artifactOutRows(stage: MonitoredStage): readonly ArtifactOutRow[] {
 	];
 }
 
+/**
+ * Each part of an ended stage's artifacts out its record cannot read, so an
+ * unreadable record does not pass for one that produced nothing.
+ */
+function unreadArtifactsOut(stage: MonitoredStage): readonly MissingPart[] {
+	if (!hasEnded(stage)) {
+		return [];
+	}
+
+	const { declared, workflowState, commitSubjects, changedPaths } =
+		stage.artifactsOut;
+
+	return [
+		{ part: "the declared artifact", reading: declared },
+		{ part: "the workflow-state changes", reading: workflowState },
+		{ part: "the commit subjects", reading: commitSubjects },
+		{ part: "the changed paths", reading: changedPaths },
+	].flatMap(({ part, reading }) =>
+		reading.state === "unavailable"
+			? [{ part, reason: reading.reasons.join("; ") }]
+			: [],
+	);
+}
+
 function ArtifactsOut({
 	stage,
 }: {
@@ -340,7 +366,8 @@ function ArtifactsOut({
 }): React.JSX.Element | null {
 	const headingId = useId();
 	const rows = artifactOutRows(stage);
-	if (rows.length === 0) {
+	const unread = unreadArtifactsOut(stage);
+	if (rows.length === 0 && unread.length === 0) {
 		return null;
 	}
 
@@ -363,6 +390,11 @@ function ArtifactsOut({
 					</li>
 				))}
 			</ul>
+			{unread.map(({ part, reason }) => (
+				<p key={part} className="mt-1.5 text-11 text-dim">
+					Not read: {part}, as {reason}
+				</p>
+			))}
 		</>
 	);
 }
