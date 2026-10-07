@@ -347,20 +347,31 @@ function runOutcomeCell(row: RunHistoryRow): React.JSX.Element {
 			</span>
 		);
 	}
+	const reading = runPhrase(row);
+
+	return reading === undefined
+		? otherRunOutcome(row)
+		: outcomeOf({ state: runStatusState(row.status), ...reading });
+}
+
+/** A finished run's phrase and reason; its glyph is the one run detail shows. */
+type RunPhrase = Omit<OutcomePhrase, "state">;
+
+function runPhrase(row: RunHistoryRow): RunPhrase | undefined {
 	if (isStopped(row.status)) {
-		return outcomeOf(stoppedOutcome(row, stoppedStageOf(row.status)));
+		return stoppedOutcome(row, stoppedStageOf(row.status));
 	}
 
 	switch (row.status) {
 		case "COMPLETE": {
-			return outcomeOf(completedOutcome(row.stageGrades));
+			return completedOutcome(row.stageGrades);
 		}
 		case "INTERRUPTED":
 		case "FAILED": {
-			return outcomeOf(interruptedOutcome(row));
+			return interruptedOutcome(row);
 		}
 		default: {
-			return otherRunOutcome(row);
+			return undefined;
 		}
 	}
 }
@@ -468,9 +479,8 @@ function minimumReading(minimumGrade: RunHistoryRow["minimumGrade"]): string {
  * A stopped run is a finding, not a failure: the step it stopped at, with
  * that step's grade and the minimum it fell below, opening the step.
  */
-function stoppedOutcome(row: RunHistoryRow, stage: string): OutcomePhrase {
+function stoppedOutcome(row: RunHistoryRow, stage: string): RunPhrase {
 	return {
-		state: "stopped",
 		phrase: atStep("stopped at", stage, row.stageGrades),
 		reason: (
 			<a
@@ -502,10 +512,9 @@ function stopReason(row: RunHistoryRow, stage: string): string {
 	return `${stoppedGrade(stage, grade)} · ${minimumReading(row.minimumGrade)}`;
 }
 
-function completedOutcome(stageGrades: StageGrades): OutcomePhrase {
+function completedOutcome(stageGrades: StageGrades): RunPhrase {
 	if (stageGrades.state === "unavailable") {
 		return {
-			state: "accepted",
 			phrase: "completed",
 			reason: stageGrades.reasons.join("; "),
 		};
@@ -517,7 +526,6 @@ function completedOutcome(stageGrades: StageGrades): OutcomePhrase {
 	).length;
 
 	return {
-		state: "accepted",
 		phrase: `completed ${String(steps)} of ${String(steps)}`,
 		reason:
 			reached === steps
@@ -527,33 +535,30 @@ function completedOutcome(stageGrades: StageGrades): OutcomePhrase {
 }
 
 /** An interrupted or failed run names the step it ended in and why, or the final judge's failure. */
-function interruptedOutcome(row: RunHistoryRow): OutcomePhrase {
+function interruptedOutcome(row: RunHistoryRow): RunPhrase {
 	const { finalOutcome } = row;
 	if (finalOutcome.state === "unavailable") {
 		return {
-			state: "interrupted",
 			phrase: "interrupted",
 			reason: finalOutcome.reasons.join("; "),
 		};
 	}
 	if (finalOutcome.status === "JUDGING_FAILED") {
 		return {
-			state: "interrupted",
 			phrase: "final judge failed",
 			reason: finalOutcome.reason,
 		};
 	}
 	if (finalOutcome.status !== "NOT_REACHED") {
-		return { state: "interrupted", phrase: "interrupted", reason: row.status };
+		return { phrase: "interrupted", reason: row.status };
 	}
 
 	const { stage, reason } = finalOutcome;
 	if (stage === undefined) {
-		return { state: "interrupted", phrase: "interrupted", reason };
+		return { phrase: "interrupted", reason };
 	}
 
 	return {
-		state: "interrupted",
 		phrase: atStep("interrupted at", stage, row.stageGrades),
 		reason: `${stage} · ${reason}`,
 	};
