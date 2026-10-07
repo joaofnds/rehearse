@@ -14,7 +14,11 @@ import {
 	waitFor,
 	within,
 } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+	focusManager,
+	QueryClient,
+	QueryClientProvider,
+} from "@tanstack/react-query";
 import {
 	createMemoryHistory,
 	createRootRoute,
@@ -3811,7 +3815,7 @@ describe(RunHistoryPage.name, () => {
 		function replayableRun(
 			run: string,
 			status: string,
-			recorded: readonly string[],
+			replayableStages: readonly string[],
 		): PipelineRunRow {
 			return {
 				kind: "run",
@@ -3826,10 +3830,8 @@ describe(RunHistoryPage.name, () => {
 				},
 				launchId: undefined,
 				shortId: "r1",
-				checkpoints: recorded.map((stage) => ({
-					stage,
-					shortId: `r1/${stage}`,
-				})),
+				checkpoints: [],
+				replayableStages,
 				links: [],
 				run,
 				caseId: "audit-log",
@@ -3846,8 +3848,8 @@ describe(RunHistoryPage.name, () => {
 		function history(): RunHistoryResponseBody {
 			return {
 				rows: [
-					replayableRun(FINISHED, "COMPLETE", ["initial", "plan", "build"]),
-					replayableRun(STOPPED, "STOPPED:build", ["initial", "plan"]),
+					replayableRun(FINISHED, "COMPLETE", ["plan", "build", "review"]),
+					replayableRun(STOPPED, "STOPPED:build", ["plan", "build"]),
 				],
 				launches: [],
 				unreadable: [],
@@ -3932,7 +3934,7 @@ describe(RunHistoryPage.name, () => {
 			expect(within(dialog).getByLabelText("Step")).toHaveValue("build");
 		});
 
-		it("offers only the chosen run's steps whose starting checkpoint is recorded", async () => {
+		it("offers only the chosen run's replayable steps", async () => {
 			serving();
 			const { openReplay } = renderHistory();
 			const dialog = await openReplay();
@@ -3942,6 +3944,37 @@ describe(RunHistoryPage.name, () => {
 				.map((option) => option.textContent);
 
 			expect(steps).toEqual(["plan", "build"]);
+		});
+
+		it("starts the step it opens on", async () => {
+			const server = serving();
+			const { openReplay } = renderHistory();
+			const dialog = await openReplay();
+
+			fireEvent.click(
+				await within(dialog).findByRole("button", {
+					name: "Start · 1 attempt",
+				}),
+			);
+
+			await waitFor(() => {
+				expect(server.posted("/api/launches")).toHaveLength(1);
+			});
+			expect(
+				JSON.parse(server.posted("/api/launches")[0]?.body ?? ""),
+			).toMatchObject({ kind: "replay", run: STOPPED, stage: "build" });
+		});
+
+		it("chooses a run's last offered step when the operator changes to it", async () => {
+			serving();
+			const { openReplay } = renderHistory();
+			const dialog = await openReplay();
+
+			fireEvent.change(within(dialog).getByLabelText("Run"), {
+				target: { value: FINISHED },
+			});
+
+			expect(within(dialog).getByLabelText("Step")).toHaveValue("review");
 		});
 
 		it("replays the run and step the operator changes to", async () => {
@@ -3976,7 +4009,7 @@ describe(RunHistoryPage.name, () => {
 
 		it("lists the launch it started", async () => {
 			let launched = false;
-			const server = serving(
+			serving(
 				history(),
 				new Map([
 					[
@@ -4016,11 +4049,92 @@ describe(RunHistoryPage.name, () => {
 			);
 
 			expect(await page.findByText("launch 9c1d2e3f")).toBeInTheDocument();
-			expect(
-				JSON.parse(server.posted("/api/launches")[0]?.body ?? ""),
-			).toMatchObject({
-				run: STOPPED,
-				stage: "build",
+		});
+
+		describe("when a later read no longer lists the chosen run", () => {
+			afterEach(() => {
+				focusManager.setFocused(undefined);
+			});
+
+			it("returns to the step it opened on", async () => {
+				let dropped = false;
+				const server = serving(
+					history(),
+					new Map([
+						[
+							"GET /api/runs",
+							new LiveReply(() => ({
+								status: 200,
+								body: dropped
+									? {
+											...history(),
+											rows: history().rows.filter(
+												(row) => row.kind === "run" && row.run !== FINISHED,
+											),
+										}
+									: history(),
+							})),
+						],
+					]),
+				);
+				const { openReplay } = renderHistory();
+				const dialog = await openReplay();
+				fireEvent.change(within(dialog).getByLabelText("Run"), {
+					target: { value: FINISHED },
+				});
+
+				dropped = true;
+				focusManager.setFocused(false);
+				focusManager.setFocused(true);
+				await waitFor(() => {
+					expect(within(dialog).getByLabelText("Run")).toHaveValue(STOPPED);
+				});
+				fireEvent.click(
+					within(dialog).getByRole("button", { name: "Start · 1 attempt" }),
+				);
+
+				await waitFor(() => {
+					expect(server.posted("/api/launches")).toHaveLength(1);
+				});
+				expect(
+					JSON.parse(server.posted("/api/launches")[0]?.body ?? ""),
+				).toMatchObject({ run: STOPPED, stage: "build" });
+			});
+		});
+
+		describe("when a later read of the history fails", () => {
+			afterEach(() => {
+				focusManager.setFocused(undefined);
+			});
+
+			it("keeps the open dialog and its choice", async () => {
+				let failing = false;
+				serving(
+					history(),
+					new Map([
+						[
+							"GET /api/runs",
+							new LiveReply(() =>
+								failing
+									? { status: 500, body: {} }
+									: { status: 200, body: history() },
+							),
+						],
+					]),
+				);
+				const { page, openReplay } = renderHistory();
+				const dialog = await openReplay();
+				fireEvent.change(within(dialog).getByLabelText("Run"), {
+					target: { value: FINISHED },
+				});
+
+				failing = true;
+				focusManager.setFocused(false);
+				focusManager.setFocused(true);
+				await page.findByText("Could not load run history.");
+
+				expect(page.getByRole("dialog")).toBe(dialog);
+				expect(within(dialog).getByLabelText("Run")).toHaveValue(FINISHED);
 			});
 		});
 

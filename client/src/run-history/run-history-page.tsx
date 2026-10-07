@@ -34,8 +34,8 @@ import {
 import type { OutcomeReading } from "#client/run-detail/task-grade-card";
 import { SESSION_GRADE_REASON } from "#server/session-grade-reason";
 import { RunControls } from "./run-controls";
-import { replayChoices } from "./replay-choices";
-import type { ReplayChoices } from "./replay-choices";
+import { replayOffer } from "./replay-choices";
+import type { ReplayOffer } from "./replay-choices";
 
 type HistoryRow = RunHistoryResponse["rows"][number];
 type RunHistoryRow = Extract<HistoryRow, { readonly kind: "run" }>;
@@ -1364,19 +1364,20 @@ function listedRecords(
 
 /**
  * Replays a step of a recorded run, chosen in the dialog. Until the history
- * reads there is nothing to choose from, and a history with no replayable
+ * reads there is nothing to choose from, and a failed poll after it read keeps
+ * the last offer so an open dialog stays open, and a history with no replayable
  * step says so beside the action, since a disabled button explains nothing.
  */
 function ReplayAStep({
-	choices,
+	offer,
 }: {
-	readonly choices: ReplayChoices | undefined;
+	readonly offer: ReplayOffer | undefined;
 }): React.JSX.Element {
-	if (choices?.state !== "available") {
+	if (offer?.state !== "available") {
 		return (
 			<>
-				{choices === undefined ? null : (
-					<span className="text-11-5 text-dim">{choices.reason}</span>
+				{offer === undefined ? null : (
+					<span className="text-11-5 text-dim">{offer.reason}</span>
 				)}
 				<Button variant="outline" disabled>
 					Replay a step
@@ -1389,8 +1390,8 @@ function ReplayAStep({
 		<LaunchDialog
 			target={{
 				kind: "chosen-replay",
-				runs: choices.runs,
-				opensOn: choices.opensOn,
+				runs: offer.runs,
+				opensOn: offer.opensOn,
 			}}
 			triggerLabel="Replay a step"
 		/>
@@ -1440,7 +1441,9 @@ export function RunHistoryPage(): React.JSX.Element {
 				aside={
 					<span className="flex flex-wrap items-center justify-end gap-2">
 						<ReplayAStep
-							choices={query.isSuccess ? replayChoices(recorded) : undefined}
+							offer={
+								query.data === undefined ? undefined : replayOffer(recorded)
+							}
 						/>
 						<LaunchDialog target={{ kind: "case" }} triggerLabel="New run" />
 					</span>
