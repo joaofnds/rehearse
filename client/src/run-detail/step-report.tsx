@@ -31,7 +31,7 @@ export type ReadEntry = Extract<
 	{ readonly state: "available" }
 >["entries"][number];
 
-const LINE_COUNT = new Intl.NumberFormat("en-US");
+export const LINE_COUNT = new Intl.NumberFormat("en-US");
 
 /** How many characters of a file's sha256 a reading shows. */
 export const HASH_SHOWN = 6;

@@ -48,9 +48,7 @@ import { CorpusPill } from "#client/system/components/corpus-pill";
 import { Grade } from "#client/system/components/grade";
 import { LiveGlyph, STATUS_VOCABULARY } from "#client/system/components/status";
 import { ReplayButton } from "./replay-button";
-import { NO_KEPT_TRANSCRIPT, unjudgedReading } from "./step-report";
-
-const LINE_COUNT = new Intl.NumberFormat("en-US");
+import { LINE_COUNT, NO_KEPT_TRANSCRIPT, unjudgedReading } from "./step-report";
 
 /** The stage's judge as the page read it: its answer, still loading, or unreadable. */
 type JudgeRead = StageJudgeResponse | "unreadable" | undefined;
@@ -456,7 +454,7 @@ function LedgerCard({
 
 	return (
 		<article
-			aria-label={`Step ${String(number)} · ${stage.stage}`}
+			aria-label={stepName({ stage, number })}
 			className={`overflow-hidden rounded-card border bg-card ${status.state === "stopped" ? "border-deeper" : "border-border"}`}
 		>
 			<CardHeader stage={stage} number={number} status={status} meta={meta} />
