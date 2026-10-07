@@ -84,6 +84,10 @@ See [current state](docs/status.md) for implementation coverage and
   its judge. It is evaluated over the reply and the transcript, needs no
   provider call, and its rep outcome is successful when and only when every
   check passes.
+- **Clean record** — a recorded result judged against the corpus under test
+  with no staleness cause and zero versions back. Run history marks it
+  `✓ clean`, and its Clean corpus only filter keeps only these. Name accepted
+  unattended as unsettled, pending the operator's confirmation (ACT-249).
 - **Confirmation run** — an explicitly requested group of at least two reps over
   one frozen input set, used by the outer loop to produce a score; defaults to
   five reps. The UI's design calls this a **group** and counts it in plural
