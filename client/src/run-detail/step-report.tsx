@@ -31,11 +31,14 @@ const LINE_COUNT = new Intl.NumberFormat("en-US");
 
 const HASH_SHOWN = 6;
 
-function notRecorded(figure: string, reasons: readonly string[]): string {
+export function notRecorded(
+	figure: string,
+	reasons: readonly string[],
+): string {
 	return `${figure} not recorded: ${reasons.join("; ")}`;
 }
 
-function skillReading(stage: MonitoredStage): string {
+export function skillReading(stage: MonitoredStage): string {
 	const { readManifest } = stage;
 	if (readManifest.state === "unavailable") {
 		return notRecorded("skill", readManifest.reasons);
@@ -48,7 +51,7 @@ function skillReading(stage: MonitoredStage): string {
 	);
 }
 
-function wallTimeReading(stage: MonitoredStage): string {
+export function wallTimeReading(stage: MonitoredStage): string {
 	return stage.wallTime.state === "available"
 		? minutesAndSeconds(stage.wallTime.ms)
 		: notRecorded("wall time", stage.wallTime.reasons);
@@ -67,7 +70,7 @@ function costPart(name: string, cost: RecordedCost): string {
  * each part apart when the record lacks one, so a part is never read as the
  * whole.
  */
-function stageCostReading(stage: MonitoredStage): string {
+export function stageCostReading(stage: MonitoredStage): string {
 	const { sessionCost, judgeCost } = stage;
 	if (sessionCost.state === "available" && judgeCost.state === "available") {
 		return spendReading(sessionCost.usd + judgeCost.usd);
