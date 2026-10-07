@@ -207,8 +207,7 @@ links no attempt history, since its attempts record no session.
   and the UI does not render that richer form. A pipeline stage opens through
   the same browser projection, but only a stage that passed its grade and kept
   a transcript can show events: a stage the run stopped on reports the stop and
-  its reason rather than events, and no saved checkpoint carries a transcript
-  yet, so every stage on disk today reports its evidence as unavailable.
+  its reason rather than events.
   Context visualizations beyond those panes are unfinished. Session transcript
   diagnostics report raw post-cut tool occurrences, explicit errors, and exact
   command repetition; they do not attribute phase, tokens, cost, causality, or
