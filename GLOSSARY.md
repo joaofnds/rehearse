@@ -237,6 +237,15 @@ See [current state](docs/status.md) for implementation coverage and
   measurement, and is read only once the run has ended. It is not an ablation:
   ablation needs a rerun per node and is a separate planned feature
   (see [UI vocabulary](docs/design-handoff/README.md)).
+- **Step rail** — the run-detail layout that shows one stage at a time: the
+  stage list on the left with the attempts at the selected stage's checkpoint,
+  and the stage's report on the right. A run opens on it, at the stage it
+  stopped at or else the last stage with a record.
+- **Record ledger** — the run-detail layout that shows every stage's record
+  top to bottom, with a note for each stage an ended run never reached.
+- **Step modal** — the dialog a task-graph node's `in / out` action opens: the
+  instruction files and artifacts a stage started from, what came out, its
+  judge summary, and the operations on it.
 - **Context manifest** — the transcript-observed instruction/context paths for
   a session attempt, classified as corpus or project inputs and reconciled
   against declarations. Observed entries are name-only; declared corpus hashes

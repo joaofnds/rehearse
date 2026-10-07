@@ -1204,7 +1204,10 @@ session attempt's. A checkpoint keeps no list of unavailable sub-agents, so a
 checkpoint without `subagents/` does not show that no sub-agent ran. The stage
 ran in the target repository, so the provider's files in that repository's
 projects slug are left in place. Checkpoints written before this carry no
-transcript field and remain readable. A stage checkpoint, a replay record and a
+transcript field and remain readable. A stage whose grade stopped the run saves
+no checkpoint, so its transcript and sub-agent files are copied by the same
+rules into `<run>.<stage>.session/` in the runs directory, beside its stop
+record. A stop recorded before this keeps no transcript. A stage checkpoint, a replay record and a
 session attempt record also carry `readManifest`, the files the record declared
 or its transcript shows it loading. A stage record carries `readManifest` too,
 which is the only copy for a stage its judge stopped, since that stage saves no
