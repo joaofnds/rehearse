@@ -206,14 +206,18 @@ function checkpointWords(stage: MonitoredStage, row: PipelineRow): string {
 
 /**
  * Every item the judge cited for the stage, or pending until it answers, which
- * a judge the ended run left waiting never will.
+ * a judge the ended run left waiting never will. An unreadable judge has
+ * nothing to count.
  */
-function cardEvidence(judge: JudgeRead, runEnded: boolean): RowEvidence {
+function cardEvidence(
+	judge: JudgeRead,
+	runEnded: boolean,
+): RowEvidence | undefined {
 	if (judge === undefined) {
 		return "pending";
 	}
 	if (judge === "unreadable") {
-		return [];
+		return undefined;
 	}
 	if (judge.state === "judged") {
 		return [...judge.hardBlockers, ...judge.dimensions].flatMap(
@@ -235,7 +239,7 @@ function CardFooter({
 	readonly row: PipelineRow;
 	readonly record: RunRecordResponse;
 	readonly stage: MonitoredStage;
-	readonly evidence: RowEvidence;
+	readonly evidence: RowEvidence | undefined;
 	readonly shown: string | undefined;
 	readonly onToggle: () => void;
 }): React.JSX.Element {
@@ -249,7 +253,13 @@ function CardFooter({
 				{checkpointWords(stage, row)}
 			</span>
 			<span className="ml-auto">
-				<EvidenceToggle evidence={evidence} shown={shown} onToggle={onToggle} />
+				{evidence === undefined ? null : (
+					<EvidenceToggle
+						evidence={evidence}
+						shown={shown}
+						onToggle={onToggle}
+					/>
+				)}
 			</span>
 			<ReplayButton
 				run={row.run}

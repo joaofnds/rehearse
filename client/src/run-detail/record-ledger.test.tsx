@@ -250,6 +250,20 @@ describe("Record ledger", () => {
 		).toHaveAttribute("aria-expanded", "false");
 	});
 
+	it("offers no evidence toggle for a judge it could not read", async () => {
+		renderLedger();
+
+		const [, stoppedStep] = await ledgerCards();
+		const card = stoppedStep ?? document.body;
+
+		expect(
+			await within(card).findByText("Could not read this step's judge."),
+		).toBeInTheDocument();
+		expect(
+			within(card).queryByRole("button", { name: /evidence|cited/u }),
+		).not.toBeInTheDocument();
+	});
+
 	describe("expanded evidence", () => {
 		async function openEvidence(session: StageSession): Promise<HTMLElement> {
 			renderLedger(
