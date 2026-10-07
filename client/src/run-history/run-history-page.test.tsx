@@ -1928,8 +1928,8 @@ describe(RunHistoryPage.name, () => {
 			expect(screen.queryByText("No runs recorded")).not.toBeInTheDocument();
 		});
 
-		it.each(["Step grades", "Task grade"])(
-			"leaves its %s cell empty, since it has no record to grade",
+		it.each(["Step grades", "Task grade", "Cost", "Wall"])(
+			"leaves its %s cell empty, since it has no record to read",
 			async (column) => {
 				respondingWith({
 					rows: [],
