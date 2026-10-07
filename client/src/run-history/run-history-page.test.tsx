@@ -34,6 +34,7 @@ import {
 import type {
 	ListedStageGrade,
 	PipelineRunRow,
+	ReplayRow,
 	RowStaleness,
 } from "#server/run-history";
 import { RunHistoryPage } from "./run-history-page";
@@ -2198,6 +2199,76 @@ describe(RunHistoryPage.name, () => {
 				expect(cellOf(RUN, "Task grade")).toHaveTextContent(text);
 			},
 		);
+	});
+
+	describe("the step grades and task grade of a replay", () => {
+		const REPLAY = "2026-09-21T09-20-00.000Z";
+
+		function replayWith(
+			pipelineStages: ReplayRow["pipelineStages"],
+		): RunHistoryResponseBody {
+			return {
+				rows: [
+					{
+						kind: "replay",
+						...UNREAD_REPLAY_FIGURES,
+						pipelineStages,
+						staleness: UNREAD_STALENESS,
+						corpusVersion: undefined,
+						shortId: undefined,
+						checkpointShortId: undefined,
+						attempt: undefined,
+						lineage: "60758c",
+						timestamp: REPLAY,
+						caseId: "audit-log",
+						stage: "build",
+						grade: "B+",
+						status: "CONTINUE",
+						links: [],
+					},
+				],
+				launches: [],
+				unreadable: [],
+			};
+		}
+
+		it("places the replayed stage's letter at its position among its pipeline's stages", async () => {
+			respondingWith(
+				replayWith({
+					state: "available",
+					stages: ["shape", "plan", "build", "review"],
+				}),
+			);
+
+			await renderPage().findByText(REPLAY);
+
+			expect(cellOf(REPLAY, "Step grades")).toHaveTextContent("· · B+ ·");
+		});
+
+		it("shows the letter with why its pipeline's stages could not be read", async () => {
+			respondingWith(
+				replayWith({
+					state: "unavailable",
+					reasons: ["the source run's manifest is not recorded"],
+				}),
+			);
+
+			await renderPage().findByText(REPLAY);
+
+			expect(cellOf(REPLAY, "Step grades")).toHaveTextContent(
+				"B+the source run's manifest is not recorded",
+			);
+		});
+
+		it("reads n/a as its task grade, since it replays one step", async () => {
+			respondingWith(replayWith({ state: "available", stages: ["build"] }));
+
+			await renderPage().findByText(REPLAY);
+
+			expect(cellOf(REPLAY, "Task grade")).toHaveTextContent(
+				"n/astep replay only",
+			);
+		});
 	});
 
 	describe("when two recorded attempts are compared", () => {

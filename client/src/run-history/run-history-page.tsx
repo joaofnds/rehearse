@@ -4,7 +4,6 @@ import { useState } from "react";
 import { Disclosure } from "#client/system/components/disclosure";
 import { EmptyState } from "#client/system/components/empty-state";
 import { FilterPill } from "#client/system/components/filter-pill";
-import { Grade } from "#client/system/components/grade";
 import { Status } from "#client/system/components/status";
 import { TableShell } from "#client/system/components/table-shell";
 import { Button } from "#client/system/ui/button";
@@ -510,8 +509,12 @@ function judgment(staleness: JudgedStaleness): React.JSX.Element {
 }
 
 const NO_GRADE = "·";
+const NOT_APPLICABLE = "n/a";
+const STEP_REPLAY_ONLY = "step replay only";
 
 type StageGrades = RunHistoryRow["stageGrades"];
+type ReplayRow = Extract<HistoryRow, { readonly kind: "replay" }>;
+type PipelineStages = ReplayRow["pipelineStages"];
 
 /** A reading a record cannot supply, its reasons in place of the figure. */
 function reasonsLine(reasons: readonly string[]): React.JSX.Element {
@@ -524,14 +527,39 @@ function runStepGrades(stageGrades: StageGrades): React.JSX.Element {
 		return reasonsLine(stageGrades.reasons);
 	}
 
-	return (
-		<span className="font-mono text-12 tracking-caps">
-			{stageGrades.grades
-				.map(({ grade }) =>
-					grade.state === "available" ? grade.letter : NO_GRADE,
-				)
-				.join(" ")}
-		</span>
+	return gradeTokens(
+		stageGrades.grades
+			.map(({ grade }) =>
+				grade.state === "available" ? grade.letter : NO_GRADE,
+			)
+			.join(" "),
+	);
+}
+
+function gradeTokens(text: string): React.JSX.Element {
+	return <span className="font-mono text-12 tracking-caps">{text}</span>;
+}
+
+/**
+ * A record that grades only some of its pipeline's stages: each one's token
+ * at its position among them and · at the rest, or, where those stages
+ * cannot be read, the tokens alone with the reason beside them.
+ */
+function placedGrades(
+	stages: PipelineStages,
+	tokens: ReadonlyMap<string, string>,
+): React.JSX.Element {
+	if (stages.state === "unavailable") {
+		return (
+			<span className="flex flex-col gap-0.5">
+				{gradeTokens([...tokens.values()].join(" "))}
+				{reasonsLine(stages.reasons)}
+			</span>
+		);
+	}
+
+	return gradeTokens(
+		stages.stages.map((stage) => tokens.get(stage) ?? NO_GRADE).join(" "),
 	);
 }
 
@@ -541,7 +569,10 @@ function stepGradesCell(row: HistoryRow): React.JSX.Element {
 			return runStepGrades(row.stageGrades);
 		}
 		case "replay": {
-			return <Grade value={{ letter: row.grade }} size="inline" />;
+			return placedGrades(
+				row.pipelineStages,
+				new Map([[row.stage, row.grade]]),
+			);
 		}
 		case "session-attempt":
 		case "group": {
@@ -578,7 +609,9 @@ function taskGradeCell(row: HistoryRow): React.JSX.Element {
 		case "run": {
 			return taskGrade(runTaskGrade(row.finalOutcome));
 		}
-		case "replay":
+		case "replay": {
+			return taskGrade({ value: NOT_APPLICABLE, note: STEP_REPLAY_ONLY });
+		}
 		case "session-attempt":
 		case "group": {
 			return <span />;
