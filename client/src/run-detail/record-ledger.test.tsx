@@ -137,23 +137,28 @@ function renderLedger(
 	);
 }
 
-/** Each ledger card's footer, in the cards' order. */
-async function ledgerFooters(): Promise<readonly HTMLElement[]> {
-	const cards = await ledgerCards();
-
-	return cards.map((card) => {
-		const footer = card.querySelector("footer");
-		if (!(footer instanceof HTMLElement)) {
-			throw new Error(`${card.getAttribute("aria-label")} has no footer`);
-		}
-
-		return footer;
-	});
-}
 async function ledgerCards(): Promise<readonly HTMLElement[]> {
 	const ledger = await screen.findByRole("region", { name: "Record ledger" });
 
 	return within(ledger).getAllByRole("article");
+}
+
+/** The ledger card a step's name labels, failing when it is not drawn. */
+async function ledgerCard(step: string): Promise<HTMLElement> {
+	const ledger = await screen.findByRole("region", { name: "Record ledger" });
+
+	return within(ledger).findByRole("article", { name: step });
+}
+
+/** The footer of the ledger card a step's name labels. */
+async function ledgerFooter(step: string): Promise<HTMLElement> {
+	const card = await ledgerCard(step);
+	const footer = card.querySelector("footer");
+	if (!(footer instanceof HTMLElement)) {
+		throw new Error(`${step} has no footer`);
+	}
+
+	return footer;
 }
 
 describe("Record ledger", () => {
@@ -171,11 +176,10 @@ describe("Record ledger", () => {
 	it("heads each card with its number, name, status, meta, corpus and grade", async () => {
 		renderLedger(new Map([[FIRST_STEP_SESSION, closedSession(402)]]));
 
-		const [firstStep] = await ledgerCards();
+		const firstStep = await ledgerCard("Step 1 · shape");
 
 		expect(
-			within(firstStep ?? document.body).getByRole("heading", { level: 2 })
-				.parentElement,
+			within(firstStep).getByRole("heading", { level: 2 }).parentElement,
 		).toHaveTextContent(
 			/^01shape✓accepted1m22s · \$0\.34 · 402 linescorpus@a41c7eA$/u,
 		);
@@ -184,35 +188,34 @@ describe("Record ledger", () => {
 	it("marks the stage the run stopped at with the accent and no error colour", async () => {
 		renderLedger();
 
-		const [firstStep, stoppedStep] = await ledgerCards();
+		const firstStep = await ledgerCard("Step 1 · shape");
+		const stoppedStep = await ledgerCard("Step 2 · build");
 
 		expect(stoppedStep).toHaveClass("border-deeper");
-		expect(stoppedStep?.firstElementChild).toHaveClass("bg-fired");
+		expect(stoppedStep.firstElementChild).toHaveClass("bg-fired");
 		expect(stoppedStep).toHaveTextContent("◼below minimum B · run stopped");
-		expect(stoppedStep?.outerHTML).not.toMatch(/destructive|danger|red-/u);
+		expect(stoppedStep.outerHTML).not.toMatch(/destructive|danger|red-/u);
 		expect(firstStep).not.toHaveClass("border-deeper");
 	});
 
 	it("heads a stage its judge stopped above the minimum as stopped alone", async () => {
 		renderLedger(new Map(), stoppedByVerdict());
 
-		const [, stoppedStep] = await ledgerCards();
+		const stoppedStep = await ledgerCard("Step 2 · build");
 
 		expect(
-			within(stoppedStep ?? document.body).getByRole("heading", { level: 2 })
-				.parentElement,
+			within(stoppedStep).getByRole("heading", { level: 2 }).parentElement,
 		).toHaveTextContent(/^02build◼stopped— · /u);
 	});
 
 	it("lays the stage's hard blockers on the left and its dimensions on the right", async () => {
 		renderLedger(new Map([[STOPPED_STEP_JUDGE, judged()]]));
 
-		const [, stoppedStep] = await ledgerCards();
-		const blockers = await within(stoppedStep ?? document.body).findByRole(
-			"list",
-			{ name: "Hard blockers" },
-		);
-		const dimensions = within(stoppedStep ?? document.body).getByRole("list", {
+		const stoppedStep = await ledgerCard("Step 2 · build");
+		const blockers = await within(stoppedStep).findByRole("list", {
+			name: "Hard blockers",
+		});
+		const dimensions = within(stoppedStep).getByRole("list", {
 			name: "Quality dimensions",
 		});
 
@@ -235,15 +238,14 @@ describe("Record ledger", () => {
 	it("states whether each stage kept its checkpoint or the repository was restored", async () => {
 		renderLedger();
 
-		const [firstStep, stoppedStep] = await ledgerFooters();
+		const firstStep = await ledgerFooter("Step 1 · shape");
+		const stoppedStep = await ledgerFooter("Step 2 · build");
 
 		expect(
-			within(firstStep ?? document.body).getByText(
-				"c-0147-1 · frozen state retained",
-			),
+			within(firstStep).getByText("c-0147-1 · frozen state retained"),
 		).toBeInTheDocument();
 		expect(
-			within(stoppedStep ?? document.body).getByText(
+			within(stoppedStep).getByText(
 				"no checkpoint saved · repository restored",
 			),
 		).toBeInTheDocument();
@@ -270,18 +272,19 @@ describe("Record ledger", () => {
 				]),
 			);
 
-			const [firstStep] = await ledgerFooters();
+			const firstStep = await ledgerFooter("Step 1 · shape");
 
-			expect(
-				within(firstStep ?? document.body).getByText(words),
-			).toBeInTheDocument();
+			expect(within(firstStep).getByText(words)).toBeInTheDocument();
 		},
 	);
 
 	it("offers a replay from each stage", async () => {
 		renderLedger();
 
-		const footers = await ledgerFooters();
+		const footers = [
+			await ledgerFooter("Step 1 · shape"),
+			await ledgerFooter("Step 2 · build"),
+		];
 
 		expect(
 			footers.map((footer) =>
@@ -295,10 +298,10 @@ describe("Record ledger", () => {
 	it("disables the replay with its reason when the checkpoint the stage started from is missing", async () => {
 		renderLedger(new Map(), stoppedAtBuild("missing"));
 
-		const [, stoppedStep] = await ledgerFooters();
+		const stoppedStep = await ledgerFooter("Step 2 · build");
 
 		expect(
-			within(stoppedStep ?? document.body).getByRole("button", {
+			within(stoppedStep).getByRole("button", {
 				name: "Replay from here: build has no checkpoint to replay from",
 			}),
 		).toHaveAttribute("aria-disabled", "true");
@@ -307,10 +310,10 @@ describe("Record ledger", () => {
 	it("counts the stage's cited evidence on its toggle", async () => {
 		renderLedger(new Map([[STOPPED_STEP_JUDGE, judged()]]));
 
-		const [, stoppedStep] = await ledgerFooters();
+		const stoppedStep = await ledgerFooter("Step 2 · build");
 
 		expect(
-			await within(stoppedStep ?? document.body).findByRole("button", {
+			await within(stoppedStep).findByRole("button", {
 				name: "2 cited",
 			}),
 		).toHaveAttribute("aria-expanded", "false");
@@ -319,8 +322,8 @@ describe("Record ledger", () => {
 	it("offers no evidence toggle for a judge it could not read", async () => {
 		renderLedger();
 
-		const [, stoppedStep] = await ledgerCards();
-		const card = stoppedStep ?? document.body;
+		const stoppedStep = await ledgerCard("Step 2 · build");
+		const card = stoppedStep;
 
 		expect(
 			await within(card).findByText("Could not read this step's judge."),
@@ -338,8 +341,8 @@ describe("Record ledger", () => {
 					[STOPPED_STEP_SESSION, session],
 				]),
 			);
-			const [, stoppedStep] = await ledgerCards();
-			const card = stoppedStep ?? document.body;
+			const stoppedStep = await ledgerCard("Step 2 · build");
+			const card = stoppedStep;
 
 			fireEvent.click(
 				await within(card).findByRole("button", { name: "2 cited" }),
@@ -357,9 +360,7 @@ describe("Record ledger", () => {
 				"transcriptexchange 3 message, characters 0-25supports scope-declared-before-editI'll take the small scope",
 				"diffsrc/a.tssupports scope-discipline",
 			]);
-			expect(items[0]?.firstElementChild?.parentElement).toHaveClass(
-				"grid-cols-ledger-evidence",
-			);
+			expect(items[0]).toHaveClass("grid-cols-ledger-evidence");
 			expect(
 				within(evidence).getByRole("link", {
 					name: "exchange 3 message, characters 0-25",
@@ -463,8 +464,8 @@ describe("Record ledger", () => {
 			async (_when, status, finalOutcome, body, toggle) => {
 				renderAwaitingFirstStep(status, finalOutcome);
 
-				const [firstStep] = await ledgerCards();
-				const card = firstStep ?? document.body;
+				const firstStep = await ledgerCard("Step 1 · shape");
+				const card = firstStep;
 
 				expect(await within(card).findByText(body)).toBeInTheDocument();
 				expect(
@@ -476,11 +477,10 @@ describe("Record ledger", () => {
 		it("heads the stage of an ended run as its judge never returning", async () => {
 			renderAwaitingFirstStep("INTERRUPTED", ENDED);
 
-			const [firstStep] = await ledgerCards();
+			const firstStep = await ledgerCard("Step 1 · shape");
 
 			expect(
-				within(firstStep ?? document.body).getByRole("heading", { level: 2 })
-					.parentElement,
+				within(firstStep).getByRole("heading", { level: 2 }).parentElement,
 			).toHaveTextContent("⊘judge never returned");
 		});
 	});
