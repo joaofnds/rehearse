@@ -244,10 +244,7 @@ function sessionChecks(
 		case "EXECUTION_FAILED": {
 			return {
 				state: "unavailable",
-				reasons: [
-					EXECUTION_FAILED_CHECKS_REASON,
-					redactAbsolutePaths(record.error),
-				],
+				reasons: [EXECUTION_FAILED_CHECKS_REASON],
 			};
 		}
 		case "SUCCESSFUL":

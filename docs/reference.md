@@ -1829,8 +1829,9 @@ reason when that manifest is gone or does not list the stage. A session attempt 
 metrics' cost, unavailable when the attempt kept none, and its wall time is the
 elapsed time it recorded. Its `checks` count how many of the case's declared
 checks `passed` of those `declared`, and are unavailable with the reason when
-the attempt recorded none: the session gave no reply, or failed to run, with
-its error. A confirmation group row's wall time is its makespan.
+the attempt recorded none: the session gave no reply, or failed to run. The
+failed session's error stays on its attempt record, since it can carry the
+whole command line and the provider's reply. A confirmation group row's wall time is its makespan.
 Its cost sums a session group's preflight call and each rep's recorded calls,
 named by rep id. A rep whose record is absent or does not parse, or whose
 metrics are incomplete, is named under `missing`, and under `reasons` when no

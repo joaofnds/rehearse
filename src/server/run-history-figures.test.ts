@@ -709,7 +709,7 @@ describe("/api/runs", () => {
 				});
 			});
 
-			it("carries its checks as unavailable with the error when the session failed to run", async () => {
+			it("carries its checks as unavailable when the session failed to run", async () => {
 				const fixture = await emptyFixture();
 				await fixture.write();
 				await rewriteSessionAttempt(fixture, {
@@ -726,10 +726,7 @@ describe("/api/runs", () => {
 				expect(row).toMatchObject({
 					checks: {
 						state: "unavailable",
-						reasons: [
-							EXECUTION_FAILED_CHECKS_REASON,
-							"claude exited with code 1",
-						],
+						reasons: [EXECUTION_FAILED_CHECKS_REASON],
 					},
 				});
 			});
