@@ -254,7 +254,9 @@ describe(RunHistoryPage.name, () => {
 			expect(screen.getByText("2026-09-06T21-58-29.508Z")).toBeInTheDocument();
 		});
 		expect(screen.getByText("audit-log")).toBeInTheDocument();
-		expect(screen.getByText("stopped")).toBeInTheDocument();
+		expect(cellOf("2026-09-06T21-58-29.508Z", "Outcome")).toHaveTextContent(
+			"stopped at build",
+		);
 		expect(screen.getByText("corpus@a3a62f")).toBeInTheDocument();
 		expect(screen.getByText("stale")).toBeInTheDocument();
 	});
@@ -270,13 +272,13 @@ describe(RunHistoryPage.name, () => {
 		);
 	});
 
-	it("leaves a status that is not a stop as text, linking nowhere", async () => {
+	it("leaves an outcome that is not a stop as text, linking nowhere", async () => {
 		respondingWith(oneStoppedOneComplete());
 
 		await renderPage().findByText("2026-09-03T00-00-00.000Z");
 
 		const outcome = cellOf("2026-09-03T00-00-00.000Z", "Outcome");
-		expect(outcome).toHaveTextContent("COMPLETE");
+		expect(outcome).toHaveTextContent("completed");
 		expect(within(outcome).queryByRole("link")).not.toBeInTheDocument();
 	});
 
@@ -1568,9 +1570,9 @@ describe(RunHistoryPage.name, () => {
 			[
 				"session attempt",
 				"0f6b6f2a-0000-4000-8000-000000000001",
-				"UNSUCCESSFUL",
+				"unsuccessful",
 			],
-			["pipeline run", "2026-09-17T12-50-49.127Z", "FAILED"],
+			["pipeline run", "2026-09-17T12-50-49.127Z", "interrupted"],
 		])("shows a %s's outcome", async (_kind, identity, outcome) => {
 			respondingWith(everyKind);
 
@@ -2890,6 +2892,441 @@ describe(RunHistoryPage.name, () => {
 			await renderPage().findByText(RUN);
 
 			expect(cellOf(RUN, "Wall").textContent).toBe("unrecordedno run events");
+		});
+	});
+
+	describe("the outcome of a finished record", () => {
+		const RUN = "2026-09-20T10-00-00.000Z";
+		const MINIMUM_B: PipelineRunRow["minimumGrade"] = {
+			state: "available",
+			letter: "B−",
+		};
+
+		function stage(
+			name: string,
+			letter: string,
+			reachesMinimum: boolean,
+		): ListedStageGrade {
+			return {
+				stage: name,
+				status: reachesMinimum ? "graded" : "stopped",
+				grade: {
+					state: "available",
+					letter,
+					verdict: reachesMinimum ? "CONTINUE" : "STOP",
+					reachesMinimum,
+				},
+			};
+		}
+
+		function notRun(name: string): ListedStageGrade {
+			return {
+				stage: name,
+				status: "not-run",
+				grade: { state: "unavailable", reasons: ["never reached"] },
+			};
+		}
+
+		function runWith(
+			figures: Pick<
+				PipelineRunRow,
+				"status" | "stageGrades" | "finalOutcome" | "minimumGrade"
+			>,
+		): RunHistoryResponseBody {
+			return {
+				rows: [
+					{
+						kind: "run",
+						...UNREAD_RUN_FIGURES,
+						...figures,
+						launchId: undefined,
+						shortId: undefined,
+						checkpoints: [],
+						links: [],
+						run: RUN,
+						caseId: "audit-log",
+						stage: undefined,
+						grade: undefined,
+						corpusVersion: undefined,
+						corpusChangedDuringRun: false,
+						staleness: UNREAD_STALENESS,
+						progress: { state: "recorded" },
+					},
+				],
+				launches: [],
+				unreadable: [],
+			};
+		}
+
+		const STOPPED_AT_IMPLEMENT = runWith({
+			status: "STOPPED:implement",
+			stageGrades: {
+				state: "available",
+				grades: [
+					stage("shape", "A−", true),
+					stage("plan", "B+", true),
+					stage("implement", "D", false),
+					notRun("review"),
+				],
+			},
+			finalOutcome: {
+				state: "available",
+				status: "NOT_REACHED",
+				stage: "implement",
+				reason: "stopped below the minimum",
+			},
+			minimumGrade: MINIMUM_B,
+		});
+
+		it("reads a stopped run as stopped at its step, with that step's grade and the minimum it fell below", async () => {
+			respondingWith(STOPPED_AT_IMPLEMENT);
+
+			await renderPage().findByText(RUN);
+
+			expect(cellOf(RUN, "Outcome").textContent).toBe(
+				"◼stopped at step 3implement D · below minimum B−",
+			);
+		});
+
+		it("links a stopped run's reason to the step it stopped at", async () => {
+			respondingWith(STOPPED_AT_IMPLEMENT);
+
+			await renderPage().findByText(RUN);
+
+			expect(
+				within(cellOf(RUN, "Outcome")).getByRole("link", {
+					name: "implement D · below minimum B−",
+				}),
+			).toHaveAttribute("href", `/runs/${RUN}/stages/implement`);
+		});
+
+		it("names why a stopped run's grade or minimum is missing", async () => {
+			respondingWith(
+				runWith({
+					status: "STOPPED:implement",
+					stageGrades: {
+						state: "available",
+						grades: [
+							stage("shape", "A−", true),
+							{
+								stage: "implement",
+								status: "stopped",
+								grade: {
+									state: "unavailable",
+									reasons: ["the stop record keeps no letter"],
+								},
+							},
+						],
+					},
+					finalOutcome: {
+						state: "unavailable",
+						reasons: ["not read by this test"],
+					},
+					minimumGrade: {
+						state: "unavailable",
+						reasons: ["the manifest predates the minimum"],
+					},
+				}),
+			);
+
+			await renderPage().findByText(RUN);
+
+			expect(cellOf(RUN, "Outcome").textContent).toBe(
+				"◼stopped at step 2implement · the stop record keeps no letter · the manifest predates the minimum",
+			);
+		});
+
+		it("reads a completed run as completed with every step at or above the minimum", async () => {
+			respondingWith(
+				runWith({
+					status: "COMPLETE",
+					stageGrades: {
+						state: "available",
+						grades: [
+							stage("shape", "A−", true),
+							stage("plan", "B+", true),
+							stage("implement", "B", true),
+						],
+					},
+					finalOutcome: {
+						state: "available",
+						status: "JUDGED",
+						verdict: "PASS",
+					},
+					minimumGrade: MINIMUM_B,
+				}),
+			);
+
+			await renderPage().findByText(RUN);
+
+			expect(cellOf(RUN, "Outcome").textContent).toBe(
+				"✓completed 3 of 3all steps at or above minimum",
+			);
+		});
+
+		it("counts a completed run's steps graded at or above the minimum when some carry no grade", async () => {
+			respondingWith(
+				runWith({
+					status: "COMPLETE",
+					stageGrades: {
+						state: "available",
+						grades: [
+							stage("shape", "A−", true),
+							{
+								stage: "plan",
+								status: "no-record",
+								grade: { state: "unavailable", reasons: ["no record"] },
+							},
+						],
+					},
+					finalOutcome: {
+						state: "available",
+						status: "JUDGED",
+						verdict: "PASS",
+					},
+					minimumGrade: MINIMUM_B,
+				}),
+			);
+
+			await renderPage().findByText(RUN);
+
+			expect(cellOf(RUN, "Outcome").textContent).toBe(
+				"✓completed 2 of 21 of 2 steps graded at or above minimum",
+			);
+		});
+
+		it.each([
+			["INTERRUPTED", "the run was interrupted before its final judge"],
+			["FAILED", "the run failed before its final judge"],
+		])(
+			"reads a run that ended %s as interrupted, naming the step and the cause",
+			async (status, reason) => {
+				respondingWith(
+					runWith({
+						status,
+						stageGrades: {
+							state: "available",
+							grades: [stage("shape", "B", true), notRun("plan")],
+						},
+						finalOutcome: {
+							state: "available",
+							status: "NOT_REACHED",
+							stage: "plan",
+							reason,
+						},
+						minimumGrade: MINIMUM_B,
+					}),
+				);
+
+				await renderPage().findByText(RUN);
+
+				expect(cellOf(RUN, "Outcome").textContent).toBe(
+					`⊘interrupted at step 2plan · ${reason}`,
+				);
+			},
+		);
+
+		describe("of a replay", () => {
+			const REPLAY = "2026-09-21T09-20-00.000Z";
+
+			function replayWith(
+				figures: Pick<ReplayRow, "status" | "attempt">,
+			): RunHistoryResponseBody {
+				return {
+					rows: [
+						{
+							kind: "replay",
+							...UNREAD_REPLAY_FIGURES,
+							...figures,
+							staleness: UNREAD_STALENESS,
+							corpusVersion: undefined,
+							shortId: undefined,
+							checkpointShortId: undefined,
+							lineage: "60758c",
+							timestamp: REPLAY,
+							caseId: "audit-log",
+							stage: "build",
+							grade: "B+",
+							links: [],
+						},
+					],
+					launches: [],
+					unreadable: [],
+				};
+			}
+
+			it("reads its verdict, with its attempt's place at its checkpoint", async () => {
+				respondingWith(
+					replayWith({
+						status: "CONTINUE",
+						attempt: { position: 3, count: 3 },
+					}),
+				);
+
+				await renderPage().findByText(REPLAY);
+
+				expect(cellOf(REPLAY, "Outcome").textContent).toBe(
+					"✓verdict CONTINUEattempt 3 of 3 at this checkpoint",
+				);
+			});
+
+			it("reads a stop verdict without calling the replay a failure", async () => {
+				respondingWith(
+					replayWith({ status: "STOP", attempt: { position: 1, count: 2 } }),
+				);
+
+				await renderPage().findByText(REPLAY);
+
+				expect(cellOf(REPLAY, "Outcome").textContent).toBe(
+					"◼verdict STOPattempt 1 of 2 at this checkpoint",
+				);
+			});
+
+			it("says when its attempt's place was not recorded", async () => {
+				respondingWith(replayWith({ status: "CONTINUE", attempt: undefined }));
+
+				await renderPage().findByText(REPLAY);
+
+				expect(cellOf(REPLAY, "Outcome").textContent).toBe(
+					"✓verdict CONTINUEattempt position not recorded",
+				);
+			});
+		});
+
+		describe("of a confirmation group", () => {
+			const GROUP = "group-0143";
+
+			function groupWith(
+				figures: Pick<
+					ConfirmationGroupRow,
+					"reps" | "finalOutcomes" | "successful"
+				>,
+			): RunHistoryResponseBody {
+				return {
+					rows: [
+						{
+							kind: "group",
+							...UNREAD_GROUP_FIGURES,
+							...figures,
+							mode: "session",
+							staleness: UNREAD_STALENESS,
+							corpusVersion: undefined,
+							checkpoint: undefined,
+							shortId: undefined,
+							groupId: GROUP,
+							caseId: "audit-log",
+							repAttempts: [],
+							links: [],
+						},
+					],
+					launches: [],
+					unreadable: [],
+				};
+			}
+
+			it("reads how many of the reps it requested it recorded, and how many succeeded", async () => {
+				respondingWith(
+					groupWith({
+						reps: 6,
+						finalOutcomes: { SUCCESSFUL: 4, UNSUCCESSFUL: 2 },
+						successful: 4,
+					}),
+				);
+
+				await renderPage().findByText(GROUP);
+
+				expect(cellOf(GROUP, "Outcome").textContent).toBe(
+					"✓6 of 6 recorded4 successful",
+				);
+			});
+
+			it("marks a group that recorded fewer reps than it requested as pending", async () => {
+				respondingWith(
+					groupWith({
+						reps: 6,
+						finalOutcomes: { SUCCESSFUL: 2 },
+						successful: 2,
+					}),
+				);
+
+				await renderPage().findByText(GROUP);
+
+				expect(cellOf(GROUP, "Outcome").textContent).toBe(
+					"◌2 of 6 recorded2 successful",
+				);
+			});
+		});
+
+		describe("of a session attempt", () => {
+			const ATTEMPT = "0f6b6f2a-0000-4000-8000-000000000009";
+
+			function attemptWith(
+				figures: Pick<SessionAttemptRow, "status" | "checks">,
+			): RunHistoryResponseBody {
+				return {
+					rows: [
+						{
+							kind: "session-attempt",
+							...UNREAD_SESSION_ATTEMPT_FIGURES,
+							...figures,
+							staleness: UNREAD_STALENESS,
+							corpusVersion: undefined,
+							shortId: undefined,
+							caseId: "brief-reply",
+							uuid: ATTEMPT,
+							links: [],
+						},
+					],
+					launches: [],
+					unreadable: [],
+				};
+			}
+
+			it.each([
+				[
+					"SUCCESSFUL",
+					{ passed: 3, declared: 3 },
+					"✓successfulall checks passed",
+				],
+				[
+					"UNSUCCESSFUL",
+					{ passed: 1, declared: 3 },
+					"◼unsuccessful2 of 3 checks failed",
+				],
+			] as const)(
+				"reads a %s attempt's outcome with its checks",
+				async (status, checks, expected) => {
+					respondingWith(
+						attemptWith({ status, checks: { state: "available", ...checks } }),
+					);
+
+					await renderPage().findByText(ATTEMPT);
+
+					expect(cellOf(ATTEMPT, "Outcome").textContent).toBe(expected);
+				},
+			);
+
+			it.each([
+				["NO_REPLY", "⊘no replythe session gave no reply"],
+				["EXECUTION_FAILED", "⊘failed to runthe session gave no reply"],
+			] as const)(
+				"reads a %s attempt's outcome with why no check ran",
+				async (status, expected) => {
+					respondingWith(
+						attemptWith({
+							status,
+							checks: {
+								state: "unavailable",
+								reasons: ["the session gave no reply"],
+							},
+						}),
+					);
+
+					await renderPage().findByText(ATTEMPT);
+
+					expect(cellOf(ATTEMPT, "Outcome").textContent).toBe(expected);
+				},
+			);
 		});
 	});
 });

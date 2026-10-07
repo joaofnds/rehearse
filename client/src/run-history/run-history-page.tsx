@@ -253,21 +253,6 @@ function caseCell(row: HistoryRow): React.JSX.Element {
 	);
 }
 
-function statusLine(row: RunHistoryRow): React.JSX.Element {
-	if (!isStopped(row.status)) {
-		return <span className="font-mono text-xs text-dim">{row.status}</span>;
-	}
-
-	return (
-		<a
-			href={`/runs/${encodeURIComponent(row.run)}/stages/${encodeURIComponent(stoppedStageOf(row.status))}`}
-			className="inline-flex min-h-14 items-start self-start font-mono text-xs text-accent-foreground underline decoration-deeper underline-offset-4 hover:text-pale"
-		>
-			{row.status}
-		</a>
-	);
-}
-
 type GroupRow = Extract<HistoryRow, { readonly kind: "group" }>;
 
 /** A stage group chosen as one arm of a comparison, in the order chosen. */
@@ -329,14 +314,16 @@ function outcomeCell(row: HistoryRow, choice: ArmChoice): React.JSX.Element {
 		case "run": {
 			return runOutcomeCell(row);
 		}
-		case "session-attempt":
+		case "session-attempt": {
+			return outcomeOf(sessionOutcome(row));
+		}
 		case "replay": {
-			return <span className="font-mono text-xs text-dim">{row.status}</span>;
+			return outcomeOf(replayOutcome(row));
 		}
 		case "group": {
 			return (
 				<span className="flex flex-col gap-0.5">
-					<span className="text-xs text-dim">per rep</span>
+					{outcome(groupOutcome(row))}
 					<CompareChoice row={row} choice={choice} />
 				</span>
 			);
@@ -351,20 +338,39 @@ function runOutcomeCell(row: RunHistoryRow): React.JSX.Element {
 	if (row.progress.state === "running") {
 		return (
 			<span className="flex flex-col gap-0.5">
-				{outcome(
-					"running",
-					runningPhrase(row.progress.stage, row.stageGrades),
-					`${row.progress.stage} · ${row.progress.stageState}`,
-				)}
+				{outcome({
+					state: "running",
+					phrase: runningPhrase(row.progress.stage, row.stageGrades),
+					reason: `${row.progress.stage} · ${row.progress.stageState}`,
+				})}
 				<RunControls launchId={row.launchId} run={row.run} />
 			</span>
 		);
 	}
+	if (isStopped(row.status)) {
+		return outcomeOf(stoppedOutcome(row, stoppedStageOf(row.status)));
+	}
 
+	switch (row.status) {
+		case "COMPLETE": {
+			return outcomeOf(completedOutcome(row.stageGrades));
+		}
+		case "INTERRUPTED":
+		case "FAILED": {
+			return outcomeOf(interruptedOutcome(row));
+		}
+		default: {
+			return otherRunOutcome(row);
+		}
+	}
+}
+
+/** A status the design gives no phrase, read as its state and raw status. */
+function otherRunOutcome(row: RunHistoryRow): React.JSX.Element {
 	return (
 		<span className="flex flex-col gap-0.5">
 			<Status state={runStatusState(row.status)} />
-			{statusLine(row)}
+			<span className="font-mono text-xs text-dim">{row.status}</span>
 			{row.status === "RUNNING" ? (
 				<RunControls launchId={row.launchId} run={row.run} />
 			) : null}
@@ -372,12 +378,18 @@ function runOutcomeCell(row: RunHistoryRow): React.JSX.Element {
 	);
 }
 
-/** The status glyph with a phrase in place of its word, and why beneath. */
-function outcome(
-	state: StatusState,
-	phrase: string,
-	reason: React.ReactNode,
-): React.JSX.Element {
+/** A record's status glyph with a phrase in place of its word, and why. */
+interface OutcomePhrase {
+	readonly state: StatusState;
+	readonly phrase: string;
+	readonly reason: React.ReactNode;
+}
+
+function outcomeOf(reading: OutcomePhrase): React.JSX.Element {
+	return <span className="flex flex-col gap-0.5">{outcome(reading)}</span>;
+}
+
+function outcome({ state, phrase, reason }: OutcomePhrase): React.JSX.Element {
 	return (
 		<>
 			<span className="inline-flex items-center gap-1.5">
@@ -415,6 +427,157 @@ function runningPhrase(stage: string, stageGrades: StageGrades): string {
 	return place === undefined
 		? "running"
 		: `running · step ${String(place.step)} of ${String(place.of)}`;
+}
+
+/** A phrase that names a stage by its step number where the pipeline places it. */
+function atStep(lead: string, stage: string, stageGrades: StageGrades): string {
+	const place = stepOf(stage, stageGrades);
+
+	return place === undefined
+		? `${lead} ${stage}`
+		: `${lead} step ${String(place.step)}`;
+}
+
+function stoppedGrade(stage: string, stageGrades: StageGrades): string {
+	const grade =
+		stageGrades.state === "available"
+			? stageGrades.grades.find((each) => each.stage === stage)?.grade
+			: undefined;
+	if (grade === undefined) {
+		return stage;
+	}
+	if (grade.state === "unavailable") {
+		return `${stage} · ${grade.reasons.join("; ")}`;
+	}
+
+	return `${stage} ${grade.letter}`;
+}
+
+function minimumReading(minimumGrade: RunHistoryRow["minimumGrade"]): string {
+	return minimumGrade.state === "available"
+		? `below minimum ${minimumGrade.letter}`
+		: minimumGrade.reasons.join("; ");
+}
+
+/**
+ * A stopped run is a finding, not a failure: the step it stopped at, with
+ * that step's grade and the minimum it fell below, opening the step.
+ */
+function stoppedOutcome(row: RunHistoryRow, stage: string): OutcomePhrase {
+	return {
+		state: "stopped",
+		phrase: atStep("stopped at", stage, row.stageGrades),
+		reason: (
+			<a
+				href={`/runs/${encodeURIComponent(row.run)}/stages/${encodeURIComponent(stage)}`}
+				className="inline-flex min-h-14 items-start self-start text-accent-foreground underline decoration-deeper underline-offset-4 hover:text-pale"
+			>
+				{`${stoppedGrade(stage, row.stageGrades)} · ${minimumReading(row.minimumGrade)}`}
+			</a>
+		),
+	};
+}
+
+function completedOutcome(stageGrades: StageGrades): OutcomePhrase {
+	if (stageGrades.state === "unavailable") {
+		return {
+			state: "accepted",
+			phrase: "completed",
+			reason: stageGrades.reasons.join("; "),
+		};
+	}
+
+	const steps = stageGrades.grades.length;
+	const reached = stageGrades.grades.filter(
+		({ grade }) => grade.state === "available" && grade.reachesMinimum,
+	).length;
+
+	return {
+		state: "accepted",
+		phrase: `completed ${String(steps)} of ${String(steps)}`,
+		reason:
+			reached === steps
+				? "all steps at or above minimum"
+				: `${String(reached)} of ${String(steps)} steps graded at or above minimum`,
+	};
+}
+
+/** An interrupted or failed run names the step it ended in and why. */
+function interruptedOutcome(row: RunHistoryRow): OutcomePhrase {
+	const { finalOutcome } = row;
+	if (finalOutcome.state === "unavailable") {
+		return {
+			state: "interrupted",
+			phrase: "interrupted",
+			reason: finalOutcome.reasons.join("; "),
+		};
+	}
+	if (finalOutcome.status !== "NOT_REACHED") {
+		return { state: "interrupted", phrase: "interrupted", reason: row.status };
+	}
+
+	const { stage, reason } = finalOutcome;
+	if (stage === undefined) {
+		return { state: "interrupted", phrase: "interrupted", reason };
+	}
+
+	return {
+		state: "interrupted",
+		phrase: atStep("interrupted at", stage, row.stageGrades),
+		reason: `${stage} · ${reason}`,
+	};
+}
+
+/** A replay's verdict grades one step and stops nothing, so it is not a failure. */
+function replayOutcome(row: ReplayRow): OutcomePhrase {
+	return {
+		state: row.status === "CONTINUE" ? "accepted" : "stopped",
+		phrase: `verdict ${row.status}`,
+		reason:
+			row.attempt === undefined
+				? "attempt position not recorded"
+				: `${attemptLabel(row.attempt)} at this checkpoint`,
+	};
+}
+
+function groupOutcome(row: GroupRow): OutcomePhrase {
+	const recorded = recordedReps(row);
+
+	return {
+		state: recorded === row.reps ? "accepted" : "pending",
+		phrase: `${String(recorded)} of ${String(row.reps)} recorded`,
+		reason: `${String(row.successful)} successful`,
+	};
+}
+
+const SESSION_OUTCOMES = {
+	SUCCESSFUL: { state: "accepted", phrase: "successful" },
+	UNSUCCESSFUL: { state: "stopped", phrase: "unsuccessful" },
+	NO_REPLY: { state: "interrupted", phrase: "no reply" },
+	EXECUTION_FAILED: { state: "interrupted", phrase: "failed to run" },
+} as const satisfies Record<
+	SessionAttemptRow["status"],
+	{ readonly state: StatusState; readonly phrase: string }
+>;
+
+function sessionOutcome(row: SessionAttemptRow): OutcomePhrase {
+	const { checks } = row;
+	if (checks.state === "unavailable") {
+		return {
+			...SESSION_OUTCOMES[row.status],
+			reason: checks.reasons.join("; "),
+		};
+	}
+
+	const failed = checks.declared - checks.passed;
+
+	return {
+		...SESSION_OUTCOMES[row.status],
+		reason:
+			failed === 0
+				? "all checks passed"
+				: `${String(failed)} of ${String(checks.declared)} checks failed`,
+	};
 }
 
 /**

@@ -268,7 +268,7 @@ describe(createAppRouter.name, () => {
 				],
 			]),
 		);
-		const link = await screen.findByRole("link", { name: "STOPPED:build" });
+		const link = await screen.findByRole("link", { name: /^build/u });
 		const href = link.getAttribute("href") ?? "";
 		cleanup();
 
