@@ -11,7 +11,11 @@ import type {
 	MonitoredStage,
 	RunRecordResponse,
 } from "#client/monitor/run-record-query";
-import { endedStatus, hasEnded } from "#client/monitor/run-record-query";
+import {
+	endedStatus,
+	hasEnded,
+	judgeLeftWaiting,
+} from "#client/monitor/run-record-query";
 import type { StageJudgeResponse } from "#client/monitor/stage-judge-query";
 import { stageJudgeQuery } from "#client/monitor/stage-judge-query";
 import type { StageSessionResponse } from "#client/monitor/stage-session-query";
@@ -204,8 +208,13 @@ function GradeStat({
 	);
 }
 
+const ENDED_AWAITING = "the run ended while this stage awaited judgment";
+
 /** How many of the judge's hard blockers fired, from the judge's own record. */
-function firedReading(judge: StageJudgeResponse | undefined): string {
+function firedReading(
+	judge: StageJudgeResponse | undefined,
+	leftWaiting: boolean,
+): string {
 	if (judge === undefined) {
 		return "";
 	}
@@ -220,17 +229,32 @@ function firedReading(judge: StageJudgeResponse | undefined): string {
 		return notRecorded("blockers", ["the judge never graded this step"]);
 	}
 
-	return "blockers pending";
+	return leftWaiting
+		? notRecorded("blockers", [ENDED_AWAITING])
+		: "blockers pending";
+}
+
+function verdictState(
+	stage: MonitoredStage,
+	leftWaiting: boolean,
+): "accepted" | "stopped" | "interrupted" | "pending" {
+	if (hasEnded(stage)) {
+		return endedStatus(stage);
+	}
+
+	return leftWaiting ? "interrupted" : "pending";
 }
 
 function VerdictStat({
 	stage,
 	judge,
+	leftWaiting,
 }: {
 	readonly stage: MonitoredStage;
 	readonly judge: StageJudgeResponse | undefined;
+	readonly leftWaiting: boolean;
 }): React.JSX.Element {
-	const state = hasEnded(stage) ? endedStatus(stage) : "pending";
+	const state = verdictState(stage, leftWaiting);
 
 	return (
 		<StatCard label="Verdict">
@@ -239,7 +263,7 @@ function VerdictStat({
 				{STATUS_VOCABULARY[state].word}
 			</div>
 			<div className="text-10-5 text-muted-foreground">
-				{firedReading(judge)}
+				{firedReading(judge, leftWaiting)}
 			</div>
 		</StatCard>
 	);
@@ -267,15 +291,10 @@ function notedDimensions(judge: JudgedAnswer): readonly DimensionRow[] {
 	}));
 }
 
-/** Whether the run is over, so a judge it left waiting will never return. */
-export function hasRecordEnded(record: RunRecordResponse): boolean {
-	return record.finalOutcome.status !== "PENDING";
-}
-
 /** Why a step shows no blockers or dimensions. */
 export function unjudgedReading(
 	judge: Exclude<StageJudgeResponse, JudgedAnswer> | "unreadable",
-	runEnded: boolean,
+	leftWaiting: boolean,
 ): string {
 	if (judge === "unreadable") {
 		return "Could not read this step's judge.";
@@ -284,8 +303,8 @@ export function unjudgedReading(
 		return "This step ended without a judged grade, so there are no blockers or dimensions to show.";
 	}
 
-	return runEnded
-		? "This step's judge never returned: the run ended while this stage awaited judgment."
+	return leftWaiting
+		? `This step's judge never returned: ${ENDED_AWAITING}.`
 		: "This step's judge has not returned its blockers and dimensions yet.";
 }
 
@@ -293,12 +312,12 @@ function JudgedSections({
 	run,
 	stage,
 	judge,
-	runEnded,
+	leftWaiting,
 }: {
 	readonly run: string;
 	readonly stage: string;
 	readonly judge: StageJudgeResponse | "unreadable" | undefined;
-	readonly runEnded: boolean;
+	readonly leftWaiting: boolean;
 }): React.JSX.Element | null {
 	if (judge === undefined) {
 		return null;
@@ -306,7 +325,7 @@ function JudgedSections({
 	if (judge === "unreadable" || judge.state !== "judged") {
 		return (
 			<p className="mt-4.5 text-12 text-muted-foreground">
-				{unjudgedReading(judge, runEnded)}
+				{unjudgedReading(judge, leftWaiting)}
 			</p>
 		);
 	}
@@ -432,6 +451,7 @@ export function StepReport({
 }): React.JSX.Element {
 	const judge = useQuery(stageJudgeQuery(run, stage.stage));
 	const session = useQuery(stageSessionQuery(run, stage.stage));
+	const leftWaiting = judgeLeftWaiting(record, stage);
 	const sessionRead: SessionRead = session.isError
 		? "unreadable"
 		: (session.data ?? "loading");
@@ -453,14 +473,18 @@ export function StepReport({
 				</div>
 				<div className="ml-auto flex gap-2.5">
 					<GradeStat stage={stage} record={record} />
-					<VerdictStat stage={stage} judge={judge.data} />
+					<VerdictStat
+						stage={stage}
+						judge={judge.data}
+						leftWaiting={leftWaiting}
+					/>
 				</div>
 			</div>
 			<JudgedSections
 				run={run}
 				stage={stage.stage}
 				judge={judge.isError ? "unreadable" : judge.data}
-				runEnded={hasRecordEnded(record)}
+				leftWaiting={leftWaiting}
 			/>
 			<InstructionsRead stage={stage} />
 		</section>

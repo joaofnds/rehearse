@@ -12,7 +12,10 @@ import type {
 	MonitoredStage,
 	RunRecordResponse,
 } from "#client/monitor/run-record-query";
-import { missedMinimum } from "#client/monitor/run-record-query";
+import {
+	judgeLeftWaiting,
+	missedMinimum,
+} from "#client/monitor/run-record-query";
 import {
 	BlockerLine,
 	blockerState,
@@ -45,11 +48,7 @@ import { CorpusPill } from "#client/system/components/corpus-pill";
 import { Grade } from "#client/system/components/grade";
 import { LiveGlyph, STATUS_VOCABULARY } from "#client/system/components/status";
 import { ReplayButton } from "./replay-button";
-import {
-	hasRecordEnded,
-	NO_KEPT_TRANSCRIPT,
-	unjudgedReading,
-} from "./step-report";
+import { NO_KEPT_TRANSCRIPT, unjudgedReading } from "./step-report";
 
 const LINE_COUNT = new Intl.NumberFormat("en-US");
 
@@ -76,13 +75,18 @@ function linesReading(
 
 /**
  * The stage's status in the card's words: a stage whose letter fell below the
- * run's minimum says so beside the run stopping on it.
+ * run's minimum says so beside the run stopping on it, and a judge the ended
+ * run left waiting reads as never returning.
  */
 function cardStatus(
 	stage: MonitoredStage,
 	row: PipelineRow,
 	record: RunRecordResponse,
 ): NodeStatus {
+	if (judgeLeftWaiting(record, stage)) {
+		return { state: "interrupted", words: "judge never returned" };
+	}
+
 	const status = nodeStatus(stage, row);
 	const minimum = missedMinimum(record, stage);
 	if (status.state !== "stopped" || minimum === undefined) {
@@ -169,10 +173,10 @@ function JudgedColumns({
 /** The card's body: the judge's blockers and dimensions, or why there are none. */
 function CardBody({
 	judge,
-	runEnded,
+	leftWaiting,
 }: {
 	readonly judge: JudgeRead;
-	readonly runEnded: boolean;
+	readonly leftWaiting: boolean;
 }): React.JSX.Element | null {
 	if (judge === undefined) {
 		return null;
@@ -183,7 +187,7 @@ function CardBody({
 
 	return (
 		<p className="px-3.5 py-2.75 text-11-5 text-muted-foreground">
-			{unjudgedReading(judge, runEnded)}
+			{unjudgedReading(judge, leftWaiting)}
 		</p>
 	);
 }
@@ -211,7 +215,7 @@ function checkpointWords(stage: MonitoredStage, row: PipelineRow): string {
  */
 function cardEvidence(
 	judge: JudgeRead,
-	runEnded: boolean,
+	leftWaiting: boolean,
 ): RowEvidence | undefined {
 	if (judge === undefined) {
 		return "pending";
@@ -225,7 +229,7 @@ function cardEvidence(
 		);
 	}
 
-	return judge.state === "not-judged" || runEnded ? [] : "pending";
+	return judge.state === "not-judged" || leftWaiting ? [] : "pending";
 }
 
 function CardFooter({
@@ -442,6 +446,7 @@ function LedgerCard({
 	const [expanded, setExpanded] = useState(false);
 	const evidenceId = useId();
 	const status = cardStatus(stage, row, record);
+	const leftWaiting = judgeLeftWaiting(record, stage);
 	const judgeRead: JudgeRead = judge.isError ? "unreadable" : judge.data;
 	const judged = judgedAnswer(judgeRead);
 	const meta = [
@@ -456,12 +461,12 @@ function LedgerCard({
 			className={`overflow-hidden rounded-card border bg-card ${status.state === "stopped" ? "border-deeper" : "border-border"}`}
 		>
 			<CardHeader stage={stage} number={number} status={status} meta={meta} />
-			<CardBody judge={judgeRead} runEnded={hasRecordEnded(record)} />
+			<CardBody judge={judgeRead} leftWaiting={leftWaiting} />
 			<CardFooter
 				row={row}
 				record={record}
 				stage={stage}
-				evidence={cardEvidence(judgeRead, hasRecordEnded(record))}
+				evidence={cardEvidence(judgeRead, leftWaiting)}
 				shown={expanded ? evidenceId : undefined}
 				onToggle={() => {
 					setExpanded((open) => !open);

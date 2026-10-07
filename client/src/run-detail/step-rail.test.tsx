@@ -4,7 +4,15 @@ import type { StageJudge } from "#server/stage-judge";
 import type { StageAttempts } from "#server/stage-attempts";
 import type { StageSession } from "#server/stage-session";
 import type { RunRecord, RunRecordStage } from "#server/run-record";
-import { RUN, renderRunDetail, stoppedAtBuild } from "./run-detail-fixtures";
+import { INTERRUPTED_REASON } from "#server/run-record";
+import { recordStage } from "#client/test-support/run-record";
+import { runRow } from "#client/test-support/runs-in-flight";
+import {
+	history,
+	RUN,
+	renderRunDetail,
+	stoppedAtBuild,
+} from "./run-detail-fixtures";
 
 const originalFetch = globalThis.fetch;
 
@@ -233,26 +241,49 @@ describe("Step rail", () => {
 		it.each([
 			[
 				"an ended run",
+				"INTERRUPTED",
 				{
 					status: "NOT_REACHED",
 					stage: "build",
-					reason: "the run was interrupted before its final judge",
+					reason: INTERRUPTED_REASON,
 				},
 				"This step's judge never returned: the run ended while this stage awaited judgment.",
+				"Verdict⊘interruptedblockers not recorded: the run ended while this stage awaited judgment",
 			],
 			[
 				"a run in flight",
+				"RUNNING",
 				{ status: "PENDING", stage: "build" },
 				"This step's judge has not returned its blockers and dimensions yet.",
+				"Verdict◌pendingblockers pending",
 			],
 		] as const)(
 			"says on %s whether a waiting judge can still return",
-			async (_run, finalOutcome, words) => {
+			async (_run, status, finalOutcome, words, verdict) => {
+				const record = stoppedAtBuild();
 				renderRunDetail(
 					new Map<string, unknown>([
-						[`/api/runs/${RUN}`, { ...stoppedAtBuild(), finalOutcome }],
+						[
+							"/api/runs",
+							history([runRow({ run: RUN, status, stage: "build" })]),
+						],
+						[
+							`/api/runs/${RUN}`,
+							{
+								...record,
+								status: { state: "available", status },
+								finalOutcome,
+								stages: record.stages.map((stage) =>
+									stage.stage === "build"
+										? recordStage("build", { status: "awaiting-judgment" })
+										: stage,
+								),
+							},
+						],
 						[BUILD_JUDGE, { state: "waiting" }],
 					]),
+					[],
+					`/runs/${RUN}?layout=rail&step=build`,
 				);
 
 				const report = await screen.findByRole("region", {
@@ -260,6 +291,9 @@ describe("Step rail", () => {
 				});
 
 				expect(await within(report).findByText(words)).toBeInTheDocument();
+				expect(
+					within(report).getByRole("group", { name: "Verdict" }),
+				).toHaveTextContent(verdict);
 			},
 		);
 

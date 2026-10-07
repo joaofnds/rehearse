@@ -414,6 +414,9 @@ describe("Record ledger", () => {
 			expect(
 				within(card).getByRole("button", { name: "no evidence" }),
 			).toBeInTheDocument();
+			expect(
+				within(card).getByRole("heading", { level: 2 }).parentElement,
+			).toHaveTextContent("⊘judge never returned");
 		});
 
 		function unreached(): Promise<HTMLElement> {

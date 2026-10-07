@@ -30,6 +30,17 @@ export function endedStatus(stage: EndedStage): "accepted" | "stopped" {
 		: "accepted";
 }
 
+/** Whether a stage's judge will never return: the run ended while it awaited judgment. */
+export function judgeLeftWaiting(
+	record: RunRecordResponse,
+	stage: MonitoredStage,
+): boolean {
+	return (
+		record.finalOutcome.status !== "PENDING" &&
+		stage.status === "awaiting-judgment"
+	);
+}
+
 /** The run's minimum letter that a stage's letter fell below, where both are known. */
 export function missedMinimum(
 	record: RunRecordResponse,
