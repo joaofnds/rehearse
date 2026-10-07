@@ -296,7 +296,7 @@ describe("/api/runs/:run", () => {
 				});
 			});
 
-			it("counts the hard blockers a stage's judge found fired", async () => {
+			it("counts and names the hard blockers a stage's judge found fired", async () => {
 				const fixture = await emptyFixture();
 				await fixture.writeStoppedRunWithReadings();
 
@@ -307,7 +307,12 @@ describe("/api/runs/:run", () => {
 						{ stage: "discuss" },
 						{
 							stage: "build",
-							blockers: { state: "available", fired: 2, total: 3 },
+							blockers: {
+								state: "available",
+								fired: 2,
+								total: 3,
+								firedIds: ["no-secrets-in-diff", "no-unrelated-refactors"],
+							},
 						},
 					],
 				});

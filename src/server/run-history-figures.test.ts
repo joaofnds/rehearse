@@ -31,6 +31,7 @@ import {
 } from "./confirmation-group-summary";
 import { SESSION_GRADE_REASON } from "./session-grade-reason";
 import {
+	NO_GRADED_BLOCKERS_REASON,
 	NO_MANIFEST_REASON,
 	NOT_RUN_REASON,
 	REPLAY_FINAL_OUTCOME_REASON,
@@ -527,6 +528,34 @@ describe("/api/runs", () => {
 				});
 			});
 
+			it("carries the ids of the hard blockers its stage judges found fired", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeStoppedRunWithReadings();
+
+				const row = await runRow(fixture, fixture.stoppedRun);
+
+				expect(row).toMatchObject({
+					firedBlockers: {
+						state: "available",
+						ids: ["no-secrets-in-diff", "no-unrelated-refactors"],
+					},
+				});
+			});
+
+			it("carries its fired blockers as not recorded when no stage record graded them", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeStoppedRun();
+
+				const row = await runRow(fixture, fixture.stoppedRun);
+
+				expect(row).toMatchObject({
+					firedBlockers: {
+						state: "unavailable",
+						reasons: [NO_GRADED_BLOCKERS_REASON],
+					},
+				});
+			});
+
 			describe("when the run wrote no manifest", () => {
 				it("keeps the row with each figure unavailable for that reason", async () => {
 					const fixture = await emptyFixture();
@@ -550,6 +579,10 @@ describe("/api/runs", () => {
 						cost: { state: "unavailable", reasons: [NO_MANIFEST_REASON] },
 						wallTime: { state: "unavailable", reasons: [NO_MANIFEST_REASON] },
 						minimumGrade: {
+							state: "unavailable",
+							reasons: [NO_MANIFEST_REASON],
+						},
+						firedBlockers: {
 							state: "unavailable",
 							reasons: [NO_MANIFEST_REASON],
 						},

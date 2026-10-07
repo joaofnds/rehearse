@@ -602,7 +602,12 @@ describe("/monitor task graph", () => {
 				sessionCost: { state: "available", usd: 0.9 },
 				judgeCost: { state: "available", usd: 0.22 },
 				wallTime: { state: "available", ms: 242_000 },
-				blockers: { state: "available", fired: 2, total: 4 },
+				blockers: {
+					state: "available",
+					fired: 2,
+					total: 4,
+					firedIds: ["scope-declared", "tests-pass"],
+				},
 				corpusVersion: { kind: "version", digest: DIGEST },
 				checkpoint: "recorded",
 				checkpointShortId: { state: "available", shortId: "ckpt-0148-s1" },

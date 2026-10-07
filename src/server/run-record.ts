@@ -121,6 +121,8 @@ export interface RunRecordStage {
 	readonly blockers: Reading<{
 		readonly fired: number;
 		readonly total: number;
+		/** The id of each blocker the judge found fired, in rubric order. */
+		readonly firedIds: readonly string[];
 	}>;
 	readonly wallTime: Reading<{ readonly ms: number }>;
 	readonly sessionCost: Reading<{ readonly usd: number }>;
@@ -241,7 +243,11 @@ const stageFileSchema = z
 				grade: z.string(),
 				verdict: z.string(),
 				hardBlockers: z
-					.array(z.object({ status: z.enum(["PASS", "FAIL"]) }).loose())
+					.array(
+						z
+							.object({ id: z.string(), status: z.enum(["PASS", "FAIL"]) })
+							.loose(),
+					)
 					.optional(),
 			})
 			.loose()
@@ -583,10 +589,15 @@ function blockersOf(file: StageFile | undefined): RunRecordStage["blockers"] {
 		};
 	}
 
+	const firedIds = hardBlockers
+		.filter(({ status }) => status === "FAIL")
+		.map(({ id }) => id);
+
 	return {
 		state: "available",
-		fired: hardBlockers.filter(({ status }) => status === "FAIL").length,
+		fired: firedIds.length,
 		total: hardBlockers.length,
+		firedIds,
 	};
 }
 

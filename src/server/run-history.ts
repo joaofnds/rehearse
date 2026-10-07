@@ -134,9 +134,19 @@ export interface PipelineRunRow {
 	readonly wallTime: WallTimeReading;
 	/** The grade a stage had to reach for the run to go on past it. */
 	readonly minimumGrade: Reading<{ readonly letter: string }>;
+	readonly firedBlockers: FiredBlockers;
 	/** The browser launch whose process holds its target, which a stop names. */
 	readonly launchId: string | undefined;
 }
+
+/**
+ * The id of each hard blocker a record's stage judges found fired, which the
+ * operator searches the history by.
+ */
+export type FiredBlockers = Reading<{ readonly ids: readonly string[] }>;
+
+export const NO_GRADED_BLOCKERS_REASON =
+	"no stage record holds graded hard blockers";
 
 export const NOT_RUN_REASON = "the run never reached this stage";
 export const REPLAY_FINAL_OUTCOME_REASON =
@@ -464,6 +474,7 @@ interface RunFigures {
 	readonly cost: PipelineRunRow["cost"];
 	readonly wallTime: PipelineRunRow["wallTime"];
 	readonly minimumGrade: PipelineRunRow["minimumGrade"];
+	readonly firedBlockers: FiredBlockers;
 	readonly corpusVersion: PipelineRunRow["corpusVersion"];
 	readonly corpusChangedDuringRun: boolean;
 }
@@ -495,6 +506,9 @@ async function runFigures(
 			cost: record.totals.cost,
 			wallTime: record.totals.wallTime,
 			minimumGrade: record.minimumGrade,
+			firedBlockers: firedBlockersOf(
+				record.stages.map(({ blockers }) => blockers),
+			),
 			...runCorpus(record),
 		};
 	} catch (error) {
@@ -504,6 +518,23 @@ async function runFigures(
 	}
 }
 
+/**
+ * Every id the graded stages found fired, once each. A stage its judge never
+ * graded fired none the record can name, so it adds nothing.
+ */
+function firedBlockersOf(
+	stages: readonly RunRecordStage["blockers"][],
+): FiredBlockers {
+	const graded = stages.flatMap((blockers) =>
+		blockers.state === "available" ? [blockers.firedIds] : [],
+	);
+	if (graded.length === 0) {
+		return { state: "unavailable", reasons: [NO_GRADED_BLOCKERS_REASON] };
+	}
+
+	return { state: "available", ids: [...new Set(graded.flat())] };
+}
+
 function unavailableFigures(reasons: readonly string[]): RunFigures {
 	return {
 		stageGrades: { state: "unavailable", reasons },
@@ -511,6 +542,7 @@ function unavailableFigures(reasons: readonly string[]): RunFigures {
 		cost: { state: "unavailable", reasons },
 		wallTime: { state: "unavailable", reasons },
 		minimumGrade: { state: "unavailable", reasons },
+		firedBlockers: { state: "unavailable", reasons },
 		corpusVersion: undefined,
 		corpusChangedDuringRun: false,
 	};
