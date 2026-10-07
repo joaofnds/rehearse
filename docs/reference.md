@@ -1928,8 +1928,9 @@ matches. A run's come from its graded stage records, a replay's from its stage
 grade, and a group's from each rep's stage record rather than its judge
 attempts, whose payload a retried attempt can leave disagreeing with the grade
 the rep kept. The list is unavailable with the reason when no stage record
-holds graded hard blockers, and a session group's always is, since checks
-grade its reps.
+holds graded hard blockers, a group's is unavailable naming each rep stage
+record that does not parse, since that record could hold a fired blocker, and
+a session group's always is, since checks grade its reps.
 
 ### Saved session context history
 
