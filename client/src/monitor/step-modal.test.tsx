@@ -344,4 +344,207 @@ describe("/monitor step modal", () => {
 			);
 		});
 	});
+
+	describe("what came out", () => {
+		const TASK_CARD = ".boris/backlog/tasks/task-1 - Add-an-audit-log.md";
+		const PLAN_JUDGE = `/api/runs/${RUN}/stages/plan/judge`;
+		const PLAN_SESSION = `/api/runs/${RUN}/stages/plan/session`;
+
+		it("lists each artifact out with the detail its record holds", async () => {
+			renderMonitor([
+				recordStage("plan", {
+					...FINISHED_PLAN,
+					artifactsOut: {
+						declared: { state: "available", paths: ["PLAN.md"] },
+						workflowState: {
+							state: "available",
+							changes: [{ path: TASK_CARD, change: "modified" }],
+						},
+						commitSubjects: {
+							state: "available",
+							subjects: ["feat: add the audit log"],
+						},
+						changedPaths: { state: "available", paths: ["src/audit.ts"] },
+					},
+				}),
+				recordStage("build"),
+			]);
+
+			const dialog = await openModal("plan");
+
+			expect(
+				within(within(dialog).getByRole("list", { name: "Artifacts out" }))
+					.getAllByRole("listitem")
+					.map(({ textContent }) => textContent),
+			).toEqual([
+				"↑PLAN.mddeclared artifact",
+				`↑${TASK_CARD}workflow state · modified`,
+				"↑feat: add the audit logcommit",
+				"↑src/audit.tschanged path",
+			]);
+		});
+
+		it("omits artifacts out for a step that has produced none", async () => {
+			renderMonitor([recordStage("plan", FINISHED_PLAN), recordStage("build")]);
+
+			const dialog = await openModal("build");
+
+			expect(
+				within(dialog).queryByRole("heading", { name: "Artifacts out" }),
+			).toBeNull();
+		});
+
+		it("sums up the judge's fired blockers and returned dimensions", async () => {
+			renderMonitor(
+				[recordStage("plan", FINISHED_PLAN), recordStage("build")],
+				new Map<string, unknown>([
+					[
+						PLAN_JUDGE,
+						{
+							state: "judged",
+							hardBlockers: [
+								{ id: "scope-declared", status: "FAIL", evidence: [] },
+								{ id: "no-secrets", status: "PASS", evidence: [] },
+							],
+							dimensions: [
+								{ id: "scope-discipline", grade: "C", evidence: [] },
+							],
+						},
+					],
+				]),
+			);
+
+			const dialog = await openModal("plan");
+
+			expect(
+				await within(dialog).findByText(
+					"1 of 2 blockers fired · 1 dimension returned",
+				),
+			).toBeInTheDocument();
+		});
+
+		it("sums up what a returning judge has evaluated so far", async () => {
+			renderMonitor(
+				[recordStage("plan", FINISHED_PLAN), recordStage("build")],
+				new Map<string, unknown>([
+					[
+						PLAN_JUDGE,
+						{
+							state: "returning",
+							progress: {
+								state: "returning",
+								attempt: 1,
+								sections: {
+									hardBlockers: { returned: 1, total: 3 },
+									requirements: { returned: 0, total: 1 },
+									dimensions: { returned: 0, total: 2 },
+								},
+							},
+						},
+					],
+				]),
+			);
+
+			const dialog = await openModal("plan");
+
+			expect(
+				await within(dialog).findByText(
+					"1 of 3 blockers evaluated · 0 of 2 dimensions returned",
+				),
+			).toBeInTheDocument();
+		});
+
+		it("opens the step's full report in Step rail", async () => {
+			renderMonitor([recordStage("plan", FINISHED_PLAN), recordStage("build")]);
+
+			const dialog = await openModal("plan");
+
+			expect(
+				within(dialog).getByRole("link", { name: "Full step report" }),
+			).toHaveAttribute("href", `/runs/${RUN}?layout=rail&step=plan`);
+		});
+
+		it("links the session on disk where its transcript is recorded", async () => {
+			renderMonitor(
+				[recordStage("plan", FINISHED_PLAN), recordStage("build")],
+				new Map<string, unknown>([
+					[
+						PLAN_SESSION,
+						{
+							state: "closed",
+							spans: [],
+							lineCount: 12,
+							transcriptPath: `.benchmark-runs/${RUN}.checkpoints/plan/transcript.jsonl`,
+						},
+					],
+				]),
+			);
+
+			const dialog = await openModal("plan");
+
+			expect(
+				await within(dialog).findByRole("link", {
+					name: "session.jsonl on disk",
+				}),
+			).toHaveAttribute("href", `/runs/${RUN}/stages/plan`);
+		});
+
+		it("says when no transcript of the step's session is recorded", async () => {
+			renderMonitor(
+				[recordStage("plan", FINISHED_PLAN), recordStage("build")],
+				new Map<string, unknown>([
+					[PLAN_SESSION, { state: "closed", spans: [] }],
+				]),
+			);
+
+			const dialog = await openModal("plan");
+
+			expect(
+				await within(dialog).findByText(
+					"session.jsonl not recorded: Rehearse kept no copy of this step's session",
+				),
+			).toBeInTheDocument();
+		});
+	});
+
+	describe("operating on the step", () => {
+		it("offers replay from the checkpoint the step started from", async () => {
+			renderMonitor([recordStage("plan", FINISHED_PLAN), recordStage("build")]);
+
+			const dialog = await openModal("build");
+
+			expect(
+				within(dialog).getByRole("button", { name: "Replay from checkpoint" }),
+			).not.toHaveAttribute("aria-disabled");
+		});
+
+		it("disables replay with its reason when the checkpoint the step started from is missing", async () => {
+			renderMonitor([recordStage("plan"), recordStage("build")]);
+
+			const dialog = await openModal("build");
+
+			expect(
+				within(dialog).getByRole("button", { name: "Replay from checkpoint" }),
+			).toHaveAttribute("aria-disabled", "true");
+			expect(dialog).toHaveTextContent(
+				"Replay from checkpointbuild has no checkpoint to replay from",
+			);
+		});
+
+		it("draws step and skill editing disabled, naming as planned only step editing", async () => {
+			renderMonitor([recordStage("plan", FINISHED_PLAN), recordStage("build")]);
+
+			const dialog = await openModal("plan");
+
+			expect(
+				within(dialog).getByRole("button", { name: "Edit this step" }),
+			).toHaveAttribute("aria-disabled", "true");
+			expect(
+				within(dialog).getByRole("button", { name: "Edit its skill" }),
+			).toHaveAttribute("aria-disabled", "true");
+			expect(dialog).toHaveTextContent(
+				"Editing a step is planned for a later version. Its skill and the other instruction files are edited on the Corpus screen, which writes a new corpus version.",
+			);
+		});
+	});
 });

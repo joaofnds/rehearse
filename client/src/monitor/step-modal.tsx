@@ -1,4 +1,8 @@
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { useId } from "react";
+import { LaunchDialog } from "#client/launch/launch-dialog";
+import { plural } from "#client/plural";
 import {
 	notRecorded,
 	ReadState,
@@ -16,8 +20,15 @@ import {
 	DialogTitle,
 	DialogTrigger,
 } from "#client/system/ui/dialog";
-import { endedStatus, hasEnded } from "./run-record-query";
+import {
+	consumedCheckpointMissing,
+	endedStatus,
+	hasEnded,
+} from "./run-record-query";
 import type { MonitoredStage, RunRecordResponse } from "./run-record-query";
+import { stageJudgeQuery } from "./stage-judge-query";
+import type { StageJudgeResponse } from "./stage-judge-query";
+import { stageSessionQuery } from "./stage-session-query";
 
 /** The name the server gives the checkpoint a run's first stage starts from. */
 const INITIAL_CHECKPOINT = "initial";
@@ -272,12 +283,275 @@ function WhatWentIn({
 	);
 }
 
+interface ArtifactOutRow {
+	readonly name: string;
+	readonly detail: string;
+}
+
+/** Each artifact the stage's record says it produced, with the detail the record holds. */
+function artifactOutRows(stage: MonitoredStage): readonly ArtifactOutRow[] {
+	const { declared, workflowState, commitSubjects, changedPaths } =
+		stage.artifactsOut;
+
+	return [
+		...(declared.state === "available"
+			? declared.paths.map((path) => ({
+					name: path,
+					detail: "declared artifact",
+				}))
+			: []),
+		...(workflowState.state === "available"
+			? workflowState.changes.map(({ path, change }) => ({
+					name: path,
+					detail: `workflow state · ${change}`,
+				}))
+			: []),
+		...(commitSubjects.state === "available"
+			? commitSubjects.subjects.map((subject) => ({
+					name: subject,
+					detail: "commit",
+				}))
+			: []),
+		...(changedPaths.state === "available"
+			? changedPaths.paths.map((path) => ({
+					name: path,
+					detail: "changed path",
+				}))
+			: []),
+	];
+}
+
+function ArtifactsOut({
+	stage,
+}: {
+	readonly stage: MonitoredStage;
+}): React.JSX.Element | null {
+	const headingId = useId();
+	const rows = artifactOutRows(stage);
+	if (rows.length === 0) {
+		return null;
+	}
+
+	return (
+		<>
+			<SectionTitle id={headingId}>Artifacts out</SectionTitle>
+			<ul aria-labelledby={headingId} className="mt-2 flex flex-col gap-1">
+				{rows.map(({ name, detail }) => (
+					<li
+						key={`${detail}:${name}`}
+						className="flex items-center gap-2.25 rounded-md border border-deeper bg-selected px-2.5 py-1.5"
+					>
+						<span aria-hidden="true" className="text-muted-foreground">
+							↑
+						</span>
+						<span className="flex-1 font-mono text-11-5 break-all">{name}</span>
+						<span className="font-mono text-10-5 text-muted-foreground">
+							{detail}
+						</span>
+					</li>
+				))}
+			</ul>
+		</>
+	);
+}
+
+/** The judge in one line: its fired blockers and returned dimensions. */
+function judgeLine(
+	judge: StageJudgeResponse | "unreadable" | undefined,
+): string {
+	if (judge === undefined) {
+		return "reading the judge";
+	}
+	if (judge === "unreadable") {
+		return "Could not read this step's judge.";
+	}
+	if (judge.state === "judged") {
+		const fired = judge.hardBlockers.filter(
+			({ status }) => status === "FAIL",
+		).length;
+
+		return `${String(fired)} of ${plural(judge.hardBlockers.length, "blocker")} fired · ${plural(judge.dimensions.length, "dimension")} returned`;
+	}
+	if (judge.state === "not-judged") {
+		return "not judged: the step ended without a judged grade";
+	}
+	if (judge.state === "returning" && judge.progress !== undefined) {
+		const { hardBlockers, dimensions } = judge.progress.sections;
+
+		return `${String(hardBlockers.returned)} of ${plural(hardBlockers.total, "blocker")} evaluated · ${String(dimensions.returned)} of ${plural(dimensions.total, "dimension")} returned`;
+	}
+
+	return "judge pending";
+}
+
+const NO_KEPT_TRANSCRIPT = "Rehearse kept no copy of this step's session";
+
+/** Where the stage's transcript is kept, linked to its session page. */
+function SessionLink({
+	run,
+	stage,
+}: {
+	readonly run: string;
+	readonly stage: string;
+}): React.JSX.Element | null {
+	const session = useQuery(stageSessionQuery(run, stage));
+	if (session.data === undefined) {
+		return null;
+	}
+	if (session.data.state !== "closed") {
+		return null;
+	}
+	if (session.data.transcriptPath === undefined) {
+		return (
+			<span className="self-center text-11-5 text-muted-foreground">
+				session.jsonl not recorded: {NO_KEPT_TRANSCRIPT}
+			</span>
+		);
+	}
+
+	return (
+		<Link
+			to="/runs/$run/stages/$stage"
+			params={{ run, stage }}
+			className="self-center text-11-5"
+		>
+			session.jsonl on disk
+		</Link>
+	);
+}
+
+function JudgeSummary({
+	run,
+	stage,
+}: {
+	readonly run: string;
+	readonly stage: string;
+}): React.JSX.Element {
+	const judge = useQuery(stageJudgeQuery(run, stage));
+
+	return (
+		<>
+			<SectionTitle>Judge</SectionTitle>
+			<p className="mt-1.75 text-12 text-pretty text-secondary-foreground">
+				{judgeLine(judge.isError ? "unreadable" : judge.data)}
+			</p>
+			<div className="mt-2.25 flex flex-wrap gap-2">
+				<Button asChild variant="outline" size="sm">
+					<Link
+						to="/runs/$run"
+						params={{ run }}
+						search={{ layout: "rail", step: stage }}
+					>
+						Full step report
+					</Link>
+				</Button>
+				<SessionLink run={run} stage={stage} />
+			</div>
+		</>
+	);
+}
+
+/**
+ * Replay opens the launch dialog on the checkpoint the stage started from,
+ * and is disabled with the reason when that checkpoint is missing.
+ */
+function ReplayFromCheckpoint({
+	run,
+	record,
+	stage,
+}: {
+	readonly run: string;
+	readonly record: RunRecordResponse;
+	readonly stage: string;
+}): React.JSX.Element {
+	const reasonId = useId();
+	if (consumedCheckpointMissing(record, stage)) {
+		return (
+			<>
+				<Button
+					variant="outline"
+					size="sm"
+					aria-disabled="true"
+					aria-describedby={reasonId}
+				>
+					Replay from checkpoint
+				</Button>
+				<span id={reasonId} className="self-center text-11 text-dim">
+					{stage} has no checkpoint to replay from
+				</span>
+			</>
+		);
+	}
+
+	return (
+		<LaunchDialog
+			target={{ kind: "replay", run, stage }}
+			trigger={
+				<Button variant="outline" size="sm">
+					Replay from checkpoint
+				</Button>
+			}
+		/>
+	);
+}
+
+function OperateOnStep({
+	run,
+	record,
+	stage,
+}: {
+	readonly run: string;
+	readonly record: RunRecordResponse;
+	readonly stage: string;
+}): React.JSX.Element {
+	return (
+		<>
+			<SectionTitle>Operate on this step</SectionTitle>
+			<div className="mt-2 flex flex-wrap gap-2">
+				<ReplayFromCheckpoint run={run} record={record} stage={stage} />
+				<Button variant="outline" size="sm" aria-disabled="true">
+					Edit this step
+				</Button>
+				<Button variant="outline" size="sm" aria-disabled="true">
+					Edit its skill
+				</Button>
+			</div>
+			<p className="mt-2 text-11 text-pretty text-dim">
+				Editing a step is planned for a later version. Its skill and the other
+				instruction files are edited on the{" "}
+				<Link to="/corpus">Corpus screen</Link>, which writes a new corpus
+				version.
+			</p>
+		</>
+	);
+}
+
+/** What came out of the stage, its judge, and what can be done with it. */
+function WhatCameOut({
+	run,
+	record,
+	stage,
+}: {
+	readonly run: string;
+	readonly record: RunRecordResponse;
+	readonly stage: MonitoredStage;
+}): React.JSX.Element {
+	return (
+		<section aria-label="What came out">
+			<ArtifactsOut stage={stage} />
+			<JudgeSummary run={run} stage={stage.stage} />
+			<OperateOnStep run={run} record={record} stage={stage.stage} />
+		</section>
+	);
+}
+
 /**
  * A task-graph node's `in / out` action and the step modal it opens (SPEC.md
  * 2c and 3): what went into the stage, what came out, its judge, and the
  * operations on it.
  */
 export function StepModalAction({
+	run,
 	record,
 	stage,
 	number,
@@ -302,6 +576,7 @@ export function StepModalAction({
 				<ModalHeader stage={stage} number={number} />
 				<div className="grid flex-1 grid-cols-2 gap-4.5 overflow-y-auto px-4 py-3.5">
 					<WhatWentIn record={record} stage={stage} />
+					<WhatCameOut run={run} record={record} stage={stage} />
 				</div>
 			</DialogContent>
 		</Dialog>

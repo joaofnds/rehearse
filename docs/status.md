@@ -379,7 +379,14 @@ with the reason under it for a run started outside the browser, run spend agains
 the ceiling with burn rate, elapsed time, tokens in and out, a remaining
 estimate of time and spend from the median times of the unfinished steps in
 earlier runs of the case or the reason it has none, and the task graph with each stage's grade, status, cost, duration, fired hard blockers,
-corpus version and checkpoint, and replay where a checkpoint exists. The
+corpus version and checkpoint, and replay where a checkpoint exists. Each
+node's `in / out` action opens the stage's step modal: the instruction files
+the stage loaded with whether each changed since, the artifacts it started
+from with where each came from, the artifacts its record says it produced,
+the judge's fired blockers and returned dimensions in one line, Full step
+report into Step rail, a link to the kept transcript's session page, and
+Replay from checkpoint. Edit this step and Edit its skill are drawn disabled.
+A figure a running or queued stage has not produced reads pending. The
 running stage's duration counts that stage's own elapsed time each second. The
 header and the running stage show the latest corpus version any stage of the
 run recorded, or while none has, the version the run measured when it started.
@@ -410,8 +417,7 @@ grades for the step have varied and links to comparisons. It counts as an
 identical rerun any other run of the same case under the same corpus version,
 whatever model, effort or pipeline it ran with, since the run list it reads
 carries none of them. When the runs in flight cannot be read, the monitor
-says "Could not read the runs in flight." A step's instructions in and
-artifacts out remain design targets. The server has no authentication and binds to IPv4 loopback; use it locally. It answers 403 to a
+says "Could not read the runs in flight." The server has no authentication and binds to IPv4 loopback; use it locally. It answers 403 to a
 non-loopback `Host`, and to a write that is not a same-origin JSON request.
 The guard reads headers any local program can set, so any process on this
 machine can start a paid launch. A launch runs the case as declared, without
