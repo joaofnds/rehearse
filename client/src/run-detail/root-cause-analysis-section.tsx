@@ -94,8 +94,9 @@ function StepRow({
 			</span>
 			<Button asChild variant="outline" size="xs">
 				<Link
-					to="/runs/$run/stages/$stage"
-					params={{ run, stage: stage.stage }}
+					to="/runs/$run"
+					params={{ run }}
+					search={{ layout: "rail", step: stage.stage }}
 				>
 					Step report
 				</Link>

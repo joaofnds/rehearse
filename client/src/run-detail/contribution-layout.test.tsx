@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { screen, within } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 import {
 	ANALYSES,
 	failedAnalysis,
@@ -129,9 +129,32 @@ describe("the Root-cause analysis section", () => {
 		expect(build).toHaveTextContent("Build ignored the declared scope.");
 		expect(
 			within(build).getByRole("link", { name: "Step report" }),
-		).toHaveAttribute("href", `/runs/${RUN}/stages/build`);
+		).toHaveAttribute("href", `/runs/${RUN}?layout=rail&step=build`);
 		expect(within(rows).getByText("verify").closest("li")).toHaveTextContent(
 			"○ never ran",
+		);
+	});
+
+	it("opens Step rail on the step whose Step report is chosen", async () => {
+		renderWithAnalysis();
+		const rows = await screen.findByRole("list", {
+			name: "Steps as the analysis read them",
+		});
+		const firstStep = within(rows).getByText("shape").closest("li");
+		if (firstStep === null) {
+			throw new Error("the shape row is missing");
+		}
+
+		fireEvent.click(
+			within(firstStep).getByRole("link", { name: "Step report" }),
+		);
+
+		expect(
+			await screen.findByRole("heading", { name: "Step 1 · shape" }),
+		).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Step rail" })).toHaveAttribute(
+			"aria-pressed",
+			"true",
 		);
 	});
 
