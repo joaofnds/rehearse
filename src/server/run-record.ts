@@ -50,7 +50,7 @@ import {
 import { formatRecordId } from "#cli/record-id";
 import { shortIdsOf } from "#cli/short-id-column";
 import { redactAbsolutePaths } from "./redact-path";
-import { claimsLiveTarget } from "#benchmark/run-liveness";
+import { claimingRun, claimsLiveTarget } from "#benchmark/run-liveness";
 import { failedStage, runStatus } from "./run-status";
 
 export const INTERRUPTED_REASON =
@@ -1195,7 +1195,11 @@ async function finalOutcome(
 	if (
 		latest !== undefined &&
 		!isTerminalRunEventKind(latest.kind) &&
-		(await claimsLiveTarget(paths.manifestFile, liveness))
+		(await claimsLiveTarget(
+			paths.manifestFile,
+			liveness,
+			claimingRun(runEvents, run),
+		))
 	) {
 		return { status: "PENDING", stage: latest.stage };
 	}

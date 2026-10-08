@@ -14,14 +14,16 @@ import type { Immutable } from "#benchmark/contracts";
 import type { SessionAttemptRecord } from "#benchmark/session-record";
 import type { RunLiveness } from "#benchmark/run-liveness";
 import {
+	claimBy,
 	directorySource,
 	FINAL_JUDGE_FAILURE,
-	nothingRunning,
-	RecordedRunsFixture,
-	RECORDED_READINGS,
-	STOPPED_RUN_ERROR,
 	fixedCorpusSource,
 	NO_PROVIDER_PROJECTS,
+	nothingRunning,
+	RECORDED_READINGS,
+	RecordedRunsFixture,
+	RUNNING_RUN,
+	STOPPED_RUN_ERROR,
 } from "#benchmark/run-records-test-support";
 import { PASS } from "#benchmark/comparison-test-fixtures";
 import { createApiApp } from "./api";
@@ -167,7 +169,7 @@ async function freezePipeline(
 }
 
 const liveRun: RunLiveness = {
-	readMarker: () => Promise.resolve({ pid: 1 }),
+	readMarker: () => Promise.resolve(claimBy(RUNNING_RUN, 1)),
 	isAlive: () => true,
 };
 

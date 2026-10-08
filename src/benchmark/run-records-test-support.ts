@@ -38,7 +38,7 @@ import type {
 import type { RunManifest } from "./manifest";
 import { writeRunManifest } from "./manifest";
 import type { SessionSpend } from "./stage-session-error";
-import type { RunLiveness } from "./run-liveness";
+import type { RunLiveness, TargetClaim } from "./run-liveness";
 import type { JudgeProgress, PlainRunEventKind } from "./run-events";
 import type { RunTokens } from "./spend-ceiling";
 import { openRunEventStore } from "./run-events";
@@ -337,6 +337,21 @@ export const NO_PROVIDER_PROJECTS = join(
 	"rehearse-no-provider-projects",
 );
 
+/** The run `RecordedRunsFixture.writeRunningRun` writes. */
+export const RUNNING_RUN = "2026-09-07T00-00-00.000Z";
+
+/**
+ * A claim marker as the current code writes it, naming the run that holds the
+ * target and the pid of its process.
+ */
+export function claimBy(
+	run: string,
+	pid: number,
+	startedAt = "2026-09-30T00:00:00.000Z",
+): TargetClaim {
+	return { pid, run, startedAt };
+}
+
 /**
  * The liveness answer for a fixture with no run in flight: every run it writes
  * is finished, so nothing should reach a pid probe. A test that wants a run
@@ -602,7 +617,8 @@ export class RecordedRunsFixture {
 	public readonly stoppedRun = "2026-09-04T00-00-00.000Z";
 	public readonly noRecordRun = "2026-09-05T00-00-00.000Z";
 	public readonly interruptedRun = "2026-09-06T00-00-00.000Z";
-	public readonly runningRun = "2026-09-07T00-00-00.000Z";
+	public readonly runningRun = RUNNING_RUN;
+	public readonly laterRunningRun = "2026-09-07T12-00-00.000Z";
 	public readonly abortedRun = "2026-09-08T00-00-00.000Z";
 	public readonly awaitingJudgeRun = "2026-09-09T00-00-00.000Z";
 	public readonly eventsOnlyRun = "2026-09-10T00-00-00.000Z";
@@ -1591,23 +1607,51 @@ export class RecordedRunsFixture {
 		spentUsd = 0.9,
 		elapsedMs = 9000,
 	): Promise<void> {
-		const paths = benchmarkRunPaths(this.runsDirectory, this.runningRun);
+		await this.writeRunInFlight(this.runningRun, {
+			kind,
+			stage,
+			spentUsd,
+			elapsedMs,
+		});
+	}
+
+	/**
+	 * A second run in flight on the same target, started after `runningRun`.
+	 * Only one of the two can hold the target, so a reader that reports both
+	 * as running has read the other run's claim as its own.
+	 */
+	public async writeLaterRunningRun(): Promise<void> {
+		await this.writeRunInFlight(this.laterRunningRun, {
+			kind: "turn-completed",
+			stage: "build",
+			spentUsd: 0.4,
+			elapsedMs: 4000,
+		});
+	}
+
+	private async writeRunInFlight(
+		run: string,
+		latest: {
+			readonly kind: PlainRunEventKind;
+			readonly stage: string;
+			readonly spentUsd: number;
+			readonly elapsedMs: number;
+		},
+	): Promise<void> {
+		const paths = benchmarkRunPaths(this.runsDirectory, run);
 		await mkdir(paths.checkpointsDirectory, { recursive: true });
-		await writeRunManifest(
-			paths.manifestFile,
-			manifest(this.runningRun, this.sourceRoot),
-		);
+		await writeRunManifest(paths.manifestFile, manifest(run, this.sourceRoot));
 		const store = await openRunEventStore(
 			runEventsDatabaseFile(this.runsDirectory),
 		);
 		store.append({
-			runId: this.runningRun,
+			runId: run,
 			kind: "stage-started",
-			stage,
+			stage: latest.stage,
 			spentUsd: 0,
 			elapsedMs: 0,
 		});
-		store.append({ runId: this.runningRun, kind, stage, spentUsd, elapsedMs });
+		store.append({ runId: run, ...latest });
 		store.close();
 	}
 

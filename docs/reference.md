@@ -1164,9 +1164,10 @@ session counts as a stage that never ran.
 A run has ended when its final record, a stage stop or an operator stop exists,
 or when its process died with no outcome, in which case it is analyzed as it
 stands. A run with no manifest, a paused run, and a run whose target's marker
-names a live process are refused with exit code 3 before any call. The marker
-belongs to the target and not to the run, so a dead run whose target a later
-run now holds is refused as in flight until that run ends.
+is the run's own and names a live process are refused with exit code 3 before
+any call. A dead run whose target a later run now holds is analyzed. The marker
+records a pid, so a dead run whose pid a later process has taken is refused as
+in flight until that process ends.
 
 `--budget-usd` sets the session budget and defaults to 1. The command lowers it
 to the stored spend ceiling when it is higher and states it on stderr before

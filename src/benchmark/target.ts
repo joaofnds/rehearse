@@ -173,6 +173,7 @@ async function runMarkerPath(root: string): Promise<string> {
 const runMarkerSchema = z.object({
 	sha: z.string().min(1),
 	pid: z.number(),
+	run: z.string().min(1).optional(),
 	startedAt: z.string().min(1),
 });
 
@@ -194,7 +195,10 @@ export async function readRunMarker(
 	return runMarkerSchema.parse(JSON.parse(await marker.text()));
 }
 
-export async function claimTarget(source: SourceBaseline): Promise<void> {
+export async function claimTarget(
+	source: SourceBaseline,
+	run: string,
+): Promise<void> {
 	const path = await runMarkerPath(source.root);
 	const marker = Bun.file(path);
 
@@ -210,6 +214,7 @@ export async function claimTarget(source: SourceBaseline): Promise<void> {
 		`${JSON.stringify({
 			sha: source.sha,
 			pid: process.pid,
+			run,
 			startedAt: new Date().toISOString(),
 		})}\n`,
 	);

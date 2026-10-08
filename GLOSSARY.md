@@ -629,12 +629,14 @@ See [current state](docs/status.md) for implementation coverage and
   event-history rebuild command.
 - **Run in flight** — a run that is executing right now: its event stream's
   latest entry is non-terminal, no artifact or stop record has been written for
-  it, and the process that claimed its target is still alive. The run-history
+  it, and its own claim on its target is held by a live process. The run-history
   report gives such a run the status `RUNNING`. The liveness check is what
   separates it from an interrupted run, whose stream also ends non-terminal. A
-  target holds one claim at a time and that claim names no run, so the check
-  answers for the target: a crashed run whose target a later run has claimed can
-  still read as in flight.
+  claim names the run that made it, and a claim from an older control checkout,
+  which names none, counts as the run's own only when it was made before the
+  run's first event, so a later run holding the same target does not make a
+  crashed run read as in flight. The check still reads a pid, so a crashed run
+  whose pid a later process has taken can read as in flight.
 - **Run spend** — what a whole run has paid, across worker sessions, Judges, and
   the Product Owner. Every run event carries what the run has paid so far,
   except events recorded before run events carried it, and a terminal run

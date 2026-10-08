@@ -29,7 +29,7 @@ import {
 	writeStage,
 } from "./root-cause-analysis-test-support";
 import { benchmarkRunPaths, rootCauseAnalysesDirectory } from "./run-layout";
-import { nothingRunning } from "./run-records-test-support";
+import { claimBy, nothingRunning } from "./run-records-test-support";
 import { budgetHaltEnvelope } from "./test-support";
 import { failureOf } from "#cli/cli-test-support";
 
@@ -79,7 +79,7 @@ class FakeAnalysisProvider {
 const RUNNING_PID = 4242;
 
 const stillRunning: RunLiveness = {
-	readMarker: () => Promise.resolve({ pid: RUNNING_PID }),
+	readMarker: () => Promise.resolve(claimBy(RUN, RUNNING_PID)),
 	isAlive: (pid) => pid === RUNNING_PID,
 };
 

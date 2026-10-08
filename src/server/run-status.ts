@@ -22,7 +22,7 @@ import {
 import { operatorStopped } from "#benchmark/operator-stop";
 import { pausedStage } from "#benchmark/run-pause";
 import type { RunLiveness } from "#benchmark/run-liveness";
-import { claimsLiveTarget } from "#benchmark/run-liveness";
+import { claimingRun, claimsLiveTarget } from "#benchmark/run-liveness";
 import type { RunTokens } from "#benchmark/spend-ceiling";
 
 /**
@@ -343,7 +343,11 @@ export async function statusAndCaseId(
 	});
 	if (
 		progress !== undefined &&
-		(await claimsLiveTarget(paths.manifestFile, liveness))
+		(await claimsLiveTarget(
+			paths.manifestFile,
+			liveness,
+			claimingRun(runEvents, run),
+		))
 	) {
 		return manifestBackedIdentity(paths, "RUNNING", progress);
 	}

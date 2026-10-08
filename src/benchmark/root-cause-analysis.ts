@@ -16,10 +16,12 @@ import { RefusedPreconditionError } from "./exit-codes";
 import { readdirIfPresent } from "./file-presence";
 import { lineCount } from "./line-count";
 import type { RunLiveness } from "./run-liveness";
-import { claimsLiveTarget } from "./run-liveness";
+import { claimingRun, claimsLiveTarget } from "./run-liveness";
+import { openRunEventStore } from "./run-events";
 import {
 	benchmarkRunPaths,
 	rootCauseAnalysesDirectory,
+	runEventsDatabaseFile,
 	runNameFromTimestamp,
 } from "./run-layout";
 import { pausedStage } from "./run-pause";
@@ -390,7 +392,17 @@ export async function refuseUnanalyzable(
 		);
 	}
 
-	if (await claimsLiveTarget(paths.manifestFile, liveness)) {
+	const runEvents = await openRunEventStore(
+		runEventsDatabaseFile(runsDirectory),
+	);
+	let claiming;
+	try {
+		claiming = claimingRun(runEvents, run);
+	} finally {
+		runEvents.close();
+	}
+
+	if (await claimsLiveTarget(paths.manifestFile, liveness, claiming)) {
 		throw new RefusedPreconditionError(
 			`Run ${run} is still in flight, so it has no outcome to analyze`,
 		);

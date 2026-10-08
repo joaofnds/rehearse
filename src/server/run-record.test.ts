@@ -8,17 +8,19 @@ import type { RunLiveness } from "#benchmark/run-liveness";
 import { stoppedStatus } from "#benchmark/stopped-status";
 import {
 	CASE_ID,
+	claimBy,
 	CORPUS_DIGEST,
 	corpusPath,
 	directorySource,
 	FINAL_JUDGE_FAILURE,
-	nothingRunning,
-	RecordedRunsFixture,
-	RECORDED_READINGS,
-	STOPPED_RUN_ERROR,
-	STOPPED_RUN_EVIDENCE,
 	fixedCorpusSource,
 	NO_PROVIDER_PROJECTS,
+	nothingRunning,
+	RECORDED_READINGS,
+	RecordedRunsFixture,
+	RUNNING_RUN,
+	STOPPED_RUN_ERROR,
+	STOPPED_RUN_EVIDENCE,
 } from "#benchmark/run-records-test-support";
 import { benchmarkRunPaths } from "#benchmark/run-layout";
 import { createApiApp } from "./api";
@@ -68,7 +70,7 @@ const runCostSchema = z.object({
 });
 
 const liveRun: RunLiveness = {
-	readMarker: () => Promise.resolve({ pid: 1 }),
+	readMarker: () => Promise.resolve(claimBy(RUNNING_RUN, 1)),
 	isAlive: () => true,
 };
 

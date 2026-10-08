@@ -15,12 +15,13 @@ import { z } from "zod";
 import type { CorpusRoot } from "#benchmark/corpus-file";
 import { CASES_DIRECTORY } from "#benchmark/case";
 import {
+	claimBy,
 	directorySource,
-	liveStageSettings,
-	RecordedRunsFixture,
-	nothingRunning,
 	fixedCorpusSource,
+	liveStageSettings,
 	NO_PROVIDER_PROJECTS,
+	nothingRunning,
+	RecordedRunsFixture,
 } from "#benchmark/run-records-test-support";
 import type { RecordedRunsOptions } from "#benchmark/run-records-test-support";
 import { CONTROL_DIR } from "#benchmark/config";
@@ -196,7 +197,7 @@ describe(createApiApp.name, () => {
 				projectsDirectory: NO_PROVIDER_PROJECTS,
 				runsDirectory: fixture.runsDirectory,
 				liveness: {
-					readMarker: () => Promise.resolve({ pid: 4242 }),
+					readMarker: () => Promise.resolve(claimBy(fixture.runningRun, 4242)),
 					isAlive: () => true,
 				},
 				readCorpusSource: () =>

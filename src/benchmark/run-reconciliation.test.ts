@@ -314,7 +314,7 @@ describe(liveReconciliationDependencies.name, () => {
 		testResources.track(runsDirectory);
 		const repository = await testResources.createRepository();
 		const source = await assertSourceReady(repository.directory);
-		await claimTarget(source);
+		await claimTarget(source, "run-1");
 		const paths = benchmarkRunPaths(runsDirectory, "run-1");
 		await writeRunManifest(paths.manifestFile, manifestFixture(source.root));
 		const store = await openRunEventStore(":memory:");

@@ -1310,7 +1310,7 @@ export async function runBenchmark(
 	);
 
 	try {
-		await claimTarget(source);
+		await claimTarget(source, runFiles.name);
 	} catch (error) {
 		runEventStore.close();
 		abort.release();

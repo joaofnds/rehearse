@@ -16,8 +16,10 @@ import {
 } from "#benchmark/root-cause-analysis-test-support";
 import { readLaunchRecord, writeLaunchRecord } from "#benchmark/launch-record";
 import {
+	claimBy,
 	directorySource,
 	RecordedRunsFixture,
+	RUNNING_RUN,
 } from "#benchmark/run-records-test-support";
 import { readCaseDeclaration } from "#benchmark/case";
 import {
@@ -96,6 +98,18 @@ const SESSION_CASE = {
 	checks: [{ kind: "word-band", max: 1 }],
 	model: "haiku",
 };
+
+/**
+ * Resolves once the wall clock reads later than `ms`, so a time read before
+ * this call and one read after it cannot fall in the same millisecond.
+ */
+async function clockPast(ms: number): Promise<number> {
+	while (Date.now() <= ms) {
+		await Bun.sleep(1);
+	}
+
+	return Date.now();
+}
 
 describe(createLaunchApp.name, () => {
 	const roots: string[] = [];
@@ -278,6 +292,22 @@ describe(createLaunchApp.name, () => {
 			expect(launcher.launches[0]?.logFile).toBe(
 				join(runsDirectory, "launches", `${id}.log`),
 			);
+		});
+
+		it("dates the launch before its process starts, so its run claims the target after that date", async () => {
+			const { launcher, post, runsDirectory } = await harness();
+			const held = launcher.holdNextLaunch();
+
+			const pending = post({ kind: "case", caseId: "pipe-case", attempts: 1 });
+			await held.reached;
+			const whileStarting = await clockPast(Date.now());
+			await clockPast(whileStarting);
+			held.release();
+			const response = await pending;
+			const { id } = launchedSchema.parse(await response.json());
+
+			const record = await readLaunchRecord(runsDirectory, id);
+			expect(Date.parse(record.launchedAt)).toBeLessThan(whileStarting);
 		});
 	});
 
@@ -681,7 +711,7 @@ describe(createLaunchApp.name, () => {
 	describe("when a root-cause analysis is requested", () => {
 		const RUNNING_PID = 4242;
 		const stillRunning: RunLiveness = {
-			readMarker: () => Promise.resolve({ pid: RUNNING_PID }),
+			readMarker: () => Promise.resolve(claimBy(ANALYZED_RUN, RUNNING_PID)),
 			isAlive: (pid) => pid === RUNNING_PID,
 		};
 
@@ -2020,7 +2050,7 @@ describe(createLaunchApp.name, () => {
 	describe("when a run is paused", () => {
 		const RUN_PID = 4242;
 		const running: RunLiveness = {
-			readMarker: () => Promise.resolve({ pid: RUN_PID }),
+			readMarker: () => Promise.resolve(claimBy(RUNNING_RUN, RUN_PID)),
 			isAlive: (pid) => pid === RUN_PID,
 		};
 

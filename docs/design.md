@@ -146,8 +146,8 @@ run-history report reads the same store to tell a run in flight from one that
 ended. It reads the store only after the authoritative files answer nothing: an
 artifact or a stop record settles a run's outcome on its own, and the stream is
 consulted for the runs those files do not cover. A non-terminal stream is not
-enough by itself, so the report also checks that the process holding the run's
-target is alive. A run that dies while the server keeps running leaves its
+enough by itself, so the report also checks that the run's own claim on its
+target is held by a live process. A run that dies while the server keeps running leaves its
 stream non-terminal, and startup is the only moment reconciliation could correct
 that. Event recording is best effort; it must not turn a successful experiment
 into a failed one. It is not a substitute for the final artifact. There is no

@@ -103,7 +103,7 @@ import {
 	latestCheckpointStage,
 	statusAndCaseId,
 } from "./run-status";
-import { targetMarker } from "#benchmark/run-liveness";
+import { claimingRun, targetMarker } from "#benchmark/run-liveness";
 import type { ContextLink, RunProgress } from "./run-status";
 
 export type { ContextLink, RunProgress } from "./run-status";
@@ -629,7 +629,7 @@ async function rowFor(
 	shortId: string | undefined,
 	runEvents: RunEventStore,
 	liveness: RunLiveness,
-	launchByPid: ReadonlyMap<number, string>,
+	launchByPid: ReadonlyMap<number, LaunchRecord>,
 ): Promise<Unjudged<PipelineRunRow> | undefined> {
 	const identity = await statusAndCaseId(
 		runsDirectory,
@@ -655,7 +655,7 @@ async function rowFor(
 	const stage = await latestCheckpointStage(runsDirectory, run);
 	const launchId =
 		status === "RUNNING"
-			? await heldBy(runsDirectory, run, liveness, launchByPid)
+			? await heldBy(runsDirectory, run, runEvents, liveness, launchByPid)
 			: undefined;
 	const grade = stage === undefined ? undefined : gradeByStage.get(stage);
 
@@ -1063,19 +1063,32 @@ async function groupRow(
 /**
  * The live browser launch whose process holds a RUNNING run's target, so the
  * launch is listed once, as the run's own row, and a stop of the run names it.
+ * Only a case launch runs a pipeline, and a launch made after the claim cannot
+ * be the process that wrote it, so a later launch that reuses the claiming
+ * process's pid never receives the run's Stop.
  */
 async function heldBy(
 	runsDirectory: string,
 	run: string,
+	runEvents: RunEventStore,
 	liveness: RunLiveness,
-	launchByPid: ReadonlyMap<number, string>,
+	launchByPid: ReadonlyMap<number, LaunchRecord>,
 ): Promise<string | undefined> {
 	const marker = await targetMarker(
 		benchmarkRunPaths(runsDirectory, run).manifestFile,
 		liveness,
+		claimingRun(runEvents, run),
 	);
+	if (marker === undefined) {
+		return undefined;
+	}
 
-	return marker === undefined ? undefined : launchByPid.get(marker.pid);
+	const launch = launchByPid.get(marker.pid);
+
+	return launch?.kind === "case" &&
+		Date.parse(launch.launchedAt) <= Date.parse(marker.startedAt)
+		? launch.id
+		: undefined;
 }
 
 function launchRow(
@@ -1440,7 +1453,7 @@ export async function runListing(
 				? await liveLaunches(runsDirectory, liveness)
 				: { launches: [], stopped: [], unreadable: [] };
 		const launchByPid = new Map(
-			live.launches.map(({ pid, id }) => [pid, id] as const),
+			live.launches.map((launch) => [launch.pid, launch] as const),
 		);
 		const collect = async <Named>(
 			kind: RunHistoryRow["kind"],

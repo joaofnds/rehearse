@@ -674,13 +674,15 @@ describe(captureWorkflowBackup.name, () => {
 	});
 });
 
+const CLAIMING_RUN = "2026-10-08T00-00-00.000Z";
+
 describe(claimTarget.name, () => {
 	it("refuses a target an unrestored run left claimed", async () => {
 		const source = await testResources.createRepository();
 		const baseline = await assertSourceReady(source.directory);
-		await claimTarget(baseline);
+		await claimTarget(baseline, CLAIMING_RUN);
 
-		expect(claimTarget(baseline)).rejects.toThrow(
+		expect(claimTarget(baseline, CLAIMING_RUN)).rejects.toThrow(
 			"previous benchmark run left this target unrestored",
 		);
 	});
@@ -688,11 +690,11 @@ describe(claimTarget.name, () => {
 	it("releases the claim after a verified restore", async () => {
 		const source = await testResources.createRepository();
 		const baseline = await assertSourceReady(source.directory);
-		await claimTarget(baseline);
+		await claimTarget(baseline, CLAIMING_RUN);
 
 		await restoreTarget(baseline);
 
-		expect(claimTarget(baseline)).resolves.toBeUndefined();
+		expect(claimTarget(baseline, CLAIMING_RUN)).resolves.toBeUndefined();
 	});
 
 	it("claims a linked-worktree target whose .git is a file", async () => {
@@ -707,13 +709,13 @@ describe(claimTarget.name, () => {
 		);
 		const baseline = await assertSourceReady(worktree);
 
-		await claimTarget(baseline);
+		await claimTarget(baseline, CLAIMING_RUN);
 
-		expect(claimTarget(baseline)).rejects.toThrow(
+		expect(claimTarget(baseline, CLAIMING_RUN)).rejects.toThrow(
 			"previous benchmark run left this target unrestored",
 		);
 		await restoreTarget(baseline);
-		expect(claimTarget(baseline)).resolves.toBeUndefined();
+		expect(claimTarget(baseline, CLAIMING_RUN)).resolves.toBeUndefined();
 	});
 });
 
@@ -721,11 +723,21 @@ describe(readRunMarker.name, () => {
 	it("reads the pid a claim recorded for a still-claimed target", async () => {
 		const source = await testResources.createRepository();
 		const baseline = await assertSourceReady(source.directory);
-		await claimTarget(baseline);
+		await claimTarget(baseline, CLAIMING_RUN);
 
 		const marker = await readRunMarker(baseline.root);
 
 		expect(marker).toMatchObject({ sha: baseline.sha, pid: process.pid });
+	});
+
+	it("reads the run a claim names", async () => {
+		const source = await testResources.createRepository();
+		const baseline = await assertSourceReady(source.directory);
+		await claimTarget(baseline, CLAIMING_RUN);
+
+		const marker = await readRunMarker(baseline.root);
+
+		expect(marker?.run).toBe(CLAIMING_RUN);
 	});
 
 	it("reports no marker for a target nothing has claimed", async () => {
@@ -738,7 +750,7 @@ describe(readRunMarker.name, () => {
 	it("reports no marker once a claim is restored", async () => {
 		const source = await testResources.createRepository();
 		const baseline = await assertSourceReady(source.directory);
-		await claimTarget(baseline);
+		await claimTarget(baseline, CLAIMING_RUN);
 		await restoreTarget(baseline);
 
 		expect(await readRunMarker(baseline.root)).toBeUndefined();
