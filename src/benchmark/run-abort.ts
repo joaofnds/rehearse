@@ -34,6 +34,7 @@ export interface PendingStage {
 		| {
 				readonly prompt: string;
 				readonly attempts: readonly JudgeAttempt[];
+				readonly judgeProviderCalls: readonly ProviderCall[];
 				readonly costUsd: number;
 		  }
 		| undefined;

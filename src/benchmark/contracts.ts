@@ -617,6 +617,8 @@ export interface GradedRunArtifact extends RunArtifactEvidence {
 export interface FailedJudgeRunArtifact extends RunArtifactEvidence {
 	readonly status: "FAILED";
 	readonly failure: string;
+	/** Every call the final Judge paid for, a halted one included. */
+	readonly judgeProviderCalls: readonly ProviderCall[];
 	/** The ceiling that refused the final Judge, when it was the ceiling. */
 	readonly ceilingStop?:
 		| { readonly ceilingUsd: number; readonly spentUsd: number }

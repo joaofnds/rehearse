@@ -18,6 +18,7 @@ import { CommandError, runCommand } from "./command";
 import { parseArgs } from "./config";
 import type {
 	CalibrationResult,
+	ClaudeCallMetrics,
 	GradedRunArtifact,
 	JudgeGrade,
 	LocalCheckResult,
@@ -1355,6 +1356,7 @@ describe(runGradedStages.name, () => {
 		expect(pendingStages.at(-1)?.failure).toEqual({
 			prompt: "original prompt",
 			attempts,
+			judgeProviderCalls: [{}],
 			costUsd: 0.1,
 		});
 	});
@@ -1756,6 +1758,63 @@ describe(runGradedStages.name, () => {
 			).toMatchObject({
 				status: "STAGE_JUDGE_FAILED",
 				attempts: [{ outcome: "REJECTED", costUsd: 1 }],
+				ceilingStop: { ceilingUsd: 1, spentUsd: 1 },
+			});
+		});
+
+		it("keeps every Judge call on the stop record when the ceiling halts its retry", async () => {
+			const { dependencies } = fakeStageDependencies();
+			const { persistence, abort } = atCeiling();
+			const context = await ceilingContext(abort);
+			const metrics = (costUsd: number): ClaudeCallMetrics => ({
+				costUsd,
+				inputTokens: 1,
+				outputTokens: 2,
+				cacheReadTokens: 3,
+				cacheWriteTokens: 4,
+				turns: 1,
+			});
+			const sessions = {
+				...dependencies,
+				runStageJudge: (
+					_model: string,
+					_effort: undefined | "low" | "medium" | "high" | "xhigh" | "max",
+					budget: JudgeBudget,
+				) => {
+					budget.spendCeiling.charge(1);
+
+					return Promise.reject(
+						new JudgeExecutionError({
+							cause: new Error("Reached maximum budget"),
+							prompt: "judge prompt",
+							attempts: [
+								{
+									payload: { not: "a scorecard" },
+									costUsd: 0.4,
+									outcome: "REJECTED",
+									error: "not a scorecard",
+									metrics: metrics(0.4),
+								},
+							],
+							costUsd: 1,
+							failedCallMetrics: metrics(0.6),
+						}),
+					);
+				},
+			};
+
+			const failure = await failureOf(runGradedStages(sessions, context));
+			await abort.markAborted(failure.message);
+
+			expect(
+				JSON.parse(persistence.files.get(context.stageFile("shape")) ?? ""),
+			).toMatchObject({
+				attempts: [{ outcome: "REJECTED", costUsd: 0.4 }],
+				costUsd: 1,
+				judgeProviderCalls: [
+					{ metrics: metrics(0.4) },
+					{ metrics: metrics(0.6) },
+				],
 				ceilingStop: { ceilingUsd: 1, spentUsd: 1 },
 			});
 		});
@@ -3550,6 +3609,7 @@ describe(buildRunArtifact.name, () => {
 				.object({
 					status: z.string(),
 					judgeAttempts: z.array(z.object({ outcome: z.string() })),
+					judgeProviderCalls: z.array(z.unknown()),
 					judgeCostUsd: z.number(),
 					ceilingStop: z.object({
 						ceilingUsd: z.number(),
@@ -3562,6 +3622,10 @@ describe(buildRunArtifact.name, () => {
 				judgeAttempts: [{ outcome: "REJECTED" }],
 				ceilingStop: { ceilingUsd: 0.25 },
 			});
+			expect(failure).toMatchObject({
+				providerCalls: artifact.judgeProviderCalls,
+			});
+			expect(artifact.judgeProviderCalls).toHaveLength(2);
 			expect(artifact.judgeCostUsd).toBeCloseTo(0.25);
 			expect(artifact.ceilingStop.spentUsd).toBeCloseTo(0.25);
 		});
@@ -3637,7 +3701,7 @@ describe(buildRunArtifact.name, () => {
 
 		const artifact = buildFailedJudgeRunArtifact(
 			artifactBaseInputs(pipeline, AUDIT_LOG_PIPELINE_PATH),
-			{ failure, ceilingStop: undefined },
+			{ failure, ceilingStop: undefined, providerCalls: [] },
 		);
 
 		expect(artifact).toMatchObject({

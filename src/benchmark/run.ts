@@ -57,6 +57,7 @@ import type {
 	FailedJudgeRunArtifact,
 	GradedRunArtifact,
 	LocalCheckResult,
+	ProviderCall,
 	RunArtifactEvidence,
 	StageJudgeInput,
 	StageJudgeRecord,
@@ -70,6 +71,7 @@ import {
 	JudgeOutputValidationError,
 } from "./judge-attempt";
 import { JudgeCeilingStopError } from "./judge-ceiling-stop-error";
+import { judgeProviderCalls } from "./judge-execution-error";
 import type {
 	JudgeAgreementCalibration,
 	JudgeAgreementReport,
@@ -306,12 +308,13 @@ interface CompletedRunArtifact {
 
 export function buildFailedJudgeRunArtifact(
 	inputs: RunArtifactBaseInputs,
-	{ failure, ceilingStop }: Readonly<PaidJudgeFailure>,
+	{ failure, ceilingStop, providerCalls }: Readonly<PaidJudgeFailure>,
 ): FailedJudgeRunArtifact {
 	return {
 		...runArtifactEvidence(inputs, failure),
 		status: "FAILED",
 		failure: failure.message,
+		judgeProviderCalls: providerCalls,
 		ceilingStop,
 	};
 }
@@ -324,6 +327,8 @@ type JudgeFailure =
 export interface PaidJudgeFailure {
 	readonly failure: Readonly<JudgeFailure>;
 	readonly ceilingStop: CeilingStopReadings | undefined;
+	/** Every call the Judge paid for, a halted one included. */
+	readonly providerCalls: readonly ProviderCall[];
 }
 
 /**
@@ -353,7 +358,14 @@ function paidJudgeFailure(
 		return undefined;
 	}
 
-	return { failure: error, ceilingStop };
+	return {
+		failure: error,
+		ceilingStop,
+		providerCalls:
+			error instanceof JudgeExecutionError
+				? error.providerCalls
+				: judgeProviderCalls(error.attempts),
+	};
 }
 
 export interface FinalJudgeRequest {
@@ -913,6 +925,7 @@ function recordPaidStageJudgeFailure(
 		failure: {
 			prompt: failure.prompt,
 			attempts: failure.attempts,
+			judgeProviderCalls: paid.providerCalls,
 			costUsd: failure.costUsd,
 		},
 		ceilingStop,

@@ -155,7 +155,9 @@ stage, writes the stage's stopped record with `ceilingStop` carrying the
 ceiling and the spend, restores the target, and starts no later session.
 Every such record carries `productOwnerCostUsd` and
 `productOwnerProviderCalls`, the Product Owner's spend up to the stop. A
-stage Judge's stopped record keeps the attempts it paid for before the stop.
+stage Judge's stopped record keeps the attempts it paid for before the stop,
+and `judgeProviderCalls`, every call the Judge paid for, a halted call
+included. The calls are empty when the ceiling refused the Judge's first call.
 A stopped record whose stage session the ceiling stopped, whether during a
 worker call, a Product Owner call, or the refusal of a turn, carries
 `session`, holding that session's `providerCalls` up to the stop, a halted
@@ -164,8 +166,8 @@ ceiling refused the session's first call, and the cost is absent when the
 session's last call reported none.
 A final Judge refused, or failing after its spend reached the ceiling, fails
 the run with a failed run record carrying `ceilingStop`, its paid attempts,
-and a Judge cost that also counts the failed call, which has no attempt of
-its own. A final Judge that fails with budget left writes no failed run
+`judgeProviderCalls` with the failed call after the attempts' calls, and a
+Judge cost that also counts the failed call, which has no attempt of its own. A final Judge that fails with budget left writes no failed run
 record. A refused calibration rejudge fails the run without a
 `ceilingStop` record. A session
 attempt's budget is clamped to the ceiling, and its record keeps the clamped
@@ -1705,6 +1707,9 @@ them still parses and reads each as unavailable:
   minimum or the spend ceiling stops the stage, and absent otherwise;
 - a ceiling stop record's `session`, written when the ceiling stopped the
   stage's session;
+- a failed Judge's `judgeProviderCalls`, on a stage's stop record or a failed
+  main artifact, read for the Judge's tokens in place of its attempts, which
+  lack a halted call; a record without it reads them from the attempts;
 - a replay record's `elapsedMs`, from its stage session's start to its judge's
   grade.
 

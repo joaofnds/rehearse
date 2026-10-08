@@ -333,7 +333,12 @@ describe(writeStageJudgeFailure.name, () => {
 			file,
 			stage: "shape",
 			input,
-			failure: { prompt: "original prompt", attempts, costUsd: 0.3 },
+			failure: {
+				prompt: "original prompt",
+				attempts,
+				judgeProviderCalls: [{}, {}],
+				costUsd: 0.3,
+			},
 		};
 
 		await writeStageJudgeFailure(pending, "second validation error");
@@ -345,6 +350,7 @@ describe(writeStageJudgeFailure.name, () => {
 			input,
 			prompt: "original prompt",
 			attempts,
+			judgeProviderCalls: [{}, {}],
 			costUsd: 0.3,
 		});
 	});
@@ -817,7 +823,7 @@ describe(createRunAbort.name, () => {
 		});
 		const artifact = buildFailedJudgeRunArtifact(
 			artifactBaseInputs(pipeline, AUDIT_LOG_PIPELINE_PATH),
-			{ failure: judgeFailure, ceilingStop: undefined },
+			{ failure: judgeFailure, ceilingStop: undefined, providerCalls: [] },
 		);
 		const abort = createRunAbort(
 			{
@@ -1207,7 +1213,7 @@ describe(createRunAbort.name, () => {
 		});
 		const artifact = buildFailedJudgeRunArtifact(
 			artifactBaseInputs(pipeline, AUDIT_LOG_PIPELINE_PATH),
-			{ failure: judgeFailure, ceilingStop: undefined },
+			{ failure: judgeFailure, ceilingStop: undefined, providerCalls: [] },
 		);
 		const abort = createRunAbort(
 			{
@@ -1248,7 +1254,7 @@ describe(createRunAbort.name, () => {
 		});
 		const artifact = buildFailedJudgeRunArtifact(
 			artifactBaseInputs(pipeline, AUDIT_LOG_PIPELINE_PATH),
-			{ failure: judgeFailure, ceilingStop: undefined },
+			{ failure: judgeFailure, ceilingStop: undefined, providerCalls: [] },
 		);
 		const abort = createRunAbort(
 			{
@@ -1285,7 +1291,7 @@ describe(createRunAbort.name, () => {
 		});
 		const artifact = buildFailedJudgeRunArtifact(
 			artifactBaseInputs(pipeline, AUDIT_LOG_PIPELINE_PATH),
-			{ failure: judgeFailure, ceilingStop: undefined },
+			{ failure: judgeFailure, ceilingStop: undefined, providerCalls: [] },
 		);
 		const abort = createRunAbort(
 			{

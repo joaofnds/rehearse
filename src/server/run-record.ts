@@ -283,6 +283,8 @@ const stageFileSchema = z
 			.optional(),
 		hardBlockers: gradedHardBlockersSchema.optional(),
 		attempts: callsSchema.optional(),
+		/** Every call a failed Judge paid for, a halted one included. */
+		judgeProviderCalls: callsSchema.optional(),
 		corpusFiles: z.array(hashedFileSchema).optional(),
 		corpusVersion: corpusMeasurementSchema.optional(),
 		readManifest: readManifestSchema.optional(),
@@ -347,6 +349,8 @@ const gradedArtifactSchema = z
 const artifactSpendSchema = z
 	.object({
 		judgeAttempts: callsSchema.optional(),
+		/** Every call a failed final Judge paid for, a halted one included. */
+		judgeProviderCalls: callsSchema.optional(),
 		productOwnerCostUsd: z.number().optional(),
 		productOwnerProviderCalls: callsSchema.optional(),
 		judgeCostUsd: z.number().optional(),
@@ -549,14 +553,35 @@ function sessionTokenPart(recorded: PlacedStage): TokenPart {
 	);
 }
 
+/**
+ * A failed Judge's calls, a halted one included, read before its attempts,
+ * which hold only the calls that returned. No calls is a Judge the ceiling
+ * refused before its first call, which spent no tokens. Records written
+ * before the calls were kept read from their attempts.
+ */
+function judgeTokenPart(
+	part: string,
+	judge: {
+		readonly providerCalls: Calls | undefined;
+		readonly attempts: Calls | undefined;
+	},
+	absent: string,
+): TokenPart {
+	if (judge.providerCalls?.length === 0) {
+		return { calls: [] };
+	}
+
+	return callsPart(part, judge.providerCalls ?? judge.attempts, absent);
+}
+
 function stageTokenParts(recorded: PlacedStage): readonly TokenPart[] {
 	const { stage, file } = recorded;
 	return spenders(recorded).map((spender) =>
 		spender === "session"
 			? sessionTokenPart(recorded)
-			: callsPart(
+			: judgeTokenPart(
 					`${stage} judge`,
-					file?.attempts,
+					{ providerCalls: file?.judgeProviderCalls, attempts: file?.attempts },
 					unrecordedOr(recorded, "the stage record holds no judge attempts"),
 				),
 	);
@@ -1029,9 +1054,12 @@ function runTokenParts({
 
 	return [
 		productOwner,
-		callsPart(
+		judgeTokenPart(
 			"final judge",
-			artifact.judgeAttempts,
+			{
+				providerCalls: artifact.judgeProviderCalls,
+				attempts: artifact.judgeAttempts,
+			},
 			"the main artifact holds no judge attempts",
 		),
 	];

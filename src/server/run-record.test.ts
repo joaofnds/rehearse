@@ -414,6 +414,8 @@ describe("/api/runs/:run", () => {
 				discussSessionMetrics,
 				discussJudgeMetrics,
 				buildSessionMetrics,
+				buildJudgeAttemptMetrics,
+				buildJudgeHaltedMetrics,
 			} = STOPPED_RUN_EVIDENCE;
 			const discussCalls = [...discussSessionMetrics, discussJudgeMetrics];
 
@@ -511,6 +513,83 @@ describe("/api/runs/:run", () => {
 						{
 							stage: "build",
 							tokens: { state: "available", input: 0, output: 0, missing: [] },
+						},
+					],
+				});
+			});
+
+			it("sums every call a ceiling-halted Judge paid for", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeJudgeCeilingStoppedRun();
+
+				const response = await runRecord(fixture, fixture.stoppedRun);
+
+				const buildCalls = [
+					buildSessionMetrics,
+					buildJudgeAttemptMetrics,
+					buildJudgeHaltedMetrics,
+				];
+				expect(await response.json()).toMatchObject({
+					stages: [
+						{ stage: "discuss" },
+						{
+							stage: "build",
+							tokens: {
+								state: "available",
+								input: sum(buildCalls, "inputTokens"),
+								output: sum(buildCalls, "outputTokens"),
+								missing: [],
+							},
+						},
+					],
+				});
+			});
+
+			it("names the Judge missing when its halted call reported no metrics", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeJudgeCeilingStoppedRun([
+					{ metrics: buildJudgeAttemptMetrics },
+					{},
+				]);
+
+				const response = await runRecord(fixture, fixture.stoppedRun);
+
+				expect(await response.json()).toMatchObject({
+					stages: [
+						{ stage: "discuss" },
+						{
+							stage: "build",
+							tokens: {
+								state: "available",
+								input: buildSessionMetrics.inputTokens,
+								missing: [
+									{
+										part: "build judge",
+										reason: "a call in the record has no metrics",
+									},
+								],
+							},
+						},
+					],
+				});
+			});
+
+			it("sums no tokens for a Judge the ceiling refused before its first call", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeJudgeCeilingStoppedRun([], []);
+
+				const response = await runRecord(fixture, fixture.stoppedRun);
+
+				expect(await response.json()).toMatchObject({
+					stages: [
+						{ stage: "discuss" },
+						{
+							stage: "build",
+							tokens: {
+								state: "available",
+								input: buildSessionMetrics.inputTokens,
+								missing: [],
+							},
 						},
 					],
 				});
@@ -1436,6 +1515,25 @@ describe("/api/runs/:run", () => {
 						reason: FINAL_JUDGE_FAILURE,
 					},
 				});
+			});
+
+			it("sums every call a failed final judge paid for", async () => {
+				const fixture = await emptyFixture();
+				const halted = STOPPED_RUN_EVIDENCE.buildJudgeHaltedMetrics;
+				await fixture.writeFinalJudgeFailedRun(FINISHED_RUN, [
+					{ metrics: halted },
+				]);
+
+				const response = await runRecord(fixture, FINISHED_RUN);
+
+				const { tokens } = runTokensSchema.parse(await response.json()).totals;
+				expect(tokens).toMatchObject({
+					input: halted.inputTokens,
+					output: halted.outputTokens,
+				});
+				expect(tokens.missing.map(({ part }) => part)).not.toContain(
+					"final judge",
+				);
 			});
 
 			it("reports pending while the run is still executing", async () => {

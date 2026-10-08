@@ -122,6 +122,18 @@ export const STOPPED_RUN_EVIDENCE = {
 		cacheWrite: 50,
 		output: 11,
 	}),
+	buildJudgeAttemptMetrics: callMetrics({
+		input: 4,
+		cacheRead: 40,
+		cacheWrite: 60,
+		output: 13,
+	}),
+	buildJudgeHaltedMetrics: callMetrics({
+		input: 5,
+		cacheRead: 70,
+		cacheWrite: 80,
+		output: 17,
+	}),
 	buildCommitSubjects: ["feat: add the audit log module"],
 	buildChangedPaths: ["src/audit-log.ts", "src/audit-log.test.ts"],
 	taskCard: ".boris/backlog/tasks/task-1 - Add-an-audit-log.md",
@@ -850,14 +862,24 @@ export class RecordedRunsFixture {
 
 	/**
 	 * A finished run whose final judge never returned a usable grade, so its
-	 * artifact carries the failure in place of a grade.
+	 * artifact carries the failure in place of a grade, and the calls the
+	 * Judge paid for when given them, as the harness now writes them.
 	 */
-	public async writeFinalJudgeFailedRun(run: string): Promise<void> {
+	public async writeFinalJudgeFailedRun(
+		run: string,
+		judgeProviderCalls?: readonly {
+			readonly metrics?: Immutable<ClaudeCallMetrics>;
+		}[],
+	): Promise<void> {
 		await this.writePipelineRun(run, CASE_ID);
 		const { grade: _grade, ...graded } = this.artifact(run, "FAILED");
 		await Bun.write(
 			benchmarkRunPaths(this.runsDirectory, run).artifactFile,
-			serialize({ ...graded, failure: FINAL_JUDGE_FAILURE }),
+			serialize({
+				...graded,
+				failure: FINAL_JUDGE_FAILURE,
+				judgeProviderCalls,
+			}),
 		);
 	}
 
@@ -1266,6 +1288,57 @@ export class RecordedRunsFixture {
 					productOwnerCostUsd: 0.25,
 					productOwnerProviderCalls: [],
 					ceilingStop: { ceilingUsd: 6, spentUsd: 6.25 },
+				},
+				null,
+				2,
+			)}\n`,
+		);
+	}
+
+	/**
+	 * The stopped run with build's Judge halted by the spend ceiling on its
+	 * retry, as the harness writes such a stop: the Judge's input, its one
+	 * rejected attempt, and every call it paid for, the halted one included.
+	 */
+	public async writeJudgeCeilingStoppedRun(
+		judgeProviderCalls: readonly {
+			readonly metrics?: Immutable<ClaudeCallMetrics>;
+		}[] = [
+			{ metrics: STOPPED_RUN_EVIDENCE.buildJudgeAttemptMetrics },
+			{ metrics: STOPPED_RUN_EVIDENCE.buildJudgeHaltedMetrics },
+		],
+		attempts: readonly object[] = [
+			{
+				payload: { not: "a scorecard" },
+				costUsd: 0.4,
+				outcome: "REJECTED",
+				error: "not a scorecard",
+				metrics: STOPPED_RUN_EVIDENCE.buildJudgeAttemptMetrics,
+			},
+		],
+	): Promise<void> {
+		await this.writeStoppedRunEvidence();
+		await Bun.write(
+			benchmarkRunPaths(this.runsDirectory, this.stoppedRun).stageFile("build"),
+			`${JSON.stringify(
+				{
+					status: "STAGE_JUDGE_FAILED",
+					stage: "build",
+					error: STOPPED_RUN_ERROR,
+					input: {
+						transcript: {
+							stage: "build",
+							sessionId: STOPPED_STAGE_SESSION_ID,
+							costUsd: 3,
+							providerCalls: CEILING_STOPPED_SESSION.providerCalls,
+							exchanges: [],
+						},
+					},
+					prompt: "judge prompt",
+					attempts,
+					judgeProviderCalls,
+					costUsd: 1,
+					ceilingStop: { ceilingUsd: 6, spentUsd: 7 },
 				},
 				null,
 				2,

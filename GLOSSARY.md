@@ -842,7 +842,9 @@ See [current state](docs/status.md) for implementation coverage and
   dimensions and summary, and the letter and verdict, the minimum grade, the
   Judge's attempts, the stage and run elapsed times, and the Product Owner's
   cost and calls up to the stop; older stop records keep the findings and lack
-  the rest. A ceiling stop carries the Product Owner's cost and calls up to the
+  the rest. A stop whose Judge failed after paying also holds every call the
+  Judge paid for, a call the ceiling halted included, since the attempts hold
+  only the calls that returned. A ceiling stop carries the Product Owner's cost and calls up to the
   stop too. One that came before the Judge ran holds no Judge input, model,
   effort or corpus files; it holds the stage session's calls up to the stop
   instead, with their spend when the last call reported one. The run's
