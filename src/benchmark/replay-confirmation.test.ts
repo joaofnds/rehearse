@@ -33,6 +33,7 @@ import { GroupStoppedError } from "./confirmation-evidence";
 import { operatorStopped } from "./operator-stop";
 import { benchmarkRunPaths, confirmationGroupPaths } from "./run-layout";
 import { readShortIds } from "./short-id";
+import { StageSessionError } from "./stage-session-error";
 import type { loadStageRubric } from "./stage-grading";
 import { addWorktree, currentSha, removeWorktree } from "./target";
 import {
@@ -949,6 +950,69 @@ describe(runReplayConfirmation.name, () => {
 			missing: ["stage-judge call metrics"],
 		});
 		expect(record.workerTrajectorySteps).toBe(metric.turns);
+	});
+
+	it("retains the calls a stage session carried out of its failure", async () => {
+		const metric: ClaudeCallMetrics = {
+			costUsd: 0.25,
+			inputTokens: 100,
+			outputTokens: 20,
+			cacheReadTokens: 30,
+			cacheWriteTokens: 40,
+			turns: 2,
+		};
+		const fake = new ReplayConfirmationHarness(testResources);
+		const recorded = await fake.recordedRun();
+		const corpusRoot = await mkdtemp(join(tmpdir(), "replay-session-corpus-"));
+		testResources.track(corpusRoot);
+		for (const skill of ["discuss", "doctrine"]) {
+			await mkdir(join(corpusRoot, "skills", skill), { recursive: true });
+			await Bun.write(
+				join(corpusRoot, "skills", skill, "SKILL.md"),
+				`${skill}\n`,
+			);
+		}
+
+		const outcome = await fake.runConfirmation(
+			{
+				paths: recorded.paths,
+				corpusRoots: [{ kind: "directory", root: corpusRoot }],
+			},
+			{ groupId: "stage-session-evidence", reps: 2 },
+			(dependencies) => ({
+				...dependencies,
+				currentSha: () => Promise.resolve(recorded.manifest.taskSha),
+				createProductOwner: () => ({
+					ask: () => Promise.resolve("Use the small scope"),
+					snapshot: () => ({
+						sessionId: "po-session",
+						spentUsd: metric.costUsd,
+						providerCalls: [{ metrics: metric }],
+					}),
+				}),
+				stageSession: {
+					...dependencies.stageSession,
+					runWorkflowStage: () =>
+						Promise.reject(
+							new StageSessionError({
+								cause: new Error("Product Owner call halted"),
+								providerCalls: [{ metrics: metric }],
+								costUsd: metric.costUsd,
+							}),
+						),
+				},
+			}),
+		);
+		const [recordFile] = outcome.repRecordFiles;
+		const record = parseConfirmationRepRecord(
+			await Bun.file(recordFile ?? "missing").text(),
+		);
+		testResources.track(dirname(record.worktreePath));
+
+		expect(record.metrics.calls).toEqual([
+			{ role: "worker", metrics: metric },
+			{ role: "product-owner", metrics: metric },
+		]);
 	});
 
 	it("removes the temporary root after every replay rep completes with durable evidence", async () => {
