@@ -2137,9 +2137,10 @@ may name one case. Either one-case report estimates uncertainty over that case's
 reps rather than across cases. Each path names a completed stage, pipeline, or
 session confirmation `group.json` and resolves relative to the manifest. Session
 groups must carry one frozen case declaration, their recorded attempt evidence,
-and a corpus inventory matching that declaration. The control corpus may be
-empty for a session case. The control corpus is supplied by the operator. For
-example:
+and a corpus inventory matching that declaration, where a declared skill also
+brings the other files of its directory, as the attempt installed them. The
+control corpus may be empty for a session case. The control corpus is supplied
+by the operator. For example:
 
 ```json
 {

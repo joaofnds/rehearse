@@ -154,12 +154,30 @@ function attemptStateResults(
 	}));
 }
 
+/**
+ * case-skill declares a skill whose directory also holds a file the case does
+ * not name, the shape a confirmation freezes whole because the skill reads it.
+ */
+const PROBE_SKILL = "skills/probe/SKILL.md";
+const PROBE_NOTES = "skills/probe/references/notes.md";
+
+function declaredCorpus(caseId: string, role: Role): string[] {
+	if (role === "control") {
+		return [];
+	}
+	if (caseId === "case-skill") {
+		return ["output-styles/brief.md", PROBE_SKILL];
+	}
+
+	return ["output-styles/brief.md"];
+}
+
 function sessionCase(
 	caseId: string,
 	role: Role,
 	stateCheck?: Immutable<StateCheck>,
 ): SessionCase {
-	const corpusFiles = role === "control" ? [] : ["output-styles/brief.md"];
+	const corpusFiles = declaredCorpus(caseId, role);
 	const prompt = caseId === "case-one" ? "Reply OK." : "Reply OK twice.";
 	const max = caseId === "case-one" ? 1 : 2;
 	const checks =
@@ -221,6 +239,10 @@ async function writeGroup(
 			join(corpus, "output-styles", "brief.md"),
 			`${role} corpus\n`,
 		);
+	}
+	if (role !== "control" && caseId === "case-skill") {
+		await Bun.write(join(corpus, PROBE_SKILL), "probe\n");
+		await Bun.write(join(corpus, PROBE_NOTES), "notes\n");
 	}
 
 	const benchmarkCase = sessionCase(caseId, role, stateCheck);
@@ -464,6 +486,15 @@ async function updateAttemptPrompts(
 	groupFile: string,
 	prompt: string,
 ): Promise<void> {
+	await updateAttempts(groupFile, (attempt) => ({ ...attempt, prompt }));
+}
+
+async function updateAttempts(
+	groupFile: string,
+	change: (
+		attempt: Immutable<ReturnType<typeof parseSessionAttemptRecord>>,
+	) => Immutable<ReturnType<typeof parseSessionAttemptRecord>>,
+): Promise<void> {
 	const group = parseConfirmationGroupRecord(await Bun.file(groupFile).text());
 	if (group.schemaVersion !== 2 || group.mode !== "session") {
 		throw new Error("session fixture group has an unexpected record shape");
@@ -485,7 +516,7 @@ async function updateAttemptPrompts(
 		);
 		await Bun.write(
 			attemptPath,
-			`${JSON.stringify({ ...attempt, prompt }, null, 2)}\n`,
+			`${JSON.stringify(change(attempt), null, 2)}\n`,
 		);
 	}
 }
@@ -629,6 +660,32 @@ async function updateSessionGroupInputs(
 		groupFile,
 		`${JSON.stringify({ ...group, inputs: change(group.inputs) }, null, 2)}\n`,
 	);
+}
+
+async function addFrozenCorpusFile(
+	groupFile: string,
+	path: string,
+): Promise<void> {
+	await Bun.write(join(dirname(groupFile), path), "added\n");
+	await updateSessionGroupInputs(groupFile, (inputs) => ({
+		...inputs,
+		files: [
+			...inputs.files,
+			{ kind: "corpus", path, sha256: digest("added\n") },
+		],
+	}));
+}
+
+async function removeFrozenCorpusFile(
+	groupFile: string,
+	path: string,
+): Promise<void> {
+	await updateSessionGroupInputs(groupFile, (inputs) => ({
+		...inputs,
+		files: inputs.files.filter(
+			(file) => file.kind !== "corpus" || file.path !== path,
+		),
+	}));
 }
 
 function sessionGroupFile(
@@ -1138,6 +1195,29 @@ Sampling unit: rep. Arms are independent samples; this estimate covers case case
 		expect(Object.keys(served.attribution)).toEqual(["case-one"]);
 		expect(Object.keys(served.qualityReadings)).toEqual(["case-one"]);
 		expect(Object.keys(served.attemptHistories)).toEqual(["case-one"]);
+	});
+
+	it("reports a session case whose declared skill froze its whole directory", async () => {
+		const runsDirectory = join(root, "runs");
+		const manifestPath = await writeManifest(root, runsDirectory, undefined, [
+			"case-skill",
+		]);
+		const group = parseConfirmationGroupRecord(
+			await Bun.file(
+				sessionGroupFile(runsDirectory, "case-skill", "candidate"),
+			).text(),
+		);
+		expect(group.inputs.files.map(({ path }) => path)).toContain(
+			`inputs/corpus/${PROBE_NOTES}`,
+		);
+
+		const reportFile = await writeComparisonReport({
+			manifestPath,
+			runsDirectory,
+		});
+
+		const report = parseComparisonReport(await Bun.file(reportFile).text());
+		expect(report.cases.map(({ caseId }) => caseId)).toEqual(["case-skill"]);
 	});
 
 	it("estimates the cost standard error when an arm's reps differ in spend", async () => {
@@ -1711,6 +1791,74 @@ Sampling unit: rep. Arms are independent samples; this estimate covers case case
 			writeComparisonReport({ manifestPath, runsDirectory }),
 		).rejects.toThrow(
 			"case case-one arm candidate field repRecords[0].attempt.path",
+		);
+	});
+
+	it("refuses a frozen corpus file the case does not declare", async () => {
+		const runsDirectory = join(root, "runs");
+		const manifestPath = await writeManifest(root, runsDirectory);
+		await addFrozenCorpusFile(
+			sessionGroupFile(runsDirectory, "case-one", "candidate"),
+			`inputs/corpus/${PROBE_SKILL}`,
+		);
+
+		const comparison = writeComparisonReport({ manifestPath, runsDirectory });
+
+		expect(comparison).rejects.toThrow(
+			"case case-one arm candidate field inputs.files.corpus",
+		);
+	});
+
+	it("refuses a group missing a declared corpus file", async () => {
+		const runsDirectory = join(root, "runs");
+		const manifestPath = await writeManifest(root, runsDirectory);
+		await removeFrozenCorpusFile(
+			sessionGroupFile(runsDirectory, "case-one", "candidate"),
+			"inputs/corpus/output-styles/brief.md",
+		);
+
+		const comparison = writeComparisonReport({ manifestPath, runsDirectory });
+
+		expect(comparison).rejects.toThrow(
+			"case case-one arm candidate field inputs.files.corpus",
+		);
+	});
+
+	it("refuses a frozen corpus path recorded twice in two spellings", async () => {
+		const runsDirectory = join(root, "runs");
+		const manifestPath = await writeManifest(root, runsDirectory, undefined, [
+			"case-skill",
+		]);
+		await addFrozenCorpusFile(
+			sessionGroupFile(runsDirectory, "case-skill", "candidate"),
+			`inputs\\corpus\\${PROBE_NOTES.replaceAll("/", "\\")}`,
+		);
+
+		const comparison = writeComparisonReport({ manifestPath, runsDirectory });
+
+		expect(comparison).rejects.toThrow(
+			"case case-skill arm candidate field inputs.files.corpus",
+		);
+	});
+
+	it("refuses an attempt whose corpus digest disagrees with the frozen file", async () => {
+		const runsDirectory = join(root, "runs");
+		const manifestPath = await writeManifest(root, runsDirectory);
+		await updateAttempts(
+			sessionGroupFile(runsDirectory, "case-one", "candidate"),
+			(attempt) => ({
+				...attempt,
+				corpusFiles: attempt.corpusFiles.map((file) => ({
+					...file,
+					sha256: digest("other bytes\n"),
+				})),
+			}),
+		);
+
+		const comparison = writeComparisonReport({ manifestPath, runsDirectory });
+
+		expect(comparison).rejects.toThrow(
+			"attempt corpus files disagree with the frozen session inputs",
 		);
 	});
 

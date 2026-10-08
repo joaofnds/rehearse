@@ -209,35 +209,35 @@ async function copyDeclared(
 	declaredPaths: readonly string[],
 ): Promise<void> {
 	const entries = await corpusLayoutEntries(source);
+	const roots = overlaidRoots(declaredPaths);
 	await mkdir(destination, { recursive: true });
 
-	for (const entry of entries.filter((candidate) =>
-		declares(declaredPaths, candidate.layoutPath),
-	)) {
+	for (const entry of entries) {
+		const carried = roots.filter((root) => holds(entry.layoutPath, root));
+		if (carried.length === 0) {
+			continue;
+		}
+
 		await refuseSymlinks(source, entry);
 
-		const target = join(destination, entry.layoutPath);
-		await mkdir(dirname(target), { recursive: true });
-		await cp(entry.sourcePath, target, {
-			recursive: true,
-			dereference: source.kind === "live",
-		});
+		for (const root of carried) {
+			const target = join(destination, root);
+			await mkdir(dirname(target), { recursive: true });
+			await cp(
+				join(entry.sourcePath, relative(entry.layoutPath, root)),
+				target,
+				{
+					recursive: true,
+					dereference: source.kind === "live",
+				},
+			);
+		}
 	}
 }
 
-/**
- * A skill is declared as `skills/<name>/<file>` but snapshotted as the whole
- * `skills/<name>` directory, so a declared path matches the entry that carries
- * it as well as the entry it names exactly.
- */
-function declares(
-	declaredPaths: readonly string[],
-	layoutPath: string,
-): boolean {
-	return declaredPaths.some(
-		(declared) =>
-			declared === layoutPath || declared.startsWith(`${layoutPath}/`),
-	);
+/** Whether `layoutPath` is `root` itself or a path inside it. */
+function holds(root: string, layoutPath: string): boolean {
+	return layoutPath === root || layoutPath.startsWith(`${root}/`);
 }
 
 /**
@@ -296,8 +296,10 @@ const SKILLS_KIND = "skills/";
  * `SKILL.md` refers to the files beside it, so installing the declared file
  * alone delivers a skill whose references do not resolve, and under
  * `--setting-sources project` the user-level copy cannot supply them either.
- * `copyDeclared` already snapshots the whole directory, so the bytes are there.
- * Every other kind is a single file and is installed as itself.
+ * Every other kind is a single file and is installed as itself. Snapshotting
+ * copies these same roots and the loader accepts files under them, so what a
+ * group freezes, what its attempts install, and what a comparison verifies are
+ * one set.
  *
  * Every path a case may declare is overlaid, because `isCorpusLayoutPath` is
  * also what `resolveCorpusFile` requires: a declared path outside corpus layout
@@ -312,6 +314,14 @@ function overlaidRoots(declaredPaths: readonly string[]): readonly string[] {
 		.map((layoutPath) => overlaidRoot(layoutPath));
 
 	return [...new Set(roots)];
+}
+
+/** Whether a snapshot of the declaration carries this file. */
+export function deliversCorpusFile(
+	declaredPaths: readonly string[],
+	layoutPath: string,
+): boolean {
+	return overlaidRoots(declaredPaths).some((root) => holds(root, layoutPath));
 }
 
 function overlaidRoot(layoutPath: string): string {

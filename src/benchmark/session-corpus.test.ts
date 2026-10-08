@@ -5,6 +5,7 @@ import { hashCorpusFiles } from "#benchmark/corpus-file";
 import { resolveCorpusSource } from "#benchmark/corpus-source";
 import type { SessionCorpusSnapshot } from "#benchmark/session-corpus";
 import {
+	deliversCorpusFile,
 	freezeSessionCorpus,
 	SessionCorpusError,
 	installSessionCorpusSnapshot,
@@ -394,6 +395,31 @@ describe(freezeSessionCorpus.name, () => {
 		).toBe("FROZEN_SKILL\n");
 	});
 
+	it("snapshots a declared nested rulebook file without the files beside it", async () => {
+		const root = await directoryCorpus({
+			"rulebook/coding-style/core.md": "CORE\n",
+			"rulebook/coding-style/go.md": "GO\n",
+		});
+		const destination = await resources.createControlDirectory();
+
+		const snapshot = await freezeSessionCorpus(
+			await resolveCorpusSource(root),
+			join(destination, "corpus"),
+			["rulebook/coding-style/core.md"],
+		);
+
+		expect(
+			await Bun.file(
+				join(snapshot.root, "rulebook/coding-style/core.md"),
+			).text(),
+		).toBe("CORE\n");
+		expect(
+			await Bun.file(
+				join(snapshot.root, "rulebook/coding-style/go.md"),
+			).exists(),
+		).toBe(false);
+	});
+
 	it("materializes symlink-backed live entries as immutable group bytes", async () => {
 		const outside = await directoryCorpus({
 			"agents/reviewer.md": "original live agent\n",
@@ -684,5 +710,41 @@ describe(installSessionCorpusSnapshot.name, () => {
 		expect(await Bun.file(join(attemptDirectory, ".claude")).exists()).toBe(
 			false,
 		);
+	});
+});
+
+describe(deliversCorpusFile.name, () => {
+	const declared = [
+		"output-styles/brief.md",
+		"rulebook/coding-style/core.md",
+		"skills/probe/SKILL.md",
+	];
+
+	it.each([
+		{ file: "a declared file", path: "output-styles/brief.md" },
+		{
+			file: "a file beside a declared skill",
+			path: "skills/probe/references/notes.md",
+		},
+	])("delivers $file", ({ path }) => {
+		expect(deliversCorpusFile(declared, path)).toBe(true);
+	});
+
+	it.each([
+		{
+			file: "a file beside a declared output style",
+			path: "output-styles/other.md",
+		},
+		{
+			file: "a file beside a declared rulebook file",
+			path: "rulebook/coding-style/go.md",
+		},
+		{ file: "another skill", path: "skills/other/SKILL.md" },
+		{
+			file: "a skill whose name extends a declared one",
+			path: "skills/probe-old/SKILL.md",
+		},
+	])("refuses $file", ({ path }) => {
+		expect(deliversCorpusFile(declared, path)).toBe(false);
 	});
 });

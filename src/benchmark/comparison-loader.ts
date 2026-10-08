@@ -35,6 +35,7 @@ import type {
 import { ComparisonEvidenceError } from "./comparison-evidence";
 import type { ComparisonArm, ComparisonManifest } from "./comparison-record";
 import { COMPARISON_ARMS, parseComparisonManifest } from "./comparison-record";
+import { deliversCorpusFile } from "./session-corpus";
 import { parseSessionAttemptRecord } from "./session-record";
 import { stageGradingRecordSchema } from "./comparison-stage-grading";
 import type { StageGradingRecord } from "./comparison-stage-grading";
@@ -468,11 +469,18 @@ function assertSessionFrozenFiles(
 	const corpusFiles = frozen.files.filter(
 		({ record }) => record.kind === "corpus",
 	);
-	const declaredCorpus = sessionCase.corpusFiles.toSorted();
-	const frozenCorpus = corpusFiles
-		.map(({ record }) => sessionFrozenPath(request, record))
-		.toSorted();
-	if (!sameValue(declaredCorpus, frozenCorpus)) {
+	const frozenCorpusPaths = corpusFiles.map(({ record }) =>
+		sessionFrozenPath(request, record),
+	);
+	const declaredMissing = sessionCase.corpusFiles.some(
+		(path) => !frozenCorpusPaths.includes(path),
+	);
+	const undelivered = frozenCorpusPaths.some(
+		(path) => !deliversCorpusFile(sessionCase.corpusFiles, path),
+	);
+	const duplicated =
+		new Set(frozenCorpusPaths).size !== frozenCorpusPaths.length;
+	if (declaredMissing || undelivered || duplicated) {
 		throw evidenceError(
 			{
 				caseId: request.caseId,
@@ -593,6 +601,7 @@ function assertSessionAttemptInputs(
 			path: sessionFrozenPath(request, file),
 			sha256: file.sha256,
 		}))
+		.filter(({ path }) => sessionCase.corpusFiles.includes(path))
 		.toSorted((left, right) => left.path.localeCompare(right.path));
 	const actualCorpus = attempt.corpusFiles
 		.map(({ path: corpusPath, sha256: fileSha256 }) => ({
