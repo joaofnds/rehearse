@@ -14,6 +14,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
 import { CONTROL_DIR } from "#benchmark/config";
+import { readCorpusUnderTest } from "#benchmark/corpus-version";
 import type { CorpusMeasurement } from "#benchmark/corpus-measurement";
 import {
 	directorySource,
@@ -43,7 +44,11 @@ import type {
 	RowStaleness,
 	RunHistoryRow,
 } from "./run-history";
-import { runHistoryReport, UNJUDGED_REASON } from "./run-history";
+import {
+	recordStaleness,
+	runHistoryReport,
+	UNJUDGED_REASON,
+} from "./run-history";
 
 /**
  * Every entry under a directory, keyed by its relative path: a file with the
@@ -277,6 +282,26 @@ describe(runHistoryReport.name, () => {
 			corpusVersion: later,
 			corpusChangedDuringRun: true,
 		});
+	});
+
+	it("hashes the corpus under test once to judge every record's staleness", async () => {
+		const fixture = await fixtureRecordingLiveSettings();
+		const corpus = await corpusDirectory("build skill\n");
+		await fixture.recordCorpusFrom(directorySource(corpus));
+		await fixture.recordReplayFrom(directorySource(corpus));
+		let hashes = 0;
+
+		await recordStaleness(
+			fixture.runsDirectory,
+			directorySource(corpus),
+			(recordsDirectory, source) => {
+				hashes += 1;
+
+				return readCorpusUnderTest(recordsDirectory, source);
+			},
+		);
+
+		expect(hashes).toBe(1);
 	});
 
 	it("marks a row stale when its latest checkpoint's corpus no longer matches", async () => {

@@ -62,7 +62,10 @@ import {
 	everyRecordStaleness,
 	frozenPipeline,
 } from "#benchmark/staleness-report";
-import type { RecordStaleness } from "#benchmark/staleness-report";
+import type {
+	CorpusUnderTestReader,
+	RecordStaleness,
+} from "#benchmark/staleness-report";
 import type { RunLiveness } from "#benchmark/run-liveness";
 import { checkpointAttempts, repAttemptId } from "./checkpoint-attempts";
 import type { AttemptPosition } from "./checkpoint-attempts";
@@ -1264,8 +1267,13 @@ export interface Staleness {
 export async function recordStaleness(
 	runsDirectory: string,
 	source: CorpusRoot,
+	readUnderTest?: CorpusUnderTestReader,
 ): Promise<Staleness> {
-	const every = await everyRecordStaleness(runsDirectory, source);
+	const every = await everyRecordStaleness(
+		runsDirectory,
+		source,
+		readUnderTest,
+	);
 	const reports = [
 		checkpointReport(every.checkpoints),
 		every.sessionAttempts,
