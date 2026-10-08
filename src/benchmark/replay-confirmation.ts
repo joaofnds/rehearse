@@ -1,3 +1,4 @@
+import { startTime } from "./recorded-time";
 import { randomUUID } from "node:crypto";
 import { operatorStopRecord } from "./operator-stop";
 import type { ApprovalMethod, StageSkillPresence } from "./config";
@@ -87,6 +88,8 @@ export interface ReplayConfirmationRequest extends ReplayRequest {
 	 */
 	readonly stageSkill: StageSkillPresence;
 	readonly now?: (() => number) | undefined;
+	/** Epoch milliseconds a start time is read from; Date.now unless a test pins it. */
+	readonly wallClock?: (() => number) | undefined;
 }
 
 export interface ReplayConfirmationOutcome {
@@ -468,7 +471,7 @@ async function runReplayConfirmationBody(
 	worktreesDirectory: string,
 	now: () => number,
 ): Promise<ReplayConfirmationOutcome> {
-	const startedAt = new Date().toISOString();
+	const startedAt = startTime(request.wallClock ?? Date.now);
 	const makespanStart = now();
 	const repSpendCeiling = repSpendCeilings({
 		spendCeilingUsd: request.spendCeilingUsd,

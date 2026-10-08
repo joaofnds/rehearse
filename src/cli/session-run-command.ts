@@ -1,3 +1,4 @@
+import { startTime } from "#benchmark/recorded-time";
 import { randomUUID } from "node:crypto";
 import type { SessionCase } from "#benchmark/case";
 import type { Immutable } from "#benchmark/contracts";
@@ -58,6 +59,8 @@ export interface SessionRunRequest {
 	readonly resolveCorpus?: CorpusSourceResolver | undefined;
 	readonly contextEvidenceSource?: ContextEvidenceSource | undefined;
 	readonly contextRateCatalog?: ContextRateCatalog | undefined;
+	/** Epoch milliseconds a start time is read from; Date.now unless a test pins it. */
+	readonly wallClock?: (() => number) | undefined;
 }
 
 function settingsOf(config: SessionRunConfig): SessionSettings {
@@ -204,7 +207,8 @@ export async function runSessionDebugAttempt(
 		...attemptId,
 	});
 
-	const startedAt = Date.now();
+	const startedAt = startTime(request.wallClock ?? Date.now);
+	const attemptStart = Date.now();
 	const { recordFile } = attemptPaths;
 	const persist = async (
 		attempt: Immutable<SessionAttempt>,
@@ -220,8 +224,8 @@ export async function runSessionDebugAttempt(
 			corpusVersion,
 			versionFiles,
 			attempt,
-			startedAt: new Date(startedAt).toISOString(),
-			elapsedMs: Date.now() - startedAt,
+			startedAt,
+			elapsedMs: Date.now() - attemptStart,
 			error,
 		});
 		await Bun.write(recordFile, `${JSON.stringify(record, null, 2)}\n`);

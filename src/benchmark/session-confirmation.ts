@@ -1,3 +1,4 @@
+import { startTime } from "./recorded-time";
 import type { ApprovalMethod } from "./config";
 import { cp, mkdir } from "node:fs/promises";
 import { basename, join } from "node:path";
@@ -69,6 +70,8 @@ export interface SessionConfirmationDependencies {
 		plan: Immutable<SessionConfirmationRepPlan>,
 	) => Promise<SessionAttempt>;
 	readonly now?: (() => number) | undefined;
+	/** Epoch milliseconds a start time is read from; Date.now unless a test pins it. */
+	readonly wallClock?: (() => number) | undefined;
 	readonly resolveCorpus?: CorpusSourceResolver | undefined;
 }
 
@@ -267,6 +270,7 @@ export async function runSessionConfirmation(
 	request: SessionConfirmationRequest,
 ): Promise<ConfirmationGroupOutcome> {
 	const now = dependencies.now ?? Date.now;
+	const wallClock = dependencies.wallClock ?? Date.now;
 	const paths = confirmationGroupPaths(request.runsDirectory, request.groupId);
 	const inputs = await freezeInputs(
 		request,
@@ -279,7 +283,8 @@ export async function runSessionConfirmation(
 		request.sessionCase.declaration.id,
 		{ kind: "group", groupId: request.groupId },
 	);
-	const startedAt = now();
+	const startedAt = startTime(wallClock);
+	const makespanStart = now();
 	const results = await runConfirmation<FrozenSessionInputs, ExecutedRep>(
 		{
 			groupId: request.groupId,
@@ -288,7 +293,8 @@ export async function runSessionConfirmation(
 			worktreePath: (repId) => join(paths.rep(repId).directory, "execution"),
 		},
 		async (plan) => {
-			const repStartedAt = now();
+			const repStartedAt = startTime(wallClock);
+			const repStart = now();
 			const recordDirectory = paths.rep(plan.repId).directory;
 			try {
 				return {
@@ -303,8 +309,8 @@ export async function runSessionConfirmation(
 						lineage: inputs.lineage,
 					}),
 					error: undefined,
-					startedAt: new Date(repStartedAt).toISOString(),
-					elapsedMs: now() - repStartedAt,
+					startedAt: repStartedAt,
+					elapsedMs: now() - repStart,
 				};
 			} catch (error) {
 				if (!(error instanceof SessionInvocationError)) {
@@ -314,8 +320,8 @@ export async function runSessionConfirmation(
 				return {
 					attempt: error.attempt,
 					error: error.message,
-					startedAt: new Date(repStartedAt).toISOString(),
-					elapsedMs: now() - repStartedAt,
+					startedAt: repStartedAt,
+					elapsedMs: now() - repStart,
 				};
 			}
 		},
@@ -396,7 +402,7 @@ export async function runSessionConfirmation(
 		groupFile: paths.groupFile,
 		operatorStopFile: paths.operatorStopFile,
 		reportFile: paths.reportFile,
-		startedAt: new Date(startedAt).toISOString(),
-		makespanMs: now() - startedAt,
+		startedAt,
+		makespanMs: now() - makespanStart,
 	});
 }

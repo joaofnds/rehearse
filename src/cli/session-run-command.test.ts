@@ -321,22 +321,29 @@ describe(runSessionDebugAttempt.name, () => {
 	it("writes the instant the attempt started to its record file", async () => {
 		const runs = await temporary("rehearse-runs-");
 		const projects = await temporary("rehearse-projects-");
-		const before = Date.now();
+		// The provider's session takes ten minutes, so a start time read after it
+		// began names a later minute.
+		let minutes = 0;
+		const claude = fakeClaude(projects, "OK");
 
 		const outcome = await runSessionDebugAttempt({
 			sessionCase: sessionCase(),
 			config,
 			runsDirectory: runs,
 			spendCeilingUsd: 100,
-			runClaude: fakeClaude(projects, "OK"),
+			runClaude: (command, cwd) => {
+				minutes += 10;
+
+				return claude(command, cwd);
+			},
 			projectsDirectory: projects,
+			wallClock: () => Date.UTC(2026, 9, 8, 10, 15 + minutes),
 		});
 
-		const after = Date.now();
 		const written = z
 			.object({ startedAt: z.iso.datetime() })
 			.parse(JSON.parse(await Bun.file(outcome.recordFile).text()));
-		expect(Date.parse(written.startedAt)).toBeWithin(before, after + 1);
+		expect(written.startedAt).toBe("2026-10-08T10:15:00.000Z");
 	});
 
 	it("persists provider context evidence through the saved attempt boundary", async () => {

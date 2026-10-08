@@ -1,3 +1,4 @@
+import { startTime } from "./recorded-time";
 import { randomUUID } from "node:crypto";
 import { operatorStopRecord } from "./operator-stop";
 import type { CorpusRoot } from "./corpus-file";
@@ -160,6 +161,8 @@ export interface PipelineConfirmationRequest {
 	readonly spendCeilingUsd: number;
 	readonly loadedSettings?: LoadedStageSettings | undefined;
 	readonly now?: (() => number) | undefined;
+	/** Epoch milliseconds a start time is read from; Date.now unless a test pins it. */
+	readonly wallClock?: (() => number) | undefined;
 }
 
 export interface PipelineConfirmationOutcome {
@@ -871,7 +874,7 @@ export async function runPipelineConfirmation(
 			kind: "group",
 			groupId: request.groupId,
 		});
-		const startedAt = new Date().toISOString();
+		const startedAt = startTime(request.wallClock ?? Date.now);
 		const makespanStart = now();
 		const repSpendCeiling = repSpendCeilings({
 			spendCeilingUsd: request.spendCeilingUsd,

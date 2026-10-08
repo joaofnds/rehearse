@@ -130,15 +130,22 @@ describe(runPipelineConfirmation.name, () => {
 
 	it("records on the group the instant its reps started", async () => {
 		const harness = await PipelineConfirmationHarness.setup(testResources);
-		const before = Date.now();
+		// The wall clock reads ten minutes later each time the makespan's clock
+		// is read, so a start time read after the reps began names a later minute.
+		let reads = 0;
+		const now = (): number => {
+			reads += 1;
 
-		const outcome = await harness.run({});
+			return reads;
+		};
+		const wallClock = (): number => Date.UTC(2026, 9, 8, 10, 15 + 10 * reads);
 
-		const after = Date.now();
+		const outcome = await harness.run({ now, wallClock });
+
 		const group = parseConfirmationGroupRecord(
 			await Bun.file(outcome.groupRecordFile).text(),
 		);
-		expect(Date.parse(group.startedAt ?? "")).toBeWithin(before, after + 1);
+		expect(group.startedAt).toBe("2026-10-08T10:15:00.000Z");
 	});
 
 	it("names the case its group and rep records ran", async () => {

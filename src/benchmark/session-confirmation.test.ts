@@ -9,7 +9,7 @@ import {
 	parseConfirmationRepRecord,
 } from "./confirmation-record";
 import { measureCorpusVersion } from "./corpus-version";
-import { parseSessionAttemptRecord } from "./session-record";
+import { attemptStartedAt, parseSessionAttemptRecord } from "./session-record";
 import {
 	runSessionConfirmation,
 	SessionInvocationError,
@@ -394,12 +394,21 @@ describe(runSessionConfirmation.name, () => {
 		temporaryDirectories.push(root);
 		const corpusRoot = join(root, "source-corpus");
 		await Bun.write(join(corpusRoot, "CLAUDE.md"), "instructions\n");
-		const started = Date.UTC(2026, 9, 8, 10, 15);
+		// Each reading takes a minute, and each attempt ten, so a time read at
+		// any other moment names another minute.
+		let minutes = 0;
+		const wallClock = (): number => {
+			const reading = Date.UTC(2026, 9, 8, 10, 15 + minutes);
+			minutes += 1;
+
+			return reading;
+		};
 
 		const outcome = await runSessionConfirmation(
 			{
-				now: () => started,
+				wallClock,
 				executeAttempt: async (plan) => {
+					minutes += 10;
 					const transcriptFile = join(plan.recordDirectory, "transcript.jsonl");
 					await Bun.write(transcriptFile, `rep ${plan.ordinal}\n`);
 
@@ -456,10 +465,11 @@ describe(runSessionConfirmation.name, () => {
 		);
 
 		expect(group.startedAt).toBe("2026-10-08T10:15:00.000Z");
-		expect(attempts).toMatchObject([
-			{ startedAt: "2026-10-08T10:15:00.000Z" },
-			{ startedAt: "2026-10-08T10:15:00.000Z" },
-		]);
+		expect(
+			new Set(attempts.map((attempt) => attemptStartedAt(attempt))),
+		).toEqual(
+			new Set(["2026-10-08T10:16:00.000Z", "2026-10-08T10:27:00.000Z"]),
+		);
 	});
 
 	it("runs every rep from one frozen input set and records a provider failure", async () => {

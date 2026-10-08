@@ -114,21 +114,28 @@ describe(runReplayConfirmation.name, () => {
 				`${skill}\n`,
 			);
 		}
-		const before = Date.now();
+		// The wall clock reads ten minutes later each time the makespan's clock
+		// is read, so a start time read after the reps began names a later minute.
+		let reads = 0;
+		const now = (): number => {
+			reads += 1;
+
+			return reads;
+		};
+		const wallClock = (): number => Date.UTC(2026, 9, 8, 10, 15 + 10 * reads);
 
 		const outcome = await harness.runConfirmation(
 			{
 				paths: run.paths,
 				corpusRoots: [{ kind: "directory", root: corpusRoot }],
 			},
-			{ reps: 2 },
+			{ reps: 2, now, wallClock },
 		);
 
-		const after = Date.now();
 		const group = parseConfirmationGroupRecord(
 			await Bun.file(outcome.groupRecordFile).text(),
 		);
-		expect(Date.parse(group.startedAt ?? "")).toBeWithin(before, after + 1);
+		expect(group.startedAt).toBe("2026-10-08T10:15:00.000Z");
 	});
 
 	it("claims the group a short id in its source run's case", async () => {
