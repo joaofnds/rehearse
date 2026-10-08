@@ -2006,6 +2006,31 @@ describe(RunHistoryPage.name, () => {
 			).toBeInTheDocument();
 		});
 
+		it("leaves the launch out of the count of records on disk", async () => {
+			respondingWith({
+				...oneStoppedOneComplete(),
+				launches: [
+					{
+						kind: "launch",
+						id: "7b0c2d4e-0000-4000-8000-000000000000",
+						target: "case",
+						caseId: "audit-log",
+						run: undefined,
+						stage: undefined,
+						attempts: 1,
+						launchedAt,
+						status: "RUNNING",
+					},
+				],
+			});
+
+			renderPage();
+
+			expect(
+				await screen.findByText(/^2 records on disk/u),
+			).toBeInTheDocument();
+		});
+
 		it("lists a started case as running, above the records", async () => {
 			respondingWith({
 				rows: [],

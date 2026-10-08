@@ -2,7 +2,10 @@ import { afterEach, describe, expect, it } from "bun:test";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { ComparisonIndexResponse } from "#client/comparison/comparison-index-query";
 import type { CorpusResponse } from "#client/corpus/corpus-query";
-import type { RunHistoryResponse } from "#client/run-history/run-history-query";
+import type {
+	RunHistoryResponse,
+	RunListingResponse,
+} from "#client/run-history/run-history-query";
 import { FakeServer, stubFetchByPath } from "#client/test-support/fetch-stub";
 import {
 	UNREAD_SESSION_ATTEMPT_FIGURES,
@@ -427,32 +430,27 @@ describe("the navigation shell", () => {
 	});
 
 	it("badges run history with the launches its list shows beside the records", async () => {
-		renderAppWithStub(
-			"/corpus",
-			new Map([
-				[
-					"/api/run-listing",
-					{
-						rows: [
-							runRow("2026-09-06T21-58-29.500Z"),
-							runRow("2026-09-06T21-58-29.501Z"),
-						],
-						launches: [
-							{
-								kind: "launch",
-								id: "case-launch",
-								target: "case",
-								caseId: "audit-log",
-								attempts: 1,
-								launchedAt: "2026-09-30T08-00-00.000Z",
-								status: "RUNNING",
-							},
-						],
-						unreadable: [],
-					},
-				],
-			]),
-		);
+		const listing: RunListingResponse = {
+			rows: [
+				runRow("2026-09-06T21-58-29.500Z"),
+				runRow("2026-09-06T21-58-29.501Z"),
+			],
+			launches: [
+				{
+					kind: "launch",
+					id: "case-launch",
+					target: "case",
+					caseId: "audit-log",
+					run: undefined,
+					stage: undefined,
+					attempts: 1,
+					launchedAt: "2026-09-30T08:00:00.000Z",
+					status: "RUNNING",
+				},
+			],
+			unreadable: [],
+		};
+		renderAppWithStub("/corpus", new Map([["/api/run-listing", listing]]));
 
 		expect(
 			await screen.findByRole("link", { name: "Run history 3" }),
