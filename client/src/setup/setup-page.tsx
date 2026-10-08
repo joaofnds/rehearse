@@ -1,8 +1,19 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { useState } from "react";
+import {
+	corpusVersionHash,
+	corpusVersionLabel,
+} from "#benchmark/corpus-version-label";
+import type { CorpusResponse } from "#client/corpus/corpus-query";
+import { corpusQuery } from "#client/corpus/corpus-query";
+import { launchSettingsQuery } from "#client/launch/settings-query";
 import { enteredCeilingUsd } from "#client/launch/spend-ceiling-entry";
+import { plural } from "#client/plural";
 import { cn } from "#client/system/cn";
 import { FilterPill } from "#client/system/components/filter-pill";
+import { Button } from "#client/system/ui/button";
+import { linkSetupCorpus } from "./setup-requests";
 
 const LIMIT_PRESETS = ["5.00", "20.00", "50.00"] as const;
 
@@ -109,9 +120,129 @@ function SpendLimitControls({
 	);
 }
 
+/** A scan links a corpus Rehearse can version: a digest and no refusal. */
+function isSatisfied(report: CorpusResponse | undefined): boolean {
+	return (
+		report !== undefined &&
+		report.digest !== undefined &&
+		report.refusals.length === 0
+	);
+}
+
+function ScannedFiles({
+	report,
+}: {
+	readonly report: CorpusResponse;
+}): React.JSX.Element {
+	return (
+		<div className="mt-3.5 overflow-hidden rounded-md border border-border">
+			<div className="bg-subtle px-3 py-2 text-10 tracking-label text-muted-foreground uppercase">
+				{report.digest === undefined
+					? `Found ${plural(report.files.length, "file")} · not hashed`
+					: `Found ${plural(report.files.length, "file")} · hashed as ${corpusVersionLabel(report.digest)}`}
+			</div>
+			<ul aria-label="Scanned corpus files">
+				{report.files.map((file) => (
+					<li
+						key={file.path}
+						className="flex gap-3 border-t border-subtle px-3 py-1.5 font-mono text-11-5"
+					>
+						<span className="flex-1 break-all">{file.path}</span>
+						<span className="text-dim">{`sha ${corpusVersionHash(file.sha256)}`}</span>
+						<span className="w-17 text-right text-dim">{`${String(file.lines)} ln`}</span>
+					</li>
+				))}
+			</ul>
+		</div>
+	);
+}
+
+function CorpusControls({
+	livePlaceholder,
+	directory,
+	onDirectory,
+	onScan,
+	scanning,
+	refusal,
+	report,
+}: {
+	readonly livePlaceholder: string;
+	readonly directory: string;
+	readonly onDirectory: (directory: string) => void;
+	readonly onScan: () => void;
+	readonly scanning: boolean;
+	readonly refusal: string | undefined;
+	readonly report: CorpusResponse | undefined;
+}): React.JSX.Element {
+	return (
+		<>
+			<form
+				className="mt-3.5 flex gap-2.5"
+				onSubmit={(event) => {
+					event.preventDefault();
+					onScan();
+				}}
+			>
+				<input
+					value={directory}
+					placeholder={livePlaceholder}
+					aria-label="Corpus directory"
+					onChange={(event) => {
+						onDirectory(event.target.value);
+					}}
+					className="h-9 min-w-0 flex-1 rounded-md border border-strong bg-background px-3 font-mono text-12 outline-none"
+				/>
+				<Button type="submit" disabled={scanning}>
+					Scan
+				</Button>
+			</form>
+			{refusal === undefined ? null : (
+				<p role="alert" className="mt-2 text-12 text-secondary-foreground">
+					<span aria-hidden="true">⚠ </span>
+					{refusal}
+				</p>
+			)}
+			{report === undefined ? null : <ScannedFiles report={report} />}
+			{report?.refusals.map((reason) => (
+				<p key={reason} className="mt-2 text-12 text-secondary-foreground">
+					<span aria-hidden="true">⚠ </span>
+					{reason}
+				</p>
+			))}
+		</>
+	);
+}
+
+function corpusState(linked: boolean, limitSet: boolean): string {
+	if (linked) {
+		return "Linked";
+	}
+
+	return limitSet ? "Required" : "Set a limit first";
+}
+
 export function SetupPage(): React.JSX.Element {
+	const settings = useQuery(launchSettingsQuery);
+	const queryClient = useQueryClient();
 	const [limit, setLimit] = useState<string>(OPENING_LIMIT);
+	const [directory, setDirectory] = useState("");
+	const [livePlaceholder] = useState(() =>
+		settings.data?.linkedCorpus.kind === "live"
+			? settings.data.linkedCorpus.root
+			: "the live install",
+	);
+	const scan = useMutation({
+		mutationFn: async (scanned: string): Promise<CorpusResponse> => {
+			queryClient.setQueryData(
+				launchSettingsQuery.queryKey,
+				await linkSetupCorpus(scanned),
+			);
+
+			return queryClient.query({ ...corpusQuery, staleTime: 0 });
+		},
+	});
 	const limitSet = enteredCeilingUsd(limit) !== undefined;
+	const linked = isSatisfied(scan.data);
 
 	return (
 		<div className="flex justify-center px-10 py-17">
@@ -140,14 +271,25 @@ export function SetupPage(): React.JSX.Element {
 					<SetupStep
 						number={2}
 						title="Point at an instruction corpus"
-						state={limitSet ? "Required" : "Set a limit first"}
-						look={limitSet ? "open" : "dimmed"}
+						state={corpusState(linked, limitSet)}
+						look={linked || limitSet ? "open" : "dimmed"}
 					>
 						<StepProse>
 							A directory of instruction files: the project instruction file,
 							skills, rubrics. Rehearse hashes each file on every run so a
 							result always names the version that produced it.
 						</StepProse>
+						<CorpusControls
+							livePlaceholder={livePlaceholder}
+							directory={directory}
+							onDirectory={setDirectory}
+							onScan={() => {
+								scan.mutate(directory);
+							}}
+							scanning={scan.isPending}
+							refusal={scan.isError ? scan.error.message : undefined}
+							report={scan.data}
+						/>
 					</SetupStep>
 					<SetupStep
 						number={3}

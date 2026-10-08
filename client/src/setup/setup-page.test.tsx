@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import type { CorpusResponse } from "#client/corpus/corpus-query";
 import type { SettingsReading } from "#client/launch/settings-query";
 import type { RunHistoryResponse } from "#client/run-history/run-history-query";
 import type { Reply } from "#client/test-support/fetch-stub";
@@ -74,6 +75,43 @@ function serveFreshInstall(
 			...routes,
 		]),
 	);
+}
+
+const SCANNED_CORPUS: CorpusResponse = {
+	root: LIVE_ROOT,
+	digest: `a41c7e${"0".repeat(58)}`,
+	files: [
+		{
+			path: "CLAUDE.md",
+			sha256: `4f21c8${"0".repeat(58)}`,
+			lastEditedAt: "2026-09-04T09:41:00.000Z",
+			lines: 218,
+			readBy: 0,
+			invalidated: 0,
+		},
+		{
+			path: "skills/implement/SKILL.md",
+			sha256: `88b0d2${"0".repeat(58)}`,
+			lastEditedAt: "2026-09-04T09:41:00.000Z",
+			lines: 96,
+			readBy: 0,
+			invalidated: 0,
+		},
+	],
+	refusals: [],
+	lastEdit: {
+		kind: "not-recorded",
+		reason:
+			"the corpus under test has no earlier version in its log to compare against",
+	},
+};
+
+function corpusInput(): HTMLElement {
+	return screen.getByRole("textbox", { name: "Corpus directory" });
+}
+
+function scan(): void {
+	fireEvent.click(screen.getByRole("button", { name: "Scan" }));
 }
 
 async function setupSteps(): Promise<HTMLElement[]> {
@@ -203,6 +241,146 @@ describe("first-run setup", () => {
 
 			expect(steps[1]).toHaveTextContent("Set a limit first");
 			expect(steps[1]).toHaveClass("opacity-55");
+		});
+	});
+
+	describe("the corpus scan", () => {
+		function servingScan(scanReply: Reply): FakeServer {
+			return serveFreshInstall(
+				new Map<string, Reply>([
+					["PUT /api/setup/corpus", scanReply],
+					["GET /api/corpus", { status: 200, body: SCANNED_CORPUS }],
+				]),
+			);
+		}
+
+		it("starts empty, offering the live install as the path", async () => {
+			serveFreshInstall();
+
+			renderAppAt("/");
+			await setupSteps();
+
+			expect(corpusInput()).toHaveValue("");
+			expect(corpusInput()).toHaveAttribute("placeholder", LIVE_ROOT);
+		});
+
+		it("scans the live install when no path is typed", async () => {
+			const server = servingScan({ status: 200, body: settings(null) });
+			renderAppAt("/");
+			await setupSteps();
+
+			scan();
+			await screen.findByText(/^Found 2 files/u);
+
+			expect(
+				server.sent
+					.filter(({ method }) => method === "PUT")
+					.map(({ pathname, body }) => [pathname, body]),
+			).toEqual([["/api/setup/corpus", JSON.stringify({ directory: "" })]]);
+		});
+
+		it("scans the typed path", async () => {
+			const server = servingScan({ status: 200, body: settings(null) });
+			renderAppAt("/");
+			await setupSteps();
+
+			fireEvent.change(corpusInput(), {
+				target: { value: "~/code/omelette/.claude" },
+			});
+			scan();
+			await screen.findByText(/^Found 2 files/u);
+
+			expect(
+				server.sent
+					.filter(({ method }) => method === "PUT")
+					.map(({ body }) => body),
+			).toEqual([JSON.stringify({ directory: "~/code/omelette/.claude" })]);
+		});
+
+		it("lists each file as path, hash and line count under the version it hashed as", async () => {
+			servingScan({ status: 200, body: settings(null) });
+			renderAppAt("/");
+			await setupSteps();
+
+			scan();
+			const found = await screen.findByText(/^Found 2 files/u);
+
+			expect(found).toHaveTextContent(
+				"Found 2 files · hashed as corpus@a41c7e",
+			);
+			expect(
+				within(screen.getByRole("list", { name: "Scanned corpus files" }))
+					.getAllByRole("listitem")
+					.map((row) => row.textContent),
+			).toEqual([
+				"CLAUDE.mdsha 4f21c8218 ln",
+				"skills/implement/SKILL.mdsha 88b0d296 ln",
+			]);
+		});
+
+		it("reads Linked once the scan is satisfied, even after the limit is cleared", async () => {
+			servingScan({ status: 200, body: settings(null) });
+			renderAppAt("/");
+			const steps = await setupSteps();
+
+			scan();
+			await screen.findByText(/^Found 2 files/u);
+			fireEvent.change(
+				screen.getByRole("textbox", { name: "Spend limit in US dollars" }),
+				{ target: { value: "" } },
+			);
+
+			expect(steps[1]).toHaveTextContent("Linked");
+		});
+
+		it("shows the server's refusal and lists nothing when the scan is refused", async () => {
+			servingScan({
+				status: 409,
+				body: { error: "Corpus source /tmp/x holds no corpus layout entry" },
+			});
+			renderAppAt("/");
+			const steps = await setupSteps();
+
+			scan();
+
+			expect(await screen.findByRole("alert")).toHaveTextContent(
+				"Corpus source /tmp/x holds no corpus layout entry",
+			);
+			expect(screen.queryByText(/^Found/u)).not.toBeInTheDocument();
+			expect(steps[1]).toHaveTextContent("Required");
+		});
+
+		it("is not satisfied by a corpus whose files refused hashing, and names why", async () => {
+			serveFreshInstall(
+				new Map<string, Reply>([
+					["PUT /api/setup/corpus", { status: 200, body: settings(null) }],
+					[
+						"GET /api/corpus",
+						{
+							status: 200,
+							body: {
+								...SCANNED_CORPUS,
+								digest: undefined,
+								refusals: [
+									"Corpus file CLAUDE.md resolves outside the corpus source",
+								],
+							},
+						},
+					],
+				]),
+			);
+			renderAppAt("/");
+			const steps = await setupSteps();
+
+			scan();
+
+			expect(
+				await screen.findByText(
+					"Corpus file CLAUDE.md resolves outside the corpus source",
+					{ exact: false },
+				),
+			).toBeInTheDocument();
+			expect(steps[1]).toHaveTextContent("Required");
 		});
 	});
 
