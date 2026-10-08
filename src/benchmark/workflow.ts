@@ -22,7 +22,7 @@ import type {
 } from "./contracts";
 import { productAnswerSchema, stageTurnSchema } from "./contracts";
 import type { RunEventRecorder } from "./run-events";
-import type { StageSessionFailure } from "./stage-session-error";
+import type { SessionSpend, StageSessionFailure } from "./stage-session-error";
 import { StageSessionError } from "./stage-session-error";
 import type { SpendCeiling } from "./spend-ceiling";
 
@@ -118,11 +118,7 @@ function providerCall(
 interface SessionCalls {
 	readonly spentUsd: () => number;
 	readonly providerCalls: () => ProviderCall[];
-	/**
-	 * The calls and their spend, which is unknown when the last call reported
-	 * no total, since a resumed call's total covers the calls before it.
-	 */
-	readonly reading: () => Omit<StageSessionFailure, "cause">;
+	readonly reading: () => SessionSpend;
 	/** Records a call the provider reported, charging the ceiling what it added. */
 	readonly record: (envelope: ClaudeEnvelope) => void;
 	/** Records a call that failed before the provider reported anything. */

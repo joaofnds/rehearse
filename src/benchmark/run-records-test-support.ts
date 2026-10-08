@@ -37,7 +37,7 @@ import type {
 } from "./confirmation-record";
 import type { RunManifest } from "./manifest";
 import { writeRunManifest } from "./manifest";
-import type { StoppedSession } from "./run-abort";
+import type { SessionSpend } from "./stage-session-error";
 import type { RunLiveness } from "./run-liveness";
 import type { JudgeProgress, PlainRunEventKind } from "./run-events";
 import type { RunTokens } from "./spend-ceiling";
@@ -129,7 +129,7 @@ export const STOPPED_RUN_EVIDENCE = {
 } as const;
 
 /** The build session's spend a ceiling stop during it records. */
-const CEILING_STOPPED_SESSION: StoppedSession = {
+const CEILING_STOPPED_SESSION: SessionSpend = {
 	providerCalls: [{ metrics: STOPPED_RUN_EVIDENCE.buildSessionMetrics }],
 	costUsd: 3,
 };
@@ -1252,7 +1252,7 @@ export class RecordedRunsFixture {
 	 * spend is written by passing null.
 	 */
 	public async writeSessionCeilingStoppedRun(
-		session: StoppedSession | null = CEILING_STOPPED_SESSION,
+		session: SessionSpend | null = CEILING_STOPPED_SESSION,
 	): Promise<void> {
 		await this.writeStoppedRunEvidence();
 		await Bun.write(
