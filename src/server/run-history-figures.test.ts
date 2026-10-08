@@ -520,6 +520,15 @@ describe("/api/runs", () => {
 				});
 			});
 
+			it("names no judge part for a stage the ceiling stopped before its Judge ran", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeSessionCeilingStoppedRun();
+
+				const row = await runRow(fixture, fixture.stoppedRun);
+
+				expect(row).toMatchObject({ cost: { missing: [] } });
+			});
+
 			it("carries the run's wall time as not recorded with its reason", async () => {
 				const fixture = await emptyFixture();
 				await fixture.writeStoppedRunEvidence();

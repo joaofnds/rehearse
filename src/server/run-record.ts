@@ -509,14 +509,18 @@ type Spender = "session" | "judge";
 
 /**
  * Who spent on a stage: its session, then its judge once the judge ran. A
- * stage that wrote no record spent only when the run ended or runs in it.
+ * stage that wrote no record spent only when the run ended or runs in it. A
+ * stop record without the Judge's input is a ceiling stop that came before
+ * the Judge, while one an operator stop wrote mid-judgment keeps the input.
  */
-function spenders(status: StageStatus, place: StagePlace): readonly Spender[] {
+function spenders({ file, place }: PlacedStage): readonly Spender[] {
+	const status = stageStatus(file);
 	if (status === "no-record") {
 		return place === "current" ? ["session"] : [];
 	}
 
-	if (status === "awaiting-judgment") {
+	const judgeNeverRan = status === "stopped" && file?.input === undefined;
+	if (status === "awaiting-judgment" || judgeNeverRan) {
 		return ["session"];
 	}
 
@@ -524,8 +528,8 @@ function spenders(status: StageStatus, place: StagePlace): readonly Spender[] {
 }
 
 function stageTokenParts(recorded: PlacedStage): readonly TokenPart[] {
-	const { stage, file, place } = recorded;
-	return spenders(stageStatus(file), place).map((spender) =>
+	const { stage, file } = recorded;
+	return spenders(recorded).map((spender) =>
 		spender === "session"
 			? callsPart(
 					`${stage} session`,
@@ -898,9 +902,9 @@ function costPart(
 
 function stageCostParts(
 	stage: RunRecordStage,
-	place: StagePlace,
+	recorded: PlacedStage,
 ): readonly (CostPart | MissingPart)[] {
-	return spenders(stage.status, place).map((spender) =>
+	return spenders(recorded).map((spender) =>
 		spender === "session"
 			? costPart(`${stage.stage} session`, stage.sessionCost)
 			: costPart(`${stage.stage} judge`, stage.judgeCost),
@@ -1263,7 +1267,7 @@ export async function readRunRecord(
 				artifactsIn(manifest.taskId, upstream, records),
 			);
 			records.push(record);
-			stageCost.push(...stageCostParts(record, stage.place));
+			stageCost.push(...stageCostParts(record, stage));
 		}
 
 		return {

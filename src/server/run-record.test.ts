@@ -474,7 +474,7 @@ describe("/api/runs/:run", () => {
 				});
 			});
 
-			it("sums a ceiling-stopped stage's session calls from its stop record", async () => {
+			it("sums a ceiling-stopped stage's session calls alone from its stop record", async () => {
 				const fixture = await emptyFixture();
 				await fixture.writeSessionCeilingStoppedRun();
 
@@ -489,6 +489,7 @@ describe("/api/runs/:run", () => {
 								state: "available",
 								input: buildSessionMetrics.inputTokens,
 								output: buildSessionMetrics.outputTokens,
+								missing: [],
 							},
 						},
 					],
