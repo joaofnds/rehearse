@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 const RECORDED_TIME =
 	/^(?<date>\d{4}-\d{2}-\d{2})T(?<hours>\d{2})(?<separator>[-:])(?<minutes>\d{2})\k<separator>(?<seconds>\d{2}(?:\.\d+)?)Z$/u;
 
@@ -13,11 +15,33 @@ export function recordedInstant(time: string): number | undefined {
 		return undefined;
 	}
 
-	const instant = Date.parse(
-		`${parts["date"]}T${parts["hours"]}:${parts["minutes"]}:${parts["seconds"]}Z`,
-	);
+	const named = `${parts["date"]}T${parts["hours"]}:${parts["minutes"]}:${parts["seconds"]}Z`;
+	const instant = Date.parse(named);
+	if (Number.isNaN(instant)) {
+		return undefined;
+	}
 
-	return Number.isNaN(instant) ? undefined : instant;
+	// Date.parse rolls a day or hour that does not exist into the next one.
+	const toTheSecond = named.slice(0, "2026-01-01T00:00:00".length);
+
+	return new Date(instant).toISOString().startsWith(toTheSecond)
+		? instant
+		: undefined;
+}
+
+/**
+ * The start time an attempt or group records: an ISO instant every reader
+ * can place, so a record never shows a time it is not ordered by.
+ */
+export const startedAtSchema = z.iso
+	.datetime()
+	.refine((time) => recordedInstant(time) !== undefined, {
+		message: "Expected an instant to the second",
+	});
+
+/** The start time a writer records for the wall-clock instant it read. */
+export function startTime(wallClock: () => number): string {
+	return new Date(wallClock()).toISOString();
 }
 
 interface Timed<T> {

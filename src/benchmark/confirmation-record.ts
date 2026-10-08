@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { startedAtSchema } from "./recorded-time";
 import { APPROVAL_METHODS, effortSchema, LEGACY_CASE_ID } from "./config";
 import { claudeCallMetricsSchema, stageLetterGradeSchema } from "./contracts";
 import { corpusMeasurementSchema } from "./corpus-measurement";
@@ -525,12 +526,8 @@ function refineSessionGroupRecord(
 	}
 }
 
-/**
- * When the group's reps started. A record written before groups recorded it
- * carries none, so reads take it as optional and writes require it.
- */
-const startedAtSchema = z.iso.datetime();
-
+// A record written before groups kept their start time carries none, so
+// reads take it as optional and the writable schemas require it.
 const legacyConfirmationGroupRecordSchema = z
 	.object({
 		...legacyConfirmationGroupRecordFields,
@@ -621,6 +618,14 @@ export type SessionConfirmationGroupRecord = z.infer<
 export type ParsedConfirmationGroupRecord = z.infer<
 	typeof parsedConfirmationGroupRecordSchema
 >;
+
+/**
+ * The start time a group file keeps, read without the rest of the record, for
+ * a reader that places a group's reps and has no use for its other fields.
+ */
+export const groupStartedAtSchema = z
+	.looseObject({ startedAt: startedAtSchema })
+	.transform(({ startedAt }) => startedAt);
 
 export function parseConfirmationGroupRecord(
 	text: string,

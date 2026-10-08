@@ -9,6 +9,7 @@ import {
 } from "#benchmark/contracts";
 import { jsonValueSchema } from "#benchmark/json-value";
 import { stageRubricSha256 } from "#benchmark/judge-agreement";
+import { groupStartedAtSchema } from "#benchmark/confirmation-record";
 import { oldestFirst } from "#benchmark/recorded-time";
 import type { GradedStageRef, OperatorGrade } from "#benchmark/operator-grade";
 import {
@@ -92,10 +93,6 @@ const manifestJudgeModelSchema = z
 const groupJudgeModelSchema = z
 	.looseObject({ inputs: z.looseObject({ judgeModel: z.string().min(1) }) })
 	.transform(({ inputs }) => inputs.judgeModel);
-
-const groupStartedAtSchema = z
-	.looseObject({ startedAt: z.iso.datetime() })
-	.transform(({ startedAt }) => startedAt);
 
 interface Criterion {
 	readonly id: string;

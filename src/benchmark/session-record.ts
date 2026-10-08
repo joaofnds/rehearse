@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { startedAtSchema } from "./recorded-time";
 import type { SessionCase } from "./case";
 import type { HashedFile } from "./checkpoint";
 import type { SessionSettings } from "./claude";
@@ -308,12 +309,8 @@ const executionFailedSessionAttemptRecordFields = {
 	elapsedMs: z.number().nonnegative(),
 };
 
-/**
- * When the attempt started. A record written before attempts recorded it
- * carries none, so reads take it as optional and writes require it.
- */
-const startedAtSchema = z.iso.datetime();
-
+// A record written before attempts kept their start time carries none, so
+// reads take it as optional and the writable members require it.
 export const executionFailedSessionAttemptRecordSchema = z
 	.object({
 		...executionFailedSessionAttemptRecordFields,

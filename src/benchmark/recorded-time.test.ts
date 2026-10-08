@@ -1,5 +1,11 @@
 import { describe, expect, it } from "bun:test";
-import { newestFirst, oldestFirst, recordedInstant } from "./recorded-time";
+import {
+	newestFirst,
+	oldestFirst,
+	recordedInstant,
+	startedAtSchema,
+	startTime,
+} from "./recorded-time";
 
 describe(recordedInstant.name, () => {
 	it.each([
@@ -16,12 +22,16 @@ describe(recordedInstant.name, () => {
 		expect(run).toBeGreaterThan(group);
 	});
 
-	it.each(["any-name-1", "2026-10-01", "2026-13-01T10-30-00.000Z"])(
-		"reads %p as no instant",
-		(time) => {
-			expect(recordedInstant(time)).toBeUndefined();
-		},
-	);
+	it.each([
+		"any-name-1",
+		"2026-10-01",
+		"2026-13-01T10-30-00.000Z",
+		"2026-02-30T10-30-00.000Z",
+		"2026-10-01T24:00:00.000Z",
+		"2026-10-01T10:30:60.000Z",
+	])("reads %p as no instant", (time) => {
+		expect(recordedInstant(time)).toBeUndefined();
+	});
 });
 
 describe(newestFirst.name, () => {
@@ -64,4 +74,19 @@ describe(oldestFirst.name, () => {
 			"unnamed",
 		]);
 	});
+});
+
+describe("the start time a record keeps", () => {
+	it("accepts the instant a writer records", () => {
+		const time = startTime(() => Date.UTC(2026, 9, 8, 10, 15));
+
+		expect(startedAtSchema.parse(time)).toBe("2026-10-08T10:15:00.000Z");
+	});
+
+	it.each(["2026-10-08T10:15Z", "2026-02-30T10:15:00.000Z", "not a time"])(
+		"refuses %p, which no reader could place",
+		(time) => {
+			expect(startedAtSchema.safeParse(time).success).toBeFalse();
+		},
+	);
 });
