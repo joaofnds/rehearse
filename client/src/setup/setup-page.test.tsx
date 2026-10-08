@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { SettingsReading } from "#client/launch/settings-query";
 import type { RunHistoryResponse } from "#client/run-history/run-history-query";
 import type { Reply } from "#client/test-support/fetch-stub";
@@ -122,6 +122,88 @@ describe("first-run setup", () => {
 		expect(
 			screen.queryByRole("heading", { name: "Settings" }),
 		).not.toBeInTheDocument();
+	});
+
+	describe("the spend limit", () => {
+		function limitInput(): HTMLElement {
+			return screen.getByRole("textbox", {
+				name: "Spend limit in US dollars",
+			});
+		}
+
+		function pressedPresets(): (string | null)[] {
+			return screen
+				.getAllByRole("button", { pressed: true })
+				.map((button) => button.textContent);
+		}
+
+		it("starts at $20.00 with that preset selected", async () => {
+			serveFreshInstall();
+
+			renderAppAt("/");
+			await setupSteps();
+
+			expect(limitInput()).toHaveValue("20.00");
+			expect(pressedPresets()).toEqual(["$20.00"]);
+		});
+
+		it("takes a preset's amount when the preset is chosen", async () => {
+			serveFreshInstall();
+			renderAppAt("/");
+			await setupSteps();
+
+			fireEvent.click(screen.getByRole("button", { name: "$5.00" }));
+
+			expect(limitInput()).toHaveValue("5.00");
+			expect(pressedPresets()).toEqual(["$5.00"]);
+		});
+
+		it("selects no preset for a typed amount none of them names", async () => {
+			serveFreshInstall();
+			renderAppAt("/");
+			await setupSteps();
+
+			fireEvent.change(limitInput(), { target: { value: "7.50" } });
+
+			expect(screen.queryAllByRole("button", { pressed: true })).toEqual([]);
+		});
+
+		it("stores nothing while the limit is chosen", async () => {
+			const server = serveFreshInstall();
+			renderAppAt("/");
+			await setupSteps();
+
+			fireEvent.click(screen.getByRole("button", { name: "$50.00" }));
+			fireEvent.change(limitInput(), { target: { value: "3" } });
+
+			expect(server.sent.filter(({ method }) => method !== "GET")).toEqual([]);
+		});
+	});
+
+	describe("the corpus step before a scan", () => {
+		it("reads Required while the limit is a positive amount", async () => {
+			serveFreshInstall();
+
+			renderAppAt("/");
+			const steps = await setupSteps();
+
+			expect(steps[1]).toHaveTextContent("Required");
+			expect(steps[1]).not.toHaveClass("opacity-55");
+		});
+
+		it("is dimmed, asking for a limit first, while the limit is not a positive amount", async () => {
+			serveFreshInstall();
+			renderAppAt("/");
+			const steps = await setupSteps();
+
+			fireEvent.change(
+				screen.getByRole("textbox", { name: "Spend limit in US dollars" }),
+				{ target: { value: "0" } },
+			);
+
+			expect(steps[1]).toHaveTextContent("Set a limit first");
+			expect(steps[1]).toHaveClass("opacity-55");
+		});
 	});
 
 	describe("when the install is not fresh", () => {
