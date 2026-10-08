@@ -1102,8 +1102,8 @@ export async function runGradedStages(
 						context.minimumStageGrade ?? DEFAULT_MINIMUM_STAGE_GRADE,
 					elapsedMs,
 					runElapsedMs: context.elapsedMs?.(),
-					productOwner: context.productOwner.snapshot(),
 				},
+				productOwner: context.productOwner.snapshot(),
 			});
 			const calibration = await context.calibrateStageFailure(stageScorecards);
 			if (calibration !== undefined) {

@@ -39,7 +39,7 @@ export interface PendingStage {
 	readonly scorecard?: StageScorecard | undefined;
 	readonly stopped?: StoppedStageReadings | undefined;
 	readonly ceilingStop?: CeilingStopReadings | undefined;
-	/** The Product Owner's spend up to a ceiling stop, which no other record holds. */
+	/** The Product Owner's spend up to a stop, which no other record holds. */
 	readonly productOwner?: ProductOwnerSnapshot | undefined;
 	readonly operatorStop?: OperatorStop | undefined;
 }
@@ -75,14 +75,13 @@ export interface StoppedSession {
 
 /**
  * What a stop record needs beyond the scorecard to be read without its run's
- * other files: the grade it fell below, the stage's and the run's elapsed time, and the
- * Product Owner's spend up to the stop, which no other record holds.
+ * other files: the grade it fell below and the stage's and the run's elapsed
+ * time.
  */
 export interface StoppedStageReadings {
 	readonly minimumGrade: StageLetterGrade;
 	readonly elapsedMs?: number | undefined;
 	readonly runElapsedMs?: number | undefined;
-	readonly productOwner: ProductOwnerSnapshot;
 }
 
 export const noopRunEventRecorder: RunEventRecorder = {
@@ -248,9 +247,7 @@ export async function writeStageJudgeFailure(
 				sessionBudgetUsd: pending.sessionBudgetUsd,
 				...findings,
 				...stopped,
-				...productOwnerReadings(
-					pending.stopped?.productOwner ?? pending.productOwner,
-				),
+				...productOwnerReadings(pending.productOwner),
 				...pending.failure,
 				ceilingStop: pending.ceilingStop,
 				operatorStop: pending.operatorStop,
