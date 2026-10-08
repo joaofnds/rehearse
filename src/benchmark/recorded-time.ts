@@ -20,6 +20,35 @@ export function recordedInstant(time: string): number | undefined {
 	return Number.isNaN(instant) ? undefined : instant;
 }
 
+interface Timed<T> {
+	readonly record: T;
+	readonly instant: number;
+}
+
+interface Partitioned<T> {
+	readonly timed: readonly Timed<T>[];
+	readonly untimed: readonly T[];
+}
+
+function partitioned<T>(
+	records: readonly T[],
+	timeOf: (record: T) => string | undefined,
+): Partitioned<T> {
+	const timed: Timed<T>[] = [];
+	const untimed: T[] = [];
+	for (const record of records) {
+		const time = timeOf(record);
+		const instant = time === undefined ? undefined : recordedInstant(time);
+		if (instant === undefined) {
+			untimed.push(record);
+		} else {
+			timed.push({ record, instant });
+		}
+	}
+
+	return { timed, untimed };
+}
+
 /**
  * Newest first where a record says when it ran, then every record that does
  * not, in the order given. Placing those by file time would claim an order
@@ -29,21 +58,26 @@ export function newestFirst<T>(
 	records: readonly T[],
 	timeOf: (record: T) => string | undefined,
 ): T[] {
-	const instantOf = (record: T): number | undefined => {
-		const time = timeOf(record);
-
-		return time === undefined ? undefined : recordedInstant(time);
-	};
-	const timed = records.flatMap((record) => {
-		const instant = instantOf(record);
-
-		return instant === undefined ? [] : [{ record, instant }];
-	});
-	const untimed = records.filter((record) => instantOf(record) === undefined);
+	const { timed, untimed } = partitioned(records, timeOf);
 
 	return [
 		...timed
 			.toSorted((left, right) => right.instant - left.instant)
+			.map(({ record }) => record),
+		...untimed,
+	];
+}
+
+/** Oldest first where a record says when it ran, then the rest as given. */
+export function oldestFirst<T>(
+	records: readonly T[],
+	timeOf: (record: T) => string | undefined,
+): T[] {
+	const { timed, untimed } = partitioned(records, timeOf);
+
+	return [
+		...timed
+			.toSorted((left, right) => left.instant - right.instant)
 			.map(({ record }) => record),
 		...untimed,
 	];

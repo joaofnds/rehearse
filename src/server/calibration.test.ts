@@ -677,6 +677,42 @@ describe("/api/calibration", () => {
 		});
 	});
 
+	it("places a rep stage among run stages by the start time its group recorded", async () => {
+		const runsDirectory = await recordsDirectory();
+		await writeJudgedStage(runsDirectory, {
+			run: FIRST_RUN,
+			dimensions: ["B", "B"],
+		});
+		await writeJudgedStage(runsDirectory, {
+			run: SECOND_RUN,
+			dimensions: ["B", "B"],
+		});
+		const group = confirmationGroupPaths(runsDirectory, "group-1");
+		await Bun.write(
+			group.groupFile,
+			JSON.stringify({
+				inputs: { judgeModel: "sonnet" },
+				startedAt: "2026-10-01T10:30:00.000Z",
+			}),
+		);
+		await Bun.write(
+			group.rep("rep-1").stageFile("shape"),
+			JSON.stringify({ stage: "shape", ...scorecard("shape", ["C", "C"]) }),
+		);
+		await postGrade(
+			runsDirectory,
+			`/api/calibration/runs/${FIRST_RUN}/stages/shape`,
+			JSON.stringify(operatorGrade(["B", "B"])),
+		);
+
+		const response = await appFor(runsDirectory).request("/api/calibration");
+
+		expect(await response.json()).toMatchObject({
+			ungraded: 2,
+			next: { kind: "rep", groupId: "group-1", repId: "rep-1", stage: "shape" },
+		});
+	});
+
 	it("leaves every record that existed byte-identical when a grade is recorded", async () => {
 		const runsDirectory = await recordsDirectory();
 		await writeJudgedStage(runsDirectory, {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { newestFirst, recordedInstant } from "./recorded-time";
+import { newestFirst, oldestFirst, recordedInstant } from "./recorded-time";
 
 describe(recordedInstant.name, () => {
 	it.each([
@@ -40,6 +40,26 @@ describe(newestFirst.name, () => {
 			"attempt",
 			"run",
 			"group",
+			"untimed-1",
+			"unnamed",
+		]);
+	});
+});
+
+describe(oldestFirst.name, () => {
+	it("orders records that say when they ran oldest first, then the rest as given", () => {
+		const records = [
+			{ id: "untimed-1", time: undefined },
+			{ id: "run", time: "2026-10-01T10-30-00.000Z" },
+			{ id: "unnamed", time: "any-name-1" },
+			{ id: "group", time: "2026-10-01T10:15:00.000Z" },
+		];
+
+		const ordered = oldestFirst(records, ({ time }) => time);
+
+		expect(ordered.map(({ id }) => id)).toEqual([
+			"group",
+			"run",
 			"untimed-1",
 			"unnamed",
 		]);

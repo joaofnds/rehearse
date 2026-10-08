@@ -9,6 +9,7 @@ import {
 } from "#benchmark/contracts";
 import { jsonValueSchema } from "#benchmark/json-value";
 import { stageRubricSha256 } from "#benchmark/judge-agreement";
+import { oldestFirst } from "#benchmark/recorded-time";
 import type { GradedStageRef, OperatorGrade } from "#benchmark/operator-grade";
 import {
 	driftSteps,
@@ -91,6 +92,10 @@ const manifestJudgeModelSchema = z
 const groupJudgeModelSchema = z
 	.looseObject({ inputs: z.looseObject({ judgeModel: z.string().min(1) }) })
 	.transform(({ inputs }) => inputs.judgeModel);
+
+const groupStartedAtSchema = z
+	.looseObject({ startedAt: z.iso.datetime() })
+	.transform(({ startedAt }) => startedAt);
 
 interface Criterion {
 	readonly id: string;
@@ -229,7 +234,7 @@ async function readGradeableStage(
 					(await readRecord(group.groupFile, groupJudgeModelSchema)),
 				ref,
 				stageName: ref.stage,
-				recordedTime: undefined,
+				recordedTime: await readRecord(group.groupFile, groupStartedAtSchema),
 			};
 		}
 		case "replay": {
@@ -283,27 +288,6 @@ async function stageRefs(
 	return refs;
 }
 
-/**
- * Oldest first where a record says when it ran, then the confirmation rep
- * stages in listing order, since their group records no time and a file time
- * would claim an order the records never held.
- */
-function oldestFirst(
-	stages: readonly GradeableStage[],
-): readonly GradeableStage[] {
-	const timed = stages.filter(({ recordedTime }) => recordedTime !== undefined);
-	const untimed = stages.filter(
-		({ recordedTime }) => recordedTime === undefined,
-	);
-
-	return [
-		...timed.toSorted((left, right) =>
-			(left.recordedTime ?? "").localeCompare(right.recordedTime ?? ""),
-		),
-		...untimed,
-	];
-}
-
 async function gradeableStages(
 	runsDirectory: string,
 ): Promise<readonly GradeableStage[]> {
@@ -315,7 +299,7 @@ async function gradeableStages(
 		}
 	}
 
-	return oldestFirst(stages);
+	return oldestFirst(stages, ({ recordedTime }) => recordedTime);
 }
 
 interface GradedStage {
