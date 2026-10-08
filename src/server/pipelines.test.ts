@@ -526,6 +526,42 @@ describe("/api/pipelines", () => {
 			]);
 		});
 
+		it("reads the task as a group that started after its newest run ran it", async () => {
+			const { list } = await serving(
+				[
+					{
+						timestamp: "2026-09-01T10:15:00.000Z",
+						caseId: "pipe-case",
+						pipelinePath: OVERRIDE_PIPELINE,
+						stages: ["discuss", "build"],
+						corpusDigest: OLDER_DIGEST,
+					},
+				],
+				[
+					{
+						groupId: "group-a",
+						caseId: "pipe-case",
+						pipelinePath: OVERRIDE_PIPELINE,
+						stages: ["build"],
+						reps: 2,
+						corpusDigest: NEWER_DIGEST,
+						startedAt: "2026-09-01T10:30:00.000Z",
+					},
+				],
+			);
+
+			const { pipelines } = await list();
+
+			expect(pipelines).toMatchObject([
+				{
+					path: OVERRIDE_PIPELINE,
+					stages: ["build"],
+					figures: { counted: 2, corpusVersion: NEWER_DIGEST, leftOut: 1 },
+				},
+				{ path: DECLARED_PIPELINE },
+			]);
+		});
+
 		it("reads a pipeline only groups ran as its newest group ran it, whatever their ids", async () => {
 			const { list } = await serving(
 				[],

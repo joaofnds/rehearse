@@ -290,20 +290,52 @@ function stageNames(pipeline: PipelineDefinition): readonly string[] {
 	return pipeline.stages.map(({ name }) => name);
 }
 
-/** The digest of each run, newest first, with a group's reps after the runs. */
+/**
+ * A run or a pipeline group as the task reads it: the steps it ran, the
+ * corpus version it ran at, and how many runs it counts as, one per rep.
+ */
+interface RanRecord {
+	readonly time: string | undefined;
+	readonly stages: readonly string[];
+	readonly runs: number;
+	readonly corpusVersion: CorpusMeasurement;
+}
+
+/**
+ * Every run and group of a task, newest first by the time each recorded, a
+ * run's being its name. Groups written before groups recorded a start time
+ * follow in id order.
+ */
+function newestRecords({ runs, groups }: Ran): readonly RanRecord[] {
+	return newestFirst(
+		[
+			...runs.map(({ name, manifest }) => ({
+				time: name,
+				stages: stageNames(manifest.pipeline),
+				runs: 1,
+				corpusVersion: manifest.corpusVersion,
+			})),
+			...groups.map(({ startedAt, stages, reps, corpusVersion }) => ({
+				time: startedAt,
+				stages,
+				runs: reps,
+				corpusVersion,
+			})),
+		],
+		({ time }) => time,
+	);
+}
+
+/** The digest each record counts once per run, newest record first. */
 function digestsOf(
-	runs: readonly RecordedRun[],
-	groups: readonly RecordedGroup[],
+	records: readonly RanRecord[],
 ): readonly (string | undefined)[] {
 	const digest = (measurement: CorpusMeasurement): string | undefined =>
 		measurement?.kind === "version" ? measurement.digest : undefined;
 
-	return [
-		...runs.map(({ manifest }) => digest(manifest.corpusVersion)),
-		...groups.flatMap(({ reps, corpusVersion }) =>
-			Array.from({ length: reps }, () => digest(corpusVersion)),
-		),
-	];
+	return records.flatMap(({ runs, corpusVersion }) =>
+		Array.from({ length: runs }, () => digest(corpusVersion)),
+	);
 }
 
 function figuresOf(digests: readonly (string | undefined)[]): PipelineFigures {
@@ -358,7 +390,7 @@ function listedPipeline(
 		cases: sortedCases,
 		targets: [...targets],
 		runs: runs.map(({ name }) => name),
-		figures: figuresOf(digestsOf(runs, groups)),
+		figures: figuresOf(digestsOf(newestRecords({ runs, groups }))),
 	};
 }
 
@@ -366,8 +398,8 @@ function listedPipeline(
  * Every pipeline a pipeline case declares as its default and every pipeline a
  * run manifest or pipeline confirmation group recorded, since a run may
  * override its case's default (doc-193 decision 1). A recorded pipeline reads
- * as its newest run ran it, else as its newest group declared it, so a file
- * changed or deleted since does not rewrite what ran.
+ * as its newest run or group ran it, so a file changed or deleted since does
+ * not rewrite what ran, and its steps come from the same record as its version.
  */
 export async function pipelineReport(
 	casesRoot: string,
@@ -409,11 +441,8 @@ export async function pipelineReport(
 			groups: groupsByPath.get(path) ?? [],
 		};
 		const declaration = declaredByPath.get(path);
-		const [newestRun] = ran.runs;
-		const [newestGroup] = ran.groups;
-		const recordedStages =
-			newestRun?.manifest.pipeline.stages.map(({ name }) => name) ??
-			newestGroup?.stages;
+		const [newest] = newestRecords(ran);
+		const recordedStages = newest?.stages;
 		if (recordedStages !== undefined) {
 			pipelines.push(
 				listedPipeline(
