@@ -97,6 +97,8 @@ export function claudeArgs(invocation: ClaudeInvocation): string[] {
 export class ClaudeSessionError extends Error {
 	public readonly terminalReason: string | undefined;
 	public readonly costUsd: number | undefined;
+	/** What the failed call reported, so its spend can be recorded as a call's. */
+	public readonly envelope: ClaudeEnvelope;
 
 	public constructor(
 		envelope: ClaudeEnvelope,
@@ -109,6 +111,7 @@ export class ClaudeSessionError extends Error {
 		this.name = "ClaudeSessionError";
 		this.terminalReason = envelope.terminal_reason;
 		this.costUsd = envelope.total_cost_usd;
+		this.envelope = envelope;
 	}
 }
 

@@ -996,6 +996,59 @@ describe("the spend ceiling", () => {
 			expect(spendCeiling.spentUsd()).toBeCloseTo(0.5782854);
 		});
 
+		it("keeps a halted worker turn's own spend among the session's calls", async () => {
+			const question = JSON.stringify({
+				type: "result",
+				session_id: "worker-session",
+				total_cost_usd: 0.203,
+				structured_output: { status: "QUESTION", message: "Which scope?" },
+			});
+			const halt = haltingCommand(await budgetHaltEnvelope());
+			let turn = 0;
+
+			const failure = await failureOf(
+				runWorkflowStage(
+					stageRequest(createSpendCeiling({ ceilingUsd: 1 })),
+					() => {
+						turn += 1;
+						return turn === 1
+							? Promise.resolve(question)
+							: runStreamedSession(halt, process.cwd());
+					},
+				),
+			);
+
+			expect(failure).toBeInstanceOf(WorkflowExecutionError);
+			expect(failure).toMatchObject({
+				providerCalls: [
+					{},
+					{
+						metrics: {
+							costUsd: 0.5782854 - 0.203,
+							outputTokens: 3105,
+						},
+					},
+				],
+				costUsd: 0.5782854,
+			});
+		});
+
+		it("counts a halted worker turn's tokens against the run", async () => {
+			const spendCeiling = createSpendCeiling({ ceilingUsd: 1 });
+			const halt = haltingCommand(await budgetHaltEnvelope());
+
+			await failureOf(
+				runWorkflowStage(stageRequest(spendCeiling), () =>
+					runStreamedSession(halt, process.cwd()),
+				),
+			);
+
+			expect(spendCeiling.tokens()).toEqual({
+				input: 10 + 200_701 + 7727,
+				output: 3105,
+			});
+		});
+
 		it("charges the ceiling a worker turn whose answer is not a turn", async () => {
 			const spendCeiling = createSpendCeiling({ ceilingUsd: 1 });
 

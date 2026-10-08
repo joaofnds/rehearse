@@ -942,6 +942,7 @@ describe(runPipelineConfirmation.name, () => {
 									new WorkflowExecutionError({
 										cause: new Error("worker invocation failed"),
 										providerCalls: [{ metrics: CONFIRMATION_METRIC }, {}],
+										costUsd: undefined,
 									}),
 								);
 							}

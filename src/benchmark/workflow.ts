@@ -85,16 +85,20 @@ function reasonOf(cause: unknown): string {
 
 export class WorkflowExecutionError extends Error {
 	public readonly providerCalls: readonly ProviderCall[];
+	/** The session's spend up to the failure, unknown when its last call reported none. */
+	public readonly costUsd: number | undefined;
 
 	public constructor(props: {
 		readonly cause: unknown;
 		readonly providerCalls: readonly ProviderCall[];
+		readonly costUsd: number | undefined;
 	}) {
 		super(`Worker execution failed: ${reasonOf(props.cause)}`, {
 			cause: props.cause,
 		});
 		this.name = "WorkflowExecutionError";
 		this.providerCalls = props.providerCalls;
+		this.costUsd = props.costUsd;
 	}
 }
 
@@ -240,6 +244,14 @@ export async function runWorkflowStage(
 	const providerCalls: ProviderCall[] = [];
 	let prompt = stagePrompt(skill, taskId);
 	const exchanges: StageTranscript["exchanges"][number][] = [];
+	const recordCall = (envelope: ClaudeEnvelope): void => {
+		providerCalls.push(providerCall(envelope, spentUsd));
+		spendCeiling.charge(
+			sessionSpendUsd(envelope, spentUsd) - spentUsd,
+			readClaudeCallMetrics(envelope),
+		);
+		spentUsd = sessionSpendUsd(envelope, spentUsd);
+	};
 
 	for (let turn = 0; turn < MAX_STAGE_TURNS; turn += 1) {
 		const budgetUsd = spendCeiling.budgetFor(
@@ -269,23 +281,24 @@ export async function runWorkflowStage(
 			);
 			envelope = readClaudeEnvelope(output);
 		} catch (error) {
-			spendCeiling.charge(
-				((error instanceof ClaudeSessionError ? error.costUsd : undefined) ??
-					spentUsd) - spentUsd,
-			);
+			if (!(error instanceof ClaudeSessionError)) {
+				throw new WorkflowExecutionError({
+					cause: error,
+					providerCalls: [...providerCalls, {}],
+					costUsd: undefined,
+				});
+			}
+
+			recordCall(error.envelope);
 			throw new WorkflowExecutionError({
 				cause: error,
-				providerCalls: [...providerCalls, {}],
+				providerCalls: [...providerCalls],
+				costUsd: error.costUsd === undefined ? undefined : spentUsd,
 			});
 		}
 
 		sessionId = envelope.session_id;
-		providerCalls.push(providerCall(envelope, spentUsd));
-		spendCeiling.charge(
-			sessionSpendUsd(envelope, spentUsd) - spentUsd,
-			readClaudeCallMetrics(envelope),
-		);
-		spentUsd = sessionSpendUsd(envelope, spentUsd);
+		recordCall(envelope);
 		let agent;
 		try {
 			agent = readStructuredOutput(envelope, stageTurnSchema);
@@ -293,6 +306,7 @@ export async function runWorkflowStage(
 			throw new WorkflowExecutionError({
 				cause: error,
 				providerCalls: [...providerCalls],
+				costUsd: spentUsd,
 			});
 		}
 
