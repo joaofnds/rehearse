@@ -90,7 +90,7 @@ import {
 	loadStageRubric,
 } from "./stage-grading";
 import type { ProductOwner, WorkflowStageRequest } from "./workflow";
-import { runWorkflowStage } from "./workflow";
+import { createProductOwner, runWorkflowStage } from "./workflow";
 
 const testResources = TestResources.forEachTest();
 
@@ -1476,6 +1476,56 @@ describe(runGradedStages.name, () => {
 				productOwnerCostUsd: 0.0115,
 				productOwnerProviderCalls: [{}],
 				ceilingStop: { ceilingUsd: 0.5, spentUsd: 0.5782854 },
+			});
+		});
+
+		it("keeps a Product Owner call the ceiling halted on the stop record", async () => {
+			const { dependencies } = fakeStageDependencies();
+			const { persistence, abort } = atCeiling();
+			const spendCeiling = createSpendCeiling({ ceilingUsd: 0.5 });
+			const context = {
+				...(await ceilingContext(abort)),
+				spendCeiling,
+				productOwner: createProductOwner(
+					{
+						directory: join(tmpdir(), "rehearse-halted-product-owner"),
+						model: "sonnet",
+						sessionBudgetUsd: 5,
+						spendCeiling,
+						task: "Add an audit log",
+						productBrief: "Operators audit changes",
+					},
+					() => budgetHaltEnvelope(),
+				),
+			};
+			const sessions = {
+				...dependencies,
+				runWorkflowStage: (request: WorkflowStageRequest) =>
+					runWorkflowStage(request, () =>
+						Promise.resolve(
+							JSON.stringify({
+								type: "result",
+								session_id: "worker-session",
+								total_cost_usd: 0.203,
+								structured_output: {
+									status: "QUESTION",
+									message: "Which scope?",
+								},
+							}),
+						),
+					),
+			};
+
+			const failure = await failureOf(runGradedStages(sessions, context));
+			await abort.markAborted(failure.message);
+
+			expect(
+				JSON.parse(persistence.files.get(context.stageFile("shape")) ?? ""),
+			).toMatchObject({
+				session: { providerCalls: [{}], costUsd: 0.203 },
+				productOwnerCostUsd: 0.5782854,
+				productOwnerProviderCalls: [{ metrics: { costUsd: 0.5782854 } }],
+				ceilingStop: { ceilingUsd: 0.5, spentUsd: 0.203 + 0.5782854 },
 			});
 		});
 
