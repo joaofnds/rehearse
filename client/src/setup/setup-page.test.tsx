@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { focusManager } from "@tanstack/react-query";
 import type { CorpusResponse } from "#client/corpus/corpus-query";
 import type { SettingsReading } from "#client/launch/settings-query";
 import type { RunHistoryResponse } from "#client/run-history/run-history-query";
 import type { Reply } from "#client/test-support/fetch-stub";
 import { FakeServer } from "#client/test-support/fetch-stub";
+import { LiveReply } from "#client/test-support/live-reply";
 import { renderAppAt, SHELL_BASELINE } from "#client/test-support/render-app";
 import {
 	UNREAD_RUN_FIGURES,
@@ -55,22 +57,24 @@ const ONE_RUN: RunHistoryResponse = {
 };
 
 /** The shell's reads answered as the baseline does, with `routes` over them. */
-function serve(routes: ReadonlyMap<string, Reply>): FakeServer {
+function serve(routes: ReadonlyMap<string, Reply | LiveReply>): FakeServer {
 	const baseline = [...SHELL_BASELINE].map(([path, body]): [string, Reply] => [
 		`GET ${path}`,
 		{ status: 200, body },
 	]);
-	const server = new FakeServer(new Map([...baseline, ...routes]));
+	const server = new FakeServer(
+		new Map<string, Reply | LiveReply>([...baseline, ...routes]),
+	);
 	server.install();
 
 	return server;
 }
 
 function serveFreshInstall(
-	routes: ReadonlyMap<string, Reply> = new Map(),
+	routes: ReadonlyMap<string, Reply | LiveReply> = new Map(),
 ): FakeServer {
 	return serve(
-		new Map<string, Reply>([
+		new Map<string, Reply | LiveReply>([
 			["GET /api/settings", { status: 200, body: settings(null) }],
 			...routes,
 		]),
@@ -381,6 +385,135 @@ describe("first-run setup", () => {
 				),
 			).toBeInTheDocument();
 			expect(steps[1]).toHaveTextContent("Required");
+		});
+	});
+
+	describe("Finish setup", () => {
+		const MISSING_HINT = "Set a limit, then scan a corpus directory.";
+
+		function finish(): HTMLElement {
+			return screen.getByRole("button", { name: "Finish setup" });
+		}
+
+		/** A server whose settings read answers what the ceiling write stored. */
+		function servingCeilingWrite(ceilingWrite: Reply): FakeServer {
+			let current: Reply = { status: 200, body: settings(null) };
+
+			return serveFreshInstall(
+				new Map<string, Reply | LiveReply>([
+					["GET /api/settings", new LiveReply(() => current)],
+					["PUT /api/setup/corpus", new LiveReply(() => current)],
+					["GET /api/corpus", { status: 200, body: SCANNED_CORPUS }],
+					[
+						"PUT /api/settings/spend-ceiling",
+						new LiveReply(() => {
+							if (ceilingWrite.status === 200) {
+								current = ceilingWrite;
+							}
+
+							return ceilingWrite;
+						}),
+					],
+				]),
+			);
+		}
+
+		it("is disabled, naming what is missing, until a scan is satisfied", async () => {
+			servingCeilingWrite({ status: 200, body: settings(5) });
+
+			renderAppAt("/");
+			await setupSteps();
+
+			expect(finish()).toBeDisabled();
+			expect(screen.getByText(MISSING_HINT)).toBeInTheDocument();
+		});
+
+		it("stays disabled after a scan while the limit is not a positive amount", async () => {
+			servingCeilingWrite({ status: 200, body: settings(5) });
+			renderAppAt("/");
+			await setupSteps();
+
+			scan();
+			await screen.findByText(/^Found 2 files/u);
+			fireEvent.change(
+				screen.getByRole("textbox", { name: "Spend limit in US dollars" }),
+				{ target: { value: "" } },
+			);
+
+			expect(finish()).toBeDisabled();
+			expect(screen.getByText(MISSING_HINT)).toBeInTheDocument();
+		});
+
+		it("stores the chosen limit and lands on run history's empty state", async () => {
+			const server = servingCeilingWrite({
+				status: 200,
+				body: settings(5),
+			});
+			const router = renderAppAt("/settings");
+			await setupSteps();
+			fireEvent.click(screen.getByRole("button", { name: "$5.00" }));
+			scan();
+			await screen.findByText(/^Found 2 files/u);
+
+			fireEvent.click(finish());
+
+			expect(await screen.findByText("No runs recorded")).toBeInTheDocument();
+			expect(screen.getByText(/^0 records on disk/u)).toBeInTheDocument();
+			expect(router.state.location.pathname).toBe("/");
+			expect(
+				server.sent
+					.filter(({ pathname }) => pathname === "/api/settings/spend-ceiling")
+					.map(({ method, body }) => [method, body]),
+			).toEqual([["PUT", JSON.stringify({ usd: 5 })]]);
+		});
+
+		it("shows the server's refusal of the limit and stays on setup", async () => {
+			servingCeilingWrite({
+				status: 409,
+				body: { error: "The settings file is unreadable" },
+			});
+			renderAppAt("/");
+			await setupSteps();
+			scan();
+			await screen.findByText(/^Found 2 files/u);
+
+			fireEvent.click(finish());
+
+			expect(await screen.findByRole("alert")).toHaveTextContent(
+				"The settings file is unreadable",
+			);
+			expect(
+				screen.getByRole("heading", { name: "Nothing is measured yet" }),
+			).toBeInTheDocument();
+		});
+
+		it("shows a refused settings read during setup and stays on setup", async () => {
+			let settingsReply: Reply = { status: 200, body: settings(null) };
+			serveFreshInstall(
+				new Map<string, Reply | LiveReply>([
+					["GET /api/settings", new LiveReply(() => settingsReply)],
+				]),
+			);
+			renderAppAt("/");
+			await setupSteps();
+
+			settingsReply = {
+				status: 409,
+				body: { error: "The settings file is unreadable" },
+			};
+			try {
+				focusManager.setFocused(false);
+				focusManager.setFocused(true);
+
+				expect(await screen.findByRole("alert")).toHaveTextContent(
+					"The settings file is unreadable",
+				);
+				expect(
+					screen.getByRole("heading", { name: "Nothing is measured yet" }),
+				).toBeInTheDocument();
+			} finally {
+				focusManager.setFocused(undefined);
+			}
 		});
 	});
 

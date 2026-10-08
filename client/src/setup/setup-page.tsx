@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import {
@@ -8,7 +9,10 @@ import {
 import type { CorpusResponse } from "#client/corpus/corpus-query";
 import { corpusQuery } from "#client/corpus/corpus-query";
 import { launchSettingsQuery } from "#client/launch/settings-query";
-import { enteredCeilingUsd } from "#client/launch/spend-ceiling-entry";
+import {
+	enteredCeilingUsd,
+	putSpendCeiling,
+} from "#client/launch/spend-ceiling-entry";
 import { plural } from "#client/plural";
 import { cn } from "#client/system/cn";
 import { FilterPill } from "#client/system/components/filter-pill";
@@ -19,6 +23,11 @@ const LIMIT_PRESETS = ["5.00", "20.00", "50.00"] as const;
 
 /** The prototype's opening amount, one of the presets. */
 const OPENING_LIMIT = "20.00";
+
+const MISSING_HINT = "Set a limit, then scan a corpus directory.";
+
+/** Worded so it claims nothing stored before Finish writes the limit. */
+const READY_HINT = "A corpus is linked. Finish setup records the spend limit.";
 
 type StepLook = "open" | "dimmed" | "locked";
 
@@ -241,7 +250,16 @@ export function SetupPage(): React.JSX.Element {
 			return queryClient.query({ ...corpusQuery, staleTime: 0 });
 		},
 	});
-	const limitSet = enteredCeilingUsd(limit) !== undefined;
+	const navigate = useNavigate();
+	const finish = useMutation({
+		mutationFn: putSpendCeiling,
+		onSuccess: async (reading) => {
+			await navigate({ to: "/" });
+			queryClient.setQueryData(launchSettingsQuery.queryKey, reading);
+		},
+	});
+	const usd = enteredCeilingUsd(limit);
+	const limitSet = usd !== undefined;
 	const linked = isSatisfied(scan.data);
 
 	return (
@@ -304,6 +322,34 @@ export function SetupPage(): React.JSX.Element {
 						</StepProse>
 					</SetupStep>
 				</ol>
+
+				<div className="mt-5 flex items-center gap-3">
+					<Button
+						disabled={usd === undefined || !linked || finish.isPending}
+						onClick={() => {
+							if (usd !== undefined) {
+								finish.mutate(usd);
+							}
+						}}
+					>
+						Finish setup
+					</Button>
+					<span className="text-11-5 text-dim">
+						{usd !== undefined && linked ? READY_HINT : MISSING_HINT}
+					</span>
+				</div>
+				{finish.isError ? (
+					<p role="alert" className="mt-2 text-12 text-secondary-foreground">
+						<span aria-hidden="true">⚠ </span>
+						{`The spend limit was not stored: ${finish.error.message}`}
+					</p>
+				) : null}
+				{settings.isError ? (
+					<p role="alert" className="mt-2 text-12 text-secondary-foreground">
+						<span aria-hidden="true">⚠ </span>
+						{`Could not read the stored settings: ${settings.error.message}`}
+					</p>
+				) : null}
 			</div>
 		</div>
 	);
