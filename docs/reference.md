@@ -266,10 +266,11 @@ counted run was judged. A session run is judged when its checks ran, it passes
 when they all pass (a rep whose metrics went missing takes the outcome its own
 attempt record kept), and a session
 case has no median, since its records hold no letter. The version is the first
-one recorded reading pipeline runs newest first, then session attempts, then
-finished groups in id order. Group ids are random, so the version need not be
-the newest for any case: a pipeline run outranks a later group, and a case only
-groups ran takes an arbitrary group's version. Declarations that do not parse
+one recorded reading the case's runs newest first, a pipeline run by its name
+and a session attempt or finished group by the start time it recorded.
+Attempts and groups written before they recorded one follow every timed run,
+attempts first and then groups in id order. Group ids are random, so a case
+only such groups ran takes an arbitrary group's version. Declarations that do not parse
 are named in `unreadable`, and run records that do not parse in
 `unreadableRecords`. An unreadable pipeline run or session attempt is left out
 of the figures, and an unreadable group rep is still counted, unjudged and

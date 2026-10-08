@@ -12,6 +12,7 @@ import {
 	sessionAttemptIds,
 	sessionAttemptPaths,
 } from "#benchmark/run-layout";
+import { newestFirst } from "#benchmark/recorded-time";
 import type { RunLiveness } from "#benchmark/run-liveness";
 import { parseSessionAttemptRecord } from "#benchmark/session-record";
 import type { SessionAttemptRecord } from "#benchmark/session-record";
@@ -45,6 +46,8 @@ interface Found {
 
 interface CaseRunOf {
 	readonly caseId: string;
+	/** The run's name, or the start time its attempt or group recorded. */
+	readonly time: string | undefined;
 	readonly run: CaseRun;
 	readonly minimumGrade?: RunRecord["minimumGrade"];
 }
@@ -62,7 +65,7 @@ function unreadableRecord({
 	return { id, reason: redactAbsolutePaths(reason) };
 }
 
-function pipelineRun(record: RunRecord): CaseRunOf {
+function pipelineRun(name: string, record: RunRecord): CaseRunOf {
 	const {
 		finalOutcome,
 		totals: { cost },
@@ -70,6 +73,7 @@ function pipelineRun(record: RunRecord): CaseRunOf {
 
 	return {
 		caseId: record.caseId,
+		time: name,
 		run: {
 			corpusDigest: digestOf(record.identity.corpusVersion),
 			passed:
@@ -158,7 +162,7 @@ async function pipelineRuns(
 
 		try {
 			found.push(
-				pipelineRun(await readRunRecord(runsDirectory, name, liveness)),
+				pipelineRun(name, await readRunRecord(runsDirectory, name, liveness)),
 			);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
@@ -181,9 +185,11 @@ async function sessionAttempts(runsDirectory: string): Promise<Found> {
 		}
 
 		try {
+			const record = parseSessionAttemptRecord(await file.text());
 			found.push({
 				caseId: attempt.caseId,
-				run: sessionAttemptRun(parseSessionAttemptRecord(await file.text())),
+				time: "startedAt" in record ? record.startedAt : undefined,
+				run: sessionAttemptRun(record),
 			});
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
@@ -232,8 +238,8 @@ async function readRep(
 }
 
 /**
- * Pipeline and session groups' reps, each a run, in group id order since
- * group records carry no time. A rep that recorded nothing readable still
+ * Pipeline and session groups' reps, each a run at its group's start time,
+ * in group id order. A rep that recorded nothing readable still
  * counts, unjudged and uncosted, and a rep record that cannot be parsed is
  * reported besides. Stage-mode groups rerun one stage, not a case, so they
  * are left out.
@@ -272,6 +278,7 @@ async function groupReps(runsDirectory: string): Promise<Found> {
 
 				found.push({
 					caseId: record.caseId,
+					time: record.startedAt,
 					run:
 						reading.state === "read"
 							? reading.run
@@ -288,9 +295,11 @@ async function groupReps(runsDirectory: string): Promise<Found> {
 }
 
 /**
- * Every recorded run of every case, the runs a case's figures count:
- * pipeline runs newest first, then session attempts, then group reps.
- * Stage replays rerun one stage of a run, not a case, so none is read.
+ * Every recorded run of every case, the runs a case's figures count, newest
+ * first by its name or the start time its attempt or group recorded. Records
+ * written before attempts and groups recorded one follow, session attempts
+ * before group reps. Stage replays rerun one stage of a run, not a case, so
+ * none is read.
  */
 export async function readCaseRuns(
 	runsDirectory: string,
@@ -301,7 +310,10 @@ export async function readCaseRuns(
 		await sessionAttempts(runsDirectory),
 		await groupReps(runsDirectory),
 	];
-	const runs = readings.flatMap(({ found }) => found);
+	const runs = newestFirst(
+		readings.flatMap(({ found }) => found),
+		({ time }) => time,
+	);
 
 	const cases = new Map<string, RecordedCase>();
 	for (const [id, ofCase] of Map.groupBy(runs, ({ caseId }) => caseId)) {

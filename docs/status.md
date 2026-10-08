@@ -255,11 +255,11 @@ cost. A case nothing ran, or whose every run record is unreadable, reads No
 runs yet. A pipeline case also shows the minimum grade its newest pipeline run
 recorded, which reads not recorded for a case only confirmation groups ran,
 since groups record none, even when a group ran after that pipeline run. The
-version counted is the first recorded reading pipeline runs newest first, then
-session attempts, then groups in id order. Group ids are random and groups
-record no time, so the version need not be the newest for any case: a pipeline
-run outranks a later group, and a case only groups ran takes an arbitrary
-group's version. A group counts once it finishes, and a pipeline run counts as
+version counted is the first recorded reading the case's runs newest first, a
+pipeline run by its name and a session attempt or group by the start time it
+recorded. Attempts and groups written before they recorded one follow every
+timed run, attempts first and then groups in id order. Group ids are random,
+so a case only such groups ran takes an arbitrary group's version. A group counts once it finishes, and a pipeline run counts as
 soon as its manifest is written, unjudged while it runs. A run record that does
 not parse is named in a notice: an unreadable pipeline run or session attempt
 is left out, and an unreadable group rep is still counted, unjudged and

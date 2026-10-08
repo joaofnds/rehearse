@@ -40,7 +40,7 @@ afterEach(async () => {
 
 async function mergeJson(
 	file: string,
-	changes: Immutable<{ corpusVersion: unknown }>,
+	changes: Immutable<{ corpusVersion?: unknown; startedAt?: string }>,
 ): Promise<void> {
 	const record = z
 		.object({})
@@ -111,6 +111,72 @@ describe("readCaseRuns", () => {
 		expect(
 			cases.get(CASE_ID)?.runs.map(({ corpusDigest }) => corpusDigest),
 		).toEqual([runDigest, groupDigest, groupDigest]);
+	});
+
+	it("places a group that recorded its start time among the case's runs by it", async () => {
+		const runDigest = "a".repeat(64);
+		const groupDigest = "b".repeat(64);
+		await fixture.writeFinishedRunEvidence(OLDER_RUN);
+		await mergeJson(benchmarkRunPaths(root, OLDER_RUN).manifestFile, {
+			corpusVersion: { kind: "version", digest: runDigest },
+		});
+		await fixture.writePipelineGroup("group-p", [PASS, PASS]);
+		const { groupFile } = confirmationGroupPaths(root, "group-p");
+		const group = confirmationGroupRecordSchema.parse(
+			JSON.parse(await Bun.file(groupFile).text()),
+		);
+		await Bun.write(
+			groupFile,
+			JSON.stringify({
+				...group,
+				inputs: {
+					...group.inputs,
+					corpusVersion: { kind: "version", digest: groupDigest },
+				},
+				startedAt: "2026-09-02T00:30:00.000Z",
+			}),
+		);
+
+		const { cases } = await readCaseRuns(root, nothingRunning);
+
+		expect(
+			cases.get(CASE_ID)?.runs.map(({ corpusDigest }) => corpusDigest),
+		).toEqual([groupDigest, groupDigest, runDigest]);
+	});
+
+	it("places a session group that recorded its start time before an older attempt", async () => {
+		const attemptDigest = "d".repeat(64);
+		const attemptFile = await fixture.writeAttemptAt(
+			"0f6b6f2a-0000-4000-8000-00000000000a",
+			join(import.meta.dir, "..", ".."),
+			SESSION_CASE,
+			[],
+			{ kind: "version", digest: attemptDigest },
+		);
+		const attempt = parseSessionAttemptRecord(
+			await Bun.file(attemptFile).text(),
+		);
+		await Bun.write(
+			attemptFile,
+			JSON.stringify({
+				...attempt,
+				schemaVersion: 3,
+				startedAt: "2026-09-02T00:15:00.000Z",
+			}),
+		);
+		await fixture.writeSessionGroup("group-s");
+		await mergeJson(confirmationGroupPaths(root, "group-s").groupFile, {
+			startedAt: "2026-09-02T00:30:00.000Z",
+		});
+
+		const { cases } = await readCaseRuns(root, nothingRunning);
+
+		expect(
+			cases
+				.get(SESSION_CASE)
+				?.runs.map(({ corpusDigest }) => corpusDigest)
+				.at(-1),
+		).toBe(attemptDigest);
 	});
 
 	it("counts each rep of a pipeline group after the case's runs", async () => {
