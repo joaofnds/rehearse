@@ -27,9 +27,10 @@ async function fetchRunHistoryReport(): Promise<RunHistoryResponse> {
 }
 
 /**
- * The run-history query, shared by the screen and the nav badge that counts
- * its rows, so the badge reads the same cache entry as the list it links to
- * (SPEC.md:78).
+ * The run-history query with every record's staleness judged, for the screens
+ * that show it. The nav badge counts `runListingQuery`'s rows instead, which
+ * are the same records, so it agrees with the list it links to (SPEC.md:78)
+ * once both readings settle.
  */
 export const runHistoryQuery = {
 	queryKey: ["run-history"],
