@@ -714,6 +714,40 @@ describe(createRunAbort.name, () => {
 		]);
 	});
 
+	it("reports the session spend a ceiling stop holds on its run-failed event", async () => {
+		const runEvents = fakeRunEventRecorder();
+		const abort = createRunAbort(
+			{
+				killActiveCommands: () => Promise.resolve(),
+				registerSignal: () => undefined,
+				releaseSignal: () => undefined,
+				exit: () => undefined,
+				reportError: () => undefined,
+				persistence: new ControlledRunArtifactPersistence(),
+				runEvents,
+			},
+			{
+				artifactFile: "/runs/run.json",
+				operatorStopFile: "/runs/operator-stop.json",
+				teardown: () => Promise.resolve(),
+			},
+		);
+		abort.stopAtCeiling({
+			file: "/runs/build.json",
+			stage: "build",
+			ceilingUsd: 4.5,
+			spentUsd: 4.5,
+			session: { providerCalls: [{}], costUsd: 2.3 },
+			productOwner: { sessionId: "po", spentUsd: 0, providerCalls: [] },
+		});
+
+		await abort.markAborted("Reached maximum budget");
+
+		expect(runEvents.events).toMatchObject([
+			{ kind: "run-failed", stage: "build", spentUsd: 2.3 },
+		]);
+	});
+
 	it("records a terminal run-failed event when an abort fails a pending run artifact", async () => {
 		const persistence = new ControlledRunArtifactPersistence();
 		const runEvents = fakeRunEventRecorder();

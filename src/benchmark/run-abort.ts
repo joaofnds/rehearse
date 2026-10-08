@@ -553,7 +553,9 @@ export function createRunAbort(
 							"run-failed",
 							stageToFail?.stage ?? unjudgedCeilingStop?.stage ?? "",
 							artifactToFail === undefined
-								? (stageToFail?.input.transcript.costUsd ?? 0)
+								? (stageToFail?.input.transcript.costUsd ??
+										unjudgedCeilingStop?.session?.costUsd ??
+										0)
 								: totalSpentUsd(artifactToFail),
 							elapsedMs(),
 						);
