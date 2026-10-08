@@ -1061,6 +1061,23 @@ describe("the spend ceiling", () => {
 			});
 		});
 
+		it("keeps a halted Product Owner call in its snapshot", async () => {
+			const halt = haltingCommand(await budgetHaltEnvelope());
+			const productOwner = productOwnerFor(
+				createSpendCeiling({ ceilingUsd: 1 }),
+				() => runJsonSession(halt, process.cwd()),
+			);
+
+			await failureOf(productOwner.ask("shape", "Which scope?"));
+
+			expect(productOwner.snapshot()).toMatchObject({
+				spentUsd: 0.5782854,
+				providerCalls: [
+					{ metrics: { costUsd: 0.5782854, outputTokens: 3105 } },
+				],
+			});
+		});
+
 		it("carries the session's calls out of a halted Product Owner call", async () => {
 			const spendCeiling = createSpendCeiling({ ceilingUsd: 1 });
 			const productOwner = productOwnerFor(spendCeiling, () =>

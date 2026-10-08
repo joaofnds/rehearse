@@ -114,6 +114,32 @@ function providerCall(
 	};
 }
 
+/** The calls one provider session made and the spend they add up to. */
+interface SessionCalls {
+	readonly spentUsd: () => number;
+	readonly providerCalls: () => ProviderCall[];
+	/** Records a call the provider reported, charging the ceiling what it added. */
+	readonly record: (envelope: ClaudeEnvelope) => void;
+}
+
+function sessionCalls(spendCeiling: SpendCeiling): SessionCalls {
+	let spentUsd = 0;
+	const providerCalls: ProviderCall[] = [];
+
+	return {
+		spentUsd: () => spentUsd,
+		providerCalls: () => [...providerCalls],
+		record: (envelope) => {
+			providerCalls.push(providerCall(envelope, spentUsd));
+			spendCeiling.charge(
+				sessionSpendUsd(envelope, spentUsd) - spentUsd,
+				readClaudeCallMetrics(envelope),
+			);
+			spentUsd = sessionSpendUsd(envelope, spentUsd);
+		},
+	};
+}
+
 function remainingBudget(limitUsd: number, spentUsd: number): number {
 	const remaining = limitUsd - spentUsd;
 	if (remaining <= 0) {
@@ -144,8 +170,7 @@ export function createProductOwner(
 	runClaude: ClaudeCommand = runJsonSession,
 ): ProductOwner {
 	let sessionId: string = randomUUID();
-	let spentUsd = 0;
-	const providerCalls: ProviderCall[] = [];
+	const calls = sessionCalls(configuration.spendCeiling);
 	let started = false;
 
 	return {
@@ -154,7 +179,7 @@ export function createProductOwner(
 				? `The ${stage} session asks:\n\n${question}`
 				: `Feature request:\n\n${configuration.task}\n\nProduct brief:\n\n${configuration.productBrief}\n\nThe ${stage} session asks:\n\n${question}`;
 			const budgetUsd = configuration.spendCeiling.budgetFor(
-				remainingBudget(configuration.sessionBudgetUsd, spentUsd),
+				remainingBudget(configuration.sessionBudgetUsd, calls.spentUsd()),
 			);
 			await mkdir(configuration.directory, { recursive: true });
 
@@ -181,28 +206,22 @@ export function createProductOwner(
 				);
 				envelope = readClaudeEnvelope(output);
 			} catch (error) {
-				configuration.spendCeiling.charge(
-					((error instanceof ClaudeSessionError ? error.costUsd : undefined) ??
-						spentUsd) - spentUsd,
-				);
+				if (error instanceof ClaudeSessionError) {
+					calls.record(error.envelope);
+				}
 				throw error;
 			}
 
 			sessionId = envelope.session_id;
-			providerCalls.push(providerCall(envelope, spentUsd));
-			configuration.spendCeiling.charge(
-				sessionSpendUsd(envelope, spentUsd) - spentUsd,
-				readClaudeCallMetrics(envelope),
-			);
-			spentUsd = sessionSpendUsd(envelope, spentUsd);
+			calls.record(envelope);
 			started = true;
 
 			return readStructuredOutput(envelope, productAnswerSchema).answer;
 		},
 		snapshot: () => ({
 			sessionId,
-			spentUsd,
-			providerCalls: [...providerCalls],
+			spentUsd: calls.spentUsd(),
+			providerCalls: calls.providerCalls(),
 		}),
 	};
 }
@@ -227,23 +246,14 @@ export async function runWorkflowStage(
 		elapsedMs = () => 0,
 	} = request;
 	let { sessionId } = request;
-	let spentUsd = 0;
-	const providerCalls: ProviderCall[] = [];
+	const calls = sessionCalls(spendCeiling);
 	let prompt = stagePrompt(skill, taskId);
 	const exchanges: StageTranscript["exchanges"][number][] = [];
-	const recordCall = (envelope: ClaudeEnvelope): void => {
-		providerCalls.push(providerCall(envelope, spentUsd));
-		spendCeiling.charge(
-			sessionSpendUsd(envelope, spentUsd) - spentUsd,
-			readClaudeCallMetrics(envelope),
-		);
-		spentUsd = sessionSpendUsd(envelope, spentUsd);
-	};
 
 	try {
 		for (let turn = 0; turn < MAX_STAGE_TURNS; turn += 1) {
 			const budgetUsd = spendCeiling.budgetFor(
-				remainingBudget(sessionBudgetUsd, spentUsd),
+				remainingBudget(sessionBudgetUsd, calls.spentUsd()),
 			);
 			let envelope;
 			try {
@@ -272,61 +282,69 @@ export async function runWorkflowStage(
 				if (!(error instanceof ClaudeSessionError)) {
 					throw new WorkflowExecutionError({
 						cause: error,
-						providerCalls: [...providerCalls, {}],
+						providerCalls: [...calls.providerCalls(), {}],
 						costUsd: undefined,
 					});
 				}
 
-				recordCall(error.envelope);
+				calls.record(error.envelope);
 				throw new WorkflowExecutionError({
 					cause: error,
-					providerCalls: [...providerCalls],
-					costUsd: error.costUsd === undefined ? undefined : spentUsd,
+					providerCalls: calls.providerCalls(),
+					costUsd: error.costUsd === undefined ? undefined : calls.spentUsd(),
 				});
 			}
 
 			sessionId = envelope.session_id;
-			recordCall(envelope);
+			calls.record(envelope);
 			let agent;
 			try {
 				agent = readStructuredOutput(envelope, stageTurnSchema);
 			} catch (error) {
 				throw new WorkflowExecutionError({
 					cause: error,
-					providerCalls: [...providerCalls],
-					costUsd: spentUsd,
+					providerCalls: calls.providerCalls(),
+					costUsd: calls.spentUsd(),
 				});
 			}
 
 			if (agent.status === "COMPLETE") {
 				exchanges.push({ agent });
-				runEvents?.record("turn-completed", stage, spentUsd, elapsedMs());
+				runEvents?.record(
+					"turn-completed",
+					stage,
+					calls.spentUsd(),
+					elapsedMs(),
+				);
 
 				return {
 					stage,
 					sessionId,
-					costUsd: spentUsd,
-					providerCalls,
+					costUsd: calls.spentUsd(),
+					providerCalls: calls.providerCalls(),
 					exchanges,
 				};
 			}
 
 			const productOwnerAnswer = await productOwner.ask(stage, agent.message);
 			exchanges.push({ agent, productOwnerAnswer });
-			runEvents?.record("turn-completed", stage, spentUsd, elapsedMs());
+			runEvents?.record("turn-completed", stage, calls.spentUsd(), elapsedMs());
 			prompt = continueStagePrompt(skill, productOwnerAnswer);
 		}
 
 		throw new Error(`${stage} exceeded ${MAX_STAGE_TURNS} turns`);
 	} catch (error) {
-		if (error instanceof StageSessionError || providerCalls.length === 0) {
+		if (
+			error instanceof StageSessionError ||
+			calls.providerCalls().length === 0
+		) {
 			throw error;
 		}
 
 		throw new StageSessionError({
 			cause: error,
-			providerCalls: [...providerCalls],
-			costUsd: spentUsd,
+			providerCalls: calls.providerCalls(),
+			costUsd: calls.spentUsd(),
 		});
 	}
 }
