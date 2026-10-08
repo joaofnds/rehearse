@@ -28,12 +28,14 @@ import {
 	AWAITING_JUDGMENT_REASON,
 	INTERRUPTED_REASON,
 	MINIMUM_GRADE_REASON,
+	MISSING_STAGE_RECORD_REASON,
 	PRODUCT_OWNER_COST_REASON,
 	PRODUCT_OWNER_TOKENS_REASON,
 	RUN_FAILED_REASON,
 	RUN_WALL_TIME_REASON,
 	STOPPED_GRADE_REASON,
 	UNEXPLAINED_END_REASON,
+	UNREACHED_STAGE_REASON,
 	UNRECORDED_STAGE_REASON,
 	WALL_TIME_REASON,
 } from "./run-record";
@@ -921,6 +923,65 @@ describe("/api/runs/:run", () => {
 		});
 
 		describe("figures the records do not hold", () => {
+			it("names the stage a run is running in as having written no record yet", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeRunningRun("turn-completed", "discuss");
+
+				const response = await runRecord(fixture, fixture.runningRun, liveRun);
+
+				expect(await response.json()).toMatchObject({
+					stages: [
+						{
+							stage: "discuss",
+							sessionCost: { reasons: [UNRECORDED_STAGE_REASON] },
+							blockers: { reasons: [UNRECORDED_STAGE_REASON] },
+						},
+						{ stage: "build" },
+					],
+				});
+			});
+
+			it("names a stage after the one a run is in as not reached", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeRunningRun("turn-completed", "discuss");
+
+				const response = await runRecord(fixture, fixture.runningRun, liveRun);
+
+				expect(await response.json()).toMatchObject({
+					stages: [
+						{ stage: "discuss" },
+						{
+							stage: "build",
+							sessionCost: { reasons: [UNREACHED_STAGE_REASON] },
+							judgeCost: { reasons: [UNREACHED_STAGE_REASON] },
+							wallTime: { reasons: [UNREACHED_STAGE_REASON] },
+							blockers: { reasons: [UNREACHED_STAGE_REASON] },
+						},
+					],
+				});
+			});
+
+			it("names a stage before the one a run ended in as missing its record", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeInterruptedRun();
+
+				const response = await runRecord(fixture, fixture.interruptedRun);
+
+				expect(await response.json()).toMatchObject({
+					stages: [
+						{
+							stage: "discuss",
+							sessionCost: { reasons: [MISSING_STAGE_RECORD_REASON] },
+							blockers: { reasons: [MISSING_STAGE_RECORD_REASON] },
+						},
+						{
+							stage: "build",
+							sessionCost: { reasons: [UNRECORDED_STAGE_REASON] },
+						},
+					],
+				});
+			});
+
 			it("reports wall time as not recorded for each stage and for the run", async () => {
 				const fixture = await emptyFixture();
 				await fixture.writeStoppedRunEvidence();

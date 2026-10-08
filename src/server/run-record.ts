@@ -71,6 +71,8 @@ export const RUN_WALL_TIME_REASON =
 	"neither a main artifact nor a stop record holds the run's elapsed time, as the run wrote neither, they predate it, or the run stopped before a stage's judge returned a grade";
 export const UNRECORDED_STAGE_REASON =
 	"the stage has written no record, and the run ended or is running in it";
+export const UNREACHED_STAGE_REASON = "the run has not reached the stage";
+export const MISSING_STAGE_RECORD_REASON = "the stage has written no record";
 export const MINIMUM_GRADE_REASON =
 	"the run manifest predates the minimum grade";
 export const PRODUCT_OWNER_TOKENS_REASON =
@@ -315,9 +317,13 @@ interface RecordedStage {
 	readonly checkpoint: CheckpointRecord | undefined;
 }
 
-/** A recorded stage, and whether the run ended in it or is running in it. */
+/**
+ * A recorded stage, whether the run ended in it or is running in it, and why
+ * its figures are missing when it wrote no record.
+ */
 interface ReachedStage extends RecordedStage {
 	readonly reached: boolean;
+	readonly unrecordedReason: string;
 }
 
 /** A run's checkpoints, the initial one included, by lineage. */
@@ -451,8 +457,24 @@ function callsPart(
 }
 
 /** Why a stage's figure is missing: its record lacks it, or it wrote none. */
-function unrecordedOr(file: StageFile | undefined, reason: string): string {
-	return file === undefined ? UNRECORDED_STAGE_REASON : reason;
+function unrecordedOr(
+	{ file, unrecordedReason }: ReachedStage,
+	reason: string,
+): string {
+	return file === undefined ? unrecordedReason : reason;
+}
+
+/** Why a stage wrote no record, from its place against the stage the run is in. */
+function unrecordedReasonAt(index: number, reachedIndex: number): string {
+	if (index === reachedIndex) {
+		return UNRECORDED_STAGE_REASON;
+	}
+
+	if (reachedIndex !== -1 && index > reachedIndex) {
+		return UNREACHED_STAGE_REASON;
+	}
+
+	return MISSING_STAGE_RECORD_REASON;
 }
 
 type Spender = "session" | "judge";
@@ -473,22 +495,20 @@ function spenders(status: StageStatus, reached: boolean): readonly Spender[] {
 	return ["session", "judge"];
 }
 
-function stageTokenParts({
-	stage,
-	file,
-	reached,
-}: ReachedStage): readonly TokenPart[] {
+function stageTokenParts(recorded: ReachedStage): readonly TokenPart[] {
+	const { stage, file, reached } = recorded;
+
 	return spenders(stageStatus(file), reached).map((spender) =>
 		spender === "session"
 			? callsPart(
 					`${stage} session`,
 					file?.input?.transcript?.providerCalls,
-					unrecordedOr(file, "the stage record holds no session calls"),
+					unrecordedOr(recorded, "the stage record holds no session calls"),
 				)
 			: callsPart(
 					`${stage} judge`,
 					file?.attempts,
-					unrecordedOr(file, "the stage record holds no judge attempts"),
+					unrecordedOr(recorded, "the stage record holds no judge attempts"),
 				),
 	);
 }
@@ -622,12 +642,17 @@ function recordedHardBlockers(
 	return file?.grade?.hardBlockers ?? file?.hardBlockers;
 }
 
-function blockersOf(file: StageFile | undefined): RunRecordStage["blockers"] {
-	const hardBlockers = recordedHardBlockers(file);
+function blockersOf(recorded: ReachedStage): RunRecordStage["blockers"] {
+	const hardBlockers = recordedHardBlockers(recorded.file);
 	if (hardBlockers === undefined) {
 		return {
 			state: "unavailable",
-			reasons: ["the stage record holds no graded hard blockers"],
+			reasons: [
+				unrecordedOr(
+					recorded,
+					"the stage record holds no graded hard blockers",
+				),
+			],
 		};
 	}
 
@@ -714,20 +739,20 @@ function stageRecord(
 						verdict: file.grade.verdict,
 						reachesMinimum: reachesMinimum(file.grade, minimumGrade),
 					},
-		blockers: blockersOf(file),
+		blockers: blockersOf(recorded),
 		wallTime: wallTime(
 			file?.elapsedMs,
 			stageStatus(file) === "awaiting-judgment"
 				? AWAITING_GRADE_REASON
-				: unrecordedOr(file, WALL_TIME_REASON),
+				: unrecordedOr(recorded, WALL_TIME_REASON),
 		),
 		sessionCost: usd(
 			file?.input?.transcript?.costUsd,
-			unrecordedOr(file, "the stage record holds no session cost"),
+			unrecordedOr(recorded, "the stage record holds no session cost"),
 		),
 		judgeCost: usd(
 			file?.costUsd,
-			unrecordedOr(file, "the stage record holds no judge cost"),
+			unrecordedOr(recorded, "the stage record holds no judge cost"),
 		),
 		tokens: tokenReading(stageTokenParts(recorded)),
 		checkpoint: checkpoint === undefined ? "missing" : "recorded",
@@ -1166,13 +1191,18 @@ export async function readRunRecord(
 			outcome.status === "NOT_REACHED" || outcome.status === "PENDING"
 				? outcome.stage
 				: undefined;
-		const reached = stages.map(({ stage, file, checkpoint }): ReachedStage => ({
-			stage,
-			file,
-			checkpoint,
-			reached: stage === reachedStage,
-		}));
 		const names = stages.map(({ stage }) => stage);
+		const reachedIndex =
+			reachedStage === undefined ? -1 : names.indexOf(reachedStage);
+		const reached = stages.map(
+			({ stage, file, checkpoint }, index): ReachedStage => ({
+				stage,
+				file,
+				checkpoint,
+				reached: index === reachedIndex,
+				unrecordedReason: unrecordedReasonAt(index, reachedIndex),
+			}),
+		);
 		const target = basename(manifest.sourceRoot);
 		const initialShortId = stageCheckpointShortId(shortId, names, {
 			stage: INITIAL_CHECKPOINT_STAGE,

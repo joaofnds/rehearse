@@ -1638,7 +1638,9 @@ whose judge returned no grade. A stopped stage serves the letter it fell to
 and the judge's verdict, which the judge sets against a fixed B while the stop
 follows the run's minimum grade, both unavailable in a stop record that predates the letter or
 whose judge returned none, and an awaiting stage's grade is unavailable until
-its judge returns.
+its judge returns. A stage that wrote no record says why in each figure's
+reason: the run ended or is running in it, the run has not reached it, or it
+comes before the stage the run ended in and its record is missing.
 
 A sum over several parts, a stage's or the run's tokens and the run's cost,
 lists the parts it lacks under `missing` with a reason for each. A part is
