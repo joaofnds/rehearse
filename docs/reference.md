@@ -158,19 +158,21 @@ Every such record carries `productOwnerCostUsd` and
 stage Judge's stopped record keeps the attempts it paid for before the stop,
 and `judgeProviderCalls`, every call the Judge paid for, a halted call
 included. The calls are empty when the ceiling refused the Judge's first call.
-A stopped record whose stage session the ceiling stopped, whether during a
-worker call, a Product Owner call, the refusal of a turn, or a step after the
-session returned, such as reading the task state, carries
-`session`, holding that session's `providerCalls` up to the stop, a halted
-call included, and its `costUsd`. The calls are empty and the cost 0 when the
+A stopped record for a stage that stopped at the ceiling in its session,
+whether during a worker call, a Product Owner call or the refusal of a turn,
+or in a step after the session returned, such as reading the task state,
+carries `session`, holding that session's `providerCalls` up to the stop, a
+halted call included, and its `costUsd`. The calls are empty and the cost 0 when the
 ceiling refused the session's first call, and the cost is absent when the
 session's last call reported none.
 A final Judge refused, or failing after its spend reached the ceiling, fails
 the run with a failed run record carrying `ceilingStop`, its paid attempts,
-`judgeProviderCalls` with the failed call after the attempts' calls, and a
-Judge cost that also counts the failed call, which has no attempt of its own. A final Judge that fails with budget left writes no failed run
-record. A refused calibration rejudge fails the run without a
-`ceilingStop` record. A session
+`judgeProviderCalls`, every call it paid for with a halted call after the
+attempts' calls, and a Judge cost that also counts the halted call, which has
+no attempt of its own. A final Judge that exhausts its retries on invalid
+output writes the same record without `ceilingStop`, and one whose call fails
+with budget left writes no failed run record. A refused calibration rejudge
+fails the run without a `ceilingStop` record. A session
 attempt's budget is clamped to the ceiling, and its record keeps the clamped
 value as `sessionBudgetUsd`.
 
@@ -1639,7 +1641,8 @@ or from a stop record's top level, unavailable when its record holds no graded
 hard blockers, its
 checkpoint's short id, its session and judge cost, and its tokens
 as input, cache read, cache write, output and total input, summed over its
-session calls and judge attempts. Its instruction files are the corpus files
+session calls and its judge's calls, read from `judgeProviderCalls` where the
+record holds them and from the judge's attempts otherwise. Its instruction files are the corpus files
 its checkpoint records, or its stop record's when it saved no checkpoint, each
 with its sha256 digest, and its `corpusVersion` comes from the same place. Its `readManifest` is its checkpoint's read manifest, each corpus and judge
 rubric entry with a `state` judged as the run history judges its latest
@@ -1686,7 +1689,9 @@ oldest awaiting-judgment records, or when the stage the run ended in wrote no
 record at all. The run's tokens and cost count the Product Owner's calls and
 cost from the main artifact once the final judge ran, and otherwise from a
 stop record, which holds them up to the stop. A Product Owner never asked made
-no calls, so its empty list is summed rather than missing. A run whose records
+no calls, so its empty list is summed rather than missing, and so is a stop
+record's empty `session.providerCalls` or `judgeProviderCalls`, a session or
+Judge the ceiling refused before its first call. A run whose records
 predate those readings, that wrote neither record, or whose stop record was
 written before a stage's judge returned a grade for a reason other than the
 spend ceiling, names the Product Owner as a missing part. The run's cost also lists under `parts` each amount it
@@ -1708,9 +1713,11 @@ them still parses and reads each as unavailable:
   minimum or the spend ceiling stops the stage, and absent otherwise;
 - a ceiling stop record's `session`, written when the ceiling stopped the
   stage's session;
-- a failed Judge's `judgeProviderCalls`, on a stage's stop record or a failed
-  main artifact, read for the Judge's tokens in place of its attempts, which
-  lack a halted call; a record without it reads them from the attempts;
+- a failed Judge's `judgeProviderCalls`, written on a stage's stop record or a
+  failed main artifact whenever the Judge failed after paying, at the ceiling
+  or by exhausting its retries, and read for the Judge's tokens in place of
+  its attempts, which lack a halted call; a record without it reads them from
+  the attempts;
 - a replay record's `elapsedMs`, from its stage session's start to its judge's
   grade.
 

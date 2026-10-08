@@ -84,9 +84,9 @@ links no attempt history, since its attempts record no session.
   stops a session only after the call that crosses its budget, a provider
   call that fails without a result envelope reports no cost and is not
   counted, and the model probe is outside the run's spend. A replay, a group
-  rep, or a pipeline run's final Judge or calibration rejudge that the ceiling
-  refuses fails like any other execution failure, without the ceiling-stop
-  reading a pipeline stage records. See
+  rep, or a pipeline run's calibration rejudge that the ceiling refuses fails
+  like any other execution failure, without the ceiling-stop reading a
+  pipeline stage or final Judge records. See
   [spend ceiling](reference.md#spend-ceiling).
 
 - **Short ids are unique per records directory.** Another clone numbers its own
