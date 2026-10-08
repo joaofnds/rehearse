@@ -164,13 +164,13 @@ or in a step after the session returned, such as reading the task state,
 carries `session`, holding that session's `providerCalls` up to the stop, a
 halted call included, and its `costUsd`. The calls are empty and the cost 0 when the
 ceiling refused the session's first call, and the cost is absent when the
-session stopped on a call that reported none. A session that returned holds
-the total its final result reported.
+session's last call reported none. A session that returned holds the last
+total its calls reported, which leaves out a last call that reported none.
 A final Judge refused, or failing after its spend reached the ceiling, fails
 the run with a failed run record carrying `ceilingStop`, its paid attempts,
 `judgeProviderCalls`, every call it paid for with a halted call after the
-attempts' calls, and a Judge cost that also counts the halted call, which has
-no attempt of its own. A final Judge that exhausts its retries on invalid
+attempts' calls, and a Judge cost that also counts what the halted call
+reported, since it has no attempt of its own. A final Judge that exhausts its retries on invalid
 output writes the same record without `ceilingStop`, and one whose call fails
 with budget left writes no failed run record. A refused calibration rejudge
 fails the run without a `ceilingStop` record. A session
@@ -1687,12 +1687,15 @@ A sum over several parts, a stage's or the run's tokens and the run's cost,
 lists the parts it lacks under `missing` with a reason for each. A part is
 missing when its record holds no calls, when a call has no metrics, as in the
 oldest awaiting-judgment records, or when the stage the run ended in wrote no
-record at all. A judge's cost is missing for the same reason when a call it
-paid for has no metrics, such as a call that failed without an envelope, whose
-cost the recorded judge cost leaves out. The run's tokens and cost count the
-Product Owner's calls and cost from the main artifact once the final judge
-ran, and otherwise from a
-stop record, which holds them up to the stop. A Product Owner never asked made
+record at all. A stage's session cost is unavailable when the last call its
+record holds has no metrics, since a resumed call's total covers the calls
+before it, and a judge's cost is unavailable when any call it paid for has
+no metrics, reading a failed Judge's calls before its attempts as its tokens
+do. A call without metrics may have reported no cost, which the recorded cost
+then leaves out. Either cost then counts as a missing part of the run's cost.
+The run's tokens and cost count the Product Owner's calls and cost from the
+main artifact once the final judge ran, and otherwise from a stop record,
+which holds them up to the stop. A Product Owner never asked made
 no calls, so its empty list is summed rather than missing, and so is a stop
 record's empty `session.providerCalls` or `judgeProviderCalls`, a session or
 Judge the ceiling refused before its first call. A run whose records

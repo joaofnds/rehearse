@@ -1301,9 +1301,11 @@ export class RecordedRunsFixture {
 	 * rejected attempt, and every call it paid for, the halted one included.
 	 */
 	public async writeJudgeCeilingStoppedRun(
-		judgeProviderCalls: readonly {
-			readonly metrics?: Immutable<ClaudeCallMetrics>;
-		}[] = [
+		judgeProviderCalls:
+			| readonly {
+					readonly metrics?: Immutable<ClaudeCallMetrics>;
+			  }[]
+			| null = [
 			{ metrics: STOPPED_RUN_EVIDENCE.buildJudgeAttemptMetrics },
 			{ metrics: STOPPED_RUN_EVIDENCE.buildJudgeHaltedMetrics },
 		],
@@ -1336,7 +1338,7 @@ export class RecordedRunsFixture {
 					},
 					prompt: "judge prompt",
 					attempts,
-					judgeProviderCalls,
+					judgeProviderCalls: judgeProviderCalls ?? undefined,
 					costUsd: 1,
 					ceilingStop: { ceilingUsd: 6, spentUsd: 7 },
 				},

@@ -73,7 +73,8 @@ export const UNRECORDED_STAGE_REASON =
 	"the stage has written no record, and the run ended or is running in it";
 export const UNREACHED_STAGE_REASON = "the run has not reached the stage";
 export const MISSING_STAGE_RECORD_REASON = "the stage has written no record";
-const CALL_WITHOUT_METRICS_REASON = "a call in the record has no metrics";
+export const CALL_WITHOUT_METRICS_REASON =
+	"a call in the record has no metrics";
 export const UNGRADED_BLOCKERS_REASON =
 	"the stage record holds no graded hard blockers";
 export const MINIMUM_GRADE_REASON =
@@ -400,20 +401,44 @@ function usd(
 	return { state: "available", usd: amount };
 }
 
-/** A Judge call kept without metrics leaves out what it may have cost. */
+/**
+ * Each Judge call's cost is its own, so one kept without metrics leaves out
+ * what it may have cost. A failed Judge's calls are read before its attempts,
+ * as its tokens are.
+ */
 function judgeCost(
 	costUsd: number | undefined,
-	providerCalls: Calls | undefined,
+	judge: {
+		readonly providerCalls: Calls | undefined;
+		readonly attempts: Calls | undefined;
+	},
 	absent: string,
 ): Reading<{ readonly usd: number }> {
-	if (
-		providerCalls !== undefined &&
-		providerCalls.some(({ metrics }) => metrics === undefined)
-	) {
+	const calls = judge.providerCalls ?? judge.attempts;
+	if (calls !== undefined && lacksMetrics(calls)) {
 		return { state: "unavailable", reasons: [CALL_WITHOUT_METRICS_REASON] };
 	}
 
 	return usd(costUsd, absent);
+}
+
+/**
+ * A resumed call reports the session's running total, so only a last call
+ * kept without metrics leaves the session's cost unknown.
+ */
+function sessionCost(recorded: PlacedStage): Reading<{ readonly usd: number }> {
+	const { file } = recorded;
+	const calls =
+		file?.input?.transcript?.providerCalls ?? file?.session?.providerCalls;
+	const lastCall = calls === COUNTED_CALLS ? undefined : calls?.at(-1);
+	if (lastCall !== undefined && lastCall.metrics === undefined) {
+		return { state: "unavailable", reasons: [CALL_WITHOUT_METRICS_REASON] };
+	}
+
+	return usd(
+		file?.input?.transcript?.costUsd ?? file?.session?.costUsd,
+		unrecordedOr(recorded, "the stage record holds no session cost"),
+	);
 }
 
 function stageJudgeCost(
@@ -421,7 +446,10 @@ function stageJudgeCost(
 ): Reading<{ readonly usd: number }> {
 	return judgeCost(
 		recorded.file?.costUsd,
-		recorded.file?.judgeProviderCalls,
+		{
+			providerCalls: recorded.file?.judgeProviderCalls,
+			attempts: recorded.file?.attempts,
+		},
 		unrecordedOr(recorded, "the stage record holds no judge cost"),
 	);
 }
@@ -469,6 +497,10 @@ type Calls = Immutable<z.infer<typeof callsSchema>>;
 /** A part of a sum: the calls the records hold for it, or why they hold none. */
 type TokenPart = { readonly calls: Calls } | { readonly missing: MissingPart };
 
+function lacksMetrics(calls: Calls): boolean {
+	return calls.some(({ metrics }) => metrics === undefined);
+}
+
 function callsPart(
 	part: string,
 	calls: Calls | typeof COUNTED_CALLS | undefined,
@@ -489,7 +521,7 @@ function callsPart(
 		return { missing: { part, reason: "the record holds no calls" } };
 	}
 
-	if (calls.some(({ metrics }) => metrics === undefined)) {
+	if (lacksMetrics(calls)) {
 		return {
 			missing: { part, reason: CALL_WITHOUT_METRICS_REASON },
 		};
@@ -872,10 +904,7 @@ function stageRecord(
 				? AWAITING_GRADE_REASON
 				: unrecordedOr(recorded, WALL_TIME_REASON),
 		),
-		sessionCost: usd(
-			file?.input?.transcript?.costUsd ?? file?.session?.costUsd,
-			unrecordedOr(recorded, "the stage record holds no session cost"),
-		),
+		sessionCost: sessionCost(recorded),
 		judgeCost: stageJudgeCost(recorded),
 		tokens: stageTokens(recorded),
 		checkpoint: checkpoint === undefined ? "missing" : "recorded",
@@ -1032,7 +1061,10 @@ function runTotals(
 						"final judge",
 						judgeCost(
 							artifact.judgeCostUsd,
-							artifact.judgeProviderCalls,
+							{
+								providerCalls: artifact.judgeProviderCalls,
+								attempts: artifact.judgeAttempts,
+							},
 							"the main artifact holds no final judge cost",
 						),
 					),
