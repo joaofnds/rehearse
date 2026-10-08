@@ -1108,6 +1108,7 @@ describe(runPipelineConfirmation.name, () => {
 										},
 									],
 									costUsd: CONFIRMATION_METRIC.costUsd,
+									failedCallMetrics: undefined,
 								}),
 							);
 						}

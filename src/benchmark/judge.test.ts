@@ -11,7 +11,7 @@ import type { JudgeInvoker } from "./judge-attempt";
 import { JudgeExecutionError } from "./judge-attempt";
 import type { SpendCeiling } from "./spend-ceiling";
 import { createSpendCeiling, SpendCeilingReachedError } from "./spend-ceiling";
-import { harnessResult } from "./test-support";
+import { budgetHaltEnvelope, harnessResult } from "./test-support";
 
 const DIFF = [
 	"--- a/src/audit/example.ts",
@@ -411,6 +411,24 @@ describe(runJudge.name, () => {
 			);
 
 			expect(spendCeiling.spentUsd()).toBeCloseTo(0.4);
+		});
+
+		it("keeps a halted attempt's metrics and tallies its tokens on the ceiling", async () => {
+			const spendCeiling = createSpendCeiling({ ceilingUsd: 1 });
+
+			const failure = await failureOf(
+				gradeWith(() => budgetHaltEnvelope(), [], spendCeiling),
+			);
+
+			expect(failure).toMatchObject({
+				providerCalls: [
+					{ metrics: { costUsd: 0.5782854, outputTokens: 3105 } },
+				],
+			});
+			expect(spendCeiling.tokens()).toEqual({
+				input: 10 + 200_701 + 7727,
+				output: 3105,
+			});
 		});
 
 		it("starts no attempt once the spend has reached the ceiling", async () => {

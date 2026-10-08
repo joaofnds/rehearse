@@ -929,6 +929,7 @@ describe(runReplayConfirmation.name, () => {
 							prompt: "prompt",
 							attempts: [],
 							costUsd: 0,
+							failedCallMetrics: undefined,
 						}),
 					),
 			}),

@@ -1,4 +1,4 @@
-import type { ProviderCall } from "./contracts";
+import type { ClaudeCallMetrics, ProviderCall } from "./contracts";
 import type { JudgeAttempt } from "./judge-attempt";
 
 export function judgeProviderCalls(
@@ -20,6 +20,8 @@ export class JudgeExecutionError extends Error {
 		readonly prompt: string;
 		readonly attempts: readonly JudgeAttempt[];
 		readonly costUsd: number;
+		/** What the failed call reported, absent when it reported no usage. */
+		readonly failedCallMetrics: ClaudeCallMetrics | undefined;
 	}) {
 		super(
 			props.cause instanceof Error
@@ -30,7 +32,12 @@ export class JudgeExecutionError extends Error {
 		this.name = "JudgeExecutionError";
 		this.prompt = props.prompt;
 		this.attempts = props.attempts;
-		this.providerCalls = [...judgeProviderCalls(props.attempts), {}];
+		this.providerCalls = [
+			...judgeProviderCalls(props.attempts),
+			props.failedCallMetrics === undefined
+				? {}
+				: { metrics: props.failedCallMetrics },
+		];
 		this.costUsd = props.costUsd;
 	}
 }

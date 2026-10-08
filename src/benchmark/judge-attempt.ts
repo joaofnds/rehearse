@@ -109,14 +109,17 @@ export async function runJudgeAttempts<Value>(
 			const output = await invoke(attemptPrompt, budgetUsd);
 			envelope = readClaudeEnvelope(output);
 		} catch (error) {
-			const failedCallCostUsd =
-				(error instanceof ClaudeSessionError ? error.costUsd : undefined) ?? 0;
-			budget.spendCeiling.charge(failedCallCostUsd);
+			const halt = error instanceof ClaudeSessionError ? error : undefined;
+			const failedCallCostUsd = halt?.costUsd ?? 0;
+			const failedCallMetrics =
+				halt === undefined ? undefined : readClaudeCallMetrics(halt.envelope);
+			budget.spendCeiling.charge(failedCallCostUsd, failedCallMetrics);
 			throw new JudgeExecutionError({
 				cause: error,
 				prompt,
 				attempts,
 				costUsd: costUsd + failedCallCostUsd,
+				failedCallMetrics,
 			});
 		}
 		const attemptCostUsd = envelope.total_cost_usd ?? 0;
