@@ -471,6 +471,19 @@ function callsPart(
 	return { calls };
 }
 
+/** A record's empty call list is a spender that made no calls, summed as zero. */
+function spentCallsPart(
+	part: string,
+	calls: Calls | undefined,
+	absent: string,
+): TokenPart {
+	if (calls?.length === 0) {
+		return { calls };
+	}
+
+	return callsPart(part, calls, absent);
+}
+
 /**
  * The index among the stage names given of the stage the run ended or is
  * running in, or -1 when its outcome names none of them.
@@ -539,18 +552,16 @@ function spenders({ file, place }: PlacedStage): readonly Spender[] {
 function sessionTokenPart(recorded: PlacedStage): TokenPart {
 	const { stage, file } = recorded;
 	const transcriptCalls = file?.input?.transcript?.providerCalls;
-	if (
-		transcriptCalls === undefined &&
-		file?.session?.providerCalls.length === 0
-	) {
-		return { calls: [] };
+	const part = `${stage} session`;
+	const absent = unrecordedOr(
+		recorded,
+		"the stage record holds no session calls",
+	);
+	if (transcriptCalls === undefined) {
+		return spentCallsPart(part, file?.session?.providerCalls, absent);
 	}
 
-	return callsPart(
-		`${stage} session`,
-		transcriptCalls ?? file?.session?.providerCalls,
-		unrecordedOr(recorded, "the stage record holds no session calls"),
-	);
+	return callsPart(part, transcriptCalls, absent);
 }
 
 /**
@@ -567,11 +578,11 @@ function judgeTokenPart(
 	},
 	absent: string,
 ): TokenPart {
-	if (judge.providerCalls?.length === 0) {
-		return { calls: [] };
+	if (judge.providerCalls === undefined) {
+		return callsPart(part, judge.attempts, absent);
 	}
 
-	return callsPart(part, judge.providerCalls ?? judge.attempts, absent);
+	return spentCallsPart(part, judge.providerCalls, absent);
 }
 
 function stageTokenParts(recorded: PlacedStage): readonly TokenPart[] {
@@ -1040,14 +1051,11 @@ function runTokenParts({
 		artifact === undefined
 			? stopRecord?.productOwnerProviderCalls
 			: artifact.productOwnerProviderCalls;
-	const productOwner: TokenPart =
-		productOwnerCalls?.length === 0
-			? { calls: productOwnerCalls }
-			: callsPart(
-					"Product Owner",
-					productOwnerCalls,
-					PRODUCT_OWNER_TOKENS_REASON,
-				);
+	const productOwner = spentCallsPart(
+		"Product Owner",
+		productOwnerCalls,
+		PRODUCT_OWNER_TOKENS_REASON,
+	);
 	if (artifact === undefined) {
 		return [productOwner];
 	}
