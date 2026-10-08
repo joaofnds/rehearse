@@ -165,6 +165,24 @@ describe("first-run setup", () => {
 		).not.toBeInTheDocument();
 	});
 
+	it.each(["/", "/settings"])(
+		"marks no section as the current page while setup shows on %s",
+		async (path) => {
+			serveFreshInstall();
+
+			renderAppAt(path);
+			await setupSteps();
+
+			const sections = screen.getByRole("navigation", { name: "Sections" });
+			expect(
+				within(sections)
+					.getAllByRole("link")
+					.filter((link) => link.hasAttribute("aria-current"))
+					.map((link) => link.textContent),
+			).toEqual([]);
+		},
+	);
+
 	describe("the spend limit", () => {
 		function pressedPresets(): (string | null)[] {
 			return within(screen.getByRole("list", { name: "Setup steps" }))

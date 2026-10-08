@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { calibrationQuery } from "#client/calibration/calibration-query";
-import { Link, Outlet } from "@tanstack/react-router";
+import { createLink, Outlet } from "@tanstack/react-router";
 import { comparisonIndexQuery } from "#client/comparison/comparison-index-query";
 import { corpusQuery } from "#client/corpus/corpus-query";
 import { runHistoryQuery } from "#client/run-history/run-history-query";
@@ -15,16 +15,36 @@ import { NAV_ITEMS } from "./nav-items";
 
 const ICON_SIZE = 15;
 
+type NavAnchorProps = React.ComponentPropsWithRef<"a"> & {
+	readonly marksCurrent: boolean;
+};
+
+/**
+ * The router marks the link to the address bar's route as the current page,
+ * which is false while setup stands in for every screen.
+ */
+function NavAnchor({
+	marksCurrent,
+	"aria-current": current,
+	...anchor
+}: NavAnchorProps): React.JSX.Element {
+	return <a {...anchor} aria-current={marksCurrent ? current : undefined} />;
+}
+
+const NavLink = createLink(NavAnchor);
+
 function NavEntry({
 	label,
 	icon,
 	path,
 	count,
+	marksCurrent,
 }: {
 	readonly label: string;
 	readonly icon: React.ReactNode;
 	readonly path: string | undefined;
 	readonly count: number | undefined;
+	readonly marksCurrent: boolean;
 }): React.JSX.Element {
 	if (path === undefined) {
 		return (
@@ -38,8 +58,9 @@ function NavEntry({
 
 	return (
 		<li>
-			<Link
+			<NavLink
 				to={path}
+				marksCurrent={marksCurrent}
 				className="flex items-center gap-2.5 rounded-md border-l-2 border-transparent px-2.5 py-2 text-secondary-foreground hover:bg-row-hover current:border-primary current:bg-selected current:text-pale"
 			>
 				{icon}
@@ -47,7 +68,7 @@ function NavEntry({
 				{count === undefined ? null : (
 					<span className="font-mono text-xs text-dim">{count}</span>
 				)}
-			</Link>
+			</NavLink>
 		</li>
 	);
 }
@@ -107,6 +128,7 @@ export function AppShell(): React.JSX.Element {
 								}
 								path={path}
 								count={badge === undefined ? undefined : counts[badge]}
+								marksCurrent={!fresh}
 							/>
 						))}
 					</ul>

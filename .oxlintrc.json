@@ -98,7 +98,8 @@
 					"Request",
 					"RequestInit",
 					"URL",
-					"ButtonProps"
+					"ButtonProps",
+					"NavAnchorProps"
 				]
 			}
 		],
