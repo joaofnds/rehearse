@@ -183,6 +183,22 @@ describe("first-run setup", () => {
 		},
 	);
 
+	it("moves to a section's address and keeps setup when its link is clicked", async () => {
+		serveFreshInstall();
+		const router = renderAppAt("/");
+		await setupSteps();
+		const sections = screen.getByRole("navigation", { name: "Sections" });
+
+		fireEvent.click(within(sections).getByRole("link", { name: /^Settings/u }));
+
+		await waitFor(() => {
+			expect(router.state.location.pathname).toBe("/settings");
+		});
+		expect(
+			screen.getByRole("heading", { name: "Nothing is measured yet" }),
+		).toBeInTheDocument();
+	});
+
 	describe("the spend limit", () => {
 		function pressedPresets(): (string | null)[] {
 			return within(screen.getByRole("list", { name: "Setup steps" }))
@@ -578,6 +594,24 @@ describe("first-run setup", () => {
 					.filter(({ pathname }) => pathname === "/api/settings/spend-ceiling")
 					.map(({ method, body }) => [method, body]),
 			).toEqual([["PUT", JSON.stringify({ usd: 5 })]]);
+		});
+
+		it("marks run history as the current page once setup finishes", async () => {
+			servingCeilingWrite({ status: 200, body: settingsReading(5) });
+			renderAppAt("/");
+			await setupSteps();
+			scan();
+			await screen.findByText(/^Found 2 files/u);
+
+			fireEvent.click(finish());
+			await screen.findByText("No runs recorded");
+
+			expect(
+				within(screen.getByRole("navigation", { name: "Sections" })).getByRole(
+					"link",
+					{ name: /^Run history/u },
+				),
+			).toHaveAttribute("aria-current", "page");
 		});
 
 		it("shows the server's refusal of the limit and stays on setup", async () => {
