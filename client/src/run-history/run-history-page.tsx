@@ -1443,7 +1443,8 @@ export function RunHistoryPage(): React.JSX.Element {
 		filter,
 		search,
 	);
-	const listable = recorded.length + allLaunches.length > 0;
+	const listable =
+		listedEntryCount({ rows: recorded, launches: allLaunches }) > 0;
 	const nothingListed =
 		query.isSuccess && rows.length === 0 && launches.length === 0;
 	const nowMs = useNow(
