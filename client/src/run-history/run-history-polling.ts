@@ -4,10 +4,13 @@ import { runHistoryQuery, runListingQuery } from "./run-history-query";
 /**
  * How often the list re-reads itself while a run is in flight. The operator is
  * watching readings move, so the interval has to be shorter than the attention
- * span of someone staring at a screen; the route's cost is reading every saved
- * record under the runs directory, one liveness probe per candidate run, and
- * judging every record's staleness against the corpus under test, about a third
- * of a second for a hundred records.
+ * span of someone staring at a screen. Both readings read every saved record
+ * under the runs directory and probe the liveness of each candidate run, and
+ * the full report also judges every record's staleness against the corpus
+ * under test. Over HTTP on 163 stored records (2026-10-08) the listing took
+ * 138 to 148 ms and the full report 1.48 to 1.60 s, most of this interval, so
+ * only the screens that show staleness pay for it. Both grow with the number
+ * of stored records.
  */
 const RUNNING_POLL_MS = 2000;
 
