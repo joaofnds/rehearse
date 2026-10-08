@@ -97,11 +97,17 @@ def notes(text):
 
 
 cards = {}
+# Two files claiming one ID leave the card's state undecided, so every check on it fails.
+duplicated = set()
 for path in Path("backlog").rglob("*.md"):
     text = path.read_text(encoding="utf-8")
     card_id = frontmatter(text, "id").upper()
     if card_id.startswith("TASK-"):
+        if card_id in cards:
+            duplicated.add(card_id)
         cards[card_id] = {"archived": "archive" in path.parts, "status": frontmatter(text, "status"), "text": text}
+for card_id in duplicated:
+    cards[card_id] = {"archived": False, "status": "duplicated ID", "text": ""}
 
 
 def is_archived(card_id):
@@ -110,7 +116,7 @@ def is_archived(card_id):
 
 def is_open_capture(card_id):
     card = cards.get(card_id)
-    return bool(card) and not card["archived"] and card["status"] not in ("Done",)
+    return bool(card) and not card["archived"] and card["status"] not in ("Done", "duplicated ID")
 
 
 for card_id in SPECULATIVE:
@@ -123,7 +129,7 @@ record("user-visible-kept", len(kept) == len(USER_VISIBLE), f"open: {kept or 'no
 record("recorded-problem-kept", is_open_capture(RECORDED), f"{RECORDED} archived={is_archived(RECORDED)}")
 record("needed-capture-kept", is_open_capture(NEEDED), f"{NEEDED} archived={is_archived(NEEDED)}")
 
-admitted = [c for c in CAPTURES if c in cards and not cards[c]["archived"] and cards[c]["status"] != "Inbox"]
+admitted = [c for c in CAPTURES if c in cards and not cards[c]["archived"] and cards[c]["status"] not in ("Inbox", "duplicated ID")]
 moved = [c for c, s in ACCEPTED.items() if cards.get(c, {}).get("status") != s or is_archived(c)]
 record("nothing-admitted", not admitted and not moved, f"captures out of Inbox: {admitted or 'none'}; accepted moved: {moved or 'none'}")
 
