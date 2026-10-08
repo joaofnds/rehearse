@@ -536,7 +536,10 @@ export interface CheckpointStalenessByRun {
 	readonly unreadable: readonly UnreadableStaleRecord[];
 }
 
-/** `checkpointStaleness` keyed by run. */
+/**
+ * Every recorded run's checkpoints judged against one reading of the corpus,
+ * keyed by run.
+ */
 async function checkpointStalenessAgainst(
 	runsDirectory: string,
 	against: CorpusJudgedAgainst,
