@@ -73,6 +73,8 @@ export const UNRECORDED_STAGE_REASON =
 	"the stage has written no record, and the run ended or is running in it";
 export const UNREACHED_STAGE_REASON = "the run has not reached the stage";
 export const MISSING_STAGE_RECORD_REASON = "the stage has written no record";
+export const UNGRADED_BLOCKERS_REASON =
+	"the stage record holds no graded hard blockers";
 export const MINIMUM_GRADE_REASON =
 	"the run manifest predates the minimum grade";
 export const PRODUCT_OWNER_TOKENS_REASON =
@@ -318,12 +320,14 @@ interface RecordedStage {
 }
 
 /**
- * A recorded stage, whether the run ended in it or is running in it, and why
- * its figures are missing when it wrote no record.
+ * Where a stage sits against the stage the run ended or is running in: that
+ * stage, one after it, or one before it or in a run whose outcome names none.
  */
-interface ReachedStage extends RecordedStage {
-	readonly reached: boolean;
-	readonly unrecordedReason: string;
+export type StagePlace = "current" | "unreached" | "elsewhere";
+
+/** A recorded stage and its place in the run. */
+interface PlacedStage extends RecordedStage {
+	readonly place: StagePlace;
 }
 
 /** A run's checkpoints, the initial one included, by lineage. */
@@ -456,25 +460,42 @@ function callsPart(
 	return { calls };
 }
 
-/** Why a stage's figure is missing: its record lacks it, or it wrote none. */
-function unrecordedOr(
-	{ file, unrecordedReason }: ReachedStage,
-	reason: string,
-): string {
-	return file === undefined ? unrecordedReason : reason;
+/**
+ * The index among the stage names given of the stage the run ended or is
+ * running in, or -1 when its outcome names none of them.
+ */
+export function currentStageIndex(
+	stages: readonly string[],
+	outcome: FinalOutcome,
+): number {
+	if (outcome.status !== "NOT_REACHED" && outcome.status !== "PENDING") {
+		return -1;
+	}
+
+	return outcome.stage === undefined ? -1 : stages.indexOf(outcome.stage);
 }
 
-/** Why a stage wrote no record, from its place against the stage the run is in. */
-function unrecordedReasonAt(index: number, reachedIndex: number): string {
-	if (index === reachedIndex) {
-		return UNRECORDED_STAGE_REASON;
+export function stagePlace(index: number, currentIndex: number): StagePlace {
+	if (index === currentIndex) {
+		return "current";
 	}
 
-	if (reachedIndex !== -1 && index > reachedIndex) {
-		return UNREACHED_STAGE_REASON;
+	if (currentIndex !== -1 && index > currentIndex) {
+		return "unreached";
 	}
 
-	return MISSING_STAGE_RECORD_REASON;
+	return "elsewhere";
+}
+
+const UNRECORDED_REASONS = {
+	current: UNRECORDED_STAGE_REASON,
+	unreached: UNREACHED_STAGE_REASON,
+	elsewhere: MISSING_STAGE_RECORD_REASON,
+} as const satisfies Record<StagePlace, string>;
+
+/** Why a stage's figure is missing: its record lacks it, or it wrote none. */
+function unrecordedOr({ file, place }: PlacedStage, reason: string): string {
+	return file === undefined ? UNRECORDED_REASONS[place] : reason;
 }
 
 type Spender = "session" | "judge";
@@ -483,9 +504,9 @@ type Spender = "session" | "judge";
  * Who spent on a stage: its session, then its judge once the judge ran. A
  * stage that wrote no record spent only when the run ended or runs in it.
  */
-function spenders(status: StageStatus, reached: boolean): readonly Spender[] {
+function spenders(status: StageStatus, place: StagePlace): readonly Spender[] {
 	if (status === "no-record") {
-		return reached ? ["session"] : [];
+		return place === "current" ? ["session"] : [];
 	}
 
 	if (status === "awaiting-judgment") {
@@ -495,10 +516,9 @@ function spenders(status: StageStatus, reached: boolean): readonly Spender[] {
 	return ["session", "judge"];
 }
 
-function stageTokenParts(recorded: ReachedStage): readonly TokenPart[] {
-	const { stage, file, reached } = recorded;
-
-	return spenders(stageStatus(file), reached).map((spender) =>
+function stageTokenParts(recorded: PlacedStage): readonly TokenPart[] {
+	const { stage, file, place } = recorded;
+	return spenders(stageStatus(file), place).map((spender) =>
 		spender === "session"
 			? callsPart(
 					`${stage} session`,
@@ -622,9 +642,28 @@ export function stageStatus(file: StageFile | undefined): StageStatus {
 const UNGRADED_REASONS = {
 	stopped: STOPPED_GRADE_REASON,
 	"awaiting-judgment": AWAITING_GRADE_REASON,
-	"no-record": "the stage wrote no record",
 	graded: "the scorecard holds no letter",
-} as const satisfies Record<StageStatus, string>;
+} as const satisfies Record<Exclude<StageStatus, "no-record">, string>;
+
+function ungradedReason(recorded: PlacedStage): string {
+	const status = stageStatus(recorded.file);
+
+	return status === "no-record"
+		? UNRECORDED_REASONS[recorded.place]
+		: UNGRADED_REASONS[status];
+}
+
+/**
+ * A stage's tokens, or why it has none: a stage that wrote no record and did
+ * not spend has no part to sum.
+ */
+function stageTokens(recorded: PlacedStage): TokenReading {
+	const parts = stageTokenParts(recorded);
+
+	return parts.length === 0
+		? { state: "unavailable", reasons: [UNRECORDED_REASONS[recorded.place]] }
+		: tokenReading(parts);
+}
 
 /** A hard blocker fired when its judge found it FAIL. */
 export function firedBlockerIds(
@@ -636,23 +675,18 @@ export function firedBlockerIds(
 }
 
 /** The hard blockers a scorecard keeps in its grade, or a stop record beside it. */
-function recordedHardBlockers(
+export function recordedHardBlockers(
 	file: StageFile | undefined,
 ): GradedHardBlockers | undefined {
 	return file?.grade?.hardBlockers ?? file?.hardBlockers;
 }
 
-function blockersOf(recorded: ReachedStage): RunRecordStage["blockers"] {
+function blockersOf(recorded: PlacedStage): RunRecordStage["blockers"] {
 	const hardBlockers = recordedHardBlockers(recorded.file);
 	if (hardBlockers === undefined) {
 		return {
 			state: "unavailable",
-			reasons: [
-				unrecordedOr(
-					recorded,
-					"the stage record holds no graded hard blockers",
-				),
-			],
+			reasons: [unrecordedOr(recorded, UNGRADED_BLOCKERS_REASON)],
 		};
 	}
 
@@ -714,7 +748,7 @@ function reachesMinimum(
 }
 
 function stageRecord(
-	recorded: ReachedStage,
+	recorded: PlacedStage,
 	checkpoints: CheckpointsByLineage,
 	checkpointShortId: ShortIdReading,
 	minimumGrade: StageLetterGrade | undefined,
@@ -731,7 +765,7 @@ function stageRecord(
 			file?.grade === undefined
 				? {
 						state: "unavailable",
-						reasons: [UNGRADED_REASONS[stageStatus(file)]],
+						reasons: [ungradedReason(recorded)],
 					}
 				: {
 						state: "available",
@@ -754,7 +788,7 @@ function stageRecord(
 			file?.costUsd,
 			unrecordedOr(recorded, "the stage record holds no judge cost"),
 		),
-		tokens: tokenReading(stageTokenParts(recorded)),
+		tokens: stageTokens(recorded),
 		checkpoint: checkpoint === undefined ? "missing" : "recorded",
 		checkpointShortId,
 		...ranUnder(recorded),
@@ -856,9 +890,9 @@ function costPart(
 
 function stageCostParts(
 	stage: RunRecordStage,
-	reached: boolean,
+	place: StagePlace,
 ): readonly (CostPart | MissingPart)[] {
-	return spenders(stage.status, reached).map((spender) =>
+	return spenders(stage.status, place).map((spender) =>
 		spender === "session"
 			? costPart(`${stage.stage} session`, stage.sessionCost)
 			: costPart(`${stage.stage} judge`, stage.judgeCost),
@@ -890,8 +924,7 @@ export function costReading(
 }
 
 function runTotals(
-	stages: readonly RunRecordStage[],
-	reachedStage: string | undefined,
+	stageParts: readonly (CostPart | MissingPart)[],
 	tokenParts: readonly TokenPart[],
 	{ artifact, stopRecord }: RunWideRecords,
 ): RunTotals {
@@ -914,12 +947,7 @@ function runTotals(
 						),
 					),
 				];
-	const summed = [
-		...stages.flatMap((stage) =>
-			stageCostParts(stage, stage.stage === reachedStage),
-		),
-		...runParts,
-	];
+	const summed = [...stageParts, ...runParts];
 
 	return {
 		tokens: tokenReading(tokenParts),
@@ -1187,20 +1215,14 @@ export async function readRunRecord(
 			runEvents,
 			liveness,
 		);
-		const reachedStage =
-			outcome.status === "NOT_REACHED" || outcome.status === "PENDING"
-				? outcome.stage
-				: undefined;
 		const names = stages.map(({ stage }) => stage);
-		const reachedIndex =
-			reachedStage === undefined ? -1 : names.indexOf(reachedStage);
-		const reached = stages.map(
-			({ stage, file, checkpoint }, index): ReachedStage => ({
+		const currentIndex = currentStageIndex(names, outcome);
+		const placed = stages.map(
+			({ stage, file, checkpoint }, index): PlacedStage => ({
 				stage,
 				file,
 				checkpoint,
-				reached: index === reachedIndex,
-				unrecordedReason: unrecordedReasonAt(index, reachedIndex),
+				place: stagePlace(index, currentIndex),
 			}),
 		);
 		const target = basename(manifest.sourceRoot);
@@ -1210,7 +1232,8 @@ export async function readRunRecord(
 			checkpoint: initial,
 		});
 		const records: RunRecordStage[] = [];
-		for (const stage of reached) {
+		const stageCost: (CostPart | MissingPart)[] = [];
+		for (const stage of placed) {
 			const previous = records.at(-1);
 			const upstream: Upstream =
 				previous === undefined
@@ -1224,15 +1247,15 @@ export async function readRunRecord(
 							upstream: previous.stage,
 							checkpointShortId: previous.checkpointShortId,
 						};
-			records.push(
-				stageRecord(
-					stage,
-					checkpoints,
-					stageCheckpointShortId(shortId, names, stage),
-					manifest.minimumGrade,
-					artifactsIn(manifest.taskId, upstream, records),
-				),
+			const record = stageRecord(
+				stage,
+				checkpoints,
+				stageCheckpointShortId(shortId, names, stage),
+				manifest.minimumGrade,
+				artifactsIn(manifest.taskId, upstream, records),
 			);
+			records.push(record);
+			stageCost.push(...stageCostParts(record, stage.place));
 		}
 
 		return {
@@ -1253,10 +1276,9 @@ export async function readRunRecord(
 					: { state: "available", letter: manifest.minimumGrade },
 			stages: records,
 			totals: runTotals(
-				records,
-				reachedStage,
+				stageCost,
 				[
-					...reached.flatMap((stage) => stageTokenParts(stage)),
+					...placed.flatMap((stage) => stageTokenParts(stage)),
 					...runTokenParts(runWide),
 				],
 				runWide,

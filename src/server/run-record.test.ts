@@ -35,6 +35,7 @@ import {
 	RUN_WALL_TIME_REASON,
 	STOPPED_GRADE_REASON,
 	UNEXPLAINED_END_REASON,
+	UNGRADED_BLOCKERS_REASON,
 	UNREACHED_STAGE_REASON,
 	UNRECORDED_STAGE_REASON,
 	WALL_TIME_REASON,
@@ -367,7 +368,7 @@ describe("/api/runs/:run", () => {
 
 			it("counts the hard blockers a stop record from before the letter grade keeps", async () => {
 				const fixture = await emptyFixture();
-				await fixture.writeStoppedRunEvidence();
+				await fixture.writePreLetterStoppedRun();
 
 				const response = await runRecord(fixture, fixture.stoppedRun);
 
@@ -378,16 +379,16 @@ describe("/api/runs/:run", () => {
 							stage: "build",
 							blockers: {
 								state: "available",
-								fired: 0,
-								total: 0,
-								firedIds: [],
+								fired: 1,
+								total: 3,
+								firedIds: ["no-unrelated-refactors"],
 							},
 						},
 					],
 				});
 			});
 
-			it("reports the fired blockers as unavailable for a stage whose judge failed", async () => {
+			it("reports the fired blockers as unavailable for a stop record without the Judge's findings", async () => {
 				const fixture = await emptyFixture();
 				await fixture.writeStoppedRun();
 
@@ -400,7 +401,7 @@ describe("/api/runs/:run", () => {
 							stage: "build",
 							blockers: {
 								state: "unavailable",
-								reasons: ["the stage record holds no graded hard blockers"],
+								reasons: [UNGRADED_BLOCKERS_REASON],
 							},
 						},
 					],
@@ -952,10 +953,34 @@ describe("/api/runs/:run", () => {
 						{ stage: "discuss" },
 						{
 							stage: "build",
+							grade: { reasons: [UNREACHED_STAGE_REASON] },
 							sessionCost: { reasons: [UNREACHED_STAGE_REASON] },
 							judgeCost: { reasons: [UNREACHED_STAGE_REASON] },
 							wallTime: { reasons: [UNREACHED_STAGE_REASON] },
+							tokens: { reasons: [UNREACHED_STAGE_REASON] },
 							blockers: { reasons: [UNREACHED_STAGE_REASON] },
+						},
+					],
+				});
+			});
+
+			it("names each stage of a finished run without a record as missing its record", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writePipelineRun(FINISHED_RUN, CASE_ID);
+
+				const response = await runRecord(fixture, FINISHED_RUN);
+
+				expect(await response.json()).toMatchObject({
+					stages: [
+						{
+							stage: "discuss",
+							grade: { reasons: [MISSING_STAGE_RECORD_REASON] },
+							blockers: { reasons: [MISSING_STAGE_RECORD_REASON] },
+						},
+						{
+							stage: "build",
+							grade: { reasons: [MISSING_STAGE_RECORD_REASON] },
+							blockers: { reasons: [MISSING_STAGE_RECORD_REASON] },
 						},
 					],
 				});

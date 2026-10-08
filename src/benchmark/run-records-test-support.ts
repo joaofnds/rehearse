@@ -1151,6 +1151,25 @@ export class RecordedRunsFixture {
 	}
 
 	/**
+	 * A run stopped below the minimum before stop records kept the letter, as
+	 * its build record shows: the Judge's hard blockers at the top level, one
+	 * of three fired, and no grade object.
+	 */
+	public async writePreLetterStoppedRun(): Promise<void> {
+		await this.writeGradedStoppedRun();
+		await mergeIntoRecord(
+			benchmarkRunPaths(this.runsDirectory, this.stoppedRun).stageFile("build"),
+			{
+				hardBlockers: [
+					{ id: "no-secrets-in-diff", status: "PASS" },
+					{ id: "no-unrelated-refactors", status: "FAIL" },
+					{ id: "tests-pass-before-handoff", status: "PASS" },
+				],
+			},
+		);
+	}
+
+	/**
 	 * The stopped run with the evidence the harness writes today: discuss's
 	 * scorecard carries its session transcript and judge attempts, discuss
 	 * changed the task card against the setup checkpoint, and build's stop

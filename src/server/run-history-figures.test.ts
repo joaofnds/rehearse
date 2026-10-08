@@ -33,7 +33,6 @@ import { SESSION_GRADE_REASON } from "./session-grade-reason";
 import {
 	NO_GRADED_BLOCKERS_REASON,
 	NO_MANIFEST_REASON,
-	NOT_RUN_REASON,
 	REPLAY_FINAL_OUTCOME_REASON,
 	REPLAY_WALL_TIME_REASON,
 	EXECUTION_FAILED_CHECKS_REASON,
@@ -53,6 +52,7 @@ import {
 	RUN_FAILED_REASON,
 	RUN_WALL_TIME_REASON,
 	STOPPED_GRADE_REASON,
+	UNREACHED_STAGE_REASON,
 } from "./run-record";
 
 /**
@@ -387,7 +387,10 @@ describe("/api/runs", () => {
 							{
 								stage: "build",
 								status: "not-run",
-								grade: { state: "unavailable", reasons: [NOT_RUN_REASON] },
+								grade: {
+									state: "unavailable",
+									reasons: [UNREACHED_STAGE_REASON],
+								},
 							},
 						],
 					},

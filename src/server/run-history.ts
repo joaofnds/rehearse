@@ -78,9 +78,12 @@ import type {
 } from "./confirmation-group-summary";
 import { redactAbsolutePaths } from "./redact-path";
 import {
+	currentStageIndex,
 	firedBlockerIds,
 	readRunRecord,
 	readStageFile,
+	recordedHardBlockers,
+	stagePlace,
 	wallTime,
 } from "./run-record";
 import type {
@@ -163,7 +166,6 @@ export const NO_GRADED_BLOCKERS_REASON =
 export const SESSION_BLOCKERS_REASON =
 	"a session rep is graded by its checks, which name no hard blockers";
 
-export const NOT_RUN_REASON = "the run never reached this stage";
 export const REPLAY_FINAL_OUTCOME_REASON =
 	"a replay runs one stage, and only a whole run reaches the final judge";
 export const REPLAY_WALL_TIME_REASON =
@@ -217,19 +219,14 @@ export interface ListedStageGrade {
  * stage, and a stage before the one it ended in ran and left no record.
  */
 function stageGrades(record: RunRecord): readonly ListedStageGrade[] {
-	const { finalOutcome } = record;
-	const reachedIndex =
-		finalOutcome.status === "NOT_REACHED" || finalOutcome.status === "PENDING"
-			? record.stages.findIndex(({ stage }) => stage === finalOutcome.stage)
-			: -1;
+	const currentIndex = currentStageIndex(
+		record.stages.map(({ stage }) => stage),
+		record.finalOutcome,
+	);
 
 	return record.stages.map(({ stage, status, grade }, index) =>
-		status === "no-record" && reachedIndex !== -1 && index > reachedIndex
-			? {
-					stage,
-					status: "not-run",
-					grade: { state: "unavailable", reasons: [NOT_RUN_REASON] },
-				}
+		status === "no-record" && stagePlace(index, currentIndex) === "unreached"
+			? { stage, status: "not-run", grade }
 			: { stage, status, grade },
 	);
 }
@@ -1003,7 +1000,7 @@ async function groupFiredBlockers(
 			try {
 				const file = await readStageFile(paths.rep(repId), stage);
 
-				return { state: "read", fired: firedIdsOf(file?.grade?.hardBlockers) };
+				return { state: "read", fired: firedIdsOf(recordedHardBlockers(file)) };
 			} catch {
 				return {
 					state: "unreadable",
