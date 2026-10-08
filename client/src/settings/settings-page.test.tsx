@@ -30,6 +30,7 @@ const LIVE_SETTINGS: SettingsReading = {
 	setCommand: "rehearse settings --spend-ceiling-usd <USD>",
 	recordsDirectory: "/home/operator/.rehearse/runs",
 	linkedCorpus: { kind: "live", root: LIVE_ROOT },
+	liveCorpusRoot: LIVE_ROOT,
 	overrun:
 		"A call already in flight when the ceiling is reached still lands, so a run can overrun it.",
 	linkCommand: "rehearse settings --link-corpus <directory>",

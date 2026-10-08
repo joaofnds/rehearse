@@ -41,6 +41,7 @@ export function settingsReading(
 		setCommand: "rehearse settings --spend-ceiling-usd <USD>",
 		recordsDirectory: "/records",
 		linkedCorpus: { kind: "live", root: "/home/operator/.claude" },
+		liveCorpusRoot: "/home/operator/.claude",
 		overrun: "The ceiling can be overrun by the calls in flight.",
 		linkCommand: "rehearse settings --link-corpus <DIR>",
 	};

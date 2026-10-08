@@ -57,6 +57,7 @@ const LIVE_SETTINGS = {
 	setCommand: "rehearse settings --spend-ceiling-usd <USD>",
 	recordsDirectory: "/records",
 	linkedCorpus: { kind: "live", root: "/home/user/.claude" },
+	liveCorpusRoot: "/home/user/.claude",
 	overrun: "The ceiling can be overrun by the calls in flight.",
 	linkCommand: "rehearse settings --link-corpus <directory>",
 };
@@ -121,6 +122,7 @@ describe(CorpusPage.name, () => {
 					kind,
 					root: kind === "live" ? "/home/user/.claude" : "/tmp/corpus-copy",
 				},
+				liveCorpusRoot: "/home/user/.claude",
 				overrun: "The ceiling can be overrun by the calls in flight.",
 				linkCommand: LINK_COMMAND,
 			};

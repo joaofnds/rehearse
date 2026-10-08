@@ -260,6 +260,28 @@ describe("first-run setup", () => {
 			expect(corpusInput()).toHaveAttribute("placeholder", LIVE_ROOT);
 		});
 
+		it("offers the live install as the path while an earlier scan's directory is linked", async () => {
+			serveFreshInstall(
+				new Map<string, Reply>([
+					[
+						"GET /api/settings",
+						{
+							status: 200,
+							body: {
+								...settingsReading(null),
+								linkedCorpus: { kind: "directory", root: "/tmp/scanned" },
+							},
+						},
+					],
+				]),
+			);
+
+			renderAppAt("/");
+			await setupSteps();
+
+			expect(corpusInput()).toHaveAttribute("placeholder", LIVE_ROOT);
+		});
+
 		it("scans the live install when no path is typed", async () => {
 			const server = servingScan({ status: 200, body: settingsReading(null) });
 			renderAppAt("/");
@@ -344,6 +366,39 @@ describe("first-run setup", () => {
 			);
 			expect(screen.queryByText(/^Found/u)).not.toBeInTheDocument();
 			expect(steps[1]).toHaveTextContent("Required");
+		});
+
+		it("keeps the corpus an earlier scan linked when a later scan is refused", async () => {
+			let scans = 0;
+			serveFreshInstall(
+				new Map<string, Reply | LiveReply>([
+					[
+						"PUT /api/setup/corpus",
+						new LiveReply(() => {
+							scans += 1;
+
+							return scans === 1
+								? { status: 200, body: settingsReading(null) }
+								: {
+										status: 409,
+										body: { error: "Corpus source /tmp/x holds no corpus" },
+									};
+						}),
+					],
+					["GET /api/corpus", { status: 200, body: SCANNED_CORPUS }],
+				]),
+			);
+			renderAppAt("/");
+			const steps = await setupSteps();
+			scan();
+			await screen.findByText(/^Found 2 files/u);
+
+			fireEvent.change(corpusInput(), { target: { value: "/tmp/x" } });
+			scan();
+			await screen.findByRole("alert");
+
+			expect(steps[1]).toHaveTextContent("Linked");
+			expect(screen.getByText(/^Found 2 files/u)).toBeInTheDocument();
 		});
 
 		it("is not satisfied by a corpus whose files refused hashing, and names why", async () => {

@@ -8,14 +8,16 @@ import {
 } from "#benchmark/corpus-version-label";
 import type { CorpusResponse } from "#client/corpus/corpus-query";
 import { corpusQuery } from "#client/corpus/corpus-query";
-import { launchSettingsQuery } from "#client/launch/settings-query";
+import {
+	launchSettingsQuery,
+	SettingsRefusedError,
+} from "#client/launch/settings-query";
 import {
 	enteredCeilingUsd,
 	putSpendCeiling,
 } from "#client/launch/spend-ceiling-entry";
 import { plural } from "#client/plural";
 import { cn } from "#client/system/cn";
-import { FilterPill } from "#client/system/components/filter-pill";
 import { Button } from "#client/system/ui/button";
 import { linkSetupCorpus } from "./setup-requests";
 
@@ -89,10 +91,27 @@ function StepProse({
 	);
 }
 
-/**
- * What a fresh install shows on every screen: a spend limit, then a corpus,
- * then the case they make possible (SPEC.md section 11).
- */
+function LimitPreset({
+	preset,
+	pressed,
+	onPress,
+}: {
+	readonly preset: string;
+	readonly pressed: boolean;
+	readonly onPress: () => void;
+}): React.JSX.Element {
+	return (
+		<button
+			type="button"
+			aria-pressed={pressed}
+			onClick={onPress}
+			className="rounded-md border border-strong px-2.5 py-1.5 font-mono text-11-5 text-secondary-foreground transition-colors hover:border-primary hover:bg-accent aria-pressed:border-primary aria-pressed:text-pale"
+		>
+			{`$${preset}`}
+		</button>
+	);
+}
+
 function SpendLimitControls({
 	limit,
 	onLimit,
@@ -115,15 +134,14 @@ function SpendLimitControls({
 				/>
 			</label>
 			{LIMIT_PRESETS.map((preset) => (
-				<FilterPill
+				<LimitPreset
 					key={preset}
+					preset={preset}
 					pressed={limit === preset}
 					onPress={() => {
 						onLimit(preset);
 					}}
-				>
-					{`$${preset}`}
-				</FilterPill>
+				/>
 			))}
 		</div>
 	);
@@ -222,45 +240,54 @@ function CorpusControls({
 	);
 }
 
-function corpusState(linked: boolean, limitSet: boolean): string {
+function corpusState(linked: boolean, limitEntered: boolean): string {
 	if (linked) {
 		return "Linked";
 	}
 
-	return limitSet ? "Required" : "Set a limit first";
+	return limitEntered ? "Required" : "Set a limit first";
 }
 
+/**
+ * What a fresh install shows on every screen: a spend limit, then a corpus,
+ * then the case they make possible (SPEC.md section 11).
+ */
 export function SetupPage(): React.JSX.Element {
 	const settings = useQuery(launchSettingsQuery);
 	const queryClient = useQueryClient();
 	const [limit, setLimit] = useState<string>(OPENING_LIMIT);
 	const [directory, setDirectory] = useState("");
-	const [livePlaceholder] = useState(() =>
-		settings.data?.linkedCorpus.kind === "live"
-			? settings.data.linkedCorpus.root
-			: "the live install",
-	);
+	const [scanned, setScanned] = useState<CorpusResponse>();
 	const scan = useMutation({
-		mutationFn: async (scanned: string): Promise<CorpusResponse> => {
-			queryClient.setQueryData(
-				launchSettingsQuery.queryKey,
-				await linkSetupCorpus(scanned),
-			);
+		mutationFn: async (path: string): Promise<CorpusResponse> => {
+			const reading = await linkSetupCorpus(path);
+			await queryClient.cancelQueries(launchSettingsQuery);
+			queryClient.setQueryData(launchSettingsQuery.queryKey, reading);
+			// A read already in flight began before the link changed.
+			await queryClient.cancelQueries(corpusQuery);
 
 			return queryClient.query({ ...corpusQuery, staleTime: 0 });
+		},
+		onSuccess: setScanned,
+		onError: (error) => {
+			// A refused link leaves the earlier one stored, still listed.
+			if (!(error instanceof SettingsRefusedError)) {
+				setScanned(undefined);
+			}
 		},
 	});
 	const navigate = useNavigate();
 	const finish = useMutation({
 		mutationFn: putSpendCeiling,
 		onSuccess: async (reading) => {
+			await queryClient.cancelQueries(launchSettingsQuery);
 			await navigate({ to: "/" });
 			queryClient.setQueryData(launchSettingsQuery.queryKey, reading);
 		},
 	});
 	const usd = enteredCeilingUsd(limit);
-	const limitSet = usd !== undefined;
-	const linked = isSatisfied(scan.data);
+	const limitEntered = usd !== undefined;
+	const linked = isSatisfied(scanned);
 
 	return (
 		<div className="flex justify-center px-10 py-17">
@@ -289,8 +316,8 @@ export function SetupPage(): React.JSX.Element {
 					<SetupStep
 						number={2}
 						title="Point at an instruction corpus"
-						state={corpusState(linked, limitSet)}
-						look={linked || limitSet ? "open" : "dimmed"}
+						state={corpusState(linked, limitEntered)}
+						look={linked || limitEntered ? "open" : "dimmed"}
 					>
 						<StepProse>
 							A directory of instruction files: the project instruction file,
@@ -298,15 +325,15 @@ export function SetupPage(): React.JSX.Element {
 							result always names the version that produced it.
 						</StepProse>
 						<CorpusControls
-							livePlaceholder={livePlaceholder}
+							livePlaceholder={settings.data?.liveCorpusRoot ?? ""}
 							directory={directory}
 							onDirectory={setDirectory}
 							onScan={() => {
 								scan.mutate(directory);
 							}}
-							scanning={scan.isPending}
+							scanning={scan.isPending || finish.isPending}
 							refusal={scan.isError ? scan.error.message : undefined}
-							report={scan.data}
+							report={scanned}
 						/>
 					</SetupStep>
 					<SetupStep
@@ -325,7 +352,7 @@ export function SetupPage(): React.JSX.Element {
 
 				<div className="mt-5 flex items-center gap-3">
 					<Button
-						disabled={usd === undefined || !linked || finish.isPending}
+						disabled={!limitEntered || !linked || finish.isPending}
 						onClick={() => {
 							if (usd !== undefined) {
 								finish.mutate(usd);
@@ -335,7 +362,7 @@ export function SetupPage(): React.JSX.Element {
 						Finish setup
 					</Button>
 					<span className="text-11-5 text-dim">
-						{usd !== undefined && linked ? READY_HINT : MISSING_HINT}
+						{limitEntered && linked ? READY_HINT : MISSING_HINT}
 					</span>
 				</div>
 				{finish.isError ? (

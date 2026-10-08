@@ -28,7 +28,6 @@ import {
 } from "#benchmark/corpus-edit";
 import type { EditedCorpus } from "#benchmark/corpus-edit";
 import type { LiveCorpusRoot } from "#benchmark/corpus-file";
-import { liveCorpusSource } from "#benchmark/corpus-file";
 import {
 	CorpusSourceError,
 	linkCorpus,
@@ -519,39 +518,75 @@ const spendCeilingRequestSchema = z
 	.object({ usd: z.number().positive() })
 	.strict();
 
+function corpusLinkRequestSchema(
+	home: string,
+): z.ZodType<{ directory: string }> {
+	return z.object({ directory: absoluteDirectorySchema(home) }).strict();
+}
+
 /**
  * Parsed into an absolute directory, since a relative path would resolve
  * against the server's directory. A path from `~/` is the operator's home,
  * as the server runs on the operator's machine.
  */
-function corpusLinkRequestSchema(
-	home: string,
-): z.ZodType<{ directory: string }> {
+function absoluteDirectorySchema(home: string): z.ZodType<string, string> {
 	return z
-		.object({
-			directory: z
-				.string()
-				.transform((directory) =>
-					directory.startsWith("~/")
-						? join(home, directory.slice("~/".length))
-						: directory,
-				)
-				.refine(
-					isAbsolute,
-					"Link a corpus directory by its absolute path, or one starting with ~/ for your home directory, because the server does not share the browser's working directory",
-				),
-		})
-		.strict();
+		.string()
+		.transform((directory) =>
+			directory.startsWith("~/")
+				? join(home, directory.slice("~/".length))
+				: directory,
+		)
+		.refine(
+			isAbsolute,
+			"Link a corpus directory by its absolute path, or one starting with ~/ for your home directory, because the server does not share the browser's working directory",
+		);
 }
 
-/** Setup's corpus path, where an empty one means the live install. */
-const setupCorpusRequestSchema = z.object({ directory: z.string() }).strict();
+/** What setup asked to scan: the live install, or a directory to link. */
+type SetupCorpusChoice =
+	| { readonly kind: "live" }
+	| { readonly kind: "directory"; readonly directory: string };
 
+/** Setup's corpus path, where an empty or blank one means the live install. */
+function setupCorpusRequestSchema(home: string): z.ZodType<SetupCorpusChoice> {
+	return z
+		.object({ directory: z.string() })
+		.strict()
+		.transform(({ directory }, context): SetupCorpusChoice => {
+			if (directory.trim() === "") {
+				return { kind: "live" };
+			}
+
+			const linked = absoluteDirectorySchema(home).safeParse(directory);
+			if (!linked.success) {
+				for (const issue of linked.error.issues) {
+					context.addIssue({ code: "custom", message: issue.message });
+				}
+
+				return z.NEVER;
+			}
+
+			return { kind: "directory", directory: linked.data };
+		});
+}
+
+const fileErrorSchema = z.object({ code: z.string() }).loose();
+
+/** A path that does not exist resolves to nothing; any other failure throws. */
 async function resolvedPath(path: string): Promise<string | undefined> {
 	try {
 		return await realpath(path);
-	} catch {
-		return undefined;
+	} catch (error) {
+		const parsed = fileErrorSchema.safeParse(error);
+		if (
+			parsed.success &&
+			(parsed.data.code === "ENOENT" || parsed.data.code === "ENOTDIR")
+		) {
+			return undefined;
+		}
+
+		throw error;
 	}
 }
 
@@ -575,17 +610,17 @@ async function namesLiveInstall(
  */
 async function storeSetupCorpus(
 	dependencies: LaunchDependencies,
-	directory: string | undefined,
+	choice: SetupCorpusChoice,
 ): Promise<void> {
 	if (
-		directory === undefined ||
-		(await namesLiveInstall(directory, dependencies.liveCorpus()))
+		choice.kind === "live" ||
+		(await namesLiveInstall(choice.directory, dependencies.liveCorpus()))
 	) {
 		return asLaunchRefusal(() => unlinkCorpus(dependencies.runsDirectory));
 	}
 
 	return asLaunchRefusal(() =>
-		linkCorpusDirectory(dependencies.runsDirectory, directory),
+		linkCorpusDirectory(dependencies.runsDirectory, choice.directory),
 	);
 }
 
@@ -636,11 +671,13 @@ async function settingsReading(dependencies: LaunchDependencies): Promise<{
 		readonly kind: "live" | "directory";
 		readonly root: string;
 	};
+	readonly liveCorpusRoot: string;
 	readonly overrun: string;
 	readonly linkCommand: string;
 }> {
 	const settings = await storedSettings(dependencies.runsDirectory);
 	const { linkedCorpusDirectory } = settings;
+	const liveRoot = dependencies.liveCorpus().root;
 
 	return {
 		spendCeilingUsd: settings.spendCeilingUsd ?? null,
@@ -648,8 +685,9 @@ async function settingsReading(dependencies: LaunchDependencies): Promise<{
 		recordsDirectory: dependencies.runsDirectory,
 		linkedCorpus:
 			linkedCorpusDirectory === undefined
-				? { kind: "live", root: liveCorpusSource().root }
+				? { kind: "live", root: liveRoot }
 				: { kind: "directory", root: linkedCorpusDirectory },
+		liveCorpusRoot: liveRoot,
 		overrun: CEILING_OVERRUN_STATEMENT,
 		linkCommand: LINK_CORPUS_COMMAND,
 	};
@@ -966,25 +1004,20 @@ export const createLaunchApp = (dependencies: LaunchDependencies) => {
 			}
 		})
 		.put("/api/setup/corpus", async (context) => {
-			const body: unknown = await context.req.json().catch(() => undefined);
-			const typed = setupCorpusRequestSchema.safeParse(body);
-			if (!typed.success) {
-				return context.json({ error: z.prettifyError(typed.error) }, 400);
-			}
-			const linked =
-				typed.data.directory === ""
-					? undefined
-					: corpusLinkRequestSchema(dependencies.home).safeParse(body);
-			if (linked?.success === false) {
+			const parsed = setupCorpusRequestSchema(dependencies.home).safeParse(
+				await context.req.json().catch(() => undefined),
+			);
+			if (!parsed.success) {
 				return context.json(
 					{
-						error: linked.error.issues.map((issue) => issue.message).join("; "),
+						error: parsed.error.issues.map((issue) => issue.message).join("; "),
 					},
 					400,
 				);
 			}
+
 			try {
-				await storeSetupCorpus(dependencies, linked?.data.directory);
+				await storeSetupCorpus(dependencies, parsed.data);
 
 				return context.json(await settingsReading(dependencies), 200);
 			} catch (error) {

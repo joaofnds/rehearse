@@ -29,7 +29,6 @@ import type { RunLiveness } from "#benchmark/run-liveness";
 import { pauseRequested } from "#benchmark/run-pause";
 import type { JsonValue } from "#benchmark/json-value";
 import { CONTROL_DIR, RECORDS_DIRECTORY_VARIABLE } from "#benchmark/config";
-import { liveCorpusSource } from "#benchmark/corpus-file";
 import { linkCorpus } from "#benchmark/corpus-source";
 import { corpusVersionLog } from "#benchmark/corpus-version";
 import { corpusVersionLabel } from "#benchmark/corpus-version-label";
@@ -1585,7 +1584,10 @@ describe(createLaunchApp.name, () => {
 			expect(readingSchema.parse(await response.json())).toEqual({
 				spendCeilingUsd: 5,
 				recordsDirectory: runsDirectory,
-				linkedCorpus: { kind: "live", root: liveCorpusSource().root },
+				linkedCorpus: {
+					kind: "live",
+					root: directoryLiveCorpus(runsDirectory).root,
+				},
 				overrun: CEILING_OVERRUN_STATEMENT,
 			});
 		});
@@ -1833,20 +1835,26 @@ describe(createLaunchApp.name, () => {
 				expect(after.linkedCorpus).toEqual({ kind: "directory", root: corpus });
 			});
 
-			it("leaves the live install linked for an empty path, clearing a directory linked earlier", async () => {
-				const { send, get } = await harness("missing");
-				await send("PUT", "/api/setup/corpus", {
-					directory: await corpusDirectory(),
-				});
+			it.each([
+				{ path: "an empty path", directory: "" },
+				{ path: "a blank path", directory: "  " },
+			])(
+				"leaves the live install linked for $path, clearing a directory linked earlier",
+				async ({ directory }) => {
+					const { send, get } = await harness("missing");
+					await send("PUT", "/api/setup/corpus", {
+						directory: await corpusDirectory(),
+					});
 
-				const response = await send("PUT", "/api/setup/corpus", {
-					directory: "",
-				});
+					const response = await send("PUT", "/api/setup/corpus", {
+						directory,
+					});
 
-				expect(response.status).toBe(200);
-				const after = await reading(get);
-				expect(after.linkedCorpus.kind).toBe("live");
-			});
+					expect(response.status).toBe(200);
+					const after = await reading(get);
+					expect(after.linkedCorpus.kind).toBe("live");
+				},
+			);
 
 			it("leaves the live install linked for a path from home that resolves to it, rather than linking it as a directory", async () => {
 				const { send, get, home, runsDirectory } = await harness("missing");
@@ -1877,6 +1885,22 @@ describe(createLaunchApp.name, () => {
 				expect(response.status).toBe(200);
 				const after = await reading(get);
 				expect(after.linkedCorpus.kind).toBe("live");
+			});
+
+			it("names the live install's root while a directory is linked, so setup can offer it", async () => {
+				const { send, get, runsDirectory } = await harness("missing");
+				await send("PUT", "/api/setup/corpus", {
+					directory: await corpusDirectory(),
+				});
+
+				const response = await get("/api/settings");
+
+				const body = z
+					.object({ liveCorpusRoot: z.string() })
+					.parse(await response.json());
+				expect(body.liveCorpusRoot).toBe(
+					directoryLiveCorpus(runsDirectory).root,
+				);
 			});
 
 			it("refuses a directory holding no corpus and keeps the link", async () => {
