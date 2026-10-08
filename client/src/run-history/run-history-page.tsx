@@ -26,6 +26,7 @@ import { ScreenHeader } from "#client/system/components/screen-header";
 import { SectionLabel } from "#client/system/components/section-label";
 import { Notice } from "#client/system/components/notice";
 import { LaunchDialog } from "#client/launch/launch-dialog";
+import { launchSettingsQuery } from "#client/launch/settings-query";
 import {
 	JUDGED_NOTE,
 	NOT_RETURNED,
@@ -1306,6 +1307,27 @@ function ComparisonBar({
 }
 
 /**
+ * Says setup is done only on the stored settings' word, since the live
+ * install is always a linked corpus but the ceiling may never have been set.
+ */
+function SetupAccount(): React.JSX.Element | null {
+	const settings = useQuery(launchSettingsQuery);
+	if (settings.isError) {
+		return (
+			<p role="alert">
+				<span aria-hidden="true">⚠ </span>
+				{`Could not read the stored spend limit: ${settings.error.message}`}
+			</p>
+		);
+	}
+	if (settings.data === undefined || settings.data.spendCeilingUsd === null) {
+		return null;
+	}
+
+	return <p>The corpus is linked and a spend limit is set.</p>;
+}
+
+/**
  * Why the table is empty: no record yet, or records the filter and search
  * hide. Unreadable records alone leave it to their notice to say.
  */
@@ -1329,9 +1351,10 @@ function NothingListed({
 
 	return (
 		<EmptyState heading="No runs recorded">
+			<SetupAccount />
 			<p>
-				The corpus is linked and a spend limit is set. Declare a case, then run
-				it. Every attempt lands here as a durable record.
+				Declare a case, then run it. Every attempt lands here as a durable
+				record.
 			</p>
 			<Button asChild>
 				<Link to="/cases">Declare a case</Link>

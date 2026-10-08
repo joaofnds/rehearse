@@ -28,6 +28,7 @@ import {
 } from "@tanstack/react-router";
 import type { InferResponseType } from "hono/client";
 import type { apiClient } from "#client/api-client";
+import type { SettingsReading } from "#client/launch/settings-query";
 import type { Reply } from "#client/test-support/fetch-stub";
 import { LiveReply } from "#client/test-support/live-reply";
 import {
@@ -160,6 +161,80 @@ describe(RunHistoryPage.name, () => {
 
 		await waitFor(() => {
 			expect(screen.getByText("No runs recorded")).toBeInTheDocument();
+		});
+	});
+
+	describe("the empty state's account of setup", () => {
+		const SETUP_SENTENCE = "The corpus is linked and a spend limit is set.";
+
+		function settingsWithCeiling(
+			spendCeilingUsd: number | null,
+		): SettingsReading {
+			return {
+				spendCeilingUsd,
+				setCommand: "rehearse settings --spend-ceiling-usd <USD>",
+				recordsDirectory: "/records",
+				linkedCorpus: { kind: "live", root: "/home/.claude" },
+				overrun: "The ceiling can be overrun by the calls in flight.",
+				linkCommand: "rehearse settings --link-corpus <DIR>",
+			};
+		}
+
+		it("says a spend limit is set when the settings hold a ceiling", async () => {
+			stubFetchByPath(
+				new Map<string, unknown>([
+					["/api/runs", { rows: [], launches: [], unreadable: [] }],
+					["/api/settings", settingsWithCeiling(20)],
+				]),
+			);
+
+			const page = renderPage();
+
+			expect(
+				await page.findByText(SETUP_SENTENCE, { exact: false }),
+			).toBeInTheDocument();
+		});
+
+		it("does not say a spend limit is set when the settings hold none", async () => {
+			stubFetchByPath(
+				new Map<string, unknown>([
+					["/api/runs", { rows: [], launches: [], unreadable: [] }],
+					["/api/settings", settingsWithCeiling(null)],
+				]),
+			);
+
+			const page = renderPage();
+			await page.findByText("No runs recorded");
+
+			expect(
+				page.queryByText(SETUP_SENTENCE, { exact: false }),
+			).not.toBeInTheDocument();
+		});
+
+		it("shows the refusal instead when the settings cannot be read", async () => {
+			new FakeServer(
+				new Map<string, Reply>([
+					[
+						"GET /api/runs",
+						{ status: 200, body: { rows: [], launches: [], unreadable: [] } },
+					],
+					[
+						"GET /api/settings",
+						{ status: 409, body: { error: "The settings file is unreadable" } },
+					],
+				]),
+			).install();
+
+			const page = renderPage();
+
+			expect(
+				await page.findByText("The settings file is unreadable", {
+					exact: false,
+				}),
+			).toBeInTheDocument();
+			expect(
+				page.queryByText(SETUP_SENTENCE, { exact: false }),
+			).not.toBeInTheDocument();
 		});
 	});
 
