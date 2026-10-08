@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { launchSettingsQuery } from "#client/launch/settings-query";
 import { plural } from "#client/plural";
-import { runHistoryQuery } from "#client/run-history/run-history-query";
+import { runListingQuery } from "#client/run-history/run-history-query";
 import { ScreenHeader } from "#client/system/components/screen-header";
 import { CorpusSettingsCard } from "./corpus-settings-card";
 import { KeyboardCard } from "./keyboard-card";
@@ -31,7 +31,7 @@ function sizeReading(bytes: number): string {
 
 function RecordsReading(): React.ReactNode {
 	const settings = useQuery(launchSettingsQuery);
-	const runs = useQuery(runHistoryQuery);
+	const runs = useQuery(runListingQuery);
 	const size = useQuery(recordsSizeQuery);
 	if (settings.isError) {
 		return `Could not read the settings: ${settings.error.message}`;

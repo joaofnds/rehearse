@@ -24,8 +24,8 @@ import { PaneHeading } from "./pane-heading";
 import { selectableRow } from "./selectable-row";
 import { attemptLabel } from "#client/attempt-label";
 import type { AttemptPosition } from "#client/attempt-label";
-import { runHistoryQuery } from "#client/run-history/run-history-query";
-import type { RunHistoryResponse } from "#client/run-history/run-history-query";
+import { runListingQuery } from "#client/run-history/run-history-query";
+import type { RunListingResponse } from "#client/run-history/run-history-query";
 
 export type SessionHistoryIdentity =
 	| {
@@ -59,7 +59,7 @@ interface IdentityEntry {
 	readonly filedUnder?: string;
 }
 
-type HistoryRow = RunHistoryResponse["rows"][number];
+type HistoryRow = RunListingResponse["rows"][number];
 
 /** What run history calls the record a page shows. */
 interface RecordNames {
@@ -83,8 +83,9 @@ type SessionAttemptRow = Extract<HistoryRow, { kind: "session-attempt" }>;
 type GroupRow = Extract<HistoryRow, { kind: "group" }>;
 
 /**
- * The shell loads run history on every page, so a page reads its record's
- * names from that report rather than asking its own route to name it again.
+ * The shell loads the record listing on every page, so a page reads its
+ * record's names from that listing rather than asking its own route to name
+ * it again.
  * A stage page's checkpoint is the one the stage recorded; a replay's is the
  * one it started from.
  */
@@ -1028,7 +1029,7 @@ export function SessionHistoryPage({
 		queryKey: ["session-history", path],
 		queryFn: () => fetchSummary(identity),
 	});
-	const runHistory = useQuery(runHistoryQuery);
+	const runHistory = useQuery(runListingQuery);
 	const names = recordNames(
 		identity,
 		runHistory.data?.rows ?? [],

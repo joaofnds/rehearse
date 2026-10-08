@@ -700,7 +700,7 @@ describe(SessionHistoryPage.name, () => {
 							sources: [],
 						},
 					],
-					["/api/runs", runHistory],
+					["/api/run-listing", runHistory],
 				]),
 			);
 			const client = new QueryClient({

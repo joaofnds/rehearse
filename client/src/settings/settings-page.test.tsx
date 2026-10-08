@@ -10,7 +10,7 @@ import {
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { CorpusResponse } from "#client/corpus/corpus-query";
 import type { SettingsReading } from "#client/launch/settings-query";
-import type { RunHistoryResponse } from "#client/run-history/run-history-query";
+import type { RunListingResponse } from "#client/run-history/run-history-query";
 import type { Reply } from "#client/test-support/fetch-stub";
 import { FakeServer } from "#client/test-support/fetch-stub";
 import { LiveReply } from "#client/test-support/live-reply";
@@ -36,7 +36,7 @@ const LIVE_SETTINGS: SettingsReading = {
 	linkCommand: "rehearse settings --link-corpus <directory>",
 };
 
-function history(runs: number): RunHistoryResponse {
+function history(runs: number): RunListingResponse {
 	return {
 		rows: Array.from({ length: runs }, (_unused, index) =>
 			runRow({ run: `2026-10-0${String(index + 1)}T10-00-00.000Z` }),
@@ -78,7 +78,7 @@ function serving(
 				"GET /api/settings/records",
 				{ status: 200, body: { bytes: 612_000_000 } },
 			],
-			["GET /api/runs", { status: 200, body: history(2) }],
+			["GET /api/run-listing", { status: 200, body: history(2) }],
 			[
 				"GET /api/corpus",
 				{ status: 200, body: corpus(`a41c7e${"0".repeat(58)}`) },
@@ -109,11 +109,31 @@ describe(SettingsPage.name, () => {
 		).toBeInTheDocument();
 	});
 
-	it("says the records could not be counted when the run history is refused", async () => {
+	it("counts the records while the run history's staleness cannot be judged", async () => {
 		serving(
 			new Map([
 				[
 					"GET /api/runs",
+					{
+						status: 409,
+						body: {
+							error: "The linked corpus directory is no longer a corpus",
+						},
+					},
+				],
+			]),
+		);
+
+		expect(
+			await screen.findByText(subline(`${RECORDS_AT} · 2 records, 612 MB`)),
+		).toBeInTheDocument();
+	});
+
+	it("says the records could not be counted when the record listing is refused", async () => {
+		serving(
+			new Map([
+				[
+					"GET /api/run-listing",
 					{
 						status: 409,
 						body: {
