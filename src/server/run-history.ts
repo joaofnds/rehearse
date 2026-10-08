@@ -1399,8 +1399,8 @@ function withStaleness(
 
 /**
  * Every recorded run rendered as a row, as `runHistoryReport` renders it but
- * without judging any record's staleness, so it reads neither the corpus
- * under test nor any record's read manifest.
+ * without judging any record's staleness, so it hashes neither the corpus
+ * under test nor the files a record's read manifest names.
  *
  * One run's failure to read, a malformed artifact or a missing manifest, is
  * collected rather than thrown: the `list runs` precedent
