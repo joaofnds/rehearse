@@ -306,6 +306,51 @@ describe(sessionLineage.name, () => {
 });
 
 describe("the lineage a declared state check produces", () => {
+	/**
+	 * Attempts recorded while seeding handed the session its scorer could
+	 * learn how they were graded, so they must not compare as the same
+	 * experiment as attempts that could not. The pinned digest is the lineage
+	 * this case had then.
+	 */
+	it("differs from the lineage recorded while the session could read its scorer", async () => {
+		const fixture = await mkdtemp(join(tmpdir(), "rehearse-lineage-"));
+		testResources.track(fixture);
+		await writeFile(join(fixture, "score.sh"), "exit 0\n");
+		await writeFile(join(fixture, "LEDGER.md"), "ledger\n");
+
+		const lineage = await sessionLineage(
+			sessionCase(fixture, {
+				command: ["sh", "score.sh"],
+				outcomes: ["tree-clean"],
+			}),
+			corpus("a".repeat(64)),
+			settings,
+		);
+
+		expect(lineage).not.toBe(
+			"954e19887a90bc818c750f588f6693c34631c790d653ee026ee89661e79e7ea5",
+		);
+	});
+
+	/**
+	 * A scorer outside the fixture was never in the session's tree, so those
+	 * sessions saw what they always saw and keep the lineage they recorded.
+	 */
+	it("is unchanged when the scorer it names lies outside the fixture", async () => {
+		const lineage = await sessionLineage(
+			sessionCase(undefined, {
+				command: ["sh", "score.sh"],
+				outcomes: ["tree-clean"],
+			}),
+			corpus("a".repeat(64)),
+			settings,
+		);
+
+		expect(lineage).toBe(
+			"9a215f3a87ef26c1b897bbcb177d15d817f1280973cff6dfb9bbba8b85612ef4",
+		);
+	});
+
 	it("differs from the lineage of the same case declaring no state check", async () => {
 		const [without, with_] = await Promise.all([
 			sessionLineage(sessionCase(), corpus("a".repeat(64)), settings),

@@ -526,7 +526,8 @@ Before the provider is called, the seeded history must satisfy three commands:
 `git rev-parse --show-toplevel` resolving to the attempt directory,
 `git log --format=%H`, and `git status --short`. A fixture failing any of them
 is refused by name with the failing command's stderr, and the CLI exits 3. A
-`dot-git` that is a file rather than a directory is refused too. See
+`dot-git` that is a file rather than a directory is refused too, and so is one
+holding a scorer file, as State checks describes. See
 `cases/history-probe` for a worked example.
 
 | Check               | Behavior                                                                                                                                                                                                                                  |
@@ -583,15 +584,27 @@ The declaration is inline because that is what folds it into the attempt's
 lineage: the fixture digest walks the fixture subdirectory, not the case
 directory, so a scorer file beside `case.json` would be covered by no digest and
 an edited scorer could be graded as the original definition. A scorer too large
-for a command line lives inside the fixture, where the fixture digest covers it,
-and the fixture's `dot-git/info/exclude` should name it: a scorer sitting in the
-tree it grades is otherwise an untracked entry that fails every cleanliness
-grade. Use that file rather than a `.gitignore`, which would also hide the
-scorer from the repository that ships the case, so a clone would receive a case
-declaring a scorer with no scorer beside it. Before the command runs, the case's
-own copy of every path it names is laid back over the restore, so a session that
-rewrites the scorer is still graded by the case's bytes. See `cases/state-probe`
-for a worked example.
+for a command line lives inside the fixture, where the fixture digest covers it.
+Seeding leaves every fixture file the command names out of the session's tree,
+because a session that reads its scorer learns how it is graded and can pass
+from that. Only a command word that is itself a path to a file inside the
+fixture counts as naming one, so write `["python3", "score.py"]` rather than
+`["sh", "-c", "python3 score.py"]`, and keep the scorer a single file rather
+than a directory. A word naming a file the session is meant to work on
+withholds that file too. A fixture whose `dot-git` holds such a file, in any
+stored commit including those only the reflog or nothing reaches, or as its
+current bytes in any object, is refused before any provider call, since git
+would hand the session the same bytes. The lineage records which files were
+withheld, so attempts recorded while sessions could read their scorer do not
+compare as the same experiment.
+Before the command runs, the case's own copy of every path it names is laid back
+over the restore, so a session that writes a file at that path is still graded
+by the case's bytes. The fixture's `dot-git/info/exclude` should name the
+scorer, because the copy laid back for grading is otherwise an untracked entry
+that fails every cleanliness grade. Use that file rather than a `.gitignore`,
+which would also hide the scorer from the repository that ships the case, so a
+clone would receive a case declaring a scorer with no scorer beside it. See
+`cases/state-probe` for a worked example.
 
 State grades are recorded separately from `checks`, so a session that returns no
 reply still receives them while its outcome stays `NO_REPLY` and its `checks`

@@ -80,10 +80,11 @@ so supporting another system means writing its `Sandbox` and selecting it there.
 
 Session cases use temporary directories seeded with optional fixture files and
 conversation prefixes. Their checks consume replies and tool calls, and a case
-may also declare a scorer over the files and git state the session leaves. That
-tree is copied into the run's record directory before cleanup, and each grade
-runs against its own restored copy, so the evidence outlives the attempt and a
-later pass reads the bytes this one did.
+may also declare a scorer over the files and git state the session leaves, which
+seeding keeps out of the session's tree so the session cannot learn how it is
+graded. That tree is copied into the run's record directory before cleanup, and
+each grade runs against its own restored copy, so the evidence outlives the
+attempt and a later pass reads the bytes this one did.
 Session confirmation freezes its declared inputs once and retains each repetition,
 including unsuccessful and execution-failed attempts.
 

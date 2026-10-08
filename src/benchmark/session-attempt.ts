@@ -59,7 +59,7 @@ import {
 } from "./subagent-evidence";
 import { preserveStateEvidence } from "./session-state-evidence";
 import type { StateResult } from "./session-state-check";
-import { gradeCaseState } from "./session-state-check";
+import { gradeCaseState, scorerFiles } from "./session-state-check";
 import type {
 	ContextEvidence,
 	ContextEvidenceSource,
@@ -341,10 +341,17 @@ const FIXTURE_HOOKS_DIRECTORY = join(STORED_GIT_DIRECTORY, "hooks");
  * provider call, fires `post-index-change`, so a hook a case carries is code
  * the harness executes here, outside the tools and permissions the case
  * declares. No case needs one.
+ *
+ * A scorer file the state check names is left out of the tree, because a
+ * session that reads it learns how it is graded and can pass from that rather
+ * than from the instructions under test. Grading lays the case's copy back.
+ * History that tracks it would hand the same bytes over through git, so such
+ * a fixture is refused.
  */
 async function seedFixture(
 	fixturePath: string,
 	attemptDirectory: string,
+	scorer: readonly string[],
 ): Promise<void> {
 	const entries = await readdir(fixturePath, {
 		recursive: true,
@@ -377,10 +384,78 @@ async function seedFixture(
 		}
 	}
 
-	await cp(fixturePath, attemptDirectory, { recursive: true });
+	const withheld = new Set(scorer.map((file) => join(fixturePath, file)));
+	await cp(fixturePath, attemptDirectory, {
+		recursive: true,
+		filter: (source) => !withheld.has(source),
+	});
 
 	if (carriesHistory) {
 		await openFixtureHistory(fixturePath, attemptDirectory);
+		await refuseScorerInHistory(fixturePath, attemptDirectory, scorer);
+	}
+}
+
+/**
+ * A ref is not the only way to reach a commit: the reflog and an object no ref
+ * reaches still hand its tree to `git show`. So every commit object stored is
+ * read, not only those a ref reaches, and the scorer's current bytes are
+ * looked for among every object. `--no-filters` keeps a filter the fixture's
+ * config declares from running here.
+ */
+async function refuseScorerInHistory(
+	fixturePath: string,
+	attemptDirectory: string,
+	scorer: readonly string[],
+): Promise<void> {
+	if (scorer.length === 0) {
+		return;
+	}
+
+	const git = (args: readonly string[]): Promise<string> =>
+		fixtureHistoryOutput(fixturePath, attemptDirectory, ["git", ...args]);
+	const objects = await git([
+		"cat-file",
+		"--batch-all-objects",
+		"--batch-check=%(objectname) %(objecttype)",
+	]);
+	const stored = objects.split("\n").map((line) => line.split(" "));
+	const commits = stored
+		.filter(([, type]) => type === "commit")
+		.map(([name]) => name ?? "");
+	const touched: string[] = [];
+	if (commits.length > 0) {
+		const log = await git([
+			"log",
+			"--no-walk=unsorted",
+			"--root",
+			"-m",
+			"--format=",
+			"--name-only",
+			...commits,
+			"--",
+		]);
+		touched.push(...log.split("\n"));
+	}
+	const names = new Set(stored.map(([name]) => name));
+
+	const exposed: string[] = [];
+	for (const file of scorer) {
+		const blob = await git([
+			"hash-object",
+			"--no-filters",
+			"--",
+			join(fixturePath, file),
+		]);
+		if (touched.includes(file) || names.has(blob.trim())) {
+			exposed.push(file);
+		}
+	}
+
+	if (exposed.length > 0) {
+		throw new SessionInputError(
+			`Fixture ${fixturePath} holds the scorer ${exposed.join(", ")} in its history, where the session could read how it is graded`,
+		);
 	}
 }
 
@@ -553,7 +628,16 @@ export async function runSessionAttempt(
 	);
 	try {
 		if (sessionCase.fixturePath !== undefined) {
-			await seedFixture(sessionCase.fixturePath, attemptDirectory);
+			await seedFixture(
+				sessionCase.fixturePath,
+				attemptDirectory,
+				sessionCase.stateCheck === undefined
+					? []
+					: await scorerFiles(
+							sessionCase.fixturePath,
+							sessionCase.stateCheck.command,
+						),
+			);
 		}
 
 		const startingProjectFiles = await seededProjectFiles(

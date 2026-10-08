@@ -12,7 +12,7 @@ import {
 	writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, normalize, resolve } from "node:path";
 import { casesRoot, readCaseDeclaration } from "#benchmark/case";
 import type { SessionCase } from "#benchmark/case";
 import { CommandError, runCommand } from "#benchmark/command";
@@ -35,6 +35,7 @@ import {
 	SessionInputError,
 } from "#benchmark/session-attempt";
 import { SessionInvocationError } from "#benchmark/session-invocation-error";
+import { STORED_GIT_DIRECTORY } from "#benchmark/git-directory-name";
 import { STATE_EVIDENCE_DIRECTORY } from "#benchmark/session-state-evidence";
 
 const resources = TestResources.forEachTest();
@@ -2388,11 +2389,10 @@ describe("the state evidence a session attempt preserves", () => {
 	});
 
 	/**
-	 * The scorer lives in the fixture, so seeding hands the session a copy of
-	 * it and the session may write to that copy. A grade that ran the session's
-	 * bytes would let any session declare itself successful.
+	 * The session may write a file at the scorer's path. A grade that ran the
+	 * session's bytes would let any session declare itself successful.
 	 */
-	it("grades with the case's scorer, not the copy the session rewrote", async () => {
+	it("grades with the case's scorer, not a file the session wrote at its path", async () => {
 		const declaration = await readCaseDeclaration("state-probe");
 		if (declaration.kind !== "session" || declaration.fixture === undefined) {
 			throw new Error("state-probe is expected to be a session case");
@@ -2418,6 +2418,202 @@ describe("the state evidence a session attempt preserves", () => {
 			status: "FAIL",
 			detail: "the top commit posts the February refund",
 		});
+	});
+
+	it("grades with the case's scorer when the session left a directory at its path", async () => {
+		const declaration = await readCaseDeclaration("state-probe");
+		if (declaration.kind !== "session" || declaration.fixture === undefined) {
+			throw new Error("state-probe is expected to be a session case");
+		}
+
+		const projects = await projectsRoot();
+		const attempt = await runSessionAttempt(
+			request({
+				sessionCase: sessionCase({
+					declaration,
+					fixturePath: join(casesRoot(), "state-probe", declaration.fixture),
+					stateCheck: declaration.stateCheck,
+					checks: declaration.checks,
+				}),
+				projectsDirectory: projects,
+				recordDirectory: await recordDirectory(),
+				runClaude: writingClaude(projects, { "score.sh/planted.md": "x\n" }),
+			}),
+		);
+
+		expect(attempt.stateResults).toContainEqual({
+			name: "work-committed",
+			status: "FAIL",
+			detail: "the top commit posts the February refund",
+		});
+	});
+
+	it("seeds no scorer file into the tree the session works in", async () => {
+		const declaration = await readCaseDeclaration("state-probe");
+		if (declaration.kind !== "session" || declaration.fixture === undefined) {
+			throw new Error("state-probe is expected to be a session case");
+		}
+		const projects = await projectsRoot();
+		const claude = new FakeClaude(projects, "OK");
+
+		await runSessionAttempt(
+			request({
+				sessionCase: sessionCase({
+					declaration,
+					fixturePath: join(casesRoot(), "state-probe", declaration.fixture),
+					stateCheck: declaration.stateCheck,
+					checks: declaration.checks,
+				}),
+				projectsDirectory: projects,
+				recordDirectory: await recordDirectory(),
+				runClaude: claude.run,
+			}),
+		);
+
+		expect(claude.runs[0]?.seenFiles).toContain("LEDGER.md");
+		expect(claude.runs[0]?.seenFiles).not.toContain("score.sh");
+	});
+
+	it("withholds a scorer the command names under two spellings", async () => {
+		const fixture = await mkdtemp(join(tmpdir(), "rehearse-fixture-"));
+		resources.track(fixture);
+		await writeFile(join(fixture, "score.sh"), "exit 0\n");
+		await writeFile(join(fixture, "LEDGER.md"), "ledger\n");
+		const projects = await projectsRoot();
+		const claude = new FakeClaude(projects, "OK");
+
+		await runSessionAttempt(
+			request({
+				sessionCase: sessionCase({
+					fixturePath: fixture,
+					stateCheck: {
+						command: ["sh", "score.sh", "./score.sh"],
+						outcomes: ["graded"],
+					},
+				}),
+				projectsDirectory: projects,
+				recordDirectory: await recordDirectory(),
+				runClaude: claude.run,
+			}),
+		);
+
+		expect(claude.runs[0]?.seenFiles).toEqual(["LEDGER.md"]);
+	});
+
+	describe("a fixture whose history holds a scorer file", () => {
+		const hidings = [
+			{
+				name: "the current commit tracks it",
+				history: ["first", "score"],
+				scorer: "score.md",
+				hide: async () => {
+					// The history fixture's last commit already tracks it.
+				},
+			},
+			{
+				name: "an earlier commit carried it with other bytes",
+				history: ["first", "score"],
+				scorer: "score.md",
+				hide: async (fixture: string) => {
+					await gitInFixture(fixture, [
+						"rm",
+						"--cached",
+						"--quiet",
+						"score.md",
+					]);
+					await gitInFixture(fixture, ["commit", "--quiet", "-m", "untrack"]);
+					await writeFile(join(fixture, "score.md"), "rewritten\n");
+				},
+			},
+			{
+				name: "the command spells it from the fixture root",
+				history: ["first", "score"],
+				scorer: "./score.md",
+				hide: async (fixture: string) => {
+					await gitInFixture(fixture, [
+						"rm",
+						"--cached",
+						"--quiet",
+						"score.md",
+					]);
+					await gitInFixture(fixture, ["commit", "--quiet", "-m", "untrack"]);
+					await writeFile(join(fixture, "score.md"), "rewritten\n");
+				},
+			},
+			{
+				name: "only another branch carried it",
+				history: ["first"],
+				scorer: "score.md",
+				hide: async (fixture: string) => {
+					await gitInFixture(fixture, ["checkout", "--quiet", "-b", "side"]);
+					await writeFile(join(fixture, "score.md"), "side answers\n");
+					await gitInFixture(fixture, ["add", "score.md"]);
+					await gitInFixture(fixture, ["commit", "--quiet", "-m", "side"]);
+					await gitInFixture(fixture, ["checkout", "--quiet", "main"]);
+					await writeFile(join(fixture, "score.md"), "rewritten\n");
+				},
+			},
+			{
+				name: "only the reflog reaches the commit that carried it",
+				history: ["first"],
+				scorer: "score.md",
+				hide: async (fixture: string) => {
+					await writeFile(join(fixture, "score.md"), "old answers\n");
+					await gitInFixture(fixture, ["add", "score.md"]);
+					await gitInFixture(fixture, ["commit", "--quiet", "-m", "draft"]);
+					await gitInFixture(fixture, ["reset", "--quiet", "--hard", "HEAD~1"]);
+					await writeFile(join(fixture, "score.md"), "new answers\n");
+				},
+			},
+			{
+				name: "a commit carried its bytes under another name",
+				history: ["first"],
+				scorer: "copy.md",
+				hide: async (fixture: string) => {
+					await writeFile(join(fixture, "copy.md"), "first\n");
+				},
+			},
+			{
+				name: "only a loose object holds its bytes",
+				history: ["first"],
+				scorer: "draft.md",
+				hide: async (fixture: string) => {
+					await writeFile(join(fixture, "draft.md"), "draft answers\n");
+					await gitInFixture(fixture, ["hash-object", "-w", "--", "draft.md"]);
+				},
+			},
+		] as const;
+
+		for (const hiding of hidings) {
+			it(`is refused, naming it, before any provider call when ${hiding.name}`, async () => {
+				const fixture = await historyFixture(hiding.history);
+				resources.track(fixture.path);
+				await hiding.hide(fixture.path);
+				const projects = await projectsRoot();
+				const claude = new FakeClaude(projects, "OK");
+
+				const failure = await failureOf(
+					runSessionAttempt(
+						request({
+							sessionCase: sessionCase({
+								fixturePath: fixture.path,
+								stateCheck: {
+									command: ["cat", hiding.scorer],
+									outcomes: ["graded"],
+								},
+							}),
+							projectsDirectory: projects,
+							recordDirectory: await recordDirectory(),
+							runClaude: claude.run,
+						}),
+					),
+				);
+
+				expect(failure).toBeInstanceOf(SessionInputError);
+				expect(failure.message).toContain(normalize(hiding.scorer));
+				expect(claude.runs).toEqual([]);
+			});
+		}
 	});
 
 	it("fails the committed case's commit grade for a session that did nothing", async () => {
@@ -2892,3 +3088,20 @@ describe("the sub-agent evidence a session attempt retains", () => {
 		});
 	});
 });
+
+function gitInFixture(
+	fixture: string,
+	args: readonly string[],
+): Promise<string> {
+	return runCommand(
+		[
+			"git",
+			"--git-dir",
+			join(fixture, STORED_GIT_DIRECTORY),
+			"--work-tree",
+			fixture,
+			...args,
+		],
+		fixture,
+	);
+}

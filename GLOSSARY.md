@@ -809,9 +809,11 @@ See [current state](docs/status.md) for implementation coverage and
   result per declared outcome, keyed by the name the case declared where a
   reply check's result is keyed by kind, and those results are recorded in
   their own field rather than in the check list, whose members are all
-  evaluated against the reply and the transcript. Before the command runs, the
-  case's own copy of every path it names is laid back over the restore, so a
-  session that rewrote the scorer is still graded by the case's bytes.
+  evaluated against the reply and the transcript. Seeding keeps every fixture
+  file the command names out of the session's tree, so the session cannot read
+  how it is graded. Before the command runs, the case's own copy of every such
+  file is laid back over the restore, so a session that wrote a file at that
+  path is still graded by the case's bytes.
 - **State grading error** — the record a session attempt carries when its
   declared state check could not produce grades: the scorer would not run,
   exited non-zero, printed output the result schema rejects, or omitted a

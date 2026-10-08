@@ -1,6 +1,6 @@
 import { cp, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { z } from "zod";
 import type { SessionCase } from "./case";
 import { CommandError } from "./command";
@@ -140,27 +140,46 @@ export interface StateGradingRequest {
 export const STATE_SCORER_TIMEOUT_MS = 60_000;
 
 /**
- * Only the paths the command itself names are laid back, never the whole
- * fixture: restoring every file would overwrite the very work the grade is
- * meant to read. A word that resolves to a file under the case's fixture is
+ * A word of the command that resolves to a file under the case's fixture is
  * one of the scorer's own bytes; everything else in the command line is an
- * argument the session cannot reach.
+ * argument the session cannot reach. Seeding leaves these paths out of the
+ * session's tree and grading lays them back, so both read this one list.
  */
-async function layBackScorerFiles(
-	scorerSource: string,
+export async function scorerFiles(
+	fixturePath: string,
 	command: readonly string[],
-	restored: string,
-): Promise<void> {
+): Promise<readonly string[]> {
+	const files = new Set<string>();
 	for (const word of command) {
-		const source = join(scorerSource, word);
-		if (!source.startsWith(`${scorerSource}/`)) {
+		const source = join(fixturePath, word);
+		if (!source.startsWith(`${fixturePath}/`)) {
 			continue;
 		}
 		if (!(await Bun.file(source).exists())) {
 			continue;
 		}
 
-		await cp(source, join(restored, word), { force: true });
+		files.add(relative(fixturePath, source));
+	}
+
+	return [...files];
+}
+
+/**
+ * Only the paths the command itself names are laid back, never the whole
+ * fixture: restoring every file would overwrite the very work the grade is
+ * meant to read. Whatever the session left at such a path is removed first,
+ * since a directory there would refuse the copy and leave the attempt
+ * ungraded.
+ */
+async function layBackScorerFiles(
+	scorerSource: string,
+	command: readonly string[],
+	restored: string,
+): Promise<void> {
+	for (const file of await scorerFiles(scorerSource, command)) {
+		await rm(join(restored, file), { recursive: true, force: true });
+		await cp(join(scorerSource, file), join(restored, file));
 	}
 }
 
@@ -177,10 +196,10 @@ async function layBackScorerFiles(
  * an operator reading "exited 137" learns nothing about why.
  *
  * The case's own files are laid back over the restore before the command runs.
- * A scorer declared as a path lives in the fixture, so seeding hands the
- * session a copy and the session may write to it; without this the grade would
- * execute whatever the session left at that path, and any session could report
- * itself successful. The grading definition is the case's bytes, which is what
+ * Seeding leaves a scorer file out of the session's tree, but the session may
+ * still write a file at that path; without this the grade would execute
+ * whatever the session left there, and any session could report itself
+ * successful. The grading definition is the case's bytes, which is what
  * the lineage digest covers.
  */
 export async function gradeStateEvidence(

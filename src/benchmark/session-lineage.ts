@@ -5,6 +5,7 @@ import type { SessionSettings } from "./claude";
 import type { ResolvedCorpusFile } from "./corpus-file";
 import type { JsonValue } from "./json-value";
 import { jsonArraySchema, jsonObjectSchema } from "./json-value";
+import { scorerFiles } from "./session-state-check";
 
 /**
  * `lineageKey` hashes upstream, corpus files, model, effort, and a stage
@@ -28,6 +29,12 @@ import { jsonArraySchema, jsonObjectSchema } from "./json-value";
  * out entirely when a case declares no scorer, so every case recorded before
  * state grading existed keeps the lineage it already has and stays comparable
  * with its own history.
+ *
+ * `withheldScorer` names the fixture files seeding kept out of the session's
+ * tree because the scorer command names them. Attempts recorded before
+ * seeding withheld them could read how they were graded, so they are a
+ * different experiment and must not share a lineage. The key is left out when
+ * nothing is withheld, since those sessions saw the same tree as before.
  */
 export async function sessionUpstreamDigest(
 	sessionCase: SessionCase,
@@ -47,15 +54,19 @@ export async function sessionUpstreamDigest(
 		projectFiles: sessionCase.projectFiles,
 	};
 
-	return createHash("sha256")
-		.update(
-			JSON.stringify(
-				sessionCase.stateCheck === undefined
-					? hashed
-					: { ...hashed, stateCheck: sessionCase.stateCheck },
-			),
-		)
-		.digest("hex");
+	const withheldScorer =
+		fixturePath === undefined || sessionCase.stateCheck === undefined
+			? []
+			: await scorerFiles(fixturePath, sessionCase.stateCheck.command);
+
+	const graded =
+		sessionCase.stateCheck === undefined
+			? hashed
+			: { ...hashed, stateCheck: sessionCase.stateCheck };
+	const upstream =
+		withheldScorer.length === 0 ? graded : { ...graded, withheldScorer };
+
+	return createHash("sha256").update(JSON.stringify(upstream)).digest("hex");
 }
 
 /**
