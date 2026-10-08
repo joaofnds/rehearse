@@ -9,6 +9,7 @@ import {
 	reconcileManifest,
 } from "./context-manifest";
 import { claudeCallMetricsSchema } from "./contracts";
+import type { Immutable } from "./contracts";
 import type { ResolvedCorpusFile } from "./corpus-file";
 import type { CorpusMeasurement } from "./corpus-measurement";
 import { corpusMeasurementSchema } from "./corpus-measurement";
@@ -380,6 +381,13 @@ export type SessionAttemptRecord = z.infer<typeof sessionAttemptRecordSchema>;
 
 export function parseSessionAttemptRecord(text: string): SessionAttemptRecord {
 	return sessionAttemptRecordSchema.parse(JSON.parse(text));
+}
+
+/** When the attempt started; undefined for a record written before attempts kept it. */
+export function attemptStartedAt(
+	record: Immutable<SessionAttemptRecord>,
+): string | undefined {
+	return "startedAt" in record ? record.startedAt : undefined;
 }
 
 export interface SessionAttemptRecordInputs {

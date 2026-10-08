@@ -37,7 +37,10 @@ import { openRunEventStore } from "#benchmark/run-events";
 import { newestFirst } from "#benchmark/recorded-time";
 import { readReplayRecord } from "#benchmark/replay";
 import type { ReplayRecord } from "#benchmark/replay";
-import { parseSessionAttemptRecord } from "#benchmark/session-record";
+import {
+	attemptStartedAt,
+	parseSessionAttemptRecord,
+} from "#benchmark/session-record";
 import type { SessionAttemptRecord } from "#benchmark/session-record";
 import { formatRecordId, parseRecordId } from "#cli/record-id";
 import {
@@ -704,7 +707,7 @@ async function sessionAttemptRow(
 		uuid: attempt.uuid,
 		shortId,
 		status: record.outcome,
-		startedAt: "startedAt" in record ? record.startedAt : undefined,
+		startedAt: attemptStartedAt(record),
 		corpusVersion: record.corpusVersion,
 		staleness: staleness.of(
 			formatRecordId({ kind: "attempt:session", ...attempt }),

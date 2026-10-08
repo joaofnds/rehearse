@@ -14,7 +14,10 @@ import {
 } from "#benchmark/run-layout";
 import { newestFirst } from "#benchmark/recorded-time";
 import type { RunLiveness } from "#benchmark/run-liveness";
-import { parseSessionAttemptRecord } from "#benchmark/session-record";
+import {
+	attemptStartedAt,
+	parseSessionAttemptRecord,
+} from "#benchmark/session-record";
 import type { SessionAttemptRecord } from "#benchmark/session-record";
 import type { Immutable } from "#benchmark/contracts";
 import type { CaseRun } from "./case-figures";
@@ -188,7 +191,7 @@ async function sessionAttempts(runsDirectory: string): Promise<Found> {
 			const record = parseSessionAttemptRecord(await file.text());
 			found.push({
 				caseId: attempt.caseId,
-				time: "startedAt" in record ? record.startedAt : undefined,
+				time: attemptStartedAt(record),
 				run: sessionAttemptRun(record),
 			});
 		} catch (error) {
