@@ -888,8 +888,8 @@ function ceilingReadings(
  * A call that fails after spending to the ceiling stops it the same way,
  * since its budget was what the ceiling had left: a provider halts such a
  * call at that budget rather than returning a result. Any other failure
- * with the spend at the ceiling stops it too, a check of what the stage
- * produced after its session included, since the stage's Judge could not be paid for.
+ * with the spend at the ceiling stops it too, such as a step between the
+ * session and its Judge, since the stage's Judge could not be paid for.
  */
 async function stoppingAtCeiling<Result>(
 	context: Pick<
@@ -1053,7 +1053,6 @@ export async function runGradedStages(
 			sessionBudgetUsd: context.sessionBudgetUsd,
 		};
 		await context.writePendingStage(pendingStage);
-		const rubric = await loadStageRubric(definition);
 		const stageTranscript =
 			context.projectsDirectory === undefined
 				? undefined
@@ -1061,19 +1060,29 @@ export async function runGradedStages(
 						sessionId: session.transcript.sessionId,
 						projectsDirectory: context.projectsDirectory,
 					};
-		const readManifest = await recordStageReads({
-			targetDir: context.targetDir,
-			startSha: baselineSha,
-			transcript: stageTranscript,
-			skill: definition.skill,
-			corpusSources: corpusSourceDirectories(context.corpusSource),
-			corpusFiles,
-			versionFiles,
-			rubric: {
-				path: definition.rubric,
-				sha256: stageRubricSha256(rubric.rubric),
+		const startSha = baselineSha;
+		const { rubric, readManifest } = await stoppingAtCeiling(
+			context,
+			stage,
+			async () => {
+				const loaded = await loadStageRubric(definition);
+				const reads = await recordStageReads({
+					targetDir: context.targetDir,
+					startSha,
+					transcript: stageTranscript,
+					skill: definition.skill,
+					corpusSources: corpusSourceDirectories(context.corpusSource),
+					corpusFiles,
+					versionFiles,
+					rubric: {
+						path: definition.rubric,
+						sha256: stageRubricSha256(loaded.rubric),
+					},
+				});
+
+				return { rubric: loaded, readManifest: reads };
 			},
-		});
+		);
 		const readStage: PendingStage = { ...pendingStage, readManifest };
 		context.updatePendingStage(readStage);
 

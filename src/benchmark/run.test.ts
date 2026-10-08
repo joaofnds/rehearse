@@ -1679,6 +1679,45 @@ describe(runGradedStages.name, () => {
 			});
 		});
 
+		it("records the ceiling stop when the stage's rubric cannot be read at the ceiling", async () => {
+			const { dependencies } = fakeStageDependencies();
+			const { persistence, abort } = atCeiling();
+			const ceiling = await ceilingContext(abort);
+			const [first, ...rest] = ceiling.pipeline.stages;
+			const context = {
+				...ceiling,
+				productOwner: answeringProductOwner,
+				pipeline: {
+					...ceiling.pipeline,
+					stages: [
+						...(first === undefined
+							? []
+							: [{ ...first, rubric: "rubrics/missing.md" }]),
+						...rest,
+					],
+				},
+			};
+			const sessions = {
+				...dependencies,
+				runWorkflowStage: (request: WorkflowStageRequest) => {
+					request.spendCeiling.charge(1);
+
+					return dependencies.runWorkflowStage(request);
+				},
+			};
+
+			const failure = await failureOf(runGradedStages(sessions, context));
+			await abort.markAborted(failure.message);
+
+			expect(
+				JSON.parse(persistence.files.get(context.stageFile("shape")) ?? ""),
+			).toMatchObject({
+				stage: "shape",
+				productOwnerCostUsd: 0.0115,
+				ceilingStop: { ceilingUsd: 1, spentUsd: 1 },
+			});
+		});
+
 		it("records the group's ceiling when a rep's session fails at what the group had left", async () => {
 			const { dependencies } = fakeStageDependencies();
 			const { persistence, abort } = atCeiling();
