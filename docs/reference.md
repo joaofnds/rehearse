@@ -159,7 +159,8 @@ stage Judge's stopped record keeps the attempts it paid for before the stop,
 and `judgeProviderCalls`, every call the Judge paid for, a halted call
 included. The calls are empty when the ceiling refused the Judge's first call.
 A stopped record whose stage session the ceiling stopped, whether during a
-worker call, a Product Owner call, or the refusal of a turn, carries
+worker call, a Product Owner call, the refusal of a turn, or a step after the
+session returned, such as reading the task state, carries
 `session`, holding that session's `providerCalls` up to the stop, a halted
 call included, and its `costUsd`. The calls are empty and the cost 0 when the
 ceiling refused the session's first call, and the cost is absent when the

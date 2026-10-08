@@ -733,6 +733,45 @@ export async function executeStageSession(
 		elapsedMs: environment.elapsedMs,
 	});
 
+	let delivery: StageDelivery;
+	try {
+		delivery = await readStageDelivery(
+			dependencies,
+			environment,
+			definition,
+			priorArtifacts,
+			transcript,
+		);
+	} catch (error) {
+		throw new StageSessionError({
+			cause: error,
+			providerCalls: transcript.providerCalls,
+			costUsd: transcript.costUsd,
+		});
+	}
+
+	return { ...delivery, corpusFiles, corpusVersion, versionFiles, transcript };
+}
+
+/** What a stage delivered once its session returned, ready for its Judge. */
+type StageDelivery = Pick<
+	StageSessionResult,
+	"resultSha" | "input" | "artifact" | "buildEvidence"
+>;
+
+/**
+ * Reads the task state a returned session left and validates the stage's
+ * delivery. A failure here comes after the session spent, so its caller
+ * carries that spend out with it.
+ */
+async function readStageDelivery(
+	dependencies: StageSessionDependencies,
+	environment: StageSessionEnvironment,
+	definition: StageDefinition,
+	priorArtifacts: readonly ContextFile[],
+	transcript: StageTranscript,
+): Promise<StageDelivery> {
+	const stage = definition.name;
 	const currentTaskOutput = await dependencies.readTaskOutput(
 		environment.targetDir,
 		environment.taskId,
@@ -828,16 +867,7 @@ export async function executeStageSession(
 		};
 	});
 
-	return {
-		resultSha,
-		corpusFiles,
-		corpusVersion,
-		versionFiles,
-		transcript,
-		input,
-		artifact,
-		buildEvidence,
-	};
+	return { resultSha, input, artifact, buildEvidence };
 }
 
 function stageElapsedMs(
@@ -868,7 +898,9 @@ function ceilingReadings(
  * so the stop is recorded against that stage before the refusal propagates.
  * A call that fails after spending to the ceiling stops it the same way,
  * since its budget was what the ceiling had left: a provider halts such a
- * call at that budget rather than returning a result.
+ * call at that budget rather than returning a result. Any other failure
+ * with the spend at the ceiling stops it too, a delivery check after the
+ * session included, since the stage's Judge could not be paid for.
  */
 async function stoppingAtCeiling<Result>(
 	context: Pick<

@@ -975,6 +975,55 @@ describe(runPipelineConfirmation.name, () => {
 		expect(failed?.workerTrajectorySteps).toBe(CONFIRMATION_METRIC.turns);
 	});
 
+	it("retains a returned session's worker calls when a step after it fails", async () => {
+		const harness = await PipelineConfirmationHarness.setup(testResources);
+
+		const outcome = await harness.run(
+			{
+				groupId: "post-session-metrics",
+				reps: 2,
+				projectedCost: {
+					reps: 2,
+					perRepMaximumUsd: 45,
+					totalMaximumUsd: 90,
+				},
+			},
+			(dependencies) => {
+				const { stageSession } = dependencies;
+				const { readTaskOutput } = stageSession;
+
+				return {
+					...dependencies,
+					stageSession: {
+						...stageSession,
+						readTaskOutput: (targetDir, taskId) =>
+							repOrdinal(targetDir) === 1
+								? Promise.reject(new Error("backlog is gone"))
+								: readTaskOutput(targetDir, taskId),
+					},
+				};
+			},
+		);
+		const records = await Promise.all(
+			outcome.repRecordFiles.map(async (path) =>
+				parseConfirmationRepRecord(await Bun.file(path).text()),
+			),
+		);
+		const [failed] = records;
+		testResources.track(dirname(failed?.worktreePath ?? "missing"));
+		await removeWorktree(harness.sourceRoot, failed?.worktreePath ?? "missing");
+
+		expect(failed?.stages[0]).toMatchObject({
+			status: "EXECUTION_FAILED",
+			error: "backlog is gone",
+		});
+		expect(failed?.metrics).toEqual({
+			status: "MISSING",
+			calls: [{ role: "worker", metrics: CONFIRMATION_METRIC }],
+			missing: ["stage-judge call metrics"],
+		});
+	});
+
 	it("retains worker calls carried by a stage that failed after its first call", async () => {
 		const harness = await PipelineConfirmationHarness.setup(testResources);
 

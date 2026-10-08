@@ -1637,6 +1637,48 @@ describe(runGradedStages.name, () => {
 			});
 		});
 
+		it("keeps a returned session's spend on the stop record when a step after it fails at the ceiling", async () => {
+			const { dependencies } = fakeStageDependencies();
+			const { persistence, abort } = atCeiling();
+			const context = await ceilingContext(abort);
+			const metrics = {
+				costUsd: 1.1,
+				inputTokens: 1,
+				outputTokens: 2,
+				cacheReadTokens: 3,
+				cacheWriteTokens: 4,
+				turns: 1,
+			};
+			const sessions = {
+				...dependencies,
+				runWorkflowStage: (request: WorkflowStageRequest) => {
+					request.spendCeiling.budgetFor(5);
+					request.spendCeiling.charge(1.1);
+
+					return Promise.resolve({
+						stage: request.stage,
+						sessionId: "session",
+						costUsd: 1.1,
+						providerCalls: [{ metrics }],
+						exchanges: [],
+					});
+				},
+				readTaskOutput: () => Promise.reject(new Error("backlog is gone")),
+			};
+
+			const failure = await failureOf(runGradedStages(sessions, context));
+			await abort.markAborted(failure.message);
+
+			expect(
+				JSON.parse(persistence.files.get(context.stageFile("shape")) ?? ""),
+			).toMatchObject({
+				stage: "shape",
+				error: "backlog is gone",
+				session: { providerCalls: [{ metrics }], costUsd: 1.1 },
+				ceilingStop: { ceilingUsd: 1, spentUsd: 1.1 },
+			});
+		});
+
 		it("records the group's ceiling when a rep's session fails at what the group had left", async () => {
 			const { dependencies } = fakeStageDependencies();
 			const { persistence, abort } = atCeiling();
