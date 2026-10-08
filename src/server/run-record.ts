@@ -527,16 +527,33 @@ function spenders({ file, place }: PlacedStage): readonly Spender[] {
 	return ["session", "judge"];
 }
 
+/**
+ * A stop record's session reading with no calls is a session the ceiling
+ * refused before its first call, which spent no tokens, while an empty
+ * transcript is a record too old to keep its calls.
+ */
+function sessionTokenPart(recorded: PlacedStage): TokenPart {
+	const { stage, file } = recorded;
+	const transcriptCalls = file?.input?.transcript?.providerCalls;
+	if (
+		transcriptCalls === undefined &&
+		file?.session?.providerCalls.length === 0
+	) {
+		return { calls: [] };
+	}
+
+	return callsPart(
+		`${stage} session`,
+		transcriptCalls ?? file?.session?.providerCalls,
+		unrecordedOr(recorded, "the stage record holds no session calls"),
+	);
+}
+
 function stageTokenParts(recorded: PlacedStage): readonly TokenPart[] {
 	const { stage, file } = recorded;
 	return spenders(recorded).map((spender) =>
 		spender === "session"
-			? callsPart(
-					`${stage} session`,
-					file?.input?.transcript?.providerCalls ??
-						file?.session?.providerCalls,
-					unrecordedOr(recorded, "the stage record holds no session calls"),
-				)
+			? sessionTokenPart(recorded)
 			: callsPart(
 					`${stage} judge`,
 					file?.attempts,

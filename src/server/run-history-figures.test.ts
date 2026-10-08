@@ -529,6 +529,17 @@ describe("/api/runs", () => {
 				expect(row).toMatchObject({ cost: { missing: [] } });
 			});
 
+			it("names only the session for a ceiling stop written before stop records held its spend", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeSessionCeilingStoppedRun(null);
+
+				const row = await runRow(fixture, fixture.stoppedRun);
+
+				expect(row).toMatchObject({
+					cost: { missing: [{ part: "build session" }] },
+				});
+			});
+
 			it("carries the run's wall time as not recorded with its reason", async () => {
 				const fixture = await emptyFixture();
 				await fixture.writeStoppedRunEvidence();

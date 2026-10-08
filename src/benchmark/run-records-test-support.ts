@@ -37,6 +37,7 @@ import type {
 } from "./confirmation-record";
 import type { RunManifest } from "./manifest";
 import { writeRunManifest } from "./manifest";
+import type { StoppedSession } from "./run-abort";
 import type { RunLiveness } from "./run-liveness";
 import type { JudgeProgress, PlainRunEventKind } from "./run-events";
 import type { RunTokens } from "./spend-ceiling";
@@ -126,6 +127,12 @@ export const STOPPED_RUN_EVIDENCE = {
 	taskCard: ".boris/backlog/tasks/task-1 - Add-an-audit-log.md",
 	untouchedCard: ".boris/backlog/tasks/task-2 - Rotate-the-audit-log.md",
 } as const;
+
+/** The build session's spend a ceiling stop during it records. */
+const CEILING_STOPPED_SESSION: StoppedSession = {
+	providerCalls: [{ metrics: STOPPED_RUN_EVIDENCE.buildSessionMetrics }],
+	costUsd: 3,
+};
 
 /**
  * The readings a run records once the harness keeps each stage's and the
@@ -1241,9 +1248,12 @@ export class RecordedRunsFixture {
 	 * The stopped run with build stopped by the spend ceiling during its
 	 * session, as the harness writes such a stop: no Judge input, the
 	 * session's calls and $3 cost up to the stop, and the Product Owner's
-	 * $0.25 spend.
+	 * $0.25 spend. A record written before stop records held the session's
+	 * spend is written by passing null.
 	 */
-	public async writeSessionCeilingStoppedRun(): Promise<void> {
+	public async writeSessionCeilingStoppedRun(
+		session: StoppedSession | null = CEILING_STOPPED_SESSION,
+	): Promise<void> {
 		await this.writeStoppedRunEvidence();
 		await Bun.write(
 			benchmarkRunPaths(this.runsDirectory, this.stoppedRun).stageFile("build"),
@@ -1252,12 +1262,7 @@ export class RecordedRunsFixture {
 					status: "STAGE_JUDGE_FAILED",
 					stage: "build",
 					error: STOPPED_RUN_ERROR,
-					session: {
-						providerCalls: [
-							{ metrics: STOPPED_RUN_EVIDENCE.buildSessionMetrics },
-						],
-						costUsd: 3,
-					},
+					session: session ?? undefined,
 					productOwnerCostUsd: 0.25,
 					productOwnerProviderCalls: [],
 					ceilingStop: { ceilingUsd: 6, spentUsd: 6.25 },

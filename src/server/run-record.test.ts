@@ -496,6 +496,26 @@ describe("/api/runs/:run", () => {
 				});
 			});
 
+			it("sums no tokens for a session the ceiling refused before its first call", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeSessionCeilingStoppedRun({
+					providerCalls: [],
+					costUsd: 0,
+				});
+
+				const response = await runRecord(fixture, fixture.stoppedRun);
+
+				expect(await response.json()).toMatchObject({
+					stages: [
+						{ stage: "discuss" },
+						{
+							stage: "build",
+							tokens: { state: "available", input: 0, output: 0, missing: [] },
+						},
+					],
+				});
+			});
+
 			it("names the Product Owner and the stop record's judge as the parts the run's sum lacks", async () => {
 				const fixture = await emptyFixture();
 				await fixture.writeStoppedRunEvidence();
