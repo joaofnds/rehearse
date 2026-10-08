@@ -2,12 +2,15 @@ import { afterEach, describe, expect, it } from "bun:test";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { focusManager } from "@tanstack/react-query";
 import type { CorpusResponse } from "#client/corpus/corpus-query";
-import type { SettingsReading } from "#client/launch/settings-query";
 import type { RunHistoryResponse } from "#client/run-history/run-history-query";
 import type { Reply } from "#client/test-support/fetch-stub";
 import { FakeServer } from "#client/test-support/fetch-stub";
 import { LiveReply } from "#client/test-support/live-reply";
-import { renderAppAt, SHELL_BASELINE } from "#client/test-support/render-app";
+import {
+	renderAppAt,
+	settingsReading,
+	SHELL_BASELINE,
+} from "#client/test-support/render-app";
 import {
 	UNREAD_RUN_FIGURES,
 	unversionedStaleness,
@@ -20,17 +23,6 @@ afterEach(() => {
 });
 
 const LIVE_ROOT = "/home/operator/.claude";
-
-function settings(spendCeilingUsd: number | null): SettingsReading {
-	return {
-		spendCeilingUsd,
-		setCommand: "rehearse settings --spend-ceiling-usd <USD>",
-		recordsDirectory: "/records",
-		linkedCorpus: { kind: "live", root: LIVE_ROOT },
-		overrun: "The ceiling can be overrun by the calls in flight.",
-		linkCommand: "rehearse settings --link-corpus <DIR>",
-	};
-}
 
 const ONE_RUN: RunHistoryResponse = {
 	rows: [
@@ -75,7 +67,7 @@ function serveFreshInstall(
 ): FakeServer {
 	return serve(
 		new Map<string, Reply | LiveReply>([
-			["GET /api/settings", { status: 200, body: settings(null) }],
+			["GET /api/settings", { status: 200, body: settingsReading(null) }],
 			...routes,
 		]),
 	);
@@ -269,7 +261,7 @@ describe("first-run setup", () => {
 		});
 
 		it("scans the live install when no path is typed", async () => {
-			const server = servingScan({ status: 200, body: settings(null) });
+			const server = servingScan({ status: 200, body: settingsReading(null) });
 			renderAppAt("/");
 			await setupSteps();
 
@@ -284,7 +276,7 @@ describe("first-run setup", () => {
 		});
 
 		it("scans the typed path", async () => {
-			const server = servingScan({ status: 200, body: settings(null) });
+			const server = servingScan({ status: 200, body: settingsReading(null) });
 			renderAppAt("/");
 			await setupSteps();
 
@@ -302,7 +294,7 @@ describe("first-run setup", () => {
 		});
 
 		it("lists each file as path, hash and line count under the version it hashed as", async () => {
-			servingScan({ status: 200, body: settings(null) });
+			servingScan({ status: 200, body: settingsReading(null) });
 			renderAppAt("/");
 			await setupSteps();
 
@@ -323,7 +315,7 @@ describe("first-run setup", () => {
 		});
 
 		it("reads Linked once the scan is satisfied, even after the limit is cleared", async () => {
-			servingScan({ status: 200, body: settings(null) });
+			servingScan({ status: 200, body: settingsReading(null) });
 			renderAppAt("/");
 			const steps = await setupSteps();
 
@@ -357,7 +349,10 @@ describe("first-run setup", () => {
 		it("is not satisfied by a corpus whose files refused hashing, and names why", async () => {
 			serveFreshInstall(
 				new Map<string, Reply>([
-					["PUT /api/setup/corpus", { status: 200, body: settings(null) }],
+					[
+						"PUT /api/setup/corpus",
+						{ status: 200, body: settingsReading(null) },
+					],
 					[
 						"GET /api/corpus",
 						{
@@ -397,7 +392,7 @@ describe("first-run setup", () => {
 
 		/** A server whose settings read answers what the ceiling write stored. */
 		function servingCeilingWrite(ceilingWrite: Reply): FakeServer {
-			let current: Reply = { status: 200, body: settings(null) };
+			let current: Reply = { status: 200, body: settingsReading(null) };
 
 			return serveFreshInstall(
 				new Map<string, Reply | LiveReply>([
@@ -419,7 +414,7 @@ describe("first-run setup", () => {
 		}
 
 		it("is disabled, naming what is missing, until a scan is satisfied", async () => {
-			servingCeilingWrite({ status: 200, body: settings(5) });
+			servingCeilingWrite({ status: 200, body: settingsReading(5) });
 
 			renderAppAt("/");
 			await setupSteps();
@@ -429,7 +424,7 @@ describe("first-run setup", () => {
 		});
 
 		it("stays disabled after a scan while the limit is not a positive amount", async () => {
-			servingCeilingWrite({ status: 200, body: settings(5) });
+			servingCeilingWrite({ status: 200, body: settingsReading(5) });
 			renderAppAt("/");
 			await setupSteps();
 
@@ -447,7 +442,7 @@ describe("first-run setup", () => {
 		it("stores the chosen limit and lands on run history's empty state", async () => {
 			const server = servingCeilingWrite({
 				status: 200,
-				body: settings(5),
+				body: settingsReading(5),
 			});
 			const router = renderAppAt("/settings");
 			await setupSteps();
@@ -488,7 +483,7 @@ describe("first-run setup", () => {
 		});
 
 		it("shows a refused settings read during setup and stays on setup", async () => {
-			let settingsReply: Reply = { status: 200, body: settings(null) };
+			let settingsReply: Reply = { status: 200, body: settingsReading(null) };
 			serveFreshInstall(
 				new Map<string, Reply | LiveReply>([
 					["GET /api/settings", new LiveReply(() => settingsReply)],
@@ -521,7 +516,7 @@ describe("first-run setup", () => {
 		it("opens on run history once a spend ceiling is stored", async () => {
 			serve(
 				new Map<string, Reply>([
-					["GET /api/settings", { status: 200, body: settings(20) }],
+					["GET /api/settings", { status: 200, body: settingsReading(20) }],
 				]),
 			);
 
@@ -538,7 +533,7 @@ describe("first-run setup", () => {
 		it("opens on run history when records exist without a ceiling", async () => {
 			serve(
 				new Map<string, Reply>([
-					["GET /api/settings", { status: 200, body: settings(null) }],
+					["GET /api/settings", { status: 200, body: settingsReading(null) }],
 					["GET /api/runs", { status: 200, body: ONE_RUN }],
 				]),
 			);

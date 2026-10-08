@@ -28,9 +28,9 @@ import {
 } from "@tanstack/react-router";
 import type { InferResponseType } from "hono/client";
 import type { apiClient } from "#client/api-client";
-import type { SettingsReading } from "#client/launch/settings-query";
 import type { Reply } from "#client/test-support/fetch-stub";
 import { LiveReply } from "#client/test-support/live-reply";
+import { settingsReading } from "#client/test-support/render-app";
 import {
 	FakeServer,
 	stubFetch,
@@ -167,24 +167,11 @@ describe(RunHistoryPage.name, () => {
 	describe("the empty state's account of setup", () => {
 		const SETUP_SENTENCE = "The corpus is linked and a spend limit is set.";
 
-		function settingsWithCeiling(
-			spendCeilingUsd: number | null,
-		): SettingsReading {
-			return {
-				spendCeilingUsd,
-				setCommand: "rehearse settings --spend-ceiling-usd <USD>",
-				recordsDirectory: "/records",
-				linkedCorpus: { kind: "live", root: "/home/.claude" },
-				overrun: "The ceiling can be overrun by the calls in flight.",
-				linkCommand: "rehearse settings --link-corpus <DIR>",
-			};
-		}
-
 		it("says a spend limit is set when the settings hold a ceiling", async () => {
 			stubFetchByPath(
 				new Map<string, unknown>([
 					["/api/runs", { rows: [], launches: [], unreadable: [] }],
-					["/api/settings", settingsWithCeiling(20)],
+					["/api/settings", settingsReading(20)],
 				]),
 			);
 
@@ -199,7 +186,7 @@ describe(RunHistoryPage.name, () => {
 			stubFetchByPath(
 				new Map<string, unknown>([
 					["/api/runs", { rows: [], launches: [], unreadable: [] }],
-					["/api/settings", settingsWithCeiling(null)],
+					["/api/settings", settingsReading(null)],
 				]),
 			);
 

@@ -32,15 +32,19 @@ export const NO_GRADES: CalibrationResponse = {
 	groups: [],
 };
 
-/** Settings with a stored ceiling, so a route opens on its own screen, not setup. */
-const SETTINGS_WITH_CEILING: SettingsReading = {
-	spendCeilingUsd: 20,
-	setCommand: "rehearse settings --spend-ceiling-usd <USD>",
-	recordsDirectory: "/records",
-	linkedCorpus: { kind: "live", root: "/home/operator/.claude" },
-	overrun: "The ceiling can be overrun by the calls in flight.",
-	linkCommand: "rehearse settings --link-corpus <DIR>",
-};
+/** The settings as GET /api/settings answers them, with the ceiling given. */
+export function settingsReading(
+	spendCeilingUsd: number | null,
+): SettingsReading {
+	return {
+		spendCeilingUsd,
+		setCommand: "rehearse settings --spend-ceiling-usd <USD>",
+		recordsDirectory: "/records",
+		linkedCorpus: { kind: "live", root: "/home/operator/.claude" },
+		overrun: "The ceiling can be overrun by the calls in flight.",
+		linkCommand: "rehearse settings --link-corpus <DIR>",
+	};
+}
 
 const NO_COMPARISONS: ComparisonIndexResponse = {
 	comparisons: [],
@@ -50,7 +54,8 @@ const NO_COMPARISONS: ComparisonIndexResponse = {
 /**
  * The bodies the shell reads on every route, for its nav badges, its corpus
  * card and whether the install is fresh, each typed against its own route's
- * response.
+ * response. The settings hold a ceiling, so a route opens on its own screen
+ * rather than setup.
  */
 export const SHELL_BASELINE: ReadonlyMap<string, unknown> = new Map<
 	string,
@@ -60,7 +65,7 @@ export const SHELL_BASELINE: ReadonlyMap<string, unknown> = new Map<
 	["/api/corpus", EMPTY_CORPUS],
 	["/api/comparisons", NO_COMPARISONS],
 	["/api/calibration", NO_GRADES],
-	["/api/settings", SETTINGS_WITH_CEILING],
+	["/api/settings", settingsReading(20)],
 ]);
 
 export type AppRouter = ReturnType<typeof createAppRouter>;
