@@ -156,9 +156,12 @@ ceiling and the spend, restores the target, and starts no later session.
 Every such record carries `productOwnerCostUsd` and
 `productOwnerProviderCalls`, the Product Owner's spend up to the stop. A
 stage Judge's stopped record keeps the attempts it paid for before the stop.
-One whose session the ceiling stopped after its first call carries `session`,
-holding that session's `providerCalls` up to the stop, a halted call
-included, and its `costUsd`, which is absent when a call reported no cost.
+A stopped record whose stage session the ceiling stopped, whether during a
+worker call, a Product Owner call, or the refusal of a turn, carries
+`session`, holding that session's `providerCalls` up to the stop, a halted
+call included, and its `costUsd`. The calls are empty and the cost 0 when the
+ceiling refused the session's first call, and the cost is absent when the
+session's last call reported none.
 A final Judge refused, or failing after its spend reached the ceiling, fails
 the run with a failed run record carrying `ceilingStop`, its paid attempts,
 and a Judge cost that also counts the failed call, which has no attempt of
@@ -1669,8 +1672,8 @@ cost from the main artifact once the final judge ran, and otherwise from a
 stop record, which holds them up to the stop. A Product Owner never asked made
 no calls, so its empty list is summed rather than missing. A run whose records
 predate those readings, that wrote neither record, or whose stop record was
-written before a stage's judge returned a grade, names the Product Owner as a
-missing part. The run's cost also lists under `parts` each amount it
+written before a stage's judge returned a grade for a reason other than the
+spend ceiling, names the Product Owner as a missing part. The run's cost also lists under `parts` each amount it
 summed. When a sum has no part to add, it is unavailable and its reasons name
 each missing part. The Product Owner's cost is also served alone as
 `productOwnerCost`.
@@ -1686,7 +1689,9 @@ them still parses and reads each as unavailable:
   judge `attempts`,
   `minimumGrade`, `elapsedMs`, `runElapsedMs`, `productOwnerCostUsd` and
   `productOwnerProviderCalls`, written when a stage's grade falls below the
-  minimum and absent when its judge returned no grade;
+  minimum or the spend ceiling stops the stage, and absent otherwise;
+- a ceiling stop record's `session`, written when the ceiling stopped the
+  stage's session;
 - a replay record's `elapsedMs`, from its stage session's start to its judge's
   grade.
 

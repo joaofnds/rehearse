@@ -64,9 +64,9 @@ export interface CeilingStop extends CeilingStopReadings {
 }
 
 /**
- * What a stopped stage's session spent before the stop, for a stage whose
- * session failed after its first call. Its cost is absent when a call
- * reported none, since the calls' sum would then read as the whole.
+ * What a stopped stage's session spent before the stop, no calls when the
+ * ceiling refused its first. Its cost is absent when the last call reported
+ * none, since the calls' sum would then read as the whole.
  */
 export interface StoppedSession {
 	readonly providerCalls: readonly ProviderCall[];

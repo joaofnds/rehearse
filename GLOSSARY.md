@@ -665,7 +665,9 @@ See [current state](docs/status.md) for implementation coverage and
   from the per-session limit the session knobs set.
 - **Ceiling stop**: the stop a run makes when its spend reaches the spend
   ceiling. A stage stopped this way writes its stop record with the ceiling,
-  the spend, and the Product Owner's cost and calls up to the stop, and a
+  the spend, and the Product Owner's cost and calls up to the stop. A stage
+  whose session the ceiling stopped also records that session's calls and
+  their spend up to the stop, none when the ceiling refused its first call. A
   final Judge stopped this way fails the run with the ceiling and the spend
   on its failed run record. The target is restored and no later session
   starts.
@@ -839,10 +841,11 @@ See [current state](docs/status.md) for implementation coverage and
   Judge's attempts, the stage and run elapsed times, and the Product Owner's
   cost and calls up to the stop; older stop records keep the findings and lack
   the rest. A ceiling stop carries the Product Owner's cost and calls up to the
-  stop too. One that came before the Judge ran holds no Judge input; it holds
-  the stage session's calls up to the stop instead, with their spend when
-  every call reported its cost. The run's manifest still
-  supplies the case; only the checkpoint the stage never wrote is missing.
+  stop too. One that came before the Judge ran holds no Judge input, model,
+  effort or corpus files; it holds the stage session's calls up to the stop
+  instead, with their spend when the last call reported one. The run's
+  manifest still supplies the case; only the checkpoint the stage never wrote
+  is missing.
 - **Stopped stage** — the stage a run ended on, whether its grade did not meet
   the pipeline's minimum, its judging failed, or a signal stopped the run
   mid-stage. Only the reason its stop record carries says which of those it
