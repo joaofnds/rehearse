@@ -1827,9 +1827,9 @@ describe(runHistoryReport.name, () => {
 	});
 
 	/**
-	 * Runs and replays carry a timestamp in their identity. Session attempts
-	 * and confirmation runs record none, so they follow in listing order
-	 * rather than being placed by a time the records do not hold.
+	 * Runs and replays carry a timestamp in their identity. These session
+	 * attempts and confirmation runs record no start time, so they follow in
+	 * listing order rather than being placed by a time the records do not hold.
 	 */
 	it("orders runs and replays newest first, then attempts and groups", async () => {
 		const fixture = await writtenFixture();
@@ -1891,6 +1891,32 @@ describe(runHistoryReport.name, () => {
 			`run ${fixture.replayableRun}`,
 			`run ${fixture.unreplayableRun}`,
 			`attempt ${fixture.sessionAttempt.uuid}`,
+		]);
+	});
+
+	it("places a run, a group and an attempt from one hour by when each started", async () => {
+		const fixture = await writtenFixture();
+		const laterRun = "2026-09-02T00-45-00.000Z";
+		await fixture.writeFinishedRunEvidence(laterRun);
+		await fixture.recordAttemptStartedAt("2026-09-02T00:15:00.000Z");
+		await recordStartedAt(
+			confirmationGroupPaths(fixture.runsDirectory, fixture.groupId).groupFile,
+			"2026-09-02T00:30:00.000Z",
+		);
+
+		const { rows } = await runHistoryReport(
+			fixture.runsDirectory,
+			directorySource(await corpusDirectory("build skill\n")),
+			nothingRunning,
+		);
+
+		expect(rows.map((row) => rowName(row))).toEqual([
+			`replay ${fixture.stageAttempt.timestamp}`,
+			`run ${fixture.replayableRun}`,
+			`run ${laterRun}`,
+			`group ${fixture.groupId}`,
+			`attempt ${fixture.sessionAttempt.uuid}`,
+			`run ${fixture.unreplayableRun}`,
 		]);
 	});
 

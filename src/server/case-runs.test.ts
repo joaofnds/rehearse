@@ -116,9 +116,15 @@ describe("readCaseRuns", () => {
 	it("places a group that recorded its start time among the case's runs by it", async () => {
 		const runDigest = "a".repeat(64);
 		const groupDigest = "b".repeat(64);
+		const laterRunDigest = "c".repeat(64);
+		const laterRun = "2026-09-02T00-45-00.000Z";
 		await fixture.writeFinishedRunEvidence(OLDER_RUN);
 		await mergeJson(benchmarkRunPaths(root, OLDER_RUN).manifestFile, {
 			corpusVersion: { kind: "version", digest: runDigest },
+		});
+		await fixture.writeFinishedRunEvidence(laterRun);
+		await mergeJson(benchmarkRunPaths(root, laterRun).manifestFile, {
+			corpusVersion: { kind: "version", digest: laterRunDigest },
 		});
 		await fixture.writePipelineGroup("group-p", [PASS, PASS]);
 		const { groupFile } = confirmationGroupPaths(root, "group-p");
@@ -141,10 +147,10 @@ describe("readCaseRuns", () => {
 
 		expect(
 			cases.get(CASE_ID)?.runs.map(({ corpusDigest }) => corpusDigest),
-		).toEqual([groupDigest, groupDigest, runDigest]);
+		).toEqual([laterRunDigest, groupDigest, groupDigest, runDigest]);
 	});
 
-	it("places a session group that recorded its start time before an older attempt", async () => {
+	it("places a session attempt that recorded its start time before an older group", async () => {
 		const attemptDigest = "d".repeat(64);
 		const attemptFile = await fixture.writeAttemptAt(
 			"0f6b6f2a-0000-4000-8000-00000000000a",
@@ -161,7 +167,7 @@ describe("readCaseRuns", () => {
 			JSON.stringify({
 				...attempt,
 				schemaVersion: 3,
-				startedAt: "2026-09-02T00:15:00.000Z",
+				startedAt: "2026-09-02T00:45:00.000Z",
 			}),
 		);
 		await fixture.writeSessionGroup("group-s");
@@ -171,12 +177,10 @@ describe("readCaseRuns", () => {
 
 		const { cases } = await readCaseRuns(root, nothingRunning);
 
+		// The group recorded no corpus version, so its two reps read undefined.
 		expect(
-			cases
-				.get(SESSION_CASE)
-				?.runs.map(({ corpusDigest }) => corpusDigest)
-				.at(-1),
-		).toBe(attemptDigest);
+			cases.get(SESSION_CASE)?.runs.map(({ corpusDigest }) => corpusDigest),
+		).toStrictEqual([attemptDigest, undefined, undefined]);
 	});
 
 	it("counts each rep of a pipeline group after the case's runs", async () => {

@@ -684,7 +684,7 @@ describe("/api/calibration", () => {
 			dimensions: ["B", "B"],
 		});
 		await writeJudgedStage(runsDirectory, {
-			run: SECOND_RUN,
+			run: "2026-10-01T10-45-00.000Z",
 			dimensions: ["B", "B"],
 		});
 		const group = confirmationGroupPaths(runsDirectory, "group-1");

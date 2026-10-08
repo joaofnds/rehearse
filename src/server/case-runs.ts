@@ -299,10 +299,10 @@ async function groupReps(runsDirectory: string): Promise<Found> {
 
 /**
  * Every recorded run of every case, the runs a case's figures count, newest
- * first by its name or the start time its attempt or group recorded. Records
- * written before attempts and groups recorded one follow, session attempts
- * before group reps. Stage replays rerun one stage of a run, not a case, so
- * none is read.
+ * first by its name or the start time its attempt or group recorded. A run
+ * whose name names no instant follows, then attempts and groups written before
+ * they recorded one, session attempts before group reps. Stage replays rerun
+ * one stage of a run, not a case, so none is read.
  */
 export async function readCaseRuns(
 	runsDirectory: string,
