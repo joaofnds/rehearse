@@ -22,10 +22,11 @@ See [current state](docs/status.md) for implementation coverage and
   case. The unit a comparison presents.
 - **Attempt record** — the strict record a session attempt writes, including
   case, lineage, model, declared corpus digests, prompt, transcript evidence,
-  checks, and provider metrics when available. A completed reply, no reply, and
-  an invocation failure have distinct outcomes. The record may preserve a
-  supplied provider context evidence bundle and its normalized projection.
-  Older records may omit snapshot provenance and context evidence.
+  checks, provider metrics when available, and the time the attempt started. A
+  completed reply, no reply, and an invocation failure have distinct outcomes.
+  The record may preserve a supplied provider context evidence bundle and its
+  normalized projection. Older records may omit snapshot provenance, context
+  evidence, and the start time.
 - **Attempt region** — the part of a resumed session's transcript the attempt
   itself produced: the 1-based physical lines after the prefix line count the
   attempt record carries. The lines at or before that count are the inherited

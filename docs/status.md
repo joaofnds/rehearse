@@ -1,6 +1,6 @@
 # Current state and priorities
 
-Reviewed against the code and project board on **2026-10-07**. This is the public
+Reviewed against the code and project board on **2026-10-08**. This is the public
 feature inventory, not a release guarantee. The [vision](vision.md) describes the
 longer-term goal; the [runbook](runbook.md) describes the supported first steps.
 
@@ -283,8 +283,10 @@ replay's own history, and each confirmation rep that recorded an attempt. A
 link that cannot open names why, such as a failed run's stage that saved no
 context, a stage-mode or pipeline-mode rep with no session to show, or a replay
 whose source run manifest is gone. Rows whose records say
-when they ran come first, newest first, followed by session attempts and
-confirmation runs, which record no time. The count, the All filter and the
+when they ran come first, newest first, a session attempt or confirmation run
+by the start time it recorded, which its row shows. Session attempts and
+confirmation runs written before they recorded one follow, marked time not
+recorded. The count, the All filter and the
 rail badge cover every listed record. A browser launch, running or stopped,
 is listed under All above the records, a running one also under Running, and is not a record, so the count and
 the badge leave it out. A stopped launch's row stays there, whatever its age,

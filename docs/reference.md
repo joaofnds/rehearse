@@ -1424,6 +1424,9 @@ commands as completed runs. `list attempts` validates attempt diagnostics, and
 `show attempt:session:<case>/<uuid> --json` exposes the recorded projection. An
 attempt that preserved state evidence writes it to `state/` beside that
 `attempt.json`, with the session's `.git` stored as `dot-git`.
+A session attempt's `attempt.json`, a group rep's included, records
+`startedAt`, the ISO instant its `elapsedMs` starts. A record written before
+the field existed carries none, and readers place it after every timed record.
 
 Confirmation groups retain frozen inputs, rep records, and `report.json` beside
 `group.json`. Reps run concurrently in separate directories. Reports include
@@ -1431,7 +1434,11 @@ outcomes, success rates and uncertainty, pass^k, and resource distributions;
 a failed or stopped rep remains part of that evidence. A group the operator
 stopped writes neither `group.json` nor `report.json`, and keeps its rep
 records; see [browser launches](#browser-launches). Session reports also
-record the model probe and missing provider metrics explicitly.
+record the model probe and missing provider metrics explicitly. `group.json`
+records `startedAt`, the ISO instant its `makespanMs` starts, so `startedAt`
+plus `makespanMs` is when the group finished. Run history, the Tasks and Cases
+screens, and calibration place a group by it, and a group written before the
+field existed after every timed record.
 
 An attempt's provider metrics retain the CLI's per-model usage block verbatim
 when the CLI reports one, giving each model's tokens, the cost charged for them,
