@@ -4,6 +4,8 @@ import { Link, Outlet } from "@tanstack/react-router";
 import { comparisonIndexQuery } from "#client/comparison/comparison-index-query";
 import { corpusQuery } from "#client/corpus/corpus-query";
 import { runHistoryQuery } from "#client/run-history/run-history-query";
+import { useFreshInstall } from "#client/setup/fresh-install";
+import { SetupPage } from "#client/setup/setup-page";
 import { CorpusCard } from "./corpus-card";
 import { runsInFlight } from "./run-in-flight";
 import { RunInFlightBar } from "./run-in-flight-bar";
@@ -75,6 +77,7 @@ function useBadgeCounts(): BadgeCounts {
 
 export function AppShell(): React.JSX.Element {
 	const counts = useBadgeCounts();
+	const fresh = useFreshInstall();
 	useGoToShortcut();
 
 	return (
@@ -110,7 +113,7 @@ export function AppShell(): React.JSX.Element {
 				</nav>
 
 				<main className="min-w-0 flex-1 overflow-y-auto">
-					<Outlet />
+					{fresh ? <SetupPage /> : <Outlet />}
 				</main>
 			</div>
 			<RunInFlightBar />

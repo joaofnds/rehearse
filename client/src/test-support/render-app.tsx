@@ -4,6 +4,7 @@ import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
 import type { CalibrationResponse } from "#client/calibration/calibration-query";
 import type { ComparisonIndexResponse } from "#client/comparison/comparison-index-query";
 import type { CorpusResponse } from "#client/corpus/corpus-query";
+import type { SettingsReading } from "#client/launch/settings-query";
 import { createAppRouter } from "#client/router";
 import type { RunHistoryResponse } from "#client/run-history/run-history-query";
 import { stubFetchByPath } from "./fetch-stub";
@@ -31,14 +32,25 @@ export const NO_GRADES: CalibrationResponse = {
 	groups: [],
 };
 
+/** Settings with a stored ceiling, so a route opens on its own screen, not setup. */
+const SETTINGS_WITH_CEILING: SettingsReading = {
+	spendCeilingUsd: 20,
+	setCommand: "rehearse settings --spend-ceiling-usd <USD>",
+	recordsDirectory: "/records",
+	linkedCorpus: { kind: "live", root: "/home/operator/.claude" },
+	overrun: "The ceiling can be overrun by the calls in flight.",
+	linkCommand: "rehearse settings --link-corpus <DIR>",
+};
+
 const NO_COMPARISONS: ComparisonIndexResponse = {
 	comparisons: [],
 	unreadable: [],
 };
 
 /**
- * The bodies the shell reads on every route, for its nav badges and corpus
- * card, each typed against its own route's response.
+ * The bodies the shell reads on every route, for its nav badges, its corpus
+ * card and whether the install is fresh, each typed against its own route's
+ * response.
  */
 export const SHELL_BASELINE: ReadonlyMap<string, unknown> = new Map<
 	string,
@@ -48,6 +60,7 @@ export const SHELL_BASELINE: ReadonlyMap<string, unknown> = new Map<
 	["/api/corpus", EMPTY_CORPUS],
 	["/api/comparisons", NO_COMPARISONS],
 	["/api/calibration", NO_GRADES],
+	["/api/settings", SETTINGS_WITH_CEILING],
 ]);
 
 export type AppRouter = ReturnType<typeof createAppRouter>;

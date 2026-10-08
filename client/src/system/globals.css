@@ -39,6 +39,10 @@
 	max-width: 38ch;
 }
 
+@utility max-w-intro {
+	max-width: 52ch;
+}
+
 @utility grid-cols-analysis-rows {
 	grid-template-columns: 150px 92px 128px minmax(180px, 1fr) 92px;
 }
