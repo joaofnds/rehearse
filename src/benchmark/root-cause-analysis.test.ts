@@ -21,6 +21,7 @@ import {
 	ANSWER,
 	CORPUS_BODIES,
 	answering,
+	recordAnalysis,
 	RUN,
 	runStoppedAtBuild,
 	runWithOneGradedStage,
@@ -274,16 +275,15 @@ describe(analyzeRun.name, () => {
 				...CORPUS_BODIES,
 				"skills/build/SKILL.md": "",
 			});
-			const provider = new FakeAnalysisProvider();
 			const answer = {
 				...ANSWER,
 				rootCause: { ...ANSWER.rootCause, lines: { start: 1, end: 1 } },
 			};
-			provider.answer(answering(answer));
 
-			const { record } = await analyzeRun(
-				{ runsDirectory: directory, run: RUN, model: "sonnet", capUsd: 1 },
-				dependencies(provider.invoke),
+			const { record } = await recordAnalysis(
+				directory,
+				"2026-10-04T12:00:00.000Z",
+				answer,
 			);
 
 			expect(record).toMatchObject({

@@ -4,8 +4,8 @@ import type { CorpusRoot } from "#benchmark/corpus-file";
 import type { LastEdit } from "#benchmark/corpus-invalidation";
 import { corpusInvalidation } from "#benchmark/corpus-invalidation";
 import { hashCorpusLayout } from "#benchmark/corpus-layout";
-import { lineCount } from "#benchmark/line-count";
 import { corpusVersionDigest } from "#benchmark/corpus-version";
+import { lineCount } from "#benchmark/line-count";
 import { redactAbsolutePaths } from "./redact-path";
 
 export interface CorpusFileReport {

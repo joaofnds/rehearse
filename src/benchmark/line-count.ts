@@ -1,4 +1,7 @@
-/** Lines as an editor numbers them, so a last line without a newline counts. */
+/**
+ * Lines of text, so a last line without a newline counts and an empty file
+ * holds none, since it has no line to cite.
+ */
 export function lineCount(text: string): number {
 	if (text === "") {
 		return 0;

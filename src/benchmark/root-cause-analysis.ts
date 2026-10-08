@@ -597,9 +597,9 @@ function lineRangeViolation(
 		return `The answer gives a line range in ${file}, but the run kept no body of it as the ${stage} stage read it`;
 	}
 
-	const readLines = lineCount(read.body);
-	if (lines.start > lines.end || lines.end > readLines) {
-		return `The line range ${lines.start}-${lines.end} is not within the ${readLines} lines of ${file} as the ${stage} stage read it`;
+	const bodyLines = lineCount(read.body);
+	if (lines.start > lines.end || lines.end > bodyLines) {
+		return `The line range ${lines.start}-${lines.end} is not within the ${bodyLines} lines of ${file} as the ${stage} stage read it`;
 	}
 
 	return undefined;
