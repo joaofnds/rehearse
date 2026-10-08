@@ -410,6 +410,9 @@ See [current state](docs/status.md) for implementation coverage and
   to the forked file rather than writing a new one.
 - **Fresh checkpoint chain** — a replay's consumed checkpoint chain when none
   of its checkpoints is stale.
+- **Fresh install**: a records directory with no stored spend ceiling and no
+  record of any kind. The browser shows the first-run setup on every screen
+  while the install is fresh, and storing the ceiling at Finish setup ends it.
 - **Human review** — the verdict, summary, and classified findings a reviewer
   records against a run's Judge result, in `<run>.review.json`. The reviewer is
   a person or the agent standing in for one; the name says whose judgment the

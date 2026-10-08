@@ -359,9 +359,12 @@ comparison. The settings screen shows where records go, how many there are
 and their size, stores the same ceiling, and links a corpus directory by an
 absolute path or one starting with `~/`, rehashes the linked corpus and
 unlinks it. Its Keyboard card lists n, r and e as planned, since nothing binds
-them yet. Declaring a
-pipeline case, editing a case, task import, export and editing, and first-run
-setup are design targets. Live monitoring is partly
+them yet. A fresh
+install, with no stored spend ceiling and no record, shows the first-run setup
+on every screen: a spend limit, a corpus scan that links a directory or keeps
+the live install, and Finish setup, which stores the limit and opens run
+history. Declaring a pipeline case, editing a case, and task import, export and
+editing are design targets. Live monitoring is partly
 delivered: the run list reports a run in flight with its stage, elapsed time and
 scoped spend, and the run API also reports how many of a judging stage's
 rubric items are back per section, which the monitor's judge pane shows. While a
