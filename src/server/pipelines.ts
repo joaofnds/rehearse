@@ -121,11 +121,7 @@ async function recordedRuns(
 	return { found, unreadable };
 }
 
-/**
- * Pipeline groups newest first by the time they started. A group written
- * before groups recorded one follows, in group id order, as the run history
- * orders its untimed groups, and file times are not trusted for it.
- */
+/** Pipeline groups in group id order; the task orders them by start time. */
 async function recordedGroups(
 	runsDirectory: string,
 ): Promise<Reading<RecordedGroup>> {
@@ -162,10 +158,7 @@ async function recordedGroups(
 		}
 	}
 
-	return {
-		found: newestFirst(found, ({ startedAt }) => startedAt),
-		unreadable,
-	};
+	return { found, unreadable };
 }
 
 interface DeclaredPipeline {
@@ -297,7 +290,7 @@ function stageNames(pipeline: PipelineDefinition): readonly string[] {
 interface RanRecord {
 	readonly time: string | undefined;
 	readonly stages: readonly string[];
-	readonly runs: number;
+	readonly countedRuns: number;
 	readonly corpusVersion: CorpusMeasurement;
 }
 
@@ -312,13 +305,13 @@ function newestRecords({ runs, groups }: Ran): readonly RanRecord[] {
 			...runs.map(({ name, manifest }) => ({
 				time: name,
 				stages: stageNames(manifest.pipeline),
-				runs: 1,
+				countedRuns: 1,
 				corpusVersion: manifest.corpusVersion,
 			})),
 			...groups.map(({ startedAt, stages, reps, corpusVersion }) => ({
 				time: startedAt,
 				stages,
-				runs: reps,
+				countedRuns: reps,
 				corpusVersion,
 			})),
 		],
@@ -333,8 +326,8 @@ function digestsOf(
 	const digest = (measurement: CorpusMeasurement): string | undefined =>
 		measurement?.kind === "version" ? measurement.digest : undefined;
 
-	return records.flatMap(({ runs, corpusVersion }) =>
-		Array.from({ length: runs }, () => digest(corpusVersion)),
+	return records.flatMap(({ countedRuns, corpusVersion }) =>
+		Array.from({ length: countedRuns }, () => digest(corpusVersion)),
 	);
 }
 
@@ -352,11 +345,16 @@ interface Ran {
 	readonly groups: readonly RecordedGroup[];
 }
 
+/** What a task ran, with its runs and groups placed newest first once. */
+interface PlacedRan extends Ran {
+	readonly newest: readonly RanRecord[];
+}
+
 function listedPipeline(
 	path: string,
 	stages: readonly string[],
 	declared: DeclaredPipeline | undefined,
-	{ runs, groups }: Ran,
+	{ runs, groups, newest }: PlacedRan,
 	caseTargets: ReadonlyMap<string, string>,
 ): ListedPipeline {
 	const cases = new Set([
@@ -390,7 +388,7 @@ function listedPipeline(
 		cases: sortedCases,
 		targets: [...targets],
 		runs: runs.map(({ name }) => name),
-		figures: figuresOf(digestsOf(newestRecords({ runs, groups }))),
+		figures: figuresOf(digestsOf(newest)),
 	};
 }
 
@@ -436,13 +434,11 @@ export async function pipelineReport(
 	for (const path of [...paths].toSorted((left, right) =>
 		left.localeCompare(right),
 	)) {
-		const ran = {
-			runs: runsByPath.get(path) ?? [],
-			groups: groupsByPath.get(path) ?? [],
-		};
+		const runs = runsByPath.get(path) ?? [];
+		const groups = groupsByPath.get(path) ?? [];
+		const ran = { runs, groups, newest: newestRecords({ runs, groups }) };
 		const declaration = declaredByPath.get(path);
-		const [newest] = newestRecords(ran);
-		const recordedStages = newest?.stages;
+		const recordedStages = ran.newest[0]?.stages;
 		if (recordedStages !== undefined) {
 			pipelines.push(
 				listedPipeline(
