@@ -322,7 +322,8 @@ never appear.
 
 `GET /api/settings` returns the stored ceiling or `null`, the command that
 sets it, the records location, the linked corpus as `kind` (`live` or
-`directory`) and `root`, the statement that calls in flight can overrun the
+`directory`) and `root`, `liveCorpusRoot`, the live install's root whether or
+not a directory is linked, the statement that calls in flight can overrun the
 ceiling, and `linkCommand`, the command that links a corpus directory, which
 the corpus screen names while the live install is linked. The records location is read-only there, because
 `REHEARSE_RECORDS_DIR` in the server's environment chooses it.
@@ -340,19 +341,22 @@ which names the server process's `HOME`, since the server does not
 share the browser's working directory. Any other relative path answers 400,
 naming that rule.
 `DELETE /api/settings/corpus` unlinks it. `PUT /api/setup/corpus` with
-`{ "directory": <path> }` is the first-run setup's scan: an empty path, or one
+`{ "directory": <path> }` stores the link the first-run setup scans, which the
+client then reads through `GET /api/corpus`: an empty or blank path, or one
 that resolves to the live install's root through `~/`, a symlink or a trailing
 slash, unlinks any directory and leaves the live install linked, and any other
 path links as `PUT /api/settings/corpus` does, with the same refusals. The
-settings route links such a path as a directory, which makes every pipeline
-launch refuse. These four answer the new settings,
-with the same fields as `GET /api/settings`: `spendCeilingUsd`,
-`setCommand`, `recordsDirectory`, `linkedCorpus`, `overrun` and
-`linkCommand`. `POST /api/settings/corpus/rehash` measures the linked
+settings route does not resolve the live root: given such a path it refuses
+when the live install links outside itself, and otherwise links it as a
+directory, which makes every pipeline launch refuse. These four writes answer
+the new settings, with the same fields as `GET /api/settings`:
+`spendCeilingUsd`, `setCommand`, `recordsDirectory`, `linkedCorpus`,
+`liveCorpusRoot`, `overrun` and `linkCommand`. `POST /api/settings/corpus/rehash` measures the linked
 corpus now, or the live install when nothing is linked, recording its version,
 and answers `{ label, digest }`, or 409 naming why the layout cannot be
-measured. An unreadable settings file makes every settings route but
-`GET /api/settings/records` answer 409, since that route reads no setting.
+measured. An unreadable settings file makes `PUT /api/setup/corpus` and every
+settings route but `GET /api/settings/records` answer 409, since that route
+reads no setting.
 
 `/api/runs` lists each launch in `launches`, apart from `rows`, while its pid
 is alive, and leaves it out while a pipeline run shows as running under that
@@ -1508,9 +1512,9 @@ does not hold its version, so the rail's `corpus@` label can name a version that
 `corpus invalidation [--corpus <dir>]` prints one line per corpus file,
 `<read-by>\t<invalidated>\t<path>`, then the last edit's line and the id of
 each row it invalidated, one per line. `/api/corpus` carries the same counts as
-each file's `readBy` and `invalidated` and the report's `lastEdit`, and each
-file's `lines`, counted as an editor numbers them, so a last line without a
-trailing newline counts. Read-by
+each file's `readBy` and `invalidated` and the report's `lastEdit`. It also
+gives each file's `lines`, which the command does not print: a last line
+without a trailing newline counts, and an empty file counts 0. Read-by
 counts the distinct run-history rows whose records read the file: a pipeline
 run, whatever its stages read, a session attempt, a replay and a confirmation
 group. Invalidated counts the rows that read the file with the hash the

@@ -360,7 +360,7 @@ and their size, stores the same ceiling, and links a corpus directory by an
 absolute path or one starting with `~/`, rehashes the linked corpus and
 unlinks it. Its Keyboard card lists n, r and e as planned, since nothing binds
 them yet. A fresh
-install, with no stored spend ceiling and no record, shows the first-run setup
+install, with no stored spend ceiling and nothing run history lists, shows the first-run setup
 on every screen: a spend limit, a corpus scan that links a directory or keeps
 the live install, and Finish setup, which stores the limit and opens run
 history. Declaring a pipeline case, editing a case, and task import, export and

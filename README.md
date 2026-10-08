@@ -83,7 +83,8 @@ mise exec -- bun run build:client
 mise exec -- bun run serve
 ```
 
-A fresh clone has no run history. Available views cover run history, the linked
+A fresh clone has no run history, so every view shows the first-run setup
+until a spend limit is stored or a record exists. Available views cover run history, the linked
 corpus, saved comparisons, saved session-attempt history, the tasks and cases
 the checkout declares, the settings, and the design system. Declare a case on the Cases view
 writes an uncommitted `cases/<id>/case.json` into the checkout.
