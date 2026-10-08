@@ -127,6 +127,7 @@ import { createProductOwner, runWorkflowStage } from "./workflow";
 import { claimShortId, formatShortId } from "./short-id";
 import type { SpendCeiling } from "./spend-ceiling";
 import { createSpendCeiling, SpendCeilingReachedError } from "./spend-ceiling";
+import { StageSessionError } from "./stage-session-error";
 
 async function createRunFiles(timestamp: string): Promise<BenchmarkRunPaths> {
 	const directory = recordsDirectory();
@@ -858,7 +859,10 @@ function ceilingReadings(
  * call at that budget rather than returning a result.
  */
 async function stoppingAtCeiling<Result>(
-	context: Pick<StageContext, "spendCeiling" | "stageFile" | "stopAtCeiling">,
+	context: Pick<
+		StageContext,
+		"spendCeiling" | "stageFile" | "stopAtCeiling" | "productOwner"
+	>,
 	stage: string,
 	paid: () => Promise<Result>,
 ): Promise<Result> {
@@ -874,6 +878,11 @@ async function stoppingAtCeiling<Result>(
 				file: context.stageFile(stage),
 				stage,
 				...readings,
+				session:
+					error instanceof StageSessionError
+						? { providerCalls: error.providerCalls, costUsd: error.costUsd }
+						: undefined,
+				productOwner: context.productOwner.snapshot(),
 			});
 		}
 
@@ -886,7 +895,10 @@ async function stoppingAtCeiling<Result>(
  * record, so the aborted stage artifact shows what the stage cost.
  */
 function recordPaidStageJudgeFailure(
-	context: Pick<StageContext, "spendCeiling" | "updatePendingStage">,
+	context: Pick<
+		StageContext,
+		"spendCeiling" | "updatePendingStage" | "productOwner"
+	>,
 	readStage: PendingStage,
 	error: Readonly<Error>,
 ): void {
@@ -904,6 +916,8 @@ function recordPaidStageJudgeFailure(
 			costUsd: failure.costUsd,
 		},
 		ceilingStop,
+		productOwner:
+			ceilingStop === undefined ? undefined : context.productOwner.snapshot(),
 	});
 }
 

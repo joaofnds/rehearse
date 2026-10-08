@@ -3,6 +3,7 @@ import type { CorpusMeasurement } from "./corpus-measurement";
 import type { Effort, WorkflowStage } from "./config";
 import type {
 	FailedJudgeRunArtifact,
+	ProviderCall,
 	RunArtifact,
 	StageJudgeInput,
 	StageJudgeRecord,
@@ -38,6 +39,8 @@ export interface PendingStage {
 	readonly scorecard?: StageScorecard | undefined;
 	readonly stopped?: StoppedStageReadings | undefined;
 	readonly ceilingStop?: CeilingStopReadings | undefined;
+	/** The Product Owner's spend up to a ceiling stop, which no other record holds. */
+	readonly productOwner?: ProductOwnerSnapshot | undefined;
 	readonly operatorStop?: OperatorStop | undefined;
 }
 
@@ -56,6 +59,18 @@ export type CeilingStopReadings = CeilingReached;
 export interface CeilingStop extends CeilingStopReadings {
 	readonly file: string;
 	readonly stage: string;
+	readonly session?: StoppedSession | undefined;
+	readonly productOwner: ProductOwnerSnapshot;
+}
+
+/**
+ * What a stopped stage's session spent before the stop, for a stage whose
+ * session failed after its first call. Its cost is absent when a call
+ * reported none, since the calls' sum would then read as the whole.
+ */
+export interface StoppedSession {
+	readonly providerCalls: readonly ProviderCall[];
+	readonly costUsd: number | undefined;
 }
 
 /**
@@ -214,8 +229,6 @@ export async function writeStageJudgeFailure(
 					minimumGrade: pending.stopped.minimumGrade,
 					elapsedMs: pending.stopped.elapsedMs,
 					runElapsedMs: pending.stopped.runElapsedMs,
-					productOwnerCostUsd: pending.stopped.productOwner.spentUsd,
-					productOwnerProviderCalls: pending.stopped.productOwner.providerCalls,
 				};
 	await persistence.write(
 		pending.file,
@@ -235,6 +248,9 @@ export async function writeStageJudgeFailure(
 				sessionBudgetUsd: pending.sessionBudgetUsd,
 				...findings,
 				...stopped,
+				...productOwnerReadings(
+					pending.stopped?.productOwner ?? pending.productOwner,
+				),
 				...pending.failure,
 				ceilingStop: pending.ceilingStop,
 				operatorStop: pending.operatorStop,
@@ -245,9 +261,24 @@ export async function writeStageJudgeFailure(
 	);
 }
 
+function productOwnerReadings(productOwner: ProductOwnerSnapshot | undefined):
+	| {
+			readonly productOwnerCostUsd: number;
+			readonly productOwnerProviderCalls: readonly ProviderCall[];
+	  }
+	| undefined {
+	return productOwner === undefined
+		? undefined
+		: {
+				productOwnerCostUsd: productOwner.spentUsd,
+				productOwnerProviderCalls: productOwner.providerCalls,
+			};
+}
+
 /**
- * The stop record of a stage whose session the ceiling refused: nothing ran
- * in it to judge, so it holds the stop and the readings alone.
+ * The stop record of a stage the ceiling stopped before its Judge ran: it
+ * holds the stop, what the session spent up to it when it got that far, and
+ * the Product Owner's spend.
  */
 async function writeCeilingStop(
 	stop: CeilingStop,
@@ -261,6 +292,8 @@ async function writeCeilingStop(
 				status: "STAGE_JUDGE_FAILED",
 				stage: stop.stage,
 				error: reason,
+				session: stop.session,
+				...productOwnerReadings(stop.productOwner),
 				ceilingStop: { ceilingUsd: stop.ceilingUsd, spentUsd: stop.spentUsd },
 			},
 			null,
@@ -639,7 +672,11 @@ export function createRunAbort(
 			}
 			const readings = { ceilingUsd: stop.ceilingUsd, spentUsd: stop.spentUsd };
 			if (pendingStage?.stage === stop.stage) {
-				pendingStage = { ...pendingStage, ceilingStop: readings };
+				pendingStage = {
+					...pendingStage,
+					ceilingStop: readings,
+					productOwner: stop.productOwner,
+				};
 			} else {
 				ceilingStop = stop;
 			}

@@ -664,8 +664,9 @@ See [current state](docs/status.md) for implementation coverage and
   A confirmation group is held to its attempts times the ceiling. Distinct
   from the per-session limit the session knobs set.
 - **Ceiling stop**: the stop a run makes when its spend reaches the spend
-  ceiling. A stage stopped this way writes its stop record with the ceiling
-  and the spend, and a final Judge stopped this way fails the run with both
+  ceiling. A stage stopped this way writes its stop record with the ceiling,
+  the spend, and the Product Owner's cost and calls up to the stop, and a
+  final Judge stopped this way fails the run with the ceiling and the spend
   on its failed run record. The target is restored and no later session
   starts.
 - **Group ceiling**: the spend a confirmation group may reach, its attempts
@@ -837,7 +838,10 @@ See [current state](docs/status.md) for implementation coverage and
   dimensions and summary, and the letter and verdict, the minimum grade, the
   Judge's attempts, the stage and run elapsed times, and the Product Owner's
   cost and calls up to the stop; older stop records keep the findings and lack
-  the rest. The run's manifest still
+  the rest. A ceiling stop carries the Product Owner's cost and calls up to the
+  stop too. One that came before the Judge ran holds no Judge input; it holds
+  the stage session's calls up to the stop instead, with their spend when
+  every call reported its cost. The run's manifest still
   supplies the case; only the checkpoint the stage never wrote is missing.
 - **Stopped stage** — the stage a run ended on, whether its grade did not meet
   the pipeline's minimum, its judging failed, or a signal stopped the run

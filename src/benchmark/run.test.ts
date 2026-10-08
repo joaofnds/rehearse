@@ -76,6 +76,7 @@ import {
 	AUDIT_LOG_PIPELINE_PATH,
 	AUDIT_LOG_RUBRICS_PATH,
 	ampleSpendCeiling,
+	budgetHaltEnvelope,
 } from "./test-support";
 import type { PendingStage, RunArtifactPersistence } from "./run-abort";
 import { createRunAbort, fileRunArtifactPersistence } from "./run-abort";
@@ -88,7 +89,8 @@ import {
 	StageQualityError,
 	loadStageRubric,
 } from "./stage-grading";
-import type { WorkflowStageRequest } from "./workflow";
+import type { ProductOwner, WorkflowStageRequest } from "./workflow";
+import { runWorkflowStage } from "./workflow";
 
 const testResources = TestResources.forEachTest();
 
@@ -1426,6 +1428,57 @@ describe(runGradedStages.name, () => {
 			};
 		}
 
+		const answeringProductOwner: ProductOwner = {
+			ask: () => Promise.resolve("Use the small scope"),
+			snapshot: () => ({
+				sessionId: "po",
+				spentUsd: 0.0115,
+				providerCalls: [{}],
+			}),
+		};
+
+		it("keeps what the halted session and the Product Owner spent on its stop record", async () => {
+			const { dependencies } = fakeStageDependencies();
+			const { persistence, abort } = atCeiling();
+			const context = {
+				...(await ceilingContext(abort)),
+				spendCeiling: createSpendCeiling({ ceilingUsd: 0.5 }),
+				productOwner: answeringProductOwner,
+			};
+			const responses = [
+				JSON.stringify({
+					type: "result",
+					session_id: "worker-session",
+					total_cost_usd: 0.203,
+					structured_output: { status: "QUESTION", message: "Which scope?" },
+				}),
+				await budgetHaltEnvelope(),
+			];
+			const sessions = {
+				...dependencies,
+				runWorkflowStage: (request: WorkflowStageRequest) =>
+					runWorkflowStage(request, () =>
+						Promise.resolve(responses.shift() ?? ""),
+					),
+			};
+
+			const failure = await failureOf(runGradedStages(sessions, context));
+			await abort.markAborted(failure.message);
+
+			expect(
+				JSON.parse(persistence.files.get(context.stageFile("shape")) ?? ""),
+			).toMatchObject({
+				stage: "shape",
+				session: {
+					providerCalls: [{}, { metrics: { costUsd: 0.5782854 - 0.203 } }],
+					costUsd: 0.5782854,
+				},
+				productOwnerCostUsd: 0.0115,
+				productOwnerProviderCalls: [{}],
+				ceilingStop: { ceilingUsd: 0.5, spentUsd: 0.5782854 },
+			});
+		});
+
 		it("starts the next session within what is left and no session after it", async () => {
 			const { dependencies, scorecardFor } = fakeStageDependencies();
 			const { abort } = atCeiling();
@@ -1636,7 +1689,10 @@ describe(runGradedStages.name, () => {
 		it("keeps the Judge's paid attempt when the ceiling refuses its retry", async () => {
 			const { dependencies } = fakeStageDependencies();
 			const { persistence, abort } = atCeiling();
-			const context = await ceilingContext(abort);
+			const context = {
+				...(await ceilingContext(abort)),
+				productOwner: answeringProductOwner,
+			};
 			const sessions = {
 				...dependencies,
 				runStageJudge: (
@@ -1676,6 +1732,8 @@ describe(runGradedStages.name, () => {
 				prompt: "judge prompt",
 				attempts: [{ outcome: "REJECTED", costUsd: 1 }],
 				costUsd: 1,
+				productOwnerCostUsd: 0.0115,
+				productOwnerProviderCalls: [{}],
 				ceilingStop: { ceilingUsd: 1, spentUsd: 1 },
 			});
 		});
