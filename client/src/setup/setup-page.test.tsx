@@ -418,6 +418,34 @@ describe("first-run setup", () => {
 			expect(screen.getByText(/^Found 2 files/u)).toBeInTheDocument();
 		});
 
+		it("names the server's reason when the linked corpus cannot be read", async () => {
+			serveFreshInstall(
+				new Map<string, Reply>([
+					[
+						"PUT /api/setup/corpus",
+						{ status: 200, body: settingsReading(null) },
+					],
+					[
+						"GET /api/corpus",
+						{
+							status: 409,
+							body: { error: "Corpus file CLAUDE.md is a symlink" },
+						},
+					],
+				]),
+			);
+			renderAppAt("/");
+			await setupSteps();
+
+			scan();
+
+			expect(
+				await screen.findByText(
+					"Could not read the corpus: Corpus file CLAUDE.md is a symlink",
+				),
+			).toBeInTheDocument();
+		});
+
 		it("is not satisfied by a corpus whose files refused hashing, and names why", async () => {
 			serveFreshInstall(
 				new Map<string, Reply>([

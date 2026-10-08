@@ -1,5 +1,6 @@
 import type { InferResponseType } from "hono/client";
 import { apiClient } from "#client/api-client";
+import { refusalReason } from "#client/refusal-reason";
 
 export type CorpusResponse = InferResponseType<
 	typeof apiClient.api.corpus.$get
@@ -8,7 +9,9 @@ export type CorpusResponse = InferResponseType<
 async function fetchCorpusReport(): Promise<CorpusResponse> {
 	const response = await apiClient.api.corpus.$get();
 	if (!response.ok) {
-		throw new Error("Could not read the corpus");
+		throw new Error(
+			`Could not read the corpus: ${await refusalReason(response)}`,
+		);
 	}
 
 	return response.json();
