@@ -111,6 +111,7 @@ interface RecordedGroup {
 	readonly stages: readonly string[];
 	readonly reps: number;
 	readonly corpusDigest?: string;
+	readonly startedAt?: string;
 }
 
 describe("/api/pipelines", () => {
@@ -245,6 +246,7 @@ describe("/api/pipelines", () => {
 			})),
 			reportFile: "report.json",
 			makespanMs: 200,
+			startedAt: group.startedAt,
 		});
 		await mkdir(paths.directory, { recursive: true });
 		await Bun.write(paths.groupFile, JSON.stringify(record));
@@ -519,6 +521,43 @@ describe("/api/pipelines", () => {
 					cases: ["pipe-case"],
 					runs: [],
 					figures: { counted: 2, corpusVersion: null, leftOut: 0 },
+				},
+				{ path: DECLARED_PIPELINE },
+			]);
+		});
+
+		it("reads a pipeline only groups ran as its newest group ran it, whatever their ids", async () => {
+			const { list } = await serving(
+				[],
+				[
+					{
+						groupId: "group-a",
+						caseId: "pipe-case",
+						pipelinePath: OVERRIDE_PIPELINE,
+						stages: ["discuss", "build"],
+						reps: 2,
+						corpusDigest: OLDER_DIGEST,
+						startedAt: "2026-09-01T10:15:00.000Z",
+					},
+					{
+						groupId: "group-b",
+						caseId: "pipe-case",
+						pipelinePath: OVERRIDE_PIPELINE,
+						stages: ["build"],
+						reps: 2,
+						corpusDigest: NEWER_DIGEST,
+						startedAt: "2026-09-01T10:30:00.000Z",
+					},
+				],
+			);
+
+			const { pipelines } = await list();
+
+			expect(pipelines).toMatchObject([
+				{
+					path: OVERRIDE_PIPELINE,
+					stages: ["build"],
+					figures: { counted: 2, corpusVersion: NEWER_DIGEST, leftOut: 2 },
 				},
 				{ path: DECLARED_PIPELINE },
 			]);

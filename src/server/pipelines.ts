@@ -7,6 +7,7 @@ import { parseConfirmationGroupRecord } from "#benchmark/confirmation-record";
 import { loadRunManifest } from "#benchmark/manifest";
 import type { RunManifest } from "#benchmark/manifest";
 import { parsePipeline, PipelineDefinitionError } from "#benchmark/pipeline";
+import { newestFirst } from "#benchmark/recorded-time";
 import type { PipelineDefinition } from "#benchmark/pipeline";
 import {
 	benchmarkRunPaths,
@@ -88,6 +89,7 @@ interface RecordedGroup {
 	readonly stages: readonly string[];
 	readonly reps: number;
 	readonly corpusVersion: CorpusMeasurement;
+	readonly startedAt: string | undefined;
 }
 
 interface Reading<T> {
@@ -120,9 +122,9 @@ async function recordedRuns(
 }
 
 /**
- * Group and rep records carry no time, so groups cannot be placed among runs
- * by when they ran. They read after every run, in group id order, as the run
- * history orders its untimed groups, and file times are not trusted for it.
+ * Pipeline groups newest first by the time they started. A group written
+ * before groups recorded one follows, in group id order, as the run history
+ * orders its untimed groups, and file times are not trusted for it.
  */
 async function recordedGroups(
 	runsDirectory: string,
@@ -152,6 +154,7 @@ async function recordedGroups(
 				stages: record.declaredStages,
 				reps: record.reps,
 				corpusVersion: record.inputs.corpusVersion,
+				startedAt: record.startedAt,
 			});
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
@@ -159,7 +162,10 @@ async function recordedGroups(
 		}
 	}
 
-	return { found, unreadable };
+	return {
+		found: newestFirst(found, ({ startedAt }) => startedAt),
+		unreadable,
+	};
 }
 
 interface DeclaredPipeline {
@@ -360,7 +366,7 @@ function listedPipeline(
  * Every pipeline a pipeline case declares as its default and every pipeline a
  * run manifest or pipeline confirmation group recorded, since a run may
  * override its case's default (doc-193 decision 1). A recorded pipeline reads
- * as its newest run ran it, else as its first group declared it, so a file
+ * as its newest run ran it, else as its newest group declared it, so a file
  * changed or deleted since does not rewrite what ran.
  */
 export async function pipelineReport(
@@ -404,10 +410,10 @@ export async function pipelineReport(
 		};
 		const declaration = declaredByPath.get(path);
 		const [newestRun] = ran.runs;
-		const [firstGroup] = ran.groups;
+		const [newestGroup] = ran.groups;
 		const recordedStages =
 			newestRun?.manifest.pipeline.stages.map(({ name }) => name) ??
-			firstGroup?.stages;
+			newestGroup?.stages;
 		if (recordedStages !== undefined) {
 			pipelines.push(
 				listedPipeline(

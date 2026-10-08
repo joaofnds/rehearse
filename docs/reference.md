@@ -299,14 +299,16 @@ default and every `pipelinePath` a run manifest or pipeline confirmation group
 recorded, so a pipeline a run chose with `--pipeline` or `BENCHMARK_PIPELINE`
 is listed too. Each entry names the pipeline by its control-relative path and
 carries its stage names, as the newest run that recorded it ran them, else as
-the group whose id sorts first declared them, else as its file declares them,
+the newest group declared them, else as its file declares them,
 its stage and task judge counts (a pipeline no case declares has no task judge of its own, though each run is still judged by its own case's final rubric), the declaring case, the cases that declare or ran it, the `targets` of
 those cases still declared, its run names newest first, and `figures`: the
 runs counted at the latest corpus version, that version, and how many runs it
 left out at another version or none. In `figures` each group rep counts as a
-run, though `runs` names run records only. Group ids are random and groups
-record no time, so the latest version is the first one recorded reading runs
-newest first and then groups in id order. When nothing recorded a version
+run, though `runs` names run records only. The latest version is the first
+one recorded reading runs newest first, then groups newest first by the start
+time they recorded. A group written before groups recorded one has no time and
+follows in id order, and group ids are random, so among such groups neither
+the stages nor the version need be the newest. When nothing recorded a version
 every run is counted and the version is `null`. A case declaration, run
 manifest or group record that does not parse is named in `unreadable`, and so
 is a declared pipeline no run or group recorded whose file is missing or does

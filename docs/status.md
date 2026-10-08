@@ -236,8 +236,10 @@ one card per pipeline a case declares as its default or a run or pipeline
 confirmation group recorded, with its target, its steps, its step and task
 judges, its cases, and a run count over the runs at the latest corpus version
 it ran under, with a count of the runs it left out. Each rep of a pipeline confirmation
-group counts as a run. Groups record no time, so for a task only groups ran
-the steps shown are those of the group whose id sorts first, and the version counted is the first one recorded in that order, so neither need be the newest. A group reaches a card only once it finishes. Open graph goes to the monitor for the
+group counts as a run. For a task only groups ran, the steps shown and the
+version counted come from the newest group by the start time it recorded. A
+group written before groups recorded one follows in id order, so for a task
+only such groups ran neither need be the newest. A group reaches a card only once it finishes. Open graph goes to the monitor for the
 task's newest run in flight and is disabled with the reason while none is, so
 a running confirmation group never enables it. A run started after the screen
 opened reaches its card once its manifest is written, on a history poll that
