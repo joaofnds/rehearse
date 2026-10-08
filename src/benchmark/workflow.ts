@@ -118,17 +118,29 @@ function providerCall(
 interface SessionCalls {
 	readonly spentUsd: () => number;
 	readonly providerCalls: () => ProviderCall[];
+	/**
+	 * The calls and their spend, which is unknown when the last call reported
+	 * no total, since a resumed call's total covers the calls before it.
+	 */
+	readonly reading: () => Omit<StageSessionFailure, "cause">;
 	/** Records a call the provider reported, charging the ceiling what it added. */
 	readonly record: (envelope: ClaudeEnvelope) => void;
+	/** Records a call that failed before the provider reported anything. */
+	readonly recordUnreported: () => void;
 }
 
 function sessionCalls(spendCeiling: SpendCeiling): SessionCalls {
 	let spentUsd = 0;
+	let lastReportedTotal = true;
 	const providerCalls: ProviderCall[] = [];
 
 	return {
 		spentUsd: () => spentUsd,
 		providerCalls: () => [...providerCalls],
+		reading: () => ({
+			providerCalls: [...providerCalls],
+			costUsd: lastReportedTotal ? spentUsd : undefined,
+		}),
 		record: (envelope) => {
 			providerCalls.push(providerCall(envelope, spentUsd));
 			spendCeiling.charge(
@@ -136,6 +148,11 @@ function sessionCalls(spendCeiling: SpendCeiling): SessionCalls {
 				readClaudeCallMetrics(envelope),
 			);
 			spentUsd = sessionSpendUsd(envelope, spentUsd);
+			lastReportedTotal = envelope.total_cost_usd !== undefined;
+		},
+		recordUnreported: () => {
+			providerCalls.push({});
+			lastReportedTotal = false;
 		},
 	};
 }
@@ -279,20 +296,12 @@ export async function runWorkflowStage(
 				);
 				envelope = readClaudeEnvelope(output);
 			} catch (error) {
-				if (!(error instanceof ClaudeSessionError)) {
-					throw new WorkflowExecutionError({
-						cause: error,
-						providerCalls: [...calls.providerCalls(), {}],
-						costUsd: undefined,
-					});
+				if (error instanceof ClaudeSessionError) {
+					calls.record(error.envelope);
+				} else {
+					calls.recordUnreported();
 				}
-
-				calls.record(error.envelope);
-				throw new WorkflowExecutionError({
-					cause: error,
-					providerCalls: calls.providerCalls(),
-					costUsd: error.costUsd === undefined ? undefined : calls.spentUsd(),
-				});
+				throw new WorkflowExecutionError({ cause: error, ...calls.reading() });
 			}
 
 			sessionId = envelope.session_id;
@@ -301,11 +310,7 @@ export async function runWorkflowStage(
 			try {
 				agent = readStructuredOutput(envelope, stageTurnSchema);
 			} catch (error) {
-				throw new WorkflowExecutionError({
-					cause: error,
-					providerCalls: calls.providerCalls(),
-					costUsd: calls.spentUsd(),
-				});
+				throw new WorkflowExecutionError({ cause: error, ...calls.reading() });
 			}
 
 			if (agent.status === "COMPLETE") {
@@ -338,10 +343,6 @@ export async function runWorkflowStage(
 			throw error;
 		}
 
-		throw new StageSessionError({
-			cause: error,
-			providerCalls: calls.providerCalls(),
-			costUsd: calls.spentUsd(),
-		});
+		throw new StageSessionError({ cause: error, ...calls.reading() });
 	}
 }

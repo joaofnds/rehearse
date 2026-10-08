@@ -607,19 +607,22 @@ describe("workflow provider metrics", () => {
 		{
 			boundary: "invocation",
 			laterResponse: new Error("worker invocation failed"),
+			costUsd: undefined,
 		},
-		{ boundary: "envelope decoding", laterResponse: "{" },
+		{ boundary: "envelope decoding", laterResponse: "{", costUsd: undefined },
 		{
 			boundary: "structured output decoding",
 			laterResponse: JSON.stringify({
 				type: "result",
 				session_id: "worker-session",
+				total_cost_usd: 0.3,
 				structured_output: { status: "COMPLETE" },
 			}),
+			costUsd: 0.3,
 		},
 	])(
 		"carries completed calls across $boundary failure",
-		async ({ laterResponse }) => {
+		async ({ laterResponse, costUsd }) => {
 			const firstCall = {
 				costUsd: 0.3,
 				inputTokens: 60,
@@ -687,6 +690,7 @@ describe("workflow provider metrics", () => {
 			expect(failure).toMatchObject({
 				name: "WorkflowExecutionError",
 				providerCalls: [{ metrics: firstCall }, {}],
+				costUsd,
 			});
 		},
 	);
@@ -950,7 +954,7 @@ describe("the spend ceiling", () => {
 		expect(spendCeiling.spentUsd()).toBeCloseTo(0.5);
 	});
 
-	function questionTurn(totalCostUsd: number): string {
+	function questionTurn(totalCostUsd: number | undefined): string {
 		return JSON.stringify({
 			type: "result",
 			session_id: "worker-session",
@@ -1095,6 +1099,24 @@ describe("the spend ceiling", () => {
 				message: "Claude session failed",
 				providerCalls: [{ metrics: { costUsd: 0.203 } }],
 				costUsd: 0.203,
+			});
+		});
+
+		it("leaves the session's cost unknown when its last turn reported none", async () => {
+			const spendCeiling = createSpendCeiling({ ceilingUsd: 1 });
+			const productOwner = productOwnerFor(spendCeiling, () =>
+				Promise.resolve(budgetHalt(0.25)),
+			);
+
+			const failure = await failureOf(
+				runWorkflowStage({ ...stageRequest(spendCeiling), productOwner }, () =>
+					Promise.resolve(questionTurn(undefined)),
+				),
+			);
+
+			expect(failure).toMatchObject({
+				providerCalls: [{}],
+				costUsd: undefined,
 			});
 		});
 
