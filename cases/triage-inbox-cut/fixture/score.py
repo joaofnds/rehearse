@@ -7,6 +7,8 @@ from pathlib import Path
 
 SPECULATIVE = ["TASK-9", "TASK-10", "TASK-11", "TASK-12", "TASK-13", "TASK-14", "TASK-15"]
 USER_VISIBLE = ["TASK-5", "TASK-6", "TASK-7"]
+# The wrong output each user-visible card reproduces, which a survivor absorbing it must carry.
+SYMPTOMS = {"TASK-5": "35.0", "TASK-6": "70.0", "TASK-7": "-18.40"}
 RECORDED = "TASK-8"
 NEEDED = "TASK-3"
 CAPTURES = [NEEDED, RECORDED, *USER_VISIBLE, *SPECULATIVE]
@@ -124,8 +126,17 @@ for card_id in SPECULATIVE:
     state = "missing" if not card else ("archived" if card["archived"] else card["status"])
     record(f"archived-{card_id.lower()}", is_archived(card_id), f"{card_id} is {state}")
 
-kept = [c for c in USER_VISIBLE if is_open_capture(c)]
-record("user-visible-kept", len(kept) == len(USER_VISIBLE), f"open: {kept or 'none'} of {USER_VISIBLE}")
+def absorbed_by(card_id):
+    """The open user-visible card that cites this one and carries its symptom, if any."""
+    return next((c for c in USER_VISIBLE if c != card_id and is_open_capture(c)
+                 and re.search(rf"\b{card_id}\b", cards[c]["text"]) and SYMPTOMS[card_id] in cards[c]["text"]), None)
+
+
+# Merging two defects of one outcome keeps both, so an absorbed card counts as kept.
+kept = {c: c if is_open_capture(c) else (is_archived(c) and absorbed_by(c)) for c in USER_VISIBLE}
+missing = [c for c, home in kept.items() if not home]
+record("user-visible-kept", not missing,
+       f"kept: {[f'{c} in {home}' if home != c else c for c, home in kept.items() if home] or 'none'}; lost: {missing or 'none'}")
 record("recorded-problem-kept", is_open_capture(RECORDED), f"{RECORDED} archived={is_archived(RECORDED)}")
 record("needed-capture-kept", is_open_capture(NEEDED), f"{NEEDED} archived={is_archived(NEEDED)}")
 
@@ -174,8 +185,13 @@ record("history-out-of-priority-doc", not left, f"history still in doc-0: {left 
 lost = [quote for quote in APPROVALS if quote not in flat_doc0]
 record("approvals-kept", not lost, f"approval quotes missing from doc-0: {lost or 'none'}")
 
+def unquoted(text):
+    """The text with blockquote markers removed, since a moved paragraph is often quoted."""
+    return re.sub(r"^\s*>\s?", "", text, flags=re.M)
+
+
 homes = [str(p) for p in Path("backlog").rglob("*.md")
-         if p != doc0_path and re.search(MOVED_FACT, p.read_text(encoding="utf-8"))]
+         if p != doc0_path and re.search(MOVED_FACT, unquoted(p.read_text(encoding="utf-8")))]
 in_doc0 = bool(re.search(MOVED_FACT, doc0))
 record("history-preserved", bool(homes) or in_doc0,
        f"progress fact found in: {homes or ('doc-0 only' if in_doc0 else 'nowhere')}")
