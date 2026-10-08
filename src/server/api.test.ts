@@ -188,6 +188,35 @@ describe(createApiApp.name, () => {
 		return writtenFixture({ settingsFile: await liveStageSettings() });
 	}
 
+	describe("GET /api/run-listing", () => {
+		it("answers a run in flight without judging staleness, while the corpus source cannot be read", async () => {
+			const fixture = await writtenFixture();
+			await fixture.writeRunningRun();
+			const app = createApiApp({
+				projectsDirectory: NO_PROVIDER_PROJECTS,
+				runsDirectory: fixture.runsDirectory,
+				liveness: {
+					readMarker: () => Promise.resolve({ pid: 4242 }),
+					isAlive: () => true,
+				},
+				readCorpusSource: () =>
+					Promise.reject(new Error("the corpus source cannot be read")),
+			});
+
+			const response = await app.request("/api/run-listing");
+			expect(response.status).toBe(200);
+			const body = z
+				.object({
+					rows: z.array(z.object({ run: z.string().optional() }).loose()),
+				})
+				.parse(await response.json());
+
+			const running = body.rows.find((row) => row.run === fixture.runningRun);
+			expect(running).toMatchObject({ status: "RUNNING" });
+			expect(running).not.toHaveProperty("staleness");
+		});
+	});
+
 	describe("GET /api/runs", () => {
 		it("renders every recorded run as a row", async () => {
 			const fixture = await writtenFixture();

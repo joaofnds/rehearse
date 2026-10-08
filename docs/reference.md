@@ -1567,6 +1567,14 @@ error, rather than failing either.
 every `ids` parameter given, so the last edit's rows list as run history. An
 empty `ids=` names no record and returns no row.
 
+`GET /api/run-listing` answers the `/api/runs` report without judging any
+record's staleness: the same `rows`, `launches` and `unreadable`, with no
+`staleness` on a row. It reads neither the corpus under test nor any record's
+read manifest, so it answers while the corpus source cannot be read, and its
+cost leaves out the judgment, which is most of the full report's. The nav
+badges, the bar of runs in flight, the live monitor and the tasks screen read
+it. Run history and run detail, which show staleness, read `/api/runs`.
+
 `GET /api/corpus/file?path=<path>` serves the bytes a file the corpus report
 lists holds now, which an edit starts from, whether or not the version store
 has measured them. The `x-corpus-version` header names the full version the

@@ -31,7 +31,7 @@ function renderMonitor(
 	renderAppWithStub(
 		"/monitor",
 		new Map<string, unknown>([
-			["/api/runs", history()],
+			["/api/run-listing", history()],
 			[`/api/runs/${RUN}`, runRecord({ run: RUN, running: "build", stages })],
 			...extra,
 		]),

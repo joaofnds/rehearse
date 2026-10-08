@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import type { SettingsReading } from "#client/launch/settings-query";
 import { launchSettingsQuery } from "#client/launch/settings-query";
-import type { RunHistoryResponse } from "#client/run-history/run-history-query";
-import { runHistoryQuery } from "#client/run-history/run-history-query";
+import type { RunListingResponse } from "#client/run-history/run-history-query";
+import { runListingQuery } from "#client/run-history/run-history-query";
 
 /**
  * A records directory with no stored spend ceiling and no record at all.
@@ -11,7 +11,7 @@ import { runHistoryQuery } from "#client/run-history/run-history-query";
  */
 export function isFreshInstall(
 	settings: SettingsReading | undefined,
-	records: RunHistoryResponse | undefined,
+	records: RunListingResponse | undefined,
 ): boolean {
 	if (settings === undefined || records === undefined) {
 		return false;
@@ -27,7 +27,7 @@ export function isFreshInstall(
 
 export function useFreshInstall(): boolean {
 	const settings = useQuery(launchSettingsQuery);
-	const records = useQuery(runHistoryQuery);
+	const records = useQuery(runListingQuery);
 
 	return isFreshInstall(settings.data, records.data);
 }

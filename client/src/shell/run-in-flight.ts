@@ -3,10 +3,10 @@ import {
 	OPERATOR_STOPPED,
 	stoppedStageOf,
 } from "#benchmark/stopped-status";
-import type { RunHistoryResponse } from "#client/run-history/run-history-query";
+import type { RunListingResponse } from "#client/run-history/run-history-query";
 import { spendReading } from "#client/run-history/run-progress";
 
-type HistoryRow = RunHistoryResponse["rows"][number];
+type HistoryRow = RunListingResponse["rows"][number];
 export type PipelineRow = Extract<HistoryRow, { readonly kind: "run" }>;
 
 /**

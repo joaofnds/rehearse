@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { plural } from "#client/plural";
-import { polledRunHistoryQuery } from "#client/run-history/run-history-polling";
+import { polledRunListingQuery } from "#client/run-history/run-history-polling";
 import { spendReading } from "#client/run-history/run-progress";
 import { Grade } from "#client/system/components/grade";
 import { LiveGlyph, STATUS_VOCABULARY } from "#client/system/components/status";
@@ -197,7 +197,7 @@ function VarianceNote({
 	readonly run: string;
 	readonly stage: string;
 }): React.JSX.Element {
-	const { data } = useQuery(polledRunHistoryQuery);
+	const { data } = useQuery(polledRunListingQuery);
 	const spread =
 		data === undefined
 			? undefined

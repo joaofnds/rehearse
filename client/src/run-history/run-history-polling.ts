@@ -1,5 +1,5 @@
-import type { RunHistoryResponse } from "./run-history-query";
-import { runHistoryQuery } from "./run-history-query";
+import type { RunListingResponse } from "./run-history-query";
+import { runHistoryQuery, runListingQuery } from "./run-history-query";
 
 /**
  * How often the list re-reads itself while a run is in flight. The operator is
@@ -26,7 +26,7 @@ const IDLE_POLL_MS = 10_000;
  * stopped stays listed after its process ends, so it does not count.
  */
 export function somethingRuns(
-	response: Readonly<RunHistoryResponse> | undefined,
+	response: Readonly<RunListingResponse> | undefined,
 ): boolean {
 	return (
 		(response?.launches ?? []).some((launch) => launch.status === "RUNNING") ||
@@ -36,15 +36,26 @@ export function somethingRuns(
 	);
 }
 
+/** Often while anything runs and seldom while nothing does. */
+function pollInterval({
+	state,
+}: {
+	readonly state: { readonly data?: RunListingResponse | undefined };
+}): number {
+	return somethingRuns(state.data) ? RUNNING_POLL_MS : IDLE_POLL_MS;
+}
+
 /**
- * The run-history query, re-read often while anything runs and seldom while
- * nothing does, for every reader that shows readings of a run in flight.
+ * The run-history query, polled for the screens that show readings of a run
+ * in flight beside each record's staleness.
  */
 export const polledRunHistoryQuery = {
 	...runHistoryQuery,
-	refetchInterval: ({
-		state,
-	}: {
-		readonly state: { readonly data?: RunHistoryResponse | undefined };
-	}): number => (somethingRuns(state.data) ? RUNNING_POLL_MS : IDLE_POLL_MS),
+	refetchInterval: pollInterval,
+};
+
+/** The run listing, polled for every other reader of a run in flight. */
+export const polledRunListingQuery = {
+	...runListingQuery,
+	refetchInterval: pollInterval,
 };

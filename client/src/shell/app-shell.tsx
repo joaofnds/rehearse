@@ -3,7 +3,7 @@ import { calibrationQuery } from "#client/calibration/calibration-query";
 import { createLink, Outlet } from "@tanstack/react-router";
 import { comparisonIndexQuery } from "#client/comparison/comparison-index-query";
 import { corpusQuery } from "#client/corpus/corpus-query";
-import { runHistoryQuery } from "#client/run-history/run-history-query";
+import { runListingQuery } from "#client/run-history/run-history-query";
 import { useFreshInstall } from "#client/setup/fresh-install";
 import { SetupPage } from "#client/setup/setup-page";
 import { CorpusCard } from "./corpus-card";
@@ -81,7 +81,7 @@ function NavEntry({
  * rather than a zero it cannot vouch for.
  */
 function useBadgeCounts(): BadgeCounts {
-	const runs = useQuery(runHistoryQuery);
+	const runs = useQuery(runListingQuery);
 	const corpus = useQuery(corpusQuery);
 	const comparisons = useQuery(comparisonIndexQuery);
 	const calibration = useQuery(calibrationQuery);

@@ -5,8 +5,8 @@ import {
 	NO_LAUNCH_REASON,
 	useStopLaunch,
 } from "#client/run-history/run-controls";
-import { polledRunHistoryQuery } from "#client/run-history/run-history-polling";
-import type { RunHistoryResponse } from "#client/run-history/run-history-query";
+import { polledRunListingQuery } from "#client/run-history/run-history-polling";
+import type { RunListingResponse } from "#client/run-history/run-history-query";
 import {
 	clockReading,
 	liveElapsedMs,
@@ -25,7 +25,7 @@ import {
 	withGradesKnownBefore,
 } from "./run-in-flight";
 
-type HistoryRow = RunHistoryResponse["rows"][number];
+type HistoryRow = RunListingResponse["rows"][number];
 
 /** One array for every render before the history loads, so it reads as unchanged. */
 const NO_ROWS: readonly HistoryRow[] = [];
@@ -231,7 +231,7 @@ export function RunInFlight({
 
 /** The runs in flight, read from the run history every screen shares. */
 export function RunInFlightBar(): React.JSX.Element {
-	const { data } = useQuery(polledRunHistoryQuery);
+	const { data } = useQuery(polledRunListingQuery);
 
 	return <RunInFlight rows={data?.rows ?? NO_ROWS} />;
 }

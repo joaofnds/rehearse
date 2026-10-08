@@ -1,7 +1,7 @@
 import { gradeStep } from "#benchmark/stage-letter-grades";
-import type { RunHistoryResponse } from "#client/run-history/run-history-query";
+import type { RunListingResponse } from "#client/run-history/run-history-query";
 
-type HistoryRow = RunHistoryResponse["rows"][number];
+type HistoryRow = RunListingResponse["rows"][number];
 type PipelineRow = Extract<HistoryRow, { readonly kind: "run" }>;
 
 const STEP_WORDS = ["one", "two", "three", "four"] as const;

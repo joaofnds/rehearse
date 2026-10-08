@@ -25,8 +25,10 @@ import {
 	restoredRepository,
 	runStatusState,
 } from "#client/run-history/run-status";
-import type { RunHistoryResponse } from "#client/run-history/run-history-query";
-import type { PipelineRow } from "#client/shell/run-in-flight";
+import type {
+	RunHistoryResponse,
+	RunRowWithStaleness,
+} from "#client/run-history/run-history-query";
 import { CorpusPill } from "#client/system/components/corpus-pill";
 import { EmptyState } from "#client/system/components/empty-state";
 import { STATUS_VOCABULARY } from "#client/system/components/status";
@@ -70,7 +72,8 @@ function useWhenChanged(reading: string, onChanged: () => void): void {
  */
 function phaseOf(rows: readonly HistoryRow[], run: string): string {
 	const row = rows.find(
-		(each): each is PipelineRow => each.kind === "run" && each.run === run,
+		(each): each is RunRowWithStaleness =>
+			each.kind === "run" && each.run === run,
 	);
 	if (row === undefined) {
 		return "unlisted";
@@ -108,7 +111,10 @@ function belowMinimum(record: RunRecordResponse, stage: string): string {
 }
 
 /** How the run ended, or where it is, in the header's words. */
-function endingWords(row: PipelineRow, record: RunRecordResponse): string {
+function endingWords(
+	row: RunRowWithStaleness,
+	record: RunRecordResponse,
+): string {
 	const { status, progress } = row;
 	if (isStopped(status)) {
 		const stage = stoppedStageOf(status);
@@ -134,7 +140,7 @@ function endingWords(row: PipelineRow, record: RunRecordResponse): string {
  * one that left a record.
  */
 function replayedStage(
-	row: PipelineRow,
+	row: RunRowWithStaleness,
 	record: RunRecordResponse,
 ): MonitoredStage | undefined {
 	if (isStopped(row.status)) {
@@ -146,7 +152,7 @@ function replayedStage(
 	return record.stages.findLast((each) => each.status !== "no-record");
 }
 
-function metaLine(row: PipelineRow, record: RunRecordResponse): string {
+function metaLine(row: RunRowWithStaleness, record: RunRecordResponse): string {
 	const { identity } = record;
 
 	return [
@@ -167,7 +173,7 @@ function RunDetailHeader({
 	layout,
 	onLayout,
 }: {
-	readonly row: PipelineRow;
+	readonly row: RunRowWithStaleness;
 	readonly record: RunRecordResponse;
 	readonly layout: RunDetailLayout;
 	readonly onLayout: (layout: RunDetailLayout) => void;
@@ -258,7 +264,7 @@ function RestoreBanner({
 	record,
 	layout,
 }: {
-	readonly row: PipelineRow;
+	readonly row: RunRowWithStaleness;
 	readonly record: RunRecordResponse;
 	readonly layout: RunDetailLayout;
 }): React.JSX.Element {
@@ -283,7 +289,7 @@ function RestoreBanner({
  * the first.
  */
 function selectedStage(
-	row: PipelineRow,
+	row: RunRowWithStaleness,
 	record: RunRecordResponse,
 	step: string | undefined,
 ): MonitoredStage | undefined {
@@ -350,7 +356,7 @@ export function RunDetailPage({
 	}
 
 	const rows = history.data.rows.filter(
-		(each): each is PipelineRow => each.kind === "run",
+		(each): each is RunRowWithStaleness => each.kind === "run",
 	);
 	const row = rows.find((each) => each.run === run);
 	if (row === undefined) {

@@ -11,12 +11,19 @@ import {
 	createMemoryHistory,
 	RouterContextProvider,
 } from "@tanstack/react-router";
+import { LaunchDialog } from "#client/launch/launch-dialog";
 import { createAppRouter } from "#client/router";
 import type { RunHistoryResponse } from "#client/run-history/run-history-query";
-import { renderAppWithStub } from "#client/test-support/render-app";
+import type { Reply } from "#client/test-support/fetch-stub";
+import { FakeServer } from "#client/test-support/fetch-stub";
+import { LiveReply } from "#client/test-support/live-reply";
+import {
+	renderAppWithStub,
+	settingsReading,
+} from "#client/test-support/render-app";
 import { recordStage, runRecord } from "#client/test-support/run-record";
 import { graded, notYet, runRow } from "#client/test-support/runs-in-flight";
-import { RunInFlight } from "./run-in-flight-bar";
+import { RunInFlight, RunInFlightBar } from "./run-in-flight-bar";
 
 type HistoryRow = RunHistoryResponse["rows"][number];
 
@@ -60,6 +67,68 @@ function renderRunInFlight(rows: readonly HistoryRow[]): RenderedRunInFlight {
 
 const IN_FLIGHT = /^Run \S+ in flight$/u;
 
+/**
+ * The bar beside a launch dialog, both reading one query cache, as every
+ * screen holds them.
+ */
+function renderBarWithLaunch(): void {
+	const client = new QueryClient({
+		defaultOptions: { queries: { retry: false } },
+	});
+	const router = createAppRouter({
+		history: createMemoryHistory({ initialEntries: ["/corpus"] }),
+	});
+
+	render(
+		<QueryClientProvider client={client}>
+			<RouterContextProvider router={router}>
+				<LaunchDialog target={{ kind: "case" }} triggerLabel="New run" />
+				<RunInFlightBar />
+			</RouterContextProvider>
+		</QueryClientProvider>,
+	);
+}
+
+/**
+ * Serves the listing the bar reads, changed by whatever `routes` answers to a
+ * write.
+ */
+function servingListing(
+	listing: () => readonly HistoryRow[],
+	routes: ReadonlyMap<string, Reply>,
+): FakeServer {
+	const server = new FakeServer(
+		new Map<string, Reply | LiveReply>([
+			[
+				"GET /api/run-listing",
+				new LiveReply(() => ({ status: 200, body: history(listing()) })),
+			],
+			["GET /api/settings", { status: 200, body: settingsReading(5) }],
+			[
+				"GET /api/cases",
+				{
+					status: 200,
+					body: {
+						cases: [
+							{
+								id: "audit-log",
+								kind: "pipeline",
+								title: "Audit log",
+								model: "sonnet",
+							},
+						],
+						unreadable: [],
+					},
+				},
+			],
+			...routes,
+		]),
+	);
+	server.install();
+
+	return server;
+}
+
 function bar(): HTMLElement {
 	return screen.getByRole("region", { name: IN_FLIGHT });
 }
@@ -70,7 +139,7 @@ describe("the run in flight on every screen", () => {
 			"/corpus",
 			new Map([
 				[
-					"/api/runs",
+					"/api/run-listing",
 					history([
 						runRow({
 							stage: "build",
@@ -170,7 +239,7 @@ describe("the run in flight on every screen", () => {
 			"/corpus",
 			new Map([
 				[
-					"/api/runs",
+					"/api/run-listing",
 					history([
 						{ ...runRow({ run: OLDER }), shortId: "r-0147" },
 						{ ...runRow({ run: NEWER, stage: "review" }), shortId: "r-0149" },
@@ -192,7 +261,7 @@ describe("the run in flight on every screen", () => {
 			"/corpus",
 			new Map<string, unknown>([
 				[
-					"/api/runs",
+					"/api/run-listing",
 					history([older, { ...runRow({ run: NEWER }), shortId: "r-0149" }]),
 				],
 				[
@@ -283,6 +352,50 @@ describe("the run in flight on every screen", () => {
 		rerender([older]);
 
 		expect(within(bar()).getByRole("button", { name: "Stop" })).toBeEnabled();
+	});
+
+	it("shows a run launched from the browser without waiting for a poll", async () => {
+		const server = servingListing(
+			() =>
+				server.posted("/api/launches").length === 0
+					? []
+					: [runRow({ launchId: "launch-1" })],
+			new Map([
+				["POST /api/launches", { status: 202, body: { id: "launch-1" } }],
+			]),
+		);
+		renderBarWithLaunch();
+		fireEvent.click(screen.getByRole("button", { name: "New run" }));
+		const start = await screen.findByRole("button", { name: /^Start · /u });
+		await waitFor(() => {
+			expect(start).toBeEnabled();
+		});
+
+		fireEvent.click(start);
+
+		expect(
+			await screen.findByRole("region", { name: IN_FLIGHT }),
+		).toBeInTheDocument();
+	});
+
+	it("leaves once its Stop is accepted, without waiting for a poll", async () => {
+		const server = servingListing(
+			() =>
+				server.posted("/api/launches/launch-1/stop").length === 0
+					? [runRow({ launchId: "launch-1" })]
+					: [],
+			new Map([
+				["POST /api/launches/launch-1/stop", { status: 200, body: {} }],
+			]),
+		);
+		renderBarWithLaunch();
+		const shown = await screen.findByRole("region", { name: IN_FLIGHT });
+
+		fireEvent.click(within(shown).getByRole("button", { name: "Stop" }));
+
+		await waitFor(() => {
+			expect(screen.queryByRole("region", { name: IN_FLIGHT })).toBeNull();
+		});
 	});
 
 	it("ticks the elapsed clock each second between the run's own readings", async () => {

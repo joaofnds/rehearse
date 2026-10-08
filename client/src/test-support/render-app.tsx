@@ -53,16 +53,18 @@ const NO_COMPARISONS: ComparisonIndexResponse = {
 };
 
 /**
- * The bodies the shell reads on every route, for its nav badges, its corpus
- * card and whether the install is fresh, each typed against its own route's
- * response. The settings hold a ceiling, so a route opens on its own screen
- * rather than setup.
+ * The bodies the shell reads on every route, for its nav badges, its bar of
+ * runs in flight, its corpus card and whether the install is fresh, and the
+ * full run history the landing screen reads, each typed against its own
+ * route's response. The settings hold a ceiling, so a route opens on its own
+ * screen rather than setup.
  */
 export const SHELL_BASELINE: ReadonlyMap<string, unknown> = new Map<
 	string,
 	unknown
 >([
 	["/api/runs", NO_RUNS],
+	["/api/run-listing", NO_RUNS],
 	["/api/corpus", EMPTY_CORPUS],
 	["/api/comparisons", NO_COMPARISONS],
 	["/api/calibration", NO_GRADES],

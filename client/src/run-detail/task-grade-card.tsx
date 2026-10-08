@@ -3,13 +3,13 @@ import {
 	corpusVersionLabel,
 } from "#benchmark/corpus-version-label";
 import type { RunRecordResponse } from "#client/monitor/run-record-query";
-import type { PipelineRow } from "#client/shell/run-in-flight";
+import type { RunRowWithStaleness } from "#client/run-history/run-history-query";
 import { SectionLabel } from "#client/system/components/section-label";
 import { Status } from "#client/system/components/status";
 
 type FinalOutcome = RunRecordResponse["finalOutcome"];
 
-type CorpusMeasurement = PipelineRow["corpusVersion"];
+type CorpusMeasurement = RunRowWithStaleness["corpusVersion"];
 
 export const NOT_RETURNED = "—";
 
@@ -53,14 +53,14 @@ export function outcomeReading(outcome: FinalOutcome): OutcomeReading {
 	}
 }
 
-type JudgedRow = PipelineRow & {
+type JudgedRow = RunRowWithStaleness & {
 	readonly finalOutcome: Extract<
-		PipelineRow["finalOutcome"],
+		RunRowWithStaleness["finalOutcome"],
 		{ readonly status: "JUDGED" }
 	>;
 };
 
-function isJudged(row: PipelineRow): row is JudgedRow {
+function isJudged(row: RunRowWithStaleness): row is JudgedRow {
 	return (
 		row.finalOutcome.state === "available" &&
 		row.finalOutcome.status === "JUDGED"
@@ -69,8 +69,8 @@ function isJudged(row: PipelineRow): row is JudgedRow {
 
 /** The newest other run of the same case whose final judge returned a verdict. */
 export function lastTaskGrade(
-	row: PipelineRow,
-	rows: readonly PipelineRow[],
+	row: RunRowWithStaleness,
+	rows: readonly RunRowWithStaleness[],
 ): JudgedRow | undefined {
 	return rows
 		.filter(
@@ -99,7 +99,7 @@ function LastTaskGrade({
 	row,
 	last,
 }: {
-	readonly row: PipelineRow;
+	readonly row: RunRowWithStaleness;
 	readonly last: JudgedRow | undefined;
 }): React.JSX.Element {
 	if (last === undefined) {
@@ -168,8 +168,8 @@ export function TaskGradeCard({
 	rows,
 	outcome,
 }: {
-	readonly row: PipelineRow;
-	readonly rows: readonly PipelineRow[];
+	readonly row: RunRowWithStaleness;
+	readonly rows: readonly RunRowWithStaleness[];
 	readonly outcome: FinalOutcome;
 }): React.JSX.Element {
 	const { value, note } = outcomeReading(outcome);

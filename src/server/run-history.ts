@@ -389,6 +389,18 @@ export type RunHistoryRow =
 	| ReplayRow
 	| ConfirmationGroupRow;
 
+type Unjudged<Row extends RunHistoryRow> = Omit<Row, "staleness">;
+
+/**
+ * A run-history row without its staleness judgment, which costs most of the
+ * report, for a reader that never shows staleness.
+ */
+export type RunListingRow =
+	| Unjudged<PipelineRunRow>
+	| Unjudged<SessionAttemptRow>
+	| Unjudged<ReplayRow>
+	| Unjudged<ConfirmationGroupRow>;
+
 /**
  * A link to every stage whose context page renders a report, in pipeline
  * order: a stage that saved a checkpoint, the stage that stopped the run, and
@@ -611,11 +623,10 @@ async function rowFor(
 	runsDirectory: string,
 	run: string,
 	shortId: string | undefined,
-	staleness: Staleness,
 	runEvents: RunEventStore,
 	liveness: RunLiveness,
 	launchByPid: ReadonlyMap<number, string>,
-): Promise<PipelineRunRow | undefined> {
+): Promise<Unjudged<PipelineRunRow> | undefined> {
 	const identity = await statusAndCaseId(
 		runsDirectory,
 		run,
@@ -653,10 +664,6 @@ async function rowFor(
 			caseId,
 			stage: undefined,
 			grade: undefined,
-			staleness: staleness.ofRun(
-				run,
-				formatRecordId({ kind: "checkpoint", run, stage: "initial" }),
-			),
 			progress,
 			links,
 			...figures,
@@ -674,10 +681,6 @@ async function rowFor(
 		caseId,
 		stage,
 		grade: gradeByStage.get(stage),
-		staleness: staleness.ofRun(
-			run,
-			formatRecordId({ kind: "checkpoint", run, stage }),
-		),
 		progress,
 		links,
 		...figures,
@@ -689,8 +692,7 @@ async function sessionAttemptRow(
 	runsDirectory: string,
 	attempt: SessionAttemptId,
 	shortId: string | undefined,
-	staleness: Staleness,
-): Promise<SessionAttemptRow> {
+): Promise<Unjudged<SessionAttemptRow>> {
 	const { recordFile } = sessionAttemptPaths(runsDirectory, attempt);
 	if (!(await Bun.file(recordFile).exists())) {
 		throw new Error("incomplete: no attempt.json recorded");
@@ -706,9 +708,6 @@ async function sessionAttemptRow(
 		status: record.outcome,
 		startedAt: attemptStartedAt(record),
 		corpusVersion: record.corpusVersion,
-		staleness: staleness.of(
-			formatRecordId({ kind: "attempt:session", ...attempt }),
-		),
 		links: [
 			{
 				state: "available",
@@ -736,8 +735,7 @@ async function replayRow(
 	shortId: string | undefined,
 	shortIds: ReadonlyMap<string, string>,
 	attempts: ReadonlyMap<string, AttemptPosition>,
-	staleness: Staleness,
-): Promise<ReplayRow> {
+): Promise<Unjudged<ReplayRow>> {
 	const record = await readReplayRecord(
 		replayRecordFile(runsDirectory, attempt.lineage, attempt.timestamp),
 	);
@@ -766,9 +764,6 @@ async function replayRow(
 		grade: record.scorecard.grade.grade,
 		status: record.scorecard.grade.verdict,
 		corpusVersion: record.corpusVersion,
-		staleness: staleness.of(
-			formatRecordId({ kind: "attempt:stage", ...attempt }),
-		),
 		links: [replayLink(attempt, record.consumed.lineage, caseId)],
 		cost: replayCost(record),
 		finalOutcome: {
@@ -1030,8 +1025,7 @@ async function groupRow(
 	shortId: string | undefined,
 	checkpoint: ConfirmationGroupRow["checkpoint"],
 	attempts: ReadonlyMap<string, AttemptPosition>,
-	staleness: Staleness,
-): Promise<ConfirmationGroupRow | undefined> {
+): Promise<Unjudged<ConfirmationGroupRow> | undefined> {
 	const paths = confirmationGroupPaths(runsDirectory, groupId);
 	const { groupFile } = paths;
 	if (await stoppedBeforeGroupRecord(paths)) {
@@ -1060,7 +1054,6 @@ async function groupRow(
 		checkpoint,
 		reps: record.reps,
 		corpusVersion: record.inputs.corpusVersion,
-		staleness: staleness.of(formatRecordId({ kind: "group", groupId })),
 		repAttempts: repAttempts(record, attempts),
 		links,
 		stageSummaries: stageSummaries(
@@ -1164,7 +1157,7 @@ export async function liveLaunches(
 function unheldLaunchRows(
 	launches: readonly LaunchRecord[],
 	stopped: readonly LaunchRecord[],
-	rows: readonly RunHistoryRow[],
+	rows: readonly RunListingRow[],
 ): readonly LaunchRow[] {
 	const held = new Set(
 		rows.flatMap((row) =>
@@ -1185,7 +1178,7 @@ function unheldLaunchRows(
  * none: a run's name, a replay's timestamp, or the start time an attempt or
  * group recorded.
  */
-function recordedTime(row: RunHistoryRow): string | undefined {
+function recordedTime(row: RunListingRow): string | undefined {
 	switch (row.kind) {
 		case "run": {
 			return row.run;
@@ -1215,6 +1208,14 @@ export interface UnreadableRecord {
 
 export interface RunHistoryReport {
 	readonly rows: readonly RunHistoryRow[];
+	/** Live browser launches, newest first. */
+	readonly launches: readonly LaunchRow[];
+	readonly unreadable: readonly UnreadableRecord[];
+}
+
+/** The run-history report with no row's staleness judged. */
+export interface RunListing {
+	readonly rows: readonly RunListingRow[];
 	/** Live browser launches, newest first. */
 	readonly launches: readonly LaunchRow[];
 	readonly unreadable: readonly UnreadableRecord[];
@@ -1352,12 +1353,85 @@ export async function runHistoryReport(
 	only?: ReadonlySet<string>,
 ): Promise<RunHistoryReport> {
 	const staleness = await recordStaleness(runsDirectory, source);
+	const listing = await runListing(runsDirectory, liveness, only);
 
+	return {
+		...listing,
+		rows: listing.rows.map((row) => withStaleness(row, staleness)),
+	};
+}
+
+function withStaleness(
+	row: RunListingRow,
+	staleness: Staleness,
+): RunHistoryRow {
+	switch (row.kind) {
+		case "run": {
+			return {
+				...row,
+				staleness: staleness.ofRun(
+					row.run,
+					formatRecordId({
+						kind: "checkpoint",
+						run: row.run,
+						stage: row.stage ?? "initial",
+					}),
+				),
+			};
+		}
+		case "session-attempt": {
+			return {
+				...row,
+				staleness: staleness.of(
+					formatRecordId({
+						kind: "attempt:session",
+						caseId: row.caseId,
+						uuid: row.uuid,
+					}),
+				),
+			};
+		}
+		case "replay": {
+			return {
+				...row,
+				staleness: staleness.of(
+					formatRecordId({
+						kind: "attempt:stage",
+						lineage: row.lineage,
+						timestamp: row.timestamp,
+					}),
+				),
+			};
+		}
+		case "group": {
+			return {
+				...row,
+				staleness: staleness.of(
+					formatRecordId({ kind: "group", groupId: row.groupId }),
+				),
+			};
+		}
+		default: {
+			return unhandled(row, "run history row kind");
+		}
+	}
+}
+
+/**
+ * Every recorded run rendered as a row, as `runHistoryReport` renders it but
+ * without judging any record's staleness, so it reads neither the corpus
+ * under test nor any record's read manifest.
+ */
+export async function runListing(
+	runsDirectory: string,
+	liveness: RunLiveness,
+	only?: ReadonlySet<string>,
+): Promise<RunListing> {
 	const runEvents = await openRunEventStore(
 		runEventsDatabaseFile(runsDirectory),
 	);
 	try {
-		const rows: RunHistoryRow[] = [];
+		const rows: RunListingRow[] = [];
 		const unreadable: UnreadableRecord[] = [];
 		const registry = await registryEntries(runsDirectory);
 		unreadable.push(...registry.unreadable);
@@ -1379,7 +1453,7 @@ export async function runHistoryReport(
 			read: (
 				name: Named,
 				shortId: string | undefined,
-			) => Promise<RunHistoryRow | undefined>,
+			) => Promise<RunListingRow | undefined>,
 		): Promise<void> => {
 			for (const name of named.filter(
 				(candidate) => only?.has(idOf(candidate)) ?? true,
@@ -1410,36 +1484,20 @@ export async function runHistoryReport(
 			[...runs],
 			(run) => formatRecordId({ kind: "run", run }),
 			(run, shortId) =>
-				rowFor(
-					runsDirectory,
-					run,
-					shortId,
-					staleness,
-					runEvents,
-					liveness,
-					launchByPid,
-				),
+				rowFor(runsDirectory, run, shortId, runEvents, liveness, launchByPid),
 		);
 		await collect(
 			"session-attempt",
 			await sessionAttemptIds(runsDirectory),
 			(attempt) => formatRecordId({ kind: "attempt:session", ...attempt }),
-			(attempt, shortId) =>
-				sessionAttemptRow(runsDirectory, attempt, shortId, staleness),
+			(attempt, shortId) => sessionAttemptRow(runsDirectory, attempt, shortId),
 		);
 		await collect(
 			"replay",
 			await replayAttemptIds(runsDirectory),
 			(attempt) => formatRecordId({ kind: "attempt:stage", ...attempt }),
 			(attempt, shortId) =>
-				replayRow(
-					runsDirectory,
-					attempt,
-					shortId,
-					shortIds,
-					attempts,
-					staleness,
-				),
+				replayRow(runsDirectory, attempt, shortId, shortIds, attempts),
 		);
 		await collect(
 			"group",
@@ -1452,7 +1510,6 @@ export async function runHistoryReport(
 					shortId,
 					groupCheckpoints.get(groupId),
 					attempts,
-					staleness,
 				),
 		);
 

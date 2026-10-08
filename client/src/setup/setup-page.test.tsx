@@ -709,6 +709,7 @@ describe("first-run setup", () => {
 					new Map<string, Reply>([
 						["GET /api/settings", { status: 200, body: settingsReading(null) }],
 						["GET /api/runs", { status: 200, body: records }],
+						["GET /api/run-listing", { status: 200, body: records }],
 					]),
 				);
 
@@ -745,6 +746,7 @@ describe("first-run setup", () => {
 				new Map<string, Reply>([
 					["GET /api/settings", { status: 200, body: settingsReading(null) }],
 					["GET /api/runs", { status: 200, body: ONE_RUN }],
+					["GET /api/run-listing", { status: 200, body: ONE_RUN }],
 				]),
 			);
 

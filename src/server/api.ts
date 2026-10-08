@@ -50,7 +50,7 @@ import { readStageJudge } from "./stage-judge";
 import { readStageSession } from "./stage-session";
 import { readStageTimes } from "./stage-times";
 import type { RunLiveness } from "#benchmark/run-liveness";
-import { runHistoryReport } from "./run-history";
+import { runHistoryReport, runListing } from "./run-history";
 import { readStageAttempts } from "./stage-attempts";
 import type { EvidenceRequest, EvidenceSource } from "./evidence-source";
 import { EvidenceSourceError, readEvidenceSource } from "./evidence-source";
@@ -291,6 +291,14 @@ export const createApiApp = (dependencies: ApiDependencies) => {
 			);
 
 			return context.json(report);
+		})
+		.get("/api/run-listing", async (context) => {
+			const listing = await runListing(
+				dependencies.runsDirectory,
+				dependencies.liveness,
+			);
+
+			return context.json(listing);
 		})
 		.get("/api/corpus", async (context) => {
 			const report = await corpusReport(

@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { plural } from "#client/plural";
-import { polledRunHistoryQuery } from "#client/run-history/run-history-polling";
+import { polledRunListingQuery } from "#client/run-history/run-history-polling";
 import type { PipelineRow } from "#client/shell/run-in-flight";
 import { runsInFlight } from "#client/shell/run-in-flight";
 import { EmptyState } from "#client/system/components/empty-state";
@@ -88,7 +88,7 @@ export function MonitorPage({
 }: {
 	readonly run: string | undefined;
 }): React.JSX.Element | null {
-	const { data, isError } = useQuery(polledRunHistoryQuery);
+	const { data, isError } = useQuery(polledRunListingQuery);
 	if (isError) {
 		return (
 			<p role="alert" className="px-6 py-4 text-muted-foreground">

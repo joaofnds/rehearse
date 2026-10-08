@@ -48,7 +48,7 @@ type PipelineRow = Extract<HistoryRow, { readonly kind: "run" }>;
 /** What the server answers for one run in flight at build: its row and its record. */
 function monitorBodies(row: PipelineRow): ReadonlyMap<string, unknown> {
 	return new Map<string, unknown>([
-		["/api/runs", history([row])],
+		["/api/run-listing", history([row])],
 		[
 			`/api/runs/${row.run}`,
 			runRecord({
@@ -111,7 +111,7 @@ describe("/monitor", () => {
 			"/monitor",
 			new Map<string, unknown>([
 				[
-					"/api/runs",
+					"/api/run-listing",
 					history([
 						runRow({
 							run: RUN,
@@ -579,7 +579,7 @@ describe("/monitor task graph", () => {
 			new Map<string, unknown>([
 				...analyses,
 				[
-					"/api/runs",
+					"/api/run-listing",
 					history([
 						runRow({ run: RUN, stage: "build", corpusVersion: runUnder }),
 					]),
@@ -765,7 +765,7 @@ describe("/monitor task graph", () => {
 			"/monitor",
 			new Map<string, unknown>([
 				[
-					"/api/runs",
+					"/api/run-listing",
 					history([
 						runRow({
 							run: RUN,
@@ -884,7 +884,7 @@ describe("/monitor task graph", () => {
 			"/monitor",
 			new Map<string, unknown>([
 				[
-					"/api/runs",
+					"/api/run-listing",
 					history([runRow({ run: RUN, stage: "plan", stageState: "judged" })]),
 				],
 				[
@@ -921,7 +921,7 @@ describe("/monitor task graph", () => {
 			"/monitor",
 			new Map<string, unknown>([
 				[
-					"/api/runs",
+					"/api/run-listing",
 					history([
 						runRow({
 							run: RUN,
@@ -1320,7 +1320,7 @@ describe("/monitor judge pane", () => {
 				watched,
 				new Map<string, unknown>([
 					[
-						"/api/runs",
+						"/api/run-listing",
 						history([
 							watched,
 							rerun("2026-09-01T10-00-00.000Z", "B"),
@@ -2166,7 +2166,7 @@ describe("/monitor across runs", () => {
 			new Map<string, unknown>([
 				...monitorBodies(runRow({ run: RUN })),
 				...monitorBodies(newerRow()),
-				["/api/runs", history([runRow({ run: RUN }), newerRow()])],
+				["/api/run-listing", history([runRow({ run: RUN }), newerRow()])],
 			]),
 		);
 
@@ -2179,7 +2179,7 @@ describe("/monitor across runs", () => {
 			new Map<string, unknown>([
 				...monitorBodies(runRow({ run: RUN })),
 				...monitorBodies(newerRow()),
-				["/api/runs", history([runRow({ run: RUN }), newerRow()])],
+				["/api/run-listing", history([runRow({ run: RUN }), newerRow()])],
 			]),
 		);
 
@@ -2195,7 +2195,7 @@ describe("/monitor across runs", () => {
 			`/monitor/${RUN}`,
 			new Map<string, unknown>([
 				...monitorBodies(newerRow()),
-				["/api/runs", history([ended, newerRow()])],
+				["/api/run-listing", history([ended, newerRow()])],
 			]),
 		);
 
@@ -2229,7 +2229,7 @@ describe("/monitor across runs", () => {
 			new Map<string, unknown>([
 				...SHELL_BASELINE,
 				...monitorBodies(newerRow()),
-				["/api/runs", history([ended, newerRow()])],
+				["/api/run-listing", history([ended, newerRow()])],
 			]),
 		);
 
@@ -2259,7 +2259,7 @@ describe("/monitor across runs", () => {
 	});
 
 	it("says so when the runs in flight cannot be read", async () => {
-		stubFetchFailing("/api/runs");
+		stubFetchFailing("/api/run-listing");
 		renderAppAt("/monitor");
 
 		expect(

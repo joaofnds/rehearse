@@ -85,7 +85,7 @@ function renderTasksWhileRunning(inFlight: readonly string[]): void {
 		"/tasks",
 		new Map<string, unknown>([
 			["/api/pipelines", response],
-			["/api/runs", history],
+			["/api/run-listing", history],
 		]),
 	);
 }
@@ -124,7 +124,7 @@ function renderTasksBeforeTheirRunWasRecorded(run: string): void {
 			);
 		}
 
-		if (pathname === "/api/runs") {
+		if (pathname === "/api/run-listing") {
 			return Promise.resolve(Response.json(history));
 		}
 

@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useId } from "react";
-import { polledRunHistoryQuery } from "#client/run-history/run-history-polling";
+import { polledRunListingQuery } from "#client/run-history/run-history-polling";
 import { runsInFlight } from "#client/shell/run-in-flight";
 import { Notice } from "#client/system/components/notice";
 import { ScreenHeader } from "#client/system/components/screen-header";
@@ -47,7 +47,7 @@ export function TasksPage(): React.JSX.Element {
 	const query = useQuery(pipelinesQuery);
 	const tasks = query.data?.pipelines ?? [];
 	const unreadable = query.data?.unreadable ?? [];
-	const history = useQuery(polledRunHistoryQuery);
+	const history = useQuery(polledRunListingQuery);
 	const inFlight = runsInFlight(history.data?.rows ?? []);
 	const onNoCard =
 		query.isSuccess &&

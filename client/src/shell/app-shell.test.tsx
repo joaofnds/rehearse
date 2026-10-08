@@ -113,7 +113,7 @@ function renderShellAt(
 	stubFetchByPath(
 		new Map<string, unknown>([
 			[
-				"/api/runs",
+				"/api/run-listing",
 				{
 					rows: [
 						...Array.from({ length: runs }, (_unused, index) =>
@@ -362,7 +362,7 @@ describe("the navigation shell", () => {
 	it("withholds the digest in words when a file refused hashing", async () => {
 		stubFetchByPath(
 			new Map<string, unknown>([
-				["/api/runs", { rows: [], launches: [], unreadable: [] }],
+				["/api/run-listing", { rows: [], launches: [], unreadable: [] }],
 				[
 					"/api/corpus",
 					{
@@ -430,7 +430,7 @@ describe("the navigation shell", () => {
 			"/corpus",
 			new Map([
 				[
-					"/api/runs",
+					"/api/run-listing",
 					{
 						rows: [
 							runInFlight({ run: "2026-09-30T09-00-00.000Z" }),
@@ -575,7 +575,7 @@ describe("the navigation shell", () => {
 		const digest = "e".repeat(64);
 		stubFetchByPath(
 			new Map<string, unknown>([
-				["/api/runs", { rows: [], launches: [], unreadable: [] }],
+				["/api/run-listing", { rows: [], launches: [], unreadable: [] }],
 				[
 					"/api/corpus",
 					{ root: "/corpus", digest: "ffd58d", files: [], refusals: [] },
