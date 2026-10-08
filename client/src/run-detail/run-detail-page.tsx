@@ -27,7 +27,7 @@ import {
 } from "#client/run-history/run-status";
 import type {
 	RunHistoryResponse,
-	RunRowWithStaleness,
+	PipelineRowWithStaleness,
 } from "#client/run-history/run-history-query";
 import { CorpusPill } from "#client/system/components/corpus-pill";
 import { EmptyState } from "#client/system/components/empty-state";
@@ -72,7 +72,7 @@ function useWhenChanged(reading: string, onChanged: () => void): void {
  */
 function phaseOf(rows: readonly HistoryRow[], run: string): string {
 	const row = rows.find(
-		(each): each is RunRowWithStaleness =>
+		(each): each is PipelineRowWithStaleness =>
 			each.kind === "run" && each.run === run,
 	);
 	if (row === undefined) {
@@ -112,7 +112,7 @@ function belowMinimum(record: RunRecordResponse, stage: string): string {
 
 /** How the run ended, or where it is, in the header's words. */
 function endingWords(
-	row: RunRowWithStaleness,
+	row: PipelineRowWithStaleness,
 	record: RunRecordResponse,
 ): string {
 	const { status, progress } = row;
@@ -140,7 +140,7 @@ function endingWords(
  * one that left a record.
  */
 function replayedStage(
-	row: RunRowWithStaleness,
+	row: PipelineRowWithStaleness,
 	record: RunRecordResponse,
 ): MonitoredStage | undefined {
 	if (isStopped(row.status)) {
@@ -152,7 +152,10 @@ function replayedStage(
 	return record.stages.findLast((each) => each.status !== "no-record");
 }
 
-function metaLine(row: RunRowWithStaleness, record: RunRecordResponse): string {
+function metaLine(
+	row: PipelineRowWithStaleness,
+	record: RunRecordResponse,
+): string {
 	const { identity } = record;
 
 	return [
@@ -173,7 +176,7 @@ function RunDetailHeader({
 	layout,
 	onLayout,
 }: {
-	readonly row: RunRowWithStaleness;
+	readonly row: PipelineRowWithStaleness;
 	readonly record: RunRecordResponse;
 	readonly layout: RunDetailLayout;
 	readonly onLayout: (layout: RunDetailLayout) => void;
@@ -264,7 +267,7 @@ function RestoreBanner({
 	record,
 	layout,
 }: {
-	readonly row: RunRowWithStaleness;
+	readonly row: PipelineRowWithStaleness;
 	readonly record: RunRecordResponse;
 	readonly layout: RunDetailLayout;
 }): React.JSX.Element {
@@ -289,7 +292,7 @@ function RestoreBanner({
  * the first.
  */
 function selectedStage(
-	row: RunRowWithStaleness,
+	row: PipelineRowWithStaleness,
 	record: RunRecordResponse,
 	step: string | undefined,
 ): MonitoredStage | undefined {
@@ -356,7 +359,7 @@ export function RunDetailPage({
 	}
 
 	const rows = history.data.rows.filter(
-		(each): each is RunRowWithStaleness => each.kind === "run",
+		(each): each is PipelineRowWithStaleness => each.kind === "run",
 	);
 	const row = rows.find((each) => each.run === run);
 	if (row === undefined) {

@@ -12,7 +12,7 @@ export type RunHistoryResponse = InferResponseType<
 >;
 
 /** A pipeline run's row as the full report answers it, staleness included. */
-export type RunRowWithStaleness = Extract<
+export type PipelineRowWithStaleness = Extract<
 	RunHistoryResponse["rows"][number],
 	{ readonly kind: "run" }
 >;

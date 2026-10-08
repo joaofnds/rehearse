@@ -3,13 +3,13 @@ import {
 	corpusVersionLabel,
 } from "#benchmark/corpus-version-label";
 import type { RunRecordResponse } from "#client/monitor/run-record-query";
-import type { RunRowWithStaleness } from "#client/run-history/run-history-query";
+import type { PipelineRowWithStaleness } from "#client/run-history/run-history-query";
 import { SectionLabel } from "#client/system/components/section-label";
 import { Status } from "#client/system/components/status";
 
 type FinalOutcome = RunRecordResponse["finalOutcome"];
 
-type CorpusMeasurement = RunRowWithStaleness["corpusVersion"];
+type CorpusMeasurement = PipelineRowWithStaleness["corpusVersion"];
 
 export const NOT_RETURNED = "—";
 
@@ -53,14 +53,14 @@ export function outcomeReading(outcome: FinalOutcome): OutcomeReading {
 	}
 }
 
-type JudgedRow = RunRowWithStaleness & {
+type JudgedRow = PipelineRowWithStaleness & {
 	readonly finalOutcome: Extract<
-		RunRowWithStaleness["finalOutcome"],
+		PipelineRowWithStaleness["finalOutcome"],
 		{ readonly status: "JUDGED" }
 	>;
 };
 
-function isJudged(row: RunRowWithStaleness): row is JudgedRow {
+function isJudged(row: PipelineRowWithStaleness): row is JudgedRow {
 	return (
 		row.finalOutcome.state === "available" &&
 		row.finalOutcome.status === "JUDGED"
@@ -69,8 +69,8 @@ function isJudged(row: RunRowWithStaleness): row is JudgedRow {
 
 /** The newest other run of the same case whose final judge returned a verdict. */
 export function lastTaskGrade(
-	row: RunRowWithStaleness,
-	rows: readonly RunRowWithStaleness[],
+	row: PipelineRowWithStaleness,
+	rows: readonly PipelineRowWithStaleness[],
 ): JudgedRow | undefined {
 	return rows
 		.filter(
@@ -99,7 +99,7 @@ function LastTaskGrade({
 	row,
 	last,
 }: {
-	readonly row: RunRowWithStaleness;
+	readonly row: PipelineRowWithStaleness;
 	readonly last: JudgedRow | undefined;
 }): React.JSX.Element {
 	if (last === undefined) {
@@ -168,8 +168,8 @@ export function TaskGradeCard({
 	rows,
 	outcome,
 }: {
-	readonly row: RunRowWithStaleness;
-	readonly rows: readonly RunRowWithStaleness[];
+	readonly row: PipelineRowWithStaleness;
+	readonly rows: readonly PipelineRowWithStaleness[];
 	readonly outcome: FinalOutcome;
 }): React.JSX.Element {
 	const { value, note } = outcomeReading(outcome);
