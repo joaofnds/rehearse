@@ -22,6 +22,8 @@ import type {
 } from "./contracts";
 import { productAnswerSchema, stageTurnSchema } from "./contracts";
 import type { RunEventRecorder } from "./run-events";
+import type { StageSessionFailure } from "./stage-session-error";
+import { StageSessionError } from "./stage-session-error";
 import type { SpendCeiling } from "./spend-ceiling";
 
 export interface ProductOwnerSnapshot {
@@ -79,26 +81,11 @@ export interface WorkflowStageRequest {
 	readonly elapsedMs?: (() => number) | undefined;
 }
 
-function reasonOf(cause: unknown): string {
-	return cause instanceof Error ? cause.message : String(cause);
-}
-
-export class WorkflowExecutionError extends Error {
-	public readonly providerCalls: readonly ProviderCall[];
-	/** The session's spend up to the failure, unknown when its last call reported none. */
-	public readonly costUsd: number | undefined;
-
-	public constructor(props: {
-		readonly cause: unknown;
-		readonly providerCalls: readonly ProviderCall[];
-		readonly costUsd: number | undefined;
-	}) {
-		super(`Worker execution failed: ${reasonOf(props.cause)}`, {
-			cause: props.cause,
-		});
+/** A stage session whose own worker call failed or answered out of contract. */
+export class WorkflowExecutionError extends StageSessionError {
+	public constructor(props: StageSessionFailure) {
+		super(props, "Worker execution failed: ");
 		this.name = "WorkflowExecutionError";
-		this.providerCalls = props.providerCalls;
-		this.costUsd = props.costUsd;
 	}
 }
 
@@ -253,75 +240,93 @@ export async function runWorkflowStage(
 		spentUsd = sessionSpendUsd(envelope, spentUsd);
 	};
 
-	for (let turn = 0; turn < MAX_STAGE_TURNS; turn += 1) {
-		const budgetUsd = spendCeiling.budgetFor(
-			remainingBudget(sessionBudgetUsd, spentUsd),
-		);
-		let envelope;
-		try {
-			const output = await runClaude(
-				[
-					...claudeArgs({
-						settings: {
-							model,
-							effort,
-							budgetUsd,
-						},
-						schema: stageTurnSchema,
-						access: "unrestricted",
-						session: { id: sessionId, resume: turn > 0 },
-						settingSources,
-						settingsOverlay,
-						output: "events",
-					}),
-					prompt,
-				],
-				targetDir,
-				{ silenceLimitMs: STAGE_SILENCE_LIMIT_MS },
+	try {
+		for (let turn = 0; turn < MAX_STAGE_TURNS; turn += 1) {
+			const budgetUsd = spendCeiling.budgetFor(
+				remainingBudget(sessionBudgetUsd, spentUsd),
 			);
-			envelope = readClaudeEnvelope(output);
-		} catch (error) {
-			if (!(error instanceof ClaudeSessionError)) {
+			let envelope;
+			try {
+				const output = await runClaude(
+					[
+						...claudeArgs({
+							settings: {
+								model,
+								effort,
+								budgetUsd,
+							},
+							schema: stageTurnSchema,
+							access: "unrestricted",
+							session: { id: sessionId, resume: turn > 0 },
+							settingSources,
+							settingsOverlay,
+							output: "events",
+						}),
+						prompt,
+					],
+					targetDir,
+					{ silenceLimitMs: STAGE_SILENCE_LIMIT_MS },
+				);
+				envelope = readClaudeEnvelope(output);
+			} catch (error) {
+				if (!(error instanceof ClaudeSessionError)) {
+					throw new WorkflowExecutionError({
+						cause: error,
+						providerCalls: [...providerCalls, {}],
+						costUsd: undefined,
+					});
+				}
+
+				recordCall(error.envelope);
 				throw new WorkflowExecutionError({
 					cause: error,
-					providerCalls: [...providerCalls, {}],
-					costUsd: undefined,
+					providerCalls: [...providerCalls],
+					costUsd: error.costUsd === undefined ? undefined : spentUsd,
 				});
 			}
 
-			recordCall(error.envelope);
-			throw new WorkflowExecutionError({
-				cause: error,
-				providerCalls: [...providerCalls],
-				costUsd: error.costUsd === undefined ? undefined : spentUsd,
-			});
-		}
+			sessionId = envelope.session_id;
+			recordCall(envelope);
+			let agent;
+			try {
+				agent = readStructuredOutput(envelope, stageTurnSchema);
+			} catch (error) {
+				throw new WorkflowExecutionError({
+					cause: error,
+					providerCalls: [...providerCalls],
+					costUsd: spentUsd,
+				});
+			}
 
-		sessionId = envelope.session_id;
-		recordCall(envelope);
-		let agent;
-		try {
-			agent = readStructuredOutput(envelope, stageTurnSchema);
-		} catch (error) {
-			throw new WorkflowExecutionError({
-				cause: error,
-				providerCalls: [...providerCalls],
-				costUsd: spentUsd,
-			});
-		}
+			if (agent.status === "COMPLETE") {
+				exchanges.push({ agent });
+				runEvents?.record("turn-completed", stage, spentUsd, elapsedMs());
 
-		if (agent.status === "COMPLETE") {
-			exchanges.push({ agent });
+				return {
+					stage,
+					sessionId,
+					costUsd: spentUsd,
+					providerCalls,
+					exchanges,
+				};
+			}
+
+			const productOwnerAnswer = await productOwner.ask(stage, agent.message);
+			exchanges.push({ agent, productOwnerAnswer });
 			runEvents?.record("turn-completed", stage, spentUsd, elapsedMs());
-
-			return { stage, sessionId, costUsd: spentUsd, providerCalls, exchanges };
+			prompt = continueStagePrompt(skill, productOwnerAnswer);
 		}
 
-		const productOwnerAnswer = await productOwner.ask(stage, agent.message);
-		exchanges.push({ agent, productOwnerAnswer });
-		runEvents?.record("turn-completed", stage, spentUsd, elapsedMs());
-		prompt = continueStagePrompt(skill, productOwnerAnswer);
-	}
+		throw new Error(`${stage} exceeded ${MAX_STAGE_TURNS} turns`);
+	} catch (error) {
+		if (error instanceof StageSessionError || providerCalls.length === 0) {
+			throw error;
+		}
 
-	throw new Error(`${stage} exceeded ${MAX_STAGE_TURNS} turns`);
+		throw new StageSessionError({
+			cause: error,
+			providerCalls: [...providerCalls],
+			costUsd: spentUsd,
+		});
+	}
 }

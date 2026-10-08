@@ -7,6 +7,7 @@ import { runJsonSession, runStreamedSession } from "./claude";
 import { STAGE_SILENCE_LIMIT_MS } from "./config";
 import type { SpendCeiling } from "./spend-ceiling";
 import { createSpendCeiling, SpendCeilingReachedError } from "./spend-ceiling";
+import { StageSessionError } from "./stage-session-error";
 import {
 	budgetHaltEnvelope,
 	haltingCommand,
@@ -949,6 +950,17 @@ describe("the spend ceiling", () => {
 		expect(spendCeiling.spentUsd()).toBeCloseTo(0.5);
 	});
 
+	function questionTurn(totalCostUsd: number): string {
+		return JSON.stringify({
+			type: "result",
+			session_id: "worker-session",
+			total_cost_usd: totalCostUsd,
+			num_turns: 1,
+			usage: CALL_USAGE,
+			structured_output: { status: "QUESTION", message: "Which scope?" },
+		});
+	}
+
 	function budgetHalt(costUsd: number): string {
 		return JSON.stringify({
 			type: "result",
@@ -1049,6 +1061,26 @@ describe("the spend ceiling", () => {
 			});
 		});
 
+		it("carries the session's calls out of a halted Product Owner call", async () => {
+			const spendCeiling = createSpendCeiling({ ceilingUsd: 1 });
+			const productOwner = productOwnerFor(spendCeiling, () =>
+				Promise.resolve(budgetHalt(0.25)),
+			);
+
+			const failure = await failureOf(
+				runWorkflowStage({ ...stageRequest(spendCeiling), productOwner }, () =>
+					Promise.resolve(questionTurn(0.203)),
+				),
+			);
+
+			expect(failure).toBeInstanceOf(StageSessionError);
+			expect(failure).toMatchObject({
+				message: "Claude session failed",
+				providerCalls: [{ metrics: { costUsd: 0.203 } }],
+				costUsd: 0.203,
+			});
+		});
+
 		it("charges the ceiling a worker turn whose answer is not a turn", async () => {
 			const spendCeiling = createSpendCeiling({ ceilingUsd: 1 });
 
@@ -1107,6 +1139,24 @@ describe("the spend ceiling", () => {
 
 			expect(failure).toBeInstanceOf(SpendCeilingReachedError);
 			expect(calls).toBe(0);
+		});
+
+		it("carries the session's calls out of a refused later turn", async () => {
+			const spendCeiling = createSpendCeiling({ ceilingUsd: 1 });
+
+			const failure = await failureOf(
+				runWorkflowStage(stageRequest(spendCeiling), () =>
+					Promise.resolve(questionTurn(1)),
+				),
+			);
+
+			expect(failure).toBeInstanceOf(StageSessionError);
+			expect(failure).toMatchObject({
+				message: new SpendCeilingReachedError({ ceilingUsd: 1, spentUsd: 1 })
+					.message,
+				providerCalls: [{ metrics: { costUsd: 1 } }],
+				costUsd: 1,
+			});
 		});
 
 		it("starts no Product Owner call", async () => {

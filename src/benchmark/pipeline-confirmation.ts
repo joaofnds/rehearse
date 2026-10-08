@@ -76,7 +76,7 @@ import type {
 	SourceBaseline,
 } from "./target";
 import type { ProductOwner, createProductOwner } from "./workflow";
-import { WorkflowExecutionError } from "./workflow";
+import { StageSessionError } from "./stage-session-error";
 import { claimShortId } from "./short-id";
 import { stageRubricSha256 } from "./judge-agreement";
 import type { ReadManifestEntry } from "./read-manifest";
@@ -689,7 +689,7 @@ async function runPipelineRep(
 			worktreeCreated &&
 			productOwner !== undefined &&
 			(judgingFinal || currentSession !== undefined);
-		if (failure instanceof WorkflowExecutionError) {
+		if (failure instanceof StageSessionError) {
 			workerCalls.push(...failure.providerCalls);
 		} else if (
 			stageClock.read() !== undefined &&

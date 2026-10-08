@@ -53,7 +53,7 @@ import { executeStageSession } from "./run";
 import { confirmationGroupPaths } from "./run-layout";
 import { recordRetentionRef } from "./target";
 import type { ProductOwner } from "./workflow";
-import { WorkflowExecutionError } from "./workflow";
+import { StageSessionError } from "./stage-session-error";
 import { claimShortId } from "./short-id";
 import { chainRubricCauses } from "./staleness-report";
 import { stageRubricSha256 } from "./judge-agreement";
@@ -712,7 +712,7 @@ async function runReplayConfirmationBody(
 						elapsedMs: now() - stageStart,
 					};
 				} else if (
-					failure instanceof WorkflowExecutionError &&
+					failure instanceof StageSessionError &&
 					productOwner !== undefined
 				) {
 					stageEvidence = {

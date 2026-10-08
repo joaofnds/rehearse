@@ -45,6 +45,7 @@ import {
 } from "./pipeline-confirmation-test-support";
 import { removeWorktree } from "./target";
 import { AUDIT_LOG_PIPELINE_PATH, TestResources } from "./test-support";
+import { StageSessionError } from "./stage-session-error";
 import { WorkflowExecutionError } from "./workflow";
 
 const testResources = TestResources.forEachTest();
@@ -972,6 +973,61 @@ describe(runPipelineConfirmation.name, () => {
 			missing: ["worker call metrics", "stage-judge call metrics"],
 		});
 		expect(failed?.workerTrajectorySteps).toBe(CONFIRMATION_METRIC.turns);
+	});
+
+	it("retains worker calls carried by a stage that failed after its first call", async () => {
+		const harness = await PipelineConfirmationHarness.setup(testResources);
+
+		const outcome = await harness.run(
+			{
+				groupId: "stage-session-metrics",
+				reps: 2,
+				projectedCost: {
+					reps: 2,
+					perRepMaximumUsd: 45,
+					totalMaximumUsd: 90,
+				},
+			},
+			(dependencies) => {
+				const { stageSession } = dependencies;
+				const { runWorkflowStage } = stageSession;
+
+				return {
+					...dependencies,
+					stageSession: {
+						...stageSession,
+						runWorkflowStage: (request) => {
+							if (
+								request.stage === "discuss" &&
+								repOrdinal(request.targetDir) === 1
+							) {
+								return Promise.reject(
+									new StageSessionError({
+										cause: new Error("Reached maximum budget"),
+										providerCalls: [{ metrics: CONFIRMATION_METRIC }],
+										costUsd: CONFIRMATION_METRIC.costUsd,
+									}),
+								);
+							}
+
+							return runWorkflowStage(request);
+						},
+					},
+				};
+			},
+		);
+		const records = await Promise.all(
+			outcome.repRecordFiles.map(async (path) =>
+				parseConfirmationRepRecord(await Bun.file(path).text()),
+			),
+		);
+		const [failed] = records;
+		testResources.track(dirname(failed?.worktreePath ?? "missing"));
+		await removeWorktree(harness.sourceRoot, failed?.worktreePath ?? "missing");
+
+		expect(failed?.metrics).toMatchObject({
+			calls: [{ role: "worker", metrics: CONFIRMATION_METRIC }],
+		});
 	});
 
 	it("carries Product Owner provider calls into pipeline evidence", async () => {
