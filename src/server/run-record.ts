@@ -73,6 +73,7 @@ export const UNRECORDED_STAGE_REASON =
 	"the stage has written no record, and the run ended or is running in it";
 export const UNREACHED_STAGE_REASON = "the run has not reached the stage";
 export const MISSING_STAGE_RECORD_REASON = "the stage has written no record";
+const CALL_WITHOUT_METRICS_REASON = "a call in the record has no metrics";
 export const UNGRADED_BLOCKERS_REASON =
 	"the stage record holds no graded hard blockers";
 export const MINIMUM_GRADE_REASON =
@@ -399,6 +400,32 @@ function usd(
 	return { state: "available", usd: amount };
 }
 
+/** A Judge call kept without metrics leaves out what it may have cost. */
+function judgeCost(
+	costUsd: number | undefined,
+	providerCalls: Calls | undefined,
+	absent: string,
+): Reading<{ readonly usd: number }> {
+	if (
+		providerCalls !== undefined &&
+		providerCalls.some(({ metrics }) => metrics === undefined)
+	) {
+		return { state: "unavailable", reasons: [CALL_WITHOUT_METRICS_REASON] };
+	}
+
+	return usd(costUsd, absent);
+}
+
+function stageJudgeCost(
+	recorded: PlacedStage,
+): Reading<{ readonly usd: number }> {
+	return judgeCost(
+		recorded.file?.costUsd,
+		recorded.file?.judgeProviderCalls,
+		unrecordedOr(recorded, "the stage record holds no judge cost"),
+	);
+}
+
 function filesOf(
 	files: readonly HashedFile[] | undefined,
 ): RunRecordStage["instructionFiles"] {
@@ -464,7 +491,7 @@ function callsPart(
 
 	if (calls.some(({ metrics }) => metrics === undefined)) {
 		return {
-			missing: { part, reason: "a call in the record has no metrics" },
+			missing: { part, reason: CALL_WITHOUT_METRICS_REASON },
 		};
 	}
 
@@ -849,10 +876,7 @@ function stageRecord(
 			file?.input?.transcript?.costUsd ?? file?.session?.costUsd,
 			unrecordedOr(recorded, "the stage record holds no session cost"),
 		),
-		judgeCost: usd(
-			file?.costUsd,
-			unrecordedOr(recorded, "the stage record holds no judge cost"),
-		),
+		judgeCost: stageJudgeCost(recorded),
 		tokens: stageTokens(recorded),
 		checkpoint: checkpoint === undefined ? "missing" : "recorded",
 		checkpointShortId,
@@ -1006,8 +1030,9 @@ function runTotals(
 					costPart("Product Owner", productOwnerCost),
 					costPart(
 						"final judge",
-						usd(
+						judgeCost(
 							artifact.judgeCostUsd,
+							artifact.judgeProviderCalls,
 							"the main artifact holds no final judge cost",
 						),
 					),

@@ -574,6 +574,29 @@ describe("/api/runs/:run", () => {
 				});
 			});
 
+			it("names the Judge cost unknown when its halted call reported no cost", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeJudgeCeilingStoppedRun([
+					{ metrics: buildJudgeAttemptMetrics },
+					{},
+				]);
+
+				const response = await runRecord(fixture, fixture.stoppedRun);
+
+				expect(await response.json()).toMatchObject({
+					stages: [
+						{ stage: "discuss" },
+						{
+							stage: "build",
+							judgeCost: {
+								state: "unavailable",
+								reasons: ["a call in the record has no metrics"],
+							},
+						},
+					],
+				});
+			});
+
 			it("sums no tokens for a Judge the ceiling refused before its first call", async () => {
 				const fixture = await emptyFixture();
 				await fixture.writeJudgeCeilingStoppedRun([], []);
@@ -1534,6 +1557,26 @@ describe("/api/runs/:run", () => {
 				expect(tokens.missing.map(({ part }) => part)).not.toContain(
 					"final judge",
 				);
+			});
+
+			it("names the final judge's cost missing when a call it paid for has no metrics", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeFinalJudgeFailedRun(FINISHED_RUN, [{}]);
+
+				const response = await runRecord(fixture, FINISHED_RUN);
+
+				expect(await response.json()).toMatchObject({
+					totals: {
+						cost: {
+							missing: [
+								{
+									part: "final judge",
+									reason: "a call in the record has no metrics",
+								},
+							],
+						},
+					},
+				});
 			});
 
 			it("reports pending while the run is still executing", async () => {
