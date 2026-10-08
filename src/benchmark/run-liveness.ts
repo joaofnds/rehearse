@@ -25,7 +25,7 @@ export function claimingRun(
 	runEvents: RunEventStore,
 	run: string,
 ): ClaimingRun {
-	return { run, firstEventAt: runEvents.eventsSince(run, 0)[0]?.recordedAt };
+	return { run, firstEventAt: runEvents.firstEvent(run)?.recordedAt };
 }
 
 /**
@@ -35,7 +35,9 @@ export function claimingRun(
  * asserts the positive, that this run is executing right now. The two readers
  * also disagree about a missing marker: reconciliation reads it as "nothing to
  * reconcile" and leaves the run alone, while a run with no marker is simply not
- * running, because a restored target has no claim on it.
+ * running, because a restored target has no claim on it. Reconciliation also
+ * reads the pid alone, while a row asks whether the claim is the run's own, so
+ * a crashed run whose target another run claimed is neither.
  */
 export interface RunLiveness {
 	readonly readMarker: (sourceRoot: string) => Promise<TargetClaim | undefined>;
@@ -115,8 +117,8 @@ export async function targetMarker(
  * its target before it records any event, and a second claim is refused until
  * the first marker is deleted, so an unnamed marker written no later than the
  * run's first event can only be that run's own. A run that has recorded no
- * event yet cannot be told from a crashed one by an unnamed marker, so it
- * claims nothing.
+ * event yet may be one that has just claimed, so an unnamed marker counts as
+ * its own, which keeps such a run refused as in flight rather than analyzed.
  */
 function isOwnClaim(marker: TargetClaim, claiming: ClaimingRun): boolean {
 	if (marker.run !== undefined) {
@@ -124,7 +126,7 @@ function isOwnClaim(marker: TargetClaim, claiming: ClaimingRun): boolean {
 	}
 
 	return (
-		claiming.firstEventAt !== undefined &&
+		claiming.firstEventAt === undefined ||
 		Date.parse(marker.startedAt) <= Date.parse(claiming.firstEventAt)
 	);
 }

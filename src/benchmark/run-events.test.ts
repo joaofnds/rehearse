@@ -67,6 +67,34 @@ describe(openRunEventStore.name, () => {
 		store.close();
 	});
 
+	it("reads the first event of the run asked for", async () => {
+		const store = await openRunEventStore(":memory:");
+		store.append({
+			runId: "run-2",
+			kind: "stage-started",
+			stage: "discuss",
+			spentUsd: 0,
+			elapsedMs: 0,
+		});
+		const first = store.append({
+			runId: "run-1",
+			kind: "stage-started",
+			stage: "shape",
+			spentUsd: 0,
+			elapsedMs: 0,
+		});
+		store.append({
+			runId: "run-1",
+			kind: "turn-completed",
+			stage: "shape",
+			spentUsd: 0.5,
+			elapsedMs: 100,
+		});
+
+		expect(store.firstEvent("run-1")).toEqual(first);
+		store.close();
+	});
+
 	it("keeps events for different runs separate", async () => {
 		const store = await openRunEventStore(":memory:");
 

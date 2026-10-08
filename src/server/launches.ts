@@ -758,6 +758,8 @@ async function startLaunch(
 ): Promise<string> {
 	const launch = await planLaunch(request, dependencies);
 	const id = randomUUID();
+	// Read before the spawn: run history gives a run its launch's Stop only when
+	// the launch is dated no later than the run's claim on its target.
 	const launchedAt = new Date().toISOString();
 	const pid = await dependencies.launcher.launch(
 		launch.argv,
@@ -767,7 +769,7 @@ async function startLaunch(
 		const startedAt = await dependencies.launcher.startedAt(pid);
 		await writeLaunchRecord(
 			dependencies.runsDirectory,
-			launchRecord(launch.target, id, { pid, startedAt, launchedAt }),
+			launchRecord(launch.target, { id, launchedAt }, { pid, startedAt }),
 		);
 	} catch (error) {
 		dependencies.launcher.stop(pid);
@@ -803,26 +805,17 @@ async function startSoleAnalysisOf(
 	}
 }
 
-/**
- * `launchedAt` is read before the process is spawned, so a run the launch
- * starts claims its target after it, which is how run history tells the
- * launch's own claim from one a later process with a reused pid holds.
- */
 function launchRecord(
 	target: LaunchTarget,
-	id: string,
-	process: {
-		readonly pid: number;
-		readonly startedAt: string | undefined;
-		readonly launchedAt: string;
-	},
+	launch: { readonly id: string; readonly launchedAt: string },
+	process: { readonly pid: number; readonly startedAt: string | undefined },
 ): LaunchRecord {
 	return {
 		...target,
-		id,
+		id: launch.id,
 		pid: process.pid,
 		startedAt: process.startedAt,
-		launchedAt: process.launchedAt,
+		launchedAt: launch.launchedAt,
 	};
 }
 

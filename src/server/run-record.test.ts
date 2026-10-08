@@ -1687,6 +1687,26 @@ describe("/api/runs/:run", () => {
 				});
 			});
 
+			it("reports a crashed run as not reached while a later run holds its target", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeRunningRun();
+				await fixture.writeLaterRunningRun();
+
+				const response = await runRecord(fixture, fixture.runningRun, {
+					readMarker: () =>
+						Promise.resolve(claimBy(fixture.laterRunningRun, 1)),
+					isAlive: () => true,
+				});
+
+				expect(await response.json()).toMatchObject({
+					finalOutcome: {
+						status: "NOT_REACHED",
+						stage: "build",
+						reason: UNEXPLAINED_END_REASON,
+					},
+				});
+			});
+
 			it("reports pending while a live run's stage awaits its judge", async () => {
 				const fixture = await emptyFixture();
 				await fixture.writeRunningRun();

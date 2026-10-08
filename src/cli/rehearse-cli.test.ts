@@ -19,6 +19,7 @@ import {
 	benchmarkRunPaths,
 	benchmarkRunsDirectory,
 	comparisonReportPaths,
+	recordedRunNames,
 } from "#benchmark/run-layout";
 import { COMMANDS } from "#cli/commands";
 import { CONFINED_VARIABLE } from "#cli/confinement";
@@ -1861,8 +1862,10 @@ describe("a run's sessions", () => {
 				expect(session).toBeGreaterThan(0);
 				expect(await signalsIn(directory)).toEqual(["outside-refused"]);
 				expect(await launcher.startedAt(pid)).toBe(launchedAt);
+				const [run] = await recordedRunNames(benchmarkRunsDirectory(control));
 				expect(await liveRunLiveness().readMarker(target)).toMatchObject({
 					pid,
+					run,
 				});
 
 				stop(launcher, pid);

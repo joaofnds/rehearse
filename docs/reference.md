@@ -373,8 +373,8 @@ settings route but `GET /api/settings/records` answer 409, since that route
 reads no setting.
 
 `/api/runs` lists each launch in `launches`, apart from `rows`, while its pid
-is alive, and leaves it out while a pipeline run shows as running under that
-pid. A replay, session attempt or group keeps its launch listed until the
+is alive, and leaves it out while a pipeline run shows as running and carries
+that launch's id. A replay, session attempt or group keeps its launch listed until the
 process exits, and a pipeline run's launch is listed again once the run stops
 showing as running, until its process exits. A root-cause analysis launch is
 listed while its process is alive, under its run, and is never stopped. A launch the operator stopped
@@ -1167,7 +1167,9 @@ stands. A run with no manifest, a paused run, and a run whose target's marker
 is the run's own and names a live process are refused with exit code 3 before
 any call. A dead run whose target a later run now holds is analyzed. The marker
 records a pid, so a dead run whose pid a later process has taken is refused as
-in flight until that process ends.
+in flight until that process ends. A run that has recorded no event is refused
+while a live claim from an older control checkout, which names no run, holds
+its target.
 
 `--budget-usd` sets the session budget and defaults to 1. The command lowers it
 to the stored spend ceiling when it is higher and states it on stderr before
@@ -2144,7 +2146,8 @@ links every other stage whose page renders. A run with no artifact shows
 `PAUSED:<stage>` or `OPERATOR_STOPPED` from its files, and otherwise takes its
 status from its event stream and shows as `INTERRUPTED` or `FAILED`. A run the
 server did not see end becomes `INTERRUPTED` when the next server start
-reconciles it, and stays out of the list until then. When a failed run's last
+reconciles it, and stays out of the list until then. A run whose claim on its
+target was deleted before a server start read it is never reconciled. When a failed run's last
 started stage saved no checkpoint, the row names that stage as having failed
 before saving its context. A failed run whose events name no started stage
 names no stage.

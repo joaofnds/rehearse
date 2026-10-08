@@ -515,14 +515,14 @@ describe(runHistoryReport.name, () => {
 	});
 
 	/**
-	 * The two answers the pid probe can give, without a process to spawn. A
-	 * live marker names a pid this test never checks for real: what the branch
-	 * is being asked is whether it consults the probe at all, and a Fake is the
-	 * only way to ask that deterministically.
+	 * The two answers the pid probe can give for a claim `run` holds, without a
+	 * process to spawn. A live marker names a pid this test never checks for
+	 * real: what the branch is being asked is whether it consults the probe at
+	 * all, and a Stub is the only way to ask that deterministically.
 	 */
-	function liveness(alive: boolean): RunLiveness {
+	function liveness(alive: boolean, run: string): RunLiveness {
 		return {
-			readMarker: () => Promise.resolve(claimBy(RUNNING_RUN, 4242)),
+			readMarker: () => Promise.resolve(claimBy(run, 4242)),
 			isAlive: () => alive,
 		};
 	}
@@ -534,7 +534,7 @@ describe(runHistoryReport.name, () => {
 		const { rows } = await runHistoryReport(
 			fixture.runsDirectory,
 			directorySource(await corpusDirectory("build skill\n")),
-			liveness(true),
+			liveness(true, fixture.runningRun),
 		);
 
 		const row = pipelineRun(rows, fixture.runningRun);
@@ -552,7 +552,7 @@ describe(runHistoryReport.name, () => {
 		const { rows } = await runHistoryReport(
 			fixture.runsDirectory,
 			directorySource(await corpusDirectory("build skill\n")),
-			liveness(true),
+			liveness(true, fixture.runningRun),
 		);
 
 		const row = pipelineRun(rows, fixture.runningRun);
@@ -575,7 +575,7 @@ describe(runHistoryReport.name, () => {
 		const { rows } = await runHistoryReport(
 			fixture.runsDirectory,
 			directorySource(await corpusDirectory("build skill\n")),
-			liveness(true),
+			liveness(true, fixture.runningRun),
 		);
 
 		const row = pipelineRun(rows, fixture.runningRun);
@@ -597,7 +597,7 @@ describe(runHistoryReport.name, () => {
 		const { rows } = await runHistoryReport(
 			fixture.runsDirectory,
 			directorySource(await corpusDirectory("build skill\n")),
-			liveness(true),
+			liveness(true, fixture.runningRun),
 		);
 
 		const row = pipelineRun(rows, fixture.runningRun);
@@ -624,7 +624,7 @@ describe(runHistoryReport.name, () => {
 		const { rows } = await runHistoryReport(
 			fixture.runsDirectory,
 			directorySource(await corpusDirectory("build skill\n")),
-			liveness(true),
+			liveness(true, fixture.runningRun),
 		);
 
 		const row = pipelineRun(rows, fixture.runningRun);
@@ -645,7 +645,7 @@ describe(runHistoryReport.name, () => {
 		const { rows } = await runHistoryReport(
 			fixture.runsDirectory,
 			directorySource(await corpusDirectory("build skill\n")),
-			liveness(true),
+			liveness(true, fixture.runningRun),
 		);
 
 		expect(pipelineRun(rows, fixture.runningRun)?.progress).not.toHaveProperty(
@@ -667,7 +667,7 @@ describe(runHistoryReport.name, () => {
 		const { rows } = await runHistoryReport(
 			fixture.runsDirectory,
 			directorySource(await corpusDirectory("build skill\n")),
-			liveness(true),
+			liveness(true, fixture.runningRun),
 		);
 
 		const row = pipelineRun(rows, fixture.runningRun);
@@ -688,7 +688,7 @@ describe(runHistoryReport.name, () => {
 		const { rows } = await runHistoryReport(
 			fixture.runsDirectory,
 			directorySource(await corpusDirectory("build skill\n")),
-			liveness(true),
+			liveness(true, fixture.runningRun),
 		);
 
 		expect(pipelineRun(rows, fixture.runningRun)?.progress).toMatchObject({
@@ -712,7 +712,7 @@ describe(runHistoryReport.name, () => {
 			const { rows } = await runHistoryReport(
 				fixture.runsDirectory,
 				directorySource(await corpusDirectory("build skill\n")),
-				liveness(true),
+				liveness(true, fixture.runningRun),
 			);
 
 			const row = pipelineRun(rows, fixture.runningRun);
@@ -740,7 +740,7 @@ describe(runHistoryReport.name, () => {
 			const { rows } = await runHistoryReport(
 				fixture.runsDirectory,
 				directorySource(await corpusDirectory("build skill\n")),
-				liveness(true),
+				liveness(true, fixture.runningRun),
 			);
 
 			const row = pipelineRun(rows, fixture.runningRun);
@@ -795,7 +795,7 @@ describe(runHistoryReport.name, () => {
 		const { rows } = await runHistoryReport(
 			fixture.runsDirectory,
 			directorySource(await corpusDirectory("build skill\n")),
-			liveness(false),
+			liveness(false, fixture.runningRun),
 		);
 
 		expect(pipelineRun(rows, fixture.runningRun)).toBeUndefined();
@@ -823,8 +823,9 @@ describe(runHistoryReport.name, () => {
 	/**
 	 * A control checkout from before claims named their run writes a marker
 	 * with no run in it, and a launch runs whatever commit that checkout holds.
-	 * The run's events take the real clock, so a claim dated in the past was
-	 * made before them and one dated far ahead was made after.
+	 * Each claim is dated a millisecond either side of the run's first event,
+	 * because that event is the line between the run's own claim and a later
+	 * one.
 	 */
 	describe("when the claim on the run's target names no run", () => {
 		function unnamedClaim(startedAt: string): RunLiveness {
@@ -834,27 +835,56 @@ describe(runHistoryReport.name, () => {
 			};
 		}
 
-		it("reports the run as RUNNING when the claim came before its first event", async () => {
+		async function firstEventShiftedBy(
+			runsDirectory: string,
+			run: string,
+			ms: number,
+		): Promise<string> {
+			const store = await openRunEventStore(
+				runEventsDatabaseFile(runsDirectory),
+			);
+			const recordedAt = store.firstEvent(run)?.recordedAt;
+			store.close();
+			if (recordedAt === undefined) {
+				throw new Error(`run ${run} recorded no event`);
+			}
+
+			return new Date(Date.parse(recordedAt) + ms).toISOString();
+		}
+
+		it("reports the run as RUNNING when the claim came just before its first event", async () => {
 			const fixture = await writtenFixture();
 			await fixture.writeRunningRun();
 
 			const { rows } = await runHistoryReport(
 				fixture.runsDirectory,
 				directorySource(await corpusDirectory("build skill\n")),
-				unnamedClaim("2026-09-01T00:00:00.000Z"),
+				unnamedClaim(
+					await firstEventShiftedBy(
+						fixture.runsDirectory,
+						fixture.runningRun,
+						-1,
+					),
+				),
 			);
 
 			expect(pipelineRun(rows, fixture.runningRun)?.status).toBe("RUNNING");
 		});
 
-		it("does not report the run as running when the claim came after its first event", async () => {
+		it("does not report the run as running when the claim came just after its first event", async () => {
 			const fixture = await writtenFixture();
 			await fixture.writeRunningRun();
 
 			const { rows } = await runHistoryReport(
 				fixture.runsDirectory,
 				directorySource(await corpusDirectory("build skill\n")),
-				unnamedClaim("2099-01-01T00:00:00.000Z"),
+				unnamedClaim(
+					await firstEventShiftedBy(
+						fixture.runsDirectory,
+						fixture.runningRun,
+						1,
+					),
+				),
 			);
 
 			expect(pipelineRun(rows, fixture.runningRun)).toBeUndefined();
@@ -867,7 +897,11 @@ describe(runHistoryReport.name, () => {
 		const { rows } = await runHistoryReport(
 			fixture.runsDirectory,
 			directorySource(await corpusDirectory("build skill\n")),
-			liveness(true),
+			{
+				readMarker: () =>
+					Promise.resolve({ pid: 4242, startedAt: "2026-09-01T00:00:00.000Z" }),
+				isAlive: () => true,
+			},
 		);
 
 		expect(
@@ -887,7 +921,7 @@ describe(runHistoryReport.name, () => {
 		const { rows } = await runHistoryReport(
 			fixture.runsDirectory,
 			directorySource(await corpusDirectory("build skill\n")),
-			liveness(true),
+			liveness(true, fixture.interruptedRun),
 		);
 
 		const row = pipelineRun(rows, fixture.interruptedRun);
@@ -907,7 +941,7 @@ describe(runHistoryReport.name, () => {
 		const { rows } = await runHistoryReport(
 			fixture.runsDirectory,
 			directorySource(await corpusDirectory("build skill\n")),
-			liveness(true),
+			liveness(true, fixture.abortedRun),
 		);
 
 		expect(pipelineRun(rows, fixture.abortedRun)).toMatchObject({
@@ -1991,6 +2025,9 @@ describe(runHistoryReport.name, () => {
 	describe("when the browser launched a run that has not recorded one yet", () => {
 		const LAUNCH_ID = "8a1c0000-0000-4000-8000-000000000001";
 		const LIVE_PID = 4242;
+		const LAUNCHED_AT = "2026-09-29T10:00:00.000Z";
+		/** The run claims its target after its launch was dated. */
+		const CLAIMED_AT = "2026-09-29T10:00:01.000Z";
 
 		function launchLiveness(markerPid: number | undefined): RunLiveness {
 			return {
@@ -1998,7 +2035,7 @@ describe(runHistoryReport.name, () => {
 					Promise.resolve(
 						markerPid === undefined
 							? undefined
-							: claimBy(RUNNING_RUN, markerPid),
+							: claimBy(RUNNING_RUN, markerPid, CLAIMED_AT),
 					),
 				isAlive: (pid) => pid === LIVE_PID,
 			};
@@ -2014,7 +2051,7 @@ describe(runHistoryReport.name, () => {
 				caseId: "audit-log",
 				attempts: 3,
 				pid,
-				launchedAt: "2026-09-29T10:00:00.000Z",
+				launchedAt: LAUNCHED_AT,
 			});
 		}
 
@@ -2276,16 +2313,20 @@ describe(runHistoryReport.name, () => {
 			await fixture.writeLaterRunningRun();
 			await launched(fixture, LIVE_PID);
 
-			const { rows } = await runHistoryReport(
+			const { launches, rows } = await runHistoryReport(
 				fixture.runsDirectory,
 				directorySource(await corpusDirectory("build skill\n")),
 				{
 					readMarker: () =>
-						Promise.resolve(claimBy(fixture.laterRunningRun, LIVE_PID)),
+						Promise.resolve(
+							claimBy(fixture.laterRunningRun, LIVE_PID, CLAIMED_AT),
+						),
 					isAlive: (pid) => pid === LIVE_PID,
 				},
 			);
 
+			expect(pipelineRun(rows, fixture.runningRun)).toBeUndefined();
+			expect(launches).toEqual([]);
 			expect(
 				rows
 					.filter(

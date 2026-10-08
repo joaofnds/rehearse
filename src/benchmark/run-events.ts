@@ -159,6 +159,7 @@ export interface RunEventStore {
 		runId: string,
 		sequence: number,
 	) => readonly RunEvent[];
+	readonly firstEvent: (runId: string) => RunEvent | undefined;
 	readonly latestEvent: (runId: string) => RunEvent | undefined;
 	/** The newest stage-started event of this stage of this run, if any. */
 	readonly latestStageStart: (stageOfRun: {
@@ -368,6 +369,9 @@ export async function openRunEventStore(path: string): Promise<RunEventStore> {
 	const selectSince = database.query<RunEventRow, [string, number]>(
 		"SELECT * FROM run_events WHERE run_id = ? AND sequence > ? ORDER BY sequence ASC",
 	);
+	const selectFirst = database.query<RunEventRow, [string]>(
+		"SELECT * FROM run_events WHERE run_id = ? ORDER BY sequence ASC LIMIT 1",
+	);
 	const selectLatest = database.query<RunEventRow, [string]>(
 		"SELECT * FROM run_events WHERE run_id = ? ORDER BY sequence DESC LIMIT 1",
 	);
@@ -401,6 +405,11 @@ export async function openRunEventStore(path: string): Promise<RunEventStore> {
 		},
 		eventsSince: (runId, sequence) =>
 			selectSince.all(runId, sequence).map((row) => toRunEvent(row)),
+		firstEvent: (runId) => {
+			const row = selectFirst.get(runId);
+
+			return row === null ? undefined : toRunEvent(row);
+		},
 		latestEvent: (runId) => {
 			const row = selectLatest.get(runId);
 

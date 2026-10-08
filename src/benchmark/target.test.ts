@@ -740,6 +740,27 @@ describe(readRunMarker.name, () => {
 		expect(marker?.run).toBe(CLAIMING_RUN);
 	});
 
+	it("reads a claim written by a checkout from before claims named their run", async () => {
+		const source = await testResources.createRepository();
+		const baseline = await assertSourceReady(source.directory);
+		await Bun.write(
+			join(baseline.root, ".git", "benchmark-run.json"),
+			JSON.stringify({
+				sha: baseline.sha,
+				pid: 4242,
+				startedAt: "2026-09-01T00:00:00.000Z",
+			}),
+		);
+
+		const marker = await readRunMarker(baseline.root);
+
+		expect(marker).toEqual({
+			sha: baseline.sha,
+			pid: 4242,
+			startedAt: "2026-09-01T00:00:00.000Z",
+		});
+	});
+
 	it("reports no marker for a target nothing has claimed", async () => {
 		const source = await testResources.createRepository();
 		const baseline = await assertSourceReady(source.directory);

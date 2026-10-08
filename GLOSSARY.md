@@ -632,11 +632,10 @@ See [current state](docs/status.md) for implementation coverage and
   it, and its own claim on its target is held by a live process. The run-history
   report gives such a run the status `RUNNING`. The liveness check is what
   separates it from an interrupted run, whose stream also ends non-terminal. A
-  claim names the run that made it, and a claim from an older control checkout,
-  which names none, counts as the run's own only when it was made before the
-  run's first event, so a later run holding the same target does not make a
-  crashed run read as in flight. The check still reads a pid, so a crashed run
-  whose pid a later process has taken can read as in flight.
+  claim names the run that made it, so a later run holding the same target does
+  not make a crashed run read as in flight. [Design](docs/design.md) gives the
+  rule for an older checkout's claim, which names no run, and the cases that
+  still read wrongly.
 - **Run spend** — what a whole run has paid, across worker sessions, Judges, and
   the Product Owner. Every run event carries what the run has paid so far,
   except events recorded before run events carried it, and a terminal run

@@ -522,6 +522,27 @@ describe(analyzeRun.name, () => {
 		});
 	});
 
+	it("analyzes a dead run whose target a later run now holds", async () => {
+		const directory = await runsDirectory();
+		await runWithOneGradedStage(directory);
+		const provider = new FakeAnalysisProvider();
+		provider.answer(
+			answering({ ...ANSWER, rootCause: null, stages: [ANSWER.stages[0]] }),
+		);
+		const laterRunHolds: RunLiveness = {
+			readMarker: () =>
+				Promise.resolve(claimBy("2026-10-04T11-00-00.000Z", RUNNING_PID)),
+			isAlive: (pid) => pid === RUNNING_PID,
+		};
+
+		const { record } = await analyzeRun(
+			{ runsDirectory: directory, run: RUN, model: "sonnet", capUsd: 1 },
+			{ ...dependencies(provider.invoke), liveness: laterRunHolds },
+		);
+
+		expect(record).toMatchObject({ outcome: "recorded" });
+	});
+
 	describe("when the run cannot be analyzed", () => {
 		it("refuses a run with no records before any call", async () => {
 			const directory = await runsDirectory();
@@ -555,6 +576,30 @@ describe(analyzeRun.name, () => {
 			expect(failure.message).toBe(
 				`Run ${RUN} is still in flight, so it has no outcome to analyze`,
 			);
+			expect(provider.budgets).toEqual([]);
+		});
+
+		it("refuses a run that has recorded no event while an older checkout's claim on its target is live", async () => {
+			const directory = await runsDirectory();
+			await runWithOneGradedStage(directory);
+			const provider = new FakeAnalysisProvider();
+			const unnamedClaim: RunLiveness = {
+				readMarker: () =>
+					Promise.resolve({
+						pid: RUNNING_PID,
+						startedAt: "2026-10-04T10:00:00.000Z",
+					}),
+				isAlive: (pid) => pid === RUNNING_PID,
+			};
+
+			const failure = await failureOf(
+				analyzeRun(
+					{ runsDirectory: directory, run: RUN, model: "sonnet", capUsd: 1 },
+					{ ...dependencies(provider.invoke), liveness: unnamedClaim },
+				),
+			);
+
+			expect(failure).toBeInstanceOf(RefusedPreconditionError);
 			expect(provider.budgets).toEqual([]);
 		});
 

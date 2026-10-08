@@ -147,7 +147,16 @@ ended. It reads the store only after the authoritative files answer nothing: an
 artifact or a stop record settles a run's outcome on its own, and the stream is
 consulted for the runs those files do not cover. A non-terminal stream is not
 enough by itself, so the report also checks that the run's own claim on its
-target is held by a live process. A run that dies while the server keeps running leaves its
+target is held by a live process. A claim names the run that made it. A claim
+written by an older control checkout names no run, and counts as the run's own
+when it was made no later than the run's first event, or when the run has
+recorded no event yet, because a run claims its target before it records
+anything and a second claim is refused until the first is deleted. That
+ordering compares two wall-clock readings, so a backward clock step can misread
+an unnamed claim. The claim also records a pid, so a crashed run whose pid a
+later process has taken still reads as in flight. Startup reconciliation reads
+the pid alone, so a crashed run whose claim was deleted before a server start
+read it is never reconciled. A run that dies while the server keeps running leaves its
 stream non-terminal, and startup is the only moment reconciliation could correct
 that. Event recording is best effort; it must not turn a successful experiment
 into a failed one. It is not a substitute for the final artifact. There is no

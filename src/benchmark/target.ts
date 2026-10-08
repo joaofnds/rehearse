@@ -174,7 +174,7 @@ const runMarkerSchema = z.object({
 	sha: z.string().min(1),
 	pid: z.number(),
 	run: z.string().min(1).optional(),
-	startedAt: z.string().min(1),
+	startedAt: z.iso.datetime(),
 });
 
 export type RunMarker = z.infer<typeof runMarkerSchema>;
