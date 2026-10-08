@@ -152,8 +152,13 @@ minus what the run has spent so far. Once the spend reaches the ceiling, the
 next paid call is refused. When a stage's session or stage Judge is refused,
 or fails after its spend reached the ceiling, a pipeline run stops in that
 stage, writes the stage's stopped record with `ceilingStop` carrying the
-ceiling and the spend, restores the target, and starts no later session. A
+ceiling and the spend, restores the target, and starts no later session.
+Every such record carries `productOwnerCostUsd` and
+`productOwnerProviderCalls`, the Product Owner's spend up to the stop. A
 stage Judge's stopped record keeps the attempts it paid for before the stop.
+One whose session the ceiling stopped after its first call carries `session`,
+holding that session's `providerCalls` up to the stop, a halted call
+included, and its `costUsd`, which is absent when a call reported no cost.
 A final Judge refused, or failing after its spend reached the ceiling, fails
 the run with a failed run record carrying `ceilingStop`, its paid attempts,
 and a Judge cost that also counts the failed call, which has no attempt of
