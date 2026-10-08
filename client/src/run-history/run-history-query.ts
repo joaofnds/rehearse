@@ -62,8 +62,9 @@ export const runListingQuery = {
 } as const;
 
 /**
- * How many entries the run history lists unfiltered: its records and the
- * launches no record stands for yet, since the table shows both.
+ * How many entries the run history lists unfiltered, its record rows and its
+ * launch rows together, as the table shows both. A stopped launch whose run
+ * also recorded counts twice, since the table lists it twice.
  */
 export function listedEntryCount(history: {
 	readonly rows: readonly unknown[];

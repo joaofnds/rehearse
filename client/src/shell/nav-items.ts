@@ -12,9 +12,10 @@ import {
 import type { LucideIcon } from "lucide-react";
 
 /**
- * Which collection a nav item's badge counts. The shell reads the same query
- * the screen behind the item reads, so a badge cannot disagree with the list
- * it links to (SPEC.md:78).
+ * Which collection a nav item's badge counts, the one the screen behind the
+ * item lists, so a badge agrees with that list once readings settle
+ * (SPEC.md:78). Run history's badge reads the run listing rather than the
+ * screen's full report, and the two answer the same records and launches.
  */
 export type BadgeSource =
 	| "runs"
