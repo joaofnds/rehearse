@@ -1909,6 +1909,44 @@ describe(runGradedStages.name, () => {
 				costUsd: 1,
 				productOwnerCostUsd: 0.0115,
 				productOwnerProviderCalls: [{}],
+				judgeProviderCalls: [{}],
+				ceilingStop: { ceilingUsd: 1, spentUsd: 1 },
+			});
+		});
+
+		it("records no Judge calls when the ceiling refuses its first attempt", async () => {
+			const { dependencies } = fakeStageDependencies();
+			const { persistence, abort } = atCeiling();
+			const context = await ceilingContext(abort);
+			const sessions = {
+				...dependencies,
+				runStageJudge: (
+					_model: string,
+					_effort: undefined | "low" | "medium" | "high" | "xhigh" | "max",
+					budget: JudgeBudget,
+				) => {
+					budget.spendCeiling.charge(1);
+
+					return Promise.reject(
+						new JudgeCeilingStopError({
+							ceilingUsd: 1,
+							spentUsd: 1,
+							prompt: "judge prompt",
+							attempts: [],
+							costUsd: 0,
+						}),
+					);
+				},
+			};
+
+			const failure = await failureOf(runGradedStages(sessions, context));
+			await abort.markAborted(failure.message);
+
+			expect(
+				JSON.parse(persistence.files.get(context.stageFile("shape")) ?? ""),
+			).toMatchObject({
+				attempts: [],
+				judgeProviderCalls: [],
 				ceilingStop: { ceilingUsd: 1, spentUsd: 1 },
 			});
 		});
@@ -3630,6 +3668,13 @@ describe(buildRunArtifact.name, () => {
 									? {
 											session_id: "judge-session",
 											total_cost_usd: 0.1,
+											num_turns: 1,
+											usage: {
+												input_tokens: 1,
+												output_tokens: 2,
+												cache_read_input_tokens: 3,
+												cache_creation_input_tokens: 4,
+											},
 											structured_output: { not: "a grade" },
 										}
 									: {
@@ -3637,6 +3682,13 @@ describe(buildRunArtifact.name, () => {
 											is_error: true,
 											subtype: "error_max_budget_usd",
 											total_cost_usd: 0.15,
+											num_turns: 2,
+											usage: {
+												input_tokens: 5,
+												output_tokens: 6,
+												cache_read_input_tokens: 7,
+												cache_creation_input_tokens: 8,
+											},
 										},
 							),
 						);
@@ -3664,10 +3716,28 @@ describe(buildRunArtifact.name, () => {
 				judgeAttempts: [{ outcome: "REJECTED" }],
 				ceilingStop: { ceilingUsd: 0.25 },
 			});
-			expect(failure).toMatchObject({
-				providerCalls: artifact.judgeProviderCalls,
-			});
-			expect(artifact.judgeProviderCalls).toHaveLength(2);
+			expect(artifact.judgeProviderCalls).toEqual([
+				{
+					metrics: {
+						costUsd: 0.1,
+						inputTokens: 1,
+						outputTokens: 2,
+						cacheReadTokens: 3,
+						cacheWriteTokens: 4,
+						turns: 1,
+					},
+				},
+				{
+					metrics: {
+						costUsd: 0.15,
+						inputTokens: 5,
+						outputTokens: 6,
+						cacheReadTokens: 7,
+						cacheWriteTokens: 8,
+						turns: 2,
+					},
+				},
+			]);
 			expect(artifact.judgeCostUsd).toBeCloseTo(0.25);
 			expect(artifact.ceilingStop.spentUsd).toBeCloseTo(0.25);
 		});
@@ -3743,7 +3813,7 @@ describe(buildRunArtifact.name, () => {
 
 		const artifact = buildFailedJudgeRunArtifact(
 			artifactBaseInputs(pipeline, AUDIT_LOG_PIPELINE_PATH),
-			{ failure, ceilingStop: undefined, providerCalls: [] },
+			{ failure, ceilingStop: undefined },
 		);
 
 		expect(artifact).toMatchObject({

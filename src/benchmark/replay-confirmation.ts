@@ -40,6 +40,7 @@ import {
 	JudgeExecutionError,
 	JudgeOutputValidationError,
 } from "./judge-attempt";
+import { JudgeCeilingStopError } from "./judge-ceiling-stop-error";
 import { loadRunManifest } from "./manifest";
 import {
 	detachedStageDependencies,
@@ -701,7 +702,8 @@ async function runReplayConfirmationBody(
 				}
 				let stageEvidence: FailedStageEvidence | undefined;
 				if (
-					failure instanceof JudgeExecutionError &&
+					(failure instanceof JudgeExecutionError ||
+						failure instanceof JudgeCeilingStopError) &&
 					session !== undefined &&
 					productOwner !== undefined
 				) {

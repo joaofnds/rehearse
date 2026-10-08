@@ -40,6 +40,7 @@ import {
 	JudgeOutputValidationError,
 } from "./judge-attempt";
 import type { JudgeBudget } from "./judge-attempt";
+import { JudgeCeilingStopError } from "./judge-ceiling-stop-error";
 import type { SpendCeiling } from "./spend-ceiling";
 import { repSpendCeilings } from "./spend-ceiling";
 import type { PipelineDefinition, TargetCheck } from "./pipeline";
@@ -682,8 +683,11 @@ async function runPipelineRep(
 				: `${setupOperation} failed: ${failure.message}`;
 		const judgeFailure =
 			failure instanceof JudgeOutputValidationError ? failure : undefined;
-		const judgeExecutionFailure =
-			failure instanceof JudgeExecutionError ? failure : undefined;
+		const paidJudgeFailure =
+			failure instanceof JudgeExecutionError ||
+			failure instanceof JudgeCeilingStopError
+				? failure
+				: undefined;
 		const completedJudgeRejection =
 			judgeFailure !== undefined &&
 			worktreeCreated &&
@@ -697,8 +701,8 @@ async function runPipelineRep(
 		) {
 			workerCalls.push({});
 		}
-		if (judgingStage && judgeExecutionFailure !== undefined) {
-			stageJudgeCalls.push(...judgeExecutionFailure.providerCalls);
+		if (judgingStage && paidJudgeFailure !== undefined) {
+			stageJudgeCalls.push(...paidJudgeFailure.providerCalls);
 		} else if (judgingStage && judgeFailure === undefined) {
 			stageJudgeCalls.push({});
 		}
@@ -797,7 +801,7 @@ async function runPipelineRep(
 			productOwner: productOwner?.snapshot().providerCalls,
 			stageJudge: stageJudgeCalls,
 			finalJudge: judgingFinal
-				? (judgeExecutionFailure?.providerCalls ?? judgeFailure?.attempts ?? [])
+				? (paidJudgeFailure?.providerCalls ?? judgeFailure?.attempts ?? [])
 				: undefined,
 		});
 		const record = confirmationRepRecordSchema.parse({

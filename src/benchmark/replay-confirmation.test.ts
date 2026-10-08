@@ -34,6 +34,7 @@ import { operatorStopped } from "./operator-stop";
 import { benchmarkRunPaths, confirmationGroupPaths } from "./run-layout";
 import { readShortIds } from "./short-id";
 import { StageSessionError } from "./stage-session-error";
+import { JudgeCeilingStopError } from "./judge-ceiling-stop-error";
 import type { loadStageRubric } from "./stage-grading";
 import { addWorktree, currentSha, removeWorktree } from "./target";
 import {
@@ -952,6 +953,75 @@ describe(runReplayConfirmation.name, () => {
 		expect(record.workerTrajectorySteps).toBe(metric.turns);
 	});
 
+	it("retains the attempt a stage Judge paid for when the ceiling refuses its retry", async () => {
+		const metric: ClaudeCallMetrics = {
+			costUsd: 0.25,
+			inputTokens: 100,
+			outputTokens: 20,
+			cacheReadTokens: 30,
+			cacheWriteTokens: 40,
+			turns: 2,
+		};
+		const fake = new ReplayConfirmationHarness(testResources);
+		const recorded = await fake.recordedRun();
+		const corpusRoot = await mkdtemp(join(tmpdir(), "replay-ceiling-corpus-"));
+		testResources.track(corpusRoot);
+		for (const skill of ["discuss", "doctrine"]) {
+			await mkdir(join(corpusRoot, "skills", skill), { recursive: true });
+			await Bun.write(
+				join(corpusRoot, "skills", skill, "SKILL.md"),
+				`${skill}\n`,
+			);
+		}
+
+		const outcome = await fake.runConfirmation(
+			{
+				paths: recorded.paths,
+				corpusRoots: [{ kind: "directory", root: corpusRoot }],
+			},
+			{ groupId: "judge-ceiling-evidence", reps: 2 },
+			(dependencies) => ({
+				...dependencies,
+				currentSha: () => Promise.resolve(recorded.manifest.taskSha),
+				stageSession: {
+					...dependencies.stageSession,
+					runWorkflowStage: async (request) => ({
+						...(await dependencies.stageSession.runWorkflowStage(request)),
+						providerCalls: [{ metrics: metric }],
+					}),
+				},
+				runStageJudge: () =>
+					Promise.reject(
+						new JudgeCeilingStopError({
+							ceilingUsd: 45,
+							spentUsd: 45,
+							prompt: "prompt",
+							attempts: [
+								{
+									payload: { invalid: true },
+									costUsd: metric.costUsd,
+									metrics: metric,
+									outcome: "REJECTED",
+									error: "invalid output",
+								},
+							],
+							costUsd: metric.costUsd,
+						}),
+					),
+			}),
+		);
+		const [recordFile] = outcome.repRecordFiles;
+		const record = parseConfirmationRepRecord(
+			await Bun.file(recordFile ?? "missing").text(),
+		);
+		testResources.track(dirname(record.worktreePath));
+
+		expect(record.metrics.calls).toEqual([
+			{ role: "worker", metrics: metric },
+			{ role: "stage-judge", metrics: metric },
+		]);
+	});
+
 	it("retains the calls a stage session carried out of its failure", async () => {
 		const metric: ClaudeCallMetrics = {
 			costUsd: 0.25,
@@ -1013,6 +1083,55 @@ describe(runReplayConfirmation.name, () => {
 			{ role: "worker", metrics: metric },
 			{ role: "product-owner", metrics: metric },
 		]);
+	});
+
+	it("retains a returned session's calls when a step after it fails", async () => {
+		const metric: ClaudeCallMetrics = {
+			costUsd: 0.25,
+			inputTokens: 100,
+			outputTokens: 20,
+			cacheReadTokens: 30,
+			cacheWriteTokens: 40,
+			turns: 2,
+		};
+		const fake = new ReplayConfirmationHarness(testResources);
+		const recorded = await fake.recordedRun();
+		const corpusRoot = await mkdtemp(join(tmpdir(), "replay-delivery-corpus-"));
+		testResources.track(corpusRoot);
+		for (const skill of ["discuss", "doctrine"]) {
+			await mkdir(join(corpusRoot, "skills", skill), { recursive: true });
+			await Bun.write(
+				join(corpusRoot, "skills", skill, "SKILL.md"),
+				`${skill}\n`,
+			);
+		}
+
+		const outcome = await fake.runConfirmation(
+			{
+				paths: recorded.paths,
+				corpusRoots: [{ kind: "directory", root: corpusRoot }],
+			},
+			{ groupId: "post-session-evidence", reps: 2 },
+			(dependencies) => ({
+				...dependencies,
+				currentSha: () => Promise.resolve(recorded.manifest.taskSha),
+				stageSession: {
+					...dependencies.stageSession,
+					runWorkflowStage: async (request) => ({
+						...(await dependencies.stageSession.runWorkflowStage(request)),
+						providerCalls: [{ metrics: metric }],
+					}),
+					readTaskOutput: () => Promise.reject(new Error("backlog is gone")),
+				},
+			}),
+		);
+		const [recordFile] = outcome.repRecordFiles;
+		const record = parseConfirmationRepRecord(
+			await Bun.file(recordFile ?? "missing").text(),
+		);
+		testResources.track(dirname(record.worktreePath));
+
+		expect(record.metrics.calls).toEqual([{ role: "worker", metrics: metric }]);
 	});
 
 	it("removes the temporary root after every replay rep completes with durable evidence", async () => {

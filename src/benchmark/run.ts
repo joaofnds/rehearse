@@ -57,7 +57,6 @@ import type {
 	FailedJudgeRunArtifact,
 	GradedRunArtifact,
 	LocalCheckResult,
-	ProviderCall,
 	RunArtifactEvidence,
 	StageJudgeInput,
 	StageJudgeRecord,
@@ -71,7 +70,6 @@ import {
 	JudgeOutputValidationError,
 } from "./judge-attempt";
 import { JudgeCeilingStopError } from "./judge-ceiling-stop-error";
-import { judgeProviderCalls } from "./judge-execution-error";
 import type {
 	JudgeAgreementCalibration,
 	JudgeAgreementReport,
@@ -308,13 +306,13 @@ interface CompletedRunArtifact {
 
 export function buildFailedJudgeRunArtifact(
 	inputs: RunArtifactBaseInputs,
-	{ failure, ceilingStop, providerCalls }: Readonly<PaidJudgeFailure>,
+	{ failure, ceilingStop }: Readonly<PaidJudgeFailure>,
 ): FailedJudgeRunArtifact {
 	return {
 		...runArtifactEvidence(inputs, failure),
 		status: "FAILED",
 		failure: failure.message,
-		judgeProviderCalls: providerCalls,
+		judgeProviderCalls: failure.providerCalls,
 		ceilingStop,
 	};
 }
@@ -327,8 +325,6 @@ type JudgeFailure =
 export interface PaidJudgeFailure {
 	readonly failure: Readonly<JudgeFailure>;
 	readonly ceilingStop: CeilingStopReadings | undefined;
-	/** Every call the Judge paid for, a halted one included. */
-	readonly providerCalls: readonly ProviderCall[];
 }
 
 /**
@@ -358,14 +354,7 @@ function paidJudgeFailure(
 		return undefined;
 	}
 
-	return {
-		failure: error,
-		ceilingStop,
-		providerCalls:
-			error instanceof JudgeExecutionError
-				? error.providerCalls
-				: judgeProviderCalls(error.attempts),
-	};
+	return { failure: error, ceilingStop };
 }
 
 export interface FinalJudgeRequest {
@@ -733,9 +722,9 @@ export async function executeStageSession(
 		elapsedMs: environment.elapsedMs,
 	});
 
-	let delivery: StageDelivery;
+	let evidence: JudgeReadyEvidence;
 	try {
-		delivery = await readStageDelivery(
+		evidence = await readJudgeReadyEvidence(
 			dependencies,
 			environment,
 			definition,
@@ -750,27 +739,27 @@ export async function executeStageSession(
 		});
 	}
 
-	return { ...delivery, corpusFiles, corpusVersion, versionFiles, transcript };
+	return { ...evidence, corpusFiles, corpusVersion, versionFiles, transcript };
 }
 
-/** What a stage delivered once its session returned, ready for its Judge. */
-type StageDelivery = Pick<
+/** What a stage produced once its session returned, ready for its Judge. */
+type JudgeReadyEvidence = Pick<
 	StageSessionResult,
 	"resultSha" | "input" | "artifact" | "buildEvidence"
 >;
 
 /**
- * Reads the task state a returned session left and validates the stage's
- * delivery. A failure here comes after the session spent, so its caller
+ * Reads the task state a returned session left and validates what the stage
+ * produced. A failure here comes after the session spent, so its caller
  * carries that spend out with it.
  */
-async function readStageDelivery(
+async function readJudgeReadyEvidence(
 	dependencies: StageSessionDependencies,
 	environment: StageSessionEnvironment,
 	definition: StageDefinition,
 	priorArtifacts: readonly ContextFile[],
 	transcript: StageTranscript,
-): Promise<StageDelivery> {
+): Promise<JudgeReadyEvidence> {
 	const stage = definition.name;
 	const currentTaskOutput = await dependencies.readTaskOutput(
 		environment.targetDir,
@@ -899,8 +888,8 @@ function ceilingReadings(
  * A call that fails after spending to the ceiling stops it the same way,
  * since its budget was what the ceiling had left: a provider halts such a
  * call at that budget rather than returning a result. Any other failure
- * with the spend at the ceiling stops it too, a delivery check after the
- * session included, since the stage's Judge could not be paid for.
+ * with the spend at the ceiling stops it too, a check of what the stage
+ * produced after its session included, since the stage's Judge could not be paid for.
  */
 async function stoppingAtCeiling<Result>(
 	context: Pick<
@@ -957,7 +946,7 @@ function recordPaidStageJudgeFailure(
 		failure: {
 			prompt: failure.prompt,
 			attempts: failure.attempts,
-			judgeProviderCalls: paid.providerCalls,
+			judgeProviderCalls: failure.providerCalls,
 			costUsd: failure.costUsd,
 		},
 		ceilingStop,

@@ -31,6 +31,7 @@ import {
 } from "./judge-attempt";
 import type { TargetCheck } from "./pipeline";
 import { GroupStoppedError } from "./confirmation-evidence";
+import { JudgeCeilingStopError } from "./judge-ceiling-stop-error";
 import { operatorStopped } from "./operator-stop";
 import { runPipelineConfirmation } from "./pipeline-confirmation";
 import { projectSlug } from "./session-capture";
@@ -1109,6 +1110,81 @@ describe(runPipelineConfirmation.name, () => {
 				{ role: "final-judge", metrics: CONFIRMATION_METRIC },
 			],
 			missing: ["product-owner call metrics"],
+		});
+	});
+
+	it("keeps the attempt a stage Judge paid for when the ceiling refuses its retry", async () => {
+		const harness = await PipelineConfirmationHarness.setup(testResources);
+
+		const outcome = await harness.run(
+			{
+				groupId: "stage-judge-ceiling",
+				reps: 2,
+				projectedCost: {
+					reps: 2,
+					perRepMaximumUsd: 45,
+					totalMaximumUsd: 90,
+				},
+			},
+			(dependencies) => {
+				const { stageSession, runStageJudge } = dependencies;
+				const { runWorkflowStage } = stageSession;
+
+				return {
+					...dependencies,
+					stageSession: {
+						...stageSession,
+						runWorkflowStage: async (request) => ({
+							...(await runWorkflowStage(request)),
+							sessionId: request.targetDir,
+						}),
+					},
+					runStageJudge: (model, effort, budget, input, source) => {
+						if (
+							input.stage === "build" &&
+							repOrdinal(input.transcript.sessionId) === 1
+						) {
+							return Promise.reject(
+								new JudgeCeilingStopError({
+									ceilingUsd: 45,
+									spentUsd: 45,
+									prompt: "prompt",
+									attempts: [
+										{
+											payload: { invalid: true },
+											costUsd: CONFIRMATION_METRIC.costUsd,
+											metrics: CONFIRMATION_METRIC,
+											outcome: "REJECTED",
+											error: "invalid output",
+										},
+									],
+									costUsd: CONFIRMATION_METRIC.costUsd,
+								}),
+							);
+						}
+
+						return runStageJudge(model, effort, budget, input, source);
+					},
+				};
+			},
+		);
+		const records = await Promise.all(
+			outcome.repRecordFiles.map(async (path) =>
+				parseConfirmationRepRecord(await Bun.file(path).text()),
+			),
+		);
+		const [failed] = records;
+		testResources.track(dirname(failed?.worktreePath ?? "missing"));
+		await removeWorktree(harness.sourceRoot, failed?.worktreePath ?? "missing");
+
+		expect(failed?.metrics).toEqual({
+			status: "COMPLETE",
+			calls: [
+				{ role: "worker", metrics: CONFIRMATION_METRIC },
+				{ role: "worker", metrics: CONFIRMATION_METRIC },
+				{ role: "stage-judge", metrics: CONFIRMATION_METRIC },
+				{ role: "stage-judge", metrics: CONFIRMATION_METRIC },
+			],
 		});
 	});
 

@@ -3,9 +3,16 @@ import {
 	readClaudeCallMetrics,
 	readClaudeEnvelope,
 } from "./claude";
-import type { ClaudeCallMetrics, ClaudeEnvelope } from "./contracts";
+import type {
+	ClaudeCallMetrics,
+	ClaudeEnvelope,
+	ProviderCall,
+} from "./contracts";
 import { JudgeCeilingStopError } from "./judge-ceiling-stop-error";
-import { JudgeExecutionError } from "./judge-execution-error";
+import {
+	JudgeExecutionError,
+	judgeProviderCalls,
+} from "./judge-execution-error";
 import type { SpendCeiling } from "./spend-ceiling";
 import { SpendCeilingReachedError } from "./spend-ceiling";
 
@@ -55,6 +62,7 @@ export class JudgeOutputValidationError extends Error {
 	public override name = "JudgeOutputValidationError";
 	public readonly prompt: string;
 	public readonly attempts: readonly JudgeAttempt[];
+	public readonly providerCalls: readonly ProviderCall[];
 	public readonly costUsd: number;
 
 	public constructor(props: {
@@ -66,6 +74,7 @@ export class JudgeOutputValidationError extends Error {
 		super(props.message);
 		this.prompt = props.prompt;
 		this.attempts = props.attempts;
+		this.providerCalls = judgeProviderCalls(props.attempts);
 		this.costUsd = props.costUsd;
 	}
 }
