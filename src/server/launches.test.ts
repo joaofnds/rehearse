@@ -1810,6 +1810,115 @@ describe(createLaunchApp.name, () => {
 				},
 			);
 		});
+
+		describe("when setup scans a corpus", () => {
+			/** The live install the harness serves, present on disk. */
+			async function liveRoot(runsDirectory: string): Promise<string> {
+				const { root } = directoryLiveCorpus(runsDirectory);
+				await Bun.write(join(root, "CLAUDE.md"), "live\n");
+
+				return root;
+			}
+
+			it("links a directory in corpus layout", async () => {
+				const { send, get } = await harness("missing");
+				const corpus = await corpusDirectory();
+
+				const response = await send("PUT", "/api/setup/corpus", {
+					directory: corpus,
+				});
+
+				expect(response.status).toBe(200);
+				const after = await reading(get);
+				expect(after.linkedCorpus).toEqual({ kind: "directory", root: corpus });
+			});
+
+			it("leaves the live install linked for an empty path, clearing a directory linked earlier", async () => {
+				const { send, get } = await harness("missing");
+				await send("PUT", "/api/setup/corpus", {
+					directory: await corpusDirectory(),
+				});
+
+				const response = await send("PUT", "/api/setup/corpus", {
+					directory: "",
+				});
+
+				expect(response.status).toBe(200);
+				const after = await reading(get);
+				expect(after.linkedCorpus.kind).toBe("live");
+			});
+
+			it("leaves the live install linked for a path from home that resolves to it, rather than linking it as a directory", async () => {
+				const { send, get, home, runsDirectory } = await harness("missing");
+				const live = await liveRoot(runsDirectory);
+				await mkdir(home, { recursive: true });
+				await symlink(live, join(home, ".claude"));
+				await send("PUT", "/api/setup/corpus", {
+					directory: await corpusDirectory(),
+				});
+
+				const response = await send("PUT", "/api/setup/corpus", {
+					directory: "~/.claude",
+				});
+
+				expect(response.status).toBe(200);
+				const after = await reading(get);
+				expect(after.linkedCorpus.kind).toBe("live");
+			});
+
+			it("leaves the live install linked for the live root written out whole", async () => {
+				const { send, get, runsDirectory } = await harness("missing");
+				const live = await liveRoot(runsDirectory);
+
+				const response = await send("PUT", "/api/setup/corpus", {
+					directory: `${live}/`,
+				});
+
+				expect(response.status).toBe(200);
+				const after = await reading(get);
+				expect(after.linkedCorpus.kind).toBe("live");
+			});
+
+			it("refuses a directory holding no corpus and keeps the link", async () => {
+				const { send, get } = await harness("missing");
+				const linked = await corpusDirectory();
+				await send("PUT", "/api/setup/corpus", { directory: linked });
+
+				const response = await send("PUT", "/api/setup/corpus", {
+					directory: await temporaryDirectory("rehearse-not-corpus-"),
+				});
+
+				expect(response.status).toBe(409);
+				const after = await reading(get);
+				expect(after.linkedCorpus.root).toBe(linked);
+			});
+
+			it("refuses a relative path as a bad request naming the absolute-path rule", async () => {
+				const { send } = await harness("missing");
+
+				const response = await send("PUT", "/api/setup/corpus", {
+					directory: "./corpus",
+				});
+
+				expect(response.status).toBe(400);
+				expect(refusalSchema.parse(await response.json()).error).toContain(
+					"absolute path",
+				);
+			});
+
+			it("answers with a conflict when the settings file cannot be read, and leaves the file", async () => {
+				const { send, runsDirectory } = await harness("missing");
+				const settingsFile = join(runsDirectory, "settings.json");
+				await Bun.write(settingsFile, "not json");
+
+				const response = await send("PUT", "/api/setup/corpus", {
+					directory: "",
+				});
+
+				expect(response.status).toBe(409);
+				expect(await Bun.file(settingsFile).text()).toBe("not json");
+			});
+		});
 	});
 
 	describe("GET /api/settings/records", () => {

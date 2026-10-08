@@ -339,7 +339,13 @@ resolves outside the directory. The path must be absolute or start with `~/`,
 which names the server process's `HOME`, since the server does not
 share the browser's working directory. Any other relative path answers 400,
 naming that rule.
-`DELETE /api/settings/corpus` unlinks it. These three answer the new settings,
+`DELETE /api/settings/corpus` unlinks it. `PUT /api/setup/corpus` with
+`{ "directory": <path> }` is the first-run setup's scan: an empty path, or one
+that resolves to the live install's root through `~/`, a symlink or a trailing
+slash, unlinks any directory and leaves the live install linked, and any other
+path links as `PUT /api/settings/corpus` does, with the same refusals. The
+settings route links such a path as a directory, which makes every pipeline
+launch refuse. These four answer the new settings,
 with the same fields as `GET /api/settings`: `spendCeilingUsd`,
 `setCommand`, `recordsDirectory`, `linkedCorpus`, `overrun` and
 `linkCommand`. `POST /api/settings/corpus/rehash` measures the linked
@@ -1502,7 +1508,9 @@ does not hold its version, so the rail's `corpus@` label can name a version that
 `corpus invalidation [--corpus <dir>]` prints one line per corpus file,
 `<read-by>\t<invalidated>\t<path>`, then the last edit's line and the id of
 each row it invalidated, one per line. `/api/corpus` carries the same counts as
-each file's `readBy` and `invalidated` and the report's `lastEdit`. Read-by
+each file's `readBy` and `invalidated` and the report's `lastEdit`, and each
+file's `lines`, counted as an editor numbers them, so a last line without a
+trailing newline counts. Read-by
 counts the distinct run-history rows whose records read the file: a pipeline
 run, whatever its stages read, a session attempt, a replay and a confirmation
 group. Invalidated counts the rows that read the file with the hash the

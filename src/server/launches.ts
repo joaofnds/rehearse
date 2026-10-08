@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { realpath } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -543,6 +544,51 @@ function corpusLinkRequestSchema(
 		.strict();
 }
 
+/** Setup's corpus path, where an empty one means the live install. */
+const setupCorpusRequestSchema = z.object({ directory: z.string() }).strict();
+
+async function resolvedPath(path: string): Promise<string | undefined> {
+	try {
+		return await realpath(path);
+	} catch {
+		return undefined;
+	}
+}
+
+/**
+ * Whether a typed path names the live install under another spelling, such
+ * as ~/.claude, a symlink to it, or a trailing slash. Linking the live root
+ * as a directory would make every pipeline launch refuse.
+ */
+async function namesLiveInstall(
+	directory: string,
+	live: LiveCorpusRoot,
+): Promise<boolean> {
+	const typed = await resolvedPath(directory);
+
+	return typed !== undefined && typed === (await resolvedPath(live.root));
+}
+
+/**
+ * Links the directory setup scanned, or leaves the live install linked when
+ * the path is empty or names it, clearing a directory an earlier scan linked.
+ */
+async function storeSetupCorpus(
+	dependencies: LaunchDependencies,
+	directory: string | undefined,
+): Promise<void> {
+	if (
+		directory === undefined ||
+		(await namesLiveInstall(directory, dependencies.liveCorpus()))
+	) {
+		return asLaunchRefusal(() => unlinkCorpus(dependencies.runsDirectory));
+	}
+
+	return asLaunchRefusal(() =>
+		linkCorpusDirectory(dependencies.runsDirectory, directory),
+	);
+}
+
 /** An edit, carrying the version it was opened or reviewed against. */
 const corpusEditRequestSchema = z
 	.object({ path: z.string(), text: z.string(), startsFrom: z.string() })
@@ -909,6 +955,36 @@ export const createLaunchApp = (dependencies: LaunchDependencies) => {
 		.delete("/api/settings/corpus", async (context) => {
 			try {
 				await asLaunchRefusal(() => unlinkCorpus(dependencies.runsDirectory));
+
+				return context.json(await settingsReading(dependencies), 200);
+			} catch (error) {
+				if (!(error instanceof LaunchRefusalError)) {
+					throw error;
+				}
+
+				return context.json({ error: error.message }, error.status);
+			}
+		})
+		.put("/api/setup/corpus", async (context) => {
+			const body: unknown = await context.req.json().catch(() => undefined);
+			const typed = setupCorpusRequestSchema.safeParse(body);
+			if (!typed.success) {
+				return context.json({ error: z.prettifyError(typed.error) }, 400);
+			}
+			const linked =
+				typed.data.directory === ""
+					? undefined
+					: corpusLinkRequestSchema(dependencies.home).safeParse(body);
+			if (linked?.success === false) {
+				return context.json(
+					{
+						error: linked.error.issues.map((issue) => issue.message).join("; "),
+					},
+					400,
+				);
+			}
+			try {
+				await storeSetupCorpus(dependencies, linked?.data.directory);
 
 				return context.json(await settingsReading(dependencies), 200);
 			} catch (error) {
