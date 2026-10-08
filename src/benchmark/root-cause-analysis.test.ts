@@ -19,6 +19,7 @@ import type { RunLiveness } from "./run-liveness";
 import type { ClaudeEnvelope } from "./contracts";
 import {
 	ANSWER,
+	CORPUS_BODIES,
 	answering,
 	RUN,
 	runStoppedAtBuild,
@@ -264,6 +265,33 @@ describe(analyzeRun.name, () => {
 				expect(await Bun.file(file).json()).toEqual(record);
 			},
 		);
+	});
+
+	describe("when the root-cause file was empty as the stage read it", () => {
+		it("records any line range in it as a failure", async () => {
+			const directory = await runsDirectory();
+			await runStoppedAtBuild(directory, {
+				...CORPUS_BODIES,
+				"skills/build/SKILL.md": "",
+			});
+			const provider = new FakeAnalysisProvider();
+			const answer = {
+				...ANSWER,
+				rootCause: { ...ANSWER.rootCause, lines: { start: 1, end: 1 } },
+			};
+			provider.answer(answering(answer));
+
+			const { record } = await analyzeRun(
+				{ runsDirectory: directory, run: RUN, model: "sonnet", capUsd: 1 },
+				dependencies(provider.invoke),
+			);
+
+			expect(record).toMatchObject({
+				outcome: "failed",
+				reason:
+					"The line range 1-1 is not within the 0 lines of skills/build/SKILL.md as the build stage read it",
+			});
+		});
 	});
 
 	describe("when the run kept no body of the root-cause file", () => {

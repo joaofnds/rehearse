@@ -14,6 +14,7 @@ import { CLAUDE_TIMEOUT_MS } from "./config";
 import type { ClaudeEnvelope, Immutable } from "./contracts";
 import { RefusedPreconditionError } from "./exit-codes";
 import { readdirIfPresent } from "./file-presence";
+import { lineCount } from "./line-count";
 import type { RunLiveness } from "./run-liveness";
 import { claimsLiveTarget } from "./run-liveness";
 import {
@@ -596,9 +597,9 @@ function lineRangeViolation(
 		return `The answer gives a line range in ${file}, but the run kept no body of it as the ${stage} stage read it`;
 	}
 
-	const lineCount = read.body.replace(/\n$/u, "").split("\n").length;
-	if (lines.start > lines.end || lines.end > lineCount) {
-		return `The line range ${lines.start}-${lines.end} is not within the ${lineCount} lines of ${file} as the ${stage} stage read it`;
+	const readLines = lineCount(read.body);
+	if (lines.start > lines.end || lines.end > readLines) {
+		return `The line range ${lines.start}-${lines.end} is not within the ${readLines} lines of ${file} as the ${stage} stage read it`;
 	}
 
 	return undefined;

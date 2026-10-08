@@ -147,9 +147,10 @@ export async function writeStage(
 /** Measures the fixture corpus into the records under `directory`. */
 export async function measuredCorpus(
 	directory: string,
+	bodies: Readonly<Record<string, string>> = CORPUS_BODIES,
 ): Promise<CorpusMeasurement> {
 	const root = join(directory, "corpus-source");
-	for (const [path, body] of Object.entries(CORPUS_BODIES)) {
+	for (const [path, body] of Object.entries(bodies)) {
 		await mkdir(dirname(join(root, path)), { recursive: true });
 		await writeFile(join(root, path), body);
 	}
@@ -160,8 +161,9 @@ export async function measuredCorpus(
 /** A run of shape, build and review whose shape stage was graded. */
 export async function runWithOneGradedStage(
 	directory: string,
+	bodies: Readonly<Record<string, string>> = CORPUS_BODIES,
 ): Promise<CorpusMeasurement> {
-	const corpusVersion = await measuredCorpus(directory);
+	const corpusVersion = await measuredCorpus(directory, bodies);
 	await writeRunManifest(
 		benchmarkRunPaths(directory, RUN).manifestFile,
 		manifest(["shape", "build", "review"]),
@@ -177,8 +179,9 @@ export async function runWithOneGradedStage(
 /** A run of shape, build and review that stopped at build. */
 export async function runStoppedAtBuild(
 	directory: string,
+	bodies: Readonly<Record<string, string>> = CORPUS_BODIES,
 ): Promise<CorpusMeasurement> {
-	const corpusVersion = await runWithOneGradedStage(directory);
+	const corpusVersion = await runWithOneGradedStage(directory, bodies);
 	await writeStage(
 		directory,
 		stoppedStage(

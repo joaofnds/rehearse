@@ -4,6 +4,7 @@ import type { CorpusRoot } from "#benchmark/corpus-file";
 import type { LastEdit } from "#benchmark/corpus-invalidation";
 import { corpusInvalidation } from "#benchmark/corpus-invalidation";
 import { hashCorpusLayout } from "#benchmark/corpus-layout";
+import { lineCount } from "#benchmark/line-count";
 import { corpusVersionDigest } from "#benchmark/corpus-version";
 import { redactAbsolutePaths } from "./redact-path";
 
@@ -27,17 +28,6 @@ export interface CorpusReport {
 	readonly files: readonly CorpusFileReport[];
 	readonly refusals: readonly string[];
 	readonly lastEdit: LastEdit;
-}
-
-/** Lines as an editor numbers them, so a last line without a newline counts. */
-function lineCount(text: string): number {
-	if (text === "") {
-		return 0;
-	}
-
-	const newlines = text.split("\n").length - 1;
-
-	return text.endsWith("\n") ? newlines : newlines + 1;
 }
 
 export async function corpusReport(
