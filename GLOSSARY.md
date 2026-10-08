@@ -827,10 +827,11 @@ See [current state](docs/status.md) for implementation coverage and
   of its scorecard, carrying the stopping status, the stage name, the reason
   the run ended there, the input the Judge was given, and the model, effort and
   declared corpus files the stage ran with. A stop at a grade below the minimum
-  grade also carries the letter and verdict, the Judge's hard blockers,
-  requirements, dimensions and summary beside them rather than inside the
-  grade as a scorecard nests them, the minimum grade, the Judge's attempts, the stage and run elapsed times, and the Product Owner's cost and
-  calls up to the stop; older stop records lack them. The run's manifest still
+  grade also carries the Judge's findings, its hard blockers, requirements,
+  dimensions and summary, and the letter and verdict, the minimum grade, the
+  Judge's attempts, the stage and run elapsed times, and the Product Owner's
+  cost and calls up to the stop; older stop records keep the findings and lack
+  the rest. The run's manifest still
   supplies the case; only the checkpoint the stage never wrote is missing.
 - **Stopped stage** — the stage a run ended on, whether its grade did not meet
   the pipeline's minimum, its judging failed, or a signal stopped the run
