@@ -474,6 +474,27 @@ describe("/api/runs/:run", () => {
 				});
 			});
 
+			it("sums a ceiling-stopped stage's session calls from its stop record", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeSessionCeilingStoppedRun();
+
+				const response = await runRecord(fixture, fixture.stoppedRun);
+
+				expect(await response.json()).toMatchObject({
+					stages: [
+						{ stage: "discuss" },
+						{
+							stage: "build",
+							tokens: {
+								state: "available",
+								input: buildSessionMetrics.inputTokens,
+								output: buildSessionMetrics.outputTokens,
+							},
+						},
+					],
+				});
+			});
+
 			it("names the Product Owner and the stop record's judge as the parts the run's sum lacks", async () => {
 				const fixture = await emptyFixture();
 				await fixture.writeStoppedRunEvidence();

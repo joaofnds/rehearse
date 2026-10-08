@@ -500,6 +500,26 @@ describe("/api/runs", () => {
 				});
 			});
 
+			it("counts a ceiling-stopped stage's session spend from its stop record", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeSessionCeilingStoppedRun();
+
+				const row = await runRow(fixture, fixture.stoppedRun);
+
+				expect(row).toMatchObject({
+					cost: {
+						state: "available",
+						usd: 2 + 1 + 3 + 0.25,
+						parts: [
+							{ part: "discuss session", usd: 2 },
+							{ part: "discuss judge", usd: 1 },
+							{ part: "build session", usd: 3 },
+							{ part: "Product Owner", usd: 0.25 },
+						],
+					},
+				});
+			});
+
 			it("carries the run's wall time as not recorded with its reason", async () => {
 				const fixture = await emptyFixture();
 				await fixture.writeStoppedRunEvidence();

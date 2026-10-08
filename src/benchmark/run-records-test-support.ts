@@ -1238,6 +1238,37 @@ export class RecordedRunsFixture {
 	}
 
 	/**
+	 * The stopped run with build stopped by the spend ceiling during its
+	 * session, as the harness writes such a stop: no Judge input, the
+	 * session's calls and $3 cost up to the stop, and the Product Owner's
+	 * $0.25 spend.
+	 */
+	public async writeSessionCeilingStoppedRun(): Promise<void> {
+		await this.writeStoppedRunEvidence();
+		await Bun.write(
+			benchmarkRunPaths(this.runsDirectory, this.stoppedRun).stageFile("build"),
+			`${JSON.stringify(
+				{
+					status: "STAGE_JUDGE_FAILED",
+					stage: "build",
+					error: STOPPED_RUN_ERROR,
+					session: {
+						providerCalls: [
+							{ metrics: STOPPED_RUN_EVIDENCE.buildSessionMetrics },
+						],
+						costUsd: 3,
+					},
+					productOwnerCostUsd: 0.25,
+					productOwnerProviderCalls: [],
+					ceilingStop: { ceilingUsd: 6, spentUsd: 6.25 },
+				},
+				null,
+				2,
+			)}\n`,
+		);
+	}
+
+	/**
 	 * The stopped run as the harness writes it once it records the readings
 	 * of `RECORDED_READINGS`: the manifest names the minimum grade, each stage
 	 * record its elapsed time, and the stop record the letter build fell to,

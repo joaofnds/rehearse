@@ -291,6 +291,13 @@ const stageFileSchema = z
 		runElapsedMs: z.number().optional(),
 		productOwnerCostUsd: z.number().optional(),
 		productOwnerProviderCalls: callsSchema.optional(),
+		/** A ceiling stop's session up to the stop, when no Judge ran to hold it. */
+		session: z
+			.object({
+				costUsd: z.number().optional(),
+				providerCalls: callsSchema,
+			})
+			.optional(),
 		input: z
 			.object({
 				commitSubjects: z.array(z.string()).optional(),
@@ -522,7 +529,8 @@ function stageTokenParts(recorded: PlacedStage): readonly TokenPart[] {
 		spender === "session"
 			? callsPart(
 					`${stage} session`,
-					file?.input?.transcript?.providerCalls,
+					file?.input?.transcript?.providerCalls ??
+						file?.session?.providerCalls,
 					unrecordedOr(recorded, "the stage record holds no session calls"),
 				)
 			: callsPart(
@@ -781,7 +789,7 @@ function stageRecord(
 				: unrecordedOr(recorded, WALL_TIME_REASON),
 		),
 		sessionCost: usd(
-			file?.input?.transcript?.costUsd,
+			file?.input?.transcript?.costUsd ?? file?.session?.costUsd,
 			unrecordedOr(recorded, "the stage record holds no session cost"),
 		),
 		judgeCost: usd(
