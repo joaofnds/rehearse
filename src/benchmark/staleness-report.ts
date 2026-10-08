@@ -514,7 +514,11 @@ export async function checkpointStaleness(
 	knobs: CurrentSessionKnobs = {},
 ): Promise<StalenessReport> {
 	return checkpointReport(
-		await checkpointStalenessByRun(runsDirectory, source, knobs),
+		await checkpointStalenessAgainst(
+			runsDirectory,
+			await corpusJudgedAgainst(runsDirectory, source, readCorpusUnderTest),
+			knobs,
+		),
 	);
 }
 
@@ -533,18 +537,6 @@ export interface CheckpointStalenessByRun {
 }
 
 /** `checkpointStaleness` keyed by run. */
-export async function checkpointStalenessByRun(
-	runsDirectory: string,
-	source: CorpusRoot,
-	knobs: CurrentSessionKnobs = {},
-): Promise<CheckpointStalenessByRun> {
-	return checkpointStalenessAgainst(
-		runsDirectory,
-		await corpusJudgedAgainst(runsDirectory, source, readCorpusUnderTest),
-		knobs,
-	);
-}
-
 async function checkpointStalenessAgainst(
 	runsDirectory: string,
 	against: CorpusJudgedAgainst,

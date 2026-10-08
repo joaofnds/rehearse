@@ -953,8 +953,8 @@ export const createApiApp = (dependencies: ApiDependencies) => {
 	 * this module nor `runHistoryReport` has wrapped is sanitized the same way.
 	 * `redactAbsolutePaths` rather than `controlRelative`, because a corpus
 	 * root or a target repository's path never lives under `CONTROL_DIR`, and
-	 * `checkpointStaleness` (called on every `/api/runs` request per AC #2) can
-	 * throw one of those in its message.
+	 * the staleness judging every `/api/runs` request runs can throw one of
+	 * those in its message.
 	 */
 	app.onError((caughtError, context) => {
 		const message =
