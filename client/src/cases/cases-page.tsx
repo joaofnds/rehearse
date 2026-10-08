@@ -25,11 +25,11 @@ export function CasesPage(): React.JSX.Element {
 				<p className="max-w-prose text-sm text-muted-foreground">
 					Each case's figures are taken over its runs at one corpus version, the
 					first recorded reading its runs newest first. A session attempt or
-					group recorded before they kept their start time comes after every
-					timed run, so for a case only those ran it need not be the newest. A
-					run is a pipeline run, a session attempt, or one attempt of a group
-					run on the whole case. Stage replays and stage-mode groups are not
-					counted.
+					group recorded before attempts and groups kept a start time comes
+					after every timed run, so for a case only those ran it need not be the
+					newest. A run is a pipeline run, a session attempt, or one attempt of
+					a finished group run on the whole case. Stage replays and stage-mode
+					groups are not counted.
 				</p>
 
 				{declaredPath === undefined ? null : (

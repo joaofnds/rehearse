@@ -268,8 +268,9 @@ attempt record kept), and a session
 case has no median, since its records hold no letter. The version is the first
 one recorded reading the case's runs newest first, a pipeline run by its name
 and a session attempt or finished group by the start time it recorded.
-Attempts and groups written before they recorded one follow every timed run,
-attempts first and then groups in id order. Group ids are random, so a case
+A run whose name names no instant, then attempts and groups written before
+they recorded one, follow every timed run, attempts first and then groups in
+id order. Group ids are random, so a case
 only such groups ran takes an arbitrary group's version. Declarations that do not parse
 are named in `unreadable`, and run records that do not parse in
 `unreadableRecords`. An unreadable pipeline run or session attempt is left out
@@ -307,8 +308,8 @@ runs counted at the latest corpus version, that version, and how many runs it
 left out at another version or none. In `figures` each group rep counts as a
 run, though `runs` names run records only. The latest version is the first
 one recorded reading runs and groups together newest first, a run by its name
-and a group by the start time it recorded, so the stages and the version come
-from the same record. A group written before groups recorded one has no time
+and a group by the start time it recorded. The stages come from the newest of
+them, the same record as the version unless that record holds none. A group written before groups recorded one has no time
 and follows them in id order, and group ids are random, so among such groups
 neither the stages nor the version need be the newest. When nothing recorded a version
 every run is counted and the version is `null`. A case declaration, run
@@ -1425,8 +1426,10 @@ commands as completed runs. `list attempts` validates attempt diagnostics, and
 attempt that preserved state evidence writes it to `state/` beside that
 `attempt.json`, with the session's `.git` stored as `dot-git`.
 A session attempt's `attempt.json`, a group rep's included, records
-`startedAt`, the ISO instant its `elapsedMs` starts. A record written before
-the field existed carries none, and readers place it after every timed record.
+`startedAt`, the ISO instant its `elapsedMs` starts. A standalone attempt
+written before the field existed carries none, and run history and the Cases
+screen place it after every timed record. A group rep is placed by its group's
+`startedAt`.
 
 Confirmation groups retain frozen inputs, rep records, and `report.json` beside
 `group.json`. Reps run concurrently in separate directories. Reports include
@@ -1846,7 +1849,11 @@ the run's own id. It answers 404 for a stage the run's pipeline does not have.
 ### Run history figures
 
 Every `/api/runs` row carries `cost` and `wallTime`, and a figure its records
-do not hold reads unavailable with its reasons, never zero. A cost that is
+do not hold reads unavailable with its reasons, never zero. A session attempt
+or confirmation group row carries `startedAt`, the start time its record kept,
+and leaves it undefined for a record written before the field existed. Rows
+come newest first by that time, a run's name or a replay's timestamp, and the
+rest follow in listing order. A cost that is
 available has the same shape as the pipeline run record's run cost: `usd`, the
 `parts` it summed and the parts it lacks under `missing`.
 
