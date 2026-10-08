@@ -13,7 +13,10 @@ import type { CorpusRoot } from "#benchmark/corpus-file";
 import type { CorpusMeasurement } from "#benchmark/corpus-measurement";
 import { readLaunchRecord } from "#benchmark/launch-record";
 import type { LaunchRecord } from "#benchmark/launch-record";
-import { consumedCheckpointStage } from "#benchmark/checkpoint";
+import {
+	consumedCheckpointStage,
+	INITIAL_CHECKPOINT_STAGE,
+} from "#benchmark/checkpoint";
 import { loadRunManifest } from "#benchmark/manifest";
 import { stoppedBeforeGroupRecord } from "#benchmark/operator-stop";
 import { OPERATOR_STOPPED } from "#benchmark/stopped-status";
@@ -651,23 +654,7 @@ async function rowFor(
 		status === "RUNNING"
 			? await heldBy(runsDirectory, run, liveness, launchByPid)
 			: undefined;
-	if (stage === undefined) {
-		return {
-			kind: "run",
-			run,
-			shortId,
-			checkpoints,
-			replayableStages: replayable,
-			status,
-			caseId,
-			stage: undefined,
-			grade: undefined,
-			progress,
-			links,
-			...figures,
-			launchId,
-		};
-	}
+	const grade = stage === undefined ? undefined : gradeByStage.get(stage);
 
 	return {
 		kind: "run",
@@ -678,7 +665,7 @@ async function rowFor(
 		status,
 		caseId,
 		stage,
-		grade: gradeByStage.get(stage),
+		grade,
 		progress,
 		links,
 		...figures,
@@ -1373,7 +1360,7 @@ function withStaleness(
 					formatRecordId({
 						kind: "checkpoint",
 						run: row.run,
-						stage: row.stage ?? "initial",
+						stage: row.stage ?? INITIAL_CHECKPOINT_STAGE,
 					}),
 				),
 			};
