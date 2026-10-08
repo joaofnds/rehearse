@@ -25,7 +25,6 @@ import {
 	confirmationGroupIds,
 	confirmationGroupPaths,
 	launchIds,
-	recordedInstant,
 	recordedRunNames,
 	replayAttemptIds,
 	replayRecordFile,
@@ -35,6 +34,7 @@ import {
 } from "#benchmark/run-layout";
 import type { RunEventStore } from "#benchmark/run-events";
 import { openRunEventStore } from "#benchmark/run-events";
+import { newestFirst } from "#benchmark/recorded-time";
 import { readReplayRecord } from "#benchmark/replay";
 import type { ReplayRecord } from "#benchmark/replay";
 import { parseSessionAttemptRecord } from "#benchmark/session-record";
@@ -1203,33 +1203,6 @@ function recordedTime(row: RunHistoryRow): string | undefined {
 	}
 }
 
-function rowInstant(row: RunHistoryRow): number | undefined {
-	const time = recordedTime(row);
-
-	return time === undefined ? undefined : recordedInstant(time);
-}
-
-/**
- * Newest first where a record says when it ran, then every row whose record
- * does not, in listing order. Placing those by file time would claim an order
- * the records never held: most attempt files share one modification second.
- */
-function newestFirst(rows: readonly RunHistoryRow[]): RunHistoryRow[] {
-	const timed = rows.flatMap((row) => {
-		const instant = rowInstant(row);
-
-		return instant === undefined ? [] : [{ row, instant }];
-	});
-	const untimed = rows.filter((row) => rowInstant(row) === undefined);
-
-	return [
-		...timed
-			.toSorted((left, right) => right.instant - left.instant)
-			.map(({ row }) => row),
-		...untimed,
-	];
-}
-
 /**
  * A saved record that failed to read, with the row kind it would have been,
  * or a short id registry, whose failure leaves only its own case's rows unnamed.
@@ -1484,7 +1457,7 @@ export async function runHistoryReport(
 		);
 
 		return {
-			rows: newestFirst(rows),
+			rows: newestFirst(rows, recordedTime),
 			launches: unheldLaunchRows(live.launches, live.stopped, rows),
 			unreadable: [...unreadable, ...live.unreadable],
 		};
