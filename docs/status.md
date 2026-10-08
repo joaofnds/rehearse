@@ -287,10 +287,10 @@ whose source run manifest is gone. Rows whose records say
 when they ran come first, newest first, a session attempt or confirmation run
 by the start time it recorded, which its row shows. Session attempts and
 confirmation runs written before they recorded one follow, marked time not
-recorded, as does a run whose directory name names no time. The count, the All filter and the
-rail badge cover every listed record. A browser launch, running or stopped,
-is listed under All above the records, a running one also under Running, and is not a record, so the count and
-the badge leave it out. A stopped launch's row stays there, whatever its age,
+recorded, as does a run whose directory name names no time. The count of
+records on disk covers every listed record. A browser launch, running or stopped,
+is listed under All above the records, a running one also under Running, and is not a record, so that count
+leaves it out, while the All filter and the rail badge count it with the records, as the list shows both. A stopped launch's row stays there, whatever its age,
 and a stopped single pipeline case shows twice, as its launch and as its run. A running pipeline run's row offers Pause after this step, and a row a
 browser launch started offers Stop & restore repo, except a root-cause analysis,
 which cannot be stopped; see

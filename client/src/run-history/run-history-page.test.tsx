@@ -1981,6 +1981,31 @@ describe(RunHistoryPage.name, () => {
 	describe("when a launch from the browser has not recorded anything yet", () => {
 		const launchedAt = "2026-09-29T10:00:00.000Z";
 
+		it("counts the launch on the All pill beside the records it lists", async () => {
+			respondingWith({
+				...oneStoppedOneComplete(),
+				launches: [
+					{
+						kind: "launch",
+						id: "7b0c2d4e-0000-4000-8000-000000000000",
+						target: "case",
+						caseId: "audit-log",
+						run: undefined,
+						stage: undefined,
+						attempts: 1,
+						launchedAt,
+						status: "RUNNING",
+					},
+				],
+			});
+
+			renderPage();
+
+			expect(
+				await screen.findByRole("button", { name: "All 3" }),
+			).toBeInTheDocument();
+		});
+
 		it("lists a started case as running, above the records", async () => {
 			respondingWith({
 				rows: [],
@@ -3792,7 +3817,7 @@ describe(RunHistoryPage.name, () => {
 			};
 		}
 
-		it("offers All with the record count and five narrower filters, All pressed", async () => {
+		it("offers All with the count of what it lists and five narrower filters, All pressed", async () => {
 			const { page, pressed } = await renderHistory();
 
 			const pills = within(page.container)
@@ -3800,14 +3825,14 @@ describe(RunHistoryPage.name, () => {
 				.filter((button) => button.hasAttribute("aria-pressed"));
 
 			expect(pills.map((pill) => pill.textContent)).toEqual([
-				"All 6",
+				"All 8",
 				"Running",
 				"Stopped",
 				"Replays",
 				"Groups",
 				"Clean corpus only",
 			]);
-			expect(pressed()).toEqual(["All 6"]);
+			expect(pressed()).toEqual(["All 8"]);
 		});
 
 		it.each(["Running", "Stopped", "Replays", "Groups", "Clean corpus only"])(

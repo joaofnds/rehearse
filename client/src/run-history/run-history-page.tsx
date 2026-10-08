@@ -10,6 +10,7 @@ import type { StatusState } from "#client/system/components/status";
 import { TableShell } from "#client/system/components/table-shell";
 import { Button } from "#client/system/ui/button";
 import { clockReading, liveElapsedMs, spendReading } from "./run-progress";
+import { listedEntryCount } from "./run-history-query";
 import type { RunHistoryResponse } from "./run-history-query";
 import { polledRunHistoryQuery } from "./run-history-polling";
 import { useNow } from "./use-now";
@@ -1472,7 +1473,7 @@ export function RunHistoryPage(): React.JSX.Element {
 
 			<FilterBar
 				active={filter}
-				total={query.isSuccess ? recorded.length : undefined}
+				total={query.isSuccess ? listedEntryCount(query.data) : undefined}
 				onSelect={setFilter}
 				search={search}
 				onSearch={setSearch}

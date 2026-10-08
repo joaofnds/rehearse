@@ -3,7 +3,10 @@ import { calibrationQuery } from "#client/calibration/calibration-query";
 import { createLink, Outlet } from "@tanstack/react-router";
 import { comparisonIndexQuery } from "#client/comparison/comparison-index-query";
 import { corpusQuery } from "#client/corpus/corpus-query";
-import { runListingQuery } from "#client/run-history/run-history-query";
+import {
+	listedEntryCount,
+	runListingQuery,
+} from "#client/run-history/run-history-query";
 import { useFreshInstall } from "#client/setup/fresh-install";
 import { SetupPage } from "#client/setup/setup-page";
 import { CorpusCard } from "./corpus-card";
@@ -87,7 +90,7 @@ function useBadgeCounts(): BadgeCounts {
 	const calibration = useQuery(calibrationQuery);
 
 	return {
-		runs: runs.data?.rows.length,
+		runs: runs.data === undefined ? undefined : listedEntryCount(runs.data),
 		monitor:
 			runs.data === undefined ? undefined : runsInFlight(runs.data.rows).length,
 		corpus: corpus.data?.files.length,

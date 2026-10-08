@@ -28,9 +28,9 @@ async function fetchRunHistoryReport(): Promise<RunHistoryResponse> {
 
 /**
  * The run-history query with every record's staleness judged, for the screens
- * that show it. The nav badge counts `runListingQuery`'s rows instead, which
- * are the same records, so it agrees with the list it links to (SPEC.md:78)
- * once both readings settle.
+ * that show it. The nav badge counts `runListingQuery`'s entries instead, which
+ * are the same records and launches, so it agrees with the list it links to
+ * (SPEC.md:78) once both readings settle.
  */
 export const runHistoryQuery = {
 	queryKey: ["run-history"],
@@ -60,3 +60,14 @@ export const runListingQuery = {
 	queryKey: [...runHistoryQuery.queryKey, "listing"],
 	queryFn: fetchRunListing,
 } as const;
+
+/**
+ * How many entries the run history lists unfiltered: its records and the
+ * launches no record stands for yet, since the table shows both.
+ */
+export function listedEntryCount(history: {
+	readonly rows: readonly unknown[];
+	readonly launches: readonly unknown[];
+}): number {
+	return history.rows.length + history.launches.length;
+}
