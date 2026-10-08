@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { UsageError } from "#cli/commands";
+import { CommandError } from "#benchmark/command";
 import { EXIT_CODES, exitCodeFor } from "#benchmark/exit-codes";
 import { RefusedPreconditionError } from "#cli/interactive-stdin";
 
@@ -42,6 +43,11 @@ describe("command failures", () => {
 		{
 			kind: "any other failure",
 			error: new Error("the target is dirty"),
+			code: EXIT_CODES.executionFailure,
+		},
+		{
+			kind: "a failed external command",
+			error: new CommandError(["git", "rev-parse", "HEAD"], 128, "", "fatal"),
 			code: EXIT_CODES.executionFailure,
 		},
 	])("maps $kind to exit code $code", ({ error, code }) => {

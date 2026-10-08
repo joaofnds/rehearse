@@ -1,6 +1,6 @@
 import { DEFAULT_ANALYSIS_BUDGET_USD } from "#benchmark/root-cause-analysis";
 import { DEFAULT_CASE_ID } from "#benchmark/config";
-import type { CommandFailure } from "#benchmark/exit-codes";
+import { CommandFailureError } from "#benchmark/command-failure-error";
 import { EXIT_CODES } from "#benchmark/exit-codes";
 
 export interface FlagDefinition {
@@ -498,7 +498,7 @@ export interface CommandLine {
 	readonly flags: readonly string[];
 }
 
-export class UsageError extends Error implements CommandFailure {
+export class UsageError extends CommandFailureError {
 	public readonly exitCode = EXIT_CODES.usageError;
 
 	public constructor(message: string) {

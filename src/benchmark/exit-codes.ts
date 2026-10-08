@@ -1,3 +1,5 @@
+import { CommandFailureError } from "./command-failure-error";
+
 export const EXIT_CODES = {
 	completed: 0,
 	executionFailure: 1,
@@ -7,19 +9,13 @@ export const EXIT_CODES = {
 
 export type ExitCode = (typeof EXIT_CODES)[keyof typeof EXIT_CODES];
 
-export interface CommandFailure extends Error {
-	readonly exitCode: ExitCode;
-}
-
-function isCommandFailure(error: Readonly<Error>): error is CommandFailure {
-	return "exitCode" in error;
-}
-
 export function exitCodeFor(error: Readonly<Error>): ExitCode {
-	return isCommandFailure(error) ? error.exitCode : EXIT_CODES.executionFailure;
+	return error instanceof CommandFailureError
+		? error.exitCode
+		: EXIT_CODES.executionFailure;
 }
 
-export class RefusedPreconditionError extends Error implements CommandFailure {
+export class RefusedPreconditionError extends CommandFailureError {
 	public readonly exitCode = EXIT_CODES.refusedPrecondition;
 
 	public constructor(message: string) {
