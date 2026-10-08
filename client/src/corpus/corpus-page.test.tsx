@@ -37,6 +37,7 @@ function corpusResponseBody(): CorpusResponse {
 				path: "CLAUDE.md",
 				sha256: "0".repeat(64),
 				lastEditedAt: "2026-09-04T09:41:00.000Z",
+				lines: 1,
 				readBy: 23,
 				invalidated: 0,
 			},

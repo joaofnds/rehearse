@@ -1,4 +1,4 @@
-import { stat } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import type { CorpusRoot } from "#benchmark/corpus-file";
 import type { LastEdit } from "#benchmark/corpus-invalidation";
@@ -11,6 +11,7 @@ export interface CorpusFileReport {
 	readonly path: string;
 	readonly sha256: string;
 	readonly lastEditedAt: string;
+	readonly lines: number;
 	/** Distinct run-history rows that read the file. */
 	readonly readBy: number;
 	/**
@@ -28,6 +29,16 @@ export interface CorpusReport {
 	readonly lastEdit: LastEdit;
 }
 
+/** Lines as an editor numbers them, so a last line without a newline counts. */
+function lineCount(text: string): number {
+	if (text === "") {
+		return 0;
+	}
+	const newlines = text.split("\n").length - 1;
+
+	return text.endsWith("\n") ? newlines : newlines + 1;
+}
+
 export async function corpusReport(
 	source: CorpusRoot,
 	runsDirectory: string,
@@ -37,11 +48,13 @@ export async function corpusReport(
 
 	const files: CorpusFileReport[] = [];
 	for (const file of layout.files) {
-		const fileStats = await stat(join(source.root, file.path));
+		const filePath = join(source.root, file.path);
+		const fileStats = await stat(filePath);
 		files.push({
 			path: file.path,
 			sha256: file.sha256,
 			lastEditedAt: fileStats.mtime.toISOString(),
+			lines: lineCount(await readFile(filePath, "utf8")),
 			readBy: invalidation.readBy.get(file.path) ?? 0,
 			invalidated: invalidation.invalidated.get(file.path) ?? 0,
 		});

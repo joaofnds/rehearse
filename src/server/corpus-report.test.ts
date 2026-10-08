@@ -52,6 +52,27 @@ describe(corpusReport.name, () => {
 		]);
 	});
 
+	it.each([
+		{ holding: "two lines ending in a newline", text: "one\ntwo\n", lines: 2 },
+		{ holding: "a last line with no newline", text: "one\ntwo", lines: 2 },
+		{ holding: "one empty line", text: "\n", lines: 1 },
+		{ holding: "nothing", text: "", lines: 0 },
+	])(
+		"counts $lines lines in a file holding $holding, as an editor shows them",
+		async ({ text, lines }) => {
+			const root = await fullCorpusDirectory();
+			await writeFile(join(root, "CLAUDE.md"), text);
+			const runs = await corpusDirectory();
+			await new RecordedRunsFixture(runs).write();
+
+			const report = await corpusReport(directorySource(root), runs);
+
+			expect(report.files.find(({ path }) => path === "CLAUDE.md")?.lines).toBe(
+				lines,
+			);
+		},
+	);
+
 	it("reports a rulebook file, since a stage session's corpus freezes rulebook whole", async () => {
 		const root = await fullCorpusDirectory();
 		await mkdir(join(root, "rulebook"), { recursive: true });

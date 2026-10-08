@@ -89,6 +89,7 @@ function corpusFile(path: string): CorpusFile {
 		path,
 		sha256: "a".repeat(64),
 		lastEditedAt: "2026-09-22T09:12:00.000Z",
+		lines: 1,
 		readBy: 0,
 		invalidated: 0,
 	};
