@@ -1598,8 +1598,9 @@ that predates it.
 Each stage, in the manifest's order, reports its status (`graded`, `stopped`,
 `awaiting-judgment` or `no-record`), its grade as the letter and the judge's
 verdict, how many of the rubric's hard blockers its judge found fired out of
-how many it checked, with the fired ones' ids, unavailable when its record
-holds no graded hard blockers, its
+how many it checked, with the fired ones' ids, read from a scorecard's grade
+or from a stop record's top level, unavailable when its record holds no graded
+hard blockers, its
 checkpoint's short id, its session and judge cost, and its tokens
 as input, cache read, cache write, output and total input, summed over its
 session calls and judge attempts. Its instruction files are the corpus files
@@ -1661,7 +1662,8 @@ them still parses and reads each as unavailable:
   its `corpusVersion`, the version measured when the run started;
 - each stage record's and the main artifact's `elapsedMs`, and the main
   artifact's `productOwnerProviderCalls`;
-- a stop record's `grade` (letter and verdict), judge `attempts`,
+- a stop record's `grade` (letter and verdict), the judge's `hardBlockers`,
+  `requirements`, `dimensions` and `summary` at its top level, judge `attempts`,
   `minimumGrade`, `elapsedMs`, `runElapsedMs`, `productOwnerCostUsd` and
   `productOwnerProviderCalls`, written when a stage's grade falls below the
   minimum and absent when its judge returned no grade;
@@ -1974,7 +1976,8 @@ unavailable.
 
 A run, replay or group row's `firedBlockers` lists, once each, the id of every
 hard blocker its stage judges found fired, which the run history's search
-matches. A run's come from its graded stage records, a replay's from its stage
+matches. A run's come from its stage records, the stop record of the stage
+that stopped it included, a replay's from its stage
 grade, and a group's from each rep's stage record rather than its judge
 attempts, whose payload a retried attempt can leave disagreeing with the grade
 the rep kept. The list is unavailable with the reason when no stage record
