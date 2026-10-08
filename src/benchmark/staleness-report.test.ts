@@ -12,15 +12,19 @@ import {
 	RecordedRunsFixture,
 } from "./run-records-test-support";
 import { TestResources } from "./test-support";
+import type { CorpusUnderTest } from "./corpus-version";
+import type { CorpusRoot } from "./corpus-file";
 import {
+	checkpointReport,
 	checkpointStaleness,
+	everyRecordStaleness,
 	groupRepReads,
 	groupStaleness,
 	replayAttemptStaleness,
 	sessionAttemptStaleness,
 	staleCheckpoints,
 } from "./staleness-report";
-import { measureCorpusVersion } from "./corpus-version";
+import { measureCorpusVersion, readCorpusUnderTest } from "./corpus-version";
 import { benchmarkRunPaths, confirmationGroupPaths } from "./run-layout";
 import { stageRubricSha256 } from "./judge-agreement";
 import type { ReadManifestEntry } from "./read-manifest";
@@ -2084,6 +2088,83 @@ describe(sessionAttemptStaleness.name, () => {
 			);
 
 			expect(report.records).toEqual([]);
+		});
+	});
+});
+
+/**
+ * The real reader of the corpus under test, counting each hash of the corpus
+ * and each record whose version distance the reading is asked for, which is
+ * one per judged record but an initial checkpoint.
+ */
+class CountingCorpusReader {
+	public hashes = 0;
+	public judgments = 0;
+
+	public readonly read = async (
+		recordsDirectory: string,
+		source: CorpusRoot,
+	): Promise<CorpusUnderTest> => {
+		this.hashes += 1;
+		const underTest = await readCorpusUnderTest(recordsDirectory, source);
+
+		return {
+			previousVersion: underTest.previousVersion,
+			distanceOf: (measurement) => {
+				this.judgments += 1;
+
+				return underTest.distanceOf(measurement);
+			},
+		};
+	};
+}
+
+describe(everyRecordStaleness.name, () => {
+	const resources = TestResources.forEachTest();
+
+	async function temporaryDirectory(prefix: string): Promise<string> {
+		const directory = await mkdtemp(join(tmpdir(), prefix));
+		resources.track(directory);
+
+		return directory;
+	}
+
+	it("hashes the corpus under test once and judges each record once", async () => {
+		const fixture = new RecordedRunsFixture(
+			await temporaryDirectory("rehearse-every-staleness-"),
+			{ settingsFile: await liveStageSettings() },
+		);
+		await fixture.write();
+		await fixture.writeInitialCheckpoint();
+		const corpus = await temporaryDirectory("rehearse-every-corpus-");
+		await mkdir(join(corpus, "skills", "build"), { recursive: true });
+		await mkdir(join(corpus, "skills", "discuss"), { recursive: true });
+		await Bun.write(join(corpus, "CLAUDE.md"), "the instructions\n");
+		await Bun.write(join(corpus, "skills", "build", "SKILL.md"), "build\n");
+		await Bun.write(join(corpus, "skills", "discuss", "SKILL.md"), "discuss\n");
+		await fixture.recordCorpusFrom(directorySource(corpus));
+		await fixture.recordVersionFrom(directorySource(corpus));
+		await fixture.recordReplayFrom(directorySource(corpus));
+		const reader = new CountingCorpusReader();
+
+		const every = await everyRecordStaleness(
+			fixture.runsDirectory,
+			directorySource(corpus),
+			reader.read,
+		);
+
+		const measured = [
+			checkpointReport(every.checkpoints),
+			every.sessionAttempts,
+			every.replayAttempts,
+			every.groups,
+		]
+			.flatMap(({ records }) => records)
+			.filter(({ id }) => !id.endsWith("/initial"));
+		expect(every.replayAttempts.records).not.toEqual([]);
+		expect({ hashes: reader.hashes, judgments: reader.judgments }).toEqual({
+			hashes: 1,
+			judgments: measured.length,
 		});
 	});
 });

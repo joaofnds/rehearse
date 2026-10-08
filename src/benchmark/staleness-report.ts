@@ -513,12 +513,16 @@ export async function checkpointStaleness(
 	source: CorpusRoot,
 	knobs: CurrentSessionKnobs = {},
 ): Promise<StalenessReport> {
-	const { byRun, unreadable } = await checkpointStalenessByRun(
-		runsDirectory,
-		source,
-		knobs,
+	return checkpointReport(
+		await checkpointStalenessByRun(runsDirectory, source, knobs),
 	);
+}
 
+/** Every run's checkpoints in one report. */
+export function checkpointReport({
+	byRun,
+	unreadable,
+}: CheckpointStalenessByRun): StalenessReport {
 	return { records: [...byRun.values()].flat(), unreadable };
 }
 
@@ -534,17 +538,27 @@ export async function checkpointStalenessByRun(
 	source: CorpusRoot,
 	knobs: CurrentSessionKnobs = {},
 ): Promise<CheckpointStalenessByRun> {
+	return checkpointStalenessAgainst(
+		runsDirectory,
+		await corpusJudgedAgainst(runsDirectory, source, readCorpusUnderTest),
+		knobs,
+	);
+}
+
+async function checkpointStalenessAgainst(
+	runsDirectory: string,
+	against: CorpusJudgedAgainst,
+	knobs: CurrentSessionKnobs,
+): Promise<CheckpointStalenessByRun> {
 	const byRun = new Map<string, RecordStaleness[]>();
 	const unreadable: UnreadableStaleRecord[] = [];
-	const instructions = await currentInstructions(source);
-	const underTest = await readCorpusUnderTest(runsDirectory, source);
 
 	for (const run of await recordedRunNames(runsDirectory)) {
 		try {
 			const judged = await runCheckpointStaleness(
 				runsDirectory,
 				run,
-				{ source, instructions, underTest },
+				against,
 				knobs,
 			);
 			if (judged !== undefined) {
@@ -576,11 +590,7 @@ export async function checkpointStalenessOfRun(
 	const judged = await runCheckpointStaleness(
 		runsDirectory,
 		run,
-		{
-			source,
-			instructions: await currentInstructions(source),
-			underTest: await readCorpusUnderTest(runsDirectory, source),
-		},
+		await corpusJudgedAgainst(runsDirectory, source, readCorpusUnderTest),
 		{},
 	);
 
@@ -627,6 +637,24 @@ interface CorpusJudgedAgainst {
 	readonly source: CorpusRoot;
 	readonly instructions: CurrentInstructions;
 	readonly underTest: CorpusUnderTest;
+}
+
+/** Reads the corpus under test as `readCorpusUnderTest` does. */
+export type CorpusUnderTestReader = (
+	recordsDirectory: string,
+	source: CorpusRoot,
+) => Promise<CorpusUnderTest>;
+
+async function corpusJudgedAgainst(
+	runsDirectory: string,
+	source: CorpusRoot,
+	readUnderTest: CorpusUnderTestReader,
+): Promise<CorpusJudgedAgainst> {
+	return {
+		source,
+		instructions: await currentInstructions(source),
+		underTest: await readUnderTest(runsDirectory, source),
+	};
 }
 
 /**
@@ -780,8 +808,17 @@ export async function sessionAttemptStaleness(
 	runsDirectory: string,
 	source: CorpusRoot,
 ): Promise<StalenessReport> {
+	return sessionAttemptStalenessAgainst(runsDirectory, {
+		source,
+		underTest: await readCorpusUnderTest(runsDirectory, source),
+	});
+}
+
+async function sessionAttemptStalenessAgainst(
+	runsDirectory: string,
+	{ source, underTest }: Omit<CorpusJudgedAgainst, "instructions">,
+): Promise<StalenessReport> {
 	const listing = await listCases();
-	const underTest = await readCorpusUnderTest(runsDirectory, source);
 	const attempts = await sessionAttemptIds(runsDirectory);
 	const records: RecordStaleness[] = [];
 	const unreadable: UnreadableStaleRecord[] = listing.unreadable.map(
@@ -900,9 +937,21 @@ export async function replayAttemptStaleness(
 	source: CorpusRoot,
 	knobs: CurrentSessionKnobs = {},
 ): Promise<StalenessReport> {
-	const instructions = await currentInstructions(source);
-	const underTest = await readCorpusUnderTest(runsDirectory, source);
-	const upstream = await checkpointStaleness(runsDirectory, source);
+	return replayAttemptStalenessAgainst(
+		runsDirectory,
+		await corpusJudgedAgainst(runsDirectory, source, readCorpusUnderTest),
+		await checkpointStaleness(runsDirectory, source),
+		knobs,
+	);
+}
+
+/** Given `upstream`, every checkpoint judged with no knob named. */
+async function replayAttemptStalenessAgainst(
+	runsDirectory: string,
+	{ source, instructions, underTest }: CorpusJudgedAgainst,
+	upstream: StalenessReport,
+	knobs: CurrentSessionKnobs,
+): Promise<StalenessReport> {
 	const staleCheckpointsById = new Map(
 		upstream.records
 			.filter(({ stale }) => stale)
@@ -1382,8 +1431,18 @@ export async function groupStaleness(
 	source: CorpusRoot,
 	knobs: CurrentSessionKnobs = {},
 ): Promise<StalenessReport> {
-	const instructions = await currentInstructions(source);
-	const underTest = await readCorpusUnderTest(runsDirectory, source);
+	return groupStalenessAgainst(
+		runsDirectory,
+		await corpusJudgedAgainst(runsDirectory, source, readCorpusUnderTest),
+		knobs,
+	);
+}
+
+async function groupStalenessAgainst(
+	runsDirectory: string,
+	{ source, instructions, underTest }: CorpusJudgedAgainst,
+	knobs: CurrentSessionKnobs,
+): Promise<StalenessReport> {
 	const records: RecordStaleness[] = [];
 	const unreadable: UnreadableStaleRecord[] = [];
 
@@ -1438,4 +1497,49 @@ export async function groupStaleness(
 	}
 
 	return { records, unreadable };
+}
+
+/** Every record kind's staleness, judged with the knobs each was recorded with. */
+export interface EveryRecordStaleness {
+	readonly checkpoints: CheckpointStalenessByRun;
+	readonly sessionAttempts: StalenessReport;
+	readonly replayAttempts: StalenessReport;
+	readonly groups: StalenessReport;
+}
+
+/**
+ * Every record's staleness against one reading of the corpus under test, each
+ * checkpoint judged once: a replay's upstream stages are the checkpoints
+ * judged here.
+ */
+export async function everyRecordStaleness(
+	runsDirectory: string,
+	source: CorpusRoot,
+	readUnderTest: CorpusUnderTestReader = readCorpusUnderTest,
+): Promise<EveryRecordStaleness> {
+	const against = await corpusJudgedAgainst(
+		runsDirectory,
+		source,
+		readUnderTest,
+	);
+	const checkpoints = await checkpointStalenessAgainst(
+		runsDirectory,
+		against,
+		{},
+	);
+
+	return {
+		checkpoints,
+		sessionAttempts: await sessionAttemptStalenessAgainst(
+			runsDirectory,
+			against,
+		),
+		replayAttempts: await replayAttemptStalenessAgainst(
+			runsDirectory,
+			against,
+			checkpointReport(checkpoints),
+			{},
+		),
+		groups: await groupStalenessAgainst(runsDirectory, against, {}),
+	};
 }

@@ -55,11 +55,9 @@ import {
 } from "#benchmark/short-id";
 import type { ShortIdEntry } from "#benchmark/short-id";
 import {
-	checkpointStaleness,
+	checkpointReport,
+	everyRecordStaleness,
 	frozenPipeline,
-	groupStaleness,
-	replayAttemptStaleness,
-	sessionAttemptStaleness,
 } from "#benchmark/staleness-report";
 import type { RecordStaleness } from "#benchmark/staleness-report";
 import type { RunLiveness } from "#benchmark/run-liveness";
@@ -1280,11 +1278,12 @@ export async function recordStaleness(
 	runsDirectory: string,
 	source: CorpusRoot,
 ): Promise<Staleness> {
+	const every = await everyRecordStaleness(runsDirectory, source);
 	const reports = [
-		await checkpointStaleness(runsDirectory, source),
-		await sessionAttemptStaleness(runsDirectory, source),
-		await replayAttemptStaleness(runsDirectory, source),
-		await groupStaleness(runsDirectory, source),
+		checkpointReport(every.checkpoints),
+		every.sessionAttempts,
+		every.replayAttempts,
+		every.groups,
 	];
 	const judgedById = new Map<string, RowStaleness>();
 	for (const { id, readFiles: _read, ...judged } of reports.flatMap(

@@ -15,12 +15,7 @@ import { INITIAL_CHECKPOINT_STAGE } from "./checkpoint";
 import { loadRunManifest } from "./manifest";
 import { benchmarkRunPaths, checkpointStageNames } from "./run-layout";
 import type { RecordStaleness } from "./staleness-report";
-import {
-	checkpointStalenessByRun,
-	groupStaleness,
-	replayAttemptStaleness,
-	sessionAttemptStaleness,
-} from "./staleness-report";
+import { everyRecordStaleness } from "./staleness-report";
 
 /**
  * The run-history rows the last edit invalidated: those fresh against the
@@ -87,16 +82,10 @@ async function rowReadings(
 	runsDirectory: string,
 	source: CorpusRoot,
 ): Promise<readonly RowReading[]> {
-	const { byRun, unreadable } = await checkpointStalenessByRun(
-		runsDirectory,
-		source,
-	);
+	const every = await everyRecordStaleness(runsDirectory, source);
+	const { byRun, unreadable } = every.checkpoints;
 	const unreadableIds = new Set(unreadable.map(({ id }) => id));
-	const reports = [
-		await sessionAttemptStaleness(runsDirectory, source),
-		await replayAttemptStaleness(runsDirectory, source),
-		await groupStaleness(runsDirectory, source),
-	];
+	const reports = [every.sessionAttempts, every.replayAttempts, every.groups];
 	const runs = await Promise.all(
 		[...byRun.entries()].map(([run, records]) =>
 			runRow(runsDirectory, run, records, unreadableIds.has(`run:${run}`)),
