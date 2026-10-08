@@ -1438,13 +1438,9 @@ export function RunHistoryPage(): React.JSX.Element {
 	const unreadable = query.data?.unreadable ?? [];
 	const recorded = query.data?.rows ?? [];
 	const allLaunches = query.data?.launches ?? [];
-	const { rows, launches } = listedRecords(
-		{ rows: recorded, launches: allLaunches },
-		filter,
-		search,
-	);
-	const listable =
-		listedEntryCount({ rows: recorded, launches: allLaunches }) > 0;
+	const history = { rows: recorded, launches: allLaunches };
+	const { rows, launches } = listedRecords(history, filter, search);
+	const listable = listedEntryCount(history) > 0;
 	const nothingListed =
 		query.isSuccess && rows.length === 0 && launches.length === 0;
 	const nowMs = useNow(
