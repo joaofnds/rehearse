@@ -277,6 +277,7 @@ const stageFileSchema = z
 			})
 			.loose()
 			.optional(),
+		hardBlockers: gradedHardBlockersSchema.optional(),
 		attempts: callsSchema.optional(),
 		corpusFiles: z.array(hashedFileSchema).optional(),
 		corpusVersion: corpusMeasurementSchema.optional(),
@@ -614,8 +615,15 @@ export function firedBlockerIds(
 		.map(({ id }) => id);
 }
 
+/** The hard blockers a scorecard keeps in its grade, or a stop record beside it. */
+function recordedHardBlockers(
+	file: StageFile | undefined,
+): GradedHardBlockers | undefined {
+	return file?.grade?.hardBlockers ?? file?.hardBlockers;
+}
+
 function blockersOf(file: StageFile | undefined): RunRecordStage["blockers"] {
-	const hardBlockers = file?.grade?.hardBlockers;
+	const hardBlockers = recordedHardBlockers(file);
 	if (hardBlockers === undefined) {
 		return {
 			state: "unavailable",

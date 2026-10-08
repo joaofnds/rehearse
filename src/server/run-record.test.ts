@@ -320,7 +320,50 @@ describe("/api/runs/:run", () => {
 				});
 			});
 
-			it("reports the fired blockers as unavailable for a stage whose judge failed", async () => {
+			it("counts the hard blockers a scorecard keeps in its grade", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeStoppedRunWithReadings();
+				const discuss = benchmarkRunPaths(
+					fixture.runsDirectory,
+					fixture.stoppedRun,
+				).stageFile("discuss");
+				await Bun.write(
+					discuss,
+					JSON.stringify({
+						...z
+							.object({})
+							.loose()
+							.parse(await Bun.file(discuss).json()),
+						grade: {
+							grade: "C",
+							verdict: "CONTINUE",
+							hardBlockers: [
+								{ id: "scope-declared", status: "FAIL" },
+								{ id: "no-secrets-in-diff", status: "PASS" },
+							],
+						},
+					}),
+				);
+
+				const response = await runRecord(fixture, fixture.stoppedRun);
+
+				expect(await response.json()).toMatchObject({
+					stages: [
+						{
+							stage: "discuss",
+							blockers: {
+								state: "available",
+								fired: 1,
+								total: 2,
+								firedIds: ["scope-declared"],
+							},
+						},
+						{ stage: "build" },
+					],
+				});
+			});
+
+			it("counts the hard blockers a stop record from before the letter grade keeps", async () => {
 				const fixture = await emptyFixture();
 				await fixture.writeStoppedRunEvidence();
 
@@ -329,7 +372,35 @@ describe("/api/runs/:run", () => {
 				expect(await response.json()).toMatchObject({
 					stages: [
 						{ stage: "discuss" },
-						{ stage: "build", blockers: { state: "unavailable" } },
+						{
+							stage: "build",
+							blockers: {
+								state: "available",
+								fired: 0,
+								total: 0,
+								firedIds: [],
+							},
+						},
+					],
+				});
+			});
+
+			it("reports the fired blockers as unavailable for a stage whose judge failed", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeStoppedRun();
+
+				const response = await runRecord(fixture, fixture.stoppedRun);
+
+				expect(await response.json()).toMatchObject({
+					stages: [
+						{ stage: "discuss" },
+						{
+							stage: "build",
+							blockers: {
+								state: "unavailable",
+								reasons: ["the stage record holds no graded hard blockers"],
+							},
+						},
 					],
 				});
 			});

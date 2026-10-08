@@ -149,14 +149,11 @@ export const RECORDED_READINGS = {
 
 /** The fields a newer harness adds to a record an older one wrote. */
 interface NewerRecordFields {
-	readonly grade?: {
-		readonly grade: string;
-		readonly verdict: string;
-		readonly hardBlockers?: readonly {
-			readonly id: string;
-			readonly status: "PASS" | "FAIL";
-		}[];
-	};
+	readonly grade?: { readonly grade: string; readonly verdict: string };
+	readonly hardBlockers?: readonly {
+		readonly id: string;
+		readonly status: "PASS" | "FAIL";
+	}[];
 	readonly attempts?: readonly unknown[];
 	readonly minimumGrade?: string;
 	readonly elapsedMs?: number;
@@ -1226,6 +1223,8 @@ export class RecordedRunsFixture {
 	 * of `RECORDED_READINGS`: the manifest names the minimum grade, each stage
 	 * record its elapsed time, and the stop record the letter build fell to,
 	 * the run's elapsed time and the Product Owner's spend up to the stop.
+	 * The stop record keeps the Judge's hard blockers beside its grade, as
+	 * `writeStageJudgeFailure` writes them.
 	 */
 	public async writeStoppedRunWithReadings(): Promise<void> {
 		await this.writeStoppedRunEvidence();
@@ -1238,15 +1237,12 @@ export class RecordedRunsFixture {
 			elapsedMs: RECORDED_READINGS.stageElapsedMs.discuss,
 		});
 		await mergeIntoRecord(paths.stageFile("build"), {
-			grade: {
-				grade: RECORDED_READINGS.stoppedLetter,
-				verdict: "STOP",
-				hardBlockers: [
-					{ id: "no-secrets-in-diff", status: "FAIL" },
-					{ id: "no-unrelated-refactors", status: "FAIL" },
-					{ id: "tests-pass-before-handoff", status: "PASS" },
-				],
-			},
+			grade: { grade: RECORDED_READINGS.stoppedLetter, verdict: "STOP" },
+			hardBlockers: [
+				{ id: "no-secrets-in-diff", status: "FAIL" },
+				{ id: "no-unrelated-refactors", status: "FAIL" },
+				{ id: "tests-pass-before-handoff", status: "PASS" },
+			],
 			attempts: [
 				{
 					payload: {},
