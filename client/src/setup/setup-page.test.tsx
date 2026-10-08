@@ -20,9 +20,12 @@ const originalFetch = globalThis.fetch;
 
 afterEach(() => {
 	globalThis.fetch = originalFetch;
+	focusManager.setFocused(undefined);
 });
 
-const LIVE_ROOT = "/home/operator/.claude";
+const LIVE_ROOT = settingsReading(null).liveCorpusRoot;
+
+const RECORDED_RUN = "2026-09-06T21-58-29.508Z";
 
 const ONE_RUN: RunHistoryResponse = {
 	rows: [
@@ -33,7 +36,7 @@ const ONE_RUN: RunHistoryResponse = {
 			shortId: undefined,
 			checkpoints: [],
 			links: [],
-			run: "2026-09-06T21-58-29.508Z",
+			run: RECORDED_RUN,
 			caseId: "audit-log",
 			status: "COMPLETE",
 			stage: "build",
@@ -102,6 +105,10 @@ const SCANNED_CORPUS: CorpusResponse = {
 	},
 };
 
+function limitInput(): HTMLElement {
+	return screen.getByRole("textbox", { name: "Spend limit in US dollars" });
+}
+
 function corpusInput(): HTMLElement {
 	return screen.getByRole("textbox", { name: "Corpus directory" });
 }
@@ -159,14 +166,8 @@ describe("first-run setup", () => {
 	});
 
 	describe("the spend limit", () => {
-		function limitInput(): HTMLElement {
-			return screen.getByRole("textbox", {
-				name: "Spend limit in US dollars",
-			});
-		}
-
 		function pressedPresets(): (string | null)[] {
-			return screen
+			return within(screen.getByRole("list", { name: "Setup steps" }))
 				.getAllByRole("button", { pressed: true })
 				.map((button) => button.textContent);
 		}
@@ -203,14 +204,29 @@ describe("first-run setup", () => {
 		});
 
 		it("stores nothing while the limit is chosen", async () => {
-			const server = serveFreshInstall();
+			const server = serveFreshInstall(
+				new Map<string, Reply>([
+					[
+						"PUT /api/setup/corpus",
+						{ status: 200, body: settingsReading(null) },
+					],
+					["GET /api/corpus", { status: 200, body: SCANNED_CORPUS }],
+				]),
+			);
 			renderAppAt("/");
 			await setupSteps();
 
 			fireEvent.click(screen.getByRole("button", { name: "$50.00" }));
 			fireEvent.change(limitInput(), { target: { value: "3" } });
+			// A later round trip lets any write the choice started reach the server.
+			scan();
+			await screen.findByText(/^Found 2 files/u);
 
-			expect(server.sent.filter(({ method }) => method !== "GET")).toEqual([]);
+			expect(
+				server.sent.filter(
+					({ pathname }) => pathname === "/api/settings/spend-ceiling",
+				),
+			).toEqual([]);
 		});
 	});
 
@@ -349,6 +365,7 @@ describe("first-run setup", () => {
 			);
 
 			expect(steps[1]).toHaveTextContent("Linked");
+			expect(steps[1]).not.toHaveClass("opacity-55");
 		});
 
 		it("shows the server's refusal and lists nothing when the scan is refused", async () => {
@@ -551,23 +568,81 @@ describe("first-run setup", () => {
 				status: 409,
 				body: { error: "The settings file is unreadable" },
 			};
-			try {
-				focusManager.setFocused(false);
-				focusManager.setFocused(true);
+			focusManager.setFocused(false);
+			focusManager.setFocused(true);
 
-				expect(await screen.findByRole("alert")).toHaveTextContent(
-					"The settings file is unreadable",
-				);
-				expect(
-					screen.getByRole("heading", { name: "Nothing is measured yet" }),
-				).toBeInTheDocument();
-			} finally {
-				focusManager.setFocused(undefined);
-			}
+			expect(await screen.findByRole("alert")).toHaveTextContent(
+				"The settings file is unreadable",
+			);
+			expect(
+				screen.getByRole("heading", { name: "Nothing is measured yet" }),
+			).toBeInTheDocument();
 		});
 	});
 
 	describe("when the install is not fresh", () => {
+		it.each<{
+			readonly holding: string;
+			readonly records: RunHistoryResponse;
+			readonly shows: string;
+		}>([
+			{
+				holding: "only a live launch",
+				shows: "audit-log",
+				records: {
+					rows: [],
+					launches: [
+						{
+							kind: "launch",
+							id: "launch-1",
+							target: "case",
+							caseId: "audit-log",
+							run: undefined,
+							stage: undefined,
+							attempts: 1,
+							launchedAt: "2026-09-06T21:58:29.508Z",
+							status: "RUNNING",
+						},
+					],
+					unreadable: [],
+				},
+			},
+			{
+				holding: "only an unreadable record",
+				shows: "These records could not be read",
+				records: {
+					rows: [],
+					launches: [],
+					unreadable: [
+						{
+							kind: "run",
+							id: "run:2026-09-01T00-00-00.000Z",
+							reason: "manifest.json is empty",
+						},
+					],
+				},
+			},
+		])(
+			"opens on run history for records holding $holding without a ceiling",
+			async ({ records, shows }) => {
+				serve(
+					new Map<string, Reply>([
+						["GET /api/settings", { status: 200, body: settingsReading(null) }],
+						["GET /api/runs", { status: 200, body: records }],
+					]),
+				);
+
+				renderAppAt("/");
+
+				expect(
+					await screen.findByText(shows, { exact: false }),
+				).toBeInTheDocument();
+				expect(
+					screen.queryByText("Nothing is measured yet"),
+				).not.toBeInTheDocument();
+			},
+		);
+
 		it("opens on run history once a spend ceiling is stored", async () => {
 			serve(
 				new Map<string, Reply>([
@@ -595,9 +670,7 @@ describe("first-run setup", () => {
 
 			renderAppAt("/");
 
-			expect(
-				await screen.findByText("2026-09-06T21-58-29.508Z"),
-			).toBeInTheDocument();
+			expect(await screen.findByText(RECORDED_RUN)).toBeInTheDocument();
 			await waitFor(() => {
 				expect(
 					screen.queryByText("Nothing is measured yet"),

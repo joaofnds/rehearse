@@ -1917,6 +1917,23 @@ describe(createLaunchApp.name, () => {
 				expect(after.linkedCorpus.root).toBe(linked);
 			});
 
+			it("refuses a directory that does not exist and keeps the link, though the live root is absent too", async () => {
+				const { send, get } = await harness("missing");
+				const linked = await corpusDirectory();
+				await send("PUT", "/api/setup/corpus", { directory: linked });
+
+				const response = await send("PUT", "/api/setup/corpus", {
+					directory: join(
+						await temporaryDirectory("rehearse-absent-"),
+						"absent",
+					),
+				});
+
+				expect(response.status).toBe(409);
+				const after = await reading(get);
+				expect(after.linkedCorpus.root).toBe(linked);
+			});
+
 			it("refuses a relative path as a bad request naming the absolute-path rule", async () => {
 				const { send } = await harness("missing");
 
