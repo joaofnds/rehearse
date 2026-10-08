@@ -334,10 +334,7 @@ export async function runWorkflowStage(
 
 		throw new Error(`${stage} exceeded ${MAX_STAGE_TURNS} turns`);
 	} catch (error) {
-		if (
-			error instanceof StageSessionError ||
-			calls.providerCalls().length === 0
-		) {
+		if (error instanceof StageSessionError) {
 			throw error;
 		}
 

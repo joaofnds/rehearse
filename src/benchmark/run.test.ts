@@ -1643,6 +1643,30 @@ describe(runGradedStages.name, () => {
 			});
 		});
 
+		it("records a session the ceiling refused before its first call as spending nothing", async () => {
+			const { dependencies } = fakeStageDependencies();
+			const { persistence, abort } = atCeiling();
+			const context = await ceilingContext(abort);
+			context.spendCeiling.charge(1);
+			const sessions = {
+				...dependencies,
+				runWorkflowStage: (request: WorkflowStageRequest) =>
+					runWorkflowStage(request, () =>
+						Promise.reject(new Error("no call is made")),
+					),
+			};
+
+			const failure = await failureOf(runGradedStages(sessions, context));
+			await abort.markAborted(failure.message);
+
+			expect(
+				JSON.parse(persistence.files.get(context.stageFile("shape")) ?? ""),
+			).toMatchObject({
+				session: { providerCalls: [], costUsd: 0 },
+				ceilingStop: { ceilingUsd: 1, spentUsd: 1 },
+			});
+		});
+
 		it("records the ceiling stop when the Judge's rejected answer spent to the ceiling", async () => {
 			const { dependencies } = fakeStageDependencies();
 			const { persistence, abort } = atCeiling();

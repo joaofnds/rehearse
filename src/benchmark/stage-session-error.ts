@@ -11,8 +11,9 @@ export interface StageSessionFailure {
 }
 
 /**
- * A stage session that failed once it had made a call, carrying the calls it
- * made and its spend up to the failure, unknown when its last call reported none.
+ * A stage session that failed, carrying the calls it made, none when it
+ * failed before its first, and its spend up to the failure, unknown when its
+ * last call reported none.
  */
 export class StageSessionError extends Error {
 	public readonly providerCalls: readonly ProviderCall[];

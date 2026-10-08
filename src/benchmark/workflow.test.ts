@@ -1154,7 +1154,8 @@ describe("the spend ceiling", () => {
 				}),
 			);
 
-			expect(failure).toBeInstanceOf(SpendCeilingReachedError);
+			expect(failure.cause).toBeInstanceOf(SpendCeilingReachedError);
+			expect(failure).toMatchObject({ providerCalls: [], costUsd: 0 });
 			expect(calls).toBe(0);
 		});
 
