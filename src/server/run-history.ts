@@ -1317,17 +1317,11 @@ function runOfCheckpoint(recordId: string): string {
 }
 
 /**
- * Every recorded run rendered as a run-history row, staleness recomputed
- * against `source` on every call rather than cached: a stale badge that is
- * silently wrong is worse than the cost of hashing the corpus.
- *
- * One run's failure to read, a malformed artifact, a missing manifest, a
- * corpus file `checkpointStaleness` cannot resolve, is collected rather than
- * thrown: the `list runs` precedent (`src/cli/list-command.ts`'s `collect`)
- * is what this follows, so a single bad run cannot blank the whole response
- * the way an uncaught throw would. The reason is redacted the same way,
- * since a filesystem error can name a path under the corpus root or the
- * target repository, neither of which lives under `CONTROL_DIR`.
+ * Every row `runListing` renders, each with its staleness recomputed against
+ * `source` on every call rather than cached: a stale badge that is silently
+ * wrong is worse than the cost of hashing the corpus. A record whose
+ * staleness cannot be judged, a corpus file it cannot resolve among them,
+ * shows that staleness as unavailable rather than failing the report.
  *
  * Given `only`, the report holds just the records with those ids, such as
  * the rows the corpus report says the last edit invalidated.
@@ -1407,6 +1401,14 @@ function withStaleness(
  * Every recorded run rendered as a row, as `runHistoryReport` renders it but
  * without judging any record's staleness, so it reads neither the corpus
  * under test nor any record's read manifest.
+ *
+ * One run's failure to read, a malformed artifact or a missing manifest, is
+ * collected rather than thrown: the `list runs` precedent
+ * (`src/cli/list-command.ts`'s `collect`) is what this follows, so a single
+ * bad run cannot blank the whole response the way an uncaught throw would.
+ * The reason is redacted the same way, since a filesystem error can name a
+ * path under the corpus root or the target repository, neither of which
+ * lives under `CONTROL_DIR`.
  */
 export async function runListing(
 	runsDirectory: string,
