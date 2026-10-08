@@ -3,7 +3,7 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { ComparisonIndexResponse } from "#client/comparison/comparison-index-query";
 import type { CorpusResponse } from "#client/corpus/corpus-query";
 import type { RunHistoryResponse } from "#client/run-history/run-history-query";
-import { stubFetchByPath } from "#client/test-support/fetch-stub";
+import { FakeServer, stubFetchByPath } from "#client/test-support/fetch-stub";
 import {
 	UNREAD_SESSION_ATTEMPT_FIGURES,
 	UNREAD_RUN_FIGURES,
@@ -14,6 +14,7 @@ import { createAppRouter } from "#client/router";
 import {
 	renderAppAt,
 	renderAppWithStub,
+	SHELL_BASELINE,
 	stubFetchFailing,
 } from "#client/test-support/render-app";
 import { runRow as runInFlight } from "#client/test-support/runs-in-flight";
@@ -612,5 +613,38 @@ describe("the navigation shell", () => {
 				"/corpus",
 			);
 		});
+	});
+
+	describe("on a screen that shows no staleness", () => {
+		it.each([
+			["/corpus", "Instruction corpus"],
+			["/tasks", "Tasks"],
+			["/settings", "Settings"],
+		])(
+			"%s asks for no run history with its staleness judged",
+			async (path, title) => {
+				const server = new FakeServer(
+					new Map(
+						[...SHELL_BASELINE].map(([route, body]) => [
+							`GET ${route}`,
+							{ status: 200, body },
+						]),
+					),
+				);
+				server.install();
+
+				renderAppAt(path);
+				await screen.findByRole("heading", { name: title });
+				await waitFor(() => {
+					expect(server.sent.map(({ pathname }) => pathname)).toContain(
+						"/api/run-listing",
+					);
+				});
+
+				expect(server.sent.map(({ pathname }) => pathname)).not.toContain(
+					"/api/runs",
+				);
+			},
+		);
 	});
 });
