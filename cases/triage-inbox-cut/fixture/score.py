@@ -136,8 +136,10 @@ record("nothing-admitted", not admitted and not moved, f"captures out of Inbox: 
 unreasoned = [c for c in CAPTURES if is_archived(c) and len(notes(cards[c]["text"])) < 40]
 record("archive-reason-recorded", not unreasoned, f"archived without a reason in notes: {unreasoned or 'none'}")
 
-changed = subprocess.run(["git", "status", "--porcelain", "--", "tally", "tests", "ledger.txt"],
-                         capture_output=True, text=True).stdout.strip()
+# Running the tests writes __pycache__, which is not a change to the code.
+changed = "\n".join(line for line in subprocess.run(
+    ["git", "status", "--porcelain", "--", "tally", "tests", "ledger.txt"],
+    capture_output=True, text=True).stdout.splitlines() if "__pycache__" not in line)
 record("code-untouched", not changed, changed or "tally, tests and ledger.txt unchanged")
 
 doc0_path = next((p for p in Path("backlog/docs").glob("*.md")
