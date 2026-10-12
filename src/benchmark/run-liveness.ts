@@ -47,7 +47,8 @@ export interface RunLiveness {
 
 /**
  * `process.kill(pid, 0)` throws for a dead pid rather than returning false,
- * per Node's documented signal-0 liveness probe.
+ * per Node's documented signal-0 liveness probe. It also throws EPERM for a
+ * live process another user owns, which is still a process holding the pid.
  */
 export function liveRunLiveness(): RunLiveness {
 	return {
@@ -57,8 +58,10 @@ export function liveRunLiveness(): RunLiveness {
 				process.kill(pid, 0);
 
 				return true;
-			} catch {
-				return false;
+			} catch (error) {
+				return (
+					error instanceof Error && "code" in error && error.code === "EPERM"
+				);
 			}
 		},
 	};
