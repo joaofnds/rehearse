@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { afterEach, describe, expect, it } from "bun:test";
 import { stageRubricSha256 } from "./judge-agreement";
 import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, symlink } from "node:fs/promises";
@@ -595,6 +595,12 @@ describe(runGradedStages.name, () => {
 		};
 	}
 
+	const unexpectedReports: string[] = [];
+
+	afterEach(() => {
+		expect(unexpectedReports.splice(0)).toEqual([]);
+	});
+
 	async function stageContext(): Promise<StageContext> {
 		const stageDirectory = await mkdtemp(join(tmpdir(), "rehearse-stages-"));
 		testResources.track(stageDirectory);
@@ -656,7 +662,7 @@ describe(runGradedStages.name, () => {
 			completeStage: transitions.completeStage,
 			stopAtCeiling: transitions.stopAtCeiling,
 			reportError: (message: string) => {
-				throw new Error(`unexpected stage report: ${message}`);
+				unexpectedReports.push(message);
 			},
 			calibrateStageFailure: (): Promise<CalibrationResult> =>
 				Promise.reject(new Error("calibration not expected")),

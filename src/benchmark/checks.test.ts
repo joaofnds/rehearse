@@ -138,9 +138,10 @@ describe(captureTreatmentChecks.name, () => {
 			path: command.join(" "),
 			claim: "Treatment check exited unknown",
 		});
-		expect(written).toContain(
+		expect(written).toEqual([
+			"\nTreatment checks",
 			"Treatment check failed: act-15-command-does-not-exist exited unknown",
-		);
+		]);
 	});
 
 	it("announces its label through the caller's writer", async () => {
