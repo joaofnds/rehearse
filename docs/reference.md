@@ -2146,9 +2146,10 @@ links every other stage whose page renders. A run with no artifact shows
 `PAUSED:<stage>` or `OPERATOR_STOPPED` from its files, and otherwise takes its
 status from its event stream and shows as `INTERRUPTED` or `FAILED`. A run whose
 stream ended non-terminal shows as `INTERRUPTED` once its own claim on its target
-is no longer held by a live process, and the next server start records that in
-its event stream. A run whose claim was deleted before a server start read it
-still shows as `INTERRUPTED` but is never recorded so. A run whose target cannot
+is no longer held by a live process. A server start records that in its event
+stream when the claim it reads on the target names a dead pid, so a run whose
+claim was deleted, or whose target a later live run holds, still shows as
+`INTERRUPTED` without a start recording it. A run whose target cannot
 be asked, because its manifest is gone or reading the claim fails, is not
 listed. A run that recorded `run-completed` without writing its artifact is
 listed among the records that could not be read. When a failed run's last

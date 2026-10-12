@@ -381,11 +381,13 @@ hears a stage accepted, a run stopped, and run spend first reaching 80% of its
 ceiling, a share no source sets yet. The run list and the bar read the event
 store through a polled route rather than through the SSE API. A crashed run
 whose target a later run has claimed is listed as `INTERRUPTED`, read from the
-missing claim and never recorded unless a server start read its claim before it
+later run's claim naming another run, and never recorded unless a server start read its claim before it
 was deleted, or a later run also crashes and leaves its claim behind.
 A crashed run whose pid a later process has taken can still read as in flight,
 in its bar, the monitor and the run list, and `diagnose` refuses it as in
-flight. Its bar shows Stop disabled when a terminal started it. When the
+flight. A run in flight whose claim marker an operator deleted reads
+`INTERRUPTED` while it executes, and its page offers a root-cause analysis the
+server accepts. Its bar shows Stop disabled when a terminal started it. When the
 browser started it, Stop is offered and the server refuses it before signalling
 anything, because the process holding that pid started at another time.
 The Live monitor shows one pipeline run in flight. Opened from the rail or

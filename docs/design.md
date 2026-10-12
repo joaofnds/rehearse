@@ -157,16 +157,21 @@ an unnamed claim. The claim also records a pid, so a crashed run whose pid a
 later process has taken still reads as in flight. Startup reconciliation reads
 the pid alone, so a crashed run whose claim was deleted before a server start
 read it is never reconciled. A run that dies while the server keeps running leaves its
-stream non-terminal until the next start. Until then the report reads a
-non-terminal stream whose run's own claim is not held by a live process as
-`INTERRUPTED` and writes nothing, because a run's end records its terminal
-event, artifact or stop record before teardown deletes the claim, so only a read
-racing a run's own end misreads, for one poll. A target that cannot be asked,
-because the manifest is gone or the claim read throws, is no evidence the
-process ended, so that run stays out of the list rather than reading as ended,
-which would offer a paid analysis of a run that may still be executing. A
-stream that ends in `run-completed` with no artifact is reported unreadable,
-since the artifact is the authoritative record of a completed run. Event recording is best effort; it must not turn a successful experiment
+stream non-terminal, and a later start records it only when the claim the target
+then holds names a dead pid. Until then, and for good when no start can, the
+report reads a non-terminal stream whose run's own claim is not held by a live
+process as `INTERRUPTED` and writes nothing. A run's end records its terminal
+event, artifact or stop record before teardown deletes the claim, so a read
+racing that end misreads for one poll and corrects itself. Two misreadings
+last: a run in flight whose marker an operator deleted reads `INTERRUPTED` while
+it executes, and a run whose best-effort `run-failed` failed to record reads
+`INTERRUPTED` rather than `FAILED`. A target that cannot be asked, because the
+manifest is gone or the claim read throws, is no evidence the process ended, so
+that run stays out of the list and the browser offers no analysis of it. The
+in-flight refusal that `diagnose` and the analysis route apply does not cover
+it, so either accepts such a run by id. A stream that ends in `run-completed`
+with no artifact is reported unreadable, since the artifact is the
+authoritative record of a completed run. Event recording is best effort; it must not turn a successful experiment
 into a failed one. It is not a substitute for the final artifact. There is no
 command that reconstructs a deleted event history from JSON records.
 
