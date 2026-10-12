@@ -820,7 +820,21 @@ describe(teardownTarget.name, () => {
 			sha: "0000000000000000000000000000000000000000",
 		};
 
-		expect(teardownTarget(broken, backup, () => undefined)).rejects.toThrow();
-		expect(stat(backup.directory)).resolves.toBeDefined();
+		const written: string[] = [];
+		let failure: unknown;
+
+		try {
+			await teardownTarget(broken, backup, (message) => {
+				written.push(message);
+			});
+		} catch (error) {
+			failure = error;
+		}
+
+		expect(failure).toBeInstanceOf(Error);
+		expect(await stat(backup.directory)).toBeDefined();
+		expect(written).toEqual([
+			`Restore failed; the workflow backup remains at ${backup.directory}`,
+		]);
 	});
 });

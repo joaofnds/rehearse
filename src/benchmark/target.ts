@@ -255,9 +255,7 @@ export async function teardownTarget(
 	try {
 		await restoreTarget(source, backup);
 	} catch (error) {
-		console.error(
-			`Restore failed; the workflow backup remains at ${backup.directory}`,
-		);
+		log(`Restore failed; the workflow backup remains at ${backup.directory}`);
 		throw error;
 	}
 
