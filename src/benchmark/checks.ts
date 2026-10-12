@@ -64,7 +64,7 @@ export async function captureTreatmentChecks(
 			command = error.command.join(" ");
 		}
 		const exitCode = error instanceof CommandError ? error.exitCode : "unknown";
-		console.error(`Treatment check failed: ${command} exited ${exitCode}`);
+		log(`Treatment check failed: ${command} exited ${exitCode}`);
 
 		return {
 			status: "FAIL",

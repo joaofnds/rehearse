@@ -94,11 +94,14 @@ describe(captureTreatmentChecks.name, () => {
 	it("names the failed declared command in authoritative evidence", async () => {
 		const source = await testResources.createRepository();
 		const command = ["bun", "-e", "process.exit(7)"];
+		const written: string[] = [];
 
 		const result = await captureTreatmentChecks(
 			source.directory,
 			[{ command }],
-			ignoreLog,
+			(message) => {
+				written.push(message);
+			},
 		);
 
 		expect(result).toEqual({
@@ -111,16 +114,23 @@ describe(captureTreatmentChecks.name, () => {
 				},
 			],
 		});
+		expect(written).toEqual([
+			"\nTreatment checks",
+			"Treatment check failed: bun -e process.exit(7) exited 7",
+		]);
 	});
 
 	it("names a declared command that cannot be launched", async () => {
 		const source = await testResources.createRepository();
 		const command = ["act-15-command-does-not-exist"];
+		const written: string[] = [];
 
 		const result = await captureTreatmentChecks(
 			source.directory,
 			[{ command }],
-			ignoreLog,
+			(message) => {
+				written.push(message);
+			},
 		);
 
 		expect(result.evidence[0]).toEqual({
@@ -128,6 +138,9 @@ describe(captureTreatmentChecks.name, () => {
 			path: command.join(" "),
 			claim: "Treatment check exited unknown",
 		});
+		expect(written).toContain(
+			"Treatment check failed: act-15-command-does-not-exist exited unknown",
+		);
 	});
 
 	it("announces its label through the caller's writer", async () => {
