@@ -14,6 +14,7 @@ export interface ReconciliationDependencies {
 		sourceRoot: string,
 	) => Promise<{ readonly pid: number } | undefined>;
 	readonly isAlive: (pid: number) => boolean;
+	readonly reportError: (message: string) => void;
 }
 
 /**
@@ -65,7 +66,7 @@ export async function reconcileInterruptedRuns(
 			reconciled.push(runId);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			console.error(`Failed to reconcile run ${runId}: ${message}`);
+			dependencies.reportError(`Failed to reconcile run ${runId}: ${message}`);
 		}
 	}
 
@@ -94,5 +95,6 @@ export function liveReconciliationDependencies(
 			return loadRunManifest(path);
 		},
 		...liveRunLiveness(),
+		reportError: console.error,
 	};
 }

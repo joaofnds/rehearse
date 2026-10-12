@@ -51,6 +51,7 @@ interface FakeDependencies {
 	readonly manifests: Map<string, { readonly sourceRoot: string }>;
 	readonly markers: Map<string, { readonly pid: number }>;
 	readonly alivePids: Set<number>;
+	readonly reportError: (message: string) => void;
 }
 
 function fakeDependencies(
@@ -68,6 +69,11 @@ function fakeDependencies(
 		loadManifest: (path: string) => Promise.resolve(manifests.get(path)),
 		readMarker: (root: string) => Promise.resolve(markers.get(root)),
 		isAlive: (pid: number) => alivePids.has(pid),
+		reportError:
+			overrides.reportError ??
+			((message: string) => {
+				throw new Error(`unexpected reconciliation report: ${message}`);
+			}),
 	};
 }
 
@@ -279,6 +285,7 @@ describe(reconcileInterruptedRuns.name, () => {
 			spentUsd: 0,
 			elapsedMs: 0,
 		});
+		const reports: string[] = [];
 		const dependencies: ReconciliationDependencies = {
 			...fakeDependencies("/runs", {
 				manifests: new Map([
@@ -289,6 +296,9 @@ describe(reconcileInterruptedRuns.name, () => {
 				]),
 				markers: new Map([["/target-2", { pid: 222 }]]),
 				alivePids: new Set(),
+				reportError: (message) => {
+					reports.push(message);
+				},
 			}),
 			loadManifest: (path: string) => {
 				if (path === "/runs/run-1.checkpoints/manifest.json") {
@@ -302,6 +312,9 @@ describe(reconcileInterruptedRuns.name, () => {
 		const reconciled = await reconcileInterruptedRuns(store, dependencies);
 
 		expect(reconciled).toEqual(["run-2"]);
+		expect(reports).toEqual([
+			"Failed to reconcile run run-1: malformed manifest.json",
+		]);
 		store.close();
 	});
 });
