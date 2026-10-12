@@ -2095,6 +2095,19 @@ describe(createLaunchApp.name, () => {
 			expect(response.status).toBe(409);
 		});
 
+		it("answers a failure to read a run's manifest as a server error, not a refusal", async () => {
+			const server = await harness("stored", running);
+			const run = await runningRun(server.runsDirectory);
+			await Bun.write(
+				benchmarkRunPaths(server.runsDirectory, run).manifestFile,
+				"{",
+			);
+
+			const response = await server.pause(run);
+
+			expect(response.status).toBe(500);
+		});
+
 		it("refuses a run it has no record of", async () => {
 			const server = await harness("stored", running);
 

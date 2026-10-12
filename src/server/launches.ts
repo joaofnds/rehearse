@@ -78,7 +78,7 @@ import { redactAbsolutePaths } from "./redact-path";
 import { CorpusEditBusyError } from "./corpus-edit-busy-error";
 import { CorpusEditGate } from "./corpus-edit-gate";
 import { liveLaunches } from "./run-history";
-import { runStatus } from "./run-status";
+import { IncompleteRunRecordError, runStatus } from "./run-status";
 
 /**
  * Starts the CLI with these arguments and answers with the child's pid, and
@@ -862,7 +862,7 @@ async function runningLaunch(
 
 /**
  * Asks a recorded pipeline run to pause after its current stage, refusing one
- * whose history row does not read RUNNING, or that history reports unreadable:
+ * whose history row does not read RUNNING, or whose records stop short of one:
  * a finished run has no next stage to hold back, and a request left beside it
  * would pause nothing.
  */
@@ -886,9 +886,12 @@ async function pauseRun(
 			dependencies.liveness,
 		);
 	} catch (error) {
-		const message = error instanceof Error ? error.message : String(error);
+		if (!(error instanceof IncompleteRunRecordError)) {
+			throw error;
+		}
+
 		throw new LaunchRefusalError(
-			`Run ${run} is not running: ${redactAbsolutePaths(message)}`,
+			`Run ${run} is not running: ${redactAbsolutePaths(error.message)}`,
 			409,
 		);
 	} finally {

@@ -141,6 +141,15 @@ export async function latestCheckpointStage(
 	return ordered.at(-1);
 }
 
+/**
+ * A run whose records on disk stop short of saying how it stands, so run
+ * history lists it as unreadable. A failure to read the records at all is
+ * not one of these.
+ */
+export class IncompleteRunRecordError extends Error {
+	public override readonly name = "IncompleteRunRecordError";
+}
+
 interface RunIdentity {
 	readonly status: string;
 	readonly caseId: string | undefined;
@@ -162,7 +171,9 @@ async function manifestBackedIdentity(
 	progress: RunProgress = RECORDED,
 ): Promise<RunIdentity> {
 	if (!(await Bun.file(paths.manifestFile).exists())) {
-		throw new Error(`incomplete: no manifest.json at ${paths.manifestFile}`);
+		throw new IncompleteRunRecordError(
+			`incomplete: no manifest.json at ${paths.manifestFile}`,
+		);
 	}
 
 	const manifest = await loadRunManifest(paths.manifestFile);
@@ -330,7 +341,7 @@ export async function statusAndCaseId(
 	}
 
 	if (latest === undefined) {
-		throw new Error(
+		throw new IncompleteRunRecordError(
 			(await Bun.file(paths.manifestFile).exists())
 				? "no record: no stage record and no run events"
 				: "no manifest recorded",
@@ -342,7 +353,7 @@ export async function statusAndCaseId(
 		stageStart: runEvents.latestStageStart({ runId: run, stage: latest.stage }),
 	});
 	if (progress === undefined) {
-		throw new Error(
+		throw new IncompleteRunRecordError(
 			"incomplete: the run recorded run-completed but no artifact",
 		);
 	}
