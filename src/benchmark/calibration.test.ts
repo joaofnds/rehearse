@@ -32,6 +32,9 @@ import { deriveStageGrade, parseStageRubric } from "./stage-grading";
 const testResources = TestResources.forEachTest();
 
 const ignoreLog = (): undefined => undefined;
+const failOnReport = (message: string): never => {
+	throw new Error(`unexpected calibration report: ${message}`);
+};
 
 function humanReview(
 	verdict: HumanReview["verdict"],
@@ -346,7 +349,7 @@ describe(collectCalibration.name, () => {
 
 		const result = await collectCalibration({
 			log: ignoreLog,
-			reportError: ignoreLog,
+			reportError: failOnReport,
 			spendCeiling: ampleSpendCeiling(),
 			rl: {
 				async question() {
@@ -446,7 +449,7 @@ describe(collectCalibration.name, () => {
 		try {
 			await collectCalibration({
 				log: ignoreLog,
-				reportError: ignoreLog,
+				reportError: failOnReport,
 				spendCeiling: ampleSpendCeiling(),
 				rl: {
 					async question(prompt: string) {
@@ -552,7 +555,7 @@ describe(collectCalibration.name, () => {
 
 		const result = await collectCalibration({
 			log: ignoreLog,
-			reportError: ignoreLog,
+			reportError: failOnReport,
 			spendCeiling: ampleSpendCeiling(),
 			rl,
 			reviewFile,
@@ -623,7 +626,7 @@ describe(collectCalibration.name, () => {
 
 		const result = await collectCalibration({
 			log: ignoreLog,
-			reportError: ignoreLog,
+			reportError: failOnReport,
 			spendCeiling: ampleSpendCeiling(),
 			rl,
 			reviewFile,
