@@ -803,7 +803,30 @@ describe(runHistoryReport.name, () => {
 			liveness(false, fixture.runningRun),
 		);
 
-		expect(pipelineRun(rows, fixture.runningRun)?.status).toBe("INTERRUPTED");
+		expect(pipelineRun(rows, fixture.runningRun)).toMatchObject({
+			status: "INTERRUPTED",
+			caseId: "audit-log",
+			progress: { state: "recorded" },
+			links: [],
+		});
+	});
+
+	it("records nothing for a run it lists as INTERRUPTED from a gone claim", async () => {
+		const fixture = await writtenFixture();
+		await fixture.writeRunningRun();
+
+		await runHistoryReport(
+			fixture.runsDirectory,
+			directorySource(await corpusDirectory("build skill\n")),
+			liveness(false, fixture.runningRun),
+		);
+
+		const store = await openRunEventStore(
+			runEventsDatabaseFile(fixture.runsDirectory),
+		);
+		const latest = store.latestEvent(fixture.runningRun);
+		store.close();
+		expect(latest?.kind).toBe("turn-completed");
 	});
 
 	it("treats a run in flight whose manifest is gone as not running, since nothing names its target", async () => {
