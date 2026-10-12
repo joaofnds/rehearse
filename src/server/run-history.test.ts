@@ -762,11 +762,12 @@ describe(runHistoryReport.name, () => {
 	});
 
 	/**
-	 * The target a crashed run claimed can be deleted or cease to be a git
-	 * repository, and the marker read shells out to git, so the probe throws.
-	 * That is still just "not running": before the running check existed such a
-	 * run was simply absent from the report, and blaming git for it on every
-	 * page load names the wrong thing and never stops.
+	 * The target a run claimed can be deleted or cease to be a git repository,
+	 * and the marker read shells out to git, so the probe throws. That is no
+	 * evidence the process is gone, so the run is not listed as ended, which
+	 * would offer a paid analysis of a run that may still be executing, and
+	 * blaming git for it on every page load names the wrong thing and never
+	 * stops.
 	 */
 	it("treats a run whose target cannot be reached as not running, not unreadable", async () => {
 		const fixture = await writtenFixture();
@@ -788,7 +789,11 @@ describe(runHistoryReport.name, () => {
 		expect(unreadable).toEqual([]);
 	});
 
-	it("does not report a run as running when the process that claimed its target is gone", async () => {
+	/**
+	 * Reconciliation records the interruption only at the next server start, so
+	 * until then the row is derived from the dead claim and nothing is written.
+	 */
+	it("lists a run as INTERRUPTED when the process that claimed its target is gone", async () => {
 		const fixture = await writtenFixture();
 		await fixture.writeRunningRun();
 
@@ -798,16 +803,33 @@ describe(runHistoryReport.name, () => {
 			liveness(false, fixture.runningRun),
 		);
 
+		expect(pipelineRun(rows, fixture.runningRun)?.status).toBe("INTERRUPTED");
+	});
+
+	it("treats a run in flight whose manifest is gone as not running, since nothing names its target", async () => {
+		const fixture = await writtenFixture();
+		await fixture.writeRunningRun();
+		await rm(
+			benchmarkRunPaths(fixture.runsDirectory, fixture.runningRun).manifestFile,
+		);
+
+		const { rows, unreadable } = await runHistoryReport(
+			fixture.runsDirectory,
+			directorySource(await corpusDirectory("build skill\n")),
+			liveness(false, fixture.runningRun),
+		);
+
 		expect(pipelineRun(rows, fixture.runningRun)).toBeUndefined();
+		expect(unreadable).toEqual([]);
 	});
 
 	/**
-	 * A target with no claim marker has no run on it: the run either finished
-	 * and restored the target, or never claimed it. Reconciliation reads the
-	 * same absence as "nothing to reconcile" and leaves the run alone, which is
-	 * why this reader cannot borrow that answer.
+	 * A target with no claim marker has no run on it, so a run whose stream
+	 * never finished ended without recording how. Reconciliation reads the same
+	 * absence as "nothing to reconcile" and leaves the run alone, which is why
+	 * this reader cannot borrow that answer.
 	 */
-	it("does not report a run as running when its target carries no claim marker", async () => {
+	it("lists a run as INTERRUPTED when its target carries no claim marker", async () => {
 		const fixture = await writtenFixture();
 		await fixture.writeRunningRun();
 
@@ -817,7 +839,7 @@ describe(runHistoryReport.name, () => {
 			{ readMarker: () => Promise.resolve(undefined), isAlive: () => true },
 		);
 
-		expect(pipelineRun(rows, fixture.runningRun)).toBeUndefined();
+		expect(pipelineRun(rows, fixture.runningRun)?.status).toBe("INTERRUPTED");
 	});
 
 	/**
@@ -871,7 +893,7 @@ describe(runHistoryReport.name, () => {
 			expect(pipelineRun(rows, fixture.runningRun)?.status).toBe("RUNNING");
 		});
 
-		it("does not report the run as running when the claim came just after its first event", async () => {
+		it("lists the run as INTERRUPTED when the claim came just after its first event", async () => {
 			const fixture = await writtenFixture();
 			await fixture.writeRunningRun();
 
@@ -887,7 +909,7 @@ describe(runHistoryReport.name, () => {
 				),
 			);
 
-			expect(pipelineRun(rows, fixture.runningRun)).toBeUndefined();
+			expect(pipelineRun(rows, fixture.runningRun)?.status).toBe("INTERRUPTED");
 		});
 	});
 
@@ -2307,7 +2329,7 @@ describe(runHistoryReport.name, () => {
 			expect(pipelineRun(rows, fixture.runningRun)?.status).toBe("RUNNING");
 		});
 
-		it("leaves a crashed run unlisted while a later run holds its target", async () => {
+		it("lists a crashed run as INTERRUPTED while a later run holds its target", async () => {
 			const fixture = await writtenFixture();
 			await fixture.writeRunningRun();
 			await fixture.writeLaterRunningRun();
@@ -2325,7 +2347,7 @@ describe(runHistoryReport.name, () => {
 				},
 			);
 
-			expect(pipelineRun(rows, fixture.runningRun)).toBeUndefined();
+			expect(pipelineRun(rows, fixture.runningRun)?.status).toBe("INTERRUPTED");
 			expect(launches).toEqual([]);
 			expect(
 				rows
