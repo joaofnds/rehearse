@@ -313,9 +313,11 @@ says so rather than showing the empty install's state. Records that cannot be re
 notice above the table, with their ids and reasons behind a toggle. A replay
 keeps no raw transcript, so its page shows an evidence-unavailable summary with
 no events, per-event detail, request series or corpus reconciliation. A run
-with unfinished events whose process is gone stays out of the list until the
-next server start reconciles it as interrupted, and is never reconciled when its
-claim on its target was deleted before a server start read it.
+with unfinished events whose own claim on its target is no longer held by a live
+process is listed as `INTERRUPTED` without waiting for a server start. A run
+whose target cannot be asked, because its manifest is gone or reading the claim
+fails, stays out of the list. A run that recorded `run-completed` without
+writing its artifact is counted in the unreadable notice.
 
 The rail also names the corpus under test, showing the linked corpus's
 current `corpus@` version (the live tree's when nothing is linked), its file count and its latest edit, and saying in words
@@ -378,9 +380,9 @@ several runs in flight each gets its own bar, newest first. A screen reader
 hears a stage accepted, a run stopped, and run spend first reaching 80% of its
 ceiling, a share no source sets yet. The run list and the bar read the event
 store through a polled route rather than through the SSE API. A crashed run
-whose target a later run has claimed is not listed. A server start before its
-claim was deleted still marks it interrupted, and after that only a later run
-that also crashes and leaves its claim behind lets startup reconcile it.
+whose target a later run has claimed is listed as `INTERRUPTED`, read from the
+missing claim and never recorded unless a server start read its claim before it
+was deleted, or a later run also crashes and leaves its claim behind.
 A crashed run whose pid a later process has taken can still read as in flight,
 in its bar, the monitor and the run list, and `diagnose` refuses it as in
 flight. Its bar shows Stop disabled when a terminal started it. When the

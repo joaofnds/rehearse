@@ -2144,10 +2144,14 @@ stage the reader can name from a page that failed. The run history screen shows
 a stopped run as `STOPPED:<stage>`, linked to that stage's context history, and
 links every other stage whose page renders. A run with no artifact shows
 `PAUSED:<stage>` or `OPERATOR_STOPPED` from its files, and otherwise takes its
-status from its event stream and shows as `INTERRUPTED` or `FAILED`. A run the
-server did not see end becomes `INTERRUPTED` when the next server start
-reconciles it, and stays out of the list until then. A run whose claim on its
-target was deleted before a server start read it is never reconciled. When a failed run's last
+status from its event stream and shows as `INTERRUPTED` or `FAILED`. A run whose
+stream ended non-terminal shows as `INTERRUPTED` once its own claim on its target
+is no longer held by a live process, and the next server start records that in
+its event stream. A run whose claim was deleted before a server start read it
+still shows as `INTERRUPTED` but is never recorded so. A run whose target cannot
+be asked, because its manifest is gone or reading the claim fails, is not
+listed. A run that recorded `run-completed` without writing its artifact is
+listed among the records that could not be read. When a failed run's last
 started stage saved no checkpoint, the row names that stage as having failed
 before saving its context. A failed run whose events name no started stage
 names no stage.

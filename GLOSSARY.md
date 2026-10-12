@@ -430,7 +430,9 @@ See [current state](docs/status.md) for implementation coverage and
   The server's startup reconciliation pass finds the run by checking whether
   the pid the run's claimed target recorded is still alive, and if not, marks
   the run's event stream `run-interrupted`, distinct from `FAILED`, which a
-  graceful signal handler still writes on its own.
+  graceful signal handler still writes on its own. Until that pass runs, the
+  run-history report shows the run as `INTERRUPTED` once its own claim on its
+  target is no longer held by a live process, without recording it.
 - **Judge** — evaluator attached to a stage transition: deterministic check or
   rubric-scored LLM with rationale.
 - **Judge agreement baseline** — accumulated binary Judge and human decisions
