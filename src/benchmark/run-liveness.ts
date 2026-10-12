@@ -37,8 +37,8 @@ export function claimingRun(
  * reconcile" and leaves the run alone, while a run with no marker is simply not
  * running, because a restored target has no claim on it. Reconciliation also
  * reads the pid alone, while a row asks whether the claim is the run's own, so
- * a crashed run whose target another run claimed is listed as interrupted but
- * never reconciled.
+ * a crashed run whose target another run claimed is listed as interrupted, and
+ * reconciled only once a start finds that other run's pid dead too.
  */
 export interface RunLiveness {
 	readonly readMarker: (sourceRoot: string) => Promise<TargetClaim | undefined>;
@@ -107,9 +107,9 @@ export async function runClaim(
  * because an operator who deletes a crashed run's marker lets a later run
  * claim the same target, and that run's live pid says nothing about this one.
  *
- * A target that could not be asked is "not running" here: letting the throw
- * escape would turn every page load into an unreadable entry blaming git for
- * a run that is simply not executing.
+ * A target that could not be asked reads as not running here, the same as a
+ * gone claim. A caller that must not take an unreachable target for an ended
+ * run reads `runClaim` instead.
  */
 export async function claimsLiveTarget(
 	manifestFile: string,

@@ -23,6 +23,7 @@ import { operatorStopped } from "#benchmark/operator-stop";
 import { pausedStage } from "#benchmark/run-pause";
 import type { RunLiveness } from "#benchmark/run-liveness";
 import { claimingRun, runClaim } from "#benchmark/run-liveness";
+import { unhandled } from "#benchmark/contracts";
 import type { RunTokens } from "#benchmark/spend-ceiling";
 
 /**
@@ -363,23 +364,32 @@ export async function statusAndCaseId(
 		liveness,
 		claimingRun(runEvents, run),
 	);
-	if (claim === "live") {
-		return manifestBackedIdentity(paths, "RUNNING", progress);
+	switch (claim) {
+		case "live": {
+			return manifestBackedIdentity(paths, "RUNNING", progress);
+		}
+		/**
+		 * A run's end records its terminal event before teardown deletes its
+		 * claim, so a run with neither is one whose process died. Reconciliation
+		 * records that only at a later server start; this reading writes
+		 * nothing, so a read racing a run's own end corrects itself on the next
+		 * poll.
+		 */
+		case "gone": {
+			return eventBackedIdentity(paths, "INTERRUPTED", []);
+		}
+		/**
+		 * A target that could not be asked is no evidence the process is gone,
+		 * and an ended reading would offer a paid analysis of a run still
+		 * executing.
+		 */
+		case "unknown": {
+			return undefined;
+		}
+		default: {
+			return unhandled(claim, "run claim");
+		}
 	}
-
-	/**
-	 * A run's end records its terminal event before teardown deletes its
-	 * claim, so a run with neither is one whose process died. Reconciliation
-	 * records that only at the next server start; this reading writes nothing,
-	 * so a read racing a run's own end corrects itself on the next poll. A
-	 * target that could not be asked is no evidence the process is gone, and
-	 * an ended reading would offer a paid analysis of a run still executing.
-	 */
-	if (claim === "gone") {
-		return eventBackedIdentity(paths, "INTERRUPTED", []);
-	}
-
-	return undefined;
 }
 
 /**
