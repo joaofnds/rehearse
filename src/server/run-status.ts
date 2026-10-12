@@ -342,7 +342,9 @@ export async function statusAndCaseId(
 		stageStart: runEvents.latestStageStart({ runId: run, stage: latest.stage }),
 	});
 	if (progress === undefined) {
-		return undefined;
+		throw new Error(
+			"incomplete: the run recorded run-completed but no artifact",
+		);
 	}
 
 	const claim = await runClaim(

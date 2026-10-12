@@ -2085,6 +2085,16 @@ describe(createLaunchApp.name, () => {
 			).toBe(false);
 		});
 
+		it("refuses a run whose record cannot be read as not running", async () => {
+			const server = await harness("stored", running);
+			const fixture = new RecordedRunsFixture(server.runsDirectory);
+			await fixture.writeCompletedRunWithoutArtifact();
+
+			const response = await server.pause(fixture.unrecordedArtifactRun);
+
+			expect(response.status).toBe(409);
+		});
+
 		it("refuses a run it has no record of", async () => {
 			const server = await harness("stored", running);
 

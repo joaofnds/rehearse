@@ -862,8 +862,9 @@ async function runningLaunch(
 
 /**
  * Asks a recorded pipeline run to pause after its current stage, refusing one
- * whose history row does not read RUNNING: a finished run has no next stage
- * to hold back, and a request left beside it would pause nothing.
+ * whose history row does not read RUNNING, or that history reports unreadable:
+ * a finished run has no next stage to hold back, and a request left beside it
+ * would pause nothing.
  */
 async function pauseRun(
 	run: string,
@@ -883,6 +884,12 @@ async function pauseRun(
 			run,
 			runEvents,
 			dependencies.liveness,
+		);
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		throw new LaunchRefusalError(
+			`Run ${run} is not running: ${redactAbsolutePaths(message)}`,
+			409,
 		);
 	} finally {
 		runEvents.close();

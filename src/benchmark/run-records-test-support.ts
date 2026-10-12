@@ -622,6 +622,7 @@ export class RecordedRunsFixture {
 	public readonly abortedRun = "2026-09-08T00-00-00.000Z";
 	public readonly awaitingJudgeRun = "2026-09-09T00-00-00.000Z";
 	public readonly eventsOnlyRun = "2026-09-10T00-00-00.000Z";
+	public readonly unrecordedArtifactRun = "2026-09-11T00-00-00.000Z";
 
 	private readonly settingsFile: HashedFile;
 	private readonly sourceRoot: string;
@@ -1607,11 +1608,24 @@ export class RecordedRunsFixture {
 		spentUsd = 0.9,
 		elapsedMs = 9000,
 	): Promise<void> {
-		await this.writeRunInFlight(this.runningRun, {
+		await this.writeRunWithLatestEvent(this.runningRun, {
 			kind,
 			stage,
 			spentUsd,
 			elapsedMs,
+		});
+	}
+
+	/**
+	 * A run whose stream says it completed but whose artifact never landed,
+	 * so nothing on disk records how it was graded.
+	 */
+	public async writeCompletedRunWithoutArtifact(): Promise<void> {
+		await this.writeRunWithLatestEvent(this.unrecordedArtifactRun, {
+			kind: "run-completed",
+			stage: "build",
+			spentUsd: 3,
+			elapsedMs: 12_000,
 		});
 	}
 
@@ -1621,7 +1635,7 @@ export class RecordedRunsFixture {
 	 * as running has read the other run's claim as its own.
 	 */
 	public async writeLaterRunningRun(): Promise<void> {
-		await this.writeRunInFlight(this.laterRunningRun, {
+		await this.writeRunWithLatestEvent(this.laterRunningRun, {
 			kind: "turn-completed",
 			stage: "build",
 			spentUsd: 0.4,
@@ -1629,7 +1643,7 @@ export class RecordedRunsFixture {
 		});
 	}
 
-	private async writeRunInFlight(
+	private async writeRunWithLatestEvent(
 		run: string,
 		latest: {
 			readonly kind: PlainRunEventKind;

@@ -1457,6 +1457,24 @@ describe(runHistoryReport.name, () => {
 		});
 	});
 
+	it("names a run that recorded run-completed without its artifact as unreadable", async () => {
+		const fixture = await writtenFixture();
+		await fixture.writeCompletedRunWithoutArtifact();
+
+		const { rows, unreadable } = await runHistoryReport(
+			fixture.runsDirectory,
+			directorySource(await corpusDirectory("build skill\n")),
+			nothingRunning,
+		);
+
+		expect(pipelineRun(rows, fixture.unrecordedArtifactRun)).toBeUndefined();
+		expect(unreadable).toContainEqual({
+			kind: "run",
+			id: `run:${fixture.unrecordedArtifactRun}`,
+			reason: "incomplete: the run recorded run-completed but no artifact",
+		});
+	});
+
 	it("reads an empty runs directory as no rows, not an error", async () => {
 		const root = await mkdtemp(join(tmpdir(), "rehearse-run-history-empty-"));
 		roots.push(root);
