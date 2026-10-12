@@ -56,6 +56,7 @@ interface CalibrationContext {
 	readonly stageJudge?: typeof runStageJudge | undefined;
 	readonly resolveCorpus?: CorpusSourceResolver | undefined;
 	readonly log: (message: string) => void;
+	readonly reportError: (message: string) => void;
 }
 
 export class CalibrationIncompleteError extends Error {
@@ -506,7 +507,7 @@ export async function collectCalibration(
 				throw error;
 			}
 
-			console.error(`Calibration incomplete: ${error.message}`);
+			context.reportError(`Calibration incomplete: ${error.message}`);
 		}
 	}
 }

@@ -1467,6 +1467,7 @@ export async function runBenchmark(
 							sessionBudgetUsd: config.sessionBudgetUsd,
 							spendCeiling,
 							log,
+							reportError: console.error,
 						});
 						stageFailureCalibrated = true;
 
@@ -1566,6 +1567,7 @@ export async function runBenchmark(
 						sessionBudgetUsd: config.sessionBudgetUsd,
 						spendCeiling,
 						log,
+						reportError: console.error,
 					}),
 				collectJudgeAgreement: (calibration) =>
 					loadJudgeAgreementReport(runFiles.runsDirectory, [

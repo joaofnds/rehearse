@@ -346,6 +346,7 @@ describe(collectCalibration.name, () => {
 
 		const result = await collectCalibration({
 			log: ignoreLog,
+			reportError: ignoreLog,
 			spendCeiling: ampleSpendCeiling(),
 			rl: {
 				async question() {
@@ -388,6 +389,7 @@ describe(collectCalibration.name, () => {
 		testResources.track(reviewDirectory);
 		const reviewFile = join(reviewDirectory, "review.json");
 		const prompts: string[] = [];
+		const errors: string[] = [];
 		const rl = {
 			async question(prompt: string) {
 				prompts.push(prompt);
@@ -407,6 +409,9 @@ describe(collectCalibration.name, () => {
 
 		const result = await collectCalibration({
 			log: ignoreLog,
+			reportError: (message) => {
+				errors.push(message);
+			},
 			spendCeiling: ampleSpendCeiling(),
 			rl,
 			reviewFile,
@@ -423,6 +428,8 @@ describe(collectCalibration.name, () => {
 		});
 
 		expect(prompts).toHaveLength(2);
+		expect(errors).toHaveLength(1);
+		expect(errors[0]).toMatch(/^Calibration incomplete: .*JSON/u);
 		expect(result.humanReview.verdict).toBe("REJECT");
 	});
 
@@ -439,6 +446,7 @@ describe(collectCalibration.name, () => {
 		try {
 			await collectCalibration({
 				log: ignoreLog,
+				reportError: ignoreLog,
 				spendCeiling: ampleSpendCeiling(),
 				rl: {
 					async question(prompt: string) {
@@ -544,6 +552,7 @@ describe(collectCalibration.name, () => {
 
 		const result = await collectCalibration({
 			log: ignoreLog,
+			reportError: ignoreLog,
 			spendCeiling: ampleSpendCeiling(),
 			rl,
 			reviewFile,
@@ -614,6 +623,7 @@ describe(collectCalibration.name, () => {
 
 		const result = await collectCalibration({
 			log: ignoreLog,
+			reportError: ignoreLog,
 			spendCeiling: ampleSpendCeiling(),
 			rl,
 			reviewFile,
