@@ -609,6 +609,7 @@ export interface StageContext {
 	readonly writePendingStage: (pending: PendingStage) => Promise<void>;
 	readonly updatePendingStage: (pending: PendingStage) => void;
 	readonly stopAtCeiling: (stop: CeilingStop) => void;
+	readonly reportError: (message: string) => void;
 	readonly writeStageProgress: (record: StageJudgeRecord) => Promise<void>;
 	readonly completeStage: (record: StageJudgeRecord) => Promise<void>;
 	readonly calibrateStageFailure: (
@@ -972,7 +973,7 @@ async function keepStoppedTranscript(
 			transcript,
 		);
 	} catch (error) {
-		console.error(
+		context.reportError(
 			`Could not keep the ${stage} stage's transcript beside its stop record: ${error instanceof Error ? error.message : String(error)}`,
 		);
 	}
@@ -1445,6 +1446,7 @@ export async function runBenchmark(
 					writeStageProgress: abort.writeStageProgress,
 					completeStage: abort.completeStage,
 					stopAtCeiling: abort.stopAtCeiling,
+					reportError: log,
 					runEvents,
 					elapsedMs,
 					pauseRequested: () => pauseRequested(runFiles),

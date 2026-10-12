@@ -655,6 +655,9 @@ describe(runGradedStages.name, () => {
 			writeStageProgress: transitions.writeStageProgress,
 			completeStage: transitions.completeStage,
 			stopAtCeiling: transitions.stopAtCeiling,
+			reportError: (message: string) => {
+				throw new Error(`unexpected stage report: ${message}`);
+			},
 			calibrateStageFailure: (): Promise<CalibrationResult> =>
 				Promise.reject(new Error("calibration not expected")),
 			collectJudgeAgreement: () =>
@@ -766,15 +769,29 @@ describe(runGradedStages.name, () => {
 			) => Promise.resolve(scorecardFor(input, "STOP")),
 		};
 
-		const stopped = runGradedStages(stopping, {
-			...context,
-			projectsDirectory,
-			stoppedSessionDirectory: (stage: string) => join(blocked, stage),
-			calibrateStageFailure: (): Promise<CalibrationResult | undefined> =>
-				Promise.resolve(undefined),
-		});
+		const reports: string[] = [];
+		let failure: unknown;
 
-		expect(stopped).rejects.toBeInstanceOf(StageQualityError);
+		try {
+			await runGradedStages(stopping, {
+				...context,
+				projectsDirectory,
+				stoppedSessionDirectory: (stage: string) => join(blocked, stage),
+				calibrateStageFailure: (): Promise<CalibrationResult | undefined> =>
+					Promise.resolve(undefined),
+				reportError: (message) => {
+					reports.push(message);
+				},
+			});
+		} catch (error) {
+			failure = error;
+		}
+
+		expect(failure).toBeInstanceOf(StageQualityError);
+		expect(reports).toHaveLength(1);
+		expect(reports[0]).toMatch(
+			/^Could not keep the shape stage's transcript beside its stop record: ENOTDIR/u,
+		);
 	});
 
 	it("records in a stage's checkpoint what it declared and loaded, hashed as a later staleness check reads it", async () => {
