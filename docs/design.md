@@ -171,8 +171,8 @@ that run stays out of the list and the browser offers no analysis of it. The
 in-flight refusal that `diagnose` and the analysis route apply does not cover
 it, so either accepts such a run by id. A stream that ends in `run-completed`
 with no artifact is reported unreadable, since the artifact is the
-authoritative record of a completed run. Event recording is best effort; it must not turn a successful experiment
-into a failed one. It is not a substitute for the final artifact. There is no
+authoritative record of a completed run. Event recording is best effort; it
+must not turn a successful experiment into a failed one. It is not a substitute for the final artifact. There is no
 command that reconstructs a deleted event history from JSON records.
 
 The corpus version store at `.benchmark-runs/corpus-versions/` is
