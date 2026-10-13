@@ -1411,6 +1411,26 @@ function listedRecords(
 }
 
 /**
+ * Whether the page says nothing is listed. An invalidated selection names why
+ * it lists none itself, so it says so only when the search hid every row the
+ * selection listed.
+ */
+function saysNothingListed(
+	selection: InvalidatedSelection | undefined,
+	listed: Pick<RunHistoryResponse, "rows" | "launches">,
+): boolean {
+	const selectionSaysWhy =
+		selection !== undefined &&
+		(selection.kind !== "listed" || selection.rows.length === 0);
+
+	return (
+		!selectionSaysWhy &&
+		listed.rows.length === 0 &&
+		listed.launches.length === 0
+	);
+}
+
+/**
  * Replays a step of a recorded run, chosen in the dialog. Until the history
  * reads there is nothing to choose from, and a failed poll after it read keeps
  * the last offer so an open dialog stays open, and a history with no replayable
@@ -1498,10 +1518,7 @@ export function RunHistoryPage({
 	const { rows, launches } = listedRecords(selection, history, filter, search);
 	const listable = listedEntryCount(history) > 0;
 	const nothingListed =
-		selection === undefined &&
-		query.isSuccess &&
-		rows.length === 0 &&
-		launches.length === 0;
+		query.isSuccess && saysNothingListed(selection, { rows, launches });
 	const nowMs = useNow(
 		pipelineRuns(recorded).some((row) => row.progress.state === "running"),
 	);

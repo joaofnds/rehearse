@@ -254,6 +254,65 @@ describe("/?invalidatedBy", () => {
 		).toBeInTheDocument();
 	});
 
+	describe("when searching", () => {
+		/** Runs A and C were invalidated; B and C share a case. */
+		const BY_CASE: RunHistoryResponse = {
+			rows: [
+				runRow({ run: RUN_C, status: "COMPLETE", caseId: "brief-reply" }),
+				runRow({ run: RUN_B, status: "COMPLETE", caseId: "brief-reply" }),
+				runRow({ run: RUN_A, status: "COMPLETE", caseId: "audit-log" }),
+			],
+			launches: [],
+			unreadable: [],
+		};
+
+		function search(text: string): void {
+			fireEvent.change(screen.getByRole("searchbox", { name: "Search runs" }), {
+				target: { value: text },
+			});
+		}
+
+		it("lists only the invalidated results the search matches", async () => {
+			serving(`/?invalidatedBy=${PREVIOUS}..${CURRENT}`, { runs: BY_CASE });
+			await durableRecords();
+
+			search("brief");
+
+			await waitFor(() => {
+				expect(screen.queryByText(RUN_A)).toBeNull();
+			});
+			expect(screen.getByText(RUN_C)).toBeInTheDocument();
+			expect(screen.queryByText(RUN_B)).toBeNull();
+		});
+
+		it("says no record matches when the search hides every invalidated result", async () => {
+			serving(`/?invalidatedBy=${PREVIOUS}..${CURRENT}`, { runs: BY_CASE });
+			await durableRecords();
+
+			search("no-such-case");
+
+			expect(
+				await screen.findByText("No record matches this filter and search."),
+			).toBeInTheDocument();
+		});
+	});
+
+	describe("when the last edit invalidated no result", () => {
+		it("counts none without saying the filter and search match nothing", async () => {
+			serving(`/?invalidatedBy=${PREVIOUS}..${CURRENT}`, {
+				corpus: corpus({ ...LAST_EDIT, count: 0, rows: [] }),
+			});
+
+			await screen.findByText(
+				"0 recorded results invalidated by the edit from corpus@e73e56 to corpus@a41c7e",
+			);
+
+			expect(
+				screen.queryByText("No record matches this filter and search."),
+			).toBeNull();
+		});
+	});
+
 	describe("when the address names an edit that is no longer the last edit", () => {
 		it.each([
 			["a later edit from the same version", PREVIOUS, LATER],
