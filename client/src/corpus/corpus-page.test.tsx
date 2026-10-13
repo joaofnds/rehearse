@@ -248,6 +248,16 @@ describe(CorpusPage.name, () => {
 			).toBe("?path=CLAUDE.md");
 		});
 
+		it("moves focus to the file's text, since the editor opens below every file row", async () => {
+			serving();
+
+			const textbox = await editor();
+
+			await waitFor(() => {
+				expect(textbox).toHaveFocus();
+			});
+		});
+
 		it("keeps a byte order mark, so an apply writes it back", async () => {
 			serving(
 				new Map([

@@ -142,6 +142,9 @@ export function CorpusEditor({
 					value={text}
 					rows={Math.min(24, Math.max(6, text.split("\n").length + 1))}
 					spellCheck={false}
+					// The editor opens below every file row, so focusing the text is what
+					// brings it into view after Edit.
+					autoFocus
 					onChange={(event) => {
 						setDraft(event.target.value);
 						apply.reset();
