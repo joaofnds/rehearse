@@ -11,6 +11,7 @@ import type { Effort, StageLetterGrade } from "#benchmark/config";
 import {
 	claudeCallMetricsSchema,
 	gradedHardBlockersSchema,
+	unhandled,
 } from "#benchmark/contracts";
 import { corpusMeasurementSchema } from "#benchmark/corpus-measurement";
 import type { CorpusMeasurement } from "#benchmark/corpus-measurement";
@@ -33,14 +34,10 @@ import {
 	runEventsDatabaseFile,
 } from "#benchmark/run-layout";
 import type { BenchmarkRunPaths } from "#benchmark/run-layout";
-import {
-	isTerminalRunEventKind,
-	openRunEventStore,
-} from "#benchmark/run-events";
+import { openRunEventStore } from "#benchmark/run-events";
 import type { RunEventStore } from "#benchmark/run-events";
 import type { RunLiveness } from "#benchmark/run-liveness";
 import { RefusedPreconditionError } from "#benchmark/exit-codes";
-import { stoppedStage } from "#benchmark/run-outcome";
 import { letterReachesMinimum } from "#benchmark/stage-grading";
 import {
 	checkpointStageNumber,
@@ -50,13 +47,15 @@ import {
 import { formatRecordId } from "#cli/record-id";
 import { shortIdsOf } from "#cli/short-id-column";
 import { redactAbsolutePaths } from "./redact-path";
-import { claimingRun, claimsLiveTarget } from "#benchmark/run-liveness";
-import { failedStage } from "#benchmark/run-ending";
+import { runEnding } from "#benchmark/run-ending";
 import { runStatus } from "./run-status";
 
 export const INTERRUPTED_REASON =
 	"the run was interrupted before its final judge";
 export const RUN_FAILED_REASON = "the run failed before its final judge";
+export const PAUSED_REASON = "the run ended paused before its final judge";
+export const OPERATOR_STOPPED_REASON =
+	"the operator stopped the run before its final judge";
 export const AWAITING_JUDGMENT_REASON =
 	"the run ended while this stage awaited judgment";
 export const AWAITING_GRADE_REASON = "the stage's judge has not returned";
@@ -1139,11 +1138,9 @@ function stageWithStatus(
 }
 
 /**
- * The records say how a run ended in this order: the main artifact once the
- * final judge ran, a stop record, then the event stream, which is the one
- * place an interruption, an abort or a live run is recorded at all. A record
- * awaiting judgment is what every live run leaves while a stage is judged, so
- * it says the run ended there only once the stream says the run is not live.
+ * The final judge's outcome once the main artifact holds it, and otherwise
+ * the ending `runEnding` reads from the other records, so the outcome names
+ * the same ending as the run's status.
  */
 async function finalOutcome(
 	runsDirectory: string,
@@ -1152,72 +1149,88 @@ async function finalOutcome(
 	runEvents: RunEventStore,
 	liveness: RunLiveness,
 ): Promise<FinalOutcome> {
-	const paths = benchmarkRunPaths(runsDirectory, run);
-	const artifactFile = Bun.file(paths.artifactFile);
-	if (await artifactFile.exists()) {
-		const artifact: unknown = JSON.parse(await artifactFile.text());
-		const graded = gradedArtifactSchema.safeParse(artifact);
-		if (graded.success) {
-			return { status: "JUDGED", verdict: graded.data.grade.verdict };
+	const ending = await runEnding(runsDirectory, run, runEvents, liveness);
+	switch (ending.kind) {
+		case "main-artifact": {
+			return judgedOutcome(benchmarkRunPaths(runsDirectory, run).artifactFile);
 		}
+		case "stopped": {
+			return {
+				status: "NOT_REACHED",
+				stage: ending.stage,
+				reason: ending.error,
+			};
+		}
+		case "paused": {
+			return {
+				status: "NOT_REACHED",
+				stage: ending.stage,
+				reason: PAUSED_REASON,
+			};
+		}
+		case "operator-stopped": {
+			return {
+				status: "NOT_REACHED",
+				stage: ending.stage,
+				reason: OPERATOR_STOPPED_REASON,
+			};
+		}
+		case "interrupted": {
+			return {
+				status: "NOT_REACHED",
+				stage: ending.stage,
+				reason: INTERRUPTED_REASON,
+			};
+		}
+		case "failed": {
+			return {
+				status: "NOT_REACHED",
+				stage: ending.stage,
+				reason: RUN_FAILED_REASON,
+			};
+		}
+		case "running": {
+			return { status: "PENDING", stage: ending.latest.stage };
+		}
+		case "unconfirmed": {
+			return { status: "PENDING", stage: ending.stage };
+		}
+		case "completed-without-artifact": {
+			return {
+				status: "NOT_REACHED",
+				stage: ending.stage,
+				reason: UNEXPLAINED_END_REASON,
+			};
+		}
+		case "no-events": {
+			const awaiting = stageWithStatus(stages, "AWAITING_STAGE_JUDGE");
+			if (awaiting !== undefined) {
+				return {
+					status: "NOT_REACHED",
+					stage: awaiting.stage,
+					reason: AWAITING_JUDGMENT_REASON,
+				};
+			}
 
-		return {
-			status: "JUDGING_FAILED",
-			reason: failedJudgeArtifactSchema.parse(artifact).failure,
-		};
+			return { status: "NOT_REACHED", reason: UNEXPLAINED_END_REASON };
+		}
+		default: {
+			return unhandled(ending, "run ending");
+		}
 	}
+}
 
-	const stopped = await stoppedStage(runsDirectory, run);
-	if (stopped !== undefined) {
-		return {
-			status: "NOT_REACHED",
-			stage: stopped.stage,
-			reason: stopped.error,
-		};
-	}
-
-	const latest = runEvents.latestEvent(run);
-	if (latest?.kind === "run-interrupted") {
-		return {
-			status: "NOT_REACHED",
-			stage: latest.stage,
-			reason: INTERRUPTED_REASON,
-		};
-	}
-
-	if (latest?.kind === "run-failed") {
-		return {
-			status: "NOT_REACHED",
-			stage: failedStage(runEvents, run),
-			reason: RUN_FAILED_REASON,
-		};
-	}
-
-	if (
-		latest !== undefined &&
-		!isTerminalRunEventKind(latest.kind) &&
-		(await claimsLiveTarget(
-			paths.manifestFile,
-			liveness,
-			claimingRun(runEvents, run),
-		))
-	) {
-		return { status: "PENDING", stage: latest.stage };
-	}
-
-	const awaiting = stageWithStatus(stages, "AWAITING_STAGE_JUDGE");
-	if (awaiting !== undefined) {
-		return {
-			status: "NOT_REACHED",
-			stage: awaiting.stage,
-			reason: AWAITING_JUDGMENT_REASON,
-		};
+/** What the final judge recorded in the main artifact. */
+async function judgedOutcome(artifactFile: string): Promise<FinalOutcome> {
+	const artifact: unknown = JSON.parse(await Bun.file(artifactFile).text());
+	const graded = gradedArtifactSchema.safeParse(artifact);
+	if (graded.success) {
+		return { status: "JUDGED", verdict: graded.data.grade.verdict };
 	}
 
 	return {
-		status: "NOT_REACHED",
-		stage: latest?.stage,
-		reason: UNEXPLAINED_END_REASON,
+		status: "JUDGING_FAILED",
+		reason: failedJudgeArtifactSchema.parse(artifact).failure,
 	};
 }
 

@@ -7,7 +7,12 @@ import { z } from "zod";
 import { unhandled } from "#benchmark/contracts";
 import { operatorStopRecord } from "#benchmark/operator-stop";
 import type { RunLiveness } from "#benchmark/run-liveness";
-import { stoppedStatus } from "#benchmark/stopped-status";
+import { recordPaused } from "#benchmark/run-pause";
+import {
+	OPERATOR_STOPPED,
+	pausedStatus,
+	stoppedStatus,
+} from "#benchmark/stopped-status";
 import {
 	CASE_ID,
 	claimBy,
@@ -34,6 +39,8 @@ import {
 	INTERRUPTED_REASON,
 	MINIMUM_GRADE_REASON,
 	MISSING_STAGE_RECORD_REASON,
+	OPERATOR_STOPPED_REASON,
+	PAUSED_REASON,
 	PRODUCT_OWNER_COST_REASON,
 	PRODUCT_OWNER_TOKENS_REASON,
 	RUN_FAILED_REASON,
@@ -278,7 +285,165 @@ const RUN_ENDINGS: readonly RunEnding[] = [
 			reason: UNEXPLAINED_END_REASON,
 		},
 	},
+	{
+		ending: "a run the operator stopped after it failed",
+		write: async (fixture) => {
+			await fixture.writeSignalAbortedRun();
+			await recordOperatorStop(fixture, fixture.abortedRun);
+			return fixture.abortedRun;
+		},
+		claim: "gone",
+		status: listedAs(OPERATOR_STOPPED),
+		finalOutcome: {
+			status: "NOT_REACHED",
+			stage: "build",
+			reason: OPERATOR_STOPPED_REASON,
+		},
+	},
+	{
+		ending: "a run the operator stopped while its process restores the target",
+		write: async (fixture) => {
+			await fixture.writeRunningRun();
+			await recordOperatorStop(fixture, fixture.runningRun);
+			return fixture.runningRun;
+		},
+		claim: "live",
+		status: listedAs(OPERATOR_STOPPED),
+		finalOutcome: {
+			status: "NOT_REACHED",
+			stage: "build",
+			reason: OPERATOR_STOPPED_REASON,
+		},
+	},
+	{
+		ending: "a paused run",
+		write: async (fixture) => {
+			await fixture.writeRunningRun("stage-completed");
+			await recordPause(fixture, fixture.runningRun);
+			return fixture.runningRun;
+		},
+		claim: "gone",
+		status: listedAs(pausedStatus("build")),
+		finalOutcome: {
+			status: "NOT_REACHED",
+			stage: "build",
+			reason: PAUSED_REASON,
+		},
+	},
+	{
+		ending: "a paused run whose process restores the target",
+		write: async (fixture) => {
+			await fixture.writeRunningRun();
+			await recordPause(fixture, fixture.runningRun);
+			return fixture.runningRun;
+		},
+		claim: "live",
+		status: listedAs(pausedStatus("build")),
+		finalOutcome: {
+			status: "NOT_REACHED",
+			stage: "build",
+			reason: PAUSED_REASON,
+		},
+	},
+	{
+		ending: "a paused run reconciliation later marked interrupted",
+		write: async (fixture) => {
+			await fixture.writeRunningRun("stage-completed");
+			await recordPause(fixture, fixture.runningRun);
+			await fixture.appendRunningEvent("run-interrupted", "build", 9500);
+			return fixture.runningRun;
+		},
+		claim: "gone",
+		status: listedAs(pausedStatus("build")),
+		finalOutcome: {
+			status: "NOT_REACHED",
+			stage: "build",
+			reason: PAUSED_REASON,
+		},
+	},
+	{
+		ending: "a paused run the operator stopped before it failed",
+		write: async (fixture) => {
+			await fixture.writeSignalAbortedRun();
+			await recordPause(fixture, fixture.abortedRun);
+			await recordOperatorStop(fixture, fixture.abortedRun);
+			return fixture.abortedRun;
+		},
+		claim: "gone",
+		status: listedAs(pausedStatus("build")),
+		finalOutcome: {
+			status: "NOT_REACHED",
+			stage: "build",
+			reason: PAUSED_REASON,
+		},
+	},
+	{
+		ending: "a run whose process died with no reconciliation since",
+		write: async (fixture) => {
+			await fixture.writeRunningRun("stage-completed");
+			return fixture.runningRun;
+		},
+		claim: "gone",
+		status: listedAs("INTERRUPTED"),
+		finalOutcome: {
+			status: "NOT_REACHED",
+			stage: "build",
+			reason: INTERRUPTED_REASON,
+		},
+	},
+	{
+		ending: "a run whose process died while a stage was judged",
+		write: async (fixture) => {
+			await fixture.writeRunningRun("stage-judging");
+			await fixture.writeAwaitingJudgeRecord(fixture.runningRun);
+			return fixture.runningRun;
+		},
+		claim: "gone",
+		status: listedAs("INTERRUPTED"),
+		finalOutcome: {
+			status: "NOT_REACHED",
+			stage: "build",
+			reason: INTERRUPTED_REASON,
+		},
+	},
+	{
+		ending: "a run reconciliation marked interrupted while a stage was judged",
+		write: async (fixture) => {
+			await fixture.writeRunningRun("stage-judging");
+			await fixture.writeAwaitingJudgeRecord(fixture.runningRun);
+			await fixture.appendRunningEvent("run-interrupted", "build", 9500);
+			return fixture.runningRun;
+		},
+		claim: "gone",
+		status: listedAs("INTERRUPTED"),
+		finalOutcome: {
+			status: "NOT_REACHED",
+			stage: "build",
+			reason: INTERRUPTED_REASON,
+		},
+	},
+	{
+		ending: "a run whose target cannot be asked whether it still runs",
+		write: async (fixture) => {
+			await fixture.writeRunningRun();
+			return fixture.runningRun;
+		},
+		claim: "unknown",
+		status: unlisted("run history lists no row for the run"),
+		finalOutcome: { status: "PENDING", stage: "build" },
+	},
 ];
+
+async function recordPause(
+	fixture: RecordedRunsFixture,
+	run: string,
+): Promise<void> {
+	await recordPaused(
+		benchmarkRunPaths(fixture.runsDirectory, run),
+		"build",
+		"2026-10-13T00:00:00.000Z",
+	);
+}
 
 async function recordOperatorStop(
 	fixture: RecordedRunsFixture,
@@ -1869,7 +2034,7 @@ describe("/api/runs/:run", () => {
 				});
 			});
 
-			it("reports a crashed run as not reached while a later run holds its target", async () => {
+			it("reports a crashed run as interrupted while a later run holds its target", async () => {
 				const fixture = await emptyFixture();
 				await fixture.writeRunningRun();
 				await fixture.writeLaterRunningRun();
@@ -1884,7 +2049,7 @@ describe("/api/runs/:run", () => {
 					finalOutcome: {
 						status: "NOT_REACHED",
 						stage: "build",
-						reason: UNEXPLAINED_END_REASON,
+						reason: INTERRUPTED_REASON,
 					},
 				});
 			});
