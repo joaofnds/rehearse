@@ -1750,13 +1750,15 @@ process restores the target and after a later failed or interrupted event. A
 stream that ends interrupted, or a non-terminal one whose run no longer holds
 its target's claim, reads interrupted before reconciliation marks it as well as
 after. A non-terminal stream whose target cannot be asked reads `PENDING`. A
-run with no events reads the stage it left awaiting judgment, and a run that
-recorded none of those says so. A record reads its run's ending once, so its
-`status` and `finalOutcome` agree even while the run's files change. When a
-file that ending rests on cannot be parsed, the record is still served: its
-`status` is unavailable with the parse failure as the reason, and its
-`finalOutcome` is `NOT_REACHED` with a reason saying the ending could not be
-read. The final judge returns no letter, so none is served.
+stream that ends `run-completed` with no artifact says the run ended without
+recording how. A run with no events reads the stage it left awaiting judgment,
+and a run that recorded none of those says so. A record decides which ending
+its run had once, so its `status` and `finalOutcome` name the same one even
+while the run's files change. When `paused.json` or `operator-stop.json`
+cannot be parsed, the record is still served: its `status` is unavailable with
+the parse failure as the reason, and its `finalOutcome` is `NOT_REACHED` with
+a reason saying the ending could not be read. An unparseable stage record or
+main artifact still fails the whole response with 500. The final judge returns no letter, so none is served.
 
 ### Judge evidence sources
 

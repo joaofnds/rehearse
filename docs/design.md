@@ -144,8 +144,11 @@ writes nothing for 10 seconds and a stage can run for many minutes between
 events. The poll interval must therefore stay under that timeout. The
 run-history report reads the same store to tell a run in flight from one that
 ended. It reads the store only after the authoritative files answer nothing: an
-artifact or a stop record settles a run's outcome on its own, and the stream is
-consulted for the runs those files do not cover. A non-terminal stream is not
+artifact, a stop record, a pause record or an operator stop settles a run's
+outcome on its own, in that order, and the stream is consulted for the runs
+those files do not cover. The run record's final outcome takes its ending from
+the same decision, in `src/benchmark/run-ending.ts`, so the two cannot name
+different endings. A non-terminal stream is not
 enough by itself, so the report also checks that the run's own claim on its
 target is held by a live process. A claim names the run that made it. A claim
 written by an older control checkout names no run, and counts as the run's own
@@ -166,7 +169,7 @@ racing that end misreads for one poll and corrects itself. Three misreadings
 last: a run in flight whose marker an operator deleted reads `INTERRUPTED` while
 it executes, a run whose best-effort `run-failed` failed to record reads
 `INTERRUPTED` rather than `FAILED`, and a live run whose every event failed to
-record reads `INTERRUPTED` once it leaves a stage awaiting judgment. The last
+record reads `INTERRUPTED` while a stage awaits its judge. The last
 holds because a run with no events is not asked about its claim, so that a run
 recorded before the event store, which died while a stage was judged, reads as
 the interrupted run it is. A target that cannot be asked, because the
