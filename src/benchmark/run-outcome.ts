@@ -46,6 +46,22 @@ export interface StoppedStage {
 	readonly error: string;
 }
 
+/** The first of a run's stage files that parses as the given record. */
+async function firstStageRecord<Record>(
+	runsDirectory: string,
+	run: string,
+	schema: z.ZodType<Record>,
+): Promise<Record | undefined> {
+	for (const file of await runStageFiles(runsDirectory, run)) {
+		const parsed = schema.safeParse(JSON.parse(await Bun.file(file).text()));
+		if (parsed.success) {
+			return parsed.data;
+		}
+	}
+
+	return undefined;
+}
+
 /**
  * A stage that stops the run overwrites its own `<run>.<stage>.json` with a
  * stop record instead of a judged scorecard, so among a run's stage files at
@@ -56,16 +72,15 @@ export async function stoppedStage(
 	runsDirectory: string,
 	run: string,
 ): Promise<StoppedStage | undefined> {
-	for (const file of await runStageFiles(runsDirectory, run)) {
-		const parsed = stoppedStageRecordSchema.safeParse(
-			JSON.parse(await Bun.file(file).text()),
-		);
-		if (parsed.success) {
-			return { stage: parsed.data.stage, error: parsed.data.error };
-		}
-	}
+	const record = await firstStageRecord(
+		runsDirectory,
+		run,
+		stoppedStageRecordSchema,
+	);
 
-	return undefined;
+	return record === undefined
+		? undefined
+		: { stage: record.stage, error: record.error };
 }
 
 /**
@@ -76,14 +91,11 @@ export async function awaitingJudgeStage(
 	runsDirectory: string,
 	run: string,
 ): Promise<string | undefined> {
-	for (const file of await runStageFiles(runsDirectory, run)) {
-		const parsed = awaitingJudgeStageRecordSchema.safeParse(
-			JSON.parse(await Bun.file(file).text()),
-		);
-		if (parsed.success) {
-			return parsed.data.stage;
-		}
-	}
+	const record = await firstStageRecord(
+		runsDirectory,
+		run,
+		awaitingJudgeStageRecordSchema,
+	);
 
-	return undefined;
+	return record?.stage;
 }
