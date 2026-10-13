@@ -27,6 +27,7 @@ import {
 	JudgeOutputValidationError,
 } from "./judge-attempt";
 import type { RunManifest } from "./manifest";
+import type { ReplayDependencies } from "./replay";
 import { writeRunManifest } from "./manifest";
 import { runReplayConfirmation } from "./replay-confirmation";
 import { GroupStoppedError } from "./confirmation-evidence";
@@ -345,6 +346,46 @@ describe(runReplayConfirmation.name, () => {
 		expect(fake.targetChecks).toEqual([
 			run.manifest.pipeline.target.checks,
 			run.manifest.pipeline.target.checks,
+		]);
+	});
+
+	it("checks every rep's worktree out from the repository its source resolves to", async () => {
+		const fake = new ReplayConfirmationHarness(testResources);
+		const run = await fake.recordedRun();
+		const corpusRoot = await mkdtemp(join(tmpdir(), "rehearse-corpus-"));
+		testResources.track(corpusRoot);
+		await Bun.write(
+			join(corpusRoot, "skills", "discuss", "SKILL.md"),
+			"discuss corpus\n",
+		);
+		const sources: Parameters<ReplayDependencies["replaySourceRoot"]>[0][] = [];
+
+		await fake.runConfirmation(
+			{
+				paths: run.paths,
+				corpusRoots: [{ kind: "directory", root: corpusRoot }],
+			},
+			{ reps: 2, declaredTargetRoot: "/declared/target" },
+			(defaults) => ({
+				...defaults,
+				replaySourceRoot: (source) => {
+					sources.push(source);
+
+					return Promise.resolve("/declared/target");
+				},
+			}),
+		);
+
+		expect(sources).toEqual([
+			{
+				recorded: run.manifest.sourceRoot,
+				declared: "/declared/target",
+				sha: run.initial.targetSha,
+			},
+		]);
+		expect(fake.worktrees.map(({ root }) => root)).toEqual([
+			"/declared/target",
+			"/declared/target",
 		]);
 	});
 

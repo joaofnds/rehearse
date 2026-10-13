@@ -22,7 +22,11 @@ import {
 	captureFileHashes,
 	captureTreatmentChecks,
 } from "#benchmark/checks";
-import { CaseDeclarationError, readCaseDeclaration } from "#benchmark/case";
+import {
+	CaseDeclarationError,
+	declaredTarget,
+	readCaseDeclaration,
+} from "#benchmark/case";
 import { runCommand } from "#benchmark/command";
 import { processSignalStop, stopOnSignal } from "#benchmark/stop-on-signal";
 import type { ReplayCliConfig } from "#benchmark/config";
@@ -50,6 +54,7 @@ import type { ReplayStageOutcome } from "#benchmark/replay-command";
 import { executeReplayStage } from "#benchmark/replay-command";
 import type { ReplayConfirmationOutcome } from "#benchmark/replay-confirmation";
 import { runReplayConfirmation } from "#benchmark/replay-confirmation";
+import { replaySourceRoot } from "#benchmark/replay-source";
 import type { BenchmarkRunPaths } from "#benchmark/run-layout";
 import { benchmarkRunPaths, recordedRunNames } from "#benchmark/run-layout";
 import { loadStageRubric, runStageJudge } from "#benchmark/stage-grading";
@@ -199,6 +204,31 @@ export async function replaySettingsFile(
 }
 
 /**
+ * The repository a fresh run of the replayed run's case would check out,
+ * which replay falls back to once the run's own clone is gone. A session
+ * case declares none, and a case that no longer loads leaves replay to the
+ * recorded repository alone: the tolerance `declaredSessionKnobs` applies.
+ */
+export async function replayDeclaredTarget(
+	manifestFile: string,
+): Promise<string | undefined> {
+	try {
+		const manifest = await loadRunManifest(manifestFile);
+		const declaration = await readCaseDeclaration(manifest.caseId);
+
+		return declaration.kind === "pipeline"
+			? declaredTarget(declaration)
+			: undefined;
+	} catch (error) {
+		if (error instanceof CaseDeclarationError) {
+			return undefined;
+		}
+
+		throw error;
+	}
+}
+
+/**
  * A replay's project-level corpus search is the target the replayed run
  * recorded, not the control repository: `replay.ts` already searches the
  * worktree it builds from that same source once one exists, so the
@@ -280,9 +310,10 @@ export async function executeReplay(
 	output: CommandOutput,
 	spendCeilingUsd: number,
 ): Promise<ReplayCommandOutcome> {
-	const [corpus, loadedSettings] = await Promise.all([
+	const [corpus, loadedSettings, declaredTargetRoot] = await Promise.all([
 		replayCorpus(config.corpus),
 		replaySettingsFile(paths.manifestFile),
+		replayDeclaredTarget(paths.manifestFile),
 	]);
 	const replayDependencies: ReplayDependencies = {
 		createProductOwner,
@@ -308,6 +339,7 @@ export async function executeReplay(
 		addWorktree,
 		removeWorktree,
 		pruneWorktrees,
+		replaySourceRoot,
 		materializeCheckpoint,
 		captureBaselineContext,
 		captureFileHashes,
@@ -333,6 +365,7 @@ export async function executeReplay(
 		settingSources: corpus.settingSources,
 		loadedSettings,
 		controlSha: await currentControlSha(),
+		declaredTargetRoot,
 		model: config.model,
 		effort: config.effort,
 		judgeModel: config.judgeModel,

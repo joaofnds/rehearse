@@ -65,6 +65,7 @@ import { repSpendCeilings } from "./spend-ceiling";
 interface FrozenReplayInputs {
 	readonly manifest: Awaited<ReturnType<typeof loadRunManifest>>;
 	readonly plan: ReturnType<typeof resolveReplay>;
+	readonly sourceRoot: string;
 	readonly checkpointDirectory: string;
 	readonly corpusDirectory: string;
 	readonly rubric: Awaited<ReturnType<ReplayDependencies["loadStageRubric"]>>;
@@ -111,6 +112,11 @@ async function freezeReplayInputs(
 		request.paths.checkpointsDirectory,
 	);
 	const plan = resolveReplay(manifest, checkpoints, request.stage);
+	const sourceRoot = await dependencies.replaySourceRoot({
+		recorded: manifest.sourceRoot,
+		declared: request.declaredTargetRoot,
+		sha: plan.consumed.targetSha,
+	});
 	const checkpointDirectory = join(inputsDirectory, "checkpoint");
 	await cp(
 		request.paths.checkpointDirectory(plan.consumed.stage),
@@ -222,6 +228,7 @@ async function freezeReplayInputs(
 
 	return {
 		manifest,
+		sourceRoot,
 		plan,
 		checkpointDirectory,
 		corpusDirectory: join(corpusRoot, plan.definition.name),
@@ -441,7 +448,7 @@ export async function runReplayConfirmation(
 		async () => {
 			// The killed reps' own removals may still be at work on this tree.
 			await removeUntilAbsent(worktreesDirectory);
-			await dependencies.pruneWorktrees(frozen.manifest.sourceRoot);
+			await dependencies.pruneWorktrees(frozen.sourceRoot);
 		},
 		async (signal) => {
 			await Bun.write(paths.operatorStopFile, operatorStopRecord(signal));
@@ -498,7 +505,7 @@ async function runReplayConfirmationBody(
 			let setupOperation: string | undefined = "worktree creation";
 			try {
 				await dependencies.addWorktree(
-					frozen.manifest.sourceRoot,
+					frozen.sourceRoot,
 					frozen.plan.consumed.targetSha,
 					plan.worktreePath,
 				);
@@ -633,7 +640,7 @@ async function runReplayConfirmationBody(
 					now() - repStart,
 				);
 				return await settleCompletedConfirmationRep({
-					targetRoot: frozen.manifest.sourceRoot,
+					targetRoot: frozen.sourceRoot,
 					retentionName: `${request.groupId}/${plan.repId}`,
 					resultSha: session.resultSha,
 					recordFile: repPaths.recordFile,
@@ -690,7 +697,7 @@ async function runReplayConfirmationBody(
 						now() - repStart,
 					);
 					return settleCompletedConfirmationRep({
-						targetRoot: frozen.manifest.sourceRoot,
+						targetRoot: frozen.sourceRoot,
 						retentionName: `${request.groupId}/${plan.repId}`,
 						resultSha: session.resultSha,
 						recordFile: repPaths.recordFile,

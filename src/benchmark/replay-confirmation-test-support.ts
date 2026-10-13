@@ -220,6 +220,7 @@ export class ReplayConfirmationHarness {
 			stage: "discuss",
 			instructions: "Frozen instructions\n",
 			controlSha: "control-sha",
+			declaredTargetRoot: undefined,
 			model: "sonnet",
 			judgeModel: "opus",
 			sessionBudgetUsd: 5,
@@ -379,6 +380,7 @@ export class ReplayConfirmationHarness {
 
 				return Promise.resolve();
 			},
+			replaySourceRoot: ({ recorded }) => Promise.resolve(recorded),
 			stopOnSignal: (cleanUp, recordStop) => {
 				// A released stop is inert, as the real one is once its signals
 				// return to their default.

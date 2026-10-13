@@ -13,11 +13,13 @@ import {
 	executeReplay,
 	replayCorpus,
 	replayCorpusRoots,
+	replayDeclaredTarget,
 	replaySettingsFile,
 	runReplayCommand,
 } from "#cli/replay-command";
 import { CorpusConfigurationError } from "#benchmark/corpus-file";
 import { DEFAULT_STAGE_SETTINGS_FILE } from "#benchmark/stage-settings";
+import { loadCase } from "#benchmark/case";
 
 const sessionArgs = [
 	"--model",
@@ -334,6 +336,25 @@ describe(replaySettingsFile.name, () => {
 			const settingsFile = await replaySettingsFile(manifestFile);
 
 			expect(settingsFile.hashed.path).toBe(DEFAULT_STAGE_SETTINGS_FILE);
+		} finally {
+			await rm(manifestFile, { force: true });
+		}
+	});
+});
+
+describe(replayDeclaredTarget.name, () => {
+	it("names the target a fresh run of the replayed run's case would use", async () => {
+		const manifestFile = await writeReplayableRunManifest(
+			"any-name-declared-target",
+		);
+
+		try {
+			const target = await replayDeclaredTarget(manifestFile);
+
+			expect(await loadCase("audit-log")).toMatchObject({
+				kind: "pipeline",
+				targetPath: target,
+			});
 		} finally {
 			await rm(manifestFile, { force: true });
 		}

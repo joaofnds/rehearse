@@ -44,6 +44,7 @@ import type {
 	removeWorktree,
 } from "./target";
 import { createSpendCeiling } from "./spend-ceiling";
+import type { replaySourceRoot } from "./replay-source";
 import type { createProductOwner } from "./workflow";
 
 export class ReplayError extends Error {
@@ -141,6 +142,7 @@ export interface ReplayDependencies {
 	readonly addWorktree: typeof addWorktree;
 	readonly removeWorktree: typeof removeWorktree;
 	readonly pruneWorktrees: typeof pruneWorktrees;
+	readonly replaySourceRoot: typeof replaySourceRoot;
 	/**
 	 * Removes the worktree on a stop signal, once every command is killed,
 	 * until the release it answers is called.
@@ -174,6 +176,7 @@ export interface ReplayRequest {
 	readonly stage: string;
 	readonly instructions: string;
 	readonly controlSha: string;
+	readonly declaredTargetRoot: string | undefined;
 	readonly model: string;
 	readonly effort?: Effort | undefined;
 	readonly judgeModel: string;
@@ -300,6 +303,11 @@ export async function runReplay(
 		request.paths.checkpointsDirectory,
 	);
 	const plan = resolveReplay(manifest, checkpoints, request.stage);
+	const sourceRoot = await dependencies.replaySourceRoot({
+		recorded: manifest.sourceRoot,
+		declared: request.declaredTargetRoot,
+		sha: plan.consumed.targetSha,
+	});
 	const shortId = await claimShortId(
 		request.paths.runsDirectory,
 		manifest.caseId,
@@ -313,12 +321,12 @@ export async function runReplay(
 	const worktreeDir = join(parent, "worktree");
 	const productOwnerDirectory = join(parent, "product-owner");
 	await dependencies.addWorktree(
-		manifest.sourceRoot,
+		sourceRoot,
 		plan.consumed.targetSha,
 		worktreeDir,
 	);
 	const release = dependencies.stopOnSignal(async () => {
-		await dependencies.removeWorktree(manifest.sourceRoot, worktreeDir);
+		await dependencies.removeWorktree(sourceRoot, worktreeDir);
 		await rm(parent, { force: true, recursive: true });
 	});
 
@@ -515,7 +523,7 @@ export async function runReplay(
 		release();
 	}
 
-	await dependencies.removeWorktree(manifest.sourceRoot, worktreeDir);
+	await dependencies.removeWorktree(sourceRoot, worktreeDir);
 	await rm(parent, { force: true, recursive: true });
 
 	return outcome;

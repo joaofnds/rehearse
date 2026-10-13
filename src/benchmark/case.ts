@@ -361,7 +361,7 @@ async function loadPipelineWithRubrics(
  * to it by `caseRelative`. The base is the case directory all the same: one
  * base for every path in a declaration.
  */
-function declaredTarget(declaration: PipelineCaseDeclaration): string {
+export function declaredTarget(declaration: PipelineCaseDeclaration): string {
 	const { path } = declaration.target;
 	if (isAbsolute(path)) {
 		return path;

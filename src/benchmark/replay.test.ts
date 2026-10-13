@@ -40,6 +40,7 @@ import {
 	runReplay,
 } from "./replay";
 import { benchmarkRunPaths, runNameFromTimestamp } from "./run-layout";
+import { replaySourceRoot } from "./replay-source";
 import { readShortIds } from "./short-id";
 import { failureOf } from "#cli/cli-test-support";
 import { loadStageRubric } from "./stage-grading";
@@ -382,6 +383,7 @@ describe(runReplay.name, () => {
 			instructions: "Current instructions",
 			corpusSource: { kind: "live", root: "/live", backingRoot: "/backing" },
 			controlSha: "control-sha",
+			declaredTargetRoot: undefined,
 			model: "sonnet",
 			judgeModel: "opus",
 			sessionBudgetUsd: 5,
@@ -560,6 +562,35 @@ describe(runReplay.name, () => {
 			true,
 		);
 		expect(outcome.recordPath).toContain(run.discuss.lineage);
+	});
+
+	it("checks its worktree out from the repository its source resolves to", async () => {
+		const run = await recordedRun();
+		const sources: Parameters<ReplayDependencies["replaySourceRoot"]>[0][] = [];
+		const fake = new ReplayConfirmationHarness(testResources, (defaults) => ({
+			...defaults,
+			replaySourceRoot: (source) => {
+				sources.push(source);
+
+				return Promise.resolve("/declared/target");
+			},
+		}));
+
+		await runReplay(fake.dependencies, {
+			...request(run, "build"),
+			declaredTargetRoot: "/declared/target",
+		});
+
+		expect(sources).toEqual([
+			{
+				recorded: run.manifest.sourceRoot,
+				declared: "/declared/target",
+				sha: run.discuss.targetSha,
+			},
+		]);
+		expect(fake.worktrees.map(({ root }) => root)).toEqual([
+			"/declared/target",
+		]);
 	});
 
 	it("writes a record that validates against the replay schema", async () => {
@@ -1266,6 +1297,7 @@ describe(runReplay.name, () => {
 				addWorktree,
 				removeWorktree,
 				pruneWorktrees,
+				replaySourceRoot,
 				materializeCheckpoint,
 				captureBaselineContext,
 				captureFileHashes,
@@ -1283,6 +1315,7 @@ describe(runReplay.name, () => {
 				instructions: "Replayed instructions\n",
 				corpusSource: { kind: "live", root: "/live", backingRoot: "/backing" },
 				controlSha: "control-sha",
+				declaredTargetRoot: undefined,
 				model: "sonnet",
 				judgeModel: "opus",
 				sessionBudgetUsd: 5,
