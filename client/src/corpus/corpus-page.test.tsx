@@ -7,13 +7,21 @@ import {
 	within,
 } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+	createMemoryHistory,
+	createRootRoute,
+	createRouter,
+	RouterProvider,
+} from "@tanstack/react-router";
 import type { InferResponseType } from "hono/client";
 import type { apiClient, launchClient } from "#client/api-client";
 import type { AppliedCorpusEdit } from "./corpus-edit-requests";
 import type { Reply } from "#client/test-support/fetch-stub";
 import { FakeServer, stubFetchByPath } from "#client/test-support/fetch-stub";
+import { LiveReply } from "#client/test-support/live-reply";
 import { CorpusPage } from "./corpus-page";
 import { CORPUS_VERSION_HEADER } from "#server/corpus-version-header";
+import { renderAppWithStub } from "#client/test-support/render-app";
 
 const originalFetch = globalThis.fetch;
 
@@ -151,7 +159,7 @@ describe(CorpusPage.name, () => {
 		}
 
 		function serving(
-			overrides: ReadonlyMap<string, Reply> = new Map(),
+			overrides: ReadonlyMap<string, Reply | LiveReply> = new Map(),
 		): FakeServer {
 			const server = new FakeServer(
 				new Map([
@@ -183,9 +191,13 @@ describe(CorpusPage.name, () => {
 			const client = new QueryClient({
 				defaultOptions: { queries: { retry: false } },
 			});
+			const router = createRouter({
+				routeTree: createRootRoute({ component: CorpusPage }),
+				history: createMemoryHistory({ initialEntries: ["/"] }),
+			});
 			render(
 				<QueryClientProvider client={client}>
-					<CorpusPage />
+					<RouterProvider router={router} />
 				</QueryClientProvider>,
 			);
 
@@ -392,6 +404,66 @@ describe(CorpusPage.name, () => {
 			expect(
 				screen.getByText("Marked 3 recorded results stale, none deleted"),
 			).toBeInTheDocument();
+		});
+
+		it("shows the applied edit's invalidated results on the card and in the file's row without a reload", async () => {
+			let appliedYet = false;
+			const measured: CorpusResponse = {
+				...corpusResponseBody(),
+				digest: NEW_VERSION,
+				files: [
+					{
+						path: "CLAUDE.md",
+						sha256: "1".repeat(64),
+						lastEditedAt: "2026-09-04T09:41:00.000Z",
+						lines: 1,
+						readBy: 23,
+						invalidated: 3,
+					},
+				],
+				lastEdit: {
+					kind: "measured",
+					previous: STARTS_FROM,
+					current: NEW_VERSION,
+					count: 3,
+					rows: ["run:a", "run:b", "run:c"],
+				},
+			};
+			serving(
+				new Map([
+					[
+						"GET /api/corpus",
+						new LiveReply(() => ({
+							status: 200,
+							body: appliedYet ? measured : corpusResponseBody(),
+						})),
+					],
+					[
+						"POST /api/corpus/edits/apply",
+						new LiveReply(() => {
+							appliedYet = true;
+
+							return applied();
+						}),
+					],
+				]),
+			);
+
+			await appliedEdit();
+
+			const card = screen.getByRole("region", {
+				name: "Invalidated by the last edit",
+			});
+			await waitFor(() => {
+				expect(card).toHaveTextContent("3 recorded results · review them");
+			});
+			const row = screen.getByText("CLAUDE.md").closest("tr");
+			expect(row).not.toBeNull();
+			expect(
+				within(row ?? document.body)
+					.getAllByRole("cell")
+					.map(({ textContent }) => textContent),
+			).toContain("⚠ 3 results");
 		});
 
 		it("offers a replay of the stage that read the file, starting nothing", async () => {
@@ -697,20 +769,140 @@ describe(CorpusPage.name, () => {
 		});
 	});
 
-	it("renders the empty state instead of a table when the corpus tree holds no files", async () => {
-		stubFetchByPath(
-			new Map([
-				[
-					"/api/corpus",
+	describe("when the last edit was measured", () => {
+		const PREVIOUS = `e73e56${"0".repeat(58)}`;
+		const CURRENT = `a41c7e${"0".repeat(58)}`;
+
+		function measuredCorpus(
+			rows: readonly string[],
+			invalidated: number,
+		): CorpusResponse {
+			return {
+				...corpusResponseBody(),
+				digest: CURRENT,
+				files: [
 					{
-						root: "/home/user/.claude",
-						digest: "e3b0c4",
-						files: [],
-						refusals: [],
+						path: "CLAUDE.md",
+						sha256: "0".repeat(64),
+						lastEditedAt: "2026-09-04T09:41:00.000Z",
+						lines: 1,
+						readBy: 23,
+						invalidated,
 					},
 				],
-			]),
+				lastEdit: {
+					kind: "measured",
+					previous: PREVIOUS,
+					current: CURRENT,
+					count: rows.length,
+					rows,
+				},
+			};
+		}
+
+		it("counts the recorded results it invalidated and links to them in run history", async () => {
+			renderAppWithStub(
+				"/corpus",
+				new Map<string, unknown>([
+					[
+						"/api/corpus",
+						measuredCorpus(
+							["run:2026-09-12T00-00-00.000Z", "group:group-a"],
+							2,
+						),
+					],
+					["/api/settings", LIVE_SETTINGS],
+				]),
+			);
+
+			const card = await screen.findByRole("region", {
+				name: "Invalidated by the last edit",
+			});
+
+			expect(within(card).getByText(/2 recorded results/u)).toBeInTheDocument();
+			expect(
+				within(card).getByRole("link", { name: "review them" }),
+			).toHaveAttribute("href", `/?invalidatedBy=${PREVIOUS}..${CURRENT}`);
+		});
+
+		it("says no recorded result was invalidated and names the version the edit started from", async () => {
+			renderAppWithStub(
+				"/corpus",
+				new Map<string, unknown>([
+					["/api/corpus", measuredCorpus([], 0)],
+					["/api/settings", LIVE_SETTINGS],
+				]),
+			);
+
+			const card = await screen.findByRole("region", {
+				name: "Invalidated by the last edit",
+			});
+
+			expect(card).toHaveTextContent(
+				"No recorded result invalidated by the edit from corpus@e73e56",
+			);
+			expect(within(card).queryByRole("link")).toBeNull();
+		});
+
+		it.each([
+			[0, "✓ 0 results"],
+			[1, "⚠ 1 result"],
+			[23, "⚠ 23 results"],
+		])(
+			"reads %d invalidated results of a file as %s",
+			async (invalidated, expected) => {
+				renderAppWithStub(
+					"/corpus",
+					new Map<string, unknown>([
+						["/api/corpus", measuredCorpus([], invalidated)],
+						["/api/settings", LIVE_SETTINGS],
+					]),
+				);
+
+				const path = await screen.findByText("CLAUDE.md");
+				const row = path.closest("tr");
+
+				expect(row).not.toBeNull();
+				expect(
+					within(row ?? document.body)
+						.getAllByRole("cell")
+						.map(({ textContent }) => textContent),
+				).toContain(expected);
+			},
 		);
+	});
+
+	describe("when the last edit is not recorded", () => {
+		it("shows the server's reason on the card and reads no file as 0 results", async () => {
+			renderAppWithStub(
+				"/corpus",
+				new Map<string, unknown>([
+					["/api/corpus", corpusResponseBody()],
+					["/api/settings", LIVE_SETTINGS],
+				]),
+			);
+
+			const card = await screen.findByRole("region", {
+				name: "Invalidated by the last edit",
+			});
+
+			expect(card).toHaveTextContent(
+				"Not recorded: the corpus under test has no earlier version in its log to compare against",
+			);
+			expect(
+				screen.getByRole("columnheader", { name: "Invalidated" }),
+			).toBeInTheDocument();
+			expect(screen.queryByText(/0 results/u)).toBeNull();
+		});
+	});
+
+	it("renders the empty state instead of a table when the corpus tree holds no files", async () => {
+		const empty: CorpusResponse = {
+			...corpusResponseBody(),
+			digest: "e3b0c4",
+			files: [],
+		};
+		stubFetchByPath(new Map([["/api/corpus", empty]]));
 		const client = new QueryClient({
 			defaultOptions: { queries: { retry: false } },
 		});

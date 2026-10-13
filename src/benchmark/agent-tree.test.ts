@@ -1,12 +1,29 @@
 import { describe, expect, it } from "bun:test";
 import { join } from "node:path";
 import { agentTree } from "#benchmark/agent-tree";
-import type { AgentTree } from "#benchmark/agent-tree";
+import type { AgentTree, SubagentEvidence } from "#benchmark/agent-tree";
 import { recordedSubagents } from "#benchmark/subagent-evidence";
 
 const FIXTURE = join(import.meta.dir, "__fixtures__", "agent-tree");
+const INHERITED_PREFIX_LINES = 3;
+/** The fixture transcript up to, and not including, a4's launch. */
+const LINES_BEFORE_A4_LAUNCH = 19;
 
-async function fixtureTree(): Promise<AgentTree> {
+interface FixtureOverrides {
+	readonly prefixLinesExcluded?: number | undefined;
+	readonly transcript?: (lines: readonly string[]) => readonly string[];
+	readonly subagents?: (
+		recorded: readonly SubagentEvidence[],
+	) => readonly SubagentEvidence[];
+}
+
+async function fixtureTree(
+	overrides: FixtureOverrides = {},
+): Promise<AgentTree> {
+	const transcript = await Bun.file(join(FIXTURE, "transcript.jsonl")).text();
+	const lines = transcript.split("\n");
+	const recorded = await recordedSubagents(FIXTURE);
+
 	return agentTree({
 		attempt: {
 			kind: "session",
@@ -17,9 +34,12 @@ async function fixtureTree(): Promise<AgentTree> {
 			corpusFiles: [],
 		},
 		resolvedCorpusFiles: [],
-		transcript: await Bun.file(join(FIXTURE, "transcript.jsonl")).text(),
-		prefixLinesExcluded: 3,
-		subagents: await recordedSubagents(FIXTURE),
+		transcript: (overrides.transcript?.(lines) ?? lines).join("\n"),
+		prefixLinesExcluded:
+			"prefixLinesExcluded" in overrides
+				? overrides.prefixLinesExcluded
+				: INHERITED_PREFIX_LINES,
+		subagents: overrides.subagents?.(recorded) ?? recorded,
 	});
 }
 
@@ -40,6 +60,19 @@ describe(agentTree.name, () => {
 			a5: { state: "root", basis: "skill result" },
 			a6: { state: "agent", agentId: "a0", basis: "agent result" },
 		});
+	});
+
+	it("records the line of the parent's call that launched each agent", async () => {
+		const tree = await fixtureTree();
+
+		expect(
+			Object.fromEntries(
+				tree.agents.map(({ agentId, launchCallLine }) => [
+					agentId,
+					launchCallLine,
+				]),
+			),
+		).toEqual({ a0: 2, a1: 8, a2: 9, a3: 2, a4: 20, a5: 18, a6: 4 });
 	});
 
 	it("reads each agent's models from its own requests", async () => {
@@ -67,6 +100,7 @@ describe(agentTree.name, () => {
 			"req-p1",
 			"req-r1",
 			"req-r2",
+			"req-r2b",
 			"req-r3",
 			"req-r4",
 			"req-r5",
@@ -137,13 +171,76 @@ describe(agentTree.name, () => {
 		});
 	});
 
+	it("lists each delivery an agent received with its own event and size", async () => {
+		const tree = await fixtureTree();
+
+		expect(tree.agents.find(({ agentId }) => agentId === "a1")).toMatchObject({
+			deliveryEvents: [
+				{
+					sourceId: "project:CLAUDE.md",
+					eventId: "4:1",
+					ordinal: 1,
+					measurement: { state: "complete" },
+				},
+			],
+		});
+		expect(
+			tree.root.deliveryEvents.map(({ sourceId, ordinal }) => ({
+				sourceId,
+				ordinal,
+			})),
+		).toEqual([
+			{ sourceId: "skill:skills/review/SKILL.md", ordinal: 1 },
+			{ sourceId: "skill:skills/review-docs/SKILL.md", ordinal: 1 },
+			{ sourceId: "skill:skills/verify/SKILL.md", ordinal: 1 },
+		]);
+	});
+
 	it("lists the root's own deliveries and none of its children's", async () => {
 		const tree = await fixtureTree();
 
 		expect(tree.root.deliveries.map(({ name }) => name)).toEqual([
 			"skills/review/SKILL.md",
 			"skills/review-docs/SKILL.md",
+			"skills/verify/SKILL.md",
 		]);
+	});
+
+	it("shows each agent's launch mode and spawn depth as recorded", async () => {
+		const tree = await fixtureTree();
+
+		expect(
+			Object.fromEntries(
+				tree.agents
+					.filter((agent) => agent.evidence === "available")
+					.map(({ agentId, launchMode, spawnDepth, description }) => [
+						agentId,
+						{ launchMode, spawnDepth, description },
+					]),
+			),
+		).toEqual({
+			a0: {
+				launchMode: "foreground",
+				spawnDepth: 1,
+				description: "Earlier review",
+			},
+			a1: {
+				launchMode: "foreground",
+				spawnDepth: 1,
+				description: "Review the code",
+			},
+			a2: {
+				launchMode: "background",
+				spawnDepth: 1,
+				description: "Review the docs",
+			},
+			a3: {
+				launchMode: "foreground",
+				spawnDepth: 2,
+				description: "Find the docs",
+			},
+			a5: { launchMode: "foreground", spawnDepth: 1, description: undefined },
+		});
 	});
 
 	it("marks the stopped agent stopped and no other", async () => {
@@ -151,7 +248,9 @@ describe(agentTree.name, () => {
 
 		expect(
 			tree.agents
-				.filter((agent) => agent.evidence === "available" && agent.stopped)
+				.filter(
+					(agent) => agent.evidence === "available" && agent.stopped === true,
+				)
 				.map(({ agentId }) => agentId),
 		).toEqual(["a1"]);
 	});
@@ -226,24 +325,7 @@ describe(agentTree.name, () => {
 		expect(reviewers.every((agent) => !("role" in agent))).toBe(true);
 	});
 
-	it("offers no reading that sums agents into one active context", async () => {
-		const tree = await fixtureTree();
-
-		expect(Object.keys(tree).toSorted()).toEqual([
-			"agents",
-			"coverage",
-			"root",
-		]);
-		expect(
-			tree.agents.every(
-				(agent) =>
-					agent.evidence === "unavailable" ||
-					!agent.series.measuresActiveContextWindow,
-			),
-		).toBe(true);
-	});
-
-	it("prices a streamed child request at its final rows", async () => {
+	it("reads a streamed child request complete from its final rows", async () => {
 		const tree = await fixtureTree();
 
 		const a1 = tree.agents.find(({ agentId }) => agentId === "a1");
@@ -268,34 +350,168 @@ describe(agentTree.name, () => {
 		});
 	});
 
+	describe("when a meta file names a parent that did not make the launching call", () => {
+		it("records no launching line for the agent", async () => {
+			const tree = await fixtureTree({
+				subagents: (recorded) =>
+					recorded.map((each) =>
+						each.agentId === "a3"
+							? {
+									agentId: each.agentId,
+									transcript: each.transcript,
+									meta: JSON.stringify({ parentAgentId: "a1" }),
+								}
+							: each,
+					),
+			});
+
+			expect(
+				tree.agents.find(({ agentId }) => agentId === "a3")?.launchCallLine,
+			).toBeUndefined();
+		});
+	});
+
 	describe("when an inherited agent left no transcript", () => {
 		it("keeps coverage complete", async () => {
-			const allSubagents = await recordedSubagents(FIXTURE);
-			const subagents = allSubagents.filter(({ agentId }) => agentId !== "a0");
-			const fullTranscript = await Bun.file(
-				join(FIXTURE, "transcript.jsonl"),
-			).text();
-			const transcript = fullTranscript.split("\n").slice(0, 16).join("\n");
-
-			const tree = agentTree({
-				attempt: {
-					kind: "session",
-					caseId: "case-a",
-					id: "attempt-a",
-					model: "sonnet",
-					outcome: "SUCCESSFUL",
-					corpusFiles: [],
-				},
-				resolvedCorpusFiles: [],
-				transcript,
-				prefixLinesExcluded: 3,
-				subagents,
+			const tree = await fixtureTree({
+				transcript: (lines) => lines.slice(0, LINES_BEFORE_A4_LAUNCH),
+				subagents: (recorded) =>
+					recorded.filter(({ agentId }) => agentId !== "a0"),
 			});
 
 			expect(tree.coverage).toEqual({ state: "complete" });
 			expect(tree.agents.find(({ agentId }) => agentId === "a0")).toMatchObject(
 				{ evidence: "unavailable", context: "inherited" },
 			);
+		});
+	});
+
+	describe("when a kept agent names no launch and continues a conversation", () => {
+		const stray: SubagentEvidence = {
+			agentId: "a9",
+			meta: "{}",
+			transcript: `${JSON.stringify({
+				type: "user",
+				message: { role: "user", content: "carry on" },
+				parentUuid: "u-earlier",
+				isSidechain: true,
+				cwd: "/work",
+			})}\n`,
+		};
+
+		it("leaves it unlinked rather than guessing a parent", async () => {
+			const tree = await fixtureTree({
+				subagents: (recorded) => [...recorded, stray],
+			});
+
+			expect(
+				tree.agents.find(({ agentId }) => agentId === "a9")?.parent,
+			).toEqual({ state: "unlinked" });
+		});
+
+		it("reads its starting context as not recorded", async () => {
+			const tree = await fixtureTree({
+				subagents: (recorded) => [...recorded, stray],
+			});
+
+			expect(tree.agents.find(({ agentId }) => agentId === "a9")?.context).toBe(
+				"not recorded",
+			);
+		});
+	});
+
+	describe("when an agent's meta file is missing or unreadable", () => {
+		const withMeta =
+			(meta: string | undefined) => (recorded: readonly SubagentEvidence[]) =>
+				recorded.map((each) =>
+					each.agentId === "a1" ? { ...each, meta } : each,
+				);
+
+		it("reads whether it was stopped as not recorded when the file is missing", async () => {
+			const tree = await fixtureTree({ subagents: withMeta(undefined) });
+
+			expect(tree.agents.find(({ agentId }) => agentId === "a1")).toMatchObject(
+				{
+					meta: "not recorded",
+					stopped: "not recorded",
+				},
+			);
+		});
+
+		it("reads the file as unreadable rather than absent when it does not parse", async () => {
+			const tree = await fixtureTree({
+				subagents: withMeta(
+					'{"agentType":"reviewer","spawnDepth":1.5,"stoppedByUser":true}',
+				),
+			});
+
+			expect(tree.agents.find(({ agentId }) => agentId === "a1")).toMatchObject(
+				{
+					meta: "unreadable",
+					stopped: "not recorded",
+				},
+			);
+		});
+	});
+
+	describe("when a child's tool result names no tool call", () => {
+		it("reads the row as a tool result and not a later prompt", async () => {
+			const child: SubagentEvidence = {
+				agentId: "a9",
+				meta: "{}",
+				transcript: [
+					{
+						type: "user",
+						message: { role: "user", content: "look" },
+						parentUuid: null,
+					},
+					{
+						type: "user",
+						message: {
+							role: "user",
+							content: [{ type: "tool_result", content: "found" }],
+						},
+					},
+				]
+					.map((row) => JSON.stringify(row))
+					.join("\n"),
+			};
+
+			const tree = await fixtureTree({
+				subagents: (recorded) => [...recorded, child],
+			});
+
+			expect(tree.agents.find(({ agentId }) => agentId === "a9")).toMatchObject(
+				{
+					laterTurns: [],
+				},
+			);
+		});
+	});
+
+	describe("when the attempt's boundary is unknown", () => {
+		it("lists the root's deliveries with their counts unknown", async () => {
+			const tree = await fixtureTree({ prefixLinesExcluded: undefined });
+
+			expect(
+				tree.root.deliveries.map(({ name, observedDeliveryCount }) => ({
+					name,
+					observedDeliveryCount,
+				})),
+			).toContainEqual({
+				name: "skills/review/SKILL.md",
+				observedDeliveryCount: undefined,
+			});
+		});
+
+		it("totals no agent's requests into the attempt", async () => {
+			const tree = await fixtureTree({ prefixLinesExcluded: undefined });
+
+			expect(
+				tree.agents
+					.filter((agent) => agent.evidence === "available")
+					.map(({ series }) => [series.boundary, series.attemptTotals.state]),
+			).toEqual(Array.from({ length: 5 }, () => ["unknown", "unavailable"]));
 		});
 	});
 });

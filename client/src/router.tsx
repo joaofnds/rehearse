@@ -4,6 +4,7 @@ import {
 	createRouter,
 } from "@tanstack/react-router";
 import type { RouterHistory } from "@tanstack/react-router";
+import { z } from "zod";
 import { CalibrationPage } from "#client/calibration/calibration-page";
 import { StageReviewPage } from "#client/calibration/stage-review-page";
 import { CasesPage } from "#client/cases/cases-page";
@@ -28,11 +29,27 @@ const rootRoute = createRootRoute({
 	notFoundComponent: NotFoundPage,
 });
 
+/**
+ * Any value of `invalidatedBy` reaches the screen as text, so one that names
+ * no edit is answered there rather than failing the route.
+ */
+const RUN_HISTORY_SEARCH = z.object({
+	invalidatedBy: z.coerce.string().optional(),
+});
+
 const runHistoryRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/",
-	component: RunHistoryPage,
+	validateSearch: RUN_HISTORY_SEARCH,
+	component: RunHistoryRoute,
 });
+
+function RunHistoryRoute(): React.JSX.Element {
+	const search: { readonly invalidatedBy?: string | undefined } =
+		runHistoryRoute.useSearch();
+
+	return <RunHistoryPage invalidatedBy={search.invalidatedBy} />;
+}
 
 const monitorRoute = createRoute({
 	getParentRoute: () => rootRoute,

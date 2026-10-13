@@ -1,5 +1,5 @@
 import { constants } from "node:fs";
-import { lstat, open, realpath } from "node:fs/promises";
+import { lstat, open, readdir, realpath } from "node:fs/promises";
 import type { FileHandle } from "node:fs/promises";
 import { z } from "zod";
 import { basename, isAbsolute, relative, resolve } from "node:path";
@@ -23,9 +23,19 @@ import {
 } from "#benchmark/run-outcome";
 import { redactAbsolutePaths } from "./redact-path";
 import { parseSessionAttemptRecord } from "#benchmark/session-record";
+import { agentCostAllocation } from "#benchmark/agent-cost";
+import type { AttemptCostAllocation } from "#benchmark/agent-cost";
+import { agentTree } from "#benchmark/agent-tree";
+import type { AgentTree, SubagentEvidence } from "#benchmark/agent-tree";
+import type { ClaudeCallMetrics } from "#benchmark/contracts";
+import {
+	SUBAGENTS_DIRECTORY,
+	subagentTranscriptAgentId,
+} from "#benchmark/subagent-evidence";
 import { transcriptInstructionLoadsFromLines } from "#benchmark/transcript-instruction-loads";
 import {
 	sessionHistoryAttemptCost,
+	sessionHistoryDetail,
 	sessionHistoryDetailFromLine,
 	sessionHistoryReport,
 	sessionHistoryReportFromLines,
@@ -356,6 +366,7 @@ export async function readRecordedEvidenceFile(
 interface AttemptReadings {
 	readonly metadata: SessionHistoryReportMetadata;
 	readonly reportedCostUsd: number | undefined;
+	readonly modelUsage: ClaudeCallMetrics["modelUsage"];
 }
 
 async function reportMetadata(
@@ -387,6 +398,7 @@ async function reportMetadata(
 			diagnostics: attempt.transcriptDiagnostics,
 		},
 		reportedCostUsd: attempt.metrics?.costUsd,
+		modelUsage: attempt.metrics?.modelUsage,
 	};
 }
 
@@ -397,9 +409,15 @@ interface ResolvedHistoryInput {
 	readonly transcriptFile: string | undefined;
 }
 
+/** A saved session attempt, whose record directory may hold sub-agent files. */
+interface ResolvedAttemptInput extends ResolvedHistoryInput {
+	readonly directory: string;
+	readonly modelUsage: ClaudeCallMetrics["modelUsage"];
+}
+
 async function standaloneInput(
 	identity: Readonly<SessionAttemptHistoryIdentity>,
-): Promise<ResolvedHistoryInput> {
+): Promise<ResolvedAttemptInput> {
 	const root = await canonicalRunsRoot(identity.runsDirectory);
 	const directory = await verifiedDirectory(root, [
 		"sessions",
@@ -419,7 +437,7 @@ async function standaloneInput(
 		"transcript.jsonl",
 		false,
 	);
-	const { metadata, reportedCostUsd } = await reportMetadata(
+	const { metadata, reportedCostUsd, modelUsage } = await reportMetadata(
 		root,
 		attemptFile,
 		identity.uuid,
@@ -431,12 +449,19 @@ async function standaloneInput(
 		);
 	}
 
-	return { root, metadata, reportedCostUsd, transcriptFile };
+	return {
+		root,
+		metadata,
+		reportedCostUsd,
+		transcriptFile,
+		directory,
+		modelUsage,
+	};
 }
 
 async function confirmationInput(
 	identity: Readonly<ConfirmationAttemptHistoryIdentity>,
-): Promise<ResolvedHistoryInput> {
+): Promise<ResolvedAttemptInput> {
 	const root = await canonicalRunsRoot(identity.runsDirectory);
 	const groupDirectory = await verifiedDirectory(root, [
 		"confirmations",
@@ -503,7 +528,7 @@ async function confirmationInput(
 		"transcript.jsonl",
 		false,
 	);
-	const { metadata, reportedCostUsd } = await reportMetadata(
+	const { metadata, reportedCostUsd, modelUsage } = await reportMetadata(
 		root,
 		attemptFile,
 		identity.repId,
@@ -518,7 +543,14 @@ async function confirmationInput(
 		);
 	}
 
-	return { root, metadata, reportedCostUsd, transcriptFile };
+	return {
+		root,
+		metadata,
+		reportedCostUsd,
+		transcriptFile,
+		directory: repDirectory,
+		modelUsage,
+	};
 }
 
 /**
@@ -1002,4 +1034,167 @@ export async function readConfirmationAttemptRequestSeries(
 	rates?: ContextRateCatalog,
 ): Promise<SessionHistoryAttemptSeries> {
 	return seriesFor(await confirmationInput(identity), rates);
+}
+
+export type SessionHistoryAgents =
+	| {
+			readonly state: "available";
+			readonly tree: AgentTree;
+			readonly cost: AttemptCostAllocation;
+	  }
+	| { readonly state: "unavailable"; readonly reason: string };
+
+const TRANSCRIPT_NOT_SAVED = "the attempt has no saved transcript";
+
+/**
+ * A child file is read through the same guard as the attempt's own evidence.
+ * One the guard refuses, a link or a file swapped while it was checked, stays
+ * out of the reading, so its agent reads as unavailable rather than failing
+ * every other agent's evidence or following the link out of the record.
+ */
+async function guardedText(
+	root: string,
+	directory: string,
+	name: string,
+): Promise<string | undefined> {
+	try {
+		const file = await verifiedFile(root, directory, name, false);
+
+		return file === undefined ? undefined : await readVerifiedFile(root, file);
+	} catch (error) {
+		if (
+			error instanceof SessionHistoryReaderError &&
+			error.kind === "refused"
+		) {
+			return undefined;
+		}
+
+		throw error;
+	}
+}
+
+async function verifiedSubagents(
+	root: string,
+	recordDirectory: string,
+): Promise<readonly SubagentEvidence[]> {
+	const directory = await verifiedDirectoryWhenPresent(recordDirectory, [
+		SUBAGENTS_DIRECTORY,
+	]);
+	if (directory === undefined) {
+		return [];
+	}
+
+	const names = await readdir(directory);
+	const agentIds = names
+		.map((name) => subagentTranscriptAgentId(name))
+		.filter((agentId) => agentId !== undefined)
+		.toSorted();
+	const subagents: SubagentEvidence[] = [];
+	for (const agentId of agentIds) {
+		const transcript = await guardedText(
+			root,
+			directory,
+			`agent-${agentId}.jsonl`,
+		);
+		if (transcript !== undefined) {
+			subagents.push({
+				agentId,
+				transcript,
+				meta: await guardedText(root, directory, `agent-${agentId}.meta.json`),
+			});
+		}
+	}
+
+	return subagents;
+}
+
+async function agentsFor(
+	input: Readonly<ResolvedAttemptInput>,
+	rates: ContextRateCatalog,
+): Promise<SessionHistoryAgents> {
+	if (input.transcriptFile === undefined) {
+		return { state: "unavailable", reason: TRANSCRIPT_NOT_SAVED };
+	}
+
+	const agentInput = {
+		attempt: input.metadata.attempt,
+		resolvedCorpusFiles: input.metadata.resolvedCorpusFiles,
+		transcript: await readVerifiedFile(input.root, input.transcriptFile),
+		prefixLinesExcluded: input.metadata.prefixLinesExcluded,
+		subagents: await verifiedSubagents(input.root, input.directory),
+	};
+
+	const tree = agentTree(agentInput);
+
+	return {
+		state: "available",
+		tree,
+		cost: agentCostAllocation(
+			{ ...agentInput, rates, modelUsage: input.modelUsage },
+			tree,
+		),
+	};
+}
+
+export async function readSessionAttemptAgents(
+	identity: Readonly<SessionAttemptHistoryIdentity>,
+	rates: ContextRateCatalog,
+): Promise<SessionHistoryAgents> {
+	return agentsFor(await standaloneInput(identity), rates);
+}
+
+export async function readConfirmationAttemptAgents(
+	identity: Readonly<ConfirmationAttemptHistoryIdentity>,
+	rates: ContextRateCatalog,
+): Promise<SessionHistoryAgents> {
+	return agentsFor(await confirmationInput(identity), rates);
+}
+
+/**
+ * One event of a sub-agent's own transcript, so a delivery an agent received
+ * opens on the text it received. An agent the record holds no transcript for
+ * has no event to open.
+ */
+async function agentDetailFor(
+	input: Readonly<ResolvedAttemptInput>,
+	agentId: string,
+	eventId: string,
+): Promise<SessionHistoryDetail | undefined> {
+	const directory = await verifiedDirectoryWhenPresent(input.directory, [
+		SUBAGENTS_DIRECTORY,
+	]);
+	const name = `agent-${agentId}.jsonl`;
+	const transcript =
+		directory === undefined || subagentTranscriptAgentId(name) === undefined
+			? undefined
+			: await guardedText(input.root, directory, name);
+	if (transcript === undefined) {
+		return undefined;
+	}
+
+	return sessionHistoryDetail(
+		{
+			attempt: input.metadata.attempt,
+			resolvedCorpusFiles: input.metadata.resolvedCorpusFiles,
+			transcript,
+			prefixLinesExcluded: 0,
+		},
+		eventId,
+	);
+}
+
+export async function readSessionAttemptAgentDetail(
+	identity: Readonly<SessionAttemptHistoryIdentity>,
+	agentId: string,
+	eventId: string,
+): Promise<SessionHistoryDetail | undefined> {
+	return agentDetailFor(await standaloneInput(identity), agentId, eventId);
+}
+
+export async function readConfirmationAttemptAgentDetail(
+	identity: Readonly<ConfirmationAttemptHistoryIdentity>,
+	agentId: string,
+	eventId: string,
+): Promise<SessionHistoryDetail | undefined> {
+	return agentDetailFor(await confirmationInput(identity), agentId, eventId);
 }

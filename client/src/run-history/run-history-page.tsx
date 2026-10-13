@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { Search } from "lucide-react";
 import { useState } from "react";
 import { Disclosure } from "#client/system/components/disclosure";
@@ -37,6 +37,12 @@ import type { OutcomeReading } from "#client/run-detail/task-grade-card";
 import { SESSION_GRADE_REASON } from "#server/session-grade-reason";
 import { isClean } from "./clean-record";
 import { RunControls } from "./run-controls";
+import type { InvalidatedSelection } from "./invalidated-selection";
+import {
+	InvalidatedNotice,
+	readOf,
+	useInvalidatedSelection,
+} from "./invalidated-view";
 import { replayOffer } from "./replay-choices";
 import type { ReplayOffer } from "./replay-choices";
 
@@ -1151,12 +1157,14 @@ function FilterBar({
 	onSelect,
 	search,
 	onSearch,
+	onLeaveInvalidated,
 }: {
-	readonly active: Filter;
+	readonly active: Filter | "Invalidated";
 	readonly total: number | undefined;
 	readonly onSelect: (filter: Filter) => void;
 	readonly search: string;
 	readonly onSearch: (search: string) => void;
+	readonly onLeaveInvalidated: () => void;
 }): React.JSX.Element {
 	return (
 		<div className="flex flex-wrap items-center gap-2 border-b border-divider px-6 py-2.5">
@@ -1174,6 +1182,11 @@ function FilterBar({
 					{filterLabel(filter, total)}
 				</FilterPill>
 			))}
+			{active === "Invalidated" ? (
+				<FilterPill pressed onPress={onLeaveInvalidated}>
+					Invalidated by the last edit
+				</FilterPill>
+			) : null}
 			<label className="ml-auto flex items-center gap-2 rounded-md border border-strong bg-card px-3 py-1">
 				<Search aria-hidden="true" className="size-4 text-dim" />
 				<input
@@ -1364,12 +1377,26 @@ function NothingListed({
 	);
 }
 
-/** The records the selected filter and the search both let through. */
+/**
+ * The ones the last edit invalidated and the search lets through when the
+ * address names that edit, otherwise those the selected filter and the search
+ * both let through.
+ */
 function listedRecords(
+	selection: InvalidatedSelection | undefined,
 	records: Pick<RunHistoryResponse, "rows" | "launches">,
 	filter: Filter,
 	search: string,
 ): Pick<RunHistoryResponse, "rows" | "launches"> {
+	if (selection !== undefined) {
+		return {
+			rows: (selection.kind === "listed" ? selection.rows : []).filter((row) =>
+				matchesSearch(searchedTexts(row), search),
+			),
+			launches: [],
+		};
+	}
+
 	return {
 		rows: records.rows.filter(
 			(row) =>
@@ -1419,7 +1446,35 @@ function ReplayAStep({
 	);
 }
 
-export function RunHistoryPage(): React.JSX.Element {
+/** That the history is still loading, or that it could not load. */
+function LoadState({
+	loading,
+	failed,
+}: {
+	readonly loading: boolean;
+	readonly failed: boolean;
+}): React.JSX.Element | null {
+	if (loading) {
+		return <p className="text-muted-foreground">Loading…</p>;
+	}
+	if (failed) {
+		return (
+			<p role="alert" className="text-muted-foreground">
+				<span aria-hidden="true">⚠ </span>
+				Could not load run history.
+			</p>
+		);
+	}
+
+	return null;
+}
+
+export function RunHistoryPage({
+	invalidatedBy,
+}: {
+	readonly invalidatedBy: string | undefined;
+}): React.JSX.Element {
+	const navigate = useNavigate();
 	const [filter, setFilter] = useState<Filter>("All");
 	const [search, setSearch] = useState("");
 	const [chosen, setChosen] = useState<readonly ChosenArm[]>([]);
@@ -1434,15 +1489,19 @@ export function RunHistoryPage(): React.JSX.Element {
 		},
 	};
 	const query = useQuery(polledRunHistoryQuery);
+	const selection = useInvalidatedSelection(invalidatedBy, readOf(query));
 
 	const unreadable = query.data?.unreadable ?? [];
 	const recorded = query.data?.rows ?? [];
 	const allLaunches = query.data?.launches ?? [];
 	const history = { rows: recorded, launches: allLaunches };
-	const { rows, launches } = listedRecords(history, filter, search);
+	const { rows, launches } = listedRecords(selection, history, filter, search);
 	const listable = listedEntryCount(history) > 0;
 	const nothingListed =
-		query.isSuccess && rows.length === 0 && launches.length === 0;
+		selection === undefined &&
+		query.isSuccess &&
+		rows.length === 0 &&
+		launches.length === 0;
 	const nowMs = useNow(
 		pipelineRuns(recorded).some((row) => row.progress.state === "running"),
 	);
@@ -1469,23 +1528,25 @@ export function RunHistoryPage(): React.JSX.Element {
 			/>
 
 			<FilterBar
-				active={filter}
+				active={selection === undefined ? filter : "Invalidated"}
 				total={query.isSuccess ? listedEntryCount(query.data) : undefined}
-				onSelect={setFilter}
+				onSelect={(picked) => {
+					setFilter(picked);
+					void navigate({ to: "/", search: {} });
+				}}
 				search={search}
 				onSearch={setSearch}
+				onLeaveInvalidated={() => {
+					void navigate({ to: "/", search: {} });
+				}}
 			/>
 
 			<div className="flex flex-col gap-4 px-6 pt-3 pb-12">
-				{query.isLoading ? (
-					<p className="text-muted-foreground">Loading…</p>
-				) : null}
-				{query.isError ? (
-					<p role="alert" className="text-muted-foreground">
-						<span aria-hidden="true">⚠ </span>
-						Could not load run history.
-					</p>
-				) : null}
+				<LoadState loading={query.isLoading} failed={query.isError} />
+
+				{selection === undefined ? null : (
+					<InvalidatedNotice selection={selection} />
+				)}
 
 				{unreadable.length > 0 ? (
 					<UnreadableRecords records={unreadable} />

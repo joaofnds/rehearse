@@ -53,6 +53,7 @@ type SavedComparison = ComparisonIndexResponse["comparisons"][number];
 function runRow(run: string): RunHistoryRow {
 	return {
 		kind: "run",
+		recordId: `run:${run}`,
 		...UNREAD_RUN_FIGURES,
 		shortId: undefined,
 		checkpoints: [],
@@ -73,6 +74,7 @@ function runRow(run: string): RunHistoryRow {
 function sessionAttemptRow(uuid: string): RunHistoryRow {
 	return {
 		kind: "session-attempt",
+		recordId: `attempt:session:brief-reply/${uuid}`,
 		staleness: UNREAD_STALENESS,
 		corpusVersion: undefined,
 		...UNREAD_SESSION_ATTEMPT_FIGURES,
@@ -141,7 +143,8 @@ function renderShellAt(
 						corpusFile(`file-${index}.md`),
 					),
 					refusals: [],
-				},
+					lastEdit: { kind: "not-recorded", reason: "no earlier version" },
+				} satisfies CorpusResponse,
 			],
 			[
 				"/api/comparisons",
@@ -610,7 +613,13 @@ describe("the navigation shell", () => {
 				["/api/run-listing", { rows: [], launches: [], unreadable: [] }],
 				[
 					"/api/corpus",
-					{ root: "/corpus", digest: "ffd58d", files: [], refusals: [] },
+					{
+						root: "/corpus",
+						digest: "ffd58d",
+						files: [],
+						refusals: [],
+						lastEdit: { kind: "not-recorded", reason: "no earlier version" },
+					} satisfies CorpusResponse,
 				],
 				[
 					`/api/comparisons/${digest}`,

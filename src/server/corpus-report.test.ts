@@ -424,6 +424,7 @@ describe(corpusReport.name, () => {
 			expect(report.lastEdit).toEqual({
 				kind: "measured",
 				previous,
+				current: report.digest ?? "refused",
 				count: 1,
 				rows: [`run:${fixture.replayableRun}`],
 			});

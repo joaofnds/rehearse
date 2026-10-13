@@ -29,6 +29,7 @@ import {
 } from "#benchmark/run-layout";
 import { writeRunManifest } from "#benchmark/manifest";
 import { TEST_TARGET } from "#benchmark/test-support";
+import { committedRateCatalog } from "#benchmark/rate-catalog";
 import { createApiApp } from "#server/api";
 import {
 	readConfirmationAttemptHistory,
@@ -38,6 +39,7 @@ import {
 	readStageHistoryDetail,
 	readConfirmationAttemptRequestSeries,
 	readRecordedEvidenceFile,
+	readSessionAttemptAgents,
 	readSessionAttemptHistory,
 	readSessionAttemptRequestSeries,
 	SessionHistoryReaderError,
@@ -2125,5 +2127,221 @@ describe(readRecordedEvidenceFile.name, () => {
 		expect(
 			readRecordedEvidenceFile(runsDirectory, recordedPath),
 		).rejects.toMatchObject({ kind: "refused" });
+	});
+});
+
+const AGENT_TREE_FIXTURE = join(
+	import.meta.dir,
+	"..",
+	"benchmark",
+	"__fixtures__",
+	"agent-tree",
+);
+
+async function writtenAgentTreeAttempt(): Promise<{
+	readonly runsDirectory: string;
+	readonly caseId: string;
+	readonly uuid: string;
+	readonly directory: string;
+}> {
+	const fixture = await writtenAttempt();
+	const { directory } = sessionAttemptPaths(fixture.runsDirectory, {
+		caseId: fixture.caseId,
+		uuid: fixture.uuid,
+	});
+	const record = sessionAttemptRecordSchema.parse(
+		await Bun.file(join(directory, "attempt.json")).json(),
+	);
+	await Bun.write(
+		join(directory, "attempt.json"),
+		`${JSON.stringify(
+			{
+				...record,
+				transcriptDiagnostics: {
+					...record.transcriptDiagnostics,
+					prefixLinesExcluded: 3,
+				},
+			},
+			null,
+			2,
+		)}\n`,
+	);
+	await Bun.write(
+		join(directory, "transcript.jsonl"),
+		Bun.file(join(AGENT_TREE_FIXTURE, "transcript.jsonl")),
+	);
+	for (const name of ["a0", "a1", "a2", "a3", "a5"].flatMap((id) => [
+		`agent-${id}.jsonl`,
+		`agent-${id}.meta.json`,
+	])) {
+		await Bun.write(
+			join(directory, "subagents", name),
+			Bun.file(join(AGENT_TREE_FIXTURE, "subagents", name)),
+		);
+	}
+
+	return { ...fixture, directory };
+}
+
+describe(readSessionAttemptAgents.name, () => {
+	it("projects the recorded agents and allocates their cost", async () => {
+		const fixture = await writtenAgentTreeAttempt();
+
+		const read = await readSessionAttemptAgents(fixture, committedRateCatalog);
+
+		expect(read.state).toBe("available");
+		if (read.state !== "available") {
+			return;
+		}
+		expect(read.tree.agents.map(({ agentId }) => agentId)).toEqual([
+			"a0",
+			"a1",
+			"a2",
+			"a3",
+			"a4",
+			"a5",
+			"a6",
+		]);
+		expect(read.tree.coverage).toEqual({
+			state: "incomplete",
+			unavailableAgentIds: ["a4"],
+		});
+		expect(read.cost.state).toBe("available");
+	});
+
+	it("reads a symlinked child transcript as unavailable rather than following it", async () => {
+		const fixture = await writtenAgentTreeAttempt();
+		const outside = join(fixture.directory, "..", "outside.jsonl");
+		await Bun.write(
+			outside,
+			Bun.file(join(AGENT_TREE_FIXTURE, "subagents", "agent-a1.jsonl")),
+		);
+		await rm(join(fixture.directory, "subagents", "agent-a1.jsonl"));
+		await symlink(
+			outside,
+			join(fixture.directory, "subagents", "agent-a1.jsonl"),
+		);
+
+		const read = await readSessionAttemptAgents(fixture, committedRateCatalog);
+
+		expect(read.state === "available" ? read.tree.coverage : read).toEqual({
+			state: "incomplete",
+			unavailableAgentIds: ["a1", "a4"],
+		});
+	});
+
+	it("reads no agents for an attempt that saved no transcript", async () => {
+		const fixture = await writtenAgentTreeAttempt();
+		await rm(join(fixture.directory, "transcript.jsonl"));
+
+		expect(
+			await readSessionAttemptAgents(fixture, committedRateCatalog),
+		).toEqual({
+			state: "unavailable",
+			reason: "the attempt has no saved transcript",
+		});
+	});
+});
+
+describe("saved session agents API", () => {
+	function appFor(runsDirectory: string): ReturnType<typeof createApiApp> {
+		return createApiApp({
+			projectsDirectory: NO_PROVIDER_PROJECTS,
+			runsDirectory,
+			liveness: nothingRunning,
+			readCorpusSource: fixedCorpusSource(directorySource(runsDirectory)),
+		});
+	}
+
+	it("serves the agent tree and its cost allocation", async () => {
+		const fixture = await writtenAgentTreeAttempt();
+
+		const response = await appFor(fixture.runsDirectory).request(
+			`/api/attempts/session/${fixture.caseId}/${fixture.uuid}/history/agents`,
+		);
+
+		expect(response.status).toBe(200);
+		expect(await response.json()).toMatchObject({
+			state: "available",
+			tree: { coverage: { state: "incomplete", unavailableAgentIds: ["a4"] } },
+			cost: { state: "available" },
+		});
+	});
+
+	it("serves a child agent's delivered excerpt", async () => {
+		const fixture = await writtenAgentTreeAttempt();
+		const app = appFor(fixture.runsDirectory);
+		const base = `/api/attempts/session/${fixture.caseId}/${fixture.uuid}/history/agents`;
+
+		const response = await app.request(`${base}/a1/4:1`);
+
+		expect(response.status).toBe(200);
+		expect(await response.json()).toMatchObject({
+			eventId: "4:1",
+			kind: "result",
+			state: "delivered",
+		});
+	});
+
+	it("answers not found for an agent the record holds no transcript for", async () => {
+		const fixture = await writtenAgentTreeAttempt();
+
+		const response = await appFor(fixture.runsDirectory).request(
+			`/api/attempts/session/${fixture.caseId}/${fixture.uuid}/history/agents/a4/1:1`,
+		);
+
+		expect(response.status).toBe(404);
+	});
+
+	it("answers not found for a file whose name is not a provider agent id", async () => {
+		const fixture = await writtenAgentTreeAttempt();
+		await Bun.write(
+			join(fixture.directory, "subagents", "agent-a1.x.jsonl"),
+			Bun.file(join(AGENT_TREE_FIXTURE, "subagents", "agent-a1.jsonl")),
+		);
+
+		const response = await appFor(fixture.runsDirectory).request(
+			`/api/attempts/session/${fixture.caseId}/${fixture.uuid}/history/agents/a1.x/4:1`,
+		);
+
+		expect(response.status).toBe(404);
+	});
+
+	it("reads a confirmation rep's agents and excerpts from the rep's own directory", async () => {
+		const fixture = await writtenConfirmationAttempt();
+		for (const name of ["agent-a1.jsonl", "agent-a1.meta.json"]) {
+			await Bun.write(
+				join(fixture.paths.rep(fixture.repId).directory, "subagents", name),
+				Bun.file(join(AGENT_TREE_FIXTURE, "subagents", name)),
+			);
+		}
+		const app = appFor(fixture.runsDirectory);
+		const route = `/api/groups/${fixture.groupId}/reps/${fixture.repId}/attempt/history/agents`;
+
+		const agents = await app.request(route);
+		const excerpt = await app.request(`${route}/a1/4:1`);
+
+		expect(await agents.json()).toMatchObject({
+			tree: { agents: [{ agentId: "a1", evidence: "available" }] },
+		});
+		expect(excerpt.status).toBe(200);
+		expect(await excerpt.json()).toMatchObject({
+			eventId: "4:1",
+			state: "delivered",
+		});
+	});
+
+	it("serves a confirmation rep's agents through its own route", async () => {
+		const fixture = await writtenConfirmationAttempt();
+
+		const response = await appFor(fixture.runsDirectory).request(
+			`/api/groups/${fixture.groupId}/reps/${fixture.repId}/attempt/history/agents`,
+		);
+
+		expect(response.status).toBe(200);
+		expect(await response.json()).toMatchObject({
+			state: "available",
+			tree: { agents: [], coverage: { state: "complete" } },
+		});
 	});
 });

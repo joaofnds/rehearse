@@ -14,6 +14,7 @@ function pipelineRun(
 ): PipelineRunRow {
 	return {
 		kind: "run",
+		recordId: `run:${run}`,
 		...UNREAD_RUN_FIGURES,
 		stageGrades: {
 			state: "available",

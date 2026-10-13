@@ -2110,6 +2110,7 @@ class CountingCorpusReader {
 
 		return {
 			previousVersion: underTest.previousVersion,
+			version: underTest.version,
 			distanceOf: (measurement) => {
 				this.judgments += 1;
 

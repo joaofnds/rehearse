@@ -13,7 +13,7 @@ import type { TranscriptLine } from "./transcript";
  * The provider's name for a session's sub-agent directory, which the record
  * keeps under the same name beside its transcript.
  */
-const SUBAGENTS_DIRECTORY = "subagents";
+export const SUBAGENTS_DIRECTORY = "subagents";
 
 /** The ids the provider gives its agents, and so the names their files carry. */
 const PROVIDER_AGENT_ID = "[a-z0-9]+";
@@ -194,7 +194,10 @@ export async function unavailableSubagents(
 /**
  * The sub-agent files a record kept, one per transcript, with the agent's meta
  * file where the record holds one. A record written before sub-agent files
- * were kept reads as holding none.
+ * were kept reads as holding none. Only regular files are read, as when they
+ * were copied in, so an entry that is not one reads as absent and its agent as
+ * unavailable rather than failing the read or following a link out of the
+ * record.
  */
 export async function recordedSubagents(
 	recordDirectory: string,
@@ -202,17 +205,33 @@ export async function recordedSubagents(
 	const directory = join(recordDirectory, SUBAGENTS_DIRECTORY);
 	const names = (await readdirIfPresent(directory)) ?? [];
 	const agentIds = names
-		.map((name) => SUBAGENT_TRANSCRIPT.exec(name)?.[1])
+		.map((name) => subagentTranscriptAgentId(name))
 		.filter((agentId) => agentId !== undefined)
 		.toSorted();
-
-	return Promise.all(
+	const subagents = await Promise.all(
 		agentIds.map(async (agentId) => ({
 			agentId,
-			transcript: await Bun.file(
+			transcript: await regularFileText(
 				join(directory, `agent-${agentId}.jsonl`),
-			).text(),
-			meta: await textIfPresent(join(directory, `agent-${agentId}.meta.json`)),
+			),
+			meta: await regularFileText(
+				join(directory, `agent-${agentId}.meta.json`),
+			),
 		})),
 	);
+
+	return subagents.filter(
+		(each): each is SubagentEvidence => each.transcript !== undefined,
+	);
+}
+
+/** The agent a sub-agent transcript's file name names, if it names one. */
+export function subagentTranscriptAgentId(name: string): string | undefined {
+	return SUBAGENT_TRANSCRIPT.exec(name)?.[1];
+}
+
+async function regularFileText(path: string): Promise<string | undefined> {
+	const entry = await lstatIfPresent(path);
+
+	return entry?.isFile() === true ? textIfPresent(path) : undefined;
 }

@@ -31,6 +31,7 @@ const ONE_RUN: RunHistoryResponse = {
 	rows: [
 		{
 			kind: "run",
+			recordId: `run:${RECORDED_RUN}`,
 			...UNREAD_RUN_FIGURES,
 			launchId: undefined,
 			shortId: undefined,

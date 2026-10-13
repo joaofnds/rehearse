@@ -5,12 +5,13 @@ import {
 	sessionHistoryRequestSeries,
 } from "./session-history";
 import { parseTranscript } from "./transcript";
-import type { TranscriptLine } from "./transcript";
+import type { TranscriptLine, UserTurn } from "./transcript";
 import type {
 	CorpusFileLocation,
 	SessionHistoryAttemptIdentity,
 	SessionHistoryRequestSeries,
 	SessionHistorySource,
+	TextMeasurement,
 } from "./session-history";
 
 /** One sub-agent's files as the record holds them. */
@@ -56,18 +57,25 @@ export type AgentParent =
  */
 export type AgentContextKind = "fresh" | "inherited" | "not recorded";
 
-export type AgentTurnKind = "compaction summary" | "interruption" | "prompt";
-
 /** A user row after the agent's launching prompt, named for what it is. */
 export interface AgentTurn {
 	readonly line: number;
-	readonly kind: AgentTurnKind;
+	readonly kind: UserTurn;
+}
+
+/** One observed delivery of a source into an agent's context. */
+export interface AgentDelivery {
+	readonly sourceId: string;
+	readonly eventId: string;
+	readonly ordinal: number;
+	readonly measurement: TextMeasurement;
 }
 
 interface AgentReadings {
 	readonly models: readonly string[];
 	readonly series: SessionHistoryRequestSeries;
 	readonly deliveries: readonly SessionHistorySource[];
+	readonly deliveryEvents: readonly AgentDelivery[];
 }
 
 export type RootAgent = AgentReadings;
@@ -83,6 +91,8 @@ const RESUME_NOT_RECORDED = "not recorded";
 interface SubagentIdentity {
 	readonly agentId: string;
 	readonly parent: AgentParent;
+	/** The line of the parent's transcript holding the call that launched it. */
+	readonly launchCallLine: number | undefined;
 	readonly context: AgentContextKind;
 	readonly resume: typeof RESUME_NOT_RECORDED;
 }
@@ -95,7 +105,8 @@ export type SubAgent = SubagentIdentity &
 				readonly description: string | undefined;
 				readonly launchMode: string | undefined;
 				readonly spawnDepth: number | undefined;
-				readonly stopped: boolean;
+				readonly meta: AgentMetaState;
+				readonly stopped: boolean | "not recorded";
 				readonly laterTurns: readonly AgentTurn[];
 		  } & AgentReadings)
 		| { readonly evidence: "unavailable" }
@@ -136,7 +147,14 @@ const metaSchema = z.looseObject({
 	stoppedByUser: z.boolean().optional(),
 });
 
+/**
+ * Whether the agent's meta file was read. An unreadable one is kept apart from
+ * a missing one, since provider drift in one field fails the whole file.
+ */
+export type AgentMetaState = "recorded" | "not recorded" | "unreadable";
+
 interface AgentMeta {
+	readonly state: AgentMetaState;
 	readonly agentType?: string | undefined;
 	readonly description?: string | undefined;
 	readonly toolUseId?: string | undefined;
@@ -145,33 +163,6 @@ interface AgentMeta {
 	readonly launchMode?: string | undefined;
 	readonly stoppedByUser?: boolean | undefined;
 }
-
-const toolResultBlockSchema = z.looseObject({
-	type: z.literal("tool_result"),
-	tool_use_id: z.string().min(1),
-});
-
-const userRowSchema = z.looseObject({
-	type: z.literal("user"),
-	parentUuid: z.string().nullish(),
-	isMeta: z.boolean().optional(),
-	isCompactSummary: z.boolean().optional(),
-	message: z.looseObject({
-		content: z.union([
-			z.string().transform((text) => [{ type: "text", text }]),
-			z.array(z.unknown()),
-		]),
-	}),
-});
-
-type UserRow = z.infer<typeof userRowSchema>;
-
-const textBlockSchema = z.looseObject({
-	type: z.literal("text"),
-	text: z.string(),
-});
-
-const INTERRUPTION_MARKER = "[Request interrupted by user";
 
 const ROOT = Symbol("root");
 
@@ -190,33 +181,19 @@ interface NamingResult extends Located {
 	readonly toolUseId: string | undefined;
 }
 
-/** An agent's parent, and the place its launch was recorded, if any was. */
+/**
+ * An agent's parent, the place its launch was recorded, if any was, and the
+ * launching call's line where the call itself was found.
+ */
 interface AgentLink {
 	readonly parent: AgentParent;
 	readonly launch: Located | undefined;
+	readonly callLine: number | undefined;
 }
 
 interface LaunchIndex {
 	readonly calls: ReadonlyMap<string, LaunchCall>;
 	readonly results: ReadonlyMap<string, NamingResult>;
-}
-
-function decodedRows(
-	transcript: string,
-): readonly (readonly [number, unknown])[] {
-	const rows: [number, unknown][] = [];
-	for (const [index, text] of transcript.split("\n").entries()) {
-		if (text.trim() === "") {
-			continue;
-		}
-		try {
-			rows.push([index + 1, JSON.parse(text)]);
-		} catch {
-			continue;
-		}
-	}
-
-	return rows;
 }
 
 interface OwnedLine {
@@ -254,6 +231,11 @@ function parentFor(
 	meta: Readonly<AgentMeta>,
 	index: LaunchIndex,
 ): AgentLink {
+	const result = index.results.get(agentId);
+	const answered =
+		result?.toolUseId === undefined
+			? undefined
+			: index.calls.get(result.toolUseId);
 	if (meta.parentAgentId !== undefined) {
 		return {
 			parent: {
@@ -261,25 +243,37 @@ function parentFor(
 				agentId: meta.parentAgentId,
 				basis: "parent agent id",
 			},
-			launch: index.results.get(agentId),
+			launch: result,
+			callLine:
+				answered?.owner === meta.parentAgentId ? answered.line : undefined,
 		};
 	}
+
 	const call =
 		meta.toolUseId === undefined ? undefined : index.calls.get(meta.toolUseId);
 	if (call !== undefined) {
-		return { parent: linkTo(call.owner, "launch call"), launch: call };
+		return {
+			parent: linkTo(call.owner, "launch call"),
+			launch: call,
+			callLine: call.line,
+		};
 	}
-	const result = index.results.get(agentId);
+
 	if (result === undefined) {
-		return { parent: { state: "unlinked" }, launch: undefined };
+		return {
+			parent: { state: "unlinked" },
+			launch: undefined,
+			callLine: undefined,
+		};
 	}
-	const answered =
-		result.toolUseId === undefined
-			? undefined
-			: index.calls.get(result.toolUseId);
+
 	const basis = answered?.name === "Skill" ? "skill result" : "agent result";
 
-	return { parent: linkTo(result.owner, basis), launch: result };
+	return {
+		parent: linkTo(result.owner, basis),
+		launch: result,
+		callLine: answered?.line,
+	};
 }
 
 function linkTo(owner: Owner, basis: AgentLinkBasis): AgentParent {
@@ -290,20 +284,23 @@ function linkTo(owner: Owner, basis: AgentLinkBasis): AgentParent {
 
 function readMeta(text: string | undefined): AgentMeta {
 	if (text === undefined) {
-		return {};
+		return { state: "not recorded" };
 	}
+
 	let parsed: unknown;
 	try {
 		parsed = JSON.parse(text);
 	} catch {
-		return {};
+		return { state: "unreadable" };
 	}
+
 	const meta = metaSchema.safeParse(parsed);
 	if (!meta.success) {
-		return {};
+		return { state: "unreadable" };
 	}
 
 	return {
+		state: "recorded",
 		agentType: meta.data.agentType,
 		description: meta.data.description,
 		toolUseId: meta.data.toolUseId,
@@ -335,6 +332,7 @@ function readings(
 		prefixLinesExcluded,
 	});
 	const sources = inherited ? report.startingSources : report.sources;
+	const events = inherited ? report.startingContext : report.attemptEvents;
 	const models = new Set(
 		series.entries
 			.map(({ model }) => model)
@@ -345,49 +343,33 @@ function readings(
 		models: [...models],
 		series,
 		deliveries: sources.filter(
-			({ observedDeliveryCount }) => (observedDeliveryCount ?? 0) > 0,
+			({ observedDeliveryCount }) => observedDeliveryCount !== 0,
+		),
+		deliveryEvents: events.flatMap(
+			({ id, sourceId, deliveryOrdinal, measurement }): AgentDelivery[] =>
+				sourceId === undefined || deliveryOrdinal === undefined
+					? []
+					: [{ sourceId, eventId: id, ordinal: deliveryOrdinal, measurement }],
 		),
 	};
 }
 
-function firstRowIsFresh(transcript: string): boolean {
-	const [first] = decodedRows(transcript);
-	const row =
-		first === undefined ? undefined : userRowSchema.safeParse(first[1]);
-
-	return (
-		row?.success === true &&
-		(row.data.parentUuid === null || row.data.parentUuid === undefined)
+function firstRowIsFresh(lines: Immutable<readonly TranscriptLine[]>): boolean {
+	const first = lines.find(
+		({ diagnosticIssues }) =>
+			!diagnosticIssues.some(({ kind }) => kind === "invalid-json"),
 	);
+
+	return first?.startsWithoutParent === true;
 }
 
-function turnKind(row: Immutable<UserRow>): AgentTurnKind | undefined {
-	if (row.isMeta === true) {
-		return undefined;
-	}
-	if (row.isCompactSummary === true) {
-		return "compaction summary";
-	}
-	const blocks = row.message.content;
-	if (blocks.some((block) => toolResultBlockSchema.safeParse(block).success)) {
-		return undefined;
-	}
-	const interrupted = blocks.some((block) => {
-		const text = textBlockSchema.safeParse(block);
-
-		return text.success && text.data.text.startsWith(INTERRUPTION_MARKER);
-	});
-
-	return interrupted ? "interruption" : "prompt";
-}
-
-function laterTurns(transcript: string): readonly AgentTurn[] {
+function laterTurns(
+	lines: Immutable<readonly TranscriptLine[]>,
+): readonly AgentTurn[] {
 	const turns: AgentTurn[] = [];
-	for (const [line, value] of decodedRows(transcript)) {
-		const row = userRowSchema.safeParse(value);
-		const kind = row.success ? turnKind(row.data) : undefined;
-		if (kind !== undefined) {
-			turns.push({ line, kind });
+	for (const { line, userTurn } of lines) {
+		if (userTurn !== undefined) {
+			turns.push({ line, kind: userTurn });
 		}
 	}
 
@@ -404,6 +386,7 @@ function isInherited(
 	if (link === undefined || seen.has(agentId)) {
 		return false;
 	}
+
 	const { launch, parent } = link;
 	if (
 		launch?.owner === ROOT &&
@@ -424,29 +407,48 @@ function isInherited(
 	);
 }
 
+/**
+ * A child's transcript holds no attempt boundary of its own. An inherited
+ * child ran wholly before the attempt and a later one wholly inside it, and
+ * where the attempt's own boundary is unknown, so is the child's.
+ */
+function childPrefixLinesExcluded(
+	input: Immutable<AgentTreeInput>,
+	file: Immutable<SubagentEvidence>,
+	inherited: boolean,
+): number | undefined {
+	if (input.prefixLinesExcluded === undefined) {
+		return undefined;
+	}
+
+	return inherited ? lineCount(file.transcript) : 0;
+}
+
 function availableAgent(
 	input: Immutable<AgentTreeInput>,
 	file: Immutable<SubagentEvidence>,
-	parent: AgentParent,
+	link: Immutable<AgentLink>,
 	inherited: boolean,
 ): SubAgent {
 	const meta = readMeta(file.meta);
+	const lines = parseTranscript(file.transcript);
 	let context: AgentContextKind = "not recorded";
 	if (inherited) {
 		context = "inherited";
-	} else if (firstRowIsFresh(file.transcript)) {
+	} else if (firstRowIsFresh(lines)) {
 		context = "fresh";
 	}
-	const { models, series, deliveries } = readings(
+	const { models, series, deliveries, deliveryEvents } = readings(
 		input,
 		file.transcript,
-		inherited ? lineCount(file.transcript) : 0,
+		childPrefixLinesExcluded(input, file, inherited),
 		inherited,
 	);
 
 	return {
 		agentId: file.agentId,
-		parent,
+		parent: link.parent,
+		launchCallLine: link.callLine,
 		context,
 		resume: RESUME_NOT_RECORDED,
 		evidence: "available",
@@ -454,11 +456,14 @@ function availableAgent(
 		description: meta.description,
 		launchMode: meta.launchMode,
 		spawnDepth: meta.spawnDepth,
-		stopped: meta.stoppedByUser === true,
-		laterTurns: laterTurns(file.transcript),
+		meta: meta.state,
+		stopped:
+			meta.state === "recorded" ? meta.stoppedByUser === true : "not recorded",
+		laterTurns: laterTurns(lines),
 		models,
 		series,
 		deliveries,
+		deliveryEvents,
 	};
 }
 
@@ -490,19 +495,24 @@ export function agentTree(input: Immutable<AgentTreeInput>): AgentTree {
 
 	const agents = agentIds.map((agentId): SubAgent => {
 		const file = files.get(agentId);
-		const parent = links.get(agentId)?.parent ?? { state: "unlinked" };
+		const link = links.get(agentId) ?? {
+			parent: { state: "unlinked" },
+			launch: undefined,
+			callLine: undefined,
+		};
 		const inherited = isInherited(agentId, links, input.prefixLinesExcluded);
 		if (file === undefined) {
 			return {
 				agentId,
-				parent,
+				parent: link.parent,
+				launchCallLine: link.callLine,
 				context: inherited ? "inherited" : "not recorded",
 				resume: RESUME_NOT_RECORDED,
 				evidence: "unavailable",
 			};
 		}
 
-		return availableAgent(input, file, parent, inherited);
+		return availableAgent(input, file, link, inherited);
 	});
 	const unavailableAgentIds = agents
 		.filter(

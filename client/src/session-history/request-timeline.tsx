@@ -16,7 +16,7 @@ import { PaneHeading } from "./pane-heading";
 import { selectableRow } from "./selectable-row";
 
 const tokens = new Intl.NumberFormat("en-US");
-const usd = new Intl.NumberFormat("en-US", {
+export const usd = new Intl.NumberFormat("en-US", {
 	style: "currency",
 	currency: "USD",
 	minimumFractionDigits: 2,
@@ -84,7 +84,7 @@ function requestCostLabel(
 		: `? Unpriced · ${cost.reason}`;
 }
 
-function costLabel(reading: SessionHistoryCostReading): string {
+export function costLabel(reading: SessionHistoryCostReading): string {
 	if (reading.state === "unavailable") {
 		return `? Unavailable · ${reading.reasons.join(", ")}`;
 	}
@@ -152,6 +152,7 @@ function categoryLabel(entry: SessionHistoryRequestEntry): string {
 	if (entry.usageState === "conflict") {
 		return "usage conflict";
 	}
+
 	if (entry.usageState === "incomplete") {
 		return `at least ${categories(entry.lowerBound)}`;
 	}
@@ -159,7 +160,7 @@ function categoryLabel(entry: SessionHistoryRequestEntry): string {
 	return categories(entry.usage);
 }
 
-function categories(usage: SessionHistoryRequestUsage): string {
+export function categories(usage: SessionHistoryRequestUsage): string {
 	return [
 		`in ${tokens.format(usage.inputTokens)}`,
 		`out ${tokens.format(usage.outputTokens)}`,

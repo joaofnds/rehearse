@@ -12,6 +12,7 @@ import type { Immutable } from "./contracts";
 import { jsonValueSchema } from "./json-value";
 import type { JsonValue } from "./json-value";
 import { pathIsWithin } from "./path-containment";
+import { skillBodyDirectory } from "./transcript";
 import type { TranscriptDiagnostics, TranscriptLocation } from "./transcript";
 
 export const MAX_EVENT_DETAIL_BYTES = 65_536;
@@ -274,6 +275,8 @@ const historyContentSchema = z.union([z.string(), z.array(jsonValueSchema)]);
 const historyRecordSchema = z.looseObject({
 	timestamp: z.string().min(1).optional(),
 	cwd: z.string().min(1).optional(),
+	type: z.string().optional(),
+	isMeta: z.boolean().optional(),
 	sourceToolUseID: z.string().min(1).optional(),
 	message: z.looseObject({ content: historyContentSchema }).optional(),
 	toolUseResult: z
@@ -497,6 +500,16 @@ function declaredCorpusPath(
 	)?.path;
 }
 
+/**
+ * A skill is one source whether a Skill call or a slash command loaded it, so
+ * both name it by the same path.
+ */
+function skillSource(skill: string): SourceIdentity {
+	const path = `skills/${skill}/SKILL.md`;
+
+	return { id: `skill:${path}`, kind: "skill", name: path, path };
+}
+
 function sourceForCall(
 	toolName: string,
 	input: Readonly<HistoryBlockInput>,
@@ -509,9 +522,7 @@ function sourceForCall(
 		const parsedSkill = z.string().min(1).safeParse(input["skill"]);
 		const skill = parsedSkill.success ? parsedSkill.data : undefined;
 		if (skill !== undefined) {
-			const path = `skills/${skill}/SKILL.md`;
-
-			return { id: `skill:${path}`, kind: "skill", name: path, path };
+			return skillSource(skill);
 		}
 	}
 	if (toolName !== "Read") {
@@ -668,6 +679,78 @@ function baseEvent(
 	};
 }
 
+type CommonEvent = Pick<
+	MutableEvent,
+	"id" | "locator" | "region" | "timestamp" | "relatedEventIds"
+>;
+
+/**
+ * A block that is neither a tool call nor its result: a skill body answering a
+ * Skill call, one a slash command loaded, or content this report does not
+ * classify.
+ */
+function contentBlockEvent(
+	common: Immutable<CommonEvent>,
+	value: JsonValue | undefined,
+	row: Immutable<HistoryRecord> | undefined,
+	retainBodies: boolean,
+): MutableEvent {
+	const companionId = row?.sourceToolUseID;
+	const text = historyTextBlockSchema.safeParse(value);
+	const measured = measureContent(text.success ? text.data.text : value);
+	const content = retainBodies ? measured.text : undefined;
+	const slashSkill =
+		companionId === undefined &&
+		row?.type === "user" &&
+		row.isMeta === true &&
+		text.success
+			? skillBodyDirectory(text.data.text)
+			: undefined;
+	if (slashSkill !== undefined) {
+		const source = skillSource(basename(slashSkill));
+
+		return {
+			...common,
+			kind: "instruction-delivery",
+			state: "delivered",
+			label: "Skill delivered",
+			measurement: measured.measurement,
+			content,
+			source,
+			sourceId: source.id,
+			isDelivery: true,
+		};
+	}
+
+	if (companionId === undefined) {
+		const source = unclassifiedSource();
+
+		return {
+			...common,
+			kind: "unclassified",
+			state: "recorded",
+			label: "Unclassified recorded content",
+			measurement: measured.measurement,
+			content,
+			source,
+			sourceId: source.id,
+			isDelivery: false,
+		};
+	}
+
+	return {
+		...common,
+		kind: "instruction-delivery",
+		state: "partial",
+		label: "Skill delivery · partial",
+		toolUseId: companionId,
+		measurement: measured.measurement,
+		content,
+		source: undefined,
+		isDelivery: false,
+	};
+}
+
 function parseRowEvents(
 	input: Immutable<SessionHistoryReportInput>,
 	row: Immutable<ParsedRow>,
@@ -732,32 +815,9 @@ function parseRowEvents(
 			continue;
 		}
 
-		const text = historyTextBlockSchema.safeParse(value);
-		const measured = measureContent(text.success ? text.data.text : value);
-		const companionId = row.value?.sourceToolUseID;
-		events.push({
-			...common,
-			kind: companionId === undefined ? "unclassified" : "instruction-delivery",
-			state: companionId === undefined ? "recorded" : "partial",
-			label:
-				companionId === undefined
-					? "Unclassified recorded content"
-					: "Skill delivery · partial",
-			toolUseId: companionId,
-			measurement: measured.measurement,
-			content: retainBodies ? measured.text : undefined,
-			source:
-				companionId === undefined
-					? {
-							id: "unclassified",
-							kind: "unclassified",
-							name: "Unclassified recorded content",
-						}
-					: undefined,
-			sourceId: companionId === undefined ? "unclassified" : undefined,
-			isDelivery: false,
-		});
-		if (measured.measurement.state !== "complete") {
+		const event = contentBlockEvent(common, value, row.value, retainBodies);
+		events.push(event);
+		if (event.measurement.state !== "complete") {
 			issues.push(`unsupported content at ${common.id}`);
 		}
 	}
@@ -1084,6 +1144,11 @@ function numberDeliveries(
 	});
 }
 
+/** A slash command loads a skill's body with no tool call to join it to. */
+function isSlashCommandDelivery(event: Immutable<MutableEvent>): boolean {
+	return event.kind === "instruction-delivery" && event.toolUseId === undefined;
+}
+
 function joinEvents(state: Immutable<ProjectionState>): ProjectionState {
 	const indices = {
 		calls: byRegionAndId(state.events, "call"),
@@ -1091,7 +1156,7 @@ function joinEvents(state: Immutable<ProjectionState>): ProjectionState {
 		deliveries: byRegionAndId(state.events, "instruction-delivery"),
 	};
 	const joined = state.events.map((event): JoinedEvent => {
-		if (event.kind === "unclassified") {
+		if (event.kind === "unclassified" || isSlashCommandDelivery(event)) {
 			return { event, issues: [] };
 		}
 

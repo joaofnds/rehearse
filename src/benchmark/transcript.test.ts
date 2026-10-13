@@ -97,6 +97,84 @@ describe(parseTranscript.name, () => {
 	it("ignores blank lines, including a trailing newline", () => {
 		expect(parseTranscript(`${assistantWith(readBlock)}\n\n`)).toHaveLength(1);
 	});
+
+	it("reads what each user row is", () => {
+		const transcript = parseTranscript(
+			[
+				line({ type: "user", message: { content: "review it" } }),
+				line({
+					type: "user",
+					message: {
+						content: [{ type: "text", text: "[Request interrupted by user]" }],
+					},
+				}),
+				line({
+					type: "user",
+					isCompactSummary: true,
+					message: { content: "This session is being continued." },
+				}),
+				line({ type: "user", message: { content: [toolResult("toolu_1")] } }),
+				line({
+					type: "user",
+					origin: { kind: "task-notification" },
+					message: { content: "<task-notification>" },
+				}),
+			].join("\n"),
+		);
+
+		expect(transcript.map(({ userTurn }) => userTurn)).toEqual([
+			"prompt",
+			"interruption",
+			"compaction summary",
+			undefined,
+			"task notification",
+		]);
+	});
+
+	describe("when a row's turn fields are malformed", () => {
+		it("keeps the row's tool calls and reads no request id", () => {
+			const [row] = parseTranscript(
+				line({
+					type: "assistant",
+					requestId: "",
+					message: { content: [readBlock] },
+				}),
+			);
+
+			expect(row?.locatedToolUses).toHaveLength(1);
+			expect(row?.requestId).toBeUndefined();
+		});
+
+		it("keeps the row's tool results and reads no meta delivery", () => {
+			const [row] = parseTranscript(
+				line({
+					type: "user",
+					isMeta: "true",
+					parentUuid: 7,
+					sourceToolUseID: "",
+					message: { content: [toolResult("toolu_1")] },
+				}),
+			);
+
+			expect(row?.locatedToolResults).toHaveLength(1);
+			expect(row?.sourceToolUseId).toBeUndefined();
+		});
+	});
+
+	describe("when a user row holds a malformed tool result", () => {
+		it("reads the row as no turn", () => {
+			const [row] = parseTranscript(
+				line({
+					type: "user",
+					message: {
+						content: [{ type: "tool_result", tool_use_id: "", content: "x" }],
+					},
+				}),
+			);
+
+			expect(row?.userTurn).toBeUndefined();
+		});
+	});
 });
 
 describe(transcriptDiagnostics.name, () => {

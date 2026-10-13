@@ -314,6 +314,11 @@ export interface CorpusUnderTest {
 	 * under test refused.
 	 */
 	readonly previousVersion: string | undefined;
+	/**
+	 * The version the corpus under test hashed as, measured or not, the one
+	 * the last edit went to; undefined when it refused.
+	 */
+	readonly version: string | undefined;
 	readonly distanceOf: (
 		measurement: CorpusMeasurement | undefined,
 	) => VersionDistance;
@@ -346,6 +351,7 @@ export async function readCorpusUnderTest(
 			current === undefined || livePosition < 2
 				? undefined
 				: log[livePosition - 2],
+		version: current,
 		distanceOf(measurement) {
 			if (measurement === undefined) {
 				return notRecorded("recorded before corpus versions");

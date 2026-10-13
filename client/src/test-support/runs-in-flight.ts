@@ -61,6 +61,7 @@ export function runRow(props: {
 
 	return {
 		kind: "run",
+		recordId: `run:${props.run ?? RUN}`,
 		...UNREAD_RUN_FIGURES,
 		stageGrades:
 			props.grades === undefined

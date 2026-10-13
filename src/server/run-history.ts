@@ -126,6 +126,8 @@ export const UNJUDGED_REASON =
  * written: the event table has no case column.
  */
 export interface PipelineRunRow {
+	/** The id `lastEdit.rows` and the `ids` filter name the record by. */
+	readonly recordId: string;
 	readonly kind: "run";
 	readonly run: string;
 	readonly shortId: string | undefined;
@@ -236,6 +238,8 @@ function stageGrades(record: RunRecord): readonly ListedStageGrade[] {
 }
 
 export interface SessionAttemptRow {
+	/** The id `lastEdit.rows` and the `ids` filter name the record by. */
+	readonly recordId: string;
 	readonly kind: "session-attempt";
 	readonly caseId: string;
 	readonly uuid: string;
@@ -293,6 +297,8 @@ function sessionChecks(
  * replay history reader accepts for it.
  */
 export interface ReplayRow {
+	/** The id `lastEdit.rows` and the `ids` filter name the record by. */
+	readonly recordId: string;
 	readonly kind: "replay";
 	readonly lineage: string;
 	readonly timestamp: string;
@@ -327,6 +333,8 @@ export interface NotApplicable {
  * links, since a rep is evidence of the group rather than a run of its own.
  */
 export interface ConfirmationGroupRow {
+	/** The id `lastEdit.rows` and the `ids` filter name the record by. */
+	readonly recordId: string;
 	readonly kind: "group";
 	readonly groupId: string;
 	readonly shortId: string | undefined;
@@ -661,6 +669,7 @@ async function rowFor(
 
 	return {
 		kind: "run",
+		recordId: formatRecordId({ kind: "run", run }),
 		run,
 		shortId,
 		checkpoints,
@@ -687,9 +696,11 @@ async function sessionAttemptRow(
 	}
 
 	const record = parseSessionAttemptRecord(await Bun.file(recordFile).text());
+	const recordId = formatRecordId({ kind: "attempt:session", ...attempt });
 
 	return {
 		kind: "session-attempt",
+		recordId,
 		caseId: attempt.caseId,
 		uuid: attempt.uuid,
 		shortId,
@@ -732,9 +743,11 @@ async function replayRow(
 		? await loadRunManifest(manifestFile)
 		: undefined;
 	const caseId = manifest?.caseId;
+	const recordId = formatRecordId({ kind: "attempt:stage", ...attempt });
 
 	return {
 		kind: "replay",
+		recordId,
 		lineage: attempt.lineage,
 		timestamp: attempt.timestamp,
 		shortId,
@@ -744,9 +757,7 @@ async function replayRow(
 			record.runName,
 			record.consumed.stage,
 		),
-		attempt: attempts.get(
-			formatRecordId({ kind: "attempt:stage", ...attempt }),
-		),
+		attempt: attempts.get(recordId),
 		caseId,
 		stage: record.stage,
 		grade: record.scorecard.grade.grade,
@@ -1031,9 +1042,11 @@ async function groupRow(
 	);
 	const reps = await groupReps(runsDirectory, record);
 	const recorded = reps.filter((rep) => "metrics" in rep);
+	const recordId = formatRecordId({ kind: "group", groupId });
 
 	return {
 		kind: "group",
+		recordId,
 		groupId,
 		shortId,
 		caseId: record.caseId,

@@ -7,6 +7,7 @@ import {
 	UNREAD_RUN_FIGURES,
 	unversionedStaleness,
 } from "#client/test-support/run-figures";
+import type { CorpusResponse } from "#client/corpus/corpus-query";
 import { createAppRouter } from "./router";
 
 const originalFetch = globalThis.fetch;
@@ -98,7 +99,13 @@ describe(createAppRouter.name, () => {
 			new Map([
 				[
 					"/api/corpus",
-					{ root: "/corpus", digest: "a", files: [], refusals: [] },
+					{
+						root: "/corpus",
+						digest: "a",
+						files: [],
+						refusals: [],
+						lastEdit: { kind: "not-recorded", reason: "no earlier version" },
+					} satisfies CorpusResponse,
 				],
 			]),
 		);
@@ -147,6 +154,13 @@ describe(createAppRouter.name, () => {
 				[
 					"/api/attempts/session/case-a/attempt-a/history/requests",
 					emptyRequestSeries(),
+				],
+				[
+					"/api/attempts/session/case-a/attempt-a/history/agents",
+					{
+						state: "unavailable",
+						reason: "the attempt has no saved transcript",
+					},
 				],
 			]),
 		);
@@ -250,6 +264,7 @@ describe(createAppRouter.name, () => {
 							{
 								kind: "run",
 								...UNREAD_RUN_FIGURES,
+								recordId: "run:2026-09-06T21-58-29.508Z",
 								links: [],
 								run: "2026-09-06T21-58-29.508Z",
 								caseId: "audit-log",
@@ -356,6 +371,13 @@ describe(createAppRouter.name, () => {
 				[
 					"/api/groups/group-a/reps/group-a-rep-1/attempt/history/requests",
 					emptyRequestSeries(),
+				],
+				[
+					"/api/groups/group-a/reps/group-a-rep-1/attempt/history/agents",
+					{
+						state: "unavailable",
+						reason: "the attempt has no saved transcript",
+					},
 				],
 			]),
 		);

@@ -59,6 +59,22 @@ See [current state](docs/status.md) for implementation coverage and
   path means the corpora are identical; exactly one means a movement can be
   attributed to that path; more than one refuses attribution and names every
   differing path.
+- **Attribution (cost)** — the rule that charges each request of an attempt to
+  exactly one agent, and within that agent to one skill's window or to a
+  remainder, so every request counts once toward the attempt's total. A skill's
+  window runs from its delivery to the next skill delivery, user prompt or
+  interruption, or the transcript's end, because the transcript records no
+  skill end, so work done after a skill's job ends is still charged to it.
+  Skills do not nest: a skill delivered inside another's window closes that
+  window. Each reading shows the basis it was built on.
+- **Own cost**: the requests a scope is directly charged with, an agent's own
+  transcript requests or a skill's window, excluding its sub-agents.
+- **Including descendants**: a scope's own cost plus the total of every
+  sub-agent below it. It is shown beside the own cost and never added into the
+  attempt's total, which already holds those requests once.
+- **Shared remainder**: an agent's requests after one request delivered more
+  than one skill, kept together rather than split between those skills.
+- **Unattributed remainder**: an agent's requests outside every skill window.
 - **Calibration** — the step that validates a Judge result against a human
   review and turns findings into rubric or instruction changes. It reads the
   frozen evidence a run recorded and the corpus files as they stand now, never
@@ -314,6 +330,12 @@ See [current state](docs/status.md) for implementation coverage and
   six hex characters of its digest. Run history, the navigation rail's corpus
   card and the corpus screen all show it, and a command that opens a version
   accepts any unambiguous prefix of the digest, with or without `corpus@`.
+- **Last edit**: the change from the corpus under test's predecessor in its
+  version log to the corpus under test. A result the last edit invalidated was
+  fresh against the predecessor and is stale now. The corpus screen's
+  "Invalidated by the last edit" card counts those results, and its link opens
+  them in run history. Wording accepted unattended as unsettled, pending the
+  operator's confirmation (ACT-258).
 - **Cut** — the 0-based line index of the first session-file record a transcript
   prefix drops. A cut of N keeps lines [0, N).
 - **Corpus layout** — the directory shape a corpus takes once resolved, and the
@@ -477,8 +499,9 @@ See [current state](docs/status.md) for implementation coverage and
   reply of zero words: no check is evaluated and none is recorded, so the
   attempt reads as a measurement that did not happen rather than one that
   passed.
-- **Observed delivery** — saved transcript evidence that a Read result or Skill
-  companion placed recorded text into session history. An invocation alone is
+- **Observed delivery** — saved transcript evidence that a Read result, a Skill
+  companion, or a skill body a slash command loaded placed recorded text into
+  session history. An invocation alone is
   not a delivery, and delivery does not show that the model followed the text.
 - **Review pause** — the interactive stop a run makes with the candidate still in the
   target, asking the reviewer to edit files and press Enter until the
@@ -860,6 +883,18 @@ See [current state](docs/status.md) for implementation coverage and
   was. It writes no checkpoint, so it has no lineage placing it among the run's
   other stages; its stop record names it by run and stage instead. The run list
   shows the run as `STOPPED:<stage>`, linked to that stage's context history.
+- **Sub-agent** — an agent a session launches with the Agent tool, or a skill
+  the provider runs in its own context. It has its own context window and
+  transcript, is linked to its parent by the call that launched it, and is
+  distinct from the harness roles worker, Product Owner and Judge. Two
+  sub-agents' context windows are never summed into one active-context reading.
+- **Review agent**: a sub-agent whose agent type is a reviewer type, such as
+  `reviewer` or `reviewer-medium`. It is not the reviewer of a **Human
+  review**, who records a verdict against a Judge result.
+- **Inherited agent**: a sub-agent named in an attempt's inherited prefix. It
+  ran before the attempt began, so it counts toward neither the attempt's
+  coverage nor its spend. The word "fork" is kept for copying a transcript
+  prefix.
 - **Target repository (template project)** — the real application repository,
   kept at a stable baseline, that tasks run against.
 - **Target check** — one command declared by the pipeline and run against the

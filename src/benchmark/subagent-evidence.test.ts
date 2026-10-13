@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { recordedSubagents } from "#benchmark/subagent-evidence";
@@ -48,5 +48,37 @@ describe(recordedSubagents.name, () => {
 		await Bun.write(join(record, "subagents", "agent-A1.jsonl"), "stray\n");
 
 		expect(await recordedSubagents(record)).toEqual([]);
+	});
+
+	it("reads no file through a symlink, which could point outside the record", async () => {
+		const record = await recordDirectory();
+		const outside = await recordDirectory();
+		await Bun.write(join(outside, "secret.json"), "outside\n");
+		await mkdir(join(record, "subagents"));
+		await symlink(
+			join(outside, "secret.json"),
+			join(record, "subagents", "agent-a1.jsonl"),
+		);
+		await Bun.write(join(record, "subagents", "agent-a2.jsonl"), "a2 rows\n");
+		await symlink(
+			join(outside, "secret.json"),
+			join(record, "subagents", "agent-a2.meta.json"),
+		);
+
+		expect(await recordedSubagents(record)).toEqual([
+			{ agentId: "a2", transcript: "a2 rows\n", meta: undefined },
+		]);
+	});
+
+	it("keeps the other agents when one entry is not a file", async () => {
+		const record = await recordDirectory();
+		await mkdir(join(record, "subagents", "agent-a1.jsonl"), {
+			recursive: true,
+		});
+		await Bun.write(join(record, "subagents", "agent-a2.jsonl"), "a2 rows\n");
+
+		expect(await recordedSubagents(record)).toEqual([
+			{ agentId: "a2", transcript: "a2 rows\n", meta: undefined },
+		]);
 	});
 });

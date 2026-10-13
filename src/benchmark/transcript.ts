@@ -36,12 +36,20 @@ const assistantRecordSchema = z.looseObject({
 	message: z.looseObject({ content: z.array(z.unknown()) }),
 });
 
+/**
+ * Read apart from the record schemas, so a drifted id loses only itself and
+ * never the row's tool calls.
+ */
+const providerIdSchema = z.string().min(1);
+
 const userRecordSchema = z.looseObject({
 	type: z.literal("user"),
 	message: z.looseObject({
 		content: z.union([z.string(), z.array(z.unknown())]),
 	}),
 });
+
+type UserRecord = z.infer<typeof userRecordSchema>;
 
 /**
  * An Agent call's result, and a Skill call's that forked into its own context,
@@ -85,6 +93,29 @@ const textBlockSchema = z.looseObject({
  */
 const SKILL_BODY_OPENING =
 	/^Base directory for this skill: (?<directory>[^\n]+)/u;
+
+/** The skill directory a loaded skill's body opens with, if the text is one. */
+export function skillBodyDirectory(text: string): string | undefined {
+	return SKILL_BODY_OPENING.exec(text)?.groups?.["directory"];
+}
+
+const INTERRUPTION_MARKER = "[Request interrupted by user";
+
+/**
+ * What a user row is, beyond a tool result or a meta row the harness wrote: a
+ * compaction summary, an interruption marker, a background agent's
+ * notification, or a prompt.
+ */
+export type UserTurn =
+	| "compaction summary"
+	| "interruption"
+	| "prompt"
+	| "task notification";
+
+/** The provider's mark on a row reporting that a background agent finished. */
+const taskNotificationSchema = z.looseObject({
+	origin: z.looseObject({ kind: z.literal("task-notification") }),
+});
 
 export type ToolUse = z.infer<typeof toolUseSchema>;
 
@@ -339,6 +370,13 @@ export interface TranscriptLine {
 	readonly locatedToolResults: readonly LocatedToolResult[];
 	readonly diagnosticIssues: readonly LocatedDiagnosticIssue[];
 	readonly namedAgent: string | undefined;
+	readonly userTurn: UserTurn | undefined;
+	/** A user row that names no parent row, as a conversation's first does. */
+	readonly startsWithoutParent: boolean;
+	/** The provider's id for the request an assistant row belongs to. */
+	readonly requestId: string | undefined;
+	/** The tool call whose output a meta row carries, such as a skill's body. */
+	readonly sourceToolUseId: string | undefined;
 }
 
 function readNamedAgent(record: JsonValue): string | undefined {
@@ -364,11 +402,72 @@ function readSkillDirectories(blocks: readonly unknown[]): readonly string[] {
 	return blocks
 		.map((block) => textBlockSchema.safeParse(block))
 		.filter((parsed) => parsed.success)
-		.map(
-			(parsed) =>
-				SKILL_BODY_OPENING.exec(parsed.data.text)?.groups?.["directory"],
-		)
+		.map((parsed) => skillBodyDirectory(parsed.data.text))
 		.filter((directory) => directory !== undefined);
+}
+
+function readUserTurn(
+	record: Immutable<UserRecord>,
+	blocks: readonly unknown[],
+): UserTurn | undefined {
+	if (record["isMeta"] === true) {
+		return undefined;
+	}
+
+	if (record["isCompactSummary"] === true) {
+		return "compaction summary";
+	}
+
+	if (taskNotificationSchema.safeParse(record).success) {
+		return "task notification";
+	}
+
+	if (
+		blocks.some(
+			(block) =>
+				contentBlockSchema.safeParse(block).data?.type === "tool_result",
+		)
+	) {
+		return undefined;
+	}
+
+	const plain = z.string().safeParse(record.message.content);
+	const texts = plain.success
+		? [plain.data]
+		: blocks
+				.map((block) => textBlockSchema.safeParse(block))
+				.filter((parsed) => parsed.success)
+				.map((parsed) => parsed.data.text);
+
+	return texts.some((text) => text.startsWith(INTERRUPTION_MARKER))
+		? "interruption"
+		: "prompt";
+}
+
+function readUserFields(
+	record: Immutable<UserRecord> | undefined,
+	blocks: readonly unknown[],
+): Pick<
+	TranscriptLine,
+	"userTurn" | "startsWithoutParent" | "sourceToolUseId"
+> {
+	if (record === undefined) {
+		return {
+			userTurn: undefined,
+			startsWithoutParent: false,
+			sourceToolUseId: undefined,
+		};
+	}
+
+	return {
+		userTurn: readUserTurn(record, blocks),
+		startsWithoutParent:
+			record["parentUuid"] === null || record["parentUuid"] === undefined,
+		sourceToolUseId:
+			record["isMeta"] === true
+				? providerIdSchema.safeParse(record["sourceToolUseID"]).data
+				: undefined,
+	};
 }
 
 function readInstructionFiles(record: JsonValue): readonly string[] {
@@ -398,20 +497,22 @@ function readLine(line: string, lineNumber: number): TranscriptLine {
 	}
 
 	let blocks: readonly unknown[] = [];
+	let user: UserRecord | undefined;
+	let requestId: string | undefined;
 	if (record.data.type === "assistant") {
 		const assistant = assistantRecordSchema.safeParse(parsed);
 		if (!assistant.success) {
 			return emptyTranscriptLine(lineNumber, "invalid-message-content");
 		}
+		requestId = providerIdSchema.safeParse(assistant.data["requestId"]).data;
 		blocks = assistant.data.message.content;
 	} else if (record.data.type === "user") {
-		const user = userRecordSchema.safeParse(parsed);
-		if (!user.success) {
+		const userRecord = userRecordSchema.safeParse(parsed);
+		if (!userRecord.success) {
 			return emptyTranscriptLine(lineNumber, "invalid-message-content");
 		}
-		blocks = Array.isArray(user.data.message.content)
-			? user.data.message.content
-			: [];
+		user = userRecord.data;
+		blocks = Array.isArray(user.message.content) ? user.message.content : [];
 	} else if (record.data.message !== undefined) {
 		return emptyTranscriptLine(lineNumber, "invalid-message-content");
 	}
@@ -479,6 +580,8 @@ function readLine(line: string, lineNumber: number): TranscriptLine {
 		locatedToolResults,
 		diagnosticIssues,
 		namedAgent: readNamedAgent(parsed),
+		...readUserFields(user, blocks),
+		requestId,
 	};
 }
 
@@ -496,6 +599,10 @@ function emptyTranscriptLine(
 		locatedToolResults: [],
 		diagnosticIssues: [{ kind, location: { line, block: 1 } }],
 		namedAgent: undefined,
+		userTurn: undefined,
+		startsWithoutParent: false,
+		requestId: undefined,
+		sourceToolUseId: undefined,
 	};
 }
 
