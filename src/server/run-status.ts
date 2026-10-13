@@ -7,11 +7,11 @@ import type {
 	RunEvent,
 	RunEventStore,
 } from "#benchmark/run-events";
-import { isTerminalRunEventKind } from "#benchmark/run-events";
+import type { InFlightEvent } from "#benchmark/run-ending";
+import { runEnding } from "#benchmark/run-ending";
 import { parseRunSummaryRecord } from "#benchmark/record-summary";
 import {
 	awaitingJudgeStageRecordSchema,
-	stoppedStage,
 	stoppedStageRecordSchema,
 } from "#benchmark/run-outcome";
 import {
@@ -19,10 +19,7 @@ import {
 	pausedStatus,
 	stoppedStatus,
 } from "#benchmark/stopped-status";
-import { operatorStopped } from "#benchmark/operator-stop";
-import { pausedStage } from "#benchmark/run-pause";
 import type { RunLiveness } from "#benchmark/run-liveness";
-import { claimingRun, runClaim } from "#benchmark/run-liveness";
 import { unhandled } from "#benchmark/contracts";
 import type { RunTokens } from "#benchmark/spend-ceiling";
 
@@ -208,24 +205,14 @@ async function eventBackedIdentity(
 	return { status, caseId, gradeByStage: new Map(), progress: RECORDED, links };
 }
 
-/**
- * The readings a non-terminal event carries, or undefined when the run's
- * stream says it has already finished. A terminal kind here is not a run in
- * flight even with a live marker on its target: a signal abort with no pending
- * artifact records `run-failed` and writes no artifact file, leaving a
- * finished run whose target still holds the claim it never restored.
- */
+/** The readings a run in flight carries at its latest event. */
 function runningProgress({
 	latest,
 	stageStart,
 }: {
-	readonly latest: RunEvent;
+	readonly latest: InFlightEvent;
 	readonly stageStart: RunEvent | undefined;
-}): RunProgress | undefined {
-	if (isTerminalRunEventKind(latest.kind)) {
-		return undefined;
-	}
-
+}): RunProgress {
 	const spendScope = SPEND_SCOPE[latest.kind];
 
 	const progress: RunProgress = {
@@ -251,19 +238,40 @@ function runningProgress({
 	return { ...progress, judge: latest.judge };
 }
 
+function artifactIdentity(artifact: string): RunIdentity {
+	const record = parseRunSummaryRecord(artifact);
+
+	return {
+		status: record.status,
+		caseId: record.caseId,
+		progress: RECORDED,
+		links: [],
+		gradeByStage: new Map(
+			record.stageScorecards.map((scorecard) => [
+				scorecard.stage,
+				scorecard.grade.grade,
+			]),
+		),
+	};
+}
+
 /**
- * The stage a failed run failed in. A failure caught outside any stage the
- * runner tracks records `run-failed` with no stage, so the last stage the run
- * started stands in, and a run that started none names no stage.
+ * A signal abort, or a failure before the stage wrote its record, leaves
+ * `run-failed` and nothing on disk for the stage it failed in, so the row
+ * says so instead of linking to a page with no record.
  */
-export function failedStage(
-	runEvents: RunEventStore,
-	run: string,
-): string | undefined {
-	return runEvents
-		.eventsSince(run, 0)
-		.map(({ stage }) => stage)
-		.findLast((stage) => stage !== "");
+function failedLinks(stage: string | undefined): readonly ContextLink[] {
+	if (stage === undefined) {
+		return [];
+	}
+
+	return [
+		{
+			state: "unavailable",
+			label: stage,
+			reason: "failed before saving its context",
+		},
+	];
 }
 
 export async function statusAndCaseId(
@@ -273,121 +281,56 @@ export async function statusAndCaseId(
 	liveness: RunLiveness,
 ): Promise<RunIdentity | undefined> {
 	const paths = benchmarkRunPaths(runsDirectory, run);
-	if (await Bun.file(paths.artifactFile).exists()) {
-		const record = parseRunSummaryRecord(
-			await Bun.file(paths.artifactFile).text(),
-		);
-
-		return {
-			status: record.status,
-			caseId: record.caseId,
-			progress: RECORDED,
-			links: [],
-			gradeByStage: new Map(
-				record.stageScorecards.map((scorecard) => [
-					scorecard.stage,
-					scorecard.grade.grade,
-				]),
-			),
-		};
-	}
-
-	const stopped = await stoppedStage(runsDirectory, run);
-	if (stopped !== undefined) {
-		return manifestBackedIdentity(paths, stoppedStatus(stopped.stage));
-	}
-
-	const paused = await pausedStage(paths);
-	if (paused !== undefined) {
-		return manifestBackedIdentity(paths, pausedStatus(paused));
-	}
-
-	if (await operatorStopped(paths)) {
-		return manifestBackedIdentity(paths, OPERATOR_STOPPED);
-	}
-
-	const latest = runEvents.latestEvent(run);
-
-	/**
-	 * A kill -9 leaves no artifact and no STAGE_JUDGE_FAILED file: nothing
-	 * runs to write one. The reconciliation pass is the only thing that ever
-	 * marks such a run, in the event stream rather than on disk, so this is
-	 * the one status this reader derives from SQLite instead of a file.
-	 */
-	if (latest?.kind === "run-interrupted") {
-		return eventBackedIdentity(paths, "INTERRUPTED", []);
-	}
-
-	/**
-	 * A signal abort, or a failure before the stage wrote its record, leaves
-	 * `run-failed` and nothing on disk for the stage it failed in, so the row
-	 * says so instead of linking to a page with no record.
-	 */
-	if (latest?.kind === "run-failed") {
-		const stage = failedStage(runEvents, run);
-
-		return eventBackedIdentity(
-			paths,
-			"FAILED",
-			stage === undefined
-				? []
-				: [
-						{
-							state: "unavailable",
-							label: stage,
-							reason: "failed before saving its context",
-						},
-					],
-		);
-	}
-
-	if (latest === undefined) {
-		throw new IncompleteRunRecordError(
-			(await Bun.file(paths.manifestFile).exists())
-				? "no record: no stage record and no run events"
-				: "no manifest recorded",
-		);
-	}
-
-	const progress = runningProgress({
-		latest,
-		stageStart: runEvents.latestStageStart({ runId: run, stage: latest.stage }),
-	});
-	if (progress === undefined) {
-		throw new IncompleteRunRecordError(
-			"incomplete: the run recorded run-completed but no artifact",
-		);
-	}
-
-	const claim = await runClaim(
-		paths.manifestFile,
-		liveness,
-		claimingRun(runEvents, run),
-	);
-	switch (claim) {
-		case "live": {
-			return manifestBackedIdentity(paths, "RUNNING", progress);
+	const ending = await runEnding(runsDirectory, run, runEvents, liveness);
+	switch (ending.kind) {
+		case "main-artifact": {
+			return artifactIdentity(await Bun.file(paths.artifactFile).text());
 		}
-		/**
-		 * A run's end records its terminal event before teardown deletes its
-		 * claim, so a run with neither is one whose process died. Reconciliation
-		 * records that only at a later server start; this reading writes
-		 * nothing, so a read racing a run's own end corrects itself on the next
-		 * poll.
-		 */
-		case "gone": {
+		case "stopped": {
+			return manifestBackedIdentity(paths, stoppedStatus(ending.stage));
+		}
+		case "paused": {
+			return manifestBackedIdentity(paths, pausedStatus(ending.stage));
+		}
+		case "operator-stopped": {
+			return manifestBackedIdentity(paths, OPERATOR_STOPPED);
+		}
+		case "interrupted": {
 			return eventBackedIdentity(paths, "INTERRUPTED", []);
 		}
-		/**
-		 * A target that could not be asked is no evidence the process is gone,
-		 * and an ended reading would offer a paid analysis of a run still
-		 * executing.
-		 */
-		case "unknown": {
+		case "failed": {
+			return eventBackedIdentity(paths, "FAILED", failedLinks(ending.stage));
+		}
+		case "running": {
+			return manifestBackedIdentity(
+				paths,
+				"RUNNING",
+				runningProgress({
+					latest: ending.latest,
+					stageStart: runEvents.latestStageStart({
+						runId: run,
+						stage: ending.latest.stage,
+					}),
+				}),
+			);
+		}
+		case "unconfirmed": {
 			return undefined;
 		}
+		case "completed-without-artifact": {
+			throw new IncompleteRunRecordError(
+				"incomplete: the run recorded run-completed but no artifact",
+			);
+		}
+		case "no-events": {
+			throw new IncompleteRunRecordError(
+				(await Bun.file(paths.manifestFile).exists())
+					? "no record: no stage record and no run events"
+					: "no manifest recorded",
+			);
+		}
 		default: {
-			return unhandled(claim, "run claim");
+			return unhandled(ending, "run ending");
 		}
 	}
 }

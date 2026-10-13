@@ -51,7 +51,8 @@ import { formatRecordId } from "#cli/record-id";
 import { shortIdsOf } from "#cli/short-id-column";
 import { redactAbsolutePaths } from "./redact-path";
 import { claimingRun, claimsLiveTarget } from "#benchmark/run-liveness";
-import { failedStage, runStatus } from "./run-status";
+import { failedStage } from "#benchmark/run-ending";
+import { runStatus } from "./run-status";
 
 export const INTERRUPTED_REASON =
 	"the run was interrupted before its final judge";
