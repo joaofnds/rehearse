@@ -47,8 +47,9 @@ import {
 import { formatRecordId } from "#cli/record-id";
 import { shortIdsOf } from "#cli/short-id-column";
 import { redactAbsolutePaths } from "./redact-path";
+import type { RunEnding } from "#benchmark/run-ending";
 import { runEnding } from "#benchmark/run-ending";
-import { runStatus } from "./run-status";
+import { endingIdentity } from "./run-status";
 
 export const INTERRUPTED_REASON =
 	"the run was interrupted before its final judge";
@@ -61,6 +62,8 @@ export const AWAITING_JUDGMENT_REASON =
 export const AWAITING_GRADE_REASON = "the stage's judge has not returned";
 export const UNEXPLAINED_END_REASON =
 	"the run ended without recording how it ended";
+export const UNREADABLE_ENDING_REASON =
+	"the records that say how the run ended could not be read";
 export const PRODUCT_OWNER_COST_REASON =
 	"neither a main artifact nor a stop record holds the Product Owner's cost, as the run wrote neither, they predate it, or the run stopped before a stage's judge returned a grade";
 export const STOPPED_GRADE_REASON =
@@ -1137,21 +1140,52 @@ function stageWithStatus(
 	return stages.find(({ file }) => file?.status === status);
 }
 
+type EndingReading = Reading<{ readonly ending: RunEnding }>;
+
 /**
- * The final judge's outcome once the main artifact holds it, and otherwise
- * the ending `runEnding` reads from the other records, so the outcome names
- * the same ending as the run's status.
+ * Read once per record, so the status and the final outcome name the same
+ * ending even while the run's records change between the two.
  */
-async function finalOutcome(
+async function readEnding(
 	runsDirectory: string,
 	run: string,
 	runEvents: RunEventStore,
 	liveness: RunLiveness,
+): Promise<EndingReading> {
+	try {
+		return {
+			state: "available",
+			ending: await runEnding(runsDirectory, run, runEvents, liveness),
+		};
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+
+		return { state: "unavailable", reasons: [redactAbsolutePaths(message)] };
+	}
+}
+
+/**
+ * The final judge's outcome once the main artifact holds it, and otherwise
+ * the ending the other records name, so the outcome names the same ending as
+ * the run's status.
+ */
+async function finalOutcome(
+	runsDirectory: string,
+	run: string,
+	reading: EndingReading,
 ): Promise<FinalOutcome> {
-	const ending = await runEnding(runsDirectory, run, runEvents, liveness);
+	if (reading.state === "unavailable") {
+		return { status: "NOT_REACHED", reason: UNREADABLE_ENDING_REASON };
+	}
+
+	const { ending } = reading;
 	switch (ending.kind) {
 		case "main-artifact": {
-			return judgedOutcome(benchmarkRunPaths(runsDirectory, run).artifactFile);
+			return judgedOutcome(
+				await Bun.file(
+					benchmarkRunPaths(runsDirectory, run).artifactFile,
+				).text(),
+			);
 		}
 		case "stopped": {
 			return {
@@ -1218,8 +1252,8 @@ async function finalOutcome(
 }
 
 /** What the final judge recorded in the main artifact. */
-async function judgedOutcome(artifactFile: string): Promise<FinalOutcome> {
-	const artifact: unknown = JSON.parse(await Bun.file(artifactFile).text());
+function judgedOutcome(artifactText: string): FinalOutcome {
+	const artifact: unknown = JSON.parse(artifactText);
 	const graded = gradedArtifactSchema.safeParse(artifact);
 	if (graded.success) {
 		return { status: "JUDGED", verdict: graded.data.grade.verdict };
@@ -1286,18 +1320,27 @@ async function statusReading(
 	runsDirectory: string,
 	run: string,
 	runEvents: RunEventStore,
-	liveness: RunLiveness,
+	reading: EndingReading,
 ): Promise<Reading<{ readonly status: string }>> {
+	if (reading.state === "unavailable") {
+		return reading;
+	}
+
 	try {
-		const status = await runStatus(runsDirectory, run, runEvents, liveness);
-		if (status === undefined) {
+		const identity = await endingIdentity(
+			runsDirectory,
+			run,
+			reading.ending,
+			runEvents,
+		);
+		if (identity === undefined) {
 			return {
 				state: "unavailable",
 				reasons: ["run history lists no row for the run"],
 			};
 		}
 
-		return { state: "available", status };
+		return { state: "available", status: identity.status };
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
 
@@ -1345,7 +1388,8 @@ export async function readRunRecord(
 		runEventsDatabaseFile(runsDirectory),
 	);
 	try {
-		const outcome = await finalOutcome(runsDirectory, run, runEvents, liveness);
+		const ending = await readEnding(runsDirectory, run, runEvents, liveness);
+		const outcome = await finalOutcome(runsDirectory, run, ending);
 		const names = stages.map(({ stage }) => stage);
 		const currentIndex = currentStageIndex(names, outcome);
 		const placed = stages.map(
@@ -1400,7 +1444,7 @@ export async function readRunRecord(
 				effort: manifest.effort,
 				corpusVersion: manifest.corpusVersion,
 			},
-			status: await statusReading(runsDirectory, run, runEvents, liveness),
+			status: await statusReading(runsDirectory, run, runEvents, ending),
 			minimumGrade:
 				manifest.minimumGrade === undefined
 					? { state: "unavailable", reasons: [MINIMUM_GRADE_REASON] }

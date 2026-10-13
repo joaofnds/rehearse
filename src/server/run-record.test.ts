@@ -49,6 +49,7 @@ import {
 	UNEXPLAINED_END_REASON,
 	UNGRADED_BLOCKERS_REASON,
 	UNREACHED_STAGE_REASON,
+	UNREADABLE_ENDING_REASON,
 	UNRECORDED_STAGE_REASON,
 	WALL_TIME_REASON,
 } from "./run-record";
@@ -2175,6 +2176,51 @@ describe("/api/runs/:run", () => {
 					expect(runEndingSchema.parse(await response.json())).toEqual({
 						status,
 						finalOutcome,
+					});
+				},
+			);
+
+			it("names one ending in both readings while the run's claim lapses between reads", async () => {
+				const fixture = await emptyFixture();
+				await fixture.writeRunningRun();
+				const answers = [claimBy(RUNNING_RUN, 1)];
+				const lapsing: RunLiveness = {
+					readMarker: () => Promise.resolve(answers.shift()),
+					isAlive: () => true,
+				};
+
+				const response = await runRecord(fixture, RUNNING_RUN, lapsing);
+
+				expect(runEndingSchema.parse(await response.json())).toEqual({
+					status: listedAs("RUNNING"),
+					finalOutcome: { status: "PENDING", stage: "build" },
+				});
+			});
+
+			it.each([
+				["paused.json", "pausedFile"],
+				["operator-stop.json", "operatorStopFile"],
+			] as const)(
+				"serves a run whose %s cannot be parsed with both readings saying the ending is unreadable",
+				async (_file, recordFile) => {
+					const fixture = await emptyFixture();
+					await fixture.writeSignalAbortedRun();
+					await Bun.write(
+						benchmarkRunPaths(fixture.runsDirectory, fixture.abortedRun)[
+							recordFile
+						],
+						"{",
+					);
+
+					const response = await runRecord(fixture, fixture.abortedRun);
+
+					expect(response.status).toBe(200);
+					expect(runEndingSchema.parse(await response.json())).toMatchObject({
+						status: { state: "unavailable" },
+						finalOutcome: {
+							status: "NOT_REACHED",
+							reason: UNREADABLE_ENDING_REASON,
+						},
 					});
 				},
 			);

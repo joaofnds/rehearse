@@ -7,7 +7,7 @@ import type {
 	RunEvent,
 	RunEventStore,
 } from "#benchmark/run-events";
-import type { InFlightEvent } from "#benchmark/run-ending";
+import type { InFlightEvent, RunEnding } from "#benchmark/run-ending";
 import { runEnding } from "#benchmark/run-ending";
 import { parseRunSummaryRecord } from "#benchmark/record-summary";
 import {
@@ -280,8 +280,25 @@ export async function statusAndCaseId(
 	runEvents: RunEventStore,
 	liveness: RunLiveness,
 ): Promise<RunIdentity | undefined> {
+	return endingIdentity(
+		runsDirectory,
+		run,
+		await runEnding(runsDirectory, run, runEvents, liveness),
+		runEvents,
+	);
+}
+
+/**
+ * The status and case a run's history row shows for an ending already read,
+ * undefined for a run the history lists no row for.
+ */
+export async function endingIdentity(
+	runsDirectory: string,
+	run: string,
+	ending: RunEnding,
+	runEvents: RunEventStore,
+): Promise<RunIdentity | undefined> {
 	const paths = benchmarkRunPaths(runsDirectory, run);
-	const ending = await runEnding(runsDirectory, run, runEvents, liveness);
 	switch (ending.kind) {
 		case "main-artifact": {
 			return artifactIdentity(await Bun.file(paths.artifactFile).text());
