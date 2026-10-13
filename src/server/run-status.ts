@@ -7,7 +7,7 @@ import type {
 	RunEvent,
 	RunEventStore,
 } from "#benchmark/run-events";
-import type { InFlightEvent, RunEnding } from "#benchmark/run-ending";
+import type { NonTerminalRunEvent, RunEnding } from "#benchmark/run-ending";
 import { runEnding } from "#benchmark/run-ending";
 import { parseRunSummaryRecord } from "#benchmark/record-summary";
 import {
@@ -210,7 +210,7 @@ function runningProgress({
 	latest,
 	stageStart,
 }: {
-	readonly latest: InFlightEvent;
+	readonly latest: NonTerminalRunEvent;
 	readonly stageStart: RunEvent | undefined;
 }): RunProgress {
 	const spendScope = SPEND_SCOPE[latest.kind];

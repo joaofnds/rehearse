@@ -12,12 +12,12 @@ import { claimingRun, runClaim } from "./run-liveness";
 import { awaitingJudgeStage, stoppedStage } from "./run-outcome";
 import { pausedStage } from "./run-pause";
 
-/** An event a run records while it is still going. */
-export type InFlightEvent = RunEvent & {
+/** An event of a kind that does not end a run's event stream. */
+export type NonTerminalRunEvent = RunEvent & {
 	readonly kind: NonTerminalRunEventKind;
 };
 
-function isInFlight(event: RunEvent): event is InFlightEvent {
+function isNonTerminal(event: RunEvent): event is NonTerminalRunEvent {
 	return !isTerminalRunEventKind(event.kind);
 }
 
@@ -33,7 +33,7 @@ export type RunEnding =
 	| { readonly kind: "operator-stopped"; readonly stage: string | undefined }
 	| { readonly kind: "interrupted"; readonly stage: string }
 	| { readonly kind: "failed"; readonly stage: string | undefined }
-	| { readonly kind: "running"; readonly latest: InFlightEvent }
+	| { readonly kind: "running"; readonly latest: NonTerminalRunEvent }
 	| { readonly kind: "unconfirmed"; readonly stage: string }
 	| { readonly kind: "completed-without-artifact"; readonly stage: string }
 	| { readonly kind: "awaiting-judgment"; readonly stage: string }
@@ -102,7 +102,7 @@ export async function runEnding(
 	 * its target, and the one left is `run-completed` without the artifact
 	 * that should have followed it.
 	 */
-	if (!isInFlight(latest)) {
+	if (!isNonTerminal(latest)) {
 		return { kind: "completed-without-artifact", stage: latest.stage };
 	}
 
