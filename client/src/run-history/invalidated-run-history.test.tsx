@@ -186,6 +186,18 @@ describe("/?invalidatedBy", () => {
 		expect(screen.getByText(RUN_A)).toBeInTheDocument();
 	});
 
+	it("keeps listing the rows when a later read of run history fails", async () => {
+		const { answers } = serving(`/?invalidatedBy=${PREVIOUS}..${CURRENT}`);
+		await durableRecords();
+		answers.delete("/api/runs");
+
+		focusManager.setFocused(false);
+		focusManager.setFocused(true);
+
+		await screen.findByText("Could not load run history.");
+		expect(screen.getByText(RUN_A)).toBeInTheDocument();
+	});
+
 	it("names the corpus versions the edit went from and to", async () => {
 		serving(`/?invalidatedBy=${PREVIOUS}..${CURRENT}`);
 

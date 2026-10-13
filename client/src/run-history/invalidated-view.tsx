@@ -10,16 +10,19 @@ import type { InvalidatedSelection, Read } from "./invalidated-selection";
 import { invalidatedSelection } from "./invalidated-selection";
 import type { RunHistoryResponse } from "./run-history-query";
 
+/**
+ * A query's last good body while it has one, so a failed re-read keeps what
+ * was listed, as the rest of run history does.
+ */
 export function readOf<Body>(query: {
 	readonly isError: boolean;
-	readonly isSuccess: boolean;
 	readonly data: Body | undefined;
 }): Read<Body> {
+	if (query.data !== undefined) {
+		return { state: "loaded", body: query.data };
+	}
 	if (query.isError) {
 		return { state: "failed" };
-	}
-	if (query.isSuccess && query.data !== undefined) {
-		return { state: "loaded", body: query.data };
 	}
 
 	return { state: "loading" };
