@@ -302,6 +302,22 @@ const RUN_ENDINGS: readonly RunEnding[] = [
 		},
 	},
 	{
+		ending: "a run the operator stopped between stages",
+		write: async (fixture) => {
+			await fixture.writeRunningRun();
+			await fixture.appendRunningEvent("run-failed", "", 9500);
+			await recordOperatorStop(fixture, fixture.runningRun);
+			return fixture.runningRun;
+		},
+		claim: "gone",
+		status: listedAs(OPERATOR_STOPPED),
+		finalOutcome: {
+			status: "NOT_REACHED",
+			stage: "build",
+			reason: OPERATOR_STOPPED_REASON,
+		},
+	},
+	{
 		ending: "a run the operator stopped while its process restores the target",
 		write: async (fixture) => {
 			await fixture.writeRunningRun();
@@ -462,6 +478,16 @@ const RUN_ENDINGS: readonly RunEnding[] = [
 			stage: "build",
 			reason: AWAITING_JUDGMENT_REASON,
 		},
+	},
+	{
+		ending: "a run that recorded neither a stage nor an event",
+		write: async (fixture) => {
+			await fixture.writeNoRecordRun();
+			return fixture.noRecordRun;
+		},
+		claim: "gone",
+		status: unlisted("no record: no stage record and no run events"),
+		finalOutcome: { status: "NOT_REACHED", reason: UNEXPLAINED_END_REASON },
 	},
 ];
 
