@@ -44,7 +44,7 @@ export type RunEnding =
  * runner tracks records `run-failed` with no stage, so the last stage the run
  * started stands in, and a run that started none names no stage.
  */
-export function failedStage(
+function failedStage(
 	runEvents: RunEventStore,
 	run: string,
 ): string | undefined {

@@ -1133,13 +1133,6 @@ function runTokenParts({
 	];
 }
 
-function stageWithStatus(
-	stages: readonly RecordedStage[],
-	status: "STAGE_JUDGE_FAILED" | "AWAITING_STAGE_JUDGE",
-): RecordedStage | undefined {
-	return stages.find(({ file }) => file?.status === status);
-}
-
 type EndingReading = Reading<{ readonly ending: RunEnding }>;
 
 /**
@@ -1381,7 +1374,8 @@ export async function readRunRecord(
 
 	const runWide: RunWideRecords = {
 		artifact: await readArtifactSpend(paths),
-		stopRecord: stageWithStatus(stages, "STAGE_JUDGE_FAILED")?.file,
+		stopRecord: stages.find(({ file }) => file?.status === "STAGE_JUDGE_FAILED")
+			?.file,
 	};
 	const shortId = await readRunShortId(runsDirectory, manifest.caseId, run);
 	const runEvents = await openRunEventStore(
