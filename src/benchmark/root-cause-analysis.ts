@@ -370,7 +370,7 @@ export async function requireRecordedRun({
 
 /**
  * An analysis reads an outcome, so the run must have one: completed, stopped
- * by a stage, or stopped by the operator. A paused run can still resume, and
+ * by a stage, or stopped by the operator. A paused run ended before one, and
  * a run whose process still holds its target is still writing records. A run
  * whose process died without an outcome has none coming, so it is analyzed
  * as it stands.
@@ -388,7 +388,7 @@ export async function refuseUnanalyzable(
 	const paths = benchmarkRunPaths(runsDirectory, run);
 	if ((await pausedStage(paths)) !== undefined) {
 		throw new RefusedPreconditionError(
-			`Run ${run} is paused and can still resume, so it has no outcome to analyze`,
+			`Run ${run} ended paused before its final judge, so it has no outcome to analyze`,
 		);
 	}
 

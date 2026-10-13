@@ -622,7 +622,7 @@ describe(analyzeRun.name, () => {
 
 			expect(failure).toBeInstanceOf(RefusedPreconditionError);
 			expect(failure.message).toBe(
-				`Run ${RUN} is paused and can still resume, so it has no outcome to analyze`,
+				`Run ${RUN} ended paused before its final judge, so it has no outcome to analyze`,
 			);
 			expect(provider.budgets).toEqual([]);
 		});
