@@ -1,4 +1,6 @@
+import { stat } from "node:fs/promises";
 import { CommandSilenceError } from "./command-silence-error";
+import { MissingDirectoryError } from "./missing-directory-error";
 import { COMMAND_TIMEOUT_MS } from "./config";
 
 /**
@@ -109,6 +111,29 @@ export async function runCommand(
 	command: readonly string[],
 	cwd: string,
 	options: CommandOptions = {},
+): Promise<string> {
+	try {
+		return await runIn(command, cwd, options);
+	} catch (error) {
+		if (!(await isDirectory(cwd))) {
+			throw new MissingDirectoryError(cwd);
+		}
+
+		throw error;
+	}
+}
+
+function isDirectory(path: string): Promise<boolean> {
+	return stat(path).then(
+		(stats) => stats.isDirectory(),
+		() => false,
+	);
+}
+
+async function runIn(
+	command: readonly string[],
+	cwd: string,
+	options: CommandOptions,
 ): Promise<string> {
 	const child = Bun.spawn([...command], {
 		cwd,

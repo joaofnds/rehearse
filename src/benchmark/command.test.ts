@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CommandError, killActiveCommands, runCommand } from "./command";
 import { CommandSilenceError } from "./command-silence-error";
+import { MissingDirectoryError } from "./missing-directory-error";
 import { TestResources } from "./test-support";
 
 const testResources = TestResources.forEachTest();
@@ -83,6 +84,14 @@ describe(killActiveCommands.name, () => {
 });
 
 describe(runCommand.name, () => {
+	it("names a working directory that does not exist rather than the command", () => {
+		const missing = join(tmpdir(), "rehearse-absent-directory");
+
+		expect(runCommand(["git", "status"], missing)).rejects.toThrow(
+			new MissingDirectoryError(missing),
+		);
+	});
+
 	it("kills the command when its line reader fails", async () => {
 		const sleeper = uniqueSleeper();
 		const failure = await runCommand(
