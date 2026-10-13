@@ -84,12 +84,30 @@ describe(killActiveCommands.name, () => {
 });
 
 describe(runCommand.name, () => {
-	it("names a working directory that does not exist rather than the command", () => {
-		const missing = join(tmpdir(), "rehearse-absent-directory");
+	it("names a working directory that does not exist rather than the command", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "rehearse-command-"));
+		testResources.track(directory);
+		const missing = join(directory, "absent");
 
-		expect(runCommand(["git", "status"], missing)).rejects.toThrow(
-			new MissingDirectoryError(missing),
+		const failure = runCommand(["git", "status"], missing);
+
+		expect(failure).rejects.toBeInstanceOf(MissingDirectoryError);
+		expect(failure).rejects.toMatchObject({ directory: missing });
+	});
+
+	it("keeps the failure of a command that removed its own working directory", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "rehearse-command-"));
+
+		const failure = runCommand(
+			["sh", "-c", 'rm -rf "$PWD"; echo removed >&2; exit 3'],
+			directory,
 		);
+
+		expect(failure).rejects.toBeInstanceOf(CommandError);
+		expect(failure).rejects.toMatchObject({
+			exitCode: 3,
+			stderr: "removed\n",
+		});
 	});
 
 	it("kills the command when its line reader fails", async () => {

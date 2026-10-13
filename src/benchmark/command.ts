@@ -90,6 +90,11 @@ interface ReadableProcess extends KillableProcess {
 	readonly exited: Promise<number>;
 }
 
+interface RunningProcess extends ReadableProcess {
+	readonly stderr: ReadableStream<Uint8Array>;
+	readonly exitCode: number | null;
+}
+
 /**
  * A failed reader ends the command, which would otherwise run on past its
  * timeout and out of reach of killActiveCommands.
@@ -112,38 +117,56 @@ export async function runCommand(
 	cwd: string,
 	options: CommandOptions = {},
 ): Promise<string> {
+	const child = await spawnIn(command, cwd, options);
+	activeProcesses.add(child);
 	try {
-		return await runIn(command, cwd, options);
+		return await awaitOutput(command, child, options);
+	} finally {
+		activeProcesses.delete(child);
+	}
+}
+
+type SpawnedCommand = Bun.Subprocess<"ignore" | Blob, "pipe", "pipe">;
+
+/** Bun names the command, not the directory, when the directory is missing. */
+async function spawnIn(
+	command: readonly string[],
+	cwd: string,
+	options: CommandOptions,
+): Promise<SpawnedCommand> {
+	try {
+		return Bun.spawn([...command], {
+			cwd,
+			env: { ...Bun.env, ...options.env },
+			stdin: options.input === undefined ? "ignore" : new Blob([options.input]),
+			stdout: "pipe",
+			stderr: "pipe",
+			detached: true,
+		});
 	} catch (error) {
-		if (!(await isDirectory(cwd))) {
-			throw new MissingDirectoryError(cwd);
+		if (await isMissing(cwd)) {
+			throw new MissingDirectoryError(cwd, { cause: error });
 		}
 
 		throw error;
 	}
 }
 
-function isDirectory(path: string): Promise<boolean> {
-	return stat(path).then(
-		(stats) => stats.isDirectory(),
-		() => false,
-	);
+async function isMissing(path: string): Promise<boolean> {
+	try {
+		await stat(path);
+
+		return false;
+	} catch (error) {
+		return error instanceof Error && "code" in error && error.code === "ENOENT";
+	}
 }
 
-async function runIn(
+async function awaitOutput(
 	command: readonly string[],
-	cwd: string,
+	child: RunningProcess,
 	options: CommandOptions,
 ): Promise<string> {
-	const child = Bun.spawn([...command], {
-		cwd,
-		env: { ...Bun.env, ...options.env },
-		stdin: options.input === undefined ? "ignore" : new Blob([options.input]),
-		stdout: "pipe",
-		stderr: "pipe",
-		detached: true,
-	});
-	activeProcesses.add(child);
 	let silenced = false;
 	const timeout = setTimeout(
 		() => {
@@ -181,7 +204,6 @@ async function runIn(
 		return stdout;
 	} finally {
 		clearTimeout(timeout);
-		activeProcesses.delete(child);
 	}
 }
 
