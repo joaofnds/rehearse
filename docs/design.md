@@ -162,10 +162,14 @@ then holds names a dead pid. Until then, and for good when no start can, the
 report reads a non-terminal stream whose run's own claim is not held by a live
 process as `INTERRUPTED` and writes nothing. A run's end records its terminal
 event, artifact or stop record before teardown deletes the claim, so a read
-racing that end misreads for one poll and corrects itself. Two misreadings
+racing that end misreads for one poll and corrects itself. Three misreadings
 last: a run in flight whose marker an operator deleted reads `INTERRUPTED` while
-it executes, and a run whose best-effort `run-failed` failed to record reads
-`INTERRUPTED` rather than `FAILED`. A target that cannot be asked, because the
+it executes, a run whose best-effort `run-failed` failed to record reads
+`INTERRUPTED` rather than `FAILED`, and a live run whose every event failed to
+record reads `INTERRUPTED` once it leaves a stage awaiting judgment. The last
+holds because a run with no events is not asked about its claim, so that a run
+recorded before the event store, which died while a stage was judged, reads as
+the interrupted run it is. A target that cannot be asked, because the
 manifest is gone or the claim read throws, is no evidence the process ended, so
 that run stays out of the list and the browser offers no analysis of it. The
 in-flight refusal that `diagnose` and the analysis route apply does not cover

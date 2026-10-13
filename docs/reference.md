@@ -1742,9 +1742,16 @@ them still parses and reads each as unavailable:
 FAIL verdict, `JUDGING_FAILED` with the failure the main artifact records,
 `PENDING` with the running stage while the run is live, or `NOT_REACHED` with
 the reason the run ended and, where a record names one, the stage it ended in.
-That reason comes from the stop record, the run's interrupted or failed event,
-or a stage left awaiting judgment once the run is no longer live, in that
-order, and a run that recorded none of those says so. The final judge returns no letter, so none is served.
+It names the same ending as the run's `status`, since both read
+[run-ending.ts](../src/benchmark/run-ending.ts), in this order: the main
+artifact, a stop record, `paused.json`, `operator-stop.json`, then the event
+stream. A pause or operator stop therefore reads as one while the run's
+process restores the target and after a later failed or interrupted event. A
+stream that ends interrupted, or a non-terminal one whose run no longer holds
+its target's claim, reads interrupted before reconciliation marks it as well as
+after. A non-terminal stream whose target cannot be asked reads `PENDING`. A
+run with no events reads the stage it left awaiting judgment, and a run that
+recorded none of those says so. The final judge returns no letter, so none is served.
 
 ### Judge evidence sources
 
