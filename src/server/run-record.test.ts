@@ -4,6 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
 
+import { unhandled } from "#benchmark/contracts";
+import { operatorStopRecord } from "#benchmark/operator-stop";
 import type { RunLiveness } from "#benchmark/run-liveness";
 import { stoppedStatus } from "#benchmark/stopped-status";
 import {
@@ -43,7 +45,7 @@ import {
 	UNRECORDED_STAGE_REASON,
 	WALL_TIME_REASON,
 } from "./run-record";
-import type { WorkflowStateChange } from "./run-record";
+import type { FinalOutcome, Reading, WorkflowStateChange } from "./run-record";
 
 const FINISHED_RUN = "2026-09-11T00-00-00.000Z";
 const ASKED_RUN = "2026-09-12T00-00-00.000Z";
@@ -107,6 +109,186 @@ const RUNS_ENDED_BEFORE_THE_FINAL_JUDGE: readonly EndedRun[] = [
 		reason: AWAITING_JUDGMENT_REASON,
 	},
 ];
+
+type StatusReading = Reading<{ readonly status: string }>;
+
+/** The two readings that each name how the run ended. */
+const runEndingSchema = z.object({
+	status: z.unknown(),
+	finalOutcome: z.unknown(),
+});
+
+/** What the run's own claim on its target answers when the record is read. */
+type ClaimAnswer = "gone" | "live" | "unknown";
+
+function claimLiveness(run: string, claim: ClaimAnswer): RunLiveness {
+	switch (claim) {
+		case "gone": {
+			return nothingRunning;
+		}
+		case "live": {
+			return {
+				readMarker: () => Promise.resolve(claimBy(run, 1)),
+				isAlive: () => true,
+			};
+		}
+		case "unknown": {
+			return {
+				readMarker: () => Promise.reject(new Error("unreadable target")),
+				isAlive: () => false,
+			};
+		}
+		default: {
+			return unhandled(claim, "claim answer");
+		}
+	}
+}
+
+function listedAs(status: string): StatusReading {
+	return { state: "available", status };
+}
+
+function unlisted(reason: string): StatusReading {
+	return { state: "unavailable", reasons: [reason] };
+}
+
+interface RunEnding {
+	readonly ending: string;
+	readonly write: (fixture: RecordedRunsFixture) => Promise<string>;
+	readonly claim: ClaimAnswer;
+	readonly status: StatusReading;
+	readonly finalOutcome: FinalOutcome;
+}
+
+/**
+ * Every way a run can end, with the status run history lists it under and the
+ * final outcome its record serves, which must name the same ending.
+ */
+const RUN_ENDINGS: readonly RunEnding[] = [
+	{
+		ending: "a run the final judge passed",
+		write: async (fixture) => {
+			await fixture.writePipelineRun(FINISHED_RUN, CASE_ID);
+			return FINISHED_RUN;
+		},
+		claim: "gone",
+		status: listedAs("COMPLETE"),
+		finalOutcome: { status: "JUDGED", verdict: "PASS" },
+	},
+	{
+		ending: "a run the final judge failed",
+		write: async (fixture) => {
+			await fixture.writeFailedVerdictRun(FINISHED_RUN);
+			return FINISHED_RUN;
+		},
+		claim: "gone",
+		status: listedAs("FAILED"),
+		finalOutcome: { status: "JUDGED", verdict: "FAIL" },
+	},
+	{
+		ending: "a run whose final judge failed",
+		write: async (fixture) => {
+			await fixture.writeFinalJudgeFailedRun(FINISHED_RUN);
+			return FINISHED_RUN;
+		},
+		claim: "gone",
+		status: listedAs("FAILED"),
+		finalOutcome: { status: "JUDGING_FAILED", reason: FINAL_JUDGE_FAILURE },
+	},
+	{
+		ending: "a run a stage stopped",
+		write: async (fixture) => {
+			await fixture.writeStoppedRun();
+			return fixture.stoppedRun;
+		},
+		claim: "gone",
+		status: listedAs(stoppedStatus("build")),
+		finalOutcome: {
+			status: "NOT_REACHED",
+			stage: "build",
+			reason: STOPPED_RUN_ERROR,
+		},
+	},
+	{
+		ending: "a run the operator stopped while a stage was judged",
+		write: async (fixture) => {
+			await fixture.writeStoppedRun();
+			await recordOperatorStop(fixture, fixture.stoppedRun);
+			return fixture.stoppedRun;
+		},
+		claim: "gone",
+		status: listedAs(stoppedStatus("build")),
+		finalOutcome: {
+			status: "NOT_REACHED",
+			stage: "build",
+			reason: STOPPED_RUN_ERROR,
+		},
+	},
+	{
+		ending: "a run reconciliation marked interrupted",
+		write: async (fixture) => {
+			await fixture.writeInterruptedRun();
+			return fixture.interruptedRun;
+		},
+		claim: "gone",
+		status: listedAs("INTERRUPTED"),
+		finalOutcome: {
+			status: "NOT_REACHED",
+			stage: "build",
+			reason: INTERRUPTED_REASON,
+		},
+	},
+	{
+		ending: "a run that failed",
+		write: async (fixture) => {
+			await fixture.writeSignalAbortedRun();
+			return fixture.abortedRun;
+		},
+		claim: "gone",
+		status: listedAs("FAILED"),
+		finalOutcome: {
+			status: "NOT_REACHED",
+			stage: "build",
+			reason: RUN_FAILED_REASON,
+		},
+	},
+	{
+		ending: "a run still executing",
+		write: async (fixture) => {
+			await fixture.writeRunningRun();
+			return fixture.runningRun;
+		},
+		claim: "live",
+		status: listedAs("RUNNING"),
+		finalOutcome: { status: "PENDING", stage: "build" },
+	},
+	{
+		ending: "a run that recorded run-completed and no artifact",
+		write: async (fixture) => {
+			await fixture.writeCompletedRunWithoutArtifact();
+			return fixture.unrecordedArtifactRun;
+		},
+		claim: "gone",
+		status: unlisted(
+			"incomplete: the run recorded run-completed but no artifact",
+		),
+		finalOutcome: {
+			status: "NOT_REACHED",
+			stage: "build",
+			reason: UNEXPLAINED_END_REASON,
+		},
+	},
+];
+
+async function recordOperatorStop(
+	fixture: RecordedRunsFixture,
+	run: string,
+): Promise<void> {
+	await Bun.write(
+		benchmarkRunPaths(fixture.runsDirectory, run).operatorStopFile,
+		operatorStopRecord("SIGTERM"),
+	);
+}
 
 describe("/api/runs/:run", () => {
 	const roots: string[] = [];
@@ -1780,6 +1962,27 @@ describe("/api/runs/:run", () => {
 					},
 				);
 			});
+		});
+
+		describe("the ending its status and final outcome name", () => {
+			it.each(RUN_ENDINGS.map((row) => [row.ending, row]))(
+				"serves %s with the status run history lists and the final outcome of the same ending",
+				async (_ending, { write, claim, status, finalOutcome }) => {
+					const fixture = await emptyFixture();
+					const run = await write(fixture);
+
+					const response = await runRecord(
+						fixture,
+						run,
+						claimLiveness(run, claim),
+					);
+
+					expect(runEndingSchema.parse(await response.json())).toEqual({
+						status,
+						finalOutcome,
+					});
+				},
+			);
 		});
 	});
 });
