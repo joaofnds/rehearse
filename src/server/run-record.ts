@@ -1145,7 +1145,6 @@ function stageWithStatus(
 async function finalOutcome(
 	runsDirectory: string,
 	run: string,
-	stages: readonly RecordedStage[],
 	runEvents: RunEventStore,
 	liveness: RunLiveness,
 ): Promise<FinalOutcome> {
@@ -1202,16 +1201,14 @@ async function finalOutcome(
 				reason: UNEXPLAINED_END_REASON,
 			};
 		}
+		case "awaiting-judgment": {
+			return {
+				status: "NOT_REACHED",
+				stage: ending.stage,
+				reason: AWAITING_JUDGMENT_REASON,
+			};
+		}
 		case "no-events": {
-			const awaiting = stageWithStatus(stages, "AWAITING_STAGE_JUDGE");
-			if (awaiting !== undefined) {
-				return {
-					status: "NOT_REACHED",
-					stage: awaiting.stage,
-					reason: AWAITING_JUDGMENT_REASON,
-				};
-			}
-
 			return { status: "NOT_REACHED", reason: UNEXPLAINED_END_REASON };
 		}
 		default: {
@@ -1348,13 +1345,7 @@ export async function readRunRecord(
 		runEventsDatabaseFile(runsDirectory),
 	);
 	try {
-		const outcome = await finalOutcome(
-			runsDirectory,
-			run,
-			stages,
-			runEvents,
-			liveness,
-		);
+		const outcome = await finalOutcome(runsDirectory, run, runEvents, liveness);
 		const names = stages.map(({ stage }) => stage);
 		const currentIndex = currentStageIndex(names, outcome);
 		const placed = stages.map(

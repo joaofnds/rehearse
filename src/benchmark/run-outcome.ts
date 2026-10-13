@@ -67,3 +67,23 @@ export async function stoppedStage(
 
 	return undefined;
 }
+
+/**
+ * The stage a run left awaiting its judge, or undefined when no stage file
+ * still carries `status: AWAITING_STAGE_JUDGE`.
+ */
+export async function awaitingJudgeStage(
+	runsDirectory: string,
+	run: string,
+): Promise<string | undefined> {
+	for (const file of await runStageFiles(runsDirectory, run)) {
+		const parsed = awaitingJudgeStageRecordSchema.safeParse(
+			JSON.parse(await Bun.file(file).text()),
+		);
+		if (parsed.success) {
+			return parsed.data.stage;
+		}
+	}
+
+	return undefined;
+}

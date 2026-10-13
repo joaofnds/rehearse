@@ -432,6 +432,36 @@ const RUN_ENDINGS: readonly RunEnding[] = [
 		status: unlisted("run history lists no row for the run"),
 		finalOutcome: { status: "PENDING", stage: "build" },
 	},
+	{
+		ending:
+			"a run recorded before run events that died while a stage was judged",
+		write: async (fixture) => {
+			await fixture.writeAwaitingJudgeRun();
+			return fixture.awaitingJudgeRun;
+		},
+		claim: "gone",
+		status: listedAs("INTERRUPTED"),
+		finalOutcome: {
+			status: "NOT_REACHED",
+			stage: "build",
+			reason: AWAITING_JUDGMENT_REASON,
+		},
+	},
+	{
+		ending:
+			"a run with no events left awaiting judgment whose own claim reads live",
+		write: async (fixture) => {
+			await fixture.writeAwaitingJudgeRun();
+			return fixture.awaitingJudgeRun;
+		},
+		claim: "live",
+		status: listedAs("INTERRUPTED"),
+		finalOutcome: {
+			status: "NOT_REACHED",
+			stage: "build",
+			reason: AWAITING_JUDGMENT_REASON,
+		},
+	},
 ];
 
 async function recordPause(

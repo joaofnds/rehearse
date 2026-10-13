@@ -1480,6 +1480,21 @@ describe(runHistoryReport.name, () => {
 		});
 	});
 
+	it("lists a run that recorded no events and left a stage awaiting judgment as INTERRUPTED", async () => {
+		const fixture = await writtenFixture();
+		await fixture.writeAwaitingJudgeRun();
+
+		const { rows } = await runHistoryReport(
+			fixture.runsDirectory,
+			directorySource(await corpusDirectory("build skill\n")),
+			nothingRunning,
+		);
+
+		expect(pipelineRun(rows, fixture.awaitingJudgeRun)?.status).toBe(
+			"INTERRUPTED",
+		);
+	});
+
 	it("names a run that recorded run-completed without its artifact as unreadable", async () => {
 		const fixture = await writtenFixture();
 		await fixture.writeCompletedRunWithoutArtifact();

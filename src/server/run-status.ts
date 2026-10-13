@@ -295,7 +295,8 @@ export async function statusAndCaseId(
 		case "operator-stopped": {
 			return manifestBackedIdentity(paths, OPERATOR_STOPPED);
 		}
-		case "interrupted": {
+		case "interrupted":
+		case "awaiting-judgment": {
 			return eventBackedIdentity(paths, "INTERRUPTED", []);
 		}
 		case "failed": {

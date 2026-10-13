@@ -9,7 +9,7 @@ import { isTerminalRunEventKind } from "./run-events";
 import { benchmarkRunPaths } from "./run-layout";
 import type { RunLiveness } from "./run-liveness";
 import { claimingRun, runClaim } from "./run-liveness";
-import { stoppedStage } from "./run-outcome";
+import { awaitingJudgeStage, stoppedStage } from "./run-outcome";
 import { pausedStage } from "./run-pause";
 
 /** An event a run records while it is still going. */
@@ -36,6 +36,7 @@ export type RunEnding =
 	| { readonly kind: "running"; readonly latest: InFlightEvent }
 	| { readonly kind: "unconfirmed"; readonly stage: string }
 	| { readonly kind: "completed-without-artifact"; readonly stage: string }
+	| { readonly kind: "awaiting-judgment"; readonly stage: string }
 	| { readonly kind: "no-events" };
 
 /**
@@ -80,7 +81,7 @@ export async function runEnding(
 
 	const latest = runEvents.latestEvent(run);
 	if (latest === undefined) {
-		return { kind: "no-events" };
+		return withoutEvents(runsDirectory, run);
 	}
 
 	/**
@@ -136,4 +137,22 @@ export async function runEnding(
 			return unhandled(claim, "run claim");
 		}
 	}
+}
+
+/**
+ * A run with no events was recorded before the event store, or its process
+ * died before its first event. A stage it left awaiting judgment says where
+ * it died, and no claim is asked: a run in flight has a latest event, so one
+ * without any is not running.
+ */
+async function withoutEvents(
+	runsDirectory: string,
+	run: string,
+): Promise<RunEnding> {
+	const awaiting = await awaitingJudgeStage(runsDirectory, run);
+	if (awaiting === undefined) {
+		return { kind: "no-events" };
+	}
+
+	return { kind: "awaiting-judgment", stage: awaiting };
 }
