@@ -1400,37 +1400,10 @@ function withStaleness(
 				),
 			};
 		}
-		case "session-attempt": {
-			return {
-				...row,
-				staleness: staleness.of(
-					formatRecordId({
-						kind: "attempt:session",
-						caseId: row.caseId,
-						uuid: row.uuid,
-					}),
-				),
-			};
-		}
-		case "replay": {
-			return {
-				...row,
-				staleness: staleness.of(
-					formatRecordId({
-						kind: "attempt:stage",
-						lineage: row.lineage,
-						timestamp: row.timestamp,
-					}),
-				),
-			};
-		}
+		case "session-attempt":
+		case "replay":
 		case "group": {
-			return {
-				...row,
-				staleness: staleness.of(
-					formatRecordId({ kind: "group", groupId: row.groupId }),
-				),
-			};
+			return { ...row, staleness: staleness.of(row.recordId) };
 		}
 		default: {
 			return unhandled(row, "run history row kind");
