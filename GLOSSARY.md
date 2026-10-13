@@ -1024,6 +1024,7 @@ See [current state](docs/status.md) for implementation coverage and
   the operator's confirmation (doc-152, decision 4).
 - **Final outcome** — what a pipeline run's final Judge recorded, the UI
   design's task grade: judged PASS or FAIL, judging failed, pending while the
-  run is live, or not reached with the reason the run ended. The final Judge
+  run is live or its target cannot be asked whether it is, or not reached with
+  the reason the run ended. The final Judge
   returns no letter. Name accepted unattended as unsettled, pending the
   operator's confirmation (doc-152, decision 4).

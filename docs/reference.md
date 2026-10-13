@@ -1751,7 +1751,12 @@ stream that ends interrupted, or a non-terminal one whose run no longer holds
 its target's claim, reads interrupted before reconciliation marks it as well as
 after. A non-terminal stream whose target cannot be asked reads `PENDING`. A
 run with no events reads the stage it left awaiting judgment, and a run that
-recorded none of those says so. The final judge returns no letter, so none is served.
+recorded none of those says so. A record reads its run's ending once, so its
+`status` and `finalOutcome` agree even while the run's files change. When a
+file that ending rests on cannot be parsed, the record is still served: its
+`status` is unavailable with the parse failure as the reason, and its
+`finalOutcome` is `NOT_REACHED` with a reason saying the ending could not be
+read. The final judge returns no letter, so none is served.
 
 ### Judge evidence sources
 
@@ -2151,7 +2156,9 @@ stage the reader can name from a page that failed. The run history screen shows
 a stopped run as `STOPPED:<stage>`, linked to that stage's context history, and
 links every other stage whose page renders. A run with no artifact shows
 `PAUSED:<stage>` or `OPERATOR_STOPPED` from its files, and otherwise takes its
-status from its event stream and shows as `INTERRUPTED` or `FAILED`. A run whose
+status from its event stream and shows as `INTERRUPTED` or `FAILED`. A run that
+recorded no events but left a stage awaiting its judge shows as `INTERRUPTED`,
+read from that stage's record. A run whose
 stream ended non-terminal shows as `INTERRUPTED` once its own claim on its target
 is no longer held by a live process. A server start records that in its event
 stream when the claim it reads on the target names a dead pid, so a run whose

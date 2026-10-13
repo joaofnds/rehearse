@@ -314,7 +314,8 @@ notice above the table, with their ids and reasons behind a toggle. A replay
 keeps no raw transcript, so its page shows an evidence-unavailable summary with
 no events, per-event detail, request series or corpus reconciliation. A run
 with unfinished events whose own claim on its target is no longer held by a live
-process is listed as `INTERRUPTED` without waiting for a server start. A run
+process is listed as `INTERRUPTED` without waiting for a server start, and so is
+a run that recorded no events but left a stage awaiting its judge. A run
 whose target cannot be asked, because its manifest is gone or reading the claim
 fails, stays out of the list. A run that recorded `run-completed` without
 writing its artifact is counted in the unreadable notice.
