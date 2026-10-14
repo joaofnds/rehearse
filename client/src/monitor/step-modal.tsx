@@ -15,6 +15,7 @@ import {
 import { Grade } from "#client/system/components/grade";
 import { STATUS_VOCABULARY } from "#client/system/components/status";
 import { Button } from "#client/system/ui/button";
+import { withinCase } from "#client/within-case";
 import {
 	Dialog,
 	DialogClose,
@@ -187,13 +188,16 @@ type UpstreamCheckpoint = Extract<
 	{ readonly from: "upstream checkpoint" }
 >;
 
-/** The checkpoint by its short id, or by whose it is when it has none. */
-function checkpointName({
-	checkpointShortId,
-	upstream,
-}: UpstreamCheckpoint): string {
+/**
+ * The checkpoint by its short id within the run's case, or by whose it is
+ * when it has none.
+ */
+function checkpointName(
+	{ checkpointShortId, upstream }: UpstreamCheckpoint,
+	caseId: string,
+): string {
 	if (checkpointShortId.state === "available") {
-		return checkpointShortId.shortId;
+		return withinCase(checkpointShortId.shortId, caseId);
 	}
 
 	return upstream === INITIAL_CHECKPOINT
@@ -218,7 +222,7 @@ function artifactInReading(
 		const initial = artifact.upstream === INITIAL_CHECKPOINT;
 
 		return {
-			name: `${artifact.target} at ${checkpointName(artifact)}`,
+			name: `${artifact.target} at ${checkpointName(artifact, record.caseId)}`,
 			from: initial
 				? "initial checkpoint"
 				: `${stepName(record, artifact.upstream)} checkpoint`,
@@ -256,7 +260,7 @@ function ArtifactsIn({
 							<span aria-hidden="true" className="text-dim">
 								↓
 							</span>
-							<span className="flex-1 font-mono text-11-5 break-all">
+							<span className="flex-1 font-mono text-11-5 wrap-anywhere">
 								{name}
 							</span>
 							<span className="text-10-5 text-dim">{from}</span>
@@ -383,7 +387,9 @@ function ArtifactsOut({
 						<span aria-hidden="true" className="text-muted-foreground">
 							↑
 						</span>
-						<span className="flex-1 font-mono text-11-5 break-all">{name}</span>
+						<span className="flex-1 font-mono text-11-5 wrap-anywhere">
+							{name}
+						</span>
 						<span className="font-mono text-10-5 text-muted-foreground">
 							{detail}
 						</span>

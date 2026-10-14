@@ -230,7 +230,7 @@ describe("/monitor step modal", () => {
 			).toHaveTextContent(`${SKILL_PATH}sha 88b0d2stage skill✓unchanged`);
 		});
 
-		it("names a finished first step's artifacts in by where each came from", async () => {
+		it("names a finished first step's artifacts in by where each came from, its checkpoint within the case", async () => {
 			renderMonitor([
 				recordStage("plan", {
 					...FINISHED_PLAN,
@@ -243,7 +243,7 @@ describe("/monitor step modal", () => {
 								upstream: "initial",
 								checkpointShortId: {
 									state: "available",
-									shortId: "r-0148/s0",
+									shortId: "audit-log/r-0148/s0",
 								},
 							},
 						],
