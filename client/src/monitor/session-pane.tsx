@@ -68,9 +68,6 @@ const TAIL_KEY_ACTIONS = new Map([
 	],
 ]);
 
-/** The keys the monitor binds, which the settings screen lists as live. */
-export const TAIL_KEYS: ReadonlySet<string> = new Set(TAIL_KEY_ACTIONS.keys());
-
 /**
  * Bound on the document for the reason the `g` chords are: they have to work
  * when nothing on the page holds focus.

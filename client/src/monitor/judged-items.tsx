@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useId, useState } from "react";
 import { gradeStep, STAGE_LETTER_GRADES } from "#benchmark/stage-letter-grades";
+import { useKeyShortcut } from "#client/shell/use-key-shortcut";
 import { Grade } from "#client/system/components/grade";
 import { STATUS_VOCABULARY } from "#client/system/components/status";
 import type { StageJudgeResponse } from "./stage-judge-query";
@@ -84,6 +85,10 @@ function closedToggleWords(evidence: RowEvidence): string {
 		: `${String(evidence.length)} cited`;
 }
 
+function hasEvidence(evidence: RowEvidence): boolean {
+	return evidence !== "pending" && evidence.length > 0;
+}
+
 export function EvidenceToggle({
 	evidence,
 	shown,
@@ -93,7 +98,7 @@ export function EvidenceToggle({
 	readonly shown: string | undefined;
 	readonly onToggle: () => void;
 }): React.JSX.Element {
-	const disabled = evidence === "pending" || evidence.length === 0;
+	const disabled = !hasEvidence(evidence);
 
 	return (
 		<button
@@ -182,7 +187,8 @@ function CitedEvidence({
 
 /**
  * One rubric item: its row, and beneath it inside the same list item the
- * evidence its toggle opens once the record holds it.
+ * evidence its toggle opens once the record holds it. The `e` shortcut opens
+ * it with every other item on screen (SPEC.md:356).
  */
 function ItemWithEvidence({
 	owner,
@@ -204,6 +210,9 @@ function ItemWithEvidence({
 	const [toggled, setToggled] = useState(false);
 	const evidenceId = useId();
 	const cited = toggled && evidence !== "pending" ? evidence : undefined;
+	useKeyShortcut(hasEvidence(evidence) ? "e" : undefined, () => {
+		setToggled(true);
+	});
 
 	return (
 		<li>

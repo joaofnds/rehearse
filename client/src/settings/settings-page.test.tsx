@@ -744,15 +744,15 @@ describe(SettingsPage.name, () => {
 				);
 		}
 
-		it("lists the design's eight shortcuts in its order, marking the unbound ones planned", async () => {
+		it("lists the design's eight shortcuts in its order", async () => {
 			serving();
 
 			expect(await shortcuts()).toEqual([
 				"g rrun history",
 				"g mlive monitor",
-				"nnew run planned",
-				"rreplay a step planned",
-				"eexpand cited evidence planned",
+				"nnew run",
+				"rreplay a step",
+				"eexpand cited evidence",
 				"j / kmove through rows",
 				"ffollow / unfollow the tail",
 				"Escclose dialog",

@@ -525,6 +525,20 @@ describe("Step rail", () => {
 			).toHaveAttribute("aria-disabled", "true");
 		});
 
+		it("opens every row's cited evidence on e", async () => {
+			renderBuildReport();
+
+			const report = await stepReport();
+			fireEvent.keyDown(document.body, { key: "e" });
+
+			expect(
+				within(report).getAllByRole("button", { name: "hide evidence" }),
+			).toHaveLength(3);
+			expect(
+				within(report).queryAllByRole("button", { name: /cited$/u }),
+			).toHaveLength(0);
+		});
+
 		it("styles nothing on a stopped run as an error", async () => {
 			renderBuildReport();
 
