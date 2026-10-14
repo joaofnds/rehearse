@@ -40,6 +40,9 @@ const stageDefinitionSchema = z.discriminatedUnion("kind", [
 		.strict(),
 ]);
 
+/** A pipeline's steps, in the order they run. */
+export const pipelineStagesSchema = z.array(stageDefinitionSchema).min(1);
+
 const targetRelativePathSchema = z
 	.string()
 	.min(1)
@@ -86,7 +89,7 @@ export const pipelineDefinitionSchema = z
 			}, "must be a valid regular expression")
 			.optional(),
 		target: targetDefinitionSchema,
-		stages: z.array(stageDefinitionSchema).min(1),
+		stages: pipelineStagesSchema,
 	})
 	.strict();
 

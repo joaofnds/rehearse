@@ -72,7 +72,13 @@ import {
 	BROWSER_ANALYSIS_MODEL,
 	browserAnalysisCapUsd,
 } from "./root-cause-analyses";
+import { pipelineStagesSchema } from "#benchmark/pipeline";
 import { pipelineReport } from "./pipelines";
+import {
+	declaredSteps,
+	editDeclaredSteps,
+	StepEditRefusalError,
+} from "./pipeline-steps";
 import { RecordsSizeError, recordsSize } from "./records-size";
 import { redactAbsolutePaths } from "./redact-path";
 import { CorpusEditBusyError } from "./corpus-edit-busy-error";
@@ -513,6 +519,14 @@ async function asLaunchRefusal<T>(read: () => Promise<T>): Promise<T> {
 		throw new LaunchRefusalError(redactAbsolutePaths(error.message), 409);
 	}
 }
+
+/**
+ * Each step is parsed here as the harness declares one. Whether the rubric it
+ * names fits is checked against the case it lands in.
+ */
+const stepEditRequestSchema = z
+	.object({ stages: pipelineStagesSchema })
+	.strict();
 
 const spendCeilingRequestSchema = z
 	.object({ usd: z.number().positive() })
@@ -1146,6 +1160,42 @@ export const createLaunchApp = (dependencies: LaunchDependencies) => {
 					!(error instanceof DeclarationRefusalError) &&
 					!(error instanceof LaunchRefusalError)
 				) {
+					throw error;
+				}
+
+				return context.json({ error: error.message }, error.status);
+			}
+		})
+		.get("/api/cases/:id/steps", async (context) => {
+			try {
+				return context.json(
+					await declaredSteps(dependencies.casesRoot, context.req.param("id")),
+				);
+			} catch (error) {
+				if (!(error instanceof StepEditRefusalError)) {
+					throw error;
+				}
+
+				return context.json({ error: error.message }, error.status);
+			}
+		})
+		.put("/api/cases/:id/steps", async (context) => {
+			const parsed = stepEditRequestSchema.safeParse(
+				await context.req.json().catch(() => undefined),
+			);
+			if (!parsed.success) {
+				return context.json({ error: z.prettifyError(parsed.error) }, 400);
+			}
+			try {
+				return context.json(
+					await editDeclaredSteps(
+						dependencies.casesRoot,
+						context.req.param("id"),
+						parsed.data.stages,
+					),
+				);
+			} catch (error) {
+				if (!(error instanceof StepEditRefusalError)) {
 					throw error;
 				}
 

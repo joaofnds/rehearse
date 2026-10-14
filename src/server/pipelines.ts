@@ -209,25 +209,13 @@ async function declaredPipelines(casesRoot: string): Promise<DeclaredCases> {
 }
 
 /**
- * A case's declared pipeline, read from its file through the harness's own
- * parse and rubric fit, so a file the harness would refuse to run throws
- * rather than reads,
- * and a path outside the case directory throws before anything opens it.
- * Its rubrics are named control-relative, as the stages name them.
+ * The rubrics a case's stages may name, control-relative as the stages name
+ * them, in file name order.
  */
-export async function readDeclaredPipeline(
+export async function caseRubrics(
 	casesRoot: string,
 	declaration: PipelineCaseDeclaration,
-): Promise<PipelineDefinition> {
-	const file = Bun.file(
-		caseRelative(declaration, declaration.pipeline, casesRoot),
-	);
-	if (!(await file.exists())) {
-		throw new PipelineDefinitionError(
-			`Pipeline definition not found: ${declaration.pipeline}`,
-		);
-	}
-
+): Promise<readonly string[]> {
 	const rubricsDirectory = caseRelative(
 		declaration,
 		declaration.rubrics,
@@ -242,23 +230,29 @@ export async function readDeclaredPipeline(
 		);
 	}
 
-	const availableRubrics = rubricEntries.map((entry) =>
-		relative(
-			CONTROL_DIR,
-			caseRelative(declaration, join(declaration.rubrics, entry)),
-		),
-	);
-
-	let text: string;
-	try {
-		text = await file.text();
-	} catch (error) {
-		throw new PipelineDefinitionError(
-			`Pipeline definition cannot be read: ${declaration.pipeline}: ${error instanceof Error ? error.message : String(error)}`,
+	return rubricEntries
+		.toSorted((left, right) => left.localeCompare(right))
+		.map((entry) =>
+			relative(
+				CONTROL_DIR,
+				caseRelative(declaration, join(declaration.rubrics, entry)),
+			),
 		);
-	}
+}
 
-	const pipeline = parsePipeline(text, availableRubrics);
+/**
+ * A case's pipeline text through the harness's own parse and rubric fit, so
+ * text the harness would refuse to run throws rather than reads.
+ */
+export async function checkedPipeline(
+	casesRoot: string,
+	declaration: PipelineCaseDeclaration,
+	text: string,
+): Promise<PipelineDefinition> {
+	const pipeline = parsePipeline(
+		text,
+		await caseRubrics(casesRoot, declaration),
+	);
 	for (const stage of pipeline.stages) {
 		const rubric = Bun.file(
 			caseRelative(
@@ -277,6 +271,41 @@ export async function readDeclaredPipeline(
 	}
 
 	return pipeline;
+}
+
+/** The file a case's pipeline is declared in. */
+export function declaredPipelineFile(
+	casesRoot: string,
+	declaration: PipelineCaseDeclaration,
+): string {
+	return caseRelative(declaration, declaration.pipeline, casesRoot);
+}
+
+/**
+ * A case's declared pipeline, read from its file through `checkedPipeline`,
+ * and a path outside the case directory throws before anything opens it.
+ */
+export async function readDeclaredPipeline(
+	casesRoot: string,
+	declaration: PipelineCaseDeclaration,
+): Promise<PipelineDefinition> {
+	const file = Bun.file(declaredPipelineFile(casesRoot, declaration));
+	if (!(await file.exists())) {
+		throw new PipelineDefinitionError(
+			`Pipeline definition not found: ${declaration.pipeline}`,
+		);
+	}
+
+	let text: string;
+	try {
+		text = await file.text();
+	} catch (error) {
+		throw new PipelineDefinitionError(
+			`Pipeline definition cannot be read: ${declaration.pipeline}: ${error instanceof Error ? error.message : String(error)}`,
+		);
+	}
+
+	return checkedPipeline(casesRoot, declaration, text);
 }
 
 function stageNames(pipeline: PipelineDefinition): readonly string[] {
