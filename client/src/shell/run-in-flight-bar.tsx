@@ -1,10 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { useId, useState } from "react";
-import {
-	NO_LAUNCH_REASON,
-	useStopLaunch,
-} from "#client/run-history/run-controls";
+import { useState } from "react";
+import { stopTargetOf, useStop } from "#client/run-history/run-controls";
 import { polledRunListingQuery } from "#client/run-history/run-history-polling";
 import type { RunListingResponse } from "#client/run-history/run-history-query";
 import {
@@ -82,29 +79,11 @@ function SpendReading({
 }
 
 function StopControl({
-	launchId,
+	row,
 }: {
-	readonly launchId: string | undefined;
+	readonly row: PipelineRow;
 }): React.JSX.Element {
-	const stop = useStopLaunch();
-	const reasonId = useId();
-	if (launchId === undefined) {
-		return (
-			<span className="inline-flex items-center gap-2">
-				<span id={reasonId} className="text-dim">
-					{NO_LAUNCH_REASON}
-				</span>
-				<Button
-					variant="quiet"
-					size="compact"
-					aria-disabled="true"
-					aria-describedby={reasonId}
-				>
-					Stop
-				</Button>
-			</span>
-		);
-	}
+	const stop = useStop();
 
 	return (
 		<span className="inline-flex items-center gap-2">
@@ -118,7 +97,7 @@ function StopControl({
 				size="compact"
 				disabled={stop.isPending || stop.isSuccess}
 				onClick={() => {
-					stop.mutate(launchId);
+					stop.mutate(stopTargetOf(row.launchId, row.run));
 				}}
 			>
 				Stop
@@ -176,7 +155,7 @@ function RunReadings({
 						Open monitor
 					</Link>
 				</Button>
-				<StopControl key={row.run} launchId={row.launchId} />
+				<StopControl key={row.run} row={row} />
 			</span>
 		</section>
 	);

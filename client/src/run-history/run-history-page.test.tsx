@@ -1248,15 +1248,21 @@ describe(RunHistoryPage.name, () => {
 			});
 
 			describe("when the browser did not launch it", () => {
-				it("offers no stop, since only the terminal that started it can signal it", async () => {
-					serving({ rows: [runningRow()], launches: [], unreadable: [] });
-					const { findByRole, queryByRole } = renderPage();
+				it("stops it through the run, whose target claim names its process", async () => {
+					const server = serving({
+						rows: [runningRow()],
+						launches: [],
+						unreadable: [],
+					});
+					renderPage();
 
-					await findByRole("button", { name: "Pause after this step" });
+					fireEvent.click(
+						await screen.findByRole("button", { name: "Stop & restore repo" }),
+					);
 
-					expect(
-						queryByRole("button", { name: "Stop & restore repo" }),
-					).not.toBeInTheDocument();
+					await waitFor(() => {
+						expect(server.posted(`/api/runs/${RUN}/stop`)).toHaveLength(1);
+					});
 				});
 			});
 		});

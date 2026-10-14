@@ -219,21 +219,6 @@ describe("the run in flight on every screen", () => {
 		).not.toBeInTheDocument();
 	});
 
-	it("shows beside its Stop why a run started outside the browser cannot be stopped from it", () => {
-		renderRunInFlight([runRow({ launchId: undefined })]);
-
-		const stop = within(bar()).getByRole("button", { name: "Stop" });
-		expect(stop).toHaveAttribute("aria-disabled", "true");
-		expect(stop).toHaveAccessibleDescription(
-			"Started outside the browser, so it stops only where it was started",
-		);
-		const reason = within(bar()).getByText(
-			"Started outside the browser, so it stops only where it was started",
-		);
-		expect(reason).toBeVisible();
-		expect(reason.closest(".sr-only")).toBeNull();
-	});
-
 	it("shows a dash with its reason rather than a figure it cannot vouch for", () => {
 		renderRunInFlight([runRow({ ceilingUsd: 20 })]);
 
@@ -317,6 +302,30 @@ describe("the run in flight on every screen", () => {
 		});
 		expect(asked).toHaveLength(1);
 		expect(asked[0]).toEndWith("/api/launches/launch-1/stop");
+	});
+
+	it("stops a run started outside the browser through the run itself", async () => {
+		const asked: string[] = [];
+		const stub = (input: RequestInfo | URL): Promise<Response> => {
+			asked.push(input instanceof Request ? input.url : String(input));
+
+			return Promise.resolve(Response.json({}));
+		};
+		stub.preconnect = originalFetch.preconnect;
+		globalThis.fetch = stub;
+		renderRunInFlight([
+			runRow({ run: "2026-09-30T10-00-00.000Z", launchId: undefined }),
+		]);
+
+		fireEvent.click(within(bar()).getByRole("button", { name: "Stop" }));
+
+		await waitFor(() => {
+			expect(
+				within(bar()).getByRole("button", { name: "Stop" }),
+			).toBeDisabled();
+		});
+		expect(asked).toHaveLength(1);
+		expect(asked[0]).toEndWith("/api/runs/2026-09-30T10-00-00.000Z/stop");
 	});
 
 	it("says why the server refused a stop", async () => {

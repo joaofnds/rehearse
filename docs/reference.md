@@ -418,8 +418,7 @@ removes its worktrees. The stop reads the pid from disk, so it works after a
 server restart. It answers 404 for an unknown launch, and 409 when the launch's
 process is no longer the one it started, judged by the process start time, or
 when the launch was recorded without a start time, as launches recorded before
-the start time was kept were. A run started from a terminal has no launch, so
-its row offers no Stop. Pause after this step posts to `POST /api/runs/:run/pause`, which writes
+the start time was kept were. A pipeline run started from a terminal has no launch, so its Stop posts to `POST /api/runs/:run/stop`, which sends SIGTERM to the pid the run's own target claim records and answers 202. It answers 404 for an unknown run, and 409 when the target holds no live claim of the run's own or the process holding that pid started after the claim was written, which means the pid was reused. A session attempt started from a terminal records no process, so its row offers no Stop. Pause after this step posts to `POST /api/runs/:run/pause`, which writes
 `pause-request.json` in the run's checkpoints directory and answers 202, or 404
 for an unknown run and 409 for one whose row does not read RUNNING. A pipeline
 run reads that file once each stage is judged and its checkpoint written, then

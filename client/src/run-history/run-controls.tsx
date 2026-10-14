@@ -10,10 +10,32 @@ class ControlRefusedError extends Error {
 	public override name = "ControlRefusedError";
 }
 
-async function stopLaunch(id: string): Promise<void> {
-	const response = await launchClient.api.launches[":id"].stop.$post({
-		param: { id },
-	});
+/**
+ * A browser launch stops through its record, which notes the stop. A pipeline
+ * run started anywhere else stops through the pid its target claim records.
+ */
+export type StopTarget =
+	| { readonly kind: "launch"; readonly id: string }
+	| { readonly kind: "run"; readonly run: string };
+
+export function stopTargetOf(
+	launchId: string | undefined,
+	run: string,
+): StopTarget {
+	return launchId === undefined
+		? { kind: "run", run }
+		: { kind: "launch", id: launchId };
+}
+
+async function requestStop(target: StopTarget): Promise<void> {
+	const response =
+		target.kind === "launch"
+			? await launchClient.api.launches[":id"].stop.$post({
+					param: { id: target.id },
+				})
+			: await launchClient.api.runs[":run"].stop.$post({
+					param: { run: target.run },
+				});
 	if (!response.ok) {
 		throw new ControlRefusedError(await refusalReason(response));
 	}
@@ -39,11 +61,11 @@ function useRefreshHistory(): () => Promise<void> {
 	};
 }
 
-/** Stops a launch by its id, then reads the run history again. */
-export function useStopLaunch(): UseMutationResult<void, Error, string> {
+/** Stops a launch or a run, then reads the run history again. */
+export function useStop(): UseMutationResult<void, Error, StopTarget> {
 	const refresh = useRefreshHistory();
 
-	return useMutation({ mutationFn: stopLaunch, onSuccess: refresh });
+	return useMutation({ mutationFn: requestStop, onSuccess: refresh });
 }
 
 /** Pauses a pipeline run after the step in flight, then reads the run history again. */
@@ -52,15 +74,6 @@ export function usePauseRun(): UseMutationResult<void, Error, string> {
 
 	return useMutation({ mutationFn: pauseRun, onSuccess: refresh });
 }
-
-/**
- * Stop reaches a run only through the launch that started it. Whether a run
- * started from a terminal should be stoppable from the browser is doc-186
- * Decision 9, unsettled, so until it is answered its Stop is disabled and
- * names why.
- */
-export const NO_LAUNCH_REASON =
-	"Started outside the browser, so it stops only where it was started";
 
 /**
  * What the operator asked of a run in flight, acknowledged once the server
@@ -99,10 +112,21 @@ export function ControlRequests({
 	);
 }
 
+function rowStopTarget(
+	launchId: string | undefined,
+	run: string | undefined,
+): StopTarget | undefined {
+	if (launchId !== undefined) {
+		return { kind: "launch", id: launchId };
+	}
+
+	return run === undefined ? undefined : { kind: "run", run };
+}
+
 /**
- * Stop reaches a run only through the launch that started it, since the
- * server signals the process it recorded; a run started from a terminal has
- * no launch, so it offers Pause alone. Pause is a pipeline run's, keyed by
+ * Stop reaches a launch through its record and a pipeline run started from a
+ * terminal through the run, so a row with neither, such as a session attempt
+ * started from a terminal, offers no Stop. Pause is a pipeline run's, keyed by
  * the run, and a launch with no record yet has no run to key it by.
  */
 export function RunControls({
@@ -112,8 +136,9 @@ export function RunControls({
 	readonly launchId: string | undefined;
 	readonly run: string | undefined;
 }): React.JSX.Element {
-	const stop = useStopLaunch();
+	const stop = useStop();
 	const pause = usePauseRun();
+	const target = rowStopTarget(launchId, run);
 	return (
 		<span className="flex flex-col items-start gap-1.5">
 			<span className="flex flex-wrap gap-2">
@@ -128,11 +153,11 @@ export function RunControls({
 						Pause after this step
 					</Button>
 				)}
-				{launchId === undefined ? null : (
+				{target === undefined ? null : (
 					<Button
 						disabled={stop.isPending || stop.isSuccess}
 						onClick={() => {
-							stop.mutate(launchId);
+							stop.mutate(target);
 						}}
 					>
 						Stop &amp; restore repo

@@ -1,11 +1,10 @@
 import { Link } from "@tanstack/react-router";
-import { useId } from "react";
 import { corpusMeasurementReading } from "#benchmark/corpus-version-label";
 import {
 	ControlRequests,
-	NO_LAUNCH_REASON,
+	stopTargetOf,
 	usePauseRun,
-	useStopLaunch,
+	useStop,
 } from "#client/run-history/run-controls";
 import type { PipelineRow } from "#client/shell/run-in-flight";
 import { nameWithinCase } from "#client/shell/run-in-flight";
@@ -27,9 +26,7 @@ function HeaderControls({
 	readonly row: PipelineRow;
 }): React.JSX.Element {
 	const pause = usePauseRun();
-	const stop = useStopLaunch();
-	const reasonId = useId();
-	const { launchId } = row;
+	const stop = useStop();
 
 	return (
 		<span className="ml-auto flex flex-col items-end gap-1.5">
@@ -43,31 +40,16 @@ function HeaderControls({
 				>
 					Pause after this step
 				</Button>
-				{launchId === undefined ? (
-					<Button
-						variant="strong"
-						aria-disabled="true"
-						aria-describedby={reasonId}
-					>
-						Stop &amp; restore repo
-					</Button>
-				) : (
-					<Button
-						variant="strong"
-						disabled={stop.isPending || stop.isSuccess}
-						onClick={() => {
-							stop.mutate(launchId);
-						}}
-					>
-						Stop &amp; restore repo
-					</Button>
-				)}
+				<Button
+					variant="strong"
+					disabled={stop.isPending || stop.isSuccess}
+					onClick={() => {
+						stop.mutate(stopTargetOf(row.launchId, row.run));
+					}}
+				>
+					Stop &amp; restore repo
+				</Button>
 			</span>
-			{launchId === undefined ? (
-				<span id={reasonId} className="text-11-5 text-dim">
-					{NO_LAUNCH_REASON}
-				</span>
-			) : null}
 			<ControlRequests
 				pauseRequested={pause.isSuccess}
 				stopRequested={stop.isSuccess}

@@ -200,33 +200,21 @@ describe("/monitor", () => {
 			).toBeEnabled();
 		});
 
-		it("shows beside Stop & restore repo why a run started outside the browser cannot be stopped from it", async () => {
-			renderMonitor(runRow({ run: RUN, launchId: undefined }));
-
-			const shown = await header();
-
-			const stop = within(shown).getByRole("button", {
-				name: "Stop & restore repo",
-			});
-			expect(stop).toHaveAttribute("aria-disabled", "true");
-			expect(stop).toHaveAccessibleDescription(
-				"Started outside the browser, so it stops only where it was started",
+		it("stops a run started outside the browser through the run itself", async () => {
+			renderMonitor(
+				runRow({ run: RUN, launchId: undefined }),
+				new Map([[`/api/runs/${RUN}/stop`, {}]]),
 			);
-			const reason = within(shown).getByText(
-				"Started outside the browser, so it stops only where it was started",
-			);
-			expect(reason).toBeVisible();
-			expect(reason.closest(".sr-only")).toBeNull();
-		});
 
-		it("shows no reason beside Stop & restore repo for a run the browser launched", async () => {
-			renderMonitor(runRow({ run: RUN, launchId: "launch-1" }));
+			fireEvent.click(
+				within(await header()).getByRole("button", {
+					name: "Stop & restore repo",
+				}),
+			);
 
 			expect(
-				within(await header()).queryByText(
-					"Started outside the browser, so it stops only where it was started",
-				),
-			).not.toBeInTheDocument();
+				await within(await header()).findByText("stop requested"),
+			).toBeInTheDocument();
 		});
 
 		it("asks the run to pause after the step in flight", async () => {
@@ -284,16 +272,6 @@ describe("/monitor", () => {
 			);
 			expect(acknowledged).toHaveTextContent(/^◼/u);
 			expect(acknowledged).toHaveClass("text-11-5");
-		});
-
-		it("sets why Stop & restore repo is unavailable at the design's meta size", async () => {
-			renderMonitor(runRow({ run: RUN, launchId: undefined }));
-
-			expect(
-				within(await header()).getByText(
-					"Started outside the browser, so it stops only where it was started",
-				),
-			).toHaveClass("text-11-5");
 		});
 	});
 

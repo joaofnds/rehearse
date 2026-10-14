@@ -384,9 +384,7 @@ scoped spend, and the run API also reports how many of a judging stage's
 rubric items are back per section, which the monitor's judge pane shows. While a
 pipeline run is in flight, a bar along the bottom of every screen shows its
 short id, case, step and stage state, run spend against the ceiling the run
-started under, a clock ticking each second, and its grades so far, with Stop
-for a run started from the browser. A run started outside the browser, from a
-terminal for instance, shows Stop disabled with the reason beside it. With
+started under, a clock ticking each second, and its grades so far, with Stop. A run the browser launched stops through its launch, and one started from a terminal through the pid its target claim records. With
 several runs in flight each gets its own bar, newest first. A screen reader
 hears a stage accepted, a run stopped, and run spend first reaching 80% of its
 ceiling, a share no source sets yet. The run list and the bar read the event
@@ -398,13 +396,10 @@ A crashed run whose pid a later process has taken can still read as in flight,
 in its bar, the monitor and the run list, and `diagnose` refuses it as in
 flight. A run in flight whose claim marker an operator deleted reads
 `INTERRUPTED` while it executes, and its page offers a root-cause analysis the
-server accepts. Its bar shows Stop disabled when a terminal started it. When the
-browser started it, Stop is offered and the server refuses it before signalling
-anything, because the process holding that pid started at another time.
+server accepts. Its bar offers Stop, and the server refuses it before signalling anything, because the process holding that pid started after the claim or at another time than its launch recorded.
 The Live monitor shows one pipeline run in flight. Opened from the rail or
 `g m` it shows the newest, and opened from a bar it shows that bar's run. It
-shows the run's identity with Pause and Stop & restore repo, which is disabled
-with the reason under it for a run started outside the browser, run spend against
+shows the run's identity with Pause and Stop & restore repo, run spend against
 the ceiling with burn rate, elapsed time, tokens in and out, a remaining
 estimate of time and spend from the median times of the unfinished steps in
 earlier runs of the case or the reason it has none, and the task graph with each stage's grade, status, cost, duration, fired hard blockers,
