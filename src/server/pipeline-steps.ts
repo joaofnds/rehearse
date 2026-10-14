@@ -1,7 +1,5 @@
 import { rename, writeFile } from "node:fs/promises";
-import { join, relative } from "node:path";
-import { format } from "oxfmt";
-import type { FormatConfig } from "oxfmt";
+import { relative } from "node:path";
 import { z } from "zod";
 import {
 	caseRelative,
@@ -18,13 +16,11 @@ import {
 	declaredPipelineFile,
 	readDeclaredPipeline,
 } from "./pipelines";
+import { projectFormatted } from "./project-format";
 import { redactAbsolutePaths } from "./redact-path";
 
 /** A pipeline file's top level, which the harness has already read as valid. */
 const WRITTEN_PIPELINE = z.record(z.string(), z.unknown());
-
-/** The project's formatter settings, which the formatter itself validates. */
-const FORMAT_CONFIG = z.looseObject({});
 
 /** A pipeline case's steps as its pipeline file declares them. */
 export interface DeclaredSteps {
@@ -36,8 +32,8 @@ export interface DeclaredSteps {
 	readonly rubrics: readonly string[];
 }
 
-export class StepEditRefusalError extends Error {
-	public override name = "StepEditRefusalError";
+export class PipelineCaseRefusalError extends Error {
+	public override name = "PipelineCaseRefusalError";
 
 	public constructor(
 		message: string,
@@ -47,7 +43,7 @@ export class StepEditRefusalError extends Error {
 	}
 }
 
-async function pipelineCase(
+export async function pipelineCase(
 	casesRoot: string,
 	caseId: string,
 ): Promise<PipelineCaseDeclaration> {
@@ -59,10 +55,10 @@ async function pipelineCase(
 			throw error;
 		}
 
-		throw new StepEditRefusalError(`No case ${caseId} is declared`, 404);
+		throw new PipelineCaseRefusalError(`No case ${caseId} is declared`, 404);
 	}
 	if (declaration.kind !== "pipeline") {
-		throw new StepEditRefusalError(
+		throw new PipelineCaseRefusalError(
 			`Case ${caseId} is a session case, which declares no steps`,
 			404,
 		);
@@ -72,7 +68,7 @@ async function pipelineCase(
 }
 
 /** Reads through `read`, answering a pipeline the harness refuses with `status`. */
-async function refusingAs<T>(
+export async function refusingAs<T>(
 	status: 400 | 409,
 	read: () => Promise<T>,
 ): Promise<T> {
@@ -83,7 +79,10 @@ async function refusingAs<T>(
 			throw error;
 		}
 
-		throw new StepEditRefusalError(redactAbsolutePaths(error.message), status);
+		throw new PipelineCaseRefusalError(
+			redactAbsolutePaths(error.message),
+			status,
+		);
 	}
 }
 
@@ -113,23 +112,6 @@ export async function declaredSteps(
 	);
 
 	return stepsOf(casesRoot, declaration, pipeline.stages);
-}
-
-/**
- * Formats a pipeline file as the project's formatter would, so the edit an
- * operator reviews is the only change and the format check still passes.
- */
-async function projectFormatted(file: string, text: string): Promise<string> {
-	const config: FormatConfig = FORMAT_CONFIG.parse(
-		await Bun.file(join(CONTROL_DIR, ".oxfmtrc.json")).json(),
-	);
-	const result = await format(file, text, config);
-	const [error] = result.errors;
-	if (error !== undefined) {
-		throw new Error(`Could not format ${file}: ${error.message}`);
-	}
-
-	return result.code;
 }
 
 /**

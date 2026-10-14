@@ -77,9 +77,16 @@ import { pipelineReport } from "./pipelines";
 import {
 	declaredSteps,
 	editDeclaredSteps,
-	StepEditRefusalError,
+	PipelineCaseRefusalError,
 } from "./pipeline-steps";
 import { RecordsSizeError, recordsSize } from "./records-size";
+import {
+	declarePipelineCase,
+	exportTaskBundle,
+	importTaskBundle,
+	previewTaskBundle,
+	taskBundleSchema,
+} from "./task-bundle";
 import { redactAbsolutePaths } from "./redact-path";
 import { CorpusEditBusyError } from "./corpus-edit-busy-error";
 import { CorpusEditGate } from "./corpus-edit-gate";
@@ -526,6 +533,36 @@ async function asLaunchRefusal<T>(read: () => Promise<T>): Promise<T> {
  */
 const stepEditRequestSchema = z
 	.object({ stages: pipelineStagesSchema })
+	.strict();
+
+/** A bundle to read before importing it, which writes nothing. */
+const bundlePreviewRequestSchema = z
+	.object({ bundle: taskBundleSchema })
+	.strict();
+
+/**
+ * The id, title and target are the importer's, since the bundle's are the
+ * exporter's. The id and title are judged as a case declaration judges them.
+ */
+const taskImportRequestSchema = z
+	.object({
+		id: z.string().min(1),
+		title: z.string().min(1),
+		targetPath: z.string().min(1),
+		bundle: taskBundleSchema,
+	})
+	.strict();
+
+/** A new pipeline case: the operator's task, another case's steps and judges. */
+const pipelineCaseRequestSchema = z
+	.object({
+		id: z.string().min(1),
+		title: z.string().min(1),
+		targetPath: z.string().min(1),
+		task: z.string().min(1),
+		productBrief: z.string().min(1),
+		from: z.string().min(1),
+	})
 	.strict();
 
 const spendCeilingRequestSchema = z
@@ -1173,7 +1210,7 @@ export const createLaunchApp = (dependencies: LaunchDependencies) => {
 					200,
 				);
 			} catch (error) {
-				if (!(error instanceof StepEditRefusalError)) {
+				if (!(error instanceof PipelineCaseRefusalError)) {
 					throw error;
 				}
 
@@ -1197,7 +1234,75 @@ export const createLaunchApp = (dependencies: LaunchDependencies) => {
 					200,
 				);
 			} catch (error) {
-				if (!(error instanceof StepEditRefusalError)) {
+				if (!(error instanceof PipelineCaseRefusalError)) {
+					throw error;
+				}
+
+				return context.json({ error: error.message }, error.status);
+			}
+		})
+		.get("/api/cases/:id/bundle", async (context) => {
+			const caseId = context.req.param("id");
+			try {
+				return context.json(
+					await exportTaskBundle(dependencies.casesRoot, caseId),
+					200,
+					{
+						"Content-Disposition": `attachment; filename="${caseId}.task.json"`,
+					},
+				);
+			} catch (error) {
+				if (!(error instanceof PipelineCaseRefusalError)) {
+					throw error;
+				}
+
+				return context.json({ error: error.message }, error.status);
+			}
+		})
+		.post("/api/task-bundles/preview", async (context) => {
+			const parsed = bundlePreviewRequestSchema.safeParse(
+				await context.req.json().catch(() => undefined),
+			);
+			if (!parsed.success) {
+				return context.json({ error: z.prettifyError(parsed.error) }, 400);
+			}
+
+			return context.json(previewTaskBundle(parsed.data.bundle), 200);
+		})
+		.post("/api/cases/import", async (context) => {
+			const parsed = taskImportRequestSchema.safeParse(
+				await context.req.json().catch(() => undefined),
+			);
+			if (!parsed.success) {
+				return context.json({ error: z.prettifyError(parsed.error) }, 400);
+			}
+			try {
+				return context.json(
+					await importTaskBundle(dependencies.casesRoot, parsed.data),
+					201,
+				);
+			} catch (error) {
+				if (!(error instanceof PipelineCaseRefusalError)) {
+					throw error;
+				}
+
+				return context.json({ error: error.message }, error.status);
+			}
+		})
+		.post("/api/cases/pipeline", async (context) => {
+			const parsed = pipelineCaseRequestSchema.safeParse(
+				await context.req.json().catch(() => undefined),
+			);
+			if (!parsed.success) {
+				return context.json({ error: z.prettifyError(parsed.error) }, 400);
+			}
+			try {
+				return context.json(
+					await declarePipelineCase(dependencies.casesRoot, parsed.data),
+					201,
+				);
+			} catch (error) {
+				if (!(error instanceof PipelineCaseRefusalError)) {
 					throw error;
 				}
 
