@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "bun:test";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { format } from "oxfmt";
 import { z } from "zod";
 import { CONTROL_DIR } from "#benchmark/config";
 import type { RunLiveness } from "#benchmark/run-liveness";
@@ -164,6 +165,26 @@ describe("/api/cases/:id/steps", () => {
 		});
 		const read = await server.request("/api/cases/pipe-case/steps");
 		expect(await read.json()).toMatchObject({ stages });
+	});
+
+	it("writes the file as the project's formatter would, so the edit is the only diff", async () => {
+		const server = await serving();
+
+		await putSteps(server, "pipe-case", PIPELINE.stages);
+
+		const written = await Bun.file(server.pipelineFile).text();
+		expect(written).toContain('\t"statuses": ["To Do", "Done"],\n');
+		expect(written).toContain(
+			'\t\t"checks": [\n\t\t\t{\n\t\t\t\t"command": ["bun", "run", "typecheck"]\n\t\t\t}\n\t\t],\n',
+		);
+		const formatted = await format(
+			"pipeline.json",
+			written,
+			z
+				.looseObject({})
+				.parse(await Bun.file(join(CONTROL_DIR, ".oxfmtrc.json")).json()),
+		);
+		expect(formatted.code).toBe(written);
 	});
 
 	it.each([

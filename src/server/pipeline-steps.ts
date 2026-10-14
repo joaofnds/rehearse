@@ -1,5 +1,7 @@
 import { rename, writeFile } from "node:fs/promises";
-import { relative } from "node:path";
+import { join, relative } from "node:path";
+import { format } from "oxfmt";
+import type { FormatConfig } from "oxfmt";
 import { z } from "zod";
 import {
 	caseRelative,
@@ -20,6 +22,9 @@ import { redactAbsolutePaths } from "./redact-path";
 
 /** A pipeline file's top level, which the harness has already read as valid. */
 const WRITTEN_PIPELINE = z.record(z.string(), z.unknown());
+
+/** The project's formatter settings, which the formatter itself validates. */
+const FORMAT_CONFIG = z.looseObject({});
 
 /** A pipeline case's steps as its pipeline file declares them. */
 export interface DeclaredSteps {
@@ -111,6 +116,23 @@ export async function declaredSteps(
 }
 
 /**
+ * Formats a pipeline file as the project's formatter would, so the edit an
+ * operator reviews is the only change and the format check still passes.
+ */
+async function projectFormatted(file: string, text: string): Promise<string> {
+	const config: FormatConfig = FORMAT_CONFIG.parse(
+		await Bun.file(join(CONTROL_DIR, ".oxfmtrc.json")).json(),
+	);
+	const result = await format(file, text, config);
+	const [error] = result.errors;
+	if (error !== undefined) {
+		throw new Error(`Could not format ${file}: ${error.message}`);
+	}
+
+	return result.code;
+}
+
+/**
  * Replaces a pipeline case's steps, keeping the rest of its pipeline file. The
  * new file is checked as the harness would read it before it replaces the
  * old one, so a step the harness would refuse to run is refused here and the
@@ -129,7 +151,12 @@ export async function editDeclaredSteps(
 	const written = WRITTEN_PIPELINE.parse(
 		JSON.parse(await Bun.file(file).text()),
 	);
-	const text = `${JSON.stringify({ ...written, stages }, null, "\t")}\n`;
+	const text = await projectFormatted(
+		file,
+		// Expanded, so the formatter keeps each object on its own lines as the
+		// pipeline files are written.
+		JSON.stringify({ ...written, stages }, null, "\t"),
+	);
 	const edited = await refusingAs(400, () =>
 		checkedPipeline(casesRoot, declaration, text),
 	);
