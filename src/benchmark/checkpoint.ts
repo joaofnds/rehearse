@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { Stats } from "node:fs";
-import { cp, mkdir, readdir, rm } from "node:fs/promises";
+import { cp, mkdir, readdir, rm, unlink } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, relative, sep } from "node:path";
 import { z } from "zod";
 import type { Effort, StageSkillPresence } from "./config";
@@ -737,6 +737,10 @@ export async function installStageCorpusSnapshot(
 	const files = await captureDirectories(directories);
 	const instructions = await readCorpusInstructions(source);
 	const destination = join(targetDirectory, ".claude");
+	const installed = await lstatIfPresent(destination);
+	if (installed?.isSymbolicLink() === true) {
+		await unlink(destination);
+	}
 
 	await mkdir(destination, { recursive: true });
 

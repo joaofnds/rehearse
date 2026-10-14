@@ -8,7 +8,7 @@ import {
 	writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, relative } from "node:path";
 import {
 	captureStageCorpus,
 	installStageCorpusSnapshot,
@@ -31,6 +31,23 @@ async function installedCorpus(): Promise<LiveCorpusRoot> {
 	await mkdir(backingRoot);
 	await writeFile(join(root, "skills", "build", "SKILL.md"), "build skill");
 	return { kind: "live", root, backingRoot };
+}
+
+async function fileContents(
+	root: string,
+): Promise<Readonly<Record<string, string>>> {
+	const contents: Record<string, string> = {};
+	for (const entry of await readdir(root, {
+		recursive: true,
+		withFileTypes: true,
+	})) {
+		if (entry.isFile()) {
+			const path = join(entry.parentPath, entry.name);
+			contents[relative(root, path)] = await Bun.file(path).text();
+		}
+	}
+
+	return contents;
 }
 
 describe(captureStageCorpus.name, () => {
@@ -238,5 +255,44 @@ describe(installStageCorpusSnapshot.name, () => {
 		]);
 
 		expect(installed).toEqual(captured);
+	});
+
+	describe("when the target's .claude links to another directory", () => {
+		async function linkedTarget(): Promise<{
+			readonly snapshot: string;
+			readonly linked: string;
+			readonly target: string;
+		}> {
+			const source = await installedCorpus();
+			await writeFile(join(source.root, "CLAUDE.md"), "stage instructions");
+			const linked = join(dirname(source.root), "linked");
+			await mkdir(join(linked, "skills", "precious"), { recursive: true });
+			await writeFile(join(linked, "skills", "precious", "SKILL.md"), "kept");
+			await writeFile(join(linked, "CLAUDE.md"), "live instructions");
+			const target = join(dirname(source.root), "target");
+			await mkdir(target);
+			await symlink(linked, join(target, ".claude"));
+
+			return { snapshot: source.root, linked, target };
+		}
+
+		it("leaves every file in the linked directory unchanged", async () => {
+			const { snapshot, linked, target } = await linkedTarget();
+			const before = await fileContents(linked);
+
+			await installStageCorpusSnapshot(snapshot, target);
+
+			expect(await fileContents(linked)).toEqual(before);
+		});
+
+		it("installs the stage corpus in a directory of the target's own", async () => {
+			const { snapshot, target } = await linkedTarget();
+
+			await installStageCorpusSnapshot(snapshot, target);
+
+			expect(await Bun.file(join(target, ".claude", "CLAUDE.md")).text()).toBe(
+				"stage instructions",
+			);
+		});
 	});
 });

@@ -959,6 +959,8 @@ snapshot remains usable after the original trees change or disappear. The
 additional global-skills list is currently empty. Explicit-directory replay and
 stage/pipeline confirmation install snapshots under the worktree's `.claude/`,
 preserving its root project instructions, and use project settings sources.
+A `.claude` that is a link is replaced by a directory before the install, so
+the install never deletes or writes files in the directory the link named.
 The install also writes `.claude/.gitignore`, which names each installed file
 and itself, so a target that does not ignore `.claude` stays clean for the
 stage's checks, while a file the stage writes under `.claude` still shows. The
