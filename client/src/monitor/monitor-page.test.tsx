@@ -635,6 +635,30 @@ describe("/monitor task graph", () => {
 		expect(shown).toHaveTextContent("contribution pending");
 	});
 
+	it("names a stage's checkpoint within its case, since the task heading names the case", async () => {
+		renderGraph([
+			recordStage("plan", {
+				status: "graded",
+				checkpoint: "recorded",
+				checkpointShortId: { state: "available", shortId: "audit-log/r33/s1" },
+			}),
+			recordStage("build"),
+		]);
+
+		const shown = await graphNode("plan");
+
+		expect(shown).toHaveTextContent("◆r33/s1");
+		expect(shown).not.toHaveTextContent("audit-log/r33/s1");
+	});
+
+	it("shows a dash for the corpus version of a stage not started", async () => {
+		renderGraph([recordStage("build"), recordStage("review")]);
+
+		const shown = await graphNode("review");
+
+		expect(shown).toHaveTextContent("— corpus version not recorded");
+	});
+
 	it("shows what a finished stage produced, from its record, until an analysis exists", async () => {
 		renderGraph([
 			recordStage("plan", {

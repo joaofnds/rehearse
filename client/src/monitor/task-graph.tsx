@@ -13,6 +13,7 @@ import { Grade } from "#client/system/components/grade";
 import { LiveGlyph, STATUS_VOCABULARY } from "#client/system/components/status";
 import type { StatusState } from "#client/system/components/status";
 import { Button } from "#client/system/ui/button";
+import { withinCase } from "#client/within-case";
 import {
 	consumedCheckpointMissing,
 	endedStatus,
@@ -204,8 +205,10 @@ function StatusLine({
  */
 function CheckpointLine({
 	stage,
+	caseId,
 }: {
 	readonly stage: MonitoredStage;
+	readonly caseId: string;
 }): React.JSX.Element {
 	if (stage.checkpoint === "missing") {
 		return (
@@ -220,7 +223,7 @@ function CheckpointLine({
 		<span className="flex items-center gap-1.75 border-t border-dashed border-strong pt-1.75 font-mono text-10-5 text-secondary-foreground">
 			<span aria-hidden="true">◆</span>
 			{stage.checkpointShortId.state === "available"
-				? stage.checkpointShortId.shortId
+				? withinCase(stage.checkpointShortId.shortId, caseId)
 				: "checkpoint recorded"}
 		</span>
 	);
@@ -394,9 +397,17 @@ function StageNode({
 					<span>{costReading(stage, row)}</span>
 					<span>{durationReading(stage, row, nowMs)}</span>
 					<span>{blockersReading(stage.blockers)}</span>
-					<span className="truncate">{corpusReading(stage, row)}</span>
+					<span className="truncate">
+						{notStarted(stage, row) ? (
+							<>
+								—<span className="sr-only"> corpus version not recorded</span>
+							</>
+						) : (
+							corpusReading(stage, row)
+						)}
+					</span>
 				</span>
-				<CheckpointLine stage={stage} />
+				<CheckpointLine stage={stage} caseId={record.caseId} />
 				<span className="text-11 text-muted-foreground">
 					{notStarted(stage, row)
 						? "not started"
