@@ -50,6 +50,7 @@ import {
 	runEventsDatabaseFile,
 } from "#benchmark/run-layout";
 import { openRunEventStore } from "#benchmark/run-events";
+import { claimingRun, targetMarker } from "#benchmark/run-liveness";
 import type { RunLiveness } from "#benchmark/run-liveness";
 import { requestPause } from "#benchmark/run-pause";
 import { RefusedPreconditionError } from "#benchmark/exit-codes";
@@ -912,6 +913,48 @@ async function runningLaunch(
 }
 
 /**
+ * The pid holding a recorded run's own claim on its target, for a run started
+ * outside the browser, which has no launch to stop it through. The claim is
+ * written by the run's process after it starts, so a process that started
+ * later holds a reused pid and is refused. `ps` reports the start to the
+ * second, so the run's own process never reads as later than its claim.
+ */
+async function claimingProcess(
+	run: string,
+	dependencies: LaunchDependencies,
+): Promise<number> {
+	const runs = await recordedRunNames(dependencies.runsDirectory);
+	if (!runs.includes(run)) {
+		throw new LaunchRefusalError(`No recorded run ${run}`, 404);
+	}
+	const runEvents = await openRunEventStore(
+		runEventsDatabaseFile(dependencies.runsDirectory),
+	);
+	let marker;
+	try {
+		marker = await targetMarker(
+			benchmarkRunPaths(dependencies.runsDirectory, run).manifestFile,
+			dependencies.liveness,
+			claimingRun(runEvents, run),
+		);
+	} finally {
+		runEvents.close();
+	}
+	if (marker === undefined || !dependencies.liveness.isAlive(marker.pid)) {
+		throw new LaunchRefusalError(`Run ${run} is not running`, 409);
+	}
+	const started = await dependencies.launcher.startedAt(marker.pid);
+	if (
+		started === undefined ||
+		Date.parse(`${started} UTC`) > Date.parse(marker.startedAt)
+	) {
+		throw new LaunchRefusalError(`Run ${run} is not running`, 409);
+	}
+
+	return marker.pid;
+}
+
+/**
  * Asks a recorded pipeline run to pause after its current stage, refusing one
  * whose history row does not read RUNNING, or whose records stop short of one:
  * a finished run has no next stage to hold back, and a request left beside it
@@ -1366,6 +1409,20 @@ export const createLaunchApp = (dependencies: LaunchDependencies) => {
 			dependencies.launcher.stop(record.pid);
 
 			return context.json({ id: record.id }, 202);
+		})
+		.post("/api/runs/:run/stop", async (context) => {
+			const run = context.req.param("run");
+			try {
+				dependencies.launcher.stop(await claimingProcess(run, dependencies));
+			} catch (error) {
+				if (!(error instanceof LaunchRefusalError)) {
+					throw error;
+				}
+
+				return context.json({ error: error.message }, error.status);
+			}
+
+			return context.json({ run }, 202);
 		})
 		.post("/api/runs/:run/pause", async (context) => {
 			const run = context.req.param("run");

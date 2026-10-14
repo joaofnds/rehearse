@@ -155,6 +155,7 @@ describe(createLaunchApp.name, () => {
 		readonly get: (path: string) => Promise<Response>;
 		readonly stop: (id: string) => Promise<Response>;
 		readonly pause: (run: string) => Promise<Response>;
+		readonly stopRun: (run: string) => Promise<Response>;
 		readonly send: (
 			method: "PUT" | "DELETE" | "POST",
 			path: string,
@@ -228,6 +229,14 @@ describe(createLaunchApp.name, () => {
 			pause: (run) =>
 				Promise.resolve(
 					app.request(`/api/runs/${run}/pause`, {
+						method: "POST",
+						headers: { "content-type": "application/json" },
+						body: "{}",
+					}),
+				),
+			stopRun: (run) =>
+				Promise.resolve(
+					app.request(`/api/runs/${run}/stop`, {
 						method: "POST",
 						headers: { "content-type": "application/json" },
 						body: "{}",
@@ -2123,6 +2132,64 @@ describe(createLaunchApp.name, () => {
 			const server = await harness("stored", running);
 
 			const response = await server.pause("2026-01-01T00-00-00.000Z");
+
+			expect(response.status).toBe(404);
+		});
+	});
+
+	describe("when a run started outside the browser is stopped", () => {
+		const RUN_PID = 4343;
+		const CLAIMED_AT = "2026-09-30T00:00:00.000Z";
+		const running: RunLiveness = {
+			readMarker: () =>
+				Promise.resolve(claimBy(RUNNING_RUN, RUN_PID, CLAIMED_AT)),
+			isAlive: (pid) => pid === RUN_PID,
+		};
+
+		async function runningRun(runsDirectory: string): Promise<string> {
+			const fixture = new RecordedRunsFixture(runsDirectory);
+			await fixture.writeRunningRun();
+
+			return fixture.runningRun;
+		}
+
+		it("signals the process that claimed its target and answers accepted", async () => {
+			const server = await harness("stored", running);
+			server.launcher.processes.set(RUN_PID, "Tue Sep 29 23:59:59 2026");
+			const run = await runningRun(server.runsDirectory);
+
+			const response = await server.stopRun(run);
+
+			expect(response.status).toBe(202);
+			expect(server.launcher.stopped).toEqual([RUN_PID]);
+		});
+
+		it("refuses a pid whose process started after the claim, which is not the run's", async () => {
+			const server = await harness("stored", running);
+			server.launcher.processes.set(RUN_PID, "Wed Sep 30 00:00:05 2026");
+			const run = await runningRun(server.runsDirectory);
+
+			const response = await server.stopRun(run);
+
+			expect(response.status).toBe(409);
+			expect(server.launcher.stopped).toEqual([]);
+		});
+
+		it("refuses a run whose target holds no live claim of its own", async () => {
+			const server = await harness();
+			server.launcher.processes.set(RUN_PID, "Tue Sep 29 23:59:59 2026");
+			const run = await runningRun(server.runsDirectory);
+
+			const response = await server.stopRun(run);
+
+			expect(response.status).toBe(409);
+			expect(server.launcher.stopped).toEqual([]);
+		});
+
+		it("refuses a run it has no record of", async () => {
+			const server = await harness("stored", running);
+
+			const response = await server.stopRun("2026-01-01T00-00-00.000Z");
 
 			expect(response.status).toBe(404);
 		});
