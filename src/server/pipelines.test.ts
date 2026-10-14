@@ -401,7 +401,7 @@ describe("/api/pipelines", () => {
 		);
 	});
 
-	it("reads a recorded pipeline's stages as its newest run ran them", async () => {
+	it("reads a declared task's steps from its file, not from what its newest run ran", async () => {
 		const { list } = await serving([
 			{
 				timestamp: "2026-09-01T10:00:00.000Z",
@@ -420,7 +420,7 @@ describe("/api/pipelines", () => {
 		const { pipelines } = await list();
 
 		expect(pipelines.map(({ stages }) => stages)).toEqual([
-			["shape", "build", "review"],
+			["discuss", "build"],
 		]);
 	});
 
@@ -651,6 +651,23 @@ describe("/api/pipelines", () => {
 			const { pipelines, unreadable } = await list();
 
 			expect(pipelines.map(({ path }) => path)).toEqual([OVERRIDE_PIPELINE]);
+			expect(unreadable.map(({ id }) => id)).toEqual([DECLARED_PIPELINE]);
+		});
+
+		it("reports a declared pipeline that does not parse rather than listing what its run recorded", async () => {
+			const { list, cases } = await serving([
+				{
+					timestamp: "2026-09-01T10:00:00.000Z",
+					caseId: "pipe-case",
+					pipelinePath: DECLARED_PIPELINE,
+					stages: ["discuss", "build"],
+				},
+			]);
+			await Bun.write(join(cases, "pipe-case", "pipeline.json"), "{}");
+
+			const { pipelines, unreadable } = await list();
+
+			expect(pipelines).toEqual([]);
 			expect(unreadable.map(({ id }) => id)).toEqual([DECLARED_PIPELINE]);
 		});
 

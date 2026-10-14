@@ -424,9 +424,9 @@ function listedPipeline(
 /**
  * Every pipeline a pipeline case declares as its default and every pipeline a
  * run manifest or pipeline confirmation group recorded, since a run may
- * override its case's default (doc-193 decision 1). A recorded pipeline reads
- * as its newest run or group ran it, so a file changed or deleted since does
- * not rewrite what ran, and its steps come from the same record as its version.
+ * override its case's default (doc-193 decision 1). A declared task's steps
+ * are read from its file, as the design's task card shows its declaration. A
+ * pipeline no case declares reads as its newest run or group ran it.
  */
 export async function pipelineReport(
 	casesRoot: string,
@@ -467,22 +467,20 @@ export async function pipelineReport(
 		const groups = groupsByPath.get(path) ?? [];
 		const ran = { runs, groups, newest: newestRecords({ runs, groups }) };
 		const declaration = declaredByPath.get(path);
-		const recordedStages = ran.newest[0]?.stages;
-		if (recordedStages !== undefined) {
-			pipelines.push(
-				listedPipeline(
-					path,
-					recordedStages,
-					declaration,
-					ran,
-					declared.targets,
-				),
-			);
-
-			continue;
-		}
-
 		if (declaration === undefined) {
+			const recordedStages = ran.newest[0]?.stages;
+			if (recordedStages !== undefined) {
+				pipelines.push(
+					listedPipeline(
+						path,
+						recordedStages,
+						declaration,
+						ran,
+						declared.targets,
+					),
+				);
+			}
+
 			continue;
 		}
 

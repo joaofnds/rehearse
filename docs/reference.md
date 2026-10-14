@@ -337,8 +337,8 @@ with its `caseId` and `path`, refusing as `POST /api/cases/pipeline` does.
 default and every `pipelinePath` a run manifest or pipeline confirmation group
 recorded, so a pipeline a run chose with `--pipeline` or `BENCHMARK_PIPELINE`
 is listed too. Each entry names the pipeline by its control-relative path and
-carries its stage names, as the newest run or group that recorded it ran
-them, else as its file declares them,
+carries its stage names, as its file declares them when a case declares it,
+else as the newest run or group that recorded it ran them,
 its stage and task judge counts (a pipeline no case declares has no task judge of its own, though each run is still judged by its own case's final rubric), the declaring case, the cases that declare or ran it, the `targets` of
 those cases still declared, its run names newest first, and `figures`: the
 runs counted at the latest corpus version, that version, and how many runs it
