@@ -248,8 +248,12 @@ id order, so for a task only such groups ran neither need be the newest. A group
 task's newest run in flight and is disabled with the reason while none is, so
 a running confirmation group never enables it. A run started after the screen
 opened reaches its card once its manifest is written, on a history poll that
-still shows it in flight. Import a task, Export with judges and Edit steps
-are drawn disabled because they are not wired.
+still shows it in flight. Edit steps opens a declared task's steps, and saving
+them rewrites its case's pipeline file, formatted, after the harness accepts
+them. Export with judges downloads a declared task as one file holding its
+task, brief, steps, rubrics and target commands. Import a task reads such a
+file, shows its steps and the commands it would run, and writes it as a new
+case under the id and target repository given, uncommitted.
 
 The Cases screen lists one card per declared case with its kind, its target or
 no repository for a session case, its title, its steps and judges or its
@@ -271,10 +275,12 @@ is left out, and an unreadable group rep is still counted, unjudged and
 without a cost. Run once and Run group
 open the launch dialog on that case with one or three attempts, and are
 disabled for a case that declares no model. Declare a case opens a form
-that writes a session case's `case.json` and lists the case without a reload,
-saying the file is uncommitted and needs `bun run fmt` before its commit. The form sets only the id, title, prompt,
-tools, corpus files, checks, model and session budget; a pipeline case, and
-any other session field, is still declared by hand. Because the form sets no
+that writes a case and lists it without a reload, formatted and saying it is
+uncommitted. A session case sets only the id, title, prompt, tools, corpus
+files, checks, model and session budget, and any other session field is still
+declared by hand. A pipeline case takes its id, title, target repository, task
+and product brief from the form and its steps, judges and commands from another
+pipeline case, so the choice is disabled while none is declared. Because the form sets no
 `settings`, a tool that edits files or runs a command is denied when the case
 runs until a `permissions.allow` block is added to its `case.json` by hand. The empty run
 history's Declare a case opens the Cases screen.
@@ -373,8 +379,7 @@ them yet. A fresh
 install, with no stored spend ceiling and nothing run history lists, shows the first-run setup
 on every screen: a spend limit, a corpus scan that links a directory or keeps
 the live install, and Finish setup, which stores the limit and opens run
-history. Declaring a pipeline case, editing a case, and task import, export and
-editing are design targets. Live monitoring is partly
+history. Editing a case is a design target. Live monitoring is partly
 delivered: the run list reports a run in flight with its stage, elapsed time and
 scoped spend, and the run API also reports how many of a judging stage's
 rubric items are back per section, which the monitor's judge pane shows. While a

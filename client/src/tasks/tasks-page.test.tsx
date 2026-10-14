@@ -151,17 +151,174 @@ describe(TasksPage.name, () => {
 		).toBeInTheDocument();
 	});
 
-	it.each(["Import a task", "Export with judges"])(
-		"draws %s but says it is not wired yet",
-		async (name) => {
-			renderTasksAt("/tasks", [declaredTask()]);
+	describe("exporting a task with its judges", () => {
+		it("offers each declared task as a file the server writes", async () => {
+			renderTasksAt("/tasks", [declaredTask(), overrideTask()]);
 
-			const control = await screen.findByRole("button", { name });
+			fireEvent.click(
+				await screen.findByRole("button", { name: "Export with judges" }),
+			);
+			const dialog = await screen.findByRole("dialog", {
+				name: "Export with judges",
+			});
 
-			expect(control).toHaveAttribute("aria-disabled", "true");
-			expect(control).toHaveAccessibleDescription("Not wired yet");
-		},
-	);
+			expect(
+				within(dialog)
+					.getAllByRole("link")
+					.map((link) => link.textContent),
+			).toEqual(["Download audit-log.task.json"]);
+			expect(
+				within(dialog).getByRole("link", {
+					name: "Download audit-log.task.json",
+				}),
+			).toHaveAttribute("href", "/api/cases/audit-log/bundle");
+		});
+
+		it("says there is nothing to export when no case declares a task", async () => {
+			renderTasksAt("/tasks", [overrideTask()]);
+
+			fireEvent.click(
+				await screen.findByRole("button", { name: "Export with judges" }),
+			);
+
+			expect(
+				await screen.findByText(
+					"No task is declared by a case, so there is nothing to export.",
+				),
+			).toBeInTheDocument();
+		});
+	});
+
+	describe("importing a task", () => {
+		const BUNDLE = { format: "rehearse-task-bundle", version: 1 };
+		const PREVIEW = {
+			caseId: "audit-log",
+			title: "Asynchronous audit log module",
+			targetPath: "../../../nest/template",
+			model: "sonnet",
+			steps: [{ name: "build", kind: "delivery", skill: "build" }],
+			commands: ["bun install", "bun test"],
+			stepJudges: 1,
+		};
+		const IMPORTED = { caseId: "audit-log-copy", path: "cases/audit-log-copy" };
+		const IMPORT_ACCEPTED: Reply = { status: 201, body: IMPORTED };
+
+		function serving(imported: Reply = IMPORT_ACCEPTED): FakeServer {
+			const response: PipelinesResponse = {
+				pipelines: [declaredTask()],
+				unreadable: [],
+			};
+			const server = new FakeServer(
+				new Map<string, Reply>([
+					...[...SHELL_BASELINE].map(([path, body]): [string, Reply] => [
+						`GET ${path}`,
+						{ status: 200, body },
+					]),
+					["GET /api/pipelines", { status: 200, body: response }],
+					["POST /api/task-bundles/preview", { status: 200, body: PREVIEW }],
+					["POST /api/cases/import", imported],
+				]),
+			);
+			server.install();
+			renderAppAt("/tasks");
+
+			return server;
+		}
+
+		async function chooseBundle(text: string): Promise<HTMLElement> {
+			fireEvent.click(
+				await screen.findByRole("button", { name: "Import a task" }),
+			);
+			const dialog = await screen.findByRole("dialog", {
+				name: "Import a task",
+			});
+			fireEvent.change(within(dialog).getByLabelText("Task bundle"), {
+				target: {
+					files: [new File([text], "audit-log.task.json")],
+				},
+			});
+
+			return dialog;
+		}
+
+		const importBodySchema = z.object({
+			id: z.string(),
+			title: z.string(),
+			targetPath: z.string(),
+			bundle: z.unknown(),
+		});
+
+		it("shows what the bundle holds and fills the case from it", async () => {
+			const server = serving();
+
+			const dialog = await chooseBundle(JSON.stringify(BUNDLE));
+			const summary = await within(dialog).findByRole("region", {
+				name: "What the bundle holds",
+			});
+
+			expect(summary).toHaveTextContent("bun install");
+			expect(summary).toHaveTextContent("bun test");
+			expect(within(dialog).getByLabelText("Id")).toHaveValue("audit-log");
+			expect(within(dialog).getByLabelText("Target repository")).toHaveValue(
+				"../../../nest/template",
+			);
+			expect(
+				JSON.parse(server.posted("/api/task-bundles/preview")[0]?.body ?? ""),
+			).toEqual({ bundle: BUNDLE });
+		});
+
+		it("imports the bundle under the id typed and says the case is uncommitted", async () => {
+			const server = serving();
+
+			const dialog = await chooseBundle(JSON.stringify(BUNDLE));
+			const id = await within(dialog).findByLabelText("Id");
+			fireEvent.change(id, { target: { value: "audit-log-copy" } });
+			fireEvent.click(within(dialog).getByRole("button", { name: "Import" }));
+
+			expect(
+				await screen.findByText(
+					"Imported cases/audit-log-copy. It is uncommitted: review and commit it to keep the case.",
+				),
+			).toBeInTheDocument();
+			expect(screen.queryByRole("dialog")).toBeNull();
+			expect(
+				importBodySchema.parse(
+					JSON.parse(server.posted("/api/cases/import")[0]?.body ?? ""),
+				),
+			).toEqual({
+				id: "audit-log-copy",
+				title: "Asynchronous audit log module",
+				targetPath: "../../../nest/template",
+				bundle: BUNDLE,
+			});
+		});
+
+		it("keeps the dialog open with the server's refusal in words", async () => {
+			serving({
+				status: 409,
+				body: { error: "Case audit-log already has a directory under cases/" },
+			});
+
+			const dialog = await chooseBundle(JSON.stringify(BUNDLE));
+			await within(dialog).findByLabelText("Id");
+			fireEvent.click(within(dialog).getByRole("button", { name: "Import" }));
+
+			expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+				"Case audit-log already has a directory under cases/",
+			);
+		});
+
+		it("names a file that is not JSON before asking the server", async () => {
+			const server = serving();
+
+			const dialog = await chooseBundle("not json");
+
+			expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+				"The file is not JSON, so it is no task bundle",
+			);
+			expect(server.posted("/api/task-bundles/preview")).toHaveLength(0);
+		});
+	});
 
 	it("shows a task's id, target, figures, description and steps on its card", async () => {
 		renderTasksAt("/tasks", [declaredTask()]);

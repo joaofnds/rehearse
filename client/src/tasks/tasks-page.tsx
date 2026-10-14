@@ -1,41 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useId } from "react";
+import { useEffect, useState } from "react";
 import { polledRunListingQuery } from "#client/run-history/run-history-polling";
 import { runsInFlight } from "#client/shell/run-in-flight";
 import { Notice } from "#client/system/components/notice";
 import { ScreenHeader } from "#client/system/components/screen-header";
-import { Button } from "#client/system/ui/button";
 import { pipelinesQuery } from "./pipelines-query";
-import { NOT_WIRED_REASON } from "#client/not-wired";
+import { ExportTaskDialog, ImportTaskDialog } from "./task-bundle-dialogs";
 import { TaskCard } from "./task-card";
-
-function HeaderControls(): React.JSX.Element {
-	const reasonId = useId();
-
-	return (
-		<span className="flex flex-col items-end gap-1.5">
-			<span className="flex gap-2.5">
-				<Button
-					variant="quiet"
-					aria-disabled="true"
-					aria-describedby={reasonId}
-				>
-					Import a task
-				</Button>
-				<Button
-					variant="quiet"
-					aria-disabled="true"
-					aria-describedby={reasonId}
-				>
-					Export with judges
-				</Button>
-			</span>
-			<span id={reasonId} className="text-11-5 text-dim">
-				{NOT_WIRED_REASON}
-			</span>
-		</span>
-	);
-}
 
 /**
  * The tasks are read once, and a run started after that is on no card until
@@ -53,6 +24,7 @@ export function TasksPage(): React.JSX.Element {
 		query.isSuccess &&
 		inFlight.some(({ run }) => !tasks.some((task) => task.runs.includes(run)));
 	const { refetch } = query;
+	const [importedPath, setImportedPath] = useState<string>();
 
 	useEffect(() => {
 		if (onNoCard) {
@@ -65,16 +37,28 @@ export function TasksPage(): React.JSX.Element {
 			<ScreenHeader
 				title="Tasks"
 				subline="A task is a chain of steps against a base repository · declared as the pipeline file a case names, or chosen by a run"
-				aside={<HeaderControls />}
+				aside={
+					<span className="flex gap-2.5">
+						<ImportTaskDialog onImported={setImportedPath} />
+						<ExportTaskDialog tasks={tasks} />
+					</span>
+				}
 			/>
 
 			<div className="flex max-w-7xl flex-col gap-6 px-6 pt-4 pb-12">
 				<p className="max-w-prose text-sm text-muted-foreground">
 					A step is judged on what went into it and what came out. A task is
 					judged from the first input and the last artifact only, so the same
-					work as four steps and as one step produce comparable task grades.
-					Import and export are drawn but not wired in v0.6.
+					work as four steps and as one step produce comparable task grades. A
+					task exports with its judges as one file, which another checkout
+					imports as a new case.
 				</p>
+
+				{importedPath === undefined ? null : (
+					<p role="status" className="text-sm text-secondary-foreground">
+						{`Imported ${importedPath}. It is uncommitted: review and commit it to keep the case.`}
+					</p>
+				)}
 
 				{query.isLoading ? (
 					<p className="text-muted-foreground">Loading…</p>

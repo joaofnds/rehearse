@@ -127,11 +127,17 @@ function listing(cases: readonly ListedCase[]): Reply {
 	return { status: 200, body };
 }
 
+const NOT_SERVED: Reply = { status: 404, body: { error: "not served" } };
+
 /**
  * The Cases screen over a server that lists the declared case once the form
  * has posted it, as the real route does on its next read.
  */
-function servingDeclaration(declared: Reply): FakeServer {
+function servingDeclaration(
+	declared: Reply,
+	pipelineDeclared: Reply = NOT_SERVED,
+	listed: readonly ListedCase[] = [pipelineCase()],
+): FakeServer {
 	const baseline = [...SHELL_BASELINE].map(([path, body]): [string, Reply] => [
 		`GET ${path}`,
 		{ status: 200, body },
@@ -143,14 +149,15 @@ function servingDeclaration(declared: Reply): FakeServer {
 				"GET /api/cases",
 				new LiveReply(() =>
 					server.posted("/api/cases").length === 0 || declared.status !== 201
-						? listing([pipelineCase()])
+						? listing(listed)
 						: listing([
-								pipelineCase(),
+								...listed,
 								sessionCase({ id: DECLARED.id, title: DECLARED.title }),
 							]),
 				),
 			],
 			["POST /api/cases", declared],
+			["POST /api/cases/pipeline", pipelineDeclared],
 		]),
 	);
 	server.install();
@@ -466,7 +473,7 @@ describe(CasesPage.name, () => {
 			expect(await card(DECLARED.id)).toBeInTheDocument();
 		});
 
-		it("names the written file and says it needs formatting and a commit", async () => {
+		it("names the written file and says it needs a commit", async () => {
 			servingDeclaration(DECLARED_REPLY);
 			const form = await openDeclareForm();
 			fillDeclared();
@@ -475,7 +482,7 @@ describe(CasesPage.name, () => {
 
 			expect(
 				await screen.findByText(
-					"Declared cases/declared/case.json. The file is uncommitted and unformatted: run bun run fmt, then commit it to keep the case.",
+					"Declared cases/declared/case.json. It is uncommitted: review and commit it to keep the case.",
 				),
 			).toHaveAttribute("role", "status");
 		});
@@ -557,19 +564,89 @@ describe(CasesPage.name, () => {
 			});
 		});
 
-		it("shows the pipeline kind disabled, saying it is declared by hand", async () => {
-			servingDeclaration(DECLARED_REPLY);
+		describe("as a pipeline case", () => {
+			const PIPELINE_DECLARED = {
+				id: "rename-module",
+				title: "Rename the module",
+				targetPath: "/work/template",
+				task: "# Rename the module",
+				productBrief: "# Why\n\nThe name misleads.",
+				from: "audit-log",
+			};
 
-			const form = await openDeclareForm();
+			function fillPipeline(): void {
+				fireEvent.click(screen.getByRole("radio", { name: "Pipeline" }));
+				fill("Id", PIPELINE_DECLARED.id);
+				fill("Title", PIPELINE_DECLARED.title);
+				fill("Target repository", PIPELINE_DECLARED.targetPath);
+				fill("Task", PIPELINE_DECLARED.task);
+				fill("Product brief", PIPELINE_DECLARED.productBrief);
+			}
 
-			const pipeline = within(form).getByRole("radio", { name: "Pipeline" });
-			expect(pipeline).toBeDisabled();
-			expect(pipeline).toHaveAccessibleDescription(
-				"A pipeline case needs a target repository and its own task files, so it is declared by hand in its case.json",
-			);
-			expect(
-				within(form).getByRole("radio", { name: "Session" }),
-			).toBeChecked();
+			it("posts the task, the brief and the case whose steps and judges it starts from", async () => {
+				const server = servingDeclaration(DECLARED_REPLY, {
+					status: 201,
+					body: { caseId: PIPELINE_DECLARED.id, path: "cases/rename-module" },
+				});
+				const form = await openDeclareForm();
+				fillPipeline();
+
+				expect(
+					within(form).getByRole("combobox", {
+						name: "Steps and judges from",
+					}),
+				).toHaveValue("audit-log");
+				fireEvent.click(within(form).getByRole("button", { name: "Declare" }));
+
+				await waitFor(() => {
+					expect(server.posted("/api/cases/pipeline")).toHaveLength(1);
+				});
+				const [posted] = server.posted("/api/cases/pipeline");
+				expect(JSON.parse(posted?.body ?? "null")).toEqual(PIPELINE_DECLARED);
+				expect(server.posted("/api/cases")).toHaveLength(0);
+				expect(
+					await screen.findByText(
+						"Declared cases/rename-module. It is uncommitted: review and commit it to keep the case.",
+					),
+				).toHaveAttribute("role", "status");
+			});
+
+			it("is disabled, naming what to do, while no pipeline case is declared to start from", async () => {
+				servingDeclaration(DECLARED_REPLY, undefined, [sessionCase()]);
+				const form = await openDeclareForm();
+
+				const pipeline = within(form).getByRole("radio", { name: "Pipeline" });
+
+				expect(pipeline).toBeDisabled();
+				expect(pipeline).toHaveAccessibleDescription(
+					"A pipeline case starts from another pipeline case's steps and judges, and none is declared. Import a task on the Tasks screen first.",
+				);
+			});
+
+			it("shows the session fields only for a session case", async () => {
+				servingDeclaration(DECLARED_REPLY);
+				const form = await openDeclareForm();
+
+				fireEvent.click(within(form).getByRole("radio", { name: "Pipeline" }));
+
+				expect(within(form).queryByLabelText("Prompt")).toBeNull();
+				expect(within(form).getByLabelText("Target repository")).toBeVisible();
+			});
+
+			it("shows the server's refusal and keeps the form open", async () => {
+				servingDeclaration(DECLARED_REPLY, {
+					status: 400,
+					body: { error: "Target /work/template is not a git repository" },
+				});
+				const form = await openDeclareForm();
+				fillPipeline();
+
+				fireEvent.click(within(form).getByRole("button", { name: "Declare" }));
+
+				expect(await within(form).findByRole("alert")).toHaveTextContent(
+					"Target /work/template is not a git repository",
+				);
+			});
 		});
 
 		it("shows the server's refusal and keeps the form open", async () => {

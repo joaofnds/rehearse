@@ -12,7 +12,7 @@ import {
 import type { Immutable } from "#benchmark/contracts";
 import type { CorpusRoot } from "#benchmark/corpus-file";
 import { CorpusFileError, resolveCorpusFile } from "#benchmark/corpus-file";
-import { DECLARED_BY_HAND_REASON } from "./declared-by-hand";
+import { projectFormatted } from "./project-format";
 import { redactAbsolutePaths } from "./redact-path";
 
 const CASE_FIELDS = new Set<string>(
@@ -42,7 +42,9 @@ export const declareCaseRequestSchema = sessionCaseDeclarationSchema
 	.extend({
 		kind: z.literal("session", {
 			error: (issue) =>
-				issue.input === "pipeline" ? DECLARED_BY_HAND_REASON : undefined,
+				issue.input === "pipeline"
+					? "A pipeline case is declared through /api/cases/pipeline"
+					: undefined,
 		}),
 		prompt: z
 			.string()
@@ -164,18 +166,22 @@ async function claimCaseDirectory(
 
 /**
  * Writes the request as typed rather than the parsed declaration, so a default
- * the parser fills in never reaches the file.
+ * the parser fills in never reaches the file, and as the project's formatter
+ * would, so it commits as written.
  */
 export async function declareCase(
 	request: Immutable<DeclareCaseRequest>,
 	casesRoot: string,
 	corpus: CorpusRoot,
 ): Promise<DeclaredCase> {
-	const text = `${JSON.stringify(request, null, "\t")}\n`;
+	const file = caseDeclarationPath(request.id, casesRoot);
+	const text = await projectFormatted(
+		file,
+		JSON.stringify(request, null, "\t"),
+	);
 	refuseUnreadable(request.id, text);
 	refuseCorpusFiles(request.corpusFiles, corpus);
 
-	const file = caseDeclarationPath(request.id, casesRoot);
 	await claimCaseDirectory(dirname(file), request.id);
 	try {
 		await writeFile(file, text, { flag: "wx" });

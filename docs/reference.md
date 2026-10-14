@@ -293,8 +293,7 @@ without a cost.
 
 `POST /api/cases` declares a session case and answers 201 with the
 declaration as written and its path, `cases/<id>/case.json`, which it leaves
-uncommitted and, like `case capture`, in JSON whose short arrays `bun run fmt`
-must collapse before the commit. The body must hold `id`, `kind` (`session`),
+uncommitted and formatted as `bun run fmt` would write it. The body must hold `id`, `kind` (`session`),
 `title`, `prompt`, `tools`, `corpusFiles`, at least one of `checks`, and
 `model`, which the case parser leaves optional but the launch dialog needs to
 start the case, and may add only `sessionBudgetUsd`. Only those fields are written, so a default the case parser
@@ -309,6 +308,30 @@ corpus directory that is no longer a corpus. A refused declaration leaves no
 directory behind. The body sets no `settings`, so a case that edits files or
 runs a command needs a `permissions.allow` block added to its `case.json` by
 hand.
+
+`POST /api/cases/pipeline` declares a pipeline case from another one. The body
+holds `id`, `title`, `targetPath`, `task`, `productBrief` and `from`, the
+pipeline case whose steps, rubrics, model and target commands it copies, and it
+answers 201 with the case's `caseId` and `path`. It answers 404 when `from` is
+not declared, 400 for a target that is not a git repository root or is the
+control repository and for a declaration the harness refuses, and 409 for an id
+already on disk. Its files are formatted and left uncommitted, and a refused
+declaration leaves no directory behind.
+
+`GET /api/cases/:id/steps` answers with a pipeline case's declared `stages`, its
+`pipeline` path and the `rubrics` its rubric directory holds, and
+`PUT /api/cases/:id/steps` with `{stages}` rewrites that pipeline file,
+formatted, once the harness accepts the steps. Both answer 404 for a case that is not declared or is a session case, and the write answers 400 for steps the harness refuses.
+
+`GET /api/cases/:id/bundle` answers with a pipeline case as a task bundle, a
+`rehearse-task-bundle` file of version 1 holding its task, product brief, final
+rubric, pipeline, each stage rubric by file name, stage settings and target,
+as an attachment named `<id>.task.json`. `POST /api/task-bundles/preview` with
+`{bundle}` answers with what the bundle declares: its case id, title, target
+path, model, steps, the setup and check commands a run executes in its target,
+and its step judge count. `POST /api/cases/import` with `{id, title,
+targetPath, bundle}` writes the bundle as a new pipeline case and answers 201
+with its `caseId` and `path`, refusing as `POST /api/cases/pipeline` does.
 
 `GET /api/pipelines` lists every pipeline a pipeline case declares as its
 default and every `pipelinePath` a run manifest or pipeline confirmation group

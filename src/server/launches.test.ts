@@ -49,6 +49,7 @@ import {
 	FakeLauncher,
 } from "./launch-test-support";
 import { compareAttempts } from "#benchmark/compare-attempts";
+import { projectFormatted } from "./project-format";
 import { createLaunchApp } from "./launches";
 
 const NOTHING_RUNNING: RunLiveness = {
@@ -1426,6 +1427,16 @@ describe(createLaunchApp.name, () => {
 			expect(fields).toEqual(Object.keys(DECLARED_CASE));
 		});
 
+		it("writes the declaration as the project's formatter would, so it commits as written", async () => {
+			const { declare, casesDirectory } = await harness();
+
+			await declare(DECLARED_CASE);
+
+			const file = join(casesDirectory, DECLARED_CASE.id, "case.json");
+			const written = await Bun.file(file).text();
+			expect(await projectFormatted(file, written)).toBe(written);
+		});
+
 		it("writes a declaration the case reader a run uses parses", async () => {
 			const { declare, casesDirectory } = await harness();
 
@@ -1565,7 +1576,7 @@ describe(createLaunchApp.name, () => {
 				},
 			);
 
-			it("refuses a pipeline case, which needs a target repository and its own task files", async () => {
+			it("refuses a pipeline case, which is declared through its own route", async () => {
 				const { declare, casesDirectory } = await harness();
 				const before = await caseDirectories(casesDirectory);
 
@@ -1573,7 +1584,7 @@ describe(createLaunchApp.name, () => {
 
 				expect(response.status).toBe(400);
 				expect(refusalSchema.parse(await response.json()).error).toContain(
-					"target repository",
+					"/api/cases/pipeline",
 				);
 				expect(await caseDirectories(casesDirectory)).toEqual(before);
 			});

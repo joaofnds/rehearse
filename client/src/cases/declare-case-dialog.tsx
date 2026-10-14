@@ -1,8 +1,9 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useId, useState } from "react";
 import type { Immutable } from "#benchmark/contracts";
 import type { Check } from "#benchmark/session-check";
 import { launchClient } from "#client/api-client";
+import { refusalReason } from "#client/refusal-reason";
 import { Button } from "#client/system/ui/button";
 import {
 	Dialog,
@@ -13,8 +14,8 @@ import {
 	DialogTrigger,
 } from "#client/system/ui/dialog";
 import type { DeclareCaseRequest } from "#server/case-declaration";
-import { DECLARED_BY_HAND_REASON } from "#server/declared-by-hand";
 import { LAUNCH_CASES_QUERY_KEY } from "#client/launch/launch-dialog";
+import { pipelinesQuery } from "#client/tasks/pipelines-query";
 import { casesQuery } from "./cases-query";
 
 type CheckKind = Check["kind"];
@@ -51,9 +52,17 @@ interface CheckDraft {
 
 const NEW_CHECK: CheckDraft = { kind: "word-band", fields: {} };
 
+type CaseKind = "session" | "pipeline";
+
 interface Draft {
+	readonly kind: CaseKind;
 	readonly id: string;
 	readonly title: string;
+	readonly targetPath: string;
+	readonly task: string;
+	readonly productBrief: string;
+	/** The pipeline case whose steps and judges a new pipeline case starts from. */
+	readonly from: string;
 	readonly prompt: string;
 	readonly tools: string;
 	readonly corpusFiles: string;
@@ -63,8 +72,13 @@ interface Draft {
 }
 
 const EMPTY_DRAFT: Draft = {
+	kind: "session",
 	id: "",
 	title: "",
+	targetPath: "",
+	task: "",
+	productBrief: "",
+	from: "",
 	prompt: "",
 	tools: "",
 	corpusFiles: "",
@@ -181,6 +195,41 @@ async function postDeclaration(
 	throw new DeclarationRefusedError(await response.text());
 }
 
+/** A new pipeline case as the server's pipeline route reads one. */
+interface PipelineCaseRequest {
+	readonly id: string;
+	readonly title: string;
+	readonly targetPath: string;
+	readonly task: string;
+	readonly productBrief: string;
+	readonly from: string;
+}
+
+function pipelineRequest(draft: Draft, from: string): PipelineCaseRequest {
+	return {
+		id: draft.id.trim(),
+		title: draft.title,
+		targetPath: draft.targetPath.trim(),
+		task: draft.task,
+		productBrief: draft.productBrief,
+		from,
+	};
+}
+
+async function postPipelineDeclaration(
+	request: PipelineCaseRequest,
+): Promise<string> {
+	const response = await launchClient.api.cases.pipeline.$post(undefined, {
+		headers: { "Content-Type": "application/json" },
+		init: { body: JSON.stringify(request) },
+	});
+	if (response.status === 201) {
+		const declared = await response.json();
+		return declared.path;
+	}
+	throw new DeclarationRefusedError(await refusalReason(response));
+}
+
 const FIELD_CLASS =
 	"w-full min-w-0 rounded-md border border-strong bg-background px-2 py-1.5 font-mono text-sm";
 
@@ -238,7 +287,18 @@ function Field({
 	);
 }
 
-function KindChoice(): React.JSX.Element {
+const NO_PIPELINE_SOURCE_REASON =
+	"A pipeline case starts from another pipeline case's steps and judges, and none is declared. Import a task on the Tasks screen first.";
+
+function KindChoice({
+	kind,
+	pipelineAvailable,
+	onChange,
+}: {
+	readonly kind: CaseKind;
+	readonly pipelineAvailable: boolean;
+	readonly onChange: (kind: CaseKind) => void;
+}): React.JSX.Element {
 	const reasonId = useId();
 
 	return (
@@ -251,23 +311,43 @@ function KindChoice(): React.JSX.Element {
 			>
 				<span className="flex gap-4 text-sm">
 					<label className="flex items-center gap-1.5">
-						<input type="radio" name="kind" value="session" checked readOnly />
+						<input
+							type="radio"
+							name="kind"
+							value="session"
+							checked={kind === "session"}
+							onChange={() => {
+								onChange("session");
+							}}
+						/>
 						Session
 					</label>
-					<label className="flex items-center gap-1.5 text-dim">
+					<label
+						className={
+							pipelineAvailable
+								? "flex items-center gap-1.5"
+								: "flex items-center gap-1.5 text-dim"
+						}
+					>
 						<input
 							type="radio"
 							name="kind"
 							value="pipeline"
-							disabled
-							aria-describedby={reasonId}
+							checked={kind === "pipeline"}
+							disabled={!pipelineAvailable}
+							aria-describedby={pipelineAvailable ? undefined : reasonId}
+							onChange={() => {
+								onChange("pipeline");
+							}}
 						/>
 						Pipeline
 					</label>
 				</span>
-				<span id={reasonId} className="text-xs text-dim">
-					{DECLARED_BY_HAND_REASON}
-				</span>
+				{pipelineAvailable ? null : (
+					<span id={reasonId} className="text-xs text-dim">
+						{NO_PIPELINE_SOURCE_REASON}
+					</span>
+				)}
 			</dd>
 		</>
 	);
@@ -345,24 +425,189 @@ function CheckRow({
 	);
 }
 
+type DraftEdit = (change: Partial<Draft>) => void;
+
+function SessionFields({
+	draft,
+	edit,
+}: {
+	readonly draft: Draft;
+	readonly edit: DraftEdit;
+}): React.JSX.Element {
+	return (
+		<>
+			<dl className="grid grid-cols-4 items-center gap-x-3 gap-y-2 text-sm">
+				<Field
+					label="Prompt"
+					multiline
+					value={draft.prompt}
+					onChange={(prompt) => {
+						edit({ prompt });
+					}}
+				/>
+				<Field
+					label="Tools"
+					hint="Comma-separated, as the session may call them"
+					value={draft.tools}
+					onChange={(tools) => {
+						edit({ tools });
+					}}
+				/>
+				<Field
+					label="Corpus files"
+					multiline
+					hint="One layout path per line, read from the corpus a run reads"
+					value={draft.corpusFiles}
+					onChange={(corpusFiles) => {
+						edit({ corpusFiles });
+					}}
+				/>
+				<Field
+					label="Model"
+					value={draft.model}
+					onChange={(model) => {
+						edit({ model });
+					}}
+				/>
+				<Field
+					label="Session budget"
+					hint="USD, optional"
+					value={draft.sessionBudgetUsd}
+					onChange={(sessionBudgetUsd) => {
+						edit({ sessionBudgetUsd });
+					}}
+				/>
+			</dl>
+
+			<div className="flex flex-col gap-2">
+				{draft.checks.map((check, index) => (
+					<CheckRow
+						key={index}
+						position={index + 1}
+						check={check}
+						onChange={(changed) => {
+							edit({
+								checks: draft.checks.map((current, at) =>
+									at === index ? changed : current,
+								),
+							});
+						}}
+					/>
+				))}
+				<span>
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						onClick={() => {
+							edit({ checks: [...draft.checks, NEW_CHECK] });
+						}}
+					>
+						Add a check
+					</Button>
+				</span>
+			</div>
+		</>
+	);
+}
+
+function PipelineFields({
+	draft,
+	from,
+	sources,
+	edit,
+}: {
+	readonly draft: Draft;
+	readonly from: string;
+	readonly sources: readonly string[];
+	readonly edit: DraftEdit;
+}): React.JSX.Element {
+	const fromId = useId();
+	const fromHintId = useId();
+
+	return (
+		<dl className="grid grid-cols-4 items-center gap-x-3 gap-y-2 text-sm">
+			<Field
+				label="Target repository"
+				hint="A git repository root on this machine, absolute or relative to the case directory. A run works on a copy of its main branch."
+				value={draft.targetPath}
+				onChange={(targetPath) => {
+					edit({ targetPath });
+				}}
+			/>
+			<Field
+				label="Task"
+				multiline
+				hint="Markdown, the work the first step is handed"
+				value={draft.task}
+				onChange={(task) => {
+					edit({ task });
+				}}
+			/>
+			<Field
+				label="Product brief"
+				multiline
+				hint="Markdown, what the work is for"
+				value={draft.productBrief}
+				onChange={(productBrief) => {
+					edit({ productBrief });
+				}}
+			/>
+			<dt className="text-muted-foreground">
+				<label htmlFor={fromId}>Steps and judges from</label>
+			</dt>
+			<dd className="col-span-3 flex min-w-0 flex-col gap-1">
+				<select
+					id={fromId}
+					value={from}
+					aria-describedby={fromHintId}
+					onChange={(event) => {
+						edit({ from: event.target.value });
+					}}
+					className="h-9 min-w-0 rounded-md border border-strong bg-background px-2 font-mono text-sm"
+				>
+					{sources.map((source) => (
+						<option key={source} value={source}>
+							{source}
+						</option>
+					))}
+				</select>
+				<span id={fromHintId} className="text-xs text-dim">
+					Copies that case's steps, step rubrics, final rubric, target commands,
+					model and budget. Edit the steps afterwards from the Tasks screen.
+				</span>
+			</dd>
+		</dl>
+	);
+}
+
 function DeclareForm({
 	onDeclared,
 }: {
 	readonly onDeclared: (path: string) => void;
 }): React.JSX.Element {
 	const queryClient = useQueryClient();
+	const cases = useQuery(casesQuery);
+	const sources = (cases.data?.cases ?? [])
+		.filter((listed) => listed.kind === "pipeline")
+		.map(({ id }) => id);
 	const [draft, setDraft] = useState(EMPTY_DRAFT);
+	const from = sources.includes(draft.from) ? draft.from : (sources[0] ?? "");
 	const declare = useMutation({
-		mutationFn: postDeclaration,
+		mutationFn: (declared: Draft) =>
+			declared.kind === "session"
+				? postDeclaration(declarationRequest(declared))
+				: postPipelineDeclaration(pipelineRequest(declared, from)),
 		onSuccess: async (path) => {
 			onDeclared(path);
 			await Promise.all([
 				queryClient.invalidateQueries({ queryKey: casesQuery.queryKey }),
 				queryClient.invalidateQueries({ queryKey: LAUNCH_CASES_QUERY_KEY }),
+				queryClient.invalidateQueries({ queryKey: pipelinesQuery.queryKey }),
 			]);
 		},
 	});
-	const edit = (change: Partial<Draft>): void => {
+	const edit: DraftEdit = (change) => {
 		setDraft((current) => ({ ...current, ...change }));
 	};
 
@@ -370,7 +615,7 @@ function DeclareForm({
 		<form
 			onSubmit={(event) => {
 				event.preventDefault();
-				declare.mutate(declarationRequest(draft));
+				declare.mutate(draft);
 			}}
 		>
 			<header className="flex items-center gap-3 border-b border-strong px-4 py-3">
@@ -393,7 +638,13 @@ function DeclareForm({
 							edit({ id });
 						}}
 					/>
-					<KindChoice />
+					<KindChoice
+						kind={draft.kind}
+						pipelineAvailable={sources.length > 0}
+						onChange={(kind) => {
+							edit({ kind });
+						}}
+					/>
 					<Field
 						label="Title"
 						value={draft.title}
@@ -401,81 +652,23 @@ function DeclareForm({
 							edit({ title });
 						}}
 					/>
-					<Field
-						label="Prompt"
-						multiline
-						value={draft.prompt}
-						onChange={(prompt) => {
-							edit({ prompt });
-						}}
-					/>
-					<Field
-						label="Tools"
-						hint="Comma-separated, as the session may call them"
-						value={draft.tools}
-						onChange={(tools) => {
-							edit({ tools });
-						}}
-					/>
-					<Field
-						label="Corpus files"
-						multiline
-						hint="One layout path per line, read from the corpus a run reads"
-						value={draft.corpusFiles}
-						onChange={(corpusFiles) => {
-							edit({ corpusFiles });
-						}}
-					/>
-					<Field
-						label="Model"
-						value={draft.model}
-						onChange={(model) => {
-							edit({ model });
-						}}
-					/>
-					<Field
-						label="Session budget"
-						hint="USD, optional"
-						value={draft.sessionBudgetUsd}
-						onChange={(sessionBudgetUsd) => {
-							edit({ sessionBudgetUsd });
-						}}
-					/>
 				</dl>
 
-				<div className="flex flex-col gap-2">
-					{draft.checks.map((check, index) => (
-						<CheckRow
-							key={index}
-							position={index + 1}
-							check={check}
-							onChange={(changed) => {
-								edit({
-									checks: draft.checks.map((current, at) =>
-										at === index ? changed : current,
-									),
-								});
-							}}
-						/>
-					))}
-					<span>
-						<Button
-							type="button"
-							variant="outline"
-							size="sm"
-							onClick={() => {
-								edit({ checks: [...draft.checks, NEW_CHECK] });
-							}}
-						>
-							Add a check
-						</Button>
-					</span>
-				</div>
+				{draft.kind === "session" ? (
+					<SessionFields draft={draft} edit={edit} />
+				) : (
+					<PipelineFields
+						draft={draft}
+						from={from}
+						sources={sources}
+						edit={edit}
+					/>
+				)}
 
 				<DialogDescription>
-					Writes cases/&lt;id&gt;/case.json in the control repository. The file
-					is left uncommitted and unformatted, for you to format, review and
-					commit.
+					{draft.kind === "session"
+						? "Writes cases/<id>/case.json in the control repository, formatted and left uncommitted for you to review and commit."
+						: "Writes cases/<id>/ in the control repository: its case.json, the task and brief, and a copy of the chosen case's pipeline and rubrics, formatted and left uncommitted for you to review and commit."}
 				</DialogDescription>
 
 				{declare.isError ? (
@@ -503,8 +696,9 @@ function DeclareForm({
 }
 
 /**
- * Declares a session case from the browser. A pipeline case needs a target
- * repository and task files, so the form offers only the session kind.
+ * Declares a case from the browser: a session case from its prompt and
+ * checks, or a pipeline case from a task and brief with another pipeline
+ * case's steps and judges.
  */
 export function DeclareCaseDialog({
 	onDeclared,
