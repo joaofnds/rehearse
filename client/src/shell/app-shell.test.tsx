@@ -110,7 +110,7 @@ function renderShellAt(
 		readonly comparisons?: number;
 		readonly unreadableComparisons?: number;
 	},
-): void {
+): ReturnType<typeof renderAppAt> {
 	const runs = served?.runs ?? 0;
 	const corpusFiles = served?.corpusFiles ?? 0;
 	const comparisons = served?.comparisons ?? 0;
@@ -164,7 +164,7 @@ function renderShellAt(
 		]),
 	);
 
-	renderAppAt(path);
+	return renderAppAt(path);
 }
 
 const SPEC_NAV_LABELS = [
@@ -193,7 +193,7 @@ describe("the navigation shell", () => {
 		expect(labels).toEqual(SPEC_NAV_LABELS);
 	});
 
-	it("offers no link for a section that has no screen", async () => {
+	it("links every section to its screen", async () => {
 		renderShellAt("/");
 
 		const nav = await screen.findByRole("navigation", { name: "Sections" });
@@ -201,16 +201,7 @@ describe("the navigation shell", () => {
 			.getAllByRole("link")
 			.map((link) => within(link).getByText(NAV_LABEL).textContent);
 
-		expect(linked).toEqual([
-			"Run history",
-			"Live monitor",
-			"Comparisons",
-			"Corpus",
-			"Tasks",
-			"Cases",
-			"Calibration",
-			"Settings",
-		]);
+		expect(linked).toEqual(SPEC_NAV_LABELS);
 	});
 
 	it("reaches the settings screen from the rail", async () => {
@@ -556,18 +547,35 @@ describe("the navigation shell", () => {
 		},
 	);
 
-	it("says in words that a section without a screen is planned", async () => {
-		renderShellAt("/");
-
-		await waitFor(() => {
-			expect(
-				screen.getByRole("navigation", { name: "Sections" }),
-			).toBeInTheDocument();
+	it("opens the newest recorded run's detail from Run detail", async () => {
+		const router = renderShellAt("/", {
+			runs: 2,
+			sessionAttempts: 1,
+			corpusFiles: 0,
 		});
 
-		const planned = screen.getAllByText("planned");
+		fireEvent.click(await screen.findByRole("link", { name: "Run detail" }));
 
-		expect(planned).toHaveLength(1);
+		await waitFor(() => {
+			expect(router.state.location.pathname).toBe(
+				"/runs/2026-09-06T21-58-29.500Z",
+			);
+		});
+		expect(screen.getByRole("link", { name: "Run detail" })).toHaveAttribute(
+			"aria-current",
+			"page",
+		);
+	});
+
+	it("says Run detail has no run to open until a run is recorded", async () => {
+		renderShellAt("/runs", { runs: 0, sessionAttempts: 1, corpusFiles: 0 });
+
+		expect(
+			await screen.findByText(
+				"No run is recorded yet, so there is no run detail to open.",
+			),
+		).toBeInTheDocument();
+		expect(screen.queryByText("planned")).toBeNull();
 	});
 
 	it.each([
@@ -587,16 +595,14 @@ describe("the navigation shell", () => {
 		});
 	});
 
-	it("sends every live nav item and chord to a route the router serves", () => {
+	it("sends every nav item and chord to a route the router serves", () => {
 		const served = new Set<string>(
 			Object.values(createAppRouter().routesById).map(
 				(route) => route.fullPath,
 			),
 		);
 		const destinations: string[] = [
-			...NAV_ITEMS.map((item) => item.path).filter(
-				(path) => path !== undefined,
-			),
+			...NAV_ITEMS.map((item) => item.path),
 			...CHORD_DESTINATIONS.values(),
 		];
 

@@ -13,6 +13,7 @@ import { ComparisonsPage } from "#client/comparison/comparisons-page";
 import { CorpusPage } from "#client/corpus/corpus-page";
 import { EvidenceSourcePage } from "#client/evidence/evidence-source-page";
 import { MonitorPage } from "#client/monitor/monitor-page";
+import { NewestRunDetail } from "#client/run-detail/newest-run-detail";
 import { RunDetailPage } from "#client/run-detail/run-detail-page";
 import type { RunDetailSearch } from "#client/run-detail/run-detail-search";
 import { runDetailSearchSchema } from "#client/run-detail/run-detail-search";
@@ -189,6 +190,12 @@ function ConfirmationAttemptRoute(): React.JSX.Element {
 	return <SessionHistoryPage identity={{ kind: "confirmation", ...params }} />;
 }
 
+const newestRunDetailRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/runs",
+	component: NewestRunDetail,
+});
+
 const runDetailRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/runs/$run",
@@ -273,6 +280,7 @@ const routeTree = rootRoute.addChildren([
 	runHistoryRoute,
 	monitorRoute,
 	runMonitorRoute,
+	newestRunDetailRoute,
 	runDetailRoute,
 	stageHistoryRoute,
 	stageEvidenceRoute,

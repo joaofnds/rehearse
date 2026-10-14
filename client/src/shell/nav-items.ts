@@ -31,15 +31,14 @@ export type BadgeSource =
 export type BadgeCounts = Readonly<Record<BadgeSource, number | undefined>>;
 
 /**
- * A nav item is live when it carries a `path` and planned when it does not.
- * The router is not registered for typed paths, so a path naming no route
+ * The router is not registered for typed paths, so a `path` naming no route
  * would compile and ship as a link onto the not-found page. A test checks
  * each one against the route tree instead.
  */
 export interface NavItem {
 	readonly label: string;
 	readonly icon: LucideIcon;
-	readonly path?: string;
+	readonly path: string;
 	readonly badge?: BadgeSource;
 }
 
@@ -54,7 +53,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
 		path: "/monitor",
 		badge: "monitor",
 	},
-	{ label: "Run detail", icon: FileText },
+	{ label: "Run detail", icon: FileText, path: "/runs" },
 	{
 		label: "Comparisons",
 		icon: GitCompare,

@@ -45,20 +45,10 @@ function NavEntry({
 }: {
 	readonly label: string;
 	readonly icon: React.ReactNode;
-	readonly path: string | undefined;
+	readonly path: string;
 	readonly count: number | undefined;
 	readonly marksCurrent: boolean;
 }): React.JSX.Element {
-	if (path === undefined) {
-		return (
-			<li className="flex items-center gap-2.5 rounded-md border-l-2 border-transparent px-2.5 py-2 text-secondary-foreground opacity-60">
-				{icon}
-				<span className="flex-1">{label}</span>
-				<span className="font-mono text-xs text-dim">planned</span>
-			</li>
-		);
-	}
-
 	return (
 		<li>
 			<NavLink
