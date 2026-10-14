@@ -1922,8 +1922,7 @@ describe(sessionAttemptStaleness.name, () => {
 		expect(report.records).toEqual([]);
 		expect(report.unreadable).toContainEqual({
 			id: "attempt:session:retired-case/0f6b6f2a-0000-4000-8000-000000000001",
-			reason:
-				"case retired-case is no longer declared as a session case, so its corpus files are unknown",
+			reason: "corpus files unknown: case no longer declared",
 		});
 	});
 

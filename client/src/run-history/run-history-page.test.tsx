@@ -1375,7 +1375,7 @@ describe(RunHistoryPage.name, () => {
 
 			const alert = await screen.findByRole("alert");
 
-			expect(alert).toHaveTextContent("These records could not be read");
+			expect(alert).toHaveTextContent("could not be read");
 			expect(alert).not.toHaveTextContent("These runs");
 			expect(alert).toHaveTextContent("2 runs");
 			expect(alert).toHaveTextContent("2 confirmation runs");
@@ -2696,9 +2696,7 @@ describe(RunHistoryPage.name, () => {
 
 				await renderPage().findByText(GROUP);
 
-				expect(cellOf(GROUP, "Step grades").textContent).toBe(
-					"4 of 6 reps passed",
-				);
+				expect(cellOf(GROUP, "Step grades").textContent).toBe("4/6 passed");
 			});
 
 			it("counts only the reps it recorded, naming the reps it could not", async () => {
@@ -2712,7 +2710,7 @@ describe(RunHistoryPage.name, () => {
 				await renderPage().findByText(GROUP);
 
 				expect(cellOf(GROUP, "Step grades").textContent).toBe(
-					"4 of 5 reps passed1 of 6 reps not recorded",
+					"4/5 passed1 of 6 reps not recorded",
 				);
 			});
 

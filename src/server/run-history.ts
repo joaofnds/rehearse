@@ -116,8 +116,7 @@ export type { ContextLink, RunProgress } from "./run-status";
  */
 export type RowStaleness = Reading<Omit<RecordStaleness, "id" | "readFiles">>;
 
-export const UNJUDGED_REASON =
-	"no recorded checkpoint or attempt to judge against the corpus under test";
+export const UNJUDGED_REASON = "nothing recorded to judge";
 
 /**
  * One pipeline run's row, in decision-5's code vocabulary (`run`, `caseId`,

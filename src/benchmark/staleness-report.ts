@@ -828,7 +828,7 @@ async function sessionAttemptStalenessAgainst(
 		if (!known.has(attempt.caseId)) {
 			unreadable.push({
 				id: `attempt:session:${attempt.caseId}/${attempt.uuid}`,
-				reason: `case ${attempt.caseId} is no longer declared as a session case, so its corpus files are unknown`,
+				reason: "corpus files unknown: case no longer declared",
 			});
 		}
 	}
@@ -1167,9 +1167,7 @@ async function sessionCaseCorpusNow(
 		({ id }) => id === caseId,
 	);
 	if (declaration === undefined) {
-		throw new Error(
-			`case ${caseId} is no longer declared as a session case, so its corpus files are unknown`,
-		);
+		throw new Error("corpus files unknown: case no longer declared");
 	}
 
 	return currentCaseCorpus(declaration, source);

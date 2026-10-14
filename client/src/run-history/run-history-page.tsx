@@ -27,7 +27,6 @@ import { attemptLabel } from "#client/attempt-label";
 import { plural } from "#client/plural";
 import { ScreenHeader } from "#client/system/components/screen-header";
 import { SectionLabel } from "#client/system/components/section-label";
-import { Notice } from "#client/system/components/notice";
 import { LaunchDialog } from "#client/launch/launch-dialog";
 import { launchSettingsQuery } from "#client/launch/settings-query";
 import {
@@ -176,10 +175,14 @@ function UnreadableRecords({
 	readonly records: readonly UnreadableRecord[];
 }): React.JSX.Element {
 	return (
-		<Notice
-			message="These records could not be read, so they are missing from the table below:"
-			items={unreadableSummary(records)}
+		<div
+			role="alert"
+			className="flex flex-wrap items-baseline gap-x-2 text-xs text-secondary-foreground"
 		>
+			<p>
+				<span aria-hidden="true">⚠ </span>
+				{`${unreadableSummary(records).join(", ")} could not be read, so the table leaves them out.`}
+			</p>
 			<Disclosure
 				collapsedLabel={`show ${records.length}`}
 				expandedLabel="hide"
@@ -190,7 +193,7 @@ function UnreadableRecords({
 					))}
 				</ul>
 			</Disclosure>
-		</Notice>
+		</div>
 	);
 }
 
@@ -338,7 +341,9 @@ function runCell(row: HistoryRow, nowMs: number): React.JSX.Element {
 	return (
 		<span className="flex flex-col gap-0.5">
 			{recordName(row, name)}
-			<span className="font-mono text-xs text-dim">{momentOf(row, nowMs)}</span>
+			<span className="font-mono text-xs whitespace-nowrap text-dim">
+				{momentOf(row, nowMs)}
+			</span>
 		</span>
 	);
 }
@@ -383,9 +388,13 @@ function caseCell(row: HistoryRow): React.JSX.Element {
 			{row.caseId === undefined ? (
 				<span className="text-sm text-dim">case not recorded</span>
 			) : (
-				<span className="font-mono text-sm">{row.caseId}</span>
+				<span className="font-mono text-sm whitespace-nowrap">
+					{row.caseId}
+				</span>
 			)}
-			<span className="text-xs text-dim">{kindLine(row)}</span>
+			<span className="text-xs whitespace-nowrap text-dim">
+				{kindLine(row)}
+			</span>
 			{links.length > 0 ? (
 				<span className="flex flex-wrap gap-x-3">
 					{links.map((link) => contextLink(link))}
@@ -545,7 +554,9 @@ function outcomeOf(reading: OutcomePhrase): React.JSX.Element {
 function outcome({ state, phrase, reason }: OutcomePhrase): React.JSX.Element {
 	return (
 		<>
-			<Status state={state} label={phrase} />
+			<span className="whitespace-nowrap">
+				<Status state={state} label={phrase} />
+			</span>
 			<span className="text-xs text-dim">{reason}</span>
 		</>
 	);
@@ -946,7 +957,11 @@ function runStepGrades(stageGrades: StageGrades): React.JSX.Element {
 }
 
 function gradeTokens(text: string): React.JSX.Element {
-	return <span className="font-mono text-12 tracking-caps">{text}</span>;
+	return (
+		<span className="font-mono text-12 tracking-caps whitespace-nowrap">
+			{text}
+		</span>
+	);
 }
 
 /**
@@ -999,7 +1014,7 @@ function groupStepGrades(row: GroupRow): React.JSX.Element {
 	if (row.mode === "session") {
 		const recorded = recordedReps(row);
 		const passed = gradeTokens(
-			`${String(row.successful)} of ${plural(recorded, "rep")} passed`,
+			`${String(row.successful)}/${String(recorded)} passed`,
 		);
 		if (recorded === row.reps) {
 			return passed;

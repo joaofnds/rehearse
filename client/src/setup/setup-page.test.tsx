@@ -690,7 +690,7 @@ describe("first-run setup", () => {
 			},
 			{
 				holding: "only an unreadable record",
-				shows: "These records could not be read",
+				shows: "could not be read, so the table leaves them out",
 				records: {
 					rows: [],
 					launches: [],
