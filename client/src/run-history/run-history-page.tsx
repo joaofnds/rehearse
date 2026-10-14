@@ -10,6 +10,7 @@ import type { StatusState } from "#client/system/components/status";
 import { TableShell } from "#client/system/components/table-shell";
 import { Button } from "#client/system/ui/button";
 import { KeyHint } from "#client/system/components/key-hint";
+import { withinCase } from "#client/within-case";
 import { clockReading, liveElapsedMs, spendReading } from "./run-progress";
 import { listedEntryCount } from "./run-history-query";
 import type { RunHistoryResponse } from "./run-history-query";
@@ -219,18 +220,6 @@ function identityOf(row: HistoryRow): string {
 			return row satisfies never;
 		}
 	}
-}
-
-/**
- * A short id or checkpoint short id without the case it is filed under, since
- * the case cell beside it names the case.
- */
-function withinCase(shortId: string, caseId: string | undefined): string {
-	const prefix = `${caseId}/`;
-
-	return caseId !== undefined && shortId.startsWith(prefix)
-		? shortId.slice(prefix.length)
-		: shortId;
 }
 
 /** What kind of record the row is, in the design's few words. */

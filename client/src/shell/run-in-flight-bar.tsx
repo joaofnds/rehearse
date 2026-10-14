@@ -20,6 +20,7 @@ import {
 	announcements,
 	gradesSoFar,
 	nameOf,
+	nameWithinCase,
 	runsInFlight,
 	stepOf,
 	withGradesKnownBefore,
@@ -149,7 +150,7 @@ function RunReadings({
 			<span className="text-10">
 				<LiveGlyph />
 			</span>
-			<span className="font-mono text-pale">{nameOf(row)}</span>
+			<span className="font-mono text-pale">{nameWithinCase(row)}</span>
 			<span className="text-secondary-foreground">{row.caseId}</span>
 			<Separator />
 			<span>

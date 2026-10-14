@@ -8,7 +8,7 @@ import {
 	useStopLaunch,
 } from "#client/run-history/run-controls";
 import type { PipelineRow } from "#client/shell/run-in-flight";
-import { nameOf } from "#client/shell/run-in-flight";
+import { nameWithinCase } from "#client/shell/run-in-flight";
 import { CorpusPill } from "#client/system/components/corpus-pill";
 import { LiveGlyph } from "#client/system/components/status";
 import { Button } from "#client/system/ui/button";
@@ -102,7 +102,7 @@ export function RunIdentityHeader({
 						params={{ run: row.run }}
 						className="font-mono underline-offset-2 hover:underline"
 					>
-						{nameOf(row)}
+						{nameWithinCase(row)}
 					</Link>{" "}
 					in progress
 				</h1>

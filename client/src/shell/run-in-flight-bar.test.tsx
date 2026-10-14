@@ -163,6 +163,12 @@ describe("the run in flight on every screen", () => {
 		expect(within(shown).getByRole("button", { name: "Stop" })).toBeEnabled();
 	});
 
+	it("names the run within its case, since the case is named beside it", () => {
+		renderRunInFlight([runRow({ shortId: "audit-log/r33" })]);
+
+		expect(within(bar()).getByText("r33")).toBeInTheDocument();
+	});
+
 	it("marks the run with the pulsing glyph alone, as the design draws it", () => {
 		renderRunInFlight([runRow({})]);
 

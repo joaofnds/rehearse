@@ -5,6 +5,7 @@ import {
 } from "#benchmark/stopped-status";
 import type { RunListingResponse } from "#client/run-history/run-history-query";
 import { spendReading } from "#client/run-history/run-progress";
+import { withinCase } from "#client/within-case";
 
 type HistoryRow = RunListingResponse["rows"][number];
 export type PipelineRow = Extract<HistoryRow, { readonly kind: "run" }>;
@@ -70,6 +71,11 @@ export function gradesSoFar(row: PipelineRow): readonly string[] {
 /** The run as the bar and its announcements name it. */
 export function nameOf(row: PipelineRow): string {
 	return row.shortId ?? row.run;
+}
+
+/** The run as a reading that names its case beside it shows it. */
+export function nameWithinCase(row: PipelineRow): string {
+	return withinCase(nameOf(row), row.caseId);
 }
 
 function stepWords(step: Step | undefined): string {

@@ -152,6 +152,16 @@ describe("/monitor", () => {
 	});
 
 	describe("the identity header", () => {
+		it("names the run within its case, since the case is named beside it", async () => {
+			renderMonitor(runRow({ run: RUN, shortId: "audit-log/r33" }));
+
+			const shown = await header();
+
+			expect(
+				within(shown).getByRole("heading", { level: 1 }),
+			).toHaveTextContent("Run r33 in progress");
+		});
+
 		it("names the run, its case, corpus version, target, commit, model and effort", async () => {
 			renderMonitor(
 				runRow({

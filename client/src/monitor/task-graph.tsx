@@ -429,8 +429,8 @@ function StageNode({
 }
 
 /**
- * What a stage below the minimum grade does to the run, stated under the
- * graph. A run whose manifest predates the minimum grade has none to state.
+ * What a stage below the minimum grade does to the run. A run whose manifest
+ * predates the minimum grade has none to state.
  */
 function MinimumGradeNote({
 	record,
@@ -442,15 +442,16 @@ function MinimumGradeNote({
 	}
 
 	return (
-		<p className="px-5 pb-3 text-11 text-pretty text-dim">
+		<>
 			Minimum grade for every step in this task is{" "}
 			<span className="font-mono text-secondary-foreground">
 				{record.minimumGrade.letter}
 			</span>
 			. A step below it stops the run and restores{" "}
 			<span className="font-mono">{record.identity.target}</span> to{" "}
-			<span className="font-mono">{shortCommit(record.identity.commit)}</span>.
-		</p>
+			<span className="font-mono">{shortCommit(record.identity.commit)}</span>
+			.{" "}
+		</>
 	);
 }
 
@@ -482,7 +483,7 @@ export function TaskGraph({
 	return (
 		<section
 			aria-label="Task graph"
-			className="min-h-66.25 overflow-y-auto border-b border-divider bg-secondary"
+			className="max-h-3/5 min-h-66.25 overflow-y-auto border-b border-divider bg-secondary"
 		>
 			<div className="flex items-center gap-3.75 px-5 pt-2.5">
 				<h2 className="text-10 font-medium tracking-label text-dim uppercase">
@@ -514,11 +515,10 @@ export function TaskGraph({
 					))}
 				</ol>
 			</div>
-			<MinimumGradeNote record={record} />
 			<p className="px-5 pb-3 text-11 text-pretty text-dim">
-				A step shows what its record says it produced until an analysis of the
-				ended run gives one agent's reading of its contribution to the task's
-				final grade.
+				<MinimumGradeNote record={record} />A step shows what its record says it
+				produced until an analysis of the ended run gives one agent's reading of
+				its contribution to the task's final grade.
 			</p>
 		</section>
 	);
