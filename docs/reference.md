@@ -787,7 +787,7 @@ collected, not that the attempt used zero context or cost.
 from a transcript this machine recorded, updates the declaration's
 digest/source/cut, and writes the prefix under `cases/<id>/`, beside the
 declaration that names it. The cut is a positive zero-based index of the first
-dropped record. Run the formatter after capture.
+dropped record. The declaration is written as the project's formatter leaves it.
 
 Two stores are searched: the provider's own sessions under `~/.claude/projects`,
 and the attempts the harness saved under `.benchmark-runs/sessions`. Either

@@ -10,6 +10,7 @@ import {
 	casesRoot,
 } from "#benchmark/case";
 import { CONTROL_DIR, DEFAULT_CASE_ID } from "#benchmark/config";
+import { projectFormatted } from "#benchmark/project-format";
 import { sessionAttemptPaths } from "#benchmark/run-layout";
 import { TestResources } from "#benchmark/test-support";
 import type { OutputRecorder } from "#cli/cli-test-support";
@@ -368,7 +369,23 @@ describe(runCaseCapture.name, () => {
 		expect(written).toContain('\n\t"id": "capture-probe"');
 	});
 
-	it("tells the operator to run the formatter, which a capture cannot leave green on its own", async () => {
+	it("writes the committed declaration as the project's formatter leaves it", async () => {
+		const cases = await probeCase();
+		const projects = await probeProjects(SESSION_ID);
+
+		await capture(
+			{ session: SESSION_ID, cut: "2", json: false },
+			projects,
+			cases,
+		);
+
+		const written = await Bun.file(
+			join(cases, CAPTURE_CASE_ID, "case.json"),
+		).text();
+		expect(written).toBe(await projectFormatted("case.json", written));
+	});
+
+	it("leaves the operator nothing to run before committing", async () => {
 		const cases = await probeCase();
 		const projects = await probeProjects(SESSION_ID);
 
@@ -378,20 +395,7 @@ describe(runCaseCapture.name, () => {
 			cases,
 		);
 
-		expect(recorder.stderr.join("")).toContain("bun run fmt");
-	});
-
-	it("says nothing about the formatter on the record --json prints", async () => {
-		const cases = await probeCase();
-		const projects = await probeProjects(SESSION_ID);
-
-		const recorder = await capture(
-			{ session: SESSION_ID, cut: "3", json: true },
-			projects,
-			cases,
-		);
-
-		expect(recorder.stdout.join("")).not.toContain("bun run fmt");
+		expect(recorder.stderr).toEqual([]);
 	});
 
 	it("records the transcript in the committed declaration on disk", async () => {

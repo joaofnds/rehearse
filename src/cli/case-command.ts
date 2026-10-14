@@ -14,6 +14,7 @@ import {
 	transcriptPrefixPath,
 } from "#benchmark/case";
 import { asRefusedPrecondition } from "#benchmark/preflight";
+import { projectFormatted } from "#benchmark/project-format";
 import { sessionAttemptIds, sessionAttemptPaths } from "#benchmark/run-layout";
 import {
 	captureTranscriptPrefix,
@@ -40,18 +41,12 @@ function serialize(
 }
 
 /**
- * A case declaration is committed, and the repository formats committed JSON
- * with a tab, not the two spaces every run-directory record takes. The indent
- * is as far as `JSON.stringify` reaches: oxfmt also collapses a short array
- * onto one line, which no `stringify` option produces, so a real declaration
- * still needs the formatter run over it. That is what FORMAT_NOTE says.
+ * A case declaration is committed, so it is written as the project's formatter
+ * would leave it and the format check stays green without another step.
  */
-function serializeCommitted(declaration: CaseDeclaration): string {
-	return `${JSON.stringify(declaration, null, "\t")}\n`;
+function serializeCommitted(declaration: CaseDeclaration): Promise<string> {
+	return projectFormatted("case.json", JSON.stringify(declaration, null, "\t"));
 }
-
-const FORMAT_NOTE =
-	"Run `bun run fmt` before committing: a captured declaration is written with the repository's tab indent, but only the formatter collapses its short arrays.\n";
 
 export interface CaseListRequest {
 	readonly json: boolean;
@@ -233,10 +228,12 @@ export async function runCaseCapture(
 			cut,
 		},
 	};
-	await Bun.write(declarationFile(caseId, root), serializeCommitted(updated));
+	await Bun.write(
+		declarationFile(caseId, root),
+		await serializeCommitted(updated),
+	);
 
 	dependencies.output.stdout(
 		request.json ? serialize(updated) : `${declarationFile(caseId, root)}\n`,
 	);
-	dependencies.output.stderr(FORMAT_NOTE);
 }
