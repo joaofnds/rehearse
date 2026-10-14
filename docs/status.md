@@ -227,13 +227,14 @@ links no attempt history, since its attempts record no session.
 
 ## Browser UI
 
-Every screen carries a navigation rail listing the nine sections the design
-enumerates. It links eight of them, run history, the Live monitor, the saved
-comparisons, the corpus, Tasks, Cases, Calibration and Settings, with a badge on run
-history, the monitor, the comparisons, the corpus and Calibration counting that
-collection, the monitor's counting the pipeline runs in flight and
-Calibration's the recorded operator reviews, and marks the ninth, Run detail, planned. The run and comparison badges leave out the entries that cannot be
-read. The rail reaches no other address. The comparisons screen links each saved comparison to its own
+Every screen carries a navigation rail linking the nine sections the design
+enumerates: run history, the Live monitor, Run detail, the saved comparisons, the
+corpus, Tasks, Cases, Calibration and Settings. Run detail opens the newest pipeline
+run the run listing holds, and says no run is recorded when it holds none. Run
+history, the monitor, the comparisons, the corpus and Calibration carry a badge
+counting that collection, the monitor's counting the pipeline runs in flight and
+Calibration's the recorded operator reviews. The run and comparison badges leave out
+the entries that cannot be read. The rail reaches no other address. The comparisons screen links each saved comparison to its own
 page, in digest order because no comparison records when it was made, and a
 comparison screen links onward to the attempts it names. The Tasks screen lists
 one card per pipeline a case declares as its default or a run or pipeline
