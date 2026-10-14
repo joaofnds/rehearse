@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { fireEvent, screen, within } from "@testing-library/react";
+import { z } from "zod";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { PipelinesResponse } from "./pipelines-query";
 import { TasksPage } from "./tasks-page";
 import type { RunHistoryResponse } from "#client/run-history/run-history-query";
-import { stubFetchByPath } from "#client/test-support/fetch-stub";
+import { FakeServer, stubFetchByPath } from "#client/test-support/fetch-stub";
+import type { Reply, SentRequest } from "#client/test-support/fetch-stub";
 import {
 	renderAppAt,
 	renderAppWithStub,
@@ -187,14 +189,186 @@ describe(TasksPage.name, () => {
 		expect(within(card).getByText("shape → build")).toBeInTheDocument();
 	});
 
-	it("draws Edit steps on each card but says it is not wired yet", async () => {
-		renderTasksAt("/tasks", [declaredTask()]);
+	describe("editing a task's steps", () => {
+		const STEPS_PATH = "/api/cases/audit-log/steps";
+		const PLANNING_RUBRIC = "cases/audit-log/rubrics/shape.json";
+		const DELIVERY_RUBRIC = "cases/audit-log/rubrics/build.json";
+		const SHAPING_STEP = {
+			name: "shape",
+			kind: "planning",
+			skill: "shape",
+			rubric: PLANNING_RUBRIC,
+			requiresAcceptanceCriteria: true,
+		};
+		const BUILD_STEP = {
+			name: "build",
+			kind: "delivery",
+			skill: "build",
+			rubric: DELIVERY_RUBRIC,
+		};
+		const DECLARED_STEPS = {
+			caseId: "audit-log",
+			pipeline: TASK_PATH,
+			stages: [SHAPING_STEP, BUILD_STEP],
+			rubrics: [DELIVERY_RUBRIC, PLANNING_RUBRIC],
+		};
 
-		const card = await screen.findByRole("article", { name: TASK_PATH });
-		const edit = within(card).getByRole("button", { name: "Edit steps" });
+		function serving(refusal?: Reply): FakeServer {
+			const response: PipelinesResponse = {
+				pipelines: [declaredTask(), overrideTask()],
+				unreadable: [],
+			};
+			const server = new FakeServer(
+				new Map<string, Reply>([
+					...[...SHELL_BASELINE].map(([path, body]): [string, Reply] => [
+						`GET ${path}`,
+						{ status: 200, body },
+					]),
+					["GET /api/pipelines", { status: 200, body: response }],
+					[`GET ${STEPS_PATH}`, { status: 200, body: DECLARED_STEPS }],
+					[
+						`PUT ${STEPS_PATH}`,
+						refusal ?? { status: 200, body: DECLARED_STEPS },
+					],
+				]),
+			);
+			server.install();
+			renderAppAt("/tasks");
 
-		expect(edit).toHaveAttribute("aria-disabled", "true");
-		expect(edit).toHaveAccessibleDescription("Not wired yet");
+			return server;
+		}
+
+		async function openEditor(): Promise<HTMLElement> {
+			const card = await screen.findByRole("article", { name: TASK_PATH });
+			fireEvent.click(within(card).getByRole("button", { name: "Edit steps" }));
+			const dialog = await screen.findByRole("dialog", {
+				name: "Edit steps · audit-log",
+			});
+			await within(dialog).findByRole("group", { name: "Step 1" });
+
+			return dialog;
+		}
+
+		const savedStepsSchema = z.object({
+			stages: z.array(z.record(z.string(), z.unknown())),
+		});
+
+		function savedSteps(
+			sent: readonly Readonly<SentRequest>[],
+		): z.infer<typeof savedStepsSchema> {
+			const put = sent.filter(
+				({ method, pathname }) => method === "PUT" && pathname === STEPS_PATH,
+			);
+			expect(put).toHaveLength(1);
+
+			return savedStepsSchema.parse(JSON.parse(put[0]?.body ?? ""));
+		}
+
+		it("opens the steps its case's pipeline file declares", async () => {
+			serving();
+
+			const dialog = await openEditor();
+			const build = within(dialog).getByRole("group", { name: "Step 2" });
+
+			expect(within(build).getByLabelText("Name")).toHaveValue("build");
+			expect(within(build).getByLabelText("Kind")).toHaveValue("delivery");
+			expect(within(build).getByLabelText("Skill")).toHaveValue("build");
+			expect(within(build).getByLabelText("Rubric")).toHaveValue(
+				DELIVERY_RUBRIC,
+			);
+			expect(dialog).toHaveTextContent(TASK_PATH);
+		});
+
+		it("saves an edited skill into the case's pipeline and closes", async () => {
+			const server = serving();
+
+			const dialog = await openEditor();
+			const build = within(dialog).getByRole("group", { name: "Step 2" });
+			fireEvent.change(within(build).getByLabelText("Skill"), {
+				target: { value: "deliver" },
+			});
+			fireEvent.click(
+				within(dialog).getByRole("button", { name: "Save steps" }),
+			);
+
+			await waitFor(() => {
+				expect(screen.queryByRole("dialog")).toBeNull();
+			});
+			expect(savedSteps(server.sent)).toEqual({
+				stages: [SHAPING_STEP, { ...BUILD_STEP, skill: "deliver" }],
+			});
+		});
+
+		it("adds, moves and removes steps before it saves them in their new order", async () => {
+			const server = serving();
+
+			const dialog = await openEditor();
+			fireEvent.click(
+				within(dialog).getByRole("button", { name: "Add a step" }),
+			);
+			const added = within(dialog).getByRole("group", { name: "Step 3" });
+			fireEvent.change(within(added).getByLabelText("Name"), {
+				target: { value: "verify" },
+			});
+			fireEvent.change(within(added).getByLabelText("Skill"), {
+				target: { value: "verify" },
+			});
+			fireEvent.click(within(added).getByRole("button", { name: "Move up" }));
+			fireEvent.click(
+				within(within(dialog).getByRole("group", { name: "Step 1" })).getByRole(
+					"button",
+					{ name: "Remove" },
+				),
+			);
+			fireEvent.click(
+				within(dialog).getByRole("button", { name: "Save steps" }),
+			);
+
+			await waitFor(() => {
+				expect(screen.queryByRole("dialog")).toBeNull();
+			});
+			expect(savedSteps(server.sent)).toEqual({
+				stages: [
+					{
+						name: "verify",
+						kind: "delivery",
+						skill: "verify",
+						rubric: DELIVERY_RUBRIC,
+					},
+					BUILD_STEP,
+				],
+			});
+		});
+
+		it("keeps the editor open with the server's refusal in words", async () => {
+			serving({
+				status: 400,
+				body: {
+					error: "Pipeline stage build names a rubric it cannot use",
+				},
+			});
+
+			const dialog = await openEditor();
+			fireEvent.click(
+				within(dialog).getByRole("button", { name: "Save steps" }),
+			);
+
+			expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+				"Pipeline stage build names a rubric it cannot use",
+			);
+		});
+
+		it("offers no editor for a pipeline no case declares, which has no file of its own to edit", async () => {
+			serving();
+
+			const card = await screen.findByRole("article", {
+				name: "cases/audit-log/pipelines/build-only.json",
+			});
+
+			expect(
+				within(card).queryByRole("button", { name: "Edit steps" }),
+			).toBeNull();
+		});
 	});
 
 	it("opens the live monitor on the newest of its runs in flight", async () => {

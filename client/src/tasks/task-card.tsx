@@ -1,9 +1,9 @@
 import { Link } from "@tanstack/react-router";
 import { useId } from "react";
 import { NO_RUNS, runsCounted, runsLeftOut } from "#client/latest-version-runs";
-import { NOT_WIRED_REASON } from "#client/not-wired";
 import { plural } from "#client/plural";
 import { Button } from "#client/system/ui/button";
+import { EditStepsDialog } from "./edit-steps-dialog";
 import type { PipelinesResponse } from "./pipelines-query";
 
 export type ListedTask = PipelinesResponse["pipelines"][number];
@@ -82,7 +82,6 @@ export function TaskCard({
 	readonly runInFlight: string | undefined;
 }): React.JSX.Element {
 	const headingId = useId();
-	const reasonId = useId();
 
 	return (
 		<article
@@ -115,16 +114,12 @@ export function TaskCard({
 				<span className="font-mono text-11-5">{task.stages.join(" → ")}</span>
 				<span className="ml-auto flex items-center gap-2">
 					<OpenGraph runInFlight={runInFlight} />
-					<span id={reasonId} className="text-11-5 text-dim">
-						{NOT_WIRED_REASON}
-					</span>
-					<Button
-						variant="quiet"
-						aria-disabled="true"
-						aria-describedby={reasonId}
-					>
-						Edit steps
-					</Button>
+					{task.declaredBy === null ? null : (
+						<EditStepsDialog
+							caseId={task.declaredBy.id}
+							trigger={<Button variant="quiet">Edit steps</Button>}
+						/>
+					)}
 				</span>
 			</div>
 		</article>

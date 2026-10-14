@@ -583,20 +583,47 @@ describe("/monitor step modal", () => {
 			);
 		});
 
-		it("draws step editing disabled as planned and opens skill editing on the Corpus screen", async () => {
-			renderMonitor([recordStage("plan", FINISHED_PLAN), recordStage("build")]);
+		it("opens the step's case's step editor on this step, and skill editing on the Corpus screen", async () => {
+			const rubric = "cases/audit-log/rubrics/plan.json";
+			renderMonitor(
+				[recordStage("plan", FINISHED_PLAN), recordStage("build")],
+				new Map([
+					[
+						"/api/cases/audit-log/steps",
+						{
+							caseId: "audit-log",
+							pipeline: "cases/audit-log/pipelines/default.json",
+							stages: [
+								{
+									name: "plan",
+									kind: "planning",
+									skill: "plan",
+									rubric,
+									requiresAcceptanceCriteria: false,
+								},
+								{ name: "build", kind: "delivery", skill: "build", rubric },
+							],
+							rubrics: [rubric],
+						},
+					],
+				]),
+			);
 
 			const dialog = await openModal("plan");
-
-			expect(
-				within(dialog).getByRole("button", { name: "Edit this step" }),
-			).toHaveAttribute("aria-disabled", "true");
 			expect(
 				within(dialog).getByRole("link", { name: "Edit its skill" }),
 			).toHaveAttribute("href", "/corpus");
-			expect(dialog).toHaveTextContent(
-				"Editing a step is planned for a later version. Its skill and the other instruction files are edited on the Corpus screen, which writes a new corpus version.",
+			fireEvent.click(
+				within(dialog).getByRole("button", { name: "Edit this step" }),
 			);
+
+			const editor = await screen.findByRole("dialog", {
+				name: "Edit steps · audit-log",
+			});
+			const plan = await within(editor).findByRole("group", { name: "Step 1" });
+			await waitFor(() => {
+				expect(within(plan).getByLabelText("Name")).toHaveFocus();
+			});
 		});
 	});
 });

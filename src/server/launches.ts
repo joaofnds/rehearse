@@ -1170,6 +1170,7 @@ export const createLaunchApp = (dependencies: LaunchDependencies) => {
 			try {
 				return context.json(
 					await declaredSteps(dependencies.casesRoot, context.req.param("id")),
+					200,
 				);
 			} catch (error) {
 				if (!(error instanceof StepEditRefusalError)) {
@@ -1193,6 +1194,7 @@ export const createLaunchApp = (dependencies: LaunchDependencies) => {
 						context.req.param("id"),
 						parsed.data.stages,
 					),
+					200,
 				);
 			} catch (error) {
 				if (!(error instanceof StepEditRefusalError)) {

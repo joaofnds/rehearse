@@ -15,6 +15,7 @@ import {
 import { Grade } from "#client/system/components/grade";
 import { STATUS_VOCABULARY } from "#client/system/components/status";
 import { Button } from "#client/system/ui/button";
+import { EditStepsDialog } from "#client/tasks/edit-steps-dialog";
 import { withinCase } from "#client/within-case";
 import {
 	Dialog,
@@ -564,16 +565,22 @@ function OperateOnStep({
 			<SectionTitle>Operate on this step</SectionTitle>
 			<div className="mt-2 flex flex-wrap gap-2">
 				<ReplayFromCheckpoint run={run} record={record} stage={stage} />
-				<Button variant="outline" size="sm" aria-disabled="true">
-					Edit this step
-				</Button>
+				<EditStepsDialog
+					caseId={record.caseId}
+					focusStage={stage}
+					trigger={
+						<Button variant="outline" size="sm">
+							Edit this step
+						</Button>
+					}
+				/>
 				<Button variant="outline" size="sm" asChild>
 					<Link to="/corpus">Edit its skill</Link>
 				</Button>
 			</div>
 			<p className="mt-2 text-11 text-pretty text-dim">
-				Editing a step is planned for a later version. Its skill and the other
-				instruction files are edited on the{" "}
+				Editing a step changes its case&apos;s pipeline file, which the next run
+				reads. Its skill and the other instruction files are edited on the{" "}
 				<Link to="/corpus">Corpus screen</Link>, which writes a new corpus
 				version.
 			</p>
