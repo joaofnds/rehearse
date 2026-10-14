@@ -54,6 +54,7 @@ import type {
 	RowStaleness,
 	SessionAttemptRow,
 } from "#server/run-history";
+import { recordMoment } from "./record-moment";
 import { RunHistoryPage } from "./run-history-page";
 
 type RunHistoryResponseBody = InferResponseType<typeof apiClient.api.runs.$get>;
@@ -1626,16 +1627,24 @@ describe(RunHistoryPage.name, () => {
 		};
 
 		it.each([
-			["replay", "2026-09-06T22-33-15.057Z"],
-			["session attempt", "0f6b6f2a-0000-4000-8000-000000000001"],
-		])("leaves a %s's own identity unlinked", async (_kind, identity) => {
+			[
+				"replay",
+				"2026-09-06T22-33-15.057Z",
+				"/replays/60758c/2026-09-06T22-33-15.057Z",
+			],
+			[
+				"session attempt",
+				"0f6b6f2a-0000-4000-8000-000000000001",
+				"/attempts/session/brief-reply/0f6b6f2a-0000-4000-8000-000000000001",
+			],
+		])("opens a %s's context from its id", async (_kind, identity, href) => {
 			respondingWith(everyKind);
 
 			await renderPage().findByText("group-a");
 
 			expect(
-				within(cellOf(identity, "Run")).queryByRole("link"),
-			).not.toBeInTheDocument();
+				within(cellOf(identity, "Run")).getByRole("link", { name: identity }),
+			).toHaveAttribute("href", href);
 		});
 
 		it.each([
@@ -1683,7 +1692,7 @@ describe(RunHistoryPage.name, () => {
 			expect(cellOf("group-a", "Corpus")).toHaveTextContent("corpus@dddddd");
 		});
 
-		it("opens each available context from a link in the case cell, named by what it opens", async () => {
+		it("opens each stage and rep from a link in the case cell, named by what it opens", async () => {
 			respondingWith(everyKind);
 
 			await renderPage().findByText("group-a");
@@ -1693,16 +1702,6 @@ describe(RunHistoryPage.name, () => {
 					"2026-09-06T21-58-29.508Z",
 					"shape",
 					"/runs/2026-09-06T21-58-29.508Z/stages/shape",
-				],
-				[
-					"2026-09-06T22-33-15.057Z",
-					"context",
-					"/replays/60758c/2026-09-06T22-33-15.057Z",
-				],
-				[
-					"0f6b6f2a-0000-4000-8000-000000000001",
-					"context",
-					"/attempts/session/brief-reply/0f6b6f2a-0000-4000-8000-000000000001",
 				],
 				["group-a", "rep 1", "/groups/group-a/reps/group-a-rep-1/attempt"],
 			] as const) {
@@ -1738,7 +1737,7 @@ describe(RunHistoryPage.name, () => {
 			await renderPage().findByText("group-a");
 
 			expect(cellOf("2026-09-06T22-33-15.057Z", "Case")).toHaveTextContent(
-				/replay · shape(?! ·)/u,
+				/replay shape(?! ·)/u,
 			);
 		});
 
@@ -1748,15 +1747,15 @@ describe(RunHistoryPage.name, () => {
 			await renderPage().findByText("group-a");
 
 			expect(
-				cellOf("0f6b6f2a-0000-4000-8000-000000000001", "Case"),
+				cellOf("0f6b6f2a-0000-4000-8000-000000000001", "Run"),
 			).toHaveTextContent("time not recorded");
-			expect(cellOf("group-a", "Case")).toHaveTextContent("time not recorded");
-			expect(cellOf("2026-09-06T22-33-15.057Z", "Case")).not.toHaveTextContent(
+			expect(cellOf("group-a", "Run")).toHaveTextContent("time not recorded");
+			expect(cellOf("2026-09-06T22-33-15.057Z", "Run")).not.toHaveTextContent(
 				"time not recorded",
 			);
 		});
 
-		it("names when a session attempt or group started where its record holds the time", async () => {
+		it("says when a session attempt or group started where its record holds the time", async () => {
 			respondingWith({
 				...everyKind,
 				rows: everyKind.rows.map((row) =>
@@ -1768,15 +1767,14 @@ describe(RunHistoryPage.name, () => {
 
 			await renderPage().findByText("group-a");
 
+			const started = recordMoment(
+				Date.parse("2026-10-08T10:15:00.000Z"),
+				Date.now(),
+			);
 			expect(
-				cellOf("0f6b6f2a-0000-4000-8000-000000000001", "Case"),
-			).toHaveTextContent("session attempt · started 2026-10-08T10:15:00.000Z");
-			expect(cellOf("group-a", "Case")).toHaveTextContent(
-				/· started 2026-10-08T10:15:00\.000Z/u,
-			);
-			expect(cellOf("group-a", "Case")).not.toHaveTextContent(
-				"time not recorded",
-			);
+				cellOf("0f6b6f2a-0000-4000-8000-000000000001", "Run"),
+			).toHaveTextContent(started);
+			expect(cellOf("group-a", "Run")).toHaveTextContent(started);
 		});
 
 		it("counts every listed record on the All pill and the subline", async () => {
@@ -1872,7 +1870,13 @@ describe(RunHistoryPage.name, () => {
 					stage: "build",
 					grade: "A",
 					status: "CONTINUE",
-					links: [],
+					links: [
+						{
+							state: "available",
+							label: "context",
+							href: "/replays/60758c/2026-09-06T22-33-15.057Z",
+						},
+					],
 				},
 				{
 					kind: "group",
@@ -1894,18 +1898,17 @@ describe(RunHistoryPage.name, () => {
 			unreadable: [],
 		};
 
-		it("names each record by its short id, with the identity it is filed under beneath", async () => {
+		it("names each record by its short id within its case, with when it ran beneath", async () => {
 			respondingWith(named);
 
-			await renderPage().findByText("group-a");
+			await renderPage().findByText("g4");
 
-			for (const [identity, shortId] of [
-				["2026-09-07T00-00-00.000Z", "audit-log/r7"],
-				["2026-09-06T22-33-15.057Z", "audit-log/r6"],
-				["group-a", "brief-reply/g4"],
+			for (const [shortId, ran] of [
+				["r7", "2026-09-07T00:00:00.000Z"],
+				["r6", "2026-09-06T22:33:15.057Z"],
 			] as const) {
-				expect(cellOf(identity, "Run")).toHaveTextContent(
-					`${shortId}${identity}`,
+				expect(cellOf(shortId, "Run")).toHaveTextContent(
+					`${shortId}${recordMoment(Date.parse(ran), Date.now())}`,
 				);
 			}
 		});
@@ -1915,34 +1918,40 @@ describe(RunHistoryPage.name, () => {
 
 			const page = renderPage();
 
-			expect(
-				await page.findByRole("link", { name: "audit-log/r7" }),
-			).toHaveAttribute("href", "/runs/2026-09-07T00-00-00.000Z");
+			expect(await page.findByRole("link", { name: "r7" })).toHaveAttribute(
+				"href",
+				"/runs/2026-09-07T00-00-00.000Z",
+			);
 		});
 
-		it.each([
-			["replay", "2026-09-06T22-33-15.057Z"],
-			["confirmation run", "group-a"],
-		])(
-			"leaves a %s's id unlinked, since only a pipeline run has a run detail",
-			async (_kind, identity) => {
-				respondingWith(named);
-
-				await renderPage().findByText("group-a");
-
-				expect(
-					within(cellOf(identity, "Run")).queryByRole("link"),
-				).not.toBeInTheDocument();
-			},
-		);
-
-		it("names the checkpoint a replay started from and which attempt there it is", async () => {
+		it("opens a replay's context from its short id", async () => {
 			respondingWith(named);
 
-			await renderPage().findByText("group-a");
+			const page = renderPage();
 
-			expect(cellOf("2026-09-06T22-33-15.057Z", "Case")).toHaveTextContent(
-				"replay · build · from audit-log/r2/s1 · attempt 2 of 3",
+			expect(await page.findByRole("link", { name: "r6" })).toHaveAttribute(
+				"href",
+				"/replays/60758c/2026-09-06T22-33-15.057Z",
+			);
+		});
+
+		it("leaves a confirmation run's id unlinked, since its reps open from the case cell", async () => {
+			respondingWith(named);
+
+			await renderPage().findByText("g4");
+
+			expect(
+				within(cellOf("g4", "Run")).queryByRole("link"),
+			).not.toBeInTheDocument();
+		});
+
+		it("names the checkpoint a replay started from within its case and which attempt there it is", async () => {
+			respondingWith(named);
+
+			await renderPage().findByText("g4");
+
+			expect(cellOf("r6", "Case")).toHaveTextContent(
+				"replay build · r2/s1 · attempt 2 of 3",
 			);
 		});
 	});

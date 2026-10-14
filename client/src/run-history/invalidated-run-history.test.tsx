@@ -21,6 +21,9 @@ const LATER = `c09b11${"0".repeat(58)}`;
 const RUN_A = "2026-09-12T00-00-00.000Z";
 const RUN_B = "2026-09-13T00-00-00.000Z";
 const RUN_C = "2026-09-14T00-00-00.000Z";
+const NAME_A = "r1";
+const NAME_B = "r2";
+const NAME_C = "r3";
 
 const LIVE_SETTINGS = {
 	spendCeilingUsd: 5,
@@ -35,8 +38,14 @@ function history(
 	unreadable: RunHistoryResponse["unreadable"] = [],
 ): RunHistoryResponse {
 	return {
-		rows: [RUN_C, RUN_B, RUN_A].map((run) =>
-			runRow({ run, status: "COMPLETE" }),
+		rows: (
+			[
+				[RUN_C, NAME_C],
+				[RUN_B, NAME_B],
+				[RUN_A, NAME_A],
+			] as const
+		).map(([run, name]) =>
+			runRow({ run, shortId: `audit-log/${name}`, status: "COMPLETE" }),
 		),
 		launches: [],
 		unreadable,
@@ -134,9 +143,9 @@ describe("/?invalidatedBy", () => {
 		fireEvent.click(await screen.findByRole("link", { name: "review them" }));
 
 		const table = await durableRecords();
-		expect(within(table).getByText(RUN_A)).toBeInTheDocument();
-		expect(within(table).getByText(RUN_C)).toBeInTheDocument();
-		expect(within(table).queryByText(RUN_B)).toBeNull();
+		expect(within(table).getByText(NAME_A)).toBeInTheDocument();
+		expect(within(table).getByText(NAME_C)).toBeInTheDocument();
+		expect(within(table).queryByText(NAME_B)).toBeNull();
 	});
 
 	it("reads the last edit again on arrival, so an edit made after the corpus screen loaded is not taken for the one the link names", async () => {
@@ -158,7 +167,7 @@ describe("/?invalidatedBy", () => {
 		await screen.findByText(
 			/The edit this address names is no longer the last edit/u,
 		);
-		expect(screen.queryByText(RUN_B)).toBeNull();
+		expect(screen.queryByText(NAME_B)).toBeNull();
 	});
 
 	it("lists no rows from the corpus report read before arrival while it is read again", async () => {
@@ -183,7 +192,7 @@ describe("/?invalidatedBy", () => {
 		await waitFor(() => {
 			expect(held()).toBe(1);
 		});
-		expect(screen.getByText(RUN_A)).toBeInTheDocument();
+		expect(screen.getByText(NAME_A)).toBeInTheDocument();
 	});
 
 	it("keeps listing the rows when a later read of run history fails", async () => {
@@ -195,7 +204,7 @@ describe("/?invalidatedBy", () => {
 		focusManager.setFocused(true);
 
 		await screen.findByText("Could not load run history.");
-		expect(screen.getByText(RUN_A)).toBeInTheDocument();
+		expect(screen.getByText(NAME_A)).toBeInTheDocument();
 	});
 
 	it("names the corpus versions the edit went from and to", async () => {
@@ -217,7 +226,7 @@ describe("/?invalidatedBy", () => {
 		fireEvent.click(screen.getByRole("button", { name: "All 3" }));
 
 		await waitFor(() => {
-			expect(screen.getByText(RUN_B)).toBeInTheDocument();
+			expect(screen.getByText(NAME_B)).toBeInTheDocument();
 		});
 		expect(screen.queryByText(/invalidated by the edit from/u)).toBeNull();
 	});
@@ -231,7 +240,7 @@ describe("/?invalidatedBy", () => {
 		);
 
 		await waitFor(() => {
-			expect(screen.getByText(RUN_B)).toBeInTheDocument();
+			expect(screen.getByText(NAME_B)).toBeInTheDocument();
 		});
 		expect(
 			screen.queryByRole("button", { name: "Invalidated by the last edit" }),
@@ -270,9 +279,24 @@ describe("/?invalidatedBy", () => {
 		/** Runs A and C were invalidated; B and C share a case. */
 		const BY_CASE: RunHistoryResponse = {
 			rows: [
-				runRow({ run: RUN_C, status: "COMPLETE", caseId: "brief-reply" }),
-				runRow({ run: RUN_B, status: "COMPLETE", caseId: "brief-reply" }),
-				runRow({ run: RUN_A, status: "COMPLETE", caseId: "audit-log" }),
+				runRow({
+					run: RUN_C,
+					shortId: `brief-reply/${NAME_C}`,
+					status: "COMPLETE",
+					caseId: "brief-reply",
+				}),
+				runRow({
+					run: RUN_B,
+					shortId: `brief-reply/${NAME_B}`,
+					status: "COMPLETE",
+					caseId: "brief-reply",
+				}),
+				runRow({
+					run: RUN_A,
+					shortId: `audit-log/${NAME_A}`,
+					status: "COMPLETE",
+					caseId: "audit-log",
+				}),
 			],
 			launches: [],
 			unreadable: [],
@@ -291,10 +315,10 @@ describe("/?invalidatedBy", () => {
 			search("brief");
 
 			await waitFor(() => {
-				expect(screen.queryByText(RUN_A)).toBeNull();
+				expect(screen.queryByText(NAME_A)).toBeNull();
 			});
-			expect(screen.getByText(RUN_C)).toBeInTheDocument();
-			expect(screen.queryByText(RUN_B)).toBeNull();
+			expect(screen.getByText(NAME_C)).toBeInTheDocument();
+			expect(screen.queryByText(NAME_B)).toBeNull();
 		});
 
 		it("says no record matches when the search hides every invalidated result", async () => {

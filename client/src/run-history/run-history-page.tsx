@@ -14,12 +14,14 @@ import { listedEntryCount } from "./run-history-query";
 import type { RunHistoryResponse } from "./run-history-query";
 import { polledRunHistoryQuery } from "./run-history-polling";
 import { useNow } from "./use-now";
+import { recordMoment } from "./record-moment";
 import { runStatusState } from "./run-status";
 import {
 	CORPUS_VERSION_LABEL,
 	corpusMeasurementReading,
 	corpusVersionLabel,
 } from "#benchmark/corpus-version-label";
+import { recordedInstant } from "#benchmark/recorded-instant";
 import { isStopped, stoppedStageOf } from "#benchmark/stopped-status";
 import { attemptLabel } from "#client/attempt-label";
 import { plural } from "#client/plural";
@@ -216,36 +218,41 @@ function identityOf(row: HistoryRow): string {
 }
 
 /**
- * When an attempt or group started, or, where its record holds no time, that
- * the newest-first order could not place it.
+ * A short id or checkpoint short id without the case it is filed under, since
+ * the case cell beside it names the case.
  */
-function startLabel(startedAt: string | undefined): string {
-	return startedAt === undefined ? "time not recorded" : `started ${startedAt}`;
+function withinCase(shortId: string, caseId: string | undefined): string {
+	const prefix = `${caseId}/`;
+
+	return caseId !== undefined && shortId.startsWith(prefix)
+		? shortId.slice(prefix.length)
+		: shortId;
 }
 
-/** What kind of record the row is, and when it started where that is not its name. */
+/** What kind of record the row is, in the design's few words. */
 function kindLine(row: HistoryRow): string {
 	switch (row.kind) {
 		case "run": {
-			return "pipeline run";
+			return row.stageGrades.state === "available"
+				? `task · ${plural(row.stageGrades.grades.length, "step")}`
+				: "task";
 		}
 		case "session-attempt": {
-			return `session attempt · ${startLabel(row.startedAt)}`;
+			return "single session";
 		}
 		case "replay": {
 			return [
-				"replay",
-				row.stage,
+				`replay ${row.stage}`,
 				row.checkpointShortId === undefined
 					? undefined
-					: `from ${row.checkpointShortId}`,
+					: withinCase(row.checkpointShortId, row.caseId),
 				row.attempt === undefined ? undefined : attemptLabel(row.attempt),
 			]
 				.filter((part) => part !== undefined)
 				.join(" · ");
 		}
 		case "group": {
-			return `confirmation run · ${row.mode} · ${plural(row.reps, "rep")} · ${startLabel(row.startedAt)}`;
+			return `group · ${plural(row.reps, "rep")} · ${row.mode}`;
 		}
 		default: {
 			return row satisfies never;
@@ -253,39 +260,91 @@ function kindLine(row: HistoryRow): string {
 	}
 }
 
-/** A pipeline run's name opens its run detail, which no other record has. */
+/** The time a row's record says it ran: a run's name, a replay's timestamp, or a start time. */
+function recordedTime(row: HistoryRow): string | undefined {
+	switch (row.kind) {
+		case "run": {
+			return row.run;
+		}
+		case "replay": {
+			return row.timestamp;
+		}
+		case "session-attempt":
+		case "group": {
+			return row.startedAt;
+		}
+		default: {
+			return row satisfies never;
+		}
+	}
+}
+
+function momentOf(row: HistoryRow, nowMs: number): string {
+	const time = recordedTime(row);
+	const instant = time === undefined ? undefined : recordedInstant(time);
+
+	return instant === undefined
+		? "time not recorded"
+		: recordMoment(instant, nowMs);
+}
+
+/** The context page a replay or session attempt opens, which is the record itself. */
+function recordContext(row: HistoryRow): string | undefined {
+	if (row.kind !== "replay" && row.kind !== "session-attempt") {
+		return undefined;
+	}
+
+	return row.links.flatMap((link) =>
+		link.state === "available" ? [link.href] : [],
+	)[0];
+}
+
+const RECORD_NAME_CLASS =
+	"self-start font-mono text-sm text-accent-foreground underline decoration-deeper underline-offset-4 hover:text-pale";
+
+/** A record's name opens its run detail or its context page, where it has one. */
 function recordName(row: HistoryRow, name: string): React.JSX.Element {
-	if (row.kind !== "run") {
+	if (row.kind === "run") {
+		return (
+			<Link
+				to="/runs/$run"
+				params={{ run: row.run }}
+				className={RECORD_NAME_CLASS}
+			>
+				{name}
+			</Link>
+		);
+	}
+
+	const context = recordContext(row);
+	if (context === undefined) {
 		return <span className="font-mono text-sm">{name}</span>;
 	}
 
 	return (
-		<Link
-			to="/runs/$run"
-			params={{ run: row.run }}
-			className="inline-flex min-h-14 items-start self-start font-mono text-sm text-accent-foreground underline decoration-deeper underline-offset-4 hover:text-pale"
-		>
+		<a href={context} className={RECORD_NAME_CLASS}>
 			{name}
-		</Link>
+		</a>
 	);
 }
 
-/** The record's short id, with the identity it is filed under beneath. */
-function runCell(row: HistoryRow): React.JSX.Element {
-	if (row.shortId === undefined) {
-		return recordName(row, identityOf(row));
-	}
+/** The record's short id within its case, with when it ran beneath. */
+function runCell(row: HistoryRow, nowMs: number): React.JSX.Element {
+	const name =
+		row.shortId === undefined
+			? identityOf(row)
+			: withinCase(row.shortId, row.caseId);
 
 	return (
 		<span className="flex flex-col gap-0.5">
-			{recordName(row, row.shortId)}
-			<span className="font-mono text-xs text-dim">{identityOf(row)}</span>
+			{recordName(row, name)}
+			<span className="font-mono text-xs text-dim">{momentOf(row, nowMs)}</span>
 		</span>
 	);
 }
 
 const LINK_CLASS =
-	"inline-flex min-h-14 items-center text-xs text-accent-foreground underline decoration-deeper underline-offset-4 hover:text-pale";
+	"inline-flex items-center text-xs text-accent-foreground underline decoration-deeper underline-offset-4 hover:text-pale";
 
 function contextLink(link: ContextLink): React.JSX.Element {
 	switch (link.state) {
@@ -309,7 +368,16 @@ function contextLink(link: ContextLink): React.JSX.Element {
 	}
 }
 
+/** The links the case cell lists: every one but the context the run cell opens. */
+function caseLinks(row: HistoryRow): readonly ContextLink[] {
+	return recordContext(row) === undefined
+		? row.links
+		: row.links.filter((link) => link.state !== "available");
+}
+
 function caseCell(row: HistoryRow): React.JSX.Element {
+	const links = caseLinks(row);
+
 	return (
 		<span className="flex flex-col items-start gap-0.5">
 			{row.caseId === undefined ? (
@@ -318,9 +386,9 @@ function caseCell(row: HistoryRow): React.JSX.Element {
 				<span className="font-mono text-sm">{row.caseId}</span>
 			)}
 			<span className="text-xs text-dim">{kindLine(row)}</span>
-			{row.links.length > 0 ? (
+			{links.length > 0 ? (
 				<span className="flex flex-wrap gap-x-3">
-					{row.links.map(contextLink)}
+					{links.map((link) => contextLink(link))}
 				</span>
 			) : null}
 		</span>
@@ -368,7 +436,7 @@ function CompareChoice({
 			first.stage === checkpoint.stage);
 
 	return (
-		<label className="flex min-h-11 items-center gap-2 text-xs text-dim">
+		<label className="flex items-center gap-2 text-xs text-dim">
 			<input
 				type="checkbox"
 				aria-label={`Compare ${row.groupId}`}
@@ -552,7 +620,7 @@ function stoppedOutcome(row: RunHistoryRow, stage: string): RunPhrase {
 		reason: (
 			<a
 				href={`/runs/${encodeURIComponent(row.run)}/stages/${encodeURIComponent(stage)}`}
-				className="inline-flex min-h-14 items-start self-start text-accent-foreground underline decoration-deeper underline-offset-4 hover:text-pale"
+				className="inline-flex items-start self-start text-accent-foreground underline decoration-deeper underline-offset-4 hover:text-pale"
 			>
 				<span className="line-clamp-2 break-words">
 					{stopReason(row, stage)}
@@ -1591,7 +1659,7 @@ export function RunHistoryPage({
 							rows={[
 								...launches.map((launch) => launchCells(launch)),
 								...rows.map((row) => [
-									<span key="run">{runCell(row)}</span>,
+									<span key="run">{runCell(row, nowMs)}</span>,
 									<span key="case">{caseCell(row)}</span>,
 									outcomeCell(row, choice),
 									stepGradesCell(row),
