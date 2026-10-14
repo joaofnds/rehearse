@@ -49,7 +49,7 @@ import {
 	FakeLauncher,
 } from "./launch-test-support";
 import { compareAttempts } from "#benchmark/compare-attempts";
-import { projectFormatted } from "./project-format";
+import { projectFormatted } from "#benchmark/project-format";
 import { createLaunchApp } from "./launches";
 
 const NOTHING_RUNNING: RunLiveness = {

@@ -12,7 +12,7 @@ import {
 import type { Immutable } from "#benchmark/contracts";
 import type { CorpusRoot } from "#benchmark/corpus-file";
 import { CorpusFileError, resolveCorpusFile } from "#benchmark/corpus-file";
-import { projectFormatted } from "./project-format";
+import { projectFormatted } from "#benchmark/project-format";
 import { redactAbsolutePaths } from "./redact-path";
 
 const CASE_FIELDS = new Set<string>(

@@ -8,7 +8,7 @@ import type { RunLiveness } from "#benchmark/run-liveness";
 import { directoryLiveCorpus, FakeLauncher } from "./launch-test-support";
 import { runCommand } from "#benchmark/command";
 import { createLaunchApp } from "./launches";
-import { projectFormatted } from "./project-format";
+import { projectFormatted } from "#benchmark/project-format";
 
 const NOTHING_RUNNING: RunLiveness = {
 	readMarker: () => Promise.resolve(undefined),

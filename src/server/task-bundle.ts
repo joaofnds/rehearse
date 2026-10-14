@@ -31,7 +31,7 @@ import {
 	refusingAs,
 } from "./pipeline-steps";
 import { checkedPipeline, readDeclaredPipeline } from "./pipelines";
-import { projectFormatted } from "./project-format";
+import { projectFormatted } from "#benchmark/project-format";
 import { redactAbsolutePaths } from "./redact-path";
 
 export const TASK_BUNDLE_FORMAT = "rehearse-task-bundle";

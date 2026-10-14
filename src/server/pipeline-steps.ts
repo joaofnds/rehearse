@@ -16,7 +16,7 @@ import {
 	declaredPipelineFile,
 	readDeclaredPipeline,
 } from "./pipelines";
-import { projectFormatted } from "./project-format";
+import { projectFormatted } from "#benchmark/project-format";
 import { redactAbsolutePaths } from "./redact-path";
 
 /** A pipeline file's top level, which the harness has already read as valid. */
