@@ -7,7 +7,7 @@ import { isShortcutKey } from "./shortcut-key";
  * a `g` typed and abandoned does not turn an unrelated later keystroke into a
  * navigation.
  */
-const CHORD_WINDOW_MS = 1500;
+export const CHORD_WINDOW_MS = 1500;
 
 /**
  * Where each `g` chord goes, keyed by the chord's second key. A test checks

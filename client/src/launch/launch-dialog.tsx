@@ -14,6 +14,8 @@ import { spendReading } from "#client/run-history/run-progress";
 import { FilterPill } from "#client/system/components/filter-pill";
 import { Notice } from "#client/system/components/notice";
 import { Button } from "#client/system/ui/button";
+import { KeyHint } from "#client/system/components/key-hint";
+import { useKeyShortcut } from "#client/shell/use-key-shortcut";
 import type { LaunchRequest } from "#server/launches";
 import { LaunchRefusedError, postLaunch } from "./post-launch";
 import { launchSettingsQuery } from "./settings-query";
@@ -790,9 +792,12 @@ function ChosenReplayForm({
  */
 export function LaunchDialog({
 	target,
+	shortcut,
 	...opener
 }: {
 	readonly target: LaunchTarget;
+	/** The key that opens the dialog from anywhere on the page, shown on the trigger. */
+	readonly shortcut?: string;
 } & (
 	| { readonly triggerLabel: string; readonly trigger?: undefined }
 	| { readonly trigger: React.ReactNode; readonly triggerLabel?: undefined }
@@ -801,12 +806,18 @@ export function LaunchDialog({
 	const close = (): void => {
 		setOpen(false);
 	};
+	useKeyShortcut(shortcut, () => {
+		setOpen(true);
+	});
 
 	return (
 		<Dialog open={open} onOpenChange={setOpen}>
 			<DialogTrigger asChild>
 				{opener.trigger ?? (
-					<Button variant="outline">{opener.triggerLabel}</Button>
+					<Button variant="outline" aria-keyshortcuts={shortcut}>
+						{opener.triggerLabel}
+						{shortcut === undefined ? null : <KeyHint letter={shortcut} />}
+					</Button>
 				)}
 			</DialogTrigger>
 			<DialogContent>

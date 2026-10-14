@@ -2294,6 +2294,32 @@ describe(RunHistoryPage.name, () => {
 		).toBeInTheDocument();
 	});
 
+	it("opens the launch dialog on n", async () => {
+		stubFetchByPath(
+			new Map([["/api/runs", { rows: [], launches: [], unreadable: [] }]]),
+		);
+		renderPage();
+		await screen.findByRole("button", { name: "New run" });
+
+		fireEvent.keyDown(document.body, { key: "n" });
+
+		expect(
+			await screen.findByRole("dialog", { name: "Start a run" }),
+		).toBeInTheDocument();
+	});
+
+	it("leaves an n typed into the search field to the search", async () => {
+		stubFetchByPath(
+			new Map([["/api/runs", { rows: [], launches: [], unreadable: [] }]]),
+		);
+		renderPage();
+		await screen.findByRole("button", { name: "New run" });
+
+		fireEvent.keyDown(screen.getByRole("searchbox"), { key: "n" });
+
+		expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+	});
+
 	describe("the step grades and task grade of a pipeline run", () => {
 		const RUN = "2026-09-20T10-00-00.000Z";
 
@@ -4122,6 +4148,27 @@ describe(RunHistoryPage.name, () => {
 			expect(replay.parentElement).toContainElement(
 				page.getByRole("button", { name: "New run" }),
 			);
+		});
+
+		it("opens on r", async () => {
+			serving();
+			const { page, replayAction } = renderHistory();
+			await replayAction();
+
+			fireEvent.keyDown(document.body, { key: "r" });
+
+			expect(await page.findByRole("dialog")).toBeInTheDocument();
+		});
+
+		it("leaves the r that ends a g r chord to the chord", async () => {
+			serving();
+			const { page, replayAction } = renderHistory();
+			await replayAction();
+
+			fireEvent.keyDown(document.body, { key: "g" });
+			fireEvent.keyDown(document.body, { key: "r" });
+
+			expect(page.queryByRole("dialog")).not.toBeInTheDocument();
 		});
 
 		it("opens on the newest stopped run's stopped step", async () => {

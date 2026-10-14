@@ -9,6 +9,7 @@ import { Status } from "#client/system/components/status";
 import type { StatusState } from "#client/system/components/status";
 import { TableShell } from "#client/system/components/table-shell";
 import { Button } from "#client/system/ui/button";
+import { KeyHint } from "#client/system/components/key-hint";
 import { clockReading, liveElapsedMs, spendReading } from "./run-progress";
 import { listedEntryCount } from "./run-history-query";
 import type { RunHistoryResponse } from "./run-history-query";
@@ -1532,6 +1533,7 @@ function ReplayAStep({
 				)}
 				<Button variant="outline" disabled>
 					Replay a step
+					<KeyHint letter="r" />
 				</Button>
 			</>
 		);
@@ -1545,6 +1547,7 @@ function ReplayAStep({
 				opensOn: offer.opensOn,
 			}}
 			triggerLabel="Replay a step"
+			shortcut="r"
 		/>
 	);
 }
@@ -1622,7 +1625,11 @@ export function RunHistoryPage({
 								query.data === undefined ? undefined : replayOffer(recorded)
 							}
 						/>
-						<LaunchDialog target={{ kind: "case" }} triggerLabel="New run" />
+						<LaunchDialog
+							target={{ kind: "case" }}
+							triggerLabel="New run"
+							shortcut="n"
+						/>
 					</span>
 				}
 			/>
