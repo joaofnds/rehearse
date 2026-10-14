@@ -307,7 +307,7 @@ export function SessionPane({
 						params={{ run, stage }}
 						className="ml-auto text-11-5"
 					>
-						open session.jsonl
+						open transcript
 					</Link>
 				) : null}
 			</div>

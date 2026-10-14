@@ -22,7 +22,6 @@ import { SessionHistoryPage } from "#client/session-history/session-history-page
 import { SettingsPage } from "#client/settings/settings-page";
 import { AppShell } from "#client/shell/app-shell";
 import { NotFoundPage } from "#client/shell/not-found-page";
-import { SystemPage } from "#client/system/system-page";
 import { TasksPage } from "#client/tasks/tasks-page";
 
 const rootRoute = createRootRoute({
@@ -74,17 +73,32 @@ function RunMonitorRoute(): React.JSX.Element {
 	return <MonitorPage run={params.run} />;
 }
 
-const systemRoute = createRoute({
-	getParentRoute: () => rootRoute,
-	path: "/system",
-	component: SystemPage,
+/** A link opens a corpus file in the editor, and may name its lines. */
+const CORPUS_SEARCH = z.object({
+	file: z.string().optional(),
+	start: z.coerce.number().int().positive().optional(),
+	end: z.coerce.number().int().positive().optional(),
 });
 
 const corpusRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/corpus",
-	component: CorpusPage,
+	validateSearch: CORPUS_SEARCH,
+	component: CorpusRoute,
 });
+
+function CorpusRoute(): React.JSX.Element {
+	const { file, start, end }: z.infer<typeof CORPUS_SEARCH> =
+		corpusRoute.useSearch();
+	const lines = start === undefined ? undefined : { start, end: end ?? start };
+
+	return (
+		<CorpusPage
+			key={file}
+			opened={file === undefined ? undefined : { path: file, lines }}
+		/>
+	);
+}
 
 const settingsRoute = createRoute({
 	getParentRoute: () => rootRoute,
@@ -286,7 +300,6 @@ const routeTree = rootRoute.addChildren([
 	stageEvidenceRoute,
 	finalEvidenceRoute,
 	replayHistoryRoute,
-	systemRoute,
 	corpusRoute,
 	comparisonsRoute,
 	comparisonRoute,

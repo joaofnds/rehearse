@@ -13,6 +13,7 @@ import { launchSettingsQuery } from "#client/launch/settings-query";
 import type { AppliedCorpusEdit } from "./corpus-edit-requests";
 import { AppliedEdit, CorpusEditor } from "./corpus-edit";
 import { LastEditCard } from "./last-edit-card";
+import type { LineRange } from "./line-range";
 
 type CorpusFile = CorpusResponse["files"][number];
 
@@ -81,9 +82,19 @@ function rowFor(
 	];
 }
 
+/** A corpus file a link opens in the editor, with the lines it names. */
+export interface OpenedCorpusFile {
+	readonly path: string;
+	readonly lines?: LineRange | undefined;
+}
+
 type EditState =
 	| { readonly kind: "idle" }
-	| { readonly kind: "editing"; readonly path: string }
+	| {
+			readonly kind: "editing";
+			readonly path: string;
+			readonly lines?: LineRange | undefined;
+	  }
 	| {
 			readonly kind: "applied";
 			readonly path: string;
@@ -156,6 +167,7 @@ function EditBody({
 				<CorpusEditor
 					key={edit.path}
 					path={edit.path}
+					lines={edit.lines}
 					onDiscard={() => {
 						onEdit({ kind: "idle" });
 					}}
@@ -174,10 +186,18 @@ function EditBody({
 	}
 }
 
-export function CorpusPage(): React.JSX.Element {
+export function CorpusPage({
+	opened,
+}: {
+	readonly opened?: OpenedCorpusFile | undefined;
+}): React.JSX.Element {
 	const query = useQuery(corpusQuery);
 	const settings = useQuery(launchSettingsQuery);
-	const [edit, setEdit] = useState<EditState>({ kind: "idle" });
+	const [edit, setEdit] = useState<EditState>(
+		opened === undefined
+			? { kind: "idle" }
+			: { kind: "editing", path: opened.path, lines: opened.lines },
+	);
 	const onEdit =
 		settings.isSuccess && settings.data.linkedCorpus.kind === "directory"
 			? (path: string) => {

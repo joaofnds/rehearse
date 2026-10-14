@@ -148,7 +148,7 @@ export function CorpusSettingsCard(): React.JSX.Element {
 				<input
 					value={directory}
 					aria-label="Corpus directory to link"
-					placeholder="~/code/omelette/.claude"
+					placeholder="an absolute path, or one starting with ~/"
 					onChange={(event) => {
 						setDirectory(event.target.value);
 					}}

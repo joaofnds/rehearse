@@ -85,14 +85,6 @@ describe(createAppRouter.name, () => {
 		});
 	});
 
-	it("renders the design system reference at /system", async () => {
-		renderAppWithStub("/system", new Map<string, unknown>());
-
-		await waitFor(() => {
-			expect(screen.getByText("Rehearse design system")).toBeInTheDocument();
-		});
-	});
-
 	it("renders the corpus screen at /corpus", async () => {
 		renderAppWithStub(
 			"/corpus",

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { corpusVersionLabel } from "#benchmark/corpus-version-label";
 import { LaunchDialog } from "#client/launch/launch-dialog";
 import { plural } from "#client/plural";
@@ -16,6 +16,8 @@ import {
 } from "./corpus-edit-requests";
 import { corpusQuery } from "./corpus-query";
 import { DiffPreview } from "./diff-preview";
+import { lineRangeOffsets } from "./line-range";
+import type { LineRange } from "./line-range";
 
 /** The attempts a paired rerun offers, enough to tell a change from noise. */
 const PAIRED_RERUN_ATTEMPTS = 3;
@@ -76,10 +78,13 @@ interface Reviewed {
  */
 export function CorpusEditor({
 	path,
+	lines,
 	onDiscard,
 	onApplied,
 }: {
 	readonly path: string;
+	/** The lines selected once the text opens, where a link named them. */
+	readonly lines?: LineRange | undefined;
 	readonly onDiscard: () => void;
 	readonly onApplied: (applied: AppliedCorpusEdit) => void;
 }): React.JSX.Element {
@@ -91,6 +96,16 @@ export function CorpusEditor({
 		gcTime: 0,
 	});
 	const [draft, setDraft] = useState<string>();
+	const field = useRef<HTMLTextAreaElement>(null);
+	const linesSelected = useRef(false);
+	useEffect(() => {
+		const element = field.current;
+		if (element !== null && lines !== undefined && !linesSelected.current) {
+			linesSelected.current = true;
+			const { start, end } = lineRangeOffsets(element.value, lines);
+			element.setSelectionRange(start, end);
+		}
+	}, [file.isSuccess, lines]);
 	const [reviewed, setReviewed] = useState<Reviewed>();
 	/**
 	 * A refusal can mean the file changed since it was opened, so it is read
@@ -138,6 +153,7 @@ export function CorpusEditor({
 					<span className="font-mono">{path}</span>
 				</label>
 				<textarea
+					ref={field}
 					id={textId}
 					value={text}
 					rows={Math.min(24, Math.max(6, text.split("\n").length + 1))}

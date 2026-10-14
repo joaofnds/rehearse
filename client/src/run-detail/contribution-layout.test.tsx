@@ -9,7 +9,7 @@ import {
 	renderContribution,
 	serveContribution,
 	stoppedAtBuild,
-} from "./run-detail-fixtures";
+} from "#client/test-support/run-detail";
 
 const originalFetch = globalThis.fetch;
 
@@ -102,7 +102,10 @@ describe("the Root-cause analysis section", () => {
 		).toBeEnabled();
 		expect(
 			within(section).getByRole("link", { name: "Open the block it names" }),
-		).toHaveAttribute("href", "/corpus");
+		).toHaveAttribute(
+			"href",
+			"/corpus?file=skills%2Fimplement.md&start=12&end=30",
+		);
 		expect(
 			within(section).getByRole("button", {
 				name: "Re-run the analysis · at most $1.00",

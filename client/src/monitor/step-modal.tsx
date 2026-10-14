@@ -460,7 +460,7 @@ function SessionLink({
 	if (session.data.transcriptPath === undefined) {
 		return (
 			<span className="self-center text-11-5 text-muted-foreground">
-				session.jsonl not recorded: {NO_KEPT_TRANSCRIPT}
+				Transcript not recorded: {NO_KEPT_TRANSCRIPT}
 			</span>
 		);
 	}
@@ -471,7 +471,7 @@ function SessionLink({
 			params={{ run, stage }}
 			className="self-center text-11-5"
 		>
-			session.jsonl on disk
+			Open its transcript
 		</Link>
 	);
 }
@@ -551,6 +551,23 @@ function ReplayFromCheckpoint({
 	);
 }
 
+/** The corpus file the step read as its skill, where its record names one. */
+function corpusSkillPath(
+	record: RunRecordResponse,
+	stage: string,
+): string | undefined {
+	const reads = record.stages.find(
+		(each) => each.stage === stage,
+	)?.readManifest;
+	if (reads?.state !== "available") {
+		return undefined;
+	}
+
+	return reads.entries.find(
+		({ role, half }) => role === "stage skill" && half === "corpus",
+	)?.path;
+}
+
 function OperateOnStep({
 	run,
 	record,
@@ -560,6 +577,8 @@ function OperateOnStep({
 	readonly record: RunRecordResponse;
 	readonly stage: string;
 }): React.JSX.Element {
+	const skill = corpusSkillPath(record, stage);
+
 	return (
 		<>
 			<SectionTitle>Operate on this step</SectionTitle>
@@ -574,9 +593,13 @@ function OperateOnStep({
 						</Button>
 					}
 				/>
-				<Button variant="outline" size="sm" asChild>
-					<Link to="/corpus">Edit its skill</Link>
-				</Button>
+				{skill === undefined ? null : (
+					<Button variant="outline" size="sm" asChild>
+						<Link to="/corpus" search={{ file: skill }}>
+							Edit its skill
+						</Link>
+					</Button>
+				)}
 			</div>
 			<p className="mt-2 text-11 text-pretty text-dim">
 				Editing a step changes its case&apos;s pipeline file, which the next run

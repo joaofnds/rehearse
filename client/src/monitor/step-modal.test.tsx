@@ -527,7 +527,7 @@ describe("/monitor step modal", () => {
 
 			expect(
 				await within(dialog).findByRole("link", {
-					name: "session.jsonl on disk",
+					name: "Open its transcript",
 				}),
 			).toHaveAttribute("href", `/runs/${RUN}/stages/plan`);
 		});
@@ -544,7 +544,7 @@ describe("/monitor step modal", () => {
 
 			expect(
 				await within(dialog).findByText(
-					"session.jsonl not recorded: Rehearse kept no copy of this step's session",
+					"Transcript not recorded: Rehearse kept no copy of this step's session",
 				),
 			).toBeInTheDocument();
 		});
@@ -612,7 +612,10 @@ describe("/monitor step modal", () => {
 			const dialog = await openModal("plan");
 			expect(
 				within(dialog).getByRole("link", { name: "Edit its skill" }),
-			).toHaveAttribute("href", "/corpus");
+			).toHaveAttribute(
+				"href",
+				`/corpus?file=${encodeURIComponent(SKILL_PATH)}`,
+			);
 			fireEvent.click(
 				within(dialog).getByRole("button", { name: "Edit this step" }),
 			);

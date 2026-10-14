@@ -610,7 +610,18 @@ describe("/monitor task graph", () => {
 		expect(shown).toHaveTextContent("2 of 4 fired");
 		expect(shown).toHaveTextContent("a41c7e");
 		expect(shown).toHaveTextContent("◆ckpt-0148-s1");
-		expect(shown).toHaveTextContent("contribution pending");
+	});
+
+	it("says nothing of what a finished stage produced when its record counts nothing and no analysis reads it", async () => {
+		renderGraph([
+			recordStage("plan", { status: "graded" }),
+			recordStage("build"),
+		]);
+
+		const shown = await graphNode("plan");
+
+		expect(shown).not.toHaveTextContent("produced");
+		expect(shown).not.toHaveTextContent("contribution pending");
 	});
 
 	it("names a stage's checkpoint within its case, since the task heading names the case", async () => {
@@ -659,7 +670,6 @@ describe("/monitor task graph", () => {
 		const plan = await graphNode("plan");
 
 		expect(plan).toHaveTextContent("produced 1 commit, 2 files changed");
-		expect(plan).not.toHaveTextContent("contribution pending");
 	});
 
 	it("shows the workflow-state changes a finished planning stage produced", async () => {
@@ -2005,7 +2015,7 @@ describe("/monitor session pane", () => {
 				"session closed · 1,284 lines · 4m02s · $1.12",
 			);
 			expect(
-				within(pane).getByRole("link", { name: "open session.jsonl" }),
+				within(pane).getByRole("link", { name: "open transcript" }),
 			).toHaveAttribute("href", `/runs/${RUN}/stages/plan`);
 			expect(pane).toHaveTextContent(
 				"Session ended. The full transcript is on disk; Rehearse keeps only the spans the judge cites.",
@@ -2029,7 +2039,7 @@ describe("/monitor session pane", () => {
 				),
 			).toBeInTheDocument();
 			expect(
-				within(pane).queryByRole("link", { name: "open session.jsonl" }),
+				within(pane).queryByRole("link", { name: "open transcript" }),
 			).not.toBeInTheDocument();
 		});
 

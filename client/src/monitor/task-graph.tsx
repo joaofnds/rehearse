@@ -411,9 +411,7 @@ function StageNode({
 				<span className="text-11 text-muted-foreground">
 					{notStarted(stage, row)
 						? "not started"
-						: (contribution ??
-							producedReading(stage) ??
-							"contribution pending")}
+						: (contribution ?? producedReading(stage))}
 				</span>
 				<InOutLine stage={stage} />
 			</button>

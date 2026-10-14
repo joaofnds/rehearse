@@ -114,6 +114,10 @@ function corpusInput(): HTMLElement {
 	return screen.getByRole("textbox", { name: "Corpus directory" });
 }
 
+function chooseLimit(): void {
+	fireEvent.click(screen.getByRole("button", { name: "$20.00" }));
+}
+
 function scan(): void {
 	fireEvent.click(screen.getByRole("button", { name: "Scan" }));
 }
@@ -207,14 +211,26 @@ describe("first-run setup", () => {
 				.map((button) => button.textContent);
 		}
 
-		it("starts at $20.00 with that preset selected", async () => {
+		it("starts with no limit and no preset selected, so the step reads Required", async () => {
 			serveFreshInstall();
 
 			renderAppAt("/");
-			await setupSteps();
+			const steps = await setupSteps();
 
-			expect(limitInput()).toHaveValue("20.00");
-			expect(pressedPresets()).toEqual(["$20.00"]);
+			expect(limitInput()).toHaveValue("");
+			expect(screen.queryAllByRole("button", { pressed: true })).toEqual([]);
+			expect(steps[0]).toHaveTextContent("Required");
+		});
+
+		it("reads Set once a limit is chosen", async () => {
+			serveFreshInstall();
+			renderAppAt("/");
+			const steps = await setupSteps();
+
+			chooseLimit();
+
+			expect(steps[0]).toHaveTextContent("Set");
+			expect(steps[0]).not.toHaveTextContent("Required");
 		});
 
 		it("takes a preset's amount when the preset is chosen", async () => {
@@ -272,6 +288,7 @@ describe("first-run setup", () => {
 			renderAppAt("/");
 			const steps = await setupSteps();
 
+			chooseLimit();
 			expect(steps[1]).toHaveTextContent("Required");
 			expect(steps[1]).not.toHaveClass("opacity-55");
 		});
@@ -387,6 +404,23 @@ describe("first-run setup", () => {
 			]);
 		});
 
+		it("unlocks the case step, offering to declare one, once the scan is satisfied", async () => {
+			servingScan({ status: 200, body: settingsReading(null) });
+			renderAppAt("/");
+			const steps = await setupSteps();
+			const caseStep = steps.at(-1);
+
+			scan();
+			await screen.findByText(/^Found 2 files/u);
+
+			expect(caseStep).toHaveTextContent("Open");
+			expect(caseStep).not.toHaveTextContent("Unlocks once a corpus is linked");
+			expect(caseStep).not.toHaveClass("border-dashed");
+			expect(caseStep).toContainElement(
+				screen.getByRole("button", { name: "Declare a case" }),
+			);
+		});
+
 		it("reads Linked once the scan is satisfied, even after the limit is cleared", async () => {
 			servingScan({ status: 200, body: settingsReading(null) });
 			renderAppAt("/");
@@ -411,6 +445,7 @@ describe("first-run setup", () => {
 			renderAppAt("/");
 			const steps = await setupSteps();
 
+			chooseLimit();
 			scan();
 
 			expect(await screen.findByRole("alert")).toHaveTextContent(
@@ -506,6 +541,7 @@ describe("first-run setup", () => {
 			renderAppAt("/");
 			const steps = await setupSteps();
 
+			chooseLimit();
 			scan();
 
 			expect(
@@ -558,7 +594,7 @@ describe("first-run setup", () => {
 			expect(screen.getByText(MISSING_HINT)).toBeInTheDocument();
 		});
 
-		it("stays disabled after a scan while the limit is not a positive amount", async () => {
+		it("stays disabled after a scan while the limit is not a positive amount, asking only for the limit", async () => {
 			servingCeilingWrite({ status: 200, body: settingsReading(5) });
 			renderAppAt("/");
 			await setupSteps();
@@ -571,7 +607,18 @@ describe("first-run setup", () => {
 			);
 
 			expect(finish()).toBeDisabled();
-			expect(screen.getByText(MISSING_HINT)).toBeInTheDocument();
+			expect(screen.getByText("Set a spend limit.")).toBeInTheDocument();
+		});
+
+		it("asks only for a scan once a limit is chosen", async () => {
+			servingCeilingWrite({ status: 200, body: settingsReading(5) });
+			renderAppAt("/");
+			await setupSteps();
+
+			chooseLimit();
+
+			expect(finish()).toBeDisabled();
+			expect(screen.getByText("Scan a corpus directory.")).toBeInTheDocument();
 		});
 
 		it("stores the chosen limit and lands on run history's empty state", async () => {
@@ -601,6 +648,8 @@ describe("first-run setup", () => {
 			servingCeilingWrite({ status: 200, body: settingsReading(5) });
 			renderAppAt("/");
 			await setupSteps();
+
+			chooseLimit();
 			scan();
 			await screen.findByText(/^Found 2 files/u);
 
@@ -622,6 +671,8 @@ describe("first-run setup", () => {
 			});
 			renderAppAt("/");
 			await setupSteps();
+
+			chooseLimit();
 			scan();
 			await screen.findByText(/^Found 2 files/u);
 

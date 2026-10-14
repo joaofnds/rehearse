@@ -17,16 +17,18 @@ import {
 	putSpendCeiling,
 } from "#client/launch/spend-ceiling-entry";
 import { plural } from "#client/plural";
+import { DeclareCaseDialog } from "#client/cases/declare-case-dialog";
 import { cn } from "#client/system/cn";
 import { Button } from "#client/system/ui/button";
 import { linkSetupCorpus } from "./setup-requests";
 
 const LIMIT_PRESETS = ["5.00", "20.00", "50.00"] as const;
 
-/** The prototype's opening amount, one of the presets. */
-const OPENING_LIMIT = "20.00";
+const NOTHING_HINT = "Set a limit, then scan a corpus directory.";
 
-const MISSING_HINT = "Set a limit, then scan a corpus directory.";
+const NO_LIMIT_HINT = "Set a spend limit.";
+
+const NO_CORPUS_HINT = "Scan a corpus directory.";
 
 /** Worded so it claims nothing stored before Finish writes the limit. */
 const READY_HINT = "A corpus is linked. Finish setup records the spend limit.";
@@ -240,6 +242,15 @@ function CorpusControls({
 	);
 }
 
+/** What Finish setup still waits on, or that it waits on nothing. */
+function finishHint(limitEntered: boolean, linked: boolean): string {
+	if (!limitEntered) {
+		return linked ? NO_LIMIT_HINT : NOTHING_HINT;
+	}
+
+	return linked ? READY_HINT : NO_CORPUS_HINT;
+}
+
 function corpusState(linked: boolean, limitEntered: boolean): string {
 	if (linked) {
 		return "Linked";
@@ -255,9 +266,10 @@ function corpusState(linked: boolean, limitEntered: boolean): string {
 export function SetupPage(): React.JSX.Element {
 	const settings = useQuery(launchSettingsQuery);
 	const queryClient = useQueryClient();
-	const [limit, setLimit] = useState<string>(OPENING_LIMIT);
+	const [limit, setLimit] = useState("");
 	const [directory, setDirectory] = useState("");
 	const [scanned, setScanned] = useState<CorpusResponse>();
+	const [declaredPath, setDeclaredPath] = useState<string>();
 	const scan = useMutation({
 		mutationFn: async (path: string): Promise<CorpusResponse> => {
 			const reading = await linkSetupCorpus(path);
@@ -304,7 +316,7 @@ export function SetupPage(): React.JSX.Element {
 					<SetupStep
 						number={1}
 						title="Set a spend limit"
-						state="Required"
+						state={limitEntered ? "Set" : "Required"}
 						look="open"
 					>
 						<StepProse>
@@ -339,14 +351,24 @@ export function SetupPage(): React.JSX.Element {
 					<SetupStep
 						number={3}
 						title="Declare your first case"
-						state="Locked"
-						look="locked"
+						state={linked ? "Open" : "Locked"}
+						look={linked ? "open" : "locked"}
 					>
 						<StepProse>
-							Unlocks once a corpus is linked. Two kinds: a multi-step task
-							against a target repository, or a single agent session judged by
-							deterministic checks.
+							{linked ? "" : "Unlocks once a corpus is linked. "}Two kinds: a
+							multi-step task against a target repository, or a single agent
+							session judged by deterministic checks.
 						</StepProse>
+						{linked ? (
+							<div className="mt-3 flex flex-col items-start gap-2">
+								<DeclareCaseDialog onDeclared={setDeclaredPath} />
+								{declaredPath === undefined ? null : (
+									<p role="status" className="text-12 text-muted-foreground">
+										{`Declared ${declaredPath}. It is uncommitted: review and commit it to keep the case.`}
+									</p>
+								)}
+							</div>
+						) : null}
 					</SetupStep>
 				</ol>
 
@@ -362,7 +384,7 @@ export function SetupPage(): React.JSX.Element {
 						Finish setup
 					</Button>
 					<span className="text-11-5 text-dim">
-						{limitEntered && linked ? READY_HINT : MISSING_HINT}
+						{finishHint(limitEntered, linked)}
 					</span>
 				</div>
 				{finish.isError ? (

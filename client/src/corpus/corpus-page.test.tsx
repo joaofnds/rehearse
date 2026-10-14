@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "bun:test";
+import { z } from "zod";
 import {
 	fireEvent,
 	render,
@@ -20,6 +21,7 @@ import type { Reply } from "#client/test-support/fetch-stub";
 import { FakeServer, stubFetchByPath } from "#client/test-support/fetch-stub";
 import { LiveReply } from "#client/test-support/live-reply";
 import { CorpusPage } from "./corpus-page";
+import type { OpenedCorpusFile } from "./corpus-page";
 import { CORPUS_VERSION_HEADER } from "#server/corpus-version-header";
 import { renderAppWithStub } from "#client/test-support/render-app";
 
@@ -160,6 +162,7 @@ describe(CorpusPage.name, () => {
 
 		function serving(
 			overrides: ReadonlyMap<string, Reply | LiveReply> = new Map(),
+			linked?: OpenedCorpusFile,
 		): FakeServer {
 			const server = new FakeServer(
 				new Map([
@@ -192,7 +195,9 @@ describe(CorpusPage.name, () => {
 				defaultOptions: { queries: { retry: false } },
 			});
 			const router = createRouter({
-				routeTree: createRootRoute({ component: CorpusPage }),
+				routeTree: createRootRoute({
+					component: () => <CorpusPage opened={linked} />,
+				}),
 				history: createMemoryHistory({ initialEntries: ["/"] }),
 			});
 			render(
@@ -246,6 +251,22 @@ describe(CorpusPage.name, () => {
 				server.sent.find(({ pathname }) => pathname === "/api/corpus/file")
 					?.search,
 			).toBe("?path=CLAUDE.md");
+		});
+
+		it("opens the file a link names with the lines it names selected", async () => {
+			serving(new Map(), { path: "CLAUDE.md", lines: { start: 2, end: 2 } });
+
+			const textbox = await screen.findByRole("textbox", {
+				name: "Text of CLAUDE.md",
+			});
+
+			await waitFor(() => {
+				expect(textbox).toHaveFocus();
+			});
+			const field = z.instanceof(HTMLTextAreaElement).parse(textbox);
+			expect(field.value.slice(field.selectionStart, field.selectionEnd)).toBe(
+				"keep\n",
+			);
 		});
 
 		it("moves focus to the file's text, since the editor opens below every file row", async () => {

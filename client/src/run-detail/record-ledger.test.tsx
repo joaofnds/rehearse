@@ -19,7 +19,7 @@ import {
 	RUN,
 	renderRunDetail,
 	stoppedAtBuild,
-} from "./run-detail-fixtures";
+} from "#client/test-support/run-detail";
 
 const originalFetch = globalThis.fetch;
 

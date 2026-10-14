@@ -172,7 +172,16 @@ function RecordedReading({
 							label="Set up the paired rerun"
 						/>
 						<Button asChild variant="outline" size="compact">
-							<Link to="/corpus">Open the block it names</Link>
+							<Link
+								to="/corpus"
+								search={{
+									file: rootCause.file,
+									start: rootCause.lines?.start,
+									end: rootCause.lines?.end,
+								}}
+							>
+								Open the block it names
+							</Link>
 						</Button>
 					</>
 				)}
