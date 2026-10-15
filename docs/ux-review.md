@@ -2,7 +2,10 @@
 
 Reviewed on 2026-10-15 against `6cdba3f9`. These are proposals for the next design
 pass. The [desktop run workspace](run-workspace.md) remains the accepted design.
-The [visual review](ux-review.html) illustrates three proposed arrangements.
+The [before-and-after gallery](../prototypes/ux-comparison/README.md) compares the
+four first-priority proposals with actual current-product captures using the same
+saved evidence. The earlier [visual review](ux-review.html) contains illustrative
+sketches rather than matched captures.
 
 Rehearse helps an engineer decide whether changing an instruction improves the
 agent's work at an acceptable cost. The interface should help them find a result,
@@ -28,7 +31,7 @@ not a usability study. The priorities below are design judgments. There was no l
 run during this review. No paid execution, Judge submission, corpus apply, workflow
 save, or case declaration was performed. The live corpus was read-only; editable
 draft behavior was inspected in source rather than exercised against that install.
-No private transcripts or screenshots are included in these documents.
+No raw transcripts or instruction-file bodies are published in these documents.
 
 ## Recommended order
 
@@ -362,7 +365,8 @@ Sources: [calibration](../client/src/calibration/calibration-page.tsx),
 ## Validate the next prototype
 
 Use the existing desktop prototype for the first four recommendations. Keep its
-records explicitly synthetic. Include a failed final result with accepted steps,
+invented records explicitly synthetic. Matched before-and-after examples can use
+reviewed saved evidence when its source and collection limits are explicit. Include a failed final result with accepted steps,
 a stopped run with missing measurements, a failed session repetition, an unpriced
 request, an archive without request measurements, an incompatible older corpus,
 and an inconclusive comparison.

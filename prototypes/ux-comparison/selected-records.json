@@ -1,0 +1,2526 @@
+{
+	"capturedFromCommit": "900e5a57",
+	"capturedAt": "2026-10-15",
+	"viewport": {
+		"width": 1440,
+		"height": 900
+	},
+	"run": {
+		"id": "2026-10-15T12-10-20.117Z",
+		"shortId": "r44",
+		"caseId": "audit-log",
+		"model": "sonnet",
+		"judgeModel": "opus",
+		"grade": {
+			"requirements": [
+				{
+					"id": "tests",
+					"status": "PASS",
+					"evidence": [
+						{
+							"source": "diff",
+							"path": "src/audit-log/queue/audit-log.queue.test.ts",
+							"claim": "New unit test imports its test APIs from bun:test and uses a hand-written fake instead of Jest mocks.",
+							"quote": "import { beforeEach, describe, expect, it } from \"bun:test\";",
+							"locator": {
+								"kind": "hunk",
+								"file": "src/audit-log/queue/audit-log.queue.test.ts",
+								"hunk": "@@ -0,0 +1,53 @@",
+								"occurrences": 1
+							}
+						},
+						{
+							"source": "diff",
+							"path": "src/audit-log/http/schema/create-audit-log.schema.test.ts",
+							"claim": "Schema test imports describe/expect/it from bun:test.",
+							"quote": "import { describe, expect, it } from \"bun:test\";",
+							"locator": {
+								"kind": "hunk",
+								"file": "src/audit-log/http/schema/create-audit-log.schema.test.ts",
+								"hunk": "@@ -0,0 +1,144 @@",
+								"occurrences": 1
+							}
+						}
+					]
+				},
+				{
+					"id": "validation",
+					"status": "PASS",
+					"evidence": [
+						{
+							"source": "diff",
+							"path": "src/audit-log/http/schema/create-audit-log.schema.ts",
+							"claim": "Zod schema trims actionType/resourceName and requires min length 1 after trimming.",
+							"quote": "actionType: StorableString.trim().min(1),",
+							"locator": {
+								"kind": "hunk",
+								"file": "src/audit-log/http/schema/create-audit-log.schema.ts",
+								"hunk": "@@ -0,0 +1,53 @@",
+								"occurrences": 1
+							}
+						},
+						{
+							"source": "diff",
+							"path": "src/audit-log/http/schema/create-audit-log.schema.ts",
+							"claim": "details rejects non-objects, null, and arrays.",
+							"quote": "if (Array.isArray(details)) return false;",
+							"locator": {
+								"kind": "hunk",
+								"file": "src/audit-log/http/schema/create-audit-log.schema.ts",
+								"hunk": "@@ -0,0 +1,53 @@",
+								"occurrences": 1
+							}
+						},
+						{
+							"source": "diff",
+							"path": "src/audit-log/http/controller.ts",
+							"claim": "Body is validated by ZodPipe.",
+							"quote": "@Body(new ZodPipe(CreateAuditLogSchema)) entry: CreateAuditLog,",
+							"locator": {
+								"kind": "hunk",
+								"file": "src/audit-log/http/controller.ts",
+								"hunk": "@@ -0,0 +1,20 @@",
+								"occurrences": 1
+							}
+						}
+					]
+				},
+				{
+					"id": "persistence",
+					"status": "PASS",
+					"evidence": [
+						{
+							"source": "diff",
+							"path": "src/audit-log/persistence/audit-log.schema.ts",
+							"claim": "Persistence uses MikroORM defineEntity in the same style as UserSchema.",
+							"quote": "export const AuditLogSchema = defineEntity({",
+							"locator": {
+								"kind": "hunk",
+								"file": "src/audit-log/persistence/audit-log.schema.ts",
+								"hunk": "@@ -0,0 +1,13 @@",
+								"occurrences": 1
+							}
+						}
+					]
+				},
+				{
+					"id": "location",
+					"status": "FAIL",
+					"evidence": [
+						{
+							"source": "diff",
+							"path": "src/app.module.ts",
+							"claim": "The implementation lives under src/audit-log/, not src/audit/ as the rubric requires.",
+							"quote": "import { AuditLogHTTPModule } from \"./audit-log/http/module\";",
+							"locator": {
+								"kind": "hunk",
+								"file": "src/app.module.ts",
+								"hunk": "@@ -1,5 +1,7 @@",
+								"occurrences": 1
+							}
+						}
+					]
+				},
+				{
+					"id": "entity",
+					"status": "FAIL",
+					"evidence": [
+						{
+							"source": "diff",
+							"path": "src/audit-log/persistence/audit-log.schema.ts",
+							"claim": "The entity doesn't map actionType to action_type explicitly; it relies on the implicit naming strategy. The id has no generated default. The e2e round-trip test that would prove the mapping did not run in the local checks, so the mapping is unproven.",
+							"quote": "id: p.uuid().primary(),",
+							"locator": {
+								"kind": "hunk",
+								"file": "src/audit-log/persistence/audit-log.schema.ts",
+								"hunk": "@@ -0,0 +1,13 @@",
+								"occurrences": 1
+							}
+						}
+					]
+				},
+				{
+					"id": "endpoint",
+					"status": "PASS",
+					"evidence": [
+						{
+							"source": "diff",
+							"path": "src/audit-log/http/controller.ts",
+							"claim": "POST returns 202 Accepted after calling the service, which only enqueues.",
+							"quote": "@HttpCode(HttpStatus.ACCEPTED)",
+							"locator": {
+								"kind": "hunk",
+								"file": "src/audit-log/http/controller.ts",
+								"hunk": "@@ -0,0 +1,20 @@",
+								"occurrences": 1
+							}
+						},
+						{
+							"source": "diff",
+							"path": "src/audit-log/audit-log.service.ts",
+							"claim": "The service schedules on the queue and doesn't persist.",
+							"quote": "await this.confirmWithinDeadline(this.queue.schedule({ id, ...entry }));",
+							"locator": {
+								"kind": "hunk",
+								"file": "src/audit-log/audit-log.service.ts",
+								"hunk": "@@ -0,0 +1,51 @@",
+								"occurrences": 1
+							}
+						}
+					]
+				},
+				{
+					"id": "queue",
+					"status": "PASS",
+					"evidence": [
+						{
+							"source": "diff",
+							"path": "src/audit-log/queue/audit-log.queue.ts",
+							"claim": "The payload is added to a BullMQ queue registered on the existing BullModule root connection.",
+							"quote": "await this.queue.add(AuditLogQueue.QueueName, job, {",
+							"locator": {
+								"kind": "hunk",
+								"file": "src/audit-log/queue/audit-log.queue.ts",
+								"hunk": "@@ -0,0 +1,24 @@",
+								"occurrences": 1
+							}
+						}
+					]
+				},
+				{
+					"id": "worker",
+					"status": "PASS",
+					"evidence": [
+						{
+							"source": "diff",
+							"path": "src/audit-log/worker/audit-log.worker.ts",
+							"claim": "A BullMQ processor persists the entry through the MikroORM EntityManager.",
+							"quote": "@Processor(AuditLogQueue.QueueName)",
+							"locator": {
+								"kind": "hunk",
+								"file": "src/audit-log/worker/audit-log.worker.ts",
+								"hunk": "@@ -0,0 +1,27 @@",
+								"occurrences": 1
+							}
+						},
+						{
+							"source": "diff",
+							"path": "src/audit-log/worker/audit-log.worker.ts",
+							"claim": "The worker flushes the persisted entity.",
+							"quote": "await entityManager.flush();",
+							"locator": {
+								"kind": "hunk",
+								"file": "src/audit-log/worker/audit-log.worker.ts",
+								"hunk": "@@ -0,0 +1,27 @@",
+								"occurrences": 1
+							}
+						}
+					]
+				},
+				{
+					"id": "migration",
+					"status": "PASS",
+					"evidence": [
+						{
+							"source": "diff",
+							"path": "src/migrations/Migration20261015120000_create_audit_log.ts",
+							"claim": "The migration creates audit_log with UUID, TEXT and JSONB columns.",
+							"quote": "\"details\" JSONB NOT NULL",
+							"locator": {
+								"kind": "hunk",
+								"file": "src/migrations/Migration20261015120000_create_audit_log.ts",
+								"hunk": "@@ -0,0 +1,18 @@",
+								"occurrences": 1
+							}
+						}
+					]
+				},
+				{
+					"id": "wiring",
+					"status": "PASS",
+					"evidence": [
+						{
+							"source": "diff",
+							"path": "src/app.module.ts",
+							"claim": "The HTTP and worker modules are imported into AppModule.",
+							"quote": "import { AuditLogWorkerModule } from \"./audit-log/worker/module\";",
+							"locator": {
+								"kind": "hunk",
+								"file": "src/app.module.ts",
+								"hunk": "@@ -1,5 +1,7 @@",
+								"occurrences": 1
+							}
+						},
+						{
+							"source": "diff",
+							"path": "src/database/orm.ts",
+							"claim": "The entity is registered with the ORM.",
+							"quote": "entities: [UserSchema, AuditLogSchema],",
+							"locator": {
+								"kind": "hunk",
+								"file": "src/database/orm.ts",
+								"hunk": "@@ -15,7 +16,7 @@",
+								"occurrences": 1
+							}
+						}
+					]
+				},
+				{
+					"id": "behavior-coverage",
+					"status": "FAIL",
+					"evidence": [
+						{
+							"source": "diff",
+							"path": "test/e2e/audit-log.test.ts",
+							"claim": "The no-worker test only checks that a job with the id exists. It doesn't prove that exactly one job was enqueued or that the payload was the validated (trimmed) one. The worker isn't invoked directly with that payload.",
+							"quote": "expect(job?.id).toEqual(id);",
+							"locator": {
+								"kind": "hunk",
+								"file": "test/e2e/audit-log.test.ts",
+								"hunk": "@@ -0,0 +1,161 @@",
+								"occurrences": 1
+							}
+						}
+					]
+				},
+				{
+					"id": "forbidden-tools",
+					"status": "PASS",
+					"evidence": [
+						{
+							"source": "diff",
+							"path": "src/audit-log/persistence/audit-log.schema.ts",
+							"claim": "Persistence uses MikroORM. The diff adds no class-validator, class-transformer, TypeORM, Jest, ESLint or Prettier usage, and package.json is unchanged.",
+							"quote": "import { defineEntity } from \"@mikro-orm/core\";",
+							"locator": {
+								"kind": "hunk",
+								"file": "src/audit-log/persistence/audit-log.schema.ts",
+								"hunk": "@@ -0,0 +1,13 @@",
+								"occurrences": 1
+							}
+						}
+					]
+				},
+				{
+					"id": "check-integrity",
+					"status": "PASS",
+					"evidence": [
+						{
+							"source": "local-checks",
+							"path": "package.json, tsconfig.json, biome.json",
+							"claim": "Check scripts and configurations match the baseline",
+							"locator": {
+								"kind": "harness",
+								"result": "checkIntegrity",
+								"recorded": true
+							}
+						}
+					]
+				},
+				{
+					"id": "local-checks",
+					"status": "PASS",
+					"evidence": [
+						{
+							"source": "local-checks",
+							"path": "bun run typecheck; bun run check; bun run test:unit",
+							"claim": "All treatment checks exited successfully",
+							"locator": {
+								"kind": "harness",
+								"result": "localChecks",
+								"recorded": true
+							}
+						}
+					]
+				}
+			],
+			"verdict": "FAIL",
+			"summary": "FAIL on 3 of 14 items; the other 11 pass. (1) location: the code is under src/audit-log/ instead of the required src/audit/. (2) entity: the column mapping is implicit and was not proven by a test that ran in the local checks, and the id has no generated default. (3) behavior-coverage: no test proves that exactly one validated payload was enqueued while the table stayed empty, and the worker is never invoked directly with that payload."
+		},
+		"minimumGrade": {
+			"state": "available",
+			"letter": "F"
+		},
+		"totals": {
+			"tokens": {
+				"state": "available",
+				"input": 98,
+				"cacheRead": 4291836,
+				"cacheWrite": 329126,
+				"output": 50805,
+				"totalInput": 4621060,
+				"missing": []
+			},
+			"cost": {
+				"state": "available",
+				"usd": 9.430093600000001,
+				"parts": [
+					{
+						"part": "shape session",
+						"usd": 1.2166443000000002
+					},
+					{
+						"part": "shape judge",
+						"usd": 0.5000716000000001
+					},
+					{
+						"part": "build session",
+						"usd": 5.9795944
+					},
+					{
+						"part": "build judge",
+						"usd": 0.6297156
+					},
+					{
+						"part": "Product Owner",
+						"usd": 0.023121300000000004
+					},
+					{
+						"part": "final judge",
+						"usd": 1.0809464
+					}
+				],
+				"missing": []
+			},
+			"productOwnerCost": {
+				"state": "available",
+				"usd": 0.023121300000000004
+			},
+			"wallTime": {
+				"state": "available",
+				"ms": 1201725
+			}
+		},
+		"stages": [
+			{
+				"stage": "shape",
+				"status": "graded",
+				"grade": {
+					"state": "available",
+					"letter": "C",
+					"verdict": "STOP",
+					"reachesMinimum": true
+				},
+				"blockers": {
+					"state": "available",
+					"fired": 0,
+					"total": 5,
+					"firedIds": []
+				},
+				"wallTime": {
+					"state": "available",
+					"ms": 382525
+				},
+				"sessionCost": {
+					"state": "available",
+					"usd": 1.2166443000000002
+				},
+				"judgeCost": {
+					"state": "available",
+					"usd": 0.5000716000000001
+				},
+				"tokens": {
+					"state": "available",
+					"input": 44,
+					"cacheRead": 953113,
+					"cacheWrite": 112974,
+					"output": 19060,
+					"totalInput": 1066131,
+					"missing": []
+				},
+				"checkpoint": "recorded",
+				"checkpointShortId": {
+					"state": "available",
+					"shortId": "audit-log/r44/s1"
+				},
+				"corpusVersion": {
+					"kind": "version",
+					"digest": "0a78c2c4d93e67775ffefff8314c49e1f29515e35ade0648358f3e785073d13a"
+				}
+			},
+			{
+				"stage": "build",
+				"status": "graded",
+				"grade": {
+					"state": "available",
+					"letter": "B",
+					"verdict": "CONTINUE",
+					"reachesMinimum": true
+				},
+				"blockers": {
+					"state": "available",
+					"fired": 0,
+					"total": 5,
+					"firedIds": []
+				},
+				"wallTime": {
+					"state": "available",
+					"ms": 738083
+				},
+				"sessionCost": {
+					"state": "available",
+					"usd": 5.9795944
+				},
+				"judgeCost": {
+					"state": "available",
+					"usd": 0.6297156
+				},
+				"tokens": {
+					"state": "available",
+					"input": 46,
+					"cacheRead": 3335558,
+					"cacheWrite": 99329,
+					"output": 22148,
+					"totalInput": 3434933,
+					"missing": []
+				},
+				"checkpoint": "recorded",
+				"checkpointShortId": {
+					"state": "available",
+					"shortId": "audit-log/r44/s2"
+				},
+				"corpusVersion": {
+					"kind": "version",
+					"digest": "0a78c2c4d93e67775ffefff8314c49e1f29515e35ade0648358f3e785073d13a"
+				}
+			}
+		],
+		"humanReviewState": "unavailable",
+		"buildAssessment": {
+			"hardBlockers": [
+				{
+					"id": "invalid-stage-delivery",
+					"status": "PASS",
+					"evidence": [
+						{
+							"source": "check-integrity",
+							"path": "harness",
+							"claim": "Harness check integrity passed: check scripts and configs match baseline.",
+							"locator": {
+								"kind": "harness",
+								"result": "checkIntegrity",
+								"recorded": true
+							}
+						},
+						{
+							"source": "commit-subjects",
+							"path": "commitSubjects",
+							"claim": "Nine committed steps were left in the repository.",
+							"quote": "fix(audit-log): answer 503 when the enqueue is not confirmed in 3 seconds",
+							"locator": {
+								"kind": "commit-subject",
+								"index": 8
+							}
+						}
+					]
+				},
+				{
+					"id": "spec-violation",
+					"status": "PASS",
+					"evidence": [
+						{
+							"source": "diff",
+							"path": "src/audit-log/http/controller.ts",
+							"claim": "The endpoint answers 202 with { id } as AC1 and the PO direction require.",
+							"quote": "\t@HttpCode(HttpStatus.ACCEPTED)",
+							"locator": {
+								"kind": "hunk",
+								"file": "src/audit-log/http/controller.ts",
+								"hunk": "@@ -0,0 +1,20 @@",
+								"occurrences": 1
+							}
+						},
+						{
+							"source": "diff",
+							"path": "src/audit-log/audit-log.service.ts",
+							"claim": "The PO-directed 3-second enqueue deadline returns 503 with no id.",
+							"quote": "const ENQUEUE_DEADLINE = 3 * time.Second;",
+							"locator": {
+								"kind": "hunk",
+								"file": "src/audit-log/audit-log.service.ts",
+								"hunk": "@@ -0,0 +1,51 @@",
+								"occurrences": 1
+							}
+						},
+						{
+							"source": "diff",
+							"path": "src/audit-log/http/schema/create-audit-log.schema.ts",
+							"claim": "The PO-directed depth limit of 20 is implemented and documented in the validation.",
+							"quote": "const MAX_DETAILS_DEPTH = 20;",
+							"locator": {
+								"kind": "hunk",
+								"file": "src/audit-log/http/schema/create-audit-log.schema.ts",
+								"hunk": "@@ -0,0 +1,53 @@",
+								"occurrences": 1
+							}
+						}
+					]
+				},
+				{
+					"id": "prohibited-technology",
+					"status": "PASS",
+					"evidence": [
+						{
+							"source": "diff",
+							"path": "src/audit-log/queue/audit-log.queue.ts",
+							"claim": "The change uses the existing BullMQ, MikroORM and Zod stack and adds no new dependency.",
+							"quote": "import { InjectQueue } from \"@nestjs/bullmq\";",
+							"locator": {
+								"kind": "hunk",
+								"file": "src/audit-log/queue/audit-log.queue.ts",
+								"hunk": "@@ -0,0 +1,24 @@",
+								"occurrences": 1
+							}
+						}
+					]
+				},
+				{
+					"id": "false-test-safety",
+					"status": "PASS",
+					"evidence": [
+						{
+							"source": "diff",
+							"path": "test/e2e/audit-log.test.ts",
+							"claim": "The no-worker test removes the worker and asserts that the job waits and no row exists, so it depends on the real behavior.",
+							"quote": "\t\t\tmoduleCustomizers: [useValue(AuditLogWorker, {})],",
+							"locator": {
+								"kind": "hunk",
+								"file": "test/e2e/audit-log.test.ts",
+								"hunk": "@@ -0,0 +1,161 @@",
+								"occurrences": 1
+							}
+						},
+						{
+							"source": "check-integrity",
+							"path": "harness",
+							"claim": "Check configurations were not weakened.",
+							"locator": {
+								"kind": "harness",
+								"result": "checkIntegrity",
+								"recorded": true
+							}
+						}
+					]
+				},
+				{
+					"id": "unfinished-delivery",
+					"status": "PASS",
+					"evidence": [
+						{
+							"source": "local-checks",
+							"path": "harness",
+							"claim": "Typecheck, lint and unit tests all exited successfully.",
+							"locator": {
+								"kind": "harness",
+								"result": "localChecks",
+								"recorded": true
+							}
+						},
+						{
+							"source": "task-state",
+							"path": "backlog/task.json#notes",
+							"claim": "AC8 is unchecked only because of a PO decision on mise trust, and each ci step passed.",
+							"quote": "AC8 stays unchecked and the card stays in Build: mise config is untrusted here. Owner to run mise trust then mise run ci, or explicitly accept the per-step evidence.",
+							"locator": {
+								"kind": "lines",
+								"file": "backlog/task.json",
+								"startLine": 66,
+								"endLine": 66,
+								"occurrences": 1
+							}
+						}
+					]
+				}
+			],
+			"requirements": [
+				{
+					"id": "requirements-implemented",
+					"status": "PASS",
+					"evidence": [
+						{
+							"source": "diff",
+							"path": "src/audit-log/http/schema/create-audit-log.schema.ts",
+							"claim": "Validation enforces trimmed non-empty strings and an object (not an array) for details.",
+							"quote": "\tactionType: StorableString.trim().min(1),\n\tresourceName: StorableString.trim().min(1),\n\tdetails: StorableDetails,",
+							"locator": {
+								"kind": "hunk",
+								"file": "src/audit-log/http/schema/create-audit-log.schema.ts",
+								"hunk": "@@ -0,0 +1,53 @@",
+								"occurrences": 1
+							}
+						},
+						{
+							"source": "diff",
+							"path": "src/audit-log/worker/audit-log.worker.ts",
+							"claim": "The insert happens only in the background worker.",
+							"quote": "\t\tconst entityManager = this.entityManager.fork();",
+							"locator": {
+								"kind": "hunk",
+								"file": "src/audit-log/worker/audit-log.worker.ts",
+								"hunk": "@@ -0,0 +1,27 @@",
+								"occurrences": 1
+							}
+						}
+					]
+				},
+				{
+					"id": "behavior-tests",
+					"status": "PASS",
+					"evidence": [
+						{
+							"source": "diff",
+							"path": "src/audit-log/http/schema/create-audit-log.schema.test.ts",
+							"claim": "Tests cover the rejection cases and the depth boundary at 20, 21 and 50000.",
+							"quote": "\t\tit.each([21, 50_000])(\"rejects details nested %d levels deep\", (levels) => {",
+							"locator": {
+								"kind": "hunk",
+								"file": "src/audit-log/http/schema/create-audit-log.schema.test.ts",
+								"hunk": "@@ -0,0 +1,144 @@",
+								"occurrences": 1
+							}
+						},
+						{
+							"source": "diff",
+							"path": "test/e2e/audit-log.test.ts",
+							"claim": "An e2e test covers the 503 failure path with no row written.",
+							"quote": "\t\tit(\"answers 503 without an id and writes no row\", async () => {",
+							"locator": {
+								"kind": "hunk",
+								"file": "test/e2e/audit-log.test.ts",
+								"hunk": "@@ -0,0 +1,161 @@",
+								"occurrences": 1
+							}
+						}
+					]
+				},
+				{
+					"id": "data-and-wiring",
+					"status": "PASS",
+					"evidence": [
+						{
+							"source": "diff",
+							"path": "src/database/orm.ts",
+							"claim": "The entity is registered with the ORM.",
+							"quote": "\t\t\t\tentities: [UserSchema, AuditLogSchema],",
+							"locator": {
+								"kind": "hunk",
+								"file": "src/database/orm.ts",
+								"hunk": "@@ -15,7 +16,7 @@",
+								"occurrences": 1
+							}
+						},
+						{
+							"source": "diff",
+							"path": "src/app.module.ts",
+							"claim": "The HTTP and worker modules are wired into the app.",
+							"quote": "\t\tAuditLogHTTPModule,\n\t\tAuditLogWorkerModule,",
+							"locator": {
+								"kind": "hunk",
+								"file": "src/app.module.ts",
+								"hunk": "@@ -30,6 +32,9 @@",
+								"occurrences": 1
+							}
+						},
+						{
+							"source": "diff",
+							"path": "src/migrations/Migration20261015120000_create_audit_log.ts",
+							"claim": "A migration creates the table.",
+							"quote": "\t\t\t`CREATE TABLE \"audit_log\"(",
+							"locator": {
+								"kind": "hunk",
+								"file": "src/migrations/Migration20261015120000_create_audit_log.ts",
+								"hunk": "@@ -0,0 +1,18 @@",
+								"occurrences": 1
+							}
+						}
+					]
+				},
+				{
+					"id": "observed-result",
+					"status": "PASS",
+					"evidence": [
+						{
+							"source": "task-state",
+							"path": "backlog/task.json#notes",
+							"claim": "The live app was observed returning 202 and storing a row, then returning 503 with Redis stopped.",
+							"quote": "Live app against a throwaway Redis: POST answered 202 in 0.01s, then with that Redis stopped answered 503 in 3.00s; the first row was stored, none for the 503.",
+							"locator": {
+								"kind": "lines",
+								"file": "backlog/task.json",
+								"startLine": 65,
+								"endLine": 65,
+								"occurrences": 1
+							}
+						}
+					]
+				},
+				{
+					"id": "handoff-recorded",
+					"status": "PASS",
+					"evidence": [
+						{
+							"source": "task-state",
+							"path": "backlog/task.json#notes",
+							"claim": "The handoff records what changed, what was observed, what was not verified and what is unwired.",
+							"quote": "Not wired: nothing reads the table (querying out of scope).",
+							"locator": {
+								"kind": "lines",
+								"file": "backlog/task.json",
+								"startLine": 51,
+								"endLine": 51,
+								"occurrences": 1
+							}
+						}
+					]
+				}
+			],
+			"dimensions": [
+				{
+					"id": "correctness",
+					"grade": "A",
+					"evidence": [
+						{
+							"source": "diff",
+							"path": "src/audit-log/http/schema/create-audit-log.schema.ts",
+							"claim": "Robust edge handling: NUL, lone surrogates, __proto__ keys and depth are all rejected before enqueue.",
+							"quote": "const storable = (text: string) => !text.includes(\"\\0\") && text.isWellFormed();",
+							"locator": {
+								"kind": "hunk",
+								"file": "src/audit-log/http/schema/create-audit-log.schema.ts",
+								"hunk": "@@ -0,0 +1,53 @@",
+								"occurrences": 1
+							}
+						},
+						{
+							"source": "diff",
+							"path": "src/audit-log/audit-log.service.ts",
+							"claim": "The Redis-down hang is bounded and the timer is cleaned up.",
+							"quote": "\t\t\tawait Promise.race([enqueue, deadline]);",
+							"locator": {
+								"kind": "hunk",
+								"file": "src/audit-log/audit-log.service.ts",
+								"hunk": "@@ -0,0 +1,51 @@",
+								"occurrences": 1
+							}
+						}
+					]
+				},
+				{
+					"id": "delivery-discipline",
+					"grade": "B",
+					"evidence": [
+						{
+							"source": "commit-subjects",
+							"path": "commitSubjects",
+							"claim": "Commits are small and coherent and start with the schema test. Several defects were fixed only after review, not driven by tests up front.",
+							"quote": "feat(audit-log): validate create audit log bodies with Zod",
+							"locator": {
+								"kind": "commit-subject",
+								"index": 0
+							}
+						}
+					]
+				},
+				{
+					"id": "maintainability",
+					"grade": "B",
+					"evidence": [
+						{
+							"source": "diff",
+							"path": "src/audit-log/audit-log.scheduler.ts",
+							"claim": "A scheduler port keeps the service decoupled from BullMQ, but the service throws an HTTP exception, which couples it to the transport.",
+							"quote": "export interface AuditLogScheduler {",
+							"locator": {
+								"kind": "hunk",
+								"file": "src/audit-log/audit-log.scheduler.ts",
+								"hunk": "@@ -0,0 +1,10 @@",
+								"occurrences": 1
+							}
+						},
+						{
+							"source": "diff",
+							"path": "src/audit-log/audit-log.service.ts",
+							"claim": "The service layer raises an HTTP exception.",
+							"quote": "\t\t\t\t() => reject(new ServiceUnavailableException()),",
+							"locator": {
+								"kind": "hunk",
+								"file": "src/audit-log/audit-log.service.ts",
+								"hunk": "@@ -0,0 +1,51 @@",
+								"occurrences": 1
+							}
+						}
+					]
+				},
+				{
+					"id": "test-quality",
+					"grade": "B",
+					"evidence": [
+						{
+							"source": "diff",
+							"path": "test/e2e/audit-log.test.ts",
+							"claim": "The e2e tests check behavior against the real queue and DB. The e2e enqueue-nothing check covers only the array case, and the worker has no unit test.",
+							"quote": "\t\t\t\tdetails: [],",
+							"locator": {
+								"kind": "hunk",
+								"file": "test/e2e/audit-log.test.ts",
+								"hunk": "@@ -0,0 +1,161 @@",
+								"occurrences": 1
+							}
+						}
+					]
+				},
+				{
+					"id": "repository-fit",
+					"grade": "B",
+					"evidence": [
+						{
+							"source": "diff",
+							"path": "src/audit-log/queue/audit-log.queue.ts",
+							"claim": "The queue mirrors the existing user queue's options and structure.",
+							"quote": "\t\t\tbackoff: { type: \"fixed\", delay: 5 * time.Second },",
+							"locator": {
+								"kind": "hunk",
+								"file": "src/audit-log/queue/audit-log.queue.ts",
+								"hunk": "@@ -0,0 +1,24 @@",
+								"occurrences": 1
+							}
+						},
+						{
+							"source": "task-state",
+							"path": "backlog/task.json#notes",
+							"claim": "Leaving the queue out of bull-board is an explicitly justified deviation.",
+							"quote": "audit queue NOT registered in bull-board (would expose details on the unauthenticated /internal/queues)",
+							"locator": {
+								"kind": "lines",
+								"file": "backlog/task.json",
+								"startLine": 46,
+								"endLine": 46,
+								"occurrences": 1
+							}
+						}
+					]
+				}
+			],
+			"summary": "Proceed. The build passes every hard blocker and meets every requirement. It delivers the 202 enqueue endpoint, a worker-only insert, the entity, the migration and the wiring. It also applies the Product Owner's 503 deadline and the 20-level depth limit, and the 400 and 503 paths are tested. A live run was observed and recorded. The handoff on the card is complete and honest: AC8 stays unchecked, as the Product Owner directed, pending mise trust. Weaker points: the service layer throws an HTTP exception, several fixes came out of review rather than test-first work, and the e2e test for \"400 enqueues nothing\" covers only one invalid case.",
+			"grade": "B",
+			"verdict": "CONTINUE"
+		},
+		"earlierFinal": {
+			"shortId": "r22",
+			"verdict": "FAIL",
+			"corpus": "e73e56"
+		}
+	},
+	"replay": {
+		"sourceRun": "2026-10-07T20-47-11.627Z",
+		"timestamp": "2026-10-14T16:17:14.161Z",
+		"stage": "shape",
+		"model": "sonnet",
+		"judgeModel": "opus",
+		"grade": {
+			"hardBlockers": [
+				{
+					"id": "invalid-stage-delivery",
+					"status": "PASS",
+					"evidence": [
+						{
+							"source": "task-state",
+							"path": "backlog/task.json#status",
+							"claim": "The task left Shape and moved to Build, the required state after shaping.",
+							"quote": "status: Build",
+							"locator": {
+								"kind": "lines",
+								"file": "backlog/task.json",
+								"startLine": 4,
+								"endLine": 4,
+								"occurrences": 1
+							}
+						},
+						{
+							"source": "commit-subjects",
+							"path": "commitSubjects",
+							"claim": "The stage's commits are recorded, and no harness failure was supplied.",
+							"quote": "docs: add glossary with audit log terms",
+							"locator": {
+								"kind": "commit-subject",
+								"index": 0
+							}
+						}
+					]
+				},
+				{
+					"id": "contradicts-source",
+					"status": "PASS",
+					"evidence": [
+						{
+							"source": "product-brief",
+							"path": "product-brief.md",
+							"claim": "The brief requires a 202 response with no direct persist, and AC1 matches it.",
+							"quote": "An accepted request returns HTTP 202 after enqueueing the event; the request path must not persist the audit row directly.",
+							"locator": {
+								"kind": "lines",
+								"file": "product-brief.md",
+								"startLine": 3,
+								"endLine": 3,
+								"occurrences": 1
+							}
+						},
+						{
+							"source": "task-state",
+							"path": "backlog/task.json#acceptance-criteria",
+							"claim": "The AC requires 202 with no row written by the request path.",
+							"quote": "returns 202 and a body {id} where id is a UUID, the queue received one job whose id equals that id, and the audit_log table has no row for it",
+							"locator": {
+								"kind": "lines",
+								"file": "backlog/task.json",
+								"startLine": 23,
+								"endLine": 23,
+								"occurrences": 1
+							}
+						}
+					]
+				},
+				{
+					"id": "material-decision-open",
+					"status": "PASS",
+					"evidence": [
+						{
+							"source": "transcript",
+							"path": "shape.transcript.json#exchanges",
+							"claim": "The PO closed the last open question about the public endpoint and size bound.",
+							"quote": "Decision: Accept your recommendation (option A). The endpoint stays public for this card.",
+							"locator": {
+								"kind": "exchange",
+								"exchange": 1,
+								"field": "productOwnerAnswer",
+								"start": 0,
+								"end": 89
+							}
+						},
+						{
+							"source": "task-state",
+							"path": "backlog/task.json#notes",
+							"claim": "The card records the open question as closed.",
+							"quote": "Open question closed. Follow-up card created for authentication and size limits.",
+							"locator": {
+								"kind": "lines",
+								"file": "backlog/task.json",
+								"startLine": 72,
+								"endLine": 72,
+								"occurrences": 1
+							}
+						}
+					]
+				},
+				{
+					"id": "invented-scope",
+					"status": "PASS",
+					"evidence": [
+						{
+							"source": "transcript",
+							"path": "shape.transcript.json#exchanges",
+							"claim": "The PO explicitly approved occurredAt, the only addition.",
+							"quote": "1. Occurred-at: Yes. Add a required `occurredAt` timestamp to the entity.",
+							"locator": {
+								"kind": "exchange",
+								"exchange": 0,
+								"field": "productOwnerAnswer",
+								"start": 34,
+								"end": 107
+							}
+						},
+						{
+							"source": "diff",
+							"path": "GLOSSARY.md",
+							"claim": "The other changes are glossary housekeeping.",
+							"quote": "- **Occurred at**: the moment the service received the request describing the action. It is not the moment the entry was stored.",
+							"locator": {
+								"kind": "hunk",
+								"file": "GLOSSARY.md",
+								"hunk": "@@ -0,0 +1,10 @@",
+								"occurrences": 1
+							}
+						}
+					]
+				},
+				{
+					"id": "implementation-started",
+					"status": "PASS",
+					"evidence": [
+						{
+							"source": "diff",
+							"path": "AGENTS.md",
+							"claim": "The only files changed are AGENTS.md and GLOSSARY.md. No application code was touched.",
+							"quote": "Domain terms are in [GLOSSARY.md](GLOSSARY.md). Read it when you start a task.",
+							"locator": {
+								"kind": "hunk",
+								"file": "AGENTS.md",
+								"hunk": "@@ -0,0 +1,3 @@",
+								"occurrences": 1
+							}
+						}
+					]
+				}
+			],
+			"requirements": [
+				{
+					"id": "goal-stated",
+					"status": "PASS",
+					"evidence": [
+						{
+							"source": "task-state",
+							"path": "backlog/task.json#notes",
+							"claim": "The card states the goal in one sentence.",
+							"quote": "Goal: an endpoint accepts an audit log entry and returns at once, and a queue worker stores it.",
+							"locator": {
+								"kind": "lines",
+								"file": "backlog/task.json",
+								"startLine": 42,
+								"endLine": 42,
+								"occurrences": 1
+							}
+						}
+					]
+				},
+				{
+					"id": "acceptance-observations",
+					"status": "PASS",
+					"evidence": [
+						{
+							"source": "task-state",
+							"path": "backlog/task.json#acceptance-criteria",
+							"claim": "Each criterion names a test or command with an observable result.",
+							"quote": "- [ ] #5 Processing the same job twice leaves one row and neither run throws (worker test; PO 2026-10-14: \"a retry can't insert a duplicate\")",
+							"locator": {
+								"kind": "lines",
+								"file": "backlog/task.json",
+								"startLine": 27,
+								"endLine": 27,
+								"occurrences": 1
+							}
+						},
+						{
+							"source": "task-state",
+							"path": "backlog/task.json#acceptance-criteria",
+							"claim": "The migration criterion names commands that must succeed.",
+							"quote": "bun run migrate down --to 0 then bun run migrate up succeeds",
+							"locator": {
+								"kind": "lines",
+								"file": "backlog/task.json",
+								"startLine": 29,
+								"endLine": 29,
+								"occurrences": 1
+							}
+						}
+					]
+				},
+				{
+					"id": "unknowns-resolved",
+					"status": "PASS",
+					"evidence": [
+						{
+							"source": "transcript",
+							"path": "shape.transcript.json#exchanges",
+							"claim": "The unknown was raised as a product decision with a recommendation.",
+							"quote": "I recommend adding an occurred-at time, set when the endpoint receives the request and carried through the queue.",
+							"locator": {
+								"kind": "exchange",
+								"exchange": 0,
+								"field": "message",
+								"start": 276,
+								"end": 389
+							}
+						},
+						{
+							"source": "task-state",
+							"path": "backlog/task.json#notes",
+							"claim": "The resolutions are recorded on the card.",
+							"quote": "Unknowns and resolution. Resolved by the PO on 2026-10-14: occurredAt added; 202 and pre-assigned id; id as job id; free-string actionType.",
+							"locator": {
+								"kind": "lines",
+								"file": "backlog/task.json",
+								"startLine": 64,
+								"endLine": 64,
+								"occurrences": 1
+							}
+						}
+					]
+				},
+				{
+					"id": "behavior-contract",
+					"status": "PASS",
+					"evidence": [
+						{
+							"source": "task-state",
+							"path": "backlog/task.json#acceptance-criteria",
+							"claim": "The rejection behavior is pinned with 400 and nothing enqueued.",
+							"quote": "Each violation returns 400 and enqueues nothing",
+							"locator": {
+								"kind": "lines",
+								"file": "backlog/task.json",
+								"startLine": 28,
+								"endLine": 28,
+								"occurrences": 1
+							}
+						},
+						{
+							"source": "task-state",
+							"path": "backlog/task.json#acceptance-criteria",
+							"claim": "The retry and duplicate failure path is covered.",
+							"quote": "running the same job twice stores the same value",
+							"locator": {
+								"kind": "lines",
+								"file": "backlog/task.json",
+								"startLine": 25,
+								"endLine": 25,
+								"occurrences": 1
+							}
+						}
+					]
+				},
+				{
+					"id": "first-test-named",
+					"status": "PASS",
+					"evidence": [
+						{
+							"source": "task-state",
+							"path": "backlog/task.json#notes",
+							"claim": "The card names the first test.",
+							"quote": "First test to write: an e2e test that POSTs a valid body with the audit worker kept from running, expects 202 and {id}, and finds one queued job whose id equals it and no audit_log row.",
+							"locator": {
+								"kind": "lines",
+								"file": "backlog/task.json",
+								"startLine": 68,
+								"endLine": 68,
+								"occurrences": 1
+							}
+						}
+					]
+				}
+			],
+			"dimensions": [
+				{
+					"id": "decision-quality",
+					"grade": "A",
+					"evidence": [
+						{
+							"source": "transcript",
+							"path": "shape.transcript.json#exchanges",
+							"claim": "The scope-changing data question came first and is answerable without code. It carries a recommendation grounded in delay and retry semantics.",
+							"quote": "Without a timestamp the log can't say when anything occurred, and the insert time would be wrong whenever the queue is delayed or retried.",
+							"locator": {
+								"kind": "exchange",
+								"exchange": 0,
+								"field": "message",
+								"start": 137,
+								"end": 275
+							}
+						},
+						{
+							"source": "transcript",
+							"path": "shape.transcript.json#exchanges",
+							"claim": "The second question grounds its recommendation in the brief's auth exclusion.",
+							"quote": "Authentication is out of scope, so anyone who can reach it can write entries, and `details` is otherwise unbounded. I recommend accepting that for this card",
+							"locator": {
+								"kind": "exchange",
+								"exchange": 1,
+								"field": "message",
+								"start": 108,
+								"end": 264
+							}
+						}
+					]
+				},
+				{
+					"id": "observability",
+					"grade": "B",
+					"evidence": [
+						{
+							"source": "task-state",
+							"path": "backlog/task.json#acceptance-criteria",
+							"claim": "Boundary cases are pinned precisely.",
+							"quote": "details must be a non-null JSON object, so an array, string, number, null or a missing value is rejected.",
+							"locator": {
+								"kind": "lines",
+								"file": "backlog/task.json",
+								"startLine": 28,
+								"endLine": 28,
+								"occurrences": 1
+							}
+						},
+						{
+							"source": "task-state",
+							"path": "backlog/task.json#notes",
+							"claim": "The infrastructure failure path (Redis down) and NUL handling appear only in notes, not in acceptance. The NUL case is left as an open probe.",
+							"quote": "An open probe for the build: a NUL character inside details or a string value is rejected by jsonb and text, which would fail the worker on every retry. Check with the real database and decide the validation then.",
+							"locator": {
+								"kind": "lines",
+								"file": "backlog/task.json",
+								"startLine": 62,
+								"endLine": 62,
+								"occurrences": 1
+							}
+						}
+					]
+				},
+				{
+					"id": "scope-discipline",
+					"grade": "A",
+					"evidence": [
+						{
+							"source": "task-state",
+							"path": "backlog/task.json#notes",
+							"claim": "Exclusions are explicit, and an adjacent option is rejected with its reasoning.",
+							"quote": "Pick A. B adds a layer with no demonstrated requirement, because the controller's only job is to enqueue.",
+							"locator": {
+								"kind": "lines",
+								"file": "backlog/task.json",
+								"startLine": 46,
+								"endLine": 46,
+								"occurrences": 1
+							}
+						},
+						{
+							"source": "task-state",
+							"path": "backlog/task.json#notes",
+							"claim": "An inferable length cap is explicitly excluded, with the reason.",
+							"quote": "Column types (the removal path for length limits): text instead of varchar(255), so no maximum length needs validating.",
+							"locator": {
+								"kind": "lines",
+								"file": "backlog/task.json",
+								"startLine": 50,
+								"endLine": 50,
+								"occurrences": 1
+							}
+						}
+					]
+				},
+				{
+					"id": "carry-forward",
+					"grade": "B",
+					"evidence": [
+						{
+							"source": "task-state",
+							"path": "backlog/task.json#notes",
+							"claim": "The record stands alone, with detailed build facts.",
+							"quote": "src/database/orm.ts lists entities explicitly (entities: [UserSchema]). The new schema must be added there as well as in MikroOrmModule.forFeature.",
+							"locator": {
+								"kind": "lines",
+								"file": "backlog/task.json",
+								"startLine": 54,
+								"endLine": 54,
+								"occurrences": 1
+							}
+						},
+						{
+							"source": "task-state",
+							"path": "backlog/task.json#notes",
+							"claim": "A builder question is left open (validation of NUL characters). The card also keeps stale 'Open' text beside the later closure.",
+							"quote": "Open, with recommendation: the endpoint is public and its only size bound is the framework's default body limit, with details unbounded otherwise.",
+							"locator": {
+								"kind": "lines",
+								"file": "backlog/task.json",
+								"startLine": 64,
+								"endLine": 64,
+								"occurrences": 1
+							}
+						}
+					]
+				}
+			],
+			"summary": "Proceed. The stage shaped the task without failing any hard blocker, and all five requirements pass. Two weaknesses lower grades. First, the NUL-character case is left as an open probe for the build stage to decide. Second, failure behavior when Redis is down appears in the notes but not in the acceptance criteria. Observability and carry-forward therefore get B. Decision quality gets A: the questions were genuine product decisions with recommendations grounded in the brief. Scope discipline gets A: the Product Owner approved occurredAt, the exclusions are explicit, and rejected options carry their reasoning. The diff touches only AGENTS.md and GLOSSARY.md, so no application code was written.",
+			"grade": "B",
+			"verdict": "CONTINUE"
+		},
+		"cost": 1.9525721999999996,
+		"sessionCost": 1.4124846999999996,
+		"judgeCost": 0.5228378,
+		"elapsedMs": 360687.20725000004,
+		"lineage": "8318df503e023369a8eb2d07048be050528106ee3a43c7765e13c3a5cdac5f4c",
+		"productOwnerCost": 0.0172497,
+		"previousAttempt": {
+			"shortId": "r38",
+			"grade": "B",
+			"cost": 1.8023403,
+			"elapsedMs": 343278.989458,
+			"corpus": "0a78c2"
+		}
+	},
+	"context": {
+		"groupId": "fc72ca8b-260e-4491-a507-48e1d4e523d5",
+		"repId": "fc72ca8b-260e-4491-a507-48e1d4e523d5-rep-1",
+		"requests": {
+			"series": {
+				"name": "total input tokens",
+				"measuresActiveContextWindow": false,
+				"omits": [
+					"the request's own output tokens",
+					"the model's context window limit, which the transcript does not carry"
+				],
+				"boundary": "known",
+				"transcriptState": "saved",
+				"entries": [
+					{
+						"requestId": "req_011Cfy9f5G4K32VuswBRoGKf",
+						"line": 15,
+						"region": "attempt",
+						"model": "claude-opus-5-5",
+						"usageState": "complete",
+						"usage": {
+							"inputTokens": 2,
+							"outputTokens": 291,
+							"cacheReadTokens": 535,
+							"cacheWriteTokens": 2761
+						},
+						"totalInputTokens": 3298,
+						"cacheWriteSplit": {
+							"state": "complete",
+							"fiveMinuteTokens": 0,
+							"oneHourTokens": 2761
+						},
+						"cumulativeTotalInputTokens": 3298
+					}
+				],
+				"compactions": [],
+				"attemptTotals": {
+					"state": "complete",
+					"requestCount": 1,
+					"usage": {
+						"inputTokens": 2,
+						"outputTokens": 291,
+						"cacheReadTokens": 535,
+						"cacheWriteTokens": 2761
+					},
+					"totalInputTokens": 3298
+				}
+			},
+			"cost": {
+				"reported": {
+					"state": "complete",
+					"costUsd": 0.028023
+				},
+				"calculated": {
+					"state": "incomplete",
+					"costUsd": 0,
+					"pricedRequestCount": 0,
+					"requestCount": 1,
+					"reasons": ["no rate is catalogued for the executing model"]
+				},
+				"difference": {
+					"state": "incomplete",
+					"costUsd": 0.028023,
+					"pricedRequestCount": 0,
+					"requestCount": 1,
+					"reasons": [
+						"a reading it is drawn from is incomplete",
+						"no rate is catalogued for the executing model"
+					]
+				}
+			},
+			"requestCosts": [
+				{
+					"line": 15,
+					"cost": {
+						"state": "unpriced",
+						"reason": "no rate is catalogued for the executing model"
+					}
+				}
+			],
+			"instructionLoads": {
+				"state": "available",
+				"loads": [
+					{
+						"filePath": "<path>/CLAUDE.md",
+						"memoryType": "Project",
+						"loadReason": {
+							"state": "unavailable"
+						},
+						"triggerFilePath": {
+							"state": "unavailable"
+						},
+						"parentFilePath": {
+							"state": "unavailable"
+						}
+					}
+				]
+			}
+		},
+		"summary": {
+			"evidence": {
+				"state": "partial",
+				"reasons": [
+					"unsupported content at 1:1",
+					"unsupported content at 2:1",
+					"unsupported content at 4:1",
+					"unsupported content at 5:1",
+					"unsupported content at 6:1",
+					"unsupported content at 7:1",
+					"unsupported content at 8:1",
+					"unsupported content at 9:1",
+					"unsupported content at 10:1",
+					"unsupported content at 11:1",
+					"unsupported content at 12:1",
+					"unsupported content at 13:1",
+					"unsupported content at 14:1",
+					"unsupported content at 15:1",
+					"unsupported content at 17:1",
+					"unsupported content at 18:1",
+					"unsupported content at 19:1"
+				]
+			},
+			"eventCount": 19,
+			"sourceCount": 1,
+			"diagnosticCount": 8
+		},
+		"events": [
+			{
+				"id": "1:1",
+				"timestamp": "2026-10-12T22:42:12.683Z",
+				"kind": "unclassified",
+				"state": "recorded",
+				"label": "Unclassified recorded content",
+				"locator": {
+					"line": 1,
+					"block": 1
+				}
+			},
+			{
+				"id": "2:1",
+				"timestamp": "2026-10-12T22:42:12.684Z",
+				"kind": "unclassified",
+				"state": "recorded",
+				"label": "Unclassified recorded content",
+				"locator": {
+					"line": 2,
+					"block": 1
+				}
+			},
+			{
+				"id": "3:1",
+				"timestamp": "2026-10-12T22:42:12.694Z",
+				"kind": "unclassified",
+				"state": "recorded",
+				"label": "Unclassified recorded content",
+				"locator": {
+					"line": 3,
+					"block": 1
+				}
+			},
+			{
+				"id": "4:1",
+				"timestamp": "2026-10-12T22:42:12.694Z",
+				"kind": "unclassified",
+				"state": "recorded",
+				"label": "Unclassified recorded content",
+				"locator": {
+					"line": 4,
+					"block": 1
+				}
+			},
+			{
+				"id": "5:1",
+				"timestamp": "2026-10-12T22:42:12.694Z",
+				"kind": "unclassified",
+				"state": "recorded",
+				"label": "Unclassified recorded content",
+				"locator": {
+					"line": 5,
+					"block": 1
+				}
+			},
+			{
+				"id": "6:1",
+				"timestamp": "2026-10-12T22:42:12.694Z",
+				"kind": "unclassified",
+				"state": "recorded",
+				"label": "Unclassified recorded content",
+				"locator": {
+					"line": 6,
+					"block": 1
+				}
+			},
+			{
+				"id": "7:1",
+				"timestamp": "2026-10-12T22:42:12.694Z",
+				"kind": "unclassified",
+				"state": "recorded",
+				"label": "Unclassified recorded content",
+				"locator": {
+					"line": 7,
+					"block": 1
+				}
+			},
+			{
+				"id": "8:1",
+				"timestamp": "Unavailable",
+				"kind": "unclassified",
+				"state": "recorded",
+				"label": "Unclassified recorded content",
+				"locator": {
+					"line": 8,
+					"block": 1
+				}
+			},
+			{
+				"id": "9:1",
+				"timestamp": "Unavailable",
+				"kind": "unclassified",
+				"state": "recorded",
+				"label": "Unclassified recorded content",
+				"locator": {
+					"line": 9,
+					"block": 1
+				}
+			},
+			{
+				"id": "10:1",
+				"timestamp": "2026-10-12T22:42:12.703Z",
+				"kind": "unclassified",
+				"state": "recorded",
+				"label": "Unclassified recorded content",
+				"locator": {
+					"line": 10,
+					"block": 1
+				}
+			},
+			{
+				"id": "11:1",
+				"timestamp": "2026-10-12T22:42:12.703Z",
+				"kind": "unclassified",
+				"state": "recorded",
+				"label": "Unclassified recorded content",
+				"locator": {
+					"line": 11,
+					"block": 1
+				}
+			},
+			{
+				"id": "12:1",
+				"timestamp": "2026-10-12T22:42:12.703Z",
+				"kind": "unclassified",
+				"state": "recorded",
+				"label": "Unclassified recorded content",
+				"locator": {
+					"line": 12,
+					"block": 1
+				}
+			},
+			{
+				"id": "13:1",
+				"timestamp": "2026-10-12T22:42:12.704Z",
+				"kind": "unclassified",
+				"state": "recorded",
+				"label": "Unclassified recorded content",
+				"locator": {
+					"line": 13,
+					"block": 1
+				}
+			},
+			{
+				"id": "14:1",
+				"timestamp": "2026-10-12T22:42:12.704Z",
+				"kind": "unclassified",
+				"state": "recorded",
+				"label": "Unclassified recorded content",
+				"locator": {
+					"line": 14,
+					"block": 1
+				}
+			},
+			{
+				"id": "15:1",
+				"timestamp": "2026-10-12T22:42:17.246Z",
+				"kind": "unclassified",
+				"state": "recorded",
+				"label": "Unclassified recorded content",
+				"locator": {
+					"line": 15,
+					"block": 1
+				}
+			},
+			{
+				"id": "16:1",
+				"timestamp": "2026-10-12T22:42:17.249Z",
+				"kind": "unclassified",
+				"state": "recorded",
+				"label": "Unclassified recorded content",
+				"locator": {
+					"line": 16,
+					"block": 1
+				}
+			},
+			{
+				"id": "17:1",
+				"timestamp": "2026-10-12T22:42:17.263Z",
+				"kind": "unclassified",
+				"state": "recorded",
+				"label": "Unclassified recorded content",
+				"locator": {
+					"line": 17,
+					"block": 1
+				}
+			},
+			{
+				"id": "18:1",
+				"timestamp": "Unavailable",
+				"kind": "unclassified",
+				"state": "recorded",
+				"label": "Unclassified recorded content",
+				"locator": {
+					"line": 18,
+					"block": 1
+				}
+			},
+			{
+				"id": "19:1",
+				"timestamp": "Unavailable",
+				"kind": "unclassified",
+				"state": "recorded",
+				"label": "Unclassified recorded content",
+				"locator": {
+					"line": 19,
+					"block": 1
+				}
+			}
+		],
+		"displayIdentity": {
+			"shortId": "g6",
+			"attemptNumber": 1,
+			"attemptCount": 4,
+			"observedTextCharacters": 620
+		}
+	},
+	"comparison": {
+		"armFigures": {
+			"triage-inbox-cut": {
+				"baseline": {
+					"measures": {
+						"checks": {
+							"scale": "successRate",
+							"successful": 6,
+							"attempts": 6
+						}
+					},
+					"cost": {
+						"state": "available",
+						"totalUsd": 6.571505200000001,
+						"perAttemptUsd": 1.0952508666666667
+					},
+					"words": {
+						"state": "available",
+						"averageWords": 192.16666666666666,
+						"counted": 6,
+						"attempts": 6
+					}
+				},
+				"candidate": {
+					"measures": {
+						"checks": {
+							"scale": "successRate",
+							"successful": 6,
+							"attempts": 6
+						}
+					},
+					"cost": {
+						"state": "available",
+						"totalUsd": 6.9529958,
+						"perAttemptUsd": 1.1588326333333334
+					},
+					"words": {
+						"state": "available",
+						"averageWords": 200.5,
+						"counted": 6,
+						"attempts": 6
+					}
+				},
+				"control": {
+					"measures": {
+						"checks": {
+							"scale": "successRate",
+							"successful": 6,
+							"attempts": 6
+						}
+					},
+					"cost": {
+						"state": "available",
+						"totalUsd": 1.1730318,
+						"perAttemptUsd": 0.1955053
+					},
+					"words": {
+						"state": "available",
+						"averageWords": 158.83333333333334,
+						"counted": 6,
+						"attempts": 6
+					}
+				}
+			}
+		},
+		"summary": {
+			"triage-inbox-cut": {
+				"contrasts": {
+					"candidateMinusBaseline": {
+						"checks": {
+							"verdict": {
+								"kind": "unchangedAlreadyClear"
+							},
+							"combinations": {
+								"state": "available",
+								"higher": 0,
+								"equal": 36,
+								"lower": 0,
+								"of": 36
+							}
+						}
+					},
+					"candidateMinusControl": {
+						"checks": {
+							"verdict": {
+								"kind": "unchangedAlreadyClear"
+							},
+							"combinations": {
+								"state": "available",
+								"higher": 0,
+								"equal": 36,
+								"lower": 0,
+								"of": 36
+							}
+						}
+					},
+					"baselineMinusControl": {
+						"checks": {
+							"verdict": {
+								"kind": "unchangedAlreadyClear"
+							},
+							"combinations": {
+								"state": "available",
+								"higher": 0,
+								"equal": 36,
+								"lower": 0,
+								"of": 36
+							}
+						}
+					}
+				},
+				"replyLength": {
+					"interval": {
+						"minuend": {
+							"low": 125,
+							"high": 258
+						},
+						"subtrahend": {
+							"low": 138,
+							"high": 247
+						}
+					},
+					"change": "+4%",
+					"verdict": {
+						"kind": "insideRerunNoise"
+					}
+				},
+				"moreAttempts": {
+					"state": "available",
+					"attemptsPerArm": 6,
+					"usd": 14.6975328
+				}
+			}
+		},
+		"whatMoved": {
+			"triage-inbox-cut": [
+				{
+					"kind": "overall",
+					"name": "checks",
+					"arms": {
+						"baseline": {
+							"scale": "successRate",
+							"successful": 6,
+							"attempts": 6
+						},
+						"candidate": {
+							"scale": "successRate",
+							"successful": 6,
+							"attempts": 6
+						},
+						"control": {
+							"scale": "successRate",
+							"successful": 6,
+							"attempts": 6
+						}
+					},
+					"readings": {
+						"candidateMinusBaseline": {
+							"interval": {
+								"minuend": {
+									"low": "61%",
+									"high": "100%"
+								},
+								"subtrahend": {
+									"low": "61%",
+									"high": "100%"
+								}
+							},
+							"verdict": {
+								"kind": "unchangedAlreadyClear"
+							}
+						},
+						"candidateMinusControl": {
+							"interval": {
+								"minuend": {
+									"low": "61%",
+									"high": "100%"
+								},
+								"subtrahend": {
+									"low": "61%",
+									"high": "100%"
+								}
+							},
+							"verdict": {
+								"kind": "unchangedAlreadyClear"
+							}
+						},
+						"baselineMinusControl": {
+							"interval": {
+								"minuend": {
+									"low": "61%",
+									"high": "100%"
+								},
+								"subtrahend": {
+									"low": "61%",
+									"high": "100%"
+								}
+							},
+							"verdict": {
+								"kind": "unchangedAlreadyClear"
+							}
+						}
+					}
+				},
+				{
+					"kind": "meter",
+					"name": "replyLength",
+					"arms": {
+						"baseline": {
+							"state": "available",
+							"mean": 192.16666666666666,
+							"low": 138,
+							"high": 247,
+							"counted": 6
+						},
+						"candidate": {
+							"state": "available",
+							"mean": 200.5,
+							"low": 125,
+							"high": 258,
+							"counted": 6
+						},
+						"control": {
+							"state": "available",
+							"mean": 158.83333333333334,
+							"low": 140,
+							"high": 175,
+							"counted": 6
+						}
+					},
+					"readings": {
+						"candidateMinusBaseline": {
+							"interval": {
+								"minuend": {
+									"low": 125,
+									"high": 258
+								},
+								"subtrahend": {
+									"low": 138,
+									"high": 247
+								}
+							},
+							"change": "+4%",
+							"verdict": {
+								"kind": "insideRerunNoise"
+							}
+						},
+						"candidateMinusControl": {
+							"interval": {
+								"minuend": {
+									"low": 125,
+									"high": 258
+								},
+								"subtrahend": {
+									"low": 140,
+									"high": 175
+								}
+							},
+							"change": "+26%",
+							"verdict": {
+								"kind": "insideRerunNoise"
+							}
+						},
+						"baselineMinusControl": {
+							"interval": {
+								"minuend": {
+									"low": 138,
+									"high": 247
+								},
+								"subtrahend": {
+									"low": 140,
+									"high": 175
+								}
+							},
+							"change": "+21%",
+							"verdict": {
+								"kind": "insideRerunNoise"
+							}
+						}
+					}
+				},
+				{
+					"kind": "meter",
+					"name": "costPerAttempt",
+					"arms": {
+						"baseline": {
+							"state": "available",
+							"mean": 1.0952508666666667,
+							"low": 0.3062632,
+							"high": 1.7417114,
+							"counted": 6
+						},
+						"candidate": {
+							"state": "available",
+							"mean": 1.1588326333333334,
+							"low": 0.41955679999999995,
+							"high": 1.5867507999999997,
+							"counted": 6
+						},
+						"control": {
+							"state": "available",
+							"mean": 0.1955053,
+							"low": 0.165363,
+							"high": 0.2325222,
+							"counted": 6
+						}
+					},
+					"readings": {
+						"candidateMinusBaseline": {
+							"interval": {
+								"minuend": {
+									"low": 0.41955679999999995,
+									"high": 1.5867507999999997
+								},
+								"subtrahend": {
+									"low": 0.3062632,
+									"high": 1.7417114
+								}
+							},
+							"change": "+6%",
+							"verdict": {
+								"kind": "insideRerunNoise"
+							}
+						},
+						"candidateMinusControl": {
+							"interval": {
+								"minuend": {
+									"low": 0.41955679999999995,
+									"high": 1.5867507999999997
+								},
+								"subtrahend": {
+									"low": 0.165363,
+									"high": 0.2325222
+								}
+							},
+							"change": "+493%",
+							"verdict": {
+								"kind": "higher",
+								"arm": "candidate"
+							}
+						},
+						"baselineMinusControl": {
+							"interval": {
+								"minuend": {
+									"low": 0.3062632,
+									"high": 1.7417114
+								},
+								"subtrahend": {
+									"low": 0.165363,
+									"high": 0.2325222
+								}
+							},
+							"change": "+460%",
+							"verdict": {
+								"kind": "higher",
+								"arm": "baseline"
+							}
+						}
+					}
+				}
+			]
+		},
+		"attribution": {
+			"triage-inbox-cut": {
+				"candidateMinusBaseline": {
+					"claim": "refused",
+					"differingPaths": [
+						"skills/triage/SKILL.md",
+						"skills/triage/references/inbox.md"
+					]
+				},
+				"candidateMinusControl": {
+					"claim": "refused",
+					"differingPaths": [
+						"skills/triage/SKILL.md",
+						"skills/triage/references/full-board.md",
+						"skills/triage/references/inbox.md"
+					]
+				},
+				"baselineMinusControl": {
+					"claim": "refused",
+					"differingPaths": [
+						"skills/triage/SKILL.md",
+						"skills/triage/references/full-board.md",
+						"skills/triage/references/inbox.md"
+					]
+				}
+			}
+		},
+		"corpusVersions": {
+			"triage-inbox-cut": {
+				"baseline": {
+					"state": "available",
+					"digest": "a361a817b27dac4ded477146394ee3098190a51c01ef9a9dc2bd8fbb5d37ebf6"
+				},
+				"candidate": {
+					"state": "available",
+					"digest": "962ec4806daffe573576b17ed1fa22f2596311909fa3cdb1fe6f46a464f18034"
+				},
+				"control": {
+					"state": "available",
+					"digest": "97b2ac4aa59b3ad8bb699a8f005e2b2386d3d9abd1ab01cd3e82b12549f0d71c"
+				}
+			}
+		},
+		"baselineArm": {
+			"kind": "supplied"
+		},
+		"attempts": {
+			"triage-inbox-cut": {
+				"baseline": [
+					{
+						"repId": "0909ab0e-ef4f-4d00-91f2-ccb2fad2dcff-rep-1",
+						"ordinal": 1,
+						"outcomes": {
+							"state": "available",
+							"outcomes": [
+								{
+									"name": "checks",
+									"status": "JUDGED",
+									"grade": "A",
+									"successful": true
+								}
+							]
+						},
+						"blockersFired": {
+							"state": "unavailable",
+							"reason": "this report records no per-attempt blocker grading"
+						},
+						"words": {
+							"state": "available",
+							"words": 247
+						}
+					},
+					{
+						"repId": "0909ab0e-ef4f-4d00-91f2-ccb2fad2dcff-rep-2",
+						"ordinal": 2,
+						"outcomes": {
+							"state": "available",
+							"outcomes": [
+								{
+									"name": "checks",
+									"status": "JUDGED",
+									"grade": "A",
+									"successful": true
+								}
+							]
+						},
+						"blockersFired": {
+							"state": "unavailable",
+							"reason": "this report records no per-attempt blocker grading"
+						},
+						"words": {
+							"state": "available",
+							"words": 190
+						}
+					},
+					{
+						"repId": "0909ab0e-ef4f-4d00-91f2-ccb2fad2dcff-rep-3",
+						"ordinal": 3,
+						"outcomes": {
+							"state": "available",
+							"outcomes": [
+								{
+									"name": "checks",
+									"status": "JUDGED",
+									"grade": "A",
+									"successful": true
+								}
+							]
+						},
+						"blockersFired": {
+							"state": "unavailable",
+							"reason": "this report records no per-attempt blocker grading"
+						},
+						"words": {
+							"state": "available",
+							"words": 220
+						}
+					},
+					{
+						"repId": "0909ab0e-ef4f-4d00-91f2-ccb2fad2dcff-rep-4",
+						"ordinal": 4,
+						"outcomes": {
+							"state": "available",
+							"outcomes": [
+								{
+									"name": "checks",
+									"status": "JUDGED",
+									"grade": "A",
+									"successful": true
+								}
+							]
+						},
+						"blockersFired": {
+							"state": "unavailable",
+							"reason": "this report records no per-attempt blocker grading"
+						},
+						"words": {
+							"state": "available",
+							"words": 205
+						}
+					},
+					{
+						"repId": "0909ab0e-ef4f-4d00-91f2-ccb2fad2dcff-rep-5",
+						"ordinal": 5,
+						"outcomes": {
+							"state": "available",
+							"outcomes": [
+								{
+									"name": "checks",
+									"status": "JUDGED",
+									"grade": "A",
+									"successful": true
+								}
+							]
+						},
+						"blockersFired": {
+							"state": "unavailable",
+							"reason": "this report records no per-attempt blocker grading"
+						},
+						"words": {
+							"state": "available",
+							"words": 138
+						}
+					},
+					{
+						"repId": "0909ab0e-ef4f-4d00-91f2-ccb2fad2dcff-rep-6",
+						"ordinal": 6,
+						"outcomes": {
+							"state": "available",
+							"outcomes": [
+								{
+									"name": "checks",
+									"status": "JUDGED",
+									"grade": "A",
+									"successful": true
+								}
+							]
+						},
+						"blockersFired": {
+							"state": "unavailable",
+							"reason": "this report records no per-attempt blocker grading"
+						},
+						"words": {
+							"state": "available",
+							"words": 153
+						}
+					}
+				],
+				"candidate": [
+					{
+						"repId": "58c05591-9661-4f1b-b6d6-b9c39669b7ad-rep-1",
+						"ordinal": 1,
+						"outcomes": {
+							"state": "available",
+							"outcomes": [
+								{
+									"name": "checks",
+									"status": "JUDGED",
+									"grade": "A",
+									"successful": true
+								}
+							]
+						},
+						"blockersFired": {
+							"state": "unavailable",
+							"reason": "this report records no per-attempt blocker grading"
+						},
+						"words": {
+							"state": "available",
+							"words": 202
+						}
+					},
+					{
+						"repId": "58c05591-9661-4f1b-b6d6-b9c39669b7ad-rep-2",
+						"ordinal": 2,
+						"outcomes": {
+							"state": "available",
+							"outcomes": [
+								{
+									"name": "checks",
+									"status": "JUDGED",
+									"grade": "A",
+									"successful": true
+								}
+							]
+						},
+						"blockersFired": {
+							"state": "unavailable",
+							"reason": "this report records no per-attempt blocker grading"
+						},
+						"words": {
+							"state": "available",
+							"words": 258
+						}
+					},
+					{
+						"repId": "58c05591-9661-4f1b-b6d6-b9c39669b7ad-rep-3",
+						"ordinal": 3,
+						"outcomes": {
+							"state": "available",
+							"outcomes": [
+								{
+									"name": "checks",
+									"status": "JUDGED",
+									"grade": "A",
+									"successful": true
+								}
+							]
+						},
+						"blockersFired": {
+							"state": "unavailable",
+							"reason": "this report records no per-attempt blocker grading"
+						},
+						"words": {
+							"state": "available",
+							"words": 240
+						}
+					},
+					{
+						"repId": "58c05591-9661-4f1b-b6d6-b9c39669b7ad-rep-4",
+						"ordinal": 4,
+						"outcomes": {
+							"state": "available",
+							"outcomes": [
+								{
+									"name": "checks",
+									"status": "JUDGED",
+									"grade": "A",
+									"successful": true
+								}
+							]
+						},
+						"blockersFired": {
+							"state": "unavailable",
+							"reason": "this report records no per-attempt blocker grading"
+						},
+						"words": {
+							"state": "available",
+							"words": 125
+						}
+					},
+					{
+						"repId": "58c05591-9661-4f1b-b6d6-b9c39669b7ad-rep-5",
+						"ordinal": 5,
+						"outcomes": {
+							"state": "available",
+							"outcomes": [
+								{
+									"name": "checks",
+									"status": "JUDGED",
+									"grade": "A",
+									"successful": true
+								}
+							]
+						},
+						"blockersFired": {
+							"state": "unavailable",
+							"reason": "this report records no per-attempt blocker grading"
+						},
+						"words": {
+							"state": "available",
+							"words": 230
+						}
+					},
+					{
+						"repId": "58c05591-9661-4f1b-b6d6-b9c39669b7ad-rep-6",
+						"ordinal": 6,
+						"outcomes": {
+							"state": "available",
+							"outcomes": [
+								{
+									"name": "checks",
+									"status": "JUDGED",
+									"grade": "A",
+									"successful": true
+								}
+							]
+						},
+						"blockersFired": {
+							"state": "unavailable",
+							"reason": "this report records no per-attempt blocker grading"
+						},
+						"words": {
+							"state": "available",
+							"words": 148
+						}
+					}
+				],
+				"control": [
+					{
+						"repId": "9dabe6d5-feaa-4bde-9a22-372747bf0ca8-rep-1",
+						"ordinal": 1,
+						"outcomes": {
+							"state": "available",
+							"outcomes": [
+								{
+									"name": "checks",
+									"status": "JUDGED",
+									"grade": "A",
+									"successful": true
+								}
+							]
+						},
+						"blockersFired": {
+							"state": "unavailable",
+							"reason": "this report records no per-attempt blocker grading"
+						},
+						"words": {
+							"state": "available",
+							"words": 140
+						}
+					},
+					{
+						"repId": "9dabe6d5-feaa-4bde-9a22-372747bf0ca8-rep-2",
+						"ordinal": 2,
+						"outcomes": {
+							"state": "available",
+							"outcomes": [
+								{
+									"name": "checks",
+									"status": "JUDGED",
+									"grade": "A",
+									"successful": true
+								}
+							]
+						},
+						"blockersFired": {
+							"state": "unavailable",
+							"reason": "this report records no per-attempt blocker grading"
+						},
+						"words": {
+							"state": "available",
+							"words": 168
+						}
+					},
+					{
+						"repId": "9dabe6d5-feaa-4bde-9a22-372747bf0ca8-rep-3",
+						"ordinal": 3,
+						"outcomes": {
+							"state": "available",
+							"outcomes": [
+								{
+									"name": "checks",
+									"status": "JUDGED",
+									"grade": "A",
+									"successful": true
+								}
+							]
+						},
+						"blockersFired": {
+							"state": "unavailable",
+							"reason": "this report records no per-attempt blocker grading"
+						},
+						"words": {
+							"state": "available",
+							"words": 175
+						}
+					},
+					{
+						"repId": "9dabe6d5-feaa-4bde-9a22-372747bf0ca8-rep-4",
+						"ordinal": 4,
+						"outcomes": {
+							"state": "available",
+							"outcomes": [
+								{
+									"name": "checks",
+									"status": "JUDGED",
+									"grade": "A",
+									"successful": true
+								}
+							]
+						},
+						"blockersFired": {
+							"state": "unavailable",
+							"reason": "this report records no per-attempt blocker grading"
+						},
+						"words": {
+							"state": "available",
+							"words": 150
+						}
+					},
+					{
+						"repId": "9dabe6d5-feaa-4bde-9a22-372747bf0ca8-rep-5",
+						"ordinal": 5,
+						"outcomes": {
+							"state": "available",
+							"outcomes": [
+								{
+									"name": "checks",
+									"status": "JUDGED",
+									"grade": "A",
+									"successful": true
+								}
+							]
+						},
+						"blockersFired": {
+							"state": "unavailable",
+							"reason": "this report records no per-attempt blocker grading"
+						},
+						"words": {
+							"state": "available",
+							"words": 154
+						}
+					},
+					{
+						"repId": "9dabe6d5-feaa-4bde-9a22-372747bf0ca8-rep-6",
+						"ordinal": 6,
+						"outcomes": {
+							"state": "available",
+							"outcomes": [
+								{
+									"name": "checks",
+									"status": "JUDGED",
+									"grade": "A",
+									"successful": true
+								}
+							]
+						},
+						"blockersFired": {
+							"state": "unavailable",
+							"reason": "this report records no per-attempt blocker grading"
+						},
+						"words": {
+							"state": "available",
+							"words": 166
+						}
+					}
+				]
+			}
+		}
+	}
+}

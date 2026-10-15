@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Rehearse · Before & after</title>
+		<link rel="stylesheet" href="review.css" />
+		<script type="module" src="review.js"></script>
+	</head>
+	<body data-mode="after">
+		<header class="review-header">
+			<div>
+				<p class="eyebrow">Rehearse · Desktop design review</p>
+				<h1>Before & after</h1>
+				<p class="intro">
+					The same saved evidence in the current product and a proposed layout.
+					All captures are 1440 × 900.
+				</p>
+			</div>
+			<span class="proposal-note">Proposal only · application unchanged</span>
+		</header>
+		<nav class="scene-nav" aria-label="Screens to compare">
+			<button data-choose="results" aria-pressed="true">Run Results</button>
+			<button data-choose="attempt" aria-pressed="false">Replay Results</button>
+			<button data-choose="context" aria-pressed="false">Context & cost</button>
+			<button data-choose="comparison" aria-pressed="false">Comparison</button>
+		</nav>
+		<div class="review-toolbar">
+			<div class="modes" role="group" aria-label="Comparison mode">
+				<button data-mode="before" aria-pressed="false">
+					Before <kbd>1</kbd></button
+				><button data-mode="after" aria-pressed="true">
+					After <kbd>2</kbd></button
+				><button data-mode="side" aria-pressed="false">Side by side</button>
+			</div>
+			<span class="toolbar-hint"
+				>Switch at the same size to see what moves.</span
+			>
+			<button id="zoom">Inspect at 1:1</button>
+			<a
+				id="open-proposal"
+				href="after.html?screen=results"
+				target="_blank"
+				rel="noopener"
+				>Open proposed screen ↗</a
+			>
+		</div>
+		<main>
+			<section
+				class="scene"
+				data-scene="results"
+				aria-labelledby="results-title"
+			>
+				<header class="scene-heading">
+					<h2 id="results-title">Understand the final result first</h2>
+					<span>Same run · audit-log / r44 · final FAIL · $9.43</span>
+				</header>
+				<div class="pair">
+					<figure class="before">
+						<figcaption>Current product <strong>Before</strong></figcaption>
+						<img
+							src="screens/results-before.png"
+							width="1440"
+							height="900"
+							alt="Current r44 Results with the full workflow above the final FAIL and step report."
+						/>
+					</figure>
+					<figure class="after">
+						<figcaption>Proposed layout <strong>After</strong></figcaption>
+						<img
+							src="screens/results-after.png"
+							width="1440"
+							height="900"
+							alt="Proposed r44 Results with execution and review states separate, the final FAIL first, and three saved failure criteria visible."
+						/>
+					</figure>
+				</div>
+				<div class="changes">
+					<h3>What changes</h3>
+					<ul>
+						<li>
+							Execution ended, final FAIL and pending human review have distinct
+							labels.
+						</li>
+						<li>
+							The three actual failed criteria replace the grading-method
+							paragraph as the main reading.
+						</li>
+						<li>
+							A compact step selector keeps Build's B, acceptance threshold,
+							spend and actions beside the final evidence.
+						</li>
+					</ul>
+					<p class="boundary">
+						The failed criteria already exist in the saved artifact. The
+						proposal surfaces them; it does not regrade the run or request an
+						analysis.
+					</p>
+				</div>
+			</section>
+			<section
+				class="scene"
+				data-scene="attempt"
+				aria-labelledby="attempt-title"
+				hidden
+			>
+				<header class="scene-heading">
+					<h2 id="attempt-title">Inspect a replay without opening JSON</h2>
+					<span>Same attempt · audit-log / r39 · Shape B · $1.95</span>
+				</header>
+				<div class="pair">
+					<figure class="before">
+						<figcaption>Current product <strong>Before</strong></figcaption>
+						<img
+							src="screens/attempt-before.png"
+							width="1440"
+							height="900"
+							alt="Current replay Results showing a grade and resource summary, canonical lineage, and raw JSON disclosure."
+						/>
+					</figure>
+					<figure class="after">
+						<figcaption>Proposed layout <strong>After</strong></figcaption>
+						<img
+							src="screens/attempt-after.png"
+							width="1440"
+							height="900"
+							alt="Proposed replay Results with saved Judge findings, four dimension grades and citations, readable attempt identity, and adjacent replay readings."
+						/>
+					</figure>
+				</div>
+				<div class="changes">
+					<h3>What changes</h3>
+					<ul>
+						<li>
+							The saved Judge summary, dimension grades and citations become
+							readable results.
+						</li>
+						<li>
+							Case, source step and attempt position replace the long record ID
+							in the heading; the canonical identity stays inspectable.
+						</li>
+						<li>
+							The two attempts at the input appear together, with an explicit
+							exploratory comparison boundary.
+						</li>
+					</ul>
+					<p class="boundary">
+						Replays retain no raw transcript or request series. The proposal
+						uses the saved scorecard and quoted evidence only.
+					</p>
+				</div>
+			</section>
+			<section
+				class="scene"
+				data-scene="context"
+				aria-labelledby="context-title"
+				hidden
+			>
+				<header class="scene-heading">
+					<h2 id="context-title">
+						Give the selected request room to explain itself
+					</h2>
+					<span>Same session repetition · g6 / attempt 1 · 1 request</span>
+				</header>
+				<div class="pair">
+					<figure class="before">
+						<figcaption>Current product <strong>Before</strong></figcaption>
+						<img
+							src="screens/context-before.png"
+							width="1440"
+							height="900"
+							alt="Current session context view split into sources, events, request timeline and evidence detail columns."
+						/>
+					</figure>
+					<figure class="after">
+						<figcaption>Proposed layout <strong>After</strong></figcaption>
+						<img
+							src="screens/context-after.png"
+							width="1440"
+							height="900"
+							alt="Proposed session context view with provider cost, recorded input and unpriced status first, and a wide request inspector."
+						/>
+					</figure>
+				</div>
+				<div class="changes">
+					<h3>What changes</h3>
+					<ul>
+						<li>
+							Provider-reported spend, request input and pricing coverage are
+							distinct readings at the top.
+						</li>
+						<li>
+							A compact investigation menu gives the selected request most of
+							the width.
+						</li>
+						<li>
+							The actual 3,298 input tokens get a labeled composition bar;
+							output and missing source text remain separate.
+						</li>
+					</ul>
+					<p class="boundary">
+						This is a session repetition with one recorded request, not a
+						replay. The model is unpriced, and all 17 content gaps remain
+						visible and inspectable.
+					</p>
+				</div>
+			</section>
+			<section
+				class="scene"
+				data-scene="comparison"
+				aria-labelledby="comparison-title"
+				hidden
+			>
+				<header class="scene-heading">
+					<h2 id="comparison-title">
+						Read the experiment before the attempt table
+					</h2>
+					<span>Same report · triage-inbox-cut · 6 attempts per arm</span>
+				</header>
+				<div class="pair">
+					<figure class="before">
+						<figcaption>Current product <strong>Before</strong></figcaption>
+						<img
+							src="screens/comparison-before.png"
+							width="1440"
+							height="900"
+							alt="Current comparison opening on six attempt rows under Baseline, Arm A and Arm B."
+						/>
+					</figure>
+					<figure class="after">
+						<figcaption>Proposed layout <strong>After</strong></figcaption>
+						<img
+							src="screens/comparison-after.png"
+							width="1440"
+							height="900"
+							alt="Proposed comparison leading with unchanged check outcomes, baseline/candidate/control roles, cost and reply-length readings, and attribution limits."
+						/>
+					</figure>
+				</div>
+				<div class="changes">
+					<h3>What changes</h3>
+					<ul>
+						<li>
+							The supported reading leads: all checks pass; candidate changes
+							against baseline are inside rerun noise. Higher spend than the
+							control remains inspectable.
+						</li>
+						<li>
+							The current Baseline becomes Control; Arm A becomes Baseline and
+							Arm B becomes Candidate. These roles have readable labels and
+							per-attempt cost.
+						</li>
+						<li>
+							Sample counts, missing blocker grading and the two-file
+							attribution refusal sit beside the result.
+						</li>
+					</ul>
+					<p class="boundary">
+						The same 18 attempts remain inspectable. Equal passing checks do not
+						establish equivalent overall quality.
+					</p>
+				</div>
+			</section>
+		</main>
+		<footer class="review-footer">
+			<p>
+				Current captures: unchanged application at
+				<span class="mono">900e5a57</span>. Proposed screens: standalone HTML
+				using selected saved readings. No provider calls, live corpus edits or
+				production UI changes.
+			</p>
+			<p>
+				Keyboard: <kbd>1</kbd> before · <kbd>2</kbd> after · <kbd>←</kbd
+				><kbd>→</kbd> screens · <kbd>Esc</kbd> close full-size inspection
+			</p>
+		</footer>
+		<dialog id="image-inspector" aria-labelledby="zoom-title">
+			<header>
+				<h2 id="zoom-title">Full-size inspection</h2>
+				<button id="close-zoom" aria-label="Close full-size inspection">
+					Close <kbd>Esc</kbd>
+				</button>
+			</header>
+			<div class="zoom-scroll">
+				<img id="zoom-image" width="1440" height="900" alt="" />
+			</div>
+			<p>1440 × 900 at 1:1. Scroll to inspect the complete screen.</p>
+		</dialog>
+	</body>
+</html>

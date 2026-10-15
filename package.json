@@ -18,7 +18,7 @@
 		"lint": "oxlint --type-aware",
 		"lint:css": "stylelint \"client/**/*.css\" \"!client/**/__fixtures__/**\" \"!client/dist/**\"",
 		"test": "bun test && bun test --path-ignore-patterns \"**/node_modules/**\" --preload ./client/test-setup.ts ./client",
-		"typecheck": "tsc --noEmit && tsc --noEmit -p client/tsconfig.json",
+		"typecheck": "tsc --noEmit && tsc --noEmit -p client/tsconfig.json && tsc --noEmit -p prototypes/ux-comparison/tsconfig.json",
 		"rehearse": "$npm_execpath run rehearse.ts",
 		"dev:client": "vite --config client/vite.config.ts",
 		"build:client": "vite build --config client/vite.config.ts",

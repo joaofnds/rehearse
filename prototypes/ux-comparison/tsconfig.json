@@ -1,0 +1,19 @@
+{
+	"compilerOptions": {
+		"strict": true,
+		"allowJs": true,
+		"checkJs": true,
+		"noEmit": true,
+		"skipLibCheck": true,
+		"module": "esnext",
+		"target": "esnext",
+		"moduleResolution": "bundler",
+		"resolveJsonModule": true,
+		"types": [],
+		"lib": ["esnext", "dom", "dom.iterable"],
+		"noUncheckedIndexedAccess": true,
+		"exactOptionalPropertyTypes": true,
+		"noPropertyAccessFromIndexSignature": true
+	},
+	"include": ["*.js"]
+}
