@@ -1394,7 +1394,7 @@ export async function readRunRecord(
 				place: stagePlace(index, currentIndex),
 			}),
 		);
-		const target = basename(manifest.sourceRoot);
+		const target = basename(manifest.targetRoot ?? manifest.sourceRoot);
 		const initialShortId = stageCheckpointShortId(shortId, names, {
 			stage: INITIAL_CHECKPOINT_STAGE,
 			file: undefined,
