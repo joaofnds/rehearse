@@ -1272,9 +1272,11 @@ malformed run name and 404 for a run with no manifest.
 A pipeline run never writes the target's own checkout. It works in a clone of
 the target's `main` under the system temporary directory, named
 `rehearse-target-*`, and its manifest records the clone as `sourceRoot` and the
-target as `targetRoot`. When the run ends, it fetches `refs/rehearse/<run>` from
-the clone into the target, which brings the candidate and every checkpoint
-commit with it, since each is an ancestor of the last. It then removes the clone
+target as `targetRoot`. Each time the run pins `refs/rehearse/<run>`, at every
+checkpoint and at its final candidate, it fetches the ref from the clone into
+the target, which brings that commit and every earlier one with it, since each
+is an ancestor of the last. A checkpoint the target cannot take fails the run
+there. When the run ends, it fetches the ref once more, then removes the clone
 and the run's service containers. A clone whose commits the target could not
 take stays, and the run names its path, since it holds their only copy.
 Dependencies the setup installed live in the clone and go with it.
@@ -1283,8 +1285,8 @@ SIGINT, SIGTERM, and SIGHUP stop child process groups and trigger the same
 cleanup. A hard kill or crash leaves the clone, with the run's claim in its
 `.git/benchmark-run.json`, and leaves its containers running. Neither refuses a
 later run, since each run clones afresh and Docker assigns each container its
-own port. To recover, fetch the clone's `refs/rehearse/<run>` into the target
-when its commits matter, delete the clone, and remove the containers
+own port. The target already holds every commit the run pinned before the kill.
+To recover, delete the clone and remove the containers
 `docker ps --all --filter label=rehearse.run=<run>` lists. Server interruption
 detection does not clean up for you.
 

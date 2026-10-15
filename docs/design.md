@@ -50,9 +50,10 @@ answers questions from the task and product brief. Stage Judges see frozen
 evidence and rubrics, and the final Judge evaluates the delivered candidate.
 
 The target owns its project instructions. The harness no longer installs this
-repository's `CLAUDE.md` into the target. Cleanup copies the run's retained Git
-ref into the target, which keeps candidate and checkpoint commits available
-after the clone is removed, and removes the containers.
+repository's `CLAUDE.md` into the target. The run copies its retained Git ref
+into the target each time it pins a commit, which keeps candidate and
+checkpoint commits available after the clone is removed, even when the run is
+killed. Cleanup removes the clone and the containers.
 
 Replay materializes a stage's input checkpoint in a host worktree. It runs only
 that stage and preserves its result as another attempt. Pipeline and replay

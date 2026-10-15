@@ -604,7 +604,7 @@ See [current state](docs/status.md) for implementation coverage and
   made stale. Offering it starts nothing.
 - **Retained candidate** — the run's final result commit, pinned under
   `refs/rehearse/<run>` in the run's checkout and copied with that ref into the
-  target repository before the checkout is removed, so the candidate outlives
+  target repository as soon as it is pinned, so the candidate outlives
   the run that produced it. No branch reaches the commit, so only the ref keeps
   gc from pruning it;
   `show run:<name> --checkout <dir>` materializes it as a detached worktree.
@@ -898,8 +898,8 @@ See [current state](docs/status.md) for implementation coverage and
   prefix.
 - **Run checkout** — the temporary clone of the target's `main` a pipeline run
   works in, so the operator's own checkout of the target is never read or
-  written. The run copies its retained commits into the target before removing
-  it.
+  written. The run copies each commit it retains into the target as it pins
+  it, so removing the checkout loses none of them.
 - **Target repository (template project)** — the real application repository,
   kept at a stable baseline, that tasks run against.
 - **Target service** — a container the pipeline declares for the target, such

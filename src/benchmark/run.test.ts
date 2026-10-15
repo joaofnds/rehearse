@@ -4,7 +4,8 @@ import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { projectSlug } from "./session-capture";
-import { join, relative } from "node:path";
+import { dirname, join, relative } from "node:path";
+import { cloneTarget } from "./target-clone";
 import { z } from "zod";
 import { SymlinkedEntryError } from "./file-presence";
 import {
@@ -63,6 +64,7 @@ import {
 	completeRunArtifact,
 	ordinaryInitialCheckpointInputs,
 	retainedCheckpointRecorder,
+	retentionInTarget,
 	judgeRun,
 	runFinalJudge,
 	runGradedStages,
@@ -4348,20 +4350,20 @@ describe(finishGradedRun.name, () => {
 describe(retainedCheckpointRecorder.name, () => {
 	it("records the checkpoint and pins its commit under refs/rehearse", async () => {
 		const source = await testResources.createRepository();
+		const target = await testResources.createRepository();
 		const checkpointDir = join(source.directory, ".checkpoints", "initial");
 
-		const record = await retainedCheckpointRecorder("run-1")(
-			source.directory,
-			checkpointDir,
-			{
-				stage: "initial",
-				targetSha: source.sha,
-				upstream: "root-key",
-				model: "sonnet",
-				corpusFiles: [],
-				artifacts: [],
-			},
-		);
+		const record = await retainedCheckpointRecorder(
+			"run-1",
+			retentionInTarget(target.directory),
+		)(source.directory, checkpointDir, {
+			stage: "initial",
+			targetSha: source.sha,
+			upstream: "root-key",
+			model: "sonnet",
+			corpusFiles: [],
+			artifacts: [],
+		});
 
 		expect(record.stage).toBe("initial");
 		expect(
@@ -4372,5 +4374,28 @@ describe(retainedCheckpointRecorder.name, () => {
 			source.directory,
 		);
 		expect(retainedSha.trim()).toBe(source.sha);
+	});
+});
+
+describe(retentionInTarget.name, () => {
+	it("copies the pinned commit into the target the checkout was cloned from", async () => {
+		const target = await testResources.createRepository();
+		const checkout = await cloneTarget(target.directory);
+		testResources.track(dirname(checkout));
+		await Bun.write(join(checkout, "candidate.txt"), "candidate\n");
+		await commitAll(checkout, "feat: candidate");
+		const candidate = await runCommand(["git", "rev-parse", "HEAD"], checkout);
+
+		await retentionInTarget(target.directory)(
+			checkout,
+			"run-1",
+			candidate.trim(),
+		);
+
+		const retained = await runCommand(
+			["git", "rev-parse", "refs/rehearse/run-1"],
+			target.directory,
+		);
+		expect(retained.trim()).toBe(candidate.trim());
 	});
 });

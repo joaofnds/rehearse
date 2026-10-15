@@ -123,7 +123,12 @@ import {
 	retentionRef,
 } from "./target";
 import type { SourceBaseline } from "./target";
-import { cloneTarget, discardClone, releaseClone } from "./target-clone";
+import {
+	cloneTarget,
+	discardClone,
+	releaseClone,
+	retainInTarget,
+} from "./target-clone";
 import type { ServiceEnvironment, TargetServices } from "./target-services";
 import {
 	checksWithServices,
@@ -557,12 +562,27 @@ export async function finishGradedRun(
  */
 export function retainedCheckpointRecorder(
 	runName: string,
+	retain: typeof recordRetentionRef,
 ): typeof recordCheckpoint {
 	return async (targetDir, directory, inputs) => {
 		const record = await recordCheckpoint(targetDir, directory, inputs);
-		await recordRetentionRef(targetDir, runName, inputs.targetSha);
+		await retain(targetDir, runName, inputs.targetSha);
 
 		return record;
+	};
+}
+
+/**
+ * Pins the commit in the run's checkout and copies the pin into the target at
+ * once, so the target holds every commit the run retained even when the run
+ * is killed before it can remove its checkout.
+ */
+export function retentionInTarget(
+	targetRoot: string,
+): typeof recordRetentionRef {
+	return async (checkout, runName, sha) => {
+		await recordRetentionRef(checkout, runName, sha);
+		await retainInTarget(checkout, targetRoot, runName);
 	};
 }
 
@@ -1500,7 +1520,11 @@ export async function runBenchmark(
 			task,
 			pipeline.statuses,
 		);
-		const recordRetainedCheckpoint = retainedCheckpointRecorder(runFiles.name);
+		const retainCommit = retentionInTarget(target.root);
+		const recordRetainedCheckpoint = retainedCheckpointRecorder(
+			runFiles.name,
+			retainCommit,
+		);
 		await writeRunManifest(
 			runFiles.manifestFile,
 			buildRunManifest({
@@ -1710,7 +1734,7 @@ export async function runBenchmark(
 				},
 			},
 			{
-				recordRetentionRef,
+				recordRetentionRef: retainCommit,
 				collectCalibration: (input) =>
 					collectCalibration({
 						...input,
