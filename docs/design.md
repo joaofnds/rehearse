@@ -155,8 +155,8 @@ enough by itself, so the report also checks that the run's own claim on its
 target is held by a live process. A claim names the run that made it. A claim
 written by an older control checkout names no run, and counts as the run's own
 when it was made no later than the run's first event, or when the run has
-recorded no event yet, because a run claims its target before it records
-anything and a second claim is refused until the first is deleted. That
+recorded no event yet, because such a checkout claimed its target before it
+recorded anything and refused a second claim until the first was deleted. That
 ordering compares two wall-clock readings, so a backward clock step can misread
 an unnamed claim. The claim also records a pid, so a crashed run whose pid a
 later process has taken still reads as in flight. Startup reconciliation reads

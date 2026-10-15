@@ -133,7 +133,6 @@ async function runMarkerPath(root: string): Promise<string> {
 }
 
 const runMarkerSchema = z.object({
-	sha: z.string().min(1),
 	pid: z.number(),
 	run: z.string().min(1).optional(),
 	startedAt: z.iso.datetime(),
@@ -172,20 +171,9 @@ export async function claimTarget(
 	source: SourceBaseline,
 	run: string,
 ): Promise<void> {
-	const path = await runMarkerPath(source.root);
-	const marker = Bun.file(path);
-
-	if (await marker.exists()) {
-		const markerText = await marker.text();
-		throw new Error(
-			`A previous benchmark run left this target unrestored: ${markerText.trim()}. Restore it manually (git reset --hard <sha>; git clean -fd), then delete ${path}.`,
-		);
-	}
-
 	await Bun.write(
-		path,
+		await runMarkerPath(source.root),
 		`${JSON.stringify({
-			sha: source.sha,
 			pid: process.pid,
 			run,
 			startedAt: new Date().toISOString(),
@@ -196,8 +184,7 @@ export async function claimTarget(
 /**
  * Checkpointed commits must outlive the run: no branch reaches the task and
  * result commits, so only this ref keeps gc from pruning the history a later
- * replay materializes. The ref is harness state
- * in the target's git directory, never part of the corpus.
+ * replay materializes. The ref is harness state, never part of the corpus.
  */
 export async function recordRetentionRef(
 	targetDir: string,

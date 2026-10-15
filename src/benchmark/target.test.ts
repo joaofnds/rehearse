@@ -417,17 +417,7 @@ describe(assertWorkflowBoardPrivate.name, () => {
 const CLAIMING_RUN = "2026-10-08T00-00-00.000Z";
 
 describe(claimTarget.name, () => {
-	it("refuses a target an unrestored run left claimed", async () => {
-		const source = await testResources.createRepository();
-		const baseline = await assertSourceReady(source.directory);
-		await claimTarget(baseline, CLAIMING_RUN);
-
-		expect(claimTarget(baseline, CLAIMING_RUN)).rejects.toThrow(
-			"previous benchmark run left this target unrestored",
-		);
-	});
-
-	it("claims a linked-worktree target whose .git is a file", async () => {
+	it("records its claim in a linked worktree whose .git is a file", async () => {
 		const source = await testResources.createRepository();
 		await runCommand(["git", "switch", "-c", "primary"], source.directory);
 		const worktreeParent = await mkdtemp(join(tmpdir(), "rehearse-worktree-"));
@@ -441,9 +431,8 @@ describe(claimTarget.name, () => {
 
 		await claimTarget(baseline, CLAIMING_RUN);
 
-		expect(claimTarget(baseline, CLAIMING_RUN)).rejects.toThrow(
-			"previous benchmark run left this target unrestored",
-		);
+		const marker = await readRunMarker(worktree);
+		expect(marker?.run).toBe(CLAIMING_RUN);
 	});
 });
 
@@ -455,7 +444,7 @@ describe(readRunMarker.name, () => {
 
 		const marker = await readRunMarker(baseline.root);
 
-		expect(marker).toMatchObject({ sha: baseline.sha, pid: process.pid });
+		expect(marker?.pid).toBe(process.pid);
 	});
 
 	it("reads the run a claim names", async () => {
@@ -483,7 +472,6 @@ describe(readRunMarker.name, () => {
 		const marker = await readRunMarker(baseline.root);
 
 		expect(marker).toEqual({
-			sha: baseline.sha,
 			pid: 4242,
 			startedAt: "2026-09-01T00:00:00.000Z",
 		});
