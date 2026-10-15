@@ -890,14 +890,7 @@ async function readJudgeReadyEvidence(
 				environment.baselineSha,
 				build.resultSha,
 			),
-			checkIntegrity: await dependencies.captureCheckIntegrity(
-				environment.targetDir,
-				environment.baselineHashes,
-			),
-			localChecks: await dependencies.captureTreatmentChecks(
-				environment.targetDir,
-				environment.target.checks,
-			),
+			...(await measureDeliveryChecks(dependencies, environment)),
 			taskState: taskCard,
 		};
 
@@ -912,6 +905,50 @@ async function readJudgeReadyEvidence(
 	});
 
 	return { resultSha, input, artifact, buildEvidence };
+}
+
+/**
+ * What the final Judge grades a delivery stage on. When a lowered minimum
+ * grade carries the run past a delivery its validation rejected, that is the
+ * checkout as the stage left it, measured as a committed delivery is.
+ */
+async function deliveryEvidence(
+	dependencies: StageSessionDependencies,
+	environment: StageSessionEnvironment,
+	session: StageSessionResult,
+): Promise<BuildEvidence> {
+	if (session.buildEvidence !== undefined) {
+		return session.buildEvidence;
+	}
+
+	const candidate = await dependencies.captureBuildCandidate(
+		environment.targetDir,
+		environment.baselineSha,
+	);
+
+	return {
+		resultSha: candidate.resultSha,
+		diff: candidate.diff,
+		changedPaths: candidate.changedPaths,
+		...(await measureDeliveryChecks(dependencies, environment)),
+		taskState: session.input.taskState,
+	};
+}
+
+async function measureDeliveryChecks(
+	dependencies: StageSessionDependencies,
+	environment: StageSessionEnvironment,
+): Promise<Pick<BuildEvidence, "checkIntegrity" | "localChecks">> {
+	return {
+		checkIntegrity: await dependencies.captureCheckIntegrity(
+			environment.targetDir,
+			environment.baselineHashes,
+		),
+		localChecks: await dependencies.captureTreatmentChecks(
+			environment.targetDir,
+			environment.target.checks,
+		),
+	};
 }
 
 function stageElapsedMs(
@@ -1090,9 +1127,6 @@ export async function runGradedStages(
 		if (session.artifact) {
 			stageArtifacts.push(session.artifact);
 		}
-		if (session.buildEvidence) {
-			({ buildEvidence } = session);
-		}
 
 		const stageFile = context.stageFile(stage);
 		const pendingStage: PendingStage = {
@@ -1221,6 +1255,13 @@ export async function runGradedStages(
 			await keepStoppedTranscript(context, stage, stageTranscript);
 		}
 		assertStageGradePassed(scorecard, context.minimumStageGrade);
+		if (definition.kind === "delivery") {
+			buildEvidence = await deliveryEvidence(
+				dependencies,
+				sessionContext,
+				session,
+			);
+		}
 
 		baselineSha = session.resultSha;
 		const checkpoint = await dependencies.recordCheckpoint(

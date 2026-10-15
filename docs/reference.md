@@ -1050,7 +1050,10 @@ branch and any declared acceptance criteria/artifact. Planning commits become
 evidence and advance the next stage's baseline. Delivery requires at least one
 commit matching the pipeline's pattern, clean descendant history, and target
 checks/integrity. The delivery Judge sees delivery-stage commits; the final
-Judge sees the candidate since task setup.
+Judge sees the candidate since task setup. A run that a lowered `--minimum-grade`
+carries past a delivery its validation rejected measures the checks and integrity
+on the checkout that stage left, uncommitted files included, and the final Judge
+grades that checkout.
 
 Stage rubrics define hard blockers, binary requirements, and letter-graded
 quality dimensions. A blocker yields F; a missing requirement caps the result

@@ -2564,6 +2564,32 @@ describe(runGradedStages.name, () => {
 		expect(buildInput).not.toHaveProperty("commitSubjects");
 	});
 
+	it("measures the checkout a rejected delivery left when the run continues past it", async () => {
+		const { dependencies } = fakeStageDependencies();
+		const invalid = {
+			...dependencies,
+			assertBuildCommitted: () =>
+				Promise.reject(
+					new StageValidationError(
+						"Build phase left uncommitted changes:\n?? GLOSSARY.md",
+					),
+				),
+			captureTreatmentChecks: () =>
+				Promise.resolve(harnessResult("FAIL", "one test red")),
+		};
+
+		const outcome = await runGradedStages(invalid, await stageContext());
+
+		expect(outcome.buildEvidence).toEqual({
+			resultSha: "candidate-sha",
+			diff: "candidate-diff",
+			changedPaths: ["src/example.ts"],
+			checkIntegrity: harnessResult("PASS", "checks match"),
+			localChecks: harnessResult("FAIL", "one test red"),
+			taskState: "the task card",
+		});
+	});
+
 	it("writes a checkpoint for every accepted stage and chains lineage", async () => {
 		const { dependencies } = fakeStageDependencies();
 		const context = await stageContext();
