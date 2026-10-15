@@ -50,26 +50,20 @@ export async function assertSourceReady(
 		throw new Error("Target must not be the control repository");
 	}
 
-	const branch = await git(sourceRoot, "branch", "--show-current");
-	if (branch !== "main") {
-		throw new Error(
-			`Target must be on main, found ${branch || "detached HEAD"}`,
-		);
-	}
-
-	const status = await git(
+	const sha = await optionalGit(
 		sourceRoot,
-		"status",
-		"--porcelain=v1",
-		"--untracked-files=all",
+		"rev-parse",
+		"--verify",
+		"--quiet",
+		"refs/heads/main^{commit}",
 	);
-	if (status) {
-		throw new Error("Target main must be clean before a run");
+	if (sha === undefined) {
+		throw new Error("Target must have a main branch");
 	}
 
 	return {
 		root: sourceRoot,
-		sha: await git(sourceRoot, "rev-parse", "HEAD"),
+		sha,
 		origin: await optionalGit(sourceRoot, "remote", "get-url", "origin"),
 	};
 }

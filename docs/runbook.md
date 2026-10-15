@@ -293,7 +293,9 @@ and the scripts `migrate`, `typecheck`, `check`, and `test:unit`. An arbitrary r
 will need its own case, rubrics, and pipeline.
 
 The control repository must be committed and clean. The target must be a
-separate clean Git repository root on `main`. The workflow needs the installed
+separate Git repository root with a `main` branch. A run or confirmation starts
+from `main`'s last commit, so the target may have another branch checked out
+or hold uncommitted changes. The workflow needs the installed
 skills named by the pipeline, the corpus's global instructions, and working
 Backlog.md configuration. For instruction files symlinked into another tree,
 follow [symlinked live install setup](#configure-a-symlinked-live-install).

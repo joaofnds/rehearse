@@ -347,12 +347,36 @@ describe(assertWorkspaceCleanAt.name, () => {
 });
 
 describe(assertSourceReady.name, () => {
-	it("rejects a clean repository off main", async () => {
+	it("reports main's commit while another branch is checked out", async () => {
 		const source = await testResources.createRepository();
 		await runCommand(["git", "switch", "-c", "feature"], source.directory);
+		await Bun.write(join(source.directory, "feature.txt"), "feature\n");
+		await commitAll(source.directory, "feat: feature");
+
+		const baseline = await assertSourceReady(source.directory);
+
+		expect(baseline.sha).toBe(source.sha);
+	});
+
+	it("accepts a checkout with uncommitted and untracked changes", async () => {
+		const source = await testResources.createRepository();
+		await Bun.write(join(source.directory, "base.txt"), "edited\n");
+		await Bun.write(join(source.directory, "notes.txt"), "scratch\n");
+
+		const baseline = await assertSourceReady(source.directory);
+
+		expect(baseline.sha).toBe(source.sha);
+	});
+
+	it("rejects a repository with no main branch", async () => {
+		const source = await testResources.createRepository();
+		await runCommand(
+			["git", "branch", "-m", "main", "trunk"],
+			source.directory,
+		);
 
 		expect(assertSourceReady(source.directory)).rejects.toThrow(
-			"Target must be on main",
+			"Target must have a main branch",
 		);
 	});
 

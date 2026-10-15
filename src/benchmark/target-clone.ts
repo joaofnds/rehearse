@@ -4,9 +4,9 @@ import { basename, dirname, join } from "node:path";
 import { git, refExists, retentionRef } from "./target";
 
 /**
- * The checkout a run works in: a fresh clone of the target's main, so the
- * operator's own checkout, with its untracked files and linked board, is
- * neither read nor written by the run.
+ * The checkout a run works in: a fresh clone of the target's main that shares
+ * no file with it, so the operator's own checkout, with its untracked files
+ * and linked board, is neither read nor written by the run.
  */
 export async function cloneTarget(targetRoot: string): Promise<string> {
 	// The provider names a session's transcript after its real working path.
@@ -19,17 +19,34 @@ export async function cloneTarget(targetRoot: string): Promise<string> {
 			parent,
 			"clone",
 			"--quiet",
+			"--no-hardlinks",
 			"--branch",
 			"main",
 			targetRoot,
 			clone,
 		);
+		await adoptTargetOrigin(clone, targetRoot);
 	} catch (error) {
 		await discardClone(clone);
 		throw error;
 	}
 
 	return clone;
+}
+
+/** A session's push goes where a push from the target would, never into the target. */
+async function adoptTargetOrigin(
+	clone: string,
+	targetRoot: string,
+): Promise<void> {
+	await git(clone, "remote", "remove", "origin");
+	const remotes = await git(targetRoot, "remote");
+	if (!remotes.split("\n").includes("origin")) {
+		return;
+	}
+
+	const origin = await git(targetRoot, "remote", "get-url", "origin");
+	await git(clone, "remote", "add", "origin", origin);
 }
 
 /** Removes the clone and the directory made to hold it. */

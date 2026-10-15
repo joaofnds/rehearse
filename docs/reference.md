@@ -1005,10 +1005,11 @@ ambient hooks, memory, and MCP behavior.
 
 ## Pipeline execution and grading
 
-A debug pipeline requires a clean control repository and a separate clean target
-repository root on `main`, including ordinary untracked files. The harness
-clones the target's `main` into a temporary directory, the run's checkout, and
-works only there, so the target's own checkout, its untracked files, and a board
+A debug pipeline requires a clean control repository and a separate target
+repository root with a `main` branch. It reads only `main`'s last commit, so the
+target may have another branch checked out and hold uncommitted or untracked
+changes. The harness clones the target's `main` into a temporary directory, the
+run's checkout, and works only there, so the target's own checkout, its untracked files, and a board
 linked into it are neither read nor written. The run prints the checkout's path.
 The harness claims the checkout, starts the
 [services the target declares](#target-services), runs the target's setup
@@ -1287,7 +1288,9 @@ malformed run name and 404 for a run with no manifest.
 A pipeline run never writes the target's own checkout. It works in a clone of
 the target's `main` under the system temporary directory, named
 `rehearse-target-*`, and its manifest records the clone as `sourceRoot` and the
-target as `targetRoot`. Each time the run pins `refs/rehearse/<run>`, at every
+target as `targetRoot`. The clone copies the target's objects rather than
+linking to them, and its `origin` is the target's own `origin`, or absent when
+the target has none, so a session's push never lands in the target. Each time the run pins `refs/rehearse/<run>`, at every
 checkpoint and at its final candidate, it fetches the ref from the clone into
 the target, which brings that commit and every earlier one with it, since each
 is an ancestor of the last. A checkpoint the target cannot take fails the run

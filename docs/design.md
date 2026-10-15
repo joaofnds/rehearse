@@ -39,7 +39,7 @@ Run events  → SQLite store → SSE endpoint
             → SQLite store → Hono read API → React views
 ```
 
-A debug pipeline runs in a temporary clone of the target's clean `main`, with
+A debug pipeline runs in a temporary clone of the target's `main`, with
 the services the target declares running in containers. It seeds a task,
 records an initial checkpoint, runs the declared stages, and records further
 checkpoints after accepted stages. The default pipeline is `shape → build`.

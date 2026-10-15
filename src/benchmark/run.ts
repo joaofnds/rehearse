@@ -1335,8 +1335,7 @@ export function ordinaryInitialCheckpointInputs(
 /**
  * The run works in its own clone of the target's main, so the operator's
  * checkout, with its untracked files and linked board, is never read or
- * written. The source keeps the target's own origin, since the clone's origin
- * is the target's path. A clone that cannot be claimed for the run is removed.
+ * written. A clone that cannot be claimed for the run is removed.
  */
 async function cloneSource(
 	target: SourceBaseline,
@@ -1348,7 +1347,7 @@ async function cloneSource(
 		await assertWorkflowBoardPrivate(clone);
 		await claimTarget(source, runName);
 
-		return { ...source, origin: target.origin, targetRoot: target.root };
+		return { ...source, targetRoot: target.root };
 	} catch (error) {
 		await discardClone(clone);
 		throw error;
