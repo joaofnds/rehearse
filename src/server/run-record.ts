@@ -10,6 +10,7 @@ import { STAGE_LETTER_GRADES } from "#benchmark/config";
 import type { Effort, StageLetterGrade } from "#benchmark/config";
 import {
 	claudeCallMetricsSchema,
+	humanReviewSchema,
 	gradedHardBlockersSchema,
 	unhandled,
 } from "#benchmark/contracts";
@@ -17,6 +18,7 @@ import { corpusMeasurementSchema } from "#benchmark/corpus-measurement";
 import type { CorpusMeasurement } from "#benchmark/corpus-measurement";
 import type {
 	ClaudeCallMetrics,
+	HumanReview,
 	GradedHardBlockers,
 	Immutable,
 } from "#benchmark/contracts";
@@ -265,6 +267,8 @@ export interface RunRecord {
 	readonly stages: readonly RunRecordStage[];
 	readonly totals: RunTotals;
 	readonly finalOutcome: FinalOutcome;
+	/** Included by the detailed API; the listing does not read review files. */
+	readonly humanReview?: Reading<{ readonly review: HumanReview }> | undefined;
 }
 
 /** Stands for a call count a record keeps in place of the calls. */
@@ -1495,7 +1499,11 @@ export async function readJudgedRunRecord(
 		);
 	}
 
-	return { ...record, stages };
+	return {
+		...record,
+		stages,
+		humanReview: await readHumanReview(runsDirectory, run),
+	};
 }
 
 /**
@@ -1537,4 +1545,24 @@ function withJudgedReadManifest(
 	}
 
 	return { ...stage, readManifest: { state: "available", entries: judged } };
+}
+
+/** Read the saved review without making a corrupt record look absent. */
+async function readHumanReview(
+	runsDirectory: string,
+	run: string,
+): Promise<Reading<{ readonly review: HumanReview }>> {
+	const file = Bun.file(benchmarkRunPaths(runsDirectory, run).reviewFile);
+	try {
+		if (!(await file.exists())) {
+			return { state: "unavailable", reasons: ["No human review recorded"] };
+		}
+		const review = humanReviewSchema.parse(await file.json());
+		return { state: "available", review };
+	} catch {
+		return {
+			state: "unavailable",
+			reasons: ["The saved human review could not be read"],
+		};
+	}
 }

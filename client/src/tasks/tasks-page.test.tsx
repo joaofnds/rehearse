@@ -138,10 +138,8 @@ function renderTasksBeforeTheirRunWasRecorded(run: string): void {
 }
 
 describe(TasksPage.name, () => {
-	it("opens from the Tasks nav item under its header", async () => {
-		renderTasksAt("/", [declaredTask()]);
-
-		fireEvent.click(await screen.findByRole("link", { name: /^Tasks/u }));
+	it("keeps the legacy Tasks route usable under its header", async () => {
+		renderTasksAt("/tasks", [declaredTask()]);
 
 		expect(
 			await screen.findByRole("heading", { level: 1, name: "Tasks" }),
@@ -390,7 +388,7 @@ describe(TasksPage.name, () => {
 			rubrics: [DELIVERY_RUBRIC, PLANNING_RUBRIC],
 		};
 
-		function serving(refusal?: Reply): FakeServer {
+		function serving(refusal?: Reply, page = "/tasks"): FakeServer {
 			const response: PipelinesResponse = {
 				pipelines: [declaredTask(), overrideTask()],
 				unreadable: [],
@@ -410,7 +408,7 @@ describe(TasksPage.name, () => {
 				]),
 			);
 			server.install();
-			renderAppAt("/tasks");
+			renderAppAt(page);
 
 			return server;
 		}
@@ -456,8 +454,11 @@ describe(TasksPage.name, () => {
 			expect(dialog).toHaveTextContent(TASK_PATH);
 		});
 
-		it("saves an edited skill into the case's pipeline and closes", async () => {
-			const server = serving();
+		it("saves an edited skill from Cases → Workflows and closes", async () => {
+			const server = serving(
+				undefined,
+				"/cases?view=workflows&caseId=audit-log",
+			);
 
 			const dialog = await openEditor();
 			const build = within(dialog).getByRole("group", { name: "Step 2" });

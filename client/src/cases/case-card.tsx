@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import { useId } from "react";
 import type { LaunchAttempts } from "#benchmark/launch-attempts";
 import { NO_RUNS, runsCounted, runsLeftOut } from "#client/latest-version-runs";
@@ -210,6 +211,16 @@ export function CaseCard({
 			<div className="mt-2.5 flex flex-wrap items-center gap-2.5">
 				<Definition listed={listed} />
 				<span className="ml-auto flex items-center gap-2">
+					{listed.kind === "pipeline" ? (
+						<Button asChild variant="quiet">
+							<Link
+								to="/cases"
+								search={{ view: "workflows", caseId: listed.id }}
+							>
+								View workflow
+							</Link>
+						</Button>
+					) : null}
 					<RunButtons listed={listed} />
 				</span>
 			</div>

@@ -548,6 +548,54 @@ describe("/api/runs/:run", () => {
 	}
 
 	describe("GET", () => {
+		it.each([
+			[
+				"absent",
+				undefined,
+				{ state: "unavailable", reasons: ["No human review recorded"] },
+			],
+			[
+				"corrupt",
+				"not-json",
+				{
+					state: "unavailable",
+					reasons: ["The saved human review could not be read"],
+				},
+			],
+			[
+				"recorded",
+				JSON.stringify({
+					verdict: "ACCEPT",
+					summary: "The Judge agrees with the evidence.",
+					findings: [],
+				}),
+				{
+					state: "available",
+					review: {
+						verdict: "ACCEPT",
+						summary: "The Judge agrees with the evidence.",
+						findings: [],
+					},
+				},
+			],
+		] as const)(
+			"serves an explicit %s human review reading",
+			async (_label, contents, expected) => {
+				const fixture = await emptyFixture();
+				await fixture.writeStoppedRunEvidence();
+				if (contents !== undefined) {
+					await Bun.write(
+						benchmarkRunPaths(fixture.runsDirectory, fixture.stoppedRun)
+							.reviewFile,
+						contents,
+					);
+				}
+				const response = await runRecord(fixture, fixture.stoppedRun);
+				expect(response.status).toBe(200);
+				expect(await response.json()).toMatchObject({ humanReview: expected });
+			},
+		);
+
 		it("reports each stage's session and judge cost as its stage file records them", async () => {
 			const fixture = await emptyFixture();
 			await fixture.writeStoppedRunEvidence();

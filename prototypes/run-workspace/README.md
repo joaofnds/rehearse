@@ -2,7 +2,7 @@
 
 An isolated UI proposal for exploring Rehearse's navigation. All records, charts,
 transcripts, prices, and actions are synthetic. No product API, provider, or local
-corpus is connected. Changes last until reload. The production client is untouched.
+corpus is connected. Changes last until reload. Opening this prototype does not change production records.
 
 From the repository root:
 
@@ -78,9 +78,10 @@ Native dialogs, visible focus, text labels for statuses, and reduced-motion supp
 remain in place. Narrow layouts retain a basic fallback without dedicated mobile
 or tablet design work.
 
-The production client, archived design handoff, and feature inventory are unchanged.
-Retaining the graph after a run ends and showing a pipeline request timeline require
-production integration. Production migration is a later decision after iteration.
+The [production desktop workspace](../../docs/run-workspace.md) implements this
+navigation with real evidence and guarded actions. This prototype remains an
+isolated place to try UI changes. The archived design handoff remains unchanged.
+Production request timelines depend on the evidence each attempt recorded.
 
 The corpus editor, judge review, launch, replay, and run controls change page memory
 only. Workflow editing and importing are previews. Export downloads synthetic JSON

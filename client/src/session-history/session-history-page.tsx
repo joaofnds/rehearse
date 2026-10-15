@@ -559,6 +559,41 @@ function reportEvidenceLabel(report: SessionHistoryReport): string {
 	return `✓ Complete · ${report.startingContext.length} recorded events`;
 }
 
+function ReportEvidence({
+	report,
+}: {
+	readonly report: SessionHistoryReport;
+}): React.JSX.Element {
+	if (
+		report.evidence.state === "complete" ||
+		report.evidence.reasons.length <= 3
+	) {
+		return (
+			<strong className="font-mono text-sm">
+				{reportEvidenceLabel(report)}
+			</strong>
+		);
+	}
+
+	const state =
+		report.evidence.state === "partial" ? "◐ Partial" : "? Unavailable";
+	return (
+		<details className="min-w-0 font-mono text-sm">
+			<summary className="cursor-pointer">
+				{report.boundary === "unknown"
+					? "? Unavailable · boundary unknown"
+					: state}{" "}
+				· {report.evidence.reasons.length} evidence gaps
+			</summary>
+			<ul className="mt-2 max-h-64 list-disc overflow-y-auto pl-5 wrap-anywhere">
+				{report.evidence.reasons.map((reason, index) => (
+					<li key={`${index}:${reason}`}>{reason}</li>
+				))}
+			</ul>
+		</details>
+	);
+}
+
 /**
  * The first event the request owns, bounded above by the next request's line.
  * Without that bound a request that produced no event of its own, which is
@@ -1183,7 +1218,7 @@ function PageLead({
 				href="/"
 				className="text-sm text-muted-foreground hover:text-foreground"
 			>
-				← Back to run history
+				← Back to Runs
 			</a>
 			{identity.kind === "stage" ? (
 				<LaunchDialog
@@ -1197,8 +1232,10 @@ function PageLead({
 
 export function SessionHistoryPage({
 	identity,
+	embedded = false,
 }: {
 	readonly identity: SessionHistoryIdentity;
+	readonly embedded?: boolean;
 }): React.JSX.Element {
 	const path = summaryPath(identity);
 	const [sourceId, setSourceId] = useState<string>();
@@ -1273,34 +1310,12 @@ export function SessionHistoryPage({
 			: requestRowsOwningEvents(timelineEntries, events);
 
 	return (
-		<div className="flex min-h-screen flex-col">
-			<ScreenHeader
-				title="Saved context history"
-				eyebrow="Attempt evidence"
-				lead={<PageLead identity={identity} />}
-				aside={
-					summary.data === undefined ? undefined : (
-						<dl className="flex flex-wrap gap-x-5 gap-y-2">
-							{namedEntries(identity, summary.data.attempt, names).map(
-								({ term, value, filedUnder }) => (
-									<div key={term} className="flex flex-col gap-1">
-										<dt>
-											<SectionLabel>{term}</SectionLabel>
-										</dt>
-										<dd className="flex flex-col gap-0.5">
-											<span className="font-mono text-sm">{value}</span>
-											{filedUnder === undefined ? null : (
-												<span className="font-mono text-xs text-dim">
-													{filedUnder}
-												</span>
-											)}
-										</dd>
-									</div>
-								),
-							)}
-						</dl>
-					)
-				}
+		<div className="flex min-h-full flex-col">
+			<HistoryHeader
+				embedded={embedded}
+				identity={identity}
+				data={summary.data}
+				names={names}
 			/>
 			<div className="flex flex-1 flex-col gap-4 px-6 pt-4 pb-12">
 				{summary.isLoading ? (
@@ -1333,9 +1348,7 @@ export function SessionHistoryPage({
 									</small>
 								))}
 							</div>
-							<strong className="font-mono text-sm">
-								{reportEvidenceLabel(summary.data)}
-							</strong>
+							<ReportEvidence report={summary.data} />
 						</section>
 						{stageCorpus.data === undefined ? null : (
 							<DeclaredCorpusPane entries={stageCorpus.data} />
@@ -1457,5 +1470,70 @@ export function SessionHistoryPage({
 				)}
 			</div>
 		</div>
+	);
+}
+
+function IdentityReadings({
+	identity,
+	data,
+	names,
+}: {
+	readonly identity: SessionHistoryIdentity;
+	readonly data: SessionHistoryReport;
+	readonly names: RecordNames;
+}): React.JSX.Element {
+	return (
+		<dl className="flex flex-wrap gap-x-5 gap-y-2">
+			{namedEntries(identity, data.attempt, names).map(
+				({ term, value, filedUnder }) => (
+					<div key={term} className="flex min-w-0 flex-col gap-1">
+						<dt>
+							<SectionLabel>{term}</SectionLabel>
+						</dt>
+						<dd className="flex flex-col gap-0.5">
+							<span className="font-mono text-11-5 wrap-anywhere">{value}</span>
+							{filedUnder === undefined ? null : (
+								<span className="font-mono text-11 text-dim wrap-anywhere">
+									{filedUnder}
+								</span>
+							)}
+						</dd>
+					</div>
+				),
+			)}
+		</dl>
+	);
+}
+
+function HistoryHeader({
+	embedded,
+	identity,
+	data,
+	names,
+}: {
+	readonly embedded: boolean;
+	readonly identity: SessionHistoryIdentity;
+	readonly data: SessionHistoryReport | undefined;
+	readonly names: RecordNames;
+}): React.JSX.Element {
+	const metadata =
+		data === undefined ? undefined : (
+			<IdentityReadings identity={identity} data={data} names={names} />
+		);
+	if (embedded) {
+		return (
+			<header className="flex flex-col gap-3 px-6 pt-4">
+				<h2 className="text-14">Context &amp; cost · saved evidence</h2>
+				{metadata}
+			</header>
+		);
+	}
+	return (
+		<ScreenHeader
+			title="Saved context history"
+			eyebrow="Attempt evidence"
+			lead={<PageLead identity={identity} />}
+			aside={metadata}
+		/>
 	);
 }

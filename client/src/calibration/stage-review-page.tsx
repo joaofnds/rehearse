@@ -1,6 +1,6 @@
 import { useId, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { StageLetterGrade } from "#benchmark/contracts";
 import type { GradedStageRef, OperatorGrade } from "#benchmark/operator-grade";
 import { STAGE_LETTER_GRADES } from "#benchmark/stage-letter-grades";
@@ -335,6 +335,37 @@ function recordedGrade(review: StageReview): GradeRecorded | undefined {
 	return { operatorGrade, judgeGrade };
 }
 
+interface ReviewReturn {
+	readonly href: string;
+	readonly label: string;
+}
+
+function reviewReturn(stage: GradedStageRef): ReviewReturn {
+	switch (stage.kind) {
+		case "run": {
+			return {
+				href: `/runs/${encodeURIComponent(stage.run)}?view=results&step=${encodeURIComponent(stage.stage)}`,
+				label: "Back to run Results",
+			};
+		}
+		case "rep": {
+			return {
+				href: `/groups/${encodeURIComponent(stage.groupId)}/reps/${encodeURIComponent(stage.repId)}/attempt?view=results`,
+				label: "Back to attempt Results",
+			};
+		}
+		case "replay": {
+			return {
+				href: `/replays/${encodeURIComponent(stage.lineage)}/${encodeURIComponent(stage.timestamp)}?view=results`,
+				label: "Back to replay Results",
+			};
+		}
+		default: {
+			return stage satisfies never;
+		}
+	}
+}
+
 /**
  * A judged step graded blind: the form shows only what the Judge read and the
  * criteria, and the Judge's grade appears once the operator's is recorded.
@@ -347,6 +378,7 @@ export function StageReviewPage({
 	const query = useQuery(stageReviewQuery(stage));
 	const review = query.data;
 	const recorded = review === undefined ? undefined : recordedGrade(review);
+	const back = reviewReturn(stage);
 
 	return (
 		<div>
@@ -358,9 +390,16 @@ export function StageReviewPage({
 						: `${stepLabel(stage, review.stageName)} · ${review.judgeModel ?? "Judge model not recorded"}`
 				}
 				aside={
-					<Button asChild size="compact" variant="ghost">
-						<Link to="/calibration">Back to Judge calibration</Link>
-					</Button>
+					<div className="flex flex-wrap items-center gap-2">
+						<Button asChild size="compact" variant="ghost">
+							<Link to={back.href}>{back.label}</Link>
+						</Button>
+						<Button asChild size="compact" variant="ghost">
+							<Link to="/settings" search={{ view: "judges" }}>
+								Judge calibration
+							</Link>
+						</Button>
+					</div>
 				}
 			/>
 

@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { ScreenHeader } from "#client/system/components/screen-header";
@@ -136,18 +137,66 @@ function SourceBody({
  */
 export function EvidenceSourcePage({
 	identity,
+	embedded = false,
 }: {
 	readonly identity: EvidenceSourceIdentity;
+	readonly embedded?: boolean;
 }): React.JSX.Element {
 	const query = useQuery({
 		queryKey: ["evidence-source", identity],
 		queryFn: () => fetchEvidenceSource(identity),
 	});
 
+	const returnToRun =
+		identity.kind === "stage"
+			? `/runs/${encodeURIComponent(identity.run)}?view=results&step=${encodeURIComponent(identity.stage)}`
+			: `/runs/${encodeURIComponent(identity.run)}?view=results`;
+	const reading = (
+		<div className="flex max-w-7xl flex-col gap-4 px-6 pt-4 pb-12">
+			{embedded && query.isSuccess ? (
+				<p className="text-sm text-dim">
+					From <span className="font-mono">{query.data.record}</span>
+				</p>
+			) : null}
+			{query.isLoading ? (
+				<p className="text-muted-foreground">Loading…</p>
+			) : null}
+			{query.isError ? (
+				<p role="alert" className="text-muted-foreground">
+					<span aria-hidden="true">⚠ </span>
+					Could not open this evidence item.
+				</p>
+			) : null}
+			{query.isSuccess ? (
+				<>
+					<p>{query.data.claim}</p>
+					<p className="text-sm text-dim">
+						{"Cites "}
+						<span className="font-mono">
+							{query.data.source} {query.data.path}
+						</span>
+					</p>
+					<SourceBody view={query.data.view} />
+				</>
+			) : null}
+		</div>
+	);
+	if (embedded) {
+		return <div className="min-h-0 overflow-y-auto">{reading}</div>;
+	}
+
 	return (
 		<div>
 			<ScreenHeader
 				title="Cited source"
+				lead={
+					<Link
+						to={returnToRun}
+						className="text-12 text-muted-foreground hover:text-foreground"
+					>
+						← Back to run Results
+					</Link>
+				}
 				eyebrow={
 					identity.kind === "stage"
 						? `${identity.stage} judge · ${identity.item}`
@@ -162,30 +211,7 @@ export function EvidenceSourcePage({
 					) : undefined
 				}
 			/>
-
-			<div className="flex max-w-7xl flex-col gap-4 px-6 pt-4 pb-12">
-				{query.isLoading ? (
-					<p className="text-muted-foreground">Loading…</p>
-				) : null}
-				{query.isError ? (
-					<p role="alert" className="text-muted-foreground">
-						<span aria-hidden="true">⚠ </span>
-						Could not open this evidence item.
-					</p>
-				) : null}
-				{query.isSuccess ? (
-					<>
-						<p>{query.data.claim}</p>
-						<p className="text-sm text-dim">
-							{"Cites "}
-							<span className="font-mono">
-								{query.data.source} {query.data.path}
-							</span>
-						</p>
-						<SourceBody view={query.data.view} />
-					</>
-				) : null}
-			</div>
+			{reading}
 		</div>
 	);
 }

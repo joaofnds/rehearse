@@ -1478,6 +1478,116 @@ describe(createApiApp.name, () => {
 		});
 	});
 
+	describe("individual confirmation result", () => {
+		it("refuses a saved record naming a different attempt", async () => {
+			const fixture = await writtenFixture();
+			const groupId = "session-results";
+			const [repId] = await fixture.writeSessionGroup(groupId);
+			if (repId === undefined) {
+				throw new Error("The group fixture saved no rep");
+			}
+			const file = confirmationGroupPaths(fixture.runsDirectory, groupId).rep(
+				repId,
+			).recordFile;
+			const text = await Bun.file(file).text();
+			await Bun.write(file, text.replaceAll(groupId, "other-session-results"));
+			const app = createApiApp({
+				projectsDirectory: NO_PROVIDER_PROJECTS,
+				runsDirectory: fixture.runsDirectory,
+				liveness: nothingRunning,
+				readCorpusSource: fixedCorpusSource(
+					directorySource(await corpusDirectory()),
+				),
+			});
+			const response = await app.request(
+				`/api/groups/${groupId}/reps/${repId}/attempt/result`,
+			);
+			expect(response.status).toBe(409);
+			expect(await response.text()).toContain("names a different attempt");
+		});
+
+		it("serves the requested rep's parsed record without substituting group totals", async () => {
+			const fixture = await writtenFixture();
+			const groupId = "session-results";
+			const [repId] = await fixture.writeSessionGroup(groupId);
+			const app = createApiApp({
+				projectsDirectory: NO_PROVIDER_PROJECTS,
+				runsDirectory: fixture.runsDirectory,
+				liveness: nothingRunning,
+				readCorpusSource: fixedCorpusSource(
+					directorySource(await corpusDirectory()),
+				),
+			});
+
+			const response = await app.request(
+				`/api/groups/${groupId}/reps/${repId}/attempt/result`,
+			);
+			const body = z
+				.object({
+					groupId: z.string(),
+					repId: z.string(),
+					stages: z.array(z.object({ stage: z.string() }).loose()),
+				})
+				.loose()
+				.parse(await response.json());
+
+			expect(response.status).toBe(200);
+			expect(body.groupId).toBe(groupId);
+			expect(body.repId).toBe(repId);
+			expect(body.stages.map(({ stage }) => stage)).toEqual(["checks"]);
+		});
+
+		it.each([
+			["..%2F..%2Fetc", "rep", 400],
+			["missing-group", "missing-rep", 404],
+		] as const)(
+			"answers an invalid or missing identity %s/%s",
+			async (groupId, repId, status) => {
+				const fixture = await writtenFixture();
+				const app = createApiApp({
+					projectsDirectory: NO_PROVIDER_PROJECTS,
+					runsDirectory: fixture.runsDirectory,
+					liveness: nothingRunning,
+					readCorpusSource: fixedCorpusSource(
+						directorySource(await corpusDirectory()),
+					),
+				});
+
+				const response = await app.request(
+					`/api/groups/${groupId}/reps/${repId}/attempt/result`,
+				);
+
+				expect(response.status).toBe(status);
+				assertDoesNotLeak(await response.text(), fixture.runsDirectory);
+			},
+		);
+
+		it("refuses a corrupt saved rep", async () => {
+			const fixture = await writtenFixture();
+			const repId = `${fixture.groupId}-rep-1`;
+			const file = confirmationGroupPaths(
+				fixture.runsDirectory,
+				fixture.groupId,
+			).rep(repId).recordFile;
+			await Bun.write(file, "broken json");
+			const app = createApiApp({
+				projectsDirectory: NO_PROVIDER_PROJECTS,
+				runsDirectory: fixture.runsDirectory,
+				liveness: nothingRunning,
+				readCorpusSource: fixedCorpusSource(
+					directorySource(await corpusDirectory()),
+				),
+			});
+
+			const response = await app.request(
+				`/api/groups/${fixture.groupId}/reps/${repId}/attempt/result`,
+			);
+
+			expect(response.status).toBe(500);
+			assertDoesNotLeak(await response.text(), fixture.runsDirectory);
+		});
+	});
+
 	describe("GET /api/records/:id", () => {
 		it("serves a confirmation rep's stage file with the reads it recorded", async () => {
 			const fixture = await writtenFixture();

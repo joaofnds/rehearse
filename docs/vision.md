@@ -121,6 +121,8 @@ work this direction requires.
 - Keep records inspectable and commands usable from scripts, so the tool can
   support both manual investigation and future automated experiments.
 
+The browser debug loop supports editing and reviewing instructions while retaining the saved source step through its replay offer.
+
 ## Longer-term direction
 
 Once the measurement loop is dependable, extend it to matrices of corpus
@@ -130,5 +132,4 @@ surface both pruning candidates and regressions.
 
 The browser UI should make that evidence easy to navigate, from a run's spend
 and context history to the instruction change and the comparison that justifies it.
-Editing and reviewing instructions inside the tool is a later capability.
 Automated proposals must meet the same confirmation standard as manual edits.

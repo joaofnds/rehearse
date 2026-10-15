@@ -31,7 +31,7 @@ describe("an address the app does not serve", () => {
 		renderAppWithStub("/no-such-screen", new Map<string, unknown>());
 
 		const link = await screen.findByRole("link", {
-			name: "Back to run history",
+			name: "Back to Runs",
 		});
 
 		expect(link).toHaveAttribute("href", "/");

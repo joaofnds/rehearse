@@ -45,16 +45,12 @@ function renderCalibration(report: CalibrationResponse): void {
 }
 
 describe(CalibrationPage.name, () => {
-	it("opens from the Calibration nav item, badged with the operator grades recorded", async () => {
+	it("keeps the legacy Calibration route with its review summary", async () => {
 		renderCalibration(reportWith({ reviews: 3, withinOneStep: 3 }));
-
-		const item = await screen.findByRole("link", { name: "Calibration 3" });
-
-		expect(item).toHaveAttribute("href", "/calibration");
-		expect(item).toHaveAttribute("aria-current", "page");
 		expect(
-			screen.getByRole("heading", { name: "Judge calibration" }),
+			await screen.findByRole("heading", { name: "Judge calibration" }),
 		).toBeInTheDocument();
+		expect(screen.getByText(/3 reviews recorded/u)).toBeInTheDocument();
 	});
 
 	it("heads the screen with the reviews recorded and how many agree within one letter step", async () => {

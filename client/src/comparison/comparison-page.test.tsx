@@ -1,11 +1,6 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import {
-	fireEvent,
-	render,
-	screen,
-	waitFor,
-	within,
-} from "@testing-library/react";
+import { renderWithRouter } from "#client/test-support/render-app";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ComparisonBaselineArm } from "#benchmark/comparison-baseline-record";
 import type { ComparisonReport } from "#benchmark/comparison-record";
@@ -313,7 +308,7 @@ function renderPage(
 	const client = new QueryClient({
 		defaultOptions: { queries: { retry: false } },
 	});
-	render(
+	renderWithRouter(
 		<QueryClientProvider client={client}>
 			<ComparisonPage digest={DIGEST} />
 		</QueryClientProvider>,
@@ -669,7 +664,10 @@ describe(ComparisonPage.name, () => {
 		});
 		expect(
 			within(table).getByRole("link", { name: "Arm A attempt 1 history" }),
-		).toHaveAttribute("href", "/groups/group-a/reps/rep-1/attempt");
+		).toHaveAttribute(
+			"href",
+			"/groups/group-a/reps/rep-1/attempt?view=context",
+		);
 		expect(within(table).getByText("history stale")).toBeInTheDocument();
 	});
 
@@ -681,7 +679,7 @@ describe(ComparisonPage.name, () => {
 		const client = new QueryClient({
 			defaultOptions: { queries: { retry: false } },
 		});
-		render(
+		renderWithRouter(
 			<QueryClientProvider client={client}>
 				<ComparisonPage digest={DIGEST} />
 			</QueryClientProvider>,

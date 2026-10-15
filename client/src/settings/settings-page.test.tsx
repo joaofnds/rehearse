@@ -1,12 +1,7 @@
 import { afterEach, describe, expect, it } from "bun:test";
+import { renderWithRouter } from "#client/test-support/render-app";
 import type { MatcherFunction } from "@testing-library/react";
-import {
-	fireEvent,
-	render,
-	screen,
-	waitFor,
-	within,
-} from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { CorpusResponse } from "#client/corpus/corpus-query";
 import type { SettingsReading } from "#client/launch/settings-query";
@@ -70,6 +65,7 @@ const RECORDS_AT = "Local install · records at /home/operator/.rehearse/runs";
 
 function serving(
 	overrides: ReadonlyMap<string, Reply | LiveReply> = new Map(),
+	view: "general" | "judges" = "general",
 ): FakeServer {
 	const server = new FakeServer(
 		new Map([
@@ -87,13 +83,13 @@ function serving(
 		]),
 	);
 	server.install();
-	render(
+	renderWithRouter(
 		<QueryClientProvider
 			client={
 				new QueryClient({ defaultOptions: { queries: { retry: false } } })
 			}
 		>
-			<SettingsPage />
+			<SettingsPage view={view} />
 		</QueryClientProvider>,
 	);
 
@@ -101,6 +97,41 @@ function serving(
 }
 
 describe(SettingsPage.name, () => {
+	it("shows judge calibration under Settings without a second screen header", async () => {
+		serving(
+			new Map([
+				[
+					"GET /api/calibration",
+					{
+						status: 200,
+						body: {
+							reviews: 2,
+							withinOneStep: 1,
+							ungraded: 0,
+							next: null,
+							rows: [],
+							groups: [],
+						},
+					},
+				],
+			]),
+			"judges",
+		);
+
+		expect(await screen.findByText(/2 reviews recorded/u)).toBeInTheDocument();
+		expect(
+			screen.getByRole("heading", { level: 1, name: "Settings" }),
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("heading", { level: 2, name: "Judge calibration" }),
+		).toBeInTheDocument();
+		expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+		expect(
+			screen.getByRole("button", { name: "Review next unjudged step" }),
+		).toBeDisabled();
+		expect(screen.queryByText("Spending ceiling")).not.toBeInTheDocument();
+	});
+
 	it("names the records location, how many records it holds and their size", async () => {
 		serving();
 
@@ -749,7 +780,7 @@ describe(SettingsPage.name, () => {
 
 			expect(await shortcuts()).toEqual([
 				"g rrun history",
-				"g mlive monitor",
+				"g mnewest run’s Activity",
 				"nnew run",
 				"rreplay a step",
 				"eexpand cited evidence",

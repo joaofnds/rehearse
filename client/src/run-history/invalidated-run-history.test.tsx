@@ -133,7 +133,7 @@ function serving(
 }
 
 function durableRecords(): Promise<HTMLElement> {
-	return screen.findByRole("table", { name: "DURABLE RECORDS" });
+	return screen.findByRole("table", { name: "Run history" });
 }
 
 describe("/?invalidatedBy", () => {

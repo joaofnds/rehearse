@@ -29,6 +29,7 @@ import { verifiedStageOfRun } from "./stage-record";
 interface OriginalAttempt {
 	readonly kind: "original";
 	readonly id: string;
+	readonly href?: string;
 	readonly staleness: RowStaleness;
 }
 
@@ -36,6 +37,7 @@ interface OriginalAttempt {
 interface RecordedAttempt {
 	readonly kind: "replay" | "rep";
 	readonly id: string;
+	readonly href?: string;
 	readonly grade: string | undefined;
 	readonly corpusVersion: CorpusMeasurement | undefined;
 	readonly staleness: RowStaleness;
@@ -75,6 +77,7 @@ async function originalAttempt(lookup: Lookup): Promise<OriginalAttempt> {
 
 	return {
 		kind: "original",
+		href: `/runs/${encodeURIComponent(run)}?view=results&step=${encodeURIComponent(stage)}`,
 		id: claimedId(lookup, formatRecordId({ kind: "run", run })),
 		staleness: (await checkpointRecorded(
 			benchmarkRunPaths(runsDirectory, run),
@@ -101,6 +104,7 @@ async function replayAttempt(
 
 	return {
 		kind: "replay",
+		href: `/replays/${encodeURIComponent(lineage)}/${encodeURIComponent(timestamp)}`,
 		id: claimedId(lookup, recordId),
 		grade: record.scorecard.grade.grade,
 		corpusVersion: record.corpusVersion,
@@ -129,6 +133,7 @@ async function repAttempt(
 
 	return {
 		kind: "rep",
+		href: `/groups/${encodeURIComponent(groupId)}/reps/${encodeURIComponent(repId)}/attempt`,
 		id: `${claimedId(lookup, groupRecordId)} rep ${String(ordinal)}`,
 		grade: judged?.status === "JUDGED" ? judged.grade : undefined,
 		corpusVersion: group.inputs.corpusVersion,

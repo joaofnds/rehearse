@@ -1,6 +1,6 @@
-import { Link } from "@tanstack/react-router";
 import { useId, useState } from "react";
 import { gradeStep, STAGE_LETTER_GRADES } from "#benchmark/stage-letter-grades";
+import { EvidenceDialogLink } from "#client/evidence/evidence-dialog";
 import { useKeyShortcut } from "#client/shell/use-key-shortcut";
 import { Grade } from "#client/system/components/grade";
 import { STATUS_VOCABULARY } from "#client/system/components/status";
@@ -144,12 +144,11 @@ export function EvidenceLink({
 	readonly cited: Evidence;
 }): React.JSX.Element {
 	return (
-		<Link
-			to="/runs/$run/stages/$stage/evidence/$section/$item/$index"
-			params={{ ...owner, index: String(index) }}
+		<EvidenceDialogLink
+			identity={{ kind: "stage", ...owner, index: String(index) }}
 		>
 			{cited.place ?? cited.path}
-		</Link>
+		</EvidenceDialogLink>
 	);
 }
 

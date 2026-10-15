@@ -1,14 +1,16 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { cleanup, screen, waitFor } from "@testing-library/react";
+import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import type { SessionHistoryReport } from "#benchmark/session-history";
 import type { SessionHistoryAttemptSeries } from "#server/session-history-reader";
 import { renderAppWithStub } from "#client/test-support/render-app";
-import {
-	UNREAD_RUN_FIGURES,
-	unversionedStaleness,
-} from "#client/test-support/run-figures";
 import type { CorpusResponse } from "#client/corpus/corpus-query";
 import { createAppRouter } from "./router";
+import {
+	RUN,
+	history,
+	renderRunDetail,
+	stoppedRow,
+} from "#client/test-support/run-detail";
 
 const originalFetch = globalThis.fetch;
 
@@ -70,6 +72,41 @@ function emptyRequestSeries(): SessionHistoryAttemptSeries {
 }
 
 describe(createAppRouter.name, () => {
+	it("opens the aggregate group workspace at a saved group address", async () => {
+		renderAppWithStub(
+			"/groups/missing-group",
+			new Map([["/api/runs", { rows: [], launches: [], unreadable: [] }]]),
+		);
+		expect(await screen.findByRole("alert")).toHaveTextContent(
+			"No saved group missing-group was found.",
+		);
+	});
+
+	it("opens Judge calibration within Settings", async () => {
+		renderAppWithStub(
+			"/settings?view=judges",
+			new Map([
+				[
+					"/api/calibration",
+					{
+						reviews: 0,
+						withinOneStep: 0,
+						ungraded: 0,
+						next: null,
+						rows: [],
+						groups: [],
+					},
+				],
+			]),
+		);
+		expect(
+			await screen.findByRole("heading", { name: "Settings" }),
+		).toBeInTheDocument();
+		expect(
+			await screen.findByRole("heading", { name: "Judge calibration" }),
+		).toBeInTheDocument();
+	});
+
 	it("renders run history at the root path, the landing screen", async () => {
 		renderAppWithStub(
 			"/",
@@ -79,9 +116,7 @@ describe(createAppRouter.name, () => {
 		);
 
 		await waitFor(() => {
-			expect(
-				screen.getByRole("heading", { name: "Run history" }),
-			).toBeInTheDocument();
+			expect(screen.getByRole("heading", { name: "Runs" })).toBeInTheDocument();
 		});
 	});
 
@@ -137,7 +172,7 @@ describe(createAppRouter.name, () => {
 
 	it("renders standalone saved session history", async () => {
 		renderAppWithStub(
-			"/attempts/session/case-a/attempt-a",
+			"/attempts/session/case-a/attempt-a?view=context",
 			new Map<string, unknown>([
 				[
 					"/api/attempts/session/case-a/attempt-a/history",
@@ -164,18 +199,42 @@ describe(createAppRouter.name, () => {
 		expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 	});
 
-	it("renders a saved pipeline stage's context history", async () => {
+	it("opens a saved session attempt on Results with its Context available", async () => {
 		renderAppWithStub(
-			"/runs/2026-09-06T21-58-29.508Z/stages/shape",
+			"/attempts/session/case-a/attempt-a",
+			new Map([["/api/runs", { rows: [], launches: [], unreadable: [] }]]),
+		);
+
+		const views = await screen.findByRole("navigation", {
+			name: "Attempt views",
+		});
+		expect(
+			within(views).getByRole("link", { name: "Results" }),
+		).toHaveAttribute("aria-current", "page");
+		expect(
+			within(views).getByRole("link", { name: "Context & cost" }),
+		).toHaveAttribute(
+			"href",
+			"/attempts/session/case-a/attempt-a?view=context",
+		);
+		expect(
+			await screen.findByText(
+				"This saved attempt has no readable result in Runs.",
+			),
+		).toBeInTheDocument();
+	});
+
+	it("renders a saved pipeline stage's context history", async () => {
+		renderRunDetail(
 			new Map<string, unknown>([
 				[
-					"/api/runs/2026-09-06T21-58-29.508Z/stages/shape/history",
+					`/api/runs/${RUN}/stages/shape/history`,
 					{
 						...emptyHistory("case-a", "unused"),
 						attempt: {
 							kind: "stage",
 							caseId: "case-a",
-							run: "2026-09-06T21-58-29.508Z",
+							run: RUN,
 							stage: "shape",
 							lineage: "lineage-1",
 							upstream: "upstream-1",
@@ -185,18 +244,25 @@ describe(createAppRouter.name, () => {
 					},
 				],
 			]),
+			[],
+			`/runs/${RUN}/stages/shape`,
 		);
 
 		await waitFor(() => {
-			expect(screen.getByText("2026-09-06T21-58-29.508Z")).toBeInTheDocument();
-			expect(screen.getByText("shape")).toBeInTheDocument();
+			expect(
+				screen.getByRole("button", { name: "Context & cost" }),
+			).toHaveAttribute("aria-pressed", "true");
+			const graph = screen.getByRole("region", { name: "Task graph" });
+			const [selected] = within(graph).getAllByRole("button");
+			expect(selected).toHaveTextContent("shape");
+			expect(selected).toHaveAttribute("aria-current", "step");
 			expect(screen.getByText("lineage-1")).toBeInTheDocument();
 		});
 	});
 
 	it("renders a stage replay's saved history from the replay it names, asking for nothing it does not serve", async () => {
 		renderAppWithStub(
-			"/replays/60758c/2026-09-06T22-33-15.057Z",
+			"/replays/60758c/2026-09-06T22-33-15.057Z?view=context",
 			new Map<string, unknown>([
 				[
 					"/api/replays/60758c/2026-09-06T22-33-15.057Z/history",
@@ -245,52 +311,26 @@ describe(createAppRouter.name, () => {
 		expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 	});
 
-	it("opens the stage a stopped run stopped on from its run history row", async () => {
+	it("opens the stopped step from Runs in the same workspace", async () => {
 		renderAppWithStub(
 			"/",
-			new Map<string, unknown>([
-				[
-					"/api/runs",
-					{
-						rows: [
-							{
-								kind: "run",
-								...UNREAD_RUN_FIGURES,
-								recordId: "run:2026-09-06T21-58-29.508Z",
-								links: [],
-								run: "2026-09-06T21-58-29.508Z",
-								caseId: "audit-log",
-								status: "STOPPED:build",
-								stage: "shape",
-								grade: "B",
-								corpusVersion: { kind: "version", digest: "a3a62f" },
-								corpusChangedDuringRun: false,
-								staleness: unversionedStaleness({ stale: false, causes: [] }),
-								progress: { state: "recorded" },
-							},
-						],
-						launches: [],
-						unreadable: [],
-					},
-				],
-			]),
+			new Map<string, unknown>([["/api/runs", history([stoppedRow()])]]),
 		);
 		const link = await screen.findByRole("link", { name: /^build/u });
 		const href = link.getAttribute("href") ?? "";
+		expect(href).toBe(`/runs/${RUN}/stages/build`);
 		cleanup();
 
-		renderAppWithStub(
-			href,
+		renderRunDetail(
 			new Map<string, unknown>([
-				["/api/runs/2026-09-06T21-58-29.508Z/stages/build/history/corpus", []],
 				[
-					"/api/runs/2026-09-06T21-58-29.508Z/stages/build/history",
+					`/api/runs/${RUN}/stages/build/history`,
 					{
 						...emptyHistory("audit-log", "unused"),
 						attempt: {
 							kind: "stopped-stage",
 							caseId: "audit-log",
-							run: "2026-09-06T21-58-29.508Z",
+							run: RUN,
 							stage: "build",
 							error: "build stage graded C; minimum grade is B",
 							model: "sonnet",
@@ -303,11 +343,16 @@ describe(createAppRouter.name, () => {
 					},
 				],
 			]),
+			[],
+			href,
 		);
 
 		expect(
 			await screen.findByText("build stage graded C; minimum grade is B"),
 		).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "Context & cost" }),
+		).toHaveAttribute("aria-pressed", "true");
 	});
 
 	it("opens a stage judge's evidence item at its source route", async () => {
@@ -354,8 +399,26 @@ describe(createAppRouter.name, () => {
 
 	it("renders confirmation rep saved session history", async () => {
 		renderAppWithStub(
-			"/groups/group-a/reps/group-a-rep-1/attempt",
+			"/groups/group-a/reps/group-a-rep-1/attempt?view=context",
 			new Map<string, unknown>([
+				[
+					"/api/groups/group-a/reps/group-a-rep-1/attempt/result",
+					{
+						schemaVersion: 2,
+						caseId: "case-a",
+						groupId: "group-a",
+						repId: "group-a-rep-1",
+						ordinal: 1,
+						mode: "session",
+						lineage: { kind: "SESSION", lineage: "session-lineage" },
+						outcome: "SUCCESSFUL",
+						stages: [],
+						finalOutcome: { status: "NOT_APPLICABLE" },
+						metrics: { status: "COMPLETE", calls: [] },
+						workerTrajectorySteps: 0,
+						elapsedMs: 0,
+					},
+				],
 				[
 					"/api/groups/group-a/reps/group-a-rep-1/attempt/history",
 					emptyHistory("case-a", "group-a-rep-1"),

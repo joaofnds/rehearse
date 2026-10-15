@@ -107,6 +107,11 @@ export function TaskCard({
 			<p className="mt-2 max-w-prose text-sm">
 				{task.declaredBy?.title ?? OVERRIDE_DESCRIPTION}
 			</p>
+			{task.cases.length === 0 ? null : (
+				<p className="mt-1 font-mono text-11 text-dim">
+					Used by: {task.cases.join(", ")}
+				</p>
+			)}
 			<div className="mt-2.5 flex flex-wrap items-center gap-2.5">
 				<span className="text-xs tracking-widest text-dim uppercase">
 					Steps

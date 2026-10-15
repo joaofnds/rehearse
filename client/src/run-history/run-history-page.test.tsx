@@ -160,6 +160,14 @@ function cellOf(run: string, column: string): HTMLElement {
 	return cell;
 }
 
+/** The table keeps the final Judge's explanation behind its detail control. */
+function expandedFinalOutcomeOf(run: string): string {
+	const cell = cellOf(run, "Final outcome");
+	fireEvent.click(within(cell).getByRole("button"));
+
+	return cell.textContent?.replace("hide", "") ?? "";
+}
+
 describe(RunHistoryPage.name, () => {
 	it("renders the empty-state block when no runs are recorded", async () => {
 		respondingWith({ rows: [], launches: [], unreadable: [] });
@@ -372,7 +380,7 @@ describe(RunHistoryPage.name, () => {
 
 		expect(
 			await page.findByRole("link", { name: "2026-09-06T21-58-29.508Z" }),
-		).toHaveAttribute("href", "/runs/2026-09-06T21-58-29.508Z");
+		).toHaveAttribute("href", "/runs/2026-09-06T21-58-29.508Z?view=results");
 	});
 
 	it("names the records table once, so the caption is not doubled by a heading", async () => {
@@ -407,9 +415,9 @@ describe(RunHistoryPage.name, () => {
 		renderPage();
 
 		await waitFor(() => {
-			expect(screen.getByRole("table")).toHaveAccessibleName("DURABLE RECORDS");
+			expect(screen.getByRole("table")).toHaveAccessibleName("Run history");
 		});
-		expect(screen.getAllByText("DURABLE RECORDS")).toHaveLength(1);
+		expect(screen.getAllByText("Run history")).toHaveLength(1);
 	});
 
 	it("renders a filter bar built from FilterPill, all pressed by default", async () => {
@@ -1698,23 +1706,19 @@ describe(RunHistoryPage.name, () => {
 			expect(cellOf("group-a", "Corpus")).toHaveTextContent("corpus@dddddd");
 		});
 
-		it("opens each stage and rep from a link in the case cell, named by what it opens", async () => {
+		it("opens a saved stage from the case cell and a group from its id", async () => {
 			respondingWith(everyKind);
 
 			await renderPage().findByText("group-a");
 
-			for (const [identity, name, href] of [
-				[
-					"2026-09-06T21-58-29.508Z",
-					"shape",
-					"/runs/2026-09-06T21-58-29.508Z/stages/shape",
-				],
-				["group-a", "rep 1", "/groups/group-a/reps/group-a-rep-1/attempt"],
-			] as const) {
-				expect(
-					within(cellOf(identity, "Case")).getByRole("link", { name }),
-				).toHaveAttribute("href", href);
-			}
+			expect(
+				within(cellOf("2026-09-06T21-58-29.508Z", "Case")).getByRole("link", {
+					name: "shape",
+				}),
+			).toHaveAttribute("href", "/runs/2026-09-06T21-58-29.508Z/stages/shape");
+			expect(
+				within(cellOf("group-a", "Run")).getByRole("link"),
+			).toHaveAttribute("href", "/groups/group-a");
 		});
 
 		it("names what cannot be opened and why, as text rather than a link", async () => {
@@ -1728,13 +1732,9 @@ describe(RunHistoryPage.name, () => {
 				"shape · failed before saving its context",
 			);
 			expect(within(failed).queryByRole("link")).not.toBeInTheDocument();
-			const group = cellOf("group-a", "Case");
-			expect(group).toHaveTextContent(
-				"rep 2 · no attempt recorded for group-a-rep-2",
-			);
 			expect(
-				within(group).queryByRole("link", { name: /rep 2/u }),
-			).not.toBeInTheDocument();
+				within(cellOf("group-a", "Run")).getByRole("link"),
+			).toHaveAttribute("href", "/groups/group-a");
 		});
 
 		it("names a replay no short id names by its stage alone", async () => {
@@ -1926,7 +1926,7 @@ describe(RunHistoryPage.name, () => {
 
 			expect(await page.findByRole("link", { name: "r7" })).toHaveAttribute(
 				"href",
-				"/runs/2026-09-07T00-00-00.000Z",
+				"/runs/2026-09-07T00-00-00.000Z?view=activity",
 			);
 		});
 
@@ -1941,14 +1941,15 @@ describe(RunHistoryPage.name, () => {
 			);
 		});
 
-		it("leaves a confirmation run's id unlinked, since its reps open from the case cell", async () => {
+		it("opens a confirmation group from its id", async () => {
 			respondingWith(named);
 
 			await renderPage().findByText("g4");
 
-			expect(
-				within(cellOf("g4", "Run")).queryByRole("link"),
-			).not.toBeInTheDocument();
+			expect(within(cellOf("g4", "Run")).getByRole("link")).toHaveAttribute(
+				"href",
+				"/groups/group-a",
+			);
 		});
 
 		it("names the checkpoint a replay started from within its case and which attempt there it is", async () => {
@@ -2105,7 +2106,7 @@ describe(RunHistoryPage.name, () => {
 			expect(screen.queryByText("No runs recorded")).not.toBeInTheDocument();
 		});
 
-		it.each(["Step grades", "Task grade", "Cost", "Wall"])(
+		it.each(["Step grades", "Final outcome", "Cost", "Wall"])(
 			"leaves its %s cell empty, since it has no record to read",
 			async (column) => {
 				respondingWith({
@@ -2422,6 +2423,59 @@ describe(RunHistoryPage.name, () => {
 			);
 		});
 
+		it("keeps final-outcome details closed when filtering replaces a row", async () => {
+			const first = runWith({
+				...UNREAD_RUN_FIGURES,
+				finalOutcome: {
+					state: "available",
+					status: "NOT_REACHED",
+					reason: "First run stopped",
+				},
+			}).rows.find(
+				(
+					row,
+				): row is Extract<
+					RunHistoryResponseBody["rows"][number],
+					{ readonly kind: "run" }
+				> => row.kind === "run",
+			);
+			if (first === undefined) {
+				throw new Error("the fixture must supply a pipeline run");
+			}
+			const second = {
+				...first,
+				run: "2026-09-22T10-00-00.000Z",
+				recordId: "run:2026-09-22T10-00-00.000Z",
+				caseId: "billing",
+				finalOutcome: {
+					state: "available",
+					status: "NOT_REACHED",
+					reason: "Second run stopped",
+				} as const,
+			};
+			respondingWith({ rows: [first, second], launches: [], unreadable: [] });
+			await renderPage().findByText(RUN);
+			fireEvent.click(
+				within(cellOf(RUN, "Final outcome")).getByRole("button", {
+					name: "details",
+				}),
+			);
+			expect(cellOf(RUN, "Final outcome")).toHaveTextContent(
+				"First run stopped",
+			);
+			fireEvent.change(screen.getByRole("searchbox", { name: "Search runs" }), {
+				target: { value: "billing" },
+			});
+			expect(
+				within(cellOf(second.run, "Final outcome")).getByRole("button", {
+					name: "details",
+				}),
+			).toHaveAttribute("aria-expanded", "false");
+			expect(cellOf(second.run, "Final outcome")).not.toHaveTextContent(
+				"Second run stopped",
+			);
+		});
+
 		it.each([
 			[
 				"the final judge's passing verdict",
@@ -2469,7 +2523,7 @@ describe(RunHistoryPage.name, () => {
 
 				await renderPage().findByText(RUN);
 
-				expect(cellOf(RUN, "Task grade").textContent).toBe(text);
+				expect(expandedFinalOutcomeOf(RUN)).toBe(text);
 			},
 		);
 	});
@@ -2539,9 +2593,7 @@ describe(RunHistoryPage.name, () => {
 
 			await renderPage().findByText(REPLAY);
 
-			expect(cellOf(REPLAY, "Task grade")).toHaveTextContent(
-				"n/astep replay only",
-			);
+			expect(expandedFinalOutcomeOf(REPLAY)).toContain("n/astep replay only");
 		});
 	});
 
@@ -2633,7 +2685,7 @@ describe(RunHistoryPage.name, () => {
 
 				await renderPage().findByText(GROUP);
 
-				expect(cellOf(GROUP, "Task grade").textContent).toBe(
+				expect(expandedFinalOutcomeOf(GROUP)).toBe(
 					"4 of 5 PASSgraded independently · 1 of 6 reps not judged",
 				);
 			});
@@ -2648,7 +2700,7 @@ describe(RunHistoryPage.name, () => {
 
 				await renderPage().findByText(GROUP);
 
-				expect(cellOf(GROUP, "Task grade").textContent).toBe(
+				expect(expandedFinalOutcomeOf(GROUP)).toBe(
 					"4 of 6 PASSgraded independently",
 				);
 			});
@@ -2664,7 +2716,7 @@ describe(RunHistoryPage.name, () => {
 
 				await renderPage().findByText(GROUP);
 
-				expect(cellOf(GROUP, "Task grade").textContent).toBe(
+				expect(expandedFinalOutcomeOf(GROUP)).toBe(
 					"—not reached · 6 of 6 reps not judged",
 				);
 			});
@@ -2696,9 +2748,7 @@ describe(RunHistoryPage.name, () => {
 
 				await renderPage().findByText(GROUP);
 
-				expect(cellOf(GROUP, "Task grade")).toHaveTextContent(
-					"n/astep replay only",
-				);
+				expect(expandedFinalOutcomeOf(GROUP)).toContain("n/astep replay only");
 			});
 		});
 
@@ -2751,7 +2801,7 @@ describe(RunHistoryPage.name, () => {
 
 				await renderPage().findByText(GROUP);
 
-				expect(cellOf(GROUP, "Task grade")).toHaveTextContent(
+				expect(expandedFinalOutcomeOf(GROUP)).toContain(
 					`n/a${SESSION_GRADE_REASON}`,
 				);
 			});
@@ -2827,7 +2877,7 @@ describe(RunHistoryPage.name, () => {
 
 			await renderPage().findByText(ATTEMPT);
 
-			expect(cellOf(ATTEMPT, "Task grade")).toHaveTextContent(
+			expect(expandedFinalOutcomeOf(ATTEMPT)).toContain(
 				`n/a${SESSION_GRADE_REASON}`,
 			);
 		});
@@ -3086,7 +3136,7 @@ describe(RunHistoryPage.name, () => {
 		});
 
 		/** A sum that lacks a part would otherwise be read as the whole spend. */
-		it("says the cost is partial and names each part the sum lacks", async () => {
+		it("marks a cost with missing parts as partial", async () => {
 			respondingWith(
 				everyKindWith({
 					cost: {
@@ -3102,9 +3152,7 @@ describe(RunHistoryPage.name, () => {
 
 			await renderPage().findByText(RUN);
 
-			expect(cellOf(RUN, "Cost").textContent).toBe(
-				"$2.41partial · lacks Product Owner, rep-2why",
-			);
+			expect(cellOf(RUN, "Cost").textContent).toBe("$2.41partialwhy");
 		});
 
 		it("shows why each part the cost lacks is missing on request", async () => {
@@ -3127,7 +3175,7 @@ describe(RunHistoryPage.name, () => {
 			);
 
 			expect(cellOf(RUN, "Cost").textContent).toBe(
-				"$2.41partial · lacks Product Owner, rep-2hideProduct Owner: no main artifactrep-2: no metrics",
+				"$2.41partialhideProduct Owner: no main artifactrep-2: no metrics",
 			);
 		});
 

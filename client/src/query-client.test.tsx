@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "bun:test";
+import { renderWithRouter } from "#client/test-support/render-app";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import { ComparisonPage } from "#client/comparison/comparison-page";
 import { EvidenceSourcePage } from "#client/evidence/evidence-source-page";
 import { createQueryClient } from "#client/query-client";
@@ -26,7 +27,7 @@ describe(createQueryClient.name, () => {
 		stub.preconnect = originalFetch.preconnect;
 		globalThis.fetch = stub;
 
-		render(
+		renderWithRouter(
 			<QueryClientProvider client={createQueryClient()}>
 				<ComparisonPage digest={DIGEST} />
 			</QueryClientProvider>,
@@ -55,7 +56,7 @@ describe(createQueryClient.name, () => {
 			stub.preconnect = originalFetch.preconnect;
 			globalThis.fetch = stub;
 
-			render(
+			renderWithRouter(
 				<QueryClientProvider client={createQueryClient()}>
 					<EvidenceSourcePage
 						identity={{ kind: "final", run: "run", item: "tests", index: "0" }}

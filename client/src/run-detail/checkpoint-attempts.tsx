@@ -76,7 +76,18 @@ function AttemptItem({
 	return (
 		<li className="rounded-card border border-border px-2.5 py-2">
 			<span className="flex items-center gap-2">
-				<span className="flex-1 font-mono text-11-5">{attempt.id}</span>
+				<span className="flex-1 font-mono text-11-5">
+					{attempt.href === undefined ? (
+						attempt.id
+					) : (
+						<Link
+							to={attempt.href}
+							className="text-pale underline underline-offset-4"
+						>
+							{attempt.id}
+						</Link>
+					)}
+				</span>
 				<Grade
 					size="inline"
 					value={letter === undefined ? { pending: true } : { letter }}

@@ -27,10 +27,6 @@
 	grid-template-columns: minmax(0, 1fr) 280px;
 }
 
-@utility grid-cols-step-rail {
-	grid-template-columns: 300px minmax(0, 1fr);
-}
-
 @utility grid-cols-ledger-evidence {
 	grid-template-columns: 180px minmax(0, 1fr);
 }
@@ -68,6 +64,15 @@
 
 	#root {
 		min-height: 100vh;
+	}
+
+	@media (pointer: coarse) {
+		button,
+		[role="button"],
+		a[data-slot="button"],
+		nav a {
+			min-height: var(--size-touch-target);
+		}
 	}
 
 	:focus-visible {

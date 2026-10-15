@@ -288,7 +288,7 @@ function Field({
 }
 
 const NO_PIPELINE_SOURCE_REASON =
-	"A pipeline case starts from another pipeline case's steps and judges, and none is declared. Import a task on the Tasks screen first.";
+	"A pipeline case starts from another pipeline case's steps and judges, and none is declared. Import a workflow in Cases → Workflows first.";
 
 function KindChoice({
 	kind,
@@ -574,7 +574,7 @@ function PipelineFields({
 				</select>
 				<span id={fromHintId} className="text-xs text-dim">
 					Copies that case's steps, step rubrics, final rubric, target commands,
-					model and budget. Edit the steps afterwards from the Tasks screen.
+					model and budget. Edit the steps afterwards in Cases → Workflows.
 				</span>
 			</dd>
 		</dl>

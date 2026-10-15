@@ -3,26 +3,26 @@ import {
 	corpusMeasurementReading,
 	corpusVersionHash,
 } from "#benchmark/corpus-version-label";
-import { LaunchDialog } from "#client/launch/launch-dialog";
 import type { AnalyzedStage } from "#client/run-detail/analysis-query";
 import { analysesQuery, rolesOf } from "#client/run-detail/analysis-query";
 import { liveElapsedMs, spendReading } from "#client/run-history/run-progress";
+import { hasRunEnded } from "#client/run-history/run-status";
+import {
+	isStopped,
+	stoppedStageOf,
+	isPaused,
+	pausedStageOf,
+} from "#benchmark/stopped-status";
 import { useNow } from "#client/run-history/use-now";
 import type { PipelineRow } from "#client/shell/run-in-flight";
 import { Grade } from "#client/system/components/grade";
 import { LiveGlyph, STATUS_VOCABULARY } from "#client/system/components/status";
 import type { StatusState } from "#client/system/components/status";
-import { Button } from "#client/system/ui/button";
 import { withinCase } from "#client/within-case";
-import {
-	consumedCheckpointMissing,
-	endedStatus,
-	hasEnded,
-} from "./run-record-query";
+import { endedStatus, hasEnded } from "./run-record-query";
 import type { MonitoredStage, RunRecordResponse } from "./run-record-query";
 import { minutesAndSeconds } from "./minutes-and-seconds";
 import { stageSessionQuery } from "./stage-session-query";
-import { StepModalAction } from "./step-modal";
 
 const NOT_RECORDED = "—";
 
@@ -63,9 +63,21 @@ function notStarted(stage: MonitoredStage, row: PipelineRow): boolean {
 	return stage.status === "no-record" && !isRunning(stage, row);
 }
 
+/** A recorded boundary proves that subsequent steps never ran. */
+function stoppedAfter(status: string): string | undefined {
+	if (isStopped(status)) {
+		return stoppedStageOf(status);
+	}
+	if (isPaused(status)) {
+		return pausedStageOf(status);
+	}
+	return undefined;
+}
+
 export function nodeStatus(
 	stage: MonitoredStage,
 	row: PipelineRow,
+	record: RunRecordResponse,
 ): NodeStatus {
 	const progress = liveProgress(stage, row);
 	if (progress !== undefined) {
@@ -77,7 +89,20 @@ export function nodeStatus(
 		return { state: ended, words: STATUS_VOCABULARY[ended].word };
 	}
 	if (stage.status === "awaiting-judgment") {
+		if (hasRunEnded(row)) {
+			return { state: "interrupted", words: "judge never returned" };
+		}
 		return { state: "pending", words: "awaiting judgment" };
+	}
+	if (hasRunEnded(row)) {
+		const stopped = stoppedAfter(row.status);
+		const stoppedIndex = record.stages.findIndex(
+			(each) => each.stage === stopped,
+		);
+		const index = record.stages.indexOf(stage);
+		return stoppedIndex !== -1 && index > stoppedIndex
+			? { state: "queued", words: "never ran" }
+			: { state: "interrupted", words: "step record missing" };
 	}
 
 	return { state: "queued", words: STATUS_VOCABULARY.queued.word };
@@ -104,7 +129,7 @@ export function costReading(stage: MonitoredStage, row: PipelineRow): string {
 		);
 	}
 	if (notStarted(stage, row)) {
-		return spendReading(0);
+		return hasRunEnded(row) ? NOT_RECORDED : spendReading(0);
 	}
 
 	const parts = [stage.sessionCost, stage.judgeCost].flatMap((part) =>
@@ -205,15 +230,17 @@ function StatusLine({
 function CheckpointLine({
 	stage,
 	caseId,
+	ended,
 }: {
 	readonly stage: MonitoredStage;
 	readonly caseId: string;
+	readonly ended: boolean;
 }): React.JSX.Element {
 	if (stage.checkpoint === "missing") {
 		return (
 			<span className="flex items-center gap-1.75 border-t border-dashed border-strong pt-1.75 font-mono text-10-5 text-dim">
 				<span aria-hidden="true">◇</span>
-				no checkpoint yet
+				{ended ? "no checkpoint recorded" : "no checkpoint yet"}
 			</span>
 		);
 	}
@@ -258,86 +285,23 @@ function producedReading(stage: MonitoredStage): string | undefined {
 	return parts.length === 0 ? undefined : `produced ${parts.join(", ")}`;
 }
 
-/** The instruction files the stage loaded and the artifacts it declared. */
-function InOutLine({
-	stage,
-}: {
-	readonly stage: MonitoredStage;
-}): React.JSX.Element {
-	const { instructionFiles } = stage;
-	const { declared } = stage.artifactsOut;
-
-	return (
-		<span className="grid grid-cols-2 gap-x-3 gap-y-1 font-mono text-10-5 text-secondary-foreground">
-			<span>
-				↓{" "}
-				{instructionFiles.state === "available"
-					? countReading(
-							instructionFiles.files.length,
-							"instruction file",
-							"in",
-						)
-					: NOT_RECORDED}
-			</span>
-			<span>
-				↑{" "}
-				{declared.state === "available"
-					? countReading(declared.paths.length, "artifact", "out")
-					: NOT_RECORDED}
-			</span>
-		</span>
-	);
-}
-
-/**
- * Replay opens the launch dialog on the checkpoint the stage starts from. A
- * stage without one keeps the action in its place, disabled with the reason,
- * as the design draws it.
- */
-function ReplayAction({
-	run,
-	record,
-	stage,
-}: {
-	readonly run: string;
-	readonly record: RunRecordResponse;
-	readonly stage: MonitoredStage;
-}): React.JSX.Element {
-	if (consumedCheckpointMissing(record, stage.stage)) {
-		return (
-			<Button
-				variant="quiet"
-				size="xs"
-				aria-disabled="true"
-				aria-label={`${stage.stage} has no checkpoint to replay from`}
-			>
-				replay
-			</Button>
-		);
-	}
-
-	return (
-		<LaunchDialog
-			target={{ kind: "replay", run, stage: stage.stage }}
-			trigger={
-				<Button
-					variant="quiet"
-					size="xs"
-					aria-label={`Replay ${stage.stage} from its checkpoint`}
-				>
-					replay
-				</Button>
-			}
-		/>
-	);
-}
-
 function nodeBorder(selected: boolean, status: NodeStatus): string {
 	if (selected) {
 		return "border-primary bg-selected";
 	}
 
 	return status.state === "running" ? "border-deeper" : "border-border";
+}
+
+function outputReading(
+	stage: MonitoredStage,
+	row: PipelineRow,
+	contribution: string | undefined,
+): string | undefined {
+	if (notStarted(stage, row)) {
+		return hasRunEnded(row) ? "No output recorded" : "not started";
+	}
+	return contribution ?? producedReading(stage);
 }
 
 function StageNode({
@@ -362,7 +326,7 @@ function StageNode({
 	/** The newest analysis's phrase for the step toward the task grade. */
 	readonly contribution: string | undefined;
 }): React.JSX.Element {
-	const status = nodeStatus(stage, row);
+	const status = nodeStatus(stage, row, record);
 
 	return (
 		<li className="flex items-stretch">
@@ -372,7 +336,7 @@ function StageNode({
 				onClick={() => {
 					onSelect(stage.stage);
 				}}
-				className={`flex w-77.5 flex-col gap-2.25 rounded-lg border px-3.75 py-3 text-left ${nodeBorder(selected, status)}`}
+				className={`flex w-67.5 flex-col gap-1.5 rounded-lg border px-3 py-2.5 text-left ${nodeBorder(selected, status)}`}
 			>
 				<span className="flex items-center gap-2.5">
 					<span aria-hidden="true" className="font-mono text-10-5 text-dim">
@@ -406,23 +370,15 @@ function StageNode({
 						)}
 					</span>
 				</span>
-				<CheckpointLine stage={stage} caseId={record.caseId} />
-				<span className="text-11 text-muted-foreground">
-					{notStarted(stage, row)
-						? "not started"
-						: (contribution ?? producedReading(stage))}
-				</span>
-				<InOutLine stage={stage} />
-			</button>
-			<span className="flex flex-col justify-center gap-1.25 px-1.5">
-				<StepModalAction
-					run={row.run}
-					record={record}
+				<CheckpointLine
 					stage={stage}
-					number={number}
+					caseId={record.caseId}
+					ended={hasRunEnded(row)}
 				/>
-				<ReplayAction run={row.run} record={record} stage={stage} />
-			</span>
+				<span className="text-11 text-muted-foreground">
+					{outputReading(stage, row, contribution)}
+				</span>
+			</button>
 			{last ? null : (
 				<span
 					aria-hidden="true"
@@ -488,21 +444,21 @@ export function TaskGraph({
 	return (
 		<section
 			aria-label="Task graph"
-			className="max-h-3/5 min-h-66.25 overflow-y-auto border-b border-divider bg-secondary"
+			className="flex-none border-b border-divider bg-secondary"
 		>
-			<div className="flex items-center gap-3.75 px-5 pt-2.5">
+			<div className="flex flex-wrap items-center gap-x-3.75 gap-y-1 px-6 pt-2.5">
 				<h2 className="text-10 font-medium tracking-label text-dim uppercase">
-					Task · {record.caseId} · {String(record.stages.length)} steps, in
+					Workflow · {record.caseId} · {String(record.stages.length)} steps, in
 					order
 				</h2>
 				<span className="text-11 text-muted-foreground">
-					click a step to bring its session and judge below
+					select a step to explore its results, activity and context
 				</span>
 				<span aria-hidden="true" className="ml-auto text-10-5 text-dim">
 					✓ accepted · ● running · ○ queued · ◆ checkpoint
 				</span>
 			</div>
-			<div className="overflow-x-auto px-5 pt-3 pb-3.75">
+			<div className="overflow-x-auto px-6 pt-2.5 pb-3">
 				<ol className="flex min-w-max items-stretch">
 					{record.stages.map((stage, index) => (
 						<StageNode
@@ -520,7 +476,7 @@ export function TaskGraph({
 					))}
 				</ol>
 			</div>
-			<p className="px-5 pb-3 text-11 text-pretty text-dim">
+			<p className="px-6 pb-2.5 text-11 text-pretty text-dim">
 				<MinimumGradeNote record={record} />A step shows what its record says it
 				produced until an analysis of the ended run gives one agent's reading of
 				its contribution to the task's final grade.

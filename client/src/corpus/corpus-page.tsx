@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { corpusVersionLabel } from "#benchmark/corpus-version-label";
 import { EmptyState } from "#client/system/components/empty-state";
 import { TableShell } from "#client/system/components/table-shell";
@@ -14,6 +14,11 @@ import type { AppliedCorpusEdit } from "./corpus-edit-requests";
 import { AppliedEdit, CorpusEditor } from "./corpus-edit";
 import { LastEditCard } from "./last-edit-card";
 import type { LineRange } from "./line-range";
+import { ExperimentSource, useExperimentSource } from "./experiment-source";
+import type {
+	CorpusExperimentSource,
+	SourceEvidence,
+} from "./experiment-source";
 
 type CorpusFile = CorpusResponse["files"][number];
 
@@ -104,9 +109,13 @@ type EditState =
 function EditSection({
 	edit,
 	onEdit,
+	source,
+	evidence,
 }: {
 	readonly edit: EditState;
 	readonly onEdit: (edit: EditState) => void;
+	readonly source: CorpusExperimentSource | undefined;
+	readonly evidence: SourceEvidence | undefined;
 }): React.JSX.Element {
 	const settings = useQuery(launchSettingsQuery);
 
@@ -139,7 +148,12 @@ function EditSection({
 				) : null}
 				{settings.isSuccess &&
 				settings.data.linkedCorpus.kind === "directory" ? (
-					<EditBody edit={edit} onEdit={onEdit} />
+					<EditBody
+						edit={edit}
+						onEdit={onEdit}
+						source={source}
+						evidence={evidence}
+					/>
 				) : null}
 			</div>
 		</section>
@@ -149,9 +163,13 @@ function EditSection({
 function EditBody({
 	edit,
 	onEdit,
+	source,
+	evidence,
 }: {
 	readonly edit: EditState;
 	readonly onEdit: (edit: EditState) => void;
+	readonly source: CorpusExperimentSource | undefined;
+	readonly evidence: SourceEvidence | undefined;
 }): React.JSX.Element {
 	switch (edit.kind) {
 		case "idle": {
@@ -168,6 +186,7 @@ function EditBody({
 					key={edit.path}
 					path={edit.path}
 					lines={edit.lines}
+					hasReplayableSource={evidence?.replayable === true}
 					onDiscard={() => {
 						onEdit({ kind: "idle" });
 					}}
@@ -178,7 +197,14 @@ function EditBody({
 			);
 		}
 		case "applied": {
-			return <AppliedEdit path={edit.path} applied={edit.applied} />;
+			return (
+				<AppliedEdit
+					path={edit.path}
+					applied={edit.applied}
+					source={source}
+					evidence={evidence}
+				/>
+			);
 		}
 		default: {
 			return edit satisfies never;
@@ -186,10 +212,63 @@ function EditBody({
 	}
 }
 
+function CorpusInventory({
+	report,
+	isLoading,
+	isError,
+	onEdit,
+}: {
+	readonly report: CorpusResponse | undefined;
+	readonly isLoading: boolean;
+	readonly isError: boolean;
+	readonly onEdit: ((path: string) => void) | undefined;
+}): React.JSX.Element {
+	return (
+		<>
+			{isLoading ? <p className="text-muted-foreground">Loading…</p> : null}
+			{isError ? (
+				<p role="alert" className="text-muted-foreground">
+					<span aria-hidden="true">⚠ </span>
+					Could not load the corpus.
+				</p>
+			) : null}
+			{report !== undefined && report.refusals.length > 0 ? (
+				<Notice
+					message="These entries could not be hashed, so they are missing from the table, and a refused layout directory is missing from it whole:"
+					items={report.refusals}
+				/>
+			) : null}
+			{report !== undefined &&
+			report.files.length === 0 &&
+			report.refusals.length === 0 ? (
+				<EmptyState heading="No corpus files found">
+					<p>
+						The corpus root holds no files in corpus layout. Add a CLAUDE.md, a
+						skill, an output style, or an agent definition under it, then reload
+						this screen.
+					</p>
+				</EmptyState>
+			) : null}
+			{report !== undefined && report.files.length > 0 ? (
+				<TableShell
+					caption="Corpus files"
+					columns={onEdit === undefined ? [...COLUMNS] : [...COLUMNS, "Edit"]}
+					numeric={["Read by", "Invalidated"]}
+					rows={report.files.map((file) =>
+						rowFor(file, report.lastEdit, onEdit),
+					)}
+				/>
+			) : null}
+		</>
+	);
+}
+
 export function CorpusPage({
 	opened,
+	source,
 }: {
 	readonly opened?: OpenedCorpusFile | undefined;
+	readonly source?: CorpusExperimentSource | undefined;
 }): React.JSX.Element {
 	const query = useQuery(corpusQuery);
 	const settings = useQuery(launchSettingsQuery);
@@ -198,9 +277,28 @@ export function CorpusPage({
 			? { kind: "idle" }
 			: { kind: "editing", path: opened.path, lines: opened.lines },
 	);
+	useEffect(() => {
+		setEdit(
+			opened === undefined
+				? { kind: "idle" }
+				: { kind: "editing", path: opened.path, lines: opened.lines },
+		);
+	}, [opened?.path, opened?.lines?.start, opened?.lines?.end]);
+	const {
+		activeSource,
+		sourcePath,
+		visibleEvidence,
+		clearSource,
+		selectedFile,
+	} = useExperimentSource(
+		opened?.path,
+		source,
+		edit.kind === "idle" ? undefined : edit.path,
+	);
 	const onEdit =
 		settings.isSuccess && settings.data.linkedCorpus.kind === "directory"
 			? (path: string) => {
+					selectedFile(path);
 					setEdit({ kind: "editing", path });
 				}
 			: undefined;
@@ -233,47 +331,27 @@ export function CorpusPage({
 			/>
 
 			<div className="flex max-w-7xl flex-col gap-6 px-6 pt-4 pb-12">
-				{query.isLoading ? (
-					<p className="text-muted-foreground">Loading…</p>
-				) : null}
-				{query.isError ? (
-					<p role="alert" className="text-muted-foreground">
-						<span aria-hidden="true">⚠ </span>
-						Could not load the corpus.
-					</p>
-				) : null}
-
-				{query.isSuccess && query.data.refusals.length > 0 ? (
-					<Notice
-						message="These entries could not be hashed, so they are missing from the table, and a refused layout directory is missing from it whole:"
-						items={query.data.refusals}
+				{activeSource === undefined || sourcePath === undefined ? null : (
+					<ExperimentSource
+						source={activeSource}
+						path={sourcePath}
+						evidence={visibleEvidence}
+						currentCorpus={query.data?.digest}
+						onClear={clearSource}
 					/>
-				) : null}
-
-				{query.isSuccess &&
-				query.data.files.length === 0 &&
-				query.data.refusals.length === 0 ? (
-					<EmptyState heading="No corpus files found">
-						<p>
-							The corpus root holds no files in corpus layout. Add a CLAUDE.md,
-							a skill, an output style, or an agent definition under it, then
-							reload this screen.
-						</p>
-					</EmptyState>
-				) : null}
-
-				{query.isSuccess && query.data.files.length > 0 ? (
-					<TableShell
-						caption="Corpus files"
-						columns={onEdit === undefined ? [...COLUMNS] : [...COLUMNS, "Edit"]}
-						numeric={["Read by", "Invalidated"]}
-						rows={query.data.files.map((file) =>
-							rowFor(file, query.data.lastEdit, onEdit),
-						)}
-					/>
-				) : null}
-
-				<EditSection edit={edit} onEdit={setEdit} />
+				)}
+				<EditSection
+					edit={edit}
+					onEdit={setEdit}
+					source={activeSource}
+					evidence={visibleEvidence}
+				/>
+				<CorpusInventory
+					report={query.data}
+					isLoading={query.isLoading}
+					isError={query.isError}
+					onEdit={onEdit}
+				/>
 			</div>
 		</div>
 	);

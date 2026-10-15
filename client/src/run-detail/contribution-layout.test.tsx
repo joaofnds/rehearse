@@ -21,7 +21,7 @@ function renderWithAnalysis(): void {
 	renderContribution(new Map([[ANALYSES, recordedAnalysis()]]));
 }
 
-describe("the Contribution layout's map", () => {
+describe("the full workflow's analysis map", () => {
 	it("shows one chip per declared step with its number, name, grade and role", async () => {
 		renderWithAnalysis();
 
@@ -100,12 +100,21 @@ describe("the Root-cause analysis section", () => {
 				name: "Set up the paired rerun",
 			}),
 		).toBeEnabled();
-		expect(
-			within(section).getByRole("link", { name: "Open the block it names" }),
-		).toHaveAttribute(
-			"href",
-			"/corpus?file=skills%2Fimplement.md&start=12&end=30",
+		const block = within(section).getByRole("link", {
+			name: "Open the block it names",
+		});
+		const opened = new URL(
+			block.getAttribute("href") ?? "",
+			"http://localhost",
 		);
+		expect(opened.pathname).toBe("/corpus");
+		expect(Object.fromEntries(opened.searchParams)).toEqual({
+			file: "skills/implement.md",
+			sourceRun: RUN,
+			sourceStep: "build",
+			start: "12",
+			end: "30",
+		});
 		expect(
 			within(section).getByRole("button", {
 				name: "Re-run the analysis · at most $1.00",
@@ -132,13 +141,13 @@ describe("the Root-cause analysis section", () => {
 		expect(build).toHaveTextContent("Build ignored the declared scope.");
 		expect(
 			within(build).getByRole("link", { name: "Step report" }),
-		).toHaveAttribute("href", `/runs/${RUN}?layout=rail&step=build`);
+		).toHaveAttribute("href", `/runs/${RUN}?view=results&step=build`);
 		expect(within(rows).getByText("verify").closest("li")).toHaveTextContent(
 			"○ never ran",
 		);
 	});
 
-	it("opens Step rail on the step whose Step report is chosen", async () => {
+	it("opens Results on the step whose Step report is chosen", async () => {
 		renderWithAnalysis();
 		const rows = await screen.findByRole("list", {
 			name: "Steps as the analysis read them",
@@ -155,7 +164,7 @@ describe("the Root-cause analysis section", () => {
 		expect(
 			await screen.findByRole("heading", { name: "Step 1 · shape" }),
 		).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "Step rail" })).toHaveAttribute(
+		expect(screen.getByRole("button", { name: "Results" })).toHaveAttribute(
 			"aria-pressed",
 			"true",
 		);

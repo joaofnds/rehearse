@@ -17,8 +17,9 @@ import { NewestRunDetail } from "#client/run-detail/newest-run-detail";
 import { RunDetailPage } from "#client/run-detail/run-detail-page";
 import type { RunDetailSearch } from "#client/run-detail/run-detail-search";
 import { runDetailSearchSchema } from "#client/run-detail/run-detail-search";
+import { GroupWorkspacePage } from "#client/run-history/group-workspace";
 import { RunHistoryPage } from "#client/run-history/run-history-page";
-import { SessionHistoryPage } from "#client/session-history/session-history-page";
+import { AttemptWorkspacePage } from "#client/session-history/attempt-workspace";
 import { SettingsPage } from "#client/settings/settings-page";
 import { AppShell } from "#client/shell/app-shell";
 import { NotFoundPage } from "#client/shell/not-found-page";
@@ -58,7 +59,7 @@ const monitorRoute = createRoute({
 });
 
 function NewestMonitorRoute(): React.JSX.Element {
-	return <MonitorPage run={undefined} />;
+	return <MonitorPage />;
 }
 
 const runMonitorRoute = createRoute({
@@ -70,11 +71,13 @@ const runMonitorRoute = createRoute({
 function RunMonitorRoute(): React.JSX.Element {
 	const params: { readonly run: string } = runMonitorRoute.useParams();
 
-	return <MonitorPage run={params.run} />;
+	return <RunDetailPage run={params.run} search={{ view: "activity" }} />;
 }
 
 /** A link opens a corpus file in the editor, and may name its lines. */
 const CORPUS_SEARCH = z.object({
+	sourceRun: z.string().optional(),
+	sourceStep: z.string().optional(),
 	file: z.string().optional(),
 	start: z.coerce.number().int().positive().optional(),
 	end: z.coerce.number().int().positive().optional(),
@@ -88,23 +91,44 @@ const corpusRoute = createRoute({
 });
 
 function CorpusRoute(): React.JSX.Element {
-	const { file, start, end }: z.infer<typeof CORPUS_SEARCH> =
-		corpusRoute.useSearch();
+	const {
+		file,
+		start,
+		end,
+		sourceRun,
+		sourceStep,
+	}: z.infer<typeof CORPUS_SEARCH> = corpusRoute.useSearch();
 	const lines = start === undefined ? undefined : { start, end: end ?? start };
 
 	return (
 		<CorpusPage
-			key={file}
+			key={`${file}:${sourceRun}:${sourceStep}`}
 			opened={file === undefined ? undefined : { path: file, lines }}
+			source={
+				sourceRun === undefined || sourceStep === undefined
+					? undefined
+					: { run: sourceRun, stage: sourceStep }
+			}
 		/>
 	);
 }
 
+const SECTION_SEARCH = z.object({
+	view: z.string().optional(),
+	caseId: z.string().optional(),
+});
+
 const settingsRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/settings",
-	component: SettingsPage,
+	validateSearch: SECTION_SEARCH,
+	component: SettingsRoute,
 });
+
+function SettingsRoute(): React.JSX.Element {
+	const { view }: z.output<typeof SECTION_SEARCH> = settingsRoute.useSearch();
+	return <SettingsPage view={view === "judges" ? "judges" : "general"} />;
+}
 
 const comparisonsRoute = createRoute({
 	getParentRoute: () => rootRoute,
@@ -121,8 +145,20 @@ const tasksRoute = createRoute({
 const casesRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/cases",
-	component: CasesPage,
+	validateSearch: SECTION_SEARCH,
+	component: CasesRoute,
 });
+
+function CasesRoute(): React.JSX.Element {
+	const { view, caseId }: z.output<typeof SECTION_SEARCH> =
+		casesRoute.useSearch();
+	return (
+		<CasesPage
+			view={view === "workflows" ? "workflows" : "cases"}
+			{...(caseId === undefined ? {} : { caseId })}
+		/>
+	);
+}
 
 const calibrationRoute = createRoute({
 	getParentRoute: () => rootRoute,
@@ -178,9 +214,19 @@ const comparisonRoute = createRoute({
 	component: ComparisonRoute,
 });
 
+const ATTEMPT_SEARCH = z.object({
+	view: z
+		.union([
+			z.enum(["results", "context"]),
+			z.unknown().transform(() => undefined),
+		])
+		.optional(),
+});
+
 const sessionAttemptRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/attempts/session/$caseId/$uuid",
+	validateSearch: ATTEMPT_SEARCH,
 	component: SessionAttemptRoute,
 });
 
@@ -188,12 +234,31 @@ function SessionAttemptRoute(): React.JSX.Element {
 	const params: { readonly caseId: string; readonly uuid: string } =
 		sessionAttemptRoute.useParams();
 
-	return <SessionHistoryPage identity={{ kind: "standalone", ...params }} />;
+	const search: z.output<typeof ATTEMPT_SEARCH> =
+		sessionAttemptRoute.useSearch();
+	return (
+		<AttemptWorkspacePage
+			identity={{ kind: "standalone", ...params }}
+			view={search.view ?? "results"}
+		/>
+	);
+}
+
+const groupWorkspaceRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/groups/$groupId",
+	component: GroupWorkspaceRoute,
+});
+
+function GroupWorkspaceRoute(): React.JSX.Element {
+	const params: { readonly groupId: string } = groupWorkspaceRoute.useParams();
+	return <GroupWorkspacePage groupId={params.groupId} />;
 }
 
 const confirmationAttemptRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/groups/$groupId/reps/$repId/attempt",
+	validateSearch: ATTEMPT_SEARCH,
 	component: ConfirmationAttemptRoute,
 });
 
@@ -201,7 +266,14 @@ function ConfirmationAttemptRoute(): React.JSX.Element {
 	const params: { readonly groupId: string; readonly repId: string } =
 		confirmationAttemptRoute.useParams();
 
-	return <SessionHistoryPage identity={{ kind: "confirmation", ...params }} />;
+	const search: z.output<typeof ATTEMPT_SEARCH> =
+		confirmationAttemptRoute.useSearch();
+	return (
+		<AttemptWorkspacePage
+			identity={{ kind: "confirmation", ...params }}
+			view={search.view ?? "results"}
+		/>
+	);
 }
 
 const newestRunDetailRoute = createRoute({
@@ -234,7 +306,12 @@ function StageHistoryRoute(): React.JSX.Element {
 	const params: { readonly run: string; readonly stage: string } =
 		stageHistoryRoute.useParams();
 
-	return <SessionHistoryPage identity={{ kind: "stage", ...params }} />;
+	return (
+		<RunDetailPage
+			run={params.run}
+			search={{ view: "context", step: params.stage }}
+		/>
+	);
 }
 
 const stageEvidenceRoute = createRoute({
@@ -274,6 +351,7 @@ function FinalEvidenceRoute(): React.JSX.Element {
 const replayHistoryRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/replays/$lineage/$timestamp",
+	validateSearch: ATTEMPT_SEARCH,
 	component: ReplayHistoryRoute,
 });
 
@@ -281,7 +359,14 @@ function ReplayHistoryRoute(): React.JSX.Element {
 	const params: { readonly lineage: string; readonly timestamp: string } =
 		replayHistoryRoute.useParams();
 
-	return <SessionHistoryPage identity={{ kind: "replay", ...params }} />;
+	const search: z.output<typeof ATTEMPT_SEARCH> =
+		replayHistoryRoute.useSearch();
+	return (
+		<AttemptWorkspacePage
+			identity={{ kind: "replay", ...params }}
+			view={search.view ?? "results"}
+		/>
+	);
 }
 
 function ComparisonRoute(): React.JSX.Element {
@@ -312,6 +397,7 @@ const routeTree = rootRoute.addChildren([
 	replayStageReviewRoute,
 	sessionAttemptRoute,
 	confirmationAttemptRoute,
+	groupWorkspaceRoute,
 ]);
 
 export interface CreateAppRouterOptions {

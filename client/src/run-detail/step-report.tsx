@@ -21,6 +21,7 @@ import { stageJudgeQuery } from "#client/monitor/stage-judge-query";
 import type { StageSessionResponse } from "#client/monitor/stage-session-query";
 import { stageSessionQuery } from "#client/monitor/stage-session-query";
 import { minutesAndSeconds } from "#client/monitor/minutes-and-seconds";
+import { StepOutputs } from "./step-outputs";
 import { plural } from "#client/plural";
 import { spendReading } from "#client/run-history/run-progress";
 import { Grade } from "#client/system/components/grade";
@@ -461,7 +462,7 @@ export function StepReport({
 	return (
 		<section
 			aria-label="Step report"
-			className="overflow-y-auto px-5 pt-4 pb-8"
+			className="min-w-0 rounded-lg border border-border bg-card px-5 pt-4 pb-8"
 		>
 			<div className="flex flex-wrap items-start gap-4">
 				<div>
@@ -488,6 +489,7 @@ export function StepReport({
 				judge={judge.isError ? "unreadable" : judge.data}
 				leftWaiting={leftWaiting}
 			/>
+			<StepOutputs stage={stage} />
 			<InstructionsRead stage={stage} />
 		</section>
 	);

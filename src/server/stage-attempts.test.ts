@@ -90,6 +90,11 @@ describe(readStageAttempts.name, () => {
 		});
 
 		expect(attempts.checkpoint).toBe("audit-log/r2/s1");
+		expect(attempts.attempts.map(({ href }) => href)).toEqual([
+			`/runs/${encodeURIComponent(fixture.replayableRun)}?view=results&step=build`,
+			`/replays/${encodeURIComponent(fixture.stageAttempt.lineage)}/${encodeURIComponent(fixture.stageAttempt.timestamp)}`,
+			"/groups/group-at-build/reps/group-at-build-rep-1/attempt",
+		]);
 		expect(attempts.attempts.map(({ kind, id }) => ({ kind, id }))).toEqual([
 			{ kind: "original", id: "audit-log/r2" },
 			{ kind: "replay", id: "audit-log/r3" },

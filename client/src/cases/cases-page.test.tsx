@@ -197,6 +197,83 @@ function fillDeclared(): void {
 }
 
 describe(CasesPage.name, () => {
+	it("opens a case's workflow definition with editing and bundle actions", async () => {
+		const task = {
+			path: "cases/audit-log/pipelines/default.json",
+			stages: ["shape", "build"],
+			stageJudges: 2,
+			taskJudges: 1,
+			declaredBy: {
+				id: "audit-log",
+				title: "Asynchronous audit log module against the NestJS template",
+				target: "../../../nest/template",
+			},
+			cases: ["audit-log"],
+			targets: ["../../../nest/template"],
+			runs: [],
+			figures: { counted: 0, corpusVersion: null, leftOut: 0 },
+		};
+		renderAppWithStub(
+			"/cases",
+			new Map<string, unknown>([
+				[
+					"/api/cases",
+					{
+						cases: [pipelineCase(), pipelineCase({ id: "other-case" })],
+						unreadable: [],
+						unreadableRecords: [],
+					},
+				],
+				[
+					"/api/pipelines",
+					{
+						pipelines: [
+							task,
+							{
+								...task,
+								path: "other.json",
+								cases: ["other-case"],
+								declaredBy: null,
+							},
+						],
+						unreadable: [],
+					},
+				],
+			]),
+		);
+
+		const pipeline = await card("audit-log");
+		fireEvent.click(
+			within(pipeline).getByRole("link", { name: "View workflow" }),
+		);
+
+		expect(
+			await screen.findByRole("heading", { level: 1, name: "Cases" }),
+		).toBeInTheDocument();
+		expect(screen.getByRole("link", { name: "Workflows" })).toHaveAttribute(
+			"aria-current",
+			"page",
+		);
+		expect(
+			await screen.findByText("cases/audit-log/pipelines/default.json"),
+		).toBeInTheDocument();
+		expect(screen.queryByText("other.json")).not.toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "Edit steps" }),
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "Import a task" }),
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "Export with judges" }),
+		).toBeInTheDocument();
+		expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+
+		fireEvent.click(screen.getByRole("link", { name: "All workflows" }));
+		expect(await screen.findByText("other.json")).toBeInTheDocument();
+		expect(screen.getByText("Used by: other-case")).toBeInTheDocument();
+	});
+
 	it("opens from the Cases nav item under its header naming where cases are declared", async () => {
 		renderCasesAt("/", [pipelineCase()]);
 
@@ -619,7 +696,7 @@ describe(CasesPage.name, () => {
 
 				expect(pipeline).toBeDisabled();
 				expect(pipeline).toHaveAccessibleDescription(
-					"A pipeline case starts from another pipeline case's steps and judges, and none is declared. Import a task on the Tasks screen first.",
+					"A pipeline case starts from another pipeline case's steps and judges, and none is declared. Import a workflow in Cases → Workflows first.",
 				);
 			});
 

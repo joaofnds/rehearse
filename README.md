@@ -84,15 +84,18 @@ mise exec -- bun run serve
 ```
 
 A fresh clone has no run history, so every view shows the first-run setup
-until a spend limit is stored or a record exists. Available views cover run history, the linked
-corpus, saved comparisons, saved session-attempt history, the tasks and cases
-the checkout declares, the settings, and the design system. Declare a case on the Cases view
-writes an uncommitted `cases/<id>/case.json` into the checkout.
-The run history shows a run that is executing, with its stage, elapsed time, and
-spend, and the Live monitor follows it live. New run and Replay a step on run history and Replay
-from here on a pipeline stage start a run or replay under the stored spend
-ceiling, which spends provider money. Several prototype screens are still
-planned.
+until a spend limit is stored or a record exists. The desktop navigation has Runs,
+Comparisons, Cases, Corpus and Settings. Cases includes workflow definitions and
+editing; Settings includes Judge calibration. Declare a case writes an uncommitted
+`cases/<id>/case.json` into the checkout.
+
+Open a run from Runs to inspect Results, Activity, or Context & cost while keeping
+the same selected step. Running pipeline runs open Activity with live session and
+Judge panes; ended runs open Results. Test an instruction carries a saved source
+step through editing and its replay offer. New run and Replay start real work under
+the stored spend ceiling, which spends provider money. The
+[desktop workspace guide](docs/run-workspace.md) describes the navigation and evidence
+boundaries.
 The server is intended for local use, binds to IPv4 loopback, and has no
 authentication.
 

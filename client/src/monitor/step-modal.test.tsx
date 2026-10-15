@@ -32,8 +32,34 @@ function renderMonitor(
 		"/monitor",
 		new Map<string, unknown>([
 			["/api/run-listing", history()],
+			["/api/runs", history()],
 			[`/api/runs/${RUN}`, runRecord({ run: RUN, running: "build", stages })],
 			...extra,
+		]),
+	);
+}
+
+function renderEndedMonitor(stages: readonly RunRecordStage[]): void {
+	const completed = {
+		...runRecord({ run: RUN, running: "build", stages }),
+		finalOutcome: { status: "JUDGED", verdict: "PASS" },
+	};
+	const completedHistory: RunHistoryResponse = {
+		rows: [
+			{
+				...runRow({ run: RUN, status: "COMPLETED" }),
+				replayableStages: stages.map(({ stage }) => stage),
+			},
+		],
+		launches: [],
+		unreadable: [],
+	};
+	renderAppWithStub(
+		`/runs/${RUN}?view=activity`,
+		new Map<string, unknown>([
+			["/api/run-listing", completedHistory],
+			["/api/runs", completedHistory],
+			[`/api/runs/${RUN}`, completed],
 		]),
 	);
 }
@@ -52,9 +78,13 @@ async function graphNode(stage: string): Promise<HTMLElement> {
 }
 
 async function inOutAction(stage: string): Promise<HTMLElement> {
-	return within(await graphNode(stage)).getByRole("button", {
-		name: `${stage} — instructions in, artifacts out`,
+	fireEvent.click(within(await graphNode(stage)).getByRole("button"));
+	await waitFor(() => {
+		expect(screen.getByText(/Selected step/u).parentElement).toHaveTextContent(
+			stage,
+		);
 	});
+	return screen.getByRole("button", { name: "Inputs & output" });
 }
 
 const SKILL_PATH = ".agents/skills/plan/SKILL.md";
@@ -94,21 +124,15 @@ async function openModal(stage: string): Promise<HTMLElement> {
 }
 
 describe("/monitor step modal", () => {
-	it("offers each node's in / out action above its replay", async () => {
+	it("keeps step actions in the selected-step toolbar", async () => {
 		renderMonitor([
 			recordStage("plan", { status: "graded" }),
 			recordStage("build"),
 		]);
 
 		const node = await graphNode("plan");
-		const actions = within(node)
-			.getAllByRole("button")
-			.filter(({ textContent }) => /in \/ out|replay/u.test(textContent));
-
-		expect(actions.map(({ textContent }) => textContent)).toEqual([
-			"in / out ▸",
-			"replay",
-		]);
+		expect(within(node).getAllByRole("button")).toHaveLength(1);
+		expect(await inOutAction("plan")).toBeInTheDocument();
 	});
 
 	it("opens the stage's step modal from its in / out action", async () => {
@@ -497,14 +521,14 @@ describe("/monitor step modal", () => {
 			).toBeInTheDocument();
 		});
 
-		it("opens the step's full report in Step rail", async () => {
+		it("opens the selected step's full report in Results", async () => {
 			renderMonitor([recordStage("plan", FINISHED_PLAN), recordStage("build")]);
 
 			const dialog = await openModal("plan");
 
 			expect(
 				within(dialog).getByRole("link", { name: "Full step report" }),
-			).toHaveAttribute("href", `/runs/${RUN}?layout=rail&step=plan`);
+			).toHaveAttribute("href", `/runs/${RUN}?view=results&step=plan`);
 		});
 
 		it("links the session on disk where its transcript is recorded", async () => {
@@ -561,9 +585,28 @@ describe("/monitor step modal", () => {
 
 	describe("operating on the step", () => {
 		it("offers replay from the checkpoint the step started from", async () => {
-			renderMonitor([recordStage("plan", FINISHED_PLAN), recordStage("build")]);
+			renderEndedMonitor([
+				recordStage("plan", {
+					...FINISHED_PLAN,
+					artifactsIn: {
+						entries: [
+							{
+								from: "upstream checkpoint",
+								target: "acme-api",
+								upstream: "initial",
+								checkpointShortId: {
+									state: "unavailable",
+									reasons: ["predates short ids"],
+								},
+							},
+						],
+						missing: [],
+					},
+				}),
+				recordStage("build"),
+			]);
 
-			const dialog = await openModal("build");
+			const dialog = await openModal("plan");
 
 			expect(
 				within(dialog).getByRole("button", { name: "Replay from checkpoint" }),
@@ -571,7 +614,10 @@ describe("/monitor step modal", () => {
 		});
 
 		it("disables replay with its reason when the checkpoint the step started from is missing", async () => {
-			renderMonitor([recordStage("plan"), recordStage("build")]);
+			renderEndedMonitor([
+				recordStage("plan", { status: "graded" }),
+				recordStage("build", { status: "graded" }),
+			]);
 
 			const dialog = await openModal("build");
 
@@ -581,6 +627,32 @@ describe("/monitor step modal", () => {
 			expect(dialog).toHaveTextContent(
 				"Replay from checkpointbuild has no checkpoint to replay from",
 			);
+		});
+
+		it("withholds replay while the source run is still active", async () => {
+			renderMonitor([recordStage("plan", FINISHED_PLAN), recordStage("build")]);
+
+			const dialog = await openModal("plan");
+
+			expect(dialog).toHaveTextContent(
+				"Wait for the source run to end before replaying a step",
+			);
+			expect(
+				within(dialog).getByRole("button", { name: "Replay from checkpoint" }),
+			).toHaveAttribute("aria-disabled", "true");
+		});
+
+		it("withholds replay when the selected step has no ended record", async () => {
+			renderMonitor([recordStage("plan", FINISHED_PLAN), recordStage("build")]);
+
+			const dialog = await openModal("build");
+
+			expect(dialog).toHaveTextContent(
+				"build has no completed step record to replay",
+			);
+			expect(
+				within(dialog).getByRole("button", { name: "Replay from checkpoint" }),
+			).toHaveAttribute("aria-disabled", "true");
 		});
 
 		it("opens the step's case's step editor on this step, and skill editing on the Corpus screen", async () => {
@@ -614,7 +686,7 @@ describe("/monitor step modal", () => {
 				within(dialog).getByRole("link", { name: "Edit its skill" }),
 			).toHaveAttribute(
 				"href",
-				`/corpus?file=${encodeURIComponent(SKILL_PATH)}`,
+				`/corpus?file=${encodeURIComponent(SKILL_PATH)}&sourceRun=${RUN}&sourceStep=plan`,
 			);
 			fireEvent.click(
 				within(dialog).getByRole("button", { name: "Edit this step" }),

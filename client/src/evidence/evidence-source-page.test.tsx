@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { render, screen, waitFor } from "@testing-library/react";
+import { renderWithRouter } from "#client/test-support/render-app";
+import { screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { stubFetchByPath } from "#client/test-support/fetch-stub";
 import type {
@@ -64,7 +65,7 @@ function renderPage(
 	const client = new QueryClient({
 		defaultOptions: { queries: { retry: false } },
 	});
-	render(
+	renderWithRouter(
 		<QueryClientProvider client={client}>
 			<EvidenceSourcePage identity={identity} />
 		</QueryClientProvider>,
@@ -101,6 +102,9 @@ describe(EvidenceSourcePage.name, () => {
 		).toBeInTheDocument();
 		expect(screen.getByText("the module is wired")).toBeInTheDocument();
 		expect(screen.getByText("src/app.ts @@ -1 +1,2 @@")).toBeInTheDocument();
+		expect(
+			screen.getByRole("link", { name: /Back to run Results/u }),
+		).toHaveAttribute("href", `/runs/${RUN}?view=results&step=build`);
 		expect(screen.queryByRole("textbox")).toBeNull();
 		await waitFor(() => {
 			expect(scrolledTo).toEqual(["export const audit = true"]);
@@ -213,6 +217,9 @@ describe(EvidenceSourcePage.name, () => {
 		);
 
 		expect(await screen.findByText("the module is wired")).toBeInTheDocument();
+		expect(
+			screen.getByRole("link", { name: /Back to run Results/u }),
+		).toHaveAttribute("href", `/runs/${RUN}?view=results`);
 	});
 
 	it("asks the API for a run id holding a slash, never a path it climbs to", async () => {

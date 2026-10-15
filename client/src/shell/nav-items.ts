@@ -1,14 +1,4 @@
-import {
-	Activity,
-	Box,
-	FileText,
-	GitCompare,
-	List,
-	Scale,
-	Scroll,
-	SlidersHorizontal,
-	Workflow,
-} from "lucide-react";
+import { Box, GitCompare, List, Scroll, SlidersHorizontal } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 /**
@@ -17,12 +7,7 @@ import type { LucideIcon } from "lucide-react";
  * (SPEC.md:78). Run history's badge reads the run listing rather than the
  * screen's full report, and the two answer the same records and launches.
  */
-export type BadgeSource =
-	| "runs"
-	| "monitor"
-	| "corpus"
-	| "comparisons"
-	| "calibration";
+export type BadgeSource = "runs" | "corpus" | "comparisons";
 
 /**
  * One count per badge source, so a source named on a nav item always has a
@@ -43,31 +28,17 @@ export interface NavItem {
 }
 
 /**
- * The nine items of SPEC.md:68-76, in the design's order and labels.
+ * The desktop workspace groups secondary tools under Cases and Settings.
  */
 export const NAV_ITEMS: readonly NavItem[] = [
-	{ label: "Run history", icon: List, path: "/", badge: "runs" },
-	{
-		label: "Live monitor",
-		icon: Activity,
-		path: "/monitor",
-		badge: "monitor",
-	},
-	{ label: "Run detail", icon: FileText, path: "/runs" },
+	{ label: "Runs", icon: List, path: "/", badge: "runs" },
 	{
 		label: "Comparisons",
 		icon: GitCompare,
 		path: "/comparisons",
 		badge: "comparisons",
 	},
-	{ label: "Corpus", icon: Scroll, path: "/corpus", badge: "corpus" },
-	{ label: "Tasks", icon: Workflow, path: "/tasks" },
 	{ label: "Cases", icon: Box, path: "/cases" },
-	{
-		label: "Calibration",
-		icon: Scale,
-		path: "/calibration",
-		badge: "calibration",
-	},
+	{ label: "Corpus", icon: Scroll, path: "/corpus", badge: "corpus" },
 	{ label: "Settings", icon: SlidersHorizontal, path: "/settings" },
 ];

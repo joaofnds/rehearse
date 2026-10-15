@@ -1,12 +1,20 @@
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { Notice } from "#client/system/components/notice";
 import { ScreenHeader } from "#client/system/components/screen-header";
+import { TasksPage } from "#client/tasks/tasks-page";
 import { CaseCard } from "./case-card";
 import { casesQuery } from "./cases-query";
 import { DeclareCaseDialog } from "./declare-case-dialog";
 
-export function CasesPage(): React.JSX.Element {
+export function CasesPage({
+	view = "cases",
+	caseId,
+}: {
+	readonly view?: "cases" | "workflows";
+	readonly caseId?: string;
+}): React.JSX.Element {
 	const query = useQuery(casesQuery);
 	const [declaredPath, setDeclaredPath] = useState<string>();
 	const cases = query.data?.cases ?? [];
@@ -17,56 +25,89 @@ export function CasesPage(): React.JSX.Element {
 		<div>
 			<ScreenHeader
 				title="Cases"
-				subline="Declared as data on disk · cases/*/case.json"
-				aside={<DeclareCaseDialog onDeclared={setDeclaredPath} />}
+				subline={
+					view === "cases"
+						? "Declared as data on disk · cases/*/case.json"
+						: "Workflow definitions used by cases"
+				}
+				aside={
+					view === "cases" ? (
+						<DeclareCaseDialog onDeclared={setDeclaredPath} />
+					) : undefined
+				}
 			/>
+			<nav
+				aria-label="Case sections"
+				className="flex gap-1 border-b border-divider px-6"
+			>
+				<Link
+					to="/cases"
+					search={{}}
+					aria-current={view === "cases" ? "page" : undefined}
+					className="border-b-2 border-transparent px-3 py-2.5 text-12 text-muted-foreground aria-current:border-primary aria-current:text-foreground hover:text-foreground"
+				>
+					Cases
+				</Link>
+				<Link
+					to="/cases"
+					search={{ view: "workflows" }}
+					aria-current={view === "workflows" ? "page" : undefined}
+					className="border-b-2 border-transparent px-3 py-2.5 text-12 text-muted-foreground aria-current:border-primary aria-current:text-foreground hover:text-foreground"
+				>
+					Workflows
+				</Link>
+			</nav>
 
-			<div className="flex max-w-7xl flex-col gap-6 px-6 pt-4 pb-12">
-				<p className="max-w-prose text-sm text-muted-foreground">
-					Each case's figures are taken over its runs at one corpus version, the
-					first recorded reading its runs newest first. A session attempt or
-					group recorded before attempts and groups kept a start time comes
-					after every timed run, so for a case only those ran it need not be the
-					newest. A run is a pipeline run, a session attempt, or one attempt of
-					a finished group run on the whole case. Stage replays and stage-mode
-					groups are not counted.
-				</p>
-
-				{declaredPath === undefined ? null : (
-					<p role="status" className="text-sm text-secondary-foreground">
-						{`Declared ${declaredPath}. It is uncommitted: review and commit it to keep the case.`}
+			{view === "workflows" ? (
+				<TasksPage embedded {...(caseId === undefined ? {} : { caseId })} />
+			) : (
+				<div className="flex max-w-7xl flex-col gap-6 px-6 pt-4 pb-12">
+					<p className="max-w-prose text-sm text-muted-foreground">
+						Each case's figures are taken over its runs at one corpus version,
+						the first recorded reading its runs newest first. A session attempt
+						or group recorded before attempts and groups kept a start time comes
+						after every timed run, so for a case only those ran it need not be
+						the newest. A run is a pipeline run, a session attempt, or one
+						attempt of a finished group run on the whole case. Stage replays and
+						stage-mode groups are not counted.
 					</p>
-				)}
 
-				{query.isLoading ? (
-					<p className="text-muted-foreground">Loading…</p>
-				) : null}
-				{query.isError ? (
-					<p role="alert" className="text-muted-foreground">
-						<span aria-hidden="true">⚠ </span>
-						Could not load the cases.
-					</p>
-				) : null}
+					{declaredPath === undefined ? null : (
+						<p role="status" className="text-sm text-secondary-foreground">
+							{`Declared ${declaredPath}. It is uncommitted: review and commit it to keep the case.`}
+						</p>
+					)}
 
-				{unreadable.length > 0 ? (
-					<Notice
-						message="These declarations could not be read, so no card shows them:"
-						items={unreadable.map(({ id, reason }) => `${id}: ${reason}`)}
-					/>
-				) : null}
-				{unreadableRecords.length > 0 ? (
-					<Notice
-						message="These run records could not be read, so their verdicts and costs are missing from the figures:"
-						items={unreadableRecords.map(
-							({ id, reason }) => `${id}: ${reason}`,
-						)}
-					/>
-				) : null}
+					{query.isLoading ? (
+						<p className="text-muted-foreground">Loading…</p>
+					) : null}
+					{query.isError ? (
+						<p role="alert" className="text-muted-foreground">
+							<span aria-hidden="true">⚠ </span>
+							Could not load the cases.
+						</p>
+					) : null}
 
-				{cases.map((listed) => (
-					<CaseCard key={listed.id} listed={listed} />
-				))}
-			</div>
+					{unreadable.length > 0 ? (
+						<Notice
+							message="These declarations could not be read, so no card shows them:"
+							items={unreadable.map(({ id, reason }) => `${id}: ${reason}`)}
+						/>
+					) : null}
+					{unreadableRecords.length > 0 ? (
+						<Notice
+							message="These run records could not be read, so their verdicts and costs are missing from the figures:"
+							items={unreadableRecords.map(
+								({ id, reason }) => `${id}: ${reason}`,
+							)}
+						/>
+					) : null}
+
+					{cases.map((listed) => (
+						<CaseCard key={listed.id} listed={listed} />
+					))}
+				</div>
+			)}
 		</div>
 	);
 }

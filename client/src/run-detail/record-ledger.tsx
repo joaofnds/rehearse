@@ -84,7 +84,7 @@ function cardStatus(
 		return { state: "interrupted", words: "judge never returned" };
 	}
 
-	const status = nodeStatus(stage, row);
+	const status = nodeStatus(stage, row, record);
 	const minimum = missedMinimum(record, stage);
 	if (status.state !== "stopped" || minimum === undefined) {
 		return status;
@@ -597,7 +597,7 @@ function UnreachedStage({
 	return (
 		<li className="flex items-center gap-3 px-3.5 py-1 text-11-5">
 			{stepName(unreached)}
-			<StatusWords status={nodeStatus(unreached.stage, row)} />
+			<StatusWords status={nodeStatus(unreached.stage, row, record)} />
 		</li>
 	);
 }

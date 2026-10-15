@@ -82,18 +82,23 @@ describe("/runs/$run", () => {
 			]),
 		);
 
+		const graph = await screen.findByRole("region", { name: "Task graph" });
 		expect(
-			await screen.findByRole("button", { name: /^Replay step 1/u }),
-		).toBeInTheDocument();
+			within(graph).getByRole("button", { name: /^build/u }),
+		).not.toHaveTextContent("accepted");
 		running = "verify";
 
+		await waitFor(
+			() => {
+				expect(
+					within(graph).getByRole("button", { name: /^build/u }),
+				).toHaveTextContent("accepted");
+			},
+			{ timeout: 5000 },
+		);
 		expect(
-			await screen.findByRole(
-				"button",
-				{ name: /^Replay step 2/u },
-				{ timeout: 5000 },
-			),
-		).toBeInTheDocument();
+			screen.getByRole("region", { name: "Live agent session" }),
+		).toHaveTextContent("Step 3 · verify");
 	});
 
 	it("reads the attempts at the selected step's checkpoint again when a live run moves on", async () => {
@@ -145,7 +150,7 @@ describe("/runs/$run", () => {
 				],
 			]),
 			undefined,
-			`/runs/${RUN}?step=build`,
+			`/runs/${RUN}?view=results&step=build`,
 		);
 
 		const list = await screen.findByRole("list", {
@@ -159,11 +164,18 @@ describe("/runs/$run", () => {
 		).toBeInTheDocument();
 	});
 
-	it("opens Step rail on the step it stopped at, among the three layouts, with a replay of that step", async () => {
-		renderRunDetail();
+	it("opens Results on the step it stopped at, with its replay action", async () => {
+		renderRunDetail(
+			new Map([
+				[
+					"/api/runs",
+					history([{ ...stoppedRow(), replayableStages: ["shape", "build"] }]),
+				],
+			]),
+		);
 
 		const switcher = await screen.findByRole("group", {
-			name: "Run detail layout",
+			name: "Run views",
 		});
 
 		expect(
@@ -174,13 +186,10 @@ describe("/runs/$run", () => {
 					option.getAttribute("aria-pressed"),
 				]),
 		).toEqual([
-			["Step rail", "true"],
-			["Record ledger", "false"],
-			["Contribution", "false"],
+			["Results", "true"],
+			["Activity", "false"],
+			["Context & cost", "false"],
 		]);
-		expect(
-			screen.getByText("Layout A · one step at a time, attempts alongside"),
-		).toBeInTheDocument();
 		expect(
 			within(screen.getByRole("region", { name: "Step report" })).getByRole(
 				"heading",
@@ -200,50 +209,49 @@ describe("/runs/$run", () => {
 		).toBeInTheDocument();
 	});
 
-	it("writes the chosen layout to the URL", async () => {
+	it("writes the chosen view to the URL", async () => {
 		const router = renderRunDetail(
 			new Map([[ANALYSES, noAnalysis()]]),
 			[],
 			`/runs/${RUN}?step=shape`,
 		);
 
-		fireEvent.click(
-			await screen.findByRole("button", { name: "Contribution" }),
-		);
+		fireEvent.click(await screen.findByRole("button", { name: "Activity" }));
 
 		await waitFor(() => {
-			expect(
-				screen.getByRole("button", { name: "Contribution" }),
-			).toHaveAttribute("aria-pressed", "true");
+			expect(screen.getByRole("button", { name: "Activity" })).toHaveAttribute(
+				"aria-pressed",
+				"true",
+			);
 		});
 		expect(router.state.location.search).toEqual({
-			layout: "trace",
+			view: "activity",
 			step: "shape",
 		});
 	});
 
-	it("writes the layout chosen with the step it shows", async () => {
+	it("writes the view chosen with the step it shows", async () => {
 		const router = renderRunDetail();
 
 		fireEvent.click(
-			await screen.findByRole("button", { name: "Contribution" }),
+			await screen.findByRole("button", { name: "Context & cost" }),
 		);
 
 		await waitFor(() => {
 			expect(router.state.location.search).toEqual({
-				layout: "trace",
+				view: "context",
 				step: "build",
 			});
 		});
 	});
 
-	it("falls back to Step rail on the stopped step for a layout or step it does not know", async () => {
-		renderRunDetail(new Map(), [], `/runs/${RUN}?layout=matrix&step=deploy`);
+	it("falls back to Results on the stopped step for a view or step it does not know", async () => {
+		renderRunDetail(new Map(), [], `/runs/${RUN}?view=matrix&step=deploy`);
 
 		expect(
 			await screen.findByRole("heading", { level: 2, name: "Step 2 · build" }),
 		).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "Step rail" })).toHaveAttribute(
+		expect(screen.getByRole("button", { name: "Results" })).toHaveAttribute(
 			"aria-pressed",
 			"true",
 		);
@@ -263,14 +271,16 @@ describe("/runs/$run", () => {
 		).toBeInTheDocument();
 	});
 
-	it("says which checkpoints a stopped run kept to replay from", async () => {
+	it("shows which steps kept checkpoints in the shared workflow", async () => {
 		renderRunDetail();
 
+		const graph = await screen.findByRole("region", { name: "Task graph" });
 		expect(
-			await screen.findByText(
-				"Checkpoints from step 1 are retained and replayable.",
-			),
-		).toBeInTheDocument();
+			within(graph).getByRole("button", { name: /^shape/u }),
+		).toHaveTextContent("checkpoint recorded");
+		expect(
+			within(graph).getByRole("button", { name: /^build/u }),
+		).toHaveTextContent("no checkpoint recorded");
 	});
 
 	it("grades the task on its own and never shows a letter the final judge did not return", async () => {
@@ -322,17 +332,23 @@ describe("/runs/$run", () => {
 		},
 	);
 
-	it.each([
-		["rail", "Layout A · one step at a time, attempts alongside"],
-		["ledger", "Layout B · the whole record top to bottom"],
-		["trace", "Layout C · task grade first, then the root-cause pass"],
-	])("notes the %s layout in the restore banner", async (layout, note) => {
-		renderRunDetail(new Map(), [], `/runs/${RUN}?layout=${layout}`);
+	it.each(["rail", "ledger", "trace"])(
+		"opens an old %s layout link on Results",
+		async (layout) => {
+			renderRunDetail(new Map(), [], `/runs/${RUN}?layout=${layout}`);
 
-		expect(await screen.findByText(note)).toBeInTheDocument();
-	});
+			expect(
+				await screen.findByRole("button", { name: "Results" }),
+			).toHaveAttribute("aria-pressed", "true");
+			expect(
+				await screen.findByRole("region", {
+					name: "Task grade · graded on its own",
+				}),
+			).toBeInTheDocument();
+		},
+	);
 
-	it("shows no checkpoint line for a run that completed", async () => {
+	it("keeps checkpoint information visible after a run completes", async () => {
 		renderAppWithStub(
 			`/runs/${RUN}`,
 			new Map<string, unknown>([
@@ -341,14 +357,10 @@ describe("/runs/$run", () => {
 			]),
 		);
 
+		const graph = await screen.findByRole("region", { name: "Task graph" });
 		expect(
-			await screen.findByText(
-				"Layout A · one step at a time, attempts alongside",
-			),
-		).toBeInTheDocument();
-		expect(
-			screen.queryByText(/retained and replayable/u),
-		).not.toBeInTheDocument();
+			within(graph).getByRole("button", { name: /^shape/u }),
+		).toHaveTextContent("checkpoint recorded");
 	});
 
 	it("shows the last task grade recorded for the same case, with its staleness and why it is not comparable", async () => {

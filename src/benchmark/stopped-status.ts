@@ -32,5 +32,10 @@ export function isPaused(status: string): status is PausedStatus {
 	return status.startsWith(PAUSED_PREFIX);
 }
 
+/** The completed stage after which a paused process ended. */
+export function pausedStageOf(status: PausedStatus): string {
+	return status.slice(PAUSED_PREFIX.length);
+}
+
 /** A run a signal ended, which the operator's Stop sends. */
 export const OPERATOR_STOPPED = "OPERATOR_STOPPED";

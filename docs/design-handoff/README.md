@@ -4,6 +4,8 @@
 produced on 2026-09-04 from the [original brief](../ui-design-prompt.md). They
 describe intended visual structure and interactions beyond the implemented app.
 Use [current state](../status.md#browser-ui) to find what is available today.
+The approved [desktop run workspace](../run-workspace.md) supersedes the original
+separate history, monitor and detail navigation; the archived files remain unchanged.
 Where SPEC.md and the prototype differ, SPEC.md wins: SPEC.md has been amended
 since the handoff, such as the monitor's output summary and graph footer, and
 the prototype has not. The prototype keeps the handoff's names: culprit where
@@ -16,13 +18,13 @@ Open the prototype from a local checkout to inspect the intended appearance.
 reference infrastructure, not application code, and must not be imported into
 the client.
 
-Read the specification for visual direction and the [architecture](../design.md)
+Read the specification as the original visual reference and the [architecture](../design.md)
 for implementation boundaries. Implement screens with the existing components
 and tokens under `client/src/system/`. Prototype version labels, example grades,
 prices, identifiers, and controls are illustrative rather than release data.
 
 The design calls a pipeline a **task**, a stage a **step**, and a confirmation
 run a **group**. Code and records keep the harness terms; the [glossary](../../GLOSSARY.md)
-records their meaning. Features such as editing a task's steps remain
-planned. Do not infer an API or
+records their meaning. The current feature inventory defines which actions are
+available. Do not infer an API or
 record field merely because the prototype displays one.

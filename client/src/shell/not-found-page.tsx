@@ -18,7 +18,7 @@ export function NotFoundPage(): React.JSX.Element {
 					<code className="font-mono text-pale">{pathname}</code>.
 				</p>
 				<Button asChild>
-					<Link to="/">Back to run history</Link>
+					<Link to="/">Back to Runs</Link>
 				</Button>
 			</EmptyState>
 		</div>

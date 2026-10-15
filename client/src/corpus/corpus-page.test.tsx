@@ -23,7 +23,12 @@ import { LiveReply } from "#client/test-support/live-reply";
 import { CorpusPage } from "./corpus-page";
 import type { OpenedCorpusFile } from "./corpus-page";
 import { CORPUS_VERSION_HEADER } from "#server/corpus-version-header";
-import { renderAppWithStub } from "#client/test-support/render-app";
+import {
+	renderAppWithStub,
+	renderWithRouter,
+} from "#client/test-support/render-app";
+import { recordStage, runRecord } from "#client/test-support/run-record";
+import type { RunRecord } from "#server/run-record";
 
 const originalFetch = globalThis.fetch;
 
@@ -82,7 +87,7 @@ function renderPage(): void {
 	const client = new QueryClient({
 		defaultOptions: { queries: { retry: false } },
 	});
-	render(
+	renderWithRouter(
 		<QueryClientProvider client={client}>
 			<CorpusPage />
 		</QueryClientProvider>,
@@ -163,6 +168,7 @@ describe(CorpusPage.name, () => {
 		function serving(
 			overrides: ReadonlyMap<string, Reply | LiveReply> = new Map(),
 			linked?: OpenedCorpusFile,
+			source?: { readonly run: string; readonly stage: string },
 		): FakeServer {
 			const server = new FakeServer(
 				new Map([
@@ -196,7 +202,7 @@ describe(CorpusPage.name, () => {
 			});
 			const router = createRouter({
 				routeTree: createRootRoute({
-					component: () => <CorpusPage opened={linked} />,
+					component: () => <CorpusPage opened={linked} source={source} />,
 				}),
 				history: createMemoryHistory({ initialEntries: ["/"] }),
 			});
@@ -269,7 +275,7 @@ describe(CorpusPage.name, () => {
 			);
 		});
 
-		it("moves focus to the file's text, since the editor opens below every file row", async () => {
+		it("moves focus to the selected file’s text", async () => {
 			serving();
 
 			const textbox = await editor();
@@ -419,6 +425,387 @@ describe(CorpusPage.name, () => {
 			).toBeInTheDocument();
 		});
 
+		describe("when a recorded step is the source", () => {
+			const source = { run: RUN, stage: "discuss" } as const;
+
+			function sourceRun(): RunRecord {
+				return {
+					...runRecord({
+						run: RUN,
+						running: "discuss",
+						stages: [
+							recordStage("plan", {
+								status: "graded",
+								checkpoint: "recorded",
+								checkpointShortId: {
+									state: "available",
+									shortId: "s1",
+								},
+							}),
+							recordStage("discuss", {
+								status: "graded",
+								corpusVersion: { kind: "version", digest: OPENED_AT },
+								readManifest: {
+									state: "available",
+									entries: [
+										{
+											path: "CLAUDE.md",
+											half: "corpus",
+											role: "global instructions",
+											evidence: "observed",
+											sha256: "0".repeat(64),
+										},
+									],
+								},
+							}),
+						],
+					}),
+					finalOutcome: { status: "JUDGED", verdict: "PASS" },
+				};
+			}
+
+			function servingSource(
+				overrides: ReadonlyMap<string, Reply | LiveReply> = new Map(),
+			): FakeServer {
+				return serving(
+					new Map([
+						[`GET /api/runs/${RUN}`, { status: 200, body: sourceRun() }],
+						...overrides,
+					]),
+					{ path: "CLAUDE.md" },
+					source,
+				);
+			}
+
+			async function applySourceEdit(): Promise<void> {
+				const field = await screen.findByRole("textbox", {
+					name: "Text of CLAUDE.md",
+				});
+				fireEvent.change(field, {
+					target: { value: "instructions, edited\nkeep\n" },
+				});
+				fireEvent.click(screen.getByRole("button", { name: "Review" }));
+				await screen.findByText("Marks 3 recorded results stale, none deleted");
+				fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+				await screen.findByText(/Applied CLAUDE\.md/u);
+			}
+
+			it("keeps a source-read error explicit after apply", async () => {
+				servingSource(
+					new Map([
+						[
+							`GET /api/runs/${RUN}`,
+							{ status: 404, body: { error: "source unavailable" } },
+						],
+					]),
+				);
+				await applySourceEdit();
+				expect(
+					screen.getAllByText(/Could not read the saved run/u),
+				).toHaveLength(2);
+				expect(
+					screen.queryByText(/Saved source evidence is loading/u),
+				).not.toBeInTheDocument();
+			});
+
+			it("keeps the saved source and current corpus distinct through review and apply", async () => {
+				servingSource();
+
+				const context = await screen.findByRole("region", {
+					name: "Instruction test source",
+				});
+				expect(context).toHaveTextContent("corpus@c63e9a");
+				expect(context).toHaveTextContent("plan checkpoint");
+				expect(context).toHaveTextContent("current linked corpus@a41c7e");
+				await applySourceEdit();
+
+				expect(context).toHaveTextContent("corpus@c63e9a");
+				expect(context).toHaveTextContent("current linked corpus@a41c7e");
+				expect(
+					within(context).getByRole("link", {
+						name: "Return to source results",
+					}),
+				).toHaveAttribute("href", `/runs/${RUN}?view=results&step=discuss`);
+			});
+
+			it("offers three attempts from the selected step even when apply suggests another run", async () => {
+				const server = servingSource(
+					new Map([
+						[
+							"POST /api/corpus/edits/apply",
+							applied({
+								rerun: {
+									kind: "offered",
+									run: "unrelated-run",
+									stage: "build",
+								},
+							}),
+						],
+						[
+							"GET /api/cases",
+							{ status: 200, body: { cases: [], unreadable: [] } },
+						],
+						["POST /api/launches", { status: 202, body: { id: "launch-1" } }],
+					]),
+				);
+
+				await applySourceEdit();
+				fireEvent.click(
+					screen.getByRole("button", { name: "Replay discuss · 3 attempts" }),
+				);
+				const start = await screen.findByRole("button", { name: /^Start · /u });
+				await waitFor(() => {
+					expect(start).toBeEnabled();
+				});
+				fireEvent.click(start);
+
+				await waitFor(() => {
+					expect(server.posted("/api/launches")).toHaveLength(1);
+				});
+				expect(
+					JSON.parse(server.posted("/api/launches")[0]?.body ?? ""),
+				).toEqual({
+					kind: "replay",
+					run: RUN,
+					stage: "discuss",
+					attempts: 3,
+				});
+			});
+
+			it("withholds replay when the source step has no starting checkpoint", async () => {
+				const saved = sourceRun();
+				servingSource(
+					new Map([
+						[
+							`GET /api/runs/${RUN}`,
+							{
+								status: 200,
+								body: {
+									...saved,
+									stages: [
+										{ ...saved.stages[0], checkpoint: "missing" },
+										saved.stages[1],
+									],
+								},
+							},
+						],
+					]),
+				);
+
+				await applySourceEdit();
+
+				expect(
+					screen.getAllByText("discuss has no checkpoint to replay from"),
+				).toHaveLength(2);
+				expect(
+					screen.queryByRole("button", { name: /Replay discuss/u }),
+				).toBeNull();
+			});
+
+			it("withholds replay until the selected source step has ended", async () => {
+				const saved = sourceRun();
+				servingSource(
+					new Map([
+						[
+							`GET /api/runs/${RUN}`,
+							{
+								status: 200,
+								body: {
+									...saved,
+									stages: [
+										saved.stages[0],
+										{ ...saved.stages[1], status: "running" },
+									],
+								},
+							},
+						],
+					]),
+				);
+
+				await applySourceEdit();
+
+				expect(
+					screen.getAllByText("discuss has no completed step record to replay"),
+				).toHaveLength(2);
+				expect(
+					screen.queryByRole("button", { name: /Replay discuss/u }),
+				).toBeNull();
+			});
+
+			it("withholds replay while the saved source run is still active", async () => {
+				const saved = sourceRun();
+				servingSource(
+					new Map([
+						[
+							`GET /api/runs/${RUN}`,
+							{
+								status: 200,
+								body: {
+									...saved,
+									finalOutcome: { status: "PENDING", stage: "discuss" },
+								},
+							},
+						],
+					]),
+				);
+
+				await applySourceEdit();
+
+				expect(
+					screen.getAllByText(
+						"Wait for the source run to end before replaying a step",
+					),
+				).toHaveLength(2);
+				expect(
+					screen.queryByRole("button", { name: /Replay discuss/u }),
+				).toBeNull();
+			});
+
+			it("withholds replay when the selected file is absent from that step's corpus reads", async () => {
+				const saved = sourceRun();
+				servingSource(
+					new Map([
+						[
+							`GET /api/runs/${RUN}`,
+							{
+								status: 200,
+								body: {
+									...saved,
+									stages: [
+										saved.stages[0],
+										{
+											...saved.stages[1],
+											readManifest: { state: "available", entries: [] },
+										},
+									],
+								},
+							},
+						],
+					]),
+				);
+
+				await applySourceEdit();
+
+				expect(
+					screen.getAllByText(
+						"CLAUDE.md is not recorded as read from the corpus by this step.",
+					),
+				).toHaveLength(2);
+				expect(
+					screen.queryByRole("button", { name: /Replay discuss/u }),
+				).toBeNull();
+			});
+
+			it("withholds replay when a first step's initial checkpoint is not retained", async () => {
+				const saved = sourceRun();
+				servingSource(
+					new Map([
+						[
+							`GET /api/runs/${RUN}`,
+							{
+								status: 200,
+								body: { ...saved, stages: [saved.stages[1]] },
+							},
+						],
+					]),
+				);
+
+				await applySourceEdit();
+
+				expect(
+					screen.getAllByText(
+						"The initial checkpoint is not retained for this step",
+					),
+				).toHaveLength(2);
+				expect(
+					screen.queryByRole("button", { name: /Replay discuss/u }),
+				).toBeNull();
+			});
+
+			it("offers replay of a retained initial checkpoint without a short ID", async () => {
+				const saved = sourceRun();
+				servingSource(
+					new Map([
+						[
+							`GET /api/runs/${RUN}`,
+							{
+								status: 200,
+								body: {
+									...saved,
+									stages: [
+										{
+											...saved.stages[1],
+											artifactsIn: {
+												entries: [
+													{
+														from: "upstream checkpoint",
+														upstream: "initial",
+														target: "acme-api",
+														checkpointShortId: {
+															state: "unavailable",
+															reasons: ["older record"],
+														},
+													},
+												],
+												missing: [],
+											},
+										},
+									],
+								},
+							},
+						],
+					]),
+				);
+
+				await applySourceEdit();
+
+				expect(
+					screen.getByRole("button", { name: "Replay discuss · 3 attempts" }),
+				).toBeInTheDocument();
+			});
+
+			it("clears the source when editing a different corpus file", async () => {
+				servingSource(
+					new Map([
+						[
+							"GET /api/corpus",
+							{
+								status: 200,
+								body: {
+									...corpusResponseBody(),
+									files: [
+										...corpusResponseBody().files,
+										{
+											path: "skills/other/SKILL.md",
+											sha256: "1".repeat(64),
+											lastEditedAt: "2026-09-04T09:41:00.000Z",
+											lines: 1,
+											readBy: 0,
+											invalidated: 0,
+										},
+									],
+								},
+							},
+						],
+					]),
+				);
+				await screen.findByRole("region", { name: "Instruction test source" });
+
+				fireEvent.click(
+					screen.getByRole("button", { name: "Edit skills/other/SKILL.md" }),
+				);
+
+				expect(
+					screen.queryByRole("region", { name: "Instruction test source" }),
+				).toBeNull();
+				expect(
+					await screen.findByRole("textbox", {
+						name: "Text of skills/other/SKILL.md",
+					}),
+				).toBeInTheDocument();
+			});
+		});
+
 		it("applies the reviewed text from the reviewed version and shows the new version", async () => {
 			const server = serving();
 
@@ -497,50 +884,18 @@ describe(CorpusPage.name, () => {
 			).toContain("⚠ 3 results");
 		});
 
-		it("offers a replay of the stage that read the file, starting nothing", async () => {
+		it("asks a direct corpus edit to choose its source in Runs", async () => {
 			const server = serving();
 
 			await appliedEdit();
 
 			expect(
-				screen.getByRole("button", { name: "Replay discuss · 3 attempts" }),
-			).toBeInTheDocument();
-			expect(screen.getByText(RUN, { exact: false })).toBeInTheDocument();
+				screen.getByRole("link", { name: "Choose a source step in Runs" }),
+			).toHaveAttribute("href", "/");
+			expect(
+				screen.queryByRole("button", { name: /Replay discuss/u }),
+			).toBeNull();
 			expect(server.posted("/api/launches")).toEqual([]);
-		});
-
-		it("starts the offered replay with three attempts only when asked", async () => {
-			const server = serving(
-				new Map([
-					[
-						"GET /api/cases",
-						{ status: 200, body: { cases: [], unreadable: [] } },
-					],
-					["POST /api/launches", { status: 202, body: { id: "launch-1" } }],
-				]),
-			);
-			await appliedEdit();
-
-			fireEvent.click(
-				screen.getByRole("button", { name: "Replay discuss · 3 attempts" }),
-			);
-			const start = await screen.findByRole("button", { name: /^Start · /u });
-			await waitFor(() => {
-				expect(start).toBeEnabled();
-			});
-			fireEvent.click(start);
-
-			await waitFor(() => {
-				expect(server.posted("/api/launches")).toHaveLength(1);
-			});
-			expect(JSON.parse(server.posted("/api/launches")[0]?.body ?? "")).toEqual(
-				{
-					kind: "replay",
-					run: RUN,
-					stage: "discuss",
-					attempts: 3,
-				},
-			);
 		});
 
 		it("says why it offers no replay when none can settle the edit", async () => {
@@ -730,7 +1085,7 @@ describe(CorpusPage.name, () => {
 			const client = new QueryClient({
 				defaultOptions: { queries: { retry: false } },
 			});
-			render(
+			renderWithRouter(
 				<QueryClientProvider client={client}>
 					<CorpusPage />
 				</QueryClientProvider>,
@@ -937,7 +1292,7 @@ describe(CorpusPage.name, () => {
 		const client = new QueryClient({
 			defaultOptions: { queries: { retry: false } },
 		});
-		render(
+		renderWithRouter(
 			<QueryClientProvider client={client}>
 				<CorpusPage />
 			</QueryClientProvider>,

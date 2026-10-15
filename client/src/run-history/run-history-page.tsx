@@ -68,7 +68,7 @@ const COLUMNS = [
 	"Case",
 	"Outcome",
 	"Step grades",
-	"Task grade",
+	"Final outcome",
 	"Corpus",
 	"Cost",
 	"Wall",
@@ -302,6 +302,21 @@ function recordName(row: HistoryRow, name: string): React.JSX.Element {
 			<Link
 				to="/runs/$run"
 				params={{ run: row.run }}
+				search={{
+					view: row.progress.state === "running" ? "activity" : "results",
+				}}
+				className={RECORD_NAME_CLASS}
+			>
+				{name}
+			</Link>
+		);
+	}
+
+	if (row.kind === "group") {
+		return (
+			<Link
+				to="/groups/$groupId"
+				params={{ groupId: row.groupId }}
 				className={RECORD_NAME_CLASS}
 			>
 				{name}
@@ -365,6 +380,9 @@ function contextLink(link: ContextLink): React.JSX.Element {
 
 /** The links the case cell lists: every one but the context the run cell opens. */
 function caseLinks(row: HistoryRow): readonly ContextLink[] {
+	if (row.kind === "group") {
+		return [];
+	}
 	return recordContext(row) === undefined
 		? row.links
 		: row.links.filter((link) => link.state !== "available");
@@ -1077,11 +1095,20 @@ function stepGradesCell(row: HistoryRow): React.JSX.Element {
 }
 
 /** A task grade's value, with what it means or why it is missing beneath. */
-function taskGrade({ value, note }: OutcomeReading): React.JSX.Element {
+function taskGrade(
+	row: HistoryRow,
+	{ value, note }: OutcomeReading,
+): React.JSX.Element {
 	return (
 		<span className="flex flex-col gap-0.5">
 			<span className="font-mono text-13 font-bold">{value}</span>
-			<span className="text-11 text-dim">{note}</span>
+			<Disclosure
+				key={disclosureKeyOf(row)}
+				collapsedLabel={note === JUDGED_NOTE ? "independent" : "details"}
+				expandedLabel="hide"
+			>
+				<span className="max-w-note text-11 text-dim">{note}</span>
+			</Disclosure>
 		</span>
 	);
 }
@@ -1132,16 +1159,19 @@ function groupTaskGrade(row: GroupRow): OutcomeReading {
 function taskGradeCell(row: HistoryRow): React.JSX.Element {
 	switch (row.kind) {
 		case "run": {
-			return taskGrade(runTaskGrade(row.finalOutcome));
+			return taskGrade(row, runTaskGrade(row.finalOutcome));
 		}
 		case "replay": {
-			return taskGrade({ value: NOT_APPLICABLE, note: STEP_REPLAY_ONLY });
+			return taskGrade(row, { value: NOT_APPLICABLE, note: STEP_REPLAY_ONLY });
 		}
 		case "group": {
-			return taskGrade(groupTaskGrade(row));
+			return taskGrade(row, groupTaskGrade(row));
 		}
 		case "session-attempt": {
-			return taskGrade({ value: NOT_APPLICABLE, note: SESSION_GRADE_REASON });
+			return taskGrade(row, {
+				value: NOT_APPLICABLE,
+				note: SESSION_GRADE_REASON,
+			});
 		}
 		default: {
 			return row satisfies never;
@@ -1194,9 +1224,7 @@ function recordedCost(row: HistoryRow): React.JSX.Element {
 	return (
 		<span className="flex flex-col items-end gap-0.5">
 			{figure(spendReading(cost.usd))}
-			{reasonsLine([
-				`partial · lacks ${cost.missing.map(({ part }) => part).join(", ")}`,
-			])}
+			<span className="text-11 text-dim">partial</span>
 			<Disclosure
 				key={disclosureKeyOf(row)}
 				collapsedLabel="why"
@@ -1619,7 +1647,7 @@ export function RunHistoryPage({
 	return (
 		<div>
 			<ScreenHeader
-				title="Run history"
+				title="Runs"
 				subline={
 					query.isSuccess
 						? `${plural(recorded.length, "record")} on disk · every pipeline run names the corpus version that produced it`
@@ -1682,7 +1710,7 @@ export function RunHistoryPage({
 							}}
 						/>
 						<TableShell
-							caption="DURABLE RECORDS"
+							caption="Run history"
 							columns={[...COLUMNS]}
 							numeric={[...NUMERIC_COLUMNS]}
 							rows={[

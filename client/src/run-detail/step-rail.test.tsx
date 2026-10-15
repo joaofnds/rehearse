@@ -190,24 +190,26 @@ async function stepReport(): Promise<HTMLElement> {
 }
 
 async function stepButtons(): Promise<readonly HTMLElement[]> {
-	const steps = await screen.findByRole("region", { name: "Steps" });
+	const graph = await screen.findByRole("region", { name: "Task graph" });
 
-	return within(
-		within(steps).getByRole("list", { name: "Steps and checkpoints" }),
-	).getAllByRole("button");
+	return within(graph).getAllByRole("button");
 }
 
-describe("Step rail", () => {
+describe("the selected step in Results", () => {
 	it("lists every stage in order with its number, name, grade, status, checkpoint, wall time and cost", async () => {
 		renderRunDetail(new Map([[`/api/runs/${RUN}`, stoppedWithFigures()]]));
 
 		const [first, second, third] = await stepButtons();
 
-		expect(first).toHaveTextContent(
-			/^01shapeA✓acceptedc-0147-1 · 4m02s · \$1\.12$/u,
-		);
-		expect(second).toHaveTextContent(/^02buildD◼stopped/u);
-		expect(third).toHaveTextContent(/^03verify.*○never ran$/u);
+		expect(first).toHaveTextContent(/^01shapeA✓accepted/u);
+		expect(first).toHaveTextContent("$1.12");
+		expect(first).toHaveTextContent("4m02s");
+		expect(first).toHaveTextContent("c-0147-1");
+		expect(second).toHaveTextContent(/^02buildD/u);
+		expect(second).toHaveTextContent("stopped");
+		expect(third).toHaveTextContent(/^03verify/u);
+		expect(third).toHaveTextContent("never ran");
+		expect(third).not.toHaveTextContent("queued");
 	});
 
 	it("marks the selected stage as the current step", async () => {
@@ -231,7 +233,7 @@ describe("Step rail", () => {
 		).toBeInTheDocument();
 		await waitFor(() => {
 			expect(router.state.location.search).toEqual({
-				layout: "rail",
+				view: "results",
 				step: "shape",
 			});
 		});
@@ -525,6 +527,56 @@ describe("Step rail", () => {
 			).toHaveAttribute("aria-disabled", "true");
 		});
 
+		it("opens a citation beside Results without losing the selected step", async () => {
+			const router = renderRunDetail(
+				new Map<string, unknown>([
+					[`/api/runs/${RUN}`, stoppedWithBuildFigures()],
+					[BUILD_JUDGE, buildJudged()],
+					[BUILD_SESSION, closedSession()],
+					[
+						`/api/runs/${RUN}/stages/build/evidence/hardBlockers/scope-declared-before-edit/0`,
+						{
+							record: `${RUN}.build.json`,
+							source: "transcript",
+							path: "transcript",
+							claim: "The agent chose a scope without asking",
+							view: { kind: "absent" },
+						},
+					],
+				]),
+			);
+			const report = await stepReport();
+			const [firstBlocker] = within(
+				within(report).getByRole("list", { name: "Hard blockers" }),
+			).getAllByRole("button", { name: "1 cited" });
+			if (firstBlocker === undefined) {
+				throw new Error("Expected a judged blocker citation");
+			}
+			fireEvent.click(firstBlocker);
+			const citation = within(report).getByRole("link", {
+				name: "exchange 3 message, characters 0-25",
+			});
+			const before = router.state.location.href;
+			fireEvent.click(citation);
+
+			const dialog = await screen.findByRole("dialog", {
+				name: "Cited source",
+			});
+			expect(
+				within(dialog).getByText("The agent chose a scope without asking"),
+			).toBeInTheDocument();
+			expect(router.state.location.href).toBe(before);
+			fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+			expect(
+				screen.getByRole("region", { name: "Step report" }),
+			).toBeInTheDocument();
+			expect(
+				within(
+					await screen.findByRole("region", { name: "Task graph" }),
+				).getByRole("button", { name: /build/u }),
+			).toHaveAttribute("aria-current", "step");
+		});
+
 		it("opens every row's cited evidence on e", async () => {
 			renderBuildReport();
 
@@ -543,7 +595,7 @@ describe("Step rail", () => {
 			renderBuildReport();
 
 			await stepReport();
-			const rail = screen.getByRole("region", { name: "Steps" }).parentElement;
+			const rail = screen.getByRole("region", { name: "Run workspace" });
 
 			expect(
 				rail?.querySelectorAll(

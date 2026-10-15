@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { polledRunListingQuery } from "#client/run-history/run-history-polling";
 import { runsInFlight } from "#client/shell/run-in-flight";
@@ -14,9 +15,19 @@ import { TaskCard } from "./task-card";
  * shows a run in flight that no card holds, so Open graph reaches it once its
  * manifest names its pipeline.
  */
-export function TasksPage(): React.JSX.Element {
+export function TasksPage({
+	embedded = false,
+	caseId,
+}: {
+	readonly embedded?: boolean;
+	readonly caseId?: string;
+}): React.JSX.Element {
 	const query = useQuery(pipelinesQuery);
 	const tasks = query.data?.pipelines ?? [];
+	const visibleTasks =
+		caseId === undefined
+			? tasks
+			: tasks.filter((task) => task.cases.includes(caseId));
 	const unreadable = query.data?.unreadable ?? [];
 	const history = useQuery(polledRunListingQuery);
 	const inFlight = runsInFlight(history.data?.rows ?? []);
@@ -34,18 +45,45 @@ export function TasksPage(): React.JSX.Element {
 
 	return (
 		<div>
-			<ScreenHeader
-				title="Tasks"
-				subline="A task is a chain of steps against a base repository · declared as the pipeline file a case names, or chosen by a run"
-				aside={
-					<span className="flex gap-2.5">
-						<ImportTaskDialog onImported={setImportedPath} />
-						<ExportTaskDialog tasks={tasks} />
-					</span>
-				}
-			/>
+			{embedded ? null : (
+				<ScreenHeader
+					title="Tasks"
+					subline="A task is a chain of steps against a base repository · declared as the pipeline file a case names, or chosen by a run"
+					aside={
+						<span className="flex gap-2.5">
+							<ImportTaskDialog onImported={setImportedPath} />
+							<ExportTaskDialog tasks={tasks} />
+						</span>
+					}
+				/>
+			)}
 
 			<div className="flex max-w-7xl flex-col gap-6 px-6 pt-4 pb-12">
+				{embedded ? (
+					<div className="flex flex-wrap items-center justify-between gap-3">
+						<div>
+							<h2 className="text-16 font-medium">Workflow definitions</h2>
+							{caseId === undefined ? null : (
+								<p className="text-11-5 text-muted-foreground">
+									Showing workflows used by{" "}
+									<span className="font-mono">{caseId}</span>
+									{" · "}
+									<Link
+										to="/cases"
+										search={{ view: "workflows" }}
+										className="text-accent-foreground hover:underline"
+									>
+										All workflows
+									</Link>
+								</p>
+							)}
+						</div>
+						<span className="flex gap-2.5">
+							<ImportTaskDialog onImported={setImportedPath} />
+							<ExportTaskDialog tasks={visibleTasks} />
+						</span>
+					</div>
+				) : null}
 				<p className="max-w-prose text-sm text-muted-foreground">
 					A step is judged on what went into it and what came out. A task is
 					judged from the first input and the last artifact only, so the same
@@ -76,8 +114,15 @@ export function TasksPage(): React.JSX.Element {
 						items={unreadable.map(({ id, reason }) => `${id}: ${reason}`)}
 					/>
 				) : null}
+				{caseId !== undefined &&
+				query.isSuccess &&
+				visibleTasks.length === 0 ? (
+					<p className="text-11-5 text-muted-foreground">
+						No workflow definition is recorded for this case.
+					</p>
+				) : null}
 
-				{tasks.map((task) => (
+				{visibleTasks.map((task) => (
 					<TaskCard
 						key={task.path}
 						task={task}

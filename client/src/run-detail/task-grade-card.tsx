@@ -7,6 +7,8 @@ import type { PipelineRowWithStaleness } from "#client/run-history/run-history-q
 import { SectionLabel } from "#client/system/components/section-label";
 import { Status } from "#client/system/components/status";
 
+import type { PipelineRow } from "#client/shell/run-in-flight";
+
 type FinalOutcome = RunRecordResponse["finalOutcome"];
 
 type CorpusMeasurement = PipelineRowWithStaleness["corpusVersion"];
@@ -60,7 +62,7 @@ type JudgedRow = PipelineRowWithStaleness & {
 	>;
 };
 
-function isJudged(row: PipelineRowWithStaleness): row is JudgedRow {
+function isJudged(row: PipelineRow): row is JudgedRow {
 	return (
 		row.finalOutcome.state === "available" &&
 		row.finalOutcome.status === "JUDGED"
@@ -69,7 +71,7 @@ function isJudged(row: PipelineRowWithStaleness): row is JudgedRow {
 
 /** The newest other run of the same case whose final judge returned a verdict. */
 export function lastTaskGrade(
-	row: PipelineRowWithStaleness,
+	row: PipelineRow,
 	rows: readonly PipelineRowWithStaleness[],
 ): JudgedRow | undefined {
 	return rows
@@ -99,7 +101,7 @@ function LastTaskGrade({
 	row,
 	last,
 }: {
-	readonly row: PipelineRowWithStaleness;
+	readonly row: PipelineRow;
 	readonly last: JudgedRow | undefined;
 }): React.JSX.Element {
 	if (last === undefined) {
@@ -168,7 +170,7 @@ export function TaskGradeCard({
 	rows,
 	outcome,
 }: {
-	readonly row: PipelineRowWithStaleness;
+	readonly row: PipelineRow;
 	readonly rows: readonly PipelineRowWithStaleness[];
 	readonly outcome: FinalOutcome;
 }): React.JSX.Element {

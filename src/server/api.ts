@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import type { SSEStreamingApi } from "hono/streaming";
 import type { CorpusRoot } from "#benchmark/corpus-file";
+import { parseConfirmationRepRecord } from "#benchmark/confirmation-record";
 import { displayPath } from "#benchmark/config";
 import { readComparisonBaselineArm } from "#benchmark/comparison-baseline-record";
 import type {
@@ -987,6 +988,51 @@ export const createApiApp = (dependencies: ApiDependencies) => {
 				 */
 				() => Promise.resolve(),
 			);
+		})
+		.get("/api/groups/:groupId/reps/:repId/attempt/result", async (context) => {
+			try {
+				const id = parseRecordId(
+					`rep:session:${context.req.param("groupId")}/${context.req.param("repId")}`,
+				);
+				if (id.kind !== "rep:session") {
+					throw new UsageError("Invalid confirmation attempt identity");
+				}
+				const file = Bun.file(
+					confirmationGroupPaths(dependencies.runsDirectory, id.groupId).rep(
+						id.repId,
+					).recordFile,
+				);
+				if (!(await file.exists())) {
+					return context.json(
+						{ error: "No saved result for this confirmation attempt" },
+						404,
+					);
+				}
+				let record;
+				try {
+					record = parseConfirmationRepRecord(await file.text());
+				} catch {
+					return context.json(
+						{ error: "The saved confirmation result could not be read" },
+						500,
+					);
+				}
+				if (record.groupId !== id.groupId || record.repId !== id.repId) {
+					return context.json(
+						{
+							error: "The saved confirmation result names a different attempt",
+						},
+						409,
+					);
+				}
+				return context.json(record);
+			} catch (error) {
+				if (error instanceof UsageError) {
+					const refusal = commandRefusal(error);
+					return context.json({ error: refusal.message }, refusal.status);
+				}
+				throw error;
+			}
 		})
 		.get("/api/groups/:groupId/reads", async (context) => {
 			try {

@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import type { ComparisonArm } from "#benchmark/comparison-record";
 import { plural } from "#client/plural";
 import { TableShell } from "#client/system/components/table-shell";
@@ -84,13 +85,14 @@ function History({
 	}
 
 	return (
-		<a
-			href={link.href}
+		<Link
+			to={link.href}
+			search={{ view: "context" }}
 			aria-label={`${role} attempt ${String(position)} history`}
 			className="text-accent-foreground underline decoration-deeper underline-offset-4 hover:text-pale"
 		>
 			history
-		</a>
+		</Link>
 	);
 }
 

@@ -11,7 +11,7 @@ interface Shortcut {
  */
 const SHORTCUTS: readonly Shortcut[] = [
 	{ key: "g r", does: "run history" },
-	{ key: "g m", does: "live monitor" },
+	{ key: "g m", does: "newest run’s Activity" },
 	{ key: "n", does: "new run" },
 	{ key: "r", does: "replay a step" },
 	{ key: "e", does: "expand cited evidence" },

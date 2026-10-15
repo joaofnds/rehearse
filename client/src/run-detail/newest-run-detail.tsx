@@ -5,7 +5,7 @@ import { EmptyState } from "#client/system/components/empty-state";
 import { ScreenHeader } from "#client/system/components/screen-header";
 
 /**
- * Run detail reached from the sidebar, which names no run: it opens the newest
+ * The legacy run-detail address, which names no run: it opens the newest
  * recorded pipeline run, the listing's first, under that run's own address so
  * the page can be shared and reloaded.
  */
@@ -15,7 +15,7 @@ export function NewestRunDetail(): React.JSX.Element {
 		return (
 			<div>
 				<ScreenHeader
-					title="Run detail"
+					title="Runs"
 					subline={
 						listing.error === null
 							? "Reading run history"
@@ -30,7 +30,7 @@ export function NewestRunDetail(): React.JSX.Element {
 	if (newest === undefined) {
 		return (
 			<div>
-				<ScreenHeader title="Run detail" subline="No run recorded" />
+				<ScreenHeader title="Runs" subline="No run recorded" />
 				<EmptyState heading="No run to open">
 					<p>No run is recorded yet, so there is no run detail to open.</p>
 				</EmptyState>

@@ -471,6 +471,48 @@ function renderPage(): void {
 }
 
 describe(SessionHistoryPage.name, () => {
+	it("keeps a long evidence-gap list behind a complete expandable summary", async () => {
+		const reasons = [
+			"Unsupported content at 1:1",
+			"Unsupported content at 2:1",
+			"Unsupported content at 3:1",
+			"Unsupported content at 4:1",
+		];
+		stubFetchByPath(
+			new Map([
+				[
+					"/api/attempts/session/case-a/attempt-a/history",
+					{
+						schemaVersion: 1,
+						attempt: { kind: "session", caseId: "case-a", id: "attempt-a" },
+						evidence: { state: "partial", reasons },
+						boundary: "known",
+						startingContext: [],
+						attemptEvents: [],
+						boundaryUnknown: [],
+						startingSources: [],
+						sources: [],
+					},
+				],
+			]),
+		);
+		renderStandalonePage();
+
+		const summary = await screen.findByText("◐ Partial · 4 evidence gaps");
+		const disclosure = summary.closest("details");
+		if (disclosure === null) {
+			throw new Error("The gap summary has no disclosure");
+		}
+		expect(disclosure).not.toHaveAttribute("open");
+		fireEvent.click(summary);
+		expect(disclosure).toHaveAttribute("open");
+		expect(
+			within(disclosure)
+				.getAllByRole("listitem")
+				.map(({ textContent }) => textContent),
+		).toEqual(reasons);
+	});
+
 	it("cross-selects a source and walks its events with j and k", async () => {
 		renderPage();
 		await screen.findByRole("heading", { name: "Saved context history" });

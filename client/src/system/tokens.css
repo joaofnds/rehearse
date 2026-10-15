@@ -1,4 +1,5 @@
 :root {
+	--size-touch-target: 44px;
 	/* Color */
 	--color-canvas: #161826;
 	--color-surface: #1a1c28;

@@ -96,7 +96,7 @@ function StepRow({
 				<Link
 					to="/runs/$run"
 					params={{ run }}
-					search={{ layout: "rail", step: stage.stage }}
+					search={{ view: "results", step: stage.stage }}
 				>
 					Step report
 				</Link>
@@ -176,6 +176,8 @@ function RecordedReading({
 								to="/corpus"
 								search={{
 									file: rootCause.file,
+									sourceRun: run,
+									sourceStep: rootCause.stage,
 									start: rootCause.lines?.start,
 									end: rootCause.lines?.end,
 								}}

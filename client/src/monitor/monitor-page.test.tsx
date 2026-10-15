@@ -10,10 +10,10 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { CorpusMeasurement } from "#benchmark/corpus-measurement";
 import type { RunHistoryResponse } from "#client/run-history/run-history-query";
 import { FakeEventSource } from "#client/test-support/event-source";
-import { stubFetchByPath } from "#client/test-support/fetch-stub";
+import { stubFetchByPath as stubFetchByPathBase } from "#client/test-support/fetch-stub";
 import {
 	renderAppAt,
-	renderAppWithStub,
+	renderAppWithStub as renderAppWithStubBase,
 	SHELL_BASELINE,
 	stubFetchFailing,
 } from "#client/test-support/render-app";
@@ -43,12 +43,39 @@ function history(rows: readonly HistoryRow[]): RunHistoryResponse {
 	return { rows: [...rows], launches: [], unreadable: [] };
 }
 
+/** The monitor and the workspace read different projections of the same run list. */
+function bothRunListings(
+	bodies: ReadonlyMap<string, unknown>,
+): ReadonlyMap<string, unknown> {
+	const listing = bodies.get("/api/run-listing") ?? bodies.get("/api/runs");
+	if (listing === undefined) {
+		return bodies;
+	}
+	return new Map([
+		...bodies,
+		["/api/run-listing", listing],
+		["/api/runs", listing],
+	]);
+}
+
+function renderAppWithStub(
+	path: string,
+	bodies: ReadonlyMap<string, unknown>,
+): void {
+	renderAppWithStubBase(path, bothRunListings(bodies));
+}
+
+function stubFetchByPath(bodies: ReadonlyMap<string, unknown>): void {
+	stubFetchByPathBase(bothRunListings(bodies));
+}
+
 type PipelineRow = Extract<HistoryRow, { readonly kind: "run" }>;
 
 /** What the server answers for one run in flight at build: its row and its record. */
 function monitorBodies(row: PipelineRow): ReadonlyMap<string, unknown> {
 	return new Map<string, unknown>([
 		["/api/run-listing", history([row])],
+		["/api/runs", history([row])],
 		[
 			`/api/runs/${row.run}`,
 			runRecord({
@@ -92,6 +119,18 @@ async function graphNode(stage: string): Promise<HTMLElement> {
 	}
 
 	return shown;
+}
+
+async function selectStage(stage: string): Promise<void> {
+	fireEvent.click(within(await graphNode(stage)).getByRole("button"));
+	await waitFor(() => {
+		expect(
+			within(screen.getByRole("region", { name: "Task graph" })).getByRole(
+				"button",
+				{ current: "step" },
+			),
+		).toHaveTextContent(stage);
+	});
 }
 
 /** The header the run's title heads, apart from the bar that repeats its readings. */
@@ -159,7 +198,8 @@ describe("/monitor", () => {
 
 			expect(
 				within(shown).getByRole("heading", { level: 1 }),
-			).toHaveTextContent("Run r33 in progress");
+			).toHaveTextContent("r33audit-log");
+			expect(shown).toHaveTextContent("running step 2");
 		});
 
 		it("names the run, its case, corpus version, target, commit, model and effort", async () => {
@@ -174,20 +214,20 @@ describe("/monitor", () => {
 
 			expect(
 				within(shown).getByRole("heading", { level: 1 }),
-			).toHaveTextContent("Run r-0148 in progress");
+			).toHaveTextContent("r-0148audit-log");
+			expect(shown).toHaveTextContent("running step 2");
 			expect(shown).toHaveTextContent("audit-log");
 			expect(shown).toHaveTextContent("corpus@a41c7e");
-			expect(shown).toHaveTextContent(
-				"target acme-api @ e91f2a · claude-opus-4 · effort high",
-			);
+			expect(shown).toHaveTextContent("acme-api @ e91f2a");
+			expect(shown).toHaveTextContent("claude-opus-4 / high");
 		});
 
-		it("links the run's name to its run detail", async () => {
+		it("links back to the Runs list from the run workspace", async () => {
 			renderMonitor(runRow({ run: RUN }));
 
 			expect(
-				within(await header()).getByRole("link", { name: "r-0148" }),
-			).toHaveAttribute("href", `/runs/${RUN}`);
+				within(await header()).getByRole("link", { name: /Runs/u }),
+			).toHaveAttribute("href", "/");
 		});
 
 		it("offers Stop & restore repo for a run the browser launched", async () => {
@@ -997,7 +1037,7 @@ describe("/monitor task graph", () => {
 		expect(await graphNode("plan")).toHaveTextContent("◆checkpoint recorded");
 	});
 
-	it("counts the instruction files a stage loaded and the artifacts it declared", async () => {
+	it("opens a selected stage's recorded artifact in Inputs & output", async () => {
 		renderGraph([
 			recordStage("plan", {
 				status: "graded",
@@ -1016,10 +1056,14 @@ describe("/monitor task graph", () => {
 			recordStage("build"),
 		]);
 
-		const shown = await graphNode("plan");
+		await selectStage("plan");
+		fireEvent.click(screen.getByRole("button", { name: "Inputs & output" }));
 
-		expect(shown).toHaveTextContent("↓ 3 instruction files in");
-		expect(shown).toHaveTextContent("↑ 1 artifact out");
+		expect(
+			await within(
+				await screen.findByRole("dialog", { name: /plan/u }),
+			).findByText("docs/plan.md"),
+		).toBeInTheDocument();
 	});
 
 	it("numbers each step in two digits", async () => {
@@ -1028,40 +1072,17 @@ describe("/monitor task graph", () => {
 		expect(await graphNode("build")).toHaveTextContent(/^01build/u);
 	});
 
-	it("offers replay of a stage from the checkpoint the stage before it saved", async () => {
+	it("keeps graph nodes as step selectors while a run is active", async () => {
 		renderGraph([
 			recordStage("plan", { status: "graded", checkpoint: "recorded" }),
 			recordStage("build"),
 		]);
 
 		expect(
-			within(await graphNode("build")).getByRole("button", {
-				name: "Replay build from its checkpoint",
-			}),
-		).not.toHaveAttribute("aria-disabled");
-	});
-
-	it("offers replay of the first stage, which starts from the run's initial checkpoint", async () => {
-		renderGraph([recordStage("plan"), recordStage("build")]);
-
-		expect(
-			within(await graphNode("plan")).getByRole("button", {
-				name: "Replay plan from its checkpoint",
-			}),
-		).not.toHaveAttribute("aria-disabled");
-	});
-
-	it("says on replay why a stage whose predecessor saved no checkpoint cannot be replayed", async () => {
-		renderGraph([
-			recordStage("plan"),
-			recordStage("build", { status: "graded", checkpoint: "recorded" }),
-		]);
-
-		expect(
-			within(await graphNode("build")).getByRole("button", {
-				name: "build has no checkpoint to replay from",
-			}),
-		).toHaveAttribute("aria-disabled", "true");
+			within(await graphNode("build")).getAllByRole("button"),
+		).toHaveLength(1);
+		await selectStage("plan");
+		expect(screen.queryByRole("button", { name: /Replay step/u })).toBeNull();
 	});
 
 	it("names the task and its step count, and what a step below the minimum grade does", async () => {
@@ -1070,7 +1091,7 @@ describe("/monitor task graph", () => {
 		const graph = await screen.findByRole("region", { name: "Task graph" });
 
 		expect(within(graph).getByRole("heading", { level: 2 })).toHaveTextContent(
-			"Task · audit-log · 2 steps, in order",
+			"Workflow · audit-log · 2 steps, in order",
 		);
 		expect(graph).toHaveTextContent(
 			"Minimum grade for every step in this task is B-. A step below it stops the run.",
@@ -1169,16 +1190,14 @@ describe("/monitor stage selection", () => {
 
 	it("marks a selected stage and names it in the session and judge panes", async () => {
 		renderMonitor(runRow({ run: RUN, stage: "build" }));
-		const graph = await screen.findByRole("region", { name: "Task graph" });
 
-		fireEvent.click(
-			within(graph).getByRole("button", {
-				name: /^plan(?! has no checkpoint| — instructions in)/u,
-			}),
-		);
+		await selectStage("plan");
 
 		expect(
-			within(graph).getByRole("button", { current: "step" }),
+			within(screen.getByRole("region", { name: "Task graph" })).getByRole(
+				"button",
+				{ current: "step" },
+			),
 		).toHaveTextContent("plan");
 		expect(await paneTitles()).toEqual(["Step 1 · plan", "Judge · step 1"]);
 	});
@@ -1426,11 +1445,7 @@ describe("/monitor judge pane", () => {
 					[PLAN_JUDGE, JUDGED],
 				]),
 			);
-			fireEvent.click(
-				within(await graphNode("plan")).getByRole("button", {
-					name: /^plan(?! has no checkpoint| — instructions in)/u,
-				}),
-			);
+			await selectStage("plan");
 		}
 
 		const ACCEPTED_C: MonitoredStage["grade"] = {
@@ -1492,7 +1507,7 @@ describe("/monitor judge pane", () => {
 					[`/api/runs/${RUN}`, recordWithPlan({ status: "awaiting-judgment" })],
 				]),
 			);
-			const plan = await graphNode("plan");
+			await graphNode("plan");
 			stubFetchByPath(
 				new Map<string, unknown>([
 					...SHELL_BASELINE,
@@ -1505,11 +1520,7 @@ describe("/monitor judge pane", () => {
 				]),
 			);
 
-			fireEvent.click(
-				within(plan).getByRole("button", {
-					name: /^plan(?! has no checkpoint| — instructions in)/u,
-				}),
-			);
+			await selectStage("plan");
 
 			expect(
 				await within(await judgePane()).findByText(
@@ -1789,14 +1800,11 @@ describe("/monitor session pane", () => {
 			fireEvent.keyDown(document.body, { key });
 		}
 
-		it("holds the monitor to the screen's height, so the pane scrolls its own transcript", async () => {
+		it("keeps the transcript independently scrollable inside the workspace", async () => {
 			renderSession(RUNNING_SESSION);
 
 			const body = await sessionBody();
-			const graph = await screen.findByRole("region", { name: "Task graph" });
-
 			expect(body).toHaveClass("overflow-y-auto");
-			expect(graph.parentElement).toHaveClass("h-full");
 		});
 
 		it("follows the tail, counting the tool calls it collapsed, until f unfollows it", async () => {
@@ -1918,11 +1926,7 @@ describe("/monitor session pane", () => {
 			await sessionBody();
 			press("f");
 
-			fireEvent.click(
-				within(await graphNode("plan")).getByRole("button", {
-					name: /^plan(?! has no checkpoint| — instructions in)/u,
-				}),
-			);
+			await selectStage("plan");
 
 			const pane = await sessionPane();
 			await within(pane).findByText(/^Step 1 · plan$/u);
@@ -1963,11 +1967,7 @@ describe("/monitor session pane", () => {
 		}
 
 		async function selectPlan(): Promise<void> {
-			fireEvent.click(
-				within(await graphNode("plan")).getByRole("button", {
-					name: /^plan(?! has no checkpoint| — instructions in)/u,
-				}),
-			);
+			await selectStage("plan");
 		}
 
 		it("shows the spans its judge cites, the session's figures, and its transcript on disk", async () => {
@@ -2088,11 +2088,7 @@ describe("/monitor session pane", () => {
 		}
 
 		async function selectReview(): Promise<void> {
-			fireEvent.click(
-				within(await graphNode("review")).getByRole("button", {
-					name: /^review(?! has no checkpoint| — instructions in)/u,
-				}),
-			);
+			await selectStage("review");
 		}
 
 		it("says the step has not started", async () => {
@@ -2177,6 +2173,18 @@ describe("/monitor session pane", () => {
 
 describe("/monitor across runs", () => {
 	const NEWER = "2026-09-30T11-00-00.000Z";
+	const completed = runRow({ run: RUN, status: "COMPLETED" });
+	const completedRecord: RunRecordResponse = {
+		...runRecord({
+			run: RUN,
+			running: "build",
+			stages: [
+				recordStage("plan", { status: "graded" }),
+				recordStage("build", { status: "graded" }),
+			],
+		}),
+		finalOutcome: { status: "JUDGED", verdict: "PASS" },
+	};
 
 	function newerRow(): PipelineRow {
 		return { ...runRow({ run: NEWER, stage: "build" }), shortId: "r-0149" };
@@ -2192,7 +2200,7 @@ describe("/monitor across runs", () => {
 			]),
 		);
 
-		expect(await header()).toHaveTextContent("Run r-0149 in progress");
+		expect(await header()).toHaveTextContent("r-0149audit-log");
 	});
 
 	it("shows the run in flight its address names, when another is newer", async () => {
@@ -2205,79 +2213,73 @@ describe("/monitor across runs", () => {
 			]),
 		);
 
-		expect(await header()).toHaveTextContent("Run r-0148 in progress");
+		expect(await header()).toHaveTextContent("r-0148audit-log");
 	});
 
-	it("says the run its address names is not in flight, while another is", async () => {
-		const ended: PipelineRow = {
-			...runRow({ run: RUN }),
-			progress: { state: "recorded" },
-		};
+	it("keeps a named completed run visible while another is in flight", async () => {
 		renderAppWithStub(
 			`/monitor/${RUN}`,
 			new Map<string, unknown>([
 				...monitorBodies(newerRow()),
-				["/api/run-listing", history([ended, newerRow()])],
+				["/api/run-listing", history([completed, newerRow()])],
+				[`/api/runs/${RUN}`, completedRecord],
 			]),
 		);
 
-		const main = within(await screen.findByRole("main"));
-
+		expect(await header()).toHaveTextContent("r-0148audit-log");
+		expect(await header()).toHaveTextContent("completed");
 		expect(
-			await main.findByRole("heading", {
-				level: 2,
-				name: "This run is not in flight",
-			}),
+			await screen.findByRole("region", { name: "Run workspace" }),
 		).toBeInTheDocument();
-		expect(main.getByRole("heading", { level: 1 })).toHaveTextContent(
-			"Live monitor",
-		);
-		expect(main.getByText("1 run in flight")).toBeInTheDocument();
 	});
 
-	it("names the running stage of the next run, whatever was selected on the one before", async () => {
+	it("keeps the run and selected step when it ends while another runs", async () => {
 		renderMonitor(runRow({ run: RUN, stage: "build" }));
-		const graph = await screen.findByRole("region", { name: "Task graph" });
-		fireEvent.click(
-			within(graph).getByRole("button", {
-				name: /^plan(?! has no checkpoint| — instructions in)/u,
-			}),
-		);
-		const ended: PipelineRow = {
-			...runRow({ run: RUN }),
-			progress: { state: "recorded" },
-		};
+		await selectStage("plan");
 		stubFetchByPath(
 			new Map<string, unknown>([
 				...SHELL_BASELINE,
 				...monitorBodies(newerRow()),
-				["/api/run-listing", history([ended, newerRow()])],
+				["/api/run-listing", history([completed, newerRow()])],
+				[`/api/runs/${RUN}`, completedRecord],
 			]),
 		);
 
 		FakeEventSource.openOn(`/api/runs/${RUN}/events`).deliver();
 
-		await screen.findByRole("heading", { level: 1, name: /r-0149/u });
+		await waitFor(() => {
+			expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
+				"r-0148audit-log",
+			);
+			expect(
+				screen.getByRole("heading", { level: 1 }).closest("header"),
+			).toHaveTextContent("completed");
+		});
 		expect(
 			within(
 				await screen.findByRole("region", { name: "Task graph" }),
 			).getByRole("button", { current: "step" }),
-		).toHaveTextContent("build");
+		).toHaveTextContent("plan");
 	});
 
-	it("leaves a run once it ends, as the design draws only runs in flight", async () => {
+	it("keeps the newest run opened through the legacy monitor after it ends", async () => {
 		renderMonitor(runRow({ run: RUN }));
 		await screen.findByRole("region", { name: "Task graph" });
-		serveMonitor({ ...runRow({ run: RUN }), progress: { state: "recorded" } });
+		const stream = FakeEventSource.openOn(`/api/runs/${RUN}/events`);
+		serveMonitor(runRow({ run: RUN, status: "COMPLETE" }));
 
-		FakeEventSource.openOn(`/api/runs/${RUN}/events`).deliver();
+		stream.deliver();
 
+		await waitFor(() => {
+			expect(stream.closed).toBe(true);
+		});
+		expect(screen.getByRole("button", { name: "Activity" })).toHaveAttribute(
+			"aria-pressed",
+			"true",
+		);
 		expect(
-			await screen.findByRole("heading", {
-				level: 2,
-				name: "No run in flight",
-			}),
-		).toBeInTheDocument();
+			screen.getByRole("region", { name: "Live agent session" }),
+		).toHaveTextContent("build");
 	});
 
 	it("says so when the runs in flight cannot be read", async () => {

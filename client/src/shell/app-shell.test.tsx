@@ -115,25 +115,24 @@ function renderShellAt(
 	const corpusFiles = served?.corpusFiles ?? 0;
 	const comparisons = served?.comparisons ?? 0;
 	const unreadableComparisons = served?.unreadableComparisons ?? 0;
+	const runListing = {
+		rows: [
+			...Array.from({ length: runs }, (_unused, index) =>
+				runRow(`2026-09-06T21-58-29.50${index}Z`),
+			),
+			...Array.from(
+				{ length: served?.sessionAttempts ?? 0 },
+				(_unused, index) => sessionAttemptRow(`attempt-${index}`),
+			),
+		],
+		launches: [],
+		unreadable: [],
+	};
 
 	stubFetchByPath(
 		new Map<string, unknown>([
-			[
-				"/api/run-listing",
-				{
-					rows: [
-						...Array.from({ length: runs }, (_unused, index) =>
-							runRow(`2026-09-06T21-58-29.50${index}Z`),
-						),
-						...Array.from(
-							{ length: served?.sessionAttempts ?? 0 },
-							(_unused, index) => sessionAttemptRow(`attempt-${index}`),
-						),
-					],
-					launches: [],
-					unreadable: [],
-				},
-			],
+			["/api/run-listing", runListing],
+			["/api/runs", runListing],
 			[
 				"/api/corpus",
 				{
@@ -167,22 +166,12 @@ function renderShellAt(
 	return renderAppAt(path);
 }
 
-const SPEC_NAV_LABELS = [
-	"Run history",
-	"Live monitor",
-	"Run detail",
-	"Comparisons",
-	"Corpus",
-	"Tasks",
-	"Cases",
-	"Calibration",
-	"Settings",
-];
+const SPEC_NAV_LABELS = ["Runs", "Comparisons", "Cases", "Corpus", "Settings"];
 
 const NAV_LABEL = new RegExp(`^(?:${SPEC_NAV_LABELS.join("|")})$`, "u");
 
 describe("the navigation shell", () => {
-	it("lists the design's nine sections in its order", async () => {
+	it("lists the workspace's five destinations in order", async () => {
 		renderShellAt("/");
 
 		const nav = await screen.findByRole("navigation", { name: "Sections" });
@@ -228,23 +217,19 @@ describe("the navigation shell", () => {
 		fireEvent.keyDown(document, { key: "r" });
 
 		await waitFor(() => {
-			expect(
-				screen.getByRole("heading", { name: "Run history" }),
-			).toBeInTheDocument();
+			expect(screen.getByRole("heading", { name: "Runs" })).toBeInTheDocument();
 		});
 	});
 
 	it("reaches the live monitor from another screen by pressing g then m", async () => {
-		renderShellAt("/corpus", { runs: 0, corpusFiles: 137 });
+		const router = renderShellAt("/corpus", { runs: 0, corpusFiles: 137 });
 		await screen.findByRole("heading", { name: "Instruction corpus" });
 
 		fireEvent.keyDown(document, { key: "g" });
 		fireEvent.keyDown(document, { key: "m" });
 
 		await waitFor(() => {
-			expect(
-				screen.getByRole("link", { name: /^Live monitor/u }),
-			).toHaveAttribute("aria-current", "page");
+			expect(router.state.location.pathname).toBe("/monitor");
 		});
 	});
 
@@ -262,7 +247,7 @@ describe("the navigation shell", () => {
 		await navigationWouldHaveLanded();
 
 		expect(
-			screen.queryByRole("heading", { name: "Run history" }),
+			screen.queryByRole("heading", { name: "Runs" }),
 		).not.toBeInTheDocument();
 	});
 
@@ -285,7 +270,7 @@ describe("the navigation shell", () => {
 		await navigationWouldHaveLanded();
 
 		expect(
-			screen.queryByRole("heading", { name: "Run history" }),
+			screen.queryByRole("heading", { name: "Runs" }),
 		).not.toBeInTheDocument();
 
 		field.remove();
@@ -305,9 +290,10 @@ describe("the navigation shell", () => {
 		).toBeInTheDocument();
 		expect(screen.getByText(/\/no-such-screen/u)).toBeInTheDocument();
 		expect(screen.queryByText("Not Found")).not.toBeInTheDocument();
-		expect(
-			screen.getByRole("link", { name: /Back to run history/u }),
-		).toHaveAttribute("href", "/");
+		expect(screen.getByRole("link", { name: /Back to Runs/u })).toHaveAttribute(
+			"href",
+			"/",
+		);
 	});
 
 	it("names the corpus under test on every screen", async () => {
@@ -399,7 +385,7 @@ describe("the navigation shell", () => {
 
 			await waitFor(() => {
 				expect(
-					screen.getByRole("link", { name: `Run history ${runs}` }),
+					screen.getByRole("link", { name: `Runs ${runs}` }),
 				).toBeInTheDocument();
 			});
 			expect(
@@ -417,9 +403,7 @@ describe("the navigation shell", () => {
 		renderShellAt("/", { runs: 2, sessionAttempts: 3, corpusFiles: 0 });
 
 		await waitFor(() => {
-			expect(
-				screen.getByRole("link", { name: "Run history 5" }),
-			).toBeInTheDocument();
+			expect(screen.getByRole("link", { name: "Runs 5" })).toBeInTheDocument();
 		});
 	});
 
@@ -447,11 +431,11 @@ describe("the navigation shell", () => {
 		renderAppWithStub("/corpus", new Map([["/api/run-listing", listing]]));
 
 		expect(
-			await screen.findByRole("link", { name: "Run history 3" }),
+			await screen.findByRole("link", { name: "Runs 3" }),
 		).toBeInTheDocument();
 	});
 
-	it("badges the live monitor with the pipeline runs in flight, the runs it can open", async () => {
+	it("keeps in-flight pipelines in the persistent run bar", async () => {
 		renderAppWithStub(
 			"/corpus",
 			new Map([
@@ -483,17 +467,15 @@ describe("the navigation shell", () => {
 		);
 
 		expect(
-			await screen.findByRole("link", { name: "Live monitor 2" }),
-		).toBeInTheDocument();
+			await screen.findAllByRole("region", { name: /in flight$/u }),
+		).toHaveLength(2);
 	});
 
 	it("navigates between run history and corpus by click", async () => {
 		renderShellAt("/");
 
 		await waitFor(() => {
-			expect(
-				screen.getByRole("heading", { name: "Run history" }),
-			).toBeInTheDocument();
+			expect(screen.getByRole("heading", { name: "Runs" })).toBeInTheDocument();
 		});
 
 		fireEvent.click(screen.getByRole("link", { name: /Corpus/u }));
@@ -504,12 +486,10 @@ describe("the navigation shell", () => {
 			).toBeInTheDocument();
 		});
 
-		fireEvent.click(screen.getByRole("link", { name: /Run history/u }));
+		fireEvent.click(screen.getByRole("link", { name: /Runs/u }));
 
 		await waitFor(() => {
-			expect(
-				screen.getByRole("heading", { name: "Run history" }),
-			).toBeInTheDocument();
+			expect(screen.getByRole("heading", { name: "Runs" })).toBeInTheDocument();
 		});
 	});
 
@@ -526,9 +506,9 @@ describe("the navigation shell", () => {
 			"aria-current",
 			"page",
 		);
-		expect(
-			screen.getByRole("link", { name: /Run history/u }),
-		).not.toHaveAttribute("aria-current");
+		expect(screen.getByRole("link", { name: /Runs/u })).not.toHaveAttribute(
+			"aria-current",
+		);
 	});
 
 	it.each(["/comparisons", `/comparisons/${"e".repeat(64)}`])(
@@ -541,27 +521,31 @@ describe("the navigation shell", () => {
 			expect(
 				screen.getByRole("link", { name: /^Comparisons/u }),
 			).toHaveAttribute("aria-current", "page");
-			expect(
-				screen.getByRole("link", { name: /Run history/u }),
-			).not.toHaveAttribute("aria-current");
+			expect(screen.getByRole("link", { name: /Runs/u })).not.toHaveAttribute(
+				"aria-current",
+			);
 		},
 	);
 
-	it("opens the newest recorded run's detail from Run detail", async () => {
+	it("opens a recorded run from Runs and keeps Runs current", async () => {
 		const router = renderShellAt("/", {
 			runs: 2,
 			sessionAttempts: 1,
 			corpusFiles: 0,
 		});
 
-		fireEvent.click(await screen.findByRole("link", { name: "Run detail" }));
+		fireEvent.click(
+			await screen.findByRole("link", {
+				name: "2026-09-06T21-58-29.500Z",
+			}),
+		);
 
 		await waitFor(() => {
 			expect(router.state.location.pathname).toBe(
 				"/runs/2026-09-06T21-58-29.500Z",
 			);
 		});
-		expect(screen.getByRole("link", { name: "Run detail" })).toHaveAttribute(
+		expect(screen.getByRole("link", { name: /^Runs/u })).toHaveAttribute(
 			"aria-current",
 			"page",
 		);

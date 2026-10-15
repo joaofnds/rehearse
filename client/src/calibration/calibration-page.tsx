@@ -241,28 +241,51 @@ function ReviewNext({
 	);
 }
 
-export function CalibrationPage(): React.JSX.Element {
+export function CalibrationPage({
+	embedded = false,
+}: {
+	readonly embedded?: boolean;
+}): React.JSX.Element {
 	const query = useQuery(calibrationQuery);
 	const report = query.data;
 
 	return (
 		<div>
-			<ScreenHeader
-				title="Judge calibration"
-				subline={
-					report === undefined ? undefined : (
-						<Subline
-							reviews={report.reviews}
-							withinOneStep={report.withinOneStep}
-						/>
-					)
-				}
-				aside={
-					report === undefined ? undefined : (
+			{embedded ? (
+				<div className="flex flex-wrap items-end justify-between gap-3 px-5 pt-4">
+					<div>
+						<h2 className="text-16 font-medium">Judge calibration</h2>
+						{report === undefined ? null : (
+							<p className="mt-1 text-11-5 text-dim">
+								<Subline
+									reviews={report.reviews}
+									withinOneStep={report.withinOneStep}
+								/>
+							</p>
+						)}
+					</div>
+					{report === undefined ? null : (
 						<ReviewNext next={report.next} reviews={report.reviews} />
-					)
-				}
-			/>
+					)}
+				</div>
+			) : (
+				<ScreenHeader
+					title="Judge calibration"
+					subline={
+						report === undefined ? undefined : (
+							<Subline
+								reviews={report.reviews}
+								withinOneStep={report.withinOneStep}
+							/>
+						)
+					}
+					aside={
+						report === undefined ? undefined : (
+							<ReviewNext next={report.next} reviews={report.reviews} />
+						)
+					}
+				/>
+			)}
 
 			<div className="px-5 pt-3.5 pb-9">
 				{query.isLoading ? (

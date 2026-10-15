@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
-import { render, screen, within } from "@testing-library/react";
+import { renderWithRouter } from "#client/test-support/render-app";
+import { screen, within } from "@testing-library/react";
 import type { ComparisonArm } from "#benchmark/comparison-record";
 import type { StageLetterGrade } from "#benchmark/stage-letter-grades";
 import type {
@@ -47,7 +48,7 @@ function renderPairs(
 		histories?: CaseHistories;
 	}> = {},
 ): void {
-	render(
+	renderWithRouter(
 		<AttemptPairs
 			caseId="audit-log"
 			mode={overrides.mode ?? "stage"}
@@ -206,7 +207,7 @@ describe(AttemptPairs.name, () => {
 				within(cell("Attempt 1", "Arm A")).getByRole("link", {
 					name: "Arm A attempt 1 history",
 				}),
-			).toHaveAttribute("href", "/groups/g/reps/rep-1/attempt");
+			).toHaveAttribute("href", "/groups/g/reps/rep-1/attempt?view=context");
 			expect(cell("Attempt 1", "Baseline")).toHaveTextContent("stale");
 		});
 

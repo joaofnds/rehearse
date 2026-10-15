@@ -69,6 +69,33 @@ export function consumedCheckpointMissing(
 	return index > 0 && record.stages[index - 1]?.checkpoint === "missing";
 }
 
+export function stageReplayRefusal(
+	record: RunRecordResponse,
+	name: string,
+): string | undefined {
+	const stage = record.stages.find((each) => each.stage === name);
+	if (stage === undefined || !hasEnded(stage)) {
+		return `${name} has no completed step record to replay`;
+	}
+	if (record.finalOutcome.status === "PENDING") {
+		return "Wait for the source run to end before replaying a step";
+	}
+	if (consumedCheckpointMissing(record, name)) {
+		return `${name} has no checkpoint to replay from`;
+	}
+	if (
+		record.stages[0]?.stage === name &&
+		!stage.artifactsIn.entries.some(
+			(entry) =>
+				entry.from === "upstream checkpoint" && entry.upstream === "initial",
+		)
+	) {
+		return "The initial checkpoint is not retained for this step";
+	}
+
+	return undefined;
+}
+
 async function fetchRunRecord(run: string): Promise<RunRecordResponse> {
 	const response = await runRecordRoute.$get({ param: { run } });
 	if (!response.ok) {

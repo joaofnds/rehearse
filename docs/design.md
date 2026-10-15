@@ -243,10 +243,11 @@ A request guard in front of every route admits only a loopback `Host`
 and, for a write, a same-origin JSON request, since the server has no
 authentication and a page on another origin can otherwise post to it. The
 guard reads headers any local program can set, so it stops other web pages,
-not other processes on the machine. The client does not implement the full design prototype.
+not other processes on the machine. The client implements the approved desktop navigation described in [Run workspace](run-workspace.md). Unsupported evidence remains explicitly unavailable.
 
-[The design handoff](design-handoff/README.md) governs visual direction. Its
-screen labels map `task` to the harness's `pipeline`, `step` to `stage`, and
-`group` to `confirmation run`. Keep that translation at the UI boundary.
+The [approved run workspace](run-workspace.md) governs current navigation.
+[The archived design handoff](design-handoff/README.md) remains its visual reference. Its
+archived screen labels map `task` to the harness's `pipeline`, `step` to `stage`, and
+`group` to `confirmation run`. The current UI calls a pipeline definition a workflow. Keep these translations at the UI boundary.
 Shared tokens and components live under `client/src/system/`; new screens should
 extend that system instead of defining independent visual conventions.

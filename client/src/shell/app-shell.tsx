@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { calibrationQuery } from "#client/calibration/calibration-query";
-import { createLink, Outlet } from "@tanstack/react-router";
+import { createLink, Outlet, useLocation } from "@tanstack/react-router";
 import { comparisonIndexQuery } from "#client/comparison/comparison-index-query";
 import { corpusQuery } from "#client/corpus/corpus-query";
 import {
@@ -10,7 +9,6 @@ import {
 import { useFreshInstall } from "#client/setup/fresh-install";
 import { SetupPage } from "#client/setup/setup-page";
 import { CorpusCard } from "./corpus-card";
-import { runsInFlight } from "./run-in-flight";
 import { RunInFlightBar } from "./run-in-flight-bar";
 import { useGoToShortcut } from "./use-go-to-shortcut";
 import type { BadgeCounts } from "./nav-items";
@@ -28,10 +26,10 @@ type NavAnchorProps = React.ComponentPropsWithRef<"a"> & {
  */
 function NavAnchor({
 	marksCurrent,
-	"aria-current": current,
+	"aria-current": _current,
 	...anchor
 }: NavAnchorProps): React.JSX.Element {
-	return <a {...anchor} aria-current={marksCurrent ? current : undefined} />;
+	return <a {...anchor} aria-current={marksCurrent ? "page" : undefined} />;
 }
 
 const NavLink = createLink(NavAnchor);
@@ -59,7 +57,7 @@ function NavEntry({
 				{icon}
 				<span className="flex-1">{label}</span>
 				{count === undefined ? null : (
-					<span className="font-mono text-xs text-dim">{count}</span>
+					<span className="font-mono text-11 text-dim">{count}</span>
 				)}
 			</NavLink>
 		</li>
@@ -77,21 +75,35 @@ function useBadgeCounts(): BadgeCounts {
 	const runs = useQuery(runListingQuery);
 	const corpus = useQuery(corpusQuery);
 	const comparisons = useQuery(comparisonIndexQuery);
-	const calibration = useQuery(calibrationQuery);
 
 	return {
 		runs: runs.data === undefined ? undefined : listedEntryCount(runs.data),
-		monitor:
-			runs.data === undefined ? undefined : runsInFlight(runs.data.rows).length,
 		corpus: corpus.data?.files.length,
 		comparisons: comparisons.data?.comparisons.length,
-		calibration: calibration.data?.reviews,
 	};
+}
+
+function sectionFor(path: string): string {
+	if (path.startsWith("/comparisons")) {
+		return "/comparisons";
+	}
+	if (path.startsWith("/corpus")) {
+		return "/corpus";
+	}
+	if (path.startsWith("/cases") || path.startsWith("/tasks")) {
+		return "/cases";
+	}
+	if (path.startsWith("/settings") || path.startsWith("/calibration")) {
+		return "/settings";
+	}
+	return "/";
 }
 
 export function AppShell(): React.JSX.Element {
 	const counts = useBadgeCounts();
 	const fresh = useFreshInstall();
+	const pathname = useLocation({ select: (location) => location.pathname });
+	const section = sectionFor(pathname);
 	useGoToShortcut();
 
 	return (
@@ -121,7 +133,7 @@ export function AppShell(): React.JSX.Element {
 								}
 								path={path}
 								count={badge === undefined ? undefined : counts[badge]}
-								marksCurrent={!fresh}
+								marksCurrent={!fresh && section === path}
 							/>
 						))}
 					</ul>

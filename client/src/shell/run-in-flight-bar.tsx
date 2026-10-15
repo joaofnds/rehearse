@@ -151,8 +151,12 @@ function RunReadings({
 			)}
 			<span className="ml-auto inline-flex items-center gap-2.5">
 				<Button asChild size="compact">
-					<Link to="/monitor/$run" params={{ run: row.run }}>
-						Open monitor
+					<Link
+						to="/runs/$run"
+						params={{ run: row.run }}
+						search={{ view: "activity" }}
+					>
+						Open activity
 					</Link>
 				</Button>
 				<StopControl key={row.run} row={row} />

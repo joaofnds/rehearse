@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useId, useRef, useState } from "react";
 import { corpusVersionLabel } from "#benchmark/corpus-version-label";
@@ -18,9 +19,13 @@ import { corpusQuery } from "./corpus-query";
 import { DiffPreview } from "./diff-preview";
 import { lineRangeOffsets } from "./line-range";
 import type { LineRange } from "./line-range";
+import type {
+	CorpusExperimentSource,
+	SourceEvidence,
+} from "./experiment-source";
 
-/** The attempts a paired rerun offers, enough to tell a change from noise. */
-const PAIRED_RERUN_ATTEMPTS = 3;
+/** The default repetitions offered for a source-step replay. */
+const SOURCE_REPLAY_ATTEMPTS = 3;
 
 function Version({ digest }: { readonly digest: string }): React.JSX.Element {
 	return (
@@ -40,8 +45,10 @@ function Refusal({ reason }: { readonly reason: string }): React.JSX.Element {
 /** What applying would do, read before anything is written. */
 function ReviewSummary({
 	review,
+	hasReplayableSource,
 }: {
 	readonly review: CorpusEditReview;
+	readonly hasReplayableSource: boolean;
 }): React.JSX.Element {
 	return (
 		<>
@@ -53,7 +60,11 @@ function ReviewSummary({
 				<li>
 					{`Marks ${plural(review.invalidated, "recorded result")} stale, none deleted`}
 				</li>
-				<li>Offers the paired rerun that would settle it</li>
+				<li>
+					{hasReplayableSource
+						? "Offers a replay of the selected source step after apply"
+						: "Choose a source step in Runs after apply to test the change"}
+				</li>
 			</ul>
 			<p className="mt-2 text-xs text-muted-foreground">
 				Apply refuses while a launch this server started runs. A replay started
@@ -79,12 +90,14 @@ interface Reviewed {
 export function CorpusEditor({
 	path,
 	lines,
+	hasReplayableSource,
 	onDiscard,
 	onApplied,
 }: {
 	readonly path: string;
 	/** The lines selected once the text opens, where a link named them. */
 	readonly lines?: LineRange | undefined;
+	readonly hasReplayableSource: boolean;
 	readonly onDiscard: () => void;
 	readonly onApplied: (applied: AppliedCorpusEdit) => void;
 }): React.JSX.Element {
@@ -158,8 +171,7 @@ export function CorpusEditor({
 					value={text}
 					rows={Math.min(24, Math.max(6, text.split("\n").length + 1))}
 					spellCheck={false}
-					// The editor opens below every file row, so focusing the text is what
-					// brings it into view after Edit.
+					// Put the cursor in the selected file after Edit.
 					autoFocus
 					onChange={(event) => {
 						setDraft(event.target.value);
@@ -178,7 +190,12 @@ export function CorpusEditor({
 				<h3>
 					<SectionLabel>Review before apply</SectionLabel>
 				</h3>
-				{current === undefined ? null : <ReviewSummary review={current} />}
+				{current === undefined ? null : (
+					<ReviewSummary
+						review={current}
+						hasReplayableSource={hasReplayableSource}
+					/>
+				)}
 				{review.isError ? <Refusal reason={review.error.message} /> : null}
 				{apply.isError ? <Refusal reason={apply.error.message} /> : null}
 				<div className="mt-3 flex gap-2">
@@ -220,13 +237,17 @@ export function CorpusEditor({
 	);
 }
 
-/** What an apply wrote, and the paired rerun it asks for, which it never starts. */
+/** What an apply wrote, and the replay it offers without starting it. */
 export function AppliedEdit({
 	path,
 	applied,
+	source,
+	evidence,
 }: {
 	readonly path: string;
 	readonly applied: AppliedCorpusEdit;
+	readonly source: CorpusExperimentSource | undefined;
+	readonly evidence: SourceEvidence | undefined;
 }): React.JSX.Element {
 	const { rerun } = applied;
 
@@ -241,23 +262,43 @@ export function AppliedEdit({
 			<p className="text-muted-foreground">
 				{`Marked ${plural(applied.invalidated, "recorded result")} stale, none deleted`}
 			</p>
-			{rerun.kind === "offered" ? (
+			{source !== undefined && evidence?.replayable === true ? (
 				<div className="flex flex-wrap items-center gap-3">
 					<p className="text-muted-foreground">
-						{`Replays ${rerun.stage} of run ${rerun.run} from the checkpoint it read, against the new version. Nothing starts until you start it.`}
+						{`Replays ${source.stage} of source run ${source.run} from its saved starting checkpoint, against the new version. Nothing starts until you start it.`}
 					</p>
 					<LaunchDialog
 						target={{
 							kind: "replay",
-							run: rerun.run,
-							stage: rerun.stage,
-							attempts: PAIRED_RERUN_ATTEMPTS,
+							run: source.run,
+							stage: source.stage,
+							attempts: SOURCE_REPLAY_ATTEMPTS,
 						}}
-						triggerLabel={`Replay ${rerun.stage} · ${plural(PAIRED_RERUN_ATTEMPTS, "attempt")}`}
+						triggerLabel={`Replay ${source.stage} · ${plural(SOURCE_REPLAY_ATTEMPTS, "attempt")}`}
 					/>
 				</div>
 			) : (
-				<p className="text-muted-foreground">{rerun.reason}</p>
+				<>
+					{source === undefined ? (
+						<p className="text-muted-foreground">
+							<Link
+								to="/"
+								className="text-primary underline underline-offset-2"
+							>
+								Choose a source step in Runs
+							</Link>
+							{" to test this edit from a saved checkpoint."}
+						</p>
+					) : (
+						<p className="text-muted-foreground">
+							{evidence?.reason ??
+								"Saved source evidence is loading; replay is unavailable until it can be checked."}
+						</p>
+					)}
+					{rerun.kind === "none" ? (
+						<p className="text-muted-foreground">{rerun.reason}</p>
+					) : null}
+				</>
 			)}
 			{applied.needsComparisonManifest ? (
 				<p className="text-muted-foreground">

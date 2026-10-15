@@ -246,11 +246,15 @@ describe("the run in flight on every screen", () => {
 		expect(bars[1]).toHaveAccessibleName("Run r-0147 in flight");
 	});
 
-	it("opens the live monitor on its own run from any screen", async () => {
+	it("opens its run's Activity from any screen", async () => {
 		const older = { ...runRow({ run: OLDER }), shortId: "r-0147" };
 		renderAppWithStub(
 			"/corpus",
 			new Map<string, unknown>([
+				[
+					"/api/runs",
+					history([older, { ...runRow({ run: NEWER }), shortId: "r-0149" }]),
+				],
 				[
 					"/api/run-listing",
 					history([older, { ...runRow({ run: NEWER }), shortId: "r-0149" }]),
@@ -269,16 +273,20 @@ describe("the run in flight on every screen", () => {
 			name: "Run r-0147 in flight",
 		});
 
-		fireEvent.click(within(shown).getByRole("link", { name: "Open monitor" }));
+		fireEvent.click(within(shown).getByRole("link", { name: "Open activity" }));
 
 		expect(
-			await screen.findByRole("heading", {
-				level: 1,
-				name: "Run r-0147 in progress",
-			}),
+			await screen.findByRole("region", { name: "Run workspace" }),
 		).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Activity" })).toHaveAttribute(
+			"aria-pressed",
+			"true",
+		);
 		expect(
-			screen.getByRole("link", { name: /^Live monitor/u }),
+			within(screen.getByRole("navigation", { name: "Sections" })).getByRole(
+				"link",
+				{ name: /^Runs/u },
+			),
 		).toHaveAttribute("aria-current", "page");
 	});
 

@@ -1,6 +1,12 @@
 import { render } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
+import {
+	createMemoryHistory,
+	createRootRoute,
+	createRouter,
+	RouterContextProvider,
+	RouterProvider,
+} from "@tanstack/react-router";
 import type { CalibrationResponse } from "#client/calibration/calibration-query";
 import type { ComparisonIndexResponse } from "#client/comparison/comparison-index-query";
 import type { CorpusResponse } from "#client/corpus/corpus-query";
@@ -73,6 +79,18 @@ export const SHELL_BASELINE: ReadonlyMap<string, unknown> = new Map<
 
 export type AppRouter = ReturnType<typeof createAppRouter>;
 
+/** Hosts a leaf component with the router its navigation links use. */
+export function renderWithRouter(content: Readonly<React.JSX.Element>): void {
+	const root = createRootRoute();
+	const router = createRouter({
+		routeTree: root,
+		history: createMemoryHistory({ initialEntries: ["/"] }),
+	});
+	render(
+		<RouterContextProvider router={router}>{content}</RouterContextProvider>,
+	);
+}
+
 /** Renders the app at `path`, returning its router so a test can read where it went. */
 export function renderAppAt(path: string): AppRouter {
 	const client = new QueryClient({
@@ -99,7 +117,15 @@ export function renderAppWithStub(
 	path: string,
 	byPath: ReadonlyMap<string, unknown>,
 ): AppRouter {
-	stubFetchByPath(new Map<string, unknown>([...SHELL_BASELINE, ...byPath]));
+	stubFetchByPath(
+		new Map<string, unknown>([
+			...SHELL_BASELINE,
+			...(byPath.has("/api/runs") && !byPath.has("/api/run-listing")
+				? [["/api/run-listing", byPath.get("/api/runs")] as const]
+				: []),
+			...byPath,
+		]),
+	);
 
 	return renderAppAt(path);
 }

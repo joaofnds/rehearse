@@ -247,20 +247,26 @@ See [current state](docs/status.md) for implementation coverage and
   definitions, and rubrics, with local run artifacts under its ignored run
   directory. Its contributor instructions are separate from the corpus under
   evaluation.
-- **Contribution** — one of the three run-detail UI layouts. It grades a run's
+- **Contribution**: the analysis of a run's outcome shown in Results. It grades a run's
   outcome on its own, from recorded evidence, then has an agent (not a
   deterministic computation) name a likely root-cause stage among those that
   ran. The agent's reading is disclosed as an opinion, never as a
   measurement, and is read only once the run has ended. It is not an ablation:
   ablation needs a rerun per node and is a separate planned feature
   (see [UI vocabulary](docs/design-handoff/README.md)).
-- **Step rail**: the run-detail layout that shows one stage at a time: the
-  stage list on the left with the attempts at the checkpoint the selected stage
-  started from, and the stage's report on the right. A run opens on it, at the stage it
-  stopped at or else the last stage with a record.
-- **Record ledger**: the run-detail layout that shows every stage's record
-  top to bottom, with a note for each stage an ended run never reached.
-- **Step modal**: the dialog a task-graph node's `in / out` action opens: the
+- **Run workspace**: the UI's Results, Activity, and Context & cost views for
+  one pipeline run, sharing its task graph and selected step. A running run
+  opens Activity at the running step; an ended run opens Results where it
+  stopped, or at its last recorded step. The URL carries the operator's view
+  and step choices.
+- **Instruction test source (UI)**: the saved pipeline run and step that bind an
+  instruction edit to its historical corpus reads and starting checkpoint.
+  Distinct from the corpus source directory whose current file is edited.
+- **Step rail**: the archived run-detail layout that showed one stage at a
+  time. Its saved addresses now open Results at the same step.
+- **Record ledger**: the whole workflow record available under Results. It shows
+  every stage top to bottom, with a note for each stage an ended run never reached.
+- **Step modal**: the dialog the selected step's Inputs & output action opens: the
   instruction files and artifacts a stage started from, what came out, its
   judge summary, and the operations on it.
 - **Context manifest** — the transcript-observed instruction/context paths for
@@ -527,14 +533,16 @@ See [current state](docs/status.md) for implementation coverage and
   changes no grade, and calibration does not read it. Distinct from a human
   review, which classifies findings against a run's Judge result. Name accepted
   unattended as unsettled, pending the operator's confirmation (ACT-273).
-- **Output summary**: the phrase a stage's node on the live monitor shows once
+- **Output summary**: the phrase a stage's task-graph node in the run workspace shows once
   the stage has finished: what the stage's record says it produced, as counts of
   its commits, changed files and workflow-state changes, derived with no model
   call. Where the run has a root-cause analysis, the newest one's phrase for the
-  stage replaces it. Until a stage has either, its node reads "contribution
-  pending". A UI concept; nothing stores it.
-- **Pipeline** — the ordered stages and their judge attachments, declared as
-  data. The UI's design calls this a **task** (see [UI vocabulary](docs/design-handoff/README.md)); the word in code,
+  stage replaces it. A stage with no recorded output has no summary; queued
+  steps and missing records keep their separate status readings. A UI concept;
+  nothing stores it.
+- **Pipeline**: the ordered stages and their judge attachments, declared as
+  data. The desktop UI calls its definition a **workflow**; the archived design
+  and definition editing controls also use **task** (see [UI vocabulary](docs/design-handoff/README.md)). The word in code,
   records, and this glossary stays pipeline. Graded as a whole, a pipeline's
   grade is computed from its first input and its last artifact only, never by
   averaging stage grades, and a pipeline that stopped early is not gradable as
@@ -677,7 +685,7 @@ See [current state](docs/status.md) for implementation coverage and
   session knobs set.
 - **Burn rate**: a run in flight's run spend divided by its elapsed time, as
   the latest run event measured them, read in dollars per minute. A UI concept
-  only: the live monitor computes it and the harness stores none (see screen
+  only: the run workspace computes it and the harness stores none (see screen
   2b of the [design spec](docs/design-handoff/SPEC.md)). Name accepted
   unattended as unsettled, pending the operator's confirmation (ACT-270).
 - **Remaining estimate**: the time and spend a run in flight is expected to
@@ -687,7 +695,7 @@ See [current state](docs/status.md) for implementation coverage and
   burn rate. When a figure it needs is missing there is no estimate, and the
   reason is shown instead, from the list under
   [Stage times](docs/reference.md#stage-times) in the reference. A UI concept
-  only: the harness serves the median times and the live monitor
+  only: the harness serves the median times and the run workspace
   computes the estimate. Name accepted unattended as unsettled, pending the
   operator's confirmation (ACT-270).
 - **Spend ceiling**: the stored USD limit on a run's whole spend, which every
@@ -761,13 +769,13 @@ See [current state](docs/status.md) for implementation coverage and
   rewrites. A preserved attempt's transcript therefore names the session the
   provider ran, not the uuid of the directory it was saved under.
   A pipeline stage names its session the same way, and its start records the
-  name, so the live monitor can read the transcript while the session writes
+  name, so the Activity view can read the transcript while the session writes
   it.
 - **Session knobs** — the CLI and environment settings shared by run and replay
   that select the workflow and Judge models and efforts and set the per-session
   budget.
 - **Session tail**: the last lines of a running stage's transcript as the
-  live monitor's session pane shows them, each a user or assistant message, a
+  Activity view's session pane shows them, each a user or assistant message, a
   tool call collapsed to one line, or a tool result. A UI concept only (see
   screen 2d of the [design spec](docs/design-handoff/SPEC.md)).
 - **Short id**: how the operator and a session name a run, replay, session
@@ -911,10 +919,10 @@ See [current state](docs/status.md) for implementation coverage and
   ends.
 - **Target check** — one command declared by the pipeline and run in the
   run's checkout of the target both at baseline and after delivery.
-- **Task graph** — the UI's horizontal chain of stage-node cards (grade,
-  status, live tool call, checkpoint, output summary, in/out counts of
-  instruction files loaded and artifacts produced) shown on the live monitor
-  and, in reduced form, as "the map" on the run-detail Contribution layout.
+- **Task graph**: the UI's horizontal chain of stage-node cards (grade,
+  status, live tool call, checkpoint, cost, elapsed time, corpus and output
+  summary) shared by the run workspace's three views. Selecting a node chooses
+  the step its evidence and actions show.
   A UI concept only; nothing in the harness computes or stores a graph
   (see [UI vocabulary](docs/design-handoff/README.md)).
 - **Trajectory step** — one workflow-agent turn reported by the provider. PO and
@@ -1013,6 +1021,8 @@ See [current state](docs/status.md) for implementation coverage and
   from the source's latest entry, and order is position, not time. Name accepted
   unattended as unsettled, pending the operator's confirmation (doc-157,
   question 6).
+- **Workflow (UI)**: a pipeline definition: its stages, skills and rubrics.
+  Distinct from the workflow state carried between executions.
 - **Workflow state** — the `backlog/` and `.boris/` trees copied independently
   of Git to carry workflow artifacts across stage materialization. A target's Backlog configuration determines where its board
   lives. These target artifacts are distinct from Rehearse's external personal

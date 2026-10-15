@@ -41,7 +41,7 @@ const graded = (letter: string) =>
 		reachesMinimum: letter !== "D",
 	}) as const;
 
-/** A three-stage run that stopped at build, below its minimum of B. */
+/** A three-stage run with its initial input retained, stopped at build below minimum B. */
 export function stoppedAtBuild(
 	firstStepCheckpoint: "recorded" | "missing" = "recorded",
 ): RunRecord {
@@ -54,6 +54,20 @@ export function stoppedAtBuild(
 					status: "graded",
 					grade: graded("A"),
 					checkpoint: firstStepCheckpoint,
+					artifactsIn: {
+						entries: [
+							{
+								from: "upstream checkpoint",
+								target: "acme-api",
+								upstream: "initial",
+								checkpointShortId: {
+									state: "unavailable",
+									reasons: ["predates short ids"],
+								},
+							},
+						],
+						missing: [],
+					},
 				}),
 				recordStage("build", { status: "stopped", grade: graded("D") }),
 				recordStage("verify"),
@@ -123,6 +137,10 @@ export function renderRunDetail(
 		page,
 		new Map<string, unknown>([
 			["/api/runs", history([stoppedRow(), ...otherRows])],
+			[
+				"/api/run-listing",
+				extra.get("/api/runs") ?? history([stoppedRow(), ...otherRows]),
+			],
 			[`/api/runs/${RUN}`, stoppedAtBuild()],
 			[ANALYSES, noAnalysis()],
 			...extra,
@@ -260,6 +278,10 @@ export function serveRunDetail(
 				{ status: 200, body },
 			]),
 			["GET /api/runs", { status: 200, body: historyBody }],
+			[
+				"GET /api/run-listing",
+				routes.get("GET /api/runs") ?? { status: 200, body: historyBody },
+			],
 			[`GET /api/runs/${RUN}`, { status: 200, body: stoppedAtBuild() }],
 			[`GET ${ANALYSES}`, { status: 200, body: noAnalysis() }],
 			...routes,
@@ -271,7 +293,7 @@ export function serveRunDetail(
 	return server;
 }
 
-/** Renders the run's page in its Contribution layout, as `renderRunDetail` does. */
+/** Opens Results through the legacy Contribution address, as `renderRunDetail` does. */
 export function renderContribution(
 	extra: ReadonlyMap<string, unknown> = new Map(),
 	otherRows: readonly HistoryRow[] = [],
@@ -279,7 +301,7 @@ export function renderContribution(
 	renderRunDetail(extra, otherRows, CONTRIBUTION);
 }
 
-/** Serves the run's page in its Contribution layout, as `serveRunDetail` does. */
+/** Serves Results through the legacy Contribution address, as `serveRunDetail` does. */
 export function serveContribution(
 	routes: ReadonlyMap<string, Reply | LiveReply>,
 	historyBody: RunHistoryResponse = history([stoppedRow()]),

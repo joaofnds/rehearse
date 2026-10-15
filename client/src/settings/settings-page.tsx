@@ -1,4 +1,6 @@
+import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { CalibrationPage } from "#client/calibration/calibration-page";
 import { launchSettingsQuery } from "#client/launch/settings-query";
 import { plural } from "#client/plural";
 import { runListingQuery } from "#client/run-history/run-history-query";
@@ -57,17 +59,45 @@ function RecordsReading(): React.ReactNode {
 	);
 }
 
-export function SettingsPage(): React.JSX.Element {
+export function SettingsPage({
+	view = "general",
+}: {
+	readonly view?: "general" | "judges";
+}): React.JSX.Element {
 	return (
 		<div>
 			<ScreenHeader title="Settings" subline={<RecordsReading />} />
-			<div className="px-6 pt-4 pb-12">
-				<div className="flex max-w-196 flex-col gap-3">
-					<SpendLimitCard />
-					<CorpusSettingsCard />
-					<KeyboardCard />
+			<nav
+				aria-label="Settings sections"
+				className="flex gap-1 border-b border-divider px-6"
+			>
+				<Link
+					to="/settings"
+					aria-current={view === "general" ? "page" : undefined}
+					className="border-b-2 border-transparent px-3 py-2.5 text-12 text-muted-foreground aria-current:border-primary aria-current:text-foreground hover:text-foreground"
+				>
+					General
+				</Link>
+				<Link
+					to="/settings"
+					search={{ view: "judges" }}
+					aria-current={view === "judges" ? "page" : undefined}
+					className="border-b-2 border-transparent px-3 py-2.5 text-12 text-muted-foreground aria-current:border-primary aria-current:text-foreground hover:text-foreground"
+				>
+					Judges
+				</Link>
+			</nav>
+			{view === "judges" ? (
+				<CalibrationPage embedded />
+			) : (
+				<div className="px-6 pt-4 pb-12">
+					<div className="flex max-w-196 flex-col gap-3">
+						<SpendLimitCard />
+						<CorpusSettingsCard />
+						<KeyboardCard />
+					</div>
 				</div>
-			</div>
+			)}
 		</div>
 	);
 }

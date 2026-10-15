@@ -42,12 +42,11 @@ export function runStatusState(status: string): StatusState {
 	}
 }
 
-/** Whether the run is over: neither running nor paused to resume later. */
+/** Whether the process ended; continuing a paused run starts a new replay. */
 export function hasRunEnded({
-	status,
 	progress,
 }: Pick<PipelineRow, "status" | "progress">): boolean {
-	return progress.state !== "running" && !isPaused(status);
+	return progress.state !== "running";
 }
 
 /** Whether a stop record or the operator ended the run. */

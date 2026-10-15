@@ -659,7 +659,7 @@ describe("first-run setup", () => {
 			expect(
 				within(screen.getByRole("navigation", { name: "Sections" })).getByRole(
 					"link",
-					{ name: /^Run history/u },
+					{ name: /^Runs/u },
 				),
 			).toHaveAttribute("aria-current", "page");
 		});
@@ -786,7 +786,7 @@ describe("first-run setup", () => {
 			renderAppAt("/");
 
 			expect(
-				await screen.findByRole("heading", { name: "Run history" }),
+				await screen.findByRole("heading", { name: "Runs" }),
 			).toBeInTheDocument();
 			expect(
 				screen.queryByText("Nothing is measured yet"),
