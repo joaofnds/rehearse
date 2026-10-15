@@ -1050,10 +1050,11 @@ branch and any declared acceptance criteria/artifact. Planning commits become
 evidence and advance the next stage's baseline. Delivery requires at least one
 commit matching the pipeline's pattern, clean descendant history, and target
 checks/integrity. The delivery Judge sees delivery-stage commits; the final
-Judge sees the candidate since task setup. A run that a lowered `--minimum-grade`
-carries past a delivery its validation rejected measures the checks and integrity
-on the checkout that stage left, uncommitted files included, and the final Judge
-grades that checkout.
+Judge sees the candidate since task setup. A delivery its validation rejected
+grades F, since the rejection forces a blocker, so only `--minimum-grade F`
+carries a run past it. Such a run measures the checks and integrity on the
+checkout that stage left, uncommitted files included, and the final Judge grades
+that checkout.
 
 Stage rubrics define hard blockers, binary requirements, and letter-graded
 quality dimensions. A blocker yields F; a missing requirement caps the result
@@ -1093,19 +1094,24 @@ their shape. Records written before quoted spans have neither field, and
 `show run:<name>` lists each stage's and the final Judge's evidence, marking
 those items as recorded before quoted spans.
 
-After accepted delivery, the final Judge grades the external rubric against
-baseline context, the candidate diff, and measured checks. Requirement IDs must
-appear exactly once, citations must refer to supplied evidence, and PASS needs
-all requirements. The harness overrides `local-checks` and `check-integrity`
-with its own measurements. Target integrity files must exist at baseline and
-retain their bytes, preventing a candidate from passing by weakening checks.
+Once a run passes its delivery stage, the final Judge grades the external
+rubric against baseline context, the candidate diff, and measured checks.
+Requirement IDs must appear exactly once, citations must refer to supplied
+evidence, and PASS needs all requirements. The harness overrides `local-checks`
+and `check-integrity` with its own measurements. Target integrity files must
+exist at baseline and retain their bytes, preventing a candidate from passing by
+weakening checks.
 
 ## Review and calibration
 
 Without `--pause`, a pipeline debug run retains its candidate under
 `refs/rehearse/<run>` in the target, removes its checkout, and prints the record and follow-up
-commands. A completed candidate awaits human review; a quality stop records the
-stage evidence that stopped it. Review remains separate from the machine grade.
+commands. A run carried past a delivery its validation rejected retains a commit
+of the checkout that stage left, uncommitted files included, whose parents are
+the checkout's HEAD and the stage's baseline, so the ref keeps the stage's
+history even when the stage rewrote it. A completed candidate awaits human
+review; a quality stop records the stage evidence that stopped it. Review
+remains separate from the machine grade.
 
 `show run:<name> --checkout <new-directory>` creates a detached worktree of the
 commit the retained ref names. It reads the ref from the run's checkout while

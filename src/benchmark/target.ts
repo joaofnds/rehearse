@@ -1,4 +1,5 @@
-import { realpath } from "node:fs/promises";
+import { mkdtemp, realpath, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { z } from "zod";
 import { existingBacklogLayout } from "./backlog-layout";
@@ -350,6 +351,40 @@ export async function captureBuildCandidate(
 		diff: [trackedDiff, ...untrackedDiffs].filter(Boolean).join("\n"),
 		changedPaths: [...new Set([...trackedPaths, ...untrackedPaths])],
 	};
+}
+
+/**
+ * Commits the checkout as it stands, uncommitted and untracked files
+ * included, onto no branch. It stages through an index of its own, so HEAD,
+ * the checkout's index and its working tree stay as they were. The snapshot
+ * descends from the base as well as HEAD, so a ref kept at the base moves to
+ * it by fast-forward even when the stage rewrote the history below the base.
+ */
+export async function snapshotCheckout(
+	targetDir: string,
+	base: string,
+): Promise<string> {
+	const head = await currentSha(targetDir);
+	const parents = [...new Set([head, base])].flatMap((sha) => ["-p", sha]);
+	const indexDirectory = await mkdtemp(join(tmpdir(), "rehearse-snapshot-"));
+	const options = { env: { GIT_INDEX_FILE: join(indexDirectory, "index") } };
+
+	try {
+		await runCommand(["git", "read-tree", "HEAD"], targetDir, options);
+		await runCommand(["git", "add", "--all"], targetDir, options);
+		const tree = await runCommand(["git", "write-tree"], targetDir, options);
+
+		return await git(
+			targetDir,
+			"commit-tree",
+			tree.trim(),
+			...parents,
+			"-m",
+			"Snapshot of the checkout, uncommitted files included",
+		);
+	} finally {
+		await rm(indexDirectory, { force: true, recursive: true });
+	}
 }
 
 export async function assertBuildCommitted(

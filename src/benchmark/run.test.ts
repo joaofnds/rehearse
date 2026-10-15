@@ -598,6 +598,7 @@ describe(runGradedStages.name, () => {
 					Promise.resolve({ kind: "version", digest: "c".repeat(64) }),
 				corpusVersionFiles: () => Promise.resolve([]),
 				recordCheckpoint,
+				snapshotCheckout: () => Promise.resolve("snapshot-sha"),
 			},
 		};
 	}
@@ -2565,9 +2566,21 @@ describe(runGradedStages.name, () => {
 	});
 
 	it("measures the checkout a rejected delivery left when the run continues past it", async () => {
-		const { dependencies } = fakeStageDependencies();
+		const { dependencies, scorecardFor } = fakeStageDependencies();
 		const invalid = {
 			...dependencies,
+			runStageJudge: (
+				_model: string,
+				_effort: undefined | "low" | "medium" | "high" | "xhigh" | "max",
+				_budget: JudgeBudget,
+				input: StageJudgeInput,
+			) =>
+				Promise.resolve(
+					scorecardFor(
+						input,
+						input.harnessFailure === undefined ? "CONTINUE" : "STOP",
+					),
+				),
 			assertBuildCommitted: () =>
 				Promise.reject(
 					new StageValidationError(
@@ -2577,11 +2590,15 @@ describe(runGradedStages.name, () => {
 			captureTreatmentChecks: () =>
 				Promise.resolve(harnessResult("FAIL", "one test red")),
 		};
+		const context = {
+			...(await stageContext()),
+			minimumStageGrade: "F" as const,
+		};
 
-		const outcome = await runGradedStages(invalid, await stageContext());
+		const outcome = await runGradedStages(invalid, context);
 
 		expect(outcome.buildEvidence).toEqual({
-			resultSha: "candidate-sha",
+			resultSha: "snapshot-sha",
 			diff: "candidate-diff",
 			changedPaths: ["src/example.ts"],
 			checkIntegrity: harnessResult("PASS", "checks match"),

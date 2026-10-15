@@ -121,6 +121,7 @@ import {
 	claimTarget,
 	recordRetentionRef,
 	retentionRef,
+	snapshotCheckout,
 } from "./target";
 import type { SourceBaseline } from "./target";
 import {
@@ -627,6 +628,7 @@ export interface StageDependencies extends StageSessionDependencies {
 	readonly runStageJudge: typeof runStageJudge;
 	readonly resolveSkillDirectory: typeof resolveSkillDirectory;
 	readonly recordCheckpoint: typeof recordCheckpoint;
+	readonly snapshotCheckout: typeof snapshotCheckout;
 }
 
 export interface StageContext {
@@ -910,10 +912,11 @@ async function readJudgeReadyEvidence(
 /**
  * What the final Judge grades a delivery stage on. When a lowered minimum
  * grade carries the run past a delivery its validation rejected, that is the
- * checkout as the stage left it, measured as a committed delivery is.
+ * checkout as the stage left it, measured as a committed delivery is and
+ * kept as a snapshot commit, since its HEAD lacks the uncommitted files.
  */
 async function deliveryEvidence(
-	dependencies: StageSessionDependencies,
+	dependencies: StageDependencies,
 	environment: StageSessionEnvironment,
 	session: StageSessionResult,
 ): Promise<BuildEvidence> {
@@ -926,8 +929,13 @@ async function deliveryEvidence(
 		environment.baselineSha,
 	);
 
+	const resultSha = await dependencies.snapshotCheckout(
+		environment.targetDir,
+		environment.baselineSha,
+	);
+
 	return {
-		resultSha: candidate.resultSha,
+		resultSha,
 		diff: candidate.diff,
 		changedPaths: candidate.changedPaths,
 		...(await measureDeliveryChecks(dependencies, environment)),
@@ -1623,6 +1631,7 @@ export async function runBenchmark(
 						corpusVersionFiles: (measurement) =>
 							measuredCorpusFiles(runFiles.runsDirectory, measurement),
 						recordCheckpoint: recordRetainedCheckpoint,
+						snapshotCheckout,
 					},
 					environment,
 				),

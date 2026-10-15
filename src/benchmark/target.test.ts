@@ -13,12 +13,14 @@ import {
 	assertWorkflowBoardPrivate,
 	assertWorkspaceCleanAt,
 	capturePlanningAdvance,
+	changedPathsBetween,
 	claimTarget,
 	currentSha,
 	readRunMarker,
 	refExists,
 	pruneWorktrees,
 	removeWorktree,
+	snapshotCheckout,
 } from "./target";
 import { TestResources, commitAll } from "./test-support";
 
@@ -102,6 +104,51 @@ describe(assertBuildCommitted.name, () => {
 		expect(
 			assertBuildCommitted(source.directory, source.sha),
 		).rejects.toBeInstanceOf(StageValidationError);
+	});
+});
+
+describe(snapshotCheckout.name, () => {
+	it("commits the checkout's uncommitted and untracked files", async () => {
+		const source = await testResources.createRepository();
+		await Bun.write(join(source.directory, "base.txt"), "changed\n");
+		await Bun.write(join(source.directory, "GLOSSARY.md"), "# Glossary\n");
+
+		const snapshot = await snapshotCheckout(source.directory, source.sha);
+
+		expect(
+			await changedPathsBetween(source.directory, source.sha, snapshot),
+		).toEqual(["GLOSSARY.md", "base.txt"]);
+	});
+
+	it("leaves the checkout as it was", async () => {
+		const source = await testResources.createRepository();
+		await Bun.write(join(source.directory, "base.txt"), "changed\n");
+		await Bun.write(join(source.directory, "GLOSSARY.md"), "# Glossary\n");
+		const status = ["git", "status", "--porcelain", "--branch"];
+		const before = await runCommand(status, source.directory);
+
+		await snapshotCheckout(source.directory, source.sha);
+
+		expect(await runCommand(status, source.directory)).toBe(before);
+	});
+
+	it("takes HEAD and the base as parents when the stage rewrote the history below the base", async () => {
+		const source = await testResources.createRepository();
+		await runCommand(
+			["git", "switch", "--orphan", "rewritten"],
+			source.directory,
+		);
+		await Bun.write(join(source.directory, "rewritten.txt"), "rewritten\n");
+		await commitAll(source.directory, "feat: rewrite history");
+		const head = await currentSha(source.directory);
+
+		const snapshot = await snapshotCheckout(source.directory, source.sha);
+
+		const commit = await runCommand(
+			["git", "rev-list", "--parents", "--max-count=1", snapshot],
+			source.directory,
+		);
+		expect(commit.trim().split(" ")).toEqual([snapshot, head, source.sha]);
 	});
 });
 
