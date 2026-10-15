@@ -59,8 +59,50 @@ const targetCheckSchema = z
 	})
 	.strict();
 
+/** Where a service export names the host port the container runtime assigned. */
+export const SERVICE_PORT_PLACEHOLDER = "{port}";
+
+const targetServiceSchema = z
+	.object({
+		name: z.string().min(1),
+		image: z.string().min(1),
+		port: z.int().min(1).max(65_535),
+		env: z.record(z.string(), z.string()).optional(),
+		ready: z.array(z.string().min(1)).min(1),
+		exports: z
+			.record(
+				z.string().min(1),
+				z
+					.string()
+					.includes(
+						SERVICE_PORT_PLACEHOLDER,
+						`must name the service's port as ${SERVICE_PORT_PLACEHOLDER}`,
+					),
+			)
+			.refine(
+				(exports) => Object.keys(exports).length > 0,
+				"must export at least one variable",
+			),
+	})
+	.strict();
+
+const targetServicesSchema = z
+	.array(targetServiceSchema)
+	.min(1)
+	.refine(
+		(services) =>
+			new Set(services.map(({ name }) => name)).size === services.length,
+		"must name each service once",
+	)
+	.refine((services) => {
+		const variables = services.flatMap(({ exports }) => Object.keys(exports));
+
+		return new Set(variables).size === variables.length;
+	}, "must export each variable from one service");
+
 const targetDefinitionSchema = z
 	.object({
+		services: targetServicesSchema.optional(),
 		setup: z.array(targetCheckSchema).min(1).optional(),
 		checks: z.array(targetCheckSchema).min(1),
 		integrityFiles: z
@@ -100,6 +142,7 @@ export type PlanningStageDefinition = Extract<
 	{ kind: "planning" }
 >;
 export type TargetCheck = Immutable<z.infer<typeof targetCheckSchema>>;
+export type TargetService = Immutable<z.infer<typeof targetServiceSchema>>;
 export type TargetDefinition = Immutable<
 	z.infer<typeof targetDefinitionSchema>
 >;

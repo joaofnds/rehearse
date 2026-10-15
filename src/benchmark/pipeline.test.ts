@@ -163,6 +163,34 @@ describe(parsePipeline.name, () => {
 		expect(parsed).toMatchObject({ target: withSetup });
 	});
 
+	it("parses the services the target's checks need", () => {
+		const withServices = {
+			...target,
+			services: [
+				{
+					name: "postgres",
+					image: "postgres:18-alpine",
+					port: 5432,
+					env: { POSTGRES_PASSWORD: "postgres" },
+					ready: ["pg_isready", "-h", "127.0.0.1"],
+					exports: {
+						DATABASE_URL: "postgres://postgres:postgres@127.0.0.1:{port}/app",
+					},
+				},
+			],
+		};
+		const parsed = parsePipeline(
+			JSON.stringify({
+				statuses: ["To Do", "Done"],
+				target: withServices,
+				stages: [stageEntry(), deliveryStage],
+			}),
+			availableRubrics,
+		);
+
+		expect(parsed).toMatchObject({ target: withServices });
+	});
+
 	it("parses a target that declares no setup", () => {
 		expect(parse([stageEntry(), deliveryStage]).target.setup).toBeUndefined();
 	});
@@ -179,8 +207,64 @@ describe(parsePipeline.name, () => {
 		).toThrow(/target/u);
 	});
 
+	const postgres = {
+		name: "postgres",
+		image: "postgres:18-alpine",
+		port: 5432,
+		ready: ["pg_isready", "-h", "127.0.0.1"],
+		exports: { DATABASE_URL: "postgres://127.0.0.1:{port}/app" },
+	};
+	const redis = {
+		name: "redis",
+		image: "redis:8-alpine",
+		port: 6379,
+		ready: ["redis-cli", "ping"],
+		exports: { REDIS_URL: "redis://127.0.0.1:{port}" },
+	};
+
 	it.each([
 		{ name: "empty checks", definition: { ...target, checks: [] } },
+		{
+			name: "a service export that leaves out the service's port",
+			definition: {
+				...target,
+				services: [
+					{
+						...postgres,
+						exports: { DATABASE_URL: "postgres://127.0.0.1/app" },
+					},
+				],
+			},
+		},
+		{
+			name: "a service with no exports",
+			definition: { ...target, services: [{ ...postgres, exports: {} }] },
+		},
+		{
+			name: "two services of one name",
+			definition: {
+				...target,
+				services: [postgres, { ...redis, name: "postgres" }],
+			},
+		},
+		{
+			name: "two services exporting one variable",
+			definition: {
+				...target,
+				services: [
+					postgres,
+					{ ...redis, exports: { DATABASE_URL: "redis://127.0.0.1:{port}" } },
+				],
+			},
+		},
+		{
+			name: "a service port outside the TCP range",
+			definition: { ...target, services: [{ ...postgres, port: 70_000 }] },
+		},
+		{
+			name: "a service with no readiness command",
+			definition: { ...target, services: [{ ...postgres, ready: [] }] },
+		},
 		{
 			name: "an empty command",
 			definition: { ...target, checks: [{ command: [] }] },
