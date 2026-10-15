@@ -80,3 +80,35 @@ The inline demo interaction model is outside the project's typecheck and lint
 scope and has no automated interaction tests. After changing it, rerun the browser
 journeys in this section and the README, including Back/Forward and Reset demo,
 and inspect the console for errors.
+
+## Information design
+
+Rehearse is an information product: the engineer uses its evidence to decide
+whether to keep, change or remove an instruction. Clear presentation, discovery
+and interpretation are the primary design criteria. A working navigation path
+alone does not establish that the information is understandable.
+
+Each core view answers a different question. Runs locates the relevant experiment;
+Results explains its outcome and evidence; Activity shows what happened; Context
+& cost explains resource use; Comparisons shows what changed and what the sample
+can support. A summary leads to the detailed evidence without losing its scope.
+
+- Execution ending is labeled separately from passing. A task can end and fail;
+  missing judgment stays distinct from failure. Results names the recorded issue
+  before presenting step-level grades.
+- Quantities name their unit, selected scope and measurement basis. Workflow, group and attempt cost,
+  selected-agent history and one request remain distinct. Source text estimates
+  name tokens and the selected step’s history across all agents; they remain
+  separate from a request’s input.
+- The request cost estimate changes with the selected request and is visibly
+  marked estimated. Its disclosed method allocates the agent's own cost by request
+  input tokens; it does not claim a separately reported provider charge.
+- Comparisons explain what accepted means, show the confidence level on acceptance
+  intervals, and make the final-task evaluation boundary visible beside the reading.
+- Link labels match their destination. Case names open case definitions; run IDs
+  open run workspaces. Group grade cells lead to actual attempt grades instead of
+  repeating the aggregate result.
+
+These criteria can be checked against the UI and its data. Whether an engineer can
+interpret it unaided still needs feedback from actual use; a visual review or a
+passing interaction check cannot establish that alone.

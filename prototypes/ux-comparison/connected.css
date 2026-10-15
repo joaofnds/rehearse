@@ -367,3 +367,10 @@ h3 {
 .header-measurements .mono {
 	font-size: var(--measurement);
 }
+
+.history-table th:nth-child(3) {
+	width: 14%;
+}
+.history-table th:nth-child(5) {
+	width: 22%;
+}

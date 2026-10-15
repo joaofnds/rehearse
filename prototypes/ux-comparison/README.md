@@ -35,6 +35,9 @@ not an importable production task bundle.
   Settings and is reachable from Results. Escape closes a dialog.
 - Launch a new demo run from a case, or advance/stop the running **r42**. Return to
   Runs to see the changed state. Search and filters are retained during navigation.
+- Inspect **r37** to read a failed task beside an accepted step, then switch
+  requests in Context & cost. The [information design criteria](INTERACTIONS.md#information-design)
+  describe the scope, units and evidence these readings must communicate.
 
 The [interaction contract](INTERACTIONS.md) records the flows being evaluated.
 The [original workspace prototype](../run-workspace/README.md) remains available

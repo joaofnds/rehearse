@@ -5,7 +5,7 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<title>Rehearse · Connected desktop prototype</title>
 		<link rel="stylesheet" href="connected-base.css" />
-		<link rel="stylesheet" href="connected.css" />
+		<link rel="stylesheet" href="connected.css?revision=information-clarity" />
 	</head>
 	<body>
 		<a class="skip" href="#main">Skip to content</a>
@@ -258,6 +258,13 @@
 			function finalReport(run) {
 				if (run.kind !== "Pipeline") return "";
 				const outcome = finalReading(run);
+				const headings = {
+					FAIL: "Task failed · hasMore is missing",
+					PASS: "Task passed · required behavior verified",
+					Pending: "Final task result pending",
+					"Judging failed": "Final task result unavailable",
+					"Not reached": "Final task was not judged",
+				};
 				const descriptions = {
 					FAIL: "The final artifact omits a required response field, although both workflow steps were accepted.",
 					PASS: "The final artifact meets the task rubric. Step grades remain independent evidence.",
@@ -267,7 +274,7 @@
 					"Not reached":
 						"Execution ended before final judging. Accepted step grades remain inspectable.",
 				};
-				return `<section class="panel connected-outcome ${outcome === "FAIL" ? "failed" : ""}"><div><div class="row"><span class="badge ${outcome === "FAIL" ? "stopped" : ""}">${esc(outcome)}</span><h2>Final task result</h2></div><p>${descriptions[outcome]}</p></div>${["PASS", "FAIL"].includes(outcome) ? btn("Inspect final evidence", "final-evidence", "primary") : `<a class="btn" href="${runHref(run, "activity")}">Inspect activity</a>`}</section>`;
+				return `<section class="panel connected-outcome ${outcome === "FAIL" ? "failed" : ""}"><div><div class="row"><span class="badge ${outcome === "FAIL" ? "stopped" : ""}">${esc(outcome)}</span><h2>${headings[outcome]}</h2></div><p>${descriptions[outcome]}</p></div>${["PASS", "FAIL"].includes(outcome) ? btn("Inspect final evidence", "final-evidence", "primary") : `<a class="btn" href="${runHref(run, "activity")}">Inspect activity</a>`}</section>`;
 			}
 
 			function costReading(groupId) {
@@ -345,7 +352,7 @@
 				'">' +
 				{
 					running: "● Running",
-					completed: "✓ Completed",
+					completed: "Execution ended",
 					stopped: "■ Stopped",
 					paused: "Ⅱ Paused",
 				}[run.state] +
@@ -472,9 +479,16 @@
 					'">Open activity →</a></span></footer>'
 				);
 			}
+			function costScope(run) {
+				if (run.kind === "Group") return "whole group";
+
+				if (run.kind === "Pipeline") return "whole workflow";
+
+				return "this attempt";
+			}
 			function runTable(runs) {
 				return (
-					'<div class="table-scroll"><table class="history-table"><thead><tr><th scope="col">Run</th><th scope="col">Case</th><th scope="col">Status</th><th scope="col">Step grades</th><th scope="col">Outcome</th><th scope="col">Corpus</th><th scope="col">Cost</th><th scope="col">Wall</th></tr></thead><tbody>' +
+					'<div class="table-scroll"><table class="history-table"><thead><tr><th scope="col">Run</th><th scope="col">Case</th><th scope="col">Execution</th><th scope="col">Step grades</th><th scope="col">Result</th><th scope="col">Corpus</th><th scope="col">Cost</th><th scope="col">Elapsed</th></tr></thead><tbody>' +
 					runs.map(runRow).join("") +
 					"</tbody></table></div>"
 				);
@@ -483,7 +497,7 @@
 			function runRow(run) {
 				const grades =
 					run.kind === "Group"
-						? run.grade
+						? `<a href="${runHref(run, "results")}">Inspect attempts →</a>`
 						: stepsFor(run)
 								.map((step) => step + " " + stepGrade(run, step))
 								.join(" · ");
@@ -497,16 +511,15 @@
 					'</a><small class="muted">' +
 					run.when +
 					'</small></th><td><a class="case-link mono" href="' +
-					runHref(run) +
-					'">' +
+					"#/cases/" +
+					run.case +
+					'" title="Open case definition">' +
 					esc(run.case) +
 					'</a><small class="muted">' +
 					run.kind +
 					"</small></td><td>" +
 					badge(run) +
-					'<small class="muted row-note">' +
-					run.note +
-					'</small></td><td class="mono step-grades">' +
+					'</td><td class="mono step-grades">' +
 					grades +
 					'</td><td><span class="mono">' +
 					finalReading(run) +
@@ -518,6 +531,8 @@
 							: run.kind === "Replay"
 								? "step only"
 								: "deterministic checks") +
+					'</small><small class="muted row-note">' +
+					esc(run.note) +
 					'</small></td><td><span class="mono">' +
 					run.version +
 					'</span><small class="muted">' +
@@ -526,7 +541,9 @@
 						: "◐ Corpus changed") +
 					'</small></td><td class="mono numeric">' +
 					(run.missing ? "Unavailable" : money(run.cost)) +
-					'</td><td class="mono numeric">' +
+					'<small class="muted">' +
+					costScope(run) +
+					'</small></td><td class="mono numeric">' +
 					run.time +
 					"</td></tr>"
 				);
@@ -640,7 +657,7 @@
 							? "● Running"
 							: run.state === "stopped"
 								? "■ Stopped"
-								: "✓ Repetitions ended",
+								: "Repetitions ended",
 						"Open attempts · " + run.grade,
 					];
 				return {
@@ -913,7 +930,7 @@
 				const comparisonLink = comparisonArmIds.includes(run.parent || run.id)
 					? '<a href="#/compare/cmp1">Comparison</a><span>/</span>'
 					: "";
-				return `<div class="breadcrumbs"><a href="#/runs">← Runs</a><span>/</span>${comparisonLink}${parent ? `<a href="${runHref(parent)}">${esc(parent.id)}</a><span>/</span>` : ""}<a href="#/cases/${run.case}">${esc(run.case)}</a><span>/</span><span class="mono">${run.id}</span></div><header class="run-header"><div><h1><span class="mono">${run.id}</span> ${esc(run.title)}</h1><div class="row gap2">${badge(run)}<span class="muted">${run.kind} · sonnet · fixed effort · corpus@${run.version}</span>${run.kind === "Pipeline" && run.state === "completed" ? '<span class="badge">Human review ' + (Object.keys(state.reviews).some((key) => key.startsWith(run.id + "/")) ? "recorded" : "pending") + "</span>" : ""}</div></div><div class="header-measurements"><button class="header-cost" data-action="spend-details" aria-label="Inspect run spend and budget"><strong class="mono">${run.missing ? "Unavailable" : money(run.cost)}</strong><small>whole ${run.kind === "Group" ? "group" : "run"}</small></button><div><strong class="mono">${run.time}</strong><small>elapsed</small></div>${running ? `<div class="row">${btn(run.pauseRequested ? "Pause requested" : "Pause after step", "pause")}${btn("Stop", "stop", "danger")}</div>` : ""}</div></header><nav class="view-nav" aria-label="Run views">${[
+				return `<div class="breadcrumbs"><a href="#/runs">← Runs</a><span>/</span>${comparisonLink}${parent ? `<a href="${runHref(parent)}">${esc(parent.id)}</a><span>/</span>` : ""}<a href="#/cases/${run.case}">${esc(run.case)}</a><span>/</span><span class="mono">${run.id}</span></div><header class="run-header"><div><h1><span class="mono">${run.id}</span> ${esc(run.title)}</h1><div class="row gap2">${badge(run)}<span class="muted">${run.kind} · sonnet · fixed effort · corpus@${run.version}</span>${run.kind === "Pipeline" && run.state === "completed" ? '<span class="badge">Human review ' + (Object.keys(state.reviews).some((key) => key.startsWith(run.id + "/")) ? "recorded" : "pending") + "</span>" : ""}</div></div><div class="header-measurements"><button class="header-cost" data-action="spend-details" aria-label="Inspect run spend and budget"><strong class="mono">${run.missing ? "Unavailable" : money(run.cost)}</strong><small>${costScope(run)}</small></button><div><strong class="mono">${run.time}</strong><small>elapsed</small></div>${running ? `<div class="row">${btn(run.pauseRequested ? "Pause requested" : "Pause after step", "pause")}${btn("Stop", "stop", "danger")}</div>` : ""}</div></header><nav class="view-nav" aria-label="Run views">${[
 					["results", run.kind === "Group" ? "Attempts & results" : "Results"],
 					["activity", "Activity" + (running ? " · live" : "")],
 					["context", "Context & cost"],
@@ -1282,7 +1299,12 @@
 					write = Math.round(input * 0.2),
 					uncached = input - read - write;
 				const spend = stepMetrics(run, step).value * (reviewer ? 0.28 : 1);
-				return `<div class="stack"><div class="context-metrics">${stat("Provider reported", money(spend), "Selected agent + descendants · illustrative")}${stat("Recorded request input", input.toLocaleString() + " tokens", "Request " + selected + " · output counted separately")}${stat("Calculated request cost", money((spend * (reviewer ? 1 : 0.72)) / values.length), "Demo frozen rate · priced")}</div><div class="notice">Synthetic request history. Request input, cumulative usage, source text estimates and agent cost have different measurement bases.</div><section class="panel context-workbench"><aside class="context-menu"><label class="field">Receiving agent<select id="agent"><option value="parent" ${!reviewer ? "selected" : ""}>${esc(step)} · parent · sonnet</option><option value="reviewer" ${reviewer ? "selected" : ""}>Reviewer · child · sonnet</option></select></label><p class="small muted">Own ${money(spend * (reviewer ? 1 : 0.72))}<br>Including descendants ${money(spend)}<br>Each request counted once.</p><div class="rule"></div><h3>Delivered sources</h3>${rows.map(([id, name, note, size]) => `<button class="source-btn" data-source="${id}" aria-pressed="${state.source === id}"><span>${esc(name)}<small>${esc(note)}</small></span><small class="mono">${size}</small></button>`).join("")}<div class="rule"></div><h3>Requests · ${requests.length}</h3><div class="request-list">${requests.map((value, index) => `<button class="source-btn" data-request="${index + 1}" aria-pressed="${selected === index + 1}"><span>Request ${index + 1}</span><small class="mono">${(value * 0.64).toFixed(1)}k</small></button>`).join("")}</div></aside><article class="context-detail stack"><header class="row between"><div><h2>Request ${selected} · ${reviewer ? "Reviewer" : esc(step)}</h2><p class="small muted">sonnet · attempt region · ${state.source === "all" ? "all sources" : "receiving " + esc(source[1])}</p></div>${btn("Open source evidence", "context-evidence")}</header><section><span class="eyebrow">Input at each recorded request</span><div class="chart" role="group" aria-label="Select a request">${requests.map((value, index) => `<button class="request" style="--value:${value}%" data-request="${index + 1}" aria-pressed="${selected === index + 1}" aria-label="Request ${index + 1}, ${(value * 0.64).toFixed(1)} thousand input tokens"></button>`).join("")}</div><div class="chart-axis"><span>Request 1</span><span>Request ${requests.length}</span></div></section><section class="request-composition"><span class="eyebrow">Selected input · ${input.toLocaleString()} tokens</span><div class="composition-bar" aria-hidden="true"><i style="--share:${uncached}"></i><i style="--share:${read}"></i><i style="--share:${write}"></i></div><div class="legend"><span>Uncached ${uncached.toLocaleString()}</span><span>Cache read ${read.toLocaleString()}</span><span>Cache write ${write.toLocaleString()}</span></div></section><div class="context-two"><section class="inset"><h3>Output, separate from input</h3><strong class="mono">${Math.round(input * 0.035).toLocaleString()} tokens</strong><p class="small muted">Not part of the input composition.</p></section><section class="inset"><h3>Cumulative agent usage</h3><strong class="mono">${Math.round(values.reduce((sum, value) => sum + value, 0) * 640 * 1.035).toLocaleString()} tokens</strong><p class="small muted">Across requests; not the active context window.</p></section></div><section class="inset stack"><div class="row between"><h3>${state.source === "all" ? "All recorded sources" : esc(source[1])}</h3><span class="badge">Observed delivery</span></div><p class="muted">${esc(source[2])}. Inspect the delivered text and its saved source snapshot.</p><pre class="tool">${esc(excerpts[state.source])}</pre></section><details class="inset"><summary>Measurement basis, provenance & gaps</summary><p class="muted">Request input includes input, cache read and cache write tokens. Output is separate. A missing observation is not proof that instructions were never loaded. No model window limit is measured. Own cost excludes descendants; the total includes each request once. Source text is an illustrative bounded excerpt, not the whole artifact.</p></details></article></section></div>`;
+				const ownCost = spend * (reviewer ? 1 : 0.72);
+				const requestWeight =
+					requests[selected - 1] /
+					values.reduce((sum, value) => sum + value, 0);
+				const requestEstimate = ownCost * requestWeight;
+				return `<div class="stack"><div class="context-metrics">${stat("Agent cost · total", money(spend), esc(step) + " / " + (reviewer ? "Reviewer" : "parent + descendants") + " · all requests")}${stat("Request input", input.toLocaleString() + " tokens", "Request " + selected + " · selected agent only")}${stat("Request cost · estimated", money(requestEstimate), "Share of this agent’s own cost · request " + selected)}</div><div class="notice">Synthetic request history. Request input, cumulative usage, source text estimates and agent cost have different measurement bases.</div><section class="panel context-workbench"><aside class="context-menu"><label class="field">Receiving agent<select id="agent"><option value="parent" ${!reviewer ? "selected" : ""}>${esc(step)} · parent · sonnet</option><option value="reviewer" ${reviewer ? "selected" : ""}>Reviewer · child · sonnet</option></select></label><p class="small muted">Own ${money(ownCost)}<br>Including descendants ${money(spend)}<br>Each request counted once.</p><div class="rule"></div><h3>Delivered sources</h3><p class="small muted">Estimated text tokens<br>All agents · this step’s history</p>${rows.map(([id, name, note, size]) => `<button class="source-btn" data-source="${id}" aria-pressed="${state.source === id}"><span>${esc(name)}<small>${esc(note)}</small></span><small class="mono">${size}</small></button>`).join("")}<div class="rule"></div><h3>Requests · ${requests.length}</h3><p class="small muted">Input tokens · selected agent</p><div class="request-list">${requests.map((value, index) => `<button class="source-btn" data-request="${index + 1}" aria-pressed="${selected === index + 1}"><span>Request ${index + 1}</span><small class="mono">${(value * 0.64).toFixed(1)}k</small></button>`).join("")}</div></aside><article class="context-detail stack"><header class="row between"><div><h2>Request ${selected} · ${reviewer ? "Reviewer" : esc(step)}</h2><p class="small muted">sonnet · attempt region · ${state.source === "all" ? "all sources" : "receiving " + esc(source[1])}</p></div>${btn("Open source evidence", "context-evidence")}</header><section><span class="eyebrow">Input tokens at each request · 0–64,000</span><div class="chart" role="group" aria-label="Select a request">${requests.map((value, index) => `<button class="request" style="--value:${value}%" data-request="${index + 1}" aria-pressed="${selected === index + 1}" title="Request ${index + 1} · ${Math.round(value * 640).toLocaleString()} input tokens" aria-label="Request ${index + 1}, ${(value * 0.64).toFixed(1)} thousand input tokens"></button>`).join("")}</div><div class="chart-axis"><span>Request 1</span><span>Request ${requests.length}</span></div></section><section class="request-composition"><span class="eyebrow">Selected input · ${input.toLocaleString()} tokens</span><div class="composition-bar" aria-hidden="true"><i style="--share:${uncached}"></i><i style="--share:${read}"></i><i style="--share:${write}"></i></div><div class="legend"><span>Uncached ${uncached.toLocaleString()}</span><span>Cache read ${read.toLocaleString()}</span><span>Cache write ${write.toLocaleString()}</span></div></section><div class="context-two"><section class="inset"><h3>Output, separate from input</h3><strong class="mono">${Math.round(input * 0.035).toLocaleString()} tokens</strong><p class="small muted">Not part of the input composition.</p></section><section class="inset"><h3>Cumulative agent usage</h3><strong class="mono">${Math.round(values.reduce((sum, value) => sum + value, 0) * 640 * 1.035).toLocaleString()} tokens</strong><p class="small muted">Across requests; not the active context window.</p></section></div><section class="inset stack"><div class="row between"><h3>${state.source === "all" ? "All recorded sources" : esc(source[1])}</h3><span class="badge">Observed delivery</span></div><p class="muted">${esc(source[2])}. Inspect the delivered text and its saved source snapshot.</p><pre class="tool">${esc(excerpts[state.source])}</pre></section><details class="inset"><summary>Measurement basis, provenance & gaps</summary><p class="muted">Request input includes input, cache read and cache write tokens. Output is separate. A missing observation is not proof that instructions were never loaded. No model window limit is measured. Request cost is estimated by allocating this agent’s own cost in proportion to request input tokens. It is not a separately reported provider charge. Source text token estimates cover the history, not the selected request’s context. Own cost excludes descendants; the total includes each request once. Source text is an illustrative bounded excerpt, not the whole artifact.</p></details></article></section></div>`;
 			}
 
 			function checks(run) {
@@ -1424,6 +1446,18 @@
 					" attempts per arm · control included · no paired attempt claims</small></div></section>"
 				);
 			}
+			function comparisonBasis(step) {
+				if (step === "session")
+					return "Accepted means all declared deterministic session checks passed. This comparison covers the reply checks, not a complete workflow.";
+
+				const label = step[0].toUpperCase() + step.slice(1);
+
+				return (
+					"Accepted means grade A or B for " +
+					esc(label) +
+					". These replays do not re-evaluate the final task; lower spend alone does not establish an improvement."
+				);
+			}
 			function comparison() {
 				const arms = comparisonArmIds.map((id) => {
 					const group = state.runs.find((item) => item.id === id),
@@ -1458,7 +1492,7 @@
 				};
 				const change = (value, original) =>
 					Math.round((value / original - 1) * 100) + "%";
-				return `<div class="breadcrumbs"><a href="#/compare">← Comparisons</a><span>/</span><span>Shorten shared review evidence</span></div><header class="page-head"><div><h1>Shorten shared review evidence</h1><p>audit-log / Shape · cp-a7 · sonnet · fixed effort · ${baseline.attempts.length} attempts per arm</p></div>${btn("Extend comparison", "extend")}</header><div class="stack"><section class="panel connected-outcome"><div><h2>Lower observed spend. Quality remains inconclusive.</h2><p>Candidate against baseline: ${change(candidate.mean, baseline.mean)} mean cost and ${change(candidate.words, baseline.words)} reply length. Cost ranges and quality intervals overlap. These demo readings do not establish preserved quality.</p></div>${btn("Inspect attempts", "attempts", "primary")}</section><div class="compare-grid">${arms.map((arm, index) => `<section class="panel arm ${index === 1 ? "candidate" : ""}"><div class="pad stack"><div class="row between"><h2>${["Baseline", "Candidate", "Control"][index]}</h2><span class="mono muted">${arm.group.version}</span></div><p class="muted">${["Before edit · original instruction", "After edit · shared evidence once", "Instruction removed"][index]}</p><div><strong class="fig">${arm.accepted}/${arm.attempts.length}</strong> accepted<small class="muted"> · ${interval(arm)} interval</small></div><div><strong class="mono">${money(arm.mean)}</strong><span class="muted"> per attempt</span><p class="small muted">${money(arm.group.cost)} total · ${Math.round(arm.words)} average words</p></div><a class="btn" href="${runHref(arm.group, "results")}">Inspect ${arm.group.id} attempts →</a></div></section>`).join("")}</div><section class="panel"><header class="panel-head"><h2>What moved · candidate against baseline</h2><span class="small muted">Independent attempts · no paired claims</span></header><div class="table-scroll"><table><thead><tr><th>Measure</th><th>Baseline</th><th>Candidate</th><th>Reading</th></tr></thead><tbody><tr><td>Step acceptance</td><td>${baseline.accepted}/${baseline.attempts.length} · ${interval(baseline)}</td><td>${candidate.accepted}/${candidate.attempts.length} · ${interval(candidate)}</td><td>95% intervals overlap · inconclusive</td></tr><tr><td>Hard blockers</td><td>0/${baseline.attempts.length} fired</td><td>0/${candidate.attempts.length} fired</td><td>Small sample · uncertainty remains</td></tr><tr><td>Cost / attempt</td><td>${costReading("g7")}</td><td>${costReading("g8")}</td><td>${change(candidate.mean, baseline.mean)} mean · ranges overlap</td></tr><tr><td>Reply length</td><td>${Math.round(baseline.words)} words</td><td>${Math.round(candidate.words)} words</td><td>${change(candidate.words, baseline.words)} mean · rerun noise unresolved</td></tr><tr><td>Cost against control</td><td>${change(baseline.mean, control.mean)}</td><td>${change(candidate.mean, control.mean)}</td><td>Control ${money(control.mean)} / attempt · inspect all arms</td></tr></tbody></table></div></section><div class="two-col"><section class="panel pad stack"><h2>One changed instruction</h2><a href="#/corpus/skills%2Freview%2FSKILL.md">skills/review/SKILL.md →</a><p class="muted">Only this corpus path differs between baseline and candidate. The same frozen input, model and effort are held fixed.</p>${btn("Inspect instruction diff", "diff")}</section><section class="panel pad stack"><h2>What this can support</h2><p class="muted">A hypothesis for another trial. Successful checks do not establish equivalent quality. The control removes this instruction; inspect each attempt before attributing an effect.</p>${btn("Inspect independent attempts", "attempts")}</section></div></div>`;
+				return `<div class="breadcrumbs"><a href="#/compare">← Comparisons</a><span>/</span><span>Shorten shared review evidence</span></div><header class="page-head"><div><h1>Shorten shared review evidence</h1><p>audit-log / Shape · cp-a7 · sonnet · fixed effort · ${baseline.attempts.length} attempts per arm</p></div>${btn("Extend comparison", "extend")}</header><div class="stack"><section class="panel connected-outcome"><div><h2>Lower observed spend. Quality remains inconclusive.</h2><p>Candidate against baseline: ${change(candidate.mean, baseline.mean)} mean cost and ${change(candidate.words, baseline.words)} reply length. Cost ranges and 95% acceptance intervals overlap. These demo readings do not establish preserved quality.</p></div>${btn("Inspect attempts", "attempts", "primary")}</section><p class="muted">${comparisonBasis("shape")}</p><div class="compare-grid">${arms.map((arm, index) => `<section class="panel arm ${index === 1 ? "candidate" : ""}"><div class="pad stack"><div class="row between"><h2>${["Baseline", "Candidate", "Control"][index]}</h2><span class="mono muted">${arm.group.version}</span></div><p class="muted">${["Before edit · original instruction", "After edit · shared evidence once", "Instruction removed"][index]}</p><div><strong class="fig">${arm.accepted}/${arm.attempts.length}</strong> accepted<small class="muted"> · ${interval(arm)} · 95% acceptance interval</small></div><div><strong class="mono">${money(arm.mean)}</strong><span class="muted"> per attempt</span><p class="small muted">${money(arm.group.cost)} total · ${Math.round(arm.words)} average words</p></div><a class="btn" href="${runHref(arm.group, "results")}">Inspect ${arm.group.id} attempts →</a></div></section>`).join("")}</div><section class="panel"><header class="panel-head"><h2>What moved · candidate against baseline</h2><span class="small muted">Independent attempts · no paired claims</span></header><div class="table-scroll"><table><thead><tr><th>Measure</th><th>Baseline</th><th>Candidate</th><th>Reading</th></tr></thead><tbody><tr><td>Step acceptance</td><td>${baseline.accepted}/${baseline.attempts.length} · ${interval(baseline)}</td><td>${candidate.accepted}/${candidate.attempts.length} · ${interval(candidate)}</td><td>95% acceptance intervals overlap · inconclusive</td></tr><tr><td>Hard blockers</td><td>0/${baseline.attempts.length} fired</td><td>0/${candidate.attempts.length} fired</td><td>Small sample · uncertainty remains</td></tr><tr><td>Cost / attempt</td><td>${costReading("g7")}</td><td>${costReading("g8")}</td><td>${change(candidate.mean, baseline.mean)} mean · ranges overlap</td></tr><tr><td>Reply length</td><td>${Math.round(baseline.words)} words</td><td>${Math.round(candidate.words)} words</td><td>${change(candidate.words, baseline.words)} mean · rerun noise unresolved</td></tr><tr><td>Cost against control</td><td>${change(baseline.mean, control.mean)}</td><td>${change(candidate.mean, control.mean)}</td><td>Control ${money(control.mean)} / attempt · inspect all arms</td></tr></tbody></table></div></section><div class="two-col"><section class="panel pad stack"><h2>One changed instruction</h2><a href="#/corpus/skills%2Freview%2FSKILL.md">skills/review/SKILL.md →</a><p class="muted">Only this corpus path differs between baseline and candidate. The same frozen input, model and effort are held fixed.</p>${btn("Inspect instruction diff", "diff")}</section><section class="panel pad stack"><h2>What this can support</h2><p class="muted">A hypothesis for another trial. Successful checks do not establish equivalent quality. The control removes this instruction; inspect each attempt before attributing an effect.</p>${btn("Inspect independent attempts", "attempts")}</section></div></div>`;
 			}
 
 			function observationSummary(snapshot) {
@@ -1497,7 +1531,9 @@
 					notice(
 						"<strong>Exploratory comparison · synthetic data</strong><br>This shows what changed in these attempts. It cannot establish an improvement or equivalent quality. No control arm is included.",
 					) +
-					'<div class="two-col">' +
+					'<p class="muted">' +
+					comparisonBasis(run.step) +
+					'</p><div class="two-col">' +
 					arms
 						.map((arm, i) => {
 							const stats = observationSummary(arm);
