@@ -110,6 +110,17 @@ function transcriptOf(records: readonly unknown[]): string {
 	return records.map((record) => `${JSON.stringify(record)}\n`).join("");
 }
 
+function toolResultTranscript(content: string): string {
+	return transcriptOf([
+		{
+			type: "user",
+			message: {
+				content: [{ type: "tool_result", tool_use_id: "t1", content }],
+			},
+		},
+	]);
+}
+
 describe(readStageSession.name, () => {
 	it("answers a running stage with its transcript's rows and its latest tool call", async () => {
 		const stage = await startedStage();
@@ -271,20 +282,9 @@ describe(readStageSession.name, () => {
 		const stage = await startedStage();
 		await Bun.write(
 			stage.transcriptFile,
-			transcriptOf([
-				{
-					type: "user",
-					message: {
-						content: [
-							{
-								type: "tool_result",
-								tool_use_id: "t1",
-								content: "\u001B[31m[Nest] 75226  - \u001B[39mstarting tests",
-							},
-						],
-					},
-				},
-			]),
+			toolResultTranscript(
+				"\u001B[31m[Nest] 75226  - \u001B[39mstarting tests",
+			),
 		);
 
 		const session = await readStageSession({
@@ -297,6 +297,57 @@ describe(readStageSession.name, () => {
 			state: "running",
 			lines: [{ text: "[Nest] 75226  - starting tests" }],
 		});
+	});
+
+	it("shows the first line with text when color codes alone lead a tool result", async () => {
+		const stage = await startedStage();
+		await Bun.write(
+			stage.transcriptFile,
+			toolResultTranscript("\u001B[31m\n[Nest] starting tests"),
+		);
+
+		const session = await readStageSession({
+			...stage,
+			run: RUN,
+			stage: "build",
+		});
+
+		expect(session).toMatchObject({
+			state: "running",
+			lines: [{ text: "[Nest] starting tests" }],
+		});
+	});
+
+	it("counts only the characters a row shows toward its 1,000-character cut", async () => {
+		const stage = await startedStage();
+		await Bun.write(
+			stage.transcriptFile,
+			toolResultTranscript(`\u001B[31m${"a".repeat(1000)}`),
+		);
+
+		const session = await readStageSession({
+			...stage,
+			run: RUN,
+			stage: "build",
+		});
+
+		expect(session).toMatchObject({
+			state: "running",
+			lines: [{ text: "a".repeat(1000) }],
+		});
+	});
+
+	it("shows no row for a tool result of color codes alone", async () => {
+		const stage = await startedStage();
+		await Bun.write(stage.transcriptFile, toolResultTranscript("\u001B[39m"));
+
+		const session = await readStageSession({
+			...stage,
+			run: RUN,
+			stage: "build",
+		});
+
+		expect(session).toEqual({ state: "running", lineCount: 1, lines: [] });
 	});
 
 	it("reads a tool result the provider writes as blocks by its first text", async () => {

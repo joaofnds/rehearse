@@ -83,8 +83,13 @@ type TranscriptBlock =
 	| { readonly kind: "text" | "tool" | "result"; readonly text: string }
 	| { readonly kind: "other" };
 
+/** The text a terminal shows, without control sequences or surrounding whitespace. */
+function visible(text: string): string {
+	return stripVTControlCharacters(text).trim();
+}
+
 function firstLine(text: string): string {
-	return text.trim().split("\n", 1)[0] ?? "";
+	return visible(text).split("\n", 1)[0] ?? "";
 }
 
 function spanPlace(
@@ -169,7 +174,7 @@ const textBlockSchema = z
 	.looseObject({ type: z.literal("text"), text: z.string() })
 	.transform(({ text }): TranscriptBlock => ({
 		kind: "text",
-		text: text.trim(),
+		text: visible(text),
 	}));
 
 const otherBlockSchema = z
@@ -180,7 +185,7 @@ const messageContentSchema = z.union([
 	z
 		.string()
 		.transform((text): TranscriptBlock[] => [
-			{ kind: "text", text: text.trim() },
+			{ kind: "text", text: visible(text) },
 		]),
 	z.array(
 		z.union([
@@ -213,15 +218,14 @@ function rowOf(
 		return undefined;
 	}
 
-	const text = stripVTControlCharacters(block.text);
-	if (text === "") {
+	if (block.text === "") {
 		return undefined;
 	}
 
 	return {
 		line,
 		kind: block.kind === "text" ? textKind : block.kind,
-		text: shortened(text),
+		text: shortened(block.text),
 	};
 }
 
