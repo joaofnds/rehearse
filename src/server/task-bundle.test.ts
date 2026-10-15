@@ -66,6 +66,17 @@ const PIPELINE = {
 	],
 };
 
+const POSTGRES = {
+	name: "postgres",
+	image: "postgres:18-alpine",
+	port: 5432,
+	env: { POSTGRES_PASSWORD: "postgres" },
+	ready: ["pg_isready", "-h", "127.0.0.1"],
+	exports: {
+		DATABASE_URL: "postgres://postgres:postgres@127.0.0.1:{port}/app",
+	},
+};
+
 const BUNDLE_STAGES = [
 	{ name: "shape", kind: "planning", skill: "shape", rubric: "shape.json" },
 	{ name: "build", kind: "delivery", skill: "build", rubric: "build.json" },
@@ -231,7 +242,31 @@ describe("task bundles", () => {
 				{ name: "build", kind: "delivery", skill: "build" },
 			],
 			commands: ["bun install", "bun run typecheck"],
+			services: [],
 			stepJudges: 2,
+		});
+	});
+
+	it("previews the containers a bundle's target starts and the variables each exports", async () => {
+		const server = await serving();
+		const bundle = await exported(server);
+		const target = { ...PIPELINE.target, services: [POSTGRES] };
+
+		const response = await server.post(
+			"/api/task-bundles/preview",
+			JSON.stringify({
+				bundle: { ...bundle, pipeline: { ...bundle.pipeline, target } },
+			}),
+		);
+
+		expect(await response.json()).toMatchObject({
+			services: [
+				{
+					name: "postgres",
+					image: "postgres:18-alpine",
+					exports: ["DATABASE_URL"],
+				},
+			],
 		});
 	});
 

@@ -242,6 +242,21 @@ function PreviewSummary({
 					))}
 				</ul>
 			</div>
+			{preview.services.length > 0 && (
+				<div>
+					<p className="text-muted-foreground">
+						It starts these containers, whose variables reach those commands and
+						its agent sessions:
+					</p>
+					<ul className="mt-1 flex flex-col gap-0.5 font-mono text-11-5">
+						{preview.services.map(({ name, image, exports }) => (
+							<li key={name}>
+								{name} from {image}, setting {exports.join(", ")}
+							</li>
+						))}
+					</ul>
+				</div>
+			)}
 		</section>
 	);
 }

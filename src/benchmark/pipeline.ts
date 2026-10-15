@@ -52,10 +52,20 @@ const targetRelativePathSchema = z
 		"must be a target-relative path without traversal",
 	);
 
+const environmentNameSchema = z
+	.string()
+	.regex(/^[A-Za-z_][A-Za-z0-9_]*$/u, "must be an environment variable name");
+
+/** An export reaches the stage session too, so it leaves alone what the provider reads. */
+const serviceExportNameSchema = environmentNameSchema.refine(
+	(name) => name !== "HOME" && !/^(?:ANTHROPIC|CLAUDE)_/u.test(name),
+	"must not replace a variable the session's provider reads",
+);
+
 const targetCheckSchema = z
 	.object({
 		command: z.array(z.string().min(1)).min(1),
-		env: z.record(z.string(), z.string()).optional(),
+		env: z.record(environmentNameSchema, z.string()).optional(),
 	})
 	.strict();
 
@@ -67,11 +77,11 @@ const targetServiceSchema = z
 		name: z.string().min(1),
 		image: z.string().min(1),
 		port: z.int().min(1).max(65_535),
-		env: z.record(z.string(), z.string()).optional(),
+		env: z.record(environmentNameSchema, z.string()).optional(),
 		ready: z.array(z.string().min(1)).min(1),
 		exports: z
 			.record(
-				z.string().min(1),
+				serviceExportNameSchema,
 				z
 					.string()
 					.includes(

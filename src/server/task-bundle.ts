@@ -215,6 +215,14 @@ export interface PreviewedStep {
 	readonly skill: string;
 }
 
+/** A container a bundle's target starts, as a bundle preview names it. */
+export interface PreviewedService {
+	readonly name: string;
+	readonly image: string;
+	/** The variables it sets for setup, checks and stage sessions. */
+	readonly exports: readonly string[];
+}
+
 /** What importing a bundle would declare, read before anything is written. */
 export interface TaskBundlePreview {
 	readonly caseId: string;
@@ -224,6 +232,7 @@ export interface TaskBundlePreview {
 	readonly steps: readonly PreviewedStep[];
 	/** Each command the case runs in its target, as one line. */
 	readonly commands: readonly string[];
+	readonly services: readonly PreviewedService[];
 	readonly stepJudges: number;
 }
 
@@ -244,6 +253,13 @@ export function previewTaskBundle(
 		})),
 		commands: [...(pipeline.target.setup ?? []), ...pipeline.target.checks].map(
 			({ command }) => command.join(" "),
+		),
+		services: (pipeline.target.services ?? []).map(
+			({ name, image, exports }) => ({
+				name,
+				image,
+				exports: Object.keys(exports),
+			}),
 		),
 		stepJudges: new Set(pipeline.stages.map(({ rubric }) => rubric)).size,
 	};

@@ -275,6 +275,55 @@ describe(parsePipeline.name, () => {
 			},
 		},
 		{
+			name: "a service export the provider reads",
+			definition: {
+				...target,
+				services: [
+					{
+						...postgres,
+						exports: { ANTHROPIC_BASE_URL: "http://127.0.0.1:{port}" },
+					},
+				],
+			},
+		},
+		{
+			name: "a service export of a Claude setting",
+			definition: {
+				...target,
+				services: [
+					{ ...postgres, exports: { CLAUDE_CONFIG_DIR: "/tmp/{port}" } },
+				],
+			},
+		},
+		{
+			name: "a service export of the home directory",
+			definition: {
+				...target,
+				services: [{ ...postgres, exports: { HOME: "/tmp/{port}" } }],
+			},
+		},
+		{
+			name: "a service export name that is not a variable name",
+			definition: {
+				...target,
+				services: [{ ...postgres, exports: { "A=B": "x{port}" } }],
+			},
+		},
+		{
+			name: "an empty service environment name",
+			definition: {
+				...target,
+				services: [{ ...postgres, env: { "": "x" } }],
+			},
+		},
+		{
+			name: "a check environment name that is not a variable name",
+			definition: {
+				...target,
+				checks: [{ command: ["bun"], env: { "A=B": "x" } }],
+			},
+		},
+		{
 			name: "a service port outside the TCP range",
 			definition: { ...target, services: [{ ...postgres, port: 70_000 }] },
 		},

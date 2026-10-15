@@ -198,6 +198,13 @@ describe(TasksPage.name, () => {
 			model: "sonnet",
 			steps: [{ name: "build", kind: "delivery", skill: "build" }],
 			commands: ["bun install", "bun test"],
+			services: [
+				{
+					name: "postgres",
+					image: "postgres:18-alpine",
+					exports: ["DATABASE_URL", "PGHOST"],
+				},
+			],
 			stepJudges: 1,
 		};
 		const IMPORTED = { caseId: "audit-log-copy", path: "cases/audit-log-copy" };
@@ -265,6 +272,19 @@ describe(TasksPage.name, () => {
 			expect(
 				JSON.parse(server.posted("/api/task-bundles/preview")[0]?.body ?? ""),
 			).toEqual({ bundle: BUNDLE });
+		});
+
+		it("names each container the bundle starts and the variables it sets", async () => {
+			serving();
+
+			const dialog = await chooseBundle(JSON.stringify(BUNDLE));
+			const summary = await within(dialog).findByRole("region", {
+				name: "What the bundle holds",
+			});
+
+			expect(summary).toHaveTextContent(
+				"postgres from postgres:18-alpine, setting DATABASE_URL, PGHOST",
+			);
 		});
 
 		it("imports the bundle under the id typed and says the case is uncommitted", async () => {

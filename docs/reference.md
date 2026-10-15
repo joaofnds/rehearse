@@ -329,7 +329,8 @@ rubric, pipeline, each stage rubric by file name, stage settings and target,
 as an attachment named `<id>.task.json`. `POST /api/task-bundles/preview` with
 `{bundle}` answers with what the bundle declares: its case id, title, target
 path, model, steps, the setup and check commands a run executes in its target,
-and its step judge count. `POST /api/cases/import` with `{id, title,
+each service it starts with its image and the names of the variables it
+exports, and its step judge count. `POST /api/cases/import` with `{id, title,
 targetPath, bundle}` writes the bundle as a new pipeline case and answers 201
 with its `caseId` and `path`, refusing as `POST /api/cases/pipeline` does.
 
@@ -519,10 +520,13 @@ The bundled pipeline is `shape` followed by `build`.
 A pipeline's target may declare the services its setup, checks, and sessions
 need, such as a database. Each names a container image, the port it listens on
 inside the container, optional environment, a readiness command run inside the
-container, and the variables it exports, each naming the port as `{port}`. A
-pipeline run starts each service with Docker, publishing its port on a loopback
-port Docker assigns, and runs its readiness command every half second for up to
-a minute. It passes the exports, with the assigned port in place of `{port}`, to
+container, and the variables it exports, each naming the port as `{port}`.
+Variable names, in a service's or a check's `env` and in exports, must be
+environment variable names. An export may not be `HOME` or start with
+`ANTHROPIC_` or `CLAUDE_`, since exports reach the stage session and the
+provider reads those. A pipeline run starts each service with Docker,
+publishing its port on a loopback port Docker assigns, and runs its readiness
+command every half second for up to a minute. It passes the exports, with the assigned port in place of `{port}`, to
 setup commands, baseline and treatment checks, and stage sessions. A check's own
 `env` wins over an export of the same variable. A service that cannot start or
 never reads ready refuses the run before its first stage. The run removes its
