@@ -47,11 +47,30 @@ the user choosing a representation before choosing a run. A permanent list besid
 the workspace would take space from transcripts and context evidence. The proposal
 uses a full workspace and a single return path to Runs.
 
-The prototype retains the navy and lavender identity, with cyan for live activity,
-platform sans for UI text, and monospace for evidence and measurements. It uses
-native controls and dialogs, visible keyboard focus, and 44px interaction targets.
-At narrow widths, the navigation, request chart, and comparison table scroll within
-their own containers.
+The visual starting point is the [published Claude Design artifact](https://claude.ai/artifact/3nT2thU8rddfY3Vd7C3j8w),
+inspected alongside the [archived handoff](../../docs/design-handoff/README.md) and
+the current application. Its compact history table, corpus card, connected workflow,
+striped spend meter, quiet status colors, and adjacent session and judge panes form
+the desktop foundation. Inter serves the interface; JetBrains Mono serves IDs,
+evidence, and measurements. The fonts are embedded for offline use; their licenses
+are in [FONT-LICENSES.txt](FONT-LICENSES.txt).
+
+The original separates Run history, Live monitor, and Run detail in global
+navigation. This proposal keeps its visual language while putting those readings
+inside one run workspace. It preserves the current product's independent final
+PASS/FAIL and missing-evidence states. The old artifact's task letters, paired
+comparison claims, and automatic corpus-age warnings do not define current
+measurement semantics.
+
+Desktop is the design target. At 1280px and wider, the workspace keeps its header,
+spend band, view tabs, and connected steps above two independently scrolling activity
+and judge panes. Short browser windows scroll the workspace while preserving a
+readable transcript area. The bottom live strip returns to the active run from another
+section. Long history, context, and report content scroll inside the main area.
+Compact controls serve desktop pointers; coarse pointers retain 44px targets.
+Native dialogs, visible focus, text labels for statuses, and reduced-motion support
+remain in place. Narrow layouts retain a basic fallback without dedicated mobile
+or tablet design work.
 
 The production client, archived design handoff, and feature inventory are unchanged.
 Retaining the graph after a run ends and showing a pipeline request timeline require
