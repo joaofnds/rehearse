@@ -124,12 +124,12 @@ import {
 } from "./target";
 import type { SourceBaseline } from "./target";
 import { cloneTarget, discardClone, releaseClone } from "./target-clone";
-import type { RunningServices } from "./target-services";
+import type { ServiceEnvironment, TargetServices } from "./target-services";
 import {
 	checksWithServices,
 	SERVICE_READINESS,
-	startServices,
 	TargetServiceError,
+	targetServices,
 } from "./target-services";
 import { dockerContainerRuntime } from "./docker-container-runtime";
 import type { ProductOwner, ProductOwnerSnapshot } from "./workflow";
@@ -1327,7 +1327,7 @@ interface RunCheckout {
  */
 async function releaseRun(
 	run: RunCheckout,
-	services: RunningServices | undefined,
+	services: TargetServices,
 	log: (message: string) => void,
 ): Promise<void> {
 	try {
@@ -1339,25 +1339,20 @@ async function releaseRun(
 		);
 		throw error;
 	} finally {
-		await services?.stop();
+		await services.stop();
 	}
 }
 
 /** A service that cannot start or never gets ready is a precondition the run refuses. */
 async function startTargetServices(
+	services: TargetServices,
 	target: TargetDefinition,
-): Promise<RunningServices> {
+): Promise<ServiceEnvironment> {
 	try {
-		return await startServices(
-			target.services ?? [],
-			dockerContainerRuntime,
-			SERVICE_READINESS,
-		);
+		return await services.start(target.services ?? []);
 	} catch (error) {
 		if (error instanceof TargetServiceError) {
-			const reason =
-				error.cause instanceof Error ? `: ${error.cause.message}` : "";
-			throw new RefusedPreconditionError(`${error.message}${reason}`);
+			throw new RefusedPreconditionError(error.message);
 		}
 
 		throw error;
@@ -1377,10 +1372,14 @@ export async function runBenchmark(
 	const controlSha = await assertControlReady();
 	const target = await assertSourceReady(config.sourceDir);
 	const source = await cloneSource(target);
-	let services: RunningServices | undefined;
 	const productOwnerDirectory = await mkdtemp(join(tmpdir(), "rehearse-po-"));
 	const timestamp = new Date().toISOString();
 	const runFiles = await createRunFiles(timestamp);
+	const services = targetServices(
+		{ run: runFiles.name, attempt: runFiles.name },
+		dockerContainerRuntime,
+		SERVICE_READINESS,
+	);
 	let stageFailureCalibrated = false;
 	const runEventStore = await openRunEventStore(
 		runEventsDatabaseFile(runFiles.runsDirectory),
@@ -1436,8 +1435,7 @@ export async function runBenchmark(
 		log(`Target: ${target.root}`);
 		log(`Run checkout: ${source.root}`);
 		log(`Original commit: ${source.sha}`);
-		services = await startTargetServices(pipeline.target);
-		const { environment } = services;
+		const environment = await startTargetServices(services, pipeline.target);
 		const { baselineHashes, baselineContext, baselineChecks } =
 			await captureRunBaseline(
 				{

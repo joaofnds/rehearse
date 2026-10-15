@@ -2,9 +2,17 @@ import { z } from "zod";
 import { CommandError, runCommand } from "./command";
 import { CONTROL_DIR } from "./config";
 import type { TargetService } from "./pipeline";
-import type { ContainerRuntime, StartedContainer } from "./target-services";
+import type {
+	ContainerOwner,
+	ContainerRuntime,
+	OwnedContainer,
+	StartedContainer,
+} from "./target-services";
 
 const hostPortSchema = z.coerce.number().int().min(1).max(65_535);
+
+/** Exit codes docker exec gives when the command cannot run in the container. */
+const COMMAND_CANNOT_RUN = new Set([126, 127]);
 
 /** The host port in `docker port` output, such as `127.0.0.1:32768`. */
 export function publishedHostPort(output: string): number {
@@ -20,40 +28,66 @@ export function publishedHostPort(output: string): number {
 }
 
 /**
- * Publishes each service on a loopback port docker picks, so it never takes a
+ * Publishes the service on a loopback port docker picks, so it never takes a
  * port the operator's own services hold and never listens beyond this machine.
+ * The labels let a run's end find its containers however far their start got.
  */
-export const dockerContainerRuntime: ContainerRuntime = {
-	start: startContainer,
-	succeeds: succeedsIn,
-	remove: removeContainer,
-};
-
-async function startContainer(
+export function dockerRunArguments(
 	service: TargetService,
-): Promise<StartedContainer> {
+	owner: ContainerOwner,
+): readonly string[] {
 	const environment = Object.entries(service.env ?? {}).flatMap(
 		([variable, value]) => ["--env", `${variable}=${value}`],
 	);
-	const output = await docker(
+
+	return [
 		"run",
 		"--detach",
-		"--rm",
+		"--label",
+		`rehearse.run=${owner.run}`,
+		"--label",
+		`rehearse.attempt=${owner.attempt}`,
 		"--label",
 		`rehearse.service=${service.name}`,
 		"--publish",
 		`127.0.0.1::${service.port}`,
 		...environment,
 		service.image,
-	);
-	const id = output.trim();
+	];
+}
+
+/** Each line of `docker ps --format '{{.ID}} {{.Label "rehearse.service"}}'`. */
+export function ownedContainersIn(output: string): readonly OwnedContainer[] {
+	return output
+		.split("\n")
+		.filter((line) => line.trim() !== "")
+		.map((line) => {
+			const [id = "", service = ""] = line.trim().split(" ");
+
+			return { id, service };
+		});
+}
+
+export const dockerContainerRuntime: ContainerRuntime = {
+	start: startContainer,
+	succeeds: succeedsIn,
+	owned: ownedBy,
+	remove: removeContainer,
+};
+
+async function startContainer(
+	service: TargetService,
+	owner: ContainerOwner,
+): Promise<StartedContainer> {
+	const started = await docker(...dockerRunArguments(service, owner));
+	const id = started.trim();
 
 	try {
 		const published = await docker("port", id, `${service.port}/tcp`);
 
 		return { id, hostPort: publishedHostPort(published) };
 	} catch (error) {
-		await removeContainer(id);
+		await assertRunning(id);
 		throw error;
 	}
 }
@@ -67,12 +101,47 @@ async function succeedsIn(
 
 		return true;
 	} catch (error) {
-		if (error instanceof CommandError) {
-			return false;
+		if (
+			!(error instanceof CommandError) ||
+			COMMAND_CANNOT_RUN.has(error.exitCode)
+		) {
+			throw error;
 		}
 
-		throw error;
+		await assertRunning(id);
+
+		return false;
 	}
+}
+
+async function assertRunning(id: string): Promise<void> {
+	const state = await docker(
+		"inspect",
+		"--format",
+		"{{.State.Running}} {{.State.ExitCode}}",
+		id,
+	);
+	const [running, exitCode] = state.trim().split(" ");
+	if (running !== "true") {
+		throw new Error(`container ${id} exited with code ${exitCode}`);
+	}
+}
+
+async function ownedBy(
+	owner: ContainerOwner,
+): Promise<readonly OwnedContainer[]> {
+	const output = await docker(
+		"ps",
+		"--all",
+		"--filter",
+		`label=rehearse.run=${owner.run}`,
+		"--filter",
+		`label=rehearse.attempt=${owner.attempt}`,
+		"--format",
+		'{{.ID}} {{.Label "rehearse.service"}}',
+	);
+
+	return ownedContainersIn(output);
 }
 
 async function removeContainer(id: string): Promise<void> {

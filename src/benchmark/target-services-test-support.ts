@@ -1,26 +1,50 @@
 import type { TargetService } from "./pipeline";
-import type { ContainerRuntime, StartedContainer } from "./target-services";
+import type {
+	ContainerOwner,
+	ContainerRuntime,
+	OwnedContainer,
+	StartedContainer,
+} from "./target-services";
 
 const FIRST_HOST_PORT = 49_152;
+
+interface FakeContainer {
+	readonly id: string;
+	readonly service: string;
+	readonly owner: ContainerOwner;
+}
 
 /**
  * Containers that start at once on ports counted up from the first dynamic
  * port, and pass their readiness command on the check a test seeds.
  */
 export class FakeContainerRuntime implements ContainerRuntime {
-	readonly #running = new Map<string, string>();
+	readonly #containers = new Map<string, FakeContainer>();
 
 	readonly #readyOnCheck = new Map<string, number>();
 
-	readonly #checks = new Map<string, number>();
+	readonly #readinessCommands = new Map<string, (readonly string[])[]>();
 
 	readonly #unstartable = new Set<string>();
 
 	readonly #unremovable = new Set<string>();
 
+	readonly #stopsBeforeReady = new Set<string>();
+
+	readonly #hangsOnStart = new Set<string>();
+
+	readonly #startCalls = new Set<string>();
+
+	readonly #startWaiters = new Map<string, PromiseWithResolvers<undefined>>();
+
 	#started = 0;
 
-	public start(service: TargetService): Promise<StartedContainer> {
+	public start(
+		service: TargetService,
+		owner: ContainerOwner,
+	): Promise<StartedContainer> {
+		this.#startCalls.add(service.name);
+		this.#startWaiters.get(service.name)?.resolve(undefined);
 		if (this.#unstartable.has(service.name)) {
 			return Promise.reject(new Error(`${service.name} image is missing`));
 		}
@@ -28,33 +52,71 @@ export class FakeContainerRuntime implements ContainerRuntime {
 		const id = `container-${this.#started}`;
 		const hostPort = FIRST_HOST_PORT + this.#started;
 		this.#started += 1;
-		this.#running.set(id, service.name);
+		this.#containers.set(id, { id, service: service.name, owner });
+		if (this.#hangsOnStart.has(service.name)) {
+			return Promise.withResolvers<StartedContainer>().promise;
+		}
 
 		return Promise.resolve({ id, hostPort });
 	}
 
-	public succeeds(id: string): Promise<boolean> {
-		const name = this.#running.get(id) ?? id;
-		const checks = (this.#checks.get(name) ?? 0) + 1;
-		this.#checks.set(name, checks);
+	public succeeds(id: string, command: readonly string[]): Promise<boolean> {
+		const name = this.#containers.get(id)?.service ?? id;
+		const commands = this.#readinessCommands.get(name) ?? [];
+		commands.push(command);
+		this.#readinessCommands.set(name, commands);
+		if (this.#stopsBeforeReady.has(name)) {
+			return Promise.reject(new Error(`${name} exited`));
+		}
 
-		return Promise.resolve(checks >= (this.#readyOnCheck.get(name) ?? 1));
+		return Promise.resolve(
+			commands.length >= (this.#readyOnCheck.get(name) ?? 1),
+		);
+	}
+
+	public owned(owner: ContainerOwner): Promise<readonly OwnedContainer[]> {
+		return Promise.resolve(
+			[...this.#containers.values()]
+				.filter(
+					(container) =>
+						container.owner.run === owner.run &&
+						container.owner.attempt === owner.attempt,
+				)
+				.map(({ id, service }) => ({ id, service })),
+		);
 	}
 
 	public remove(id: string): Promise<void> {
-		const name = this.#running.get(id) ?? id;
+		const name = this.#containers.get(id)?.service ?? id;
 		if (this.#unremovable.has(name)) {
 			return Promise.reject(new Error(`${name} is stuck`));
 		}
 
-		this.#running.delete(id);
+		this.#containers.delete(id);
 
 		return Promise.resolve();
 	}
 
 	/** The services whose containers are still running, in start order. */
 	public runningServices(): readonly string[] {
-		return [...this.#running.values()];
+		return [...this.#containers.values()].map(({ service }) => service);
+	}
+
+	/** The commands each readiness check of this service ran, in order. */
+	public readinessCommands(name: string): readonly (readonly string[])[] {
+		return this.#readinessCommands.get(name) ?? [];
+	}
+
+	/** Resolves once this service's start has been asked for. */
+	public startRequested(name: string): Promise<undefined> {
+		if (this.#startCalls.has(name)) {
+			return Promise.resolve(undefined);
+		}
+
+		const requested = Promise.withResolvers<undefined>();
+		this.#startWaiters.set(name, requested);
+
+		return requested.promise;
 	}
 
 	/** Passes this service's readiness command from its nth check on. */
@@ -70,12 +132,26 @@ export class FakeContainerRuntime implements ContainerRuntime {
 		this.#unremovable.add(name);
 	}
 
+	/** Creates this service's container but never reports its start. */
+	public hangOnStart(name: string): void {
+		this.#hangsOnStart.add(name);
+	}
+
+	/** Its container exits before any readiness check passes. */
+	public stopBeforeReady(name: string): void {
+		this.#stopsBeforeReady.add(name);
+	}
+
 	public reset(): void {
-		this.#running.clear();
+		this.#containers.clear();
 		this.#readyOnCheck.clear();
-		this.#checks.clear();
+		this.#readinessCommands.clear();
 		this.#unstartable.clear();
 		this.#unremovable.clear();
+		this.#stopsBeforeReady.clear();
+		this.#hangsOnStart.clear();
+		this.#startCalls.clear();
+		this.#startWaiters.clear();
 		this.#started = 0;
 	}
 }

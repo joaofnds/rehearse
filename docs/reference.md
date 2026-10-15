@@ -526,8 +526,11 @@ a minute. It passes the exports, with the assigned port in place of `{port}`, to
 setup commands, baseline and treatment checks, and stage sessions. A check's own
 `env` wins over an export of the same variable. A service that cannot start or
 never reads ready refuses the run before its first stage. The run removes its
-containers when it ends, however it ends short of a hard kill, and labels each
-`rehearse.service=<name>`. Replays and confirmations start no services.
+containers when it ends, however it ends short of a hard kill, including one
+whose start had not returned. It labels each `rehearse.run=<run>`,
+`rehearse.attempt=<run>` and `rehearse.service=<name>`, and removes only the
+containers carrying its own run and attempt. Replays and confirmations start no
+services.
 
 The default stage settings deny branch/worktree creation commands and disable
 bundled skills. The allowed settings schema covers a deny list and selected
@@ -1282,8 +1285,8 @@ cleanup. A hard kill or crash leaves the clone, with the run's claim in its
 later run, since each run clones afresh and Docker assigns each container its
 own port. To recover, fetch the clone's `refs/rehearse/<run>` into the target
 when its commits matter, delete the clone, and remove the containers
-`docker ps --filter label=rehearse.service` lists. Server interruption detection
-does not clean up for you.
+`docker ps --all --filter label=rehearse.run=<run>` lists. Server interruption
+detection does not clean up for you.
 
 An initial checkpoint captures task setup and the stage-settings digest;
 accepted stages create subsequent checkpoints with target SHA, workflow state,
