@@ -1,6 +1,10 @@
 # Run workspace prototype
 
-An isolated UI proposal for exploring Rehearse's navigation. All records, charts,
+An isolated UI proposal for exploring Rehearse's navigation. The newer
+[connected desktop revision](../ux-comparison/README.md) combines these demo flows
+with the next Results, Context and Comparison layouts. Its README includes the
+separate server command for port 4493. This original remains available for
+comparison. All records, charts,
 transcripts, prices, and actions are synthetic. No product API, provider, or local
 corpus is connected. Changes last until reload. Opening this prototype does not change production records.
 

@@ -41,7 +41,7 @@ function render() {
 	document.body.dataset["mode"] = mode;
 	required("#zoom", HTMLButtonElement).textContent =
 		mode === "side" ? "Inspect After at 1:1" : "Inspect at 1:1";
-	openProposal.href = `after.html?screen=${scene}`;
+	openProposal.href = `saved-example.html?screen=${scene}`;
 	history.replaceState(null, "", `?screen=${scene}&mode=${mode}`);
 }
 

@@ -1,9 +1,4 @@
-# Desktop before-and-after review
-
-Matched comparisons for the four first-priority proposals in the
-[UX review](../../docs/ux-review.md). The current-product images are actual
-1440 × 900 captures at `900e5a57`; the proposed images use the same saved evidence
-in standalone HTML. The application remains unchanged.
+# Connected desktop prototype and visual comparison
 
 From the repository root:
 
@@ -11,37 +6,76 @@ From the repository root:
 python3 -m http.server 4493 --bind 127.0.0.1 --directory prototypes/ux-comparison
 ```
 
-Open <http://localhost:4493>. Select a screen, then switch **Before** / **After**
-to compare at the same scale, or choose **Side by side**. **Inspect at 1:1** opens
-the selected image at its natural size. Keys `1` / `2` switch before / after;
-left / right arrows change screens. Escape closes an inspector.
+Open **<http://localhost:4493/after.html>** for the connected prototype. It starts
+with a populated Runs list. The newer Results, Context & cost and Comparison
+layouts use the original workspace prototype's demo interaction model.
 
-**Open proposed screen** opens the standalone layout with working evidence
-inspectors and disclosures. Its navigation and action controls illustrate the
-proposal; they do not launch work, edit a corpus, or write application records.
+The connected prototype uses synthetic data throughout. Run controls, instruction
+edits, corpus versions, launches and human reviews change page memory only. Reload
+or Reset demo restores the initial records. No provider, application API, real
+corpus, settings file or experiment records are connected. Importing/creating task
+definitions and corpus filesystem operations are explicitly unavailable in this
+demo. Export definition downloads a clearly labeled synthetic JSON sketch; it is
+not an importable production task bundle.
 
-## Saved examples
+## Try complete journeys
 
-| Pair           | Current application route                                                                                           | Evidence retained in proposal                                                                                                                         |
-| -------------- | ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Run Results    | `/runs/2026-10-15T12-10-20.117Z?view=results&step=build`                                                            | r44 audit-log; final FAIL; three failed criteria; independent accepted Build B; whole-run and step costs                                              |
-| Replay Results | `/replays/8318df503e023369a8eb2d07048be050528106ee3a43c7765e13c3a5cdac5f4c/2026-10-14T16-17-14.161Z?view=results`   | r39 Shape B; saved scorecard and citations; two exploratory readings at the same input; execution, Product Owner and Judge costs                      |
-| Context & cost | `/groups/fc72ca8b-260e-4491-a507-48e1d4e523d5/reps/fc72ca8b-260e-4491-a507-48e1d4e523d5-rep-1/attempt?view=context` | g6 attempt 1; one recorded request; 3,298 input tokens; separate output; provider amount; unpriced calculation; 17 content gaps                       |
-| Comparison     | `/comparisons/251961d0a80a66646bb5efe2f7231c1b7654f5ae5b06c6b2c274dc21fa61c26e`                                     | triage-inbox-cut; 18 attempts; baseline/candidate/control identities; check outcomes; cost and reply-length readings; attribution and sampling limits |
+- Search **r37** in Runs. Open it, select Shape, switch to Context & cost, choose
+  requests, sources and receiving agents, then return to Results. The run and step
+  stay selected; the investigation is remembered for that run and step.
+- On an ended step, choose **Test an instruction**. Edit, review the diff, apply a
+  demo version and replay. Advance and finish the demo, open Results, then compare
+  with the source. Source input, corpus versions and the instruction diff stay
+  attached to the experiment.
+- Open Comparisons, inspect the supplied comparison, then an arm's group and an
+  individual attempt. Breadcrumbs and related links return to the comparison.
+  Extending the comparison adds inspectable demo attempts to all three groups.
+- Use **Search workspace** or `/` to find a run, case, instruction or comparison.
+  Case definitions and their related runs live under Cases; judge review lives in
+  Settings and is reachable from Results. Escape closes a dialog.
+- Launch a new demo run from a case, or advance/stop the running **r42**. Return to
+  Runs to see the changed state. Search and filters are retained during navigation.
 
-`selected-records.json` is a reviewed display snapshot, not a raw record export.
-It contains generic case findings, selected usage measurements and identities.
-It excludes complete transcripts, loaded private instructions and source-file bodies.
-Selected short quotations from the saved Judge citations are included verbatim.
-The captures were inspected for publication. Local `.benchmark-runs` files remain
-private and are unnecessary to serve the gallery.
+The [interaction contract](INTERACTIONS.md) records the flows being evaluated.
+The [original workspace prototype](../run-workspace/README.md) remains available
+at <http://localhost:4490>. Production UI behavior is unchanged.
 
-The after layouts are frozen design examples, not production components. Some
-labels and summaries are written for these particular records. Changing the
-example requires checking both the copy and `selected-records.json`, then
-recapturing the affected image at the same viewport. Missing evidence stays
-explicit: these screens do not calculate a new grade, invent transcript text,
-price an unknown model, or claim that equal checks prove equal quality.
+## Frozen before-and-after references
 
-Inter and JetBrains Mono are copied from the project's existing Fontsource
-packages; their SIL Open Font Licenses are in [FONT-LICENSES.txt](FONT-LICENSES.txt).
+Open <http://localhost:4493/> for the matched visual gallery. These captures
+illustrate the earlier four first-priority proposals in the
+[UX review](../../docs/ux-review.md); they are frozen references, rather than
+screenshots of the connected synthetic prototype.
+
+Select a screen and switch Before / After, Side by side, or Inspect at 1:1.
+Keys `1` / `2` switch before / after; arrows change screens. **Open saved-record
+example** opens `saved-example.html` with the matching evidence inspectors.
+The gallery links to the connected prototype for navigation testing.
+
+The current-product images are actual 1440×900 captures at `900e5a57`. The saved
+examples use the same selected evidence:
+
+| Pair           | Saved example                                                                                                                                         |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Run Results    | r44 audit-log; final FAIL; three failed criteria; independent accepted Build B; whole-run and step costs                                              |
+| Replay Results | r39 Shape B; saved scorecard and citations; two exploratory readings at the same input; execution, Product Owner and Judge costs                      |
+| Context & cost | g6 attempt 1; one recorded request; 3,298 input tokens; separate output; provider amount; unpriced calculation; 17 content gaps                       |
+| Comparison     | triage-inbox-cut; 18 attempts; baseline/candidate/control identities; check outcomes; cost and reply-length readings; attribution and sampling limits |
+
+`selected-records.json` belongs only to those frozen examples. It is a reviewed
+display snapshot, not a raw record export. It excludes complete transcripts,
+loaded private instructions and source-file bodies. Selected short quotations
+from saved Judge citations are included verbatim. Neither the captures nor their
+metadata are relabeled as synthetic; the connected demo does not use these real
+measurements to support invented transcripts.
+
+`after.html` is the connected prototype. Its inline script is outside the
+project's typecheck and lint scope and has no automated interaction tests. After
+changing it, rerun the manual journeys above in a browser, including Back/Forward
+and Reset demo, and inspect the console for errors. `connected-base.css` carries the original prototype's
+shared shell styles; `connected.css` carries the newer layout and type roles.
+`screens.js` and `screens.css` serve the frozen examples. Changes to a frozen
+example require checking its copy and snapshot, then recapturing at 1440×900.
+
+Inter and JetBrains Mono come from the project's Fontsource packages, under the
+SIL Open Font Licenses in [FONT-LICENSES.txt](FONT-LICENSES.txt).

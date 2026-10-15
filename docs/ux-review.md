@@ -5,7 +5,10 @@ pass. The [desktop run workspace](run-workspace.md) remains the accepted design.
 The [before-and-after gallery](../prototypes/ux-comparison/README.md) compares the
 four first-priority proposals with actual current-product captures using the same
 saved evidence. The earlier [visual review](ux-review.html) contains illustrative
-sketches rather than matched captures.
+sketches rather than matched captures. The
+[connected prototype](../prototypes/ux-comparison/after.html) uses synthetic records
+to exercise navigation and experiment journeys; the matched captures remain frozen
+references.
 
 Rehearse helps an engineer decide whether changing an instruction improves the
 agent's work at an acceptable cost. The interface should help them find a result,

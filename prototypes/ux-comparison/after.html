@@ -3,20 +3,2897 @@
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<title>Rehearse · Proposed desktop screen</title>
-		<link rel="stylesheet" href="screens.css" />
-		<script type="module" src="screens.js"></script>
+		<title>Rehearse · Connected desktop prototype</title>
+		<link rel="stylesheet" href="connected-base.css" />
+		<link rel="stylesheet" href="connected.css" />
 	</head>
 	<body>
+		<a class="skip" href="#main">Skip to content</a>
 		<div id="app"></div>
-		<dialog id="inspector" aria-labelledby="inspector-title">
-			<header>
-				<h2 id="inspector-title"></h2>
-				<button id="close-inspector" aria-label="Close inspector">
-					Close <kbd>Esc</kbd>
-				</button>
-			</header>
-			<div id="inspector-body"></div>
-		</dialog>
+		<dialog id="dialog" aria-labelledby="dialog-title"></dialog>
+		<div id="toast" role="status" aria-live="polite"></div>
+		<script>
+			const requestedScreen = new URLSearchParams(location.search).get(
+				"screen",
+			);
+			if (!location.hash && requestedScreen) {
+				const entries = {
+					results: "/runs/r37/results/build",
+					attempt: "/runs/r39/results/shape",
+					context: "/runs/r41/context/build",
+					comparison: "/compare/cmp1",
+				};
+				history.replaceState(
+					null,
+					"",
+					location.pathname +
+						"#" +
+						(Object.hasOwn(entries, requestedScreen)
+							? entries[requestedScreen]
+							: "/runs"),
+				);
+			}
+
+			const initialRuns = [
+				{
+					id: "r42",
+					case: "audit-log",
+					title: "Add a paginated audit log",
+					kind: "Pipeline",
+					state: "running",
+					cost: 3.42,
+					time: "8m 24s",
+					version: "0a78c2",
+					grade: "Pending",
+					step: "build",
+					when: "Today, 14:32",
+					note: "Build is running · Shape accepted",
+					progress: 1,
+				},
+				{
+					id: "r41",
+					case: "audit-log",
+					title: "Add a paginated audit log",
+					kind: "Pipeline",
+					state: "completed",
+					cost: 4.86,
+					time: "12m 08s",
+					version: "0a78c2",
+					grade: "B",
+					step: "build",
+					when: "Today, 13:48",
+					note: "Accepted · all checks passed",
+					progress: 2,
+				},
+				{
+					id: "r40",
+					case: "audit-log",
+					title: "Add a paginated audit log",
+					kind: "Pipeline",
+					state: "stopped",
+					cost: 1.73,
+					time: "5m 43s",
+					version: "7733aa",
+					grade: "C",
+					step: "shape",
+					when: "Today, 12:10",
+					note: "Stopped at Shape · below minimum B",
+					progress: 0,
+				},
+				{
+					id: "g8",
+					case: "audit-log",
+					title: "Shape · shortened review instructions",
+					kind: "Group",
+					state: "completed",
+					cost: 5.4,
+					time: "7m 12s",
+					version: "0a78c2",
+					grade: "3/3 accepted",
+					step: "shape",
+					when: "Yesterday, 17:20",
+					note: "3 attempts · checkpoint cp-a7 · candidate",
+					progress: 1,
+				},
+				{
+					id: "g7",
+					case: "audit-log",
+					title: "Shape · original review instructions",
+					kind: "Group",
+					state: "completed",
+					cost: 7.26,
+					time: "8m 06s",
+					version: "7733aa",
+					grade: "3/3 accepted",
+					step: "shape",
+					when: "Yesterday, 16:40",
+					note: "3 attempts · checkpoint cp-a7 · before edit",
+					progress: 1,
+				},
+				{
+					id: "r39",
+					noTranscript: true,
+					case: "audit-log",
+					title: "Replay Shape from r35",
+					kind: "Replay",
+					state: "completed",
+					cost: 1.95,
+					time: "6m 00s",
+					version: "0a78c2",
+					grade: "B",
+					step: "shape",
+					when: "Yesterday, 16:17",
+					note: "From r35 / Shape · checkpoint cp-a7",
+					progress: 1,
+				},
+				{
+					id: "s12",
+					case: "brief-reply",
+					title: "Keep a technical reply concise",
+					kind: "Session",
+					state: "completed",
+					cost: 0.08,
+					time: "24s",
+					version: "0a78c2",
+					grade: "Passed",
+					step: "session",
+					when: "Yesterday, 15:02",
+					note: "3 of 3 deterministic checks passed",
+					progress: 1,
+				},
+				{
+					id: "s11",
+					case: "brief-reply",
+					title: "Keep a technical reply concise",
+					kind: "Session",
+					state: "stopped",
+					cost: 0,
+					time: "—",
+					version: "7733aa",
+					grade: "Unavailable",
+					step: "session",
+					when: "Time not recorded",
+					note: "Invocation failed · no reply or usage recorded",
+					progress: 0,
+					missing: true,
+				},
+			];
+			initialRuns.splice(2, 0, {
+				...initialRuns[1],
+				id: "r37",
+				finalOutcome: "FAIL",
+				cost: 4.55,
+				time: "11m 14s",
+				when: "Today, 13:16",
+				note: "Final FAIL · both steps accepted · empty-page contract missing",
+			});
+			function finalReading(run) {
+				if (run.kind !== "Pipeline") return run.grade;
+				if (run.state === "running") return "Pending";
+				if (run.state !== "completed") return "Not reached";
+				return run.finalOutcome || "PASS";
+			}
+			function elapsedLabel(seconds) {
+				return (
+					Math.floor(seconds / 60) +
+					"m " +
+					String(seconds % 60).padStart(2, "0") +
+					"s"
+				);
+			}
+			function elapsedSeconds(time) {
+				const parts = time.match(/(?:(\d+)m )?(\d+)s/);
+				if (!parts) return 0;
+				return Number(parts[1] || 0) * 60 + Number(parts[2]);
+			}
+			function initializeReadings(run) {
+				if (run.kind === "Group") return run;
+				if (run.kind === "Pipeline") {
+					if (run.step === "shape") {
+						run.stepReadings = {
+							shape: { cost: run.cost, seconds: elapsedSeconds(run.time) },
+						};
+						return run;
+					}
+					run.stepReadings = {
+						shape: { cost: 1.18, seconds: 252 },
+						build: {
+							cost: Math.max(0, run.cost - 1.18),
+							seconds: Math.max(0, elapsedSeconds(run.time) - 252),
+						},
+					};
+					return run;
+				}
+				run.stepReadings = {
+					[run.step]: { cost: run.cost, seconds: elapsedSeconds(run.time) },
+				};
+				return run;
+			}
+			function stepMetrics(run, step) {
+				const phase = stepPhase(run, step),
+					reading = run.stepReadings?.[step];
+				if (phase === "queued")
+					return { cost: "Pending", time: "Not started", value: 0 };
+				if (phase === "unavailable" || !reading)
+					return { cost: "Unavailable", time: "Not recorded", value: 0 };
+				return {
+					cost: money(reading.cost),
+					time:
+						elapsedLabel(reading.seconds) +
+						(phase === "running" ? " so far" : ""),
+					value: reading.cost,
+				};
+			}
+			function finishReadings(run) {
+				const ceiling = run.budget || 10;
+				if (run.kind === "Pipeline") {
+					const total = Math.min(4.86, ceiling),
+						shape = Math.min(1.18, total * 0.25);
+					run.stepReadings = {
+						shape: { cost: shape, seconds: 252 },
+						build: { cost: total - shape, seconds: 476 },
+					};
+					run.cost = total;
+					run.time = "12m 08s";
+					run.step = "build";
+					run.progress = 2;
+					return;
+				}
+				const cost = Math.min(run.step === "session" ? 0.08 : 1.8, ceiling),
+					seconds = run.step === "session" ? 24 : 360;
+				run.stepReadings = { [run.step]: { cost, seconds } };
+				run.cost = cost;
+				run.time = elapsedLabel(seconds);
+				run.progress = 1;
+			}
+			initialRuns.splice(3, 0, {
+				...initialRuns[1],
+				id: "r36",
+				finalOutcome: "Judging failed",
+				cost: 4.64,
+				time: "12m 10s",
+				when: "Today, 12:45",
+				note: "Final judge failed · no verdict returned",
+			});
+			function finalReport(run) {
+				if (run.kind !== "Pipeline") return "";
+				const outcome = finalReading(run);
+				const descriptions = {
+					FAIL: "The final artifact omits a required response field, although both workflow steps were accepted.",
+					PASS: "The final artifact meets the task rubric. Step grades remain independent evidence.",
+					Pending: "The workflow has not reached the independent final Judge.",
+					"Judging failed":
+						"The final Judge did not return a verdict. This is missing evidence, not a failed task.",
+					"Not reached":
+						"Execution ended before final judging. Accepted step grades remain inspectable.",
+				};
+				return `<section class="panel connected-outcome ${outcome === "FAIL" ? "failed" : ""}"><div><div class="row"><span class="badge ${outcome === "FAIL" ? "stopped" : ""}">${esc(outcome)}</span><h2>Final task result</h2></div><p>${descriptions[outcome]}</p></div>${["PASS", "FAIL"].includes(outcome) ? btn("Inspect final evidence", "final-evidence", "primary") : `<a class="btn" href="${runHref(run, "activity")}">Inspect activity</a>`}</section>`;
+			}
+
+			function costReading(groupId) {
+				const costs = state.runs
+					.filter((item) => item.parent === groupId)
+					.map((item) => item.cost);
+				return (
+					money(costs.reduce((a, b) => a + b, 0) / costs.length) +
+					" · " +
+					money(Math.min(...costs)) +
+					"–" +
+					money(Math.max(...costs))
+				);
+			}
+			const comparisonArmIds = ["g7", "g8", "g6"];
+			const isAccepted = (run) =>
+				run.state === "completed" && ["A", "B", "Passed"].includes(run.grade);
+			const initialInstruction =
+				"Read the relevant evidence once. Give each reviewer the shared evidence, then inspect only the findings that need verification.";
+			function initialState() {
+				return {
+					defaultBudget: 10,
+					reviews: {},
+					reviewTarget: null,
+					runs: structuredClone(initialRuns).map(initializeReadings),
+					filter: "All",
+					search: "",
+					selectedStep: {},
+					investigations: {},
+					contextKey: null,
+					source: "all",
+					agent: "parent",
+					request: 1,
+					follow: true,
+					caseTab: "Overview",
+					settingsTab: "General",
+					version: "0a78c2",
+					instructionFiles: {},
+					editPath: "skills/review/SKILL.md",
+					editContext: null,
+					lastEdit: null,
+					launchSource: null,
+					lastStepRoute: null,
+					review: "B",
+					versionCounter: 0,
+				};
+			}
+			const state = initialState();
+			const $ = (selector) => document.querySelector(selector);
+			const esc = (text) =>
+				String(text)
+					.replaceAll("&", "&amp;")
+					.replaceAll("<", "&lt;")
+					.replaceAll(">", "&gt;")
+					.replaceAll('"', "&quot;")
+					.replaceAll("'", "&#39;");
+			const money = (value) => "$" + value.toFixed(2);
+			const icons = {
+				runs: '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
+				compare: '<path d="M3 3v18M21 3v18M7 7h10l-3-3m3 13H7l3 3"/>',
+				cases:
+					'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 5V3h8v2M3 11h18"/>',
+				corpus:
+					'<path d="M4 3h13a3 3 0 0 1 3 3v15H7a3 3 0 0 1-3-3zM7 16h13M8 7h8M8 11h6"/>',
+				settings:
+					'<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/>',
+			};
+			const icon = (name) =>
+				'<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' +
+				icons[name] +
+				"</svg>";
+			const badge = (run) =>
+				'<span class="badge ' +
+				run.state +
+				'">' +
+				{
+					running: "● Running",
+					completed: "✓ Completed",
+					stopped: "■ Stopped",
+					paused: "Ⅱ Paused",
+				}[run.state] +
+				"</span>";
+			const btn = (label, action, kind = "") =>
+				'<button class="btn ' +
+				kind +
+				'" data-action="' +
+				action +
+				'">' +
+				label +
+				"</button>";
+			const notice = (text, warning = false) =>
+				'<div class="notice ' +
+				(warning ? "warn-note" : "") +
+				'">' +
+				text +
+				"</div>";
+			const route = () =>
+				(location.hash.slice(1) || "/runs").split("/").filter(Boolean);
+			const runView = (run, view) =>
+				["overview", "report", "results"].includes(view)
+					? "results"
+					: ["activity", "context"].includes(view)
+						? view
+						: run?.state === "running"
+							? "activity"
+							: "results";
+
+			const runHref = (run, view) =>
+				"#/runs/" + run.id + "/" + runView(run, view);
+
+			const getRun = () => state.runs.find((run) => run.id === route()[1]);
+			const stepsFor = (run) =>
+				run.kind === "Pipeline" || run.groupMode === "pipeline"
+					? ["shape", "build"]
+					: [run.step];
+			const selectedStep = (run) => state.selectedStep[run.id] || run.step;
+			const stat = (label, value, note = "") =>
+				'<div class="stat"><span class="label">' +
+				label +
+				"</span><strong>" +
+				value +
+				'</strong><small class="muted">' +
+				note +
+				"</small></div>";
+			function shell(content) {
+				const section = route()[0];
+				const nav = [
+					["runs", "Runs"],
+					["compare", "Comparisons"],
+					["cases", "Cases"],
+					["corpus", "Corpus"],
+					["settings", "Settings"],
+				];
+				const running = state.runs.filter(
+					(run) => run.state === "running" && !run.parent,
+				).length;
+				return (
+					'<div class="app"><aside class="sidebar"><a class="brand" href="#/runs">Rehearse <span class="brand-note">connected demo</span></a><a class="corpus-card" href="#/corpus"><span class="eyebrow">Corpus under test</span><span class="mono">corpus@' +
+					state.version +
+					'</span><small class="muted">137 files · demo snapshot</small></a><nav class="global-nav" aria-label="Main navigation">' +
+					nav
+						.map(
+							([id, label]) =>
+								'<a class="nav-link ' +
+								(section === id ? "active" : "") +
+								'" ' +
+								(section === id ? 'aria-current="page"' : "") +
+								' href="#/' +
+								id +
+								'">' +
+								icon(id) +
+								label +
+								(id === "runs" && running
+									? '<span class="count">' + running + " live</span>"
+									: "") +
+								"</a>",
+						)
+						.join("") +
+					'</nav><button class="btn global-search" data-action="search-global">Search workspace <kbd>/</kbd></button><div class="sidebar-bottom"><span class="eyebrow">Prototype</span><p>Synthetic records.<br>Actions change this demo only.</p><button class="btn" data-action="reset">Reset demo</button></div></aside><main class="main" id="main" tabindex="-1"><div class="prototype-bar"><span><strong>Interactive prototype</strong> · synthetic data · actions are simulated</span><a href="index.html">Before & after gallery ↗</a></div><div class="content ' +
+					(section === "runs" && getRun() ? "workspace-content" : "") +
+					'" data-view="' +
+					esc(runView(getRun(), route()[2])) +
+					'">' +
+					content +
+					"</div></main>" +
+					liveStrip() +
+					"</div>"
+				);
+			}
+			function runCeiling(run) {
+				return (run.budget || 10) * (run.kind === "Group" ? run.count || 3 : 1);
+			}
+			function liveStrip() {
+				const live = state.runs.filter(
+					(run) => run.state === "running" && !run.parent,
+				);
+				if (!live.length) return "";
+				const run = live[0];
+				return (
+					'<footer class="live-strip" aria-label="Active runs"><span class="live">●</span><a class="mono" href="' +
+					runHref(run, "activity") +
+					'">' +
+					run.id +
+					"</a><span>" +
+					esc(run.case) +
+					'</span><span class="strip-divider">' +
+					esc(run.step) +
+					' · running</span><span class="mono">' +
+					money(run.cost) +
+					'<span class="muted"> / ' +
+					money(runCeiling(run)) +
+					'</span></span><span class="mini-meter" aria-hidden="true"><i style="--value:' +
+					Math.min(100, (run.cost / runCeiling(run)) * 100) +
+					'%"></i></span><span class="mono muted">' +
+					run.time +
+					'</span><span class="strip-end">' +
+					(live.length > 1
+						? '<a href="#/runs">' + live.length + " active runs</a>"
+						: "") +
+					'<a class="btn" href="' +
+					runHref(run, "activity") +
+					'">Open activity →</a></span></footer>'
+				);
+			}
+			function runTable(runs) {
+				return (
+					'<div class="table-scroll"><table class="history-table"><thead><tr><th scope="col">Run</th><th scope="col">Case</th><th scope="col">Status</th><th scope="col">Step grades</th><th scope="col">Outcome</th><th scope="col">Corpus</th><th scope="col">Cost</th><th scope="col">Wall</th></tr></thead><tbody>' +
+					runs.map(runRow).join("") +
+					"</tbody></table></div>"
+				);
+			}
+
+			function runRow(run) {
+				const grades =
+					run.kind === "Group"
+						? run.grade
+						: stepsFor(run)
+								.map((step) => step + " " + stepGrade(run, step))
+								.join(" · ");
+				return (
+					'<tr class="' +
+					(run.state === "running" ? "active-run" : "") +
+					'"><th scope="row"><a class="mono" href="' +
+					runHref(run) +
+					'">' +
+					run.id +
+					'</a><small class="muted">' +
+					run.when +
+					'</small></th><td><a class="case-link mono" href="' +
+					runHref(run) +
+					'">' +
+					esc(run.case) +
+					'</a><small class="muted">' +
+					run.kind +
+					"</small></td><td>" +
+					badge(run) +
+					'<small class="muted row-note">' +
+					run.note +
+					'</small></td><td class="mono step-grades">' +
+					grades +
+					'</td><td><span class="mono">' +
+					finalReading(run) +
+					'</span><small class="muted">' +
+					(run.kind === "Pipeline"
+						? "independent final judge"
+						: run.kind === "Group"
+							? "repeated attempts"
+							: run.kind === "Replay"
+								? "step only"
+								: "deterministic checks") +
+					'</small></td><td><span class="mono">' +
+					run.version +
+					'</span><small class="muted">' +
+					(run.version === state.version
+						? "✓ Current corpus"
+						: "◐ Corpus changed") +
+					'</small></td><td class="mono numeric">' +
+					(run.missing ? "Unavailable" : money(run.cost)) +
+					'</td><td class="mono numeric">' +
+					run.time +
+					"</td></tr>"
+				);
+			}
+
+			function runsPage() {
+				const indexed = state.runs
+					.filter((run) => !run.parent)
+					.sort(
+						(left, right) =>
+							Number(right.state === "running") -
+							Number(left.state === "running"),
+					);
+				const live = indexed.filter((run) => run.state === "running");
+				const filtered = indexed.filter((run) => {
+					let matches = true;
+					switch (state.filter) {
+						case "All":
+							break;
+						case "Running":
+							matches = run.state === "running";
+							break;
+						case "Failed":
+							matches =
+								finalReading(run) === "FAIL" ||
+								(run.grade === "C" && run.state !== "running");
+							break;
+						case "Stopped":
+							matches = ["stopped", "paused"].includes(run.state);
+							break;
+						case "Current corpus":
+							matches = run.version === state.version;
+							break;
+						default:
+							matches = run.kind === state.filter;
+					}
+					return (
+						matches &&
+						[run.case, run.title, run.id, run.version, run.note]
+							.join(" ")
+							.toLowerCase()
+							.includes(state.search.toLowerCase())
+					);
+				});
+				return (
+					'<header class="page-head"><div><h1>Runs</h1><p>Follow a run. Inspect its evidence. Test the next change.</p></div>' +
+					btn("+ New run", "launch", "primary") +
+					"</header>" +
+					'<div class="toolbar"><div class="row gap2" role="group" aria-label="Filter runs">' +
+					[
+						"All",
+						"Running",
+						"Failed",
+						"Stopped",
+						"Group",
+						"Replay",
+						"Session",
+						"Current corpus",
+					]
+						.map(
+							(f) =>
+								'<button class="chip" data-filter="' +
+								f +
+								'" aria-pressed="' +
+								(state.filter === f) +
+								'">' +
+								({ Group: "Groups", Replay: "Replays", Session: "Sessions" }[
+									f
+								] || f) +
+								"</button>",
+						)
+						.join("") +
+					'</div><label class="search"><input id="search" type="search" aria-label="Search runs" placeholder="Search case, run, corpus…" value="' +
+					esc(state.search) +
+					'" /></label></div><section class="panel" aria-label="Run history"><div class="panel-head"><h2>History</h2><span class="small muted">' +
+					filtered.length +
+					" records · " +
+					live.length +
+					' running · newest first</span></div><div id="run-rows">' +
+					(filtered.length
+						? runTable(filtered)
+						: '<div class="empty"><h2>No matching runs</h2><p>Try another case, corpus version, or filter.</p></div>') +
+					'</div></section><p class="muted small" style="margin-top:var(--s4)">Synthetic examples include missing evidence and failed invocations. A missing measurement is never zero.</p>'
+				);
+			}
+			function stepPhase(run, step) {
+				if (run.missing) return "unavailable";
+				if (step === "build" && run.step === "shape" && run.progress < 2)
+					return "queued";
+				if (run.state === "running" && step === run.step) return "running";
+				if (run.state === "stopped" && step === run.step)
+					return run.grade === "Not judged" ? "unjudged" : "stopped";
+				return "accepted";
+			}
+			function stepGrade(run, step) {
+				if (run.kind === "Group")
+					return run.grade === "Not judged" ? "?" : run.grade.split(" ")[0];
+				return {
+					unavailable: "?",
+					queued: "—",
+					running: "…",
+					unjudged: "?",
+					stopped: "C",
+					accepted: step === "session" ? "✓" : "B",
+				}[stepPhase(run, step)];
+			}
+			function stepSummary(run, step) {
+				if (run.kind === "Group")
+					return [
+						run.state === "running"
+							? "● Running"
+							: run.state === "stopped"
+								? "■ Stopped"
+								: "✓ Repetitions ended",
+						"Open attempts · " + run.grade,
+					];
+				return {
+					unavailable: ["No session", "Invocation failed"],
+					queued: ["○ Not reached", "No session or checkpoint"],
+					running: [
+						"● Running",
+						step === "shape"
+							? "Reading the case and brief"
+							: step === "session"
+								? "Answering the frozen prompt"
+								: "Implementing cursor pagination",
+					],
+					unjudged: ["■ Stopped", "No grade recorded"],
+					stopped: ["■ Stopped", "Below minimum B"],
+					accepted: [
+						"✓ Accepted",
+						step === "shape"
+							? "4 criteria · 1 plan"
+							: step === "session"
+								? "3 checks passed"
+								: "2 commits · 8 files changed",
+					],
+				}[stepPhase(run, step)];
+			}
+			function spendBand(run) {
+				const ceiling = runCeiling(run),
+					used = Math.min(100, (run.cost / ceiling) * 100),
+					seconds = elapsedSeconds(run.time);
+				return (
+					'<section class="spend-band" aria-label="Run measurements"><div class="spend-readings"><div class="spend-main"><span class="eyebrow">Spent this run</span><div><strong class="mono">' +
+					(run.missing ? "Unavailable" : money(run.cost)) +
+					'</strong><span class="muted small"> of ' +
+					money(ceiling) +
+					" ceiling</span></div></div>" +
+					stat(
+						"Elapsed",
+						run.time,
+						run.state === "running"
+							? "so far · demo clock"
+							: "recorded wall time",
+					) +
+					stat(
+						"Average spend / min",
+						run.missing || !seconds
+							? "Unavailable"
+							: money((run.cost / seconds) * 60),
+						"run spend ÷ elapsed time",
+					) +
+					stat(
+						run.kind === "Pipeline"
+							? "Final outcome"
+							: run.kind === "Replay"
+								? "Step grade"
+								: "Outcome",
+						finalReading(run),
+						run.state === "running"
+							? "pending while running"
+							: run.kind === "Pipeline"
+								? "independent of step letters"
+								: run.note,
+					) +
+					stat(
+						"Corpus",
+						run.version,
+						run.version === state.version
+							? "Current snapshot"
+							: "Changed since this run",
+					) +
+					"</div>" +
+					(run.missing
+						? '<p class="small muted">Usage was not recorded.</p>'
+						: '<div class="spend-meter" role="img" aria-label="Spent ' +
+							money(run.cost) +
+							" of " +
+							money(ceiling) +
+							' ceiling"><span style="--value:' +
+							used +
+							'%"></span></div><div class="spend-scale mono"><span>$0.00</span><span>' +
+							Math.round(used) +
+							"% of ceiling used · " +
+							(run.state === "running"
+								? "simulated spend"
+								: "recorded demo total") +
+							"</span><span>" +
+							money(ceiling) +
+							"</span></div>") +
+					"</section>"
+				);
+			}
+
+			const instructionPath = (step) =>
+				step === "session" ? "output-style.md" : "skills/" + step + "/SKILL.md";
+			const stepArtifacts = (step) => ({
+				input:
+					step === "session"
+						? "prompt.md"
+						: step === "build"
+							? "plan.md"
+							: "product-brief.md",
+				output:
+					step === "session"
+						? "reply.txt"
+						: step === "build"
+							? "delivery.md"
+							: "plan.md",
+			});
+			const frozenInput = (run, step) =>
+				stepPhase(run, step) === "queued"
+					? "Not available · step not reached"
+					: run.inputCheckpoint ||
+						(step === "session"
+							? "Frozen prompt + fixture"
+							: step === "build"
+								? "cp-b8 · target@6d4a2f"
+								: "cp-a7 · target@6d4a2f");
+			const canReplay = (run, step) =>
+				!run.missing &&
+				!["queued", "running", "unavailable"].includes(stepPhase(run, step)) &&
+				(run.kind !== "Group" || run.state !== "running");
+			const canCompare = (run) =>
+				!!run.comparisonSource && !run.parent && run.state === "completed";
+			function editSourceSummary() {
+				const source = state.editContext;
+				return source
+					? '<dl class="definition"><dt>Source</dt><dd>' +
+							source.id +
+							" / " +
+							source.step +
+							'</dd><dt>Instruction</dt><dd class="mono">' +
+							esc(source.path) +
+							'</dd><dt>Frozen input</dt><dd class="mono">' +
+							esc(source.input) +
+							'</dd><dt>Source corpus</dt><dd class="mono">' +
+							source.version +
+							"</dd></dl>"
+					: '<p class="muted">No source step selected. After applying, choose a saved step in Runs to test this corpus version.</p>';
+			}
+			function instructionFile() {
+				const defaults = {
+					"AGENTS.md":
+						"Read the task brief before changing the target. Preserve the public response contract, run the boundary checks, and report the observed evidence.",
+					"skills/shape/SKILL.md":
+						"Read the brief and existing contracts. Preserve settled behavior and make acceptance criteria observable.",
+					"skills/build/SKILL.md":
+						"Implement the accepted plan. Verify boundary behavior and deliver the evidence from the target checks.",
+					"output-style.md":
+						"Answer concisely while preserving the required technical details.",
+				};
+				return (state.instructionFiles[state.editPath] ||= {
+					text: defaults[state.editPath] || initialInstruction,
+					draft: defaults[state.editPath] || initialInstruction,
+				});
+			}
+			function snapshotStep(run, step) {
+				const attempts =
+					run.kind === "Group"
+						? state.runs.filter((item) => item.parent === run.id)
+						: [run];
+				const observations = attempts.map((item) => {
+					const phase = stepPhase(item, step);
+					return {
+						id: item.id,
+						phase,
+						grade: stepGrade(item, step),
+						cost: item.stepReadings?.[step]?.cost ?? null,
+						seconds: item.stepReadings?.[step]?.seconds ?? null,
+					};
+				});
+				return {
+					id: run.id,
+					kind: run.kind,
+					finalOutcome: run.kind === "Pipeline" ? finalReading(run) : null,
+					case: run.case,
+					version: run.version,
+					step,
+					input: frozenInput(run, step),
+					path: instructionPath(step),
+					observations,
+				};
+			}
+			function nextExperiment(run, step) {
+				if (!canCompare(run)) return "";
+				return (
+					'<section class="panel experiment-next"><div><h2>Compare this replay</h2><p class="muted small">' +
+					run.sourceId +
+					" / " +
+					step +
+					' stays the source. Compare the recorded attempts before choosing another change.</p></div><a class="btn primary" href="#/compare/' +
+					run.id +
+					'">Compare with source →</a></section>'
+				);
+			}
+
+			function results(run, step) {
+				if (run.kind === "Group")
+					return `<div class="stack">${groupOverview(run)}${nextExperiment(run, step)}${runSetup(run, step)}</div>`;
+				if (run.missing)
+					return `<div class="stack">${unavailable(run, step)}<section class="panel pad"><h2>Attempt preserved</h2><p>No reply, usage or quality verdict was recorded.</p><a href="#/cases/${run.case}">Inspect case inputs →</a></section></div>`;
+				const phase = stepPhase(run, step),
+					metrics = stepMetrics(run, step);
+				const accepted = phase === "accepted";
+				const grade = stepGrade(run, step);
+				const related = state.runs.filter(
+					(item) => item.sourceId === run.id && item.step === step,
+				);
+				const assessed = ["accepted", "stopped"].includes(phase);
+				const summaries = {
+					running:
+						"This step is running. Its grade and final output are pending.",
+					unjudged:
+						"The operator stopped this step before judging. Partial activity is retained; no quality verdict is inferred.",
+					queued: "This step has not started.",
+					accepted:
+						"The selected step meets its acceptance threshold. Inspect the supporting checks and citations below.",
+					stopped:
+						"The selected step stopped below its minimum grade. Its evidence remains available.",
+				};
+				return `<div class="stack">${run.noTranscript ? unavailable(run, step) : ""}<div class="result-layout"><div class="stack">${run.kind === "Pipeline" && finalReading(run) === "FAIL" ? `<section class="panel"><header class="panel-head"><h2>Why the final work failed</h2><span class="badge stopped">1 failed criterion</span></header><div class="finding"><h3>Empty-page response contract</h3><p>The response contains an empty items array and nextCursor, but omits hasMore. The public contract requires all three fields on every page.</p><div class="row"><code>delivery.md:32–36</code>${btn("View citation ↗", "final-evidence")}</div></div><details class="pad"><summary>Passed task criteria</summary><p class="muted">Stable cursor ordering, input validation and pagination on non-empty pages passed.</p>${btn("Open final artifact", "artifact:delivery.md")}</details></section>` : ""}<section class="panel"><header class="panel-head"><h2>${step[0].toUpperCase() + step.slice(1)} assessment</h2><span class="badge">${grade} · ${accepted ? "accepted" : phase}</span></header><div class="pad stack"><p class="result-summary">${summaries[phase]}</p>${assessed ? checks({ ...run, state: accepted ? "completed" : "stopped" }) : `<a class="btn" href="${runHref(run, "activity")}/${step}">Open activity →</a>`}</div></section><details class="panel pad"><summary>Full assessment, artifacts & analysis</summary>${report(run, step)}</details>${nextExperiment(run, step)}</div><aside class="stack"><section class="panel pad stack"><h2>Selected step · ${esc(step)}</h2><div class="selected-grade"><strong class="mono">${grade}</strong><span class="badge">${step === "session" ? "Deterministic checks" : "Minimum B"}</span></div><div class="reading-row"><span>Step spend</span><strong class="mono">${metrics.cost}</strong></div><div class="reading-row"><span>Step elapsed</span><span class="mono">${metrics.time}</span></div><p class="small muted">Step acceptance and final task outcome are graded independently.</p>${btn("Inputs & output", "inspect-step")}${assessed ? btn("Review this Judge", "review-grade") : ""}${canReplay(run, step) ? `${btn("Replay " + step, "replay")}${btn("Test an instruction", "edit-instruction", "primary")}` : ""}<a href="#/cases/${run.case}">Open case definition →</a></section><section class="panel pad stack"><h2>Related attempts</h2>${run.sourceId ? `<a href="#/runs/${run.sourceId}/results/${step}">Source ${run.sourceId} · ${step} →</a>` : ""}${run.parent ? `<a href="#/runs/${run.parent}/results">Back to group ${run.parent} →</a>` : ""}${related.map((item) => `<a href="${runHref(item)}">${item.id} · ${item.kind} · ${esc(item.grade)} →</a>`).join("")}${!related.length && !run.parent && !run.sourceId ? '<p class="muted">No replay at this input yet. Replay this step to start an exploratory comparison.</p>' : ""}${comparisonArmIds.includes(run.parent || "") ? '<a href="#/compare/cmp1">Return to comparison →</a>' : ""}</section></aside></div>${runSetup(run, step)}</div>`;
+			}
+
+			function runSetup(run, step) {
+				return (
+					'<details class="panel pad"><summary>Run setup & provenance</summary><dl class="definition setup-details"><dt>Case</dt><dd><a href="#/cases/' +
+					run.case +
+					'">' +
+					run.case +
+					'</a></dd><dt>Corpus</dt><dd class="mono">corpus@' +
+					run.version +
+					'</dd><dt>Model</dt><dd>sonnet · fixed effort</dd><dt>Frozen input</dt><dd class="mono">' +
+					esc(frozenInput(run, step)) +
+					"</dd><dt>Grading</dt><dd>" +
+					(step === "session"
+						? "3 deterministic checks"
+						: "Step judge" +
+							(run.kind === "Pipeline" || run.groupMode === "pipeline"
+								? " + independent final rubric"
+								: "")) +
+					"</dd>" +
+					(run.sourceId
+						? '<dt>Replayed from</dt><dd><a href="#/runs/' +
+							run.sourceId +
+							"/results/" +
+							run.step +
+							'">' +
+							run.sourceId +
+							" / " +
+							run.step +
+							"</a></dd>"
+						: "") +
+					"</dl></details>"
+				);
+			}
+			function compactSteps(run) {
+				return `<div class="compact-workflow"><span class="eyebrow">${run.kind === "Session" ? "Session" : "Workflow"}</span>${stepsFor(
+					run,
+				)
+					.map(
+						(step, index) =>
+							`<a class="compact-step ${selectedStep(run) === step ? "selected" : ""}" href="${runHref(run, route()[2])}/${step}" ${selectedStep(run) === step ? 'aria-current="step"' : ""}><span>${String(index + 1).padStart(2, "0")} · ${esc(step)}</span><span class="mono">${stepGrade(run, step)}</span><small>${stepSummary(run, step)[0]}</small></a>`,
+					)
+					.join(
+						'<span class="muted">→</span>',
+					)}<button class="btn workflow-info" data-action="workflow-details">Workflow details</button></div>`;
+			}
+			function workspace(run, view = "results") {
+				const step = selectedStep(run);
+				const running = run.state === "running";
+				const parent = state.runs.find((item) => item.id === run.parent);
+				const comparisonLink = comparisonArmIds.includes(run.parent || run.id)
+					? '<a href="#/compare/cmp1">Comparison</a><span>/</span>'
+					: "";
+				return `<div class="breadcrumbs"><a href="#/runs">← Runs</a><span>/</span>${comparisonLink}${parent ? `<a href="${runHref(parent)}">${esc(parent.id)}</a><span>/</span>` : ""}<a href="#/cases/${run.case}">${esc(run.case)}</a><span>/</span><span class="mono">${run.id}</span></div><header class="run-header"><div><h1><span class="mono">${run.id}</span> ${esc(run.title)}</h1><div class="row gap2">${badge(run)}<span class="muted">${run.kind} · sonnet · fixed effort · corpus@${run.version}</span>${run.kind === "Pipeline" && run.state === "completed" ? '<span class="badge">Human review ' + (Object.keys(state.reviews).some((key) => key.startsWith(run.id + "/")) ? "recorded" : "pending") + "</span>" : ""}</div></div><div class="header-measurements"><button class="header-cost" data-action="spend-details" aria-label="Inspect run spend and budget"><strong class="mono">${run.missing ? "Unavailable" : money(run.cost)}</strong><small>whole ${run.kind === "Group" ? "group" : "run"}</small></button><div><strong class="mono">${run.time}</strong><small>elapsed</small></div>${running ? `<div class="row">${btn(run.pauseRequested ? "Pause requested" : "Pause after step", "pause")}${btn("Stop", "stop", "danger")}</div>` : ""}</div></header><nav class="view-nav" aria-label="Run views">${[
+					["results", run.kind === "Group" ? "Attempts & results" : "Results"],
+					["activity", "Activity" + (running ? " · live" : "")],
+					["context", "Context & cost"],
+				]
+					.map(
+						([key, label]) =>
+							`<a href="${runHref(run, key)}/${step}" class="${view === key ? "active" : ""}" ${view === key ? 'aria-current="page"' : ""}>${label}</a>`,
+					)
+					.join(
+						"",
+					)}</nav>${view === "results" ? finalReport(run) : ""}${compactSteps(run)}<div class="workspace-body">${view === "activity" ? activity(run, step) : view === "context" ? context(run, step) : results(run, step)}</div>`;
+			}
+
+			function unavailable(run, step) {
+				if (run.missing)
+					return notice(
+						"Evidence unavailable. The provider invocation failed before a reply or transcript was saved. Usage and elapsed time are not recorded.",
+						true,
+					);
+				if (run.noTranscript)
+					return notice(
+						"This replay kept a grading record, but no raw transcript or per-request usage. Inspect Results for the saved grade and artifact. No context history can be reconstructed.",
+						true,
+					);
+				if (run.state === "paused" && step === "build")
+					return notice(
+						"Build did not start. This run paused after Shape and cannot be resumed; replay from its accepted checkpoint.",
+						true,
+					);
+				if (stepPhase(run, step) === "queued")
+					return notice(
+						"This step has not started. Output, grade, transcript, and checkpoint are pending.",
+						true,
+					);
+				return "";
+			}
+			function groupOverview(run) {
+				const attempts = state.runs.filter((item) => item.parent === run.id);
+				const count = run.count || 3;
+				const finished = attempts.filter((item) => item.state !== "running");
+				const accepted = finished.filter(isAccepted);
+				return (
+					'<div class="stack">' +
+					notice(
+						count +
+							" independent attempts from the same frozen input. Small samples cannot establish that quality was preserved.",
+					) +
+					'<section class="panel"><div class="panel-head"><h2>Attempts · ' +
+					finished.length +
+					" / " +
+					count +
+					" ended</h2>" +
+					(comparisonArmIds.includes(run.id)
+						? '<a href="#/compare/cmp1">Open comparison →</a>'
+						: "") +
+					"</div>" +
+					attempts
+						.map(
+							(item) =>
+								'<div class="run-row"><div><a class="run-title" href="' +
+								runHref(item) +
+								'">' +
+								esc(item.title) +
+								' →</a><small class="muted">Same input · sonnet · same effort</small></div><div>' +
+								badge(item) +
+								' <span class="mono">' +
+								item.grade +
+								'</span></div><div class="run-version mono">' +
+								item.version +
+								'</div><div class="run-numbers"><strong>' +
+								money(item.cost) +
+								'</strong><small class="muted">' +
+								item.time +
+								"</small></div></div>",
+						)
+						.join("") +
+					'</section><section class="panel pad stack"><h2>Repetition summary</h2><p>' +
+					accepted.length +
+					"/" +
+					count +
+					" accepted · " +
+					(finished.length === count
+						? "mean " + money(run.cost / count) + " per attempt"
+						: "remaining outcomes pending") +
+					'.</p><p class="muted">Attempts are independent. Attempt numbers do not pair across groups. ' +
+					(run.comparisonSource
+						? "Compare the group with its source step. This exploratory replay has no control arm."
+						: comparisonArmIds.includes(run.id)
+							? "Check the example comparison for rerun variability, the control, and the changed corpus file."
+							: "Inspect each attempt’s evidence before drawing a conclusion.") +
+					"</p>" +
+					(canReplay(run, selectedStep(run))
+						? btn("Repeat this step", "replay")
+						: "") +
+					"</section></div>"
+				);
+			}
+			function activity(run, step) {
+				const missing = unavailable(run, step);
+				if (missing) return missing;
+				if (run.kind === "Group")
+					return notice(
+						'Select an attempt in Attempts & results to inspect its own activity. A group is a collection of independent sessions, not one combined transcript. <a href="' +
+							runHref(run, "overview") +
+							'">Choose an attempt →</a>' +
+							(canCompare(run)
+								? '<div class="row"><a class="btn primary" href="#/compare/' +
+									run.id +
+									'">Compare with source →</a></div>'
+								: "") +
+							(run.state === "running"
+								? '<div class="row">' +
+									btn("Finish demo group", "finish") +
+									"</div>"
+								: ""),
+					);
+				const live = run.state === "running" && step === run.step;
+				const entries =
+					step === "session"
+						? [
+								[
+									"00:00",
+									"Prompt",
+									"Explain the cursor boundary in a concise technical reply.",
+								],
+								[
+									"00:08",
+									"Agent",
+									"An exhausted cursor returns an empty items array. Keep nextCursor and hasMore unchanged; validate an invalid cursor before querying.",
+								],
+								[
+									"00:24",
+									"Checks",
+									"word ceiling: pass\nrequired answer: pass\nforbidden text: clear",
+								],
+							]
+						: step === "shape"
+							? [
+									[
+										"00:00",
+										"Agent",
+										"I’ll read the brief and existing API contracts before deciding the pagination shape.",
+									],
+									[
+										"00:06",
+										"Read",
+										"product-brief.md · 82 lines\nsrc/audit/controller.ts · 146 lines",
+									],
+									[
+										"01:24",
+										"Agent",
+										"The cursor is opaque. The accepted fields remain nextCursor and hasMore. Empty pages return an empty items array.",
+									],
+									[
+										"03:18",
+										"Write",
+										"plan.md · 4 acceptance criteria\nA deterministic check covers cursor boundaries.",
+									],
+									[
+										"04:12",
+										"Agent",
+										"The plan and acceptance criteria are ready for Build.",
+									],
+								]
+							: [
+									[
+										"00:00",
+										"Agent",
+										"I’ll implement the accepted plan, starting with the cursor boundary behavior.",
+									],
+									[
+										"00:08",
+										"Read",
+										"plan.md · src/audit/controller.ts\nskills/build/SKILL.md",
+									],
+									[
+										"01:36",
+										"Edit",
+										"src/audit/controller.ts\nAdded cursor validation and a stable sort key.",
+									],
+									[
+										"02:42",
+										"Shell",
+										"bun test audit-log\n12 passed · 0 failed",
+									],
+									[
+										"03:16",
+										"Agent",
+										"The cursor round-trip passes. I’m checking the empty-page result before delivery.",
+									],
+								];
+				return (
+					'<div class="activity-layout">' +
+					('<p class="small muted">' +
+						(live
+							? "Simulated transcript · use Advance demo or Finish demo to try state changes."
+							: "Saved activity · " +
+								step +
+								" · the selected step stays in place across views.") +
+						"</p>") +
+					'<div class="two-col activity-columns"><section class="panel"><div class="panel-head"><div><h2>' +
+					step[0].toUpperCase() +
+					step.slice(1) +
+					' activity</h2><small class="muted">' +
+					(live ? "Transcript tail · demo clock" : "Saved session transcript") +
+					'</small></div><div class="row gap2">' +
+					(live
+						? btn(state.follow ? "Following tail ✓" : "Follow tail", "follow")
+						: "") +
+					btn("Context →", "open-context") +
+					'</div></div><div class="transcript">' +
+					entries
+						.map(
+							([time, who, text]) =>
+								'<div class="entry"><time>' +
+								time +
+								'</time><div><span class="who">' +
+								who +
+								"</span>" +
+								(who === "Agent"
+									? "<p>" + text + "</p>"
+									: '<pre class="tool">' + esc(text) + "</pre>") +
+								"</div></div>",
+						)
+						.join("") +
+					(run.demoTicks && live
+						? '<div class="entry"><time>' +
+							formatClock(
+								(run.step === "build" ? 196 : 0) + run.demoTicks * 8,
+							) +
+							'</time><div><span class="who">Shell</span><pre class="tool">Demo update ' +
+							run.demoTicks +
+							" · checking the delivery artifact</pre></div></div>"
+						: "") +
+					"</div>" +
+					(live
+						? '<div class="panel-head">' +
+							btn("Advance demo", "advance") +
+							btn("Finish demo", "finish") +
+							"</div>"
+						: "") +
+					'</section><div class="stack judge-column">' +
+					(canCompare(run)
+						? '<section class="panel pad stack"><h2>Replay complete</h2><p class="small muted">Compare this attempt with ' +
+							run.sourceId +
+							" / " +
+							run.step +
+							'.</p><a class="btn primary" href="#/compare/' +
+							run.id +
+							'">Compare with source →</a></section>'
+						: "") +
+					'<section class="panel"><div class="panel-head"><h2>Judge</h2><span class="badge">' +
+					(live
+						? "Pending"
+						: stepPhase(run, step) === "unjudged"
+							? "Not judged"
+							: stepPhase(run, step) === "stopped"
+								? "C · below minimum B"
+								: step === "session"
+									? "✓ Checks passed"
+									: "B · accepted") +
+					'</span></div><div class="pad stack">' +
+					(live
+						? '<p class="muted">The step is still running. Judge results appear after the agent delivers its output.</p><p class="small muted">A pending grade is never displayed as a failure.</p>'
+						: stepPhase(run, step) === "unjudged"
+							? '<p class="muted">Operator stopped before judging. No quality verdict was recorded.</p>'
+							: checks({
+									...run,
+									state:
+										stepPhase(run, step) === "stopped"
+											? "stopped"
+											: "completed",
+								})) +
+					"</div></section></div></div></div>"
+				);
+			}
+			const sourceRows = [
+				["all", "All recorded sources", "12 deliveries · 4 sources", "21.4k"],
+				["skill", "skills/build/SKILL.md", "Observed · 1 delivery", "3.8k"],
+				["plan", "plan.md", "Observed · 2 deliveries", "5.2k"],
+				["test", "Shell · target checks", "Observed · 4 deliveries", "7.6k"],
+				["files", "Project files", "Observed · 5 deliveries", "4.8k"],
+			];
+			function contextData(step) {
+				const rows = sourceRows.map((row) => [...row]);
+				rows[1][1] = instructionPath(step);
+				rows[2][1] = stepArtifacts(step).input;
+				rows[3][1] =
+					step === "session"
+						? "Reply checks"
+						: step === "shape"
+							? "Read · API contract"
+							: "Shell · target checks";
+				const excerpts = {
+					skill:
+						step === "session"
+							? "Keep the reply concise while preserving the required technical answer."
+							: "Work from the accepted " +
+								step +
+								" instructions. Verify the behavior against the product brief.",
+					plan:
+						step === "build"
+							? "Use an opaque cursor and stable ordering. Return an empty items array at the page boundary."
+							: step === "shape"
+								? "The public response fields are nextCursor and hasMore. Do not rename them."
+								: "Explain the cursor boundary in a concise technical reply.",
+					test:
+						step === "shape"
+							? "interface AuditPage { items: AuditItem[]; nextCursor: string | null; hasMore: boolean; }"
+							: step === "session"
+								? "word ceiling: pass; required answer: pass; forbidden text: clear"
+								: "audit-log.test.ts\n12 passed · 0 failed",
+					files:
+						"src/audit/controller.ts\nCursor parsing validates the request before querying.",
+					all: "Selected request delivered a bounded preview. Open source evidence to inspect it.",
+				};
+
+				return { rows, excerpts };
+			}
+			function context(run, step) {
+				const missing = unavailable(run, step);
+				if (missing) return missing;
+				if (run.kind === "Group")
+					return notice(
+						`Context belongs to each attempt. <a href="${runHref(run, "results")}">Choose an attempt →</a>`,
+					);
+				const investigationKey = run.id + "/" + step;
+				if (state.contextKey !== investigationKey) {
+					state.contextKey = investigationKey;
+					Object.assign(
+						state,
+						state.investigations[investigationKey] || {
+							agent: "parent",
+							source: "all",
+							request: 1,
+						},
+					);
+				}
+				state.investigations[investigationKey] = {
+					agent: state.agent,
+					source: state.source,
+					request: state.request,
+				};
+				const { rows, excerpts } = contextData(step);
+				const reviewer = state.agent === "reviewer";
+				const values = reviewer
+					? [20, 34, 39, 55, 60, 68, 72, 80]
+					: [16, 24, 28, 44, 42, 60, 67, 78, 72, 88, 82, 94];
+				const source = rows.find((row) => row[0] === state.source) || rows[0];
+				const requests =
+					state.source === "all"
+						? values
+						: values.slice(
+								0,
+								state.source === "skill"
+									? 1
+									: state.source === "plan"
+										? 2
+										: state.source === "test"
+											? 4
+											: 5,
+							);
+				const selected = Math.min(state.request, requests.length);
+				const input = Math.round(requests[selected - 1] * 640),
+					read = Math.round(input * 0.7),
+					write = Math.round(input * 0.2),
+					uncached = input - read - write;
+				const spend = stepMetrics(run, step).value * (reviewer ? 0.28 : 1);
+				return `<div class="stack"><div class="context-metrics">${stat("Provider reported", money(spend), "Selected agent + descendants · illustrative")}${stat("Recorded request input", input.toLocaleString() + " tokens", "Request " + selected + " · output counted separately")}${stat("Calculated request cost", money((spend * (reviewer ? 1 : 0.72)) / values.length), "Demo frozen rate · priced")}</div><div class="notice">Synthetic request history. Request input, cumulative usage, source text estimates and agent cost have different measurement bases.</div><section class="panel context-workbench"><aside class="context-menu"><label class="field">Receiving agent<select id="agent"><option value="parent" ${!reviewer ? "selected" : ""}>${esc(step)} · parent · sonnet</option><option value="reviewer" ${reviewer ? "selected" : ""}>Reviewer · child · sonnet</option></select></label><p class="small muted">Own ${money(spend * (reviewer ? 1 : 0.72))}<br>Including descendants ${money(spend)}<br>Each request counted once.</p><div class="rule"></div><h3>Delivered sources</h3>${rows.map(([id, name, note, size]) => `<button class="source-btn" data-source="${id}" aria-pressed="${state.source === id}"><span>${esc(name)}<small>${esc(note)}</small></span><small class="mono">${size}</small></button>`).join("")}<div class="rule"></div><h3>Requests · ${requests.length}</h3><div class="request-list">${requests.map((value, index) => `<button class="source-btn" data-request="${index + 1}" aria-pressed="${selected === index + 1}"><span>Request ${index + 1}</span><small class="mono">${(value * 0.64).toFixed(1)}k</small></button>`).join("")}</div></aside><article class="context-detail stack"><header class="row between"><div><h2>Request ${selected} · ${reviewer ? "Reviewer" : esc(step)}</h2><p class="small muted">sonnet · attempt region · ${state.source === "all" ? "all sources" : "receiving " + esc(source[1])}</p></div>${btn("Open source evidence", "context-evidence")}</header><section><span class="eyebrow">Input at each recorded request</span><div class="chart" role="group" aria-label="Select a request">${requests.map((value, index) => `<button class="request" style="--value:${value}%" data-request="${index + 1}" aria-pressed="${selected === index + 1}" aria-label="Request ${index + 1}, ${(value * 0.64).toFixed(1)} thousand input tokens"></button>`).join("")}</div><div class="chart-axis"><span>Request 1</span><span>Request ${requests.length}</span></div></section><section class="request-composition"><span class="eyebrow">Selected input · ${input.toLocaleString()} tokens</span><div class="composition-bar" aria-hidden="true"><i style="--share:${uncached}"></i><i style="--share:${read}"></i><i style="--share:${write}"></i></div><div class="legend"><span>Uncached ${uncached.toLocaleString()}</span><span>Cache read ${read.toLocaleString()}</span><span>Cache write ${write.toLocaleString()}</span></div></section><div class="context-two"><section class="inset"><h3>Output, separate from input</h3><strong class="mono">${Math.round(input * 0.035).toLocaleString()} tokens</strong><p class="small muted">Not part of the input composition.</p></section><section class="inset"><h3>Cumulative agent usage</h3><strong class="mono">${Math.round(values.reduce((sum, value) => sum + value, 0) * 640 * 1.035).toLocaleString()} tokens</strong><p class="small muted">Across requests; not the active context window.</p></section></div><section class="inset stack"><div class="row between"><h3>${state.source === "all" ? "All recorded sources" : esc(source[1])}</h3><span class="badge">Observed delivery</span></div><p class="muted">${esc(source[2])}. Inspect the delivered text and its saved source snapshot.</p><pre class="tool">${esc(excerpts[state.source])}</pre></section><details class="inset"><summary>Measurement basis, provenance & gaps</summary><p class="muted">Request input includes input, cache read and cache write tokens. Output is separate. A missing observation is not proof that instructions were never loaded. No model window limit is measured. Own cost excludes descendants; the total includes each request once. Source text is an illustrative bounded excerpt, not the whole artifact.</p></details></article></section></div>`;
+			}
+
+			function checks(run) {
+				const session = run.step === "session";
+				const items = session
+					? ["word ceiling", "required answer", "no forbidden text"]
+					: [
+							"No hard blocker fired",
+							"Decision quality",
+							"Observability",
+							"Scope discipline",
+						];
+				return `<div>${items.map((label, index) => `<div class="check"><span class="check-label">${label}</span><span class="row gap2"><span class="${session ? "good" : "mono"}">${session ? "✓ Pass" : index === 0 ? "✓ Clear" : run.state === "stopped" && index === 1 ? "C" : index === 3 ? "A" : "B"}</span><button class="btn small" data-action="quality-evidence:${index}" aria-label="Open evidence for ${label}">${session ? "Evidence" : "1 cited"}</button></span></div>`).join("")}</div>`;
+			}
+
+			function report(run, step) {
+				const phase = stepPhase(run, step),
+					pending = phase === "running",
+					session = step === "session";
+				if (run.kind === "Group") return groupOverview(run);
+				if (phase === "queued" || phase === "unavailable")
+					return unavailable(run, step);
+				const grade = {
+					running: "Pending",
+					unjudged: "Not judged · operator stopped",
+					stopped: "C · below minimum B",
+					accepted: session ? "✓ All checks passed" : "✓ B · minimum B",
+				}[phase];
+				return (
+					'<div class="stack">' +
+					"" +
+					(pending
+						? notice(
+								"This step has not been judged. Accepted steps remain inspectable above.",
+							)
+						: run.kind === "Replay"
+							? unavailable(run, step)
+							: "") +
+					'<div class="two-col"><section class="panel"><div class="panel-head"><h2>' +
+					step[0].toUpperCase() +
+					step.slice(1) +
+					' report</h2><span class="badge ' +
+					(pending
+						? "running"
+						: phase === "stopped" || phase === "unjudged"
+							? "stopped"
+							: "completed") +
+					'">' +
+					grade +
+					'</span></div><div class="pad stack">' +
+					(pending
+						? '<p class="muted">The agent is working. Grades and artifacts are pending.</p>'
+						: phase === "unjudged"
+							? '<p class="muted">The operator stopped this session before judging. Partial activity remains inspectable; no quality verdict can be inferred.</p>'
+							: checks({
+									...run,
+									state: phase === "stopped" ? "stopped" : "completed",
+								})) +
+					'</div></section><section class="panel"><div class="panel-head"><h2>' +
+					(session ? "Session evidence" : "Checkpoint & artifacts") +
+					'</h2></div><div class="pad stack"><dl class="definition"><dt>Started from</dt><dd class="mono">' +
+					frozenInput(run, step) +
+					"</dd><dt>Instructions</dt><dd>" +
+					(canReplay(run, step)
+						? btn(instructionPath(step), "edit-instruction")
+						: '<span class="mono">' + instructionPath(step) + "</span>") +
+					'<br><small class="muted">Observed delivery · declared snapshot ' +
+					run.version +
+					"</small></dd><dt>Input</dt><dd>" +
+					btn(
+						stepArtifacts(step).input,
+						"artifact:" + stepArtifacts(step).input,
+					) +
+					"</dd><dt>Output</dt><dd>" +
+					(pending
+						? "Pending"
+						: phase === "unjudged"
+							? "Incomplete · no final artifact"
+							: btn(
+									stepArtifacts(step).output,
+									"artifact:" + stepArtifacts(step).output,
+								)) +
+					"</dd><dt>" +
+					(session ? "Transcript" : "Next checkpoint") +
+					"</dt><dd>" +
+					(pending
+						? "Pending"
+						: session
+							? "Saved · attempt boundary known"
+							: phase === "stopped" || phase === "unjudged"
+								? "Not saved · step stopped"
+								: step === "build"
+									? "End of workflow · no next step"
+									: "cp-b8 · saved after acceptance") +
+					"</dd></dl>" +
+					(canReplay(run, step)
+						? btn("Replay from frozen input", "replay")
+						: "") +
+					"</div></section></div>" +
+					(!pending && !session
+						? '<section class="panel"><div class="panel-head"><h2>Root-cause analysis</h2><span class="badge">Agent opinion</span></div><div class="pad stack"><p>No analysis requested for this demo run.</p><p class="muted">An analysis proposes an explanation from saved evidence. A controlled experiment is needed to test it.</p>' +
+							btn("Preview analysis request", "analysis") +
+							"</div></section>"
+						: "") +
+					(!pending && phase !== "unjudged"
+						? '<section class="panel pad row between"><div><h3>Human review</h3><p class="muted small">Calibrate the judge against the frozen output.</p></div>' +
+							btn("Preview judge review", "review-grade") +
+							"</section>"
+						: "") +
+					"</div>"
+				);
+			}
+			function comparisonsPage() {
+				return (
+					'<header class="page-head"><div><h1>Comparisons</h1><p>Did one instruction change help, at an acceptable cost?</p></div>' +
+					btn("+ Compare attempts", "compare-setup", "primary") +
+					'</header><section class="panel"><div class="panel-head"><h2>Comparisons</h2><span class="small muted">Synthetic experiments</span></div>' +
+					state.runs
+						.filter((item) => canCompare(item))
+						.map(
+							(item) =>
+								'<div class="run-row"><div><a class="run-title" href="#/compare/' +
+								item.id +
+								'">' +
+								item.sourceId +
+								" → " +
+								item.id +
+								" / " +
+								item.step +
+								'</a><small class="muted">Same frozen input · exploratory comparison</small></div><div class="mono">' +
+								item.comparisonSource.version +
+								" → " +
+								item.version +
+								"</div></div>",
+						)
+						.join("") +
+					'<div class="pad stack"><a class="run-title" href="#/compare/cmp1">Shorten shared review evidence →</a><p class="muted">audit-log · Shape · same frozen input · sonnet · fixed effort</p><div class="row"><span class="badge">Quality inconclusive</span><span class="badge">Cost −26% in this sample</span><span class="badge">One changed file</span></div><small class="muted">' +
+					state.runs.filter((item) => item.parent === "g7").length +
+					" attempts per arm · control included · no paired attempt claims</small></div></section>"
+				);
+			}
+			function comparison() {
+				const arms = comparisonArmIds.map((id) => {
+					const group = state.runs.find((item) => item.id === id),
+						attempts = state.runs.filter((item) => item.parent === id);
+					return {
+						group,
+						attempts,
+						accepted: attempts.filter(isAccepted).length,
+						mean:
+							attempts.reduce((sum, item) => sum + item.cost, 0) /
+							attempts.length,
+						words:
+							attempts.reduce((sum, item) => sum + item.words, 0) /
+							attempts.length,
+					};
+				});
+				const [baseline, candidate, control] = arms;
+				const interval = (arm) => {
+					const n = arm.attempts.length,
+						p = arm.accepted / n,
+						z = 1.96,
+						base = 1 + (z * z) / n,
+						center = (p + (z * z) / (2 * n)) / base,
+						half =
+							(z * Math.sqrt((p * (1 - p)) / n + (z * z) / (4 * n * n))) / base;
+					return (
+						Math.round((center - half) * 100) +
+						"–" +
+						Math.round((center + half) * 100) +
+						"%"
+					);
+				};
+				const change = (value, original) =>
+					Math.round((value / original - 1) * 100) + "%";
+				return `<div class="breadcrumbs"><a href="#/compare">← Comparisons</a><span>/</span><span>Shorten shared review evidence</span></div><header class="page-head"><div><h1>Shorten shared review evidence</h1><p>audit-log / Shape · cp-a7 · sonnet · fixed effort · ${baseline.attempts.length} attempts per arm</p></div>${btn("Extend comparison", "extend")}</header><div class="stack"><section class="panel connected-outcome"><div><h2>Lower observed spend. Quality remains inconclusive.</h2><p>Candidate against baseline: ${change(candidate.mean, baseline.mean)} mean cost and ${change(candidate.words, baseline.words)} reply length. Cost ranges and quality intervals overlap. These demo readings do not establish preserved quality.</p></div>${btn("Inspect attempts", "attempts", "primary")}</section><div class="compare-grid">${arms.map((arm, index) => `<section class="panel arm ${index === 1 ? "candidate" : ""}"><div class="pad stack"><div class="row between"><h2>${["Baseline", "Candidate", "Control"][index]}</h2><span class="mono muted">${arm.group.version}</span></div><p class="muted">${["Before edit · original instruction", "After edit · shared evidence once", "Instruction removed"][index]}</p><div><strong class="fig">${arm.accepted}/${arm.attempts.length}</strong> accepted<small class="muted"> · ${interval(arm)} interval</small></div><div><strong class="mono">${money(arm.mean)}</strong><span class="muted"> per attempt</span><p class="small muted">${money(arm.group.cost)} total · ${Math.round(arm.words)} average words</p></div><a class="btn" href="${runHref(arm.group, "results")}">Inspect ${arm.group.id} attempts →</a></div></section>`).join("")}</div><section class="panel"><header class="panel-head"><h2>What moved · candidate against baseline</h2><span class="small muted">Independent attempts · no paired claims</span></header><div class="table-scroll"><table><thead><tr><th>Measure</th><th>Baseline</th><th>Candidate</th><th>Reading</th></tr></thead><tbody><tr><td>Step acceptance</td><td>${baseline.accepted}/${baseline.attempts.length} · ${interval(baseline)}</td><td>${candidate.accepted}/${candidate.attempts.length} · ${interval(candidate)}</td><td>95% intervals overlap · inconclusive</td></tr><tr><td>Hard blockers</td><td>0/${baseline.attempts.length} fired</td><td>0/${candidate.attempts.length} fired</td><td>Small sample · uncertainty remains</td></tr><tr><td>Cost / attempt</td><td>${costReading("g7")}</td><td>${costReading("g8")}</td><td>${change(candidate.mean, baseline.mean)} mean · ranges overlap</td></tr><tr><td>Reply length</td><td>${Math.round(baseline.words)} words</td><td>${Math.round(candidate.words)} words</td><td>${change(candidate.words, baseline.words)} mean · rerun noise unresolved</td></tr><tr><td>Cost against control</td><td>${change(baseline.mean, control.mean)}</td><td>${change(candidate.mean, control.mean)}</td><td>Control ${money(control.mean)} / attempt · inspect all arms</td></tr></tbody></table></div></section><div class="two-col"><section class="panel pad stack"><h2>One changed instruction</h2><a href="#/corpus/skills%2Freview%2FSKILL.md">skills/review/SKILL.md →</a><p class="muted">Only this corpus path differs between baseline and candidate. The same frozen input, model and effort are held fixed.</p>${btn("Inspect instruction diff", "diff")}</section><section class="panel pad stack"><h2>What this can support</h2><p class="muted">A hypothesis for another trial. Successful checks do not establish equivalent quality. The control removes this instruction; inspect each attempt before attributing an effect.</p>${btn("Inspect independent attempts", "attempts")}</section></div></div>`;
+			}
+
+			function observationSummary(snapshot) {
+				const rows = snapshot.observations,
+					graded = rows.filter((item) =>
+						["accepted", "stopped"].includes(item.phase),
+					);
+				return {
+					accepted: graded.filter((item) => item.phase === "accepted").length,
+					graded: graded.length,
+					attempts: rows.length,
+					cost:
+						rows.length && rows.every((item) => item.cost !== null)
+							? rows.reduce((sum, item) => sum + item.cost, 0) / rows.length
+							: null,
+					seconds:
+						rows.length && rows.every((item) => item.seconds !== null)
+							? rows.reduce((sum, item) => sum + item.seconds, 0) / rows.length
+							: null,
+				};
+			}
+			function replayComparison(run) {
+				const before = run.comparisonSource,
+					after = snapshotStep(run, run.step),
+					arms = [before, after];
+				return (
+					'<div class="breadcrumbs"><a href="' +
+					runHref(run, "results") +
+					'">← Replay ' +
+					run.id +
+					'</a></div><header class="page-head"><div><h1>Source vs replay</h1><p>' +
+					esc(before.case) +
+					" / " +
+					before.step +
+					' · same frozen input · sonnet · fixed effort</p></div></header><div class="stack">' +
+					notice(
+						"<strong>Exploratory comparison · synthetic data</strong><br>This shows what changed in these attempts. It cannot establish an improvement or equivalent quality. No control arm is included.",
+					) +
+					'<div class="two-col">' +
+					arms
+						.map((arm, i) => {
+							const stats = observationSummary(arm);
+							return (
+								'<section class="panel arm ' +
+								(i ? "candidate" : "") +
+								'"><div class="pad stack"><span class="eyebrow">' +
+								(i ? "Replay" : "Source") +
+								'</span><h2><a href="#/runs/' +
+								arm.id +
+								"/results/" +
+								arm.step +
+								'">' +
+								arm.id +
+								" / " +
+								arm.step +
+								' ↗</a></h2><span class="mono">corpus@' +
+								arm.version +
+								'</span><div><strong class="grade">' +
+								stats.accepted +
+								' accepted</strong><p class="muted small">' +
+								stats.graded +
+								" graded · " +
+								stats.attempts +
+								(stats.attempts === 1 ? " attempt · " : " attempts · ") +
+								(stats.attempts - stats.graded) +
+								' without a grade</p></div><dl class="definition"><dt>Mean step cost</dt><dd class="mono">' +
+								(stats.cost === null ? "Unavailable" : money(stats.cost)) +
+								'</dd><dt>Mean step time</dt><dd class="mono">' +
+								(stats.seconds === null
+									? "Unavailable"
+									: formatClock(Math.round(stats.seconds))) +
+								"</dd><dt>Workflow at capture</dt><dd>" +
+								(arm.finalOutcome || "Not measured in this step comparison") +
+								'</dd><dt>Frozen input</dt><dd class="mono">' +
+								esc(arm.input) +
+								'</dd></dl><div class="table-scroll"><table><thead><tr><th>Attempt</th><th>Step grade</th><th>Cost</th></tr></thead><tbody>' +
+								arm.observations
+									.map(
+										(item) =>
+											'<tr><td><a href="#/runs/' +
+											item.id +
+											"/results/" +
+											arm.step +
+											'">' +
+											item.id +
+											'</a></td><td class="mono">' +
+											item.grade +
+											'</td><td class="mono">' +
+											(item.cost === null ? "Unavailable" : money(item.cost)) +
+											"</td></tr>",
+									)
+									.join("") +
+								"</tbody></table></div></div></section>"
+							);
+						})
+						.join("") +
+					'</div><section class="panel pad stack"><h2>What was held fixed</h2><p class="mono">' +
+					esc(before.input) +
+					'</p><p class="muted">The replay used the selected step’s frozen input, with the same model and effort. Corpus snapshots are named separately above. Step grades remain independent of any final workflow outcome.</p></section>' +
+					(run.instructionChange
+						? '<section class="panel"><div class="panel-head"><h2>Instruction edited before this replay</h2><span class="mono">' +
+							esc(run.instructionChange.path) +
+							'</span></div><div class="diff-line remove">− ' +
+							esc(run.instructionChange.before) +
+							'</div><div class="diff-line add">+ ' +
+							esc(run.instructionChange.after) +
+							'</div><p class="pad muted small">This is the edit made in this flow. It is not a complete diff between the two corpus snapshots.</p></section>'
+						: "") +
+					'<section class="panel pad stack"><h2>What to do next</h2><p class="muted">A single replay is a lead. Repeat both conditions and include an instruction-removed control before deciding whether to keep the change.</p><div class="row"><a class="btn" href="#/compare/cmp1">Inspect a repeated three-arm example →</a><a class="btn" href="' +
+					runHref(run, "results") +
+					'">Return to this replay →</a></div></section></div>'
+				);
+			}
+
+			function corpusPage() {
+				return (
+					'<header class="page-head"><div><h1>Corpus</h1><p>Change one instruction, then test it from a frozen input.</p></div><span class="badge mono">corpus@' +
+					state.version +
+					"</span></header>" +
+					(state.editContext
+						? '<section class="edit-context"><div><span class="eyebrow">Testing from a saved step</span><p><a href="#/runs/' +
+							state.editContext.id +
+							"/results/" +
+							state.editContext.step +
+							'">' +
+							state.editContext.id +
+							" / " +
+							state.editContext.step +
+							' ↗</a><span class="mono muted"> · ' +
+							esc(state.editContext.input) +
+							'</span></p><small class="muted">Source corpus@' +
+							state.editContext.version +
+							" · sonnet · fixed effort</small></div>" +
+							btn("Clear source", "clear-edit-source") +
+							"</section>"
+						: "") +
+					'<div class="two-col"><section class="panel"><div class="corpus-files">' +
+					demoFiles
+						.map((path) =>
+							btn(
+								esc(path),
+								"select-file:" + path,
+								state.editPath === path ? "primary" : "",
+							),
+						)
+						.join("") +
+					'</div><div class="panel-head"><h2>Instruction editor</h2><span class="badge">Copy · editable demo</span></div><div class="pad stack"><div class="field"><span>File</span><span class="mono">' +
+					esc(state.editPath) +
+					'</span></div><label class="field">Instruction<textarea id="instruction" class="mono">' +
+					esc(instructionFile().draft) +
+					'</textarea></label><div class="row">' +
+					btn("Review change", "review-edit", "primary") +
+					btn("Discard draft", "discard-edit") +
+					'</div></div></section><div class="stack"><section class="panel pad stack"><h2>Test the edit</h2><p class="muted">Applying creates a corpus version and marks affected results as changed. Old records remain available.</p><ol class="muted"><li>Edit one instruction.</li><li>Replay the same checkpoint.</li><li>Compare repeated attempts with a control.</li></ol></section><section class="panel pad stack"><h2>Inventory</h2><p>137 files in the demo snapshot.</p><p class="muted">The prototype edits illustrative instruction files. The production live install remains read-only; editing requires a linked copy.</p><a href="#/runs">Browse results by corpus version →</a></section></div></div>'
+				);
+			}
+			function tabButton(label, scope, selected) {
+				const href =
+					scope === "case"
+						? "#/cases/" + route()[1] + "/" + label.toLowerCase()
+						: "#/settings/" + label.toLowerCase();
+				return `<a href="${href}" class="${selected === label ? "active" : ""}" ${selected === label ? 'aria-current="page"' : ""}>${label}</a>`;
+			}
+			function casesPage() {
+				return (
+					'<header class="page-head"><div><h1>Cases</h1><p>Frozen work to test your instructions against.</p></div>' +
+					'<button class="btn" disabled title="Creating definitions is unavailable in this demo">Declare a case · unavailable</button>' +
+					'</header><div class="stack">' +
+					[
+						[
+							"audit-log",
+							"Add a paginated audit log",
+							"Pipeline · Shape → Build · target repository",
+						],
+						[
+							"brief-reply",
+							"Keep a technical reply concise",
+							"Session · frozen prompt · 3 checks",
+						],
+					]
+						.map(
+							([id, title, desc]) =>
+								'<section class="panel pad"><div class="row between"><div class="stack gap2"><a class="run-title" href="#/cases/' +
+								id +
+								'">' +
+								title +
+								' →</a><p class="muted">' +
+								desc +
+								'</p><span class="small mono muted">' +
+								id +
+								"</span></div>" +
+								btn("Run case", "launch:" + id, "primary") +
+								"</div></section>",
+						)
+						.join("") +
+					"</div>"
+				);
+			}
+			function casePage(id) {
+				const session = id === "brief-reply";
+				return (
+					'<div class="breadcrumbs"><a href="#/cases">← Cases</a></div><header class="page-head"><div><h1>' +
+					(session
+						? "Keep a technical reply concise"
+						: "Add a paginated audit log") +
+					"</h1><p>" +
+					id +
+					" · " +
+					(session ? "Session" : "Pipeline · target repository") +
+					"</p></div>" +
+					btn("Run case", "launch:" + id, "primary") +
+					'</header><nav class="view-nav" aria-label="Case views">' +
+					["Overview", "Workflow", "Runs"]
+						.map((tab) => tabButton(tab, "case", state.caseTab))
+						.join("") +
+					"</nav>" +
+					(state.caseTab === "Runs"
+						? '<section class="panel">' +
+							runTable(
+								state.runs.filter((run) => run.case === id && !run.parent),
+							) +
+							"</section>"
+						: state.caseTab === "Workflow"
+							? '<section class="panel"><div class="panel-head"><h2>' +
+								(session ? "Session definition" : "Task definition") +
+								"</h2>" +
+								(!session
+									? '<button class="btn" disabled title="Definition editing is unavailable in this demo">Edit steps · unavailable</button>'
+									: "") +
+								'</div><div class="pad stack"><p class="muted">' +
+								(session
+									? "One frozen prompt, one provider session, and deterministic checks."
+									: "The task and its steps live inside the case that runs them. Import and export keep judges with the definition.") +
+								"</p>" +
+								(session
+									? "<p>Prompt → reply → word ceiling, required answer, forbidden text</p>"
+									: '<div class="row"><span class="badge">01 · Shape · minimum B</span><span class="muted">→</span><span class="badge">02 · Build · minimum B</span><span class="muted">→</span><span class="badge">Final rubric</span></div>') +
+								'<div class="row">' +
+								btn("Export definition", "export-case") +
+								'<button class="btn" disabled title="File import is unavailable in this demo">Import · unavailable</button>' +
+								"</div></div></section>"
+							: '<div class="two-col"><section class="panel pad stack"><h2>Task & inputs</h2><p>' +
+								(session
+									? "Answer a technical question in a concise reply while keeping the required answer."
+									: "Implement a cursor-paginated audit-log endpoint. Keep the brief’s field names, stable ordering, and empty-page behavior.") +
+								'</p><dl class="definition"><dt>Model</dt><dd>sonnet · fixed effort</dd><dt>Input</dt><dd>' +
+								(session
+									? "Frozen prompt + fixture"
+									: "target@6d4a2f · product-brief.md") +
+								"</dd><dt>Grading</dt><dd>" +
+								(session
+									? "3 deterministic checks"
+									: "Per-step judges + final rubric") +
+								"</dd></dl>" +
+								btn(
+									"Inspect brief",
+									"artifact:" + (session ? "prompt.md" : "product-brief.md"),
+								) +
+								'</section><section class="panel pad stack"><h2>Current corpus evidence</h2><p class="muted">corpus@' +
+								state.version +
+								" · open a run to inspect its own outcome.</p>" +
+								state.runs
+									.filter(
+										(item) =>
+											item.case === id &&
+											item.version === state.version &&
+											!item.parent,
+									)
+									.slice(0, 5)
+									.map(
+										(item) =>
+											'<a href="' +
+											runHref(item) +
+											'">' +
+											esc(item.id) +
+											" · " +
+											esc(item.kind) +
+											" · " +
+											esc(finalReading(item)) +
+											" →</a>",
+									)
+									.join("") +
+								(state.runs.some(
+									(item) =>
+										item.case === id &&
+										item.version === state.version &&
+										!item.parent,
+								)
+									? ""
+									: '<p class="muted">No runs at this corpus version yet.</p>') +
+								'<a href="#/cases/' +
+								id +
+								'/runs">Browse all case runs →</a></section></div>')
+				);
+			}
+			function settingsPage() {
+				return (
+					'<header class="page-head"><div><h1>Settings</h1><p>Local workspace preferences and judge calibration.</p></div></header><nav class="view-nav" aria-label="Settings views">' +
+					["General", "Judges"]
+						.map((tab) => tabButton(tab, "settings", state.settingsTab))
+						.join("") +
+					"</nav>" +
+					(state.settingsTab === "General"
+						? '<div class="two-col"><section class="panel pad stack"><h2>Spending ceiling</h2><p class="muted">Enforced per run. Repeated work shows the total ceiling before launch. Calls already in flight can exceed it.</p><label class="field">Default USD per run<input id="ceiling" type="number" required min=".01" step=".01" value="' +
+							state.defaultBudget +
+							'" /></label>' +
+							btn("Save demo setting", "save-settings") +
+							'</section><section class="panel pad stack"><h2>Corpus source</h2><p>Editable copy · demo corpus</p><p class="muted">Link, unlink, and rehash remain workspace settings. This prototype does not access the filesystem.</p>' +
+							btn("Preview source settings", "source-settings") +
+							"</section></div>"
+						: '<section class="panel"><div class="panel-head"><h2>Judge calibration</h2><span class="badge">Human review</span></div><div class="pad stack"><p class="muted">Compare the judge’s grade with a human reading of the same frozen artifact. Calibration lives beside judge settings and is also reachable from Results.</p><div class="check"><div><strong>audit-log / r41 / Shape</strong><p class="small muted">Judge B · your grade ' +
+							state.review +
+							"</p></div>" +
+							btn("Review frozen output", "review-grade:r41:shape") +
+							'</div><div class="stats">' +
+							stat("Reviewed", "1", "demo output") +
+							stat(
+								"Agreement",
+								state.review === "B" ? "1 / 1" : "0 / 1",
+								"illustrative count",
+							) +
+							"</div></div></section>")
+				);
+			}
+			function render({ focus = false } = {}) {
+				if (route()[0] === "cases")
+					state.caseTab =
+						{ overview: "Overview", workflow: "Workflow", runs: "Runs" }[
+							route()[2]
+						] || "Overview";
+				if (route()[0] === "settings")
+					state.settingsTab = route()[1] === "judges" ? "Judges" : "General";
+				if (
+					route()[0] === "corpus" &&
+					route()[1] &&
+					demoFiles.some((path) => encodeURIComponent(path) === route()[1])
+				)
+					state.editPath = demoFiles.find(
+						(path) => encodeURIComponent(path) === route()[1],
+					);
+				const focused = document.activeElement;
+				const focusAttr = [
+					"data-source",
+					"data-request",
+					"data-filter",
+					"data-action",
+				].find((attr) => focused?.hasAttribute(attr));
+				const focusSelector = focusAttr
+					? "[" +
+						focusAttr +
+						'="' +
+						CSS.escape(focused.getAttribute(focusAttr)) +
+						'"]'
+					: focused?.id
+						? "#" + CSS.escape(focused.id)
+						: null;
+				const [section, id, view, linkedStep] = route(),
+					routeChanged = state.lastStepRoute !== location.hash;
+				state.lastStepRoute = location.hash;
+				let content;
+				if (section === "runs" && id) {
+					const run = getRun();
+					if (run && routeChanged)
+						state.selectedStep[run.id] = stepsFor(run).includes(linkedStep)
+							? linkedStep
+							: run.step;
+					content = run
+						? workspace(run, runView(run, view))
+						: '<div class="empty"><h1>Run not found</h1><a href="#/runs">Return to Runs</a></div>';
+				} else if (section === "compare") {
+					const candidate = state.runs.find(
+						(item) => item.id === id && item.comparisonSource,
+					);
+					content = !id
+						? comparisonsPage()
+						: id === "cmp1"
+							? comparison()
+							: candidate
+								? canCompare(candidate)
+									? replayComparison(candidate)
+									: notice(
+											"A comparison needs a completed replay. This replay is " +
+												candidate.state +
+												'. <a href="' +
+												runHref(candidate, "activity") +
+												'">Return to activity →</a>',
+										)
+								: '<div class="empty"><h1>Comparison is not in this demo state</h1><p>Simulated records reset on reload. Create a replay or inspect the supplied example.</p><a class="btn" href="#/compare/cmp1">Open the example comparison →</a></div>';
+				} else if (section === "corpus") content = corpusPage();
+				else if (section === "cases")
+					content = !id
+						? casesPage()
+						: ["audit-log", "brief-reply"].includes(id)
+							? casePage(id)
+							: '<div class="empty"><h1>Case not found</h1><a href="#/cases">Return to Cases</a></div>';
+				else if (section === "settings") content = settingsPage();
+				else content = runsPage();
+				$("#app").innerHTML = shell(content);
+				document.title =
+					"Rehearse · " + (id || section || "Runs") + " · Prototype";
+				if (focus) $("#main").focus({ preventScroll: true });
+				else if (focusSelector && !$("#dialog").open)
+					$(focusSelector)?.focus({ preventScroll: true });
+			}
+			let toastTimer;
+			function toast(message) {
+				$("#toast").textContent = message;
+				clearTimeout(toastTimer);
+				toastTimer = setTimeout(() => {
+					$("#toast").textContent = "";
+				}, 6500);
+			}
+			let dialogOrigin;
+			let dialogOriginSelector;
+			function modal(title, body, footer = "") {
+				if (!$("#dialog").open) {
+					dialogOrigin = document.activeElement;
+					dialogOriginSelector = dialogOrigin?.dataset.action
+						? '[data-action="' + CSS.escape(dialogOrigin.dataset.action) + '"]'
+						: null;
+				}
+				$("#dialog").innerHTML =
+					'<div class="panel-head"><h2 id="dialog-title">' +
+					title +
+					'</h2><button class="btn" data-action="close" aria-label="Close dialog">×</button></div><div class="dialog-body">' +
+					body +
+					"</div>" +
+					(footer ? '<div class="dialog-footer">' + footer + "</div>" : "");
+				if (!$("#dialog").open) $("#dialog").showModal();
+			}
+			function closeModal() {
+				$("#dialog").close();
+				if (dialogOrigin?.isConnected) dialogOrigin.focus();
+				else if (dialogOriginSelector && $(dialogOriginSelector))
+					$(dialogOriginSelector).focus();
+				else $("#main")?.focus({ preventScroll: true });
+			}
+			function launchModal(
+				caseId = "audit-log",
+				replay = false,
+				origin = null,
+			) {
+				const run =
+						origin?.run ||
+						getRun() ||
+						state.runs.find((item) => item.id === "r41"),
+					step = origin?.step || selectedStep(run);
+				if (replay && !canReplay(run, step)) {
+					toast(
+						"This step has no completed source evidence to replay. Choose a saved step.",
+					);
+					return;
+				}
+				state.launchSource = replay
+					? { id: run.id, step, snapshot: snapshotStep(run, step) }
+					: null;
+				modal(
+					replay ? "Replay from frozen input" : "New run",
+					'<p class="muted">' +
+						(replay
+							? "Change the corpus while keeping the original input fixed."
+							: "Choose a case and how many independent attempts to run.") +
+						'</p><label class="field">Case<select id="launch-case" ' +
+						(replay ? "disabled" : "") +
+						'><option value="audit-log" ' +
+						(caseId === "audit-log" ? "selected" : "") +
+						'>audit-log · pipeline</option><option value="brief-reply" ' +
+						(caseId === "brief-reply" ? "selected" : "") +
+						">brief-reply · session</option></select></label>" +
+						(replay
+							? '<dl class="definition"><dt>Source</dt><dd>' +
+								run.id +
+								" / " +
+								step +
+								'</dd><dt>Instruction</dt><dd class="mono">' +
+								esc(instructionPath(step)) +
+								'</dd><dt>Frozen input</dt><dd class="mono">' +
+								esc(frozenInput(run, step)) +
+								"</dd></dl>"
+							: "") +
+						'<label class="field">Attempts<select id="launch-count"><option value="1">1 · debug one attempt</option><option value="3">3 · repeated group</option><option value="6">6 · repeated group</option></select></label><label class="field">USD ceiling per attempt<input id="launch-budget" type="number" required min=".01" step=".01" value="' +
+						state.defaultBudget +
+						'" /></label><div class="notice"><span id="launch-total">Total ceiling: ' +
+						money(state.defaultBudget) +
+						"</span><br><small>corpus@" +
+						state.version +
+						' · sonnet · fixed effort<br>In-flight calls may exceed the ceiling.</small></div><small class="muted">Demo only. Starting creates an in-memory run and costs nothing.</small>',
+					btn("Cancel", "close") +
+						btn(
+							"Start simulated " + (replay ? "replay" : "run"),
+							replay ? "start-replay" : "start-run",
+							"primary",
+						),
+				);
+			}
+			function evidenceModal(kind = "grade") {
+				const run = getRun() || state.runs[1],
+					step = selectedStep(run);
+				const data = contextData(step);
+				const source =
+					data.rows.find((row) => row[0] === state.source) || data.rows[0];
+				modal(
+					kind === "context"
+						? "Delivered source evidence"
+						: "Cited grading evidence",
+					'<div class="row"><span class="badge">Saved evidence · synthetic</span><span class="mono">' +
+						run.id +
+						" / " +
+						step +
+						'</span></div><dl class="definition"><dt>Source</dt><dd class="mono">' +
+						(kind === "context"
+							? source[1] + " · transcript.jsonl:48 · block 2"
+							: "plan.md:18–22") +
+						"</dd><dt>Scope</dt><dd>" +
+						(kind === "context"
+							? "Text delivered to " +
+								(state.agent === "parent" ? step : "Reviewer")
+							: "Frozen artifact read by the judge") +
+						'</dd></dl><blockquote class="evidence-quote">' +
+						(kind === "context"
+							? esc(data.excerpts[state.source])
+							: run.grade === "C"
+								? "The proposal renames nextCursor to cursor, contradicting the public response fields fixed by the brief."
+								: step === "session"
+									? "The reply preserves the technical answer in 26 words, below the declared ceiling."
+									: "The endpoint preserves nextCursor and hasMore. An exhausted cursor returns an empty items array, without inventing a new response field.") +
+						'</blockquote><p class="muted">' +
+						(kind === "context"
+							? "Delivered preview: 146 lines. Full saved source: 206 lines. This preview is a bounded excerpt, not the whole artifact."
+							: "Judge reading: the output makes the boundary behavior observable. The citation supports this item; it does not establish the cause of the overall outcome.") +
+						"</p>",
+					btn(
+						"Return to " + (kind === "context" ? "context" : "results"),
+						"close",
+					),
+				);
+			}
+			function startRun(replay) {
+				const caseId = $("#launch-case").value,
+					count = Number($("#launch-count").value),
+					budget = Number($("#launch-budget").value);
+				if (
+					!$("#launch-budget").reportValidity() ||
+					!Number.isFinite(budget) ||
+					budget <= 0
+				) {
+					$("#launch-budget").reportValidity();
+					return;
+				}
+				const source = replay
+					? state.runs.find((item) => item.id === state.launchSource.id)
+					: null;
+				const sourceStep = replay ? state.launchSource.step : null;
+				const id = "demo" + (state.runs.length + 1);
+				const run = {
+					id,
+					case: caseId,
+					title:
+						caseId === "audit-log"
+							? "Add a paginated audit log"
+							: "Keep a technical reply concise",
+					kind:
+						count > 1
+							? "Group"
+							: replay
+								? "Replay"
+								: { "audit-log": "Pipeline", "brief-reply": "Session" }[caseId],
+					state: "running",
+					cost: 0,
+					time: "0m 00s",
+					version: state.version,
+					grade: "Pending",
+					step: replay
+						? sourceStep
+						: caseId === "brief-reply"
+							? "session"
+							: "shape",
+					when: "Just now · simulated",
+					note:
+						count > 1
+							? count + " attempts · preparing"
+							: "Preparing frozen inputs",
+					progress: 0,
+				};
+				initializeReadings(run);
+				run.groupMode = replay
+					? "stage"
+					: caseId === "audit-log"
+						? "pipeline"
+						: "session";
+				run.count = count;
+				run.budget = budget;
+				run.sourceId = replay ? source.id : null;
+				if (replay) {
+					run.inputCheckpoint = frozenInput(source, sourceStep);
+					run.comparisonSource = structuredClone(state.launchSource.snapshot);
+					run.instructionChange =
+						state.lastEdit &&
+						state.lastEdit.sourceId === source.id &&
+						state.lastEdit.step === sourceStep
+							? structuredClone(state.lastEdit)
+							: null;
+				}
+				state.runs.unshift(run);
+				if (count > 1)
+					for (let i = 1; i <= count; i++)
+						state.runs.push(
+							initializeReadings({
+								...run,
+								id: id + "-rep" + i,
+								parent: id,
+								comparisonSource: null,
+								instructionChange: null,
+								kind:
+									caseId === "brief-reply"
+										? "Session"
+										: replay
+											? "Replay"
+											: "Pipeline",
+								title: "Attempt " + i,
+								state: "running",
+								cost: 0,
+							}),
+						);
+				closeModal();
+				location.hash = runHref(run);
+				toast(
+					"Simulated " +
+						run.kind.toLowerCase() +
+						" created. No provider was called.",
+				);
+			}
+			function formatClock(seconds) {
+				return (
+					String(Math.floor(seconds / 60)).padStart(2, "0") +
+					":" +
+					String(seconds % 60).padStart(2, "0")
+				);
+			}
+			const demoFiles = [
+				"skills/shape/SKILL.md",
+				"skills/build/SKILL.md",
+				"skills/review/SKILL.md",
+				"AGENTS.md",
+				"output-style.md",
+			];
+			function searchResults(query) {
+				const pool = [
+					...state.runs.map((run) => ({
+						title: run.id + " · " + run.case,
+						detail: run.kind + " · " + run.state + " · " + run.note,
+						url: runHref(run),
+					})),
+					...["audit-log", "brief-reply"].map((id) => ({
+						title: id,
+						detail: "Case · definition and related runs",
+						url: "#/cases/" + id,
+					})),
+					...demoFiles.map((path) => ({
+						title: path,
+						detail: "Corpus · instruction file",
+						url: "#/corpus/" + encodeURIComponent(path),
+					})),
+					{
+						title: "Shorten shared review evidence",
+						detail: "Comparison · g6 / g7 / g8 · control included",
+						url: "#/compare/cmp1",
+					},
+					...state.runs.filter(canCompare).map((run) => ({
+						title: run.sourceId + " → " + run.id,
+						detail: "Comparison · " + run.step + " · same frozen input",
+						url: "#/compare/" + run.id,
+					})),
+				];
+				const matches = pool
+					.filter((item) =>
+						(item.title + " " + item.detail)
+							.toLowerCase()
+							.includes(query.toLowerCase()),
+					)
+					.slice(0, 30);
+				return matches.length
+					? matches
+							.map(
+								(item) =>
+									`<a class="search-result" data-search-result href="${item.url}"><strong>${esc(item.title)}</strong><span class="small muted">${esc(item.detail)}</span><span aria-hidden="true">↗</span></a>`,
+							)
+							.join("")
+					: '<div class="empty"><h3>No matching information</h3><p>Try a case, run ID, instruction path, result or comparison.</p></div>';
+			}
+			function connectedAction(name) {
+				if (name === "spend-details") {
+					const run = getRun();
+					modal(
+						"Spend and budget · " + run.id,
+						spendBand(run) +
+							`<p class="muted">Ceilings are limits, not an estimated bill. The step amounts and whole-run total describe different scopes. All readings here are synthetic.</p>`,
+						btn("Close", "close"),
+					);
+					return true;
+				}
+
+				if (name.startsWith("quality-evidence:")) {
+					const run = getRun(),
+						step = selectedStep(run),
+						index = Number(name.split(":")[1]);
+					const items =
+						step === "session"
+							? [
+									[
+										"Word ceiling",
+										"reply.txt",
+										"The saved reply has 26 words, below the 40-word ceiling.",
+										"An exhausted cursor returns an empty items array. Keep nextCursor and hasMore unchanged; validate an invalid cursor before querying.",
+									],
+									[
+										"Required answer",
+										"reply.txt",
+										"The required pagination fields are retained.",
+										"Keep nextCursor and hasMore unchanged",
+									],
+									[
+										"No forbidden text",
+										"checks.json",
+										"The reply contains none of the forbidden terms.",
+										"forbiddenText: PASS",
+									],
+								]
+							: [
+									[
+										"Hard blockers",
+										"grade-record.json",
+										"No configured hard blocker fired for the selected step.",
+										"hardBlockers: all clear",
+									],
+									[
+										"Decision quality",
+										"plan.md:8–15",
+										stepPhase(run, step) === "stopped"
+											? "The proposed cursor field contradicts the frozen public contract."
+											: "The recommendation preserves the response fields fixed by the brief.",
+										stepPhase(run, step) === "stopped"
+											? "Rename nextCursor to cursor"
+											: "Preserve nextCursor and hasMore. Use a stable cursor sort key.",
+									],
+									[
+										"Observability",
+										"plan.md:18–22",
+										"The plan names success and rejection observations, including an exhausted cursor.",
+										"Cover empty pages and invalid cursors in the target checks.",
+									],
+									[
+										"Scope discipline",
+										"plan.md:4–6",
+										"The plan excludes an additional interface and stays within the endpoint change.",
+										"No new UI or infrastructure is required for this case.",
+									],
+								];
+					const item = items[index];
+					modal(
+						item[0] + " · " + run.id + " / " + step,
+						`<span class="badge">Synthetic saved citation</span><p class="mono">${item[1]}</p><p>${esc(item[2])}</p><blockquote class="evidence-quote">${esc(item[3])}</blockquote>`,
+						btn("Close", "close"),
+					);
+					return true;
+				}
+
+				if (name === "search-global") {
+					modal(
+						"Find in this workspace",
+						'<label class="field">Runs, cases, instructions and comparisons<input id="global-search" type="search" placeholder="Try r37, audit-log, build, comparison…" autocomplete="off" /></label><div id="global-search-results">' +
+							searchResults("") +
+							"</div>",
+						btn("Close", "close"),
+					);
+					$("#global-search").focus();
+					return true;
+				}
+				if (name === "workflow-details") {
+					const run = getRun();
+					modal(
+						"Workflow · " + run.id,
+						`<p class="muted">Each selected step keeps its own input, grade and evidence. Final task grading is independent.</p>${stepsFor(
+							run,
+						)
+							.map(
+								(step) =>
+									`<section class="inset stack"><h3>${esc(step)} · ${stepGrade(run, step)}</h3><p>${stepSummary(run, step).join(" · ")}</p><p class="mono">${stepMetrics(run, step).cost} · ${stepMetrics(run, step).time}</p><p class="mono small">Input: ${esc(frozenInput(run, step))}</p><a data-search-result href="${runHref(run, "results")}/${step}">Open ${esc(step)} results →</a></section>`,
+							)
+							.join("")}`,
+						btn("Close", "close"),
+					);
+					return true;
+				}
+				if (name.startsWith("select-file:")) {
+					state.editPath = name.slice("select-file:".length);
+					location.hash = "/corpus/" + encodeURIComponent(state.editPath);
+					render();
+					return true;
+				}
+				if (name === "attempts") {
+					modal(
+						"Independent attempts",
+						`<p class="muted">Attempt numbers do not pair across arms. Open an attempt to inspect its own evidence.</p>${comparisonArmIds
+							.map(
+								(id) =>
+									`<section class="inset stack"><h3>${{ g7: "Baseline", g8: "Candidate", g6: "Control" }[id]}</h3>${state.runs
+										.filter((item) => item.parent === id)
+										.map(
+											(item) =>
+												`<a data-search-result href="${runHref(item)}">${item.id} · ${item.grade} · ${money(item.cost)} →</a>`,
+										)
+										.join("")}</section>`,
+							)
+							.join("")}`,
+						btn("Close", "close"),
+					);
+					return true;
+				}
+				if (name === "simulate-extension") {
+					for (const id of comparisonArmIds) {
+						const group = state.runs.find((item) => item.id === id),
+							prior = state.runs.filter((item) => item.parent === id),
+							start = prior.length;
+						for (let index = 1; index <= 3; index++) {
+							const original = prior[(index - 1) % prior.length];
+							state.runs.push(
+								initializeReadings(
+									structuredClone({
+										...original,
+										id: id + "-rep" + (start + index),
+										title: "Shape · attempt " + (start + index) + " of " + id,
+										when: "Just now · simulated extension",
+										cost: original.cost * (1 + index * 0.02),
+									}),
+								),
+							);
+						}
+						group.count = start + 3;
+						group.cost = state.runs
+							.filter((item) => item.parent === id)
+							.reduce((sum, item) => sum + item.cost, 0);
+						group.grade =
+							state.runs.filter(
+								(item) => item.parent === id && isAccepted(item),
+							).length +
+							"/" +
+							group.count +
+							" accepted";
+						group.note =
+							group.count + " independent attempts · simulated extension";
+					}
+					closeModal();
+					render();
+					toast(
+						"Three demo attempts added to each arm. Inspect the groups to see all six.",
+					);
+					return true;
+				}
+				if (name === "source-settings") {
+					modal(
+						"Demo corpus source",
+						'<p>This prototype uses an editable copy held in page memory.</p><p class="muted">Real filesystem linking is unavailable in this demo. You can edit the supplied instruction files and replay from a selected run.</p><a data-search-result class="btn" href="#/corpus">Open editable corpus →</a>',
+						btn("Close", "close"),
+					);
+					return true;
+				}
+				return false;
+			}
+			function demoNavigation(event) {
+				if (!(event.target instanceof Element)) return;
+				if (event.target.closest("[data-search-result]")) closeModal();
+				if (event.target.id === "global-search")
+					$("#global-search-results").innerHTML = searchResults(
+						event.target.value,
+					);
+			}
+			document.addEventListener("click", demoNavigation);
+			document.addEventListener("input", demoNavigation);
+			document.addEventListener(
+				"keydown",
+				(event) => {
+					if (event.target?.id !== "global-search") return;
+					if (event.key === "Escape") {
+						event.preventDefault();
+						closeModal();
+					} else if (event.key === "Enter") {
+						event.preventDefault();
+						$("#global-search-results [data-search-result]")?.click();
+					}
+				},
+				true,
+			);
+			document.addEventListener("keydown", (event) => {
+				if (
+					event.target instanceof Element &&
+					event.target.matches("input,textarea,select,[contenteditable]")
+				)
+					return;
+				if (
+					event.key === "/" ||
+					((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k")
+				) {
+					if ($("#dialog").open) return;
+					event.preventDefault();
+					connectedAction("search-global");
+				}
+			});
+
+			function action(name) {
+				if (connectedAction(name)) return;
+				const run = getRun() || state.runs[1],
+					step = selectedStep(run);
+				if (name.startsWith("launch")) {
+					launchModal(name.split(":")[1] || "audit-log");
+					return;
+				}
+				if (name === "close") closeModal();
+				else if (name === "reset") {
+					closeModal();
+					Object.assign(state, initialState());
+					seedAttempts();
+					location.hash = "/runs";
+					render();
+					toast("Demo reset.");
+				} else if (name === "replay") launchModal(run.case, true);
+				else if (name === "start-run" || name === "start-replay")
+					startRun(name === "start-replay");
+				else if (name === "pause") {
+					run.pauseRequested = true;
+					render();
+					toast(
+						"Demo pause requested. Choose Finish demo to stop after this step.",
+					);
+				} else if (name === "stop")
+					modal(
+						"Stop this run?",
+						'<p>The simulated session will stop and this run will remain in history. In the real product, Stop also restores the target checkout.</p><p class="muted">No process or repository is connected to this prototype.</p>',
+						btn("Keep running", "close") +
+							btn("Stop simulated run", "confirm-stop", "danger"),
+					);
+				else if (name === "confirm-stop") {
+					run.state = "stopped";
+					run.grade = "Not judged";
+					run.note = "Stopped by operator · incomplete output";
+					for (const child of state.runs.filter(
+						(item) => item.parent === run.id && item.state === "running",
+					)) {
+						child.state = "stopped";
+						child.grade = "Not judged";
+						child.note = "Group stopped by operator";
+					}
+					closeModal();
+					render();
+					toast(
+						"Demo run stopped. Evidence recorded so far remains available.",
+					);
+				} else if (name === "follow") {
+					state.follow = !state.follow;
+					render();
+				} else if (name === "advance") {
+					run.demoTicks = (run.demoTicks || 0) + 1;
+					run.elapsedSeconds ??= elapsedSeconds(run.time);
+					run.cost += 0.12;
+					const reading = run.stepReadings[run.step];
+					reading.cost += 0.12;
+					reading.seconds += 8;
+					const elapsed = run.elapsedSeconds + run.demoTicks * 8;
+					run.time = elapsedLabel(elapsed);
+					render();
+					toast("Simulated transcript and spend advanced.");
+				} else if (name === "finish") {
+					const paused =
+						run.pauseRequested &&
+						run.step === "shape" &&
+						run.kind === "Pipeline";
+					run.state = paused ? "paused" : "completed";
+					run.progress = paused ? 1 : 2;
+					run.grade = run.step === "session" ? "Passed" : "B";
+					if (run.kind !== "Group" && !paused) finishReadings(run);
+					if (run.kind === "Group") {
+						for (const attempt of state.runs.filter(
+							(item) => item.parent === run.id && item.state === "running",
+						)) {
+							attempt.state = "completed";
+							attempt.grade = attempt.step === "session" ? "Passed" : "B";
+							finishReadings(attempt);
+						}
+						const attempts = state.runs.filter(
+							(item) => item.parent === run.id,
+						);
+						run.cost = attempts.reduce((sum, item) => sum + item.cost, 0);
+						run.time = attempts.reduce(
+							(longest, item) =>
+								elapsedSeconds(item.time) > elapsedSeconds(longest)
+									? item.time
+									: longest,
+							"0m 00s",
+						);
+						if (run.groupMode === "pipeline") run.step = "build";
+						run.grade =
+							attempts.filter(isAccepted).length +
+							"/" +
+							attempts.length +
+							" accepted";
+					}
+					run.note =
+						run.kind === "Group"
+							? run.grade + " · repetitions ended"
+							: paused
+								? "Paused after accepted step · cannot resume"
+								: "Accepted · all checks passed";
+					run.pauseRequested = false;
+					render();
+					toast("Demo run ended. Activity stays at the same address.");
+				} else if (name === "open-context")
+					location.hash = runHref(run, "context") + "/" + step;
+				else if (name === "final-evidence")
+					modal(
+						"Final outcome evidence",
+						'<span class="badge">' +
+							finalReading(run) +
+							' · final judge</span><p class="mono">delivery.md:32–36</p><blockquote class="evidence-quote">' +
+							(finalReading(run) === "FAIL"
+								? "The empty-page response contains items: [] but omits hasMore. This fails the required public response contract."
+								: "The final artifact preserves the response fields, cursor ordering, and empty-page behavior required by the input.") +
+							'</blockquote><p class="muted">Saved final-artifact evidence. This outcome is separate from the step letters.</p>',
+						btn("Close", "close"),
+					);
+				else if (name === "context-evidence") evidenceModal("context");
+				else if (name === "inspect-step") {
+					const phase = stepPhase(run, step),
+						m = stepMetrics(run, step),
+						session = step === "session";
+					const grades = {
+						accepted: session ? "Checks passed" : "B",
+						running: "Pending",
+						queued: "Not reached",
+						unjudged: "Not judged",
+						stopped: "C",
+						unavailable: "Unavailable",
+					};
+					modal(
+						"Inspect " + step,
+						'<dl class="definition"><dt>Run</dt><dd>' +
+							run.id +
+							'</dd><dt>Instructions</dt><dd class="mono">' +
+							instructionPath(step) +
+							"</dd><dt>Input</dt><dd>" +
+							(phase === "queued" || phase === "unavailable"
+								? frozenInput(run, step)
+								: btn(
+										stepArtifacts(step).input,
+										"artifact:" + stepArtifacts(step).input,
+									) +
+									'<br><small class="mono muted">' +
+									frozenInput(run, step) +
+									"</small>") +
+							"</dd><dt>Output</dt><dd>" +
+							(run.kind === "Group"
+								? "Outputs belong to individual attempts. Open an attempt in Attempts & results."
+								: phase === "running"
+									? "Pending"
+									: phase === "queued"
+										? "Not reached"
+										: phase === "unjudged"
+											? "Incomplete"
+											: phase === "unavailable"
+												? "Unavailable"
+												: btn(
+														stepArtifacts(step).output,
+														"artifact:" + stepArtifacts(step).output,
+													)) +
+							"</dd><dt>Grade</dt><dd>" +
+							grades[phase] +
+							"</dd><dt>Step spend</dt><dd>" +
+							m.cost +
+							"</dd><dt>Step elapsed</dt><dd>" +
+							m.time +
+							'</dd></dl><p class="muted">Results and Context & cost retain this selected step.</p>',
+						btn("Open results", "inspect-report") +
+							(canReplay(run, step)
+								? btn("Replay step", "inspect-replay")
+								: ""),
+					);
+				} else if (name === "inspect-report") {
+					closeModal();
+					location.hash = runHref(run, "report");
+				} else if (name === "inspect-replay") launchModal(run.case, true);
+				else if (name.startsWith("artifact:")) {
+					const path = name.slice("artifact:".length),
+						artifacts = {
+							"product-brief.md":
+								"Add cursor pagination to the audit log. Preserve nextCursor and hasMore. An exhausted cursor must keep the public response fields.",
+							"plan.md":
+								"# Accepted pagination plan\n\nPreserve nextCursor and hasMore.\nUse a stable cursor sort key.\nCover empty pages and invalid cursors in the target checks.\n\n4 acceptance criteria · saved before Build.",
+							"delivery.md":
+								run.finalOutcome === "FAIL"
+									? "# Delivery\n\nCursor ordering and validation implemented.\nEmpty-page example: { items: [], nextCursor: null }\n\nTarget checks: 12 passed. The independent final rubric found hasMore missing."
+									: "# Delivery\n\nCursor ordering and validation implemented.\nEmpty-page example: { items: [], nextCursor: null, hasMore: false }\n\nTarget checks: 12 passed.",
+							"prompt.md":
+								"Explain the cursor boundary in a concise technical reply.",
+							"reply.txt":
+								"An exhausted cursor returns an empty items array. Keep nextCursor and hasMore unchanged; validate an invalid cursor before querying.",
+						};
+					modal(
+						path,
+						'<span class="badge">Synthetic · read-only</span><p class="mono">' +
+							(route()[0] === "cases"
+								? "Case " + route()[1]
+								: run.id + " / " + step) +
+							'</p><pre class="tool">' +
+							esc(artifacts[path]) +
+							"</pre>",
+						btn("Close", "close"),
+					);
+				} else if (name === "analysis")
+					modal(
+						"Root-cause analysis request",
+						'<p>An agent will read the frozen run evidence and propose likely instruction-level explanations.</p><div class="notice">Demo ceiling: $2.00 · model: sonnet<br>This is an opinion, not causal evidence.</div>',
+						btn("Cancel", "close") +
+							btn("Simulate analysis", "simulate-analysis"),
+					);
+				else if (name === "simulate-analysis")
+					modal(
+						"Illustrative analysis",
+						'<span class="badge">Agent opinion · synthetic</span><p>The review instruction may have increased repeated evidence delivery. Inspect the cited request intervals before proposing a smaller instruction.</p><p class="muted">A controlled replay and repeated comparison are needed to test that hypothesis.</p>',
+						btn("Inspect citation", "context-evidence"),
+					);
+				else if (name === "edit-instruction") {
+					if (!canReplay(run, step)) {
+						toast("Choose a saved step before testing an instruction.");
+						return;
+					}
+					state.editContext = {
+						id: run.id,
+						step,
+						path: instructionPath(step),
+						input: frozenInput(run, step),
+						version: run.version,
+					};
+					state.editPath = state.editContext.path;
+					location.hash = "/corpus";
+				} else if (name === "clear-edit-source") {
+					state.editContext = null;
+					render();
+				} else if (name === "choose-edit-source") {
+					closeModal();
+					location.hash = "/runs";
+				} else if (name === "discard-edit") {
+					instructionFile().draft = instructionFile().text;
+					render();
+					toast("Draft discarded.");
+				} else if (name === "review-edit") {
+					if (instructionFile().draft === instructionFile().text) {
+						toast("Edit the instruction before reviewing a change.");
+						return;
+					}
+					modal(
+						"Review instruction change",
+						editSourceSummary() +
+							'<span class="mono">' +
+							esc(state.editPath) +
+							'</span><div><div class="diff-line remove">− ' +
+							esc(instructionFile().text) +
+							'</div><div class="diff-line add">+ ' +
+							esc(instructionFile().draft) +
+							'</div></div><p>Apply as a new demo corpus version. Existing results remain attached to their original snapshot.</p><p class="muted">' +
+							state.runs.filter((r) => r.version === state.version).length +
+							" demo records use the current snapshot. Their corpus will read as changed.</p>",
+						btn("Keep editing", "close") +
+							btn("Apply demo version", "apply-edit", "primary"),
+					);
+				} else if (name === "apply-edit") {
+					state.lastEdit = {
+						path: state.editPath,
+						before: instructionFile().text,
+						after: instructionFile().draft,
+						sourceId: state.editContext?.id || null,
+						step: state.editContext?.step || null,
+					};
+					instructionFile().text = instructionFile().draft;
+					state.version = "edit" + ++state.versionCounter;
+					modal(
+						"Demo corpus version created",
+						"<p>corpus@" +
+							state.version +
+							" is ready.</p>" +
+							editSourceSummary() +
+							'<p class="muted">Only this prototype’s memory changed. Old records still name their original corpus version.</p>',
+						btn("Return to corpus", "close") +
+							(state.editContext
+								? btn(
+										"Replay " + state.editContext.step,
+										"edit-replay",
+										"primary",
+									)
+								: btn("Choose source step", "choose-edit-source", "primary")),
+					);
+					render();
+				} else if (name === "edit-replay") {
+					const source = state.runs.find(
+						(item) => item.id === state.editContext.id,
+					);
+					launchModal(source.case, true, {
+						run: source,
+						step: state.editContext.step,
+					});
+				} else if (name === "diff")
+					modal(
+						"One changed instruction",
+						'<span class="mono">skills/review/SKILL.md</span><div class="diff-line remove">− Give each reviewer the full transcript and verify every cited source again.</div><div class="diff-line add">+ Share the relevant evidence once. Verify findings against their cited source.</div><p class="muted">Synthetic comparison · all other declared inputs are unchanged.</p>',
+						btn("Close", "close"),
+					);
+				else if (name === "compare-setup")
+					modal(
+						"Compare repeated attempts",
+						'<p>Select groups at the same checkpoint. The model and effort must match. A control stays explicit.</p><label class="field">Before edit<select><option>g7 · corpus@7733aa · 3 attempts</option></select></label><label class="field">After edit<select><option>g8 · corpus@0a78c2 · 3 attempts</option></select></label><label class="field">Control<select><option>g6 · instruction removed · 3 attempts</option></select></label><span class="badge">✓ cp-a7 · sonnet · fixed effort</span><p class="muted">Reading saved attempts starts no paid sessions.</p>',
+						btn("Cancel", "close") +
+							btn("Open demo comparison", "open-comparison", "primary"),
+					);
+				else if (name === "open-comparison") {
+					closeModal();
+					location.hash = "/compare/cmp1";
+				} else if (name === "extend")
+					modal(
+						"Extend all three arms",
+						'<p>Add 3 independent attempts to each arm, preserving the original frozen inputs, corpus, model, and effort.</p><div class="notice">9 additional attempts × $10.00 ceiling = $90.00 total ceiling.<br>This is a ceiling, not an estimated bill.</div><p class="muted">Demo only. No provider will run.</p>',
+						btn("Cancel", "close") +
+							btn("Simulate extension", "simulate-extension"),
+					);
+				else if (name.startsWith("review-grade")) {
+					const [, targetId, targetStep] = name.split(":");
+					const target = targetId
+						? state.runs.find((item) => item.id === targetId)
+						: getRun();
+					const selected = targetStep || selectedStep(target),
+						key = target.id + "/" + selected;
+					state.reviewTarget = { id: target.id, step: selected, key };
+					const judge = stepPhase(target, selected) === "stopped" ? "C" : "B";
+					modal(
+						"Review frozen output",
+						"<p>" +
+							target.case +
+							" / " +
+							target.id +
+							" / " +
+							selected +
+							" · judge grade " +
+							judge +
+							'</p><pre class="tool">' +
+							(judge === "C"
+								? "Proposed response renames nextCursor to cursor. The brief fixes nextCursor and hasMore."
+								: "Keep nextCursor and hasMore. Cover cursor ordering and the empty-page boundary.") +
+							'</pre><label class="field">Your grade<select id="human-grade">' +
+							["A", "B", "C", "D", "F"]
+								.map(
+									(grade) =>
+										"<option " +
+										((state.reviews[key] || judge) === grade
+											? "selected"
+											: "") +
+										">" +
+										grade +
+										"</option>",
+								)
+								.join("") +
+							"</select></label>",
+						btn("Cancel", "close") + btn("Save demo review", "save-review"),
+					);
+				} else if (name === "save-review") {
+					state.reviews[state.reviewTarget.key] = $("#human-grade").value;
+					if (state.reviewTarget.key === "r41/shape")
+						state.review = $("#human-grade").value;
+					closeModal();
+					render();
+					toast("Human grade saved for " + state.reviewTarget.key + ".");
+				} else if (name === "save-settings") {
+					if (!$("#ceiling").reportValidity()) return;
+					state.defaultBudget = Number($("#ceiling").value);
+					toast(
+						"Demo ceiling saved: " +
+							money(state.defaultBudget) +
+							" per attempt.",
+					);
+				} else if (name === "export-case") {
+					const blob = new Blob(
+						[
+							JSON.stringify(
+								{
+									prototype: true,
+									case: route()[1] || "audit-log",
+									steps: route()[1] === "brief-reply" ? [] : ["shape", "build"],
+									judges:
+										route()[1] === "brief-reply"
+											? ["word ceiling", "required answer", "forbidden text"]
+											: ["step", "final"],
+								},
+								null,
+								2,
+							),
+						],
+						{ type: "application/json" },
+					);
+					const a = document.createElement("a");
+					a.href = URL.createObjectURL(blob);
+					a.download = "rehearse-demo-definition.json";
+					a.click();
+					URL.revokeObjectURL(a.href);
+					toast(
+						"Synthetic definition exported. It is a prototype sketch, not an importable production task bundle.",
+					);
+				}
+			}
+			function seedAttempts() {
+				const control = {
+					...state.runs.find((item) => item.id === "g7"),
+					id: "g6",
+					when: "Yesterday, 16:30",
+					title: "Shape · instruction removed",
+					version: "91b220",
+					cost: 3.36,
+					grade: "1/3 accepted",
+					note: "3 attempts · control · instruction removed",
+				};
+				state.runs.splice(
+					state.runs.findIndex((item) => item.id === "r39"),
+					0,
+					control,
+				);
+				for (const group of state.runs.filter((r) => r.kind === "Group"))
+					for (let i = 1; i <= 3; i++)
+						state.runs.push(
+							initializeReadings({
+								...group,
+								id: group.id + "-rep" + i,
+								kind: "Replay",
+								title: "Shape · attempt " + i + " of " + group.id,
+								cost: (group.id === "g7"
+									? [1.6, 2.46, 3.2]
+									: group.id === "g8"
+										? [1.4, 1.7, 2.3]
+										: [1.02, 1.17, 1.17])[i - 1],
+								words: (group.id === "g7"
+									? [360, 430, 470]
+									: group.id === "g8"
+										? [280, 308, 360]
+										: [300, 390, 420])[i - 1],
+								grade: group.id === "g6" && i < 3 ? "C" : "B",
+								state: group.id === "g6" && i < 3 ? "stopped" : "completed",
+								note: "Independent attempt " + i + " · from " + group.id,
+								when: "Yesterday · group " + group.id,
+								step: "shape",
+								parent: group.id,
+							}),
+						);
+				const suppliedReplay = state.runs.find((item) => item.id === "r39");
+				const suppliedSource = state.runs.find((item) => item.id === "r41");
+				suppliedReplay.sourceId = "r41";
+				suppliedReplay.title = "Replay Shape from r41";
+				suppliedReplay.note = "From r41 / Shape · checkpoint cp-a7";
+				suppliedReplay.comparisonSource = snapshotStep(suppliedSource, "shape");
+			}
+			seedAttempts();
+			document.addEventListener("click", (event) => {
+				if (event.target.closest(".skip")) {
+					event.preventDefault();
+					$("#main").focus();
+					return;
+				}
+				const actionButton = event.target.closest("[data-action]");
+				if (actionButton) {
+					action(actionButton.dataset.action);
+					return;
+				}
+				const filter = event.target.closest("[data-filter]");
+				if (filter) {
+					state.filter = filter.dataset.filter;
+					render();
+					return;
+				}
+				const source = event.target.closest("[data-source]");
+				if (source) {
+					state.source = source.dataset.source;
+					state.request = 1;
+					render();
+					return;
+				}
+				const request = event.target.closest("[data-request]");
+				if (request) {
+					state.request = Number(request.dataset.request);
+					render();
+					return;
+				}
+			});
+			document.addEventListener("input", (event) => {
+				if (event.target.id === "search") {
+					const cursor = event.target.selectionStart;
+					state.search = event.target.value;
+					render();
+					$("#search").focus();
+					$("#search").setSelectionRange(cursor, cursor);
+				}
+				if (event.target.id === "instruction")
+					instructionFile().draft = event.target.value;
+				if (
+					event.target.id === "launch-count" ||
+					event.target.id === "launch-budget"
+				)
+					$("#launch-total").textContent =
+						"Total ceiling: " +
+						money(
+							Number($("#launch-count").value) *
+								Number($("#launch-budget").value),
+						);
+			});
+			document.addEventListener("change", (event) => {
+				if (event.target.id === "agent") {
+					state.agent = event.target.value;
+					state.source = "all";
+					state.request = 1;
+					render();
+				}
+			});
+			$("#dialog").addEventListener("cancel", (event) => {
+				event.preventDefault();
+				closeModal();
+			});
+			window.addEventListener("hashchange", () => {
+				render({ focus: true });
+				if (route()[0] === "runs" && route()[1])
+					$('.view-nav a[aria-current="page"]')?.focus({ preventScroll: true });
+				window.scrollTo(0, 0);
+			});
+			render();
+		</script>
 	</body>
 </html>
