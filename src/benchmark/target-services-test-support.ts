@@ -3,10 +3,25 @@ import type {
 	ContainerOwner,
 	ContainerRuntime,
 	OwnedContainer,
+	ServiceReadiness,
 	StartedContainer,
 } from "./target-services";
 
 const FIRST_HOST_PORT = 49_152;
+
+/** A database a target's setup, checks and sessions reach through DATABASE_URL. */
+export const POSTGRES: TargetService = {
+	name: "postgres",
+	image: "postgres:18-alpine",
+	port: 5432,
+	ready: ["pg_isready", "-h", "127.0.0.1"],
+	exports: { DATABASE_URL: "postgres://127.0.0.1:{port}/app" },
+};
+
+export const READY_AT_ONCE: ServiceReadiness = {
+	checks: 1,
+	wait: () => Promise.resolve(),
+};
 
 interface FakeContainer {
 	readonly id: string;

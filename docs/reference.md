@@ -535,8 +535,14 @@ again for each rep, labelled `rehearse.run=<group>` with
 `rehearse.attempt=<group>-setup` or `rehearse.attempt=<rep>`, so concurrent reps
 share no service state. It removes each set when that setup or rep ends, and a
 signal removes every set still running. A service that cannot start for the
-group's setup refuses the group before any rep runs. Replays, replay
-confirmations and session confirmations start no services.
+group's setup refuses the group before any rep runs. A replay of a delivery
+stage starts the services, labelled `rehearse.run=<run>` and
+`rehearse.attempt=<its temporary directory's name>`, and a replay confirmation of
+one starts them for each rep, labelled like a pipeline confirmation's. Either
+runs the target's setup commands against them before the stage session, and
+removes them when the replay or rep ends or a signal stops it. A replay of a
+planning stage starts no services and runs no setup. Session confirmations
+start no services.
 
 The default stage settings deny branch/worktree creation commands and disable
 bundled skills. The allowed settings schema covers a deny list and selected

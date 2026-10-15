@@ -27,11 +27,13 @@ import {
 	JudgeOutputValidationError,
 } from "./judge-attempt";
 import type { RunManifest } from "./manifest";
+import type { TargetDefinition } from "./pipeline";
 import type { ReplayDependencies } from "./replay";
 import { writeRunManifest } from "./manifest";
 import { runReplayConfirmation } from "./replay-confirmation";
 import { GroupStoppedError } from "./confirmation-evidence";
 import { operatorStopped } from "./operator-stop";
+import type { BenchmarkRunPaths } from "./run-layout";
 import { benchmarkRunPaths, confirmationGroupPaths } from "./run-layout";
 import { readShortIds } from "./short-id";
 import { StageSessionError } from "./stage-session-error";
@@ -44,10 +46,12 @@ import {
 	commitAll,
 	harnessResult,
 } from "./test-support";
+import type { ReplayConfirmationInputs } from "./replay-confirmation-test-support";
 import {
 	ReplayConfirmationHarness,
 	replayScorecard,
 } from "./replay-confirmation-test-support";
+import { POSTGRES } from "./target-services-test-support";
 
 const testResources = TestResources.forEachTest();
 
@@ -343,10 +347,142 @@ describe(runReplayConfirmation.name, () => {
 			run.manifest.pipeline.target.integrityFiles,
 			run.manifest.pipeline.target.integrityFiles,
 		]);
+		const checksWithNoServices = run.manifest.pipeline.target.checks.map(
+			({ command }) => ({ command, env: {} }),
+		);
 		expect(fake.targetChecks).toEqual([
-			run.manifest.pipeline.target.checks,
-			run.manifest.pipeline.target.checks,
+			checksWithNoServices,
+			checksWithNoServices,
 		]);
+	});
+
+	describe("when the run's target declares services", () => {
+		const SERVED_TARGET: TargetDefinition = {
+			...TEST_TARGET,
+			setup: [{ command: ["bun", "install"] }],
+			services: [POSTGRES],
+		};
+
+		async function servedInputs(
+			paths: BenchmarkRunPaths,
+		): Promise<ReplayConfirmationInputs> {
+			const corpusRoot = await mkdtemp(join(tmpdir(), "rehearse-corpus-"));
+			testResources.track(corpusRoot);
+			for (const skill of ["discuss", "build", "doctrine"]) {
+				await Bun.write(
+					join(corpusRoot, "skills", skill, "SKILL.md"),
+					`${skill}\n`,
+				);
+			}
+
+			return {
+				paths,
+				corpusRoots: [{ kind: "directory", root: corpusRoot }],
+			};
+		}
+
+		it("sets up each rep against services started for it alone", async () => {
+			const fake = new ReplayConfirmationHarness(testResources);
+			const run = await fake.recordedRun([], SERVED_TARGET);
+
+			await fake.runConfirmation(await servedInputs(run.paths), {
+				stage: "build",
+			});
+
+			expect(
+				fake.setups
+					.map(({ setup }) => String(setup?.[0]?.env?.["DATABASE_URL"]))
+					.toSorted((left, right) => left.localeCompare(right)),
+			).toEqual([
+				"postgres://127.0.0.1:49152/app",
+				"postgres://127.0.0.1:49153/app",
+				"postgres://127.0.0.1:49154/app",
+			]);
+		});
+
+		it("gives each rep's stage session and treatment checks the services its setup ran against", async () => {
+			const fake = new ReplayConfirmationHarness(testResources);
+			const run = await fake.recordedRun([], SERVED_TARGET);
+			const sessionAddress = new Map<string, string | undefined>();
+			const checkAddress = new Map<string, string | undefined>();
+
+			await fake.runConfirmation(
+				await servedInputs(run.paths),
+				{ stage: "build" },
+				(defaults) => ({
+					...defaults,
+					stageSession: {
+						...defaults.stageSession,
+						runWorkflowStage: (request) => {
+							sessionAddress.set(
+								request.targetDir,
+								request.environment?.["DATABASE_URL"],
+							);
+
+							return defaults.stageSession.runWorkflowStage(request);
+						},
+						captureTreatmentChecks: (targetDir, checks) => {
+							checkAddress.set(targetDir, checks[0]?.env?.["DATABASE_URL"]);
+
+							return defaults.stageSession.captureTreatmentChecks(
+								targetDir,
+								checks,
+							);
+						},
+					},
+				}),
+			);
+
+			const addresses = fake.setups.map(({ targetDir, setup }) => ({
+				setup: setup?.[0]?.env?.["DATABASE_URL"],
+				session: sessionAddress.get(targetDir),
+				checks: checkAddress.get(targetDir),
+			}));
+			expect(addresses).toEqual(
+				addresses.map(({ setup }) => ({
+					setup,
+					session: setup,
+					checks: setup,
+				})),
+			);
+			expect(new Set(addresses.map(({ setup }) => setup)).size).toBe(3);
+		});
+
+		it("removes every container its reps started once they end", async () => {
+			const fake = new ReplayConfirmationHarness(testResources);
+			const run = await fake.recordedRun([], SERVED_TARGET);
+
+			await fake.runConfirmation(await servedInputs(run.paths), {
+				stage: "build",
+			});
+
+			expect(fake.containers.runningServices()).toEqual([]);
+		});
+
+		describe("when a signal stops it", () => {
+			it("removes the containers of every rep still running", async () => {
+				const fake = new ReplayConfirmationHarness(testResources);
+				const run = await fake.recordedRun([], SERVED_TARGET);
+				let running: readonly string[] = ["the stop never ran"];
+
+				await failureOf(
+					fake.runConfirmation(
+						await servedInputs(run.paths),
+						{ stage: "build" },
+						(defaults) => ({
+							...defaults,
+							runStageJudge: async () => {
+								await fake.stops[0]?.();
+								running = fake.containers.runningServices();
+								throw new Error("the stop killed this rep's judge");
+							},
+						}),
+					),
+				);
+
+				expect(running).toEqual([]);
+			});
+		});
 	});
 
 	it("checks every rep's worktree out from the repository its source resolves to", async () => {
@@ -667,8 +803,7 @@ describe(runReplayConfirmation.name, () => {
 				captureBaselineContext,
 				captureFileHashes,
 				currentSha,
-				installDependencies: () =>
-					Promise.reject(new Error("not a delivery stage")),
+				runSetup: () => Promise.reject(new Error("not a delivery stage")),
 				log: () => undefined,
 			}),
 		);

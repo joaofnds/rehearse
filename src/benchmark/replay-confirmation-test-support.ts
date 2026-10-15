@@ -9,12 +9,18 @@ import { runCommand } from "./command";
 import type { StageJudgeInput, StageScorecard } from "./contracts";
 import type { RunManifest } from "./manifest";
 import { writeRunManifest } from "./manifest";
-import type { TargetCheck } from "./pipeline";
+import type { TargetCheck, TargetDefinition } from "./pipeline";
 import type { ReplayDependencies } from "./replay";
 import type { ReplayConfirmationRequest } from "./replay-confirmation";
 import { runReplayConfirmation } from "./replay-confirmation";
 import type { BenchmarkRunPaths } from "./run-layout";
 import { benchmarkRunPaths } from "./run-layout";
+import type { ServiceEnvironment } from "./target-services";
+import { targetServices } from "./target-services";
+import {
+	FakeContainerRuntime,
+	READY_AT_ONCE,
+} from "./target-services-test-support";
 import { TEST_TARGET, commitAll, harnessResult } from "./test-support";
 import { createProductOwner } from "./workflow";
 
@@ -56,7 +62,12 @@ export class ReplayConfirmationHarness {
 	public readonly stops: (() => Promise<void>)[] = [];
 	public readonly releasedStops = new Set<() => Promise<void>>();
 	public readonly pruned: string[] = [];
-	public readonly installed: string[] = [];
+	public readonly setups: {
+		readonly targetDir: string;
+		readonly setup: readonly TargetCheck[] | undefined;
+	}[] = [];
+	public readonly sessionEnvironments: (ServiceEnvironment | undefined)[] = [];
+	public readonly containers = new FakeContainerRuntime();
 	public readonly targetChecks: (readonly TargetCheck[])[] = [];
 	public readonly integrityFileSets: (readonly string[])[] = [];
 	public readonly judged: StageJudgeInput[] = [];
@@ -86,6 +97,7 @@ export class ReplayConfirmationHarness {
 
 	public async recordedRun(
 		discussCorpus: readonly HashedFile[] = [],
+		target: TargetDefinition = TEST_TARGET,
 	): Promise<RecordedRun> {
 		const directory = await mkdtemp(join(tmpdir(), "rehearse-replayrun-"));
 		this.resources.track(directory);
@@ -174,7 +186,7 @@ export class ReplayConfirmationHarness {
 			pipelinePath: "pipelines/default.json",
 			pipeline: {
 				statuses: ["To Do", "Done"],
-				target: TEST_TARGET,
+				target,
 				stages: [
 					{
 						name: "discuss",
@@ -251,10 +263,12 @@ export class ReplayConfirmationHarness {
 					stage,
 					settingSources,
 					settingsOverlay,
+					environment,
 				}) => {
 					this.stageDirs.push(targetDir);
 					this.settingSources.push(settingSources);
 					this.settingsOverlays.push(settingsOverlay);
+					this.sessionEnvironments.push(environment);
 
 					return Promise.resolve({
 						stage,
@@ -417,11 +431,13 @@ export class ReplayConfirmationHarness {
 
 				return Promise.resolve("base-sha");
 			},
-			installDependencies: (targetDir) => {
-				this.installed.push(targetDir);
+			runSetup: (targetDir, setup) => {
+				this.setups.push({ targetDir, setup });
 
 				return Promise.resolve();
 			},
+			services: (owner) =>
+				targetServices(owner, this.containers, READY_AT_ONCE),
 			installStageCorpusSnapshot: (snapshotDirectory, targetDirectory) => {
 				this.corpusInstalls.push({ snapshotDirectory, targetDirectory });
 

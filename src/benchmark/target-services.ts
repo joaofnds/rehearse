@@ -121,6 +121,26 @@ export async function startTargetServices(
 	}
 }
 
+/** Tries every attempt's services before reporting the ones left running. */
+export async function stopEvery(
+	services: readonly TargetServices[],
+): Promise<void> {
+	const failures: unknown[] = [];
+	await Promise.all(
+		services.map(async ({ stop }) => {
+			try {
+				await stop();
+			} catch (error) {
+				failures.push(error);
+			}
+		}),
+	);
+
+	if (failures.length > 0) {
+		throw new AggregateError(failures, failures.map(String).join("\n"));
+	}
+}
+
 /** The target's setup, when it declares one, with the services' exports. */
 export function setupWithServices(
 	setup: readonly TargetCheck[] | undefined,

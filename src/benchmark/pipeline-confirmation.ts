@@ -87,6 +87,7 @@ import {
 	checksWithServices,
 	setupWithServices,
 	startTargetServices,
+	stopEvery,
 } from "./target-services";
 
 interface LoadedStageRubric {
@@ -871,24 +872,6 @@ async function runPipelineRep(
 			preservedMessage: `Pipeline rep ${plan.repId} failed; evidence preserved at ${plan.worktreePath}`,
 			log: dependencies.log,
 		});
-	}
-}
-
-/** Tries every attempt's services before reporting the ones left running. */
-async function stopEvery(services: readonly TargetServices[]): Promise<void> {
-	const failures: unknown[] = [];
-	await Promise.all(
-		services.map(async ({ stop }) => {
-			try {
-				await stop();
-			} catch (error) {
-				failures.push(error);
-			}
-		}),
-	);
-
-	if (failures.length > 0) {
-		throw new AggregateError(failures, failures.map(String).join("\n"));
 	}
 }
 

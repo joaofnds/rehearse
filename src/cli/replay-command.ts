@@ -21,14 +21,16 @@ import {
 	captureCheckIntegrity,
 	captureFileHashes,
 	captureTreatmentChecks,
+	runSetup,
 } from "#benchmark/checks";
 import {
 	CaseDeclarationError,
 	declaredTarget,
 	readCaseDeclaration,
 } from "#benchmark/case";
-import { runCommand } from "#benchmark/command";
 import { processSignalStop, stopOnSignal } from "#benchmark/stop-on-signal";
+import { dockerContainerRuntime } from "#benchmark/docker-container-runtime";
+import { SERVICE_READINESS, targetServices } from "#benchmark/target-services";
 import type { ReplayCliConfig } from "#benchmark/config";
 import {
 	CONTROL_DIR,
@@ -344,9 +346,9 @@ export async function executeReplay(
 		captureBaselineContext,
 		captureFileHashes,
 		currentSha,
-		installDependencies: async (worktreeDir) => {
-			await runCommand(["bun", "install", "--frozen-lockfile"], worktreeDir);
-		},
+		runSetup,
+		services: (owner) =>
+			targetServices(owner, dockerContainerRuntime, SERVICE_READINESS),
 		installStageCorpusSnapshot,
 		projectsDirectory: claudeProjectsDirectory(),
 		log: diagnosticWriter(output),

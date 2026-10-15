@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { CorpusRoot } from "./corpus-file";
 import { mkdtemp, readdir, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import type {
 	CheckpointRecord,
 	HashedFile,
@@ -26,9 +26,9 @@ import type { Effort } from "./config";
 import type { ContextFile } from "./contracts";
 import type { RunManifest } from "./manifest";
 import { loadRunManifest } from "./manifest";
-import type { StageDefinition } from "./pipeline";
+import type { StageDefinition, TargetCheck } from "./pipeline";
 import type { StageSessionDependencies } from "./run";
-import { executeStageSession } from "./run";
+import { executeStageSession, stageSessionsWithServices } from "./run";
 import type { ReplayRecord } from "./replay-record";
 import type { BenchmarkRunPaths } from "./run-layout";
 import { runNameFromTimestamp } from "./run-layout";
@@ -45,6 +45,12 @@ import type {
 } from "./target";
 import { createSpendCeiling } from "./spend-ceiling";
 import type { repositoryHolding } from "./run-repositories";
+import type {
+	ContainerOwner,
+	ServiceEnvironment,
+	TargetServices,
+} from "./target-services";
+import { setupWithServices, startTargetServices } from "./target-services";
 import type { createProductOwner } from "./workflow";
 
 export class ReplayError extends Error {
@@ -155,7 +161,13 @@ export interface ReplayDependencies {
 	readonly captureBaselineContext: typeof captureBaselineContext;
 	readonly captureFileHashes: typeof captureFileHashes;
 	readonly currentSha: typeof currentSha;
-	readonly installDependencies: (worktreeDir: string) => Promise<void>;
+	readonly runSetup: (
+		targetDir: string,
+		setup: readonly TargetCheck[] | undefined,
+		log: (message: string) => void,
+	) => Promise<void>;
+	/** The services one replay, or one attempt of a replay confirmation, starts and stops. */
+	readonly services: (owner: ContainerOwner) => TargetServices;
 	readonly installStageCorpusSnapshot: typeof installStageCorpusSnapshot;
 	/**
 	 * Where the provider writes session transcripts, read for what the stage
@@ -323,14 +335,22 @@ export async function runReplay(
 	);
 	const worktreeDir = join(parent, "worktree");
 	const productOwnerDirectory = join(parent, "product-owner");
+	const services = dependencies.services({
+		run: request.paths.name,
+		attempt: basename(parent),
+	});
 	await dependencies.addWorktree(
 		sourceRoot,
 		plan.consumed.targetSha,
 		worktreeDir,
 	);
 	const release = dependencies.stopOnSignal(async () => {
-		await dependencies.removeWorktree(sourceRoot, worktreeDir);
-		await rm(parent, { force: true, recursive: true });
+		try {
+			await dependencies.removeWorktree(sourceRoot, worktreeDir);
+			await rm(parent, { force: true, recursive: true });
+		} finally {
+			await services.stop();
+		}
 	});
 
 	let outcome: ReplayOutcome;
@@ -352,8 +372,17 @@ export async function runReplay(
 			worktreeDir,
 		);
 		const baseSha = await dependencies.currentSha(worktreeDir);
+		let environment: ServiceEnvironment = {};
 		if (plan.definition.kind === "delivery") {
-			await dependencies.installDependencies(worktreeDir);
+			environment = await startTargetServices(
+				services,
+				manifest.pipeline.target,
+			);
+			await dependencies.runSetup(
+				worktreeDir,
+				setupWithServices(manifest.pipeline.target.setup, environment),
+				dependencies.log,
+			);
 		}
 		const priorArtifacts = await readPriorArtifacts(
 			worktreeDir,
@@ -407,7 +436,9 @@ export async function runReplay(
 		const now = dependencies.now ?? (() => performance.now());
 		const stageStartedAtMs = now();
 		const session = await executeStageSession(
-			detachedStageDependencies(dependencies.stageSession),
+			detachedStageDependencies(
+				stageSessionsWithServices(dependencies.stageSession, environment),
+			),
 			{
 				targetDir: worktreeDir,
 				sessionId: randomUUID(),
@@ -524,6 +555,7 @@ export async function runReplay(
 		throw error;
 	} finally {
 		release();
+		await services.stop();
 	}
 
 	await dependencies.removeWorktree(sourceRoot, worktreeDir);

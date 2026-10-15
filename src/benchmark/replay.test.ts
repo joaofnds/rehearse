@@ -28,8 +28,10 @@ import { runCommand } from "./command";
 import { parseReplayArgs } from "./config";
 import type { StageJudgeInput } from "./contracts";
 import type { CorpusMeasurement } from "./corpus-measurement";
+import { RefusedPreconditionError } from "./exit-codes";
 import type { JudgeAttempt, JudgeBudget } from "./judge-attempt";
 import type { RunManifest } from "./manifest";
+import type { TargetDefinition } from "./pipeline";
 import type { ReadManifestEntry } from "./read-manifest";
 import { writeRunManifest } from "./manifest";
 import type { ReplayDependencies, ReplayRequest } from "./replay";
@@ -52,6 +54,12 @@ import {
 	pruneWorktrees,
 	removeWorktree,
 } from "./target";
+import { targetServices } from "./target-services";
+import {
+	FakeContainerRuntime,
+	POSTGRES,
+	READY_AT_ONCE,
+} from "./target-services-test-support";
 import {
 	TEST_TARGET,
 	TestResources,
@@ -392,6 +400,24 @@ describe(runReplay.name, () => {
 		};
 	}
 
+	const SERVED_TARGET: TargetDefinition = {
+		...TEST_TARGET,
+		setup: [{ command: ["bun", "install"] }],
+		checks: [{ command: ["bun", "test"] }],
+		services: [POSTGRES],
+	};
+
+	async function servedRun(): Promise<RecordedRun> {
+		const run = await recordedRun();
+		const manifest: RunManifest = {
+			...run.manifest,
+			pipeline: { ...run.manifest.pipeline, target: SERVED_TARGET },
+		};
+		await writeRunManifest(run.paths.manifestFile, manifest);
+
+		return { ...run, manifest };
+	}
+
 	/**
 	 * A project-level skill shadows the user-level one under
 	 * --setting-sources project, so a replay given a corpus source tells the
@@ -522,11 +548,18 @@ describe(runReplay.name, () => {
 		expect(fake.stageDirs.length).toBeGreaterThan(0);
 		expect(fake.stageDirs.every((dir) => dir === worktree?.path)).toBe(true);
 		expect(fake.branchExpectations).toEqual([null]);
-		expect(fake.installed).toEqual([worktree?.path ?? ""]);
+		expect(fake.setups.map(({ targetDir }) => targetDir)).toEqual([
+			worktree?.path ?? "",
+		]);
 		expect(fake.integrityFileSets).toEqual([
 			run.manifest.pipeline.target.integrityFiles,
 		]);
-		expect(fake.targetChecks).toEqual([run.manifest.pipeline.target.checks]);
+		expect(fake.targetChecks).toEqual([
+			run.manifest.pipeline.target.checks.map((check) => ({
+				env: {},
+				...check,
+			})),
+		]);
 		expect(fake.removed).toEqual([worktree?.path ?? ""]);
 		expect(fake.judged[0]?.priorArtifacts).toEqual([
 			{ path: SPEC_PATH, content: SPEC_CONTENT },
@@ -829,16 +862,95 @@ describe(runReplay.name, () => {
 		expect(record.elapsedMs).toBe(5000);
 	});
 
-	it("replays the first stage from the initial checkpoint without installing dependencies", async () => {
+	it("replays the first stage from the initial checkpoint without setting up the target", async () => {
 		const run = await recordedRun();
 		const fake = new ReplayConfirmationHarness(testResources);
 
 		const outcome = await runReplay(fake.dependencies, request(run, "discuss"));
 
 		expect(outcome.record.consumed.stage).toBe("initial");
-		expect(fake.installed).toEqual([]);
+		expect(fake.setups).toEqual([]);
 		expect(fake.branchExpectations).toEqual([null]);
 		expect(fake.judged[0]?.priorArtifacts).toEqual([]);
+	});
+
+	describe("when the run's target declares services", () => {
+		const SERVED = { DATABASE_URL: "postgres://127.0.0.1:49152/app" };
+
+		it("sets up its worktree against services started for it", async () => {
+			const run = await servedRun();
+			const fake = new ReplayConfirmationHarness(testResources);
+
+			await runReplay(fake.dependencies, request(run, "build"));
+
+			expect(fake.setups).toEqual([
+				{
+					targetDir: fake.worktrees[0]?.path ?? "missing",
+					setup: [{ command: ["bun", "install"], env: SERVED }],
+				},
+			]);
+		});
+
+		it("gives its stage session and treatment checks the services its setup ran against", async () => {
+			const run = await servedRun();
+			const fake = new ReplayConfirmationHarness(testResources);
+
+			await runReplay(fake.dependencies, request(run, "build"));
+
+			expect(fake.sessionEnvironments).toEqual([SERVED]);
+			expect(fake.targetChecks).toEqual([
+				[{ command: ["bun", "test"], env: SERVED }],
+			]);
+		});
+
+		it("removes its containers once it ends", async () => {
+			const run = await servedRun();
+			const fake = new ReplayConfirmationHarness(testResources);
+
+			await runReplay(fake.dependencies, request(run, "build"));
+
+			expect(fake.containers.runningServices()).toEqual([]);
+		});
+
+		it("removes its containers when it fails", async () => {
+			const run = await servedRun();
+			const fake = new ReplayConfirmationHarness(testResources);
+			const failing = {
+				...fake.dependencies,
+				runStageJudge: () => Promise.reject(new Error("judge died")),
+			};
+
+			await failureOf(runReplay(failing, request(run, "build")));
+
+			expect(fake.containers.runningServices()).toEqual([]);
+			testResources.track(dirname(fake.worktrees[0]?.path ?? "missing"));
+		});
+
+		it("starts none for a planning stage, which runs no setup", async () => {
+			const run = await servedRun();
+			const fake = new ReplayConfirmationHarness(testResources);
+
+			await runReplay(fake.dependencies, request(run, "discuss"));
+
+			expect(fake.setups).toEqual([]);
+			expect(fake.containers.readinessCommands("postgres")).toEqual([]);
+		});
+
+		describe("when a service cannot start", () => {
+			it("refuses the replay", async () => {
+				const run = await servedRun();
+				const fake = new ReplayConfirmationHarness(testResources);
+				fake.containers.failToStart("postgres");
+
+				const failure = await failureOf(
+					runReplay(fake.dependencies, request(run, "build")),
+				);
+
+				expect(failure).toBeInstanceOf(RefusedPreconditionError);
+				expect(fake.setups).toEqual([]);
+				testResources.track(dirname(fake.worktrees[0]?.path ?? "missing"));
+			});
+		});
 	});
 
 	it("records a STOP verdict as a result and still removes the worktree", async () => {
@@ -909,6 +1021,24 @@ describe(runReplay.name, () => {
 			const worktree = fake.worktrees[0]?.path ?? "missing";
 			expect(fake.removed).toEqual([worktree]);
 			expect(access(dirname(worktree))).rejects.toThrow("ENOENT");
+		});
+
+		it("removes its containers", async () => {
+			const run = await servedRun();
+			const fake = new ReplayConfirmationHarness(testResources);
+			let running: readonly string[] = ["the stop never ran"];
+			const stopped = {
+				...fake.dependencies,
+				runStageJudge: async () => {
+					await fake.stops[0]?.();
+					running = fake.containers.runningServices();
+					throw new Error("stopped");
+				},
+			};
+
+			await failureOf(runReplay(stopped, request(run, "build")));
+
+			expect(running).toEqual([]);
 		});
 	});
 
@@ -1306,8 +1436,9 @@ describe(runReplay.name, () => {
 				captureBaselineContext,
 				captureFileHashes,
 				currentSha,
-				installDependencies: () =>
-					Promise.reject(new Error("not a delivery stage")),
+				runSetup: () => Promise.reject(new Error("not a delivery stage")),
+				services: (owner) =>
+					targetServices(owner, new FakeContainerRuntime(), READY_AT_ONCE),
 				installStageCorpusSnapshot: () =>
 					Promise.reject(new Error("no corpus source")),
 				log: () => undefined,

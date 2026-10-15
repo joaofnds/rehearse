@@ -50,7 +50,13 @@ import {
 } from "./replay";
 import type { ReplayDependencies, ReplayRequest } from "./replay";
 import type { StageSessionResult } from "./run";
-import { executeStageSession } from "./run";
+import { executeStageSession, stageSessionsWithServices } from "./run";
+import type { ServiceEnvironment, TargetServices } from "./target-services";
+import {
+	setupWithServices,
+	startTargetServices,
+	stopEvery,
+} from "./target-services";
 import { confirmationGroupPaths } from "./run-layout";
 import { recordRetentionRef } from "./target";
 import type { ProductOwner } from "./workflow";
@@ -447,11 +453,25 @@ export async function runReplayConfirmation(
 	const worktreesDirectory = await mkdtemp(
 		join(tmpdir(), `rehearse-${request.groupId}-`),
 	);
+	const started: TargetServices[] = [];
+	const tracked: ReplayDependencies = {
+		...dependencies,
+		services: (owner) => {
+			const services = dependencies.services(owner);
+			started.push(services);
+
+			return services;
+		},
+	};
 	const release = dependencies.stopOnSignal(
 		async () => {
-			// The killed reps' own removals may still be at work on this tree.
-			await removeUntilAbsent(worktreesDirectory);
-			await dependencies.pruneWorktrees(frozen.sourceRoot);
+			try {
+				// The killed reps' own removals may still be at work on this tree.
+				await removeUntilAbsent(worktreesDirectory);
+				await dependencies.pruneWorktrees(frozen.sourceRoot);
+			} finally {
+				await stopEvery(started);
+			}
 		},
 		async (signal) => {
 			await Bun.write(paths.operatorStopFile, operatorStopRecord(signal));
@@ -459,7 +479,7 @@ export async function runReplayConfirmation(
 	);
 	try {
 		return await runReplayConfirmationBody(
-			dependencies,
+			tracked,
 			request,
 			paths,
 			frozen,
@@ -496,6 +516,10 @@ async function runReplayConfirmationBody(
 			worktreePath: (repId) => join(worktreesDirectory, repId),
 		},
 		async (plan) => {
+			const services = dependencies.services({
+				run: request.groupId,
+				attempt: plan.repId,
+			});
 			const repPaths = paths.rep(plan.repId);
 			await mkdir(repPaths.stagesDirectory, { recursive: true });
 			const repStart = now();
@@ -525,9 +549,22 @@ async function runReplayConfirmationBody(
 					frozen.corpusDirectory,
 					plan.worktreePath,
 				);
+				let environment: ServiceEnvironment = {};
 				if (frozen.plan.definition.kind === "delivery") {
-					setupOperation = "dependency installation";
-					await dependencies.installDependencies(plan.worktreePath);
+					setupOperation = "service start";
+					environment = await startTargetServices(
+						services,
+						frozen.manifest.pipeline.target,
+					);
+					setupOperation = "target setup";
+					await dependencies.runSetup(
+						plan.worktreePath,
+						setupWithServices(
+							frozen.manifest.pipeline.target.setup,
+							environment,
+						),
+						dependencies.log,
+					);
 				}
 				setupOperation = "prior-artifact reading";
 				const priorArtifacts = await readPriorArtifacts(
@@ -556,7 +593,9 @@ async function runReplayConfirmationBody(
 				setupOperation = undefined;
 				session = await executeStageSession(
 					{
-						...detachedStageDependencies(dependencies.stageSession),
+						...detachedStageDependencies(
+							stageSessionsWithServices(dependencies.stageSession, environment),
+						),
 						captureStageCorpus:
 							request.stageSkill === "absent"
 								? captureStageCorpusWithoutSkill
@@ -699,7 +738,7 @@ async function runReplayConfirmationBody(
 						now() - stageStart,
 						now() - repStart,
 					);
-					return settleCompletedConfirmationRep({
+					return await settleCompletedConfirmationRep({
 						targetRoot: frozen.sourceRoot,
 						retentionName: `${request.groupId}/${plan.repId}`,
 						resultSha: session.resultSha,
@@ -747,13 +786,15 @@ async function runReplayConfirmationBody(
 					now() - repStart,
 					stageEvidence,
 				);
-				return settleDiagnosticConfirmationRep({
+				return await settleDiagnosticConfirmationRep({
 					recordFile: repPaths.recordFile,
 					recordContent: `${JSON.stringify(record, null, 2)}\n`,
 					worktreeCreated,
 					preservedMessage: `Replay rep ${plan.repId} failed; evidence preserved at ${plan.worktreePath}`,
 					log: dependencies.log,
 				});
+			} finally {
+				await services.stop();
 			}
 		},
 	);
