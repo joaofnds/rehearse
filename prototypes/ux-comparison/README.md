@@ -23,7 +23,7 @@ not an importable production task bundle.
 - Search **r37** in Runs. Open it, select Shape, switch to Context & cost, choose
   requests, sources and receiving agents, then return to Results. The run and step
   stay selected; the investigation is remembered for that run and step.
-- On an ended step, choose **Test an instruction**. Edit, review the diff, apply a
+- On an ended step, choose **Edit instruction & replay**. Edit, review the diff, apply a
   demo version and replay. Advance and finish the demo, open Results, then compare
   with the source. Source input, corpus versions and the instruction diff stay
   attached to the experiment.
@@ -35,6 +35,16 @@ not an importable production task bundle.
   Settings and is reachable from Results. Escape closes a dialog.
 - Launch a new demo run from a case, or advance/stop the running **r42**. Return to
   Runs to see the changed state. Search and filters are retained during navigation.
+- Combine **Status: Failed / below minimum** with **Corpus: Current** in Runs.
+  Add a kind or search query; open a result and return to keep that selection.
+  **Clear** removes the query and filters together.
+- Open a group attempt and use **Previous attempt / Next attempt**. The current
+  view and selected step stay in place. Each attempt keeps its own Context
+  investigation; its request selection is not copied to a different attempt.
+- Results pairs the saved output with one assessment and its citations. Inputs,
+  checkpoint details and optional analysis have separate disclosures. A finished
+  source replay emphasizes **Compare with source**; **Edit instruction & replay**
+  opens the source-aware edit path.
 - Inspect **r37** to read a failed task beside an accepted step, then switch
   requests in Context & cost. The [information design criteria](INTERACTIONS.md#information-design)
   describe the scope, units and evidence these readings must communicate.

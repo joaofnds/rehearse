@@ -112,3 +112,39 @@ can support. A summary leads to the detailed evidence without losing its scope.
 These criteria can be checked against the UI and its data. Whether an engineer can
 interpret it unaided still needs feedback from actual use; a visual review or a
 passing interaction check cannot establish that alone.
+
+## Streamlined investigation
+
+- Results shows the selected step's saved reply, plan or delivery directly beside
+  one assessment and its citations. Pending, not-reached and incomplete output are
+  explicit. The complete artifact remains inspectable; unavailable output is not
+  replaced by a successful example.
+- Input/checkpoint details and optional analysis have separate named disclosures.
+  Expanding them does not duplicate the assessment or its actions.
+- Runs combines status, kind and corpus filters with search. Failed plus current
+  corpus returns their intersection. Filters and query survive opening a run and
+  returning; Clear restores the complete list, including after an empty result.
+- Individual group attempts have previous/next navigation and an attempt position.
+  Navigation keeps the selected step and run view; first/last boundaries are clear.
+  Browser history and links to the group and comparison remain usable.
+- Results gives a completed source replay a primary Compare with source action.
+  Running work leads to Activity; a failed final task leads to its evidence.
+  A step never reached on an ended run leads back to the step where execution ended.
+  Edit instruction & replay names the edit path. Replay, human review of Judge
+  grades and artifact inspection remain available without repeating action blocks.
+
+Artifact citations quote the displayed output at the stated lines. Deterministic
+reply checks count that reply; Judge-record evidence is labeled separately from
+worker output.
+
+The desktop palette, typography and spacing remain the visual baseline. This pass
+changes only the synthetic connected prototype.
+
+## Deferred workflow graph
+
+The [product has a task graph](../../docs/status.md); the connected synthetic
+prototype does not include it. The proposed future direction is a live execution
+overview: task nodes follow execution state, arrows explain dependencies and
+handoffs, and selecting nodes or edges opens related activity, artifacts or
+evidence. Branching and parallel workflows motivate that view. Graph implementation
+is deferred.

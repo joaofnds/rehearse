@@ -5,7 +5,7 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<title>Rehearse · Connected desktop prototype</title>
 		<link rel="stylesheet" href="connected-base.css" />
-		<link rel="stylesheet" href="connected.css?revision=information-clarity" />
+		<link rel="stylesheet" href="connected.css?revision=streamlined-evidence" />
 	</head>
 	<body>
 		<a class="skip" href="#main">Skip to content</a>
@@ -266,7 +266,7 @@
 					"Not reached": "Final task was not judged",
 				};
 				const descriptions = {
-					FAIL: "The final artifact omits a required response field, although both workflow steps were accepted.",
+					FAIL: "The empty-page response has items and nextCursor but omits hasMore. Both workflow steps were accepted; the final task failed one criterion.",
 					PASS: "The final artifact meets the task rubric. Step grades remain independent evidence.",
 					Pending: "The workflow has not reached the independent final Judge.",
 					"Judging failed":
@@ -274,7 +274,7 @@
 					"Not reached":
 						"Execution ended before final judging. Accepted step grades remain inspectable.",
 				};
-				return `<section class="panel connected-outcome ${outcome === "FAIL" ? "failed" : ""}"><div><div class="row"><span class="badge ${outcome === "FAIL" ? "stopped" : ""}">${esc(outcome)}</span><h2>${headings[outcome]}</h2></div><p>${descriptions[outcome]}</p></div>${["PASS", "FAIL"].includes(outcome) ? btn("Inspect final evidence", "final-evidence", "primary") : `<a class="btn" href="${runHref(run, "activity")}">Inspect activity</a>`}</section>`;
+				return `<section class="panel connected-outcome ${outcome === "FAIL" ? "failed" : ""}"><div><div class="row"><span class="badge ${outcome === "FAIL" ? "stopped" : ""}">${esc(outcome)}</span><h2>${headings[outcome]}</h2></div><p>${descriptions[outcome]}</p>${outcome === "FAIL" ? "<details><summary>Passed task criteria</summary><p>Stable cursor ordering, input validation and pagination on non-empty pages passed.</p></details>" : ""}</div>${outcome === "PASS" ? btn("Inspect final evidence", "final-evidence") : outcome === "FAIL" ? "" : `<a class="btn" href="${runHref(run, "activity")}">Inspect activity</a>`}</section>`;
 			}
 
 			function costReading(groupId) {
@@ -290,8 +290,17 @@
 				);
 			}
 			const comparisonArmIds = ["g7", "g8", "g6"];
+			const gradeOutcome = (grade) =>
+				({
+					A: "accepted",
+					B: "accepted",
+					Passed: "accepted",
+					C: "failed",
+					D: "failed",
+					F: "failed",
+				})[grade] || "unjudged";
 			const isAccepted = (run) =>
-				run.state === "completed" && ["A", "B", "Passed"].includes(run.grade);
+				run.state === "completed" && gradeOutcome(run.grade) === "accepted";
 			const initialInstruction =
 				"Read the relevant evidence once. Give each reviewer the shared evidence, then inspect only the findings that need verification.";
 			function initialState() {
@@ -300,7 +309,7 @@
 					reviews: {},
 					reviewTarget: null,
 					runs: structuredClone(initialRuns).map(initializeReadings),
-					filter: "All",
+					filters: { status: "all", kind: "all", corpus: "all" },
 					search: "",
 					selectedStep: {},
 					investigations: {},
@@ -549,6 +558,20 @@
 				);
 			}
 
+			function failedQuality(run) {
+				if (run.kind === "Group")
+					return state.runs.some(
+						(item) => item.parent === run.id && failedQuality(item),
+					);
+
+				return (
+					finalReading(run) === "FAIL" ||
+					(gradeOutcome(run.grade) === "failed" && run.state !== "running")
+				);
+			}
+			function runFilter(label, key, options) {
+				return `<label class="field">${label}<select id="run-${key}" data-run-filter="${key}">${options.map(([value, text]) => `<option value="${value}" ${state.filters[key] === value ? "selected" : ""}>${text}</option>`).join("")}</select></label>`;
+			}
 			function runsPage() {
 				const indexed = state.runs
 					.filter((run) => !run.parent)
@@ -557,77 +580,59 @@
 							Number(right.state === "running") -
 							Number(left.state === "running"),
 					);
-				const live = indexed.filter((run) => run.state === "running");
 				const filtered = indexed.filter((run) => {
-					let matches = true;
-					switch (state.filter) {
-						case "All":
-							break;
-						case "Running":
-							matches = run.state === "running";
-							break;
-						case "Failed":
-							matches =
-								finalReading(run) === "FAIL" ||
-								(run.grade === "C" && run.state !== "running");
-							break;
-						case "Stopped":
-							matches = ["stopped", "paused"].includes(run.state);
-							break;
-						case "Current corpus":
-							matches = run.version === state.version;
-							break;
-						default:
-							matches = run.kind === state.filter;
-					}
-					return (
-						matches &&
-						[run.case, run.title, run.id, run.version, run.note]
-							.join(" ")
-							.toLowerCase()
-							.includes(state.search.toLowerCase())
-					);
-				});
-				return (
-					'<header class="page-head"><div><h1>Runs</h1><p>Follow a run. Inspect its evidence. Test the next change.</p></div>' +
-					btn("+ New run", "launch", "primary") +
-					"</header>" +
-					'<div class="toolbar"><div class="row gap2" role="group" aria-label="Filter runs">' +
-					[
-						"All",
-						"Running",
-						"Failed",
-						"Stopped",
-						"Group",
-						"Replay",
-						"Session",
-						"Current corpus",
+					let statusMatches = true;
+					if (state.filters.status === "running")
+						statusMatches = run.state === "running";
+					else if (state.filters.status === "failed")
+						statusMatches = failedQuality(run);
+					else if (state.filters.status === "stopped")
+						statusMatches = ["stopped", "paused"].includes(run.state);
+					else if (state.filters.status === "completed")
+						statusMatches = run.state === "completed";
+					const kindMatches =
+						state.filters.kind === "all" || run.kind === state.filters.kind;
+					let corpusMatches = true;
+					if (state.filters.corpus === "current")
+						corpusMatches = run.version === state.version;
+					else if (state.filters.corpus === "other")
+						corpusMatches = run.version !== state.version;
+					const queryMatches = [
+						run.case,
+						run.title,
+						run.id,
+						run.version,
+						run.note,
 					]
-						.map(
-							(f) =>
-								'<button class="chip" data-filter="' +
-								f +
-								'" aria-pressed="' +
-								(state.filter === f) +
-								'">' +
-								({ Group: "Groups", Replay: "Replays", Session: "Sessions" }[
-									f
-								] || f) +
-								"</button>",
-						)
-						.join("") +
-					'</div><label class="search"><input id="search" type="search" aria-label="Search runs" placeholder="Search case, run, corpus…" value="' +
-					esc(state.search) +
-					'" /></label></div><section class="panel" aria-label="Run history"><div class="panel-head"><h2>History</h2><span class="small muted">' +
-					filtered.length +
-					" records · " +
-					live.length +
-					' running · newest first</span></div><div id="run-rows">' +
-					(filtered.length
-						? runTable(filtered)
-						: '<div class="empty"><h2>No matching runs</h2><p>Try another case, corpus version, or filter.</p></div>') +
-					'</div></section><p class="muted small" style="margin-top:var(--s4)">Synthetic examples include missing evidence and failed invocations. A missing measurement is never zero.</p>'
-				);
+						.join(" ")
+						.toLowerCase()
+						.includes(state.search.toLowerCase());
+					return statusMatches && kindMatches && corpusMatches && queryMatches;
+				});
+				const active =
+					Object.values(state.filters).some((value) => value !== "all") ||
+					state.search !== "";
+				return `<header class="page-head"><div><h1>Runs</h1><p>Follow a run. Inspect its evidence. Test the next change.</p></div>${btn("+ New run", "launch", "primary")}</header><div class="toolbar run-filters" role="group" aria-label="Filter runs">${runFilter(
+					"Status",
+					"status",
+					[
+						["all", "All statuses"],
+						["running", "Running"],
+						["failed", "Failed / below minimum"],
+						["stopped", "Stopped / paused"],
+						["completed", "Execution ended"],
+					],
+				)}${runFilter("Kind", "kind", [
+					["all", "All kinds"],
+					["Pipeline", "Pipeline"],
+					["Replay", "Replay"],
+					["Group", "Group"],
+					["Session", "Session"],
+				])}${runFilter("Corpus", "corpus", [
+					["all", "All versions"],
+					["current", "Current · " + state.version],
+					["other", "Other versions"],
+				])}<label class="field run-search">Search<input id="search" type="search" aria-label="Search runs" placeholder="Case, run or corpus…" value="${esc(state.search)}"></label>${active ? btn("Clear", "clear-run-filters") : ""}</div><section class="panel" aria-label="Run history"><header class="panel-head"><h2>History</h2><span class="small muted">${filtered.length} of ${indexed.length} records · ${filtered.filter((run) => run.state === "running").length} running · newest first</span></header>${filtered.length ? runTable(filtered) : '<div class="empty"><h2>No matching runs</h2><p>Change the filters or clear the search.</p></div>'}</section><p class="muted small history-note">Synthetic records include missing evidence and failed invocations. A missing measurement is never zero.</p>`;
 			}
 			function stepPhase(run, step) {
 				if (run.missing) return "unavailable";
@@ -852,6 +857,165 @@
 				);
 			}
 
+			function artifactText(run, path) {
+				if (path === "plan.md" && stepPhase(run, "shape") === "stopped")
+					return "# Proposed pagination plan\n\nUse cursor and hasMore as the response fields.\nUse a stable cursor sort key.\nCover empty pages and invalid cursors in the target checks.\nKeep changes within audit-log pagination.\n\n4 acceptance criteria · saved before Build.";
+				const artifacts = {
+					"product-brief.md":
+						"Add cursor pagination to the audit log. Preserve nextCursor and hasMore. An exhausted cursor must keep the public response fields.",
+					"plan.md":
+						"# Accepted pagination plan\n\nPreserve nextCursor and hasMore.\nUse a stable cursor sort key.\nCover empty pages and invalid cursors in the target checks.\nKeep changes within audit-log pagination.\n\n4 acceptance criteria · saved before Build.",
+					"delivery.md":
+						run.finalOutcome === "FAIL"
+							? "# Delivery\n\nCursor ordering and validation implemented.\nEmpty-page example: { items: [], nextCursor: null }\n\nTarget checks: 12 passed.\nChanged audit-log pagination only."
+							: "# Delivery\n\nCursor ordering and validation implemented.\nEmpty-page example: { items: [], nextCursor: null, hasMore: false }\n\nTarget checks: 12 passed.\nChanged audit-log pagination only.",
+					"prompt.md":
+						"Explain the cursor boundary in a concise technical reply.",
+					"reply.txt":
+						"An exhausted cursor returns an empty items array. Keep nextCursor and hasMore unchanged; validate an invalid cursor before querying.",
+				};
+				return artifacts[path];
+			}
+			function artifactExcerpt(run, path, firstLine, lastLine = firstLine) {
+				return {
+					source: `${path}:${firstLine}${lastLine === firstLine ? "" : "–" + lastLine}`,
+					quote: artifactText(run, path)
+						.split("\n")
+						.slice(firstLine - 1, lastLine)
+						.join("\n"),
+				};
+			}
+			function qualityEvidence(run, step) {
+				const path = stepArtifacts(step).output;
+				if (step === "session") {
+					const reply = artifactExcerpt(run, path, 1);
+					const words = reply.quote.trim().split(/\s+/).length;
+					return [
+						{
+							title: "Word ceiling",
+							reading: `The saved reply has ${words} words, below the 40-word ceiling.`,
+							...reply,
+						},
+						{
+							title: "Required answer",
+							reading: "The required pagination fields are retained.",
+							...reply,
+						},
+						{
+							title: "No forbidden text",
+							reading:
+								"The saved reply contains none of the case’s forbidden terms.",
+							...reply,
+						},
+					];
+				}
+				const build = step === "build";
+				return [
+					{
+						title: "Hard blockers",
+						source: "grade-record.json · Judge record",
+						reading:
+							"No configured hard blocker fired for the selected step. This is the saved Judge record, separate from the worker output.",
+						quote: "hardBlockers: all clear",
+					},
+					{
+						title: "Decision quality",
+						reading: build
+							? "The delivery declares cursor ordering and validation. The independent final task assessment checks the complete response contract."
+							: stepPhase(run, step) === "stopped"
+								? "The proposed cursor field contradicts nextCursor in the frozen public contract."
+								: "The recommendation preserves the response fields fixed by the brief.",
+						...artifactExcerpt(run, path, 3),
+					},
+					{
+						title: "Observability",
+						reading: build
+							? "The delivery reports its target-check result. The independent final Judge can still find a missed task criterion."
+							: "The plan names empty-page and invalid-cursor checks.",
+						...artifactExcerpt(run, path, build ? 6 : 5),
+					},
+					{
+						title: "Scope discipline",
+						reading:
+							"The saved output confines the change to audit-log pagination.",
+						...artifactExcerpt(run, path, build ? 7 : 6),
+					},
+				];
+			}
+			function showQualityEvidence(run, step, index) {
+				const item = qualityEvidence(run, step)[index];
+				modal(
+					item.title + " · " + run.id + " / " + step,
+					`<span class="badge">Synthetic saved citation</span><p class="mono">${esc(item.source)}</p><p>${esc(item.reading)}</p><blockquote class="evidence-quote">${esc(item.quote)}</blockquote>`,
+					btn("Close", "close"),
+				);
+			}
+
+			function outputPanel(run, step) {
+				const phase = stepPhase(run, step);
+				const path = stepArtifacts(step).output;
+				let content;
+				if (phase === "running")
+					content =
+						'<p class="muted">Output is pending while this step runs.</p>';
+				else if (phase === "queued")
+					content =
+						'<p class="muted">This step has not started; no output was produced.</p>';
+				else if (phase === "unjudged")
+					content =
+						'<p class="muted">Incomplete output · the operator stopped before a final artifact was saved. Partial activity is retained.</p>';
+				else
+					content = `<pre class="tool output-preview">${esc(artifactText(run, path))}</pre>${btn("Open complete output", "artifact:" + path)}`;
+				return `<section class="panel output-panel" aria-label="Selected step output"><header class="panel-head"><h2>${step === "session" ? "Reply" : "Saved output"}</h2><span class="mono small">${esc(path)}</span></header><div class="pad stack">${content}</div></section>`;
+			}
+			function stepInputs(run, step) {
+				const phase = stepPhase(run, step);
+				const reached = !["queued", "unavailable"].includes(phase);
+				let nextCheckpoint = "Not saved · step stopped";
+				if (phase === "running") nextCheckpoint = "Pending";
+				else if (phase === "queued") nextCheckpoint = "Not reached";
+				else if (phase === "accepted")
+					nextCheckpoint =
+						step === "build"
+							? "End of workflow · no next step"
+							: "cp-b8 · saved after acceptance";
+				let transcript = "Saved · attempt boundary known";
+				if (run.noTranscript) transcript = "Not recorded";
+				else if (phase === "running") transcript = "In progress";
+				else if (phase === "queued") transcript = "Not started";
+				else if (phase === "unjudged") transcript = "Partial activity retained";
+				return `<details class="panel pad input-details"><summary>Input & checkpoint</summary><dl class="definition setup-details"><dt>Frozen input</dt><dd class="mono">${esc(frozenInput(run, step))}</dd><dt>Input artifact</dt><dd>${reached ? btn(stepArtifacts(step).input, "artifact:" + stepArtifacts(step).input) : "Not reached"}</dd><dt>Instruction snapshot</dt><dd><span class="mono">${esc(instructionPath(step))}</span><br>corpus@${esc(run.version)}</dd><dt>Transcript</dt><dd>${transcript}</dd>${step === "session" ? "" : `<dt>Next checkpoint</dt><dd>${nextCheckpoint}</dd>`}</dl></details>`;
+			}
+			function resultActions(run, step) {
+				const phase = stepPhase(run, step);
+				const replayable = canReplay(run, step);
+				const parent = state.runs.find((item) => item.id === run.parent);
+				let primary;
+				let editIsPrimary = false;
+				if (phase === "queued" && run.state !== "running")
+					primary = `<a class="btn primary" href="${runHref(run, "results")}/${run.step}">Inspect ${esc(run.step)} result →</a><p class="small muted">${esc(step)} never started. Inspect the step where execution ended.</p>`;
+				else if (["running", "queued"].includes(phase))
+					primary = `<a class="btn primary" href="${runHref(run, "activity")}/${step}">Open activity →</a>`;
+				else if (canCompare(run))
+					primary = `<a class="btn primary" href="#/compare/${run.id}">Compare with source →</a><p class="small muted">${esc(run.sourceId)} / ${esc(step)} remains the source.</p>`;
+				else if (parent && canCompare(parent))
+					primary = `<a class="btn primary" href="#/compare/${parent.id}">Compare group with source →</a><p class="small muted">This attempt belongs to ${esc(parent.id)}. Compare the complete group with ${esc(parent.sourceId)}.</p>`;
+				else if (run.kind === "Pipeline" && finalReading(run) === "FAIL")
+					primary = btn("Inspect final evidence", "final-evidence", "primary");
+				else if (comparisonArmIds.includes(run.parent))
+					primary =
+						'<a class="btn primary" href="#/compare/cmp1">Return to comparison →</a>';
+				else if (replayable) {
+					primary = btn(
+						"Edit instruction & replay",
+						"edit-instruction",
+						"primary",
+					);
+					editIsPrimary = true;
+				} else
+					primary = `<a class="btn primary" href="${runHref(run, "activity")}/${step}">Open activity →</a>`;
+				return `<section class="panel pad stack next-action" aria-label="Next action"><h2>Next action</h2>${primary}<div class="stack secondary-actions">${replayable && !editIsPrimary ? btn("Edit instruction & replay", "edit-instruction") : ""}${replayable ? btn("Replay " + step, "replay") : ""}${step !== "session" && ["accepted", "stopped"].includes(phase) ? btn("Review grade", "review-grade") : ""}</div></section>`;
+			}
 			function results(run, step) {
 				if (run.kind === "Group")
 					return `<div class="stack">${groupOverview(run)}${nextExperiment(run, step)}${runSetup(run, step)}</div>`;
@@ -859,8 +1023,8 @@
 					return `<div class="stack">${unavailable(run, step)}<section class="panel pad"><h2>Attempt preserved</h2><p>No reply, usage or quality verdict was recorded.</p><a href="#/cases/${run.case}">Inspect case inputs →</a></section></div>`;
 				const phase = stepPhase(run, step),
 					metrics = stepMetrics(run, step);
-				const accepted = phase === "accepted";
-				const grade = stepGrade(run, step);
+				const accepted = phase === "accepted",
+					grade = stepGrade(run, step);
 				const related = state.runs.filter(
 					(item) => item.sourceId === run.id && item.step === step,
 				);
@@ -869,16 +1033,31 @@
 					running:
 						"This step is running. Its grade and final output are pending.",
 					unjudged:
-						"The operator stopped this step before judging. Partial activity is retained; no quality verdict is inferred.",
+						"Stopped before judging. Partial activity remains; no quality verdict is inferred.",
 					queued: "This step has not started.",
-					accepted:
-						"The selected step meets its acceptance threshold. Inspect the supporting checks and citations below.",
-					stopped:
-						"The selected step stopped below its minimum grade. Its evidence remains available.",
+					accepted: "The saved output meets this step’s acceptance threshold.",
+					stopped: "The saved output is below this step’s minimum grade.",
 				};
-				return `<div class="stack">${run.noTranscript ? unavailable(run, step) : ""}<div class="result-layout"><div class="stack">${run.kind === "Pipeline" && finalReading(run) === "FAIL" ? `<section class="panel"><header class="panel-head"><h2>Why the final work failed</h2><span class="badge stopped">1 failed criterion</span></header><div class="finding"><h3>Empty-page response contract</h3><p>The response contains an empty items array and nextCursor, but omits hasMore. The public contract requires all three fields on every page.</p><div class="row"><code>delivery.md:32–36</code>${btn("View citation ↗", "final-evidence")}</div></div><details class="pad"><summary>Passed task criteria</summary><p class="muted">Stable cursor ordering, input validation and pagination on non-empty pages passed.</p>${btn("Open final artifact", "artifact:delivery.md")}</details></section>` : ""}<section class="panel"><header class="panel-head"><h2>${step[0].toUpperCase() + step.slice(1)} assessment</h2><span class="badge">${grade} · ${accepted ? "accepted" : phase}</span></header><div class="pad stack"><p class="result-summary">${summaries[phase]}</p>${assessed ? checks({ ...run, state: accepted ? "completed" : "stopped" }) : `<a class="btn" href="${runHref(run, "activity")}/${step}">Open activity →</a>`}</div></section><details class="panel pad"><summary>Full assessment, artifacts & analysis</summary>${report(run, step)}</details>${nextExperiment(run, step)}</div><aside class="stack"><section class="panel pad stack"><h2>Selected step · ${esc(step)}</h2><div class="selected-grade"><strong class="mono">${grade}</strong><span class="badge">${step === "session" ? "Deterministic checks" : "Minimum B"}</span></div><div class="reading-row"><span>Step spend</span><strong class="mono">${metrics.cost}</strong></div><div class="reading-row"><span>Step elapsed</span><span class="mono">${metrics.time}</span></div><p class="small muted">Step acceptance and final task outcome are graded independently.</p>${btn("Inputs & output", "inspect-step")}${assessed ? btn("Review this Judge", "review-grade") : ""}${canReplay(run, step) ? `${btn("Replay " + step, "replay")}${btn("Test an instruction", "edit-instruction", "primary")}` : ""}<a href="#/cases/${run.case}">Open case definition →</a></section><section class="panel pad stack"><h2>Related attempts</h2>${run.sourceId ? `<a href="#/runs/${run.sourceId}/results/${step}">Source ${run.sourceId} · ${step} →</a>` : ""}${run.parent ? `<a href="#/runs/${run.parent}/results">Back to group ${run.parent} →</a>` : ""}${related.map((item) => `<a href="${runHref(item)}">${item.id} · ${item.kind} · ${esc(item.grade)} →</a>`).join("")}${!related.length && !run.parent && !run.sourceId ? '<p class="muted">No replay at this input yet. Replay this step to start an exploratory comparison.</p>' : ""}${comparisonArmIds.includes(run.parent || "") ? '<a href="#/compare/cmp1">Return to comparison →</a>' : ""}</section></aside></div>${runSetup(run, step)}</div>`;
+				const assessment = `<section class="panel assessment-panel" aria-label="Selected step assessment"><header class="panel-head"><h2>${step[0].toUpperCase() + step.slice(1)} assessment</h2><span class="badge assessment-grade">${grade} · ${accepted ? "accepted" : phase}</span></header><div class="pad stack"><p class="result-summary">${summaries[phase]}</p>${assessed ? `<span class="small muted">${step === "session" ? "Deterministic session checks" : "Minimum B · final task grading is independent"}</span>${checks({ ...run, state: accepted ? "completed" : "stopped" })}` : `<a href="${runHref(run, "activity")}/${step}">Inspect activity →</a>`}</div></section>`;
+				const analysis =
+					assessed && step !== "session"
+						? `<details class="panel pad analysis-details"><summary>Root-cause analysis <span class="badge">Agent opinion</span></summary><div class="stack setup-details"><p>No analysis requested for this demo run.</p><p class="muted">An analysis proposes an explanation from saved evidence. A controlled experiment is needed to test it.</p>${btn("Preview analysis request", "analysis")}</div></details>`
+						: "";
+				return `<div class="stack">${run.noTranscript ? unavailable(run, step) : ""}<div class="result-layout streamlined-results"><div class="stack"><div class="output-assessment">${outputPanel(run, step)}${assessment}</div>${stepInputs(run, step)}${analysis}</div><aside class="stack">${resultActions(run, step)}<section class="panel pad stack"><h2>Step measurements · ${esc(step)}</h2><div class="reading-row"><span>Step spend</span><strong class="mono">${metrics.cost}</strong></div><div class="reading-row"><span>Step elapsed</span><span class="mono">${metrics.time}</span></div><a href="${runHref(run, "context")}/${step}">Context & cost →</a><a href="#/cases/${run.case}">Case definition →</a></section><section class="panel pad stack"><h2>Related attempts</h2>${run.sourceId ? `<a href="#/runs/${run.sourceId}/results/${step}">Source ${run.sourceId} · ${step} →</a>` : ""}${related.map((item) => `<a href="${runHref(item)}">${item.id} · ${item.kind} · ${esc(item.grade)} →</a>`).join("")}${!related.length && !run.sourceId ? '<p class="muted">No replay at this input yet.</p>' : ""}</section></aside></div>${runSetup(run, step)}</div>`;
 			}
-
+			function attemptNavigation(run, view, step) {
+				if (!run.parent) return "";
+				const siblings = state.runs.filter(
+					(item) => item.parent === run.parent,
+				);
+				const index = siblings.findIndex((item) => item.id === run.id);
+				const link = (item, label) => {
+					if (!item) return `<button class="btn" disabled>${label}</button>`;
+					const targetStep = stepsFor(item).includes(step) ? step : item.step;
+					return `<a class="btn" href="${runHref(item, view)}/${targetStep}">${label}</a>`;
+				};
+				return `<nav class="attempt-navigation" aria-label="Attempt navigation"><span>Attempt <strong class="mono">${index + 1} of ${siblings.length}</strong> · <a href="#/runs/${run.parent}/results/${step}">Group ${run.parent}</a></span><div class="row">${link(siblings[index - 1], "← Previous attempt")}${link(siblings[index + 1], "Next attempt →")}</div></nav>`;
+			}
 			function runSetup(run, step) {
 				return (
 					'<details class="panel pad"><summary>Run setup & provenance</summary><dl class="definition setup-details"><dt>Case</dt><dd><a href="#/cases/' +
@@ -930,7 +1109,7 @@
 				const comparisonLink = comparisonArmIds.includes(run.parent || run.id)
 					? '<a href="#/compare/cmp1">Comparison</a><span>/</span>'
 					: "";
-				return `<div class="breadcrumbs"><a href="#/runs">← Runs</a><span>/</span>${comparisonLink}${parent ? `<a href="${runHref(parent)}">${esc(parent.id)}</a><span>/</span>` : ""}<a href="#/cases/${run.case}">${esc(run.case)}</a><span>/</span><span class="mono">${run.id}</span></div><header class="run-header"><div><h1><span class="mono">${run.id}</span> ${esc(run.title)}</h1><div class="row gap2">${badge(run)}<span class="muted">${run.kind} · sonnet · fixed effort · corpus@${run.version}</span>${run.kind === "Pipeline" && run.state === "completed" ? '<span class="badge">Human review ' + (Object.keys(state.reviews).some((key) => key.startsWith(run.id + "/")) ? "recorded" : "pending") + "</span>" : ""}</div></div><div class="header-measurements"><button class="header-cost" data-action="spend-details" aria-label="Inspect run spend and budget"><strong class="mono">${run.missing ? "Unavailable" : money(run.cost)}</strong><small>${costScope(run)}</small></button><div><strong class="mono">${run.time}</strong><small>elapsed</small></div>${running ? `<div class="row">${btn(run.pauseRequested ? "Pause requested" : "Pause after step", "pause")}${btn("Stop", "stop", "danger")}</div>` : ""}</div></header><nav class="view-nav" aria-label="Run views">${[
+				return `<div class="breadcrumbs"><a href="#/runs">← Runs</a><span>/</span>${comparisonLink}${parent ? `<a href="${runHref(parent, "results")}/${step}">${esc(parent.id)}</a><span>/</span>` : ""}<a href="#/cases/${run.case}">${esc(run.case)}</a><span>/</span><span class="mono">${run.id}</span></div><header class="run-header"><div><h1><span class="mono">${run.id}</span> ${esc(run.title)}</h1><div class="row gap2">${badge(run)}<span class="muted">${run.kind} · sonnet · fixed effort · corpus@${run.version}</span>${run.kind === "Pipeline" && run.state === "completed" ? '<span class="badge">Human review ' + (Object.keys(state.reviews).some((key) => key.startsWith(run.id + "/")) ? "recorded" : "pending") + "</span>" : ""}</div></div><div class="header-measurements"><button class="header-cost" data-action="spend-details" aria-label="Inspect run spend and budget"><strong class="mono">${run.missing ? "Unavailable" : money(run.cost)}</strong><small>${costScope(run)}</small></button><div><strong class="mono">${run.time}</strong><small>elapsed</small></div>${running ? `<div class="row">${btn(run.pauseRequested ? "Pause requested" : "Pause after step", "pause")}${btn("Stop", "stop", "danger")}</div>` : ""}</div></header>${attemptNavigation(run, view, step)}<nav class="view-nav" aria-label="Run views">${[
 					["results", run.kind === "Group" ? "Attempts & results" : "Results"],
 					["activity", "Activity" + (running ? " · live" : "")],
 					["context", "Context & cost"],
@@ -1320,103 +1499,6 @@
 				return `<div>${items.map((label, index) => `<div class="check"><span class="check-label">${label}</span><span class="row gap2"><span class="${session ? "good" : "mono"}">${session ? "✓ Pass" : index === 0 ? "✓ Clear" : run.state === "stopped" && index === 1 ? "C" : index === 3 ? "A" : "B"}</span><button class="btn small" data-action="quality-evidence:${index}" aria-label="Open evidence for ${label}">${session ? "Evidence" : "1 cited"}</button></span></div>`).join("")}</div>`;
 			}
 
-			function report(run, step) {
-				const phase = stepPhase(run, step),
-					pending = phase === "running",
-					session = step === "session";
-				if (run.kind === "Group") return groupOverview(run);
-				if (phase === "queued" || phase === "unavailable")
-					return unavailable(run, step);
-				const grade = {
-					running: "Pending",
-					unjudged: "Not judged · operator stopped",
-					stopped: "C · below minimum B",
-					accepted: session ? "✓ All checks passed" : "✓ B · minimum B",
-				}[phase];
-				return (
-					'<div class="stack">' +
-					"" +
-					(pending
-						? notice(
-								"This step has not been judged. Accepted steps remain inspectable above.",
-							)
-						: run.kind === "Replay"
-							? unavailable(run, step)
-							: "") +
-					'<div class="two-col"><section class="panel"><div class="panel-head"><h2>' +
-					step[0].toUpperCase() +
-					step.slice(1) +
-					' report</h2><span class="badge ' +
-					(pending
-						? "running"
-						: phase === "stopped" || phase === "unjudged"
-							? "stopped"
-							: "completed") +
-					'">' +
-					grade +
-					'</span></div><div class="pad stack">' +
-					(pending
-						? '<p class="muted">The agent is working. Grades and artifacts are pending.</p>'
-						: phase === "unjudged"
-							? '<p class="muted">The operator stopped this session before judging. Partial activity remains inspectable; no quality verdict can be inferred.</p>'
-							: checks({
-									...run,
-									state: phase === "stopped" ? "stopped" : "completed",
-								})) +
-					'</div></section><section class="panel"><div class="panel-head"><h2>' +
-					(session ? "Session evidence" : "Checkpoint & artifacts") +
-					'</h2></div><div class="pad stack"><dl class="definition"><dt>Started from</dt><dd class="mono">' +
-					frozenInput(run, step) +
-					"</dd><dt>Instructions</dt><dd>" +
-					(canReplay(run, step)
-						? btn(instructionPath(step), "edit-instruction")
-						: '<span class="mono">' + instructionPath(step) + "</span>") +
-					'<br><small class="muted">Observed delivery · declared snapshot ' +
-					run.version +
-					"</small></dd><dt>Input</dt><dd>" +
-					btn(
-						stepArtifacts(step).input,
-						"artifact:" + stepArtifacts(step).input,
-					) +
-					"</dd><dt>Output</dt><dd>" +
-					(pending
-						? "Pending"
-						: phase === "unjudged"
-							? "Incomplete · no final artifact"
-							: btn(
-									stepArtifacts(step).output,
-									"artifact:" + stepArtifacts(step).output,
-								)) +
-					"</dd><dt>" +
-					(session ? "Transcript" : "Next checkpoint") +
-					"</dt><dd>" +
-					(pending
-						? "Pending"
-						: session
-							? "Saved · attempt boundary known"
-							: phase === "stopped" || phase === "unjudged"
-								? "Not saved · step stopped"
-								: step === "build"
-									? "End of workflow · no next step"
-									: "cp-b8 · saved after acceptance") +
-					"</dd></dl>" +
-					(canReplay(run, step)
-						? btn("Replay from frozen input", "replay")
-						: "") +
-					"</div></section></div>" +
-					(!pending && !session
-						? '<section class="panel"><div class="panel-head"><h2>Root-cause analysis</h2><span class="badge">Agent opinion</span></div><div class="pad stack"><p>No analysis requested for this demo run.</p><p class="muted">An analysis proposes an explanation from saved evidence. A controlled experiment is needed to test it.</p>' +
-							btn("Preview analysis request", "analysis") +
-							"</div></section>"
-						: "") +
-					(!pending && phase !== "unjudged"
-						? '<section class="panel pad row between"><div><h3>Human review</h3><p class="muted small">Calibrate the judge against the frozen output.</p></div>' +
-							btn("Preview judge review", "review-grade") +
-							"</section>"
-						: "") +
-					"</div>"
-				);
-			}
 			function comparisonsPage() {
 				return (
 					'<header class="page-head"><div><h1>Comparisons</h1><p>Did one instruction change help, at an acceptable cost?</p></div>' +
@@ -1836,12 +1918,9 @@
 						(path) => encodeURIComponent(path) === route()[1],
 					);
 				const focused = document.activeElement;
-				const focusAttr = [
-					"data-source",
-					"data-request",
-					"data-filter",
-					"data-action",
-				].find((attr) => focused?.hasAttribute(attr));
+				const focusAttr = ["data-source", "data-request", "data-action"].find(
+					(attr) => focused?.hasAttribute(attr),
+				);
 				const focusSelector = focusAttr
 					? "[" +
 						focusAttr +
@@ -1990,46 +2069,24 @@
 						),
 				);
 			}
-			function evidenceModal(kind = "grade") {
+			function evidenceModal() {
 				const run = getRun() || state.runs[1],
 					step = selectedStep(run);
 				const data = contextData(step);
 				const source =
 					data.rows.find((row) => row[0] === state.source) || data.rows[0];
 				modal(
-					kind === "context"
-						? "Delivered source evidence"
-						: "Cited grading evidence",
+					"Delivered source evidence",
 					'<div class="row"><span class="badge">Saved evidence · synthetic</span><span class="mono">' +
-						run.id +
-						" / " +
-						step +
+						esc(run.id + " / " + step) +
 						'</span></div><dl class="definition"><dt>Source</dt><dd class="mono">' +
-						(kind === "context"
-							? source[1] + " · transcript.jsonl:48 · block 2"
-							: "plan.md:18–22") +
-						"</dd><dt>Scope</dt><dd>" +
-						(kind === "context"
-							? "Text delivered to " +
-								(state.agent === "parent" ? step : "Reviewer")
-							: "Frozen artifact read by the judge") +
+						esc(source[1]) +
+						" · transcript.jsonl:48 · block 2</dd><dt>Scope</dt><dd>Text delivered to " +
+						esc(state.agent === "parent" ? step : "Reviewer") +
 						'</dd></dl><blockquote class="evidence-quote">' +
-						(kind === "context"
-							? esc(data.excerpts[state.source])
-							: run.grade === "C"
-								? "The proposal renames nextCursor to cursor, contradicting the public response fields fixed by the brief."
-								: step === "session"
-									? "The reply preserves the technical answer in 26 words, below the declared ceiling."
-									: "The endpoint preserves nextCursor and hasMore. An exhausted cursor returns an empty items array, without inventing a new response field.") +
-						'</blockquote><p class="muted">' +
-						(kind === "context"
-							? "Delivered preview: 146 lines. Full saved source: 206 lines. This preview is a bounded excerpt, not the whole artifact."
-							: "Judge reading: the output makes the boundary behavior observable. The citation supports this item; it does not establish the cause of the overall outcome.") +
-						"</p>",
-					btn(
-						"Return to " + (kind === "context" ? "context" : "results"),
-						"close",
-					),
+						esc(data.excerpts[state.source]) +
+						'</blockquote><p class="muted">Delivered preview: 146 lines. Full saved source: 206 lines. This preview is a bounded excerpt, not the whole artifact.</p>',
+					btn("Return to context", "close"),
 				);
 			}
 			function startRun(replay) {
@@ -2201,64 +2258,7 @@
 					const run = getRun(),
 						step = selectedStep(run),
 						index = Number(name.split(":")[1]);
-					const items =
-						step === "session"
-							? [
-									[
-										"Word ceiling",
-										"reply.txt",
-										"The saved reply has 26 words, below the 40-word ceiling.",
-										"An exhausted cursor returns an empty items array. Keep nextCursor and hasMore unchanged; validate an invalid cursor before querying.",
-									],
-									[
-										"Required answer",
-										"reply.txt",
-										"The required pagination fields are retained.",
-										"Keep nextCursor and hasMore unchanged",
-									],
-									[
-										"No forbidden text",
-										"checks.json",
-										"The reply contains none of the forbidden terms.",
-										"forbiddenText: PASS",
-									],
-								]
-							: [
-									[
-										"Hard blockers",
-										"grade-record.json",
-										"No configured hard blocker fired for the selected step.",
-										"hardBlockers: all clear",
-									],
-									[
-										"Decision quality",
-										"plan.md:8–15",
-										stepPhase(run, step) === "stopped"
-											? "The proposed cursor field contradicts the frozen public contract."
-											: "The recommendation preserves the response fields fixed by the brief.",
-										stepPhase(run, step) === "stopped"
-											? "Rename nextCursor to cursor"
-											: "Preserve nextCursor and hasMore. Use a stable cursor sort key.",
-									],
-									[
-										"Observability",
-										"plan.md:18–22",
-										"The plan names success and rejection observations, including an exhausted cursor.",
-										"Cover empty pages and invalid cursors in the target checks.",
-									],
-									[
-										"Scope discipline",
-										"plan.md:4–6",
-										"The plan excludes an additional interface and stays within the endpoint change.",
-										"No new UI or infrastructure is required for this case.",
-									],
-								];
-					const item = items[index];
-					modal(
-						item[0] + " · " + run.id + " / " + step,
-						`<span class="badge">Synthetic saved citation</span><p class="mono">${item[1]}</p><p>${esc(item[2])}</p><blockquote class="evidence-quote">${esc(item[3])}</blockquote>`,
-						btn("Close", "close"),
-					);
+					showQualityEvidence(run, step, index);
 					return true;
 				}
 
@@ -2412,7 +2412,12 @@
 					launchModal(name.split(":")[1] || "audit-log");
 					return;
 				}
-				if (name === "close") closeModal();
+				if (name === "clear-run-filters") {
+					state.filters = { status: "all", kind: "all", corpus: "all" };
+					state.search = "";
+					render();
+					$("#search").focus();
+				} else if (name === "close") closeModal();
 				else if (name === "reset") {
 					closeModal();
 					Object.assign(state, initialState());
@@ -2512,94 +2517,17 @@
 					toast("Demo run ended. Activity stays at the same address.");
 				} else if (name === "open-context")
 					location.hash = runHref(run, "context") + "/" + step;
-				else if (name === "final-evidence")
+				else if (name === "final-evidence") {
+					const evidence = artifactExcerpt(run, "delivery.md", 4);
 					modal(
 						"Final outcome evidence",
-						'<span class="badge">' +
-							finalReading(run) +
-							' · final judge</span><p class="mono">delivery.md:32–36</p><blockquote class="evidence-quote">' +
-							(finalReading(run) === "FAIL"
-								? "The empty-page response contains items: [] but omits hasMore. This fails the required public response contract."
-								: "The final artifact preserves the response fields, cursor ordering, and empty-page behavior required by the input.") +
-							'</blockquote><p class="muted">Saved final-artifact evidence. This outcome is separate from the step letters.</p>',
-						btn("Close", "close"),
+						`<span class="badge">${esc(finalReading(run))} · final Judge</span><p class="mono">${esc(evidence.source)}</p><blockquote class="evidence-quote">${esc(evidence.quote)}</blockquote><p>${finalReading(run) === "FAIL" ? "This response omits hasMore, which the public contract requires on every page." : "This response preserves the required fields at the empty-page boundary."}</p><p class="muted">Saved final-artifact evidence. This outcome is separate from the step letters.</p>`,
+						btn("Open final artifact", "artifact:delivery.md") +
+							btn("Close", "close"),
 					);
-				else if (name === "context-evidence") evidenceModal("context");
-				else if (name === "inspect-step") {
-					const phase = stepPhase(run, step),
-						m = stepMetrics(run, step),
-						session = step === "session";
-					const grades = {
-						accepted: session ? "Checks passed" : "B",
-						running: "Pending",
-						queued: "Not reached",
-						unjudged: "Not judged",
-						stopped: "C",
-						unavailable: "Unavailable",
-					};
-					modal(
-						"Inspect " + step,
-						'<dl class="definition"><dt>Run</dt><dd>' +
-							run.id +
-							'</dd><dt>Instructions</dt><dd class="mono">' +
-							instructionPath(step) +
-							"</dd><dt>Input</dt><dd>" +
-							(phase === "queued" || phase === "unavailable"
-								? frozenInput(run, step)
-								: btn(
-										stepArtifacts(step).input,
-										"artifact:" + stepArtifacts(step).input,
-									) +
-									'<br><small class="mono muted">' +
-									frozenInput(run, step) +
-									"</small>") +
-							"</dd><dt>Output</dt><dd>" +
-							(run.kind === "Group"
-								? "Outputs belong to individual attempts. Open an attempt in Attempts & results."
-								: phase === "running"
-									? "Pending"
-									: phase === "queued"
-										? "Not reached"
-										: phase === "unjudged"
-											? "Incomplete"
-											: phase === "unavailable"
-												? "Unavailable"
-												: btn(
-														stepArtifacts(step).output,
-														"artifact:" + stepArtifacts(step).output,
-													)) +
-							"</dd><dt>Grade</dt><dd>" +
-							grades[phase] +
-							"</dd><dt>Step spend</dt><dd>" +
-							m.cost +
-							"</dd><dt>Step elapsed</dt><dd>" +
-							m.time +
-							'</dd></dl><p class="muted">Results and Context & cost retain this selected step.</p>',
-						btn("Open results", "inspect-report") +
-							(canReplay(run, step)
-								? btn("Replay step", "inspect-replay")
-								: ""),
-					);
-				} else if (name === "inspect-report") {
-					closeModal();
-					location.hash = runHref(run, "report");
-				} else if (name === "inspect-replay") launchModal(run.case, true);
+				} else if (name === "context-evidence") evidenceModal();
 				else if (name.startsWith("artifact:")) {
-					const path = name.slice("artifact:".length),
-						artifacts = {
-							"product-brief.md":
-								"Add cursor pagination to the audit log. Preserve nextCursor and hasMore. An exhausted cursor must keep the public response fields.",
-							"plan.md":
-								"# Accepted pagination plan\n\nPreserve nextCursor and hasMore.\nUse a stable cursor sort key.\nCover empty pages and invalid cursors in the target checks.\n\n4 acceptance criteria · saved before Build.",
-							"delivery.md":
-								run.finalOutcome === "FAIL"
-									? "# Delivery\n\nCursor ordering and validation implemented.\nEmpty-page example: { items: [], nextCursor: null }\n\nTarget checks: 12 passed. The independent final rubric found hasMore missing."
-									: "# Delivery\n\nCursor ordering and validation implemented.\nEmpty-page example: { items: [], nextCursor: null, hasMore: false }\n\nTarget checks: 12 passed.",
-							"prompt.md":
-								"Explain the cursor boundary in a concise technical reply.",
-							"reply.txt":
-								"An exhausted cursor returns an empty items array. Keep nextCursor and hasMore unchanged; validate an invalid cursor before querying.",
-						};
+					const path = name.slice("artifact:".length);
 					modal(
 						path,
 						'<span class="badge">Synthetic · read-only</span><p class="mono">' +
@@ -2607,7 +2535,7 @@
 								? "Case " + route()[1]
 								: run.id + " / " + step) +
 							'</p><pre class="tool">' +
-							esc(artifacts[path]) +
+							esc(artifactText(run, path)) +
 							"</pre>",
 						btn("Close", "close"),
 					);
@@ -2870,12 +2798,6 @@
 					action(actionButton.dataset.action);
 					return;
 				}
-				const filter = event.target.closest("[data-filter]");
-				if (filter) {
-					state.filter = filter.dataset.filter;
-					render();
-					return;
-				}
 				const source = event.target.closest("[data-source]");
 				if (source) {
 					state.source = source.dataset.source;
@@ -2912,6 +2834,11 @@
 						);
 			});
 			document.addEventListener("change", (event) => {
+				if (event.target.dataset.runFilter) {
+					state.filters[event.target.dataset.runFilter] = event.target.value;
+					render();
+					return;
+				}
 				if (event.target.id === "agent") {
 					state.agent = event.target.value;
 					state.source = "all";
