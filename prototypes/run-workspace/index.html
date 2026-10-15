@@ -1,0 +1,3309 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Rehearse · Run workspace prototype</title>
+		<style>
+			:root {
+				color-scheme: dark;
+				--canvas: #12141e;
+				--surface: #191c29;
+				--raised: #202436;
+				--hover: #252a3e;
+				--line: #343a50;
+				--text: #e9ecf6;
+				--muted: #a4adc5;
+				--accent: #b9adff;
+				--accent-wash: #302b4b;
+				--live: #81d4d4;
+				--live-wash: #193537;
+				--good: #a6cfb4;
+				--good-wash: #25382f;
+				--warn: #ecc88c;
+				--warn-wash: #3b3225;
+				--bad: #f2a5b1;
+				--bad-wash: #3c2833;
+				--font: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+				--display: "Arial", sans-serif;
+				--mono: "SFMono-Regular", Consolas, monospace;
+				--xs: 12px;
+				--sm: 13px;
+				--base: 14px;
+				--lg: 18px;
+				--xl: 26px;
+				--s1: 4px;
+				--s2: 8px;
+				--s3: 12px;
+				--s4: 16px;
+				--s5: 20px;
+				--s6: 24px;
+				--s8: 32px;
+				--border-live: #356063;
+				--border-good: #46614e;
+				--border-warn: #6b593b;
+				--accent-hover: #ccbeff;
+				--metric: 22px;
+				--metric-lg: 24px;
+				--radius: 8px;
+				--radius-sm: 5px;
+			}
+			* {
+				box-sizing: border-box;
+			}
+			body {
+				margin: 0;
+				background: var(--canvas);
+				color: var(--text);
+				font: var(--base)/1.5 var(--font);
+			}
+			button,
+			input,
+			select,
+			textarea {
+				font: inherit;
+				color: inherit;
+			}
+			button,
+			a,
+			input,
+			select,
+			textarea,
+			summary {
+				-webkit-tap-highlight-color: transparent;
+			}
+			button,
+			a {
+				touch-action: manipulation;
+			}
+			button {
+				cursor: pointer;
+			}
+			a {
+				color: var(--accent);
+				text-decoration: none;
+			}
+			a:not(.skip) {
+				min-height: 44px;
+				display: inline-flex;
+				align-items: center;
+			}
+			a:hover {
+				text-decoration: underline;
+			}
+			:focus-visible {
+				outline: 2px solid var(--live);
+				outline-offset: 3px;
+			}
+			button:disabled {
+				opacity: 0.5;
+				cursor: not-allowed;
+			}
+			h1,
+			h2,
+			h3,
+			p {
+				margin: 0;
+			}
+			summary {
+				min-height: 44px;
+				cursor: pointer;
+			}
+			h1 {
+				font: 600 var(--xl)/1.2 var(--display);
+				letter-spacing: -0.6px;
+			}
+			h2 {
+				font: 600 var(--lg)/1.4 var(--display);
+				letter-spacing: -0.2px;
+			}
+			h3 {
+				font-size: var(--base);
+				font-weight: 600;
+			}
+			small,
+			.small {
+				font-size: var(--xs);
+			}
+			.muted {
+				color: var(--muted);
+			}
+			.mono,
+			code,
+			pre {
+				font-family: var(--mono);
+			}
+			.mono {
+				font-size: var(--sm);
+			}
+			.accent {
+				color: var(--accent);
+			}
+			.good {
+				color: var(--good);
+			}
+			.warn {
+				color: var(--warn);
+			}
+			.live {
+				color: var(--live);
+			}
+			.row {
+				display: flex;
+				align-items: center;
+				gap: var(--s3);
+				flex-wrap: wrap;
+			}
+			.between {
+				justify-content: space-between;
+			}
+			.stack {
+				display: flex;
+				flex-direction: column;
+				gap: var(--s4);
+			}
+			.gap2 {
+				gap: var(--s2);
+			}
+			.btn,
+			.chip {
+				min-width: 44px;
+				display: inline-flex;
+				align-items: center;
+				justify-content: center;
+				gap: var(--s2);
+				border: 1px solid var(--line);
+				border-radius: var(--radius-sm);
+				background: transparent;
+				padding: var(--s2) var(--s3);
+				min-height: 44px;
+				white-space: nowrap;
+			}
+			.btn:hover,
+			.chip:hover {
+				background: var(--hover);
+				text-decoration: none;
+			}
+			.primary {
+				background: var(--accent);
+				color: var(--canvas);
+				border-color: var(--accent);
+				font-weight: 600;
+			}
+			.primary:hover {
+				background: var(--accent-hover);
+			}
+			.danger {
+				color: var(--bad);
+			}
+			.chip {
+				font-size: var(--sm);
+				border-color: transparent;
+				color: var(--muted);
+			}
+			.chip[aria-pressed="true"] {
+				background: var(--raised);
+				border-color: var(--line);
+				color: var(--text);
+			}
+			.badge {
+				display: inline-flex;
+				gap: var(--s2);
+				align-items: center;
+				font-size: var(--xs);
+				padding: var(--s1) var(--s2);
+				background: var(--raised);
+				border: 1px solid var(--line);
+				border-radius: var(--radius-sm);
+				white-space: nowrap;
+			}
+			.badge.running {
+				background: var(--live-wash);
+				color: var(--live);
+				border-color: var(--border-live);
+			}
+			.badge.completed {
+				background: var(--good-wash);
+				color: var(--good);
+				border-color: var(--border-good);
+			}
+			.badge.stopped,
+			.badge.paused {
+				background: var(--warn-wash);
+				color: var(--warn);
+				border-color: var(--border-warn);
+			}
+			.rule {
+				height: 1px;
+				background: var(--line);
+				margin: var(--s2) 0;
+			}
+			.panel {
+				background: var(--surface);
+				border: 1px solid var(--line);
+				border-radius: var(--radius);
+				overflow: hidden;
+				min-width: 0;
+			}
+			.pad {
+				padding: var(--s5);
+			}
+			.panel-head {
+				display: flex;
+				align-items: center;
+				justify-content: space-between;
+				gap: var(--s3);
+				padding: var(--s4) var(--s5);
+				border-bottom: 1px solid var(--line);
+				flex-wrap: wrap;
+			}
+			.notice {
+				padding: var(--s3) var(--s4);
+				border-left: 2px solid var(--accent);
+				background: var(--accent-wash);
+				border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+			}
+			.notice.warn-note {
+				background: var(--warn-wash);
+				border-color: var(--warn);
+			}
+			.eyebrow {
+				color: var(--muted);
+				font-size: var(--xs);
+				letter-spacing: 1px;
+				text-transform: uppercase;
+			}
+			.app {
+				display: grid;
+				grid-template-columns: minmax(0, 1fr);
+				min-height: 100dvh;
+			}
+			.sidebar {
+				min-width: 0;
+				padding: var(--s4);
+				background: var(--surface);
+				border-bottom: 1px solid var(--line);
+				display: flex;
+				flex-direction: column;
+				gap: var(--s4);
+			}
+			.brand {
+				display: flex;
+				align-items: center;
+				gap: var(--s3);
+				color: var(--text);
+				font-size: var(--lg);
+				font-weight: 600;
+				letter-spacing: -0.5px;
+			}
+			.mark {
+				display: grid;
+				grid-template-columns: repeat(3, 4px);
+				gap: var(--s1);
+				height: 22px;
+				align-items: end;
+			}
+			.mark i {
+				width: 4px;
+				background: var(--accent);
+				border-radius: 2px;
+				height: 14px;
+			}
+			.mark i:nth-child(2) {
+				height: 22px;
+			}
+			.mark i:nth-child(3) {
+				height: 18px;
+			}
+			.global-nav {
+				display: flex;
+				gap: var(--s1);
+				flex-wrap: nowrap;
+				overflow-x: auto;
+			}
+			.nav-link {
+				flex-shrink: 0;
+				display: flex;
+				align-items: center;
+				gap: var(--s3);
+				min-height: 44px;
+				border-radius: var(--radius-sm);
+				padding: var(--s2) var(--s3);
+				color: var(--muted);
+			}
+			.nav-link.active {
+				background: var(--accent-wash);
+				color: var(--text);
+			}
+			.nav-link:hover {
+				background: var(--hover);
+				text-decoration: none;
+			}
+			.nav-link svg {
+				width: 17px;
+				height: 17px;
+				flex-shrink: 0;
+			}
+			.nav-link .count {
+				margin-left: auto;
+				font: var(--xs) var(--mono);
+				color: var(--live);
+			}
+			.sidebar-bottom {
+				display: none;
+			}
+			.main {
+				min-width: 0;
+			}
+			.prototype-bar {
+				display: flex;
+				align-items: center;
+				justify-content: space-between;
+				gap: var(--s3);
+				flex-wrap: wrap;
+				padding: var(--s2) var(--s5);
+				border-bottom: 1px solid var(--line);
+				font-size: var(--xs);
+				color: var(--muted);
+			}
+			.prototype-bar strong {
+				color: var(--accent);
+				font-weight: 500;
+			}
+			.prototype-bar button {
+				background: none;
+				color: var(--muted);
+				border: 0;
+				min-height: 44px;
+				text-decoration: underline;
+			}
+			.content {
+				padding: var(--s5);
+				max-width: 1560px;
+				margin: auto;
+			}
+			.page-head {
+				display: flex;
+				align-items: flex-start;
+				justify-content: space-between;
+				gap: var(--s4);
+				flex-wrap: wrap;
+				margin-bottom: var(--s6);
+			}
+			.page-head p {
+				color: var(--muted);
+				margin-top: var(--s2);
+			}
+			.stats {
+				display: grid;
+				grid-template-columns: repeat(2, minmax(0, 1fr));
+				gap: var(--s4);
+			}
+			.stat {
+				padding-right: var(--s4);
+			}
+			.stat strong {
+				font: 500 var(--metric)/1.5 var(--mono);
+				display: block;
+				letter-spacing: -0.7px;
+			}
+			.stat .label {
+				color: var(--muted);
+				font-size: var(--xs);
+			}
+			.toolbar {
+				display: flex;
+				gap: var(--s3);
+				justify-content: space-between;
+				align-items: center;
+				flex-wrap: wrap;
+				margin-bottom: var(--s4);
+			}
+			input,
+			select,
+			textarea {
+				width: 100%;
+				min-height: 44px;
+				border: 1px solid var(--line);
+				background: var(--canvas);
+				border-radius: var(--radius-sm);
+				padding: var(--s2) var(--s3);
+			}
+			textarea {
+				min-height: 150px;
+				resize: vertical;
+				line-height: 1.7;
+			}
+			.search {
+				width: 100%;
+			}
+			.search input {
+				background: var(--surface);
+			}
+			.run-list {
+				display: flex;
+				flex-direction: column;
+			}
+			.run-row {
+				display: grid;
+				grid-template-columns: minmax(0, 1fr) auto;
+				align-items: center;
+				gap: var(--s3);
+				padding: var(--s4) var(--s5);
+				border-bottom: 1px solid var(--line);
+			}
+			.run-row:last-child {
+				border: 0;
+			}
+			.run-row:hover {
+				background: var(--raised);
+			}
+			.run-title {
+				display: block;
+				color: var(--text);
+				font-weight: 500;
+				padding: var(--s2) 0;
+				min-height: 44px;
+			}
+			.run-title:hover {
+				color: var(--accent);
+			}
+			.run-meta {
+				color: var(--muted);
+				font-size: var(--xs);
+				display: flex;
+				gap: var(--s2);
+				flex-wrap: wrap;
+			}
+			.run-numbers {
+				text-align: right;
+			}
+			.run-numbers strong {
+				font: var(--sm) var(--mono);
+				display: block;
+			}
+			.run-result {
+				grid-column: 1 / -1;
+			}
+			.run-version {
+				display: none;
+			}
+			.live-card {
+				border-color: var(--border-live);
+				margin-bottom: var(--s6);
+			}
+			.live-card .panel-head {
+				background: var(--live-wash);
+				border-color: var(--border-live);
+			}
+			.live-card .run-row {
+				padding-top: var(--s5);
+				padding-bottom: var(--s5);
+			}
+			.breadcrumbs {
+				display: flex;
+				gap: var(--s2);
+				align-items: center;
+				margin-bottom: var(--s5);
+				color: var(--muted);
+				font-size: var(--sm);
+			}
+			.breadcrumbs a {
+				min-height: 44px;
+				display: inline-flex;
+				align-items: center;
+			}
+			.run-header {
+				display: flex;
+				align-items: flex-start;
+				justify-content: space-between;
+				gap: var(--s4);
+				flex-wrap: wrap;
+				margin-bottom: var(--s5);
+			}
+			.run-header h1 {
+				margin-bottom: var(--s3);
+			}
+			.view-nav {
+				display: flex;
+				gap: var(--s4);
+				overflow-x: auto;
+				border-bottom: 1px solid var(--line);
+				margin: var(--s6) 0 var(--s5);
+			}
+			.view-nav :is(a, button) {
+				min-width: 44px;
+				background: transparent;
+				border: 0;
+				display: inline-flex;
+				align-items: center;
+				gap: var(--s2);
+				color: var(--muted);
+				border-bottom: 2px solid transparent;
+				padding: var(--s3) 0;
+				min-height: 48px;
+				white-space: nowrap;
+			}
+			.view-nav :is(a, button).active {
+				color: var(--text);
+				border-color: var(--accent);
+			}
+			.view-nav :is(a, button):hover {
+				text-decoration: none;
+				color: var(--text);
+			}
+			.step-spine {
+				display: grid;
+				grid-template-columns: repeat(2, minmax(0, 1fr));
+				gap: var(--s2);
+				margin-bottom: var(--s5);
+			}
+			.step {
+				text-align: left;
+				padding: var(--s3) var(--s4);
+				background: var(--surface);
+				border: 1px solid var(--line);
+				border-radius: var(--radius);
+				min-height: 92px;
+			}
+			.step:hover {
+				background: var(--raised);
+			}
+			.step[aria-pressed="true"] {
+				border-color: var(--accent);
+				box-shadow: inset 0 2px var(--accent);
+				background: var(--raised);
+			}
+			.step.current[aria-pressed="true"] {
+				border-color: var(--live);
+				box-shadow: inset 0 2px var(--live);
+			}
+			.step-title {
+				display: flex;
+				gap: var(--s2);
+				align-items: center;
+				justify-content: space-between;
+				margin-bottom: var(--s2);
+			}
+			.step small {
+				color: var(--muted);
+				display: block;
+			}
+			.step-caption {
+				display: flex;
+				justify-content: space-between;
+				gap: var(--s2);
+				flex-wrap: wrap;
+				margin: var(--s5) 0 var(--s3);
+			}
+			.two-col,
+			.context-grid,
+			.compare-grid {
+				display: grid;
+				grid-template-columns: minmax(0, 1fr);
+				gap: var(--s4);
+				align-items: start;
+			}
+			.transcript {
+				padding: var(--s4) var(--s5);
+				display: flex;
+				flex-direction: column;
+				gap: var(--s4);
+			}
+			.entry {
+				display: grid;
+				grid-template-columns: 48px minmax(0, 1fr);
+				gap: var(--s3);
+			}
+			.entry time {
+				color: var(--muted);
+				font: var(--xs)/1.7 var(--mono);
+			}
+			.entry .who {
+				font-size: var(--xs);
+				color: var(--accent);
+				display: block;
+				margin-bottom: var(--s1);
+			}
+			pre {
+				white-space: pre-wrap;
+				overflow-wrap: anywhere;
+				font-size: var(--xs);
+				line-height: 1.7;
+				margin: 0;
+			}
+			.tool {
+				background: var(--canvas);
+				border-left: 2px solid var(--line);
+				padding: var(--s3);
+				border-radius: var(--radius-sm);
+			}
+			.check {
+				padding: var(--s3) 0;
+				display: flex;
+				align-items: center;
+				justify-content: space-between;
+				gap: var(--s3);
+				border-bottom: 1px solid var(--line);
+			}
+			.check:last-child {
+				border: 0;
+			}
+			.check-label {
+				min-width: 0;
+			}
+			.check .btn {
+				color: var(--accent);
+			}
+			.grade {
+				font: 500 var(--metric) var(--mono);
+				min-width: 28px;
+			}
+			.list-item {
+				padding: var(--s4) 0;
+				border-bottom: 1px solid var(--line);
+			}
+			.list-item:last-child {
+				border: 0;
+			}
+			.definition {
+				display: grid;
+				grid-template-columns: 110px minmax(0, 1fr);
+				gap: var(--s2) var(--s3);
+				margin: 0;
+			}
+			.definition dt {
+				color: var(--muted);
+			}
+			.definition dd {
+				min-width: 0;
+				margin: 0;
+				overflow-wrap: anywhere;
+			}
+			.meter {
+				height: 6px;
+				background: var(--line);
+				border-radius: 3px;
+				margin-top: var(--s2);
+				overflow: hidden;
+			}
+			.meter span {
+				display: block;
+				width: var(--value);
+				height: 100%;
+				background: var(--accent);
+			}
+			.source-btn > span {
+				min-width: 0;
+				flex: 1;
+				overflow-wrap: anywhere;
+			}
+			.source-btn {
+				display: flex;
+				justify-content: space-between;
+				gap: var(--s3);
+				width: 100%;
+				min-height: 60px;
+				padding: var(--s3);
+				background: transparent;
+				border: 1px solid transparent;
+				border-radius: var(--radius-sm);
+				text-align: left;
+			}
+			.source-btn:hover,
+			.source-btn[aria-pressed="true"] {
+				background: var(--raised);
+				border-color: var(--line);
+			}
+			.source-btn small {
+				display: block;
+				color: var(--muted);
+			}
+			.chart {
+				overflow-x: auto;
+				height: 180px;
+				display: flex;
+				align-items: end;
+				gap: var(--s1);
+				padding-top: var(--s4);
+				border-bottom: 1px solid var(--line);
+			}
+			.request {
+				position: relative;
+				flex: 1;
+				height: 100%;
+				min-width: 44px;
+				padding: 0;
+				border: 0;
+				background: transparent;
+				display: flex;
+				align-items: end;
+				justify-content: center;
+			}
+			.request::after {
+				content: "";
+				height: var(--value);
+				width: 74%;
+				background: var(--accent);
+				opacity: 0.6;
+				border-radius: 3px 3px 0 0;
+			}
+			.request[aria-pressed="true"] {
+				background: var(--accent-wash);
+			}
+			.request[aria-pressed="true"]::after {
+				opacity: 1;
+				background: var(--live);
+			}
+			.chart-axis {
+				display: flex;
+				justify-content: space-between;
+				color: var(--muted);
+				font: var(--xs) var(--mono);
+				margin-top: var(--s2);
+			}
+			.legend {
+				display: flex;
+				gap: var(--s4);
+				margin-top: var(--s3);
+				color: var(--muted);
+				font-size: var(--xs);
+				flex-wrap: wrap;
+			}
+			.table-scroll {
+				overflow-x: auto;
+			}
+			table {
+				border-collapse: collapse;
+				width: 100%;
+				text-align: left;
+				font-size: var(--sm);
+			}
+			th,
+			td {
+				padding: var(--s3) var(--s4);
+				border-bottom: 1px solid var(--line);
+				vertical-align: top;
+			}
+			th {
+				color: var(--muted);
+				font-size: var(--xs);
+				font-weight: 500;
+				white-space: nowrap;
+			}
+			td {
+				min-width: 95px;
+			}
+			tbody tr:last-child td {
+				border-bottom: 0;
+			}
+			.arm {
+				border-top: 3px solid var(--line);
+			}
+			.arm.candidate {
+				border-top-color: var(--accent);
+			}
+			.arm .fig {
+				font: 500 var(--metric-lg)/1.5 var(--mono);
+			}
+			.empty {
+				padding: var(--s8);
+				text-align: center;
+				color: var(--muted);
+			}
+			.empty h2 {
+				color: var(--text);
+				margin-bottom: var(--s2);
+			}
+			.field {
+				display: flex;
+				flex-direction: column;
+				gap: var(--s2);
+			}
+			dialog {
+				background: var(--surface);
+				color: var(--text);
+				border: 1px solid var(--line);
+				border-radius: var(--radius);
+				padding: 0;
+				width: min(580px, calc(100% - 24px));
+				max-height: 88dvh;
+				box-shadow: 0 20px 80px #0009;
+			}
+			dialog::backdrop {
+				background: #080a13b8;
+				backdrop-filter: blur(3px);
+			}
+			dialog .dialog-body {
+				padding: var(--s5);
+				display: flex;
+				flex-direction: column;
+				gap: var(--s5);
+			}
+			dialog .dialog-footer {
+				padding: var(--s4) var(--s5);
+				display: flex;
+				justify-content: flex-end;
+				gap: var(--s3);
+				border-top: 1px solid var(--line);
+				flex-wrap: wrap;
+			}
+			.evidence-quote {
+				border-left: 2px solid var(--accent);
+				padding: var(--s3) var(--s4);
+				background: var(--canvas);
+				margin: 0;
+			}
+			#toast {
+				position: fixed;
+				bottom: var(--s5);
+				left: var(--s4);
+				right: var(--s4);
+				max-width: 600px;
+				margin: auto;
+				padding: var(--s4) var(--s5);
+				background: var(--raised);
+				border: 1px solid var(--accent);
+				border-radius: var(--radius);
+				box-shadow: 0 8px 32px #0006;
+				z-index: 5;
+			}
+			#toast:empty {
+				display: none;
+			}
+			.skip {
+				position: fixed;
+				left: var(--s4);
+				top: -100px;
+				z-index: 10;
+				padding: var(--s3);
+				background: var(--accent);
+				color: var(--canvas);
+			}
+			.skip:focus {
+				top: var(--s4);
+			}
+			.diff-line {
+				padding: var(--s2) var(--s3);
+				font: var(--xs)/1.7 var(--mono);
+				overflow-wrap: anywhere;
+			}
+			.diff-line.remove {
+				background: var(--bad-wash);
+				color: var(--bad);
+			}
+			.diff-line.add {
+				background: var(--good-wash);
+				color: var(--good);
+			}
+			@media (min-width: 640px) {
+				.stats {
+					grid-template-columns: repeat(4, minmax(0, 1fr));
+				}
+				.search {
+					width: 260px;
+				}
+				.step-spine {
+					grid-template-columns: repeat(2, minmax(0, 1fr));
+				}
+				.run-row {
+					grid-template-columns: minmax(0, 1fr) minmax(100px, 0.6fr) 80px;
+				}
+				.run-result {
+					grid-column: auto;
+				}
+				.compare-grid {
+					grid-template-columns: repeat(3, minmax(0, 1fr));
+				}
+			}
+			@media (min-width: 1024px) {
+				.app {
+					grid-template-columns: 188px minmax(0, 1fr);
+				}
+				.sidebar {
+					position: sticky;
+					top: 0;
+					height: 100dvh;
+					padding: var(--s6) var(--s3);
+					border-right: 1px solid var(--line);
+					border-bottom: 0;
+				}
+				.brand {
+					padding: 0 var(--s3);
+					margin-bottom: var(--s6);
+				}
+				.global-nav {
+					flex-direction: column;
+				}
+				.sidebar-bottom {
+					display: flex;
+					flex-direction: column;
+					gap: var(--s4);
+					margin-top: auto;
+					padding: var(--s3);
+					font-size: var(--xs);
+				}
+				.sidebar-bottom a {
+					min-height: 44px;
+					display: flex;
+					align-items: center;
+				}
+				.content {
+					padding: var(--s6) var(--s8) var(--s8);
+				}
+				.two-col {
+					grid-template-columns: minmax(0, 1.55fr) minmax(260px, 1fr);
+				}
+				.context-grid {
+					grid-template-columns: 240px minmax(0, 1fr);
+				}
+				.run-row {
+					grid-template-columns: minmax(0, 1.4fr) minmax(130px, 1fr) 120px 90px;
+				}
+				.run-version {
+					display: block;
+				}
+			}
+			@media (prefers-reduced-motion: no-preference) {
+				.btn,
+				.step,
+				.nav-link {
+					transition:
+						background 120ms,
+						border-color 120ms;
+				}
+			}
+		</style>
+	</head>
+	<body>
+		<a class="skip" href="#main">Skip to content</a>
+		<div id="app"></div>
+		<dialog id="dialog" aria-labelledby="dialog-title"></dialog>
+		<div id="toast" role="status" aria-live="polite"></div>
+		<script>
+			const initialRuns = [
+				{
+					id: "r42",
+					case: "audit-log",
+					title: "Add a paginated audit log",
+					kind: "Pipeline",
+					state: "running",
+					cost: 3.42,
+					time: "8m 24s",
+					version: "0a78c2",
+					grade: "Pending",
+					step: "build",
+					when: "Today, 14:32",
+					note: "Build is running · Shape accepted",
+					progress: 1,
+				},
+				{
+					id: "r41",
+					case: "audit-log",
+					title: "Add a paginated audit log",
+					kind: "Pipeline",
+					state: "completed",
+					cost: 4.86,
+					time: "12m 08s",
+					version: "0a78c2",
+					grade: "B",
+					step: "build",
+					when: "Today, 13:48",
+					note: "Accepted · all checks passed",
+					progress: 2,
+				},
+				{
+					id: "r40",
+					case: "audit-log",
+					title: "Add a paginated audit log",
+					kind: "Pipeline",
+					state: "stopped",
+					cost: 1.73,
+					time: "5m 43s",
+					version: "7733aa",
+					grade: "C",
+					step: "shape",
+					when: "Today, 12:10",
+					note: "Stopped at Shape · below minimum B",
+					progress: 0,
+				},
+				{
+					id: "g8",
+					case: "audit-log",
+					title: "Shape · shortened review instructions",
+					kind: "Group",
+					state: "completed",
+					cost: 5.4,
+					time: "7m 12s",
+					version: "0a78c2",
+					grade: "3/3 accepted",
+					step: "shape",
+					when: "Yesterday, 17:20",
+					note: "3 attempts · checkpoint cp-a7 · candidate",
+					progress: 1,
+				},
+				{
+					id: "g7",
+					case: "audit-log",
+					title: "Shape · original review instructions",
+					kind: "Group",
+					state: "completed",
+					cost: 7.26,
+					time: "8m 06s",
+					version: "7733aa",
+					grade: "3/3 accepted",
+					step: "shape",
+					when: "Yesterday, 16:40",
+					note: "3 attempts · checkpoint cp-a7 · before edit",
+					progress: 1,
+				},
+				{
+					id: "r39",
+					noTranscript: true,
+					case: "audit-log",
+					title: "Replay Shape from r35",
+					kind: "Replay",
+					state: "completed",
+					cost: 1.95,
+					time: "6m 00s",
+					version: "0a78c2",
+					grade: "B",
+					step: "shape",
+					when: "Yesterday, 16:17",
+					note: "From r35 / Shape · checkpoint cp-a7",
+					progress: 1,
+				},
+				{
+					id: "s12",
+					case: "brief-reply",
+					title: "Keep a technical reply concise",
+					kind: "Session",
+					state: "completed",
+					cost: 0.08,
+					time: "24s",
+					version: "0a78c2",
+					grade: "Passed",
+					step: "session",
+					when: "Yesterday, 15:02",
+					note: "3 of 3 deterministic checks passed",
+					progress: 1,
+				},
+				{
+					id: "s11",
+					case: "brief-reply",
+					title: "Keep a technical reply concise",
+					kind: "Session",
+					state: "stopped",
+					cost: 0,
+					time: "—",
+					version: "7733aa",
+					grade: "Unavailable",
+					step: "session",
+					when: "Time not recorded",
+					note: "Invocation failed · no reply or usage recorded",
+					progress: 0,
+					missing: true,
+				},
+			];
+			initialRuns.splice(2, 0, {
+				...initialRuns[1],
+				id: "r37",
+				finalOutcome: "FAIL",
+				cost: 4.55,
+				time: "11m 14s",
+				when: "Today, 13:16",
+				note: "Final FAIL · both steps accepted · empty-page contract missing",
+			});
+			function finalReading(run) {
+				if (run.kind !== "Pipeline") return run.grade;
+				if (run.state === "running") return "Pending";
+				if (run.state !== "completed") return "Not reached";
+				return run.finalOutcome || "PASS";
+			}
+			function elapsedSeconds(time) {
+				const parts = time.match(/(?:(\d+)m )?(\d+)s/);
+				if (!parts) return 0;
+				return Number(parts[1] || 0) * 60 + Number(parts[2]);
+			}
+			function initializeReadings(run) {
+				if (run.kind === "Group") return run;
+				if (run.kind === "Pipeline") {
+					if (run.step === "shape") {
+						run.stepReadings = {
+							shape: { cost: run.cost, seconds: elapsedSeconds(run.time) },
+						};
+						return run;
+					}
+					run.stepReadings = {
+						shape: { cost: 1.18, seconds: 252 },
+						build: {
+							cost: Math.max(0, run.cost - 1.18),
+							seconds: Math.max(0, elapsedSeconds(run.time) - 252),
+						},
+					};
+					return run;
+				}
+				run.stepReadings = {
+					[run.step]: { cost: run.cost, seconds: elapsedSeconds(run.time) },
+				};
+				return run;
+			}
+			function stepMetrics(run, step) {
+				const phase = stepPhase(run, step),
+					reading = run.stepReadings?.[step];
+				if (phase === "queued")
+					return { cost: "Pending", time: "Not started", value: 0 };
+				if (phase === "unavailable" || !reading)
+					return { cost: "Unavailable", time: "Not recorded", value: 0 };
+				return {
+					cost: money(reading.cost),
+					time:
+						Math.floor(reading.seconds / 60) +
+						"m " +
+						String(reading.seconds % 60).padStart(2, "0") +
+						"s" +
+						(phase === "running" ? " so far" : ""),
+					value: reading.cost,
+				};
+			}
+			function finishReadings(run) {
+				const ceiling = run.budget || 10;
+				if (run.kind === "Pipeline") {
+					const total = Math.min(4.86, ceiling),
+						shape = Math.min(1.18, total * 0.25);
+					run.stepReadings = {
+						shape: { cost: shape, seconds: 252 },
+						build: { cost: total - shape, seconds: 476 },
+					};
+					run.cost = total;
+					run.time = "12m 08s";
+					run.step = "build";
+					run.progress = 2;
+					return;
+				}
+				const cost = Math.min(run.step === "session" ? 0.08 : 1.8, ceiling),
+					seconds = run.step === "session" ? 24 : 360;
+				run.stepReadings = { [run.step]: { cost, seconds } };
+				run.cost = cost;
+				run.time =
+					Math.floor(seconds / 60) +
+					"m " +
+					String(seconds % 60).padStart(2, "0") +
+					"s";
+				run.progress = 1;
+			}
+			initialRuns.splice(3, 0, {
+				...initialRuns[1],
+				id: "r36",
+				finalOutcome: "Judging failed",
+				cost: 4.64,
+				time: "12m 10s",
+				when: "Today, 12:45",
+				note: "Final judge failed · no verdict returned",
+			});
+			function finalReport(run) {
+				if (run.kind !== "Pipeline") return "";
+				const outcome = finalReading(run),
+					judged = ["PASS", "FAIL"].includes(outcome);
+				return (
+					'<section class="panel"><div class="panel-head"><h2>Final workflow outcome</h2><span class="badge ' +
+					(outcome === "PASS"
+						? "completed"
+						: outcome === "FAIL"
+							? "stopped"
+							: "") +
+					'">' +
+					outcome +
+					'</span></div><div class="pad stack"><p>' +
+					{
+						FAIL: "Both steps met minimum B, but the final artifact omits the required empty-page field. The final judge returned FAIL.",
+						PASS: "The final judge returned PASS against the original task input and final artifact.",
+						Pending:
+							"The final outcome is pending until the workflow reaches its final judge.",
+						"Judging failed":
+							"The final judge did not return a valid verdict. This is missing grading evidence, not a failed task. Accepted step grades remain available.",
+						"Not reached":
+							"The workflow ended before final grading. Accepted step grades remain valid; no final outcome was recorded.",
+					}[outcome] +
+					'</p><p class="muted small">Graded independently of step letters. The final judge sees the original input and final artifact.</p>' +
+					(judged ? btn("Inspect final evidence", "final-evidence") : "") +
+					"</div></section>"
+				);
+			}
+			function costReading(groupId) {
+				const costs = state.runs
+					.filter((item) => item.parent === groupId)
+					.map((item) => item.cost);
+				return (
+					money(costs.reduce((a, b) => a + b, 0) / costs.length) +
+					" · " +
+					money(Math.min(...costs)) +
+					"–" +
+					money(Math.max(...costs))
+				);
+			}
+			const initialInstruction =
+				"Read the relevant evidence once. Give each reviewer the shared evidence, then inspect only the findings that need verification.";
+			function initialState() {
+				return {
+					defaultBudget: 10,
+					reviews: {},
+					reviewTarget: null,
+					runs: structuredClone(initialRuns).map(initializeReadings),
+					filter: "All",
+					search: "",
+					selectedStep: {},
+					source: "all",
+					agent: "parent",
+					request: 1,
+					follow: true,
+					caseTab: "Overview",
+					settingsTab: "General",
+					version: "0a78c2",
+					draft: initialInstruction,
+					instruction: initialInstruction,
+					review: "B",
+					versionCounter: 0,
+				};
+			}
+			const state = initialState();
+			const $ = (selector) => document.querySelector(selector);
+			const esc = (text) =>
+				String(text)
+					.replaceAll("&", "&amp;")
+					.replaceAll("<", "&lt;")
+					.replaceAll(">", "&gt;")
+					.replaceAll('"', "&quot;")
+					.replaceAll("'", "&#39;");
+			const money = (value) => "$" + value.toFixed(2);
+			const icons = {
+				runs: '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
+				compare: '<path d="M3 3v18M21 3v18M7 7h10l-3-3m3 13H7l3 3"/>',
+				cases:
+					'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 5V3h8v2M3 11h18"/>',
+				corpus:
+					'<path d="M4 3h13a3 3 0 0 1 3 3v15H7a3 3 0 0 1-3-3zM7 16h13M8 7h8M8 11h6"/>',
+				settings:
+					'<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/>',
+			};
+			const icon = (name) =>
+				'<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' +
+				icons[name] +
+				"</svg>";
+			const badge = (run) =>
+				'<span class="badge ' +
+				run.state +
+				'">' +
+				{
+					running: "● Running",
+					completed: "✓ Completed",
+					stopped: "■ Stopped",
+					paused: "Ⅱ Paused",
+				}[run.state] +
+				"</span>";
+			const btn = (label, action, kind = "") =>
+				'<button class="btn ' +
+				kind +
+				'" data-action="' +
+				action +
+				'">' +
+				label +
+				"</button>";
+			const notice = (text, warning = false) =>
+				'<div class="notice ' +
+				(warning ? "warn-note" : "") +
+				'">' +
+				text +
+				"</div>";
+			const route = () =>
+				(location.hash.slice(1) || "/runs").split("/").filter(Boolean);
+			const runHref = (run, view) =>
+				"#/runs/" +
+				run.id +
+				"/" +
+				(view || (run.state === "running" ? "activity" : "overview"));
+			const getRun = () => state.runs.find((run) => run.id === route()[1]);
+			const stepsFor = (run) =>
+				run.kind === "Pipeline" || run.groupMode === "pipeline"
+					? ["shape", "build"]
+					: [run.step];
+			const selectedStep = (run) => state.selectedStep[run.id] || run.step;
+			const stat = (label, value, note = "") =>
+				'<div class="stat"><span class="label">' +
+				label +
+				"</span><strong>" +
+				value +
+				'</strong><small class="muted">' +
+				note +
+				"</small></div>";
+			function shell(content) {
+				const section = route()[0];
+				const nav = [
+					["runs", "Runs"],
+					["compare", "Comparisons"],
+					["cases", "Cases"],
+					["corpus", "Corpus"],
+					["settings", "Settings"],
+				];
+				const running = state.runs.filter(
+					(run) => run.state === "running" && !run.parent,
+				).length;
+				return (
+					'<div class="app"><aside class="sidebar"><a class="brand" href="#/runs"><span class="mark" aria-hidden="true"><i></i><i></i><i></i></span>Rehearse</a><nav class="global-nav" aria-label="Main navigation">' +
+					nav
+						.map(
+							([id, label]) =>
+								'<a class="nav-link ' +
+								(section === id ? "active" : "") +
+								'" ' +
+								(section === id ? 'aria-current="page"' : "") +
+								' href="#/' +
+								id +
+								'">' +
+								icon(id) +
+								label +
+								(id === "runs" && running
+									? '<span class="count">' + running + " live</span>"
+									: "") +
+								"</a>",
+						)
+						.join("") +
+					'</nav><div class="sidebar-bottom"><span class="eyebrow">Corpus under test</span><a href="#/corpus"><span class="mono">corpus@' +
+					state.version +
+					'</span></a><span class="muted">137 files · demo snapshot</span><div class="rule"></div><span class="muted">Test an instruction.<br>Follow the evidence.</span></div></aside><main class="main" id="main" tabindex="-1"><div class="prototype-bar"><span><strong>Interactive prototype</strong> · synthetic data · actions are simulated</span><button data-action="reset">Reset demo</button></div><div class="content">' +
+					content +
+					"</div></main></div>"
+				);
+			}
+			function runRow(run) {
+				return (
+					'<div class="run-row"><div><a class="run-title" href="' +
+					runHref(run) +
+					'">' +
+					esc(run.case) +
+					' <span class="muted">/</span> <span class="mono">' +
+					run.id +
+					'</span> <span class="muted">↗</span></a><div class="run-meta"><span>' +
+					run.kind +
+					"</span><span>·</span><span>" +
+					run.when +
+					'</span></div></div><div class="run-result"><div class="row gap2">' +
+					badge(run) +
+					' <span class="mono">' +
+					finalReading(run) +
+					'</span></div><small class="muted">' +
+					run.note +
+					'</small></div><div class="run-version"><span class="mono">' +
+					run.version +
+					'</span><br><small class="' +
+					(run.version === state.version ? "muted" : "warn") +
+					'">' +
+					(run.version === state.version
+						? "✓ Current corpus"
+						: "◐ Corpus changed") +
+					'</small></div><div class="run-numbers"><strong>' +
+					(run.missing ? "Unavailable" : money(run.cost)) +
+					'</strong><small class="muted">' +
+					run.time +
+					"</small></div></div>"
+				);
+			}
+			function runsPage() {
+				const indexed = state.runs.filter((run) => !run.parent);
+				const live = indexed.filter((run) => run.state === "running");
+				const pinned = live.length && state.filter === "All" && !state.search;
+				const filtered = indexed.filter((run) => {
+					if (pinned && run.state === "running") return false;
+					let matches = true;
+					switch (state.filter) {
+						case "All":
+							break;
+						case "Running":
+							matches = run.state === "running";
+							break;
+						case "Stopped":
+							matches = ["stopped", "paused"].includes(run.state);
+							break;
+						case "Current corpus":
+							matches = run.version === state.version;
+							break;
+						default:
+							matches = run.kind === state.filter;
+					}
+					return (
+						matches &&
+						[run.case, run.title, run.id, run.version, run.note]
+							.join(" ")
+							.toLowerCase()
+							.includes(state.search.toLowerCase())
+					);
+				});
+				return (
+					'<header class="page-head"><div><h1>Runs</h1><p>Follow a run. Inspect its evidence. Test the next change.</p></div>' +
+					btn("+ New run", "launch", "primary") +
+					"</header>" +
+					(pinned
+						? '<section class="panel live-card" aria-label="Runs in progress"><div class="panel-head"><span class="row"><span class="live">● In progress</span><small class="muted">Click a run to follow its activity</small></span><span class="small muted">' +
+							live.length +
+							" running</span></div>" +
+							live.map(runRow).join("") +
+							"</section>"
+						: "") +
+					'<div class="toolbar"><div class="row gap2" role="group" aria-label="Filter runs">' +
+					[
+						"All",
+						"Running",
+						"Stopped",
+						"Group",
+						"Replay",
+						"Session",
+						"Current corpus",
+					]
+						.map(
+							(f) =>
+								'<button class="chip" data-filter="' +
+								f +
+								'" aria-pressed="' +
+								(state.filter === f) +
+								'">' +
+								({ Group: "Groups", Replay: "Replays", Session: "Sessions" }[
+									f
+								] || f) +
+								"</button>",
+						)
+						.join("") +
+					'</div><label class="search"><input id="search" type="search" aria-label="Search runs" placeholder="Search case, run, corpus…" value="' +
+					esc(state.search) +
+					'" /></label></div><section class="panel" aria-label="Run history"><div class="panel-head"><h2>History</h2><span class="small muted">' +
+					filtered.length +
+					' records · newest first</span></div><div id="run-rows">' +
+					(filtered.length
+						? filtered.map(runRow).join("")
+						: '<div class="empty"><h2>No matching runs</h2><p>Try another case, corpus version, or filter.</p></div>') +
+					'</div></section><p class="muted small" style="margin-top:var(--s4)">Synthetic examples include missing evidence and failed invocations. A missing measurement is never zero.</p>'
+				);
+			}
+			function stepPhase(run, step) {
+				if (run.missing) return "unavailable";
+				if (step === "build" && run.step === "shape" && run.progress < 2)
+					return "queued";
+				if (run.state === "running" && step === run.step) return "running";
+				if (run.state === "stopped" && step === run.step)
+					return run.grade === "Not judged" ? "unjudged" : "stopped";
+				return "accepted";
+			}
+			function spine(run) {
+				return (
+					'<div class="step-caption"><span class="eyebrow">' +
+					(run.kind === "Session" && !run.parent
+						? "Session"
+						: run.kind === "Group"
+							? run.groupMode === "pipeline"
+								? "Repeated workflow"
+								: "Repeated step"
+							: "Workflow") +
+					'</span><span class="muted small">Select a step to inspect it across views</span></div><div class="step-spine">' +
+					stepsFor(run)
+						.map((step, i) => {
+							const phase = stepPhase(run, step);
+							let info = {
+								unavailable: ["?", "No session", "Invocation failed"],
+								queued: ["—", "○ Not reached", "No session or checkpoint"],
+								running: [
+									"…",
+									"● Running",
+									step === "shape"
+										? "Reading the case and brief"
+										: step === "session"
+											? "Answering the frozen prompt"
+											: "Implementing cursor pagination",
+								],
+								unjudged: ["?", "■ Stopped", "No grade recorded"],
+								stopped: ["C", "■ Stopped", "Below minimum B"],
+								accepted: [
+									step === "session" ? "✓" : "B",
+									"✓ Accepted",
+									step === "shape"
+										? "4 criteria · 1 plan"
+										: step === "session"
+											? "3 checks passed"
+											: "2 commits · 8 files changed",
+								],
+							}[phase];
+							if (run.kind === "Group")
+								info = [
+									run.grade.split(" ")[0],
+									run.state === "running"
+										? "● Running"
+										: run.state === "stopped"
+											? "■ Stopped"
+											: "✓ Repetitions ended",
+									"Open attempts · " + run.grade,
+								];
+							return (
+								'<button class="step ' +
+								(phase === "running" ? "current" : "") +
+								'" aria-pressed="' +
+								(selectedStep(run) === step) +
+								'" data-step="' +
+								step +
+								'"><span class="step-title"><span><small class="mono">' +
+								String(i + 1).padStart(2, "0") +
+								"</small>" +
+								step[0].toUpperCase() +
+								step.slice(1) +
+								'</span><span class="grade ' +
+								(phase === "running" ? "live" : "muted") +
+								'">' +
+								info[0] +
+								"</span></span><small>" +
+								info[1] +
+								" · " +
+								info[2] +
+								"</small>" +
+								(run.kind === "Group"
+									? ""
+									: '<small class="mono">' +
+										stepMetrics(run, step).cost +
+										" · " +
+										stepMetrics(run, step).time +
+										"</small>") +
+								"</button>"
+							);
+						})
+						.join("") +
+					"</div>"
+				);
+			}
+			function workspace(run, view = "overview") {
+				const step = selectedStep(run),
+					running = run.state === "running";
+				return (
+					'<div class="breadcrumbs"><a href="#/runs">← Runs</a><span>/</span><a href="#/cases/' +
+					run.case +
+					'">' +
+					run.case +
+					'</a><span>/</span><span class="mono">' +
+					run.id +
+					'</span></div><header class="run-header"><div><h1>' +
+					esc(run.title) +
+					'</h1><div class="row gap2">' +
+					badge(run) +
+					(run.parent
+						? '<a class="badge" href="#/runs/' +
+							run.parent +
+							'/overview">← Group ' +
+							run.parent +
+							"</a>"
+						: "") +
+					'<span class="mono">' +
+					run.id +
+					'</span><span class="muted">· ' +
+					run.kind +
+					' · sonnet · fixed effort</span></div></div><div class="row gap2">' +
+					(running
+						? btn(
+								run.pauseRequested ? "Pause requested" : "Pause after step",
+								"pause",
+							) + btn("Stop", "stop", "danger")
+						: run.missing
+							? ""
+							: btn(
+									"Replay " + (run.kind === "Session" ? "session" : "step"),
+									"replay",
+								)) +
+					'</div></header><div class="stats">' +
+					stat(
+						"Run spend",
+						run.missing ? "Unavailable" : money(run.cost),
+						run.missing
+							? "Usage not recorded"
+							: "of " +
+									money(
+										(run.budget || 10) *
+											(run.kind === "Group" ? run.count || 3 : 1),
+									) +
+									(run.kind === "Group" ? " total ceiling" : " ceiling"),
+					) +
+					stat(
+						"Elapsed",
+						run.time,
+						running ? "~4m remaining · estimate" : "recorded wall time",
+					) +
+					stat(
+						run.kind === "Pipeline"
+							? "Final outcome"
+							: run.kind === "Replay"
+								? "Step grade"
+								: "Outcome",
+						finalReading(run),
+						run.state === "running"
+							? "Pending · session in progress"
+							: run.note,
+					) +
+					stat(
+						"Corpus",
+						run.version,
+						run.version === state.version
+							? "Current snapshot"
+							: "Changed since this run",
+					) +
+					'</div><nav class="view-nav" aria-label="Run views">' +
+					[
+						["overview", "Overview"],
+						["activity", "Activity" + (running ? " · live" : "")],
+						["context", "Context & cost"],
+						["report", "Report"],
+					]
+						.map(
+							([key, label]) =>
+								'<a href="' +
+								runHref(run, key) +
+								'" class="' +
+								(view === key ? "active" : "") +
+								'" ' +
+								(view === key ? 'aria-current="page"' : "") +
+								">" +
+								label +
+								"</a>",
+						)
+						.join("") +
+					"</nav>" +
+					spine(run) +
+					'<div class="stack">' +
+					(view === "activity"
+						? activity(run, step)
+						: view === "context"
+							? context(run, step)
+							: view === "report"
+								? report(run, step)
+								: overview(run, step)) +
+					"</div>"
+				);
+			}
+			function unavailable(run, step) {
+				if (run.missing)
+					return notice(
+						"Evidence unavailable. The provider invocation failed before a reply or transcript was saved. Usage and elapsed time are not recorded.",
+						true,
+					);
+				if (run.noTranscript)
+					return notice(
+						"This replay kept a grading record, but no raw transcript or per-request usage. Inspect Report for the saved grade and artifact. No context history can be reconstructed.",
+						true,
+					);
+				if (run.state === "paused" && step === "build")
+					return notice(
+						"Build did not start. This run paused after Shape and cannot be resumed; replay from its accepted checkpoint.",
+						true,
+					);
+				if (stepPhase(run, step) === "queued")
+					return notice(
+						"This step has not started. Output, grade, transcript, and checkpoint are pending.",
+						true,
+					);
+				return "";
+			}
+			function overviewDescription(run) {
+				if (run.state === "paused")
+					return "The run paused after the accepted Shape step. Build did not start. This run cannot be resumed; replay from its checkpoint.";
+				if (run.kind === "Replay")
+					return (
+						"This attempt ran only " +
+						run.step +
+						" from its frozen input. It carries its own grade; no final workflow outcome was measured."
+					);
+				if (run.kind === "Session")
+					return "The reply satisfied the case’s deterministic checks. Session evidence includes the saved reply and request usage.";
+				if (run.state === "running")
+					return (
+						run.step +
+						" is running. Accepted upstream output remains available while this session works."
+					);
+				if (run.grade === "Not judged")
+					return "The operator stopped this session before judging. No quality verdict can be inferred from a stop.";
+				if (run.state === "stopped")
+					return "The judge found the proposed field names contradicted the brief. The step missed minimum B and the downstream step never ran.";
+				return "Both steps met minimum B. The final workflow outcome is graded independently from the original input and final artifact.";
+			}
+			function overview(run, step) {
+				if (run.kind === "Group") return groupOverview(run);
+				if (run.missing)
+					return (
+						'<div class="stack">' +
+						unavailable(run, step) +
+						'<section class="panel pad stack"><h2>Attempt preserved</h2><p>No reply or quality verdict is available. Inspect the case inputs and try a new attempt.</p><a class="btn" href="#/cases/' +
+						run.case +
+						'">Open case →</a></section></div>'
+					);
+				const session = run.step === "session";
+				return (
+					'<div class="stack">' +
+					finalReport(run) +
+					'<div class="two-col"><section class="panel"><div class="panel-head"><h2>What happened</h2><a href="' +
+					runHref(run, "report") +
+					'">Read report →</a></div><div class="pad stack"><h3>' +
+					esc(run.note) +
+					'</h3><p class="muted">' +
+					overviewDescription(run) +
+					'</p><div class="row">' +
+					btn("Inspect " + step, "inspect-step") +
+					'<a class="btn" href="' +
+					runHref(run, run.state === "running" ? "activity" : "context") +
+					'">' +
+					(run.state === "running"
+						? "Follow activity"
+						: "Inspect saved context") +
+					' →</a></div></div></section><section class="panel"><div class="panel-head"><h2>Recorded inputs</h2></div><div class="pad"><dl class="definition"><dt>Case</dt><dd><a href="#/cases/' +
+					run.case +
+					'">' +
+					run.case +
+					'</a></dd><dt>Corpus</dt><dd><a href="#/corpus">corpus@' +
+					run.version +
+					'</a></dd><dt>Model</dt><dd>sonnet · fixed effort</dd><dt>Input</dt><dd class="mono">' +
+					(session
+						? "Frozen prompt + fixture"
+						: "target@6d4a2f · " + (step === "build" ? "cp-b8" : "cp-a7")) +
+					"</dd><dt>Grading</dt><dd>" +
+					(session
+						? "3 deterministic checks"
+						: "Step judge" +
+							(run.kind === "Pipeline" ? " + final rubric" : "")) +
+					"</dd>" +
+					(run.sourceId
+						? '<dt>Replayed from</dt><dd><a href="#/runs/' +
+							run.sourceId +
+							'/overview">' +
+							run.sourceId +
+							" / " +
+							run.step +
+							"</a></dd>"
+						: "") +
+					'</dl></div></section></div><section class="panel"><div class="panel-head"><h2>Next experiment</h2><span class="badge">Debug → confirm</span></div><div class="pad row between"><div><p>Try one instruction change from the same input.</p><small class="muted">A replay finds a lead. Repeated attempts and a control test whether it holds.</small></div><div class="row">' +
+					btn("Edit instruction", "edit-instruction") +
+					'<a class="btn" href="#/compare/cmp1">Example comparison →</a></div></div></section></div>'
+				);
+			}
+			function groupOverview(run) {
+				const attempts = state.runs.filter((item) => item.parent === run.id);
+				const count = run.count || 3;
+				const finished = attempts.filter((item) => item.state !== "running");
+				const accepted = finished.filter(
+					(item) => item.grade !== "C" && item.grade !== "Not judged",
+				);
+				return (
+					'<div class="stack">' +
+					notice(
+						count +
+							" independent attempts from the same frozen input. Small samples cannot establish that quality was preserved.",
+					) +
+					'<section class="panel"><div class="panel-head"><h2>Attempts · ' +
+					finished.length +
+					" / " +
+					count +
+					' ended</h2><a href="#/compare/cmp1">Open comparison →</a></div>' +
+					attempts
+						.map(
+							(item) =>
+								'<div class="run-row"><div><a class="run-title" href="' +
+								runHref(item) +
+								'">' +
+								esc(item.title) +
+								' →</a><small class="muted">Same input · sonnet · same effort</small></div><div>' +
+								badge(item) +
+								' <span class="mono">' +
+								item.grade +
+								'</span></div><div class="run-version mono">' +
+								item.version +
+								'</div><div class="run-numbers"><strong>' +
+								money(item.cost) +
+								'</strong><small class="muted">' +
+								item.time +
+								"</small></div></div>",
+						)
+						.join("") +
+					'</section><section class="panel pad stack"><h2>Repetition summary</h2><p>' +
+					accepted.length +
+					"/" +
+					count +
+					" accepted · " +
+					(finished.length === count
+						? "mean " + money(run.cost / count) + " per attempt"
+						: "remaining outcomes pending") +
+					'.</p><p class="muted">Attempts are independent. Attempt numbers do not pair across groups. Check the comparison for rerun variability, the control, and the changed corpus file.</p>' +
+					btn("Repeat this step", "replay") +
+					"</section></div>"
+				);
+			}
+			function activity(run, step) {
+				const missing = unavailable(run, step);
+				if (missing) return missing;
+				if (run.kind === "Group")
+					return notice(
+						'Select an attempt in Overview to inspect its own activity. A group is a collection of independent sessions, not one combined transcript. <a href="' +
+							runHref(run, "overview") +
+							'">Choose an attempt →</a>' +
+							(run.state === "running"
+								? '<div class="row">' +
+									btn("Finish demo group", "finish") +
+									"</div>"
+								: ""),
+					);
+				const live = run.state === "running" && step === run.step;
+				const entries =
+					step === "session"
+						? [
+								[
+									"00:00",
+									"Prompt",
+									"Explain the cursor boundary in a concise technical reply.",
+								],
+								[
+									"00:08",
+									"Agent",
+									"An exhausted cursor returns an empty items array. Keep nextCursor and hasMore unchanged; validate an invalid cursor before querying.",
+								],
+								[
+									"00:24",
+									"Checks",
+									"word ceiling: pass\nrequired answer: pass\nforbidden text: clear",
+								],
+							]
+						: step === "shape"
+							? [
+									[
+										"00:00",
+										"Agent",
+										"I’ll read the brief and existing API contracts before deciding the pagination shape.",
+									],
+									[
+										"00:06",
+										"Read",
+										"product-brief.md · 82 lines\nsrc/audit/controller.ts · 146 lines",
+									],
+									[
+										"01:24",
+										"Agent",
+										"The cursor is opaque. The accepted fields remain nextCursor and hasMore. Empty pages return an empty items array.",
+									],
+									[
+										"03:18",
+										"Write",
+										"plan.md · 4 acceptance criteria\nA deterministic check covers cursor boundaries.",
+									],
+									[
+										"04:12",
+										"Agent",
+										"The plan and acceptance criteria are ready for Build.",
+									],
+								]
+							: [
+									[
+										"00:00",
+										"Agent",
+										"I’ll implement the accepted plan, starting with the cursor boundary behavior.",
+									],
+									[
+										"00:08",
+										"Read",
+										"plan.md · src/audit/controller.ts\nskills/build/SKILL.md",
+									],
+									[
+										"01:36",
+										"Edit",
+										"src/audit/controller.ts\nAdded cursor validation and a stable sort key.",
+									],
+									[
+										"02:42",
+										"Shell",
+										"bun test audit-log\n12 passed · 0 failed",
+									],
+									[
+										"03:16",
+										"Agent",
+										"The cursor round-trip passes. I’m checking the empty-page result before delivery.",
+									],
+								];
+				return (
+					'<div class="stack">' +
+					('<p class="small muted">' +
+						(live
+							? "Simulated transcript · use Advance demo or Finish demo to try state changes."
+							: "Saved activity · " +
+								step +
+								" · the selected step stays in place across views.") +
+						"</p>") +
+					'<div class="two-col"><section class="panel"><div class="panel-head"><div><h2>' +
+					step[0].toUpperCase() +
+					step.slice(1) +
+					' activity</h2><small class="muted">' +
+					(live ? "Transcript tail · demo clock" : "Saved session transcript") +
+					'</small></div><div class="row gap2">' +
+					(live
+						? btn(state.follow ? "Following tail ✓" : "Follow tail", "follow")
+						: "") +
+					btn("Context →", "open-context") +
+					'</div></div><div class="transcript">' +
+					entries
+						.map(
+							([time, who, text]) =>
+								'<div class="entry"><time>' +
+								time +
+								'</time><div><span class="who">' +
+								who +
+								"</span>" +
+								(who === "Agent"
+									? "<p>" + text + "</p>"
+									: '<pre class="tool">' + esc(text) + "</pre>") +
+								"</div></div>",
+						)
+						.join("") +
+					(run.demoTicks && live
+						? '<div class="entry"><time>' +
+							formatClock(
+								(run.step === "build" ? 196 : 0) + run.demoTicks * 8,
+							) +
+							'</time><div><span class="who">Shell</span><pre class="tool">Demo update ' +
+							run.demoTicks +
+							" · checking the delivery artifact</pre></div></div>"
+						: "") +
+					"</div>" +
+					(live
+						? '<div class="panel-head">' +
+							btn("Advance demo", "advance") +
+							btn("Finish demo", "finish") +
+							"</div>"
+						: "") +
+					'</section><div class="stack"><section class="panel"><div class="panel-head"><h2>Judge</h2><span class="badge">' +
+					(live
+						? "Pending"
+						: stepPhase(run, step) === "unjudged"
+							? "Not judged"
+							: stepPhase(run, step) === "stopped"
+								? "C · below minimum B"
+								: step === "session"
+									? "✓ Checks passed"
+									: "B · accepted") +
+					'</span></div><div class="pad stack">' +
+					(live
+						? '<p class="muted">The step is still running. Judge results appear after the agent delivers its output.</p><p class="small muted">A pending grade is never displayed as a failure.</p>'
+						: stepPhase(run, step) === "unjudged"
+							? '<p class="muted">Operator stopped before judging. No quality verdict was recorded.</p>'
+							: checks({
+									...run,
+									state:
+										stepPhase(run, step) === "stopped"
+											? "stopped"
+											: "completed",
+								})) +
+					'</div></section><section class="panel pad stack"><h3>Inputs & output</h3><p class="muted">Inspect instruction loads, input artifacts, and what this step produced.</p>' +
+					btn("Inspect step", "inspect-step") +
+					"</section></div></div></div>"
+				);
+			}
+			const sourceRows = [
+				["all", "All recorded sources", "12 deliveries · 4 sources", "21.4k"],
+				["skill", "skills/build/SKILL.md", "Observed · 1 delivery", "3.8k"],
+				["plan", "plan.md", "Observed · 2 deliveries", "5.2k"],
+				["test", "Shell · target checks", "Observed · 4 deliveries", "7.6k"],
+				["files", "Project files", "Observed · 5 deliveries", "4.8k"],
+			];
+			function contextData(step) {
+				const rows = sourceRows.map((row) => [...row]);
+				rows[1][1] =
+					step === "session"
+						? "output-style.md"
+						: "skills/" + step + "/SKILL.md";
+				rows[2][1] =
+					step === "shape"
+						? "product-brief.md"
+						: step === "session"
+							? "prompt.md"
+							: "plan.md";
+				rows[3][1] =
+					step === "session"
+						? "Reply checks"
+						: step === "shape"
+							? "Read · API contract"
+							: "Shell · target checks";
+				const excerpts = {
+					skill:
+						step === "session"
+							? "Keep the reply concise while preserving the required technical answer."
+							: "Work from the accepted " +
+								step +
+								" instructions. Verify the behavior against the product brief.",
+					plan:
+						step === "build"
+							? "Use an opaque cursor and stable ordering. Return an empty items array at the page boundary."
+							: step === "shape"
+								? "The public response fields are nextCursor and hasMore. Do not rename them."
+								: "Explain the cursor boundary in a concise technical reply.",
+					test:
+						step === "shape"
+							? "interface AuditPage { items: AuditItem[]; nextCursor: string | null; hasMore: boolean; }"
+							: step === "session"
+								? "word ceiling: pass; required answer: pass; forbidden text: clear"
+								: "audit-log.test.ts\n12 passed · 0 failed",
+					files:
+						"src/audit/controller.ts\nCursor parsing validates the request before querying.",
+					all: "Selected request delivered a bounded preview. Open source evidence to inspect it.",
+				};
+
+				return { rows, excerpts };
+			}
+			function context(run, step) {
+				const missing = unavailable(run, step);
+				if (missing) return missing;
+				if (run.kind === "Group")
+					return notice(
+						'Context belongs to each attempt. <a href="' +
+							runHref(run, "overview") +
+							'">Open an attempt →</a>',
+					);
+				const agentLabel = step[0].toUpperCase() + step.slice(1);
+				const stepSpend = stepMetrics(run, step).value;
+				const { rows, excerpts } = contextData(step);
+				const reviewer = state.agent === "reviewer",
+					source = rows.find((row) => row[0] === state.source) || rows[0];
+				const values = reviewer
+					? [20, 34, 39, 55, 60, 68, 72, 80]
+					: [16, 24, 28, 44, 42, 60, 67, 78, 72, 88, 82, 94];
+				const requests =
+					state.source === "all"
+						? values
+						: values.slice(
+								0,
+								state.source === "skill"
+									? 1
+									: state.source === "plan"
+										? 2
+										: state.source === "test"
+											? 4
+											: 5,
+							);
+				const request = Math.min(state.request, requests.length);
+				return (
+					'<div class="stack">' +
+					notice(
+						"Attempt-region usage only. Context at a request, cumulative tokens, introduced content, and cost are different readings. All values here are illustrative.",
+					) +
+					'<div class="context-grid"><section class="panel"><div class="panel-head"><h2>Agent & sources</h2></div><div class="pad stack"><label class="field small">Receiving agent<select id="agent"><option value="parent" ' +
+					(!reviewer ? "selected" : "") +
+					">" +
+					agentLabel +
+					' · parent · sonnet</option><option value="reviewer" ' +
+					(reviewer ? "selected" : "") +
+					'>Reviewer · child · sonnet</option></select></label><div class="small muted">' +
+					(reviewer
+						? "Own " +
+							money(stepSpend * 0.28) +
+							" · including descendants " +
+							money(stepSpend * 0.28)
+						: "Own " +
+							money(stepSpend * 0.72) +
+							" · including descendants " +
+							money(stepSpend)) +
+					'<br>Each request counts once in the total.</div><div class="rule"></div><span class="eyebrow">Delivered to this agent</span>' +
+					rows
+						.map(
+							([id, name, note, size]) =>
+								'<button class="source-btn" data-source="' +
+								id +
+								'" aria-pressed="' +
+								(state.source === id) +
+								'"><span>' +
+								name +
+								"<small>" +
+								note +
+								'</small></span><small class="mono">' +
+								size +
+								"</small></button>",
+						)
+						.join("") +
+					'</div></section><div class="stack"><section class="panel"><div class="panel-head"><div><h2>Context at each request</h2><small class="muted">' +
+					(reviewer ? "Reviewer" : agentLabel) +
+					" · " +
+					(state.source === "all"
+						? "all sources"
+						: "requests receiving " + source[1]) +
+					'</small></div><span class="mono muted">0–64k tokens</span></div><div class="pad"><div class="chart" role="group" aria-label="Select a request to inspect its context">' +
+					requests
+						.map(
+							(value, i) =>
+								'<button class="request" style="--value:' +
+								value +
+								'%" data-request="' +
+								(i + 1) +
+								'" aria-pressed="' +
+								(request === i + 1) +
+								'" aria-label="Request ' +
+								(i + 1) +
+								", " +
+								(value * 0.64).toFixed(1) +
+								' thousand context tokens"></button>',
+						)
+						.join("") +
+					'</div><div class="chart-axis"><span>Request 1</span><span>Request ' +
+					requests.length +
+					'</span></div><div class="legend"><span>Bars: context at the request</span><span class="live">Selected: request ' +
+					request +
+					'</span></div></div></section><section class="panel"><div class="panel-head"><h2>Request ' +
+					request +
+					"</h2>" +
+					btn("Open source evidence", "context-evidence") +
+					'</div><div class="pad stack"><div class="stats">' +
+					stat(
+						"Context",
+						(requests[request - 1] * 0.64).toFixed(1) + "k",
+						"tokens at this request",
+					) +
+					stat(
+						"Introduced",
+						state.source === "all" ? "2.4k" : source[3],
+						"content tokens · estimate",
+					) +
+					stat(
+						"Cumulative usage",
+						reviewer ? "61.2k" : "142.6k",
+						"tokens across requests",
+					) +
+					stat(
+						"Request cost",
+						money((stepSpend * (reviewer ? 0.28 : 1)) / values.length),
+						"frozen rate · calculated",
+					) +
+					'</div><div class="rule"></div><p><strong>' +
+					(state.source === "all" ? "Shell · target checks" : source[1]) +
+					'</strong> <span class="badge">Observed delivery</span></p><p class="muted">' +
+					(state.source === "all"
+						? "The test command returned 146 lines. The agent received the saved text preview."
+						: source[2] +
+							". Open the evidence to inspect the delivered text and its source snapshot.") +
+					'</p><pre class="tool">' +
+					esc(excerpts[state.source]) +
+					'</pre></div></section><details class="panel pad"><summary>Measurement basis & gaps</summary><div class="stack" style="margin-top:var(--s4)"><p class="muted">Context is the provider’s input at one request. Cumulative usage includes cache reads and writes across requests. Introduced content uses a text-token estimate. Own cost excludes descendants; including descendants adds them once.</p><p class="muted">Declared instructions and observed deliveries are distinct. An absent observation does not prove an instruction was never loaded. This design also proposes pipeline request history, which is not available for every production record.</p><dl class="definition"><dt>Input / output</dt><dd>8.2k / 5.4k</dd><dt>Cache read</dt><dd>123.8k tokens</dd><dt>Cache write</dt><dd>5.2k tokens</dd><dt>Pricing</dt><dd>Frozen-rate calculation; provider total may differ</dd><dt>Boundary</dt><dd>Known · inherited prefix excluded</dd></dl></div></details></div></div></div>'
+				);
+			}
+			function checks(run) {
+				const session = run.step === "session";
+				return (
+					"<div>" +
+					(session
+						? ["word ceiling", "required answer", "no forbidden text"]
+						: [
+								"No hard blocker fired",
+								"Decision quality",
+								"Observability",
+								"Scope discipline",
+							]
+					)
+						.map(
+							(label, i) =>
+								'<div class="check"><span class="check-label">' +
+								label +
+								'</span><span class="row gap2"><span class="' +
+								(session ? "good" : "mono") +
+								'">' +
+								(session
+									? "✓ Pass"
+									: i === 0
+										? "✓ Clear"
+										: run.state === "stopped" && i === 1
+											? "C"
+											: i === 3
+												? "A"
+												: "B") +
+								'</span><button class="btn small" data-action="evidence" aria-label="Open evidence for ' +
+								label +
+								'">' +
+								(session ? "Evidence" : "1 cited") +
+								"</button></span></div>",
+						)
+						.join("") +
+					"</div>"
+				);
+			}
+			function report(run, step) {
+				const phase = stepPhase(run, step),
+					pending = phase === "running",
+					session = step === "session";
+				if (run.kind === "Group") return groupOverview(run);
+				if (phase === "queued" || phase === "unavailable")
+					return unavailable(run, step);
+				const grade = {
+					running: "Pending",
+					unjudged: "Not judged · operator stopped",
+					stopped: "C · below minimum B",
+					accepted: session ? "✓ All checks passed" : "✓ B · minimum B",
+				}[phase];
+				return (
+					'<div class="stack">' +
+					finalReport(run) +
+					(pending
+						? notice(
+								"This step has not been judged. Accepted steps remain inspectable above.",
+							)
+						: run.kind === "Replay"
+							? unavailable(run, step)
+							: "") +
+					'<div class="two-col"><section class="panel"><div class="panel-head"><h2>' +
+					step[0].toUpperCase() +
+					step.slice(1) +
+					' report</h2><span class="badge ' +
+					(pending
+						? "running"
+						: phase === "stopped" || phase === "unjudged"
+							? "stopped"
+							: "completed") +
+					'">' +
+					grade +
+					'</span></div><div class="pad stack">' +
+					(pending
+						? '<p class="muted">The agent is working. Grades and artifacts are pending.</p>'
+						: phase === "unjudged"
+							? '<p class="muted">The operator stopped this session before judging. Partial activity remains inspectable; no quality verdict can be inferred.</p>'
+							: checks({
+									...run,
+									state: phase === "stopped" ? "stopped" : "completed",
+								})) +
+					'</div></section><section class="panel"><div class="panel-head"><h2>' +
+					(session ? "Session evidence" : "Checkpoint & artifacts") +
+					'</h2></div><div class="pad stack"><dl class="definition"><dt>Started from</dt><dd class="mono">' +
+					(session ? "Frozen prompt + fixture" : "cp-a7 · target@6d4a2f") +
+					'</dd><dt>Instructions</dt><dd><a href="#/corpus">' +
+					(session ? "output-style.md" : "skills/" + step + "/SKILL.md") +
+					'</a><br><small class="muted">Observed delivery · declared snapshot ' +
+					run.version +
+					"</small></dd><dt>Input</dt><dd>" +
+					btn(session ? "prompt.md" : "product-brief.md", "artifact") +
+					"</dd><dt>Output</dt><dd>" +
+					(pending
+						? "Pending"
+						: phase === "unjudged"
+							? "Incomplete · no final artifact"
+							: btn(
+									session
+										? "reply.txt"
+										: step === "shape"
+											? "plan.md"
+											: "delivery.md",
+									"artifact",
+								)) +
+					"</dd><dt>" +
+					(session ? "Transcript" : "Next checkpoint") +
+					"</dt><dd>" +
+					(pending
+						? "Pending"
+						: session
+							? "Saved · attempt boundary known"
+							: phase === "stopped" || phase === "unjudged"
+								? "Not saved · step stopped"
+								: "cp-b8 · saved after acceptance") +
+					"</dd></dl>" +
+					(!pending ? btn("Replay from frozen input", "replay") : "") +
+					"</div></section></div>" +
+					(!pending && !session
+						? '<section class="panel"><div class="panel-head"><h2>Root-cause analysis</h2><span class="badge">Agent opinion</span></div><div class="pad stack"><p>No analysis requested for this demo run.</p><p class="muted">An analysis proposes an explanation from saved evidence. A controlled experiment is needed to test it.</p>' +
+							btn("Preview analysis request", "analysis") +
+							"</div></section>"
+						: "") +
+					(!pending && phase !== "unjudged"
+						? '<section class="panel pad row between"><div><h3>Human review</h3><p class="muted small">Calibrate the judge against the frozen output.</p></div>' +
+							btn("Preview judge review", "review-grade") +
+							"</section>"
+						: "") +
+					"</div>"
+				);
+			}
+			function comparisonsPage() {
+				return (
+					'<header class="page-head"><div><h1>Comparisons</h1><p>Did one instruction change help, at an acceptable cost?</p></div>' +
+					btn("+ Compare attempts", "compare-setup", "primary") +
+					'</header><section class="panel"><div class="panel-head"><h2>Saved comparisons</h2><span class="small muted">Synthetic experiments</span></div><div class="pad stack"><a class="run-title" href="#/compare/cmp1">Shorten shared review evidence →</a><p class="muted">audit-log · Shape · same frozen input · sonnet · fixed effort</p><div class="row"><span class="badge">Quality inconclusive</span><span class="badge">Cost −26% in this sample</span><span class="badge">One changed file</span></div><small class="muted">3 attempts per arm · control included · no paired attempt claims</small></div></section>'
+				);
+			}
+			function comparison() {
+				const arms = [
+					[
+						"Control",
+						"Instruction removed",
+						"91b220",
+						"1/3 accepted",
+						"$1.12",
+						"C–B",
+					],
+					[
+						"Before edit",
+						"Original instruction",
+						"7733aa",
+						"3/3 accepted",
+						"$2.42",
+						"B–B",
+					],
+					[
+						"After edit",
+						"Shorter shared evidence",
+						"0a78c2",
+						"3/3 accepted",
+						"$1.80",
+						"B–B",
+					],
+				];
+				return (
+					'<div class="breadcrumbs"><a href="#/compare">← Comparisons</a></div><header class="page-head"><div><h1>Shorten shared review evidence</h1><p>audit-log / Shape · checkpoint cp-a7 · sonnet · same effort</p></div>' +
+					btn("Extend comparison", "extend") +
+					'</header><div class="stack">' +
+					notice(
+						"<strong>Lower observed cost. Quality remains inconclusive.</strong><br>The quality intervals overlap at 3 attempts per arm. These results do not establish that quality was preserved; cost ranges also overlap.",
+					) +
+					'<div class="compare-grid">' +
+					arms
+						.map(
+							([label, desc, version, outcome, cost, span], i) =>
+								'<section class="panel arm ' +
+								(i === 2 ? "candidate" : "") +
+								'"><div class="pad stack"><span class="eyebrow">' +
+								label +
+								"</span><h2>" +
+								desc +
+								'</h2><span class="mono muted">corpus@' +
+								version +
+								'</span><div><div class="fig">' +
+								outcome +
+								'</div><small class="muted">Grade span ' +
+								span +
+								' · n = 3</small></div><div><strong class="mono">' +
+								cost +
+								'</strong><small class="muted"> mean / attempt</small></div><a href="#/runs/' +
+								(i === 0 ? "g6" : i === 1 ? "g7" : "g8") +
+								'/overview">Inspect attempts →</a></div></section>',
+						)
+						.join("") +
+					'</div><section class="panel"><div class="panel-head"><h2>What moved</h2><span class="muted small">After edit vs before edit</span></div><div class="table-scroll"><table><thead><tr><th>Measure</th><th>Before</th><th>After</th><th>Reading</th></tr></thead><tbody><tr><td>Accepted</td><td>3 / 3 · 44–100%</td><td>3 / 3 · 44–100%</td><td>95% intervals overlap · inconclusive</td></tr><tr><td>Hard blockers</td><td>0 / 3 fired</td><td>0 / 3 fired</td><td>Small sample · uncertainty remains</td></tr><tr><td>Cost / attempt</td><td>' +
+					costReading("g7") +
+					"</td><td>" +
+					costReading("g8") +
+					'</td><td>−26% mean · ranges overlap</td></tr><tr><td>Output words</td><td>420 · 360–470</td><td>316 · 280–360</td><td>−25% mean · rerun noise unresolved</td></tr></tbody></table></div></section><div class="two-col"><section class="panel pad stack"><h2>What changed</h2><p><a href="#/corpus">skills/review/SKILL.md</a></p><p class="muted">Only this corpus path differs between the before and after arms. Other frozen inputs, model, and effort are held fixed.</p>' +
+					btn("Inspect instruction diff", "diff") +
+					'</section><section class="panel pad stack"><h2>What this can support</h2><p class="muted">A hypothesis for another trial. A few successful attempts do not establish equivalent quality. Extend all arms to gather more evidence.</p>' +
+					btn("Inspect independent attempts", "attempts") +
+					"</section></div></div>"
+				);
+			}
+			function corpusPage() {
+				return (
+					'<header class="page-head"><div><h1>Corpus</h1><p>Change one instruction, then test it from a frozen input.</p></div><span class="badge mono">corpus@' +
+					state.version +
+					'</span></header><div class="two-col"><section class="panel"><div class="panel-head"><h2>Instruction editor</h2><span class="badge">Copy · editable demo</span></div><div class="pad stack"><div class="field"><span>File</span><span class="mono">skills/review/SKILL.md</span></div><label class="field">Instruction<textarea id="instruction" class="mono">' +
+					esc(state.draft) +
+					'</textarea></label><div class="row">' +
+					btn("Review change", "review-edit", "primary") +
+					btn("Discard draft", "discard-edit") +
+					'</div></div></section><div class="stack"><section class="panel pad stack"><h2>Test the edit</h2><p class="muted">Applying creates a corpus version and marks affected results as changed. Old records remain available.</p><ol class="muted"><li>Edit one instruction.</li><li>Replay the same checkpoint.</li><li>Compare repeated attempts with a control.</li></ol></section><section class="panel pad stack"><h2>Inventory</h2><p>137 files in the demo snapshot.</p><p class="muted">The prototype edits one illustrative file. The production live install remains read-only; editing requires a linked copy.</p><a href="#/runs">Browse results by corpus version →</a></section></div></div>'
+				);
+			}
+			function tabButton(label, scope, selected) {
+				return (
+					'<button type="button" class="' +
+					(selected === label ? "active" : "") +
+					'" aria-pressed="' +
+					(selected === label) +
+					'" data-' +
+					scope +
+					'-tab="' +
+					label +
+					'">' +
+					label +
+					"</button>"
+				);
+			}
+			function casesPage() {
+				return (
+					'<header class="page-head"><div><h1>Cases</h1><p>Frozen work to test your instructions against.</p></div>' +
+					btn("+ Declare a case", "declare-case") +
+					'</header><div class="stack">' +
+					[
+						[
+							"audit-log",
+							"Add a paginated audit log",
+							"Pipeline · Shape → Build · target repository",
+						],
+						[
+							"brief-reply",
+							"Keep a technical reply concise",
+							"Session · frozen prompt · 3 checks",
+						],
+					]
+						.map(
+							([id, title, desc]) =>
+								'<section class="panel pad"><div class="row between"><div class="stack gap2"><a class="run-title" href="#/cases/' +
+								id +
+								'">' +
+								title +
+								' →</a><p class="muted">' +
+								desc +
+								'</p><span class="small mono muted">' +
+								id +
+								"</span></div>" +
+								btn("Run case", "launch:" + id, "primary") +
+								"</div></section>",
+						)
+						.join("") +
+					"</div>"
+				);
+			}
+			function casePage(id) {
+				const session = id === "brief-reply";
+				return (
+					'<div class="breadcrumbs"><a href="#/cases">← Cases</a></div><header class="page-head"><div><h1>' +
+					(session
+						? "Keep a technical reply concise"
+						: "Add a paginated audit log") +
+					"</h1><p>" +
+					id +
+					" · " +
+					(session ? "Session" : "Pipeline · target repository") +
+					"</p></div>" +
+					btn("Run case", "launch:" + id, "primary") +
+					'</header><nav class="view-nav" aria-label="Case views">' +
+					["Overview", "Workflow", "Runs"]
+						.map((tab) => tabButton(tab, "case", state.caseTab))
+						.join("") +
+					"</nav>" +
+					(state.caseTab === "Runs"
+						? '<section class="panel">' +
+							state.runs
+								.filter((run) => run.case === id)
+								.map(runRow)
+								.join("") +
+							"</section>"
+						: state.caseTab === "Workflow"
+							? '<section class="panel"><div class="panel-head"><h2>' +
+								(session ? "Session definition" : "Task definition") +
+								"</h2>" +
+								(!session ? btn("Edit steps", "edit-workflow") : "") +
+								'</div><div class="pad stack"><p class="muted">' +
+								(session
+									? "One frozen prompt, one provider session, and deterministic checks."
+									: "The task and its steps live inside the case that runs them. Import and export keep judges with the definition.") +
+								"</p>" +
+								(session
+									? "<p>Prompt → reply → word ceiling, required answer, forbidden text</p>"
+									: '<div class="row"><span class="badge">01 · Shape · minimum B</span><span class="muted">→</span><span class="badge">02 · Build · minimum B</span><span class="muted">→</span><span class="badge">Final rubric</span></div>') +
+								'<div class="row">' +
+								btn("Export definition", "export-case") +
+								btn("Import definition", "import-case") +
+								"</div></div></section>"
+							: '<div class="two-col"><section class="panel pad stack"><h2>Task & inputs</h2><p>' +
+								(session
+									? "Answer a technical question in a concise reply while keeping the required answer."
+									: "Implement a cursor-paginated audit-log endpoint. Keep the brief’s field names, stable ordering, and empty-page behavior.") +
+								'</p><dl class="definition"><dt>Model</dt><dd>sonnet · fixed effort</dd><dt>Input</dt><dd>' +
+								(session
+									? "Frozen prompt + fixture"
+									: "target@6d4a2f · product-brief.md") +
+								"</dd><dt>Grading</dt><dd>" +
+								(session
+									? "3 deterministic checks"
+									: "Per-step judges + final rubric") +
+								"</dd></dl>" +
+								btn("Inspect brief", "artifact") +
+								'</section><section class="panel pad stack"><h2>Latest corpus results</h2><p class="muted">Only results from corpus@' +
+								state.version +
+								'; historical results remain in Runs.</p><div class="row"><span class="badge">' +
+								(session ? "1/1 passed" : "Median B") +
+								'</span><span class="badge">Small sample</span></div><a href="#/runs">Browse run history →</a></section></div>')
+				);
+			}
+			function settingsPage() {
+				return (
+					'<header class="page-head"><div><h1>Settings</h1><p>Local workspace preferences and judge calibration.</p></div></header><nav class="view-nav" aria-label="Settings views">' +
+					["General", "Judges"]
+						.map((tab) => tabButton(tab, "settings", state.settingsTab))
+						.join("") +
+					"</nav>" +
+					(state.settingsTab === "General"
+						? '<div class="two-col"><section class="panel pad stack"><h2>Spending ceiling</h2><p class="muted">Enforced per run. Repeated work shows the total ceiling before launch. Calls already in flight can exceed it.</p><label class="field">Default USD per run<input id="ceiling" type="number" required min=".01" step=".01" value="' +
+							state.defaultBudget +
+							'" /></label>' +
+							btn("Save demo setting", "save-settings") +
+							'</section><section class="panel pad stack"><h2>Corpus source</h2><p>Editable copy · demo corpus</p><p class="muted">Link, unlink, and rehash remain workspace settings. This prototype does not access the filesystem.</p>' +
+							btn("Preview source settings", "source-settings") +
+							"</section></div>"
+						: '<section class="panel"><div class="panel-head"><h2>Judge calibration</h2><span class="badge">Human review</span></div><div class="pad stack"><p class="muted">Compare the judge’s grade with a human reading of the same frozen artifact. Calibration lives beside judge settings and is also reachable from each report.</p><div class="check"><div><strong>audit-log / r41 / Shape</strong><p class="small muted">Judge B · your grade ' +
+							state.review +
+							"</p></div>" +
+							btn("Review frozen output", "review-grade:r41:shape") +
+							'</div><div class="stats">' +
+							stat("Reviewed", "1", "demo output") +
+							stat(
+								"Agreement",
+								state.review === "B" ? "1 / 1" : "0 / 1",
+								"illustrative count",
+							) +
+							"</div></div></section>")
+				);
+			}
+			function render({ focus = false } = {}) {
+				const focused = document.activeElement;
+				const focusAttr = [
+					"data-step",
+					"data-source",
+					"data-request",
+					"data-filter",
+					"data-action",
+					"data-case-tab",
+					"data-settings-tab",
+				].find((attr) => focused?.hasAttribute(attr));
+				const focusSelector = focusAttr
+					? "[" +
+						focusAttr +
+						'="' +
+						CSS.escape(focused.getAttribute(focusAttr)) +
+						'"]'
+					: focused?.id
+						? "#" + CSS.escape(focused.id)
+						: null;
+				const [section, id, view] = route();
+				let content;
+				if (section === "runs" && id) {
+					const run = getRun();
+					content = run
+						? workspace(
+								run,
+								["overview", "activity", "context", "report"].includes(view)
+									? view
+									: "overview",
+							)
+						: '<div class="empty"><h1>Run not found</h1><a href="#/runs">Return to Runs</a></div>';
+				} else if (section === "compare")
+					content = id ? comparison() : comparisonsPage();
+				else if (section === "corpus") content = corpusPage();
+				else if (section === "cases")
+					content = !id
+						? casesPage()
+						: ["audit-log", "brief-reply"].includes(id)
+							? casePage(id)
+							: '<div class="empty"><h1>Case not found</h1><a href="#/cases">Return to Cases</a></div>';
+				else if (section === "settings") content = settingsPage();
+				else content = runsPage();
+				$("#app").innerHTML = shell(content);
+				document.title =
+					"Rehearse · " + (id || section || "Runs") + " · Prototype";
+				if (focus) $("#main").focus({ preventScroll: true });
+				else if (focusSelector && !$("#dialog").open)
+					$(focusSelector)?.focus({ preventScroll: true });
+			}
+			let toastTimer;
+			function toast(message) {
+				$("#toast").textContent = message;
+				clearTimeout(toastTimer);
+				toastTimer = setTimeout(() => {
+					$("#toast").textContent = "";
+				}, 6500);
+			}
+			let dialogOrigin;
+			let dialogOriginSelector;
+			function modal(title, body, footer = "") {
+				if (!$("#dialog").open) {
+					dialogOrigin = document.activeElement;
+					dialogOriginSelector = dialogOrigin?.dataset.action
+						? '[data-action="' + CSS.escape(dialogOrigin.dataset.action) + '"]'
+						: null;
+				}
+				$("#dialog").innerHTML =
+					'<div class="panel-head"><h2 id="dialog-title">' +
+					title +
+					'</h2><button class="btn" data-action="close" aria-label="Close dialog">×</button></div><div class="dialog-body">' +
+					body +
+					"</div>" +
+					(footer ? '<div class="dialog-footer">' + footer + "</div>" : "");
+				if (!$("#dialog").open) $("#dialog").showModal();
+			}
+			function closeModal() {
+				$("#dialog").close();
+				if (dialogOrigin?.isConnected) dialogOrigin.focus();
+				else if (dialogOriginSelector && $(dialogOriginSelector))
+					$(dialogOriginSelector).focus();
+				else $("#main")?.focus({ preventScroll: true });
+			}
+			function launchModal(caseId = "audit-log", replay = false) {
+				const run = getRun() || state.runs[1];
+				modal(
+					replay ? "Replay from frozen input" : "New run",
+					'<p class="muted">' +
+						(replay
+							? "Change the corpus while keeping the original input fixed."
+							: "Choose a case and how many independent attempts to run.") +
+						'</p><label class="field">Case<select id="launch-case" ' +
+						(replay ? "disabled" : "") +
+						'><option value="audit-log" ' +
+						(caseId === "audit-log" ? "selected" : "") +
+						'>audit-log · pipeline</option><option value="brief-reply" ' +
+						(caseId === "brief-reply" ? "selected" : "") +
+						">brief-reply · session</option></select></label>" +
+						(replay
+							? '<dl class="definition"><dt>Source</dt><dd>' +
+								run.id +
+								" / " +
+								selectedStep(run) +
+								'</dd><dt>Frozen input</dt><dd class="mono">cp-a7 · target@6d4a2f</dd></dl>'
+							: "") +
+						'<label class="field">Attempts<select id="launch-count"><option value="1">1 · debug one attempt</option><option value="3">3 · repeated group</option><option value="6">6 · repeated group</option></select></label><label class="field">USD ceiling per attempt<input id="launch-budget" type="number" required min=".01" step=".01" value="' +
+						state.defaultBudget +
+						'" /></label><div class="notice"><span id="launch-total">Total ceiling: ' +
+						money(state.defaultBudget) +
+						"</span><br><small>corpus@" +
+						state.version +
+						' · sonnet · fixed effort<br>In-flight calls may exceed the ceiling.</small></div><small class="muted">Demo only. Starting creates an in-memory run and costs nothing.</small>',
+					btn("Cancel", "close") +
+						btn(
+							"Start simulated " + (replay ? "replay" : "run"),
+							replay ? "start-replay" : "start-run",
+							"primary",
+						),
+				);
+			}
+			function evidenceModal(kind = "grade") {
+				const run = getRun() || state.runs[1],
+					step = selectedStep(run);
+				const data = contextData(step);
+				const source =
+					data.rows.find((row) => row[0] === state.source) || data.rows[0];
+				modal(
+					kind === "context"
+						? "Delivered source evidence"
+						: "Cited grading evidence",
+					'<div class="row"><span class="badge">Saved evidence · synthetic</span><span class="mono">' +
+						run.id +
+						" / " +
+						step +
+						'</span></div><dl class="definition"><dt>Source</dt><dd class="mono">' +
+						(kind === "context"
+							? source[1] + " · transcript.jsonl:48 · block 2"
+							: "plan.md:18–22") +
+						"</dd><dt>Scope</dt><dd>" +
+						(kind === "context"
+							? "Text delivered to " +
+								(state.agent === "parent" ? step : "Reviewer")
+							: "Frozen artifact read by the judge") +
+						'</dd></dl><blockquote class="evidence-quote">' +
+						(kind === "context"
+							? esc(data.excerpts[state.source])
+							: run.grade === "C"
+								? "The proposal renames nextCursor to cursor, contradicting the public response fields fixed by the brief."
+								: step === "session"
+									? "The reply preserves the technical answer in 26 words, below the declared ceiling."
+									: "The endpoint preserves nextCursor and hasMore. An exhausted cursor returns an empty items array, without inventing a new response field.") +
+						'</blockquote><p class="muted">' +
+						(kind === "context"
+							? "Delivered preview: 146 lines. Full saved source: 206 lines. This preview is a bounded excerpt, not the whole artifact."
+							: "Judge reading: the output makes the boundary behavior observable. The citation supports this item; it does not establish the cause of the overall outcome.") +
+						"</p>",
+					btn(
+						"Return to " + (kind === "context" ? "context" : "report"),
+						"close",
+					),
+				);
+			}
+			function startRun(replay) {
+				const caseId = $("#launch-case").value,
+					count = Number($("#launch-count").value),
+					budget = Number($("#launch-budget").value);
+				if (
+					!$("#launch-budget").reportValidity() ||
+					!Number.isFinite(budget) ||
+					budget <= 0
+				) {
+					$("#launch-budget").reportValidity();
+					return;
+				}
+				const source = getRun() || state.runs.find((item) => item.id === "r41");
+				const id = "demo" + (state.runs.length + 1);
+				const run = {
+					id,
+					case: caseId,
+					title:
+						caseId === "audit-log"
+							? "Add a paginated audit log"
+							: "Keep a technical reply concise",
+					kind:
+						count > 1
+							? "Group"
+							: replay
+								? "Replay"
+								: { "audit-log": "Pipeline", "brief-reply": "Session" }[caseId],
+					state: "running",
+					cost: 0,
+					time: "0m 00s",
+					version: state.version,
+					grade: "Pending",
+					step: replay
+						? selectedStep(source)
+						: caseId === "brief-reply"
+							? "session"
+							: "shape",
+					when: "Just now · simulated",
+					note:
+						count > 1
+							? count + " attempts · preparing"
+							: "Preparing frozen inputs",
+					progress: 0,
+				};
+				initializeReadings(run);
+				run.groupMode = replay
+					? "stage"
+					: caseId === "audit-log"
+						? "pipeline"
+						: "session";
+				run.count = count;
+				run.budget = budget;
+				run.sourceId = replay ? source.id : null;
+				state.runs.unshift(run);
+				if (count > 1)
+					for (let i = 1; i <= count; i++)
+						state.runs.push(
+							initializeReadings({
+								...run,
+								id: id + "-rep" + i,
+								parent: id,
+								kind:
+									caseId === "brief-reply"
+										? "Session"
+										: replay
+											? "Replay"
+											: "Pipeline",
+								title: "Attempt " + i,
+								state: "running",
+								cost: 0,
+							}),
+						);
+				closeModal();
+				location.hash = runHref(run);
+				toast(
+					"Simulated " +
+						run.kind.toLowerCase() +
+						" created. No provider was called.",
+				);
+			}
+			function formatClock(seconds) {
+				return (
+					String(Math.floor(seconds / 60)).padStart(2, "0") +
+					":" +
+					String(seconds % 60).padStart(2, "0")
+				);
+			}
+			function action(name) {
+				const run = getRun() || state.runs[1],
+					step = selectedStep(run);
+				if (name.startsWith("launch")) {
+					launchModal(name.split(":")[1] || "audit-log");
+					return;
+				}
+				if (name === "close") closeModal();
+				else if (name === "reset") {
+					closeModal();
+					Object.assign(state, initialState());
+					seedAttempts();
+					location.hash = "/runs";
+					render();
+					toast("Demo reset.");
+				} else if (name === "replay") launchModal(run.case, true);
+				else if (name === "start-run" || name === "start-replay")
+					startRun(name === "start-replay");
+				else if (name === "pause") {
+					run.pauseRequested = true;
+					render();
+					toast(
+						"Demo pause requested. Choose Finish demo to stop after this step.",
+					);
+				} else if (name === "stop")
+					modal(
+						"Stop this run?",
+						'<p>The simulated session will stop and this run will remain in history. In the real product, Stop also restores the target checkout.</p><p class="muted">No process or repository is connected to this prototype.</p>',
+						btn("Keep running", "close") +
+							btn("Stop simulated run", "confirm-stop", "danger"),
+					);
+				else if (name === "confirm-stop") {
+					run.state = "stopped";
+					run.grade = "Not judged";
+					run.note = "Stopped by operator · incomplete output";
+					for (const child of state.runs.filter(
+						(item) => item.parent === run.id && item.state === "running",
+					)) {
+						child.state = "stopped";
+						child.grade = "Not judged";
+						child.note = "Group stopped by operator";
+					}
+					closeModal();
+					render();
+					toast(
+						"Demo run stopped. Evidence recorded so far remains available.",
+					);
+				} else if (name === "follow") {
+					state.follow = !state.follow;
+					render();
+				} else if (name === "advance") {
+					run.demoTicks = (run.demoTicks || 0) + 1;
+					run.elapsedSeconds ??= elapsedSeconds(run.time);
+					run.cost += 0.12;
+					const reading = run.stepReadings[run.step];
+					reading.cost += 0.12;
+					reading.seconds += 8;
+					const elapsed = run.elapsedSeconds + run.demoTicks * 8;
+					run.time =
+						Math.floor(elapsed / 60) +
+						"m " +
+						String(elapsed % 60).padStart(2, "0") +
+						"s";
+					render();
+					toast("Simulated transcript and spend advanced.");
+				} else if (name === "finish") {
+					const paused =
+						run.pauseRequested &&
+						run.step === "shape" &&
+						run.kind === "Pipeline";
+					run.state = paused ? "paused" : "completed";
+					run.progress = paused ? 1 : 2;
+					run.grade = run.step === "session" ? "Passed" : "B";
+					if (run.kind !== "Group" && !paused) finishReadings(run);
+					if (run.kind === "Group") {
+						for (const attempt of state.runs.filter(
+							(item) => item.parent === run.id,
+						)) {
+							attempt.state = "completed";
+							attempt.grade = attempt.step === "session" ? "Passed" : "B";
+							finishReadings(attempt);
+						}
+						const attempts = state.runs.filter(
+							(item) => item.parent === run.id,
+						);
+						run.cost = attempts.reduce((sum, item) => sum + item.cost, 0);
+						run.time = attempts[0].time;
+						if (run.groupMode === "pipeline") run.step = "build";
+						run.grade = (run.count || 3) + "/" + (run.count || 3) + " accepted";
+					}
+					run.note = paused
+						? "Paused after accepted step · cannot resume"
+						: "Accepted · all checks passed";
+					run.pauseRequested = false;
+					render();
+					toast("Demo run ended. Activity stays at the same address.");
+				} else if (name === "open-context")
+					location.hash = runHref(run, "context");
+				else if (name === "evidence") evidenceModal();
+				else if (name === "final-evidence")
+					modal(
+						"Final outcome evidence",
+						'<span class="badge">' +
+							finalReading(run) +
+							' · final judge</span><p class="mono">delivery.md:32–36</p><blockquote class="evidence-quote">' +
+							(finalReading(run) === "FAIL"
+								? "The empty-page response contains items: [] but omits hasMore. This fails the required public response contract."
+								: "The final artifact preserves the response fields, cursor ordering, and empty-page behavior required by the input.") +
+							'</blockquote><p class="muted">Saved final-artifact evidence. This outcome is separate from the step letters.</p>',
+						btn("Close", "close"),
+					);
+				else if (name === "context-evidence") evidenceModal("context");
+				else if (name === "inspect-step") {
+					const phase = stepPhase(run, step),
+						m = stepMetrics(run, step),
+						session = step === "session";
+					const grades = {
+						accepted: session ? "Checks passed" : "B",
+						running: "Pending",
+						queued: "Not reached",
+						unjudged: "Not judged",
+						stopped: "C",
+						unavailable: "Unavailable",
+					};
+					modal(
+						"Inspect " + step,
+						'<dl class="definition"><dt>Run</dt><dd>' +
+							run.id +
+							'</dd><dt>Instructions</dt><dd class="mono">' +
+							(session ? "output-style.md" : "skills/" + step + "/SKILL.md") +
+							"</dd><dt>Input</dt><dd>" +
+							(session
+								? "prompt.md · frozen fixture"
+								: step === "build"
+									? "plan.md · cp-b8"
+									: "product-brief.md · cp-a7") +
+							"</dd><dt>Output</dt><dd>" +
+							(phase === "running"
+								? "Pending"
+								: phase === "queued"
+									? "Not reached"
+									: phase === "unjudged"
+										? "Incomplete"
+										: session
+											? "reply.txt"
+											: step === "shape"
+												? "plan.md"
+												: "2 commits · 8 files") +
+							"</dd><dt>Grade</dt><dd>" +
+							grades[phase] +
+							"</dd><dt>Step spend</dt><dd>" +
+							m.cost +
+							"</dd><dt>Step elapsed</dt><dd>" +
+							m.time +
+							'</dd></dl><p class="muted">The report and context views retain this selected step.</p>',
+						btn("Open report", "inspect-report") +
+							btn("Replay step", "inspect-replay"),
+					);
+				} else if (name === "inspect-report") {
+					closeModal();
+					location.hash = runHref(run, "report");
+				} else if (name === "inspect-replay") launchModal(run.case, true);
+				else if (name === "artifact")
+					modal(
+						"Saved artifact",
+						'<span class="badge">Synthetic · read-only</span><pre class="tool">' +
+							esc(
+								"# Audit-log pagination\n\nPreserve the accepted response fields.\nUse stable cursor ordering.\nAn exhausted page returns items: [].\n\nAcceptance:\n1. Cursor round-trip preserves ordering.\n2. Empty result keeps the response contract.\n3. Invalid cursors are rejected.\n4. Required target checks pass.",
+							) +
+							"</pre>",
+						btn("Close", "close"),
+					);
+				else if (name === "analysis")
+					modal(
+						"Root-cause analysis request",
+						'<p>An agent will read the frozen run evidence and propose likely instruction-level explanations.</p><div class="notice">Demo ceiling: $2.00 · model: sonnet<br>This is an opinion, not causal evidence.</div>',
+						btn("Cancel", "close") +
+							btn("Simulate analysis", "simulate-analysis"),
+					);
+				else if (name === "simulate-analysis")
+					modal(
+						"Illustrative analysis",
+						'<span class="badge">Agent opinion · synthetic</span><p>The review instruction may have increased repeated evidence delivery. Inspect the cited request intervals before proposing a smaller instruction.</p><p class="muted">A controlled replay and repeated comparison are needed to test that hypothesis.</p>',
+						btn("Inspect citation", "context-evidence"),
+					);
+				else if (name === "edit-instruction") location.hash = "/corpus";
+				else if (name === "discard-edit") {
+					state.draft = state.instruction;
+					render();
+					toast("Draft discarded.");
+				} else if (name === "review-edit") {
+					if (state.draft === state.instruction) {
+						toast("Edit the instruction before reviewing a change.");
+						return;
+					}
+					modal(
+						"Review instruction change",
+						'<span class="mono">skills/review/SKILL.md</span><div><div class="diff-line remove">− ' +
+							esc(state.instruction) +
+							'</div><div class="diff-line add">+ ' +
+							esc(state.draft) +
+							'</div></div><p>Apply as a new demo corpus version. Existing results remain attached to their original snapshot.</p><p class="muted">' +
+							state.runs.filter((r) => r.version === state.version).length +
+							" demo records use the current snapshot. Their corpus will read as changed.</p>",
+						btn("Keep editing", "close") +
+							btn("Apply demo version", "apply-edit", "primary"),
+					);
+				} else if (name === "apply-edit") {
+					state.instruction = state.draft;
+					state.version = "edit" + ++state.versionCounter;
+					modal(
+						"Demo corpus version created",
+						"<p>corpus@" +
+							state.version +
+							' is ready. Replay Shape from the same frozen input to investigate the change.</p><p class="muted">Only this prototype’s memory changed. Old records still name their original corpus version.</p>',
+						btn("Return to corpus", "close") +
+							btn("Replay Shape", "edit-replay", "primary"),
+					);
+					render();
+				} else if (name === "edit-replay") {
+					location.hash = "/runs/r39/overview";
+					launchModal("audit-log", true);
+				} else if (name === "diff")
+					modal(
+						"One changed instruction",
+						'<span class="mono">skills/review/SKILL.md</span><div class="diff-line remove">− Give each reviewer the full transcript and verify every cited source again.</div><div class="diff-line add">+ Share the relevant evidence once. Verify findings against their cited source.</div><p class="muted">Synthetic comparison · all other declared inputs are unchanged.</p>',
+						btn("Close", "close"),
+					);
+				else if (name === "compare-setup")
+					modal(
+						"Compare repeated attempts",
+						'<p>Select groups at the same checkpoint. The model and effort must match. A control stays explicit.</p><label class="field">Before edit<select><option>g7 · corpus@7733aa · 3 attempts</option></select></label><label class="field">After edit<select><option>g8 · corpus@0a78c2 · 3 attempts</option></select></label><label class="field">Control<select><option>g6 · instruction removed · 3 attempts</option></select></label><span class="badge">✓ cp-a7 · sonnet · fixed effort</span><p class="muted">Reading saved attempts starts no paid sessions.</p>',
+						btn("Cancel", "close") +
+							btn("Open demo comparison", "open-comparison", "primary"),
+					);
+				else if (name === "open-comparison") {
+					closeModal();
+					location.hash = "/compare/cmp1";
+				} else if (name === "extend")
+					modal(
+						"Extend all three arms",
+						'<p>Add 3 independent attempts to each arm, preserving the original frozen inputs, corpus, model, and effort.</p><div class="notice">9 additional attempts × $10.00 ceiling = $90.00 total ceiling.<br>This is a ceiling, not an estimated bill.</div><p class="muted">Demo only. No provider will run.</p>',
+						btn("Cancel", "close") +
+							btn("Simulate extension", "simulate-extension"),
+					);
+				else if (name === "simulate-extension") {
+					closeModal();
+					toast(
+						"Demo extension queued: 3 more attempts in each arm. Existing results remain unchanged.",
+					);
+				} else if (name === "attempts")
+					modal(
+						"Independent attempts",
+						'<p>Each arm’s attempts are listed independently. Attempt 1 in one arm is not paired with attempt 1 in another.</p><div class="table-scroll"><table><thead><tr><th>Arm</th><th>Attempts</th><th>Outcomes</th></tr></thead><tbody><tr><td>Control</td><td>1, 2, 3</td><td>C, C, B</td></tr><tr><td>Before edit</td><td>1, 2, 3</td><td>B, B, B</td></tr><tr><td>After edit</td><td>1, 2, 3</td><td>B, B, B</td></tr></tbody></table></div>',
+						btn("Close", "close"),
+					);
+				else if (name === "edit-workflow")
+					modal(
+						"Edit case workflow",
+						'<p class="muted">Task configuration stays with its case. This editor changes only the demo.</p><label class="field">Step 1<input value="shape" /></label><label class="field">Step 2<input value="build" /></label><label class="field">Minimum grade<select><option>B</option><option>A</option></select></label>',
+						btn("Cancel", "close") +
+							btn("Preview workflow", "preview-workflow"),
+					);
+				else if (name === "preview-workflow")
+					modal(
+						"Workflow preview",
+						'<p>Shape → Build → final rubric</p><p class="muted">Definition editing is a navigation sketch in this prototype. No file is written.</p>',
+						btn("Close", "close"),
+					);
+				else if (name === "declare-case")
+					modal(
+						"Declare a case",
+						'<p class="muted">A case freezes the task, input, and checks. This prototype includes a pipeline and a session example.</p><label class="field">Case title<input placeholder="A behavior you want to test" /></label><label class="field">Kind<select><option>Session</option><option>Pipeline</option></select></label>',
+						btn("Cancel", "close") + btn("Preview case", "preview-case"),
+					);
+				else if (name === "preview-case") {
+					closeModal();
+					toast(
+						"Case declaration previewed. Use the supplied cases to test launch and navigation.",
+					);
+				} else if (name.startsWith("review-grade")) {
+					const [, targetId, targetStep] = name.split(":");
+					const target = targetId
+						? state.runs.find((item) => item.id === targetId)
+						: getRun();
+					const selected = targetStep || selectedStep(target),
+						key = target.id + "/" + selected;
+					state.reviewTarget = { id: target.id, step: selected, key };
+					const judge = stepPhase(target, selected) === "stopped" ? "C" : "B";
+					modal(
+						"Review frozen output",
+						"<p>" +
+							target.case +
+							" / " +
+							target.id +
+							" / " +
+							selected +
+							" · judge grade " +
+							judge +
+							'</p><pre class="tool">' +
+							(judge === "C"
+								? "Proposed response renames nextCursor to cursor. The brief fixes nextCursor and hasMore."
+								: "Keep nextCursor and hasMore. Cover cursor ordering and the empty-page boundary.") +
+							'</pre><label class="field">Your grade<select id="human-grade">' +
+							["A", "B", "C", "D", "F"]
+								.map(
+									(grade) =>
+										"<option " +
+										((state.reviews[key] || judge) === grade
+											? "selected"
+											: "") +
+										">" +
+										grade +
+										"</option>",
+								)
+								.join("") +
+							"</select></label>",
+						btn("Cancel", "close") + btn("Save demo review", "save-review"),
+					);
+				} else if (name === "save-review") {
+					state.reviews[state.reviewTarget.key] = $("#human-grade").value;
+					if (state.reviewTarget.key === "r41/shape")
+						state.review = $("#human-grade").value;
+					closeModal();
+					render();
+					toast("Human grade saved for " + state.reviewTarget.key + ".");
+				} else if (name === "save-settings") {
+					if (!$("#ceiling").reportValidity()) return;
+					state.defaultBudget = Number($("#ceiling").value);
+					toast(
+						"Demo ceiling saved: " +
+							money(state.defaultBudget) +
+							" per attempt.",
+					);
+				} else if (name === "source-settings")
+					modal(
+						"Corpus source settings",
+						'<p>Source: editable copy · demo corpus</p><div class="row"><span class="badge">Link a copy</span><span class="badge">Unlink</span><span class="badge">Rehash</span></div><p class="muted">These controls remain in Settings in the proposed navigation. Filesystem actions are outside this dummy UI.</p>',
+						btn("Close", "close"),
+					);
+				else if (name === "export-case") {
+					const blob = new Blob(
+						[
+							JSON.stringify(
+								{
+									prototype: true,
+									case: route()[1] || "audit-log",
+									steps: route()[1] === "brief-reply" ? [] : ["shape", "build"],
+									judges:
+										route()[1] === "brief-reply"
+											? ["word ceiling", "required answer", "forbidden text"]
+											: ["step", "final"],
+								},
+								null,
+								2,
+							),
+						],
+						{ type: "application/json" },
+					);
+					const a = document.createElement("a");
+					a.href = URL.createObjectURL(blob);
+					a.download = "rehearse-demo-definition.json";
+					a.click();
+					URL.revokeObjectURL(a.href);
+					toast(
+						"Synthetic definition exported. It is a prototype sketch, not an importable production task bundle.",
+					);
+				} else if (name === "import-case")
+					modal(
+						"Import task definition",
+						'<p class="muted">Review steps, judges, and target commands before creating a case. This is a navigation sketch; no file is imported.</p><pre class="tool">Example preview\nShape → Build\nPer-step judges + final rubric\nTarget command: bun test</pre>',
+						btn("Close", "close"),
+					);
+			}
+			function seedAttempts() {
+				const control = {
+					...initialRuns[3],
+					id: "g6",
+					when: "Yesterday, 16:30",
+					title: "Shape · instruction removed",
+					version: "91b220",
+					cost: 3.36,
+					grade: "1/3 accepted",
+					note: "3 attempts · control · instruction removed",
+				};
+				state.runs.splice(
+					state.runs.findIndex((item) => item.id === "r39"),
+					0,
+					control,
+				);
+				for (const group of state.runs.filter((r) => r.kind === "Group"))
+					for (let i = 1; i <= 3; i++)
+						state.runs.push(
+							initializeReadings({
+								...group,
+								id: group.id + "-rep" + i,
+								kind: "Replay",
+								title: "Shape · attempt " + i + " of " + group.id,
+								cost: (group.id === "g7"
+									? [1.6, 2.46, 3.2]
+									: group.id === "g8"
+										? [1.4, 1.7, 2.3]
+										: [1.02, 1.17, 1.17])[i - 1],
+								words: (group.id === "g7"
+									? [360, 430, 470]
+									: group.id === "g8"
+										? [280, 308, 360]
+										: [300, 390, 420])[i - 1],
+								grade: group.id === "g6" && i < 3 ? "C" : "B",
+								state: group.id === "g6" && i < 3 ? "stopped" : "completed",
+								note: "Independent attempt " + i + " · from " + group.id,
+								when: "Yesterday · group " + group.id,
+								step: "shape",
+								parent: group.id,
+							}),
+						);
+			}
+			seedAttempts();
+			document.addEventListener("click", (event) => {
+				if (event.target.closest(".skip")) {
+					event.preventDefault();
+					$("#main").focus();
+					return;
+				}
+				const actionButton = event.target.closest("[data-action]");
+				if (actionButton) {
+					action(actionButton.dataset.action);
+					return;
+				}
+				const filter = event.target.closest("[data-filter]");
+				if (filter) {
+					state.filter = filter.dataset.filter;
+					render();
+					return;
+				}
+				const step = event.target.closest("[data-step]");
+				if (step) {
+					state.selectedStep[getRun().id] = step.dataset.step;
+					state.source = "all";
+					render();
+					return;
+				}
+				const source = event.target.closest("[data-source]");
+				if (source) {
+					state.source = source.dataset.source;
+					state.request = 1;
+					render();
+					return;
+				}
+				const request = event.target.closest("[data-request]");
+				if (request) {
+					state.request = Number(request.dataset.request);
+					render();
+					return;
+				}
+				const caseTab = event.target.closest("[data-case-tab]");
+				if (caseTab) {
+					event.preventDefault();
+					state.caseTab = caseTab.dataset.caseTab;
+					render();
+					return;
+				}
+				const settingsTab = event.target.closest("[data-settings-tab]");
+				if (settingsTab) {
+					event.preventDefault();
+					state.settingsTab = settingsTab.dataset.settingsTab;
+					render();
+				}
+			});
+			document.addEventListener("input", (event) => {
+				if (event.target.id === "search") {
+					const cursor = event.target.selectionStart;
+					state.search = event.target.value;
+					render();
+					$("#search").focus();
+					$("#search").setSelectionRange(cursor, cursor);
+				}
+				if (event.target.id === "instruction") state.draft = event.target.value;
+				if (
+					event.target.id === "launch-count" ||
+					event.target.id === "launch-budget"
+				)
+					$("#launch-total").textContent =
+						"Total ceiling: " +
+						money(
+							Number($("#launch-count").value) *
+								Number($("#launch-budget").value),
+						);
+			});
+			document.addEventListener("change", (event) => {
+				if (event.target.id === "agent") {
+					state.agent = event.target.value;
+					state.source = "all";
+					state.request = 1;
+					render();
+				}
+			});
+			$("#dialog").addEventListener("cancel", (event) => {
+				event.preventDefault();
+				closeModal();
+			});
+			window.addEventListener("hashchange", () => {
+				state.source = "all";
+				state.request = 1;
+				render({ focus: true });
+				if (route()[0] === "runs" && route()[1])
+					$('.view-nav a[aria-current="page"]')?.focus({ preventScroll: true });
+				window.scrollTo(0, 0);
+			});
+			render();
+		</script>
+	</body>
+</html>
