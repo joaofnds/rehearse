@@ -284,10 +284,12 @@ feature and a `shape → build` workflow. Its relative default target is a sibli
 checkout used by the maintainer. It does not download a template. Supply your
 own compatible checkout with `--target`.
 
-Before running, prepare the target's dependencies, services, and database using
-that target's instructions. Inspect the [pipeline definition](../cases/audit-log/pipelines/default.json)
-for its commands and protected files. Its checks expect `CONFIG_PATH=src/config/test.yaml`
-and the scripts `typecheck`, `check`, and `test:unit`. An arbitrary repository
+The [pipeline definition](../cases/audit-log/pipelines/default.json) declares
+the target's PostgreSQL and Redis services, which the run starts in Docker, and
+setup commands that install dependencies and migrate the database, so the run
+needs Docker running and nothing started by hand. Inspect it for its commands
+and protected files. Its setup and checks expect `CONFIG_PATH=src/config/test.yaml`
+and the scripts `migrate`, `typecheck`, `check`, and `test:unit`. An arbitrary repository
 will need its own case, rubrics, and pipeline.
 
 The control repository must be committed and clean. The target must be a
@@ -325,13 +327,12 @@ paid model probe. The harness then runs baseline target checks before launching
 workflow stages. A baseline failure therefore avoids workflow spend, but may
 follow the model probe.
 
-A plain pipeline run works directly on the target's `main`, then restores it.
-It uses agents with permission bypass on the host. Use a designated benchmark
-target whose committed state and workflow artifacts can be restored; ignored
-build outputs and external services are not snapshotted. See
-[target restoration](reference.md#target-restoration) before relying on recovery.
-The repository-private board exclusions remain after restoration and are reused
-by later runs.
+A plain pipeline run works in a temporary clone of the target's `main` and
+never writes the target's own checkout or its linked board. When it ends, it
+copies its commits into the target and removes the clone and its containers.
+It uses agents with permission bypass on the host, which is not a sandbox. See
+[run checkout and cleanup](reference.md#run-checkout-and-cleanup) for what a
+hard kill leaves behind.
 
 ## Read, review, and replay a pipeline result
 
@@ -349,9 +350,10 @@ Stopped runs are included. Their summary shows recorded stages, grades, failure
 information, and costs where available. The default stage continuation threshold
 is B; `--minimum-grade` changes it without changing the Judge's recorded grade.
 
-Without `--pause`, a run requiring human review retains its candidate, restores
-the target, and exits. Review and calibration are separate commands. `--pause`
-keeps the candidate in place for interactive calibration and requires a terminal.
+Without `--pause`, a run requiring human review retains its candidate in the
+target, removes its checkout, and exits. Review and calibration are separate
+commands. `--pause` keeps the candidate in the run's checkout for interactive
+calibration and requires a terminal.
 Use the [review and calibration reference](reference.md#review-and-calibration)
 for verdicts, findings, and rejudging.
 
@@ -390,8 +392,8 @@ enter one there and press Store ceiling, store it on the settings screen's
 Spend limit card, or store it with `settings --spend-ceiling-usd <USD>`. Any way it becomes the ceiling every
 later command reads. The run keeps going if you stop the server, and its
 output goes to `launches/<id>.log` in the records directory. While it runs,
-its row in run history offers Stop & restore repo, which ends it and restores
-the target as Ctrl-C would, also after a server restart. A stopped launch stays
+its row in run history offers Stop & restore repo, which ends it and cleans up
+as Ctrl-C would, also after a server restart. A stopped launch stays
 listed as stopped, and a stopped confirmation group writes no group record or
 report. A pipeline run's
 row offers Pause after this step, which ends the run once the stage in progress

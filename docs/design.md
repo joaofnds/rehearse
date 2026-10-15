@@ -39,7 +39,8 @@ Run events  → SQLite store → SSE endpoint
             → SQLite store → Hono read API → React views
 ```
 
-A debug pipeline runs directly on the target's clean `main`. It seeds a task,
+A debug pipeline runs in a temporary clone of the target's clean `main`, with
+the services the target declares running in containers. It seeds a task,
 records an initial checkpoint, runs the declared stages, and records further
 checkpoints after accepted stages. The default pipeline is `shape → build`.
 Preflight loads the case's declared stage settings, or the root default, once.
@@ -49,9 +50,9 @@ answers questions from the task and product brief. Stage Judges see frozen
 evidence and rubrics, and the final Judge evaluates the delivered candidate.
 
 The target owns its project instructions. The harness no longer installs this
-repository's `CLAUDE.md` into the target. Normal cleanup restores the original
-Git state and backed-up workflow directories. Retained Git refs keep candidate
-and checkpoint commits available afterward.
+repository's `CLAUDE.md` into the target. Cleanup copies the run's retained Git
+ref into the target, which keeps candidate and checkpoint commits available
+after the clone is removed, and removes the containers.
 
 Replay materializes a stage's input checkpoint in a host worktree. It runs only
 that stage and preserves its result as another attempt. Pipeline and replay
@@ -201,7 +202,7 @@ directory never share a number, and a command that fails after claiming leaves
 a gap rather than freeing the number. Only a claim writes a number, so a
 record no claim names stays unnumbered.
 
-See [record formats and target restoration](reference.md) for storage paths,
+See [record formats and run cleanup](reference.md) for storage paths,
 identifiers, retained candidates, and recovery boundaries.
 
 ## Browser boundary

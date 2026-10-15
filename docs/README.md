@@ -6,7 +6,7 @@ Start with the [project README](../README.md) for the purpose and first commands
 
 - [Runbook](runbook.md): setup, first experiment, repeated runs, and inspecting evidence.
 - [Harness reference](reference.md): case inputs, corpus delivery, grading, records,
-  replay, calibration, comparisons, and target restoration.
+  replay, calibration, comparisons, and run cleanup.
 - [Current state and priorities](status.md): implemented features, known gaps,
   and useful contribution areas.
 - [Contributing](../CONTRIBUTING.md): development checks and documentation upkeep.

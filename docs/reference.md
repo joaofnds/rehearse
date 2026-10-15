@@ -6,17 +6,17 @@ for remaining gaps, and the [glossary](../GLOSSARY.md) for domain terms.
 
 ## Execution modes
 
-| Request                                  | Unit of work                                              | Execution directory                 | Result                                 |
-| ---------------------------------------- | --------------------------------------------------------- | ----------------------------------- | -------------------------------------- |
-| `run --case <pipeline-case>`             | Whole workflow                                            | The target's `main` checkout        | Run artifact or stopped-stage record   |
-| `run --case <session-case>`              | One Claude session                                        | A fresh temporary attempt directory | Session attempt record                 |
-| `replay --run <name> --stage <stage>`    | One pipeline stage                                        | A fresh target worktree             | Replay record                          |
-| Pipeline `run --confirm`                 | Repeated whole workflows                                  | Separate target worktrees           | Confirmation group and report          |
-| Session `run --confirm`                  | Repeated sessions                                         | Separate attempt directories        | Confirmation group and report          |
-| `replay --confirm`                       | Repeated stage executions                                 | Separate target worktrees           | Confirmation group and report          |
-| `compare <manifest>`                     | Completed stage/pipeline or session confirmation evidence | No execution directory              | Comparison report                      |
-| `compare attempts --arm-a --arm-b`       | Repeated stage executions for the control group only      | Separate target worktrees           | Baseline group and comparison report   |
-| `compare extend --comparison --attempts` | Repeated stage executions, one new group per arm          | Separate target worktrees           | New groups and a new comparison report |
+| Request                                  | Unit of work                                              | Execution directory                      | Result                                 |
+| ---------------------------------------- | --------------------------------------------------------- | ---------------------------------------- | -------------------------------------- |
+| `run --case <pipeline-case>`             | Whole workflow                                            | A temporary clone of the target's `main` | Run artifact or stopped-stage record   |
+| `run --case <session-case>`              | One Claude session                                        | A fresh temporary attempt directory      | Session attempt record                 |
+| `replay --run <name> --stage <stage>`    | One pipeline stage                                        | A fresh target worktree                  | Replay record                          |
+| Pipeline `run --confirm`                 | Repeated whole workflows                                  | Separate target worktrees                | Confirmation group and report          |
+| Session `run --confirm`                  | Repeated sessions                                         | Separate attempt directories             | Confirmation group and report          |
+| `replay --confirm`                       | Repeated stage executions                                 | Separate target worktrees                | Confirmation group and report          |
+| `compare <manifest>`                     | Completed stage/pipeline or session confirmation evidence | No execution directory                   | Comparison report                      |
+| `compare attempts --arm-a --arm-b`       | Repeated stage executions for the control group only      | Separate target worktrees                | Baseline group and comparison report   |
+| `compare extend --comparison --attempts` | Repeated stage executions, one new group per arm          | Separate target worktrees                | New groups and a new comparison report |
 
 A debug attempt helps inspect behavior. Confirmation repeats a frozen input set
 and reports reliability and resource use. `compare <manifest>` consumes existing
@@ -67,10 +67,10 @@ rewrite the Judge's grade or make a low grade a reliability success.
 - `--confirm` defaults to five repetitions. `--reps` requires `--confirm`
   and must be at least two. The projected cost needs interactive approval or
   `--yes`; `--yes` does not replace explicit model selection for unattended use.
-- Pipeline `--pause` requires a terminal. Without it, a debug run restores the
-  target and leaves review/calibration to separate commands.
+- Pipeline `--pause` requires a terminal. Without it, a debug run removes its
+  checkout and leaves review/calibration to separate commands.
 - `calibrate --confirm-rejudge` approves revised Judge conclusions. Calibration
-  can invoke paid Judges even when the target was restored long ago.
+  can invoke paid Judges long after the run's checkout was removed.
 
 Model availability is checked with a paid probe whose budget is $0.10.
 For pipeline `run`, repository and settings preconditions precede the probe,
@@ -152,7 +152,7 @@ minus what the run has spent so far. Once the spend reaches the ceiling, the
 next paid call is refused. When a stage's session or stage Judge is refused,
 or fails after its spend reached the ceiling, a pipeline run stops in that
 stage, writes the stage's stopped record with `ceilingStop` carrying the
-ceiling and the spend, restores the target, and starts no later session.
+ceiling and the spend, removes the run's checkout, and starts no later session.
 Every such record carries `productOwnerCostUsd` and
 `productOwnerProviderCalls`, the Product Owner's spend up to the stop. A
 stage Judge's stopped record keeps the attempts it paid for before the stop,
@@ -413,16 +413,17 @@ like any session budget its cap can be overrun by the call that crosses it.
 Stop posts
 to `POST /api/launches/:id/stop`, which records `stopRequestedAt` on the launch
 and sends its process SIGTERM, which the process handles as it handles a
-terminal's Ctrl-C (SIGINT): it kills its commands, restores the target and
-removes its worktrees. The stop reads the pid from disk, so it works after a
+terminal's Ctrl-C (SIGINT): it kills its commands and cleans up as
+[run checkout and cleanup](#run-checkout-and-cleanup) describes, which removes a
+run's checkout and service containers or a replay's worktrees. The stop reads the pid from disk, so it works after a
 server restart. It answers 404 for an unknown launch, and 409 when the launch's
 process is no longer the one it started, judged by the process start time, or
 when the launch was recorded without a start time, as launches recorded before
-the start time was kept were. A pipeline run started from a terminal has no launch, so its Stop posts to `POST /api/runs/:run/stop`, which sends SIGTERM to the pid the run's own target claim records and answers 202. It answers 404 for an unknown run, and 409 when the target holds no live claim of the run's own or the process holding that pid started after the claim was written, which means the pid was reused. A session attempt started from a terminal records no process, so its row offers no Stop. Pause after this step posts to `POST /api/runs/:run/pause`, which writes
+the start time was kept were. A pipeline run started from a terminal has no launch, so its Stop posts to `POST /api/runs/:run/stop`, which sends SIGTERM to the pid the run's own claim in its checkout records and answers 202. It answers 404 for an unknown run, and 409 when the run's checkout holds no live claim of the run's own or the process holding that pid started after the claim was written, which means the pid was reused. A session attempt started from a terminal records no process, so its row offers no Stop. Pause after this step posts to `POST /api/runs/:run/pause`, which writes
 `pause-request.json` in the run's checkpoints directory and answers 202, or 404
 for an unknown run and 409 for one whose row does not read RUNNING. A pipeline
 run reads that file once each stage is judged and its checkpoint written, then
-writes `paused.json` beside the request, restores the target and exits
+writes `paused.json` beside the request, removes the run's checkout and exits
 non-zero, and its row reads `PAUSED:<stage>`. The request is not read after the
 last stage, so a Pause clicked during the last stage is accepted and has no
 effect, and a stage that fails its judge ends the run as it would without
@@ -512,6 +513,21 @@ planning/delivery kind, and stage rubric. A planning stage may require acceptanc
 criteria and may declare an attached durable document; a card-only planning
 stage needs no document attachment. Exactly one delivery stage must come last.
 The bundled pipeline is `shape` followed by `build`.
+
+### Target services
+
+A pipeline's target may declare the services its setup, checks, and sessions
+need, such as a database. Each names a container image, the port it listens on
+inside the container, optional environment, a readiness command run inside the
+container, and the variables it exports, each naming the port as `{port}`. A
+pipeline run starts each service with Docker, publishing its port on a loopback
+port Docker assigns, and runs its readiness command every half second for up to
+a minute. It passes the exports, with the assigned port in place of `{port}`, to
+setup commands, baseline and treatment checks, and stage sessions. A check's own
+`env` wins over an export of the same variable. A service that cannot start or
+never reads ready refuses the run before its first stage. The run removes its
+containers when it ends, however it ends short of a hard kill, and labels each
+`rehearse.service=<name>`. Replays and confirmations start no services.
 
 The default stage settings deny branch/worktree creation commands and disable
 bundled skills. The allowed settings schema covers a deny list and selected
@@ -976,16 +992,19 @@ ambient hooks, memory, and MCP behavior.
 
 A debug pipeline requires a clean control repository and a separate clean target
 repository root on `main`, including ordinary untracked files. The harness
-claims the target and backs up its managed workflow state: the root Backlog
-configuration, `backlog/`, `.backlog/`, `.boris/`, and a configured custom board
-path when one exists. It then runs baseline checks, verifies the unchanged clean
-baseline, and captures context/integrity bytes.
+clones the target's `main` into a temporary directory, the run's checkout, and
+works only there, so the target's own checkout, its untracked files, and a board
+linked into it are neither read nor written. The run prints the checkout's path.
+The harness claims the checkout, starts the
+[services the target declares](#target-services), runs the target's setup
+commands and baseline checks, verifies the unchanged clean baseline, and
+captures context/integrity bytes.
 It then seeds a real Backlog.md task and records an initial checkpoint.
 
 Each stage starts a fresh engineering session with its named skill. Durable
 cards, documents, commits, and checkpoints carry work across stages. Stage
-sessions have broad tool access and skip permission prompts. Use a dedicated
-target whose services and schema already satisfy the case's declared checks.
+sessions have broad tool access and skip permission prompts. They run in the
+run's checkout with the variables the target's services export.
 
 A stage session's call has no limit on how long it runs. It streams its events,
 and the harness's own timer kills it, with its whole process group, only after
@@ -1059,14 +1078,15 @@ retain their bytes, preventing a candidate from passing by weakening checks.
 ## Review and calibration
 
 Without `--pause`, a pipeline debug run retains its candidate under
-`refs/rehearse/<run>`, restores the target, and prints the record and follow-up
+`refs/rehearse/<run>` in the target, removes its checkout, and prints the record and follow-up
 commands. A completed candidate awaits human review; a quality stop records the
 stage evidence that stopped it. Review remains separate from the machine grade.
 
-`show run:<name> --checkout <new-directory>` creates a detached worktree in the
-recorded source repository from the retained ref. The directory must not exist.
-Remove the checkout with `git worktree remove` afterward. The retained ref keeps
-candidate commits reachable after target restoration.
+`show run:<name> --checkout <new-directory>` creates a detached worktree from
+the retained ref, in the run's checkout while it exists and otherwise in the
+target its commits were copied into. The directory must not exist. Remove the
+checkout with `git worktree remove` afterward. The retained ref keeps candidate
+commits reachable, since no branch reaches them.
 
 `review <run>` accepts either `--file <review.json>` or `--verdict`, `--summary`,
 and repeated JSON `--finding` flags. It validates the run and review before
@@ -1114,9 +1134,10 @@ invokes the Judges again against current inputs and incurs those calls again.
 Invalid reviews or ineffective rubric changes leave the record uncalibrated.
 A successful calibration records COMPLETE with the review and revised evidence.
 
-With `--pause`, the candidate stays in the target, a review template is created,
-and the interactive loop waits until review and calibration validate. Changes
-to corpus/rubrics made during review remain after target restoration.
+With `--pause`, the candidate stays in the run's checkout, whose path the run
+printed, a review template is created, and the interactive loop waits until
+review and calibration validate. Changes to corpus/rubrics made during review
+remain after the checkout is removed.
 
 Completed calibration contributes Judge/human contingency counts per exact
 Judge model, stage, frozen rubric contract, and criterion. Reports include
@@ -1243,22 +1264,26 @@ the analyses are still served. A record is written whole to a temporary file and
 linked into place, so the route never reads half of one. It answers 400 for a
 malformed run name and 404 for a run with no manifest.
 
-## Target restoration
+## Run checkout and cleanup
 
-Normal direct-target cleanup force-switches to `main`, resets to the original
-SHA, cleans ordinary untracked files, restores the workflow paths recorded in
-the pre-run backup, then verifies the original clean state before removing the
-run marker and backup. Candidate commits survive through retained refs. Ignored
-dependency/build folders outside the workflow paths are not restored byte for
-byte. Repository-private Backlog exclude entries remain in Git metadata after
-restoration and are reused by later runs.
+A pipeline run never writes the target's own checkout. It works in a clone of
+the target's `main` under the system temporary directory, named
+`rehearse-target-*`, and its manifest records the clone as `sourceRoot` and the
+target as `targetRoot`. When the run ends, it fetches `refs/rehearse/<run>` from
+the clone into the target, which brings the candidate and every checkpoint
+commit with it, since each is an ancestor of the last. It then removes the clone
+and the run's service containers. A clone whose commits the target could not
+take stays, and the run names its path, since it holds their only copy.
+Dependencies the setup installed live in the clone and go with it.
 
-SIGINT, SIGTERM, and SIGHUP stop child process groups and trigger restoration.
-A hard kill or crash may leave `.git/benchmark-run.json` and a temporary workflow
-backup. The next run refuses that target. Follow its recovery instructions:
-stop surviving children, restore the recorded Git state and workflow backup,
-verify recovery, and only then remove the marker. Server interruption detection
-does not perform that restoration for you.
+SIGINT, SIGTERM, and SIGHUP stop child process groups and trigger the same
+cleanup. A hard kill or crash leaves the clone, with the run's claim in its
+`.git/benchmark-run.json`, and leaves its containers running. Neither refuses a
+later run, since each run clones afresh and Docker assigns each container its
+own port. To recover, fetch the clone's `refs/rehearse/<run>` into the target
+when its commits matter, delete the clone, and remove the containers
+`docker ps --filter label=rehearse.service` lists. Server interruption detection
+does not clean up for you.
 
 An initial checkpoint captures task setup and the stage-settings digest;
 accepted stages create subsequent checkpoints with target SHA, workflow state,
@@ -1271,8 +1296,8 @@ evidence. Where the stage's transcript is available, its sub-agent transcripts
 and meta files are copied into `subagents/` beside it by the same rules as a
 session attempt's. A checkpoint keeps no list of unavailable sub-agents, so a
 checkpoint without `subagents/` does not show that no sub-agent ran. The stage
-ran in the target repository, so the provider's files in that repository's
-projects slug are left in place. Checkpoints written before this carry no
+ran in the run's checkout, so the provider's files in that checkout's projects
+slug are left in place. Checkpoints written before this carry no
 transcript field and remain readable. A stage that stopped the run, by its
 grade or by its judging failing, saves no checkpoint, so its transcript and
 sub-agent files are copied by the same rules into `<run>.<stage>.session/` in
@@ -1787,10 +1812,11 @@ It names the same ending as the run's `status`, since both read
 [run-ending.ts](../src/benchmark/run-ending.ts), in this order: the main
 artifact, a stop record, `paused.json`, `operator-stop.json`, then the event
 stream. A pause or operator stop therefore reads as one while the run's
-process restores the target and after a later failed or interrupted event. A
+process cleans up and after a later failed or interrupted event. A
 stream that ends interrupted, or a non-terminal one whose run no longer holds
-its target's claim, reads interrupted before reconciliation marks it as well as
-after. A non-terminal stream whose target cannot be asked reads `PENDING`. A
+its checkout's claim, reads interrupted before reconciliation marks it as well as
+after. A non-terminal stream whose checkout cannot be asked, such as one already
+removed, reads `PENDING`. A
 stream that ends `run-completed` with no artifact says the run ended without
 recording how. A run with no events reads the stage it left awaiting judgment,
 and a run that recorded none of those says so. A record decides which ending

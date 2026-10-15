@@ -78,7 +78,7 @@ See [current state](docs/status.md) for implementation coverage and
 - **Calibration** — the step that validates a Judge result against a human
   review and turns findings into rubric or instruction changes. It reads the
   frozen evidence a run recorded and the corpus files as they stand now, never
-  the live target, so it can run long after the target was restored. It is one
+  the live target, so it can run long after the run's checkout was removed. It is one
   function of the review, the frozen evidence, and the current rubrics and
   instructions, whether a paused run calls it in a retry loop or the
   `calibrate` command calls it once. The browser's Judge calibration screen is a
@@ -504,20 +504,20 @@ See [current state](docs/status.md) for implementation coverage and
   session history. An invocation alone is
   not a delivery, and delivery does not show that the model followed the text.
 - **Review pause** — the interactive stop a run makes with the candidate still in the
-  target, asking the reviewer to edit files and press Enter until the
+  run's checkout, asking the reviewer to edit files and press Enter until the
   calibration validates. It is requested by `--pause` and needs a TTY, refused
   before any paid work without one. A run without `--pause` never stops: it
-  writes the preliminary artifact, retains the candidate, restores the target,
+  writes the preliminary artifact, retains the candidate, removes its checkout,
   and exits, leaving the review and the calibration to their own commands.
 - **Pause after step**: the operator's request that a running pipeline run
   start no further stage once the current one is judged and its checkpoint
-  written. The run then restores the target and ends as **paused**, listed
+  written. The run then removes its checkout and ends as **paused**, listed
   as `PAUSED:<stage>`. A paused run is not resumed. Continuing it is a replay
   from that checkpoint. Distinct from the review pause, which holds a
-  candidate in the target for a human edit.
+  candidate in the run's checkout for a human edit.
 - **Operator stop**: a run, replay, group or session attempt the operator
   ended, by Stop & restore repo in the browser or a signal from a terminal.
-  It kills the commands, restores the target, and records the stop so the
+  It kills the commands, cleans up, and records the stop so the
   run reads `OPERATOR_STOPPED` rather than failed. Distinct from a ceiling
   stop and from a stop below the minimum grade.
 - **Operator grade**: the operator's own judgment of one stage the Judge graded,
@@ -602,10 +602,11 @@ See [current state](docs/status.md) for implementation coverage and
   be read: the stage that read the edited file, replayed from the checkpoint
   it started from against the edited corpus, to set beside the result the edit
   made stale. Offering it starts nothing.
-- **Retained candidate** — the run's final result commit, pinned in the target
-  repository under `refs/rehearse/<run>` before the target is restored, so the
-  candidate outlives the run that produced it. Restoring makes the commit
-  unreachable and only the ref keeps gc from pruning it;
+- **Retained candidate** — the run's final result commit, pinned under
+  `refs/rehearse/<run>` in the run's checkout and copied with that ref into the
+  target repository before the checkout is removed, so the candidate outlives
+  the run that produced it. No branch reaches the commit, so only the ref keeps
+  gc from pruning it;
   `show run:<name> --checkout <dir>` materializes it as a detached worktree.
   It is the same ref a checkpoint is pinned under, named by the run rather than
   by a stage.
@@ -695,7 +696,7 @@ See [current state](docs/status.md) for implementation coverage and
   whose session the ceiling stopped also records that session's calls and
   their spend up to the stop, none when the ceiling refused its first call. A
   final Judge stopped this way fails the run with the ceiling and the spend
-  on its failed run record. The target is restored and no later session
+  on its failed run record. The run's checkout is removed and no later session
   starts.
 - **Group ceiling**: the spend a confirmation group may reach, its attempts
   times the spend ceiling. The group stops starting sessions once its spend
@@ -895,8 +896,16 @@ See [current state](docs/status.md) for implementation coverage and
   ran before the attempt began, so it counts toward neither the attempt's
   coverage nor its spend. The word "fork" is kept for copying a transcript
   prefix.
+- **Run checkout** — the temporary clone of the target's `main` a pipeline run
+  works in, so the operator's own checkout of the target is never read or
+  written. The run copies its retained commits into the target before removing
+  it.
 - **Target repository (template project)** — the real application repository,
   kept at a stable baseline, that tasks run against.
+- **Target service** — a container the pipeline declares for the target, such
+  as a database, which a run starts on a loopback port, hands to its setup,
+  checks, and sessions through the variables it exports, and removes when it
+  ends.
 - **Target check** — one command declared by the pipeline and run against the
   target repository both at baseline and after delivery.
 - **Task graph** — the UI's horizontal chain of stage-node cards (grade,
@@ -1002,8 +1011,7 @@ See [current state](docs/status.md) for implementation coverage and
   unattended as unsettled, pending the operator's confirmation (doc-157,
   question 6).
 - **Workflow state** — the `backlog/` and `.boris/` trees copied independently
-  of Git to carry workflow artifacts across stage materialization and target
-  restoration. A target's Backlog configuration determines where its board
+  of Git to carry workflow artifacts across stage materialization. A target's Backlog configuration determines where its board
   lives. These target artifacts are distinct from Rehearse's external personal
   board.
 - **Attempt elapsed time** — the wall-clock duration of one attempt, from its
