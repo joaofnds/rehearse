@@ -332,12 +332,84 @@ async function declareStandInTarget(control: string): Promise<void> {
 	await Bun.write(pipelineFile, `${JSON.stringify({ ...pipeline, target })}\n`);
 }
 
+/** Puts back the services `declareStandInTarget` removed, for a run whose `docker` is a stand-in. */
+async function restoreDeclaredServices(control: string): Promise<void> {
+	const pipeline = join("cases", "audit-log", "pipelines", "default.json");
+	await Bun.write(
+		join(control, pipeline),
+		Bun.file(join(PROJECT_ROOT, pipeline)),
+	);
+	await runCommand(
+		["git", "commit", "-qam", "chore: declare the case's services"],
+		control,
+	);
+}
+
+/**
+ * A `docker` earlier on PATH than the real one, so a run starts its target's
+ * services without starting a container. Every service is ready at once and
+ * publishes the same port, and the shim lists the containers it started and
+ * those it removed beside itself.
+ */
+const STAND_IN_PORT = 54_321;
+const STAND_IN_DATABASE_URL = `postgres://postgres:postgres@127.0.0.1:${STAND_IN_PORT}/template`;
+const STARTED_CONTAINERS = "containers-started.log";
+const REMOVED_CONTAINERS = "containers-removed.log";
+
+async function containerShim(binDirectory: string): Promise<void> {
+	const shim = join(binDirectory, "docker");
+	const started = join(binDirectory, STARTED_CONTAINERS);
+	await Bun.write(
+		shim,
+		[
+			"#!/bin/sh",
+			'case "$1" in',
+			"run)",
+			'\tfor argument in "$@"; do',
+			'\t\tcase "$argument" in rehearse.service=*) service=$(echo "$argument" | cut -d = -f 2) ;; esac',
+			"\tdone",
+			`\tprintf 'container-%s %s\\n' "$service" "$service" >> '${started}'`,
+			"\tprintf 'container-%s\\n' \"$service\" ;;",
+			`port) echo '127.0.0.1:${STAND_IN_PORT}' ;;`,
+			"exec) ;;",
+			`ps) cat '${started}' 2>/dev/null || true ;;`,
+			`rm) printf '%s\\n' "$3" >> '${join(binDirectory, REMOVED_CONTAINERS)}' ;;`,
+			"esac",
+			"",
+		].join("\n"),
+	);
+	await chmod(shim, 0o755);
+}
+
+/** A shell line appending the database address its process was given to a file in `directory`. */
+function recordDatabaseAddress(directory: string, file: string): string {
+	return `printf '%s\\n' "$DATABASE_URL" >> '${join(directory, file)}'`;
+}
+
+async function sawDatabaseAddress(
+	directory: string,
+	file: string,
+): Promise<boolean> {
+	const lines = await linesIn(join(directory, file));
+
+	return lines.includes(STAND_IN_DATABASE_URL);
+}
+
+async function linesIn(file: string): Promise<readonly string[]> {
+	const text = await Bun.file(file).text();
+
+	return text.trimEnd().split("\n");
+}
+
 /**
  * A target whose declared checks all succeed, so the run reaches its stages
  * instead of refusing at the baseline. audit-log's setup and checks name these
  * scripts; what they do is beside the point for a stream contract.
  */
-async function passingTarget(directory: string): Promise<string> {
+async function passingTarget(
+	directory: string,
+	scripts: Readonly<Record<string, string>> = {},
+): Promise<string> {
 	const target = join(directory, "target");
 	await mkdir(target, { recursive: true });
 	await Bun.write(
@@ -350,6 +422,7 @@ async function passingTarget(directory: string): Promise<string> {
 					check: "true",
 					"test:unit": "true",
 					migrate: "true",
+					...scripts,
 				},
 			},
 			null,
@@ -480,6 +553,23 @@ async function pipelineFixture(
 	await storeSpendCeiling(benchmarkRunsDirectory(control), spend.ceilingUsd);
 
 	return { control, binDirectory, target };
+}
+
+function runAuditLog(fixture: PipelineFixture): Promise<CliResult> {
+	return runPipelineCli(
+		[
+			"run",
+			"--case",
+			"audit-log",
+			"--model",
+			"sonnet",
+			"--target",
+			fixture.target,
+			"--json",
+		],
+		fixture.control,
+		fixture.binDirectory,
+	);
 }
 
 describe("rehearse", () => {
@@ -895,23 +985,6 @@ describe("rehearse", () => {
 			return { ...fixture, board };
 		}
 
-		function runAuditLog(fixture: PipelineFixture): Promise<CliResult> {
-			return runPipelineCli(
-				[
-					"run",
-					"--case",
-					"audit-log",
-					"--model",
-					"sonnet",
-					"--target",
-					fixture.target,
-					"--json",
-				],
-				fixture.control,
-				fixture.binDirectory,
-			);
-		}
-
 		it("runs the baseline checks and reaches the stages", async () => {
 			const fixture = await linkedBoardFixture();
 
@@ -953,6 +1026,59 @@ describe("rehearse", () => {
 				checkoutRemains: await pathExists(checkout),
 				retained: retained.trim(),
 			}).toEqual({ checkoutRemains: false, retained: `refs/rehearse/${run}` });
+		});
+	});
+
+	describe("when the case's target starts containers", () => {
+		async function servicesFixture(): Promise<
+			PipelineFixture & { readonly seen: string }
+		> {
+			const directory = await mkdtemp(join(tmpdir(), "rehearse-services-"));
+			temporaryDirectories.push(directory);
+			const seen = join(directory, "seen");
+			await mkdir(seen);
+			const [control, binDirectory, target] = await Promise.all([
+				controlCopy(directory),
+				providerShim(directory, 0, [
+					recordDatabaseAddress(seen, "sessions.log"),
+				]),
+				passingTarget(directory, {
+					migrate: recordDatabaseAddress(seen, "setup.log"),
+					check: recordDatabaseAddress(seen, "checks.log"),
+				}),
+			]);
+			await Promise.all([
+				restoreDeclaredServices(control),
+				containerShim(binDirectory),
+				storeSpendCeiling(
+					benchmarkRunsDirectory(control),
+					FREE_SPEND.ceilingUsd,
+				),
+			]);
+
+			return { control, binDirectory, target, seen };
+		}
+
+		it("gives its setup, checks and stage sessions the address its database container publishes", async () => {
+			const fixture = await servicesFixture();
+
+			await runAuditLog(fixture);
+
+			expect({
+				setup: await sawDatabaseAddress(fixture.seen, "setup.log"),
+				checks: await sawDatabaseAddress(fixture.seen, "checks.log"),
+				sessions: await sawDatabaseAddress(fixture.seen, "sessions.log"),
+			}).toEqual({ setup: true, checks: true, sessions: true });
+		});
+
+		it("removes every container it started once the run ends", async () => {
+			const fixture = await servicesFixture();
+
+			await runAuditLog(fixture);
+
+			expect(
+				await linesIn(join(fixture.binDirectory, REMOVED_CONTAINERS)),
+			).toEqual(["container-postgres", "container-redis"]);
 		});
 	});
 
