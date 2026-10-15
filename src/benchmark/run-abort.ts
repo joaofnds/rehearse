@@ -468,9 +468,9 @@ export function createRunAbort(
 	};
 	/**
 	 * The artifact is finished at AWAITING_HUMAN_REVIEW and no further
-	 * transition is coming, so it stops being pending. Without this the
-	 * restore that follows is a window in which a signal rewrites a fully
-	 * graded artifact FAILED, and `calibrate` reads only AWAITING_HUMAN_REVIEW.
+	 * transition is coming, so it stops being pending. Without this the copy
+	 * into the target and the checkout removal that follow are a window in which
+	 * a signal rewrites a fully graded artifact FAILED, and `calibrate` reads only AWAITING_HUMAN_REVIEW.
 	 */
 	const awaitArtifactReview = (): Promise<void> =>
 		enqueueNormalTransition(() => {
@@ -622,7 +622,7 @@ export function createRunAbort(
 		await attemptRecovery(teardown);
 		dependencies.exit(signalExitCode(signal));
 	};
-	const restoreOnSignal = (signal: NodeJS.Signals): void => {
+	const cleanUpOnSignal = (signal: NodeJS.Signals): void => {
 		dependencies.reportError(
 			`\nReceived ${signal}; removing the run's checkout before exit.`,
 		);
@@ -635,12 +635,12 @@ export function createRunAbort(
 	};
 	const release = (): void => {
 		for (const signal of RUN_SIGNALS) {
-			dependencies.releaseSignal(signal, restoreOnSignal);
+			dependencies.releaseSignal(signal, cleanUpOnSignal);
 		}
 	};
 
 	for (const signal of RUN_SIGNALS) {
-		dependencies.registerSignal(signal, restoreOnSignal);
+		dependencies.registerSignal(signal, cleanUpOnSignal);
 	}
 
 	return {
