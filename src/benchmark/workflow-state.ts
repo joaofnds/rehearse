@@ -1,4 +1,4 @@
-import { cp, lstat, mkdir, rm } from "node:fs/promises";
+import { cp, lstat, mkdir } from "node:fs/promises";
 import { dirname, join, relative, sep } from "node:path";
 import { existingBacklogLayout } from "./backlog-layout";
 import { SymlinkedEntryError } from "./file-presence";
@@ -99,24 +99,4 @@ async function copyWorkflowEntries(
 		await mkdir(dirname(join(to, entry.path)), { recursive: true });
 		await cp(entry.absolutePath, join(to, entry.path), { recursive: true });
 	}
-}
-
-export async function replaceWorkflowState(
-	from: string,
-	to: string,
-	paths: readonly WorkflowPath[],
-	managedPaths: readonly WorkflowPath[] = WORKFLOW_PATHS,
-): Promise<void> {
-	for (const path of managedPaths) {
-		await rm(join(to, path), { force: true, recursive: true });
-	}
-
-	await copyWorkflowEntries(
-		paths.map((path) => ({
-			path,
-			absolutePath: join(from, path),
-			isDirectory: false,
-		})),
-		to,
-	);
 }

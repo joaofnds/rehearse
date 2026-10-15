@@ -1,8 +1,7 @@
 import { describe, expect, it } from "bun:test";
-import { chmod, mkdir, mkdtemp, readdir, rm, stat } from "node:fs/promises";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { seedTaskBoard } from "./backlog";
 import { CommandError, runCommand } from "./command";
 import { StageValidationError } from "./contracts";
 import {
@@ -10,17 +9,15 @@ import {
 	assertBuildCommitted,
 	assertCommitSubjects,
 	assertSourceReady,
+	assertWorkflowBoardPrivate,
 	assertWorkspaceCleanAt,
 	capturePlanningAdvance,
-	captureWorkflowBackup,
 	claimTarget,
 	currentSha,
 	readRunMarker,
 	refExists,
 	pruneWorktrees,
 	removeWorktree,
-	restoreTarget,
-	teardownTarget,
 } from "./target";
 import { TestResources, commitAll } from "./test-support";
 
@@ -368,231 +365,7 @@ describe(assertSourceReady.name, () => {
 		);
 	});
 });
-
-describe(restoreTarget.name, () => {
-	it("restores main after generated commits and files", async () => {
-		const source = await testResources.createRepository();
-		const baseline = await assertSourceReady(source.directory);
-		await Bun.write(
-			join(source.directory, "generated.ts"),
-			"export const value = 1;\n",
-		);
-		await commitAll(source.directory, "feat: generate change");
-		await Bun.write(join(source.directory, "unfinished.ts"), "unfinished\n");
-
-		await restoreTarget(baseline);
-
-		expect(
-			await runCommand(["git", "rev-parse", "HEAD"], source.directory),
-		).toBe(`${source.sha}\n`);
-		expect(
-			await runCommand(["git", "status", "--porcelain"], source.directory),
-		).toBe("");
-		expect(
-			await Bun.file(join(source.directory, "generated.ts")).exists(),
-		).toBe(false);
-		expect(
-			await Bun.file(join(source.directory, "unfinished.ts")).exists(),
-		).toBe(false);
-	});
-
-	it("returns the target to main from a stage branch", async () => {
-		const source = await testResources.createRepository();
-		const baseline = await assertSourceReady(source.directory);
-		await runCommand(["git", "switch", "-c", "agent-work"], source.directory);
-		await Bun.write(join(source.directory, "stray.ts"), "export {};\n");
-		await commitAll(source.directory, "feat: stray branch work");
-
-		await restoreTarget(baseline);
-
-		const restoredBranch = await runCommand(
-			["git", "branch", "--show-current"],
-			source.directory,
-		);
-		expect(restoredBranch.trim()).toBe("main");
-		const restoredSha = await runCommand(
-			["git", "rev-parse", "HEAD"],
-			source.directory,
-		);
-		expect(restoredSha.trim()).toBe(source.sha);
-	});
-
-	it("reproduces the captured workflow state", async () => {
-		const source = await testResources.createRepository();
-		const backlogDirectory = join(source.directory, "backlog");
-		const original = new Uint8Array([0, 255, 10]);
-		await mkdir(join(backlogDirectory, "empty"), { recursive: true });
-		await Bun.write(join(backlogDirectory, "original.bin"), original);
-		const baseline = await assertSourceReady(source.directory);
-		const backup = await captureWorkflowBackup(source.directory);
-		testResources.track(backup.directory);
-		await Bun.write(join(backlogDirectory, "original.bin"), "changed\n");
-		await Bun.write(join(backlogDirectory, "generated.md"), "generated\n");
-		await Bun.write(
-			join(source.directory, ".boris", "CONTEXT.md"),
-			"created\n",
-		);
-
-		await restoreTarget(baseline, backup);
-
-		const restored = await Bun.file(
-			join(backlogDirectory, "original.bin"),
-		).bytes();
-		const emptyDirectory = await stat(join(backlogDirectory, "empty"));
-		expect(restored).toEqual(original);
-		expect(emptyDirectory.isDirectory()).toBe(true);
-		expect(
-			await Bun.file(join(backlogDirectory, "generated.md")).exists(),
-		).toBe(false);
-		expect(stat(join(source.directory, ".boris"))).rejects.toThrow();
-	});
-
-	it("removes a seeded task when restoring an existing .backlog board", async () => {
-		const source = await testResources.createRepository();
-		const configPath = join(source.directory, ".backlog", "config.yml");
-		await runCommand(
-			[
-				"backlog",
-				"init",
-				"Existing",
-				"--defaults",
-				"--integration-mode",
-				"cli",
-				"--agent-instructions",
-				"none",
-				"--backlog-dir",
-				".backlog",
-				"--config-location",
-				"folder",
-				"--no-git",
-			],
-			source.directory,
-		);
-		const original = await Bun.file(configPath).text();
-		await runCommand(
-			["git", "add", "-f", ".backlog/config.yml"],
-			source.directory,
-		);
-		await runCommand(
-			["git", "commit", "-m", "chore: configure backlog"],
-			source.directory,
-		);
-		const baseline = await assertSourceReady(source.directory);
-		const backup = await captureWorkflowBackup(source.directory);
-		testResources.track(backup.directory);
-		await seedTaskBoard(
-			source.directory,
-			"# Review fixture\n\nExercise restoration.\n",
-			["To Do", "In Progress", "Done"],
-		);
-
-		await restoreTarget(baseline, backup);
-
-		expect(await Bun.file(configPath).text()).toBe(original);
-		expect(
-			await Bun.file(
-				join(
-					source.directory,
-					".backlog",
-					"tasks",
-					"work-1 - Review-fixture.md",
-				),
-			).exists(),
-		).toBe(false);
-	});
-
-	it("restores an ignored custom board and root configuration exactly", async () => {
-		const source = await testResources.createRepository();
-		const configPath = join(source.directory, "backlog.config.yml");
-		const boardDirectory = join(source.directory, "workflow-board");
-		const originalConfig = [
-			'project_name: "Existing"',
-			'default_status: "To Do"',
-			'statuses: ["To Do"]',
-			"task_prefix: work",
-			'backlog_directory: "workflow-board"',
-			"",
-		].join("\n");
-		await Bun.write(
-			join(source.directory, ".git", "info", "exclude"),
-			"/backlog.config.yml\n/workflow-board/\n",
-		);
-		await mkdir(boardDirectory);
-		await Bun.write(configPath, originalConfig);
-		await Bun.write(join(boardDirectory, "original.md"), "original\n");
-		const baseline = await assertSourceReady(source.directory);
-		const backup = await captureWorkflowBackup(source.directory);
-		testResources.track(backup.directory);
-		await seedTaskBoard(
-			source.directory,
-			"# Review fixture\n\nExercise restoration.\n",
-			["To Do", "Done"],
-		);
-
-		await restoreTarget(baseline, backup);
-
-		expect(await Bun.file(configPath).text()).toBe(originalConfig);
-		expect(await Bun.file(join(boardDirectory, "original.md")).text()).toBe(
-			"original\n",
-		);
-		expect(
-			await Bun.file(
-				join(boardDirectory, "tasks", "work-1 - Review-fixture.md"),
-			).exists(),
-		).toBe(false);
-	});
-
-	it("does not grant candidate configuration ownership of tracked source", async () => {
-		const source = await testResources.createRepository();
-		await mkdir(join(source.directory, "src"));
-		await Bun.write(join(source.directory, "src", "app.ts"), "source\n");
-		await commitAll(source.directory, "feat: add source");
-		const baseline = await assertSourceReady(source.directory);
-		const backup = await captureWorkflowBackup(source.directory);
-		testResources.track(backup.directory);
-		await Bun.write(
-			join(source.directory, "backlog.config.yml"),
-			'statuses: ["To Do", "Done"]\nbacklog_directory: "src"\n',
-		);
-
-		await restoreTarget(baseline, backup);
-
-		expect(await Bun.file(join(source.directory, "src", "app.ts")).text()).toBe(
-			"source\n",
-		);
-		expect(
-			await runCommand(
-				["git", "status", "--porcelain", "--untracked-files=all"],
-				source.directory,
-			),
-		).toBe("");
-	});
-
-	it("restores a target whose candidate configuration is malformed", async () => {
-		const source = await testResources.createRepository();
-		const baseline = await assertSourceReady(source.directory);
-		const backup = await captureWorkflowBackup(source.directory);
-		testResources.track(backup.directory);
-		await Bun.write(
-			join(source.directory, "backlog.config.yml"),
-			"statuses: [unterminated\n",
-		);
-
-		await restoreTarget(baseline, backup);
-
-		expect(
-			await Bun.file(join(source.directory, "backlog.config.yml")).exists(),
-		).toBe(false);
-		expect(
-			await runCommand(
-				["git", "status", "--porcelain", "--untracked-files=all"],
-				source.directory,
-			),
-		).toBe("");
-	});
-});
-
-describe(captureWorkflowBackup.name, () => {
+describe(assertWorkflowBoardPrivate.name, () => {
 	it("refuses to treat tracked source as workflow state", async () => {
 		const source = await testResources.createRepository();
 		await mkdir(join(source.directory, "src"));
@@ -610,67 +383,9 @@ describe(captureWorkflowBackup.name, () => {
 			source.directory,
 		);
 
-		expect(captureWorkflowBackup(source.directory)).rejects.toThrow(
+		expect(assertWorkflowBoardPrivate(source.directory)).rejects.toThrow(
 			"must not contain tracked files: src/app.ts",
 		);
-	});
-
-	it("rejects a workflow path discovery failure, leaving no backup directory", async () => {
-		const source = await testResources.createRepository();
-		await mkdir(join(source.directory, "backlog"));
-		await chmod(source.directory, 0o000);
-		const entriesBefore = await readdir(tmpdir());
-		const backupsBefore = new Set(
-			entriesBefore.filter((entry) =>
-				entry.startsWith("rehearse-workflow-backup-"),
-			),
-		);
-
-		try {
-			expect(captureWorkflowBackup(source.directory)).rejects.toThrow(
-				/permission denied|EACCES/iu,
-			);
-		} finally {
-			await chmod(source.directory, 0o755);
-		}
-
-		const entriesAfter = await readdir(tmpdir());
-		const newBackups = entriesAfter
-			.filter((entry) => entry.startsWith("rehearse-workflow-backup-"))
-			.filter((entry) => !backupsBefore.has(entry));
-		expect(newBackups).toEqual([]);
-	});
-
-	it("rejects a captured workflow tree missing from the backup", async () => {
-		const source = await testResources.createRepository();
-		await Bun.write(
-			join(source.directory, "backlog", "original.md"),
-			"original\n",
-		);
-		const baseline = await assertSourceReady(source.directory);
-		const backup = await captureWorkflowBackup(source.directory);
-		testResources.track(backup.directory);
-		await rm(join(backup.directory, "backlog"), {
-			force: true,
-			recursive: true,
-		});
-
-		expect(restoreTarget(baseline, backup)).rejects.toThrow();
-	});
-
-	it("ignores a workflow tree planted in the backup after capture", async () => {
-		const source = await testResources.createRepository();
-		const baseline = await assertSourceReady(source.directory);
-		const backup = await captureWorkflowBackup(source.directory);
-		testResources.track(backup.directory);
-		await Bun.write(
-			join(backup.directory, ".boris", "planted.md"),
-			"planted\n",
-		);
-
-		await restoreTarget(baseline, backup);
-
-		expect(stat(join(source.directory, ".boris"))).rejects.toThrow();
 	});
 });
 
@@ -685,16 +400,6 @@ describe(claimTarget.name, () => {
 		expect(claimTarget(baseline, CLAIMING_RUN)).rejects.toThrow(
 			"previous benchmark run left this target unrestored",
 		);
-	});
-
-	it("releases the claim after a verified restore", async () => {
-		const source = await testResources.createRepository();
-		const baseline = await assertSourceReady(source.directory);
-		await claimTarget(baseline, CLAIMING_RUN);
-
-		await restoreTarget(baseline);
-
-		expect(claimTarget(baseline, CLAIMING_RUN)).resolves.toBeUndefined();
 	});
 
 	it("claims a linked-worktree target whose .git is a file", async () => {
@@ -714,8 +419,6 @@ describe(claimTarget.name, () => {
 		expect(claimTarget(baseline, CLAIMING_RUN)).rejects.toThrow(
 			"previous benchmark run left this target unrestored",
 		);
-		await restoreTarget(baseline);
-		expect(claimTarget(baseline, CLAIMING_RUN)).resolves.toBeUndefined();
 	});
 });
 
@@ -766,75 +469,5 @@ describe(readRunMarker.name, () => {
 		const baseline = await assertSourceReady(source.directory);
 
 		expect(await readRunMarker(baseline.root)).toBeUndefined();
-	});
-
-	it("reports no marker once a claim is restored", async () => {
-		const source = await testResources.createRepository();
-		const baseline = await assertSourceReady(source.directory);
-		await claimTarget(baseline, CLAIMING_RUN);
-		await restoreTarget(baseline);
-
-		expect(await readRunMarker(baseline.root)).toBeUndefined();
-	});
-});
-
-describe(teardownTarget.name, () => {
-	it("discards the workflow backup after a verified restore", async () => {
-		const source = await testResources.createRepository();
-		const baseline = await assertSourceReady(source.directory);
-		const backup = await captureWorkflowBackup(source.directory);
-		testResources.track(backup.directory);
-		await Bun.write(join(source.directory, "candidate.ts"), "export {};\n");
-		await commitAll(source.directory, "feat: candidate");
-
-		await teardownTarget(baseline, backup, () => undefined);
-
-		const finalSha = await runCommand(
-			["git", "rev-parse", "HEAD"],
-			source.directory,
-		);
-		expect(finalSha.trim()).toBe(source.sha);
-		expect(stat(backup.directory)).rejects.toThrow();
-	});
-
-	it("announces the restored commit through the caller's writer", async () => {
-		const source = await testResources.createRepository();
-		const baseline = await assertSourceReady(source.directory);
-		const backup = await captureWorkflowBackup(source.directory);
-		testResources.track(backup.directory);
-		const written: string[] = [];
-
-		await teardownTarget(baseline, backup, (message) => {
-			written.push(message);
-		});
-
-		expect(written).toEqual([`Target restored to ${source.sha}.`]);
-	});
-
-	it("keeps the workflow backup when the restore fails", async () => {
-		const source = await testResources.createRepository();
-		const backup = await captureWorkflowBackup(source.directory);
-		testResources.track(backup.directory);
-		const broken = {
-			root: source.directory,
-			sha: "0000000000000000000000000000000000000000",
-		};
-
-		const written: string[] = [];
-		let failure: unknown;
-
-		try {
-			await teardownTarget(broken, backup, (message) => {
-				written.push(message);
-			});
-		} catch (error) {
-			failure = error;
-		}
-
-		expect(failure).toBeInstanceOf(Error);
-		expect(await stat(backup.directory)).toBeDefined();
-		expect(written).toEqual([
-			`Restore failed; the workflow backup remains at ${backup.directory}`,
-		]);
 	});
 });

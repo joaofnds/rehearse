@@ -1,5 +1,4 @@
-import { mkdtemp, realpath, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { realpath } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { z } from "zod";
 import { existingBacklogLayout } from "./backlog-layout";
@@ -8,23 +7,12 @@ import { CommandError, runCommand } from "./command";
 import { CONTROL_DIR } from "./config";
 import { StageValidationError } from "./contracts";
 import { RefusedPreconditionError } from "./exit-codes";
-import type { WorkflowPath } from "./workflow-state";
-import {
-	copyWorkflowState,
-	managedWorkflowPaths,
-	replaceWorkflowState,
-} from "./workflow-state";
+import { managedWorkflowPaths } from "./workflow-state";
 
 export interface SourceBaseline {
 	readonly root: string;
 	readonly sha: string;
 	readonly origin?: string | undefined;
-}
-
-export interface WorkflowBackup {
-	readonly directory: string;
-	readonly managedPaths: readonly WorkflowPath[];
-	readonly presentPaths: readonly WorkflowPath[];
 }
 
 export async function git(
@@ -110,27 +98,6 @@ export async function assertControlReady(): Promise<string> {
 	}
 
 	return git(CONTROL_DIR, "rev-parse", "HEAD");
-}
-
-export async function captureWorkflowBackup(
-	targetDir: string,
-): Promise<WorkflowBackup> {
-	await assertWorkflowBoardPrivate(targetDir);
-
-	const directory = await mkdtemp(join(tmpdir(), "rehearse-workflow-backup-"));
-	try {
-		const managedPaths = await managedWorkflowPaths(targetDir);
-		const presentPaths = await copyWorkflowState(
-			targetDir,
-			directory,
-			managedPaths,
-		);
-
-		return { directory, managedPaths, presentPaths };
-	} catch (error) {
-		await rm(directory, { force: true, recursive: true });
-		throw error;
-	}
 }
 
 export async function assertWorkflowBoardPrivate(
@@ -220,53 +187,10 @@ export async function claimTarget(
 	);
 }
 
-export async function restoreTarget(
-	source: SourceBaseline,
-	backup?: WorkflowBackup,
-): Promise<void> {
-	await git(source.root, "switch", "--force", "main");
-	await git(source.root, "reset", "--hard", source.sha);
-	await git(source.root, "clean", "-fd");
-
-	if (backup) {
-		await replaceWorkflowState(
-			backup.directory,
-			source.root,
-			backup.presentPaths,
-			backup.managedPaths,
-		);
-	}
-
-	const restored = await assertSourceReady(source.root);
-	if (restored.sha !== source.sha) {
-		throw new Error(
-			"Target repository was not restored to its original commit",
-		);
-	}
-
-	await rm(await runMarkerPath(source.root), { force: true });
-}
-
-export async function teardownTarget(
-	source: SourceBaseline,
-	backup: WorkflowBackup,
-	log: (message: string) => void,
-): Promise<void> {
-	try {
-		await restoreTarget(source, backup);
-	} catch (error) {
-		log(`Restore failed; the workflow backup remains at ${backup.directory}`);
-		throw error;
-	}
-
-	await rm(backup.directory, { force: true, recursive: true });
-	log(`Target restored to ${source.sha}.`);
-}
-
 /**
- * Checkpointed commits must outlive the run: restoring main makes the task
- * and result commits unreachable, and only this ref then keeps gc from
- * pruning the history a later replay materializes. The ref is harness state
+ * Checkpointed commits must outlive the run: no branch reaches the task and
+ * result commits, so only this ref keeps gc from pruning the history a later
+ * replay materializes. The ref is harness state
  * in the target's git directory, never part of the corpus.
  */
 export async function recordRetentionRef(
