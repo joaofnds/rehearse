@@ -7,6 +7,7 @@ import { CommandError, runCommand } from "./command";
 import { CONTROL_DIR } from "./config";
 import { StageValidationError } from "./contracts";
 import { RefusedPreconditionError } from "./exit-codes";
+import { MissingDirectoryError } from "./missing-directory-error";
 import { managedWorkflowPaths } from "./workflow-state";
 
 export interface SourceBaseline {
@@ -147,14 +148,25 @@ const runMarkerSchema = z.object({
 export type RunMarker = z.infer<typeof runMarkerSchema>;
 
 /**
- * Undefined for a target nothing has claimed, or one already restored: both
- * read as "nothing to reconcile" to a caller reconciling crashed runs, not
- * as an error.
+ * Undefined for a checkout nothing has claimed, or one that is gone, which
+ * only a run's end or an operator removes: both read as "nothing to reconcile"
+ * to a caller reconciling crashed runs, not as an error.
  */
 export async function readRunMarker(
 	root: string,
 ): Promise<RunMarker | undefined> {
-	const marker = Bun.file(await runMarkerPath(root));
+	let path;
+	try {
+		path = await runMarkerPath(root);
+	} catch (error) {
+		if (error instanceof MissingDirectoryError) {
+			return undefined;
+		}
+
+		throw error;
+	}
+
+	const marker = Bun.file(path);
 	if (!(await marker.exists())) {
 		return undefined;
 	}

@@ -23,8 +23,8 @@ export interface ReconciliationDependencies {
  * reconciled (or one that finished normally without a stale event), the
  * second is a run that finished normally before this pass ran. A missing
  * manifest or claim marker is "nothing to reconcile", not an error: the
- * crash may have preceded the manifest write, or the target may already
- * have been restored by a graceful shutdown this pass raced with.
+ * crash may have preceded the manifest write, or the run's end may already
+ * have removed its checkout, as a pause does without a terminal event.
  */
 export async function reconcileInterruptedRuns(
 	store: RunEventStore,

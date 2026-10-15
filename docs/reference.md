@@ -1832,8 +1832,10 @@ stream. A pause or operator stop therefore reads as one while the run's
 process cleans up and after a later failed or interrupted event. A
 stream that ends interrupted, or a non-terminal one whose run no longer holds
 its checkout's claim, reads interrupted before reconciliation marks it as well as
-after. A non-terminal stream whose checkout cannot be asked, such as one already
-removed, reads `PENDING`. A
+after. A checkout that is gone holds no claim, since only the run's end or the
+recovery after a hard kill removes it. A non-terminal stream whose checkout
+cannot be asked, because its manifest is gone or reading its claim fails, reads
+`PENDING`. A
 stream that ends `run-completed` with no artifact says the run ended without
 recording how. A run with no events reads the stage it left awaiting judgment,
 and a run that recorded none of those says so. A record decides which ending

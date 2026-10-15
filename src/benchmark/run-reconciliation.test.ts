@@ -191,7 +191,7 @@ describe(reconcileInterruptedRuns.name, () => {
 		store.close();
 	});
 
-	it("treats a missing claim marker as nothing to reconcile, since the target may already have been restored", async () => {
+	it("treats a missing claim marker as nothing to reconcile, since the run's end may already have removed its checkout", async () => {
 		const store = await openRunEventStore(":memory:");
 		store.append({
 			runId: "run-1",
@@ -346,6 +346,37 @@ describe(liveReconciliationDependencies.name, () => {
 
 		expect(reconciled).toEqual([]);
 		expect(store.latestEvent("run-1")?.kind).toBe("stage-started");
+		store.close();
+	});
+
+	it("treats a run whose checkout is gone as nothing to reconcile, as a paused run's is", async () => {
+		const runsDirectory = await mkdtemp(
+			join(tmpdir(), "rehearse-reconciliation-"),
+		);
+		testResources.track(runsDirectory);
+		const paths = benchmarkRunPaths(runsDirectory, "run-1");
+		await writeRunManifest(
+			paths.manifestFile,
+			manifestFixture(join(runsDirectory, "removed-checkout")),
+		);
+		const store = await openRunEventStore(":memory:");
+		store.append({
+			runId: "run-1",
+			kind: "stage-started",
+			stage: "shape",
+			spentUsd: 0,
+			elapsedMs: 0,
+		});
+		const reports: string[] = [];
+
+		const reconciled = await reconcileInterruptedRuns(store, {
+			...liveReconciliationDependencies(runsDirectory),
+			reportError: (message) => {
+				reports.push(message);
+			},
+		});
+
+		expect({ reconciled, reports }).toEqual({ reconciled: [], reports: [] });
 		store.close();
 	});
 

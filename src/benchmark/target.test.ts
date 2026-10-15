@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CommandError, runCommand } from "./command";
 import { StageValidationError } from "./contracts";
+import { failureOf } from "#cli/cli-test-support";
 import {
 	addWorktree,
 	assertBuildCommitted,
@@ -469,5 +470,23 @@ describe(readRunMarker.name, () => {
 		const baseline = await assertSourceReady(source.directory);
 
 		expect(await readRunMarker(baseline.root)).toBeUndefined();
+	});
+
+	it("reports no marker for a checkout that is gone, since only the run's end removes it", async () => {
+		const parent = await mkdtemp(join(tmpdir(), "rehearse-checkout-"));
+		testResources.track(parent);
+
+		expect(await readRunMarker(join(parent, "removed"))).toBeUndefined();
+	});
+
+	describe("when the directory is no checkout", () => {
+		it("raises it rather than reporting no marker", async () => {
+			const plain = await mkdtemp(join(tmpdir(), "rehearse-plain-"));
+			testResources.track(plain);
+
+			const failure = await failureOf(readRunMarker(plain));
+
+			expect(failure).toBeInstanceOf(CommandError);
+		});
 	});
 });

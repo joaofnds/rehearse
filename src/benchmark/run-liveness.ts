@@ -73,8 +73,8 @@ export function liveRunLiveness(): RunLiveness {
  * the target gave: no marker, another run's claim, or this run's claim with a
  * dead pid. `unknown` is a target that could not be asked, because the run has
  * no manifest naming it or reading the marker threw. Reading the marker shells
- * out to git in the target, so a target that was deleted or is no longer a
- * checkout throws rather than returning nothing.
+ * out to git in the target, so a target that is no longer a checkout throws
+ * rather than returning nothing, while one that is gone holds no claim.
  */
 export type RunClaim = "live" | "gone" | "unknown";
 
