@@ -508,7 +508,7 @@ The final rubric must retain `check-integrity` and `local-checks`, which the
 harness resolves from measured results.
 
 A pipeline defines board statuses, an ordered stage list, target setup commands,
-target checks, check-integrity files, and a commit-subject pattern. Commands are
+target checks, the [target's services](#target-services), check-integrity files, and a commit-subject pattern. Commands are
 argument vectors with optional environment overlays. Stages name a skill,
 planning/delivery kind, and stage rubric. A planning stage may require acceptance
 criteria and may declare an attached durable document; a card-only planning
@@ -526,7 +526,9 @@ environment variable names. An export may not be `HOME` or start with
 `ANTHROPIC_` or `CLAUDE_`, since exports reach the stage session and the
 provider reads those. A pipeline run starts each service with Docker,
 publishing its port on a loopback port Docker assigns, and runs its readiness
-command every half second for up to a minute. It passes the exports, with the assigned port in place of `{port}`, to
+command up to 120 times, half a second apart, so a service gets at least a
+minute plus the time its checks take. Docker first pulls an image the machine
+lacks, which needs the network. It passes the exports, with the assigned port in place of `{port}`, to
 setup commands, baseline and treatment checks, and stage sessions. A check's own
 `env` wins over an export of the same variable. A service that cannot start or
 never reads ready refuses the run before its first stage. The run removes its
@@ -1013,8 +1015,8 @@ A debug pipeline requires a clean control repository and a separate target
 repository root with a `main` branch. It reads only `main`'s last commit, so the
 target may have another branch checked out and hold uncommitted or untracked
 changes. The harness clones the target's `main` into a temporary directory, the
-run's checkout, and works only there, so the target's own checkout, its untracked files, and a board
-linked into it are neither read nor written. The run prints the checkout's path.
+run's checkout, and works only there, so the harness neither reads nor writes the target's own
+checkout, its untracked files, or a board linked into it. The run prints the checkout's path.
 The harness claims the checkout, starts the
 [services the target declares](#target-services), runs the target's setup
 commands and baseline checks, verifies the unchanged clean baseline, and
@@ -1231,9 +1233,10 @@ session counts as a stage that never ran.
 
 A run has ended when its final record, a stage stop or an operator stop exists,
 or when its process died with no outcome, in which case it is analyzed as it
-stands. A run with no manifest, a paused run, and a run whose target's marker
+stands. A run with no manifest, a paused run, and a run whose checkout's marker
 is the run's own and names a live process are refused with exit code 3 before
-any call. A dead run whose target a later run now holds is analyzed. The marker
+any call. A dead run recorded before run checkouts, whose target a later run now
+holds, is analyzed. The marker
 records a pid, so a dead run whose pid a later process has taken is refused as
 in flight until that process ends. A run that has recorded no event is refused
 while a live claim from an older control checkout, which names no run, holds
@@ -1289,10 +1292,12 @@ malformed run name and 404 for a run with no manifest.
 
 ## Run checkout and cleanup
 
-A pipeline run never writes the target's own checkout. It works in a clone of
+The harness never writes the target's own checkout during a pipeline run. Its
+sessions run on the host with permissions bypassed, so nothing but their
+instructions keeps them in the clone. The run works in a clone of
 the target's `main` under the system temporary directory, named
-`rehearse-target-*`, and its manifest records the clone as `sourceRoot` and the
-target as `targetRoot`. The clone copies the target's objects rather than
+`rehearse-target-*`, and its manifest and artifact record the clone as
+`sourceRoot` and the target as `targetRoot`. The clone copies the target's objects rather than
 linking to them, and its `origin` is the target's own `origin`, or absent when
 the target has none, so a session's push never lands in the target. Each time the run pins `refs/rehearse/<run>`, at every
 checkpoint and at its final candidate, it fetches the ref from the clone into
@@ -1301,7 +1306,10 @@ is an ancestor of the last. A checkpoint the target cannot take fails the run
 there. When the run ends, it fetches the ref once more, then removes the clone
 and the run's service containers. A clone whose commits the target could not
 take stays, and the run names its path, since it holds their only copy.
-Dependencies the setup installed live in the clone and go with it.
+Dependencies the setup installed live in the clone and go with it. Each run
+claims only its own clone, so a second run on the same target is not refused
+while the first is in flight, and the two share neither checkout nor
+containers.
 
 A replay reads the commit it starts from out of the first repository that
 holds it: the target the run copied its commits into, then the run's clone,
@@ -1333,7 +1341,9 @@ and meta files are copied into `subagents/` beside it by the same rules as a
 session attempt's. A checkpoint keeps no list of unavailable sub-agents, so a
 checkpoint without `subagents/` does not show that no sub-agent ran. The stage
 ran in the run's checkout, so the provider's files in that checkout's projects
-slug are left in place. Checkpoints written before this carry no
+slug are left in place. Each checkout has a path of its own, so each run leaves
+its own directory in the provider's projects folder, and the project memory the
+provider keeps by path starts empty for every run. Checkpoints written before this carry no
 transcript field and remain readable. A stage that stopped the run, by its
 grade or by its judging failing, saves no checkpoint, so its transcript and
 sub-agent files are copied by the same rules into `<run>.<stage>.session/` in
@@ -2266,11 +2276,12 @@ links every other stage whose page renders. A run with no artifact shows
 status from its event stream and shows as `INTERRUPTED` or `FAILED`. A run that
 recorded no events but left a stage awaiting its judge shows as `INTERRUPTED`,
 read from that stage's record. A run whose
-stream ended non-terminal shows as `INTERRUPTED` once its own claim on its target
+stream ended non-terminal shows as `INTERRUPTED` once its own claim in its checkout
 is no longer held by a live process. A server start records that in its event
-stream when the claim it reads on the target names a dead pid, so a run whose
-claim was deleted, or whose target a later live run holds, still shows as
-`INTERRUPTED` without a start recording it. A run whose target cannot
+stream when the claim it reads in the checkout names a dead pid, so a run whose
+claim was deleted with its checkout, or a run recorded before run checkouts
+whose target a later live run holds, still shows as
+`INTERRUPTED` without a start recording it. A run whose checkout cannot
 be asked, because its manifest is gone or reading the claim fails, is not
 listed. A run that recorded `run-completed` without writing its artifact is
 listed among the records that could not be read. When a failed run's last

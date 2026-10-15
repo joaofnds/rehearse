@@ -450,11 +450,11 @@ See [current state](docs/status.md) for implementation coverage and
   gives such a run a status of its own,
   though the stage it died in may be left as a **stage awaiting judgment**.
   The server's startup reconciliation pass finds the run by checking whether
-  the pid the run's claimed target recorded is still alive, and if not, marks
+  the pid the claim in the run's checkout records is still alive, and if not, marks
   the run's event stream `run-interrupted`, distinct from `FAILED`, which a
   graceful signal handler still writes on its own. Before a start records it,
-  and when no start can, the run-history report shows the run as `INTERRUPTED` once its own claim on its
-  target is no longer held by a live process, without recording it.
+  and when no start can, the run-history report shows the run as `INTERRUPTED` once its own claim in its
+  checkout is no longer held by a live process, without recording it.
 - **Judge** — evaluator attached to a stage transition: deterministic check or
   rubric-scored LLM with rationale.
 - **Judge agreement baseline** — accumulated binary Judge and human decisions
@@ -648,6 +648,12 @@ See [current state](docs/status.md) for implementation coverage and
 - **Run artifact transition** — one persistence operation that advances a run's
   main or stage record. Transitions are serialized; abort recording is terminal
   and cannot be overwritten by a later normal transition.
+- **Run checkout** — the temporary clone of the target's `main` a pipeline run
+  works in, so the harness never reads or writes the operator's own checkout
+  of the target. Its sessions run on the host with permissions bypassed, so
+  nothing but their instructions keeps them in the clone. The run copies each
+  commit it retains into the target as it pins it, so removing the checkout
+  loses none of them.
 - **Run event** — a timestamped progress fact appended to
   `.benchmark-runs/run-events.sqlite`, keyed by run ID and streamed through the
   server's SSE endpoint. It is best-effort derived progress state. JSON
@@ -655,11 +661,12 @@ See [current state](docs/status.md) for implementation coverage and
   event-history rebuild command.
 - **Run in flight** — a run that is executing right now: its event stream's
   latest entry is non-terminal, no artifact or stop record has been written for
-  it, and its own claim on its target is held by a live process. The run-history
+  it, and its own claim in its checkout is held by a live process. The run-history
   report gives such a run the status `RUNNING`. The liveness check is what
   separates it from an interrupted run, whose stream also ends non-terminal. A
-  claim names the run that made it, so a later run holding the same target does
-  not make a crashed run read as in flight. [Design](docs/design.md) gives the
+  claim names the run that made it, so a later run holding the same target,
+  which only runs recorded before run checkouts could do, does not make a
+  crashed run read as in flight. [Design](docs/design.md) gives the
   rule for an older checkout's claim, which names no run, and the cases that
   still read wrongly.
 - **Run spend** — what a whole run has paid, across worker sessions, Judges, and
@@ -896,18 +903,14 @@ See [current state](docs/status.md) for implementation coverage and
   ran before the attempt began, so it counts toward neither the attempt's
   coverage nor its spend. The word "fork" is kept for copying a transcript
   prefix.
-- **Run checkout** — the temporary clone of the target's `main` a pipeline run
-  works in, so the operator's own checkout of the target is never read or
-  written. The run copies each commit it retains into the target as it pins
-  it, so removing the checkout loses none of them.
 - **Target repository (template project)** — the real application repository,
   kept at a stable baseline, that tasks run against.
 - **Target service** — a container the pipeline declares for the target, such
   as a database, which a run starts on a loopback port, hands to its setup,
   checks, and sessions through the variables it exports, and removes when it
   ends.
-- **Target check** — one command declared by the pipeline and run against the
-  target repository both at baseline and after delivery.
+- **Target check** — one command declared by the pipeline and run in the
+  run's checkout of the target both at baseline and after delivery.
 - **Task graph** — the UI's horizontal chain of stage-node cards (grade,
   status, live tool call, checkpoint, output summary, in/out counts of
   instruction files loaded and artifacts produced) shown on the live monitor

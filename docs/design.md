@@ -27,7 +27,7 @@ versions and scripts belong to [package.json](../package.json).
 ```text
 CLI → case + flags + preconditions
         ├─ session → temporary directory → deterministic checks → attempt
-        ├─ pipeline → target main → stages + Judges → run + checkpoints
+        ├─ pipeline → clone of target main → stages + Judges → run + checkpoints
         └─ replay → checkpoint worktree → one stage + Judge → attempt
 
 --confirm → freeze shared inputs → isolated repetitions → group + report
@@ -151,8 +151,8 @@ outcome on its own, in that order, and the stream is consulted for the runs
 those files do not cover. The run record's final outcome takes its ending from
 the same decision, in `src/benchmark/run-ending.ts`, so the two cannot name
 different endings. A non-terminal stream is not
-enough by itself, so the report also checks that the run's own claim on its
-target is held by a live process. A claim names the run that made it. A claim
+enough by itself, so the report also checks that the run's own claim in its
+checkout is held by a live process. A claim names the run that made it. A claim
 written by an older control checkout names no run, and counts as the run's own
 when it was made no later than the run's first event, or when the run has
 recorded no event yet, because such a checkout claimed its target before it
@@ -162,8 +162,8 @@ an unnamed claim. The claim also records a pid, so a crashed run whose pid a
 later process has taken still reads as in flight. Startup reconciliation reads
 the pid alone, so a crashed run whose claim was deleted before a server start
 read it is never reconciled. A run that dies while the server keeps running leaves its
-stream non-terminal, and a later start records it only when the claim the target
-then holds names a dead pid. Until then, and for good when no start can, the
+stream non-terminal, and a later start records it only when the run's checkout
+still holds its claim and that claim names a dead pid. Until then, and for good when no start can, the
 report reads a non-terminal stream whose run's own claim is not held by a live
 process as `INTERRUPTED` and writes nothing. A run's end records its terminal
 event, artifact or stop record before teardown deletes the claim, so a read
@@ -174,7 +174,7 @@ it executes, a run whose best-effort `run-failed` failed to record reads
 record reads `INTERRUPTED` while a stage awaits its judge. The last
 holds because a run with no events is not asked about its claim, so that a run
 recorded before the event store, which died while a stage was judged, reads as
-the interrupted run it is. A target that cannot be asked, because the
+the interrupted run it is. A checkout that cannot be asked, because the
 manifest is gone or the claim read throws, is no evidence the process ended, so
 that run stays out of the list and the browser offers no analysis of it. The
 in-flight refusal that `diagnose` and the analysis route apply does not cover

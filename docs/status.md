@@ -328,12 +328,12 @@ says so rather than showing the empty install's state. Records that cannot be re
 notice above the table, with their ids and reasons behind a toggle. A replay
 keeps no raw transcript, so its page shows an evidence-unavailable summary with
 no events, per-event detail, request series or corpus reconciliation. A run
-with unfinished events whose own claim on its target is no longer held by a live
+with unfinished events whose own claim in its checkout is no longer held by a live
 process is listed as `INTERRUPTED` without waiting for a server start. A run
 that recorded no events but left a stage awaiting its judge is listed as
 `INTERRUPTED` too, which no server start records, and so is a live run whose
 every event failed to record while a stage awaits its judge. A run
-whose target cannot be asked, because its manifest is gone or reading the claim
+whose checkout cannot be asked, because its manifest is gone or reading the claim
 fails, stays out of the list. A run that recorded `run-completed` without
 writing its artifact is counted in the unreadable notice.
 
@@ -388,14 +388,13 @@ scoped spend, and the run API also reports how many of a judging stage's
 rubric items are back per section, which the monitor's judge pane shows. While a
 pipeline run is in flight, a bar along the bottom of every screen shows its
 short id, case, step and stage state, run spend against the ceiling the run
-started under, a clock ticking each second, and its grades so far, with Stop. A run the browser launched stops through its launch, and one started from a terminal through the pid its target claim records. With
+started under, a clock ticking each second, and its grades so far, with Stop. A run the browser launched stops through its launch, and one started from a terminal through the pid its checkout's claim records. With
 several runs in flight each gets its own bar, newest first. A screen reader
 hears a stage accepted, a run stopped, and run spend first reaching 80% of its
 ceiling, a share no source sets yet. The run list and the bar read the event
 store through a polled route rather than through the SSE API. A crashed run
-whose target a later run has claimed is listed as `INTERRUPTED`, read from the
-later run's claim naming another run, and never recorded unless a server start read its claim before it
-was deleted, or a later run also crashes and leaves its claim behind.
+whose checkout was deleted is listed as `INTERRUPTED`, and never recorded unless a
+server start read its claim before the deletion.
 A crashed run whose pid a later process has taken can still read as in flight,
 in its bar, the monitor and the run list, and `diagnose` refuses it as in
 flight. A run in flight whose claim marker an operator deleted reads

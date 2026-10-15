@@ -287,7 +287,8 @@ own compatible checkout with `--target`.
 The [pipeline definition](../cases/audit-log/pipelines/default.json) declares
 the target's PostgreSQL and Redis services, which the run starts in Docker, and
 setup commands that install dependencies and migrate the database, so the run
-needs Docker running and nothing started by hand. Inspect it for its commands
+needs Docker running, the network for the first pull of each image, and
+nothing started by hand. Inspect it for its commands
 and protected files. Its setup and checks expect `CONFIG_PATH=src/config/test.yaml`
 and the scripts `migrate`, `typecheck`, `check`, and `test:unit`. An arbitrary repository
 will need its own case, rubrics, and pipeline.
@@ -329,8 +330,8 @@ paid model probe. The harness then runs baseline target checks before launching
 workflow stages. A baseline failure therefore avoids workflow spend, but may
 follow the model probe.
 
-A plain pipeline run works in a temporary clone of the target's `main` and
-never writes the target's own checkout or its linked board. When it ends, it
+A plain pipeline run works in a temporary clone of the target's `main`, and
+the harness never writes the target's own checkout or its linked board. When it ends, it
 copies its commits into the target and removes the clone and its containers.
 It uses agents with permission bypass on the host, which is not a sandbox. See
 [run checkout and cleanup](reference.md#run-checkout-and-cleanup) for what a
