@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import { chmod, mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
-import { join, relative } from "node:path";
+import { dirname, join, relative } from "node:path";
 import { caseDeclarationPath, casesRoot } from "#benchmark/case";
 import { CONTROL_DIR, DEFAULT_CASE_ID } from "#benchmark/config";
 import {
@@ -25,7 +25,8 @@ import { CorpusSourceError } from "#benchmark/corpus-source";
 import type { ReadManifestEntry } from "#benchmark/read-manifest";
 import { runCommand } from "#benchmark/command";
 import { recordRetentionRef } from "#benchmark/target";
-import { TestResources } from "#benchmark/test-support";
+import { cloneTarget } from "#benchmark/target-clone";
+import { TestResources, commitAll } from "#benchmark/test-support";
 import { RUN_NAME } from "#cli/calibrate-test-support";
 
 describe("naming a record a session pastes onto a card", () => {
@@ -888,6 +889,33 @@ describe("show --checkout", () => {
 		};
 	}
 
+	/** The run worked in its own checkout and copied its commits into the target. */
+	async function recordRepositories(
+		fixture: CheckoutFixture,
+		repositories: { readonly sourceRoot: string; readonly targetRoot: string },
+	): Promise<void> {
+		await Bun.write(
+			benchmarkRunPaths(fixture.runsDirectory, RUN_NAME).artifactFile,
+			JSON.stringify({
+				status: "AWAITING_HUMAN_REVIEW",
+				...repositories,
+				resultSha: fixture.resultSha,
+			}),
+		);
+	}
+
+	function checkOut(fixture: CheckoutFixture): Promise<void> {
+		return runShow(
+			{
+				id: `run:${RUN_NAME}`,
+				json: false,
+				runsDirectory: fixture.runsDirectory,
+				checkout: fixture.checkoutPath,
+			},
+			recordOutput().output,
+		);
+	}
+
 	it("adds a detached worktree of the retained candidate and prints its path", async () => {
 		const fixture = await retainedRun();
 		const { output, stdout, stderr } = recordOutput();
@@ -1031,32 +1059,68 @@ describe("show --checkout", () => {
 	describe("when the run's checkout is gone", () => {
 		it("adds the worktree from the target the run's commits were copied into", async () => {
 			const fixture = await retainedRun();
-			await Bun.write(
-				benchmarkRunPaths(fixture.runsDirectory, RUN_NAME).artifactFile,
-				JSON.stringify({
-					status: "AWAITING_HUMAN_REVIEW",
-					sourceRoot: join(fixture.runsDirectory, "removed-checkout"),
-					targetRoot: fixture.targetDirectory,
-					resultSha: fixture.resultSha,
-				}),
-			);
-			const { output } = recordOutput();
+			await recordRepositories(fixture, {
+				sourceRoot: join(fixture.runsDirectory, "removed-checkout"),
+				targetRoot: fixture.targetDirectory,
+			});
 
-			await runShow(
-				{
-					id: `run:${RUN_NAME}`,
-					json: false,
-					runsDirectory: fixture.runsDirectory,
-					checkout: fixture.checkoutPath,
-				},
-				output,
-			);
+			await checkOut(fixture);
 
 			const head = await runCommand(
 				["git", "rev-parse", "HEAD"],
 				fixture.checkoutPath,
 			);
 			expect(head.trim()).toBe(fixture.resultSha);
+		});
+	});
+
+	describe("when the run's checkout remains", () => {
+		it("checks out the candidate the checkout pinned, though the target holds an older one", async () => {
+			const fixture = await retainedRun();
+			const checkout = await resources.createRepository();
+			await Bun.write(
+				join(checkout.directory, "later.txt"),
+				crypto.randomUUID(),
+			);
+			await commitAll(checkout.directory, "chore: later");
+			const pinned = await runCommand(
+				["git", "rev-parse", "HEAD"],
+				checkout.directory,
+			);
+			const later = pinned.trim();
+			await recordRetentionRef(checkout.directory, RUN_NAME, later);
+			resources.trackWorktree(checkout.directory, fixture.checkoutPath);
+			await recordRepositories(fixture, {
+				sourceRoot: checkout.directory,
+				targetRoot: fixture.targetDirectory,
+			});
+
+			await checkOut(fixture);
+
+			const head = await runCommand(
+				["git", "rev-parse", "HEAD"],
+				fixture.checkoutPath,
+			);
+			expect(head.trim()).toBe(later);
+		});
+
+		it("adds the worktree in the target, which outlives the checkout, when both hold the candidate", async () => {
+			const fixture = await retainedRun();
+			const checkout = await cloneTarget(fixture.targetDirectory);
+			resources.track(dirname(checkout));
+			await recordRetentionRef(checkout, RUN_NAME, fixture.resultSha);
+			await recordRepositories(fixture, {
+				sourceRoot: checkout,
+				targetRoot: fixture.targetDirectory,
+			});
+
+			await checkOut(fixture);
+
+			const worktrees = await runCommand(
+				["git", "worktree", "list"],
+				fixture.targetDirectory,
+			);
+			expect(worktrees).toContain(fixture.checkoutPath);
 		});
 	});
 });

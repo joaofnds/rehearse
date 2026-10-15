@@ -44,7 +44,7 @@ export async function writeReplayableRunManifest(
 		timestamp: "2026-09-02T00:00:00.000Z",
 		controlSha: "control-sha",
 		source: {
-			root: "/tmp/target",
+			root: "/tmp/checkout",
 			sha: "source-sha",
 			targetRoot: "/tmp/target",
 		},

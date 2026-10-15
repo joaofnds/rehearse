@@ -35,7 +35,8 @@ import { checkpointStageAt, resolveShortId } from "#benchmark/short-id";
 import { groupRepReads, recordedRepReads } from "#benchmark/staleness-report";
 import { exists } from "node:fs/promises";
 import { z } from "zod";
-import { addWorktree, refExists, retentionRef } from "#benchmark/target";
+import { repositoryHolding } from "#benchmark/run-repositories";
+import { addWorktree, git, refExists, retentionRef } from "#benchmark/target";
 import { UsageError } from "#cli/commands";
 import { RefusedPreconditionError } from "#cli/interactive-stdin";
 import type { CommandOutput } from "#cli/output";
@@ -356,11 +357,10 @@ const retainedRunSchema = z
 	.loose();
 
 /**
- * The run recorded which repository it ran in and which commit it produced, so
- * `--checkout` takes no target of its own: a second answer could disagree with
- * the first. The worktree is of the retention ref rather than of the sha,
- * because the ref is what keeps that commit reachable once the target was
- * restored.
+ * The run recorded which repositories it worked in, so `--checkout` takes no
+ * target of its own: a second answer could disagree with the first. The
+ * candidate is the commit the run's retention ref names, and the worktree
+ * goes where a replay reads the run's commits from.
  */
 async function checkoutRetainedCandidate(
 	given: string,
@@ -370,30 +370,54 @@ async function checkoutRetainedCandidate(
 	const id = parseCheckoutRunId(given);
 	const { artifactFile } = benchmarkRunPaths(runsDirectory, id.run);
 	const text = await recordText(given, artifactFile);
-	const repository = await retainingRepository(
-		retainedRunSchema.parse(JSON.parse(text)),
-	);
-	const reference = retentionRef(id.run);
+	const run = retainedRunSchema.parse(JSON.parse(text));
 	await refuseExistingDirectory(directory);
-	await refuseUnretainedRun(repository, reference, id.run);
-	await addWorktree(repository, reference, directory);
+	const candidate = await retainedCandidate(run, id.run);
+	const repository = await repositoryHolding(
+		{ target: run.targetRoot, checkout: run.sourceRoot, declared: undefined },
+		candidate,
+	);
+	await addWorktree(repository, candidate, directory);
 
 	return directory;
 }
 
 /**
- * The run's checkout while it remains, since a run whose commits could not be
- * copied out keeps it as their only copy, and otherwise the target the commits
- * were copied into.
+ * The commit the run's retention ref names, read from the run's checkout while
+ * it remains: the target receives only what the checkout pinned, so a copy
+ * that failed leaves the target's ref behind the checkout's. A repository
+ * that is gone is not one that retained nothing, so when every one is gone
+ * the caller is sent to find them rather than to re-run the benchmark.
  */
-async function retainingRepository(
+async function retainedCandidate(
 	run: Readonly<z.infer<typeof retainedRunSchema>>,
+	name: string,
 ): Promise<string> {
-	if (run.targetRoot === undefined || (await exists(run.sourceRoot))) {
-		return run.sourceRoot;
+	const reference = retentionRef(name);
+	const recorded = [run.sourceRoot, run.targetRoot].filter(
+		(repository) => repository !== undefined,
+	);
+	const remaining: string[] = [];
+	for (const repository of recorded) {
+		if (await exists(repository)) {
+			remaining.push(repository);
+		}
+	}
+	if (remaining.length === 0) {
+		throw new RefusedPreconditionError(
+			`Cannot read ${recorded.join(" or ")}, which this run recorded; the candidate may still be retained wherever it is now`,
+		);
 	}
 
-	return run.targetRoot;
+	for (const repository of remaining) {
+		if (await retainsCandidate(repository, reference)) {
+			return git(repository, "rev-parse", reference);
+		}
+	}
+
+	throw new RefusedPreconditionError(
+		`No ${reference} in ${remaining.join(" or ")}; run ${name} retained no candidate there`,
+	);
 }
 
 /**
@@ -429,35 +453,15 @@ async function refuseExistingDirectory(directory: string): Promise<void> {
 	);
 }
 
-/**
- * The two ways `--checkout` can find nothing, told apart. A repository that
- * moved still holds the candidate under its retention ref, so its caller is
- * sent to find the repository; only a readable repository without the ref
- * means the run retained nothing and has to be re-run.
- */
-async function refuseUnretainedRun(
-	sourceRoot: string,
-	reference: string,
-	run: string,
-): Promise<void> {
-	if (await retainsCandidate(sourceRoot, reference)) {
-		return;
-	}
-
-	throw new RefusedPreconditionError(
-		`No ${reference} in ${sourceRoot}; run ${run} retained no candidate there`,
-	);
-}
-
 async function retainsCandidate(
-	sourceRoot: string,
+	repository: string,
 	reference: string,
 ): Promise<boolean> {
 	try {
-		return await refExists(sourceRoot, reference);
+		return await refExists(repository, reference);
 	} catch (error) {
 		throw new RefusedPreconditionError(
-			`Cannot read the target repository at ${sourceRoot} this run recorded; the candidate may still be retained wherever it is now: ${error instanceof Error ? error.message : String(error)}`,
+			`Cannot read the repository at ${repository} this run recorded; the candidate may still be retained wherever it is now: ${error instanceof Error ? error.message : String(error)}`,
 		);
 	}
 }

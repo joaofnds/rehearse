@@ -54,7 +54,7 @@ import type { ReplayStageOutcome } from "#benchmark/replay-command";
 import { executeReplayStage } from "#benchmark/replay-command";
 import type { ReplayConfirmationOutcome } from "#benchmark/replay-confirmation";
 import { runReplayConfirmation } from "#benchmark/replay-confirmation";
-import { replaySourceRoot } from "#benchmark/replay-source";
+import { repositoryHolding } from "#benchmark/run-repositories";
 import type { BenchmarkRunPaths } from "#benchmark/run-layout";
 import { benchmarkRunPaths, recordedRunNames } from "#benchmark/run-layout";
 import { loadStageRubric, runStageJudge } from "#benchmark/stage-grading";
@@ -204,22 +204,17 @@ export async function replaySettingsFile(
 }
 
 /**
- * The repository replay falls back to once the run's own clone is gone: the
- * target the run was cloned from, which holds the commits the run kept. A run
- * that recorded none worked in its target in place, so the target a fresh run
- * of its case would use stands in. A session case declares none, and a case
- * that no longer loads leaves replay to the recorded repository alone: the
- * tolerance `declaredSessionKnobs` applies.
+ * The target a fresh run of the replayed run's case would use, which holds the
+ * commits a run starts from once the repositories the run recorded are gone.
+ * A session case declares none, and a case that no longer loads leaves replay
+ * to the recorded repositories alone: the tolerance `declaredSessionKnobs`
+ * applies.
  */
 export async function replayDeclaredTarget(
 	manifestFile: string,
 ): Promise<string | undefined> {
 	try {
 		const manifest = await loadRunManifest(manifestFile);
-		if (manifest.targetRoot !== undefined) {
-			return manifest.targetRoot;
-		}
-
 		const declaration = await readCaseDeclaration(manifest.caseId);
 
 		return declaration.kind === "pipeline"
@@ -235,11 +230,10 @@ export async function replayDeclaredTarget(
 }
 
 /**
- * A replay's project-level corpus search is the target the replayed run
- * recorded, not the control repository: `replay.ts` already searches the
- * worktree it builds from that same source once one exists, so the
- * confirmation path's pre-worktree corpus freeze resolves the identical root
- * from the run's manifest.
+ * The project-level corpus a replay confirmation freezes before any worktree
+ * exists: the target the replayed run recorded, since the run's end removed
+ * its checkout and the control repository is not the project under test. A
+ * single replay searches the worktree it builds instead (`replay.ts`).
  */
 export async function replayCorpusRoots(
 	manifestFile: string,
@@ -247,7 +241,7 @@ export async function replayCorpusRoots(
 ): Promise<readonly CorpusRoot[]> {
 	const manifest = await loadRunManifest(manifestFile);
 
-	return stageCorpusRoots(source, manifest.sourceRoot);
+	return stageCorpusRoots(source, manifest.targetRoot ?? manifest.sourceRoot);
 }
 
 async function reportOutcome(
@@ -345,7 +339,7 @@ export async function executeReplay(
 		addWorktree,
 		removeWorktree,
 		pruneWorktrees,
-		replaySourceRoot,
+		replaySourceRoot: repositoryHolding,
 		materializeCheckpoint,
 		captureBaselineContext,
 		captureFileHashes,

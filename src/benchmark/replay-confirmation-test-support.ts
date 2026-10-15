@@ -162,6 +162,7 @@ export class ReplayConfirmationHarness {
 			timestamp: "2026-08-30T00:00:00.000Z",
 			controlSha: "run-control-sha",
 			sourceRoot,
+			targetRoot: join(directory, "target"),
 			sourceSha: taskSha,
 			taskId: "TASK-1",
 			taskSha,
@@ -380,7 +381,7 @@ export class ReplayConfirmationHarness {
 
 				return Promise.resolve();
 			},
-			replaySourceRoot: ({ recorded }) => Promise.resolve(recorded),
+			replaySourceRoot: ({ checkout }) => Promise.resolve(checkout),
 			stopOnSignal: (cleanUp, recordStop) => {
 				// A released stop is inert, as the real one is once its signals
 				// return to their default.

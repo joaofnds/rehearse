@@ -8,7 +8,6 @@ import { RefusedPreconditionError } from "#cli/interactive-stdin";
 import { benchmarkRunPaths } from "#benchmark/run-layout";
 import { failureOf, recordOutput } from "#cli/cli-test-support";
 import { writeReplayableRunManifest } from "#cli/replay-test-support";
-import { loadRunManifest, writeRunManifest } from "#benchmark/manifest";
 import type { ReplayCliConfig } from "#benchmark/config";
 import {
 	executeReplay,
@@ -302,7 +301,7 @@ describe(replayCorpus.name, () => {
 });
 
 describe(replayCorpusRoots.name, () => {
-	it("searches the replayed run's own target, not the control repository's", async () => {
+	it("searches the target the replayed run was cloned from, not its checkout or the control repository", async () => {
 		const manifestFile = await writeReplayableRunManifest(
 			"any-name-corpus-roots",
 		);
@@ -344,40 +343,21 @@ describe(replaySettingsFile.name, () => {
 });
 
 describe(replayDeclaredTarget.name, () => {
-	it("names the target the replayed run was cloned from", async () => {
+	it("names the target a fresh run of the replayed run's case would use, not the one the run recorded", async () => {
 		const manifestFile = await writeReplayableRunManifest(
-			"any-name-recorded-target",
+			"any-name-declared-target",
 		);
 
 		try {
 			const target = await replayDeclaredTarget(manifestFile);
 
-			expect(target).toBe("/tmp/target");
+			expect(await loadCase("audit-log")).toMatchObject({
+				kind: "pipeline",
+				targetPath: target,
+			});
 		} finally {
 			await rm(manifestFile, { force: true });
 		}
-	});
-
-	describe("when the run recorded no target", () => {
-		it("names the target a fresh run of the replayed run's case would use", async () => {
-			const manifestFile = await writeReplayableRunManifest(
-				"any-name-declared-target",
-			);
-			const { targetRoot: _recorded, ...manifest } =
-				await loadRunManifest(manifestFile);
-			await writeRunManifest(manifestFile, manifest);
-
-			try {
-				const target = await replayDeclaredTarget(manifestFile);
-
-				expect(await loadCase("audit-log")).toMatchObject({
-					kind: "pipeline",
-					targetPath: target,
-				});
-			} finally {
-				await rm(manifestFile, { force: true });
-			}
-		});
 	});
 });
 

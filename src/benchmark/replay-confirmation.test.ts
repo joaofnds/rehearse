@@ -358,7 +358,7 @@ describe(runReplayConfirmation.name, () => {
 			join(corpusRoot, "skills", "discuss", "SKILL.md"),
 			"discuss corpus\n",
 		);
-		const sources: Parameters<ReplayDependencies["replaySourceRoot"]>[0][] = [];
+		const sources: Parameters<ReplayDependencies["replaySourceRoot"]>[] = [];
 
 		await fake.runConfirmation(
 			{
@@ -368,7 +368,7 @@ describe(runReplayConfirmation.name, () => {
 			{ reps: 2, declaredTargetRoot: "/declared/target" },
 			(defaults) => ({
 				...defaults,
-				replaySourceRoot: (source) => {
+				replaySourceRoot: (...source) => {
 					sources.push(source);
 
 					return Promise.resolve("/declared/target");
@@ -377,11 +377,14 @@ describe(runReplayConfirmation.name, () => {
 		);
 
 		expect(sources).toEqual([
-			{
-				recorded: run.manifest.sourceRoot,
-				declared: "/declared/target",
-				sha: run.initial.targetSha,
-			},
+			[
+				{
+					target: run.manifest.targetRoot,
+					checkout: run.manifest.sourceRoot,
+					declared: "/declared/target",
+				},
+				run.initial.targetSha,
+			],
 		]);
 		expect(fake.worktrees.map(({ root }) => root)).toEqual([
 			"/declared/target",

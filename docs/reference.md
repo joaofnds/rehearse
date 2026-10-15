@@ -1085,11 +1085,14 @@ Without `--pause`, a pipeline debug run retains its candidate under
 commands. A completed candidate awaits human review; a quality stop records the
 stage evidence that stopped it. Review remains separate from the machine grade.
 
-`show run:<name> --checkout <new-directory>` creates a detached worktree from
-the retained ref, in the run's checkout while it exists and otherwise in the
-target its commits were copied into. The directory must not exist. Remove the
-checkout with `git worktree remove` afterward. The retained ref keeps candidate
-commits reachable, since no branch reaches them.
+`show run:<name> --checkout <new-directory>` creates a detached worktree of the
+commit the retained ref names. It reads the ref from the run's checkout while
+the checkout remains, since a copy that failed leaves the target's ref behind
+it, and otherwise from the target. The worktree goes in the first repository
+holding that commit, in the order a replay searches
+([Run checkout and cleanup](#run-checkout-and-cleanup)). The directory must not
+exist. Remove the checkout with `git worktree remove` afterward. The retained
+ref keeps candidate commits reachable, since no branch reaches them.
 
 `review <run>` accepts either `--file <review.json>` or `--verdict`, `--summary`,
 and repeated JSON `--finding` flags. It validates the run and review before
@@ -1280,6 +1283,15 @@ there. When the run ends, it fetches the ref once more, then removes the clone
 and the run's service containers. A clone whose commits the target could not
 take stays, and the run names its path, since it holds their only copy.
 Dependencies the setup installed live in the clone and go with it.
+
+A replay reads the commit it starts from out of the first repository that
+holds it: the target the run copied its commits into, then the run's clone,
+then the target the case declares today. The target comes first because a
+worktree added to the clone breaks when the run removes the clone, and the
+declared target serves a run whose own repositories are gone, since it holds
+the commits a run starts from. A run from before clones worked in its target in
+place, so its manifest records no `targetRoot` and its `sourceRoot` is the
+target.
 
 SIGINT, SIGTERM, and SIGHUP stop child process groups and trigger the same
 cleanup. A hard kill or crash leaves the clone, with the run's claim in its

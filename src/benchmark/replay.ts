@@ -44,7 +44,7 @@ import type {
 	removeWorktree,
 } from "./target";
 import { createSpendCeiling } from "./spend-ceiling";
-import type { replaySourceRoot } from "./replay-source";
+import type { repositoryHolding } from "./run-repositories";
 import type { createProductOwner } from "./workflow";
 
 export class ReplayError extends Error {
@@ -142,7 +142,7 @@ export interface ReplayDependencies {
 	readonly addWorktree: typeof addWorktree;
 	readonly removeWorktree: typeof removeWorktree;
 	readonly pruneWorktrees: typeof pruneWorktrees;
-	readonly replaySourceRoot: typeof replaySourceRoot;
+	readonly replaySourceRoot: typeof repositoryHolding;
 	/**
 	 * Removes the worktree on a stop signal, once every command is killed,
 	 * until the release it answers is called.
@@ -303,11 +303,14 @@ export async function runReplay(
 		request.paths.checkpointsDirectory,
 	);
 	const plan = resolveReplay(manifest, checkpoints, request.stage);
-	const sourceRoot = await dependencies.replaySourceRoot({
-		recorded: manifest.sourceRoot,
-		declared: request.declaredTargetRoot,
-		sha: plan.consumed.targetSha,
-	});
+	const sourceRoot = await dependencies.replaySourceRoot(
+		{
+			target: manifest.targetRoot,
+			checkout: manifest.sourceRoot,
+			declared: request.declaredTargetRoot,
+		},
+		plan.consumed.targetSha,
+	);
 	const shortId = await claimShortId(
 		request.paths.runsDirectory,
 		manifest.caseId,

@@ -112,11 +112,14 @@ async function freezeReplayInputs(
 		request.paths.checkpointsDirectory,
 	);
 	const plan = resolveReplay(manifest, checkpoints, request.stage);
-	const sourceRoot = await dependencies.replaySourceRoot({
-		recorded: manifest.sourceRoot,
-		declared: request.declaredTargetRoot,
-		sha: plan.consumed.targetSha,
-	});
+	const sourceRoot = await dependencies.replaySourceRoot(
+		{
+			target: manifest.targetRoot,
+			checkout: manifest.sourceRoot,
+			declared: request.declaredTargetRoot,
+		},
+		plan.consumed.targetSha,
+	);
 	const checkpointDirectory = join(inputsDirectory, "checkpoint");
 	await cp(
 		request.paths.checkpointDirectory(plan.consumed.stage),

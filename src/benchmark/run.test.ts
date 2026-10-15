@@ -3397,6 +3397,62 @@ describe(buildRunManifest.name, () => {
 		});
 	});
 
+	it("records the run's checkout and the target it was cloned from", async () => {
+		const config = parseArgs(
+			[
+				"--target",
+				"/tmp/target",
+				"--model",
+				"sonnet",
+				"--session-budget-usd",
+				"5",
+			],
+			{},
+			{
+				caseId: "audit-log",
+				pipelinePath: AUDIT_LOG_PIPELINE_PATH,
+				targetPath: "/tmp/target",
+			},
+		);
+		const pipeline = await loadDefaultPipeline();
+		const source = {
+			root: "/tmp/checkout/target",
+			origin: undefined,
+			sha: "source-sha",
+			targetRoot: "/tmp/target",
+		};
+
+		const manifest = buildRunManifest({
+			timestamp: "2026-09-02T00:00:00.000Z",
+			controlSha: "control-sha",
+			source,
+			taskId: "TASK-1",
+			taskSha: "task-sha",
+			task: "Task",
+			productBrief: "Brief",
+			config,
+			pipeline,
+			spendCeilingUsd: 100,
+			corpusVersion: { kind: "version", digest: "0".repeat(64) },
+		});
+		const artifact = buildRunArtifact({
+			...artifactInputs(pipeline, config.pipelinePath),
+			config,
+			source,
+		});
+
+		expect({ manifest, artifact }).toMatchObject({
+			manifest: {
+				sourceRoot: "/tmp/checkout/target",
+				targetRoot: "/tmp/target",
+			},
+			artifact: {
+				sourceRoot: "/tmp/checkout/target",
+				targetRoot: "/tmp/target",
+			},
+		});
+	});
+
 	it("records the spend ceiling the run ran under", async () => {
 		const config = parseArgs(
 			[

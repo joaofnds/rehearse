@@ -40,7 +40,7 @@ import {
 	runReplay,
 } from "./replay";
 import { benchmarkRunPaths, runNameFromTimestamp } from "./run-layout";
-import { replaySourceRoot } from "./replay-source";
+import { repositoryHolding } from "./run-repositories";
 import { readShortIds } from "./short-id";
 import { failureOf } from "#cli/cli-test-support";
 import { loadStageRubric } from "./stage-grading";
@@ -326,6 +326,7 @@ describe(runReplay.name, () => {
 			timestamp: "2026-08-30T00:00:00.000Z",
 			controlSha: "run-control-sha",
 			sourceRoot: join(directory, "primary"),
+			targetRoot: join(directory, "target"),
 			sourceSha: "source-sha",
 			taskId: "TASK-1",
 			taskSha: "task-sha",
@@ -566,10 +567,10 @@ describe(runReplay.name, () => {
 
 	it("checks its worktree out from the repository its source resolves to", async () => {
 		const run = await recordedRun();
-		const sources: Parameters<ReplayDependencies["replaySourceRoot"]>[0][] = [];
+		const sources: Parameters<ReplayDependencies["replaySourceRoot"]>[] = [];
 		const fake = new ReplayConfirmationHarness(testResources, (defaults) => ({
 			...defaults,
-			replaySourceRoot: (source) => {
+			replaySourceRoot: (...source) => {
 				sources.push(source);
 
 				return Promise.resolve("/declared/target");
@@ -582,11 +583,14 @@ describe(runReplay.name, () => {
 		});
 
 		expect(sources).toEqual([
-			{
-				recorded: run.manifest.sourceRoot,
-				declared: "/declared/target",
-				sha: run.discuss.targetSha,
-			},
+			[
+				{
+					target: run.manifest.targetRoot,
+					checkout: run.manifest.sourceRoot,
+					declared: "/declared/target",
+				},
+				run.discuss.targetSha,
+			],
 		]);
 		expect(fake.worktrees.map(({ root }) => root)).toEqual([
 			"/declared/target",
@@ -1297,7 +1301,7 @@ describe(runReplay.name, () => {
 				addWorktree,
 				removeWorktree,
 				pruneWorktrees,
-				replaySourceRoot,
+				replaySourceRoot: repositoryHolding,
 				materializeCheckpoint,
 				captureBaselineContext,
 				captureFileHashes,
