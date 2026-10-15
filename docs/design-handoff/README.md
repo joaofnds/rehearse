@@ -6,6 +6,9 @@ describe intended visual structure and interactions beyond the implemented app.
 Use [current state](../status.md#browser-ui) to find what is available today.
 The approved [desktop run workspace](../run-workspace.md) supersedes the original
 separate history, monitor and detail navigation; the archived files remain unchanged.
+The [desktop UX review](../ux-review.md) records follow-up proposals for results,
+attempt inspection, context and comparison workflows. Those proposals do not replace
+the accepted workspace design.
 Where SPEC.md and the prototype differ, SPEC.md wins: SPEC.md has been amended
 since the handoff, such as the monitor's output summary and graph footer, and
 the prototype has not. The prototype keeps the handoff's names: culprit where
