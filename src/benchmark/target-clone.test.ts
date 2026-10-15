@@ -1,11 +1,17 @@
 import { describe, expect, it } from "bun:test";
-import { mkdir, mkdtemp, readdir, symlink } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readdir, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { runCommand } from "./command";
 import { pathExists } from "./file-presence";
+import { failureOf } from "#cli/cli-test-support";
 import { recordRetentionRef } from "./target";
-import { cloneTarget, releaseClone, retainInTarget } from "./target-clone";
+import {
+	CommitsNotCopiedError,
+	cloneTarget,
+	releaseClone,
+	retainInTarget,
+} from "./target-clone";
 import { TestResources, commitAll } from "./test-support";
 
 const testResources = TestResources.forEachTest();
@@ -47,24 +53,6 @@ describe(cloneTarget.name, () => {
 });
 
 describe(retainInTarget.name, () => {
-	async function retainedCommit(
-		repository: string,
-		runName: string,
-	): Promise<string> {
-		const output = await runCommand(
-			[
-				"git",
-				"rev-parse",
-				"--verify",
-				"--quiet",
-				`refs/rehearse/${runName}^{commit}`,
-			],
-			repository,
-		);
-
-		return output.trim();
-	}
-
 	it("copies the run's retention ref and the commit it keeps into the target", async () => {
 		const target = await testResources.createRepository();
 		const clone = await testResources.createRepository();
@@ -104,6 +92,20 @@ describe(releaseClone.name, () => {
 	});
 
 	describe("when the target cannot take the run's commits", () => {
+		it("refuses, naming the clone it keeps", async () => {
+			const target = await testResources.createRepository();
+			const clone = await cloneTarget(target.directory);
+			testResources.track(dirname(clone));
+			await retainedCommitAfter(clone, "run-1");
+			const missingTarget = join(dirname(clone), "moved-away");
+
+			const failure = await failureOf(
+				releaseClone(clone, missingTarget, "run-1"),
+			);
+
+			expect(failure).toBeInstanceOf(CommitsNotCopiedError);
+		});
+
 		it("keeps the clone, which holds their only copy", async () => {
 			const target = await testResources.createRepository();
 			const clone = await cloneTarget(target.directory);
@@ -111,12 +113,49 @@ describe(releaseClone.name, () => {
 			await retainedCommitAfter(clone, "run-1");
 			const missingTarget = join(dirname(clone), "moved-away");
 
-			await releaseClone(clone, missingTarget, "run-1").catch(() => undefined);
+			await failureOf(releaseClone(clone, missingTarget, "run-1"));
 
 			expect(await pathExists(clone)).toBe(true);
 		});
 	});
+
+	describe("when the clone cannot be removed", () => {
+		it("reports the removal, with the commits already in the target", async () => {
+			const target = await testResources.createRepository();
+			const clone = await cloneTarget(target.directory);
+			testResources.track(dirname(clone));
+			const candidate = await retainedCommitAfter(clone, "run-1");
+			await chmod(dirname(clone), 0o500);
+
+			const failure = await failureOf(
+				releaseClone(clone, target.directory, "run-1"),
+			);
+			await chmod(dirname(clone), 0o700);
+
+			expect(failure).toBeInstanceOf(Error);
+			expect(failure).not.toBeInstanceOf(CommitsNotCopiedError);
+			expect(await retainedCommit(target.directory, "run-1")).toBe(candidate);
+		});
+	});
 });
+
+async function retainedCommit(
+	repository: string,
+	runName: string,
+): Promise<string> {
+	const output = await runCommand(
+		[
+			"git",
+			"rev-parse",
+			"--verify",
+			"--quiet",
+			`refs/rehearse/${runName}^{commit}`,
+		],
+		repository,
+	);
+
+	return output.trim();
+}
 
 async function retainedCommitAfter(
 	repository: string,

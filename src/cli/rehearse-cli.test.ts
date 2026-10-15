@@ -39,6 +39,7 @@ import {
 } from "#benchmark/settings";
 import { liveRunLiveness } from "#benchmark/run-liveness";
 import { loadRunManifest } from "#benchmark/manifest";
+import { pathExists } from "#benchmark/file-presence";
 import { PROJECT_ROOT } from "#benchmark/test-support";
 import {
 	RUN as DIAGNOSED_RUN,
@@ -413,6 +414,19 @@ function preservedEvidenceIn(stderr: string): readonly string[] {
 	return [...stderr.matchAll(/evidence preserved at (?<directory>\S+)/gu)].map(
 		(match) => dirname(match.groups?.["directory"] ?? ""),
 	);
+}
+
+/** The only recorded run under this control directory, and the checkout it worked in. */
+async function recordedCheckout(
+	control: string,
+): Promise<{ readonly run: string; readonly checkout: string }> {
+	const runsDirectory = benchmarkRunsDirectory(control);
+	const [run = ""] = await recordedRunNames(runsDirectory);
+	const { sourceRoot } = await loadRunManifest(
+		benchmarkRunPaths(runsDirectory, run).manifestFile,
+	);
+
+	return { run, checkout: sourceRoot };
 }
 
 async function headSha(repository: string): Promise<string> {
@@ -930,11 +944,15 @@ describe("rehearse", () => {
 
 			await runAuditLog(fixture);
 
+			const { run, checkout } = await recordedCheckout(fixture.control);
 			const retained = await runCommand(
 				["git", "for-each-ref", "--format=%(refname)", "refs/rehearse"],
 				fixture.target,
 			);
-			expect(retained.trim()).toStartWith("refs/rehearse/");
+			expect({
+				checkoutRemains: await pathExists(checkout),
+				retained: retained.trim(),
+			}).toEqual({ checkoutRemains: false, retained: `refs/rehearse/${run}` });
 		});
 	});
 
@@ -1481,6 +1499,7 @@ describe("the spend ceiling", () => {
 			const providerCalls = await Bun.file(
 				join(binDirectory, PROVIDER_CALLS_LOG),
 			).text();
+			const { checkout } = await recordedCheckout(control);
 			const paidCalls = providerCalls
 				.trimEnd()
 				.split("\n")
@@ -1493,7 +1512,7 @@ describe("the spend ceiling", () => {
 			});
 			expect(paidCalls.at(-1)).toContain("--max-budget-usd 0.4");
 			expect(manifest).toMatchObject({ spendCeilingUsd: 1 });
-			expect(result.stderr).toContain("Run checkout removed.");
+			expect(await pathExists(checkout)).toBe(false);
 		});
 	});
 

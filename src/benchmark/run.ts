@@ -1299,13 +1299,17 @@ export function ordinaryInitialCheckpointInputs(
  * The run works in its own clone of the target's main, so the operator's
  * checkout, with its untracked files and linked board, is never read or
  * written. The source keeps the target's own origin, since the clone's origin
- * is the target's path.
+ * is the target's path. A clone that cannot be claimed for the run is removed.
  */
-async function cloneSource(target: SourceBaseline): Promise<RunSource> {
+async function cloneSource(
+	target: SourceBaseline,
+	runName: string,
+): Promise<RunSource> {
 	const clone = await cloneTarget(target.root);
 	try {
 		const source = await assertSourceReady(clone);
 		await assertWorkflowBoardPrivate(clone);
+		await claimTarget(source, runName);
 
 		return { ...source, origin: target.origin, targetRoot: target.root };
 	} catch (error) {
@@ -1321,26 +1325,41 @@ interface RunCheckout {
 }
 
 /**
- * Copies the run's commits into the target and removes its checkout, then
- * stops its services whether or not that worked. A checkout whose commits the
- * target could not take stays, since it holds their only copy.
+ * Copies the run's commits into the target and removes its checkout, and stops
+ * its services whether or not that worked. A checkout whose commits the target
+ * could not take stays, since it holds their only copy.
  */
 async function releaseRun(
 	run: RunCheckout,
 	services: TargetServices,
 	log: (message: string) => void,
 ): Promise<void> {
-	try {
-		await releaseClone(run.checkout, run.targetRoot, run.runName);
-		log("Run checkout removed.");
-	} catch (error) {
-		log(
-			`The run's commits could not be copied to ${run.targetRoot}; its checkout remains at ${run.checkout}`,
+	const [checkout, containers] = await Promise.allSettled([
+		releaseCheckout(run, log),
+		services.stop(),
+	]);
+	if (checkout.status === "rejected" && containers.status === "rejected") {
+		throw new AggregateError(
+			[checkout.reason, containers.reason],
+			`${String(checkout.reason)}\n${String(containers.reason)}`,
 		);
-		throw error;
-	} finally {
-		await services.stop();
 	}
+
+	if (checkout.status === "rejected") {
+		throw checkout.reason;
+	}
+
+	if (containers.status === "rejected") {
+		throw containers.reason;
+	}
+}
+
+async function releaseCheckout(
+	run: RunCheckout,
+	log: (message: string) => void,
+): Promise<void> {
+	await releaseClone(run.checkout, run.targetRoot, run.runName);
+	log("Run checkout removed.");
 }
 
 /** A service that cannot start or never gets ready is a precondition the run refuses. */
@@ -1371,8 +1390,6 @@ export async function runBenchmark(
 	const spendCeiling = createSpendCeiling({ ceilingUsd: spendCeilingUsd });
 	const controlSha = await assertControlReady();
 	const target = await assertSourceReady(config.sourceDir);
-	const source = await cloneSource(target);
-	const productOwnerDirectory = await mkdtemp(join(tmpdir(), "rehearse-po-"));
 	const timestamp = new Date().toISOString();
 	const runFiles = await createRunFiles(timestamp);
 	const services = targetServices(
@@ -1384,6 +1401,7 @@ export async function runBenchmark(
 	const runEventStore = await openRunEventStore(
 		runEventsDatabaseFile(runFiles.runsDirectory),
 	);
+	const productOwnerDirectory = await mkdtemp(join(tmpdir(), "rehearse-po-"));
 	const runStartedAtMs = Date.now();
 	const elapsedMs = (): number => Date.now() - runStartedAtMs;
 	const runEvents = runEventRecorderFor(
@@ -1391,6 +1409,7 @@ export async function runBenchmark(
 		runFiles.name,
 		spendCeiling,
 	);
+	let source: RunSource | undefined;
 	const abort = createRunAbort(
 		{
 			killActiveCommands,
@@ -1410,24 +1429,26 @@ export async function runBenchmark(
 			artifactFile: runFiles.artifactFile,
 			operatorStopFile: runFiles.operatorStopFile,
 			teardown: () =>
-				releaseRun(
-					{
-						checkout: source.root,
-						targetRoot: target.root,
-						runName: runFiles.name,
-					},
-					services,
-					log,
-				),
+				source === undefined
+					? services.stop()
+					: releaseRun(
+							{
+								checkout: source.root,
+								targetRoot: target.root,
+								runName: runFiles.name,
+							},
+							services,
+							log,
+						),
 		},
 	);
 
 	try {
-		await claimTarget(source, runFiles.name);
+		source = await cloneSource(target, runFiles.name);
 	} catch (error) {
 		runEventStore.close();
 		abort.release();
-		await discardClone(source.root);
+		await rm(productOwnerDirectory, { force: true, recursive: true });
 		throw error;
 	}
 

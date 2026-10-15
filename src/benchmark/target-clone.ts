@@ -61,6 +61,26 @@ export async function retainInTarget(
 	);
 }
 
+/** The target could not take the run's commits, so the clone holding their only copy stays. */
+export class CommitsNotCopiedError extends Error {
+	public override name = "CommitsNotCopiedError";
+
+	public constructor(
+		clone: string,
+		targetRoot: string,
+		options: Readonly<ErrorOptions>,
+	) {
+		const reason =
+			options.cause instanceof Error
+				? options.cause.message
+				: String(options.cause);
+		super(
+			`The run's commits could not be copied to ${targetRoot}; its checkout remains at ${clone}: ${reason}`,
+			options,
+		);
+	}
+}
+
 /**
  * Removes the clone once the target holds the run's commits. A clone whose
  * commits the target could not take stays, since it holds their only copy.
@@ -70,6 +90,11 @@ export async function releaseClone(
 	targetRoot: string,
 	runName: string,
 ): Promise<void> {
-	await retainInTarget(clone, targetRoot, runName);
+	try {
+		await retainInTarget(clone, targetRoot, runName);
+	} catch (error) {
+		throw new CommitsNotCopiedError(clone, targetRoot, { cause: error });
+	}
+
 	await discardClone(clone);
 }
