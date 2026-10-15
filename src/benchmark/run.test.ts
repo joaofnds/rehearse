@@ -2607,6 +2607,23 @@ describe(runGradedStages.name, () => {
 		});
 	});
 
+	it("runs the target's checks for the delivery stage alone", async () => {
+		const { dependencies } = fakeStageDependencies();
+		let checkRuns = 0;
+		const counting = {
+			...dependencies,
+			captureTreatmentChecks: () => {
+				checkRuns += 1;
+
+				return Promise.resolve(harnessResult("PASS", "all green"));
+			},
+		};
+
+		await runGradedStages(counting, await stageContext());
+
+		expect(checkRuns).toBe(1);
+	});
+
 	it("writes a checkpoint for every accepted stage and chains lineage", async () => {
 		const { dependencies } = fakeStageDependencies();
 		const context = await stageContext();
