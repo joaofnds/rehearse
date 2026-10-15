@@ -1,4 +1,11 @@
-import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import {
+	afterEach,
+	beforeEach,
+	describe,
+	expect,
+	it,
+	setDefaultTimeout,
+} from "bun:test";
 import { createHash } from "node:crypto";
 import {
 	chmod,
@@ -49,6 +56,12 @@ import type { Launcher } from "#server/launches";
 import { processLauncher } from "#server/process-launcher";
 
 const PIPE_BUFFER_BYTES = 131_072;
+
+/**
+ * A pipeline run through a spawned CLI takes about two seconds alone, and
+ * Bun's five-second default has cut one short while the machine was busy.
+ */
+setDefaultTimeout(20_000);
 
 interface CliResult {
 	readonly exitCode: number;
@@ -221,12 +234,6 @@ async function writeOversizedManifest(
  * process tree, which is why the shim stays in a directory the test removes.
  */
 const PROVIDER_CALLS_LOG = "provider-calls.log";
-/**
- * A replay test first records a whole pipeline run through spawned CLIs,
- * which takes about two seconds alone and passed Bun's five-second default
- * under the full suite's load.
- */
-const RECORDED_RUN_TIMEOUT_MS = 20_000;
 
 function providerCallsIn(binDirectory: string): Promise<boolean> {
 	return Bun.file(join(binDirectory, PROVIDER_CALLS_LOG)).exists();
@@ -1525,7 +1532,6 @@ describe("the spend ceiling", () => {
 				expect(result.stderr).toContain(SET_SPEND_CEILING_COMMAND);
 				expect(await providerCallsIn(fixture.binDirectory)).toBe(false);
 			},
-			RECORDED_RUN_TIMEOUT_MS,
 		);
 	});
 
