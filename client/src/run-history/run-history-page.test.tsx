@@ -2953,6 +2953,35 @@ describe(RunHistoryPage.name, () => {
 
 		type CostAndTime = Pick<PipelineRunRow, "cost" | "wallTime">;
 
+		const STOPPED_RUN = "2026-09-05T00-00-00.000Z";
+
+		/** A run that ended with `status` at `cost`, its wall time unrecorded. */
+		function runCosting(
+			run: string,
+			status: string,
+			cost: PipelineRunRow["cost"],
+		): RunHistoryResponseBody["rows"][number] {
+			return {
+				kind: "run",
+				recordId: `run:${run}`,
+				...UNREAD_RUN_FIGURES,
+				cost,
+				launchId: undefined,
+				shortId: undefined,
+				checkpoints: [],
+				links: [],
+				run,
+				caseId: "audit-log",
+				status,
+				stage: "build",
+				grade: undefined,
+				corpusVersion: undefined,
+				corpusChangedDuringRun: false,
+				staleness: UNREAD_STALENESS,
+				progress: { state: "recorded" },
+			};
+		}
+
 		/** One record of each kind, each carrying the same cost and wall time. */
 		function everyKindWith(figures: CostAndTime): RunHistoryResponseBody {
 			const record = {
@@ -3103,41 +3132,18 @@ describe(RunHistoryPage.name, () => {
 		});
 
 		it("does not carry one row's open cost reasons onto another when the filter changes the rows", async () => {
-			function partialRun(
-				run: string,
-				status: string,
-				part: string,
-			): RunHistoryResponseBody["rows"][number] {
+			function lacking(part: string): PipelineRunRow["cost"] {
 				return {
-					kind: "run",
-					recordId: `run:${run}`,
-					...UNREAD_RUN_FIGURES,
-					cost: {
-						state: "available",
-						usd: 2.41,
-						parts: [{ part: "build session", usd: 2.41 }],
-						missing: [{ part, reason: "no metrics" }],
-					},
-					launchId: undefined,
-					shortId: undefined,
-					checkpoints: [],
-					links: [],
-					run,
-					caseId: "audit-log",
-					status,
-					stage: "build",
-					grade: undefined,
-					corpusVersion: undefined,
-					corpusChangedDuringRun: false,
-					staleness: UNREAD_STALENESS,
-					progress: { state: "recorded" },
+					state: "available",
+					usd: 2.41,
+					parts: [{ part: "build session", usd: 2.41 }],
+					missing: [{ part, reason: "no metrics" }],
 				};
 			}
-			const STOPPED_RUN = "2026-09-05T00-00-00.000Z";
 			respondingWith({
 				rows: [
-					partialRun(RUN, "COMPLETE", "Product Owner"),
-					partialRun(STOPPED_RUN, "STOPPED:build", "rep-2"),
+					runCosting(RUN, "COMPLETE", lacking("Product Owner")),
+					runCosting(STOPPED_RUN, "STOPPED:build", lacking("rep-2")),
 				],
 				launches: [],
 				unreadable: [],
@@ -3155,6 +3161,36 @@ describe(RunHistoryPage.name, () => {
 				}),
 			).toHaveAttribute("aria-expanded", "false");
 		});
+
+		it.each(["Cost", "Wall"])(
+			"does not carry one row's open unrecorded %s reasons onto another when the filter changes the rows",
+			async (column) => {
+				const unrecorded: PipelineRunRow["cost"] = {
+					state: "unavailable",
+					reasons: ["no call metrics"],
+				};
+				respondingWith({
+					rows: [
+						runCosting(RUN, "COMPLETE", unrecorded),
+						runCosting(STOPPED_RUN, "STOPPED:build", unrecorded),
+					],
+					launches: [],
+					unreadable: [],
+				});
+				await renderPage().findByText(RUN);
+
+				fireEvent.click(
+					within(cellOf(RUN, column)).getByRole("button", { name: "why" }),
+				);
+				fireEvent.click(screen.getByRole("button", { name: "Stopped" }));
+
+				expect(
+					within(cellOf(STOPPED_RUN, column)).getByRole("button", {
+						name: "why",
+					}),
+				).toHaveAttribute("aria-expanded", "false");
+			},
+		);
 
 		it("reads an unavailable cost as unrecorded and keeps why for a request", async () => {
 			respondingWith(

@@ -791,10 +791,15 @@ function causeList(causes: readonly string[]): readonly React.JSX.Element[] {
 }
 
 /**
- * TableShell keys its rows by index, so filtering the table hands a row's
- * cells to whatever Disclosure the previous row left mounted there, with its
- * open state intact. Keying by the row makes React remount it instead.
+ * The key of a Disclosure in the row's cells. TableShell keys its rows by
+ * index, so filtering the table hands a row's cells to whatever Disclosure the
+ * previous row left mounted there, with its open state intact. Keying by the
+ * row makes React remount it instead.
  */
+function disclosureKeyOf(row: HistoryRow): string {
+	return `${row.kind}:${identityOf(row)}`;
+}
+
 function causesFor(
 	row: HistoryRow,
 	causes: readonly string[],
@@ -805,7 +810,7 @@ function causesFor(
 
 	return (
 		<Disclosure
-			key={`${row.kind}:${identityOf(row)}`}
+			key={disclosureKeyOf(row)}
 			collapsedLabel={`${causes.length} causes`}
 			expandedLabel="hide causes"
 		>
@@ -1158,7 +1163,7 @@ function unrecorded(
 		<span className="flex flex-col items-end gap-0.5">
 			<span className="text-xs text-dim">{UNRECORDED}</span>
 			<Disclosure
-				key={`${row.kind}:${identityOf(row)}`}
+				key={disclosureKeyOf(row)}
 				collapsedLabel="why"
 				expandedLabel="hide"
 			>
@@ -1193,7 +1198,7 @@ function recordedCost(row: HistoryRow): React.JSX.Element {
 				`partial · lacks ${cost.missing.map(({ part }) => part).join(", ")}`,
 			])}
 			<Disclosure
-				key={`${row.kind}:${identityOf(row)}`}
+				key={disclosureKeyOf(row)}
 				collapsedLabel="why"
 				expandedLabel="hide"
 			>
