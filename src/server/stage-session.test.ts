@@ -267,6 +267,38 @@ describe(readStageSession.name, () => {
 		});
 	});
 
+	it("shows a tool result without the terminal's color codes", async () => {
+		const stage = await startedStage();
+		await Bun.write(
+			stage.transcriptFile,
+			transcriptOf([
+				{
+					type: "user",
+					message: {
+						content: [
+							{
+								type: "tool_result",
+								tool_use_id: "t1",
+								content: "\u001B[31m[Nest] 75226  - \u001B[39mstarting tests",
+							},
+						],
+					},
+				},
+			]),
+		);
+
+		const session = await readStageSession({
+			...stage,
+			run: RUN,
+			stage: "build",
+		});
+
+		expect(session).toMatchObject({
+			state: "running",
+			lines: [{ text: "[Nest] 75226  - starting tests" }],
+		});
+	});
+
 	it("reads a tool result the provider writes as blocks by its first text", async () => {
 		const stage = await startedStage();
 		await Bun.write(

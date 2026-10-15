@@ -1,4 +1,5 @@
 import { basename, dirname } from "node:path";
+import { stripVTControlCharacters } from "node:util";
 import { z } from "zod";
 import { stageTranscriptFile, TRANSCRIPT_FILE } from "#benchmark/checkpoint";
 import type { Immutable, RecordedStageEvidence } from "#benchmark/contracts";
@@ -208,14 +209,19 @@ function rowOf(
 	line: number,
 	textKind: "user" | "assistant",
 ): SessionLine | undefined {
-	if (block.kind === "other" || block.text === "") {
+	if (block.kind === "other") {
+		return undefined;
+	}
+
+	const text = stripVTControlCharacters(block.text);
+	if (text === "") {
 		return undefined;
 	}
 
 	return {
 		line,
 		kind: block.kind === "text" ? textKind : block.kind,
-		text: shortened(block.text),
+		text: shortened(text),
 	};
 }
 
