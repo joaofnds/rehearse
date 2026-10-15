@@ -1,6 +1,6 @@
-import { mkdtemp, realpath } from "node:fs/promises";
+import { mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { git, refExists } from "./target";
 
 /**
@@ -14,9 +14,27 @@ export async function cloneTarget(targetRoot: string): Promise<string> {
 		await mkdtemp(join(tmpdir(), "rehearse-target-")),
 	);
 	const clone = join(parent, basename(targetRoot));
-	await git(parent, "clone", "--quiet", "--branch", "main", targetRoot, clone);
+	try {
+		await git(
+			parent,
+			"clone",
+			"--quiet",
+			"--branch",
+			"main",
+			targetRoot,
+			clone,
+		);
+	} catch (error) {
+		await discardClone(clone);
+		throw error;
+	}
 
 	return clone;
+}
+
+/** Removes the clone and the directory made to hold it. */
+export async function discardClone(clone: string): Promise<void> {
+	await rm(dirname(clone), { force: true, recursive: true });
 }
 
 /**
@@ -41,4 +59,17 @@ export async function retainInTarget(
 		clone,
 		`${ref}:${ref}`,
 	);
+}
+
+/**
+ * Removes the clone once the target holds the run's commits. A clone whose
+ * commits the target could not take stays, since it holds their only copy.
+ */
+export async function releaseClone(
+	clone: string,
+	targetRoot: string,
+	runName: string,
+): Promise<void> {
+	await retainInTarget(clone, targetRoot, runName);
+	await discardClone(clone);
 }

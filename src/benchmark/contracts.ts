@@ -569,6 +569,7 @@ export interface RunArtifactEvidence {
 	readonly timestamp: string;
 	readonly controlSha: string;
 	readonly sourceRoot: string;
+	readonly targetRoot?: string | undefined;
 	readonly sourceOrigin?: string | undefined;
 	readonly sourceSha: string;
 	readonly taskSha: string;

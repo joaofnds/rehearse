@@ -269,7 +269,11 @@ describe("loadCase", () => {
 		const rehomed = pipelineDefinitionSchema.parse(
 			JSON.parse(before.replaceAll('"rubrics/', '"cases/audit-log/rubrics/')),
 		);
-		const { setup: _setup, ...target } = benchmarkCase.pipeline.target;
+		const {
+			setup: _setup,
+			services: _services,
+			...target
+		} = benchmarkCase.pipeline.target;
 
 		expect({ ...benchmarkCase.pipeline, target }).toEqual(rehomed);
 	});

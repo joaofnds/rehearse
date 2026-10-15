@@ -275,7 +275,12 @@ function artifactBaseInputs(
 	return {
 		timestamp: "2026-08-30T00:00:00.000Z",
 		controlSha: "control-sha",
-		source: { root: "/tmp/target", origin: undefined, sha: "source-sha" },
+		source: {
+			root: "/tmp/target",
+			origin: undefined,
+			sha: "source-sha",
+			targetRoot: "/tmp/target",
+		},
 		taskSha: "task-sha",
 		config: {
 			caseId: "audit-log",
@@ -3150,6 +3155,7 @@ describe(captureRunBaseline.name, () => {
 	it("captures the normal run baseline from the pipeline target", async () => {
 		const events: string[] = [];
 		const target = {
+			setup: [{ command: ["bun", "install"] }],
 			checks: [{ command: ["bun", "run", "custom-baseline"] }],
 			integrityFiles: ["custom-check.json"],
 		};
@@ -3158,6 +3164,11 @@ describe(captureRunBaseline.name, () => {
 
 		const baseline = await captureRunBaseline(
 			{
+				runSetup: (targetDir, setup) => {
+					events.push(`${targetDir}:setup:${setup?.[0]?.command.join(" ")}`);
+
+					return Promise.resolve();
+				},
 				runChecks: (targetDir, label, checks) => {
 					events.push(`${targetDir}:${label}:${checks[0]?.command.join(" ")}`);
 
@@ -3184,6 +3195,7 @@ describe(captureRunBaseline.name, () => {
 		);
 
 		expect(events).toEqual([
+			"/target:setup:bun install",
 			"/target:Baseline checks:bun run custom-baseline",
 			"/target:clean:source-sha",
 			"/target:hash:custom-check.json",
@@ -3216,6 +3228,7 @@ describe(captureRunBaseline.name, () => {
 		const refusal = await failureOf(
 			captureRunBaseline(
 				{
+					runSetup: () => Promise.resolve(),
 					runChecks: () => Promise.reject(failure),
 					assertWorkspaceCleanAt: () => Promise.resolve(),
 					captureFileHashes: () => Promise.resolve(new Map()),
@@ -3235,6 +3248,38 @@ describe(captureRunBaseline.name, () => {
 		);
 	});
 
+	it("refuses a target whose setup fails, naming the command and exit code", async () => {
+		const failure = new CommandError(
+			["bun", "run", "migrate", "up"],
+			1,
+			"",
+			"ECONNREFUSED",
+		);
+
+		const refusal = await failureOf(
+			captureRunBaseline(
+				{
+					runSetup: () => Promise.reject(failure),
+					runChecks: () => Promise.resolve(),
+					assertWorkspaceCleanAt: () => Promise.resolve(),
+					captureFileHashes: () => Promise.resolve(new Map()),
+					captureBaselineContext: () => Promise.resolve([]),
+				},
+				{ root: "/target", sha: "source-sha" },
+				{
+					setup: [{ command: ["bun", "run", "migrate", "up"] }],
+					checks: [{ command: ["bun", "run", "test:unit"] }],
+					integrityFiles: [],
+				},
+			),
+		);
+
+		expect(refusal).toBeInstanceOf(RefusedPreconditionError);
+		expect(refusal.message).toBe(
+			"Target setup failed (exit 1): bun run migrate up",
+		);
+	});
+
 	it("refuses a real target repository whose declared check exits non-zero", async () => {
 		const repository = await testResources.createRepository();
 		await Bun.write(
@@ -3246,6 +3291,7 @@ describe(captureRunBaseline.name, () => {
 		const refusal = await failureOf(
 			captureRunBaseline(
 				{
+					runSetup: () => Promise.resolve(),
 					runChecks: (targetDir, label, checks) =>
 						runChecks(targetDir, label, checks, () => undefined),
 					assertWorkspaceCleanAt: () => Promise.resolve(),
@@ -3274,6 +3320,7 @@ describe(captureRunBaseline.name, () => {
 		const failure = await failureOf(
 			captureRunBaseline(
 				{
+					runSetup: () => Promise.resolve(),
 					runChecks: () => Promise.resolve(),
 					assertWorkspaceCleanAt: () => Promise.reject(bug),
 					captureFileHashes: () => Promise.resolve(new Map()),
@@ -3312,7 +3359,11 @@ describe(buildRunManifest.name, () => {
 		const manifest = buildRunManifest({
 			timestamp: "2026-09-02T00:00:00.000Z",
 			controlSha: "control-sha",
-			source: { root: "/tmp/target", sha: "source-sha" },
+			source: {
+				root: "/tmp/target",
+				sha: "source-sha",
+				targetRoot: "/tmp/target",
+			},
 			taskId: "TASK-1",
 			taskSha: "task-sha",
 			task: "Task",
@@ -3365,7 +3416,11 @@ describe(buildRunManifest.name, () => {
 		const manifest = buildRunManifest({
 			timestamp: "2026-09-02T00:00:00.000Z",
 			controlSha: "control-sha",
-			source: { root: "/tmp/target", sha: "source-sha" },
+			source: {
+				root: "/tmp/target",
+				sha: "source-sha",
+				targetRoot: "/tmp/target",
+			},
 			taskId: "TASK-1",
 			taskSha: "task-sha",
 			task: "Task",
@@ -3401,7 +3456,11 @@ describe(buildRunManifest.name, () => {
 		const manifest = buildRunManifest({
 			timestamp: "2026-09-02T00:00:00.000Z",
 			controlSha: "control-sha",
-			source: { root: "/tmp/target", sha: "source-sha" },
+			source: {
+				root: "/tmp/target",
+				sha: "source-sha",
+				targetRoot: "/tmp/target",
+			},
 			taskId: "TASK-1",
 			taskSha: "task-sha",
 			task: "Task",
@@ -3447,7 +3506,11 @@ describe(buildRunManifest.name, () => {
 		const manifest = buildRunManifest({
 			timestamp: "2026-09-02T00:00:00.000Z",
 			controlSha: "control-sha",
-			source: { root: "/tmp/target", sha: "source-sha" },
+			source: {
+				root: "/tmp/target",
+				sha: "source-sha",
+				targetRoot: "/tmp/target",
+			},
 			taskId: "TASK-1",
 			taskSha: "task-sha",
 			task: "Task",
@@ -3485,7 +3548,11 @@ describe(buildRunManifest.name, () => {
 		const manifest = buildRunManifest({
 			timestamp: "2026-09-02T00:00:00.000Z",
 			controlSha: "control-sha",
-			source: { root: "/tmp/target", sha: "source-sha" },
+			source: {
+				root: "/tmp/target",
+				sha: "source-sha",
+				targetRoot: "/tmp/target",
+			},
 			taskId: "TASK-1",
 			taskSha: "task-sha",
 			task: "Task",
@@ -4113,7 +4180,7 @@ describe(pauseForFailureInspection.name, () => {
 		);
 
 		expect(asked).toEqual([
-			"The run failed. Inspect /tmp/target if useful, then press Enter to restore the target.",
+			"The run failed. Inspect /tmp/target if useful, then press Enter to remove the run's checkout.",
 		]);
 		expect(reported).toEqual([]);
 	});
@@ -4142,7 +4209,7 @@ describe(pauseForFailureInspection.name, () => {
 		expect(settled).resolves.toBeUndefined();
 		await settled;
 		expect(reported).toEqual([
-			"No interactive stdin; restoring the target now.",
+			"No interactive stdin; removing the run's checkout now.",
 		]);
 	});
 });

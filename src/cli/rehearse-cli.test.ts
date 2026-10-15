@@ -1,8 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { createHash } from "node:crypto";
-import { chmod, mkdir, mkdtemp, readdir, realpath, rm } from "node:fs/promises";
+import {
+	chmod,
+	mkdir,
+	mkdtemp,
+	readdir,
+	realpath,
+	rm,
+	symlink,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
+import { z } from "zod";
 import { ComparisonEvidenceFixture } from "#benchmark/comparison-evidence-test-support";
 import {
 	parseComparisonManifest,
@@ -29,6 +38,7 @@ import {
 	storeSpendCeiling,
 } from "#benchmark/settings";
 import { liveRunLiveness } from "#benchmark/run-liveness";
+import { loadRunManifest } from "#benchmark/manifest";
 import { PROJECT_ROOT } from "#benchmark/test-support";
 import {
 	RUN as DIAGNOSED_RUN,
@@ -293,6 +303,7 @@ async function controlCopy(directory: string): Promise<string> {
 		["ln", "-s", join(PROJECT_ROOT, "node_modules"), "node_modules"],
 		control,
 	);
+	await declareStandInTarget(control);
 	await runCommand(["git", "init", "-b", "main"], control);
 	await runCommand(["git", "config", "user.email", "t@example.com"], control);
 	await runCommand(["git", "config", "user.name", "Stdout Contract"], control);
@@ -303,9 +314,27 @@ async function controlCopy(directory: string): Promise<string> {
 }
 
 /**
+ * The copied audit-log case runs its checks against `passingTarget`, which
+ * needs none of the database and cache the real target's tests reach, so the
+ * copy declares no services.
+ */
+async function declareStandInTarget(control: string): Promise<void> {
+	const pipelineFile = Bun.file(
+		join(control, "cases", "audit-log", "pipelines", "default.json"),
+	);
+	const pipeline = z
+		.looseObject({ target: z.record(z.string(), z.unknown()) })
+		.parse(await pipelineFile.json());
+	const target = Object.fromEntries(
+		Object.entries(pipeline.target).filter(([field]) => field !== "services"),
+	);
+	await Bun.write(pipelineFile, `${JSON.stringify({ ...pipeline, target })}\n`);
+}
+
+/**
  * A target whose declared checks all succeed, so the run reaches its stages
- * instead of refusing at the baseline. audit-log names the three scripts; what
- * they do is beside the point for a stream contract.
+ * instead of refusing at the baseline. audit-log's setup and checks name these
+ * scripts; what they do is beside the point for a stream contract.
  */
 async function passingTarget(directory: string): Promise<string> {
 	const target = join(directory, "target");
@@ -315,7 +344,12 @@ async function passingTarget(directory: string): Promise<string> {
 		`${JSON.stringify(
 			{
 				name: "stdout-contract-target",
-				scripts: { typecheck: "true", check: "true", "test:unit": "true" },
+				scripts: {
+					typecheck: "true",
+					check: "true",
+					"test:unit": "true",
+					migrate: "true",
+				},
 			},
 			null,
 			2,
@@ -825,10 +859,83 @@ describe("rehearse", () => {
 		expect(result.stdout).toBe("");
 		expect(result.stderr).toContain(`Target: ${await realpath(target)}`);
 		expect(result.stderr).toContain("Baseline checks");
-		expect(result.stderr).toContain(
-			`Target restored to ${await headSha(target)}.`,
-		);
+		expect(result.stderr).toContain("Run checkout removed.");
 		expect(result.exitCode).toBe(EXIT_CODES.executionFailure);
+	});
+
+	describe("when the target's board is a link to a directory outside it", () => {
+		async function linkedBoardFixture(): Promise<
+			PipelineFixture & { readonly board: string }
+		> {
+			const directory = await mkdtemp(join(tmpdir(), "rehearse-linked-board-"));
+			temporaryDirectories.push(directory);
+			const fixture = await pipelineFixture(directory);
+			const board = join(directory, "board");
+			await mkdir(board);
+			await symlink(board, join(fixture.target, "backlog"));
+			await Bun.write(
+				join(fixture.target, ".git", "info", "exclude"),
+				"/backlog\n",
+			);
+
+			return { ...fixture, board };
+		}
+
+		function runAuditLog(fixture: PipelineFixture): Promise<CliResult> {
+			return runPipelineCli(
+				[
+					"run",
+					"--case",
+					"audit-log",
+					"--model",
+					"sonnet",
+					"--target",
+					fixture.target,
+					"--json",
+				],
+				fixture.control,
+				fixture.binDirectory,
+			);
+		}
+
+		it("runs the baseline checks and reaches the stages", async () => {
+			const fixture = await linkedBoardFixture();
+
+			const result = await runAuditLog(fixture);
+
+			expect(result.stderr).toContain("Baseline checks");
+			expect(result.stderr).not.toContain("backlog contains a link");
+			expect(result.exitCode).toBe(EXIT_CODES.executionFailure);
+		});
+
+		it("leaves the target's checkout and its board as they were", async () => {
+			const fixture = await linkedBoardFixture();
+			const startSha = await headSha(fixture.target);
+
+			await runAuditLog(fixture);
+
+			const status = await runCommand(
+				["git", "status", "--porcelain=v1", "--untracked-files=all"],
+				fixture.target,
+			);
+			expect({
+				head: await headSha(fixture.target),
+				status,
+				board: await readdir(fixture.board),
+			}).toEqual({ head: startSha, status: "", board: [] });
+		});
+
+		it("keeps the run's commits in the target once its checkout is gone", async () => {
+			const fixture = await linkedBoardFixture();
+
+			await runAuditLog(fixture);
+
+			const retained = await runCommand(
+				["git", "for-each-ref", "--format=%(refname)", "refs/rehearse"],
+				fixture.target,
+			);
+			expect(retained.trim()).toStartWith("refs/rehearse/");
+		});
 	});
 
 	it("keeps every replay diagnostic off stdout on a recorded run", async () => {
@@ -1337,12 +1444,11 @@ describe("the spend ceiling", () => {
 			await rm(directory, { force: true, recursive: true });
 		});
 
-		it("stops the run in its stage, records the stop, and restores the target", async () => {
+		it("stops the run in its stage, records the stop, and removes the run's checkout", async () => {
 			const { control, binDirectory, target } = await pipelineFixture(
 				directory,
 				{ ceilingUsd: 1, callCostUsd: 0.6 },
 			);
-			const startSha = await headSha(target);
 
 			const result = await runPipelineCli(
 				[
@@ -1387,7 +1493,7 @@ describe("the spend ceiling", () => {
 			});
 			expect(paidCalls.at(-1)).toContain("--max-budget-usd 0.4");
 			expect(manifest).toMatchObject({ spendCeilingUsd: 1 });
-			expect(result.stderr).toContain(`Target restored to ${startSha}.`);
+			expect(result.stderr).toContain("Run checkout removed.");
 		});
 	});
 
@@ -1869,8 +1975,12 @@ describe("a run's sessions", () => {
 				expect(session).toBeGreaterThan(0);
 				expect(await signalsIn(directory)).toEqual(["outside-refused"]);
 				expect(await launcher.startedAt(pid)).toBe(launchedAt);
-				const [run] = await recordedRunNames(benchmarkRunsDirectory(control));
-				expect(await liveRunLiveness().readMarker(target)).toMatchObject({
+				const runsDirectory = benchmarkRunsDirectory(control);
+				const [run] = await recordedRunNames(runsDirectory);
+				const { sourceRoot: checkout } = await loadRunManifest(
+					benchmarkRunPaths(runsDirectory, run ?? "").manifestFile,
+				);
+				expect(await liveRunLiveness().readMarker(checkout)).toMatchObject({
 					pid,
 					run,
 				});

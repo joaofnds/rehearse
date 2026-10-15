@@ -43,7 +43,11 @@ export async function writeReplayableRunManifest(
 	const manifest = buildRunManifest({
 		timestamp: "2026-09-02T00:00:00.000Z",
 		controlSha: "control-sha",
-		source: { root: "/tmp/target", sha: "source-sha" },
+		source: {
+			root: "/tmp/target",
+			sha: "source-sha",
+			targetRoot: "/tmp/target",
+		},
 		taskId: "TASK-1",
 		taskSha: "task-sha",
 		task: "Task",

@@ -26,12 +26,15 @@ describe("the default pipeline", () => {
 		]);
 	});
 
-	it("declares the NestJS target checks and integrity files", async () => {
+	it("declares the NestJS target setup, checks and integrity files", async () => {
 		const definition = await loadDefaultPipeline();
 		const env = { CONFIG_PATH: "src/config/test.yaml" };
 
-		expect(definition.target).toEqual({
-			setup: [{ command: ["bun", "install", "--frozen-lockfile"] }],
+		expect(definition.target).toMatchObject({
+			setup: [
+				{ command: ["bun", "install", "--frozen-lockfile"] },
+				{ command: ["bun", "run", "migrate", "up"], env },
+			],
 			checks: [
 				{ command: ["bun", "run", "typecheck"], env },
 				{ command: ["bun", "run", "check"], env },
@@ -39,6 +42,20 @@ describe("the default pipeline", () => {
 			],
 			integrityFiles: ["package.json", "tsconfig.json", "biome.json"],
 		});
+	});
+
+	it("starts the database and cache the target's tests reach", async () => {
+		const definition = await loadDefaultPipeline();
+
+		const services = definition.target.services?.map(({ name, exports }) => ({
+			name,
+			exports: Object.keys(exports),
+		}));
+
+		expect(services).toEqual([
+			{ name: "postgres", exports: ["DATABASE_URL"] },
+			{ name: "redis", exports: ["REDIS_URL"] },
+		]);
 	});
 
 	it("names a rubric that parses for every declared stage", async () => {

@@ -624,7 +624,7 @@ export function createRunAbort(
 	};
 	const restoreOnSignal = (signal: NodeJS.Signals): void => {
 		dependencies.reportError(
-			`\nReceived ${signal}; restoring the target before exit.`,
+			`\nReceived ${signal}; removing the run's checkout before exit.`,
 		);
 		if (signalAbortStarted) {
 			return;

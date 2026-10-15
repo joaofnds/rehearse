@@ -3,8 +3,9 @@ import { mkdir, mkdtemp, readdir, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { runCommand } from "./command";
+import { pathExists } from "./file-presence";
 import { recordRetentionRef } from "./target";
-import { cloneTarget, retainInTarget } from "./target-clone";
+import { cloneTarget, releaseClone, retainInTarget } from "./target-clone";
 import { TestResources, commitAll } from "./test-support";
 
 const testResources = TestResources.forEachTest();
@@ -87,6 +88,33 @@ describe(retainInTarget.name, () => {
 			target.directory,
 		);
 		expect(refs).toBe("");
+	});
+});
+
+describe(releaseClone.name, () => {
+	it("removes the clone once the target holds the run's commits", async () => {
+		const target = await testResources.createRepository();
+		const clone = await cloneTarget(target.directory);
+		testResources.track(dirname(clone));
+		await retainedCommitAfter(clone, "run-1");
+
+		await releaseClone(clone, target.directory, "run-1");
+
+		expect(await pathExists(dirname(clone))).toBe(false);
+	});
+
+	describe("when the target cannot take the run's commits", () => {
+		it("keeps the clone, which holds their only copy", async () => {
+			const target = await testResources.createRepository();
+			const clone = await cloneTarget(target.directory);
+			testResources.track(dirname(clone));
+			await retainedCommitAfter(clone, "run-1");
+			const missingTarget = join(dirname(clone), "moved-away");
+
+			await releaseClone(clone, missingTarget, "run-1").catch(() => undefined);
+
+			expect(await pathExists(clone)).toBe(true);
+		});
 	});
 });
 

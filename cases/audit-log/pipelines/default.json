@@ -2,9 +2,48 @@
 	"statuses": ["To Do", "Shape", "Build", "Review", "Ship", "Done"],
 	"commitSubjectPattern": "^[a-z]+(?:\\([^)]+\\))?!?: .+",
 	"target": {
+		"services": [
+			{
+				"name": "postgres",
+				"image": "postgres:18-alpine",
+				"port": 5432,
+				"env": {
+					"POSTGRES_DB": "template",
+					"POSTGRES_USER": "postgres",
+					"POSTGRES_PASSWORD": "postgres"
+				},
+				"ready": [
+					"pg_isready",
+					"--host",
+					"127.0.0.1",
+					"--username",
+					"postgres",
+					"--dbname",
+					"template"
+				],
+				"exports": {
+					"DATABASE_URL": "postgres://postgres:postgres@127.0.0.1:{port}/template"
+				}
+			},
+			{
+				"name": "redis",
+				"image": "redis:8-alpine",
+				"port": 6379,
+				"ready": ["redis-cli", "ping"],
+				"exports": {
+					"REDIS_URL": "redis://127.0.0.1:{port}"
+				}
+			}
+		],
 		"setup": [
 			{
 				"command": ["bun", "install", "--frozen-lockfile"]
+			},
+			{
+				"command": ["bun", "run", "migrate", "up"],
+				"env": {
+					"CONFIG_PATH": "src/config/test.yaml"
+				}
 			}
 		],
 		"checks": [

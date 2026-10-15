@@ -1027,4 +1027,36 @@ describe("show --checkout", () => {
 
 		expect(stdout).toEqual([`${fixture.checkoutPath}\n`]);
 	});
+
+	describe("when the run's checkout is gone", () => {
+		it("adds the worktree from the target the run's commits were copied into", async () => {
+			const fixture = await retainedRun();
+			await Bun.write(
+				benchmarkRunPaths(fixture.runsDirectory, RUN_NAME).artifactFile,
+				JSON.stringify({
+					status: "AWAITING_HUMAN_REVIEW",
+					sourceRoot: join(fixture.runsDirectory, "removed-checkout"),
+					targetRoot: fixture.targetDirectory,
+					resultSha: fixture.resultSha,
+				}),
+			);
+			const { output } = recordOutput();
+
+			await runShow(
+				{
+					id: `run:${RUN_NAME}`,
+					json: false,
+					runsDirectory: fixture.runsDirectory,
+					checkout: fixture.checkoutPath,
+				},
+				output,
+			);
+
+			const head = await runCommand(
+				["git", "rev-parse", "HEAD"],
+				fixture.checkoutPath,
+			);
+			expect(head.trim()).toBe(fixture.resultSha);
+		});
+	});
 });

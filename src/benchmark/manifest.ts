@@ -35,6 +35,7 @@ const runManifestSchema = z
 		timestamp: z.string().min(1),
 		controlSha: z.string().min(1),
 		sourceRoot: z.string().min(1),
+		targetRoot: z.string().min(1).optional(),
 		sourceSha: z.string().min(1),
 		taskId: z.string().min(1),
 		taskSha: z.string().min(1),

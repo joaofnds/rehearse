@@ -348,7 +348,12 @@ export async function runShow(
 	);
 }
 
-const retainedRunSchema = z.object({ sourceRoot: z.string().min(1) }).loose();
+const retainedRunSchema = z
+	.object({
+		sourceRoot: z.string().min(1),
+		targetRoot: z.string().min(1).optional(),
+	})
+	.loose();
 
 /**
  * The run recorded which repository it ran in and which commit it produced, so
@@ -365,13 +370,30 @@ async function checkoutRetainedCandidate(
 	const id = parseCheckoutRunId(given);
 	const { artifactFile } = benchmarkRunPaths(runsDirectory, id.run);
 	const text = await recordText(given, artifactFile);
-	const { sourceRoot } = retainedRunSchema.parse(JSON.parse(text));
+	const repository = await retainingRepository(
+		retainedRunSchema.parse(JSON.parse(text)),
+	);
 	const reference = `refs/rehearse/${id.run}`;
 	await refuseExistingDirectory(directory);
-	await refuseUnretainedRun(sourceRoot, reference, id.run);
-	await addWorktree(sourceRoot, reference, directory);
+	await refuseUnretainedRun(repository, reference, id.run);
+	await addWorktree(repository, reference, directory);
 
 	return directory;
+}
+
+/**
+ * The run's checkout while it remains, since a run whose commits could not be
+ * copied out keeps it as their only copy, and otherwise the target the commits
+ * were copied into.
+ */
+async function retainingRepository(
+	run: Readonly<z.infer<typeof retainedRunSchema>>,
+): Promise<string> {
+	if (run.targetRoot === undefined || (await exists(run.sourceRoot))) {
+		return run.sourceRoot;
+	}
+
+	return run.targetRoot;
 }
 
 /**

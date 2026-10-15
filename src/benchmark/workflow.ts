@@ -25,6 +25,7 @@ import type { RunEventRecorder } from "./run-events";
 import type { SessionSpend, StageSessionFailure } from "./stage-session-error";
 import { StageSessionError } from "./stage-session-error";
 import type { SpendCeiling } from "./spend-ceiling";
+import type { ServiceEnvironment } from "./target-services";
 
 export interface ProductOwnerSnapshot {
 	readonly sessionId: string;
@@ -50,7 +51,10 @@ export interface ProductOwnerConfiguration {
 export type ClaudeCommand = (
 	command: readonly string[],
 	directory: string,
-	options: { readonly timeoutMs: number } | { readonly silenceLimitMs: number },
+	options: (
+		| { readonly timeoutMs: number }
+		| { readonly silenceLimitMs: number }
+	) & { readonly env?: ServiceEnvironment | undefined },
 ) => Promise<string>;
 
 export interface WorkflowStageRequest {
@@ -70,6 +74,8 @@ export interface WorkflowStageRequest {
 	readonly skill: string;
 	readonly settingSources?: "project" | undefined;
 	readonly settingsOverlay?: string | undefined;
+	/** The target's services, for the commands the session runs to reach. */
+	readonly environment?: ServiceEnvironment | undefined;
 	readonly runEvents?: RunEventRecorder | undefined;
 	/**
 	 * Milliseconds elapsed since the run started, not a raw clock: shares its
@@ -255,6 +261,7 @@ export async function runWorkflowStage(
 		skill,
 		settingSources,
 		settingsOverlay,
+		environment,
 		runEvents,
 		elapsedMs = () => 0,
 	} = request;
@@ -288,7 +295,7 @@ export async function runWorkflowStage(
 						prompt,
 					],
 					targetDir,
-					{ silenceLimitMs: STAGE_SILENCE_LIMIT_MS },
+					{ silenceLimitMs: STAGE_SILENCE_LIMIT_MS, env: environment },
 				);
 				envelope = readClaudeEnvelope(output);
 			} catch (error) {

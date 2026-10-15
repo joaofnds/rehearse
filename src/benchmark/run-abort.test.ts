@@ -219,7 +219,12 @@ function artifactBaseInputs(
 	return {
 		timestamp: "2026-08-30T00:00:00.000Z",
 		controlSha: "control-sha",
-		source: { root: "/tmp/target", origin: undefined, sha: "source-sha" },
+		source: {
+			root: "/tmp/target",
+			origin: undefined,
+			sha: "source-sha",
+			targetRoot: "/tmp/target",
+		},
 		taskSha: "task-sha",
 		config: {
 			caseId: "audit-log",

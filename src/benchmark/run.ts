@@ -37,6 +37,7 @@ import {
 	captureFileHashes,
 	captureTreatmentChecks,
 	runChecks,
+	runSetup,
 } from "./checks";
 import { CommandError, killActiveCommands, runCommand } from "./command";
 import type { BenchmarkCase } from "./case";
@@ -113,15 +114,23 @@ import {
 	assertBuildCommitted,
 	assertControlReady,
 	assertSourceReady,
+	assertWorkflowBoardPrivate,
 	assertWorkspaceCleanAt,
 	captureBuildCandidate,
-	captureWorkflowBackup,
 	changedPathsBetween,
 	claimTarget,
 	recordRetentionRef,
-	teardownTarget,
 } from "./target";
 import type { SourceBaseline } from "./target";
+import { cloneTarget, discardClone, releaseClone } from "./target-clone";
+import type { RunningServices } from "./target-services";
+import {
+	checksWithServices,
+	SERVICE_READINESS,
+	startServices,
+	TargetServiceError,
+} from "./target-services";
+import { dockerContainerRuntime } from "./docker-container-runtime";
 import type { ProductOwner, ProductOwnerSnapshot } from "./workflow";
 import { createProductOwner, runWorkflowStage } from "./workflow";
 import { claimShortId, formatShortId } from "./short-id";
@@ -146,14 +155,18 @@ export interface BuildEvidence {
 	readonly taskState: string;
 }
 
+/**
+ * The clone a run works in, and the target it was cloned from, which keeps the
+ * run's commits once the clone is removed.
+ */
+export interface RunSource extends SourceBaseline {
+	readonly targetRoot: string;
+}
+
 export interface RunArtifactBaseInputs {
 	readonly timestamp: string;
 	readonly controlSha: string;
-	readonly source: {
-		readonly root: string;
-		readonly origin?: string | undefined;
-		readonly sha: string;
-	};
+	readonly source: RunSource;
 	readonly taskSha: string;
 	readonly config: BenchmarkConfig;
 	readonly pipeline: PipelineDefinition;
@@ -181,7 +194,7 @@ export interface RunArtifactInputs extends RunArtifactBaseInputs {
 export interface RunManifestInputs {
 	readonly timestamp: string;
 	readonly controlSha: string;
-	readonly source: SourceBaseline;
+	readonly source: RunSource;
 	readonly taskId: string;
 	readonly taskSha: string;
 	readonly task: string;
@@ -201,6 +214,7 @@ export function buildRunManifest(inputs: RunManifestInputs): RunManifest {
 		timestamp: inputs.timestamp,
 		controlSha: inputs.controlSha,
 		sourceRoot: source.root,
+		targetRoot: source.targetRoot,
 		sourceSha: source.sha,
 		taskId: inputs.taskId,
 		taskSha: inputs.taskSha,
@@ -231,6 +245,7 @@ function runArtifactEvidence(
 		timestamp: inputs.timestamp,
 		controlSha: inputs.controlSha,
 		sourceRoot: source.root,
+		targetRoot: source.targetRoot,
 		sourceOrigin: source.origin,
 		sourceSha: source.sha,
 		taskSha: inputs.taskSha,
@@ -456,9 +471,9 @@ export interface FinishGradedRunDependencies {
 }
 
 /**
- * Whether a failed run stops for the reviewer before restoring. Only a paused
- * run may, and only when the stage-failure calibration has not already held
- * the target for the same purpose. A run without `--pause` skips the stop
+ * Whether a failed run stops for the reviewer before its checkout is removed.
+ * Only a paused run may, and only when the stage-failure calibration has not
+ * already held the checkout for the same purpose. A run without `--pause` skips the stop
  * rather than reaching it and recovering from a closed stdin, so nothing asks
  * a question nobody is there to answer.
  */
@@ -470,12 +485,12 @@ export function pausesOnFailure(
 }
 
 /**
- * The stop a failed run makes so the reviewer can inspect the target before it
- * is restored. It is best effort: a terminal that closed mid-run, on SIGHUP,
- * makes the prompt throw, and that error would otherwise propagate in place of
- * the failure that got the run here. The restore then proceeds either way,
- * because holding the target for a reviewer who is not there is the worse
- * outcome.
+ * The stop a failed run makes so the reviewer can inspect the run's checkout
+ * before it is removed. It is best effort: a terminal that closed mid-run, on
+ * SIGHUP, makes the prompt throw, and that error would otherwise propagate in
+ * place of the failure that got the run here. The removal then proceeds either
+ * way, because holding the run's services for a reviewer who is not there is
+ * the worse outcome.
  */
 export async function pauseForFailureInspection(
 	rl: Questioner,
@@ -484,23 +499,24 @@ export async function pauseForFailureInspection(
 ): Promise<void> {
 	try {
 		await rl.question(
-			`The run failed. Inspect ${targetDir} if useful, then press Enter to restore the target.`,
+			`The run failed. Inspect ${targetDir} if useful, then press Enter to remove the run's checkout.`,
 		);
 	} catch {
-		report("No interactive stdin; restoring the target now.");
+		report("No interactive stdin; removing the run's checkout now.");
 	}
 }
 
 /**
  * What a run does once the final Judge has spoken, and the one place the two
- * paths differ. With `--pause` the reviewer is still holding the target, so
- * the run calibrates and completes the artifact. Without it the artifact stays
- * at AWAITING_HUMAN_REVIEW and the candidate is pinned under the run's
- * retention ref before the caller restores, because restoring makes the commit
- * unreachable and only the ref keeps gc from pruning it. `review` and
- * `calibrate` finish the record afterwards, from the frozen evidence.
+ * paths differ. With `--pause` the reviewer is still holding the run's
+ * checkout, so the run calibrates and completes the artifact. Without it the
+ * artifact stays at AWAITING_HUMAN_REVIEW and the candidate is pinned under the
+ * run's retention ref before the caller removes the run's checkout, because
+ * only the ref carries the commit into the target, where it keeps gc from
+ * pruning it. `review` and `calibrate` finish the record afterwards, from the
+ * frozen evidence.
  *
- * That artifact stops being pending before the restore begins. The restore is
+ * That artifact stops being pending before the removal begins. The removal is
  * seconds of git work with the signal handlers still registered, and an
  * artifact still pending is one an interrupt rewrites FAILED, which is a
  * status `calibrate` refuses to read.
@@ -517,7 +533,7 @@ export async function finishGradedRun(
 			request.resultSha,
 		);
 		dependencies.log(
-			`Candidate retained at refs/rehearse/${request.runName}; restoring the target. Record a review with \`rehearse review ${request.runName}\`, then \`rehearse calibrate ${request.runName}\`.`,
+			`Candidate retained at refs/rehearse/${request.runName}; removing the run's checkout. Record a review with \`rehearse review ${request.runName}\`, then \`rehearse calibrate ${request.runName}\`.`,
 		);
 
 		return;
@@ -530,7 +546,7 @@ export async function finishGradedRun(
 	await dependencies.completeArtifact(
 		completeRunArtifact(request.artifact, calibration, judgeAgreement),
 	);
-	dependencies.log("Calibration recorded; restoring the target.");
+	dependencies.log("Calibration recorded; removing the run's checkout.");
 }
 
 /**
@@ -1198,6 +1214,10 @@ export async function runGradedStages(
 }
 
 interface RunBaselineDependencies {
+	readonly runSetup: (
+		targetDir: string,
+		setup: readonly TargetCheck[] | undefined,
+	) => Promise<void>;
 	readonly runChecks: (
 		targetDir: string,
 		label: string,
@@ -1214,22 +1234,35 @@ interface RunBaseline {
 	readonly baselineChecks: LocalCheckResult;
 }
 
-export async function captureRunBaseline(
-	dependencies: RunBaselineDependencies,
-	source: SourceBaseline,
-	target: TargetDefinition,
-): Promise<RunBaseline> {
+/** A target command that exits non-zero is a precondition the run refuses. */
+async function refusingFailedCommand(
+	refusal: string,
+	run: () => Promise<void>,
+): Promise<void> {
 	try {
-		await dependencies.runChecks(source.root, "Baseline checks", target.checks);
+		await run();
 	} catch (error) {
 		if (error instanceof CommandError) {
 			throw new RefusedPreconditionError(
-				`Baseline check failed (exit ${error.exitCode}): ${error.command.join(" ")}`,
+				`${refusal} (exit ${error.exitCode}): ${error.command.join(" ")}`,
 			);
 		}
 
 		throw error;
 	}
+}
+
+export async function captureRunBaseline(
+	dependencies: RunBaselineDependencies,
+	source: SourceBaseline,
+	target: TargetDefinition,
+): Promise<RunBaseline> {
+	await refusingFailedCommand("Target setup failed", () =>
+		dependencies.runSetup(source.root, target.setup),
+	);
+	await refusingFailedCommand("Baseline check failed", () =>
+		dependencies.runChecks(source.root, "Baseline checks", target.checks),
+	);
 	const baselineChecks: LocalCheckResult = {
 		status: "PASS",
 		evidence: [
@@ -1261,6 +1294,75 @@ export function ordinaryInitialCheckpointInputs(
 	return initialCheckpointInputs(root, model, effort, loadedSettings.hashed);
 }
 
+/**
+ * The run works in its own clone of the target's main, so the operator's
+ * checkout, with its untracked files and linked board, is never read or
+ * written. The source keeps the target's own origin, since the clone's origin
+ * is the target's path.
+ */
+async function cloneSource(target: SourceBaseline): Promise<RunSource> {
+	const clone = await cloneTarget(target.root);
+	try {
+		const source = await assertSourceReady(clone);
+		await assertWorkflowBoardPrivate(clone);
+
+		return { ...source, origin: target.origin, targetRoot: target.root };
+	} catch (error) {
+		await discardClone(clone);
+		throw error;
+	}
+}
+
+interface RunCheckout {
+	readonly checkout: string;
+	readonly targetRoot: string;
+	readonly runName: string;
+}
+
+/**
+ * Copies the run's commits into the target and removes its checkout, then
+ * stops its services whether or not that worked. A checkout whose commits the
+ * target could not take stays, since it holds their only copy.
+ */
+async function releaseRun(
+	run: RunCheckout,
+	services: RunningServices | undefined,
+	log: (message: string) => void,
+): Promise<void> {
+	try {
+		await releaseClone(run.checkout, run.targetRoot, run.runName);
+		log("Run checkout removed.");
+	} catch (error) {
+		log(
+			`The run's commits could not be copied to ${run.targetRoot}; its checkout remains at ${run.checkout}`,
+		);
+		throw error;
+	} finally {
+		await services?.stop();
+	}
+}
+
+/** A service that cannot start or never gets ready is a precondition the run refuses. */
+async function startTargetServices(
+	target: TargetDefinition,
+): Promise<RunningServices> {
+	try {
+		return await startServices(
+			target.services ?? [],
+			dockerContainerRuntime,
+			SERVICE_READINESS,
+		);
+	} catch (error) {
+		if (error instanceof TargetServiceError) {
+			const reason =
+				error.cause instanceof Error ? `: ${error.cause.message}` : "";
+			throw new RefusedPreconditionError(`${error.message}${reason}`);
+		}
+
+		throw error;
+	}
+}
+
 export async function runBenchmark(
 	config: BenchmarkConfig,
 	benchmarkCase: BenchmarkCase,
@@ -1272,8 +1374,9 @@ export async function runBenchmark(
 	const { pipeline } = benchmarkCase;
 	const spendCeiling = createSpendCeiling({ ceilingUsd: spendCeilingUsd });
 	const controlSha = await assertControlReady();
-	const source = await assertSourceReady(config.sourceDir);
-	const workflowBackup = await captureWorkflowBackup(source.root);
+	const target = await assertSourceReady(config.sourceDir);
+	const source = await cloneSource(target);
+	let services: RunningServices | undefined;
 	const productOwnerDirectory = await mkdtemp(join(tmpdir(), "rehearse-po-"));
 	const timestamp = new Date().toISOString();
 	const runFiles = await createRunFiles(timestamp);
@@ -1306,7 +1409,16 @@ export async function runBenchmark(
 		{
 			artifactFile: runFiles.artifactFile,
 			operatorStopFile: runFiles.operatorStopFile,
-			teardown: () => teardownTarget(source, workflowBackup, log),
+			teardown: () =>
+				releaseRun(
+					{
+						checkout: source.root,
+						targetRoot: target.root,
+						runName: runFiles.name,
+					},
+					services,
+					log,
+				),
 		},
 	);
 
@@ -1315,18 +1427,34 @@ export async function runBenchmark(
 	} catch (error) {
 		runEventStore.close();
 		abort.release();
+		await discardClone(source.root);
 		throw error;
 	}
 
 	try {
-		log(`Target: ${source.root}`);
+		log(`Target: ${target.root}`);
+		log(`Run checkout: ${source.root}`);
 		log(`Original commit: ${source.sha}`);
-		log(`Workflow backup: ${workflowBackup.directory}`);
+		services = await startTargetServices(pipeline.target);
+		const { environment } = services;
 		const { baselineHashes, baselineContext, baselineChecks } =
 			await captureRunBaseline(
 				{
+					runSetup: (targetDir, setup) =>
+						runSetup(
+							targetDir,
+							setup === undefined
+								? undefined
+								: checksWithServices(setup, environment),
+							log,
+						),
 					runChecks: (targetDir, label, checks) =>
-						runChecks(targetDir, label, checks, log),
+						runChecks(
+							targetDir,
+							label,
+							checksWithServices(checks, environment),
+							log,
+						),
 					assertWorkspaceCleanAt,
 					captureFileHashes,
 					captureBaselineContext,
@@ -1397,7 +1525,8 @@ export async function runBenchmark(
 		const { workflow, stageScorecards, checkpoints, buildEvidence } =
 			await runGradedStages(
 				{
-					runWorkflowStage,
+					runWorkflowStage: (request) =>
+						runWorkflowStage({ ...request, environment }),
 					runStageJudge,
 					readTaskOutput,
 					readTaskCard,
@@ -1407,7 +1536,11 @@ export async function runBenchmark(
 					changedPathsBetween,
 					captureCheckIntegrity,
 					captureTreatmentChecks: (targetDir, checks) =>
-						captureTreatmentChecks(targetDir, checks, log),
+						captureTreatmentChecks(
+							targetDir,
+							checksWithServices(checks, environment),
+							log,
+						),
 					resolveSkillDirectory,
 					captureStageCorpus,
 					measureCorpus: () =>

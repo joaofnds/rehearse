@@ -204,16 +204,22 @@ export async function replaySettingsFile(
 }
 
 /**
- * The repository a fresh run of the replayed run's case would check out,
- * which replay falls back to once the run's own clone is gone. A session
- * case declares none, and a case that no longer loads leaves replay to the
- * recorded repository alone: the tolerance `declaredSessionKnobs` applies.
+ * The repository replay falls back to once the run's own clone is gone: the
+ * target the run was cloned from, which holds the commits the run kept. A run
+ * that recorded none worked in its target in place, so the target a fresh run
+ * of its case would use stands in. A session case declares none, and a case
+ * that no longer loads leaves replay to the recorded repository alone: the
+ * tolerance `declaredSessionKnobs` applies.
  */
 export async function replayDeclaredTarget(
 	manifestFile: string,
 ): Promise<string | undefined> {
 	try {
 		const manifest = await loadRunManifest(manifestFile);
+		if (manifest.targetRoot !== undefined) {
+			return manifest.targetRoot;
+		}
+
 		const declaration = await readCaseDeclaration(manifest.caseId);
 
 		return declaration.kind === "pipeline"

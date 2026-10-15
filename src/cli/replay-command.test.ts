@@ -8,6 +8,7 @@ import { RefusedPreconditionError } from "#cli/interactive-stdin";
 import { benchmarkRunPaths } from "#benchmark/run-layout";
 import { failureOf, recordOutput } from "#cli/cli-test-support";
 import { writeReplayableRunManifest } from "#cli/replay-test-support";
+import { loadRunManifest, writeRunManifest } from "#benchmark/manifest";
 import type { ReplayCliConfig } from "#benchmark/config";
 import {
 	executeReplay,
@@ -343,21 +344,40 @@ describe(replaySettingsFile.name, () => {
 });
 
 describe(replayDeclaredTarget.name, () => {
-	it("names the target a fresh run of the replayed run's case would use", async () => {
+	it("names the target the replayed run was cloned from", async () => {
 		const manifestFile = await writeReplayableRunManifest(
-			"any-name-declared-target",
+			"any-name-recorded-target",
 		);
 
 		try {
 			const target = await replayDeclaredTarget(manifestFile);
 
-			expect(await loadCase("audit-log")).toMatchObject({
-				kind: "pipeline",
-				targetPath: target,
-			});
+			expect(target).toBe("/tmp/target");
 		} finally {
 			await rm(manifestFile, { force: true });
 		}
+	});
+
+	describe("when the run recorded no target", () => {
+		it("names the target a fresh run of the replayed run's case would use", async () => {
+			const manifestFile = await writeReplayableRunManifest(
+				"any-name-declared-target",
+			);
+			const { targetRoot: _recorded, ...manifest } =
+				await loadRunManifest(manifestFile);
+			await writeRunManifest(manifestFile, manifest);
+
+			try {
+				const target = await replayDeclaredTarget(manifestFile);
+
+				expect(await loadCase("audit-log")).toMatchObject({
+					kind: "pipeline",
+					targetPath: target,
+				});
+			} finally {
+				await rm(manifestFile, { force: true });
+			}
+		});
 	});
 });
 

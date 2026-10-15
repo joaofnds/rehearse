@@ -258,6 +258,50 @@ describe("workflow provider metrics", () => {
 		]);
 	});
 
+	it("runs the stage's session with the environment the request names", async () => {
+		const environments: unknown[] = [];
+		const productOwner: ProductOwner = {
+			ask: () => Promise.resolve("Use the small scope"),
+			snapshot: () => ({
+				sessionId: "po-session",
+				spentUsd: 0,
+				providerCalls: [],
+			}),
+		};
+
+		await runWorkflowStage(
+			{
+				targetDir: "/target",
+				sessionId: "stage-session",
+				model: "sonnet",
+				effort: undefined,
+				sessionBudgetUsd: 5,
+				spendCeiling: createSpendCeiling({ ceilingUsd: 100 }),
+				productOwner,
+				taskId: "ACT-5",
+				stage: "build",
+				skill: "build",
+				environment: { DATABASE_URL: "postgres://127.0.0.1:49152/app" },
+			},
+			(_command, _directory, options) => {
+				environments.push(options.env);
+
+				return Promise.resolve(
+					JSON.stringify({
+						type: "result",
+						session_id: "stage-session",
+						total_cost_usd: 0.1,
+						structured_output: { status: "COMPLETE", message: "Built" },
+					}),
+				);
+			},
+		);
+
+		expect(environments).toEqual([
+			{ DATABASE_URL: "postgres://127.0.0.1:49152/app" },
+		]);
+	});
+
 	it("starts the stage's session under the id the request names", async () => {
 		const commands: (readonly string[])[] = [];
 		const productOwner: ProductOwner = {
