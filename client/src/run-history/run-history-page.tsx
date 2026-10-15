@@ -1146,12 +1146,24 @@ function taskGradeCell(row: HistoryRow): React.JSX.Element {
 
 const UNRECORDED = "unrecorded";
 
-/** A figure a record does not hold, saying so with why rather than blank. */
-function unrecorded(reasons: readonly string[]): React.JSX.Element {
+/**
+ * A figure a record does not hold, saying so rather than blank. Why is long
+ * and repeats down the table, so it opens on request.
+ */
+function unrecorded(
+	row: HistoryRow,
+	reasons: readonly string[],
+): React.JSX.Element {
 	return (
-		<span className="flex flex-col gap-0.5">
+		<span className="flex flex-col items-end gap-0.5">
 			<span className="text-xs text-dim">{UNRECORDED}</span>
-			{reasonsLine(reasons)}
+			<Disclosure
+				key={`${row.kind}:${identityOf(row)}`}
+				collapsedLabel="why"
+				expandedLabel="hide"
+			>
+				{causeList(reasons)}
+			</Disclosure>
 		</span>
 	);
 }
@@ -1168,7 +1180,7 @@ function figure(text: string): React.JSX.Element {
 function recordedCost(row: HistoryRow): React.JSX.Element {
 	const { cost } = row;
 	if (cost.state === "unavailable") {
-		return unrecorded(cost.reasons);
+		return unrecorded(row, cost.reasons);
 	}
 	if (cost.missing.length === 0) {
 		return figure(spendReading(cost.usd));
@@ -1209,12 +1221,13 @@ function wallCell(row: HistoryRow, nowMs: number): React.JSX.Element {
 		return figure(clockReading(liveElapsedMs(elapsedMs, measuredAt, nowMs)));
 	}
 
-	return recordedWall(row.wallTime);
+	return recordedWall(row);
 }
 
-function recordedWall(wallTime: HistoryRow["wallTime"]): React.JSX.Element {
+function recordedWall(row: HistoryRow): React.JSX.Element {
+	const { wallTime } = row;
 	if (wallTime.state === "unavailable") {
-		return unrecorded(wallTime.reasons);
+		return unrecorded(row, wallTime.reasons);
 	}
 
 	return figure(clockReading(wallTime.ms));

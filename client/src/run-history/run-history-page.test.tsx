@@ -3156,7 +3156,7 @@ describe(RunHistoryPage.name, () => {
 			).toHaveAttribute("aria-expanded", "false");
 		});
 
-		it("reads an unavailable cost as unrecorded with its reason", async () => {
+		it("reads an unavailable cost as unrecorded and keeps why for a request", async () => {
 			respondingWith(
 				everyKindWith({
 					cost: { state: "unavailable", reasons: ["no call metrics"] },
@@ -3166,10 +3166,28 @@ describe(RunHistoryPage.name, () => {
 
 			await renderPage().findByText(RUN);
 
-			expect(cellOf(RUN, "Cost").textContent).toBe("unrecordedno call metrics");
+			expect(cellOf(RUN, "Cost").textContent).toBe("unrecordedwhy");
 		});
 
-		it("reads an unavailable wall time as unrecorded with its reason", async () => {
+		it("shows why a cost is unrecorded on request", async () => {
+			respondingWith(
+				everyKindWith({
+					cost: { state: "unavailable", reasons: ["no call metrics"] },
+					wallTime: SIX_TWELVE,
+				}),
+			);
+			await renderPage().findByText(RUN);
+
+			fireEvent.click(
+				within(cellOf(RUN, "Cost")).getByRole("button", { name: "why" }),
+			);
+
+			expect(cellOf(RUN, "Cost").textContent).toBe(
+				"unrecordedhideno call metrics",
+			);
+		});
+
+		it("reads an unavailable wall time as unrecorded and keeps why for a request", async () => {
 			respondingWith(
 				everyKindWith({
 					cost: SPENT,
@@ -3179,7 +3197,25 @@ describe(RunHistoryPage.name, () => {
 
 			await renderPage().findByText(RUN);
 
-			expect(cellOf(RUN, "Wall").textContent).toBe("unrecordedno run events");
+			expect(cellOf(RUN, "Wall").textContent).toBe("unrecordedwhy");
+		});
+
+		it("shows why a wall time is unrecorded on request", async () => {
+			respondingWith(
+				everyKindWith({
+					cost: SPENT,
+					wallTime: { state: "unavailable", reasons: ["no run events"] },
+				}),
+			);
+			await renderPage().findByText(RUN);
+
+			fireEvent.click(
+				within(cellOf(RUN, "Wall")).getByRole("button", { name: "why" }),
+			);
+
+			expect(cellOf(RUN, "Wall").textContent).toBe(
+				"unrecordedhideno run events",
+			);
 		});
 	});
 
