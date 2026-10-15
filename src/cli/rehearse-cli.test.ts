@@ -501,7 +501,11 @@ async function recordedCheckout(
 	control: string,
 ): Promise<{ readonly run: string; readonly checkout: string }> {
 	const runsDirectory = benchmarkRunsDirectory(control);
-	const [run = ""] = await recordedRunNames(runsDirectory);
+	const [run] = await recordedRunNames(runsDirectory);
+	if (run === undefined) {
+		throw new Error(`No run was recorded in ${runsDirectory}`);
+	}
+
 	const { sourceRoot } = await loadRunManifest(
 		benchmarkRunPaths(runsDirectory, run).manifestFile,
 	);
@@ -975,6 +979,8 @@ describe("rehearse", () => {
 	});
 
 	describe("when the target's board is a link to a directory outside it", () => {
+		const BOARD_CONFIG = 'project_name: "Board"\n';
+
 		async function linkedBoardFixture(): Promise<
 			PipelineFixture & { readonly board: string }
 		> {
@@ -983,6 +989,7 @@ describe("rehearse", () => {
 			const fixture = await pipelineFixture(directory);
 			const board = join(directory, "board");
 			await mkdir(board);
+			await Bun.write(join(board, "config.yml"), BOARD_CONFIG);
 			await symlink(board, join(fixture.target, "backlog"));
 			await Bun.write(
 				join(fixture.target, ".git", "info", "exclude"),
@@ -1016,7 +1023,13 @@ describe("rehearse", () => {
 				head: await headSha(fixture.target),
 				status,
 				board: await readdir(fixture.board),
-			}).toEqual({ head: startSha, status: "", board: [] });
+				config: await Bun.file(join(fixture.board, "config.yml")).text(),
+			}).toEqual({
+				head: startSha,
+				status: "",
+				board: ["config.yml"],
+				config: BOARD_CONFIG,
+			});
 		});
 
 		it("keeps the run's commits in the target once its checkout is gone", async () => {
@@ -2126,11 +2139,7 @@ describe("a run's sessions", () => {
 				expect(session).toBeGreaterThan(0);
 				expect(await signalsIn(directory)).toEqual(["outside-refused"]);
 				expect(await launcher.startedAt(pid)).toBe(launchedAt);
-				const runsDirectory = benchmarkRunsDirectory(control);
-				const [run] = await recordedRunNames(runsDirectory);
-				const { sourceRoot: checkout } = await loadRunManifest(
-					benchmarkRunPaths(runsDirectory, run ?? "").manifestFile,
-				);
+				const { run, checkout } = await recordedCheckout(control);
 				expect(await liveRunLiveness().readMarker(checkout)).toMatchObject({
 					pid,
 					run,

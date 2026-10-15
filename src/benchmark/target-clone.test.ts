@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { chmod, mkdir, mkdtemp, readdir, symlink } from "node:fs/promises";
+import { chmod, mkdtemp, readdir, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { runCommand } from "./command";
@@ -85,19 +85,23 @@ describe(cloneTarget.name, () => {
 		const board = await mkdtemp(join(tmpdir(), "rehearse-board-"));
 		testResources.track(board);
 		await symlink(board, join(origin.directory, "backlog"));
-		await mkdir(join(origin.directory, "node_modules"));
+		await Bun.write(
+			join(origin.directory, "node_modules", "dep", "index.js"),
+			"",
+		);
+		await Bun.write(join(origin.directory, "notes.txt"), "draft\n");
 
 		const clone = await cloneTarget(origin.directory);
 		testResources.track(dirname(clone));
 
+		const tracked = await runCommand(
+			["git", "ls-tree", "--name-only", "main"],
+			origin.directory,
+		);
 		const entries = await readdir(clone);
-		expect(entries.toSorted()).toEqual([
-			".git",
-			".gitignore",
-			"base.txt",
-			"bun.lock",
-			"package.json",
-		]);
+		expect(entries.toSorted()).toEqual(
+			[".git", ...tracked.trim().split("\n")].toSorted(),
+		);
 	});
 });
 
@@ -107,7 +111,7 @@ describe(retainInTarget.name, () => {
 		const clone = await testResources.createRepository();
 		await Bun.write(join(clone.directory, "candidate.txt"), "candidate\n");
 		await commitAll(clone.directory, "feat: candidate");
-		const candidate = await retainedCommitAfter(clone.directory, "run-1");
+		const candidate = await retainHead(clone.directory, "run-1");
 
 		await retainInTarget(clone.directory, target.directory, "run-1");
 
@@ -133,7 +137,7 @@ describe(releaseClone.name, () => {
 		const target = await testResources.createRepository();
 		const clone = await cloneTarget(target.directory);
 		testResources.track(dirname(clone));
-		await retainedCommitAfter(clone, "run-1");
+		await retainHead(clone, "run-1");
 
 		await releaseClone(clone, target.directory, "run-1");
 
@@ -145,7 +149,7 @@ describe(releaseClone.name, () => {
 			const target = await testResources.createRepository();
 			const clone = await cloneTarget(target.directory);
 			testResources.track(dirname(clone));
-			await retainedCommitAfter(clone, "run-1");
+			await retainHead(clone, "run-1");
 			const missingTarget = join(dirname(clone), "moved-away");
 
 			const failure = await failureOf(
@@ -159,7 +163,7 @@ describe(releaseClone.name, () => {
 			const target = await testResources.createRepository();
 			const clone = await cloneTarget(target.directory);
 			testResources.track(dirname(clone));
-			await retainedCommitAfter(clone, "run-1");
+			await retainHead(clone, "run-1");
 			const missingTarget = join(dirname(clone), "moved-away");
 
 			await failureOf(releaseClone(clone, missingTarget, "run-1"));
@@ -173,7 +177,7 @@ describe(releaseClone.name, () => {
 			const target = await testResources.createRepository();
 			const clone = await cloneTarget(target.directory);
 			testResources.track(dirname(clone));
-			const candidate = await retainedCommitAfter(clone, "run-1");
+			const candidate = await retainHead(clone, "run-1");
 			await chmod(dirname(clone), 0o500);
 
 			const failure = await failureOf(
@@ -206,7 +210,7 @@ async function retainedCommit(
 	return output.trim();
 }
 
-async function retainedCommitAfter(
+async function retainHead(
 	repository: string,
 	runName: string,
 ): Promise<string> {

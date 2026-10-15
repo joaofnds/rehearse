@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import {
+	lstat,
 	mkdir,
 	mkdtemp,
 	readdir,
@@ -290,9 +291,13 @@ describe(installStageCorpusSnapshot.name, () => {
 
 			await installStageCorpusSnapshot(snapshot, target);
 
-			expect(await Bun.file(join(target, ".claude", "CLAUDE.md")).text()).toBe(
-				"stage instructions",
-			);
+			const installed = await lstat(join(target, ".claude"));
+			expect({
+				link: installed.isSymbolicLink(),
+				instructions: await Bun.file(
+					join(target, ".claude", "CLAUDE.md"),
+				).text(),
+			}).toEqual({ link: false, instructions: "stage instructions" });
 		});
 	});
 });

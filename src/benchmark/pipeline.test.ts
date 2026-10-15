@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { join, relative } from "node:path";
-import type { PipelineDefinition } from "./pipeline";
+import type { PipelineDefinition, TargetService } from "./pipeline";
 import { loadPipeline, parsePipeline } from "./pipeline";
 import { PROJECT_ROOT, TestResources } from "./test-support";
 import { parseStageRubric } from "./stage-grading";
@@ -8,6 +8,20 @@ import { parseStageRubric } from "./stage-grading";
 const AUDIT_LOG_CASE = "cases/audit-log";
 
 const testResources = TestResources.forEachTest();
+
+function declaredService(
+	definition: PipelineDefinition,
+	name: string,
+): TargetService {
+	const service = definition.target.services?.find(
+		(each) => each.name === name,
+	);
+	if (service === undefined) {
+		throw new Error(`The pipeline declares no ${name} service`);
+	}
+
+	return service;
+}
 
 function loadDefaultPipeline(): Promise<PipelineDefinition> {
 	return loadPipeline(
@@ -30,7 +44,8 @@ describe("the default pipeline", () => {
 		const definition = await loadDefaultPipeline();
 		const env = { CONFIG_PATH: "src/config/test.yaml" };
 
-		expect(definition.target).toMatchObject({
+		const { services: _services, ...target } = definition.target;
+		expect(target).toEqual({
 			setup: [
 				{ command: ["bun", "install", "--frozen-lockfile"] },
 				{ command: ["bun", "run", "migrate", "up"], env },
@@ -56,6 +71,20 @@ describe("the default pipeline", () => {
 			{ name: "postgres", exports: ["DATABASE_URL"] },
 			{ name: "redis", exports: ["REDIS_URL"] },
 		]);
+	});
+
+	it("gives the database address the credentials the database is created with", async () => {
+		const postgres = declaredService(await loadDefaultPipeline(), "postgres");
+
+		const {
+			POSTGRES_USER: user = "",
+			POSTGRES_PASSWORD: password = "",
+			POSTGRES_DB: database = "",
+		} = postgres.env ?? {};
+
+		expect(postgres.exports).toEqual({
+			DATABASE_URL: `postgres://${user}:${password}@127.0.0.1:{port}/${database}`,
+		});
 	});
 
 	it("names a rubric that parses for every declared stage", async () => {
