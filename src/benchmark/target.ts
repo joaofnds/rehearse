@@ -198,7 +198,12 @@ export async function recordRetentionRef(
 	runName: string,
 	sha: string,
 ): Promise<void> {
-	await git(targetDir, "update-ref", `refs/rehearse/${runName}`, sha);
+	await git(targetDir, "update-ref", retentionRef(runName), sha);
+}
+
+/** The ref that keeps a run's candidate and checkpoint commits reachable. */
+export function retentionRef(runName: string): string {
+	return `refs/rehearse/${runName}`;
 }
 
 /**

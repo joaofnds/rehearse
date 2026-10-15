@@ -120,6 +120,7 @@ import {
 	changedPathsBetween,
 	claimTarget,
 	recordRetentionRef,
+	retentionRef,
 } from "./target";
 import type { SourceBaseline } from "./target";
 import { cloneTarget, discardClone, releaseClone } from "./target-clone";
@@ -533,7 +534,7 @@ export async function finishGradedRun(
 			request.resultSha,
 		);
 		dependencies.log(
-			`Candidate retained at refs/rehearse/${request.runName}; removing the run's checkout. Record a review with \`rehearse review ${request.runName}\`, then \`rehearse calibrate ${request.runName}\`.`,
+			`Candidate retained at ${retentionRef(request.runName)}; removing the run's checkout. Record a review with \`rehearse review ${request.runName}\`, then \`rehearse calibrate ${request.runName}\`.`,
 		);
 
 		return;

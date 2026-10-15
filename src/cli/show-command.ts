@@ -35,7 +35,7 @@ import { checkpointStageAt, resolveShortId } from "#benchmark/short-id";
 import { groupRepReads, recordedRepReads } from "#benchmark/staleness-report";
 import { exists } from "node:fs/promises";
 import { z } from "zod";
-import { addWorktree, refExists } from "#benchmark/target";
+import { addWorktree, refExists, retentionRef } from "#benchmark/target";
 import { UsageError } from "#cli/commands";
 import { RefusedPreconditionError } from "#cli/interactive-stdin";
 import type { CommandOutput } from "#cli/output";
@@ -373,7 +373,7 @@ async function checkoutRetainedCandidate(
 	const repository = await retainingRepository(
 		retainedRunSchema.parse(JSON.parse(text)),
 	);
-	const reference = `refs/rehearse/${id.run}`;
+	const reference = retentionRef(id.run);
 	await refuseExistingDirectory(directory);
 	await refuseUnretainedRun(repository, reference, id.run);
 	await addWorktree(repository, reference, directory);

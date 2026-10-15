@@ -1,7 +1,7 @@
 import { mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
-import { git, refExists } from "./target";
+import { git, refExists, retentionRef } from "./target";
 
 /**
  * The checkout a run works in: a fresh clone of the target's main, so the
@@ -46,7 +46,7 @@ export async function retainInTarget(
 	targetRoot: string,
 	runName: string,
 ): Promise<void> {
-	const ref = `refs/rehearse/${runName}`;
+	const ref = retentionRef(runName);
 	if (!(await refExists(clone, ref))) {
 		return;
 	}
