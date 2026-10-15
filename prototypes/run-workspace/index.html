@@ -1304,8 +1304,13 @@
 					font-size: var(--sm);
 				}
 				.step-caption {
-					margin: var(--s25) 0 var(--s2);
+					margin: var(--s2) 0 var(--s2);
+					align-items: center;
 					flex-shrink: 0;
+				}
+				.step-actions .btn {
+					min-height: 28px;
+					padding: var(--s1) var(--s2);
 				}
 				.step-caption .eyebrow {
 					font-size: var(--tiny);
@@ -1366,14 +1371,16 @@
 				}
 				.workspace-body {
 					min-height: 0;
-					overflow: auto;
-					flex: 1;
+					overflow: visible;
+					flex: 0 0 auto;
 					display: flex;
 					flex-direction: column;
 					gap: var(--s3);
 				}
 				.workspace-content[data-view="activity"] .workspace-body {
 					overflow: hidden;
+					min-height: 360px;
+					flex: 1;
 				}
 				.activity-layout {
 					flex: 1;
@@ -1534,14 +1541,12 @@
 					display: block;
 				}
 			}
-			.workspace-content[data-view="activity"] .workspace-body {
-				min-height: 360px;
-			}
 			#toast {
 				pointer-events: none;
 			}
 			@media (pointer: coarse) {
 				.activity-columns .btn,
+				.step-actions .btn,
 				.check .btn,
 				.live-strip .btn,
 				.view-nav :is(a, button),
@@ -1566,6 +1571,42 @@
 					right: -29px;
 					top: calc(50% - 2px);
 				}
+			}
+
+			.experiment-next,
+			.edit-context {
+				display: flex;
+				justify-content: space-between;
+				align-items: center;
+				gap: var(--s4);
+				padding: var(--s4);
+				flex-wrap: wrap;
+			}
+			.experiment-next > div:first-child {
+				flex: 1;
+				min-width: 240px;
+			}
+			.experiment-next p {
+				margin-top: var(--s1);
+			}
+			.edit-context {
+				margin-bottom: var(--s4);
+				background: var(--surface);
+				border: 1px solid var(--accent-deep);
+				border-radius: var(--radius);
+			}
+			.edit-context p {
+				margin-block: var(--s1);
+			}
+			.setup-details {
+				margin-top: var(--s3);
+			}
+			.result-summary {
+				color: var(--muted);
+				font-size: var(--sm);
+			}
+			.step-actions .btn {
+				font-size: var(--xs);
 			}
 
 			@font-face {
@@ -1895,8 +1936,12 @@
 					caseTab: "Overview",
 					settingsTab: "General",
 					version: "0a78c2",
-					draft: initialInstruction,
-					instruction: initialInstruction,
+					instructionFiles: {},
+					editPath: "skills/review/SKILL.md",
+					editContext: null,
+					lastEdit: null,
+					launchSource: null,
+					lastStepRoute: null,
 					review: "B",
 					versionCounter: 0,
 				};
@@ -1953,11 +1998,14 @@
 			const route = () =>
 				(location.hash.slice(1) || "/runs").split("/").filter(Boolean);
 			const runView = (run, view) =>
-				["overview", "activity", "context", "report"].includes(view)
-					? view
-					: run?.state === "running"
-						? "activity"
-						: "overview";
+				["overview", "report", "results"].includes(view)
+					? "results"
+					: ["activity", "context"].includes(view)
+						? view
+						: run?.state === "running"
+							? "activity"
+							: "results";
+
 			const runHref = (run, view) =>
 				"#/runs/" + run.id + "/" + runView(run, view);
 
@@ -2254,7 +2302,15 @@
 				return (
 					'<div class="step-caption"><span class="eyebrow">' +
 					label +
-					'</span><span class="muted small">Select a step to inspect it across views</span></div><div class="step-spine">' +
+					'</span><div class="row gap2 step-actions"><span class="muted small">' +
+					selectedStep(run) +
+					"</span>" +
+					btn("Inputs & output", "inspect-step") +
+					(canReplay(run, selectedStep(run))
+						? btn("Replay step", "replay") +
+							btn("Test an instruction", "edit-instruction", "primary")
+						: "") +
+					'</div></div><div class="step-spine">' +
 					stepsFor(run)
 						.map((step, i) => {
 							const phase = stepPhase(run, step),
@@ -2370,6 +2426,166 @@
 				);
 			}
 
+			const instructionPath = (step) =>
+				step === "session" ? "output-style.md" : "skills/" + step + "/SKILL.md";
+			const stepArtifacts = (step) => ({
+				input:
+					step === "session"
+						? "prompt.md"
+						: step === "build"
+							? "plan.md"
+							: "product-brief.md",
+				output:
+					step === "session"
+						? "reply.txt"
+						: step === "build"
+							? "delivery.md"
+							: "plan.md",
+			});
+			const frozenInput = (run, step) =>
+				stepPhase(run, step) === "queued"
+					? "Not available · step not reached"
+					: run.inputCheckpoint ||
+						(step === "session"
+							? "Frozen prompt + fixture"
+							: step === "build"
+								? "cp-b8 · target@6d4a2f"
+								: "cp-a7 · target@6d4a2f");
+			const canReplay = (run, step) =>
+				!run.missing &&
+				!["queued", "running", "unavailable"].includes(stepPhase(run, step)) &&
+				(run.kind !== "Group" || run.state !== "running");
+			const canCompare = (run) =>
+				!!run.comparisonSource && !run.parent && run.state === "completed";
+			function editSourceSummary() {
+				const source = state.editContext;
+				return source
+					? '<dl class="definition"><dt>Source</dt><dd>' +
+							source.id +
+							" / " +
+							source.step +
+							'</dd><dt>Instruction</dt><dd class="mono">' +
+							esc(source.path) +
+							'</dd><dt>Frozen input</dt><dd class="mono">' +
+							esc(source.input) +
+							'</dd><dt>Source corpus</dt><dd class="mono">' +
+							source.version +
+							"</dd></dl>"
+					: '<p class="muted">No source step selected. After applying, choose a saved step in Runs to test this corpus version.</p>';
+			}
+			function instructionFile() {
+				const defaults = {
+					"skills/shape/SKILL.md":
+						"Read the brief and existing contracts. Preserve settled behavior and make acceptance criteria observable.",
+					"skills/build/SKILL.md":
+						"Implement the accepted plan. Verify boundary behavior and deliver the evidence from the target checks.",
+					"output-style.md":
+						"Answer concisely while preserving the required technical details.",
+				};
+				return (state.instructionFiles[state.editPath] ||= {
+					text: defaults[state.editPath] || initialInstruction,
+					draft: defaults[state.editPath] || initialInstruction,
+				});
+			}
+			function snapshotStep(run, step) {
+				const attempts =
+					run.kind === "Group"
+						? state.runs.filter((item) => item.parent === run.id)
+						: [run];
+				const observations = attempts.map((item) => {
+					const phase = stepPhase(item, step);
+					return {
+						id: item.id,
+						phase,
+						grade: stepGrade(item, step),
+						cost: item.stepReadings?.[step]?.cost ?? null,
+						seconds: item.stepReadings?.[step]?.seconds ?? null,
+					};
+				});
+				return {
+					id: run.id,
+					kind: run.kind,
+					finalOutcome: run.kind === "Pipeline" ? finalReading(run) : null,
+					case: run.case,
+					version: run.version,
+					step,
+					input: frozenInput(run, step),
+					path: instructionPath(step),
+					observations,
+				};
+			}
+			function nextExperiment(run, step) {
+				if (!canCompare(run)) return "";
+				return (
+					'<section class="panel experiment-next"><div><h2>Compare this replay</h2><p class="muted small">' +
+					run.sourceId +
+					" / " +
+					step +
+					' stays the source. Compare the recorded attempts before choosing another change.</p></div><a class="btn primary" href="#/compare/' +
+					run.id +
+					'">Compare with source →</a></section>'
+				);
+			}
+
+			function results(run, step) {
+				if (run.kind === "Group")
+					return (
+						'<div class="stack">' +
+						groupOverview(run) +
+						nextExperiment(run, step) +
+						runSetup(run, step) +
+						"</div>"
+					);
+				if (run.missing)
+					return (
+						'<div class="stack">' +
+						unavailable(run, step) +
+						'<section class="panel pad"><h2>Attempt preserved</h2><p>No reply or quality verdict is available.</p><a class="btn" href="#/cases/' +
+						run.case +
+						'">Inspect the case inputs →</a></section></div>'
+					);
+				return (
+					'<div class="stack"><p class="result-summary">' +
+					esc(run.note) +
+					"</p>" +
+					report(run, step) +
+					nextExperiment(run, step) +
+					runSetup(run, step) +
+					"</div>"
+				);
+			}
+			function runSetup(run, step) {
+				return (
+					'<details class="panel pad"><summary>Run setup & provenance</summary><dl class="definition setup-details"><dt>Case</dt><dd><a href="#/cases/' +
+					run.case +
+					'">' +
+					run.case +
+					'</a></dd><dt>Corpus</dt><dd class="mono">corpus@' +
+					run.version +
+					'</dd><dt>Model</dt><dd>sonnet · fixed effort</dd><dt>Frozen input</dt><dd class="mono">' +
+					esc(frozenInput(run, step)) +
+					"</dd><dt>Grading</dt><dd>" +
+					(step === "session"
+						? "3 deterministic checks"
+						: "Step judge" +
+							(run.kind === "Pipeline" || run.groupMode === "pipeline"
+								? " + independent final rubric"
+								: "")) +
+					"</dd>" +
+					(run.sourceId
+						? '<dt>Replayed from</dt><dd><a href="#/runs/' +
+							run.sourceId +
+							"/results/" +
+							run.step +
+							'">' +
+							run.sourceId +
+							" / " +
+							run.step +
+							"</a></dd>"
+						: "") +
+					"</dl></details>"
+				);
+			}
 			function workspace(run, view = "overview") {
 				const step = selectedStep(run),
 					running = run.state === "running";
@@ -2401,20 +2617,17 @@
 								run.pauseRequested ? "Pause requested" : "Pause after step",
 								"pause",
 							) + btn("Stop", "stop", "danger")
-						: run.missing
-							? ""
-							: btn(
-									"Replay " + (run.kind === "Session" ? "session" : "step"),
-									"replay",
-								)) +
+						: "") +
 					"</div></header>" +
 					spendBand(run) +
 					'<nav class="view-nav" aria-label="Run views">' +
 					[
-						["overview", "Overview"],
+						[
+							"results",
+							run.kind === "Group" ? "Attempts & results" : "Results",
+						],
 						["activity", "Activity" + (running ? " · live" : "")],
 						["context", "Context & cost"],
-						["report", "Report"],
 					]
 						.map(
 							([key, label]) =>
@@ -2436,9 +2649,7 @@
 						? activity(run, step)
 						: view === "context"
 							? context(run, step)
-							: view === "report"
-								? report(run, step)
-								: overview(run, step)) +
+							: results(run, step)) +
 					"</div>"
 				);
 			}
@@ -2450,7 +2661,7 @@
 					);
 				if (run.noTranscript)
 					return notice(
-						"This replay kept a grading record, but no raw transcript or per-request usage. Inspect Report for the saved grade and artifact. No context history can be reconstructed.",
+						"This replay kept a grading record, but no raw transcript or per-request usage. Inspect Results for the saved grade and artifact. No context history can be reconstructed.",
 						true,
 					);
 				if (run.state === "paused" && step === "build")
@@ -2464,86 +2675,6 @@
 						true,
 					);
 				return "";
-			}
-			function overviewDescription(run) {
-				if (run.state === "paused")
-					return "The run paused after the accepted Shape step. Build did not start. This run cannot be resumed; replay from its checkpoint.";
-				if (run.kind === "Replay")
-					return (
-						"This attempt ran only " +
-						run.step +
-						" from its frozen input. It carries its own grade; no final workflow outcome was measured."
-					);
-				if (run.kind === "Session")
-					return "The reply satisfied the case’s deterministic checks. Session evidence includes the saved reply and request usage.";
-				if (run.state === "running")
-					return (
-						run.step +
-						" is running. Accepted upstream output remains available while this session works."
-					);
-				if (run.grade === "Not judged")
-					return "The operator stopped this session before judging. No quality verdict can be inferred from a stop.";
-				if (run.state === "stopped")
-					return "The judge found the proposed field names contradicted the brief. The step missed minimum B and the downstream step never ran.";
-				return "Both steps met minimum B. The final workflow outcome is graded independently from the original input and final artifact.";
-			}
-			function overview(run, step) {
-				if (run.kind === "Group") return groupOverview(run);
-				if (run.missing)
-					return (
-						'<div class="stack">' +
-						unavailable(run, step) +
-						'<section class="panel pad stack"><h2>Attempt preserved</h2><p>No reply or quality verdict is available. Inspect the case inputs and try a new attempt.</p><a class="btn" href="#/cases/' +
-						run.case +
-						'">Open case →</a></section></div>'
-					);
-				const session = run.step === "session";
-				return (
-					'<div class="stack">' +
-					finalReport(run) +
-					'<div class="two-col"><section class="panel"><div class="panel-head"><h2>What happened</h2><a href="' +
-					runHref(run, "report") +
-					'">Read report →</a></div><div class="pad stack"><h3>' +
-					esc(run.note) +
-					'</h3><p class="muted">' +
-					overviewDescription(run) +
-					'</p><div class="row">' +
-					btn("Inspect " + step, "inspect-step") +
-					'<a class="btn" href="' +
-					runHref(run, run.state === "running" ? "activity" : "context") +
-					'">' +
-					(run.state === "running"
-						? "Follow activity"
-						: "Inspect saved context") +
-					' →</a></div></div></section><section class="panel"><div class="panel-head"><h2>Recorded inputs</h2></div><div class="pad"><dl class="definition"><dt>Case</dt><dd><a href="#/cases/' +
-					run.case +
-					'">' +
-					run.case +
-					'</a></dd><dt>Corpus</dt><dd><a href="#/corpus">corpus@' +
-					run.version +
-					'</a></dd><dt>Model</dt><dd>sonnet · fixed effort</dd><dt>Input</dt><dd class="mono">' +
-					(session
-						? "Frozen prompt + fixture"
-						: "target@6d4a2f · " + (step === "build" ? "cp-b8" : "cp-a7")) +
-					"</dd><dt>Grading</dt><dd>" +
-					(session
-						? "3 deterministic checks"
-						: "Step judge" +
-							(run.kind === "Pipeline" ? " + final rubric" : "")) +
-					"</dd>" +
-					(run.sourceId
-						? '<dt>Replayed from</dt><dd><a href="#/runs/' +
-							run.sourceId +
-							'/overview">' +
-							run.sourceId +
-							" / " +
-							run.step +
-							"</a></dd>"
-						: "") +
-					'</dl></div></section></div><section class="panel"><div class="panel-head"><h2>Next experiment</h2><span class="badge">Debug → confirm</span></div><div class="pad row between"><div><p>Try one instruction change from the same input.</p><small class="muted">A replay finds a lead. Repeated attempts and a control test whether it holds.</small></div><div class="row">' +
-					btn("Edit instruction", "edit-instruction") +
-					'<a class="btn" href="#/compare/cmp1">Example comparison →</a></div></div></section></div>'
-				);
 			}
 			function groupOverview(run) {
 				const attempts = state.runs.filter((item) => item.parent === run.id);
@@ -2562,7 +2693,11 @@
 					finished.length +
 					" / " +
 					count +
-					' ended</h2><a href="#/compare/cmp1">Open comparison →</a></div>' +
+					" ended</h2>" +
+					(["g6", "g7", "g8"].includes(run.id)
+						? '<a href="#/compare/cmp1">Open comparison →</a>'
+						: "") +
+					"</div>" +
 					attempts
 						.map(
 							(item) =>
@@ -2591,8 +2726,16 @@
 					(finished.length === count
 						? "mean " + money(run.cost / count) + " per attempt"
 						: "remaining outcomes pending") +
-					'.</p><p class="muted">Attempts are independent. Attempt numbers do not pair across groups. Check the comparison for rerun variability, the control, and the changed corpus file.</p>' +
-					btn("Repeat this step", "replay") +
+					'.</p><p class="muted">Attempts are independent. Attempt numbers do not pair across groups. ' +
+					(run.comparisonSource
+						? "Compare the group with its source step. This exploratory replay has no control arm."
+						: ["g6", "g7", "g8"].includes(run.id)
+							? "Check the example comparison for rerun variability, the control, and the changed corpus file."
+							: "Inspect each attempt’s evidence before drawing a conclusion.") +
+					"</p>" +
+					(canReplay(run, selectedStep(run))
+						? btn("Repeat this step", "replay")
+						: "") +
 					"</section></div>"
 				);
 			}
@@ -2601,9 +2744,14 @@
 				if (missing) return missing;
 				if (run.kind === "Group")
 					return notice(
-						'Select an attempt in Overview to inspect its own activity. A group is a collection of independent sessions, not one combined transcript. <a href="' +
+						'Select an attempt in Attempts & results to inspect its own activity. A group is a collection of independent sessions, not one combined transcript. <a href="' +
 							runHref(run, "overview") +
 							'">Choose an attempt →</a>' +
+							(canCompare(run)
+								? '<div class="row"><a class="btn primary" href="#/compare/' +
+									run.id +
+									'">Compare with source →</a></div>'
+								: "") +
 							(run.state === "running"
 								? '<div class="row">' +
 									btn("Finish demo group", "finish") +
@@ -2735,7 +2883,17 @@
 							btn("Finish demo", "finish") +
 							"</div>"
 						: "") +
-					'</section><div class="stack judge-column"><section class="panel"><div class="panel-head"><h2>Judge</h2><span class="badge">' +
+					'</section><div class="stack judge-column">' +
+					(canCompare(run)
+						? '<section class="panel pad stack"><h2>Replay complete</h2><p class="small muted">Compare this attempt with ' +
+							run.sourceId +
+							" / " +
+							run.step +
+							'.</p><a class="btn primary" href="#/compare/' +
+							run.id +
+							'">Compare with source →</a></section>'
+						: "") +
+					'<section class="panel"><div class="panel-head"><h2>Judge</h2><span class="badge">' +
 					(live
 						? "Pending"
 						: stepPhase(run, step) === "unjudged"
@@ -2757,9 +2915,7 @@
 											? "stopped"
 											: "completed",
 								})) +
-					'</div></section><section class="panel pad stack"><h3>Inputs & output</h3><p class="muted">Inspect instruction loads, input artifacts, and what this step produced.</p>' +
-					btn("Inspect step", "inspect-step") +
-					"</section></div></div></div>"
+					"</div></section></div></div></div>"
 				);
 			}
 			const sourceRows = [
@@ -2771,16 +2927,8 @@
 			];
 			function contextData(step) {
 				const rows = sourceRows.map((row) => [...row]);
-				rows[1][1] =
-					step === "session"
-						? "output-style.md"
-						: "skills/" + step + "/SKILL.md";
-				rows[2][1] =
-					step === "shape"
-						? "product-brief.md"
-						: step === "session"
-							? "prompt.md"
-							: "plan.md";
+				rows[1][1] = instructionPath(step);
+				rows[2][1] = stepArtifacts(step).input;
 				rows[3][1] =
 					step === "session"
 						? "Reply checks"
@@ -3031,25 +3179,26 @@
 					'</div></section><section class="panel"><div class="panel-head"><h2>' +
 					(session ? "Session evidence" : "Checkpoint & artifacts") +
 					'</h2></div><div class="pad stack"><dl class="definition"><dt>Started from</dt><dd class="mono">' +
-					(session ? "Frozen prompt + fixture" : "cp-a7 · target@6d4a2f") +
-					'</dd><dt>Instructions</dt><dd><a href="#/corpus">' +
-					(session ? "output-style.md" : "skills/" + step + "/SKILL.md") +
-					'</a><br><small class="muted">Observed delivery · declared snapshot ' +
+					frozenInput(run, step) +
+					"</dd><dt>Instructions</dt><dd>" +
+					(canReplay(run, step)
+						? btn(instructionPath(step), "edit-instruction")
+						: '<span class="mono">' + instructionPath(step) + "</span>") +
+					'<br><small class="muted">Observed delivery · declared snapshot ' +
 					run.version +
 					"</small></dd><dt>Input</dt><dd>" +
-					btn(session ? "prompt.md" : "product-brief.md", "artifact") +
+					btn(
+						stepArtifacts(step).input,
+						"artifact:" + stepArtifacts(step).input,
+					) +
 					"</dd><dt>Output</dt><dd>" +
 					(pending
 						? "Pending"
 						: phase === "unjudged"
 							? "Incomplete · no final artifact"
 							: btn(
-									session
-										? "reply.txt"
-										: step === "shape"
-											? "plan.md"
-											: "delivery.md",
-									"artifact",
+									stepArtifacts(step).output,
+									"artifact:" + stepArtifacts(step).output,
 								)) +
 					"</dd><dt>" +
 					(session ? "Transcript" : "Next checkpoint") +
@@ -3060,9 +3209,13 @@
 							? "Saved · attempt boundary known"
 							: phase === "stopped" || phase === "unjudged"
 								? "Not saved · step stopped"
-								: "cp-b8 · saved after acceptance") +
+								: step === "build"
+									? "End of workflow · no next step"
+									: "cp-b8 · saved after acceptance") +
 					"</dd></dl>" +
-					(!pending ? btn("Replay from frozen input", "replay") : "") +
+					(canReplay(run, step)
+						? btn("Replay from frozen input", "replay")
+						: "") +
 					"</div></section></div>" +
 					(!pending && !session
 						? '<section class="panel"><div class="panel-head"><h2>Root-cause analysis</h2><span class="badge">Agent opinion</span></div><div class="pad stack"><p>No analysis requested for this demo run.</p><p class="muted">An analysis proposes an explanation from saved evidence. A controlled experiment is needed to test it.</p>' +
@@ -3081,7 +3234,27 @@
 				return (
 					'<header class="page-head"><div><h1>Comparisons</h1><p>Did one instruction change help, at an acceptable cost?</p></div>' +
 					btn("+ Compare attempts", "compare-setup", "primary") +
-					'</header><section class="panel"><div class="panel-head"><h2>Saved comparisons</h2><span class="small muted">Synthetic experiments</span></div><div class="pad stack"><a class="run-title" href="#/compare/cmp1">Shorten shared review evidence →</a><p class="muted">audit-log · Shape · same frozen input · sonnet · fixed effort</p><div class="row"><span class="badge">Quality inconclusive</span><span class="badge">Cost −26% in this sample</span><span class="badge">One changed file</span></div><small class="muted">3 attempts per arm · control included · no paired attempt claims</small></div></section>'
+					'</header><section class="panel"><div class="panel-head"><h2>Comparisons</h2><span class="small muted">Synthetic experiments</span></div>' +
+					state.runs
+						.filter((item) => canCompare(item))
+						.map(
+							(item) =>
+								'<div class="run-row"><div><a class="run-title" href="#/compare/' +
+								item.id +
+								'">' +
+								item.sourceId +
+								" → " +
+								item.id +
+								" / " +
+								item.step +
+								'</a><small class="muted">Same frozen input · exploratory comparison</small></div><div class="mono">' +
+								item.comparisonSource.version +
+								" → " +
+								item.version +
+								"</div></div>",
+						)
+						.join("") +
+					'<div class="pad stack"><a class="run-title" href="#/compare/cmp1">Shorten shared review evidence →</a><p class="muted">audit-log · Shape · same frozen input · sonnet · fixed effort</p><div class="row"><span class="badge">Quality inconclusive</span><span class="badge">Cost −26% in this sample</span><span class="badge">One changed file</span></div><small class="muted">3 attempts per arm · control included · no paired attempt claims</small></div></section>'
 				);
 			}
 			function comparison() {
@@ -3152,16 +3325,148 @@
 					"</section></div></div>"
 				);
 			}
+			function observationSummary(snapshot) {
+				const rows = snapshot.observations,
+					graded = rows.filter((item) =>
+						["accepted", "stopped"].includes(item.phase),
+					);
+				return {
+					accepted: graded.filter((item) => item.phase === "accepted").length,
+					graded: graded.length,
+					attempts: rows.length,
+					cost:
+						rows.length && rows.every((item) => item.cost !== null)
+							? rows.reduce((sum, item) => sum + item.cost, 0) / rows.length
+							: null,
+					seconds:
+						rows.length && rows.every((item) => item.seconds !== null)
+							? rows.reduce((sum, item) => sum + item.seconds, 0) / rows.length
+							: null,
+				};
+			}
+			function replayComparison(run) {
+				const before = run.comparisonSource,
+					after = snapshotStep(run, run.step),
+					arms = [before, after];
+				return (
+					'<div class="breadcrumbs"><a href="' +
+					runHref(run, "results") +
+					'">← Replay ' +
+					run.id +
+					'</a></div><header class="page-head"><div><h1>Source vs replay</h1><p>' +
+					esc(before.case) +
+					" / " +
+					before.step +
+					' · same frozen input · sonnet · fixed effort</p></div></header><div class="stack">' +
+					notice(
+						"<strong>Exploratory comparison · synthetic data</strong><br>This shows what changed in these attempts. It cannot establish an improvement or equivalent quality. No control arm is included.",
+					) +
+					'<div class="two-col">' +
+					arms
+						.map((arm, i) => {
+							const stats = observationSummary(arm);
+							return (
+								'<section class="panel arm ' +
+								(i ? "candidate" : "") +
+								'"><div class="pad stack"><span class="eyebrow">' +
+								(i ? "Replay" : "Source") +
+								'</span><h2><a href="#/runs/' +
+								arm.id +
+								"/results/" +
+								arm.step +
+								'">' +
+								arm.id +
+								" / " +
+								arm.step +
+								' ↗</a></h2><span class="mono">corpus@' +
+								arm.version +
+								'</span><div><strong class="grade">' +
+								stats.accepted +
+								' accepted</strong><p class="muted small">' +
+								stats.graded +
+								" graded · " +
+								stats.attempts +
+								(stats.attempts === 1 ? " attempt · " : " attempts · ") +
+								(stats.attempts - stats.graded) +
+								' without a grade</p></div><dl class="definition"><dt>Mean step cost</dt><dd class="mono">' +
+								(stats.cost === null ? "Unavailable" : money(stats.cost)) +
+								'</dd><dt>Mean step time</dt><dd class="mono">' +
+								(stats.seconds === null
+									? "Unavailable"
+									: formatClock(Math.round(stats.seconds))) +
+								"</dd><dt>Workflow at capture</dt><dd>" +
+								(arm.finalOutcome || "Not measured in this step comparison") +
+								'</dd><dt>Frozen input</dt><dd class="mono">' +
+								esc(arm.input) +
+								'</dd></dl><div class="table-scroll"><table><thead><tr><th>Attempt</th><th>Step grade</th><th>Cost</th></tr></thead><tbody>' +
+								arm.observations
+									.map(
+										(item) =>
+											'<tr><td><a href="#/runs/' +
+											item.id +
+											"/results/" +
+											arm.step +
+											'">' +
+											item.id +
+											'</a></td><td class="mono">' +
+											item.grade +
+											'</td><td class="mono">' +
+											(item.cost === null ? "Unavailable" : money(item.cost)) +
+											"</td></tr>",
+									)
+									.join("") +
+								"</tbody></table></div></div></section>"
+							);
+						})
+						.join("") +
+					'</div><section class="panel pad stack"><h2>What was held fixed</h2><p class="mono">' +
+					esc(before.input) +
+					'</p><p class="muted">The replay used the selected step’s frozen input, with the same model and effort. Corpus snapshots are named separately above. Step grades remain independent of any final workflow outcome.</p></section>' +
+					(run.instructionChange
+						? '<section class="panel"><div class="panel-head"><h2>Instruction edited before this replay</h2><span class="mono">' +
+							esc(run.instructionChange.path) +
+							'</span></div><div class="diff-line remove">− ' +
+							esc(run.instructionChange.before) +
+							'</div><div class="diff-line add">+ ' +
+							esc(run.instructionChange.after) +
+							'</div><p class="pad muted small">This is the edit made in this flow. It is not a complete diff between the two corpus snapshots.</p></section>'
+						: "") +
+					'<section class="panel pad stack"><h2>What to do next</h2><p class="muted">A single replay is a lead. Repeat both conditions and include an instruction-removed control before deciding whether to keep the change.</p><div class="row"><a class="btn" href="#/compare/cmp1">Inspect a repeated three-arm example →</a><a class="btn" href="' +
+					runHref(run, "results") +
+					'">Return to this replay →</a></div></section></div>'
+				);
+			}
+
 			function corpusPage() {
 				return (
 					'<header class="page-head"><div><h1>Corpus</h1><p>Change one instruction, then test it from a frozen input.</p></div><span class="badge mono">corpus@' +
 					state.version +
-					'</span></header><div class="two-col"><section class="panel"><div class="panel-head"><h2>Instruction editor</h2><span class="badge">Copy · editable demo</span></div><div class="pad stack"><div class="field"><span>File</span><span class="mono">skills/review/SKILL.md</span></div><label class="field">Instruction<textarea id="instruction" class="mono">' +
-					esc(state.draft) +
+					"</span></header>" +
+					(state.editContext
+						? '<section class="edit-context"><div><span class="eyebrow">Testing from a saved step</span><p><a href="#/runs/' +
+							state.editContext.id +
+							"/results/" +
+							state.editContext.step +
+							'">' +
+							state.editContext.id +
+							" / " +
+							state.editContext.step +
+							' ↗</a><span class="mono muted"> · ' +
+							esc(state.editContext.input) +
+							'</span></p><small class="muted">Source corpus@' +
+							state.editContext.version +
+							" · sonnet · fixed effort</small></div>" +
+							btn("Clear source", "clear-edit-source") +
+							"</section>"
+						: "") +
+					'<div class="two-col"><section class="panel"><div class="panel-head"><h2>Instruction editor</h2><span class="badge">Copy · editable demo</span></div><div class="pad stack"><div class="field"><span>File</span><span class="mono">' +
+					esc(state.editPath) +
+					'</span></div><label class="field">Instruction<textarea id="instruction" class="mono">' +
+					esc(instructionFile().draft) +
 					'</textarea></label><div class="row">' +
 					btn("Review change", "review-edit", "primary") +
 					btn("Discard draft", "discard-edit") +
-					'</div></div></section><div class="stack"><section class="panel pad stack"><h2>Test the edit</h2><p class="muted">Applying creates a corpus version and marks affected results as changed. Old records remain available.</p><ol class="muted"><li>Edit one instruction.</li><li>Replay the same checkpoint.</li><li>Compare repeated attempts with a control.</li></ol></section><section class="panel pad stack"><h2>Inventory</h2><p>137 files in the demo snapshot.</p><p class="muted">The prototype edits one illustrative file. The production live install remains read-only; editing requires a linked copy.</p><a href="#/runs">Browse results by corpus version →</a></section></div></div>'
+					'</div></div></section><div class="stack"><section class="panel pad stack"><h2>Test the edit</h2><p class="muted">Applying creates a corpus version and marks affected results as changed. Old records remain available.</p><ol class="muted"><li>Edit one instruction.</li><li>Replay the same checkpoint.</li><li>Compare repeated attempts with a control.</li></ol></section><section class="panel pad stack"><h2>Inventory</h2><p>137 files in the demo snapshot.</p><p class="muted">The prototype edits illustrative instruction files. The production live install remains read-only; editing requires a linked copy.</p><a href="#/runs">Browse results by corpus version →</a></section></div></div>'
 				);
 			}
 			function tabButton(label, scope, selected) {
@@ -3266,7 +3571,10 @@
 									? "3 deterministic checks"
 									: "Per-step judges + final rubric") +
 								"</dd></dl>" +
-								btn("Inspect brief", "artifact") +
+								btn(
+									"Inspect brief",
+									"artifact:" + (session ? "prompt.md" : "product-brief.md"),
+								) +
 								'</section><section class="panel pad stack"><h2>Latest corpus results</h2><p class="muted">Only results from corpus@' +
 								state.version +
 								'; historical results remain in Runs.</p><div class="row"><span class="badge">' +
@@ -3289,7 +3597,7 @@
 							'</section><section class="panel pad stack"><h2>Corpus source</h2><p>Editable copy · demo corpus</p><p class="muted">Link, unlink, and rehash remain workspace settings. This prototype does not access the filesystem.</p>' +
 							btn("Preview source settings", "source-settings") +
 							"</section></div>"
-						: '<section class="panel"><div class="panel-head"><h2>Judge calibration</h2><span class="badge">Human review</span></div><div class="pad stack"><p class="muted">Compare the judge’s grade with a human reading of the same frozen artifact. Calibration lives beside judge settings and is also reachable from each report.</p><div class="check"><div><strong>audit-log / r41 / Shape</strong><p class="small muted">Judge B · your grade ' +
+						: '<section class="panel"><div class="panel-head"><h2>Judge calibration</h2><span class="badge">Human review</span></div><div class="pad stack"><p class="muted">Compare the judge’s grade with a human reading of the same frozen artifact. Calibration lives beside judge settings and is also reachable from Results.</p><div class="check"><div><strong>audit-log / r41 / Shape</strong><p class="small muted">Judge B · your grade ' +
 							state.review +
 							"</p></div>" +
 							btn("Review frozen output", "review-grade:r41:shape") +
@@ -3323,16 +3631,37 @@
 					: focused?.id
 						? "#" + CSS.escape(focused.id)
 						: null;
-				const [section, id, view] = route();
+				const [section, id, view, linkedStep] = route(),
+					routeChanged = state.lastStepRoute !== location.hash;
+				state.lastStepRoute = location.hash;
 				let content;
 				if (section === "runs" && id) {
 					const run = getRun();
+					if (run && stepsFor(run).includes(linkedStep) && routeChanged)
+						state.selectedStep[run.id] = linkedStep;
 					content = run
 						? workspace(run, runView(run, view))
 						: '<div class="empty"><h1>Run not found</h1><a href="#/runs">Return to Runs</a></div>';
-				} else if (section === "compare")
-					content = id ? comparison() : comparisonsPage();
-				else if (section === "corpus") content = corpusPage();
+				} else if (section === "compare") {
+					const candidate = state.runs.find(
+						(item) => item.id === id && item.comparisonSource,
+					);
+					content = !id
+						? comparisonsPage()
+						: id === "cmp1"
+							? comparison()
+							: candidate
+								? canCompare(candidate)
+									? replayComparison(candidate)
+									: notice(
+											"A comparison needs a completed replay. This replay is " +
+												candidate.state +
+												'. <a href="' +
+												runHref(candidate, "activity") +
+												'">Return to activity →</a>',
+										)
+								: '<div class="empty"><h1>Comparison is not in this demo state</h1><p>Simulated records reset on reload. Create a replay or inspect the supplied example.</p><a class="btn" href="#/compare/cmp1">Open the example comparison →</a></div>';
+				} else if (section === "corpus") content = corpusPage();
 				else if (section === "cases")
 					content = !id
 						? casesPage()
@@ -3381,8 +3710,25 @@
 					$(dialogOriginSelector).focus();
 				else $("#main")?.focus({ preventScroll: true });
 			}
-			function launchModal(caseId = "audit-log", replay = false) {
-				const run = getRun() || state.runs[1];
+			function launchModal(
+				caseId = "audit-log",
+				replay = false,
+				origin = null,
+			) {
+				const run =
+						origin?.run ||
+						getRun() ||
+						state.runs.find((item) => item.id === "r41"),
+					step = origin?.step || selectedStep(run);
+				if (replay && !canReplay(run, step)) {
+					toast(
+						"This step has no completed source evidence to replay. Choose a saved step.",
+					);
+					return;
+				}
+				state.launchSource = replay
+					? { id: run.id, step, snapshot: snapshotStep(run, step) }
+					: null;
 				modal(
 					replay ? "Replay from frozen input" : "New run",
 					'<p class="muted">' +
@@ -3400,8 +3746,12 @@
 							? '<dl class="definition"><dt>Source</dt><dd>' +
 								run.id +
 								" / " +
-								selectedStep(run) +
-								'</dd><dt>Frozen input</dt><dd class="mono">cp-a7 · target@6d4a2f</dd></dl>'
+								step +
+								'</dd><dt>Instruction</dt><dd class="mono">' +
+								esc(instructionPath(step)) +
+								'</dd><dt>Frozen input</dt><dd class="mono">' +
+								esc(frozenInput(run, step)) +
+								"</dd></dl>"
 							: "") +
 						'<label class="field">Attempts<select id="launch-count"><option value="1">1 · debug one attempt</option><option value="3">3 · repeated group</option><option value="6">6 · repeated group</option></select></label><label class="field">USD ceiling per attempt<input id="launch-budget" type="number" required min=".01" step=".01" value="' +
 						state.defaultBudget +
@@ -3455,7 +3805,7 @@
 							: "Judge reading: the output makes the boundary behavior observable. The citation supports this item; it does not establish the cause of the overall outcome.") +
 						"</p>",
 					btn(
-						"Return to " + (kind === "context" ? "context" : "report"),
+						"Return to " + (kind === "context" ? "context" : "results"),
 						"close",
 					),
 				);
@@ -3472,7 +3822,10 @@
 					$("#launch-budget").reportValidity();
 					return;
 				}
-				const source = getRun() || state.runs.find((item) => item.id === "r41");
+				const source = replay
+					? state.runs.find((item) => item.id === state.launchSource.id)
+					: null;
+				const sourceStep = replay ? state.launchSource.step : null;
 				const id = "demo" + (state.runs.length + 1);
 				const run = {
 					id,
@@ -3493,7 +3846,7 @@
 					version: state.version,
 					grade: "Pending",
 					step: replay
-						? selectedStep(source)
+						? sourceStep
 						: caseId === "brief-reply"
 							? "session"
 							: "shape",
@@ -3513,6 +3866,16 @@
 				run.count = count;
 				run.budget = budget;
 				run.sourceId = replay ? source.id : null;
+				if (replay) {
+					run.inputCheckpoint = frozenInput(source, sourceStep);
+					run.comparisonSource = structuredClone(state.launchSource.snapshot);
+					run.instructionChange =
+						state.lastEdit &&
+						state.lastEdit.sourceId === source.id &&
+						state.lastEdit.step === sourceStep
+							? structuredClone(state.lastEdit)
+							: null;
+				}
 				state.runs.unshift(run);
 				if (count > 1)
 					for (let i = 1; i <= count; i++)
@@ -3521,6 +3884,8 @@
 								...run,
 								id: id + "-rep" + i,
 								parent: id,
+								comparisonSource: null,
+								instructionChange: null,
 								kind:
 									caseId === "brief-reply"
 										? "Session"
@@ -3676,50 +4041,76 @@
 						'<dl class="definition"><dt>Run</dt><dd>' +
 							run.id +
 							'</dd><dt>Instructions</dt><dd class="mono">' +
-							(session ? "output-style.md" : "skills/" + step + "/SKILL.md") +
+							instructionPath(step) +
 							"</dd><dt>Input</dt><dd>" +
-							(session
-								? "prompt.md · frozen fixture"
-								: step === "build"
-									? "plan.md · cp-b8"
-									: "product-brief.md · cp-a7") +
+							(phase === "queued" || phase === "unavailable"
+								? frozenInput(run, step)
+								: btn(
+										stepArtifacts(step).input,
+										"artifact:" + stepArtifacts(step).input,
+									) +
+									'<br><small class="mono muted">' +
+									frozenInput(run, step) +
+									"</small>") +
 							"</dd><dt>Output</dt><dd>" +
-							(phase === "running"
-								? "Pending"
-								: phase === "queued"
-									? "Not reached"
-									: phase === "unjudged"
-										? "Incomplete"
-										: session
-											? "reply.txt"
-											: step === "shape"
-												? "plan.md"
-												: "2 commits · 8 files") +
+							(run.kind === "Group"
+								? "Outputs belong to individual attempts. Open an attempt in Attempts & results."
+								: phase === "running"
+									? "Pending"
+									: phase === "queued"
+										? "Not reached"
+										: phase === "unjudged"
+											? "Incomplete"
+											: phase === "unavailable"
+												? "Unavailable"
+												: btn(
+														stepArtifacts(step).output,
+														"artifact:" + stepArtifacts(step).output,
+													)) +
 							"</dd><dt>Grade</dt><dd>" +
 							grades[phase] +
 							"</dd><dt>Step spend</dt><dd>" +
 							m.cost +
 							"</dd><dt>Step elapsed</dt><dd>" +
 							m.time +
-							'</dd></dl><p class="muted">The report and context views retain this selected step.</p>',
-						btn("Open report", "inspect-report") +
-							btn("Replay step", "inspect-replay"),
+							'</dd></dl><p class="muted">Results and Context & cost retain this selected step.</p>',
+						btn("Open results", "inspect-report") +
+							(canReplay(run, step)
+								? btn("Replay step", "inspect-replay")
+								: ""),
 					);
 				} else if (name === "inspect-report") {
 					closeModal();
 					location.hash = runHref(run, "report");
 				} else if (name === "inspect-replay") launchModal(run.case, true);
-				else if (name === "artifact")
+				else if (name.startsWith("artifact:")) {
+					const path = name.slice("artifact:".length),
+						artifacts = {
+							"product-brief.md":
+								"Add cursor pagination to the audit log. Preserve nextCursor and hasMore. An exhausted cursor must keep the public response fields.",
+							"plan.md":
+								"# Accepted pagination plan\n\nPreserve nextCursor and hasMore.\nUse a stable cursor sort key.\nCover empty pages and invalid cursors in the target checks.\n\n4 acceptance criteria · saved before Build.",
+							"delivery.md":
+								run.finalOutcome === "FAIL"
+									? "# Delivery\n\nCursor ordering and validation implemented.\nEmpty-page example: { items: [], nextCursor: null }\n\nTarget checks: 12 passed. The independent final rubric found hasMore missing."
+									: "# Delivery\n\nCursor ordering and validation implemented.\nEmpty-page example: { items: [], nextCursor: null, hasMore: false }\n\nTarget checks: 12 passed.",
+							"prompt.md":
+								"Explain the cursor boundary in a concise technical reply.",
+							"reply.txt":
+								"An exhausted cursor returns an empty items array. Keep nextCursor and hasMore unchanged; validate an invalid cursor before querying.",
+						};
 					modal(
-						"Saved artifact",
-						'<span class="badge">Synthetic · read-only</span><pre class="tool">' +
-							esc(
-								"# Audit-log pagination\n\nPreserve the accepted response fields.\nUse stable cursor ordering.\nAn exhausted page returns items: [].\n\nAcceptance:\n1. Cursor round-trip preserves ordering.\n2. Empty result keeps the response contract.\n3. Invalid cursors are rejected.\n4. Required target checks pass.",
-							) +
+						path,
+						'<span class="badge">Synthetic · read-only</span><p class="mono">' +
+							(route()[0] === "cases"
+								? "Case " + route()[1]
+								: run.id + " / " + step) +
+							'</p><pre class="tool">' +
+							esc(artifacts[path]) +
 							"</pre>",
 						btn("Close", "close"),
 					);
-				else if (name === "analysis")
+				} else if (name === "analysis")
 					modal(
 						"Root-cause analysis request",
 						'<p>An agent will read the frozen run evidence and propose likely instruction-level explanations.</p><div class="notice">Demo ceiling: $2.00 · model: sonnet<br>This is an opinion, not causal evidence.</div>',
@@ -3732,22 +4123,44 @@
 						'<span class="badge">Agent opinion · synthetic</span><p>The review instruction may have increased repeated evidence delivery. Inspect the cited request intervals before proposing a smaller instruction.</p><p class="muted">A controlled replay and repeated comparison are needed to test that hypothesis.</p>',
 						btn("Inspect citation", "context-evidence"),
 					);
-				else if (name === "edit-instruction") location.hash = "/corpus";
-				else if (name === "discard-edit") {
-					state.draft = state.instruction;
+				else if (name === "edit-instruction") {
+					if (!canReplay(run, step)) {
+						toast("Choose a saved step before testing an instruction.");
+						return;
+					}
+					state.editContext = {
+						id: run.id,
+						step,
+						path: instructionPath(step),
+						input: frozenInput(run, step),
+						version: run.version,
+					};
+					state.editPath = state.editContext.path;
+					location.hash = "/corpus";
+				} else if (name === "clear-edit-source") {
+					state.editContext = null;
+					render();
+				} else if (name === "choose-edit-source") {
+					closeModal();
+					location.hash = "/runs";
+				} else if (name === "discard-edit") {
+					instructionFile().draft = instructionFile().text;
 					render();
 					toast("Draft discarded.");
 				} else if (name === "review-edit") {
-					if (state.draft === state.instruction) {
+					if (instructionFile().draft === instructionFile().text) {
 						toast("Edit the instruction before reviewing a change.");
 						return;
 					}
 					modal(
 						"Review instruction change",
-						'<span class="mono">skills/review/SKILL.md</span><div><div class="diff-line remove">− ' +
-							esc(state.instruction) +
+						editSourceSummary() +
+							'<span class="mono">' +
+							esc(state.editPath) +
+							'</span><div><div class="diff-line remove">− ' +
+							esc(instructionFile().text) +
 							'</div><div class="diff-line add">+ ' +
-							esc(state.draft) +
+							esc(instructionFile().draft) +
 							'</div></div><p>Apply as a new demo corpus version. Existing results remain attached to their original snapshot.</p><p class="muted">' +
 							state.runs.filter((r) => r.version === state.version).length +
 							" demo records use the current snapshot. Their corpus will read as changed.</p>",
@@ -3755,20 +4168,40 @@
 							btn("Apply demo version", "apply-edit", "primary"),
 					);
 				} else if (name === "apply-edit") {
-					state.instruction = state.draft;
+					state.lastEdit = {
+						path: state.editPath,
+						before: instructionFile().text,
+						after: instructionFile().draft,
+						sourceId: state.editContext?.id || null,
+						step: state.editContext?.step || null,
+					};
+					instructionFile().text = instructionFile().draft;
 					state.version = "edit" + ++state.versionCounter;
 					modal(
 						"Demo corpus version created",
 						"<p>corpus@" +
 							state.version +
-							' is ready. Replay Shape from the same frozen input to investigate the change.</p><p class="muted">Only this prototype’s memory changed. Old records still name their original corpus version.</p>',
+							" is ready.</p>" +
+							editSourceSummary() +
+							'<p class="muted">Only this prototype’s memory changed. Old records still name their original corpus version.</p>',
 						btn("Return to corpus", "close") +
-							btn("Replay Shape", "edit-replay", "primary"),
+							(state.editContext
+								? btn(
+										"Replay " + state.editContext.step,
+										"edit-replay",
+										"primary",
+									)
+								: btn("Choose source step", "choose-edit-source", "primary")),
 					);
 					render();
 				} else if (name === "edit-replay") {
-					location.hash = "/runs/r39/overview";
-					launchModal("audit-log", true);
+					const source = state.runs.find(
+						(item) => item.id === state.editContext.id,
+					);
+					launchModal(source.case, true, {
+						run: source,
+						step: state.editContext.step,
+					});
 				} else if (name === "diff")
 					modal(
 						"One changed instruction",
@@ -4024,7 +4457,8 @@
 					$("#search").focus();
 					$("#search").setSelectionRange(cursor, cursor);
 				}
-				if (event.target.id === "instruction") state.draft = event.target.value;
+				if (event.target.id === "instruction")
+					instructionFile().draft = event.target.value;
 				if (
 					event.target.id === "launch-count" ||
 					event.target.id === "launch-budget"

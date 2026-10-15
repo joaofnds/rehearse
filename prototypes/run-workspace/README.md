@@ -17,28 +17,34 @@ dependency installation is needed.
 Try these paths:
 
 1. Open the running **audit-log / r42**. It opens Activity. Select Shape, switch to
-   Report, open a citation, then switch to Context & cost. The run and step stay put.
+   Results, open a citation, then switch to Context & cost. The run and step stay put.
 2. Return to Runs. Open **r37**: both steps have B, but the independent final
    outcome is FAIL. **r36** has no final verdict because judging failed. Also try
    stopped **r40**, a session, a replay, and a group; open a group's attempt.
-3. Open a finished step, choose Replay step, inspect the frozen checkpoint and
-   spending ceiling, then start the simulated replay.
-4. In Corpus, edit the instruction, review the diff, apply the simulated version,
-   and replay. Use Comparisons to inspect quality beside cost and the control.
+3. Select a finished step and use Inputs & output or Replay step beside the workflow.
+4. From **r37 / Build**, choose Test an instruction. The editor keeps the source run,
+   step, file, corpus version, and frozen checkpoint visible. Edit, review, apply,
+   and replay. Finish the demo and choose Compare with source. The comparison uses
+   the selected step's saved source, with step costs, grades and corpus identities.
+   It remains available under Comparisons. The repeated three-arm example stays
+   separate and includes a control.
 5. In Cases, open audit-log and its Workflow tab. Task definitions live here.
    In Settings, open Judges to find calibration.
 6. Use Pause after step, Advance demo, Finish demo, and Stop on the live run.
    New run creates another synthetic item. Reset demo restores the initial state.
 
-The navigation is a draft proposal. A run has one workspace with Overview,
-Activity, Context & cost, and Report. Running items open Activity; ended items open
-Overview. The same run and selected step stay in place across those views. Activity
+The navigation is a draft proposal. A run has one workspace with
+Results, Activity, and Context & cost. Running items open Activity; ended items open
+Results. The same run and selected step stay in place across those views. Activity
 remains available after completion. A step strip carries grades, output summaries,
 cost, and elapsed time, with citations opening in a dialog beside the current view.
+Results holds the final outcome, step judge, artifacts, analysis and human review;
+Run setup & provenance holds the case, model, corpus and frozen input. Old
+overview/report links resolve to Results. Contextual links retain the selected step.
 
 The global navigation has five destinations: Runs, Comparisons, Cases, Corpus, and
 Settings. Task definitions move into Cases → Workflow. Judge calibration moves into
-Settings → Judges and remains reachable from each report. Group attempts stay
+Settings → Judges and remains reachable from Results. Group attempts stay
 nested under their group. Final workflow PASS/FAIL remains independent of step
 letters, and unavailable evidence remains distinct from failed work.
 
@@ -64,9 +70,9 @@ measurement semantics.
 
 Desktop is the design target. At 1280px and wider, the workspace keeps its header,
 spend band, view tabs, and connected steps above two independently scrolling activity
-and judge panes. Short browser windows scroll the workspace while preserving a
-readable transcript area. The bottom live strip returns to the active run from another
-section. Long history, context, and report content scroll inside the main area.
+and judge panes. Results and Context use one page scroll. Short browser windows scroll the Activity
+workspace while preserving a readable transcript area. The bottom live strip returns to the active run from another
+section. Long history, context, and result content scroll inside the main area.
 Compact controls serve desktop pointers; coarse pointers retain 44px targets.
 Native dialogs, visible focus, text labels for statuses, and reduced-motion support
 remain in place. Narrow layouts retain a basic fallback without dedicated mobile
@@ -80,3 +86,12 @@ The corpus editor, judge review, launch, replay, and run controls change page me
 only. Workflow editing and importing are previews. Export downloads synthetic JSON
 that is not a production task bundle. Comparison readings illustrate the design;
 they are not experiment results or evidence that an instruction improved.
+
+Instruction drafts are separate per illustrative file. A replay captures its source
+readings at launch, so later navigation or edits cannot change the before arm. The
+source comparison uses recorded step cost and time, names missing grades, and keeps
+any source workflow verdict separate. It makes no causal or equivalence claim; no
+control arm is included in this exploratory comparison. The instruction diff names
+the edit made in the flow rather than claiming a complete corpus diff. Use Clear
+source to leave the current experiment. Editing directly in Corpus requires choosing
+a source step in Runs before replay; it does not choose a run for you.
