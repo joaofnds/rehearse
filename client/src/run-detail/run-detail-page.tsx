@@ -9,7 +9,6 @@ import {
 	stoppedStageOf,
 } from "#benchmark/stopped-status";
 import { minutesAndSeconds } from "#client/monitor/minutes-and-seconds";
-import { shortCommit } from "#client/monitor/run-identity-header";
 import type {
 	MonitoredStage,
 	RunRecordResponse,
@@ -22,7 +21,7 @@ import { polledRunHistoryQuery } from "#client/run-history/run-history-polling";
 import { spendReading } from "#client/run-history/run-progress";
 import {
 	hasRunEnded,
-	restoredRepository,
+	endedByStop,
 	runStatusState,
 } from "#client/run-history/run-status";
 import type {
@@ -250,16 +249,15 @@ function stepsWords(numbers: readonly number[]): string {
 		: `steps ${numbers.join(", ")}`;
 }
 
-/** What stopping did to the target, and what the run kept to replay from. */
-function restoreWords(record: RunRecordResponse): string {
+/** What a stopped run kept to replay from. */
+function replayableWords(record: RunRecordResponse): string {
 	const retained = record.stages.flatMap((stage, index) =>
 		stage.checkpoint === "recorded" ? [index + 1] : [],
 	);
-	const restored = `Repository restored to ${record.identity.target} @ ${shortCommit(record.identity.commit)}.`;
 
 	return retained.length === 0
-		? `${restored} No step saved a checkpoint to replay from.`
-		: `${restored} Checkpoints from ${stepsWords(retained)} are retained and replayable.`;
+		? "No step saved a checkpoint to replay from."
+		: `Checkpoints from ${stepsWords(retained)} are retained and replayable.`;
 }
 
 function RestoreBanner({
@@ -271,14 +269,14 @@ function RestoreBanner({
 	readonly record: RunRecordResponse;
 	readonly layout: RunDetailLayout;
 }): React.JSX.Element {
-	const stopped = restoredRepository(row.status);
+	const stopped = endedByStop(row.status);
 
 	return (
 		<div className="flex flex-none items-center gap-2.25 border-b border-divider bg-secondary px-6 py-2 text-11-5 text-secondary-foreground">
 			{stopped ? (
 				<p>
 					<span aria-hidden="true">↺ </span>
-					{restoreWords(record)}
+					{replayableWords(record)}
 				</p>
 			) : null}
 			<span className="ml-auto text-dim">{LAYOUT_NOTES[layout]}</span>

@@ -235,7 +235,7 @@ describe("Record ledger", () => {
 		);
 	});
 
-	it("states whether each stage kept its checkpoint or the repository was restored", async () => {
+	it("states whether each stage kept its checkpoint", async () => {
 		renderLedger();
 
 		const firstStep = await ledgerFooter("Step 1 · shape");
@@ -245,38 +245,9 @@ describe("Record ledger", () => {
 			within(firstStep).getByText("c-0147-1 · frozen state retained"),
 		).toBeInTheDocument();
 		expect(
-			within(stoppedStep).getByText(
-				"no checkpoint saved · repository restored",
-			),
+			within(stoppedStep).getByText("no checkpoint saved"),
 		).toBeInTheDocument();
 	});
-
-	it.each([
-		["OPERATOR_STOPPED", "no checkpoint saved · repository restored"],
-		["INTERRUPTED", "no checkpoint saved"],
-	])(
-		"says on an %s run whether a stage that kept no checkpoint had its repository restored",
-		async (status, words) => {
-			renderAppWithStub(
-				LEDGER,
-				new Map<string, unknown>([
-					["/api/runs", history([runRow({ run: RUN, status })])],
-					[
-						`/api/runs/${RUN}`,
-						{
-							...stoppedAtBuild("missing"),
-							status: { state: "available", status },
-						},
-					],
-					[ANALYSES, noAnalysis()],
-				]),
-			);
-
-			const firstStep = await ledgerFooter("Step 1 · shape");
-
-			expect(within(firstStep).getByText(words)).toBeInTheDocument();
-		},
-	);
 
 	it("offers a replay from each stage", async () => {
 		renderLedger();
@@ -532,7 +503,7 @@ describe("Record ledger", () => {
 			const note = within(await unreached()).getByRole("listitem");
 
 			expect(note).toHaveTextContent(
-				"Step 3 · verify never ran. The run stopped after step 2 fell below the minimum and the target repository was restored. This is a recorded outcome for corpus@a41c7e, not a failed execution.",
+				"Step 3 · verify never ran. The run stopped after step 2 fell below the minimum. This is a recorded outcome for corpus@a41c7e, not a failed execution.",
 			);
 			expect(note).toHaveClass("border-dashed");
 		});
@@ -541,7 +512,7 @@ describe("Record ledger", () => {
 			renderLedger(new Map(), stoppedByVerdict());
 
 			expect(await unreached()).toHaveTextContent(
-				"Step 3 · verify never ran. The run stopped after step 2 and the target repository was restored. This is a recorded outcome for corpus@a41c7e, not a failed execution.",
+				"Step 3 · verify never ran. The run stopped after step 2. This is a recorded outcome for corpus@a41c7e, not a failed execution.",
 			);
 		});
 

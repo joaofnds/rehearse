@@ -41,7 +41,6 @@ import {
 	durationReading,
 	nodeStatus,
 } from "#client/monitor/task-graph";
-import { restoredRepository } from "#client/run-history/run-status";
 import { useNow } from "#client/run-history/use-now";
 import type { PipelineRow } from "#client/shell/run-in-flight";
 import { CorpusPill } from "#client/system/components/corpus-pill";
@@ -190,8 +189,8 @@ function CardBody({
 	);
 }
 
-/** What the stage kept to replay from, or what stopping did instead. */
-function checkpointWords(stage: MonitoredStage, row: PipelineRow): string {
+/** What the stage kept to replay from. */
+function checkpointWords(stage: MonitoredStage): string {
 	if (stage.checkpoint === "recorded") {
 		const name =
 			stage.checkpointShortId.state === "available"
@@ -201,9 +200,7 @@ function checkpointWords(stage: MonitoredStage, row: PipelineRow): string {
 		return `${name} · frozen state retained`;
 	}
 
-	return restoredRepository(row.status)
-		? "no checkpoint saved · repository restored"
-		: "no checkpoint saved";
+	return "no checkpoint saved";
 }
 
 /**
@@ -252,7 +249,7 @@ function CardFooter({
 		<footer className="flex flex-wrap items-center gap-2.5 border-t border-border px-3.5 py-2.25">
 			<span className="flex items-center gap-1.5 font-mono text-11 text-secondary-foreground">
 				<CheckpointIcon aria-hidden="true" className="size-3" />
-				{checkpointWords(stage, row)}
+				{checkpointWords(stage)}
 			</span>
 			<span className="ml-auto">
 				{evidence === undefined ? null : (
@@ -534,7 +531,7 @@ function neverRanWords(
 			? ""
 			: " fell below the minimum";
 
-	return `${stepName(unreached)} never ran. The run stopped after step ${String(stopped.number)}${below} and the target repository was restored. This is a recorded outcome for ${runCorpus(row)}, not a failed execution.`;
+	return `${stepName(unreached)} never ran. The run stopped after step ${String(stopped.number)}${below}. This is a recorded outcome for ${runCorpus(row)}, not a failed execution.`;
 }
 
 /** The stage a stopped run stopped at, with its step number. */

@@ -50,7 +50,7 @@ export function hasRunEnded({
 	return progress.state !== "running" && !isPaused(status);
 }
 
-/** Whether the run's stop restored the target repository: a stop record's or the operator's. */
-export function restoredRepository(status: string): boolean {
+/** Whether a stop record or the operator ended the run. */
+export function endedByStop(status: string): boolean {
 	return isStopped(status) || status === OPERATOR_STOPPED;
 }

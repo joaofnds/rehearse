@@ -20,7 +20,6 @@ import {
 	hasEnded,
 } from "./run-record-query";
 import type { MonitoredStage, RunRecordResponse } from "./run-record-query";
-import { shortCommit } from "./run-identity-header";
 import { minutesAndSeconds } from "./minutes-and-seconds";
 import { stageSessionQuery } from "./stage-session-query";
 import { StepModalAction } from "./step-modal";
@@ -456,10 +455,7 @@ function MinimumGradeNote({
 			<span className="font-mono text-secondary-foreground">
 				{record.minimumGrade.letter}
 			</span>
-			. A step below it stops the run and restores{" "}
-			<span className="font-mono">{record.identity.target}</span> to{" "}
-			<span className="font-mono">{shortCommit(record.identity.commit)}</span>
-			.{" "}
+			. A step below it stops the run.{" "}
 		</>
 	);
 }

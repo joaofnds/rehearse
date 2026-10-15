@@ -263,12 +263,12 @@ describe("/runs/$run", () => {
 		).toBeInTheDocument();
 	});
 
-	it("says a stopped run's repository was restored and which checkpoints remain", async () => {
+	it("says which checkpoints a stopped run kept to replay from", async () => {
 		renderRunDetail();
 
 		expect(
 			await screen.findByText(
-				"Repository restored to acme-api @ e91f2a. Checkpoints from step 1 are retained and replayable.",
+				"Checkpoints from step 1 are retained and replayable.",
 			),
 		).toBeInTheDocument();
 	});
@@ -332,7 +332,7 @@ describe("/runs/$run", () => {
 		expect(await screen.findByText(note)).toBeInTheDocument();
 	});
 
-	it("shows no restore line for a run that completed", async () => {
+	it("shows no checkpoint line for a run that completed", async () => {
 		renderAppWithStub(
 			`/runs/${RUN}`,
 			new Map<string, unknown>([
@@ -346,7 +346,9 @@ describe("/runs/$run", () => {
 				"Layout A · one step at a time, attempts alongside",
 			),
 		).toBeInTheDocument();
-		expect(screen.queryByText(/Repository restored/u)).not.toBeInTheDocument();
+		expect(
+			screen.queryByText(/retained and replayable/u),
+		).not.toBeInTheDocument();
 	});
 
 	it("shows the last task grade recorded for the same case, with its staleness and why it is not comparable", async () => {

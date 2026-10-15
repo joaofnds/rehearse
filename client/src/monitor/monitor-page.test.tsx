@@ -1073,7 +1073,7 @@ describe("/monitor task graph", () => {
 			"Task · audit-log · 2 steps, in order",
 		);
 		expect(graph).toHaveTextContent(
-			"Minimum grade for every step in this task is B-. A step below it stops the run and restores acme-api to e91f2a.",
+			"Minimum grade for every step in this task is B-. A step below it stops the run.",
 		);
 	});
 
