@@ -89,9 +89,9 @@ links no attempt history, since its attempts record no session.
   pipeline stage or final Judge records. See
   [spend ceiling](reference.md#spend-ceiling).
 
-- **Only a single pipeline run starts target services.** A replay or a
-  confirmation gets no containers, so setup commands and checks that need a
-  database fail there unless the services are already running. A
+- **Replays start no target services.** A replay or a replay confirmation
+  gets no containers, so setup commands and checks that need a database fail
+  there unless the services are already running. A
   hard-killed run leaves its clone and containers behind. See
   [run checkout and cleanup](reference.md#run-checkout-and-cleanup).
 

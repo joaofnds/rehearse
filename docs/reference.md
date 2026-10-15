@@ -529,8 +529,14 @@ never reads ready refuses the run before its first stage. The run removes its
 containers when it ends, however it ends short of a hard kill, including one
 whose start had not returned. It labels each `rehearse.run=<run>`,
 `rehearse.attempt=<run>` and `rehearse.service=<name>`, and removes only the
-containers carrying its own run and attempt. Replays and confirmations start no
-services.
+containers carrying its own run and attempt. A pipeline confirmation starts the
+services once for the setup and checks that freeze the group's baseline, and
+again for each rep, labelled `rehearse.run=<group>` with
+`rehearse.attempt=<group>-setup` or `rehearse.attempt=<rep>`, so concurrent reps
+share no service state. It removes each set when that setup or rep ends, and a
+signal removes every set still running. A service that cannot start for the
+group's setup refuses the group before any rep runs. Replays, replay
+confirmations and session confirmations start no services.
 
 The default stage settings deny branch/worktree creation commands and disable
 bundled skills. The allowed settings schema covers a deny list and selected

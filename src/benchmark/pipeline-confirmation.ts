@@ -66,7 +66,7 @@ import type {
 	StageSessionDependencies,
 	StageSessionResult,
 } from "./run";
-import { executeStageSession } from "./run";
+import { executeStageSession, stageSessionsWithServices } from "./run";
 import { confirmationGroupPaths } from "./run-layout";
 import type {
 	addWorktree,
@@ -82,6 +82,12 @@ import { claimShortId } from "./short-id";
 import { stageRubricSha256 } from "./judge-agreement";
 import type { ReadManifestEntry } from "./read-manifest";
 import { recordStageReads } from "./stage-reads";
+import type { ContainerOwner, TargetServices } from "./target-services";
+import {
+	checksWithServices,
+	setupWithServices,
+	startTargetServices,
+} from "./target-services";
 
 interface LoadedStageRubric {
 	readonly rubricPath: string;
@@ -133,6 +139,8 @@ export interface PipelineConfirmationDependencies {
 	readonly recordCheckpoint: typeof recordCheckpoint;
 	readonly recordRetentionRef: typeof recordRetentionRef;
 	readonly captureBuildCandidate: typeof captureBuildCandidate;
+	/** The services one attempt, or the group's setup, starts and stops. */
+	readonly services: (owner: ContainerOwner) => TargetServices;
 	readonly projectsDirectory?: string | undefined;
 	readonly log: (message: string) => void;
 }
@@ -211,6 +219,10 @@ async function freezePipelineInputs(
 	}
 
 	const setupWorktree = join(worktreesDirectory, "setup");
+	const setupServices = dependencies.services({
+		run: request.groupId,
+		attempt: `${request.groupId}-setup`,
+	});
 	await dependencies.addWorktree(
 		request.source.root,
 		request.source.sha,
@@ -223,15 +235,19 @@ async function freezePipelineInputs(
 	const checkpointDirectory = join(inputsDirectory, "checkpoint");
 	let initialCheckpoint: CheckpointRecord;
 	try {
+		const environment = await startTargetServices(
+			setupServices,
+			request.pipeline.target,
+		);
 		await dependencies.runSetup(
 			setupWorktree,
-			request.pipeline.target.setup,
+			setupWithServices(request.pipeline.target.setup, environment),
 			dependencies.log,
 		);
 		await dependencies.runChecks(
 			setupWorktree,
 			"Baseline checks",
-			request.pipeline.target.checks,
+			checksWithServices(request.pipeline.target.checks, environment),
 			dependencies.log,
 		);
 		baselineHashes = await dependencies.captureFileHashes(
@@ -265,7 +281,11 @@ async function freezePipelineInputs(
 			taskSha,
 		);
 	} finally {
-		await dependencies.removeWorktree(request.source.root, setupWorktree);
+		try {
+			await dependencies.removeWorktree(request.source.root, setupWorktree);
+		} finally {
+			await setupServices.stop();
+		}
 	}
 
 	const files: FrozenFile[] = [
@@ -384,6 +404,7 @@ async function runPipelineRep(
 	plan: PipelineRepPlan,
 	now: () => number,
 	spendCeiling: SpendCeiling,
+	services: TargetServices,
 ): Promise<ConfirmationRepResult> {
 	const repPaths = paths.rep(plan.repId);
 	await mkdir(repPaths.stagesDirectory, { recursive: true });
@@ -413,10 +434,15 @@ async function runPipelineRep(
 			plan.worktreePath,
 		);
 		worktreeCreated = true;
+		setupOperation = "service start";
+		const environment = await startTargetServices(
+			services,
+			request.pipeline.target,
+		);
 		setupOperation = "target setup";
 		await dependencies.runSetup(
 			plan.worktreePath,
-			request.pipeline.target.setup,
+			setupWithServices(request.pipeline.target.setup, environment),
 			dependencies.log,
 		);
 		setupOperation = "checkpoint materialization";
@@ -447,7 +473,10 @@ async function runPipelineRep(
 			setupOperation = undefined;
 			currentSession = await executeStageSession(
 				{
-					...measuredStageDependencies(dependencies.stageSession, stageClock),
+					...measuredStageDependencies(
+						stageSessionsWithServices(dependencies.stageSession, environment),
+						stageClock,
+					),
 					measureCorpus: () => Promise.resolve(frozen.corpusVersion),
 					corpusVersionFiles: () => Promise.resolve(frozen.versionFiles),
 				},
@@ -845,6 +874,24 @@ async function runPipelineRep(
 	}
 }
 
+/** Tries every attempt's services before reporting the ones left running. */
+async function stopEvery(services: readonly TargetServices[]): Promise<void> {
+	const failures: unknown[] = [];
+	await Promise.all(
+		services.map(async ({ stop }) => {
+			try {
+				await stop();
+			} catch (error) {
+				failures.push(error);
+			}
+		}),
+	);
+
+	if (failures.length > 0) {
+		throw new AggregateError(failures, failures.map(String).join("\n"));
+	}
+}
+
 export async function runPipelineConfirmation(
 	dependencies: PipelineConfirmationDependencies,
 	request: PipelineConfirmationRequest,
@@ -856,11 +903,25 @@ export async function runPipelineConfirmation(
 	const worktreesDirectory = await realpath(
 		await mkdtemp(join(tmpdir(), `rehearse-${request.groupId}-`)),
 	);
+	const started: TargetServices[] = [];
+	const tracked: PipelineConfirmationDependencies = {
+		...dependencies,
+		services: (owner) => {
+			const services = dependencies.services(owner);
+			started.push(services);
+
+			return services;
+		},
+	};
 	const release = dependencies.stopOnSignal(
 		async () => {
-			// The killed reps' own removals may still be at work on this tree.
-			await removeUntilAbsent(worktreesDirectory);
-			await dependencies.pruneWorktrees(request.source.root);
+			try {
+				// The killed reps' own removals may still be at work on this tree.
+				await removeUntilAbsent(worktreesDirectory);
+				await dependencies.pruneWorktrees(request.source.root);
+			} finally {
+				await stopEvery(started);
+			}
 		},
 		async (signal) => {
 			await Bun.write(paths.operatorStopFile, operatorStopRecord(signal));
@@ -868,7 +929,7 @@ export async function runPipelineConfirmation(
 	);
 	try {
 		const frozen = await freezePipelineInputs(
-			dependencies,
+			tracked,
 			request,
 			paths.directory,
 			paths.inputsDirectory,
@@ -891,16 +952,26 @@ export async function runPipelineConfirmation(
 				frozenInputs: frozen,
 				worktreePath: (repId) => join(worktreesDirectory, repId),
 			},
-			(plan) =>
-				runPipelineRep(
-					dependencies,
-					request,
-					frozen,
-					paths,
-					plan,
-					now,
-					repSpendCeiling(),
-				),
+			async (plan) => {
+				const services = tracked.services({
+					run: request.groupId,
+					attempt: plan.repId,
+				});
+				try {
+					return await runPipelineRep(
+						tracked,
+						request,
+						frozen,
+						paths,
+						plan,
+						now,
+						repSpendCeiling(),
+						services,
+					);
+				} finally {
+					await services.stop();
+				}
+			},
 		);
 		const makespanMs = now() - makespanStart;
 		const repResults = results.map(({ outcome }) => {

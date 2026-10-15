@@ -98,6 +98,8 @@ import {
 	requireInteractiveStdin,
 	requireSpendAuthorization,
 } from "#cli/interactive-stdin";
+import { dockerContainerRuntime } from "#benchmark/docker-container-runtime";
+import { SERVICE_READINESS, targetServices } from "#benchmark/target-services";
 import type { CommandOutput } from "#cli/output";
 import { diagnosticWriter, writeDiagnostic, writeRecord } from "#cli/output";
 import { terminalQuestioner } from "#cli/questioner";
@@ -475,6 +477,8 @@ async function confirmRun(
 			recordCheckpoint,
 			recordRetentionRef,
 			captureBuildCandidate,
+			services: (owner) =>
+				targetServices(owner, dockerContainerRuntime, SERVICE_READINESS),
 			projectsDirectory: claudeProjectsDirectory(),
 			log: diagnosticWriter(output),
 		},

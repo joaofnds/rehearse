@@ -1,4 +1,5 @@
-import type { TargetCheck, TargetService } from "./pipeline";
+import { RefusedPreconditionError } from "./exit-codes";
+import type { TargetCheck, TargetDefinition, TargetService } from "./pipeline";
 import { SERVICE_PORT_PLACEHOLDER } from "./pipeline";
 
 export class TargetServiceError extends Error {
@@ -102,6 +103,32 @@ export function targetServices(
 		},
 		stop: () => removeOwned(owner, runtime),
 	};
+}
+
+/** A service that cannot start or never gets ready is a precondition the run refuses. */
+export async function startTargetServices(
+	services: TargetServices,
+	target: TargetDefinition,
+): Promise<ServiceEnvironment> {
+	try {
+		return await services.start(target.services ?? []);
+	} catch (error) {
+		if (error instanceof TargetServiceError) {
+			throw new RefusedPreconditionError(error.message);
+		}
+
+		throw error;
+	}
+}
+
+/** The target's setup, when it declares one, with the services' exports. */
+export function setupWithServices(
+	setup: readonly TargetCheck[] | undefined,
+	environment: ServiceEnvironment,
+): readonly TargetCheck[] | undefined {
+	return setup === undefined
+		? undefined
+		: checksWithServices(setup, environment);
 }
 
 /** A check's own value wins over a service's export of the same variable. */

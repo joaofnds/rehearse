@@ -16,7 +16,7 @@ import type {
 	StageRubric,
 	StageScorecard,
 } from "./contracts";
-import type { PipelineDefinition } from "./pipeline";
+import type { PipelineDefinition, TargetService } from "./pipeline";
 import type {
 	PipelineConfirmationDependencies,
 	PipelineConfirmationRequest,
@@ -30,6 +30,9 @@ import {
 	currentSha,
 	removeWorktree,
 } from "./target";
+import type { ServiceReadiness } from "./target-services";
+import { targetServices } from "./target-services";
+import { FakeContainerRuntime } from "./target-services-test-support";
 import { createProductOwner } from "./workflow";
 import { TEST_TARGET, commitAll, harnessResult } from "./test-support";
 
@@ -82,6 +85,29 @@ export const CONFIRMATION_PIPELINE: PipelineDefinition = {
 	],
 };
 
+const POSTGRES: TargetService = {
+	name: "postgres",
+	image: "postgres:18-alpine",
+	port: 5432,
+	ready: ["pg_isready", "-h", "127.0.0.1"],
+	exports: { DATABASE_URL: "postgres://127.0.0.1:{port}/app" },
+};
+
+/** The confirmation pipeline on a target that sets up against a database. */
+export const SERVED_CONFIRMATION_PIPELINE: PipelineDefinition = {
+	...CONFIRMATION_PIPELINE,
+	target: {
+		...CONFIRMATION_PIPELINE.target,
+		setup: [{ command: ["bun", "install"] }],
+		services: [POSTGRES],
+	},
+};
+
+const READY_AT_ONCE: ServiceReadiness = {
+	checks: 1,
+	wait: () => Promise.resolve(),
+};
+
 export const CONFIRMATION_STAGE_RUBRIC: StageRubric = {
 	hardBlockers: [],
 	requirements: [{ id: "scope", description: "Scope is explicit" }],
@@ -100,6 +126,7 @@ export class PipelineConfirmationHarness {
 	public readonly stops: (() => Promise<void>)[] = [];
 	public readonly pruned: string[] = [];
 	public readonly logs: string[] = [];
+	public readonly containers = new FakeContainerRuntime();
 
 	private constructor(props: PipelineHarnessProps) {
 		this.sourceRoot = props.sourceRoot;
@@ -275,6 +302,8 @@ export class PipelineConfirmationHarness {
 				return Promise.resolve();
 			},
 			captureBuildCandidate,
+			services: (owner) =>
+				targetServices(owner, this.containers, READY_AT_ONCE),
 			log: (message) => {
 				this.logs.push(message);
 			},

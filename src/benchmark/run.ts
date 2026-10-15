@@ -133,7 +133,8 @@ import type { ServiceEnvironment, TargetServices } from "./target-services";
 import {
 	checksWithServices,
 	SERVICE_READINESS,
-	TargetServiceError,
+	setupWithServices,
+	startTargetServices,
 	targetServices,
 } from "./target-services";
 import { dockerContainerRuntime } from "./docker-container-runtime";
@@ -604,6 +605,22 @@ export interface StageSessionDependencies {
 	readonly corpusVersionFiles: (
 		measurement: CorpusMeasurement,
 	) => Promise<readonly HashedFile[]>;
+}
+
+/** Stage sessions and their treatment checks that reach the target's services. */
+export function stageSessionsWithServices<
+	Dependencies extends StageSessionDependencies,
+>(dependencies: Dependencies, environment: ServiceEnvironment): Dependencies {
+	return {
+		...dependencies,
+		runWorkflowStage: (request) =>
+			dependencies.runWorkflowStage({ ...request, environment }),
+		captureTreatmentChecks: (targetDir, checks) =>
+			dependencies.captureTreatmentChecks(
+				targetDir,
+				checksWithServices(checks, environment),
+			),
+	};
 }
 
 export interface StageDependencies extends StageSessionDependencies {
@@ -1382,22 +1399,6 @@ async function releaseCheckout(
 	log("Run checkout removed.");
 }
 
-/** A service that cannot start or never gets ready is a precondition the run refuses. */
-async function startTargetServices(
-	services: TargetServices,
-	target: TargetDefinition,
-): Promise<ServiceEnvironment> {
-	try {
-		return await services.start(target.services ?? []);
-	} catch (error) {
-		if (error instanceof TargetServiceError) {
-			throw new RefusedPreconditionError(error.message);
-		}
-
-		throw error;
-	}
-}
-
 export async function runBenchmark(
 	config: BenchmarkConfig,
 	benchmarkCase: BenchmarkCase,
@@ -1481,13 +1482,7 @@ export async function runBenchmark(
 			await captureRunBaseline(
 				{
 					runSetup: (targetDir, setup) =>
-						runSetup(
-							targetDir,
-							setup === undefined
-								? undefined
-								: checksWithServices(setup, environment),
-							log,
-						),
+						runSetup(targetDir, setupWithServices(setup, environment), log),
 					runChecks: (targetDir, label, checks) =>
 						runChecks(
 							targetDir,
@@ -1568,31 +1563,29 @@ export async function runBenchmark(
 		});
 		const { workflow, stageScorecards, checkpoints, buildEvidence } =
 			await runGradedStages(
-				{
-					runWorkflowStage: (request) =>
-						runWorkflowStage({ ...request, environment }),
-					runStageJudge,
-					readTaskOutput,
-					readTaskCard,
-					captureBuildCandidate,
-					assertPlanningStageCompleted,
-					assertBuildCommitted,
-					changedPathsBetween,
-					captureCheckIntegrity,
-					captureTreatmentChecks: (targetDir, checks) =>
-						captureTreatmentChecks(
-							targetDir,
-							checksWithServices(checks, environment),
-							log,
-						),
-					resolveSkillDirectory,
-					captureStageCorpus,
-					measureCorpus: () =>
-						measureCorpusVersion(runFiles.runsDirectory, corpusSource),
-					corpusVersionFiles: (measurement) =>
-						measuredCorpusFiles(runFiles.runsDirectory, measurement),
-					recordCheckpoint: recordRetainedCheckpoint,
-				},
+				stageSessionsWithServices(
+					{
+						runWorkflowStage,
+						runStageJudge,
+						readTaskOutput,
+						readTaskCard,
+						captureBuildCandidate,
+						assertPlanningStageCompleted,
+						assertBuildCommitted,
+						changedPathsBetween,
+						captureCheckIntegrity,
+						captureTreatmentChecks: (targetDir, checks) =>
+							captureTreatmentChecks(targetDir, checks, log),
+						resolveSkillDirectory,
+						captureStageCorpus,
+						measureCorpus: () =>
+							measureCorpusVersion(runFiles.runsDirectory, corpusSource),
+						corpusVersionFiles: (measurement) =>
+							measuredCorpusFiles(runFiles.runsDirectory, measurement),
+						recordCheckpoint: recordRetainedCheckpoint,
+					},
+					environment,
+				),
 				{
 					targetDir: source.root,
 					corpusSource,

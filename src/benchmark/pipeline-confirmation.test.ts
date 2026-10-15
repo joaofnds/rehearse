@@ -41,9 +41,11 @@ import {
 	CONFIRMATION_PIPELINE,
 	CONFIRMATION_STAGE_RUBRIC,
 	PipelineConfirmationHarness,
+	SERVED_CONFIRMATION_PIPELINE,
 	completeFinalGrade,
 	pipelineStageScorecard,
 } from "./pipeline-confirmation-test-support";
+import { RefusedPreconditionError } from "./exit-codes";
 import { removeWorktree } from "./target";
 import { AUDIT_LOG_PIPELINE_PATH, TestResources } from "./test-support";
 import { StageSessionError } from "./stage-session-error";
@@ -295,12 +297,16 @@ describe(runPipelineConfirmation.name, () => {
 			},
 		}));
 
-		expect(observedChecks).toEqual(target.checks);
+		const checksWithNoServices = target.checks.map((check) => ({
+			env: {},
+			...check,
+		}));
+		expect(observedChecks).toEqual(checksWithNoServices);
 		expect(observedIntegrityFiles).toEqual(target.integrityFiles);
 		expect(treatmentCheckSets).toEqual([
-			target.checks,
-			target.checks,
-			target.checks,
+			checksWithNoServices,
+			checksWithNoServices,
+			checksWithNoServices,
 		]);
 		expect(events.slice(0, 3)).toEqual([
 			"baseline checks",
@@ -912,6 +918,144 @@ describe(runPipelineConfirmation.name, () => {
 		}));
 
 		expect(setupDirectories.toSorted()).toEqual(worktrees.toSorted());
+	});
+
+	it("sets up and checks each worktree against services started for it alone", async () => {
+		const harness = await PipelineConfirmationHarness.setup(testResources);
+		const setupAddresses: (string | undefined)[] = [];
+		const checkAddresses: (string | undefined)[] = [];
+
+		await harness.run(
+			{ pipeline: SERVED_CONFIRMATION_PIPELINE },
+			(dependencies) => ({
+				...dependencies,
+				runSetup: (_targetDir, setup) => {
+					setupAddresses.push(setup?.[0]?.env?.["DATABASE_URL"]);
+
+					return Promise.resolve();
+				},
+				runChecks: (_targetDir, _label, checks) => {
+					checkAddresses.push(checks[0]?.env?.["DATABASE_URL"]);
+
+					return Promise.resolve();
+				},
+			}),
+		);
+
+		expect(
+			setupAddresses.toSorted((left, right) =>
+				String(left).localeCompare(String(right)),
+			),
+		).toEqual([
+			"postgres://127.0.0.1:49152/app",
+			"postgres://127.0.0.1:49153/app",
+			"postgres://127.0.0.1:49154/app",
+			"postgres://127.0.0.1:49155/app",
+		]);
+		expect(checkAddresses).toEqual(["postgres://127.0.0.1:49152/app"]);
+	});
+
+	it("gives each rep's stage sessions and treatment checks the services its setup ran against", async () => {
+		const harness = await PipelineConfirmationHarness.setup(testResources);
+		const setupAddress = new Map<string, string | undefined>();
+		const sessionAddresses = new Map<string, Set<string | undefined>>();
+		const checkAddress = new Map<string, string | undefined>();
+
+		await harness.run(
+			{ pipeline: SERVED_CONFIRMATION_PIPELINE },
+			(dependencies) => ({
+				...dependencies,
+				runSetup: (targetDir, setup) => {
+					setupAddress.set(targetDir, setup?.[0]?.env?.["DATABASE_URL"]);
+
+					return Promise.resolve();
+				},
+				stageSession: {
+					...dependencies.stageSession,
+					runWorkflowStage: (request) => {
+						const seen = sessionAddresses.get(request.targetDir) ?? new Set();
+						seen.add(request.environment?.["DATABASE_URL"]);
+						sessionAddresses.set(request.targetDir, seen);
+
+						return dependencies.stageSession.runWorkflowStage(request);
+					},
+					captureTreatmentChecks: (targetDir, checks) => {
+						checkAddress.set(targetDir, checks[0]?.env?.["DATABASE_URL"]);
+
+						return dependencies.stageSession.captureTreatmentChecks(
+							targetDir,
+							checks,
+						);
+					},
+				},
+			}),
+		);
+
+		const addresses = [...sessionAddresses.keys()].map((rep) => ({
+			setup: setupAddress.get(rep),
+			sessions: [...(sessionAddresses.get(rep) ?? [])],
+			checks: checkAddress.get(rep),
+		}));
+		expect(addresses).toEqual(
+			addresses.map(({ setup }) => ({
+				setup,
+				sessions: [setup],
+				checks: setup,
+			})),
+		);
+		expect(new Set(addresses.map(({ setup }) => setup)).size).toBe(3);
+	});
+
+	it("removes every container it started once its reps end", async () => {
+		const harness = await PipelineConfirmationHarness.setup(testResources);
+
+		await harness.run({ pipeline: SERVED_CONFIRMATION_PIPELINE });
+
+		expect(harness.containers.runningServices()).toEqual([]);
+	});
+
+	describe("when a rep's setup fails", () => {
+		it("removes that rep's containers", async () => {
+			const harness = await PipelineConfirmationHarness.setup(testResources);
+
+			await harness.run(
+				{ pipeline: SERVED_CONFIRMATION_PIPELINE },
+				(dependencies) => ({
+					...dependencies,
+					runSetup: (targetDir) =>
+						basename(targetDir).includes("-rep-")
+							? Promise.reject(new Error("migration failed"))
+							: Promise.resolve(),
+				}),
+			);
+
+			expect(harness.containers.runningServices()).toEqual([]);
+		});
+	});
+
+	describe("when a service cannot start for the group's setup", () => {
+		it("refuses before any rep runs", async () => {
+			const harness = await PipelineConfirmationHarness.setup(testResources);
+			harness.containers.failToStart("postgres");
+			const setupDirectories: string[] = [];
+
+			const failure = await failureOf(
+				harness.run(
+					{ pipeline: SERVED_CONFIRMATION_PIPELINE },
+					(dependencies) => ({
+						...dependencies,
+						runSetup: (targetDir) => {
+							setupDirectories.push(targetDir);
+
+							return Promise.resolve();
+						},
+					}),
+				),
+			);
+
+			expect(failure).toBeInstanceOf(RefusedPreconditionError);
+			expect(setupDirectories).toEqual([]);
+		});
 	});
 
 	it("retains worker calls carried by a failed stage execution", async () => {
@@ -1683,6 +1827,27 @@ describe(runPipelineConfirmation.name, () => {
 
 			expect(leftover).toEqual([]);
 			expect(new Set(harness.pruned)).toEqual(new Set([harness.sourceRoot]));
+		});
+
+		it("removes the containers of every rep still running", async () => {
+			const harness = await PipelineConfirmationHarness.setup(testResources);
+			let running: readonly string[] = ["the stop never ran"];
+
+			await harness
+				.run({ pipeline: SERVED_CONFIRMATION_PIPELINE }, (dependencies) => ({
+					...dependencies,
+					runSetup: async (worktreePath) => {
+						if (!basename(worktreePath).includes("-rep-")) {
+							return;
+						}
+						await harness.stops[0]?.();
+						running = harness.containers.runningServices();
+						throw new Error("the stop killed this rep's command");
+					},
+				}))
+				.catch(() => undefined);
+
+			expect(running).toEqual([]);
 		});
 
 		it("records an operator stop and writes no group record or report", async () => {
