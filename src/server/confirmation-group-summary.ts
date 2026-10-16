@@ -22,6 +22,22 @@ export interface UnreadRep {
 /** How many reps fell under each name, a verdict or a recorded status. */
 export type RepCounts = Readonly<Record<string, number>>;
 
+/** Count a rep once for recorded quality failure, independently of execution/metrics gaps. */
+export function qualityFailureCount(
+	reps: readonly Pick<
+		Immutable<ParsedConfirmationRepRecord>,
+		"stages" | "finalOutcome"
+	>[],
+): number {
+	return reps.filter(
+		({ stages, finalOutcome }) =>
+			stages.some(
+				(stage) => stage.status === "JUDGED" && stage.verdict === "STOP",
+			) ||
+			(finalOutcome.status === "JUDGED" && finalOutcome.verdict === "FAIL"),
+	).length;
+}
+
 /** What a group's reps scored at one stage, its median by `letterRange`. */
 export interface GroupStageSummary {
 	readonly stage: string;

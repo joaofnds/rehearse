@@ -11,13 +11,19 @@ import { CasesPage } from "#client/cases/cases-page";
 import { ComparisonPage } from "#client/comparison/comparison-page";
 import { ComparisonsPage } from "#client/comparison/comparisons-page";
 import { CorpusPage } from "#client/corpus/corpus-page";
+import { corpusSearchSchema } from "#client/corpus/corpus-search";
+import type { CorpusSearch } from "#client/corpus/corpus-search";
 import { EvidenceSourcePage } from "#client/evidence/evidence-source-page";
 import { MonitorPage } from "#client/monitor/monitor-page";
 import { NewestRunDetail } from "#client/run-detail/newest-run-detail";
 import { RunDetailPage } from "#client/run-detail/run-detail-page";
 import type { RunDetailSearch } from "#client/run-detail/run-detail-search";
-import { runDetailSearchSchema } from "#client/run-detail/run-detail-search";
+import {
+	runDetailSearchSchema,
+	unknownAsAbsent,
+} from "#client/run-detail/run-detail-search";
 import { GroupWorkspacePage } from "#client/run-history/group-workspace";
+import { runDiscoverySearchSchema } from "#client/run-history/run-discovery";
 import { RunHistoryPage } from "#client/run-history/run-history-page";
 import { AttemptWorkspacePage } from "#client/session-history/attempt-workspace";
 import { SettingsPage } from "#client/settings/settings-page";
@@ -34,7 +40,7 @@ const rootRoute = createRootRoute({
  * Any value of `invalidatedBy` reaches the screen as text, so one that names
  * no edit is answered there rather than failing the route.
  */
-const RUN_HISTORY_SEARCH = z.object({
+const RUN_HISTORY_SEARCH = runDiscoverySearchSchema.extend({
 	invalidatedBy: z.coerce.string().optional(),
 });
 
@@ -46,10 +52,12 @@ const runHistoryRoute = createRoute({
 });
 
 function RunHistoryRoute(): React.JSX.Element {
-	const search: { readonly invalidatedBy?: string | undefined } =
+	const search: z.output<typeof RUN_HISTORY_SEARCH> =
 		runHistoryRoute.useSearch();
 
-	return <RunHistoryPage invalidatedBy={search.invalidatedBy} />;
+	return (
+		<RunHistoryPage invalidatedBy={search.invalidatedBy} discovery={search} />
+	);
 }
 
 const monitorRoute = createRoute({
@@ -74,30 +82,16 @@ function RunMonitorRoute(): React.JSX.Element {
 	return <RunDetailPage run={params.run} search={{ view: "activity" }} />;
 }
 
-/** A link opens a corpus file in the editor, and may name its lines. */
-const CORPUS_SEARCH = z.object({
-	sourceRun: z.string().optional(),
-	sourceStep: z.string().optional(),
-	file: z.string().optional(),
-	start: z.coerce.number().int().positive().optional(),
-	end: z.coerce.number().int().positive().optional(),
-});
-
 const corpusRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/corpus",
-	validateSearch: CORPUS_SEARCH,
+	validateSearch: corpusSearchSchema,
 	component: CorpusRoute,
 });
 
 function CorpusRoute(): React.JSX.Element {
-	const {
-		file,
-		start,
-		end,
-		sourceRun,
-		sourceStep,
-	}: z.infer<typeof CORPUS_SEARCH> = corpusRoute.useSearch();
+	const { file, start, end, sourceRun, sourceStep }: CorpusSearch =
+		corpusRoute.useSearch();
 	const lines = start === undefined ? undefined : { start, end: end ?? start };
 
 	return (
@@ -215,12 +209,9 @@ const comparisonRoute = createRoute({
 });
 
 const ATTEMPT_SEARCH = z.object({
-	view: z
-		.union([
-			z.enum(["results", "context"]),
-			z.unknown().transform(() => undefined),
-		])
-		.optional(),
+	step: z.string().optional(),
+	comparison: z.string().optional(),
+	view: z.union([z.enum(["results", "context"]), unknownAsAbsent]).optional(),
 });
 
 const sessionAttemptRoute = createRoute({
@@ -240,19 +231,36 @@ function SessionAttemptRoute(): React.JSX.Element {
 		<AttemptWorkspacePage
 			identity={{ kind: "standalone", ...params }}
 			view={search.view ?? "results"}
+			step={search.step}
+			comparison={search.comparison}
 		/>
 	);
 }
 
+const GROUP_SEARCH = z.object({
+	view: z.union([z.enum(["results", "attempts"]), unknownAsAbsent]).optional(),
+	step: z.string().optional(),
+	comparison: z.string().optional(),
+});
+
 const groupWorkspaceRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/groups/$groupId",
+	validateSearch: GROUP_SEARCH,
 	component: GroupWorkspaceRoute,
 });
 
 function GroupWorkspaceRoute(): React.JSX.Element {
 	const params: { readonly groupId: string } = groupWorkspaceRoute.useParams();
-	return <GroupWorkspacePage groupId={params.groupId} />;
+	const search: z.output<typeof GROUP_SEARCH> = groupWorkspaceRoute.useSearch();
+	return (
+		<GroupWorkspacePage
+			groupId={params.groupId}
+			view={search.view ?? "results"}
+			comparison={search.comparison}
+			step={search.step}
+		/>
+	);
 }
 
 const confirmationAttemptRoute = createRoute({
@@ -272,6 +280,8 @@ function ConfirmationAttemptRoute(): React.JSX.Element {
 		<AttemptWorkspacePage
 			identity={{ kind: "confirmation", ...params }}
 			view={search.view ?? "results"}
+			step={search.step}
+			comparison={search.comparison}
 		/>
 	);
 }
@@ -365,6 +375,8 @@ function ReplayHistoryRoute(): React.JSX.Element {
 		<AttemptWorkspacePage
 			identity={{ kind: "replay", ...params }}
 			view={search.view ?? "results"}
+			step={search.step}
+			comparison={search.comparison}
 		/>
 	);
 }

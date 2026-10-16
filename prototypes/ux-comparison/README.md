@@ -51,7 +51,9 @@ not an importable production task bundle.
 
 The [interaction contract](INTERACTIONS.md) records the flows being evaluated.
 The [original workspace prototype](../run-workspace/README.md) remains available
-at <http://localhost:4490>. Production UI behavior is unchanged.
+at <http://localhost:4490>. The production application implements the approved
+investigation flows described in [the workspace](../../docs/run-workspace.md); this
+prototype remains a separate synthetic design reference.
 
 ## Frozen before-and-after references
 

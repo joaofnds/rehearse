@@ -232,32 +232,32 @@ describe(WhatMoved.name, () => {
 
 		expect(columns).toEqual([
 			"Measure",
-			"Baseline",
-			"Arm A",
-			"Arm B",
+			"Control",
+			"Baseline (before)",
+			"Candidate (after)",
 			"Spread across 2 attempts",
 			"Reading",
 		]);
 		expect(cell("build", "Measure")).toHaveTextContent("buildoverall");
-		expect(cell("build", "Baseline")).toHaveTextContent("C");
-		expect(cell("build", "Arm A")).toHaveTextContent("C");
-		expect(cell("build", "Arm B")).toHaveTextContent("B");
+		expect(cell("build", "Control")).toHaveTextContent("C");
+		expect(cell("build", "Baseline (before)")).toHaveTextContent("C");
+		expect(cell("build", "Candidate (after)")).toHaveTextContent("B");
 	});
 
-	it("reads arm B against arm A as a glyph and the served verdict's phrase", () => {
+	it("reads candidate (after) against baseline (before) as a glyph and the served verdict's phrase", () => {
 		renderWhatMoved([OVERALL, DIMENSION]);
 
 		expect(cell("build", "Reading")).toHaveTextContent("~inside rerun noise");
 		expect(cell("observability", "Reading")).toHaveTextContent(
-			"↓arm A separates",
+			"↓baseline (before) separates",
 		);
 	});
 
-	it("draws the spread of arms A and B on the measure's scale with a note naming each range", () => {
+	it("draws the spread of baseline and candidate on the measure's scale with a note naming each range", () => {
 		renderWhatMoved([OVERALL]);
 
 		expect(cell("build", "Spread across 2 attempts")).toHaveTextContent(
-			"├─┼─┤arm A C to B · arm B B to A",
+			"├─┼─┤baseline (before) C to B · candidate (after) B to A",
 		);
 	});
 
@@ -291,29 +291,37 @@ describe(WhatMoved.name, () => {
 		expect(cell("scope-declared", "Measure")).toHaveTextContent(
 			"scope-declaredbuild · hard blocker",
 		);
-		expect(cell("scope-declared", "Baseline")).toHaveTextContent("2/2 fired");
-		expect(cell("scope-declared", "Arm A")).toHaveTextContent("1/2 fired");
-		expect(cell("scope-declared", "Arm B")).toHaveTextContent("0/2 fired");
+		expect(cell("scope-declared", "Control")).toHaveTextContent("2/2 fired");
+		expect(cell("scope-declared", "Baseline (before)")).toHaveTextContent(
+			"1/2 fired",
+		);
+		expect(cell("scope-declared", "Candidate (after)")).toHaveTextContent(
+			"0/2 fired",
+		);
 	});
 
-	it("states each arm's mean on a meter and arm B's change against arm A", () => {
+	it("states each arm's mean on a meter and candidate (after)'s change against baseline (before)", () => {
 		renderWhatMoved([REPLY_LENGTH, COST]);
 
 		expect(cell("reply length", "Measure")).toHaveTextContent(
 			"reply lengthmeter",
 		);
-		expect(cell("reply length", "Arm A")).toHaveTextContent("524 words");
-		expect(cell("reply length", "Spread across 2 attempts")).toHaveTextContent(
-			"arm A 510 to 537 words · arm B 396 to 468 words · -17%",
+		expect(cell("reply length", "Baseline (before)")).toHaveTextContent(
+			"524 words",
 		);
-		expect(cell("cost per attempt", "Arm B")).toHaveTextContent("$2.40");
+		expect(cell("reply length", "Spread across 2 attempts")).toHaveTextContent(
+			"baseline (before) 510 to 537 words · candidate (after) 396 to 468 words · -17%",
+		);
+		expect(cell("cost per attempt", "Candidate (after)")).toHaveTextContent(
+			"$2.40",
+		);
 	});
 
-	it("points a meter's reading down when arm B ran higher, since more cost or words reads worse", () => {
+	it("points a meter's reading down when candidate (after) ran higher, since more cost or words reads worse", () => {
 		renderWhatMoved([COST]);
 
 		expect(cell("cost per attempt", "Reading")).toHaveTextContent(
-			"↓arm B ran higher",
+			"↓candidate (after) ran higher",
 		);
 	});
 
@@ -330,7 +338,7 @@ describe(WhatMoved.name, () => {
 		).toBeInTheDocument();
 	});
 
-	it("counts only arms A and B in the spread's heading, since only they are drawn", () => {
+	it("counts only baseline and candidate in the spread's heading, since only they are drawn", () => {
 		renderWhatMoved([OVERALL], { control: 2, baseline: 3, candidate: 3 });
 
 		expect(
@@ -340,7 +348,7 @@ describe(WhatMoved.name, () => {
 		).toBeInTheDocument();
 	});
 
-	it("names the spread across attempts without a count when arms A and B hold different numbers", () => {
+	it("names the spread across attempts without a count when baseline and candidate hold different numbers", () => {
 		renderWhatMoved([OVERALL], { control: 2, baseline: 3, candidate: 2 });
 
 		expect(
@@ -358,7 +366,9 @@ describe(WhatMoved.name, () => {
 			expect(cell("reply length", "Reading")).not.toHaveTextContent(
 				"inside rerun noise",
 			);
-			expect(cell("reply length", "Arm A")).toHaveTextContent("not recorded");
+			expect(cell("reply length", "Baseline (before)")).toHaveTextContent(
+				"not recorded",
+			);
 			expect(
 				cell("reply length", "Spread across 2 attempts"),
 			).toHaveTextContent(UNRECORDED);

@@ -5,8 +5,49 @@ import { Notice } from "#client/system/components/notice";
 import { ScreenHeader } from "#client/system/components/screen-header";
 import { TasksPage } from "#client/tasks/tasks-page";
 import { CaseCard } from "./case-card";
+import type { CasesResponse } from "./cases-query";
 import { casesQuery } from "./cases-query";
 import { DeclareCaseDialog } from "./declare-case-dialog";
+
+function SelectedCases({
+	cases,
+	caseId,
+	loaded,
+}: {
+	readonly cases: CasesResponse["cases"];
+	readonly caseId: string | undefined;
+	readonly loaded: boolean;
+}): React.JSX.Element {
+	const visibleCases =
+		caseId === undefined
+			? cases
+			: cases.filter((listed) => listed.id === caseId);
+	return (
+		<>
+			{caseId === undefined ? null : (
+				<div className="flex flex-wrap items-center gap-3 text-13">
+					<p role="status">{`Selected case: ${caseId}`}</p>
+					<Link
+						to="/cases"
+						search={{}}
+						className="text-accent-foreground underline decoration-deeper underline-offset-4 hover:text-pale"
+					>
+						All cases
+					</Link>
+				</div>
+			)}
+			{loaded && caseId !== undefined && visibleCases.length === 0 ? (
+				<p
+					role="alert"
+					className="text-13 text-muted-foreground"
+				>{`Case ${caseId} was not found among the readable declarations.`}</p>
+			) : null}
+			{visibleCases.map((listed) => (
+				<CaseCard key={listed.id} listed={listed} />
+			))}
+		</>
+	);
+}
 
 export function CasesPage({
 	view = "cases",
@@ -18,6 +59,7 @@ export function CasesPage({
 	const query = useQuery(casesQuery);
 	const [declaredPath, setDeclaredPath] = useState<string>();
 	const cases = query.data?.cases ?? [];
+
 	const unreadable = query.data?.unreadable ?? [];
 	const unreadableRecords = query.data?.unreadableRecords ?? [];
 
@@ -103,9 +145,11 @@ export function CasesPage({
 						/>
 					) : null}
 
-					{cases.map((listed) => (
-						<CaseCard key={listed.id} listed={listed} />
-					))}
+					<SelectedCases
+						cases={cases}
+						caseId={caseId}
+						loaded={query.isSuccess}
+					/>
 				</div>
 			)}
 		</div>

@@ -2371,6 +2371,7 @@ function everyRepAvailable(
 	const reps = (caseId: string, role: Role): ComparisonAttemptHistoryLink[] =>
 		[1, 2].map((ordinal) => ({
 			status: "available",
+			groupId: `${caseId}-${role}`,
 			repId: `${caseId}-${role}-rep-${ordinal}`,
 			ordinal,
 			href: `/groups/${caseId}-${role}/reps/${caseId}-${role}-rep-${ordinal}/attempt`,
@@ -2465,6 +2466,7 @@ describe(comparisonAttemptHistoryLinks.name, () => {
 			ordinal: number,
 		): ComparisonAttemptHistoryLink => ({
 			status: "available",
+			groupId,
 			repId: `${groupId}-rep-${groupOrdinal}`,
 			ordinal,
 			href: `/groups/${groupId}/reps/${groupId}-rep-${groupOrdinal}/attempt`,

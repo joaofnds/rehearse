@@ -19,7 +19,6 @@ import { useNow } from "./use-now";
 import { recordMoment } from "./record-moment";
 import { runStatusState } from "./run-status";
 import {
-	CORPUS_VERSION_LABEL,
 	corpusMeasurementReading,
 	corpusVersionLabel,
 } from "#benchmark/corpus-version-label";
@@ -28,7 +27,7 @@ import { isStopped, stoppedStageOf } from "#benchmark/stopped-status";
 import { attemptLabel } from "#client/attempt-label";
 import { plural } from "#client/plural";
 import { ScreenHeader } from "#client/system/components/screen-header";
-import { SectionLabel } from "#client/system/components/section-label";
+
 import { LaunchDialog } from "#client/launch/launch-dialog";
 import { launchSettingsQuery } from "#client/launch/settings-query";
 import {
@@ -39,6 +38,13 @@ import {
 import type { OutcomeReading } from "#client/run-detail/task-grade-card";
 import { SESSION_GRADE_REASON } from "#server/session-grade-reason";
 import { isClean } from "./clean-record";
+import {
+	useRememberRunsSearch,
+	matchesDiscovery,
+	launchMatchesDiscovery,
+	recordIdentity,
+} from "./run-discovery";
+import type { RunDiscoverySearch } from "./run-discovery";
 import { RunControls } from "./run-controls";
 import type { InvalidatedSelection } from "./invalidated-selection";
 import {
@@ -75,78 +81,6 @@ const COLUMNS = [
 ] as const;
 
 const NUMERIC_COLUMNS = ["Cost", "Wall"] as const;
-
-const FILTERS = [
-	"All",
-	"Running",
-	"Stopped",
-	"Replays",
-	"Groups",
-	"Clean corpus only",
-] as const;
-type Filter = (typeof FILTERS)[number];
-
-/**
- * Running names a pipeline run in flight, Stopped one whose stage fell below
- * the minimum, and Clean corpus only a row whose Corpus cell reads clean. A
- * replay's STOP verdict grades one stage in isolation and stops nothing, so it
- * is not Stopped.
- */
-function matchesFilter(row: HistoryRow, filter: Filter): boolean {
-	switch (filter) {
-		case "All": {
-			return true;
-		}
-		case "Running": {
-			return row.kind === "run" && row.progress.state === "running";
-		}
-		case "Stopped": {
-			return row.kind === "run" && isStopped(row.status);
-		}
-		case "Replays": {
-			return row.kind === "replay";
-		}
-		case "Groups": {
-			return row.kind === "group";
-		}
-		case "Clean corpus only": {
-			return row.staleness.state === "available" && isClean(row.staleness);
-		}
-		default: {
-			return filter satisfies never;
-		}
-	}
-}
-
-/** A launch has no record, so only Running, of the narrower filters, names one. */
-function launchMatchesFilter(launch: LaunchRow, filter: Filter): boolean {
-	return (
-		filter === "All" || (filter === "Running" && launch.status === "RUNNING")
-	);
-}
-
-/**
- * The texts a search looks in: the case, the corpus version under its label
- * so the label's characters match too, and each hard blocker that fired.
- */
-function searchedTexts(row: HistoryRow): readonly string[] {
-	const corpus =
-		row.corpusVersion?.kind === "version"
-			? [`${CORPUS_VERSION_LABEL}${row.corpusVersion.digest}`]
-			: [];
-	const blockers =
-		row.kind !== "session-attempt" && row.firedBlockers.state === "available"
-			? row.firedBlockers.ids
-			: [];
-
-	return [row.caseId ?? "", ...corpus, ...blockers];
-}
-
-function matchesSearch(texts: readonly string[], search: string): boolean {
-	const needle = search.trim().toLowerCase();
-
-	return texts.some((text) => text.toLowerCase().includes(needle));
-}
 
 const UNREADABLE_NOUNS = {
 	run: ["run", "runs"],
@@ -197,29 +131,6 @@ function UnreadableRecords({
 			</Disclosure>
 		</div>
 	);
-}
-
-/**
- * The name a record is filed under, the last part of its CLI record id.
- */
-function identityOf(row: HistoryRow): string {
-	switch (row.kind) {
-		case "run": {
-			return row.run;
-		}
-		case "session-attempt": {
-			return row.uuid;
-		}
-		case "replay": {
-			return row.timestamp;
-		}
-		case "group": {
-			return row.groupId;
-		}
-		default: {
-			return row satisfies never;
-		}
-	}
 }
 
 /** What kind of record the row is, in the design's few words. */
@@ -340,7 +251,7 @@ function recordName(row: HistoryRow, name: string): React.JSX.Element {
 function runCell(row: HistoryRow, nowMs: number): React.JSX.Element {
 	const name =
 		row.shortId === undefined
-			? identityOf(row)
+			? recordIdentity(row)
 			: withinCase(row.shortId, row.caseId);
 
 	return (
@@ -396,9 +307,13 @@ function caseCell(row: HistoryRow): React.JSX.Element {
 			{row.caseId === undefined ? (
 				<span className="text-sm text-dim">case not recorded</span>
 			) : (
-				<span className="font-mono text-sm whitespace-nowrap">
+				<Link
+					to="/cases"
+					search={{ caseId: row.caseId }}
+					className="font-mono text-sm text-accent-foreground underline decoration-deeper underline-offset-4 hover:text-pale"
+				>
 					{row.caseId}
-				</span>
+				</Link>
 			)}
 			<span className="text-xs whitespace-nowrap text-dim">
 				{kindLine(row)}
@@ -630,7 +545,7 @@ function minimumReading(minimumGrade: RunHistoryRow["minimumGrade"]): string {
 }
 
 /**
- * A stopped run is a finding, not a failure: the step it stopped at, with
+ * A stopped run names the step's recorded quality finding, with
  * that step's grade and the minimum it fell below, opening the step.
  */
 function stoppedOutcome(row: RunHistoryRow, stage: string): RunPhrase {
@@ -720,7 +635,7 @@ function interruptedOutcome(row: RunHistoryRow): RunPhrase {
 	};
 }
 
-/** A replay's verdict grades one step and stops nothing, so it is not a failure. */
+/** A replay's verdict judges one step; it does not stop a pipeline. */
 function replayOutcome(row: ReplayRow): OutcomePhrase {
 	return {
 		state: row.status === "CONTINUE" ? "accepted" : "stopped",
@@ -815,7 +730,7 @@ function causeList(causes: readonly string[]): readonly React.JSX.Element[] {
  * row makes React remount it instead.
  */
 function disclosureKeyOf(row: HistoryRow): string {
-	return `${row.kind}:${identityOf(row)}`;
+	return `${row.kind}:${recordIdentity(row)}`;
 }
 
 function causesFor(
@@ -1266,59 +1181,121 @@ function recordedWall(row: HistoryRow): React.JSX.Element {
 	return figure(clockReading(wallTime.ms));
 }
 
-function filterLabel(filter: Filter, total: number | undefined): string {
-	return filter === "All" && total !== undefined ? `All ${total}` : filter;
-}
+const STATUS_FILTERS = [
+	["all", "All"],
+	["running", "Running"],
+	["ended", "Ended"],
+	["passed", "Passed"],
+	["failed", "Failed"],
+	["stopped", "Stopped"],
+] as const;
+const KIND_FILTERS = [
+	["all", "All kinds"],
+	["run", "Tasks"],
+	["session-attempt", "Sessions"],
+	["replay", "Replays"],
+	["group", "Groups"],
+] as const;
+const CORPUS_FILTERS = [
+	["all", "All corpora"],
+	["current", "Current corpus"],
+	["stale", "Stale corpus"],
+] as const;
 
 function FilterBar({
-	active,
+	discovery,
 	total,
-	onSelect,
-	search,
-	onSearch,
-	onLeaveInvalidated,
+	onChange,
+	invalidated,
+	onClear,
 }: {
-	readonly active: Filter | "Invalidated";
+	readonly discovery: RunDiscoverySearch;
 	readonly total: number | undefined;
-	readonly onSelect: (filter: Filter) => void;
-	readonly search: string;
-	readonly onSearch: (search: string) => void;
-	readonly onLeaveInvalidated: () => void;
+	readonly onChange: (search: RunDiscoverySearch) => void;
+	readonly invalidated: boolean;
+	readonly onClear: () => void;
 }): React.JSX.Element {
 	return (
-		<div className="flex flex-wrap items-center gap-2 border-b border-divider px-6 py-2.5">
-			<span className="mr-0.5">
-				<SectionLabel>Filter</SectionLabel>
-			</span>
-			{FILTERS.map((filter) => (
-				<FilterPill
-					key={filter}
-					pressed={filter === active}
-					onPress={() => {
-						onSelect(filter);
-					}}
+		<div className="flex flex-col gap-3 border-b border-divider px-6 py-3">
+			<div className="flex flex-wrap items-center gap-3">
+				<label className="flex min-w-0 flex-1 items-center gap-2 rounded-md border border-strong bg-card px-3 py-1.5">
+					<Search aria-hidden="true" className="size-4 text-dim" />
+					<input
+						type="search"
+						value={discovery.query ?? ""}
+						aria-label="Search runs"
+						placeholder="run id, case, corpus hash, blocker id"
+						onChange={(event) => {
+							onChange({ query: event.target.value });
+						}}
+						className="w-full bg-transparent text-12"
+					/>
+				</label>
+				<Button variant="ghost" onClick={onClear}>
+					Clear
+				</Button>
+			</div>
+			<div
+				role="group"
+				aria-label="Status"
+				className="flex flex-wrap items-center gap-2"
+			>
+				<span className="w-15 text-11 text-dim">Status</span>
+				{STATUS_FILTERS.map(([value, label]) => (
+					<FilterPill
+						key={value}
+						pressed={(discovery.status ?? "all") === value && !invalidated}
+						onPress={() => {
+							onChange({ status: value });
+						}}
+					>
+						{value === "all" && total !== undefined ? `All ${total}` : label}
+					</FilterPill>
+				))}
+				{invalidated ? (
+					<FilterPill pressed onPress={onClear}>
+						Invalidated by the last edit
+					</FilterPill>
+				) : null}
+			</div>
+			<div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+				<div
+					role="group"
+					aria-label="Kind"
+					className="flex flex-wrap items-center gap-2"
 				>
-					{filterLabel(filter, total)}
-				</FilterPill>
-			))}
-			{active === "Invalidated" ? (
-				<FilterPill pressed onPress={onLeaveInvalidated}>
-					Invalidated by the last edit
-				</FilterPill>
-			) : null}
-			<label className="ml-auto flex items-center gap-2 rounded-md border border-strong bg-card px-3 py-1">
-				<Search aria-hidden="true" className="size-4 text-dim" />
-				<input
-					type="search"
-					value={search}
-					aria-label="Search runs"
-					placeholder="case, corpus hash, blocker id"
-					onChange={(event) => {
-						onSearch(event.target.value);
-					}}
-					className="w-65 bg-transparent text-12"
-				/>
-			</label>
+					<span className="w-15 text-11 text-dim">Kind</span>
+					{KIND_FILTERS.map(([value, label]) => (
+						<FilterPill
+							key={value}
+							pressed={(discovery.kind ?? "all") === value}
+							onPress={() => {
+								onChange({ kind: value });
+							}}
+						>
+							{label}
+						</FilterPill>
+					))}
+				</div>
+				<div
+					role="group"
+					aria-label="Corpus"
+					className="flex flex-wrap items-center gap-2"
+				>
+					<span className="text-11 text-dim">Corpus</span>
+					{CORPUS_FILTERS.map(([value, label]) => (
+						<FilterPill
+							key={value}
+							pressed={(discovery.corpus ?? "all") === value}
+							onPress={() => {
+								onChange({ corpus: value });
+							}}
+						>
+							{label}
+						</FilterPill>
+					))}
+				</div>
+			</div>
 		</div>
 	);
 }
@@ -1413,12 +1390,12 @@ function ComparisonBar({
 
 	return (
 		<div className="flex flex-wrap items-center gap-3 text-sm">
-			<span className="font-mono">{`arm A ${armA.groupId}`}</span>
+			<span className="font-mono">{`Baseline (before) ${armA.groupId}`}</span>
 			{armB === undefined ? (
-				<span className="text-dim">{`Choose arm B, a group replayed at ${armA.stage} · ${armA.run}`}</span>
+				<span className="text-dim">{`Choose candidate (after), a group replayed at ${armA.stage} · ${armA.run}`}</span>
 			) : (
 				<>
-					<span className="font-mono">{`arm B ${armB.groupId}`}</span>
+					<span className="font-mono">{`Candidate (after) ${armB.groupId}`}</span>
 					<LaunchDialog
 						target={{
 							kind: "comparison",
@@ -1504,27 +1481,21 @@ function NothingListed({
 function listedRecords(
 	selection: InvalidatedSelection | undefined,
 	records: Pick<RunHistoryResponse, "rows" | "launches">,
-	filter: Filter,
-	search: string,
+	discovery: RunDiscoverySearch,
 ): Pick<RunHistoryResponse, "rows" | "launches"> {
 	if (selection !== undefined) {
 		return {
 			rows: (selection.kind === "listed" ? selection.rows : []).filter((row) =>
-				matchesSearch(searchedTexts(row), search),
+				matchesDiscovery(row, discovery),
 			),
 			launches: [],
 		};
 	}
 
 	return {
-		rows: records.rows.filter(
-			(row) =>
-				matchesFilter(row, filter) && matchesSearch(searchedTexts(row), search),
-		),
-		launches: records.launches.filter(
-			(launch) =>
-				launchMatchesFilter(launch, filter) &&
-				matchesSearch([launch.caseId ?? ""], search),
+		rows: records.rows.filter((row) => matchesDiscovery(row, discovery)),
+		launches: records.launches.filter((launch) =>
+			launchMatchesDiscovery(launch, discovery),
 		),
 	};
 }
@@ -1612,12 +1583,28 @@ function LoadState({
 
 export function RunHistoryPage({
 	invalidatedBy,
+	discovery,
 }: {
 	readonly invalidatedBy: string | undefined;
+	readonly discovery: RunDiscoverySearch;
 }): React.JSX.Element {
 	const navigate = useNavigate();
-	const [filter, setFilter] = useState<Filter>("All");
-	const [search, setSearch] = useState("");
+	useRememberRunsSearch(discovery);
+	function changeDiscovery(next: RunDiscoverySearch): void {
+		const leavesInvalidated =
+			next.status !== undefined ||
+			next.kind !== undefined ||
+			next.corpus !== undefined;
+		void navigate({
+			to: "/",
+			search: (previous: RunDiscoverySearch) => ({
+				...previous,
+				...next,
+				invalidatedBy: leavesInvalidated ? undefined : invalidatedBy,
+			}),
+			replace: true,
+		});
+	}
 	const [chosen, setChosen] = useState<readonly ChosenArm[]>([]);
 	const choice: ArmChoice = {
 		chosen,
@@ -1636,7 +1623,7 @@ export function RunHistoryPage({
 	const recorded = query.data?.rows ?? [];
 	const allLaunches = query.data?.launches ?? [];
 	const history = { rows: recorded, launches: allLaunches };
-	const { rows, launches } = listedRecords(selection, history, filter, search);
+	const { rows, launches } = listedRecords(selection, history, discovery);
 	const listable = listedEntryCount(history) > 0;
 	const nothingListed =
 		query.isSuccess && saysNothingListed(selection, { rows, launches });
@@ -1670,21 +1657,23 @@ export function RunHistoryPage({
 			/>
 
 			<FilterBar
-				active={selection === undefined ? filter : "Invalidated"}
+				discovery={discovery}
 				total={query.isSuccess ? listedEntryCount(query.data) : undefined}
-				onSelect={(picked) => {
-					setFilter(picked);
-					void navigate({ to: "/", search: {} });
-				}}
-				search={search}
-				onSearch={setSearch}
-				onLeaveInvalidated={() => {
-					void navigate({ to: "/", search: {} });
+				onChange={changeDiscovery}
+				invalidated={selection !== undefined}
+				onClear={() => {
+					void navigate({ to: "/", search: {}, replace: true });
 				}}
 			/>
 
 			<div className="flex flex-col gap-4 px-6 pt-3 pb-12">
 				<LoadState loading={query.isLoading} failed={query.isError} />
+				{query.data === undefined ? null : (
+					<p
+						role="status"
+						className="text-11-5 text-dim"
+					>{`${listedEntryCount({ rows, launches })} of ${listedEntryCount(history)} ${listedEntryCount(history) === 1 ? "readable entry" : "readable entries"} shown · ${plural(recorded.length, "record")} and ${plural(allLaunches.length, "launch")} in the complete list. Ended means execution ended; Stopped means a pipeline stopped at a step. Passed and Failed require a recorded quality outcome. Current corpus requires a measured unchanged corpus.`}</p>
+				)}
 
 				{selection === undefined ? null : (
 					<InvalidatedNotice selection={selection} />

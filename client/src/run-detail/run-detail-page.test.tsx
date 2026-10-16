@@ -83,6 +83,7 @@ describe("/runs/$run", () => {
 		);
 
 		const graph = await screen.findByRole("region", { name: "Task graph" });
+
 		expect(
 			within(graph).getByRole("button", { name: /^build/u }),
 		).not.toHaveTextContent("accepted");
@@ -271,10 +272,15 @@ describe("/runs/$run", () => {
 		).toBeInTheDocument();
 	});
 
-	it("shows which steps kept checkpoints in the shared workflow", async () => {
+	it("shows which steps kept checkpoints when workflow details expand", async () => {
 		renderRunDetail();
 
 		const graph = await screen.findByRole("region", { name: "Task graph" });
+		fireEvent.click(
+			within(graph).getByRole("button", {
+				name: "Show workflow details",
+			}),
+		);
 		expect(
 			within(graph).getByRole("button", { name: /^shape/u }),
 		).toHaveTextContent("checkpoint recorded");
@@ -287,7 +293,7 @@ describe("/runs/$run", () => {
 		renderContribution();
 
 		const card = await screen.findByRole("region", {
-			name: "Task grade · graded on its own",
+			name: "Final outcome · independent task Judge",
 		});
 
 		expect(card).toHaveTextContent(
@@ -324,7 +330,7 @@ describe("/runs/$run", () => {
 			);
 
 			const card = await screen.findByRole("region", {
-				name: "Task grade · graded on its own",
+				name: "Final outcome · independent task Judge",
 			});
 
 			expect(within(card).getByText(value)).toBeInTheDocument();
@@ -342,7 +348,7 @@ describe("/runs/$run", () => {
 			).toHaveAttribute("aria-pressed", "true");
 			expect(
 				await screen.findByRole("region", {
-					name: "Task grade · graded on its own",
+					name: "Final outcome · independent task Judge",
 				}),
 			).toBeInTheDocument();
 		},
@@ -358,6 +364,11 @@ describe("/runs/$run", () => {
 		);
 
 		const graph = await screen.findByRole("region", { name: "Task graph" });
+		fireEvent.click(
+			within(graph).getByRole("button", {
+				name: "Show workflow details",
+			}),
+		);
 		expect(
 			within(graph).getByRole("button", { name: /^shape/u }),
 		).toHaveTextContent("checkpoint recorded");

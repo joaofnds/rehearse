@@ -50,6 +50,7 @@ function renderPairs(
 ): void {
 	renderWithRouter(
 		<AttemptPairs
+			digest="test-comparison"
 			caseId="audit-log"
 			mode={overrides.mode ?? "stage"}
 			attempts={overrides.attempts ?? ATTEMPTS}
@@ -88,21 +89,30 @@ describe(AttemptPairs.name, () => {
 			.getAllByRole("columnheader")
 			.map((header) => header.textContent);
 
-		expect(columns).toEqual(["Attempt", "Baseline", "Arm A", "Arm B"]);
-		expect(cell("Attempt 1", "Baseline")).toHaveTextContent("C");
-		expect(cell("Attempt 1", "Arm A")).toHaveTextContent("B");
-		expect(cell("Attempt 1", "Arm B")).toHaveTextContent("A");
-		expect(cell("Attempt 2", "Baseline")).toHaveTextContent("D");
+		expect(columns).toEqual([
+			"Attempt",
+			"Control",
+			"Baseline (before)",
+			"Candidate (after)",
+		]);
+		expect(cell("Attempt 1", "Control")).toHaveTextContent("C");
+		expect(cell("Attempt 1", "Baseline (before)")).toHaveTextContent("B");
+		expect(cell("Attempt 1", "Candidate (after)")).toHaveTextContent("A");
+		expect(cell("Attempt 2", "Control")).toHaveTextContent("D");
 	});
 
 	it("shows each attempt's words and the blockers that fired on it", () => {
 		renderPairs();
 
-		expect(cell("Attempt 2", "Arm A")).toHaveTextContent("537 words");
-		expect(cell("Attempt 2", "Arm A")).toHaveTextContent(
+		expect(cell("Attempt 2", "Baseline (before)")).toHaveTextContent(
+			"537 words",
+		);
+		expect(cell("Attempt 2", "Baseline (before)")).toHaveTextContent(
 			"fired shape · scope-declared",
 		);
-		expect(cell("Attempt 1", "Arm A")).toHaveTextContent("no blocker fired");
+		expect(cell("Attempt 1", "Baseline (before)")).toHaveTextContent(
+			"no blocker fired",
+		);
 	});
 
 	it("claims no change between attempts, since no record ties one arm's attempt to another's", () => {
@@ -119,7 +129,9 @@ describe(AttemptPairs.name, () => {
 			attempts: { ...ATTEMPTS, candidate: [graded(1, "A", 396)] },
 		});
 
-		expect(cell("Attempt 2", "Arm B")).toHaveTextContent("no attempt");
+		expect(cell("Attempt 2", "Candidate (after)")).toHaveTextContent(
+			"no attempt",
+		);
 	});
 
 	it("names the stage of each outcome a pipeline attempt recorded", () => {
@@ -137,8 +149,10 @@ describe(AttemptPairs.name, () => {
 			attempts: { ...ATTEMPTS, baseline: [attempt] },
 		});
 
-		expect(cell("Attempt 1", "Arm A")).toHaveTextContent("build B");
-		expect(cell("Attempt 1", "Arm A")).toHaveTextContent("final not reached");
+		expect(cell("Attempt 1", "Baseline (before)")).toHaveTextContent("build B");
+		expect(cell("Attempt 1", "Baseline (before)")).toHaveTextContent(
+			"final not reached",
+		);
 	});
 
 	it("states once why words or blockers were not recorded", () => {
@@ -155,7 +169,9 @@ describe(AttemptPairs.name, () => {
 			},
 		});
 
-		expect(cell("Attempt 1", "Arm A")).toHaveTextContent("words not recorded");
+		expect(cell("Attempt 1", "Baseline (before)")).toHaveTextContent(
+			"words not recorded",
+		);
 		expect(
 			screen.getByText("Words not recorded: no word count."),
 		).toBeInTheDocument();
@@ -177,7 +193,7 @@ describe(AttemptPairs.name, () => {
 			},
 		});
 
-		expect(cell("Attempt 1", "Arm A")).toHaveTextContent(
+		expect(cell("Attempt 1", "Baseline (before)")).toHaveTextContent(
 			"outcome not recorded",
 		);
 		expect(
@@ -196,6 +212,7 @@ describe(AttemptPairs.name, () => {
 							status: "available",
 							repId: "rep-1",
 							ordinal: 1,
+							groupId: "g",
 							href: "/groups/g/reps/rep-1/attempt",
 						},
 					],
@@ -204,11 +221,14 @@ describe(AttemptPairs.name, () => {
 			});
 
 			expect(
-				within(cell("Attempt 1", "Arm A")).getByRole("link", {
-					name: "Arm A attempt 1 history",
+				within(cell("Attempt 1", "Baseline (before)")).getByRole("link", {
+					name: "Baseline (before) attempt 1 history",
 				}),
-			).toHaveAttribute("href", "/groups/g/reps/rep-1/attempt?view=context");
-			expect(cell("Attempt 1", "Baseline")).toHaveTextContent("stale");
+			).toHaveAttribute(
+				"href",
+				"/groups/g/reps/rep-1/attempt?view=context&comparison=test-comparison",
+			);
+			expect(cell("Attempt 1", "Control")).toHaveTextContent("stale");
 		});
 
 		it("says a comparison that records no session has no attempt history to open", () => {

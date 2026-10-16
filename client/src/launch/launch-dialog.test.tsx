@@ -10,6 +10,7 @@ import {
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Reply } from "#client/test-support/fetch-stub";
 import { FakeServer } from "#client/test-support/fetch-stub";
+import { recordStage, runRecord } from "#client/test-support/run-record";
 import type { LaunchTarget } from "./launch-dialog";
 import { LaunchDialog } from "./launch-dialog";
 
@@ -134,6 +135,132 @@ async function startButton(): Promise<HTMLElement> {
 }
 
 describe(LaunchDialog.name, () => {
+	it("keeps source settings pending while a replay's source record loads", async () => {
+		serving();
+		const answer = globalThis.fetch;
+		const pending = Promise.withResolvers<Response>();
+		const stub = (request: string | URL | Request): Promise<Response> => {
+			const { pathname } = new URL(
+				request instanceof Request ? request.url : request,
+				"http://localhost",
+			);
+			return pathname === "/api/runs/source-run"
+				? pending.promise
+				: answer(request);
+		};
+		stub.preconnect = fetch.preconnect;
+		globalThis.fetch = stub;
+
+		const dialog = await openDialog({
+			kind: "replay",
+			run: "source-run",
+			stage: "build",
+		});
+		const conditions = await within(dialog).findByRole("region", {
+			name: "Launch conditions",
+		});
+
+		expect(conditions).toHaveTextContent("Reading source record…");
+		expect(conditions).not.toHaveTextContent("not recorded");
+		expect(conditions).not.toHaveTextContent("unavailable");
+		pending.resolve(
+			Response.json(
+				runRecord({
+					run: "source-run",
+					running: "build",
+					stages: [recordStage("build")],
+				}),
+			),
+		);
+		expect(
+			await within(conditions).findByText("claude-opus-4"),
+		).toBeInTheDocument();
+	});
+
+	it("shows the selected case and its declared model before Start", async () => {
+		serving();
+		const dialog = await openDialog({ kind: "case" });
+		const conditions = await within(dialog).findByRole("region", {
+			name: "Launch conditions",
+		});
+
+		expect(conditions).toHaveTextContent("Audit log");
+		expect(conditions).toHaveTextContent("Workflow modelsonnet");
+		expect(conditions).toHaveTextContent(
+			"Effort and Judge settings are resolved by the launcher; their effective values are not exposed by this API.",
+		);
+		fireEvent.change(within(dialog).getByLabelText("Case"), {
+			target: { value: "smoke" },
+		});
+		expect(conditions).toHaveTextContent("Smoke");
+		expect(conditions).not.toHaveTextContent("Audit log");
+		expect(conditions).toHaveTextContent(
+			"This session is evaluated by its declared checks.",
+		);
+	});
+
+	it("distinguishes frozen replay input and recorded source settings from upcoming settings", async () => {
+		const source = runRecord({
+			run: "source-run",
+			running: "build",
+			stages: [
+				recordStage("build", {
+					artifactsIn: {
+						entries: [
+							{
+								from: "upstream checkpoint",
+								target: "acme-api",
+								upstream: "shape",
+								checkpointShortId: {
+									state: "available",
+									shortId: "audit-log/r1/s1",
+								},
+							},
+						],
+						missing: [],
+					},
+				}),
+			],
+		});
+		serving(
+			new Map([["GET /api/runs/source-run", { status: 200, body: source }]]),
+		);
+		const dialog = await openDialog({
+			kind: "replay",
+			run: "source-run",
+			stage: "build",
+		});
+		const conditions = await within(dialog).findByRole("region", {
+			name: "Launch conditions",
+		});
+
+		expect(
+			await within(conditions).findByText("claude-opus-4"),
+		).toBeInTheDocument();
+		expect(conditions).toHaveTextContent("audit-log/r1/s1");
+		expect(conditions).toHaveTextContent("Recorded source effort: high");
+		expect(conditions).toHaveTextContent(
+			"Replay effort and Judge settings are resolved at launch; they are not guaranteed to match the source.",
+		);
+		expect(dialog).toHaveTextContent("current corpus");
+	});
+
+	it("explains that storing the ceiling changes future browser and CLI launches", async () => {
+		serving();
+		const dialog = await openDialog({ kind: "case" });
+
+		expect(
+			within(dialog).getByText(
+				"Storing this ceiling changes future browser launches and CLI runs, including this launch.",
+			),
+		).toBeVisible();
+		expect(
+			within(dialog).getByText(
+				"Ceilings bound spending; they are not projected charges.",
+			),
+		).toBeVisible();
+	});
+
 	it("offers one, three, six or twelve attempts with one pressed", async () => {
 		serving();
 
@@ -183,7 +310,7 @@ describe(LaunchDialog.name, () => {
 
 		expect(
 			await within(dialog).findByText(
-				"Ceiling $5.00 · stops mid-step if reached, and can be overrun by the calls in flight",
+				"Ceiling $5.00 per attempt · stops mid-step if reached, and can be overrun by the calls in flight",
 			),
 		).toBeInTheDocument();
 	});
@@ -322,7 +449,7 @@ describe(LaunchDialog.name, () => {
 			reps: 2,
 		};
 
-		it("names both arms and the checkpoint the baseline group replays", async () => {
+		it("names both arms and the checkpoint the control group replays", async () => {
 			serving();
 
 			const dialog = await openDialog(COMPARISON);
@@ -338,12 +465,12 @@ describe(LaunchDialog.name, () => {
 			).toBeInTheDocument();
 			expect(
 				within(dialog).getByText(
-					"arm A's corpus without the one skill that differs",
+					"baseline's corpus without the one skill that differs",
 				),
 			).toBeInTheDocument();
 		});
 
-		it("states the baseline group's cost at arm A's group size, which it offers no choice of", async () => {
+		it("states the control group's ceiling at the baseline's group size, which it offers no choice of", async () => {
 			serving();
 
 			const dialog = await openDialog(COMPARISON);
@@ -559,7 +686,7 @@ describe(LaunchDialog.name, () => {
 
 			expect(
 				await within(dialog).findByText(
-					"Ceiling $2.50 · stops mid-step if reached, and can be overrun by the calls in flight",
+					"Ceiling $2.50 per attempt · stops mid-step if reached, and can be overrun by the calls in flight",
 				),
 			).toBeInTheDocument();
 			const request = server.sent.find(({ method }) => method === "PUT");

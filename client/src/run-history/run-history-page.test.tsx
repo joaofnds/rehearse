@@ -25,6 +25,7 @@ import {
 	createRoute,
 	createRouter,
 	RouterProvider,
+	useLocation,
 } from "@tanstack/react-router";
 import type { InferResponseType } from "hono/client";
 import type { apiClient } from "#client/api-client";
@@ -56,6 +57,7 @@ import type {
 } from "#server/run-history";
 import { recordMoment } from "./record-moment";
 import { RunHistoryPage } from "./run-history-page";
+import { runDiscoverySearchSchema } from "./run-discovery";
 
 type RunHistoryResponseBody = InferResponseType<typeof apiClient.api.runs.$get>;
 
@@ -66,7 +68,15 @@ afterEach(() => {
 });
 
 function AllRecords(): React.JSX.Element {
-	return <RunHistoryPage invalidatedBy={undefined} />;
+	const search = useLocation({
+		select: (location) => runDiscoverySearchSchema.parse(location.search),
+	});
+	return (
+		<RunHistoryPage
+			invalidatedBy={undefined}
+			discovery={runDiscoverySearchSchema.parse(search)}
+		/>
+	);
 }
 
 function respondingWith(body: RunHistoryResponseBody): void {
@@ -426,12 +436,13 @@ describe(RunHistoryPage.name, () => {
 		renderPage();
 
 		await waitFor(() => {
-			expect(screen.getByRole("button", { name: /All/u })).toBeInTheDocument();
+			expect(
+				screen.getByRole("button", { name: /^All(?: \d+)?$/u }),
+			).toBeInTheDocument();
 		});
-		expect(screen.getByRole("button", { name: /All/u })).toHaveAttribute(
-			"aria-pressed",
-			"true",
-		);
+		expect(
+			screen.getByRole("button", { name: /^All(?: \d+)?$/u }),
+		).toHaveAttribute("aria-pressed", "true");
 	});
 
 	it("names how many records are on disk", async () => {
@@ -2974,10 +2985,10 @@ describe(RunHistoryPage.name, () => {
 			const dialog = await screen.findByRole("dialog");
 
 			expect(
-				within(dialog).getByText("Arm A").nextElementSibling,
+				within(dialog).getByText("Baseline (before)").nextElementSibling,
 			).toHaveTextContent("group-without-skill");
 			expect(
-				within(dialog).getByText("Arm B").nextElementSibling,
+				within(dialog).getByText("Candidate (after)").nextElementSibling,
 			).toHaveTextContent("group-with-skill");
 			expect(
 				within(dialog).getByRole("button", { name: "Start · 3 attempts" }),
@@ -4027,7 +4038,7 @@ describe(RunHistoryPage.name, () => {
 		}> {
 			respondingWith(body);
 			const page = renderPage();
-			await page.findByRole("button", { name: /^All/u });
+			await page.findByRole("button", { name: /^All(?: \d+)?$/u });
 
 			return {
 				page,
@@ -4046,7 +4057,7 @@ describe(RunHistoryPage.name, () => {
 			};
 		}
 
-		it("offers All with the count of what it lists and five narrower filters, All pressed", async () => {
+		it("labels composable status, kind and corpus filters with the complete entry count", async () => {
 			const { page, pressed } = await renderHistory();
 
 			const pills = within(page.container)
@@ -4056,22 +4067,36 @@ describe(RunHistoryPage.name, () => {
 			expect(pills.map((pill) => pill.textContent)).toEqual([
 				"All 8",
 				"Running",
+				"Ended",
+				"Passed",
+				"Failed",
 				"Stopped",
+				"All kinds",
+				"Tasks",
+				"Sessions",
 				"Replays",
 				"Groups",
-				"Clean corpus only",
+				"All corpora",
+				"Current corpus",
+				"Stale corpus",
 			]);
-			expect(pressed()).toEqual(["All 8"]);
+			expect(pressed()).toEqual(["All 8", "All kinds", "All corpora"]);
 		});
 
-		it.each(["Running", "Stopped", "Replays", "Groups", "Clean corpus only"])(
-			"presses %s alone once it is selected",
-			async (filter) => {
+		it.each([
+			["Running", ["Running", "All kinds", "All corpora"]],
+			["Stopped", ["Stopped", "All kinds", "All corpora"]],
+			["Replays", ["All 8", "Replays", "All corpora"]],
+			["Groups", ["All 8", "Groups", "All corpora"]],
+			["Current corpus", ["All 8", "All kinds", "Current corpus"]],
+		])(
+			"marks %s without clearing a different filter dimension",
+			async (filter, expected) => {
 				const { page, pressed } = await renderHistory();
 
 				fireEvent.click(page.getByRole("button", { name: filter }));
 
-				expect(pressed()).toEqual([filter]);
+				expect(pressed()).toEqual(expected);
 			},
 		);
 
@@ -4080,7 +4105,7 @@ describe(RunHistoryPage.name, () => {
 			["Stopped", [STOPPED]],
 			["Replays", [REPLAY]],
 			["Groups", [GROUP]],
-			["Clean corpus only", [FINISHED]],
+			["Current corpus", [FINISHED]],
 		])("lists under %s only the records it names", async (filter, expected) => {
 			const { page, listed } = await renderHistory();
 
@@ -4094,7 +4119,7 @@ describe(RunHistoryPage.name, () => {
 
 			expect(
 				page.getByRole("searchbox", { name: "Search runs" }),
-			).toHaveAttribute("placeholder", "case, corpus hash, blocker id");
+			).toHaveAttribute("placeholder", "run id, case, corpus hash, blocker id");
 		});
 
 		it.each([

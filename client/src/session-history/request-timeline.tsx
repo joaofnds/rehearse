@@ -11,7 +11,6 @@ import type {
 import type { SessionHistoryRequestCostEntry } from "#server/session-history-reader";
 import type { TranscriptInstructionLoads } from "#benchmark/transcript-instruction-loads";
 import { cn } from "#client/system/cn";
-import { SectionLabel } from "#client/system/components/section-label";
 import { PaneHeading } from "./pane-heading";
 import { selectableRow } from "./selectable-row";
 
@@ -84,15 +83,30 @@ function requestCostLabel(
 		: `? Unpriced · ${cost.reason}`;
 }
 
-export function costLabel(reading: SessionHistoryCostReading): string {
+function costHeadline(
+	reading: SessionHistoryCostReading,
+	difference: boolean,
+): string {
 	if (reading.state === "unavailable") {
-		return `? Unavailable · ${reading.reasons.join(", ")}`;
+		return "? Unavailable";
 	}
-	if (reading.state === "incomplete") {
-		return `◐ Incomplete · ${usd.format(reading.costUsd)} over ${reading.pricedRequestCount} of ${reading.requestCount} requests · ${reading.reasons.join(", ")}`;
+	if (reading.state === "complete") {
+		return `✓ Complete · ${usd.format(reading.costUsd)}`;
 	}
+	if (difference) {
+		return `◐ Incomplete · ${usd.format(reading.costUsd)} difference`;
+	}
+	if (reading.pricedRequestCount === 0) {
+		return `? Unpriced · 0 of ${reading.requestCount} requests priced`;
+	}
+	return `◐ Incomplete · ${usd.format(reading.costUsd)} known subtotal over ${reading.pricedRequestCount} of ${reading.requestCount} requests`;
+}
 
-	return `✓ Complete · ${usd.format(reading.costUsd)}`;
+export function costLabel(reading: SessionHistoryCostReading): string {
+	const headline = costHeadline(reading, false);
+	return reading.state === "complete"
+		? headline
+		: `${headline} · ${reading.reasons.join(", ")}`;
 }
 
 function totalsLabel(series: SessionHistoryRequestSeries): string {
@@ -184,7 +198,7 @@ function InstructionLoads({
 }): React.JSX.Element {
 	if (loads.state === "unavailable") {
 		return (
-			<p className="px-3 py-2.5 text-xs text-dim">
+			<p className="px-3 py-2.5 text-12 text-muted-foreground">
 				? Unavailable · the transcript carries no instructions attachment.
 			</p>
 		);
@@ -197,11 +211,13 @@ function InstructionLoads({
 					key={`${index}:${load.memoryType}:${load.filePath}`}
 					className="flex min-w-0 flex-col gap-0.5"
 				>
-					<code className="truncate font-mono text-xs text-accent-foreground">
+					<code className="truncate font-mono text-12 text-accent-foreground">
 						{load.filePath}
 					</code>
-					<small className="text-xs text-dim">{load.memoryType}</small>
-					<small className="text-xs text-dim">
+					<small className="text-12 text-muted-foreground">
+						{load.memoryType}
+					</small>
+					<small className="text-12 text-muted-foreground">
 						reason, trigger and include parent unavailable in the transcript
 					</small>
 				</li>
@@ -213,10 +229,125 @@ function InstructionLoads({
 	);
 }
 
+function CostReading({
+	reading,
+	difference,
+}: {
+	readonly reading: SessionHistoryCostReading;
+	readonly difference: boolean;
+}): React.JSX.Element {
+	const headline = costHeadline(reading, difference);
+	if (reading.state === "complete") {
+		return <>{headline}</>;
+	}
+	return (
+		<>
+			<span>{headline}</span>
+			<details className="mt-1 text-12">
+				<summary className="cursor-pointer">
+					{reading.reasons.length} pricing gaps
+					{reading.state === "incomplete"
+						? ` · ${reading.pricedRequestCount}/${reading.requestCount} requests priced`
+						: ""}
+				</summary>
+				<ul className="mt-2 flex flex-col gap-1 text-secondary-foreground">
+					{reading.reasons.map((reason, index) => (
+						<li key={`${index}:${reason}`}>{reason}</li>
+					))}
+				</ul>
+			</details>
+		</>
+	);
+}
+
+export function RequestCostReadings({
+	cost,
+}: {
+	readonly cost: SessionHistoryAttemptCost;
+}): React.JSX.Element {
+	return (
+		<dl
+			aria-label="Session root attempt cost"
+			className="grid gap-3 md:grid-cols-3"
+		>
+			{[
+				{
+					term: "Provider reported · attempt",
+					reading: cost.reported,
+					difference: false,
+				},
+				{
+					term: "Calculated · root requests",
+					reading: cost.calculated,
+					difference: false,
+				},
+				{
+					term: "Remaining difference",
+					reading: cost.difference,
+					difference: true,
+				},
+			].map(({ term, reading, difference }) => (
+				<div
+					key={term}
+					className="min-w-0 rounded-md border bg-muted px-3 py-2.5"
+				>
+					<dt className="text-12 text-muted-foreground">{term}</dt>
+					<dd className="mt-1 font-mono text-13 text-secondary-foreground">
+						<CostReading reading={reading} difference={difference} />
+					</dd>
+				</div>
+			))}
+		</dl>
+	);
+}
+
+function SelectedRequest({
+	entry,
+	cost,
+}: {
+	readonly entry: SessionHistoryRequestEntry | undefined;
+	readonly cost: SessionHistoryRequestCost | undefined;
+}): React.JSX.Element | null {
+	if (entry === undefined) {
+		return null;
+	}
+	return (
+		<section
+			aria-label="Selected request"
+			className="border-b bg-muted px-3 py-3"
+		>
+			<h3 className="text-14 font-medium">
+				{entry.requestId ?? `Request at line ${entry.line}`}
+			</h3>
+			<p className="mt-1 text-12 text-muted-foreground">
+				Session root · {entry.region} · line {entry.line} · {modelLabel(entry)}
+			</p>
+			<div className="mt-3 flex flex-wrap gap-x-6 gap-y-2">
+				<p className="font-mono text-14">
+					{totalLabel(entry)}{" "}
+					<span className="text-12 text-secondary-foreground">
+						total input tokens
+					</span>
+				</p>
+				<p className="font-mono text-14">
+					{requestCostLabel(cost, entry.region)}
+				</p>
+			</div>
+			<p className="mt-2 font-mono text-12 text-secondary-foreground">
+				{categoryLabel(entry)}
+			</p>
+			<p className="mt-1 text-12 text-muted-foreground">
+				Input = uncached + cache read + cache write. Output is separate. Cost is
+				calculated from request usage and catalog rates; it is not a separately
+				reported provider charge.
+			</p>
+		</section>
+	);
+}
+
 export function RequestTimeline({
 	series,
 	entries,
-	cost,
 	requestCosts,
 	instructionLoads,
 	selected,
@@ -225,13 +356,13 @@ export function RequestTimeline({
 	readonly series: SessionHistoryRequestSeries;
 	/** The rows to show, which the source filter narrows from series.entries. */
 	readonly entries: readonly SessionHistoryRequestEntry[];
-	readonly cost: SessionHistoryAttemptCost;
 	readonly requestCosts: readonly SessionHistoryRequestCostEntry[];
 	readonly instructionLoads: TranscriptInstructionLoads;
 	readonly selected: string | undefined;
 	readonly onSelect: (entry: SessionHistoryRequestEntry) => void;
 }): React.JSX.Element {
 	const widest = widestTotal(series.entries);
+	const active = entries.find((entry) => requestRowId(entry) === selected);
 	const compacted = compactingRequestIds(series.entries, series.compactions);
 	const costByLine = new Map(
 		requestCosts.map((entry) => [entry.line, entry.cost]),
@@ -239,29 +370,26 @@ export function RequestTimeline({
 
 	return (
 		<section aria-label="Request timeline">
-			<PaneHeading>Request timeline</PaneHeading>
-			<p className="px-3 py-2.5 text-xs text-dim">
+			<PaneHeading>Request timeline · session root</PaneHeading>
+			<SelectedRequest
+				entry={active}
+				cost={active === undefined ? undefined : costByLine.get(active.line)}
+			/>
+			<p className="px-3 py-2.5 text-12 text-muted-foreground">
 				{series.name}. The provider's active context window is not measured:
 				this number omits {series.omits.join(" and ")}.
 			</p>
-			<dl className="flex flex-col gap-1 px-3 pb-2.5">
-				{[
-					{ term: "Attempt totals", value: totalsLabel(series) },
-					{ term: "Provider reported", value: costLabel(cost.reported) },
-					{ term: "Calculated", value: costLabel(cost.calculated) },
-					{ term: "Remaining difference", value: costLabel(cost.difference) },
-				].map(({ term, value }) => (
-					<div key={term} className="flex flex-col gap-0.5">
-						<dt>
-							<SectionLabel>{term}</SectionLabel>
-						</dt>
-						<dd className="font-mono text-xs text-secondary-foreground">
-							{value}
-						</dd>
-					</div>
-				))}
+			<dl className="px-3 pb-2.5">
+				<dt className="text-12 text-muted-foreground">Attempt totals</dt>
+				<dd className="font-mono text-12 text-secondary-foreground">
+					{totalsLabel(series)}
+				</dd>
 			</dl>
-			<div className="border-t" role="listbox" aria-label="Request timeline">
+			<div
+				className="grid max-h-80 overflow-auto border-t md:grid-cols-2"
+				role="listbox"
+				aria-label="Request timeline"
+			>
 				{entries.map((entry) => (
 					<button
 						type="button"
@@ -277,36 +405,46 @@ export function RequestTimeline({
 						}}
 					>
 						<span className="flex justify-between gap-2.5">
-							<code className="truncate font-mono text-xs text-accent-foreground">
+							<code className="truncate font-mono text-12 text-accent-foreground">
 								{entry.requestId ?? "no request id"}
 							</code>
-							<small className="text-xs text-dim">{entry.region}</small>
+							<small className="text-12 text-muted-foreground">
+								{entry.region}
+							</small>
 						</span>
-						<span
-							className="block h-1 w-(--bar-width) min-w-0.5 bg-primary"
-							style={{ "--bar-width": barWidth(entry, widest) }}
-						/>
-						<strong className="font-mono text-sm">{totalLabel(entry)}</strong>
-						<small className="text-xs text-dim">{categoryLabel(entry)}</small>
-						<small className="text-xs text-dim">{modelLabel(entry)}</small>
-						<small className="text-xs text-dim">
+						{entry.usageState === "complete" && widest > 0 ? (
+							<span
+								className="block h-1 w-(--bar-width) bg-primary"
+								style={{ "--bar-width": barWidth(entry, widest) }}
+							/>
+						) : null}
+						<strong className="font-mono text-13">{totalLabel(entry)}</strong>
+						<small className="text-12 text-muted-foreground">
+							{categoryLabel(entry)}
+						</small>
+						<small className="text-12 text-muted-foreground">
+							{modelLabel(entry)}
+						</small>
+						<small className="text-12 text-muted-foreground">
 							{requestCostLabel(costByLine.get(entry.line), entry.region)}
 						</small>
 						{compacted.has(requestRowId(entry)) ? (
-							<small className="text-xs text-accent-foreground">
+							<small className="text-12 text-accent-foreground">
 								⇥ compaction after this request
 							</small>
 						) : null}
 					</button>
 				))}
 				{entries.length === 0 ? (
-					<p className="px-3 py-2.5 text-xs text-dim">
+					<p className="px-3 py-2.5 text-12 text-muted-foreground">
 						This attempt's transcript records no request.
 					</p>
 				) : null}
 			</div>
 			<h3 className="px-3 pt-3">
-				<SectionLabel>Automatic instruction loads</SectionLabel>
+				<span className="text-12 text-muted-foreground">
+					Automatic instruction loads
+				</span>
 			</h3>
 			<InstructionLoads loads={instructionLoads} />
 		</section>

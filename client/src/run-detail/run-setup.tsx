@@ -7,7 +7,8 @@ import type {
 import { minutesAndSeconds } from "#client/monitor/minutes-and-seconds";
 import type { PipelineRow } from "#client/shell/run-in-flight";
 import { spendReading } from "#client/run-history/run-progress";
-import { stageCostReading, wallTimeReading } from "./step-report";
+import { wallTimeReading } from "./step-report";
+import { stageCostReading } from "./step-readings";
 
 function startingCheckpoint(stage: MonitoredStage): string {
 	const input = stage.artifactsIn.entries.find(

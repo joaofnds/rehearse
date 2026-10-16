@@ -742,3 +742,47 @@ describe(CasesPage.name, () => {
 		});
 	});
 });
+
+it("opens a selected case definition and its actions from a direct case destination", async () => {
+	renderCasesAt("/cases?caseId=brief-reply", [pipelineCase(), sessionCase()]);
+	expect(
+		await screen.findByRole("article", { name: "brief-reply" }),
+	).toBeInTheDocument();
+	expect(screen.queryAllByRole("article", { name: "audit-log" })).toHaveLength(
+		0,
+	);
+	expect(screen.getByRole("link", { name: "All cases" })).toHaveAttribute(
+		"href",
+		"/cases",
+	);
+	const selected = screen.getByRole("article", { name: "brief-reply" });
+	expect(
+		within(selected).getByText("word-band · forbidden-text"),
+	).toBeInTheDocument();
+	expect(
+		within(selected).getByRole("button", { name: "Run once" }),
+	).toBeInTheDocument();
+});
+
+it("global search opens the matching case with its definition visible", async () => {
+	renderCasesAt("/", [pipelineCase(), sessionCase()]);
+	fireEvent.click(
+		await screen.findByRole("button", { name: "Search everything" }),
+	);
+	const search = await screen.findByRole("dialog", {
+		name: "Search everything",
+	});
+	fireEvent.change(within(search).getByRole("searchbox"), {
+		target: { value: "brief-reply" },
+	});
+	fireEvent.click(
+		await within(search).findByRole("link", { name: /Case brief-reply/u }),
+	);
+	const selected = await screen.findByRole("article", { name: "brief-reply" });
+	expect(
+		within(selected).getByText("Reply in the brief style"),
+	).toBeInTheDocument();
+	expect(screen.queryAllByRole("article", { name: "audit-log" })).toHaveLength(
+		0,
+	);
+});

@@ -1,6 +1,7 @@
-import { afterEach, describe, expect, it } from "bun:test";
+import { afterEach, describe, expect, it, jest } from "bun:test";
 import { join } from "node:path";
 import {
+	act,
 	fireEvent,
 	render,
 	screen,
@@ -38,6 +39,7 @@ const HISTORY = "/api/attempts/session/case-a/attempt-a/history";
 const originalFetch = globalThis.fetch;
 
 afterEach(() => {
+	jest.useRealTimers();
 	globalThis.fetch = originalFetch;
 });
 
@@ -153,10 +155,15 @@ async function fixtureInput(variant: Variant): Promise<AgentTreeInput> {
 	};
 }
 
+interface RenderedAgents {
+	readonly client: QueryClient;
+	readonly unmount: () => void;
+}
+
 async function renderFixturePage(
 	variant: Variant = "recorded",
 	modelUsage?: ClaudeCallMetrics["modelUsage"],
-): Promise<void> {
+): Promise<RenderedAgents> {
 	const input = await fixtureInput(variant);
 	const a1 = input.subagents.find(({ agentId }) => agentId === "a1");
 	const tree = agentTree(input);
@@ -203,13 +210,15 @@ async function renderFixturePage(
 	const client = new QueryClient({
 		defaultOptions: { queries: { retry: false } },
 	});
-	render(
+	const rendered = render(
 		<QueryClientProvider client={client}>
 			<SessionHistoryPage
 				identity={{ kind: "standalone", caseId: "case-a", uuid: "attempt-a" }}
 			/>
 		</QueryClientProvider>,
 	);
+	fireEvent.click(await screen.findByRole("button", { name: "Agents" }));
+	return { client, unmount: rendered.unmount };
 }
 
 function agentTreeNav(): Promise<HTMLElement> {
@@ -229,6 +238,63 @@ async function select(label: string): Promise<HTMLElement> {
 }
 
 describe("agent tree in the saved-attempt workbench", () => {
+	it("retains a child agent after six inactive minutes and remounting", async () => {
+		const warmed = await renderFixturePage();
+		await agentTreeNav();
+		warmed.unmount();
+		jest.useFakeTimers();
+		const client = new QueryClient({
+			defaultOptions: { queries: { retry: false } },
+		});
+		for (const query of warmed.client.getQueryCache().getAll()) {
+			if (
+				query.queryKey[0] !== "session-history-selection" &&
+				query.queryKey[0] !== "agent-tree-selection" &&
+				query.state.data !== undefined
+			) {
+				client.setQueryData(query.queryKey, query.state.data);
+			}
+		}
+		const mounted = render(
+			<QueryClientProvider client={client}>
+				<SessionHistoryPage
+					identity={{ kind: "standalone", caseId: "case-a", uuid: "attempt-a" }}
+				/>
+			</QueryClientProvider>,
+		);
+		fireEvent.click(screen.getByRole("button", { name: "Agents" }));
+		fireEvent.click(
+			within(screen.getByRole("navigation", { name: "Agent tree" })).getByRole(
+				"button",
+				{ name: /^a1 · reviewer/u },
+			),
+		);
+		mounted.unmount();
+
+		act(() => {
+			jest.advanceTimersByTime(360_000);
+		});
+		jest.useRealTimers();
+		render(
+			<QueryClientProvider client={client}>
+				<SessionHistoryPage
+					identity={{ kind: "standalone", caseId: "case-a", uuid: "attempt-a" }}
+				/>
+			</QueryClientProvider>,
+		);
+
+		expect(
+			await screen.findByRole("button", { name: "Agents", pressed: true }),
+		).toBeVisible();
+		const detail = await screen.findByRole("region", {
+			name: "Selected in the agent tree",
+		});
+		expect(
+			within(detail).getByRole("definition", { name: "Agent" }),
+		).toHaveTextContent("a1");
+		client.clear();
+	});
+
 	it("nests each agent under the agent that launched it", async () => {
 		await renderFixturePage();
 
@@ -323,7 +389,9 @@ describe("agent tree in the saved-attempt workbench", () => {
 			within(detail).getByRole("definition", {
 				name: "Including descendants",
 			}),
-		).toHaveTextContent("◐ Incomplete · $0.042064 over 7 of 8 requests");
+		).toHaveTextContent(
+			"◐ Incomplete · $0.042064 known subtotal over 7 of 8 requests",
+		);
 		expect(
 			within(detail).getByRole("definition", {
 				name: "Including descendants",
@@ -349,7 +417,7 @@ describe("agent tree in the saved-attempt workbench", () => {
 		expect(a2Peak).toStartWith(
 			"1,803 total input tokens over the attempt's requests",
 		);
-		expect(a2Peak).toContain("this agent's own window");
+		expect(a2Peak).toContain("this agent's own request input");
 	});
 
 	it("marks coverage and the attempt total incomplete when a child's evidence is missing", async () => {

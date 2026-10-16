@@ -9,6 +9,7 @@ import { launchClient } from "#client/api-client";
 import { plural } from "#client/plural";
 import { refusalReason } from "#client/refusal-reason";
 import { corpusQuery } from "#client/corpus/corpus-query";
+import { runRecordQuery } from "#client/monitor/run-record-query";
 import { runHistoryQuery } from "#client/run-history/run-history-query";
 import { spendReading } from "#client/run-history/run-progress";
 import { FilterPill } from "#client/system/components/filter-pill";
@@ -79,7 +80,7 @@ export type LaunchTarget =
 			readonly armB: string;
 			readonly run: string;
 			readonly stage: string;
-			/** Arm A's group size, which the baseline group copies. */
+			/** Baseline group size, which the control group copies. */
 			readonly reps: number;
 	  }
 	| {
@@ -149,8 +150,8 @@ function ceilingHolds(
 	ceilingUsd: number,
 	{ groups, attempts }: StartedGroups,
 ): string {
-	if (attempts === 1) {
-		return `Ceiling ${spendReading(ceilingUsd)}`;
+	if (attempts === 1 && groups === 1) {
+		return `Ceiling ${spendReading(ceilingUsd)} per attempt`;
 	}
 	const perGroup = `Ceiling ${spendReading(ceilingUsd)} per attempt, ${spendReading(groupSpendCeilingUsd({ spendCeilingUsd: ceilingUsd, reps: attempts }))}`;
 
@@ -177,6 +178,9 @@ function CorpusLine(): React.JSX.Element {
 	) : (
 		<span className="font-mono text-pale">
 			{corpusVersionLabel(corpus.data.digest)}
+			<span className="ml-2 text-12 text-muted-foreground">
+				current linked corpus
+			</span>
 		</span>
 	);
 }
@@ -217,7 +221,7 @@ function SpendCeilingField({
 				}}
 			>
 				<span className="flex h-9 items-center gap-1.5 rounded-md border border-strong bg-background px-2">
-					<span aria-hidden="true" className="text-xs text-muted-foreground">
+					<span aria-hidden="true" className="text-12 text-muted-foreground">
 						USD
 					</span>
 					<input
@@ -227,7 +231,7 @@ function SpendCeilingField({
 						onChange={(event) => {
 							onDraft(event.target.value);
 						}}
-						className="w-20 bg-transparent font-mono text-sm"
+						className="w-20 bg-transparent font-mono text-13"
 					/>
 				</span>
 				<Button
@@ -239,13 +243,17 @@ function SpendCeilingField({
 					Store ceiling
 				</Button>
 			</form>
+			<p className="mt-1 text-12 text-secondary-foreground">
+				Storing this ceiling changes future browser launches and CLI runs,
+				including this launch.
+			</p>
 			{holdsUnstoredCeiling(draft, storedUsd) ? (
-				<p className="mt-1 text-xs text-dim">
+				<p className="mt-1 text-12 text-muted-foreground">
 					Store this ceiling to start, or the launch holds to the stored one.
 				</p>
 			) : null}
 			{store.isError ? (
-				<p role="alert" className="mt-1 text-sm text-secondary-foreground">
+				<p role="alert" className="mt-1 text-13 text-secondary-foreground">
 					<span aria-hidden="true">⚠ </span>
 					{store.error.message}
 				</p>
@@ -270,7 +278,7 @@ function CasePicker({
 			onChange={(event) => {
 				onSelect(event.target.value);
 			}}
-			className="h-9 w-full min-w-0 rounded-md border border-strong bg-background px-2 font-mono text-sm"
+			className="h-9 w-full min-w-0 rounded-md border border-strong bg-background px-2 font-mono text-13"
 		>
 			{cases.map((listed) =>
 				listed.model === null ? (
@@ -304,7 +312,7 @@ function CaseListProblems({
 }): React.JSX.Element | null {
 	if (failure !== undefined) {
 		return (
-			<p role="alert" className="text-sm text-secondary-foreground">
+			<p role="alert" className="text-13 text-secondary-foreground">
 				<span aria-hidden="true">⚠ </span>
 				{failure}
 			</p>
@@ -388,10 +396,10 @@ function dialogDescription(target: SettledTarget): string {
 			return `Replaying restores the checkpoint ${target.stage} starts from, runs ${target.stage} against the current corpus under the run's model, and records each attempt separately. Earlier stages are not re-run.`;
 		}
 		case "comparison": {
-			return `Runs a baseline group of ${plural(target.reps, "attempt")} at ${target.stage}, against arm A's corpus without the one skill the arms differ in, under arm A's model, effort, judge and budget, then compares the baseline, arm A and arm B. Arms A and B are not re-run.`;
+			return `Runs a control group of ${plural(target.reps, "attempt")} at ${target.stage}, against baseline's corpus without the one skill the arms differ in, under baseline's model, effort, judge and budget, then compares the control, baseline (before) and candidate (after). Baseline and candidate are not re-run.`;
 		}
 		case "extension": {
-			return `Runs ${plural(target.attempts, "more attempt")} in the baseline, arm A and arm B, each from the checkpoint its arm replayed and against its arm's corpus, then saves a comparison of every attempt each arm holds. The comparison it extends is kept as it was.`;
+			return `Runs ${plural(target.attempts, "more attempt")} in the control, baseline (before) and candidate (after), each from the checkpoint its arm replayed and against its arm's corpus, then saves a comparison of every attempt each arm holds. The comparison it extends is kept as it was.`;
 		}
 		default: {
 			return target satisfies never;
@@ -449,11 +457,11 @@ function TargetRows({
 		case "comparison": {
 			return (
 				<>
-					<dt className="text-muted-foreground">Arm A</dt>
+					<dt className="text-muted-foreground">Baseline (before)</dt>
 					<dd className="col-span-3 min-w-0 font-mono break-all">
 						{target.armA}
 					</dd>
-					<dt className="text-muted-foreground">Arm B</dt>
+					<dt className="text-muted-foreground">Candidate (after)</dt>
 					<dd className="col-span-3 min-w-0 font-mono break-all">
 						{target.armB}
 					</dd>
@@ -461,9 +469,9 @@ function TargetRows({
 					<dd className="col-span-3 font-mono">{target.run}</dd>
 					<dt className="text-muted-foreground">Stage</dt>
 					<dd className="col-span-3 font-mono">{target.stage}</dd>
-					<dt className="text-muted-foreground">Baseline corpus</dt>
+					<dt className="text-muted-foreground">Control corpus</dt>
 					<dd className="col-span-3">
-						arm A&apos;s corpus without the one skill that differs
+						baseline&apos;s corpus without the one skill that differs
 					</dd>
 				</>
 			);
@@ -570,7 +578,7 @@ function ReplayChoiceRows({
 							onChoose({ run: picked.run, stage: picked.openingStage });
 						}
 					}}
-					className="h-9 w-full min-w-0 rounded-md border border-strong bg-background px-2 font-mono text-sm"
+					className="h-9 w-full min-w-0 rounded-md border border-strong bg-background px-2 font-mono text-13"
 				>
 					{runs.map(({ run, caseId }) => (
 						<option key={run} value={run}>
@@ -589,7 +597,7 @@ function ReplayChoiceRows({
 					onChange={(event) => {
 						onChoose({ run: chosen.run, stage: event.target.value });
 					}}
-					className="h-9 w-full min-w-0 rounded-md border border-strong bg-background px-2 font-mono text-sm"
+					className="h-9 w-full min-w-0 rounded-md border border-strong bg-background px-2 font-mono text-13"
 				>
 					{stages.map((stage) => (
 						<option key={stage} value={stage}>
@@ -604,6 +612,142 @@ function ReplayChoiceRows({
 			</dd>
 		</>
 	);
+}
+
+function CaseConditions({
+	listed,
+}: {
+	readonly listed: CaseListing | undefined;
+}): React.JSX.Element {
+	if (listed === undefined) {
+		return (
+			<p className="text-13 text-muted-foreground">
+				Choose a readable case to inspect its launch conditions.
+			</p>
+		);
+	}
+	return (
+		<section
+			aria-label="Launch conditions"
+			className="rounded-md border bg-muted px-3 py-2.5"
+		>
+			<h3 className="text-14 font-medium">{listed.title}</h3>
+			<dl className="mt-2 grid grid-cols-4 gap-x-3 gap-y-1 text-13">
+				<dt className="text-muted-foreground">Workflow model</dt>
+				<dd className="col-span-3 font-mono">
+					{listed.model ?? "No model declared"}
+				</dd>
+				<dt className="text-muted-foreground">Input</dt>
+				<dd className="col-span-3">
+					{listed.kind === "session"
+						? "Declared session prompt, fixture and transcript prefix, when provided."
+						: "Declared task and product brief; the pipeline runs against its target repository."}
+				</dd>
+				{listed.kind === "pipeline" ? (
+					<>
+						<dt className="text-muted-foreground">Target</dt>
+						<dd className="col-span-3 font-mono wrap-anywhere">
+							{listed.target ?? "Target details unavailable"}
+						</dd>
+					</>
+				) : null}
+			</dl>
+			<p className="mt-2 text-12 text-secondary-foreground">
+				{listed.kind === "pipeline"
+					? "Effort and Judge settings are resolved by the launcher; their effective values are not exposed by this API."
+					: "Effort is resolved by the launcher; its effective value is not exposed by this API. This session is evaluated by its declared checks."}
+			</p>
+		</section>
+	);
+}
+
+function ReplayConditions({
+	target,
+}: {
+	readonly target: Extract<SettledTarget, { kind: "replay" }>;
+}): React.JSX.Element {
+	const source = useQuery(runRecordQuery(target.run));
+	const pending = source.isPending ? "Reading source record…" : undefined;
+	const step = source.data?.stages.find(({ stage }) => stage === target.stage);
+	const checkpoint = step?.artifactsIn.entries.find(
+		(entry) => entry.from === "upstream checkpoint",
+	);
+	let input = `The saved checkpoint ${target.stage} starts from; earlier stages are not run again.`;
+	if (checkpoint?.from === "upstream checkpoint") {
+		input = `${checkpoint.upstream} checkpoint`;
+		if (checkpoint.checkpointShortId.state === "available") {
+			input += ` · ${checkpoint.checkpointShortId.shortId}`;
+		}
+	}
+	return (
+		<section
+			aria-label="Launch conditions"
+			className="rounded-md border bg-muted px-3 py-2.5"
+		>
+			<h3 className="text-14 font-medium">Frozen input · current corpus</h3>
+			<dl className="mt-2 grid grid-cols-4 gap-x-3 gap-y-1 text-13">
+				<dt className="text-muted-foreground">Case</dt>
+				<dd className="col-span-3">
+					{source.data?.caseId ?? pending ?? "Source case unavailable"}
+				</dd>
+				<dt className="text-muted-foreground">Workflow model</dt>
+				<dd className="col-span-3 font-mono">
+					{source.data?.identity.model ??
+						pending ??
+						"Source run's model; value unavailable"}
+				</dd>
+				<dt className="text-muted-foreground">Frozen input</dt>
+				<dd className="col-span-3">{input}</dd>
+			</dl>
+			<p className="mt-2 text-12 text-secondary-foreground">
+				Recorded source effort:{" "}
+				{source.data?.identity.effort ?? pending ?? "not recorded"}. Replay
+				effort and Judge settings are resolved at launch; they are not
+				guaranteed to match the source.
+			</p>
+			{source.isError ? (
+				<p className="mt-1 text-12 text-secondary-foreground">
+					Source details could not be read. The launcher validates the saved
+					checkpoint before starting.
+				</p>
+			) : null}
+		</section>
+	);
+}
+
+function LaunchConditions({
+	target,
+	cases,
+	caseId,
+}: {
+	readonly target: SettledTarget;
+	readonly cases: readonly CaseListing[];
+	readonly caseId: string | undefined;
+}): React.JSX.Element {
+	switch (target.kind) {
+		case "case": {
+			return <CaseConditions listed={cases.find(({ id }) => id === caseId)} />;
+		}
+		case "replay": {
+			return <ReplayConditions target={target} />;
+		}
+		case "comparison":
+		case "extension": {
+			return (
+				<section
+					aria-label="Launch conditions"
+					className="rounded-md border bg-muted px-3 py-2.5 text-13 text-secondary-foreground"
+				>
+					Each new group uses its saved arm’s checkpoint, corpus, workflow
+					model, effort and Judge settings. Their values are not exposed by this
+					launch API. The stored spending ceiling still applies.
+				</section>
+			);
+		}
+		default: {
+			return target satisfies never;
+		}
+	}
 }
 
 function LaunchForm({
@@ -627,6 +771,7 @@ function LaunchForm({
 		queryFn: fetchCases,
 		enabled: target.kind === "case",
 	});
+	const availableCases = cases.data?.cases ?? [];
 	const launch = useMutation({
 		mutationFn: postLaunch,
 		onSuccess: async () => {
@@ -638,7 +783,7 @@ function LaunchForm({
 	});
 
 	const caseId =
-		pickedCase ?? cases.data?.cases.find((listed) => listed.model !== null)?.id;
+		pickedCase ?? availableCases.find((listed) => listed.model !== null)?.id;
 	const request = launchRequest(target, caseId, attempts);
 	const started = startedGroupsOf(target, attempts);
 	const ceilingUsd = settings.data?.spendCeilingUsd ?? undefined;
@@ -650,7 +795,7 @@ function LaunchForm({
 
 	return (
 		<>
-			<header className="flex items-center gap-3 border-b border-strong px-4 py-3">
+			<header className="flex shrink-0 items-center gap-3 border-b border-strong px-4 py-3">
 				<DialogTitle>{dialogTitle(target)}</DialogTitle>
 				<span className="ml-auto">
 					<DialogClose asChild>
@@ -661,12 +806,12 @@ function LaunchForm({
 				</span>
 			</header>
 
-			<div className="flex flex-col gap-3 px-4 py-3.5">
-				<dl className="grid grid-cols-4 items-center gap-x-3 gap-y-2 text-sm">
+			<div className="flex min-h-0 flex-col gap-3 overflow-y-auto px-4 py-3.5">
+				<dl className="grid grid-cols-4 items-center gap-x-3 gap-y-2 text-13">
 					{targetRows ?? (
 						<TargetRows
 							target={target}
-							cases={cases.data?.cases ?? []}
+							cases={availableCases}
 							caseId={caseId}
 							onSelectCase={setPickedCase}
 						/>
@@ -706,6 +851,14 @@ function LaunchForm({
 					)}
 				</dl>
 
+				<LaunchConditions
+					target={target}
+					cases={availableCases}
+					caseId={caseId}
+				/>
+				<p className="text-12 text-secondary-foreground">
+					Ceilings bound spending; they are not projected charges.
+				</p>
 				<CaseListProblems failure={cases.error?.message} listing={cases.data} />
 				{settings.data !== undefined && ceilingUsd === undefined ? (
 					<Notice
@@ -714,7 +867,7 @@ function LaunchForm({
 					/>
 				) : null}
 				{settings.isError ? (
-					<p role="alert" className="text-sm text-secondary-foreground">
+					<p role="alert" className="text-13 text-secondary-foreground">
 						<span aria-hidden="true">⚠ </span>
 						{settings.error.message}
 					</p>
@@ -723,16 +876,16 @@ function LaunchForm({
 				<DialogDescription>{dialogDescription(target)}</DialogDescription>
 
 				{launch.isError ? (
-					<p role="alert" className="text-sm text-secondary-foreground">
+					<p role="alert" className="text-13 text-secondary-foreground">
 						<span aria-hidden="true">⚠ </span>
 						{launch.error.message}
 					</p>
 				) : null}
 			</div>
 
-			<footer className="flex flex-wrap items-center gap-2.5 border-t border-strong px-4 py-3">
+			<footer className="flex shrink-0 flex-wrap items-center gap-2.5 border-t border-strong px-4 py-3">
 				{ceilingUsd === undefined ? null : (
-					<span className="text-xs text-dim">
+					<span className="text-12 text-muted-foreground">
 						{ceilingReading(ceilingUsd, started)}
 					</span>
 				)}
@@ -820,7 +973,7 @@ export function LaunchDialog({
 					</Button>
 				)}
 			</DialogTrigger>
-			<DialogContent>
+			<DialogContent width="wide">
 				{target.kind === "chosen-replay" ? (
 					<ChosenReplayForm
 						runs={target.runs}

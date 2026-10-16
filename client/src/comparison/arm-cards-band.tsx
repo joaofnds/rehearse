@@ -1,5 +1,5 @@
+import { Link } from "@tanstack/react-router";
 import type { ComparisonArm } from "#benchmark/comparison-record";
-import { SectionLabel } from "#client/system/components/section-label";
 import type { ComparisonResponse } from "./comparison-response";
 import { corpusVersionText, DESIGN_ARMS } from "./design-arms";
 
@@ -9,6 +9,7 @@ type MeasureFigure = ArmFigures["measures"][string];
 type ArmCorpusVersions = ComparisonResponse["corpusVersions"][string];
 type ArmCorpusVersion = ArmCorpusVersions[ComparisonArm];
 type BaselineArm = ComparisonResponse["baselineArm"];
+type CaseHistories = ComparisonResponse["attemptHistories"][string];
 
 const BORDERS = {
 	control: "border-border",
@@ -22,7 +23,7 @@ function baselineDescription(baselineArm: BaselineArm): string {
 			return `skill under test removed · ${baselineArm.skillUnderTest}`;
 		}
 		case "armA": {
-			return "arm A run unchanged";
+			return "baseline (before) run unchanged";
 		}
 		case "supplied": {
 			return "minimal corpus";
@@ -70,7 +71,7 @@ function MeasureReading({
 				<div className="mt-1.5 font-mono text-20 leading-tight font-bold">
 					{`${String(figure.successful)}/${String(figure.attempts)}`}
 				</div>
-				<div className="mt-0.5 text-11 text-muted-foreground">
+				<div className="mt-0.5 text-12 text-muted-foreground">
 					{`${label}${String(figure.successful)} of ${String(figure.attempts)} attempts passed`}
 				</div>
 			</div>
@@ -79,7 +80,7 @@ function MeasureReading({
 
 	if (figure.grades.state === "unavailable") {
 		return (
-			<div className="mt-1.5 text-11 text-muted-foreground">
+			<div className="mt-1.5 text-12 text-muted-foreground">
 				{`${label}grades not recorded: ${figure.grades.reasons.join("; ")}`}
 			</div>
 		);
@@ -90,7 +91,7 @@ function MeasureReading({
 			<div className="mt-1.5 font-mono text-20 leading-tight font-bold">
 				{figure.grades.median}
 			</div>
-			<div className="mt-0.5 text-11 text-muted-foreground">
+			<div className="mt-0.5 text-12 text-muted-foreground">
 				{`${label}median of ${String(figure.grades.graded)} · range ${figure.grades.lowest} – ${figure.grades.highest}`}
 			</div>
 		</div>
@@ -110,13 +111,29 @@ function costAndWords(figures: ArmFigures): string {
 	return `${cost} · ${words}`;
 }
 
+function groupDestinations(
+	histories: CaseHistories[ComparisonArm],
+): readonly string[] {
+	const groups = histories.flatMap((history) => {
+		if (history.status !== "available") {
+			return [];
+		}
+		return [history.groupId];
+	});
+	return [...new Set(groups)];
+}
+
 function ArmCard({
+	digest,
+	groups,
 	role,
 	border,
 	version,
 	description,
 	figures,
 }: {
+	readonly digest: string;
+	readonly groups: readonly string[];
 	readonly role: string;
 	readonly border: string;
 	readonly version: ArmCorpusVersion;
@@ -131,10 +148,10 @@ function ArmCard({
 			className={`rounded-md border bg-raised px-3 py-2.5 ${border}`}
 		>
 			<div className="flex items-center gap-2">
-				<span className="text-10 tracking-widest text-dim uppercase">
+				<span className="text-12 tracking-widest text-muted-foreground uppercase">
 					{role}
 				</span>
-				<span className="ml-auto font-mono text-11 text-pale">
+				<span className="ml-auto font-mono text-12 text-pale">
 					{corpusVersionText(version)}
 				</span>
 			</div>
@@ -147,21 +164,38 @@ function ArmCard({
 					named={measures.length > 1}
 				/>
 			))}
-			<div className="mt-1 font-mono text-11 text-muted-foreground">
+			<div className="mt-1 font-mono text-12 text-muted-foreground">
 				{costAndWords(figures)}
+			</div>
+			<div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
+				{groups.map((group, index) => (
+					<Link
+						key={group}
+						to="/groups/$groupId"
+						params={{ groupId: group }}
+						search={{ view: "attempts", comparison: digest }}
+						className="text-13 text-accent-foreground underline decoration-deeper underline-offset-4 hover:text-pale"
+					>
+						{groups.length === 1 ? "Open group" : `Open group ${index + 1}`}
+					</Link>
+				))}
 			</div>
 		</article>
 	);
 }
 
-/** One case's arms side by side, which stays above both presentations. */
+/** Each arm's corpus and recorded figures, beside its source groups. */
 export function ArmCardsBand({
+	digest,
+	histories,
 	caseId,
 	showCase,
 	figures,
 	corpusVersions,
 	baselineArm,
 }: {
+	readonly digest: string;
+	readonly histories: CaseHistories | undefined;
 	readonly caseId: string;
 	readonly showCase: boolean;
 	readonly figures: CaseArmFigures;
@@ -174,16 +208,18 @@ export function ArmCardsBand({
 			className="flex flex-col gap-2 border-b border-divider bg-card px-5 py-2.5"
 		>
 			{showCase ? (
-				<SectionLabel>
+				<span className="text-12 text-muted-foreground">
 					<span className="font-mono tracking-normal normal-case">
 						{caseId}
 					</span>
-				</SectionLabel>
+				</span>
 			) : null}
 			<div className="grid grid-cols-3 gap-3">
 				{DESIGN_ARMS.map(({ arm, role }) => (
 					<ArmCard
 						key={arm}
+						digest={digest}
+						groups={groupDestinations(histories?.[arm] ?? [])}
 						role={role.toUpperCase()}
 						border={BORDERS[arm]}
 						version={corpusVersions[arm]}

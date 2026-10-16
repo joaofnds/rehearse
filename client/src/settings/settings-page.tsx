@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { CorpusReturnLink } from "#client/corpus/corpus-return";
 import { CalibrationPage } from "#client/calibration/calibration-page";
 import { launchSettingsQuery } from "#client/launch/settings-query";
 import { plural } from "#client/plural";
@@ -66,7 +67,11 @@ export function SettingsPage({
 }): React.JSX.Element {
 	return (
 		<div>
-			<ScreenHeader title="Settings" subline={<RecordsReading />} />
+			<ScreenHeader
+				title="Settings"
+				subline={<RecordsReading />}
+				aside={<CorpusReturnLink />}
+			/>
 			<nav
 				aria-label="Settings sections"
 				className="flex gap-1 border-b border-divider px-6"

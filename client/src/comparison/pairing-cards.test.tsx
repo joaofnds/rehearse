@@ -59,22 +59,22 @@ describe(WhatThePairingSays.name, () => {
 		render(<WhatThePairingSays mode={mode} summary={summary} />);
 	}
 
-	it("reads arm B against arm A on the overall measure, with its attempt combinations", () => {
+	it("reads candidate (after) against baseline (before) on the overall measure, with its attempt combinations", () => {
 		renderSays();
 
 		expect(card("What the pairing says")).toHaveTextContent(
-			"Arm B against arm A on build: inside rerun noise. Of 4 attempt combinations, 0 higher, 2 equal, 2 lower.",
+			"Candidate (after) against baseline (before) on build: inside rerun noise. Of 4 attempt combinations, 0 higher, 2 equal, 2 lower.",
 		);
 	});
 
-	it("reads each of arms A and B against the baseline arm", () => {
+	it("reads each of baseline and candidate against the control arm", () => {
 		renderSays();
 
 		expect(card("What the pairing says")).toHaveTextContent(
-			"Arm B against the baseline arm on build: arm B separates. Of 4 attempt combinations, 4 higher, 0 equal, 0 lower.",
+			"Candidate (after) against the control arm on build: candidate (after) separates. Of 4 attempt combinations, 4 higher, 0 equal, 0 lower.",
 		);
 		expect(card("What the pairing says")).toHaveTextContent(
-			"Arm A against the baseline arm on build: unchanged, already clear. Attempt combinations not counted: no graded rep.",
+			"Baseline (before) against the control arm on build: unchanged, already clear. Attempt combinations not counted: no graded rep.",
 		);
 	});
 
@@ -90,16 +90,16 @@ describe(WhatThePairingSays.name, () => {
 		);
 
 		expect(card("What the pairing says")).toHaveTextContent(
-			"Arm B against arm A on final",
+			"Candidate (after) against baseline (before) on final",
 		);
 		expect(card("What the pairing says")).not.toHaveTextContent("on review");
 	});
 
-	it("states arm B's reply length change against arm A's with its reading", () => {
+	it("states candidate (after)'s reply length change against baseline (before)'s with its reading", () => {
 		renderSays();
 
 		expect(card("What the pairing says")).toHaveTextContent(
-			"Arm B's reply length against arm A's: -17%, inside rerun noise.",
+			"Candidate (after)'s reply length against baseline (before)'s: -17%, inside rerun noise.",
 		);
 	});
 
@@ -114,7 +114,7 @@ describe(WhatThePairingSays.name, () => {
 		});
 
 		expect(card("What the pairing says")).toHaveTextContent(
-			"Arm B's reply length against arm A's: +34%, arm B ran longer.",
+			"Candidate (after)'s reply length against baseline (before)'s: +34%, candidate (after) ran longer.",
 		);
 	});
 
@@ -129,7 +129,7 @@ describe(WhatThePairingSays.name, () => {
 		});
 
 		expect(card("What the pairing says")).toHaveTextContent(
-			"Arm B's reply length against arm A's is unavailable: no word count.",
+			"Candidate (after)'s reply length against baseline (before)'s is unavailable: no word count.",
 		);
 	});
 });
@@ -202,7 +202,7 @@ describe(ReadWithCare.name, () => {
 		renderCare({ attemptsPerArm: { control: 2, baseline: 3, candidate: 4 } });
 
 		expect(bullets()[0]).toStartWith(
-			"Baseline 2, arm A 3 and arm B 4 attempts.",
+			"Control 2, baseline (before) 3 and candidate (after) 4 attempts.",
 		);
 	});
 
@@ -210,7 +210,7 @@ describe(ReadWithCare.name, () => {
 		renderCare();
 
 		expect(bullets()).toContain(
-			"Each grade came from its arm's corpus: baseline corpus@d6a465, arm A corpus@9f30d1, arm B the group recorded no corpus version.",
+			"Each grade came from its arm's corpus: control corpus@d6a465, baseline (before) corpus@9f30d1, candidate (after) the group recorded no corpus version.",
 		);
 	});
 
@@ -218,22 +218,22 @@ describe(ReadWithCare.name, () => {
 		[
 			"derived",
 			{ kind: "derived", skillUnderTest: "skills/shape/" },
-			"The baseline arm is arm A's corpus with skills/shape/ removed and everything else kept.",
+			"The control arm is baseline (before)'s corpus with skills/shape/ removed and everything else kept.",
 		],
 		[
 			"armA",
 			{ kind: "armA", skillUnderTest: "skills/shape/" },
-			"The baseline arm is arm A run again, since arm A holds nothing under skills/shape/.",
+			"The control arm is baseline (before) run again, since baseline (before) holds nothing under skills/shape/.",
 		],
 		[
 			"supplied",
 			{ kind: "supplied" },
-			"The baseline arm is a minimal corpus the comparison's author supplied, so nothing records how it was made.",
+			"The control arm is a minimal corpus the comparison's author supplied, so nothing records how it was made.",
 		],
 		[
 			"unreadable",
 			{ kind: "unreadable", reason: "baseline.json does not parse" },
-			"How the baseline arm was made cannot be read: baseline.json does not parse.",
+			"How the control arm was made cannot be read: baseline.json does not parse.",
 		],
 	] satisfies readonly (readonly [string, ComparisonBaselineArm, string])[])(
 		"says how the %s baseline arm was made",
@@ -248,17 +248,17 @@ describe(ReadWithCare.name, () => {
 		[
 			"attributable",
 			ATTRIBUTABLE,
-			"Only skills/shape/SKILL.md differs between arms A and B, so a movement between them is attributable to it.",
+			"Only skills/shape/SKILL.md differs between baseline and candidate, so a movement between them is attributable to it.",
 		],
 		[
 			"identical",
 			{ claim: "identical" },
-			"Arms A and B ran identical corpora, so no file explains a movement between them.",
+			"Baseline and candidate ran identical corpora, so no file explains a movement between them.",
 		],
 		[
 			"refused",
 			{ claim: "refused", differingPaths: ["CLAUDE.md", "skills/a.md"] },
-			"2 files differ between arms A and B, so no movement between them is attributed to one of them.",
+			"2 files differ between baseline and candidate, so no movement between them is attributed to one of them.",
 		],
 	] satisfies readonly (readonly [string, ComparisonAttribution, string])[])(
 		"states the A to B attribution claim %s",

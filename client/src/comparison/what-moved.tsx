@@ -27,7 +27,7 @@ interface Span {
 
 const LETTERS_UP: readonly string[] = STAGE_LETTER_GRADES.toReversed();
 const METER_CELLS = 8;
-const B_AGAINST_A = pairKey("candidate", "baseline");
+const CANDIDATE_AGAINST_BASELINE = pairKey("candidate", "baseline");
 const KIND_LABELS = {
 	overall: "overall",
 	hardBlocker: "hard blocker",
@@ -76,7 +76,7 @@ function meterSpans(
 }
 
 /**
- * Arms A and B across the positions either covers, `┼` where both arms'
+ * Baseline and candidate across the positions either covers, `┼` where both arms'
  * attempts reach, `─` where only one arm's do and a space where neither does.
  */
 function spreadDrawing(spans: readonly (Span | undefined)[]): string {
@@ -201,25 +201,25 @@ function overallSpan(row: OverallRow): (interval: QualityInterval) => Span {
 function spreadOf(row: WhatMovedRow): Spread | undefined {
 	switch (row.kind) {
 		case "overall": {
-			const reading = row.readings[B_AGAINST_A];
+			const reading = row.readings[CANDIDATE_AGAINST_BASELINE];
 			return reading === undefined
 				? undefined
 				: labelSpread(reading, overallSpan(row));
 		}
 		case "hardBlocker": {
-			const reading = row.readings[B_AGAINST_A];
+			const reading = row.readings[CANDIDATE_AGAINST_BASELINE];
 			return reading === undefined
 				? undefined
 				: labelSpread(reading, percentSpan);
 		}
 		case "dimension": {
-			const reading = row.readings[B_AGAINST_A];
+			const reading = row.readings[CANDIDATE_AGAINST_BASELINE];
 			return reading === undefined
 				? undefined
 				: labelSpread(reading, letterSpan);
 		}
 		case "meter": {
-			const reading = row.readings[B_AGAINST_A];
+			const reading = row.readings[CANDIDATE_AGAINST_BASELINE];
 			return reading === undefined ? undefined : meterSpread(row, reading);
 		}
 		default: {
@@ -230,13 +230,13 @@ function spreadOf(row: WhatMovedRow): Spread | undefined {
 
 function readingOf(row: WhatMovedRow): ReadingText | undefined {
 	if (row.kind === "meter") {
-		const reading = row.readings[B_AGAINST_A];
+		const reading = row.readings[CANDIDATE_AGAINST_BASELINE];
 		return reading === undefined
 			? undefined
 			: meterReadingText(reading.verdict);
 	}
 
-	const reading = row.readings[B_AGAINST_A];
+	const reading = row.readings[CANDIDATE_AGAINST_BASELINE];
 
 	return reading === undefined
 		? undefined
@@ -302,13 +302,15 @@ function SpreadCell({
 		<div className="flex flex-col gap-0.5">
 			<span
 				aria-hidden="true"
-				className="font-mono text-11 tracking-widest whitespace-pre text-deep"
+				className="font-mono text-12 tracking-widest whitespace-pre text-deep"
 			>
 				{spread?.drawing}
 			</span>
-			<span className="text-10-5 text-dim">{spread?.note}</span>
+			<span className="text-10-5 text-muted-foreground">{spread?.note}</span>
 			{reasons.length === 0 ? null : (
-				<span className="text-10-5 text-dim">{reasons.join("; ")}</span>
+				<span className="text-10-5 text-muted-foreground">
+					{reasons.join("; ")}
+				</span>
 			)}
 		</div>
 	);
@@ -349,7 +351,9 @@ function whatMovedRow(row: WhatMovedRow): readonly React.ReactNode[] {
 	return [
 		<span key="measure" className="flex flex-col">
 			<span>{measureName(row)}</span>
-			<span className="text-11 font-normal text-dim">{measureKind(row)}</span>
+			<span className="text-12 font-normal text-muted-foreground">
+				{measureKind(row)}
+			</span>
 		</span>,
 		...cells,
 		<SpreadCell key="spread" row={row} />,
@@ -368,7 +372,7 @@ function spreadColumn(
 		: "Spread across attempts";
 }
 
-/** Each measure of one case, every arm's figure beside arm B against arm A. */
+/** Each measure of one case, every arm's figure beside candidate (after) against baseline (before). */
 export function WhatMoved({
 	caseId,
 	rows,
@@ -380,6 +384,11 @@ export function WhatMoved({
 }): React.JSX.Element {
 	return (
 		<div className="max-w-301">
+			<p className="mb-3 text-11-5 text-muted-foreground">
+				Pass/fail spreads are 95% confidence intervals. Letter grades, reply
+				length and cost show the observed range. Passing every recorded attempt
+				does not establish equivalent quality.
+			</p>
 			<TableShell
 				caption={
 					<>

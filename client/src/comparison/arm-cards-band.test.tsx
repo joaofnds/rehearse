@@ -1,10 +1,12 @@
 import { describe, expect, it } from "bun:test";
-import { render, screen, within } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import type { ComparisonBaselineArm } from "#benchmark/comparison-baseline-record";
 import type { ComparisonArm } from "#benchmark/comparison-record";
 import type { StageLetterGrade } from "#benchmark/stage-letter-grades";
 import type { ArmFigures } from "#server/comparison-arm-figures";
 import type { ArmCorpusVersion } from "#server/comparison-provenance";
+import { renderWithRouter } from "#client/test-support/render-app";
+import type { ComparisonResponse } from "./comparison-response";
 import { ArmCardsBand } from "./arm-cards-band";
 
 const ARM_A_VERSION = "9f30d1".padEnd(64, "0");
@@ -54,10 +56,13 @@ function renderBand(
 		figures?: CaseFigures;
 		corpusVersions?: CaseVersions;
 		baselineArm?: ComparisonBaselineArm;
+		histories?: ComparisonResponse["attemptHistories"][string];
 	}> = {},
 ): void {
-	render(
+	renderWithRouter(
 		<ArmCardsBand
+			digest="comparison-a"
+			histories={overrides.histories}
 			caseId="audit-log"
 			showCase={false}
 			figures={overrides.figures ?? FIGURES}
@@ -76,20 +81,109 @@ function card(role: string): HTMLElement {
 }
 
 describe(ArmCardsBand.name, () => {
-	it("orders the cards baseline, arm A, arm B", () => {
+	it("links each distinct validated source group and keeps the comparison return path", () => {
+		renderBand({
+			histories: {
+				control: [],
+				candidate: [],
+				baseline: [
+					{
+						status: "available",
+						repId: "rep-1",
+						ordinal: 1,
+						groupId: "source-a",
+						href: "/groups/source-a/reps/rep-1/attempt",
+					},
+					{
+						status: "available",
+						repId: "rep-2",
+						ordinal: 2,
+						groupId: "source-a",
+						href: "/groups/source-a/reps/rep-2/attempt",
+					},
+					{
+						status: "available",
+						repId: "rep-3",
+						ordinal: 3,
+						groupId: "source-b",
+						href: "/groups/source-b/reps/rep-3/attempt",
+					},
+				],
+			},
+		});
+
+		const links = within(card("BASELINE (BEFORE)")).getAllByRole("link");
+		expect(
+			links.map((link) => [link.textContent, link.getAttribute("href")]),
+		).toEqual([
+			[
+				"Open group 1",
+				"/groups/source-a?view=attempts&comparison=comparison-a",
+			],
+			[
+				"Open group 2",
+				"/groups/source-b?view=attempts&comparison=comparison-a",
+			],
+		]);
+	});
+
+	it("opens a single validated group without an ordinal suffix", () => {
+		renderBand({
+			histories: {
+				control: [],
+				baseline: [],
+				candidate: [
+					{
+						status: "available",
+						repId: "rep-1",
+						ordinal: 1,
+						groupId: "candidate-a",
+						href: "/groups/candidate-a/reps/rep-1/attempt",
+					},
+				],
+			},
+		});
+
+		expect(
+			within(card("CANDIDATE (AFTER)")).getByRole("link", {
+				name: "Open group",
+			}),
+		).toHaveAttribute(
+			"href",
+			"/groups/candidate-a?view=attempts&comparison=comparison-a",
+		);
+	});
+
+	it("offers no group destination without a validated available attempt history", () => {
+		renderBand({
+			histories: {
+				control: [],
+				baseline: [{ status: "stale", repId: "rep-1", ordinal: 1 }],
+				candidate: [],
+			},
+		});
+
+		expect(within(band()).queryByRole("link")).not.toBeInTheDocument();
+	});
+
+	it("orders the cards baseline, baseline (before), candidate (after)", () => {
 		renderBand();
 
 		const roles = within(band())
 			.getAllByRole("article")
 			.map((article) => article.getAttribute("aria-label"));
 
-		expect(roles).toEqual(["BASELINE", "ARM A", "ARM B"]);
+		expect(roles).toEqual([
+			"CONTROL",
+			"BASELINE (BEFORE)",
+			"CANDIDATE (AFTER)",
+		]);
 	});
 
 	it("shows an arm's corpus version, its description, and its median of the graded attempts with their range", () => {
 		renderBand();
 
-		const armB = card("ARM B");
+		const armB = card("CANDIDATE (AFTER)");
 
 		expect(armB).toHaveTextContent("corpus@a41c7e");
 		expect(armB).toHaveTextContent("after the edit");
@@ -100,15 +194,15 @@ describe(ArmCardsBand.name, () => {
 	it("shows an arm's recorded cost beside its average words", () => {
 		renderBand();
 
-		const armB = card("ARM B");
+		const armB = card("CANDIDATE (AFTER)");
 
 		expect(armB).toHaveTextContent("$3.31 · avg 925 words");
 	});
 
-	it("describes arm A as the arm before the edit", () => {
+	it("describes baseline (before) as the arm before the edit", () => {
 		renderBand();
 
-		const armA = card("ARM A");
+		const armA = card("BASELINE (BEFORE)");
 
 		expect(armA).toHaveTextContent("before the edit");
 	});
@@ -123,7 +217,7 @@ describe(ArmCardsBand.name, () => {
 
 		renderBand({ figures: { ...FIGURES, candidate: passFail } });
 
-		const armB = card("ARM B");
+		const armB = card("CANDIDATE (AFTER)");
 
 		expect(within(armB).getByText("3/4")).toBeInTheDocument();
 		expect(armB).toHaveTextContent("3 of 4 attempts passed");
@@ -149,7 +243,7 @@ describe(ArmCardsBand.name, () => {
 
 		renderBand({ figures: { ...FIGURES, candidate: twoMeasures } });
 
-		const armB = card("ARM B");
+		const armB = card("CANDIDATE (AFTER)");
 
 		expect(armB).toHaveTextContent("build");
 		expect(armB).toHaveTextContent("final");
@@ -165,7 +259,7 @@ describe(ArmCardsBand.name, () => {
 				kind: "armA",
 				skillUnderTest: "skills/shape/",
 			} satisfies ComparisonBaselineArm,
-			description: "arm A run unchanged",
+			description: "baseline (before) run unchanged",
 		},
 		{
 			baselineArm: { kind: "supplied" } satisfies ComparisonBaselineArm,
@@ -183,7 +277,7 @@ describe(ArmCardsBand.name, () => {
 		({ baselineArm, description }) => {
 			renderBand({ baselineArm });
 
-			const baseline = card("BASELINE");
+			const baseline = card("CONTROL");
 
 			expect(baseline).toHaveTextContent(description);
 		},
@@ -216,7 +310,7 @@ describe(ArmCardsBand.name, () => {
 				},
 			});
 
-			return card("ARM B");
+			return card("CANDIDATE (AFTER)");
 		}
 
 		it("says the version is not recorded", () => {

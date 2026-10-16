@@ -1,11 +1,10 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { renderWithRouter } from "#client/test-support/render-app";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, screen, within } from "@testing-library/react";
+import { renderAppWithStub } from "#client/test-support/render-app";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { Immutable } from "#benchmark/contracts";
+import type { ParsedConfirmationRepRecord } from "#benchmark/confirmation-record";
 import type { ConfirmationGroupRow } from "#server/run-history";
 import { recordStage, runRecord } from "#client/test-support/run-record";
-import { stubFetchByPath } from "#client/test-support/fetch-stub";
 import {
 	UNREAD_GROUP_FIGURES,
 	UNREAD_STALENESS,
@@ -97,7 +96,8 @@ function serve(
 			}),
 		],
 	});
-	stubFetchByPath(
+	renderAppWithStub(
+		`/groups/${GROUP}`,
 		new Map<string, unknown>([
 			["/api/runs", { rows: [row], launches: [], unreadable: [] }],
 			[`/api/groups/${GROUP}/reads`, reads ?? { reps: [], reasons: [] }],
@@ -105,18 +105,33 @@ function serve(
 			...extra,
 		]),
 	);
-	renderWithRouter(
-		<QueryClientProvider
-			client={
-				new QueryClient({ defaultOptions: { queries: { retry: false } } })
-			}
-		>
-			<GroupWorkspacePage groupId={GROUP} />
-		</QueryClientProvider>,
-	);
 }
 
 describe(GroupWorkspacePage.name, () => {
+	it("keeps Runs filters when returning explicitly from a group", async () => {
+		const router = renderAppWithStub(
+			"/?query=audit-log&kind=group&status=ended",
+			new Map<string, unknown>([
+				["/api/runs", { rows: [group()], launches: [], unreadable: [] }],
+				[`/api/groups/${GROUP}/reads`, { reps: [], reasons: [] }],
+			]),
+		);
+		fireEvent.click(await screen.findByRole("link", { name: "g1" }));
+		fireEvent.click(await screen.findByRole("link", { name: "← Runs" }));
+
+		await waitFor(() => {
+			expect(router.state.location.pathname).toBe("/");
+			expect(router.state.location.search).toMatchObject({
+				query: "audit-log",
+				kind: "group",
+				status: "ended",
+			});
+		});
+		expect(
+			await screen.findByRole("searchbox", { name: "Search runs" }),
+		).toHaveValue("audit-log");
+	});
+
 	it("names a source step absent from the saved run", async () => {
 		serve(group({ checkpoint: { run: RUN, stage: "deploy" } }));
 		expect(
@@ -149,7 +164,7 @@ describe(GroupWorkspacePage.name, () => {
 			]),
 		);
 		expect(await screen.findByText(/^Source step build:/u)).toHaveTextContent(
-			"$1.20 recorded · cost incomplete (judge: judge metrics absent)",
+			"Worker + Judge session $1.20 · judge cost not recorded: judge metrics absent",
 		);
 	});
 
@@ -238,40 +253,44 @@ describe(GroupWorkspacePage.name, () => {
 		);
 
 		fireEvent.click(await screen.findByRole("button", { name: "Attempts" }));
+		await screen.findByRole("table", { name: "Group attempts" });
 		expect(
-			within(screen.getByRole("list", { name: "Saved rep results" })).getByRole(
+			within(screen.getByRole("table", { name: "Group attempts" })).getByRole(
 				"link",
+				{ name: "Results" },
 			),
 		).toHaveAttribute(
 			"href",
 			`/groups/${GROUP}/reps/rep-1/attempt?view=results`,
 		);
-		const list = screen.getByRole("list", { name: "Group attempts" });
-		expect(within(list).getByRole("link", { name: "rep 1" })).toHaveAttribute(
+		const list = screen.getByRole("table", { name: "Group attempts" });
+		expect(
+			within(list).getByRole("link", { name: "Context & cost" }),
+		).toHaveAttribute(
 			"href",
 			`/groups/${GROUP}/reps/rep-1/attempt?view=context`,
 		);
 		expect(
-			within(list).getByText(/no attempt recorded for rep-2/u),
+			screen.getByText(/no attempt recorded for rep-2/u),
 		).toBeInTheDocument();
-		expect(within(list).getByText(/record unreadable/u)).toBeInTheDocument();
+		expect(screen.getByText(/record unreadable/u)).toBeInTheDocument();
 	});
 
 	it("links stage rep results even when session context is unavailable", async () => {
 		serve(group());
 		fireEvent.click(await screen.findByRole("button", { name: "Attempts" }));
+		await screen.findByRole("table", { name: "Group attempts" });
 		expect(
-			within(screen.getByRole("list", { name: "Saved rep results" })).getByRole(
+			within(screen.getByRole("table", { name: "Group attempts" })).getByRole(
 				"link",
+				{ name: "Results" },
 			),
 		).toHaveAttribute(
 			"href",
 			`/groups/${GROUP}/reps/rep-1/attempt?view=results`,
 		);
 		expect(
-			within(screen.getByRole("list", { name: "Group attempts" })).getByText(
-				/a stage group has no session context/u,
-			),
+			screen.getByText(/a stage group has no session context/u),
 		).toBeInTheDocument();
 	});
 
@@ -303,6 +322,67 @@ describe(GroupWorkspacePage.name, () => {
 		serve(group({ groupId: "other" }));
 		expect(await screen.findByRole("alert")).toHaveTextContent(
 			"No saved group group-a was found",
+		);
+	});
+	it("keeps an ungraded repetition's own missing cost and evidence qualification in one row", async () => {
+		const repId = "group-a-rep-2";
+		const rep: ParsedConfirmationRepRecord = {
+			schemaVersion: 1,
+			caseId: "audit-log",
+			groupId: GROUP,
+			repId,
+			ordinal: 2,
+			mode: "stage",
+			worktreePath: "/work/rep",
+			lineage: { kind: "SOURCE", sha: "c".repeat(40) },
+			outcome: "UNSUCCESSFUL",
+			stages: [
+				{
+					stage: "build",
+					status: "NOT_REACHED",
+					reason: "execution stopped earlier",
+				},
+			],
+			finalOutcome: { status: "NOT_APPLICABLE" },
+			metrics: {
+				status: "MISSING",
+				calls: [],
+				missing: ["worker metrics absent"],
+			},
+			workerTrajectorySteps: 0,
+			elapsedMs: 12_000,
+		};
+		serve(
+			group({ repAttempts: [] }),
+			undefined,
+			new Map<string, unknown>([
+				[
+					"/api/groups/group-a/attempts",
+					{ groupId: GROUP, repRecords: [{ repId, ordinal: 2 }] },
+				],
+				[`/api/groups/${GROUP}/reps/${repId}/attempt/result`, rep],
+			]),
+		);
+		fireEvent.click(await screen.findByRole("button", { name: "Attempts" }));
+		await screen.findByRole("table", { name: "Group attempts" });
+		const table = screen.getByRole("table", { name: "Group attempts" });
+		expect(
+			await within(table).findByText("build: NOT REACHED"),
+		).toBeInTheDocument();
+		expect(within(table).getByText("Repetition 2")).toBeInTheDocument();
+		expect(within(table).getByText("Cost unavailable")).toBeInTheDocument();
+		expect(within(table).getByText("00:12")).toBeInTheDocument();
+		expect(
+			within(table).getByText("worker metrics absent"),
+		).toBeInTheDocument();
+		expect(
+			within(table).queryByText(/Checks failed|Grade F/u),
+		).not.toBeInTheDocument();
+		expect(
+			within(table).getByRole("link", { name: "Results" }),
+		).toHaveAttribute(
+			"href",
+			`/groups/${GROUP}/reps/${repId}/attempt?view=results`,
 		);
 	});
 });

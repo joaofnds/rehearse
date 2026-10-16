@@ -3,6 +3,8 @@ import {
 	corpusVersionLabel,
 } from "#benchmark/corpus-version-label";
 import type { RunRecordResponse } from "#client/monitor/run-record-query";
+import { EvidenceDialogLink } from "#client/evidence/evidence-dialog";
+import type { FinalAssessmentResponse } from "./investigation-query";
 import type { PipelineRowWithStaleness } from "#client/run-history/run-history-query";
 import { SectionLabel } from "#client/system/components/section-label";
 import { Status } from "#client/system/components/status";
@@ -169,34 +171,151 @@ export function TaskGradeCard({
 	row,
 	rows,
 	outcome,
+	assessment,
+	assessmentError,
+	assessmentLoading,
+	criteriaOpen,
+	onCriteriaOpenChange,
 }: {
 	readonly row: PipelineRow;
 	readonly rows: readonly PipelineRowWithStaleness[];
 	readonly outcome: FinalOutcome;
+	readonly assessment: FinalAssessmentResponse | undefined;
+	readonly assessmentError: boolean;
+	readonly assessmentLoading: boolean;
+	readonly criteriaOpen: boolean;
+	readonly onCriteriaOpenChange: (open: boolean) => void;
 }): React.JSX.Element {
 	const { value, note } = outcomeReading(outcome);
+	const criteria =
+		assessment?.state === "available" ? assessment.requirements : [];
+	const failed = criteria.filter(({ status }) => status === "FAIL");
+	const passed = criteria.filter(({ status }) => status === "PASS");
+	const firstFinding = failed[0]?.evidence[0]?.claim;
+	const criterion = (
+		item: Readonly<(typeof criteria)[number]>,
+	): React.JSX.Element => (
+		<li
+			key={item.id}
+			className="min-w-0 rounded-md border border-divider p-3 text-13"
+		>
+			<p className="font-medium">
+				{item.status} · {item.id}
+			</p>
+			{item.evidence.map((evidence, index) => (
+				<div key={index} className="mt-2">
+					<p>{evidence.claim}</p>
+					{evidence.quote === undefined ? null : (
+						<blockquote className="mt-2 border-l-2 border-accent-line pl-3 font-mono text-12 whitespace-pre-wrap wrap-anywhere">
+							{evidence.quote}
+						</blockquote>
+					)}
+					<EvidenceDialogLink
+						identity={{
+							kind: "final",
+							run: row.run,
+							item: item.id,
+							index: String(index),
+						}}
+					>
+						<span className="mt-1 inline-block text-11-5 text-pale underline">
+							{evidence.place ?? `${evidence.path} · open cited source`}
+						</span>
+					</EvidenceDialogLink>
+				</div>
+			))}
+		</li>
+	);
+	let missingCriteria = "No final criteria were recorded.";
+	if (assessmentError) {
+		missingCriteria = "Could not read the saved final criteria.";
+	} else if (assessment?.state === "unavailable") {
+		missingCriteria = assessment.reason;
+	} else if (assessmentLoading) {
+		missingCriteria = "Reading saved final criteria…";
+	}
 
 	return (
-		<div className="grid grid-cols-1 gap-6 rounded-lg lg:grid-cols-main-aside border border-border bg-card p-4.5">
+		<div className="rounded-lg border border-border bg-card p-5">
 			<section aria-labelledby="task-grade-label">
 				<h2 id="task-grade-label">
-					<SectionLabel>Task grade · graded on its own</SectionLabel>
+					<SectionLabel>Final outcome · independent task Judge</SectionLabel>
 				</h2>
-				<p className="mt-2 font-mono text-30 font-bold">{value}</p>
-				<p className="text-11-5 text-dim">{note}</p>
-				<p className="mt-2.5 max-w-prose text-12 text-secondary-foreground">
-					{JUDGE_SCOPE}
-				</p>
+				<div className="mt-2 flex flex-wrap items-baseline gap-3">
+					<p className="font-mono text-24 font-medium">{value}</p>
+					<p className="text-12 text-dim">{note}</p>
+				</div>
+				{assessment?.state === "available" &&
+				assessment.summary !== undefined ? (
+					<p className="mt-2 text-13 text-secondary-foreground">
+						{assessment.summary}
+					</p>
+				) : null}
+				{failed.length === 0 ? null : (
+					<>
+						<p className="mt-2 text-13">
+							{failed.length} of {criteria.length} final criteria failed ·{" "}
+							{failed.map(({ id }) => id).join(", ")}
+						</p>
+						{firstFinding === undefined ? null : (
+							<p className="mt-2 text-13 text-secondary-foreground">
+								{firstFinding}
+							</p>
+						)}
+						<details
+							id="final-criteria"
+							tabIndex={-1}
+							className="mt-3"
+							open={criteriaOpen}
+							onToggle={(event) => {
+								onCriteriaOpenChange(event.currentTarget.open);
+							}}
+						>
+							<summary className="cursor-pointer text-12 text-pale">
+								All {failed.length} failed criteria &amp; citations
+							</summary>
+							<ul
+								aria-label="Failed final criteria"
+								className="mt-3 grid gap-2"
+							>
+								{failed.map((item) => criterion(item))}
+							</ul>
+						</details>
+					</>
+				)}
+				{passed.length === 0 ? null : (
+					<details className="mt-3">
+						<summary className="cursor-pointer text-12 text-muted-foreground">
+							{passed.length} passed final criteria
+						</summary>
+						<ul className="mt-2 grid gap-2">
+							{passed.map((item) => criterion(item))}
+						</ul>
+					</details>
+				)}
+				{outcome.status === "JUDGED" && criteria.length === 0 ? (
+					<p className="mt-2 text-12 text-dim">{missingCriteria}</p>
+				) : null}
+				<details className="mt-3">
+					<summary className="cursor-pointer text-12 text-muted-foreground">
+						How final grading works
+					</summary>
+					<p className="mt-2 max-w-prose text-12 text-secondary-foreground">
+						{JUDGE_SCOPE}
+					</p>
+				</details>
 			</section>
-			<section
-				aria-labelledby="last-task-grade-label"
-				className="border-t border-divider pt-4 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-5"
-			>
-				<h2 id="last-task-grade-label">
-					<SectionLabel>Last task grade for this case</SectionLabel>
-				</h2>
-				<LastTaskGrade row={row} last={lastTaskGrade(row, rows)} />
-			</section>
+			<details className="mt-3 border-t border-divider pt-3">
+				<summary className="cursor-pointer text-12 text-muted-foreground">
+					Previous task result
+				</summary>
+				<section aria-labelledby="last-task-grade-label" className="pt-3">
+					<h2 id="last-task-grade-label">
+						<SectionLabel>Last task grade for this case</SectionLabel>
+					</h2>
+					<LastTaskGrade row={row} last={lastTaskGrade(row, rows)} />
+				</section>
+			</details>
 		</div>
 	);
 }

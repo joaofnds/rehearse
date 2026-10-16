@@ -1,4 +1,5 @@
-import { useId, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useId, useState } from "react";
 import type { ReactNode } from "react";
 import type { InferResponseType } from "hono/client";
 import type {
@@ -7,7 +8,6 @@ import type {
 } from "#benchmark/session-history";
 import type { apiClient } from "#client/api-client";
 import { cn } from "#client/system/cn";
-import { SectionLabel } from "#client/system/components/section-label";
 import { PaneHeading } from "./pane-heading";
 import { categories, costLabel, usd } from "./request-timeline";
 import { selectableRow } from "./selectable-row";
@@ -123,7 +123,7 @@ function peakLabel(entries: readonly SessionHistoryRequestEntry[]): string {
 
 	return peak === undefined
 		? "? Unavailable · no request in this agent carries settled usage"
-		: `${tokens.format(peak)} total input tokens ${scope} · the peak of this agent's own window, never summed with another agent's`;
+		: `${tokens.format(peak)} total input tokens ${scope} · the peak of this agent's own request input, never summed with another agent's window`;
 }
 
 function totalsLabel(readings: Readings): string {
@@ -167,11 +167,11 @@ function Reading({
 	return (
 		<div className="flex flex-col gap-0.5">
 			<dt id={id}>
-				<SectionLabel>{term}</SectionLabel>
+				<span className="text-12 text-muted-foreground">{term}</span>
 			</dt>
 			<dd
 				aria-labelledby={id}
-				className="font-mono text-11-5 text-secondary-foreground"
+				className="font-mono text-12 text-secondary-foreground"
 			>
 				{children}
 			</dd>
@@ -296,12 +296,12 @@ function ContextHistory({
 	return (
 		<ul aria-label="Context history" className="flex flex-col gap-1">
 			{rows.map(({ line, label }) => (
-				<li key={`${line}:${label}`} className="font-mono text-11-5">
+				<li key={`${line}:${label}`} className="font-mono text-12">
 					{label}
 				</li>
 			))}
 			{rows.length === 0 ? (
-				<li className="text-11-5 text-dim">No request recorded.</li>
+				<li className="text-12 text-muted-foreground">No request recorded.</li>
 			) : null}
 		</ul>
 	);
@@ -340,7 +340,7 @@ function LoadEvidence({
 							</button>{" "}
 							· delivery {ordinal} · event {eventId}
 						</span>
-						<small className="text-11-5 text-dim">
+						<small className="text-12 text-muted-foreground">
 							{sizeLabel(measurement)}
 						</small>
 						<ExcerptButton
@@ -355,7 +355,7 @@ function LoadEvidence({
 				),
 			)}
 			{readings.deliveryEvents.length === 0 ? (
-				<li className="text-11-5 text-dim">No observed delivery.</li>
+				<li className="text-12 text-muted-foreground">No observed delivery.</li>
 			) : null}
 		</ul>
 	);
@@ -376,7 +376,7 @@ function ExcerptButton({
 		<button
 			type="button"
 			aria-label={`Open excerpt of ${agentName(agentId)}'s delivery ${ordinal} · event ${eventId}`}
-			className="self-start text-11-5 text-accent-foreground underline hover:text-foreground"
+			className="self-start text-12 text-accent-foreground underline hover:text-foreground"
 			onClick={onOpen}
 		>
 			Open excerpt
@@ -456,7 +456,7 @@ function AgentDetail({
 			</dl>
 			<section className="flex flex-col gap-1.5">
 				<h3>
-					<SectionLabel>Context history</SectionLabel>
+					<span className="text-12 text-muted-foreground">Context history</span>
 				</h3>
 				<ContextHistory
 					readings={readings}
@@ -465,7 +465,7 @@ function AgentDetail({
 			</section>
 			<section className="flex flex-col gap-1.5">
 				<h3>
-					<SectionLabel>Load evidence</SectionLabel>
+					<span className="text-12 text-muted-foreground">Load evidence</span>
 				</h3>
 				<LoadEvidence
 					agentId={agentId}
@@ -701,9 +701,9 @@ function ReceivingAgents({
 			className="flex flex-col gap-2 border-b px-3 py-3"
 		>
 			<h3>
-				<SectionLabel>Receiving agents</SectionLabel>
+				<span className="text-12 text-muted-foreground">Receiving agents</span>
 			</h3>
-			<p className="text-11-5 text-dim">
+			<p className="text-12 text-muted-foreground">
 				Sizes are recorded text characters, not tokens and not cost. Cost is
 				read per agent and skill below.
 			</p>
@@ -723,7 +723,7 @@ function ReceivingAgents({
 						<ul className="flex flex-col gap-1 pl-4">
 							{deliveries.map(({ eventId, ordinal, measurement }) => (
 								<li key={eventId} className="flex flex-col gap-0.5">
-									<small className="font-mono text-11-5 text-dim">
+									<small className="font-mono text-12 text-muted-foreground">
 										delivery {ordinal} · event {eventId} ·{" "}
 										{sizeLabel(measurement)}
 									</small>
@@ -741,7 +741,7 @@ function ReceivingAgents({
 					</li>
 				))}
 				{receivers.length === 0 ? (
-					<li className="text-11-5 text-dim">
+					<li className="text-12 text-muted-foreground">
 						No agent's transcript records a delivery of this source.
 					</li>
 				) : null}
@@ -769,7 +769,9 @@ function SelectedDetail({
 		);
 
 		return skill === undefined ? (
-			<p className="text-11-5 text-dim">This skill has no cost reading.</p>
+			<p className="text-12 text-muted-foreground">
+				This skill has no cost reading.
+			</p>
 		) : (
 			<SkillDetail skill={skill} agentId={selection.agentId} />
 		);
@@ -792,22 +794,34 @@ function SelectedDetail({
  * in its own lane: agents running at once held separate windows.
  */
 export function AgentTreePane({
+	selectionKey,
 	agents,
 	sourceId,
 	excerpt,
 	onOpenExcerpt,
 	onSelectSource,
 }: {
+	readonly selectionKey: string;
 	readonly agents: AvailableAgents;
 	readonly sourceId: string | undefined;
 	readonly excerpt: ReactNode;
 	readonly onOpenExcerpt: (request: ExcerptRequest) => void;
 	readonly onSelectSource: (sourceId: string) => void;
 }): React.JSX.Element {
-	const [selection, setSelection] = useState<Selection>({
-		kind: "agent",
-		agentId: undefined,
+	const queryClient = useQueryClient();
+	const cached = useQuery({
+		queryKey: ["agent-tree-selection", selectionKey],
+		queryFn: (): Selection | null => null,
+		initialData: null,
+		enabled: false,
+		gcTime: Infinity,
 	});
+	const [selection, setSelection] = useState<Selection>(
+		() => cached.data ?? { kind: "agent", agentId: undefined },
+	);
+	useEffect(() => {
+		queryClient.setQueryData(["agent-tree-selection", selectionKey], selection);
+	}, [queryClient, selectionKey, selection]);
 	const { tree, cost } = agents;
 	const detached = detachedAgents(tree);
 
@@ -821,14 +835,14 @@ export function AgentTreePane({
 				<p
 					role="status"
 					aria-label="Agent coverage"
-					className="font-mono text-11-5 text-secondary-foreground"
+					className="font-mono text-12 text-secondary-foreground"
 				>
 					Coverage {coverageLabel(tree)}
 				</p>
 				<p
 					role="status"
 					aria-label="Calculated attempt total"
-					className="font-mono text-11-5 text-secondary-foreground"
+					className="font-mono text-12 text-secondary-foreground"
 				>
 					Calculated attempt total, each request once:{" "}
 					{cost.state === "available"
@@ -838,7 +852,7 @@ export function AgentTreePane({
 				{cost.state === "available" ? (
 					<ul
 						aria-label="Cost by model"
-						className="font-mono text-11-5 text-secondary-foreground"
+						className="font-mono text-12 text-secondary-foreground"
 					>
 						{cost.byModel.map((model) => (
 							<li key={model.model} aria-label={model.model}>
@@ -857,8 +871,11 @@ export function AgentTreePane({
 					onOpenExcerpt={onOpenExcerpt}
 				/>
 			)}
-			<div className="flex min-h-96 overflow-x-auto">
-				<nav aria-label="Agent tree" className="min-w-72 flex-5 border-r">
+			<div className="flex min-w-0 flex-col">
+				<nav
+					aria-label="Agent tree"
+					className="max-h-48 overflow-auto border-b"
+				>
 					<ul>
 						<AgentBranch
 							tree={tree}
@@ -885,7 +902,7 @@ export function AgentTreePane({
 				</nav>
 				<section
 					aria-label="Selected in the agent tree"
-					className="min-w-92 flex-8 border-r px-3 py-3"
+					className="min-w-0 px-3 py-3"
 				>
 					<SelectedDetail
 						tree={tree}
@@ -895,7 +912,7 @@ export function AgentTreePane({
 						onSelectSource={onSelectSource}
 					/>
 				</section>
-				<section aria-label="Delivery excerpt" className="min-w-80 flex-7">
+				<section aria-label="Delivery excerpt" className="min-w-0 border-t">
 					<PaneHeading>Delivery excerpt</PaneHeading>
 					{excerpt}
 				</section>

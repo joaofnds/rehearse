@@ -79,11 +79,11 @@ function card(): HTMLElement {
 }
 
 describe(AttributionCard.name, () => {
-	it("names the one file that differs between arms A and B and attributes a movement to it", () => {
+	it("names the one file that differs between baseline and candidate and attributes a movement to it", () => {
 		renderCard();
 
 		expect(card()).toHaveTextContent(
-			`The only difference between arms A and B is ${SKILL}. Every other file is identical across the arms, so a movement between them is attributable to that file.`,
+			`The only difference between baseline and candidate is ${SKILL}. Every other file is identical across the arms, so a movement between them is attributable to that file.`,
 		);
 	});
 
@@ -96,7 +96,7 @@ describe(AttributionCard.name, () => {
 		});
 
 		expect(card()).toHaveTextContent(
-			"2 files differ between arms A and B, so no movement between them is attributed to one file.",
+			"2 files differ between baseline and candidate, so no movement between them is attributed to one file.",
 		);
 		expect(
 			within(card())
@@ -109,7 +109,7 @@ describe(AttributionCard.name, () => {
 		renderCard({ attribution: { claim: "identical" } });
 
 		expect(card()).toHaveTextContent(
-			"Arms A and B ran identical corpora, so no file explains a movement between them.",
+			"Baseline and candidate ran identical corpora, so no file explains a movement between them.",
 		);
 		expect(
 			screen.queryByRole("button", { name: "See the diff between arms" }),
@@ -142,7 +142,7 @@ describe(AttributionCard.name, () => {
 		).not.toBeInTheDocument();
 	});
 
-	it("says why a comparison whose author supplied the baseline arm cannot take more attempts", () => {
+	it("says why a comparison whose author supplied the control arm cannot take more attempts", () => {
 		renderCard({ baselineArm: { kind: "supplied" } });
 
 		expect(card()).toHaveTextContent(
@@ -154,7 +154,7 @@ describe(AttributionCard.name, () => {
 	});
 
 	describe("see the diff between arms", () => {
-		it("shows each differing file's lines at arm A's version against arm B's", async () => {
+		it("shows each differing file's lines at baseline (before)'s version against candidate (after)'s", async () => {
 			stubArmDiff([
 				{
 					path: SKILL,
@@ -198,7 +198,9 @@ describe(AttributionCard.name, () => {
 			);
 
 			expect(
-				await screen.findByText("Arm A ran no skills/shape/notes.md."),
+				await screen.findByText(
+					"Baseline (before) ran no skills/shape/notes.md.",
+				),
 			).toBeInTheDocument();
 		});
 
@@ -221,7 +223,7 @@ describe(AttributionCard.name, () => {
 
 			expect(
 				await screen.findByText(
-					`Arm B's ${SKILL} cannot be shown: its frozen copy no longer matches.`,
+					`Candidate (after)'s ${SKILL} cannot be shown: its frozen copy no longer matches.`,
 				),
 			).toBeInTheDocument();
 			expect(

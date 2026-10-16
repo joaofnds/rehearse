@@ -1,4 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { Button } from "#client/system/ui/button";
 import {
 	corpusMeasurementReading,
 	corpusVersionHash,
@@ -314,6 +316,7 @@ function StageNode({
 	onSelect,
 	nowMs,
 	contribution,
+	detailsShown,
 }: {
 	readonly stage: MonitoredStage;
 	readonly number: number;
@@ -325,6 +328,7 @@ function StageNode({
 	readonly nowMs: number;
 	/** The newest analysis's phrase for the step toward the task grade. */
 	readonly contribution: string | undefined;
+	readonly detailsShown: boolean;
 }): React.JSX.Element {
 	const status = nodeStatus(stage, row, record);
 
@@ -353,31 +357,39 @@ function StageNode({
 					/>
 				</span>
 				<StatusLine status={status} />
-				{isRunning(stage, row) ? (
+				{detailsShown && isRunning(stage, row) ? (
 					<LiveToolCall run={row.run} stage={stage.stage} />
 				) : null}
-				<span className="grid grid-cols-2 gap-x-3 gap-y-1 font-mono text-10-5 text-muted-foreground">
-					<span>{costReading(stage, row)}</span>
-					<span>{durationReading(stage, row, nowMs)}</span>
-					<span>{blockersReading(stage.blockers)}</span>
-					<span className="truncate">
-						{notStarted(stage, row) ? (
-							<>
-								—<span className="sr-only"> corpus version not recorded</span>
-							</>
-						) : (
-							corpusReading(stage, row)
-						)}
-					</span>
-				</span>
-				<CheckpointLine
-					stage={stage}
-					caseId={record.caseId}
-					ended={hasRunEnded(row)}
-				/>
-				<span className="text-11 text-muted-foreground">
-					{outputReading(stage, row, contribution)}
-				</span>
+				{detailsShown ? (
+					<>
+						<span className="grid grid-cols-2 gap-x-3 gap-y-1 font-mono text-10-5 text-muted-foreground">
+							<span>{costReading(stage, row)}</span>
+							<span>{durationReading(stage, row, nowMs)}</span>
+							<span>{blockersReading(stage.blockers)}</span>
+							<span className="truncate">
+								{notStarted(stage, row) ? (
+									<>
+										—
+										<span className="sr-only">
+											{" "}
+											corpus version not recorded
+										</span>
+									</>
+								) : (
+									corpusReading(stage, row)
+								)}
+							</span>
+						</span>
+						<CheckpointLine
+							stage={stage}
+							caseId={record.caseId}
+							ended={hasRunEnded(row)}
+						/>
+						<span className="text-11 text-muted-foreground">
+							{outputReading(stage, row, contribution)}
+						</span>
+					</>
+				) : null}
 			</button>
 			{last ? null : (
 				<span
@@ -430,16 +442,20 @@ export function TaskGraph({
 	row,
 	shown,
 	onSelect,
+	compact = false,
 }: {
 	readonly record: RunRecordResponse;
 	readonly row: PipelineRow;
 	/** The stage the panes below show, marked current as the design marks it. */
 	readonly shown: string | undefined;
 	readonly onSelect: (stage: string) => void;
+	readonly compact?: boolean;
 }): React.JSX.Element {
 	const nowMs = useNow(row.progress.state === "running");
 	const analyses = useQuery(analysesQuery(row.run));
 	const roles = rolesOf(analyses.data);
+	const [expanded, setExpanded] = useState(false);
+	const detailsShown = !compact || expanded;
 
 	return (
 		<section
@@ -454,9 +470,25 @@ export function TaskGraph({
 				<span className="text-11 text-muted-foreground">
 					select a step to explore its results, activity and context
 				</span>
-				<span aria-hidden="true" className="ml-auto text-10-5 text-dim">
-					✓ accepted · ● running · ○ queued · ◆ checkpoint
-				</span>
+				{compact ? (
+					<div className="ml-auto">
+						<Button
+							size="compact"
+							variant="ghost"
+							aria-expanded={expanded}
+							onClick={() => {
+								setExpanded(!expanded);
+							}}
+						>
+							{expanded ? "Hide workflow details" : "Show workflow details"}
+						</Button>
+					</div>
+				) : null}
+				{detailsShown ? (
+					<span aria-hidden="true" className="ml-auto text-10-5 text-dim">
+						✓ accepted · ● running · ○ queued · ◆ checkpoint · ◇ no checkpoint
+					</span>
+				) : null}
 			</div>
 			<div className="overflow-x-auto px-6 pt-2.5 pb-3">
 				<ol className="flex min-w-max items-stretch">
@@ -472,15 +504,18 @@ export function TaskGraph({
 							onSelect={onSelect}
 							nowMs={nowMs}
 							contribution={contributionOf(roles.get(stage.stage))}
+							detailsShown={detailsShown}
 						/>
 					))}
 				</ol>
 			</div>
-			<p className="px-6 pb-2.5 text-11 text-pretty text-dim">
-				<MinimumGradeNote record={record} />A step shows what its record says it
-				produced until an analysis of the ended run gives one agent's reading of
-				its contribution to the task's final grade.
-			</p>
+			{detailsShown ? (
+				<p className="px-6 pb-2.5 text-11 text-pretty text-dim">
+					<MinimumGradeNote record={record} />A step shows what its record says
+					it produced until an analysis of the ended run gives one agent's
+					reading of its contribution to the task's final grade.
+				</p>
+			) : null}
 		</section>
 	);
 }

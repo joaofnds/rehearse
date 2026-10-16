@@ -27,7 +27,7 @@ function Outcomes({
 	readonly outcomes: Attempt["outcomes"];
 }): React.JSX.Element {
 	if (outcomes.state === "unavailable") {
-		return <span className="text-dim">outcome not recorded</span>;
+		return <span className="text-muted-foreground">outcome not recorded</span>;
 	}
 
 	const [only] = outcomes.outcomes;
@@ -65,10 +65,12 @@ function wordsText(words: Attempt["words"]): string {
 }
 
 function History({
+	digest,
 	role,
 	position,
 	link,
 }: {
+	readonly digest: string | undefined;
 	readonly role: string;
 	readonly position: number;
 	readonly link: HistoryLink | undefined;
@@ -78,7 +80,10 @@ function History({
 	}
 	if (link.status === "stale") {
 		return (
-			<span className="text-dim" title="Saved provenance no longer matches">
+			<span
+				className="text-muted-foreground"
+				title="Saved provenance no longer matches"
+			>
 				history stale
 			</span>
 		);
@@ -87,7 +92,7 @@ function History({
 	return (
 		<Link
 			to={link.href}
-			search={{ view: "context" }}
+			search={{ view: "context", comparison: digest }}
 			aria-label={`${role} attempt ${String(position)} history`}
 			className="text-accent-foreground underline decoration-deeper underline-offset-4 hover:text-pale"
 		>
@@ -97,26 +102,39 @@ function History({
 }
 
 function AttemptCell({
+	digest,
 	role,
 	position,
 	attempt,
 	link,
 }: {
+	readonly digest: string | undefined;
 	readonly role: string;
 	readonly position: number;
 	readonly attempt: Attempt | undefined;
 	readonly link: HistoryLink | undefined;
 }): React.JSX.Element {
 	if (attempt === undefined) {
-		return <span className="text-dim">no attempt</span>;
+		return <span className="text-muted-foreground">no attempt</span>;
 	}
 
 	return (
 		<div className="flex flex-col gap-0.5">
-			<Outcomes outcomes={attempt.outcomes} />
+			{link?.status === "available" ? (
+				<Link
+					to={link.href}
+					search={{ view: "results", comparison: digest }}
+					aria-label={`${role} attempt ${String(position)} results`}
+					className="text-accent-foreground underline decoration-deeper underline-offset-4 hover:text-pale"
+				>
+					<Outcomes outcomes={attempt.outcomes} />
+				</Link>
+			) : (
+				<Outcomes outcomes={attempt.outcomes} />
+			)}
 			<span className="text-11">{blockersText(attempt.blockersFired)}</span>
 			<span className="font-mono text-11">{wordsText(attempt.words)}</span>
-			<History role={role} position={position} link={link} />
+			<History digest={digest} role={role} position={position} link={link} />
 		</div>
 	);
 }
@@ -147,6 +165,7 @@ function Note({
 }
 
 function attemptRow(
+	digest: string | undefined,
 	position: number,
 	attempts: CaseAttempts,
 	histories: CaseHistories | undefined,
@@ -155,6 +174,7 @@ function attemptRow(
 		const attempt = attempts[arm][position - 1];
 		const cell = (
 			<AttemptCell
+				digest={digest}
 				role={role}
 				position={position}
 				attempt={attempt}
@@ -185,11 +205,13 @@ function attemptRow(
  * them, since no record ties one arm's attempt to another's.
  */
 export function AttemptPairs({
+	digest,
 	caseId,
 	mode,
 	attempts,
 	histories,
 }: {
+	readonly digest: string;
 	readonly caseId: string;
 	readonly mode: ComparisonMode;
 	readonly attempts: CaseAttempts;
@@ -211,10 +233,10 @@ export function AttemptPairs({
 				}
 				columns={["Attempt", ...DESIGN_ARMS.map(({ role }) => role)]}
 				rows={positions.map((position) =>
-					attemptRow(position, attempts, histories),
+					attemptRow(digest, position, attempts, histories),
 				)}
 			/>
-			<div className="flex flex-col gap-1 text-11 text-muted-foreground">
+			<div className="flex flex-col gap-1 text-12 text-muted-foreground">
 				{mode === "session" ? null : (
 					<p>{`No attempt history to open: a ${mode} comparison's attempts record no session.`}</p>
 				)}

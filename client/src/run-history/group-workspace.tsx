@@ -1,22 +1,24 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
+import type { Immutable } from "#benchmark/contracts";
+import { groupAttemptsQuery } from "#client/session-history/group-attempts-query";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { confirmationRepQuery } from "#client/session-history/confirmation-rep-query";
+import type { ConfirmationRepResult as RepResult } from "#client/session-history/confirmation-rep-query";
 import type { InferResponseType } from "hono/client";
 import { corpusMeasurementReading } from "#benchmark/corpus-version-label";
 import { apiClient } from "#client/api-client";
-import { attemptLabel } from "#client/attempt-label";
 import { runRecordQuery } from "#client/monitor/run-record-query";
-import type {
-	MonitoredStage,
-	RunRecordResponse,
-} from "#client/monitor/run-record-query";
+import type { RunRecordResponse } from "#client/monitor/run-record-query";
 import { withinCase } from "#client/within-case";
 import { plural } from "#client/plural";
 import { outcomeReading } from "#client/run-detail/task-grade-card";
 import { ScreenHeader } from "#client/system/components/screen-header";
+import { Button } from "#client/system/ui/button";
+import { stageCostReading } from "#client/run-detail/step-readings";
 import { SectionLabel } from "#client/system/components/section-label";
 import { clockReading, spendReading } from "./run-progress";
 import { runHistoryQuery } from "./run-history-query";
+import { useRunsReturnSearch } from "./run-discovery";
 import type { RunHistoryResponse } from "./run-history-query";
 
 type GroupRow = Extract<RunHistoryResponse["rows"][number], { kind: "group" }>;
@@ -197,25 +199,6 @@ function FinalResults({ row }: { readonly row: GroupRow }): React.JSX.Element {
 	);
 }
 
-function sourceCost(stage: MonitoredStage): string {
-	const parts = [
-		{ name: "session", reading: stage.sessionCost },
-		{ name: "judge", reading: stage.judgeCost },
-	];
-	const known = parts.flatMap(({ reading }) =>
-		reading.state === "available" ? [reading.usd] : [],
-	);
-	const missing = parts.flatMap(({ name, reading }) =>
-		reading.state === "unavailable"
-			? [`${name}: ${reading.reasons.join("; ")}`]
-			: [],
-	);
-	const sum = known.reduce((total, usd) => total + usd, 0);
-	return missing.length === 0
-		? spendReading(sum)
-		: `${known.length === 0 ? "" : `${spendReading(sum)} recorded · `}cost incomplete (${missing.join("; ")})`;
-}
-
 function SourceStepReading({
 	record,
 	stageName,
@@ -253,7 +236,7 @@ function SourceStepReading({
 					{stage.grade.state === "available"
 						? stage.grade.letter
 						: `grade unavailable (${stage.grade.reasons.join("; ")})`}{" "}
-					· {sourceCost(stage)} ·{" "}
+					· Worker + Judge {stageCostReading(stage)} ·{" "}
 					{stage.wallTime.state === "available"
 						? clockReading(stage.wallTime.ms)
 						: `wall time unavailable (${stage.wallTime.reasons.join("; ")})`}{" "}
@@ -290,7 +273,10 @@ function SourceComparison({
 			? `median ${summary.grades.median}`
 			: "grade unavailable";
 	return (
-		<section className="rounded-lg border border-divider bg-card p-4">
+		<section
+			id="source-comparison"
+			className="rounded-lg border border-divider bg-card p-4"
+		>
 			<h2>
 				<SectionLabel>Source & replay · exploratory</SectionLabel>
 			</h2>
@@ -328,10 +314,24 @@ function SourceComparison({
 function Results({ row }: { readonly row: GroupRow }): React.JSX.Element {
 	return (
 		<div className="flex flex-col gap-4">
-			<div className="grid gap-4 lg:grid-cols-2">
-				<StageResults row={row} />
-				<FinalResults row={row} />
-			</div>
+			{row.mode === "session" ? (
+				<section className="rounded-lg border border-divider bg-card p-4 text-13">
+					<h2 className="font-medium">Session repetitions</h2>
+					<p className="mt-2">
+						{row.successful} of {row.reps} repetitions successful ·{" "}
+						{row.unreadReps.length} unread
+					</p>
+					<p className="mt-2 text-dim">
+						Session repetitions use deterministic checks. Inspect each attempt
+						for the saved reply and individual outcomes.
+					</p>
+				</section>
+			) : (
+				<div className="grid gap-4 lg:grid-cols-2">
+					<StageResults row={row} />
+					{row.mode === "pipeline" ? <FinalResults row={row} /> : null}
+				</div>
+			)}
 			<SourceComparison row={row} />
 			<section className="rounded-lg border border-divider bg-card p-4 text-12">
 				<h2>
@@ -355,57 +355,201 @@ function Results({ row }: { readonly row: GroupRow }): React.JSX.Element {
 	);
 }
 
-function Attempts({ row }: { readonly row: GroupRow }): React.JSX.Element {
+function repStageReading(
+	item: Immutable<RepResult["stages"][number]>,
+	mode: GroupRow["mode"],
+): string {
+	if (item.status !== "JUDGED") {
+		return item.status.replaceAll("_", " ");
+	}
+	if (mode === "session") {
+		return item.verdict === "CONTINUE" ? "Checks passed" : "Checks failed";
+	}
+	return `Grade ${item.grade} · ${item.verdict}`;
+}
+function repCoverage(rep: Immutable<RepResult> | undefined): string {
+	if (rep === undefined) {
+		return "Evidence unavailable";
+	}
+	return rep.metrics.status === "COMPLETE"
+		? "Call metrics complete"
+		: rep.metrics.missing.join("; ");
+}
+function RepOutcomes({
+	rep,
+	loading,
+	mode,
+}: {
+	readonly rep: Immutable<RepResult> | undefined;
+	readonly loading: boolean;
+	readonly mode: GroupRow["mode"];
+}): React.JSX.Element {
+	if (rep === undefined) {
+		return <>{loading ? "Reading…" : "Result unavailable"}</>;
+	}
+	return (
+		<>
+			<p>{rep.outcome}</p>
+			{rep.stages.map((item) => (
+				<p key={item.stage}>
+					{item.stage}: {repStageReading(item, mode)}
+				</p>
+			))}
+		</>
+	);
+}
+function AttemptRow({
+	row,
+	repId,
+	ordinal,
+	step,
+	comparison,
+}: {
+	readonly row: GroupRow;
+	readonly repId: string;
+	readonly ordinal?: number | undefined;
+	readonly step?: string | undefined;
+	readonly comparison?: string | undefined;
+}): React.JSX.Element {
+	const result = useQuery(confirmationRepQuery(row.groupId, repId));
+	const rep = result.data;
+	const total = rep?.metrics.calls.reduce(
+		(sum, call) => sum + call.metrics.costUsd,
+		0,
+	);
+	const params = { groupId: row.groupId, repId };
+	const contextPath = `/groups/${encodeURIComponent(row.groupId)}/reps/${encodeURIComponent(repId)}/attempt`;
+	const contextLink = row.links.find(
+		(link) => link.state === "available" && link.href === contextPath,
+	);
+	const contextAvailable = contextLink?.state === "available";
+	const search = {
+		...(step !== undefined && { step }),
+		...(comparison !== undefined && { comparison }),
+	};
+	return (
+		<tr className="border-t border-subtle align-top text-12">
+			<td className="py-3 pr-4">
+				<p className="font-medium">
+					{ordinal === undefined
+						? "Saved repetition"
+						: `Repetition ${String(ordinal)}`}
+				</p>
+				<code className="text-11-5 text-dim">{repId}</code>
+			</td>
+			<td className="py-3 pr-4">
+				<RepOutcomes rep={rep} loading={result.isLoading} mode={row.mode} />
+			</td>
+			<td className="py-3 pr-4 font-mono">
+				{rep === undefined || rep.metrics.calls.length === 0
+					? "Cost unavailable"
+					: `${spendReading(total ?? 0)}${rep.metrics.status === "MISSING" ? " recorded; incomplete" : ""}`}
+				<p className="mt-1 text-dim">
+					{rep === undefined ? "Time unavailable" : clockReading(rep.elapsedMs)}
+				</p>
+			</td>
+			<td className="py-3 pr-4">
+				{corpusMeasurementReading(row.corpusVersion)}
+				<p className="mt-1 text-dim">{repCoverage(rep)}</p>
+			</td>
+			<td className="py-3">
+				<div className="flex flex-wrap gap-3">
+					<Link
+						to="/groups/$groupId/reps/$repId/attempt"
+						params={params}
+						search={{ view: "results", ...search }}
+						className="text-accent-foreground underline"
+					>
+						Results
+					</Link>
+					{contextAvailable ? (
+						<Link
+							to="/groups/$groupId/reps/$repId/attempt"
+							params={params}
+							search={{ view: "context", ...search }}
+							className="text-accent-foreground underline"
+						>
+							Context & cost
+						</Link>
+					) : (
+						<span className="text-dim">
+							{row.mode === "session"
+								? "Context unavailable"
+								: "No session context"}
+						</span>
+					)}
+				</div>
+			</td>
+		</tr>
+	);
+}
+
+function Attempts({
+	row,
+	step,
+	comparison,
+}: {
+	readonly row: GroupRow;
+	readonly step?: string | undefined;
+	readonly comparison?: string | undefined;
+}): React.JSX.Element {
+	const group = useQuery(groupAttemptsQuery(row.groupId));
+	let refs: readonly {
+		readonly repId: string;
+		readonly ordinal?: number | undefined;
+	}[] = row.repAttempts.map(({ repId }) => ({ repId }));
+	if (group.data !== undefined) {
+		refs = group.data.repRecords;
+	}
 	return (
 		<section className="rounded-lg border border-divider bg-card p-4">
 			<h2>
 				<SectionLabel>Attempts</SectionLabel>
 			</h2>
-			<ul aria-label="Saved rep results" className="mt-2 flex flex-col gap-2">
-				{row.repAttempts.length === 0 ? (
-					<li className="text-12 text-dim">No rep result was recorded.</li>
-				) : null}
-				{row.repAttempts.map(({ repId, attempt }) => (
-					<li key={repId} className="border-t border-subtle pt-2 text-12">
-						<Link
-							to="/groups/$groupId/reps/$repId/attempt"
-							params={{ groupId: row.groupId, repId }}
-							search={{ view: "results" }}
-							className="text-accent-foreground underline"
-						>
-							{repId} · {attemptLabel(attempt)} results
-						</Link>
-					</li>
+			<p className="mt-2 text-12 text-dim">
+				Each repetition keeps its outcome, recorded cost and evidence together.
+				Detailed output and checks depend on what that record retained.
+			</p>
+			<div className="mt-3 overflow-x-auto">
+				<table aria-label="Group attempts" className="w-full text-left">
+					<thead className="text-11-5 text-dim">
+						<tr>
+							<th className="pr-4 pb-2">Attempt</th>
+							<th className="pr-4 pb-2">Outcome & steps</th>
+							<th className="pr-4 pb-2">Cost & time</th>
+							<th className="pr-4 pb-2">Corpus & coverage</th>
+							<th className="pb-2">Evidence</th>
+						</tr>
+					</thead>
+					<tbody>
+						{refs.map((rep) => (
+							<AttemptRow
+								key={rep.repId}
+								row={row}
+								repId={rep.repId}
+								ordinal={rep.ordinal}
+								step={step}
+								comparison={comparison}
+							/>
+						))}
+					</tbody>
+				</table>
+			</div>
+			{refs.length === 0 ? (
+				<p className="mt-3 text-13 text-dim">No rep results were recorded.</p>
+			) : null}
+			{row.links
+				.filter((link) => link.state === "unavailable")
+				.map((link) => (
+					<p key={link.label} className="mt-2 text-12 text-dim">
+						{link.label} · {link.reason}
+					</p>
 				))}
-			</ul>
-			<p className="mt-3 text-11-5 text-dim">Saved session context</p>
-			<ul aria-label="Group attempts" className="mt-2 flex flex-col gap-2">
-				{row.links.length === 0 ? (
-					<li className="text-12 text-dim">No rep contexts were recorded.</li>
-				) : null}
-				{row.links.map((link) => (
-					<li key={link.label} className="border-t border-subtle pt-2 text-12">
-						{link.state === "available" ? (
-							<Link
-								to={link.href}
-								search={{ view: "context" }}
-								className="text-accent-foreground underline"
-							>
-								{link.label}
-							</Link>
-						) : (
-							<span>
-								{link.label} · {link.reason}
-							</span>
-						)}
-					</li>
-				))}
-				{row.unreadReps.map((rep) => (
-					<li key={rep.repId} className="text-12 text-dim">
-						{rep.repId}: {rep.reason}
-					</li>
-				))}
-			</ul>
+			{row.unreadReps.map((rep) => (
+				<p key={rep.repId} className="mt-2 text-12 text-dim">
+					{rep.repId}: {rep.reason}
+				</p>
+			))}
 		</section>
 	);
 }
@@ -421,11 +565,18 @@ function stalenessLine(row: GroupRow): string {
 
 export function GroupWorkspacePage({
 	groupId,
+	view,
+	step,
+	comparison,
 }: {
 	readonly groupId: string;
+	readonly view: "results" | "attempts";
+	readonly step?: string | undefined;
+	readonly comparison?: string | undefined;
 }): React.JSX.Element {
+	const returnSearch = useRunsReturnSearch();
 	const query = useQuery(runHistoryQuery);
-	const [view, setView] = useState<"results" | "attempts">("results");
+	const navigate = useNavigate();
 	const row = query.data?.rows.find(
 		(candidate): candidate is GroupRow =>
 			candidate.kind === "group" && candidate.groupId === groupId,
@@ -452,8 +603,30 @@ export function GroupWorkspacePage({
 			<ScreenHeader
 				title={`Group ${withinCase(row.shortId ?? row.groupId.slice(0, 8), row.caseId)}`}
 				subline={`${row.caseId} · ${row.mode} · ${plural(row.reps, "rep")}${row.shortId === undefined ? "" : ` · ${row.shortId}`}`}
+				aside={
+					row.mode === "stage" && row.checkpoint !== undefined ? (
+						<Button asChild size="sm">
+							<Link
+								to="/groups/$groupId"
+								params={{ groupId }}
+								search={{
+									view: "results",
+									...(step !== undefined && { step }),
+									...(comparison !== undefined && { comparison }),
+								}}
+								hash="source-comparison"
+							>
+								Compare with source
+							</Link>
+						</Button>
+					) : undefined
+				}
 				lead={
-					<Link to="/" className="text-11-5 text-accent-foreground underline">
+					<Link
+						to="/"
+						search={returnSearch}
+						className="text-11-5 text-accent-foreground underline"
+					>
 						← Runs
 					</Link>
 				}
@@ -468,7 +641,15 @@ export function GroupWorkspacePage({
 						type="button"
 						aria-pressed={view === item}
 						onClick={() => {
-							setView(item);
+							void navigate({
+								to: "/groups/$groupId",
+								params: { groupId },
+								search: {
+									view: item,
+									...(step !== undefined && { step }),
+									...(comparison !== undefined && { comparison }),
+								},
+							});
 						}}
 						className="border-b-2 border-transparent px-3 py-2.5 text-12 text-muted-foreground aria-pressed:border-primary aria-pressed:text-foreground hover:text-foreground"
 					>
@@ -504,8 +685,26 @@ export function GroupWorkspacePage({
 						</p>
 					)}
 				</section>
-				{view === "results" ? <Results row={row} /> : <Attempts row={row} />}
-				<ReadingPanel groupId={groupId} />
+				{view === "results" ? (
+					<Results row={row} />
+				) : (
+					<Attempts row={row} step={step} comparison={comparison} />
+				)}
+				<details className="rounded-lg border border-divider bg-card p-4 text-13">
+					<summary>Frozen instruction reads</summary>
+					<div className="mt-3">
+						<ReadingPanel groupId={groupId} />
+					</div>
+				</details>
+				{comparison === undefined ? null : (
+					<Link
+						to="/comparisons/$digest"
+						params={{ digest: comparison }}
+						className="text-13 text-accent-foreground underline"
+					>
+						Back to comparison
+					</Link>
+				)}
 				<Link
 					to="/comparisons"
 					className="self-start text-12 text-accent-foreground underline"

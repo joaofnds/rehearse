@@ -16,6 +16,7 @@ import {
 	reviewCorpusEdit,
 } from "./corpus-edit-requests";
 import { corpusQuery } from "./corpus-query";
+import { useCorpusDraft } from "./corpus-draft";
 import { DiffPreview } from "./diff-preview";
 import { lineRangeOffsets } from "./line-range";
 import type { LineRange } from "./line-range";
@@ -83,18 +84,18 @@ interface Reviewed {
 	readonly review: CorpusEditReview;
 }
 
-/**
- * The unapplied edit lives in this component only, so leaving the screen or
- * choosing another file drops it and writes nothing.
- */
 export function CorpusEditor({
 	path,
+	root,
+	source,
 	lines,
 	hasReplayableSource,
 	onDiscard,
 	onApplied,
 }: {
 	readonly path: string;
+	readonly root: string;
+	readonly source: CorpusExperimentSource | undefined;
 	/** The lines selected once the text opens, where a link named them. */
 	readonly lines?: LineRange | undefined;
 	readonly hasReplayableSource: boolean;
@@ -104,11 +105,17 @@ export function CorpusEditor({
 	const queryClient = useQueryClient();
 	const textId = useId();
 	const file = useQuery({
-		queryKey: ["corpus-file", path],
+		queryKey: ["corpus-file", root, path],
 		queryFn: () => fetchCorpusFile(path),
 		gcTime: 0,
+		refetchOnMount: "always",
 	});
-	const [draft, setDraft] = useState<string>();
+	const {
+		draft,
+		save: saveDraft,
+		discard: discardDraft,
+		recovered,
+	} = useCorpusDraft(root, path, source);
 	const field = useRef<HTMLTextAreaElement>(null);
 	const linesSelected = useRef(false);
 	useEffect(() => {
@@ -137,6 +144,7 @@ export function CorpusEditor({
 		mutationFn: applyCorpusEdit,
 		onSuccess: async (applied) => {
 			await queryClient.invalidateQueries({ queryKey: corpusQuery.queryKey });
+			discardDraft();
 			onApplied(applied);
 		},
 		onError: reopen,
@@ -155,12 +163,28 @@ export function CorpusEditor({
 		);
 	}
 
-	const text = draft ?? file.data.text;
+	const text = draft?.text ?? file.data.text;
 	const current = reviewed?.text === text ? reviewed.review : undefined;
 
 	return (
 		<div className="grid gap-4 md:grid-cols-3">
 			<div className="flex min-w-0 flex-col gap-3 md:col-span-2">
+				<p className="text-11-5 text-dim">
+					Unapplied drafts stay in this app session while you navigate. Discard
+					removes this draft; reloading the app clears all drafts.
+				</p>
+				{recovered && draft !== null ? (
+					<p role="status" className="text-12 text-pale">
+						Recovered an unapplied draft from this app session. The current file
+						has been read again; review the diff before applying.
+					</p>
+				) : null}
+				{draft !== null && draft.version !== file.data.version ? (
+					<p role="status" className="text-12 text-muted-foreground">
+						The corpus changed since this draft began. The diff compares your
+						draft with the current file.
+					</p>
+				) : null}
 				<label htmlFor={textId} className="text-sm">
 					{"Text of "}
 					<span className="font-mono">{path}</span>
@@ -174,7 +198,7 @@ export function CorpusEditor({
 					// Put the cursor in the selected file after Edit.
 					autoFocus
 					onChange={(event) => {
-						setDraft(event.target.value);
+						saveDraft(event.target.value, draft?.version ?? file.data.version);
 						apply.reset();
 					}}
 					className="w-full rounded-md border border-strong bg-background px-2 py-1.5 font-mono text-11-5"
@@ -228,7 +252,14 @@ export function CorpusEditor({
 							Apply
 						</Button>
 					)}
-					<Button size="sm" variant="outline" onClick={onDiscard}>
+					<Button
+						size="sm"
+						variant="outline"
+						onClick={() => {
+							discardDraft();
+							onDiscard();
+						}}
+					>
 						Discard
 					</Button>
 				</div>

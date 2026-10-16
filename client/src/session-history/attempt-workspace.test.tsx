@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { renderWithRouter } from "#client/test-support/render-app";
+import {
+	renderWithRouter,
+	renderAppWithStub,
+} from "#client/test-support/render-app";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, screen } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import type { ReplayRow, SessionAttemptRow } from "#server/run-history";
 import type { ParsedConfirmationRepRecord } from "#benchmark/confirmation-record";
 import { stubFetchByPath } from "#client/test-support/fetch-stub";
@@ -143,6 +146,32 @@ function workflowRep(mode: "stage" | "pipeline"): ParsedConfirmationRepRecord {
 }
 
 describe(AttemptWorkspacePage.name, () => {
+	it("advances standalone attempts from older to newer saved executions", async () => {
+		const older = standaloneRow();
+		const newer = {
+			...older,
+			uuid: "attempt-b",
+			recordId: "attempt:session:case-a/attempt-b",
+			shortId: "s02",
+			startedAt: "2026-10-02T12:00:00Z",
+		};
+		renderAppWithStub(
+			"/attempts/session/case-a/attempt-a?view=results&comparison=related",
+			new Map<string, unknown>([
+				["/api/runs", { rows: [newer, older], launches: [], unreadable: [] }],
+			]),
+		);
+
+		expect(await screen.findByText("Attempt 1 of 2")).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "Previous attempt" }),
+		).toBeDisabled();
+		expect(screen.getByRole("link", { name: "Next attempt" })).toHaveAttribute(
+			"href",
+			"/attempts/session/case-a/attempt-b?view=results&comparison=related",
+		);
+	});
+
 	it("shows unavailable cost when a rep recorded no provider calls", async () => {
 		show(
 			{ kind: "confirmation", groupId: "group-a", repId: "group-a-rep-1" },
@@ -167,24 +196,17 @@ describe(AttemptWorkspacePage.name, () => {
 		expect(screen.queryByText(/\$0\.00/u)).not.toBeInTheDocument();
 	});
 
-	it("refuses a response naming a different confirmation attempt", async () => {
+	it("keeps repetition measurements unavailable when the saved-result request fails", async () => {
 		show(
 			{ kind: "confirmation", groupId: "group-a", repId: "group-a-rep-1" },
 			"results",
-			new Map([
-				[
-					"/api/groups/group-a/reps/group-a-rep-1/attempt/result",
-					{
-						...workflowRep("stage"),
-						repId: "another-rep",
-					},
-				],
-			]),
+			new Map(),
 		);
+
 		expect(await screen.findByRole("alert")).toHaveTextContent(
 			"Individual rep result unavailable",
 		);
-		expect(screen.queryByText("$0.04")).not.toBeInTheDocument();
+		expect(screen.queryByText("$0.00")).not.toBeInTheDocument();
 	});
 
 	it("shows a standalone attempt's own saved checks and measurements", async () => {
@@ -242,12 +264,28 @@ describe(AttemptWorkspacePage.name, () => {
 		expect(await screen.findByText(/Grade B · CONTINUE/u)).toBeTruthy();
 		expect(screen.getByText("A replay grades only this step.")).toBeTruthy();
 		expect(screen.queryByText("Final workflow outcome")).toBeNull();
+		const compare = await screen.findByRole("button", {
+			name: "Compare with source",
+		});
+		await act(() => {
+			fireEvent.click(compare);
+			return Promise.resolve();
+		});
 		const sourceStepLink = await screen.findByRole("link", {
 			name: "Source step",
 		});
 		expect(sourceStepLink.getAttribute("href")).toBe(
 			"/runs/source-run?view=results&step=build",
 		);
+		await waitFor(() => {
+			expect(
+				screen.getAllByText("Output unavailable in this saved record."),
+			).toHaveLength(2);
+		});
+		await act(() => {
+			fireEvent.click(screen.getByRole("button", { name: "Close" }));
+			return Promise.resolve();
+		});
 	});
 
 	it("shows a confirmation rep's own cost and elapsed time, never group totals", async () => {
@@ -315,11 +353,11 @@ describe(AttemptWorkspacePage.name, () => {
 
 		expect(await screen.findByText("$0.02")).toBeTruthy();
 		expect(screen.getByText("00:12")).toBeTruthy();
-		expect(screen.getByText("Grade A · CONTINUE")).toBeTruthy();
+		expect(screen.getByText("Checks passed")).toBeTruthy();
 		expect(screen.queryByText("$99.00")).toBeNull();
 		expect(
 			screen.getByRole("link", { name: "Group results" }).getAttribute("href"),
-		).toBe("/groups/group-a");
+		).toBe("/groups/group-a?view=attempts");
 	});
 
 	it("labels a missing individual rep record without borrowing group totals", async () => {
@@ -389,7 +427,7 @@ describe(AttemptWorkspacePage.name, () => {
 		]);
 		show(identity, "results", routes);
 		expect(await screen.findByText("Grade A · CONTINUE")).toBeTruthy();
-		expect(screen.getByText("Not applicable to this rep mode")).toBeTruthy();
+		expect(screen.queryByText("Final workflow outcome")).toBeNull();
 	});
 
 	it("does not offer invented session context for a workflow rep", async () => {
@@ -458,5 +496,58 @@ describe(AttemptWorkspacePage.name, () => {
 		const record = await screen.findByTestId("saved-record-json");
 		expect(record.textContent).toContain("<script>alert(1)</script>");
 		expect(record.querySelector("script")).toBeNull();
+	});
+	it("preserves the selected step, view and comparison across adjacent group attempts", async () => {
+		const refs = {
+			groupId: "group-a",
+			caseId: "case-a",
+			repRecords: [
+				{ repId: "group-a-rep-1", ordinal: 1 },
+				{ repId: "group-a-rep-2", ordinal: 2 },
+			],
+		};
+		renderAppWithStub(
+			"/groups/group-a/reps/group-a-rep-1/attempt?view=context&step=build&comparison=comparison-a",
+			new Map<string, unknown>([
+				["/api/groups/group-a/attempts", refs],
+				[
+					"/api/groups/group-a/reps/group-a-rep-1/attempt/result",
+					workflowRep("pipeline"),
+				],
+				[
+					"/api/groups/group-a/reps/group-a-rep-2/attempt/result",
+					{ ...workflowRep("pipeline"), repId: "group-a-rep-2", ordinal: 2 },
+				],
+			]),
+		);
+		expect(
+			await screen.findByText("Attempt 1 of 2 · build"),
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "Previous attempt" }),
+		).toBeDisabled();
+		const next = screen.getByRole("link", { name: "Next attempt" });
+		expect(next).toHaveAttribute(
+			"href",
+			"/groups/group-a/reps/group-a-rep-2/attempt?view=context&step=build&comparison=comparison-a",
+		);
+		fireEvent.click(next);
+		expect(
+			await screen.findByText("Attempt 2 of 2 · build"),
+		).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Next attempt" })).toBeDisabled();
+		expect(
+			screen.getByRole("link", { name: "Previous attempt" }),
+		).toHaveAttribute(
+			"href",
+			"/groups/group-a/reps/group-a-rep-1/attempt?view=context&step=build&comparison=comparison-a",
+		);
+		expect(screen.getByRole("link", { name: "Group results" })).toHaveAttribute(
+			"href",
+			"/groups/group-a?view=attempts&step=build&comparison=comparison-a",
+		);
+		expect(
+			screen.getByRole("link", { name: "Back to comparison" }),
+		).toHaveAttribute("href", "/comparisons/comparison-a");
 	});
 });

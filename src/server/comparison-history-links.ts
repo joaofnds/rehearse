@@ -20,6 +20,7 @@ import {
 export type ComparisonAttemptHistoryLink =
 	| {
 			readonly status: "available";
+			readonly groupId: string;
 			readonly repId: string;
 			readonly ordinal: number;
 			readonly href: string;
@@ -135,6 +136,7 @@ export async function comparisonAttemptHistoryLink(
 
 		return {
 			status: "available",
+			groupId: group.groupId,
 			repId: request.rep.repId,
 			ordinal: request.rep.ordinal,
 			href: `/groups/${group.groupId}/reps/${request.rep.repId}/attempt`,

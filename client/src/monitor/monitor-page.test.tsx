@@ -2016,7 +2016,10 @@ describe("/monitor session pane", () => {
 			);
 			expect(
 				within(pane).getByRole("link", { name: "open transcript" }),
-			).toHaveAttribute("href", `/runs/${RUN}/stages/plan`);
+			).toHaveAttribute(
+				"href",
+				`/runs/${RUN}?view=context&step=plan&focus=events`,
+			);
 			expect(pane).toHaveTextContent(
 				"Session ended. The full transcript is on disk; Rehearse keeps only the spans the judge cites.",
 			);
@@ -2024,7 +2027,10 @@ describe("/monitor session pane", () => {
 				within(pane).getByRole("link", {
 					name: `.benchmark-runs/${RUN}.checkpoints/plan/transcript.jsonl`,
 				}),
-			).toHaveAttribute("href", `/runs/${RUN}/stages/plan`);
+			).toHaveAttribute(
+				"href",
+				`/runs/${RUN}?view=context&step=plan&focus=events`,
+			);
 		});
 
 		it("says when the run kept no copy of the stage's transcript", async () => {

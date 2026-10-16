@@ -107,6 +107,7 @@ interface ComparisonResponseFixture extends ComparisonProvenance {
 								readonly repId: string;
 								readonly ordinal: number;
 								readonly href: string;
+								readonly groupId: string;
 						  }
 						| {
 								readonly status: "stale";
@@ -316,8 +317,39 @@ function renderPage(
 }
 
 describe(ComparisonPage.name, () => {
+	it.each([
+		["session", "Passed means the saved session checks passed"],
+		["stage", "Step grades describe the replayed step only"],
+		["pipeline", "The final workflow outcome is judged independently"],
+	] as const)(
+		"states the %s evaluation scope with its sample and corpus change",
+		async (mode, scope) => {
+			const body = comparisonResponseBody();
+			renderPage({ ...body, report: { ...body.report, mode } });
+
+			const lead = await screen.findByRole("region", {
+				name: "What moved · case-1",
+			});
+			expect(lead).toHaveTextContent(scope);
+			expect(lead).toHaveTextContent("Changed: output-styles/brief.md");
+			expect(lead).toHaveTextContent(
+				"Saved attempts · baseline (before) 1 · candidate (after) 1 · control 1",
+			);
+			expect(lead).toHaveTextContent(
+				"Pass/fail spreads are 95% confidence intervals.",
+			);
+			expect(lead).toHaveTextContent(
+				"length and cost show the observed range.",
+			);
+		},
+	);
+
 	it("draws each case's attempts with what the pairing says and why to read it with care", async () => {
 		renderPage();
+
+		fireEvent.click(
+			await screen.findByRole("button", { name: "Attempt pairs" }),
+		);
 
 		const caseTwo = await screen.findByRole("region", {
 			name: "Attempt pairs · case-2",
@@ -364,6 +396,10 @@ describe(ComparisonPage.name, () => {
 			},
 		});
 
+		fireEvent.click(
+			await screen.findByRole("button", { name: "Attempt pairs" }),
+		);
+
 		const caseOne = await screen.findByRole("region", {
 			name: "Attempt pairs · case-1",
 		});
@@ -374,11 +410,15 @@ describe(ComparisonPage.name, () => {
 			name: "Read with care",
 		});
 
-		expect(says).toHaveTextContent("Arm B against arm A on final");
+		expect(says).toHaveTextContent(
+			"Candidate (after) against baseline (before) on final",
+		);
 		expect(says).not.toHaveTextContent("on review");
-		expect(care).toHaveTextContent("Baseline 1, arm A 2 and arm B 3 attempts.");
 		expect(care).toHaveTextContent(
-			"Only output-styles/brief.md differs between arms A and B",
+			"Control 1, baseline (before) 2 and candidate (after) 3 attempts.",
+		);
+		expect(care).toHaveTextContent(
+			"Only output-styles/brief.md differs between baseline and candidate",
 		);
 		expect(
 			within(caseOne).getByText(
@@ -391,7 +431,7 @@ describe(ComparisonPage.name, () => {
 		renderPage();
 		await screen.findByRole("region", { name: "Arms · case-1" });
 
-		fireEvent.click(screen.getByRole("button", { name: "What moved" }));
+		fireEvent.click(screen.getByRole("button", { name: "Attempt pairs" }));
 
 		expect(
 			screen.getByRole("region", { name: "Arms · case-1" }),
@@ -427,10 +467,10 @@ describe(ComparisonPage.name, () => {
 		const caseOneBand = screen.getByRole("region", { name: "Arms · case-1" });
 
 		expect(
-			within(caseTwoBand).getByRole("article", { name: "ARM B" }),
+			within(caseTwoBand).getByRole("article", { name: "CANDIDATE (AFTER)" }),
 		).toHaveTextContent("$7.00");
 		expect(
-			within(caseOneBand).getByRole("article", { name: "ARM B" }),
+			within(caseOneBand).getByRole("article", { name: "CANDIDATE (AFTER)" }),
 		).toHaveTextContent("$2.00");
 	});
 
@@ -583,15 +623,15 @@ describe(ComparisonPage.name, () => {
 		});
 	});
 
-	it("shows the attempt-pairs table by default, with both switcher options offered", async () => {
+	it("shows what moved by default, with attempt evidence one view away", async () => {
 		renderPage();
 
-		await screen.findByRole("region", { name: "Attempt pairs · case-1" });
+		await screen.findByRole("region", { name: "What moved · case-1" });
 		expect(
-			screen.getByRole("button", { name: "Attempt pairs", pressed: true }),
+			screen.getByRole("button", { name: "Attempt pairs", pressed: false }),
 		).toBeInTheDocument();
 		expect(
-			screen.getByRole("button", { name: "What moved", pressed: false }),
+			screen.getByRole("button", { name: "What moved", pressed: true }),
 		).toBeInTheDocument();
 	});
 
@@ -616,7 +656,7 @@ describe(ComparisonPage.name, () => {
 		expect(within(caseTwo).getByText("unavailable")).toBeInTheDocument();
 	});
 
-	it("states only arm A against arm B's attribution for each case under What moved", async () => {
+	it("states only baseline (before) against candidate (after)'s attribution for each case under What moved", async () => {
 		renderPage();
 
 		fireEvent.click(await screen.findByRole("button", { name: "What moved" }));
@@ -628,13 +668,13 @@ describe(ComparisonPage.name, () => {
 			name: "Attribution · case-2",
 		});
 		expect(caseOne).toHaveTextContent(
-			"The only difference between arms A and B is output-styles/brief.md.",
+			"The only difference between baseline and candidate is output-styles/brief.md.",
 		);
 		expect(within(caseOne).getAllByText("output-styles/brief.md")).toHaveLength(
 			1,
 		);
 		expect(caseTwo).toHaveTextContent(
-			"2 files differ between arms A and B, so no movement between them is attributed to one file.",
+			"2 files differ between baseline and candidate, so no movement between them is attributed to one file.",
 		);
 		expect(screen.queryByText(/vs control/u)).not.toBeInTheDocument();
 	});
@@ -650,6 +690,7 @@ describe(ComparisonPage.name, () => {
 							status: "available",
 							repId: "rep-1",
 							ordinal: 1,
+							groupId: "group-a",
 							href: "/groups/group-a/reps/rep-1/attempt",
 						},
 					],
@@ -659,14 +700,28 @@ describe(ComparisonPage.name, () => {
 			},
 		});
 
+		fireEvent.click(
+			await screen.findByRole("button", { name: "Attempt pairs" }),
+		);
+
 		const table = await screen.findByRole("table", {
 			name: "Attempt pairs · case-1",
 		});
 		expect(
-			within(table).getByRole("link", { name: "Arm A attempt 1 history" }),
+			within(table).getByRole("link", {
+				name: "Baseline (before) attempt 1 history",
+			}),
 		).toHaveAttribute(
 			"href",
-			"/groups/group-a/reps/rep-1/attempt?view=context",
+			`/groups/group-a/reps/rep-1/attempt?view=context&comparison=${DIGEST}`,
+		);
+		expect(
+			within(table).getByRole("link", {
+				name: "Baseline (before) attempt 1 results",
+			}),
+		).toHaveAttribute(
+			"href",
+			`/groups/group-a/reps/rep-1/attempt?view=results&comparison=${DIGEST}`,
 		);
 		expect(within(table).getByText("history stale")).toBeInTheDocument();
 	});
@@ -691,7 +746,7 @@ describe(ComparisonPage.name, () => {
 		expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 	});
 
-	it("says no file explains a movement, never a false attribution, when arms A and B ran identical corpora", async () => {
+	it("says no file explains a movement, never a false attribution, when baseline and candidate ran identical corpora", async () => {
 		renderPage({
 			...comparisonResponseBody(),
 			attribution: {
@@ -705,15 +760,19 @@ describe(ComparisonPage.name, () => {
 		expect(
 			screen.getByRole("region", { name: "Attribution · case-1" }),
 		).toHaveTextContent(
-			"Arms A and B ran identical corpora, so no file explains a movement between them.",
+			"Baseline and candidate ran identical corpora, so no file explains a movement between them.",
 		);
 		expect(
 			screen.queryByText(/attributable to that file/u),
 		).not.toBeInTheDocument();
 	});
 
-	it("says why a comparison whose author supplied the baseline arm cannot take more attempts", async () => {
+	it("says why a comparison whose author supplied the control arm cannot take more attempts", async () => {
 		renderPage();
+
+		fireEvent.click(
+			await screen.findByRole("button", { name: "Attempt pairs" }),
+		);
 
 		const caseOne = await screen.findByRole("region", {
 			name: "Attempt pairs · case-1",
@@ -746,7 +805,7 @@ describe(ComparisonPage.name, () => {
 			};
 		}
 
-		it("offers arm A's attempt count again in every arm, at its stated cost", async () => {
+		it("offers baseline (before)'s attempt count again in every arm, at its stated cost", async () => {
 			renderPage(
 				comparedAttempts({ state: "available", attemptsPerArm: 4, usd: 18 }),
 			);

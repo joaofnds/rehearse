@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { PipelineOutput } from "./pipeline-output";
 import { Link } from "@tanstack/react-router";
 import type { DimensionRow, JudgedAnswer } from "#client/monitor/judged-items";
 import {
@@ -11,11 +12,9 @@ import type {
 	MonitoredStage,
 	RunRecordResponse,
 } from "#client/monitor/run-record-query";
-import {
-	endedStatus,
-	hasEnded,
-	judgeLeftWaiting,
-} from "#client/monitor/run-record-query";
+import { judgeLeftWaiting } from "#client/monitor/run-record-query";
+import { nodeStatus } from "#client/monitor/task-graph";
+import type { PipelineRow } from "#client/shell/run-in-flight";
 import type { StageJudgeResponse } from "#client/monitor/stage-judge-query";
 import { stageJudgeQuery } from "#client/monitor/stage-judge-query";
 import type { StageSessionResponse } from "#client/monitor/stage-session-query";
@@ -23,7 +22,7 @@ import { stageSessionQuery } from "#client/monitor/stage-session-query";
 import { minutesAndSeconds } from "#client/monitor/minutes-and-seconds";
 import { StepOutputs } from "./step-outputs";
 import { plural } from "#client/plural";
-import { spendReading } from "#client/run-history/run-progress";
+import { stageCostReading } from "./step-readings";
 import { Grade } from "#client/system/components/grade";
 import { STATUS_VOCABULARY } from "#client/system/components/status";
 
@@ -61,30 +60,6 @@ export function wallTimeReading(stage: MonitoredStage): string {
 	return stage.wallTime.state === "available"
 		? minutesAndSeconds(stage.wallTime.ms)
 		: notRecorded("wall time", stage.wallTime.reasons);
-}
-
-type RecordedCost = MonitoredStage["sessionCost"];
-
-function costPart(name: string, cost: RecordedCost): string {
-	return cost.state === "available"
-		? `${name} ${spendReading(cost.usd)}`
-		: notRecorded(`${name} cost`, cost.reasons);
-}
-
-/**
- * The stage's session and judge spend together, as its record keeps them, or
- * each part apart when the record lacks one, so a part is never read as the
- * whole.
- */
-export function stageCostReading(stage: MonitoredStage): string {
-	const { sessionCost, judgeCost } = stage;
-	if (sessionCost.state === "available" && judgeCost.state === "available") {
-		return spendReading(sessionCost.usd + judgeCost.usd);
-	}
-
-	return [costPart("session", sessionCost), costPart("judge", judgeCost)].join(
-		" · ",
-	);
 }
 
 export const NO_KEPT_TRANSCRIPT =
@@ -237,33 +212,32 @@ function firedReading(
 		: "blockers pending";
 }
 
-function verdictState(
-	stage: MonitoredStage,
-	leftWaiting: boolean,
-): "accepted" | "stopped" | "interrupted" | "pending" {
-	if (hasEnded(stage)) {
-		return endedStatus(stage);
-	}
-
-	return leftWaiting ? "interrupted" : "pending";
-}
-
 function VerdictStat({
 	stage,
+	row,
+	record,
 	judge,
 	leftWaiting,
 }: {
 	readonly stage: MonitoredStage;
+	readonly row: PipelineRow;
+	readonly record: RunRecordResponse;
 	readonly judge: StageJudgeResponse | undefined;
 	readonly leftWaiting: boolean;
 }): React.JSX.Element {
-	const state = verdictState(stage, leftWaiting);
+	let status = nodeStatus(stage, row, record);
+	if (stage.status === "awaiting-judgment") {
+		status = leftWaiting
+			? { state: "interrupted", words: "judge never returned" }
+			: { state: "pending", words: "awaiting judgment" };
+	}
+	const { state } = status;
 
 	return (
 		<StatCard label="Verdict">
 			<div className="mt-1.25 flex items-center justify-end gap-1.75 text-14">
 				<span aria-hidden="true">{STATUS_VOCABULARY[state].glyph}</span>
-				{STATUS_VOCABULARY[state].word}
+				{status.words}
 			</div>
 			<div className="text-10-5 text-muted-foreground">
 				{firedReading(judge, leftWaiting)}
@@ -334,7 +308,7 @@ function JudgedSections({
 	}
 
 	return (
-		<div className="max-w-225">
+		<div className="min-w-0">
 			<SectionTitle>Hard blockers</SectionTitle>
 			<BlockerRows
 				run={run}
@@ -443,11 +417,13 @@ function InstructionsRead({
  */
 export function StepReport({
 	run,
+	row,
 	record,
 	stage,
 	number,
 }: {
 	readonly run: string;
+	readonly row: PipelineRow;
 	readonly record: RunRecordResponse;
 	readonly stage: MonitoredStage;
 	readonly number: number;
@@ -460,37 +436,83 @@ export function StepReport({
 		: (session.data ?? "loading");
 
 	return (
-		<section
-			aria-label="Step report"
-			className="min-w-0 rounded-lg border border-border bg-card px-5 pt-4 pb-8"
-		>
-			<div className="flex flex-wrap items-start gap-4">
-				<div>
-					<h2 className="text-15">
-						Step {String(number)} · {stage.stage}
-					</h2>
-					<p className="mt-1 font-mono text-11-5 text-dim">
-						{metaLine(stage, sessionRead)}
-					</p>
-					<SessionOnDisk run={run} stage={stage.stage} session={sessionRead} />
-				</div>
-				<div className="ml-auto flex gap-2.5">
-					<GradeStat stage={stage} record={record} />
-					<VerdictStat
-						stage={stage}
-						judge={judge.data}
+		<section aria-label="Step report" className="min-w-0">
+			<div className="mb-4">
+				<h2 className="text-17 font-medium">
+					Step {String(number)} · {stage.stage}
+				</h2>
+				<p className="mt-1 font-mono text-11-5 text-dim">
+					{metaLine(stage, sessionRead)}
+				</p>
+			</div>
+			<div className="grid items-start gap-4 lg:grid-cols-2">
+				<PipelineOutput run={run} stage={stage} row={row} record={record} />
+				<section
+					aria-label="Selected step assessment"
+					className="min-w-0 rounded-lg border border-border bg-card p-4"
+				>
+					<div className="flex flex-wrap items-start gap-4">
+						<h3 className="text-14 font-medium">Step assessment</h3>
+						<div className="ml-auto flex gap-2.5">
+							<GradeStat stage={stage} record={record} />
+							<VerdictStat
+								stage={stage}
+								row={row}
+								record={record}
+								judge={judge.data}
+								leftWaiting={leftWaiting}
+							/>
+						</div>
+					</div>
+					<JudgedSections
+						run={run}
+						stage={stage.stage}
+						judge={judge.isError ? "unreadable" : judge.data}
 						leftWaiting={leftWaiting}
 					/>
-				</div>
+				</section>
 			</div>
-			<JudgedSections
-				run={run}
-				stage={stage.stage}
-				judge={judge.isError ? "unreadable" : judge.data}
-				leftWaiting={leftWaiting}
-			/>
-			<StepOutputs stage={stage} />
-			<InstructionsRead stage={stage} />
+			<details className="mt-4 rounded-lg border border-border">
+				<summary className="cursor-pointer px-4 py-3 text-12">
+					Input &amp; checkpoint
+				</summary>
+				<div className="px-4 pb-4">
+					<p className="text-12 text-dim">
+						{stage.artifactsIn.entries.length === 0
+							? "No input artifacts recorded."
+							: "Saved input artifacts"}
+					</p>
+					<ul className="mt-2 space-y-2 text-12">
+						{stage.artifactsIn.entries.map((entry, index) => {
+							let label: string;
+							if (entry.from === "earlier stage") {
+								label = `${entry.path} · ${entry.change} by ${entry.stage}`;
+							} else if (entry.from === "task declaration") {
+								label = `${entry.taskId} · task declaration`;
+							} else {
+								const checkpoint =
+									entry.checkpointShortId.state === "available"
+										? entry.checkpointShortId.shortId
+										: `${entry.upstream} checkpoint`;
+								label = `${entry.target} · ${checkpoint} · frozen starting checkpoint`;
+							}
+							return (
+								<li key={index} className="font-mono wrap-anywhere">
+									{label}
+								</li>
+							);
+						})}
+					</ul>
+					{stage.artifactsIn.missing.map(({ part, reason }) => (
+						<p key={part} className="mt-2 text-12 text-dim">
+							{part}: {reason}
+						</p>
+					))}
+					<StepOutputs stage={stage} />
+					<InstructionsRead stage={stage} />
+					<SessionOnDisk run={run} stage={stage.stage} session={sessionRead} />
+				</div>
+			</details>
 		</section>
 	);
 }

@@ -1,24 +1,27 @@
 import { useQuery } from "@tanstack/react-query";
+import { Search } from "lucide-react";
 import { useEffect, useState } from "react";
 import { corpusVersionLabel } from "#benchmark/corpus-version-label";
+import { launchSettingsQuery } from "#client/launch/settings-query";
+import { plural } from "#client/plural";
 import { EmptyState } from "#client/system/components/empty-state";
+import { Notice } from "#client/system/components/notice";
+import { ScreenHeader } from "#client/system/components/screen-header";
 import { TableShell } from "#client/system/components/table-shell";
 import { Button } from "#client/system/ui/button";
+import { corpusDraftIdentity } from "./corpus-draft";
+import { AppliedEdit, CorpusEditor } from "./corpus-edit";
+import type { AppliedCorpusEdit } from "./corpus-edit-requests";
 import type { CorpusResponse } from "./corpus-query";
 import { corpusQuery } from "./corpus-query";
-import { plural } from "#client/plural";
-import { ScreenHeader } from "#client/system/components/screen-header";
-import { Notice } from "#client/system/components/notice";
-import { launchSettingsQuery } from "#client/launch/settings-query";
-import type { AppliedCorpusEdit } from "./corpus-edit-requests";
-import { AppliedEdit, CorpusEditor } from "./corpus-edit";
-import { LastEditCard } from "./last-edit-card";
-import type { LineRange } from "./line-range";
+import { CorpusSettingsLink } from "./corpus-return";
 import { ExperimentSource, useExperimentSource } from "./experiment-source";
 import type {
 	CorpusExperimentSource,
 	SourceEvidence,
 } from "./experiment-source";
+import { LastEditCard } from "./last-edit-card";
+import type { LineRange } from "./line-range";
 
 type CorpusFile = CorpusResponse["files"][number];
 
@@ -144,12 +147,19 @@ function EditSection({
 						<code className="font-mono text-pale">
 							{settings.data.linkCommand}
 						</code>
+						{". "}
+						<CorpusSettingsLink
+							path={edit.kind === "idle" ? undefined : edit.path}
+							lines={edit.kind === "editing" ? edit.lines : undefined}
+							source={source}
+						/>
 					</p>
 				) : null}
 				{settings.isSuccess &&
 				settings.data.linkedCorpus.kind === "directory" ? (
 					<EditBody
 						edit={edit}
+						root={settings.data.linkedCorpus.root}
 						onEdit={onEdit}
 						source={source}
 						evidence={evidence}
@@ -162,11 +172,13 @@ function EditSection({
 
 function EditBody({
 	edit,
+	root,
 	onEdit,
 	source,
 	evidence,
 }: {
 	readonly edit: EditState;
+	readonly root: string;
 	readonly onEdit: (edit: EditState) => void;
 	readonly source: CorpusExperimentSource | undefined;
 	readonly evidence: SourceEvidence | undefined;
@@ -183,8 +195,10 @@ function EditBody({
 		case "editing": {
 			return (
 				<CorpusEditor
-					key={edit.path}
+					key={JSON.stringify(corpusDraftIdentity(root, edit.path, source))}
 					path={edit.path}
+					root={root}
+					source={source}
 					lines={edit.lines}
 					hasReplayableSource={evidence?.replayable === true}
 					onDiscard={() => {
@@ -217,12 +231,27 @@ function CorpusInventory({
 	isLoading,
 	isError,
 	onEdit,
+	sourcePath,
 }: {
+	readonly sourcePath: string | undefined;
 	readonly report: CorpusResponse | undefined;
 	readonly isLoading: boolean;
 	readonly isError: boolean;
 	readonly onEdit: ((path: string) => void) | undefined;
 }): React.JSX.Element {
+	const [search, setSearch] = useState("");
+	const needle = search.trim().toLowerCase();
+	const files = (report?.files ?? [])
+		.filter((file) =>
+			[file.path, file.sha256].some((text) =>
+				text.toLowerCase().includes(needle),
+			),
+		)
+		.toSorted(
+			(left, right) =>
+				Number(right.path === sourcePath) - Number(left.path === sourcePath),
+		);
+
 	return (
 		<>
 			{isLoading ? <p className="text-muted-foreground">Loading…</p> : null}
@@ -250,13 +279,45 @@ function CorpusInventory({
 				</EmptyState>
 			) : null}
 			{report !== undefined && report.files.length > 0 ? (
+				<div className="flex flex-wrap items-center gap-3">
+					<label className="flex flex-1 items-center gap-2 rounded-md border border-strong bg-card px-3 py-2">
+						<Search aria-hidden="true" className="size-4 text-dim" />
+						<input
+							type="search"
+							aria-label="Search corpus files"
+							placeholder="File path or hash"
+							value={search}
+							onChange={(event) => {
+								setSearch(event.target.value);
+							}}
+							className="w-full bg-transparent text-12"
+						/>
+					</label>
+					<Button
+						variant="ghost"
+						onClick={() => {
+							setSearch("");
+						}}
+					>
+						Clear search
+					</Button>
+					<span
+						role="status"
+						className="text-11-5 text-dim"
+					>{`${files.length} of ${report.files.length} files shown`}</span>
+				</div>
+			) : null}
+			{report !== undefined && report.files.length > 0 && files.length === 0 ? (
+				<p className="text-13 text-muted-foreground">
+					No corpus files match. Clear search to show all files.
+				</p>
+			) : null}
+			{report !== undefined && files.length > 0 ? (
 				<TableShell
 					caption="Corpus files"
 					columns={onEdit === undefined ? [...COLUMNS] : [...COLUMNS, "Edit"]}
 					numeric={["Read by", "Invalidated"]}
-					rows={report.files.map((file) =>
-						rowFor(file, report.lastEdit, onEdit),
-					)}
+					rows={files.map((file) => rowFor(file, report.lastEdit, onEdit))}
 				/>
 			) : null}
 		</>
@@ -347,6 +408,7 @@ export function CorpusPage({
 					evidence={visibleEvidence}
 				/>
 				<CorpusInventory
+					sourcePath={sourcePath}
 					report={query.data}
 					isLoading={query.isLoading}
 					isError={query.isError}

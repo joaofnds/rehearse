@@ -1,5 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { RefObject } from "react";
 import type {
 	SessionHistoryDetail,
 	SessionHistoryEvent,
@@ -13,13 +14,13 @@ import { apiClient } from "#client/api-client";
 import { Switcher } from "#client/system/components/switcher";
 import {
 	RequestTimeline,
+	RequestCostReadings,
 	requestRowForLine,
 	requestRowId,
 } from "./request-timeline";
 import { cn } from "#client/system/cn";
 import { LaunchDialog } from "#client/launch/launch-dialog";
 import { ScreenHeader } from "#client/system/components/screen-header";
-import { SectionLabel } from "#client/system/components/section-label";
 import { AgentTreePane, agentName } from "./agent-tree-pane";
 import type { AgentsResponse, ExcerptRequest } from "./agent-tree-pane";
 import { PaneHeading } from "./pane-heading";
@@ -303,7 +304,7 @@ function identityEntries(
 	return attempt satisfies never;
 }
 
-type SourceSort = "Introduced" | "Most repeated";
+type SourceSort = "Delivered size" | "Most repeated";
 
 function summaryPath(identity: SessionHistoryIdentity): string {
 	if (identity.kind === "standalone") {
@@ -339,7 +340,10 @@ async function fetchSummary(
 		response = await apiClient.api.replays[":lineage"][
 			":timestamp"
 		].history.$get({
-			param: { lineage: identity.lineage, timestamp: identity.timestamp },
+			param: {
+				lineage: encodeURIComponent(identity.lineage),
+				timestamp: encodeURIComponent(identity.timestamp),
+			},
 		});
 	} else {
 		response = await apiClient.api.groups[":groupId"].reps[
@@ -353,6 +357,20 @@ async function fetchSummary(
 	}
 
 	return response.json();
+}
+
+interface SessionHistoryQuery {
+	readonly queryKey: readonly ["session-history", string];
+	readonly queryFn: () => Promise<SessionHistoryReport>;
+}
+
+export function sessionHistoryQuery(
+	identity: SessionHistoryIdentity,
+): SessionHistoryQuery {
+	return {
+		queryKey: ["session-history", summaryPath(identity)],
+		queryFn: () => fetchSummary(identity),
+	};
 }
 
 /**
@@ -547,7 +565,9 @@ function detailContentHeading(detail: SessionHistoryDetail): string {
 
 function reportEvidenceLabel(report: SessionHistoryReport): string {
 	if (report.boundary === "unknown") {
-		return "? Unavailable · boundary unknown";
+		return report.evidence.state === "complete"
+			? "? Unavailable · boundary unknown"
+			: `? Unavailable · boundary unknown · ${report.evidence.reasons.join(", ")}`;
 	}
 	if (report.evidence.state === "unavailable") {
 		return `? Unavailable · ${report.evidence.reasons.join(", ")}`;
@@ -556,7 +576,7 @@ function reportEvidenceLabel(report: SessionHistoryReport): string {
 		return `◐ Partial · ${report.evidence.reasons.join(", ")}`;
 	}
 
-	return `✓ Complete · ${report.startingContext.length} recorded events`;
+	return `✓ Complete · ${report.attemptEvents.length} attempt events · ${report.sources.length} sources`;
 }
 
 function ReportEvidence({
@@ -569,7 +589,7 @@ function ReportEvidence({
 		report.evidence.reasons.length <= 3
 	) {
 		return (
-			<strong className="font-mono text-sm">
+			<strong className="font-mono text-13">
 				{reportEvidenceLabel(report)}
 			</strong>
 		);
@@ -578,7 +598,7 @@ function ReportEvidence({
 	const state =
 		report.evidence.state === "partial" ? "◐ Partial" : "? Unavailable";
 	return (
-		<details className="min-w-0 font-mono text-sm">
+		<details className="min-w-0 font-mono text-13">
 			<summary className="cursor-pointer">
 				{report.boundary === "unknown"
 					? "? Unavailable · boundary unknown"
@@ -686,7 +706,7 @@ const DETAIL_SECTION_CLASSES =
 	"flex flex-col gap-2 border-t border-subtle px-3 py-3";
 
 const EVIDENCE_TEXT_CLASSES =
-	"max-h-96 overflow-auto rounded-md bg-background p-2.5 font-mono text-sm break-words whitespace-pre-wrap text-secondary-foreground";
+	"max-h-96 overflow-auto rounded-md bg-background p-2.5 font-mono text-13 break-words whitespace-pre-wrap text-secondary-foreground";
 
 function SourceList({
 	sources,
@@ -743,23 +763,25 @@ function SourceList({
 						)}
 					</span>
 					<small>
-						<SectionLabel>{source.kind}</SectionLabel>
+						<span className="text-12 text-muted-foreground">{source.kind}</span>
 					</small>
-					<small className="text-xs text-dim">
+					<small className="text-12 text-muted-foreground">
 						{source.failedOccurrences} failed · {source.partialOccurrences}{" "}
 						partial · {source.missingOccurrences} missing ·{" "}
 						{source.unavailableOccurrences} unavailable
 					</small>
-					<small className="text-xs text-dim">
+					<small className="text-12 text-muted-foreground">
 						{measurementLabel(source.measurement)}
 					</small>
-					<small className="text-xs text-dim">
+					<small className="text-12 text-muted-foreground">
 						{source.observedDeliveryCount === undefined
 							? "? Unavailable observed deliveries · boundary unknown"
 							: `${source.observedDeliveryCount} observed deliveries`}
 					</small>
 					{source.repeatDeliveryCount === undefined ? (
-						<small className="text-xs text-dim">? Unavailable repeats</small>
+						<small className="text-12 text-muted-foreground">
+							? Unavailable repeats
+						</small>
 					) : null}
 				</button>
 			))}
@@ -817,25 +839,25 @@ function EventLedger({
 						onSelect(event.id);
 					}}
 				>
-					<code className="w-14 shrink-0 font-mono text-xs text-accent-foreground">
+					<code className="w-14 shrink-0 font-mono text-12 text-accent-foreground">
 						{locatorLabel(event)}
 					</code>
 					<span className="min-w-0 flex-1">{event.label}</span>
 					<small className="shrink-0">
-						<SectionLabel>
+						<span className="text-12 text-muted-foreground">
 							<span aria-hidden="true">{stateGlyph(event.state)}</span>{" "}
 							{event.state}
-						</SectionLabel>
+						</span>
 					</small>
 					{event.timestamp === undefined ? null : (
-						<time className="basis-full pl-16.5 font-mono text-xs text-dim">
+						<time className="basis-full pl-16.5 font-mono text-12 text-muted-foreground">
 							{event.timestamp}
 						</time>
 					)}
 				</button>
 			))}
 			{events.length === 0 ? (
-				<p className="px-3 py-2.5 text-sm text-dim">
+				<p className="px-3 py-2.5 text-13 text-muted-foreground">
 					No events match this source.
 				</p>
 			) : null}
@@ -918,12 +940,12 @@ function DetailPane({
 	return (
 		<div>
 			<header className="flex justify-between gap-2.5 px-3 py-2.5 text-muted-foreground">
-				<code className="font-mono text-xs text-accent-foreground">{`${detail.locator.line}:${detail.locator.block}`}</code>
+				<code className="font-mono text-12 text-accent-foreground">{`${detail.locator.line}:${detail.locator.block}`}</code>
 				<span>{eventStateLabel(detail.state)}</span>
 			</header>
 			<section className={DETAIL_SECTION_CLASSES}>
-				<h3 className="text-sm font-medium">{contentHeading}</h3>
-				<p className="text-xs text-dim">
+				<h3 className="text-13 font-medium">{contentHeading}</h3>
+				<p className="text-12 text-muted-foreground">
 					{measurementLabel(detail.deliveredMeasurement)}
 				</p>
 				{detail.deliveredText === undefined ? (
@@ -933,12 +955,12 @@ function DetailPane({
 				)}
 			</section>
 			<section className={DETAIL_SECTION_CLASSES}>
-				<h3 className="text-sm font-medium">Structured source snapshot</h3>
-				<p className="text-xs text-dim">
+				<h3 className="text-13 font-medium">Structured source snapshot</h3>
+				<p className="text-12 text-muted-foreground">
 					{measurementLabel(detail.snapshotMeasurement)}
 				</p>
 				{detail.sourceSnapshotRange === undefined ? null : (
-					<p className="text-xs text-dim">
+					<p className="text-12 text-muted-foreground">
 						Lines {detail.sourceSnapshotRange.startLine}–
 						{detail.sourceSnapshotRange.startLine +
 							detail.sourceSnapshotRange.deliveredLineCount -
@@ -954,7 +976,7 @@ function DetailPane({
 				)}
 			</section>
 			{detail.applicationTruncated ? (
-				<p className="px-3 py-2.5 text-xs text-dim">
+				<p className="px-3 py-2.5 text-12 text-muted-foreground">
 					◐ Application-truncated · display capped at 65,536 UTF-8 bytes.
 				</p>
 			) : null}
@@ -975,24 +997,34 @@ function EvidenceDetail({
 }): React.JSX.Element | null {
 	if (!served) {
 		return (
-			<p className="px-3 py-2.5 text-sm text-dim">
+			<p className="px-3 py-2.5 text-13 text-muted-foreground">
 				A replay serves no per-event evidence detail.
 			</p>
 		);
 	}
 	if (loading) {
-		return <p className="px-3 py-2.5 text-sm text-dim">Loading evidence…</p>;
+		return (
+			<p className="px-3 py-2.5 text-13 text-muted-foreground">
+				Loading evidence…
+			</p>
+		);
 	}
 	if (failed) {
 		return (
-			<p role="alert" className="px-3 py-2.5 text-sm text-dim">
+			<p role="alert" className="px-3 py-2.5 text-13 text-muted-foreground">
 				<span aria-hidden="true">⚠ </span>
 				Could not load event evidence.
 			</p>
 		);
 	}
 
-	return detail === undefined ? null : <DetailPane detail={detail} />;
+	return detail === undefined ? (
+		<p className="px-3 py-3 text-13 text-muted-foreground">
+			No event evidence is recorded for this selection.
+		</p>
+	) : (
+		<DetailPane detail={detail} />
+	);
 }
 
 /**
@@ -1002,7 +1034,7 @@ function EvidenceDetail({
  */
 function timelineNote(failed: boolean, recorded: boolean): string {
 	if (!recorded) {
-		return "A saved stage records no request series.";
+		return "A saved stage or replay records no request series; raw transcript history cannot be reconstructed.";
 	}
 
 	return failed
@@ -1026,19 +1058,28 @@ function DeclaredCorpusPane({
 			aria-label="Declared corpus"
 			className="rounded-lg border bg-muted px-4 py-3 text-secondary-foreground"
 		>
-			<h2>
-				<SectionLabel>Declared corpus</SectionLabel>
-			</h2>
-			<ul className="mt-2 flex flex-col gap-1">
-				{entries.map((entry) => (
-					<li key={`${entry.state}:${entry.path}`}>
-						<code className="font-mono text-sm">{entry.path}</code>{" "}
-						<small className="text-xs text-dim">
-							{corpusStateLabel(entry)}
-						</small>
-					</li>
-				))}
-			</ul>
+			<details>
+				<summary className="cursor-pointer text-13">
+					Declared corpus · {entries.length} files ·{" "}
+					{
+						entries.filter(({ state }) => state === "no-observation-recorded")
+							.length
+					}{" "}
+					without an observation ·{" "}
+					{entries.filter(({ state }) => state === "undeclared").length}{" "}
+					undeclared
+				</summary>
+				<ul className="mt-2 flex flex-col gap-1">
+					{entries.map((entry) => (
+						<li key={`${entry.state}:${entry.path}`}>
+							<code className="font-mono text-13">{entry.path}</code>{" "}
+							<small className="text-12 text-muted-foreground">
+								{corpusStateLabel(entry)}
+							</small>
+						</li>
+					))}
+				</ul>
+			</details>
 		</section>
 	);
 }
@@ -1059,6 +1100,25 @@ function corpusStateLabel(entry: StageCorpusResponse[number]): string {
 	return "No observation recorded";
 }
 
+function RequestTimelineStatus({
+	failed,
+	recorded,
+}: {
+	readonly failed: boolean;
+	readonly recorded: boolean;
+}): React.JSX.Element {
+	return (
+		<section aria-label="Request timeline">
+			<p
+				className="rounded-md border bg-muted px-3 py-2.5 text-12 text-muted-foreground"
+				role={failed && recorded ? "alert" : undefined}
+			>
+				{timelineNote(failed, recorded)}
+			</p>
+		</section>
+	);
+}
+
 function RequestTimelinePane({
 	read,
 	failed,
@@ -1075,24 +1135,13 @@ function RequestTimelinePane({
 	readonly onSelect: (entry: SessionHistoryRequestEntry) => void;
 }): React.JSX.Element {
 	if (read === undefined) {
-		return (
-			<section aria-label="Request timeline">
-				<PaneHeading>Request timeline</PaneHeading>
-				<p
-					className="px-3 py-2.5 text-xs text-dim"
-					role={failed && recorded ? "alert" : undefined}
-				>
-					{timelineNote(failed, recorded)}
-				</p>
-			</section>
-		);
+		return <RequestTimelineStatus failed={failed} recorded={recorded} />;
 	}
 
 	return (
 		<RequestTimeline
 			series={read.series}
 			entries={entries}
-			cost={read.cost}
 			requestCosts={read.requestCosts}
 			instructionLoads={read.instructionLoads}
 			selected={selected}
@@ -1125,7 +1174,7 @@ function AgentExcerpt({
 	});
 	if (request === undefined) {
 		return (
-			<p className="px-3 py-2.5 text-11-5 text-dim">
+			<p className="px-3 py-2.5 text-11-5 text-muted-foreground">
 				Open a delivery's excerpt to read the text the agent received.
 			</p>
 		);
@@ -1133,7 +1182,7 @@ function AgentExcerpt({
 
 	return (
 		<>
-			<p className="px-3 pt-2.5 text-11-5 text-dim">
+			<p className="px-3 pt-2.5 text-11-5 text-muted-foreground">
 				Received by {agentName(request.agentId)} · event {request.eventId}
 			</p>
 			<EvidenceDetail
@@ -1167,12 +1216,17 @@ function AgentsSection({
 	});
 	const [excerptRequest, setExcerptRequest] = useState<ExcerptRequest>();
 	if (!recorded) {
-		return null;
+		return (
+			<p className="px-3 py-3 text-13 text-muted-foreground">
+				Saved stages and replays keep no agent transcripts or per-agent request
+				measurements.
+			</p>
+		);
 	}
 	if (agents.data === undefined) {
 		return (
 			<p
-				className="text-12 text-dim"
+				className="text-12 text-muted-foreground"
 				role={agents.isError ? "alert" : undefined}
 			>
 				{agents.isError
@@ -1183,7 +1237,7 @@ function AgentsSection({
 	}
 	if (agents.data.state === "unavailable") {
 		return (
-			<p className="text-12 text-dim">
+			<p className="text-12 text-muted-foreground">
 				? Agents unavailable · {agents.data.reason}
 			</p>
 		);
@@ -1191,6 +1245,7 @@ function AgentsSection({
 
 	return (
 		<AgentTreePane
+			selectionKey={path}
 			agents={agents.data}
 			sourceId={sourceId}
 			excerpt={
@@ -1216,7 +1271,7 @@ function PageLead({
 		<span className="flex flex-wrap items-center gap-4">
 			<a
 				href="/"
-				className="text-sm text-muted-foreground hover:text-foreground"
+				className="text-13 text-muted-foreground hover:text-foreground"
 			>
 				← Back to Runs
 			</a>
@@ -1230,21 +1285,234 @@ function PageLead({
 	);
 }
 
-export function SessionHistoryPage({
-	identity,
-	embedded = false,
+const EVIDENCE_VIEWS = ["Evidence", "Requests", "Agents"] as const;
+type EvidenceView = (typeof EVIDENCE_VIEWS)[number];
+
+interface InvestigationSelection {
+	readonly sourceId: string | undefined;
+	readonly eventId: string | undefined;
+	readonly requestId: string | undefined;
+	readonly sourceSort: SourceSort;
+	readonly view: EvidenceView;
+}
+
+function ScopeReadings({
+	report,
+	requests,
+	requestsFailed,
+	recorded,
+	showRequestStatus,
 }: {
+	readonly report: SessionHistoryReport;
+	readonly requests: RequestSeriesResponse | undefined;
+	readonly requestsFailed: boolean;
+	readonly recorded: boolean;
+	readonly showRequestStatus: boolean;
+}): React.JSX.Element {
+	return (
+		<section
+			aria-label="Selected scope readings"
+			className="flex flex-col gap-3"
+		>
+			<div className="flex flex-wrap items-center justify-between gap-2 text-13">
+				<span>
+					Saved evidence · {report.attempt.caseId}
+					{report.attempt.kind === "session"
+						? " / attempt"
+						: ` / ${report.attempt.stage}`}
+				</span>
+				<ReportEvidence report={report} />
+			</div>
+			{report.attempt.kind === "stopped-stage" ? (
+				<p className="text-13 text-secondary-foreground">
+					Stopped because {report.attempt.error}
+				</p>
+			) : null}
+			{requests === undefined ? null : (
+				<RequestCostReadings cost={requests.cost} />
+			)}
+			{requests === undefined && showRequestStatus ? (
+				<RequestTimelineStatus failed={requestsFailed} recorded={recorded} />
+			) : null}
+		</section>
+	);
+}
+
+function TranscriptDiagnostics({
+	report,
+	onSelect,
+}: {
+	readonly report: SessionHistoryReport;
+	readonly onSelect: (id: string) => void;
+}): React.JSX.Element | null {
+	const diagnostics = diagnosticLocators(report);
+	return diagnostics.length === 0 ? null : (
+		<nav aria-label="Transcript diagnostics" className="flex flex-wrap gap-2">
+			{diagnostics.map((entry) => (
+				<button
+					key={entry.id}
+					type="button"
+					className="rounded-md border px-3 py-2 text-12 text-secondary-foreground hover:bg-accent"
+					onClick={() => {
+						onSelect(entry.id);
+					}}
+				>
+					{entry.id} · {entry.label}
+				</button>
+			))}
+		</nav>
+	);
+}
+
+function StartingContext({
+	report,
+}: {
+	readonly report: SessionHistoryReport;
+}): React.JSX.Element {
+	return (
+		<details className="rounded-lg border bg-muted px-4 py-3 text-secondary-foreground">
+			<summary className="cursor-pointer text-13">
+				Starting context · {report.startingContext.length} events ·{" "}
+				{report.boundary === "unknown" ? "Boundary unknown" : "known boundary"}
+			</summary>
+			<section
+				aria-label="Starting context"
+				className="mt-3 flex flex-col gap-1"
+			>
+				{report.startingContext.map((event) => (
+					<p key={event.id} className="text-13">
+						<code className="font-mono text-accent-foreground">
+							{locatorLabel(event)}
+						</code>{" "}
+						{event.label}
+					</p>
+				))}
+			</section>
+		</details>
+	);
+}
+
+interface InvestigationControls {
+	readonly sourceId: string | undefined;
+	readonly setSourceId: (value: string | undefined) => void;
+	readonly selectedEventId: string | undefined;
+	readonly setSelectedEventId: (value: string | undefined) => void;
+	readonly selectedRequestId: string | undefined;
+	readonly setSelectedRequestId: (value: string | undefined) => void;
+	readonly view: InvestigationSelection["view"];
+	readonly setView: (value: InvestigationSelection["view"]) => void;
+	readonly sourceSort: SourceSort;
+	readonly setSourceSort: (value: SourceSort) => void;
+	readonly eventsRef: RefObject<HTMLElement | null>;
+}
+
+function useInvestigationSelection(
+	path: string,
+	initialEventId: string | undefined,
+): InvestigationControls {
+	const queryClient = useQueryClient();
+	const cached = useQuery({
+		queryKey: ["session-history-selection", path],
+		queryFn: (): InvestigationSelection | null => null,
+		initialData: null,
+		enabled: false,
+		gcTime: Infinity,
+	});
+	const savedSelection = cached.data ?? undefined;
+	const [sourceId, setSourceId] = useState<string | undefined>(
+		initialEventId === undefined ? savedSelection?.sourceId : undefined,
+	);
+	const [selectedEventId, setSelectedEventId] = useState<string | undefined>(
+		initialEventId ?? savedSelection?.eventId,
+	);
+	const [selectedRequestId, setSelectedRequestId] = useState<
+		string | undefined
+	>(initialEventId === undefined ? savedSelection?.requestId : undefined);
+	const [view, setView] = useState<EvidenceView>(
+		initialEventId === undefined
+			? (savedSelection?.view ?? "Evidence")
+			: "Evidence",
+	);
+	const eventsRef = useRef<HTMLElement>(null);
+	const [sourceSort, setSourceSort] = useState<SourceSort>(
+		savedSelection?.sourceSort ?? "Delivered size",
+	);
+	useEffect(() => {
+		queryClient.setQueryData<InvestigationSelection>(
+			["session-history-selection", path],
+			{
+				sourceId,
+				eventId: selectedEventId,
+				requestId: selectedRequestId,
+				sourceSort,
+				view,
+			},
+		);
+	}, [
+		queryClient,
+		path,
+		sourceId,
+		selectedEventId,
+		selectedRequestId,
+		sourceSort,
+		view,
+	]);
+
+	return {
+		sourceId,
+		setSourceId,
+		selectedEventId,
+		setSelectedEventId,
+		selectedRequestId,
+		setSelectedRequestId,
+		view,
+		setView,
+		sourceSort,
+		setSourceSort,
+		eventsRef,
+	};
+}
+
+interface SessionHistoryPageProps {
 	readonly identity: SessionHistoryIdentity;
 	readonly embedded?: boolean;
-}): React.JSX.Element {
+	readonly initialEventId?: string | undefined;
+	readonly revealEvents?: boolean;
+}
+
+export function SessionHistoryPage(
+	props: SessionHistoryPageProps,
+): React.JSX.Element {
+	return (
+		<SessionHistoryWorkspace
+			key={`${summaryPath(props.identity)}:${props.initialEventId ?? "selection"}`}
+			{...props}
+		/>
+	);
+}
+
+function SessionHistoryWorkspace({
+	identity,
+	embedded = false,
+	initialEventId,
+	revealEvents = false,
+}: SessionHistoryPageProps): React.JSX.Element {
 	const path = summaryPath(identity);
-	const [sourceId, setSourceId] = useState<string>();
-	const [selectedEventId, setSelectedEventId] = useState<string>();
-	const [sourceSort, setSourceSort] = useState<SourceSort>("Introduced");
-	const summary = useQuery({
-		queryKey: ["session-history", path],
-		queryFn: () => fetchSummary(identity),
-	});
+	const {
+		sourceId,
+		setSourceId,
+		selectedEventId,
+		setSelectedEventId,
+		selectedRequestId,
+		setSelectedRequestId,
+		view,
+		setView,
+		sourceSort,
+		setSourceSort,
+		eventsRef,
+	} = useInvestigationSelection(path, initialEventId);
+
+	const summary = useQuery(sessionHistoryQuery(identity));
 	const runHistory = useQuery(runListingQuery);
 	const names = recordNames(
 		identity,
@@ -1291,8 +1559,6 @@ export function SessionHistoryPage({
 		queryFn: () => fetchDetail(identity, activeEventId ?? ""),
 		enabled: servesEventDetail && activeEventId !== undefined,
 	});
-	const diagnostics =
-		summary.data === undefined ? [] : diagnosticLocators(summary.data);
 	const timelineEntries = requests.data?.series.entries ?? [];
 	const selectedEvent = events.find(({ id }) => id === activeEventId);
 	/**
@@ -1300,10 +1566,19 @@ export function SessionHistoryPage({
 	 * for it share one, which is the only identifier the two readings have in
 	 * common. Filtering the event pane therefore narrows the timeline too.
 	 */
-	const selectedRequestRow = requestRowForLine(
-		timelineEntries,
-		selectedEvent?.locator.line,
-	);
+	const selectedRequestRow =
+		selectedRequestId ??
+		requestRowForLine(timelineEntries, selectedEvent?.locator.line);
+	const selectEvent = (id: string): void => {
+		setSelectedEventId(id);
+		setSelectedRequestId(undefined);
+	};
+	useEffect(() => {
+		if (revealEvents && summary.data !== undefined) {
+			eventsRef.current?.scrollIntoView?.({ block: "nearest" });
+			eventsRef.current?.focus({ preventScroll: true });
+		}
+	}, [revealEvents, summary.data]);
 	const visibleEntries =
 		sourceId === undefined
 			? timelineEntries
@@ -1329,143 +1604,139 @@ export function SessionHistoryPage({
 				) : null}
 				{summary.data === undefined ? null : (
 					<>
+						<ScopeReadings
+							report={summary.data}
+							requests={requests.data}
+							requestsFailed={requests.isError}
+							showRequestStatus={view !== "Requests"}
+							recorded={recordsRequestSeries}
+						/>
 						<section
-							aria-label="Starting context"
-							className="flex flex-wrap justify-between gap-4 rounded-lg border bg-muted px-4 py-3 text-secondary-foreground"
+							aria-label="Context investigation"
+							className="overflow-hidden rounded-lg border bg-card"
 						>
-							<div className="flex flex-col gap-1">
-								<span>
-									{summary.data.boundary === "unknown"
-										? "Boundary unknown"
-										: "Starting context"}
-								</span>
-								{summary.data.startingContext.map((event) => (
-									<small key={event.id} className="text-sm text-dim">
-										<code className="font-mono text-accent-foreground">
-											{locatorLabel(event)}
-										</code>{" "}
-										{event.label}
-									</small>
-								))}
+							<div className="flex flex-wrap items-center justify-between gap-3 border-b px-3 py-2.5">
+								<h2 className="text-14 font-medium">
+									Investigate saved evidence
+								</h2>
+								<Switcher
+									label="Evidence view"
+									options={EVIDENCE_VIEWS}
+									selected={view}
+									onSelect={setView}
+								/>
 							</div>
-							<ReportEvidence report={summary.data} />
+							<div className="flex flex-col md:flex-row">
+								<div className="min-w-0 border-b md:w-80 md:shrink-0 md:border-r md:border-b-0">
+									<div className="flex flex-col gap-2 border-b px-3 py-2.5">
+										<span className="text-12 text-muted-foreground">
+											Sources · recorded characters, not request tokens
+										</span>
+										<Switcher
+											label="Sort sources"
+											options={["Delivered size", "Most repeated"]}
+											selected={sourceSort}
+											onSelect={setSourceSort}
+										/>
+									</div>
+									<div className="max-h-64 overflow-y-auto">
+										<SourceList
+											sources={summary.data.sources}
+											selected={sourceId}
+											sort={sourceSort}
+											onSelect={(source) => {
+												setSourceId(source?.id);
+												setSelectedRequestId(undefined);
+												if (view !== "Agents") {
+													setView("Evidence");
+												}
+											}}
+										/>
+									</div>
+									<section
+										ref={eventsRef}
+										tabIndex={-1}
+										aria-label="Event ledger"
+										className="border-t focus-visible:outline-2 focus-visible:outline-primary"
+									>
+										<PaneHeading>
+											{summary.data.boundary === "unknown"
+												? "Boundary-unknown events"
+												: "Attempt events"}
+										</PaneHeading>
+										<div className="max-h-80 overflow-y-auto">
+											<EventLedger
+												events={events}
+												selected={activeEventId}
+												onSelect={(id) => {
+													selectEvent(id);
+													setView("Evidence");
+												}}
+											/>
+										</div>
+									</section>
+								</div>
+								<div className="min-w-0 flex-1">
+									<div hidden={view !== "Evidence"}>
+										<aside aria-label="Event detail">
+											<PaneHeading>Evidence detail</PaneHeading>
+											<EvidenceDetail
+												served={servesEventDetail}
+												loading={detail.isLoading}
+												failed={detail.isError}
+												detail={detail.data}
+											/>
+										</aside>
+									</div>
+									{view === "Requests" ? (
+										<div>
+											<RequestTimelinePane
+												read={requests.data}
+												failed={requests.isError}
+												recorded={recordsRequestSeries}
+												entries={visibleEntries}
+												selected={selectedRequestRow}
+												onSelect={(entry) => {
+													setSelectedRequestId(requestRowId(entry));
+													const target = eventForRequestRow(
+														timelineEntries,
+														events,
+														entry,
+													);
+													if (target !== undefined) {
+														setSelectedEventId(target.id);
+													}
+												}}
+											/>
+										</div>
+									) : null}
+									<div hidden={view !== "Agents"}>
+										<AgentsSection
+											identity={identity}
+											path={path}
+											recorded={recordsRequestSeries}
+											sourceId={sourceId}
+											onSelectSource={(id) => {
+												setSourceId(id);
+												setSelectedRequestId(undefined);
+											}}
+										/>
+									</div>
+								</div>
+							</div>
 						</section>
+						<TranscriptDiagnostics
+							report={summary.data}
+							onSelect={(id) => {
+								setSourceId(undefined);
+								selectEvent(id);
+								setView("Evidence");
+							}}
+						/>
+						<StartingContext report={summary.data} />
 						{stageCorpus.data === undefined ? null : (
 							<DeclaredCorpusPane entries={stageCorpus.data} />
 						)}
-						<div className="flex items-center gap-2 text-sm text-dim">
-							<span>Sort sources</span>
-							<Switcher
-								label="Sort sources"
-								options={["Introduced", "Most repeated"]}
-								selected={sourceSort}
-								onSelect={setSourceSort}
-							/>
-						</div>
-						{diagnostics.length === 0 ? null : (
-							<nav
-								aria-label="Transcript diagnostics"
-								className="flex gap-1.5 overflow-x-auto"
-							>
-								{diagnostics.map((entry) => (
-									<button
-										key={entry.id}
-										type="button"
-										className="min-h-14 shrink-0 rounded-md border bg-muted px-2.5 py-1.5 whitespace-nowrap text-muted-foreground hover:border-primary hover:bg-accent"
-										onClick={() => {
-											setSourceId(undefined);
-											setSelectedEventId(entry.id);
-										}}
-									>
-										<code className="font-mono text-accent-foreground">
-											{entry.id}
-										</code>{" "}
-										{entry.label}
-									</button>
-								))}
-							</nav>
-						)}
-						{/* min-w-330 covers the four pane floors and the borders, so a narrow column scrolls the panes rather than crushing them. */}
-						<div className="flex min-h-96 flex-1 overflow-x-auto">
-							<div className="flex min-w-330 flex-1 overflow-hidden rounded-lg border bg-card">
-								<div className="min-w-58 flex-7 border-r">
-									<SourceList
-										sources={summary.data.sources}
-										selected={sourceId}
-										sort={sourceSort}
-										onSelect={(source) => {
-											const allEvents =
-												summary.data.boundary === "unknown"
-													? summary.data.boundaryUnknown
-													: summary.data.attemptEvents;
-											const nextEvents =
-												source === undefined
-													? allEvents
-													: allEvents.filter(({ id }) =>
-															source.eventIds.includes(id),
-														);
-											setSourceId(source?.id);
-											setSelectedEventId((current) =>
-												current !== undefined &&
-												nextEvents.some(({ id }) => id === current)
-													? current
-													: nextEvents[0]?.id,
-											);
-										}}
-									/>
-								</div>
-								<section
-									aria-label="Event ledger"
-									className="min-w-80 flex-10 border-r"
-								>
-									<PaneHeading>
-										{summary.data.boundary === "unknown"
-											? "Boundary-unknown events"
-											: "Attempt events"}
-									</PaneHeading>
-									<EventLedger
-										events={events}
-										selected={activeEventId}
-										onSelect={setSelectedEventId}
-									/>
-								</section>
-								<div className="min-w-92 flex-12 border-r">
-									<RequestTimelinePane
-										read={requests.data}
-										failed={requests.isError}
-										recorded={recordsRequestSeries}
-										entries={visibleEntries}
-										selected={selectedRequestRow}
-										onSelect={(entry) => {
-											const target = eventForRequestRow(
-												timelineEntries,
-												events,
-												entry,
-											);
-											if (target !== undefined) {
-												setSelectedEventId(target.id);
-											}
-										}}
-									/>
-								</div>
-								<aside aria-label="Event detail" className="min-w-98 flex-13">
-									<PaneHeading>Evidence detail</PaneHeading>
-									<EvidenceDetail
-										served={servesEventDetail}
-										loading={detail.isLoading}
-										failed={detail.isError}
-										detail={detail.data}
-									/>
-								</aside>
-							</div>
-						</div>
-						<AgentsSection
-							identity={identity}
-							path={path}
-							recorded={recordsRequestSeries}
-							sourceId={sourceId}
-							onSelectSource={setSourceId}
-						/>
 					</>
 				)}
 			</div>
@@ -1488,12 +1759,12 @@ function IdentityReadings({
 				({ term, value, filedUnder }) => (
 					<div key={term} className="flex min-w-0 flex-col gap-1">
 						<dt>
-							<SectionLabel>{term}</SectionLabel>
+							<span className="text-12 text-muted-foreground">{term}</span>
 						</dt>
 						<dd className="flex flex-col gap-0.5">
 							<span className="font-mono text-11-5 wrap-anywhere">{value}</span>
 							{filedUnder === undefined ? null : (
-								<span className="font-mono text-11 text-dim wrap-anywhere">
+								<span className="font-mono text-11 text-muted-foreground wrap-anywhere">
 									{filedUnder}
 								</span>
 							)}
@@ -1518,7 +1789,15 @@ function HistoryHeader({
 }): React.JSX.Element {
 	const metadata =
 		data === undefined ? undefined : (
-			<IdentityReadings identity={identity} data={data} names={names} />
+			<details className="text-secondary-foreground">
+				<summary className="cursor-pointer text-12">
+					Record provenance ·{" "}
+					{namedEntries(identity, data.attempt, names).length} fields
+				</summary>
+				<div className="mt-3">
+					<IdentityReadings identity={identity} data={data} names={names} />
+				</div>
+			</details>
 		);
 	if (embedded) {
 		return (

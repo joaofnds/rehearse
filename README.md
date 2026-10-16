@@ -91,7 +91,7 @@ editing; Settings includes Judge calibration. Declare a case writes an uncommitt
 
 Open a run from Runs to inspect Results, Activity, or Context & cost while keeping
 the same selected step. Running pipeline runs open Activity with live session and
-Judge panes; ended runs open Results. Test an instruction carries a saved source
+Judge panes; ended runs open Results. Edit instruction & replay carries a saved source
 step through editing and its replay offer. New run and Replay start real work under
 the stored spend ceiling, which spends provider money. The
 [desktop workspace guide](docs/run-workspace.md) describes the navigation and evidence

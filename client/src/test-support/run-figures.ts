@@ -50,6 +50,7 @@ export const UNREAD_SESSION_ATTEMPT_FIGURES = {
 
 /** A confirmation group row's figures, for a test whose subject is another column. */
 export const UNREAD_GROUP_FIGURES = {
+	qualityFailures: 0,
 	...UNREAD_COST_AND_TIME,
 	stageSummaries: [],
 	finalOutcomes: {},

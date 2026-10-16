@@ -1,5 +1,6 @@
-import { afterEach, describe, expect, it } from "bun:test";
+import { afterEach, describe, expect, it, jest } from "bun:test";
 import {
+	act,
 	fireEvent,
 	render,
 	screen,
@@ -23,23 +24,34 @@ import type { SessionHistoryIdentity } from "./session-history-page";
 const originalFetch = globalThis.fetch;
 
 afterEach(() => {
+	jest.useRealTimers();
 	globalThis.fetch = originalFetch;
 });
 
-function renderStandalonePage(): void {
+interface RenderedHistory {
+	readonly client: QueryClient;
+	readonly unmount: () => void;
+}
+
+function renderStandalonePage(initialEventId?: string): RenderedHistory {
 	const client = new QueryClient({
 		defaultOptions: { queries: { retry: false } },
 	});
-	render(
+	const rendered = render(
 		<QueryClientProvider client={client}>
 			<SessionHistoryPage
 				identity={{ kind: "standalone", caseId: "case-a", uuid: "attempt-a" }}
+				initialEventId={initialEventId}
+				revealEvents={initialEventId !== undefined}
 			/>
 		</QueryClientProvider>,
 	);
+	return { client, unmount: rendered.unmount };
 }
 
-function renderPage(): void {
+function renderPage(
+	initialEventId?: string,
+): ReturnType<typeof renderStandalonePage> {
 	stubFetchByPath(
 		new Map([
 			[
@@ -467,10 +479,213 @@ function renderPage(): void {
 			],
 		]),
 	);
-	renderStandalonePage();
+	return renderStandalonePage(initialEventId);
 }
 
 describe(SessionHistoryPage.name, () => {
+	it("keeps full provenance and starting-context lists in counted disclosures", async () => {
+		renderPage();
+		await screen.findByRole("region", { name: "Context investigation" });
+
+		const provenance = screen
+			.getByText("Record provenance · 4 fields")
+			.closest("details");
+		const starting = screen
+			.getByText("Starting context · 0 events · known boundary")
+			.closest("details");
+		expect(provenance).not.toHaveAttribute("open");
+		expect(starting).not.toHaveAttribute("open");
+		expect(screen.getByRole("group", { name: "Evidence view" })).toBeVisible();
+		expect(
+			screen.getByRole("region", { name: "Selected scope readings" }),
+		).toBeVisible();
+	});
+
+	it("shows the attempt cost reconciliation once when Requests is open", async () => {
+		renderPage();
+		fireEvent.click(await screen.findByRole("button", { name: "Requests" }));
+		await screen.findByRole("listbox", { name: "Request timeline" });
+
+		expect(screen.getAllByText("Remaining difference")).toHaveLength(1);
+		expect(screen.getAllByText("Provider reported · attempt")).toHaveLength(1);
+		expect(screen.getByText("Attempt totals")).toBeInTheDocument();
+	});
+
+	it("shows a failed request reading once before and after opening Requests", async () => {
+		stubFetchByPath(
+			new Map([
+				[
+					"/api/attempts/session/case-a/attempt-a/history",
+					{
+						schemaVersion: 1,
+						attempt: {
+							kind: "session",
+							caseId: "case-a",
+							id: "attempt-a",
+							model: "sonnet",
+							outcome: "SUCCESSFUL",
+							corpusFiles: [],
+						},
+						evidence: { state: "complete" },
+						boundary: "known",
+						startingContext: [],
+						attemptEvents: [],
+						boundaryUnknown: [],
+						startingSources: [],
+						sources: [],
+					},
+				],
+			]),
+		);
+		renderStandalonePage();
+		await screen.findByText("Could not load the request timeline.");
+		expect(
+			screen.getAllByText("Could not load the request timeline."),
+		).toHaveLength(1);
+
+		fireEvent.click(screen.getByRole("button", { name: "Requests" }));
+
+		expect(
+			screen.getAllByText("Could not load the request timeline."),
+		).toHaveLength(1);
+	});
+
+	it("retains a non-default selected request across evidence-view switches", async () => {
+		renderPage();
+		fireEvent.click(await screen.findByRole("button", { name: "Requests" }));
+		const timeline = await screen.findByRole("listbox", {
+			name: "Request timeline",
+		});
+		expect(
+			within(timeline).getByRole("option", { selected: true }),
+		).toHaveTextContent("req-inherited");
+		fireEvent.click(
+			within(timeline).getByRole("option", { name: /req-first/u }),
+		);
+
+		fireEvent.click(screen.getByRole("button", { name: "Evidence" }));
+		fireEvent.click(screen.getByRole("button", { name: "Requests" }));
+
+		const returned = screen.getByRole("listbox", { name: "Request timeline" });
+		expect(
+			within(returned).getByRole("option", { selected: true }),
+		).toHaveTextContent("req-first");
+		expect(
+			screen.getByRole("region", { name: "Selected request" }),
+		).toHaveTextContent("req-first");
+	});
+
+	it("retains source and selected request after six inactive minutes and remounting", async () => {
+		const warmed = renderPage();
+		fireEvent.click(await screen.findByRole("button", { name: "Requests" }));
+		await screen.findByRole("listbox", { name: "Request timeline" });
+		warmed.unmount();
+		jest.useFakeTimers();
+		const client = new QueryClient({
+			defaultOptions: { queries: { retry: false } },
+		});
+		for (const query of warmed.client.getQueryCache().getAll()) {
+			if (
+				query.queryKey[0] !== "session-history-selection" &&
+				query.queryKey[0] !== "agent-tree-selection" &&
+				query.state.data !== undefined
+			) {
+				client.setQueryData(query.queryKey, query.state.data);
+			}
+		}
+		const mounted = render(
+			<QueryClientProvider client={client}>
+				<SessionHistoryPage
+					identity={{ kind: "standalone", caseId: "case-a", uuid: "attempt-a" }}
+				/>
+			</QueryClientProvider>,
+		);
+		fireEvent.click(screen.getByRole("button", { name: /CLAUDE.md/u }));
+		fireEvent.click(screen.getByRole("button", { name: "Requests" }));
+		fireEvent.click(
+			within(
+				screen.getByRole("listbox", { name: "Request timeline" }),
+			).getByRole("option", { name: /req-first/u }),
+		);
+		mounted.unmount();
+
+		act(() => {
+			jest.advanceTimersByTime(360_000);
+		});
+		jest.useRealTimers();
+		render(
+			<QueryClientProvider client={client}>
+				<SessionHistoryPage
+					identity={{ kind: "standalone", caseId: "case-a", uuid: "attempt-a" }}
+				/>
+			</QueryClientProvider>,
+		);
+
+		expect(
+			await screen.findByRole("button", { name: "Requests", pressed: true }),
+		).toBeVisible();
+		expect(screen.getByRole("button", { name: /CLAUDE.md/u })).toHaveAttribute(
+			"aria-pressed",
+			"true",
+		);
+		const requests = await screen.findByRole("listbox", {
+			name: "Request timeline",
+		});
+		expect(
+			within(requests).getByRole("option", { selected: true }).textContent,
+		).toContain("req-first");
+		client.clear();
+	});
+
+	it("restores the same record's source and reading when returning to context", async () => {
+		const { client, unmount } = renderPage();
+		fireEvent.click(await screen.findByRole("button", { name: /CLAUDE.md/u }));
+		fireEvent.keyDown(screen.getByRole("listbox", { name: "Attempt events" }), {
+			key: "j",
+		});
+		fireEvent.click(screen.getByRole("button", { name: "Requests" }));
+		await screen.findByRole("listbox", { name: "Request timeline" });
+
+		unmount();
+		render(
+			<QueryClientProvider client={client}>
+				<SessionHistoryPage
+					identity={{ kind: "standalone", caseId: "case-a", uuid: "attempt-a" }}
+				/>
+			</QueryClientProvider>,
+		);
+
+		expect(
+			await screen.findByRole("button", { name: "Requests", pressed: true }),
+		).toBeVisible();
+		expect(screen.getByRole("button", { name: /CLAUDE.md/u })).toHaveAttribute(
+			"aria-pressed",
+			"true",
+		);
+		expect(
+			within(screen.getByRole("listbox", { name: "Attempt events" })).getByRole(
+				"option",
+				{ selected: true },
+			),
+		).toHaveTextContent("CLAUDE.md delivered");
+		expect(
+			within(
+				screen.getByRole("listbox", { name: "Request timeline" }),
+			).getAllByRole("option"),
+		).toHaveLength(2);
+	});
+
+	it("selects and focuses the linked event directly", async () => {
+		renderPage("2:1");
+		const ledger = await screen.findByRole("region", { name: "Event ledger" });
+
+		expect(
+			within(ledger).getByRole("option", { selected: true }),
+		).toHaveTextContent("CLAUDE.md delivered");
+		expect(ledger).toHaveFocus();
+		expect(await screen.findByText("instruction body")).toBeInTheDocument();
+	});
+
 	it("keeps a long evidence-gap list behind a complete expandable summary", async () => {
 		const reasons = [
 			"Unsupported content at 1:1",
@@ -766,6 +981,24 @@ describe(SessionHistoryPage.name, () => {
 			return definition;
 		}
 
+		it("names a replay's stage in its selected evidence scope", async () => {
+			renderNamed(
+				{
+					kind: "replay",
+					lineage: "lineage-1",
+					timestamp: "2026-09-07T00-00-00.000Z",
+				},
+				"/api/replays/lineage-1/2026-09-07T00-00-00.000Z/history",
+				stageAttempt,
+			);
+
+			const scope = await screen.findByRole("region", {
+				name: "Selected scope readings",
+			});
+			expect(scope).toHaveTextContent("Saved evidence · audit-log / build");
+			expect(scope).not.toHaveTextContent("/ attempt");
+		});
+
 		it("names a stage's run and the checkpoint it recorded by short id", async () => {
 			renderNamed(
 				{ kind: "stage", run: "2026-09-06T21-58-29.508Z", stage: "build" },
@@ -877,7 +1110,9 @@ describe(SessionHistoryPage.name, () => {
 		});
 
 		expect(
-			within(timeline).getByText("A saved stage records no request series."),
+			within(timeline).getByText(
+				"A saved stage or replay records no request series; raw transcript history cannot be reconstructed.",
+			),
 		).toBeInTheDocument();
 		expect(within(timeline).queryByRole("alert")).not.toBeInTheDocument();
 	});
@@ -941,6 +1176,7 @@ describe(SessionHistoryPage.name, () => {
 			name: "Declared corpus",
 		});
 
+		fireEvent.click(within(corpus).getByText(/Declared corpus ·/u));
 		expect(
 			within(corpus)
 				.getAllByRole("listitem")
@@ -984,9 +1220,11 @@ describe(SessionHistoryPage.name, () => {
 		renderStandalonePage();
 
 		await screen.findByRole("heading", { name: "Saved context history" });
-		expect(screen.getByText("Boundary unknown")).toBeInTheDocument();
 		expect(
-			screen.getByText("? Unavailable · boundary unknown"),
+			screen.getByText(/Starting context.*Boundary unknown/u),
+		).toBeInTheDocument();
+		expect(
+			screen.getByText(/Unavailable · boundary unknown · empty transcript/u),
 		).toBeInTheDocument();
 		expect(
 			screen.getByRole("heading", { name: "Boundary-unknown events" }),
@@ -995,6 +1233,7 @@ describe(SessionHistoryPage.name, () => {
 
 	it("renders one timeline row per request with its tokens, model and cost", async () => {
 		renderPage();
+		fireEvent.click(await screen.findByRole("button", { name: "Requests" }));
 
 		const timeline = await screen.findByRole("listbox", {
 			name: "Request timeline",
@@ -1013,6 +1252,7 @@ describe(SessionHistoryPage.name, () => {
 
 	it("marks the request in flight when a compaction happened", async () => {
 		renderPage();
+		fireEvent.click(await screen.findByRole("button", { name: "Requests" }));
 
 		const timeline = await screen.findByRole("listbox", {
 			name: "Request timeline",
@@ -1025,6 +1265,7 @@ describe(SessionHistoryPage.name, () => {
 
 	it("names why an unpriced request carries no cost", async () => {
 		renderPage();
+		fireEvent.click(await screen.findByRole("button", { name: "Requests" }));
 
 		const timeline = await screen.findByRole("listbox", {
 			name: "Request timeline",
@@ -1041,6 +1282,7 @@ describe(SessionHistoryPage.name, () => {
 
 	it("states that the active context window is not measured", async () => {
 		renderPage();
+		fireEvent.click(await screen.findByRole("button", { name: "Requests" }));
 
 		const timeline = await screen.findByRole("region", {
 			name: "Request timeline",
@@ -1054,6 +1296,7 @@ describe(SessionHistoryPage.name, () => {
 
 	it("selects the request whose evidence the event pane is showing", async () => {
 		renderPage();
+		fireEvent.click(await screen.findByRole("button", { name: "Requests" }));
 		await screen.findByRole("listbox", { name: "Request timeline" });
 		const ledger = screen.getByRole("listbox", { name: "Attempt events" });
 
@@ -1062,6 +1305,7 @@ describe(SessionHistoryPage.name, () => {
 			throw new Error("the fixture records fewer than three attempt events");
 		}
 		fireEvent.click(thirdEvent);
+		fireEvent.click(screen.getByRole("button", { name: "Requests" }));
 
 		await waitFor(() => {
 			const rows = screen
@@ -1074,6 +1318,7 @@ describe(SessionHistoryPage.name, () => {
 
 	it("selects an event when its request is picked on the timeline", async () => {
 		renderPage();
+		fireEvent.click(await screen.findByRole("button", { name: "Requests" }));
 		const timeline = await screen.findByRole("listbox", {
 			name: "Request timeline",
 		});
@@ -1096,9 +1341,11 @@ describe(SessionHistoryPage.name, () => {
 
 	it("narrows the timeline to the requests a selected source's events belong to", async () => {
 		renderPage();
+		fireEvent.click(await screen.findByRole("button", { name: "Requests" }));
 		await screen.findByRole("listbox", { name: "Request timeline" });
 
 		fireEvent.click(screen.getByRole("button", { name: /CLAUDE.md/u }));
+		fireEvent.click(screen.getByRole("button", { name: "Requests" }));
 
 		await waitFor(() => {
 			expect(
@@ -1111,6 +1358,7 @@ describe(SessionHistoryPage.name, () => {
 
 	it("renders saved instruction markup as visible text rather than as markup", async () => {
 		renderPage();
+		fireEvent.click(await screen.findByRole("button", { name: "Requests" }));
 
 		const timeline = await screen.findByRole("region", {
 			name: "Request timeline",
@@ -1190,6 +1438,7 @@ describe(SessionHistoryPage.name, () => {
 			name: "Declared corpus",
 		});
 
+		fireEvent.click(within(corpus).getByText(/Declared corpus ·/u));
 		expect(
 			within(corpus)
 				.getAllByRole("listitem")

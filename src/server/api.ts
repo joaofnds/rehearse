@@ -1,5 +1,8 @@
 import { dirname } from "node:path";
 import { Hono } from "hono";
+import { readFinalAssessment, readStageOutput } from "./run-investigation";
+import { readAttemptEvidence, readGroupAttemptIndex } from "./attempt-evidence";
+import { readGroupFinalAssessment } from "./group-final-assessment";
 import { streamSSE } from "hono/streaming";
 import type { SSEStreamingApi } from "hono/streaming";
 import type { CorpusRoot } from "#benchmark/corpus-file";
@@ -728,6 +731,56 @@ export const createApiApp = (dependencies: ApiDependencies) => {
 				return context.json({ error: response.message }, response.status);
 			}
 		})
+		.get("/api/groups/:groupId/reps/:repId/attempt/final", async (context) => {
+			try {
+				return context.json(
+					await readGroupFinalAssessment({
+						runsDirectory: dependencies.runsDirectory,
+						groupId: context.req.param("groupId"),
+						repId: context.req.param("repId"),
+					}),
+				);
+			} catch (error) {
+				if (!(error instanceof SessionHistoryReaderError)) {
+					throw error;
+				}
+				const response = historyError(error);
+				return context.json({ error: response.message }, response.status);
+			}
+		})
+		.get("/api/runs/:run/stages/:stage/output", async (context) => {
+			try {
+				return context.json(
+					await readStageOutput({
+						runsDirectory: dependencies.runsDirectory,
+						run: context.req.param("run"),
+						stage: context.req.param("stage"),
+					}),
+				);
+			} catch (error) {
+				if (!(error instanceof SessionHistoryReaderError)) {
+					throw error;
+				}
+				const response = historyError(error);
+				return context.json({ error: response.message }, response.status);
+			}
+		})
+		.get("/api/runs/:run/final/assessment", async (context) => {
+			try {
+				return context.json(
+					await readFinalAssessment({
+						runsDirectory: dependencies.runsDirectory,
+						run: context.req.param("run"),
+					}),
+				);
+			} catch (error) {
+				if (!(error instanceof SessionHistoryReaderError)) {
+					throw error;
+				}
+				const response = historyError(error);
+				return context.json({ error: response.message }, response.status);
+			}
+		})
 		.get("/api/runs/:run/stages/:stage/judge", async (context) => {
 			try {
 				return context.json(
@@ -1071,6 +1124,46 @@ export const createApiApp = (dependencies: ApiDependencies) => {
 					return context.json({ error: refusal.message }, refusal.status);
 				}
 
+				throw error;
+			}
+		})
+		.get("/api/groups/:groupId/attempts", async (context) => {
+			try {
+				return context.json(
+					await readGroupAttemptIndex({
+						runsDirectory: dependencies.runsDirectory,
+						groupId: context.req.param("groupId"),
+					}),
+				);
+			} catch (error) {
+				if (error instanceof SessionHistoryReaderError) {
+					const response = historyError(error);
+					return context.json({ error: response.message }, response.status);
+				}
+				if (error instanceof UsageError) {
+					const response = commandRefusal(error);
+					return context.json({ error: response.message }, response.status);
+				}
+				throw error;
+			}
+		})
+		.get("/api/attempt-evidence/:id", async (context) => {
+			try {
+				return context.json(
+					await readAttemptEvidence({
+						runsDirectory: dependencies.runsDirectory,
+						id: context.req.param("id"),
+					}),
+				);
+			} catch (error) {
+				if (error instanceof SessionHistoryReaderError) {
+					const response = historyError(error);
+					return context.json({ error: response.message }, response.status);
+				}
+				if (error instanceof UsageError) {
+					const response = commandRefusal(error);
+					return context.json({ error: response.message }, response.status);
+				}
 				throw error;
 			}
 		})

@@ -5,14 +5,10 @@ import type { ComparisonResponse } from "./comparison-response";
 type ArmCorpusVersion =
 	ComparisonResponse["corpusVersions"][string][ComparisonArm];
 
-/**
- * The design's arm roles: its baseline arm is the harness's control, and its
- * arms A and B are the harness's baseline and candidate.
- */
 const NAMES = {
-	control: { role: "Baseline", prose: "the baseline arm" },
-	baseline: { role: "Arm A", prose: "arm A" },
-	candidate: { role: "Arm B", prose: "arm B" },
+	control: { role: "Control", prose: "the control arm" },
+	baseline: { role: "Baseline (before)", prose: "baseline (before)" },
+	candidate: { role: "Candidate (after)", prose: "candidate (after)" },
 } as const satisfies Readonly<
 	Record<ComparisonArm, { readonly role: string; readonly prose: string }>
 >;

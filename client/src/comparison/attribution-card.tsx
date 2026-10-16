@@ -4,7 +4,6 @@ import type { InferResponseType } from "hono/client";
 import { apiClient } from "#client/api-client";
 import { plural } from "#client/plural";
 import { DiffPreview } from "#client/corpus/diff-preview";
-import { SectionLabel } from "#client/system/components/section-label";
 import { Button } from "#client/system/ui/button";
 import type { ComparisonArm } from "#benchmark/comparison-record";
 import type { ComparisonAttribution } from "#server/comparison-attribution";
@@ -41,7 +40,7 @@ function Claim({
 		case "attributable": {
 			return (
 				<p>
-					The only difference between arms A and B is{" "}
+					The only difference between baseline and candidate is{" "}
 					<code className="font-mono text-pale">
 						{attribution.differingPath}
 					</code>
@@ -53,8 +52,8 @@ function Claim({
 		case "identical": {
 			return (
 				<p>
-					Arms A and B ran identical corpora, so no file explains a movement
-					between them.
+					Baseline and candidate ran identical corpora, so no file explains a
+					movement between them.
 				</p>
 			);
 		}
@@ -62,7 +61,7 @@ function Claim({
 			return (
 				<div className="flex flex-col gap-1.5">
 					<p>
-						{`${plural(attribution.differingPaths.length, "file")} differ between arms A and B, so no movement between them is attributed to one file.`}
+						{`${plural(attribution.differingPaths.length, "file")} differ between baseline and candidate, so no movement between them is attributed to one file.`}
 					</p>
 					<ul className="flex flex-col gap-1 font-mono text-pale">
 						{attribution.differingPaths.map((path) => (
@@ -126,9 +125,9 @@ function FileDiff({ file }: { readonly file: ArmFileDiff }): React.JSX.Element {
 
 	return (
 		<div className="flex flex-col gap-1.5">
-			<span className="font-mono text-11 text-pale">{file.path}</span>
+			<span className="font-mono text-12 text-pale">{file.path}</span>
 			{notes.map((note) => (
-				<p key={note} className="text-sm text-muted-foreground">
+				<p key={note} className="text-13 text-muted-foreground">
 					{note}
 				</p>
 			))}
@@ -137,7 +136,7 @@ function FileDiff({ file }: { readonly file: ArmFileDiff }): React.JSX.Element {
 					path={file.path}
 					original={before}
 					text={after}
-					unchanged="Arms A and B ran the same lines."
+					unchanged="Baseline and candidate ran the same lines."
 				/>
 			)}
 		</div>
@@ -156,11 +155,11 @@ function ArmDiff({
 		queryFn: () => fetchArmDiff(digest),
 	});
 	if (query.isPending) {
-		return <p className="text-sm text-muted-foreground">Reading both arms…</p>;
+		return <p className="text-13 text-muted-foreground">Reading both arms…</p>;
 	}
 	if (query.isError) {
 		return (
-			<p role="alert" className="text-sm text-secondary-foreground">
+			<p role="alert" className="text-13 text-secondary-foreground">
 				The diff between arms could not be loaded.
 			</p>
 		);
@@ -175,7 +174,7 @@ function ArmDiff({
 	);
 }
 
-/** What a movement between arms A and B can be put down to, and how to see it. */
+/** What a movement between baseline and candidate can be put down to, and how to see it. */
 export function AttributionCard({
 	digest,
 	caseId,
@@ -197,7 +196,7 @@ export function AttributionCard({
 			className="flex max-w-301 flex-col gap-2 rounded-lg border bg-card px-4 py-3"
 		>
 			<h3>
-				<SectionLabel>Attribution</SectionLabel>
+				<span className="text-12 text-muted-foreground">Attribution</span>
 			</h3>
 			<Claim attribution={attribution} />
 			<div className="flex flex-wrap items-center gap-2">

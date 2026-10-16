@@ -71,6 +71,7 @@ import { checkpointAttempts, repAttemptId } from "./checkpoint-attempts";
 import type { AttemptPosition } from "./checkpoint-attempts";
 import {
 	finalOutcomeTally,
+	qualityFailureCount,
 	groupCost,
 	stageSummaries,
 	UNRECORDED_REP_REASON,
@@ -354,6 +355,8 @@ export interface ConfirmationGroupRow {
 	readonly finalOutcomes: RepCounts;
 	/** Of `reps` requested, how many the group recorded as successful. */
 	readonly successful: number;
+	/** Reps with a recorded rejected step/check or final FAIL; excludes unjudged errors. */
+	readonly qualityFailures: number;
 	/** Each rep the server could not read, which no other figure counts. */
 	readonly unreadReps: readonly UnreadRep[];
 	readonly cost: CostReading;
@@ -1062,6 +1065,7 @@ async function groupRow(
 			recorded,
 		),
 		finalOutcomes: finalOutcomeTally(recorded),
+		qualityFailures: qualityFailureCount(recorded),
 		successful: recorded.filter(({ outcome }) => outcome === "SUCCESSFUL")
 			.length,
 		unreadReps: reps.filter((rep) => "reason" in rep),

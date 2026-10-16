@@ -6,8 +6,10 @@ import {
 	listedEntryCount,
 	runListingQuery,
 } from "#client/run-history/run-history-query";
+import { useRunsReturnSearch } from "#client/run-history/run-discovery";
 import { useFreshInstall } from "#client/setup/fresh-install";
 import { SetupPage } from "#client/setup/setup-page";
+import { GlobalSearch } from "./global-search";
 import { CorpusCard } from "./corpus-card";
 import { RunInFlightBar } from "./run-in-flight-bar";
 import { useGoToShortcut } from "./use-go-to-shortcut";
@@ -47,10 +49,12 @@ function NavEntry({
 	readonly count: number | undefined;
 	readonly marksCurrent: boolean;
 }): React.JSX.Element {
+	const runsReturnSearch = useRunsReturnSearch();
 	return (
 		<li>
 			<NavLink
 				to={path}
+				search={path === "/" ? runsReturnSearch : {}}
 				marksCurrent={marksCurrent}
 				className="flex items-center gap-2.5 rounded-md border-l-2 border-transparent px-2.5 py-2 text-secondary-foreground hover:bg-row-hover current:border-primary current:bg-selected current:text-pale"
 			>
@@ -118,6 +122,8 @@ export function AppShell(): React.JSX.Element {
 						<span className="text-lg font-medium tracking-tight">Rehearse</span>
 						<CorpusCard />
 					</div>
+
+					<GlobalSearch />
 
 					<ul className="flex flex-col gap-0.5">
 						{NAV_ITEMS.map(({ label, icon: NavIcon, path, badge }) => (

@@ -1,3 +1,4 @@
+import { stageCostReading } from "#client/run-detail/step-readings";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { StepOutputs } from "#client/run-detail/step-outputs";
@@ -10,7 +11,6 @@ import {
 	notRecorded,
 	ReadState,
 	skillReading,
-	stageCostReading,
 	wallTimeReading,
 } from "#client/run-detail/step-report";
 import { Grade } from "#client/system/components/grade";

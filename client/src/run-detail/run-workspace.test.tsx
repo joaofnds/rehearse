@@ -24,6 +24,193 @@ afterEach(() => {
 });
 
 describe("the run workspace", () => {
+	it("starts Results with compact workflow details and expands them on request", async () => {
+		renderRunDetail();
+
+		const graph = await screen.findByRole("region", { name: "Task graph" });
+		expect(graph).not.toHaveTextContent("checkpoint recorded");
+		fireEvent.click(
+			within(graph).getByRole("button", { name: "Show workflow details" }),
+		);
+
+		expect(graph).toHaveTextContent("checkpoint recorded");
+		expect(
+			within(graph).getByRole("button", { name: "Hide workflow details" }),
+		).toBeInTheDocument();
+	});
+
+	it("describes running output as in progress and offers Activity", async () => {
+		renderRunDetail(
+			new Map<string, unknown>([
+				["/api/runs", history([runRow({ run: RUN, stage: "build" })])],
+				[
+					`/api/runs/${RUN}`,
+					runRecord({
+						run: RUN,
+						running: "build",
+						stages: [recordStage("build")],
+					}),
+				],
+				[
+					`/api/runs/${RUN}/stages/build/output`,
+					{
+						state: "unavailable",
+						reason: "This step has no saved output record.",
+					},
+				],
+			]),
+			[],
+			`/runs/${RUN}?view=results&step=build`,
+		);
+
+		const output = await screen.findByRole("region", { name: "Saved output" });
+		expect(
+			await within(output).findByText(/In progress · waiting/u),
+		).toBeInTheDocument();
+		expect(
+			within(screen.getByRole("region", { name: "Next action" })).getByRole(
+				"link",
+				{ name: "Follow activity" },
+			),
+		).toHaveAttribute("href", `/runs/${RUN}?view=activity&step=build`);
+	});
+
+	it("marks an unreached step as never run and links to the ended step", async () => {
+		renderRunDetail(
+			new Map<string, unknown>([
+				[
+					`/api/runs/${RUN}/stages/verify/output`,
+					{
+						state: "unavailable",
+						reason: "This step has no saved output record.",
+					},
+				],
+			]),
+			[],
+			`/runs/${RUN}?view=results&step=verify`,
+		);
+
+		const output = await screen.findByRole("region", { name: "Saved output" });
+		expect(
+			await within(output).findByText(/Not reached · this step never ran/u),
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("region", { name: "Selected step assessment" }),
+		).toHaveTextContent("never ran");
+		expect(
+			within(screen.getByRole("region", { name: "Next action" })).getByRole(
+				"link",
+				{ name: "Inspect ended step" },
+			),
+		).toHaveAttribute("href", `/runs/${RUN}?view=results&step=build`);
+	});
+
+	it("keeps pending human review consistent with the run header", async () => {
+		renderRunDetail(
+			new Map<string, unknown>([
+				[
+					"/api/runs",
+					history([runRow({ run: RUN, status: "AWAITING_HUMAN_REVIEW" })]),
+				],
+			]),
+		);
+
+		expect(
+			await screen.findByText(/Human review: pending/u),
+		).toBeInTheDocument();
+		expect(screen.getByText("Human review · pending")).toBeInTheDocument();
+	});
+
+	it("shows saved output beside the step assessment and opens its complete text", async () => {
+		renderRunDetail(
+			new Map<string, unknown>([
+				[
+					`/api/runs/${RUN}/stages/build/output`,
+					{
+						state: "available",
+						kind: "artifact",
+						path: "delivery.md",
+						text: "Saved delivery with items and nextCursor",
+					},
+				],
+			]),
+		);
+		const output = await screen.findByRole("region", { name: "Saved output" });
+		await within(output).findByText("Saved delivery with items and nextCursor");
+		expect(
+			screen.getAllByRole("region", { name: "Selected step assessment" }),
+		).toHaveLength(1);
+		fireEvent.click(
+			within(output).getByRole("button", { name: "Open complete output" }),
+		);
+		expect(await screen.findByRole("dialog")).toHaveTextContent(
+			"Saved delivery with items and nextCursor",
+		);
+	});
+
+	it("leads with saved final failure criteria rather than inferring failure from a step letter", async () => {
+		const base = stoppedAtBuild();
+		renderRunDetail(
+			new Map<string, unknown>([
+				[
+					`/api/runs/${RUN}`,
+					{ ...base, finalOutcome: { status: "JUDGED", verdict: "FAIL" } },
+				],
+				[
+					`/api/runs/${RUN}/final/assessment`,
+					{
+						state: "available",
+						requirements: [
+							{
+								id: "empty-page",
+								status: "FAIL",
+								evidence: [
+									{
+										source: "diff",
+										path: "delivery.diff",
+										claim: "The delivery omits hasMore",
+										quote: "return { items: [] }",
+									},
+								],
+							},
+						],
+					},
+				],
+			]),
+		);
+		const criteria = await screen.findByRole("list", {
+			name: "Failed final criteria",
+		});
+		expect(criteria).toHaveTextContent("The delivery omits hasMore");
+		expect(within(criteria).getByRole("link")).toHaveAttribute(
+			"href",
+			`/runs/${RUN}/final/evidence/empty-page/0`,
+		);
+		expect(
+			screen.getByRole("region", { name: "Next action" }),
+		).toHaveTextContent("Inspect final evidence");
+	});
+
+	it("keeps an unavailable saved output explicit", async () => {
+		renderRunDetail(
+			new Map<string, unknown>([
+				[
+					`/api/runs/${RUN}/stages/build/output`,
+					{
+						state: "unavailable",
+						reason: "The record predates saved Judge input",
+					},
+				],
+			]),
+		);
+		expect(
+			await screen.findByText("The record predates saved Judge input"),
+		).toBeInTheDocument();
+		expect(
+			screen.queryByRole("button", { name: "Open complete output" }),
+		).not.toBeInTheDocument();
+	});
+
 	it("keeps an interrupted step's missing record and cost unknown", async () => {
 		const base = stoppedAtBuild();
 		renderRunDetail(
@@ -107,7 +294,7 @@ describe("the run workspace", () => {
 			await screen.findByRole("button", { name: "Replay step 2" }),
 		).toBeEnabled();
 		expect(
-			screen.getByRole("link", { name: "Test an instruction" }),
+			screen.getByRole("link", { name: "Edit instruction & replay" }),
 		).toHaveAttribute("href", expect.stringContaining("sourceStep=build"));
 		const graph = screen.getByRole("region", { name: "Task graph" });
 		expect(
@@ -286,7 +473,7 @@ describe("the run workspace", () => {
 			]),
 		);
 		const editLink = await screen.findByRole("link", {
-			name: "Test an instruction",
+			name: "Edit instruction & replay",
 		});
 		const url = new URL(
 			editLink.getAttribute("href") ?? "",
@@ -373,14 +560,15 @@ describe("the run workspace", () => {
 
 		expect(
 			await screen.findByRole("region", {
-				name: "Task grade · graded on its own",
+				name: "Final outcome · independent task Judge",
 			}),
 		).toHaveTextContent("FAIL");
 		expect(
-			within(screen.getByRole("region", { name: "Task graph" })).getByText(
-				"shape",
+			within(screen.getByRole("region", { name: "Task graph" })).getByRole(
+				"button",
+				{ name: /^shape/u },
 			),
-		).toBeInTheDocument();
+		).toHaveTextContent("accepted");
 	});
 	it("keeps Activity and the chosen step when a live run completes", async () => {
 		let ended = false;

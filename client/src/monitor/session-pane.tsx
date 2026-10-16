@@ -178,7 +178,7 @@ function CitedRows({
 	);
 }
 
-/** The closed session's note, linking to the stage's page that renders its transcript. */
+/** The closed session links to saved events for its selected step. */
 function ClosedNote({
 	run,
 	stage,
@@ -196,7 +196,11 @@ function ClosedNote({
 				<>
 					Session ended. The full transcript is on disk; Rehearse keeps only the
 					spans the judge cites.{" "}
-					<Link to="/runs/$run/stages/$stage" params={{ run, stage }}>
+					<Link
+						to="/runs/$run"
+						params={{ run }}
+						search={{ view: "context", step: stage, focus: "events" }}
+					>
 						{transcriptPath}
 					</Link>
 				</>
@@ -303,8 +307,9 @@ export function SessionPane({
 				)}
 				{data?.state === "closed" && data.transcriptPath !== undefined ? (
 					<Link
-						to="/runs/$run/stages/$stage"
-						params={{ run, stage }}
+						to="/runs/$run"
+						params={{ run }}
+						search={{ view: "context", step: stage, focus: "events" }}
 						className="ml-auto text-11-5"
 					>
 						open transcript

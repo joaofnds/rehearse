@@ -179,6 +179,7 @@ describe(comparisonAttemptHistoryLink.name, () => {
 			status: "available",
 			repId: "group-a-rep-1",
 			ordinal: 1,
+			groupId: "group-a",
 			href: "/groups/group-a/reps/group-a-rep-1/attempt",
 		});
 		const response = await createApiApp({
@@ -269,6 +270,7 @@ describe(comparisonAttemptHistoryLink.name, () => {
 			status: "available",
 			repId: "group-a-rep-1",
 			ordinal: 3,
+			groupId: "group-a",
 			href: "/groups/group-a/reps/group-a-rep-1/attempt",
 		});
 	});

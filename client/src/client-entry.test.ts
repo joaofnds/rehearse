@@ -6,6 +6,12 @@ import { fileURLToPath } from "node:url";
 const serverModule =
 	/^(?:import|export) (?!type )[^;]*? from "#(?<module>(?:benchmark|cli|server)\/[^"]+)";/gmu;
 const runtimeImport = /^(?:import (?!type )|export (?!type )[^;]*? from )/mu;
+const zodSchemaImport = /^import (?!type )[^;]*? from "zod";/gmu;
+
+/** Zod is a browser dependency; shared schema leaves may use it without server imports. */
+function hasOtherRuntimeImport(source: string): boolean {
+	return runtimeImport.test(source.replace(zodSchemaImport, ""));
+}
 
 /**
  * Every server module the browser bundle executes, keyed by its import
@@ -46,10 +52,38 @@ describe("client entry", () => {
 		expect(document?.title).toBe("Rehearse");
 	});
 
-	it("runs only server modules that import nothing at runtime, so the bundle loads in a browser", async () => {
+	it("allows explicit Zod schema imports while detecting Node and transitive server imports", () => {
+		expect(
+			hasOtherRuntimeImport(
+				'import { z } from "zod";\nexport const schema = z.string();',
+			),
+		).toBe(false);
+		expect(
+			hasOtherRuntimeImport(
+				'import type { Grade } from "./contracts";\nimport { z } from "zod";',
+			),
+		).toBe(false);
+		expect(
+			hasOtherRuntimeImport(
+				'import { z } from "zod";\nimport { readFile } from "node:fs/promises";',
+			),
+		).toBe(true);
+		expect(
+			hasOtherRuntimeImport(
+				'import { z } from "zod";\nexport { readRecord } from "./records";',
+			),
+		).toBe(true);
+		expect(
+			hasOtherRuntimeImport(
+				'import { z } from "zod";\nimport { CONTROL_DIR } from "./config";',
+			),
+		).toBe(true);
+	});
+
+	it("runs shared modules with only browser-safe Zod imports, refusing server dependencies", async () => {
 		const importing: string[] = [];
 		for (const [specifier, path] of await serverModulesTheClientRuns()) {
-			if (runtimeImport.test(await readFile(path, "utf8"))) {
+			if (hasOtherRuntimeImport(await readFile(path, "utf8"))) {
 				importing.push(specifier);
 			}
 		}

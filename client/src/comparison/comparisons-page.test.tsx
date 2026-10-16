@@ -40,15 +40,19 @@ function renderComparisonsAt(index: ComparisonIndexResponse): void {
 }
 
 describe(ComparisonsPage.name, () => {
-	it("links each saved comparison, named by its digest, to its own page", async () => {
+	it("links each saved comparison by case with its digest available", async () => {
 		renderComparisonsAt(
 			indexWith({
 				comparisons: [savedComparison(DIGEST), savedComparison(OTHER_DIGEST)],
 			}),
 		);
 
-		const first = await screen.findByRole("link", { name: /^511cd2c4442b/u });
-		const second = screen.getByRole("link", { name: /^7e0f9a31c2d8/u });
+		const first = await screen.findByRole("link", {
+			name: /audit-log.*511cd2c4442b/u,
+		});
+		const second = screen.getByRole("link", {
+			name: /audit-log.*7e0f9a31c2d8/u,
+		});
 
 		expect(first).toHaveAttribute("href", `/comparisons/${DIGEST}`);
 		expect(second).toHaveAttribute("href", `/comparisons/${OTHER_DIGEST}`);
@@ -68,8 +72,13 @@ describe(ComparisonsPage.name, () => {
 			}),
 		);
 
-		const row = await screen.findByRole("row", { name: /^511cd2c4442b/u });
+		const row = await screen.findByRole("row", {
+			name: /audit-log.*511cd2c4442b/u,
+		});
 
+		expect(within(row).getByRole("rowheader")).toHaveTextContent(
+			"audit-log, brief-reply",
+		);
 		expect(within(row).getByRole("rowheader")).toHaveTextContent(
 			"511cd2c4442b",
 		);
@@ -77,7 +86,7 @@ describe(ComparisonsPage.name, () => {
 			within(row)
 				.getAllByRole("cell")
 				.map((cell) => cell.textContent),
-		).toEqual(["pipeline", "audit-log, brief-reply", "5"]);
+		).toEqual(["pipeline", "5", `Canonical ID${DIGEST}`]);
 	});
 
 	it("opens a saved comparison's own page when its entry is clicked", async () => {
@@ -104,7 +113,7 @@ describe(ComparisonsPage.name, () => {
 		);
 
 		fireEvent.click(
-			await screen.findByRole("link", { name: /^511cd2c4442b/u }),
+			await screen.findByRole("link", { name: /audit-log.*511cd2c4442b/u }),
 		);
 
 		expect(

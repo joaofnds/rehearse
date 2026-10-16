@@ -43,7 +43,8 @@ import { StagePanes } from "#client/monitor/stage-panes";
 import { useRunEventsStream } from "#client/monitor/run-events-stream";
 import { StepModalAction } from "#client/monitor/step-modal";
 import { SessionHistoryPage } from "#client/session-history/session-history-page";
-import { StepReport } from "./step-report";
+import { StepReport, wallTimeReading } from "./step-report";
+import { stageCostReading } from "./step-readings";
 import { CheckpointAttempts } from "./checkpoint-attempts";
 import { RunSetup } from "./run-setup";
 import { Button } from "#client/system/ui/button";
@@ -59,6 +60,12 @@ import { RUN_WORKSPACE_VIEWS, VIEW_LABELS } from "./run-detail-search";
 import { StepMap } from "./step-map";
 import { STAGE_ATTEMPTS_KEY } from "./stage-attempts-query";
 import { TaskGradeCard } from "./task-grade-card";
+import { useRunsReturnSearch } from "#client/run-history/run-discovery";
+import {
+	finalAssessmentQuery,
+	STAGE_OUTPUT_KEY,
+	FINAL_ASSESSMENT_KEY,
+} from "./investigation-query";
 
 type PipelineRow = Extract<HistoryRow, { readonly kind: "run" }>;
 
@@ -174,6 +181,16 @@ function metaLine(row: PipelineRow, record: RunRecordResponse): string {
 	].join(" · ");
 }
 
+function humanReviewReading(
+	row: PipelineRow,
+	record: RunRecordResponse,
+): string {
+	if (record.humanReview?.state === "available") {
+		return record.humanReview.review.verdict;
+	}
+	return row.status === "AWAITING_HUMAN_REVIEW" ? "pending" : "not recorded";
+}
+
 function RunDetailHeader({
 	row,
 	record,
@@ -182,11 +199,13 @@ function RunDetailHeader({
 	readonly record: RunRecordResponse;
 }): React.JSX.Element {
 	const { corpusVersion } = row;
+	const humanState = humanReviewReading(row, record);
+	const returnSearch = useRunsReturnSearch();
 
 	return (
 		<header className="flex flex-none flex-wrap items-center gap-3.5 border-b border-divider px-6 py-3.75">
 			<Button asChild variant="quiet" size="compact">
-				<Link to="/">
+				<Link to="/" search={returnSearch}>
 					<span aria-hidden="true">←</span> Runs
 				</Link>
 			</Button>
@@ -195,11 +214,15 @@ function RunDetailHeader({
 					<span className="font-mono">
 						{withinCase(row.shortId ?? row.run, row.caseId)}
 					</span>
-					<span className="text-12-5 text-muted-foreground">
+					<Link
+						to="/cases"
+						search={{ caseId: record.caseId }}
+						className="text-12-5 text-muted-foreground hover:text-pale"
+					>
 						{record.caseId}
-					</span>
+					</Link>
 				</h1>
-				<p className="mt-1 flex items-center gap-2.5 text-11-5 text-dim">
+				<p className="mt-1 flex flex-wrap items-center gap-2.5 text-11-5 text-dim">
 					<span aria-hidden="true">
 						{STATUS_VOCABULARY[runStatusState(row.status)].glyph}
 					</span>
@@ -207,6 +230,15 @@ function RunDetailHeader({
 					<span>·</span>
 					<span className="font-mono">{metaLine(row, record)}</span>
 				</p>
+				{row.progress.state === "running" ? null : (
+					<p className="mt-1 text-11-5 text-muted-foreground">
+						Execution ended · Final result:{" "}
+						{record.finalOutcome.status === "JUDGED"
+							? record.finalOutcome.verdict
+							: "unavailable"}{" "}
+						· Human review: {humanState}
+					</p>
+				)}
 			</div>
 			<div className="ml-auto flex flex-wrap items-center gap-2.5">
 				{corpusVersion?.kind === "version" ? (
@@ -275,6 +307,10 @@ export function RunDetailPage({
 		});
 		void queryClient.invalidateQueries({ queryKey: ["session-history"] });
 		void queryClient.invalidateQueries({ queryKey: ["stage-corpus"] });
+		void queryClient.invalidateQueries({ queryKey: [STAGE_OUTPUT_KEY, run] });
+		void queryClient.invalidateQueries({
+			queryKey: [FINAL_ASSESSMENT_KEY, run],
+		});
 		// A stage the run finishes becomes an attempt at its checkpoint.
 		void queryClient.invalidateQueries({
 			queryKey: [STAGE_ATTEMPTS_KEY, run],
@@ -399,13 +435,14 @@ function RunWorkspace({
 			</div>
 			<TaskGraph
 				record={record}
+				compact={view !== "activity"}
 				row={row}
 				shown={selected?.stage}
 				onSelect={(step) => {
 					choose(view, step);
 				}}
 			/>
-			{selected === undefined ? null : (
+			{selected === undefined || view === "results" ? null : (
 				<SelectedStepActions
 					row={row}
 					record={record}
@@ -420,12 +457,20 @@ function RunWorkspace({
 			) : null}
 			{view === "context" && selected !== undefined ? (
 				<>
-					<RunSetup row={row} record={record} selected={selected} />
+					<SelectedStepResources selected={selected} />
 					<SessionHistoryPage
 						key={`${row.run}:${selected.stage}`}
 						identity={{ kind: "stage", run: row.run, stage: selected.stage }}
 						embedded
+						revealEvents={search.focus === "events"}
+						initialEventId={search.event}
 					/>
+					<details className="mx-6 mb-5 rounded-lg border border-border">
+						<summary className="cursor-pointer px-4 py-3 text-12">
+							Run setup &amp; provenance
+						</summary>
+						<RunSetup row={row} record={record} selected={selected} />
+					</details>
 				</>
 			) : null}
 			{view === "results" ? (
@@ -443,6 +488,68 @@ function RunWorkspace({
 	);
 }
 
+function SelectedStepResources({
+	selected,
+}: {
+	readonly selected: MonitoredStage;
+}): React.JSX.Element {
+	return (
+		<dl
+			aria-label="Selected step resources"
+			className="mx-6 mt-4 flex flex-wrap gap-x-6 gap-y-2 rounded-lg border border-border bg-card px-4 py-3 text-12"
+		>
+			<div>
+				<dt className="text-dim">{selected.stage} · step cost</dt>
+				<dd className="mt-1 font-mono">{stageCostReading(selected)}</dd>
+			</div>
+			<div>
+				<dt className="text-dim">Execution</dt>
+				<dd className="mt-1 font-mono">
+					{selected.sessionCost.state === "available"
+						? spendReading(selected.sessionCost.usd)
+						: selected.sessionCost.reasons.join("; ")}
+				</dd>
+			</div>
+			<div>
+				<dt className="text-dim">Judge</dt>
+				<dd className="mt-1 font-mono">
+					{selected.judgeCost.state === "available"
+						? spendReading(selected.judgeCost.usd)
+						: selected.judgeCost.reasons.join("; ")}
+				</dd>
+			</div>
+			<div>
+				<dt className="text-dim">Step wall time</dt>
+				<dd className="mt-1 font-mono">{wallTimeReading(selected)}</dd>
+			</div>
+		</dl>
+	);
+}
+
+interface StepActions {
+	readonly skill: string | undefined;
+	readonly replayable: boolean;
+}
+
+function stepActions(
+	row: PipelineRow,
+	record: RunRecordResponse,
+	selected: MonitoredStage,
+): StepActions {
+	return {
+		skill:
+			selected.readManifest.state === "available"
+				? selected.readManifest.entries.find(
+						({ role, half }) => role === "stage skill" && half === "corpus",
+					)?.path
+				: undefined,
+		replayable:
+			row.replayableStages.includes(selected.stage) &&
+			hasRunEnded(row) &&
+			stageReplayRefusal(record, selected.stage) === undefined,
+	};
+}
+
 function SelectedStepActions({
 	row,
 	record,
@@ -454,16 +561,7 @@ function SelectedStepActions({
 	readonly selected: MonitoredStage;
 	readonly number: number;
 }): React.JSX.Element {
-	const skill =
-		selected.readManifest.state === "available"
-			? selected.readManifest.entries.find(
-					({ role, half }) => role === "stage skill" && half === "corpus",
-				)?.path
-			: undefined;
-	const replayable =
-		row.replayableStages.includes(selected.stage) &&
-		hasRunEnded(row) &&
-		stageReplayRefusal(record, selected.stage) === undefined;
+	const { skill, replayable } = stepActions(row, record, selected);
 
 	return (
 		<div className="flex flex-none flex-wrap items-center gap-2 border-b border-divider px-6 py-2">
@@ -495,7 +593,7 @@ function SelectedStepActions({
 							sourceStep: selected.stage,
 						}}
 					>
-						Test an instruction
+						Edit instruction &amp; replay
 					</Link>
 				</Button>
 			) : null}
@@ -524,49 +622,81 @@ function RunResults({
 	const rows = (history.data?.rows ?? []).filter(
 		(each): each is PipelineRowWithStaleness => each.kind === "run",
 	);
+	const [criteriaOpen, setCriteriaOpen] = useState(false);
+	const assessment = useQuery({
+		...finalAssessmentQuery(row.run),
+		enabled: record.finalOutcome.status === "JUDGED",
+	});
+	const finalCitations =
+		assessment.data?.state === "available" &&
+		assessment.data.requirements.some(({ status }) => status === "FAIL");
 	return (
 		<div className="flex flex-col gap-5 px-6 py-5">
-			{history.data === undefined ? (
-				<p className="text-12 text-muted-foreground">
-					{history.isError
-						? "Could not read result context"
-						: "Reading result context…"}
-				</p>
-			) : (
-				<TaskGradeCard row={row} rows={rows} outcome={record.finalOutcome} />
-			)}
+			<TaskGradeCard
+				row={row}
+				rows={rows}
+				outcome={record.finalOutcome}
+				assessment={assessment.data}
+				assessmentError={assessment.isError}
+				assessmentLoading={assessment.isLoading}
+				criteriaOpen={criteriaOpen}
+				onCriteriaOpenChange={setCriteriaOpen}
+			/>
 			{selected === undefined ? null : (
 				<div className="grid gap-5 xl:grid-cols-main-aside">
 					<StepReport
 						run={row.run}
+						row={row}
 						record={record}
 						stage={selected}
 						number={number}
 					/>
 					<aside className="min-w-0">
+						<ResultNextAction
+							row={row}
+							record={record}
+							selected={selected}
+							number={number}
+							finalCitations={finalCitations}
+							onInspectFinal={() => {
+								setCriteriaOpen(true);
+							}}
+						/>
 						<CheckpointAttempts run={row.run} stage={selected} />
-						<p className="mt-4">
-							<Link
-								to="/calibration/runs/$run/stages/$stage"
-								params={{ run: row.run, stage: selected.stage }}
-								className="text-12 text-pale underline underline-offset-4"
-							>
-								Review this Judge
-							</Link>
-						</p>
+						{selected.grade.state === "available" ? (
+							<p className="mt-4">
+								<Link
+									to="/calibration/runs/$run/stages/$stage"
+									params={{ run: row.run, stage: selected.stage }}
+									className="text-12 text-pale underline underline-offset-4"
+								>
+									Review this Judge
+								</Link>
+							</p>
+						) : null}
 					</aside>
 				</div>
 			)}
-			<HumanReview record={record} />
-			<RootCauseAnalysisSection
-				run={row.run}
-				record={record}
-				reading={analysis}
-				wait={analysisWait({
-					runEnded: hasRunEnded(row),
-					analysisInFlight,
-				})}
-			/>
+			<details className="rounded-lg border border-border">
+				<summary className="cursor-pointer px-4 py-3 text-12">
+					Human review · {humanReviewReading(row, record)}
+				</summary>
+				<HumanReview record={record} />
+			</details>
+			<details className="rounded-lg border border-border">
+				<summary className="cursor-pointer px-4 py-3 text-12">
+					Root-cause analysis · agent opinion
+				</summary>
+				<RootCauseAnalysisSection
+					run={row.run}
+					record={record}
+					reading={analysis}
+					wait={analysisWait({
+						runEnded: hasRunEnded(row),
+						analysisInFlight,
+					})}
+				/>
+			</details>
 			<WorkflowRecord
 				row={row}
 				record={record}
@@ -582,6 +712,125 @@ function RunResults({
 				</details>
 			)}
 		</div>
+	);
+}
+
+function ResultNextAction({
+	row,
+	record,
+	selected,
+	number,
+	finalCitations,
+	onInspectFinal,
+}: {
+	readonly row: PipelineRow;
+	readonly record: RunRecordResponse;
+	readonly selected: MonitoredStage;
+	readonly number: number;
+	readonly finalCitations: boolean;
+	readonly onInspectFinal: () => void;
+}): React.JSX.Element {
+	const { skill, replayable } = stepActions(row, record, selected);
+	const endedAt = defaultEndedStage(row, record);
+	const failedFinal =
+		record.finalOutcome.status === "JUDGED" &&
+		record.finalOutcome.verdict === "FAIL";
+	let primary: React.ReactNode;
+	if (row.progress.state === "running") {
+		primary = (
+			<Button asChild>
+				<Link
+					to="/runs/$run"
+					params={{ run: row.run }}
+					search={{ view: "activity", step: selected.stage }}
+				>
+					Follow activity
+				</Link>
+			</Button>
+		);
+	} else if (selected.status === "no-record" && endedAt !== undefined) {
+		primary = (
+			<Button asChild>
+				<Link
+					to="/runs/$run"
+					params={{ run: row.run }}
+					search={{ view: "results", step: endedAt.stage }}
+				>
+					Inspect ended step
+				</Link>
+			</Button>
+		);
+	} else if (failedFinal && finalCitations) {
+		primary = (
+			<Button asChild>
+				<a href="#final-criteria" onClick={onInspectFinal}>
+					Inspect final evidence
+				</a>
+			</Button>
+		);
+	} else if (failedFinal) {
+		primary = (
+			<Button asChild>
+				<a href="#task-grade-label">Review final outcome</a>
+			</Button>
+		);
+	} else if (replayable && skill !== undefined) {
+		primary = (
+			<Button asChild>
+				<Link
+					to="/corpus"
+					search={{
+						file: skill,
+						sourceRun: row.run,
+						sourceStep: selected.stage,
+					}}
+				>
+					Edit instruction &amp; replay
+				</Link>
+			</Button>
+		);
+	} else {
+		primary = (
+			<Button asChild>
+				<Link
+					to="/runs/$run"
+					params={{ run: row.run }}
+					search={{ view: "activity", step: selected.stage }}
+				>
+					Inspect activity
+				</Link>
+			</Button>
+		);
+	}
+	return (
+		<section
+			aria-label="Next action"
+			className="flex flex-col items-start gap-3 rounded-lg border border-border bg-card p-4"
+		>
+			<h2 className="text-14 font-medium">Next action</h2>
+			{primary}
+			{replayable && skill !== undefined && failedFinal ? (
+				<Link
+					to="/corpus"
+					search={{
+						file: skill,
+						sourceRun: row.run,
+						sourceStep: selected.stage,
+					}}
+					className="text-12 text-pale underline"
+				>
+					Edit instruction &amp; replay
+				</Link>
+			) : null}
+			{replayable ? (
+				<ReplayButton
+					run={row.run}
+					record={record}
+					stage={selected.stage}
+					label={`Replay step ${String(number)}`}
+				/>
+			) : null}
+		</section>
 	);
 }
 

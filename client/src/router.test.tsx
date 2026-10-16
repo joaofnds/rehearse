@@ -193,8 +193,8 @@ describe(createAppRouter.name, () => {
 		);
 
 		await waitFor(() => {
-			expect(screen.getByText("case-a")).toBeInTheDocument();
-			expect(screen.getByText("attempt-a")).toBeInTheDocument();
+			expect(screen.getAllByText("case-a").length).toBeGreaterThan(0);
+			expect(screen.getAllByText("attempt-a").length).toBeGreaterThan(0);
 		});
 		expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 	});
@@ -253,7 +253,7 @@ describe(createAppRouter.name, () => {
 				screen.getByRole("button", { name: "Context & cost" }),
 			).toHaveAttribute("aria-pressed", "true");
 			const graph = screen.getByRole("region", { name: "Task graph" });
-			const [selected] = within(graph).getAllByRole("button");
+			const selected = within(graph).getByRole("button", { name: /^shape/u });
 			expect(selected).toHaveTextContent("shape");
 			expect(selected).toHaveAttribute("aria-current", "step");
 			expect(screen.getByText("lineage-1")).toBeInTheDocument();

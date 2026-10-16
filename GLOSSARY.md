@@ -104,8 +104,8 @@ See [current state](docs/status.md) for implementation coverage and
 - **Clean record** — a recorded result judged against the corpus under test
   with no staleness cause and a recorded **version distance** of zero. Run
   history marks it `✓ clean`. A record whose version distance is not recorded
-  is never clean, whatever its causes. The design's Clean corpus only filter
-  names these. Name accepted unattended as unsettled, pending the operator's
+  is never clean, whatever its causes. The product's Current corpus filter
+  (Clean corpus only in the original design) names these. Name accepted unattended as unsettled, pending the operator's
   confirmation (ACT-249).
 - **Confirmation run** — an explicitly requested group of at least two reps over
   one frozen input set, used by the outer loop to produce a score; defaults to
@@ -164,13 +164,12 @@ See [current state](docs/status.md) for implementation coverage and
 - **Comparison arm** — one role in a comparison: baseline, candidate, or the
   mandatory control. An arm uses the same corpus snapshot across every
   benchmark case; a session control may have an empty declared corpus.
-- **Baseline arm, arm A and arm B**: the names the comparison screen and
-  `compare attempts` give the three comparison arms. The baseline arm is the
-  control, arm A is the baseline role, the corpus before the edit, and arm B is
-  the candidate role, the corpus after it. A baseline arm `compare attempts`
-  derived is arm A's corpus with the skill under test removed, one it took
-  unchanged is arm A run again, and one a manifest supplied is described as a
-  minimal corpus.
+- **Baseline arm, arm A and arm B**: the CLI comparison names. The CLI baseline arm
+  is the control, arm A is the baseline role (the corpus before the edit), and arm B
+  is the candidate role (the corpus after it). The browser uses the record roles:
+  Control, Baseline (before), and Candidate (after). A control that `compare attempts`
+  derived is arm A's corpus with the skill under test removed; an unchanged control
+  is arm A run again; a manifest-supplied control may be a minimal corpus.
 - **Skill under test**: the one corpus unit that differs between arms A and B
   of a `compare attempts` comparison, which a derived baseline arm removes to
   show the corpus does work at all. A manifest comparison names none. Name

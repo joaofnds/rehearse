@@ -192,7 +192,14 @@ async function stepReport(): Promise<HTMLElement> {
 async function stepButtons(): Promise<readonly HTMLElement[]> {
 	const graph = await screen.findByRole("region", { name: "Task graph" });
 
-	return within(graph).getAllByRole("button");
+	fireEvent.click(
+		within(graph).getByRole("button", {
+			name: "Show workflow details",
+		}),
+	);
+	return within(graph).getAllByRole("button", {
+		name: /^(?:shape|build|verify)/u,
+	});
 }
 
 describe("the selected step in Results", () => {
@@ -250,14 +257,14 @@ describe("the selected step in Results", () => {
 					reason: INTERRUPTED_REASON,
 				},
 				"This step's judge never returned: the run ended while this stage awaited judgment.",
-				"Verdict⊘interruptedblockers not recorded: the run ended while this stage awaited judgment",
+				"Verdict⊘judge never returnedblockers not recorded: the run ended while this stage awaited judgment",
 			],
 			[
 				"a run in flight",
 				"RUNNING",
 				{ status: "PENDING", stage: "build" },
 				"This step's judge has not returned its blockers and dimensions yet.",
-				"Verdict◌pendingblockers pending",
+				"Verdict◌awaiting judgmentblockers pending",
 			],
 		] as const)(
 			"says on %s whether a waiting judge can still return",

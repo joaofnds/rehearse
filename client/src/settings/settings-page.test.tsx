@@ -775,10 +775,11 @@ describe(SettingsPage.name, () => {
 				);
 		}
 
-		it("lists the design's eight shortcuts in its order", async () => {
+		it("lists the global search and workspace shortcuts", async () => {
 			serving();
 
 			expect(await shortcuts()).toEqual([
+				"⌘ / Ctrl Ksearch everything",
 				"g rrun history",
 				"g mnewest run’s Activity",
 				"nnew run",

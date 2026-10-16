@@ -14,7 +14,7 @@ import type { ComparisonResponse } from "./comparison-response";
 import { ReadWithCare, WhatThePairingSays } from "./pairing-cards";
 import { WhatMoved } from "./what-moved";
 
-const PRESENTATIONS = ["Attempt pairs", "What moved"] as const;
+const PRESENTATIONS = ["What moved", "Attempt pairs"] as const;
 type Presentation = (typeof PRESENTATIONS)[number];
 
 export class ComparisonNotFoundError extends RecordNotFoundError {
@@ -51,6 +51,54 @@ function attemptsPerArm(
 	};
 }
 
+function evaluationScope(mode: ComparisonResponse["report"]["mode"]): string {
+	switch (mode) {
+		case "session": {
+			return "Passed means the saved session checks passed, including state checks where declared; no independent final workflow outcome is measured.";
+		}
+		case "pipeline": {
+			return "The final workflow outcome is judged independently of intermediate step grades. Read each named measure separately.";
+		}
+		case "stage": {
+			return "Step grades describe the replayed step only; no independent final workflow outcome is measured.";
+		}
+		default: {
+			return mode satisfies never;
+		}
+	}
+}
+
+function CaseLead({
+	caseId,
+	mode,
+	attribution,
+	attempts,
+}: {
+	readonly caseId: string;
+	readonly mode: ComparisonResponse["report"]["mode"];
+	readonly attribution: ComparisonResponse["attribution"][string][string];
+	readonly attempts: ComparisonResponse["attempts"][string];
+}): React.JSX.Element {
+	const change =
+		attribution.claim === "identical"
+			? "Baseline and candidate used identical corpora"
+			: `Changed: ${attribution.differingPaths.join(", ")}`;
+
+	return (
+		<header className="flex flex-col gap-1">
+			<h2 className="text-17 font-medium">{caseId}</h2>
+			<p className="text-13 text-secondary-foreground">{change}</p>
+			<p className="text-12 text-muted-foreground">{evaluationScope(mode)}</p>
+			<p className="text-12 text-muted-foreground">
+				Saved attempts · baseline (before) {attempts.baseline.length} ·
+				candidate (after) {attempts.candidate.length} · control{" "}
+				{attempts.control.length}. Read each measure’s coverage and uncertainty
+				before attributing a change.
+			</p>
+		</header>
+	);
+}
+
 function WhatMovedPresentation({
 	digest,
 	caseId,
@@ -79,6 +127,12 @@ function WhatMovedPresentation({
 			aria-label={`What moved · ${caseId}`}
 			className="flex flex-col gap-4"
 		>
+			<CaseLead
+				caseId={caseId}
+				mode={comparison.report.mode}
+				attribution={attribution}
+				attempts={attempts}
+			/>
 			<WhatMoved
 				caseId={caseId}
 				rows={rows}
@@ -91,6 +145,7 @@ function WhatMovedPresentation({
 				baselineArm={comparison.baselineArm}
 				moreAttempts={summary.moreAttempts}
 			/>
+			<ArmCards digest={digest} caseId={caseId} comparison={comparison} />
 		</section>
 	);
 }
@@ -123,7 +178,14 @@ function AttemptPairsPresentation({
 			aria-label={`Attempt pairs · ${caseId}`}
 			className="flex flex-col gap-4"
 		>
+			<CaseLead
+				caseId={caseId}
+				mode={comparison.report.mode}
+				attribution={attribution}
+				attempts={attempts}
+			/>
 			<AttemptPairs
+				digest={digest}
 				caseId={caseId}
 				mode={comparison.report.mode}
 				attempts={attempts}
@@ -140,14 +202,17 @@ function AttemptPairsPresentation({
 					moreAttempts={summary.moreAttempts}
 				/>
 			</div>
+			<ArmCards digest={digest} caseId={caseId} comparison={comparison} />
 		</section>
 	);
 }
 
 function ArmCards({
+	digest,
 	caseId,
 	comparison,
 }: {
+	readonly digest: string;
 	readonly caseId: string;
 	readonly comparison: ComparisonResponse;
 }): React.JSX.Element | null {
@@ -159,6 +224,8 @@ function ArmCards({
 
 	return (
 		<ArmCardsBand
+			digest={digest}
+			histories={comparison.attemptHistories[caseId]}
 			caseId={caseId}
 			showCase={comparison.report.cases.length > 1}
 			figures={figures}
@@ -173,15 +240,14 @@ export function ComparisonPage({
 }: {
 	readonly digest: string;
 }): React.JSX.Element {
-	const [presentation, setPresentation] =
-		useState<Presentation>("Attempt pairs");
+	const [presentation, setPresentation] = useState<Presentation>("What moved");
 	const query = useQuery({
 		queryKey: ["comparison", digest],
 		queryFn: () => fetchComparison(digest),
 	});
 
 	return (
-		<div className="flex h-full flex-col">
+		<div className="flex min-h-full flex-col">
 			<ScreenHeader
 				title={query.isSuccess ? comparisonTitle(query.data) : "Comparison"}
 				subline={query.isSuccess ? comparisonSubline(query.data) : undefined}
@@ -197,13 +263,7 @@ export function ComparisonPage({
 				}
 			/>
 
-			{query.isSuccess
-				? query.data.report.cases.map(({ caseId }) => (
-						<ArmCards key={caseId} caseId={caseId} comparison={query.data} />
-					))
-				: null}
-
-			<div className="flex min-h-0 flex-1 flex-col gap-8 overflow-y-auto px-6 pt-4 pb-12">
+			<div className="flex flex-1 flex-col gap-8 px-6 pt-4 pb-12">
 				{query.isLoading ? (
 					<p className="text-muted-foreground">Loading…</p>
 				) : null}

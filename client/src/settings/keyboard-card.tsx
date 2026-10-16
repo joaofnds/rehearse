@@ -6,10 +6,11 @@ interface Shortcut {
 }
 
 /**
- * The design's eight shortcuts in its order and wording (SPEC.md:356). Esc is
+ * Shell and workspace shortcuts. Esc is
  * the dialog library's own close key, which nothing here binds.
  */
 const SHORTCUTS: readonly Shortcut[] = [
+	{ key: "⌘ / Ctrl K", does: "search everything" },
 	{ key: "g r", does: "run history" },
 	{ key: "g m", does: "newest run’s Activity" },
 	{ key: "n", does: "new run" },

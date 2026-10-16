@@ -10,26 +10,37 @@ import { comparisonIndexQuery } from "./comparison-index-query";
 
 type SavedComparison = ComparisonIndexResponse["comparisons"][number];
 
-const COLUMNS = ["Comparison", "Mode", "Cases", "Reps"] as const;
+const COLUMNS = [
+	"Case comparison",
+	"Evaluation",
+	"Requested per arm",
+	"Record",
+] as const;
 
 function rowFor(comparison: SavedComparison): readonly React.ReactNode[] {
 	return [
 		<Link
-			key="digest"
+			key="case"
 			to={`/comparisons/${encodeURIComponent(comparison.digest)}`}
-			className="font-mono text-sm text-accent-foreground underline decoration-deeper underline-offset-4 hover:text-pale"
+			className="text-14 text-accent-foreground underline decoration-deeper underline-offset-4 hover:text-pale"
 		>
-			{comparison.digest.slice(0, 12)}
+			<span className="font-medium">{comparison.caseIds.join(", ")}</span>
+			<span className="mt-1 block font-mono text-11-5 text-muted-foreground">
+				{comparison.digest.slice(0, 12)}
+			</span>
 		</Link>,
-		<span key="mode" className="font-mono text-sm">
+		<span key="mode" className="text-13">
 			{comparison.mode}
 		</span>,
-		<span key="cases" className="font-mono text-sm">
-			{comparison.caseIds.join(", ")}
-		</span>,
-		<span key="reps" className="font-mono text-sm">
+		<span key="reps" className="font-mono text-13">
 			{comparison.reps}
 		</span>,
+		<details key="record" className="text-12 text-muted-foreground">
+			<summary className="cursor-pointer">Canonical ID</summary>
+			<code className="mt-2 block font-mono break-all">
+				{comparison.digest}
+			</code>
+		</details>,
 	];
 }
 
@@ -56,6 +67,11 @@ export function ComparisonsPage(): React.JSX.Element {
 			/>
 
 			<div className="flex max-w-7xl flex-col gap-6 px-6 pt-4 pb-12">
+				<p className="text-13 text-secondary-foreground">
+					Compare the baseline before an edit, the candidate after it, and the
+					recorded control. Open a case comparison for its corpus difference,
+					measured changes and saved attempts.
+				</p>
 				{query.isLoading ? (
 					<p className="text-muted-foreground">Loading…</p>
 				) : null}
@@ -89,7 +105,7 @@ export function ComparisonsPage(): React.JSX.Element {
 					<TableShell
 						caption="Saved comparisons"
 						columns={[...COLUMNS]}
-						numeric={["Reps"]}
+						numeric={["Requested per arm"]}
 						rows={comparisons.map((comparison) => rowFor(comparison))}
 					/>
 				) : null}
