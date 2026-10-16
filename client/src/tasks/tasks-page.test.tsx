@@ -20,6 +20,7 @@ afterEach(() => {
 	globalThis.fetch = originalFetch;
 });
 
+const TASK_TITLE = "Asynchronous audit log module against the NestJS template";
 const TASK_PATH = "cases/audit-log/pipelines/default.json";
 const OLDER_RUN = "2026-09-28T10-03-07.498Z";
 const NEWER_RUN = "2026-10-01T22-07-54.847Z";
@@ -142,10 +143,10 @@ describe(TasksPage.name, () => {
 		renderTasksAt("/tasks", [declaredTask()]);
 
 		expect(
-			await screen.findByRole("heading", { level: 1, name: "Tasks" }),
+			await screen.findByRole("heading", { level: 1, name: "Workflows" }),
 		).toBeInTheDocument();
 		expect(
-			screen.getByText(/declared as the pipeline file a case names/u),
+			screen.getByText("Reusable step definitions for workflow cases"),
 		).toBeInTheDocument();
 	});
 
@@ -181,7 +182,7 @@ describe(TasksPage.name, () => {
 
 			expect(
 				await screen.findByText(
-					"No task is declared by a case, so there is nothing to export.",
+					"No workflow is declared by a case, so there is nothing to export.",
 				),
 			).toBeInTheDocument();
 		});
@@ -232,12 +233,12 @@ describe(TasksPage.name, () => {
 
 		async function chooseBundle(text: string): Promise<HTMLElement> {
 			fireEvent.click(
-				await screen.findByRole("button", { name: "Import a task" }),
+				await screen.findByRole("button", { name: "Import workflow" }),
 			);
 			const dialog = await screen.findByRole("dialog", {
-				name: "Import a task",
+				name: "Import workflow",
 			});
-			fireEvent.change(within(dialog).getByLabelText("Task bundle"), {
+			fireEvent.change(within(dialog).getByLabelText("Workflow bundle"), {
 				target: {
 					files: [new File([text], "audit-log.task.json")],
 				},
@@ -332,7 +333,7 @@ describe(TasksPage.name, () => {
 			const dialog = await chooseBundle("not json");
 
 			expect(await within(dialog).findByRole("alert")).toHaveTextContent(
-				"The file is not JSON, so it is no task bundle",
+				"The file is not JSON, so it is no workflow bundle",
 			);
 			expect(server.posted("/api/task-bundles/preview")).toHaveLength(0);
 		});
@@ -341,14 +342,14 @@ describe(TasksPage.name, () => {
 	it("shows a task's id, target, figures, description and steps on its card", async () => {
 		renderTasksAt("/tasks", [declaredTask()]);
 
-		const card = await screen.findByRole("article", { name: TASK_PATH });
+		const card = await screen.findByRole("article", { name: TASK_TITLE });
 
 		expect(
 			within(card).getByText("../../../nest/template"),
 		).toBeInTheDocument();
 		expect(
 			within(card).getByText(
-				"14 runs at corpus@e73e56 · 1 case · 2 step judges + 1 task judge",
+				"14 runs at corpus@e73e56 · 1 case · 2 step judges + 1 final judge",
 			),
 		).toBeInTheDocument();
 		expect(
@@ -414,7 +415,7 @@ describe(TasksPage.name, () => {
 		}
 
 		async function openEditor(): Promise<HTMLElement> {
-			const card = await screen.findByRole("article", { name: TASK_PATH });
+			const card = await screen.findByRole("article", { name: TASK_TITLE });
 			fireEvent.click(within(card).getByRole("button", { name: "Edit steps" }));
 			const dialog = await screen.findByRole("dialog", {
 				name: "Edit steps · audit-log",
@@ -540,7 +541,7 @@ describe(TasksPage.name, () => {
 			serving();
 
 			const card = await screen.findByRole("article", {
-				name: "cases/audit-log/pipelines/build-only.json",
+				name: "build workflow",
 			});
 
 			expect(
@@ -552,7 +553,7 @@ describe(TasksPage.name, () => {
 	it("opens the live monitor on the newest of its runs in flight", async () => {
 		renderTasksWhileRunning([OLDER_RUN, NEWER_RUN, OTHER_TASK_RUN]);
 
-		const card = await screen.findByRole("article", { name: TASK_PATH });
+		const card = await screen.findByRole("article", { name: TASK_TITLE });
 
 		expect(
 			await within(card).findByRole("link", { name: "Open graph" }),
@@ -562,7 +563,7 @@ describe(TasksPage.name, () => {
 	it("opens a run started after the page read its tasks once the run is recorded", async () => {
 		renderTasksBeforeTheirRunWasRecorded(NEWER_RUN);
 
-		const card = await screen.findByRole("article", { name: TASK_PATH });
+		const card = await screen.findByRole("article", { name: TASK_TITLE });
 
 		expect(
 			await within(card).findByRole("link", { name: "Open graph" }),
@@ -573,12 +574,12 @@ describe(TasksPage.name, () => {
 		it("draws Open graph disabled and says why", async () => {
 			renderTasksWhileRunning([OTHER_TASK_RUN]);
 
-			const card = await screen.findByRole("article", { name: TASK_PATH });
+			const card = await screen.findByRole("article", { name: TASK_TITLE });
 			const open = within(card).getByRole("button", { name: "Open graph" });
 
 			expect(open).toHaveAttribute("aria-disabled", "true");
 			expect(open).toHaveAccessibleDescription(
-				"None of this task's runs is in flight",
+				"None of this workflow's runs is in flight",
 			);
 		});
 	});
@@ -588,19 +589,21 @@ describe(TasksPage.name, () => {
 			const task = overrideTask();
 			renderTasksAt("/tasks", [task]);
 
-			const card = await screen.findByRole("article", { name: task.path });
+			const card = await screen.findByRole("article", {
+				name: "build workflow",
+			});
 
 			expect(
 				within(card).getByText("../../../nest/template"),
 			).toBeInTheDocument();
 			expect(
 				within(card).getByText(
-					"1 run, corpus version not recorded · 1 case · 1 step judge + no task judge",
+					"1 run, corpus version not recorded · 1 case · 1 step judge + no final judge",
 				),
 			).toBeInTheDocument();
 			expect(
 				within(card).getByText(
-					"A run chose this pipeline over its case's default. No case declares it, so it has no task judge of its own.",
+					"A run chose this workflow over its case's default. No case declares it, so it has no final judge of its own.",
 				),
 			).toBeInTheDocument();
 		});
@@ -611,7 +614,9 @@ describe(TasksPage.name, () => {
 			const task = { ...overrideTask(), targets: [] };
 			renderTasksAt("/tasks", [task]);
 
-			const card = await screen.findByRole("article", { name: task.path });
+			const card = await screen.findByRole("article", {
+				name: "build workflow",
+			});
 
 			expect(
 				within(card).getByText("No declared case names its target"),
@@ -629,11 +634,11 @@ describe(TasksPage.name, () => {
 				},
 			]);
 
-			const card = await screen.findByRole("article", { name: TASK_PATH });
+			const card = await screen.findByRole("article", { name: TASK_TITLE });
 
 			expect(
 				within(card).getByText(
-					"No runs yet · 1 case · 2 step judges + 1 task judge",
+					"No runs yet · 1 case · 2 step judges + 1 final judge",
 				),
 			).toBeInTheDocument();
 		});
@@ -649,11 +654,11 @@ describe(TasksPage.name, () => {
 				},
 			]);
 
-			const card = await screen.findByRole("article", { name: TASK_PATH });
+			const card = await screen.findByRole("article", { name: TASK_TITLE });
 
 			expect(
 				within(card).getByText(
-					"3 runs at corpus@e73e56 · 1 case · 2 step judges + 1 task judge",
+					"3 runs at corpus@e73e56 · 1 case · 2 step judges + 1 final judge",
 				),
 			).toBeInTheDocument();
 		});
@@ -668,7 +673,7 @@ describe(TasksPage.name, () => {
 				},
 			]);
 
-			const card = await screen.findByRole("article", { name: TASK_PATH });
+			const card = await screen.findByRole("article", { name: TASK_TITLE });
 
 			expect(within(card).queryByText(/left out/u)).not.toBeInTheDocument();
 		});
@@ -680,7 +685,7 @@ describe(TasksPage.name, () => {
 			renderAppAt("/tasks");
 
 			expect(await screen.findByRole("alert")).toHaveTextContent(
-				"Could not load the tasks.",
+				"Could not load the workflows.",
 			);
 		});
 	});
@@ -697,7 +702,7 @@ describe(TasksPage.name, () => {
 
 			expect(notice).toBeInTheDocument();
 			expect(
-				screen.getByRole("article", { name: TASK_PATH }),
+				screen.getByRole("article", { name: TASK_TITLE }),
 			).toBeInTheDocument();
 		});
 	});

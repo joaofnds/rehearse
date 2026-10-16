@@ -7,12 +7,20 @@ import { listedComparisonDigests } from "#benchmark/comparison-baseline-record";
 import { comparisonReportPaths } from "#benchmark/run-layout";
 import { ZodError } from "zod";
 import { redactAbsolutePaths } from "./redact-path";
+import { comparisonAttribution } from "./comparison-attribution";
+import { comparisonProvenance } from "./comparison-provenance";
+import type { ComparisonProvenance } from "./comparison-provenance";
 
 export interface ComparisonIndexEntry {
 	readonly digest: string;
 	readonly mode: (ComparisonReport | LegacyComparisonReport)["mode"];
 	readonly caseIds: readonly string[];
 	readonly reps: number;
+	readonly details?: readonly {
+		readonly caseId: string;
+		readonly changedPaths: readonly string[];
+		readonly corpusVersions: ComparisonProvenance["corpusVersions"][string];
+	}[];
 }
 
 export interface UnreadableComparison {
@@ -31,12 +39,33 @@ async function indexEntry(
 ): Promise<ComparisonIndexEntry> {
 	const { reportFile } = comparisonReportPaths(runsDirectory, digest);
 	const report = parseComparisonReport(await Bun.file(reportFile).text());
+	const provenance = await comparisonProvenance(report, runsDirectory);
 
 	return {
 		digest,
 		mode: report.mode,
 		caseIds: report.cases.map(({ caseId }) => caseId),
 		reps: report.reps,
+		details: report.cases.map((benchmarkCase) => {
+			const attribution = comparisonAttribution(
+				benchmarkCase.arms.candidate.executedCorpus,
+				benchmarkCase.arms.baseline.executedCorpus,
+				report.mode,
+			);
+			return {
+				caseId: benchmarkCase.caseId,
+				changedPaths:
+					attribution.claim === "identical" ? [] : attribution.differingPaths,
+				corpusVersions: provenance.corpusVersions[benchmarkCase.caseId] ?? {
+					baseline: { state: "unavailable", reasons: ["Version not recorded"] },
+					candidate: {
+						state: "unavailable",
+						reasons: ["Version not recorded"],
+					},
+					control: { state: "unavailable", reasons: ["Version not recorded"] },
+				},
+			};
+		}),
 	};
 }
 

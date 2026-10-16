@@ -364,6 +364,30 @@ function RunEvents({ run }: { readonly run: string }): null {
 	return null;
 }
 
+function RunActivity({
+	run,
+	number,
+	stage,
+	ended,
+}: {
+	readonly run: string;
+	readonly number: number;
+	readonly stage: MonitoredStage;
+	readonly ended: boolean;
+}): React.JSX.Element {
+	return (
+		<div
+			className={
+				ended
+					? "flex min-h-0 flex-col"
+					: "flex min-h-110 flex-1 flex-col lg:h-110"
+			}
+		>
+			<StagePanes run={run} number={number} stage={stage} ended={ended} />
+		</div>
+	);
+}
+
 function RunWorkspace({
 	row,
 	record,
@@ -451,9 +475,12 @@ function RunWorkspace({
 				/>
 			)}
 			{view === "activity" && selected !== undefined ? (
-				<div className="flex min-h-110 flex-1 flex-col lg:h-110">
-					<StagePanes run={row.run} number={number} stage={selected} />
-				</div>
+				<RunActivity
+					run={row.run}
+					number={number}
+					stage={selected}
+					ended={hasRunEnded(row)}
+				/>
 			) : null}
 			{view === "context" && selected !== undefined ? (
 				<>

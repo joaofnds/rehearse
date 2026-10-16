@@ -6,6 +6,7 @@ import { Disclosure } from "#client/system/components/disclosure";
 import { EmptyState } from "#client/system/components/empty-state";
 import { FilterPill } from "#client/system/components/filter-pill";
 import { Status } from "#client/system/components/status";
+import { StateBadge } from "#client/system/components/state-badge";
 import type { StatusState } from "#client/system/components/status";
 import { TableShell } from "#client/system/components/table-shell";
 import { Button } from "#client/system/ui/button";
@@ -27,6 +28,8 @@ import { isStopped, stoppedStageOf } from "#benchmark/stopped-status";
 import { attemptLabel } from "#client/attempt-label";
 import { plural } from "#client/plural";
 import { ScreenHeader } from "#client/system/components/screen-header";
+import { SavedStateSummary } from "#client/saved-state-summary";
+import { SummaryPanel } from "#client/system/components/summary-panel";
 
 import { LaunchDialog } from "#client/launch/launch-dialog";
 import { launchSettingsQuery } from "#client/launch/settings-query";
@@ -43,6 +46,8 @@ import {
 	matchesDiscovery,
 	launchMatchesDiscovery,
 	recordIdentity,
+	recordedTime,
+	sortDiscoveredRows,
 } from "./run-discovery";
 import type { RunDiscoverySearch } from "./run-discovery";
 import { RunControls } from "./run-controls";
@@ -157,25 +162,6 @@ function kindLine(row: HistoryRow): string {
 		}
 		case "group": {
 			return `group · ${plural(row.reps, "rep")} · ${row.mode}`;
-		}
-		default: {
-			return row satisfies never;
-		}
-	}
-}
-
-/** The time a row's record says it ran: a run's name, a replay's timestamp, or a start time. */
-function recordedTime(row: HistoryRow): string | undefined {
-	switch (row.kind) {
-		case "run": {
-			return row.run;
-		}
-		case "replay": {
-			return row.timestamp;
-		}
-		case "session-attempt":
-		case "group": {
-			return row.startedAt;
 		}
 		default: {
 			return row satisfies never;
@@ -389,7 +375,19 @@ function outcomeCell(row: HistoryRow, choice: ArmChoice): React.JSX.Element {
 			return runOutcomeCell(row);
 		}
 		case "session-attempt": {
-			return outcomeOf(sessionOutcome(row));
+			const recordedPassed =
+				row.checks.state === "available"
+					? row.status === "SUCCESSFUL"
+					: undefined;
+			return (
+				<span className="flex flex-col items-start gap-2">
+					{outcomeOf(sessionOutcome(row))}
+					<SavedStateSummary
+						assessment={row.savedState}
+						recordedPassed={recordedPassed}
+					/>
+				</span>
+			);
 		}
 		case "replay": {
 			return outcomeOf(replayOutcome(row));
@@ -398,6 +396,7 @@ function outcomeCell(row: HistoryRow, choice: ArmChoice): React.JSX.Element {
 			return (
 				<span className="flex flex-col gap-0.5">
 					{outcome(groupOutcome(row))}
+					<SessionGroupState row={row} />
 					<CompareChoice row={row} choice={choice} />
 				</span>
 			);
@@ -417,7 +416,31 @@ function runOutcomeCell(row: RunHistoryRow): React.JSX.Element {
 					phrase: runningPhrase(row.progress.stage, row.stageGrades),
 					reason: `${row.progress.stage} · ${row.progress.stageState}`,
 				})}
-				<RunControls launchId={row.launchId} run={row.run} />
+				<RunControls key={row.recordId} launchId={row.launchId} run={row.run} />
+			</span>
+		);
+	}
+	if (row.status === "AWAITING_HUMAN_REVIEW") {
+		return (
+			<span className="flex flex-col items-start gap-1">
+				<StateBadge tone="neutral">Execution ended</StateBadge>
+				{row.finalOutcome.state === "available" &&
+				row.finalOutcome.status === "JUDGED" ? (
+					<StateBadge
+						tone={row.finalOutcome.verdict === "FAIL" ? "negative" : "positive"}
+					>
+						Final outcome {row.finalOutcome.verdict}
+					</StateBadge>
+				) : (
+					<span className="text-12 text-dim">Final outcome unavailable</span>
+				)}
+				<StateBadge tone="attention">Human review pending</StateBadge>
+				<details>
+					<summary className="cursor-pointer text-11-5 text-dim">
+						Recorded status
+					</summary>
+					<code className="select-all text-11-5">{row.status}</code>
+				</details>
 			</span>
 		);
 	}
@@ -457,7 +480,7 @@ function otherRunOutcome(row: RunHistoryRow): React.JSX.Element {
 			<Status state={runStatusState(row.status)} />
 			<span className="font-mono text-xs text-dim">{row.status}</span>
 			{row.status === "RUNNING" ? (
-				<RunControls launchId={row.launchId} run={row.run} />
+				<RunControls key={row.recordId} launchId={row.launchId} run={row.run} />
 			) : null}
 		</span>
 	);
@@ -660,13 +683,16 @@ function groupOutcome(row: GroupRow): OutcomePhrase {
 	return {
 		state: recorded === row.reps ? "accepted" : "interrupted",
 		phrase: `${String(recorded)} of ${String(row.reps)} recorded`,
-		reason: [`${String(row.successful)} successful`, ...unread].join(" · "),
+		reason: [
+			`${String(row.successful)} recorded successful${row.mode === "session" ? " on reply/transcript checks" : ""}`,
+			...unread,
+		].join(" · "),
 	};
 }
 
 const SESSION_OUTCOMES = {
-	SUCCESSFUL: { state: "accepted", phrase: "successful" },
-	UNSUCCESSFUL: { state: "stopped", phrase: "unsuccessful" },
+	SUCCESSFUL: { state: "accepted", phrase: "recorded successful" },
+	UNSUCCESSFUL: { state: "stopped", phrase: "recorded unsuccessful" },
 	NO_REPLY: { state: "interrupted", phrase: "no reply" },
 	EXECUTION_FAILED: { state: "interrupted", phrase: "failed to run" },
 } as const satisfies Record<
@@ -689,8 +715,8 @@ function sessionOutcome(row: SessionAttemptRow): OutcomePhrase {
 		...SESSION_OUTCOMES[row.status],
 		reason:
 			failed === 0
-				? "all checks passed"
-				: `${String(failed)} of ${plural(checks.declared, "check")} failed`,
+				? "all reply/transcript checks passed"
+				: `${String(failed)} of ${plural(checks.declared, "reply/transcript check")} failed`,
 	};
 }
 
@@ -941,8 +967,15 @@ function recordedReps(row: GroupRow): number {
 function groupStepGrades(row: GroupRow): React.JSX.Element {
 	if (row.mode === "session") {
 		const recorded = recordedReps(row);
-		const passed = gradeTokens(
-			`${String(row.successful)}/${String(recorded)} passed`,
+		const passed = (
+			<span className="flex flex-col gap-1">
+				<span className="text-12 text-muted-foreground">
+					Reply/transcript basis
+				</span>
+				{gradeTokens(
+					`${String(row.successful)}/${String(recorded)} recorded successful`,
+				)}
+			</span>
 		);
 		if (recorded === row.reps) {
 			return passed;
@@ -959,6 +992,68 @@ function groupStepGrades(row: GroupRow): React.JSX.Element {
 	}
 
 	return placedGrades(row.pipelineStages, groupMedians(row));
+}
+
+function SessionGroupState({
+	row,
+}: {
+	readonly row: GroupRow;
+}): React.JSX.Element | null {
+	if (row.mode !== "session") {
+		return null;
+	}
+	const state = row.savedState;
+	if (state === undefined) {
+		return (
+			<span className="text-12 text-muted-foreground">
+				Saved state unavailable
+			</span>
+		);
+	}
+	let tone: "positive" | "negative" | "attention" = "positive";
+	if (state.unavailable > 0) {
+		tone = "attention";
+	}
+	if (state.failed > 0) {
+		tone = "negative";
+	}
+	return (
+		<span className="mt-2 flex flex-col items-start gap-1">
+			{state.assessed === 0 ? (
+				<span className="text-12 text-muted-foreground">
+					Saved state unavailable
+				</span>
+			) : (
+				<StateBadge tone={tone}>
+					Saved state: {state.passed} of {state.assessed} assessed attempts
+					passed
+				</StateBadge>
+			)}
+			<span className="text-12 text-muted-foreground">
+				{state.failed} failed · {state.unavailable} of {state.total} unavailable
+			</span>
+			{state.disagreements > 0 ? (
+				<StateBadge tone="attention">
+					Assessment layers disagree in {plural(state.disagreements, "attempt")}
+				</StateBadge>
+			) : null}
+			{state.unavailableReps.length > 0 ? (
+				<Disclosure
+					key={disclosureKeyOf(row)}
+					collapsedLabel="Saved state coverage"
+					expandedLabel="Hide saved state coverage"
+				>
+					<ul className="text-12 text-muted-foreground">
+						{state.unavailableReps.map(({ repId, reason }) => (
+							<li key={repId} className="py-1 wrap-anywhere">
+								{repId}: {reason}
+							</li>
+						))}
+					</ul>
+				</Disclosure>
+			) : null}
+		</span>
+	);
 }
 
 type SessionAttemptRow = Extract<
@@ -982,7 +1077,7 @@ function sessionStepGrades(row: SessionAttemptRow): React.JSX.Element {
 	}
 
 	return gradeTokens(
-		`${String(checks.passed)} of ${plural(checks.declared, "check")} passed`,
+		`${String(checks.passed)} of ${plural(checks.declared, "reply/transcript check")} passed`,
 	);
 }
 
@@ -1201,6 +1296,12 @@ const CORPUS_FILTERS = [
 	["current", "Current corpus"],
 	["stale", "Stale corpus"],
 ] as const;
+const SORT_OPTIONS = [
+	["newest", "Newest first"],
+	["oldest", "Oldest first"],
+	["cost", "Highest cost"],
+	["case", "Case A–Z"],
+] as const;
 
 function FilterBar({
 	discovery,
@@ -1231,10 +1332,36 @@ function FilterBar({
 						className="w-full bg-transparent text-12"
 					/>
 				</label>
+				<label className="flex items-center gap-2 text-12 text-muted-foreground">
+					Sort
+					<select
+						aria-label="Sort runs"
+						value={discovery.sort ?? "newest"}
+						onChange={(event) => {
+							const sort = SORT_OPTIONS.find(
+								([value]) => value === event.target.value,
+							)?.[0];
+							onChange({ sort });
+						}}
+						className="rounded-md border border-strong bg-background px-3 py-1.5 text-12 text-foreground"
+					>
+						{SORT_OPTIONS.map(([value, label]) => (
+							<option key={value} value={value}>
+								{label}
+							</option>
+						))}
+					</select>
+				</label>
 				<Button variant="ghost" onClick={onClear}>
 					Clear
 				</Button>
 			</div>
+			{discovery.sort === "cost" ? (
+				<p className="text-12 text-muted-foreground">
+					Cost sorting uses complete reported amounts; partial and missing costs
+					come last.
+				</p>
+			) : null}
 			<div
 				role="group"
 				aria-label="Status"
@@ -1339,37 +1466,121 @@ function launchTarget(launch: LaunchRow): string {
  * or for good once the operator stopped one that leaves no record. It has no
  * record, so it has no id, grade or corpus judgment to show.
  */
-function launchCells(launch: LaunchRow): readonly React.JSX.Element[] {
+function launchCells(
+	launch: LaunchRow,
+	nowMs: number,
+): readonly React.JSX.Element[] {
 	const target = launchTarget(launch);
+	const instant = recordedInstant(launch.launchedAt);
 
 	return [
-		<span key="run" className="font-mono text-sm">
+		<span key="run" className="font-mono text-13">
 			{`launch ${launch.id.slice(0, 8)}`}
 		</span>,
 		<span key="case" className="flex flex-col items-start gap-0.5">
-			<span className="font-mono text-sm">{target}</span>
-			<span className="text-xs text-dim">{launchAttemptsLine(launch)}</span>
+			<span className="font-mono text-13">{target}</span>
+			<span className="text-12 text-dim">{launchAttemptsLine(launch)}</span>
 		</span>,
 		<span key="outcome" className="flex flex-col gap-0.5">
 			<Status state={runStatusState(launch.status)} />
 			{launch.status === "RUNNING" ? (
 				<>
-					<span className="text-xs text-dim">started from the browser</span>
+					<span className="text-12 text-dim">started from the browser</span>
 					{/* An analysis is one capped call the server refuses to stop. */}
 					{launch.target === "analysis" ? undefined : (
-						<RunControls launchId={launch.id} run={undefined} />
+						<RunControls key={launch.id} launchId={launch.id} run={undefined} />
 					)}
 				</>
 			) : (
-				<span className="text-xs text-dim">stopped by the operator</span>
+				<span className="text-12 text-dim">stopped by the operator</span>
 			)}
 		</span>,
-		<span key="step-grades" />,
-		<span key="task-grade" />,
-		<span key="corpus" />,
-		<span key="cost" />,
-		<span key="wall" />,
+		<span key="started" className="text-12 text-muted-foreground">
+			{instant === undefined ? (
+				"Time not recorded"
+			) : (
+				<time dateTime={launch.launchedAt} title={launch.launchedAt}>
+					{recordMoment(instant, nowMs)}
+				</time>
+			)}
+		</span>,
 	];
+}
+
+function newestLaunches(launches: readonly LaunchRow[]): readonly LaunchRow[] {
+	return launches.toSorted((left, right) => {
+		const leftTime = recordedInstant(left.launchedAt);
+		const rightTime = recordedInstant(right.launchedAt);
+		if (leftTime === undefined) {
+			return rightTime === undefined ? 0 : 1;
+		}
+		if (rightTime === undefined) {
+			return -1;
+		}
+		return rightTime - leftTime;
+	});
+}
+
+function LaunchQueue({
+	launches,
+	nowMs,
+}: {
+	readonly launches: readonly LaunchRow[];
+	readonly nowMs: number;
+}): React.JSX.Element | null {
+	if (launches.length === 0) {
+		return null;
+	}
+	return (
+		<SummaryPanel
+			title="Active launches"
+			description="Browser processes still in flight. Execution state is separate from recorded quality outcomes."
+		>
+			<div className="overflow-x-auto">
+				<TableShell
+					caption="Active launch queue"
+					columns={["Launch", "Target", "Execution", "Started"]}
+					rows={newestLaunches(launches).map((launch) =>
+						launchCells(launch, nowMs),
+					)}
+				/>
+			</div>
+		</SummaryPanel>
+	);
+}
+
+function EndedLaunches({
+	launches,
+	nowMs,
+}: {
+	readonly launches: readonly LaunchRow[];
+	readonly nowMs: number;
+}): React.JSX.Element | null {
+	if (launches.length === 0) {
+		return null;
+	}
+	return (
+		<div className="rounded-lg border border-divider bg-card p-4">
+			<Disclosure
+				collapsedLabel={`Ended launch history (${String(launches.length)})`}
+				expandedLabel="Hide ended launch history"
+			>
+				<p className="my-2 text-13 text-muted-foreground">
+					These launch records have ended. They carry no recorded quality
+					outcome.
+				</p>
+				<div className="w-full overflow-x-auto">
+					<TableShell
+						caption="Ended launches"
+						columns={["Launch", "Target", "Execution", "Started"]}
+						rows={newestLaunches(launches).map((launch) =>
+							launchCells(launch, nowMs),
+						)}
+					/>
+				</div>
+			</Disclosure>
+		</div>
+	);
 }
 
 /**
@@ -1485,15 +1696,21 @@ function listedRecords(
 ): Pick<RunHistoryResponse, "rows" | "launches"> {
 	if (selection !== undefined) {
 		return {
-			rows: (selection.kind === "listed" ? selection.rows : []).filter((row) =>
-				matchesDiscovery(row, discovery),
+			rows: sortDiscoveredRows(
+				(selection.kind === "listed" ? selection.rows : []).filter((row) =>
+					matchesDiscovery(row, discovery),
+				),
+				discovery.sort,
 			),
 			launches: [],
 		};
 	}
 
 	return {
-		rows: records.rows.filter((row) => matchesDiscovery(row, discovery)),
+		rows: sortDiscoveredRows(
+			records.rows.filter((row) => matchesDiscovery(row, discovery)),
+			discovery.sort,
+		),
 		launches: records.launches.filter((launch) =>
 			launchMatchesDiscovery(launch, discovery),
 		),
@@ -1624,6 +1841,12 @@ export function RunHistoryPage({
 	const allLaunches = query.data?.launches ?? [];
 	const history = { rows: recorded, launches: allLaunches };
 	const { rows, launches } = listedRecords(selection, history, discovery);
+	const activeLaunches = launches.filter(
+		(launch) => launch.status === "RUNNING",
+	);
+	const endedLaunches = launches.filter(
+		(launch) => launch.status !== "RUNNING",
+	);
 	const listable = listedEntryCount(history) > 0;
 	const nothingListed =
 		query.isSuccess && saysNothingListed(selection, { rows, launches });
@@ -1637,7 +1860,7 @@ export function RunHistoryPage({
 				title="Runs"
 				subline={
 					query.isSuccess
-						? `${plural(recorded.length, "record")} on disk · every pipeline run names the corpus version that produced it`
+						? `${plural(listedEntryCount(history), "readable entry", "readable entries")} · ${plural(recorded.length, "record")} · ${plural(allLaunches.length, "launch", "launches")}`
 						: undefined
 				}
 				aside={
@@ -1671,8 +1894,8 @@ export function RunHistoryPage({
 				{query.data === undefined ? null : (
 					<p
 						role="status"
-						className="text-11-5 text-dim"
-					>{`${listedEntryCount({ rows, launches })} of ${listedEntryCount(history)} ${listedEntryCount(history) === 1 ? "readable entry" : "readable entries"} shown · ${plural(recorded.length, "record")} and ${plural(allLaunches.length, "launch")} in the complete list. Ended means execution ended; Stopped means a pipeline stopped at a step. Passed and Failed require a recorded quality outcome. Current corpus requires a measured unchanged corpus.`}</p>
+						className="text-12 text-muted-foreground"
+					>{`${String(listedEntryCount({ rows, launches }))} of ${String(listedEntryCount(history))} readable entries match · ${plural(rows.length, "record")} · ${plural(activeLaunches.length, "active launch", "active launches")} · ${plural(endedLaunches.length, "ended launch", "ended launches")}`}</p>
 				)}
 
 				{selection === undefined ? null : (
@@ -1690,7 +1913,13 @@ export function RunHistoryPage({
 					/>
 				) : null}
 
-				{rows.length > 0 || launches.length > 0 ? (
+				<LaunchQueue launches={activeLaunches} nowMs={nowMs} />
+				{rows.length === 0 && launches.length > 0 ? (
+					<p className="text-13 text-muted-foreground">
+						No saved run records in this selection.
+					</p>
+				) : null}
+				{rows.length > 0 ? (
 					<>
 						<ComparisonBar
 							chosen={chosen}
@@ -1702,28 +1931,34 @@ export function RunHistoryPage({
 							caption="Run history"
 							columns={[...COLUMNS]}
 							numeric={[...NUMERIC_COLUMNS]}
-							rows={[
-								...launches.map((launch) => launchCells(launch)),
-								...rows.map((row) => [
-									<span key="run">{runCell(row, nowMs)}</span>,
-									<span key="case">{caseCell(row)}</span>,
-									outcomeCell(row, choice),
-									stepGradesCell(row),
-									taskGradeCell(row),
-									corpusCell(row),
-									costCell(row),
-									wallCell(row, nowMs),
-								]),
-							]}
+							rows={rows.map((row) => [
+								<span key="run">{runCell(row, nowMs)}</span>,
+								<span key="case">{caseCell(row)}</span>,
+								outcomeCell(row, choice),
+								stepGradesCell(row),
+								taskGradeCell(row),
+								corpusCell(row),
+								costCell(row),
+								wallCell(row, nowMs),
+							])}
 						/>
-						<p className="max-w-prose text-sm text-dim">
-							A stopped run is a recorded outcome, not an error: the step that
-							fell below the minimum is the finding. Runs marked stale were
-							produced by a corpus version that has since changed. Their grades
-							are kept as history.
-						</p>
 					</>
 				) : null}
+				<EndedLaunches launches={endedLaunches} nowMs={nowMs} />
+				<Disclosure
+					collapsedLabel="How filters and counts work"
+					expandedLabel="Hide filter definitions"
+				>
+					<p className="max-w-prose text-13 text-muted-foreground">
+						Counts include readable run records and browser launch records.
+						Launch history stays accessible separately. Ended means execution
+						ended; Stopped means a workflow stopped at a step. Passed and Failed
+						require a recorded quality outcome. Current corpus requires a
+						measured unchanged corpus. Stale records retain their recorded
+						grades after the corpus changes. Date sorting keeps unknown dates
+						after timed records.
+					</p>
+				</Disclosure>
 			</div>
 		</div>
 	);

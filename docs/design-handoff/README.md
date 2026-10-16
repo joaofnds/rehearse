@@ -25,7 +25,7 @@ the client.
 
 Read the specification as the original visual reference and the [architecture](../design.md)
 for implementation boundaries. Implement screens with the existing components
-and tokens under `client/src/system/`. Prototype version labels, example grades,
+and tokens under `client/src/system/`. The [client design system](../../client/src/system/README.md) documents the implemented component contracts, semantic colors, measurement rules and safe saved-text reader. Prototype version labels, example grades,
 prices, identifiers, and controls are illustrative rather than release data.
 
 The design calls a pipeline a **task**, a stage a **step**, and a confirmation

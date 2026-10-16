@@ -27,6 +27,7 @@ import {
 import type { RecordedRunsOptions } from "#benchmark/run-records-test-support";
 import type { RunLiveness } from "#benchmark/run-liveness";
 import type { JudgeProgress } from "#benchmark/run-events";
+import { parseSessionAttemptRecord } from "#benchmark/session-record";
 import { openRunEventStore } from "#benchmark/run-events";
 import { writeLaunchRecord } from "#benchmark/launch-record";
 import { operatorStopRecord } from "#benchmark/operator-stop";
@@ -1596,6 +1597,94 @@ describe(runHistoryReport.name, () => {
 		expect(reason).not.toMatch(/\/(?<segment>Users|home|var|tmp)\//u);
 	});
 	describe("when the runs directory holds a standalone session attempt", () => {
+		it.each([
+			{
+				label: "legacy missing fields",
+				changes: {},
+				savedState: {
+					state: "unavailable",
+					reason:
+						"No saved state assessment was recorded; declaration is unknown.",
+				},
+			},
+			{
+				label: "a grading error",
+				changes: {
+					schemaVersion: 3,
+					stateGradingError: "scorer exited without usable output",
+				},
+				savedState: {
+					state: "unavailable",
+					reason: "scorer exited without usable output",
+				},
+			},
+			{
+				label: "no recorded outcomes",
+				changes: { schemaVersion: 3, stateResults: [] },
+				savedState: {
+					state: "unavailable",
+					reason: "No saved state check outcomes were recorded.",
+				},
+			},
+			{
+				label: "passing state checks",
+				changes: {
+					schemaVersion: 3,
+					stateResults: [
+						{ name: "history", status: "PASS", detail: "history preserved" },
+					],
+				},
+				savedState: { state: "assessed", passed: 1, failed: 0, total: 1 },
+			},
+		])(
+			"projects $label without inventing declaration or changing recorded success",
+			async ({ changes, savedState }) => {
+				const fixture = await writtenFixture();
+				const record = parseSessionAttemptRecord(
+					await Bun.file(fixture.sessionAttemptFile).text(),
+				);
+				await Bun.write(
+					fixture.sessionAttemptFile,
+					JSON.stringify({ ...record, ...changes }),
+				);
+				const { rows } = await runHistoryReport(
+					fixture.runsDirectory,
+					directorySource(await corpusDirectory("build skill\n")),
+					nothingRunning,
+				);
+				expect(
+					rows.find((row) => row.kind === "session-attempt"),
+				).toMatchObject({ status: "SUCCESSFUL", savedState });
+			},
+		);
+		it("keeps successful reply checks and failed saved-state checks as separate recorded layers", async () => {
+			const fixture = await writtenFixture();
+			const record = parseSessionAttemptRecord(
+				await Bun.file(fixture.sessionAttemptFile).text(),
+			);
+			await Bun.write(
+				fixture.sessionAttemptFile,
+				JSON.stringify({
+					...record,
+					schemaVersion: 3,
+					stateResults: Array.from({ length: 19 }, (_unused, index) => ({
+						name: `state-${String(index)}`,
+						status: index === 0 ? "PASS" : "FAIL",
+						detail: "saved state evidence",
+					})),
+				}),
+			);
+			const { rows } = await runHistoryReport(
+				fixture.runsDirectory,
+				directorySource(await corpusDirectory("build skill\n")),
+				nothingRunning,
+			);
+			expect(rows.find((row) => row.kind === "session-attempt")).toMatchObject({
+				status: "SUCCESSFUL",
+				checks: { state: "available", passed: 1, declared: 1 },
+				savedState: { state: "assessed", passed: 1, failed: 18, total: 19 },
+			});
+		});
 		it("lists it as a row naming its case, uuid, and the page that opens its context", async () => {
 			const fixture = await writtenFixture();
 			const { caseId, uuid } = fixture.sessionAttempt;
@@ -1730,6 +1819,115 @@ describe(runHistoryReport.name, () => {
 	});
 
 	describe("when the runs directory holds confirmation groups", () => {
+		it("keeps session-group recorded outcomes separate from saved-state attempts and unavailable evidence", async () => {
+			const fixture = await writtenFixture();
+			const [first, second] = await fixture.writeSessionGroup("state-group", 2);
+			const paths = confirmationGroupPaths(
+				fixture.runsDirectory,
+				"state-group",
+			);
+			const firstRecord = parseSessionAttemptRecord(
+				await Bun.file(paths.rep(first).attemptFile).text(),
+			);
+			const secondRecord = parseSessionAttemptRecord(
+				await Bun.file(paths.rep(second).attemptFile).text(),
+			);
+			await Bun.write(
+				paths.rep(first).attemptFile,
+				JSON.stringify({
+					...firstRecord,
+					schemaVersion: 3,
+					stateResults: [
+						{ name: "history", status: "FAIL", detail: "changed history" },
+					],
+				}),
+			);
+			await Bun.write(
+				paths.rep(second).attemptFile,
+				JSON.stringify({
+					...secondRecord,
+					schemaVersion: 3,
+					stateResults: [
+						{ name: "history", status: "PASS", detail: "kept history" },
+					],
+				}),
+			);
+			const { rows } = await runHistoryReport(
+				fixture.runsDirectory,
+				directorySource(await corpusDirectory("build skill\n")),
+				nothingRunning,
+			);
+			const row = rows.find(
+				(entry) => entry.kind === "group" && entry.groupId === "state-group",
+			);
+			expect(row).toHaveProperty("successful", 0);
+			expect(row).toHaveProperty("savedState", {
+				total: 2,
+				assessed: 2,
+				passed: 1,
+				failed: 1,
+				unavailable: 0,
+				disagreements: 1,
+				unavailableReps: [],
+			});
+		});
+
+		it("keeps missing and malformed session-group attempts unavailable with redacted causes", async () => {
+			const fixture = await writtenFixture();
+			const [first, second] = await fixture.writeSessionGroup(
+				"unavailable-state",
+				2,
+			);
+			const paths = confirmationGroupPaths(
+				fixture.runsDirectory,
+				"unavailable-state",
+			);
+			const record = parseSessionAttemptRecord(
+				await Bun.file(paths.rep(first).attemptFile).text(),
+			);
+			await Bun.write(
+				paths.rep(first).attemptFile,
+				JSON.stringify({
+					...record,
+					"/Users/private/saved-state-secret": true,
+				}),
+			);
+			await rm(paths.rep(second).attemptFile);
+			const { rows } = await runHistoryReport(
+				fixture.runsDirectory,
+				directorySource(await corpusDirectory("build skill\n")),
+				nothingRunning,
+			);
+			const row = rows.find(
+				(entry) =>
+					entry.kind === "group" && entry.groupId === "unavailable-state",
+			);
+			expect(row).toMatchObject({
+				successful: 0,
+				savedState: {
+					total: 2,
+					assessed: 0,
+					passed: 0,
+					failed: 0,
+					unavailable: 2,
+					disagreements: 0,
+				},
+			});
+			if (row?.kind !== "group") {
+				throw new Error("No session group row");
+			}
+			expect(row.savedState?.unavailableReps[0]?.reason).toContain(
+				"Unrecognized key",
+			);
+			expect(row.savedState?.unavailableReps[0]?.reason).toContain("<path>");
+			expect(row.savedState?.unavailableReps[0]?.reason).not.toContain(
+				"/Users/private",
+			);
+			expect(row.savedState?.unavailableReps[1]).toEqual({
+				repId: second,
+				reason: "No saved session attempt was recorded.",
+			});
+		});
 		it("lists a session group as one row linking each rep that recorded an attempt", async () => {
 			const fixture = await writtenFixture();
 			const [recorded, missing] = await fixture.writeSessionGroup("group-s");

@@ -561,6 +561,7 @@ async function pipelineFixture(
 		providerShim(directory, spend.callCostUsd),
 		passingTarget(directory),
 	]);
+	await containerShim(binDirectory);
 	await storeSpendCeiling(benchmarkRunsDirectory(control), spend.ceilingUsd);
 
 	return { control, binDirectory, target };

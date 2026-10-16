@@ -44,14 +44,14 @@ describe(gradesSoFar.name, () => {
 });
 
 describe(announcements.name, () => {
-	it("announces a stage accepted since the last reading", () => {
+	it("announces a stage continuing since the last reading", () => {
 		const before = runRow({ grades: [notYet("plan"), notYet("build")] });
 		const after = runRow({
 			grades: [graded("plan", "B+"), notYet("build")],
 		});
 
 		expect(announcements([before], [after])).toEqual([
-			"r-0148 step 1 of 2 accepted: plan B+",
+			"r-0148 step 1 of 2 continued: plan B+",
 		]);
 	});
 
@@ -64,7 +64,7 @@ describe(announcements.name, () => {
 		expect(announcements([before], [after])).toEqual([]);
 	});
 
-	it("announces the last stage accepted when the run completes", () => {
+	it("announces the last stage continuing when the run completes", () => {
 		const before = runRow({ grades: [graded("plan", "B+"), notYet("build")] });
 		const after = runRow({
 			status: "COMPLETE",
@@ -72,7 +72,7 @@ describe(announcements.name, () => {
 		});
 
 		expect(announcements([before], [after])).toEqual([
-			"r-0148 step 2 of 2 accepted: build A",
+			"r-0148 step 2 of 2 continued: build A",
 		]);
 	});
 

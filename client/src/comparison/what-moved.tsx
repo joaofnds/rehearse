@@ -1,231 +1,50 @@
 import type { ComparisonArm } from "#benchmark/comparison-record";
 import { STAGE_LETTER_GRADES } from "#benchmark/stage-letter-grades";
+import { RangePlot } from "#client/system/components/range-plot";
 import { TableShell } from "#client/system/components/table-shell";
-import type {
-	QualityInterval,
-	QualityReading,
-} from "#server/comparison-quality-reading";
-import type { MeterReading, WhatMovedRow } from "#server/comparison-what-moved";
-import { pairKey } from "#server/comparison-arm-pair";
-import { armProse, DESIGN_ARMS } from "./design-arms";
+import { armPairs, pairKey } from "#server/comparison-arm-pair";
+import type { QualityInterval } from "#server/comparison-quality-reading";
+import type { WhatMovedRow } from "#server/comparison-what-moved";
+import { DESIGN_ARMS } from "./design-arms";
 import { meterReadingText, qualityReadingText } from "./reading-text";
 import type { ReadingText } from "./reading-text";
 
-type OverallRow = Extract<WhatMovedRow, { readonly kind: "overall" }>;
 type MeterRow = Extract<WhatMovedRow, { readonly kind: "meter" }>;
-
-interface MeterInterval {
-	readonly low: number;
-	readonly high: number;
-}
-
-/** Positions on a measure's own axis, from the bottom of its scale up. */
-interface Span {
-	readonly low: number;
-	readonly high: number;
-}
-
 const LETTERS_UP: readonly string[] = STAGE_LETTER_GRADES.toReversed();
-const METER_CELLS = 8;
 const CANDIDATE_AGAINST_BASELINE = pairKey("candidate", "baseline");
-const KIND_LABELS = {
-	overall: "overall",
-	hardBlocker: "hard blocker",
-	dimension: "dimension",
-	meter: "meter",
-} as const satisfies Readonly<Record<WhatMovedRow["kind"], string>>;
 const METER_NAMES = {
-	replyLength: "reply length",
-	costPerAttempt: "cost per attempt",
-} as const satisfies Readonly<Record<MeterRow["name"], string>>;
+	replyLength: "Reply length",
+	costPerAttempt: "Cost per attempt",
+} as const;
 
-function letterSpan(interval: QualityInterval): Span {
-	return {
-		low: LETTERS_UP.indexOf(interval.low),
-		high: LETTERS_UP.indexOf(interval.high),
-	};
+function measureName(row: WhatMovedRow): string {
+	return row.kind === "meter" ? METER_NAMES[row.name] : row.name;
 }
 
-function percentOf(label: string): number {
-	return Number(label.replace("%", ""));
-}
-
-function percentSpan(interval: QualityInterval): Span {
-	return {
-		low: Math.floor(percentOf(interval.low) / 10),
-		high: Math.floor(percentOf(interval.high) / 10),
-	};
-}
-
-function meterSpans(
-	intervals: readonly (MeterInterval | undefined)[],
-): readonly (Span | undefined)[] {
-	const recorded = intervals.filter((interval) => interval !== undefined);
-	const bottom = Math.min(...recorded.map(({ low }) => low));
-	const top = Math.max(...recorded.map(({ high }) => high));
-	const position = (value: number): number =>
-		top === bottom
-			? 0
-			: Math.round(((value - bottom) / (top - bottom)) * (METER_CELLS - 1));
-
-	return intervals.map((interval) =>
-		interval === undefined
-			? undefined
-			: { low: position(interval.low), high: position(interval.high) },
+function rateScale(row: WhatMovedRow): boolean {
+	return (
+		row.kind === "hardBlocker" ||
+		(row.kind === "overall" &&
+			DESIGN_ARMS.some(({ arm }) => row.arms[arm]?.scale === "successRate"))
 	);
 }
 
-/**
- * Baseline and candidate across the positions either covers, `┼` where both arms'
- * attempts reach, `─` where only one arm's do and a space where neither does.
- */
-function spreadDrawing(spans: readonly (Span | undefined)[]): string {
-	const recorded = spans.filter((span) => span !== undefined);
-	if (recorded.length === 0) {
-		return "";
+function intervalLabel(row: WhatMovedRow): string {
+	if (rateScale(row)) {
+		return row.kind === "hardBlocker"
+			? "Firing rate · 95% confidence interval"
+			: "Pass rate · 95% confidence interval";
 	}
 
-	const bottom = Math.min(...recorded.map(({ low }) => low));
-	const top = Math.max(...recorded.map(({ high }) => high));
-	const cells = Array.from({ length: top - bottom + 1 }, (_empty, offset) => {
-		const reached = recorded.filter(
-			({ low, high }) => low <= bottom + offset && bottom + offset <= high,
-		);
-
-		if (reached.length === 0) {
-			return " ";
-		}
-
-		return reached.length > 1 ? "┼" : "─";
-	});
-
-	return `├${cells.join("")}┤`;
-}
-
-function rangeText(
-	arm: ComparisonArm,
-	interval: { readonly low: string; readonly high: string } | undefined,
-): string {
-	return interval === undefined
-		? `${armProse(arm)} not recorded`
-		: `${armProse(arm)} ${interval.low} to ${interval.high}`;
+	return row.kind === "meter"
+		? "Mean and observed range"
+		: "Median and observed grade range";
 }
 
 function meterValue(name: MeterRow["name"], value: number): string {
 	return name === "costPerAttempt"
 		? `$${value.toFixed(2)}`
 		: `${String(Math.round(value))} words`;
-}
-
-function meterRange(
-	name: MeterRow["name"],
-	interval: MeterInterval | undefined,
-): { readonly low: string; readonly high: string } | undefined {
-	if (interval === undefined) {
-		return undefined;
-	}
-	if (name === "costPerAttempt") {
-		return {
-			low: meterValue(name, interval.low),
-			high: meterValue(name, interval.high),
-		};
-	}
-
-	return {
-		low: String(Math.round(interval.low)),
-		high: meterValue(name, interval.high),
-	};
-}
-
-function armReasons(row: WhatMovedRow): readonly string[] {
-	const reasons = (["baseline", "candidate"] as const).flatMap((arm) => {
-		switch (row.kind) {
-			case "overall": {
-				const figure = row.arms[arm];
-				return figure?.scale === "letters" &&
-					figure.grades.state === "unavailable"
-					? figure.grades.reasons
-					: [];
-			}
-			case "hardBlocker":
-			case "dimension":
-			case "meter": {
-				const reading = row.arms[arm];
-				return reading.state === "unavailable" ? reading.reasons : [];
-			}
-			default: {
-				return row satisfies never;
-			}
-		}
-	});
-
-	return [...new Set(reasons)];
-}
-
-interface Spread {
-	readonly drawing: string;
-	readonly note: string;
-}
-
-function labelSpread(
-	reading: QualityReading,
-	toSpan: (interval: QualityInterval) => Span,
-): Spread {
-	const { minuend, subtrahend } = reading.interval;
-
-	return {
-		drawing: spreadDrawing(
-			[subtrahend, minuend].map((interval) =>
-				interval === undefined ? undefined : toSpan(interval),
-			),
-		),
-		note: `${rangeText("baseline", subtrahend)} · ${rangeText("candidate", minuend)}`,
-	};
-}
-
-function meterSpread(row: MeterRow, reading: MeterReading): Spread {
-	const { minuend, subtrahend } = reading.interval;
-	const ranges = `${rangeText("baseline", meterRange(row.name, subtrahend))} · ${rangeText("candidate", meterRange(row.name, minuend))}`;
-
-	return {
-		drawing: spreadDrawing(meterSpans([subtrahend, minuend])),
-		note:
-			reading.change === undefined ? ranges : `${ranges} · ${reading.change}`,
-	};
-}
-
-function overallSpan(row: OverallRow): (interval: QualityInterval) => Span {
-	return row.arms.baseline?.scale === "successRate" ? percentSpan : letterSpan;
-}
-
-function spreadOf(row: WhatMovedRow): Spread | undefined {
-	switch (row.kind) {
-		case "overall": {
-			const reading = row.readings[CANDIDATE_AGAINST_BASELINE];
-			return reading === undefined
-				? undefined
-				: labelSpread(reading, overallSpan(row));
-		}
-		case "hardBlocker": {
-			const reading = row.readings[CANDIDATE_AGAINST_BASELINE];
-			return reading === undefined
-				? undefined
-				: labelSpread(reading, percentSpan);
-		}
-		case "dimension": {
-			const reading = row.readings[CANDIDATE_AGAINST_BASELINE];
-			return reading === undefined
-				? undefined
-				: labelSpread(reading, letterSpan);
-		}
-		case "meter": {
-			const reading = row.readings[CANDIDATE_AGAINST_BASELINE];
-			return reading === undefined ? undefined : meterSpread(row, reading);
-		}
-		default: {
-			return row satisfies never;
-		}
-	}
 }
 
 function readingOf(row: WhatMovedRow): ReadingText | undefined {
@@ -237,7 +56,6 @@ function readingOf(row: WhatMovedRow): ReadingText | undefined {
 	}
 
 	const reading = row.readings[CANDIDATE_AGAINST_BASELINE];
-
 	return reading === undefined
 		? undefined
 		: qualityReadingText(reading.verdict);
@@ -248,31 +66,34 @@ function armFigure(row: WhatMovedRow, arm: ComparisonArm): string {
 		case "overall": {
 			const figure = row.arms[arm];
 			if (figure === undefined) {
-				return "not recorded";
+				return "Not recorded";
 			}
+
 			if (figure.scale === "successRate") {
-				return `${String(figure.successful)}/${String(figure.attempts)} passed`;
+				return `${figure.successful}/${figure.attempts} passed`;
 			}
 
 			return figure.grades.state === "available"
-				? figure.grades.median
-				: "not recorded";
+				? `${figure.grades.median} · n=${figure.grades.graded}`
+				: "Not recorded";
 		}
 		case "hardBlocker": {
-			const firings = row.arms[arm];
-			return firings.state === "available"
-				? `${String(firings.fired)}/${String(firings.of)} fired`
-				: "not recorded";
+			const figure = row.arms[arm];
+			return figure.state === "available"
+				? `${figure.fired}/${figure.of} fired`
+				: "Not recorded";
 		}
 		case "dimension": {
-			const range = row.arms[arm];
-			return range.state === "available" ? range.median : "not recorded";
+			const figure = row.arms[arm];
+			return figure.state === "available"
+				? `${figure.median} · ${figure.graded === undefined ? "count not recorded" : `n=${figure.graded}`}`
+				: "Not recorded";
 		}
 		case "meter": {
-			const spread = row.arms[arm];
-			return spread.state === "available"
-				? meterValue(row.name, spread.mean)
-				: "not recorded";
+			const figure = row.arms[arm];
+			return figure.state === "available"
+				? `${meterValue(row.name, figure.mean)} · n=${figure.counted}`
+				: "Not recorded";
 		}
 		default: {
 			return row satisfies never;
@@ -280,14 +101,129 @@ function armFigure(row: WhatMovedRow, arm: ComparisonArm): string {
 	}
 }
 
-function measureName(row: WhatMovedRow): string {
-	return row.kind === "meter" ? METER_NAMES[row.name] : row.name;
+function qualityInterval(
+	row: Exclude<WhatMovedRow, MeterRow>,
+	arm: ComparisonArm,
+): QualityInterval | undefined {
+	for (const pair of armPairs()) {
+		const reading = row.readings[pairKey(pair.minuend, pair.subtrahend)];
+		if (pair.minuend === arm && reading?.interval.minuend !== undefined) {
+			return reading.interval.minuend;
+		}
+		if (pair.subtrahend === arm && reading?.interval.subtrahend !== undefined) {
+			return reading.interval.subtrahend;
+		}
+	}
+
+	return undefined;
 }
 
-function measureKind(row: WhatMovedRow): string {
-	return row.kind === "hardBlocker" || row.kind === "dimension"
-		? `${row.stage} · ${KIND_LABELS[row.kind]}`
-		: KIND_LABELS[row.kind];
+function armPoint(
+	row: Exclude<WhatMovedRow, MeterRow>,
+	arm: ComparisonArm,
+): number | undefined {
+	switch (row.kind) {
+		case "overall": {
+			const figure = row.arms[arm];
+			if (figure?.scale === "successRate") {
+				return figure.attempts === 0
+					? undefined
+					: (figure.successful / figure.attempts) * 100;
+			}
+
+			return figure?.grades.state === "available"
+				? LETTERS_UP.indexOf(figure.grades.median)
+				: undefined;
+		}
+		case "hardBlocker": {
+			const figure = row.arms[arm];
+			return figure.state === "available" && figure.of > 0
+				? (figure.fired / figure.of) * 100
+				: undefined;
+		}
+		case "dimension": {
+			const figure = row.arms[arm];
+			return figure.state === "available"
+				? LETTERS_UP.indexOf(figure.median)
+				: undefined;
+		}
+		default: {
+			return row satisfies never;
+		}
+	}
+}
+
+function armRange(
+	row: WhatMovedRow,
+	arm: ComparisonArm,
+):
+	| { readonly low: number; readonly high: number; readonly value?: number }
+	| undefined {
+	if (row.kind === "meter") {
+		const figure = row.arms[arm];
+		return figure.state === "available"
+			? { low: figure.low, high: figure.high, value: figure.mean }
+			: undefined;
+	}
+
+	if (row.kind === "overall") {
+		const figure = row.arms[arm];
+		if (figure?.scale === "letters" && figure.grades.state === "available") {
+			return {
+				low: LETTERS_UP.indexOf(figure.grades.lowest),
+				high: LETTERS_UP.indexOf(figure.grades.highest),
+				value: LETTERS_UP.indexOf(figure.grades.median),
+			};
+		}
+	}
+	if (row.kind === "dimension" && row.arms[arm].state === "available") {
+		const figure = row.arms[arm];
+		if (figure.state === "available") {
+			return {
+				low: LETTERS_UP.indexOf(figure.lowest),
+				high: LETTERS_UP.indexOf(figure.highest),
+				value: LETTERS_UP.indexOf(figure.median),
+			};
+		}
+	}
+
+	const interval = qualityInterval(row, arm);
+	if (interval === undefined) {
+		return undefined;
+	}
+
+	if (rateScale(row)) {
+		const range = {
+			low: Number(interval.low.replace("%", "")),
+			high: Number(interval.high.replace("%", "")),
+		};
+		const value = armPoint(row, arm);
+		return value === undefined ? range : { ...range, value };
+	}
+
+	return {
+		low: LETTERS_UP.indexOf(interval.low),
+		high: LETTERS_UP.indexOf(interval.high),
+	};
+}
+
+function armReasons(row: WhatMovedRow): readonly string[] {
+	return [
+		...new Set(
+			DESIGN_ARMS.flatMap(({ arm }) => {
+				if (row.kind === "overall") {
+					const figure = row.arms[arm];
+					return figure?.scale === "letters" &&
+						figure.grades.state === "unavailable"
+						? figure.grades.reasons
+						: [];
+				}
+
+				const figure = row.arms[arm];
+				return figure.state === "unavailable" ? figure.reasons : [];
+			}),
+		),
+	];
 }
 
 function SpreadCell({
@@ -295,20 +231,72 @@ function SpreadCell({
 }: {
 	readonly row: WhatMovedRow;
 }): React.JSX.Element {
-	const spread = spreadOf(row);
+	const rows = DESIGN_ARMS.flatMap(({ arm, role }) => {
+		const range = armRange(row, arm);
+		return range === undefined
+			? []
+			: [
+					{
+						id: arm,
+						label: role.replace(" (before)", "").replace(" (after)", ""),
+						...range,
+					},
+				];
+	});
+	const rate = rateScale(row);
+	const minimum =
+		row.kind === "meter" ? Math.min(0, ...rows.map(({ low }) => low)) : 0;
+	let maximum = LETTERS_UP.length - 1;
+	let valueLabel = "median";
+	if (rate) {
+		maximum = 100;
+		valueLabel = "observed rate";
+	} else if (row.kind === "meter") {
+		maximum = Math.max(0, ...rows.map(({ high }) => high)) || 1;
+		valueLabel = "mean";
+	}
+
+	const formatValue = (value: number): string => {
+		if (row.kind === "meter") {
+			return meterValue(row.name, value);
+		}
+
+		return rate
+			? `${Math.round(value)}%`
+			: (LETTERS_UP[Math.round(value)] ?? "");
+	};
 	const reasons = armReasons(row);
+	const missing = DESIGN_ARMS.filter(
+		({ arm }) => !rows.some(({ id }) => id === arm),
+	);
+	const change =
+		row.kind === "meter"
+			? row.readings[CANDIDATE_AGAINST_BASELINE]?.change
+			: undefined;
 
 	return (
-		<div className="flex flex-col gap-0.5">
-			<span
-				aria-hidden="true"
-				className="font-mono text-12 tracking-widest whitespace-pre text-deep"
-			>
-				{spread?.drawing}
+		<div className="flex min-w-72 flex-col gap-2">
+			{rows.length === 0 ? null : (
+				<RangePlot
+					label={`${measureName(row)} · ${intervalLabel(row)}`}
+					minimum={minimum}
+					maximum={maximum}
+					formatValue={formatValue}
+					valueLabel={valueLabel}
+					rows={rows}
+				/>
+			)}
+			<span className="text-12 text-muted-foreground">
+				{intervalLabel(row)}
+				{change === undefined ? "" : ` · candidate mean ${change} vs baseline`}
 			</span>
-			<span className="text-10-5 text-muted-foreground">{spread?.note}</span>
+			{missing.length === 0 ? null : (
+				<span className="text-12 text-muted-foreground">
+					{missing.map(({ role }) => `${role}: range not recorded`).join(" · ")}
+				</span>
+			)}
 			{reasons.length === 0 ? null : (
-				<span className="text-10-5 text-muted-foreground">
+				<span className="text-12 text-muted-foreground">
 					{reasons.join("; ")}
 				</span>
 			)}
@@ -322,57 +310,36 @@ function ReadingCell({
 	readonly row: WhatMovedRow;
 }): React.JSX.Element | null {
 	const reading = readingOf(row);
-	if (reading === undefined) {
-		return null;
-	}
-
-	return (
-		<span className="inline-flex items-baseline gap-1.5">
-			<span aria-hidden="true">{reading.glyph}</span>
-			<span>{reading.phrase}</span>
-		</span>
+	return reading === undefined ? null : (
+		<span className="text-13">{reading.phrase}</span>
 	);
 }
 
 function whatMovedRow(row: WhatMovedRow): readonly React.ReactNode[] {
-	const cells = DESIGN_ARMS.map(({ arm }) => (
-		<span
-			key={arm}
-			className={
-				arm === "control"
-					? "font-mono font-bold text-muted-foreground"
-					: "font-mono font-bold"
-			}
-		>
-			{armFigure(row, arm)}
-		</span>
-	));
+	let kind = "Recorded outcome";
+	if (row.kind === "hardBlocker") {
+		kind = `${row.stage} · hard blocker`;
+	} else if (row.kind === "dimension") {
+		kind = `${row.stage} · dimension`;
+	} else if (row.kind === "meter") {
+		kind = "Per-attempt mean";
+	}
 
 	return [
-		<span key="measure" className="flex flex-col">
-			<span>{measureName(row)}</span>
-			<span className="text-12 font-normal text-muted-foreground">
-				{measureKind(row)}
-			</span>
+		<span key="measure" className="flex flex-col gap-1">
+			<span className="text-14 font-medium">{measureName(row)}</span>
+			<span className="text-12 text-muted-foreground">{kind}</span>
 		</span>,
-		...cells,
+		...DESIGN_ARMS.map(({ arm }) => (
+			<span key={arm} className="text-13 font-medium tabular-nums">
+				{armFigure(row, arm)}
+			</span>
+		)),
 		<SpreadCell key="spread" row={row} />,
 		<ReadingCell key="reading" row={row} />,
 	];
 }
 
-function spreadColumn(
-	attemptsPerArm: Readonly<Record<ComparisonArm, number>>,
-): string {
-	const counts = new Set([attemptsPerArm.baseline, attemptsPerArm.candidate]);
-	const [only] = counts;
-
-	return counts.size === 1 && only !== undefined
-		? `Spread across ${String(only)} attempts`
-		: "Spread across attempts";
-}
-
-/** Each measure of one case, every arm's figure beside candidate (after) against baseline (before). */
 export function WhatMoved({
 	caseId,
 	rows,
@@ -383,16 +350,19 @@ export function WhatMoved({
 	readonly attemptsPerArm: Readonly<Record<ComparisonArm, number>>;
 }): React.JSX.Element {
 	return (
-		<div className="max-w-301">
-			<p className="mb-3 text-11-5 text-muted-foreground">
-				Pass/fail spreads are 95% confidence intervals. Letter grades, reply
-				length and cost show the observed range. Passing every recorded attempt
-				does not establish equivalent quality.
+		<div className="flex flex-col gap-2 overflow-x-auto">
+			<p className="text-12 text-muted-foreground">
+				Saved attempts:{" "}
+				{DESIGN_ARMS.map(
+					({ arm, role }) => `${role} ${attemptsPerArm[arm]}`,
+				).join(" · ")}
+				. Coverage is shown per measure. Passing every recorded attempt does not
+				establish equivalent quality.
 			</p>
 			<TableShell
 				caption={
 					<>
-						{"What moved · "}
+						What moved ·{" "}
 						<span className="font-mono tracking-normal normal-case">
 							{caseId}
 						</span>
@@ -401,8 +371,8 @@ export function WhatMoved({
 				columns={[
 					"Measure",
 					...DESIGN_ARMS.map(({ role }) => role),
-					spreadColumn(attemptsPerArm),
-					"Reading",
+					"Range and uncertainty",
+					"Candidate vs baseline",
 				]}
 				rows={rows.map((row) => whatMovedRow(row))}
 			/>

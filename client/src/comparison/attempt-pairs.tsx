@@ -15,7 +15,16 @@ type CaseHistories = ComparisonResponse["attemptHistories"][string];
 type HistoryLink = CaseHistories[ComparisonArm][number];
 type ComparisonMode = ComparisonResponse["report"]["mode"];
 
-function outcomeText(outcome: AvailableOutcomes[number]): string {
+function outcomeText(
+	outcome: AvailableOutcomes[number],
+	mode: ComparisonMode,
+): string {
+	if (mode === "session" && outcome.status === "JUDGED") {
+		return outcome.successful
+			? "Recorded checks passed"
+			: "Recorded checks failed";
+	}
+
 	return outcome.status === "JUDGED"
 		? outcome.grade
 		: outcome.status.toLowerCase().replaceAll("_", " ");
@@ -23,8 +32,10 @@ function outcomeText(outcome: AvailableOutcomes[number]): string {
 
 function Outcomes({
 	outcomes,
+	mode,
 }: {
 	readonly outcomes: Attempt["outcomes"];
+	readonly mode: ComparisonMode;
 }): React.JSX.Element {
 	if (outcomes.state === "unavailable") {
 		return <span className="text-muted-foreground">outcome not recorded</span>;
@@ -32,7 +43,9 @@ function Outcomes({
 
 	const [only] = outcomes.outcomes;
 	if (outcomes.outcomes.length === 1 && only !== undefined) {
-		return <span className="font-mono font-bold">{outcomeText(only)}</span>;
+		return (
+			<span className="font-mono font-bold">{outcomeText(only, mode)}</span>
+		);
 	}
 
 	return (
@@ -40,7 +53,7 @@ function Outcomes({
 			{outcomes.outcomes.map((outcome) => (
 				<span key={outcome.name} className="font-mono">
 					{`${outcome.name} `}
-					<span className="font-bold">{outcomeText(outcome)}</span>
+					<span className="font-bold">{outcomeText(outcome, mode)}</span>
 				</span>
 			))}
 		</span>
@@ -103,6 +116,7 @@ function History({
 
 function AttemptCell({
 	digest,
+	mode,
 	role,
 	position,
 	attempt,
@@ -111,6 +125,7 @@ function AttemptCell({
 	readonly digest: string | undefined;
 	readonly role: string;
 	readonly position: number;
+	readonly mode: ComparisonMode;
 	readonly attempt: Attempt | undefined;
 	readonly link: HistoryLink | undefined;
 }): React.JSX.Element {
@@ -127,12 +142,43 @@ function AttemptCell({
 					aria-label={`${role} attempt ${String(position)} results`}
 					className="text-accent-foreground underline decoration-deeper underline-offset-4 hover:text-pale"
 				>
-					<Outcomes outcomes={attempt.outcomes} />
+					<Outcomes outcomes={attempt.outcomes} mode={mode} />
 				</Link>
 			) : (
-				<Outcomes outcomes={attempt.outcomes} />
+				<Outcomes outcomes={attempt.outcomes} mode={mode} />
 			)}
-			<span className="text-11">{blockersText(attempt.blockersFired)}</span>
+			{mode === "session" ? (
+				<div className="flex flex-col gap-1 text-12">
+					<span>
+						{attempt.checks === undefined
+							? "Reply / transcript: not recorded"
+							: `Reply / transcript: ${attempt.checks.passed}/${attempt.checks.declared} checks passed`}
+					</span>
+					<span>
+						{attempt.stateChecks === undefined
+							? "Saved state: not recorded"
+							: `Saved state: ${attempt.stateChecks.passed}/${attempt.stateChecks.declared} checks passed`}
+					</span>
+					{attempt.stateChecks === undefined ||
+					attempt.stateChecks.failing.length === 0 ? null : (
+						<details className="text-negative">
+							<summary className="cursor-pointer">
+								{plural(
+									attempt.stateChecks.failing.length,
+									"failed state check",
+								)}
+							</summary>
+							<div className="mt-2 flex flex-col gap-1">
+								{attempt.stateChecks.failing.map(({ name, detail }) => (
+									<span key={name}>{`${name}: ${detail}`}</span>
+								))}
+							</div>
+						</details>
+					)}
+				</div>
+			) : (
+				<span className="text-12">{blockersText(attempt.blockersFired)}</span>
+			)}
 			<span className="font-mono text-11">{wordsText(attempt.words)}</span>
 			<History digest={digest} role={role} position={position} link={link} />
 		</div>
@@ -166,6 +212,7 @@ function Note({
 
 function attemptRow(
 	digest: string | undefined,
+	mode: ComparisonMode,
 	position: number,
 	attempts: CaseAttempts,
 	histories: CaseHistories | undefined,
@@ -175,6 +222,7 @@ function attemptRow(
 		const cell = (
 			<AttemptCell
 				digest={digest}
+				mode={mode}
 				role={role}
 				position={position}
 				attempt={attempt}
@@ -233,7 +281,7 @@ export function AttemptPairs({
 				}
 				columns={["Attempt", ...DESIGN_ARMS.map(({ role }) => role)]}
 				rows={positions.map((position) =>
-					attemptRow(digest, position, attempts, histories),
+					attemptRow(digest, mode, position, attempts, histories),
 				)}
 			/>
 			<div className="flex flex-col gap-1 text-12 text-muted-foreground">

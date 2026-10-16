@@ -24,12 +24,21 @@ import type { CaseRun } from "./case-figures";
 import { redactAbsolutePaths } from "./redact-path";
 import { readRunRecord } from "./run-record";
 import type { RunRecord } from "./run-record";
+import { savedStateAssessment } from "./saved-state-assessment";
 
 /** What a case's records say about it, its runs newest first. */
 export interface RecordedCase {
 	readonly runs: readonly CaseRun[];
+	readonly members: readonly CaseRunMember[];
 	/** The newest pipeline run's, and undefined for a case no pipeline run ran. */
 	readonly minimumGrade: RunRecord["minimumGrade"] | undefined;
+}
+
+export interface CaseRunMember {
+	readonly label: string;
+	readonly href: string;
+	readonly startedAt: string | null;
+	readonly run: CaseRun;
 }
 
 export interface UnreadableCaseRecord {
@@ -52,6 +61,8 @@ interface CaseRunOf {
 	/** The run's name, or the start time its attempt or group recorded. */
 	readonly time: string | undefined;
 	readonly run: CaseRun;
+	readonly label: string;
+	readonly href: string;
 	readonly minimumGrade?: RunRecord["minimumGrade"];
 }
 
@@ -77,6 +88,8 @@ function pipelineRun(name: string, record: RunRecord): CaseRunOf {
 	return {
 		caseId: record.caseId,
 		time: name,
+		label: name,
+		href: `/runs/${encodeURIComponent(name)}?view=results`,
 		run: {
 			corpusDigest: digestOf(record.identity.corpusVersion),
 			passed:
@@ -101,7 +114,53 @@ function sessionAttemptRun(record: Immutable<SessionAttemptRecord>): CaseRun {
 				? record.outcome === "SUCCESSFUL"
 				: undefined,
 		costUsd: record.metrics?.costUsd,
+		...sessionAssessment(record),
 	};
+}
+
+function sessionAssessment(
+	record: Immutable<SessionAttemptRecord>,
+): Pick<CaseRun, "savedState" | "recordedOutcome" | "replyChecks"> {
+	const checksRan =
+		record.outcome === "SUCCESSFUL" || record.outcome === "UNSUCCESSFUL";
+	const assessment = {
+		recordedOutcome: record.outcome,
+		savedState: savedStateAssessment(record),
+	};
+	if (checksRan) {
+		return {
+			...assessment,
+			replyChecks: {
+				passed: record.checks.filter(({ status }) => status === "PASS").length,
+				total: record.checks.length,
+			},
+		};
+	}
+	return assessment;
+}
+
+async function repSessionAssessment(
+	attemptFile: string,
+): Promise<Pick<CaseRun, "savedState" | "recordedOutcome" | "replyChecks">> {
+	try {
+		const file = Bun.file(attemptFile);
+		if (!(await file.exists())) {
+			return {
+				savedState: {
+					state: "unavailable",
+					reason: "The repetition has no saved session attempt.",
+				},
+			};
+		}
+		return sessionAssessment(parseSessionAttemptRecord(await file.text()));
+	} catch (error) {
+		return {
+			savedState: {
+				state: "unavailable",
+				reason: `The repetition's saved session attempt could not be read: ${redactAbsolutePaths(error instanceof Error ? error.message : String(error))}`,
+			},
+		};
+	}
 }
 
 /**
@@ -192,6 +251,8 @@ async function sessionAttempts(runsDirectory: string): Promise<Found> {
 			found.push({
 				caseId: attempt.caseId,
 				time: attemptStartedAt(record),
+				label: `Session ${attempt.uuid.slice(0, 8)}`,
+				href: `/attempts/session/${encodeURIComponent(attempt.caseId)}/${encodeURIComponent(attempt.uuid)}`,
 				run: sessionAttemptRun(record),
 			});
 		} catch (error) {
@@ -225,14 +286,18 @@ async function readRep(
 	try {
 		const rep = parseConfirmationRepRecord(await file.text());
 
-		return {
-			state: "read",
-			run: {
-				corpusDigest,
-				passed: await repPassed(rep, paths.attemptFile),
-				costUsd: repCost(rep),
-			},
+		const run: CaseRun = {
+			corpusDigest,
+			passed: await repPassed(rep, paths.attemptFile),
+			costUsd: repCost(rep),
 		};
+		if (rep.mode === "session") {
+			return {
+				state: "read",
+				run: { ...run, ...(await repSessionAssessment(paths.attemptFile)) },
+			};
+		}
+		return { state: "read", run };
 	} catch (error) {
 		const reason = error instanceof Error ? error.message : String(error);
 
@@ -282,6 +347,11 @@ async function groupReps(runsDirectory: string): Promise<Found> {
 				found.push({
 					caseId: record.caseId,
 					time: record.startedAt,
+					label: `${groupId} · ${repId}`,
+					href:
+						record.mode === "session"
+							? `/groups/${encodeURIComponent(groupId)}/reps/${encodeURIComponent(repId)}/attempt`
+							: `/groups/${encodeURIComponent(groupId)}?view=attempts`,
 					run:
 						reading.state === "read"
 							? reading.run
@@ -322,6 +392,12 @@ export async function readCaseRuns(
 	for (const [id, ofCase] of Map.groupBy(runs, ({ caseId }) => caseId)) {
 		cases.set(id, {
 			runs: ofCase.map(({ run }) => run),
+			members: ofCase.map(({ run, label, href, time }) => ({
+				run,
+				label,
+				href,
+				startedAt: time ?? null,
+			})),
 			minimumGrade: ofCase.find(
 				({ minimumGrade }) => minimumGrade !== undefined,
 			)?.minimumGrade,

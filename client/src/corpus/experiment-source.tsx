@@ -161,12 +161,14 @@ export function ExperimentSource({
 	path,
 	evidence,
 	currentCorpus,
+	operation,
 	onClear,
 }: {
 	readonly source: CorpusExperimentSource;
 	readonly path: string;
 	readonly evidence: SourceEvidence | undefined;
 	readonly currentCorpus: string | undefined;
+	readonly operation: "reading" | "editing";
 	readonly onClear: () => void;
 }): React.JSX.Element {
 	return (
@@ -193,15 +195,17 @@ export function ExperimentSource({
 						{evidence?.checkpoint ?? "checkpoint loading…"}
 					</p>
 					<p className="text-muted-foreground">
-						{"Editing current linked "}
+						{operation === "editing"
+							? "Editing current linked "
+							: "Reading current linked "}
 						<span className="font-mono">
 							{currentCorpus === undefined
 								? "corpus version unavailable"
 								: corpusVersionLabel(currentCorpus)}
 						</span>
-						{
-							"; the draft starts from its current file, not the frozen source text."
-						}
+						{operation === "editing"
+							? "; the draft starts from its current file, not the frozen source text."
+							: "; this viewer shows its current file. The saved source remains available in the run."}
 					</p>
 					{evidence?.reason === undefined ? null : (
 						<p role="alert" className="text-secondary-foreground">

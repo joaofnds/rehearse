@@ -6,7 +6,10 @@ import type {
 import type { PipelineRow } from "#client/shell/run-in-flight";
 import { nodeStatus } from "#client/monitor/task-graph";
 import { hasRunEnded } from "#client/run-history/run-status";
-import { SavedOutput } from "#client/session-history/attempt-evidence";
+import {
+	SavedOutput,
+	savedOutputInitialMode,
+} from "#client/session-history/attempt-evidence";
 import { stageOutputQuery } from "./investigation-query";
 
 export function PipelineOutput({
@@ -62,6 +65,7 @@ export function PipelineOutput({
 	return (
 		<SavedOutput
 			title="Saved output"
+			initialMode={savedOutputInitialMode(saved)}
 			text={saved?.text}
 			note={note}
 			emptyMessage={emptyMessage}

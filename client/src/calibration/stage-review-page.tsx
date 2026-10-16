@@ -7,6 +7,8 @@ import { STAGE_LETTER_GRADES } from "#benchmark/stage-letter-grades";
 import { ScreenHeader } from "#client/system/components/screen-header";
 import { SectionLabel } from "#client/system/components/section-label";
 import { TableShell } from "#client/system/components/table-shell";
+import { StateBadge } from "#client/system/components/state-badge";
+import { RecordedText } from "#client/system/components/recorded-text";
 import { Button } from "#client/system/ui/button";
 import { stepLabel } from "./calibration-figures";
 import { calibrationQuery } from "./calibration-query";
@@ -28,6 +30,29 @@ interface Draft {
 const EMPTY_DRAFT: Draft = { statuses: {}, letters: {}, note: "" };
 
 type Criteria = StageReview["criteria"];
+
+const REVIEW_SECTIONS = ["Task", "Output", "Instructions", "Evidence"] as const;
+type ReviewSection = (typeof REVIEW_SECTIONS)[number];
+
+function inputSection(field: string): ReviewSection {
+	const normalized = field.toLowerCase().replaceAll(/[^a-z]/gu, "");
+	if (["task", "productbrief"].includes(normalized)) {
+		return "Task";
+	}
+	if (
+		[
+			"artifact",
+			"taskstate",
+			"diff",
+			"changedpaths",
+			"commitsubjects",
+			"output",
+		].includes(normalized)
+	) {
+		return "Output";
+	}
+	return normalized === "instructions" ? "Instructions" : "Evidence";
+}
 
 interface CriterionGrades {
 	readonly hardBlockers: readonly {
@@ -96,20 +121,67 @@ function InputRead({
 	readonly input: StageReview["input"];
 }): React.JSX.Element {
 	const headingId = useId();
+	const inputs = Object.entries(input).map(([field, text]) => ({
+		field,
+		text,
+		section: inputSection(field),
+	}));
 
 	return (
 		<section aria-labelledby={headingId} className="flex flex-col gap-3">
 			<h2 id={headingId}>
 				<SectionLabel>What the judge read</SectionLabel>
 			</h2>
-			{Object.entries(input).map(([field, text]) => (
-				<div key={field}>
-					<p className="font-mono text-11-5 text-dim">{field}</p>
-					<pre className="mt-1 max-h-80 overflow-auto rounded-lg border border-subtle bg-raised px-3 py-2 text-12 whitespace-pre-wrap">
-						{text}
-					</pre>
-				</div>
-			))}
+			<nav
+				aria-label="Review evidence sections"
+				className="sticky top-0 z-10 flex flex-wrap gap-1 rounded-md border border-divider bg-background p-1"
+			>
+				{REVIEW_SECTIONS.map((label) => (
+					<a
+						key={label}
+						href={`#review-${label.toLowerCase()}`}
+						className="rounded-md px-3 py-2 text-12 text-accent-foreground hover:bg-row-hover focus-visible:ring-2 focus-visible:ring-ring"
+					>
+						{label}
+					</a>
+				))}
+			</nav>
+			{REVIEW_SECTIONS.map((label) => {
+				const fields = inputs.filter((entry) => entry.section === label);
+				return (
+					<section
+						key={label}
+						id={`review-${label.toLowerCase()}`}
+						aria-label={label}
+						tabIndex={-1}
+						className="scroll-mt-20 rounded-lg border border-divider bg-card p-4"
+					>
+						<h3 className="mb-3 text-15 font-medium">{label}</h3>
+						{fields.length === 0 ? (
+							<p className="text-13 text-muted-foreground">
+								Not recorded in this saved Judge input.
+							</p>
+						) : (
+							<div className="flex flex-col gap-4">
+								{fields.map(({ field, text }) => (
+									<div key={field}>
+										<p className="font-mono text-12 text-dim">{field}</p>
+										<div className="mt-1 max-h-100 overflow-auto">
+											{label === "Task" || label === "Instructions" ? (
+												<RecordedText text={text} />
+											) : (
+												<pre className="font-mono text-13 whitespace-pre-wrap wrap-anywhere">
+													{text}
+												</pre>
+											)}
+										</div>
+									</div>
+								))}
+							</div>
+						)}
+					</section>
+				);
+			})}
 		</section>
 	);
 }
@@ -138,7 +210,7 @@ function Choices<Value extends string>({
 				<p className="text-12 text-muted-foreground">{description}</p>
 			)}
 			{hints.map((hint) => (
-				<p key={hint} className="text-11-5 text-dim">
+				<p key={hint} className="text-12 text-dim">
 					{hint}
 				</p>
 			))}
@@ -262,7 +334,7 @@ function GradeForm({
 				className="min-h-20 rounded-lg border border-strong bg-raised px-3 py-2 text-12"
 			/>
 			{record.isError ? (
-				<p role="alert" className="text-sm text-secondary-foreground">
+				<p role="alert" className="text-13 text-secondary-foreground">
 					<span aria-hidden="true">⚠ </span>
 					{record.error.message}
 				</p>
@@ -383,7 +455,7 @@ export function StageReviewPage({
 	return (
 		<div>
 			<ScreenHeader
-				title="Grade a judged step"
+				title="Review step"
 				subline={
 					review === undefined
 						? undefined
@@ -415,14 +487,30 @@ export function StageReviewPage({
 				) : null}
 
 				{review === undefined ? null : (
-					<div className="grid max-w-250 grid-cols-1 gap-4.5 lg:grid-cols-2">
-						<InputRead input={review.input} />
-						{recorded === undefined ? (
-							<GradeForm stage={stage} criteria={review.criteria} />
-						) : (
-							<Comparison criteria={review.criteria} recorded={recorded} />
-						)}
-					</div>
+					<>
+						<div className="mb-4 flex flex-wrap items-center gap-3">
+							<StateBadge
+								tone={recorded === undefined ? "attention" : "positive"}
+							>
+								{recorded === undefined
+									? "Awaiting your review"
+									: "Review recorded"}
+							</StateBadge>
+							{recorded === undefined ? (
+								<p className="text-13 text-muted-foreground">
+									Judge scores remain hidden until you record your grade.
+								</p>
+							) : null}
+						</div>
+						<div className="grid max-w-7xl grid-cols-1 items-start gap-6 lg:grid-cols-2">
+							<InputRead input={review.input} />
+							{recorded === undefined ? (
+								<GradeForm stage={stage} criteria={review.criteria} />
+							) : (
+								<Comparison criteria={review.criteria} recorded={recorded} />
+							)}
+						</div>
+					</>
 				)}
 			</div>
 		</div>

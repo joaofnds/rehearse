@@ -80,6 +80,7 @@ function renderCasesAt(
 	path: string,
 	cases: readonly ListedCase[],
 	problems: Partial<Omit<CasesResponse, "cases">> = {},
+	additional: ReadonlyMap<string, unknown> = new Map(),
 ): void {
 	const response: CasesResponse = {
 		cases: [...cases],
@@ -89,6 +90,7 @@ function renderCasesAt(
 	renderAppWithStub(
 		path,
 		new Map<string, unknown>([
+			...additional,
 			["/api/cases", response],
 			[
 				"/api/settings",
@@ -262,7 +264,7 @@ describe(CasesPage.name, () => {
 			screen.getByRole("button", { name: "Edit steps" }),
 		).toBeInTheDocument();
 		expect(
-			screen.getByRole("button", { name: "Import a task" }),
+			screen.getByRole("button", { name: "Import workflow" }),
 		).toBeInTheDocument();
 		expect(
 			screen.getByRole("button", { name: "Export with judges" }),
@@ -304,9 +306,7 @@ describe(CasesPage.name, () => {
 
 		const pipeline = await card("audit-log");
 
-		expect(
-			within(pipeline).getByText("task · target repo"),
-		).toBeInTheDocument();
+		expect(within(pipeline).getByText("Workflow case")).toBeInTheDocument();
 		expect(
 			within(pipeline).getByText("../../../nest/template"),
 		).toBeInTheDocument();
@@ -341,9 +341,7 @@ describe(CasesPage.name, () => {
 
 		const session = await card("brief-reply");
 
-		expect(
-			within(session).getByText("single session · deterministic checks"),
-		).toBeInTheDocument();
+		expect(within(session).getByText("Session case")).toBeInTheDocument();
 		expect(within(session).getByText("no repository")).toBeInTheDocument();
 		expect(
 			within(session).getByText(
@@ -784,5 +782,327 @@ it("global search opens the matching case with its definition visible", async ()
 	).toBeInTheDocument();
 	expect(screen.queryAllByRole("article", { name: "audit-log" })).toHaveLength(
 		0,
+	);
+});
+
+it("opens a case hub, reads its definition and switches between exact corpus cohorts", async () => {
+	const otherDigest = "b".repeat(64);
+	const costPerRun = { meanUsd: 0.5, costed: 1, lacking: 0 };
+	const firstRun = { corpusDigest: DIGEST, passed: true, costUsd: 0.5 };
+	const otherRun = {
+		corpusDigest: otherDigest,
+		passed: undefined,
+		costUsd: undefined,
+	};
+	renderCasesAt("/cases", [
+		sessionCase({
+			definition: {
+				prompt: {
+					state: "available",
+					source: "case.json · prompt",
+					text: "Write a concise answer about the saved evidence.",
+				},
+				evaluation: {
+					state: "available",
+					source: "case.json · checks / stateCheck",
+					text: '{"checks":[{"kind":"word-band","max":120}]}',
+				},
+				corpusFiles: ["skills/brief/SKILL.md"],
+				tools: ["Read"],
+				sessionBudgetUsd: 1,
+			},
+			cohorts: [
+				{
+					corpusVersion: DIGEST,
+					figures: {
+						state: "measured",
+						corpusVersion: DIGEST,
+						counted: 1,
+						leftOut: 0,
+						judged: 1,
+						passed: 1,
+						costPerRun,
+					},
+					members: [
+						{
+							label: "Session first",
+							href: "/attempts/session/brief-reply/first",
+							startedAt: "2026-10-01T12:00:00.000Z",
+							run: firstRun,
+						},
+					],
+				},
+				{
+					corpusVersion: otherDigest,
+					figures: {
+						state: "measured",
+						corpusVersion: otherDigest,
+						counted: 1,
+						leftOut: 0,
+						judged: 0,
+						passed: 0,
+						costPerRun: { meanUsd: null, costed: 0, lacking: 1 },
+					},
+					members: [
+						{
+							label: "Session other",
+							href: "/attempts/session/brief-reply/other",
+							startedAt: null,
+							run: otherRun,
+						},
+					],
+				},
+			],
+		}),
+	]);
+	fireEvent.click(
+		within(await card("brief-reply")).getByRole("link", {
+			name: "brief-reply",
+		}),
+	);
+	expect(
+		await screen.findByRole("region", { name: "Prompt" }),
+	).toHaveTextContent("Write a concise answer about the saved evidence.");
+	expect(
+		screen.getByRole("region", { name: "Evaluation contract" }),
+	).toHaveTextContent('"max":120');
+	expect(screen.getByRole("link", { name: "Session first" })).toHaveAttribute(
+		"href",
+		"/attempts/session/brief-reply/first",
+	);
+	expect(
+		screen.queryByRole("link", { name: "Session other" }),
+	).not.toBeInTheDocument();
+	fireEvent.change(screen.getByRole("combobox", { name: "Corpus cohort" }), {
+		target: { value: otherDigest },
+	});
+	expect(
+		await screen.findByRole("link", { name: "Session other" }),
+	).toBeInTheDocument();
+	expect(
+		screen.queryByRole("link", { name: "Session first" }),
+	).not.toBeInTheDocument();
+	expect(screen.getByText("1 unassessed of 1 run")).toBeInTheDocument();
+	expect(
+		screen.getByText("0 costed; 1 without a complete cost"),
+	).toBeInTheDocument();
+	expect(
+		screen.getByRole("region", { name: "Run evidence by corpus" }),
+	).toHaveTextContent("Unavailable");
+	expect(screen.getByRole("button", { name: "Run once" })).toBeInTheDocument();
+	fireEvent.click(screen.getByRole("button", { name: "Run once" }));
+	const launch = await screen.findByRole("dialog");
+	await waitFor(() => {
+		expect(within(launch).getByLabelText("Case")).toHaveValue("brief-reply");
+	});
+	expect(within(launch).getByRole("button", { name: "×1" })).toHaveAttribute(
+		"aria-pressed",
+		"true",
+	);
+});
+
+it("shows an unknown corpus selection without substituting another cohort", async () => {
+	renderCasesAt(
+		"/cases?caseId=brief-reply&corpusVersion=not-a-recorded-version",
+		[
+			sessionCase({
+				cohorts: [
+					{ corpusVersion: DIGEST, figures: { state: "no-runs" }, members: [] },
+				],
+			}),
+		],
+	);
+	expect(
+		await screen.findByText(
+			"No recorded cohort matches this corpus selection. Choose a recorded version.",
+		),
+	).toBeInTheDocument();
+	expect(screen.queryByRole("table")).not.toBeInTheDocument();
+});
+
+it("opens a saved comparison for the selected case from its hub", async () => {
+	renderCasesAt(
+		"/cases?caseId=brief-reply",
+		[sessionCase()],
+		{},
+		new Map([
+			[
+				"/api/comparisons",
+				{
+					comparisons: [
+						{
+							digest: "related-comparison",
+							caseIds: ["brief-reply"],
+							mode: "session",
+						},
+					],
+					unreadable: [],
+				},
+			],
+		]),
+	);
+	expect(
+		await screen.findByRole("link", {
+			name: /brief-reply · session comparison/u,
+		}),
+	).toHaveAttribute("href", "/comparisons/related-comparison");
+});
+
+it("keeps a large declared corpus inventory collapsed above the prompt and expands every path", async () => {
+	const corpusFiles = Array.from(
+		{ length: 137 },
+		(_unused, index) => `skills/instruction-${String(index)}/SKILL.md`,
+	);
+	renderCasesAt("/cases?caseId=brief-reply", [
+		sessionCase({
+			definition: {
+				prompt: {
+					state: "available",
+					source: "case.json · prompt",
+					text: "The useful prompt stays directly available.",
+				},
+				evaluation: {
+					state: "available",
+					source: "case.json · checks",
+					text: "The saved evaluation contract.",
+				},
+				corpusFiles,
+				tools: ["Read"],
+				sessionBudgetUsd: null,
+			},
+		}),
+	]);
+	expect(
+		await screen.findByRole("region", { name: "Prompt" }),
+	).toHaveTextContent("The useful prompt stays directly available.");
+	expect(
+		screen.getByRole("region", { name: "Evaluation contract" }),
+	).toBeVisible();
+	expect(
+		screen.getByRole("button", { name: "Declared corpus files (137)" }),
+	).toHaveAttribute("aria-expanded", "false");
+	expect(
+		screen.queryByRole("list", { name: "Declared corpus files" }),
+	).not.toBeInTheDocument();
+	expect(
+		screen.getByText(
+			"Declared inclusion does not prove an instruction was read.",
+		),
+	).toBeInTheDocument();
+	fireEvent.click(
+		screen.getByRole("button", { name: "Declared corpus files (137)" }),
+	);
+	expect(
+		within(screen.getByRole("list", { name: "Declared corpus files" }))
+			.getAllByRole("listitem")
+			.map((item) => item.textContent),
+	).toEqual(corpusFiles);
+});
+
+it("uses saved short IDs and attempt positions for case cohort member labels", async () => {
+	const groupId = "01234567-0000-4000-8000-000000000000";
+	const repId = "98765432-0000-4000-8000-000000000000";
+	const label = `${groupId} · ${repId}`;
+	const href = `/groups/${groupId}/reps/${repId}/attempt`;
+	renderCasesAt(
+		"/cases?caseId=brief-reply",
+		[
+			sessionCase({
+				cohorts: [
+					{
+						corpusVersion: DIGEST,
+						figures: { state: "no-runs" },
+						members: [
+							{
+								label,
+								href,
+								startedAt: null,
+								run: { corpusDigest: DIGEST, passed: true, costUsd: undefined },
+							},
+						],
+					},
+				],
+			}),
+		],
+		{},
+		new Map([
+			[
+				"/api/run-listing",
+				{
+					rows: [
+						{
+							kind: "group",
+							groupId,
+							shortId: "brief-reply/g7",
+							caseId: "brief-reply",
+							repAttempts: [{ repId, attempt: { position: 2, count: 6 } }],
+						},
+					],
+					launches: [],
+					unreadable: [],
+				},
+			],
+		]),
+	);
+	const member = await screen.findByRole("link", {
+		name: "g7 · attempt 2 of 6",
+	});
+	expect(member).toHaveAttribute("href", href);
+	expect(member).toHaveAttribute("title", label);
+});
+
+it("shows recorded reply success beside failed saved state and keeps legacy state unavailable", async () => {
+	const known = {
+		corpusDigest: DIGEST,
+		passed: true,
+		costUsd: 0.5,
+		recordedOutcome: "SUCCESSFUL" as const,
+		replyChecks: { passed: 1, total: 1 },
+		savedState: {
+			state: "assessed" as const,
+			passed: 1,
+			failed: 18,
+			total: 19,
+		},
+	};
+	renderCasesAt("/cases?caseId=brief-reply", [
+		sessionCase({
+			cohorts: [
+				{
+					corpusVersion: DIGEST,
+					figures: { state: "no-runs" },
+					members: [
+						{
+							label: "Session disputed",
+							href: "/attempts/session/brief-reply/disputed",
+							startedAt: null,
+							run: known,
+						},
+						{
+							label: "Session legacy",
+							href: "/attempts/session/brief-reply/legacy",
+							startedAt: null,
+							run: { corpusDigest: DIGEST, passed: true, costUsd: undefined },
+						},
+					],
+				},
+			],
+		}),
+	]);
+	const table = await screen.findByRole("table", {
+		name: "Runs in the selected cohort",
+	});
+	const disputed = within(table).getByRole("row", {
+		name: /Session disputed/u,
+	});
+	expect(disputed).toHaveTextContent("Recorded successful");
+	expect(disputed).toHaveTextContent("Reply/transcript: 1 of 1 passed");
+	expect(disputed).toHaveTextContent("Saved state: 18 of 19 failed");
+	expect(disputed).toHaveTextContent("Assessment layers disagree");
+	const legacy = within(table).getByRole("row", { name: /Session legacy/u });
+	expect(legacy).toHaveTextContent("Saved state unavailable");
+	expect(within(legacy).getByText("Saved state unavailable")).toHaveAttribute(
+		"title",
+		"No saved state assessment was recorded; declaration is unknown.",
 	);
 });

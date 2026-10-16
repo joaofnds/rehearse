@@ -42,7 +42,7 @@ function decodedText(path: string, bytes: ArrayBuffer): string {
 		);
 	} catch {
 		throw new CorpusEditRefusedError(
-			`${path} is not UTF-8 text, and saving it as text would rewrite its bytes`,
+			`${path} is not UTF-8 text. Decoding would replace its bytes, so text viewing and editing are refused`,
 		);
 	}
 }
@@ -59,11 +59,14 @@ function editableText(path: string, bytes: ArrayBuffer): string {
 	return text;
 }
 
-export async function fetchCorpusFile(path: string): Promise<OpenedCorpusFile> {
+async function fetchCorpusBytes(
+	path: string,
+): Promise<{ readonly bytes: ArrayBuffer; readonly version: string }> {
 	const response = await apiClient.api.corpus.file.$get({ query: { path } });
 	if (!response.ok) {
 		throw await refusal(response);
 	}
+
 	const version = response.headers.get(CORPUS_VERSION_HEADER);
 	if (version === null) {
 		throw new CorpusEditRefusedError(
@@ -71,10 +74,19 @@ export async function fetchCorpusFile(path: string): Promise<OpenedCorpusFile> {
 		);
 	}
 
-	return {
-		text: editableText(path, await response.arrayBuffer()),
-		version,
-	};
+	return { bytes: await response.arrayBuffer(), version };
+}
+
+export async function fetchCorpusFile(path: string): Promise<OpenedCorpusFile> {
+	const { bytes, version } = await fetchCorpusBytes(path);
+	return { text: editableText(path, bytes), version };
+}
+
+export async function fetchCorpusFileForReading(
+	path: string,
+): Promise<OpenedCorpusFile> {
+	const { bytes, version } = await fetchCorpusBytes(path);
+	return { text: decodedText(path, bytes), version };
 }
 
 /** Reviews the edit against the version its file was opened at. */

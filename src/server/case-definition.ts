@@ -1,0 +1,87 @@
+import { caseRelative } from "#benchmark/case";
+import type {
+	PipelineCaseDeclaration,
+	SessionCaseDeclaration,
+} from "#benchmark/case";
+import { redactAbsolutePaths } from "./redact-path";
+
+export type DefinitionText =
+	| {
+			readonly state: "available";
+			readonly text: string;
+			readonly source: string;
+	  }
+	| {
+			readonly state: "unavailable";
+			readonly reason: string;
+			readonly source: string;
+	  };
+
+export interface CaseDefinition {
+	readonly prompt: DefinitionText;
+	readonly evaluation: DefinitionText;
+	readonly productBrief?: DefinitionText;
+	readonly corpusFiles?: readonly string[];
+	readonly tools?: readonly string[];
+	readonly sessionBudgetUsd: number | null;
+}
+
+async function declaredText(
+	root: string,
+	declaration: PipelineCaseDeclaration,
+	source: string,
+): Promise<DefinitionText> {
+	try {
+		const text = await Bun.file(caseRelative(declaration, source, root)).text();
+		return { state: "available", text, source };
+	} catch (error) {
+		return {
+			state: "unavailable",
+			source,
+			reason: redactAbsolutePaths(
+				error instanceof Error ? error.message : String(error),
+			),
+		};
+	}
+}
+
+export async function pipelineDefinition(
+	root: string,
+	declaration: PipelineCaseDeclaration,
+): Promise<CaseDefinition> {
+	const [prompt, productBrief, evaluation] = await Promise.all([
+		declaredText(root, declaration, declaration.task),
+		declaredText(root, declaration, declaration.productBrief),
+		declaredText(root, declaration, declaration.finalRubric),
+	]);
+	return {
+		prompt,
+		productBrief,
+		evaluation,
+		sessionBudgetUsd: declaration.sessionBudgetUsd ?? null,
+	};
+}
+
+export function sessionDefinition(
+	declaration: SessionCaseDeclaration,
+): CaseDefinition {
+	return {
+		prompt: {
+			state: "available",
+			text: declaration.prompt,
+			source: "case.json · prompt",
+		},
+		evaluation: {
+			state: "available",
+			text: JSON.stringify(
+				{ checks: declaration.checks, stateCheck: declaration.stateCheck },
+				null,
+				2,
+			),
+			source: "case.json · checks / stateCheck",
+		},
+		corpusFiles: declaration.corpusFiles,
+		tools: declaration.tools,
+		sessionBudgetUsd: declaration.sessionBudgetUsd ?? null,
+	};
+}

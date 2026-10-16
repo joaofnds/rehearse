@@ -21,6 +21,8 @@ import type { CaseSummary } from "./comparison-summary";
 import { caseSummary } from "./comparison-summary";
 import type { WhatMovedRow } from "./comparison-what-moved";
 import { whatMoved } from "./comparison-what-moved";
+import { comparisonSessionAssessment } from "./comparison-session-assessment";
+import type { SessionComparisonAssessment } from "./comparison-session-assessment";
 
 export interface ComparisonReportWithAttribution {
 	readonly report: ComparisonReport | LegacyComparisonReport;
@@ -38,6 +40,9 @@ export interface ComparisonReportWithAttribution {
 	readonly whatMoved: Readonly<Record<string, readonly WhatMovedRow[]>>;
 	readonly attempts: Readonly<Record<string, CaseAttempts>>;
 	readonly summary: Readonly<Record<string, CaseSummary>>;
+	readonly sessionAssessments?: Readonly<
+		Record<string, SessionComparisonAssessment>
+	>;
 }
 
 type AnyComparisonReport = ComparisonReport | LegacyComparisonReport;
@@ -111,6 +116,7 @@ export function comparisonReport(
 	const rows: Record<string, readonly WhatMovedRow[]> = {};
 	const attempts: Record<string, CaseAttempts> = {};
 	const summary: Record<string, CaseSummary> = {};
+	const sessionAssessments: Record<string, SessionComparisonAssessment> = {};
 	const measures = [
 		...report.declaredStages,
 		...(report.mode === "pipeline" ? ["final"] : []),
@@ -139,7 +145,12 @@ export function comparisonReport(
 		qualityReadings[benchmarkCase.caseId] = qualityByPair;
 		const caseFigures = figuresByArm(report, benchmarkCase);
 		figures[benchmarkCase.caseId] = caseFigures;
-		attempts[benchmarkCase.caseId] = comparisonAttempts(benchmarkCase);
+		const caseAttempts = comparisonAttempts(benchmarkCase);
+		attempts[benchmarkCase.caseId] = caseAttempts;
+		if (report.mode === "session") {
+			sessionAssessments[benchmarkCase.caseId] =
+				comparisonSessionAssessment(caseAttempts);
+		}
 		const caseRows = whatMoved(
 			benchmarkCase,
 			caseFigures,
@@ -163,5 +174,6 @@ export function comparisonReport(
 		whatMoved: rows,
 		attempts,
 		summary,
+		sessionAssessments,
 	};
 }

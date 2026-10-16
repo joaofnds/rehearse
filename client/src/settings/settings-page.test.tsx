@@ -127,7 +127,7 @@ describe(SettingsPage.name, () => {
 		).toBeInTheDocument();
 		expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
 		expect(
-			screen.getByRole("button", { name: "Review next unjudged step" }),
+			screen.getByRole("button", { name: "Review next step" }),
 		).toBeDisabled();
 		expect(screen.queryByText("Spending ceiling")).not.toBeInTheDocument();
 	});

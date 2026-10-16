@@ -275,6 +275,31 @@ describe(CorpusPage.name, () => {
 			);
 		});
 
+		it("opens a directory file for reading before offering its editor", async () => {
+			const server = serving();
+
+			fireEvent.click(
+				await screen.findByRole("button", { name: "View CLAUDE.md" }),
+			);
+
+			const viewer = await screen.findByRole("region", {
+				name: "Instruction text · CLAUDE.md",
+			});
+			expect(
+				await within(viewer).findByText(/instructions/u),
+			).toBeInTheDocument();
+			expect(
+				screen.queryByRole("textbox", { name: "Text of CLAUDE.md" }),
+			).not.toBeInTheDocument();
+			fireEvent.click(
+				within(viewer).getByRole("button", { name: "Edit this file" }),
+			);
+			expect(
+				await screen.findByRole("textbox", { name: "Text of CLAUDE.md" }),
+			).toHaveValue("instructions\nkeep\n");
+			expect(server.posted("/api/corpus/edits/apply")).toHaveLength(0);
+		});
+
 		it("moves focus to the selected file’s text", async () => {
 			serving();
 
@@ -1042,6 +1067,92 @@ describe(CorpusPage.name, () => {
 		});
 
 		describe("when the live install is linked", () => {
+			it("opens a live file for reading, preserves CRLF bytes in raw mode and offers no write action", async () => {
+				const text = "# Instruction\r\nkeep this line\r\n";
+				const server = serving(
+					new Map([
+						[
+							"GET /api/settings",
+							{ status: 200, body: settingsReading("live") },
+						],
+						["GET /api/corpus/file", opened(new TextEncoder().encode(text))],
+					]),
+				);
+
+				fireEvent.click(
+					await screen.findByRole("button", { name: "View CLAUDE.md" }),
+				);
+
+				const viewer = await screen.findByRole("region", {
+					name: "Instruction text · CLAUDE.md",
+				});
+				expect(
+					await within(viewer).findByRole("heading", { name: "Instruction" }),
+				).toBeInTheDocument();
+				fireEvent.click(within(viewer).getByRole("button", { name: "Raw" }));
+				expect(viewer.querySelector("pre")?.textContent).toBe(text);
+				expect(within(viewer).getByText("corpus@c63e9a")).toBeInTheDocument();
+				expect(
+					screen.queryByRole("textbox", { name: "Text of CLAUDE.md" }),
+				).not.toBeInTheDocument();
+				expect(
+					screen.queryByRole("button", { name: /^(?:Edit|Review|Apply)/u }),
+				).not.toBeInTheDocument();
+				expect(server.posted("/api/corpus/edits/review")).toHaveLength(0);
+				expect(server.posted("/api/corpus/edits/apply")).toHaveLength(0);
+				expect(
+					server.sent.find(({ pathname }) => pathname === "/api/corpus/file")
+						?.search,
+				).toBe("?path=CLAUDE.md");
+			});
+
+			it.each([
+				[
+					"invalid UTF-8",
+					{
+						status: 200,
+						body: Uint8Array.of(255),
+						headers: { [CORPUS_VERSION_HEADER]: OPENED_AT },
+					},
+					"is not UTF-8 text",
+				],
+				[
+					"missing version",
+					{ status: 200, body: new TextEncoder().encode("instruction") },
+					"without the corpus version",
+				],
+				[
+					"unlisted path",
+					{
+						status: 404,
+						body: { error: "The corpus report lists no file CLAUDE.md" },
+					},
+					"lists no file CLAUDE.md",
+				],
+			] as const)(
+				"keeps %s explicit in the read-only viewer",
+				async (_name, reply, reason) => {
+					const server = serving(
+						new Map<string, Reply>([
+							[
+								"GET /api/settings",
+								{ status: 200, body: settingsReading("live") },
+							],
+							["GET /api/corpus/file", reply],
+						]),
+						{ path: "CLAUDE.md" },
+					);
+
+					const refusal = await screen.findByRole("alert");
+
+					expect(refusal).toHaveTextContent(reason);
+					expect(
+						screen.queryByRole("button", { name: "Raw" }),
+					).not.toBeInTheDocument();
+					expect(server.posted("/api/corpus/edits/apply")).toHaveLength(0);
+				},
+			);
+
 			it("offers no Edit and names the command that links a copy", async () => {
 				serving(
 					new Map([
@@ -1230,6 +1341,38 @@ describe(CorpusPage.name, () => {
 			expect(within(card).queryByRole("link")).toBeNull();
 		});
 
+		it("explains why a file's prior-version count can exceed results newly invalidated by the last edit", async () => {
+			renderAppWithStub(
+				"/corpus",
+				new Map<string, unknown>([
+					["/api/corpus", measuredCorpus([], 23)],
+					["/api/settings", LIVE_SETTINGS],
+				]),
+			);
+
+			const card = await screen.findByRole("region", {
+				name: "Invalidated by the last edit",
+			});
+			const file = await screen.findByRole("button", {
+				name: "View CLAUDE.md",
+			});
+
+			expect(card).toHaveTextContent("No recorded result invalidated");
+			expect(file.closest("tr")).toHaveTextContent("23 results");
+			expect(
+				screen.getByRole("columnheader", { name: "Prior-version results" }),
+			).toBeInTheDocument();
+			fireEvent.click(
+				screen.getByText("What do Read by and prior-version counts mean?"),
+			);
+			expect(
+				screen.getByText(
+					/These rows can include results already stale before the last edit/u,
+				),
+			).toBeVisible();
+			expect(screen.getByText(/This includes declared capture/u)).toBeVisible();
+		});
+
 		it.each([
 			[0, "✓ 0 results"],
 			[1, "⚠ 1 result"],
@@ -1276,7 +1419,7 @@ describe(CorpusPage.name, () => {
 				"Not recorded: the corpus under test has no earlier version in its log to compare against",
 			);
 			expect(
-				screen.getByRole("columnheader", { name: "Invalidated" }),
+				screen.getByRole("columnheader", { name: "Prior-version results" }),
 			).toBeInTheDocument();
 			expect(screen.queryByText(/0 results/u)).toBeNull();
 		});

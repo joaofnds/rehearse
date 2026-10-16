@@ -208,7 +208,7 @@ describe("the selected step in Results", () => {
 
 		const [first, second, third] = await stepButtons();
 
-		expect(first).toHaveTextContent(/^01shapeA✓accepted/u);
+		expect(first).toHaveTextContent(/^01shapeA✓Continued at minimum B/u);
 		expect(first).toHaveTextContent("$1.12");
 		expect(first).toHaveTextContent("4m02s");
 		expect(first).toHaveTextContent("c-0147-1");
@@ -363,9 +363,30 @@ describe("the selected step in Results", () => {
 
 			expect(rows.map((row) => row.textContent)).toEqual([
 				"✕scope-declared-before-editfired1 cited",
-				"✓no-secrets-in-diffclearno evidence",
 				"✕tests-pass-before-handofffired1 cited",
 			]);
+			const clear = within(report).getByText("1 clear blocker & citations", {
+				selector: "summary",
+			});
+			expect(clear.parentElement).not.toHaveAttribute("open");
+			fireEvent.click(clear);
+			expect(
+				within(report).getByRole("list", { name: "Clear hard blockers" }),
+			).toHaveTextContent("✓no-secrets-in-diffclearno evidence");
+		});
+
+		it("explains an empty saved blocker assessment", async () => {
+			renderRunDetail(
+				new Map<string, unknown>([
+					[`/api/runs/${RUN}`, stoppedWithBuildFigures()],
+					[BUILD_JUDGE, { ...buildJudged(), hardBlockers: [] }],
+					[BUILD_SESSION, closedSession()],
+				]),
+			);
+
+			expect(
+				await screen.findByText("No hard blocker results were recorded."),
+			).toBeInTheDocument();
 		});
 
 		it("lists each quality dimension with its grade and the judge's first claim as its note", async () => {

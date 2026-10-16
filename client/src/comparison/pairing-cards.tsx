@@ -160,7 +160,7 @@ function baselineArmText(baselineArm: BaselineArm): string {
 function attributionText(attribution: ComparisonAttribution): string {
 	switch (attribution.claim) {
 		case "attributable": {
-			return `Only ${attribution.differingPath} differs between baseline and candidate, so a movement between them is attributable to it.`;
+			return `Only ${attribution.differingPath} differs between the recorded corpora. Read the repeated outcomes and uncertainty before attributing a movement.`;
 		}
 		case "identical": {
 			return "Baseline and candidate ran identical corpora, so no file explains a movement between them.";

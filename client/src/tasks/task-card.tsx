@@ -29,7 +29,7 @@ function targetOf({ declaredBy, targets }: ListedTask): string {
 }
 
 function figuresLine(task: ListedTask): string {
-	const taskJudge = task.taskJudges === 0 ? "no task judge" : "1 task judge";
+	const taskJudge = task.taskJudges === 0 ? "no final judge" : "1 final judge";
 	const judges = `${plural(task.stageJudges, "step judge")} + ${taskJudge}`;
 
 	return [runsLine(task), plural(task.cases.length, "case"), judges].join(
@@ -38,7 +38,7 @@ function figuresLine(task: ListedTask): string {
 }
 
 const OVERRIDE_DESCRIPTION =
-	"A run chose this pipeline over its case's default. No case declares it, so it has no task judge of its own.";
+	"A run chose this workflow over its case's default. No case declares it, so it has no final judge of its own.";
 
 function OpenGraph({
 	runInFlight,
@@ -59,8 +59,8 @@ function OpenGraph({
 
 	return (
 		<>
-			<span id={reasonId} className="text-11-5 text-dim">
-				None of this task's runs is in flight
+			<span id={reasonId} className="text-12 text-dim">
+				None of this workflow's runs is in flight
 			</span>
 			<Button variant="quiet" aria-disabled="true" aria-describedby={reasonId}>
 				Open graph
@@ -89,34 +89,33 @@ export function TaskCard({
 			className="rounded-lg border border-divider bg-card px-4 py-3.5"
 		>
 			<div className="flex flex-wrap items-center gap-3">
-				<h2 id={headingId} className="font-mono text-sm">
-					{task.path}
+				<h2 id={headingId} className="text-15 font-medium">
+					{task.declaredBy?.title ?? `${task.stages.join(" → ")} workflow`}
 				</h2>
-				<span className="text-11-5 text-muted-foreground">
-					{targetOf(task)}
-				</span>
-				<span className="ml-auto font-mono text-11 text-dim">
+				<span className="text-12 text-muted-foreground">{targetOf(task)}</span>
+				<span className="ml-auto font-mono text-12 text-dim">
 					{figuresLine(task)}
 				</span>
 			</div>
+			<p className="mt-2 break-words font-mono text-12 text-dim">{task.path}</p>
 			{task.figures.leftOut > 0 ? (
-				<p className="mt-1 text-right font-mono text-11 text-dim">
+				<p className="mt-1 text-right font-mono text-12 text-dim">
 					{runsLeftOut(task.figures.leftOut)}
 				</p>
 			) : null}
-			<p className="mt-2 max-w-prose text-sm">
-				{task.declaredBy?.title ?? OVERRIDE_DESCRIPTION}
-			</p>
+			{task.declaredBy === null ? (
+				<p className="mt-2 max-w-prose text-14">{OVERRIDE_DESCRIPTION}</p>
+			) : null}
 			{task.cases.length === 0 ? null : (
-				<p className="mt-1 font-mono text-11 text-dim">
+				<p className="mt-1 font-mono text-12 text-dim">
 					Used by: {task.cases.join(", ")}
 				</p>
 			)}
 			<div className="mt-2.5 flex flex-wrap items-center gap-2.5">
-				<span className="text-xs tracking-widest text-dim uppercase">
+				<span className="text-12 tracking-widest text-dim uppercase">
 					Steps
 				</span>
-				<span className="font-mono text-11-5">{task.stages.join(" → ")}</span>
+				<span className="font-mono text-12">{task.stages.join(" → ")}</span>
 				<span className="ml-auto flex items-center gap-2">
 					<OpenGraph runInFlight={runInFlight} />
 					{task.declaredBy === null ? null : (

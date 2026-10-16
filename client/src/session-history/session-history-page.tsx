@@ -19,6 +19,13 @@ import {
 	requestRowId,
 } from "./request-timeline";
 import { cn } from "#client/system/cn";
+import { plural } from "#client/plural";
+import {
+	EVENT_FILTERS,
+	filterEvidenceEvents,
+	preferredEvidenceEvent,
+} from "./evidence-discovery";
+import type { EventFilter } from "./evidence-discovery";
 import { LaunchDialog } from "#client/launch/launch-dialog";
 import { ScreenHeader } from "#client/system/components/screen-header";
 import { AgentTreePane, agentName } from "./agent-tree-pane";
@@ -708,19 +715,51 @@ const DETAIL_SECTION_CLASSES =
 const EVIDENCE_TEXT_CLASSES =
 	"max-h-96 overflow-auto rounded-md bg-background p-2.5 font-mono text-13 break-words whitespace-pre-wrap text-secondary-foreground";
 
+function sourceSizeLabel(measurement: TextMeasurement): string {
+	if (measurement.state === "complete") {
+		return `${measurement.characters.toLocaleString("en-US")} chars`;
+	}
+	if (measurement.state === "partial") {
+		return `≥ ${measurement.observedCharacters.toLocaleString("en-US")} chars · partial`;
+	}
+	return "Size unavailable";
+}
+
+function unfilteredRequests(
+	sourceId: string | undefined,
+	query: string,
+	filter: EventFilter,
+): boolean {
+	return (
+		sourceId === undefined &&
+		query.trim() === "" &&
+		(filter === "Activity" || filter === "All records")
+	);
+}
+
 function SourceList({
 	sources,
+	total,
+	query,
 	selected,
 	sort,
 	onSelect,
 }: {
 	readonly sources: readonly SessionHistorySource[];
+	readonly total: number;
+	readonly query: string;
 	readonly selected: string | undefined;
 	readonly sort: SourceSort;
 	readonly onSelect: (source: SessionHistorySource | undefined) => void;
 }): React.JSX.Element {
 	return (
 		<nav aria-label="Loaded sources">
+			{query.trim() !== "" && selected !== undefined ? (
+				<p className="px-3 py-2 text-12 text-muted-foreground">
+					Search filters this source list. Evidence stays on the selected
+					source.
+				</p>
+			) : null}
 			<button
 				type="button"
 				className={cn(
@@ -734,9 +773,7 @@ function SourceList({
 			>
 				<span className="flex items-baseline justify-between gap-2.5">
 					<span>All sources</span>
-					<span className="font-mono text-accent-foreground">
-						{sources.length}
-					</span>
+					<span className="font-mono text-accent-foreground">{total}</span>
 				</span>
 			</button>
 			{sortedSources(sources, sort).map((source) => (
@@ -756,35 +793,60 @@ function SourceList({
 						<strong className="min-w-0 font-medium break-words">
 							{source.name}
 						</strong>
-						{source.repeatDeliveryCount === undefined ? null : (
-							<span className="shrink-0 font-mono text-accent-foreground">
-								{`${source.repeatDeliveryCount}×`}
-							</span>
-						)}
+						<span className="shrink-0 text-12 text-muted-foreground">
+							{source.kind}
+						</span>
 					</span>
-					<small>
-						<span className="text-12 text-muted-foreground">{source.kind}</span>
-					</small>
-					<small className="text-12 text-muted-foreground">
-						{source.failedOccurrences} failed · {source.partialOccurrences}{" "}
-						partial · {source.missingOccurrences} missing ·{" "}
-						{source.unavailableOccurrences} unavailable
-					</small>
-					<small className="text-12 text-muted-foreground">
-						{measurementLabel(source.measurement)}
-					</small>
-					<small className="text-12 text-muted-foreground">
-						{source.observedDeliveryCount === undefined
-							? "? Unavailable observed deliveries · boundary unknown"
-							: `${source.observedDeliveryCount} observed deliveries`}
-					</small>
-					{source.repeatDeliveryCount === undefined ? (
-						<small className="text-12 text-muted-foreground">
-							? Unavailable repeats
-						</small>
-					) : null}
+					<span
+						className="flex flex-wrap justify-between gap-x-3 gap-y-1 text-12 text-secondary-foreground"
+						title={measurementLabel(source.measurement)}
+					>
+						<span>{sourceSizeLabel(source.measurement)}</span>
+						<span>
+							{source.observedDeliveryCount === undefined
+								? "Deliveries unknown"
+								: plural(
+										source.observedDeliveryCount,
+										"delivery",
+										"deliveries",
+									)}{" "}
+							·{" "}
+							{source.repeatDeliveryCount === undefined
+								? "Repeats unknown"
+								: plural(source.repeatDeliveryCount, "repeat")}
+						</span>
+					</span>
+					{source.failedOccurrences +
+						source.partialOccurrences +
+						source.missingOccurrences +
+						source.unavailableOccurrences ===
+					0 ? null : (
+						<span className="text-12 text-attention">
+							{[
+								source.failedOccurrences === 0
+									? undefined
+									: `${source.failedOccurrences} failed`,
+								source.partialOccurrences === 0
+									? undefined
+									: `${source.partialOccurrences} partial`,
+								source.missingOccurrences === 0
+									? undefined
+									: `${source.missingOccurrences} missing`,
+								source.unavailableOccurrences === 0
+									? undefined
+									: `${source.unavailableOccurrences} unavailable`,
+							]
+								.filter((value) => value !== undefined)
+								.join(" · ")}
+						</span>
+					)}
 				</button>
 			))}
+			{sources.length === 0 ? (
+				<p className="px-3 py-3 text-13 text-muted-foreground">
+					No sources match this search.
+				</p>
+			) : null}
 		</nav>
 	);
 }
@@ -858,7 +920,8 @@ function EventLedger({
 			))}
 			{events.length === 0 ? (
 				<p className="px-3 py-2.5 text-13 text-muted-foreground">
-					No events match this source.
+					No events match these filters. Choose All records to include raw
+					chronology.
 				</p>
 			) : null}
 		</div>
@@ -1294,6 +1357,9 @@ interface InvestigationSelection {
 	readonly requestId: string | undefined;
 	readonly sourceSort: SourceSort;
 	readonly view: EvidenceView;
+	readonly sourceQuery: string;
+	readonly eventQuery: string;
+	readonly eventFilter: EventFilter;
 }
 
 function ScopeReadings({
@@ -1404,6 +1470,12 @@ interface InvestigationControls {
 	readonly sourceSort: SourceSort;
 	readonly setSourceSort: (value: SourceSort) => void;
 	readonly eventsRef: RefObject<HTMLElement | null>;
+	readonly sourceQuery: string;
+	readonly setSourceQuery: (value: string) => void;
+	readonly eventQuery: string;
+	readonly setEventQuery: (value: string) => void;
+	readonly eventFilter: EventFilter;
+	readonly setEventFilter: (value: EventFilter) => void;
 }
 
 function useInvestigationSelection(
@@ -1418,24 +1490,32 @@ function useInvestigationSelection(
 		enabled: false,
 		gcTime: Infinity,
 	});
-	const savedSelection = cached.data ?? undefined;
+	const savedSelection = initialEventId === undefined ? cached.data : null;
 	const [sourceId, setSourceId] = useState<string | undefined>(
-		initialEventId === undefined ? savedSelection?.sourceId : undefined,
+		savedSelection?.sourceId,
 	);
 	const [selectedEventId, setSelectedEventId] = useState<string | undefined>(
 		initialEventId ?? savedSelection?.eventId,
 	);
 	const [selectedRequestId, setSelectedRequestId] = useState<
 		string | undefined
-	>(initialEventId === undefined ? savedSelection?.requestId : undefined);
+	>(savedSelection?.requestId);
 	const [view, setView] = useState<EvidenceView>(
-		initialEventId === undefined
-			? (savedSelection?.view ?? "Evidence")
-			: "Evidence",
+		savedSelection?.view ?? "Evidence",
 	);
 	const eventsRef = useRef<HTMLElement>(null);
 	const [sourceSort, setSourceSort] = useState<SourceSort>(
-		savedSelection?.sourceSort ?? "Delivered size",
+		cached.data?.sourceSort ?? "Delivered size",
+	);
+	const [sourceQuery, setSourceQuery] = useState(
+		savedSelection?.sourceQuery ?? "",
+	);
+	const [eventQuery, setEventQuery] = useState(
+		savedSelection?.eventQuery ?? "",
+	);
+	const [eventFilter, setEventFilter] = useState<EventFilter>(
+		savedSelection?.eventFilter ??
+			(initialEventId === undefined ? "Activity" : "All records"),
 	);
 	useEffect(() => {
 		queryClient.setQueryData<InvestigationSelection>(
@@ -1446,6 +1526,9 @@ function useInvestigationSelection(
 				requestId: selectedRequestId,
 				sourceSort,
 				view,
+				sourceQuery,
+				eventQuery,
+				eventFilter,
 			},
 		);
 	}, [
@@ -1456,6 +1539,9 @@ function useInvestigationSelection(
 		selectedRequestId,
 		sourceSort,
 		view,
+		sourceQuery,
+		eventQuery,
+		eventFilter,
 	]);
 
 	return {
@@ -1470,6 +1556,12 @@ function useInvestigationSelection(
 		sourceSort,
 		setSourceSort,
 		eventsRef,
+		sourceQuery,
+		setSourceQuery,
+		eventQuery,
+		setEventQuery,
+		eventFilter,
+		setEventFilter,
 	};
 }
 
@@ -1510,6 +1602,12 @@ function SessionHistoryWorkspace({
 		sourceSort,
 		setSourceSort,
 		eventsRef,
+		sourceQuery,
+		setSourceQuery,
+		eventQuery,
+		setEventQuery,
+		eventFilter,
+		setEventFilter,
 	} = useInvestigationSelection(path, initialEventId);
 
 	const summary = useQuery(sessionHistoryQuery(identity));
@@ -1547,13 +1645,13 @@ function SessionHistoryWorkspace({
 					? summary.data.boundaryUnknown
 					: summary.data.attemptEvents;
 		}
-		return sourceId === undefined
-			? all
-			: all.filter((event) => event.sourceId === sourceId);
-	}, [sourceId, summary.data]);
-	const activeEventId = events.some(({ id }) => id === selectedEventId)
-		? selectedEventId
-		: events[0]?.id;
+		const scoped =
+			sourceId === undefined
+				? all
+				: all.filter((event) => event.sourceId === sourceId);
+		return filterEvidenceEvents(scoped, eventQuery, eventFilter);
+	}, [sourceId, summary.data, eventQuery, eventFilter]);
+	const activeEventId = preferredEvidenceEvent(events, selectedEventId)?.id;
 	const detail = useQuery({
 		queryKey: ["session-history-detail", path, activeEventId],
 		queryFn: () => fetchDetail(identity, activeEventId ?? ""),
@@ -1579,10 +1677,9 @@ function SessionHistoryWorkspace({
 			eventsRef.current?.focus({ preventScroll: true });
 		}
 	}, [revealEvents, summary.data]);
-	const visibleEntries =
-		sourceId === undefined
-			? timelineEntries
-			: requestRowsOwningEvents(timelineEntries, events);
+	const visibleEntries = unfilteredRequests(sourceId, eventQuery, eventFilter)
+		? timelineEntries
+		: requestRowsOwningEvents(timelineEntries, events);
 
 	return (
 		<div className="flex min-h-full flex-col">
@@ -1629,8 +1726,20 @@ function SessionHistoryWorkspace({
 							<div className="flex flex-col md:flex-row">
 								<div className="min-w-0 border-b md:w-80 md:shrink-0 md:border-r md:border-b-0">
 									<div className="flex flex-col gap-2 border-b px-3 py-2.5">
+										<label className="flex flex-col gap-2 text-12 text-muted-foreground">
+											Search sources
+											<input
+												type="search"
+												value={sourceQuery}
+												onChange={(event) => {
+													setSourceQuery(event.target.value);
+												}}
+												placeholder="File, skill, or tool"
+												className="w-full rounded-md border border-strong bg-background px-3 py-2 text-13 text-foreground"
+											/>
+										</label>
 										<span className="text-12 text-muted-foreground">
-											Sources · recorded characters, not request tokens
+											Size in recorded characters, not request tokens
 										</span>
 										<Switcher
 											label="Sort sources"
@@ -1641,12 +1750,19 @@ function SessionHistoryWorkspace({
 									</div>
 									<div className="max-h-64 overflow-y-auto">
 										<SourceList
-											sources={summary.data.sources}
+											total={summary.data.sources.length}
+											query={sourceQuery}
+											sources={summary.data.sources.filter((source) =>
+												`${source.name} ${source.path ?? ""} ${source.kind}`
+													.toLocaleLowerCase()
+													.includes(sourceQuery.trim().toLocaleLowerCase()),
+											)}
 											selected={sourceId}
 											sort={sourceSort}
 											onSelect={(source) => {
 												setSourceId(source?.id);
 												setSelectedRequestId(undefined);
+												setEventQuery("");
 												if (view !== "Agents") {
 													setView("Evidence");
 												}
@@ -1664,6 +1780,41 @@ function SessionHistoryWorkspace({
 												? "Boundary-unknown events"
 												: "Attempt events"}
 										</PaneHeading>
+										<div className="flex flex-col gap-2 border-b px-3 py-3">
+											<label className="flex flex-col gap-1 text-12 text-muted-foreground">
+												Search events
+												<input
+													type="search"
+													value={eventQuery}
+													onChange={(event) => {
+														setEventQuery(event.target.value);
+													}}
+													placeholder="Event, tool, or source"
+													className="w-full rounded-md border border-strong bg-background px-3 py-2 text-13 text-foreground"
+												/>
+											</label>
+											<label className="flex items-center justify-between gap-2 text-12 text-muted-foreground">
+												Show events
+												<select
+													value={eventFilter}
+													onChange={(event) => {
+														const filter = EVENT_FILTERS.find(
+															(value) => value === event.target.value,
+														);
+														if (filter !== undefined) {
+															setEventFilter(filter);
+														}
+													}}
+													className="rounded-md border border-strong bg-background px-2 py-1.5 text-12 text-foreground"
+												>
+													{EVENT_FILTERS.map((filter) => (
+														<option key={filter} value={filter}>
+															{filter}
+														</option>
+													))}
+												</select>
+											</label>
+										</div>
 										<div className="max-h-80 overflow-y-auto">
 											<EventLedger
 												events={events}
@@ -1698,12 +1849,23 @@ function SessionHistoryWorkspace({
 												selected={selectedRequestRow}
 												onSelect={(entry) => {
 													setSelectedRequestId(requestRowId(entry));
+													const all =
+														summary.data.boundary === "unknown"
+															? summary.data.boundaryUnknown
+															: summary.data.attemptEvents;
 													const target = eventForRequestRow(
 														timelineEntries,
-														events,
+														all,
 														entry,
 													);
 													if (target !== undefined) {
+														if (
+															!events.some((event) => event.id === target.id)
+														) {
+															setSourceId(undefined);
+															setEventQuery("");
+															setEventFilter("All records");
+														}
 														setSelectedEventId(target.id);
 													}
 												}}
@@ -1729,6 +1891,8 @@ function SessionHistoryWorkspace({
 							report={summary.data}
 							onSelect={(id) => {
 								setSourceId(undefined);
+								setEventQuery("");
+								setEventFilter("All records");
 								selectEvent(id);
 								setView("Evidence");
 							}}

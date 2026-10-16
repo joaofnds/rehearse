@@ -1,5 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Search } from "lucide-react";
+import { CorpusFileViewer } from "./corpus-file-viewer";
+import { StateBadge } from "#client/system/components/state-badge";
 import { useEffect, useState } from "react";
 import { corpusVersionLabel } from "#benchmark/corpus-version-label";
 import { launchSettingsQuery } from "#client/launch/settings-query";
@@ -30,7 +32,7 @@ const COLUMNS = [
 	"Hash",
 	"Last edited",
 	"Read by",
-	"Invalidated",
+	"Prior-version results",
 ] as const;
 
 /**
@@ -57,11 +59,20 @@ function rowFor(
 	file: CorpusFile,
 	lastEdit: CorpusResponse["lastEdit"],
 	onEdit: ((path: string) => void) | undefined,
+	onView: (path: string) => void,
 ): readonly React.ReactNode[] {
 	return [
-		<span key="path" className="font-mono text-sm">
-			{file.path}
-		</span>,
+		<Button
+			key="path"
+			variant="link"
+			size="compact"
+			aria-label={`View ${file.path}`}
+			onClick={() => {
+				onView(file.path);
+			}}
+		>
+			<span className="font-mono">{file.path}</span>
+		</Button>,
 		<span key="hash" className="font-mono text-sm text-muted-foreground">
 			{file.sha256.slice(0, 12)}
 		</span>,
@@ -97,6 +108,11 @@ export interface OpenedCorpusFile {
 }
 
 type EditState =
+	| {
+			readonly kind: "viewing";
+			readonly path: string;
+			readonly lines?: LineRange | undefined;
+	  }
 	| { readonly kind: "idle" }
 	| {
 			readonly kind: "editing";
@@ -129,7 +145,9 @@ function EditSection({
 		>
 			<header className="border-b border-strong bg-raised px-4 py-2.5">
 				<h2 id="corpus-edit-heading" className="font-medium">
-					Edit an instruction, review, then apply
+					{settings.data?.linkedCorpus.kind === "directory"
+						? "Edit an instruction, review, then apply"
+						: "Inspect your instructions"}
 				</h2>
 			</header>
 			<div className="px-4 py-3">
@@ -140,20 +158,37 @@ function EditSection({
 					</p>
 				) : null}
 				{settings.isSuccess && settings.data.linkedCorpus.kind === "live" ? (
-					<p className="text-sm text-muted-foreground">
-						The linked corpus is the live install, which is rendered from your
-						source and loaded by every agent session on this machine, so it is
-						not edited here. Link a copy to edit with{" "}
-						<code className="font-mono text-pale">
-							{settings.data.linkCommand}
-						</code>
-						{". "}
-						<CorpusSettingsLink
-							path={edit.kind === "idle" ? undefined : edit.path}
-							lines={edit.kind === "editing" ? edit.lines : undefined}
-							source={source}
-						/>
-					</p>
+					<div className="flex flex-col gap-4">
+						<p className="text-14 text-muted-foreground">
+							<StateBadge tone="neutral">Live install · read only</StateBadge>{" "}
+							Open a file below to read it. Editing requires a separate linked
+							copy. Link that copy with{" "}
+							<code className="font-mono text-pale">
+								{settings.data.linkCommand}
+							</code>
+							{". "}
+							<CorpusSettingsLink
+								path={edit.kind === "idle" ? undefined : edit.path}
+								lines={
+									edit.kind === "editing" || edit.kind === "viewing"
+										? edit.lines
+										: undefined
+								}
+								source={source}
+							/>
+						</p>
+						{edit.kind === "viewing" || edit.kind === "editing" ? (
+							<CorpusFileViewer
+								key={edit.path}
+								root={settings.data.linkedCorpus.root}
+								path={edit.path}
+								lines={edit.lines}
+								onClose={() => {
+									onEdit({ kind: "idle" });
+								}}
+							/>
+						) : null}
+					</div>
 				) : null}
 				{settings.isSuccess &&
 				settings.data.linkedCorpus.kind === "directory" ? (
@@ -190,6 +225,22 @@ function EditBody({
 					Choose Edit on a file to change its text against the version under
 					test.
 				</p>
+			);
+		}
+		case "viewing": {
+			return (
+				<CorpusFileViewer
+					key={edit.path}
+					root={root}
+					path={edit.path}
+					lines={edit.lines}
+					onClose={() => {
+						onEdit({ kind: "idle" });
+					}}
+					onEdit={() => {
+						onEdit({ kind: "editing", path: edit.path, lines: edit.lines });
+					}}
+				/>
 			);
 		}
 		case "editing": {
@@ -231,6 +282,7 @@ function CorpusInventory({
 	isLoading,
 	isError,
 	onEdit,
+	onView,
 	sourcePath,
 }: {
 	readonly sourcePath: string | undefined;
@@ -238,6 +290,7 @@ function CorpusInventory({
 	readonly isLoading: boolean;
 	readonly isError: boolean;
 	readonly onEdit: ((path: string) => void) | undefined;
+	readonly onView: (path: string) => void;
 }): React.JSX.Element {
 	const [search, setSearch] = useState("");
 	const needle = search.trim().toLowerCase();
@@ -312,12 +365,43 @@ function CorpusInventory({
 					No corpus files match. Clear search to show all files.
 				</p>
 			) : null}
+			{report !== undefined && report.files.length > 0 ? (
+				<details className="rounded-md border border-divider bg-card px-4 py-3 text-13">
+					<summary className="cursor-pointer font-medium">
+						What do Read by and prior-version counts mean?
+					</summary>
+					<dl className="mt-3 grid gap-3">
+						<div>
+							<dt className="font-medium">Read by</dt>
+							<dd className="text-muted-foreground">
+								Distinct run-history rows whose records include this path in
+								their captured corpus files or additional recorded corpus reads.
+								This includes declared capture; the count does not establish
+								that a model used the instruction. Unreadable records are
+								excluded.
+							</dd>
+						</div>
+						<div>
+							<dt className="font-medium">Prior-version results</dt>
+							<dd className="text-muted-foreground">
+								Rows that recorded this file’s hash from the previous corpus
+								version when that hash differs from the current file. These rows
+								can include results already stale before the last edit. The
+								last-edit card counts only results newly made stale by the whole
+								edit. Counts are unavailable without a measured prior version.
+							</dd>
+						</div>
+					</dl>
+				</details>
+			) : null}
 			{report !== undefined && files.length > 0 ? (
 				<TableShell
 					caption="Corpus files"
 					columns={onEdit === undefined ? [...COLUMNS] : [...COLUMNS, "Edit"]}
-					numeric={["Read by", "Invalidated"]}
-					rows={files.map((file) => rowFor(file, report.lastEdit, onEdit))}
+					numeric={["Read by", "Prior-version results"]}
+					rows={files.map((file) =>
+						rowFor(file, report.lastEdit, onEdit, onView),
+					)}
 				/>
 			) : null}
 		</>
@@ -398,6 +482,12 @@ export function CorpusPage({
 						path={sourcePath}
 						evidence={visibleEvidence}
 						currentCorpus={query.data?.digest}
+						operation={
+							settings.data?.linkedCorpus.kind === "directory" &&
+							edit.kind === "editing"
+								? "editing"
+								: "reading"
+						}
 						onClear={clearSource}
 					/>
 				)}
@@ -413,6 +503,17 @@ export function CorpusPage({
 					isLoading={query.isLoading}
 					isError={query.isError}
 					onEdit={onEdit}
+					onView={(path) => {
+						selectedFile(path);
+						if (
+							(edit.kind === "viewing" || edit.kind === "editing") &&
+							edit.path === path
+						) {
+							setEdit({ kind: "viewing", path, lines: edit.lines });
+						} else {
+							setEdit({ kind: "viewing", path });
+						}
+					}}
 				/>
 			</div>
 		</div>

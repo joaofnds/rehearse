@@ -8,6 +8,63 @@ import {
 } from "./request-timeline";
 
 describe(RequestTimeline.name, () => {
+	it("keeps peak request input separate from attempt totals", () => {
+		const series = sessionHistoryRequestSeries({
+			transcript: [
+				JSON.stringify({
+					type: "assistant",
+					requestId: "small",
+					message: {
+						model: "claude-opus-5",
+						stop_reason: "end_turn",
+						usage: {
+							input_tokens: 20,
+							output_tokens: 2,
+							cache_read_input_tokens: 0,
+							cache_creation_input_tokens: 0,
+						},
+					},
+				}),
+				JSON.stringify({
+					type: "assistant",
+					requestId: "large",
+					message: {
+						model: "claude-opus-5",
+						stop_reason: "end_turn",
+						usage: {
+							input_tokens: 70,
+							output_tokens: 4,
+							cache_read_input_tokens: 0,
+							cache_creation_input_tokens: 0,
+						},
+					},
+				}),
+			].join("\n"),
+			prefixLinesExcluded: 0,
+		});
+		render(
+			<RequestTimeline
+				series={series}
+				entries={series.entries}
+				requestCosts={[]}
+				instructionLoads={{ state: "unavailable" }}
+				selected={undefined}
+				onSelect={() => undefined}
+			/>,
+		);
+
+		const peak = screen.getByText("Peak measured input").closest("div");
+		if (peak === null) {
+			throw new Error("Peak reading is missing");
+		}
+		expect(within(peak).getByText("70 tokens")).toBeVisible();
+		expect(
+			screen.getByText(
+				"✓ Complete · 90 total input tokens over 2 attempt requests",
+			),
+		).toBeVisible();
+	});
+
 	it("reads a request whose rows never settled as incomplete with its lower bound", () => {
 		const series = sessionHistoryRequestSeries({
 			transcript: JSON.stringify({
@@ -77,6 +134,29 @@ describe(costLabel.name, () => {
 });
 
 describe(RequestCostReadings.name, () => {
+	it("rounds a headline while retaining the exact saved amount in detail", () => {
+		render(
+			<RequestCostReadings
+				cost={{
+					reported: { state: "complete", costUsd: 0.0123456 },
+					calculated: { state: "complete", costUsd: 0 },
+					difference: { state: "complete", costUsd: 0 },
+				}}
+			/>,
+		);
+		const reading = screen
+			.getByText("Provider reported · attempt")
+			.closest("div");
+		if (reading === null) {
+			throw new Error("Reported reading is missing");
+		}
+		expect(within(reading).getByText("✓ Complete · $0.01")).toBeVisible();
+
+		fireEvent.click(within(reading).getByText("Exact measurement"));
+
+		expect(within(reading).getByText("Exact amount: $0.0123456")).toBeVisible();
+	});
+
 	it("keeps a partial subtotal separate from complete pricing reasons containing separators", () => {
 		const reason = "missing rates · catalog unavailable";
 		render(

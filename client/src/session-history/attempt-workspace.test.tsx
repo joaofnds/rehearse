@@ -4,7 +4,13 @@ import {
 	renderAppWithStub,
 } from "#client/test-support/render-app";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, screen, waitFor } from "@testing-library/react";
+import {
+	act,
+	fireEvent,
+	screen,
+	waitFor,
+	within,
+} from "@testing-library/react";
 import type { ReplayRow, SessionAttemptRow } from "#server/run-history";
 import type { ParsedConfirmationRepRecord } from "#benchmark/confirmation-record";
 import { stubFetchByPath } from "#client/test-support/fetch-stub";
@@ -209,84 +215,229 @@ describe(AttemptWorkspacePage.name, () => {
 		expect(screen.queryByText("$0.00")).not.toBeInTheDocument();
 	});
 
-	it("shows a standalone attempt's own saved checks and measurements", async () => {
+	it("shows one standalone outcome and check count when detailed session evidence is available", async () => {
+		const row: SessionAttemptRow = {
+			...standaloneRow(),
+			checks: { state: "available", passed: 1, declared: 2 },
+		};
 		show(
 			{ kind: "standalone", caseId: "case-a", uuid: "attempt-a" },
 			"results",
-			new Map([
+			new Map<string, unknown>([
+				["/api/runs", { rows: [row], launches: [], unreadable: [] }],
 				[
-					"/api/runs",
-					{ rows: [standaloneRow()], launches: [], unreadable: [] },
-				],
-			]),
-		);
-
-		expect(await screen.findByText("2 of 3 checks passed")).toBeTruthy();
-		expect(screen.getByText("UNSUCCESSFUL")).toBeTruthy();
-		expect(screen.getByText("$0.37")).toBeTruthy();
-		expect(screen.getByText("01:12")).toBeTruthy();
-		expect(screen.getByText("corpus@aaaaaa")).toBeTruthy();
-		expect(
-			screen.getByRole("link", { name: "Context & cost" }).getAttribute("href"),
-		).toBe("/attempts/session/case-a/attempt-a?view=context");
-	});
-
-	it("shows a replay's step grade and actual source run without a workflow verdict", async () => {
-		show(
-			{
-				kind: "replay",
-				lineage: "lineage-a",
-				timestamp: "2026-10-01T12:00:00Z",
-			},
-			"results",
-			new Map([
-				["/api/runs", { rows: [replayRow()], launches: [], unreadable: [] }],
-				[
-					"/api/replays/lineage-a/2026-10-01T12%3A00%3A00Z/history",
+					"/api/attempt-evidence/attempt%3Asession%3Acase-a%2Fattempt-a",
 					{
-						schemaVersion: 1,
-						attempt: { kind: "stage", run: "source-run", stage: "build" },
-						evidence: {
-							state: "unavailable",
-							reasons: ["replay retains none"],
+						state: "available",
+						kind: "session",
+						record: {
+							caseId: "case-a",
+							outcome: "UNSUCCESSFUL",
+							reply: "Saved reply",
+							checks: [
+								{ kind: "word-band", status: "FAIL", detail: "Too short." },
+								{
+									kind: "tool-calls",
+									status: "PASS",
+									detail: "Allowed calls.",
+								},
+							],
 						},
-						boundary: "known",
-						startingContext: [],
-						attemptEvents: [],
-						boundaryUnknown: [],
-						startingSources: [],
-						sources: [],
 					},
 				],
 			]),
 		);
 
-		expect(await screen.findByText(/Grade B · CONTINUE/u)).toBeTruthy();
-		expect(screen.getByText("A replay grades only this step.")).toBeTruthy();
-		expect(screen.queryByText("Final workflow outcome")).toBeNull();
-		const compare = await screen.findByRole("button", {
-			name: "Compare with source",
-		});
-		await act(() => {
-			fireEvent.click(compare);
-			return Promise.resolve();
-		});
-		const sourceStepLink = await screen.findByRole("link", {
-			name: "Source step",
-		});
-		expect(sourceStepLink.getAttribute("href")).toBe(
-			"/runs/source-run?view=results&step=build",
+		await screen.findByRole("region", { name: "Session assessment" });
+		expect(screen.getAllByText("Recorded outcome: UNSUCCESSFUL")).toHaveLength(
+			1,
 		);
-		await waitFor(() => {
-			expect(
-				screen.getAllByText("Output unavailable in this saved record."),
-			).toHaveLength(2);
-		});
-		await act(() => {
-			fireEvent.click(screen.getByRole("button", { name: "Close" }));
-			return Promise.resolve();
-		});
+		expect(
+			screen.getAllByText("1 of 2 reply/transcript checks passed"),
+		).toHaveLength(1);
+		expect(screen.getByText("$0.37")).toBeInTheDocument();
 	});
+
+	it("shows one confirmation session outcome and keeps its measurements beside detailed assessment", async () => {
+		const rep = {
+			...workflowRep("stage"),
+			mode: "session",
+			stages: [
+				{
+					stage: "checks",
+					status: "JUDGED",
+					grade: "A",
+					verdict: "CONTINUE",
+					elapsedMs: 10,
+					evidence: { recordFile: "attempt.json" },
+				},
+			],
+		};
+		show(
+			{ kind: "confirmation", groupId: "group-a", repId: "group-a-rep-1" },
+			"results",
+			new Map<string, unknown>([
+				["/api/groups/group-a/reps/group-a-rep-1/attempt/result", rep],
+				[
+					"/api/attempt-evidence/rep%3Asession%3Agroup-a%2Fgroup-a-rep-1",
+					{
+						state: "available",
+						kind: "session",
+						record: {
+							caseId: "case-a",
+							outcome: "SUCCESSFUL",
+							reply: "Saved reply",
+							checks: [
+								{
+									kind: "tool-calls",
+									status: "PASS",
+									detail: "Allowed calls.",
+								},
+							],
+						},
+					},
+				],
+			]),
+		);
+
+		await screen.findByRole("region", { name: "Session assessment" });
+		expect(screen.getAllByText("Recorded outcome: SUCCESSFUL")).toHaveLength(1);
+		expect(
+			screen.getAllByText("1 of 1 reply/transcript checks passed"),
+		).toHaveLength(1);
+		expect(
+			screen.queryByText("Reply/transcript checks passed"),
+		).not.toBeInTheDocument();
+		expect(screen.getByText("$0.04")).toBeInTheDocument();
+	});
+
+	it.each([
+		["unreadable", undefined],
+		[
+			"unavailable",
+			{
+				state: "unavailable",
+				reason: "Detailed attempt evidence was not retained.",
+			},
+		],
+	] as const)(
+		"keeps the standalone row's checks and measurements when evidence is %s",
+		async (_state, evidence) => {
+			show(
+				{ kind: "standalone", caseId: "case-a", uuid: "attempt-a" },
+				"results",
+				new Map<string, unknown>([
+					[
+						"/api/runs",
+						{ rows: [standaloneRow()], launches: [], unreadable: [] },
+					],
+					[
+						"/api/attempt-evidence/attempt%3Asession%3Acase-a%2Fattempt-a",
+						evidence,
+					],
+				]),
+			);
+
+			expect(
+				await screen.findByText("2 of 3 reply/transcript checks passed"),
+			).toBeTruthy();
+			expect(screen.getByText("Recorded outcome: UNSUCCESSFUL")).toBeTruthy();
+			expect(
+				screen.getByRole("heading", { name: "s01 · case-a" }),
+			).toBeInTheDocument();
+			expect(screen.getByText("$0.37")).toBeTruthy();
+			expect(screen.getByText("01:12")).toBeTruthy();
+			expect(screen.getByText("corpus@aaaaaa")).toBeTruthy();
+			expect(
+				screen
+					.getByRole("link", { name: "Context & cost" })
+					.getAttribute("href"),
+			).toBe("/attempts/session/case-a/attempt-a?view=context");
+		},
+	);
+
+	it.each([
+		["recorded", replayRow(), "r01 · case-a · build · replay", "case-a", "r01"],
+		[
+			"missing",
+			{ ...replayRow(), shortId: undefined, caseId: undefined },
+			"Replay · case unavailable · build · replay",
+			"Case not recorded",
+			"ID not recorded",
+		],
+	] as const)(
+		"shows a replay's step and source with %s metadata without a workflow verdict",
+		async (_metadata, row, title, caseLabel, idLabel) => {
+			show(
+				{
+					kind: "replay",
+					lineage: "lineage-a",
+					timestamp: "2026-10-01T12:00:00Z",
+				},
+				"results",
+				new Map([
+					["/api/runs", { rows: [row], launches: [], unreadable: [] }],
+					[
+						"/api/replays/lineage-a/2026-10-01T12%3A00%3A00Z/history",
+						{
+							schemaVersion: 1,
+							attempt: { kind: "stage", run: "source-run", stage: "build" },
+							evidence: {
+								state: "unavailable",
+								reasons: ["replay retains none"],
+							},
+							boundary: "known",
+							startingContext: [],
+							attemptEvents: [],
+							boundaryUnknown: [],
+							startingSources: [],
+							sources: [],
+						},
+					],
+				]),
+			);
+
+			expect(await screen.findByText(/Grade B · CONTINUE/u)).toBeTruthy();
+			expect(screen.getByRole("heading", { name: title })).toBeInTheDocument();
+			expect(
+				screen.getByText("Execution ended · A replay grades only this step."),
+			).toBeTruthy();
+			expect(screen.queryByText("Final workflow outcome")).toBeNull();
+			const compare = await screen.findByRole("button", {
+				name: "Compare with source",
+			});
+			await act(() => {
+				fireEvent.click(compare);
+				return Promise.resolve();
+			});
+			const sourceStepLink = await screen.findByRole("link", {
+				name: "Source step",
+			});
+			const dialog = screen.getByRole("dialog");
+			expect(
+				within(dialog).getByRole("heading", {
+					name: `Source Source run · ${caseLabel} · build`,
+				}),
+			).toBeInTheDocument();
+			expect(
+				within(dialog).getByRole("heading", {
+					name: `Replay ${idLabel} · ${caseLabel} · build`,
+				}),
+			).toBeInTheDocument();
+			expect(sourceStepLink.getAttribute("href")).toBe(
+				"/runs/source-run?view=results&step=build",
+			);
+			await waitFor(() => {
+				expect(
+					screen.getAllByText("Output unavailable in this saved record."),
+				).toHaveLength(2);
+			});
+			await act(() => {
+				fireEvent.click(screen.getByRole("button", { name: "Close" }));
+				return Promise.resolve();
+			});
+		},
+	);
 
 	it("shows a confirmation rep's own cost and elapsed time, never group totals", async () => {
 		const rep = {
@@ -353,7 +504,7 @@ describe(AttemptWorkspacePage.name, () => {
 
 		expect(await screen.findByText("$0.02")).toBeTruthy();
 		expect(screen.getByText("00:12")).toBeTruthy();
-		expect(screen.getByText("Checks passed")).toBeTruthy();
+		expect(screen.getByText("Reply/transcript checks passed")).toBeTruthy();
 		expect(screen.queryByText("$99.00")).toBeNull();
 		expect(
 			screen.getByRole("link", { name: "Group results" }).getAttribute("href"),

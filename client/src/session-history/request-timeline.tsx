@@ -11,6 +11,8 @@ import type {
 import type { SessionHistoryRequestCostEntry } from "#server/session-history-reader";
 import type { TranscriptInstructionLoads } from "#benchmark/transcript-instruction-loads";
 import { cn } from "#client/system/cn";
+import { SequencePlot } from "#client/system/components/sequence-plot";
+import { Metric } from "#client/system/components/metric";
 import { PaneHeading } from "./pane-heading";
 import { selectableRow } from "./selectable-row";
 
@@ -20,6 +22,10 @@ export const usd = new Intl.NumberFormat("en-US", {
 	currency: "USD",
 	minimumFractionDigits: 2,
 	maximumFractionDigits: 6,
+});
+const roundedUsd = new Intl.NumberFormat("en-US", {
+	style: "currency",
+	currency: "USD",
 });
 
 export function requestRowId(entry: SessionHistoryRequestEntry): string {
@@ -83,23 +89,24 @@ function requestCostLabel(
 		: `? Unpriced · ${cost.reason}`;
 }
 
-function costHeadline(
+export function costHeadline(
 	reading: SessionHistoryCostReading,
 	difference: boolean,
+	format: Intl.NumberFormat = usd,
 ): string {
 	if (reading.state === "unavailable") {
 		return "? Unavailable";
 	}
 	if (reading.state === "complete") {
-		return `✓ Complete · ${usd.format(reading.costUsd)}`;
+		return `✓ Complete · ${format.format(reading.costUsd)}`;
 	}
 	if (difference) {
-		return `◐ Incomplete · ${usd.format(reading.costUsd)} difference`;
+		return `◐ Incomplete · ${format.format(reading.costUsd)} difference`;
 	}
 	if (reading.pricedRequestCount === 0) {
 		return `? Unpriced · 0 of ${reading.requestCount} requests priced`;
 	}
-	return `◐ Incomplete · ${usd.format(reading.costUsd)} known subtotal over ${reading.pricedRequestCount} of ${reading.requestCount} requests`;
+	return `◐ Incomplete · ${format.format(reading.costUsd)} known subtotal over ${reading.pricedRequestCount} of ${reading.requestCount} requests`;
 }
 
 export function costLabel(reading: SessionHistoryCostReading): string {
@@ -229,31 +236,50 @@ function InstructionLoads({
 	);
 }
 
-function CostReading({
+export function CostReading({
 	reading,
 	difference,
 }: {
 	readonly reading: SessionHistoryCostReading;
 	readonly difference: boolean;
 }): React.JSX.Element {
-	const headline = costHeadline(reading, difference);
-	if (reading.state === "complete") {
-		return <>{headline}</>;
+	const displayed = costHeadline(reading, difference, roundedUsd);
+	const exact =
+		reading.state === "unavailable"
+			? undefined
+			: reading.costUsd.toLocaleString("en-US", {
+					style: "currency",
+					currency: "USD",
+					maximumFractionDigits: 20,
+				});
+	const rounded =
+		reading.state === "unavailable"
+			? undefined
+			: roundedUsd.format(reading.costUsd);
+	if (reading.state === "complete" && exact === rounded) {
+		return <>{displayed}</>;
 	}
 	return (
 		<>
-			<span>{headline}</span>
+			<span>{displayed}</span>
 			<details className="mt-1 text-12">
 				<summary className="cursor-pointer">
-					{reading.reasons.length} pricing gaps
+					{reading.state === "complete"
+						? "Exact measurement"
+						: `${reading.reasons.length} pricing gaps`}
 					{reading.state === "incomplete"
 						? ` · ${reading.pricedRequestCount}/${reading.requestCount} requests priced`
 						: ""}
 				</summary>
+				{exact === rounded ? null : (
+					<p className="mt-2 font-mono text-12">Exact amount: {exact}</p>
+				)}
 				<ul className="mt-2 flex flex-col gap-1 text-secondary-foreground">
-					{reading.reasons.map((reason, index) => (
-						<li key={`${index}:${reason}`}>{reason}</li>
-					))}
+					{(reading.state === "complete" ? [] : reading.reasons).map(
+						(reason, index) => (
+							<li key={`${index}:${reason}`}>{reason}</li>
+						),
+					)}
 				</ul>
 			</details>
 		</>
@@ -268,7 +294,7 @@ export function RequestCostReadings({
 	return (
 		<dl
 			aria-label="Session root attempt cost"
-			className="grid gap-3 md:grid-cols-3"
+			className="grid gap-5 rounded-lg border border-divider bg-card p-4 md:grid-cols-3"
 		>
 			{[
 				{
@@ -287,15 +313,11 @@ export function RequestCostReadings({
 					difference: true,
 				},
 			].map(({ term, reading, difference }) => (
-				<div
+				<Metric
 					key={term}
-					className="min-w-0 rounded-md border bg-muted px-3 py-2.5"
-				>
-					<dt className="text-12 text-muted-foreground">{term}</dt>
-					<dd className="mt-1 font-mono text-13 text-secondary-foreground">
-						<CostReading reading={reading} difference={difference} />
-					</dd>
-				</div>
+					label={term}
+					value={<CostReading reading={reading} difference={difference} />}
+				/>
 			))}
 		</dl>
 	);
@@ -362,7 +384,9 @@ export function RequestTimeline({
 	readonly onSelect: (entry: SessionHistoryRequestEntry) => void;
 }): React.JSX.Element {
 	const widest = widestTotal(series.entries);
-	const active = entries.find((entry) => requestRowId(entry) === selected);
+	const active = series.entries.find(
+		(entry) => requestRowId(entry) === selected,
+	);
 	const compacted = compactingRequestIds(series.entries, series.compactions);
 	const costByLine = new Map(
 		requestCosts.map((entry) => [entry.line, entry.cost]),
@@ -371,6 +395,49 @@ export function RequestTimeline({
 	return (
 		<section aria-label="Request timeline">
 			<PaneHeading>Request timeline · session root</PaneHeading>
+			<div className="border-b px-4 py-4">
+				<SequencePlot
+					label="Request input growth"
+					unit="input tokens"
+					points={series.entries.map((entry, index) => ({
+						id: requestRowId(entry),
+						label: `Request ${index + 1} · line ${entry.line}`,
+						value:
+							entry.usageState === "complete"
+								? entry.totalInputTokens
+								: undefined,
+					}))}
+					selected={selected}
+					formatValue={(value) => tokens.format(Math.round(value))}
+					onSelect={(id) => {
+						const entry = series.entries.find(
+							(point) => requestRowId(point) === id,
+						);
+						if (entry !== undefined) {
+							onSelect(entry);
+						}
+					}}
+				/>
+				<dl className="mt-4 flex flex-wrap gap-x-6 gap-y-3">
+					<Metric
+						label="Peak measured input"
+						value={
+							series.entries.some((entry) => entry.usageState === "complete")
+								? `${tokens.format(widest)} tokens`
+								: "Unavailable"
+						}
+						hint="Largest individual request, not summed across agents"
+					/>
+					<Metric label="Attempt totals" value={totalsLabel(series)} />
+				</dl>
+				{entries.length === series.entries.length ? null : (
+					<p className="mt-3 text-12 text-muted-foreground">
+						{entries.length} of {series.entries.length} requests match the
+						source filter. The chart keeps the whole session scale; selecting a
+						point outside the filter opens its scope.
+					</p>
+				)}
+			</div>
 			<SelectedRequest
 				entry={active}
 				cost={active === undefined ? undefined : costByLine.get(active.line)}
@@ -379,12 +446,6 @@ export function RequestTimeline({
 				{series.name}. The provider's active context window is not measured:
 				this number omits {series.omits.join(" and ")}.
 			</p>
-			<dl className="px-3 pb-2.5">
-				<dt className="text-12 text-muted-foreground">Attempt totals</dt>
-				<dd className="font-mono text-12 text-secondary-foreground">
-					{totalsLabel(series)}
-				</dd>
-			</dl>
 			<div
 				className="grid max-h-80 overflow-auto border-t md:grid-cols-2"
 				role="listbox"
@@ -406,12 +467,15 @@ export function RequestTimeline({
 					>
 						<span className="flex justify-between gap-2.5">
 							<code className="truncate font-mono text-12 text-accent-foreground">
-								{entry.requestId ?? "no request id"}
+								Request {series.entries.indexOf(entry) + 1} · line {entry.line}
 							</code>
 							<small className="text-12 text-muted-foreground">
 								{entry.region}
 							</small>
 						</span>
+						<small className="max-w-full truncate font-mono text-11 text-muted-foreground">
+							{entry.requestId ?? "Request ID not recorded"}
+						</small>
 						{entry.usageState === "complete" && widest > 0 ? (
 							<span
 								className="block h-1 w-(--bar-width) bg-primary"

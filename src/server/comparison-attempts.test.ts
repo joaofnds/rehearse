@@ -87,6 +87,53 @@ describe(comparisonAttempts.name, () => {
 		});
 	});
 
+	it("preserves reply and state check scores separately from the recorded outcome", () => {
+		const report = buildComparisonReport(comparisonEvidenceFixture(), {
+			skippedCalibrations: 0,
+			baselines: [],
+		});
+		const benchmarkCase = onlyCase(report);
+		const { baseline } = benchmarkCase.arms;
+		const [rep] = baseline.source.reps;
+		if (rep === undefined) {
+			throw new Error("the fixture holds no baseline attempt");
+		}
+		const scored = {
+			...benchmarkCase,
+			arms: {
+				...benchmarkCase.arms,
+				baseline: {
+					...baseline,
+					source: {
+						...baseline.source,
+						reps: [
+							{
+								...rep,
+								checks: { passed: 1, declared: 1, failing: [] },
+								stateResults: {
+									passed: 0,
+									declared: 1,
+									failing: [
+										{ name: "history-preserved", detail: "history changed" },
+									],
+								},
+							},
+						],
+					},
+				},
+			},
+		};
+
+		const [attempt] = comparisonAttempts(scored).baseline;
+
+		expect(attempt?.checks).toEqual({ passed: 1, declared: 1, failing: [] });
+		expect(attempt?.stateChecks).toEqual({
+			passed: 0,
+			declared: 1,
+			failing: [{ name: "history-preserved", detail: "history changed" }],
+		});
+	});
+
 	it("reads unavailable, never an attempt nothing fired on, for reps their report recorded no grading or words for", () => {
 		const report = buildComparisonReport(comparisonEvidenceFixture(), {
 			skippedCalibrations: 0,

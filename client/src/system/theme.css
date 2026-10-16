@@ -22,6 +22,12 @@
 
 	--color-destructive: var(--color-danger);
 	--color-destructive-foreground: var(--color-danger-foreground);
+	--color-positive: var(--color-positive);
+	--color-positive-surface: var(--color-positive-surface);
+	--color-negative: var(--color-negative);
+	--color-negative-surface: var(--color-negative-surface);
+	--color-attention: var(--color-attention);
+	--color-attention-surface: var(--color-attention-surface);
 
 	--color-border: var(--color-border-2);
 	--color-input: var(--color-border-2);

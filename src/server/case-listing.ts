@@ -8,7 +8,13 @@ import type { RunLiveness } from "#benchmark/run-liveness";
 import { caseFigures, medianVerdict } from "./case-figures";
 import type { CaseFigures, CaseRun } from "./case-figures";
 import { readCaseRuns } from "./case-runs";
-import type { RecordedCase, UnreadableCaseRecord } from "./case-runs";
+import type {
+	CaseRunMember,
+	RecordedCase,
+	UnreadableCaseRecord,
+} from "./case-runs";
+import { pipelineDefinition, sessionDefinition } from "./case-definition";
+import type { CaseDefinition } from "./case-definition";
 import { readDeclaredPipeline } from "./pipelines";
 import { redactAbsolutePaths } from "./redact-path";
 
@@ -42,6 +48,29 @@ interface ListedCaseIdentity {
 	readonly id: string;
 	readonly title: string;
 	readonly model: string | null;
+	readonly definition?: CaseDefinition;
+	readonly cohorts?: readonly CaseCohort[];
+}
+
+export interface CaseCohort {
+	readonly corpusVersion: string | null;
+	readonly figures: CaseFigures;
+	readonly members: readonly CaseRunMember[];
+}
+
+function caseCohorts(
+	recorded: RecordedCase | undefined,
+): readonly CaseCohort[] {
+	return [
+		...Map.groupBy(
+			recorded?.members ?? [],
+			({ run }) => run.corpusDigest ?? null,
+		),
+	].map(([corpusVersion, members]) => ({
+		corpusVersion,
+		figures: caseFigures(members.map(({ run }) => run)),
+		members,
+	}));
 }
 
 export interface ListedPipelineCase extends ListedCaseIdentity {
@@ -145,6 +174,8 @@ async function listedPipelineCase(
 		finalRubric: declaration.finalRubric,
 		figures: pipelineFigures(recorded?.runs ?? NO_RUNS),
 		latestMinimumGrade: latestMinimumGrade(recorded),
+		definition: await pipelineDefinition(casesRoot, declaration),
+		cohorts: caseCohorts(recorded),
 	};
 }
 
@@ -160,6 +191,8 @@ function listedSessionCase(
 		target: null,
 		checks: declaration.checks.map(({ kind }) => kind),
 		figures: caseFigures(recorded?.runs ?? NO_RUNS),
+		definition: sessionDefinition(declaration),
+		cohorts: caseCohorts(recorded),
 	};
 }
 

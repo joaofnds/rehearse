@@ -136,20 +136,25 @@ const tasksRoute = createRoute({
 	component: TasksPage,
 });
 
+const CASES_SEARCH = SECTION_SEARCH.extend({
+	corpusVersion: z.string().optional(),
+});
+
 const casesRoute = createRoute({
 	getParentRoute: () => rootRoute,
 	path: "/cases",
-	validateSearch: SECTION_SEARCH,
+	validateSearch: CASES_SEARCH,
 	component: CasesRoute,
 });
 
 function CasesRoute(): React.JSX.Element {
-	const { view, caseId }: z.output<typeof SECTION_SEARCH> =
+	const { view, caseId, corpusVersion }: z.output<typeof CASES_SEARCH> =
 		casesRoute.useSearch();
 	return (
 		<CasesPage
 			view={view === "workflows" ? "workflows" : "cases"}
 			{...(caseId === undefined ? {} : { caseId })}
+			{...(corpusVersion === undefined ? {} : { corpusVersion })}
 		/>
 	);
 }

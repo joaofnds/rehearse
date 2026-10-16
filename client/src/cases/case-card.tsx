@@ -5,6 +5,7 @@ import { NO_RUNS, runsCounted, runsLeftOut } from "#client/latest-version-runs";
 import { LaunchDialog } from "#client/launch/launch-dialog";
 import { plural } from "#client/plural";
 import { Button } from "#client/system/ui/button";
+import { StateBadge } from "#client/system/components/state-badge";
 import type { CasesResponse } from "./cases-query";
 
 export type ListedCase = CasesResponse["cases"][number];
@@ -19,8 +20,8 @@ const GROUP_ATTEMPTS: LaunchAttempts = 3;
 const NO_MODEL_REASON = "Declares no model, so it cannot start";
 
 const KIND_LABEL = {
-	pipeline: "task · target repo",
-	session: "single session · deterministic checks",
+	pipeline: "Workflow case",
+	session: "Session case",
 } as const satisfies Record<ListedCase["kind"], string>;
 
 /**
@@ -89,10 +90,10 @@ function Definition({
 	if (listed.kind === "session") {
 		return (
 			<>
-				<span className="text-xs tracking-widest text-dim uppercase">
+				<span className="text-12 tracking-widest text-dim uppercase">
 					Checks
 				</span>
-				<span className="font-mono text-11-5">{listed.checks.join(" · ")}</span>
+				<span className="font-mono text-12">{listed.checks.join(" · ")}</span>
 			</>
 		);
 	}
@@ -100,10 +101,10 @@ function Definition({
 	if (listed.pipeline.state === "unavailable") {
 		return (
 			<>
-				<span className="text-xs tracking-widest text-dim uppercase">
+				<span className="text-12 tracking-widest text-dim uppercase">
 					Steps
 				</span>
-				<span className="text-11-5 text-muted-foreground">
+				<span className="text-12 text-muted-foreground">
 					{listed.pipeline.reason}
 				</span>
 			</>
@@ -112,12 +113,12 @@ function Definition({
 
 	return (
 		<>
-			<span className="text-xs tracking-widest text-dim uppercase">Steps</span>
-			<span className="font-mono text-11-5">
+			<span className="text-12 tracking-widest text-dim uppercase">Steps</span>
+			<span className="font-mono text-12">
 				{listed.pipeline.stages.map(({ name }) => name).join(" → ")}
 			</span>
-			<span className="text-xs tracking-widest text-dim uppercase">Judges</span>
-			<span className="font-mono text-11-5">
+			<span className="text-12 tracking-widest text-dim uppercase">Judges</span>
+			<span className="font-mono text-12">
 				{`${plural(listed.pipeline.stages.length, "step rubric")} + ${listed.finalRubric}`}
 			</span>
 		</>
@@ -134,7 +135,7 @@ function RunButtons({
 	if (listed.model === null) {
 		return (
 			<>
-				<span id={reasonId} className="text-11-5 text-dim">
+				<span id={reasonId} className="text-12 text-dim">
 					{NO_MODEL_REASON}
 				</span>
 				<Button
@@ -171,8 +172,10 @@ function RunButtons({
 
 export function CaseCard({
 	listed,
+	showFigures = true,
 }: {
 	readonly listed: ListedCase;
+	readonly showFigures?: boolean;
 }): React.JSX.Element {
 	const headingId = useId();
 	const minimumGrade =
@@ -184,30 +187,47 @@ export function CaseCard({
 			className="rounded-lg border border-divider bg-card px-4 py-3.5"
 		>
 			<div className="flex flex-wrap items-center gap-3">
-				<h2 id={headingId} className="font-mono text-sm">
-					{listed.id}
+				<h2 id={headingId} className="text-14 font-medium">
+					<Link
+						to="/cases"
+						search={{ caseId: listed.id }}
+						className="text-accent-foreground hover:underline"
+					>
+						{listed.id}
+					</Link>
 				</h2>
-				<span className="rounded-full border border-strong px-2 py-0.5 text-11 text-muted-foreground">
-					{KIND_LABEL[listed.kind]}
-				</span>
-				<span className="text-11-5 text-muted-foreground">
+				<StateBadge tone="neutral">{KIND_LABEL[listed.kind]}</StateBadge>
+				<span className="text-12 text-muted-foreground">
 					{listed.target ?? "no repository"}
 				</span>
-				<span className="ml-auto font-mono text-11 text-dim">
-					{figuresLine(listed)}
-				</span>
+				{showFigures ? (
+					<span className="ml-auto font-mono text-12 text-dim">
+						{listed.figures.state === "measured" ? (
+							<Link
+								to={`/cases?caseId=${encodeURIComponent(listed.id)}&corpusVersion=${encodeURIComponent(listed.figures.corpusVersion ?? "unrecorded")}#case-evidence`}
+								className="text-accent-foreground hover:underline"
+							>
+								{figuresLine(listed)}
+							</Link>
+						) : (
+							figuresLine(listed)
+						)}
+					</span>
+				) : null}
 			</div>
-			{listed.figures.state === "measured" && listed.figures.leftOut > 0 ? (
-				<p className="mt-1 text-right font-mono text-11 text-dim">
+			{showFigures &&
+			listed.figures.state === "measured" &&
+			listed.figures.leftOut > 0 ? (
+				<p className="mt-1 text-right font-mono text-12 text-dim">
 					{runsLeftOut(listed.figures.leftOut)}
 				</p>
 			) : null}
-			{minimumGrade === undefined ? null : (
-				<p className="mt-1 text-right font-mono text-11 text-dim">
+			{!showFigures || minimumGrade === undefined ? null : (
+				<p className="mt-1 text-right font-mono text-12 text-dim">
 					{minimumGrade}
 				</p>
 			)}
-			<p className="mt-2 max-w-prose text-sm">{listed.title}</p>
+			<p className="mt-2 max-w-prose text-14">{listed.title}</p>
 			<div className="mt-2.5 flex flex-wrap items-center gap-2.5">
 				<Definition listed={listed} />
 				<span className="ml-auto flex items-center gap-2">

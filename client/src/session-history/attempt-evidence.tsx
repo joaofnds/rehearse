@@ -10,6 +10,11 @@ import {
 	DialogDescription,
 } from "#client/system/ui/dialog";
 import { Button } from "#client/system/ui/button";
+import { RecordedText } from "#client/system/components/recorded-text";
+import type { RecordedTextMode } from "#client/system/components/recorded-text";
+import { Metric } from "#client/system/components/metric";
+import { StateBadge } from "#client/system/components/state-badge";
+import { SummaryPanel } from "#client/system/components/summary-panel";
 import { attemptEvidenceQuery } from "./attempt-evidence-query";
 import type { AttemptEvidenceResponse } from "./attempt-evidence-query";
 
@@ -68,17 +73,27 @@ function Citations({
 		</>
 	);
 }
+export function savedOutputInitialMode(
+	output: StageEvidence["output"] | undefined,
+): RecordedTextMode {
+	return output?.state === "available" && output.kind === "diff"
+		? "Raw"
+		: "Formatted";
+}
+
 export function SavedOutput({
 	title,
 	text,
 	note,
 	pending = false,
+	initialMode = "Formatted",
 	emptyMessage = "Output unavailable in this saved record.",
 }: {
 	readonly title: string;
 	readonly text: string | undefined;
 	readonly note?: string | undefined;
 	readonly pending?: boolean;
+	readonly initialMode?: RecordedTextMode;
 	readonly emptyMessage?: string;
 }): React.JSX.Element {
 	const [open, setOpen] = useState(false);
@@ -103,7 +118,7 @@ export function SavedOutput({
 									Complete output preserved by the saved record.
 								</DialogDescription>
 							</div>
-							<pre className="max-h-160 overflow-auto font-mono text-12 whitespace-pre-wrap wrap-break-word">
+							<pre className="max-h-160 overflow-auto font-mono text-13 whitespace-pre-wrap wrap-break-word">
 								{text}
 							</pre>
 							<div className="p-4">
@@ -127,9 +142,73 @@ export function SavedOutput({
 				<p className="mt-3 text-13 text-dim">{emptyMessage}</p>
 			) : null}
 			{text === undefined ? null : (
-				<pre className="mt-3 max-h-80 overflow-auto font-mono text-12 whitespace-pre-wrap wrap-break-word">
-					{text === "" ? "(Saved output is empty.)" : text}
-				</pre>
+				<div className="mt-3 max-h-100 overflow-auto">
+					<RecordedText
+						key={initialMode}
+						text={text}
+						initialMode={initialMode}
+					/>
+				</div>
+			)}
+		</section>
+	);
+}
+
+interface SessionCheckReading {
+	readonly label: string;
+	readonly status: "PASS" | "FAIL";
+	readonly detail: string;
+}
+
+function SessionChecks({
+	title,
+	checks,
+	emptyMessage,
+}: {
+	readonly title: string;
+	readonly checks: readonly SessionCheckReading[];
+	readonly emptyMessage: string;
+}): React.JSX.Element {
+	const failed = checks.filter(({ status }) => status === "FAIL");
+	const passed = checks.filter(({ status }) => status === "PASS");
+	const result = (
+		check: SessionCheckReading,
+		index: number,
+	): React.JSX.Element => (
+		<li
+			key={`${check.label}:${String(index)}`}
+			className="border-t border-subtle pt-3 text-14"
+		>
+			<p className="font-medium">
+				{check.status} · {check.label}
+			</p>
+			<p className="mt-1">{check.detail}</p>
+		</li>
+	);
+
+	return (
+		<section className="mt-4" aria-label={title}>
+			<h3 className="text-14 font-medium">{title}</h3>
+			{checks.length === 0 ? (
+				<p className="mt-3 text-13 text-dim">{emptyMessage}</p>
+			) : null}
+			{failed.length === 0 ? null : (
+				<ul aria-label={title} className="mt-3 space-y-3">
+					{failed.map((check, index) => result(check, index))}
+				</ul>
+			)}
+			{passed.length === 0 ? null : (
+				<details className="mt-3">
+					<summary className="cursor-pointer text-13 text-muted-foreground">
+						{title}: {passed.length} passed
+					</summary>
+					<ul
+						aria-label={`Passed ${title.toLowerCase()}`}
+						className="mt-3 space-y-3"
+					>
+						{passed.map((check, index) => result(check, index))}
+					</ul>
+				</details>
 			)}
 		</section>
 	);
@@ -151,54 +230,98 @@ function SessionEvidence({
 						: record.error
 				}
 			/>
-			<section className="min-w-0 rounded-lg border border-divider bg-card p-4">
-				<h2 className="text-14 font-medium">Deterministic checks</h2>
-				{record.checks.length === 0 ? (
-					<p className="mt-3 text-13 text-dim">
-						No check outcomes were recorded. This is not a failed check.
-					</p>
-				) : (
-					<ul className="mt-3 flex flex-col gap-3">
-						{record.checks
-							.toSorted(
-								(left, right) =>
-									Number(right.status === "FAIL") -
-									Number(left.status === "FAIL"),
-							)
-							.map((check, index) => (
-								<li
-									key={`${check.kind}:${String(index)}`}
-									className="border-t border-subtle pt-3 text-13"
-								>
-									<p className="font-medium">
-										{check.status} · {check.kind}
-									</p>
-									<p className="mt-1">{check.detail}</p>
-								</li>
-							))}
-					</ul>
-				)}
+			<SummaryPanel title="Session assessment">
+				<SessionAssessmentSummary record={record} />
 				{record.stateResults === undefined ? null : (
-					<>
-						<h3 className="mt-4 text-13 font-medium">Saved state checks</h3>
-						<ul>
-							{record.stateResults.map((check) => (
-								<li key={check.name} className="mt-3 text-13">
-									<p>
-										{check.status} · {check.name}
-									</p>
-									<p>{check.detail}</p>
-								</li>
-							))}
-						</ul>
-					</>
+					<SessionChecks
+						title="Saved state checks"
+						checks={record.stateResults.map(({ name, status, detail }) => ({
+							label: name,
+							status,
+							detail,
+						}))}
+						emptyMessage="No saved state check outcomes were recorded."
+					/>
 				)}
-				{record.stateGradingError === undefined ? null : (
-					<p className="mt-4 text-13">
-						State checks unavailable: {record.stateGradingError}
-					</p>
-				)}
-			</section>
+				<SessionChecks
+					title="Reply/transcript checks"
+					checks={record.checks.map(({ kind, status, detail }) => ({
+						label: kind,
+						status,
+						detail,
+					}))}
+					emptyMessage="No check outcomes were recorded. This is not a failed check."
+				/>
+			</SummaryPanel>
+		</div>
+	);
+}
+
+export function SessionAssessmentSummary({
+	record,
+}: {
+	readonly record: Immutable<SessionEvidenceRecord>;
+}): React.JSX.Element {
+	const replyPassed = record.checks.filter(
+		({ status }) => status === "PASS",
+	).length;
+	const statePassed = record.stateResults?.filter(
+		({ status }) => status === "PASS",
+	).length;
+	const stateFailed =
+		record.stateResults?.filter(({ status }) => status === "FAIL").length ?? 0;
+	const successfulStateAssessment =
+		statePassed !== undefined &&
+		statePassed > 0 &&
+		stateFailed === 0 &&
+		record.stateGradingError === undefined;
+
+	return (
+		<div>
+			<StateBadge
+				tone={record.outcome === "SUCCESSFUL" ? "neutral" : "attention"}
+			>
+				Recorded outcome: {record.outcome}
+			</StateBadge>
+			<dl className="mt-3 flex flex-wrap gap-6">
+				<Metric
+					label="Reply/transcript checks"
+					value={
+						record.checks.length === 0
+							? "No reply/transcript check outcomes recorded"
+							: `${String(replyPassed)} of ${String(record.checks.length)} reply/transcript checks passed`
+					}
+				/>
+				<Metric
+					label="Saved state checks"
+					value={
+						record.stateResults === undefined
+							? "Unavailable in this record"
+							: `${String(statePassed)} of ${String(record.stateResults.length)} saved state checks passed`
+					}
+				/>
+			</dl>
+			{record.outcome === "SUCCESSFUL" && stateFailed > 0 ? (
+				<p className="mt-3 text-14 font-medium">
+					Recorded success and saved state checks disagree: {stateFailed} saved
+					state {stateFailed === 1 ? "check failed" : "checks failed"}.
+				</p>
+			) : null}
+			{record.outcome === "UNSUCCESSFUL" && successfulStateAssessment ? (
+				<p className="mt-3 text-14 font-medium">
+					Recorded unsuccessful outcome and saved state checks differ: all saved
+					state checks passed.
+				</p>
+			) : null}
+			{record.stateGradingError === undefined ? null : (
+				<p className="mt-3 text-14">
+					State checks unavailable: {record.stateGradingError}
+				</p>
+			)}
+			<p className="mt-2 text-12 text-dim">
+				The recorded outcome uses reply/transcript checks. Saved state checks
+				are a separate assessment; this view preserves both.
+			</p>
 		</div>
 	);
 }
@@ -232,6 +355,7 @@ export function ScorecardEvidence({
 			<div className="flex min-w-0 flex-col gap-3">
 				<SavedOutput
 					title={outputTitle(record.output)}
+					initialMode={savedOutputInitialMode(record.output)}
 					text={
 						record.output.state === "available" ? record.output.text : undefined
 					}
@@ -281,6 +405,23 @@ function ScorecardAssessment({
 			section: "Requirement",
 		})),
 	];
+	const clearBlockers = criteria.filter(
+		({ section, status }) => section === "Hard blocker" && status === "PASS",
+	);
+	const criterion = (
+		item: Readonly<(typeof criteria)[number]>,
+	): React.JSX.Element => (
+		<li
+			key={`${item.section}:${item.id}`}
+			className="border-t border-subtle pt-3"
+		>
+			<h3 className="text-13 font-medium">
+				{item.status} · {item.section} · {item.id}
+			</h3>
+			<Citations evidence={item.evidence} />
+		</li>
+	);
+
 	return (
 		<section className="min-w-0 rounded-lg border border-divider bg-card p-4">
 			<h2 className="text-14 font-medium">Step Judge assessment</h2>
@@ -298,21 +439,15 @@ function ScorecardAssessment({
 			)}
 			<ul className="mt-4 flex flex-col gap-4">
 				{criteria
+					.filter(
+						({ section, status }) =>
+							section !== "Hard blocker" || status !== "PASS",
+					)
 					.toSorted(
 						(left, right) =>
 							Number(right.status === "FAIL") - Number(left.status === "FAIL"),
 					)
-					.map((item) => (
-						<li
-							key={`${item.section}:${item.id}`}
-							className="border-t border-subtle pt-3"
-						>
-							<h3 className="text-13 font-medium">
-								{item.status} · {item.section} · {item.id}
-							</h3>
-							<Citations evidence={item.evidence} />
-						</li>
-					))}
+					.map((item) => criterion(item))}
 				{grade.dimensions.map((item) => (
 					<li
 						key={`dimension:${item.id}`}
@@ -325,6 +460,18 @@ function ScorecardAssessment({
 					</li>
 				))}
 			</ul>
+			{clearBlockers.length === 0 ? null : (
+				<details className="mt-4">
+					<summary className="cursor-pointer text-13 text-muted-foreground">
+						{clearBlockers.length} clear{" "}
+						{clearBlockers.length === 1 ? "blocker" : "blockers"} &amp;
+						citations
+					</summary>
+					<ul className="mt-3 space-y-3">
+						{clearBlockers.map((item) => criterion(item))}
+					</ul>
+				</details>
+			)}
 		</section>
 	);
 }

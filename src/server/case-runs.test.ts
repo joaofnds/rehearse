@@ -21,6 +21,7 @@ import {
 	RecordedRunsFixture,
 } from "#benchmark/run-records-test-support";
 import { readCaseRuns } from "./case-runs";
+import type { CaseRun } from "./case-figures";
 
 const OLDER_RUN = "2026-09-02T00-00-00.000Z";
 const NEWER_RUN = "2026-09-03T00-00-00.000Z";
@@ -58,6 +59,78 @@ async function rewriteRep(
 }
 
 describe("readCaseRuns", () => {
+	it("preserves a session's recorded success while exposing its failed saved-state layer", async () => {
+		const file = await fixture.writeAttemptAt(
+			"0f6b6f2a-0000-4000-8000-00000000000b",
+			join(import.meta.dir, "..", ".."),
+			SESSION_CASE,
+			[],
+		);
+		const record = parseSessionAttemptRecord(await Bun.file(file).text());
+		await Bun.write(
+			file,
+			JSON.stringify({
+				...record,
+				schemaVersion: 3,
+				stateResults: Array.from({ length: 19 }, (_unused, index) => ({
+					name: `state-${String(index)}`,
+					status: index === 0 ? "PASS" : "FAIL",
+					detail: "saved state evidence",
+				})),
+			}),
+		);
+		const { cases } = await readCaseRuns(root, nothingRunning);
+		expect(cases.get(SESSION_CASE)?.members[0]?.run).toMatchObject({
+			passed: true,
+			recordedOutcome: "SUCCESSFUL",
+			replyChecks: { passed: 1, total: 1 },
+			savedState: { state: "assessed", passed: 1, failed: 18, total: 19 },
+		});
+	});
+
+	it("reads a session cohort repetition's saved-state layer from its saved attempt", async () => {
+		const [repId] = await fixture.writeSessionGroup("group-s", 1);
+		const file = confirmationGroupPaths(root, "group-s").rep(repId).attemptFile;
+		const record = parseSessionAttemptRecord(await Bun.file(file).text());
+		await Bun.write(
+			file,
+			JSON.stringify({
+				...record,
+				schemaVersion: 3,
+				stateResults: [
+					{ name: "history", status: "FAIL", detail: "history was changed" },
+				],
+			}),
+		);
+		const { cases } = await readCaseRuns(root, nothingRunning);
+		expect(cases.get(SESSION_CASE)?.members[0]?.run).toMatchObject({
+			recordedOutcome: "SUCCESSFUL",
+			replyChecks: { passed: 1, total: 1 },
+			savedState: { state: "assessed", passed: 0, failed: 1, total: 1 },
+		});
+	});
+
+	it("keeps a malformed session attempt's cause while redacting its absolute path", async () => {
+		const [repId] = await fixture.writeSessionGroup("malformed-state", 1);
+		const file = confirmationGroupPaths(root, "malformed-state").rep(
+			repId,
+		).attemptFile;
+		const record = parseSessionAttemptRecord(await Bun.file(file).text());
+		await Bun.write(
+			file,
+			JSON.stringify({ ...record, "/Users/private/saved-state-secret": true }),
+		);
+		const { cases } = await readCaseRuns(root, nothingRunning);
+		const state = cases.get(SESSION_CASE)?.members[0]?.run.savedState;
+		expect(state?.state).toBe("unavailable");
+		if (state?.state !== "unavailable") {
+			throw new Error("No unavailable saved-state assessment");
+		}
+		expect(state.reason).toContain("could not be read");
+		expect(state.reason).toContain("Unrecognized key");
+		expect(state.reason).toContain("<path>");
+		expect(state.reason).not.toContain("/Users/private");
+	});
 	it("reads a pipeline case's runs newest first with their verdicts and whole costs", async () => {
 		await fixture.writeFinishedRunEvidence(OLDER_RUN);
 		await fixture.writeFailedVerdictRun(NEWER_RUN);
@@ -210,11 +283,50 @@ describe("readCaseRuns", () => {
 
 		const { cases } = await readCaseRuns(root, nothingRunning);
 
+		const attemptRun = {
+			corpusDigest: digest,
+			passed: true,
+			costUsd: 0.5,
+			recordedOutcome: "SUCCESSFUL",
+			replyChecks: { passed: 1, total: 1 },
+			savedState: {
+				state: "unavailable",
+				reason:
+					"No saved state assessment was recorded; declaration is unknown.",
+			},
+		} satisfies CaseRun;
+		const missingRun = {
+			corpusDigest: undefined,
+			passed: undefined,
+			costUsd: undefined,
+		};
+		const firstGroupRun = {
+			...attemptRun,
+			corpusDigest: undefined,
+			passed: undefined,
+			costUsd: undefined,
+		};
 		expect(cases.get(SESSION_CASE)).toEqual({
-			runs: [
-				{ corpusDigest: digest, passed: true, costUsd: 0.5 },
-				{ corpusDigest: undefined, passed: undefined, costUsd: undefined },
-				{ corpusDigest: undefined, passed: undefined, costUsd: undefined },
+			runs: [attemptRun, firstGroupRun, missingRun],
+			members: [
+				{
+					label: "Session 0f6b6f2a",
+					href: `/attempts/session/${SESSION_CASE}/0f6b6f2a-0000-4000-8000-00000000000a`,
+					startedAt: null,
+					run: attemptRun,
+				},
+				{
+					label: "group-s · group-s-rep-1",
+					href: "/groups/group-s/reps/group-s-rep-1/attempt",
+					startedAt: null,
+					run: firstGroupRun,
+				},
+				{
+					label: "group-s · group-s-rep-2",
+					href: "/groups/group-s/reps/group-s-rep-2/attempt",
+					startedAt: null,
+					run: missingRun,
+				},
 			],
 			minimumGrade: undefined,
 		});
@@ -228,15 +340,20 @@ describe("readCaseRuns", () => {
 				checks: [{ kind: "word-band", status: "FAIL", detail: "too long" }],
 			},
 			passed: false,
+			assessment: {
+				recordedOutcome: "UNSUCCESSFUL",
+				replyChecks: { passed: 0, total: 1 },
+			},
 		},
 		{
 			outcome: "NO_REPLY",
 			changes: { outcome: "NO_REPLY", reply: undefined, checks: [] },
 			passed: undefined,
+			assessment: { recordedOutcome: "NO_REPLY" },
 		},
 	])(
 		"reads a session attempt recorded $outcome as passed $passed",
-		async ({ changes, passed }) => {
+		async ({ changes, passed, assessment }) => {
 			const file = await fixture.writeAttemptAt(
 				"0f6b6f2a-0000-4000-8000-00000000000b",
 				join(import.meta.dir, "..", ".."),
@@ -250,7 +367,17 @@ describe("readCaseRuns", () => {
 
 			expect(unreadable).toEqual([]);
 			expect(cases.get(SESSION_CASE)?.runs).toEqual([
-				{ corpusDigest: undefined, passed, costUsd: 0.5 },
+				{
+					corpusDigest: undefined,
+					passed,
+					costUsd: 0.5,
+					...assessment,
+					savedState: {
+						state: "unavailable",
+						reason:
+							"No saved state assessment was recorded; declaration is unknown.",
+					},
+				},
 			]);
 		},
 	);

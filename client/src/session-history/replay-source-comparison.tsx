@@ -17,7 +17,7 @@ import {
 	DialogClose,
 	DialogTrigger,
 } from "#client/system/ui/dialog";
-import { SavedOutput } from "./attempt-evidence";
+import { SavedOutput, savedOutputInitialMode } from "./attempt-evidence";
 import type { AttemptEvidenceResponse } from "./attempt-evidence-query";
 import { attemptEvidenceQuery } from "./attempt-evidence-query";
 
@@ -30,6 +30,15 @@ type ReplayRow = Extract<
 	RunHistoryResponse["rows"][number],
 	{ kind: "replay" }
 >;
+
+function caseName(row: ReplayRow): string {
+	return row.caseId ?? "Case not recorded";
+}
+
+function replayIdentity(row: ReplayRow): string {
+	return `${row.shortId ?? "ID not recorded"} · ${caseName(row)} · ${row.stage}`;
+}
+
 function sourceSpend(stage: MonitoredStage | undefined): string {
 	if (stage === undefined) {
 		return "Cost unavailable";
@@ -68,6 +77,10 @@ function SourceComparisonContent({
 		replay.data?.state === "available" && replay.data.kind === "stage"
 			? replay.data.output
 			: undefined;
+	const sourceId =
+		source.data?.shortId.state === "available"
+			? source.data.shortId.shortId
+			: "Source run";
 	const sourceGrade =
 		sourceStage?.grade.state === "available"
 			? `Grade ${sourceStage.grade.letter}`
@@ -83,7 +96,9 @@ function SourceComparisonContent({
 			</p>
 			<div className="grid items-start gap-4 lg:grid-cols-2">
 				<div className="flex min-w-0 flex-col gap-3">
-					<h3 className="text-14 font-medium">Source · {row.stage}</h3>
+					<h3 className="text-14 font-medium">
+						Source {sourceId} · {caseName(row)} · {row.stage}
+					</h3>
 					<p className="text-13">
 						{source.isPending
 							? "Reading saved source measurements…"
@@ -91,6 +106,7 @@ function SourceComparisonContent({
 					</p>
 					<SavedOutput
 						title="Source saved output"
+						initialMode={savedOutputInitialMode(saved)}
 						text={saved?.text}
 						pending={output.isPending}
 						note={
@@ -109,7 +125,7 @@ function SourceComparisonContent({
 					</Link>
 				</div>
 				<div className="flex min-w-0 flex-col gap-3">
-					<h3 className="text-14 font-medium">Replay · {row.stage}</h3>
+					<h3 className="text-14 font-medium">Replay {replayIdentity(row)}</h3>
 					<p className="text-13">
 						Grade {row.grade} · {replaySpend(row)} ·{" "}
 						{corpusMeasurementReading(row.corpusVersion)}
@@ -125,6 +141,7 @@ function SourceComparisonContent({
 					) : null}
 					<SavedOutput
 						title="Replay saved output"
+						initialMode={savedOutputInitialMode(replayOutput)}
 						text={
 							replayOutput?.state === "available"
 								? replayOutput.text
@@ -133,9 +150,12 @@ function SourceComparisonContent({
 						pending={replay.isPending}
 						note={replayOutputNote(replayOutput)}
 					/>
-					<p className="font-mono text-11-5 wrap-anywhere text-dim">
-						{row.recordId}
-					</p>
+					<details className="text-12 text-dim">
+						<summary className="cursor-pointer">Replay provenance</summary>
+						<code className="mt-2 block select-all wrap-anywhere">
+							{row.recordId}
+						</code>
+					</details>
 				</div>
 			</div>
 		</div>

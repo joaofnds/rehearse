@@ -1,6 +1,17 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { renderAppWithStub } from "#client/test-support/render-app";
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import {
+	renderAppWithStub,
+	renderAppAt,
+	SHELL_BASELINE,
+} from "#client/test-support/render-app";
+import { stubFetchByPath } from "#client/test-support/fetch-stub";
+import {
+	act,
+	fireEvent,
+	screen,
+	waitFor,
+	within,
+} from "@testing-library/react";
 import type { Immutable } from "#benchmark/contracts";
 import type { ParsedConfirmationRepRecord } from "#benchmark/confirmation-record";
 import type { ConfirmationGroupRow } from "#server/run-history";
@@ -76,6 +87,7 @@ function serve(
 	row: ConfirmationGroupRow,
 	reads?: Immutable<GroupReads>,
 	extra: ReadonlyMap<string, unknown> = new Map(),
+	page = `/groups/${GROUP}`,
 ): void {
 	const source = runRecord({
 		run: RUN,
@@ -97,13 +109,68 @@ function serve(
 		],
 	});
 	renderAppWithStub(
-		`/groups/${GROUP}`,
+		page,
 		new Map<string, unknown>([
 			["/api/runs", { rows: [row], launches: [], unreadable: [] }],
 			[`/api/groups/${GROUP}/reads`, reads ?? { reps: [], reasons: [] }],
 			[`/api/runs/${RUN}`, source],
 			...extra,
 		]),
+	);
+}
+
+function serveSessionAssessment(view: "results" | "attempts"): void {
+	serve(
+		group({
+			mode: "session",
+			successful: 3,
+			repAttempts: [
+				{ repId: "rep-1", attempt: { position: 1, count: 3 } },
+				{ repId: "rep-2", attempt: { position: 2, count: 3 } },
+				{ repId: "rep-3", attempt: { position: 3, count: 3 } },
+			],
+			checkpoint: undefined,
+		}),
+		undefined,
+		new Map([
+			[
+				"/api/attempt-evidence/rep%3Asession%3Agroup-a%2Frep-1",
+				{
+					state: "available",
+					kind: "session",
+					record: {
+						caseId: "audit-log",
+						outcome: "SUCCESSFUL",
+						checks: [
+							{
+								kind: "tool-calls",
+								status: "PASS",
+								detail: "Allowed calls.",
+							},
+						],
+						stateResults: [
+							{ name: "preserved", status: "FAIL", detail: "Missing state." },
+						],
+					},
+				},
+			],
+			[
+				"/api/attempt-evidence/rep%3Asession%3Agroup-a%2Frep-2",
+				{
+					state: "available",
+					kind: "session",
+					record: {
+						caseId: "audit-log",
+						outcome: "SUCCESSFUL",
+						checks: [],
+						stateResults: [
+							{ name: "preserved", status: "PASS", detail: "Present." },
+						],
+					},
+				},
+			],
+		]),
+		`/groups/${GROUP}?view=${view}`,
 	);
 }
 
@@ -130,6 +197,149 @@ describe(GroupWorkspacePage.name, () => {
 		expect(
 			await screen.findByRole("searchbox", { name: "Search runs" }),
 		).toHaveValue("audit-log");
+	});
+
+	it("retains recorded session success while counting saved state assessment and unavailable attempts separately", async () => {
+		serveSessionAssessment("results");
+
+		expect(
+			await screen.findByText(
+				"1 of 2 assessed attempts passed every saved state check",
+			),
+		).toBeInTheDocument();
+		expect(
+			screen.getByText("3 of 3 recorded successful on reply/transcript checks"),
+		).toBeInTheDocument();
+		expect(
+			screen.getByText("2 of 3 attempts have saved state checks"),
+		).toBeInTheDocument();
+		expect(
+			screen.getByText("1 attempt unavailable or without saved state checks"),
+		).toBeInTheDocument();
+	});
+	it("keeps saved state figures pending until the index and every initial evidence response settle", async () => {
+		const row = group({
+			mode: "session",
+			checkpoint: undefined,
+			reps: 2,
+			successful: 2,
+			unreadReps: [],
+			repAttempts: [{ repId: "rep-1", attempt: { position: 1, count: 2 } }],
+		});
+		const listing = { rows: [row], launches: [], unreadable: [] };
+		stubFetchByPath(
+			new Map<string, unknown>([
+				...SHELL_BASELINE,
+				["/api/runs", listing],
+				["/api/run-listing", listing],
+			]),
+		);
+		const answer = globalThis.fetch;
+		const index = Promise.withResolvers<Response>();
+		const missing = Promise.withResolvers<Response>();
+		const stub = (request: string | URL | Request): Promise<Response> => {
+			const { pathname } = new URL(
+				request instanceof Request ? request.url : request,
+				"http://localhost",
+			);
+			if (pathname === "/api/groups/group-a/attempts") {
+				return index.promise;
+			}
+			if (
+				pathname === "/api/attempt-evidence/rep%3Asession%3Agroup-a%2Frep-1"
+			) {
+				return Promise.resolve(
+					Response.json({
+						state: "available",
+						kind: "session",
+						record: {
+							caseId: "audit-log",
+							outcome: "SUCCESSFUL",
+							checks: [],
+							stateResults: [
+								{ name: "retained", status: "PASS", detail: "Retained." },
+							],
+						},
+					}),
+				);
+			}
+			if (
+				pathname === "/api/attempt-evidence/rep%3Asession%3Agroup-a%2Frep-2"
+			) {
+				return missing.promise;
+			}
+			return answer(request);
+		};
+		stub.preconnect = fetch.preconnect;
+		globalThis.fetch = stub;
+		renderAppAt(`/groups/${GROUP}?view=results`);
+
+		const panel = await screen.findByRole("region", {
+			name: "Session repetitions",
+		});
+		expect(
+			await within(panel).findByText("Reading saved state checks…"),
+		).toBeInTheDocument();
+		expect(panel).not.toHaveTextContent(
+			"assessed attempts passed every saved state check",
+		);
+		expect(panel).not.toHaveTextContent(
+			"unavailable or without saved state checks",
+		);
+		await act(() => {
+			index.resolve(
+				Response.json({
+					groupId: GROUP,
+					caseId: "audit-log",
+					repRecords: [
+						{ repId: "rep-1", ordinal: 1 },
+						{ repId: "rep-2", ordinal: 2 },
+					],
+				}),
+			);
+			return index.promise;
+		});
+		expect(panel).toHaveTextContent("Reading saved state checks…");
+		expect(panel).not.toHaveTextContent(
+			"assessed attempts passed every saved state check",
+		);
+		await act(() => {
+			missing.resolve(
+				Response.json({
+					state: "unavailable",
+					reason: "Saved state evidence missing.",
+				}),
+			);
+			return missing.promise;
+		});
+
+		expect(
+			await within(panel).findByText(
+				"1 of 1 assessed attempts passed every saved state check",
+			),
+		).toBeInTheDocument();
+		expect(
+			within(panel).getByText(
+				"1 attempt unavailable or without saved state checks",
+			),
+		).toBeInTheDocument();
+		expect(
+			within(panel).queryByText("Reading saved state checks…"),
+		).not.toBeInTheDocument();
+	});
+
+	it("shows failed saved state checks and unavailable assessment separately in group attempts", async () => {
+		serveSessionAssessment("attempts");
+
+		const first = await screen.findByRole("row", { name: /rep-1/u });
+		expect(
+			await within(first).findByText("0 of 1 saved state checks passed"),
+		).toBeInTheDocument();
+		const missing = screen.getByRole("row", { name: /rep-3/u });
+		expect(
+			await within(missing).findByText("Saved state checks unavailable"),
+		).toBeInTheDocument();
+		expect(missing).not.toHaveTextContent("0 of");
 	});
 
 	it("names a source step absent from the saved run", async () => {

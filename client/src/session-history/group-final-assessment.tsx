@@ -39,30 +39,35 @@ function FinalContent({
 		<div className="mt-3">
 			<p>{result.summary ?? "No written final Judge summary was saved."}</p>
 			<ul>
-				{result.requirements.map((item) => (
-					<li key={item.id} className="mt-4 border-t border-subtle pt-3">
-						<h3 className="font-medium">
-							{item.status} · {item.id}
-						</h3>
-						{item.evidence.map((cited, index) => (
-							<div
-								key={`${cited.path}:${String(index)}`}
-								className="mt-2 border-l-2 border-divider pl-3"
-							>
-								<p>{cited.claim}</p>
-								<p className="mt-1 font-mono text-11-5 text-dim">
-									{cited.source} · {cited.path}
-									{cited.place === undefined ? "" : ` · ${cited.place}`}
-								</p>
-								{cited.quote === undefined ? null : (
-									<blockquote className="mt-2 whitespace-pre-wrap">
-										{cited.quote}
-									</blockquote>
-								)}
-							</div>
-						))}
-					</li>
-				))}
+				{result.requirements
+					.toSorted(
+						(left, right) =>
+							Number(right.status === "FAIL") - Number(left.status === "FAIL"),
+					)
+					.map((item) => (
+						<li key={item.id} className="mt-4 border-t border-subtle pt-3">
+							<h3 className="font-medium">
+								{item.status} · {item.id}
+							</h3>
+							{item.evidence.map((cited, index) => (
+								<div
+									key={`${cited.path}:${String(index)}`}
+									className="mt-2 border-l-2 border-divider pl-3"
+								>
+									<p>{cited.claim}</p>
+									<p className="mt-1 font-mono text-11-5 text-dim">
+										{cited.source} · {cited.path}
+										{cited.place === undefined ? "" : ` · ${cited.place}`}
+									</p>
+									{cited.quote === undefined ? null : (
+										<blockquote className="mt-2 whitespace-pre-wrap">
+											{cited.quote}
+										</blockquote>
+									)}
+								</div>
+							))}
+						</li>
+					))}
 			</ul>
 		</div>
 	);

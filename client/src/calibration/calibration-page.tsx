@@ -5,6 +5,8 @@ import { plural } from "#client/plural";
 import { ScreenHeader } from "#client/system/components/screen-header";
 import { SectionLabel } from "#client/system/components/section-label";
 import { TableShell } from "#client/system/components/table-shell";
+import { SummaryPanel } from "#client/system/components/summary-panel";
+import { StateBadge } from "#client/system/components/state-badge";
 import { Button } from "#client/system/ui/button";
 import {
 	agreementPercent,
@@ -78,7 +80,7 @@ function rowFor(row: AgreementRow): readonly React.ReactNode[] {
 	const agreement = agreementReading(row.stepsApart);
 
 	return [
-		<span key="step" className="font-mono text-11-5 text-secondary-foreground">
+		<span key="step" className="font-mono text-12 text-secondary-foreground">
 			{stepLabel(row.stage, row.stageName)}
 		</span>,
 		<span key="judge" className="font-mono font-bold">
@@ -89,12 +91,12 @@ function rowFor(row: AgreementRow): readonly React.ReactNode[] {
 		</span>,
 		<span
 			key="agreement"
-			className={`inline-flex items-center gap-1.5 text-11-5 ${AGREEMENT_COLOURS[agreement.glyph]}`}
+			className={`inline-flex items-center gap-1.5 text-12 ${AGREEMENT_COLOURS[agreement.glyph]}`}
 		>
 			<span aria-hidden="true">{agreement.glyph}</span>
 			{agreement.label}
 		</span>,
-		<span key="differed" className="text-11-5 text-muted-foreground">
+		<span key="differed" className="text-12 text-muted-foreground">
 			{whereTheyDiffered(row)}
 		</span>,
 	];
@@ -136,7 +138,7 @@ function DriftList({
 					<li key={dimension}>
 						<div className="flex items-baseline gap-2">
 							<span className="flex-1 text-12">{dimension}</span>
-							<span className="font-mono text-11-5 text-secondary-foreground">
+							<span className="font-mono text-12 text-secondary-foreground">
 								{reading.value}
 							</span>
 						</div>
@@ -178,7 +180,7 @@ function DriftAside({
 			</h2>
 			{groups.length > 1 && shown !== undefined ? (
 				<div className="mt-2 flex flex-col gap-1">
-					<label htmlFor={selectId} className="text-11 text-dim">
+					<label htmlFor={selectId} className="text-12 text-dim">
 						Judge group
 					</label>
 					<select
@@ -187,7 +189,7 @@ function DriftAside({
 						onChange={(event) => {
 							setChosen(event.target.value);
 						}}
-						className="min-h-11 rounded-md border border-strong bg-background px-2 text-11-5"
+						className="min-h-11 rounded-md border border-strong bg-background px-2 text-12"
 					>
 						{groups.map((group) => (
 							<option key={groupKey(group)} value={groupKey(group)}>
@@ -200,12 +202,12 @@ function DriftAside({
 			{shown === undefined ? null : (
 				<section className="mt-2">
 					{groups.length > 1 ? null : (
-						<p className="text-11 text-dim">{groupLine(shown)}</p>
+						<p className="text-12 text-dim">{groupLine(shown)}</p>
 					)}
 					<DriftList group={shown} />
 				</section>
 			)}
-			<p className="mt-3 text-11-5 text-pretty text-muted-foreground">
+			<p className="mt-3 text-12 text-pretty text-muted-foreground">
 				Calibration does not change a grade. It tells you how much to trust one.
 			</p>
 		</aside>
@@ -222,13 +224,13 @@ function ReviewNext({
 	if (next === null) {
 		return (
 			<div className="flex items-center gap-3">
-				<span className="text-11-5 text-dim">
+				<span className="text-12 text-dim">
 					{reviews === 0
 						? "No step the judge graded is recorded yet."
-						: "Every judged step is graded."}
+						: "Every judged step has your review."}
 				</span>
 				<Button size="compact" disabled>
-					Review next unjudged step
+					Review next step
 				</Button>
 			</div>
 		);
@@ -236,8 +238,75 @@ function ReviewNext({
 
 	return (
 		<Button asChild size="compact">
-			<Link to={reviewPath(next)}>Review next unjudged step</Link>
+			<Link to={reviewPath(next)}>Review next step</Link>
 		</Button>
+	);
+}
+
+function FirstReview({
+	report,
+}: {
+	readonly report: CalibrationResponse;
+}): React.JSX.Element {
+	return (
+		<SummaryPanel
+			title="Your first calibration review"
+			description="Compare your judgment with the Judge's using the same saved evidence."
+		>
+			<div className="flex flex-col gap-4 text-14">
+				{report.ungraded > 0 ? (
+					<div>
+						<StateBadge tone="attention">
+							{plural(report.ungraded, "step")} awaiting your review
+						</StateBadge>
+					</div>
+				) : null}
+				<p>
+					Open a judged step, read its task and output, and grade each rubric
+					criterion. Judge's scores stay hidden until you record your grade.
+				</p>
+				<p className="text-muted-foreground">
+					Agreement and drift will appear after your first saved review.
+					Calibration records your assessment; it does not change the original
+					grade.
+				</p>
+				{report.next === null ? (
+					<div>
+						<Button asChild variant="outline">
+							<Link to="/cases" search={{}}>
+								Browse cases
+							</Link>
+						</Button>
+					</div>
+				) : null}
+			</div>
+		</SummaryPanel>
+	);
+}
+
+function CalibrationReport({
+	report,
+}: {
+	readonly report: CalibrationResponse;
+}): React.JSX.Element {
+	if (report.reviews === 0) {
+		return (
+			<div className="max-w-250">
+				<FirstReview report={report} />
+			</div>
+		);
+	}
+	return (
+		<div className="grid max-w-250 grid-cols-1 gap-4.5 lg:grid-cols-main-aside">
+			<div className="min-w-0 self-start overflow-x-auto">
+				<TableShell
+					caption="Your grade against the judge's, same evidence"
+					columns={[...COLUMNS]}
+					rows={report.rows.map((row) => rowFor(row))}
+				/>
+			</div>
+			<DriftAside groups={report.groups} />
+		</div>
 	);
 }
 
@@ -256,7 +325,7 @@ export function CalibrationPage({
 					<div>
 						<h2 className="text-16 font-medium">Judge calibration</h2>
 						{report === undefined ? null : (
-							<p className="mt-1 text-11-5 text-dim">
+							<p className="mt-1 text-12 text-dim">
 								<Subline
 									reviews={report.reviews}
 									withinOneStep={report.withinOneStep}
@@ -298,18 +367,7 @@ export function CalibrationPage({
 					</p>
 				) : null}
 
-				{report === undefined ? null : (
-					<div className="grid max-w-250 grid-cols-1 gap-4.5 lg:grid-cols-main-aside">
-						<div className="min-w-0 self-start overflow-x-auto">
-							<TableShell
-								caption="Your grade against the judge's, same evidence"
-								columns={[...COLUMNS]}
-								rows={report.rows.map((row) => rowFor(row))}
-							/>
-						</div>
-						<DriftAside groups={report.groups} />
-					</div>
-				)}
+				{report === undefined ? null : <CalibrationReport report={report} />}
 			</div>
 		</div>
 	);

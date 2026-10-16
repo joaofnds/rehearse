@@ -128,7 +128,7 @@ function corpusSkills(paths: readonly string[]): readonly string[] {
 }
 
 const FIELD_CLASS =
-	"w-full min-w-0 rounded-md border border-strong bg-background px-2 py-1.5 font-mono text-sm";
+	"w-full min-w-0 rounded-md border border-strong bg-background px-2 py-1.5 font-mono text-13";
 
 function LabeledField({
 	label,
@@ -141,7 +141,7 @@ function LabeledField({
 
 	return (
 		<span className="flex min-w-0 flex-col gap-1">
-			<label htmlFor={id} className="text-xs text-muted-foreground">
+			<label htmlFor={id} className="text-12 text-muted-foreground">
 				{label}
 			</label>
 			{children(id)}
@@ -178,7 +178,7 @@ function StepFields({
 			className="flex flex-col gap-2 rounded-md border border-strong px-3 py-2.5"
 		>
 			<span className="flex items-center gap-2">
-				<span aria-hidden="true" className="font-mono text-xs text-dim">
+				<span aria-hidden="true" className="font-mono text-12 text-dim">
 					{String(position).padStart(2, "0")}
 				</span>
 				<span className="ml-auto flex gap-1.5">
@@ -301,7 +301,7 @@ function StepFields({
 							)}
 						</LabeledField>
 					</span>
-					<label className="flex items-center gap-1.5 pb-1.5 text-xs text-muted-foreground">
+					<label className="flex items-center gap-1.5 pb-1.5 text-12 text-muted-foreground">
 						<input
 							type="checkbox"
 							checked={step.requiresAcceptanceCriteria}
@@ -430,7 +430,7 @@ function StepsForm({
 					the steps they ran.
 				</DialogDescription>
 				{save.isError ? (
-					<p role="alert" className="text-sm text-secondary-foreground">
+					<p role="alert" className="text-13 text-secondary-foreground">
 						<span aria-hidden="true">⚠ </span>
 						{save.error.message}
 					</p>
@@ -466,7 +466,7 @@ function StepsEditor({
 		return (
 			<p
 				role={query.error === null ? undefined : "alert"}
-				className="px-4 py-3.5 text-sm text-secondary-foreground"
+				className="px-4 py-3.5 text-13 text-secondary-foreground"
 			>
 				{query.error === null ? "Reading the steps" : query.error.message}
 			</p>

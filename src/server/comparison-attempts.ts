@@ -20,6 +20,8 @@ export const NO_RECORDED_GRADING_REASON =
 export const NO_RECORDED_ATTEMPT_WORDS_REASON =
 	"this report records no word count for this attempt";
 
+type ScoredRep = Extract<ReportRep, { readonly checks?: unknown }>;
+
 interface FiredBlocker {
 	readonly stage: string;
 	readonly id: string;
@@ -43,6 +45,8 @@ export interface ComparisonAttempt {
 		  }
 		| { readonly state: "unavailable"; readonly reason: string };
 	readonly words: OutputWords;
+	readonly checks?: ScoredRep["checks"];
+	readonly stateChecks?: ScoredRep["stateResults"];
 }
 
 export interface CaseAttempts {
@@ -89,11 +93,20 @@ function attemptsOf(reps: readonly ReportRep[]): readonly ComparisonAttempt[] {
 		outcomes: outcomesOf(rep),
 		blockersFired: blockersFiredOf(rep),
 		words: wordsOf(rep),
+		checks: "checks" in rep ? rep.checks : undefined,
+		stateChecks: "stateResults" in rep ? rep.stateResults : undefined,
 	}));
 }
 
 /** Each arm's attempts side by side, in the order each arm recorded them. */
-export function comparisonAttempts(benchmarkCase: ReportCase): CaseAttempts {
+export function comparisonAttempts(benchmarkCase: {
+	readonly arms: Readonly<
+		Record<
+			ComparisonArm,
+			{ readonly source: { readonly reps: readonly ReportRep[] } }
+		>
+	>;
+}): CaseAttempts {
 	return {
 		baseline: attemptsOf(benchmarkCase.arms.baseline.source.reps),
 		candidate: attemptsOf(benchmarkCase.arms.candidate.source.reps),

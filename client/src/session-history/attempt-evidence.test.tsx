@@ -58,6 +58,28 @@ const grade = {
 	dimensions: [],
 } as const;
 describe("saved attempt evidence", () => {
+	it("opens a cached diff in Raw when replacing a formatted output", () => {
+		const { rerender, container } = render(
+			<SavedOutput title="Output" text="# Artifact" />,
+		);
+		expect(screen.getByRole("heading", { name: "Artifact" })).toBeVisible();
+
+		rerender(
+			<SavedOutput
+				title="Output"
+				text={"-  removed\n+  added"}
+				initialMode="Raw"
+			/>,
+		);
+
+		expect(
+			screen.getByRole("button", { name: "Raw", pressed: true }),
+		).toBeVisible();
+		expect(container.querySelector("pre")?.textContent).toBe(
+			"-  removed\n+  added",
+		);
+	});
+
 	it("shows the recorded reply beside failed and passed checks with their explanations", async () => {
 		showSession({
 			caseId: "case-a",
@@ -95,6 +117,139 @@ describe("saved attempt evidence", () => {
 			screen.getByText(/No check outcomes were recorded/u),
 		).toBeInTheDocument();
 		expect(screen.queryByText(/^FAIL/u)).not.toBeInTheDocument();
+	});
+	it("distinguishes a successful recorded result from failed saved state checks and orders failures first", async () => {
+		showSession({
+			caseId: "case-a",
+			outcome: "SUCCESSFUL",
+			reply: "done",
+			checks: [{ kind: "tool-calls", status: "PASS", detail: "Allowed tool." }],
+			stateResults: [
+				{ name: "retained", status: "PASS", detail: "Retained state." },
+				{
+					name: "history-preserved",
+					status: "FAIL",
+					detail: "History was removed.",
+				},
+			],
+		});
+
+		expect(
+			await screen.findByText("Recorded outcome: SUCCESSFUL"),
+		).toBeInTheDocument();
+		expect(
+			screen.getByText("1 of 1 reply/transcript checks passed"),
+		).toBeInTheDocument();
+		expect(
+			screen.getByText("1 of 2 saved state checks passed"),
+		).toBeInTheDocument();
+		expect(
+			screen.getByText(/Recorded success and saved state checks disagree/u),
+		).toBeInTheDocument();
+		const checks = within(
+			screen.getByRole("list", { name: "Saved state checks" }),
+		).getAllByRole("listitem");
+		expect(checks[0]).toHaveTextContent("FAIL · history-preserved");
+		const passed = screen.getByText("Saved state checks: 1 passed", {
+			selector: "summary",
+		});
+		expect(passed.parentElement).not.toHaveAttribute("open");
+		fireEvent.click(passed);
+		expect(screen.getByText("Retained state.")).toBeInTheDocument();
+		expect(
+			screen.getByText("Reply/transcript checks: 1 passed", {
+				selector: "summary",
+			}).parentElement,
+		).not.toHaveAttribute("open");
+	});
+	it("distinguishes a recorded unsuccessful result from fully passing saved state checks", async () => {
+		showSession({
+			caseId: "case-a",
+			outcome: "UNSUCCESSFUL",
+			reply: "done",
+			checks: [
+				{ kind: "word-band", status: "FAIL", detail: "Reply was too short." },
+			],
+			stateResults: [
+				{ name: "retained", status: "PASS", detail: "Saved state retained." },
+			],
+		});
+
+		expect(
+			await screen.findByText(
+				"Recorded unsuccessful outcome and saved state checks differ: all saved state checks passed.",
+			),
+		).toBeInTheDocument();
+		expect(
+			screen.getByText("Recorded outcome: UNSUCCESSFUL"),
+		).toBeInTheDocument();
+		expect(
+			screen.getByText("0 of 1 reply/transcript checks passed"),
+		).toBeInTheDocument();
+		expect(
+			screen.getByText("1 of 1 saved state checks passed"),
+		).toBeInTheDocument();
+	});
+
+	it.each(["NO_REPLY", "EXECUTION_FAILED"] as const)(
+		"keeps %s separate from a check assessment disagreement",
+		async (outcome) => {
+			showSession({
+				caseId: "case-a",
+				outcome,
+				checks: [],
+				stateResults: [
+					{ name: "retained", status: "PASS", detail: "Saved state retained." },
+				],
+			});
+
+			expect(
+				await screen.findByText(`Recorded outcome: ${outcome}`),
+			).toBeInTheDocument();
+			expect(
+				screen.queryByText(
+					/Recorded unsuccessful outcome and saved state checks differ/u,
+				),
+			).not.toBeInTheDocument();
+		},
+	);
+
+	it("keeps an incomplete state assessment unavailable rather than claiming an inverse disagreement", async () => {
+		showSession({
+			caseId: "case-a",
+			outcome: "UNSUCCESSFUL",
+			checks: [],
+			stateResults: [
+				{ name: "retained", status: "PASS", detail: "Saved state retained." },
+			],
+			stateGradingError: "Remaining state checks unavailable",
+		});
+
+		expect(
+			await screen.findByText(
+				"State checks unavailable: Remaining state checks unavailable",
+			),
+		).toBeInTheDocument();
+		expect(
+			screen.queryByText(
+				/Recorded unsuccessful outcome and saved state checks differ/u,
+			),
+		).not.toBeInTheDocument();
+	});
+	it("switches a formatted reading back to the exact saved source", () => {
+		const text =
+			"# Saved heading\n\n- one\n- two\n\n```ts\nconst value = 1;\n```\n";
+		render(<SavedOutput title="Reply" text={text} />);
+
+		expect(
+			screen.getByRole("heading", { name: "Saved heading" }),
+		).toBeInTheDocument();
+		fireEvent.click(screen.getByRole("button", { name: "Raw" }));
+
+		expect(
+			screen.getByRole("region", { name: "Reply" }).querySelector("pre")
+				?.textContent,
+		).toBe(text);
 	});
 	it("keeps a scorer failure separate from state check failures", async () => {
 		showSession({
@@ -138,6 +293,47 @@ describe("saved attempt evidence", () => {
 			screen.getByText("The response has no hasMore."),
 		).toBeInTheDocument();
 		expect(screen.getByText(/delivery.md:1/u)).toBeInTheDocument();
+	});
+	it("keeps clear blockers and their citations in a disclosure after failed findings", () => {
+		render(
+			<ScorecardEvidence
+				record={{
+					state: "available",
+					kind: "stage",
+					stage: "build",
+					output: { state: "unavailable", reason: "No output retained." },
+					assessment: {
+						...grade,
+						hardBlockers: [
+							{
+								id: "no-secrets",
+								status: "PASS",
+								evidence: [
+									{
+										source: "artifact",
+										path: "delivery.md",
+										claim: "No secret material.",
+										quote: "checked",
+									},
+								],
+							},
+						],
+					},
+				}}
+			/>,
+		);
+
+		const clear = screen.getByText("1 clear blocker & citations", {
+			selector: "summary",
+		});
+		expect(clear.parentElement).not.toHaveAttribute("open");
+		fireEvent.click(clear);
+
+		expect(screen.getByText("No secret material.")).toBeInTheDocument();
+		expect(screen.getByText("checked")).toBeInTheDocument();
+		expect(
+			screen.getByText("FAIL · Requirement · response"),
+		).toBeInTheDocument();
 	});
 	it("labels summary-only legacy grades and missing output explicitly", () => {
 		render(

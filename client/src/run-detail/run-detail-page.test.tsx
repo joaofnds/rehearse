@@ -38,6 +38,36 @@ describe("/runs/$run", () => {
 		expect(header).toHaveTextContent("corpus@a41c7e");
 	});
 
+	it("links the primary final-outcome action to its retained target when the assessment is unavailable", async () => {
+		renderRunDetail(
+			new Map<string, unknown>([
+				[
+					`/api/runs/${RUN}`,
+					{
+						...stoppedAtBuild(),
+						finalOutcome: { status: "JUDGED", verdict: "FAIL" },
+					},
+				],
+				[
+					`/api/runs/${RUN}/final/assessment`,
+					{
+						state: "unavailable",
+						reason: "Final assessment was not retained.",
+					},
+				],
+			]),
+		);
+
+		const action = await screen.findByRole("link", {
+			name: "Review final outcome",
+		});
+		const href = action.getAttribute("href");
+		expect(href).toBe("#task-grade-label");
+		expect(
+			document.querySelector(href ?? "#missing-final-outcome-target"),
+		).toBeInTheDocument();
+	});
+
 	it("reads the run record again when a live run moves to its next step", async () => {
 		let running = "build";
 		const records = new Map([
@@ -86,14 +116,14 @@ describe("/runs/$run", () => {
 
 		expect(
 			within(graph).getByRole("button", { name: /^build/u }),
-		).not.toHaveTextContent("accepted");
+		).not.toHaveTextContent("Continued");
 		running = "verify";
 
 		await waitFor(
 			() => {
 				expect(
 					within(graph).getByRole("button", { name: /^build/u }),
-				).toHaveTextContent("accepted");
+				).toHaveTextContent("Continued");
 			},
 			{ timeout: 5000 },
 		);

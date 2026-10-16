@@ -185,9 +185,13 @@ describe("/monitor", () => {
 		expect(
 			nodes.map(
 				(node) =>
-					within(node).getByText(/accepted|running|queued/u).textContent,
+					within(node).getByText(/Continued|running|queued/u).textContent,
 			),
-		).toEqual(["✓accepted", "●session running", "○queued"]);
+		).toEqual([
+			"✓Continued · minimum unavailable",
+			"●session running",
+			"○queued",
+		]);
 	});
 
 	describe("the identity header", () => {
@@ -973,7 +977,7 @@ describe("/monitor task graph", () => {
 
 		const plan = await graphNode("plan");
 
-		expect(plan).toHaveTextContent("✓accepted");
+		expect(plan).toHaveTextContent("✓Continued · minimum unavailable");
 		expect(plan.querySelector("[class*='animate-live']")).toBeNull();
 	});
 
@@ -1424,24 +1428,25 @@ describe("/monitor judge pane", () => {
 			grade: MonitoredStage["grade"],
 			status: MonitoredStage["status"] = "graded",
 		): Promise<void> {
+			const record = {
+				...runRecord({
+					run: RUN,
+					running: "build",
+					stages: [
+						recordStage("plan", {
+							status,
+							grade,
+							judgeCost: { state: "available", usd: 0.22 },
+						}),
+						recordStage("build"),
+					],
+				}),
+				minimumGrade: { state: "available", letter: "B-" },
+			};
 			renderMonitor(
 				runRow({ run: RUN, stage: "build" }),
 				new Map<string, unknown>([
-					[
-						`/api/runs/${RUN}`,
-						runRecord({
-							run: RUN,
-							running: "build",
-							stages: [
-								recordStage("plan", {
-									status,
-									grade,
-									judgeCost: { state: "available", usd: 0.22 },
-								}),
-								recordStage("build"),
-							],
-						}),
-					],
+					[`/api/runs/${RUN}`, record],
 					[PLAN_JUDGE, JUDGED],
 				]),
 			);
@@ -1456,15 +1461,17 @@ describe("/monitor judge pane", () => {
 		};
 
 		it("shows the verdict and grade the run record holds, with the judge's recorded cost", async () => {
-			await renderJudged(ACCEPTED_C);
+			await renderJudged({ ...ACCEPTED_C, letter: "B" });
 
 			const pane = await judgePane();
 			const card = await within(pane).findByRole("group", {
 				name: "Verdict and grade",
 			});
 
-			expect(card).toHaveTextContent("Verdict✓accepted: 2 blockers fired");
-			expect(card).toHaveTextContent("GradeC");
+			expect(card).toHaveTextContent(
+				"Verdict✓Continued at minimum B-: 2 blockers fired",
+			);
+			expect(card).toHaveTextContent("GradeB");
 			expect(pane).toHaveTextContent("independent session · $0.22");
 			expect(within(pane).queryByText("grading")).toBeNull();
 		});
@@ -1524,7 +1531,7 @@ describe("/monitor judge pane", () => {
 
 			expect(
 				await within(await judgePane()).findByText(
-					"accepted: 2 blockers fired",
+					"Continued · minimum unavailable: 2 blockers fired",
 				),
 			).toBeInTheDocument();
 		});
@@ -2021,7 +2028,7 @@ describe("/monitor session pane", () => {
 				`/runs/${RUN}?view=context&step=plan&focus=events`,
 			);
 			expect(pane).toHaveTextContent(
-				"Session ended. The full transcript is on disk; Rehearse keeps only the spans the judge cites.",
+				"Session ended. Inspect the saved transcript in Context & cost.",
 			);
 			expect(
 				within(pane).getByRole("link", {

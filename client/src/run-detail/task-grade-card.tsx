@@ -8,6 +8,8 @@ import type { FinalAssessmentResponse } from "./investigation-query";
 import type { PipelineRowWithStaleness } from "#client/run-history/run-history-query";
 import { SectionLabel } from "#client/system/components/section-label";
 import { Status } from "#client/system/components/status";
+import { SummaryPanel } from "#client/system/components/summary-panel";
+import { StateBadge } from "#client/system/components/state-badge";
 
 import type { PipelineRow } from "#client/shell/run-in-flight";
 
@@ -166,6 +168,13 @@ function StalenessReading({
 	);
 }
 
+function outcomeTone(value: string): "negative" | "positive" | "neutral" {
+	if (value === "FAIL") {
+		return "negative";
+	}
+	return value === "PASS" ? "positive" : "neutral";
+}
+
 /** SPEC.md 4c item 1: the outcome graded on its own, before any root cause. */
 export function TaskGradeCard({
 	row,
@@ -236,21 +245,15 @@ export function TaskGradeCard({
 	}
 
 	return (
-		<div className="rounded-lg border border-border bg-card p-5">
-			<section aria-labelledby="task-grade-label">
-				<h2 id="task-grade-label">
-					<SectionLabel>Final outcome · independent task Judge</SectionLabel>
-				</h2>
+		<SummaryPanel
+			id="task-grade-label"
+			title="Final outcome · independent task Judge"
+		>
+			<div>
 				<div className="mt-2 flex flex-wrap items-baseline gap-3">
-					<p className="font-mono text-24 font-medium">{value}</p>
+					<StateBadge tone={outcomeTone(value)}>{value}</StateBadge>
 					<p className="text-12 text-dim">{note}</p>
 				</div>
-				{assessment?.state === "available" &&
-				assessment.summary !== undefined ? (
-					<p className="mt-2 text-13 text-secondary-foreground">
-						{assessment.summary}
-					</p>
-				) : null}
 				{failed.length === 0 ? null : (
 					<>
 						<p className="mt-2 text-13">
@@ -283,6 +286,17 @@ export function TaskGradeCard({
 						</details>
 					</>
 				)}
+				{assessment?.state === "available" &&
+				assessment.summary !== undefined ? (
+					<details className="mt-3">
+						<summary className="cursor-pointer text-12 text-muted-foreground">
+							Full saved final Judge summary
+						</summary>
+						<p className="mt-2 text-14 leading-relaxed text-secondary-foreground">
+							{assessment.summary}
+						</p>
+					</details>
+				) : null}
 				{passed.length === 0 ? null : (
 					<details className="mt-3">
 						<summary className="cursor-pointer text-12 text-muted-foreground">
@@ -304,7 +318,7 @@ export function TaskGradeCard({
 						{JUDGE_SCOPE}
 					</p>
 				</details>
-			</section>
+			</div>
 			<details className="mt-3 border-t border-divider pt-3">
 				<summary className="cursor-pointer text-12 text-muted-foreground">
 					Previous task result
@@ -316,6 +330,6 @@ export function TaskGradeCard({
 					<LastTaskGrade row={row} last={lastTaskGrade(row, rows)} />
 				</section>
 			</details>
-		</div>
+		</SummaryPanel>
 	);
 }

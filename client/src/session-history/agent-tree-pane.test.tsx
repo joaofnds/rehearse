@@ -22,6 +22,7 @@ import type { ClaudeCallMetrics } from "#benchmark/contracts";
 import { z } from "zod";
 import { stubFetchByPath } from "#client/test-support/fetch-stub";
 import { SessionHistoryPage } from "./session-history-page";
+import { AgentTreePane } from "./agent-tree-pane";
 
 const FIXTURE = join(
 	import.meta.dir,
@@ -238,6 +239,43 @@ async function select(label: string): Promise<HTMLElement> {
 }
 
 describe("agent tree in the saved-attempt workbench", () => {
+	it("rounds the attempt cost headline and keeps its exact saved amount available", async () => {
+		const input = await fixtureInput("recorded");
+		const cost = agentCostAllocation({
+			...input,
+			rates: committedRateCatalog,
+			modelUsage: undefined,
+		});
+		if (cost.state !== "available") {
+			throw new Error("The fixture has no cost allocation");
+		}
+		render(
+			<QueryClientProvider client={new QueryClient()}>
+				<AgentTreePane
+					selectionKey="rounded-cost"
+					agents={{
+						state: "available",
+						tree: agentTree(input),
+						cost: {
+							...cost,
+							calculated: { state: "complete", costUsd: 1.163421 },
+						},
+					}}
+					sourceId={undefined}
+					excerpt={null}
+					onOpenExcerpt={() => undefined}
+					onSelectSource={() => undefined}
+				/>
+			</QueryClientProvider>,
+		);
+
+		const total = screen.getByRole("status", {
+			name: "Calculated attempt total",
+		});
+		expect(within(total).getByText("✓ Complete · $1.16")).toBeVisible();
+		fireEvent.click(within(total).getByText("Exact measurement"));
+		expect(within(total).getByText("Exact amount: $1.163421")).toBeVisible();
+	});
 	it("retains a child agent after six inactive minutes and remounting", async () => {
 		const warmed = await renderFixturePage();
 		await agentTreeNav();
@@ -364,6 +402,7 @@ describe("agent tree in the saved-attempt workbench", () => {
 			},
 		});
 
+		fireEvent.click(await screen.findByText("Coverage and cost details"));
 		const byModel = await screen.findByRole("list", {
 			name: "Cost by model",
 		});
@@ -435,7 +474,9 @@ describe("agent tree in the saved-attempt workbench", () => {
 		).toBeInTheDocument();
 		expect(
 			screen.getByRole("status", { name: "Agent coverage" }),
-		).toHaveTextContent("Incomplete · no kept transcript for a4");
+		).toHaveTextContent("Incomplete coverage · 1 missing transcript");
+		fireEvent.click(screen.getByText("Coverage and cost details"));
+		expect(screen.getByText(/no kept transcript for a4/u)).toBeVisible();
 		expect(
 			screen.getByRole("status", { name: "Calculated attempt total" }),
 		).toHaveTextContent("Incomplete");

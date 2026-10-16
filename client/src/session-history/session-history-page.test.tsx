@@ -558,9 +558,9 @@ describe(SessionHistoryPage.name, () => {
 		});
 		expect(
 			within(timeline).getByRole("option", { selected: true }),
-		).toHaveTextContent("req-inherited");
+		).toHaveTextContent("req-first");
 		fireEvent.click(
-			within(timeline).getByRole("option", { name: /req-first/u }),
+			within(timeline).getByRole("option", { name: /req-second/u }),
 		);
 
 		fireEvent.click(screen.getByRole("button", { name: "Evidence" }));
@@ -569,10 +569,10 @@ describe(SessionHistoryPage.name, () => {
 		const returned = screen.getByRole("listbox", { name: "Request timeline" });
 		expect(
 			within(returned).getByRole("option", { selected: true }),
-		).toHaveTextContent("req-first");
+		).toHaveTextContent("req-second");
 		expect(
 			screen.getByRole("region", { name: "Selected request" }),
-		).toHaveTextContent("req-first");
+		).toHaveTextContent("req-second");
 	});
 
 	it("retains source and selected request after six inactive minutes and remounting", async () => {
@@ -680,10 +680,43 @@ describe(SessionHistoryPage.name, () => {
 		const ledger = await screen.findByRole("region", { name: "Event ledger" });
 
 		expect(
-			within(ledger).getByRole("option", { selected: true }),
+			within(
+				within(ledger).getByRole("listbox", { name: "Attempt events" }),
+			).getByRole("option", { selected: true }),
 		).toHaveTextContent("CLAUDE.md delivered");
 		expect(ledger).toHaveFocus();
 		expect(await screen.findByText("instruction body")).toBeInTheDocument();
+	});
+
+	it("searches activity while keeping raw chronology available", async () => {
+		renderPage();
+		const ledger = await screen.findByRole("listbox", {
+			name: "Attempt events",
+		});
+		expect(
+			within(ledger).queryByRole("option", {
+				name: /Unclassified recorded content/u,
+			}),
+		).not.toBeInTheDocument();
+		fireEvent.change(screen.getByRole("searchbox", { name: "Search events" }), {
+			target: { value: "Bash" },
+		});
+		expect(within(ledger).getAllByRole("option")).toHaveLength(1);
+		expect(within(ledger).getByRole("option")).toHaveTextContent("Bash result");
+		fireEvent.change(screen.getByRole("searchbox", { name: "Search events" }), {
+			target: { value: "" },
+		});
+		fireEvent.change(screen.getByRole("combobox", { name: "Show events" }), {
+			target: { value: "All records" },
+		});
+		fireEvent.click(
+			within(ledger).getByRole("option", {
+				name: /Unclassified recorded content/u,
+			}),
+		);
+		expect(
+			within(ledger).getByRole("option", { selected: true }),
+		).toHaveTextContent("Unclassified recorded content");
 	});
 
 	it("keeps a long evidence-gap list behind a complete expandable summary", async () => {
@@ -754,9 +787,40 @@ describe(SessionHistoryPage.name, () => {
 		).toHaveTextContent("Read CLAUDE.md");
 		expect(
 			screen.getByRole("button", { name: /CLAUDE.md/u }),
-		).toHaveTextContent(
-			"✓ Complete · 12 recorded text characters — not tokens",
+		).toHaveTextContent("12 chars1 delivery · 0 repeats");
+	});
+
+	it("searches source names without changing the all-sources count or the investigation selection", async () => {
+		renderPage();
+		const sources = await screen.findByRole("navigation", {
+			name: "Loaded sources",
+		});
+		const allSources = within(sources).getByRole("button", {
+			name: /All sources/u,
+		});
+		const originalCount = allSources.textContent;
+		fireEvent.click(
+			within(sources).getByRole("button", { name: /CLAUDE.md/u }),
 		);
+
+		fireEvent.change(
+			screen.getByRole("searchbox", { name: "Search sources" }),
+			{ target: { value: "late.md" } },
+		);
+
+		expect(within(sources).getAllByRole("button")).toHaveLength(2);
+		expect(
+			within(sources).getByRole("button", { name: /late.md/u }),
+		).toBeVisible();
+		expect(allSources).toHaveTextContent(originalCount ?? "");
+		expect(allSources).toHaveAttribute("aria-pressed", "false");
+		expect(
+			screen.getByText(
+				"Search filters this source list. Evidence stays on the selected source.",
+			),
+		).toBeVisible();
+		fireEvent.click(allSources);
+		expect(allSources).toHaveAttribute("aria-pressed", "true");
 	});
 
 	it("shows auditable source sorts and lets diagnostics clear a source filter", async () => {
@@ -775,10 +839,8 @@ describe(SessionHistoryPage.name, () => {
 		expect(sourceNames()[3]).toContain("CLAUDE.md");
 		expect(sourceNames()[4]).toContain("Bash · 4:1");
 		expect(sourceNames()[5]).toContain("/outside.txt");
-		expect(sourceNames()[2]).toContain(
-			"◐ Partial · 20 observed recorded text characters — not tokens · mixed body",
-		);
-		expect(sourceNames()[5]).toContain("? Unavailable · unsupported text body");
+		expect(sourceNames()[2]).toContain("≥ 20 chars · partial");
+		expect(sourceNames()[5]).toContain("Size unavailable");
 
 		fireEvent.click(screen.getByRole("button", { name: "Most repeated" }));
 		expect(sourceNames()[0]).toContain("CLAUDE.md");
@@ -804,7 +866,9 @@ describe(SessionHistoryPage.name, () => {
 
 		fireEvent.click(screen.getByRole("button", { name: /outside\.txt/u }));
 		expect(
-			screen.getByText("No events match this source."),
+			screen.getByText(
+				"No events match these filters. Choose All records to include raw chronology.",
+			),
 		).toBeInTheDocument();
 	});
 
@@ -1300,10 +1364,12 @@ describe(SessionHistoryPage.name, () => {
 		await screen.findByRole("listbox", { name: "Request timeline" });
 		const ledger = screen.getByRole("listbox", { name: "Attempt events" });
 
-		const thirdEvent = within(ledger).getAllByRole("option").at(2);
-		if (thirdEvent === undefined) {
-			throw new Error("the fixture records fewer than three attempt events");
-		}
+		fireEvent.change(screen.getByRole("combobox", { name: "Show events" }), {
+			target: { value: "All records" },
+		});
+		const thirdEvent = within(ledger).getByRole("option", {
+			name: /Unclassified recorded content/u,
+		});
 		fireEvent.click(thirdEvent);
 		fireEvent.click(screen.getByRole("button", { name: "Requests" }));
 

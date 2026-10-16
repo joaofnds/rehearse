@@ -51,7 +51,11 @@ export function LastEditCard({
 			<h2 id="last-edit-heading">
 				<SectionLabel>Invalidated by the last edit</SectionLabel>
 			</h2>
-			<p className="mt-1 text-sm">{reading(lastEdit)}</p>
+			<p className="mt-1 text-13">{reading(lastEdit)}</p>
+			<p className="mt-1 max-w-80 text-12 text-muted-foreground">
+				Only results that were fresh before this edit and are stale now.
+				Per-file counts below use a different basis.
+			</p>
 		</section>
 	);
 }

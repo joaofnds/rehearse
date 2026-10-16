@@ -44,6 +44,8 @@ import {
 	attemptStartedAt,
 	parseSessionAttemptRecord,
 } from "#benchmark/session-record";
+import { savedStateAssessment } from "./saved-state-assessment";
+import type { SavedStateAssessment } from "./saved-state-assessment";
 import type { SessionAttemptRecord } from "#benchmark/session-record";
 import { formatRecordId, parseRecordId } from "#cli/record-id";
 import {
@@ -257,6 +259,8 @@ export interface SessionAttemptRow {
 		readonly passed: number;
 		readonly declared: number;
 	}>;
+	/** Optional for clients retaining a historical API response. Never changes recorded outcome. */
+	readonly savedState?: SavedStateAssessment | undefined;
 }
 
 /**
@@ -364,6 +368,27 @@ export interface ConfirmationGroupRow {
 	/** The stages of the pipeline its declared stages sit among. */
 	readonly pipelineStages: PipelineStages;
 	readonly firedBlockers: FiredBlockers;
+	/** Session attempts' saved-state layer, independent of the group's recorded outcomes. */
+	readonly savedState?: SessionGroupSavedState | undefined;
+}
+
+export interface SessionGroupSavedState {
+	readonly total: number;
+	readonly assessed: number;
+	readonly passed: number;
+	readonly failed: number;
+	readonly unavailable: number;
+	readonly disagreements: number;
+	readonly unavailableReps: readonly {
+		readonly repId: string;
+		readonly reason: string;
+	}[];
+}
+
+interface RepSavedState {
+	readonly repId: string;
+	readonly assessment: SavedStateAssessment;
+	readonly recordedPassed: boolean | undefined;
 }
 
 /**
@@ -727,6 +752,7 @@ async function sessionAttemptRow(
 					},
 		wallTime: { state: "available", ms: record.elapsedMs },
 		checks: sessionChecks(record),
+		savedState: savedStateAssessment(record),
 	};
 }
 
@@ -1046,7 +1072,7 @@ async function groupRow(
 	const recorded = reps.filter((rep) => "metrics" in rep);
 	const recordId = formatRecordId({ kind: "group", groupId });
 
-	return {
+	const row: Unjudged<ConfirmationGroupRow> = {
 		kind: "group",
 		recordId,
 		groupId,
@@ -1073,6 +1099,97 @@ async function groupRow(
 		wallTime: { state: "available", ms: record.makespanMs },
 		pipelineStages: await groupPipelineStages(runsDirectory, record),
 		firedBlockers: await groupFiredBlockers(runsDirectory, record),
+	};
+	if (record.mode === "session") {
+		return {
+			...row,
+			savedState: await sessionGroupSavedState(runsDirectory, record),
+		};
+	}
+	return row;
+}
+
+async function readRepSavedState(
+	runsDirectory: string,
+	group: Immutable<ParsedConfirmationGroupRecord>,
+	repId: string,
+): Promise<RepSavedState> {
+	try {
+		const file = Bun.file(
+			confirmationGroupPaths(runsDirectory, group.groupId).rep(repId)
+				.attemptFile,
+		);
+		if (!(await file.exists())) {
+			return {
+				repId,
+				recordedPassed: undefined,
+				assessment: {
+					state: "unavailable",
+					reason: "No saved session attempt was recorded.",
+				},
+			};
+		}
+		const attempt = parseSessionAttemptRecord(await file.text());
+		if (attempt.caseId !== group.caseId) {
+			throw new Error("The saved session attempt names a different case.");
+		}
+		if (
+			group.inputs.lineage.kind === "SESSION" &&
+			attempt.lineage !== group.inputs.lineage.lineage
+		) {
+			throw new Error("The saved session attempt names a different lineage.");
+		}
+		const checked =
+			attempt.outcome === "SUCCESSFUL" || attempt.outcome === "UNSUCCESSFUL";
+		return {
+			repId,
+			assessment: savedStateAssessment(attempt),
+			recordedPassed: checked ? attempt.outcome === "SUCCESSFUL" : undefined,
+		};
+	} catch (error) {
+		return {
+			repId,
+			recordedPassed: undefined,
+			assessment: {
+				state: "unavailable",
+				reason: `The saved session attempt could not be read: ${redactAbsolutePaths(error instanceof Error ? error.message : String(error))}`,
+			},
+		};
+	}
+}
+
+async function sessionGroupSavedState(
+	runsDirectory: string,
+	group: Immutable<ParsedConfirmationGroupRecord>,
+): Promise<SessionGroupSavedState> {
+	const readings = await Promise.all(
+		group.repRecords.map(({ repId }) =>
+			readRepSavedState(runsDirectory, group, repId),
+		),
+	);
+	const assessed = readings.flatMap(({ assessment }) =>
+		assessment.state === "assessed" ? [assessment] : [],
+	);
+	const passed = assessed.filter(
+		(assessment) => assessment.failed === 0,
+	).length;
+	return {
+		total: group.reps,
+		assessed: assessed.length,
+		passed,
+		failed: assessed.length - passed,
+		unavailable: group.reps - assessed.length,
+		disagreements: readings.filter(
+			({ assessment, recordedPassed }) =>
+				assessment.state === "assessed" &&
+				recordedPassed !== undefined &&
+				(assessment.failed === 0) !== recordedPassed,
+		).length,
+		unavailableReps: readings.flatMap(({ repId, assessment }) =>
+			assessment.state === "unavailable"
+				? [{ repId, reason: assessment.reason }]
+				: [],
+		),
 	};
 }
 

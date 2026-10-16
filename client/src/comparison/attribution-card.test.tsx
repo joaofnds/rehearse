@@ -79,11 +79,11 @@ function card(): HTMLElement {
 }
 
 describe(AttributionCard.name, () => {
-	it("names the one file that differs between baseline and candidate and attributes a movement to it", () => {
+	it("names the isolated corpus edit without claiming it caused an observed movement", () => {
 		renderCard();
 
 		expect(card()).toHaveTextContent(
-			`The only difference between baseline and candidate is ${SKILL}. Every other file is identical across the arms, so a movement between them is attributable to that file.`,
+			`The only recorded corpus difference between baseline and candidate is ${SKILL}. This isolates the corpus edit to one file; the repeated outcomes and their uncertainty determine what the comparison supports.`,
 		);
 	});
 

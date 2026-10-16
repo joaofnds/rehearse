@@ -1,10 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import {
-	getDefaultNormalizer,
-	render,
-	screen,
-	within,
-} from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import type { WhatMovedRow } from "#server/comparison-what-moved";
 import { WhatMoved } from "./what-moved";
 
@@ -79,9 +74,27 @@ const DIMENSION: WhatMovedRow = {
 	name: "observability",
 	stage: "build",
 	arms: {
-		control: { state: "available", median: "B", lowest: "B", highest: "B" },
-		baseline: { state: "available", median: "A", lowest: "A", highest: "A" },
-		candidate: { state: "available", median: "B", lowest: "B", highest: "B" },
+		control: {
+			state: "available",
+			median: "B",
+			lowest: "B",
+			highest: "B",
+			graded: 2,
+		},
+		baseline: {
+			state: "available",
+			median: "A",
+			lowest: "A",
+			highest: "A",
+			graded: 2,
+		},
+		candidate: {
+			state: "available",
+			median: "B",
+			lowest: "B",
+			highest: "B",
+			graded: 2,
+		},
 	},
 	readings: {
 		candidateMinusBaseline: {
@@ -223,74 +236,52 @@ function cell(measure: string, column: string): HTMLElement {
 }
 
 describe(WhatMoved.name, () => {
-	it("draws one row per measure with a column per arm, the spread and the reading", () => {
-		renderWhatMoved([OVERALL]);
+	it("shows every arm's measure and an explicitly scoped candidate versus baseline reading", () => {
+		renderWhatMoved([OVERALL, DIMENSION]);
 
-		const columns = within(table())
-			.getAllByRole("columnheader")
-			.map((header) => header.textContent);
-
-		expect(columns).toEqual([
+		expect(
+			within(table())
+				.getAllByRole("columnheader")
+				.map((header) => header.textContent),
+		).toEqual([
 			"Measure",
 			"Control",
 			"Baseline (before)",
 			"Candidate (after)",
-			"Spread across 2 attempts",
-			"Reading",
+			"Range and uncertainty",
+			"Candidate vs baseline",
 		]);
-		expect(cell("build", "Measure")).toHaveTextContent("buildoverall");
-		expect(cell("build", "Control")).toHaveTextContent("C");
-		expect(cell("build", "Baseline (before)")).toHaveTextContent("C");
-		expect(cell("build", "Candidate (after)")).toHaveTextContent("B");
-	});
-
-	it("reads candidate (after) against baseline (before) as a glyph and the served verdict's phrase", () => {
-		renderWhatMoved([OVERALL, DIMENSION]);
-
-		expect(cell("build", "Reading")).toHaveTextContent("~inside rerun noise");
-		expect(cell("observability", "Reading")).toHaveTextContent(
-			"↓baseline (before) separates",
+		expect(cell("build", "Control")).toHaveTextContent("C · n=2");
+		expect(cell("build", "Baseline (before)")).toHaveTextContent("C · n=2");
+		expect(cell("build", "Candidate (after)")).toHaveTextContent("B · n=2");
+		expect(cell("build", "Candidate vs baseline")).toHaveTextContent(
+			"inside rerun noise",
+		);
+		expect(cell("observability", "Candidate vs baseline")).toHaveTextContent(
+			"baseline (before) separates",
+		);
+		expect(cell("observability", "Baseline (before)")).toHaveTextContent(
+			"A · n=2",
 		);
 	});
 
-	it("draws the spread of baseline and candidate on the measure's scale with a note naming each range", () => {
+	it("labels the aligned grade plot as an observed range with median points and keeps control visible", () => {
 		renderWhatMoved([OVERALL]);
 
-		expect(cell("build", "Spread across 2 attempts")).toHaveTextContent(
-			"├─┼─┤baseline (before) C to B · candidate (after) B to A",
+		const plot = within(cell("build", "Range and uncertainty")).getByRole(
+			"figure",
+			{ name: "build · Median and observed grade range" },
 		);
+		expect(plot).toHaveTextContent("Control");
+		expect(plot).toHaveTextContent("C to C · C median");
+		expect(plot).toHaveTextContent("C to B · C median");
+		expect(plot).toHaveTextContent("B to A · B median");
+		expect(plot).not.toHaveTextContent("confidence");
 	});
 
-	it("leaves a gap in the drawing between spreads that do not meet", () => {
-		renderWhatMoved([
-			{
-				...DIMENSION,
-				readings: {
-					candidateMinusBaseline: {
-						interval: {
-							minuend: { low: "A", high: "A" },
-							subtrahend: { low: "F", high: "D" },
-						},
-						verdict: { kind: "separated", arm: "candidate" },
-					},
-				},
-			},
-		]);
-
-		expect(
-			within(cell("observability", "Spread across 2 attempts")).getByText(
-				"├──  ─┤",
-				{ normalizer: getDefaultNormalizer({ collapseWhitespace: false }) },
-			),
-		).toBeInTheDocument();
-	});
-
-	it("counts a hard blocker's firings per arm rather than grading them", () => {
+	it("keeps firing counts distinct from letter grades and labels their confidence interval", () => {
 		renderWhatMoved([BLOCKER]);
 
-		expect(cell("scope-declared", "Measure")).toHaveTextContent(
-			"scope-declaredbuild · hard blocker",
-		);
 		expect(cell("scope-declared", "Control")).toHaveTextContent("2/2 fired");
 		expect(cell("scope-declared", "Baseline (before)")).toHaveTextContent(
 			"1/2 fired",
@@ -298,80 +289,72 @@ describe(WhatMoved.name, () => {
 		expect(cell("scope-declared", "Candidate (after)")).toHaveTextContent(
 			"0/2 fired",
 		);
+		const range = cell("scope-declared", "Range and uncertainty");
+		expect(range).toHaveTextContent("Firing rate · 95% confidence interval");
+		expect(range).toHaveTextContent("0% to 66% · 0% observed rate");
+		expect(range).toHaveTextContent("Control: range not recorded");
 	});
 
-	it("states each arm's mean on a meter and candidate (after)'s change against baseline (before)", () => {
+	it("shows cost and reply-length means beside all three observed ranges, units and coverage", () => {
 		renderWhatMoved([REPLY_LENGTH, COST]);
 
-		expect(cell("reply length", "Measure")).toHaveTextContent(
-			"reply lengthmeter",
+		expect(cell("Reply length", "Baseline (before)")).toHaveTextContent(
+			"524 words · n=2",
 		);
-		expect(cell("reply length", "Baseline (before)")).toHaveTextContent(
-			"524 words",
+		const words = cell("Reply length", "Range and uncertainty");
+		expect(words).toHaveTextContent("259 words to 325 words · 292 words mean");
+		expect(words).toHaveTextContent("510 words to 537 words · 524 words mean");
+		expect(words).toHaveTextContent("396 words to 468 words · 432 words mean");
+		expect(words).toHaveTextContent(
+			"Mean and observed range · candidate mean -17% vs baseline",
 		);
-		expect(cell("reply length", "Spread across 2 attempts")).toHaveTextContent(
-			"baseline (before) 510 to 537 words · candidate (after) 396 to 468 words · -17%",
+		expect(words).not.toHaveTextContent("confidence");
+		expect(cell("Cost per attempt", "Candidate (after)")).toHaveTextContent(
+			"$2.40 · n=2",
 		);
-		expect(cell("cost per attempt", "Candidate (after)")).toHaveTextContent(
-			"$2.40",
+		expect(cell("Cost per attempt", "Range and uncertainty")).toHaveTextContent(
+			"$2.30 to $2.50 · $2.40 mean",
 		);
 	});
 
-	it("points a meter's reading down when candidate (after) ran higher, since more cost or words reads worse", () => {
+	it("names candidate as the arm that ran higher when its cost exceeds baseline", () => {
 		renderWhatMoved([COST]);
 
-		expect(cell("cost per attempt", "Reading")).toHaveTextContent(
-			"↓candidate (after) ran higher",
+		expect(cell("Cost per attempt", "Baseline (before)")).toHaveTextContent(
+			"$2.00 · n=2",
+		);
+		expect(cell("Cost per attempt", "Candidate (after)")).toHaveTextContent(
+			"$2.40 · n=2",
+		);
+		expect(cell("Cost per attempt", "Candidate vs baseline")).toHaveTextContent(
+			"candidate (after) ran higher",
 		);
 	});
 
-	it.each([
-		["scope-declared", BLOCKER, "├┼┼┼┼┼┼┼───┤"],
-		["reply length", REPLY_LENGTH, "├───── ──┤"],
-	])("draws the %s spread on its own axis", (measure, row, drawing) => {
-		renderWhatMoved([row]);
-
-		expect(
-			within(cell(measure, "Spread across 2 attempts")).getByText(drawing, {
-				normalizer: getDefaultNormalizer({ collapseWhitespace: false }),
-			}),
-		).toBeInTheDocument();
-	});
-
-	it("counts only baseline and candidate in the spread's heading, since only they are drawn", () => {
-		renderWhatMoved([OVERALL], { control: 2, baseline: 3, candidate: 3 });
-
-		expect(
-			within(table()).getByRole("columnheader", {
-				name: "Spread across 3 attempts",
-			}),
-		).toBeInTheDocument();
-	});
-
-	it("names the spread across attempts without a count when baseline and candidate hold different numbers", () => {
+	it("preserves each arm's saved attempt denominator when they differ", () => {
 		renderWhatMoved([OVERALL], { control: 2, baseline: 3, candidate: 2 });
 
-		expect(
-			within(table()).getByRole("columnheader", {
-				name: "Spread across attempts",
-			}),
-		).toBeInTheDocument();
+		expect(screen.getByText(/Saved attempts:/u)).toHaveTextContent(
+			"Control 2 · Baseline (before) 3 · Candidate (after) 2",
+		);
 	});
 
-	describe("when an arm recorded nothing to measure", () => {
-		it("reads the row unavailable, never inside rerun noise, and says why", () => {
-			renderWhatMoved([UNRECORDED_LENGTH]);
+	it("keeps a missing measure unavailable with its reason and draws no range", () => {
+		renderWhatMoved([UNRECORDED_LENGTH]);
 
-			expect(cell("reply length", "Reading")).toHaveTextContent("?unavailable");
-			expect(cell("reply length", "Reading")).not.toHaveTextContent(
-				"inside rerun noise",
-			);
-			expect(cell("reply length", "Baseline (before)")).toHaveTextContent(
-				"not recorded",
-			);
-			expect(
-				cell("reply length", "Spread across 2 attempts"),
-			).toHaveTextContent(UNRECORDED);
-		});
+		expect(cell("Reply length", "Candidate vs baseline")).toHaveTextContent(
+			"unavailable",
+		);
+		expect(cell("Reply length", "Baseline (before)")).toHaveTextContent(
+			"Not recorded",
+		);
+		expect(cell("Reply length", "Range and uncertainty")).toHaveTextContent(
+			UNRECORDED,
+		);
+		expect(
+			within(cell("Reply length", "Range and uncertainty")).queryByRole(
+				"figure",
+			),
+		).not.toBeInTheDocument();
 	});
 });

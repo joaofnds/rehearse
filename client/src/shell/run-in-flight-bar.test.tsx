@@ -452,7 +452,7 @@ describe("what a screen reader hears of a run in flight", () => {
 		expect(bar()).not.toHaveAttribute("aria-live");
 	});
 
-	it("announces a stage accepted", () => {
+	it("announces a stage continuing", () => {
 		const { rerender } = renderRunInFlight([
 			runRow({ grades: [notYet("plan"), notYet("build")] }),
 		]);
@@ -460,7 +460,7 @@ describe("what a screen reader hears of a run in flight", () => {
 		rerender([runRow({ grades: [graded("plan", "B+"), notYet("build")] })]);
 
 		expect(screen.getByRole("status")).toHaveTextContent(
-			"r-0148 step 1 of 2 accepted: plan B+",
+			"r-0148 step 1 of 2 continued: plan B+",
 		);
 	});
 
@@ -495,7 +495,7 @@ describe("what a screen reader hears of a run in flight", () => {
 		expect(screen.getByRole("status")).toBeEmptyDOMElement();
 	});
 
-	it("announces a stage accepted while a reading could not read the stages", () => {
+	it("announces a stage continuing while a reading could not read the stages", () => {
 		const { rerender } = renderRunInFlight([
 			runRow({
 				grades: [graded("plan", "B+"), notYet("design"), notYet("build")],
@@ -510,7 +510,7 @@ describe("what a screen reader hears of a run in flight", () => {
 		]);
 
 		expect(screen.getByRole("status")).toHaveTextContent(
-			"r-0148 step 2 of 3 accepted: design A-",
+			"r-0148 step 2 of 3 continued: design A-",
 		);
 	});
 

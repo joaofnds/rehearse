@@ -40,12 +40,12 @@ function Claim({
 		case "attributable": {
 			return (
 				<p>
-					The only difference between baseline and candidate is{" "}
+					The only recorded corpus difference between baseline and candidate is{" "}
 					<code className="font-mono text-pale">
 						{attribution.differingPath}
 					</code>
-					. Every other file is identical across the arms, so a movement between
-					them is attributable to that file.
+					. This isolates the corpus edit to one file; the repeated outcomes and
+					their uncertainty determine what the comparison supports.
 				</p>
 			);
 		}

@@ -13,6 +13,10 @@ import { comparisonSubline, comparisonTitle } from "./comparison-header";
 import type { ComparisonResponse } from "./comparison-response";
 import { ReadWithCare, WhatThePairingSays } from "./pairing-cards";
 import { WhatMoved } from "./what-moved";
+import { SessionAssessment } from "./session-assessment";
+import { SummaryPanel } from "#client/system/components/summary-panel";
+import { qualityReadingText } from "./reading-text";
+import type { WhatMovedRow } from "#server/comparison-what-moved";
 
 const PRESENTATIONS = ["What moved", "Attempt pairs"] as const;
 type Presentation = (typeof PRESENTATIONS)[number];
@@ -54,7 +58,7 @@ function attemptsPerArm(
 function evaluationScope(mode: ComparisonResponse["report"]["mode"]): string {
 	switch (mode) {
 		case "session": {
-			return "Passed means the saved session checks passed, including state checks where declared; no independent final workflow outcome is measured.";
+			return "Recorded session check outcomes and saved state checks are shown separately; no independent final workflow outcome is measured.";
 		}
 		case "pipeline": {
 			return "The final workflow outcome is judged independently of intermediate step grades. Read each named measure separately.";
@@ -70,14 +74,10 @@ function evaluationScope(mode: ComparisonResponse["report"]["mode"]): string {
 
 function CaseLead({
 	caseId,
-	mode,
 	attribution,
-	attempts,
 }: {
 	readonly caseId: string;
-	readonly mode: ComparisonResponse["report"]["mode"];
 	readonly attribution: ComparisonResponse["attribution"][string][string];
-	readonly attempts: ComparisonResponse["attempts"][string];
 }): React.JSX.Element {
 	const change =
 		attribution.claim === "identical"
@@ -88,14 +88,45 @@ function CaseLead({
 		<header className="flex flex-col gap-1">
 			<h2 className="text-17 font-medium">{caseId}</h2>
 			<p className="text-13 text-secondary-foreground">{change}</p>
-			<p className="text-12 text-muted-foreground">{evaluationScope(mode)}</p>
-			<p className="text-12 text-muted-foreground">
+		</header>
+	);
+}
+
+function AssessmentOverview({
+	mode,
+	attempts,
+	rows,
+	sessionAssessment,
+}: {
+	readonly mode: ComparisonResponse["report"]["mode"];
+	readonly attempts: ComparisonResponse["attempts"][string];
+	readonly rows: readonly WhatMovedRow[];
+	readonly sessionAssessment:
+		| NonNullable<ComparisonResponse["sessionAssessments"]>[string]
+		| undefined;
+}): React.JSX.Element {
+	if (mode === "session") {
+		return <SessionAssessment assessment={sessionAssessment} />;
+	}
+
+	const primary = rows
+		.filter((row) => row.kind === "overall")
+		.find((row) => mode !== "pipeline" || row.name === "final");
+	const reading = primary?.readings[armPairKey("candidate", "baseline")];
+	const title =
+		primary === undefined || reading === undefined
+			? "Outcome comparison unavailable"
+			: `${primary.name === "final" ? "Final workflow outcome" : primary.name} · ${qualityReadingText(reading.verdict).phrase}`;
+
+	return (
+		<SummaryPanel title={title} description={evaluationScope(mode)}>
+			<p className="text-13 text-muted-foreground">
 				Saved attempts · baseline (before) {attempts.baseline.length} ·
 				candidate (after) {attempts.candidate.length} · control{" "}
 				{attempts.control.length}. Read each measure’s coverage and uncertainty
 				before attributing a change.
 			</p>
-		</header>
+		</SummaryPanel>
 	);
 }
 
@@ -127,11 +158,12 @@ function WhatMovedPresentation({
 			aria-label={`What moved · ${caseId}`}
 			className="flex flex-col gap-4"
 		>
-			<CaseLead
-				caseId={caseId}
+			<CaseLead caseId={caseId} attribution={attribution} />
+			<AssessmentOverview
 				mode={comparison.report.mode}
-				attribution={attribution}
 				attempts={attempts}
+				rows={comparison.whatMoved[caseId] ?? []}
+				sessionAssessment={comparison.sessionAssessments?.[caseId]}
 			/>
 			<WhatMoved
 				caseId={caseId}
@@ -178,11 +210,12 @@ function AttemptPairsPresentation({
 			aria-label={`Attempt pairs · ${caseId}`}
 			className="flex flex-col gap-4"
 		>
-			<CaseLead
-				caseId={caseId}
+			<CaseLead caseId={caseId} attribution={attribution} />
+			<AssessmentOverview
 				mode={comparison.report.mode}
-				attribution={attribution}
 				attempts={attempts}
+				rows={comparison.whatMoved[caseId] ?? []}
+				sessionAssessment={comparison.sessionAssessments?.[caseId]}
 			/>
 			<AttemptPairs
 				digest={digest}

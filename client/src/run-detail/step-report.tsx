@@ -310,15 +310,46 @@ function JudgedSections({
 	return (
 		<div className="min-w-0">
 			<SectionTitle>Hard blockers</SectionTitle>
+			{judge.hardBlockers.length === 0 ? (
+				<p className="mt-2 text-13 text-muted-foreground">
+					No hard blocker results were recorded.
+				</p>
+			) : null}
 			<BlockerRows
 				run={run}
 				stage={stage}
-				rows={judge.hardBlockers.map(({ id, status, evidence }) => ({
-					id,
-					state: blockerState(status),
-					evidence,
-				}))}
+				rows={judge.hardBlockers
+					.filter(({ status }) => status === "FAIL")
+					.map(({ id, status, evidence }) => ({
+						id,
+						state: blockerState(status),
+						evidence,
+					}))}
 			/>
+			{judge.hardBlockers.some(({ status }) => status === "PASS") ? (
+				<details className="mt-3">
+					<summary className="cursor-pointer text-13 text-muted-foreground">
+						{plural(
+							judge.hardBlockers.filter(({ status }) => status === "PASS")
+								.length,
+							"clear blocker",
+						)}{" "}
+						&amp; citations
+					</summary>
+					<BlockerRows
+						label="Clear hard blockers"
+						run={run}
+						stage={stage}
+						rows={judge.hardBlockers
+							.filter(({ status }) => status === "PASS")
+							.map(({ id, status, evidence }) => ({
+								id,
+								state: blockerState(status),
+								evidence,
+							}))}
+					/>
+				</details>
+			) : null}
 			<SectionTitle>Quality dimensions</SectionTitle>
 			<DimensionRows run={run} stage={stage} rows={notedDimensions(judge)} />
 		</div>

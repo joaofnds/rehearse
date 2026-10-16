@@ -7,11 +7,13 @@ import { ScreenHeader } from "#client/system/components/screen-header";
 import { TableShell } from "#client/system/components/table-shell";
 import type { ComparisonIndexResponse } from "./comparison-index-query";
 import { comparisonIndexQuery } from "./comparison-index-query";
+import { corpusVersionText } from "./design-arms";
 
 type SavedComparison = ComparisonIndexResponse["comparisons"][number];
 
 const COLUMNS = [
 	"Case comparison",
+	"Instruction change",
 	"Evaluation",
 	"Requested per arm",
 	"Record",
@@ -29,6 +31,28 @@ function rowFor(comparison: SavedComparison): readonly React.ReactNode[] {
 				{comparison.digest.slice(0, 12)}
 			</span>
 		</Link>,
+		<div key="change" className="flex flex-col gap-3 text-13">
+			{comparison.details === undefined ? (
+				<span className="text-muted-foreground">
+					Change details not recorded
+				</span>
+			) : (
+				comparison.details.map((detail) => (
+					<div key={detail.caseId} className="flex flex-col gap-1">
+						{comparison.caseIds.length > 1 ? (
+							<span className="font-medium">{detail.caseId}</span>
+						) : null}
+						<span>
+							{detail.changedPaths.length === 0
+								? "Identical corpora"
+								: detail.changedPaths.join(", ")}
+						</span>
+						<span className="text-12 text-muted-foreground">{`Baseline ${corpusVersionText(detail.corpusVersions.baseline)} → candidate ${corpusVersionText(detail.corpusVersions.candidate)}`}</span>
+						<span className="text-12 text-muted-foreground">{`Control ${corpusVersionText(detail.corpusVersions.control)}`}</span>
+					</div>
+				))
+			)}
+		</div>,
 		<span key="mode" className="text-13">
 			{comparison.mode}
 		</span>,
@@ -40,6 +64,7 @@ function rowFor(comparison: SavedComparison): readonly React.ReactNode[] {
 			<code className="mt-2 block font-mono break-all">
 				{comparison.digest}
 			</code>
+			<p className="mt-2">Comparison time not recorded</p>
 		</details>,
 	];
 }

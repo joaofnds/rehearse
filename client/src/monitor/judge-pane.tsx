@@ -15,8 +15,17 @@ import {
 } from "./judged-items";
 import { PendingLine } from "./pending-line";
 import { rerunSpreadSentence } from "./rerun-spread";
-import type { EndedStage, MonitoredStage } from "./run-record-query";
-import { endedStatus, hasEnded, runRecordQuery } from "./run-record-query";
+import type {
+	EndedStage,
+	MonitoredStage,
+	RunRecordResponse,
+} from "./run-record-query";
+import {
+	endedStatus,
+	hasEnded,
+	runRecordQuery,
+	continuationReading,
+} from "./run-record-query";
 import type { StageJudgeResponse } from "./stage-judge-query";
 import { stageJudgeQuery } from "./stage-judge-query";
 
@@ -119,7 +128,11 @@ function pendingVerdict(phrase: string): Verdict {
 	};
 }
 
-function judgedVerdict(judge: JudgedAnswer, figures: EndedStage): Verdict {
+function judgedVerdict(
+	judge: JudgedAnswer,
+	figures: EndedStage,
+	minimum: RunRecordResponse["minimumGrade"] | undefined,
+): Verdict {
 	const ended = endedStatus(figures);
 	const fired = judge.hardBlockers.filter(
 		({ status }) => status === "FAIL",
@@ -127,7 +140,7 @@ function judgedVerdict(judge: JudgedAnswer, figures: EndedStage): Verdict {
 
 	return {
 		glyph: STATUS_VOCABULARY[ended].glyph,
-		phrase: `${STATUS_VOCABULARY[ended].word}: ${plural(fired, "blocker")} fired`,
+		phrase: `${ended === "accepted" ? continuationReading(minimum) : STATUS_VOCABULARY[ended].word}: ${plural(fired, "blocker")} fired`,
 		grade:
 			figures.grade.state === "available" ? figures.grade.letter : undefined,
 	};
@@ -304,6 +317,7 @@ export function JudgePane({
 }): React.JSX.Element {
 	const { stage } = figures;
 	const { data, isError } = useQuery(stageJudgeQuery(run, stage));
+	const record = useQuery(runRecordQuery(run));
 	const meta = data === undefined ? undefined : judgeMeta(data, figures);
 	const client = useQueryClient();
 	const lagging = data?.state === "judged" && !hasEnded(figures);
@@ -365,7 +379,7 @@ export function JudgePane({
 						verdict={
 							// The run record can lag the judge's answer by one read.
 							hasEnded(figures)
-								? judgedVerdict(data, figures)
+								? judgedVerdict(data, figures, record.data?.minimumGrade)
 								: pendingVerdict(GRADE_NOT_RECORDED)
 						}
 						items={judgedItems(data)}

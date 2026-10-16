@@ -63,7 +63,10 @@ function MeasureReading({
 	readonly figure: MeasureFigure;
 	readonly named: boolean;
 }): React.JSX.Element {
-	const label = named ? `${name} · ` : "";
+	let label = named ? `${name} · ` : "";
+	if (name === "checks") {
+		label = "recorded check outcome · ";
+	}
 
 	if (figure.scale === "successRate") {
 		return (

@@ -299,13 +299,15 @@ export function BlockerRows({
 	run,
 	stage,
 	rows,
+	label = "Hard blockers",
 }: {
 	readonly run: string;
 	readonly stage: string;
 	readonly rows: readonly BlockerRow[];
+	readonly label?: string;
 }): React.JSX.Element {
 	return (
-		<ul aria-label="Hard blockers" className="mt-2.5 flex flex-col gap-px">
+		<ul aria-label={label} className="mt-2.5 flex flex-col gap-px">
 			{rows.map((row) => {
 				const tone = BLOCKER_TONES[row.state];
 

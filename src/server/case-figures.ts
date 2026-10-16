@@ -1,4 +1,6 @@
 import { atLatestCorpusVersion } from "./latest-corpus-version";
+import type { SavedStateAssessment } from "./saved-state-assessment";
+import type { SessionAttemptRecord } from "#benchmark/session-record";
 
 /**
  * One run of a case as its figures read it: a pipeline run, a session
@@ -13,6 +15,9 @@ export interface CaseRun {
 	readonly passed: boolean | undefined;
 	/** Undefined where the records do not hold the run's whole cost. */
 	readonly costUsd: number | undefined;
+	readonly savedState?: SavedStateAssessment;
+	readonly recordedOutcome?: SessionAttemptRecord["outcome"];
+	readonly replyChecks?: { readonly passed: number; readonly total: number };
 }
 
 export interface CostPerRun {

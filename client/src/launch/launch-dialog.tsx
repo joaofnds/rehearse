@@ -137,6 +137,18 @@ function attemptsLabel(attempts: number): string {
 	return attempts === 1 ? "1 attempt" : `${String(attempts)} attempts`;
 }
 
+function launchBudgetReading(
+	ceilingUsd: number | undefined,
+	pending: boolean,
+): string {
+	if (pending) {
+		return "Reading saved default…";
+	}
+	return ceilingUsd === undefined
+		? "No saved default"
+		: `$${storedCeilingEntry(ceilingUsd)} per attempt · saved default`;
+}
+
 /**
  * A group's attempts each run under the stored ceiling and all of them
  * together under the group ceiling. A call already in flight when the ceiling
@@ -210,9 +222,22 @@ function SpendCeilingField({
 	const usd = enteredCeilingUsd(entered);
 
 	return (
-		<>
+		<section
+			aria-label="Saved spending default"
+			className="rounded-md border border-divider p-3"
+		>
+			<h3 className="text-14 font-medium">Saved spending default</h3>
+			<p className="mt-1 text-12 text-secondary-foreground">
+				Start uses the saved default; this dialog has no per-launch override.
+			</p>
+			<label
+				htmlFor="launch-spend-ceiling"
+				className="mt-3 block text-12 text-muted-foreground"
+			>
+				Default ceiling per attempt
+			</label>
 			<form
-				className="flex items-center gap-2"
+				className="mt-1 flex flex-wrap items-center gap-2"
 				onSubmit={(event) => {
 					event.preventDefault();
 					if (usd !== undefined) {
@@ -240,16 +265,30 @@ function SpendCeilingField({
 					size="sm"
 					disabled={usd === undefined || store.isPending}
 				>
-					Store ceiling
+					Save default
 				</Button>
+				{storedUsd !== undefined && holdsUnstoredCeiling(draft, storedUsd) ? (
+					<Button
+						type="button"
+						size="sm"
+						variant="quiet"
+						disabled={store.isPending}
+						onClick={() => {
+							onDraft(undefined);
+						}}
+					>
+						Use saved default
+					</Button>
+				) : null}
 			</form>
 			<p className="mt-1 text-12 text-secondary-foreground">
-				Storing this ceiling changes future browser launches and CLI runs,
-				including this launch.
+				Saving changes the default for this launch and future browser launches
+				and CLI runs.
 			</p>
 			{holdsUnstoredCeiling(draft, storedUsd) ? (
 				<p className="mt-1 text-12 text-muted-foreground">
-					Store this ceiling to start, or the launch holds to the stored one.
+					Unsaved default change. Save the default or restore the saved value
+					before starting.
 				</p>
 			) : null}
 			{store.isError ? (
@@ -258,7 +297,7 @@ function SpendCeilingField({
 					{store.error.message}
 				</p>
 			) : null}
-		</>
+		</section>
 	);
 }
 
@@ -816,15 +855,9 @@ function LaunchForm({
 							onSelectCase={setPickedCase}
 						/>
 					)}
-					<dt className="text-muted-foreground">
-						<label htmlFor="launch-spend-ceiling">Spend ceiling</label>
-					</dt>
+					<dt className="text-muted-foreground">Launch ceiling</dt>
 					<dd className="col-span-3">
-						<SpendCeilingField
-							storedUsd={ceilingUsd}
-							draft={ceilingDraft}
-							onDraft={setCeilingDraft}
-						/>
+						{launchBudgetReading(ceilingUsd, settings.isPending)}
 					</dd>
 					{target.kind === "comparison" ||
 					target.kind === "extension" ? null : (
@@ -856,13 +889,18 @@ function LaunchForm({
 					cases={availableCases}
 					caseId={caseId}
 				/>
+				<SpendCeilingField
+					storedUsd={ceilingUsd}
+					draft={ceilingDraft}
+					onDraft={setCeilingDraft}
+				/>
 				<p className="text-12 text-secondary-foreground">
 					Ceilings bound spending; they are not projected charges.
 				</p>
 				<CaseListProblems failure={cases.error?.message} listing={cases.data} />
 				{settings.data !== undefined && ceilingUsd === undefined ? (
 					<Notice
-						message="No spend ceiling is stored, and nothing starts without one. Store one above, or set it in a terminal with:"
+						message="No spend ceiling is saved. Save a default above before starting, or set it in a terminal with:"
 						items={[settings.data.setCommand]}
 					/>
 				) : null}

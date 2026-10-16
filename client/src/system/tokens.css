@@ -31,6 +31,12 @@
 	--color-accent-tint-08: rgba(145, 132, 217, 0.08);
 	--color-danger: #c04a5e;
 	--color-danger-foreground: #f7ecef;
+	--color-positive: #a3c8b0;
+	--color-positive-surface: rgba(163, 200, 176, 0.1);
+	--color-negative: #edafb9;
+	--color-negative-surface: rgba(237, 175, 185, 0.1);
+	--color-attention: #d6bd88;
+	--color-attention-surface: rgba(214, 189, 136, 0.1);
 	--color-diff-add: #1f2b2a;
 	--color-diff-remove: #2b2136;
 	/* Not in SPEC.md's Design Tokens table; used for the corpus pill, the run-id

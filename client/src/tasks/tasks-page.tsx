@@ -47,8 +47,8 @@ export function TasksPage({
 		<div>
 			{embedded ? null : (
 				<ScreenHeader
-					title="Tasks"
-					subline="A task is a chain of steps against a base repository · declared as the pipeline file a case names, or chosen by a run"
+					title="Workflows"
+					subline="Reusable step definitions for workflow cases"
 					aside={
 						<span className="flex gap-2.5">
 							<ImportTaskDialog onImported={setImportedPath} />
@@ -64,7 +64,7 @@ export function TasksPage({
 						<div>
 							<h2 className="text-16 font-medium">Workflow definitions</h2>
 							{caseId === undefined ? null : (
-								<p className="text-11-5 text-muted-foreground">
+								<p className="text-12 text-muted-foreground">
 									Showing workflows used by{" "}
 									<span className="font-mono">{caseId}</span>
 									{" · "}
@@ -84,16 +84,14 @@ export function TasksPage({
 						</span>
 					</div>
 				) : null}
-				<p className="max-w-prose text-sm text-muted-foreground">
-					A step is judged on what went into it and what came out. A task is
-					judged from the first input and the last artifact only, so the same
-					work as four steps and as one step produce comparable task grades. A
-					task exports with its judges as one file, which another checkout
-					imports as a new case.
+				<p className="max-w-prose text-14 text-muted-foreground">
+					A workflow defines steps and their judges. Its final judge evaluates
+					the whole output. Export a definition with its judges to import it as
+					a case in another checkout.
 				</p>
 
 				{importedPath === undefined ? null : (
-					<p role="status" className="text-sm text-secondary-foreground">
+					<p role="status" className="text-13 text-secondary-foreground">
 						{`Imported ${importedPath}. It is uncommitted: review and commit it to keep the case.`}
 					</p>
 				)}
@@ -104,7 +102,7 @@ export function TasksPage({
 				{query.isError ? (
 					<p role="alert" className="text-muted-foreground">
 						<span aria-hidden="true">⚠ </span>
-						Could not load the tasks.
+						Could not load the workflows.
 					</p>
 				) : null}
 
@@ -117,7 +115,7 @@ export function TasksPage({
 				{caseId !== undefined &&
 				query.isSuccess &&
 				visibleTasks.length === 0 ? (
-					<p className="text-11-5 text-muted-foreground">
+					<p className="text-12 text-muted-foreground">
 						No workflow definition is recorded for this case.
 					</p>
 				) : null}

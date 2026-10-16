@@ -14,7 +14,7 @@ export function FilterPill({
 			type="button"
 			aria-pressed={pressed}
 			onClick={onPress}
-			className="rounded-full border border-strong px-3 py-1 text-sm text-secondary-foreground transition-colors hover:border-primary hover:bg-accent aria-pressed:border-primary aria-pressed:bg-selected aria-pressed:text-pale"
+			className="rounded-full border border-strong px-3 py-1 text-12 text-secondary-foreground transition-colors hover:border-primary hover:bg-accent aria-pressed:border-primary aria-pressed:bg-selected aria-pressed:text-pale"
 		>
 			{children}
 		</button>

@@ -25,7 +25,12 @@ import {
 	DialogTitle,
 	DialogTrigger,
 } from "#client/system/ui/dialog";
-import { stageReplayRefusal, endedStatus, hasEnded } from "./run-record-query";
+import {
+	stageReplayRefusal,
+	endedStatus,
+	hasEnded,
+	continuationReading,
+} from "./run-record-query";
 import type { MonitoredStage, RunRecordResponse } from "./run-record-query";
 import { stageJudgeQuery } from "./stage-judge-query";
 import type { StageJudgeResponse } from "./stage-judge-query";
@@ -50,10 +55,18 @@ function figuresReading(stage: MonitoredStage): string {
 	].join(" · ");
 }
 
-function verdictReading(stage: MonitoredStage): string {
-	return hasEnded(stage)
-		? STATUS_VOCABULARY[endedStatus(stage)].word
-		: STATUS_VOCABULARY.pending.word;
+function verdictReading(
+	stage: MonitoredStage,
+	record: RunRecordResponse,
+): string {
+	if (!hasEnded(stage)) {
+		return STATUS_VOCABULARY.pending.word;
+	}
+	const status = endedStatus(stage);
+
+	return status === "accepted"
+		? continuationReading(record.minimumGrade)
+		: STATUS_VOCABULARY[status].word;
 }
 
 /** The stage's grade as a letter, or why the header has none to show. */
@@ -78,9 +91,11 @@ function GradeReading({
 function ModalHeader({
 	stage,
 	number,
+	record,
 }: {
 	readonly stage: MonitoredStage;
 	readonly number: number;
+	readonly record: RunRecordResponse;
 }): React.JSX.Element {
 	return (
 		<header className="flex flex-none flex-wrap items-center gap-3 border-b border-strong px-4 py-3">
@@ -93,7 +108,7 @@ function ModalHeader({
 			</span>
 			<span className="ml-auto flex items-center gap-2.25">
 				<span className="text-11-5 text-secondary-foreground">
-					verdict {verdictReading(stage)}
+					verdict {verdictReading(stage, record)}
 				</span>{" "}
 				<GradeReading stage={stage} />
 				<DialogClose asChild>
@@ -549,7 +564,7 @@ export function StepModalAction({
 				</Button>
 			</DialogTrigger>
 			<DialogContent width="wide">
-				<ModalHeader stage={stage} number={number} />
+				<ModalHeader stage={stage} number={number} record={record} />
 				<div className="grid flex-1 grid-cols-2 gap-4.5 overflow-y-auto px-4 py-3.5">
 					<WhatWentIn record={record} stage={stage} />
 					<WhatCameOut run={run} record={record} stage={stage} />

@@ -21,7 +21,7 @@ import { Grade } from "#client/system/components/grade";
 import { LiveGlyph, STATUS_VOCABULARY } from "#client/system/components/status";
 import type { StatusState } from "#client/system/components/status";
 import { withinCase } from "#client/within-case";
-import { endedStatus, hasEnded } from "./run-record-query";
+import { continuationReading, endedStatus, hasEnded } from "./run-record-query";
 import type { MonitoredStage, RunRecordResponse } from "./run-record-query";
 import { minutesAndSeconds } from "./minutes-and-seconds";
 import { stageSessionQuery } from "./stage-session-query";
@@ -88,7 +88,13 @@ export function nodeStatus(
 	if (hasEnded(stage)) {
 		const ended = endedStatus(stage);
 
-		return { state: ended, words: STATUS_VOCABULARY[ended].word };
+		return {
+			state: ended,
+			words:
+				ended === "accepted"
+					? continuationReading(record.minimumGrade)
+					: STATUS_VOCABULARY[ended].word,
+		};
 	}
 	if (stage.status === "awaiting-judgment") {
 		if (hasRunEnded(row)) {
@@ -486,7 +492,8 @@ export function TaskGraph({
 				) : null}
 				{detailsShown ? (
 					<span aria-hidden="true" className="ml-auto text-10-5 text-dim">
-						✓ accepted · ● running · ○ queued · ◆ checkpoint · ◇ no checkpoint
+						✓ continued at minimum · ● running · ○ queued · ◆ checkpoint · ◇ no
+						checkpoint
 					</span>
 				) : null}
 			</div>

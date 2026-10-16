@@ -13,7 +13,11 @@ import type {
 	SessionAttemptRow,
 	ReplayRow,
 } from "#server/run-history";
-import { matchesDiscovery } from "./run-discovery";
+import {
+	matchesDiscovery,
+	recordIdentity,
+	sortDiscoveredRows,
+} from "./run-discovery";
 
 const originalFetch = globalThis.fetch;
 afterEach(() => {
@@ -198,6 +202,9 @@ it("restores discovery from the Runs navigation after inspecting a run", async (
 	await screen.findByRole("table", { name: "Run history" });
 	fireEvent.click(screen.getByRole("button", { name: "Failed" }));
 	fireEvent.click(screen.getByRole("button", { name: "Current corpus" }));
+	fireEvent.change(screen.getByRole("combobox", { name: "Sort runs" }), {
+		target: { value: "cost" },
+	});
 	fireEvent.change(screen.getByRole("searchbox", { name: "Search runs" }), {
 		target: { value: "audit/failed" },
 	});
@@ -206,6 +213,7 @@ it("restores discovery from the Runs navigation after inspecting a run", async (
 			query: "audit/failed",
 			status: "failed",
 			corpus: "current",
+			sort: "cost",
 		});
 	});
 	fireEvent.click(
@@ -233,6 +241,222 @@ it("restores discovery from the Runs navigation after inspecting a run", async (
 	expect(
 		screen.getByRole("button", { name: "Current corpus" }),
 	).toHaveAttribute("aria-pressed", "true");
+	expect(screen.getByRole("combobox", { name: "Sort runs" })).toHaveValue(
+		"cost",
+	);
+});
+
+it("orders mixed record kinds by the instant their records actually name", () => {
+	const pipeline = run("2026-10-01T10-30-00.000Z");
+	const session: SessionAttemptRow = {
+		...UNREAD_SESSION_ATTEMPT_FIGURES,
+		kind: "session-attempt",
+		recordId: "session:timed",
+		uuid: "timed-session",
+		caseId: "audit",
+		shortId: undefined,
+		status: "SUCCESSFUL",
+		startedAt: "2026-10-01T10:45:00.000Z",
+		corpusVersion: undefined,
+		staleness: pipeline.staleness,
+		links: [],
+	};
+	const group: ConfirmationGroupRow = {
+		...UNREAD_GROUP_FIGURES,
+		kind: "group",
+		recordId: "group:timed",
+		groupId: "timed-group",
+		caseId: "audit",
+		shortId: undefined,
+		mode: "session",
+		reps: 1,
+		startedAt: "2026-10-01T10:15:00.000Z",
+		corpusVersion: undefined,
+		staleness: pipeline.staleness,
+		checkpoint: undefined,
+		repAttempts: [],
+		links: [],
+	};
+	const replay: ReplayRow = {
+		...UNREAD_REPLAY_FIGURES,
+		kind: "replay",
+		recordId: "replay:timed",
+		lineage: "lineage",
+		timestamp: "2026-10-01T11-00-00.000Z",
+		shortId: undefined,
+		checkpointShortId: undefined,
+		attempt: undefined,
+		caseId: "audit",
+		stage: "build",
+		grade: "C",
+		status: "STOP",
+		corpusVersion: undefined,
+		staleness: pipeline.staleness,
+		links: [],
+	};
+	const untimed = { ...session, uuid: "legacy-session", startedAt: undefined };
+	const rows = [pipeline, session, group, untimed, replay];
+	expect(
+		sortDiscoveredRows(rows, "newest").map((row) => recordIdentity(row)),
+	).toEqual([
+		replay.timestamp,
+		session.uuid,
+		pipeline.run,
+		group.groupId,
+		untimed.uuid,
+	]);
+	expect(
+		sortDiscoveredRows(rows, "oldest").map((row) => recordIdentity(row)),
+	).toEqual([
+		group.groupId,
+		pipeline.run,
+		session.uuid,
+		replay.timestamp,
+		untimed.uuid,
+	]);
+});
+
+function visibleRunIds(): readonly string[] {
+	return within(screen.getByRole("table", { name: "Run history" }))
+		.getAllByRole("row")
+		.slice(1)
+		.map((row) => {
+			const link = within(within(row).getByRole("rowheader")).getByRole("link");
+			return decodeURIComponent(
+				new URL(link.getAttribute("href") ?? "", "http://localhost").pathname
+					.split("/")
+					.at(-1) ?? "",
+			);
+		});
+}
+
+it("sorts records through the URL with missing dates and incomplete costs last", async () => {
+	const newer = "2026-10-10T12-30-00.000Z";
+	const older = "2026-10-01T10-00-00.000Z";
+	const partial = "2026-10-05T11-00-00.000Z";
+	const router = renderAppWithStub(
+		"/?status=failed&query=audit",
+		new Map([
+			[
+				"/api/runs",
+				{
+					rows: [
+						{ ...run("legacy", "FAIL"), caseId: undefined },
+						{
+							...run(older, "FAIL"),
+							caseId: "alpha",
+							cost: { state: "available", usd: 5.25, parts: [], missing: [] },
+						},
+						{
+							...run(newer, "FAIL"),
+							caseId: "zeta",
+							cost: { state: "available", usd: 2.1, parts: [], missing: [] },
+						},
+						{
+							...run(partial, "FAIL"),
+							caseId: "gamma",
+							cost: {
+								state: "available",
+								usd: 100,
+								parts: [],
+								missing: [{ part: "worker", reason: "metrics missing" }],
+							},
+						},
+					],
+					launches: [],
+					unreadable: [],
+				},
+			],
+		]),
+	);
+	await screen.findByRole("table", { name: "Run history" });
+	expect(visibleRunIds()).toEqual([newer, partial, older, "legacy"]);
+	fireEvent.change(screen.getByRole("combobox", { name: "Sort runs" }), {
+		target: { value: "oldest" },
+	});
+	await waitFor(() => {
+		expect(visibleRunIds()).toEqual([older, partial, newer, "legacy"]);
+	});
+	expect(router.state.location.search).toMatchObject({
+		status: "failed",
+		query: "audit",
+		sort: "oldest",
+	});
+	fireEvent.change(screen.getByRole("combobox", { name: "Sort runs" }), {
+		target: { value: "cost" },
+	});
+	await waitFor(() => {
+		expect(visibleRunIds()).toEqual([older, newer, partial, "legacy"]);
+	});
+	expect(
+		screen.getByText(
+			"Cost sorting uses complete reported amounts; partial and missing costs come last.",
+		),
+	).toBeInTheDocument();
+	fireEvent.change(screen.getByRole("combobox", { name: "Sort runs" }), {
+		target: { value: "case" },
+	});
+	await waitFor(() => {
+		expect(visibleRunIds()).toEqual([older, partial, newer, "legacy"]);
+	});
+});
+
+it("keeps active launches separate and ended launch history accessible with consistent counts", async () => {
+	const launch = {
+		kind: "launch",
+		target: "case",
+		caseId: "audit",
+		run: undefined,
+		stage: undefined,
+		attempts: 1,
+		launchedAt: "2026-10-10T12:00:00.000Z",
+	};
+	renderAppWithStub(
+		"/",
+		new Map([
+			[
+				"/api/runs",
+				{
+					rows: [run("saved", "PASS")],
+					launches: [
+						{ ...launch, id: "active-launch", status: "RUNNING" },
+						{ ...launch, id: "ended-launch", status: "OPERATOR_STOPPED" },
+					],
+					unreadable: [],
+				},
+			],
+		]),
+	);
+	const records = await screen.findByRole("table", { name: "Run history" });
+	expect(within(records).getAllByRole("row")).toHaveLength(2);
+	expect(within(records).queryByText(/launch /u)).not.toBeInTheDocument();
+	expect(
+		screen.getByRole("table", { name: "Active launch queue" }),
+	).toHaveTextContent("launch active-l");
+	expect(screen.getByRole("button", { name: "All 3" })).toBeInTheDocument();
+	expect(
+		screen.getByText(
+			"3 of 3 readable entries match · 1 record · 1 active launch · 1 ended launch",
+		),
+	).toBeInTheDocument();
+	expect(screen.queryByText("launch ended-la")).not.toBeInTheDocument();
+	fireEvent.click(
+		screen.getByRole("button", { name: "Ended launch history (1)" }),
+	);
+	expect(
+		screen.getByRole("table", { name: "Ended launches" }),
+	).toHaveTextContent("launch ended-la");
+	fireEvent.click(screen.getByRole("button", { name: "Ended" }));
+	await waitFor(() => {
+		expect(
+			screen.queryByRole("table", { name: "Active launch queue" }),
+		).not.toBeInTheDocument();
+	});
+	expect(
+		screen.getByText(
+			"2 of 3 readable entries match · 1 record · 0 active launches · 1 ended launch",
+		),
+	).toBeInTheDocument();
 });
 
 it("includes stopped steps only when their recorded grade falls below the run's own minimum", async () => {

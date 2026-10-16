@@ -648,7 +648,7 @@ describe("the navigation shell", () => {
 	describe("on a screen that shows no staleness", () => {
 		it.each([
 			["/corpus", "Instruction corpus"],
-			["/tasks", "Tasks"],
+			["/tasks", "Workflows"],
 			["/settings", "Settings"],
 		])(
 			"%s asks for no run history with its staleness judged",

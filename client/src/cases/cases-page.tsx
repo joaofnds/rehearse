@@ -5,6 +5,7 @@ import { Notice } from "#client/system/components/notice";
 import { ScreenHeader } from "#client/system/components/screen-header";
 import { TasksPage } from "#client/tasks/tasks-page";
 import { CaseCard } from "./case-card";
+import { CaseDetail } from "./case-detail";
 import type { CasesResponse } from "./cases-query";
 import { casesQuery } from "./cases-query";
 import { DeclareCaseDialog } from "./declare-case-dialog";
@@ -13,10 +14,12 @@ function SelectedCases({
 	cases,
 	caseId,
 	loaded,
+	corpusVersion,
 }: {
 	readonly cases: CasesResponse["cases"];
 	readonly caseId: string | undefined;
 	readonly loaded: boolean;
+	readonly corpusVersion: string | undefined;
 }): React.JSX.Element {
 	const visibleCases =
 		caseId === undefined
@@ -43,7 +46,12 @@ function SelectedCases({
 				>{`Case ${caseId} was not found among the readable declarations.`}</p>
 			) : null}
 			{visibleCases.map((listed) => (
-				<CaseCard key={listed.id} listed={listed} />
+				<div key={listed.id} className="flex flex-col gap-6">
+					<CaseCard listed={listed} showFigures={caseId === undefined} />
+					{caseId === undefined ? null : (
+						<CaseDetail listed={listed} corpusVersion={corpusVersion} />
+					)}
+				</div>
 			))}
 		</>
 	);
@@ -52,9 +60,11 @@ function SelectedCases({
 export function CasesPage({
 	view = "cases",
 	caseId,
+	corpusVersion,
 }: {
 	readonly view?: "cases" | "workflows";
 	readonly caseId?: string;
+	readonly corpusVersion?: string;
 }): React.JSX.Element {
 	const query = useQuery(casesQuery);
 	const [declaredPath, setDeclaredPath] = useState<string>();
@@ -104,18 +114,14 @@ export function CasesPage({
 				<TasksPage embedded {...(caseId === undefined ? {} : { caseId })} />
 			) : (
 				<div className="flex max-w-7xl flex-col gap-6 px-6 pt-4 pb-12">
-					<p className="max-w-prose text-sm text-muted-foreground">
-						Each case's figures are taken over its runs at one corpus version,
-						the first recorded reading its runs newest first. A session attempt
-						or group recorded before attempts and groups kept a start time comes
-						after every timed run, so for a case only those ran it need not be
-						the newest. A run is a pipeline run, a session attempt, or one
-						attempt of a finished group run on the whole case. Stage replays and
-						stage-mode groups are not counted.
+					<p className="max-w-prose text-14 text-muted-foreground">
+						Open a case to inspect its prompt, evaluation contract and evidence
+						by corpus. Card figures use the newest recorded corpus version
+						available for that case.
 					</p>
 
 					{declaredPath === undefined ? null : (
-						<p role="status" className="text-sm text-secondary-foreground">
+						<p role="status" className="text-13 text-secondary-foreground">
 							{`Declared ${declaredPath}. It is uncommitted: review and commit it to keep the case.`}
 						</p>
 					)}
@@ -149,6 +155,7 @@ export function CasesPage({
 						cases={cases}
 						caseId={caseId}
 						loaded={query.isSuccess}
+						corpusVersion={corpusVersion}
 					/>
 				</div>
 			)}

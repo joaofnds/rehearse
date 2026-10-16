@@ -131,7 +131,7 @@ function acceptedStages(
 		acceptedAfter.has(stage) &&
 		!acceptedBefore.has(stage)
 			? [
-					`${nameOf(after)}${stepWords(stepNamed(after, stage))} accepted: ${stage} ${grade.letter}`,
+					`${nameOf(after)}${stepWords(stepNamed(after, stage))} continued: ${stage} ${grade.letter}`,
 				]
 			: [],
 	);

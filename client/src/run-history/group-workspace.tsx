@@ -1,7 +1,11 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import type { Immutable } from "#benchmark/contracts";
 import { groupAttemptsQuery } from "#client/session-history/group-attempts-query";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueries } from "@tanstack/react-query";
+import { attemptEvidenceQuery } from "#client/session-history/attempt-evidence-query";
+import { SummaryPanel } from "#client/system/components/summary-panel";
+import { Metric } from "#client/system/components/metric";
+import { StateBadge } from "#client/system/components/state-badge";
 import { confirmationRepQuery } from "#client/session-history/confirmation-rep-query";
 import type { ConfirmationRepResult as RepResult } from "#client/session-history/confirmation-rep-query";
 import type { InferResponseType } from "hono/client";
@@ -311,21 +315,122 @@ function SourceComparison({
 	);
 }
 
+function SessionGroupResults({
+	row,
+}: {
+	readonly row: GroupRow;
+}): React.JSX.Element {
+	const index = useQuery(groupAttemptsQuery(row.groupId));
+	const refs = index.data?.repRecords ?? row.repAttempts;
+	const results = useQueries({
+		queries: refs.map(({ repId }) =>
+			attemptEvidenceQuery(`rep:session:${row.groupId}/${repId}`),
+		),
+	});
+	if (index.isPending || results.some(({ isPending }) => isPending)) {
+		return (
+			<SummaryPanel
+				title="Session repetitions"
+				description="Recorded outcomes use reply/transcript checks. Saved state checks remain a separate assessment."
+			>
+				<p className="text-13 text-dim">Reading saved state checks…</p>
+			</SummaryPanel>
+		);
+	}
+	const assessed = results.flatMap(({ data }) =>
+		data?.state === "available" &&
+		data.kind === "session" &&
+		data.record.stateResults !== undefined &&
+		data.record.stateResults.length > 0
+			? [data.record]
+			: [],
+	);
+	const allPassed = assessed.filter(
+		({ stateResults }) =>
+			stateResults?.every(({ status }) => status === "PASS") === true,
+	).length;
+	const missing = row.reps - assessed.length;
+
+	return (
+		<SummaryPanel
+			title="Session repetitions"
+			description="Recorded outcomes use reply/transcript checks. Saved state checks remain a separate assessment."
+		>
+			<dl className="flex flex-wrap gap-6">
+				<Metric
+					label="Recorded outcome"
+					value={`${String(row.successful)} of ${String(row.reps)} recorded successful on reply/transcript checks`}
+					hint={`${String(row.unreadReps.length)} unread result records`}
+				/>
+				<Metric
+					label="Saved state assessment"
+					value={`${String(allPassed)} of ${String(assessed.length)} assessed attempts passed every saved state check`}
+					hint={`${String(assessed.length)} of ${String(row.reps)} attempts have saved state checks`}
+				/>
+			</dl>
+
+			{missing > 0 ? (
+				<p className="mt-3 text-13 text-dim">
+					{missing}{" "}
+					{missing === 1 ? "attempt unavailable" : "attempts unavailable"} or
+					without saved state checks
+				</p>
+			) : null}
+			{assessed.length > allPassed ? (
+				<p className="mt-3 text-14">
+					{assessed.length - allPassed} assessed{" "}
+					{assessed.length - allPassed === 1 ? "attempt has" : "attempts have"}{" "}
+					failed saved state checks. Inspect Attempts for their recorded outcome
+					and evidence.
+				</p>
+			) : null}
+		</SummaryPanel>
+	);
+}
+
+function SessionRepState({
+	groupId,
+	repId,
+}: {
+	readonly groupId: string;
+	readonly repId: string;
+}): React.JSX.Element {
+	const evidence = useQuery(
+		attemptEvidenceQuery(`rep:session:${groupId}/${repId}`),
+	);
+	const record =
+		evidence.data?.state === "available" && evidence.data.kind === "session"
+			? evidence.data.record
+			: undefined;
+	if (record?.stateResults === undefined || record.stateResults.length === 0) {
+		return (
+			<p className="mt-1 text-12 text-dim">
+				{evidence.isLoading
+					? "Reading state checks…"
+					: "Saved state checks unavailable"}
+			</p>
+		);
+	}
+	const passed = record.stateResults.filter(
+		({ status }) => status === "PASS",
+	).length;
+
+	return (
+		<p className="mt-1">
+			<StateBadge
+				tone={passed < record.stateResults.length ? "negative" : "positive"}
+			>
+				{passed} of {record.stateResults.length} saved state checks passed
+			</StateBadge>
+		</p>
+	);
+}
+
 function Results({ row }: { readonly row: GroupRow }): React.JSX.Element {
 	return (
 		<div className="flex flex-col gap-4">
 			{row.mode === "session" ? (
-				<section className="rounded-lg border border-divider bg-card p-4 text-13">
-					<h2 className="font-medium">Session repetitions</h2>
-					<p className="mt-2">
-						{row.successful} of {row.reps} repetitions successful ·{" "}
-						{row.unreadReps.length} unread
-					</p>
-					<p className="mt-2 text-dim">
-						Session repetitions use deterministic checks. Inspect each attempt
-						for the saved reply and individual outcomes.
-					</p>
-				</section>
+				<SessionGroupResults row={row} />
 			) : (
 				<div className="grid gap-4 lg:grid-cols-2">
 					<StageResults row={row} />
@@ -363,7 +468,9 @@ function repStageReading(
 		return item.status.replaceAll("_", " ");
 	}
 	if (mode === "session") {
-		return item.verdict === "CONTINUE" ? "Checks passed" : "Checks failed";
+		return item.verdict === "CONTINUE"
+			? "Reply/transcript checks passed"
+			: "Reply/transcript checks failed";
 	}
 	return `Grade ${item.grade} · ${item.verdict}`;
 }
@@ -389,7 +496,7 @@ function RepOutcomes({
 	}
 	return (
 		<>
-			<p>{rep.outcome}</p>
+			<p>Recorded outcome: {rep.outcome}</p>
 			{rep.stages.map((item) => (
 				<p key={item.stage}>
 					{item.stage}: {repStageReading(item, mode)}
@@ -439,6 +546,9 @@ function AttemptRow({
 			</td>
 			<td className="py-3 pr-4">
 				<RepOutcomes rep={rep} loading={result.isLoading} mode={row.mode} />
+				{row.mode === "session" ? (
+					<SessionRepState groupId={row.groupId} repId={repId} />
+				) : null}
 			</td>
 			<td className="py-3 pr-4 font-mono">
 				{rep === undefined || rep.metrics.calls.length === 0
@@ -658,12 +768,11 @@ export function GroupWorkspacePage({
 				))}
 			</nav>
 			<div className="flex max-w-7xl flex-col gap-4 px-6 pt-4 pb-12">
-				<section className="rounded-lg border border-divider bg-card p-4 text-12">
-					<h2>
-						<SectionLabel>Setup & provenance</SectionLabel>
-					</h2>
+				<details className="rounded-lg border border-divider bg-card p-4 text-12">
+					<summary className="cursor-pointer">Setup &amp; provenance</summary>
 					<p className="mt-2">
-						Record {row.groupId}
+						Record{" "}
+						<code className="select-all wrap-anywhere">{row.groupId}</code>
 						<br />
 						Frozen {corpusMeasurementReading(row.corpusVersion)} ·{" "}
 						{row.startedAt ?? "start time not recorded"}
@@ -684,7 +793,7 @@ export function GroupWorkspacePage({
 							</Link>
 						</p>
 					)}
-				</section>
+				</details>
 				{view === "results" ? (
 					<Results row={row} />
 				) : (

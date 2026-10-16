@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { z } from "zod";
 import { CORPUS_VERSION_LABEL } from "#benchmark/corpus-version-label";
+import { recordedInstant } from "#benchmark/recorded-instant";
 import { isStopped, stoppedStageOf } from "#benchmark/stopped-status";
 import { withinCase } from "#client/within-case";
 import { isClean } from "./clean-record";
@@ -32,11 +33,101 @@ export const runDiscoverySearchSchema = z.object({
 			z.unknown().transform(() => undefined),
 		])
 		.optional(),
+	sort: z
+		.union([
+			z.enum(["newest", "oldest", "cost", "case"]),
+			z.unknown().transform(() => undefined),
+		])
+		.optional(),
 });
 export type RunDiscoverySearch = z.output<typeof runDiscoverySearchSchema>;
 type Row = RunHistoryResponse["rows"][number];
 type ListedRow = RunListingResponse["rows"][number];
 type Launch = RunHistoryResponse["launches"][number];
+
+/** The saved start time, never filesystem time or an inferred UUID timestamp. */
+export function recordedTime(row: ListedRow): string | undefined {
+	switch (row.kind) {
+		case "run": {
+			return row.run;
+		}
+		case "replay": {
+			return row.timestamp;
+		}
+		case "session-attempt":
+		case "group": {
+			return row.startedAt;
+		}
+		default: {
+			return row satisfies never;
+		}
+	}
+}
+
+function rowInstant(row: ListedRow): number | undefined {
+	const time = recordedTime(row);
+	return time === undefined ? undefined : recordedInstant(time);
+}
+
+function completeCost(row: ListedRow): number | undefined {
+	return row.cost.state === "available" && row.cost.missing.length === 0
+		? row.cost.usd
+		: undefined;
+}
+
+/** Missing values follow every measured value in either direction. */
+function compareMeasured(
+	left: number | undefined,
+	right: number | undefined,
+	direction: 1 | -1,
+): number {
+	if (left === undefined) {
+		return right === undefined ? 0 : 1;
+	}
+	if (right === undefined) {
+		return -1;
+	}
+	return direction * (left - right);
+}
+
+function compareCases(left: ListedRow, right: ListedRow): number {
+	if (left.caseId === undefined) {
+		return right.caseId === undefined ? 0 : 1;
+	}
+	if (right.caseId === undefined) {
+		return -1;
+	}
+	return left.caseId.localeCompare(right.caseId);
+}
+
+export function sortDiscoveredRows(
+	rows: readonly Row[],
+	sort: RunDiscoverySearch["sort"],
+): readonly Row[] {
+	return rows.toSorted((left, right) => {
+		if (sort === "cost") {
+			const byCost = compareMeasured(
+				completeCost(left),
+				completeCost(right),
+				-1,
+			);
+			if (byCost !== 0) {
+				return byCost;
+			}
+		}
+		if (sort === "case") {
+			const byCase = compareCases(left, right);
+			if (byCase !== 0) {
+				return byCase;
+			}
+		}
+		return compareMeasured(
+			rowInstant(left),
+			rowInstant(right),
+			sort === "oldest" ? 1 : -1,
+		);
+	});
+}
 
 export function recordIdentity(row: ListedRow): string {
 	switch (row.kind) {
@@ -245,13 +336,14 @@ export function useRunsReturnSearch(): RunDiscoverySearch {
 
 export function useRememberRunsSearch(search: RunDiscoverySearch): void {
 	const client = useQueryClient();
-	const { query, status, kind, corpus } = search;
+	const { query, status, kind, corpus, sort } = search;
 	useEffect(() => {
 		client.setQueryData<RunDiscoverySearch>(RETURN_SEARCH_KEY, {
 			query,
 			status,
 			kind,
 			corpus,
+			sort,
 		});
-	}, [client, query, status, kind, corpus]);
+	}, [client, query, status, kind, corpus, sort]);
 }

@@ -203,12 +203,24 @@ describe("/monitor step modal", () => {
 
 	describe("its header", () => {
 		it("shows the step's number, name, skill, wall time, cost, verdict and grade", async () => {
-			renderMonitor([recordStage("plan", FINISHED_PLAN), recordStage("build")]);
+			const stages = [recordStage("plan", FINISHED_PLAN), recordStage("build")];
+			renderMonitor(
+				stages,
+				new Map([
+					[
+						`/api/runs/${RUN}`,
+						{
+							...runRecord({ run: RUN, running: "build", stages }),
+							minimumGrade: { state: "available", letter: "B-" },
+						},
+					],
+				]),
+			);
 
 			const dialog = await openModal("plan");
 
 			expect(within(dialog).getByRole("banner")).toHaveTextContent(
-				"Step 01plan.agents/skills/plan/SKILL.md · 4m02s · $1.34verdict accepted B+Esc",
+				"Step 01plan.agents/skills/plan/SKILL.md · 4m02s · $1.34verdict Continued at minimum B- B+Esc",
 			);
 		});
 

@@ -8,6 +8,11 @@ import { LiveGlyph, STATUS_VOCABULARY } from "#client/system/components/status";
 import type { MonitoredStage } from "./run-record-query";
 import type { StageSessionResponse } from "./stage-session-query";
 import { stageSessionQuery } from "./stage-session-query";
+import { stageOutputQuery } from "#client/run-detail/investigation-query";
+import {
+	SavedOutput,
+	savedOutputInitialMode,
+} from "#client/session-history/attempt-evidence";
 import { PendingLine } from "./pending-line";
 import { minutesAndSeconds } from "./minutes-and-seconds";
 
@@ -189,23 +194,71 @@ function ClosedNote({
 	readonly transcriptPath: string | undefined;
 }): React.JSX.Element {
 	return (
-		<p className="mt-3 rounded-md border border-border bg-raised px-3 py-2.5 font-sans text-11-5 text-muted-foreground">
+		<div className="mt-3 rounded-md border border-border bg-raised px-3 py-2.5 font-sans text-13 text-muted-foreground">
 			{transcriptPath === undefined ? (
 				"Session ended. Rehearse has no copy of its transcript, which it keeps only once the step checkpoints."
 			) : (
 				<>
-					Session ended. The full transcript is on disk; Rehearse keeps only the
-					spans the judge cites.{" "}
+					Session ended. Inspect the saved transcript in Context &amp; cost.{" "}
 					<Link
 						to="/runs/$run"
 						params={{ run }}
 						search={{ view: "context", step: stage, focus: "events" }}
 					>
-						{transcriptPath}
+						Open transcript
 					</Link>
+					<details className="mt-2">
+						<summary className="cursor-pointer">Transcript provenance</summary>
+						<Link
+							to="/runs/$run"
+							params={{ run }}
+							search={{ view: "context", step: stage, focus: "events" }}
+							className="select-all font-mono wrap-anywhere"
+						>
+							{transcriptPath}
+						</Link>
+					</details>
 				</>
 			)}
-		</p>
+		</div>
+	);
+}
+
+function ClosedSession({
+	run,
+	stage,
+	session,
+}: {
+	readonly run: string;
+	readonly stage: string;
+	readonly session: Extract<StageSessionResponse, { state: "closed" }>;
+}): React.JSX.Element {
+	const output = useQuery(stageOutputQuery(run, stage));
+
+	return (
+		<>
+			{output.data?.state === "available" ? (
+				<SavedOutput
+					title="Saved step output"
+					initialMode={savedOutputInitialMode(output.data)}
+					text={output.data.text}
+					note="The session ended. This is its retained output."
+				/>
+			) : null}
+			{session.spans.length === 0 ? null : (
+				<details className="mt-3">
+					<summary className="cursor-pointer font-sans text-13">
+						{session.spans.length} saved Judge citations
+					</summary>
+					<CitedRows spans={session.spans} />
+				</details>
+			)}
+			<ClosedNote
+				run={run}
+				stage={stage}
+				transcriptPath={session.transcriptPath}
+			/>
+		</>
 	);
 }
 
@@ -280,6 +333,7 @@ export function SessionPane({
 	const { stage } = figures;
 	const { data, isError } = useQuery(stageSessionQuery(run, stage));
 	const meta = data === undefined ? undefined : sessionMeta(data, figures);
+
 	const body = useRef<HTMLDivElement>(null);
 	const [following, setFollowing] = useState(true);
 	const scrollBy = useCallback((top: number) => {
@@ -330,14 +384,7 @@ export function SessionPane({
 					<TranscriptRows lines={data.lines} />
 				) : null}
 				{data?.state === "closed" ? (
-					<>
-						{data.spans.length === 0 ? null : <CitedRows spans={data.spans} />}
-						<ClosedNote
-							run={run}
-							stage={stage}
-							transcriptPath={data.transcriptPath}
-						/>
-					</>
+					<ClosedSession run={run} stage={stage} session={data} />
 				) : null}
 				{data?.state === "not-started" ? (
 					<PendingLine words="This step has not started yet." />

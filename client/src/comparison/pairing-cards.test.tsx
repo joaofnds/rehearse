@@ -248,7 +248,7 @@ describe(ReadWithCare.name, () => {
 		[
 			"attributable",
 			ATTRIBUTABLE,
-			"Only skills/shape/SKILL.md differs between baseline and candidate, so a movement between them is attributable to it.",
+			"Only skills/shape/SKILL.md differs between the recorded corpora. Read the repeated outcomes and uncertainty before attributing a movement.",
 		],
 		[
 			"identical",

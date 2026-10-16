@@ -121,6 +121,79 @@ describe("the run workspace", () => {
 		expect(screen.getByText("Human review · pending")).toBeInTheDocument();
 	});
 
+	it("keeps a failed final outcome and pending human review free of an approval glyph in the header", async () => {
+		renderRunDetail(
+			new Map<string, unknown>([
+				[
+					"/api/runs",
+					history([
+						runRow({
+							run: RUN,
+							shortId: "r44",
+							status: "AWAITING_HUMAN_REVIEW",
+						}),
+					]),
+				],
+				[
+					`/api/runs/${RUN}`,
+					{
+						...stoppedAtBuild(),
+						status: { state: "available", status: "AWAITING_HUMAN_REVIEW" },
+						finalOutcome: { status: "JUDGED", verdict: "FAIL" },
+					},
+				],
+			]),
+		);
+
+		const heading = await screen.findByRole("heading", {
+			level: 1,
+			name: /r44/u,
+		});
+		const header = heading.closest("header");
+		expect(header).toHaveTextContent(
+			"Execution ended · Final result: FAIL · Human review: pending",
+		);
+		expect(header).toHaveTextContent("◌");
+		expect(header).not.toHaveTextContent("✓");
+	});
+
+	it.each([
+		["results", "Saved output"],
+		["activity", "Saved step output"],
+	] as const)(
+		"opens an asynchronously loaded saved diff as exact raw text in %s",
+		async (view, label) => {
+			const diff = "-  a\n+  b\n";
+			renderRunDetail(
+				new Map<string, unknown>([
+					[
+						`/api/runs/${RUN}/stages/build/session`,
+						{ state: "closed", spans: [] },
+					],
+					[
+						`/api/runs/${RUN}/stages/build/output`,
+						{ state: "available", kind: "diff", text: diff },
+					],
+				]),
+				[],
+				`/runs/${RUN}?view=${view}&step=build`,
+			);
+
+			const output = await screen.findByRole("region", { name: label });
+			const raw = await within(output).findByRole("button", { name: "Raw" });
+			expect(raw).toHaveAttribute("aria-pressed", "true");
+			expect(output.querySelector("pre")?.textContent).toBe(diff);
+			fireEvent.click(
+				within(output).getByRole("button", { name: "Formatted" }),
+			);
+			expect(
+				within(output).getByRole("button", { name: "Formatted" }),
+			).toHaveAttribute("aria-pressed", "true");
+			fireEvent.click(raw);
+			expect(output.querySelector("pre")?.textContent).toBe(diff);
+		},
+	);
+
 	it("shows saved output beside the step assessment and opens its complete text", async () => {
 		renderRunDetail(
 			new Map<string, unknown>([
@@ -547,7 +620,44 @@ describe("the run workspace", () => {
 		).toBeInTheDocument();
 	});
 
-	it("keeps an independent final FAIL beside accepted step grades", async () => {
+	it("labels a continued F by its minimum and keeps the independent failure separate", async () => {
+		const record = stoppedAtBuild();
+		renderRunDetail(
+			new Map([
+				[
+					`/api/runs/${RUN}`,
+					{
+						...record,
+						minimumGrade: { state: "available", letter: "F" },
+						finalOutcome: { status: "JUDGED", verdict: "FAIL" },
+						stages: [
+							recordStage("build", {
+								status: "graded",
+								grade: {
+									state: "available",
+									letter: "F",
+									verdict: "CONTINUE",
+									reachesMinimum: true,
+								},
+							}),
+						],
+					},
+				],
+			]),
+			[],
+			`/runs/${RUN}?view=results&step=build`,
+		);
+
+		expect(
+			await screen.findAllByText("Continued at minimum F"),
+		).not.toHaveLength(0);
+		expect(
+			screen.getByRole("region", {
+				name: "Final outcome · independent task Judge",
+			}),
+		).toHaveTextContent("FAIL");
+	});
+	it("keeps an independent final FAIL beside Continued at minimum B step grades", async () => {
 		const record = stoppedAtBuild();
 		renderRunDetail(
 			new Map([
@@ -568,7 +678,42 @@ describe("the run workspace", () => {
 				"button",
 				{ name: /^shape/u },
 			),
-		).toHaveTextContent("accepted");
+		).toHaveTextContent("Continued at minimum B");
+	});
+	it("shows retained output in ended Activity and links to the selected step transcript", async () => {
+		renderRunDetail(
+			new Map<string, unknown>([
+				[
+					`/api/runs/${RUN}/stages/build/session`,
+					{
+						state: "closed",
+						spans: [],
+						transcriptPath: "saved/build/transcript.jsonl",
+					},
+				],
+				[
+					`/api/runs/${RUN}/stages/build/output`,
+					{
+						state: "available",
+						kind: "reply",
+						text: "# Retained completion\n\nThe saved completion is readable.",
+					},
+				],
+			]),
+			[],
+			`/runs/${RUN}?view=activity&step=build`,
+		);
+
+		expect(
+			await screen.findByRole("heading", { name: "Retained completion" }),
+		).toBeInTheDocument();
+		const session = screen.getByRole("region", { name: "Live agent session" });
+		expect(
+			within(session).getByRole("link", { name: "Open transcript" }),
+		).toHaveAttribute(
+			"href",
+			`/runs/${RUN}?view=context&step=build&focus=events`,
+		);
 	});
 	it("keeps Activity and the chosen step when a live run completes", async () => {
 		let ended = false;

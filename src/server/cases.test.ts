@@ -34,8 +34,9 @@ const SESSION_CASE = {
 	kind: "session",
 	title: "Reply in the brief style",
 	prompt: "Reply OK.",
-	tools: [],
-	corpusFiles: [],
+	tools: ["Read"],
+	corpusFiles: ["skills/brief/SKILL.md"],
+	sessionBudgetUsd: 0.5,
 	checks: [
 		{ kind: "word-band", max: 120 },
 		{ kind: "forbidden-text", strings: ["As an AI"] },
@@ -166,6 +167,15 @@ describe("/api/cases", () => {
 			join(root, UNRUNNABLE_CASE.id, "pipeline.json"),
 			pipelineFile(UNRUNNABLE_CASE.id, ["discuss.json", "missing.json"]),
 		);
+		await Bun.write(
+			join(root, CASE_ID, "task.md"),
+			"Add the audit log module.",
+		);
+		await Bun.write(join(root, CASE_ID, "brief.md"), "Keep an audit trail.");
+		await Bun.write(
+			join(root, CASE_ID, "final-rubric.md"),
+			"The audit trail is complete.",
+		);
 
 		return root;
 	}
@@ -225,6 +235,25 @@ describe("/api/cases", () => {
 			finalRubric: "final-rubric.md",
 			figures: { state: "no-runs" },
 			latestMinimumGrade: null,
+			definition: {
+				sessionBudgetUsd: null,
+				prompt: {
+					state: "available",
+					text: "Add the audit log module.",
+					source: "task.md",
+				},
+				productBrief: {
+					state: "available",
+					text: "Keep an audit trail.",
+					source: "brief.md",
+				},
+				evaluation: {
+					state: "available",
+					text: "The audit trail is complete.",
+					source: "final-rubric.md",
+				},
+			},
+			cohorts: [],
 		});
 	});
 
@@ -239,6 +268,22 @@ describe("/api/cases", () => {
 			target: null,
 			checks: ["word-band", "forbidden-text"],
 			figures: { state: "no-runs" },
+			definition: {
+				sessionBudgetUsd: 0.5,
+				corpusFiles: ["skills/brief/SKILL.md"],
+				tools: ["Read"],
+				prompt: {
+					state: "available",
+					text: SESSION_CASE.prompt,
+					source: "case.json · prompt",
+				},
+				evaluation: {
+					state: "available",
+					text: JSON.stringify({ checks: SESSION_CASE.checks }, null, 2),
+					source: "case.json · checks / stateCheck",
+				},
+			},
+			cohorts: [],
 		});
 	});
 
@@ -321,6 +366,65 @@ describe("/api/cases", () => {
 			},
 		});
 		expect(await listed(SESSION_CASE_ID)).not.toHaveProperty("figures.median");
+		expect(await listed(SESSION_CASE_ID)).toMatchObject({
+			cohorts: [
+				{
+					corpusVersion: digest,
+					figures: { counted: 1, judged: 1, passed: 1, leftOut: 0 },
+					members: [
+						{
+							href: `/attempts/session/${SESSION_CASE_ID}/0f6b6f2a-0000-4000-8000-00000000000a`,
+							run: { corpusDigest: digest, passed: true, costUsd: 0.5 },
+						},
+					],
+				},
+				{
+					corpusVersion: null,
+					figures: {
+						counted: 2,
+						judged: 0,
+						passed: 0,
+						costPerRun: { meanUsd: null, lacking: 2 },
+					},
+					members: [
+						{ href: "/groups/group-s/reps/group-s-rep-1/attempt" },
+						{ href: "/groups/group-s/reps/group-s-rep-2/attempt" },
+					],
+				},
+			],
+		});
+	});
+
+	it("reports unavailable definition files without losing the readable declaration", async () => {
+		const { casesDirectory, listed } = await serving();
+		await rm(join(casesDirectory, CASE_ID, "task.md"));
+		expect(await listed(CASE_ID)).toMatchObject({
+			id: CASE_ID,
+			definition: {
+				prompt: { state: "unavailable", source: "task.md" },
+				evaluation: {
+					state: "available",
+					text: "The audit trail is complete.",
+				},
+			},
+		});
+	});
+
+	it("refuses definition text outside the declared case directory", async () => {
+		const { casesDirectory, listed } = await serving();
+		await Bun.write(
+			join(casesDirectory, CASE_ID, "case.json"),
+			JSON.stringify({ ...PIPELINE_CASE, task: "../smoke/case.json" }),
+		);
+		expect(await listed(CASE_ID)).toMatchObject({
+			definition: {
+				prompt: {
+					state: "unavailable",
+					source: "../smoke/case.json",
+					reason: `Case ${CASE_ID} names a path outside its case directory: ../smoke/case.json`,
+				},
+			},
+		});
 	});
 
 	describe("when a case's pipeline file is one the harness would refuse", () => {

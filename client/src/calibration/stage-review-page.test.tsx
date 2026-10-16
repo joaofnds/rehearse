@@ -97,6 +97,42 @@ function choose(group: string, value: string): void {
 }
 
 describe(StageReviewPage.name, () => {
+	it("navigates the saved task, output, instructions and evidence while preserving blind grading", async () => {
+		serving({
+			...BLIND_REVIEW,
+			judgeGrade: JUDGE_GRADE,
+			input: {
+				...BLIND_REVIEW.input,
+				artifact: "Saved stage output",
+				instructions: "Follow the saved instructions",
+				customEvidence: "A retained custom source",
+			},
+		});
+		renderAppAt(`/calibration/runs/${RUN}/stages/shape`);
+		const navigation = await screen.findByRole("navigation", {
+			name: "Review evidence sections",
+		});
+		for (const label of ["Task", "Output", "Instructions", "Evidence"]) {
+			expect(
+				within(navigation).getByRole("link", { name: label }),
+			).toHaveAttribute("href", `#review-${label.toLowerCase()}`);
+		}
+		expect(screen.getByRole("region", { name: "Task" })).toHaveTextContent(
+			"Implement the audit log",
+		);
+		expect(screen.getByRole("region", { name: "Output" })).toHaveTextContent(
+			"Saved stage output",
+		);
+		expect(
+			screen.getByRole("region", { name: "Instructions" }),
+		).toHaveTextContent("Follow the saved instructions");
+		expect(screen.getByRole("region", { name: "Evidence" })).toHaveTextContent(
+			"A retained custom source",
+		);
+		expect(screen.queryByText(JUDGE_SUMMARY)).not.toBeInTheDocument();
+		expect(screen.getAllByRole("radiogroup")).toHaveLength(3);
+		expect(screen.getByText("Awaiting your review")).toBeInTheDocument();
+	});
 	it("returns to Judge calibration from a contextual step review", async () => {
 		serving(BLIND_REVIEW);
 		renderAppAt(`/calibration/runs/${RUN}/stages/shape`);

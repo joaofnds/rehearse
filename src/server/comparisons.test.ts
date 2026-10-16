@@ -22,15 +22,19 @@ import {
 	armResourcesWithoutElapsed,
 	singleGroupSource,
 	contrastResourcesWithoutElapsed,
+	singleCaseSessionEvidenceFixture,
 } from "#benchmark/comparison-test-fixtures";
 import { comparisonReportPaths } from "#benchmark/run-layout";
 import { writeComparisonReport } from "#benchmark/comparison-command";
+import { buildComparisonReport } from "#benchmark/comparison-report";
 import {
 	ComparisonEvidenceFixture,
 	digest as sha256Of,
 } from "#benchmark/comparison-evidence-test-support";
 import { NO_RECORDED_WORDS_REASON } from "./comparison-arm-figures";
 import { createApiApp } from "./api";
+import { comparisonIndex } from "./comparison-index";
+import type { ComparisonIndexEntry } from "./comparison-index";
 
 const attributionSchema = z.discriminatedUnion("claim", [
 	z.object({ claim: z.literal("identical") }),
@@ -302,6 +306,45 @@ async function writtenFixture(): Promise<RecordedRunsFixture> {
 	return fixture;
 }
 
+describe(comparisonIndex.name, () => {
+	it("projects changed paths without inventing unavailable corpus versions", async () => {
+		const fixture = await writtenFixture();
+
+		const index = await comparisonIndex(fixture.runsDirectory);
+
+		expect(
+			index.comparisons[0]?.details?.map(({ caseId, changedPaths }) => ({
+				caseId,
+				changedPaths,
+			})),
+		).toEqual([
+			{ caseId: "case-1", changedPaths: ["inputs/corpus/SKILL.md"] },
+			{ caseId: "case-2", changedPaths: ["inputs/corpus/SKILL.md"] },
+		]);
+		expect(
+			index.comparisons[0]?.details?.[0]?.corpusVersions.baseline.state,
+		).toBe("unavailable");
+	});
+});
+
+function expectedIndexDetails(): NonNullable<ComparisonIndexEntry["details"]> {
+	const unavailable = {
+		state: "unavailable" as const,
+		reasons: [
+			"a group record could not be read: No saved attempt at this identity",
+		],
+	};
+	return ["case-1", "case-2"].map((caseId) => ({
+		caseId,
+		changedPaths: ["inputs/corpus/SKILL.md"],
+		corpusVersions: {
+			baseline: unavailable,
+			candidate: unavailable,
+			control: unavailable,
+		},
+	}));
+}
+
 describe("GET /api/comparisons", () => {
 	it("lists every saved comparison in digest order, each with its mode, cases and reps", async () => {
 		const fixture = await writtenFixture();
@@ -333,6 +376,7 @@ describe("GET /api/comparisons", () => {
 				mode: "pipeline",
 				caseIds: ["case-1", "case-2"],
 				reps: 4,
+				details: expectedIndexDetails(),
 			})),
 			unreadable: [],
 		});
@@ -359,6 +403,7 @@ describe("GET /api/comparisons", () => {
 					mode: "pipeline",
 					caseIds: ["case-1", "case-2"],
 					reps: 4,
+					details: expectedIndexDetails(),
 				},
 			],
 			unreadable: [],
@@ -888,6 +933,61 @@ describe("GET /api/comparisons/:digest", () => {
 		});
 	});
 
+	it("serves projected reply-check readings with explicit missing state coverage", async () => {
+		const fixture = await writtenFixture();
+		const sample = [
+			{ costUsd: 1, elapsedMs: 10 },
+			{ costUsd: 1, elapsedMs: 10 },
+		];
+		const report = buildComparisonReport(
+			singleCaseSessionEvidenceFixture({
+				baseline: sample,
+				candidate: sample,
+				control: sample,
+			}),
+			{ skippedCalibrations: 0, baselines: [] },
+		);
+		const { reportFile } = comparisonReportPaths(
+			fixture.runsDirectory,
+			fixture.comparisonDigest,
+		);
+		await Bun.write(reportFile, JSON.stringify(report));
+		const app = createApiApp({
+			projectsDirectory: NO_PROVIDER_PROJECTS,
+			runsDirectory: fixture.runsDirectory,
+			liveness: nothingRunning,
+			readCorpusSource: fixedCorpusSource(
+				directorySource(await corpusDirectory()),
+			),
+		});
+
+		const response = await app.request(
+			`/api/comparisons/${fixture.comparisonDigest}`,
+		);
+
+		expect(response.status).toBe(200);
+		expect(await response.json()).toMatchObject({
+			sessionAssessments: {
+				"case-one": {
+					title: "No observed difference in reply / transcript pass rates",
+					basis: "checks",
+					checks: {
+						baseline: { passed: 2, assessed: 2, total: 2, missing: 0 },
+					},
+					stateChecks: {
+						baseline: {
+							passed: 0,
+							assessed: 0,
+							total: 2,
+							missing: 2,
+							passRate: { state: "unavailable" },
+						},
+					},
+				},
+			},
+		});
+	});
+
 	it("reads a session's checks as success-rate intervals rather than letter spans", async () => {
 		const fixture = await writtenFixture();
 		await rewriteFixtureAsSession(fixture);
@@ -1077,7 +1177,7 @@ describe("What moved", () => {
 		expect(dimension).toMatchObject({
 			arms: {
 				baseline: { state: "available", median: "C" },
-				candidate: { state: "available", median: "A" },
+				candidate: { state: "available", median: "A", graded: 2 },
 			},
 			readings: {
 				candidateMinusBaseline: {

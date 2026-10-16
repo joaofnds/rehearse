@@ -178,10 +178,18 @@ it("rereads the current baseline while keeping recovered text separate for each 
 });
 
 it("opens the editable-copy settings path and returns with its saved source", async () => {
-	const { router } = openCorpus(
+	const { router, server } = openCorpus(
 		"/corpus?file=CLAUDE.md&sourceRun=source-run&sourceStep=build&start=2&end=4",
 		true,
 	);
+	const viewer = await screen.findByRole("region", {
+		name: "Instruction text · CLAUDE.md",
+	});
+	fireEvent.click(
+		await screen.findByRole("button", { name: "View CLAUDE.md" }),
+	);
+	expect(viewer).toHaveTextContent("Linked lines 2–4");
+	expect(await within(viewer).findByText("saved text")).toBeInTheDocument();
 	fireEvent.click(
 		await screen.findByRole("link", {
 			name: "Link an editable copy in Settings",
@@ -211,4 +219,5 @@ it("opens the editable-copy settings path and returns with its saved source", as
 	expect(
 		screen.queryByRole("link", { name: "Return to instruction edit" }),
 	).not.toBeInTheDocument();
+	expect(server.posted("/api/corpus/edits/apply")).toHaveLength(0);
 });

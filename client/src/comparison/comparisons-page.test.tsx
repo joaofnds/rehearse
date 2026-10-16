@@ -58,6 +58,58 @@ describe(ComparisonsPage.name, () => {
 		expect(second).toHaveAttribute("href", `/comparisons/${OTHER_DIGEST}`);
 	});
 
+	it("distinguishes matching case names by changed files and the recorded corpus pair", async () => {
+		const versions = {
+			baseline: { state: "available", digest: "a".repeat(64) },
+			candidate: { state: "available", digest: "b".repeat(64) },
+			control: { state: "available", digest: "c".repeat(64) },
+		} as const;
+		renderComparisonsAt(
+			indexWith({
+				comparisons: [
+					{
+						...savedComparison(DIGEST),
+						details: [
+							{
+								caseId: "audit-log",
+								changedPaths: ["skills/review/SKILL.md"],
+								corpusVersions: versions,
+							},
+						],
+					},
+					{
+						...savedComparison(OTHER_DIGEST),
+						details: [
+							{
+								caseId: "audit-log",
+								changedPaths: ["skills/build/SKILL.md"],
+								corpusVersions: {
+									...versions,
+									candidate: { state: "available", digest: "d".repeat(64) },
+								},
+							},
+						],
+					},
+				],
+			}),
+		);
+
+		const first = await screen.findByRole("row", {
+			name: /audit-log.*511cd2c4442b/u,
+		});
+		const second = screen.getByRole("row", {
+			name: /audit-log.*7e0f9a31c2d8/u,
+		});
+		expect(first).toHaveTextContent("skills/review/SKILL.md");
+		expect(first).toHaveTextContent(
+			"Baseline corpus@aaaaaa → candidate corpus@bbbbbb",
+		);
+		expect(first).toHaveTextContent("Control corpus@cccccc");
+		expect(second).toHaveTextContent("skills/build/SKILL.md");
+		expect(second).toHaveTextContent("candidate corpus@dddddd");
+		expect(first).toHaveTextContent("Comparison time not recorded");
+	});
+
 	it("shows each saved comparison's mode, cases and reps", async () => {
 		renderComparisonsAt(
 			indexWith({
@@ -86,7 +138,12 @@ describe(ComparisonsPage.name, () => {
 			within(row)
 				.getAllByRole("cell")
 				.map((cell) => cell.textContent),
-		).toEqual(["pipeline", "5", `Canonical ID${DIGEST}`]);
+		).toEqual([
+			"Change details not recorded",
+			"pipeline",
+			"5",
+			`Canonical ID${DIGEST}Comparison time not recorded`,
+		]);
 	});
 
 	it("opens a saved comparison's own page when its entry is clicked", async () => {

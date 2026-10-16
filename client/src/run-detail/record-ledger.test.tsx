@@ -181,7 +181,7 @@ describe("Record ledger", () => {
 		expect(
 			within(firstStep).getByRole("heading", { level: 2 }).parentElement,
 		).toHaveTextContent(
-			/^01shape✓accepted1m22s · \$0\.34 · 402 linescorpus@a41c7eA$/u,
+			/^01shape✓Continued at minimum B1m22s · \$0\.34 · 402 linescorpus@a41c7eA$/u,
 		);
 	});
 

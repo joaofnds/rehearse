@@ -30,6 +30,14 @@ export function endedStatus(stage: EndedStage): "accepted" | "stopped" {
 		: "accepted";
 }
 
+export function continuationReading(
+	minimum: RunRecordResponse["minimumGrade"] | undefined,
+): string {
+	return minimum?.state === "available"
+		? `Continued at minimum ${minimum.letter}`
+		: "Continued · minimum unavailable";
+}
+
 /** Whether a stage's judge will never return: the run ended while it awaited judgment. */
 export function judgeLeftWaiting(
 	record: RunRecordResponse,

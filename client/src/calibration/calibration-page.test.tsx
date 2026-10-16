@@ -45,6 +45,31 @@ function renderCalibration(report: CalibrationResponse): void {
 }
 
 describe(CalibrationPage.name, () => {
+	it("guides the first review and keeps agreement and drift unavailable until a review exists", async () => {
+		renderCalibration(
+			reportWith({
+				ungraded: 3,
+				next: { kind: "run", run: RUN, stage: "shape" },
+			}),
+		);
+		expect(
+			await screen.findByRole("region", {
+				name: "Your first calibration review",
+			}),
+		).toHaveTextContent(
+			"Judge's scores stay hidden until you record your grade.",
+		);
+		expect(
+			screen.getByText("3 steps awaiting your review"),
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("link", { name: "Review next step" }),
+		).toHaveAttribute("href", `/calibration/runs/${RUN}/stages/shape`);
+		expect(screen.queryByRole("table")).not.toBeInTheDocument();
+		expect(
+			screen.queryByRole("complementary", { name: "Where the judge drifts" }),
+		).not.toBeInTheDocument();
+	});
 	it("keeps the legacy Calibration route with its review summary", async () => {
 		renderCalibration(reportWith({ reviews: 3, withinOneStep: 3 }));
 		expect(
@@ -287,7 +312,7 @@ describe(CalibrationPage.name, () => {
 		});
 	});
 
-	it("opens the oldest ungraded step from Review next unjudged step", async () => {
+	it("opens the oldest ungraded step from Review next step", async () => {
 		renderCalibration(
 			reportWith({
 				ungraded: 31,
@@ -301,7 +326,7 @@ describe(CalibrationPage.name, () => {
 		);
 
 		const review = await screen.findByRole("link", {
-			name: "Review next unjudged step",
+			name: "Review next step",
 		});
 
 		expect(review).toHaveAttribute(
@@ -310,7 +335,7 @@ describe(CalibrationPage.name, () => {
 		);
 	});
 
-	it("opens a replay's step from Review next unjudged step", async () => {
+	it("opens a replay's step from Review next step", async () => {
 		renderCalibration(
 			reportWith({
 				ungraded: 1,
@@ -319,7 +344,7 @@ describe(CalibrationPage.name, () => {
 		);
 
 		const review = await screen.findByRole("link", {
-			name: "Review next unjudged step",
+			name: "Review next step",
 		});
 
 		expect(review).toHaveAttribute(
@@ -341,7 +366,7 @@ describe(CalibrationPage.name, () => {
 
 			expect(header).toHaveTextContent(/^0 reviews recorded$/u);
 			expect(
-				screen.getByRole("link", { name: "Review next unjudged step" }),
+				screen.getByRole("link", { name: "Review next step" }),
 			).toHaveAttribute("href", `/calibration/runs/${RUN}/stages/shape`);
 		});
 	});
@@ -351,7 +376,7 @@ describe(CalibrationPage.name, () => {
 			renderCalibration(reportWith({ reviews: 0, ungraded: 0, next: null }));
 
 			const button = await screen.findByRole("button", {
-				name: "Review next unjudged step",
+				name: "Review next step",
 			});
 
 			expect(button).toBeDisabled();
@@ -359,7 +384,7 @@ describe(CalibrationPage.name, () => {
 				screen.getByText("No step the judge graded is recorded yet."),
 			).toBeInTheDocument();
 			expect(
-				screen.queryByText("Every judged step is graded."),
+				screen.queryByText("Every judged step has your review."),
 			).not.toBeInTheDocument();
 		});
 	});
@@ -369,12 +394,12 @@ describe(CalibrationPage.name, () => {
 			renderCalibration(reportWith({ reviews: 1, withinOneStep: 1 }));
 
 			const button = await screen.findByRole("button", {
-				name: "Review next unjudged step",
+				name: "Review next step",
 			});
 
 			expect(button).toBeDisabled();
 			expect(
-				screen.getByText("Every judged step is graded."),
+				screen.getByText("Every judged step has your review."),
 			).toBeInTheDocument();
 		});
 	});

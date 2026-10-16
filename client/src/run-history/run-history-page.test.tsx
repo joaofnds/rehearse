@@ -56,6 +56,7 @@ import type {
 	SessionAttemptRow,
 } from "#server/run-history";
 import { recordMoment } from "./record-moment";
+import { runRow } from "#client/test-support/runs-in-flight";
 import { RunHistoryPage } from "./run-history-page";
 import { runDiscoverySearchSchema } from "./run-discovery";
 
@@ -155,13 +156,15 @@ function oneStoppedOneComplete(): RunHistoryResponseBody {
 }
 
 function cellOf(run: string, column: string): HTMLElement {
-	const headers = screen
+	const row = screen.getByText(run).closest("tr");
+	const table = row?.closest("table");
+	if (table === null || table === undefined) {
+		throw new Error(`No table for ${run}`);
+	}
+	const headers = within(table)
 		.getAllByRole("columnheader")
 		.map((header) => header.textContent);
-	const cell = screen
-		.getByText(run)
-		.closest("tr")
-		?.children.item(headers.indexOf(column));
+	const cell = row?.children.item(headers.indexOf(column));
 
 	if (!(cell instanceof HTMLElement)) {
 		throw new Error(`No ${column} cell for ${run}`);
@@ -169,6 +172,151 @@ function cellOf(run: string, column: string): HTMLElement {
 
 	return cell;
 }
+
+it("shows a saved-state failure beside successful recorded reply checks in Runs", async () => {
+	const attempt: SessionAttemptRow = {
+		...UNREAD_SESSION_ATTEMPT_FIGURES,
+		kind: "session-attempt",
+		recordId: "attempt:session:brief-reply/disputed",
+		caseId: "brief-reply",
+		uuid: "disputed",
+		shortId: undefined,
+		status: "SUCCESSFUL",
+		corpusVersion: undefined,
+		staleness: UNREAD_STALENESS,
+		links: [],
+		checks: { state: "available", passed: 1, declared: 1 },
+		savedState: { state: "assessed", passed: 1, failed: 18, total: 19 },
+	};
+	respondingWith({
+		rows: [
+			attempt,
+			{
+				...attempt,
+				recordId: "attempt:session:brief-reply/legacy",
+				uuid: "legacy",
+				savedState: undefined,
+			},
+		],
+		launches: [],
+		unreadable: [],
+	});
+	await renderPage().findByText("disputed");
+	expect(cellOf("disputed", "Outcome")).toHaveTextContent(
+		"recorded successful",
+	);
+	expect(cellOf("disputed", "Outcome")).toHaveTextContent(
+		"Saved state: 18 of 19 failed",
+	);
+	expect(cellOf("disputed", "Outcome")).toHaveTextContent(
+		"Assessment layers disagree",
+	);
+	expect(cellOf("disputed", "Step grades")).toHaveTextContent(
+		"1 of 1 reply/transcript check passed",
+	);
+	expect(cellOf("legacy", "Outcome")).toHaveTextContent(
+		"Saved state unavailable",
+	);
+	expect(
+		within(cellOf("legacy", "Outcome")).getByText("Saved state unavailable"),
+	).toHaveAttribute(
+		"title",
+		"No saved state assessment was recorded; declaration is unknown.",
+	);
+});
+
+it("shows a session group's reply/transcript layer beside failed saved-state attempts", async () => {
+	const group: ConfirmationGroupRow = {
+		...UNREAD_GROUP_FIGURES,
+		kind: "group",
+		recordId: "group:control",
+		groupId: "control",
+		caseId: "brief-reply",
+		shortId: undefined,
+		mode: "session",
+		reps: 6,
+		corpusVersion: undefined,
+		staleness: UNREAD_STALENESS,
+		checkpoint: undefined,
+		repAttempts: [],
+		links: [],
+		successful: 4,
+		finalOutcomes: { NOT_APPLICABLE: 6 },
+		savedState: {
+			total: 6,
+			assessed: 6,
+			passed: 0,
+			failed: 6,
+			unavailable: 0,
+			disagreements: 4,
+			unavailableReps: [],
+		},
+	};
+	respondingWith({ rows: [group], launches: [], unreadable: [] });
+	await renderPage().findByText("control");
+	expect(cellOf("control", "Step grades")).toHaveTextContent(
+		"Reply/transcript basis",
+	);
+	expect(cellOf("control", "Step grades")).toHaveTextContent(
+		"4/6 recorded successful",
+	);
+	expect(cellOf("control", "Outcome")).toHaveTextContent(
+		"Saved state: 0 of 6 assessed attempts passed",
+	);
+	expect(cellOf("control", "Outcome")).toHaveTextContent(
+		"6 failed · 0 of 6 unavailable",
+	);
+	expect(cellOf("control", "Outcome")).toHaveTextContent(
+		"Assessment layers disagree in 4 attempts",
+	);
+});
+
+it("keeps a session group's unassessed saved-state attempts separate from assessed passes", async () => {
+	const group: ConfirmationGroupRow = {
+		...UNREAD_GROUP_FIGURES,
+		kind: "group",
+		recordId: "group:partial-state",
+		groupId: "partial-state",
+		caseId: "brief-reply",
+		shortId: undefined,
+		mode: "session",
+		reps: 2,
+		corpusVersion: undefined,
+		staleness: UNREAD_STALENESS,
+		checkpoint: undefined,
+		repAttempts: [],
+		links: [],
+		successful: 2,
+		finalOutcomes: { NOT_APPLICABLE: 2 },
+		savedState: {
+			total: 2,
+			assessed: 1,
+			passed: 1,
+			failed: 0,
+			unavailable: 1,
+			disagreements: 0,
+			unavailableReps: [
+				{ repId: "missing", reason: "No saved session attempt was recorded." },
+			],
+		},
+	};
+	respondingWith({ rows: [group], launches: [], unreadable: [] });
+	await renderPage().findByText("partial-state");
+	expect(cellOf("partial-state", "Outcome")).toHaveTextContent(
+		"Saved state: 1 of 1 assessed attempts passed",
+	);
+	expect(cellOf("partial-state", "Outcome")).toHaveTextContent(
+		"0 failed · 1 of 2 unavailable",
+	);
+	fireEvent.click(
+		within(cellOf("partial-state", "Outcome")).getByRole("button", {
+			name: "Saved state coverage",
+		}),
+	);
+	expect(cellOf("partial-state", "Outcome")).toHaveTextContent(
+		"missing: No saved session attempt was recorded.",
+	);
+});
 
 /** The table keeps the final Judge's explanation behind its detail control. */
 function expandedFinalOutcomeOf(run: string): string {
@@ -445,12 +593,14 @@ describe(RunHistoryPage.name, () => {
 		).toHaveAttribute("aria-pressed", "true");
 	});
 
-	it("names how many records are on disk", async () => {
+	it("names the readable entry total and its record and launch counts", async () => {
 		respondingWith(oneStoppedOneComplete());
 
 		renderPage();
 
-		expect(await screen.findByText(/^2 records on disk/u)).toBeInTheDocument();
+		expect(
+			await screen.findByText("2 readable entries · 2 records · 0 launches"),
+		).toBeInTheDocument();
 	});
 
 	it("keeps counting every record on the All pill while Stopped narrows the table", async () => {
@@ -1803,20 +1953,21 @@ describe(RunHistoryPage.name, () => {
 				await screen.findByRole("button", { name: "All 5" }),
 			).toBeInTheDocument();
 			expect(
-				screen.getByText(
-					/^5 records on disk · every pipeline run names the corpus version/u,
-				),
+				screen.getByText("5 readable entries · 5 records · 0 launches"),
 			).toBeInTheDocument();
 		});
 
-		it("states product rules 2 and 3 under the table in the design's words", async () => {
+		it("keeps filter definitions and retained-history meaning available on request", async () => {
 			respondingWith(everyKind);
 
 			await renderPage().findByText("group-a");
 
+			fireEvent.click(
+				screen.getByRole("button", { name: "How filters and counts work" }),
+			);
 			expect(
 				screen.getByText(
-					"A stopped run is a recorded outcome, not an error: the step that fell below the minimum is the finding. Runs marked stale were produced by a corpus version that has since changed. Their grades are kept as history.",
+					/Stale records retain their recorded grades after the corpus changes/u,
 				),
 			).toBeInTheDocument();
 		});
@@ -2060,7 +2211,7 @@ describe(RunHistoryPage.name, () => {
 			).toBeInTheDocument();
 		});
 
-		it("leaves the launch out of the count of records on disk", async () => {
+		it("counts launches separately within the readable entry total", async () => {
 			respondingWith({
 				...oneStoppedOneComplete(),
 				launches: [
@@ -2081,7 +2232,7 @@ describe(RunHistoryPage.name, () => {
 			renderPage();
 
 			expect(
-				await screen.findByText(/^2 records on disk/u),
+				await screen.findByText("3 readable entries · 2 records · 1 launch"),
 			).toBeInTheDocument();
 		});
 
@@ -2109,16 +2260,20 @@ describe(RunHistoryPage.name, () => {
 			await waitFor(() => {
 				expect(screen.getByText("launch 7b0c2d4e")).toBeInTheDocument();
 			});
-			expect(cellOf("launch 7b0c2d4e", "Case")).toHaveTextContent("audit-log");
-			expect(cellOf("launch 7b0c2d4e", "Case")).toHaveTextContent(
+			expect(cellOf("launch 7b0c2d4e", "Target")).toHaveTextContent(
+				"audit-log",
+			);
+			expect(cellOf("launch 7b0c2d4e", "Target")).toHaveTextContent(
 				"group · 3 attempts",
 			);
-			expect(cellOf("launch 7b0c2d4e", "Outcome")).toHaveTextContent("running");
+			expect(cellOf("launch 7b0c2d4e", "Execution")).toHaveTextContent(
+				"running",
+			);
 			expect(screen.queryByText("No runs recorded")).not.toBeInTheDocument();
 		});
 
 		it.each(["Step grades", "Final outcome", "Cost", "Wall"])(
-			"leaves its %s cell empty, since it has no record to read",
+			"keeps %s out of a launch queue that has no record to read",
 			async (column) => {
 				respondingWith({
 					rows: [],
@@ -2140,7 +2295,9 @@ describe(RunHistoryPage.name, () => {
 
 				await renderPage().findByText("launch 7b0c2d4e");
 
-				expect(cellOf("launch 7b0c2d4e", column).textContent).toBe("");
+				expect(
+					screen.queryByRole("columnheader", { name: column }),
+				).not.toBeInTheDocument();
 			},
 		);
 
@@ -2168,7 +2325,7 @@ describe(RunHistoryPage.name, () => {
 			await waitFor(() => {
 				expect(screen.getByText("launch 9c1d3e5f")).toBeInTheDocument();
 			});
-			expect(cellOf("launch 9c1d3e5f", "Case")).toHaveTextContent(
+			expect(cellOf("launch 9c1d3e5f", "Target")).toHaveTextContent(
 				"replay build · 2026-09-06T21-58-29.508Z",
 			);
 		});
@@ -2197,7 +2354,7 @@ describe(RunHistoryPage.name, () => {
 			await waitFor(() => {
 				expect(screen.getByText("launch 4a2b6c8d")).toBeInTheDocument();
 			});
-			expect(cellOf("launch 4a2b6c8d", "Case")).toHaveTextContent(
+			expect(cellOf("launch 4a2b6c8d", "Target")).toHaveTextContent(
 				"compare attempts at build · 2026-09-06T21-58-29.508Z",
 			);
 		});
@@ -2226,7 +2383,7 @@ describe(RunHistoryPage.name, () => {
 			await waitFor(() => {
 				expect(screen.getByText("launch 5e3f7a9b")).toBeInTheDocument();
 			});
-			expect(cellOf("launch 5e3f7a9b", "Case")).toHaveTextContent(
+			expect(cellOf("launch 5e3f7a9b", "Target")).toHaveTextContent(
 				"add attempts to a comparison at build · 2026-09-06T21-58-29.508Z",
 			);
 		});
@@ -2255,7 +2412,7 @@ describe(RunHistoryPage.name, () => {
 			await waitFor(() => {
 				expect(screen.getByText("launch 6c4d8e0f")).toBeInTheDocument();
 			});
-			const target = cellOf("launch 6c4d8e0f", "Case");
+			const target = cellOf("launch 6c4d8e0f", "Target");
 			expect(target).toHaveTextContent(
 				"root-cause analysis of 2026-09-06T21-58-29.508Z",
 			);
@@ -2286,11 +2443,14 @@ describe(RunHistoryPage.name, () => {
 			});
 
 			const { queryByRole } = renderPage();
+			fireEvent.click(
+				await screen.findByRole("button", { name: "Ended launch history (1)" }),
+			);
 
 			await waitFor(() => {
 				expect(screen.getByText("launch 7b0c2d4e")).toBeInTheDocument();
 			});
-			const outcome = cellOf("launch 7b0c2d4e", "Outcome");
+			const outcome = cellOf("launch 7b0c2d4e", "Execution");
 			expect(outcome).toHaveTextContent("stopped by the operator");
 			expect(outcome).not.toHaveTextContent("running");
 			expect(
@@ -2789,7 +2949,9 @@ describe(RunHistoryPage.name, () => {
 
 				await renderPage().findByText(GROUP);
 
-				expect(cellOf(GROUP, "Step grades").textContent).toBe("4/6 passed");
+				expect(cellOf(GROUP, "Step grades").textContent).toBe(
+					"Reply/transcript basis4/6 recorded successful",
+				);
 			});
 
 			it("counts only the reps it recorded, naming the reps it could not", async () => {
@@ -2803,7 +2965,7 @@ describe(RunHistoryPage.name, () => {
 				await renderPage().findByText(GROUP);
 
 				expect(cellOf(GROUP, "Step grades").textContent).toBe(
-					"4/5 passed1 of 6 reps not recorded",
+					"Reply/transcript basis4/5 recorded successful1 of 6 reps not recorded",
 				);
 			});
 
@@ -2856,7 +3018,7 @@ describe(RunHistoryPage.name, () => {
 			await renderPage().findByText(ATTEMPT);
 
 			expect(cellOf(ATTEMPT, "Step grades")).toHaveTextContent(
-				"2 of 3 checks passed",
+				"2 of 3 reply/transcript checks passed",
 			);
 		});
 
@@ -3739,7 +3901,7 @@ describe(RunHistoryPage.name, () => {
 				await renderPage().findByText(GROUP);
 
 				expect(cellOf(GROUP, "Outcome").textContent).toBe(
-					"✓6 of 6 recorded4 successful",
+					"✓6 of 6 recorded4 recorded successful on reply/transcript checksSaved state unavailable",
 				);
 			});
 
@@ -3758,7 +3920,7 @@ describe(RunHistoryPage.name, () => {
 				await renderPage().findByText(GROUP);
 
 				expect(cellOf(GROUP, "Outcome").textContent).toBe(
-					"⊘2 of 6 recorded2 successful · rep-3: the rep recorded nothing",
+					"⊘2 of 6 recorded2 recorded successful on reply/transcript checks · rep-3: the rep recorded nothingSaved state unavailable",
 				);
 			});
 		});
@@ -3794,19 +3956,19 @@ describe(RunHistoryPage.name, () => {
 					"a successful attempt",
 					"SUCCESSFUL",
 					{ passed: 3, declared: 3 },
-					"✓successfulall checks passed",
+					"✓recorded successfulall reply/transcript checks passed",
 				],
 				[
 					"an unsuccessful attempt",
 					"UNSUCCESSFUL",
 					{ passed: 1, declared: 3 },
-					"◼unsuccessful2 of 3 checks failed",
+					"◼recorded unsuccessful2 of 3 reply/transcript checks failed",
 				],
 				[
 					"an unsuccessful attempt with one check",
 					"UNSUCCESSFUL",
 					{ passed: 0, declared: 1 },
-					"◼unsuccessful1 of 1 check failed",
+					"◼recorded unsuccessful1 of 1 reply/transcript check failed",
 				],
 			] as const)(
 				"reads %s's outcome with its checks",
@@ -3817,7 +3979,10 @@ describe(RunHistoryPage.name, () => {
 
 					await renderPage().findByText(ATTEMPT);
 
-					expect(cellOf(ATTEMPT, "Outcome").textContent).toBe(expected);
+					expect(cellOf(ATTEMPT, "Outcome")).toHaveTextContent(expected);
+					expect(cellOf(ATTEMPT, "Outcome")).toHaveTextContent(
+						"Saved state unavailable",
+					);
 				},
 			);
 
@@ -3841,7 +4006,7 @@ describe(RunHistoryPage.name, () => {
 					await renderPage().findByText(ATTEMPT);
 
 					expect(cellOf(ATTEMPT, "Outcome").textContent).toBe(
-						`⊘${phrase}${reason}`,
+						`⊘${phrase}${reason}Saved state unavailable`,
 					);
 				},
 			);
@@ -4554,5 +4719,34 @@ describe(RunHistoryPage.name, () => {
 				).toBeDisabled();
 			});
 		});
+	});
+});
+
+describe("ended runs awaiting human review", () => {
+	it("keeps ended execution, final failure and pending human review separate", async () => {
+		respondingWith({
+			rows: [
+				{
+					...runRow({
+						run: "2026-10-15T12-00-00.000Z",
+						status: "AWAITING_HUMAN_REVIEW",
+						shortId: "r44",
+					}),
+					finalOutcome: {
+						state: "available",
+						status: "JUDGED",
+						verdict: "FAIL",
+					},
+				},
+			],
+			launches: [],
+			unreadable: [],
+		});
+		renderPage();
+
+		const ended = await screen.findByText("Execution ended");
+		expect(ended.closest("td")).toHaveTextContent("Human review pending");
+		expect(ended.closest("td")).toHaveTextContent("Final outcome FAIL");
+		expect(ended.closest("td")).not.toHaveTextContent("running");
 	});
 });

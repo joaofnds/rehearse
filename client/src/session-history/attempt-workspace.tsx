@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { attemptEvidenceQuery } from "./attempt-evidence-query";
 import { confirmationRepQuery } from "./confirmation-rep-query";
 import type { ConfirmationRepResult } from "./confirmation-rep-query";
 import { useState } from "react";
@@ -16,7 +17,8 @@ import { clockReading, spendReading } from "#client/run-history/run-progress";
 import { runHistoryQuery } from "#client/run-history/run-history-query";
 import type { RunHistoryResponse } from "#client/run-history/run-history-query";
 import { ScreenHeader } from "#client/system/components/screen-header";
-import { SectionLabel } from "#client/system/components/section-label";
+import { Metric } from "#client/system/components/metric";
+import { StateBadge } from "#client/system/components/state-badge";
 import {
 	SessionHistoryPage,
 	sessionHistoryQuery,
@@ -70,23 +72,6 @@ function recordId(
 	}
 }
 
-function Measure({
-	label,
-	value,
-}: {
-	readonly label: string;
-	readonly value: string;
-}): React.JSX.Element {
-	return (
-		<div className="flex min-w-32 flex-col gap-1">
-			<dt>
-				<SectionLabel>{label}</SectionLabel>
-			</dt>
-			<dd className="font-mono text-12">{value}</dd>
-		</div>
-	);
-}
-
 function costReading(cost: SessionRow["cost"]): string {
 	if (cost.state === "unavailable") {
 		return `Unavailable: ${cost.reasons.join("; ")}`;
@@ -102,29 +87,41 @@ function timeReading(time: SessionRow["wallTime"]): string {
 
 function SessionResults({
 	row,
+	assessmentAvailable,
 }: {
 	readonly row: SessionRow;
+	readonly assessmentAvailable: boolean;
 }): React.JSX.Element {
 	return (
 		<section className="rounded-lg border border-divider bg-card p-4">
-			<h2 className="text-14 font-medium">Saved session result</h2>
-			<p className="mt-2 font-mono text-12">{row.status}</p>
+			<h2 className="text-14 font-medium">Saved session measurements</h2>
+			{assessmentAvailable ? null : (
+				<StateBadge tone="neutral">Recorded outcome: {row.status}</StateBadge>
+			)}
+			<p className="mt-2 text-12 text-dim">
+				Execution ended
+				{assessmentAvailable
+					? ""
+					: " · recorded outcome uses reply/transcript checks; saved state checks are separate below."}
+			</p>
 			<dl className="mt-4 flex flex-wrap gap-6">
-				<Measure
-					label="Checks"
-					value={
-						row.checks.state === "available"
-							? `${String(row.checks.passed)} of ${String(row.checks.declared)} checks passed`
-							: `Unavailable: ${row.checks.reasons.join("; ")}`
-					}
-				/>
-				<Measure label="Cost" value={costReading(row.cost)} />
-				<Measure label="Wall time" value={timeReading(row.wallTime)} />
-				<Measure
+				{assessmentAvailable ? null : (
+					<Metric
+						label="Reply/transcript checks"
+						value={
+							row.checks.state === "available"
+								? `${String(row.checks.passed)} of ${String(row.checks.declared)} reply/transcript checks passed`
+								: `Unavailable: ${row.checks.reasons.join("; ")}`
+						}
+					/>
+				)}
+				<Metric label="Cost" value={costReading(row.cost)} />
+				<Metric label="Wall time" value={timeReading(row.wallTime)} />
+				<Metric
 					label="Corpus"
 					value={corpusMeasurementReading(row.corpusVersion)}
 				/>
-				<Measure label="Started" value={row.startedAt ?? "Not recorded"} />
+				<Metric label="Started" value={row.startedAt ?? "Not recorded"} />
 			</dl>
 		</section>
 	);
@@ -152,16 +149,24 @@ function ReplayResults({
 			<p className="mt-2 font-mono text-12">
 				{row.stage} · Grade {row.grade} · {row.status}
 			</p>
-			<p className="mt-1 text-12 text-dim">{row.finalOutcome.reason}</p>
+			<p className="mt-1 text-12 text-dim">
+				Execution ended · {row.finalOutcome.reason}
+			</p>
+			<details className="mt-3 text-12 text-dim">
+				<summary className="cursor-pointer">Replay provenance</summary>
+				<code className="mt-2 block select-all wrap-anywhere">
+					{row.lineage} · {row.timestamp}
+				</code>
+			</details>
 			<dl className="mt-4 flex flex-wrap gap-6">
-				<Measure label="Cost" value={costReading(row.cost)} />
-				<Measure label="Wall time" value={timeReading(row.wallTime)} />
-				<Measure
+				<Metric label="Cost" value={costReading(row.cost)} />
+				<Metric label="Wall time" value={timeReading(row.wallTime)} />
+				<Metric
 					label="Corpus"
 					value={corpusMeasurementReading(row.corpusVersion)}
 				/>
-				<Measure label="Lineage" value={row.lineage} />
-				<Measure label="Recorded at" value={row.timestamp} />
+
+				<Metric label="Recorded at" value={row.timestamp} />
 			</dl>
 			{sourceRun === undefined ? (
 				<p className="mt-3 text-12 text-dim">
@@ -191,7 +196,9 @@ function sessionCheckReading(
 	if (stage.status !== "JUDGED") {
 		return stageReading(stage);
 	}
-	return stage.verdict === "CONTINUE" ? "Checks passed" : "Checks failed";
+	return stage.verdict === "CONTINUE"
+		? "Reply/transcript checks passed"
+		: "Reply/transcript checks failed";
 }
 function finalOutcomeReading(
 	outcome: Immutable<ConfirmationRepResult["finalOutcome"]>,
@@ -209,11 +216,14 @@ function ConfirmationResults({
 	record: rep,
 	loading,
 	error,
+	sessionAssessmentAvailable,
 }: {
 	readonly record: Immutable<ConfirmationRepResult> | undefined;
 	readonly loading: boolean;
 	readonly error: boolean;
+	readonly sessionAssessmentAvailable: boolean;
 }): React.JSX.Element {
+	const showOutcome = rep?.mode !== "session" || !sessionAssessmentAvailable;
 	const recordedCost =
 		rep === undefined || rep.metrics.calls.length === 0
 			? undefined
@@ -237,21 +247,27 @@ function ConfirmationResults({
 			) : null}
 			{rep === undefined ? null : (
 				<>
-					<p className="mt-2 font-mono text-12">{rep.outcome}</p>
+					{showOutcome ? (
+						<StateBadge tone="neutral">
+							Recorded outcome: {rep.outcome}
+						</StateBadge>
+					) : null}
 					<dl className="mt-4 flex flex-wrap gap-6">
-						<Measure label="Mode" value={rep.mode} />
-						{rep.stages.map((stage) => (
-							<Measure
-								key={stage.stage}
-								label={stage.stage}
-								value={
-									rep.mode === "session"
-										? sessionCheckReading(stage)
-										: stageReading(stage)
-								}
-							/>
-						))}
-						<Measure
+						<Metric label="Mode" value={rep.mode} />
+						{showOutcome
+							? rep.stages.map((stage) => (
+									<Metric
+										key={stage.stage}
+										label={stage.stage}
+										value={
+											rep.mode === "session"
+												? sessionCheckReading(stage)
+												: stageReading(stage)
+										}
+									/>
+								))
+							: null}
+						<Metric
 							label="Cost"
 							value={
 								recordedCost === undefined
@@ -259,10 +275,10 @@ function ConfirmationResults({
 									: `${spendReading(recordedCost)}${rep.metrics.status === "MISSING" ? ` recorded; incomplete: ${rep.metrics.missing.join("; ")}` : ""}`
 							}
 						/>
-						<Measure label="Wall time" value={clockReading(rep.elapsedMs)} />
-						<Measure label="Case" value={rep.caseId} />
+						<Metric label="Wall time" value={clockReading(rep.elapsedMs)} />
+						<Metric label="Case" value={rep.caseId} />
 						{rep.mode === "pipeline" ? (
-							<Measure
+							<Metric
 								label="Final workflow outcome"
 								value={finalOutcomeReading(rep.finalOutcome)}
 							/>
@@ -410,8 +426,10 @@ function SavedRecord({
 
 function StandalonePanel({
 	identity,
+	assessmentAvailable,
 }: {
 	readonly identity: Extract<SessionHistoryIdentity, { kind: "standalone" }>;
+	readonly assessmentAvailable: boolean;
 }): React.JSX.Element {
 	const history = useQuery(runHistoryQuery);
 	const row = history.data?.rows.find(
@@ -435,7 +453,7 @@ function StandalonePanel({
 			This saved attempt has no readable result in Runs.
 		</p>
 	) : (
-		<SessionResults row={row} />
+		<SessionResults row={row} assessmentAvailable={assessmentAvailable} />
 	);
 }
 
@@ -504,6 +522,25 @@ function ResultsEvidence({
 		/>
 	);
 }
+function useHasSessionAssessment(
+	identity: Exclude<SessionHistoryIdentity, { kind: "stage" }>,
+	mode: ConfirmationRepResult["mode"] | undefined,
+): boolean {
+	const session =
+		identity.kind === "standalone" ||
+		(identity.kind === "confirmation" && mode === "session");
+	const evidence = useQuery({
+		...attemptEvidenceQuery(recordId(identity)),
+		enabled: session,
+	});
+	if (!session || evidence.isError) {
+		return false;
+	}
+	return (
+		evidence.data?.state === "available" && evidence.data.kind === "session"
+	);
+}
+
 function ResultsContent({
 	identity,
 	step,
@@ -522,6 +559,10 @@ function ResultsContent({
 		),
 		enabled: identity.kind === "confirmation",
 	});
+	const hasSessionAssessment = useHasSessionAssessment(
+		identity,
+		repResult.data?.mode,
+	);
 	const parsedNonSession =
 		identity.kind === "confirmation" &&
 		repResult.data !== undefined &&
@@ -535,7 +576,10 @@ function ResultsContent({
 	return (
 		<div className="flex flex-col gap-4 px-6 py-5">
 			{identity.kind === "standalone" ? (
-				<StandalonePanel identity={identity} />
+				<StandalonePanel
+					identity={identity}
+					assessmentAvailable={hasSessionAssessment}
+				/>
 			) : null}
 			{identity.kind === "replay" ? <ReplayPanel identity={identity} /> : null}
 			{identity.kind === "confirmation" ? (
@@ -543,6 +587,7 @@ function ResultsContent({
 					record={repResult.data}
 					loading={repResult.isLoading}
 					error={repResult.isError}
+					sessionAssessmentAvailable={hasSessionAssessment}
 				/>
 			) : null}
 			<ResultsEvidence
@@ -822,6 +867,51 @@ function AttemptNavigation({
 	);
 }
 
+function confirmationTitle(
+	identity: Extract<SessionHistoryIdentity, { kind: "confirmation" }>,
+	rows: RunHistoryResponse["rows"] | undefined,
+	group: GroupAttemptIndex | undefined,
+): string {
+	const groupRow = rows?.find(
+		(row) => row.kind === "group" && row.groupId === identity.groupId,
+	);
+	const rep = group?.repRecords.find((row) => row.repId === identity.repId);
+
+	return `${groupRow?.shortId ?? "Group"} · ${group?.caseId ?? groupRow?.caseId ?? "case unavailable"} · attempt ${rep === undefined ? "ordinal unavailable" : String(rep.ordinal)}`;
+}
+
+function useAttemptTitle(identity: SessionHistoryIdentity): string {
+	const history = useQuery(runHistoryQuery);
+	const group = useQuery({
+		...groupAttemptsQuery(
+			identity.kind === "confirmation" ? identity.groupId : "",
+		),
+		enabled: identity.kind === "confirmation",
+	});
+	const id = identity.kind === "stage" ? undefined : recordId(identity);
+	const selectedRow = history.data?.rows.find((row) => row.recordId === id);
+
+	switch (identity.kind) {
+		case "standalone": {
+			return `${selectedRow?.shortId ?? "Session"} · ${identity.caseId}`;
+		}
+		case "replay": {
+			return selectedRow?.kind === "replay"
+				? `${selectedRow.shortId ?? "Replay"} · ${selectedRow.caseId ?? "case unavailable"} · ${selectedRow.stage} · replay`
+				: "Replay · saved attempt";
+		}
+		case "confirmation": {
+			return confirmationTitle(identity, history.data?.rows, group.data);
+		}
+		case "stage": {
+			return attemptTitle(identity);
+		}
+		default: {
+			return identity satisfies never;
+		}
+	}
+}
+
 export function AttemptWorkspacePage({
 	identity,
 	view = "results",
@@ -836,10 +926,12 @@ export function AttemptWorkspacePage({
 	const path = attemptPath(identity);
 	const runsSearch = useRunsReturnSearch();
 	const id = identity.kind === "stage" ? undefined : recordId(identity);
+	const title = useAttemptTitle(identity);
+
 	return (
 		<div className="flex min-h-full flex-col">
 			<ScreenHeader
-				title={attemptTitle(identity)}
+				title={title}
 				eyebrow="Saved attempt"
 				lead={
 					<Link
@@ -863,7 +955,7 @@ export function AttemptWorkspacePage({
 									? "Saved repetition ID"
 									: "Canonical record ID"}
 							</summary>
-							<code className="mt-2 block select-all text-12">
+							<code className="mt-2 block select-all text-12 wrap-anywhere">
 								{identity.kind === "confirmation"
 									? `${identity.groupId}/${identity.repId}`
 									: id}

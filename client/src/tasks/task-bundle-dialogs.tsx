@@ -29,7 +29,7 @@ class BundleRefusedError extends Error {
 }
 
 const FIELD_CLASS =
-	"w-full min-w-0 rounded-md border border-strong bg-background px-2 py-1.5 font-mono text-sm";
+	"w-full min-w-0 rounded-md border border-strong bg-background px-2 py-1.5 font-mono text-13";
 
 function DialogHeader({
 	title,
@@ -77,14 +77,14 @@ export function ExportTaskDialog({
 				<DialogHeader title="Export with judges" />
 				<div className="flex flex-col gap-3 px-4 py-3.5">
 					<DialogDescription>
-						Each file holds one task: its task and brief, its steps, every step
-						rubric and the final rubric, and the commands it runs in its target.
-						The target path is this machine's, so whoever imports it names their
-						own.
+						Each file holds one workflow: its task and brief, its steps, every
+						step rubric and the final rubric, and the commands it runs in its
+						target. The target path is this machine's, so whoever imports it
+						names their own.
 					</DialogDescription>
 					{declared.length === 0 ? (
-						<p className="text-sm text-muted-foreground">
-							No task is declared by a case, so there is nothing to export.
+						<p className="text-13 text-muted-foreground">
+							No workflow is declared by a case, so there is nothing to export.
 						</p>
 					) : (
 						<ul className="flex flex-col gap-2">
@@ -94,10 +94,10 @@ export function ExportTaskDialog({
 									className="flex items-center gap-3 rounded-md border border-strong px-3 py-2"
 								>
 									<span className="flex min-w-0 flex-col">
-										<span className="font-mono text-sm">{caseId}</span>
-										<span className="truncate font-mono text-11-5 text-dim">
+										<span className="font-mono text-13">{caseId}</span>
+										<span className="truncate font-mono text-12 text-dim">
 											{task.stages.join(" → ")} · {task.stageJudges} step judges
-											+ {task.taskJudges} task judge
+											+ {task.taskJudges} final judge
 										</span>
 									</span>
 									<Button variant="outline" size="sm" asChild>
@@ -130,7 +130,7 @@ function bundleDocument(text: string): JsonDocument {
 		return JSON_DOCUMENT.parse(JSON.parse(text));
 	} catch {
 		throw new BundleRefusedError(
-			"The file is not JSON, so it is no task bundle",
+			"The file is not JSON, so it is no workflow bundle",
 		);
 	}
 }
@@ -192,7 +192,7 @@ function ImportField({
 	const hintId = useId();
 
 	return (
-		<div className="flex flex-col gap-1 text-sm">
+		<div className="flex flex-col gap-1 text-13">
 			<label htmlFor={id} className="text-muted-foreground">
 				{label}
 			</label>
@@ -206,7 +206,7 @@ function ImportField({
 				className={FIELD_CLASS}
 			/>
 			{hint === undefined ? null : (
-				<span id={hintId} className="text-xs text-dim">
+				<span id={hintId} className="text-12 text-dim">
 					{hint}
 				</span>
 			)}
@@ -222,21 +222,21 @@ function PreviewSummary({
 	return (
 		<section
 			aria-label="What the bundle holds"
-			className="flex flex-col gap-2 rounded-md border border-strong px-3 py-2 text-sm"
+			className="flex flex-col gap-2 rounded-md border border-strong px-3 py-2 text-13"
 		>
 			<p>
 				<span className="font-mono">{preview.caseId}</span> · {preview.title}
 			</p>
-			<p className="font-mono text-11-5">
+			<p className="font-mono text-12">
 				{preview.steps.map(({ name }) => name).join(" → ")} ·{" "}
-				{preview.stepJudges} step judges + 1 task judge
+				{preview.stepJudges} step judges + 1 final judge
 				{preview.model === null ? "" : ` · ${preview.model}`}
 			</p>
 			<div>
 				<p className="text-muted-foreground">
 					Each run of it runs these commands in its target:
 				</p>
-				<ul className="mt-1 flex flex-col gap-0.5 font-mono text-11-5">
+				<ul className="mt-1 flex flex-col gap-0.5 font-mono text-12">
 					{preview.commands.map((command) => (
 						<li key={command}>{command}</li>
 					))}
@@ -248,7 +248,7 @@ function PreviewSummary({
 						It starts these containers, whose variables reach those commands and
 						its agent sessions:
 					</p>
-					<ul className="mt-1 flex flex-col gap-0.5 font-mono text-11-5">
+					<ul className="mt-1 flex flex-col gap-0.5 font-mono text-12">
 						{preview.services.map(({ name, image, exports }) => (
 							<li key={name}>
 								{name} from {image}, setting {exports.join(", ")}
@@ -314,10 +314,10 @@ function ImportForm({
 				}
 			}}
 		>
-			<DialogHeader title="Import a task" />
+			<DialogHeader title="Import workflow" />
 			<div className="flex flex-col gap-3 px-4 py-3.5">
-				<label htmlFor={fileId} className="flex flex-col gap-1 text-sm">
-					<span className="text-muted-foreground">Task bundle</span>
+				<label htmlFor={fileId} className="flex flex-col gap-1 text-13">
+					<span className="text-muted-foreground">Workflow bundle</span>
 					<input
 						id={fileId}
 						type="file"
@@ -330,7 +330,7 @@ function ImportForm({
 							imported.reset();
 							void readBundle(file);
 						}}
-						className="text-sm"
+						className="text-13"
 					/>
 				</label>
 
@@ -364,13 +364,13 @@ function ImportForm({
 				) : null}
 
 				<DialogDescription>
-					Writes the task as a new case under cases/&lt;id&gt;/ in the control
-					repository, formatted and left uncommitted for you to review and
-					commit.
+					Writes the workflow as a new case under cases/&lt;id&gt;/ in the
+					control repository, formatted and left uncommitted for you to review
+					and commit.
 				</DialogDescription>
 
 				{refusal === null ? null : (
-					<p role="alert" className="text-sm text-secondary-foreground">
+					<p role="alert" className="text-13 text-secondary-foreground">
 						<span aria-hidden="true">⚠ </span>
 						{refusal.message}
 					</p>
@@ -405,7 +405,7 @@ export function ImportTaskDialog({
 	return (
 		<Dialog open={open} onOpenChange={setOpen}>
 			<DialogTrigger asChild>
-				<Button variant="quiet">Import a task</Button>
+				<Button variant="quiet">Import workflow</Button>
 			</DialogTrigger>
 			<DialogContent>
 				<ImportForm

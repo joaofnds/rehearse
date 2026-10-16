@@ -11,6 +11,7 @@ import type { ComparisonAttribution } from "#server/comparison-attribution";
 import type { ComparisonProvenance } from "#server/comparison-provenance";
 import type { CaseSummary } from "#server/comparison-summary";
 import type { WhatMovedRow } from "#server/comparison-what-moved";
+import type { SessionComparisonAssessment } from "#server/comparison-session-assessment";
 import { stubFetchByPath } from "#client/test-support/fetch-stub";
 import { ComparisonPage } from "./comparison-page";
 
@@ -95,6 +96,9 @@ interface ComparisonResponseFixture extends ComparisonProvenance {
 	readonly baselineArm: ComparisonBaselineArm;
 	readonly attempts: Readonly<Record<string, CaseAttempts>>;
 	readonly summary: Readonly<Record<string, CaseSummary>>;
+	readonly sessionAssessments?: Readonly<
+		Record<string, SessionComparisonAssessment>
+	>;
 	readonly attemptHistories: Readonly<
 		Record<
 			string,
@@ -317,8 +321,102 @@ function renderPage(
 }
 
 describe(ComparisonPage.name, () => {
+	it("renders the API's separate saved-state and reply-check assessment across all three arms", async () => {
+		const failedState: SessionComparisonAssessment["stateChecks"]["baseline"] =
+			{
+				passed: 0,
+				assessed: 6,
+				total: 6,
+				missing: 0,
+				undeclared: 0,
+				declared: [19],
+				passRate: { state: "available", value: 0, low: 0, high: 39.03343 },
+			};
+		const passedReply: SessionComparisonAssessment["checks"]["baseline"] = {
+			...failedState,
+			passed: 6,
+			declared: [1],
+			passRate: { state: "available", value: 100, low: 60.96657, high: 100 },
+		};
+		const failedAttempt = {
+			...PASSED,
+			checks: { passed: 1, declared: 1, failing: [] },
+			stateChecks: {
+				passed: 12,
+				declared: 19,
+				failing: [{ name: "history-preserved", detail: "history changed" }],
+			},
+		};
+		const passedAttempt = {
+			...failedAttempt,
+			stateChecks: { passed: 19, declared: 19, failing: [] },
+		};
+		const body = comparisonResponseBody();
+		renderPage({
+			...body,
+			report: { ...body.report, mode: "session" },
+			attempts: {
+				...body.attempts,
+				"case-1": {
+					baseline: Array.from({ length: 6 }, () => failedAttempt),
+					candidate: Array.from({ length: 6 }, () => passedAttempt),
+					control: Array.from({ length: 6 }, () => failedAttempt),
+				},
+			},
+			sessionAssessments: {
+				"case-1": {
+					title:
+						"Candidate passed saved state checks more often in this sample",
+					basis: "stateChecks",
+					stateChecks: {
+						baseline: failedState,
+						candidate: { ...passedReply, declared: [19] },
+						control: failedState,
+					},
+					checks: {
+						baseline: passedReply,
+						candidate: passedReply,
+						control: passedReply,
+					},
+				},
+			},
+		});
+
+		await screen.findByRole("heading", {
+			name: "Candidate passed saved state checks more often in this sample",
+		});
+
+		const state = screen.getByRole("region", { name: "Saved state checks" });
+		const reply = screen.getByRole("region", {
+			name: "Reply / transcript checks",
+		});
+		expect(within(state).getAllByText("0/6 passed")).toHaveLength(2);
+		expect(within(state).getByText("6/6 passed")).toBeInTheDocument();
+		expect(
+			within(state).getAllByText("6/6 attempts assessed · 19 checks each"),
+		).toHaveLength(3);
+		expect(within(reply).getAllByText("6/6 passed")).toHaveLength(3);
+		for (const [label, expected] of [
+			["Control", "0/6 passed"],
+			["Baseline (before)", "0/6 passed"],
+			["Candidate (after)", "6/6 passed"],
+		] as const) {
+			const metric = within(state).getByText(label).closest("div");
+			if (metric === null) {
+				throw new Error(`No metric for ${label}`);
+			}
+			expect(within(metric).getByText(expected)).toBeVisible();
+		}
+		expect(
+			within(state).getByRole("figure", { name: /95% confidence interval/u }),
+		).toHaveTextContent("61% to 100% · 100% observed rate");
+	});
+
 	it.each([
-		["session", "Passed means the saved session checks passed"],
+		[
+			"session",
+			"Recorded session check outcomes and saved state checks are shown separately",
+		],
 		["stage", "Step grades describe the replayed step only"],
 		["pipeline", "The final workflow outcome is judged independently"],
 	] as const)(
@@ -333,14 +431,10 @@ describe(ComparisonPage.name, () => {
 			expect(lead).toHaveTextContent(scope);
 			expect(lead).toHaveTextContent("Changed: output-styles/brief.md");
 			expect(lead).toHaveTextContent(
-				"Saved attempts · baseline (before) 1 · candidate (after) 1 · control 1",
+				"Control 1 · Baseline (before) 1 · Candidate (after) 1",
 			);
-			expect(lead).toHaveTextContent(
-				"Pass/fail spreads are 95% confidence intervals.",
-			);
-			expect(lead).toHaveTextContent(
-				"length and cost show the observed range.",
-			);
+			expect(lead).toHaveTextContent("Pass rate · 95% confidence interval");
+			expect(lead).toHaveTextContent("Coverage is shown per measure.");
 		},
 	);
 
@@ -418,7 +512,7 @@ describe(ComparisonPage.name, () => {
 			"Control 1, baseline (before) 2 and candidate (after) 3 attempts.",
 		);
 		expect(care).toHaveTextContent(
-			"Only output-styles/brief.md differs between baseline and candidate",
+			"Only output-styles/brief.md differs between the recorded corpora",
 		);
 		expect(
 			within(caseOne).getByText(
@@ -646,13 +740,13 @@ describe(ComparisonPage.name, () => {
 			within(caseOne)
 				.getAllByRole("rowheader")
 				.map((header) => header.textContent),
-		).toEqual(["finaloverall"]);
+		).toEqual(["finalRecorded outcome"]);
 		expect(within(caseOne).getByText("inside rerun noise")).toBeInTheDocument();
 		expect(
 			within(caseTwo)
 				.getAllByRole("rowheader")
 				.map((header) => header.textContent),
-		).toEqual(["reply lengthmeter"]);
+		).toEqual(["Reply lengthPer-attempt mean"]);
 		expect(within(caseTwo).getByText("unavailable")).toBeInTheDocument();
 	});
 
@@ -668,7 +762,7 @@ describe(ComparisonPage.name, () => {
 			name: "Attribution · case-2",
 		});
 		expect(caseOne).toHaveTextContent(
-			"The only difference between baseline and candidate is output-styles/brief.md.",
+			"The only recorded corpus difference between baseline and candidate is output-styles/brief.md.",
 		);
 		expect(within(caseOne).getAllByText("output-styles/brief.md")).toHaveLength(
 			1,

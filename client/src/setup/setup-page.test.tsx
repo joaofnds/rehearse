@@ -635,7 +635,9 @@ describe("first-run setup", () => {
 			fireEvent.click(finish());
 
 			expect(await screen.findByText("No runs recorded")).toBeInTheDocument();
-			expect(screen.getByText(/^0 records on disk/u)).toBeInTheDocument();
+			expect(
+				screen.getByText("0 readable entries · 0 records · 0 launches"),
+			).toBeInTheDocument();
 			expect(router.state.location.pathname).toBe("/");
 			expect(
 				server.sent

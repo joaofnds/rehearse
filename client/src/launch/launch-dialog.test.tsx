@@ -251,9 +251,14 @@ describe(LaunchDialog.name, () => {
 
 		expect(
 			within(dialog).getByText(
-				"Storing this ceiling changes future browser launches and CLI runs, including this launch.",
+				"Saving changes the default for this launch and future browser launches and CLI runs.",
 			),
 		).toBeVisible();
+		expect(
+			within(dialog).getByRole("region", { name: "Saved spending default" }),
+		).toHaveTextContent(
+			"Start uses the saved default; this dialog has no per-launch override.",
+		);
 		expect(
 			within(dialog).getByText(
 				"Ceilings bound spending; they are not projected charges.",
@@ -612,9 +617,9 @@ describe(LaunchDialog.name, () => {
 			const dialog = await openDialog({ kind: "case" });
 
 			await waitFor(() => {
-				expect(within(dialog).getByLabelText("Spend ceiling")).toHaveValue(
-					"5.00",
-				);
+				expect(
+					within(dialog).getByLabelText("Default ceiling per attempt"),
+				).toHaveValue("5.00");
 			});
 		});
 
@@ -628,9 +633,9 @@ describe(LaunchDialog.name, () => {
 			const dialog = await openDialog({ kind: "case" });
 
 			await waitFor(() => {
-				expect(within(dialog).getByLabelText("Spend ceiling")).toHaveValue(
-					"0.125",
-				);
+				expect(
+					within(dialog).getByLabelText("Default ceiling per attempt"),
+				).toHaveValue("0.125");
 			});
 		});
 
@@ -639,35 +644,67 @@ describe(LaunchDialog.name, () => {
 			const dialog = await openDialog({ kind: "case" });
 			await startButton();
 
-			fireEvent.change(within(dialog).getByLabelText("Spend ceiling"), {
-				target: { value: "2" },
-			});
+			fireEvent.change(
+				within(dialog).getByLabelText("Default ceiling per attempt"),
+				{
+					target: { value: "2" },
+				},
+			);
 
 			expect(
 				within(dialog).getByRole("button", { name: /^Start/u }),
 			).toBeDisabled();
 			expect(
 				within(dialog).getByText(
-					"Store this ceiling to start, or the launch holds to the stored one.",
+					"Unsaved default change. Save the default or restore the saved value before starting.",
 				),
 			).toBeInTheDocument();
 		});
 
+		it("discards an unsaved default change without writing settings and starts under the saved ceiling", async () => {
+			const server = serving();
+			const dialog = await openDialog({ kind: "case" });
+			await startButton();
+			fireEvent.change(
+				within(dialog).getByLabelText("Default ceiling per attempt"),
+				{ target: { value: "2" } },
+			);
+
+			fireEvent.click(
+				within(dialog).getByRole("button", { name: "Use saved default" }),
+			);
+
+			expect(
+				within(dialog).getByLabelText("Default ceiling per attempt"),
+			).toHaveValue("5.00");
+			expect(server.sent.some(({ method }) => method === "PUT")).toBe(false);
+			fireEvent.click(await startButton());
+			await waitFor(() => {
+				expect(
+					JSON.parse(
+						server.sent.find(({ method }) => method === "POST")?.body ?? "",
+					),
+				).toEqual({ kind: "case", caseId: "audit-log", attempts: 1 });
+			});
+		});
 		it("starts with the stored ceiling retyped in another form", async () => {
 			serving();
 			const dialog = await openDialog({ kind: "case" });
 			await startButton();
 
-			fireEvent.change(within(dialog).getByLabelText("Spend ceiling"), {
-				target: { value: "5" },
-			});
+			fireEvent.change(
+				within(dialog).getByLabelText("Default ceiling per attempt"),
+				{
+					target: { value: "5" },
+				},
+			);
 
 			expect(
 				within(dialog).getByRole("button", { name: /^Start/u }),
 			).toBeEnabled();
 			expect(
 				within(dialog).queryByText(
-					"Store this ceiling to start, or the launch holds to the stored one.",
+					"Unsaved default change. Save the default or restore the saved value before starting.",
 				),
 			).toBeNull();
 		});
@@ -677,11 +714,14 @@ describe(LaunchDialog.name, () => {
 			const dialog = await openDialog({ kind: "case" });
 			await startButton();
 
-			fireEvent.change(within(dialog).getByLabelText("Spend ceiling"), {
-				target: { value: "2.50" },
-			});
+			fireEvent.change(
+				within(dialog).getByLabelText("Default ceiling per attempt"),
+				{
+					target: { value: "2.50" },
+				},
+			);
 			fireEvent.click(
-				within(dialog).getByRole("button", { name: "Store ceiling" }),
+				within(dialog).getByRole("button", { name: "Save default" }),
 			);
 
 			expect(
@@ -693,6 +733,7 @@ describe(LaunchDialog.name, () => {
 			expect(request?.pathname).toBe("/api/settings/spend-ceiling");
 			expect(request?.contentType).toBe("application/json");
 			expect(JSON.parse(request?.body ?? "")).toEqual({ usd: 2.5 });
+			expect(server.sent.some(({ method }) => method === "POST")).toBe(false);
 		});
 
 		it.each(["0", "-1", "five", "", "0x10", "1e3", " 5"])(
@@ -702,12 +743,15 @@ describe(LaunchDialog.name, () => {
 				const dialog = await openDialog({ kind: "case" });
 				await startButton();
 
-				fireEvent.change(within(dialog).getByLabelText("Spend ceiling"), {
-					target: { value: entered },
-				});
+				fireEvent.change(
+					within(dialog).getByLabelText("Default ceiling per attempt"),
+					{
+						target: { value: entered },
+					},
+				);
 
 				expect(
-					within(dialog).getByRole("button", { name: "Store ceiling" }),
+					within(dialog).getByRole("button", { name: "Save default" }),
 				).toBeDisabled();
 			},
 		);
@@ -724,11 +768,14 @@ describe(LaunchDialog.name, () => {
 			const dialog = await openDialog({ kind: "case" });
 			await startButton();
 
-			fireEvent.change(within(dialog).getByLabelText("Spend ceiling"), {
-				target: { value: "3" },
-			});
+			fireEvent.change(
+				within(dialog).getByLabelText("Default ceiling per attempt"),
+				{
+					target: { value: "3" },
+				},
+			);
 			fireEvent.click(
-				within(dialog).getByRole("button", { name: "Store ceiling" }),
+				within(dialog).getByRole("button", { name: "Save default" }),
 			);
 
 			expect(await within(dialog).findByRole("alert")).toHaveTextContent(
@@ -830,11 +877,14 @@ describe(LaunchDialog.name, () => {
 			const dialog = await openDialog({ kind: "case" });
 			await within(dialog).findByText(SET_COMMAND);
 
-			fireEvent.change(within(dialog).getByLabelText("Spend ceiling"), {
-				target: { value: "4" },
-			});
+			fireEvent.change(
+				within(dialog).getByLabelText("Default ceiling per attempt"),
+				{
+					target: { value: "4" },
+				},
+			);
 			fireEvent.click(
-				within(dialog).getByRole("button", { name: "Store ceiling" }),
+				within(dialog).getByRole("button", { name: "Save default" }),
 			);
 
 			expect(await startButton()).toBeEnabled();

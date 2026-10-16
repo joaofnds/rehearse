@@ -101,6 +101,31 @@ describe(AttemptPairs.name, () => {
 		expect(cell("Attempt 2", "Control")).toHaveTextContent("D");
 	});
 
+	it("shows a session's recorded check outcome beside its separate saved state failures", () => {
+		const attempt: ComparisonAttempt = {
+			...graded(1, "A", 12),
+			checks: { passed: 1, declared: 1, failing: [] },
+			stateChecks: {
+				passed: 0,
+				declared: 1,
+				failing: [{ name: "history-preserved", detail: "history changed" }],
+			},
+		};
+		renderPairs({
+			mode: "session",
+			attempts: { ...ATTEMPTS, baseline: [attempt] },
+		});
+
+		const baseline = cell("Attempt 1", "Baseline (before)");
+		expect(baseline).toHaveTextContent("Recorded checks passed");
+		expect(baseline).toHaveTextContent("Reply / transcript: 1/1 checks passed");
+		expect(baseline).toHaveTextContent("Saved state: 0/1 checks passed");
+		expect(baseline).toHaveTextContent("history-preserved: history changed");
+		expect(
+			within(baseline).queryByText("A", { exact: true }),
+		).not.toBeInTheDocument();
+	});
+
 	it("shows each attempt's words and the blockers that fired on it", () => {
 		renderPairs();
 

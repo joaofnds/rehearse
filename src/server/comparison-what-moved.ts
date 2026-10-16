@@ -107,7 +107,9 @@ export type WhatMovedRow =
 			readonly kind: "dimension";
 			readonly name: string;
 			readonly stage: string;
-			readonly arms: ByArm<Reading<LetterRange>>;
+			readonly arms: ByArm<
+				Reading<LetterRange & { readonly graded?: number | undefined }>
+			>;
 			readonly readings: ByPair<ItemReading>;
 	  }
 	| {
@@ -428,13 +430,17 @@ function dimensionRows(benchmarkCase: ReportCase): WhatMovedRow[] {
 	const items = mapArms(benchmarkCase, dimensionsOf);
 
 	return itemKeys(items).map((key) => {
-		const arms = mapArms(benchmarkCase, (_arm, role): Reading<LetterRange> => {
-			const range = letterRange(valuesFor(items[role], key));
+		const arms = mapArms(
+			benchmarkCase,
+			(_arm, role): Reading<LetterRange & { readonly graded: number }> => {
+				const grades = valuesFor(items[role], key);
+				const range = letterRange(grades);
 
-			return range === undefined
-				? { state: "unavailable", reasons: [NO_GRADED_REP_REASON] }
-				: { state: "available", ...range };
-		});
+				return range === undefined
+					? { state: "unavailable", reasons: [NO_GRADED_REP_REASON] }
+					: { state: "available", ...range, graded: grades.length };
+			},
+		);
 
 		return {
 			kind: "dimension",

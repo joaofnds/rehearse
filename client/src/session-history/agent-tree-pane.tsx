@@ -9,7 +9,8 @@ import type {
 import type { apiClient } from "#client/api-client";
 import { cn } from "#client/system/cn";
 import { PaneHeading } from "./pane-heading";
-import { categories, costLabel, usd } from "./request-timeline";
+import { categories, CostReading, costLabel, usd } from "./request-timeline";
+import { plural } from "#client/plural";
 import { selectableRow } from "./selectable-row";
 
 export type AgentsResponse = InferResponseType<
@@ -169,10 +170,7 @@ function Reading({
 			<dt id={id}>
 				<span className="text-12 text-muted-foreground">{term}</span>
 			</dt>
-			<dd
-				aria-labelledby={id}
-				className="font-mono text-12 text-secondary-foreground"
-			>
+			<dd aria-labelledby={id} className="text-13 text-secondary-foreground">
 				{children}
 			</dd>
 		</div>
@@ -835,34 +833,46 @@ export function AgentTreePane({
 				<p
 					role="status"
 					aria-label="Agent coverage"
-					className="font-mono text-12 text-secondary-foreground"
+					className="text-13 text-secondary-foreground"
 				>
-					Coverage {coverageLabel(tree)}
+					{tree.coverage.state === "complete"
+						? "Complete coverage · all agent transcripts saved"
+						: `Incomplete coverage · ${plural(tree.coverage.unavailableAgentIds.length, "missing transcript")}`}
 				</p>
-				<p
+				<div
 					role="status"
 					aria-label="Calculated attempt total"
-					className="font-mono text-12 text-secondary-foreground"
+					className="text-13 text-secondary-foreground"
 				>
 					Calculated attempt total, each request once:{" "}
-					{cost.state === "available"
-						? costLabel(cost.calculated)
-						: `? Unavailable · ${cost.reasons.join(", ")}`}
-				</p>
-				{cost.state === "available" ? (
-					<ul
-						aria-label="Cost by model"
-						className="font-mono text-12 text-secondary-foreground"
-					>
-						{cost.byModel.map((model) => (
-							<li key={model.model} aria-label={model.model}>
-								{model.model} · provider count {costLabel(model.reported)} ·
-								basis: {model.reportedBasis} · calculated{" "}
-								{costLabel(model.calculated)}
-							</li>
-						))}
-					</ul>
-				) : null}
+					{cost.state === "available" ? (
+						<CostReading reading={cost.calculated} difference={false} />
+					) : (
+						"Unavailable"
+					)}
+				</div>
+				<details className="mt-1 text-12 text-secondary-foreground">
+					<summary className="cursor-pointer">
+						Coverage and cost details
+					</summary>
+					<p className="mt-2">{coverageLabel(tree)}</p>
+					<p className="mt-2">
+						{cost.state === "available"
+							? costLabel(cost.calculated)
+							: cost.reasons.join(", ")}
+					</p>
+					{cost.state === "available" ? (
+						<ul aria-label="Cost by model" className="mt-2 flex flex-col gap-2">
+							{cost.byModel.map((model) => (
+								<li key={model.model} aria-label={model.model}>
+									{model.model} · provider count {costLabel(model.reported)} ·
+									basis: {model.reportedBasis} · calculated{" "}
+									{costLabel(model.calculated)}
+								</li>
+							))}
+						</ul>
+					) : null}
+				</details>
 			</div>
 			{sourceId === undefined ? null : (
 				<ReceivingAgents
