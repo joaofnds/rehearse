@@ -1,0 +1,808 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Rehearse · Color and readability study</title>
+		<style>
+			@font-face {
+				font-family: "Inter";
+				font-weight: 400;
+				font-display: swap;
+				src: url("../ux-comparison/fonts/inter-latin-400-normal.woff2")
+					format("woff2");
+			}
+			@font-face {
+				font-family: "Inter";
+				font-weight: 600;
+				font-display: swap;
+				src: url("../ux-comparison/fonts/inter-latin-600-normal.woff2")
+					format("woff2");
+			}
+			@font-face {
+				font-family: "JetBrains Mono";
+				font-weight: 400;
+				font-display: swap;
+				src: url("../ux-comparison/fonts/jetbrains-mono-latin-400-normal.woff2")
+					format("woff2");
+			}
+			* {
+				box-sizing: border-box;
+			}
+			body {
+				margin: 0;
+				color: var(--foreground, #1b2233);
+				font: 14px/1.5 var(--font-sans, system-ui, sans-serif);
+			}
+			button,
+			select,
+			input {
+				font: inherit;
+			}
+			button,
+			select {
+				cursor: pointer;
+			}
+			.review-tools {
+				display: flex;
+				flex-wrap: wrap;
+				align-items: center;
+				gap: 8px;
+				margin-bottom: 12px;
+			}
+			.review-tools button,
+			.review-tools select {
+				color: inherit;
+				background: var(--card, #f1f4fa);
+				border: 1px solid var(--border, #6c7f9e);
+				border-radius: 6px;
+				min-height: 44px;
+				padding: 8px 12px;
+			}
+			.review-tools button[aria-pressed="true"] {
+				background: var(--accent-surface, #e9e3ff);
+				color: var(--accent-surface-foreground, #42366a);
+				box-shadow: inset 0 -3px var(--accent, #b5a2ff);
+			}
+			.review-tools label {
+				display: flex;
+				align-items: center;
+				gap: 8px;
+			}
+			.review-note {
+				margin: 0 0 16px;
+				color: var(--muted-foreground, #526078);
+				font-size: 13px;
+			}
+			.study {
+				--canvas: #121722;
+				--panel: #1b2233;
+				--raised: #242e42;
+				--sidebar: #10151f;
+				--ink: #eef1f8;
+				--secondary: #bcc7db;
+				--muted: #9baac2;
+				--line: #36445e;
+				--control: #6c7f9e;
+				--action: #b5a2ff;
+				--action-hover: #c8baff;
+				--on-action: #151225;
+				--selection: #30294c;
+				--selection-ink: #ded4ff;
+				--link: #86bdff;
+				--link-hover: #b9d9ff;
+				--info-wash: #1b304a;
+				--success: #72d8b0;
+				--success-wash: #17372e;
+				--warning: #f2c572;
+				--warning-wash: #3b2e1c;
+				--failure: #ff9eac;
+				--failure-wash: #3e2430;
+				--reading: 14px;
+				--detail: 12px;
+				--heading: 24px;
+				--reading-leading: 1.65;
+				background: var(--canvas);
+				color: var(--ink);
+				border-radius: 8px;
+				padding: 16px;
+				overflow: hidden;
+				font:
+					var(--reading)/1.5 Inter,
+					system-ui,
+					sans-serif;
+			}
+			.study.baseline {
+				--canvas: #161826;
+				--panel: #1a1c28;
+				--raised: #1c1e2b;
+				--sidebar: #14161f;
+				--ink: #e9e9ed;
+				--secondary: #b2b6ca;
+				--muted: #858ba2;
+				--line: #292b31;
+				--control: #3f424d;
+				--action: #9184d9;
+				--action-hover: #b5abfc;
+				--on-action: #d2cefd;
+				--selection: #29263f;
+				--selection-ink: #d2cefd;
+				--link: #b5abfc;
+				--link-hover: #d2cefd;
+				--info-wash: #242238;
+				--success: #a3c8b0;
+				--success-wash: #242a34;
+				--warning: #d6bd88;
+				--warning-wash: #292934;
+				--failure: #edafb9;
+				--failure-wash: #2c2735;
+				--reading: 13px;
+				--detail: 10px;
+				--heading: 20px;
+				--reading-leading: 1.45;
+			}
+			.study.grayscale {
+				filter: grayscale(1);
+			}
+			.study h1,
+			.study h2,
+			.study h3,
+			.study p {
+				margin: 0;
+			}
+			.study h1 {
+				font-size: var(--heading);
+				font-weight: 600;
+				letter-spacing: -0.025em;
+				line-height: 1.25;
+			}
+			.study h2 {
+				font-size: 16px;
+				font-weight: 600;
+			}
+			.study h3 {
+				font-size: var(--reading);
+				font-weight: 600;
+			}
+			.study a,
+			.study .text-link {
+				color: var(--link);
+				text-decoration: underline;
+				text-underline-offset: 4px;
+			}
+			.study a {
+				display: inline-flex;
+				align-items: center;
+				min-height: 44px;
+				min-width: 44px;
+			}
+			.study a:hover,
+			.study .text-link:hover {
+				color: var(--link-hover);
+			}
+			.study button {
+				color: var(--ink);
+			}
+			.study button,
+			.study select,
+			.study input {
+				min-height: 44px;
+				border-radius: 6px;
+			}
+			.study button {
+				padding: 8px 12px;
+				border: 1px solid var(--control);
+				background: var(--panel);
+			}
+			.study button:hover:not(:disabled) {
+				background: var(--raised);
+			}
+			.study .primary {
+				background: var(--action);
+				color: var(--on-action);
+				border-color: var(--action);
+				font-weight: 600;
+			}
+			.study .primary:hover:not(:disabled) {
+				background: var(--action-hover);
+			}
+			.study.baseline .primary {
+				background: transparent;
+				border-color: var(--control);
+				color: var(--ink);
+				font-weight: 400;
+			}
+			.study .danger {
+				color: var(--failure);
+				background: var(--failure-wash);
+				border-color: var(--failure);
+			}
+			.study button:disabled {
+				opacity: 0.45;
+				cursor: not-allowed;
+			}
+			.study .text-link {
+				background: transparent;
+				border-color: transparent;
+				padding-inline: 0;
+			}
+			:focus-visible {
+				outline: 2px solid var(--foreground, #42366a);
+				outline-offset: 3px;
+			}
+			.study :focus-visible {
+				outline-color: var(--action);
+			}
+			.study .row {
+				display: flex;
+				gap: 8px;
+				align-items: center;
+				flex-wrap: wrap;
+			}
+			.study .between {
+				justify-content: space-between;
+			}
+			.study .muted {
+				color: var(--muted);
+			}
+			.study .secondary {
+				color: var(--secondary);
+			}
+			.study .detail {
+				font-size: var(--detail);
+			}
+			.study .mono {
+				font-family: "JetBrains Mono", ui-monospace, monospace;
+				font-variant-numeric: tabular-nums;
+			}
+			.study .eyebrow {
+				color: var(--muted);
+				font-size: var(--detail);
+				font-weight: 500;
+				letter-spacing: 0.06em;
+				text-transform: uppercase;
+			}
+			.study .stack {
+				display: grid;
+				gap: 16px;
+			}
+			.study .shell {
+				display: grid;
+				gap: 24px;
+			}
+			.study .sidebar {
+				display: none;
+			}
+			.study .main {
+				min-width: 0;
+				display: grid;
+				gap: 20px;
+				align-content: start;
+			}
+			.study header p {
+				margin-top: 8px;
+			}
+			.study .panel {
+				border: 1px solid var(--line);
+				background: var(--panel);
+				border-radius: 8px;
+				padding: 16px;
+				min-width: 0;
+			}
+			.study .filters {
+				border-bottom: 1px solid var(--line);
+				padding-bottom: 16px;
+			}
+			.study .chip {
+				min-height: 44px;
+				border-radius: 24px;
+				padding: 6px 14px;
+				background: transparent;
+				color: var(--secondary);
+			}
+			.study .chip[aria-pressed="true"] {
+				background: var(--selection);
+				border-color: var(--action);
+				color: var(--selection-ink);
+			}
+			.study .badge {
+				display: inline-flex;
+				align-items: center;
+				gap: 6px;
+				color: var(--secondary);
+				background: var(--raised);
+				border: 1px solid var(--control);
+				border-radius: 4px;
+				padding: 4px 8px;
+				font-size: var(--detail);
+				white-space: nowrap;
+			}
+			.study .success {
+				color: var(--success);
+				background: var(--success-wash);
+				border-color: var(--success);
+			}
+			.study .warning {
+				color: var(--warning);
+				background: var(--warning-wash);
+				border-color: var(--warning);
+			}
+			.study .failure {
+				color: var(--failure);
+				background: var(--failure-wash);
+				border-color: var(--failure);
+			}
+			.study .info {
+				color: var(--link);
+				background: var(--info-wash);
+				border-color: var(--link);
+			}
+			.study .notice {
+				border: 1px solid var(--line);
+				border-left: 3px solid var(--warning);
+				background: var(--warning-wash);
+				border-radius: 4px;
+				padding: 12px 16px;
+				color: var(--warning);
+			}
+			.study .table-wrap {
+				overflow: auto;
+				max-width: 100%;
+				border: 1px solid var(--line);
+				border-radius: 8px;
+				background: var(--panel);
+			}
+			.study table {
+				width: 100%;
+				min-width: 800px;
+				border-collapse: collapse;
+				text-align: left;
+				font-size: var(--reading);
+			}
+			.study th,
+			.study td {
+				border-bottom: 1px solid var(--line);
+				padding: 14px 12px;
+				vertical-align: top;
+				font-weight: 400;
+			}
+			.study thead th {
+				color: var(--secondary);
+				font-size: var(--detail);
+				font-weight: 600;
+				background: var(--raised);
+			}
+			.study tbody tr:last-child > * {
+				border-bottom: 0;
+			}
+			.study tbody tr:hover {
+				background: var(--raised);
+			}
+			.study td small,
+			.study th small {
+				display: block;
+				margin-top: 6px;
+				font-size: var(--detail);
+				color: var(--muted);
+			}
+			.study .numeric {
+				text-align: right;
+				white-space: nowrap;
+			}
+			.study .tabs {
+				display: flex;
+				gap: 16px;
+				border-bottom: 1px solid var(--line);
+			}
+			.study .tabs span {
+				display: inline-flex;
+				align-items: center;
+				padding: 8px 0;
+			}
+			.study .tabs .selected {
+				color: var(--selection-ink);
+				border-bottom: 3px solid var(--action);
+			}
+			.study .outcome {
+				border-left: 4px solid var(--failure);
+				background: var(--failure-wash);
+			}
+			.study .outcome p {
+				margin-top: 12px;
+			}
+			.study .two-col {
+				display: grid;
+				gap: 16px;
+			}
+			.study .reading {
+				line-height: var(--reading-leading);
+				color: var(--secondary);
+			}
+			.study .reading p + p {
+				margin-top: 16px;
+			}
+			.study .reading h2 {
+				color: var(--ink);
+				margin-bottom: 16px;
+			}
+			.study .reading ul {
+				padding-left: 20px;
+			}
+			.study .reading li + li {
+				margin-top: 12px;
+			}
+			.study .metric {
+				font-size: 24px;
+				color: var(--ink);
+				letter-spacing: -0.02em;
+			}
+			.study .measurements {
+				display: flex;
+				gap: 24px;
+				flex-wrap: wrap;
+			}
+			.study .measurements p {
+				margin-bottom: 4px;
+			}
+			.study .source {
+				display: flex;
+				align-items: center;
+				gap: 12px;
+				padding: 12px;
+				border-bottom: 1px solid var(--line);
+			}
+			.study .source.selected {
+				border-left: 3px solid var(--action);
+				background: var(--selection);
+				color: var(--selection-ink);
+			}
+			.study .source span:last-child {
+				margin-left: auto;
+			}
+			.study .code {
+				overflow: auto;
+				margin: 0;
+				white-space: pre-wrap;
+				overflow-wrap: anywhere;
+				background: var(--canvas);
+				color: var(--secondary);
+				padding: 16px;
+				border-radius: 6px;
+				font:
+					13px/1.7 "JetBrains Mono",
+					ui-monospace,
+					monospace;
+			}
+			.study .swatches {
+				display: grid;
+				grid-template-columns: repeat(2, minmax(0, 1fr));
+				gap: 12px;
+			}
+			.study .swatch {
+				padding: 12px;
+				border: 1px solid var(--line);
+				border-radius: 6px;
+			}
+			.study .swatch i {
+				display: block;
+				height: 6px;
+				border-radius: 2px;
+				background: var(--swatch);
+				margin-bottom: 12px;
+			}
+			.study .swatch strong {
+				display: block;
+				font-weight: 500;
+			}
+			.study .swatch code {
+				color: var(--muted);
+				font-size: var(--detail);
+			}
+			.study .form-field {
+				display: grid;
+				gap: 8px;
+			}
+			.study input {
+				width: 100%;
+				min-width: 0;
+				padding: 8px 12px;
+				background: var(--canvas);
+				color: var(--ink);
+				border: 1px solid var(--control);
+			}
+			.study input::placeholder {
+				color: var(--muted);
+				opacity: 1;
+			}
+			.study .focus-example {
+				outline: 2px solid var(--action);
+				outline-offset: 3px;
+			}
+			.legend {
+				display: grid;
+				grid-template-columns: repeat(2, minmax(0, 1fr));
+				gap: 16px;
+				margin-top: 16px;
+				font-size: 13px;
+			}
+			.legend p {
+				margin: 4px 0 0;
+				color: var(--muted-foreground, #526078);
+			}
+			.legend strong {
+				font-weight: 600;
+			}
+			@media (min-width: 700px) {
+				.study {
+					padding: 24px;
+				}
+				.study .two-col {
+					grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+				}
+				.study .swatches {
+					grid-template-columns: repeat(3, minmax(0, 1fr));
+				}
+			}
+			@media (min-width: 1100px) {
+				.study .shell {
+					grid-template-columns: 196px minmax(0, 1fr);
+				}
+				.study .sidebar {
+					display: grid;
+					align-content: start;
+					gap: 24px;
+					border-right: 1px solid var(--line);
+					padding-right: 24px;
+				}
+				.study .brand {
+					font-size: 18px;
+					font-weight: 600;
+					letter-spacing: -0.03em;
+				}
+				.study .nav-item {
+					color: var(--secondary);
+					padding: 12px;
+					border-left: 3px solid transparent;
+				}
+				.study .nav-item.selected {
+					background: var(--selection);
+					color: var(--selection-ink);
+					border-color: var(--action);
+					border-radius: 4px;
+				}
+			}
+			@media (max-width: 399px) {
+				.legend {
+					grid-template-columns: 1fr;
+				}
+				.review-tools label {
+					flex-wrap: wrap;
+				}
+			}
+		</style>
+	</head>
+	<body>
+		<div class="review-tools" role="group" aria-label="Review visual direction">
+			<button type="button" data-theme="baseline" aria-pressed="false">
+				Current tokens
+			</button>
+			<button type="button" data-theme="proposed" aria-pressed="true">
+				Proposed
+			</button>
+			<label
+				>Screen
+				<select id="screen">
+					<option value="runs">Runs</option>
+					<option value="results">Results</option>
+					<option value="context">Context & cost</option>
+					<option value="comparison">Comparison</option>
+					<option value="controls">Palette & controls</option>
+				</select></label
+			>
+			<button type="button" id="grayscale" aria-pressed="false">
+				Grayscale
+			</button>
+		</div>
+		<p class="review-note">
+			Draft visual direction · synthetic examples. The toggle compares color,
+			type and control treatment in the same study layout; “Current tokens” is
+			not a production screenshot.
+		</p>
+		<section class="study" id="study" aria-label="Rehearse visual study">
+			<div class="shell">
+				<aside class="sidebar" aria-label="Navigation appearance sample">
+					<div class="brand">Rehearse</div>
+					<div class="panel stack">
+						<span class="eyebrow">Corpus under test</span
+						><span class="mono">corpus@demo</span
+						><span class="detail muted">Synthetic snapshot</span>
+					</div>
+					<div>
+						<div class="nav-item selected">Runs</div>
+						<div class="nav-item">Comparisons</div>
+						<div class="nav-item">Cases</div>
+						<div class="nav-item">Corpus</div>
+						<div class="nav-item">Settings</div>
+					</div>
+				</aside>
+				<div class="main" id="screen-content"></div>
+			</div>
+		</section>
+		<div class="legend">
+			<div>
+				<strong>Give color a job.</strong>
+				<p>
+					Violet: actions and selection. Blue: links and live information. Teal:
+					successful assessment. Amber: attention. Rose: failed assessment or
+					destructive action.
+				</p>
+			</div>
+			<div>
+				<strong>Make the text do less work.</strong>
+				<p>
+					14px reading and controls, 12px metadata, 24px titles. Brighter
+					secondary text and clearer surfaces. Labels and symbols preserve
+					meaning in grayscale.
+				</p>
+			</div>
+		</div>
+		<p class="review-note" style="margin-top: 16px">
+			Normal-text contrast target: at least 4.5:1.
+			<a
+				href="https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html"
+				style="color: inherit"
+				>W3C contrast guidance</a
+			>. This study is not a complete accessibility audit of the product.
+		</p>
+		<script>
+			const study = document.getElementById("study");
+			const content = document.getElementById("screen-content");
+			const screen = document.getElementById("screen");
+			const badge = (text, tone = "") =>
+				`<span class="badge ${tone}">${text}</span>`;
+			const link = (text, target) =>
+				`<a href="#${target}" data-screen="${target}">${text}</a>`;
+			const rows = [
+				[
+					"r42",
+					"Today, 14:32",
+					"audit-log",
+					"Task · Build in progress",
+					badge("● Running", "info"),
+					badge("Pending"),
+					"B · —",
+					"$3.42",
+				],
+				[
+					"r41",
+					"Today, 13:48",
+					"audit-log",
+					"Task · 2 steps",
+					badge("Execution ended"),
+					badge("✓ Final PASS", "success"),
+					"B · B",
+					"$4.86",
+				],
+				[
+					"r37",
+					"Today, 13:16",
+					"audit-log",
+					"Task · 2 steps",
+					badge("Execution ended"),
+					badge("✕ Final FAIL", "failure"),
+					"B · B",
+					"$4.55",
+				],
+				[
+					"r40",
+					"Today, 12:10",
+					"audit-log",
+					"Task · stopped at Shape",
+					badge("■ Below minimum", "warning"),
+					badge("Not reached"),
+					"C · —",
+					"$1.73",
+				],
+				[
+					"s11",
+					"Time not recorded",
+					"brief-reply",
+					"Session · no reply saved",
+					badge("⚠ Invocation failed", "warning"),
+					badge("Unavailable"),
+					"—",
+					"Unavailable",
+				],
+			];
+			function runs() {
+				return `<header class="row between"><div><h1>Runs</h1><p class="muted">5 illustrative records · newest first</p></div><div class="row"><button type="button" data-screen="controls">Replay a step</button><button type="button" class="primary" data-screen="controls">New run</button></div></header><div class="row filters" role="group" aria-label="Filter sample records"><span class="detail muted">Status</span><button type="button" class="chip" aria-pressed="true" data-filter="all">All</button><button type="button" class="chip" aria-pressed="false" data-filter="running">Running</button><button type="button" class="chip" aria-pressed="false" data-filter="failed">Failed</button></div><div class="table-wrap" tabindex="0" role="region" aria-label="Scrollable run examples"><table><caption class="eyebrow" style="text-align:left;padding:12px">Run history · synthetic data</caption><thead><tr><th scope="col">Run</th><th scope="col">Case</th><th scope="col">Execution</th><th scope="col">Final outcome</th><th scope="col">Step grades</th><th scope="col" class="numeric">Cost</th></tr></thead><tbody>${rows.map((r, i) => `<tr data-record="${i}"><th scope="row">${r[0] === "r37" ? link(r[0], "results") : `<span class="mono">${r[0]}</span>`}<small class="mono">${r[1]}</small></th><td>${r[2]}<small>${r[3]}</small></td><td>${r[4]}</td><td>${r[5]}</td><td class="mono">${r[6]}</td><td class="numeric mono">${r[7]}</td></tr>`).join("")}</tbody></table></div><p class="detail muted">Execution, step grades and final outcome remain separate readings. Inspect the failed task beside its accepted step in ${link("Results", "results")}.</p>`;
+			}
+			function workspace(title, active) {
+				return `<header><p class="detail">${link("← Runs", "runs")} <span class="muted"> / audit-log / r37</span></p><h1 style="margin-top:12px">${title}</h1><p class="row">${badge("Execution ended")}<span class="detail muted">Synthetic task · selected step: Build</span></p></header><div class="tabs" aria-label="Workspace appearance sample">${["results", "context"].map((s) => `<span class="${active === s ? "selected" : ""}">${active === s ? (s === "results" ? "Results" : "Context & cost") : link(s === "results" ? "Results" : "Context & cost", s)}</span>`).join("")}</div>`;
+			}
+			function results() {
+				return `${workspace("r37 · Audit log", "results")}<section class="panel outcome"><div class="row">${badge("✕ Final FAIL", "failure")}<h2>Final outcome · independent task Judge</h2></div><p>Empty-page behavior does not meet the task contract.</p><p class="secondary">2 of 14 task criteria failed. The step's continuation grade is assessed separately.</p><p>${link("Inspect failed criteria & citations →", "controls")}</p></section><div class="two-col"><section class="panel reading"><h2>Saved output · Build</h2><p>The audit log supports cursor pagination and validates incoming requests. Stable ordering and the populated-page response are implemented.</p><p>The empty-page response still needs the required cursor field. Inspect the final Judge's citation before deciding what to change.</p><p>${link("Open complete output →", "controls")}</p></section><section class="panel stack"><div class="row between"><h2>Build assessment</h2>${badge("✓ B · continued", "success")}</div><p class="secondary">Minimum B · no hard blocker fired</p><p class="reading">The step met its continuation threshold. This grade does not establish that the final task passed.</p><div class="row"><button type="button" class="primary" data-screen="controls">Edit instruction & replay</button><button type="button" data-screen="controls">Replay Build</button></div>${link("Context & cost →", "context")}</section></div>`;
+			}
+			function context() {
+				return `${workspace("Context & cost · Build", "context")}<div class="panel measurements"><div><p class="detail muted">Step cost</p><span class="metric mono">$3.10</span></div><div><p class="detail muted">Recorded deliveries</p><span class="metric mono">12</span></div><div><p class="detail muted">Evidence coverage</p>${badge("⚠ Partial", "warning")}</div></div><div class="notice">⚠ 2 deliveries lack saved content. Their content is unavailable; their size is not zero.</div><div class="two-col"><section class="panel stack"><h2>Sources</h2><div class="source selected"><span>build/SKILL.md<br><span class="detail">Selected source</span></span><span class="mono detail">4,800 chars</span></div><div class="source"><span>Tool results</span><span class="mono detail">12,200 chars</span></div><div class="source"><span>Task input</span><span class="mono detail">1,600 chars</span></div><p class="detail muted">Recorded text characters · not request tokens</p></section><section class="panel stack"><div class="row between"><h2>Delivered content</h2>${badge("↓ Observed delivery", "info")}</div><p class="detail muted">build/SKILL.md · synthetic excerpt</p><pre class="code"># Build\n\nImplement the agreed task.\nRun the project checks.\nRead the saved evidence before\ndeciding what to change.</pre>${link("Inspect source and delivery →", "controls")}</section></div>`;
+			}
+			function comparison() {
+				return `<header><p class="detail">${link("← Runs", "runs")} <span class="muted"> / synthetic comparison</span></p><h1 style="margin-top:12px">What moved</h1><p class="secondary">Shorter Build instructions · 3 attempts per arm</p></header><section class="panel stack"><h2>Quality and cost stay separate</h2><p class="reading">Both arms recorded 3 of 3 successful session checks. Their saved-state checks differ. Three attempts per arm are too few to establish a reliability improvement.</p><div class="row">${badge("Recorded checks · 3/3 each", "success")}${badge("⚠ Small sample", "warning")}</div></section><div class="table-wrap" tabindex="0" role="region" aria-label="Scrollable comparison example"><table><caption class="eyebrow" style="text-align:left;padding:12px">Synthetic arm readings</caption><thead><tr><th scope="col">Arm</th><th scope="col">Recorded checks</th><th scope="col">Saved-state checks</th><th scope="col">95% interval · recorded checks</th><th scope="col" class="numeric">Median own cost</th></tr></thead><tbody><tr><th scope="row">Baseline (before)<small class="mono">corpus@before</small></th><td>3 / 3 successful</td><td>1 / 3 successful</td><td class="mono">44%–100%</td><td class="numeric mono">$2.42</td></tr><tr><th scope="row">Candidate (after)<small class="mono">corpus@after</small></th><td>3 / 3 successful</td><td>2 / 3 successful</td><td class="mono">44%–100%</td><td class="numeric mono">$1.80</td></tr><tr><th scope="row">Control<small class="mono">Minimal corpus</small></th><td>2 / 3 successful</td><td>1 / 3 successful</td><td class="mono">21%–94%</td><td class="numeric mono">$1.24</td></tr></tbody></table></div><p class="detail muted">Recorded-check intervals: 95% Wilson confidence intervals, rounded to whole percentages; n = 3 per arm. Saved-state results are a separate assessment. All readings are synthetic.</p><p class="secondary">Arm names stay neutral. A lower cost does not become a green quality verdict.</p><div class="row"><button type="button" class="primary" data-screen="controls">Inspect attempt pairs</button>${link("Inspect corpus change →", "controls")}</div>`;
+			}
+			function controls() {
+				const colors = [
+					["Slate", "Surfaces & text", "#1b2233"],
+					["Violet", "Primary action & selection", "#b5a2ff"],
+					["Blue", "Links & live information", "#86bdff"],
+					["Teal", "Successful assessment", "#72d8b0"],
+					["Amber", "Attention & incomplete evidence", "#f2c572"],
+					["Rose", "Failure & destructive action", "#ff9eac"],
+				];
+				return `<header><h1>Palette & controls</h1><p class="muted">Each role has a text, surface and interaction treatment.</p></header><div class="swatches">${colors.map(([name, role, color]) => `<div class="swatch" style="--swatch:${color}"><i aria-hidden="true"></i><strong>${name}</strong><p class="detail secondary">${role}</p><code>${color}</code></div>`).join("")}</div><section class="panel stack"><h2>Action hierarchy</h2><div class="row"><button type="button" class="primary" data-sample="Primary action">New run</button><button type="button" data-sample="Secondary action">Replay a step</button><button type="button" class="text-link" data-sample="Text link">Inspect evidence →</button><button type="button" class="danger" data-sample="Destructive action">Stop run</button><button type="button" disabled>Replay unavailable</button></div><p id="sample-message" class="detail muted" role="status">Design samples only. No run, replay or stop request is sent.</p></section><div class="two-col"><section class="panel stack"><h2>Readable text</h2><p class="reading">Saved output uses 14px text with room between lines. Secondary descriptions stay readable without competing with the result.</p><p class="detail muted">Metadata · 12px · separate from body copy</p><label class="form-field">Search runs<input placeholder="Case, run or corpus…" /></label></section><section class="panel stack"><h2>Selection & focus</h2><div class="row"><button type="button" class="chip" aria-pressed="true" data-sample="Selected filter">All runs</button><button type="button" class="focus-example" data-sample="Keyboard focus">Focus example</button></div><p class="detail secondary">Violet fill marks selection; an offset outline marks keyboard focus. Use Tab to inspect actual focus.</p><div class="row">${badge("✓ Passed", "success")}${badge("⚠ Partial", "warning")}${badge("✕ Failed", "failure")}${badge("Execution ended")}</div></section></div>`;
+			}
+			const views = { runs, results, context, comparison, controls };
+			function render() {
+				content.innerHTML = views[screen.value]();
+				const nav = study.querySelectorAll(".nav-item");
+				nav.forEach((e) =>
+					e.classList.toggle(
+						"selected",
+						e.textContent ===
+							(screen.value === "comparison" ? "Comparisons" : "Runs"),
+					),
+				);
+			}
+			screen.addEventListener("change", render);
+			document.querySelectorAll("[data-theme]").forEach((button) =>
+				button.addEventListener("click", () => {
+					study.classList.toggle(
+						"baseline",
+						button.dataset.theme === "baseline",
+					);
+					document
+						.querySelectorAll("[data-theme]")
+						.forEach((item) =>
+							item.setAttribute("aria-pressed", String(item === button)),
+						);
+				}),
+			);
+			document
+				.getElementById("grayscale")
+				.addEventListener("click", (event) => {
+					const on = study.classList.toggle("grayscale");
+					event.currentTarget.setAttribute("aria-pressed", String(on));
+				});
+			content.addEventListener("click", (event) => {
+				const target = event.target.closest(
+					"[data-screen], [data-filter], [data-sample]",
+				);
+				if (!target) return;
+				if (target.dataset.screen) {
+					event.preventDefault();
+					screen.value = target.dataset.screen;
+					render();
+					content.querySelector("h1").setAttribute("tabindex", "-1");
+					content.querySelector("h1").focus({ preventScroll: true });
+				} else if (target.dataset.filter) {
+					content
+						.querySelectorAll("[data-filter]")
+						.forEach((e) =>
+							e.setAttribute("aria-pressed", String(e === target)),
+						);
+					content.querySelectorAll("[data-record]").forEach((e) => {
+						e.hidden =
+							target.dataset.filter === "running"
+								? e.dataset.record !== "0"
+								: target.dataset.filter === "failed"
+									? e.dataset.record !== "2"
+									: false;
+					});
+				} else {
+					document.getElementById("sample-message").textContent =
+						`${target.dataset.sample} appearance sample. No product action was performed.`;
+				}
+			});
+			render();
+		</script>
+	</body>
+</html>
