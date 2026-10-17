@@ -1,3 +1,4 @@
+import { NativeSelect } from "#client/system/ui/native-select";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import type { InferResponseType } from "hono/client";
@@ -313,13 +314,12 @@ function CasePicker({
 	readonly onSelect: (caseId: string) => void;
 }): React.JSX.Element {
 	return (
-		<select
+		<NativeSelect
 			id="launch-case"
 			value={selected ?? ""}
 			onChange={(event) => {
 				onSelect(event.target.value);
 			}}
-			className="h-9 w-full min-w-0 rounded-md border border-strong bg-background px-2 font-mono text-14"
 		>
 			{cases.map((listed) =>
 				listed.model === null ? (
@@ -332,7 +332,7 @@ function CasePicker({
 					</option>
 				),
 			)}
-		</select>
+		</NativeSelect>
 	);
 }
 
@@ -610,7 +610,7 @@ function ReplayChoiceRows({
 				<label htmlFor="launch-replay-run">Run</label>
 			</dt>
 			<dd className="col-span-3 min-w-0">
-				<select
+				<NativeSelect
 					id="launch-replay-run"
 					value={chosen.run}
 					onChange={(event) => {
@@ -619,33 +619,31 @@ function ReplayChoiceRows({
 							onChoose({ run: picked.run, stage: picked.openingStage });
 						}
 					}}
-					className="h-9 w-full min-w-0 rounded-md border border-strong bg-background px-2 font-mono text-14"
 				>
 					{runs.map(({ run, caseId }) => (
 						<option key={run} value={run}>
 							{caseId === undefined ? run : `${run} · ${caseId}`}
 						</option>
 					))}
-				</select>
+				</NativeSelect>
 			</dd>
 			<dt className="text-muted-foreground">
 				<label htmlFor="launch-replay-stage">Step</label>
 			</dt>
 			<dd className="col-span-3 min-w-0">
-				<select
+				<NativeSelect
 					id="launch-replay-stage"
 					value={chosen.stage}
 					onChange={(event) => {
 						onChoose({ run: chosen.run, stage: event.target.value });
 					}}
-					className="h-9 w-full min-w-0 rounded-md border border-strong bg-background px-2 font-mono text-14"
 				>
 					{stages.map((stage) => (
 						<option key={stage} value={stage}>
 							{stage}
 						</option>
 					))}
-				</select>
+				</NativeSelect>
 			</dd>
 			<dt className="text-muted-foreground">Corpus</dt>
 			<dd className="col-span-3">
@@ -673,13 +671,13 @@ function CaseConditions({
 			className="rounded-md border bg-muted px-3 py-2.5"
 		>
 			<h3 className="text-14 font-medium">{listed.title}</h3>
-			<dl className="mt-2 grid grid-cols-4 gap-x-3 gap-y-1 text-14">
+			<dl className="mt-2 grid grid-cols-1 gap-x-4 gap-y-2 text-14 sm:grid-cols-4">
 				<dt className="text-muted-foreground">Workflow model</dt>
-				<dd className="col-span-3 font-mono">
+				<dd className="sm:col-span-3 font-mono">
 					{listed.model ?? "No model declared"}
 				</dd>
 				<dt className="text-muted-foreground">Input</dt>
-				<dd className="col-span-3">
+				<dd className="sm:col-span-3">
 					{listed.kind === "session"
 						? "Declared session prompt, fixture and transcript prefix, when provided."
 						: "Declared task and product brief; the pipeline runs against its target repository."}
@@ -687,7 +685,7 @@ function CaseConditions({
 				{listed.kind === "pipeline" ? (
 					<>
 						<dt className="text-muted-foreground">Target</dt>
-						<dd className="col-span-3 font-mono wrap-anywhere">
+						<dd className="sm:col-span-3 font-mono wrap-anywhere">
 							{listed.target ?? "Target details unavailable"}
 						</dd>
 					</>
@@ -726,19 +724,19 @@ function ReplayConditions({
 			className="rounded-md border bg-muted px-3 py-2.5"
 		>
 			<h3 className="text-14 font-medium">Frozen input · current corpus</h3>
-			<dl className="mt-2 grid grid-cols-4 gap-x-3 gap-y-1 text-14">
+			<dl className="mt-2 grid grid-cols-1 gap-x-4 gap-y-2 text-14 sm:grid-cols-4">
 				<dt className="text-muted-foreground">Case</dt>
-				<dd className="col-span-3">
+				<dd className="sm:col-span-3">
 					{source.data?.caseId ?? pending ?? "Source case unavailable"}
 				</dd>
 				<dt className="text-muted-foreground">Workflow model</dt>
-				<dd className="col-span-3 font-mono">
+				<dd className="sm:col-span-3 font-mono">
 					{source.data?.identity.model ??
 						pending ??
 						"Source run's model; value unavailable"}
 				</dd>
 				<dt className="text-muted-foreground">Frozen input</dt>
-				<dd className="col-span-3">{input}</dd>
+				<dd className="sm:col-span-3">{input}</dd>
 			</dl>
 			<p className="mt-2 text-12 text-secondary-foreground">
 				Recorded source effort:{" "}

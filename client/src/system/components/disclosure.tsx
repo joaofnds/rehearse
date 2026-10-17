@@ -6,15 +6,19 @@ export function Disclosure({
 	collapsedLabel,
 	expandedLabel,
 	children,
+	align = "start",
 }: {
 	readonly collapsedLabel: string;
 	readonly expandedLabel: string;
 	readonly children: ReactNode;
+	readonly align?: "start" | "end";
 }): React.JSX.Element {
 	const [expanded, setExpanded] = useState(false);
 
 	return (
-		<span className="flex min-w-0 flex-col items-start gap-2">
+		<span
+			className={`flex min-w-0 flex-col gap-2 ${align === "end" ? "items-end" : "items-start"}`}
+		>
 			<button
 				type="button"
 				className="inline-flex min-h-touch-target items-center gap-1.5 text-left text-14 text-link underline decoration-link/60 underline-offset-4 hover:text-link-hover"

@@ -1,5 +1,7 @@
+import { useEffect, useRef } from "react";
+import { CurrentLink } from "#client/system/components/current-link";
 import { useQuery } from "@tanstack/react-query";
-import { createLink, Outlet, useLocation } from "@tanstack/react-router";
+import { Outlet, useLocation } from "@tanstack/react-router";
 import { comparisonIndexQuery } from "#client/comparison/comparison-index-query";
 import { corpusQuery } from "#client/corpus/corpus-query";
 import {
@@ -18,24 +20,6 @@ import { NAV_ITEMS } from "./nav-items";
 
 const ICON_SIZE = 16;
 
-type NavAnchorProps = React.ComponentPropsWithRef<"a"> & {
-	readonly marksCurrent: boolean;
-};
-
-/**
- * The router marks the link to the address bar's route as the current page,
- * which is false while setup stands in for every screen.
- */
-function NavAnchor({
-	marksCurrent,
-	"aria-current": _current,
-	...anchor
-}: NavAnchorProps): React.JSX.Element {
-	return <a {...anchor} aria-current={marksCurrent ? "page" : undefined} />;
-}
-
-const NavLink = createLink(NavAnchor);
-
 function NavEntry({
 	label,
 	icon,
@@ -52,7 +36,7 @@ function NavEntry({
 	const runsReturnSearch = useRunsReturnSearch();
 	return (
 		<li>
-			<NavLink
+			<CurrentLink
 				to={path}
 				search={path === "/" ? runsReturnSearch : {}}
 				marksCurrent={marksCurrent}
@@ -63,7 +47,7 @@ function NavEntry({
 				{count === undefined ? null : (
 					<span className="font-mono text-12 text-dim">{count}</span>
 				)}
-			</NavLink>
+			</CurrentLink>
 		</li>
 	);
 }
@@ -108,6 +92,30 @@ export function AppShell(): React.JSX.Element {
 	const fresh = useFreshInstall();
 	const pathname = useLocation({ select: (location) => location.pathname });
 	const section = sectionFor(pathname);
+	const sectionsRef = useRef<HTMLUListElement>(null);
+	useEffect(() => {
+		const revealCurrent = (): void => {
+			const list = sectionsRef.current;
+			const current = list?.querySelector('a[aria-current="page"]');
+			if (list === null || current === undefined || current === null) {
+				return;
+			}
+
+			const bounds = list.getBoundingClientRect();
+			const selected = current.getBoundingClientRect();
+			if (selected.left < bounds.left) {
+				list.scrollLeft += selected.left - bounds.left;
+			} else if (selected.right > bounds.right) {
+				list.scrollLeft += selected.right - bounds.right;
+			}
+		};
+
+		revealCurrent();
+		window.addEventListener("resize", revealCurrent);
+		return () => {
+			window.removeEventListener("resize", revealCurrent);
+		};
+	}, [section, fresh, counts.runs, counts.comparisons, counts.corpus]);
 	useGoToShortcut();
 
 	return (
@@ -127,7 +135,10 @@ export function AppShell(): React.JSX.Element {
 						</div>
 					</div>
 
-					<ul className="flex shrink-0 flex-row gap-1 overflow-x-auto p-1 md:flex-col">
+					<ul
+						ref={sectionsRef}
+						className="flex shrink-0 flex-row gap-1 overflow-x-auto p-1 md:flex-col"
+					>
 						{NAV_ITEMS.map(({ label, icon: NavIcon, path, badge }) => (
 							<NavEntry
 								key={label}

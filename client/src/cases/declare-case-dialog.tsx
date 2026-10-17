@@ -1,3 +1,4 @@
+import { NativeSelect } from "#client/system/ui/native-select";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useId, useState } from "react";
 import type { Immutable } from "#benchmark/contracts";
@@ -256,7 +257,7 @@ function Field({
 			<dt className="text-muted-foreground">
 				<label htmlFor={id}>{label}</label>
 			</dt>
-			<dd className="col-span-3 flex min-w-0 flex-col gap-1">
+			<dd className="sm:col-span-3 flex min-w-0 flex-col gap-1">
 				{multiline ? (
 					<textarea
 						id={id}
@@ -309,7 +310,7 @@ function KindChoice({
 			<dd
 				role="radiogroup"
 				aria-label="Kind"
-				className="col-span-3 flex flex-col gap-1"
+				className="sm:col-span-3 flex flex-col gap-1"
 			>
 				<span className="flex gap-4 text-14">
 					<label className="flex items-center gap-1.5">
@@ -369,9 +370,9 @@ function CheckRow({
 	return (
 		<fieldset className="flex flex-col gap-1.5 rounded-md border border-strong px-3 py-2">
 			<legend className="px-1 text-12 text-muted-foreground">{name}</legend>
-			<label className="flex items-center gap-2 text-14">
+			<label className="flex flex-col items-start gap-2 text-14 sm:flex-row sm:items-center">
 				<span className="w-16 text-muted-foreground">kind</span>
-				<select
+				<NativeSelect
 					aria-label={`${name} kind`}
 					value={check.kind}
 					onChange={(event) => {
@@ -382,14 +383,13 @@ function CheckRow({
 							onChange({ kind, fields: {} });
 						}
 					}}
-					className="h-9 min-w-0 flex-1 rounded-md border border-strong bg-background px-2 font-mono text-14"
 				>
 					{CHECK_KINDS.map((kind) => (
 						<option key={kind} value={kind}>
 							{kind}
 						</option>
 					))}
-				</select>
+				</NativeSelect>
 			</label>
 			{CHECK_FIELDS[check.kind].map((field) => {
 				const value = check.fields[field] ?? "";
@@ -398,7 +398,10 @@ function CheckRow({
 				};
 
 				return (
-					<label key={field} className="flex items-center gap-2 text-14">
+					<label
+						key={field}
+						className="flex flex-col items-start gap-2 text-14 sm:flex-row sm:items-center"
+					>
 						<span className="w-16 text-muted-foreground">{field}</span>
 						{MULTILINE_FIELDS.has(field) ? (
 							<textarea
@@ -438,7 +441,7 @@ function SessionFields({
 }): React.JSX.Element {
 	return (
 		<>
-			<dl className="grid grid-cols-4 items-center gap-x-3 gap-y-2 text-14">
+			<dl className="grid grid-cols-1 items-center gap-x-4 gap-y-2 text-14 sm:grid-cols-4">
 				<Field
 					label="Prompt"
 					multiline
@@ -529,7 +532,7 @@ function PipelineFields({
 	const fromHintId = useId();
 
 	return (
-		<dl className="grid grid-cols-4 items-center gap-x-3 gap-y-2 text-14">
+		<dl className="grid grid-cols-1 items-center gap-x-4 gap-y-2 text-14 sm:grid-cols-4">
 			<Field
 				label="Target repository"
 				hint="A git repository root on this machine, absolute or relative to the case directory. A run works on a copy of its main branch."
@@ -559,22 +562,21 @@ function PipelineFields({
 			<dt className="text-muted-foreground">
 				<label htmlFor={fromId}>Steps and judges from</label>
 			</dt>
-			<dd className="col-span-3 flex min-w-0 flex-col gap-1">
-				<select
+			<dd className="sm:col-span-3 flex min-w-0 flex-col gap-1">
+				<NativeSelect
 					id={fromId}
 					value={from}
 					aria-describedby={fromHintId}
 					onChange={(event) => {
 						edit({ from: event.target.value });
 					}}
-					className="h-9 min-w-0 rounded-md border border-strong bg-background px-2 font-mono text-14"
 				>
 					{sources.map((source) => (
 						<option key={source} value={source}>
 							{source}
 						</option>
 					))}
-				</select>
+				</NativeSelect>
 				<span id={fromHintId} className="text-12 text-dim">
 					Copies that case's steps, step rubrics, final rubric, target commands,
 					model and budget. Edit the steps afterwards in Cases → Workflows.
@@ -634,7 +636,7 @@ function DeclareForm({
 			</header>
 
 			<div className="flex min-h-0 flex-col gap-4 overflow-y-auto px-5 py-4">
-				<dl className="grid grid-cols-4 items-center gap-x-3 gap-y-2 text-14">
+				<dl className="grid grid-cols-1 items-center gap-x-4 gap-y-2 text-14 sm:grid-cols-4">
 					<Field
 						label="Id"
 						value={draft.id}

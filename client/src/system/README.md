@@ -24,7 +24,9 @@ separates content quietly. Necessary control boundaries use `border-strong` or
 `--color-border-2`, rather than the control border.
 
 Violet identifies a primary action or selected scope. `Button variant="primary"`
-is filled, while default/outline/quiet buttons remain secondary. Use one primary
+is filled, while default/outline/quiet buttons remain secondary. Quiet actions have a subtle
+bordered surface; ghost buttons are reserved for controls whose surrounding
+context already establishes their hit area. Use one primary
 action within a decision area. Links use blue `text-link` with an underline and
 `hover:text-link-hover`; informational/live states use `text-info` and
 `bg-info-surface`. Navigation selections stay violet, with a persistent edge or
@@ -45,9 +47,9 @@ synthetic reference for these roles, rather than an alternative production UI.
 16.25px at narrow widths and 26px from the `sm` breakpoint, using the existing
 Tailwind spacing scale. Page sections use `gap-6` or `gap-8`; shared panels use
 `p-6`. Reading text and controls retain their type roles and 44px targets.
-Search wrappers supply horizontal padding; their input owns the control height.
+Use the shared search control's geometry; callers supply layout.
 
-Keep secondary actions quiet, with their hover surface and focus outline;
+Keep secondary actions bounded and subordinate, with their hover surface and focus outline;
 reserve filled buttons for primary actions. `Switcher` groups choices on an inset
 surface. Runs keeps its filters visible on desktop and provides an explicit
 Filters toggle with an active count at narrow widths. Navigation retains the
@@ -125,3 +127,26 @@ Readable run, case, step, replay and group identities lead headers. Opaque recor
 IDs, lineage, file paths and exact timestamps belong in inspectable provenance,
 with selectable text for copying. Navigation retains the selected step and the
 source or comparison return context.
+
+## Control and evidence details
+
+`SearchInput` gives search fields one 44px boundary and an inset search icon;
+callers supply layout rather than padding a second control wrapper.
+`NativeSelect` preserves native keyboard selection with a 44px target, consistent
+field geometry and a reserved trailing chevron area. Runs uses its prefix slot to
+group Sort with the selected order. Labels remain visible or associated by id.
+`KeyHint` presents shortcuts as keycaps; hints inside actions are decorative while
+the shortcut reference in Settings remains readable to assistive technology.
+
+`CurrentLink` lets the selected product view own `aria-current`, including links
+whose URL path is shared and only search parameters differ. Narrow section
+navigation reveals its current item after loading, navigating or resizing without
+moving the main workspace or focus.
+
+Runs pairs step names with neutral grade readings. Missing grades, steps not run,
+and steps outside a replay/group have explicit words; group medians retain their
+graded-attempt counts. Saved-session links have a visible destination label and
+bounded targets. Partial and missing Cost/Wall readings reserve the same qualifier
+space before right-aligned explanation actions. Quality dimensions use a stable
+name/grade row, a full reading line for the note and a separate citation action.
+Native disclosures center their label within the target area.

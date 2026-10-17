@@ -82,6 +82,38 @@ describe(createAppRouter.name, () => {
 		);
 	});
 
+	it.each([
+		["/settings?view=judges", "Settings sections", "Judges"],
+		["/cases?view=workflows", "Case sections", "Workflows"],
+	])("marks only the selected section at %s", async (path, label, selected) => {
+		renderAppWithStub(
+			path,
+			new Map([
+				["/api/cases", { cases: [], unreadable: [], unreadableRecords: [] }],
+				["/api/pipelines", { pipelines: [], unreadable: [] }],
+				[
+					"/api/calibration",
+					{
+						reviews: 0,
+						withinOneStep: 0,
+						ungraded: 0,
+						next: null,
+						rows: [],
+						groups: [],
+					},
+				],
+			]),
+		);
+
+		const navigation = await screen.findByRole("navigation", { name: label });
+
+		expect(
+			within(navigation)
+				.getAllByRole("link", { current: "page" })
+				.map((link) => link.textContent),
+		).toEqual([selected]);
+	});
+
 	it("opens Judge calibration within Settings", async () => {
 		renderAppWithStub(
 			"/settings?view=judges",

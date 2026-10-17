@@ -224,7 +224,7 @@ function AttemptPairsPresentation({
 				attempts={attempts}
 				histories={comparison.attemptHistories[caseId]}
 			/>
-			<div className="grid max-w-283 grid-cols-2 gap-3">
+			<div className="grid max-w-283 grid-cols-1 gap-3 lg:grid-cols-2">
 				<WhatThePairingSays mode={comparison.report.mode} summary={summary} />
 				<ReadWithCare
 					digest={digest}

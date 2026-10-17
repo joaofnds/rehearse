@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { CurrentLink } from "#client/system/components/current-link";
 import { useQuery } from "@tanstack/react-query";
 import { CorpusReturnLink } from "#client/corpus/corpus-return";
 import { CalibrationPage } from "#client/calibration/calibration-page";
@@ -76,21 +76,21 @@ export function SettingsPage({
 				aria-label="Settings sections"
 				className="flex gap-1 border-b border-divider page-gutter"
 			>
-				<Link
+				<CurrentLink
 					to="/settings"
-					aria-current={view === "general" ? "page" : undefined}
-					className="border-b-2 border-transparent px-3 py-2.5 text-14 text-link no-underline current:border-primary current:bg-selected current:text-pale hover:text-link-hover"
+					marksCurrent={view === "general"}
+					className="inline-flex min-h-touch-target items-center rounded-t-md border-b-2 border-transparent px-4 py-2.5 text-14 text-link no-underline current:border-primary current:bg-selected current:text-pale hover:text-link-hover"
 				>
 					General
-				</Link>
-				<Link
+				</CurrentLink>
+				<CurrentLink
 					to="/settings"
 					search={{ view: "judges" }}
-					aria-current={view === "judges" ? "page" : undefined}
-					className="border-b-2 border-transparent px-3 py-2.5 text-14 text-link no-underline current:border-primary current:bg-selected current:text-pale hover:text-link-hover"
+					marksCurrent={view === "judges"}
+					className="inline-flex min-h-touch-target items-center rounded-t-md border-b-2 border-transparent px-4 py-2.5 text-14 text-link no-underline current:border-primary current:bg-selected current:text-pale hover:text-link-hover"
 				>
 					Judges
-				</Link>
+				</CurrentLink>
 			</nav>
 			{view === "judges" ? (
 				<CalibrationPage embedded />

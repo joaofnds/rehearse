@@ -398,7 +398,7 @@ describe("the selected step in Results", () => {
 			).getAllByRole("listitem");
 
 			expect(rows.map((row) => row.textContent)).toEqual([
-				"scope-disciplineEdits files outside the declared scope▮▮▮▯▯C2 cited",
+				"scope-discipline▮▮▮▯▯CEdits files outside the declared scope2 cited",
 				"test-quality▮▮▮▮▯Bno evidence",
 			]);
 		});

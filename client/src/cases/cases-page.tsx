@@ -1,3 +1,4 @@
+import { CurrentLink } from "#client/system/components/current-link";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
@@ -92,22 +93,22 @@ export function CasesPage({
 				aria-label="Case sections"
 				className="flex gap-1 border-b border-divider page-gutter"
 			>
-				<Link
+				<CurrentLink
 					to="/cases"
 					search={{}}
-					aria-current={view === "cases" ? "page" : undefined}
-					className="border-b-2 border-transparent px-3 py-2.5 text-14 text-link no-underline current:border-primary current:bg-selected current:text-pale hover:text-link-hover"
+					marksCurrent={view === "cases"}
+					className="inline-flex min-h-touch-target items-center rounded-t-md border-b-2 border-transparent px-4 py-2.5 text-14 text-link no-underline current:border-primary current:bg-selected current:text-pale hover:text-link-hover"
 				>
 					Cases
-				</Link>
-				<Link
+				</CurrentLink>
+				<CurrentLink
 					to="/cases"
 					search={{ view: "workflows" }}
-					aria-current={view === "workflows" ? "page" : undefined}
-					className="border-b-2 border-transparent px-3 py-2.5 text-14 text-link no-underline current:border-primary current:bg-selected current:text-pale hover:text-link-hover"
+					marksCurrent={view === "workflows"}
+					className="inline-flex min-h-touch-target items-center rounded-t-md border-b-2 border-transparent px-4 py-2.5 text-14 text-link no-underline current:border-primary current:bg-selected current:text-pale hover:text-link-hover"
 				>
 					Workflows
-				</Link>
+				</CurrentLink>
 			</nav>
 
 			{view === "workflows" ? (

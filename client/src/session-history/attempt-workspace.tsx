@@ -1,3 +1,4 @@
+import { CurrentLink } from "#client/system/components/current-link";
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { attemptEvidenceQuery } from "./attempt-evidence-query";
@@ -338,7 +339,7 @@ function RepEvidence({
 		<>
 			<nav aria-label="Rep steps" className="flex flex-wrap gap-3 text-14">
 				{record.stages.map((item) => (
-					<Link
+					<CurrentLink
 						key={item.stage}
 						to={attemptPath(identity)}
 						search={{
@@ -346,11 +347,11 @@ function RepEvidence({
 							step: item.stage,
 							...(comparison !== undefined && { comparison }),
 						}}
-						aria-current={selected?.stage === item.stage ? "page" : undefined}
+						marksCurrent={selected?.stage === item.stage}
 						className="rounded-md border border-transparent px-3 py-2 text-link underline current:border-primary current:bg-selected current:text-pale current:no-underline"
 					>
 						{item.stage}
-					</Link>
+					</CurrentLink>
 				))}
 			</nav>
 			<SelectedRepEvidence selected={selected} identity={identity} />
@@ -986,30 +987,30 @@ export function AttemptWorkspacePage({
 						aria-label="Attempt views"
 						className="flex flex-wrap gap-2 border-b border-divider page-gutter py-3 text-14"
 					>
-						<Link
+						<CurrentLink
 							to={path}
 							search={{
 								view: "results",
 								...(step !== undefined && { step }),
 								...(comparison !== undefined && { comparison }),
 							}}
-							aria-current={view === "results" ? "page" : undefined}
+							marksCurrent={view === "results"}
 							className="rounded-md border border-transparent px-3 py-2 text-link hover:underline current:border-primary current:bg-selected current:text-pale current:no-underline"
 						>
 							Results
-						</Link>
-						<Link
+						</CurrentLink>
+						<CurrentLink
 							to={path}
 							search={{
 								view: "context",
 								...(step !== undefined && { step }),
 								...(comparison !== undefined && { comparison }),
 							}}
-							aria-current={view === "context" ? "page" : undefined}
+							marksCurrent={view === "context"}
 							className="rounded-md border border-transparent px-3 py-2 text-link hover:underline current:border-primary current:bg-selected current:text-pale current:no-underline"
 						>
 							Context &amp; cost
-						</Link>
+						</CurrentLink>
 					</nav>
 					{view === "context" ? (
 						<AttemptContext identity={identity} />

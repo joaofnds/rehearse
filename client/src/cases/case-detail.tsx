@@ -1,3 +1,4 @@
+import { NativeSelect } from "#client/system/ui/native-select";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { recordedInstant } from "#benchmark/recorded-instant";
@@ -286,7 +287,7 @@ function CaseCohorts({
 					<>
 						<label className="flex flex-wrap items-center gap-3 text-14">
 							Corpus cohort
-							<select
+							<NativeSelect
 								aria-label="Corpus cohort"
 								value={selectedKey ?? ""}
 								onChange={(event) => {
@@ -299,7 +300,6 @@ function CaseCohorts({
 										hash: "case-evidence",
 									});
 								}}
-								className="max-w-full rounded-md border border-strong bg-background px-3 py-2 font-mono text-14"
 							>
 								{cohort === undefined ? (
 									<option value={selectedKey}>Unknown corpus selection</option>
@@ -315,7 +315,7 @@ function CaseCohorts({
 										· {plural(entry.members.length, "run")}
 									</option>
 								))}
-							</select>
+							</NativeSelect>
 						</label>
 						{cohort === undefined ? (
 							<p role="status" className="mt-4 text-14 text-muted-foreground">

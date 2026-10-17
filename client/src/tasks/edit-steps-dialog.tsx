@@ -1,3 +1,4 @@
+import { NativeSelect } from "#client/system/ui/native-select";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { InferResponseType } from "hono/client";
 import type { StageDefinition } from "#benchmark/pipeline";
@@ -175,13 +176,13 @@ function StepFields({
 	return (
 		<fieldset
 			aria-label={legend}
-			className="flex flex-col gap-2 rounded-md border border-strong px-3 py-2.5"
+			className="flex min-w-0 flex-col gap-4 rounded-md border border-strong p-4"
 		>
-			<span className="flex items-center gap-2">
+			<span className="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
 				<span aria-hidden="true" className="font-mono text-12 text-dim">
 					{String(position).padStart(2, "0")}
 				</span>
-				<span className="ml-auto flex gap-1.5">
+				<span className="ml-auto flex flex-wrap gap-2">
 					<Button
 						type="button"
 						variant="quiet"
@@ -215,7 +216,7 @@ function StepFields({
 					</Button>
 				</span>
 			</span>
-			<span className="grid grid-cols-4 gap-2.5">
+			<span className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
 				<LabeledField label="Name">
 					{(id) => (
 						<input
@@ -233,7 +234,7 @@ function StepFields({
 				</LabeledField>
 				<LabeledField label="Kind">
 					{(id) => (
-						<select
+						<NativeSelect
 							id={id}
 							value={step.kind}
 							onChange={(event) => {
@@ -242,11 +243,10 @@ function StepFields({
 										event.target.value === "planning" ? "planning" : "delivery",
 								});
 							}}
-							className={FIELD_CLASS}
 						>
 							<option value="planning">planning</option>
 							<option value="delivery">delivery</option>
-						</select>
+						</NativeSelect>
 					)}
 				</LabeledField>
 				<LabeledField label="Skill">
@@ -264,13 +264,12 @@ function StepFields({
 				</LabeledField>
 				<LabeledField label="Rubric">
 					{(id) => (
-						<select
+						<NativeSelect
 							id={id}
 							value={step.rubric}
 							onChange={(event) => {
 								onChange({ rubric: event.target.value });
 							}}
-							className={FIELD_CLASS}
 						>
 							{rubrics.includes(step.rubric) ? null : (
 								<option value={step.rubric}>{step.rubric}</option>
@@ -280,13 +279,13 @@ function StepFields({
 									{rubric}
 								</option>
 							))}
-						</select>
+						</NativeSelect>
 					)}
 				</LabeledField>
 			</span>
 			{step.kind === "planning" ? (
-				<span className="grid grid-cols-4 items-end gap-2.5">
-					<span className="col-span-3">
+				<span className="grid grid-cols-1 items-end gap-3 sm:grid-cols-4">
+					<span className="sm:col-span-3">
 						<LabeledField label="Artifact">
 							{(id) => (
 								<input
@@ -301,7 +300,7 @@ function StepFields({
 							)}
 						</LabeledField>
 					</span>
-					<label className="flex items-center gap-1.5 pb-1.5 text-12 text-muted-foreground">
+					<label className="flex min-h-11 items-center gap-2 text-14 text-muted-foreground">
 						<input
 							type="checkbox"
 							checked={step.requiresAcceptanceCriteria}

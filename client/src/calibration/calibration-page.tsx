@@ -1,3 +1,4 @@
+import { NativeSelect } from "#client/system/ui/native-select";
 import { useId, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
@@ -183,20 +184,19 @@ function DriftAside({
 					<label htmlFor={selectId} className="text-12 text-dim">
 						Judge group
 					</label>
-					<select
+					<NativeSelect
 						id={selectId}
 						value={groupKey(shown)}
 						onChange={(event) => {
 							setChosen(event.target.value);
 						}}
-						className="min-h-11 rounded-md border border-strong bg-background px-2 text-14"
 					>
 						{groups.map((group) => (
 							<option key={groupKey(group)} value={groupKey(group)}>
 								{groupLine(group)}
 							</option>
 						))}
-					</select>
+					</NativeSelect>
 				</div>
 			) : null}
 			{shown === undefined ? null : (
@@ -321,7 +321,7 @@ export function CalibrationPage({
 	return (
 		<div>
 			{embedded ? (
-				<div className="flex flex-wrap items-end justify-between gap-3 px-5 pt-4">
+				<div className="flex flex-wrap items-end justify-between gap-3 page-gutter pt-4">
 					<div>
 						<h2 className="text-16 font-semibold">Judge calibration</h2>
 						{report === undefined ? null : (
@@ -356,7 +356,7 @@ export function CalibrationPage({
 				/>
 			)}
 
-			<div className="px-5 pt-3.5 pb-9">
+			<div className="page-gutter pt-3.5 pb-9">
 				{query.isLoading ? (
 					<p className="text-muted-foreground">Loading…</p>
 				) : null}

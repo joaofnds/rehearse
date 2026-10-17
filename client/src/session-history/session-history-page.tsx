@@ -1,3 +1,4 @@
+import { NativeSelect } from "#client/system/ui/native-select";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { RefObject } from "react";
@@ -1794,7 +1795,7 @@ function SessionHistoryWorkspace({
 											</label>
 											<label className="flex items-center justify-between gap-2 text-12 text-muted-foreground">
 												Show events
-												<select
+												<NativeSelect
 													value={eventFilter}
 													onChange={(event) => {
 														const filter = EVENT_FILTERS.find(
@@ -1804,14 +1805,13 @@ function SessionHistoryWorkspace({
 															setEventFilter(filter);
 														}
 													}}
-													className="rounded-md border border-strong bg-background px-2 py-1.5 text-14 text-foreground"
 												>
 													{EVENT_FILTERS.map((filter) => (
 														<option key={filter} value={filter}>
 															{filter}
 														</option>
 													))}
-												</select>
+												</NativeSelect>
 											</label>
 										</div>
 										<div className="max-h-80 overflow-y-auto">

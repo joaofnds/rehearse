@@ -2555,7 +2555,7 @@ describe(RunHistoryPage.name, () => {
 			};
 		}
 
-		it("reads one token per stage in pipeline order, a letter where graded and · where not", async () => {
+		it("pairs every grade with its step and names steps that did not run", async () => {
 			respondingWith(
 				runWith({
 					...UNREAD_RUN_FIGURES,
@@ -2573,7 +2573,9 @@ describe(RunHistoryPage.name, () => {
 
 			await renderPage().findByText(RUN);
 
-			expect(cellOf(RUN, "Step grades").textContent).toBe("A− B+ D ·");
+			expect(cellOf(RUN, "Step grades").textContent).toBe(
+				"shapeA−planB+buildDreviewNot run",
+			);
 		});
 
 		it("says why its step grades could not be read", async () => {
@@ -2741,7 +2743,9 @@ describe(RunHistoryPage.name, () => {
 
 			await renderPage().findByText(REPLAY);
 
-			expect(cellOf(REPLAY, "Step grades").textContent).toBe("· · B+ ·");
+			expect(cellOf(REPLAY, "Step grades").textContent).toBe(
+				"shapeNot replayedplanNot replayedbuildB+reviewNot replayed",
+			);
 		});
 
 		it("shows the letter with why its pipeline's stages could not be read", async () => {
@@ -2755,7 +2759,7 @@ describe(RunHistoryPage.name, () => {
 			await renderPage().findByText(REPLAY);
 
 			expect(cellOf(REPLAY, "Step grades")).toHaveTextContent(
-				"B+the source run's manifest is not recorded",
+				"buildB+the source run's manifest is not recorded",
 			);
 		});
 
@@ -2847,7 +2851,7 @@ describe(RunHistoryPage.name, () => {
 				await renderPage().findByText(GROUP);
 
 				expect(cellOf(GROUP, "Step grades").textContent).toBe(
-					"A (n=6) B (n=5) ·",
+					"Median gradesshapeA · 6 gradedbuildB · 5 gradedreviewNo grade",
 				);
 			});
 
@@ -2911,7 +2915,31 @@ describe(RunHistoryPage.name, () => {
 
 				await renderPage().findByText(GROUP);
 
-				expect(cellOf(GROUP, "Step grades").textContent).toBe("· B (n=3) ·");
+				expect(cellOf(GROUP, "Step grades").textContent).toBe(
+					"Median gradesshapeNot includedbuildB · 3 gradedreviewNot included",
+				);
+			});
+
+			it("distinguishes an included ungraded step from steps outside the group", async () => {
+				respondingWith(
+					groupWith({
+						mode: "stage",
+						reps: 3,
+						pipelineStages: {
+							state: "available",
+							stages: ["shape", "build", "review"],
+						},
+						stageSummaries: [summary("build", undefined, 0)],
+						finalOutcomes: { NOT_APPLICABLE: 3 },
+						successful: 0,
+					}),
+				);
+
+				await renderPage().findByText(GROUP);
+
+				expect(cellOf(GROUP, "Step grades").textContent).toBe(
+					"Median gradesshapeNot includedbuildNo gradereviewNot included",
+				);
 			});
 
 			it("reads n/a as its task grade", async () => {

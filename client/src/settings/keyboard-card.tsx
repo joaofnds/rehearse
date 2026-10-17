@@ -1,3 +1,4 @@
+import { KeyHint } from "#client/system/components/key-hint";
 import { SettingsCard } from "./settings-card";
 
 interface Shortcut {
@@ -24,11 +25,11 @@ const SHORTCUTS: readonly Shortcut[] = [
 export function KeyboardCard(): React.JSX.Element {
 	return (
 		<SettingsCard title="Keyboard">
-			<ul className="mt-2 grid grid-cols-2 gap-x-4.5 gap-y-1.5 text-12">
+			<ul className="mt-4 grid gap-x-6 gap-y-3 text-14 sm:grid-cols-2">
 				{SHORTCUTS.map(({ key, does }) => (
-					<li key={key} className="flex items-baseline gap-2.5">
-						<span className="rounded-sm border border-strong px-1.5 py-px font-mono text-12 text-pale">
-							{key}
+					<li key={key} className="flex items-center gap-3">
+						<span className="w-28 shrink-0">
+							<KeyHint letter={key} decorative={false} />
 						</span>
 						<span className="text-secondary-foreground">{does}</span>
 					</li>

@@ -150,7 +150,7 @@ function ArmCard({
 			aria-label={role}
 			className={`rounded-md border bg-raised px-3 py-2.5 ${border}`}
 		>
-			<div className="flex items-center gap-2">
+			<div className="flex flex-wrap items-center gap-x-4 gap-y-2">
 				<span className="text-12 tracking-widest text-muted-foreground uppercase">
 					{role}
 				</span>
@@ -217,7 +217,7 @@ export function ArmCardsBand({
 					</span>
 				</span>
 			) : null}
-			<div className="grid grid-cols-3 gap-3">
+			<div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
 				{DESIGN_ARMS.map(({ arm, role }) => (
 					<ArmCard
 						key={arm}

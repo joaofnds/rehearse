@@ -1230,6 +1230,15 @@ describe("/monitor judge pane", () => {
 			);
 	}
 
+	async function qualityReadings(): Promise<readonly (string | null)[]> {
+		const rows = await within(await judgePane()).findByRole("list", {
+			name: "Quality dimensions",
+		});
+		return within(rows)
+			.getAllByRole("listitem")
+			.map((row) => row.textContent);
+	}
+
 	function renderJudge(judge: StageJudge): void {
 		renderMonitor(
 			runRow({ run: RUN, stage: "build", stageState: "judge grading" }),
@@ -1306,9 +1315,9 @@ describe("/monitor judge pane", () => {
 		it("lists every quality dimension, each returned one with its grade and the rest pending, under how many returned", async () => {
 			renderJudge(RETURNING);
 
-			expect(await rowCells("Quality dimensions")).toEqual([
-				["scope-discipline", "▮▮▮▮▯", "B", "evidence pending"],
-				["diff-hygiene", "▯▯▯▯▯", "—", "evidence pending"],
+			expect(await qualityReadings()).toEqual([
+				"scope-discipline▮▮▮▮▯Bevidence pending",
+				"diff-hygiene▯▯▯▯▯—evidence pending",
 			]);
 			expect(
 				within(await judgePane()).getByRole("heading", {
@@ -1544,8 +1553,8 @@ describe("/monitor judge pane", () => {
 				["✓", "no-secrets-in-diff", "clear", "no evidence"],
 				["✕", "tests-pass-before-handoff", "fired", "no evidence"],
 			]);
-			expect(await rowCells("Quality dimensions")).toEqual([
-				["scope-discipline", "▮▮▮▯▯", "C", "1 cited"],
+			expect(await qualityReadings()).toEqual([
+				"scope-discipline▮▮▮▯▯C1 cited",
 			]);
 			for (const toggle of within(await judgePane()).getAllByRole("button", {
 				name: "no evidence",

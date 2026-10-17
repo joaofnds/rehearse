@@ -1,5 +1,6 @@
+import { SearchInput } from "#client/system/ui/search-input";
+import { RotateCcw } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { Search } from "lucide-react";
 import { CorpusFileViewer } from "./corpus-file-viewer";
 import { StateBadge } from "#client/system/components/state-badge";
 import { useEffect, useState } from "react";
@@ -333,25 +334,23 @@ function CorpusInventory({
 			) : null}
 			{report !== undefined && report.files.length > 0 ? (
 				<div className="flex flex-wrap items-center gap-3">
-					<label className="flex min-w-0 w-full flex-none items-center gap-2 rounded-md border border-strong bg-card px-4 sm:w-auto sm:flex-1">
-						<Search aria-hidden="true" className="size-4 text-dim" />
-						<input
-							type="search"
+					<label className="min-w-0 w-full flex-none sm:w-auto sm:flex-1">
+						<SearchInput
 							aria-label="Search corpus files"
 							placeholder="File path or hash"
 							value={search}
 							onChange={(event) => {
 								setSearch(event.target.value);
 							}}
-							className="w-full bg-transparent text-14"
 						/>
 					</label>
 					<Button
-						variant="ghost"
+						variant="outline"
 						onClick={() => {
 							setSearch("");
 						}}
 					>
+						<RotateCcw aria-hidden="true" className="size-4" />
 						Clear search
 					</Button>
 					<span

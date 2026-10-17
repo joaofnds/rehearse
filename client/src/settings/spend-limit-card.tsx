@@ -50,7 +50,7 @@ export function SpendLimitCard(): React.JSX.Element {
 					}
 				}}
 			>
-				<label className="flex items-center gap-1.5 rounded-md border border-strong bg-background px-2 py-1.5">
+				<label className="flex items-center gap-1.5 rounded-md border border-strong bg-background px-3">
 					<span className="text-12 text-muted-foreground">USD per run</span>
 					<input
 						value={entered}

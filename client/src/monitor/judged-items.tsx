@@ -268,24 +268,19 @@ export function DimensionLine({
 	readonly row: Omit<DimensionRow, "evidence">;
 }): React.JSX.Element {
 	return (
-		<>
-			<span
-				className={`min-w-0 basis-full text-12 wrap-anywhere sm:basis-auto sm:flex-1 ${row.grade === undefined ? "text-dim" : "text-foreground"}`}
-			>
-				{row.id}
-			</span>
-			{row.note === undefined ? null : (
-				<span className="max-w-note text-12 text-muted-foreground">
-					{row.note}
+		<span className="flex min-w-0 w-full flex-col gap-2">
+			<span className="flex min-w-0 flex-wrap items-center gap-3">
+				<span
+					className={`min-w-0 flex-1 text-14 font-medium wrap-anywhere ${row.grade === undefined ? "text-dim" : "text-foreground"}`}
+				>
+					{row.id}
 				</span>
-			)}
-			<span
-				aria-hidden="true"
-				className="font-mono text-12 tracking-bar text-faint"
-			>
-				{gradeBar(row.grade)}
-			</span>
-			<span className="w-8 text-right">
+				<span
+					aria-hidden="true"
+					className="font-mono text-12 tracking-bar text-faint"
+				>
+					{gradeBar(row.grade)}
+				</span>
 				<Grade
 					value={
 						row.grade === undefined ? { pending: true } : { letter: row.grade }
@@ -293,7 +288,12 @@ export function DimensionLine({
 					size="inline"
 				/>
 			</span>
-		</>
+			{row.note === undefined ? null : (
+				<span className="text-14 leading-reading text-secondary-foreground">
+					{row.note}
+				</span>
+			)}
+		</span>
 	);
 }
 
@@ -348,7 +348,7 @@ export function DimensionRows({
 					key={row.id}
 					owner={{ run, stage, section: "dimensions", item: row.id }}
 					evidence={row.evidence}
-					rowClassName="flex min-w-0 flex-wrap items-center gap-3 border-b border-subtle px-3 py-2.25"
+					rowClassName="flex min-w-0 flex-col items-start gap-3 border-b border-subtle px-3 py-4"
 					panelClassName="mb-1.75"
 					spacing="mb-2.5"
 				>

@@ -1,3 +1,5 @@
+import { SearchInput } from "#client/system/ui/search-input";
+import { KeyHint } from "#client/system/components/key-hint";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Search } from "lucide-react";
@@ -325,9 +327,9 @@ export function GlobalSearch(): React.JSX.Element {
 				<Button variant="outline" aria-label="Search everything">
 					<Search aria-hidden="true" className="size-4" />
 					<span className="flex-1 text-left">Search</span>
-					<kbd className="hidden font-mono text-12 text-dim md:inline">
-						⌘ / Ctrl K
-					</kbd>
+					<span className="hidden md:inline-flex">
+						<KeyHint letter="⌘ / Ctrl K" />
+					</span>
 				</Button>
 			</DialogTrigger>
 			<DialogContent width="wide">
@@ -337,16 +339,13 @@ export function GlobalSearch(): React.JSX.Element {
 						Runs, cases, instructions and saved comparisons. Escape closes
 						search.
 					</DialogDescription>
-					<label className="mt-2 flex items-center gap-2 rounded-md border border-strong bg-card px-4">
-						<Search aria-hidden="true" className="size-4 text-dim" />
-						<input
-							type="search"
+					<label className="mt-3 block">
+						<SearchInput
 							aria-label="Search everything"
 							value={query}
 							onChange={(event) => {
 								setQuery(event.target.value);
 							}}
-							className="w-full bg-transparent text-14"
 						/>
 					</label>
 				</div>

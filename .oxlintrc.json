@@ -99,7 +99,9 @@
 					"RequestInit",
 					"URL",
 					"ButtonProps",
-					"NavAnchorProps"
+					"NativeSelectProps",
+					"SearchInputProps",
+					"CurrentAnchorProps"
 				]
 			}
 		],

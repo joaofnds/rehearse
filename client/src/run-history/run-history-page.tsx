@@ -1,6 +1,8 @@
+import { SearchInput } from "#client/system/ui/search-input";
+import { NativeSelect } from "#client/system/ui/native-select";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Search } from "lucide-react";
+import { RotateCcw } from "lucide-react";
 import { useId, useState } from "react";
 import { Disclosure } from "#client/system/components/disclosure";
 import { EmptyState } from "#client/system/components/empty-state";
@@ -249,7 +251,7 @@ function runCell(row: HistoryRow, nowMs: number): React.JSX.Element {
 }
 
 const LINK_CLASS =
-	"inline-flex items-center text-14 text-link underline decoration-link/60 underline-offset-4 hover:text-link-hover";
+	"inline-flex min-h-touch-target items-center justify-center rounded-md border border-divider bg-muted px-2 text-14 text-link no-underline hover:border-strong hover:bg-row-hover hover:no-underline";
 
 function contextLink(link: ContextLink): React.JSX.Element {
 	switch (link.state) {
@@ -301,8 +303,11 @@ function caseCell(row: HistoryRow): React.JSX.Element {
 			)}
 			<span className="text-12 text-dim">{kindLine(row)}</span>
 			{links.length > 0 ? (
-				<span className="flex flex-wrap gap-x-3">
-					{links.map((link) => contextLink(link))}
+				<span className="mt-2 flex flex-col gap-1.5">
+					<span className="text-12 text-muted-foreground">Saved sessions</span>
+					<span className="flex flex-wrap gap-2">
+						{links.map((link) => contextLink(link))}
+					</span>
 				</span>
 			) : null}
 		</span>
@@ -894,7 +899,6 @@ function judgment(staleness: JudgedStaleness): React.JSX.Element {
 	);
 }
 
-const NO_GRADE = "·";
 const NOT_APPLICABLE = "n/a";
 const STEP_REPLAY_ONLY = "step replay only";
 
@@ -914,19 +918,63 @@ function reasonsLine(reasons: readonly string[]): React.JSX.Element {
 	return <span className="text-12 text-dim">{reasons.join("; ")}</span>;
 }
 
-/** One token per stage, in pipeline order: its letter, or · where it has none. */
+function StepGradeReadings({
+	readings,
+}: {
+	readonly readings: readonly {
+		readonly stage: string;
+		readonly value: string;
+		readonly measured: boolean;
+		readonly reason?: string | undefined;
+	}[];
+}): React.JSX.Element {
+	return (
+		<dl className="flex flex-col gap-2">
+			{readings.map(({ stage, value, measured, reason }) => (
+				<div
+					key={stage}
+					className="flex min-w-0 items-baseline justify-between gap-2"
+				>
+					<dt className="min-w-0 text-12 wrap-anywhere text-secondary-foreground">
+						{stage}
+					</dt>
+					<dd
+						title={reason}
+						className={
+							measured
+								? "rounded-sm border border-divider bg-raised px-2 py-0.5 font-mono text-14 font-medium"
+								: "max-w-24 text-right text-12 text-dim"
+						}
+					>
+						{value}
+					</dd>
+				</div>
+			))}
+		</dl>
+	);
+}
+
 function runStepGrades(stageGrades: StageGrades): React.JSX.Element {
 	if (stageGrades.state === "unavailable") {
 		return reasonsLine(stageGrades.reasons);
 	}
 
-	return gradeTokens(
-		stageGrades.grades
-			.map(({ grade }) =>
-				grade.state === "available" ? grade.letter : NO_GRADE,
-			)
-			.join(" "),
-	);
+	const readings = stageGrades.grades.map(({ stage, status, grade }) => {
+		if (grade.state === "available") {
+			return { stage, value: grade.letter, measured: true, reason: undefined };
+		}
+
+		let value = "No grade";
+		if (status === "not-run") {
+			value = "Not run";
+		} else if (status === "awaiting-judgment") {
+			value = "Awaiting judge";
+		}
+
+		return { stage, value, measured: false, reason: grade.reasons.join("; ") };
+	});
+
+	return <StepGradeReadings readings={readings} />;
 }
 
 function gradeTokens(text: string): React.JSX.Element {
@@ -937,37 +985,36 @@ function gradeTokens(text: string): React.JSX.Element {
 	);
 }
 
-/**
- * A record that grades only some of its pipeline's stages: each one's token
- * at its position among them and · at the rest, or, where those stages
- * cannot be read, the tokens alone with the reason beside them.
- */
 function placedGrades(
 	stages: PipelineStages,
-	tokens: ReadonlyMap<string, string>,
+	tokens: ReadonlyMap<string, string | undefined>,
+	absent: string,
 ): React.JSX.Element {
-	if (stages.state === "unavailable") {
-		return (
-			<span className="flex flex-col gap-0.5">
-				{gradeTokens([...tokens.values()].join(" "))}
-				{reasonsLine(stages.reasons)}
-			</span>
-		);
-	}
+	const names =
+		stages.state === "available" ? stages.stages : [...tokens.keys()];
+	const readings = names.map((stage) => {
+		const value = tokens.get(stage);
+		const missing = tokens.has(stage) ? "No grade" : absent;
 
-	return gradeTokens(
-		stages.stages.map((stage) => tokens.get(stage) ?? NO_GRADE).join(" "),
+		return { stage, value: value ?? missing, measured: value !== undefined };
+	});
+
+	return (
+		<span className="flex flex-col gap-2">
+			<StepGradeReadings readings={readings} />
+			{stages.state === "unavailable" ? reasonsLine(stages.reasons) : null}
+		</span>
 	);
 }
 
-/** Each stage some rep graded, as its median and how many reps it covers. */
-function groupMedians(row: GroupRow): ReadonlyMap<string, string> {
+function groupMedians(row: GroupRow): ReadonlyMap<string, string | undefined> {
 	return new Map(
-		row.stageSummaries.flatMap(({ stage, graded, grades }) =>
+		row.stageSummaries.map(({ stage, graded, grades }) => [
+			stage,
 			grades.state === "available"
-				? [[stage, `${grades.median} (n=${String(graded)})`] as const]
-				: [],
-		),
+				? `${grades.median} · ${String(graded)} graded`
+				: undefined,
+		]),
 	);
 }
 
@@ -1010,7 +1057,16 @@ function groupStepGrades(row: GroupRow): React.JSX.Element {
 		);
 	}
 
-	return placedGrades(row.pipelineStages, groupMedians(row));
+	return (
+		<span className="flex flex-col gap-2">
+			<span className="text-12 text-muted-foreground">Median grades</span>
+			{placedGrades(
+				row.pipelineStages,
+				groupMedians(row),
+				row.mode === "stage" ? "Not included" : "No grade",
+			)}
+		</span>
+	);
 }
 
 function SessionGroupState({
@@ -1109,6 +1165,7 @@ function stepGradesCell(row: HistoryRow): React.JSX.Element {
 			return placedGrades(
 				row.pipelineStages,
 				new Map([[row.stage, row.grade]]),
+				"Not replayed",
 			);
 		}
 		case "group": {
@@ -1220,9 +1277,10 @@ function unrecorded(
 ): React.JSX.Element {
 	return (
 		<span className="flex flex-col items-end gap-0.5">
-			<span className="text-12 text-dim">{UNRECORDED}</span>
+			<span className="min-h-12 text-12 text-dim">{UNRECORDED}</span>
 			<Disclosure
 				key={disclosureKeyOf(row)}
+				align="end"
 				collapsedLabel="why"
 				expandedLabel="hide"
 			>
@@ -1252,10 +1310,13 @@ function recordedCost(row: HistoryRow): React.JSX.Element {
 
 	return (
 		<span className="flex flex-col items-end gap-0.5">
-			{figure(spendReading(cost.usd))}
-			<span className="text-12 text-dim">partial</span>
+			<span className="flex min-h-12 flex-col items-end gap-0.5">
+				{figure(spendReading(cost.usd))}
+				<span className="text-12 text-dim">partial</span>
+			</span>
 			<Disclosure
 				key={disclosureKeyOf(row)}
+				align="end"
 				collapsedLabel="why"
 				expandedLabel="hide"
 			>
@@ -1345,42 +1406,41 @@ function FilterBar({
 	return (
 		<div className="flex flex-col gap-4 border-b border-divider page-gutter py-5">
 			<div className="flex flex-wrap items-center gap-3">
-				<label className="flex min-w-0 w-full flex-none items-center gap-2 rounded-md border border-strong bg-card px-4 sm:w-auto sm:flex-1">
-					<Search aria-hidden="true" className="size-4 text-dim" />
-					<input
-						type="search"
+				<label className="min-w-0 w-full flex-none sm:w-auto sm:flex-1">
+					<SearchInput
 						value={discovery.query ?? ""}
 						aria-label="Search runs"
 						placeholder="run id, case, corpus hash, blocker id"
 						onChange={(event) => {
 							onChange({ query: event.target.value });
 						}}
-						className="min-w-0 w-full bg-transparent text-14"
 					/>
 				</label>
-				<label className="flex items-center gap-2 text-12 text-muted-foreground">
-					Sort
-					<select
-						aria-label="Sort runs"
-						value={discovery.sort ?? "newest"}
-						onChange={(event) => {
-							const sort = SORT_OPTIONS.find(
-								([value]) => value === event.target.value,
-							)?.[0];
-							onChange({ sort });
-						}}
-						className="rounded-md border border-strong bg-background px-3 py-1.5 text-14 text-foreground"
-					>
-						{SORT_OPTIONS.map(([value, label]) => (
-							<option key={value} value={value}>
-								{label}
-							</option>
-						))}
-					</select>
-				</label>
-				<Button variant="ghost" onClick={onClear}>
-					Clear
-				</Button>
+				<div className="flex w-full items-center gap-3 sm:w-auto">
+					<div className="min-w-0 flex-1 sm:w-66 sm:flex-none">
+						<NativeSelect
+							prefix="Sort"
+							aria-label="Sort runs"
+							value={discovery.sort ?? "newest"}
+							onChange={(event) => {
+								const sort = SORT_OPTIONS.find(
+									([value]) => value === event.target.value,
+								)?.[0];
+								onChange({ sort });
+							}}
+						>
+							{SORT_OPTIONS.map(([value, label]) => (
+								<option key={value} value={value}>
+									{label}
+								</option>
+							))}
+						</NativeSelect>
+					</div>
+					<Button variant="outline" onClick={onClear}>
+						<RotateCcw aria-hidden="true" className="size-4" />
+						Clear
+					</Button>
+				</div>
 			</div>
 			{discovery.sort === "cost" ? (
 				<p className="text-12 text-muted-foreground">
@@ -1973,16 +2033,16 @@ export function RunHistoryPage({
 						/>
 						<TableShell
 							caption="Run history"
-							className="min-w-300 table-fixed"
+							className="min-w-320 table-fixed"
 							columnClasses={[
 								"w-28",
-								"w-48",
-								"w-64",
-								"w-28",
-								"w-36",
 								"w-44",
-								"w-24",
-								"w-24",
+								"w-56",
+								"w-60",
+								"w-40",
+								"w-48",
+								"w-32",
+								"w-32",
 							]}
 							columns={[...COLUMNS]}
 							numeric={[...NUMERIC_COLUMNS]}

@@ -98,6 +98,10 @@
 		font-size: var(--font-size-14);
 	}
 
+	summary {
+		align-content: center;
+	}
+
 	a {
 		color: var(--color-link);
 		text-decoration-line: underline;
