@@ -107,7 +107,7 @@ function History({
 			to={link.href}
 			search={{ view: "context", comparison: digest }}
 			aria-label={`${role} attempt ${String(position)} history`}
-			className="text-accent-foreground underline decoration-deeper underline-offset-4 hover:text-pale"
+			className="text-link underline decoration-link/60 underline-offset-4 hover:text-link-hover"
 		>
 			history
 		</Link>
@@ -140,7 +140,7 @@ function AttemptCell({
 					to={link.href}
 					search={{ view: "results", comparison: digest }}
 					aria-label={`${role} attempt ${String(position)} results`}
-					className="text-accent-foreground underline decoration-deeper underline-offset-4 hover:text-pale"
+					className="text-link underline decoration-link/60 underline-offset-4 hover:text-link-hover"
 				>
 					<Outcomes outcomes={attempt.outcomes} mode={mode} />
 				</Link>
@@ -179,7 +179,7 @@ function AttemptCell({
 			) : (
 				<span className="text-12">{blockersText(attempt.blockersFired)}</span>
 			)}
-			<span className="font-mono text-11">{wordsText(attempt.words)}</span>
+			<span className="font-mono text-12">{wordsText(attempt.words)}</span>
 			<History digest={digest} role={role} position={position} link={link} />
 		</div>
 	);

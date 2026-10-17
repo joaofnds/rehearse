@@ -1,47 +1,51 @@
 :root {
 	--size-touch-target: 44px;
+	--size-sequence-plot-min-width: 640px;
 	/* Color */
-	--color-canvas: #161826;
-	--color-surface: #1a1c28;
-	--color-surface-2: #1c1e2b;
-	--color-surface-alt: #181a26;
-	--color-sidebar: #14161f;
-	--color-row-hover: #1c1e2b;
-	--color-border-subtle: #232532;
-	--color-border: #292b31;
-	--color-border-2: #2f3140;
-	--color-border-strong: #3f424d;
-	--color-border-strong-2: #595d6c;
-	--color-text: #e9e9ed;
-	--color-text-bright: #e4e7f5;
-	--color-text-secondary: #b2b6ca;
-	--color-text-muted: #9397ab;
-	--color-text-dim: #858ba2;
-	--color-text-faint: #4a4d5c;
-	--color-text-faint-2: #595d6c;
-	--color-accent: #9184d9;
-	--color-accent-light: #b5abfc;
-	--color-accent-pale: #d2cefd;
-	--color-accent-deep: #796cbf;
-	--color-accent-deep-2: #5d5294;
-	--color-accent-tint-24: rgba(145, 132, 217, 0.24);
-	--color-accent-tint-16: rgba(145, 132, 217, 0.16);
-	--color-accent-tint-14: rgba(145, 132, 217, 0.14);
-	--color-accent-tint-10: rgba(145, 132, 217, 0.1);
-	--color-accent-tint-08: rgba(145, 132, 217, 0.08);
-	--color-danger: #c04a5e;
-	--color-danger-foreground: #f7ecef;
-	--color-positive: #a3c8b0;
-	--color-positive-surface: rgba(163, 200, 176, 0.1);
-	--color-negative: #edafb9;
-	--color-negative-surface: rgba(237, 175, 185, 0.1);
-	--color-attention: #d6bd88;
-	--color-attention-surface: rgba(214, 189, 136, 0.1);
-	--color-diff-add: #1f2b2a;
-	--color-diff-remove: #2b2136;
-	/* Not in SPEC.md's Design Tokens table; used for the corpus pill, the run-id
-	   link underline, and the live tool-call chip border in the screen sections. */
-	--color-accent-border: #423a6a;
+	--color-canvas: #121722;
+	--color-surface: #1b2233;
+	--color-surface-2: #242e42;
+	--color-surface-alt: #171e2c;
+	--color-sidebar: #10151f;
+	--color-row-hover: #242e42;
+	--color-border-subtle: #2a364c;
+	--color-border: #36445e;
+	--color-border-2: #36445e;
+	--color-border-strong: #6c7f9e;
+	--color-border-strong-2: #8092af;
+	--color-text: #eef1f8;
+	--color-text-bright: #eef1f8;
+	--color-text-secondary: #bcc7db;
+	--color-text-muted: #9baac2;
+	--color-text-dim: #9baac2;
+	--color-text-faint: #9baac2;
+	--color-text-faint-2: #9baac2;
+	--color-accent: #b5a2ff;
+	--color-accent-hover: #c8baff;
+	--color-on-accent: #151225;
+	--color-link: #86bdff;
+	--color-link-hover: #b9d9ff;
+	--color-info-surface: #1b304a;
+	--color-accent-light: #ded4ff;
+	--color-accent-pale: #ded4ff;
+	--color-accent-deep: #9a85dc;
+	--color-accent-deep-2: #8071b6;
+	--color-accent-tint-24: #443760;
+	--color-accent-tint-16: #30294c;
+	--color-accent-tint-14: #30294c;
+	--color-accent-tint-10: #26243e;
+	--color-accent-tint-08: #222137;
+	--color-danger: #3e2430;
+	--color-danger-foreground: #ff9eac;
+	--color-positive: #72d8b0;
+	--color-positive-surface: #17372e;
+	--color-negative: #ff9eac;
+	--color-negative-surface: #3e2430;
+	--color-attention: #f2c572;
+	--color-attention-surface: #3b2e1c;
+	--color-diff-add: #17372e;
+	--color-diff-remove: #3e2430;
+	--color-accent-border: #8071b6;
 
 	/* Type */
 	--font-ui: Inter, system-ui, sans-serif;
@@ -65,8 +69,10 @@
 	--font-size-10-5: 10.5px;
 	--font-size-10: 10px;
 	--font-size-9: 9px;
-	--line-height-base: 1.45;
+	--line-height-base: 1.5;
 	--line-height-transcript: 1.7;
+	--line-height-reading: 1.65;
+	--line-height-heading: 1.25;
 
 	/* Radius */
 	--radius-focus: 3px;
@@ -94,7 +100,7 @@
 
 	/* Focus ring */
 	--focus-ring-width: 2px;
-	--focus-ring-offset: 2px;
+	--focus-ring-offset: 3px;
 
 	/* Pulse animation */
 	--pulse-duration: 1.4s;

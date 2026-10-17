@@ -19,13 +19,15 @@ export function ScreenHeader({
 			<div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
 				<div>
 					{eyebrow === undefined ? null : (
-						<p className="mb-1 text-10 tracking-label text-accent-foreground uppercase">
+						<p className="mb-1 text-12 tracking-label text-accent-foreground uppercase">
 							{eyebrow}
 						</p>
 					)}
-					<h1 className="text-20 font-medium tracking-tight">{title}</h1>
+					<h1 className="text-24 font-semibold tracking-tight leading-heading">
+						{title}
+					</h1>
 					{subline === undefined ? null : (
-						<p className="mt-1 text-12 text-muted-foreground">{subline}</p>
+						<p className="mt-1 text-14 text-muted-foreground">{subline}</p>
 					)}
 				</div>
 				{aside}

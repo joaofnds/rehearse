@@ -77,7 +77,7 @@ function AssessmentLayer({
 				Attempt pass rate · 95% confidence interval
 			</p>
 			{rows.length === 0 ? (
-				<p className="text-13 text-muted-foreground">
+				<p className="text-14 text-muted-foreground">
 					No recorded attempts with declared checks to compare.
 				</p>
 			) : (
@@ -105,7 +105,7 @@ export function SessionAssessment({
 				title="Recorded session checks"
 				description={ASSESSMENT_BASIS}
 			>
-				<p className="text-13 text-muted-foreground">
+				<p className="text-14 text-muted-foreground">
 					The separate check-layer summary is unavailable in this response. Open
 					saved attempts for the recorded assessments.
 				</p>
@@ -129,7 +129,7 @@ export function SessionAssessment({
 					assessment={assessment.checks}
 				/>
 			</div>
-			<p className="mt-4 text-13 text-muted-foreground">
+			<p className="mt-4 text-14 text-muted-foreground">
 				Intervals describe uncertainty in each observed pass rate. These
 				observations do not establish equivalent quality or isolate the effect
 				of an individual changed file.

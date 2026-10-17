@@ -36,7 +36,7 @@ function Version({ digest }: { readonly digest: string }): React.JSX.Element {
 
 function Refusal({ reason }: { readonly reason: string }): React.JSX.Element {
 	return (
-		<p role="alert" className="mt-2 text-sm text-secondary-foreground">
+		<p role="alert" className="mt-2 text-14 text-attention">
 			<span aria-hidden="true">⚠ </span>
 			{reason}
 		</p>
@@ -53,10 +53,10 @@ function ReviewSummary({
 }): React.JSX.Element {
 	return (
 		<>
-			<p className="mt-2 text-sm">
+			<p className="mt-2 text-14">
 				Starts from <Version digest={review.startsFrom} />
 			</p>
-			<ul className="mt-2 flex list-disc flex-col gap-1.5 pl-4 text-sm text-muted-foreground">
+			<ul className="mt-2 flex list-disc flex-col gap-1.5 pl-4 text-14 text-muted-foreground">
 				<li>Writes a new corpus version, keeps the old one addressable</li>
 				<li>
 					{`Marks ${plural(review.invalidated, "recorded result")} stale, none deleted`}
@@ -67,7 +67,7 @@ function ReviewSummary({
 						: "Choose a source step in Runs after apply to test the change"}
 				</li>
 			</ul>
-			<p className="mt-2 text-xs text-muted-foreground">
+			<p className="mt-2 text-12 text-muted-foreground">
 				Apply refuses while a launch this server started runs. A replay started
 				from a terminal is not seen, so an apply during one records a version
 				its session did not read.
@@ -154,7 +154,7 @@ export function CorpusEditor({
 		return (
 			<p
 				role={file.isError ? "alert" : undefined}
-				className="text-sm text-muted-foreground"
+				className={`text-14 ${file.isError ? "text-attention" : "text-muted-foreground"}`}
 			>
 				{file.isError
 					? `Could not read ${path}: ${file.error.message}`
@@ -169,7 +169,7 @@ export function CorpusEditor({
 	return (
 		<div className="grid gap-4 md:grid-cols-3">
 			<div className="flex min-w-0 flex-col gap-3 md:col-span-2">
-				<p className="text-11-5 text-dim">
+				<p className="text-12 text-dim">
 					Unapplied drafts stay in this app session while you navigate. Discard
 					removes this draft; reloading the app clears all drafts.
 				</p>
@@ -185,7 +185,7 @@ export function CorpusEditor({
 						draft with the current file.
 					</p>
 				) : null}
-				<label htmlFor={textId} className="text-sm">
+				<label htmlFor={textId} className="text-14">
 					{"Text of "}
 					<span className="font-mono">{path}</span>
 				</label>
@@ -201,7 +201,7 @@ export function CorpusEditor({
 						saveDraft(event.target.value, draft?.version ?? file.data.version);
 						apply.reset();
 					}}
-					className="w-full rounded-md border border-strong bg-background px-2 py-1.5 font-mono text-11-5"
+					className="w-full rounded-md border border-strong bg-background px-2 py-1.5 font-mono text-13 leading-transcript"
 				/>
 				<DiffPreview
 					path={path}
@@ -225,6 +225,7 @@ export function CorpusEditor({
 				<div className="mt-3 flex gap-2">
 					{current === undefined ? (
 						<Button
+							variant="primary"
 							size="sm"
 							disabled={review.isPending}
 							onClick={() => {
@@ -243,6 +244,7 @@ export function CorpusEditor({
 						</Button>
 					) : (
 						<Button
+							variant="primary"
 							size="sm"
 							disabled={current.applyRefusal !== null || apply.isPending}
 							onClick={() => {
@@ -283,7 +285,7 @@ export function AppliedEdit({
 	const { rerun } = applied;
 
 	return (
-		<div className="flex flex-col gap-2 text-sm">
+		<div className="flex flex-col gap-2 text-14">
 			<p>
 				{`Applied ${path}: `}
 				<Version digest={applied.previous} />
@@ -312,10 +314,7 @@ export function AppliedEdit({
 				<>
 					{source === undefined ? (
 						<p className="text-muted-foreground">
-							<Link
-								to="/"
-								className="text-primary underline underline-offset-2"
-							>
+							<Link to="/" className="text-link underline underline-offset-2">
 								Choose a source step in Runs
 							</Link>
 							{" to test this edit from a saved checkpoint."}

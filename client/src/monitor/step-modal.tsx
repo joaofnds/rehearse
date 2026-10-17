@@ -80,7 +80,7 @@ function GradeReading({
 	}
 
 	return (
-		<span className="text-11-5 text-secondary-foreground">
+		<span className="text-12 text-secondary-foreground">
 			{hasEnded(stage)
 				? notRecorded("grade", stage.grade.reasons)
 				: "grade pending"}
@@ -99,15 +99,15 @@ function ModalHeader({
 }): React.JSX.Element {
 	return (
 		<header className="flex flex-none flex-wrap items-center gap-3 border-b border-strong px-4 py-3">
-			<span className="font-mono text-10 tracking-label text-dim uppercase">
+			<span className="font-mono text-12 tracking-label text-dim uppercase">
 				Step {String(number).padStart(2, "0")}
 			</span>
 			<DialogTitle>{stage.stage}</DialogTitle>
-			<span className="font-mono text-11 text-muted-foreground">
+			<span className="font-mono text-12 text-muted-foreground">
 				{figuresReading(stage)}
 			</span>
 			<span className="ml-auto flex items-center gap-2.25">
-				<span className="text-11-5 text-secondary-foreground">
+				<span className="text-12 text-secondary-foreground">
 					verdict {verdictReading(stage, record)}
 				</span>{" "}
 				<GradeReading stage={stage} />
@@ -139,7 +139,7 @@ function SectionTitle({
 	return (
 		<h3
 			id={id}
-			className="mt-3.5 text-10 tracking-label text-dim uppercase first:mt-0"
+			className="mt-3.5 text-12 tracking-label text-dim uppercase first:mt-0"
 		>
 			{children}
 		</h3>
@@ -175,14 +175,14 @@ function InstructionsLoaded({
 					className="border-b border-subtle px-2.5 py-1.75 last:border-b-0"
 				>
 					<span className="flex items-center gap-2.25">
-						<span className="flex-1 font-mono text-11-5">{entry.path}</span>
-						<span className="font-mono text-10-5 text-dim">
+						<span className="flex-1 font-mono text-12">{entry.path}</span>
+						<span className="font-mono text-12 text-dim">
 							{entry.sha256 === undefined
 								? "no hash"
 								: `sha ${entry.sha256.slice(0, HASH_SHOWN)}`}
 						</span>
 					</span>
-					<span className="mt-0.5 flex items-center gap-2 text-10-5">
+					<span className="mt-0.5 flex items-center gap-2 text-12">
 						<span className="text-dim">{entry.role}</span>
 						<span className="flex items-center gap-1.25 text-muted-foreground">
 							<ReadState entry={entry} />
@@ -271,16 +271,16 @@ function ArtifactsIn({
 							<span aria-hidden="true" className="text-dim">
 								↓
 							</span>
-							<span className="flex-1 font-mono text-11-5 wrap-anywhere">
+							<span className="flex-1 font-mono text-12 wrap-anywhere">
 								{name}
 							</span>
-							<span className="text-10-5 text-dim">{from}</span>
+							<span className="text-12 text-dim">{from}</span>
 						</li>
 					);
 				})}
 			</ul>
 			{missing.map(({ part, reason }) => (
-				<p key={part} className="mt-1.5 text-11 text-dim">
+				<p key={part} className="mt-1.5 text-12 text-dim">
 					Not read: the workflow-state changes of {stepName(record, part)} ·{" "}
 					{part}, as {reason}
 				</p>
@@ -352,7 +352,7 @@ function SessionLink({
 	const session = useQuery(stageSessionQuery(run, stage));
 	if (session.isError) {
 		return (
-			<span className="self-center text-11-5 text-muted-foreground">
+			<span className="self-center text-12 text-muted-foreground">
 				Could not read this step's session.
 			</span>
 		);
@@ -365,7 +365,7 @@ function SessionLink({
 	}
 	if (session.data.transcriptPath === undefined) {
 		return (
-			<span className="self-center text-11-5 text-muted-foreground">
+			<span className="self-center text-12 text-muted-foreground">
 				Transcript not recorded: {NO_KEPT_TRANSCRIPT}
 			</span>
 		);
@@ -375,7 +375,7 @@ function SessionLink({
 		<Link
 			to="/runs/$run/stages/$stage"
 			params={{ run, stage }}
-			className="self-center text-11-5"
+			className="self-center text-14"
 		>
 			Open its transcript
 		</Link>
@@ -439,7 +439,7 @@ function ReplayFromCheckpoint({
 				>
 					Replay from checkpoint
 				</Button>
-				<span id={reasonId} className="self-center text-11 text-dim">
+				<span id={reasonId} className="self-center text-12 text-dim">
 					{refusal}
 				</span>
 			</>
@@ -511,7 +511,7 @@ function OperateOnStep({
 					</Button>
 				)}
 			</div>
-			<p className="mt-2 text-11 text-pretty text-dim">
+			<p className="mt-2 text-12 text-pretty text-dim">
 				Editing a step changes its case&apos;s pipeline file, which the next run
 				reads. Its skill and the other instruction files are edited on the{" "}
 				<Link to="/corpus">Corpus screen</Link>, which writes a new corpus

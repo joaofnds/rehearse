@@ -55,15 +55,15 @@ function SetupStep({
 			className={cn(
 				"rounded-card border px-5.5 py-5",
 				look === "open" && "border-strong bg-raised",
-				look === "dimmed" && "border-divider bg-raised opacity-55",
-				locked && "border-dashed border-strong opacity-50",
+				look === "dimmed" && "border-divider bg-raised",
+				locked && "border-dashed border-strong",
 			)}
 		>
 			<div className="flex items-center gap-2.5">
 				<span
 					aria-hidden="true"
 					className={cn(
-						"grid size-6 flex-none place-items-center rounded-full border font-mono text-11",
+						"grid size-6 flex-none place-items-center rounded-full border font-mono text-12",
 						locked
 							? "border-stronger text-muted-foreground"
 							: "border-deeper text-pale",
@@ -71,8 +71,8 @@ function SetupStep({
 				>
 					{number}
 				</span>
-				<h2 className="text-14">{title}</h2>
-				<span className="ml-auto text-10 tracking-label text-dim uppercase">
+				<h2 className="text-16">{title}</h2>
+				<span className="ml-auto text-12 tracking-label text-dim uppercase">
 					{state}
 				</span>
 			</div>
@@ -87,7 +87,7 @@ function StepProse({
 	readonly children: ReactNode;
 }): React.JSX.Element {
 	return (
-		<p className="mt-2.5 max-w-intro text-12-5 text-muted-foreground">
+		<p className="mt-2.5 max-w-intro text-14 leading-reading text-muted-foreground">
 			{children}
 		</p>
 	);
@@ -107,7 +107,7 @@ function LimitPreset({
 			type="button"
 			aria-pressed={pressed}
 			onClick={onPress}
-			className="rounded-md border border-strong px-2.5 py-1.5 font-mono text-11-5 text-secondary-foreground transition-colors hover:border-primary hover:bg-accent aria-pressed:border-primary aria-pressed:text-pale"
+			className="rounded-md border border-strong px-2.5 py-1.5 font-mono text-14 text-secondary-foreground transition-colors hover:border-primary hover:bg-accent aria-pressed:border-primary aria-pressed:text-pale"
 		>
 			{`$${preset}`}
 		</button>
@@ -124,7 +124,7 @@ function SpendLimitControls({
 	return (
 		<div className="mt-3.5 flex flex-wrap items-center gap-2.5">
 			<label className="flex items-center gap-2 rounded-md border border-strong bg-background px-2.5 py-2">
-				<span className="text-11 text-muted-foreground">USD</span>
+				<span className="text-12 text-muted-foreground">USD</span>
 				<input
 					value={limit}
 					inputMode="decimal"
@@ -132,7 +132,7 @@ function SpendLimitControls({
 					onChange={(event) => {
 						onLimit(event.target.value);
 					}}
-					className="w-22 bg-transparent font-mono text-13 outline-none"
+					className="w-22 bg-transparent font-mono text-14"
 				/>
 			</label>
 			{LIMIT_PRESETS.map((preset) => (
@@ -165,7 +165,7 @@ function ScannedFiles({
 }): React.JSX.Element {
 	return (
 		<div className="mt-3.5 overflow-hidden rounded-md border border-border">
-			<div className="bg-subtle px-3 py-2 text-10 tracking-label text-muted-foreground uppercase">
+			<div className="bg-subtle px-3 py-2 text-12 tracking-label text-muted-foreground uppercase">
 				{report.digest === undefined
 					? `Found ${plural(report.files.length, "file")} · not hashed`
 					: `Found ${plural(report.files.length, "file")} · hashed as ${corpusVersionLabel(report.digest)}`}
@@ -174,7 +174,7 @@ function ScannedFiles({
 				{report.files.map((file) => (
 					<li
 						key={file.path}
-						className="flex gap-3 border-t border-subtle px-3 py-1.5 font-mono text-11-5"
+						className="flex gap-3 border-t border-subtle px-3 py-1.5 font-mono text-12"
 					>
 						<span className="flex-1 break-all">{file.path}</span>
 						<span className="text-dim">{`sha ${corpusVersionHash(file.sha256)}`}</span>
@@ -219,14 +219,14 @@ function CorpusControls({
 					onChange={(event) => {
 						onDirectory(event.target.value);
 					}}
-					className="h-9 min-w-0 flex-1 rounded-md border border-strong bg-background px-3 font-mono text-12 outline-none"
+					className="h-9 min-w-0 flex-1 rounded-md border border-strong bg-background px-3 font-mono text-14"
 				/>
-				<Button type="submit" disabled={scanning}>
+				<Button variant="primary" type="submit" disabled={scanning}>
 					Scan
 				</Button>
 			</form>
 			{refusal === undefined ? null : (
-				<p role="alert" className="mt-2 text-12 text-secondary-foreground">
+				<p role="alert" className="mt-2 text-12 text-attention">
 					<span aria-hidden="true">⚠ </span>
 					{refusal}
 				</p>
@@ -304,7 +304,9 @@ export function SetupPage(): React.JSX.Element {
 	return (
 		<div className="flex justify-center px-10 py-17">
 			<div className="w-full max-w-191">
-				<h1 className="text-22 tracking-tight">Nothing is measured yet</h1>
+				<h1 className="text-24 tracking-tight leading-heading">
+					Nothing is measured yet
+				</h1>
 				<p className="mt-2.5 max-w-intro text-muted-foreground">
 					Rehearse needs two things before a case can be declared: a hard
 					ceiling on what a run may spend, and the instruction corpus whose
@@ -383,18 +385,18 @@ export function SetupPage(): React.JSX.Element {
 					>
 						Finish setup
 					</Button>
-					<span className="text-11-5 text-dim">
+					<span className="text-12 text-dim">
 						{finishHint(limitEntered, linked)}
 					</span>
 				</div>
 				{finish.isError ? (
-					<p role="alert" className="mt-2 text-12 text-secondary-foreground">
+					<p role="alert" className="mt-2 text-12 text-attention">
 						<span aria-hidden="true">⚠ </span>
 						{`The spend limit was not stored: ${finish.error.message}`}
 					</p>
 				) : null}
 				{settings.isError ? (
-					<p role="alert" className="mt-2 text-12 text-secondary-foreground">
+					<p role="alert" className="mt-2 text-12 text-attention">
 						<span aria-hidden="true">⚠ </span>
 						{`Could not read the stored settings: ${settings.error.message}`}
 					</p>

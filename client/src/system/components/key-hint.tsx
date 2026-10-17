@@ -5,7 +5,7 @@ export function KeyHint({
 	readonly letter: string;
 }): React.JSX.Element {
 	return (
-		<kbd aria-hidden="true" className="font-mono text-10 text-dim uppercase">
+		<kbd aria-hidden="true" className="font-mono text-12 text-dim uppercase">
 			{letter}
 		</kbd>
 	);

@@ -69,7 +69,7 @@ function DefinitionReading({
 			{reading.state === "available" ? (
 				<div className="max-h-120 overflow-auto">
 					{code ? (
-						<pre className="whitespace-pre-wrap break-words font-mono text-13">
+						<pre className="whitespace-pre-wrap break-words font-mono leading-transcript text-13">
 							{reading.text}
 						</pre>
 					) : (
@@ -115,7 +115,7 @@ function RelatedComparisons({
 				<p className="text-14 text-muted-foreground">Loading comparisons…</p>
 			) : null}
 			{query.isError ? (
-				<p role="alert" className="text-14 text-muted-foreground">
+				<p role="alert" className="text-14 text-attention">
 					Comparisons could not be loaded.
 				</p>
 			) : null}
@@ -130,7 +130,7 @@ function RelatedComparisons({
 						<Link
 							to="/comparisons/$digest"
 							params={{ digest: entry.digest }}
-							className="text-14 text-accent-foreground hover:underline"
+							className="text-14 text-link hover:underline"
 						>
 							{caseId} · {entry.mode} comparison{" "}
 							<span className="font-mono text-12">
@@ -190,7 +190,7 @@ export function CaseDetail({
 							expandedLabel="Hide declared corpus files"
 						>
 							{definition.corpusFiles.length === 0 ? (
-								<p className="text-13 text-muted-foreground">
+								<p className="text-14 text-muted-foreground">
 									No corpus files declared.
 								</p>
 							) : (
@@ -212,7 +212,7 @@ export function CaseDetail({
 					</div>
 				)}
 				{definition?.tools === undefined ? null : (
-					<p className="mt-2 text-13 text-muted-foreground">
+					<p className="mt-2 text-14 text-muted-foreground">
 						Allowed tools:{" "}
 						{definition.tools.length === 0
 							? "None"
@@ -284,7 +284,7 @@ function CaseCohorts({
 					</p>
 				) : (
 					<>
-						<label className="flex flex-wrap items-center gap-3 text-13">
+						<label className="flex flex-wrap items-center gap-3 text-14">
 							Corpus cohort
 							<select
 								aria-label="Corpus cohort"
@@ -299,7 +299,7 @@ function CaseCohorts({
 										hash: "case-evidence",
 									});
 								}}
-								className="max-w-full rounded-md border border-strong bg-background px-3 py-2 font-mono text-12"
+								className="max-w-full rounded-md border border-strong bg-background px-3 py-2 font-mono text-14"
 							>
 								{cohort === undefined ? (
 									<option value={selectedKey}>Unknown corpus selection</option>
@@ -331,7 +331,7 @@ function CaseCohorts({
 										value={
 											<a
 												href="#case-members"
-												className="text-accent-foreground hover:underline"
+												className="text-link hover:underline"
 											>
 												{figures.counted}
 											</a>
@@ -347,7 +347,7 @@ function CaseCohorts({
 										value={
 											<a
 												href="#case-members"
-												className="text-accent-foreground hover:underline"
+												className="text-link hover:underline"
 											>
 												{figures.passed} / {figures.judged} assessed
 											</a>
@@ -359,7 +359,7 @@ function CaseCohorts({
 										value={
 											<a
 												href="#case-members"
-												className="text-accent-foreground hover:underline"
+												className="text-link hover:underline"
 											>
 												{figures.costPerRun.meanUsd === null
 													? "Unavailable"
@@ -370,7 +370,7 @@ function CaseCohorts({
 									/>
 								</dl>
 								{listed.kind === "session" ? (
-									<p className="mb-4 text-13 text-muted-foreground">
+									<p className="mb-4 text-14 text-muted-foreground">
 										Pass figures use recorded reply/transcript checks. Open an
 										attempt to inspect saved-state checks and any disagreement.
 									</p>
@@ -378,7 +378,7 @@ function CaseCohorts({
 							</>
 						) : null}
 						{cohort === undefined ? null : (
-							<div id="case-members" className="overflow-x-auto text-13">
+							<div id="case-members" className="overflow-x-auto text-14">
 								<TableShell
 									caption="Runs in the selected cohort"
 									columns={[
@@ -393,7 +393,7 @@ function CaseCohorts({
 											key="run"
 											to={member.href}
 											title={member.label}
-											className="font-mono text-12 text-accent-foreground hover:underline"
+											className="font-mono text-14 text-link hover:underline"
 										>
 											{memberName(member, listing.data?.rows ?? [])}
 										</Link>,

@@ -15,7 +15,7 @@ export function SettingsCard({
 			aria-labelledby={heading}
 			className="rounded-lg border border-strong bg-raised px-4 py-3.5"
 		>
-			<h2 id={heading} className="text-14 font-medium">
+			<h2 id={heading} className="text-16 font-semibold">
 				{title}
 			</h2>
 			{children}

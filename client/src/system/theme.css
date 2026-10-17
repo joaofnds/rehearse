@@ -9,7 +9,12 @@
 	--color-popover-foreground: var(--color-text);
 
 	--color-primary: var(--color-accent);
-	--color-primary-foreground: var(--color-canvas);
+	--color-primary-foreground: var(--color-on-accent);
+	--color-primary-hover: var(--color-accent-hover);
+	--color-link: var(--color-link);
+	--color-link-hover: var(--color-link-hover);
+	--color-info: var(--color-link);
+	--color-info-surface: var(--color-info-surface);
 
 	--color-secondary: var(--color-surface-alt);
 	--color-secondary-foreground: var(--color-text-secondary);
@@ -30,7 +35,7 @@
 	--color-attention-surface: var(--color-attention-surface);
 
 	--color-border: var(--color-border-2);
-	--color-input: var(--color-border-2);
+	--color-input: var(--color-border-strong);
 	--color-ring: var(--color-accent);
 
 	--color-sidebar: var(--color-sidebar);
@@ -45,6 +50,8 @@
 	--font-sans: var(--font-ui);
 	--font-mono: var(--font-mono);
 
+	--spacing-sequence-plot: var(--size-sequence-plot-min-width);
+	--spacing-touch-target: var(--size-touch-target);
 	--spacing-spend-track-width: var(--size-spend-track-width);
 	--spacing-spend-track-height: var(--size-spend-track-height);
 
@@ -75,6 +82,8 @@
 	--text-10: var(--font-size-10);
 	--text-9: var(--font-size-9);
 
+	--leading-heading: var(--line-height-heading);
+	--leading-reading: var(--line-height-reading);
 	--leading-transcript: var(--line-height-transcript);
 
 	--tracking-label: 0.09em;

@@ -28,19 +28,19 @@ export function DiffPreview({
 	const lines = lineDiff(original, text);
 	if (lines === undefined) {
 		return (
-			<p className="text-sm text-muted-foreground">
+			<p className="text-14 text-muted-foreground">
 				{`${path} holds too many lines to diff here.`}
 			</p>
 		);
 	}
 	if (lines.every(({ kind }) => kind === "same")) {
-		return <p className="text-sm text-muted-foreground">{unchanged}</p>;
+		return <p className="text-14 text-muted-foreground">{unchanged}</p>;
 	}
 
 	return (
 		<ol
 			aria-label={`Changes to ${path}`}
-			className="overflow-x-auto font-mono text-11-5 leading-relaxed"
+			className="overflow-x-auto font-mono text-13 leading-transcript"
 		>
 			{lines.map((line, index) => (
 				<li

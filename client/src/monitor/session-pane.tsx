@@ -194,7 +194,7 @@ function ClosedNote({
 	readonly transcriptPath: string | undefined;
 }): React.JSX.Element {
 	return (
-		<div className="mt-3 rounded-md border border-border bg-raised px-3 py-2.5 font-sans text-13 text-muted-foreground">
+		<div className="mt-3 rounded-md border border-border bg-raised px-3 py-2.5 font-sans text-14 text-muted-foreground">
 			{transcriptPath === undefined ? (
 				"Session ended. Rehearse has no copy of its transcript, which it keeps only once the step checkpoints."
 			) : (
@@ -247,7 +247,7 @@ function ClosedSession({
 			) : null}
 			{session.spans.length === 0 ? null : (
 				<details className="mt-3">
-					<summary className="cursor-pointer font-sans text-13">
+					<summary className="cursor-pointer font-sans text-14">
 						{session.spans.length} saved Judge citations
 					</summary>
 					<CitedRows spans={session.spans} />
@@ -297,7 +297,7 @@ function TailFooter({
 	readonly toolCalls: number;
 }): React.JSX.Element {
 	return (
-		<div className="flex flex-none items-center gap-3 border-t border-divider px-4.25 py-2.25 text-11 text-dim">
+		<div className="flex flex-none items-center gap-3 border-t border-divider px-4.25 py-2.25 text-12 text-dim">
 			{following ? (
 				<LiveGlyph />
 			) : (
@@ -353,18 +353,18 @@ export function SessionPane({
 			className="flex min-h-0 flex-col border-r border-divider"
 		>
 			<div className="flex flex-none items-center gap-3 border-b border-divider px-4.25 py-2.75">
-				<h2 className="text-12 font-medium tracking-caps text-muted-foreground uppercase">
+				<h2 className="text-16 font-semibold tracking-caps text-muted-foreground uppercase">
 					Step {String(number)} · {stage}
 				</h2>
 				{meta === undefined ? null : (
-					<span className="font-mono text-11 text-dim">{meta}</span>
+					<span className="font-mono text-12 text-dim">{meta}</span>
 				)}
 				{data?.state === "closed" && data.transcriptPath !== undefined ? (
 					<Link
 						to="/runs/$run"
 						params={{ run }}
 						search={{ view: "context", step: stage, focus: "events" }}
-						className="ml-auto text-11-5"
+						className="ml-auto text-14"
 					>
 						open transcript
 					</Link>
@@ -372,10 +372,10 @@ export function SessionPane({
 			</div>
 			<div
 				ref={body}
-				className="flex-1 overflow-y-auto px-4.25 py-3 font-mono text-11-5 leading-transcript"
+				className="flex-1 overflow-y-auto px-4.25 py-3 font-mono text-13 leading-transcript"
 			>
 				{isError ? (
-					<p role="alert" className="font-sans text-13 text-muted-foreground">
+					<p role="alert" className="font-sans text-14 text-attention">
 						<span aria-hidden="true">⚠ </span>
 						Could not read this step's session.
 					</p>

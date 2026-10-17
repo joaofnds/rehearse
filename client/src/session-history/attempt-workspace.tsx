@@ -94,7 +94,7 @@ function SessionResults({
 }): React.JSX.Element {
 	return (
 		<section className="rounded-lg border border-divider bg-card p-4">
-			<h2 className="text-14 font-medium">Saved session measurements</h2>
+			<h2 className="text-16 font-semibold">Saved session measurements</h2>
 			{assessmentAvailable ? null : (
 				<StateBadge tone="neutral">Recorded outcome: {row.status}</StateBadge>
 			)}
@@ -145,7 +145,7 @@ function ReplayResults({
 			: source.data?.attempt.run;
 	return (
 		<section className="rounded-lg border border-divider bg-card p-4">
-			<h2 className="text-14 font-medium">Saved replay result</h2>
+			<h2 className="text-16 font-semibold">Saved replay result</h2>
 			<p className="mt-2 font-mono text-12">
 				{row.stage} · Grade {row.grade} · {row.status}
 			</p>
@@ -233,7 +233,7 @@ function ConfirmationResults({
 				);
 	return (
 		<section className="rounded-lg border border-divider bg-card p-4">
-			<h2 className="text-14 font-medium">Saved rep result</h2>
+			<h2 className="text-16 font-semibold">Saved rep result</h2>
 			<p className="mt-1 text-12 text-dim">
 				Measurements below belong to this rep only.
 			</p>
@@ -300,7 +300,7 @@ function SelectedRepEvidence({
 	readonly identity: Extract<SessionHistoryIdentity, { kind: "confirmation" }>;
 }): React.JSX.Element {
 	if (selected === undefined) {
-		return <p className="text-13 text-dim">No step outcome was saved.</p>;
+		return <p className="text-14 text-dim">No step outcome was saved.</p>;
 	}
 	if (selected.status === "JUDGED") {
 		return (
@@ -310,7 +310,7 @@ function SelectedRepEvidence({
 		);
 	}
 	return (
-		<p className="text-13 text-dim">
+		<p className="text-14 text-dim">
 			{selected.stage}: {stageReading(selected)}. No judged assessment is
 			available.
 		</p>
@@ -336,7 +336,7 @@ function RepEvidence({
 	}
 	return (
 		<>
-			<nav aria-label="Rep steps" className="flex flex-wrap gap-3 text-13">
+			<nav aria-label="Rep steps" className="flex flex-wrap gap-3 text-14">
 				{record.stages.map((item) => (
 					<Link
 						key={item.stage}
@@ -347,7 +347,7 @@ function RepEvidence({
 							...(comparison !== undefined && { comparison }),
 						}}
 						aria-current={selected?.stage === item.stage ? "page" : undefined}
-						className="text-accent-foreground underline"
+						className="rounded-md border border-transparent px-3 py-2 text-link underline current:border-primary current:bg-selected current:text-pale current:no-underline"
 					>
 						{item.stage}
 					</Link>
@@ -395,13 +395,13 @@ function SavedRecord({
 				type="button"
 				aria-expanded={open}
 				onClick={onToggle}
-				className="text-12 text-accent-foreground hover:underline"
+				className="text-14 text-link hover:underline"
 			>
 				{open ? `Hide ${label}` : `Show ${label}`}
 			</button>
 			{open ? (
 				<>
-					<p className="mt-2 font-mono text-11-5 text-dim">{id}</p>
+					<p className="mt-2 font-mono text-12 text-dim">{id}</p>
 					{loading ? (
 						<p className="mt-2 text-12 text-dim">Loading record…</p>
 					) : null}
@@ -413,7 +413,7 @@ function SavedRecord({
 					{formatted === undefined ? null : (
 						<pre
 							data-testid="saved-record-json"
-							className="mt-3 max-h-96 overflow-auto rounded border border-subtle bg-muted p-3 font-mono text-11-5 whitespace-pre-wrap break-all"
+							className="mt-3 max-h-96 overflow-auto rounded border border-subtle bg-muted p-3 font-mono leading-transcript text-13 whitespace-pre-wrap break-all"
 						>
 							{formatted}
 						</pre>
@@ -794,7 +794,7 @@ function AttemptNavigation({
 		...(comparison !== undefined && { comparison }),
 	};
 	return (
-		<div className="flex flex-wrap items-center justify-between gap-3 border-b border-divider px-6 py-3 text-13">
+		<div className="flex flex-wrap items-center justify-between gap-3 border-b border-divider px-6 py-3 text-14">
 			<nav
 				aria-label="Attempt breadcrumb"
 				className="flex flex-wrap items-center gap-3"
@@ -803,7 +803,7 @@ function AttemptNavigation({
 					<Link
 						to="/cases"
 						search={{ caseId }}
-						className="text-accent-foreground underline"
+						className="rounded-md border border-transparent px-3 py-2 text-link underline current:border-primary current:bg-selected current:text-pale current:no-underline"
 					>
 						{caseId}
 					</Link>
@@ -817,7 +817,7 @@ function AttemptNavigation({
 							...(step !== undefined && { step }),
 							...(comparison !== undefined && { comparison }),
 						}}
-						className="text-accent-foreground underline"
+						className="rounded-md border border-transparent px-3 py-2 text-link underline current:border-primary current:bg-selected current:text-pale current:no-underline"
 					>
 						Group results
 					</Link>
@@ -826,7 +826,7 @@ function AttemptNavigation({
 					<Link
 						to="/comparisons/$digest"
 						params={{ digest: comparison }}
-						className="text-accent-foreground underline"
+						className="rounded-md border border-transparent px-3 py-2 text-link underline current:border-primary current:bg-selected current:text-pale current:no-underline"
 					>
 						Back to comparison
 					</Link>
@@ -937,7 +937,7 @@ export function AttemptWorkspacePage({
 					<Link
 						to="/"
 						search={runsSearch}
-						className="text-12 text-muted-foreground hover:text-foreground"
+						className="text-14 text-link hover:text-link-hover"
 					>
 						← Back to Runs
 					</Link>
@@ -950,7 +950,7 @@ export function AttemptWorkspacePage({
 				aside={
 					id === undefined ? undefined : (
 						<details>
-							<summary className="cursor-pointer text-12">
+							<summary className="cursor-pointer text-14">
 								{identity.kind === "confirmation"
 									? "Saved repetition ID"
 									: "Canonical record ID"}
@@ -973,7 +973,7 @@ export function AttemptWorkspacePage({
 			{identity.kind === "stage" ? (
 				<p className="p-6 text-12 text-dim">
 					Open the{" "}
-					<Link to={path} className="text-accent-foreground hover:underline">
+					<Link to={path} className="text-link hover:underline">
 						pipeline step
 					</Link>{" "}
 					for its results.
@@ -982,7 +982,7 @@ export function AttemptWorkspacePage({
 				<>
 					<nav
 						aria-label="Attempt views"
-						className="flex gap-4 border-b border-divider px-6 py-3 text-12"
+						className="flex flex-wrap gap-2 border-b border-divider px-6 py-3 text-14"
 					>
 						<Link
 							to={path}
@@ -992,7 +992,7 @@ export function AttemptWorkspacePage({
 								...(comparison !== undefined && { comparison }),
 							}}
 							aria-current={view === "results" ? "page" : undefined}
-							className="text-accent-foreground hover:underline"
+							className="rounded-md border border-transparent px-3 py-2 text-link hover:underline current:border-primary current:bg-selected current:text-pale current:no-underline"
 						>
 							Results
 						</Link>
@@ -1004,7 +1004,7 @@ export function AttemptWorkspacePage({
 								...(comparison !== undefined && { comparison }),
 							}}
 							aria-current={view === "context" ? "page" : undefined}
-							className="text-accent-foreground hover:underline"
+							className="rounded-md border border-transparent px-3 py-2 text-link hover:underline current:border-primary current:bg-selected current:text-pale current:no-underline"
 						>
 							Context &amp; cost
 						</Link>

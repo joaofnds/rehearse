@@ -62,7 +62,7 @@ export function TasksPage({
 				{embedded ? (
 					<div className="flex flex-wrap items-center justify-between gap-3">
 						<div>
-							<h2 className="text-16 font-medium">Workflow definitions</h2>
+							<h2 className="text-16 font-semibold">Workflow definitions</h2>
 							{caseId === undefined ? null : (
 								<p className="text-12 text-muted-foreground">
 									Showing workflows used by{" "}
@@ -71,7 +71,7 @@ export function TasksPage({
 									<Link
 										to="/cases"
 										search={{ view: "workflows" }}
-										className="text-accent-foreground hover:underline"
+										className="text-link hover:underline"
 									>
 										All workflows
 									</Link>
@@ -91,7 +91,7 @@ export function TasksPage({
 				</p>
 
 				{importedPath === undefined ? null : (
-					<p role="status" className="text-13 text-secondary-foreground">
+					<p role="status" className="text-14 text-secondary-foreground">
 						{`Imported ${importedPath}. It is uncommitted: review and commit it to keep the case.`}
 					</p>
 				)}
@@ -100,7 +100,7 @@ export function TasksPage({
 					<p className="text-muted-foreground">Loading…</p>
 				) : null}
 				{query.isError ? (
-					<p role="alert" className="text-muted-foreground">
+					<p role="alert" className="text-attention">
 						<span aria-hidden="true">⚠ </span>
 						Could not load the workflows.
 					</p>

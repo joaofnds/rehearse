@@ -70,7 +70,7 @@ export function Label({
 	readonly children: React.ReactNode;
 }): React.JSX.Element {
 	return (
-		<div className="text-10 tracking-label text-dim uppercase">{children}</div>
+		<div className="text-12 tracking-label text-dim uppercase">{children}</div>
 	);
 }
 
@@ -107,7 +107,7 @@ export function EvidenceToggle({
 			aria-controls={shown}
 			aria-disabled={disabled || undefined}
 			onClick={disabled ? undefined : onToggle}
-			className="flex-none rounded-tight border border-strong px-2.25 py-0.5 text-10-5 text-muted-foreground"
+			className="flex-none rounded-tight border border-strong px-2.25 py-0.5 text-14 text-muted-foreground"
 		>
 			{shown === undefined ? closedToggleWords(evidence) : "hide evidence"}
 		</button>
@@ -169,12 +169,12 @@ function CitedEvidence({
 					key={String(index)}
 					className={spacing}
 				>
-					<div className="flex items-center gap-2.5 font-mono text-10-5 text-muted-foreground">
+					<div className="flex items-center gap-2.5 font-mono text-12 text-muted-foreground">
 						<SourceChip cited={cited} />
 						<EvidenceLink owner={owner} index={index} cited={cited} />
 					</div>
 					{cited.quote === undefined ? null : (
-						<blockquote className="mt-1.5 border-l border-strong px-2.75 py-1.75 font-mono text-11-5 whitespace-pre-wrap text-bright">
+						<blockquote className="mt-1.5 border-l border-strong px-2.75 py-1.75 font-mono text-12 whitespace-pre-wrap text-bright">
 							{cited.quote}
 						</blockquote>
 					)}
@@ -251,8 +251,8 @@ export function BlockerLine({
 			<span aria-hidden="true" className={`font-mono text-12 ${tone.text}`}>
 				{STATUS_VOCABULARY[row.state].glyph}
 			</span>
-			<span className="flex-1 font-mono text-11-5">{row.id}</span>
-			<span className={`text-10 tracking-label uppercase ${tone.text}`}>
+			<span className="flex-1 font-mono text-12">{row.id}</span>
+			<span className={`text-12 tracking-label uppercase ${tone.text}`}>
 				{STATUS_VOCABULARY[row.state].word}
 			</span>
 		</>
@@ -268,18 +268,18 @@ export function DimensionLine({
 	return (
 		<>
 			<span
-				className={`flex-1 text-11-5 ${row.grade === undefined ? "text-dim" : "text-foreground"}`}
+				className={`flex-1 text-12 ${row.grade === undefined ? "text-dim" : "text-foreground"}`}
 			>
 				{row.id}
 			</span>
 			{row.note === undefined ? null : (
-				<span className="max-w-note text-11-5 text-muted-foreground">
+				<span className="max-w-note text-12 text-muted-foreground">
 					{row.note}
 				</span>
 			)}
 			<span
 				aria-hidden="true"
-				className="font-mono text-10-5 tracking-bar text-faint"
+				className="font-mono text-12 tracking-bar text-faint"
 			>
 				{gradeBar(row.grade)}
 			</span>

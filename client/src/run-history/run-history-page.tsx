@@ -7,7 +7,7 @@ import { EmptyState } from "#client/system/components/empty-state";
 import { FilterPill } from "#client/system/components/filter-pill";
 import { Status } from "#client/system/components/status";
 import { StateBadge } from "#client/system/components/state-badge";
-import type { StatusState } from "#client/system/components/status";
+import type { StatusState, StatusTone } from "#client/system/components/status";
 import { TableShell } from "#client/system/components/table-shell";
 import { Button } from "#client/system/ui/button";
 import { KeyHint } from "#client/system/components/key-hint";
@@ -118,7 +118,7 @@ function UnreadableRecords({
 	return (
 		<div
 			role="alert"
-			className="flex flex-wrap items-baseline gap-x-2 text-xs text-secondary-foreground"
+			className="flex flex-wrap items-baseline gap-x-2 rounded-md border-l-3 border-attention bg-attention-surface px-4 py-3 text-14 text-attention"
 		>
 			<p>
 				<span aria-hidden="true">⚠ </span>
@@ -128,7 +128,7 @@ function UnreadableRecords({
 				collapsedLabel={`show ${records.length}`}
 				expandedLabel="hide"
 			>
-				<ul className="flex flex-col gap-1 font-mono text-sm">
+				<ul className="flex flex-col gap-1 font-mono text-14">
 					{records.map(({ id, reason }) => (
 						<li key={id}>{`${id}: ${reason}`}</li>
 					))}
@@ -190,7 +190,7 @@ function recordContext(row: HistoryRow): string | undefined {
 }
 
 const RECORD_NAME_CLASS =
-	"self-start font-mono text-sm text-accent-foreground underline decoration-deeper underline-offset-4 hover:text-pale";
+	"self-start font-mono text-14 text-link underline decoration-link/60 underline-offset-4 hover:text-link-hover";
 
 /** A record's name opens its run detail or its context page, where it has one. */
 function recordName(row: HistoryRow, name: string): React.JSX.Element {
@@ -223,7 +223,7 @@ function recordName(row: HistoryRow, name: string): React.JSX.Element {
 
 	const context = recordContext(row);
 	if (context === undefined) {
-		return <span className="font-mono text-sm">{name}</span>;
+		return <span className="font-mono text-14">{name}</span>;
 	}
 
 	return (
@@ -243,7 +243,7 @@ function runCell(row: HistoryRow, nowMs: number): React.JSX.Element {
 	return (
 		<span className="flex flex-col gap-0.5">
 			{recordName(row, name)}
-			<span className="font-mono text-xs whitespace-nowrap text-dim">
+			<span className="font-mono text-12 whitespace-nowrap text-dim">
 				{momentOf(row, nowMs)}
 			</span>
 		</span>
@@ -251,7 +251,7 @@ function runCell(row: HistoryRow, nowMs: number): React.JSX.Element {
 }
 
 const LINK_CLASS =
-	"inline-flex items-center text-xs text-accent-foreground underline decoration-deeper underline-offset-4 hover:text-pale";
+	"inline-flex items-center text-14 text-link underline decoration-link/60 underline-offset-4 hover:text-link-hover";
 
 function contextLink(link: ContextLink): React.JSX.Element {
 	switch (link.state) {
@@ -264,7 +264,7 @@ function contextLink(link: ContextLink): React.JSX.Element {
 		}
 		case "unavailable": {
 			return (
-				<span key={link.label} className="text-xs text-dim">
+				<span key={link.label} className="text-12 text-dim">
 					{`${link.label} · ${link.reason}`}
 				</span>
 			);
@@ -291,17 +291,17 @@ function caseCell(row: HistoryRow): React.JSX.Element {
 	return (
 		<span className="flex flex-col items-start gap-0.5">
 			{row.caseId === undefined ? (
-				<span className="text-sm text-dim">case not recorded</span>
+				<span className="text-14 text-dim">case not recorded</span>
 			) : (
 				<Link
 					to="/cases"
 					search={{ caseId: row.caseId }}
-					className="font-mono text-sm text-accent-foreground underline decoration-deeper underline-offset-4 hover:text-pale"
+					className="font-mono text-14 text-link underline decoration-link/60 underline-offset-4 hover:text-link-hover"
 				>
 					{row.caseId}
 				</Link>
 			)}
-			<span className="text-xs whitespace-nowrap text-dim">
+			<span className="text-12 whitespace-nowrap text-dim">
 				{kindLine(row)}
 			</span>
 			{links.length > 0 ? (
@@ -354,7 +354,7 @@ function CompareChoice({
 			first.stage === checkpoint.stage);
 
 	return (
-		<label className="flex items-center gap-2 text-xs text-dim">
+		<label className="flex items-center gap-2 text-12 text-dim">
 			<input
 				type="checkbox"
 				aria-label={`Compare ${row.groupId}`}
@@ -436,10 +436,10 @@ function runOutcomeCell(row: RunHistoryRow): React.JSX.Element {
 				)}
 				<StateBadge tone="attention">Human review pending</StateBadge>
 				<details>
-					<summary className="cursor-pointer text-11-5 text-dim">
+					<summary className="cursor-pointer text-14 text-dim">
 						Recorded status
 					</summary>
-					<code className="select-all text-11-5">{row.status}</code>
+					<code className="select-all text-12">{row.status}</code>
 				</details>
 			</span>
 		);
@@ -478,7 +478,7 @@ function otherRunOutcome(row: RunHistoryRow): React.JSX.Element {
 	return (
 		<span className="flex flex-col gap-0.5">
 			<Status state={runStatusState(row.status)} />
-			<span className="font-mono text-xs text-dim">{row.status}</span>
+			<span className="font-mono text-12 text-dim">{row.status}</span>
 			{row.status === "RUNNING" ? (
 				<RunControls key={row.recordId} launchId={row.launchId} run={row.run} />
 			) : null}
@@ -489,6 +489,7 @@ function otherRunOutcome(row: RunHistoryRow): React.JSX.Element {
 /** A record's status glyph with a phrase in place of its word, and why. */
 interface OutcomePhrase {
 	readonly state: StatusState;
+	readonly tone?: StatusTone;
 	readonly phrase: string;
 	readonly reason: React.ReactNode;
 }
@@ -497,13 +498,18 @@ function outcomeOf(reading: OutcomePhrase): React.JSX.Element {
 	return <span className="flex flex-col gap-0.5">{outcome(reading)}</span>;
 }
 
-function outcome({ state, phrase, reason }: OutcomePhrase): React.JSX.Element {
+function outcome({
+	state,
+	phrase,
+	reason,
+	tone,
+}: OutcomePhrase): React.JSX.Element {
 	return (
 		<>
 			<span className="whitespace-nowrap">
-				<Status state={state} label={phrase} />
+				<Status state={state} label={phrase} tone={tone} />
 			</span>
-			<span className="text-xs text-dim">{reason}</span>
+			<span className="text-12 text-dim">{reason}</span>
 		</>
 	);
 }
@@ -577,7 +583,7 @@ function stoppedOutcome(row: RunHistoryRow, stage: string): RunPhrase {
 		reason: (
 			<a
 				href={`/runs/${encodeURIComponent(row.run)}/stages/${encodeURIComponent(stage)}`}
-				className="inline-flex items-start self-start text-accent-foreground underline decoration-deeper underline-offset-4 hover:text-pale"
+				className="inline-flex items-start self-start text-link underline decoration-link/60 underline-offset-4 hover:text-link-hover"
 			>
 				<span className="line-clamp-2 break-words">
 					{stopReason(row, stage)}
@@ -662,6 +668,7 @@ function interruptedOutcome(row: RunHistoryRow): RunPhrase {
 function replayOutcome(row: ReplayRow): OutcomePhrase {
 	return {
 		state: row.status === "CONTINUE" ? "accepted" : "stopped",
+		tone: row.status === "CONTINUE" ? "positive" : "attention",
 		phrase: `verdict ${row.status}`,
 		reason:
 			row.attempt === undefined
@@ -691,13 +698,29 @@ function groupOutcome(row: GroupRow): OutcomePhrase {
 }
 
 const SESSION_OUTCOMES = {
-	SUCCESSFUL: { state: "accepted", phrase: "recorded successful" },
-	UNSUCCESSFUL: { state: "stopped", phrase: "recorded unsuccessful" },
-	NO_REPLY: { state: "interrupted", phrase: "no reply" },
-	EXECUTION_FAILED: { state: "interrupted", phrase: "failed to run" },
+	SUCCESSFUL: {
+		state: "accepted",
+		tone: "positive",
+		phrase: "recorded successful",
+	},
+	UNSUCCESSFUL: {
+		state: "stopped",
+		tone: "negative",
+		phrase: "recorded unsuccessful",
+	},
+	NO_REPLY: { state: "interrupted", tone: "attention", phrase: "no reply" },
+	EXECUTION_FAILED: {
+		state: "interrupted",
+		tone: "attention",
+		phrase: "failed to run",
+	},
 } as const satisfies Record<
 	SessionAttemptRow["status"],
-	{ readonly state: StatusState; readonly phrase: string }
+	{
+		readonly state: StatusState;
+		readonly tone: StatusTone;
+		readonly phrase: string;
+	}
 >;
 
 function sessionOutcome(row: SessionAttemptRow): OutcomePhrase {
@@ -743,7 +766,7 @@ type JudgedStaleness = Extract<RowStaleness, { readonly state: "available" }>;
 
 function causeList(causes: readonly string[]): readonly React.JSX.Element[] {
 	return causes.map((cause, index) => (
-		<span key={index} className="text-xs text-dim">
+		<span key={index} className="text-12 text-dim">
 			{cause}
 		</span>
 	));
@@ -782,16 +805,16 @@ function corpusCell(row: HistoryRow): React.JSX.Element {
 	return (
 		<span className="flex flex-col items-start gap-0.5">
 			{row.corpusVersion?.kind === "version" ? (
-				<span className="font-mono text-sm text-secondary-foreground">
+				<span className="font-mono text-14 text-secondary-foreground">
 					{corpusVersionLabel(row.corpusVersion.digest)}
 				</span>
 			) : (
-				<span className="text-xs text-muted-foreground">
+				<span className="text-12 text-muted-foreground">
 					{corpusMeasurementReading(row.corpusVersion)}
 				</span>
 			)}
 			{row.kind === "run" && row.corpusChangedDuringRun ? (
-				<span className="text-xs text-secondary-foreground">
+				<span className="text-12 text-secondary-foreground">
 					corpus changed during the run
 				</span>
 			) : null}
@@ -806,7 +829,7 @@ function corpusState(
 ): React.JSX.Element {
 	if (staleness.state === "unavailable") {
 		return (
-			<span className="text-xs text-muted-foreground">
+			<span className="text-12 text-muted-foreground">
 				{staleness.reasons.join("; ")}
 			</span>
 		);
@@ -833,7 +856,7 @@ function judgment(staleness: JudgedStaleness): React.JSX.Element {
 
 	if (isClean(staleness)) {
 		return (
-			<span className="text-xs text-muted-foreground">
+			<span className="text-12 text-muted-foreground">
 				<Status state="clean" />
 			</span>
 		);
@@ -844,7 +867,7 @@ function judgment(staleness: JudgedStaleness): React.JSX.Element {
 		distance.versions === 1
 	) {
 		return (
-			<span className="text-xs text-secondary-foreground">
+			<span className="text-12 text-secondary-foreground">
 				<Status state="stale" /> · corpus changed since
 			</span>
 		);
@@ -855,21 +878,21 @@ function judgment(staleness: JudgedStaleness): React.JSX.Element {
 		distance.versions > 1
 	) {
 		return (
-			<span className="text-xs text-secondary-foreground">
+			<span className="text-12 text-secondary-foreground">
 				<Status state="superseded" /> · {distance.versions} versions back
 			</span>
 		);
 	}
 	if (staleness.stale) {
 		return (
-			<span className="text-xs text-secondary-foreground">
+			<span className="text-12 text-secondary-foreground">
 				<Status state="stale" />
 			</span>
 		);
 	}
 
 	return (
-		<span className="text-xs text-muted-foreground">
+		<span className="text-12 text-muted-foreground">
 			<Status state="clear" />
 		</span>
 	);
@@ -892,7 +915,7 @@ type PipelineStages = ReplayRow["pipelineStages"];
  * what a figure it does supply covers and lacks.
  */
 function reasonsLine(reasons: readonly string[]): React.JSX.Element {
-	return <span className="text-xs text-dim">{reasons.join("; ")}</span>;
+	return <span className="text-12 text-dim">{reasons.join("; ")}</span>;
 }
 
 /** One token per stage, in pipeline order: its letter, or · where it has none. */
@@ -1070,7 +1093,7 @@ function sessionStepGrades(row: SessionAttemptRow): React.JSX.Element {
 	if (checks.state === "unavailable") {
 		return (
 			<span className="flex flex-col gap-0.5">
-				<span className="font-mono text-xs text-dim">{row.status}</span>
+				<span className="font-mono text-12 text-dim">{row.status}</span>
 				{reasonsLine(checks.reasons)}
 			</span>
 		);
@@ -1111,13 +1134,13 @@ function taskGrade(
 ): React.JSX.Element {
 	return (
 		<span className="flex flex-col gap-0.5">
-			<span className="font-mono text-13 font-bold">{value}</span>
+			<span className="font-mono text-14 font-bold">{value}</span>
 			<Disclosure
 				key={disclosureKeyOf(row)}
 				collapsedLabel={note === JUDGED_NOTE ? "independent" : "details"}
 				expandedLabel="hide"
 			>
-				<span className="max-w-note text-11 text-dim">{note}</span>
+				<span className="max-w-note text-12 text-dim">{note}</span>
 			</Disclosure>
 		</span>
 	);
@@ -1201,7 +1224,7 @@ function unrecorded(
 ): React.JSX.Element {
 	return (
 		<span className="flex flex-col items-end gap-0.5">
-			<span className="text-xs text-dim">{UNRECORDED}</span>
+			<span className="text-12 text-dim">{UNRECORDED}</span>
 			<Disclosure
 				key={disclosureKeyOf(row)}
 				collapsedLabel="why"
@@ -1234,7 +1257,7 @@ function recordedCost(row: HistoryRow): React.JSX.Element {
 	return (
 		<span className="flex flex-col items-end gap-0.5">
 			{figure(spendReading(cost.usd))}
-			<span className="text-11 text-dim">partial</span>
+			<span className="text-12 text-dim">partial</span>
 			<Disclosure
 				key={disclosureKeyOf(row)}
 				collapsedLabel="why"
@@ -1329,7 +1352,7 @@ function FilterBar({
 						onChange={(event) => {
 							onChange({ query: event.target.value });
 						}}
-						className="w-full bg-transparent text-12"
+						className="w-full bg-transparent text-14"
 					/>
 				</label>
 				<label className="flex items-center gap-2 text-12 text-muted-foreground">
@@ -1343,7 +1366,7 @@ function FilterBar({
 							)?.[0];
 							onChange({ sort });
 						}}
-						className="rounded-md border border-strong bg-background px-3 py-1.5 text-12 text-foreground"
+						className="rounded-md border border-strong bg-background px-3 py-1.5 text-14 text-foreground"
 					>
 						{SORT_OPTIONS.map(([value, label]) => (
 							<option key={value} value={value}>
@@ -1367,7 +1390,7 @@ function FilterBar({
 				aria-label="Status"
 				className="flex flex-wrap items-center gap-2"
 			>
-				<span className="w-15 text-11 text-dim">Status</span>
+				<span className="w-15 text-12 text-dim">Status</span>
 				{STATUS_FILTERS.map(([value, label]) => (
 					<FilterPill
 						key={value}
@@ -1391,7 +1414,7 @@ function FilterBar({
 					aria-label="Kind"
 					className="flex flex-wrap items-center gap-2"
 				>
-					<span className="w-15 text-11 text-dim">Kind</span>
+					<span className="w-15 text-12 text-dim">Kind</span>
 					{KIND_FILTERS.map(([value, label]) => (
 						<FilterPill
 							key={value}
@@ -1409,7 +1432,7 @@ function FilterBar({
 					aria-label="Corpus"
 					className="flex flex-wrap items-center gap-2"
 				>
-					<span className="text-11 text-dim">Corpus</span>
+					<span className="text-12 text-dim">Corpus</span>
 					{CORPUS_FILTERS.map(([value, label]) => (
 						<FilterPill
 							key={value}
@@ -1474,11 +1497,11 @@ function launchCells(
 	const instant = recordedInstant(launch.launchedAt);
 
 	return [
-		<span key="run" className="font-mono text-13">
+		<span key="run" className="font-mono text-14">
 			{`launch ${launch.id.slice(0, 8)}`}
 		</span>,
 		<span key="case" className="flex flex-col items-start gap-0.5">
-			<span className="font-mono text-13">{target}</span>
+			<span className="font-mono text-14">{target}</span>
 			<span className="text-12 text-dim">{launchAttemptsLine(launch)}</span>
 		</span>,
 		<span key="outcome" className="flex flex-col gap-0.5">
@@ -1565,7 +1588,7 @@ function EndedLaunches({
 				collapsedLabel={`Ended launch history (${String(launches.length)})`}
 				expandedLabel="Hide ended launch history"
 			>
-				<p className="my-2 text-13 text-muted-foreground">
+				<p className="my-2 text-14 text-muted-foreground">
 					These launch records have ended. They carry no recorded quality
 					outcome.
 				</p>
@@ -1600,7 +1623,7 @@ function ComparisonBar({
 	}
 
 	return (
-		<div className="flex flex-wrap items-center gap-3 text-sm">
+		<div className="flex flex-wrap items-center gap-3 text-14">
 			<span className="font-mono">{`Baseline (before) ${armA.groupId}`}</span>
 			{armB === undefined ? (
 				<span className="text-dim">{`Choose candidate (after), a group replayed at ${armA.stage} · ${armA.run}`}</span>
@@ -1752,7 +1775,7 @@ function ReplayAStep({
 		return (
 			<>
 				{offer === undefined ? null : (
-					<span className="text-11-5 text-dim">{offer.reason}</span>
+					<span className="text-12 text-dim">{offer.reason}</span>
 				)}
 				<Button variant="outline" disabled>
 					Replay a step
@@ -1788,7 +1811,7 @@ function LoadState({
 	}
 	if (failed) {
 		return (
-			<p role="alert" className="text-muted-foreground">
+			<p role="alert" className="text-attention">
 				<span aria-hidden="true">⚠ </span>
 				Could not load run history.
 			</p>
@@ -1915,7 +1938,7 @@ export function RunHistoryPage({
 
 				<LaunchQueue launches={activeLaunches} nowMs={nowMs} />
 				{rows.length === 0 && launches.length > 0 ? (
-					<p className="text-13 text-muted-foreground">
+					<p className="text-14 text-muted-foreground">
 						No saved run records in this selection.
 					</p>
 				) : null}
@@ -1949,7 +1972,7 @@ export function RunHistoryPage({
 					collapsedLabel="How filters and counts work"
 					expandedLabel="Hide filter definitions"
 				>
-					<p className="max-w-prose text-13 text-muted-foreground">
+					<p className="max-w-prose text-14 text-muted-foreground">
 						Counts include readable run records and browser launch records.
 						Launch history stays accessible separately. Ended means execution
 						ended; Stopped means a workflow stopped at a step. Passed and Failed

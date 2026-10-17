@@ -8,20 +8,36 @@ The [design handoff](../../../docs/design-handoff/README.md) and
 
 ## Type and surfaces
 
-Shared components use explicit type steps: `text-20` for screen titles,
-`text-15` for panel titles, `text-14` for reading text and metric values,
-`text-13` for secondary panel descriptions, `text-12` for metadata and controls,
-`text-12` for range-plot labels and ticks, `text-11` for sequence-plot ticks,
-and `text-10` for eyebrows and compact captions. Raw source
-and code use monospace at `text-13`; prose uses the UI font.
-The base is 13px, so Tailwind's relative `text-xs` does not mean 12px here.
+Shared components use explicit type roles: `text-24 font-semibold` for screen
+titles, `text-16 font-semibold` for panel titles, `text-14` for reading text,
+controls, links and metric values, and `text-12` as the metadata floor. Saved prose
+uses `leading-reading` (1.65); raw source and code use monospace at `text-13` with
+`leading-transcript` (1.7). Inter remains the UI/reading face; JetBrains Mono
+identifies code, provenance and tabular measurements. The HTML root stays 13px to
+preserve Tailwind's spacing scale, while the body reads at 14px. Use explicit type
+steps rather than relative `text-xs` or `text-sm`.
 
-`bg-card` identifies a panel, `bg-muted` a secondary surface, and
-`border-divider` a quiet boundary. `bg-primary` is the brand color;
-`bg-accent` is a subtle interaction surface. Tailwind's `border-border` maps to
-`--color-border-2`, while `border-divider` maps to `--color-border`.
-The semantic `positive`, `negative`, and `attention` colors have matching subtle
-surfaces. Spacing and geometry use the existing Tailwind scale.
+Slate surfaces distinguish canvas, panels and raised controls. `bg-card`
+identifies a panel; `bg-raised` identifies a stronger surface; `border-divider`
+separates content quietly. Necessary control boundaries use `border-strong` or
+`border-input`. Tailwind's `border-border` maps to the structural
+`--color-border-2`, rather than the control border.
+
+Violet identifies a primary action or selected scope. `Button variant="primary"`
+is filled, while default/outline/quiet buttons remain secondary. Use one primary
+action within a decision area. Links use blue `text-link` with an underline and
+`hover:text-link-hover`; informational/live states use `text-info` and
+`bg-info-surface`. Navigation selections stay violet, with a persistent edge or
+filled selected surface. Keyboard focus has an opaque 2px violet outline with a
+3px offset. Buttons and form controls retain 44px minimum targets.
+
+Teal `positive`, rose `negative`, and amber `attention` have matching subtle
+surfaces. Use `Button variant="destructive"` for a destructive action. Color
+accompanies an explicit state label or symbol. Execution ending and comparison arm
+identity remain neutral. A continued step can be teal beside a rose independent
+final FAIL; a letter grade alone does not establish either outcome. The
+[approved visual study](../../../prototypes/color-study/README.md) is a frozen
+synthetic reference for these roles, rather than an alternative production UI.
 
 ## Components in use
 

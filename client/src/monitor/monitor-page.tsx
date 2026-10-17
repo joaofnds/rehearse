@@ -11,7 +11,7 @@ export function MonitorPage(): React.JSX.Element | null {
 	const { data, isError } = useQuery(polledRunListingQuery);
 	if (isError) {
 		return (
-			<p role="alert" className="px-6 py-4 text-muted-foreground">
+			<p role="alert" className="px-6 py-4 text-attention">
 				<span aria-hidden="true">⚠ </span>
 				Could not read the runs in flight.
 			</p>

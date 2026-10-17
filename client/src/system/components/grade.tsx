@@ -18,7 +18,7 @@ export type GradeValue =
 	| { readonly pending: true };
 
 const SIZE_CLASSES = {
-	inline: "font-mono text-13 font-bold",
+	inline: "font-mono text-14 font-bold",
 	node: "font-mono text-19 leading-none font-bold",
 	verdict: "font-mono text-22 font-bold",
 	card: "font-mono text-24 font-bold",

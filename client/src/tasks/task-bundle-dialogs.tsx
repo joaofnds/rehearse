@@ -29,7 +29,7 @@ class BundleRefusedError extends Error {
 }
 
 const FIELD_CLASS =
-	"w-full min-w-0 rounded-md border border-strong bg-background px-2 py-1.5 font-mono text-13";
+	"w-full min-w-0 rounded-md border border-strong bg-background px-2 py-1.5 font-mono text-14";
 
 function DialogHeader({
 	title,
@@ -83,7 +83,7 @@ export function ExportTaskDialog({
 						names their own.
 					</DialogDescription>
 					{declared.length === 0 ? (
-						<p className="text-13 text-muted-foreground">
+						<p className="text-14 text-muted-foreground">
 							No workflow is declared by a case, so there is nothing to export.
 						</p>
 					) : (
@@ -94,7 +94,7 @@ export function ExportTaskDialog({
 									className="flex items-center gap-3 rounded-md border border-strong px-3 py-2"
 								>
 									<span className="flex min-w-0 flex-col">
-										<span className="font-mono text-13">{caseId}</span>
+										<span className="font-mono text-14">{caseId}</span>
 										<span className="truncate font-mono text-12 text-dim">
 											{task.stages.join(" → ")} · {task.stageJudges} step judges
 											+ {task.taskJudges} final judge
@@ -192,7 +192,7 @@ function ImportField({
 	const hintId = useId();
 
 	return (
-		<div className="flex flex-col gap-1 text-13">
+		<div className="flex flex-col gap-1 text-14">
 			<label htmlFor={id} className="text-muted-foreground">
 				{label}
 			</label>
@@ -222,7 +222,7 @@ function PreviewSummary({
 	return (
 		<section
 			aria-label="What the bundle holds"
-			className="flex flex-col gap-2 rounded-md border border-strong px-3 py-2 text-13"
+			className="flex flex-col gap-2 rounded-md border border-strong px-3 py-2 text-14"
 		>
 			<p>
 				<span className="font-mono">{preview.caseId}</span> · {preview.title}
@@ -316,7 +316,7 @@ function ImportForm({
 		>
 			<DialogHeader title="Import workflow" />
 			<div className="flex flex-col gap-3 px-4 py-3.5">
-				<label htmlFor={fileId} className="flex flex-col gap-1 text-13">
+				<label htmlFor={fileId} className="flex flex-col gap-1 text-14">
 					<span className="text-muted-foreground">Workflow bundle</span>
 					<input
 						id={fileId}
@@ -330,7 +330,7 @@ function ImportForm({
 							imported.reset();
 							void readBundle(file);
 						}}
-						className="text-13"
+						className="text-14"
 					/>
 				</label>
 
@@ -370,7 +370,7 @@ function ImportForm({
 				</DialogDescription>
 
 				{refusal === null ? null : (
-					<p role="alert" className="text-13 text-secondary-foreground">
+					<p role="alert" className="text-14 text-attention">
 						<span aria-hidden="true">⚠ </span>
 						{refusal.message}
 					</p>

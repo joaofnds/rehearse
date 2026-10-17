@@ -144,7 +144,7 @@ function DriftList({
 						</div>
 						<div
 							aria-hidden="true"
-							className="font-mono text-10 tracking-widest text-deep"
+							className="font-mono text-12 tracking-widest text-deep"
 						>
 							{reading.bar}
 						</div>
@@ -189,7 +189,7 @@ function DriftAside({
 						onChange={(event) => {
 							setChosen(event.target.value);
 						}}
-						className="min-h-11 rounded-md border border-strong bg-background px-2 text-12"
+						className="min-h-11 rounded-md border border-strong bg-background px-2 text-14"
 					>
 						{groups.map((group) => (
 							<option key={groupKey(group)} value={groupKey(group)}>
@@ -323,7 +323,7 @@ export function CalibrationPage({
 			{embedded ? (
 				<div className="flex flex-wrap items-end justify-between gap-3 px-5 pt-4">
 					<div>
-						<h2 className="text-16 font-medium">Judge calibration</h2>
+						<h2 className="text-16 font-semibold">Judge calibration</h2>
 						{report === undefined ? null : (
 							<p className="mt-1 text-12 text-dim">
 								<Subline
@@ -361,7 +361,7 @@ export function CalibrationPage({
 					<p className="text-muted-foreground">Loading…</p>
 				) : null}
 				{query.isError ? (
-					<p role="alert" className="text-muted-foreground">
+					<p role="alert" className="text-attention">
 						<span aria-hidden="true">⚠ </span>
 						Could not load the calibration report.
 					</p>

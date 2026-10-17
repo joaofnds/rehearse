@@ -160,10 +160,10 @@ function VerdictCard({
 			<div>
 				<Label>Verdict</Label>
 				<div className="mt-0.5 flex items-center gap-2.25">
-					<span aria-hidden="true" className="text-11 text-dim">
+					<span aria-hidden="true" className="text-12 text-dim">
 						{verdict.glyph}
 					</span>
-					<span className="text-13 text-secondary-foreground">
+					<span className="text-14 text-secondary-foreground">
 						{verdict.phrase}
 					</span>
 				</div>
@@ -193,7 +193,7 @@ function SectionHeading({
 	readonly counted: string;
 }): React.JSX.Element {
 	return (
-		<h3 className="mt-5 text-10 tracking-label text-dim uppercase">
+		<h3 className="mt-5 text-12 tracking-label text-dim uppercase">
 			{title}{" "}
 			<span className="tracking-normal text-muted-foreground normal-case">
 				· {String(count.returned)} of {String(count.total)} {counted}
@@ -222,13 +222,10 @@ function VarianceNote({
 			className="mt-5 rounded-card border border-border bg-raised px-3.75 py-3"
 		>
 			<Label>Read this as one attempt</Label>
-			<p className="mt-1.5 text-11-5 text-pretty text-muted-foreground">
+			<p className="mt-1.5 text-12 text-pretty text-muted-foreground">
 				{spread === undefined ? null : `${spread} `}A single grade is a data
 				point, not a score.{" "}
-				<Link
-					to="/comparisons"
-					className="border-b border-deeper text-accent-foreground"
-				>
+				<Link to="/comparisons" className="border-b border-deeper text-link">
 					Compare arms
 				</Link>{" "}
 				to say whether an edit moved anything.
@@ -332,24 +329,24 @@ export function JudgePane({
 	return (
 		<section aria-label="Judge" className="flex min-h-0 flex-col bg-secondary">
 			<div className="flex flex-none items-center gap-2.75 border-b border-divider px-4.25 py-2.75">
-				<h2 className="text-12 font-medium tracking-caps text-muted-foreground uppercase">
+				<h2 className="text-16 font-semibold tracking-caps text-muted-foreground uppercase">
 					Judge · step {String(number)}
 				</h2>
 				{data?.state === "returning" ? (
 					<>
-						<span className="text-10">
+						<span className="text-12">
 							<LiveGlyph />
 						</span>
-						<span className="text-11-5 text-accent-foreground">grading</span>
+						<span className="text-12 text-accent-foreground">grading</span>
 					</>
 				) : null}
 				{meta === undefined ? null : (
-					<span className="ml-auto font-mono text-11 text-dim">{meta}</span>
+					<span className="ml-auto font-mono text-12 text-dim">{meta}</span>
 				)}
 			</div>
 			<div className="flex-1 overflow-y-auto px-4.25 pt-3.75 pb-6">
 				{isError ? (
-					<p role="alert" className="text-13 text-muted-foreground">
+					<p role="alert" className="text-14 text-attention">
 						<span aria-hidden="true">⚠ </span>
 						Could not read this step's judge.
 					</p>

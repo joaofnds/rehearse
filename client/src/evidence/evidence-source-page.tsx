@@ -46,7 +46,7 @@ function RecordedText({
 					The quote is not in the recorded text, so no span is marked.
 				</Explanation>
 			) : null}
-			<pre className="overflow-auto rounded-lg border border-divider bg-raised p-3 font-mono text-sm whitespace-pre-wrap">
+			<pre className="overflow-auto rounded-lg border border-divider bg-raised p-3 font-mono leading-transcript text-13 whitespace-pre-wrap">
 				{span === undefined ? (
 					text
 				) : (
@@ -77,7 +77,7 @@ function HarnessResult({
 		return (
 			<section className="flex flex-col gap-2">
 				<h2>{`Harness result ${view.result}`}</h2>
-				<pre className="rounded-lg border border-divider bg-raised p-3 font-mono text-sm whitespace-pre-wrap">
+				<pre className="rounded-lg border border-divider bg-raised p-3 font-mono leading-transcript text-13 whitespace-pre-wrap">
 					{view.value}
 				</pre>
 			</section>
@@ -87,7 +87,7 @@ function HarnessResult({
 	return (
 		<section className="flex flex-col gap-2">
 			<h2>{`Harness result ${view.result}: ${view.value.status}`}</h2>
-			<ul className="flex list-disc flex-col gap-1 pl-4 text-sm">
+			<ul className="flex list-disc flex-col gap-1 pl-4 text-14">
 				{view.value.evidence.map((item) => (
 					<li key={`${item.path}:${item.claim}`}>{item.claim}</li>
 				))}
@@ -154,7 +154,7 @@ export function EvidenceSourcePage({
 	const reading = (
 		<div className="flex max-w-7xl flex-col gap-4 px-6 pt-4 pb-12">
 			{embedded && query.isSuccess ? (
-				<p className="text-sm text-dim">
+				<p className="text-14 text-dim">
 					From <span className="font-mono">{query.data.record}</span>
 				</p>
 			) : null}
@@ -162,7 +162,7 @@ export function EvidenceSourcePage({
 				<p className="text-muted-foreground">Loading…</p>
 			) : null}
 			{query.isError ? (
-				<p role="alert" className="text-muted-foreground">
+				<p role="alert" className="text-attention">
 					<span aria-hidden="true">⚠ </span>
 					Could not open this evidence item.
 				</p>
@@ -170,7 +170,7 @@ export function EvidenceSourcePage({
 			{query.isSuccess ? (
 				<>
 					<p>{query.data.claim}</p>
-					<p className="text-sm text-dim">
+					<p className="text-14 text-dim">
 						{"Cites "}
 						<span className="font-mono">
 							{query.data.source} {query.data.path}
@@ -192,7 +192,7 @@ export function EvidenceSourcePage({
 				lead={
 					<Link
 						to={returnToRun}
-						className="text-12 text-muted-foreground hover:text-foreground"
+						className="text-14 text-link hover:text-link-hover"
 					>
 						← Back to run Results
 					</Link>

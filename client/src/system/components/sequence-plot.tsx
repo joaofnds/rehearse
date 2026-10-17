@@ -75,108 +75,112 @@ export function SequencePlot({
 				<span>{unit}</span>
 				<span>Request order · click a point or use ← / →</span>
 			</figcaption>
-			<button
-				type="button"
-				aria-label={`${label}. Use left and right arrows to select a request.`}
-				className="block w-full rounded-md text-left focus-visible:outline-2 focus-visible:outline-primary"
-				disabled={points.length === 0}
-				onClick={(event) => {
-					const rect = event.currentTarget.getBoundingClientRect();
-					const plotX = ((event.clientX - rect.left) / rect.width) * 640;
-					const index =
-						event.detail === 0
-							? activeIndex
-							: Math.round(
-									((plotX - LEFT) / (RIGHT - LEFT)) * (points.length - 1),
-								);
-					const point = points[Math.max(0, Math.min(points.length - 1, index))];
-					if (point !== undefined) {
-						onSelect(point.id);
-					}
-				}}
-				onKeyDown={(event) => {
-					let index = activeIndex;
-					if (event.key === "ArrowLeft") {
-						index -= 1;
-					} else if (event.key === "ArrowRight") {
-						index += 1;
-					} else if (event.key === "Home") {
-						index = 0;
-					} else if (event.key === "End") {
-						index = points.length - 1;
-					} else {
-						return;
-					}
-					event.preventDefault();
-					const point = points[Math.max(0, Math.min(points.length - 1, index))];
-					if (point !== undefined) {
-						onSelect(point.id);
-					}
-				}}
-			>
-				<svg aria-hidden="true" viewBox="0 0 640 180" className="w-full">
-					{ticks.map((tick) => (
-						<g key={tick}>
-							<line
-								x1={LEFT}
-								x2={RIGHT}
-								y1={height(tick, maximum)}
-								y2={height(tick, maximum)}
-								className="stroke-strong"
+			<div className="overflow-x-auto p-2">
+				<button
+					type="button"
+					aria-label={`${label}. Use left and right arrows to select a request.`}
+					className="block min-w-sequence-plot w-full rounded-md text-left focus-visible:outline-2 focus-visible:outline-primary"
+					disabled={points.length === 0}
+					onClick={(event) => {
+						const rect = event.currentTarget.getBoundingClientRect();
+						const plotX = ((event.clientX - rect.left) / rect.width) * 640;
+						const index =
+							event.detail === 0
+								? activeIndex
+								: Math.round(
+										((plotX - LEFT) / (RIGHT - LEFT)) * (points.length - 1),
+									);
+						const point =
+							points[Math.max(0, Math.min(points.length - 1, index))];
+						if (point !== undefined) {
+							onSelect(point.id);
+						}
+					}}
+					onKeyDown={(event) => {
+						let index = activeIndex;
+						if (event.key === "ArrowLeft") {
+							index -= 1;
+						} else if (event.key === "ArrowRight") {
+							index += 1;
+						} else if (event.key === "Home") {
+							index = 0;
+						} else if (event.key === "End") {
+							index = points.length - 1;
+						} else {
+							return;
+						}
+						event.preventDefault();
+						const point =
+							points[Math.max(0, Math.min(points.length - 1, index))];
+						if (point !== undefined) {
+							onSelect(point.id);
+						}
+					}}
+				>
+					<svg aria-hidden="true" viewBox="0 0 640 180" className="w-full">
+						{ticks.map((tick) => (
+							<g key={tick}>
+								<line
+									x1={LEFT}
+									x2={RIGHT}
+									y1={height(tick, maximum)}
+									y2={height(tick, maximum)}
+									className="stroke-strong"
+								/>
+								<text
+									x={LEFT - 8}
+									y={height(tick, maximum) + 4}
+									textAnchor="end"
+									className="fill-muted-foreground font-sans text-12"
+								>
+									{formatValue(tick)}
+								</text>
+							</g>
+						))}
+						{segments(points, maximum).map((path, index) => (
+							<path
+								key={index}
+								d={path}
+								fill="none"
+								strokeWidth={2}
+								className="stroke-primary"
 							/>
-							<text
-								x={LEFT - 8}
-								y={height(tick, maximum) + 4}
-								textAnchor="end"
-								className="fill-muted-foreground font-sans text-11"
-							>
-								{formatValue(tick)}
-							</text>
-						</g>
-					))}
-					{segments(points, maximum).map((path, index) => (
-						<path
-							key={index}
-							d={path}
-							fill="none"
-							strokeWidth={2}
-							className="stroke-primary"
-						/>
-					))}
-					{points.map((point, index) =>
-						point.value === undefined ? null : (
-							<circle
-								key={point.id}
-								cx={position(index, points.length)}
-								cy={height(point.value, maximum)}
-								r={point.id === selected ? 6 : 3}
-								className={cn(
-									"fill-primary",
-									point.id === selected && "fill-pale stroke-pale",
-								)}
-							/>
-						),
-					)}
-					<text
-						x={LEFT}
-						y={169}
-						textAnchor="middle"
-						className="fill-muted-foreground font-sans text-12"
-					>
-						{points.length === 0 ? "" : "1"}
-					</text>
-					{points.length <= 1 ? null : (
+						))}
+						{points.map((point, index) =>
+							point.value === undefined ? null : (
+								<circle
+									key={point.id}
+									cx={position(index, points.length)}
+									cy={height(point.value, maximum)}
+									r={point.id === selected ? 6 : 3}
+									className={cn(
+										"fill-primary",
+										point.id === selected && "fill-pale stroke-pale",
+									)}
+								/>
+							),
+						)}
 						<text
-							x={RIGHT}
+							x={LEFT}
 							y={169}
 							textAnchor="middle"
 							className="fill-muted-foreground font-sans text-12"
 						>
-							{points.length}
+							{points.length === 0 ? "" : "1"}
 						</text>
-					)}
-				</svg>
-			</button>
+						{points.length <= 1 ? null : (
+							<text
+								x={RIGHT}
+								y={169}
+								textAnchor="middle"
+								className="fill-muted-foreground font-sans text-12"
+							>
+								{points.length}
+							</text>
+						)}
+					</svg>
+				</button>
+			</div>
 			<p aria-live="polite" className="text-12 text-secondary-foreground">
 				{active === undefined
 					? "No requests in this scope."

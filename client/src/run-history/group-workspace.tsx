@@ -88,17 +88,17 @@ function ReadingPanel({
 						key={`${rep.repId}:${rep.stage}`}
 						className="border-t border-subtle pt-2"
 					>
-						<p className="font-mono text-11-5">
+						<p className="font-mono text-12">
 							{rep.repId} · {rep.stage}
 						</p>
 						{rep.readManifest.length === 0 ? (
-							<p className="text-11-5 text-dim">No files recorded</p>
+							<p className="text-12 text-dim">No files recorded</p>
 						) : null}
 						<ul className="mt-1 flex flex-col gap-1">
 							{rep.readManifest.map((read) => (
 								<li
 									key={`${read.path}:${read.role}`}
-									className="flex flex-wrap gap-x-2 text-11-5"
+									className="flex flex-wrap gap-x-2 text-12"
 								>
 									<span className="font-mono">{read.path}</span>
 									<span className="text-dim">{read.role}</span>
@@ -195,7 +195,7 @@ function FinalResults({ row }: { readonly row: GroupRow }): React.JSX.Element {
 					</li>
 				))}
 			</ul>
-			<p className="mt-2 text-11-5 text-dim">
+			<p className="mt-2 text-12 text-dim">
 				{row.successful} of {row.reps} reps successful · {row.unreadReps.length}{" "}
 				unread
 			</p>
@@ -248,7 +248,7 @@ function SourceStepReading({
 				</p>
 			)}
 			{outcome === undefined ? null : (
-				<p className="mt-1 text-11-5 text-dim">
+				<p className="mt-1 text-12 text-dim">
 					Source workflow outcome: {outcome.value} · {outcome.note}
 				</p>
 			)}
@@ -289,7 +289,7 @@ function SourceComparison({
 				There is no control here, so the difference makes no causal or
 				equivalence claim.
 			</p>
-			<p className="mt-1 text-11-5 text-dim">
+			<p className="mt-1 text-12 text-dim">
 				Group cost includes preflight and all reps; source cost covers one step.
 			</p>
 			<p className="mt-2 text-12">
@@ -307,7 +307,7 @@ function SourceComparison({
 				to="/runs/$run"
 				params={{ run: checkpoint.run }}
 				search={{ view: "results", step: checkpoint.stage }}
-				className="mt-2 inline-block text-12 text-accent-foreground underline"
+				className="mt-2 inline-block text-14 text-link underline"
 			>
 				Source run · {checkpoint.stage}
 			</Link>
@@ -333,7 +333,7 @@ function SessionGroupResults({
 				title="Session repetitions"
 				description="Recorded outcomes use reply/transcript checks. Saved state checks remain a separate assessment."
 			>
-				<p className="text-13 text-dim">Reading saved state checks…</p>
+				<p className="text-14 text-dim">Reading saved state checks…</p>
 			</SummaryPanel>
 		);
 	}
@@ -370,7 +370,7 @@ function SessionGroupResults({
 			</dl>
 
 			{missing > 0 ? (
-				<p className="mt-3 text-13 text-dim">
+				<p className="mt-3 text-14 text-dim">
 					{missing}{" "}
 					{missing === 1 ? "attempt unavailable" : "attempts unavailable"} or
 					without saved state checks
@@ -542,7 +542,7 @@ function AttemptRow({
 						? "Saved repetition"
 						: `Repetition ${String(ordinal)}`}
 				</p>
-				<code className="text-11-5 text-dim">{repId}</code>
+				<code className="text-12 text-dim">{repId}</code>
 			</td>
 			<td className="py-3 pr-4">
 				<RepOutcomes rep={rep} loading={result.isLoading} mode={row.mode} />
@@ -568,7 +568,7 @@ function AttemptRow({
 						to="/groups/$groupId/reps/$repId/attempt"
 						params={params}
 						search={{ view: "results", ...search }}
-						className="text-accent-foreground underline"
+						className="text-link underline"
 					>
 						Results
 					</Link>
@@ -577,7 +577,7 @@ function AttemptRow({
 							to="/groups/$groupId/reps/$repId/attempt"
 							params={params}
 							search={{ view: "context", ...search }}
-							className="text-accent-foreground underline"
+							className="text-link underline"
 						>
 							Context & cost
 						</Link>
@@ -622,7 +622,7 @@ function Attempts({
 			</p>
 			<div className="mt-3 overflow-x-auto">
 				<table aria-label="Group attempts" className="w-full text-left">
-					<thead className="text-11-5 text-dim">
+					<thead className="text-12 text-dim">
 						<tr>
 							<th className="pr-4 pb-2">Attempt</th>
 							<th className="pr-4 pb-2">Outcome & steps</th>
@@ -646,7 +646,7 @@ function Attempts({
 				</table>
 			</div>
 			{refs.length === 0 ? (
-				<p className="mt-3 text-13 text-dim">No rep results were recorded.</p>
+				<p className="mt-3 text-14 text-dim">No rep results were recorded.</p>
 			) : null}
 			{row.links
 				.filter((link) => link.state === "unavailable")
@@ -696,14 +696,14 @@ export function GroupWorkspacePage({
 	}
 	if (query.isError) {
 		return (
-			<p role="alert" className="px-6 py-4 text-muted-foreground">
+			<p role="alert" className="px-6 py-4 text-attention">
 				Could not load the group history.
 			</p>
 		);
 	}
 	if (row === undefined) {
 		return (
-			<p role="alert" className="px-6 py-4 text-muted-foreground">
+			<p role="alert" className="px-6 py-4 text-attention">
 				No saved group {groupId} was found.
 			</p>
 		);
@@ -735,7 +735,7 @@ export function GroupWorkspacePage({
 					<Link
 						to="/"
 						search={returnSearch}
-						className="text-11-5 text-accent-foreground underline"
+						className="text-14 text-link underline"
 					>
 						← Runs
 					</Link>
@@ -761,7 +761,7 @@ export function GroupWorkspacePage({
 								},
 							});
 						}}
-						className="border-b-2 border-transparent px-3 py-2.5 text-12 text-muted-foreground aria-pressed:border-primary aria-pressed:text-foreground hover:text-foreground"
+						className="border-b-2 border-transparent px-3 py-2.5 text-14 text-muted-foreground aria-pressed:border-primary aria-pressed:text-foreground hover:text-foreground"
 					>
 						{item === "results" ? "Results" : "Attempts"}
 					</button>
@@ -787,7 +787,7 @@ export function GroupWorkspacePage({
 								to="/runs/$run"
 								params={{ run: row.checkpoint.run }}
 								search={{ view: "results", step: row.checkpoint.stage }}
-								className="text-accent-foreground underline"
+								className="text-link underline"
 							>
 								source run · {row.checkpoint.stage}
 							</Link>
@@ -799,7 +799,7 @@ export function GroupWorkspacePage({
 				) : (
 					<Attempts row={row} step={step} comparison={comparison} />
 				)}
-				<details className="rounded-lg border border-divider bg-card p-4 text-13">
+				<details className="rounded-lg border border-divider bg-card p-4 text-14">
 					<summary>Frozen instruction reads</summary>
 					<div className="mt-3">
 						<ReadingPanel groupId={groupId} />
@@ -809,14 +809,14 @@ export function GroupWorkspacePage({
 					<Link
 						to="/comparisons/$digest"
 						params={{ digest: comparison }}
-						className="text-13 text-accent-foreground underline"
+						className="text-14 text-link underline"
 					>
 						Back to comparison
 					</Link>
 				)}
 				<Link
 					to="/comparisons"
-					className="self-start text-12 text-accent-foreground underline"
+					className="self-start text-14 text-link underline"
 				>
 					Browse saved comparisons
 				</Link>

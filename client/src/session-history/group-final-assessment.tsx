@@ -29,14 +29,14 @@ function FinalContent({
 }): React.JSX.Element {
 	if (result?.state !== "available") {
 		return (
-			<p className="mt-3 text-dim">
+			<p className="mt-3 text-attention">
 				{result?.reason ??
 					"Saved final Judge rationale unavailable. The recorded outcome above remains separate from the step grades."}
 			</p>
 		);
 	}
 	return (
-		<div className="mt-3">
+		<div className="mt-3 text-14 leading-reading">
 			<p>{result.summary ?? "No written final Judge summary was saved."}</p>
 			<ul>
 				{result.requirements
@@ -55,7 +55,7 @@ function FinalContent({
 									className="mt-2 border-l-2 border-divider pl-3"
 								>
 									<p>{cited.claim}</p>
-									<p className="mt-1 font-mono text-11-5 text-dim">
+									<p className="mt-1 font-mono text-12 text-dim">
 										{cited.source} · {cited.path}
 										{cited.place === undefined ? "" : ` · ${cited.place}`}
 									</p>
@@ -84,10 +84,12 @@ export function GroupFinalAssessment({
 		queryFn: () => readFinal(groupId, repId),
 	});
 	return (
-		<details className="rounded-lg border border-divider bg-card p-4 text-13">
+		<details className="rounded-lg border border-divider bg-card p-4 text-14">
 			<summary>Independent final workflow assessment</summary>
 			{query.isLoading ? (
-				<p className="mt-3">Reading saved final assessment…</p>
+				<p className="mt-3 text-14 leading-reading">
+					Reading saved final assessment…
+				</p>
 			) : (
 				<FinalContent result={query.data} />
 			)}

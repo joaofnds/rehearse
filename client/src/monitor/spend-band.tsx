@@ -43,7 +43,7 @@ function Figure({
 					: "flex flex-col gap-1"
 			}
 		>
-			<span className="text-10 tracking-label text-dim uppercase">{label}</span>
+			<span className="text-12 tracking-label text-dim uppercase">{label}</span>
 			{children}
 		</div>
 	);
@@ -157,7 +157,7 @@ function RemainingFigure({
 			{estimate?.state === "unavailable" ? (
 				<span>
 					<span className="font-mono text-15 text-dim">—</span>
-					<span className="text-11 text-dim"> {estimate.reason}</span>
+					<span className="text-12 text-dim"> {estimate.reason}</span>
 				</span>
 			) : null}
 		</Figure>
@@ -191,7 +191,7 @@ function CeilingMeter({
 					style={width}
 				/>
 			</div>
-			<div className="flex justify-between font-mono text-10-5 text-dim">
+			<div className="flex justify-between font-mono text-12 text-dim">
 				<span>{spendReading(0)}</span>
 				<span>
 					{String(Math.round(share * PERCENT))}% of ceiling used · stops
@@ -249,7 +249,7 @@ export function SpendBand({
 					) : (
 						<span className="font-mono text-15">
 							{spendReading(burnPerMinute(runSpentUsd, elapsedMs))}
-							<span className="text-11 text-dim"> /min</span>
+							<span className="text-12 text-dim"> /min</span>
 						</span>
 					)}
 				</Figure>

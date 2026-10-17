@@ -8,10 +8,10 @@ export function PendingLine({
 }): React.JSX.Element {
 	return (
 		<p className="flex items-center gap-2.25 font-sans">
-			<span aria-hidden="true" className="text-11 text-dim">
+			<span aria-hidden="true" className="text-12 text-dim">
 				{STATUS_VOCABULARY.pending.glyph}
 			</span>
-			<span className="text-13 text-secondary-foreground">{words}</span>
+			<span className="text-14 text-secondary-foreground">{words}</span>
 		</p>
 	);
 }

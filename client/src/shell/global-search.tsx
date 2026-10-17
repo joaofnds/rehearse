@@ -240,7 +240,7 @@ function SearchResults({
 					<p
 						key={label}
 						role="alert"
-						className="text-12 text-dim"
+						className="text-14 text-attention"
 					>{`${label} could not be loaded. Other results remain available.`}</p>
 				))}
 			{reads.some(([, read]) => read.isLoading) ? (
@@ -259,7 +259,7 @@ function SearchResults({
 						className="text-12 text-dim"
 					>{`${visible.length} matching destinations${scope === "All" ? "" : ` in ${scope.toLowerCase()}`}`}</p>
 					{visible.length === 0 ? (
-						<p className="text-13 text-muted-foreground">
+						<p className="text-14 text-muted-foreground">
 							No matching destinations. Try a run ID, case or file path.
 						</p>
 					) : (
@@ -282,7 +282,7 @@ function SearchResults({
 									>
 										<span className="flex items-center gap-3">
 											<span className="text-12 text-dim">{result.kind}</span>
-											<span className="min-w-0 break-words font-mono text-12 text-accent-foreground">
+											<span className="min-w-0 break-words font-mono text-14 text-link">
 												{result.label}
 											</span>
 										</span>
@@ -325,7 +325,7 @@ export function GlobalSearch(): React.JSX.Element {
 				<Button variant="outline" aria-label="Search everything">
 					<Search aria-hidden="true" className="size-4" />
 					<span className="flex-1 text-left">Search</span>
-					<kbd className="font-mono text-10 text-dim">⌘ / Ctrl K</kbd>
+					<kbd className="font-mono text-12 text-dim">⌘ / Ctrl K</kbd>
 				</Button>
 			</DialogTrigger>
 			<DialogContent width="wide">
@@ -344,7 +344,7 @@ export function GlobalSearch(): React.JSX.Element {
 							onChange={(event) => {
 								setQuery(event.target.value);
 							}}
-							className="w-full bg-transparent text-13"
+							className="w-full bg-transparent text-14"
 						/>
 					</label>
 				</div>

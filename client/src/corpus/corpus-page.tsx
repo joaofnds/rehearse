@@ -44,11 +44,11 @@ function invalidatedReading(
 	lastEdit: CorpusResponse["lastEdit"],
 ): React.JSX.Element {
 	if (lastEdit.kind === "not-recorded") {
-		return <span className="text-sm text-dim">not recorded</span>;
+		return <span className="text-14 text-dim">not recorded</span>;
 	}
 
 	return (
-		<span className="font-mono text-sm">
+		<span className="font-mono text-14">
 			<span aria-hidden="true">{file.invalidated === 0 ? "✓ " : "⚠ "}</span>
 			{plural(file.invalidated, "result")}
 		</span>
@@ -73,13 +73,13 @@ function rowFor(
 		>
 			<span className="font-mono">{file.path}</span>
 		</Button>,
-		<span key="hash" className="font-mono text-sm text-muted-foreground">
+		<span key="hash" className="font-mono text-14 text-muted-foreground">
 			{file.sha256.slice(0, 12)}
 		</span>,
-		<span key="edited" className="text-sm text-secondary-foreground">
+		<span key="edited" className="text-14 text-secondary-foreground">
 			{new Date(file.lastEditedAt).toLocaleString()}
 		</span>,
-		<span key="read-by" className="font-mono text-sm">
+		<span key="read-by" className="font-mono text-14">
 			{file.readBy}
 		</span>,
 		<span key="invalidated">{invalidatedReading(file, lastEdit)}</span>,
@@ -144,7 +144,7 @@ function EditSection({
 			className="overflow-hidden rounded-lg border border-strong"
 		>
 			<header className="border-b border-strong bg-raised px-4 py-2.5">
-				<h2 id="corpus-edit-heading" className="font-medium">
+				<h2 id="corpus-edit-heading" className="font-semibold">
 					{settings.data?.linkedCorpus.kind === "directory"
 						? "Edit an instruction, review, then apply"
 						: "Inspect your instructions"}
@@ -152,7 +152,7 @@ function EditSection({
 			</header>
 			<div className="px-4 py-3">
 				{settings.isError ? (
-					<p role="alert" className="text-sm text-muted-foreground">
+					<p role="alert" className="text-14 text-attention">
 						<span aria-hidden="true">⚠ </span>
 						{`Could not read which corpus is linked, so nothing can be edited here: ${settings.error.message}`}
 					</p>
@@ -221,7 +221,7 @@ function EditBody({
 	switch (edit.kind) {
 		case "idle": {
 			return (
-				<p className="text-sm text-muted-foreground">
+				<p className="text-14 text-muted-foreground">
 					Choose Edit on a file to change its text against the version under
 					test.
 				</p>
@@ -309,7 +309,7 @@ function CorpusInventory({
 		<>
 			{isLoading ? <p className="text-muted-foreground">Loading…</p> : null}
 			{isError ? (
-				<p role="alert" className="text-muted-foreground">
+				<p role="alert" className="text-attention">
 					<span aria-hidden="true">⚠ </span>
 					Could not load the corpus.
 				</p>
@@ -343,7 +343,7 @@ function CorpusInventory({
 							onChange={(event) => {
 								setSearch(event.target.value);
 							}}
-							className="w-full bg-transparent text-12"
+							className="w-full bg-transparent text-14"
 						/>
 					</label>
 					<Button
@@ -356,17 +356,17 @@ function CorpusInventory({
 					</Button>
 					<span
 						role="status"
-						className="text-11-5 text-dim"
+						className="text-12 text-dim"
 					>{`${files.length} of ${report.files.length} files shown`}</span>
 				</div>
 			) : null}
 			{report !== undefined && report.files.length > 0 && files.length === 0 ? (
-				<p className="text-13 text-muted-foreground">
+				<p className="text-14 text-muted-foreground">
 					No corpus files match. Clear search to show all files.
 				</p>
 			) : null}
 			{report !== undefined && report.files.length > 0 ? (
-				<details className="rounded-md border border-divider bg-card px-4 py-3 text-13">
+				<details className="rounded-md border border-divider bg-card px-4 py-3 text-14">
 					<summary className="cursor-pointer font-medium">
 						What do Read by and prior-version counts mean?
 					</summary>

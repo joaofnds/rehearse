@@ -128,7 +128,7 @@ function corpusSkills(paths: readonly string[]): readonly string[] {
 }
 
 const FIELD_CLASS =
-	"w-full min-w-0 rounded-md border border-strong bg-background px-2 py-1.5 font-mono text-13";
+	"w-full min-w-0 rounded-md border border-strong bg-background px-2 py-1.5 font-mono text-14";
 
 function LabeledField({
 	label,
@@ -430,7 +430,7 @@ function StepsForm({
 					the steps they ran.
 				</DialogDescription>
 				{save.isError ? (
-					<p role="alert" className="text-13 text-secondary-foreground">
+					<p role="alert" className="text-14 text-attention">
 						<span aria-hidden="true">⚠ </span>
 						{save.error.message}
 					</p>
@@ -443,7 +443,7 @@ function StepsForm({
 							Cancel
 						</Button>
 					</DialogClose>
-					<Button type="submit" disabled={save.isPending}>
+					<Button variant="primary" type="submit" disabled={save.isPending}>
 						Save steps
 					</Button>
 				</span>
@@ -466,7 +466,7 @@ function StepsEditor({
 		return (
 			<p
 				role={query.error === null ? undefined : "alert"}
-				className="px-4 py-3.5 text-13 text-secondary-foreground"
+				className="px-4 py-3.5 text-14 text-secondary-foreground"
 			>
 				{query.error === null ? "Reading the steps" : query.error.message}
 			</p>

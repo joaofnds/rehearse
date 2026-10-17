@@ -596,7 +596,9 @@ function ReportEvidence({
 		report.evidence.reasons.length <= 3
 	) {
 		return (
-			<strong className="font-mono text-13">
+			<strong
+				className={`font-mono text-14 ${report.evidence.state === "complete" && report.boundary !== "unknown" ? "text-secondary-foreground" : "text-attention"}`}
+			>
 				{reportEvidenceLabel(report)}
 			</strong>
 		);
@@ -605,7 +607,7 @@ function ReportEvidence({
 	const state =
 		report.evidence.state === "partial" ? "◐ Partial" : "? Unavailable";
 	return (
-		<details className="min-w-0 font-mono text-13">
+		<details className="min-w-0 font-mono text-14 text-attention">
 			<summary className="cursor-pointer">
 				{report.boundary === "unknown"
 					? "? Unavailable · boundary unknown"
@@ -713,7 +715,7 @@ const DETAIL_SECTION_CLASSES =
 	"flex flex-col gap-2 border-t border-subtle px-3 py-3";
 
 const EVIDENCE_TEXT_CLASSES =
-	"max-h-96 overflow-auto rounded-md bg-background p-2.5 font-mono text-13 break-words whitespace-pre-wrap text-secondary-foreground";
+	"max-h-96 overflow-auto rounded-md bg-background p-2.5 font-mono text-13 leading-transcript break-words whitespace-pre-wrap text-secondary-foreground";
 
 function sourceSizeLabel(measurement: TextMeasurement): string {
 	if (measurement.state === "complete") {
@@ -843,7 +845,7 @@ function SourceList({
 				</button>
 			))}
 			{sources.length === 0 ? (
-				<p className="px-3 py-3 text-13 text-muted-foreground">
+				<p className="px-3 py-3 text-14 text-muted-foreground">
 					No sources match this search.
 				</p>
 			) : null}
@@ -919,7 +921,7 @@ function EventLedger({
 				</button>
 			))}
 			{events.length === 0 ? (
-				<p className="px-3 py-2.5 text-13 text-muted-foreground">
+				<p className="px-3 py-2.5 text-14 text-muted-foreground">
 					No events match these filters. Choose All records to include raw
 					chronology.
 				</p>
@@ -1007,7 +1009,7 @@ function DetailPane({
 				<span>{eventStateLabel(detail.state)}</span>
 			</header>
 			<section className={DETAIL_SECTION_CLASSES}>
-				<h3 className="text-13 font-medium">{contentHeading}</h3>
+				<h3 className="text-14 font-medium">{contentHeading}</h3>
 				<p className="text-12 text-muted-foreground">
 					{measurementLabel(detail.deliveredMeasurement)}
 				</p>
@@ -1018,7 +1020,7 @@ function DetailPane({
 				)}
 			</section>
 			<section className={DETAIL_SECTION_CLASSES}>
-				<h3 className="text-13 font-medium">Structured source snapshot</h3>
+				<h3 className="text-14 font-medium">Structured source snapshot</h3>
 				<p className="text-12 text-muted-foreground">
 					{measurementLabel(detail.snapshotMeasurement)}
 				</p>
@@ -1060,21 +1062,21 @@ function EvidenceDetail({
 }): React.JSX.Element | null {
 	if (!served) {
 		return (
-			<p className="px-3 py-2.5 text-13 text-muted-foreground">
+			<p className="px-3 py-2.5 text-14 text-muted-foreground">
 				A replay serves no per-event evidence detail.
 			</p>
 		);
 	}
 	if (loading) {
 		return (
-			<p className="px-3 py-2.5 text-13 text-muted-foreground">
+			<p className="px-3 py-2.5 text-14 text-muted-foreground">
 				Loading evidence…
 			</p>
 		);
 	}
 	if (failed) {
 		return (
-			<p role="alert" className="px-3 py-2.5 text-13 text-muted-foreground">
+			<p role="alert" className="px-3 py-2.5 text-14 text-attention">
 				<span aria-hidden="true">⚠ </span>
 				Could not load event evidence.
 			</p>
@@ -1082,7 +1084,7 @@ function EvidenceDetail({
 	}
 
 	return detail === undefined ? (
-		<p className="px-3 py-3 text-13 text-muted-foreground">
+		<p className="px-3 py-3 text-14 text-muted-foreground">
 			No event evidence is recorded for this selection.
 		</p>
 	) : (
@@ -1122,7 +1124,7 @@ function DeclaredCorpusPane({
 			className="rounded-lg border bg-muted px-4 py-3 text-secondary-foreground"
 		>
 			<details>
-				<summary className="cursor-pointer text-13">
+				<summary className="cursor-pointer text-14">
 					Declared corpus · {entries.length} files ·{" "}
 					{
 						entries.filter(({ state }) => state === "no-observation-recorded")
@@ -1173,7 +1175,7 @@ function RequestTimelineStatus({
 	return (
 		<section aria-label="Request timeline">
 			<p
-				className="rounded-md border bg-muted px-3 py-2.5 text-12 text-muted-foreground"
+				className={`rounded-md border px-3 py-2.5 text-14 ${failed || !recorded ? "border-attention bg-attention-surface text-attention" : "bg-muted text-muted-foreground"}`}
 				role={failed && recorded ? "alert" : undefined}
 			>
 				{timelineNote(failed, recorded)}
@@ -1237,7 +1239,7 @@ function AgentExcerpt({
 	});
 	if (request === undefined) {
 		return (
-			<p className="px-3 py-2.5 text-11-5 text-muted-foreground">
+			<p className="px-3 py-2.5 text-12 text-muted-foreground">
 				Open a delivery's excerpt to read the text the agent received.
 			</p>
 		);
@@ -1245,7 +1247,7 @@ function AgentExcerpt({
 
 	return (
 		<>
-			<p className="px-3 pt-2.5 text-11-5 text-muted-foreground">
+			<p className="px-3 pt-2.5 text-12 text-muted-foreground">
 				Received by {agentName(request.agentId)} · event {request.eventId}
 			</p>
 			<EvidenceDetail
@@ -1280,7 +1282,7 @@ function AgentsSection({
 	const [excerptRequest, setExcerptRequest] = useState<ExcerptRequest>();
 	if (!recorded) {
 		return (
-			<p className="px-3 py-3 text-13 text-muted-foreground">
+			<p className="px-3 py-3 text-14 text-muted-foreground">
 				Saved stages and replays keep no agent transcripts or per-agent request
 				measurements.
 			</p>
@@ -1332,10 +1334,7 @@ function PageLead({
 }): React.JSX.Element {
 	return (
 		<span className="flex flex-wrap items-center gap-4">
-			<a
-				href="/"
-				className="text-13 text-muted-foreground hover:text-foreground"
-			>
+			<a href="/" className="text-14 text-link hover:text-link-hover">
 				← Back to Runs
 			</a>
 			{identity.kind === "stage" ? (
@@ -1380,7 +1379,7 @@ function ScopeReadings({
 			aria-label="Selected scope readings"
 			className="flex flex-col gap-3"
 		>
-			<div className="flex flex-wrap items-center justify-between gap-2 text-13">
+			<div className="flex flex-wrap items-center justify-between gap-2 text-14">
 				<span>
 					Saved evidence · {report.attempt.caseId}
 					{report.attempt.kind === "session"
@@ -1390,7 +1389,7 @@ function ScopeReadings({
 				<ReportEvidence report={report} />
 			</div>
 			{report.attempt.kind === "stopped-stage" ? (
-				<p className="text-13 text-secondary-foreground">
+				<p className="text-14 text-secondary-foreground">
 					Stopped because {report.attempt.error}
 				</p>
 			) : null}
@@ -1418,7 +1417,7 @@ function TranscriptDiagnostics({
 				<button
 					key={entry.id}
 					type="button"
-					className="rounded-md border px-3 py-2 text-12 text-secondary-foreground hover:bg-accent"
+					className="rounded-md border px-3 py-2 text-14 text-secondary-foreground hover:bg-accent"
 					onClick={() => {
 						onSelect(entry.id);
 					}}
@@ -1437,7 +1436,7 @@ function StartingContext({
 }): React.JSX.Element {
 	return (
 		<details className="rounded-lg border bg-muted px-4 py-3 text-secondary-foreground">
-			<summary className="cursor-pointer text-13">
+			<summary className="cursor-pointer text-14">
 				Starting context · {report.startingContext.length} events ·{" "}
 				{report.boundary === "unknown" ? "Boundary unknown" : "known boundary"}
 			</summary>
@@ -1446,7 +1445,7 @@ function StartingContext({
 				className="mt-3 flex flex-col gap-1"
 			>
 				{report.startingContext.map((event) => (
-					<p key={event.id} className="text-13">
+					<p key={event.id} className="text-14">
 						<code className="font-mono text-accent-foreground">
 							{locatorLabel(event)}
 						</code>{" "}
@@ -1694,7 +1693,7 @@ function SessionHistoryWorkspace({
 					<p className="text-muted-foreground">Loading history…</p>
 				) : null}
 				{summary.isError ? (
-					<p role="alert" className="text-muted-foreground">
+					<p role="alert" className="text-attention">
 						<span aria-hidden="true">⚠ </span>
 						Could not load saved history.
 					</p>
@@ -1713,7 +1712,7 @@ function SessionHistoryWorkspace({
 							className="overflow-hidden rounded-lg border bg-card"
 						>
 							<div className="flex flex-wrap items-center justify-between gap-3 border-b px-3 py-2.5">
-								<h2 className="text-14 font-medium">
+								<h2 className="text-16 font-semibold">
 									Investigate saved evidence
 								</h2>
 								<Switcher
@@ -1735,7 +1734,7 @@ function SessionHistoryWorkspace({
 													setSourceQuery(event.target.value);
 												}}
 												placeholder="File, skill, or tool"
-												className="w-full rounded-md border border-strong bg-background px-3 py-2 text-13 text-foreground"
+												className="w-full rounded-md border border-strong bg-background px-3 py-2 text-14 text-foreground"
 											/>
 										</label>
 										<span className="text-12 text-muted-foreground">
@@ -1790,7 +1789,7 @@ function SessionHistoryWorkspace({
 														setEventQuery(event.target.value);
 													}}
 													placeholder="Event, tool, or source"
-													className="w-full rounded-md border border-strong bg-background px-3 py-2 text-13 text-foreground"
+													className="w-full rounded-md border border-strong bg-background px-3 py-2 text-14 text-foreground"
 												/>
 											</label>
 											<label className="flex items-center justify-between gap-2 text-12 text-muted-foreground">
@@ -1805,7 +1804,7 @@ function SessionHistoryWorkspace({
 															setEventFilter(filter);
 														}
 													}}
-													className="rounded-md border border-strong bg-background px-2 py-1.5 text-12 text-foreground"
+													className="rounded-md border border-strong bg-background px-2 py-1.5 text-14 text-foreground"
 												>
 													{EVENT_FILTERS.map((filter) => (
 														<option key={filter} value={filter}>
@@ -1926,9 +1925,9 @@ function IdentityReadings({
 							<span className="text-12 text-muted-foreground">{term}</span>
 						</dt>
 						<dd className="flex flex-col gap-0.5">
-							<span className="font-mono text-11-5 wrap-anywhere">{value}</span>
+							<span className="font-mono text-12 wrap-anywhere">{value}</span>
 							{filedUnder === undefined ? null : (
-								<span className="font-mono text-11 text-muted-foreground wrap-anywhere">
+								<span className="font-mono text-12 text-muted-foreground wrap-anywhere">
 									{filedUnder}
 								</span>
 							)}
@@ -1954,7 +1953,7 @@ function HistoryHeader({
 	const metadata =
 		data === undefined ? undefined : (
 			<details className="text-secondary-foreground">
-				<summary className="cursor-pointer text-12">
+				<summary className="cursor-pointer text-14">
 					Record provenance ·{" "}
 					{namedEntries(identity, data.attempt, names).length} fields
 				</summary>
@@ -1966,7 +1965,7 @@ function HistoryHeader({
 	if (embedded) {
 		return (
 			<header className="flex flex-col gap-3 px-6 pt-4">
-				<h2 className="text-14">Context &amp; cost · saved evidence</h2>
+				<h2 className="text-16">Context &amp; cost · saved evidence</h2>
 				{metadata}
 			</header>
 		);

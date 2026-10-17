@@ -24,14 +24,14 @@ function rowFor(comparison: SavedComparison): readonly React.ReactNode[] {
 		<Link
 			key="case"
 			to={`/comparisons/${encodeURIComponent(comparison.digest)}`}
-			className="text-14 text-accent-foreground underline decoration-deeper underline-offset-4 hover:text-pale"
+			className="text-14 text-link underline decoration-link/60 underline-offset-4 hover:text-link-hover"
 		>
 			<span className="font-medium">{comparison.caseIds.join(", ")}</span>
-			<span className="mt-1 block font-mono text-11-5 text-muted-foreground">
+			<span className="mt-1 block font-mono text-12 text-muted-foreground">
 				{comparison.digest.slice(0, 12)}
 			</span>
 		</Link>,
-		<div key="change" className="flex flex-col gap-3 text-13">
+		<div key="change" className="flex flex-col gap-3 text-14">
 			{comparison.details === undefined ? (
 				<span className="text-muted-foreground">
 					Change details not recorded
@@ -53,10 +53,10 @@ function rowFor(comparison: SavedComparison): readonly React.ReactNode[] {
 				))
 			)}
 		</div>,
-		<span key="mode" className="text-13">
+		<span key="mode" className="text-14">
 			{comparison.mode}
 		</span>,
-		<span key="reps" className="font-mono text-13">
+		<span key="reps" className="font-mono text-14">
 			{comparison.reps}
 		</span>,
 		<details key="record" className="text-12 text-muted-foreground">
@@ -92,7 +92,7 @@ export function ComparisonsPage(): React.JSX.Element {
 			/>
 
 			<div className="flex max-w-7xl flex-col gap-6 px-6 pt-4 pb-12">
-				<p className="text-13 text-secondary-foreground">
+				<p className="text-14 text-secondary-foreground">
 					Compare the baseline before an edit, the candidate after it, and the
 					recorded control. Open a case comparison for its corpus difference,
 					measured changes and saved attempts.
@@ -101,7 +101,7 @@ export function ComparisonsPage(): React.JSX.Element {
 					<p className="text-muted-foreground">Loading…</p>
 				) : null}
 				{query.isError ? (
-					<p role="alert" className="text-muted-foreground">
+					<p role="alert" className="text-attention">
 						<span aria-hidden="true">⚠ </span>
 						Could not load the saved comparisons.
 					</p>

@@ -290,10 +290,9 @@ describe("first-run setup", () => {
 
 			chooseLimit();
 			expect(steps[1]).toHaveTextContent("Required");
-			expect(steps[1]).not.toHaveClass("opacity-55");
 		});
 
-		it("is dimmed, asking for a limit first, while the limit is not a positive amount", async () => {
+		it("asks for a limit first while the limit is not a positive amount", async () => {
 			serveFreshInstall();
 			renderAppAt("/");
 			const steps = await setupSteps();
@@ -304,7 +303,6 @@ describe("first-run setup", () => {
 			);
 
 			expect(steps[1]).toHaveTextContent("Set a limit first");
-			expect(steps[1]).toHaveClass("opacity-55");
 		});
 	});
 
@@ -434,7 +432,6 @@ describe("first-run setup", () => {
 			);
 
 			expect(steps[1]).toHaveTextContent("Linked");
-			expect(steps[1]).not.toHaveClass("opacity-55");
 		});
 
 		it("shows the server's refusal and lists nothing when the scan is refused", async () => {

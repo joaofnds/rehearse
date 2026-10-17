@@ -174,7 +174,7 @@ export function ExperimentSource({
 	return (
 		<section
 			aria-label="Instruction test source"
-			className="rounded-lg border border-strong bg-raised px-4 py-3 text-sm"
+			className="rounded-lg border border-strong bg-raised px-4 py-3 text-14"
 		>
 			<div className="flex flex-wrap items-start justify-between gap-3">
 				<div className="flex flex-col gap-1.5">
@@ -208,7 +208,7 @@ export function ExperimentSource({
 							: "; this viewer shows its current file. The saved source remains available in the run."}
 					</p>
 					{evidence?.reason === undefined ? null : (
-						<p role="alert" className="text-secondary-foreground">
+						<p role="alert" className="text-attention">
 							{evidence.reason}
 						</p>
 					)}
@@ -218,7 +218,7 @@ export function ExperimentSource({
 						to="/runs/$run"
 						params={{ run: source.run }}
 						search={{ view: "results", step: source.stage }}
-						className="text-primary underline underline-offset-2"
+						className="text-link underline underline-offset-2"
 					>
 						Return to source results
 					</Link>

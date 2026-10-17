@@ -129,7 +129,7 @@ function LastTaskGrade({
 				<span className="font-mono text-12">{last.shortId ?? last.run}</span>
 			</p>
 			<StalenessReading last={last} />
-			<p className="mt-1 text-11-5 text-dim">
+			<p className="mt-1 text-12 text-dim">
 				{comparable
 					? "same corpus as this run"
 					: `Not comparable to a ${corpusWords(row.corpusVersion)} result.`}
@@ -151,18 +151,18 @@ function StalenessReading({
 	const corpus = corpusWords(last.corpusVersion);
 	if (staleness.state === "unavailable") {
 		return (
-			<p className="mt-1 text-11-5 text-dim">
+			<p className="mt-1 text-12 text-dim">
 				{corpus} · staleness not judged: {staleness.reasons.join("; ")}
 			</p>
 		);
 	}
 
 	return staleness.stale ? (
-		<p className="mt-1 text-11-5 text-bright">
+		<p className="mt-1 text-12 text-bright">
 			<Status state="stale" /> · {corpus}
 		</p>
 	) : (
-		<p className="mt-1 text-11-5 text-dim">
+		<p className="mt-1 text-12 text-dim">
 			<Status state="clean" /> · {corpus}
 		</p>
 	);
@@ -206,7 +206,7 @@ export function TaskGradeCard({
 	): React.JSX.Element => (
 		<li
 			key={item.id}
-			className="min-w-0 rounded-md border border-divider p-3 text-13"
+			className="min-w-0 rounded-md border border-divider p-3 text-14"
 		>
 			<p className="font-medium">
 				{item.status} · {item.id}
@@ -227,7 +227,7 @@ export function TaskGradeCard({
 							index: String(index),
 						}}
 					>
-						<span className="mt-1 inline-block text-11-5 text-pale underline">
+						<span className="mt-1 inline-block text-12 text-link underline">
 							{evidence.place ?? `${evidence.path} · open cited source`}
 						</span>
 					</EvidenceDialogLink>
@@ -248,6 +248,11 @@ export function TaskGradeCard({
 		<SummaryPanel
 			id="task-grade-label"
 			title="Final outcome · independent task Judge"
+			className={
+				value === "FAIL"
+					? "border-l-4 border-l-negative bg-negative-surface"
+					: ""
+			}
 		>
 			<div>
 				<div className="mt-2 flex flex-wrap items-baseline gap-3">
@@ -256,12 +261,12 @@ export function TaskGradeCard({
 				</div>
 				{failed.length === 0 ? null : (
 					<>
-						<p className="mt-2 text-13">
+						<p className="mt-2 text-14">
 							{failed.length} of {criteria.length} final criteria failed ·{" "}
 							{failed.map(({ id }) => id).join(", ")}
 						</p>
 						{firstFinding === undefined ? null : (
-							<p className="mt-2 text-13 text-secondary-foreground">
+							<p className="mt-2 text-14 text-secondary-foreground">
 								{firstFinding}
 							</p>
 						)}
@@ -274,7 +279,7 @@ export function TaskGradeCard({
 								onCriteriaOpenChange(event.currentTarget.open);
 							}}
 						>
-							<summary className="cursor-pointer text-12 text-pale">
+							<summary className="cursor-pointer text-14 text-pale">
 								All {failed.length} failed criteria &amp; citations
 							</summary>
 							<ul
@@ -289,17 +294,17 @@ export function TaskGradeCard({
 				{assessment?.state === "available" &&
 				assessment.summary !== undefined ? (
 					<details className="mt-3">
-						<summary className="cursor-pointer text-12 text-muted-foreground">
+						<summary className="cursor-pointer text-14 text-muted-foreground">
 							Full saved final Judge summary
 						</summary>
-						<p className="mt-2 text-14 leading-relaxed text-secondary-foreground">
+						<p className="mt-2 text-14 leading-reading text-secondary-foreground">
 							{assessment.summary}
 						</p>
 					</details>
 				) : null}
 				{passed.length === 0 ? null : (
 					<details className="mt-3">
-						<summary className="cursor-pointer text-12 text-muted-foreground">
+						<summary className="cursor-pointer text-14 text-muted-foreground">
 							{passed.length} passed final criteria
 						</summary>
 						<ul className="mt-2 grid gap-2">
@@ -308,10 +313,10 @@ export function TaskGradeCard({
 					</details>
 				)}
 				{outcome.status === "JUDGED" && criteria.length === 0 ? (
-					<p className="mt-2 text-12 text-dim">{missingCriteria}</p>
+					<p className="mt-2 text-14 text-attention">{missingCriteria}</p>
 				) : null}
 				<details className="mt-3">
-					<summary className="cursor-pointer text-12 text-muted-foreground">
+					<summary className="cursor-pointer text-14 text-muted-foreground">
 						How final grading works
 					</summary>
 					<p className="mt-2 max-w-prose text-12 text-secondary-foreground">
@@ -320,7 +325,7 @@ export function TaskGradeCard({
 				</details>
 			</div>
 			<details className="mt-3 border-t border-divider pt-3">
-				<summary className="cursor-pointer text-12 text-muted-foreground">
+				<summary className="cursor-pointer text-14 text-muted-foreground">
 					Previous task result
 				</summary>
 				<section aria-labelledby="last-task-grade-label" className="pt-3">

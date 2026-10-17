@@ -62,6 +62,44 @@
 		-webkit-font-smoothing: antialiased;
 	}
 
+	html {
+		font-size: var(--font-size-base);
+	}
+
+	h1 {
+		font-size: var(--font-size-24);
+		font-weight: 600;
+		line-height: var(--line-height-heading);
+	}
+
+	h2 {
+		font-size: var(--font-size-16);
+		font-weight: 600;
+	}
+
+	body {
+		font-size: var(--font-size-14);
+	}
+
+	button,
+	input,
+	select,
+	textarea,
+	summary {
+		min-height: var(--size-touch-target);
+		font-size: var(--font-size-14);
+	}
+
+	a {
+		color: var(--color-link);
+		text-decoration-line: underline;
+		text-underline-offset: var(--focus-ring-offset);
+	}
+
+	a:hover {
+		color: var(--color-link-hover);
+	}
+
 	#root {
 		min-height: 100vh;
 	}

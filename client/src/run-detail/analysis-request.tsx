@@ -96,10 +96,10 @@ export function RequestAnalysisButton({
 				</Button>
 			)}
 			{refused === null ? null : (
-				<span className="text-11-5 text-dim">{refused}</span>
+				<span className="text-12 text-dim">{refused}</span>
 			)}
 			{mutation.isError ? (
-				<span role="alert" className="text-11-5 text-bright">
+				<span role="alert" className="text-12 text-bright">
 					<span aria-hidden="true">⚠ </span>
 					{mutation.error.message}
 				</span>

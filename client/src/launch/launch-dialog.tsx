@@ -176,14 +176,16 @@ function CorpusLine(): React.JSX.Element {
 	const corpus = useQuery(corpusQuery);
 	if (corpus.data === undefined) {
 		return (
-			<span className="text-muted-foreground">
+			<span
+				className={corpus.isError ? "text-attention" : "text-muted-foreground"}
+			>
 				{corpus.isError ? "could not read the corpus" : "reading…"}
 			</span>
 		);
 	}
 
 	return corpus.data.digest === undefined ? (
-		<span className="font-mono text-pale">
+		<span className="font-mono text-attention">
 			<span aria-hidden="true">⚠ </span>
 			digest withheld
 		</span>
@@ -256,7 +258,7 @@ function SpendCeilingField({
 						onChange={(event) => {
 							onDraft(event.target.value);
 						}}
-						className="w-20 bg-transparent font-mono text-13"
+						className="w-20 bg-transparent font-mono text-14"
 					/>
 				</span>
 				<Button
@@ -292,7 +294,7 @@ function SpendCeilingField({
 				</p>
 			) : null}
 			{store.isError ? (
-				<p role="alert" className="mt-1 text-13 text-secondary-foreground">
+				<p role="alert" className="mt-1 text-14 text-attention">
 					<span aria-hidden="true">⚠ </span>
 					{store.error.message}
 				</p>
@@ -317,7 +319,7 @@ function CasePicker({
 			onChange={(event) => {
 				onSelect(event.target.value);
 			}}
-			className="h-9 w-full min-w-0 rounded-md border border-strong bg-background px-2 font-mono text-13"
+			className="h-9 w-full min-w-0 rounded-md border border-strong bg-background px-2 font-mono text-14"
 		>
 			{cases.map((listed) =>
 				listed.model === null ? (
@@ -351,7 +353,7 @@ function CaseListProblems({
 }): React.JSX.Element | null {
 	if (failure !== undefined) {
 		return (
-			<p role="alert" className="text-13 text-secondary-foreground">
+			<p role="alert" className="text-14 text-attention">
 				<span aria-hidden="true">⚠ </span>
 				{failure}
 			</p>
@@ -617,7 +619,7 @@ function ReplayChoiceRows({
 							onChoose({ run: picked.run, stage: picked.openingStage });
 						}
 					}}
-					className="h-9 w-full min-w-0 rounded-md border border-strong bg-background px-2 font-mono text-13"
+					className="h-9 w-full min-w-0 rounded-md border border-strong bg-background px-2 font-mono text-14"
 				>
 					{runs.map(({ run, caseId }) => (
 						<option key={run} value={run}>
@@ -636,7 +638,7 @@ function ReplayChoiceRows({
 					onChange={(event) => {
 						onChoose({ run: chosen.run, stage: event.target.value });
 					}}
-					className="h-9 w-full min-w-0 rounded-md border border-strong bg-background px-2 font-mono text-13"
+					className="h-9 w-full min-w-0 rounded-md border border-strong bg-background px-2 font-mono text-14"
 				>
 					{stages.map((stage) => (
 						<option key={stage} value={stage}>
@@ -660,7 +662,7 @@ function CaseConditions({
 }): React.JSX.Element {
 	if (listed === undefined) {
 		return (
-			<p className="text-13 text-muted-foreground">
+			<p className="text-14 text-muted-foreground">
 				Choose a readable case to inspect its launch conditions.
 			</p>
 		);
@@ -671,7 +673,7 @@ function CaseConditions({
 			className="rounded-md border bg-muted px-3 py-2.5"
 		>
 			<h3 className="text-14 font-medium">{listed.title}</h3>
-			<dl className="mt-2 grid grid-cols-4 gap-x-3 gap-y-1 text-13">
+			<dl className="mt-2 grid grid-cols-4 gap-x-3 gap-y-1 text-14">
 				<dt className="text-muted-foreground">Workflow model</dt>
 				<dd className="col-span-3 font-mono">
 					{listed.model ?? "No model declared"}
@@ -724,7 +726,7 @@ function ReplayConditions({
 			className="rounded-md border bg-muted px-3 py-2.5"
 		>
 			<h3 className="text-14 font-medium">Frozen input · current corpus</h3>
-			<dl className="mt-2 grid grid-cols-4 gap-x-3 gap-y-1 text-13">
+			<dl className="mt-2 grid grid-cols-4 gap-x-3 gap-y-1 text-14">
 				<dt className="text-muted-foreground">Case</dt>
 				<dd className="col-span-3">
 					{source.data?.caseId ?? pending ?? "Source case unavailable"}
@@ -775,7 +777,7 @@ function LaunchConditions({
 			return (
 				<section
 					aria-label="Launch conditions"
-					className="rounded-md border bg-muted px-3 py-2.5 text-13 text-secondary-foreground"
+					className="rounded-md border bg-muted px-3 py-2.5 text-14 text-secondary-foreground"
 				>
 					Each new group uses its saved arm’s checkpoint, corpus, workflow
 					model, effort and Judge settings. Their values are not exposed by this
@@ -846,7 +848,7 @@ function LaunchForm({
 			</header>
 
 			<div className="flex min-h-0 flex-col gap-3 overflow-y-auto px-4 py-3.5">
-				<dl className="grid grid-cols-4 items-center gap-x-3 gap-y-2 text-13">
+				<dl className="grid grid-cols-4 items-center gap-x-3 gap-y-2 text-14">
 					{targetRows ?? (
 						<TargetRows
 							target={target}
@@ -905,7 +907,7 @@ function LaunchForm({
 					/>
 				) : null}
 				{settings.isError ? (
-					<p role="alert" className="text-13 text-secondary-foreground">
+					<p role="alert" className="text-14 text-attention">
 						<span aria-hidden="true">⚠ </span>
 						{settings.error.message}
 					</p>
@@ -914,7 +916,7 @@ function LaunchForm({
 				<DialogDescription>{dialogDescription(target)}</DialogDescription>
 
 				{launch.isError ? (
-					<p role="alert" className="text-13 text-secondary-foreground">
+					<p role="alert" className="text-14 text-attention">
 						<span aria-hidden="true">⚠ </span>
 						{launch.error.message}
 					</p>
@@ -932,6 +934,7 @@ function LaunchForm({
 						<Button variant="outline">Cancel</Button>
 					</DialogClose>
 					<Button
+						variant="primary"
 						disabled={!startable}
 						onClick={() => {
 							if (request !== undefined) {
@@ -1005,7 +1008,10 @@ export function LaunchDialog({
 		<Dialog open={open} onOpenChange={setOpen}>
 			<DialogTrigger asChild>
 				{opener.trigger ?? (
-					<Button variant="outline" aria-keyshortcuts={shortcut}>
+					<Button
+						variant={target.kind === "case" ? "primary" : "outline"}
+						aria-keyshortcuts={shortcut}
+					>
 						{opener.triggerLabel}
 						{shortcut === undefined ? null : <KeyHint letter={shortcut} />}
 					</Button>

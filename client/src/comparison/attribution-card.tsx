@@ -127,7 +127,7 @@ function FileDiff({ file }: { readonly file: ArmFileDiff }): React.JSX.Element {
 		<div className="flex flex-col gap-1.5">
 			<span className="font-mono text-12 text-pale">{file.path}</span>
 			{notes.map((note) => (
-				<p key={note} className="text-13 text-muted-foreground">
+				<p key={note} className="text-14 text-muted-foreground">
 					{note}
 				</p>
 			))}
@@ -155,11 +155,11 @@ function ArmDiff({
 		queryFn: () => fetchArmDiff(digest),
 	});
 	if (query.isPending) {
-		return <p className="text-13 text-muted-foreground">Reading both arms…</p>;
+		return <p className="text-14 text-muted-foreground">Reading both arms…</p>;
 	}
 	if (query.isError) {
 		return (
-			<p role="alert" className="text-13 text-secondary-foreground">
+			<p role="alert" className="text-14 text-attention">
 				The diff between arms could not be loaded.
 			</p>
 		);

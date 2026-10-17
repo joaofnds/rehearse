@@ -27,9 +27,9 @@ export function SummaryPanel({
 		>
 			<header className="mb-4 flex flex-wrap items-start justify-between gap-3">
 				<div className="min-w-0">
-					<h2 className="text-15 font-medium">{title}</h2>
+					<h2 className="text-16 font-semibold">{title}</h2>
 					{description === undefined ? null : (
-						<p className="mt-1 text-13 text-muted-foreground">{description}</p>
+						<p className="mt-1 text-14 text-muted-foreground">{description}</p>
 					)}
 				</div>
 				{actions}

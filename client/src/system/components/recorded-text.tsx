@@ -55,7 +55,7 @@ function formattedBlocks(text: string): readonly ReactNode[] {
 			blocks.push(
 				<pre
 					key={key}
-					className="overflow-auto rounded-md bg-muted p-3 font-mono text-13 whitespace-pre-wrap wrap-anywhere"
+					className="overflow-auto rounded-md bg-muted p-3 font-mono leading-transcript text-13 whitespace-pre-wrap wrap-anywhere"
 				>
 					<code>{code.text}</code>
 				</pre>,
@@ -137,11 +137,11 @@ export function RecordedText({
 				onSelect={setMode}
 			/>
 			{mode === "Raw" ? (
-				<pre className="mt-3 overflow-auto font-mono text-13 whitespace-pre-wrap wrap-anywhere">
+				<pre className="mt-3 overflow-auto font-mono leading-transcript text-13 whitespace-pre-wrap wrap-anywhere">
 					{text}
 				</pre>
 			) : (
-				<div className="mt-3 space-y-4 text-14 leading-relaxed">
+				<div className="mt-3 space-y-4 text-14 leading-reading">
 					{text === "" ? "(Saved output is empty.)" : formattedBlocks(text)}
 				</div>
 			)}

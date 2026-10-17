@@ -82,7 +82,7 @@ export function StepOutputs({
 		<>
 			<h3
 				id={headingId}
-				className="mt-3.5 text-10 tracking-label text-dim uppercase"
+				className="mt-3.5 text-12 tracking-label text-dim uppercase"
 			>
 				Artifacts out
 			</h3>
@@ -95,17 +95,17 @@ export function StepOutputs({
 						<span aria-hidden="true" className="text-muted-foreground">
 							↑
 						</span>
-						<span className="flex-1 font-mono text-11-5 wrap-anywhere">
+						<span className="flex-1 font-mono text-12 wrap-anywhere">
 							{name}
 						</span>
-						<span className="font-mono text-10-5 text-muted-foreground">
+						<span className="font-mono text-12 text-muted-foreground">
 							{detail}
 						</span>
 					</li>
 				))}
 			</ul>
 			{unread.map(({ part, reason }) => (
-				<p key={part} className="mt-1.5 text-11 text-dim">
+				<p key={part} className="mt-1.5 text-12 text-dim">
 					Not read: {part}, as {reason}
 				</p>
 			))}

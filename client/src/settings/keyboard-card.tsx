@@ -27,7 +27,7 @@ export function KeyboardCard(): React.JSX.Element {
 			<ul className="mt-2 grid grid-cols-2 gap-x-4.5 gap-y-1.5 text-12">
 				{SHORTCUTS.map(({ key, does }) => (
 					<li key={key} className="flex items-baseline gap-2.5">
-						<span className="rounded-sm border border-strong px-1.5 py-px font-mono text-11 text-pale">
+						<span className="rounded-sm border border-strong px-1.5 py-px font-mono text-12 text-pale">
 							{key}
 						</span>
 						<span className="text-secondary-foreground">{does}</span>

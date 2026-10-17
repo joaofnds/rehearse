@@ -88,12 +88,12 @@ function StopControl({
 	return (
 		<span className="inline-flex items-center gap-2">
 			{stop.error === null ? null : (
-				<span role="alert" className="text-secondary-foreground">
+				<span role="alert" className="text-attention">
 					{stop.error.message}
 				</span>
 			)}
 			<Button
-				variant="quiet"
+				variant="destructive"
 				size="compact"
 				disabled={stop.isPending || stop.isSuccess}
 				onClick={() => {
@@ -124,9 +124,9 @@ function RunReadings({
 	return (
 		<section
 			aria-label={`Run ${nameOf(row)} in flight`}
-			className="flex h-11.75 flex-none items-center gap-4.25 overflow-x-auto border-t border-strong bg-raised px-4 text-12 whitespace-nowrap"
+			className="flex min-h-touch-target flex-none items-center gap-4.25 overflow-x-auto border-t border-strong bg-raised px-4 py-2 text-12 whitespace-nowrap"
 		>
-			<span className="text-10">
+			<span className="text-12">
 				<LiveGlyph />
 			</span>
 			<span className="font-mono text-pale">{nameWithinCase(row)}</span>

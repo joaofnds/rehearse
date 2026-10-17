@@ -86,8 +86,8 @@ function CaseLead({
 
 	return (
 		<header className="flex flex-col gap-1">
-			<h2 className="text-17 font-medium">{caseId}</h2>
-			<p className="text-13 text-secondary-foreground">{change}</p>
+			<h2 className="text-17 font-semibold">{caseId}</h2>
+			<p className="text-14 text-secondary-foreground">{change}</p>
 		</header>
 	);
 }
@@ -120,7 +120,7 @@ function AssessmentOverview({
 
 	return (
 		<SummaryPanel title={title} description={evaluationScope(mode)}>
-			<p className="text-13 text-muted-foreground">
+			<p className="text-14 text-muted-foreground">
 				Saved attempts · baseline (before) {attempts.baseline.length} ·
 				candidate (after) {attempts.candidate.length} · control{" "}
 				{attempts.control.length}. Read each measure’s coverage and uncertainty
@@ -306,7 +306,7 @@ export function ComparisonPage({
 					</EmptyState>
 				) : null}
 				{query.isError && !(query.error instanceof ComparisonNotFoundError) ? (
-					<p role="alert" className="text-muted-foreground">
+					<p role="alert" className="text-attention">
 						<span aria-hidden="true">⚠ </span>
 						Could not load comparison.
 					</p>

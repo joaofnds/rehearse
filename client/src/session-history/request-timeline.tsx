@@ -205,7 +205,7 @@ function InstructionLoads({
 }): React.JSX.Element {
 	if (loads.state === "unavailable") {
 		return (
-			<p className="px-3 py-2.5 text-12 text-muted-foreground">
+			<p className="px-3 py-2.5 text-14 text-attention">
 				? Unavailable · the transcript carries no instructions attachment.
 			</p>
 		);
@@ -261,8 +261,12 @@ export function CostReading({
 	}
 	return (
 		<>
-			<span>{displayed}</span>
-			<details className="mt-1 text-12">
+			<span className={reading.state === "complete" ? "" : "text-attention"}>
+				{displayed}
+			</span>
+			<details
+				className={`mt-1 text-12 ${reading.state === "complete" ? "" : "text-attention"}`}
+			>
 				<summary className="cursor-pointer">
 					{reading.state === "complete"
 						? "Exact measurement"
@@ -473,7 +477,7 @@ export function RequestTimeline({
 								{entry.region}
 							</small>
 						</span>
-						<small className="max-w-full truncate font-mono text-11 text-muted-foreground">
+						<small className="max-w-full truncate font-mono text-12 text-muted-foreground">
 							{entry.requestId ?? "Request ID not recorded"}
 						</small>
 						{entry.usageState === "complete" && widest > 0 ? (
@@ -482,7 +486,7 @@ export function RequestTimeline({
 								style={{ "--bar-width": barWidth(entry, widest) }}
 							/>
 						) : null}
-						<strong className="font-mono text-13">{totalLabel(entry)}</strong>
+						<strong className="font-mono text-14">{totalLabel(entry)}</strong>
 						<small className="text-12 text-muted-foreground">
 							{categoryLabel(entry)}
 						</small>
@@ -500,7 +504,7 @@ export function RequestTimeline({
 					</button>
 				))}
 				{entries.length === 0 ? (
-					<p className="px-3 py-2.5 text-12 text-muted-foreground">
+					<p className="px-3 py-2.5 text-14 text-attention">
 						This attempt's transcript records no request.
 					</p>
 				) : null}

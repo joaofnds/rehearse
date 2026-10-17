@@ -35,7 +35,7 @@ export function CorpusSettingsLink({
 					end: lines?.end,
 				}));
 			}}
-			className="text-accent-foreground underline decoration-deeper underline-offset-4 hover:text-pale"
+			className="text-link underline decoration-link/60 underline-offset-4 hover:text-link-hover"
 		>
 			Link an editable copy in Settings
 		</Link>
@@ -53,7 +53,7 @@ export function CorpusReturnLink(): React.JSX.Element | null {
 			onClick={() => {
 				client.setQueryData(returnEditQuery.queryKey, null);
 			}}
-			className="text-accent-foreground underline decoration-deeper underline-offset-4 hover:text-pale"
+			className="text-link underline decoration-link/60 underline-offset-4 hover:text-link-hover"
 		>
 			Return to instruction edit
 		</Link>

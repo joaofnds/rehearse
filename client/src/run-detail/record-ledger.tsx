@@ -99,7 +99,7 @@ function StatusWords({
 	readonly status: NodeStatus;
 }): React.JSX.Element {
 	return (
-		<span className="flex items-center gap-1.5 text-11-5 text-muted-foreground">
+		<span className="flex items-center gap-1.5 text-12 text-muted-foreground">
 			{status.state === "running" ? (
 				<LiveGlyph tone="surrounding" />
 			) : (
@@ -122,7 +122,7 @@ function CorpusReading({
 			{corpusVersion?.kind === "version" ? (
 				<CorpusPill hash={corpusVersion.digest} />
 			) : (
-				<span className="text-11-5 text-muted-foreground">
+				<span className="text-12 text-muted-foreground">
 					{corpusMeasurementReading(corpusVersion)}
 				</span>
 			)}
@@ -183,7 +183,7 @@ function CardBody({
 	}
 
 	return (
-		<p className="px-3.5 py-2.75 text-11-5 text-muted-foreground">
+		<p className="px-3.5 py-2.75 text-12 text-muted-foreground">
 			{unjudgedReading(judge, leftWaiting)}
 		</p>
 	);
@@ -247,7 +247,7 @@ function CardFooter({
 
 	return (
 		<footer className="flex flex-wrap items-center gap-2.5 border-t border-border px-3.5 py-2.25">
-			<span className="flex items-center gap-1.5 font-mono text-11 text-secondary-foreground">
+			<span className="flex items-center gap-1.5 font-mono text-12 text-secondary-foreground">
 				<CheckpointIcon aria-hidden="true" className="size-3" />
 				{checkpointWords(stage)}
 			</span>
@@ -354,7 +354,7 @@ function WideEvidence({
 						key={`${owner.section}:${owner.item}:${String(index)}`}
 						className="mt-2.5 grid grid-cols-ledger-evidence items-start gap-3"
 					>
-						<div className="font-mono text-10-5 text-muted-foreground">
+						<div className="font-mono text-12 text-muted-foreground">
 							<SourceChip cited={cited} />
 							<div className="mt-1">
 								<EvidenceLink owner={owner} index={index} cited={cited} />
@@ -364,14 +364,14 @@ function WideEvidence({
 							</div>
 						</div>
 						{cited.quote === undefined ? null : (
-							<blockquote className="border-l-2 border-deeper bg-card px-2.5 py-1.75 font-mono text-11-5 whitespace-pre-wrap text-bright">
+							<blockquote className="border-l-2 border-deeper bg-card px-2.5 py-1.75 font-mono text-13 leading-transcript whitespace-pre-wrap text-bright">
 								{cited.quote}
 							</blockquote>
 						)}
 					</li>
 				))}
 			</ul>
-			<p className="mt-3 text-11-5 text-dim">
+			<p className="mt-3 text-12 text-dim">
 				Uncited spans are not stored here. {fullSession}
 			</p>
 		</section>
@@ -401,12 +401,12 @@ function CardHeader({
 		<div
 			className={`flex flex-wrap items-center gap-3 border-b border-border px-3.5 py-2.75 ${status.state === "stopped" ? "bg-fired" : "bg-raised"}`}
 		>
-			<span aria-hidden="true" className="font-mono text-11 text-dim">
+			<span aria-hidden="true" className="font-mono text-12 text-dim">
 				{String(number).padStart(2, "0")}
 			</span>
-			<h2 className="text-14">{stage.stage}</h2>
+			<h2 className="text-16">{stage.stage}</h2>
 			<StatusWords status={status} />
-			<span className="font-mono text-11 text-dim">{meta}</span>
+			<span className="font-mono text-12 text-dim">{meta}</span>
 			<CorpusReading stage={stage} />
 			<span className="w-8 text-right">
 				<Grade
@@ -583,19 +583,19 @@ function UnreachedStage({
 		: undefined;
 	if (ended && stopped !== undefined && judgedStop(stopped.stage)) {
 		return (
-			<li className="rounded-card border border-dashed border-strong px-3.5 py-3 text-11-5 text-pretty text-muted-foreground">
+			<li className="rounded-card border border-dashed border-strong px-3.5 py-3 text-12 text-pretty text-muted-foreground">
 				{neverRanWords(unreached, stopped, row, record)}
 			</li>
 		);
 	}
 	if (ending !== undefined) {
 		return (
-			<li className="px-3.5 py-1 text-11-5 text-muted-foreground">{ending}</li>
+			<li className="px-3.5 py-1 text-12 text-muted-foreground">{ending}</li>
 		);
 	}
 
 	return (
-		<li className="flex items-center gap-3 px-3.5 py-1 text-11-5">
+		<li className="flex items-center gap-3 px-3.5 py-1 text-12">
 			{stepName(unreached)}
 			<StatusWords status={nodeStatus(unreached.stage, row, record)} />
 		</li>

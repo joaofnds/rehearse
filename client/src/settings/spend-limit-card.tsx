@@ -32,12 +32,12 @@ export function SpendLimitCard(): React.JSX.Element {
 
 	return (
 		<SettingsCard title="Spend limit">
-			<p className="mt-1.5 max-w-prose text-12-5 text-muted-foreground">
+			<p className="mt-1.5 max-w-prose text-14 leading-reading text-muted-foreground">
 				Enforced per run and per group. A run cannot start without one and stops
 				mid-step when reached.
 			</p>
 			{settings.data === undefined ? null : (
-				<p className="mt-1 max-w-prose text-12-5 text-muted-foreground">
+				<p className="mt-1 max-w-prose text-14 leading-reading text-muted-foreground">
 					{settings.data.overrun}
 				</p>
 			)}
@@ -51,7 +51,7 @@ export function SpendLimitCard(): React.JSX.Element {
 				}}
 			>
 				<label className="flex items-center gap-1.5 rounded-md border border-strong bg-background px-2 py-1.5">
-					<span className="text-11 text-muted-foreground">USD per run</span>
+					<span className="text-12 text-muted-foreground">USD per run</span>
 					<input
 						value={entered}
 						inputMode="decimal"
@@ -59,7 +59,7 @@ export function SpendLimitCard(): React.JSX.Element {
 						onChange={(event) => {
 							setDraft(event.target.value);
 						}}
-						className="w-22 bg-transparent font-mono text-13"
+						className="w-22 bg-transparent font-mono text-14"
 					/>
 				</label>
 				<Button
@@ -70,24 +70,24 @@ export function SpendLimitCard(): React.JSX.Element {
 				>
 					Store limit
 				</Button>
-				<span className="text-11-5 text-dim">
+				<span className="text-12 text-dim">
 					Group ceiling: attempts × per-run
 				</span>
 			</form>
 			{invalidEntry ? (
-				<p role="alert" className="mt-1.5 text-12 text-secondary-foreground">
+				<p role="alert" className="mt-1.5 text-12 text-attention">
 					A spend limit is a positive amount in US dollars, such as 2.50, so
 					this one is not stored.
 				</p>
 			) : null}
 			{store.isError ? (
-				<p role="alert" className="mt-1.5 text-12 text-secondary-foreground">
+				<p role="alert" className="mt-1.5 text-12 text-attention">
 					<span aria-hidden="true">⚠ </span>
 					{store.error.message}
 				</p>
 			) : null}
 			{settings.isError ? (
-				<p role="alert" className="mt-1.5 text-12 text-secondary-foreground">
+				<p role="alert" className="mt-1.5 text-12 text-attention">
 					<span aria-hidden="true">⚠ </span>
 					{`Could not read the stored limit: ${settings.error.message}`}
 				</p>

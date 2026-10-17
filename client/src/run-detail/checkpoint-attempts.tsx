@@ -76,13 +76,13 @@ function AttemptItem({
 	return (
 		<li className="rounded-card border border-border px-2.5 py-2">
 			<span className="flex items-center gap-2">
-				<span className="flex-1 font-mono text-11-5">
+				<span className="flex-1 font-mono text-12">
 					{attempt.href === undefined ? (
 						attempt.id
 					) : (
 						<Link
 							to={attempt.href}
-							className="text-pale underline underline-offset-4"
+							className="text-link underline underline-offset-4"
 						>
 							{attempt.id}
 						</Link>
@@ -93,10 +93,10 @@ function AttemptItem({
 					value={letter === undefined ? { pending: true } : { letter }}
 				/>
 			</span>
-			<span className="mt-0.5 block text-11 text-muted-foreground">
+			<span className="mt-0.5 block text-12 text-muted-foreground">
 				{KIND_WORDS[attempt.kind]} · {corpus}
 			</span>
-			<span className="mt-0.5 block text-10-5 text-dim">
+			<span className="mt-0.5 block text-12 text-dim">
 				{stalenessReading(attempt.staleness)}
 			</span>
 		</li>
@@ -119,11 +119,11 @@ export function CheckpointAttempts({
 
 	return (
 		<section aria-label="Attempts" className="mt-4 px-1.5">
-			<h2 className="pb-2 text-10 tracking-label text-dim uppercase">
+			<h2 className="pb-2 text-16 tracking-label text-dim uppercase">
 				Attempts at {data?.checkpoint ?? "this step's checkpoint"}
 			</h2>
 			{isError ? (
-				<p className="text-11-5 text-muted-foreground">
+				<p className="text-12 text-muted-foreground">
 					Could not read the attempts at this checkpoint.
 				</p>
 			) : null}
@@ -139,7 +139,7 @@ export function CheckpointAttempts({
 					</ul>
 					<Link
 						to="/comparisons"
-						className="mt-2 inline-block border-b border-deeper text-11-5 text-accent-foreground"
+						className="mt-2 inline-block border-b border-deeper text-14 text-link"
 					>
 						Compare these attempts
 					</Link>

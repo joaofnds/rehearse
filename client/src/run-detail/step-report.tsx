@@ -24,7 +24,7 @@ import { StepOutputs } from "./step-outputs";
 import { plural } from "#client/plural";
 import { stageCostReading } from "./step-readings";
 import { Grade } from "#client/system/components/grade";
-import { STATUS_VOCABULARY } from "#client/system/components/status";
+import { Status } from "#client/system/components/status";
 
 export type ReadEntry = Extract<
 	MonitoredStage["readManifest"],
@@ -117,7 +117,7 @@ function SessionOnDisk({
 	}
 
 	return (
-		<p className="mt-1 text-11-5 text-muted-foreground">
+		<p className="mt-1 text-12 text-muted-foreground">
 			Session on disk:{" "}
 			{session.transcriptPath === undefined ? (
 				`not recorded: ${NO_KEPT_TRANSCRIPT}`
@@ -172,7 +172,7 @@ function GradeStat({
 						: { pending: true }
 				}
 			/>
-			<div className="text-10-5 text-muted-foreground">
+			<div className="text-12 text-muted-foreground">
 				{grade.state === "unavailable" ? (
 					<div>{notRecorded("grade", grade.reasons)}</div>
 				) : null}
@@ -236,10 +236,13 @@ function VerdictStat({
 	return (
 		<StatCard label="Verdict">
 			<div className="mt-1.25 flex items-center justify-end gap-1.75 text-14">
-				<span aria-hidden="true">{STATUS_VOCABULARY[state].glyph}</span>
-				{status.words}
+				<Status
+					state={state}
+					label={status.words}
+					tone={state === "accepted" ? "positive" : undefined}
+				/>
 			</div>
-			<div className="text-10-5 text-muted-foreground">
+			<div className="text-12 text-muted-foreground">
 				{firedReading(judge, leftWaiting)}
 			</div>
 		</StatCard>
@@ -252,7 +255,7 @@ function SectionTitle({
 	readonly children: React.ReactNode;
 }): React.JSX.Element {
 	return (
-		<h3 className="mt-4.5 text-10 tracking-label text-dim uppercase">
+		<h3 className="mt-4.5 text-12 tracking-label text-dim uppercase">
 			{children}
 		</h3>
 	);
@@ -301,7 +304,9 @@ function JudgedSections({
 	}
 	if (judge === "unreadable" || judge.state !== "judged") {
 		return (
-			<p className="mt-4.5 text-12 text-muted-foreground">
+			<p
+				className={`mt-4.5 text-14 ${judge === "unreadable" ? "text-attention" : "text-muted-foreground"}`}
+			>
 				{unjudgedReading(judge, leftWaiting)}
 			</p>
 		);
@@ -311,7 +316,7 @@ function JudgedSections({
 		<div className="min-w-0">
 			<SectionTitle>Hard blockers</SectionTitle>
 			{judge.hardBlockers.length === 0 ? (
-				<p className="mt-2 text-13 text-muted-foreground">
+				<p className="mt-2 text-14 text-muted-foreground">
 					No hard blocker results were recorded.
 				</p>
 			) : null}
@@ -328,7 +333,7 @@ function JudgedSections({
 			/>
 			{judge.hardBlockers.some(({ status }) => status === "PASS") ? (
 				<details className="mt-3">
-					<summary className="cursor-pointer text-13 text-muted-foreground">
+					<summary className="cursor-pointer text-14 text-muted-foreground">
 						{plural(
 							judge.hardBlockers.filter(({ status }) => status === "PASS")
 								.length,
@@ -402,13 +407,13 @@ function InstructionsRead({
 		<>
 			<SectionTitle>Instructions this step read</SectionTitle>
 			{readManifest.state === "unavailable" ? (
-				<p className="mt-2 text-12 text-muted-foreground">
+				<p className="mt-2 text-14 text-attention">
 					{notRecorded("Instructions read", readManifest.reasons)}
 				</p>
 			) : (
 				<table
 					aria-label="Instructions this step read"
-					className="mt-2 w-full max-w-225 border border-border font-mono text-11-5"
+					className="mt-2 w-full max-w-225 border border-border font-mono text-12"
 				>
 					<thead className="sr-only">
 						<tr>
@@ -427,7 +432,7 @@ function InstructionsRead({
 								<td className="px-2.75 py-1.5 text-dim">
 									{entry.sha256?.slice(0, HASH_SHOWN) ?? "no hash"}
 								</td>
-								<td className="px-2.75 py-1.5 font-sans text-11 text-muted-foreground">
+								<td className="px-2.75 py-1.5 font-sans text-12 text-muted-foreground">
 									<span className="flex items-center gap-1.25">
 										<ReadState entry={entry} />
 									</span>
@@ -469,10 +474,10 @@ export function StepReport({
 	return (
 		<section aria-label="Step report" className="min-w-0">
 			<div className="mb-4">
-				<h2 className="text-17 font-medium">
+				<h2 className="text-17 font-semibold">
 					Step {String(number)} · {stage.stage}
 				</h2>
-				<p className="mt-1 font-mono text-11-5 text-dim">
+				<p className="mt-1 font-mono text-12 text-dim">
 					{metaLine(stage, sessionRead)}
 				</p>
 			</div>
@@ -504,7 +509,7 @@ export function StepReport({
 				</section>
 			</div>
 			<details className="mt-4 rounded-lg border border-border">
-				<summary className="cursor-pointer px-4 py-3 text-12">
+				<summary className="cursor-pointer px-4 py-3 text-14">
 					Input &amp; checkpoint
 				</summary>
 				<div className="px-4 pb-4">

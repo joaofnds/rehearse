@@ -296,7 +296,7 @@ describe("/monitor", () => {
 				"pause requested · ends after this step is judged",
 			);
 			expect(acknowledged).toHaveTextContent(/^‖/u);
-			expect(acknowledged).toHaveClass("text-11-5");
+			expect(acknowledged).toHaveClass("text-12");
 		});
 
 		it("acknowledges the stop with the stopped glyph at the design's meta size", async () => {
@@ -315,7 +315,7 @@ describe("/monitor", () => {
 				"stop requested",
 			);
 			expect(acknowledged).toHaveTextContent(/^◼/u);
-			expect(acknowledged).toHaveClass("text-11-5");
+			expect(acknowledged).toHaveClass("text-12");
 		});
 	});
 

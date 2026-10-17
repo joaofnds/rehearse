@@ -47,12 +47,37 @@ export function LiveGlyph({
 	return (
 		<span
 			aria-hidden="true"
-			className={`animate-live motion-reduce:animate-none ${tone === "accent" ? "text-accent-foreground" : ""}`}
+			className={`animate-live motion-reduce:animate-none ${tone === "accent" ? "text-info" : ""}`}
 		>
 			{STATUS_VOCABULARY.running.glyph}
 		</span>
 	);
 }
+
+const TONE_CLASSES = {
+	neutral: "",
+	positive: "text-positive",
+	negative: "text-negative",
+	attention: "text-attention",
+	info: "text-info",
+} as const;
+export type StatusTone = keyof typeof TONE_CLASSES;
+const STATE_TONES = {
+	accepted: "neutral",
+	running: "info",
+	stopped: "attention",
+	paused: "attention",
+	interrupted: "attention",
+	fired: "negative",
+	stale: "attention",
+	superseded: "attention",
+	queued: "neutral",
+	clear: "neutral",
+	clean: "neutral",
+	pending: "neutral",
+	"checkpoint-present": "neutral",
+	"checkpoint-absent": "neutral",
+} as const satisfies Readonly<Record<StatusState, StatusTone>>;
 
 /**
  * The glyph and its word, at whatever size and colour the surrounding text
@@ -63,14 +88,18 @@ export function LiveGlyph({
 export function Status({
 	state,
 	label,
+	tone,
 }: {
 	readonly state: StatusState;
 	readonly label?: string;
+	readonly tone?: StatusTone | undefined;
 }): React.JSX.Element {
 	const { glyph, word } = STATUS_VOCABULARY[state];
 
 	return (
-		<span className="inline-flex items-center gap-1.5">
+		<span
+			className={`inline-flex items-center gap-1.5 ${TONE_CLASSES[tone ?? STATE_TONES[state]]}`}
+		>
 			{state === "running" ? (
 				<LiveGlyph />
 			) : (

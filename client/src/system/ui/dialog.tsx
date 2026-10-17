@@ -49,7 +49,7 @@ function DialogTitle({
 	return (
 		<DialogPrimitive.Title
 			data-slot="dialog-title"
-			className="text-base font-medium"
+			className="text-20 font-semibold"
 		>
 			{children}
 		</DialogPrimitive.Title>
@@ -64,7 +64,7 @@ function DialogDescription({
 	return (
 		<DialogPrimitive.Description
 			data-slot="dialog-description"
-			className="text-sm text-muted-foreground"
+			className="text-14 text-muted-foreground"
 		>
 			{children}
 		</DialogPrimitive.Description>

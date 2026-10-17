@@ -187,11 +187,11 @@ export function CaseCard({
 			className="rounded-lg border border-divider bg-card px-4 py-3.5"
 		>
 			<div className="flex flex-wrap items-center gap-3">
-				<h2 id={headingId} className="text-14 font-medium">
+				<h2 id={headingId} className="text-16 font-semibold">
 					<Link
 						to="/cases"
 						search={{ caseId: listed.id }}
-						className="text-accent-foreground hover:underline"
+						className="text-link hover:underline"
 					>
 						{listed.id}
 					</Link>
@@ -205,7 +205,7 @@ export function CaseCard({
 						{listed.figures.state === "measured" ? (
 							<Link
 								to={`/cases?caseId=${encodeURIComponent(listed.id)}&corpusVersion=${encodeURIComponent(listed.figures.corpusVersion ?? "unrecorded")}#case-evidence`}
-								className="text-accent-foreground hover:underline"
+								className="text-link hover:underline"
 							>
 								{figuresLine(listed)}
 							</Link>

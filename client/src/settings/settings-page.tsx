@@ -79,7 +79,7 @@ export function SettingsPage({
 				<Link
 					to="/settings"
 					aria-current={view === "general" ? "page" : undefined}
-					className="border-b-2 border-transparent px-3 py-2.5 text-12 text-muted-foreground aria-current:border-primary aria-current:text-foreground hover:text-foreground"
+					className="border-b-2 border-transparent px-3 py-2.5 text-14 text-link no-underline current:border-primary current:bg-selected current:text-pale hover:text-link-hover"
 				>
 					General
 				</Link>
@@ -87,7 +87,7 @@ export function SettingsPage({
 					to="/settings"
 					search={{ view: "judges" }}
 					aria-current={view === "judges" ? "page" : undefined}
-					className="border-b-2 border-transparent px-3 py-2.5 text-12 text-muted-foreground aria-current:border-primary aria-current:text-foreground hover:text-foreground"
+					className="border-b-2 border-transparent px-3 py-2.5 text-14 text-link no-underline current:border-primary current:bg-selected current:text-pale hover:text-link-hover"
 				>
 					Judges
 				</Link>

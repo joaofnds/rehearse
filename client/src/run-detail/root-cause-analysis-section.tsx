@@ -76,7 +76,7 @@ function StepRow({
 						{gradeTrack(stage)}
 					</span>
 				</span>
-				<span aria-hidden="true" className="text-9 text-faint">
+				<span aria-hidden="true" className="text-12 text-faint">
 					{STAGE_LETTER_GRADES.join(" ")}
 				</span>
 			</span>
@@ -87,7 +87,7 @@ function StepRow({
 					<RoleMark role={analysed.role} words="shown" />
 				)}
 			</span>
-			<span className="text-secondary-foreground">
+			<span className="text-14 leading-reading text-secondary-foreground">
 				{analysed === undefined || analysed.role === "never ran"
 					? null
 					: analysed.note}
@@ -125,20 +125,22 @@ function RecordedReading({
 
 	return (
 		<>
-			<p className="mt-1 text-11-5 text-dim">{provenance(analysis)}</p>
-			<p className="mt-1 font-mono text-11-5 text-pale">
+			<p className="mt-1 text-12 text-dim">{provenance(analysis)}</p>
+			<p className="mt-1 font-mono text-12 text-pale">
 				{rootCauseWords(rootCause)}
 			</p>
-			<p className="mt-3 max-w-prose text-13">{analysis.narrative}</p>
+			<p className="mt-3 max-w-prose text-14 leading-reading">
+				{analysis.narrative}
+			</p>
 			<p className="mt-2 max-w-prose text-12 text-secondary-foreground">
 				{DISCLAIMER}
 			</p>
-			<p className="mt-2 max-w-prose text-12">
+			<p className="mt-2 max-w-prose text-14 leading-reading">
 				<span className="text-dim">Paired rerun: </span>
 				{analysis.pairedRerun}
 			</p>
 			{earlierCount === 0 ? null : (
-				<p className="mt-1 text-11-5 text-dim">
+				<p className="mt-1 text-12 text-dim">
 					{plural(earlierCount, "earlier analysis", "earlier analyses")}{" "}
 					recorded
 				</p>
@@ -227,11 +229,11 @@ export function RootCauseAnalysisSection({
 			aria-labelledby="root-cause-analysis-heading"
 			className="rounded-lg border border-accent-line bg-card p-4.5"
 		>
-			<h2 id="root-cause-analysis-heading" className="text-14 font-semibold">
+			<h2 id="root-cause-analysis-heading" className="text-16 font-semibold">
 				Root-cause analysis
 			</h2>
 			{reading === "unreadable" ? (
-				<p role="alert" className="mt-2 text-12 text-muted-foreground">
+				<p role="alert" className="mt-2 text-12 text-attention">
 					<span aria-hidden="true">⚠ </span>
 					Could not read the root-cause analyses of this run.
 				</p>
@@ -299,7 +301,7 @@ function AnalysisReading({
 						The newest analysis failed: {newest.reason}
 					</p>
 					{newest.payload === undefined ? null : (
-						<pre className="max-h-60 overflow-auto rounded-md bg-raised p-2.5 font-mono text-11-5 whitespace-pre-wrap">
+						<pre className="max-h-60 overflow-auto rounded-md bg-raised p-2.5 font-mono leading-transcript text-13 whitespace-pre-wrap">
 							{JSON.stringify(newest.payload, null, 2)}
 						</pre>
 					)}

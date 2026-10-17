@@ -59,7 +59,7 @@ function Citations({
 					className="mt-2 border-l-2 border-divider pl-3 text-12"
 				>
 					<p>{citation.claim}</p>
-					<p className="mt-1 font-mono text-11-5 text-dim">
+					<p className="mt-1 font-mono text-12 text-dim">
 						{citation.source} · {citation.path} ·{" "}
 						{citation.place ?? "Location not saved"}
 					</p>
@@ -103,7 +103,7 @@ export function SavedOutput({
 			className="min-w-0 rounded-lg border border-divider bg-card p-4"
 		>
 			<div className="flex flex-wrap items-center justify-between gap-2">
-				<h2 className="text-14 font-medium">{title}</h2>
+				<h2 className="text-16 font-semibold">{title}</h2>
 				{text === undefined ? null : (
 					<Dialog open={open} onOpenChange={setOpen}>
 						<DialogTrigger asChild>
@@ -118,7 +118,7 @@ export function SavedOutput({
 									Complete output preserved by the saved record.
 								</DialogDescription>
 							</div>
-							<pre className="max-h-160 overflow-auto font-mono text-13 whitespace-pre-wrap wrap-break-word">
+							<pre className="max-h-160 overflow-auto font-mono leading-transcript text-13 whitespace-pre-wrap wrap-break-word">
 								{text}
 							</pre>
 							<div className="p-4">
@@ -136,10 +136,10 @@ export function SavedOutput({
 				<p className="mt-2 text-12 text-dim">{note}</p>
 			)}
 			{pending ? (
-				<p className="mt-3 text-13 text-dim">Reading saved output…</p>
+				<p className="mt-3 text-14 text-dim">Reading saved output…</p>
 			) : null}
 			{text === undefined && !pending ? (
-				<p className="mt-3 text-13 text-dim">{emptyMessage}</p>
+				<p className="mt-3 text-14 text-attention">{emptyMessage}</p>
 			) : null}
 			{text === undefined ? null : (
 				<div className="mt-3 max-h-100 overflow-auto">
@@ -190,7 +190,7 @@ function SessionChecks({
 		<section className="mt-4" aria-label={title}>
 			<h3 className="text-14 font-medium">{title}</h3>
 			{checks.length === 0 ? (
-				<p className="mt-3 text-13 text-dim">{emptyMessage}</p>
+				<p className="mt-3 text-14 text-attention">{emptyMessage}</p>
 			) : null}
 			{failed.length === 0 ? null : (
 				<ul aria-label={title} className="mt-3 space-y-3">
@@ -199,7 +199,7 @@ function SessionChecks({
 			)}
 			{passed.length === 0 ? null : (
 				<details className="mt-3">
-					<summary className="cursor-pointer text-13 text-muted-foreground">
+					<summary className="cursor-pointer text-14 text-muted-foreground">
 						{title}: {passed.length} passed
 					</summary>
 					<ul
@@ -366,17 +366,17 @@ export function ScorecardEvidence({
 					}
 				/>
 				{record.diff === undefined ? null : (
-					<details className="rounded-lg border border-divider bg-card p-4 text-13">
+					<details className="rounded-lg border border-divider bg-card p-4 text-14">
 						<summary>Saved delivery diff</summary>
-						<pre className="mt-3 overflow-auto font-mono text-12 whitespace-pre-wrap wrap-break-word">
+						<pre className="mt-3 overflow-auto font-mono leading-transcript text-13 whitespace-pre-wrap wrap-break-word">
 							{record.diff}
 						</pre>
 					</details>
 				)}
 				{record.completionReply === undefined ? null : (
-					<details className="rounded-lg border border-divider bg-card p-4 text-13">
+					<details className="rounded-lg border border-divider bg-card p-4 text-14">
 						<summary>Saved completion reply</summary>
-						<pre className="mt-3 overflow-auto font-mono text-12 whitespace-pre-wrap wrap-break-word">
+						<pre className="mt-3 overflow-auto font-mono leading-transcript text-13 whitespace-pre-wrap wrap-break-word">
 							{record.completionReply}
 						</pre>
 					</details>
@@ -415,7 +415,7 @@ function ScorecardAssessment({
 			key={`${item.section}:${item.id}`}
 			className="border-t border-subtle pt-3"
 		>
-			<h3 className="text-13 font-medium">
+			<h3 className="text-14 font-medium">
 				{item.status} · {item.section} · {item.id}
 			</h3>
 			<Citations evidence={item.evidence} />
@@ -424,15 +424,15 @@ function ScorecardAssessment({
 
 	return (
 		<section className="min-w-0 rounded-lg border border-divider bg-card p-4">
-			<h2 className="text-14 font-medium">Step Judge assessment</h2>
-			<p className="mt-2 font-mono text-13">
+			<h2 className="text-16 font-semibold">Step Judge assessment</h2>
+			<p className="mt-2 font-mono text-14">
 				Grade {grade.grade} · {grade.verdict}
 			</p>
-			<p className="mt-2 text-13">
+			<p className="mt-2 text-14">
 				{grade.summary ?? "The saved grade has no written summary."}
 			</p>
 			{grade.detailed ? null : (
-				<p className="mt-3 text-13 text-dim">
+				<p className="mt-3 text-14 text-dim">
 					This older record retains a summary grade only; detailed criteria and
 					citations were not saved.
 				</p>
@@ -453,7 +453,7 @@ function ScorecardAssessment({
 						key={`dimension:${item.id}`}
 						className="border-t border-subtle pt-3"
 					>
-						<h3 className="text-13 font-medium">
+						<h3 className="text-14 font-medium">
 							{item.grade} · {item.id}
 						</h3>
 						<Citations evidence={item.evidence} />
@@ -462,7 +462,7 @@ function ScorecardAssessment({
 			</ul>
 			{clearBlockers.length === 0 ? null : (
 				<details className="mt-4">
-					<summary className="cursor-pointer text-13 text-muted-foreground">
+					<summary className="cursor-pointer text-14 text-muted-foreground">
 						{clearBlockers.length} clear{" "}
 						{clearBlockers.length === 1 ? "blocker" : "blockers"} &amp;
 						citations
@@ -484,19 +484,19 @@ export function AttemptEvidence({
 	const query = useQuery(attemptEvidenceQuery(id));
 	if (query.isPending) {
 		return (
-			<p className="text-13 text-dim">Reading saved output and assessment…</p>
+			<p className="text-14 text-dim">Reading saved output and assessment…</p>
 		);
 	}
 	if (query.isError || query.data === undefined) {
 		return (
-			<p className="text-13 text-dim">
+			<p className="text-14 text-attention">
 				Detailed output and assessment unavailable. This record may retain only
 				a summary; inspect the recorded outcome above.
 			</p>
 		);
 	}
 	if (query.data.state === "unavailable") {
-		return <p className="text-13 text-dim">{query.data.reason}</p>;
+		return <p className="text-14 text-attention">{query.data.reason}</p>;
 	}
 	return query.data.kind === "session" ? (
 		<SessionEvidence record={query.data.record} />

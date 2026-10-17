@@ -28,12 +28,12 @@ function SelectedCases({
 	return (
 		<>
 			{caseId === undefined ? null : (
-				<div className="flex flex-wrap items-center gap-3 text-13">
+				<div className="flex flex-wrap items-center gap-3 text-14">
 					<p role="status">{`Selected case: ${caseId}`}</p>
 					<Link
 						to="/cases"
 						search={{}}
-						className="text-accent-foreground underline decoration-deeper underline-offset-4 hover:text-pale"
+						className="text-link underline decoration-link/60 underline-offset-4 hover:text-link-hover"
 					>
 						All cases
 					</Link>
@@ -42,7 +42,7 @@ function SelectedCases({
 			{loaded && caseId !== undefined && visibleCases.length === 0 ? (
 				<p
 					role="alert"
-					className="text-13 text-muted-foreground"
+					className="text-14 text-attention"
 				>{`Case ${caseId} was not found among the readable declarations.`}</p>
 			) : null}
 			{visibleCases.map((listed) => (
@@ -96,7 +96,7 @@ export function CasesPage({
 					to="/cases"
 					search={{}}
 					aria-current={view === "cases" ? "page" : undefined}
-					className="border-b-2 border-transparent px-3 py-2.5 text-12 text-muted-foreground aria-current:border-primary aria-current:text-foreground hover:text-foreground"
+					className="border-b-2 border-transparent px-3 py-2.5 text-14 text-link no-underline current:border-primary current:bg-selected current:text-pale hover:text-link-hover"
 				>
 					Cases
 				</Link>
@@ -104,7 +104,7 @@ export function CasesPage({
 					to="/cases"
 					search={{ view: "workflows" }}
 					aria-current={view === "workflows" ? "page" : undefined}
-					className="border-b-2 border-transparent px-3 py-2.5 text-12 text-muted-foreground aria-current:border-primary aria-current:text-foreground hover:text-foreground"
+					className="border-b-2 border-transparent px-3 py-2.5 text-14 text-link no-underline current:border-primary current:bg-selected current:text-pale hover:text-link-hover"
 				>
 					Workflows
 				</Link>
@@ -121,7 +121,7 @@ export function CasesPage({
 					</p>
 
 					{declaredPath === undefined ? null : (
-						<p role="status" className="text-13 text-secondary-foreground">
+						<p role="status" className="text-14 text-secondary-foreground">
 							{`Declared ${declaredPath}. It is uncommitted: review and commit it to keep the case.`}
 						</p>
 					)}
@@ -130,7 +130,7 @@ export function CasesPage({
 						<p className="text-muted-foreground">Loading…</p>
 					) : null}
 					{query.isError ? (
-						<p role="alert" className="text-muted-foreground">
+						<p role="alert" className="text-attention">
 							<span aria-hidden="true">⚠ </span>
 							Could not load the cases.
 						</p>

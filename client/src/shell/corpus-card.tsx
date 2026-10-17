@@ -26,7 +26,7 @@ function DigestLine({
 }): React.JSX.Element {
 	if (digest === undefined) {
 		return (
-			<span className="font-mono text-sm text-pale">
+			<span className="font-mono text-14 text-attention">
 				<span aria-hidden="true">⚠ </span>
 				{`digest withheld · ${plural(refusals.length, "refusal")}`}
 			</span>
@@ -34,7 +34,7 @@ function DigestLine({
 	}
 
 	return (
-		<span className="font-mono text-sm text-pale">
+		<span className="font-mono text-14 text-pale">
 			{corpusVersionLabel(digest)}
 		</span>
 	);
@@ -56,14 +56,14 @@ export function CorpusCard(): React.JSX.Element {
 			</h2>
 
 			{query.isError ? (
-				<p className="mt-1 text-xs text-muted-foreground" role="alert">
+				<p className="mt-1 text-12 text-attention" role="alert">
 					<span aria-hidden="true">⚠ </span>
 					Could not read the corpus
 				</p>
 			) : null}
 
 			{query.data === undefined && !query.isError ? (
-				<p className="mt-1 text-xs text-muted-foreground">
+				<p className="mt-1 text-12 text-muted-foreground">
 					Reading the corpus…
 				</p>
 			) : null}
@@ -75,13 +75,13 @@ export function CorpusCard(): React.JSX.Element {
 							digest={query.data.digest}
 							refusals={query.data.refusals}
 						/>
-						<span className="font-mono text-xs text-muted-foreground">
+						<span className="font-mono text-12 text-muted-foreground">
 							{plural(query.data.files.length, "file")}
 						</span>
 					</p>
 
 					{edited === undefined ? null : (
-						<p className="mt-1 text-xs text-muted-foreground">
+						<p className="mt-1 text-12 text-muted-foreground">
 							{`last edit ${new Date(edited).toLocaleString()}`}
 						</p>
 					)}

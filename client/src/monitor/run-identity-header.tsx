@@ -35,7 +35,7 @@ export function HeaderControls({
 					Pause after this step
 				</Button>
 				<Button
-					variant="strong"
+					variant="destructive"
 					disabled={stop.isPending || stop.isSuccess}
 					onClick={() => {
 						stop.mutate(stopTargetOf(row.launchId, row.run));

@@ -311,7 +311,7 @@ function ReadingCell({
 }): React.JSX.Element | null {
 	const reading = readingOf(row);
 	return reading === undefined ? null : (
-		<span className="text-13">{reading.phrase}</span>
+		<span className="text-14">{reading.phrase}</span>
 	);
 }
 
@@ -331,7 +331,7 @@ function whatMovedRow(row: WhatMovedRow): readonly React.ReactNode[] {
 			<span className="text-12 text-muted-foreground">{kind}</span>
 		</span>,
 		...DESIGN_ARMS.map(({ arm }) => (
-			<span key={arm} className="text-13 font-medium tabular-nums">
+			<span key={arm} className="text-14 font-medium tabular-nums">
 				{armFigure(row, arm)}
 			</span>
 		)),

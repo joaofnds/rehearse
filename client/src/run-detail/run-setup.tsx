@@ -76,10 +76,10 @@ export function RunSetup({
 			<dl className="grid gap-x-6 gap-y-3 md:grid-cols-3 xl:grid-cols-4">
 				{entries.map(([term, value]) => (
 					<div key={term} className="min-w-0">
-						<dt className="text-10 tracking-label text-dim uppercase">
+						<dt className="text-12 tracking-label text-dim uppercase">
 							{term}
 						</dt>
-						<dd className="mt-1 font-mono text-11-5 wrap-anywhere text-secondary-foreground">
+						<dd className="mt-1 font-mono text-12 wrap-anywhere text-secondary-foreground">
 							{value}
 						</dd>
 					</div>

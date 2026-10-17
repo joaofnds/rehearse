@@ -158,7 +158,7 @@ function ArmCard({
 					{corpusVersionText(version)}
 				</span>
 			</div>
-			<div className="mt-1 text-12-5">{description}</div>
+			<div className="mt-1 text-12">{description}</div>
 			{measures.map(([name, figure]) => (
 				<MeasureReading
 					key={name}
@@ -177,7 +177,7 @@ function ArmCard({
 						to="/groups/$groupId"
 						params={{ groupId: group }}
 						search={{ view: "attempts", comparison: digest }}
-						className="text-13 text-accent-foreground underline decoration-deeper underline-offset-4 hover:text-pale"
+						className="text-14 text-link underline decoration-link/60 underline-offset-4 hover:text-link-hover"
 					>
 						{groups.length === 1 ? "Open group" : `Open group ${index + 1}`}
 					</Link>

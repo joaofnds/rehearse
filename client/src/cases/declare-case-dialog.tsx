@@ -231,7 +231,7 @@ async function postPipelineDeclaration(
 }
 
 const FIELD_CLASS =
-	"w-full min-w-0 rounded-md border border-strong bg-background px-2 py-1.5 font-mono text-13";
+	"w-full min-w-0 rounded-md border border-strong bg-background px-2 py-1.5 font-mono text-14";
 
 function Field({
 	label,
@@ -311,7 +311,7 @@ function KindChoice({
 				aria-label="Kind"
 				className="col-span-3 flex flex-col gap-1"
 			>
-				<span className="flex gap-4 text-13">
+				<span className="flex gap-4 text-14">
 					<label className="flex items-center gap-1.5">
 						<input
 							type="radio"
@@ -369,7 +369,7 @@ function CheckRow({
 	return (
 		<fieldset className="flex flex-col gap-1.5 rounded-md border border-strong px-3 py-2">
 			<legend className="px-1 text-12 text-muted-foreground">{name}</legend>
-			<label className="flex items-center gap-2 text-13">
+			<label className="flex items-center gap-2 text-14">
 				<span className="w-16 text-muted-foreground">kind</span>
 				<select
 					aria-label={`${name} kind`}
@@ -382,7 +382,7 @@ function CheckRow({
 							onChange({ kind, fields: {} });
 						}
 					}}
-					className="h-9 min-w-0 flex-1 rounded-md border border-strong bg-background px-2 font-mono text-13"
+					className="h-9 min-w-0 flex-1 rounded-md border border-strong bg-background px-2 font-mono text-14"
 				>
 					{CHECK_KINDS.map((kind) => (
 						<option key={kind} value={kind}>
@@ -398,7 +398,7 @@ function CheckRow({
 				};
 
 				return (
-					<label key={field} className="flex items-center gap-2 text-13">
+					<label key={field} className="flex items-center gap-2 text-14">
 						<span className="w-16 text-muted-foreground">{field}</span>
 						{MULTILINE_FIELDS.has(field) ? (
 							<textarea
@@ -438,7 +438,7 @@ function SessionFields({
 }): React.JSX.Element {
 	return (
 		<>
-			<dl className="grid grid-cols-4 items-center gap-x-3 gap-y-2 text-13">
+			<dl className="grid grid-cols-4 items-center gap-x-3 gap-y-2 text-14">
 				<Field
 					label="Prompt"
 					multiline
@@ -529,7 +529,7 @@ function PipelineFields({
 	const fromHintId = useId();
 
 	return (
-		<dl className="grid grid-cols-4 items-center gap-x-3 gap-y-2 text-13">
+		<dl className="grid grid-cols-4 items-center gap-x-3 gap-y-2 text-14">
 			<Field
 				label="Target repository"
 				hint="A git repository root on this machine, absolute or relative to the case directory. A run works on a copy of its main branch."
@@ -567,7 +567,7 @@ function PipelineFields({
 					onChange={(event) => {
 						edit({ from: event.target.value });
 					}}
-					className="h-9 min-w-0 rounded-md border border-strong bg-background px-2 font-mono text-13"
+					className="h-9 min-w-0 rounded-md border border-strong bg-background px-2 font-mono text-14"
 				>
 					{sources.map((source) => (
 						<option key={source} value={source}>
@@ -634,7 +634,7 @@ function DeclareForm({
 			</header>
 
 			<div className="flex min-h-0 flex-col gap-4 overflow-y-auto px-5 py-4">
-				<dl className="grid grid-cols-4 items-center gap-x-3 gap-y-2 text-13">
+				<dl className="grid grid-cols-4 items-center gap-x-3 gap-y-2 text-14">
 					<Field
 						label="Id"
 						value={draft.id}
@@ -676,7 +676,7 @@ function DeclareForm({
 				</DialogDescription>
 
 				{declare.isError ? (
-					<p role="alert" className="text-13 text-secondary-foreground">
+					<p role="alert" className="text-14 text-attention">
 						<span aria-hidden="true">⚠ </span>
 						{declare.error.message}
 					</p>
@@ -690,7 +690,7 @@ function DeclareForm({
 							Cancel
 						</Button>
 					</DialogClose>
-					<Button type="submit" disabled={declare.isPending}>
+					<Button variant="primary" type="submit" disabled={declare.isPending}>
 						Declare
 					</Button>
 				</span>

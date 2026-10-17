@@ -23,7 +23,7 @@ function VersionLabel({
 	const corpus = useQuery(corpusQuery);
 	if (corpus.isError) {
 		return (
-			<span className="text-pale">
+			<span className="text-attention">
 				<span aria-hidden="true">⚠ </span>
 				corpus unreadable
 			</span>
@@ -35,7 +35,11 @@ function VersionLabel({
 	}
 
 	return (
-		<span className="text-pale">
+		<span
+			className={
+				corpus.data.digest === undefined ? "text-attention" : "text-pale"
+			}
+		>
 			{corpus.data.digest === undefined ? (
 				<>
 					<span aria-hidden="true">⚠ </span>
@@ -101,7 +105,7 @@ export function CorpusSettingsCard(): React.JSX.Element {
 	return (
 		<SettingsCard title="Corpus">
 			{settings.isError ? (
-				<p role="alert" className="mt-2 text-12 text-secondary-foreground">
+				<p role="alert" className="mt-2 text-12 text-attention">
 					<span aria-hidden="true">⚠ </span>
 					{`Could not read which corpus is linked: ${settings.error.message}`}
 				</p>
@@ -152,7 +156,7 @@ export function CorpusSettingsCard(): React.JSX.Element {
 					onChange={(event) => {
 						setDirectory(event.target.value);
 					}}
-					className="h-8 min-w-0 flex-1 rounded-md border border-strong bg-background px-2 font-mono text-12"
+					className="h-8 min-w-0 flex-1 rounded-md border border-strong bg-background px-2 font-mono text-14"
 				/>
 				<Button
 					type="submit"
@@ -169,7 +173,7 @@ export function CorpusSettingsCard(): React.JSX.Element {
 				</p>
 			) : null}
 			{outcome.kind === "refused" ? (
-				<p role="alert" className="mt-1.5 text-12 text-secondary-foreground">
+				<p role="alert" className="mt-1.5 text-12 text-attention">
 					<span aria-hidden="true">⚠ </span>
 					{outcome.reason}
 				</p>

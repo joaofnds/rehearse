@@ -208,7 +208,7 @@ function LiveToolCall({
 	}
 
 	return (
-		<span className="block truncate rounded-tight border border-accent-line bg-raised px-2.25 py-1.25 font-mono text-10-5 text-pale">
+		<span className="block truncate rounded-tight border border-accent-line bg-raised px-2.25 py-1.25 font-mono text-12 text-pale">
 			{data.latestToolCall}
 		</span>
 	);
@@ -220,7 +220,7 @@ function StatusLine({
 	readonly status: NodeStatus;
 }): React.JSX.Element {
 	return (
-		<span className="flex items-center gap-1.75 text-11-5 text-secondary-foreground">
+		<span className="flex items-center gap-1.75 text-12 text-secondary-foreground">
 			{status.state === "running" ? (
 				<LiveGlyph tone="surrounding" />
 			) : (
@@ -246,7 +246,7 @@ function CheckpointLine({
 }): React.JSX.Element {
 	if (stage.checkpoint === "missing") {
 		return (
-			<span className="flex items-center gap-1.75 border-t border-dashed border-strong pt-1.75 font-mono text-10-5 text-dim">
+			<span className="flex items-center gap-1.75 border-t border-dashed border-strong pt-1.75 font-mono text-12 text-dim">
 				<span aria-hidden="true">◇</span>
 				{ended ? "no checkpoint recorded" : "no checkpoint yet"}
 			</span>
@@ -254,7 +254,7 @@ function CheckpointLine({
 	}
 
 	return (
-		<span className="flex items-center gap-1.75 border-t border-dashed border-strong pt-1.75 font-mono text-10-5 text-secondary-foreground">
+		<span className="flex items-center gap-1.75 border-t border-dashed border-strong pt-1.75 font-mono text-12 text-secondary-foreground">
 			<span aria-hidden="true">◆</span>
 			{stage.checkpointShortId.state === "available"
 				? withinCase(stage.checkpointShortId.shortId, caseId)
@@ -349,10 +349,10 @@ function StageNode({
 				className={`flex w-67.5 flex-col gap-1.5 rounded-lg border px-3 py-2.5 text-left ${nodeBorder(selected, status)}`}
 			>
 				<span className="flex items-center gap-2.5">
-					<span aria-hidden="true" className="font-mono text-10-5 text-dim">
+					<span aria-hidden="true" className="font-mono text-12 text-dim">
 						{String(number).padStart(2, "0")}
 					</span>
-					<span className="flex-1 text-13 text-foreground">{stage.stage}</span>
+					<span className="flex-1 text-14 text-foreground">{stage.stage}</span>
 					<Grade
 						size="node"
 						value={
@@ -368,7 +368,7 @@ function StageNode({
 				) : null}
 				{detailsShown ? (
 					<>
-						<span className="grid grid-cols-2 gap-x-3 gap-y-1 font-mono text-10-5 text-muted-foreground">
+						<span className="grid grid-cols-2 gap-x-3 gap-y-1 font-mono text-12 text-muted-foreground">
 							<span>{costReading(stage, row)}</span>
 							<span>{durationReading(stage, row, nowMs)}</span>
 							<span>{blockersReading(stage.blockers)}</span>
@@ -391,7 +391,7 @@ function StageNode({
 							caseId={record.caseId}
 							ended={hasRunEnded(row)}
 						/>
-						<span className="text-11 text-muted-foreground">
+						<span className="text-12 text-muted-foreground">
 							{outputReading(stage, row, contribution)}
 						</span>
 					</>
@@ -403,7 +403,7 @@ function StageNode({
 					className={`flex items-center gap-1 px-2.5 ${status.state === "accepted" ? "text-deeper" : "text-strong"}`}
 				>
 					<span className="block h-px w-7.5 bg-current" />
-					<span className="text-10">▶</span>
+					<span className="text-12">▶</span>
 				</span>
 			)}
 		</li>
@@ -469,11 +469,11 @@ export function TaskGraph({
 			className="flex-none border-b border-divider bg-secondary"
 		>
 			<div className="flex flex-wrap items-center gap-x-3.75 gap-y-1 px-6 pt-2.5">
-				<h2 className="text-10 font-medium tracking-label text-dim uppercase">
+				<h2 className="text-16 font-semibold tracking-label text-dim uppercase">
 					Workflow · {record.caseId} · {String(record.stages.length)} steps, in
 					order
 				</h2>
-				<span className="text-11 text-muted-foreground">
+				<span className="text-12 text-muted-foreground">
 					select a step to explore its results, activity and context
 				</span>
 				{compact ? (
@@ -491,7 +491,7 @@ export function TaskGraph({
 					</div>
 				) : null}
 				{detailsShown ? (
-					<span aria-hidden="true" className="ml-auto text-10-5 text-dim">
+					<span aria-hidden="true" className="ml-auto text-12 text-dim">
 						✓ continued at minimum · ● running · ○ queued · ◆ checkpoint · ◇ no
 						checkpoint
 					</span>
@@ -517,7 +517,7 @@ export function TaskGraph({
 				</ol>
 			</div>
 			{detailsShown ? (
-				<p className="px-6 pb-2.5 text-11 text-pretty text-dim">
+				<p className="px-6 pb-2.5 text-12 text-pretty text-dim">
 					<MinimumGradeNote record={record} />A step shows what its record says
 					it produced until an analysis of the ended run gives one agent's
 					reading of its contribution to the task's final grade.

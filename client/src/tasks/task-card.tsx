@@ -89,7 +89,7 @@ export function TaskCard({
 			className="rounded-lg border border-divider bg-card px-4 py-3.5"
 		>
 			<div className="flex flex-wrap items-center gap-3">
-				<h2 id={headingId} className="text-15 font-medium">
+				<h2 id={headingId} className="text-16 font-semibold">
 					{task.declaredBy?.title ?? `${task.stages.join(" → ")} workflow`}
 				</h2>
 				<span className="text-12 text-muted-foreground">{targetOf(task)}</span>

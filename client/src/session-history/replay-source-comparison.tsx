@@ -87,7 +87,7 @@ function SourceComparisonContent({
 			: "Grade unavailable";
 	return (
 		<div className="min-h-0 overflow-y-auto px-4 pb-4">
-			<p className="mb-4 text-13 text-dim">
+			<p className="mb-4 text-14 text-dim">
 				One original execution and one replay from its checkpoint. This
 				exploratory comparison has no control or repeated sample; it cannot
 				attribute a difference to the corpus or establish equivalent quality.
@@ -99,7 +99,7 @@ function SourceComparisonContent({
 					<h3 className="text-14 font-medium">
 						Source {sourceId} · {caseName(row)} · {row.stage}
 					</h3>
-					<p className="text-13">
+					<p className="text-14">
 						{source.isPending
 							? "Reading saved source measurements…"
 							: `${sourceGrade} · ${sourceSpend(sourceStage)} · ${corpusMeasurementReading(sourceStage?.corpusVersion)}`}
@@ -119,14 +119,14 @@ function SourceComparisonContent({
 						to="/runs/$run"
 						params={{ run: sourceRun }}
 						search={{ view: "results", step: row.stage }}
-						className="text-13 text-accent-foreground underline"
+						className="text-14 text-link underline"
 					>
 						Source step
 					</Link>
 				</div>
 				<div className="flex min-w-0 flex-col gap-3">
 					<h3 className="text-14 font-medium">Replay {replayIdentity(row)}</h3>
-					<p className="text-13">
+					<p className="text-14">
 						Grade {row.grade} · {replaySpend(row)} ·{" "}
 						{corpusMeasurementReading(row.corpusVersion)}
 					</p>

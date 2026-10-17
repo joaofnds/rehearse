@@ -16,13 +16,13 @@ export function Switcher<Option extends string>({
 		<div
 			role="group"
 			aria-label={label}
-			className="inline-flex overflow-hidden rounded-md border border-strong"
+			className="inline-flex flex-wrap rounded-md border border-strong"
 		>
 			{options.map((option) => (
 				<button
 					key={option}
 					type="button"
-					className="border-r border-strong px-3 py-1.5 text-12 text-secondary-foreground transition-colors last:border-r-0 hover:bg-row-hover aria-pressed:bg-selected aria-pressed:text-foreground"
+					className="border-r border-strong px-3 py-1.5 text-14 text-secondary-foreground transition-colors first:rounded-l-md last:rounded-r-md last:border-r-0 hover:bg-row-hover aria-pressed:bg-selected aria-pressed:text-pale"
 					aria-pressed={option === selected}
 					onClick={() => {
 						onSelect(option);

@@ -111,12 +111,14 @@ hover surface shadcn expects while `--color-accent` is the brand purple, and
 Write `bg-primary` for the brand, and read `theme.css` before trusting a Tailwind
 name to match the token it echoes.
 
-`theme.css` also names the handoff's palette roles that shadcn's names lack, such as
-`text-dim`, `text-pale`, and `border-divider`. `globals.css` sets `html` to the
-handoff's 13px base, so `text-base` is 13px and a spacing step is 3.25px. Write type
-with the handoff's own steps, such as `text-11-5`, because Tailwind's `text-xs`
-renders 9.75px, below the handoff's 10px floor. Spacing comes from Tailwind's scale.
-`tokens.css` keeps the handoff's whole colour palette and its type scale. Outside
+`theme.css` names the product's semantic roles, including `text-link`, `text-info`,
+`text-dim`, `text-pale`, and `border-divider`. `globals.css` keeps the HTML root at
+13px, so a spacing step remains 3.25px, while the body reads at 14px. Use explicit
+roles: `text-14` for reading, controls and links, `text-12` as the metadata floor,
+and `text-13` for raw code. Relative `text-xs` and `text-sm` resolve below those
+sizes. The [client design system](client/src/system/README.md) owns the current
+palette, typography and component roles; the archived handoff is historical.
+Spacing comes from Tailwind's scale. `tokens.css` keeps the palette and type scale. Outside
 those, add a token only for a value a utility or a base style reads, such as the
 bar's spend track size.
 
@@ -137,8 +139,9 @@ the component computes. Deleting
 property names typecheck.
 
 Regenerating a primitive brings back the arbitrary values the linter rejects. The
-button's focus ring arrives as `ring-[3px]` and is written `ring-3` here, and its
-variants carry the handoff's button chrome in place of shadcn's filled defaults.
+button's generated focus ring is replaced here with an opaque 2px outline and
+3px offset, and its variants distinguish filled primary actions, neutral secondary actions, and
+rose destructive actions.
 Re-apply that kind of edit after every regeneration.
 
 Keep to the one icon set `components.json` names.

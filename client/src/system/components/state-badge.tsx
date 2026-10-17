@@ -3,9 +3,9 @@ import { cn } from "#client/system/cn";
 
 const TONES = {
 	neutral: "border-strong bg-muted text-secondary-foreground",
-	positive: "border-positive/40 bg-positive-surface text-positive",
-	negative: "border-negative/40 bg-negative-surface text-negative",
-	attention: "border-attention/40 bg-attention-surface text-attention",
+	positive: "border-positive bg-positive-surface text-positive",
+	negative: "border-negative bg-negative-surface text-negative",
+	attention: "border-attention bg-attention-surface text-attention",
 } as const;
 
 export function StateBadge({

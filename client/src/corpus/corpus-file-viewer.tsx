@@ -56,12 +56,12 @@ export function CorpusFileViewer({
 				<p className="text-12 text-muted-foreground">{`Linked lines ${lines.start}–${lines.end}. The text below is from the current linked corpus.`}</p>
 			)}
 			{file.isPending ? (
-				<p className="text-13 text-muted-foreground">Reading instruction…</p>
+				<p className="text-14 text-muted-foreground">Reading instruction…</p>
 			) : null}
 			{file.isError ? (
 				<p
 					role="alert"
-					className="text-13 text-negative"
+					className="text-14 text-attention"
 				>{`Could not read ${path}: ${file.error.message}`}</p>
 			) : null}
 			{file.isSuccess ? <RecordedText text={file.data.text} /> : null}

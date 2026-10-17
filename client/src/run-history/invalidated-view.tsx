@@ -46,7 +46,7 @@ export function InvalidatedNotice({
 					<Link
 						to="/"
 						search={{ invalidatedBy: invalidatedByValue(selection.last) }}
-						className="text-accent-foreground underline decoration-deeper underline-offset-4 hover:text-pale"
+						className="text-link underline decoration-link/60 underline-offset-4 hover:text-link-hover"
 					>
 						review the last edit's results
 					</Link>

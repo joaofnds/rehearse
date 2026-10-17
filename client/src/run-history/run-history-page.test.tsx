@@ -1413,7 +1413,7 @@ describe(RunHistoryPage.name, () => {
 				const refusal = await screen.findByRole("alert");
 
 				expect(refusal).toHaveTextContent(/^⚠/u);
-				expect(refusal).toHaveClass("text-11-5");
+				expect(refusal).toHaveClass("text-12");
 			});
 
 			describe("when the browser did not launch it", () => {

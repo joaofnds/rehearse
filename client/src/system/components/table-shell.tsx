@@ -29,7 +29,7 @@ export function TableShell({
 			<caption className="pb-2 text-left">
 				<SectionLabel>{caption}</SectionLabel>
 			</caption>
-			<thead className="sticky top-0 bg-background">
+			<thead className="sticky top-0 bg-raised">
 				<tr>
 					{columns.map((column) => (
 						<th

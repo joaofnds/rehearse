@@ -1,8 +1,9 @@
 # Color and readability study
 
-A draft visual direction for Rehearse. The examples are synthetic and send no
-product API or provider requests. Production and the existing prototypes keep
-their current appearance.
+The visual direction approved for Rehearse on 2026-10-17, preserved as a synthetic
+reference. The examples send no product API or provider requests. Production uses
+these palette and typography roles; the other prototypes retain their own styles.
+The [client design system](../../client/src/system/README.md) owns current usage.
 
 From the repository root:
 
@@ -17,8 +18,8 @@ system fonts as fallbacks. Their SIL Open Font Licenses are in
 
 Compare **Current tokens** and **Proposed**, then select Runs, Results,
 Context & cost, Comparison, or Palette & controls. Both modes use the study's
-layout; the current-token mode illustrates existing colors, small type and
-outline actions, rather than reproducing a production screenshot. Palette swatches
+layout; **Current tokens** shows the historical palette, small type and outline
+actions captured before approval, rather than reproducing a production screenshot. Palette swatches
 always document the proposed values.
 
 Runs filters the sample rows. Links move between appearance samples. Action

@@ -29,7 +29,7 @@ function reading(lastEdit: LastEdit): React.JSX.Element {
 			<Link
 				to="/"
 				search={{ invalidatedBy: invalidatedByValue(lastEdit) }}
-				className="text-accent-foreground underline decoration-deeper underline-offset-4 hover:text-pale"
+				className="text-link underline decoration-link/60 underline-offset-4 hover:text-link-hover"
 			>
 				review them
 			</Link>
@@ -51,7 +51,7 @@ export function LastEditCard({
 			<h2 id="last-edit-heading">
 				<SectionLabel>Invalidated by the last edit</SectionLabel>
 			</h2>
-			<p className="mt-1 text-13">{reading(lastEdit)}</p>
+			<p className="mt-1 text-14">{reading(lastEdit)}</p>
 			<p className="mt-1 max-w-80 text-12 text-muted-foreground">
 				Only results that were fresh before this edit and are stale now.
 				Per-file counts below use a different basis.

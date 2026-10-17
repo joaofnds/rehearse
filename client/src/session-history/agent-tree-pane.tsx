@@ -170,7 +170,7 @@ function Reading({
 			<dt id={id}>
 				<span className="text-12 text-muted-foreground">{term}</span>
 			</dt>
-			<dd aria-labelledby={id} className="text-13 text-secondary-foreground">
+			<dd aria-labelledby={id} className="text-14 text-secondary-foreground">
 				{children}
 			</dd>
 		</div>
@@ -374,7 +374,7 @@ function ExcerptButton({
 		<button
 			type="button"
 			aria-label={`Open excerpt of ${agentName(agentId)}'s delivery ${ordinal} · event ${eventId}`}
-			className="self-start text-12 text-accent-foreground underline hover:text-foreground"
+			className="self-start text-14 text-link underline hover:text-foreground"
 			onClick={onOpen}
 		>
 			Open excerpt
@@ -520,7 +520,7 @@ function TreeButton({
 			aria-pressed={pressed}
 			className={cn(
 				selectableRow({ markedBy: "pressed" }),
-				"font-mono text-12",
+				"font-mono text-14",
 			)}
 			onClick={onSelect}
 		>
@@ -833,7 +833,7 @@ export function AgentTreePane({
 				<p
 					role="status"
 					aria-label="Agent coverage"
-					className="text-13 text-secondary-foreground"
+					className={`text-14 ${tree.coverage.state === "complete" ? "text-secondary-foreground" : "text-attention"}`}
 				>
 					{tree.coverage.state === "complete"
 						? "Complete coverage · all agent transcripts saved"
@@ -842,7 +842,7 @@ export function AgentTreePane({
 				<div
 					role="status"
 					aria-label="Calculated attempt total"
-					className="text-13 text-secondary-foreground"
+					className="text-14 text-secondary-foreground"
 				>
 					Calculated attempt total, each request once:{" "}
 					{cost.state === "available" ? (

@@ -23,6 +23,10 @@ Open the prototype from a local checkout to inspect the intended appearance.
 reference infrastructure, not application code, and must not be imported into
 the client.
 
+The approved [color and readability study](../../prototypes/color-study/README.md)
+extends the original palette with separate action, link and evidence roles and a
+larger reading scale. The client design system describes its production use.
+
 Read the specification as the original visual reference and the [architecture](../design.md)
 for implementation boundaries. Implement screens with the existing components
 and tokens under `client/src/system/`. The [client design system](../../client/src/system/README.md) documents the implemented component contracts, semantic colors, measurement rules and safe saved-text reader. Prototype version labels, example grades,

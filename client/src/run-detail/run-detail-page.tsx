@@ -210,19 +210,19 @@ function RunDetailHeader({
 				</Link>
 			</Button>
 			<div>
-				<h1 className="flex items-center gap-2.75 text-16">
+				<h1 className="flex items-center gap-2.75 text-24 leading-heading">
 					<span className="font-mono">
 						{withinCase(row.shortId ?? row.run, row.caseId)}
 					</span>
 					<Link
 						to="/cases"
 						search={{ caseId: record.caseId }}
-						className="text-12-5 text-muted-foreground hover:text-pale"
+						className="text-14 text-link hover:text-link-hover"
 					>
 						{record.caseId}
 					</Link>
 				</h1>
-				<p className="mt-1 flex flex-wrap items-center gap-2.5 text-11-5 text-dim">
+				<p className="mt-1 flex flex-wrap items-center gap-2.5 text-12 text-dim">
 					<span aria-hidden="true">
 						{STATUS_VOCABULARY[runStatusState(row.status)].glyph}
 					</span>
@@ -231,7 +231,7 @@ function RunDetailHeader({
 					<span className="font-mono">{metaLine(row, record)}</span>
 				</p>
 				{row.progress.state === "running" ? null : (
-					<p className="mt-1 text-11-5 text-muted-foreground">
+					<p className="mt-1 text-12 text-muted-foreground">
 						Execution ended · Final result:{" "}
 						{record.finalOutcome.status === "JUDGED"
 							? record.finalOutcome.verdict
@@ -244,7 +244,7 @@ function RunDetailHeader({
 				{corpusVersion?.kind === "version" ? (
 					<CorpusPill hash={corpusVersion.digest} />
 				) : (
-					<span className="text-11-5 text-muted-foreground">
+					<span className="text-12 text-muted-foreground">
 						{corpusMeasurementReading(corpusVersion)}
 					</span>
 				)}
@@ -317,7 +317,7 @@ export function RunDetailPage({
 		});
 	});
 	const unreadable = (
-		<p role="alert" className="px-6 py-4 text-muted-foreground">
+		<p role="alert" className="px-6 py-4 text-attention">
 			<span aria-hidden="true">⚠ </span>
 			Could not read run {run}.
 		</p>
@@ -443,7 +443,7 @@ function RunWorkspace({
 					progress={row.progress}
 				/>
 			) : null}
-			<div className="flex flex-none items-center gap-3 border-b border-divider px-6 py-2.5">
+			<div className="flex flex-none flex-wrap items-center gap-3 border-b border-divider px-6 py-2.5">
 				<Switcher
 					label="Run views"
 					options={RUN_WORKSPACE_VIEWS}
@@ -453,7 +453,7 @@ function RunWorkspace({
 					}}
 					optionLabel={(option) => VIEW_LABELS[option]}
 				/>
-				<span className="ml-auto font-mono text-11 text-dim">
+				<span className="ml-auto font-mono text-12 text-dim">
 					{selected?.stage}
 				</span>
 			</div>
@@ -493,7 +493,7 @@ function RunWorkspace({
 						initialEventId={search.event}
 					/>
 					<details className="mx-6 mb-5 rounded-lg border border-border">
-						<summary className="cursor-pointer px-4 py-3 text-12">
+						<summary className="cursor-pointer px-4 py-3 text-14">
 							Run setup &amp; provenance
 						</summary>
 						<RunSetup row={row} record={record} selected={selected} />
@@ -592,7 +592,7 @@ function SelectedStepActions({
 
 	return (
 		<div className="flex flex-none flex-wrap items-center gap-2 border-b border-divider px-6 py-2">
-			<span className="mr-auto text-11-5 text-muted-foreground">
+			<span className="mr-auto text-12 text-muted-foreground">
 				Selected step ·{" "}
 				<span className="font-medium text-foreground">{selected.stage}</span>
 			</span>
@@ -695,7 +695,7 @@ function RunResults({
 								<Link
 									to="/calibration/runs/$run/stages/$stage"
 									params={{ run: row.run, stage: selected.stage }}
-									className="text-12 text-pale underline underline-offset-4"
+									className="text-14 text-link underline underline-offset-4"
 								>
 									Review this Judge
 								</Link>
@@ -705,13 +705,13 @@ function RunResults({
 				</div>
 			)}
 			<details className="rounded-lg border border-border">
-				<summary className="cursor-pointer px-4 py-3 text-12">
+				<summary className="cursor-pointer px-4 py-3 text-14">
 					Human review · {humanReviewReading(row, record)}
 				</summary>
 				<HumanReview record={record} />
 			</details>
 			<details className="rounded-lg border border-border">
-				<summary className="cursor-pointer px-4 py-3 text-12">
+				<summary className="cursor-pointer px-4 py-3 text-14">
 					Root-cause analysis · agent opinion
 				</summary>
 				<RootCauseAnalysisSection
@@ -732,7 +732,7 @@ function RunResults({
 			/>
 			{selected === undefined ? null : (
 				<details className="rounded-lg border border-border">
-					<summary className="cursor-pointer px-4 py-3 text-12 text-muted-foreground">
+					<summary className="cursor-pointer px-4 py-3 text-14 text-muted-foreground">
 						Run setup & provenance
 					</summary>
 					<RunSetup row={row} record={record} selected={selected} />
@@ -765,7 +765,7 @@ function ResultNextAction({
 	let primary: React.ReactNode;
 	if (row.progress.state === "running") {
 		primary = (
-			<Button asChild>
+			<Button variant="primary" asChild>
 				<Link
 					to="/runs/$run"
 					params={{ run: row.run }}
@@ -777,7 +777,7 @@ function ResultNextAction({
 		);
 	} else if (selected.status === "no-record" && endedAt !== undefined) {
 		primary = (
-			<Button asChild>
+			<Button variant="primary" asChild>
 				<Link
 					to="/runs/$run"
 					params={{ run: row.run }}
@@ -789,7 +789,7 @@ function ResultNextAction({
 		);
 	} else if (failedFinal && finalCitations) {
 		primary = (
-			<Button asChild>
+			<Button variant="primary" asChild>
 				<a href="#final-criteria" onClick={onInspectFinal}>
 					Inspect final evidence
 				</a>
@@ -797,13 +797,13 @@ function ResultNextAction({
 		);
 	} else if (failedFinal) {
 		primary = (
-			<Button asChild>
+			<Button variant="primary" asChild>
 				<a href="#task-grade-label">Review final outcome</a>
 			</Button>
 		);
 	} else if (replayable && skill !== undefined) {
 		primary = (
-			<Button asChild>
+			<Button variant="primary" asChild>
 				<Link
 					to="/corpus"
 					search={{
@@ -818,7 +818,7 @@ function ResultNextAction({
 		);
 	} else {
 		primary = (
-			<Button asChild>
+			<Button variant="primary" asChild>
 				<Link
 					to="/runs/$run"
 					params={{ run: row.run }}
@@ -834,7 +834,7 @@ function ResultNextAction({
 			aria-label="Next action"
 			className="flex flex-col items-start gap-3 rounded-lg border border-border bg-card p-4"
 		>
-			<h2 className="text-14 font-medium">Next action</h2>
+			<h2 className="text-16 font-semibold">Next action</h2>
 			{primary}
 			{replayable && skill !== undefined && failedFinal ? (
 				<Link
@@ -844,7 +844,7 @@ function ResultNextAction({
 						sourceRun: row.run,
 						sourceStep: selected.stage,
 					}}
-					className="text-12 text-pale underline"
+					className="text-14 text-link underline"
 				>
 					Edit instruction &amp; replay
 				</Link>
@@ -881,7 +881,7 @@ function WorkflowRecord({
 			}}
 			className="rounded-lg border border-border"
 		>
-			<summary className="cursor-pointer px-4 py-3 text-12 text-muted-foreground">
+			<summary className="cursor-pointer px-4 py-3 text-14 text-muted-foreground">
 				Whole workflow record &amp; analysis map
 			</summary>
 			{expanded ? (
@@ -910,22 +910,22 @@ function HumanReview({
 			aria-label="Human review"
 			className="rounded-lg border border-border p-4"
 		>
-			<h2 className="text-12 font-medium">Human review</h2>
+			<h2 className="text-16 font-semibold">Human review</h2>
 			{reading?.state === "available" ? (
 				<>
-					<p className="mt-2 font-mono text-13">{reading.review.verdict}</p>
-					<p className="mt-1 whitespace-pre-wrap text-12 text-secondary-foreground">
+					<p className="mt-2 font-mono text-14">{reading.review.verdict}</p>
+					<p className="mt-1 whitespace-pre-wrap text-14 leading-reading text-secondary-foreground">
 						{reading.review.summary}
 					</p>
-					<ul className="mt-3 flex flex-col gap-3 text-12">
+					<ul className="mt-3 flex flex-col gap-3 text-14 leading-reading">
 						{reading.review.findings.map((finding, index) => (
 							<li key={index}>
 								<p>{finding.description}</p>
-								<p className="mt-1 text-11-5 text-dim">
+								<p className="mt-1 text-12 text-dim">
 									{finding.stage} · {finding.judgeAssessment}
 									{finding.rubricId === null ? "" : ` · ${finding.rubricId}`}
 								</p>
-								<p className="font-mono text-11-5 wrap-anywhere text-muted-foreground">
+								<p className="font-mono text-12 wrap-anywhere text-muted-foreground">
 									{finding.paths.join(", ")}
 								</p>
 							</li>
@@ -933,7 +933,7 @@ function HumanReview({
 					</ul>
 				</>
 			) : (
-				<p className="mt-2 text-12 text-muted-foreground">
+				<p className="mt-2 text-14 text-attention">
 					{reading?.reasons.join("; ") ??
 						"Human review is unavailable in this record"}
 				</p>

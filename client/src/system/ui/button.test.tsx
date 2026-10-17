@@ -83,8 +83,8 @@ describe(Button.name, () => {
 	});
 
 	it.each([
-		["xs", "text-10-5"],
-		["compact", "text-11-5"],
+		["xs", "text-14"],
+		["compact", "text-14"],
 	] as const)(
 		"keeps the variant's text colour beside the %s size's type step",
 		(size, typeStep) => {

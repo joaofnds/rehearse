@@ -12,7 +12,7 @@ function TokenReading({
 }): React.JSX.Element {
 	if (reading.state === "unavailable") {
 		return (
-			<p className="text-11-5 text-dim">
+			<p className="text-12 text-attention">
 				{label}: not recorded · {reading.reasons.join("; ")}
 			</p>
 		);
@@ -32,13 +32,13 @@ function TokenReading({
 			<dl className="mt-2 flex flex-wrap gap-x-6 gap-y-2">
 				{values.map(([term, value]) => (
 					<div key={term}>
-						<dt className="text-11 text-dim">{term}</dt>
+						<dt className="text-12 text-dim">{term}</dt>
 						<dd className="font-mono text-12">{value.toLocaleString()}</dd>
 					</div>
 				))}
 			</dl>
 			{reading.missing.map(({ part, reason }) => (
-				<p key={part} className="mt-1 text-11 text-dim">
+				<p key={part} className="mt-1 text-12 text-attention">
 					Missing {part}: {reason}
 				</p>
 			))}
@@ -61,21 +61,21 @@ export function ResourceReadings({
 			<section aria-label="Run cost breakdown">
 				<h3 className="text-12 font-medium">Run cost breakdown</h3>
 				{cost.state === "unavailable" ? (
-					<p className="text-11-5 text-dim">
+					<p className="text-12 text-attention">
 						Not recorded · {cost.reasons.join("; ")}
 					</p>
 				) : (
 					<>
 						<ul className="mt-2 flex flex-wrap gap-x-6 gap-y-1">
 							{cost.parts.map(({ part, usd }) => (
-								<li key={part} className="text-11-5">
+								<li key={part} className="text-12">
 									<span className="text-dim">{part}</span>{" "}
 									<span className="font-mono">{spendReading(usd)}</span>
 								</li>
 							))}
 						</ul>
 						{cost.missing.map(({ part, reason }) => (
-							<p key={part} className="mt-1 text-11-5 text-dim">
+							<p key={part} className="mt-1 text-12 text-attention">
 								Missing {part}: {reason}
 							</p>
 						))}

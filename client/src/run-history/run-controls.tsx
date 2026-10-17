@@ -91,19 +91,19 @@ export function ControlRequests({
 	return (
 		<>
 			{pauseRequested ? (
-				<span className="text-11-5 text-dim">
+				<span className="text-12 text-dim">
 					<span aria-hidden="true">{STATUS_VOCABULARY.paused.glyph} </span>
 					pause requested · ends after this step is judged
 				</span>
 			) : null}
 			{stopRequested ? (
-				<span className="text-11-5 text-dim">
+				<span className="text-12 text-dim">
 					<span aria-hidden="true">{STATUS_VOCABULARY.stopped.glyph} </span>
 					stop requested
 				</span>
 			) : null}
 			{refusal === undefined ? null : (
-				<p role="alert" className="text-11-5 text-secondary-foreground">
+				<p role="alert" className="text-12 text-attention">
 					<span aria-hidden="true">⚠ </span>
 					{refusal}
 				</p>
@@ -155,6 +155,7 @@ export function RunControls({
 				)}
 				{target === undefined ? null : (
 					<Button
+						variant="destructive"
 						disabled={stop.isPending || stop.isSuccess}
 						onClick={() => {
 							stop.mutate(target);

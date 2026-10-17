@@ -140,7 +140,7 @@ function InputRead({
 					<a
 						key={label}
 						href={`#review-${label.toLowerCase()}`}
-						className="rounded-md px-3 py-2 text-12 text-accent-foreground hover:bg-row-hover focus-visible:ring-2 focus-visible:ring-ring"
+						className="rounded-md px-3 py-2 text-14 text-link hover:bg-row-hover focus-visible:ring-2 focus-visible:ring-ring"
 					>
 						{label}
 					</a>
@@ -158,7 +158,7 @@ function InputRead({
 					>
 						<h3 className="mb-3 text-15 font-medium">{label}</h3>
 						{fields.length === 0 ? (
-							<p className="text-13 text-muted-foreground">
+							<p className="text-14 text-muted-foreground">
 								Not recorded in this saved Judge input.
 							</p>
 						) : (
@@ -170,7 +170,7 @@ function InputRead({
 											{label === "Task" || label === "Instructions" ? (
 												<RecordedText text={text} />
 											) : (
-												<pre className="font-mono text-13 whitespace-pre-wrap wrap-anywhere">
+												<pre className="font-mono leading-transcript text-13 whitespace-pre-wrap wrap-anywhere">
 													{text}
 												</pre>
 											)}
@@ -218,7 +218,7 @@ function Choices<Value extends string>({
 				{values.map((value) => (
 					<label
 						key={value}
-						className="inline-flex min-h-11 items-center gap-1.5 font-mono text-12"
+						className="inline-flex min-h-touch-target items-center gap-1.5 font-mono text-14"
 					>
 						<input
 							type="radio"
@@ -331,10 +331,10 @@ function GradeForm({
 				onChange={(event) => {
 					setDraft({ ...draft, note: event.target.value });
 				}}
-				className="min-h-20 rounded-lg border border-strong bg-raised px-3 py-2 text-12"
+				className="min-h-20 rounded-lg border border-strong bg-raised px-3 py-2 text-14"
 			/>
 			{record.isError ? (
-				<p role="alert" className="text-13 text-secondary-foreground">
+				<p role="alert" className="text-14 text-attention">
 					<span aria-hidden="true">⚠ </span>
 					{record.error.message}
 				</p>
@@ -389,11 +389,13 @@ function Comparison({
 				])}
 			/>
 			{operatorGrade.note === undefined ? null : (
-				<p className="text-12 text-muted-foreground">
+				<p className="text-14 leading-reading text-muted-foreground">
 					Your note: {operatorGrade.note}
 				</p>
 			)}
-			<p className="text-12 text-pretty">{judgeGrade.summary}</p>
+			<p className="text-14 leading-reading text-pretty">
+				{judgeGrade.summary}
+			</p>
 		</section>
 	);
 }
@@ -480,7 +482,7 @@ export function StageReviewPage({
 					<p className="text-muted-foreground">Loading…</p>
 				) : null}
 				{query.isError ? (
-					<p role="alert" className="text-muted-foreground">
+					<p role="alert" className="text-attention">
 						<span aria-hidden="true">⚠ </span>
 						Could not load this judged step.
 					</p>
@@ -497,7 +499,7 @@ export function StageReviewPage({
 									: "Review recorded"}
 							</StateBadge>
 							{recorded === undefined ? (
-								<p className="text-13 text-muted-foreground">
+								<p className="text-14 text-muted-foreground">
 									Judge scores remain hidden until you record your grade.
 								</p>
 							) : null}

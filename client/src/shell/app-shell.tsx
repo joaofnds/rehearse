@@ -56,12 +56,12 @@ function NavEntry({
 				to={path}
 				search={path === "/" ? runsReturnSearch : {}}
 				marksCurrent={marksCurrent}
-				className="flex items-center gap-2.5 rounded-md border-l-2 border-transparent px-2.5 py-2 text-secondary-foreground hover:bg-row-hover current:border-primary current:bg-selected current:text-pale"
+				className="flex items-center gap-2.5 rounded-md border-l-2 border-transparent px-2.5 py-2 text-secondary-foreground no-underline hover:bg-row-hover hover:no-underline current:border-primary current:bg-selected current:text-pale"
 			>
 				{icon}
 				<span className="flex-1">{label}</span>
 				{count === undefined ? null : (
-					<span className="font-mono text-11 text-dim">{count}</span>
+					<span className="font-mono text-12 text-dim">{count}</span>
 				)}
 			</NavLink>
 		</li>
@@ -113,19 +113,21 @@ export function AppShell(): React.JSX.Element {
 	return (
 		<div className="flex h-screen flex-col overflow-hidden">
 			{/* The screen scrolls inside main, so the corpus card and the run in flight stay in view on a page several screens tall. */}
-			<div className="flex min-h-0 flex-1">
+			<div className="flex min-h-0 flex-1 flex-col md:flex-row">
 				<nav
 					aria-label="Sections"
-					className="flex w-68 flex-none flex-col gap-4 overflow-y-auto border-r border-divider bg-sidebar px-3 py-4"
+					className="flex w-full flex-none flex-col gap-2 overflow-y-auto border-b border-divider bg-sidebar px-3 py-3 md:w-68 md:gap-4 md:border-r md:border-b-0 md:py-4"
 				>
 					<div className="px-2.5 pt-0.5">
-						<span className="text-lg font-medium tracking-tight">Rehearse</span>
+						<span className="text-17 font-semibold tracking-tight">
+							Rehearse
+						</span>
 						<CorpusCard />
 					</div>
 
 					<GlobalSearch />
 
-					<ul className="flex flex-col gap-0.5">
+					<ul className="flex flex-row gap-0.5 overflow-x-auto md:flex-col">
 						{NAV_ITEMS.map(({ label, icon: NavIcon, path, badge }) => (
 							<NavEntry
 								key={label}
