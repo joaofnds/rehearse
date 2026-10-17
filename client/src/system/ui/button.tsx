@@ -5,7 +5,7 @@ import { cn } from "#client/system/cn";
 import { Slot } from "radix-ui";
 
 const buttonVariants = cva(
-	"inline-flex shrink-0 items-center justify-center gap-2 rounded-md border min-h-touch-target min-w-touch-target text-14 no-underline whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-3 disabled:pointer-events-none disabled:opacity-45 aria-disabled:cursor-not-allowed aria-disabled:opacity-45 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+	"inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border min-h-touch-target min-w-touch-target text-14 no-underline whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-3 disabled:pointer-events-none disabled:opacity-45 aria-disabled:cursor-not-allowed aria-disabled:opacity-45 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
 	{
 		variants: {
 			variant: {
@@ -18,11 +18,11 @@ const buttonVariants = cva(
 				outline:
 					"border-strong text-foreground not-aria-disabled:hover:border-primary not-aria-disabled:hover:bg-accent not-aria-disabled:active:bg-pressed",
 				quiet:
-					"border-strong text-secondary-foreground not-aria-disabled:hover:border-primary not-aria-disabled:hover:bg-accent not-aria-disabled:active:bg-pressed",
+					"border-transparent text-secondary-foreground not-aria-disabled:hover:bg-row-hover not-aria-disabled:active:bg-pressed",
 				strong:
 					"border-stronger text-bright not-aria-disabled:hover:border-primary not-aria-disabled:hover:bg-accent not-aria-disabled:active:bg-pressed",
 				ghost: "border-transparent not-aria-disabled:hover:bg-accent",
-				link: "border-transparent text-link underline underline-offset-4 not-aria-disabled:hover:underline",
+				link: "max-w-full border-transparent text-link text-left whitespace-normal underline underline-offset-4 not-aria-disabled:hover:underline",
 			},
 			size: {
 				default: "h-9 px-4",
@@ -32,6 +32,7 @@ const buttonVariants = cva(
 				"icon-sm": "size-8",
 				xs: "rounded-tight px-2.25 py-1.25 text-14",
 				compact: "px-3 py-1.25 text-14",
+				inline: "px-0 py-1.25 text-14",
 			},
 		},
 		defaultVariants: {

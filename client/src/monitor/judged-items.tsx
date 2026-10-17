@@ -169,12 +169,12 @@ function CitedEvidence({
 					key={String(index)}
 					className={spacing}
 				>
-					<div className="flex items-center gap-2.5 font-mono text-12 text-muted-foreground">
+					<div className="flex min-w-0 flex-wrap items-center gap-2.5 font-mono text-12 wrap-anywhere text-muted-foreground">
 						<SourceChip cited={cited} />
 						<EvidenceLink owner={owner} index={index} cited={cited} />
 					</div>
 					{cited.quote === undefined ? null : (
-						<blockquote className="mt-1.5 border-l border-strong px-2.75 py-1.75 font-mono text-12 whitespace-pre-wrap text-bright">
+						<blockquote className="mt-1.5 border-l border-strong px-2.75 py-1.75 font-mono text-13 leading-transcript whitespace-pre-wrap wrap-anywhere text-bright">
 							{cited.quote}
 						</blockquote>
 					)}
@@ -251,7 +251,9 @@ export function BlockerLine({
 			<span aria-hidden="true" className={`font-mono text-12 ${tone.text}`}>
 				{STATUS_VOCABULARY[row.state].glyph}
 			</span>
-			<span className="flex-1 font-mono text-12">{row.id}</span>
+			<span className="min-w-0 flex-1 font-mono text-12 wrap-anywhere">
+				{row.id}
+			</span>
 			<span className={`text-12 tracking-label uppercase ${tone.text}`}>
 				{STATUS_VOCABULARY[row.state].word}
 			</span>
@@ -268,7 +270,7 @@ export function DimensionLine({
 	return (
 		<>
 			<span
-				className={`flex-1 text-12 ${row.grade === undefined ? "text-dim" : "text-foreground"}`}
+				className={`min-w-0 basis-full text-12 wrap-anywhere sm:basis-auto sm:flex-1 ${row.grade === undefined ? "text-dim" : "text-foreground"}`}
 			>
 				{row.id}
 			</span>
@@ -316,7 +318,7 @@ export function BlockerRows({
 						key={row.id}
 						owner={{ run, stage, section: "hardBlockers", item: row.id }}
 						evidence={row.evidence}
-						rowClassName={`flex items-center gap-2.75 rounded-md border px-3 py-2.25 ${tone.row}`}
+						rowClassName={`flex min-w-0 flex-wrap items-center gap-2.75 rounded-md border px-3 py-2.25 ${tone.row}`}
 						panelClassName="mb-1.25"
 						label="Cited evidence"
 						// Below the label, each citation keeps its distance from the one above.
@@ -346,7 +348,7 @@ export function DimensionRows({
 					key={row.id}
 					owner={{ run, stage, section: "dimensions", item: row.id }}
 					evidence={row.evidence}
-					rowClassName="flex items-center gap-3 border-b border-subtle px-3 py-2.25"
+					rowClassName="flex min-w-0 flex-wrap items-center gap-3 border-b border-subtle px-3 py-2.25"
 					panelClassName="mb-1.75"
 					spacing="mb-2.5"
 				>

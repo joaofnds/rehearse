@@ -215,7 +215,7 @@ export function TaskGradeCard({
 				<div key={index} className="mt-2">
 					<p>{evidence.claim}</p>
 					{evidence.quote === undefined ? null : (
-						<blockquote className="mt-2 border-l-2 border-accent-line pl-3 font-mono text-12 whitespace-pre-wrap wrap-anywhere">
+						<blockquote className="mt-2 border-l-2 border-accent-line pl-3 font-mono text-13 leading-transcript whitespace-pre-wrap wrap-anywhere">
 							{evidence.quote}
 						</blockquote>
 					)}
@@ -248,11 +248,7 @@ export function TaskGradeCard({
 		<SummaryPanel
 			id="task-grade-label"
 			title="Final outcome · independent task Judge"
-			className={
-				value === "FAIL"
-					? "border-l-4 border-l-negative bg-negative-surface"
-					: ""
-			}
+			className={value === "FAIL" ? "border-l-4 border-l-negative bg-card" : ""}
 		>
 			<div>
 				<div className="mt-2 flex flex-wrap items-baseline gap-3">
@@ -291,38 +287,40 @@ export function TaskGradeCard({
 						</details>
 					</>
 				)}
-				{assessment?.state === "available" &&
-				assessment.summary !== undefined ? (
-					<details className="mt-3">
+				<div className="mt-4 grid items-start gap-2 border-t border-divider pt-3 lg:grid-cols-3">
+					{assessment?.state === "available" &&
+					assessment.summary !== undefined ? (
+						<details className="rounded-md bg-muted px-3 py-1 open:col-span-full">
+							<summary className="cursor-pointer text-14 text-muted-foreground">
+								Full saved final Judge summary
+							</summary>
+							<p className="mt-2 text-14 leading-reading text-secondary-foreground">
+								{assessment.summary}
+							</p>
+						</details>
+					) : null}
+					{passed.length === 0 ? null : (
+						<details className="rounded-md bg-muted px-3 py-1 open:col-span-full">
+							<summary className="cursor-pointer text-14 text-muted-foreground">
+								{passed.length} passed final criteria
+							</summary>
+							<ul className="mt-2 grid gap-2">
+								{passed.map((item) => criterion(item))}
+							</ul>
+						</details>
+					)}
+					{outcome.status === "JUDGED" && criteria.length === 0 ? (
+						<p className="mt-2 text-14 text-attention">{missingCriteria}</p>
+					) : null}
+					<details className="rounded-md bg-muted px-3 py-1 open:col-span-full">
 						<summary className="cursor-pointer text-14 text-muted-foreground">
-							Full saved final Judge summary
+							How final grading works
 						</summary>
-						<p className="mt-2 text-14 leading-reading text-secondary-foreground">
-							{assessment.summary}
+						<p className="mt-2 mb-3 max-w-prose text-14 leading-reading text-secondary-foreground">
+							{JUDGE_SCOPE}
 						</p>
 					</details>
-				) : null}
-				{passed.length === 0 ? null : (
-					<details className="mt-3">
-						<summary className="cursor-pointer text-14 text-muted-foreground">
-							{passed.length} passed final criteria
-						</summary>
-						<ul className="mt-2 grid gap-2">
-							{passed.map((item) => criterion(item))}
-						</ul>
-					</details>
-				)}
-				{outcome.status === "JUDGED" && criteria.length === 0 ? (
-					<p className="mt-2 text-14 text-attention">{missingCriteria}</p>
-				) : null}
-				<details className="mt-3">
-					<summary className="cursor-pointer text-14 text-muted-foreground">
-						How final grading works
-					</summary>
-					<p className="mt-2 max-w-prose text-12 text-secondary-foreground">
-						{JUDGE_SCOPE}
-					</p>
-				</details>
+				</div>
 			</div>
 			<details className="mt-3 border-t border-divider pt-3">
 				<summary className="cursor-pointer text-14 text-muted-foreground">

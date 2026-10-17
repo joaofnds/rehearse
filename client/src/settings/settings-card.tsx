@@ -13,7 +13,7 @@ export function SettingsCard({
 	return (
 		<section
 			aria-labelledby={heading}
-			className="rounded-lg border border-strong bg-raised px-4 py-3.5"
+			className="rounded-lg border border-divider bg-card p-6"
 		>
 			<h2 id={heading} className="text-16 font-semibold">
 				{title}

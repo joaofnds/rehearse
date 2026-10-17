@@ -16,7 +16,7 @@ import { useGoToShortcut } from "./use-go-to-shortcut";
 import type { BadgeCounts } from "./nav-items";
 import { NAV_ITEMS } from "./nav-items";
 
-const ICON_SIZE = 15;
+const ICON_SIZE = 16;
 
 type NavAnchorProps = React.ComponentPropsWithRef<"a"> & {
 	readonly marksCurrent: boolean;
@@ -56,10 +56,10 @@ function NavEntry({
 				to={path}
 				search={path === "/" ? runsReturnSearch : {}}
 				marksCurrent={marksCurrent}
-				className="flex items-center gap-2.5 rounded-md border-l-2 border-transparent px-2.5 py-2 text-secondary-foreground no-underline hover:bg-row-hover hover:no-underline current:border-primary current:bg-selected current:text-pale"
+				className="flex min-h-touch-target shrink-0 items-center gap-3 rounded-lg border-l-2 border-transparent px-3 py-2 text-secondary-foreground no-underline hover:bg-row-hover hover:no-underline current:border-primary current:bg-selected current:text-pale"
 			>
 				{icon}
-				<span className="flex-1">{label}</span>
+				<span className="flex-1 whitespace-nowrap">{label}</span>
 				{count === undefined ? null : (
 					<span className="font-mono text-12 text-dim">{count}</span>
 				)}
@@ -116,18 +116,18 @@ export function AppShell(): React.JSX.Element {
 			<div className="flex min-h-0 flex-1 flex-col md:flex-row">
 				<nav
 					aria-label="Sections"
-					className="flex w-full flex-none flex-col gap-2 overflow-y-auto border-b border-divider bg-sidebar px-3 py-3 md:w-68 md:gap-4 md:border-r md:border-b-0 md:py-4"
+					className="flex min-h-0 w-full flex-none flex-col gap-3 overflow-y-auto border-b border-divider bg-sidebar p-4 md:w-72 md:gap-5 md:border-r md:border-b-0 md:p-5"
 				>
-					<div className="px-2.5 pt-0.5">
-						<span className="text-17 font-semibold tracking-tight">
+					<div className="flex flex-wrap items-center gap-4 md:flex-col md:items-stretch md:gap-5">
+						<span className="mr-auto text-17 font-semibold tracking-tight md:px-3 md:pt-2">
 							Rehearse
 						</span>
-						<CorpusCard />
+						<div className="grid">
+							<GlobalSearch />
+						</div>
 					</div>
 
-					<GlobalSearch />
-
-					<ul className="flex flex-row gap-0.5 overflow-x-auto md:flex-col">
+					<ul className="flex shrink-0 flex-row gap-1 overflow-x-auto p-1 md:flex-col">
 						{NAV_ITEMS.map(({ label, icon: NavIcon, path, badge }) => (
 							<NavEntry
 								key={label}
@@ -145,6 +145,9 @@ export function AppShell(): React.JSX.Element {
 							/>
 						))}
 					</ul>
+					<div className="md:mt-auto">
+						<CorpusCard />
+					</div>
 				</nav>
 
 				<main className="min-w-0 flex-1 overflow-y-auto">

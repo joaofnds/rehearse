@@ -296,7 +296,7 @@ export function ComparisonPage({
 				}
 			/>
 
-			<div className="flex flex-1 flex-col gap-8 px-6 pt-4 pb-12">
+			<div className="flex flex-1 flex-col gap-8 page-gutter pt-8 pb-12">
 				{query.isLoading ? (
 					<p className="text-muted-foreground">Loading…</p>
 				) : null}

@@ -278,7 +278,7 @@ function SearchResults({
 										key={`${result.kind}:${result.href}`}
 										to={result.href}
 										onClick={close}
-										className="flex flex-col gap-1 rounded-md border border-divider bg-card px-3 py-2 hover:bg-row-hover focus-visible:ring-2 focus-visible:ring-ring"
+										className="flex flex-col gap-1 rounded-md border border-divider bg-card px-4 py-2 hover:bg-row-hover focus-visible:ring-2 focus-visible:ring-ring"
 									>
 										<span className="flex items-center gap-3">
 											<span className="text-12 text-dim">{result.kind}</span>
@@ -325,7 +325,9 @@ export function GlobalSearch(): React.JSX.Element {
 				<Button variant="outline" aria-label="Search everything">
 					<Search aria-hidden="true" className="size-4" />
 					<span className="flex-1 text-left">Search</span>
-					<kbd className="font-mono text-12 text-dim">⌘ / Ctrl K</kbd>
+					<kbd className="hidden font-mono text-12 text-dim md:inline">
+						⌘ / Ctrl K
+					</kbd>
 				</Button>
 			</DialogTrigger>
 			<DialogContent width="wide">
@@ -335,7 +337,7 @@ export function GlobalSearch(): React.JSX.Element {
 						Runs, cases, instructions and saved comparisons. Escape closes
 						search.
 					</DialogDescription>
-					<label className="mt-2 flex items-center gap-2 rounded-md border border-strong bg-card px-3 py-2">
+					<label className="mt-2 flex items-center gap-2 rounded-md border border-strong bg-card px-4">
 						<Search aria-hidden="true" className="size-4 text-dim" />
 						<input
 							type="search"

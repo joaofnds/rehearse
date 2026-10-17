@@ -203,14 +203,14 @@ function RunDetailHeader({
 	const returnSearch = useRunsReturnSearch();
 
 	return (
-		<header className="flex flex-none flex-wrap items-center gap-3.5 border-b border-divider px-6 py-3.75">
+		<header className="flex flex-none flex-wrap items-center gap-4 border-b border-divider page-gutter py-6">
 			<Button asChild variant="quiet" size="compact">
 				<Link to="/" search={returnSearch}>
 					<span aria-hidden="true">←</span> Runs
 				</Link>
 			</Button>
 			<div>
-				<h1 className="flex items-center gap-2.75 text-24 leading-heading">
+				<h1 className="flex min-w-0 flex-wrap items-center gap-2.75 text-24 leading-heading">
 					<span className="font-mono">
 						{withinCase(row.shortId ?? row.run, row.caseId)}
 					</span>
@@ -317,7 +317,7 @@ export function RunDetailPage({
 		});
 	});
 	const unreadable = (
-		<p role="alert" className="px-6 py-4 text-attention">
+		<p role="alert" className="page-gutter py-4 text-attention">
 			<span aria-hidden="true">⚠ </span>
 			Could not read run {run}.
 		</p>
@@ -443,7 +443,7 @@ function RunWorkspace({
 					progress={row.progress}
 				/>
 			) : null}
-			<div className="flex flex-none flex-wrap items-center gap-3 border-b border-divider px-6 py-2.5">
+			<div className="flex flex-none flex-wrap items-center gap-4 border-b border-divider page-gutter py-4">
 				<Switcher
 					label="Run views"
 					options={RUN_WORKSPACE_VIEWS}
@@ -492,7 +492,7 @@ function RunWorkspace({
 						revealEvents={search.focus === "events"}
 						initialEventId={search.event}
 					/>
-					<details className="mx-6 mb-5 rounded-lg border border-border">
+					<details className="mx-5 sm:mx-8 mb-5 rounded-lg border border-border">
 						<summary className="cursor-pointer px-4 py-3 text-14">
 							Run setup &amp; provenance
 						</summary>
@@ -523,7 +523,7 @@ function SelectedStepResources({
 	return (
 		<dl
 			aria-label="Selected step resources"
-			className="mx-6 mt-4 flex flex-wrap gap-x-6 gap-y-2 rounded-lg border border-border bg-card px-4 py-3 text-12"
+			className="mx-5 sm:mx-8 mt-4 flex flex-wrap gap-x-6 gap-y-2 rounded-lg border border-border bg-card px-4 py-3 text-12"
 		>
 			<div>
 				<dt className="text-dim">{selected.stage} · step cost</dt>
@@ -591,7 +591,7 @@ function SelectedStepActions({
 	const { skill, replayable } = stepActions(row, record, selected);
 
 	return (
-		<div className="flex flex-none flex-wrap items-center gap-2 border-b border-divider px-6 py-2">
+		<div className="flex flex-none flex-wrap items-center gap-2 border-b border-divider page-gutter py-2">
 			<span className="mr-auto text-12 text-muted-foreground">
 				Selected step ·{" "}
 				<span className="font-medium text-foreground">{selected.stage}</span>
@@ -658,7 +658,7 @@ function RunResults({
 		assessment.data?.state === "available" &&
 		assessment.data.requirements.some(({ status }) => status === "FAIL");
 	return (
-		<div className="flex flex-col gap-5 px-6 py-5">
+		<div className="flex flex-col gap-6 page-gutter py-8">
 			<TaskGradeCard
 				row={row}
 				rows={rows}
@@ -670,7 +670,19 @@ function RunResults({
 				onCriteriaOpenChange={setCriteriaOpen}
 			/>
 			{selected === undefined ? null : (
-				<div className="grid gap-5 xl:grid-cols-main-aside">
+				<ResultNextAction
+					row={row}
+					record={record}
+					selected={selected}
+					number={number}
+					finalCitations={finalCitations}
+					onInspectFinal={() => {
+						setCriteriaOpen(true);
+					}}
+				/>
+			)}
+			{selected === undefined ? null : (
+				<div className="grid items-start gap-6 2xl:grid-cols-main-aside">
 					<StepReport
 						run={row.run}
 						row={row}
@@ -679,16 +691,6 @@ function RunResults({
 						number={number}
 					/>
 					<aside className="min-w-0">
-						<ResultNextAction
-							row={row}
-							record={record}
-							selected={selected}
-							number={number}
-							finalCitations={finalCitations}
-							onInspectFinal={() => {
-								setCriteriaOpen(true);
-							}}
-						/>
 						<CheckpointAttempts run={row.run} stage={selected} />
 						{selected.grade.state === "available" ? (
 							<p className="mt-4">
@@ -832,7 +834,7 @@ function ResultNextAction({
 	return (
 		<section
 			aria-label="Next action"
-			className="flex flex-col items-start gap-3 rounded-lg border border-border bg-card p-4"
+			className="flex flex-wrap items-center gap-4 rounded-lg border border-divider bg-card p-5"
 		>
 			<h2 className="text-16 font-semibold">Next action</h2>
 			{primary}

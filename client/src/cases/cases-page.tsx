@@ -90,7 +90,7 @@ export function CasesPage({
 			/>
 			<nav
 				aria-label="Case sections"
-				className="flex gap-1 border-b border-divider px-6"
+				className="flex gap-1 border-b border-divider page-gutter"
 			>
 				<Link
 					to="/cases"
@@ -113,7 +113,7 @@ export function CasesPage({
 			{view === "workflows" ? (
 				<TasksPage embedded {...(caseId === undefined ? {} : { caseId })} />
 			) : (
-				<div className="flex max-w-7xl flex-col gap-6 px-6 pt-4 pb-12">
+				<div className="flex max-w-7xl flex-col gap-6 page-gutter pt-8 pb-12">
 					<p className="max-w-prose text-14 text-muted-foreground">
 						Open a case to inspect its prompt, evaluation contract and evidence
 						by corpus. Card figures use the newest recorded corpus version

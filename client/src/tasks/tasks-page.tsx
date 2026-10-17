@@ -58,7 +58,7 @@ export function TasksPage({
 				/>
 			)}
 
-			<div className="flex max-w-7xl flex-col gap-6 px-6 pt-4 pb-12">
+			<div className="flex max-w-7xl flex-col gap-6 page-gutter pt-8 pb-12">
 				{embedded ? (
 					<div className="flex flex-wrap items-center justify-between gap-3">
 						<div>

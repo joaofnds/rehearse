@@ -836,7 +836,7 @@ function LaunchForm({
 
 	return (
 		<>
-			<header className="flex shrink-0 items-center gap-3 border-b border-strong px-4 py-3">
+			<header className="flex shrink-0 items-center gap-3 border-b border-divider px-6 py-4">
 				<DialogTitle>{dialogTitle(target)}</DialogTitle>
 				<span className="ml-auto">
 					<DialogClose asChild>
@@ -847,7 +847,7 @@ function LaunchForm({
 				</span>
 			</header>
 
-			<div className="flex min-h-0 flex-col gap-3 overflow-y-auto px-4 py-3.5">
+			<div className="flex min-h-0 flex-col gap-5 overflow-y-auto px-6 py-5">
 				<dl className="grid grid-cols-4 items-center gap-x-3 gap-y-2 text-14">
 					{targetRows ?? (
 						<TargetRows
@@ -923,7 +923,7 @@ function LaunchForm({
 				) : null}
 			</div>
 
-			<footer className="flex shrink-0 flex-wrap items-center gap-2.5 border-t border-strong px-4 py-3">
+			<footer className="flex shrink-0 flex-wrap items-center gap-2.5 border-t border-divider px-4 py-3">
 				{ceilingUsd === undefined ? null : (
 					<span className="text-12 text-muted-foreground">
 						{ceilingReading(ceilingUsd, started)}

@@ -184,9 +184,9 @@ export function CaseCard({
 	return (
 		<article
 			aria-labelledby={headingId}
-			className="rounded-lg border border-divider bg-card px-4 py-3.5"
+			className="rounded-lg border border-divider bg-card p-6"
 		>
-			<div className="flex flex-wrap items-center gap-3">
+			<div className="flex flex-wrap items-center gap-x-3 gap-y-2">
 				<h2 id={headingId} className="text-16 font-semibold">
 					<Link
 						to="/cases"
@@ -201,7 +201,7 @@ export function CaseCard({
 					{listed.target ?? "no repository"}
 				</span>
 				{showFigures ? (
-					<span className="ml-auto font-mono text-12 text-dim">
+					<span className="w-full text-12 leading-reading wrap-anywhere text-dim">
 						{listed.figures.state === "measured" ? (
 							<Link
 								to={`/cases?caseId=${encodeURIComponent(listed.id)}&corpusVersion=${encodeURIComponent(listed.figures.corpusVersion ?? "unrecorded")}#case-evidence`}
@@ -218,19 +218,17 @@ export function CaseCard({
 			{showFigures &&
 			listed.figures.state === "measured" &&
 			listed.figures.leftOut > 0 ? (
-				<p className="mt-1 text-right font-mono text-12 text-dim">
+				<p className="mt-1 text-12 text-dim">
 					{runsLeftOut(listed.figures.leftOut)}
 				</p>
 			) : null}
 			{!showFigures || minimumGrade === undefined ? null : (
-				<p className="mt-1 text-right font-mono text-12 text-dim">
-					{minimumGrade}
-				</p>
+				<p className="mt-1 text-12 text-dim">{minimumGrade}</p>
 			)}
-			<p className="mt-2 max-w-prose text-14">{listed.title}</p>
-			<div className="mt-2.5 flex flex-wrap items-center gap-2.5">
+			<p className="mt-3 max-w-prose text-14 leading-reading">{listed.title}</p>
+			<div className="mt-5 flex flex-wrap items-center gap-3 border-t border-subtle pt-4">
 				<Definition listed={listed} />
-				<span className="ml-auto flex items-center gap-2">
+				<span className="ml-auto flex flex-wrap items-center gap-2">
 					{listed.kind === "pipeline" ? (
 						<Button asChild variant="quiet">
 							<Link

@@ -1,6 +1,6 @@
 # Current state and priorities
 
-Reviewed against the code and project board on **2026-10-17**. This is the public
+Reviewed against the code and project board on **2026-10-18**. This is the public
 feature inventory, not a release guarantee. The [vision](vision.md) describes the
 longer-term goal; the [runbook](runbook.md) describes the supported first steps.
 
@@ -231,6 +231,8 @@ links no attempt history, since its attempts record no session.
 
 The shared [visual system](../client/src/system/README.md) uses distinct primary
 actions, blue links, scoped assessment colors and larger reading/metadata type.
+Shared gutters, panel spacing and scrollable tables align the screens; narrow Runs
+filters use an explicit toggle and retain their active count.
 
 The desktop navigation has five destinations: Runs, Comparisons, Cases, Corpus,
 and Settings. A run opens one [workspace](run-workspace.md) with Results, Activity,

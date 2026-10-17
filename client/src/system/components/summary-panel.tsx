@@ -21,15 +21,17 @@ export function SummaryPanel({
 			id={id}
 			aria-label={title}
 			className={cn(
-				"min-w-0 rounded-lg border border-divider bg-card p-5",
+				"min-w-0 rounded-lg border border-divider bg-card p-6",
 				className,
 			)}
 		>
-			<header className="mb-4 flex flex-wrap items-start justify-between gap-3">
+			<header className="mb-5 flex flex-wrap items-start justify-between gap-4">
 				<div className="min-w-0">
 					<h2 className="text-16 font-semibold">{title}</h2>
 					{description === undefined ? null : (
-						<p className="mt-1 text-14 text-muted-foreground">{description}</p>
+						<p className="mt-2 max-w-prose text-14 leading-reading text-muted-foreground">
+							{description}
+						</p>
 					)}
 				</div>
 				{actions}

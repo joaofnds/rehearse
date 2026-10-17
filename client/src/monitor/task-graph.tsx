@@ -468,7 +468,7 @@ export function TaskGraph({
 			aria-label="Task graph"
 			className="flex-none border-b border-divider bg-secondary"
 		>
-			<div className="flex flex-wrap items-center gap-x-3.75 gap-y-1 px-6 pt-2.5">
+			<div className="flex flex-wrap items-center gap-x-3.75 gap-y-1 page-gutter pt-2.5">
 				<h2 className="text-16 font-semibold tracking-label text-dim uppercase">
 					Workflow · {record.caseId} · {String(record.stages.length)} steps, in
 					order
@@ -497,7 +497,7 @@ export function TaskGraph({
 					</span>
 				) : null}
 			</div>
-			<div className="overflow-x-auto px-6 pt-2.5 pb-3">
+			<div className="overflow-x-auto page-gutter pt-2.5 pb-3">
 				<ol className="flex min-w-max items-stretch">
 					{record.stages.map((stage, index) => (
 						<StageNode
@@ -517,7 +517,7 @@ export function TaskGraph({
 				</ol>
 			</div>
 			{detailsShown ? (
-				<p className="px-6 pb-2.5 text-12 text-pretty text-dim">
+				<p className="page-gutter pb-2.5 text-12 text-pretty text-dim">
 					<MinimumGradeNote record={record} />A step shows what its record says
 					it produced until an analysis of the ended run gives one agent's
 					reading of its contribution to the task's final grade.

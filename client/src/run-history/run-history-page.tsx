@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Search } from "lucide-react";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Disclosure } from "#client/system/components/disclosure";
 import { EmptyState } from "#client/system/components/empty-state";
 import { FilterPill } from "#client/system/components/filter-pill";
@@ -118,7 +118,7 @@ function UnreadableRecords({
 	return (
 		<div
 			role="alert"
-			className="flex flex-wrap items-baseline gap-x-2 rounded-md border-l-3 border-attention bg-attention-surface px-4 py-3 text-14 text-attention"
+			className="flex flex-wrap items-center gap-x-2 rounded-md border-l-3 border-attention bg-attention-surface px-4 py-3 text-14 text-attention"
 		>
 			<p>
 				<span aria-hidden="true">⚠ </span>
@@ -243,9 +243,7 @@ function runCell(row: HistoryRow, nowMs: number): React.JSX.Element {
 	return (
 		<span className="flex flex-col gap-0.5">
 			{recordName(row, name)}
-			<span className="font-mono text-12 whitespace-nowrap text-dim">
-				{momentOf(row, nowMs)}
-			</span>
+			<span className="font-mono text-12 text-dim">{momentOf(row, nowMs)}</span>
 		</span>
 	);
 }
@@ -301,9 +299,7 @@ function caseCell(row: HistoryRow): React.JSX.Element {
 					{row.caseId}
 				</Link>
 			)}
-			<span className="text-12 whitespace-nowrap text-dim">
-				{kindLine(row)}
-			</span>
+			<span className="text-12 text-dim">{kindLine(row)}</span>
 			{links.length > 0 ? (
 				<span className="flex flex-wrap gap-x-3">
 					{links.map((link) => contextLink(link))}
@@ -935,7 +931,7 @@ function runStepGrades(stageGrades: StageGrades): React.JSX.Element {
 
 function gradeTokens(text: string): React.JSX.Element {
 	return (
-		<span className="font-mono text-12 tracking-caps whitespace-nowrap">
+		<span className="font-mono text-12 tracking-caps whitespace-normal">
 			{text}
 		</span>
 	);
@@ -1339,10 +1335,17 @@ function FilterBar({
 	readonly invalidated: boolean;
 	readonly onClear: () => void;
 }): React.JSX.Element {
+	const [filtersOpen, setFiltersOpen] = useState(false);
+	const filtersId = useId();
+	const activeFilters =
+		[discovery.status, discovery.kind, discovery.corpus].filter(
+			(value) => value !== undefined && value !== "all",
+		).length + Number(invalidated);
+
 	return (
-		<div className="flex flex-col gap-3 border-b border-divider px-6 py-3">
+		<div className="flex flex-col gap-4 border-b border-divider page-gutter py-5">
 			<div className="flex flex-wrap items-center gap-3">
-				<label className="flex min-w-0 flex-1 items-center gap-2 rounded-md border border-strong bg-card px-3 py-1.5">
+				<label className="flex min-w-0 w-full flex-none items-center gap-2 rounded-md border border-strong bg-card px-4 sm:w-auto sm:flex-1">
 					<Search aria-hidden="true" className="size-4 text-dim" />
 					<input
 						type="search"
@@ -1352,7 +1355,7 @@ function FilterBar({
 						onChange={(event) => {
 							onChange({ query: event.target.value });
 						}}
-						className="w-full bg-transparent text-14"
+						className="min-w-0 w-full bg-transparent text-14"
 					/>
 				</label>
 				<label className="flex items-center gap-2 text-12 text-muted-foreground">
@@ -1385,65 +1388,83 @@ function FilterBar({
 					come last.
 				</p>
 			) : null}
-			<div
-				role="group"
-				aria-label="Status"
-				className="flex flex-wrap items-center gap-2"
-			>
-				<span className="w-15 text-12 text-dim">Status</span>
-				{STATUS_FILTERS.map(([value, label]) => (
-					<FilterPill
-						key={value}
-						pressed={(discovery.status ?? "all") === value && !invalidated}
-						onPress={() => {
-							onChange({ status: value });
-						}}
-					>
-						{value === "all" && total !== undefined ? `All ${total}` : label}
-					</FilterPill>
-				))}
-				{invalidated ? (
-					<FilterPill pressed onPress={onClear}>
-						Invalidated by the last edit
-					</FilterPill>
-				) : null}
+			<div className="grid sm:hidden">
+				<Button
+					variant="outline"
+					aria-expanded={filtersOpen}
+					aria-controls={filtersId}
+					onClick={() => {
+						setFiltersOpen(!filtersOpen);
+					}}
+				>
+					{filtersOpen ? "Hide filters" : "Filters"}
+					{activeFilters === 0 ? "" : ` · ${activeFilters} active`}
+				</Button>
 			</div>
-			<div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+			<div
+				id={filtersId}
+				className={`${filtersOpen ? "flex" : "hidden"} flex-col gap-4 sm:flex`}
+			>
 				<div
 					role="group"
-					aria-label="Kind"
-					className="flex flex-wrap items-center gap-2"
+					aria-label="Status"
+					className="flex flex-wrap items-center gap-1.5"
 				>
-					<span className="w-15 text-12 text-dim">Kind</span>
-					{KIND_FILTERS.map(([value, label]) => (
+					<span className="w-15 text-12 text-dim">Status</span>
+					{STATUS_FILTERS.map(([value, label]) => (
 						<FilterPill
 							key={value}
-							pressed={(discovery.kind ?? "all") === value}
+							pressed={(discovery.status ?? "all") === value && !invalidated}
 							onPress={() => {
-								onChange({ kind: value });
+								onChange({ status: value });
 							}}
 						>
-							{label}
+							{value === "all" && total !== undefined ? `All ${total}` : label}
 						</FilterPill>
 					))}
+					{invalidated ? (
+						<FilterPill pressed onPress={onClear}>
+							Invalidated by the last edit
+						</FilterPill>
+					) : null}
 				</div>
-				<div
-					role="group"
-					aria-label="Corpus"
-					className="flex flex-wrap items-center gap-2"
-				>
-					<span className="text-12 text-dim">Corpus</span>
-					{CORPUS_FILTERS.map(([value, label]) => (
-						<FilterPill
-							key={value}
-							pressed={(discovery.corpus ?? "all") === value}
-							onPress={() => {
-								onChange({ corpus: value });
-							}}
-						>
-							{label}
-						</FilterPill>
-					))}
+				<div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+					<div
+						role="group"
+						aria-label="Kind"
+						className="flex flex-wrap items-center gap-1.5"
+					>
+						<span className="w-15 text-12 text-dim">Kind</span>
+						{KIND_FILTERS.map(([value, label]) => (
+							<FilterPill
+								key={value}
+								pressed={(discovery.kind ?? "all") === value}
+								onPress={() => {
+									onChange({ kind: value });
+								}}
+							>
+								{label}
+							</FilterPill>
+						))}
+					</div>
+					<div
+						role="group"
+						aria-label="Corpus"
+						className="flex flex-wrap items-center gap-1.5"
+					>
+						<span className="text-12 text-dim">Corpus</span>
+						{CORPUS_FILTERS.map(([value, label]) => (
+							<FilterPill
+								key={value}
+								pressed={(discovery.corpus ?? "all") === value}
+								onPress={() => {
+									onChange({ corpus: value });
+								}}
+							>
+								{label}
+							</FilterPill>
+						))}
+					</div>
 				</div>
 			</div>
 		</div>
@@ -1912,7 +1933,7 @@ export function RunHistoryPage({
 				}}
 			/>
 
-			<div className="flex flex-col gap-4 px-6 pt-3 pb-12">
+			<div className="flex flex-col gap-5 page-gutter pt-6 pb-12">
 				<LoadState loading={query.isLoading} failed={query.isError} />
 				{query.data === undefined ? null : (
 					<p
@@ -1952,6 +1973,17 @@ export function RunHistoryPage({
 						/>
 						<TableShell
 							caption="Run history"
+							className="min-w-300 table-fixed"
+							columnClasses={[
+								"w-28",
+								"w-48",
+								"w-64",
+								"w-28",
+								"w-36",
+								"w-44",
+								"w-24",
+								"w-24",
+							]}
 							columns={[...COLUMNS]}
 							numeric={[...NUMERIC_COLUMNS]}
 							rows={rows.map((row) => [

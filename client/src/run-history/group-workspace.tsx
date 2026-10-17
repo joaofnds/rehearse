@@ -692,18 +692,20 @@ export function GroupWorkspacePage({
 			candidate.kind === "group" && candidate.groupId === groupId,
 	);
 	if (query.isLoading) {
-		return <p className="px-6 py-4 text-muted-foreground">Loading group…</p>;
+		return (
+			<p className="page-gutter py-4 text-muted-foreground">Loading group…</p>
+		);
 	}
 	if (query.isError) {
 		return (
-			<p role="alert" className="px-6 py-4 text-attention">
+			<p role="alert" className="page-gutter py-4 text-attention">
 				Could not load the group history.
 			</p>
 		);
 	}
 	if (row === undefined) {
 		return (
-			<p role="alert" className="px-6 py-4 text-attention">
+			<p role="alert" className="page-gutter py-4 text-attention">
 				No saved group {groupId} was found.
 			</p>
 		);
@@ -743,7 +745,7 @@ export function GroupWorkspacePage({
 			/>
 			<nav
 				aria-label="Group views"
-				className="flex gap-1 border-b border-divider px-6"
+				className="flex gap-1 border-b border-divider page-gutter"
 			>
 				{(["results", "attempts"] as const).map((item) => (
 					<button
@@ -767,7 +769,7 @@ export function GroupWorkspacePage({
 					</button>
 				))}
 			</nav>
-			<div className="flex max-w-7xl flex-col gap-4 px-6 pt-4 pb-12">
+			<div className="flex max-w-7xl flex-col gap-4 page-gutter pt-8 pb-12">
 				<details className="rounded-lg border border-divider bg-card p-4 text-12">
 					<summary className="cursor-pointer">Setup &amp; provenance</summary>
 					<p className="mt-2">

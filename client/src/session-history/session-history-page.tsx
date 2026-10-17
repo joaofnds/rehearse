@@ -1688,7 +1688,7 @@ function SessionHistoryWorkspace({
 				data={summary.data}
 				names={names}
 			/>
-			<div className="flex flex-1 flex-col gap-4 px-6 pt-4 pb-12">
+			<div className="flex flex-1 flex-col gap-4 page-gutter pt-8 pb-12">
 				{summary.isLoading ? (
 					<p className="text-muted-foreground">Loading history…</p>
 				) : null}
@@ -1964,7 +1964,7 @@ function HistoryHeader({
 		);
 	if (embedded) {
 		return (
-			<header className="flex flex-col gap-3 px-6 pt-4">
+			<header className="flex flex-col gap-3 page-gutter pt-4">
 				<h2 className="text-16">Context &amp; cost · saved evidence</h2>
 				{metadata}
 			</header>

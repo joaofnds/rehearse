@@ -125,7 +125,7 @@ function SessionOnDisk({
 				<Link
 					to="/runs/$run/stages/$stage"
 					params={{ run, stage }}
-					className="font-mono"
+					className="font-mono wrap-anywhere"
 				>
 					{session.transcriptPath}
 				</Link>
@@ -411,36 +411,43 @@ function InstructionsRead({
 					{notRecorded("Instructions read", readManifest.reasons)}
 				</p>
 			) : (
-				<table
-					aria-label="Instructions this step read"
-					className="mt-2 w-full max-w-225 border border-border font-mono text-12"
+				<div
+					role="region"
+					aria-label="Instruction read manifest"
+					tabIndex={0}
+					className="mt-2 min-w-0 overflow-x-auto rounded-md border border-divider"
 				>
-					<thead className="sr-only">
-						<tr>
-							<th>Path</th>
-							<th>Hash</th>
-							<th>Since this run</th>
-						</tr>
-					</thead>
-					<tbody>
-						{readManifest.entries.map((entry) => (
-							<tr
-								key={`${entry.half}:${entry.path}`}
-								className="border-b border-subtle"
-							>
-								<td className="px-2.75 py-1.5">{entry.path}</td>
-								<td className="px-2.75 py-1.5 text-dim">
-									{entry.sha256?.slice(0, HASH_SHOWN) ?? "no hash"}
-								</td>
-								<td className="px-2.75 py-1.5 font-sans text-12 text-muted-foreground">
-									<span className="flex items-center gap-1.25">
-										<ReadState entry={entry} />
-									</span>
-								</td>
+					<table
+						aria-label="Instructions this step read"
+						className="min-w-120 w-full max-w-225 font-mono text-12"
+					>
+						<thead className="sr-only">
+							<tr>
+								<th>Path</th>
+								<th>Hash</th>
+								<th>Since this run</th>
 							</tr>
-						))}
-					</tbody>
-				</table>
+						</thead>
+						<tbody>
+							{readManifest.entries.map((entry) => (
+								<tr
+									key={`${entry.half}:${entry.path}`}
+									className="border-b border-subtle"
+								>
+									<td className="px-2.75 py-1.5">{entry.path}</td>
+									<td className="px-2.75 py-1.5 text-dim">
+										{entry.sha256?.slice(0, HASH_SHOWN) ?? "no hash"}
+									</td>
+									<td className="px-2.75 py-1.5 font-sans text-12 text-muted-foreground">
+										<span className="flex items-center gap-1.25">
+											<ReadState entry={entry} />
+										</span>
+									</td>
+								</tr>
+							))}
+						</tbody>
+					</table>
+				</div>
 			)}
 		</>
 	);
@@ -474,22 +481,22 @@ export function StepReport({
 	return (
 		<section aria-label="Step report" className="min-w-0">
 			<div className="mb-4">
-				<h2 className="text-17 font-semibold">
+				<h2 className="text-16 font-semibold">
 					Step {String(number)} · {stage.stage}
 				</h2>
 				<p className="mt-1 font-mono text-12 text-dim">
 					{metaLine(stage, sessionRead)}
 				</p>
 			</div>
-			<div className="grid items-start gap-4 lg:grid-cols-2">
+			<div className="grid items-start gap-6 xl:grid-cols-2">
 				<PipelineOutput run={run} stage={stage} row={row} record={record} />
 				<section
 					aria-label="Selected step assessment"
-					className="min-w-0 rounded-lg border border-border bg-card p-4"
+					className="min-w-0 rounded-lg border border-border bg-card p-6"
 				>
-					<div className="flex flex-wrap items-start gap-4">
+					<div className="flex flex-col items-stretch gap-4">
 						<h3 className="text-14 font-medium">Step assessment</h3>
-						<div className="ml-auto flex gap-2.5">
+						<div className="flex flex-wrap gap-3">
 							<GradeStat stage={stage} record={record} />
 							<VerdictStat
 								stage={stage}

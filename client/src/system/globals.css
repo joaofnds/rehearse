@@ -11,6 +11,14 @@
 
 @custom-variant current (&[aria-current="page"]);
 
+@utility page-gutter {
+	padding-inline: calc(var(--spacing) * 5);
+
+	@variant sm {
+		padding-inline: calc(var(--spacing) * 8);
+	}
+}
+
 @utility bg-meter-stripe {
 	background-image: repeating-linear-gradient(
 		115deg,

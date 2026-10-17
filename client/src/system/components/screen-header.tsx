@@ -14,10 +14,10 @@ export function ScreenHeader({
 	readonly aside?: ReactNode;
 }): React.JSX.Element {
 	return (
-		<header className="border-b border-divider px-6 pt-4 pb-3.5">
+		<header className="page-gutter border-b border-divider py-7 sm:py-8">
 			{lead === undefined ? null : <div className="mb-3">{lead}</div>}
-			<div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
-				<div>
+			<div className="flex min-w-0 flex-wrap items-center justify-between gap-x-8 gap-y-5">
+				<div className="min-w-0 w-full sm:w-auto sm:flex-1">
 					{eyebrow === undefined ? null : (
 						<p className="mb-1 text-12 tracking-label text-accent-foreground uppercase">
 							{eyebrow}
@@ -27,10 +27,16 @@ export function ScreenHeader({
 						{title}
 					</h1>
 					{subline === undefined ? null : (
-						<p className="mt-1 text-14 text-muted-foreground">{subline}</p>
+						<p className="mt-2 max-w-prose text-14 wrap-anywhere text-muted-foreground">
+							{subline}
+						</p>
 					)}
 				</div>
-				{aside}
+				{aside === undefined ? null : (
+					<div className="flex max-w-full flex-wrap items-center gap-3">
+						{aside}
+					</div>
+				)}
 			</div>
 		</header>
 	);

@@ -100,7 +100,7 @@ export function SavedOutput({
 	return (
 		<section
 			aria-label={title}
-			className="min-w-0 rounded-lg border border-divider bg-card p-4"
+			className="min-w-0 rounded-lg border border-divider bg-card p-6"
 		>
 			<div className="flex flex-wrap items-center justify-between gap-2">
 				<h2 className="text-16 font-semibold">{title}</h2>
@@ -366,7 +366,7 @@ export function ScorecardEvidence({
 					}
 				/>
 				{record.diff === undefined ? null : (
-					<details className="rounded-lg border border-divider bg-card p-4 text-14">
+					<details className="rounded-lg border border-divider bg-card p-6 text-14">
 						<summary>Saved delivery diff</summary>
 						<pre className="mt-3 overflow-auto font-mono leading-transcript text-13 whitespace-pre-wrap wrap-break-word">
 							{record.diff}
@@ -374,7 +374,7 @@ export function ScorecardEvidence({
 					</details>
 				)}
 				{record.completionReply === undefined ? null : (
-					<details className="rounded-lg border border-divider bg-card p-4 text-14">
+					<details className="rounded-lg border border-divider bg-card p-6 text-14">
 						<summary>Saved completion reply</summary>
 						<pre className="mt-3 overflow-auto font-mono leading-transcript text-13 whitespace-pre-wrap wrap-break-word">
 							{record.completionReply}
@@ -423,7 +423,7 @@ function ScorecardAssessment({
 	);
 
 	return (
-		<section className="min-w-0 rounded-lg border border-divider bg-card p-4">
+		<section className="min-w-0 rounded-lg border border-divider bg-card p-6">
 			<h2 className="text-16 font-semibold">Step Judge assessment</h2>
 			<p className="mt-2 font-mono text-14">
 				Grade {grade.grade} · {grade.verdict}

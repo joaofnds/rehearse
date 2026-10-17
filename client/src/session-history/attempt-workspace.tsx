@@ -574,7 +574,7 @@ function ResultsContent({
 			(identity.kind !== "confirmation" || repResult.data?.mode === "session"),
 	});
 	return (
-		<div className="flex flex-col gap-4 px-6 py-5">
+		<div className="flex flex-col gap-4 page-gutter py-5">
 			{identity.kind === "standalone" ? (
 				<StandalonePanel
 					identity={identity}
@@ -626,11 +626,13 @@ function ConfirmationContext({
 		confirmationRepQuery(identity.groupId, identity.repId),
 	);
 	if (result.isLoading) {
-		return <p className="px-6 py-4 text-12 text-dim">Reading rep mode…</p>;
+		return (
+			<p className="page-gutter py-4 text-12 text-dim">Reading rep mode…</p>
+		);
 	}
 	if (result.isError || result.data === undefined) {
 		return (
-			<p role="alert" className="px-6 py-4 text-12 text-dim">
+			<p role="alert" className="page-gutter py-4 text-12 text-dim">
 				Saved rep context unavailable because its result could not be read.
 			</p>
 		);
@@ -638,7 +640,7 @@ function ConfirmationContext({
 	return result.data.mode === "session" ? (
 		<SessionHistoryPage identity={identity} embedded />
 	) : (
-		<p className="px-6 py-4 text-12 text-dim">
+		<p className="page-gutter py-4 text-12 text-dim">
 			A {result.data.mode} rep has no saved session context view. Its stage and
 			final outcomes are on Results.
 		</p>
@@ -794,7 +796,7 @@ function AttemptNavigation({
 		...(comparison !== undefined && { comparison }),
 	};
 	return (
-		<div className="flex flex-wrap items-center justify-between gap-3 border-b border-divider px-6 py-3 text-14">
+		<div className="flex flex-wrap items-center justify-between gap-3 border-b border-divider page-gutter py-3 text-14">
 			<nav
 				aria-label="Attempt breadcrumb"
 				className="flex flex-wrap items-center gap-3"
@@ -982,7 +984,7 @@ export function AttemptWorkspacePage({
 				<>
 					<nav
 						aria-label="Attempt views"
-						className="flex flex-wrap gap-2 border-b border-divider px-6 py-3 text-14"
+						className="flex flex-wrap gap-2 border-b border-divider page-gutter py-3 text-14"
 					>
 						<Link
 							to={path}

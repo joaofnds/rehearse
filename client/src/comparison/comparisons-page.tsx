@@ -91,7 +91,7 @@ export function ComparisonsPage(): React.JSX.Element {
 				}
 			/>
 
-			<div className="flex max-w-7xl flex-col gap-6 px-6 pt-4 pb-12">
+			<div className="flex max-w-7xl flex-col gap-6 page-gutter pt-8 pb-12">
 				<p className="text-14 text-secondary-foreground">
 					Compare the baseline before an edit, the candidate after it, and the
 					recorded control. Open a case comparison for its corpus difference,

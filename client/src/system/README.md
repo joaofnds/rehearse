@@ -39,6 +39,28 @@ final FAIL; a letter grade alone does not establish either outcome. The
 [approved visual study](../../../prototypes/color-study/README.md) is a frozen
 synthetic reference for these roles, rather than an alternative production UI.
 
+## Layout and spacing
+
+`page-gutter` aligns screen headings, section navigation, toolbars and content:
+16.25px at narrow widths and 26px from the `sm` breakpoint, using the existing
+Tailwind spacing scale. Page sections use `gap-6` or `gap-8`; shared panels use
+`p-6`. Reading text and controls retain their type roles and 44px targets.
+Search wrappers supply horizontal padding; their input owns the control height.
+
+Keep secondary actions quiet, with their hover surface and focus outline;
+reserve filled buttons for primary actions. `Switcher` groups choices on an inset
+surface. Runs keeps its filters visible on desktop and provides an explicit
+Filters toggle with an active count at narrow widths. Navigation retains the
+corpus identity while compacting its chrome on narrow screens.
+
+`TableShell` supplies a named, keyboard-focusable scroll region bounded to 65vh,
+with column headings sticky within that region. Callers may set
+`className` and `columnClasses` to balance fixed columns without clipping data;
+Runs and Corpus provide their own column geometry. Long source paths wrap within
+their cells. Final-outcome disclosures use a responsive grid, and an open reading
+spans its full width. Content, evidence and actions remain available as the layout
+changes.
+
 ## Components in use
 
 | Component                                    | Contract and current use                                                                                                                                         |

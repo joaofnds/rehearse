@@ -49,9 +49,9 @@ export function CorpusCard(): React.JSX.Element {
 	return (
 		<section
 			aria-label="Corpus under test"
-			className="mt-2.5 rounded-md border bg-raised px-2.5 py-2"
+			className="rounded-lg border border-divider bg-card px-4 py-3 md:p-4"
 		>
-			<h2>
+			<h2 className="hidden md:block">
 				<SectionLabel>Corpus under test</SectionLabel>
 			</h2>
 
@@ -70,7 +70,7 @@ export function CorpusCard(): React.JSX.Element {
 
 			{query.data === undefined ? null : (
 				<>
-					<p className="mt-1 flex flex-wrap items-center gap-1.5">
+					<p className="flex flex-wrap items-center gap-x-3 gap-y-1 md:mt-3">
 						<DigestLine
 							digest={query.data.digest}
 							refusals={query.data.refusals}
@@ -81,7 +81,7 @@ export function CorpusCard(): React.JSX.Element {
 					</p>
 
 					{edited === undefined ? null : (
-						<p className="mt-1 text-12 text-muted-foreground">
+						<p className="mt-3 hidden text-12 leading-reading text-muted-foreground md:block">
 							{`last edit ${new Date(edited).toLocaleString()}`}
 						</p>
 					)}

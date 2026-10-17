@@ -152,7 +152,7 @@ export function EvidenceSourcePage({
 			? `/runs/${encodeURIComponent(identity.run)}?view=results&step=${encodeURIComponent(identity.stage)}`
 			: `/runs/${encodeURIComponent(identity.run)}?view=results`;
 	const reading = (
-		<div className="flex max-w-7xl flex-col gap-4 px-6 pt-4 pb-12">
+		<div className="flex max-w-7xl flex-col gap-4 page-gutter pt-8 pb-12">
 			{embedded && query.isSuccess ? (
 				<p className="text-14 text-dim">
 					From <span className="font-mono">{query.data.record}</span>

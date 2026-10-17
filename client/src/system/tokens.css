@@ -1,5 +1,6 @@
 :root {
 	--size-touch-target: 44px;
+	--size-table-scroll-height: 65vh;
 	--size-sequence-plot-min-width: 640px;
 	/* Color */
 	--color-canvas: #121722;

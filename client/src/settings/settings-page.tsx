@@ -74,7 +74,7 @@ export function SettingsPage({
 			/>
 			<nav
 				aria-label="Settings sections"
-				className="flex gap-1 border-b border-divider px-6"
+				className="flex gap-1 border-b border-divider page-gutter"
 			>
 				<Link
 					to="/settings"
@@ -95,8 +95,8 @@ export function SettingsPage({
 			{view === "judges" ? (
 				<CalibrationPage embedded />
 			) : (
-				<div className="px-6 pt-4 pb-12">
-					<div className="flex max-w-196 flex-col gap-3">
+				<div className="page-gutter pt-8 pb-12">
+					<div className="flex max-w-264.5 flex-col gap-6">
 						<SpendLimitCard />
 						<CorpusSettingsCard />
 						<KeyboardCard />

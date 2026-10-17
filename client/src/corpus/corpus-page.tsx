@@ -65,13 +65,13 @@ function rowFor(
 		<Button
 			key="path"
 			variant="link"
-			size="compact"
+			size="inline"
 			aria-label={`View ${file.path}`}
 			onClick={() => {
 				onView(file.path);
 			}}
 		>
-			<span className="font-mono">{file.path}</span>
+			<span className="min-w-0 font-mono break-all">{file.path}</span>
 		</Button>,
 		<span key="hash" className="font-mono text-14 text-muted-foreground">
 			{file.sha256.slice(0, 12)}
@@ -141,16 +141,16 @@ function EditSection({
 	return (
 		<section
 			aria-labelledby="corpus-edit-heading"
-			className="overflow-hidden rounded-lg border border-strong"
+			className="overflow-hidden rounded-lg border border-divider bg-card"
 		>
-			<header className="border-b border-strong bg-raised px-4 py-2.5">
+			<header className="border-b border-divider px-6 py-4">
 				<h2 id="corpus-edit-heading" className="font-semibold">
 					{settings.data?.linkedCorpus.kind === "directory"
 						? "Edit an instruction, review, then apply"
 						: "Inspect your instructions"}
 				</h2>
 			</header>
-			<div className="px-4 py-3">
+			<div className="p-6">
 				{settings.isError ? (
 					<p role="alert" className="text-14 text-attention">
 						<span aria-hidden="true">⚠ </span>
@@ -333,7 +333,7 @@ function CorpusInventory({
 			) : null}
 			{report !== undefined && report.files.length > 0 ? (
 				<div className="flex flex-wrap items-center gap-3">
-					<label className="flex flex-1 items-center gap-2 rounded-md border border-strong bg-card px-3 py-2">
+					<label className="flex min-w-0 w-full flex-none items-center gap-2 rounded-md border border-strong bg-card px-4 sm:w-auto sm:flex-1">
 						<Search aria-hidden="true" className="size-4 text-dim" />
 						<input
 							type="search"
@@ -397,6 +397,8 @@ function CorpusInventory({
 			{report !== undefined && files.length > 0 ? (
 				<TableShell
 					caption="Corpus files"
+					className="min-w-240 table-fixed"
+					columnClasses={["w-96", "w-40", "w-44", "w-24", "w-40", "w-24"]}
 					columns={onEdit === undefined ? [...COLUMNS] : [...COLUMNS, "Edit"]}
 					numeric={["Read by", "Prior-version results"]}
 					rows={files.map((file) =>
@@ -468,14 +470,12 @@ export function CorpusPage({
 						</>
 					) : undefined
 				}
-				aside={
-					query.isSuccess ? (
-						<LastEditCard lastEdit={query.data.lastEdit} />
-					) : undefined
-				}
 			/>
 
-			<div className="flex max-w-7xl flex-col gap-6 px-6 pt-4 pb-12">
+			<div className="flex max-w-7xl flex-col gap-6 page-gutter pt-8 pb-12">
+				{query.isSuccess ? (
+					<LastEditCard lastEdit={query.data.lastEdit} />
+				) : null}
 				{activeSource === undefined || sourcePath === undefined ? null : (
 					<ExperimentSource
 						source={activeSource}

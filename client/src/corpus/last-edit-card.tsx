@@ -46,13 +46,13 @@ export function LastEditCard({
 	return (
 		<section
 			aria-labelledby="last-edit-heading"
-			className="rounded-lg border border-strong bg-raised px-3 py-2"
+			className="rounded-lg border border-divider bg-card p-5"
 		>
 			<h2 id="last-edit-heading">
 				<SectionLabel>Invalidated by the last edit</SectionLabel>
 			</h2>
 			<p className="mt-1 text-14">{reading(lastEdit)}</p>
-			<p className="mt-1 max-w-80 text-12 text-muted-foreground">
+			<p className="mt-2 max-w-prose text-12 text-muted-foreground">
 				Only results that were fresh before this edit and are stale now.
 				Per-file counts below use a different basis.
 			</p>
