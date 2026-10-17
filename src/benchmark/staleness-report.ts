@@ -1,3 +1,7 @@
+import {
+	currentCorpusReadScope,
+	withCorpusReadScope,
+} from "./corpus-read-scope";
 import type { CaseDeclaration, SessionCaseDeclaration } from "./case";
 import { listCases } from "./case";
 import { join } from "node:path";
@@ -358,7 +362,15 @@ function stageCorpusNow(
 		return Promise.resolve(refusedCorpus(instructions.refused));
 	}
 
-	return hashedOrRefused(skill, instructions.text, [source]);
+	const cache = currentCorpusReadScope()?.stages;
+	const key = JSON.stringify([source, skill, instructions.text]);
+	let pending = cache?.get(key);
+	if (pending === undefined) {
+		pending = hashedOrRefused(skill, instructions.text, [source]);
+		cache?.set(key, pending);
+	}
+
+	return pending;
 }
 
 /**
@@ -1505,34 +1517,36 @@ export interface EveryRecordStaleness {
  * checkpoint judged once: a replay's upstream stages are the checkpoints
  * judged here.
  */
-export async function everyRecordStaleness(
+export function everyRecordStaleness(
 	runsDirectory: string,
 	source: CorpusRoot,
 	readUnderTest: CorpusUnderTestReader = readCorpusUnderTest,
 ): Promise<EveryRecordStaleness> {
-	const against = await corpusJudgedAgainst(
-		runsDirectory,
-		source,
-		readUnderTest,
-	);
-	const checkpoints = await checkpointStalenessAgainst(
-		runsDirectory,
-		against,
-		{},
-	);
-
-	return {
-		checkpoints,
-		sessionAttempts: await sessionAttemptStalenessAgainst(
+	return withCorpusReadScope(async () => {
+		const against = await corpusJudgedAgainst(
+			runsDirectory,
+			source,
+			readUnderTest,
+		);
+		const checkpoints = await checkpointStalenessAgainst(
 			runsDirectory,
 			against,
-		),
-		replayAttempts: await replayAttemptStalenessAgainst(
-			runsDirectory,
-			against,
-			checkpointReport(checkpoints),
 			{},
-		),
-		groups: await groupStalenessAgainst(runsDirectory, against, {}),
-	};
+		);
+
+		return {
+			checkpoints,
+			sessionAttempts: await sessionAttemptStalenessAgainst(
+				runsDirectory,
+				against,
+			),
+			replayAttempts: await replayAttemptStalenessAgainst(
+				runsDirectory,
+				against,
+				checkpointReport(checkpoints),
+				{},
+			),
+			groups: await groupStalenessAgainst(runsDirectory, against, {}),
+		};
+	});
 }

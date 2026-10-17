@@ -1,3 +1,4 @@
+import { currentCorpusReadScope } from "./corpus-read-scope";
 import { realpath } from "node:fs/promises";
 import { homedir } from "node:os";
 import { isAbsolute, join, resolve, sep } from "node:path";
@@ -400,32 +401,48 @@ export async function hashCorpusFiles(
 	source: CorpusRoot,
 	layoutPaths: readonly string[],
 ): Promise<readonly ResolvedCorpusFile[]> {
+	const cache = currentCorpusReadScope()?.files;
 	const hashed: ResolvedCorpusFile[] = [];
+
 	for (const layoutPath of layoutPaths) {
-		const resolvedPath = resolveCorpusFile(source, layoutPath);
-		const classified = await classifyEntry(resolvedPath);
-		if (classified.kind === "absent") {
-			throw new CorpusFileError(
-				`Corpus file ${layoutPath} does not exist at ${resolvedPath}`,
-			);
+		const key = JSON.stringify([source, layoutPath]);
+		let pending = cache?.get(key);
+		if (pending === undefined) {
+			pending = hashCorpusFile(source, layoutPath);
+			cache?.set(key, pending);
 		}
-
-		const refusal = refusalForEntry(layoutPath, classified);
-		if (refusal !== undefined) {
-			throw new SymlinkedEntryError(refusal);
-		}
-
-		await refuseUncontained(source, layoutPath, resolvedPath);
-
-		const file = Bun.file(resolvedPath);
-		hashed.push({
-			path: layoutPath,
-			resolvedPath,
-			sha256: new Bun.CryptoHasher("sha256")
-				.update(await file.bytes())
-				.digest("hex"),
-		});
+		hashed.push(await pending);
 	}
 
 	return hashed;
+}
+
+async function hashCorpusFile(
+	source: CorpusRoot,
+	layoutPath: string,
+): Promise<ResolvedCorpusFile> {
+	const resolvedPath = resolveCorpusFile(source, layoutPath);
+	const classified = await classifyEntry(resolvedPath);
+	if (classified.kind === "absent") {
+		throw new CorpusFileError(
+			`Corpus file ${layoutPath} does not exist at ${resolvedPath}`,
+		);
+	}
+
+	const refusal = refusalForEntry(layoutPath, classified);
+	if (refusal !== undefined) {
+		throw new SymlinkedEntryError(refusal);
+	}
+
+	await refuseUncontained(source, layoutPath, resolvedPath);
+
+	const file = Bun.file(resolvedPath);
+
+	return {
+		path: layoutPath,
+		resolvedPath,
+		sha256: new Bun.CryptoHasher("sha256")
+			.update(await file.bytes())
+			.digest("hex"),
+	};
 }

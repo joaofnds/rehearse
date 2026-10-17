@@ -1,0 +1,31 @@
+{
+	"method": "Browser ResourceTiming for initial API responses; one cached navigation pass waited for destination content without Loading text, then two animation frames. Times are milliseconds.",
+	"initialNavigation": {
+		"before": {
+			"navigationLoadMs": 38.3,
+			"api": [
+				{ "path": "/api/corpus", "durationMs": 4595 },
+				{ "path": "/api/runs", "durationMs": 2660 },
+				{ "path": "/api/run-listing", "durationMs": 353 },
+				{ "path": "/api/comparisons", "durationMs": 57 },
+				{ "path": "/api/settings", "durationMs": 2 }
+			]
+		},
+		"after": {
+			"api": [
+				{ "path": "/api/corpus", "durationMs": 1240, "responseEndMs": 1287 },
+				{ "path": "/api/runs", "durationMs": 1044, "responseEndMs": 1092 },
+				{ "path": "/api/run-listing", "durationMs": 431, "responseEndMs": 479 },
+				{ "path": "/api/comparisons", "durationMs": 63, "responseEndMs": 111 },
+				{ "path": "/api/settings", "durationMs": 2, "responseEndMs": 50 }
+			]
+		}
+	},
+	"cachedNavigation": [
+		{ "path": "/comparisons", "paintedMs": 16 },
+		{ "path": "/cases", "paintedMs": 33 },
+		{ "path": "/corpus", "paintedMs": 33 },
+		{ "path": "/settings", "paintedMs": 33 },
+		{ "path": "/", "paintedMs": 67 }
+	]
+}

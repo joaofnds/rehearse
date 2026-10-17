@@ -229,6 +229,10 @@ links no attempt history, since its attempts record no session.
 
 ## Browser UI
 
+Run-history and corpus reports reuse repeated corpus reads within each report;
+the next request reads the filesystem again. The [loading benchmark](performance.md)
+records initial loading and endpoint costs and how to repeat the measurements.
+
 The shared [visual system](../client/src/system/README.md) uses distinct primary
 actions, blue links, scoped assessment colors and larger reading/metadata type.
 Shared gutters, panel spacing and scrollable tables align the screens; narrow Runs

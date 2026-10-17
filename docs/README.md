@@ -25,6 +25,7 @@ Start with the [project README](../README.md) for the purpose and first commands
 - [livenerf study](livenerf-study.md): measurement safeguards from a model-drift
   series, probes of what a child session inherits, and proposals for comparisons.
 - [Architecture](design.md): current components and execution boundaries.
+- [Loading performance](performance.md): local data-loading measurements, causes, and repeatable benchmarks.
 - [Glossary](../GLOSSARY.md): domain terms, including the UI's vocabulary mapping.
 - [Research](research.md): primary sources behind the evaluation methodology.
 

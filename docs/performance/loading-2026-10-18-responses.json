@@ -1,0 +1,41 @@
+{
+	"method": "Parsed JSON equality with SHA-256 over canonical sorted-key JSON; private response bodies and saved run identifier omitted.",
+	"responses": [
+		{
+			"path": "/api/runs",
+			"equal": true,
+			"beforeSha256": "f72cb69475e0c6499e5798562ac00907d34c5466df84093e15b5842616ecef40",
+			"afterSha256": "f72cb69475e0c6499e5798562ac00907d34c5466df84093e15b5842616ecef40"
+		},
+		{
+			"path": "/api/corpus",
+			"equal": true,
+			"beforeSha256": "ee5c69c404bdfd33f08cab6216527797747bdd36e8e47a438201f9a654f5ebe0",
+			"afterSha256": "ee5c69c404bdfd33f08cab6216527797747bdd36e8e47a438201f9a654f5ebe0"
+		},
+		{
+			"path": "/api/run-listing",
+			"equal": true,
+			"beforeSha256": "b9dad22461ad156470486eb1712fa90300538c0e149a2c613faac9ebfb802903",
+			"afterSha256": "b9dad22461ad156470486eb1712fa90300538c0e149a2c613faac9ebfb802903"
+		},
+		{
+			"path": "/api/cases",
+			"equal": true,
+			"beforeSha256": "6d16c0265986077d3082d2eb050e3497c9704c2813cb4596bd72e9d8394bd656",
+			"afterSha256": "6d16c0265986077d3082d2eb050e3497c9704c2813cb4596bd72e9d8394bd656"
+		},
+		{
+			"path": "/api/comparisons",
+			"equal": true,
+			"beforeSha256": "ca89582e478ac987c473004528d8a5cafcaa4270a03a3c8e3182fcd33571755a",
+			"afterSha256": "ca89582e478ac987c473004528d8a5cafcaa4270a03a3c8e3182fcd33571755a"
+		},
+		{
+			"path": "/api/runs/:saved-pipeline-run",
+			"equal": true,
+			"beforeSha256": "c5604672749537fbba4e8770df426493b15dfb5e7f79b7ddf4e562a9e50dc5c1",
+			"afterSha256": "c5604672749537fbba4e8770df426493b15dfb5e7f79b7ddf4e562a9e50dc5c1"
+		}
+	]
+}

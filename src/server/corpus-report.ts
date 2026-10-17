@@ -1,3 +1,4 @@
+import { withCorpusReadScope } from "#benchmark/corpus-read-scope";
 import { readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import type { CorpusRoot } from "#benchmark/corpus-file";
@@ -30,35 +31,37 @@ export interface CorpusReport {
 	readonly lastEdit: LastEdit;
 }
 
-export async function corpusReport(
+export function corpusReport(
 	source: CorpusRoot,
 	runsDirectory: string,
 ): Promise<CorpusReport> {
-	const layout = await hashCorpusLayout(source);
-	const invalidation = await corpusInvalidation(runsDirectory, source);
+	return withCorpusReadScope(async () => {
+		const layout = await hashCorpusLayout(source);
+		const invalidation = await corpusInvalidation(runsDirectory, source);
 
-	const files: CorpusFileReport[] = [];
-	for (const file of layout.files) {
-		const filePath = join(source.root, file.path);
-		const fileStats = await stat(filePath);
-		files.push({
-			path: file.path,
-			sha256: file.sha256,
-			lastEditedAt: fileStats.mtime.toISOString(),
-			lines: lineCount(await readFile(filePath, "utf8")),
-			readBy: invalidation.readBy.get(file.path) ?? 0,
-			invalidated: invalidation.invalidated.get(file.path) ?? 0,
-		});
-	}
+		const files: CorpusFileReport[] = [];
+		for (const file of layout.files) {
+			const filePath = join(source.root, file.path);
+			const fileStats = await stat(filePath);
+			files.push({
+				path: file.path,
+				sha256: file.sha256,
+				lastEditedAt: fileStats.mtime.toISOString(),
+				lines: lineCount(await readFile(filePath, "utf8")),
+				readBy: invalidation.readBy.get(file.path) ?? 0,
+				invalidated: invalidation.invalidated.get(file.path) ?? 0,
+			});
+		}
 
-	return {
-		root: source.root,
-		digest:
-			layout.refusals.length > 0
-				? undefined
-				: corpusVersionDigest(layout.files),
-		files,
-		refusals: layout.refusals.map((refusal) => redactAbsolutePaths(refusal)),
-		lastEdit: invalidation.lastEdit,
-	};
+		return {
+			root: source.root,
+			digest:
+				layout.refusals.length > 0
+					? undefined
+					: corpusVersionDigest(layout.files),
+			files,
+			refusals: layout.refusals.map((refusal) => redactAbsolutePaths(refusal)),
+			lastEdit: invalidation.lastEdit,
+		};
+	});
 }

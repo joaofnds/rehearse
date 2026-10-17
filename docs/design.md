@@ -239,6 +239,14 @@ could see or stop it. The settings routes write `settings.json` in the records d
 the file the CLI reads, so the server holds no settings of its own. The read
 routes resolve the linked corpus on every request rather than once at startup,
 so linking or unlinking a directory changes the next read without a restart.
+Run-history staleness and corpus reports reuse corpus file hashes, stage captures,
+and layout walks within one asynchronous report scope. Nested reports share that
+scope, including invalidation against a stored version materialized at its own
+scratch root. Separate reports create separate scopes, so edits, removals and
+containment refusals are checked again on the next request. There is no cache
+lifetime or invalidation timer between requests. See [loading performance](performance.md)
+for measurements and the repeatable HTTP benchmark.
+
 A request guard in front of every route admits only a loopback `Host`
 and, for a write, a same-origin JSON request, since the server has no
 authentication and a page on another origin can otherwise post to it. The

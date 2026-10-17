@@ -1,3 +1,4 @@
+import { currentCorpusReadScope } from "./corpus-read-scope";
 import { join } from "node:path";
 import type { HashedFile } from "./checkpoint";
 import { walkDirectory } from "./checkpoint";
@@ -36,9 +37,19 @@ export interface HashedLayout {
  * a refusal holds no identity for the corpus, so an unidentifiable corpus is
  * never named as an identified one.
  */
-export async function hashCorpusLayout(
-	source: CorpusRoot,
-): Promise<HashedLayout> {
+export function hashCorpusLayout(source: CorpusRoot): Promise<HashedLayout> {
+	const cache = currentCorpusReadScope()?.layouts;
+	const key = JSON.stringify(source);
+	let pending = cache?.get(key);
+	if (pending === undefined) {
+		pending = readCorpusLayout(source);
+		cache?.set(key, pending);
+	}
+
+	return pending;
+}
+
+async function readCorpusLayout(source: CorpusRoot): Promise<HashedLayout> {
 	const { root } = source;
 	const files: HashedFile[] = [];
 	const refusals: string[] = [];

@@ -1,0 +1,230 @@
+{
+	"base": "http://localhost:4173",
+	"repetitions": 5,
+	"endpoints": [
+		{
+			"path": "/",
+			"firstMs": 1.2,
+			"medianMs": 0.2,
+			"p95Ms": 1.2,
+			"bytes": 377,
+			"samplesMs": [1.2, 0.2, 0.2, 0.1, 0.1]
+		},
+		{
+			"path": "/api/run-listing",
+			"firstMs": 499.8,
+			"medianMs": 380.6,
+			"p95Ms": 499.8,
+			"bytes": 301985,
+			"samplesMs": [499.8, 464.5, 315.6, 380.6, 343.1]
+		},
+		{
+			"path": "/api/runs",
+			"firstMs": 2945.7,
+			"medianMs": 2579.9,
+			"p95Ms": 2945.7,
+			"bytes": 1438260,
+			"samplesMs": [2945.7, 1877.6, 2579.9, 2379.1, 2774.6]
+		},
+		{
+			"path": "/api/corpus",
+			"firstMs": 3585.5,
+			"medianMs": 4121.7,
+			"p95Ms": 5022.3,
+			"bytes": 29274,
+			"samplesMs": [3585.5, 4003.6, 5022.3, 4247.9, 4121.7]
+		},
+		{
+			"path": "/api/cases",
+			"firstMs": 365.9,
+			"medianMs": 336.5,
+			"p95Ms": 375.7,
+			"bytes": 173545,
+			"samplesMs": [365.9, 375.7, 336.5, 311.7, 326.8]
+		},
+		{
+			"path": "/api/comparisons",
+			"firstMs": 50.1,
+			"medianMs": 50.1,
+			"p95Ms": 52.1,
+			"bytes": 3117,
+			"samplesMs": [50.1, 43.5, 41.8, 51.8, 52.1]
+		},
+		{
+			"path": "/api/settings",
+			"firstMs": 0.4,
+			"medianMs": 0.4,
+			"p95Ms": 0.4,
+			"bytes": 480,
+			"samplesMs": [0.4, 0.3, 0.2, 0.4, 0.4]
+		},
+		{
+			"path": "/api/settings/records",
+			"firstMs": 173.6,
+			"medianMs": 113.4,
+			"p95Ms": 173.6,
+			"bytes": 19,
+			"samplesMs": [173.6, 111, 113.1, 118.7, 113.4]
+		},
+		{
+			"path": "/api/calibration",
+			"firstMs": 107,
+			"medianMs": 110.8,
+			"p95Ms": 206.9,
+			"bytes": 138,
+			"samplesMs": [107, 110.8, 206.9, 104.4, 189.4]
+		}
+	],
+	"startup": [
+		{
+			"ms": 5609.7,
+			"requests": [
+				{
+					"path": "/api/runs",
+					"ms": 4026.3,
+					"bytes": 1438260
+				},
+				{
+					"path": "/api/corpus",
+					"ms": 5609.6,
+					"bytes": 29274
+				},
+				{
+					"path": "/api/run-listing",
+					"ms": 417.8,
+					"bytes": 301985
+				},
+				{
+					"path": "/api/comparisons",
+					"ms": 53.8,
+					"bytes": 3117
+				},
+				{
+					"path": "/api/settings",
+					"ms": 5.1,
+					"bytes": 480
+				}
+			]
+		},
+		{
+			"ms": 4817.1,
+			"requests": [
+				{
+					"path": "/api/runs",
+					"ms": 3227.5,
+					"bytes": 1438260
+				},
+				{
+					"path": "/api/corpus",
+					"ms": 4817.1,
+					"bytes": 29274
+				},
+				{
+					"path": "/api/run-listing",
+					"ms": 395.1,
+					"bytes": 301985
+				},
+				{
+					"path": "/api/comparisons",
+					"ms": 44,
+					"bytes": 3117
+				},
+				{
+					"path": "/api/settings",
+					"ms": 2.2,
+					"bytes": 480
+				}
+			]
+		},
+		{
+			"ms": 5800.1,
+			"requests": [
+				{
+					"path": "/api/runs",
+					"ms": 3693.3,
+					"bytes": 1438260
+				},
+				{
+					"path": "/api/corpus",
+					"ms": 5800.1,
+					"bytes": 29274
+				},
+				{
+					"path": "/api/run-listing",
+					"ms": 551.7,
+					"bytes": 301985
+				},
+				{
+					"path": "/api/comparisons",
+					"ms": 46.2,
+					"bytes": 3117
+				},
+				{
+					"path": "/api/settings",
+					"ms": 0.7,
+					"bytes": 480
+				}
+			]
+		},
+		{
+			"ms": 6784.7,
+			"requests": [
+				{
+					"path": "/api/runs",
+					"ms": 4216.6,
+					"bytes": 1438260
+				},
+				{
+					"path": "/api/corpus",
+					"ms": 6784.6,
+					"bytes": 29274
+				},
+				{
+					"path": "/api/run-listing",
+					"ms": 449.7,
+					"bytes": 301985
+				},
+				{
+					"path": "/api/comparisons",
+					"ms": 57,
+					"bytes": 3117
+				},
+				{
+					"path": "/api/settings",
+					"ms": 3.3,
+					"bytes": 480
+				}
+			]
+		},
+		{
+			"ms": 5427.9,
+			"requests": [
+				{
+					"path": "/api/runs",
+					"ms": 3372.2,
+					"bytes": 1438260
+				},
+				{
+					"path": "/api/corpus",
+					"ms": 5427.9,
+					"bytes": 29274
+				},
+				{
+					"path": "/api/run-listing",
+					"ms": 401.5,
+					"bytes": 301985
+				},
+				{
+					"path": "/api/comparisons",
+					"ms": 44.8,
+					"bytes": 3117
+				},
+				{
+					"path": "/api/settings",
+					"ms": 3.4,
+					"bytes": 480
+				}
+			]
+		}
+	]
+}
