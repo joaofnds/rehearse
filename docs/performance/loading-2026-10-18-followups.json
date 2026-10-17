@@ -1,0 +1,26 @@
+{
+	"baselineRevision": "d544666a",
+	"method": "Warm HTTP requests against the same local records, alternating baseline and candidate ports and reversing order each round. Five endpoint pairs; three five-request concurrent startup batches. Parsed run-history and corpus JSON compared per endpoint pair; private bodies omitted.",
+	"endpoints": {
+		"/api/runs": {
+			"before": [518.2, 854.8, 870.4, 865.3, 685.0],
+			"after": [474.1, 441.9, 605.2, 564.2, 462.0],
+			"equal": true,
+			"beforeMedianMs": 854.8,
+			"afterMedianMs": 474.1
+		},
+		"/api/corpus": {
+			"before": [559.8, 776.6, 740.7, 1012.5, 887.3],
+			"after": [569.5, 774.8, 724.4, 539.2, 559.4],
+			"equal": true,
+			"beforeMedianMs": 776.6,
+			"afterMedianMs": 569.5
+		}
+	},
+	"startup": {
+		"beforeMs": [1471.5, 1100.7, 1408.7],
+		"afterMs": [1157.9, 1047.4, 1402.9],
+		"beforeMedianMs": 1408.7,
+		"afterMedianMs": 1157.9
+	}
+}

@@ -1,3 +1,4 @@
+import { withCorpusReadScope } from "./corpus-read-scope";
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import {
 	mkdir,
@@ -288,6 +289,65 @@ describe(findCorpusVersion.name, () => {
 });
 
 describe(readCorpusVersion.name, () => {
+	it("keeps different saved versions separate within one report", async () => {
+		const first = versionDigest(
+			await measureCorpusVersion(recordsDirectory, source),
+		);
+		await writeFile(
+			join(source.root, "output-styles", "extra.md"),
+			"extra style\n",
+		);
+		const second = versionDigest(
+			await measureCorpusVersion(recordsDirectory, source),
+		);
+
+		const manifests = await withCorpusReadScope(() =>
+			Promise.all([
+				readCorpusVersion(recordsDirectory, first),
+				readCorpusVersion(recordsDirectory, second),
+			]),
+		);
+
+		expect(manifests.map((files) => files.map(({ path }) => path))).toEqual([
+			["CLAUDE.md", "output-styles/brief.md"],
+			["CLAUDE.md", "output-styles/brief.md", "output-styles/extra.md"],
+		]);
+	});
+	it("reuses a saved version within a report and notices its removal on the next report", async () => {
+		const digest = versionDigest(
+			await measureCorpusVersion(recordsDirectory, source),
+		);
+		const expected = await readCorpusVersion(recordsDirectory, digest);
+
+		await withCorpusReadScope(async () => {
+			await readCorpusVersion(recordsDirectory, digest);
+			await rm(
+				join(recordsDirectory, "corpus-versions", "versions", `${digest}.json`),
+			);
+
+			expect(await readCorpusVersion(recordsDirectory, digest)).toEqual(
+				expected,
+			);
+		});
+
+		expect(
+			withCorpusReadScope(() => readCorpusVersion(recordsDirectory, digest)),
+		).rejects.toThrow(CorpusVersionError);
+	});
+
+	it("does not share a saved version between records directories", async () => {
+		const digest = versionDigest(
+			await measureCorpusVersion(recordsDirectory, source),
+		);
+
+		await withCorpusReadScope(async () => {
+			await readCorpusVersion(recordsDirectory, digest);
+
+			expect(
+				readCorpusVersion(join(scratch, "other-records"), digest),
+			).rejects.toThrow(CorpusVersionError);
+		});
+	});
 	it("refuses a name that is not a full version digest before reading any file", async () => {
 		await mkdir(recordsDirectory, { recursive: true });
 		await writeFile(

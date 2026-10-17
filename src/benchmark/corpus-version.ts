@@ -1,3 +1,4 @@
+import { currentCorpusReadScope } from "./corpus-read-scope";
 import { createHash, randomUUID } from "node:crypto";
 import { link, mkdir, realpath, rename, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
@@ -209,7 +210,22 @@ export class CorpusVersionError extends Error {
 
 const DIGEST = /^[0-9a-f]{64}$/u;
 
-export async function readCorpusVersion(
+export function readCorpusVersion(
+	recordsDirectory: string,
+	digest: string,
+): Promise<readonly HashedFile[]> {
+	const cache = currentCorpusReadScope()?.versions;
+	const key = JSON.stringify([recordsDirectory, digest]);
+	let pending = cache?.get(key);
+	if (pending === undefined) {
+		pending = readVersionManifest(recordsDirectory, digest);
+		cache?.set(key, pending);
+	}
+
+	return pending;
+}
+
+async function readVersionManifest(
 	recordsDirectory: string,
 	digest: string,
 ): Promise<readonly HashedFile[]> {

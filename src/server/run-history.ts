@@ -1493,8 +1493,10 @@ export async function runHistoryReport(
 	liveness: RunLiveness,
 	only?: ReadonlySet<string>,
 ): Promise<RunHistoryReport> {
-	const staleness = await recordStaleness(runsDirectory, source);
-	const listing = await runListing(runsDirectory, liveness, only);
+	const [staleness, listing] = await Promise.all([
+		recordStaleness(runsDirectory, source),
+		runListing(runsDirectory, liveness, only),
+	]);
 
 	return {
 		...listing,

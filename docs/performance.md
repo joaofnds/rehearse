@@ -2,7 +2,7 @@
 
 Rehearse's initial data load was dominated by repeated filesystem work in the
 run-history staleness and corpus reports. Both now reuse file hashes, stage
-captures and layout walks within a report. Each subsequent report starts with an
+captures, layout walks and saved-version manifests within a report. Each subsequent report starts with an
 empty scope and checks the filesystem again.
 
 ## Measurements
@@ -127,6 +127,31 @@ mise exec -- bun tools/benchmark-loading.ts http://localhost:4173 5 /api/runs /a
 Use the same records, corpus, built client and background workload for both
 comparison arms. Do not compare an empty fixture with a populated install. Keep
 private response bodies and transcripts out of published benchmark results.
+
+## Small follow-ups
+
+Run-history listing and staleness now start together, since neither needs the
+other's result. The report still waits for both before combining its rows. Saved
+corpus-version manifests also share the report's read scope, so judging the
+previous version opens and validates its index once rather than once per file.
+The cache key includes the records directory and version digest. A subsequent
+report checks the store again, including a manifest removed since the last read.
+
+An alternating comparison against `d544666a`, which includes the first
+optimization, used the same machine and records. Five endpoint pairs reversed
+baseline/candidate order each round; three pairs measured the concurrent initial
+API batch. All paired run-history and corpus JSON responses matched.
+
+| Read                         | Baseline median | Follow-up median | Reduction |
+| ---------------------------- | --------------: | ---------------: | --------: |
+| Run history                  |        854.8 ms |         474.1 ms |       45% |
+| Corpus                       |        776.6 ms |         569.5 ms |       27% |
+| Initial concurrent API batch |      1,408.7 ms |       1,157.9 ms |       18% |
+
+The [paired samples](performance/loading-2026-10-18-followups.json) retain the
+measurements. Background load differed from the first benchmark, so these figures
+should be compared within their pairs rather than with the earlier table. These
+small samples establish a local improvement, not a tail-latency guarantee.
 
 ## Remaining cost
 

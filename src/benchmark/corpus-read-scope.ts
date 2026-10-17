@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import type { StageCorpus } from "./checkpoint";
+import type { HashedFile, StageCorpus } from "./checkpoint";
 import type { ResolvedCorpusFile } from "./corpus-file";
 import type { HashedLayout } from "./corpus-layout";
 
@@ -7,6 +7,7 @@ interface CorpusReadScope {
 	readonly files: Map<string, Promise<ResolvedCorpusFile>>;
 	readonly stages: Map<string, Promise<StageCorpus>>;
 	readonly layouts: Map<string, Promise<HashedLayout>>;
+	readonly versions: Map<string, Promise<readonly HashedFile[]>>;
 }
 
 const scope = new AsyncLocalStorage<CorpusReadScope>();
@@ -24,7 +25,12 @@ export function withCorpusReadScope<Value>(
 	}
 
 	return scope.run(
-		{ files: new Map(), stages: new Map(), layouts: new Map() },
+		{
+			files: new Map(),
+			stages: new Map(),
+			layouts: new Map(),
+			versions: new Map(),
+		},
 		read,
 	);
 }
