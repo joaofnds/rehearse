@@ -72,6 +72,51 @@ function emptyRequestSeries(): SessionHistoryAttemptSeries {
 }
 
 describe(createAppRouter.name, () => {
+	it("opens a different section at the top of its workspace", async () => {
+		renderAppWithStub(
+			"/cases",
+			new Map([
+				["/api/cases", { cases: [], unreadable: [], unreadableRecords: [] }],
+			]),
+		);
+		await screen.findByRole("heading", { name: "Cases", level: 1 });
+		const workspace = screen.getByRole("main");
+		workspace.scrollTop = 420;
+
+		within(screen.getByRole("navigation", { name: "Sections" }))
+			.getByRole("link", { name: "Settings" })
+			.click();
+		await screen.findByRole("heading", { name: "Settings", level: 1 });
+
+		await waitFor(() => {
+			expect(workspace.scrollTop).toBe(0);
+		});
+	});
+
+	it("restores the workspace position when returning to a section", async () => {
+		const router = renderAppWithStub(
+			"/cases",
+			new Map([
+				["/api/cases", { cases: [], unreadable: [], unreadableRecords: [] }],
+			]),
+		);
+		await screen.findByRole("heading", { name: "Cases", level: 1 });
+		const workspace = screen.getByRole("main");
+		workspace.scrollTop = 420;
+		workspace.dispatchEvent(new Event("scroll", { bubbles: true }));
+		within(screen.getByRole("navigation", { name: "Sections" }))
+			.getByRole("link", { name: "Settings" })
+			.click();
+		await screen.findByRole("heading", { name: "Settings", level: 1 });
+
+		router.history.back();
+		await screen.findByRole("heading", { name: "Cases", level: 1 });
+
+		await waitFor(() => {
+			expect(workspace.scrollTop).toBe(420);
+		});
+	});
+
 	it("opens the aggregate group workspace at a saved group address", async () => {
 		renderAppWithStub(
 			"/groups/missing-group",

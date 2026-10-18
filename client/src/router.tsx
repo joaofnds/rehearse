@@ -424,7 +424,13 @@ export interface CreateAppRouterOptions {
 export function createAppRouter(
 	options?: CreateAppRouterOptions,
 ): ReturnType<typeof createRouter<typeof routeTree>> {
+	const shared = {
+		routeTree,
+		scrollRestoration: true,
+		scrollToTopSelectors: ['[data-scroll-restoration-id="workspace"]'],
+	};
+
 	return options?.history === undefined
-		? createRouter({ routeTree })
-		: createRouter({ routeTree, history: options.history });
+		? createRouter(shared)
+		: createRouter({ ...shared, history: options.history });
 }

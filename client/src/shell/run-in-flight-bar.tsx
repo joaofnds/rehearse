@@ -200,12 +200,21 @@ export function RunInFlight({
 	readonly rows: readonly HistoryRow[];
 }): React.JSX.Element {
 	const message = useAnnouncement(rows);
+	const running = runsInFlight(rows);
 
 	return (
 		<>
-			{runsInFlight(rows).map((row) => (
-				<RunReadings key={row.run} row={row} />
-			))}
+			{running.length === 0 ? null : (
+				<section
+					aria-label="Active runs"
+					tabIndex={0}
+					className="relative max-h-1/4 shrink-0 overflow-y-auto overscroll-y-contain focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+				>
+					{running.map((row) => (
+						<RunReadings key={row.run} row={row} />
+					))}
+				</section>
+			)}
 			<p role="status" aria-live="polite" className="sr-only">
 				{message}
 			</p>

@@ -37,7 +37,7 @@ function DialogHeader({
 	readonly title: string;
 }): React.JSX.Element {
 	return (
-		<header className="flex items-center gap-3 border-b border-strong px-4 py-3">
+		<header className="flex shrink-0 items-center gap-3 border-b border-strong px-4 py-3">
 			<DialogTitle>{title}</DialogTitle>
 			<span className="ml-auto">
 				<DialogClose asChild>
@@ -75,7 +75,7 @@ export function ExportTaskDialog({
 			</DialogTrigger>
 			<DialogContent>
 				<DialogHeader title="Export with judges" />
-				<div className="flex flex-col gap-3 px-4 py-3.5">
+				<div className="relative flex min-h-0 flex-col gap-3 overflow-y-auto overscroll-y-contain px-4 py-3.5">
 					<DialogDescription>
 						Each file holds one workflow: its task and brief, its steps, every
 						step rubric and the final rubric, and the commands it runs in its
@@ -307,6 +307,7 @@ function ImportForm({
 
 	return (
 		<form
+			className="flex min-h-0 flex-col"
 			onSubmit={(event) => {
 				event.preventDefault();
 				if (bundleText !== undefined) {
@@ -315,7 +316,7 @@ function ImportForm({
 			}}
 		>
 			<DialogHeader title="Import workflow" />
-			<div className="flex flex-col gap-3 px-4 py-3.5">
+			<div className="relative flex min-h-0 flex-col gap-3 overflow-y-auto overscroll-y-contain px-4 py-3.5">
 				<label htmlFor={fileId} className="flex flex-col gap-1 text-14">
 					<span className="text-muted-foreground">Workflow bundle</span>
 					<input
@@ -376,7 +377,7 @@ function ImportForm({
 					</p>
 				)}
 			</div>
-			<footer className="flex items-center gap-2.5 border-t border-strong px-4 py-3">
+			<footer className="flex shrink-0 items-center gap-2.5 border-t border-strong px-4 py-3">
 				<span className="ml-auto flex gap-2">
 					<DialogClose asChild>
 						<Button type="button" variant="outline">

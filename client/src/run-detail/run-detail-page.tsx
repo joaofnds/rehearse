@@ -368,22 +368,14 @@ function RunActivity({
 	run,
 	number,
 	stage,
-	ended,
 }: {
 	readonly run: string;
 	readonly number: number;
 	readonly stage: MonitoredStage;
-	readonly ended: boolean;
 }): React.JSX.Element {
 	return (
-		<div
-			className={
-				ended
-					? "flex min-h-0 flex-col"
-					: "flex min-h-110 flex-1 flex-col lg:h-110"
-			}
-		>
-			<StagePanes run={run} number={number} stage={stage} ended={ended} />
+		<div className="flex min-h-180 flex-1 basis-0 flex-col lg:min-h-70.75">
+			<StagePanes run={run} number={number} stage={stage} />
 		</div>
 	);
 }
@@ -433,7 +425,11 @@ function RunWorkspace({
 		selected === undefined ? 0 : record.stages.indexOf(selected) + 1;
 
 	return (
-		<section aria-label="Run workspace" className="flex min-h-full flex-col">
+		<section
+			aria-label="Run workspace"
+			data-view={view}
+			className="flex min-h-full flex-col data-[view=activity]:h-full data-[view=activity]:min-h-0"
+		>
 			{row.progress.state === "running" ? <RunEvents run={row.run} /> : null}
 			<RunDetailHeader row={row} record={record} />
 			{row.progress.state === "running" ? (
@@ -475,12 +471,7 @@ function RunWorkspace({
 				/>
 			)}
 			{view === "activity" && selected !== undefined ? (
-				<RunActivity
-					run={row.run}
-					number={number}
-					stage={selected}
-					ended={hasRunEnded(row)}
-				/>
+				<RunActivity run={row.run} number={number} stage={selected} />
 			) : null}
 			{view === "context" && selected !== undefined ? (
 				<>

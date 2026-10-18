@@ -329,7 +329,7 @@ function LoadEvidence({
 							<button
 								type="button"
 								aria-label={`Show the agents that received ${names.get(sourceId) ?? sourceId}`}
-								className="underline hover:text-foreground"
+								className="max-w-full text-left wrap-anywhere underline hover:text-foreground"
 								onClick={() => {
 									onSelectSource(sourceId);
 								}}

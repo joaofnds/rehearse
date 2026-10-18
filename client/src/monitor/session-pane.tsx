@@ -350,9 +350,9 @@ export function SessionPane({
 	return (
 		<section
 			aria-label="Live agent session"
-			className="flex min-h-0 flex-col border-r border-divider"
+			className="flex min-h-0 min-w-0 flex-col border-b border-divider lg:border-r lg:border-b-0"
 		>
-			<div className="flex flex-none items-center gap-3 border-b border-divider px-4.25 py-2.75">
+			<div className="flex flex-none flex-wrap items-center gap-3 border-b border-divider px-4.25 py-2.75">
 				<h2 className="text-16 font-semibold tracking-caps text-muted-foreground uppercase">
 					Step {String(number)} · {stage}
 				</h2>
@@ -372,7 +372,7 @@ export function SessionPane({
 			</div>
 			<div
 				ref={body}
-				className="flex-1 overflow-y-auto px-4.25 py-3 font-mono text-13 leading-transcript"
+				className="relative min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-y-contain px-4.25 py-3 font-mono text-13 leading-transcript"
 			>
 				{isError ? (
 					<p role="alert" className="font-sans text-14 text-attention">

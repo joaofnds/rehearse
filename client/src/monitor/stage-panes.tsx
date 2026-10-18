@@ -10,17 +10,13 @@ export function StagePanes({
 	run,
 	number,
 	stage,
-	ended = false,
 }: {
 	readonly run: string;
 	readonly number: number;
 	readonly stage: MonitoredStage;
-	readonly ended?: boolean;
 }): React.JSX.Element {
 	return (
-		<div
-			className={`grid grid-cols-monitor-panes overflow-x-auto ${ended ? "min-h-0 items-start" : "min-h-70.75 flex-1 basis-0"}`}
-		>
+		<div className="grid min-h-0 flex-1 basis-0 grid-cols-1 grid-rows-2 lg:grid-cols-monitor-panes lg:grid-rows-1">
 			<SessionPane
 				key={`session ${stage.stage}`}
 				run={run}

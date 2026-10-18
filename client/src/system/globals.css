@@ -113,7 +113,14 @@
 	}
 
 	#root {
-		min-height: 100vh;
+		position: relative;
+	}
+
+	html,
+	body,
+	#root {
+		height: 100%;
+		overflow: clip;
 	}
 
 	@media (pointer: coarse) {

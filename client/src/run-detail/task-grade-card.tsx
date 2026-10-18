@@ -206,7 +206,7 @@ export function TaskGradeCard({
 	): React.JSX.Element => (
 		<li
 			key={item.id}
-			className="min-w-0 rounded-md border border-divider p-3 text-14"
+			className="min-w-0 rounded-md border border-divider p-3 text-14 wrap-anywhere"
 		>
 			<p className="font-medium">
 				{item.status} · {item.id}

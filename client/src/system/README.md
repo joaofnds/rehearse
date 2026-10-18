@@ -150,3 +150,32 @@ bounded targets. Partial and missing Cost/Wall readings reserve the same qualifi
 space before right-aligned explanation actions. Quality dimensions use a stable
 name/grade row, a full reading line for the note and a separate citation action.
 Native disclosures center their label within the target area.
+
+## Viewport and scroll ownership
+
+The document and root are viewport-bound and do not scroll. `AppShell` uses the
+dynamic viewport height; its sidebar, workspace and in-flight bar stay inside it.
+The sidebar and workspace are positioned scroll owners, so absolute content such
+as visually hidden table headings cannot create document overflow. Keep hidden
+labels inside a positioned owner; `TableShell` owns its scroll hint this way.
+
+Results and Context scroll in the workspace. Activity allocates bounded session
+and Judge panes with independently scrolling bodies and persistent pane headings;
+they stack below `lg`. Short windows can scroll the surrounding workspace to reach
+those panes. Wide tables and graphs keep their own horizontal scrolling.
+The in-flight run list occupies at most a quarter of the viewport and scrolls as
+a named keyboard target, so simultaneous runs leave the workspace reachable.
+
+The router tracks the workspace through its stable scroll-restoration ID. New
+destinations start at the top, Back restores the previous position, and fragment
+links reveal their target inside the workspace. Do not replace this with window
+scrolling or a blanket scroll reset on every render.
+
+`DialogContent` fits the padded overlay at either width. Headers and footers stay
+outside a shrinking, `min-h-0` body with its own scrolling; a fixed maximum height
+on an inner list alone does not bound it to the available dialog space. Dialog
+content supplies a positioning context for hidden labels and evidence highlights.
+
+Verify scrolling after expanding long content, moving focus, following a fragment,
+changing routes and resizing across breakpoints. Check document scroll offsets and
+height as well as workspace widths; horizontal fit alone cannot prove containment.

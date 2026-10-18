@@ -38,7 +38,7 @@ export function TableShell({
 			role="region"
 			aria-labelledby={`${captionId} ${scrollHintId}`}
 			tabIndex={0}
-			className="max-h-(--size-table-scroll-height) min-w-0 overflow-auto rounded-lg border border-divider"
+			className="relative max-h-(--size-table-scroll-height) min-w-0 overflow-auto rounded-lg border border-divider"
 		>
 			<span id={scrollHintId} className="sr-only">
 				Scrollable table

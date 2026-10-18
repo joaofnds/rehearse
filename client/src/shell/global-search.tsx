@@ -225,7 +225,7 @@ function SearchResults({
 		["Comparisons", comparisons],
 	] as const;
 	return (
-		<div className="flex max-h-100 flex-col gap-2 overflow-y-auto px-5 pb-5">
+		<div className="flex flex-col gap-2 px-5 pb-5">
 			<Switcher
 				label="Search collection"
 				options={COLLECTIONS}
@@ -333,7 +333,7 @@ export function GlobalSearch(): React.JSX.Element {
 				</Button>
 			</DialogTrigger>
 			<DialogContent width="wide">
-				<div className="flex flex-col gap-2 border-b border-divider px-5 py-4">
+				<div className="flex shrink-0 flex-col gap-2 border-b border-divider px-5 py-4">
 					<DialogTitle>Search everything</DialogTitle>
 					<DialogDescription>
 						Runs, cases, instructions and saved comparisons. Escape closes
@@ -349,7 +349,7 @@ export function GlobalSearch(): React.JSX.Element {
 						/>
 					</label>
 				</div>
-				<div className="pt-3">
+				<div className="relative min-h-0 max-h-100 overflow-y-auto overscroll-y-contain pt-3">
 					<SearchResults
 						query={query}
 						close={() => {

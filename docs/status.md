@@ -240,6 +240,9 @@ filters use an explicit toggle and retain their active count.
 Native selects and shortcut keycaps share control styling. Runs names steps beside
 their grades and labels saved-session navigation; Cases and Settings mark only
 their selected section.
+The app frame stays anchored to the viewport; long evidence scrolls inside its
+workspace or dialog. Activity panes scroll independently, and route navigation
+resets or restores the workspace position.
 
 The desktop navigation has five destinations: Runs, Comparisons, Cases, Corpus,
 and Settings. A run opens one [workspace](run-workspace.md) with Results, Activity,

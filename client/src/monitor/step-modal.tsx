@@ -174,15 +174,17 @@ function InstructionsLoaded({
 					key={`${entry.half}:${entry.path}`}
 					className="border-b border-subtle px-2.5 py-1.75 last:border-b-0"
 				>
-					<span className="flex items-center gap-2.25">
-						<span className="flex-1 font-mono text-12">{entry.path}</span>
+					<span className="flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:items-baseline sm:gap-2.25">
+						<span className="min-w-0 flex-1 font-mono text-12 wrap-anywhere">
+							{entry.path}
+						</span>
 						<span className="font-mono text-12 text-dim">
 							{entry.sha256 === undefined
 								? "no hash"
 								: `sha ${entry.sha256.slice(0, HASH_SHOWN)}`}
 						</span>
 					</span>
-					<span className="mt-0.5 flex items-center gap-2 text-12">
+					<span className="mt-0.5 flex flex-wrap items-center gap-2 text-12">
 						<span className="text-dim">{entry.role}</span>
 						<span className="flex items-center gap-1.25 text-muted-foreground">
 							<ReadState entry={entry} />
@@ -301,7 +303,7 @@ function WhatWentIn({
 	const artifactsInId = useId();
 
 	return (
-		<section aria-label="What went in">
+		<section aria-label="What went in" className="min-w-0">
 			<SectionTitle id={instructionsId}>
 				Instructions this step loaded
 			</SectionTitle>
@@ -565,7 +567,7 @@ export function StepModalAction({
 			</DialogTrigger>
 			<DialogContent width="wide">
 				<ModalHeader stage={stage} number={number} record={record} />
-				<div className="grid flex-1 grid-cols-2 gap-4.5 overflow-y-auto px-4 py-3.5">
+				<div className="relative grid min-h-0 flex-1 grid-cols-1 gap-4.5 overflow-y-auto overscroll-y-contain px-4 py-3.5 lg:grid-cols-2">
 					<WhatWentIn record={record} stage={stage} />
 					<WhatCameOut run={run} record={record} stage={stage} />
 				</div>

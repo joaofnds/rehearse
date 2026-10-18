@@ -327,8 +327,11 @@ export function JudgePane({
 	}, [client, lagging, run]);
 
 	return (
-		<section aria-label="Judge" className="flex min-h-0 flex-col bg-secondary">
-			<div className="flex flex-none items-center gap-2.75 border-b border-divider px-4.25 py-2.75">
+		<section
+			aria-label="Judge"
+			className="flex min-h-0 min-w-0 flex-col bg-secondary"
+		>
+			<div className="flex flex-none flex-wrap items-center gap-2.75 border-b border-divider px-4.25 py-2.75">
 				<h2 className="text-16 font-semibold tracking-caps text-muted-foreground uppercase">
 					Judge · step {String(number)}
 				</h2>
@@ -344,7 +347,7 @@ export function JudgePane({
 					<span className="ml-auto font-mono text-12 text-dim">{meta}</span>
 				)}
 			</div>
-			<div className="flex-1 overflow-y-auto px-4.25 pt-3.75 pb-6">
+			<div className="relative min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-y-contain px-4.25 pt-3.75 pb-6">
 				{isError ? (
 					<p role="alert" className="text-14 text-attention">
 						<span aria-hidden="true">⚠ </span>

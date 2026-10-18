@@ -415,7 +415,7 @@ function InstructionsRead({
 					role="region"
 					aria-label="Instruction read manifest"
 					tabIndex={0}
-					className="mt-2 min-w-0 overflow-x-auto rounded-md border border-divider"
+					className="relative mt-2 min-w-0 overflow-x-auto rounded-md border border-divider"
 				>
 					<table
 						aria-label="Instructions this step read"

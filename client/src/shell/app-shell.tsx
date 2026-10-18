@@ -119,12 +119,12 @@ export function AppShell(): React.JSX.Element {
 	useGoToShortcut();
 
 	return (
-		<div className="flex h-screen flex-col overflow-hidden">
+		<div className="relative flex h-dvh max-h-full flex-col overflow-clip">
 			{/* The screen scrolls inside main, so the corpus card and the run in flight stay in view on a page several screens tall. */}
 			<div className="flex min-h-0 flex-1 flex-col md:flex-row">
 				<nav
 					aria-label="Sections"
-					className="flex min-h-0 w-full flex-none flex-col gap-3 overflow-y-auto border-b border-divider bg-sidebar p-4 md:w-72 md:gap-5 md:border-r md:border-b-0 md:p-5"
+					className="relative flex min-h-0 w-full flex-none flex-col gap-3 overflow-y-auto overscroll-y-contain border-b border-divider bg-sidebar p-4 md:w-72 md:gap-5 md:border-r md:border-b-0 md:p-5"
 				>
 					<div className="flex flex-wrap items-center gap-4 md:flex-col md:items-stretch md:gap-5">
 						<span className="mr-auto text-17 font-semibold tracking-tight md:px-3 md:pt-2">
@@ -161,7 +161,10 @@ export function AppShell(): React.JSX.Element {
 					</div>
 				</nav>
 
-				<main className="min-w-0 flex-1 overflow-y-auto">
+				<main
+					data-scroll-restoration-id="workspace"
+					className="relative min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-y-contain"
+				>
 					{fresh ? <SetupPage /> : <Outlet />}
 				</main>
 			</div>

@@ -8,7 +8,7 @@ const DialogClose = DialogPrimitive.Close;
 /** A form's width, or the step modal's two columns (SPEC.md 3). */
 const DIALOG_WIDTHS = {
 	form: "max-w-xl",
-	wide: "flex max-h-(--size-dialog-max-height) max-w-264.5 flex-col",
+	wide: "max-w-264.5",
 } as const;
 
 /**
@@ -27,12 +27,12 @@ function DialogContent({
 		<DialogPrimitive.Portal>
 			<DialogPrimitive.Overlay
 				data-slot="dialog-overlay"
-				className="fixed inset-0 z-40 grid place-items-center overflow-y-auto bg-background/70 p-4 sm:p-8"
+				className="fixed inset-0 z-40 flex items-center justify-center overflow-hidden bg-background/70 p-4 sm:p-8"
 			>
 				<DialogPrimitive.Content
 					data-slot="dialog-content"
 					aria-modal="true"
-					className={`w-full ${DIALOG_WIDTHS[width]} overflow-hidden rounded-xl border border-strong bg-card shadow-(--shadow-dialog) outline-none`}
+					className={`relative flex min-h-0 max-h-full w-full ${DIALOG_WIDTHS[width]} flex-col overflow-hidden rounded-xl border border-strong bg-card shadow-(--shadow-dialog) outline-none`}
 				>
 					{children}
 				</DialogPrimitive.Content>
