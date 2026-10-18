@@ -75,6 +75,11 @@ provides the corpus file the smoke case needs, explains the session budget, and
 shows how to read the result. A bare `run` selects the `audit-log` pipeline, so
 choose `--case smoke` explicitly when starting out.
 
+For ongoing corpus evaluation, use the [case selection](cases/README.md), which
+covers build ownership, inbox triage, concise replies, and the audit-log workflow.
+Setup diagnostics and older experiment variants are archived; `case list --all`
+includes them.
+
 **To browse the UI:** build and serve the client, then open
 `http://localhost:4173`.
 

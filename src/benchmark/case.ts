@@ -68,6 +68,7 @@ export const sessionCaseDeclarationSchema = z
 		id: caseIdSchema,
 		kind: z.literal("session"),
 		title: z.string().min(1),
+		archived: z.boolean().optional(),
 		fixture: caseRelativePathSchema.optional(),
 		prompt: z.string().min(1),
 		transcript: transcriptPrefixSchema.optional(),
@@ -89,6 +90,7 @@ export const caseDeclarationSchema = z.discriminatedUnion("kind", [
 			id: caseIdSchema,
 			kind: z.literal("pipeline"),
 			title: z.string().min(1),
+			archived: z.boolean().optional(),
 			task: caseRelativePathSchema,
 			productBrief: caseRelativePathSchema,
 			finalRubric: caseRelativePathSchema,
@@ -281,12 +283,16 @@ async function readCaseDirectoryNames(
  */
 export async function listCases(
 	root: string = casesRoot(),
+	{ includeArchived = false }: { readonly includeArchived?: boolean } = {},
 ): Promise<CaseListing> {
 	const declarations: CaseDeclaration[] = [];
 	const unreadable: UnreadableCase[] = [];
 	for (const id of await readCaseDirectoryNames(root)) {
 		try {
-			declarations.push(await readCaseDeclaration(id, root));
+			const declaration = await readCaseDeclaration(id, root);
+			if (includeArchived || declaration.archived !== true) {
+				declarations.push(declaration);
+			}
 		} catch (error) {
 			if (!(error instanceof CaseDeclarationError)) {
 				throw error;

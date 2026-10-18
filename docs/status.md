@@ -10,6 +10,12 @@ replay stages, retain grading evidence, and read records. The public onboarding
 path is a session case with a small supplied corpus. Complete workflow operation
 still requires environment-specific setup.
 
+The [active case selection](../cases/README.md) covers build ownership, inbox
+triage, one concise-reply turn, and the audit-log workflow. Older experiment
+variants and harness diagnostics are archived from case and New run lists.
+`case list --all` and explicit case IDs still reach them; saved evidence and
+freshness checks remain available.
+
 ## Implemented
 
 | Capability                     | Current boundary                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | Source                                                                                                                                                                                                                                                                                                                                                                                           |

@@ -1684,12 +1684,14 @@ describe("reading the records", () => {
 	 * fixture the test builds, so the suite is green on any machine rather than
 	 * only on one whose runs directory happens to hold the records.
 	 */
-	it("prints one line per declared case, ids show accepts back", async () => {
+	it("prints active case ids and omits archived setup diagnostics", async () => {
 		const result = await runCli(["list", "cases"]);
 
 		expect(result.exitCode).toBe(0);
 		const printed = result.stdout.trimEnd().split("\n");
-		expect(printed.map((line) => line.split("\t")[0])).toContain("case:smoke");
+		const ids = printed.map((line) => line.split("\t")[0]);
+		expect(ids).toContain("case:own-work-build");
+		expect(ids).not.toContain("case:smoke");
 		for (const line of printed) {
 			expect(line.startsWith("case:")).toBe(true);
 		}
@@ -1707,6 +1709,26 @@ describe("reading the records", () => {
 			JSON.parse(result.stdout);
 		}).not.toThrow();
 	});
+
+	it.each([false, true])(
+		"lists archived cases through case list only with --all: %s",
+		async (includeArchived) => {
+			const result = await runCli([
+				"case",
+				"list",
+				"--json",
+				...(includeArchived ? ["--all"] : []),
+			]);
+
+			expect(result.exitCode).toBe(0);
+			const declarations = z
+				.array(z.object({ id: z.string() }))
+				.parse(JSON.parse(result.stdout));
+			const ids = declarations.map(({ id }) => id);
+			expect(ids).toContain("own-work-build");
+			expect(ids.includes("smoke")).toBe(includeArchived);
+		},
+	);
 
 	it("refuses an unknown list kind with a usage exit code and no stdout", async () => {
 		const result = await runCli(["list", "bogus"]);

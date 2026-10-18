@@ -1,5 +1,6 @@
 {
 	"id": "smoke",
+	"archived": true,
 	"kind": "session",
 	"title": "One-word reply with no tools, the cheapest session case",
 	"prompt": "Reply with the single word OK.",

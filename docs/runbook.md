@@ -29,7 +29,11 @@ declares a tool or hooks or whose fixture carries a `.claude` directory,
 The smoke case declares no tool, so its attempt runs anywhere. See
 [signal confinement](reference.md#signal-confinement).
 
-`case list` discovers declarations present in your checkout. `case show` prints
+`case list` shows active declarations present in your checkout; `case list --all`
+also includes archived diagnostics and older experiments. The
+[case selection](../cases/README.md) explains which cases to use for corpus
+evaluation. `smoke` is archived from that selection and remains available for
+the setup recipe below. `case show` prints
 the declaration's path by default and its JSON with `--json`. A declaration can
 exist even when its external inputs are missing; listing it is not a readiness check.
 

@@ -1,5 +1,6 @@
 {
 	"id": "manifest-probe",
+	"archived": true,
 	"kind": "session",
 	"title": "A session that reads a file and invokes a skill, to exercise the context manifest",
 	"fixture": "fixture",

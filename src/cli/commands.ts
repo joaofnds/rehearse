@@ -435,8 +435,15 @@ export const COMMANDS: readonly CommandDefinition[] = [
 	{
 		name: "case list",
 		confinement: "never",
-		summary: "List every declared benchmark case under cases/",
-		flags: [jsonFlag],
+		summary: "List active benchmark cases under cases/",
+		flags: [
+			{
+				name: "--all",
+				kind: "switch",
+				help: "Include archived cases",
+			},
+			jsonFlag,
+		],
 	},
 	{
 		name: "case show",

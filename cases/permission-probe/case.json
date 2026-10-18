@@ -1,5 +1,6 @@
 {
 	"id": "permission-probe",
+	"archived": true,
 	"kind": "session",
 	"title": "A session that edits a fixture file and runs a fixture CLI under declared permissions",
 	"fixture": "fixture",

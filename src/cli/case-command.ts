@@ -50,13 +50,16 @@ function serializeCommitted(declaration: CaseDeclaration): Promise<string> {
 
 export interface CaseListRequest {
 	readonly json: boolean;
+	readonly includeArchived?: boolean;
 }
 
 export async function runCaseList(
 	request: CaseListRequest,
 	output: CommandOutput,
 ): Promise<void> {
-	const listing = await asRefusedPrecondition(() => listCases());
+	const listing = await asRefusedPrecondition(() =>
+		listCases(undefined, { includeArchived: request.includeArchived ?? false }),
+	);
 	for (const { reason } of listing.unreadable) {
 		output.stderr(`${reason}\n`);
 	}

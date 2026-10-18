@@ -171,7 +171,7 @@ interface DeclaredCases extends Reading<DeclaredPipeline> {
 }
 
 async function declaredPipelines(casesRoot: string): Promise<DeclaredCases> {
-	const listing = await listCases(casesRoot);
+	const listing = await listCases(casesRoot, { includeArchived: false });
 	const found: DeclaredPipeline[] = [];
 	const targets = new Map<string, string>();
 	const unreadable = listing.unreadable.map(({ id, reason }) => ({

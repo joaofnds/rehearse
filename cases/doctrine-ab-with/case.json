@@ -1,5 +1,6 @@
 {
 	"id": "doctrine-ab-with",
+	"archived": true,
 	"kind": "session",
 	"title": "Order change history, with the pre-cut doctrine read whole first",
 	"fixture": "fixture",

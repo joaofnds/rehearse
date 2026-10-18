@@ -216,6 +216,22 @@ describe("/api/cases", () => {
 		};
 	}
 
+	it("omits archived declarations from the browser's case and launch choices", async () => {
+		const { casesDirectory, list } = await serving();
+		await Bun.write(
+			join(casesDirectory, SESSION_CASE_ID, "case.json"),
+			JSON.stringify({ ...SESSION_CASE, archived: true }),
+		);
+
+		const listing = await list();
+
+		expect(listing.cases.map(({ id }) => id)).not.toContain(SESSION_CASE_ID);
+		expect(listing.cases.map(({ id }) => id)).toContain(CASE_ID);
+		expect(listing.unreadable.map(({ id }) => id)).not.toContain(
+			SESSION_CASE_ID,
+		);
+	});
+
 	it("gives a pipeline case its target, its steps with their rubrics, and its final rubric", async () => {
 		const { listed } = await serving();
 

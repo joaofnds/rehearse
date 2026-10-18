@@ -36,6 +36,13 @@ function printedDeclaration(text: string): CaseDeclaration {
 describe(requireCase.name, () => {
 	const resources = TestResources.forEachTest();
 
+	it("loads an archived case when explicitly requested", async () => {
+		const loaded = await requireCase("smoke");
+
+		expect(loaded.declaration).toMatchObject({ id: "smoke", archived: true });
+		expect(loaded.kind).toBe("session");
+	});
+
 	it("refuses a case whose declared pipeline is not there, naming it", async () => {
 		const id = "zz-missing-pipeline-probe";
 		const directory = join(casesRoot(), id);
@@ -67,6 +74,21 @@ describe(requireCase.name, () => {
 });
 
 describe(runCaseList.name, () => {
+	it.each([false, true])(
+		"includes archived declarations only when requested: %s",
+		async (includeArchived) => {
+			const recorder = recordOutput();
+
+			await runCaseList({ json: true, includeArchived }, recorder.output);
+
+			const declarations = printedDeclarations(recorder.stdout.join(""));
+			expect(declarations.some(({ id }) => id === "smoke")).toBe(
+				includeArchived,
+			);
+			expect(declarations.map(({ id }) => id)).toContain(DEFAULT_CASE_ID);
+		},
+	);
+
 	it("prints one line per declared case with its id and title", async () => {
 		const recorder = recordOutput();
 

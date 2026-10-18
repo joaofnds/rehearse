@@ -1,5 +1,6 @@
 {
 	"id": "history-probe",
+	"archived": true,
 	"kind": "session",
 	"title": "A session that reads the committed history its fixture carries",
 	"fixture": "fixture",

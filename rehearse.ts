@@ -389,7 +389,13 @@ async function dispatch(
 			return EXIT_CODES.completed;
 		}
 		case "case list": {
-			await runCaseList({ json: commandLine.json }, processOutput);
+			await runCaseList(
+				{
+					json: commandLine.json,
+					includeArchived: commandLine.flags.includes("--all"),
+				},
+				processOutput,
+			);
 
 			return EXIT_CODES.completed;
 		}

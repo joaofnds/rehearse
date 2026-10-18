@@ -259,7 +259,7 @@ describe(runList.name, () => {
 		return root;
 	}
 
-	it("prints one line per declared case with its id and title", async () => {
+	it("prints active cases with their ids and titles, omitting archived diagnostics", async () => {
 		const recorder = recordOutput();
 
 		await runList(
@@ -268,7 +268,8 @@ describe(runList.name, () => {
 		);
 
 		expect(ids(recorder.stdout)).toContain(`case:${DEFAULT_CASE_ID}`);
-		expect(ids(recorder.stdout)).toContain("case:smoke");
+		expect(ids(recorder.stdout)).toContain("case:own-work-build");
+		expect(ids(recorder.stdout)).not.toContain("case:smoke");
 	});
 
 	it("marks a run without a manifest as not replayable", async () => {

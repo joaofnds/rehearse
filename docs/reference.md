@@ -256,7 +256,8 @@ its process stopped and answers 500.
 The knob refusal, the spend ceiling and the model probe
 run later in the started process, so they end the launch with the reason only
 in its log. `GET /api/cases` lists
-every declared case with its kind, title and model. A pipeline case also
+every active declared case with its kind, title and model. Archived declarations
+are omitted from browser case and launch choices. A pipeline case also
 carries its `target`, its `pipeline` (each stage with its rubric, read from its
 pipeline file through the harness's pipeline and stage rubric checks, or
 `unavailable` with the reason the harness would refuse the file), its `finalRubric`, and
@@ -490,6 +491,14 @@ do not accept `--json`.
 Cases live under `cases/<id>/case.json`. The ID must match the directory name.
 Declarations are validated by [case.ts](../src/benchmark/case.ts); pipeline
 structure is validated by [pipeline.ts](../src/benchmark/pipeline.ts).
+
+Either kind may declare `"archived": true`. Absent or false means active.
+`case list`, `list cases`, and the browser case and New run lists show active
+cases. `case list --all` includes archived declarations; `--json` carries their
+archive flag. Archiving leaves explicit case lookup, execution, regrading, saved
+records, and freshness checks available. Remove the flag to restore a case.
+The [case selection](../cases/README.md) describes the retained behaviors and
+why the other bundled cases are archived.
 
 A pipeline case declares task, product brief, final rubric, pipeline, stage
 rubric directory, and target path. Input paths are confined to the case; the

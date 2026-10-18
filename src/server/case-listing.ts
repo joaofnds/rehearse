@@ -210,7 +210,7 @@ export async function caseListing({
 	readonly liveness: RunLiveness;
 }): Promise<CaseListing> {
 	const [listing, recorded] = await Promise.all([
-		listCases(casesRoot),
+		listCases(casesRoot, { includeArchived: false }),
 		readCaseRuns(runsDirectory, liveness),
 	]);
 	const cases: ListedCase[] = [];

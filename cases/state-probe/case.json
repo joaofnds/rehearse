@@ -1,5 +1,6 @@
 {
 	"id": "state-probe",
+	"archived": true,
 	"kind": "session",
 	"title": "A session whose committed work is graded from the tree it left",
 	"fixture": "fixture",

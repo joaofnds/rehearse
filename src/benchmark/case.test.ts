@@ -167,6 +167,40 @@ describe(caseRelative.name, () => {
 describe(listCases.name, () => {
 	const resources = TestResources.forEachTest();
 
+	it("hides archived cases from selection while keeping their declarations readable", async () => {
+		const root = await resources.createControlDirectory();
+		for (const id of ["audit-log", "smoke"]) {
+			const declaration = await readCaseDeclaration(id);
+			for (const archived of [false, true]) {
+				const caseId = `${id}-${archived ? "archived" : "active"}`;
+				await Bun.write(
+					join(root, caseId, "case.json"),
+					JSON.stringify({ ...declaration, id: caseId, archived }),
+				);
+			}
+		}
+
+		const active = await listCases(root);
+		const all = await listCases(root, { includeArchived: true });
+
+		expect(active.unreadable).toEqual([]);
+		expect(active.declarations.map(({ id }) => id)).toEqual([
+			"audit-log-active",
+			"smoke-active",
+		]);
+		expect(all.unreadable).toEqual([]);
+		expect(all.declarations.map(({ id }) => id)).toEqual([
+			"audit-log-active",
+			"audit-log-archived",
+			"smoke-active",
+			"smoke-archived",
+		]);
+		expect(await readCaseDeclaration("smoke-archived", root)).toMatchObject({
+			id: "smoke-archived",
+			archived: true,
+		});
+	});
+
 	it("lists the readable cases past a directory that holds no declaration", async () => {
 		const stray = join(CONTROL_DIR, CASES_DIRECTORY, "zz-stray-probe");
 		resources.track(stray);
@@ -482,7 +516,7 @@ describe("every committed case whose prefix bytes are on disk", () => {
 	 * the bytes rather than left to the runtime guard.
 	 */
 	it("declares a source session its prefix's bytes carry", async () => {
-		const listing = await listCases();
+		const listing = await listCases(undefined, { includeArchived: true });
 		const withheld: string[] = [];
 		const declared: { id: string; sourceSession: string; found: boolean }[] =
 			[];

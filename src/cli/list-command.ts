@@ -121,7 +121,7 @@ async function numbered(
 }
 
 async function listDeclaredCases(): Promise<RecordListing> {
-	const listing = await listCases();
+	const listing = await listCases(undefined, { includeArchived: false });
 
 	return {
 		entries: listing.declarations.map((declaration) => ({

@@ -840,7 +840,7 @@ async function sessionAttemptStalenessAgainst(
 	runsDirectory: string,
 	{ source, underTest }: Omit<CorpusJudgedAgainst, "instructions">,
 ): Promise<StalenessReport> {
-	const listing = await listCases();
+	const listing = await listCases(undefined, { includeArchived: true });
 	const attempts = await sessionAttemptIds(runsDirectory);
 	const records: RecordStaleness[] = [];
 	const unreadable: UnreadableStaleRecord[] = listing.unreadable.map(
@@ -1189,7 +1189,7 @@ async function sessionCaseCorpusNow(
 	caseId: string,
 	source: CorpusRoot,
 ): Promise<StageCorpus> {
-	const listing = await listCases();
+	const listing = await listCases(undefined, { includeArchived: true });
 	const declaration = sessionCases(listing.declarations).find(
 		({ id }) => id === caseId,
 	);
