@@ -40,6 +40,46 @@ function renderComparisonsAt(index: ComparisonIndexResponse): void {
 }
 
 describe(ComparisonsPage.name, () => {
+	it("summarizes a shared changed file once while keeping each case in setup", async () => {
+		const versions = {
+			baseline: { state: "available", digest: "a".repeat(64) },
+			candidate: { state: "available", digest: "b".repeat(64) },
+			control: { state: "available", digest: "c".repeat(64) },
+		} as const;
+		renderComparisonsAt(
+			indexWith({
+				comparisons: [
+					{
+						...savedComparison(DIGEST),
+						caseIds: ["audit-log", "brief-reply"],
+						details: ["audit-log", "brief-reply"].map((caseId) => ({
+							caseId,
+							changedPaths: ["output-styles/brief.md"],
+							corpusVersions: versions,
+						})),
+					},
+				],
+			}),
+		);
+
+		const list = await screen.findByRole("list", { name: "Saved comparisons" });
+		expect(
+			within(
+				within(list).getByRole("list", { name: "Changed instructions" }),
+			).getAllByText("output-styles/brief.md").length,
+		).toBe(1);
+		expect(within(list).getByText("2 requested per arm")).toBeInTheDocument();
+
+		fireEvent.click(within(list).getByText("Setup & record"));
+
+		expect(
+			within(list).getByRole("region", { name: "Setup for audit-log" }),
+		).toHaveTextContent("output-styles/brief.md");
+		expect(
+			within(list).getByRole("region", { name: "Setup for brief-reply" }),
+		).toHaveTextContent("output-styles/brief.md");
+	});
+
 	it("links each saved comparison by case with its digest available", async () => {
 		renderComparisonsAt(
 			indexWith({
@@ -94,20 +134,62 @@ describe(ComparisonsPage.name, () => {
 			}),
 		);
 
-		const first = await screen.findByRole("row", {
+		const first = await screen.findByRole("listitem", {
 			name: /audit-log.*511cd2c4442b/u,
 		});
-		const second = screen.getByRole("row", {
+		const second = screen.getByRole("listitem", {
 			name: /audit-log.*7e0f9a31c2d8/u,
 		});
-		expect(first).toHaveTextContent("skills/review/SKILL.md");
-		expect(first).toHaveTextContent(
-			"Baseline corpus@aaaaaa → candidate corpus@bbbbbb",
-		);
-		expect(first).toHaveTextContent("Control corpus@cccccc");
-		expect(second).toHaveTextContent("skills/build/SKILL.md");
-		expect(second).toHaveTextContent("candidate corpus@dddddd");
-		expect(first).toHaveTextContent("Comparison time not recorded");
+		expect(
+			within(
+				within(first).getByRole("list", { name: "Changed instructions" }),
+			).getByText("skills/review/SKILL.md"),
+		).toBeVisible();
+		expect(
+			within(second).getByRole("list", { name: "Changed instructions" }),
+		).toHaveTextContent("skills/build/SKILL.md");
+		const setup = within(first).getByRole("region", {
+			name: "Setup for audit-log",
+			hidden: true,
+		});
+		expect(setup).not.toBeVisible();
+
+		fireEvent.click(within(first).getByText("Setup & record"));
+
+		expect(setup).toBeVisible();
+		expect(
+			within(setup)
+				.getAllByRole("term")
+				.map((term) => [
+					term.textContent,
+					term.nextElementSibling?.textContent,
+				]),
+		).toEqual([
+			["baseline", "corpus@aaaaaa"],
+			["candidate", "corpus@bbbbbb"],
+			["control", "corpus@cccccc"],
+		]);
+
+		fireEvent.click(within(second).getByText("Setup & record"));
+
+		const otherSetup = within(second).getByRole("region", {
+			name: "Setup for audit-log",
+		});
+		expect(
+			within(otherSetup)
+				.getAllByRole("term")
+				.map((term) => [
+					term.textContent,
+					term.nextElementSibling?.textContent,
+				]),
+		).toEqual([
+			["baseline", "corpus@aaaaaa"],
+			["candidate", "corpus@dddddd"],
+			["control", "corpus@cccccc"],
+		]);
+		expect(
+			within(first).getByText("Comparison time not recorded"),
+		).toBeVisible();
 	});
 
 	it("shows each saved comparison's mode, cases and reps", async () => {
@@ -124,38 +206,42 @@ describe(ComparisonsPage.name, () => {
 			}),
 		);
 
-		const row = await screen.findByRole("row", {
+		const row = await screen.findByRole("listitem", {
 			name: /audit-log.*511cd2c4442b/u,
 		});
 
-		expect(within(row).getByRole("rowheader")).toHaveTextContent(
+		expect(within(row).getByRole("heading", { level: 2 })).toHaveTextContent(
 			"audit-log, brief-reply",
 		);
-		expect(within(row).getByRole("rowheader")).toHaveTextContent(
-			"511cd2c4442b",
-		);
-		expect(
-			within(row)
-				.getAllByRole("cell")
-				.map((cell) => cell.textContent),
-		).toEqual([
-			"Change details not recorded",
-			"pipeline",
-			"5",
-			`Canonical ID${DIGEST}Comparison time not recorded`,
-		]);
+		expect(within(row).getByText("511cd2c4442b")).toBeVisible();
+		expect(within(row).getByText("pipeline")).toBeVisible();
+		expect(within(row).getByText("5 requested per arm")).toBeVisible();
+		expect(within(row).getByText(DIGEST)).not.toBeVisible();
+
+		fireEvent.click(within(row).getByText("Setup & record"));
+
+		expect(within(row).getByText(DIGEST)).toBeVisible();
+		expect(within(row).getByText("Comparison time not recorded")).toBeVisible();
 	});
 
-	it("opens a saved comparison's own page when its entry is clicked", async () => {
+	it.each([
+		{ entry: "case link", name: /audit-log.*7e0f9a31c2d8/u },
+		{ entry: "Open action", name: "Open comparison" },
+	])("opens the chosen comparison through its $entry", async ({ name }) => {
 		renderAppWithStub(
 			"/comparisons",
 			new Map<string, unknown>([
 				[
 					"/api/comparisons",
-					indexWith({ comparisons: [savedComparison(DIGEST)] }),
+					indexWith({
+						comparisons: [
+							savedComparison(DIGEST),
+							savedComparison(OTHER_DIGEST),
+						],
+					}),
 				],
 				[
-					`/api/comparisons/${DIGEST}`,
+					`/api/comparisons/${OTHER_DIGEST}`,
 					{
 						report: { mode: "session", cases: [] },
 						checkpoint: { state: "unavailable", reasons: ["no checkpoint"] },
@@ -169,9 +255,13 @@ describe(ComparisonsPage.name, () => {
 			]),
 		);
 
-		fireEvent.click(
-			await screen.findByRole("link", { name: /audit-log.*511cd2c4442b/u }),
-		);
+		const chosen = await screen.findByRole("listitem", {
+			name: /audit-log.*7e0f9a31c2d8/u,
+		});
+		const open = within(chosen).getByRole("link", { name });
+		expect(open).toHaveAttribute("href", `/comparisons/${OTHER_DIGEST}`);
+
+		fireEvent.click(open);
 
 		expect(
 			await screen.findByRole("heading", {

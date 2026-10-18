@@ -244,6 +244,8 @@ filters use an explicit toggle and retain their active count.
 Native selects and shortcut keycaps share control styling. Runs names steps beside
 their grades and labels saved-session navigation; Cases and Settings mark only
 their selected section.
+Saved comparisons use responsive full-width entries with changed-file summaries,
+explicit Open actions and expandable per-case setup and record IDs.
 The app frame stays anchored to the viewport; long evidence scrolls inside its
 workspace or dialog. Activity panes scroll independently, and route navigation
 resets or restores the workspace position. Table titles stay above their scroll

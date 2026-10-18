@@ -66,6 +66,28 @@ their cells. Final-outcome disclosures use a responsive grid, and an open readin
 spans its full width. Content, evidence and actions remain available as the layout
 changes.
 
+## Collections and content width
+
+`PageContent` aligns the body with `ScreenHeader` through `page-gutter`. Data
+collections use its available width; constrain an individual prose block with
+`max-w-prose` rather than constraining the entire screen. Comparisons and Corpus
+use this shared body. Reading-focused case and workflow cards retain their own
+content limits.
+
+Use `RecordList` and `RecordListItem` for records whose identity, change summary
+and destination matter more than comparing numeric columns. Rows stack at narrow
+widths, place the action beside the identity from `sm`, and align identity, summary
+and action in one row from `lg`. Keep mode and scoped
+counts beside the identity, retain a short identifier when names repeat, and put
+selectable IDs and per-case setup in the full-width disclosure. Its native summary
+retains a 44px target, one chevron and keyboard behavior. The list scrolls with the
+workspace; it does not introduce a second vertical scrollbar.
+
+Comparisons preview each changed instruction path once across their cases; setup
+retains the per-case paths, corpus versions and unavailable reasons. Requested
+repetitions remain labeled per arm, rather than being presented as saved results.
+Keep `TableShell` for genuinely tabular collections such as Runs and Corpus.
+
 ## Components in use
 
 | Component                                    | Contract and current use                                                                                                                                         |

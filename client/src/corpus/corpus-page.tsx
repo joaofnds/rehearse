@@ -10,6 +10,7 @@ import { plural } from "#client/plural";
 import { EmptyState } from "#client/system/components/empty-state";
 import { Notice } from "#client/system/components/notice";
 import { ScreenHeader } from "#client/system/components/screen-header";
+import { PageContent } from "#client/system/components/page-content";
 import { TableShell } from "#client/system/components/table-shell";
 import { Button } from "#client/system/ui/button";
 import { corpusDraftIdentity } from "./corpus-draft";
@@ -471,7 +472,7 @@ export function CorpusPage({
 				}
 			/>
 
-			<div className="flex max-w-7xl flex-col gap-6 page-gutter pt-8 pb-12">
+			<PageContent>
 				{query.isSuccess ? (
 					<LastEditCard lastEdit={query.data.lastEdit} />
 				) : null}
@@ -514,7 +515,7 @@ export function CorpusPage({
 						}
 					}}
 				/>
-			</div>
+			</PageContent>
 		</div>
 	);
 }
