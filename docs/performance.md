@@ -281,6 +281,51 @@ measurements. Background load differed from the first benchmark, so these figure
 should be compared within their pairs rather than with the earlier table. These
 small samples establish a local improvement, not a tail-latency guarantee.
 
+## Saved-evidence judgment follow-up
+
+Checkpoint runs and confirmation groups now use the existing bounded reader,
+with at most 16 workers per collection. Results retain discovery order, including
+unreadable records. Each group report also reuses the current session corpus for
+groups of the same case; additional files a group observed stay specific to that
+group. The next report reads the corpus again. Pending readers finish before a
+failed report releases a temporary copy of a saved corpus version.
+
+On the same Apple M5 Pro and Bun 1.4.0, nine alternating HTTP pairs against
+`f7ef2f50`, with the same 189 readable records and 137 corpus files, gave these
+medians:
+
+| Read            | Baseline |  Current | Reduction |
+| --------------- | -------: | -------: | --------: |
+| Full Corpus     | 364.9 ms | 253.9 ms |       30% |
+| Run freshness   | 214.5 ms | 137.2 ms |       36% |
+| Full run report | 227.0 ms | 169.2 ms |       25% |
+
+All paired response SHA-256 hashes matched. The OS filesystem cache was warm;
+other UI work shared the checkout and external background activity was not
+controlled. Alternating order limits ordering bias but does not remove that
+variation. These measurements establish a local improvement, not a tail-latency
+guarantee. The [paired evidence](performance/loading-2026-10-18-staleness-pairs.json)
+retains individual readings and response hashes.
+
+The broad benchmark also checks the other top-level routes. Its first seven-sample
+comparison flagged Settings' storage-size reading at 148.3 ms versus 102.2 ms,
+above its 127.6 ms limit. That route calls the unchanged filesystem size walker.
+Nine alternating pairs measured 104.5 ms versus 105.8 ms with identical responses;
+the next broad run flagged Cases at 103.7 ms versus 70.0 ms. Alternating controls
+then measured Cases at 70.1 ms versus 71.8 ms, storage size at 110.6 ms versus
+103.7 ms, and listing at 56.4 ms versus 54.0 ms. The paired evidence retains both
+failed checks and their follow-ups. The final
+[baseline](performance/loading-2026-10-18-staleness-before.json) and
+[candidate](performance/loading-2026-10-18-staleness-after.json) retain the repeated
+full-route check, which passed all regression limits. Its opening-list median
+was 56.2 ms, within the 100 ms data-request budget.
+
+Representative detail-route samples before this change had medians of 2–6 ms for
+standalone session history, 8–16 ms for comparisons, and 65–70 ms for pipeline run
+detail. Three saved records of each kind were sampled five times each; these
+figures do not cover every historical route or transcript size. Those detail
+readers were unchanged.
+
 ## Remaining cost
 
 Reports still scan saved evidence, and corpus invalidation still materializes and

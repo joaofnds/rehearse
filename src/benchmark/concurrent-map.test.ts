@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import { setImmediate } from "node:timers/promises";
 import { concurrentMap } from "./concurrent-map";
 
 describe(concurrentMap.name, () => {
@@ -35,5 +36,24 @@ describe(concurrentMap.name, () => {
 		expect(await concurrentMap([], (value) => Promise.resolve(value))).toEqual(
 			[],
 		);
+	});
+
+	it("waits for pending readers before rejecting a failed collection", async () => {
+		const gate = Promise.withResolvers<number>();
+		const failure = new Error("unreadable record");
+		const reading = concurrentMap(
+			[Promise.reject(failure), gate.promise],
+			(value) => value,
+		);
+		const settled = Promise.allSettled([reading]);
+
+		const settledBeforeRelease = await Promise.race([
+			settled,
+			setImmediate(false),
+		]);
+		gate.resolve(2);
+
+		expect(settledBeforeRelease).toBe(false);
+		expect(await settled).toEqual([{ status: "rejected", reason: failure }]);
 	});
 });

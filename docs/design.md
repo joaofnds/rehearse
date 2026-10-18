@@ -244,6 +244,11 @@ layout walks and saved-version manifests within one asynchronous report scope. N
 scope, including invalidation against a stored version materialized at its own
 scratch root. Separate reports create separate scopes, so edits, removals and
 containment refusals are checked again on the next request.
+Checkpoint runs and confirmation groups are judged with at most 16 workers per
+collection, preserving discovery order and unreadable-record results. A group
+report shares the current session corpus per case; each group's additional reads
+are judged separately. Pending workers finish before a failed report can release
+its scratch corpus.
 
 The Runs screen first reads `/api/run-listing`, then `/api/run-staleness` and joins
 judgments by record identity within one listing read. Each successful listing

@@ -1,3 +1,4 @@
+import { concurrentMap } from "./concurrent-map";
 import {
 	currentCorpusReadScope,
 	withCorpusReadScope,
@@ -557,28 +558,42 @@ async function checkpointStalenessAgainst(
 	against: CorpusJudgedAgainst,
 	knobs: CurrentSessionKnobs,
 ): Promise<CheckpointStalenessByRun> {
+	const readings = await concurrentMap(
+		await recordedRunNames(runsDirectory),
+		async (run) => {
+			try {
+				return {
+					run,
+					judged: await runCheckpointStaleness(
+						runsDirectory,
+						run,
+						against,
+						knobs,
+					),
+				};
+			} catch (error) {
+				return {
+					run,
+					unreadable: {
+						id: `run:${run}`,
+						reason: error instanceof Error ? error.message : String(error),
+					},
+				};
+			}
+		},
+	);
 	const byRun = new Map<string, RecordStaleness[]>();
 	const unreadable: UnreadableStaleRecord[] = [];
 
-	for (const run of await recordedRunNames(runsDirectory)) {
-		try {
-			const judged = await runCheckpointStaleness(
-				runsDirectory,
-				run,
-				against,
-				knobs,
-			);
-			if (judged !== undefined) {
-				byRun.set(run, judged.records);
-				if (judged.unreadableStop !== undefined) {
-					unreadable.push(judged.unreadableStop);
-				}
+	for (const reading of readings) {
+		if (reading.unreadable !== undefined) {
+			unreadable.push(reading.unreadable);
+		}
+		if (reading.judged !== undefined) {
+			byRun.set(reading.run, reading.judged.records);
+			if (reading.judged.unreadableStop !== undefined) {
+				unreadable.push(reading.judged.unreadableStop);
 			}
-		} catch (error) {
-			unreadable.push({
-				id: `run:${run}`,
-				reason: error instanceof Error ? error.message : String(error),
-			});
 		}
 	}
 
@@ -1155,7 +1170,7 @@ async function repStageManifest(
 async function sessionGroupChanges(
 	runsDirectory: string,
 	groupId: string,
-	caseId: string,
+	current: () => Promise<StageCorpus>,
 	files: readonly FrozenGroupFile[],
 	source: CorpusRoot,
 ): Promise<JudgedReads> {
@@ -1164,7 +1179,7 @@ async function sessionGroupChanges(
 			corpusFiles: frozenCorpusFiles(files, FROZEN_CORPUS),
 			readManifest: await repAttemptManifest(runsDirectory, groupId),
 		},
-		await sessionCaseCorpusNow(caseId, source),
+		await current(),
 		source,
 		undefined,
 	);
@@ -1448,60 +1463,84 @@ async function groupStalenessAgainst(
 	{ source, instructions, underTest }: CorpusJudgedAgainst,
 	knobs: CurrentSessionKnobs,
 ): Promise<StalenessReport> {
-	const records: RecordStaleness[] = [];
-	const unreadable: UnreadableStaleRecord[] = [];
-
-	for (const groupId of await confirmationGroupIds(runsDirectory)) {
-		const id = `group:${groupId}`;
-		const paths = confirmationGroupPaths(runsDirectory, groupId);
-		const text = await textIfPresent(paths.groupFile);
-		if (text === undefined) {
-			continue;
+	const sessionCorpora = new Map<string, Promise<StageCorpus>>();
+	const currentSessionCorpus = (caseId: string): Promise<StageCorpus> => {
+		let pending = sessionCorpora.get(caseId);
+		if (pending === undefined) {
+			pending = sessionCaseCorpusNow(caseId, source);
+			sessionCorpora.set(caseId, pending);
 		}
 
-		try {
-			const record = parseConfirmationGroupRecord(text);
-			const corpus =
-				record.mode === "session"
-					? await sessionGroupChanges(
-							runsDirectory,
-							groupId,
-							record.caseId,
-							record.inputs.files,
-							source,
-						)
-					: await stageGroupChanges(
-							runsDirectory,
-							groupId,
-							record.inputs.files,
-							instructions,
-							source,
-						);
-			const knobCauses = namedKnobCauses(record.inputs, knobs);
-			const rubric = rubricCauses(corpus.readManifest);
-			const causes = [...knobCauses, ...corpus.causes, ...rubric];
-			records.push({
-				id,
-				stale: causes.length > 0,
-				causes,
-				changedFiles: corpus.changedFiles,
-				onlyCorpusFiles:
-					knobCauses.length === 0 &&
-					rubric.length === 0 &&
-					readChangedFilesOnly(corpus),
-				distance: underTest.distanceOf(record.inputs.corpusVersion),
-				readFiles: corpus.readFiles,
-				readManifest: corpus.readManifest,
-			});
-		} catch (error) {
-			unreadable.push({
-				id,
-				reason: error instanceof Error ? error.message : String(error),
-			});
-		}
-	}
+		return pending;
+	};
+	const readings = await concurrentMap(
+		await confirmationGroupIds(runsDirectory),
+		async (groupId): Promise<StalenessReport> => {
+			const id = `group:${groupId}`;
+			const paths = confirmationGroupPaths(runsDirectory, groupId);
+			const text = await textIfPresent(paths.groupFile);
+			if (text === undefined) {
+				return { records: [], unreadable: [] };
+			}
 
-	return { records, unreadable };
+			try {
+				const record = parseConfirmationGroupRecord(text);
+				const corpus =
+					record.mode === "session"
+						? await sessionGroupChanges(
+								runsDirectory,
+								groupId,
+								() => currentSessionCorpus(record.caseId),
+								record.inputs.files,
+								source,
+							)
+						: await stageGroupChanges(
+								runsDirectory,
+								groupId,
+								record.inputs.files,
+								instructions,
+								source,
+							);
+				const knobCauses = namedKnobCauses(record.inputs, knobs);
+				const rubric = rubricCauses(corpus.readManifest);
+				const causes = [...knobCauses, ...corpus.causes, ...rubric];
+
+				return {
+					records: [
+						{
+							id,
+							stale: causes.length > 0,
+							causes,
+							changedFiles: corpus.changedFiles,
+							onlyCorpusFiles:
+								knobCauses.length === 0 &&
+								rubric.length === 0 &&
+								readChangedFilesOnly(corpus),
+							distance: underTest.distanceOf(record.inputs.corpusVersion),
+							readFiles: corpus.readFiles,
+							readManifest: corpus.readManifest,
+						},
+					],
+					unreadable: [],
+				};
+			} catch (error) {
+				return {
+					records: [],
+					unreadable: [
+						{
+							id,
+							reason: error instanceof Error ? error.message : String(error),
+						},
+					],
+				};
+			}
+		},
+	);
+
+	return {
+		records: readings.flatMap(({ records }) => records),
+		unreadable: readings.flatMap(({ unreadable }) => unreadable),
+	};
 }
 
 /** Every record kind's staleness, judged with the knobs each was recorded with. */

@@ -1,0 +1,569 @@
+{
+	"version": 1,
+	"base": "http://localhost:4184",
+	"repetitions": 9,
+	"environment": {
+		"bun": "1.4.0",
+		"platform": "darwin",
+		"arch": "arm64",
+		"cpu": "Apple M5 Pro"
+	},
+	"endpoints": [
+		{
+			"path": "/",
+			"firstMs": 0.3,
+			"medianMs": 0.1,
+			"p95Ms": 1.1,
+			"bytes": 377,
+			"sha256": null,
+			"samplesMs": [0.3, 0.2, 0.1, 0.1, 0.1, 0.1, 1.1, 0.1, 0.1]
+		},
+		{
+			"path": "/api/run-listing",
+			"firstMs": 55.5,
+			"medianMs": 55,
+			"p95Ms": 60.3,
+			"bytes": 301985,
+			"sha256": "64e032e2293cf471b4753ddc8b4e093b6e3e072e02cbf1155e222b0a76b3ed7d",
+			"samplesMs": [55.5, 55, 56.5, 54.5, 55, 53.9, 53.1, 60.3, 51.1]
+		},
+		{
+			"path": "/api/run-staleness",
+			"firstMs": 118.4,
+			"medianMs": 118.2,
+			"p95Ms": 123.8,
+			"bytes": 215914,
+			"sha256": "098227df76918053fe67677b1ca2e24084f381587448336e5584916da850f6a9",
+			"samplesMs": [118.4, 112.6, 116.4, 123.8, 119, 112.9, 117.6, 119.8, 118.2]
+		},
+		{
+			"path": "/api/corpus-summary",
+			"firstMs": 24.5,
+			"medianMs": 26.2,
+			"p95Ms": 28.6,
+			"bytes": 23695,
+			"sha256": "f2bb39b5981cf59d13377c0a265d25484db2bef9f533558c9e78dac13d751547",
+			"samplesMs": [24.5, 26.2, 26.1, 28.6, 26.5, 27, 25.4, 26.2, 25.2]
+		},
+		{
+			"path": "/api/runs",
+			"firstMs": 167.1,
+			"medianMs": 172.6,
+			"p95Ms": 195.5,
+			"bytes": 481067,
+			"sha256": "d3cb2c2618d2f53452beb5e89e613db0269ec44341788051cef29485d82f8512",
+			"samplesMs": [
+				167.1, 194.5, 195.5, 166.6, 167.3, 175.7, 173.8, 167.6, 172.6
+			]
+		},
+		{
+			"path": "/api/corpus",
+			"firstMs": 303.8,
+			"medianMs": 261,
+			"p95Ms": 320.9,
+			"bytes": 29274,
+			"sha256": "367a0665c765347ea0793d62ac541d3f499a67fcc0a2f93af300f6dc59e57768",
+			"samplesMs": [303.8, 291.6, 261.5, 320.9, 261, 243, 241.4, 245, 249.4]
+		},
+		{
+			"path": "/api/cases",
+			"firstMs": 77.7,
+			"medianMs": 72,
+			"p95Ms": 81.9,
+			"bytes": 173545,
+			"sha256": "d270c399ce1e40b4768b8b1532960e7f62cff04ec798ce8499ea15469735c332",
+			"samplesMs": [77.7, 76.7, 72, 71.3, 71.6, 70.3, 72.7, 70.1, 81.9]
+		},
+		{
+			"path": "/api/comparisons",
+			"firstMs": 26.2,
+			"medianMs": 26.4,
+			"p95Ms": 31.3,
+			"bytes": 3117,
+			"sha256": "a483d5aba42ad0ec99b76825affaac6adc519d1548aebd6575e09d2ef007a2ab",
+			"samplesMs": [26.2, 26.4, 31.3, 28.5, 30.8, 26.7, 25.4, 24.7, 25.8]
+		},
+		{
+			"path": "/api/settings",
+			"firstMs": 0.3,
+			"medianMs": 0.2,
+			"p95Ms": 0.3,
+			"bytes": 480,
+			"sha256": "2c46c6099049b6738eb8e543d16ab02073443126bc12352be4de3201d503834d",
+			"samplesMs": [0.3, 0.2, 0.2, 0.2, 0.2, 0.1, 0.1, 0.1, 0.1]
+		},
+		{
+			"path": "/api/settings/records",
+			"firstMs": 162.2,
+			"medianMs": 105.5,
+			"p95Ms": 162.2,
+			"bytes": 19,
+			"sha256": "c4e4d64382720405d0fa015ccedd543f39a0013d6ec59e06e629b72c5c5ac9ac",
+			"samplesMs": [
+				162.2, 102.4, 103.7, 105.3, 106.2, 105.5, 105.1, 109.2, 106.8
+			]
+		},
+		{
+			"path": "/api/calibration",
+			"firstMs": 71.7,
+			"medianMs": 53.1,
+			"p95Ms": 71.7,
+			"bytes": 138,
+			"sha256": "beb5d9935dc78645ff4717a88f56b8f0ed74434037864a8ce860eab74052f6ef",
+			"samplesMs": [71.7, 53.4, 54, 52.3, 50.8, 50.8, 49.7, 53.1, 66.8]
+		}
+	],
+	"startup": [
+		{
+			"ms": 115.4,
+			"listReadyMs": 58,
+			"requests": [
+				{
+					"path": "/api/run-listing",
+					"ms": 58,
+					"bytes": 301985,
+					"sha256": "64e032e2293cf471b4753ddc8b4e093b6e3e072e02cbf1155e222b0a76b3ed7d"
+				},
+				{
+					"path": "/api/settings",
+					"ms": 1,
+					"bytes": 480,
+					"sha256": "2c46c6099049b6738eb8e543d16ab02073443126bc12352be4de3201d503834d"
+				},
+				{
+					"path": "/api/corpus-summary",
+					"ms": 57.1,
+					"bytes": 23695,
+					"sha256": "f2bb39b5981cf59d13377c0a265d25484db2bef9f533558c9e78dac13d751547"
+				},
+				{
+					"path": "/api/comparisons",
+					"ms": 33.6,
+					"bytes": 3117,
+					"sha256": "a483d5aba42ad0ec99b76825affaac6adc519d1548aebd6575e09d2ef007a2ab"
+				}
+			],
+			"freshness": {
+				"readyMs": 227.1,
+				"request": {
+					"path": "/api/run-staleness",
+					"ms": 168.7,
+					"bytes": 215914,
+					"sha256": "098227df76918053fe67677b1ca2e24084f381587448336e5584916da850f6a9"
+				}
+			}
+		},
+		{
+			"ms": 117.3,
+			"listReadyMs": 56.9,
+			"requests": [
+				{
+					"path": "/api/run-listing",
+					"ms": 56.9,
+					"bytes": 301985,
+					"sha256": "64e032e2293cf471b4753ddc8b4e093b6e3e072e02cbf1155e222b0a76b3ed7d"
+				},
+				{
+					"path": "/api/settings",
+					"ms": 1,
+					"bytes": 480,
+					"sha256": "2c46c6099049b6738eb8e543d16ab02073443126bc12352be4de3201d503834d"
+				},
+				{
+					"path": "/api/corpus-summary",
+					"ms": 60.2,
+					"bytes": 23695,
+					"sha256": "f2bb39b5981cf59d13377c0a265d25484db2bef9f533558c9e78dac13d751547"
+				},
+				{
+					"path": "/api/comparisons",
+					"ms": 34.9,
+					"bytes": 3117,
+					"sha256": "a483d5aba42ad0ec99b76825affaac6adc519d1548aebd6575e09d2ef007a2ab"
+				}
+			],
+			"freshness": {
+				"readyMs": 219.8,
+				"request": {
+					"path": "/api/run-staleness",
+					"ms": 162.6,
+					"bytes": 215914,
+					"sha256": "098227df76918053fe67677b1ca2e24084f381587448336e5584916da850f6a9"
+				}
+			}
+		},
+		{
+			"ms": 109.2,
+			"listReadyMs": 57.3,
+			"requests": [
+				{
+					"path": "/api/run-listing",
+					"ms": 57.3,
+					"bytes": 301985,
+					"sha256": "64e032e2293cf471b4753ddc8b4e093b6e3e072e02cbf1155e222b0a76b3ed7d"
+				},
+				{
+					"path": "/api/settings",
+					"ms": 1.1,
+					"bytes": 480,
+					"sha256": "2c46c6099049b6738eb8e543d16ab02073443126bc12352be4de3201d503834d"
+				},
+				{
+					"path": "/api/corpus-summary",
+					"ms": 51.7,
+					"bytes": 23695,
+					"sha256": "f2bb39b5981cf59d13377c0a265d25484db2bef9f533558c9e78dac13d751547"
+				},
+				{
+					"path": "/api/comparisons",
+					"ms": 29.6,
+					"bytes": 3117,
+					"sha256": "a483d5aba42ad0ec99b76825affaac6adc519d1548aebd6575e09d2ef007a2ab"
+				}
+			],
+			"freshness": {
+				"readyMs": 205.2,
+				"request": {
+					"path": "/api/run-staleness",
+					"ms": 147.6,
+					"bytes": 215914,
+					"sha256": "098227df76918053fe67677b1ca2e24084f381587448336e5584916da850f6a9"
+				}
+			}
+		},
+		{
+			"ms": 107.7,
+			"listReadyMs": 56.1,
+			"requests": [
+				{
+					"path": "/api/run-listing",
+					"ms": 56.1,
+					"bytes": 301985,
+					"sha256": "64e032e2293cf471b4753ddc8b4e093b6e3e072e02cbf1155e222b0a76b3ed7d"
+				},
+				{
+					"path": "/api/settings",
+					"ms": 0.8,
+					"bytes": 480,
+					"sha256": "2c46c6099049b6738eb8e543d16ab02073443126bc12352be4de3201d503834d"
+				},
+				{
+					"path": "/api/corpus-summary",
+					"ms": 51.4,
+					"bytes": 23695,
+					"sha256": "f2bb39b5981cf59d13377c0a265d25484db2bef9f533558c9e78dac13d751547"
+				},
+				{
+					"path": "/api/comparisons",
+					"ms": 29.1,
+					"bytes": 3117,
+					"sha256": "a483d5aba42ad0ec99b76825affaac6adc519d1548aebd6575e09d2ef007a2ab"
+				}
+			],
+			"freshness": {
+				"readyMs": 204.6,
+				"request": {
+					"path": "/api/run-staleness",
+					"ms": 148.2,
+					"bytes": 215914,
+					"sha256": "098227df76918053fe67677b1ca2e24084f381587448336e5584916da850f6a9"
+				}
+			}
+		},
+		{
+			"ms": 107.7,
+			"listReadyMs": 56.2,
+			"requests": [
+				{
+					"path": "/api/run-listing",
+					"ms": 56.2,
+					"bytes": 301985,
+					"sha256": "64e032e2293cf471b4753ddc8b4e093b6e3e072e02cbf1155e222b0a76b3ed7d"
+				},
+				{
+					"path": "/api/settings",
+					"ms": 1,
+					"bytes": 480,
+					"sha256": "2c46c6099049b6738eb8e543d16ab02073443126bc12352be4de3201d503834d"
+				},
+				{
+					"path": "/api/corpus-summary",
+					"ms": 51.3,
+					"bytes": 23695,
+					"sha256": "f2bb39b5981cf59d13377c0a265d25484db2bef9f533558c9e78dac13d751547"
+				},
+				{
+					"path": "/api/comparisons",
+					"ms": 29.4,
+					"bytes": 3117,
+					"sha256": "a483d5aba42ad0ec99b76825affaac6adc519d1548aebd6575e09d2ef007a2ab"
+				}
+			],
+			"freshness": {
+				"readyMs": 200.4,
+				"request": {
+					"path": "/api/run-staleness",
+					"ms": 143.9,
+					"bytes": 215914,
+					"sha256": "098227df76918053fe67677b1ca2e24084f381587448336e5584916da850f6a9"
+				}
+			}
+		},
+		{
+			"ms": 108.9,
+			"listReadyMs": 54.2,
+			"requests": [
+				{
+					"path": "/api/run-listing",
+					"ms": 54.2,
+					"bytes": 301985,
+					"sha256": "64e032e2293cf471b4753ddc8b4e093b6e3e072e02cbf1155e222b0a76b3ed7d"
+				},
+				{
+					"path": "/api/settings",
+					"ms": 0.8,
+					"bytes": 480,
+					"sha256": "2c46c6099049b6738eb8e543d16ab02073443126bc12352be4de3201d503834d"
+				},
+				{
+					"path": "/api/corpus-summary",
+					"ms": 54.5,
+					"bytes": 23695,
+					"sha256": "f2bb39b5981cf59d13377c0a265d25484db2bef9f533558c9e78dac13d751547"
+				},
+				{
+					"path": "/api/comparisons",
+					"ms": 31.5,
+					"bytes": 3117,
+					"sha256": "a483d5aba42ad0ec99b76825affaac6adc519d1548aebd6575e09d2ef007a2ab"
+				}
+			],
+			"freshness": {
+				"readyMs": 201.1,
+				"request": {
+					"path": "/api/run-staleness",
+					"ms": 146.6,
+					"bytes": 215914,
+					"sha256": "098227df76918053fe67677b1ca2e24084f381587448336e5584916da850f6a9"
+				}
+			}
+		},
+		{
+			"ms": 107.3,
+			"listReadyMs": 59.3,
+			"requests": [
+				{
+					"path": "/api/run-listing",
+					"ms": 59.3,
+					"bytes": 301985,
+					"sha256": "64e032e2293cf471b4753ddc8b4e093b6e3e072e02cbf1155e222b0a76b3ed7d"
+				},
+				{
+					"path": "/api/settings",
+					"ms": 2.9,
+					"bytes": 480,
+					"sha256": "2c46c6099049b6738eb8e543d16ab02073443126bc12352be4de3201d503834d"
+				},
+				{
+					"path": "/api/corpus-summary",
+					"ms": 47.8,
+					"bytes": 23695,
+					"sha256": "f2bb39b5981cf59d13377c0a265d25484db2bef9f533558c9e78dac13d751547"
+				},
+				{
+					"path": "/api/comparisons",
+					"ms": 27.5,
+					"bytes": 3117,
+					"sha256": "a483d5aba42ad0ec99b76825affaac6adc519d1548aebd6575e09d2ef007a2ab"
+				}
+			],
+			"freshness": {
+				"readyMs": 200.1,
+				"request": {
+					"path": "/api/run-staleness",
+					"ms": 140.6,
+					"bytes": 215914,
+					"sha256": "098227df76918053fe67677b1ca2e24084f381587448336e5584916da850f6a9"
+				}
+			}
+		},
+		{
+			"ms": 102.1,
+			"listReadyMs": 53.4,
+			"requests": [
+				{
+					"path": "/api/run-listing",
+					"ms": 53.4,
+					"bytes": 301985,
+					"sha256": "64e032e2293cf471b4753ddc8b4e093b6e3e072e02cbf1155e222b0a76b3ed7d"
+				},
+				{
+					"path": "/api/settings",
+					"ms": 1.1,
+					"bytes": 480,
+					"sha256": "2c46c6099049b6738eb8e543d16ab02073443126bc12352be4de3201d503834d"
+				},
+				{
+					"path": "/api/corpus-summary",
+					"ms": 48.6,
+					"bytes": 23695,
+					"sha256": "f2bb39b5981cf59d13377c0a265d25484db2bef9f533558c9e78dac13d751547"
+				},
+				{
+					"path": "/api/comparisons",
+					"ms": 26.2,
+					"bytes": 3117,
+					"sha256": "a483d5aba42ad0ec99b76825affaac6adc519d1548aebd6575e09d2ef007a2ab"
+				}
+			],
+			"freshness": {
+				"readyMs": 194.1,
+				"request": {
+					"path": "/api/run-staleness",
+					"ms": 140.5,
+					"bytes": 215914,
+					"sha256": "098227df76918053fe67677b1ca2e24084f381587448336e5584916da850f6a9"
+				}
+			}
+		},
+		{
+			"ms": 105.5,
+			"listReadyMs": 53.7,
+			"requests": [
+				{
+					"path": "/api/run-listing",
+					"ms": 53.7,
+					"bytes": 301985,
+					"sha256": "64e032e2293cf471b4753ddc8b4e093b6e3e072e02cbf1155e222b0a76b3ed7d"
+				},
+				{
+					"path": "/api/settings",
+					"ms": 1.1,
+					"bytes": 480,
+					"sha256": "2c46c6099049b6738eb8e543d16ab02073443126bc12352be4de3201d503834d"
+				},
+				{
+					"path": "/api/corpus-summary",
+					"ms": 51.6,
+					"bytes": 23695,
+					"sha256": "f2bb39b5981cf59d13377c0a265d25484db2bef9f533558c9e78dac13d751547"
+				},
+				{
+					"path": "/api/comparisons",
+					"ms": 28.5,
+					"bytes": 3117,
+					"sha256": "a483d5aba42ad0ec99b76825affaac6adc519d1548aebd6575e09d2ef007a2ab"
+				}
+			],
+			"freshness": {
+				"readyMs": 203.2,
+				"request": {
+					"path": "/api/run-staleness",
+					"ms": 149.3,
+					"bytes": 215914,
+					"sha256": "098227df76918053fe67677b1ca2e24084f381587448336e5584916da850f6a9"
+				}
+			}
+		}
+	],
+	"limits": {
+		"maximumListMs": 100,
+		"maximumRegressionPercent": 20,
+		"allowanceMs": 5
+	},
+	"gate": {
+		"checks": [
+			{
+				"metric": "startup.listReadyMs budget",
+				"actualMs": 56.2,
+				"limitMs": 100,
+				"passed": true
+			},
+			{
+				"metric": "/",
+				"actualMs": 0.1,
+				"limitMs": 5.24,
+				"passed": true
+			},
+			{
+				"metric": "/api/run-listing",
+				"actualMs": 55,
+				"limitMs": 83.24,
+				"passed": true
+			},
+			{
+				"metric": "/api/run-staleness",
+				"actualMs": 118.2,
+				"limitMs": 329.96,
+				"passed": true
+			},
+			{
+				"metric": "/api/corpus-summary",
+				"actualMs": 26.2,
+				"limitMs": 65.72,
+				"passed": true
+			},
+			{
+				"metric": "/api/runs",
+				"actualMs": 172.6,
+				"limitMs": 276.91999999999996,
+				"passed": true
+			},
+			{
+				"metric": "/api/corpus",
+				"actualMs": 261,
+				"limitMs": 451.76,
+				"passed": true
+			},
+			{
+				"metric": "/api/cases",
+				"actualMs": 72,
+				"limitMs": 92.24,
+				"passed": true
+			},
+			{
+				"metric": "/api/comparisons",
+				"actualMs": 26.4,
+				"limitMs": 38.6,
+				"passed": true
+			},
+			{
+				"metric": "/api/settings",
+				"actualMs": 0.2,
+				"limitMs": 5.12,
+				"passed": true
+			},
+			{
+				"metric": "/api/settings/records",
+				"actualMs": 105.5,
+				"limitMs": 171.92,
+				"passed": true
+			},
+			{
+				"metric": "/api/calibration",
+				"actualMs": 53.1,
+				"limitMs": 64.88,
+				"passed": true
+			},
+			{
+				"metric": "startup.listReadyMs",
+				"actualMs": 56.2,
+				"limitMs": 71.72,
+				"passed": true
+			},
+			{
+				"metric": "startup.ms",
+				"actualMs": 107.7,
+				"limitMs": 139.76,
+				"passed": true
+			},
+			{
+				"metric": "startup.freshness.readyMs",
+				"actualMs": 203.2,
+				"limitMs": 316.16,
+				"passed": true
+			}
+		],
+		"failures": []
+	}
+}

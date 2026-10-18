@@ -1601,6 +1601,154 @@ describe(groupStaleness.name, () => {
 		]);
 	});
 
+	async function fixtureForSessionCorpus(
+		corpusFiles: readonly string[],
+	): Promise<RecordedRunsFixture> {
+		const caseId = `group-staleness-${crypto.randomUUID()}`;
+		const directory = join(CONTROL_DIR, CASES_DIRECTORY, caseId);
+
+		roots.push(directory);
+		await Bun.write(
+			join(directory, "case.json"),
+			JSON.stringify({
+				id: caseId,
+				kind: "session",
+				title: "Session group staleness",
+				prompt: "Reply OK",
+				tools: [],
+				corpusFiles,
+				checks: [{ kind: "word-band", max: 1 }],
+				model: "sonnet",
+				sessionBudgetUsd: 0.2,
+			}),
+		);
+
+		return new RecordedRunsFixture(
+			await temporaryDirectory("rehearse-group-session-records-"),
+			{ sessionCaseId: caseId },
+		);
+	}
+
+	it("keeps additional session reads separate between groups of the same case", async () => {
+		const corpus = await temporaryDirectory("rehearse-group-shared-case-");
+		await Bun.write(join(corpus, "output-styles/brief.md"), "brief\n");
+		await Bun.write(join(corpus, "skills/delivery/SKILL.md"), "delivery\n");
+		const fixture = await fixtureForSessionCorpus(["output-styles/brief.md"]);
+		await fixture.recordSessionGroupFrom("a-group", corpus, [
+			"output-styles/brief.md",
+		]);
+		await fixture.recordSessionGroupFrom("z-group", corpus, [
+			"output-styles/brief.md",
+		]);
+		await fixture.recordSessionGroupRepAttempt(
+			"a-group",
+			"a-group-rep-1",
+			corpus,
+			["output-styles/brief.md"],
+			[
+				{
+					path: "skills/delivery/SKILL.md",
+					half: "corpus",
+					role: "read for context",
+					evidence: "observed",
+					sha256: sha256Of("delivery\n"),
+				},
+			],
+		);
+		await Bun.write(join(corpus, "skills/delivery/SKILL.md"), "edited\n");
+
+		const report = await groupStaleness(
+			fixture.runsDirectory,
+			directorySource(corpus),
+		);
+
+		expect(report.records).toEqual([
+			expect.objectContaining({
+				id: "group:a-group",
+				stale: true,
+				changedFiles: [{ path: "skills/delivery/SKILL.md", change: "changed" }],
+				readFiles: [
+					{ path: "output-styles/brief.md", sha256: sha256Of("brief\n") },
+					{ path: "skills/delivery/SKILL.md", sha256: sha256Of("delivery\n") },
+				],
+			}),
+			expect.objectContaining({
+				id: "group:z-group",
+				stale: false,
+				changedFiles: [],
+				readFiles: [
+					{ path: "output-styles/brief.md", sha256: sha256Of("brief\n") },
+				],
+			}),
+		]);
+		expect(report.unreadable).toEqual([]);
+	});
+
+	it("rereads the shared session corpus in a later report", async () => {
+		const corpus = await temporaryDirectory("rehearse-group-current-case-");
+		await Bun.write(join(corpus, "output-styles/brief.md"), "brief\n");
+		const fixture = await fixtureForSessionCorpus(["output-styles/brief.md"]);
+		await fixture.recordSessionGroupFrom("a-group", corpus, [
+			"output-styles/brief.md",
+		]);
+		await fixture.recordSessionGroupFrom("z-group", corpus, [
+			"output-styles/brief.md",
+		]);
+		await groupStaleness(fixture.runsDirectory, directorySource(corpus));
+		await Bun.write(join(corpus, "output-styles/brief.md"), "edited\n");
+
+		const report = await groupStaleness(
+			fixture.runsDirectory,
+			directorySource(corpus),
+		);
+
+		expect(report.records).toEqual([
+			expect.objectContaining({
+				id: "group:a-group",
+				stale: true,
+				changedFiles: [{ path: "output-styles/brief.md", change: "changed" }],
+			}),
+			expect.objectContaining({
+				id: "group:z-group",
+				stale: true,
+				changedFiles: [{ path: "output-styles/brief.md", change: "changed" }],
+			}),
+		]);
+		expect(report.unreadable).toEqual([]);
+	});
+
+	it("preserves group order around unreadable and missing records", async () => {
+		const corpus = await temporaryDirectory("rehearse-group-ordered-corpus-");
+		await Bun.write(join(corpus, "output-styles/brief.md"), "brief\n");
+		const fixture = await fixtureForSessionCorpus(["output-styles/brief.md"]);
+		await fixture.recordSessionGroupFrom("z-group", corpus, [
+			"output-styles/brief.md",
+		]);
+		await fixture.writeUnreadableGroup("y-broken");
+		await mkdir(
+			confirmationGroupPaths(fixture.runsDirectory, "c-missing").directory,
+			{ recursive: true },
+		);
+		await fixture.writeUnreadableGroup("b-broken");
+		await fixture.recordSessionGroupFrom("a-group", corpus, [
+			"output-styles/brief.md",
+		]);
+
+		const report = await groupStaleness(
+			fixture.runsDirectory,
+			directorySource(corpus),
+		);
+
+		expect(report.records.map(({ id }) => id)).toEqual([
+			"group:a-group",
+			"group:z-group",
+		]);
+		expect(report.unreadable.map(({ id }) => id)).toEqual([
+			"group:b-broken",
+			"group:y-broken",
+		]);
+	});
+
 	describe(groupRepReads.name, () => {
 		function deliveryRead(content: string): ReadManifestEntry {
 			return {

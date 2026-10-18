@@ -591,6 +591,7 @@ export async function liveStageSettings(): Promise<HashedFile> {
 export interface RecordedRunsOptions {
 	readonly settingsFile?: HashedFile;
 	readonly sourceRoot?: string;
+	readonly sessionCaseId?: string;
 }
 
 /**
@@ -606,10 +607,7 @@ export class RecordedRunsFixture {
 	public readonly groupId = "group-1";
 	public readonly comparisonDigest = COMPARISON_DIGEST;
 	public readonly stages: readonly string[] = ["discuss", "build"];
-	public readonly sessionAttempt: SessionAttemptId = {
-		caseId: "smoke",
-		uuid: "0f6b6f2a-0000-4000-8000-000000000001",
-	};
+	public readonly sessionAttempt: SessionAttemptId;
 	public readonly stageAttempt: StageAttemptId = {
 		lineage: "lineage-discuss",
 		timestamp: "2026-09-03T01-00-00.000Z",
@@ -633,6 +631,10 @@ export class RecordedRunsFixture {
 	) {
 		this.settingsFile = options.settingsFile ?? SETTINGS_DIGEST;
 		this.sourceRoot = options.sourceRoot ?? SOURCE_ROOT;
+		this.sessionAttempt = {
+			caseId: options.sessionCaseId ?? "smoke",
+			uuid: "0f6b6f2a-0000-4000-8000-000000000001",
+		};
 	}
 
 	public get stageAttemptFile(): string {
